@@ -66,10 +66,9 @@ type Provides struct {
 
 // observation is a message sent from handles to the observer.
 type observation struct {
-	source  string
-	metric  *metricObs
-	log     *logObs
-	profile *profileObs
+	source string
+	metric *metricObs
+	log    *logObs
 }
 
 // metricObs contains copied metric data and implements observerdef.MetricView.
@@ -479,9 +478,6 @@ func (o *observerImpl) run() {
 				o.telemetryHandler.handleTelemetry(logTelemetry)
 			}
 		}
-		if obs.profile != nil {
-			o.processProfile(obs.source, obs.profile)
-		}
 		for _, req := range requests {
 			result := o.engine.advanceWithReason(req.upToSec, req.reason)
 			o.telemetryHandler.handleTelemetry(result.telemetry)
@@ -648,16 +644,6 @@ func (o *observerImpl) TotalAnomalyCount() int {
 // UniqueAnomalySourceCount returns the number of unique sources that had anomalies.
 func (o *observerImpl) UniqueAnomalySourceCount() int {
 	return o.engine.UniqueAnomalySourceCount()
-}
-
-// processProfile handles a profile observation.
-// Currently this is a placeholder that logs the profile; full implementation
-// will include parquet metadata storage and binary file storage for large profiles.
-func (o *observerImpl) processProfile(source string, p *profileObs) {
-	// TODO: Implement profile metadata storage to parquet
-	// TODO: Implement binary file storage for large profiles
-	pkglog.Debugf("[observer] profile observed from %s: profileID=%s type=%s service=%s size=%d",
-		source, p.profileID, p.profileType, p.service, len(p.rawData))
 }
 
 // GetHandle returns a lightweight handle for a named source.
@@ -904,4 +890,3 @@ func copyBytes(b []byte) []byte {
 	copy(result, b)
 	return result
 }
-
