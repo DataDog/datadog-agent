@@ -91,18 +91,16 @@ message ConfigSetting {
 
 ## Configuration
 
-The config stream is **only available** when both of the following are true on the core agent:
-- `remote_agent.registry.enabled: true`
-- `remote_agent.configstream.enabled: true`
+The config stream is automatically enabled when the component is loaded. No explicit configuration required.
 
 **Optional settings:**
 ```yaml
 # datadog.yaml
 remote_agent:
   registry:
-    enabled: true          # Required for RAR-gated authorization and for use_configstream
+    enabled: true  # Required for RAR-gated authorization
   configstream:
-    enabled: true # Enables config stream for remote agents (requires remote_agent.registry.enabled)
+    enabled: true # Required to use the configstreamconsumer
     sleep_interval: 10s  # Backoff on non-terminal errors (default: 10s)
 agent_ipc:
   # Maximum size of a single gRPC message accepted/sent by the agent's gRPC
@@ -290,6 +288,6 @@ log_level: debug
 
 ## Contact
 
-- **Team:** agent-configuration
+- **Teams:** agent-metric-pipelines, agent-configuration
 - **Component:** `comp/core/configstream`
 - **Test Client:** `cmd/config-stream-client`

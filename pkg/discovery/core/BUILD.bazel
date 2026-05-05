@@ -12,9 +12,11 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "//pkg/config/setup",
             "@com_github_golang_mock//gomock",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/config/setup",
             "@com_github_golang_mock//gomock",
         ],
         "//conditions:default": [],
