@@ -941,4 +941,5 @@
 /q_branch/                               @DataDog/q-branch
 
 # AI-related files
-/.claude/skills/explain-lading-config @DataDog/single-machine-performance
+/.claude/skills/explain-lading-config   @DataDog/single-machine-performance
+/.claude/skills/analyze-quality-gate-security-mean-fs-load @DataDog/single-machine-performance @DataDog/agent-security
