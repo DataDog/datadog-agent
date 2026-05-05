@@ -203,6 +203,21 @@ func defaultCatalog() *componentCatalog {
 			},
 			// ---- Correlators ----
 			{
+				name:           "anomaly_rank",
+				displayName:    "AnomalyRank",
+				kind:           componentCorrelator,
+				defaultConfig:  DefaultAnomalyRankConfig(),
+				factory:        func(cfg any) any { return NewAnomalyRankCorrelator(cfg.(AnomalyRankConfig)) },
+				defaultEnabled: true,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(AnomalyRankConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, err
+					}
+					return cfg, nil
+				},
+			},
+			{
 				name:           "cross_signal",
 				displayName:    "CrossSignal",
 				kind:           componentCorrelator,
