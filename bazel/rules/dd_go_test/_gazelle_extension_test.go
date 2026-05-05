@@ -57,9 +57,6 @@ func TestReplaceGoTests_SingleGoTest(t *testing.T) {
 	if r.Name() != "pkg_test" {
 		t.Errorf("expected name pkg_test, got %s", r.Name())
 	}
-	if got := r.AttrStrings("flavors"); !stringSlicesEqual(got, flavorNames) {
-		t.Errorf("flavors: got %v, want %v", got, flavorNames)
-	}
 	if result.Empty[0].Kind() != "go_test" || result.Empty[0].Name() != "pkg_test" {
 		t.Errorf("empty rule: expected go_test pkg_test, got %s %s", result.Empty[0].Kind(), result.Empty[0].Name())
 	}
@@ -156,8 +153,8 @@ func TestKinds(t *testing.T) {
 	if !ok {
 		t.Fatal("dd_go_test not in Kinds()")
 	}
-	if !info.NonEmptyAttrs["flavors"] {
-		t.Error("expected flavors in NonEmptyAttrs")
+	if !info.NonEmptyAttrs["embed"] {
+		t.Error("expected embed in NonEmptyAttrs")
 	}
 	if !info.MergeableAttrs["srcs"] {
 		t.Error("expected srcs in MergeableAttrs")

@@ -23,9 +23,6 @@ import (
 
 const extName = "dd_go_test"
 
-// flavorNames mirrors the keys of FLAVOR_UNIT_TEST_TAGS in bazel/flavors/defs.bzl.
-var flavorNames = []string{"base", "dogstatsd", "fips", "heroku", "iot"}
-
 type ddGoTestConfig struct {
 	enabled bool
 }
@@ -50,8 +47,8 @@ func (l *lang) Kinds() map[string]rule.KindInfo {
 		kinds[k] = v
 	}
 	kinds["dd_go_test"] = rule.KindInfo{
-		NonEmptyAttrs:  map[string]bool{"flavors": true},
-		MergeableAttrs: map[string]bool{"srcs": true, "gotags": true},
+		NonEmptyAttrs:  map[string]bool{"embed": true},
+		MergeableAttrs: map[string]bool{"srcs": true, "gotags": true, "flavors": true},
 	}
 	return kinds
 }
@@ -116,7 +113,6 @@ func replaceGoTests(result language.GenerateResult) language.GenerateResult {
 		nr := rule.NewRule("dd_go_test", r.Name())
 		copyAttr(r, nr, "srcs")
 		copyAttr(r, nr, "embed")
-		nr.SetAttr("flavors", flavorNames)
 		gen = append(gen, nr)
 		imports = append(imports, imp)
 		empty = append(empty, rule.NewRule("go_test", r.Name()))
