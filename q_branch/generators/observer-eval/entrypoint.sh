@@ -223,162 +223,18 @@ for EP_SPEC in "${EP_LIST[@]}"; do
     kubectl get pods -n "$KUBE_NAMESPACE" -o wide || true
   fi
 
-  # 3. Deploy agent as a Deployment (vclusters don't sync DaemonSets)
-  echo "Deploying agent as Deployment (vcluster mode)..."
+  # 3. Install agent via Datadog helm chart (DaemonSet)
+  echo "Installing agent via helm chart (DaemonSet)..."
   echo "  Image: $AGENT_IMAGE"
   echo "  Scrappy: $SCRAPPY_ENABLED, Detectors: $DETECTORS_ENABLED"
 
-  cat > "$OUTPUT_DIR/agent-deployment.yaml" <<AGENTEOF
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: datadog-agent-config
-  namespace: $KUBE_NAMESPACE
-data:
-  datadog.yaml: |
-    api_key: $DD_API_KEY
-    app_key: $DD_APP_KEY
-    site: $DD_SITE
-    hostname: gensim-observer
-    apm_config:
-      enabled: true
-      apm_non_local_traffic: true
-    process_config:
-      enabled: "true"
-    dogstatsd_non_local_traffic: true
-    log_level: info
-    observer:
-      analysis:
-        enabled: true
-      recording:
-        enabled: true
-        parquet_output_dir: /tmp/observer-parquet
-        parquet_flush_interval: 30s
-      components:
-        scrappy_collector:
-          enabled: $SCRAPPY_ENABLED
-          output_path: /tmp/scrappy-collect.jsonl
-        bocpd:
-          enabled: $DETECTORS_ENABLED
-        rrcf:
-          enabled: $DETECTORS_ENABLED
-        cusum:
-          enabled: false
-        scanmw:
-          enabled: false
-        scanwelch:
-          enabled: false
-        cross_signal:
-          enabled: false
-        time_cluster:
-          enabled: $DETECTORS_ENABLED
-        passthrough:
-          enabled: false
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: datadog-agent
-  namespace: $KUBE_NAMESPACE
-  labels:
-    app: datadog-agent
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: datadog-agent
-  template:
-    metadata:
-      labels:
-        app: datadog-agent
-    spec:
-      imagePullSecrets:
-      - name: gar-pull-secret
-      serviceAccountName: default
-      containers:
-      - name: agent
-        image: $AGENT_IMAGE
-        imagePullPolicy: Always
-        env:
-        - name: DD_API_KEY
-          value: "$DD_API_KEY"
-        - name: DD_APP_KEY
-          value: "$DD_APP_KEY"
-        - name: DD_SITE
-          value: "$DD_SITE"
-        - name: DD_DOGSTATSD_NON_LOCAL_TRAFFIC
-          value: "true"
-        - name: DD_APM_NON_LOCAL_TRAFFIC
-          value: "true"
-        - name: DD_OBSERVER_RECORDING_ENABLED
-          value: "true"
-        - name: DD_OBSERVER_ANALYSIS_ENABLED
-          value: "true"
-        - name: DD_OBSERVER_HIGH_FREQUENCY_SYSTEM_CHECKS_ENABLED
-          value: "true"
-        - name: DD_OBSERVER_HIGH_FREQUENCY_CONTAINER_CHECKS_ENABLED
-          value: "true"
-        - name: DD_HOSTNAME
-          value: "gensim-observer"
-        - name: DD_KUBELET_TLS_VERIFY
-          value: "false"
-        - name: DD_KUBERNETES_KUBELET_NODENAME
-          valueFrom:
-            fieldRef:
-              fieldPath: spec.nodeName
-        ports:
-        - containerPort: 8125
-          name: dogstatsd
-          protocol: UDP
-        - containerPort: 8126
-          name: apm
-          protocol: TCP
-        resources:
-          requests:
-            memory: 512Mi
-            cpu: 250m
-          limits:
-            memory: 1024Mi
-        volumeMounts:
-        - name: config
-          mountPath: /etc/datadog-agent/datadog.yaml
-          subPath: datadog.yaml
-        - name: tmp
-          mountPath: /tmp
-      volumes:
-      - name: config
-        configMap:
-          name: datadog-agent-config
-      - name: tmp
-        emptyDir:
-          sizeLimit: 2Gi
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: datadog-agent
-  namespace: $KUBE_NAMESPACE
-spec:
-  selector:
-    app: datadog-agent
-  ports:
-  - port: 8125
-    targetPort: 8125
-    protocol: UDP
-    name: dogstatsd
-  - port: 8126
-    targetPort: 8126
-    protocol: TCP
-    name: apm
-AGENTEOF
-
-  kubectl apply -f "$OUTPUT_DIR/agent-deployment.yaml"
-  echo "Waiting for agent pod to be ready..."
-  kubectl rollout status deployment/datadog-agent -n "$KUBE_NAMESPACE" --timeout=5m || {
-    echo "--- Agent deploy FAILED. Diagnosing... ---"
-    kubectl get pods -n "$KUBE_NAMESPACE" -l app=datadog-agent -o wide || true
-    kubectl describe deployment datadog-agent -n "$KUBE_NAMESPACE" || true
-    kubectl get events -n "$KUBE_NAMESPACE" --sort-by='.lastTimestamp' | tail -20 || true
+  helm upgrade --install datadog-agent datadog/datadog \
+    -f "$OUTPUT_DIR/agent-values.yaml" \
+    -n "$KUBE_NAMESPACE" \
+    --wait --timeout 5m || {
+    echo "--- Agent install FAILED. Diagnosing... ---"
+    kubectl get pods -n "$KUBE_NAMESPACE" -o wide 2>/dev/null || true
+    kubectl get events -n "$KUBE_NAMESPACE" --sort-by='.lastTimestamp' 2>/dev/null | tail -20 || true
   }
 
   # 4. Run play-episode.sh
@@ -414,7 +270,12 @@ AGENTEOF
 
     # Start background artifact collector — copies scrappy/parquet from agent pod
     # every 60s while the episode runs. Protects against vcluster teardown race.
-    AGENT_POD_FOR_BG=$(kubectl get pod -n "$KUBE_NAMESPACE" -l app=datadog-agent -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+    # Find the DaemonSet agent pod (not cluster-agent, not operator)
+    AGENT_POD_FOR_BG=""
+    for sel in "app.kubernetes.io/name=datadog-agent-agent" "app=datadog-agent"; do
+      AGENT_POD_FOR_BG=$(kubectl get pod -n "$KUBE_NAMESPACE" -l "$sel" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+      [ -n "$AGENT_POD_FOR_BG" ] && break
+    done
     if [ -n "$AGENT_POD_FOR_BG" ]; then
       (
         while true; do
@@ -528,7 +389,7 @@ EOF
   # 6. Teardown episode + agent for next iteration
   echo "Tearing down..."
   [ -n "$EP_RELEASE" ] && helm uninstall "$EP_RELEASE" -n "$KUBE_NAMESPACE" --wait 2>/dev/null || true
-  kubectl delete -f "$OUTPUT_DIR/agent-deployment.yaml" --wait 2>/dev/null || true
+  helm uninstall datadog-agent -n "$KUBE_NAMESPACE" --wait 2>/dev/null || true
   kubectl wait --for=delete pod -l app=datadog-agent -n "$KUBE_NAMESPACE" --timeout=120s 2>/dev/null || true
 
   echo "=== Episode $EPISODE / $SCENARIO complete (${EP_DURATION}s, $EP_OUTCOME) ==="
