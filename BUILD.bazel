@@ -534,7 +534,6 @@ exports_files(glob(
 # gazelle:exclude pkg/procmgr
 # gazelle:exclude pkg/proto/datadog/api
 # gazelle:exclude pkg/proto/datadog/autodiscovery
-# gazelle:exclude pkg/proto/datadog/dogstatsdhttp
 # gazelle:exclude pkg/proto/datadog/kubemetadata
 # gazelle:exclude pkg/proto/datadog/model
 # gazelle:exclude pkg/proto/datadog/privateactionrunner
