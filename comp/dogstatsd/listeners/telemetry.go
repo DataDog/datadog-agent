@@ -11,22 +11,7 @@ import (
 
 var (
 	defaultListenerBuckets = []float64{300, 500, 1000, 1500, 2000, 2500, 3000, 10000, 20000, 50000}
-
-	// agentIdentityTag holds the remote_agent tag value for this process.
-	// Defaults to "agent"; override via setAgentIdentity at startup.
-	// Mirrors the pattern in pkg/logs/metrics to avoid cross-package coupling.
-	agentIdentityTag = "agent"
 )
-
-// setAgentIdentity sets the remote_agent tag value for this agent process.
-func setAgentIdentity(tag string) {
-	agentIdentityTag = tag
-}
-
-// getAgentIdentityTag returns the remote_agent tag value for this agent process.
-func getAgentIdentityTag() string {
-	return agentIdentityTag
-}
 
 // TelemetryStore holds all the telemetry counters and gauges for the dogstatsd listeners
 type TelemetryStore struct {
