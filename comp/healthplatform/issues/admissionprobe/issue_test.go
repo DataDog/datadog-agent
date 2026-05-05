@@ -69,9 +69,9 @@ func TestBuildIssue_Extra(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, issue.Extra)
-	assert.Equal(t, "connection refused", issue.Extra.Fields["issue"].GetStringValue())
-	assert.Equal(t, "allow port 8000", issue.Extra.Fields["remediation"].GetStringValue())
 	assert.NotEmpty(t, issue.Extra.Fields["impact"].GetStringValue())
+	assert.Nil(t, issue.Extra.Fields["issue"])
+	assert.Nil(t, issue.Extra.Fields["remediation"])
 }
 
 func TestNewModule(t *testing.T) {

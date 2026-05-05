@@ -47,9 +47,7 @@ func (t *AdmissionProbeIssue) BuildIssue(context map[string]string) (*healthplat
 	}
 
 	extra, err := structpb.NewStruct(map[string]any{
-		"issue":       issue,
-		"remediation": remediation,
-		"impact":      "Pod mutations (config injection, library injection, standard tags) may not be applied to new pods",
+		"impact": "Pod mutations (config injection, library injection, standard tags) may not be applied to new pods",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create extra: %v", err)

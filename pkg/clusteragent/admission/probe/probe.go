@@ -227,6 +227,7 @@ func (p *Probe) handleError(err error) {
 		if p.logLimiter.ShouldLog() {
 			log.Errorf("Admission controller probe misconfigured: %s", msg)
 		}
+		p.clearHealthIssue()
 		return
 	}
 
@@ -255,12 +256,9 @@ func (p *Probe) reportHealthIssue() {
 		return
 	}
 
-	issue := "Datadog admission controller is unreachable from the Kubernetes API server."
-
 	report := &healthplatformpayload.IssueReport{
 		IssueId: healthIssueID,
 		Context: map[string]string{
-			"issue":       issue,
 			"remediation": p.diagnosticHint,
 		},
 	}
