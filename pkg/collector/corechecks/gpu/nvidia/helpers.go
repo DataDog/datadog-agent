@@ -138,6 +138,16 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 	return tagsMapping
 }
 
+func metricValuesToPointers(metrics []Metric) []*Metric {
+	pointers := make([]*Metric, 0, len(metrics))
+	for _, metric := range metrics {
+		metricCopy := metric
+		pointers = append(pointers, &metricCopy)
+	}
+
+	return pointers
+}
+
 // RemoveDuplicateMetrics filters metrics by priority across collectors while preserving all metrics within each collector.
 // For each metric name, it finds the collector with the highest priority metric of that name, then includes
 // ALL metrics with that name from the winning collector. This preserves multiple metrics with the same name
@@ -167,28 +177,28 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 //	{Name: "fan.speed", Priority: 0}                           // From CollectorB (unique)
 //
 // ]
-func RemoveDuplicateMetrics(allMetrics map[CollectorName][]Metric) []Metric {
+func RemoveDuplicateMetrics(allMetrics map[CollectorName][]*Metric) []*Metric {
 	// Map metric name -> collector ID -> []Metric (with that name)
-	nameToCollectorMetrics := make(map[string]map[CollectorName]map[MetricPriority][]Metric)
+	nameToCollectorMetrics := make(map[string]map[CollectorName]map[MetricPriority][]*Metric)
 
 	for collectorID, metrics := range allMetrics {
 		for _, m := range metrics {
 			if _, ok := nameToCollectorMetrics[m.Name]; !ok {
-				nameToCollectorMetrics[m.Name] = make(map[CollectorName]map[MetricPriority][]Metric)
+				nameToCollectorMetrics[m.Name] = make(map[CollectorName]map[MetricPriority][]*Metric)
 			}
 			if _, ok := nameToCollectorMetrics[m.Name][collectorID]; !ok {
-				nameToCollectorMetrics[m.Name][collectorID] = make(map[MetricPriority][]Metric)
+				nameToCollectorMetrics[m.Name][collectorID] = make(map[MetricPriority][]*Metric)
 			}
 			nameToCollectorMetrics[m.Name][collectorID][m.Priority] = append(nameToCollectorMetrics[m.Name][collectorID][m.Priority], m)
 		}
 	}
 
-	var result []Metric
+	var result []*Metric
 
 	// For each metric name, pick all matching metrics from the collector with the highest-priority metric of that name
 	for _, collectorMetrics := range nameToCollectorMetrics {
 		maxPriority := Low
-		var winningMetrics []Metric
+		var winningMetrics []*Metric
 		for _, priorityMetrics := range collectorMetrics {
 			for priority, metrics := range priorityMetrics {
 				if priority >= maxPriority {
