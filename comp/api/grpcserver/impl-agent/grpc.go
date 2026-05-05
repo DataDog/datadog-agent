@@ -87,7 +87,7 @@ func (s *server) BuildServer() http.Handler {
 	maxMessageSize := s.configComp.GetInt("cluster_agent.cluster_tagger.grpc_max_message_size")
 
 	// Use the convenience function that combines metrics and auth interceptors
-	var opts []googleGrpc.ServerOption = grpcutil.ServerOptionsWithMetricsAndAuth(
+	opts := grpcutil.ServerOptionsWithMetricsAndAuth(
 		grpcutil.RequireClientCert,
 		grpcutil.RequireClientCertStream,
 	)
