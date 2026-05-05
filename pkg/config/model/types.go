@@ -44,8 +44,9 @@ const (
 	SourceConfigPostInit Source = "config-post-init"
 	// SourceSecret are values resolved from secrets (ENC[...] placeholders).
 	SourceSecret Source = "secret"
-	// SourceLocalConfigProcess are the values mirrored from the config process via the configsync HTTP
-	// polling mechanism.
+	// SourceLocalConfigProcess are the values mirrored from the config process. The config process is the
+	// core-agent. This is used when side process like security-agent or trace-agent pull their configuration from
+	// the core-agent.
 	SourceLocalConfigProcess Source = "local-config-process"
 	// SourceAgentRuntime are the values configured by the agent itself. The agent can dynamically compute the best
 	// value for some settings when not set by the user.

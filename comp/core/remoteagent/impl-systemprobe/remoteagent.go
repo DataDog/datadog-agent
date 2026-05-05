@@ -104,12 +104,6 @@ func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatu
 	}, nil
 }
 
-// WaitSessionID blocks until the remote agent is registered and a session ID is available.
-// This allows components that need the session ID (e.g. config stream consumer) to wait for RAR registration.
-func (r *remoteagentImpl) WaitSessionID(ctx context.Context) (string, error) {
-	return r.remoteAgentServer.WaitSessionID(ctx)
-}
-
 func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetryRequest) (*pbcore.GetTelemetryResponse, error) {
 	prometheusText, err := r.telemetry.GatherText(false, telemetry.StaticMetricFilter(
 		// Metrics to forward from system-probe to core agent.
