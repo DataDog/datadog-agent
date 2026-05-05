@@ -236,7 +236,10 @@ func NewComponent(deps Requires) Provides {
 
 	// Wire per-component processing time directly to the telemetry gauge,
 	// bypassing ObserverTelemetry object construction on the hot path.
-	processingTimeGauge := th.telemetryGauges[telemetryDetectorProcessingTimeNs]
+	processingTimeGauge, ok := th.telemetryGauges[telemetryDetectorProcessingTimeNs]
+	if !ok {
+		panic("observer: telemetry gauge not registered: " + telemetryDetectorProcessingTimeNs)
+	}
 	eng.onProcessingTime = func(detectorTag string, nanos float64) {
 		processingTimeGauge.Set(nanos, detectorTag)
 	}

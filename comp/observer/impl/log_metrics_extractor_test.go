@@ -6,8 +6,6 @@
 package observerimpl
 
 import (
-	"fmt"
-	"hash/fnv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,9 +38,7 @@ func TestLogMetricsExtractor_JSONNumericExtraction(t *testing.T) {
 
 	// Pattern count is based on the full JSON payload.
 	sig := logSignature(`{"duration_ms":45,"status":200,"foo":"bar","pid":1234}`, 0)
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(sig))
-	expectedCountName := fmt.Sprintf("log.pattern.%x.count", h.Sum64())
+	expectedCountName := patternCountMetricName(sig)
 	if m, ok := got[expectedCountName]; assert.True(t, ok) {
 		assert.Equal(t, float64(1), m.Value)
 		assert.Equal(t, []string{"service:api"}, m.Tags)
@@ -73,9 +69,7 @@ func TestLogMetricsExtractor_UnstructuredPatternCount(t *testing.T) {
 
 	// Compute expected metric name (hash of signature).
 	sig := logSignature("Request completed in 45ms", 0)
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(sig))
-	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res.Metrics[0].Name)
+	assert.Equal(t, patternCountMetricName(sig), res.Metrics[0].Name)
 }
 
 func TestLogMetricsExtractor_JSONIncludeFields(t *testing.T) {
@@ -103,9 +97,7 @@ func TestLogMetricsExtractor_JSONIncludeFields(t *testing.T) {
 	}
 
 	sig := logSignature(`{"duration_ms":45,"status":200}`, 0)
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(sig))
-	expectedCountName := fmt.Sprintf("log.pattern.%x.count", h.Sum64())
+	expectedCountName := patternCountMetricName(sig)
 	if m, ok := got[expectedCountName]; assert.True(t, ok) {
 		assert.Equal(t, float64(1), m.Value)
 	}
@@ -122,9 +114,7 @@ func TestLogMetricsExtractor_InvalidJSONFallsBackToUnstructured(t *testing.T) {
 	require.Len(t, res.Metrics, 1)
 
 	sig := logSignature(input, 0)
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(sig))
-	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res.Metrics[0].Name)
+	assert.Equal(t, patternCountMetricName(sig), res.Metrics[0].Name)
 }
 
 func TestLogMetricsExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {

@@ -550,6 +550,51 @@ func joinTags(tags []string) string {
 	}
 }
 
+// fnv64a constants (same as hash/fnv stdlib).
+const (
+	fnvOffsetBasis64 = uint64(14695981039346656037)
+	fnvPrime64       = uint64(1099511628211)
+)
+
+// fnv64aString computes FNV-1a over a string without allocating a hasher or
+// converting to []byte. Produces identical output to hash/fnv.New64a().
+func fnv64aString(s string) uint64 {
+	h := fnvOffsetBasis64
+	for i := 0; i < len(s); i++ {
+		h ^= uint64(s[i])
+		h *= fnvPrime64
+	}
+	return h
+}
+
+// fnv64aMix folds an additional string into an existing FNV-1a hash, separated
+// by '|'. Useful for hashing multiple fields without concatenating them first.
+func fnv64aMix(h uint64, s string) uint64 {
+	h ^= uint64('|')
+	h *= fnvPrime64
+	for i := 0; i < len(s); i++ {
+		h ^= uint64(s[i])
+		h *= fnvPrime64
+	}
+	return h
+}
+
+// fnv64aMixUint64 folds a uint64 value into an existing FNV-1a hash
+// (little-endian byte order, matching encoding/binary.LittleEndian).
+func fnv64aMixUint64(h, v uint64) uint64 {
+	for i := 0; i < 8; i++ {
+		h ^= v & 0xFF
+		h *= fnvPrime64
+		v >>= 8
+	}
+	return h
+}
+
+// fnv64aMixInt64 folds an int64 value into an existing FNV-1a hash.
+func fnv64aMixInt64(h uint64, v int64) uint64 {
+	return fnv64aMixUint64(h, uint64(v))
+}
+
 // resolveByID returns the seriesStats for a numeric series ID.
 // Returns nil for out-of-range IDs. Caller must hold s.mu (read or write).
 func (s *timeSeriesStorage) resolveByID(ref observer.SeriesRef) *seriesStats {

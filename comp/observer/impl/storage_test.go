@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"hash/fnv"
 	"math"
 	"sync"
 	"testing"
@@ -682,4 +683,53 @@ func TestTimeSeriesStorage_AddDroppedReturnsEmptyKey(t *testing.T) {
 	res = s.Add("ns", "m", math.MaxFloat64, 1000, nil)
 	assert.False(t, res.IsNew)
 	assert.Empty(t, res.StorageKey, "MaxFloat64 sentinel drop must return empty key")
+}
+
+// TestFnv64aString_MatchesStdlib verifies the inline fnv64a helpers produce
+// identical output to the stdlib hash/fnv implementation.
+func TestFnv64aString_MatchesStdlib(t *testing.T) {
+	inputs := []string{
+		"",
+		"hello",
+		"GET /api/v1/users completed in 45ms",
+		`{"duration_ms":45,"status":200,"foo":"bar"}`,
+		"source|service|env|host",
+	}
+	for _, s := range inputs {
+		h := fnv.New64a()
+		h.Write([]byte(s))
+		assert.Equal(t, h.Sum64(), fnv64aString(s), "mismatch for input: %q", s)
+	}
+}
+
+func TestFnv64aMix_MatchesStdlib(t *testing.T) {
+	// Verify that fnv64aString(a) + fnv64aMix(h, b) matches hashing "a|b" as
+	// a single contiguous stream through the stdlib hasher.
+	a, b := "source", "service"
+	h := fnv.New64a()
+	h.Write([]byte(a))
+	h.Write([]byte{'|'})
+	h.Write([]byte(b))
+
+	got := fnv64aMix(fnv64aString(a), b)
+	assert.Equal(t, h.Sum64(), got)
+}
+
+func TestFnv64aMixUint64_MatchesStdlib(t *testing.T) {
+	// Verify fnv64aMixUint64 matches binary.Write(h, LittleEndian, v).
+	h := fnv.New64a()
+	var buf [8]byte
+	v := uint64(0xDEADBEEFCAFEBABE)
+	buf[0] = byte(v)
+	buf[1] = byte(v >> 8)
+	buf[2] = byte(v >> 16)
+	buf[3] = byte(v >> 24)
+	buf[4] = byte(v >> 32)
+	buf[5] = byte(v >> 40)
+	buf[6] = byte(v >> 48)
+	buf[7] = byte(v >> 56)
+	h.Write(buf[:])
+
+	got := fnv64aMixUint64(fnvOffsetBasis64, v)
+	assert.Equal(t, h.Sum64(), got)
 }
