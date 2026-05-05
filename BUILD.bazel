@@ -388,7 +388,6 @@ exports_files(glob(
 # gazelle:exclude pkg/collector/sharedlibrary
 # gazelle:exclude pkg/collector/worker
 # gazelle:exclude pkg/commonchecks
-# gazelle:exclude pkg/compliance/aptconfig
 # gazelle:exclude pkg/compliance/cli
 # gazelle:exclude pkg/compliance/dbconfig
 # gazelle:exclude pkg/compliance/k8sconfig
