@@ -8,6 +8,9 @@ from tasks.static_quality_gates.gates import GateExecutionError, GateMetricHandl
 
 PER_PR_THRESHOLDS = {
     "on_disk": 600 * 1024,
+    # The 5 MiB limit for on-wire size increases is intended solely as a safety check to
+    # catch packaging/compression anomalies that are not accompanied by a proportional
+    # on-disk increase - that's why this threshold is much higher than the one for on-disk.
     "on_wire": 5 * 1024 * 1024,
 }
 EXCEPTION_APPROVERS = {"cmourot", "dd-ddamien"}
