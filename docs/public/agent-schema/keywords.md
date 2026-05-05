@@ -459,7 +459,7 @@ Legacy parsers, **do not use for new settings**:
 | `traces_span` | Parses a comma-separated list of `service\|operation=rate` tokens into a map. Used by APM for `apm_config.analyzed_spans`. |
 | `csv_comma_separated` | Parses a CSV-encoded list of strings (supports quoted fields and leading whitespace). Used by APM for `apm_config.ignore_resources`. |
 | `comma_then_space_separated` | Splits on commas if the value contains a comma, otherwise on spaces. Mixing separators within a single value is not supported. Used by APM for `apm_config.features`. |
-| `json_list_or_comma_separated` | Parses as a JSON array if the value starts with `[`, otherwise splits on commas. Used by `process_config.custom_sensitive_words`. |
+| `json_list_or_comma_separated` | Parses as a JSON array if the value starts with `[`, otherwise splits on commas. Used by `private_action_runner.restricted_shell.allowed_commands`, `private_action_runner.restricted_shell.allowed_paths`, `process_config.custom_sensitive_words`. |
 | `json_list_or_space_separated` | Parses as a JSON array if the value starts with `[`, otherwise splits on spaces. Used by `apm_config.filter_tags.require`, `apm_config.filter_tags.reject`, `apm_config.filter_tags_regex.require`, `apm_config.filter_tags_regex.reject`, and `apm_config.obfuscation.credit_cards.keep_values`. |
 
 ```yaml

@@ -116,6 +116,7 @@ func ParseEnvSplitCommaThenSpace(key string, config model.Setup) {
 
 func jsonOrSplitBy(key string, config model.Setup, sep string) {
 	config.ParseEnvAsStringSlice(key, func(val string) []string {
+		val = strings.TrimSpace(val)
 		if strings.HasPrefix(val, "[") && strings.HasSuffix(val, "]") {
 			res := []string{}
 			if err := json.Unmarshal([]byte(val), &res); err != nil {
@@ -129,7 +130,11 @@ func jsonOrSplitBy(key string, config model.Setup, sep string) {
 	})
 }
 
-// ParseEnvJSONOrComma is a custom helper for the 'process_config.custom_sensitive_words' setting.
+// ParseEnvJSONOrComma is a custom helper for the following settings:
+//
+// - private_action_runner.restricted_shell.allowed_commands
+// - private_action_runner.restricted_shell.allowed_paths
+// - process_config.custom_sensitive_words
 //
 // This implements the env_parser 'json_list_or_comma_separated'
 func ParseEnvJSONOrComma(key string, config model.Setup) {
