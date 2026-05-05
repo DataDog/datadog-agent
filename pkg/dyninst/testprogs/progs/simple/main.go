@@ -77,6 +77,15 @@ func main() {
 	condBool(false, "miss")
 	condString("hello", "match")
 	condString("other", "miss")
+	// Long-LHS / max-length-literal regression coverage. The literal
+	// MaxStringLiteralLength (255) imposed by IR-gen used to be
+	// indistinguishable from a longer LHS sharing the same first 255
+	// bytes, because SM_OP_EXPR_READ_STRING capped the stored length at
+	// 255. condString_long_a_then_b is 300 bytes ('a'*255 + 'b'*45),
+	// condString_exact_a255 is 'a'*255 — both are compared against the
+	// 255-byte literal 'a'*255 in simple.yaml.
+	condString(strings.Repeat("a", 255)+strings.Repeat("b", 45), "long_a_then_b")
+	condString(strings.Repeat("a", 255), "exact_a255")
 
 	// Struct with typed fields: called twice with different field values so
 	// field-level conditions can distinguish the calls.

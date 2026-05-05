@@ -95,6 +95,13 @@ func (*ExprLoadLiteralOp) irOp() {}
 // ExprReadStringOp materializes a Go string from its header (ptr+len) already
 // in scratch at the current offset. It pushes the offset onto the data stack,
 // overwrites the header with [u32 len][bytes...], and advances the offset.
+//
+// The u32 len holds the *original* Go string length (may exceed MaxLen);
+// the bytes block holds only the first min(len, MaxLen) bytes — that is
+// what the offset advances by. ExprCmpStringOp uses the true length for
+// length-sensitive semantics (eq length-check, lexicographic length tie-break)
+// and clamps byte access to MaxLen so a truncated LHS sharing the literal's
+// prefix never compares equal to the literal.
 type ExprReadStringOp struct {
 	MaxLen uint16
 }

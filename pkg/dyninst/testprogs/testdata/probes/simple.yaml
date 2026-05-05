@@ -743,7 +743,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "542"
+      - "551"
   when:
     dsl: "n == 7"
     json: {eq: [{ref: "n"}, 7]}
@@ -768,7 +768,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "542"
+      - "551"
   sampling:
     snapshotsPerSecond: 10
 
@@ -2964,7 +2964,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "542"
+      - "551"
   when:
     dsl: "n == 7 && tag == \"match\""
     json:
@@ -3667,6 +3667,76 @@ probes:
   when:
     dsl: "x != \"hello\""
     json: {ne: [{ref: "x"}, "hello"]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- max-length-literal regression coverage. The literal below is
+# exactly MaxStringLiteralLength (255) bytes of 'a'. main() also calls
+# condString twice with strings tied to this literal:
+#   tag=long_a_then_b: 'a'*255 + 'b'*45 (300 bytes; first 255 match)
+#   tag=exact_a255:    'a'*255          (exact match)
+# These probes exercise the SM_OP_EXPR_READ_STRING / SM_OP_EXPR_CMP_STRING
+# fix that preserves the *true* Go string length in the buffer so a
+# truncated long LHS sharing the literal's prefix does not falsely
+# report equal (or tie in ordering). ---
+- id: condString_eq_max_literal
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condString
+  when:
+    dsl: "x == \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""
+    json: {eq: [{ref: "x"}, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condString_ne_max_literal
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condString
+  when:
+    dsl: "x != \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""
+    json: {ne: [{ref: "x"}, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condString_gt_max_literal
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condString
+  when:
+    dsl: "x > \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""
+    json: {gt: [{ref: "x"}, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condString_le_max_literal
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condString
+  when:
+    dsl: "x <= \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""
+    json: {le: [{ref: "x"}, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]}
   template: "tag={tag}"
   segments:
     - str: "tag="

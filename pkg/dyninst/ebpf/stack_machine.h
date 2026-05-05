@@ -2917,7 +2917,10 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
 
   case SM_OP_EXPR_LOAD_LITERAL: {
     uint16_t byte_size = sm_read_program_uint16(sm);
-    if (byte_size > 255 || byte_size == 0) {
+    // Max payload size is 4 (u32 string-length prefix) + 255 (max
+    // string-literal bytes, == ir.MaxStringLiteralLength); base-type
+    // literals are at most 8 bytes, so 259 is the binding ceiling.
+    if (byte_size > 259 || byte_size == 0) {
       LOG(1, "enqueue: load_literal: invalid byte_size %d", byte_size);
       return 1;
     }
@@ -2944,27 +2947,36 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       return 1;
     }
 
-    // Cap the length.
-    uint32_t capped_len = str_len;
-    if (capped_len > max_len) {
-      capped_len = max_len;
-    }
+    // Two distinct lengths:
+    //   copy_len: bytes physically copied into the buffer (capped at
+    //   max_len so the verifier sees a compile-time bound).
+    //   stored_len: written into the [u32 len] prefix; carries the
+    //   *original* Go string length (saturated at u32 max) so
+    //   SM_OP_EXPR_CMP_STRING can distinguish "longer LHS that shares
+    //   the literal's prefix" from "exact match". Without this, a
+    //   long string and a max-length literal with matching prefixes
+    //   would compare equal (and ordering would tie-break wrong).
+    uint32_t copy_len = (str_len > max_len) ? max_len : (uint32_t)str_len;
+    uint32_t stored_len = (str_len > 0xFFFFFFFFu)
+                              ? 0xFFFFFFFFu
+                              : (uint32_t)str_len;
 
     // Overwrite in-place: [u32 len][bytes...]
     // Use constant 259 (4 + max 255) so the verifier sees a compile-time bound.
     if (!scratch_buf_bounds_check(&sm->offset, 259)) {
       return 1;
     }
-    *(uint32_t*)(&(*buf)[sm->offset]) = capped_len;
+    *(uint32_t*)(&(*buf)[sm->offset]) = stored_len;
 
     // Read string data from userspace.
-    if (capped_len > 0 && str_ptr != 0) {
+    if (copy_len > 0 && str_ptr != 0) {
       buf_offset_t data_offset = sm->offset + 4;
-      bpf_probe_read_user(&(*buf)[data_offset], capped_len & 0xFF, (void*)str_ptr);
+      bpf_probe_read_user(&(*buf)[data_offset], copy_len & 0xFF, (void*)str_ptr);
     }
 
-    // Advance offset past materialized data.
-    sm->offset += 4 + capped_len;
+    // Advance offset past the *physically copied* bytes (not the
+    // potentially-larger stored_len).
+    sm->offset += 4 + copy_len;
   } break;
 
   case SM_OP_EXPR_CMP_BASE: {
@@ -3035,7 +3047,11 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
 
     buf_offset_t lhs_off = lhs_offset;
     buf_offset_t rhs_off = sm->offset;
-    // Both have format: [u32 len][bytes...]
+    // Both have format: [u32 len][bytes...]. The u32 len holds the
+    // *true* Go string length: lhs_len may exceed the physically
+    // copied byte count (255) when the Go string was longer than the
+    // SM_OP_EXPR_READ_STRING cap; rhs_len is always <= 255 because
+    // IR-gen rejects longer literals.
     if (!scratch_buf_bounds_check(&lhs_off, 4) ||
         !scratch_buf_bounds_check(&rhs_off, 4)) {
       return 1;
@@ -3047,19 +3063,26 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     if (op == CMP_EQ || op == CMP_NE) {
       bool eq = false;
       if (lhs_len == rhs_len) {
+        // lhs_len == rhs_len <= 255, so all bytes are physically
+        // present for both sides. (If lhs was truncated, lhs_len >
+        // 255 == rhs_len and we fall into the `eq = false` branch.)
+        // The cap at 255 is a no-op for reachable inputs but keeps
+        // the verifier happy.
         uint32_t cmp_len = lhs_len;
-        if (cmp_len > 256) {
-          cmp_len = 256;
+        if (cmp_len > 255) {
+          cmp_len = 255;
         }
         eq = sm_cmp_eq_bytes(buf, lhs_off + 4, rhs_off + 4, cmp_len);
       }
       result = (op == CMP_EQ) ? (eq ? 1 : 0) : (eq ? 0 : 1);
     } else {
       // Ordering: lexicographic byte order on the common prefix, then
-      // shorter side wins ties.
+      // shorter side wins ties. Since rhs_len <= 255, common <= 255,
+      // so the first `common` bytes of LHS are physically present
+      // even when LHS was truncated.
       uint32_t common = lhs_len < rhs_len ? lhs_len : rhs_len;
-      if (common > 256) {
-        common = 256;
+      if (common > 255) {
+        common = 255;
       }
       cmp_ord_result_t ord = CMP_ORD_EQ;
       if (common > 0) {
@@ -3068,6 +3091,9 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
         ord = sm_cmp_ord_bytes(buf, lhs_off + 4, rhs_off + 4, common, 0);
       }
       if (ord == CMP_ORD_EQ) {
+        // Length tie-breaker uses the *true* lengths (lhs_len may be
+        // > 255 when the LHS was truncated), so a longer LHS sharing
+        // the literal's prefix correctly compares greater.
         if (lhs_len < rhs_len) {
           ord = CMP_ORD_LT;
         } else if (lhs_len > rhs_len) {

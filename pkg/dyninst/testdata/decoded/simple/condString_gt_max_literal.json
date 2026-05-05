@@ -15,7 +15,7 @@
         "timestamp": "[ts]",
         "language": "go",
         "probe": {
-          "id": "condString_le",
+          "id": "condString_gt_max_literal",
           "location": {
             "method": "main.condString"
           }
@@ -44,7 +44,7 @@
         "timestamp": "[ts]",
         "language": "go",
         "probe": {
-          "id": "condString_le",
+          "id": "condString_gt_max_literal",
           "location": {
             "method": "main.condString"
           }
@@ -54,7 +54,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "tag=long_a_then_b",
+    "message": "tag=miss",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -73,7 +73,7 @@
         "timestamp": "[ts]",
         "language": "go",
         "probe": {
-          "id": "condString_le",
+          "id": "condString_gt_max_literal",
           "location": {
             "method": "main.condString"
           }
@@ -83,7 +83,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "tag=exact_a255",
+    "message": "tag=long_a_then_b",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]
