@@ -212,11 +212,12 @@ func TestDecryptConfigInitConfigFailureDropsAll(t *testing.T) {
 		},
 	}
 
-	_, err := decryptConfig(sharedTpl, mockResolve, sharedTpl.Digest())
+	newConfig, err := decryptConfig(sharedTpl, mockResolve, sharedTpl.Digest())
 
-	// error propagated, and no further Resolve calls were made (instances, metrics, logs skipped)
+	// error propagated, instances cleared so caller drops the entire config
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "init_config")
+	assert.Empty(t, newConfig.Instances)
 	assert.True(t, mockResolve.haveAllScenariosBeenCalled())
 }
 

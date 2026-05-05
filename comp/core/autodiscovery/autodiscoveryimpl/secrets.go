@@ -25,6 +25,7 @@ func decryptConfig(conf integration.Config, secretResolver secrets.Component, or
 	// init_config is shared by all instances — any failure drops the entire config.
 	conf.InitConfig, err = secretResolver.Resolve(conf.InitConfig, origin, conf.ImageName, conf.PodNamespace, false)
 	if err != nil {
+		conf.Instances = nil
 		return conf, fmt.Errorf("error while decrypting secrets in 'init_config': %s", err)
 	}
 
@@ -44,12 +45,14 @@ func decryptConfig(conf integration.Config, secretResolver secrets.Component, or
 	// metrics
 	conf.MetricConfig, err = secretResolver.Resolve(conf.MetricConfig, origin, conf.ImageName, conf.PodNamespace, false)
 	if err != nil {
+		conf.Instances = nil
 		return conf, fmt.Errorf("error while decrypting secrets in 'metrics': %s", err)
 	}
 
 	// logs
 	conf.LogsConfig, err = secretResolver.Resolve(conf.LogsConfig, origin, conf.ImageName, conf.PodNamespace, false)
 	if err != nil {
+		conf.Instances = nil
 		return conf, fmt.Errorf("error while decrypting secrets in 'logs': %s", err)
 	}
 
