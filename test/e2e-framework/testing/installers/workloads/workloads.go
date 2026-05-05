@@ -8,8 +8,8 @@
 //
 // Each workload is defined as an embedded YAML manifest (Go template) under a
 // subdirectory of this package. The Deploy function renders and applies the
-// selected manifests via kubectl and waits for all deployments to become
-// available.
+// selected manifests via the Kubernetes Go client and waits for all deployments
+// to become available.
 //
 // Usage in SetupSuite:
 //
@@ -26,15 +26,29 @@ package workloads
 
 import (
 	"bytes"
-	_ "embed"
+	"context"
+	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
+	"strings"
 	"testing"
 	"text/template"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	apimachineryYAML "k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/discovery/cached/memory"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/restmapper"
+	"k8s.io/client-go/tools/clientcmd"
+
+	_ "embed"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
@@ -68,16 +82,16 @@ var mutatedManifest string
 var argoRolloutManifest string
 
 type deployParams struct {
-	nginx        bool
-	nginxPort    int
-	redis        bool
-	tracegen     bool
-	prometheus   bool
-	dogstatsd    *dogstatsdConfig
-	cpustress    bool
-	etcd         bool
-	mutated      bool
-	argoRollout  bool
+	nginx       bool
+	nginxPort   int
+	redis       bool
+	tracegen    bool
+	prometheus  bool
+	dogstatsd   *dogstatsdConfig
+	cpustress   bool
+	etcd        bool
+	mutated     bool
+	argoRollout bool
 }
 
 type dogstatsdConfig struct {
@@ -155,6 +169,44 @@ func DeployTestWorkload(t *testing.T, env *environments.Kubernetes) {
 	Deploy(t, env, DefaultTestWorkloadOptions()...)
 }
 
+// k8sClients bundles the clients needed to apply manifests and wait for
+// workloads. Built once from the cluster kubeconfig and shared across all
+// manifest applications within a single Deploy call.
+type k8sClients struct {
+	dynamic    dynamic.Interface
+	typed      kubernetes.Interface
+	restMapper meta.RESTMapper
+}
+
+func newK8sClients(kubeconfig string) (*k8sClients, error) {
+	rc, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeconfig))
+	if err != nil {
+		return nil, fmt.Errorf("parsing kubeconfig: %w", err)
+	}
+
+	dynClient, err := dynamic.NewForConfig(rc)
+	if err != nil {
+		return nil, fmt.Errorf("creating dynamic client: %w", err)
+	}
+
+	typedClient, err := kubernetes.NewForConfig(rc)
+	if err != nil {
+		return nil, fmt.Errorf("creating typed client: %w", err)
+	}
+
+	dc, err := discovery.NewDiscoveryClientForConfig(rc)
+	if err != nil {
+		return nil, fmt.Errorf("creating discovery client: %w", err)
+	}
+	mapper := restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(dc))
+
+	return &k8sClients{
+		dynamic:    dynClient,
+		typed:      typedClient,
+		restMapper: mapper,
+	}, nil
+}
+
 // Deploy applies the selected workload manifests to the cluster and waits for
 // all deployments to become available.
 func Deploy(t *testing.T, env *environments.Kubernetes, opts ...Option) {
@@ -166,149 +218,244 @@ func Deploy(t *testing.T, env *environments.Kubernetes, opts ...Option) {
 		opt(p)
 	}
 
-	kubeconfigFile, err := os.CreateTemp("", "kubeconfig-*.yaml")
-	require.NoError(t, err)
-	defer os.Remove(kubeconfigFile.Name())
-	_, err = kubeconfigFile.WriteString(env.KubernetesCluster.KubeConfig)
-	require.NoError(t, err)
-	require.NoError(t, kubeconfigFile.Close())
+	clients, err := newK8sClients(env.KubernetesCluster.KubeConfig)
+	require.NoError(t, err, "workloads.Deploy: failed to build k8s clients")
 
-	kubeconfig := kubeconfigFile.Name()
 	version := apps.Version
 
 	if p.nginx {
 		ns := "workload-nginx"
-		applyManifest(t, kubeconfig, render(t, nginxManifest, map[string]any{
+		applyManifest(t, clients, render(t, nginxManifest, map[string]any{
 			"Version":   version,
 			"Namespace": ns,
 			"NginxPort": p.nginxPort,
 		}))
-		waitForDeployments(t, kubeconfig, ns, 5*time.Minute)
+		waitForDeployments(t, clients.typed, ns, 5*time.Minute)
 	}
 
 	if p.redis {
 		ns := "workload-redis"
-		applyManifest(t, kubeconfig, render(t, redisManifest, map[string]any{
+		applyManifest(t, clients, render(t, redisManifest, map[string]any{
 			"Version":   version,
 			"Namespace": ns,
 		}))
-		waitForDeployments(t, kubeconfig, ns, 5*time.Minute)
+		waitForDeployments(t, clients.typed, ns, 5*time.Minute)
 	}
 
 	if p.tracegen {
 		ns := "workload-tracegen"
-		applyManifest(t, kubeconfig, render(t, tracegenManifest, map[string]any{
+		applyManifest(t, clients, render(t, tracegenManifest, map[string]any{
 			"Version":   version,
 			"Namespace": ns,
 		}))
-		waitForDeployments(t, kubeconfig, ns, 5*time.Minute)
+		waitForDeployments(t, clients.typed, ns, 5*time.Minute)
 	}
 
 	if p.prometheus {
 		ns := "workload-prometheus"
-		applyManifest(t, kubeconfig, render(t, prometheusManifest, map[string]any{
+		applyManifest(t, clients, render(t, prometheusManifest, map[string]any{
 			"Version":   version,
 			"Namespace": ns,
 		}))
-		waitForDeployments(t, kubeconfig, ns, 5*time.Minute)
+		waitForDeployments(t, clients.typed, ns, 5*time.Minute)
 	}
 
 	if p.dogstatsd != nil {
 		ns := "workload-dogstatsd"
-		applyManifest(t, kubeconfig, render(t, dogstatsdManifest, map[string]any{
+		applyManifest(t, clients, render(t, dogstatsdManifest, map[string]any{
 			"Version":      version,
 			"Namespace":    ns,
 			"StatsdPort":   p.dogstatsd.port,
 			"StatsdSocket": p.dogstatsd.socket,
 		}))
-		waitForDeployments(t, kubeconfig, ns, 5*time.Minute)
+		waitForDeployments(t, clients.typed, ns, 5*time.Minute)
 	}
 
 	if p.cpustress {
 		ns := "workload-cpustress"
-		applyManifest(t, kubeconfig, render(t, cpustressManifest, map[string]any{
+		applyManifest(t, clients, render(t, cpustressManifest, map[string]any{
 			"Version":   version,
 			"Namespace": ns,
 		}))
-		waitForDeployments(t, kubeconfig, ns, 5*time.Minute)
+		waitForDeployments(t, clients.typed, ns, 5*time.Minute)
 	}
 
 	if p.etcd {
-		applyManifest(t, kubeconfig, render(t, etcdManifest, map[string]any{
+		applyManifest(t, clients, render(t, etcdManifest, map[string]any{
 			"Version":   version,
 			"Namespace": "etcd",
 		}))
-		waitForDeployments(t, kubeconfig, "etcd", 5*time.Minute)
+		waitForDeployments(t, clients.typed, "etcd", 5*time.Minute)
 	}
 
 	if p.mutated {
-		applyManifest(t, kubeconfig, render(t, mutatedManifest, map[string]any{
+		applyManifest(t, clients, render(t, mutatedManifest, map[string]any{
 			"Version":             version,
 			"NamespaceWithoutLib": "workload-mutated",
 			"NamespaceWithLib":    "workload-mutated-lib-injection",
 		}))
-		waitForDeployments(t, kubeconfig, "workload-mutated", 10*time.Minute)
-		waitForDeployments(t, kubeconfig, "workload-mutated-lib-injection", 10*time.Minute)
+		waitForDeployments(t, clients.typed, "workload-mutated", 10*time.Minute)
+		waitForDeployments(t, clients.typed, "workload-mutated-lib-injection", 10*time.Minute)
 	}
 
 	if p.argoRollout {
 		ns := "workload-argo-rollout-nginx"
-		applyManifest(t, kubeconfig, render(t, argoRolloutManifest, map[string]any{
+		applyManifest(t, clients, render(t, argoRolloutManifest, map[string]any{
 			"Version":   version,
 			"Namespace": ns,
 			"NginxPort": 80,
 		}))
-		waitForPods(t, kubeconfig, ns, 5*time.Minute)
+		waitForPods(t, clients.typed, ns, 5*time.Minute)
 	}
 }
 
-// applyManifest runs kubectl apply with the manifest piped to stdin.
-func applyManifest(t *testing.T, kubeconfigPath, manifest string) {
+// applyManifest applies a (potentially multi-document) YAML manifest to the
+// cluster using server-side apply via the dynamic client. No kubectl binary
+// required — all k8s API calls go through the Go client library.
+func applyManifest(t *testing.T, clients *k8sClients, manifest string) {
 	t.Helper()
-	cmd := exec.Command("kubectl", "apply", "-f", "-", "--kubeconfig", kubeconfigPath)
-	cmd.Stdin = bytes.NewBufferString(manifest)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Logf("kubectl apply output:\n%s", string(output))
+	ctx := context.Background()
+
+	// Split on YAML document separator; each segment is applied independently.
+	docs := strings.Split(manifest, "\n---")
+	for _, doc := range docs {
+		doc = strings.TrimSpace(doc)
+		// Skip empty docs and bare separator lines
+		if doc == "" || doc == "---" {
+			continue
+		}
+		// Strip a leading "---" that may appear at the very start of a document
+		doc = strings.TrimPrefix(doc, "---")
+		doc = strings.TrimSpace(doc)
+		if doc == "" {
+			continue
+		}
+
+		// Convert YAML → JSON so we can unmarshal into unstructured
+		jsonData, err := apimachineryYAML.ToJSON([]byte(doc))
+		require.NoError(t, err, "workloads: failed to convert YAML to JSON")
+
+		var obj unstructured.Unstructured
+		require.NoError(t, json.Unmarshal(jsonData, &obj.Object), "workloads: failed to unmarshal manifest document")
+
+		if obj.GetKind() == "" {
+			continue
+		}
+
+		// Resolve GVK → GVR via the REST mapper (talks to the API server)
+		gvk := obj.GroupVersionKind()
+		mapping, err := clients.restMapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+		require.NoError(t, err, "workloads: failed to map GVK %s to GVR", gvk)
+
+		// Choose namespaced or cluster-scoped resource interface
+		var dr dynamic.ResourceInterface
+		if mapping.Scope.Name() == meta.RESTScopeNameNamespace {
+			dr = clients.dynamic.Resource(mapping.Resource).Namespace(obj.GetNamespace())
+		} else {
+			dr = clients.dynamic.Resource(mapping.Resource)
+		}
+
+		// Server-side apply — Force resolves conflicts; FieldManager identifies this installer
+		_, err = dr.Apply(ctx, obj.GetName(), &obj, metav1.ApplyOptions{
+			FieldManager: "e2e-workloads",
+			Force:        true,
+		})
+		require.NoError(t, err, "workloads: failed to apply %s %s/%s", gvk.Kind, obj.GetNamespace(), obj.GetName())
+		t.Logf("workloads: applied %s %s/%s", gvk.Kind, obj.GetNamespace(), obj.GetName())
 	}
-	require.NoError(t, err, "kubectl apply failed")
-	t.Logf("kubectl apply:\n%s", string(output))
 }
 
-// waitForDeployments waits for all deployments in the given namespace to have
-// the Available condition. Uses kubectl wait so that it works with any cluster.
-func waitForDeployments(t *testing.T, kubeconfigPath, namespace string, timeout time.Duration) {
+// waitForDeployments polls until every Deployment in the given namespace has
+// the Available condition set to True, or until timeout expires.
+func waitForDeployments(t *testing.T, k8sClient kubernetes.Interface, namespace string, timeout time.Duration) {
 	t.Helper()
-	cmd := exec.Command("kubectl", "wait",
-		"--for=condition=available",
-		"deployment", "--all",
-		"-n", namespace,
-		fmt.Sprintf("--timeout=%ds", int(timeout.Seconds())),
-		"--kubeconfig", kubeconfigPath,
-	)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Logf("kubectl wait output:\n%s", string(output))
+	ctx := context.Background()
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		list, err := k8sClient.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			t.Logf("workloads: listing deployments in %s: %v (retrying)", namespace, err)
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
+		if len(list.Items) == 0 {
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
+		allAvailable := true
+		for i := range list.Items {
+			if !deploymentAvailable(&list.Items[i]) {
+				allAvailable = false
+				break
+			}
+		}
+		if allAvailable {
+			t.Logf("workloads: all %d deployment(s) in %s are available", len(list.Items), namespace)
+			return
+		}
+		time.Sleep(5 * time.Second)
 	}
-	require.NoError(t, err, "deployments in namespace %s not ready after %s", namespace, timeout)
+
+	require.Fail(t, fmt.Sprintf("workloads: deployments in namespace %s not available after %s", namespace, timeout))
 }
 
-// waitForPods waits for all pods in the given namespace to be ready.
-// Used for CRD-based workloads (e.g. ArgoRollout) that don't expose a Deployment.
-func waitForPods(t *testing.T, kubeconfigPath, namespace string, timeout time.Duration) {
-	t.Helper()
-	cmd := exec.Command("kubectl", "wait",
-		"--for=condition=ready",
-		"pod", "--all",
-		"-n", namespace,
-		fmt.Sprintf("--timeout=%ds", int(timeout.Seconds())),
-		"--kubeconfig", kubeconfigPath,
-	)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Logf("kubectl wait output:\n%s", string(output))
+func deploymentAvailable(d *appsv1.Deployment) bool {
+	for _, c := range d.Status.Conditions {
+		if c.Type == appsv1.DeploymentAvailable {
+			return c.Status == corev1.ConditionTrue
+		}
 	}
-	require.NoError(t, err, "pods in namespace %s not ready after %s", namespace, timeout)
+	return false
+}
+
+// waitForPods polls until every Pod in the given namespace has the Ready
+// condition set to True. Used for CRD-based workloads (e.g. ArgoRollout) that
+// don't expose a Deployment.
+func waitForPods(t *testing.T, k8sClient kubernetes.Interface, namespace string, timeout time.Duration) {
+	t.Helper()
+	ctx := context.Background()
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		list, err := k8sClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			t.Logf("workloads: listing pods in %s: %v (retrying)", namespace, err)
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
+		if len(list.Items) == 0 {
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
+		allReady := true
+		for i := range list.Items {
+			if !podReady(&list.Items[i]) {
+				allReady = false
+				break
+			}
+		}
+		if allReady {
+			t.Logf("workloads: all %d pod(s) in %s are ready", len(list.Items), namespace)
+			return
+		}
+		time.Sleep(5 * time.Second)
+	}
+
+	require.Fail(t, fmt.Sprintf("workloads: pods in namespace %s not ready after %s", namespace, timeout))
+}
+
+func podReady(pod *corev1.Pod) bool {
+	for _, c := range pod.Status.Conditions {
+		if c.Type == corev1.PodReady {
+			return c.Status == corev1.ConditionTrue
+		}
+	}
+	return false
 }
 
 // render executes a text/template with the given variables.
