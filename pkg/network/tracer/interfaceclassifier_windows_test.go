@@ -22,6 +22,9 @@ func TestIfTypeName(t *testing.T) {
 	assert.Equal(t, "ieee80211", ifTypeName(71))
 	assert.Equal(t, "tunnel", ifTypeName(131))
 	assert.Equal(t, "ieee1394", ifTypeName(144))
+	assert.Equal(t, "ieee80216_wman", ifTypeName(237))
+	assert.Equal(t, "wwan_pp", ifTypeName(243))
+	assert.Equal(t, "wwan_pp2", ifTypeName(244))
 	// Unknown types fall back to the raw integer.
 	assert.Equal(t, "9999", ifTypeName(9999))
 }

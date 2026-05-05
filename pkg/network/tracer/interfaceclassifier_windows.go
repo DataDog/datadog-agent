@@ -40,6 +40,9 @@ var ifTypeToString = map[uint32]string{
 	71:  "ieee80211",           // IF_TYPE_IEEE80211
 	131: "tunnel",              // IF_TYPE_TUNNEL
 	144: "ieee1394",            // IF_TYPE_IEEE1394
+	237: "ieee80216_wman",      // IF_TYPE_IEEE80216_WMAN (WiMAX mobile broadband)
+	243: "wwan_pp",             // IF_TYPE_WWANPP (GSM-based mobile broadband)
+	244: "wwan_pp2",            // IF_TYPE_WWANPP2 (CDMA-based mobile broadband)
 }
 
 // ifTypeName returns a snake_case string for a known Windows ifType value.
