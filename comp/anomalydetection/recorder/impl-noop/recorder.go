@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package implnoop
+package noopimpl
 
 import (
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
