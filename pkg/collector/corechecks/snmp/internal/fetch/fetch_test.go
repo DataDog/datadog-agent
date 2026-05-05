@@ -1657,8 +1657,8 @@ func TestCheckSNMPError(t *testing.T) {
 	}, {
 		name:      "gosnmp error",
 		packet:    goodPacket,
-		snmpError: errors.New("something failed!"),
-		expected:  "something failed!",
+		snmpError: errors.New("something failed"),
+		expected:  "something failed",
 	}, {
 		name:      "snmp error",
 		packet:    badPacket,
@@ -1667,8 +1667,8 @@ func TestCheckSNMPError(t *testing.T) {
 	}, {
 		name:      "both errors",
 		packet:    badPacket,
-		snmpError: errors.New("something failed!"),
-		expected:  "something failed!",
+		snmpError: errors.New("something failed"),
+		expected:  "something failed",
 	},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
