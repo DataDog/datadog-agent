@@ -24,7 +24,6 @@ import (
 	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
@@ -46,10 +45,6 @@ type Requires struct {
 	// Recorder is an optional component for transparent metric recording.
 	// If provided, all handles will be wrapped to record metrics to parquet files.
 	Recorder option.Option[recorderdef.Component]
-
-	// RemoteAgentRegistry enables fetching traces/profiles
-	// from remote trace-agents via the ObserverProvider gRPC service.
-	RemoteAgentRegistry remoteagentregistry.Component
 
 	// Reporter receives report outputs after each detection cycle.
 	// Use reporter/fx for the live agent, reporter/fx-testbench for the testbench,
