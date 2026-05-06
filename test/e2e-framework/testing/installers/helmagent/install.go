@@ -416,6 +416,21 @@ agents:
   priorityClassCreate: true
   useConfigMap: true
   customAgentConfig:
+    # Setting customAgentConfig replaces the chart's default datadog.yaml entirely,
+    # so we restate the kubelet listener and config_provider here. Without these,
+    # the agent loses pod autodiscovery via kubelet, which breaks AD-annotation
+    # checks (http_check, nginx, redis, etc.) and template-based checks alike.
+    listeners:
+      - name: kubelet
+    config_providers:
+      - name: kubelet
+        polling: true
+      # etcd config_provider lets the agent pick up check configurations stored
+      # in etcd by the etcd workload. Used by TestPrometheusWithConfigFromEtcd.
+      - name: etcd
+        polling: true
+        template_dir: /datadog/check_configs
+        template_url: http://etcd.etcd.svc.cluster.local:2379
     metadata_providers:
       - name: host
         interval: 120
