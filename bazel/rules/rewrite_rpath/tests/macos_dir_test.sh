@@ -4,16 +4,16 @@ set -euo pipefail
 MACOS_SH="$(find "$TEST_SRCDIR" -path "*/rewrite_rpath/macos.sh" | head -1)"
 MACOS_DIR_SH="$(find "$TEST_SRCDIR" -path "*/rewrite_rpath/macos_dir.sh" | head -1)"
 
-DYLIBS=()
-while IFS= read -r f; do DYLIBS+=("$f"); done < <(find "$TEST_SRCDIR" -name "*.dylib")
+LIBS=()
+while IFS= read -r f; do LIBS+=("$f"); done < <(find "$TEST_SRCDIR" \( -name "*.dylib" -o -name "*.so" \))
 
-[ "${#DYLIBS[@]}" -ge 2 ] || { echo "FAIL: expected at least 2 dylibs, got ${#DYLIBS[@]}"; exit 1; }
+[ "${#LIBS[@]}" -ge 3 ] || { echo "FAIL: expected at least 3 libs (.dylib + .so), got ${#LIBS[@]}"; exit 1; }
 
 INPUT_DIR="$(mktemp -d)"
 OUTPUT_DIR="${INPUT_DIR}_out"
 trap 'rm -rf "$INPUT_DIR" "${OUTPUT_DIR:-}"' EXIT
 
-for lib in "${DYLIBS[@]}"; do
+for lib in "${LIBS[@]}"; do
     cp "$lib" "$INPUT_DIR/"
 done
 
@@ -28,6 +28,6 @@ while IFS= read -r outfile; do
         echo "FAIL: $(basename "$outfile") missing rpath $PREFIX"
         FAILED=1
     fi
-done < <(find "$OUTPUT_DIR" -name "*.dylib")
+done < <(find "$OUTPUT_DIR" \( -name "*.dylib" -o -name "*.so" \))
 
 exit $FAILED
