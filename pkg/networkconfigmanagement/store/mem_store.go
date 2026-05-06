@@ -16,7 +16,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
