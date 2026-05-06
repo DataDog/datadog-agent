@@ -261,7 +261,7 @@ gcc_toolchains.toolchain(
 use_repo(gcc_toolchains, "gcc_toolchain_x86_64")
 use_repo(gcc_toolchains, "gcc_toolchain_aarch64")
 
-bazel_dep(name = "toolchains_llvm", version = "1.6.0")
+bazel_dep(name = "toolchains_llvm", version = "1.7.0")
 
 sysroot = use_repo_rule("@toolchains_llvm//toolchain:sysroot.bzl", "sysroot")
 
