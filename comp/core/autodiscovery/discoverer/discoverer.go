@@ -136,7 +136,8 @@ func (d *defaultDiscoverer) Discover(_ context.Context, integrationName string, 
 	return r, true
 }
 
-// IsPending reports whether the cache has a pending failure entry for this pair.
+// IsPending reports whether the cache holds a "still retrying" failure entry
+// for this (svcID, integrationName) pair.
 func (d *defaultDiscoverer) IsPending(svcID, integrationName string) bool {
 	return d.cache.lookup(svcID, integrationName).state == statePending
 }
