@@ -6,3 +6,12 @@
 # inside of arm64 Linux containers.
 bazel-datadog-agent/
 bazel-testlogs/
+# q-branch standalone Go modules — Bazel cannot analyze them via //...
+# because they reference packages not available in the external dep context.
+internal/qbranch/
+comp/anomalydetection/observer/def/
+comp/anomalydetection/recorder/def/
+comp/anomalydetection/recorder/fx/
+comp/anomalydetection/recorder/fx-noop/
+comp/anomalydetection/recorder/impl/
+comp/anomalydetection/recorder/impl-noop/

@@ -23,7 +23,7 @@ import (
 // batchBuilder builds an Arrow record from accumulated data.
 // Returns nil if no data has been accumulated since the last build.
 type batchBuilder interface {
-	build() arrow.Record
+	build() arrow.RecordBatch
 }
 
 // parquetWriter handles the common lifecycle for all parquet writers:
