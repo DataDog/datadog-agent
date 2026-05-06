@@ -5,7 +5,7 @@ from pathlib import Path
 
 from invoke import Exit, task
 
-from tasks.libs.build.bazel import BazelTools
+from tasks.libs.build.bazel import BazelTools, bazel
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_unstaged_files, get_untracked_files
 
@@ -17,7 +17,6 @@ PROTO_PKGS = {
     'process': False,
     'workloadmeta': False,
     'kubemetadata': False,
-    'languagedetection': False,
     'privateactionrunner': False,
     'remoteagent': False,
     'autodiscovery': False,
@@ -80,7 +79,7 @@ def generate(ctx, pre_commit=False):
     with ctx.cd(repo_root):
         # protobuf defs
         print(f"generating protobuf code from: {proto_root}")
-
+        bazel(ctx, "run", "//pkg/proto/pbgo/languagedetection:write_pb_go")
         for pkg, inject_tags in PROTO_PKGS.items():
             files = []
             pkg_root = Path(proto_root, "datadog", pkg)
