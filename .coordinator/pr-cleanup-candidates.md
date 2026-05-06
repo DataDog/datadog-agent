@@ -3,6 +3,9 @@
 Recorded on 2026-05-04 after copying useful candidate commits into
 `ella/observer-ad-manual-eval-20260430`.
 
+Last updated on 2026-05-05 after re-reading PR #50127 through its latest
+upstream-conflict halt.
+
 Do not delete branches yet. Wait until the manual eval matrix is complete and
 final candidates are selected.
 
@@ -48,7 +51,7 @@ longer needed.
 | --- | --- | --- |
 | #49670 | `ella/claude-coordinator-harness` | Harness PR; keep. |
 | #50126 | `claude/observer-full-20260429T1815` | Accepted anomaly-rank change represented on manual branch; keep until final traceability is no longer needed. |
-| #50127 | `claude/observer-full-20260429T1816` | Accepted early BOCPD warmup/zfallback history represented/reverted on manual branch; keep until final traceability is no longer needed. |
+| #50127 | `claude/observer-full-20260429T1816` | Keep. Run now includes one shipped warmup-zfallback commit (`4f2c275054`), one archived Hellinger research commit (`d5b96f5751`), many rejected/gated candidates, and a 2026-05-05 halt on an upstream `.gitignore` conflict. Warmup-zfallback was represented/reverted on the manual branch; no latest resumed-run candidate should be copied as-is. See `observer-pr50127-run-summary-2026-05-05.md`. |
 | #50138 | `headless/observer-20260429-1931` | Headless run history/log artifact. Low code value, but useful for audit until final eval is done. |
 | #50229 | `claude/observer-full-20260501T1403` | Main recent seedless run; produced many candidates copied into the manual branch. |
 | #50248 | `claude/observer-full-20260501T2022` | Correlator/H2A workspace produced useful commits copied into the manual branch, even though the PR branch mostly shows run-log state. |

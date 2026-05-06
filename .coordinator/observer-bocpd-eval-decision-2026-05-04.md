@@ -2,6 +2,12 @@
 
 Recorded on 2026-05-04 for branch `ella/observer-ad-manual-eval-20260430`.
 
+Updated context on 2026-05-05: PR #50127 shipped
+`bocpd-warmup-zfallback` during the coordinator run, but the manual eval branch
+represented and intentionally reverted that warmup fallback before the detailed
+BOCPD variant decision below. The retained BOCPD variants here are still only
+`bocpd_student_t` and `bocpd_persistence`.
+
 ## Decision
 
 Keep these BOCPD detector variants:

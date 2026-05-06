@@ -1,4 +1,5 @@
 import glob
+import itertools
 import json
 import os
 import random
@@ -12,6 +13,8 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.q.eval import (
     _BENCH_FILTER,
     CORRELATORS,
+    DEFAULT_STACK_CORRELATORS,
+    DEFAULT_STACK_DETECTORS,
     DETECTORS,
     EXTRACTORS,
     SCENARIOS,
@@ -30,6 +33,7 @@ from tasks.libs.q.eval import (
     print_eval_component_summary,
     print_eval_scenarios_summary,
     random_component_combinations,
+    summarize_eval_reports,
 )
 
 
@@ -121,6 +125,8 @@ def eval_scenarios(
     if build:
         build_testbench(ctx)
         build_scorer(ctx)
+
+    os.makedirs(scenario_output_dir, exist_ok=True)
 
     scenarios_list = [s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else SCENARIOS
     scenarios_to_run = [scenario] if scenario else scenarios_list
@@ -536,6 +542,235 @@ def eval_combinations(
     print(color_message(f"Per-combo reports: {output_dir}/combo_*/report.json", Color.GREEN))
 
     return summary_results
+
+
+def _parse_component_csv(value: str) -> list[str]:
+    return [c.strip() for c in value.split(",") if c.strip()]
+
+
+def _component_groups(components: list[str]) -> tuple[list[str], list[str]]:
+    detectors = sorted(c for c in components if c in DETECTORS)
+    correlators = sorted(c for c in components if c in CORRELATORS)
+    return detectors, correlators
+
+
+def _write_eval_config(path: str, detectors: list[str], correlators: list[str], force_disable: list[str] | None = None):
+    config_data = _combo_to_config(detectors, correlators, force_disable=force_disable or [])
+    with open(path, "w") as f:
+        json.dump(config_data, f, indent=4)
+    return config_data
+
+
+def _candidate_eval_stack(additions: list[str]) -> tuple[list[str], list[str]]:
+    """Return a production-shaped candidate stack.
+
+    Metric detectors are replacements for the default detector, not additions:
+    the observer pipeline should not run multiple metric detectors for one data
+    point during finalist vetting. Correlators are additive because the default
+    detector still needs a correlator to produce periods.
+    """
+    add_dets, add_cors = _component_groups(additions)
+    if len(add_dets) > 1:
+        raise Exit(f"candidate stack cannot include multiple metric detectors: {', '.join(add_dets)}", code=1)
+    detectors = add_dets or DEFAULT_STACK_DETECTORS
+    correlators = sorted(set(DEFAULT_STACK_CORRELATORS + add_cors))
+    return sorted(detectors), correlators
+
+
+def _print_report_matrix(rows: list[dict]):
+    if not rows:
+        return
+    print(color_message(f"\n{'=' * 96}", Color.GREEN))
+    print(color_message("  Eval Report Matrix", Color.GREEN))
+    print(color_message(f"{'=' * 96}\n", Color.GREEN))
+    header = (
+        f"{'Rank':<4} {'Name':<34} {'Score':>7} {'Delta':>8} {'Median':>7} "
+        f"{'WorstD':>8} {'Pred':>6} {'BaseFP':>7} {'FPD':>6} {'Cascade':>8}"
+    )
+    print(header)
+    print("-" * len(header))
+    for row in rows:
+        delta = row.get("delta_score")
+        worst = row.get("worst_delta_f1")
+        fp_delta = row.get("baseline_fp_delta")
+        print(
+            f"{row['rank']:<4} {row['name']:<34} {row['score']:>7.4f} "
+            f"{delta if delta is not None else 0.0:>8.4f} {row['median_f1']:>7.4f} "
+            f"{worst if worst is not None else 0.0:>8.4f} {row['num_predictions']:>6} "
+            f"{row['num_baseline_fps']:>7} {fp_delta if fp_delta is not None else 0:>6} "
+            f"{row['num_filtered_cascading']:>8}"
+        )
+
+
+@task
+def eval_report_matrix(
+    _,
+    reports: str,
+    baseline: str = "",
+    output_path: str = "",
+):
+    """
+    Summarize existing q.eval-scenarios reports into a ranked matrix.
+
+    Args:
+        reports: Comma-separated NAME=PATH entries.
+        baseline: Optional NAME from reports to use for delta columns.
+        output_path: Optional JSON path for the matrix.
+
+    Example:
+        dda inv q.eval-report-matrix --baseline default --reports default=/tmp/default.json,tukey=/tmp/tukey.json
+    """
+    named_paths = []
+    for item in _parse_component_csv(reports):
+        if "=" not in item:
+            raise Exit(f"reports entries must be NAME=PATH, got: {item}", code=1)
+        name, path = item.split("=", 1)
+        if not os.path.isfile(path):
+            raise Exit(f"report not found for {name}: {path}", code=1)
+        named_paths.append((name, path))
+    if baseline and baseline not in {name for name, _ in named_paths}:
+        raise Exit(f"baseline '{baseline}' is not one of: {', '.join(name for name, _ in named_paths)}", code=1)
+
+    matrix = summarize_eval_reports(named_paths, baseline_name=baseline or None)
+    _print_report_matrix(matrix["rows"])
+    if output_path:
+        os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+        with open(output_path, "w") as f:
+            json.dump(matrix, f, indent=4)
+        print(color_message(f"\nReport matrix: {output_path}", Color.GREEN))
+    return matrix
+
+
+@task
+def eval_incremental_candidates(
+    ctx,
+    components: str = ",".join(["tukey_biweight", "bocpd_student_t", "holt_residual", "acorrshift"]),
+    output_dir: str = "/tmp/observer-replacement-eval",
+    scenarios_dir: str = "./comp/observer/scenarios",
+    sigma: float = 30.0,
+    scenarios: str = "",
+    timeout: int = 0,
+    build: bool = True,
+    overwrite: bool = False,
+    include_pairs: bool = False,
+    manifest_path: str = "",
+):
+    """
+    Run production-shaped replacement evals for candidate components.
+
+    This evaluates the baseline stack (bocpd, time_cluster) and compares it
+    with each detector candidate as a replacement for bocpd. Correlator
+    candidates are additive to the baseline because a detector still needs a
+    correlator to produce periods. With --include-pairs, detector+correlator
+    pairs are evaluated, but detector+detector pairs are skipped.
+
+    Output layout:
+        <output_dir>/default/{config,report}.json
+        <output_dir>/<candidate>/{config,report}.json
+        <output_dir>/report.json
+    """
+    if not _prepare_eval_output_dir(output_dir, overwrite=overwrite):
+        return
+
+    all_known = set(DETECTORS + CORRELATORS)
+    component_list = _parse_component_csv(components)
+    unknown = sorted(set(component_list) - all_known)
+    if unknown:
+        raise Exit(f"unknown components: {', '.join(unknown)}", code=1)
+
+    if build:
+        build_testbench(ctx)
+        build_scorer(ctx)
+
+    git_sha = ""
+    git_result = ctx.run("git rev-parse HEAD", hide=True, warn=True)
+    if git_result and not git_result.failed:
+        git_sha = git_result.stdout.strip()
+
+    run_specs = [("default", [])]
+    run_specs.extend((component, [component]) for component in component_list)
+    if include_pairs:
+        for pair in itertools.combinations(component_list, 2):
+            pair_dets, _ = _component_groups(list(pair))
+            if len(pair_dets) > 1:
+                continue
+            run_specs.append(("+".join(pair), list(pair)))
+
+    report_entries = []
+    run_metadata = {}
+    scenario_count = len(_parse_component_csv(scenarios)) if scenarios else len(SCENARIOS)
+    root_logger = StepLogger(len(run_specs), "Incremental eval")
+    for label, additions in run_specs:
+        safe_label = label.replace("+", "__")
+        run_dir = os.path.join(output_dir, safe_label)
+        os.makedirs(run_dir, exist_ok=True)
+        detectors, correlators = _candidate_eval_stack(additions)
+        config_path = os.path.join(run_dir, "config.json")
+        report_path = os.path.join(run_dir, "report.json")
+        scenario_output_dir = os.path.join(run_dir, "scenarios")
+        os.makedirs(scenario_output_dir, exist_ok=True)
+        _write_eval_config(config_path, detectors, correlators)
+
+        root_logger.step(label)
+        root_logger.detail(f"detectors:   {', '.join(detectors)}")
+        root_logger.detail(f"correlators: {', '.join(correlators)}")
+        report = eval_scenarios(
+            ctx,
+            scenarios_dir=scenarios_dir,
+            sigma=sigma,
+            config=config_path,
+            build=False,
+            main_report_path=report_path,
+            scenario_output_dir=scenario_output_dir,
+            timeout=timeout,
+            scenarios=scenarios,
+            _logger=root_logger.child(scenario_count, "Scenario"),
+        )
+        report_entries.append((label, report_path))
+        run_metadata[label] = {
+            "additions": additions,
+            "detectors": detectors,
+            "correlators": correlators,
+            "config_path": config_path,
+            "report_path": report_path,
+            "score": report.get("score", 0.0) if report else 0.0,
+            "command": (
+                "dda inv q.eval-scenarios "
+                f"--config {shlex.quote(config_path)} "
+                f"--main-report-path {shlex.quote(report_path)} "
+                f"--scenario-output-dir {shlex.quote(scenario_output_dir)}"
+            ),
+        }
+
+    matrix = summarize_eval_reports(report_entries, baseline_name="default")
+    for row in matrix["rows"]:
+        row.update(run_metadata.get(row["name"], {}))
+
+    _print_report_matrix(matrix["rows"])
+    final_report = {
+        "git_sha": git_sha,
+        "default_stack": {
+            "detectors": DEFAULT_STACK_DETECTORS,
+            "correlators": DEFAULT_STACK_CORRELATORS,
+        },
+        "components": component_list,
+        "include_pairs": include_pairs,
+        "scenarios": _parse_component_csv(scenarios) if scenarios else SCENARIOS,
+        "sigma": sigma,
+        "runs": matrix["rows"],
+    }
+    report_path = os.path.join(output_dir, "report.json")
+    with open(report_path, "w") as f:
+        json.dump(final_report, f, indent=4)
+    print(color_message(f"\nIncremental eval report: {report_path}", Color.GREEN))
+
+    if manifest_path:
+        os.makedirs(os.path.dirname(manifest_path) or ".", exist_ok=True)
+        with open(manifest_path, "w") as f:
+            json.dump(final_report, f, indent=4)
+        print(color_message(f"Manifest: {manifest_path}", Color.GREEN))
+
+    return final_report
 
 
 # --- Bayesian Optimization ---
