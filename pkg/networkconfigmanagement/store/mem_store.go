@@ -107,3 +107,14 @@ func (m *memConfigStore) GetConfig(configUUID string) (string, *types.ConfigMeta
 
 	return rawConfig, &meta, nil
 }
+
+func (m *memConfigStore) GetAllConfigMetadata() ([]*types.ConfigMetadata, error) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+
+	var configMeta []*types.ConfigMetadata
+	for _, value := range m.metadata {
+		configMeta = append(configMeta, &value)
+	}
+	return configMeta, nil
+}

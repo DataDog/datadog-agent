@@ -139,12 +139,11 @@ func (c *Check) Run() error {
 		return checkErr
 	}
 
-	var store store.ConfigStore
-	// send inventory payload if we sent new configs
+	// send inventory payload if within the interval to do so
 	c.inventoryRunCounter++
 	if c.inventoryRunCounter >= int(c.checkContext.InventoryReportEveryN) {
 		c.inventoryRunCounter = 0
-		configMeta, err := store.GetAllConfigMetadata()
+		configMeta, err := configStore.GetAllConfigMetadata()
 		if err != nil {
 			return err
 		}

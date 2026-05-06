@@ -38,11 +38,11 @@ type NCMInventory struct {
 }
 
 type InventoryEntry struct {
-	RawConfigID string `json:"raw_config_id"`
-	ConfigType  string `json:"config_type"`
-	DeviceID    string `json:"device_id"`
-	CapturedAt  int64  `json:"captured_at"`
-	RawHash     string `json:"raw_hash"`
+	RawConfigID string           `json:"raw_config_id"`
+	ConfigType  types.ConfigType `json:"config_type"`
+	DeviceID    string           `json:"device_id"`
+	CapturedAt  int64            `json:"captured_at"`
+	RawHash     string           `json:"raw_hash"`
 }
 
 // ToNCMPayload converts the given parameters into a NCMPayload (sent to event platform / backend).
