@@ -7,10 +7,11 @@
 #include "compiler.h"
 
 /* redefinition of some error values */
-#ifdef COMPILE_CORE
+#if defined(COMPILE_CORE) || defined(COMPILE_PREBUILT)
 #define ENOMEM 12
 #define EBUSY  16
 #define EEXIST 17
+#define EFAULT 14
 #endif
 
 #define STR(x) #x
@@ -65,14 +66,13 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
 #define FN_INDX_bpf_ringbuf_output bpf_ringbuf_output_indx
 #define FN_INDX_bpf_copy_from_user bpf_copy_from_user_indx
 
-#define helper_with_telemetry(fn, ...)                                                          \
+#define helper_with_telemetry(fn, errno_ret)                                                          \
     ({                                                                                          \
         int helper_indx = -1;                                                                   \
         long errno_slot;                                                                        \
-        long errno_ret = fn(__VA_ARGS__);                                                       \
         unsigned long telemetry_program_id;                                                     \
         LOAD_CONSTANT("telemetry_program_id_key", telemetry_program_id);                        \
-        if (errno_ret < 0 && telemetry_program_id > 0) {                                        \
+        if (telemetry_program_id > 0) {                                        \
             helper_err_telemetry_t *entry =                                                     \
                 bpf_map_lookup_elem(&helper_err_telemetry_map, &telemetry_program_id);          \
             if (entry) {                                                                        \
@@ -98,7 +98,6 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
                 }                                                                               \
             }                                                                                   \
         }                                                                                       \
-        errno_ret;                                                                              \
     })
 
 #define __NEQ(one, two) ((one) != (two))
@@ -140,35 +139,96 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
         ret;                                                                        \
     })
 
-#define bpf_probe_read_with_telemetry(...) \
-    helper_with_telemetry(bpf_probe_read, __VA_ARGS__)
+#define bpf_probe_read_with_telemetry(dst, size, src, ...)                                  \
+    ({                                                                                      \
+        long errno_ret = bpf_probe_read(dst, size, src);                                    \
+        if ((errno_ret < 0) && __SKIP_ERRS(__nargs(__VA_ARGS__), errno_ret, __VA_ARGS__)) { \
+            helper_with_telemetry(bpf_probe_read, errno_ret);                             \
+        }                                                                                   \
+        errno_ret;                                                                          \
+    })
 
-#define bpf_probe_read_str_with_telemetry(...) \
-    helper_with_telemetry(bpf_probe_read_str, __VA_ARGS__)
 
-#define bpf_probe_read_user_with_telemetry(...) \
-    helper_with_telemetry(bpf_probe_read_user, __VA_ARGS__)
+#define bpf_probe_read_str_with_telemetry(dst, size, src, ...) \
+   ({                                                                                      \
+        long errno_ret = bpf_probe_read_str(dst, size, src);                                    \
+        if ((errno_ret < 0) && __SKIP_ERRS(__nargs(__VA_ARGS__), errno_ret, __VA_ARGS__)) { \
+            helper_with_telemetry(bpf_probe_read_str, errno_ret);                             \
+        }                                                                                   \
+        errno_ret;                                                                          \
+    })
 
-#define bpf_probe_read_user_str_with_telemetry(...) \
-    helper_with_telemetry(bpf_probe_read_user_str, __VA_ARGS__)
+#define bpf_probe_read_user_with_telemetry(dst, size, src, ...) \
+   ({                                                                                      \
+        long errno_ret = bpf_probe_read_user(dst, size, src);                                    \
+        if ((errno_ret < 0) && __SKIP_ERRS(__nargs(__VA_ARGS__), errno_ret, __VA_ARGS__)) { \
+            helper_with_telemetry(bpf_probe_read_user, errno_ret);                             \
+        }                                                                                   \
+        errno_ret;                                                                          \
+    })
 
-#define bpf_probe_read_kernel_with_telemetry(...) \
-    helper_with_telemetry(bpf_probe_read_kernel, __VA_ARGS__)
+#define bpf_probe_read_user_str_with_telemetry(dst, size, src, ...) \
+   ({                                                                                      \
+        long errno_ret = bpf_probe_read_user_str(dst, size, src);                                    \
+        if ((errno_ret < 0) && __SKIP_ERRS(__nargs(__VA_ARGS__), errno_ret, __VA_ARGS__)) { \
+            helper_with_telemetry(bpf_probe_read_user_str, errno_ret);                             \
+        }                                                                                   \
+        errno_ret;                                                                          \
+    })
 
-#define bpf_probe_read_kernel_str_with_telemetry(...) \
-    helper_with_telemetry(bpf_probe_read_kernel_str, __VA_ARGS__)
+#define bpf_probe_read_kernel_with_telemetry(dst, size, src, ...) \
+   ({                                                                                      \
+        long errno_ret = bpf_probe_read_kernel(dst, size, src);                                    \
+        if ((errno_ret < 0) && __SKIP_ERRS(__nargs(__VA_ARGS__), errno_ret, __VA_ARGS__)) { \
+            helper_with_telemetry(bpf_probe_read_kernel, errno_ret);                             \
+        }                                                                                   \
+        errno_ret;                                                                          \
+    })
 
-#define bpf_skb_load_bytes_with_telemetry(...) \
-    helper_with_telemetry(bpf_skb_load_bytes, __VA_ARGS__)
+#define bpf_probe_read_kernel_str_with_telemetry(dst, size, src, ...) \
+   ({                                                                                      \
+        long errno_ret = bpf_probe_read_kernel_str(dst, size, src);                                    \
+        if ((errno_ret < 0) && __SKIP_ERRS(__nargs(__VA_ARGS__), errno_ret, __VA_ARGS__)) { \
+            helper_with_telemetry(bpf_probe_read_kernel_str, errno_ret);                             \
+        }                                                                                   \
+        errno_ret;                                                                          \
+    })
 
-#define bpf_perf_event_output_with_telemetry(...) \
-    helper_with_telemetry(bpf_perf_event_output, __VA_ARGS__)
+#define bpf_skb_load_bytes_with_telemetry(skb, offset, to, len, ...) \
+   ({                                                                                      \
+        long errno_ret = bpf_skb_load_bytes(skb, offset, to, len);                                    \
+        if ((errno_ret < 0) && __SKIP_ERRS(__nargs(__VA_ARGS__), errno_ret, __VA_ARGS__)) { \
+            helper_with_telemetry(bpf_skb_load_bytes, errno_ret);                             \
+        }                                                                                   \
+        errno_ret;                                                                          \
+    })
 
-#define bpf_ringbuf_output_with_telemetry(...) \
-    helper_with_telemetry(bpf_ringbuf_output, __VA_ARGS__)
+#define bpf_perf_event_output_with_telemetry(ctx, map, flags, data, size, ...) \
+   ({                                                                                      \
+        long errno_ret = bpf_perf_event_output(ctx, map, flags, data, size);                                    \
+        if ((errno_ret < 0) && __SKIP_ERRS(__nargs(__VA_ARGS__), errno_ret, __VA_ARGS__)) { \
+            helper_with_telemetry(bpf_perf_event_output, errno_ret);                             \
+        }                                                                                   \
+        errno_ret;                                                                          \
+    })
 
-#define bpf_copy_from_user_with_telemetry(...) \
-    helper_with_telemetry(bpf_copy_from_user, __VA_ARGS__)
+#define bpf_ringbuf_output_with_telemetry(ringbuf, data, size, flags, ...) \
+   ({                                                                                      \
+        long errno_ret = bpf_ringbuf_output(ringbuf, data, size, flags);                                    \
+        if ((errno_ret < 0) && __SKIP_ERRS(__nargs(__VA_ARGS__), errno_ret, __VA_ARGS__)) { \
+            helper_with_telemetry(bpf_ringbuf_output, errno_ret);                             \
+        }                                                                                   \
+        errno_ret;                                                                          \
+    })
+
+#define bpf_copy_from_user_with_telemetry(dst, size, src, ...) \
+   ({                                                                                      \
+        long errno_ret = bpf_copy_from_user(dst, size, src);                                    \
+        if ((errno_ret < 0) && __SKIP_ERRS(__nargs(__VA_ARGS__), errno_ret, __VA_ARGS__)) { \
+            helper_with_telemetry(bpf_copy_from_user, errno_ret);                             \
+        }                                                                                   \
+        errno_ret;                                                                          \
+    })
 
 #if defined(bpf_target_x86)
 
