@@ -178,7 +178,7 @@ func readParquetFile(filePath string) ([]FGMMetric, error) {
 	// Extract metrics from record batches
 	var allMetrics []FGMMetric
 	for recordReader.Next() {
-		record := recordReader.Record()
+		record := recordReader.RecordBatch()
 		metrics, err := extractMetricsFromRecord(record)
 		if err != nil {
 			return nil, fmt.Errorf("extracting metrics: %w", err)
@@ -195,7 +195,7 @@ func readParquetFile(filePath string) ([]FGMMetric, error) {
 }
 
 // extractMetricsFromRecord extracts FGMMetric structs from an Arrow record batch.
-func extractMetricsFromRecord(record arrow.Record) ([]FGMMetric, error) {
+func extractMetricsFromRecord(record arrow.RecordBatch) ([]FGMMetric, error) {
 	numRows := int(record.NumRows())
 	if numRows == 0 {
 		return nil, nil

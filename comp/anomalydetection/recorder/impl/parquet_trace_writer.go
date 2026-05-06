@@ -213,7 +213,7 @@ func (b *spanBatchBuilder) add(
 	b.spanMetrics = append(b.spanMetrics, metricsCopy)
 }
 
-func (b *spanBatchBuilder) build() arrow.Record {
+func (b *spanBatchBuilder) build() arrow.RecordBatch {
 	if len(b.runIDs) == 0 {
 		return nil
 	}
@@ -310,7 +310,7 @@ func (b *spanBatchBuilder) build() arrow.Record {
 		}
 	}
 
-	record := recordBuilder.NewRecord()
+	record := recordBuilder.NewRecordBatch()
 	recordBuilder.Release()
 
 	// Reset builder

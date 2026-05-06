@@ -38,7 +38,6 @@ import (
 	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	traceconfigfx "github.com/DataDog/datadog-agent/comp/trace/config/fx"
-	observerbufferfx "github.com/DataDog/datadog-agent/comp/trace/observerbuffer/fx"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -143,7 +142,6 @@ func getTraceAgentOptions(ctx context.Context) []fx.Option {
 	return []fx.Option{
 		traceagentfx.Module(),
 		traceconfigfx.Module(),
-		observerbufferfx.Module(),
 
 		fx.Supply(&traceagentcomp.Params{
 			CPUProfile:               "",

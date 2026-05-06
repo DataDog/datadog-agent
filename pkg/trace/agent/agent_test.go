@@ -29,6 +29,8 @@ import (
 
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 
+	mockStatsd "github.com/DataDog/datadog-go/v5/statsd/mocks"
+
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
@@ -46,7 +48,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
-	mockStatsd "github.com/DataDog/datadog-go/v5/statsd/mocks"
 
 	"github.com/stretchr/testify/assert"
 
@@ -54,7 +55,7 @@ import (
 )
 
 func NewTestAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
-	a := NewAgent(ctx, conf, telemetryCollector, &statsd.NoOpClient{}, gzip.NewComponent(), nil)
+	a := NewAgent(ctx, conf, telemetryCollector, &statsd.NoOpClient{}, gzip.NewComponent())
 	a.Concentrator = &mockConcentrator{}
 	a.TraceWriter = &mockTraceWriter{
 		apiKey: conf.Endpoints[0].APIKey,
@@ -744,7 +745,7 @@ func TestProcess(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
-		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), nil)
+		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 		agnt.TraceWriter = &mockTraceWriter{}
 		defer cancel()
 
@@ -4593,7 +4594,7 @@ func TestShutdownFlushSyncInSyncMode(t *testing.T) {
 	cfg.Hostname = "testhost"
 
 	ctx, cancel := context.WithCancel(context.Background())
-	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent(), nil)
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
 
 	// Use real Concentrator (backed by real StatsWriter) but mock trace writers.
 	agnt.TraceWriter = &mockTraceWriter{apiKey: "test"}

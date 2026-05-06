@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	observerbuffer "github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	containertagsbuffer "github.com/DataDog/datadog-agent/pkg/trace/containertags"
@@ -52,7 +51,6 @@ type DatadogStatsWriter struct {
 	conf            *config.AgentConfig
 
 	containerTagsBuffer containertagsbuffer.ContainerTagsBuffer
-	observerBuffer      observerbuffer.Component
 
 	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
 	syncMode  bool
@@ -72,7 +70,6 @@ func NewStatsWriter(
 	statsd statsd.ClientInterface,
 	timing timing.Reporter,
 	containerTagsBuffer containertagsbuffer.ContainerTagsBuffer,
-	obsBuf observerbuffer.Component,
 ) *DatadogStatsWriter {
 	sw := &DatadogStatsWriter{
 		stats:               &info.StatsWriterInfo{},
@@ -80,7 +77,6 @@ func NewStatsWriter(
 		stop:                make(chan struct{}),
 		flushChan:           make(chan chan struct{}),
 		containerTagsBuffer: containerTagsBuffer,
-		observerBuffer:      obsBuf,
 		syncMode:            cfg.SynchronousFlushing,
 		easylog:             log.NewThrottled(5, 10*time.Second), // no more than 5 messages every 10 seconds
 		conf:                cfg,
@@ -163,12 +159,6 @@ func (w *DatadogStatsWriter) Stop() {
 
 // Add appends this StatsPayload to the writer's buffer (flushing immediately if syncMode is enabled)
 func (w *DatadogStatsWriter) Write(sp *pb.StatsPayload) {
-	// Also buffer for observer (before async enrichment to avoid data races)
-	// The buffer is always non-nil (either active or no-op)
-	if w.observerBuffer != nil {
-		w.observerBuffer.AddStats(sp)
-	}
-
 	if w.containerTagsBuffer.IsEnabled() && statsPayloadHasCtags(sp) {
 		w.writeAsyncForCtags(sp)
 		return

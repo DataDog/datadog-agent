@@ -8,7 +8,6 @@ package agent
 
 import (
 	"context"
-	"net/http"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -17,7 +16,6 @@ import (
 	"time"
 
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
-	observerbuffer "github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
@@ -134,10 +132,6 @@ type Agent struct {
 	Statsd                statsd.ClientInterface
 	Timing                timing.Reporter
 
-	// ObserverBuffer is a buffer for storing traces/profiles
-	// to be fetched by the core-agent's observer component.
-	ObserverBuffer observerbuffer.Component
-
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type. It is lazy initialized with obfuscatorConf in obfuscate.go
 	obfuscator     *obfuscate.Obfuscator
@@ -189,7 +183,7 @@ type TracerPayloadModifier = payload.TracerPayloadModifier
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
 // which may be cancelled in order to gracefully stop the agent.
-func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface, comp compression.Component, obsBuf observerbuffer.Component) *Agent {
+func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface, comp compression.Component) *Agent {
 	dynConf := sampler.NewDynamicConfig()
 	log.Infof("Starting Agent with processor trace buffer of size %d", conf.TraceBuffer)
 	in := make(chan *api.Payload, conf.TraceBuffer)
@@ -201,7 +195,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 	timing := timing.New(statsd)
 
 	containerTagsBuffer := containertagsbuffer.NewContainerTagsBuffer(conf, statsd)
-	statsWriter := writer.NewStatsWriter(conf, telemetryCollector, statsd, timing, containerTagsBuffer, obsBuf)
+	statsWriter := writer.NewStatsWriter(conf, telemetryCollector, statsd, timing, containerTagsBuffer)
 	agnt := &Agent{
 		Concentrator:          stats.NewConcentrator(conf, statsWriter, time.Now(), statsd),
 		ContainerTagsBuffer:   containerTagsBuffer,
@@ -226,16 +220,9 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		Statsd:                statsd,
 		Timing:                timing,
 		processWg:             &sync.WaitGroup{},
-		ObserverBuffer:        obsBuf,
 	}
 	agnt.SamplerMetrics.Add(agnt.PrioritySampler, agnt.ErrorsSampler, agnt.NoPrioritySampler, agnt.RareSampler)
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, inV1, agnt, telemetryCollector, statsd, timing)
-	// Wire up profile capture to forward raw profile data to the buffer
-	if obsBuf != nil {
-		agnt.Receiver.ProfileCaptureFunc = func(body []byte, headers http.Header) {
-			obsBuf.AddRawProfile(body, headers)
-		}
-	}
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf, statsd, timing)
 	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
 	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler, telemetryCollector, statsd, timing, comp)
@@ -613,11 +600,6 @@ func (a *Agent) Process(p *api.Payload) {
 }
 
 func (a *Agent) writeChunks(p *writer.SampledChunks) {
-	// Add to observer buffer (before async enrichment to avoid data races)
-	if a.ObserverBuffer != nil {
-		a.ObserverBuffer.AddTrace(p.TracerPayload)
-	}
-
 	// fast path: no container ID or the buffering feature is disabled,
 	if p.TracerPayload.ContainerID == "" || !a.ContainerTagsBuffer.IsEnabled() {
 		a.TraceWriter.WriteChunks(p)

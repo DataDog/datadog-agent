@@ -506,21 +506,6 @@ Package npcollector used to manage network paths
 
 Package traceroute provides the traceroute component
 
-## [comp/observer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/observer) (Component Bundle)
-
-*Datadog Team*: q-branch
-
-Package observer provides a component for observing data flowing through the agent.
-
-### [comp/observer/logssource](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/observer/logssource)
-
-Package logssource provides a component that feeds container logs into the
-observer without requiring the logs agent to be enabled.
-
-### [comp/observer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/observer)
-
-Package observer provides a component for observing data flowing through the agent.
-
 ## [comp/otelcol](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol) (Component Bundle)
 
 *Datadog Team*: opentelemetry-agent
@@ -735,11 +720,6 @@ Package config implements a component to handle trace-agent configuration.
 
 Package etwtracer provides ETW events to the .Net tracer
 
-### [comp/trace/observerbuffer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/observerbuffer)
-
-Package observerbuffer provides a ring buffer for trace and profile data
-that will be fetched by the core-agent's observer component.
-
 ### [comp/trace/payload-modifier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/payload-modifier)
 
 Package payloadmodifier defines the trace payload modifier component interface
@@ -788,6 +768,19 @@ Package telemetry provides the installer telemetry component.
 ### [comp/updater/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/updater)
 
 Package updater is the updater component.
+
+### [comp/anomalydetection/logssource](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/logssource)
+
+*Datadog Team*: q-branch
+
+Package logssource provides a component that feeds container logs into the
+observer without requiring the logs agent to be enabled.
+
+### [comp/anomalydetection/observer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/observer)
+
+*Datadog Team*: q-branch
+
+Package observer provides a component for observing data flowing through the agent.
 
 ### [comp/anomalydetection/recorder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/recorder)
 

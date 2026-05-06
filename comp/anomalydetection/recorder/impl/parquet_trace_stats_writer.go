@@ -218,7 +218,7 @@ func (b *traceStatsBatchBuilder) add(
 	b.peerTags = append(b.peerTags, tagsCopy)
 }
 
-func (b *traceStatsBatchBuilder) build() arrow.Record {
+func (b *traceStatsBatchBuilder) build() arrow.RecordBatch {
 	if len(b.runIDs) == 0 {
 		return nil
 	}
@@ -311,7 +311,7 @@ func (b *traceStatsBatchBuilder) build() arrow.Record {
 		}
 	}
 
-	record := rb.NewRecord()
+	record := rb.NewRecordBatch()
 	rb.Release()
 
 	// Reset builder
