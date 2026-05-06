@@ -7,19 +7,10 @@
 
 package discoverer
 
-import "errors"
-
-// pythonBridgeStub satisfies Bridge for builds without the python tag (e.g. the
-// cluster agent). It always errors; templates with Discovery set will be
-// skipped when the agent is built without Python support.
-type pythonBridgeStub struct{}
-
-// NewPythonBridge returns a no-op Bridge for non-Python builds. Calls to
-// RunDiscover return an error.
+// NewPythonBridge returns nil in no-Python builds. discoverer.New(nil)
+// returns a nil Discoverer; configmgr nil-checks before every call, so
+// templates with Discovery set fail-closed (not scheduled) without
+// retry traffic.
 func NewPythonBridge() Bridge {
-	return &pythonBridgeStub{}
-}
-
-func (b *pythonBridgeStub) RunDiscover(string, string) (string, error) {
-	return "", errors.New("python bridge: agent built without Python support")
+	return nil
 }
