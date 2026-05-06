@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package procmgrwait holds shared E2E helpers for asserting a process is running
+// Package procmgrtest holds shared E2E helpers for asserting a process is running
 // under dd-procmgr (describe + /proc/<pid>/exe checks).
-package procmgrwait
+package procmgrtest
 
 import (
 	"fmt"
@@ -16,23 +16,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// ExecuteFunc executes a command on the remote host.
-type ExecuteFunc func(command string) (string, error)
+// CLIBin is the standard dd-procmgr CLI path on Unix test hosts.
+const CLIBin = "/opt/datadog-agent/embedded/bin/dd-procmgr"
 
-// WaitForRunningProcess polls describeCmd until describe reports State=Running,
+// CommandExecutor executes a command on the remote host.
+type CommandExecutor interface {
+	ExecuteCommand(command string) (string, error)
+}
+
+// WaitForRunningProcess polls `dd-procmgr describe <processName>` until describe reports State=Running,
 // Command matches expectedBinary, and /proc/<pid>/exe resolves to the same path
 // as sudo readlink -f expectedBinary (so stable paths match versioned binaries).
-// processName is used only in assertion messages (the process name in describe output).
-func WaitForRunningProcess(t *testing.T, execute ExecuteFunc, describeCmd, processName, expectedBinary string, timeout time.Duration) string {
+func WaitForRunningProcess(t *testing.T, executor CommandExecutor, processName, expectedBinary string, timeout time.Duration) string {
 	t.Helper()
-	wantExe, err := execute(fmt.Sprintf("sudo readlink -f %q", expectedBinary))
+	describeCmd := fmt.Sprintf(`sudo -u dd-agent -- %q describe %q`, CLIBin, processName)
+	wantExe, err := executor.ExecuteCommand(fmt.Sprintf("sudo readlink -f %q", expectedBinary))
 	require.NoError(t, err, "resolve expected binary %q", expectedBinary)
 	wantExe = strings.TrimSpace(wantExe)
 	require.NotEmpty(t, wantExe, "resolved expected binary for %q", expectedBinary)
 
 	var pid string
 	require.Eventually(t, func() bool {
-		out, err := execute(describeCmd)
+		out, err := executor.ExecuteCommand(describeCmd)
 		if err != nil {
 			t.Logf("WaitForRunningProcess: describe command=%q err=%v\noutput:\n%s", describeCmd, err, out)
 			return false
@@ -51,7 +56,7 @@ func WaitForRunningProcess(t *testing.T, execute ExecuteFunc, describeCmd, proce
 			t.Logf("WaitForRunningProcess: describe command=%q missing PID (got %q)\noutput:\n%s", describeCmd, p, out)
 			return false
 		}
-		exeOut, err := execute("sudo readlink -f /proc/" + p + "/exe")
+		exeOut, err := executor.ExecuteCommand("sudo readlink -f /proc/" + p + "/exe")
 		if err != nil {
 			t.Logf("WaitForRunningProcess: readlink /proc/%s/exe failed: %v\n%s", p, err, exeOut)
 			return false
