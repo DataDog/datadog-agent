@@ -126,10 +126,13 @@ func TestDiscoverGivenUpNeverProbesAgain(t *testing.T) {
 		return "null", nil
 	}}
 	d := newDiscoverer(bridge)
+	t0 := time.Now()
+	tick := int64(0)
+	d.now = func() time.Time { tick++; return t0.Add(time.Duration(tick) * time.Second) }
 	d.retrySchedule = []time.Duration{0} // 1 retry, then give up
 
 	d.Discover(context.Background(), "krakend", newFakeService()) // attempt 1: probes, fails, pending (nextRetryAt = now+0)
-	d.Discover(context.Background(), "krakend", newFakeService()) // attempt 2: probes (now >= nextRetryAt), fails, givenUp
+	d.Discover(context.Background(), "krakend", newFakeService()) // attempt 2: now > nextRetryAt → probes, fails, givenUp
 	callsAtGiveUp := bridge.calls
 	d.Discover(context.Background(), "krakend", newFakeService()) // givenUp: no probe
 	assert.Equal(t, callsAtGiveUp, bridge.calls, "givenUp should suppress all future probes")
@@ -151,7 +154,12 @@ func TestDiscoverIsPendingFalseAfterGiveUp(t *testing.T) {
 		return "null", nil
 	}}
 	d := newDiscoverer(bridge)
+	t0 := time.Now()
+	tick := int64(0)
+	d.now = func() time.Time { tick++; return t0.Add(time.Duration(tick) * time.Second) }
 	d.retrySchedule = []time.Duration{0} // 1 retry, then give up
+
+	// 3 Discover calls: 1st → pending, 2nd → givenUp (now > nextRetryAt), 3rd → no-op
 	d.Discover(context.Background(), "krakend", newFakeService())
 	d.Discover(context.Background(), "krakend", newFakeService())
 	d.Discover(context.Background(), "krakend", newFakeService())
@@ -177,4 +185,11 @@ func TestDiscoverForgetClearsEntries(t *testing.T) {
 
 	d.Forget("docker://abc")
 	assert.False(t, d.IsPending("docker://abc", "krakend"))
+}
+
+func TestDiscoverForgetNoop(t *testing.T) {
+	bridge := &fakeBridge{respond: func(string, string) (string, error) { return "null", nil }}
+	d := newDiscoverer(bridge)
+	d.Forget("never-seen") // must not panic / error
+	assert.False(t, d.IsPending("never-seen", "krakend"))
 }
