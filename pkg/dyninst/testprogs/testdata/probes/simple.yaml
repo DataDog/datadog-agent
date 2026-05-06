@@ -743,7 +743,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "519"
+      - "535"
   when:
     dsl: "n == 7"
     json: {eq: [{ref: "n"}, 7]}
@@ -768,7 +768,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "519"
+      - "535"
   sampling:
     snapshotsPerSecond: 10
 
@@ -2964,7 +2964,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "519"
+      - "535"
   when:
     dsl: "n == 7 && tag == \"match\""
     json:
@@ -3103,3 +3103,273 @@ probes:
     snapshotsPerSecond: 10
   tags:
     - "issue:ConditionExpressionUnresolvable"
+
+# ==========================================================================
+# contains(map, key) probes. condContainsMap is called with (present/absent/
+# nil-map, tag). Each positive probe fires only on the call where
+# contains(...) is true.
+# ==========================================================================
+
+- id: condContains_present_string
+  tags:
+    # contains() requires swisstable maps; not supported on old-style hmap
+    # (Go 1.23 and earlier).
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condContainsMap
+  when:
+    dsl: "contains(m, \"existing_key\")"
+    json: {contains: [{ref: "m"}, "existing_key"]}
+  template: "m contains \"existing_key\" [tag={tag}]"
+  segments:
+    - str: "m contains \"existing_key\" [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: condContains_absent_string
+  tags:
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condContainsMap
+  when:
+    dsl: "contains(m, \"missing_key\")"
+    json: {contains: [{ref: "m"}, "missing_key"]}
+  template: "m contains \"missing_key\" [tag={tag}]"
+  segments:
+    - str: "m contains \"missing_key\" [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: condContains_present_int
+  tags:
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condContainsMap
+  when:
+    dsl: "contains(mi, 42)"
+    json: {contains: [{ref: "mi"}, 42]}
+  template: "mi contains 42 [tag={tag}]"
+  segments:
+    - str: "mi contains 42 [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: condContains_absent_int
+  tags:
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condContainsMap
+  when:
+    dsl: "contains(mi, 999)"
+    json: {contains: [{ref: "mi"}, 999]}
+  template: "mi contains 999 [tag={tag}]"
+  segments:
+    - str: "mi contains 999 [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Empty string literal: verifies the lit_len==0 path of swiss_map_check_slot
+# is reached and pairs correctly with existence_only (key mismatch → false).
+- id: condContains_empty_string
+  tags:
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condContainsMap
+  when:
+    dsl: "contains(m, \"\")"
+    json: {contains: [{ref: "m"}, ""]}
+  template: "m contains \"\" [tag={tag}]"
+  segments:
+    - str: "m contains \"\" [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# contains under `not`: CondNotOp flips the bool.
+- id: condContains_negated
+  tags:
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condContainsMap
+  when:
+    dsl: "!contains(m, \"missing_key\")"
+    json: {not: {contains: [{ref: "m"}, "missing_key"]}}
+  template: "not contains m \"missing_key\" [tag={tag}]"
+  segments:
+    - str: "not contains m \"missing_key\" [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Compound AND with contains as a leaf: exercises short-circuit with the
+# tag==present check. Fires only on the "present" call.
+- id: condContains_and_tag
+  tags:
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condContainsMap
+  when:
+    dsl: "contains(m, \"existing_key\") && tag == \"present\""
+    json:
+      and:
+        - contains: [{ref: "m"}, "existing_key"]
+        - eq: [{ref: "tag"}, "present"]
+  template: "contains(m,existing_key) && tag==present [tag={tag}]"
+  segments:
+    - str: "contains(m,existing_key) && tag==present [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Negative: contains applied to a non-map operand (string) — must fail at
+# irgen with ConditionExpressionUnresolvable.
+- id: condContains_on_string
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condContainsMap
+  when:
+    dsl: "contains(tag, \"x\")"
+    json: {contains: [{ref: "tag"}, "x"]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Negative: contains applied to a slice operand — must fail at irgen.
+- id: condContains_on_slice
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condSliceArg
+  when:
+    dsl: "contains(x, 1)"
+    json: {contains: [{ref: "x"}, 1]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Negative: contains applied to an array operand — must fail at irgen.
+- id: condContains_on_array
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.intArrayArg
+  when:
+    dsl: "contains(s, 1)"
+    json: {contains: [{ref: "s"}, 1]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Negative: contains with a non-literal key — must fail at irgen with
+# ConditionExpressionUnresolvable.
+- id: condContains_non_literal_key
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condContainsMap
+  when:
+    dsl: "contains(m, tag)"
+    json: {contains: [{ref: "m"}, {ref: "tag"}]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# contains(map, key) as a template segment. The bool result is rendered
+# through the standard bool formatting path. On Go 1.23 (hmap-based maps)
+# the segment is recorded as invalid; on Go 1.24+ (swiss maps) it renders
+# the bool result.
+- id: condContains_template_string
+  type: LOG_PROBE
+  tags: ["version_diff:go1.24.3"]
+  captureSnapshot: false
+  where:
+    methodName: main.condContainsMap
+  template: "has={contains(m, \"existing_key\")} [tag={tag}]"
+  segments:
+    - str: "has="
+    - json: {contains: [{ref: "m"}, "existing_key"]}
+      dsl: "contains(m, \"existing_key\")"
+    - str: " [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: condContains_template_int
+  type: LOG_PROBE
+  captureSnapshot: false
+  tags: ["version_diff:go1.24.3"]
+  where:
+    methodName: main.condContainsMap
+  template: "has={contains(mi, 42)} [tag={tag}]"
+  segments:
+    - str: "has="
+    - json: {contains: [{ref: "mi"}, 42]}
+      dsl: "contains(mi, 42)"
+    - str: " [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# contains(map, key) as a capture expression — produces a named bool
+# capture in the snapshot output rather than a template substitution.
+- id: condContains_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  tags: ["version_diff:go1.24.3"]
+  where:
+    methodName: main.condContainsMap
+  captureExpressions:
+    - name: "m_has_existing"
+      expr:
+        dsl: "contains(m, \"existing_key\")"
+        json: {contains: [{ref: "m"}, "existing_key"]}
+  sampling:
+    snapshotsPerSecond: 10

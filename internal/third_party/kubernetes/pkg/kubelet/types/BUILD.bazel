@@ -186,6 +186,7 @@ go_test(
     name = "types_test",
     srcs = ["pod_update_test.go"],
     embed = [":types"],
+    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@io_k8s_api//core/v1:core",
