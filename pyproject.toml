@@ -17,6 +17,7 @@ exclude = [
     "venv",
     "dev",
     "third_party",
+    "py", # local embedded Python runtime, not repo source
     "cmd/system-probe/subcommands/usm/debug_scripts", # Standalone scripts for customer debugging
 ]
 line-length = 120
