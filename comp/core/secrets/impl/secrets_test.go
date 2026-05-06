@@ -240,46 +240,59 @@ func newResolver(_ *testing.T, params secrets.ConfigParams) *secretResolver {
 	return resolver
 }
 
-// TestConfigureCommandBeatsType verifies that secret_backend_command takes precedence over
-// secret_backend_type: after Configure, backendType is cleared and backendCommand is kept.
-func TestConfigureCommandBeatsType(t *testing.T) {
-	r := newResolver(t, secrets.ConfigParams{
-		Command: "my_command",
-		Type:    "file.yaml",
-	})
-
-	assert.Equal(t, "my_command", r.backendCommand)
-	assert.Empty(t, r.backendType, "backendType must be cleared when backendCommand wins")
-	assert.Nil(t, r.multiBackends)
+var someMultiBackends = map[string]secrets.SecretBackendConfig{
+	"file": {Type: "file.yaml"},
 }
 
-// TestConfigureCommandBeatsMultiBackends verifies that secret_backend_command takes precedence
-// over multi_secret_backends: after Configure, multiBackends is nil and backendCommand is kept.
-func TestConfigureCommandBeatsMultiBackends(t *testing.T) {
-	r := newResolver(t, secrets.ConfigParams{
-		Command: "my_command",
-		MultiBackends: map[string]secrets.SecretBackendConfig{
-			"file": {Type: "file.yaml"},
+// TestConfigurePrecedence verifies the backend priority order:
+// secret_backend_command > secret_backend_type > multi_secret_backends.
+// Lower-priority backends are cleared after Configure so they have no effect on resolution.
+func TestConfigurePrecedence(t *testing.T) {
+	tests := []struct {
+		name                 string
+		params               secrets.ConfigParams
+		wantBackendCommand   string
+		wantBackendType      string
+		wantMultiBackendsNil bool
+	}{
+		{
+			name:                 "command beats type",
+			params:               secrets.ConfigParams{Command: "my_command", Type: "file.yaml"},
+			wantBackendCommand:   "my_command",
+			wantMultiBackendsNil: true,
 		},
-	})
-
-	assert.Equal(t, "my_command", r.backendCommand)
-	assert.Empty(t, r.backendType)
-	assert.Nil(t, r.multiBackends, "multiBackends must be nil when backendCommand wins")
-}
-
-// TestConfigureTypeBeatsMultiBackends verifies that secret_backend_type takes precedence over
-// multi_secret_backends: after Configure, multiBackends is nil and backendType is kept.
-func TestConfigureTypeBeatsMultiBackends(t *testing.T) {
-	r := newResolver(t, secrets.ConfigParams{
-		Type: "file.yaml",
-		MultiBackends: map[string]secrets.SecretBackendConfig{
-			"file": {Type: "file.yaml"},
+		{
+			name:                 "command beats multi_secret_backends",
+			params:               secrets.ConfigParams{Command: "my_command", MultiBackends: someMultiBackends},
+			wantBackendCommand:   "my_command",
+			wantMultiBackendsNil: true,
 		},
-	})
+		{
+			name:                 "command beats type and multi_secret_backends",
+			params:               secrets.ConfigParams{Command: "my_command", Type: "file.yaml", MultiBackends: someMultiBackends},
+			wantBackendCommand:   "my_command",
+			wantMultiBackendsNil: true,
+		},
+		{
+			name:                 "type beats multi_secret_backends",
+			params:               secrets.ConfigParams{Type: "file.yaml", MultiBackends: someMultiBackends},
+			wantBackendType:      "file.yaml",
+			wantMultiBackendsNil: true,
+		},
+	}
 
-	assert.Equal(t, "file.yaml", r.backendType)
-	assert.Nil(t, r.multiBackends, "multiBackends must be nil when backendType wins")
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newResolver(t, tc.params)
+			if tc.wantBackendCommand != "" {
+				assert.Equal(t, tc.wantBackendCommand, r.backendCommand)
+			}
+			assert.Equal(t, tc.wantBackendType, r.backendType)
+			if tc.wantMultiBackendsNil {
+				assert.Nil(t, r.multiBackends)
+			}
+		})
+	}
 }
 
 func TestResolveNoCommand(t *testing.T) {
@@ -308,16 +321,16 @@ func TestResolveSecretError(t *testing.T) {
 	require.NotNil(t, err)
 }
 
-// TestResolvePartialFailure verifies that when some secret handles fail to resolve
-// (e.g. unknown backend, backend error), the successfully resolved handles are still
-// substituted in the config. A failed backend or secret must not affect working ones.
+// TestResolvePartialFailure verifies that when some secret handles fail to resolve,
+// the successfully resolved handles are still substituted — a single failure must not
+// block working secrets.
 func TestResolvePartialFailure(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
-	// multiBackends is intentionally left empty so "bad_backend" is unknown.
 
-	// commandHookFunc mocks execCommand for the global secret_backend_command path.
+	// commandHookFunc only returns a value for "pass1"; "unknown_handle" is absent from
+	// the response, which causes the resolver to treat it as unresolved.
 	resolver.commandHookFunc = func(string) ([]byte, error) {
 		return []byte(`{"pass1":{"value":"password1"}}`), nil
 	}
@@ -325,25 +338,17 @@ func TestResolvePartialFailure(t *testing.T) {
 	conf := []byte(`instances:
 - password: ENC[pass1]
   user: test
-- password: ENC[bad_backend;bad_handle]
+- password: ENC[unknown_handle]
   user: test2
 `)
 
 	resolvedConf, err := resolver.Resolve(conf, "test", "", "", true)
 
-	// Error is returned because the secret "bad_backend;bad_handle" was not resolved by the backendCommand.
-	// Since multiBackends is not set, the resolver uses secret_backend_command and "bad_backend;" is
-	// not treated as a backendID — it is simply part of the handle string sent to the command.
 	require.Error(t, err)
 
-	// The successfully resolved handle must be substituted.
 	resolved := string(resolvedConf)
 	assert.Contains(t, resolved, "password1", "resolved handle should be substituted")
-
-	// The failed handle must remain as ENC[] in the config.
-	assert.Contains(t, resolved, "ENC[bad_backend;bad_handle]", "unresolved handle should remain as ENC[]")
-
-	// The failed handle must appear in unresolvedSecrets.
+	assert.Contains(t, resolved, "ENC[unknown_handle]", "unresolved handle should remain as ENC[]")
 	assert.NotEmpty(t, resolver.unresolvedSecrets)
 }
 
