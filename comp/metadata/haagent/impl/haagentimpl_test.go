@@ -7,11 +7,12 @@ package haagentimpl
 
 import (
 	"bytes"
+	"maps"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -103,7 +104,7 @@ func TestStatusHeaderProvider(t *testing.T) {
 			stats := make(map[string]interface{})
 			headerStatusProvider.JSON(false, stats)
 
-			keys := maps.Keys(stats)
+			keys := slices.Collect(maps.Keys(stats))
 
 			assert.Contains(t, keys, "ha_agent_metadata")
 		}},
