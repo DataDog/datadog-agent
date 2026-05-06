@@ -102,8 +102,8 @@ type LookupResult struct {
 // followed. To gate on a renamed attribute (e.g. rpc.system → rpc.system.name), list one
 // fallback entry per condition attribute in mappings.json.
 func conditionMatches[A Accessor](accessor A, c Condition) bool {
-	v := accessor.GetString(c.Attribute)
-	found := v != ""
+	value := accessor.GetString(c.Attribute)
+	found := value != ""
 
 	// No declared predicate: the condition holds iff the attribute is present.
 	if c.Present == nil && c.Eq == nil {
@@ -113,7 +113,7 @@ func conditionMatches[A Accessor](accessor A, c Condition) bool {
 	if c.Present != nil && found != *c.Present {
 		return false
 	}
-	if c.Eq != nil && (!found || v != fmt.Sprint(c.Eq)) {
+	if c.Eq != nil && (!found || value != fmt.Sprint(c.Eq)) {
 		return false
 	}
 	return true
