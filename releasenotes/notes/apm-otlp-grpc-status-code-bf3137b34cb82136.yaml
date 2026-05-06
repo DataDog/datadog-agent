@@ -1,0 +1,11 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    APM OTLP: Preserve gRPC status codes on trace metrics computed by DDOT and the OpenTelemetry Collector Datadog connector. This includes explicit gRPC status attributes such as ``rpc.grpc.status_code`` and the newer OpenTelemetry semantic convention ``rpc.response.status_code`` when ``rpc.system.name`` is ``grpc``.

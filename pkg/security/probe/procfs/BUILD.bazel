@@ -12,15 +12,15 @@ go_library(
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/security/secl/model",
+            "//pkg/util/kernel",
             "@//pkg/security/seclog",
-            "@//pkg/util/kernel",
             "@com_github_shirou_gopsutil_v4//process",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/secl/model",
+            "//pkg/util/kernel",
             "@//pkg/security/seclog",
-            "@//pkg/util/kernel",
             "@com_github_shirou_gopsutil_v4//process",
             "@org_golang_x_sys//unix",
         ],
