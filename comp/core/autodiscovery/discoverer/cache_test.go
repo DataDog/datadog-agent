@@ -69,12 +69,12 @@ func TestCacheKeyIsolation(t *testing.T) {
 func TestCacheForgetClearsAllEntriesForService(t *testing.T) {
 	c := newCache(time.Now)
 	c.putSuccess("svc-1", "krakend", Result{Configs: []integration.Config{{Name: "krakend"}}})
-	c.putSuccess("svc-1", "apache", Result{Configs: []integration.Config{{Name: "apache"}}})
+	c.putFailure("svc-1", "kuma", []time.Duration{5 * time.Second})
 	c.putSuccess("svc-2", "krakend", Result{Configs: []integration.Config{{Name: "krakend"}}})
 
 	c.forget("svc-1")
 
-	assert.Equal(t, stateMiss, c.lookup("svc-1", "krakend").state, "svc-1/krakend should be forgotten")
-	assert.Equal(t, stateMiss, c.lookup("svc-1", "apache").state, "svc-1/apache should be forgotten")
-	assert.Equal(t, stateHit, c.lookup("svc-2", "krakend").state, "svc-2/krakend should be unaffected")
+	assert.Equal(t, stateMiss, c.lookup("svc-1", "krakend").state)
+	assert.Equal(t, stateMiss, c.lookup("svc-1", "kuma").state)
+	assert.Equal(t, stateHit, c.lookup("svc-2", "krakend").state, "other service untouched")
 }

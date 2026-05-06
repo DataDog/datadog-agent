@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
@@ -118,4 +119,18 @@ func TestDiscoverServiceJSONFormat(t *testing.T) {
 	assert.Contains(t, captured, `"id":"docker://abc"`)
 	assert.Contains(t, captured, `"host":"10.0.0.1"`)
 	assert.Contains(t, captured, `"number":9090`)
+}
+
+func TestDiscoverGivenUpNeverProbesAgain(t *testing.T) {
+	bridge := &fakeBridge{respond: func(string, string) (string, error) {
+		return "null", nil
+	}}
+	d := newDiscoverer(bridge)
+	d.retrySchedule = []time.Duration{0} // 1 retry, then give up
+
+	d.Discover(context.Background(), "krakend", newFakeService()) // attempt 1: probes, fails, pending (nextRetryAt = now+0)
+	d.Discover(context.Background(), "krakend", newFakeService()) // attempt 2: probes (now >= nextRetryAt), fails, givenUp
+	callsAtGiveUp := bridge.calls
+	d.Discover(context.Background(), "krakend", newFakeService()) // givenUp: no probe
+	assert.Equal(t, callsAtGiveUp, bridge.calls, "givenUp should suppress all future probes")
 }
