@@ -14,7 +14,7 @@ import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/discovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
@@ -112,14 +112,14 @@ type reconcilingConfigManager struct {
 
 	secretResolver secrets.Component
 	healthPlatform healthplatformdef.Component
-	prober         discovery.Prober
+	discoverer     discoverer.Discoverer
 }
 
 var _ configManager = &reconcilingConfigManager{}
 
 // newReconcilingConfigManager creates a new, empty reconcilingConfigManager.
-// prober may be nil; templates with Discovery set will be skipped if so.
-func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component, prober discovery.Prober) configManager {
+// disco may be nil; templates with Discovery set will be skipped if so.
+func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component, disco discoverer.Discoverer) configManager {
 	return &reconcilingConfigManager{
 		activeConfigs:      map[string]integration.Config{},
 		activeServices:     map[string]serviceAndADIDs{},
@@ -129,7 +129,7 @@ func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatfor
 		scheduledConfigs:   map[string]integration.Config{},
 		secretResolver:     secretResolver,
 		healthPlatform:     healthPlatform,
-		prober:             prober,
+		discoverer:         disco,
 	}
 }
 
@@ -413,26 +413,42 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 // returns false.
 func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, bool) {
 	digest := tpl.Digest()
-	resolvedSvc := svc
 
 	if tpl.Discovery != nil {
-		if cm.prober == nil {
-			msg := fmt.Sprintf("template %s has Discovery set but no prober is configured", tpl.Name)
+		if cm.discoverer == nil {
+			msg := fmt.Sprintf("template %s has Discovery set but no discoverer is configured", tpl.Name)
 			log.Errorf("autodiscovery: %s", msg)
 			errorStats.setResolveWarning(tpl.Name, msg)
 			return tpl, false
 		}
-		result, ok := cm.prober.Probe(context.Background(), tpl.Discovery, svc)
+		result, ok := cm.discoverer.Discover(context.Background(), tpl.Name, svc)
 		if !ok {
-			msg := fmt.Sprintf("discovery probe did not match for template %s and service %s", tpl.Name, svc.GetServiceID())
+			msg := fmt.Sprintf("discover did not match for template %s and service %s", tpl.Name, svc.GetServiceID())
 			log.Debugf("autodiscovery: %s", msg)
 			errorStats.setResolveWarning(tpl.Name, msg)
 			return tpl, false
 		}
-		resolvedSvc = discovery.WrapWithProbeResult(svc, result)
+		if len(result.Configs) == 0 {
+			return tpl, false
+		}
+		// Single-instance path: take the first discovered config's instances and
+		// graft onto a copy of tpl. Multi-instance per service is a follow-up.
+		resolved := tpl
+		resolved.Instances = result.Configs[0].Instances
+		// Discovery results are concrete configs — no template substitution needed.
+		resolvedConfig, err := decryptConfig(resolved, cm.secretResolver, digest)
+		if err != nil {
+			msg := fmt.Sprintf("error decrypting secrets in config %s for service %s: %v", resolved.Name, svc.GetServiceID(), err)
+			errorStats.setResolveWarning(tpl.Name, msg)
+			return resolved, false
+		}
+		errorStats.removeResolveWarnings(tpl.Name)
+		cm.clearTemplateResolutionFailure(tpl, svc)
+		return resolvedConfig, true
 	}
 
-	config, err := configresolver.Resolve(tpl, resolvedSvc)
+	// Non-discovery templates: existing template-resolution path.
+	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
 		msg := fmt.Sprintf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
 		log.Errorf("autodiscovery: skipping config - %s", msg)
