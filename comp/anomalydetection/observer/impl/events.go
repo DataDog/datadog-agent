@@ -19,7 +19,7 @@ const (
 )
 
 // engineEvent represents a meaningful state transition in the engine.
-// Events are lightweight notifications; consumers should query stateView for
+// Events are lightweight notifications; consumers should query StateView for
 // full details when needed.
 type engineEvent struct {
 	kind      engineEventKind
@@ -53,35 +53,35 @@ type correlationUpdatedEvent struct {
 	correlatorName string
 }
 
-// eventSink receives engine events.
-type eventSink interface {
+// EventSink receives engine events.
+type EventSink interface {
 	onEngineEvent(engineEvent)
 }
 
-// reporterEventSink bridges engine events to the existing Reporter interface.
+// ReporterEventSink bridges engine events to the existing Reporter interface.
 // When an advance completes, it populates ReportOutput with anomalies from
-// the event and active correlations from the stateView, then calls Report
+// the event and active correlations from the StateView, then calls Report
 // on all registered reporters.
-type reporterEventSink struct {
-	reporters []observerdef.Reporter
-	state     *stateView // for querying current correlations on advance
+type ReporterEventSink struct {
+	Reporters []observerdef.Reporter
+	State     *StateView // for querying current correlations on advance
 }
 
-func (s *reporterEventSink) onEngineEvent(evt engineEvent) {
+func (s *ReporterEventSink) onEngineEvent(evt engineEvent) {
 	if evt.kind == eventAdvanceCompleted {
 		ac := evt.advanceCompleted
 		output := observerdef.ReportOutput{
 			AdvancedToSec: ac.advancedToSec,
 			NewAnomalies:  ac.anomalies,
 		}
-		if s.state != nil {
+		if s.State != nil {
 			// Use CorrelationHistory (accumulated) rather than ActiveCorrelations
 			// (post-eviction) so that batch detector clusters are visible to
 			// reporters even when their changepoint timestamps are old enough
 			// to be evicted.
-			output.ActiveCorrelations = s.state.CorrelationHistory()
+			output.ActiveCorrelations = s.State.CorrelationHistory()
 		}
-		for _, r := range s.reporters {
+		for _, r := range s.Reporters {
 			r.Report(output)
 		}
 	}

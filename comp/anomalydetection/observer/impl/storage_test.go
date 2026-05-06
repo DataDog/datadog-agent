@@ -16,7 +16,7 @@ import (
 )
 
 func TestTimeSeriesStorage_Add(t *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 
 	// Add first point
 	s.Add("test", "my.metric", 10.0, 1000, []string{"env:prod"})
@@ -32,7 +32,7 @@ func TestTimeSeriesStorage_Add(t *testing.T) {
 }
 
 func TestTimeSeriesStorage_AddSameBucket_Average(t *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 
 	// Add multiple points to same bucket
 	s.Add("test", "my.metric", 10.0, 1000, []string{"env:prod"})
@@ -47,7 +47,7 @@ func TestTimeSeriesStorage_AddSameBucket_Average(t *testing.T) {
 }
 
 func TestTimeSeriesStorage_AddSameBucket_Sum(t *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 
 	s.Add("test", "my.metric", 10.0, 1000, nil)
 	s.Add("test", "my.metric", 20.0, 1000, nil)
@@ -60,7 +60,7 @@ func TestTimeSeriesStorage_AddSameBucket_Sum(t *testing.T) {
 }
 
 func TestTimeSeriesStorage_AddSameBucket_Count(t *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 
 	s.Add("test", "my.metric", 10.0, 1000, nil)
 	s.Add("test", "my.metric", 20.0, 1000, nil)
@@ -73,7 +73,7 @@ func TestTimeSeriesStorage_AddSameBucket_Count(t *testing.T) {
 }
 
 func TestTimeSeriesStorage_AddSameBucket_MinMax(t *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 
 	s.Add("test", "my.metric", 10.0, 1000, nil)
 	s.Add("test", "my.metric", 20.0, 1000, nil)
@@ -89,7 +89,7 @@ func TestTimeSeriesStorage_AddSameBucket_MinMax(t *testing.T) {
 }
 
 func TestTimeSeriesStorage_AddDifferentBuckets(t *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 
 	// Add points to different buckets
 	s.Add("test", "my.metric", 10.0, 1000, []string{"env:prod"})
@@ -109,7 +109,7 @@ func TestTimeSeriesStorage_AddDifferentBuckets(t *testing.T) {
 }
 
 func TestTimeSeriesStorage_PreservesOutOfOrderBuckets(t *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 
 	s.Add("test", "my.metric", 10.0, 1000, nil)
 	s.Add("test", "my.metric", 20.0, 1002, nil)
@@ -127,7 +127,7 @@ func TestTimeSeriesStorage_PreservesOutOfOrderBuckets(t *testing.T) {
 }
 
 func TestTimeSeriesStorage_DifferentTags(t *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 
 	// Different tags = different series
 	s.Add("test", "my.metric", 10.0, 1000, []string{"env:prod"})
@@ -143,7 +143,7 @@ func TestTimeSeriesStorage_DifferentTags(t *testing.T) {
 }
 
 func TestTimeSeriesStorage_TagOrderDoesNotMatter(t *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 
 	// Tags in different order should be same series
 	s.Add("test", "my.metric", 10.0, 1000, []string{"a:1", "b:2"})
@@ -156,14 +156,14 @@ func TestTimeSeriesStorage_TagOrderDoesNotMatter(t *testing.T) {
 }
 
 func TestTimeSeriesStorage_GetSeries_NotFound(t *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 
 	series := s.GetSeries("test", "nonexistent", nil, AggregateAverage)
 	assert.Nil(t, series)
 }
 
 func TestTimeSeriesStorage_AllSeries(t *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 
 	// Add series to different namespaces
 	s.Add("ns1", "metric1", 10.0, 1000, nil)
@@ -217,7 +217,7 @@ func TestAggSuffix(t *testing.T) {
 }
 
 func TestTimeSeriesStorage_DropsNonFiniteValuesWithStats(t *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 
 	s.Add("test", "my.metric", math.Inf(1), 1000, nil)
 	s.Add("test", "my.metric", math.NaN(), 1001, nil)
@@ -232,7 +232,7 @@ func TestTimeSeriesStorage_DropsNonFiniteValuesWithStats(t *testing.T) {
 }
 
 func TestTimeSeriesStorage_DropsExtremeFiniteValuesWithStats(t *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 
 	s.Add("test", "my.metric", math.MaxFloat64, 1000, nil)
 	s.Add("test", "my.metric", math.MaxFloat64/4, 1001, nil)
@@ -250,8 +250,8 @@ func TestTimeSeriesStorage_DropsExtremeFiniteValuesWithStats(t *testing.T) {
 
 // --- Binary-search-based range query tests ---
 
-func makeRangeStorage() *timeSeriesStorage {
-	s := newTimeSeriesStorage()
+func makeRangeStorage() *TimeSeriesStorage {
+	s := NewTimeSeriesStorage()
 	// Insert points at timestamps 10, 20, 30, 40, 50
 	for _, ts := range []int64{10, 20, 30, 40, 50} {
 		s.Add("ns", "m", float64(ts), ts, nil)
@@ -263,13 +263,13 @@ func makeRangeStorage() *timeSeriesStorage {
 const rangeID = observer.SeriesRef(0)
 
 func TestGetSeriesRange_EmptySeries(t *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 	result := s.GetSeriesRange(observer.SeriesRef(-1), 0, 100, AggregateSum)
 	assert.Nil(t, result)
 }
 
 func TestGetSeriesRange_SinglePoint(t *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 	s.Add("ns", "m", 42.0, 100, nil)
 
 	// First series added gets ID 0
@@ -345,7 +345,7 @@ func TestGetSeriesRange_NoOverlap(t *testing.T) {
 }
 
 func TestGetSeriesRange_AllAggregates(t *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 	// Two values in the same bucket: sum=30, count=2, min=10, max=20, avg=15
 	s.Add("ns", "m", 10.0, 100, nil)
 	s.Add("ns", "m", 20.0, 100, nil)
@@ -393,7 +393,7 @@ func TestPointCount_ColumnarLayout(t *testing.T) {
 }
 
 func TestGetSeriesRange_OutOfOrderInsert(t *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 	// Insert out of order — storage keeps buckets sorted.
 	s.Add("ns", "m", 30.0, 30, nil)
 	s.Add("ns", "m", 10.0, 10, nil)
@@ -408,7 +408,7 @@ func TestGetSeriesRange_OutOfOrderInsert(t *testing.T) {
 }
 
 func TestFindingH1_StorageNamespacesRace(_ *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -433,7 +433,7 @@ func TestFindingH1_StorageNamespacesRace(_ *testing.T) {
 }
 
 func TestFindingH1_StorageTimeBoundsRace(_ *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -456,7 +456,7 @@ func TestFindingH1_StorageTimeBoundsRace(_ *testing.T) {
 }
 
 func TestFindingH1_StorageMaxTimestampRace(_ *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -479,7 +479,7 @@ func TestFindingH1_StorageMaxTimestampRace(_ *testing.T) {
 }
 
 func TestFindingH1_StorageListAllSeriesCompactRace(_ *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -502,7 +502,7 @@ func TestFindingH1_StorageListAllSeriesCompactRace(_ *testing.T) {
 }
 
 func TestFindingH1_StorageDroppedValueStatsRace(_ *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 
 	var wg sync.WaitGroup
 	wg.Add(2)
@@ -526,7 +526,7 @@ func TestFindingH1_StorageDroppedValueStatsRace(_ *testing.T) {
 }
 
 func TestFindingM5_NegativeMaxFloat64NotFiltered(t *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 
 	// Add two -MaxFloat64 values at the same timestamp.
 	s.Add("ns", "metric", -math.MaxFloat64, 1000, nil)
@@ -549,7 +549,7 @@ func TestFindingM5_NegativeMaxFloat64NotFiltered(t *testing.T) {
 }
 
 func TestTimeBoundsSkipsNonPositivePrefixOnly(t *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 
 	s.Add("test", "metric", 1, 0, nil)
 	s.Add("test", "metric", 2, 10, nil)
@@ -562,7 +562,7 @@ func TestTimeBoundsSkipsNonPositivePrefixOnly(t *testing.T) {
 }
 
 func TestTimeSeriesStorage_ListSeries_ExcludeNamespaces(t *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 	s.Add(observer.TelemetryNamespace, "internal.gauge", 1, 1000, nil)
 	s.Add("work", "cpu", 2, 1000, nil)
 
@@ -579,7 +579,7 @@ func TestTimeSeriesStorage_ListSeries_ExcludeNamespaces(t *testing.T) {
 }
 
 func TestTimeSeriesStorage_RemoveSeriesByKeys(t *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 
 	s.Add("ns", "a", 1.0, 1000, []string{"k:1"})
 	s.Add("ns", "b", 2.0, 1000, []string{"k:2"})
@@ -587,8 +587,8 @@ func TestTimeSeriesStorage_RemoveSeriesByKeys(t *testing.T) {
 	require.Equal(t, 3, s.TotalSeriesCount(""))
 	genBefore := s.SeriesGeneration()
 
-	keyB := seriesKey("ns", "b", []string{"k:2"})
-	keyC := seriesKey("ns", "c", []string{"k:3"})
+	keyB := SeriesKey("ns", "b", []string{"k:2"})
+	keyC := SeriesKey("ns", "c", []string{"k:3"})
 	refB := s.seriesIDs[keyB]
 	refC := s.seriesIDs[keyC]
 
@@ -601,7 +601,7 @@ func TestTimeSeriesStorage_RemoveSeriesByKeys(t *testing.T) {
 	require.Nil(t, s.GetSeriesMeta(refB), "removed ref resolves to nil")
 	require.Nil(t, s.GetSeriesMeta(refC), "removed ref resolves to nil")
 
-	refA := s.seriesIDs[seriesKey("ns", "a", []string{"k:1"})]
+	refA := s.seriesIDs[SeriesKey("ns", "a", []string{"k:1"})]
 	require.NotNil(t, s.GetSeriesMeta(refA), "surviving series still resolvable")
 
 	// Evicted slots in seriesIDKeys are cleared to "" so the original key
@@ -620,7 +620,7 @@ func TestTimeSeriesStorage_RemoveSeriesByKeys(t *testing.T) {
 }
 
 func TestTimeSeriesStorage_RemoveSeriesByKeysEmptyOrUnknown(t *testing.T) {
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 	s.Add("ns", "a", 1.0, 1000, nil)
 	genBefore := s.SeriesGeneration()
 
@@ -635,7 +635,7 @@ func TestTimeSeriesStorage_AddReturnsCanonicalKey(t *testing.T) {
 	// populating contextRefs) rely on this so they can skip a second
 	// seriesKey call. If this contract drifts, the optimisation silently
 	// produces wrong-keyed entries.
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 
 	cases := []struct {
 		name      string
@@ -654,7 +654,7 @@ func TestTimeSeriesStorage_AddReturnsCanonicalKey(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			res := s.Add(tc.namespace, tc.metric, 1.0, 1000, tc.tags)
 			assert.True(t, res.IsNew, "first write should report IsNew=true")
-			wantKey := seriesKey(tc.namespace, tc.metric, tc.tags)
+			wantKey := SeriesKey(tc.namespace, tc.metric, tc.tags)
 			assert.Equal(t, wantKey, res.StorageKey, "Add must return seriesKey-equivalent storage key")
 
 			// Second write of the same series returns the same key and IsNew=false.
@@ -669,7 +669,7 @@ func TestTimeSeriesStorage_AddDroppedReturnsEmptyKey(t *testing.T) {
 	// Pre-key-compute drops (non-finite, sentinel values) return empty key.
 	// Callers must check StorageKey != "" before reusing it for downstream
 	// state (e.g. contextRefs).
-	s := newTimeSeriesStorage()
+	s := NewTimeSeriesStorage()
 
 	res := s.Add("ns", "m", math.NaN(), 1000, nil)
 	assert.False(t, res.IsNew)

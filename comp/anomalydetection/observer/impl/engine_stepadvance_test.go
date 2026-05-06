@@ -37,8 +37,8 @@ func makeTestAnomaly(name string, ts int64) observer.Anomaly {
 	}
 }
 
-func makeEngine(anomalies []observer.Anomaly) (*engine, *TimeClusterCorrelator) {
-	storage := newTimeSeriesStorage()
+func makeEngine(anomalies []observer.Anomaly) (*Engine, *TimeClusterCorrelator) {
+	storage := NewTimeSeriesStorage()
 	for sec := int64(0); sec < 400; sec++ {
 		storage.Add("ns", "metric_a", 100.0, sec, nil)
 		storage.Add("ns", "metric_b", 100.0, sec, nil)
@@ -47,10 +47,10 @@ func makeEngine(anomalies []observer.Anomaly) (*engine, *TimeClusterCorrelator) 
 	correlator := NewTimeClusterCorrelator(DefaultTimeClusterConfig())
 	detector := &fixedDetector{anomalies: anomalies}
 
-	e := newEngine(engineConfig{
-		storage:     storage,
-		detectors:   []observer.Detector{detector},
-		correlators: []observer.Correlator{correlator},
+	e := NewEngine(EngineConfig{
+		Storage:     storage,
+		Detectors:   []observer.Detector{detector},
+		Correlators: []observer.Correlator{correlator},
 	})
 	return e, correlator
 }
@@ -109,7 +109,7 @@ func TestStepAdvance_MultipleTimestampGroupsFarBehindUpTo(t *testing.T) {
 // at a historical timestamp, the second advance should still see the accumulated
 // cluster.
 func TestStepAdvance_SuccessiveAdvanceCallsPreserveClusters(t *testing.T) {
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	for sec := int64(0); sec < 400; sec++ {
 		storage.Add("ns", "metric_a", 100.0, sec, nil)
 		storage.Add("ns", "metric_b", 100.0, sec, nil)
@@ -124,10 +124,10 @@ func TestStepAdvance_SuccessiveAdvanceCallsPreserveClusters(t *testing.T) {
 	}
 	correlator := NewTimeClusterCorrelator(DefaultTimeClusterConfig())
 
-	e := newEngine(engineConfig{
-		storage:     storage,
-		detectors:   []observer.Detector{detector},
-		correlators: []observer.Correlator{correlator},
+	e := NewEngine(EngineConfig{
+		Storage:     storage,
+		Detectors:   []observer.Detector{detector},
+		Correlators: []observer.Correlator{correlator},
 	})
 
 	// First advance: detects anomalies at ts=100, upTo=310.

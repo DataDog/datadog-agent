@@ -3,27 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package main
 
 import (
 	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 )
-
-// ReportedEvent captures a single event that would be sent to the Datadog backend
-// in a live observer run. In testbench mode no network calls are made; events are
-// stored here so they can be inspected via the UI and headless output.
-type ReportedEvent struct {
-	Pattern     string   `json:"pattern"`
-	Title       string   `json:"title"`
-	Message     string   `json:"message"`
-	Tags        []string `json:"tags"`
-	FirstSeen   int64    `json:"firstSeen"`
-	LastUpdated int64    `json:"lastUpdated"`
-	// FormattedTime is the human-readable UTC timestamp for FirstSeen.
-	FormattedTime string `json:"formattedTime"`
-}
 
 // replayReporter mirrors EventReporter.Report() during testbench replay.
 // It tracks which patterns are currently active and appends a new ReportedEvent
@@ -32,7 +19,7 @@ type ReportedEvent struct {
 // stable pattern names.
 type replayReporter struct {
 	seenPatterns map[string]bool
-	events       []ReportedEvent
+	events       []observerimpl.ReportedEvent
 	storage      observerdef.StorageReader
 }
 
@@ -53,9 +40,9 @@ func (r *replayReporter) Report(output observerdef.ReportOutput) {
 
 	for _, ac := range output.ActiveCorrelations {
 		if !r.seenPatterns[ac.Pattern] {
-			msg := buildChangeMessage(ac, r.storage)
-			tags := buildEventTags(ac)
-			r.events = append(r.events, ReportedEvent{
+			msg := observerimpl.BuildChangeMessage(ac, r.storage)
+			tags := observerimpl.BuildEventTags(ac)
+			r.events = append(r.events, observerimpl.ReportedEvent{
 				Pattern:       ac.Pattern,
 				Title:         ac.Title,
 				Message:       msg,

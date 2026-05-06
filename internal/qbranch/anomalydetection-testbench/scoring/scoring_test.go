@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package scoring
 
 import (
 	"encoding/json"
@@ -13,6 +13,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	tboutput "github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench/output"
 )
 
 const testSigma = 10.0
@@ -36,7 +38,6 @@ func TestGaussianF1_SlightlyLate(t *testing.T) {
 		Sigma:                 testSigma,
 	})
 
-	// Detection 8s late with σ=10 should have meaningful but reduced score
 	assert.Greater(t, result.F1, 0.3, "slightly late detection should score reasonably")
 	assert.Less(t, result.F1, 0.9, "slightly late detection shouldn't score perfectly")
 }
@@ -48,15 +49,11 @@ func TestGaussianF1_LateDetection(t *testing.T) {
 		Sigma:                 testSigma,
 	})
 
-	// Detection 30s late (3σ) should score poorly
 	assert.Less(t, result.F1, 0.3, "late detection (3σ) should score poorly")
 	assert.Greater(t, result.F1, 0.0, "late detection should still be nonzero")
 }
 
 func TestGaussianF1_NoisyButCorrect(t *testing.T) {
-	// 5 false alarms during baseline + 1 good detection after onset.
-	// Post-onset unmatched predictions are ignored, so only the 5 pre-onset
-	// predictions count as FP.
 	result := ComputeGaussianF1(ScoreInput{
 		PredictionTimestamps:  []int64{20, 30, 40, 50, 60, 102},
 		GroundTruthTimestamps: []int64{100},
@@ -88,7 +85,6 @@ func TestGaussianF1_FalseAlarmOnly(t *testing.T) {
 		Sigma:                 testSigma,
 	})
 
-	// Prediction 80s before onset → FP, GT unmatched → FN
 	assert.Equal(t, 0.0, result.F1, "distant false alarm should score zero")
 	assert.Equal(t, 1.0, result.FP)
 	assert.Equal(t, 1.0, result.FN)
@@ -122,16 +118,14 @@ func TestGaussianF1_MultipleGroundTruths(t *testing.T) {
 		Sigma:                 testSigma,
 	})
 
-	// Both detections are very close to their ground truths
 	assert.Greater(t, result.F1, 0.7, "two good detections should score well")
 	assert.Equal(t, 2, result.NumPredictions)
 	assert.Equal(t, 2, result.NumGroundTruths)
 }
 
 func TestGaussianF1_BeforeOnsetIsZero(t *testing.T) {
-	// Predictions before ground truth onset get zero overlap — no credit for early alarms.
 	before := ComputeGaussianF1(ScoreInput{
-		PredictionTimestamps:  []int64{92}, // 8s before
+		PredictionTimestamps:  []int64{92},
 		GroundTruthTimestamps: []int64{100},
 		Sigma:                 testSigma,
 	})
@@ -140,7 +134,7 @@ func TestGaussianF1_BeforeOnsetIsZero(t *testing.T) {
 	assert.Equal(t, 1.0, before.FN, "ground truth is unmatched → full FN")
 
 	after := ComputeGaussianF1(ScoreInput{
-		PredictionTimestamps:  []int64{108}, // 8s after
+		PredictionTimestamps:  []int64{108},
 		GroundTruthTimestamps: []int64{100},
 		Sigma:                 testSigma,
 	})
@@ -148,8 +142,6 @@ func TestGaussianF1_BeforeOnsetIsZero(t *testing.T) {
 }
 
 func TestGaussianF1_BeforeOnsetDoesNotStealMatch(t *testing.T) {
-	// Prediction at 99 (before GT=100) is FP.
-	// Prediction at 102 (first post-onset) matches.
 	result := ComputeGaussianF1(ScoreInput{
 		PredictionTimestamps:  []int64{99, 102},
 		GroundTruthTimestamps: []int64{100},
@@ -161,9 +153,6 @@ func TestGaussianF1_BeforeOnsetDoesNotStealMatch(t *testing.T) {
 }
 
 func TestGaussianF1_MultipleFiresDuringDisruption(t *testing.T) {
-	// Detector fires 3 times during disruption, 0 baseline FPs.
-	// First post-onset prediction (102) matches GT. The other two (110, 120)
-	// are post-onset unmatched → ignored. Should score near-perfect.
 	result := ComputeGaussianF1(ScoreInput{
 		PredictionTimestamps:  []int64{102, 110, 120},
 		GroundTruthTimestamps: []int64{100},
@@ -175,8 +164,6 @@ func TestGaussianF1_MultipleFiresDuringDisruption(t *testing.T) {
 }
 
 func TestGaussianF1_OneFireDuringDisruptionPlusBaselineFPs(t *testing.T) {
-	// Detector fires once during disruption + 5 baseline FPs.
-	// Good recall (detection matches) but precision penalized by 5 FPs.
 	result := ComputeGaussianF1(ScoreInput{
 		PredictionTimestamps:  []int64{10, 20, 30, 40, 50, 102},
 		GroundTruthTimestamps: []int64{100},
@@ -190,19 +177,19 @@ func TestGaussianF1_OneFireDuringDisruptionPlusBaselineFPs(t *testing.T) {
 }
 
 func TestScoreOutputFile(t *testing.T) {
-	output := ObserverOutput{
-		Metadata: ObserverMetadata{
+	obs := tboutput.ObserverOutput{
+		Metadata: tboutput.ObserverMetadata{
 			Scenario:      "test",
 			TimelineStart: 0,
 			TimelineEnd:   300,
 		},
-		AnomalyPeriods: []ObserverCorrelation{
+		AnomalyPeriods: []tboutput.ObserverCorrelation{
 			{Pattern: "cluster_1", PeriodStart: 102},
 			{Pattern: "cluster_2", PeriodStart: 50},
 		},
 	}
 
-	data, err := json.MarshalIndent(output, "", "  ")
+	data, err := json.MarshalIndent(obs, "", "  ")
 	require.NoError(t, err)
 
 	path := filepath.Join(t.TempDir(), "test_output.json")
@@ -218,16 +205,13 @@ func TestScoreOutputFile(t *testing.T) {
 }
 
 func TestScoreOutputFile_PostOnsetIgnored(t *testing.T) {
-	// Ground truth at 100, sigma=10.
-	// Predictions at 50 (baseline FP), 102 (match), 130 (post-onset ignored), 200 (post-onset ignored).
-	// No cascading filter — post-onset unmatched are just ignored by the scorer.
-	output := ObserverOutput{
-		Metadata: ObserverMetadata{
+	obs := tboutput.ObserverOutput{
+		Metadata: tboutput.ObserverMetadata{
 			Scenario:      "test",
 			TimelineStart: 0,
 			TimelineEnd:   300,
 		},
-		AnomalyPeriods: []ObserverCorrelation{
+		AnomalyPeriods: []tboutput.ObserverCorrelation{
 			{Pattern: "baseline_fp", PeriodStart: 50},
 			{Pattern: "good_detect", PeriodStart: 102},
 			{Pattern: "post_onset_1", PeriodStart: 130},
@@ -235,7 +219,7 @@ func TestScoreOutputFile_PostOnsetIgnored(t *testing.T) {
 		},
 	}
 
-	data, err := json.MarshalIndent(output, "", "  ")
+	data, err := json.MarshalIndent(obs, "", "  ")
 	require.NoError(t, err)
 
 	path := filepath.Join(t.TempDir(), "test_output.json")
@@ -244,18 +228,15 @@ func TestScoreOutputFile_PostOnsetIgnored(t *testing.T) {
 	result, err := ScoreOutputFile(path, []int64{100}, "", testSigma)
 	require.NoError(t, err)
 
-	// All 4 predictions pass to scorer (no cascading filter).
 	assert.Equal(t, 4, result.NumPredictions, "all predictions should be passed to scorer")
 	assert.Equal(t, 0, result.NumFilteredWarmup)
 	assert.Equal(t, 2, result.NumFilteredCascading, "predictions at 130 and 200 are beyond GT+2σ")
 	assert.Equal(t, 1, result.NumGroundTruths)
 	assert.Equal(t, 1, result.NumBaselineFPs, "prediction at 50 is a baseline FP")
-	// FP = 1 (the prediction at 50, before onset). Post-onset 130 and 200 are ignored.
 	assert.Equal(t, 1.0, result.FP, "only pre-onset predictions count as FP")
 }
 
 func TestScoreOutputFile_MetadataInference(t *testing.T) {
-	// Set up a fake scenario dir with episode.json
 	scenariosDir := t.TempDir()
 	scenarioDir := filepath.Join(scenariosDir, "test_scenario")
 	require.NoError(t, os.MkdirAll(scenarioDir, 0755))
@@ -263,22 +244,20 @@ func TestScoreOutputFile_MetadataInference(t *testing.T) {
 	metadata := `{"baseline": {"start": "2026-03-03T12:39:35Z", "end": "2026-03-03T12:49:35Z"}, "disruption": {"start": "2026-03-03T12:49:35Z"}}`
 	require.NoError(t, os.WriteFile(filepath.Join(scenarioDir, "episode.json"), []byte(metadata), 0644))
 
-	// Output JSON references "test_scenario"
-	output := ObserverOutput{
-		Metadata: ObserverMetadata{
+	obs := tboutput.ObserverOutput{
+		Metadata: tboutput.ObserverMetadata{
 			Scenario: "test_scenario",
 		},
-		AnomalyPeriods: []ObserverCorrelation{
-			{Pattern: "cluster_1", PeriodStart: 1772542175}, // exact match with disruption.start
+		AnomalyPeriods: []tboutput.ObserverCorrelation{
+			{Pattern: "cluster_1", PeriodStart: 1772542175},
 		},
 	}
-	data, err := json.MarshalIndent(output, "", "  ")
+	data, err := json.MarshalIndent(obs, "", "  ")
 	require.NoError(t, err)
 
 	outputPath := filepath.Join(t.TempDir(), "output.json")
 	require.NoError(t, os.WriteFile(outputPath, data, 0644))
 
-	// Score with nil ground truth — should infer from metadata
 	result, err := ScoreOutputFile(outputPath, nil, scenariosDir, 30.0)
 	require.NoError(t, err)
 
@@ -287,7 +266,6 @@ func TestScoreOutputFile_MetadataInference(t *testing.T) {
 }
 
 func TestScoreOutputFile_ExplicitOverridesMetadata(t *testing.T) {
-	// Set up episode.json — disruption.start is at 12:49:35, but we override GT to 12:45:00
 	scenariosDir := t.TempDir()
 	scenarioDir := filepath.Join(scenariosDir, "test_scenario")
 	require.NoError(t, os.MkdirAll(scenarioDir, 0755))
@@ -295,21 +273,19 @@ func TestScoreOutputFile_ExplicitOverridesMetadata(t *testing.T) {
 	metadata := `{"baseline": {"start": "2026-03-03T12:39:35Z", "end": "2026-03-03T12:49:35Z"}, "disruption": {"start": "2026-03-03T12:49:35Z"}}`
 	require.NoError(t, os.WriteFile(filepath.Join(scenarioDir, "episode.json"), []byte(metadata), 0644))
 
-	// Prediction matches our explicit GT (12:45:00 = 1772541900), not episode.json's disruption.start
 	explicitGT := int64(1772541900)
-	output := ObserverOutput{
-		Metadata: ObserverMetadata{Scenario: "test_scenario"},
-		AnomalyPeriods: []ObserverCorrelation{
+	obs := tboutput.ObserverOutput{
+		Metadata: tboutput.ObserverMetadata{Scenario: "test_scenario"},
+		AnomalyPeriods: []tboutput.ObserverCorrelation{
 			{Pattern: "cluster_1", PeriodStart: explicitGT},
 		},
 	}
-	data, err := json.MarshalIndent(output, "", "  ")
+	data, err := json.MarshalIndent(obs, "", "  ")
 	require.NoError(t, err)
 
 	outputPath := filepath.Join(t.TempDir(), "output.json")
 	require.NoError(t, os.WriteFile(outputPath, data, 0644))
 
-	// Explicit ground truth should override episode.json's disruption.start
 	result, err := ScoreOutputFile(outputPath, []int64{explicitGT}, scenariosDir, 30.0)
 	require.NoError(t, err)
 
@@ -317,7 +293,6 @@ func TestScoreOutputFile_ExplicitOverridesMetadata(t *testing.T) {
 }
 
 func TestScoreOutputFile_WarmupFiltering(t *testing.T) {
-	// baseline.start at T=100 (warmup ends), disruption.start at T=200
 	scenariosDir := t.TempDir()
 	scenarioDir := filepath.Join(scenariosDir, "test_scenario")
 	require.NoError(t, os.MkdirAll(scenarioDir, 0755))
@@ -325,17 +300,17 @@ func TestScoreOutputFile_WarmupFiltering(t *testing.T) {
 	metadata := `{"baseline": {"start": "1970-01-01T00:01:40Z", "end": "1970-01-01T00:03:20Z"}, "disruption": {"start": "1970-01-01T00:03:20Z"}}`
 	require.NoError(t, os.WriteFile(filepath.Join(scenarioDir, "episode.json"), []byte(metadata), 0644))
 
-	output := ObserverOutput{
-		Metadata: ObserverMetadata{Scenario: "test_scenario"},
-		AnomalyPeriods: []ObserverCorrelation{
-			{Pattern: "warmup_noise_1", PeriodStart: 50}, // warmup → filtered
-			{Pattern: "warmup_noise_2", PeriodStart: 90}, // warmup → filtered
-			{Pattern: "baseline_fp", PeriodStart: 120},   // baseline FP → scored
-			{Pattern: "good_detect", PeriodStart: 202},   // near onset → scored
-			{Pattern: "post_onset", PeriodStart: 250},    // post-onset unmatched → scored but ignored by F1
+	obs := tboutput.ObserverOutput{
+		Metadata: tboutput.ObserverMetadata{Scenario: "test_scenario"},
+		AnomalyPeriods: []tboutput.ObserverCorrelation{
+			{Pattern: "warmup_noise_1", PeriodStart: 50},
+			{Pattern: "warmup_noise_2", PeriodStart: 90},
+			{Pattern: "baseline_fp", PeriodStart: 120},
+			{Pattern: "good_detect", PeriodStart: 202},
+			{Pattern: "post_onset", PeriodStart: 250},
 		},
 	}
-	data, err := json.MarshalIndent(output, "", "  ")
+	data, err := json.MarshalIndent(obs, "", "  ")
 	require.NoError(t, err)
 
 	outputPath := filepath.Join(t.TempDir(), "output.json")
@@ -350,8 +325,6 @@ func TestScoreOutputFile_WarmupFiltering(t *testing.T) {
 }
 
 func TestScoreOutputFile_Alpha(t *testing.T) {
-	// baseline: T=100 to T=700 (600s), disruption.start: T=700
-	// 3 FPs during baseline → alpha = 3/600 = 0.005
 	scenariosDir := t.TempDir()
 	scenarioDir := filepath.Join(scenariosDir, "test_scenario")
 	require.NoError(t, os.MkdirAll(scenarioDir, 0755))
@@ -359,16 +332,16 @@ func TestScoreOutputFile_Alpha(t *testing.T) {
 	metadata := `{"baseline": {"start": "1970-01-01T00:01:40Z", "end": "1970-01-01T00:11:40Z"}, "disruption": {"start": "1970-01-01T00:11:40Z"}}`
 	require.NoError(t, os.WriteFile(filepath.Join(scenarioDir, "episode.json"), []byte(metadata), 0644))
 
-	output := ObserverOutput{
-		Metadata: ObserverMetadata{Scenario: "test_scenario"},
-		AnomalyPeriods: []ObserverCorrelation{
+	obs := tboutput.ObserverOutput{
+		Metadata: tboutput.ObserverMetadata{Scenario: "test_scenario"},
+		AnomalyPeriods: []tboutput.ObserverCorrelation{
 			{Pattern: "baseline_fp_1", PeriodStart: 200},
 			{Pattern: "baseline_fp_2", PeriodStart: 400},
 			{Pattern: "baseline_fp_3", PeriodStart: 600},
 			{Pattern: "good_detect", PeriodStart: 702},
 		},
 	}
-	data, err := json.MarshalIndent(output, "", "  ")
+	data, err := json.MarshalIndent(obs, "", "  ")
 	require.NoError(t, err)
 
 	outputPath := filepath.Join(t.TempDir(), "output.json")
@@ -382,14 +355,13 @@ func TestScoreOutputFile_Alpha(t *testing.T) {
 }
 
 func TestScoreOutputFile_AlphaUnavailable(t *testing.T) {
-	// No scenariosDir → baseline duration unknown → alpha = -1
-	output := ObserverOutput{
-		Metadata: ObserverMetadata{Scenario: "test_scenario"},
-		AnomalyPeriods: []ObserverCorrelation{
+	obs := tboutput.ObserverOutput{
+		Metadata: tboutput.ObserverMetadata{Scenario: "test_scenario"},
+		AnomalyPeriods: []tboutput.ObserverCorrelation{
 			{Pattern: "fp", PeriodStart: 50},
 		},
 	}
-	data, err := json.MarshalIndent(output, "", "  ")
+	data, err := json.MarshalIndent(obs, "", "  ")
 	require.NoError(t, err)
 
 	path := filepath.Join(t.TempDir(), "output.json")

@@ -33,8 +33,8 @@ type MetricPattern struct {
 	Precision float64 `json:"precision"`
 }
 
-// seriesCompact is a lightweight representation of a series for compression.
-type seriesCompact struct {
+// SeriesCompact is a lightweight representation of a series for compression.
+type SeriesCompact struct {
 	Namespace string
 	Name      string
 	Tags      []string
@@ -42,7 +42,7 @@ type seriesCompact struct {
 
 // extractCommonTags finds tags shared by all members, returning common tags as a map
 // and the residual per-member tags.
-func extractCommonTags(members []seriesCompact) (common map[string]string, residuals [][]string) {
+func extractCommonTags(members []SeriesCompact) (common map[string]string, residuals [][]string) {
 	common = make(map[string]string)
 	if len(members) == 0 {
 		return common, nil
@@ -246,7 +246,7 @@ func stripAggSuffix(name string) string {
 }
 
 // CompressGroup produces a CompressedGroup from a set of member series and a universe of all series.
-func CompressGroup(correlatorName, groupID, title string, members []seriesCompact, universe []seriesCompact, threshold float64) CompressedGroup {
+func CompressGroup(correlatorName, groupID, title string, members []SeriesCompact, universe []SeriesCompact, threshold float64) CompressedGroup {
 	if len(members) == 0 {
 		return CompressedGroup{
 			CorrelatorName: correlatorName,
@@ -267,7 +267,7 @@ func CompressGroup(correlatorName, groupID, title string, members []seriesCompac
 	for _, m := range members {
 		stripped := stripAggSuffix(m.Name)
 		memberNameSet[stripped] = struct{}{}
-		memberSources = append(memberSources, seriesKey(m.Namespace, m.Name, m.Tags))
+		memberSources = append(memberSources, SeriesKey(m.Namespace, m.Name, m.Tags))
 	}
 	memberNames := make([]string, 0, len(memberNameSet))
 	for name := range memberNameSet {

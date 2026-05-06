@@ -24,12 +24,13 @@ import (
 	"fmt"
 	"os"
 
-	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
+	tboutput "github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench/output"
+	"github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench/scoring"
 )
 
 func main() {
 	outputPath := flag.String("input", "", "Path to headless output JSON to score (required)")
-	scenariosDir := flag.String("scenarios-dir", "./comp/anomalydetection/observer/scenarios", "Directory containing scenario subdirectories (for episode.json lookup)")
+	scenariosDir := flag.String("scenarios-dir", "./internal/qbranch/anomalydetection-testbench/scenarios", "Directory containing scenario subdirectories (for episode.json lookup)")
 	groundTruthTS := flag.Int64("ground-truth-ts", 0, "Ground truth disruption onset timestamp in unix seconds (overrides episode.json)")
 	sigma := flag.Float64("sigma", 30.0, "Gaussian width in seconds")
 	jsonOutput := flag.Bool("json", false, "Output result as JSON")
@@ -66,7 +67,7 @@ func main() {
 		return
 	}
 
-	result, err := observerimpl.ScoreOutputFile(*outputPath, gtTimestamps, *scenariosDir, *sigma)
+	result, err := scoring.ScoreOutputFile(*outputPath, gtTimestamps, *scenariosDir, *sigma)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Scoring failed: %v\n", err)
 		os.Exit(1)
@@ -95,7 +96,7 @@ func main() {
 	fmt.Printf("  TP: %.4f  FP: %.4f  FN: %.4f\n", result.TP, result.FP, result.FN)
 }
 
-func printMetricTPScore(metricResult *observerimpl.MetricScoreResult) {
+func printMetricTPScore(metricResult *scoring.MetricScoreResult) {
 	if metricResult == nil {
 		return
 	}
@@ -127,23 +128,23 @@ func printMetricTPScore(metricResult *observerimpl.MetricScoreResult) {
 }
 
 // scoreMetricTP loads the output and ground truth, then runs metric-level TP scoring.
-func scoreMetricTP(outputPath, scenariosDir string) (*observerimpl.MetricScoreResult, error) {
+func scoreMetricTP(outputPath, scenariosDir string) (*scoring.MetricScoreResult, error) {
 	data, err := os.ReadFile(outputPath)
 	if err != nil {
 		return nil, fmt.Errorf("reading output file: %w", err)
 	}
 
-	var output observerimpl.ObserverOutput
-	if err := json.Unmarshal(data, &output); err != nil {
+	var obs tboutput.ObserverOutput
+	if err := json.Unmarshal(data, &obs); err != nil {
 		return nil, fmt.Errorf("parsing output JSON: %w", err)
 	}
 
-	scenarioName := output.Metadata.Scenario
+	scenarioName := obs.Metadata.Scenario
 	if scenarioName == "" {
 		return nil, errors.New("output file missing metadata.scenario")
 	}
 
-	gt, err := observerimpl.LoadMetricGroundTruth(scenariosDir, scenarioName)
+	gt, err := scoring.LoadMetricGroundTruth(scenariosDir, scenarioName)
 	if err != nil {
 		return nil, fmt.Errorf("loading metric ground truth: %w", err)
 	}
@@ -152,7 +153,7 @@ func scoreMetricTP(outputPath, scenariosDir string) (*observerimpl.MetricScoreRe
 		return nil, fmt.Errorf("no true_positives in metadata for scenario %q", scenarioName)
 	}
 
-	disruptionStart := observerimpl.LoadDisruptionStartUnix(scenariosDir, scenarioName)
+	disruptionStart := scoring.LoadDisruptionStartUnix(scenariosDir, scenarioName)
 
-	return observerimpl.ScoreMetrics(&output, gt, disruptionStart), nil
+	return scoring.ScoreMetrics(&obs, gt, disruptionStart), nil
 }

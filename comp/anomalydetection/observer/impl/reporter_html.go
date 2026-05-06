@@ -53,7 +53,7 @@ type timestampedReport struct {
 type HTMLReporter struct {
 	mu                    sync.RWMutex
 	reports               []timestampedReport
-	storage               *timeSeriesStorage
+	storage               *TimeSeriesStorage
 	correlationState      observer.Correlator
 	rawAnomalyState       observer.RawAnomalyState
 	timeClusterCorrelator *TimeClusterCorrelator
@@ -95,7 +95,7 @@ func (r *HTMLReporter) Report(report observer.ReportOutput) {
 }
 
 // SetStorage sets the metric storage for querying series data.
-func (r *HTMLReporter) SetStorage(storage *timeSeriesStorage) {
+func (r *HTMLReporter) SetStorage(storage *TimeSeriesStorage) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.storage = storage

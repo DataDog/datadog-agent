@@ -12,7 +12,7 @@ import (
 )
 
 func TestSeriesDetectorAdapter_DoesNotReemitOutputsWithoutNewData(t *testing.T) {
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 100, nil)
 
 	adapter := newSeriesDetectorAdapter(&countingSeriesDetector{
@@ -44,7 +44,7 @@ func TestSeriesDetectorAdapter_DoesNotReemitOutputsWithoutNewData(t *testing.T) 
 }
 
 func TestSeriesDetectorAdapter_ResetClearsVisibleCountCache(t *testing.T) {
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 100, nil)
 
 	adapter := newSeriesDetectorAdapter(&countingSeriesDetector{

@@ -15,7 +15,7 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
-// Note: stateView is defined in stateview.go and provides read-only access
+// Note: StateView is defined in stateview.go and provides read-only access
 // to engine state for consumers like the testbench UI.
 
 // anomalyDedupKey is a map key for O(1) anomaly deduplication.
@@ -37,14 +37,14 @@ type seriesContextRef struct {
 //
 // The engine does not own reporters or scheduling policy. It accepts explicit
 // Advance calls and returns results that callers route to their own outputs.
-type engine struct {
+type Engine struct {
 	// mu protects detectors, correlators, extractors, logObservers,
 	// lastAnalyzedDataTime, and latestDataTime from concurrent access.
 	// Writers (Advance, Reset, SetDetectors, SetCorrelators, SetExtractors)
-	// take a write lock; readers (stateView methods) take a read lock.
+	// take a write lock; readers (StateView methods) take a read lock.
 	mu sync.RWMutex
 
-	storage          *timeSeriesStorage
+	storage          *TimeSeriesStorage
 	extractors       []observerdef.LogMetricsExtractor
 	detectors        []observerdef.Detector
 	correlators      []observerdef.Correlator
@@ -52,7 +52,7 @@ type engine struct {
 	contextRefs      map[string]seriesContextRef
 
 	// scheduler decides when the engine should advance analysis.
-	scheduler schedulerPolicy
+	scheduler SchedulerPolicy
 
 	// logObservers are detectors that also implement LogObserver.
 	// Cached at construction time to avoid repeated type assertions.
@@ -87,7 +87,7 @@ type engine struct {
 	telemetryMu          sync.RWMutex
 
 	// Event subscription management.
-	sinks   []eventSink
+	sinks   []EventSink
 	sinksMu sync.RWMutex
 
 	// Replay progress counters (atomic, lock-free reads).
@@ -100,7 +100,7 @@ type engine struct {
 	// Optional instrumentation for live/replay parity debugging.
 	onDetectDigest func(detectDigest)
 	instrStorage   *instrumentedStorage
-	onAdvance      func(advanceEntry) // scheduler trace
+	onAdvance      func(AdvanceEntry) // scheduler trace
 
 	// Counters for data ingestion anomalies, reset after each advance.
 	latePoints         atomic.Int64     // points ingested after their timestamp was already analyzed
@@ -117,40 +117,40 @@ type engine struct {
 	sourceTagCache atomic.Pointer[map[string]string]
 }
 
-// engineConfig holds the parameters for constructing an engine.
-type engineConfig struct {
-	storage          *timeSeriesStorage
-	extractors       []observerdef.LogMetricsExtractor
-	detectors        []observerdef.Detector
-	correlators      []observerdef.Correlator
-	contextProviders map[string]observerdef.ContextProvider // namespace → provider
+// EngineConfig holds the parameters for constructing an engine.
+type EngineConfig struct {
+	Storage          *TimeSeriesStorage
+	Extractors       []observerdef.LogMetricsExtractor
+	Detectors        []observerdef.Detector
+	Correlators      []observerdef.Correlator
+	ContextProviders map[string]observerdef.ContextProvider // namespace → provider
 
-	// scheduler is the scheduling policy. If nil, defaults to currentBehaviorPolicy.
-	scheduler schedulerPolicy
+	// Scheduler is the scheduling policy. If nil, defaults to CurrentBehaviorPolicy.
+	Scheduler SchedulerPolicy
 
-	rawAnomalyWindow int64
-	maxRawAnomalies  int
+	RawAnomalyWindow int64
+	MaxRawAnomalies  int
 }
 
-// newEngine creates an engine with the given configuration.
-func newEngine(cfg engineConfig) *engine {
-	sched := cfg.scheduler
+// NewEngine creates an engine with the given configuration.
+func NewEngine(cfg EngineConfig) *Engine {
+	sched := cfg.Scheduler
 	if sched == nil {
-		sched = &currentBehaviorPolicy{}
+		sched = &CurrentBehaviorPolicy{}
 	}
-	validateUniqueExtractorNames(cfg.extractors)
+	validateUniqueExtractorNames(cfg.Extractors)
 
-	e := &engine{
-		storage:          cfg.storage,
-		extractors:       cfg.extractors,
-		detectors:        cfg.detectors,
-		correlators:      cfg.correlators,
-		contextProviders: cfg.contextProviders,
+	e := &Engine{
+		storage:          cfg.Storage,
+		extractors:       cfg.Extractors,
+		detectors:        cfg.Detectors,
+		correlators:      cfg.Correlators,
+		contextProviders: cfg.ContextProviders,
 		contextRefs:      make(map[string]seriesContextRef),
 		scheduler:        sched,
 
-		rawAnomalyWindow: cfg.rawAnomalyWindow,
-		maxRawAnomalies:  cfg.maxRawAnomalies,
+		rawAnomalyWindow: cfg.RawAnomalyWindow,
+		maxRawAnomalies:  cfg.MaxRawAnomalies,
 	}
 
 	// Cache log observers from detectors.
@@ -165,7 +165,7 @@ func newEngine(cfg engineConfig) *engine {
 
 // enableDetectDigestRecording sets a callback invoked after each Detect() call
 // with a digest of the detection output and input hash. Pass nil to disable.
-func (e *engine) enableDetectDigestRecording(fn func(detectDigest)) {
+func (e *Engine) enableDetectDigestRecording(fn func(detectDigest)) {
 	e.onDetectDigest = fn
 	if fn != nil {
 		e.instrStorage = newInstrumentedStorage(e.storage)
@@ -176,7 +176,7 @@ func (e *engine) enableDetectDigestRecording(fn func(detectDigest)) {
 
 // Subscribe registers an event sink to receive engine events.
 // Returns an unsubscribe function that removes the sink.
-func (e *engine) Subscribe(sink eventSink) func() {
+func (e *Engine) Subscribe(sink EventSink) func() {
 	e.sinksMu.Lock()
 	e.sinks = append(e.sinks, sink)
 	// Capture the sink pointer for removal.
@@ -196,9 +196,9 @@ func (e *engine) Subscribe(sink eventSink) func() {
 }
 
 // emit sends an event to all registered sinks.
-func (e *engine) emit(evt engineEvent) {
+func (e *Engine) emit(evt engineEvent) {
 	e.sinksMu.RLock()
-	sinks := make([]eventSink, len(e.sinks))
+	sinks := make([]EventSink, len(e.sinks))
 	copy(sinks, e.sinks)
 	e.sinksMu.RUnlock()
 
@@ -209,7 +209,7 @@ func (e *engine) emit(evt engineEvent) {
 
 // registerHandle adds a handle to the engine's handle list so that per-source
 // drop counts can be collected at advance time.
-func (e *engine) registerHandle(h *handle) {
+func (e *Engine) registerHandle(h *handle) {
 	e.handlesMu.Lock()
 	e.handles = append(e.handles, h)
 	e.handlesMu.Unlock()
@@ -235,7 +235,7 @@ func (e *engine) registerHandle(h *handle) {
 // string, the COW map becomes unbounded and this memoisation strategy is
 // the wrong shape (use sync.Map or a bounded LRU). Adding an entry to that
 // list above means revisiting this function.
-func (e *engine) sourceTagForIngest(source string) string {
+func (e *Engine) sourceTagForIngest(source string) string {
 	if m := e.sourceTagCache.Load(); m != nil {
 		if tag, ok := (*m)[source]; ok {
 			return tag
@@ -261,7 +261,7 @@ func (e *engine) sourceTagForIngest(source string) string {
 // IngestMetric stores a metric observation and consults the scheduler policy
 // to determine whether detectors should advance. Returns advance requests
 // that the caller should execute via Advance.
-func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
+func (e *Engine) IngestMetric(source string, m *metricObs) []advanceRequest {
 	e.storage.Add(source, m.name, m.value, m.timestamp, m.tags)
 	// Track points that arrive after their timestamp was already analyzed.
 	// These points are in storage but were invisible to detectors at analysis time.
@@ -279,16 +279,16 @@ func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
 // IngestLog processes a log observation: runs extractors to produce virtual metrics,
 // notifies log observers, and consults the scheduler policy to determine whether
 // detectors should advance. Returns advance requests that the caller should execute.
-func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observerdef.ObserverTelemetry) {
+func (e *Engine) IngestLog(source string, l observerdef.LogView) ([]advanceRequest, []observerdef.ObserverTelemetry) {
 	sourceTag := e.sourceTagForIngest(source)
-	view := &logView{obs: l}
+	timestampMs := l.GetTimestampUnixMilli()
 	var logTelemetry = []observerdef.ObserverTelemetry{}
 	for _, extractor := range e.extractors {
 		processingStartTime := time.Now()
-		out := extractor.ProcessLog(view)
+		out := extractor.ProcessLog(l)
 		e.removeContextRefsForEvictedKeys(extractor.Name(), out.EvictedContextKeys)
 		processingTime := time.Since(processingStartTime)
-		logTelemetry = append(logTelemetry, newTelemetryGauge([]string{"detector:" + extractor.Name()}, telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), l.timestampMs/1000))
+		logTelemetry = append(logTelemetry, newTelemetryGauge([]string{"detector:" + extractor.Name()}, TelemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), timestampMs/1000))
 		for _, m := range out.Metrics {
 			// Avoid copying m.Tags when sourceTag is already present: storage.Add
 			// performs its own deep copy on first-write of a series via
@@ -301,7 +301,7 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 				copy(newTags, tags)
 				tags = append(newTags, sourceTag)
 			}
-			res := e.storage.Add(extractor.Name(), m.Name, m.Value, l.timestampMs/1000, tags)
+			res := e.storage.Add(extractor.Name(), m.Name, m.Value, timestampMs/1000, tags)
 			if m.ContextKey != "" && res.StorageKey != "" {
 				// Reuse the storage key computed inside storage.Add instead of
 				// recomputing seriesKey here. seriesKey is hot enough that this
@@ -321,16 +321,16 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 	}
 	for _, lo := range e.logObservers {
 		processingStartTime := time.Now()
-		lo.ProcessLog(view)
+		lo.ProcessLog(l)
 		processingTime := time.Since(processingStartTime)
-		logTelemetry = append(logTelemetry, newTelemetryGauge([]string{"detector:" + lo.Name()}, telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), l.timestampMs/1000))
+		logTelemetry = append(logTelemetry, newTelemetryGauge([]string{"detector:" + lo.Name()}, TelemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), timestampMs/1000))
 	}
 	if len(logTelemetry) > 0 {
 		e.telemetryMu.Lock()
 		e.accumulatedTelemetry = append(e.accumulatedTelemetry, logTelemetry...)
 		e.telemetryMu.Unlock()
 	}
-	dataTimeSec := l.timestampMs / 1000
+	dataTimeSec := timestampMs / 1000
 	e.storage.RecordObservationTime(dataTimeSec)
 	e.trackLatestDataTime(dataTimeSec)
 	return e.scheduler.onObservation(dataTimeSec, e.schedulerState()), logTelemetry
@@ -350,7 +350,7 @@ func sliceContains(items []string, want string) bool {
 // the corresponding storage series. Without the storage cleanup, evicted
 // patterns leak their tags + columnar arrays indefinitely (the contextRefs
 // map is just metadata; the heavy data lives in storage.series).
-func (e *engine) removeContextRefsForEvictedKeys(namespace string, evictedKeys []string) {
+func (e *Engine) removeContextRefsForEvictedKeys(namespace string, evictedKeys []string) {
 	// No garbage collection done
 	if len(evictedKeys) == 0 {
 		return
@@ -399,7 +399,7 @@ func (e *engine) removeContextRefsForEvictedKeys(namespace string, evictedKeys [
 // loop, so detector implementations may mutate per-series state without
 // taking their own locks. Adding a new caller of this function from a
 // different goroutine would break that invariant for every detector.
-func (e *engine) fanOutSeriesRemoval(refs []observerdef.SeriesRef) {
+func (e *Engine) fanOutSeriesRemoval(refs []observerdef.SeriesRef) {
 	if len(refs) == 0 || len(e.detectors) == 0 {
 		return
 	}
@@ -411,43 +411,49 @@ func (e *engine) fanOutSeriesRemoval(refs []observerdef.SeriesRef) {
 }
 
 // trackLatestDataTime updates latestDataTime if the given timestamp is newer.
-func (e *engine) trackLatestDataTime(dataTimeSec int64) {
+func (e *Engine) trackLatestDataTime(dataTimeSec int64) {
 	if dataTimeSec > e.latestDataTime {
 		e.latestDataTime = dataTimeSec
 	}
 }
 
 // schedulerState returns the current scheduler-relevant state.
-func (e *engine) schedulerState() schedulerState {
+func (e *Engine) schedulerState() schedulerState {
 	return schedulerState{
 		lastAnalyzedDataTime: e.lastAnalyzedDataTime,
 		latestDataTime:       e.latestDataTime,
 	}
 }
 
-// advanceResult holds the outputs from an Advance call.
-type advanceResult struct {
+// AdvanceResult holds the outputs from an Advance call.
+type AdvanceResult struct {
 	anomalies []observerdef.Anomaly
 	telemetry []observerdef.ObserverTelemetry
 }
 
+// Anomalies returns the anomalies produced during an advance cycle.
+func (r AdvanceResult) Anomalies() []observerdef.Anomaly { return r.anomalies }
+
+// Telemetry returns the telemetry events produced during an advance cycle.
+func (r AdvanceResult) Telemetry() []observerdef.ObserverTelemetry { return r.telemetry }
+
 // Advance runs detectors and correlators up to the given event time.
 // It returns all anomalies produced and updates the lastAnalyzedDataTime.
 // The caller is responsible for routing anomalies to reporters or UI.
-func (e *engine) Advance(upToSec int64) advanceResult {
+func (e *Engine) Advance(upToSec int64) AdvanceResult {
 	return e.advanceWithReason(upToSec, advanceReasonManual)
 }
 
 // advanceWithReason runs detectors and correlators up to the given event time,
 // recording the reason for the advance in the emitted event.
-func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceResult {
+func (e *Engine) advanceWithReason(upToSec int64, reason advanceReason) AdvanceResult {
 	// Snapshot mutable fields under the lock. We cannot hold mu during
 	// runDetectorsAndCorrelators because emit() callbacks may re-enter
-	// stateView methods that take mu.RLock, causing a deadlock.
+	// StateView methods that take mu.RLock, causing a deadlock.
 	e.mu.Lock()
 	if upToSec <= e.lastAnalyzedDataTime {
 		e.mu.Unlock()
-		return advanceResult{}
+		return AdvanceResult{}
 	}
 	detectors := e.detectors
 	correlators := e.correlators
@@ -474,7 +480,7 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 			}
 		}
 		e.handlesMu.Unlock()
-		e.onAdvance(advanceEntry{
+		e.onAdvance(AdvanceEntry{
 			DataTime:           upToSec,
 			Reason:             advanceReasonString(reason),
 			LatePoints:         e.latePoints.Swap(0),
@@ -510,7 +516,7 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 // correlators to upTo after processing would evict just-formed clusters before
 // they can be accumulated. We accumulate correlations BEFORE advancing so
 // clusters are captured while still alive.
-func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []observerdef.Detector, correlators []observerdef.Correlator) advanceResult {
+func (e *Engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []observerdef.Detector, correlators []observerdef.Correlator) AdvanceResult {
 	var allAnomalies []observerdef.Anomaly
 	var allTelemetry []observerdef.ObserverTelemetry
 
@@ -527,7 +533,7 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		processingStartTime := time.Now()
 		result := detector.Detect(storageForDetect, upTo)
 		processingTime := time.Since(processingStartTime)
-		allTelemetry = append(allTelemetry, newTelemetryGauge([]string{"detector:" + detector.Name()}, telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), upTo))
+		allTelemetry = append(allTelemetry, newTelemetryGauge([]string{"detector:" + detector.Name()}, TelemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), upTo))
 
 		// Emit detect digest (captures raw result BEFORE dedup).
 		if e.onDetectDigest != nil {
@@ -576,7 +582,7 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		e.accumulateCorrelations(correlator.ActiveCorrelations())
 		advanceStart := time.Now()
 		correlator.Advance(upTo)
-		allTelemetry = append(allTelemetry, newTelemetryGauge([]string{"detector:" + correlator.Name()}, telemetryDetectorProcessingTimeNs, float64(time.Since(advanceStart).Nanoseconds()), upTo))
+		allTelemetry = append(allTelemetry, newTelemetryGauge([]string{"detector:" + correlator.Name()}, TelemetryDetectorProcessingTimeNs, float64(time.Since(advanceStart).Nanoseconds()), upTo))
 		e.emit(engineEvent{
 			kind:      eventCorrelationUpdated,
 			timestamp: upTo,
@@ -593,7 +599,7 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		e.telemetryMu.Unlock()
 	}
 
-	return advanceResult{
+	return AdvanceResult{
 		anomalies: allAnomalies,
 		telemetry: allTelemetry,
 	}
@@ -604,11 +610,11 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 // detectors don't need to be aware of context providers.
 // Lookup builds the storage key from Source fields (namespace, name, tags)
 // and maps that to a provider namespace and context key.
-func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
+func (e *Engine) enrichAnomaly(a *observerdef.Anomaly) {
 	if a.Source.Name == "" {
 		return
 	}
-	fullKey := seriesKey(a.Source.Namespace, a.Source.Name, a.Source.Tags)
+	fullKey := SeriesKey(a.Source.Namespace, a.Source.Name, a.Source.Tags)
 
 	ref, ok := e.contextRefs[fullKey]
 	if !ok {
@@ -631,13 +637,13 @@ func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
 }
 
 // processAnomaly sends an anomaly to all registered correlators.
-func (e *engine) processAnomaly(anomaly observerdef.Anomaly) []observerdef.ObserverTelemetry {
+func (e *Engine) processAnomaly(anomaly observerdef.Anomaly) []observerdef.ObserverTelemetry {
 	var allTelemetry []observerdef.ObserverTelemetry
 	for _, correlator := range e.correlators {
 		processingStartTime := time.Now()
 		correlator.ProcessAnomaly(anomaly)
 		processingTime := time.Since(processingStartTime)
-		allTelemetry = append(allTelemetry, newTelemetryGauge([]string{"detector:" + correlator.Name()}, telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), anomaly.Timestamp))
+		allTelemetry = append(allTelemetry, newTelemetryGauge([]string{"detector:" + correlator.Name()}, TelemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), anomaly.Timestamp))
 	}
 
 	return allTelemetry
@@ -646,7 +652,7 @@ func (e *engine) processAnomaly(anomaly observerdef.Anomaly) []observerdef.Obser
 // captureRawAnomaly stores a raw anomaly for telemetry and testbench display.
 // Deduplicates by Source+DetectorName+Timestamp+Title.
 // Returns true if the anomaly was new, false if it was a duplicate.
-func (e *engine) captureRawAnomaly(anomaly observerdef.Anomaly) bool {
+func (e *Engine) captureRawAnomaly(anomaly observerdef.Anomaly) bool {
 	e.rawAnomalyMu.Lock()
 	defer e.rawAnomalyMu.Unlock()
 
@@ -718,7 +724,7 @@ func (e *engine) captureRawAnomaly(anomaly observerdef.Anomaly) bool {
 }
 
 // RawAnomalies returns a copy of currently tracked raw anomalies.
-func (e *engine) RawAnomalies() []observerdef.Anomaly {
+func (e *Engine) RawAnomalies() []observerdef.Anomaly {
 	e.rawAnomalyMu.RLock()
 	defer e.rawAnomalyMu.RUnlock()
 
@@ -728,14 +734,14 @@ func (e *engine) RawAnomalies() []observerdef.Anomaly {
 }
 
 // TotalAnomalyCount returns the total number of anomalies ever detected.
-func (e *engine) TotalAnomalyCount() int {
+func (e *Engine) TotalAnomalyCount() int {
 	e.rawAnomalyMu.RLock()
 	defer e.rawAnomalyMu.RUnlock()
 	return e.totalAnomalyCount
 }
 
 // UniqueAnomalySourceCount returns the number of unique sources that had anomalies.
-func (e *engine) UniqueAnomalySourceCount() int {
+func (e *Engine) UniqueAnomalySourceCount() int {
 	e.rawAnomalyMu.RLock()
 	defer e.rawAnomalyMu.RUnlock()
 	return len(e.uniqueAnomalySources)
@@ -745,7 +751,7 @@ func (e *engine) UniqueAnomalySourceCount() int {
 // Existing entries are updated if the new version has more anomalies or a later timestamp.
 const maxAccumulatedCorrelations = 500
 
-func (e *engine) accumulateCorrelations(active []observerdef.ActiveCorrelation) {
+func (e *Engine) accumulateCorrelations(active []observerdef.ActiveCorrelation) {
 	e.correlationMu.Lock()
 	defer e.correlationMu.Unlock()
 
@@ -774,7 +780,7 @@ func (e *engine) accumulateCorrelations(active []observerdef.ActiveCorrelation) 
 }
 
 // AccumulatedCorrelations returns all correlations ever detected across the run.
-func (e *engine) AccumulatedCorrelations() []observerdef.ActiveCorrelation {
+func (e *Engine) AccumulatedCorrelations() []observerdef.ActiveCorrelation {
 	e.correlationMu.RLock()
 	defer e.correlationMu.RUnlock()
 
@@ -786,13 +792,13 @@ func (e *engine) AccumulatedCorrelations() []observerdef.ActiveCorrelation {
 }
 
 // Storage returns the engine's storage.
-func (e *engine) Storage() *timeSeriesStorage {
+func (e *Engine) Storage() *TimeSeriesStorage {
 	return e.storage
 }
 
 // SetDetectors replaces the engine's detectors. Used when testbench components
 // are toggled. Also refreshes the cached log observers list.
-func (e *engine) SetDetectors(detectors []observerdef.Detector) {
+func (e *Engine) SetDetectors(detectors []observerdef.Detector) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -806,7 +812,7 @@ func (e *engine) SetDetectors(detectors []observerdef.Detector) {
 }
 
 // SetCorrelators replaces the engine's correlators.
-func (e *engine) SetCorrelators(correlators []observerdef.Correlator) {
+func (e *Engine) SetCorrelators(correlators []observerdef.Correlator) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -816,19 +822,19 @@ func (e *engine) SetCorrelators(correlators []observerdef.Correlator) {
 // SetExtractors replaces the engine's log-metrics extractors. Used when
 // testbench components are toggled so that replayed log ingestion uses
 // only the currently-enabled extractors.
-func (e *engine) SetExtractors(extractors []observerdef.LogMetricsExtractor) {
+func (e *Engine) SetExtractors(extractors []observerdef.LogMetricsExtractor) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
 	validateUniqueExtractorNames(extractors)
 	e.extractors = extractors
-	e.contextProviders = collectContextProviders(extractors)
+	e.contextProviders = CollectContextProviders(extractors)
 	e.contextRefs = make(map[string]seriesContextRef)
 }
 
 // Reset clears analysis state so detectors will re-analyze from scratch.
 // This does NOT clear storage or raw anomalies — use resetFull for that.
-func (e *engine) Reset() {
+func (e *Engine) Reset() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -855,7 +861,7 @@ func (e *engine) Reset() {
 }
 
 // resetRawAnomalies clears the raw anomaly tracking state.
-func (e *engine) resetRawAnomalies() {
+func (e *Engine) resetRawAnomalies() {
 	e.rawAnomalyMu.Lock()
 	defer e.rawAnomalyMu.Unlock()
 
@@ -867,14 +873,14 @@ func (e *engine) resetRawAnomalies() {
 }
 
 // resetTelemetry clears accumulated telemetry.
-func (e *engine) resetTelemetry() {
+func (e *Engine) resetTelemetry() {
 	e.telemetryMu.Lock()
 	defer e.telemetryMu.Unlock()
 	e.accumulatedTelemetry = nil
 }
 
 // resetCorrelations clears accumulated correlation history.
-func (e *engine) resetCorrelations() {
+func (e *Engine) resetCorrelations() {
 	e.correlationMu.Lock()
 	defer e.correlationMu.Unlock()
 	e.accumulatedCorrelations = nil
@@ -882,11 +888,48 @@ func (e *engine) resetCorrelations() {
 
 // resetFull resets all engine state: analysis progress, raw anomalies, telemetry, and correlations.
 // Storage is NOT cleared — the caller manages storage lifecycle.
-func (e *engine) resetFull() {
+func (e *Engine) resetFull() {
 	e.Reset()
 	e.resetRawAnomalies()
 	e.resetTelemetry()
 	e.resetCorrelations()
+}
+
+// ResetFull is the exported equivalent of resetFull for use from outside the package.
+func (e *Engine) ResetFull() {
+	e.resetFull()
+}
+
+// ReplaceStorage swaps the engine's storage with the provided instance.
+// The caller is responsible for ensuring the engine is not concurrently used.
+func (e *Engine) ReplaceStorage(s *TimeSeriesStorage) {
+	e.storage = s
+}
+
+// SetReplayPhase stores a replay phase string (e.g. "loading", "detecting", "done", "").
+func (e *Engine) SetReplayPhase(phase string) {
+	e.replayPhase.Store(phase)
+}
+
+// SetOnAdvance sets a callback invoked on each Advance call (for parity testing).
+// Pass nil to disable.
+func (e *Engine) SetOnAdvance(fn func(AdvanceEntry)) {
+	e.onAdvance = fn
+}
+
+// EnableDetectDigestRecording sets up digest-based detection comparison using
+// the provided DetectDigestComparator. Pass nil to disable.
+func (e *Engine) EnableDetectDigestRecording(comp *DetectDigestComparator) {
+	if comp == nil {
+		e.enableDetectDigestRecording(nil)
+	} else {
+		e.enableDetectDigestRecording(comp.compare)
+	}
+}
+
+// ExtractorCount returns the number of log-metrics extractors currently set on the engine.
+func (e *Engine) ExtractorCount() int {
+	return len(e.extractors)
 }
 
 // ReplayProgress holds lock-free replay progress counters.
@@ -899,7 +942,7 @@ type ReplayProgress struct {
 }
 
 // GetReplayProgress returns the current replay progress (lock-free).
-func (e *engine) GetReplayProgress() ReplayProgress {
+func (e *Engine) GetReplayProgress() ReplayProgress {
 	phase, _ := e.replayPhase.Load().(string)
 	return ReplayProgress{
 		Phase:           phase,
@@ -914,7 +957,7 @@ func (e *engine) GetReplayProgress() ReplayProgress {
 // using the same timing semantics as live ingestion. For each unique data
 // timestamp, it consults the scheduler to decide when to advance analysis.
 // After all timestamps are processed, calls onReplayEnd to flush remaining data.
-func (e *engine) ReplayStoredData() advanceResult {
+func (e *Engine) ReplayStoredData() AdvanceResult {
 	var allAnomalies []observerdef.Anomaly
 	var allTelemetry []observerdef.ObserverTelemetry
 
@@ -954,7 +997,7 @@ func (e *engine) ReplayStoredData() advanceResult {
 	e.replayAnomalies.Store(int64(len(allAnomalies)))
 	e.replayPhase.Store("done")
 
-	return advanceResult{
+	return AdvanceResult{
 		anomalies: allAnomalies,
 		telemetry: allTelemetry,
 	}
@@ -964,7 +1007,7 @@ func (e *engine) ReplayStoredData() advanceResult {
 // recorded in the live advance log. The live advance log records upToSec values
 // (typically dataTimeSec-1 from the scheduler), which may not match data timestamps
 // exactly. We advance at each live time once the data stream has reached or passed it.
-func (e *engine) ReplayWithLiveSchedule(liveAdvanceTimes []int64) advanceResult {
+func (e *Engine) ReplayWithLiveSchedule(liveAdvanceTimes []int64) AdvanceResult {
 	var allAnomalies []observerdef.Anomaly
 	var allTelemetry []observerdef.ObserverTelemetry
 
@@ -1011,7 +1054,7 @@ func (e *engine) ReplayWithLiveSchedule(liveAdvanceTimes []int64) advanceResult 
 	e.replayAnomalies.Store(int64(len(allAnomalies)))
 	e.replayPhase.Store("done")
 
-	return advanceResult{
+	return AdvanceResult{
 		anomalies: allAnomalies,
 		telemetry: allTelemetry,
 	}

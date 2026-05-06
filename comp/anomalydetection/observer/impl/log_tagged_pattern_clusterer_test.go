@@ -173,14 +173,14 @@ func TestTaggedPatternClusterer_ResetDropsSubClusterers(t *testing.T) {
 }
 
 func TestTaggedPatternClusterer_GlobalClusterHashIsStable(t *testing.T) {
-	h1 := globalClusterHash(42, 7)
-	h2 := globalClusterHash(42, 7)
+	h1 := GlobalClusterHash(42, 7)
+	h2 := GlobalClusterHash(42, 7)
 	assert.Equal(t, h1, h2)
 
-	h3 := globalClusterHash(42, 8)
+	h3 := GlobalClusterHash(42, 8)
 	assert.NotEqual(t, h1, h3)
 
-	h4 := globalClusterHash(43, 7)
+	h4 := GlobalClusterHash(43, 7)
 	assert.NotEqual(t, h1, h4)
 }
 

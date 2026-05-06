@@ -134,10 +134,10 @@ func tagsForPatternGrouping(tags []string, hostname string) []string {
 	return out
 }
 
-// globalClusterHash produces a hex string that stably encodes a (groupHash,
+// GlobalClusterHash produces a hex string that stably encodes a (groupHash,
 // clusterID) pair. It is used as the variable segment of the metric name so
 // that each (tag-group × pattern) combination gets a unique, stable name.
-func globalClusterHash(groupHash uint64, clusterID int64) string {
+func GlobalClusterHash(groupHash uint64, clusterID int64) string {
 	h := fnv.New64a()
 	_ = binary.Write(h, binary.LittleEndian, groupHash)
 	_ = binary.Write(h, binary.LittleEndian, clusterID)
@@ -452,7 +452,7 @@ func (tc *TaggedPatternClusterer) GarbageCollectBefore(cutoff int64) []EvictedCl
 }
 
 // TaggedClusterEntry pairs a cluster with its tag-group hash so callers can
-// compute the correct globalClusterHash.
+// compute the correct GlobalClusterHash.
 type TaggedClusterEntry struct {
 	GroupHash uint64
 	Cluster   *patterns.Cluster

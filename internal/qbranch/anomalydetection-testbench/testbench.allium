@@ -1,0 +1,383 @@
+-- allium: 3
+-- testbench.allium
+
+-- Scope: Anomaly detection testbench — interactive UI and headless replay harness
+-- Includes: Scenario loading, headless replay, structured JSON output, SSE event
+--   streaming, HTTP API for component control and data visualization,
+--   Gaussian F1 timestamp scoring, metric TP/FP scoring against ground truth.
+-- Excludes:
+--   - Engine detection algorithms and pipeline orchestration (see observer-engine.allium)
+--   - Parquet / log file I/O implementation details
+--   - gRPC profile fetching
+--   - Agent binary lifecycle (fx wiring)
+
+use "../../../comp/anomalydetection/observer/observer-engine.allium" as eng
+
+------------------------------------------------------------
+-- Config
+------------------------------------------------------------
+
+config {
+    default_scenarios_dir: String = "./internal/qbranch/anomalydetection-testbench/scenarios"
+    default_http_addr: String = ":8080"
+    default_sigma: Decimal = 30.0      -- Gaussian width for F1 scoring, in seconds
+}
+
+------------------------------------------------------------
+-- External Entities
+------------------------------------------------------------
+
+external entity Browser {}
+external entity ScorerCLI {}
+
+------------------------------------------------------------
+-- Enumerations
+------------------------------------------------------------
+
+enum RunMode { interactive | headless }
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+value EpisodePhase {
+    start: String       -- RFC3339 timestamp
+    end: String?        -- absent for open-ended phases (e.g. disruption)
+}
+
+value EpisodeBounds {
+    warmup: EpisodePhase?
+    baseline: EpisodePhase?
+    disruption: EpisodePhase?
+    disruption_start_unix: Integer?   -- unix seconds, derived from disruption.start
+    baseline_start_unix: Integer?
+    baseline_end_unix: Integer?
+}
+
+value ComponentConfig {
+    name: String
+    enabled: Boolean
+    params: Map<String, Any>
+}
+
+value CorrelationAnomaly {
+    source: String
+    detector: String
+    timestamp: Integer
+}
+
+value ObserverCorrelation {
+    pattern: String
+    period_start: Integer       -- unix seconds
+    period_end: Integer
+    title: String?
+    message: String?
+    tags: Set<String>
+    member_series: Set<String>
+    anomalies: Set<CorrelationAnomaly>
+}
+
+value ObserverMetadata {
+    scenario: String
+    timeline_start: Integer
+    timeline_end: Integer
+    detectors_enabled: Set<String>
+    correlators_enabled: Set<String>
+    total_anomaly_periods: Integer
+    component_configs: Map<String, Map<String, Any>>?
+}
+
+value GaussianF1Score {
+    f1: Decimal
+    precision: Decimal
+    recall: Decimal
+    tp: Decimal
+    fp: Decimal
+    fn: Decimal
+    num_predictions: Integer
+    num_ground_truths: Integer
+    num_filtered_warmup: Integer
+    num_filtered_cascading: Integer
+    num_baseline_fps: Integer
+    sigma: Decimal
+    baseline_duration_seconds: Integer
+    alpha: Decimal          -- fp rate per baseline second; -1 if baseline unknown
+}
+
+value MetricGroundTruthEntry {
+    service: String
+    metrics: Set<String>
+}
+
+value MetricDetection {
+    service: String
+    metric: String
+    classification: tp | fp
+    detected: Boolean
+    count: Integer
+    first_seen_unix: Integer?
+    delta_from_disruption_sec: Decimal?
+}
+
+value MetricF1Score {
+    tp_count: Integer
+    fp_count: Integer
+    unknown_count: Integer
+    total_count: Integer
+    metric_precision: Decimal
+    metric_recall: Decimal
+    metric_f1: Decimal
+    tp_metrics_found: Set<String>
+    tp_metrics_missed: Set<String>
+    fp_metrics_fired: Set<String>
+    detections: Set<MetricDetection>
+}
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+-- The testbench orchestrates one engine instance over a scenario.
+entity TestBench {
+    mode: RunMode
+    scenario_name: String?          -- currently loaded scenario
+    scenarios_dir: String
+    episode: EpisodeBounds?         -- nil when no scenario is loaded
+
+    -- Live component configuration (hot-swappable)
+    component_configs: Set<ComponentConfig>
+
+    -- Headless output path (headless mode only)
+    output_path: String?
+    verbose_output: Boolean
+
+    -- SSE subscriber count
+    sse_subscriber_count: Integer
+}
+
+-- Metric ground truth loaded from ground_truth.json; keyed by scenario name.
+entity MetricGroundTruth {
+    scenario: String
+    true_positives: Set<MetricGroundTruthEntry>
+    false_positives: Set<MetricGroundTruthEntry>
+}
+
+------------------------------------------------------------
+-- Rules: Scenario Loading
+------------------------------------------------------------
+
+rule LoadScenario {
+    when: ScenarioLoadRequested(testbench, scenario_name)
+
+    -- episode.json is optional; if absent testbench.episode remains nil.
+    ensures: testbench.scenario_name = scenario_name
+    ensures: testbench.episode = parse_episode(testbench.scenarios_dir, scenario_name)
+
+    @guidance
+        -- Missing disruption start means scoring cannot infer ground truth
+        -- automatically — callers must supply explicit timestamps.
+}
+
+------------------------------------------------------------
+-- Rules: Headless Replay
+------------------------------------------------------------
+
+-- Headless mode: load a scenario, replay stored data through the engine,
+-- write the accumulated correlations to a JSON output file. No HTTP server.
+rule RunHeadless {
+    when: HeadlessRunRequested(testbench, scenario_name, output_path, verbose)
+
+    requires: testbench.mode = headless
+
+    ensures: ScenarioLoadRequested(testbench, scenario_name)
+    ensures: testbench.output_path = output_path
+    ensures: testbench.verbose_output = verbose
+    ensures: HeadlessOutputWritten(testbench, output_path)
+
+    @guidance
+        -- Parquet and log loading precede replay. The engine is reset
+        -- before replay so analysis always starts from scratch.
+        -- verbose = true adds title, message, member_series, and nested
+        -- anomaly detail to each correlation in the output JSON.
+}
+
+------------------------------------------------------------
+-- Rules: Component Hot-Swap
+------------------------------------------------------------
+
+-- Toggle or reconfigure a component at runtime. The engine is rebuilt
+-- immediately; no replay is required to apply the change.
+rule HotSwapComponent {
+    when: ComponentConfigChanged(testbench, config)
+
+    let existing = testbench.component_configs.first(c => c.name = config.name)
+
+    ensures:
+        if existing != null:
+            testbench.component_configs = (testbench.component_configs - {existing}) + {config}
+        else:
+            testbench.component_configs = testbench.component_configs + {config}
+
+    ensures: EngineComponentsRebuilt(testbench)
+
+    @guidance
+        -- EngineComponentsRebuilt triggers ReplaceDetectors, ReplaceCorrelators,
+        -- and ReplaceExtractors on the underlying engine. All three run
+        -- synchronously before the HTTP response returns.
+}
+
+------------------------------------------------------------
+-- Rules: Scoring
+------------------------------------------------------------
+
+-- Gaussian F1 scoring for timestamp detection quality.
+-- Ground truth timestamps come from episode.disruption.start unless overridden.
+rule ScoreGaussianF1 {
+    when: GaussianF1ScoreRequested(testbench, sigma, ground_truth_timestamps?)
+
+    let gt = ground_truth_timestamps ?? infer_ground_truth(testbench.episode)
+
+    ensures: GaussianF1Computed(testbench, gt, sigma)
+
+    @guidance
+        -- Predictions are the period_start values of all accumulated correlations.
+        -- Warmup filtering: predictions before episode.baseline.start are dropped.
+        -- Cascading filtering: extra post-onset predictions beyond GT + 2σ
+        -- are ignored as cascading repeats of the same detected disruption.
+        -- Alpha = baseline_fps / baseline_duration_seconds; -1 when unknown.
+}
+
+-- Metric TP/FP scoring: classifies each detected metric against ground_truth.json.
+rule ScoreMetricTP {
+    when: MetricTPScoreRequested(testbench, scenario_name)
+
+    let gt = load_metric_ground_truth(testbench.scenarios_dir, scenario_name)
+
+    requires: gt.true_positives.count > 0
+
+    ensures: MetricF1Computed(testbench, gt)
+
+    @guidance
+        -- Matching: strip aggregate suffixes (e.g. ":avg", ":max") then check
+        -- exact match or substring containment against the GT metric name.
+        -- Each anomaly period gets one classification: TP, FP, or unknown.
+        -- Precision = TP_periods / (TP_periods + FP_periods).
+        -- Recall = matched_TP_metrics / total_TP_metrics in ground truth.
+        -- Detections are sorted: classification (fp < tp), service, metric.
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+-- HTTP API exposed by the interactive testbench server.
+surface TestBenchHTTPAPI {
+    facing browser: Browser
+
+    context testbench: TestBench
+
+    exposes:
+        testbench.scenario_name
+        testbench.episode
+        testbench.component_configs
+        testbench.sse_subscriber_count
+
+    provides:
+        -- Replay control
+        TriggerReplay(browser, testbench)
+        TriggerReset(browser, testbench)
+
+        -- Component configuration
+        ToggleComponent(browser, testbench, component_name, enabled)
+        SetComponentParams(browser, testbench, component_name, params)
+        LoadComponentConfig(browser, testbench, config_json)
+
+        -- Scoring
+        GetGaussianF1Score(browser, testbench, sigma?)
+        GetMetricTPScore(browser, testbench)
+
+        -- Data queries (delegated to engine StateView)
+        GetEngineState(browser, testbench)
+        GetSeriesData(browser, testbench, namespace?, series_filter?)
+        GetAnomalyList(browser, testbench)
+        GetCorrelationList(browser, testbench)
+
+        -- Output export
+        DownloadHeadlessOutput(browser, testbench, verbose)
+
+        -- SSE event stream
+        SubscribeEvents(browser, testbench)
+
+    @guarantee ReadSafety
+        -- Read operations (GetEngineState, GetSeriesData, etc.) are side-effect-free.
+        -- Write operations (Toggle, SetParams, TriggerReplay) are applied
+        -- synchronously and broadcast to SSE subscribers before responding.
+
+    @guarantee SSEBroadcast
+        -- Every state-changing operation broadcasts a typed JSON event to all
+        -- active SSE subscribers before the HTTP response is returned.
+}
+
+-- JSON output file contract between the testbench and the scorer.
+surface HeadlessOutputFile {
+    facing scorer: ScorerCLI
+
+    context testbench: TestBench
+
+    exposes:
+        -- metadata object
+        testbench.scenario_name
+        testbench.component_configs
+        -- anomaly_periods array
+        for corr in accumulated_correlations:
+            corr.pattern
+            corr.period_start
+            corr.period_end
+            corr.title                   -- present only when verbose
+            corr.message                 -- present only when verbose
+            corr.tags                    -- present only when verbose
+            corr.member_series           -- present only when verbose
+            corr.anomalies               -- present only when verbose
+
+    @guarantee VerboseToggle
+        -- verbose = false (default): each entry has pattern, period_start,
+        -- period_end only. All other fields are omitted from the JSON.
+        -- verbose = true: all fields are present.
+
+    @guarantee SingleFile
+        -- One file per headless run, overwritten if the path already exists.
+}
+
+-- Scorer CLI: reads a headless output file and produces a score.
+surface ScorerCLIInterface {
+    facing caller: ScorerCLI
+
+    provides:
+        ScoreFile(caller, output_path, ground_truth_timestamps?, scenarios_dir?, sigma?)
+        ScoreFileMetricTP(caller, output_path, scenarios_dir?)
+
+    @guarantee MetadataInference
+        -- When ground_truth_timestamps is absent, the scorer reads
+        -- scenarios_dir/<metadata.scenario>/episode.json to infer
+        -- the disruption start timestamp. Explicit timestamps override.
+
+    @guarantee WarmupFiltering
+        -- Predictions before episode.baseline.start are excluded.
+        -- This removes detector warm-up noise before the baseline window.
+}
+
+------------------------------------------------------------
+-- Deferred Specifications
+------------------------------------------------------------
+
+deferred HeadlessIngestion.load       -- Parquet + log file loading for headless replay
+deferred SSEProtocol.events           -- SSE event type registry and serialisation format
+deferred ScenarioDiscovery.list       -- listing and validating scenario directories
+
+------------------------------------------------------------
+-- Open Questions
+------------------------------------------------------------
+
+open question "Multi-scenario batch scoring: the scorer CLI scores one output file at a time. A batch mode that scores a directory of files and aggregates F1 across scenarios would be useful for optimizer runs. Should this live in the scorer CLI, in tasks/q.py, or as a new testbench API endpoint?"
+
+open question "Metric ground truth granularity: MetricGroundTruth classifies at the metric-name level and ignores service tags. Some scenarios have multiple service instances firing the same metric (e.g. redis.cpu on two Redis nodes). Should TP matching become tag-aware, or is metric-name-only matching sufficient for planned scenarios?"

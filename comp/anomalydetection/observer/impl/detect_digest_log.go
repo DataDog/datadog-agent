@@ -48,7 +48,7 @@ func (r *detectDigestRecorder) close() error {
 
 // enableDetectDigestRecordingToFile creates a recorder and wires it to the engine.
 // Returns a cleanup function that disables recording and closes the file.
-func enableDetectDigestRecordingToFile(e *engine, path string) (func(), error) {
+func enableDetectDigestRecordingToFile(e *Engine, path string) (func(), error) {
 	rec, err := newDetectDigestRecorder(path)
 	if err != nil {
 		return nil, err
@@ -115,8 +115,8 @@ func (d DetectDivergence) String() string {
 	return b.String()
 }
 
-// detectDigestComparator compares replay digests against a live recording.
-type detectDigestComparator struct {
+// DetectDigestComparator compares replay digests against a live recording.
+type DetectDigestComparator struct {
 	mu             sync.Mutex
 	expected       map[string]detectDigest // keyed by "detector|dataTime"
 	visited        map[string]bool         // keys seen during replay
@@ -126,7 +126,7 @@ type detectDigestComparator struct {
 	replayOnly     int
 }
 
-func newDetectDigestComparator(path string) (*detectDigestComparator, error) {
+func NewDetectDigestComparator(path string) (*DetectDigestComparator, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open detect digest log %s: %w", path, err)
@@ -143,14 +143,14 @@ func newDetectDigestComparator(path string) (*detectDigestComparator, error) {
 		expected[detectDigestKey(d.DetectorName, d.DataTime)] = d
 	}
 
-	return &detectDigestComparator{
+	return &DetectDigestComparator{
 		expected: expected,
 		visited:  make(map[string]bool, len(expected)),
 	}, nil
 }
 
 // compare is called for each replay Detect() result.
-func (c *detectDigestComparator) compare(actual detectDigest) {
+func (c *DetectDigestComparator) compare(actual detectDigest) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -193,7 +193,7 @@ func (c *detectDigestComparator) compare(actual detectDigest) {
 	})
 }
 
-func (c *detectDigestComparator) printSummary() {
+func (c *DetectDigestComparator) printSummary() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -246,6 +246,16 @@ func (c *detectDigestComparator) printSummary() {
 	}
 	fmt.Println()
 	fmt.Println("====================================")
+}
+
+// PrintSummary is the exported version of printSummary.
+func (c *DetectDigestComparator) PrintSummary() { c.printSummary() }
+
+// ExpectedCount returns the number of expected (live) digest entries.
+func (c *DetectDigestComparator) ExpectedCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.expected)
 }
 
 // fingerprintsEqual compares two sorted fingerprint slices.

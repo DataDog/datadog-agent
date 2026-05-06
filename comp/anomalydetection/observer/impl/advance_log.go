@@ -14,11 +14,11 @@ import (
 	"sync"
 )
 
-const advanceLogFileName = "advances.jsonl"
+const AdvanceLogFileName = "advances.jsonl"
 
-// advanceEntry records a single advance call, including data ingestion counters
+// AdvanceEntry records a single advance call, including data ingestion counters
 // accumulated since the previous advance.
-type advanceEntry struct {
+type AdvanceEntry struct {
 	DataTime           int64            `json:"data_time"`
 	Reason             string           `json:"reason"`
 	LatePoints         int64            `json:"late_points,omitempty"`           // points ingested after their timestamp was analyzed
@@ -57,7 +57,7 @@ func newAdvanceLogRecorder(path string) (*advanceLogRecorder, error) {
 	return &advanceLogRecorder{f: f, enc: json.NewEncoder(f)}, nil
 }
 
-func (r *advanceLogRecorder) record(e advanceEntry) {
+func (r *advanceLogRecorder) record(e AdvanceEntry) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if err := r.enc.Encode(e); err != nil {
@@ -71,11 +71,11 @@ func (r *advanceLogRecorder) close() error {
 	return r.f.Close()
 }
 
-// advanceLogComparator compares advance sequences between live and replay.
-type advanceLogComparator struct {
-	liveAdvances         map[int64]advanceEntry // dataTime → full entry
-	replayOnly           []advanceEntry
-	liveOnly             []advanceEntry
+// AdvanceLogComparator compares advance sequences between live and replay.
+type AdvanceLogComparator struct {
+	liveAdvances         map[int64]AdvanceEntry // dataTime → full entry
+	replayOnly           []AdvanceEntry
+	liveOnly             []AdvanceEntry
 	matched              int
 	totalLatePoints      int64
 	totalDroppedObs      int64
@@ -83,20 +83,20 @@ type advanceLogComparator struct {
 	totalDroppedBySource map[string]int64
 }
 
-func newAdvanceLogComparator(path string) (*advanceLogComparator, error) {
+func NewAdvanceLogComparator(path string) (*AdvanceLogComparator, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open advance log %s: %w", path, err)
 	}
 	defer f.Close()
 
-	advances := make(map[int64]advanceEntry)
+	advances := make(map[int64]AdvanceEntry)
 	var totalLate, totalDropped int64
 	lateBySource := make(map[string]int64)
 	droppedBySource := make(map[string]int64)
 	dec := json.NewDecoder(f)
 	for dec.More() {
-		var e advanceEntry
+		var e AdvanceEntry
 		if err := dec.Decode(&e); err != nil {
 			return nil, fmt.Errorf("parse advance log entry: %w", err)
 		}
@@ -111,7 +111,7 @@ func newAdvanceLogComparator(path string) (*advanceLogComparator, error) {
 		}
 	}
 
-	return &advanceLogComparator{
+	return &AdvanceLogComparator{
 		liveAdvances:         advances,
 		totalLatePoints:      totalLate,
 		totalDroppedObs:      totalDropped,
@@ -121,7 +121,7 @@ func newAdvanceLogComparator(path string) (*advanceLogComparator, error) {
 }
 
 // liveAdvanceTimes returns the sorted list of data_time values from the live advance log.
-func (c *advanceLogComparator) liveAdvanceTimes() []int64 {
+func (c *AdvanceLogComparator) liveAdvanceTimes() []int64 {
 	times := make([]int64, 0, len(c.liveAdvances))
 	for t := range c.liveAdvances {
 		times = append(times, t)
@@ -131,7 +131,7 @@ func (c *advanceLogComparator) liveAdvanceTimes() []int64 {
 }
 
 // compare is called for each replay advance.
-func (c *advanceLogComparator) compare(e advanceEntry) {
+func (c *AdvanceLogComparator) compare(e AdvanceEntry) {
 	if _, ok := c.liveAdvances[e.DataTime]; ok {
 		c.matched++
 		delete(c.liveAdvances, e.DataTime) // mark as seen
@@ -141,13 +141,13 @@ func (c *advanceLogComparator) compare(e advanceEntry) {
 }
 
 // finalize collects live-only advances (those not matched by replay).
-func (c *advanceLogComparator) finalize() {
+func (c *AdvanceLogComparator) finalize() {
 	for _, entry := range c.liveAdvances {
 		c.liveOnly = append(c.liveOnly, entry)
 	}
 }
 
-func (c *advanceLogComparator) printSummary() {
+func (c *AdvanceLogComparator) printSummary() {
 	c.finalize()
 	total := c.matched + len(c.liveOnly)
 
@@ -209,3 +209,15 @@ func (c *advanceLogComparator) printSummary() {
 		c.matched, len(c.liveOnly), len(c.replayOnly))
 	fmt.Println("====================================")
 }
+
+// PrintSummary is the exported version of printSummary.
+func (c *AdvanceLogComparator) PrintSummary() { c.printSummary() }
+
+// Compare is the exported version of compare, suitable for use as a callback.
+func (c *AdvanceLogComparator) Compare(e AdvanceEntry) { c.compare(e) }
+
+// LiveAdvanceTimes returns the sorted list of data_time values from the live advance log.
+func (c *AdvanceLogComparator) LiveAdvanceTimes() []int64 { return c.liveAdvanceTimes() }
+
+// LiveAdvanceCount returns the number of live advance entries loaded.
+func (c *AdvanceLogComparator) LiveAdvanceCount() int { return len(c.liveAdvances) }

@@ -21,7 +21,7 @@ import (
 // leak memory in production: storage eviction will free the series, but the
 // detector's per-series map will never shrink.
 func TestDefaultCatalog_DetectorTeardownContract(t *testing.T) {
-	require.NoError(t, defaultCatalog().validateDetectorTeardownContract(),
+	require.NoError(t, DefaultCatalog().validateDetectorTeardownContract(),
 		"every catalog detector must implement SeriesRemover or be added to statelessDetectorAllowlist with a justification comment")
 }
 
@@ -29,11 +29,11 @@ func TestDefaultCatalog_DetectorTeardownContract(t *testing.T) {
 // validator rejects a Detector that doesn't implement SeriesRemover and isn't
 // allowlisted — i.e. the check actually fails when it should.
 func TestValidateDetectorTeardownContract_FlagsBareDetector(t *testing.T) {
-	cat := &componentCatalog{
-		entries: []componentEntry{
+	cat := &ComponentCatalog{
+		entries: []ComponentEntry{
 			{
 				name:           "bare-detector",
-				kind:           componentDetector,
+				kind:           ComponentDetector,
 				factory:        func(any) any { return &bareDetectorForValidator{} },
 				defaultEnabled: true,
 			},
@@ -53,11 +53,11 @@ func TestValidateDetectorTeardownContract_AllowlistEscape(t *testing.T) {
 	statelessDetectorAllowlist["explicitly-stateless-test"] = struct{}{}
 	t.Cleanup(func() { delete(statelessDetectorAllowlist, "explicitly-stateless-test") })
 
-	cat := &componentCatalog{
-		entries: []componentEntry{
+	cat := &ComponentCatalog{
+		entries: []ComponentEntry{
 			{
 				name:           "explicitly-stateless-test",
-				kind:           componentDetector,
+				kind:           ComponentDetector,
 				factory:        func(any) any { return &bareDetectorForValidator{} },
 				defaultEnabled: true,
 			},

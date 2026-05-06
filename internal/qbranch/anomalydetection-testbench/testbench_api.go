@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package main
 
 import (
 	"context"
@@ -20,13 +20,16 @@ import (
 	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
+	tboutput "github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench/output"
+	scoring "github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench/scoring"
 )
 
 // ScoreResponse is the JSON payload for GET /api/score.
 type ScoreResponse struct {
-	Available bool         `json:"available"`
-	Reason    string       `json:"reason,omitempty"`
-	Score     *ScoreResult `json:"score,omitempty"`
+	Available bool                 `json:"available"`
+	Reason    string               `json:"reason,omitempty"`
+	Score     *scoring.ScoreResult `json:"score,omitempty"`
 }
 
 // TestBenchAPI handles HTTP API requests for the test bench.
@@ -172,7 +175,7 @@ func parseLogsQuery(query url.Values) logsQuery {
 
 // patternClusterFilter matches log lines against a single pattern cluster (hex hash from /api/log-patterns).
 type patternClusterFilter struct {
-	extractor *LogPatternExtractor
+	extractor *observerimpl.LogPatternExtractor
 	groupHash uint64
 	clusterID int64
 }
@@ -185,8 +188,8 @@ func (api *TestBenchAPI) resolvePatternClusterFilter(patternHash string) *patter
 	if ext == nil {
 		return nil
 	}
-	for _, entry := range ext.taggedClusterer.GetAllClusters() {
-		if globalClusterHash(entry.GroupHash, entry.Cluster.ID) == patternHash {
+	for _, entry := range ext.TaggedClusterer().GetAllClusters() {
+		if observerimpl.GlobalClusterHash(entry.GroupHash, entry.Cluster.ID) == patternHash {
 			return &patternClusterFilter{extractor: ext, groupHash: entry.GroupHash, clusterID: entry.Cluster.ID}
 		}
 	}
@@ -197,7 +200,7 @@ func (pf *patternClusterFilter) matchesLogContent(logView observerdef.LogView) b
 	if pf == nil {
 		return true
 	}
-	matched := pf.extractor.taggedClusterer.Classify(pf.groupHash, string(logView.GetContent()))
+	matched := pf.extractor.TaggedClusterer().Classify(pf.groupHash, string(logView.GetContent()))
 	return matched != nil && matched.ID == pf.clusterID
 }
 
@@ -331,8 +334,8 @@ func matchesLogsQuery(logView observerdef.LogView, query logsQuery) bool {
 	return matchesLogTagFilter(effectiveLogTags(logView), query.tagFilter)
 }
 
-func cloneCompressedGroups(groups []CompressedGroup) []CompressedGroup {
-	cloned := make([]CompressedGroup, len(groups))
+func cloneCompressedGroups(groups []observerimpl.CompressedGroup) []observerimpl.CompressedGroup {
+	cloned := make([]observerimpl.CompressedGroup, len(groups))
 	for i, group := range groups {
 		cloned[i] = group
 		if group.CommonTags != nil {
@@ -341,7 +344,7 @@ func cloneCompressedGroups(groups []CompressedGroup) []CompressedGroup {
 				cloned[i].CommonTags[key] = value
 			}
 		}
-		cloned[i].Patterns = append([]MetricPattern(nil), group.Patterns...)
+		cloned[i].Patterns = append([]observerimpl.MetricPattern(nil), group.Patterns...)
 		cloned[i].MemberSources = append([]string(nil), group.MemberSources...)
 	}
 	return cloned
@@ -468,25 +471,25 @@ func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request
 	for _, ns := range storage.Namespaces() {
 		metas := storage.ListSeriesMetadata(ns)
 		for _, m := range metas {
-			var aggs []Aggregate
-			if m.Namespace == "telemetry" && telHandler != nil && telHandler.isCounterMetric(m.Name) {
+			var aggs []observerimpl.Aggregate
+			if m.Namespace == "telemetry" && telHandler != nil && telHandler.IsCounterMetric(m.Name) {
 				// Counters are per-bucket deltas; exposing avg/count/sum as three API series
 				// with the same tags produced three indistinguishable "untagged" lines in the UI.
-				aggs = []Aggregate{AggregateSum}
+				aggs = []observerimpl.Aggregate{observerimpl.AggregateSum}
 			} else {
-				aggs = []Aggregate{AggregateAverage, AggregateCount}
+				aggs = []observerimpl.Aggregate{observerimpl.AggregateAverage, observerimpl.AggregateCount}
 			}
 			var metricKind string
 			if m.Namespace == "telemetry" {
-				if telHandler != nil && telHandler.isCounterMetric(m.Name) {
+				if telHandler != nil && telHandler.IsCounterMetric(m.Name) {
 					metricKind = "counter"
 				} else {
 					metricKind = "gauge"
 				}
 			}
 			for _, agg := range aggs {
-				nameWithAgg := m.Name + ":" + aggSuffix(agg)
-				compactID := strconv.Itoa(int(m.Ref)) + ":" + aggSuffix(agg)
+				nameWithAgg := m.Name + ":" + observerdef.AggregateString(observerdef.Aggregate(agg))
+				compactID := strconv.Itoa(int(m.Ref)) + ":" + observerdef.AggregateString(observerdef.Aggregate(agg))
 				_, virtual := extractorNs[m.Namespace]
 				allSeries = append(allSeries, seriesInfo{
 					ID:         compactID,
@@ -529,7 +532,7 @@ func (api *TestBenchAPI) handleSeriesDataByID(w http.ResponseWriter, r *http.Req
 	}
 
 	// Fall back to legacy full key format: "namespace|name:agg|tags"
-	namespace, nameWithAgg, tags, ok := parseSeriesKey(seriesID)
+	namespace, nameWithAgg, tags, ok := observerimpl.ParseSeriesKey(seriesID)
 	if !ok {
 		api.writeError(w, http.StatusBadRequest, "invalid series id")
 		return
@@ -539,18 +542,18 @@ func (api *TestBenchAPI) handleSeriesDataByID(w http.ResponseWriter, r *http.Req
 
 // handleNumericSeriesData resolves a compact numeric ID to series data.
 func (api *TestBenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID observerdef.SeriesRef, aggStr string, originalID string) {
-	var agg Aggregate
+	var agg observerimpl.Aggregate
 	switch aggStr {
 	case "avg":
-		agg = AggregateAverage
+		agg = observerimpl.AggregateAverage
 	case "count":
-		agg = AggregateCount
+		agg = observerimpl.AggregateCount
 	case "sum":
-		agg = AggregateSum
+		agg = observerimpl.AggregateSum
 	case "min":
-		agg = AggregateMin
+		agg = observerimpl.AggregateMin
 	case "max":
-		agg = AggregateMax
+		agg = observerimpl.AggregateMax
 	default:
 		api.writeError(w, http.StatusBadRequest, "invalid aggregation suffix")
 		return
@@ -660,21 +663,21 @@ func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namesp
 
 	// Parse aggregation suffix (e.g., "metric:avg" or "metric:count")
 	name := nameWithAgg
-	agg := AggregateAverage
+	agg := observerimpl.AggregateAverage
 	if idx := strings.LastIndex(nameWithAgg, ":"); idx != -1 {
 		suffix := nameWithAgg[idx+1:]
 		name = nameWithAgg[:idx]
 		switch suffix {
 		case "avg":
-			agg = AggregateAverage
+			agg = observerimpl.AggregateAverage
 		case "count":
-			agg = AggregateCount
+			agg = observerimpl.AggregateCount
 		case "sum":
-			agg = AggregateSum
+			agg = observerimpl.AggregateSum
 		case "min":
-			agg = AggregateMin
+			agg = observerimpl.AggregateMin
 		case "max":
-			agg = AggregateMax
+			agg = observerimpl.AggregateMax
 		}
 	}
 
@@ -690,7 +693,7 @@ func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namesp
 		return
 	}
 	if seriesID == "" {
-		seriesID = seriesKey(series.Namespace, nameWithAgg, series.Tags)
+		seriesID = observerimpl.SeriesKey(series.Namespace, nameWithAgg, series.Tags)
 	}
 
 	type anomalyMarker struct {
@@ -810,7 +813,7 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 		// Fallback for cross-namespace detectors (e.g. RRCF)
 		if storage != nil && a.DetectorName != "" && a.Source.Name != "" {
 			telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
-			telemetryKey := seriesKey("telemetry", telemetryName+":avg", nil)
+			telemetryKey := observerimpl.SeriesKey("telemetry", telemetryName+":avg", nil)
 			if compactID := storage.CompactSeriesID(telemetryKey); compactID != telemetryKey {
 				return compactID
 			}
@@ -1126,7 +1129,7 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Reque
 					for _, a := range c.Anomalies {
 						if a.Source.Key() == m.Key() && a.DetectorName != "" {
 							telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
-							telemetryKey := seriesKey("telemetry", telemetryName+":avg", nil)
+							telemetryKey := observerimpl.SeriesKey("telemetry", telemetryName+":avg", nil)
 							if compactID := storage.CompactSeriesID(telemetryKey); compactID != telemetryKey {
 								memberIDs[k] = compactID
 								resolved = true
@@ -1169,7 +1172,7 @@ func (api *TestBenchAPI) handleStats(w http.ResponseWriter, _ *http.Request) {
 func (api *TestBenchAPI) handleReports(w http.ResponseWriter, _ *http.Request) {
 	events := api.tb.GetReportedEvents()
 	if events == nil {
-		events = []ReportedEvent{}
+		events = []observerimpl.ReportedEvent{}
 	}
 	api.writeJSON(w, events)
 }
@@ -1282,7 +1285,7 @@ func (api *TestBenchAPI) writeJSON(w http.ResponseWriter, data interface{}) {
 func (api *TestBenchAPI) handleBenchmark(w http.ResponseWriter, _ *http.Request) {
 	stats := api.tb.GetReplayStats()
 	if stats == nil {
-		api.writeJSON(w, &ReplayStats{DetectorStats: map[string]DetectorProcessingStats{}})
+		api.writeJSON(w, &tboutput.ReplayStats{DetectorStats: map[string]tboutput.DetectorProcessingStats{}})
 		return
 	}
 	api.writeJSON(w, stats)

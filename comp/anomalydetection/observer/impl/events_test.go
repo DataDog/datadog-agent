@@ -50,7 +50,7 @@ func (s *collectingSink) eventsOfKind(kind engineEventKind) []engineEvent {
 }
 
 func TestSubscribeAndUnsubscribe(t *testing.T) {
-	e := newEngine(engineConfig{storage: newTimeSeriesStorage()})
+	e := NewEngine(EngineConfig{Storage: NewTimeSeriesStorage()})
 
 	sink := &collectingSink{}
 	unsub := e.Subscribe(sink)
@@ -71,7 +71,7 @@ func TestSubscribeAndUnsubscribe(t *testing.T) {
 }
 
 func TestMultipleSinksReceiveEvents(t *testing.T) {
-	e := newEngine(engineConfig{storage: newTimeSeriesStorage()})
+	e := NewEngine(EngineConfig{Storage: NewTimeSeriesStorage()})
 
 	sink1 := &collectingSink{}
 	sink2 := &collectingSink{}
@@ -85,7 +85,7 @@ func TestMultipleSinksReceiveEvents(t *testing.T) {
 }
 
 func TestUnsubscribeOnlyAffectsTargetSink(t *testing.T) {
-	e := newEngine(engineConfig{storage: newTimeSeriesStorage()})
+	e := NewEngine(EngineConfig{Storage: NewTimeSeriesStorage()})
 
 	sink1 := &collectingSink{}
 	sink2 := &collectingSink{}
@@ -190,9 +190,9 @@ func (d *emitOnSeriesDetector) Detect(series observerdef.Series) observerdef.Det
 }
 
 func TestAdvanceEmitsAdvanceCompletedEvent(t *testing.T) {
-	e := newEngine(engineConfig{
-		storage:   newTimeSeriesStorage(),
-		detectors: []observerdef.Detector{&mockDetector{name: "noop"}},
+	e := NewEngine(EngineConfig{
+		Storage:   NewTimeSeriesStorage(),
+		Detectors: []observerdef.Detector{&mockDetector{name: "noop"}},
 	})
 
 	sink := &collectingSink{}
@@ -214,9 +214,9 @@ func TestAdvanceEmitsAnomalyCreatedEvents(t *testing.T) {
 		{Source: observerdef.SeriesDescriptor{Name: "mem", Aggregate: observerdef.AggregateAverage}, DetectorName: "test", Timestamp: 99},
 	}
 
-	e := newEngine(engineConfig{
-		storage: newTimeSeriesStorage(),
-		detectors: []observerdef.Detector{
+	e := NewEngine(EngineConfig{
+		Storage: NewTimeSeriesStorage(),
+		Detectors: []observerdef.Detector{
 			&anomalyDetector{name: "test", anomalies: anomalies},
 		},
 	})
@@ -253,15 +253,15 @@ func TestAdvanceEnrichesAnomalyContextWithoutOverwritingDescription(t *testing.T
 		Timestamp:    99,
 	}}
 
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	// Add a series so that the storage key matches Source fields.
 	storage.Add("log_metrics_extractor", "log.pattern.abc.count", 1.0, 1, []string{"observer_source:source-a", "service:api"})
-	e := newEngine(engineConfig{
-		storage: storage,
-		detectors: []observerdef.Detector{
+	e := NewEngine(EngineConfig{
+		Storage: storage,
+		Detectors: []observerdef.Detector{
 			&anomalyDetector{name: "test", anomalies: anomalies},
 		},
-		contextProviders: map[string]observerdef.ContextProvider{
+		ContextProviders: map[string]observerdef.ContextProvider{
 			"log_metrics_extractor": provider,
 		},
 	})
@@ -291,14 +291,14 @@ func TestSetExtractorsRefreshesContextProviders(t *testing.T) {
 	second := &stubExtractor{name: "second", contextByKey: map[string]observerdef.MetricContext{
 		"ctx-2": {Pattern: "p2", Example: "e2", Source: "second"},
 	}}
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	// Add a series so that the storage key matches Source fields.
 	storage.Add("second", "metric", 1.0, 1, []string{"service:api"})
-	e := newEngine(engineConfig{
-		storage:          storage,
-		extractors:       []observerdef.LogMetricsExtractor{first},
-		contextProviders: collectContextProviders([]observerdef.LogMetricsExtractor{first}),
-		detectors: []observerdef.Detector{&anomalyDetector{name: "test", anomalies: []observerdef.Anomaly{{
+	e := NewEngine(EngineConfig{
+		Storage:          storage,
+		Extractors:       []observerdef.LogMetricsExtractor{first},
+		ContextProviders: CollectContextProviders([]observerdef.LogMetricsExtractor{first}),
+		Detectors: []observerdef.Detector{&anomalyDetector{name: "test", anomalies: []observerdef.Anomaly{{
 			Source:    observerdef.SeriesDescriptor{Namespace: "second", Name: "metric", Tags: []string{"service:api"}},
 			Timestamp: 1,
 		}}}},
@@ -318,10 +318,10 @@ func TestSetExtractorsRefreshesContextProviders(t *testing.T) {
 func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing.T) {
 	extractor := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	extractor.config.MinClusterSizeBeforeEmit = 1
-	e := newEngine(engineConfig{
-		storage:          newTimeSeriesStorage(),
-		extractors:       []observerdef.LogMetricsExtractor{extractor},
-		contextProviders: collectContextProviders([]observerdef.LogMetricsExtractor{extractor}),
+	e := NewEngine(EngineConfig{
+		Storage:          NewTimeSeriesStorage(),
+		Extractors:       []observerdef.LogMetricsExtractor{extractor},
+		ContextProviders: CollectContextProviders([]observerdef.LogMetricsExtractor{extractor}),
 	})
 
 	_, _ = e.IngestLog("source-a", &logObs{
@@ -370,11 +370,11 @@ func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing
 func TestAdvance_LogMetricAnomalyIsEnrichedViaMatchingSeriesIdentity(t *testing.T) {
 	extractor := NewLogMetricsExtractor(LogMetricsExtractorConfig{})
 	detector := newSeriesDetectorAdapter(&emitOnSeriesDetector{name: "test_series_detector"}, []observerdef.Aggregate{observerdef.AggregateCount})
-	e := newEngine(engineConfig{
-		storage:          newTimeSeriesStorage(),
-		extractors:       []observerdef.LogMetricsExtractor{extractor},
-		contextProviders: collectContextProviders([]observerdef.LogMetricsExtractor{extractor}),
-		detectors:        []observerdef.Detector{detector},
+	e := NewEngine(EngineConfig{
+		Storage:          NewTimeSeriesStorage(),
+		Extractors:       []observerdef.LogMetricsExtractor{extractor},
+		ContextProviders: CollectContextProviders([]observerdef.LogMetricsExtractor{extractor}),
+		Detectors:        []observerdef.Detector{detector},
 	})
 
 	e.IngestLog("source-a", &logObs{
@@ -415,15 +415,15 @@ func TestNewEnginePanicsOnDuplicateExtractorNames(t *testing.T) {
 	second := &stubExtractor{name: "dup", contextByKey: map[string]observerdef.MetricContext{}}
 
 	assert.PanicsWithValue(t, `duplicate log extractor name: "dup"`, func() {
-		_ = newEngine(engineConfig{
-			storage:    newTimeSeriesStorage(),
-			extractors: []observerdef.LogMetricsExtractor{first, second},
+		_ = NewEngine(EngineConfig{
+			Storage:    NewTimeSeriesStorage(),
+			Extractors: []observerdef.LogMetricsExtractor{first, second},
 		})
 	})
 }
 
 func TestSetExtractorsPanicsOnDuplicateExtractorNames(t *testing.T) {
-	e := newEngine(engineConfig{storage: newTimeSeriesStorage()})
+	e := NewEngine(EngineConfig{Storage: NewTimeSeriesStorage()})
 	first := &stubExtractor{name: "dup", contextByKey: map[string]observerdef.MetricContext{}}
 	second := &stubExtractor{name: "dup", contextByKey: map[string]observerdef.MetricContext{}}
 
@@ -439,9 +439,9 @@ func TestTruncatePreservesUTF8RuneBoundaries(t *testing.T) {
 }
 
 func TestAdvanceEmitsCorrelationUpdatedEvents(t *testing.T) {
-	e := newEngine(engineConfig{
-		storage:     newTimeSeriesStorage(),
-		correlators: []observerdef.Correlator{&mockCorrelator{name: "time_cluster"}},
+	e := NewEngine(EngineConfig{
+		Storage:     NewTimeSeriesStorage(),
+		Correlators: []observerdef.Correlator{&mockCorrelator{name: "time_cluster"}},
 	})
 
 	sink := &collectingSink{}
@@ -455,7 +455,7 @@ func TestAdvanceEmitsCorrelationUpdatedEvents(t *testing.T) {
 }
 
 func TestAdvanceWithReasonPreservesReason(t *testing.T) {
-	e := newEngine(engineConfig{storage: newTimeSeriesStorage()})
+	e := NewEngine(EngineConfig{Storage: NewTimeSeriesStorage()})
 
 	sink := &collectingSink{}
 	e.Subscribe(sink)
@@ -468,7 +468,7 @@ func TestAdvanceWithReasonPreservesReason(t *testing.T) {
 }
 
 func TestNoEventOnSkippedAdvance(t *testing.T) {
-	e := newEngine(engineConfig{storage: newTimeSeriesStorage()})
+	e := NewEngine(EngineConfig{Storage: NewTimeSeriesStorage()})
 	e.Advance(100) // advance first without sink
 
 	sink := &collectingSink{}
@@ -482,13 +482,13 @@ func TestNoEventOnSkippedAdvance(t *testing.T) {
 }
 
 func TestReplayStoredDataEmitsEventsViaScheduler(t *testing.T) {
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	// Add data at timestamps 10, 11, 12, 13.
 	for sec := int64(10); sec <= 13; sec++ {
 		storage.Add("ns", "cpu", 1.0, sec, nil)
 	}
 
-	e := newEngine(engineConfig{storage: storage})
+	e := NewEngine(EngineConfig{Storage: storage})
 
 	sink := &collectingSink{}
 	e.Subscribe(sink)
@@ -496,7 +496,7 @@ func TestReplayStoredDataEmitsEventsViaScheduler(t *testing.T) {
 	e.ReplayStoredData()
 
 	advances := sink.eventsOfKind(eventAdvanceCompleted)
-	// currentBehaviorPolicy: observation at ts=10 -> advance to 9,
+	// CurrentBehaviorPolicy: observation at ts=10 -> advance to 9,
 	// ts=11 -> advance to 10, ts=12 -> advance to 11, ts=13 -> advance to 12
 	// onReplayEnd -> advance to 13 (latestDataTime)
 	require.Len(t, advances, 5)
@@ -510,13 +510,13 @@ func TestReplayStoredDataEmitsEventsViaScheduler(t *testing.T) {
 }
 
 func TestReplayWithLiveScheduleOnlyAdvancesAtLiveTimestamps(t *testing.T) {
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	// Add data at timestamps 10, 11, 12, 13, 14, 15.
 	for sec := int64(10); sec <= 15; sec++ {
 		storage.Add("ns", "cpu", 1.0, sec, nil)
 	}
 
-	e := newEngine(engineConfig{storage: storage})
+	e := NewEngine(EngineConfig{Storage: storage})
 
 	sink := &collectingSink{}
 	e.Subscribe(sink)
@@ -537,12 +537,12 @@ func TestReplayWithLiveScheduleOnlyAdvancesAtLiveTimestamps(t *testing.T) {
 }
 
 func TestReplayWithLiveScheduleSparseData(t *testing.T) {
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	// Sparse data: timestamps 100 and 105 only.
 	storage.Add("ns", "cpu", 1.0, 100, nil)
 	storage.Add("ns", "cpu", 2.0, 105, nil)
 
-	e := newEngine(engineConfig{storage: storage})
+	e := NewEngine(EngineConfig{Storage: storage})
 
 	sink := &collectingSink{}
 	e.Subscribe(sink)
@@ -564,12 +564,12 @@ func TestReplayWithLiveScheduleSparseData(t *testing.T) {
 }
 
 func TestReplayWithLiveScheduleNoMatchingTimestamps(t *testing.T) {
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	for sec := int64(10); sec <= 13; sec++ {
 		storage.Add("ns", "cpu", 1.0, sec, nil)
 	}
 
-	e := newEngine(engineConfig{storage: storage})
+	e := NewEngine(EngineConfig{Storage: storage})
 
 	sink := &collectingSink{}
 	e.Subscribe(sink)
@@ -590,11 +590,11 @@ func TestEngineResetResetsDetectorsAndCorrelators(t *testing.T) {
 	detector := &resettableDetector{name: "detector"}
 	correlator := &resettableCorrelator{name: "correlator"}
 	extractor := &stubExtractor{name: "extractor", contextByKey: map[string]observerdef.MetricContext{}}
-	e := newEngine(engineConfig{
-		storage:     newTimeSeriesStorage(),
-		detectors:   []observerdef.Detector{detector},
-		correlators: []observerdef.Correlator{correlator},
-		extractors:  []observerdef.LogMetricsExtractor{extractor},
+	e := NewEngine(EngineConfig{
+		Storage:     NewTimeSeriesStorage(),
+		Detectors:   []observerdef.Detector{detector},
+		Correlators: []observerdef.Correlator{correlator},
+		Extractors:  []observerdef.LogMetricsExtractor{extractor},
 	})
 
 	e.Reset()
@@ -608,8 +608,8 @@ func TestReporterEventSink(t *testing.T) {
 	reported := 0
 	reporter := &countingReporter{count: &reported}
 
-	sink := &reporterEventSink{
-		reporters: []observerdef.Reporter{reporter},
+	sink := &ReporterEventSink{
+		Reporters: []observerdef.Reporter{reporter},
 	}
 
 	// advanceCompleted should trigger Report.
@@ -657,9 +657,9 @@ func TestFindingM1_DedupKeyTooCoarse(t *testing.T) {
 		},
 	}
 
-	e := newEngine(engineConfig{
-		storage: newTimeSeriesStorage(),
-		detectors: []observerdef.Detector{
+	e := NewEngine(EngineConfig{
+		Storage: NewTimeSeriesStorage(),
+		Detectors: []observerdef.Detector{
 			&anomalyDetector{name: "test_detector", anomalies: anomalies},
 		},
 	})
@@ -692,9 +692,9 @@ func TestFindingM2_EmptySourceCollision(t *testing.T) {
 		},
 	}
 
-	e := newEngine(engineConfig{
-		storage: newTimeSeriesStorage(),
-		detectors: []observerdef.Detector{
+	e := NewEngine(EngineConfig{
+		Storage: NewTimeSeriesStorage(),
+		Detectors: []observerdef.Detector{
 			&anomalyDetector{name: "log_detector", anomalies: anomalies},
 		},
 	})
@@ -724,9 +724,9 @@ func TestFindingM3_DedupAsymmetry(t *testing.T) {
 		},
 	}
 
-	e := newEngine(engineConfig{
-		storage: newTimeSeriesStorage(),
-		detectors: []observerdef.Detector{
+	e := NewEngine(EngineConfig{
+		Storage: NewTimeSeriesStorage(),
+		Detectors: []observerdef.Detector{
 			&anomalyDetector{name: "test_detector", anomalies: anomalies},
 		},
 	})
@@ -753,15 +753,15 @@ func TestFindingM4_UnboundedGrowthOfUniqueAnomalySources(t *testing.T) {
 	// uniqueAnomalySources map should be bounded, but the finding says it grows
 	// without eviction.
 
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	// We need a detector that emits anomalies with unique source names.
 	// Use a custom detector that generates a unique source on each Detect call.
 	det := &dynamicAnomalyDetector{prefix: "metric_"}
 
-	e := newEngine(engineConfig{
-		storage:   storage,
-		detectors: []observerdef.Detector{det},
+	e := NewEngine(EngineConfig{
+		Storage:   storage,
+		Detectors: []observerdef.Detector{det},
 	})
 
 	// Generate 1000 unique anomaly sources across many advance cycles.
@@ -783,14 +783,14 @@ func TestFindingM4_UnboundedGrowthOfUniqueAnomalySources(t *testing.T) {
 }
 
 func TestFindingM4_UnboundedGrowthOfAccumulatedCorrelations(t *testing.T) {
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	// A correlator that produces unique patterns on each Advance.
 	corr := &dynamicCorrelator{prefix: "pattern_"}
 
-	e := newEngine(engineConfig{
-		storage:     storage,
-		correlators: []observerdef.Correlator{corr},
+	e := NewEngine(EngineConfig{
+		Storage:     storage,
+		Correlators: []observerdef.Correlator{corr},
 	})
 
 	for i := 0; i < 1000; i++ {
@@ -810,12 +810,12 @@ func TestFindingM9_SetDetectorsRace(_ *testing.T) {
 	// SetDetectors replaces engine slices without a lock.
 	// Running concurrently with Advance should trigger the race detector.
 
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 1, nil)
 
-	e := newEngine(engineConfig{
-		storage:   storage,
-		detectors: []observerdef.Detector{&mockDetector{name: "initial"}},
+	e := NewEngine(EngineConfig{
+		Storage:   storage,
+		Detectors: []observerdef.Detector{&mockDetector{name: "initial"}},
 	})
 
 	var wg sync.WaitGroup
@@ -843,12 +843,12 @@ func TestFindingM9_SetDetectorsRace(_ *testing.T) {
 }
 
 func TestFindingM9_SetCorrelatorsRace(_ *testing.T) {
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 1, nil)
 
-	e := newEngine(engineConfig{
-		storage:     storage,
-		correlators: []observerdef.Correlator{&mockCorrelator{name: "initial"}},
+	e := NewEngine(EngineConfig{
+		Storage:     storage,
+		Correlators: []observerdef.Correlator{&mockCorrelator{name: "initial"}},
 	})
 
 	var wg sync.WaitGroup
@@ -874,16 +874,16 @@ func TestFindingM9_SetCorrelatorsRace(_ *testing.T) {
 }
 
 func TestFindingM10_ResetRace(_ *testing.T) {
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 1, nil)
 
 	det := &resettableDetector{name: "det"}
 	corr := &resettableCorrelator{name: "corr"}
 
-	e := newEngine(engineConfig{
-		storage:     storage,
-		detectors:   []observerdef.Detector{det},
-		correlators: []observerdef.Correlator{corr},
+	e := NewEngine(EngineConfig{
+		Storage:     storage,
+		Detectors:   []observerdef.Detector{det},
+		Correlators: []observerdef.Correlator{corr},
 	})
 
 	var wg sync.WaitGroup
@@ -914,13 +914,13 @@ func TestFindingM12_LogOnlyTimestampsSkippedInReplay(t *testing.T) {
 	// generating advance requests for that timestamp. In replay, only
 	// DataTimestamps() are iterated.
 
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	extractor := &noopLogExtractor{}
 
-	e := newEngine(engineConfig{
-		storage:    storage,
-		extractors: []observerdef.LogMetricsExtractor{extractor},
+	e := NewEngine(EngineConfig{
+		Storage:    storage,
+		Extractors: []observerdef.LogMetricsExtractor{extractor},
 	})
 
 	// --- Live-style ingestion ---
@@ -1000,10 +1000,10 @@ func TestFindingM12_LogOnlyTimestampsSkippedInReplay(t *testing.T) {
 }
 
 func TestIngestLogCopiesMetricTagsBeforeInjectingObserverSource(t *testing.T) {
-	storage := newTimeSeriesStorage()
-	e := newEngine(engineConfig{
-		storage:    storage,
-		extractors: []observerdef.LogMetricsExtractor{&sharedTagsExtractor{}},
+	storage := NewTimeSeriesStorage()
+	e := NewEngine(EngineConfig{
+		Storage:    storage,
+		Extractors: []observerdef.LogMetricsExtractor{&sharedTagsExtractor{}},
 	})
 
 	_, _ = e.IngestLog("source-a", &logObs{

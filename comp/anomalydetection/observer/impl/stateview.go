@@ -9,49 +9,49 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
-// stateView provides read-only access to engine state.
+// StateView provides read-only access to engine state.
 // This is the primary introspection surface for consumers like the testbench UI.
 // It computes views over existing engine state rather than maintaining a separate copy.
-type stateView struct {
-	engine *engine
+type StateView struct {
+	engine *Engine
 }
 
-// StateView returns a stateView backed by this engine's current state.
-func (e *engine) StateView() *stateView {
-	return &stateView{engine: e}
+// StateView returns a StateView backed by this engine's current state.
+func (e *Engine) StateView() *StateView {
+	return &StateView{engine: e}
 }
 
 // --- Storage access ---
 
 // ListSeries returns metadata for all series matching the filter.
-func (sv *stateView) ListSeries(filter observerdef.SeriesFilter) []observerdef.SeriesMeta {
+func (sv *StateView) ListSeries(filter observerdef.SeriesFilter) []observerdef.SeriesMeta {
 	return sv.engine.storage.ListSeries(filter)
 }
 
 // GetSeriesRange returns points within a time range for a series.
-func (sv *stateView) GetSeriesRange(ref observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) *observerdef.Series {
+func (sv *StateView) GetSeriesRange(ref observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) *observerdef.Series {
 	return sv.engine.storage.GetSeriesRange(ref, start, end, agg)
 }
 
 // ScenarioBounds returns the time bounds of stored data.
-func (sv *stateView) ScenarioBounds() (start int64, end int64, ok bool) {
+func (sv *StateView) ScenarioBounds() (start int64, end int64, ok bool) {
 	return sv.engine.storage.TimeBounds()
 }
 
 // --- Anomaly access ---
 
 // Anomalies returns a copy of all currently tracked raw anomalies.
-func (sv *stateView) Anomalies() []observerdef.Anomaly {
+func (sv *StateView) Anomalies() []observerdef.Anomaly {
 	return sv.engine.RawAnomalies()
 }
 
 // TotalAnomalyCount returns the total number of anomalies ever detected.
-func (sv *stateView) TotalAnomalyCount() int {
+func (sv *StateView) TotalAnomalyCount() int {
 	return sv.engine.TotalAnomalyCount()
 }
 
 // UniqueAnomalySourceCount returns the number of unique metric sources that had anomalies.
-func (sv *stateView) UniqueAnomalySourceCount() int {
+func (sv *StateView) UniqueAnomalySourceCount() int {
 	return sv.engine.UniqueAnomalySourceCount()
 }
 
@@ -64,7 +64,7 @@ type detectorInfo struct {
 }
 
 // ListDetectors returns info about all detectors currently in the engine.
-func (sv *stateView) ListDetectors() []detectorInfo {
+func (sv *StateView) ListDetectors() []detectorInfo {
 	sv.engine.mu.RLock()
 	defer sv.engine.mu.RUnlock()
 
@@ -80,7 +80,7 @@ func (sv *stateView) ListDetectors() []detectorInfo {
 
 // DetectorAnomalies returns anomalies from a specific detector, filtered from the
 // raw anomaly set. Computes on read rather than maintaining a per-detector index.
-func (sv *stateView) DetectorAnomalies(name string) []observerdef.Anomaly {
+func (sv *StateView) DetectorAnomalies(name string) []observerdef.Anomaly {
 	all := sv.engine.RawAnomalies()
 	var result []observerdef.Anomaly
 	for _, a := range all {
@@ -93,7 +93,7 @@ func (sv *stateView) DetectorAnomalies(name string) []observerdef.Anomaly {
 
 // AnomaliesByDetector returns all anomalies grouped by detector name.
 // Computes on read from the raw anomaly set.
-func (sv *stateView) AnomaliesByDetector() map[string][]observerdef.Anomaly {
+func (sv *StateView) AnomaliesByDetector() map[string][]observerdef.Anomaly {
 	all := sv.engine.RawAnomalies()
 	result := make(map[string][]observerdef.Anomaly)
 	for _, a := range all {
@@ -104,7 +104,7 @@ func (sv *stateView) AnomaliesByDetector() map[string][]observerdef.Anomaly {
 
 // AnomaliesForSource returns anomalies matching a specific SeriesDescriptor.
 // Computes on read from the raw anomaly set.
-func (sv *stateView) AnomaliesForSource(sd observerdef.SeriesDescriptor) []observerdef.Anomaly {
+func (sv *StateView) AnomaliesForSource(sd observerdef.SeriesDescriptor) []observerdef.Anomaly {
 	targetKey := sd.Key()
 	all := sv.engine.RawAnomalies()
 	var result []observerdef.Anomaly
@@ -125,7 +125,7 @@ type correlatorInfo struct {
 }
 
 // ListCorrelators returns info about all correlators currently in the engine.
-func (sv *stateView) ListCorrelators() []correlatorInfo {
+func (sv *StateView) ListCorrelators() []correlatorInfo {
 	sv.engine.mu.RLock()
 	defer sv.engine.mu.RUnlock()
 
@@ -140,7 +140,7 @@ func (sv *stateView) ListCorrelators() []correlatorInfo {
 }
 
 // ActiveCorrelations returns current sliding-window correlations from all correlators.
-func (sv *stateView) ActiveCorrelations() []observerdef.ActiveCorrelation {
+func (sv *StateView) ActiveCorrelations() []observerdef.ActiveCorrelation {
 	sv.engine.mu.RLock()
 	defer sv.engine.mu.RUnlock()
 
@@ -156,7 +156,7 @@ func (sv *stateView) ActiveCorrelations() []observerdef.ActiveCorrelation {
 // evicted from their sliding windows, making it suitable for replay/testbench/headless use.
 // It merges the accumulated history with current correlator state so that
 // correlations injected outside the normal Advance flow are also visible.
-func (sv *stateView) CorrelationHistory() []observerdef.ActiveCorrelation {
+func (sv *StateView) CorrelationHistory() []observerdef.ActiveCorrelation {
 	sv.engine.mu.RLock()
 	defer sv.engine.mu.RUnlock()
 
@@ -182,7 +182,7 @@ func (sv *stateView) CorrelationHistory() []observerdef.ActiveCorrelation {
 // --- Telemetry ---
 
 // Telemetry returns accumulated telemetry from detection runs.
-func (sv *stateView) Telemetry() []observerdef.ObserverTelemetry {
+func (sv *StateView) Telemetry() []observerdef.ObserverTelemetry {
 	sv.engine.telemetryMu.RLock()
 	defer sv.engine.telemetryMu.RUnlock()
 
@@ -194,14 +194,14 @@ func (sv *stateView) Telemetry() []observerdef.ObserverTelemetry {
 // --- Scheduling state ---
 
 // LastAnalyzedTime returns the data timestamp up to which detection has run.
-func (sv *stateView) LastAnalyzedTime() int64 {
+func (sv *StateView) LastAnalyzedTime() int64 {
 	sv.engine.mu.RLock()
 	defer sv.engine.mu.RUnlock()
 	return sv.engine.lastAnalyzedDataTime
 }
 
 // LatestDataTime returns the latest data timestamp seen across all ingested observations.
-func (sv *stateView) LatestDataTime() int64 {
+func (sv *StateView) LatestDataTime() int64 {
 	sv.engine.mu.RLock()
 	defer sv.engine.mu.RUnlock()
 	return sv.engine.latestDataTime

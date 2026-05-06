@@ -5,9 +5,9 @@
 
 package observerimpl
 
-// schedulerPolicy decides when the engine should advance analysis.
+// SchedulerPolicy decides when the engine should advance analysis.
 // It is the single home for time-advancement rules.
-type schedulerPolicy interface {
+type SchedulerPolicy interface {
 	// onObservation is called when a new observation arrives. Returns advance
 	// requests that should be executed. The state parameter provides read-only
 	// access to scheduler-relevant engine state.
@@ -44,13 +44,13 @@ const (
 	advanceReasonManual                             // explicit test/debug trigger
 )
 
-// currentBehaviorPolicy reproduces the exact current scheduling semantics:
+// CurrentBehaviorPolicy reproduces the exact current scheduling semantics:
 // - On observation: if dataTimeSec-1 > lastAnalyzedDataTime, emit advance to dataTimeSec-1
 // - On idle: nothing (not currently used)
 // - On replay end: advance to latestDataTime (for batch/testbench replay)
-type currentBehaviorPolicy struct{}
+type CurrentBehaviorPolicy struct{}
 
-func (p *currentBehaviorPolicy) onObservation(dataTimeSec int64, st schedulerState) []advanceRequest {
+func (p *CurrentBehaviorPolicy) onObservation(dataTimeSec int64, st schedulerState) []advanceRequest {
 	analyzeUpTo := dataTimeSec - 1
 	if analyzeUpTo <= st.lastAnalyzedDataTime {
 		return nil
@@ -58,11 +58,11 @@ func (p *currentBehaviorPolicy) onObservation(dataTimeSec int64, st schedulerSta
 	return []advanceRequest{{upToSec: analyzeUpTo, reason: advanceReasonInputDriven}}
 }
 
-func (p *currentBehaviorPolicy) onIdle(_ int64, _ schedulerState) []advanceRequest {
+func (p *CurrentBehaviorPolicy) onIdle(_ int64, _ schedulerState) []advanceRequest {
 	return nil
 }
 
-func (p *currentBehaviorPolicy) onReplayEnd(st schedulerState) []advanceRequest {
+func (p *CurrentBehaviorPolicy) onReplayEnd(st schedulerState) []advanceRequest {
 	if st.latestDataTime <= st.lastAnalyzedDataTime {
 		return nil
 	}

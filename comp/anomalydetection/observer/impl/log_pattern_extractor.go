@@ -126,12 +126,12 @@ type patternMetricContext struct {
 }
 
 // logPatternExtractorContext holds per-metric context for GetContextByKey and
-// indexes keys by tagged cluster (globalClusterHash) for O(cluster) deletion on GC.
+// indexes keys by tagged cluster (GlobalClusterHash) for O(cluster) deletion on GC.
 // The tagged key encodes both groupHash and clusterID so that different sub-clusterers
 // with coincidentally equal cluster IDs don't collide.
 type logPatternExtractorContext struct {
 	byKey               map[string]patternMetricContext
-	keysByTaggedCluster map[string][]string // key: globalClusterHash(groupHash, clusterID)
+	keysByTaggedCluster map[string][]string // key: GlobalClusterHash(groupHash, clusterID)
 }
 
 func (c *logPatternExtractorContext) get(key string) (patternMetricContext, bool) {
@@ -143,7 +143,7 @@ func (c *logPatternExtractorContext) get(key string) (patternMetricContext, bool
 }
 
 func (c *logPatternExtractorContext) put(groupHash uint64, clusterID int64, contextKey string, entry patternMetricContext) {
-	taggedKey := globalClusterHash(groupHash, clusterID)
+	taggedKey := GlobalClusterHash(groupHash, clusterID)
 	if c.byKey == nil {
 		c.byKey = make(map[string]patternMetricContext)
 	}
@@ -216,6 +216,17 @@ func (e *LogPatternExtractor) Name() string {
 	return "log_pattern_extractor"
 }
 
+// TaggedClusterer returns the underlying TaggedPatternClusterer for external inspection.
+func (e *LogPatternExtractor) TaggedClusterer() *TaggedPatternClusterer {
+	return e.taggedClusterer
+}
+
+// SetMinClusterSizeBeforeEmit overrides the minimum cluster size threshold.
+// Intended for tests that need a lower threshold than the production default.
+func (e *LogPatternExtractor) SetMinClusterSizeBeforeEmit(n int) {
+	e.config.MinClusterSizeBeforeEmit = n
+}
+
 // Reset clears clustering and cached per-series context so reanalysis starts
 // from the currently observed logs. The registry is kept so that previously
 // registered hashes remain resolvable.
@@ -272,7 +283,7 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	}
 	if gc.clustersEvicted > 0 {
 		// We count active patterns so we remove them
-		telemetry = append(telemetry, newTelemetryCounter([]string{"detector:" + e.Name()}, telemetryLogPatternExtractorPatternCount, -float64(gc.clustersEvicted), logUnixSec))
+		telemetry = append(telemetry, NewTelemetryCounter([]string{"detector:" + e.Name()}, telemetryLogPatternExtractorPatternCount, -float64(gc.clustersEvicted), logUnixSec))
 	}
 	if !logSeverityIsWarnPlus(log) {
 		return result
@@ -289,14 +300,14 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	if evicted := e.taggedClusterer.DrainLRUEvictions(); len(evicted) > 0 {
 		var lruKeys []string
 		for _, ev := range evicted {
-			taggedKey := globalClusterHash(ev.GroupHash, ev.ClusterID)
+			taggedKey := GlobalClusterHash(ev.GroupHash, ev.ClusterID)
 			if e.ctx.keysByTaggedCluster != nil {
 				lruKeys = append(lruKeys, e.ctx.keysByTaggedCluster[taggedKey]...)
 			}
 			e.ctx.removeTaggedCluster(taggedKey)
 		}
 		result.EvictedContextKeys = append(result.EvictedContextKeys, lruKeys...)
-		telemetry = append(telemetry, newTelemetryCounter([]string{"detector:" + e.Name()}, telemetryLogPatternExtractorPatternCount, -float64(len(evicted)), logUnixSec))
+		telemetry = append(telemetry, NewTelemetryCounter([]string{"detector:" + e.Name()}, telemetryLogPatternExtractorPatternCount, -float64(len(evicted)), logUnixSec))
 	}
 	if !ok {
 		result.Telemetry = telemetry
@@ -305,13 +316,13 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	// Not enough patterns yet, don't emit metric
 	// It's not directly a new pattern but the first time we reach the threshold and we emit a metric
 	if cluster.Count == e.config.MinClusterSizeBeforeEmit {
-		telemetry = append(telemetry, newTelemetryCounter([]string{"detector:" + e.Name()}, telemetryLogPatternExtractorPatternCount, 1, logUnixSec))
+		telemetry = append(telemetry, NewTelemetryCounter([]string{"detector:" + e.Name()}, telemetryLogPatternExtractorPatternCount, 1, logUnixSec))
 	} else if cluster.Count < e.config.MinClusterSizeBeforeEmit {
 		result.Telemetry = telemetry
 		return result
 	}
 
-	metricName := "log." + e.Name() + "." + globalClusterHash(groupHash, cluster.ID) + ".count"
+	metricName := "log." + e.Name() + "." + GlobalClusterHash(groupHash, cluster.ID) + ".count"
 	contextKey := metricContextKey(metricName, log.GetTags())
 
 	e.ctx.put(groupHash, cluster.ID, contextKey, patternMetricContext{
@@ -350,7 +361,7 @@ func (e *LogPatternExtractor) maybeGarbageCollect(currentTime int64) gcResult {
 	}
 	var result gcResult
 	for _, ev := range evicted {
-		taggedKey := globalClusterHash(ev.GroupHash, ev.ClusterID)
+		taggedKey := GlobalClusterHash(ev.GroupHash, ev.ClusterID)
 		if e.ctx.keysByTaggedCluster != nil {
 			result.contextKeys = append(result.contextKeys, e.ctx.keysByTaggedCluster[taggedKey]...)
 		}

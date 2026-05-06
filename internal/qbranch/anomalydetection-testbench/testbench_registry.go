@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package main
 
 // ComponentDataProvider is implemented by components that expose extra data
 // beyond what their primary interface provides (e.g. edges, clusters, scores).
@@ -19,8 +19,8 @@ func (tb *TestBench) GetComponentData(name string) (data interface{}, enabled bo
 	if !ok {
 		return nil, false
 	}
-	if provider, ok := ci.instance.(ComponentDataProvider); ok {
-		return provider.GetExtraData(), ci.enabled
+	if provider, ok := ci.Instance().(ComponentDataProvider); ok {
+		return provider.GetExtraData(), ci.Enabled()
 	}
-	return nil, ci.enabled
+	return nil, ci.Enabled()
 }

@@ -104,7 +104,7 @@ func (d *ScanWelchDetector) Reset() {
 // Each per-series entry holds a reusable point buffer that grows to the
 // segment size, so without this teardown the map keeps growing with the
 // cumulative series count even after storage shrinks. Called by the engine
-// right after timeSeriesStorage.RemoveSeriesByKeys returns the freed refs.
+// right after TimeSeriesStorage.RemoveSeriesByKeys returns the freed refs.
 func (d *ScanWelchDetector) RemoveSeries(refs []observer.SeriesRef) {
 	d.ensureDefaults()
 	if len(refs) == 0 || len(d.series) == 0 {

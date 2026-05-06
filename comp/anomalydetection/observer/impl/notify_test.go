@@ -50,7 +50,7 @@ func TestIsLogDerivedAnomaly_LogMetricsExtractorWithPattern(t *testing.T) {
 			Example: "ERROR: connection refused to db.prod:5432",
 		},
 	}
-	assert.True(t, isLogDerivedAnomaly(a))
+	assert.True(t, IsLogDerivedAnomaly(a))
 }
 
 func TestIsLogDerivedAnomaly_LogMetricsExtractorExampleOnlyNoPattern(t *testing.T) {
@@ -63,7 +63,7 @@ func TestIsLogDerivedAnomaly_LogMetricsExtractorExampleOnlyNoPattern(t *testing.
 			Example: "some log line",
 		},
 	}
-	assert.True(t, isLogDerivedAnomaly(a))
+	assert.True(t, IsLogDerivedAnomaly(a))
 }
 
 func TestIsLogDerivedAnomaly_LogMetricsExtractorNoContext(t *testing.T) {
@@ -72,7 +72,7 @@ func TestIsLogDerivedAnomaly_LogMetricsExtractorNoContext(t *testing.T) {
 		Source:  observerdef.SeriesDescriptor{Namespace: LogMetricsExtractorName},
 		Context: nil,
 	}
-	assert.False(t, isLogDerivedAnomaly(a))
+	assert.False(t, IsLogDerivedAnomaly(a))
 }
 
 func TestBuildChangeMessage_LogMetricsExtractorUsesExample(t *testing.T) {
@@ -89,7 +89,7 @@ func TestBuildChangeMessage_LogMetricsExtractorUsesExample(t *testing.T) {
 			},
 		},
 	}
-	msg := buildChangeMessage(c, nil)
+	msg := BuildChangeMessage(c, nil)
 	assert.Contains(t, msg, "Log frequency change detected")
 	assert.Contains(t, msg, "ERROR: connection refused to db.prod:5432")
 	assert.NotContains(t, msg, "C3:C8_C1") // tokenized signature should not appear
@@ -109,7 +109,7 @@ func TestBuildChangeMessage_LogMetricsExtractorFallsBackToPatternWhenNoExample(t
 			},
 		},
 	}
-	msg := buildChangeMessage(c, nil)
+	msg := BuildChangeMessage(c, nil)
 	assert.Contains(t, msg, "Log frequency change detected")
 	assert.Contains(t, msg, "C3:C8_C1")
 }
@@ -128,14 +128,14 @@ func TestBuildEventTags_LogMetricsExtractorTreatedAsLog(t *testing.T) {
 			},
 		},
 	}
-	tags := buildEventTags(c)
+	tags := BuildEventTags(c)
 	assert.Contains(t, tags, "anomaly_type:log")
 	assert.NotContains(t, tags, "anomaly_type:metric")
 }
 
 func TestBuildEventTags_BaseTagsAlwaysPresent(t *testing.T) {
 	c := observerdef.ActiveCorrelation{Pattern: "kernel_bottleneck"}
-	tags := buildEventTags(c)
+	tags := BuildEventTags(c)
 	assert.Contains(t, tags, "source:agent-q-branch-observer")
 	assert.Contains(t, tags, "pattern:kernel_bottleneck")
 }
@@ -147,7 +147,7 @@ func TestBuildEventTags_MetricAnomalyType(t *testing.T) {
 			{Type: observerdef.AnomalyTypeMetric, Source: observerdef.SeriesDescriptor{Namespace: "dogstatsd"}},
 		},
 	}
-	tags := buildEventTags(c)
+	tags := BuildEventTags(c)
 	assert.Contains(t, tags, "anomaly_type:metric")
 	assert.NotContains(t, tags, "anomaly_type:log")
 }
@@ -159,7 +159,7 @@ func TestBuildEventTags_LogAnomalyType(t *testing.T) {
 			{Type: observerdef.AnomalyTypeLog, Source: observerdef.SeriesDescriptor{Namespace: "log_detector"}},
 		},
 	}
-	tags := buildEventTags(c)
+	tags := BuildEventTags(c)
 	assert.Contains(t, tags, "anomaly_type:log")
 	assert.NotContains(t, tags, "anomaly_type:metric")
 }
@@ -181,7 +181,7 @@ func TestBuildEventTags_LogDerivedMetricAnomaly(t *testing.T) {
 			},
 		},
 	}
-	tags := buildEventTags(c)
+	tags := BuildEventTags(c)
 	assert.Contains(t, tags, "anomaly_type:log")
 	assert.NotContains(t, tags, "anomaly_type:metric")
 }
@@ -194,7 +194,7 @@ func TestBuildEventTags_BothTypes(t *testing.T) {
 			{Type: observerdef.AnomalyTypeLog, Source: observerdef.SeriesDescriptor{Namespace: "log_detector"}},
 		},
 	}
-	tags := buildEventTags(c)
+	tags := BuildEventTags(c)
 	assert.Contains(t, tags, "anomaly_type:metric")
 	assert.Contains(t, tags, "anomaly_type:log")
 }
@@ -212,7 +212,7 @@ func TestBuildEventTags_DimensionalTagsFromSourceTags(t *testing.T) {
 			},
 		},
 	}
-	tags := buildEventTags(c)
+	tags := BuildEventTags(c)
 	assert.Contains(t, tags, "service:web")
 	assert.Contains(t, tags, "env:prod")
 	assert.Contains(t, tags, "host:h1")
@@ -238,7 +238,7 @@ func TestBuildEventTags_DimensionalTagsFromSplitTags(t *testing.T) {
 			},
 		},
 	}
-	tags := buildEventTags(c)
+	tags := BuildEventTags(c)
 	assert.Contains(t, tags, "service:api")
 	assert.Contains(t, tags, "env:staging")
 	assert.Contains(t, tags, "host:h2")
@@ -258,7 +258,7 @@ func TestBuildEventTags_DeduplicatesDimensions(t *testing.T) {
 			},
 		},
 	}
-	tags := buildEventTags(c)
+	tags := BuildEventTags(c)
 	count := 0
 	for _, t := range tags {
 		if t == "service:web" {
@@ -278,7 +278,7 @@ func TestBuildEventTags_SourceAndPatternAreFirstTwo(t *testing.T) {
 			},
 		},
 	}
-	tags := buildEventTags(c)
+	tags := BuildEventTags(c)
 	assert.Equal(t, "source:agent-q-branch-observer", tags[0])
 	assert.Equal(t, "pattern:mypat", tags[1])
 	// Remaining tags are sorted
@@ -315,7 +315,7 @@ func TestIsSignificantRateChange_RateDrops(t *testing.T) {
 	assert.True(t, isSignificantRateChange(5.0, 1.0))
 }
 
-// --- rate display in buildChangeMessage ---
+// --- rate display in BuildChangeMessage ---
 
 // makeStorageWithRates returns a sumRangeStorage whose SumRange returns
 // prevTotal for the earlier window and currTotal for the current window,
@@ -352,7 +352,7 @@ func TestBuildChangeMessage_RateChangedDisplay(t *testing.T) {
 		Pattern:   "p",
 		Anomalies: []observerdef.Anomaly{makeLogPatternAnomaly(ts)},
 	}
-	msg := buildChangeMessage(c, storage)
+	msg := BuildChangeMessage(c, storage)
 	assert.Contains(t, msg, fmt.Sprintf("rate: %.1flog/s (was %.1flog/s last minutes)", 0.5, 6.0))
 }
 
@@ -364,7 +364,7 @@ func TestBuildChangeMessage_RateUnchanged_ShowsPlainRate(t *testing.T) {
 		Pattern:   "p",
 		Anomalies: []observerdef.Anomaly{makeLogPatternAnomaly(ts)},
 	}
-	msg := buildChangeMessage(c, storage)
+	msg := BuildChangeMessage(c, storage)
 	assert.Contains(t, msg, fmt.Sprintf("\n\trate: %.1flog/s", 3.0))
 	// No previous rate display
 	assert.NotContains(t, msg, "was")
@@ -385,6 +385,6 @@ func TestBuildChangeMessage_LogFrequency_RateChangedDisplay(t *testing.T) {
 		},
 	}
 	c := observerdef.ActiveCorrelation{Pattern: "p", Anomalies: []observerdef.Anomaly{a}}
-	msg := buildChangeMessage(c, storage)
+	msg := BuildChangeMessage(c, storage)
 	assert.Contains(t, msg, fmt.Sprintf("rate: %.1flog/s (was %.1flog/s last minutes)", 5.0, 0.2))
 }

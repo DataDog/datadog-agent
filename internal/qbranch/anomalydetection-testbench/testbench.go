@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package main
 
 import (
 	"encoding/json"
@@ -17,11 +17,14 @@ import (
 	"sync"
 	"time"
 
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
-	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	noopsimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
+	tboutput "github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench/output"
+	scoring "github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench/scoring"
 )
 
 type logDataView struct {
@@ -91,7 +94,7 @@ type TestBenchConfig struct {
 
 	// ComponentSettings provides per-component configuration and enabled
 	// state. Components not mentioned use their catalog defaults.
-	ComponentSettings ComponentSettings
+	ComponentSettings observerimpl.ComponentSettings
 
 	// SkipDroppedMetrics filters out metrics marked as dropped by the live
 	// observer's channel during parquet load. Off by default.
@@ -110,9 +113,9 @@ type TestBench struct {
 	config TestBenchConfig
 
 	mu             sync.RWMutex
-	engine         *engine
-	catalog        *componentCatalog
-	components     map[string]*componentInstance // from catalog
+	engine         *observerimpl.Engine
+	catalog        *observerimpl.ComponentCatalog
+	components     map[string]*observerimpl.ComponentInstance // from catalog
 	loadedScenario string
 	ready          bool
 	episodeInfo    *EpisodeInfo
@@ -123,10 +126,10 @@ type TestBench struct {
 	logAnomaliesByDetector map[string][]observerdef.Anomaly // anomalies grouped by detector name
 
 	// Events captured during replay (mirrors what EventReporter would send in live mode).
-	reportedEvents []ReportedEvent
+	reportedEvents []observerimpl.ReportedEvent
 
 	// Cached compressed correlations (expensive to recompute)
-	compCorrCache      []CompressedGroup
+	compCorrCache      []observerimpl.CompressedGroup
 	compCorrThreshold  float64
 	compCorrGeneration uint64
 	corrGeneration     uint64  // bumped after each rerunDetectorsLocked
@@ -140,11 +143,11 @@ type TestBench struct {
 	api *TestBenchAPI
 
 	// This is not directly used, it's mostly to ensure that telemetry metrics are registered in the telemetry handler
-	telemetryHandler *telemetryHandler
+	telemetryHandler *observerimpl.TelemetryHandler
 
 	// replayStats holds all statistics computed after each replay run,
 	// including per-detector processing times and input volume counts.
-	replayStats *ReplayStats
+	replayStats *tboutput.ReplayStats
 }
 
 // ScenarioInfo describes an available scenario.
@@ -196,16 +199,16 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 		}
 	}
 
-	catalog := defaultCatalog()
+	catalog := observerimpl.DefaultCatalog()
 	detectors, correlators, extractors, components := catalog.Instantiate(config.ComponentSettings)
 
-	eng := newEngine(engineConfig{
-		storage:          newTimeSeriesStorage(),
-		extractors:       extractors,
-		detectors:        detectors,
-		correlators:      correlators,
-		contextProviders: collectContextProviders(extractors),
-		scheduler:        &currentBehaviorPolicy{},
+	eng := observerimpl.NewEngine(observerimpl.EngineConfig{
+		Storage:          observerimpl.NewTimeSeriesStorage(),
+		Extractors:       extractors,
+		Detectors:        detectors,
+		Correlators:      correlators,
+		ContextProviders: observerimpl.CollectContextProviders(extractors),
+		Scheduler:        &observerimpl.CurrentBehaviorPolicy{},
 	})
 
 	hub := newSSEHub()
@@ -220,7 +223,7 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 		logAnomaliesByDetector: make(map[string][]observerdef.Anomaly),
 		sse:                    hub,
 		sseStop:                stop,
-		telemetryHandler:       newTelemetryHandler(noopsimpl.GetCompatComponent()),
+		telemetryHandler:       observerimpl.NewTelemetryHandler(noopsimpl.GetCompatComponent()),
 	}
 
 	// Heartbeat goroutine — lets SSE clients detect stale connections.
@@ -336,14 +339,14 @@ func (tb *TestBench) LoadScenario(name string) error {
 	tb.mu.Lock()
 
 	// Clear existing data
-	tb.engine.storage = newTimeSeriesStorage() // TODO: encapsulate behind engine method
+	tb.engine.ReplaceStorage(observerimpl.NewTimeSeriesStorage())
 	tb.rawLogs = nil
 	tb.logAnomalies = []observerdef.Anomaly{}
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
 	tb.liveAdvanceTimes = nil
 	tb.ready = false
 	tb.loadedScenario = name
-	tb.engine.replayPhase.Store("loading")
+	tb.engine.SetReplayPhase("loading")
 
 	// Try to read optional episode.json metadata
 	tb.episodeInfo = nil
@@ -379,7 +382,7 @@ func (tb *TestBench) LoadScenario(name string) error {
 	}()
 
 	loadFailed := func(err error) error {
-		tb.engine.replayPhase.Store("")
+		tb.engine.SetReplayPhase("")
 		tb.loadedScenario = "" // roll back so status doesn't look like "loading"
 		close(progressDone)
 		tb.mu.Unlock()
@@ -409,39 +412,39 @@ func (tb *TestBench) LoadScenario(name string) error {
 	fmt.Printf("  Parquet loading took %s\n", time.Since(parquetStart))
 
 	// Check for parity debugging files from a live recording.
-	var digestComp *detectDigestComparator
-	var advComp *advanceLogComparator
+	var digestComp *observerimpl.DetectDigestComparator
+	var advComp *observerimpl.AdvanceLogComparator
 
 	// Detection digest comparison.
-	digestPath := filepath.Join(scenarioPath, detectDigestFileName)
+	digestPath := filepath.Join(scenarioPath, observerimpl.DetectDigestFileName)
 	if _, err := os.Stat(digestPath); os.IsNotExist(err) {
-		digestPath = filepath.Join(scenarioPath, "parquet", detectDigestFileName)
+		digestPath = filepath.Join(scenarioPath, "parquet", observerimpl.DetectDigestFileName)
 	}
 	if _, statErr := os.Stat(digestPath); statErr == nil {
-		comp, loadErr := newDetectDigestComparator(digestPath)
+		comp, loadErr := observerimpl.NewDetectDigestComparator(digestPath)
 		if loadErr != nil {
 			fmt.Printf("[testbench] WARNING: failed to load detection digest: %v\n", loadErr)
 		} else {
 			digestComp = comp
-			tb.engine.enableDetectDigestRecording(comp.compare)
-			fmt.Printf("[testbench] Detection digest comparison enabled (%d live digests loaded)\n", len(comp.expected))
+			tb.engine.EnableDetectDigestRecording(comp)
+			fmt.Printf("[testbench] Detection digest comparison enabled (%d live digests loaded)\n", comp.ExpectedCount())
 		}
 	}
 
 	// Advance log comparison.
-	advPath := filepath.Join(scenarioPath, advanceLogFileName)
+	advPath := filepath.Join(scenarioPath, observerimpl.AdvanceLogFileName)
 	if _, err := os.Stat(advPath); os.IsNotExist(err) {
-		advPath = filepath.Join(scenarioPath, "parquet", advanceLogFileName)
+		advPath = filepath.Join(scenarioPath, "parquet", observerimpl.AdvanceLogFileName)
 	}
 	if _, statErr := os.Stat(advPath); statErr == nil {
-		comp, loadErr := newAdvanceLogComparator(advPath)
+		comp, loadErr := observerimpl.NewAdvanceLogComparator(advPath)
 		if loadErr != nil {
 			fmt.Printf("[testbench] WARNING: failed to load advance log: %v\n", loadErr)
 		} else {
 			advComp = comp
-			tb.engine.onAdvance = advComp.compare
-			tb.liveAdvanceTimes = comp.liveAdvanceTimes()
-			fmt.Printf("[testbench] Advance log comparison enabled (%d live advances loaded)\n", len(comp.liveAdvances))
+			tb.engine.SetOnAdvance(advComp.Compare)
+			tb.liveAdvanceTimes = comp.LiveAdvanceTimes()
+			fmt.Printf("[testbench] Advance log comparison enabled (%d live advances loaded)\n", comp.LiveAdvanceCount())
 		}
 	}
 
@@ -452,12 +455,12 @@ func (tb *TestBench) LoadScenario(name string) error {
 
 	// Print parity debugging summaries.
 	if advComp != nil {
-		advComp.printSummary()
-		tb.engine.onAdvance = nil
+		advComp.PrintSummary()
+		tb.engine.SetOnAdvance(nil)
 	}
 	if digestComp != nil {
-		digestComp.printSummary()
-		tb.engine.enableDetectDigestRecording(nil)
+		digestComp.PrintSummary()
+		tb.engine.EnableDetectDigestRecording(nil)
 	}
 	fmt.Printf("  Total scenario load took %s\n", time.Since(scenarioStart))
 	rs := tb.replayStats
@@ -535,7 +538,7 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 			return byTimestampOrdered[i].Timestamp < byTimestampOrdered[j].Timestamp
 		})
 		for _, entry := range byTimestampOrdered {
-			tb.handleTelemetry([]observerdef.ObserverTelemetry{newTelemetryCounter([]string{}, telemetryTbInputMetricsCount, float64(entry.Count), entry.Timestamp)}, "parquet", entry.Timestamp)
+			tb.handleTelemetry([]observerdef.ObserverTelemetry{observerimpl.NewTelemetryCounter([]string{}, observerimpl.TelemetryTbInputMetricsCount, float64(entry.Count), entry.Timestamp)}, "parquet", entry.Timestamp)
 		}
 
 		// Telemetry for cardinality (new unique series) by timestamp
@@ -547,7 +550,7 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 			return byCardOrdered[i].Timestamp < byCardOrdered[j].Timestamp
 		})
 		for _, entry := range byCardOrdered {
-			tb.handleTelemetry([]observerdef.ObserverTelemetry{newTelemetryCounter([]string{}, telemetryTbInputMetricsCardinality, float64(entry.Count), entry.Timestamp)}, "parquet", entry.Timestamp)
+			tb.handleTelemetry([]observerdef.ObserverTelemetry{observerimpl.NewTelemetryCounter([]string{}, observerimpl.TelemetryTbInputMetricsCardinality, float64(entry.Count), entry.Timestamp)}, "parquet", entry.Timestamp)
 		}
 
 	}
@@ -568,7 +571,7 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 // resetAllState resets all registered components that support Reset().
 func (tb *TestBench) resetAllState() {
 	for _, ci := range tb.components {
-		if resetter, ok := ci.instance.(interface{ Reset() }); ok {
+		if resetter, ok := ci.Instance().(interface{ Reset() }); ok {
 			resetter.Reset()
 		}
 	}
@@ -581,7 +584,7 @@ func (tb *TestBench) GetStatus() StatusResponse {
 
 	compMap := make(map[string]bool)
 	for name, ci := range tb.components {
-		compMap[name] = ci.enabled
+		compMap[name] = ci.Enabled()
 	}
 
 	scenarioStart, scenarioEnd, hasBounds := tb.engine.Storage().TimeBounds()
@@ -619,7 +622,7 @@ func (tb *TestBench) GetStatus() StatusResponse {
 		SeriesCount:           tb.seriesCount(),
 		AnomalyCount:          len(tb.engine.RawAnomalies()),
 		LogAnomalyCount:       len(tb.logAnomalies),
-		ComponentCount:        len(tb.engine.extractors) + len(tb.components),
+		ComponentCount:        tb.engine.ExtractorCount() + len(tb.components),
 		CorrelatorsProcessing: false,
 		ScenarioStart:         scenarioStartPtr,
 		ScenarioEnd:           scenarioEndPtr,
@@ -637,10 +640,10 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// Configure engine with enabled components and reset state BEFORE
 	// ingesting logs, so that log observers on the correct detector set
 	// receive log data.
-	tb.engine.SetDetectors(catalogEnabledDetectors(tb.components, tb.catalog))
-	tb.engine.SetCorrelators(catalogEnabledCorrelators(tb.components, tb.catalog))
-	tb.engine.SetExtractors(catalogEnabledExtractors(tb.components, tb.catalog))
-	tb.engine.resetFull()
+	tb.engine.SetDetectors(observerimpl.CatalogEnabledDetectors(tb.components, tb.catalog))
+	tb.engine.SetCorrelators(observerimpl.CatalogEnabledCorrelators(tb.components, tb.catalog))
+	tb.engine.SetExtractors(observerimpl.CatalogEnabledExtractors(tb.components, tb.catalog))
+	tb.engine.ResetFull()
 
 	// Reset ALL components (not just enabled) so disabled ones clear stale state
 	tb.resetAllState()
@@ -649,9 +652,9 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// EventReporter would in live mode: one event per pattern appearance, with
 	// patterns eligible to re-fire after going inactive.
 	replay := &replayReporter{storage: tb.engine.Storage()}
-	unsub := tb.engine.Subscribe(&reporterEventSink{
-		reporters: []observerdef.Reporter{replay},
-		state:     tb.engine.StateView(),
+	unsub := tb.engine.Subscribe(&observerimpl.ReporterEventSink{
+		Reporters: []observerdef.Reporter{replay},
+		State:     tb.engine.StateView(),
 	})
 
 	// Feed raw logs through the engine's IngestLog path so that extractors,
@@ -660,17 +663,11 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// ReplayStoredData (below) will handle scheduling after all data is loaded.
 	var allTelemetry []observerdef.ObserverTelemetry
 	for _, log := range tb.rawLogs {
-		obs := &logObs{
-			content:     log.GetContent(),
-			status:      log.GetStatus(),
-			tags:        log.GetTags(),
-			hostname:    log.GetHostname(),
-			timestampMs: log.GetTimestampUnixMilli(),
-		}
+		obs := observerimpl.NewLogObs(log.GetContent(), log.GetStatus(), log.GetTags(), log.GetHostname(), log.GetTimestampUnixMilli())
 		_, tel := tb.engine.IngestLog("parquet", obs)
 		allTelemetry = append(allTelemetry, tel...)
 		// Count logs only here in the testbench
-		allTelemetry = append(allTelemetry, newTelemetryCounter([]string{}, telemetryTbInputLogsCount, 1, log.GetTimestampUnixMilli()/1000))
+		allTelemetry = append(allTelemetry, observerimpl.NewTelemetryCounter([]string{}, observerimpl.TelemetryTbInputLogsCount, 1, log.GetTimestampUnixMilli()/1000))
 	}
 
 	// Replay all stored data through the scheduler policy.
@@ -678,7 +675,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	// exact timestamps the live observer advanced. This matches live's advance
 	// cadence so detectors see the same data windows. Without it, replay
 	// advances at every stored data timestamp (much more frequently than live).
-	var result advanceResult
+	var result observerimpl.AdvanceResult
 	if len(tb.liveAdvanceTimes) > 0 {
 		fmt.Printf("  Using live-scheduled replay (%d advance times)\n", len(tb.liveAdvanceTimes))
 		result = tb.engine.ReplayWithLiveSchedule(tb.liveAdvanceTimes)
@@ -687,7 +684,7 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	}
 	unsub()
 
-	allTelemetry = append(allTelemetry, result.telemetry...)
+	allTelemetry = append(allTelemetry, result.Telemetry()...)
 
 	// Handle telemetry (write telemetry metrics to storage for UI)
 	dataTime := tb.engine.Storage().MaxTimestamp()
@@ -700,12 +697,12 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	}
 
 	// Populate tb.logAnomalies: direct log anomalies (AnomalyTypeLog) and
-	// metric detector anomalies on log-derived series (isLogDerivedAnomaly),
+	// metric detector anomalies on log-derived series (IsLogDerivedAnomaly),
 	// mirroring the live observer's notify.go classification logic.
 	tb.logAnomalies = []observerdef.Anomaly{}
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
-	for _, a := range result.anomalies {
-		if a.Type == observerdef.AnomalyTypeLog || isLogDerivedAnomaly(a) {
+	for _, a := range result.Anomalies() {
+		if a.Type == observerdef.AnomalyTypeLog || observerimpl.IsLogDerivedAnomaly(a) {
 			tb.logAnomalies = append(tb.logAnomalies, a)
 			tb.logAnomaliesByDetector[a.DetectorName] = append(tb.logAnomaliesByDetector[a.DetectorName], a)
 		}
@@ -721,12 +718,12 @@ func (tb *TestBench) rerunDetectorsLocked() {
 	storage := tb.engine.Storage()
 	detectorStats := computeDetectorProcessingStatsFromStorage(storage)
 	enrichDetectorStatsKind(detectorStats, tb.components)
-	tb.replayStats = &ReplayStats{
+	tb.replayStats = &tboutput.ReplayStats{
 		DetectorStats:           detectorStats,
 		InputMetricsCount:       storage.TotalSampleCount(observerdef.TelemetryNamespace),
 		InputMetricsCardinality: storage.TotalSeriesCount(observerdef.TelemetryNamespace),
-		InputLogsCount:          sumStoredTelemetryCounter(storage, telemetryTbInputLogsCount),
-		InputAnomaliesCount:     len(result.anomalies),
+		InputLogsCount:          sumStoredTelemetryCounter(storage, observerimpl.TelemetryTbInputLogsCount),
+		InputAnomaliesCount:     len(result.Anomalies()),
 	}
 
 	// Mark scenario ready now that all analysis is complete
@@ -739,23 +736,24 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 	for _, telemetryEvent := range telemetry {
 		// Generate missing fields if needed
 		if telemetryEvent.Metric != nil {
-			metric := &metricObs{
-				name:      telemetryEvent.Metric.GetName(),
-				value:     telemetryEvent.Metric.GetValue(),
-				tags:      telemetryEvent.Metric.GetRawTags(),
-				timestamp: telemetryEvent.Metric.GetTimestampUnix(),
+			ts := telemetryEvent.Metric.GetTimestampUnix()
+			if ts == 0 {
+				ts = baseTimestampMs / 1000
 			}
-			if metric.timestamp == 0 {
-				metric.timestamp = baseTimestampMs / 1000
-			}
+			metric := observerimpl.NewMetricObs(
+				telemetryEvent.Metric.GetName(),
+				telemetryEvent.Metric.GetValue(),
+				telemetryEvent.Metric.GetRawTags(),
+				ts,
+			)
 			if telemetryEvent.DetectorName == "" {
 				telemetryEvent.DetectorName = detectorName
 			}
 			// Save this for UI
-			tb.engine.Storage().Add(observerdef.TelemetryNamespace, metric.name, metric.value, metric.timestamp, metric.tags)
+			tb.engine.Storage().Add(observerdef.TelemetryNamespace, metric.GetName(), metric.GetValue(), metric.GetTimestampUnix(), metric.GetRawTags())
 
-			if !tb.telemetryHandler.isMetricRegistered(metric.name) {
-				fmt.Printf("ERROR: [observer] metric %s is not registered\n", metric.name)
+			if !tb.telemetryHandler.IsMetricRegistered(metric.GetName()) {
+				fmt.Printf("ERROR: [observer] metric %s is not registered\n", metric.GetName())
 			}
 		}
 
@@ -769,21 +767,21 @@ func (tb *TestBench) handleTelemetry(telemetry []observerdef.ObserverTelemetry, 
 			copy(tagsCopy, logTags)
 			tagsCopy = append(tagsCopy, "detector:"+detectorName)
 			tagsCopy = append(tagsCopy, "telemetry:true")
-			log := recorderdef.LogData{
+			logData := recorderdef.LogData{
 				Content:     telemetryEvent.Log.GetContent(),
 				Status:      telemetryEvent.Log.GetStatus(),
 				Tags:        tagsCopy,
 				TimestampMs: timestamp,
 				Hostname:    telemetryEvent.Log.GetHostname(),
 			}
-			if log.Status == "" {
-				log.Status = "info"
+			if logData.Status == "" {
+				logData.Status = "info"
 			}
 			if telemetryEvent.DetectorName == "" {
 				telemetryEvent.DetectorName = detectorName
 			}
 			// Save this for UI
-			tb.rawLogs = append(tb.rawLogs, &logDataView{data: &log})
+			tb.rawLogs = append(tb.rawLogs, &logDataView{data: &logData})
 		}
 	}
 }
@@ -797,27 +795,27 @@ func (tb *TestBench) GetComponents() []ComponentInfo {
 
 	// Return components in catalog order
 	for _, entry := range tb.catalog.Entries() {
-		ci := tb.components[entry.name]
+		ci := tb.components[entry.Name()]
 		if ci == nil {
 			continue
 		}
 		category := "detector"
-		if entry.kind == componentCorrelator {
+		if entry.EntryKind() == observerimpl.ComponentCorrelator {
 			category = "correlator"
 		}
 
 		var cfgMap map[string]any
-		if ci.activeConfig != nil {
-			if data, err := json.Marshal(ci.activeConfig); err == nil {
+		if ci.ActiveConfig() != nil {
+			if data, err := json.Marshal(ci.ActiveConfig()); err == nil {
 				_ = json.Unmarshal(data, &cfgMap)
 			}
 		}
 
 		components = append(components, ComponentInfo{
-			Name:        entry.name,
-			DisplayName: entry.displayName,
+			Name:        entry.Name(),
+			DisplayName: entry.DisplayName(),
 			Category:    category,
-			Enabled:     ci.enabled,
+			Enabled:     ci.Enabled(),
 			Config:      cfgMap,
 		})
 	}
@@ -832,15 +830,15 @@ func (tb *TestBench) extractorNamespaces() map[string]struct{} {
 	defer tb.mu.RUnlock()
 	out := make(map[string]struct{})
 	for _, entry := range tb.catalog.Entries() {
-		if entry.kind == componentExtractor {
-			out[entry.name] = struct{}{}
+		if entry.EntryKind() == observerimpl.ComponentExtractor {
+			out[entry.Name()] = struct{}{}
 		}
 	}
 	return out
 }
 
 // getStorage returns the storage (for API handlers).
-func (tb *TestBench) getStorage() *timeSeriesStorage {
+func (tb *TestBench) getStorage() *observerimpl.TimeSeriesStorage {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 	return tb.engine.Storage()
@@ -951,12 +949,12 @@ func (tb *TestBench) GetDetectorComponentMap() map[string]string {
 
 	result := make(map[string]string)
 	for componentName, ci := range tb.components {
-		if ci.entry.kind != componentDetector {
+		if ci.Kind() != observerimpl.ComponentDetector {
 			continue
 		}
-		if detector, ok := ci.instance.(observerdef.Detector); ok {
+		if detector, ok := ci.Instance().(observerdef.Detector); ok {
 			result[detector.Name()] = componentName
-		} else if detector, ok := ci.instance.(observerdef.SeriesDetector); ok {
+		} else if detector, ok := ci.Instance().(observerdef.SeriesDetector); ok {
 			result[detector.Name()] = componentName
 		}
 	}
@@ -966,7 +964,7 @@ func (tb *TestBench) GetDetectorComponentMap() map[string]string {
 // GetReplayStats returns all statistics computed from the last replay run,
 // including per-detector processing times and input volume counts.
 // Returns nil if no scenario has been run yet.
-func (tb *TestBench) GetReplayStats() *ReplayStats {
+func (tb *TestBench) GetReplayStats() *tboutput.ReplayStats {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 	return tb.replayStats
@@ -981,7 +979,7 @@ func (tb *TestBench) GetCorrelations() []observerdef.ActiveCorrelation {
 }
 
 // GetCompressedCorrelations returns compressed group descriptions for all correlations.
-func (tb *TestBench) GetCompressedCorrelations(threshold float64) []CompressedGroup {
+func (tb *TestBench) GetCompressedCorrelations(threshold float64) []observerimpl.CompressedGroup {
 	tb.mu.RLock()
 
 	// Check cache: same threshold and generation means the result is still valid.
@@ -1004,7 +1002,7 @@ func (tb *TestBench) GetCompressedCorrelations(threshold float64) []CompressedGr
 	correlations := tb.engine.StateView().CorrelationHistory()
 	storage := tb.engine.Storage()
 	if storage == nil || len(correlations) == 0 {
-		tb.compCorrCache = []CompressedGroup{}
+		tb.compCorrCache = []observerimpl.CompressedGroup{}
 		tb.compCorrThreshold = threshold
 		tb.compCorrGeneration = tb.corrGeneration
 		return tb.compCorrCache
@@ -1014,10 +1012,10 @@ func (tb *TestBench) GetCompressedCorrelations(threshold float64) []CompressedGr
 	universe := storage.ListAllSeriesCompact()
 
 	// Expand the universe to include aggregated variants (since anomalies use "name:agg" keys)
-	var expandedUniverse []seriesCompact
+	var expandedUniverse []observerimpl.SeriesCompact
 	for _, u := range universe {
 		for _, agg := range []string{"avg", "count"} {
-			expandedUniverse = append(expandedUniverse, seriesCompact{
+			expandedUniverse = append(expandedUniverse, observerimpl.SeriesCompact{
 				Namespace: u.Namespace,
 				Name:      u.Name + ":" + agg,
 				Tags:      u.Tags,
@@ -1025,11 +1023,11 @@ func (tb *TestBench) GetCompressedCorrelations(threshold float64) []CompressedGr
 		}
 	}
 
-	var groups []CompressedGroup
+	var groups []observerimpl.CompressedGroup
 	for i, corr := range correlations {
 		// Resolve member series from anomaly Source descriptors
 		memberSet := make(map[string]bool)
-		var members []seriesCompact
+		var members []observerimpl.SeriesCompact
 		for _, a := range corr.Anomalies {
 			srcKey := a.Source.Key()
 			if memberSet[srcKey] {
@@ -1042,7 +1040,7 @@ func (tb *TestBench) GetCompressedCorrelations(threshold float64) []CompressedGr
 				meta := storage.GetSeriesMeta(a.SourceRef.Ref)
 				if meta != nil {
 					aggStr := observerdef.AggregateString(a.SourceRef.Aggregate)
-					members = append(members, seriesCompact{
+					members = append(members, observerimpl.SeriesCompact{
 						Namespace: meta.Namespace,
 						Name:      meta.Name + ":" + aggStr,
 						Tags:      meta.Tags,
@@ -1060,7 +1058,7 @@ func (tb *TestBench) GetCompressedCorrelations(threshold float64) []CompressedGr
 
 			if a.DetectorName != "" && a.Source.Name != "" {
 				telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
-				telemetryKey := seriesKey("telemetry", telemetryName+":avg", nil)
+				telemetryKey := observerimpl.SeriesKey("telemetry", telemetryName+":avg", nil)
 				if storage.CompactSeriesID(telemetryKey) != telemetryKey {
 					ns = "telemetry"
 					name = telemetryName + ":avg"
@@ -1068,7 +1066,7 @@ func (tb *TestBench) GetCompressedCorrelations(threshold float64) []CompressedGr
 				}
 			}
 
-			members = append(members, seriesCompact{
+			members = append(members, observerimpl.SeriesCompact{
 				Namespace: ns,
 				Name:      name,
 				Tags:      tags,
@@ -1076,7 +1074,7 @@ func (tb *TestBench) GetCompressedCorrelations(threshold float64) []CompressedGr
 		}
 
 		groupID := fmt.Sprintf("corr-%d", i)
-		cg := CompressGroup(corr.Pattern, groupID, corr.Title, members, expandedUniverse, threshold)
+		cg := observerimpl.CompressGroup(corr.Pattern, groupID, corr.Title, members, expandedUniverse, threshold)
 		cg.FirstSeen = corr.FirstSeen
 		cg.LastUpdated = corr.LastUpdated
 		groups = append(groups, cg)
@@ -1096,7 +1094,7 @@ func (tb *TestBench) seriesCount() int {
 	if storage == nil {
 		return 0
 	}
-	return len(storage.series)
+	return storage.SeriesCount()
 }
 
 // GetCorrelatorStats returns stats from all correlators (enabled or not).
@@ -1106,8 +1104,8 @@ func (tb *TestBench) GetCorrelatorStats() map[string]interface{} {
 
 	stats := make(map[string]interface{})
 	for name, ci := range tb.components {
-		if ci.entry.kind == componentCorrelator {
-			if statter, ok := ci.instance.(interface {
+		if ci.Kind() == observerimpl.ComponentCorrelator {
+			if statter, ok := ci.Instance().(interface {
 				GetStats() map[string]interface{}
 			}); ok {
 				stats[name] = statter.GetStats()
@@ -1124,7 +1122,7 @@ func (tb *TestBench) IsCorrelatorsProcessing() bool {
 
 // ScoreCurrentAnalysis scores the loaded scenario's correlations against episode.json ground truth.
 // Returns an error if ground truth is unavailable (missing episode.json or disruption.start).
-func (tb *TestBench) ScoreCurrentAnalysis(sigma float64) (*ScoreResult, error) {
+func (tb *TestBench) ScoreCurrentAnalysis(sigma float64) (*scoring.ScoreResult, error) {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
@@ -1167,7 +1165,7 @@ func (tb *TestBench) ScoreCurrentAnalysis(sigma float64) (*ScoreResult, error) {
 		}
 	}
 
-	result := ComputeGaussianF1(ScoreInput{
+	result := scoring.ComputeGaussianF1(scoring.ScoreInput{
 		PredictionTimestamps:  predictions,
 		GroundTruthTimestamps: groundTruth,
 		Sigma:                 sigma,
@@ -1288,7 +1286,7 @@ func formatNsAsUsShort(ns float64) string {
 	return fmt.Sprintf("%.0fµs", us)
 }
 
-func replayStatsItemCountForKind(rs *ReplayStats, kind string) int {
+func replayStatsItemCountForKind(rs *tboutput.ReplayStats, kind string) int {
 	switch kind {
 	case "extractor":
 		return rs.InputLogsCount
@@ -1320,12 +1318,12 @@ func (tb *TestBench) RunSendAnomalyEvents(scenario string) error {
 
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
-	sender, err := newEventSender(tb.config.Cfg, tb.config.Logger, tb.engine.Storage())
+	sender, err := observerimpl.NewEventSender(tb.config.Cfg, tb.config.Logger, tb.engine.Storage())
 	if err != nil {
 		return err
 	}
 	correlations := tb.engine.StateView().ActiveCorrelations()
-	sender.sendCorrelationEvents(correlations)
+	sender.SendCorrelationEvents(correlations)
 	return nil
 }
 
@@ -1339,7 +1337,7 @@ func (tb *TestBench) ToggleComponent(name string) error {
 		return fmt.Errorf("unknown component: %s", name)
 	}
 
-	ci.enabled = !ci.enabled
+	ci.Toggle()
 
 	// Re-run analyses if a scenario is loaded
 	if tb.ready && tb.engine.Storage() != nil {
@@ -1359,7 +1357,7 @@ func (tb *TestBench) loadDemoScenario() error {
 	tb.mu.Lock()
 
 	// Clear existing data
-	tb.engine.storage = newTimeSeriesStorage() // TODO: encapsulate behind engine method
+	tb.engine.ReplaceStorage(observerimpl.NewTimeSeriesStorage())
 	tb.rawLogs = nil
 	tb.logAnomalies = []observerdef.Anomaly{}
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
@@ -1537,12 +1535,12 @@ func (tb *TestBench) GetLogPatterns() []LogPatternInfo {
 	if !ok {
 		return []LogPatternInfo{}
 	}
-	extractor, ok := ci.instance.(*LogPatternExtractor)
+	extractor, ok := ci.Instance().(*observerimpl.LogPatternExtractor)
 	if !ok {
 		return []LogPatternInfo{}
 	}
 
-	entries := extractor.taggedClusterer.GetAllClusters()
+	entries := extractor.TaggedClusterer().GetAllClusters()
 	if len(entries) == 0 {
 		return []LogPatternInfo{}
 	}
@@ -1551,7 +1549,7 @@ func (tb *TestBench) GetLogPatterns() []LogPatternInfo {
 	result := make([]LogPatternInfo, 0, len(entries))
 	for _, entry := range entries {
 		cluster := entry.Cluster
-		hash := globalClusterHash(entry.GroupHash, cluster.ID)
+		hash := observerimpl.GlobalClusterHash(entry.GroupHash, cluster.ID)
 		// Must match LogPatternExtractor.ProcessLog metric names (namespace = extractor name).
 		metricName := "log." + extractor.Name() + "." + hash + ".count"
 
@@ -1586,14 +1584,14 @@ func (tb *TestBench) GetLogPatterns() []LogPatternInfo {
 
 // getLogPatternExtractor returns the LogPatternExtractor instance, or nil if unavailable.
 // Caller must not hold tb.mu.
-func (tb *TestBench) getLogPatternExtractor() *LogPatternExtractor {
+func (tb *TestBench) getLogPatternExtractor() *observerimpl.LogPatternExtractor {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 	ci, ok := tb.components["log_pattern_extractor"]
 	if !ok {
 		return nil
 	}
-	ext, _ := ci.instance.(*LogPatternExtractor)
+	ext, _ := ci.Instance().(*observerimpl.LogPatternExtractor)
 	return ext
 }
 
@@ -1610,7 +1608,7 @@ func (tb *TestBench) GetRawLogs() []observerdef.LogView {
 // GetCorrelations / headless anomaly_periods). Recomputed on each call so it
 // stays aligned with CorrelationHistory(), which may merge accumulated and
 // active correlator state after replay.
-func (tb *TestBench) GetReportedEvents() []ReportedEvent {
+func (tb *TestBench) GetReportedEvents() []observerimpl.ReportedEvent {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
@@ -1622,7 +1620,7 @@ func (tb *TestBench) GetReportedEvents() []ReportedEvent {
 // the active scenario name, and the OS user.
 func (tb *TestBench) SendReportedEvent(pattern string, firstSeen int64) error {
 	tb.mu.RLock()
-	var found *ReportedEvent
+	var found *observerimpl.ReportedEvent
 	for i := range tb.reportedEvents {
 		e := &tb.reportedEvents[i]
 		if e.Pattern == pattern && e.FirstSeen == firstSeen {
@@ -1638,7 +1636,7 @@ func (tb *TestBench) SendReportedEvent(pattern string, firstSeen int64) error {
 		return fmt.Errorf("report not found: pattern=%q firstSeen=%d", pattern, firstSeen)
 	}
 
-	sender, err := newLiveEventSender(tb.config.Cfg, tb.config.Logger, storage)
+	sender, err := observerimpl.NewLiveEventSender(tb.config.Cfg, tb.config.Logger, storage)
 	if err != nil {
 		return err
 	}
@@ -1650,7 +1648,7 @@ func (tb *TestBench) SendReportedEvent(pattern string, firstSeen int64) error {
 		extraTags = append(extraTags, "user:"+h)
 	}
 
-	return sender.sendReportedEvent(*found, extraTags)
+	return sender.SendReportedEvent(*found, extraTags)
 }
 
 // errorLogMessages contains realistic error messages for the demo scenario.

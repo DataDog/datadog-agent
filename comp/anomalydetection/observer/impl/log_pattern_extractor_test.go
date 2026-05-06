@@ -69,7 +69,7 @@ func TestLogPatternExtractor_DifferentTagGroupsProduceDifferentMetricNames(t *te
 	e.ProcessLog(logD)
 	require.Len(t, resA.Metrics, 1)
 	require.Len(t, resB.Metrics, 1)
-	// Different tag groups → different sub-clusterers → different globalClusterHash → different names.
+	// Different tag groups → different sub-clusterers → different GlobalClusterHash → different names.
 	require.NotEqual(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
 	require.NotEqual(t, resA.Metrics[0].ContextKey, resB.Metrics[0].ContextKey)
 
@@ -441,7 +441,7 @@ func TestLogPatternExtractor_TagGroupCapEvictsLRUGroup(t *testing.T) {
 // the structural leak is fixed: when the extractor's LRU evicts a cluster,
 // the engine no longer just drops its contextRefs entry — it also calls
 // storage.RemoveSeriesByKeys so the per-series tags slice + columnar arrays
-// + sample buffer are actually freed. Before this fix, timeSeriesStorage.series
+// + sample buffer are actually freed. Before this fix, TimeSeriesStorage.series
 // grew monotonically for the lifetime of the agent, regardless of LRU caps.
 func TestEngine_LogPatternLRUEvictionFreesStorage(t *testing.T) {
 	cfg := DefaultLogPatternExtractorConfig()
@@ -450,10 +450,10 @@ func TestEngine_LogPatternLRUEvictionFreesStorage(t *testing.T) {
 	cfg.MaxTagGroups = -1
 	extractor := NewLogPatternExtractor(cfg)
 
-	storage := newTimeSeriesStorage()
-	e := newEngine(engineConfig{
-		storage:    storage,
-		extractors: []observerdef.LogMetricsExtractor{extractor},
+	storage := NewTimeSeriesStorage()
+	e := NewEngine(EngineConfig{
+		Storage:    storage,
+		Extractors: []observerdef.LogMetricsExtractor{extractor},
 	})
 
 	tags := []string{"service:api"}
@@ -518,11 +518,11 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 	// and never block the eviction broadcast to the stateful detectors that follow.
 	stateless := &statelessTestDetector{name: "stateless"}
 
-	storage := newTimeSeriesStorage()
-	e := newEngine(engineConfig{
-		storage:    storage,
-		extractors: []observerdef.LogMetricsExtractor{extractor},
-		detectors: []observerdef.Detector{
+	storage := NewTimeSeriesStorage()
+	e := NewEngine(EngineConfig{
+		Storage:    storage,
+		Extractors: []observerdef.LogMetricsExtractor{extractor},
+		Detectors: []observerdef.Detector{
 			bocpd,
 			scanmw,
 			scanwelch,

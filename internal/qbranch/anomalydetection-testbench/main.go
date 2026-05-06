@@ -19,12 +19,12 @@ import (
 
 	"go.uber.org/fx"
 
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	recorderfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -49,7 +49,7 @@ type CLIParams struct {
 }
 
 func main() {
-	scenariosDir := flag.String("scenarios-dir", "./comp/anomalydetection/observer/scenarios", "Directory containing scenario subdirectories")
+	scenariosDir := flag.String("scenarios-dir", "./internal/qbranch/anomalydetection-testbench/scenarios", "Directory containing scenario subdirectories")
 	httpAddr := flag.String("http", ":8080", "HTTP server address for the API")
 	enableStr := flag.String("enable", "", "Comma-separated components to enable (overrides defaults)")
 	disableStr := flag.String("disable", "", "Comma-separated components to disable (overrides defaults)")
@@ -67,7 +67,7 @@ func main() {
 	// --config takes full precedence over --enable/--disable/--only.
 	var componentSettings observerimpl.ComponentSettings
 	if *configFile != "" {
-		loaded, err := observerimpl.LoadTestbenchParams(*configFile)
+		loaded, err := LoadTestbenchParams(*configFile)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to load config file: %v\n", err)
 			os.Exit(1)
@@ -149,7 +149,7 @@ func main() {
 
 func run(recorder recorderdef.Component, cfg config.Component, logger log.Component, params CLIParams) error {
 	// Create the test bench
-	tb, err := observerimpl.NewTestBench(observerimpl.TestBenchConfig{
+	tb, err := NewTestBench(TestBenchConfig{
 		ScenariosDir:       params.ScenariosDir,
 		HTTPAddr:           params.HTTPAddr,
 		Recorder:           recorder,

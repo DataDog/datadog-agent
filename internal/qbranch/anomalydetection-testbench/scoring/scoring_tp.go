@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package scoring
 
 import (
 	"encoding/json"
@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	tboutput "github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench/output"
 )
 
 // MetricGroundTruth holds the TP/FP metric lists from a scenario's episode.json.
@@ -89,11 +91,11 @@ func LoadMetricGroundTruth(scenariosDir, scenarioName string) (*MetricGroundTrut
 // LoadDisruptionStartUnix returns the disruption start timestamp in unix seconds
 // from a scenario's episode.json, or 0 if unavailable.
 func LoadDisruptionStartUnix(scenariosDir, scenarioName string) int64 {
-	sm, err := loadScoringMetadata(scenariosDir, scenarioName)
-	if err != nil || len(sm.groundTruthTimestamps) == 0 {
+	sm, err := LoadScoringMetadata(scenariosDir, scenarioName)
+	if err != nil || len(sm.GroundTruthTimestamps) == 0 {
 		return 0
 	}
-	return sm.groundTruthTimestamps[0]
+	return sm.GroundTruthTimestamps[0]
 }
 
 // ScoreMetrics classifies each anomaly period's metric as TP, FP, or unknown
@@ -105,7 +107,7 @@ func LoadDisruptionStartUnix(scenariosDir, scenarioName string) int64 {
 // Matching strategy: metric-only. An anomaly's Source (metric name) is checked
 // against each ground truth entry's metrics list using substring matching with
 // aggregate suffix stripping (e.g., "redis.cpu.sys:avg" matches "redis.cpu.sys").
-func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth, disruptionStartUnix int64) *MetricScoreResult {
+func ScoreMetrics(obs *tboutput.ObserverOutput, gt *MetricGroundTruth, disruptionStartUnix int64) *MetricScoreResult {
 	type gtEntry struct {
 		service        string
 		metric         string
@@ -130,7 +132,7 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth, disruptionStart
 	}
 
 	result := &MetricScoreResult{
-		TotalCount: len(output.AnomalyPeriods),
+		TotalCount: len(obs.AnomalyPeriods),
 	}
 
 	type metricHit struct {
@@ -153,8 +155,8 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth, disruptionStart
 	}
 	sort.Strings(sortedFPKeys)
 
-	for _, period := range output.AnomalyPeriods {
-		source := period.metricSource()
+	for _, period := range obs.AnomalyPeriods {
+		source := MetricSource(&period)
 		if source == "" {
 			result.UnknownCount++
 			result.UnknownDetectionCount++
@@ -164,7 +166,7 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth, disruptionStart
 		matched := false
 		// Check against TP metrics (sorted for determinism)
 		for _, key := range sortedTPKeys {
-			if metricMatches(source, key) {
+			if MetricMatches(source, key) {
 				result.TPCount++
 				if hit, ok := foundTPKeys[key]; ok {
 					hit.count++
@@ -181,7 +183,7 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth, disruptionStart
 
 		// Check against FP metrics (sorted for determinism)
 		for _, key := range sortedFPKeys {
-			if metricMatches(source, key) {
+			if MetricMatches(source, key) {
 				result.FPCount++
 				if hit, ok := firedFPKeys[key]; ok {
 					hit.count++
@@ -280,10 +282,10 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth, disruptionStart
 	return result
 }
 
-// metricSource extracts the metric name from an anomaly period.
+// MetricSource extracts the metric name from an anomaly period.
 // For passthrough correlator output, each period has exactly one anomaly
 // whose Source is the metric name. Falls back to parsing the Title field.
-func (oc *ObserverCorrelation) metricSource() string {
+func MetricSource(oc *tboutput.ObserverCorrelation) string {
 	// Verbose output: anomalies are populated
 	if len(oc.Anomalies) > 0 {
 		return oc.Anomalies[0].Source
@@ -297,7 +299,7 @@ func (oc *ObserverCorrelation) metricSource() string {
 	return ""
 }
 
-// metricMatches checks if an anomaly source matches a ground truth key.
+// MetricMatches checks if an anomaly source matches a ground truth key.
 // key format: "service:metric_name" (e.g., "redis:redis.cpu.sys")
 //
 // Matching rules:
@@ -309,7 +311,7 @@ func (oc *ObserverCorrelation) metricSource() string {
 // trace endpoint. When multiple ground truth keys could match the same source,
 // the caller must iterate in sorted order for deterministic results — which
 // key wins depends on the full "service:metric" sort order.
-func metricMatches(source, key string) bool {
+func MetricMatches(source, key string) bool {
 	parts := strings.SplitN(key, ":", 2)
 	if len(parts) != 2 {
 		return false

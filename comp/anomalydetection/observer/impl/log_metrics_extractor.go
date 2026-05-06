@@ -192,7 +192,7 @@ func coerceNumber(v any) (float64, bool) {
 }
 
 func metricContextKey(metricName string, tags []string) string {
-	return seriesKey("", metricName, tags)
+	return SeriesKey("", metricName, tags)
 }
 
 func patternCountMetricName(signature string) string {

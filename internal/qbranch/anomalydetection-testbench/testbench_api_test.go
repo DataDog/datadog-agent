@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package main
 
 import (
 	"encoding/json"
@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 )
 
 type stubLogView struct {
@@ -56,12 +57,12 @@ func TestMatchesLogTagFilter(t *testing.T) {
 }
 
 func TestCloneCompressedGroupsDeepCopiesMembers(t *testing.T) {
-	original := []CompressedGroup{{
+	original := []observerimpl.CompressedGroup{{
 		CorrelatorName: "corr",
 		GroupID:        "group-1",
 		Title:          "group",
 		CommonTags:     map[string]string{"env": "prod"},
-		Patterns:       []MetricPattern{{Pattern: "svc.*", Matched: 1, Universe: 1, Precision: 1}},
+		Patterns:       []observerimpl.MetricPattern{{Pattern: "svc.*", Matched: 1, Universe: 1, Precision: 1}},
 		MemberSources:  []string{"full|metric:avg|tag:a"},
 	}}
 
@@ -95,22 +96,18 @@ func TestHandleSeriesListMarksLogPatternExtractorSeriesAsVirtual(t *testing.T) {
 	require.NoError(t, err)
 	api := NewTestBenchAPI(tb)
 	if ext := tb.getLogPatternExtractor(); ext != nil {
-		ext.config.MinClusterSizeBeforeEmit = 1
+		ext.SetMinClusterSizeBeforeEmit(1)
 	}
 
-	_, _ = tb.engine.IngestLog("test-source", &logObs{
-		content:     []byte("GET /users/123 returned 500"),
-		status:      "warn",
-		tags:        []string{"service:api"},
-		timestampMs: 2_000,
-	})
+	_, _ = tb.engine.IngestLog("test-source", observerimpl.NewLogObs(
+		[]byte("GET /users/123 returned 500"),
+		"warn",
+		[]string{"service:api"},
+		"",
+		2_000,
+	))
 	// Non-extractor namespace — should not be tagged virtual.
-	tb.engine.IngestMetric("full", &metricObs{
-		name:      "cpu.usage",
-		value:     42,
-		timestamp: 2,
-		tags:      []string{"host:host-a"},
-	})
+	tb.engine.Storage().Add("full", "cpu.usage", 42, 2, []string{"host:host-a"})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/series", nil)
@@ -143,8 +140,8 @@ func TestHandleSeriesListTelemetryCountersSingleAggregate(t *testing.T) {
 	require.NoError(t, err)
 	api := NewTestBenchAPI(tb)
 
-	tb.engine.Storage().Add(observerdef.TelemetryNamespace, telemetryTbInputLogsCount, 1, 100, nil)
-	tb.engine.Storage().Add(observerdef.TelemetryNamespace, telemetryDetectorProcessingTimeNs, 1e6, 100, []string{"detector:rrcf"})
+	tb.engine.Storage().Add(observerdef.TelemetryNamespace, observerimpl.TelemetryTbInputLogsCount, 1, 100, nil)
+	tb.engine.Storage().Add(observerdef.TelemetryNamespace, observerimpl.TelemetryDetectorProcessingTimeNs, 1e6, 100, []string{"detector:rrcf"})
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/series", nil)
@@ -164,9 +161,9 @@ func TestHandleSeriesListTelemetryCountersSingleAggregate(t *testing.T) {
 			continue
 		}
 		switch {
-		case strings.HasPrefix(s.Name, telemetryTbInputLogsCount+":"):
-			counterSuffixes = append(counterSuffixes, strings.TrimPrefix(s.Name, telemetryTbInputLogsCount+":"))
-		case strings.HasPrefix(s.Name, telemetryDetectorProcessingTimeNs+":"):
+		case strings.HasPrefix(s.Name, observerimpl.TelemetryTbInputLogsCount+":"):
+			counterSuffixes = append(counterSuffixes, strings.TrimPrefix(s.Name, observerimpl.TelemetryTbInputLogsCount+":"))
+		case strings.HasPrefix(s.Name, observerimpl.TelemetryDetectorProcessingTimeNs+":"):
 			gaugeTelemetryNames = append(gaugeTelemetryNames, s.Name)
 		}
 	}

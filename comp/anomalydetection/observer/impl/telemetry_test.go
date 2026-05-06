@@ -8,14 +8,14 @@ package observerimpl
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	"github.com/stretchr/testify/require"
 )
 
 func TestTelemetryHandler_CounterAdd(_t *testing.T) {
 	tel := noopsimpl.GetCompatComponent()
-	h := newTelemetryHandler(tel)
+	h := NewTelemetryHandler(tel)
 
 	const counterName = "observer.telemetry.test_counter"
 	h.telemetryCounters[counterName] = tel.NewCounter(
@@ -25,25 +25,25 @@ func TestTelemetryHandler_CounterAdd(_t *testing.T) {
 		"test counter",
 	)
 
-	h.handleTelemetry([]observerdef.ObserverTelemetry{
-		newTelemetryCounter([]string{"detector:det-a"}, counterName, 2, 100),
-		newTelemetryCounter([]string{"detector:det-a"}, counterName, 3, 101),
+	h.HandleTelemetry([]observerdef.ObserverTelemetry{
+		NewTelemetryCounter([]string{"detector:det-a"}, counterName, 2, 100),
+		NewTelemetryCounter([]string{"detector:det-a"}, counterName, 3, 101),
 	})
 	// No-op telemetry: asserts routing does not warn or panic.
 }
 
 func TestTelemetryHandler_GaugeSet(_t *testing.T) {
 	tel := noopsimpl.GetCompatComponent()
-	h := newTelemetryHandler(tel)
+	h := NewTelemetryHandler(tel)
 
-	h.handleTelemetry([]observerdef.ObserverTelemetry{
+	h.HandleTelemetry([]observerdef.ObserverTelemetry{
 		newTelemetryGauge([]string{"detector:det"}, telemetryRRCFScore, 0.5, 100),
 	})
 }
 
 func TestTelemetryHandler_IsMetricRegistered(t *testing.T) {
 	tel := noopsimpl.GetCompatComponent()
-	h := newTelemetryHandler(tel)
+	h := NewTelemetryHandler(tel)
 
 	const counterName = "observer.telemetry.test_counter2"
 	h.telemetryCounters[counterName] = tel.NewCounter(
@@ -53,7 +53,7 @@ func TestTelemetryHandler_IsMetricRegistered(t *testing.T) {
 		"test",
 	)
 
-	require.True(t, h.isMetricRegistered(telemetryRRCFScore))
-	require.True(t, h.isMetricRegistered(counterName))
-	require.False(t, h.isMetricRegistered("observer.unknown.metric"))
+	require.True(t, h.IsMetricRegistered(telemetryRRCFScore))
+	require.True(t, h.IsMetricRegistered(counterName))
+	require.False(t, h.IsMetricRegistered("observer.unknown.metric"))
 }

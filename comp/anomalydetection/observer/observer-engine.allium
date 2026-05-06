@@ -10,13 +10,12 @@
 --   - Individual correlator algorithms (TimeCluster, CrossSignal internals)
 --   - Individual extractor implementations (LogMetricsExtractor, LogPatternExtractor)
 --   - Parquet file recording (separate recorder component)
---   - HTML/testbench UI rendering
+--   - Testbench UI, headless replay harness, scoring (see testbench.allium)
 --   - gRPC profile fetching (Handle layer; traces are disabled)
 --   - Raw profile analysis (unimplemented placeholder)
 --   - Go concurrency primitives (channels, mutexes, goroutines)
 --   - Fx component wiring and agent lifecycle
 --   - High-frequency check runner infrastructure
---   - Scoring/benchmarking infrastructure
 
 ------------------------------------------------------------
 -- Config
@@ -551,7 +550,6 @@ rule ReplaceDetectors {
     ensures: DetectorsSwapped(engine)
 
     @guidance
-        -- Used by the testbench when components are toggled.
         -- After replacing, rebuild the cached logObservers list
         -- by type-asserting each detector for the LogObserver interface.
 }

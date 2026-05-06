@@ -3,58 +3,31 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package observerimpl
+package main
 
 import (
 	"math"
 	"sort"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
+	tboutput "github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench/output"
 )
-
-// DetectorProcessingStats holds aggregate processing-time statistics for a single
-// detector (or extractor / correlator) across all advance calls during a replay.
-// Times are in nanoseconds.
-type DetectorProcessingStats struct {
-	Name string `json:"name"`
-	// Kind is the component kind: "detector", "correlator", or "extractor".
-	Kind     string  `json:"kind"`
-	Count    int     `json:"count"`
-	AvgNs    float64 `json:"avg_ns"`
-	MedianNs float64 `json:"median_ns"`
-	P99Ns    float64 `json:"p99_ns"`
-	TotalNs  float64 `json:"total_ns"` // sum of all individual call durations
-}
-
-// ReplayStats aggregates all statistics produced during a replay run.
-type ReplayStats struct {
-	// DetectorStats holds per-detector processing-time statistics keyed by detector name.
-	DetectorStats map[string]DetectorProcessingStats `json:"detector_stats,omitempty"`
-	// InputMetricsCount is the total number of metric data points (samples) in the scenario.
-	InputMetricsCount int64 `json:"input_metrics_count"`
-	// InputMetricsCardinality is the number of unique metric series (name + tag combinations).
-	InputMetricsCardinality int `json:"input_metrics_cardinality"`
-	// InputLogsCount is the number of raw log entries present in the scenario.
-	InputLogsCount int `json:"input_logs_count"`
-	// InputAnomaliesCount is the total number of anomalies produced by detectors,
-	// which is the input volume processed by correlators.
-	InputAnomaliesCount int `json:"input_anomalies_count"`
-}
 
 // enrichDetectorStatsKind sets the Kind field on each DetectorProcessingStats entry.
 // It builds a reverse map from instance.Name() → kind, because a component's runtime
 // Name() (e.g. "bocpd_detector") may differ from its catalog key (e.g. "bocpd").
-func enrichDetectorStatsKind(stats map[string]DetectorProcessingStats, components map[string]*componentInstance) {
-	kindStr := map[componentKind]string{
-		componentDetector:   "detector",
-		componentCorrelator: "correlator",
-		componentExtractor:  "extractor",
+func enrichDetectorStatsKind(stats map[string]tboutput.DetectorProcessingStats, components map[string]*observerimpl.ComponentInstance) {
+	kindStr := map[observerimpl.ComponentKind]string{
+		observerimpl.ComponentDetector:   "detector",
+		observerimpl.ComponentCorrelator: "correlator",
+		observerimpl.ComponentExtractor:  "extractor",
 	}
 	type namer interface{ Name() string }
 	nameToKind := make(map[string]string, len(components))
 	for _, ci := range components {
-		if n, ok := ci.instance.(namer); ok {
-			nameToKind[n.Name()] = kindStr[ci.entry.kind]
+		if n, ok := ci.Instance().(namer); ok {
+			nameToKind[n.Name()] = kindStr[ci.Kind()]
 		}
 	}
 	for name, s := range stats {
@@ -67,13 +40,13 @@ func enrichDetectorStatsKind(stats map[string]DetectorProcessingStats, component
 
 // sumStoredTelemetryCounter returns the total value of a telemetry counter metric
 // by summing all matching telemetry series in storage.
-func sumStoredTelemetryCounter(storage *timeSeriesStorage, name string) int {
+func sumStoredTelemetryCounter(storage *observerimpl.TimeSeriesStorage, name string) int {
 	total := 0.0
 	for _, m := range storage.ListSeriesMetadata(observerdef.TelemetryNamespace) {
 		if m.Name != name {
 			continue
 		}
-		s := storage.GetSeriesByNumericID(m.Ref, AggregateSum)
+		s := storage.GetSeriesByNumericID(m.Ref, observerimpl.AggregateSum)
 		if s == nil {
 			continue
 		}
@@ -85,23 +58,23 @@ func sumStoredTelemetryCounter(storage *timeSeriesStorage, name string) int {
 }
 
 // computeDetectorProcessingStats groups telemetry samples for
-// telemetryDetectorProcessingTimeNs by detector name and computes
+// TelemetryDetectorProcessingTimeNs by detector name and computes
 // avg / median / p99 for each.
-func computeDetectorProcessingStatsFromStorage(storage *timeSeriesStorage) map[string]DetectorProcessingStats {
+func computeDetectorProcessingStatsFromStorage(storage *observerimpl.TimeSeriesStorage) map[string]tboutput.DetectorProcessingStats {
 	byDetector := make(map[string][]float64)
 
 	for _, m := range storage.ListSeriesMetadata(observerdef.TelemetryNamespace) {
-		if m.Name != telemetryDetectorProcessingTimeNs {
+		if m.Name != observerimpl.TelemetryDetectorProcessingTimeNs {
 			continue
 		}
 
-		avgSeries := storage.GetSeriesByNumericID(m.Ref, AggregateAverage)
-		countSeries := storage.GetSeriesByNumericID(m.Ref, AggregateCount)
+		avgSeries := storage.GetSeriesByNumericID(m.Ref, observerimpl.AggregateAverage)
+		countSeries := storage.GetSeriesByNumericID(m.Ref, observerimpl.AggregateCount)
 		if avgSeries == nil || countSeries == nil {
 			continue
 		}
 
-		name := detectorNameFromTags(m.Tags)
+		name := observerimpl.DetectorNameFromTags(m.Tags)
 		if name == "" {
 			continue
 		}
@@ -124,16 +97,16 @@ func computeDetectorProcessingStatsFromStorage(storage *timeSeriesStorage) map[s
 		}
 	}
 
-	result := make(map[string]DetectorProcessingStats, len(byDetector))
+	result := make(map[string]tboutput.DetectorProcessingStats, len(byDetector))
 	for name, values := range byDetector {
 		result[name] = statsFromSamples(name, values)
 	}
 	return result
 }
 
-func statsFromSamples(name string, values []float64) DetectorProcessingStats {
+func statsFromSamples(name string, values []float64) tboutput.DetectorProcessingStats {
 	if len(values) == 0 {
-		return DetectorProcessingStats{Name: name}
+		return tboutput.DetectorProcessingStats{Name: name}
 	}
 
 	sum := 0.0
@@ -146,7 +119,7 @@ func statsFromSamples(name string, values []float64) DetectorProcessingStats {
 	copy(sorted, values)
 	sort.Float64s(sorted)
 
-	return DetectorProcessingStats{
+	return tboutput.DetectorProcessingStats{
 		Name:     name,
 		Count:    len(values),
 		AvgNs:    avg,

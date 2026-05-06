@@ -13,7 +13,7 @@ import (
 )
 
 func TestExtractCommonTags_Overlapping(t *testing.T) {
-	members := []seriesCompact{
+	members := []SeriesCompact{
 		{Tags: []string{"host:web1", "env:prod", "region:us"}},
 		{Tags: []string{"host:web2", "env:prod", "region:us"}},
 		{Tags: []string{"host:web3", "env:prod", "region:us"}},
@@ -26,7 +26,7 @@ func TestExtractCommonTags_Overlapping(t *testing.T) {
 }
 
 func TestExtractCommonTags_Disjoint(t *testing.T) {
-	members := []seriesCompact{
+	members := []SeriesCompact{
 		{Tags: []string{"host:web1", "env:prod"}},
 		{Tags: []string{"host:web2", "region:eu"}},
 	}
@@ -43,7 +43,7 @@ func TestExtractCommonTags_Empty(t *testing.T) {
 }
 
 func TestExtractCommonTags_SingleMember(t *testing.T) {
-	members := []seriesCompact{
+	members := []SeriesCompact{
 		{Tags: []string{"host:web1", "env:prod"}},
 	}
 	common, residuals := extractCommonTags(members)
@@ -104,12 +104,12 @@ func TestCompressFromTrie_SplitAtLowPrecision(t *testing.T) {
 }
 
 func TestCompressGroup_EndToEnd(t *testing.T) {
-	members := []seriesCompact{
+	members := []SeriesCompact{
 		{Namespace: "parquet", Name: "cgroup.v2.cpu.stat.user_usec:avg", Tags: []string{"container_id:abc123"}},
 		{Namespace: "parquet", Name: "cgroup.v2.cpu.stat.system_usec:avg", Tags: []string{"container_id:abc123"}},
 		{Namespace: "parquet", Name: "cgroup.v2.memory.current:avg", Tags: []string{"container_id:abc123"}},
 	}
-	universe := []seriesCompact{
+	universe := []SeriesCompact{
 		{Namespace: "parquet", Name: "cgroup.v2.cpu.stat.user_usec:avg", Tags: []string{"container_id:abc123"}},
 		{Namespace: "parquet", Name: "cgroup.v2.cpu.stat.system_usec:avg", Tags: []string{"container_id:abc123"}},
 		{Namespace: "parquet", Name: "cgroup.v2.memory.current:avg", Tags: []string{"container_id:abc123"}},
@@ -129,10 +129,10 @@ func TestCompressGroup_EndToEnd(t *testing.T) {
 }
 
 func TestCompressGroup_SingleMember(t *testing.T) {
-	members := []seriesCompact{
+	members := []SeriesCompact{
 		{Namespace: "parquet", Name: "system.cpu.user:avg", Tags: nil},
 	}
-	universe := []seriesCompact{
+	universe := []SeriesCompact{
 		{Namespace: "parquet", Name: "system.cpu.user:avg", Tags: nil},
 		{Namespace: "parquet", Name: "system.cpu.system:avg", Tags: nil},
 	}
@@ -144,7 +144,7 @@ func TestCompressGroup_SingleMember(t *testing.T) {
 }
 
 func TestCompressGroup_NoCommonTags(t *testing.T) {
-	members := []seriesCompact{
+	members := []SeriesCompact{
 		{Namespace: "parquet", Name: "a.b.c:avg", Tags: []string{"host:h1"}},
 		{Namespace: "parquet", Name: "a.b.d:avg", Tags: []string{"host:h2"}},
 	}
@@ -157,7 +157,7 @@ func TestCompressGroup_NoCommonTags(t *testing.T) {
 }
 
 func TestCompressGroup_AllIdenticalNames(t *testing.T) {
-	members := []seriesCompact{
+	members := []SeriesCompact{
 		{Namespace: "parquet", Name: "cpu.user:avg", Tags: []string{"host:h1"}},
 		{Namespace: "parquet", Name: "cpu.user:avg", Tags: []string{"host:h2"}},
 	}

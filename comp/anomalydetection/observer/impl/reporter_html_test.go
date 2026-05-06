@@ -191,7 +191,7 @@ func TestHTMLReporter_APIReports_EmptyArray(t *testing.T) {
 func TestHTMLReporter_APISeries_ReturnsJSON(t *testing.T) {
 	r := NewHTMLReporter()
 
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	storage.Add("test", "my.metric", 10.5, 1000, nil)
 	storage.Add("test", "my.metric", 20.5, 1001, nil)
 	r.SetStorage(storage)
@@ -253,7 +253,7 @@ func TestHTMLReporter_APISeries_NoStorage(t *testing.T) {
 func TestHTMLReporter_APISeries_NotFound(t *testing.T) {
 	r := NewHTMLReporter()
 
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	r.SetStorage(storage)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/series?namespace=test&name=nonexistent", nil)
@@ -294,7 +294,7 @@ func TestHTMLReporter_IntegrationWithHTTPServer(t *testing.T) {
 		AdvancedToSec: 100,
 	})
 
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	storage.Add("demo", "cpu.usage", 50.0, 1000, nil)
 	r.SetStorage(storage)
 
@@ -351,7 +351,7 @@ func TestEscapeHTML(t *testing.T) {
 func TestHTMLReporter_APISeriesList_ReturnsJSON(t *testing.T) {
 	r := NewHTMLReporter()
 
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	storage.Add("demo", "cpu.usage", 50.0, 1000, nil)
 	storage.Add("demo", "memory.usage", 75.0, 1000, nil)
 	r.SetStorage(storage)

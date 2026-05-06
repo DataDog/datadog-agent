@@ -55,7 +55,7 @@ def build_scorer(ctx):
 def eval_scenarios(
     ctx,
     scenario: str = "",
-    scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
+    scenarios_dir: str = "./internal/qbranch/anomalydetection-testbench/scenarios",
     sigma: float = 30.0,
     only: str = "",
     build: bool = True,
@@ -227,7 +227,7 @@ def eval_scenarios(
 def eval_tp(
     ctx,
     scenario: str = "",
-    scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
+    scenarios_dir: str = "./internal/qbranch/anomalydetection-testbench/scenarios",
     sigma: float = 30.0,
     only: str = "",
     build: bool = True,
@@ -353,7 +353,7 @@ def eval_combinations(
     ctx,
     n: int = 10,
     output_dir: str = "/tmp/observer-eval-combinations",
-    scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
+    scenarios_dir: str = "./internal/qbranch/anomalydetection-testbench/scenarios",
     sigma: float = 30.0,
     seed: int = None,
     build: bool = True,
@@ -549,7 +549,7 @@ def eval_bayesian(
     only: str = "",
     n_trials: int = 10,
     output_dir: str = "/tmp/observer-optuna-eval",
-    scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
+    scenarios_dir: str = "./internal/qbranch/anomalydetection-testbench/scenarios",
     sigma: float = 30.0,
     seed: int = None,
     build: bool = True,
@@ -921,7 +921,7 @@ def eval_pipeline(
     n_trials_tune: int = 20,
     m_runs: int = 1,
     output_dir: str = "/tmp/observer-pipeline-eval",
-    scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
+    scenarios_dir: str = "./internal/qbranch/anomalydetection-testbench/scenarios",
     sigma: float = 30.0,
     seed: int = None,
     build: bool = True,
@@ -1200,7 +1200,7 @@ def eval_component(
     n_trials: int = 5,
     m_runs: int = 1,
     output_dir: str = "/tmp/observer-component-eval",
-    scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
+    scenarios_dir: str = "./internal/qbranch/anomalydetection-testbench/scenarios",
     sigma: float = 30.0,
     seed: int = None,
     build: bool = True,
@@ -1549,7 +1549,7 @@ def eval_component(
 def download_scenarios(
     ctx,
     scenario: str = "",
-    scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
+    scenarios_dir: str = "./internal/qbranch/anomalydetection-testbench/scenarios",
     skip_existing: bool = False,
 ):
     """
@@ -1590,7 +1590,7 @@ def download_scenarios(
 @task
 def launch_testbench(
     ctx,
-    scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
+    scenarios_dir: str = "./internal/qbranch/anomalydetection-testbench/scenarios",
     build: bool = False,
     headless_scenario: str = "",
     headless_output: str = "",

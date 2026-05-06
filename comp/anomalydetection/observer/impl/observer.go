@@ -18,6 +18,8 @@ import (
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl/hfrunner"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -27,8 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	workloadfilterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmetadef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	"github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl/hfrunner"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -152,6 +152,30 @@ func (l *logObs) GetTimestampUnixMilli() int64 {
 	return l.timestampMs
 }
 
+// NewLogObs creates a logObs (observerdef.LogView) for use in the testbench and other
+// external callers that need to feed logs into the engine without depending on the
+// concrete internal type.
+func NewLogObs(content []byte, status string, tags []string, hostname string, timestampMs int64) observerdef.LogView {
+	return &logObs{
+		content:     content,
+		status:      status,
+		tags:        tags,
+		hostname:    hostname,
+		timestampMs: timestampMs,
+	}
+}
+
+// NewMetricObs creates a metricObs (observerdef.MetricView) for use in the testbench
+// and other external callers.
+func NewMetricObs(name string, value float64, tags []string, timestamp int64) observerdef.MetricView {
+	return &metricObs{
+		name:      name,
+		value:     value,
+		tags:      tags,
+		timestamp: timestamp,
+	}
+}
+
 // settingsFromAgentConfig reads component configuration from the agent config
 // system (datadog.yaml). Keys follow the pattern:
 //
@@ -162,7 +186,7 @@ func (l *logObs) GetTimestampUnixMilli() int64 {
 // Component-specific keys are read via the AgentConfigurable interface —
 // config structs that implement it will have their fields populated
 // automatically.
-func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) ComponentSettings {
+func settingsFromAgentConfig(catalog *ComponentCatalog, cfg config.Component) ComponentSettings {
 	var settings ComponentSettings
 	if cfg == nil {
 		return settings
@@ -186,26 +210,26 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 // NewComponent creates an observer.Component.
 func NewComponent(deps Requires) Provides {
 	cfg := deps.Config
-	catalog := defaultCatalog()
+	catalog := DefaultCatalog()
 	settings := settingsFromAgentConfig(catalog, cfg)
 	detectors, correlators, extractors, _ := catalog.Instantiate(settings)
 
-	eng := newEngine(engineConfig{
-		storage:          newTimeSeriesStorage(),
-		extractors:       extractors,
-		detectors:        detectors,
-		correlators:      correlators,
-		contextProviders: collectContextProviders(extractors),
-		scheduler:        &currentBehaviorPolicy{},
+	eng := NewEngine(EngineConfig{
+		Storage:          NewTimeSeriesStorage(),
+		Extractors:       extractors,
+		Detectors:        detectors,
+		Correlators:      correlators,
+		ContextProviders: CollectContextProviders(extractors),
+		Scheduler:        &CurrentBehaviorPolicy{},
 	})
 
 	// Wire reporters via event subscription.
-	// The reporterEventSink queries stateView for active correlations on each advance,
+	// The ReporterEventSink queries StateView for active correlations on each advance,
 	// so reporters receive all needed data through ReportOutput without backdoor access.
 	reporter := &StdoutReporter{}
-	eng.Subscribe(&reporterEventSink{
-		reporters: []observerdef.Reporter{reporter},
-		state:     eng.StateView(),
+	eng.Subscribe(&ReporterEventSink{
+		Reporters: []observerdef.Reporter{reporter},
+		State:     eng.StateView(),
 	})
 
 	telemetryComp := deps.Telemetry
@@ -215,7 +239,7 @@ func NewComponent(deps Requires) Provides {
 
 	hfSystemEnabled := cfg.GetBool("observer.high_frequency_system_checks.enabled")
 	hfContainerEnabled := cfg.GetBool("observer.high_frequency_container_checks.enabled")
-	th := newTelemetryHandler(telemetryComp)
+	th := NewTelemetryHandler(telemetryComp)
 
 	// Build the set of MetricSource values to suppress from the "all-metrics"
 	// pipeline. Sources are added later, only after their respective HF runners
@@ -253,7 +277,7 @@ func NewComponent(deps Requires) Provides {
 		// Record detect digests and advance log alongside parquet for parity debugging.
 		parquetDir := cfg.GetString("observer.recording.parquet_output_dir")
 		if parquetDir != "" {
-			digestPath := filepath.Join(parquetDir, detectDigestFileName)
+			digestPath := filepath.Join(parquetDir, DetectDigestFileName)
 			cleanup, err := enableDetectDigestRecordingToFile(eng, digestPath)
 			if err != nil {
 				deps.Log.Warnf("[observer] detect digest recording disabled: %v", err)
@@ -261,7 +285,7 @@ func NewComponent(deps Requires) Provides {
 				obs.digestCleanup = cleanup
 			}
 
-			advPath := filepath.Join(parquetDir, advanceLogFileName)
+			advPath := filepath.Join(parquetDir, AdvanceLogFileName)
 			advRec, err := newAdvanceLogRecorder(advPath)
 			if err != nil {
 				deps.Log.Warnf("[observer] advance log recording disabled: %v", err)
@@ -277,13 +301,13 @@ func NewComponent(deps Requires) Provides {
 
 	// Optionally add the event reporter when sending is enabled via config.
 	if cfg.GetBool("observer.event_reporter.sending_enabled") {
-		if sender, err := newEventSender(deps.Config, deps.Log, eng.Storage()); err != nil {
+		if sender, err := NewEventSender(deps.Config, deps.Log, eng.Storage()); err != nil {
 			deps.Log.Warnf("[observer] event_reporter disabled: %v", err)
 		} else {
 			eventReporter := &EventReporter{sender: sender, logger: deps.Log}
-			eng.Subscribe(&reporterEventSink{
-				reporters: []observerdef.Reporter{eventReporter},
-				state:     eng.StateView(),
+			eng.Subscribe(&ReporterEventSink{
+				Reporters: []observerdef.Reporter{eventReporter},
+				State:     eng.StateView(),
 			})
 		}
 	}
@@ -444,11 +468,11 @@ func samplePass(rate float64, n uint64) bool {
 // It is a thin driver around the engine, which holds storage, extractors,
 // detectors, correlators, and raw anomaly tracking.
 type observerImpl struct {
-	engine     *engine
+	engine     *Engine
 	obsCh      chan observation
 	handleFunc observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
 
-	telemetryHandler  *telemetryHandler
+	telemetryHandler  *TelemetryHandler
 	digestCleanup     func() // flushes detect digest recording file
 	advanceLogCleanup func() // flushes advance log recording file
 
@@ -493,7 +517,7 @@ func (o *observerImpl) run() {
 			logRequests, logTelemetry := o.engine.IngestLog(obs.source, obs.log)
 			requests = append(requests, logRequests...)
 			if len(logTelemetry) > 0 {
-				o.telemetryHandler.handleTelemetry(logTelemetry)
+				o.telemetryHandler.HandleTelemetry(logTelemetry)
 			}
 		}
 		if obs.profile != nil {
@@ -501,7 +525,7 @@ func (o *observerImpl) run() {
 		}
 		for _, req := range requests {
 			result := o.engine.advanceWithReason(req.upToSec, req.reason)
-			o.telemetryHandler.handleTelemetry(result.telemetry)
+			o.telemetryHandler.HandleTelemetry(result.telemetry)
 		}
 	}
 }
@@ -766,7 +790,7 @@ func (f *hfFilteredHandle) ObserveMetricAndReportDrop(sample observerdef.MetricV
 	return false
 }
 
-func (f *hfFilteredHandle) ObserveLog(msg observerdef.LogView)             { f.inner.ObserveLog(msg) }
+func (f *hfFilteredHandle) ObserveLog(msg observerdef.LogView) { f.inner.ObserveLog(msg) }
 
 // metricDropHandle drops every ObserveMetric call but lets logs and
 // profiles through. Used when observer.ingest_metrics.enabled=false so
@@ -782,7 +806,7 @@ func (m *metricDropHandle) ObserveMetric(_ observerdef.MetricView) {}
 func (m *metricDropHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView) bool {
 	return true
 }
-func (m *metricDropHandle) ObserveLog(msg observerdef.LogView)             { m.inner.ObserveLog(msg) }
+func (m *metricDropHandle) ObserveLog(msg observerdef.LogView) { m.inner.ObserveLog(msg) }
 
 // noopHandle returns a handle that discards all observations.
 // Used when analysis is disabled so the analysis pipeline is not started.
@@ -797,7 +821,7 @@ func (h *noopObserveHandle) ObserveMetric(_ observerdef.MetricView) {}
 func (h *noopObserveHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView) bool {
 	return false
 }
-func (h *noopObserveHandle) ObserveLog(_ observerdef.LogView)               {}
+func (h *noopObserveHandle) ObserveLog(_ observerdef.LogView) {}
 
 // DumpMetrics writes all stored metrics to the specified file as JSON.
 func (o *observerImpl) DumpMetrics(path string) error {
@@ -884,17 +908,6 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 		}
 	}
 }
-
-// logView wraps logObs to implement LogView interface.
-type logView struct {
-	obs *logObs
-}
-
-func (v *logView) GetContent() []byte           { return v.obs.content }
-func (v *logView) GetStatus() string            { return v.obs.status }
-func (v *logView) GetTags() []string            { return v.obs.tags }
-func (v *logView) GetHostname() string          { return v.obs.hostname }
-func (v *logView) GetTimestampUnixMilli() int64 { return v.obs.timestampMs }
 
 // agentLogView is a minimal LogView implementation for agent-internal logs.
 // It is immediately copied by the observer handle, so it must not be retained.

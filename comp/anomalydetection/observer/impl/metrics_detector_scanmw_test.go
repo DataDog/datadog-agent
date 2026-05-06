@@ -21,7 +21,7 @@ func testScanMWDetector() *ScanMWDetector {
 
 func TestScanMW_NotEnoughPoints(t *testing.T) {
 	d := testScanMWDetector()
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	for i := 0; i < 10; i++ {
 		storage.Add("ns", "metric", 100, int64(i+1), nil)
@@ -33,7 +33,7 @@ func TestScanMW_NotEnoughPoints(t *testing.T) {
 
 func TestScanMW_DetectsStepChange(t *testing.T) {
 	d := testScanMWDetector()
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	for i := 0; i < 20; i++ {
 		storage.Add("ns", "metric", 50, int64(i+1), nil)
@@ -52,7 +52,7 @@ func TestScanMW_DetectsStepChange(t *testing.T) {
 
 func TestScanMW_IncrementalAdvance(t *testing.T) {
 	d := testScanMWDetector()
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	// First advance: stable data, not enough to fire.
 	for i := 0; i < 20; i++ {
@@ -75,7 +75,7 @@ func TestScanMW_IncrementalAdvance(t *testing.T) {
 
 func TestScanMW_SegmentAdvancement(t *testing.T) {
 	d := testScanMWDetector()
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	// Phase 1: baseline at 50, shift to 200.
 	for i := 0; i < 20; i++ {
@@ -100,7 +100,7 @@ func TestScanMW_SegmentAdvancement(t *testing.T) {
 
 func TestScanMW_TwoSequentialChanges(t *testing.T) {
 	d := testScanMWDetector()
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	// Phase 1: 50 → 200
 	for i := 0; i < 20; i++ {
@@ -125,7 +125,7 @@ func TestScanMW_TwoSequentialChanges(t *testing.T) {
 func TestScanMW_DeterministicReplay(t *testing.T) {
 	makeDetector := func() *ScanMWDetector { return testScanMWDetector() }
 
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	for i := 0; i < 20; i++ {
 		storage.Add("ns", "metric", 50, int64(i+1), nil)
 	}
@@ -148,7 +148,7 @@ func TestScanMW_DeterministicReplay(t *testing.T) {
 
 func TestScanMW_Reset(t *testing.T) {
 	d := testScanMWDetector()
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	for i := 0; i < 40; i++ {
 		storage.Add("ns", "metric", 50, int64(i+1), nil)

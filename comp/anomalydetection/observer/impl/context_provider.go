@@ -24,11 +24,11 @@ func validateUniqueExtractorNames(extractors []observer.LogMetricsExtractor) {
 	}
 }
 
-// collectContextProviders discovers ContextProvider implementations among
+// CollectContextProviders discovers ContextProvider implementations among
 // instantiated extractors via type assertion. Returns a map keyed by the
 // extractor's component name (which is used as the storage namespace for
 // its metrics), enabling O(1) lookup during anomaly enrichment.
-func collectContextProviders(extractors []observer.LogMetricsExtractor) map[string]observer.ContextProvider {
+func CollectContextProviders(extractors []observer.LogMetricsExtractor) map[string]observer.ContextProvider {
 	providers := make(map[string]observer.ContextProvider)
 	for _, ext := range extractors {
 		if cp, ok := ext.(observer.ContextProvider); ok {

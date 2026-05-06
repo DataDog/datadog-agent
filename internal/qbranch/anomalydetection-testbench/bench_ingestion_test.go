@@ -3,20 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package main
 
 import (
 	"fmt"
 	"math/rand"
 	"testing"
+
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 )
 
 // buildSyntheticStorage creates a storage pre-populated with numSeries series,
 // each with numSeconds data points. The last third of the data has a step-change
 // to give detectors a realistic signal shape during warm-up.
-func buildSyntheticStorage(numSeries, numSeconds int) *timeSeriesStorage {
+func buildSyntheticStorage(numSeries, numSeconds int) *observerimpl.TimeSeriesStorage {
 	rng := rand.New(rand.NewSource(42))
-	storage := newTimeSeriesStorage()
+	storage := observerimpl.NewTimeSeriesStorage()
 	for sec := int64(0); sec < int64(numSeconds); sec++ {
 		for s := 0; s < numSeries; s++ {
 			name := fmt.Sprintf("metric_%d", s)
@@ -36,24 +38,26 @@ func BenchmarkIngestion_SeriesCount(b *testing.B) {
 		numSeries := numSeries
 		b.Run(fmt.Sprintf("series=%d", numSeries), func(b *testing.B) {
 			rng := rand.New(rand.NewSource(42))
-			obs := make([]*metricObs, numSeries)
+			type metric struct {
+				name  string
+				value float64
+			}
+			metrics := make([]metric, numSeries)
 			for s := 0; s < numSeries; s++ {
-				obs[s] = &metricObs{
-					name:      fmt.Sprintf("metric_%d", s),
-					value:     100.0 + rng.Float64()*10,
-					timestamp: 0,
+				metrics[s] = metric{
+					name:  fmt.Sprintf("metric_%d", s),
+					value: 100.0 + rng.Float64()*10,
 				}
 			}
 
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
-				storage := newTimeSeriesStorage()
-				e := newEngine(engineConfig{storage: storage})
+				storage := observerimpl.NewTimeSeriesStorage()
 				b.StartTimer()
 
-				for _, o := range obs {
-					o.timestamp = int64(i)
-					e.IngestMetric("ns", o)
+				ts := int64(i)
+				for _, m := range metrics {
+					storage.Add("ns", m.name, m.value, ts, nil)
 				}
 			}
 		})

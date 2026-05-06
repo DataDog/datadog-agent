@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package scoring
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	tboutput "github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench/output"
 )
 
 func TestMetricMatches(t *testing.T) {
@@ -28,7 +30,7 @@ func TestMetricMatches(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, metricMatches(tt.source, tt.key))
+			assert.Equal(t, tt.want, MetricMatches(tt.source, tt.key))
 		})
 	}
 }
@@ -41,29 +43,27 @@ func TestScoreMetrics_Basic(t *testing.T) {
 		},
 	}
 
-	output := &ObserverOutput{
-		AnomalyPeriods: []ObserverCorrelation{
-			{Anomalies: []ObserverAnomaly{{Source: "redis.cpu.sys"}}},           // TP
-			{Anomalies: []ObserverAnomaly{{Source: "redis.mem.used"}}},          // unknown
-			{Anomalies: []ObserverAnomaly{{Source: "some.other.metric"}}},       // unknown
-			{Anomalies: []ObserverAnomaly{{Source: "trace.http.request.hits"}}}, // TP
+	obs := &tboutput.ObserverOutput{
+		AnomalyPeriods: []tboutput.ObserverCorrelation{
+			{Anomalies: []tboutput.ObserverAnomaly{{Source: "redis.cpu.sys"}}},
+			{Anomalies: []tboutput.ObserverAnomaly{{Source: "redis.mem.used"}}},
+			{Anomalies: []tboutput.ObserverAnomaly{{Source: "some.other.metric"}}},
+			{Anomalies: []tboutput.ObserverAnomaly{{Source: "trace.http.request.hits"}}},
 		},
 	}
 
-	result := ScoreMetrics(output, gt, 0)
+	result := ScoreMetrics(obs, gt, 0)
 
 	assert.Equal(t, 2, result.TPCount)
 	assert.Equal(t, 0, result.FPCount)
 	assert.Equal(t, 2, result.UnknownCount)
 	assert.Equal(t, 4, result.TotalCount)
 
-	// Precision: 2 / (2 + 0) = 1.0
 	assert.InDelta(t, 1.0, result.MetricPrecision, 0.001)
-	// Recall: 2 found / 3 total TP metrics = 0.667
 	assert.InDelta(t, 0.6667, result.MetricRecall, 0.001)
 
 	assert.Len(t, result.TPMetricsFound, 2)
-	assert.Len(t, result.TPMetricsMissed, 1) // redis.info.latency_ms
+	assert.Len(t, result.TPMetricsMissed, 1)
 }
 
 func TestScoreMetrics_AllTPsFound(t *testing.T) {
@@ -73,13 +73,13 @@ func TestScoreMetrics_AllTPsFound(t *testing.T) {
 		},
 	}
 
-	output := &ObserverOutput{
-		AnomalyPeriods: []ObserverCorrelation{
-			{Anomalies: []ObserverAnomaly{{Source: "redis.cpu.sys"}}},
+	obs := &tboutput.ObserverOutput{
+		AnomalyPeriods: []tboutput.ObserverCorrelation{
+			{Anomalies: []tboutput.ObserverAnomaly{{Source: "redis.cpu.sys"}}},
 		},
 	}
 
-	result := ScoreMetrics(output, gt, 0)
+	result := ScoreMetrics(obs, gt, 0)
 	assert.Equal(t, 1, result.TPCount)
 	assert.Equal(t, 0, result.FPCount)
 	assert.InDelta(t, 1.0, result.MetricPrecision, 0.001)
@@ -92,9 +92,9 @@ func TestScoreMetrics_Empty(t *testing.T) {
 		TruePositives: []MetricGroundTruthEntry{{Service: "redis", Metrics: []string{"redis.cpu.sys"}}},
 	}
 
-	output := &ObserverOutput{AnomalyPeriods: nil}
+	obs := &tboutput.ObserverOutput{AnomalyPeriods: nil}
 
-	result := ScoreMetrics(output, gt, 0)
+	result := ScoreMetrics(obs, gt, 0)
 	assert.Equal(t, 0, result.TPCount)
 	assert.Equal(t, 0, result.TotalCount)
 	assert.InDelta(t, 0.0, result.MetricRecall, 0.001)
@@ -108,13 +108,13 @@ func TestScoreMetrics_AggSuffix(t *testing.T) {
 		},
 	}
 
-	output := &ObserverOutput{
-		AnomalyPeriods: []ObserverCorrelation{
-			{Anomalies: []ObserverAnomaly{{Source: "redis.cpu.sys:avg"}}},
+	obs := &tboutput.ObserverOutput{
+		AnomalyPeriods: []tboutput.ObserverCorrelation{
+			{Anomalies: []tboutput.ObserverAnomaly{{Source: "redis.cpu.sys:avg"}}},
 		},
 	}
 
-	result := ScoreMetrics(output, gt, 0)
+	result := ScoreMetrics(obs, gt, 0)
 	assert.Equal(t, 1, result.TPCount)
 }
 
@@ -125,14 +125,13 @@ func TestScoreMetrics_TitleFallback(t *testing.T) {
 		},
 	}
 
-	// Non-verbose output: no Anomalies, but Title has metric name
-	output := &ObserverOutput{
-		AnomalyPeriods: []ObserverCorrelation{
+	obs := &tboutput.ObserverOutput{
+		AnomalyPeriods: []tboutput.ObserverCorrelation{
 			{Title: "Passthrough[cusum]: redis.cpu.sys"},
 		},
 	}
 
-	result := ScoreMetrics(output, gt, 0)
+	result := ScoreMetrics(obs, gt, 0)
 	assert.Equal(t, 1, result.TPCount)
 }
 
@@ -143,17 +142,16 @@ func TestScoreMetrics_Detections_FirstSeenAndCount(t *testing.T) {
 		},
 	}
 
-	output := &ObserverOutput{
-		AnomalyPeriods: []ObserverCorrelation{
-			{PeriodStart: 1000, Anomalies: []ObserverAnomaly{{Source: "redis.cpu.sys"}}},
-			{PeriodStart: 1100, Anomalies: []ObserverAnomaly{{Source: "redis.cpu.sys"}}},     // second hit
-			{PeriodStart: 1200, Anomalies: []ObserverAnomaly{{Source: "some.other.metric"}}}, // unknown
+	obs := &tboutput.ObserverOutput{
+		AnomalyPeriods: []tboutput.ObserverCorrelation{
+			{PeriodStart: 1000, Anomalies: []tboutput.ObserverAnomaly{{Source: "redis.cpu.sys"}}},
+			{PeriodStart: 1100, Anomalies: []tboutput.ObserverAnomaly{{Source: "redis.cpu.sys"}}},
+			{PeriodStart: 1200, Anomalies: []tboutput.ObserverAnomaly{{Source: "some.other.metric"}}},
 		},
 	}
 
-	result := ScoreMetrics(output, gt, 900)
+	result := ScoreMetrics(obs, gt, 900)
 
-	// 2 ground truth TP entries
 	assert.Len(t, result.Detections, 2)
 
 	byKey := map[string]MetricDetection{}
@@ -161,20 +159,17 @@ func TestScoreMetrics_Detections_FirstSeenAndCount(t *testing.T) {
 		byKey[d.Classification+":"+d.Service+":"+d.Metric] = d
 	}
 
-	// TP: redis.cpu.sys — detected, first at 1000, count=2, delta=100s
 	cpuDet := byKey["tp:redis:redis.cpu.sys"]
 	assert.True(t, cpuDet.Detected)
 	assert.Equal(t, 2, cpuDet.Count)
 	assert.Equal(t, int64(1000), cpuDet.FirstSeenUnix)
 	assert.InDelta(t, 100.0, cpuDet.DeltaFromDisruption, 0.001)
 
-	// TP: redis.info.latency_ms — NOT detected
 	latDet := byKey["tp:redis:redis.info.latency_ms"]
 	assert.False(t, latDet.Detected)
 	assert.Equal(t, 0, latDet.Count)
 	assert.Equal(t, int64(0), latDet.FirstSeenUnix)
 
-	// Unknown counts
 	assert.Equal(t, 1, result.UnknownMetricCount)
 	assert.Equal(t, 1, result.UnknownDetectionCount)
 }
@@ -186,13 +181,13 @@ func TestScoreMetrics_Detections_NoDisruptionStart(t *testing.T) {
 		},
 	}
 
-	output := &ObserverOutput{
-		AnomalyPeriods: []ObserverCorrelation{
-			{PeriodStart: 500, Anomalies: []ObserverAnomaly{{Source: "m1"}}},
+	obs := &tboutput.ObserverOutput{
+		AnomalyPeriods: []tboutput.ObserverCorrelation{
+			{PeriodStart: 500, Anomalies: []tboutput.ObserverAnomaly{{Source: "m1"}}},
 		},
 	}
 
-	result := ScoreMetrics(output, gt, 0)
+	result := ScoreMetrics(obs, gt, 0)
 	assert.Len(t, result.Detections, 1)
 	assert.Equal(t, 0.0, result.Detections[0].DeltaFromDisruption)
 	assert.True(t, result.Detections[0].Detected)
@@ -206,10 +201,9 @@ func TestScoreMetrics_Detections_SortOrder(t *testing.T) {
 		},
 	}
 
-	output := &ObserverOutput{AnomalyPeriods: nil}
-	result := ScoreMetrics(output, gt, 0)
+	obs := &tboutput.ObserverOutput{AnomalyPeriods: nil}
+	result := ScoreMetrics(obs, gt, 0)
 
-	// Should be sorted by service then metric (all tp)
 	assert.Len(t, result.Detections, 2)
 	assert.Equal(t, "tp", result.Detections[0].Classification)
 	assert.Equal(t, "a-svc", result.Detections[0].Service)

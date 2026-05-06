@@ -14,12 +14,12 @@ import (
 )
 
 func TestStateView_StorageAccess(t *testing.T) {
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 100, nil)
 	storage.Add("ns", "cpu", 2.0, 101, nil)
 	storage.Add("ns", "mem", 512.0, 100, []string{"host:a"})
 
-	e := newEngine(engineConfig{storage: storage})
+	e := NewEngine(EngineConfig{Storage: storage})
 	sv := e.StateView()
 
 	// ListSeries
@@ -54,8 +54,8 @@ func TestStateView_StorageAccess(t *testing.T) {
 }
 
 func TestStateView_Anomalies(t *testing.T) {
-	e := newEngine(engineConfig{
-		storage: newTimeSeriesStorage(),
+	e := NewEngine(EngineConfig{
+		Storage: NewTimeSeriesStorage(),
 	})
 	sv := e.StateView()
 
@@ -138,10 +138,10 @@ func TestStateView_DetectorsAndCorrelators(t *testing.T) {
 	detector := &mockDetector{name: "mock_det"}
 	correlator := &mockCorrelator{name: "mock_corr"}
 
-	e := newEngine(engineConfig{
-		storage:     newTimeSeriesStorage(),
-		detectors:   []observerdef.Detector{detector},
-		correlators: []observerdef.Correlator{correlator},
+	e := NewEngine(EngineConfig{
+		Storage:     NewTimeSeriesStorage(),
+		Detectors:   []observerdef.Detector{detector},
+		Correlators: []observerdef.Correlator{correlator},
 	})
 	sv := e.StateView()
 
@@ -157,11 +157,11 @@ func TestStateView_DetectorsAndCorrelators(t *testing.T) {
 }
 
 func TestStateView_SchedulingState(t *testing.T) {
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 100, nil)
 	storage.Add("ns", "cpu", 2.0, 200, nil)
 
-	e := newEngine(engineConfig{storage: storage})
+	e := NewEngine(EngineConfig{Storage: storage})
 	sv := e.StateView()
 
 	if sv.LastAnalyzedTime() != 0 {
@@ -175,7 +175,7 @@ func TestStateView_SchedulingState(t *testing.T) {
 }
 
 func TestStateView_Telemetry(t *testing.T) {
-	e := newEngine(engineConfig{storage: newTimeSeriesStorage()})
+	e := NewEngine(EngineConfig{Storage: NewTimeSeriesStorage()})
 	sv := e.StateView()
 
 	// Initially empty
@@ -218,12 +218,12 @@ func (c *mockCorrelator) ActiveCorrelations() []observerdef.ActiveCorrelation { 
 func (c *mockCorrelator) Reset()                                              {}
 
 func TestFindingM11_StateViewListDetectorsRace(_ *testing.T) {
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 1, nil)
 
-	e := newEngine(engineConfig{
-		storage:   storage,
-		detectors: []observerdef.Detector{&mockDetector{name: "det1"}},
+	e := NewEngine(EngineConfig{
+		Storage:   storage,
+		Detectors: []observerdef.Detector{&mockDetector{name: "det1"}},
 	})
 	sv := e.StateView()
 
@@ -250,12 +250,12 @@ func TestFindingM11_StateViewListDetectorsRace(_ *testing.T) {
 }
 
 func TestFindingM11_StateViewListCorrelatorsRace(_ *testing.T) {
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 1, nil)
 
-	e := newEngine(engineConfig{
-		storage:     storage,
-		correlators: []observerdef.Correlator{&mockCorrelator{name: "corr1"}},
+	e := NewEngine(EngineConfig{
+		Storage:     storage,
+		Correlators: []observerdef.Correlator{&mockCorrelator{name: "corr1"}},
 	})
 	sv := e.StateView()
 
@@ -282,12 +282,12 @@ func TestFindingM11_StateViewListCorrelatorsRace(_ *testing.T) {
 }
 
 func TestFindingM11_StateViewActiveCorrelationsRace(_ *testing.T) {
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	storage.Add("ns", "cpu", 1.0, 1, nil)
 
-	e := newEngine(engineConfig{
-		storage:     storage,
-		correlators: []observerdef.Correlator{&mockCorrelator{name: "corr1"}},
+	e := NewEngine(EngineConfig{
+		Storage:     storage,
+		Correlators: []observerdef.Correlator{&mockCorrelator{name: "corr1"}},
 	})
 	sv := e.StateView()
 

@@ -261,7 +261,7 @@ func (b *BOCPDDetector) Reset() {
 // of size MaxRunLength+2 (~9.7 KB at default config), so without this
 // teardown the map grows with the cumulative number of series ever seen
 // even after their storage payload is gone. Called by the engine right
-// after timeSeriesStorage.RemoveSeriesByKeys returns the freed refs.
+// after TimeSeriesStorage.RemoveSeriesByKeys returns the freed refs.
 func (b *BOCPDDetector) RemoveSeries(refs []observer.SeriesRef) {
 	if len(refs) == 0 || len(b.series) == 0 {
 		return

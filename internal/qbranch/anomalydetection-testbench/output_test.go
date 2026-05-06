@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package main
 
 import (
 	"encoding/json"
@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
+	tboutput "github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench/output"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,11 +34,11 @@ func (c *staticCorrelator) Reset() {}
 // newTestBenchForOutput creates a minimal TestBench with injected state for testing
 // observer output. No scenarios dir or registry needed.
 func newTestBenchForOutput() *TestBench {
-	eng := newEngine(engineConfig{storage: newTimeSeriesStorage()})
+	eng := observerimpl.NewEngine(observerimpl.EngineConfig{Storage: observerimpl.NewTimeSeriesStorage()})
 	return &TestBench{
 		engine:     eng,
-		catalog:    defaultCatalog(),
-		components: make(map[string]*componentInstance),
+		catalog:    observerimpl.DefaultCatalog(),
+		components: make(map[string]*observerimpl.ComponentInstance),
 	}
 }
 
@@ -80,7 +82,7 @@ func TestWriteObserverOutput_EmptyScenario(t *testing.T) {
 	data, err := os.ReadFile(outPath)
 	require.NoError(t, err)
 
-	var output ObserverOutput
+	var output tboutput.ObserverOutput
 	require.NoError(t, json.Unmarshal(data, &output))
 
 	assert.Equal(t, "", output.Metadata.Scenario)
@@ -99,10 +101,7 @@ func TestWriteObserverOutput_NonVerbose(t *testing.T) {
 	tb.engine.Storage().Add("parquet", "cpu.user", 2.0, 2000, []string{"host:a"})
 	// Add a correlator that returns our test correlation
 	tb.engine.SetCorrelators([]observerdef.Correlator{&staticCorrelator{correlations: []observerdef.ActiveCorrelation{testCorrelation()}}})
-	tb.components["cusum"] = &componentInstance{
-		entry:   componentEntry{name: "cusum", kind: componentDetector},
-		enabled: true,
-	}
+	tb.components["cusum"] = observerimpl.NewComponentInstanceForTest("cusum", observerimpl.ComponentDetector, true)
 
 	outPath := filepath.Join(t.TempDir(), "results.json")
 	require.NoError(t, tb.WriteObserverOutput(outPath, false))
@@ -110,7 +109,7 @@ func TestWriteObserverOutput_NonVerbose(t *testing.T) {
 	data, err := os.ReadFile(outPath)
 	require.NoError(t, err)
 
-	var output ObserverOutput
+	var output tboutput.ObserverOutput
 	require.NoError(t, json.Unmarshal(data, &output))
 
 	require.Len(t, output.AnomalyPeriods, 1)
@@ -134,18 +133,9 @@ func TestWriteObserverOutput_Verbose(t *testing.T) {
 	tb.engine.Storage().Add("parquet", "cpu.user", 2.0, 2000, []string{"host:a"})
 	// Add a correlator that returns our test correlation
 	tb.engine.SetCorrelators([]observerdef.Correlator{&staticCorrelator{correlations: []observerdef.ActiveCorrelation{testCorrelation()}}})
-	tb.components["cusum"] = &componentInstance{
-		entry:   componentEntry{name: "cusum", kind: componentDetector},
-		enabled: true,
-	}
-	tb.components["time_cluster"] = &componentInstance{
-		entry:   componentEntry{name: "time_cluster", kind: componentCorrelator},
-		enabled: true,
-	}
-	tb.components["bocpd"] = &componentInstance{
-		entry:   componentEntry{name: "bocpd", kind: componentDetector},
-		enabled: false, // disabled — should not appear in metadata
-	}
+	tb.components["cusum"] = observerimpl.NewComponentInstanceForTest("cusum", observerimpl.ComponentDetector, true)
+	tb.components["time_cluster"] = observerimpl.NewComponentInstanceForTest("time_cluster", observerimpl.ComponentCorrelator, true)
+	tb.components["bocpd"] = observerimpl.NewComponentInstanceForTest("bocpd", observerimpl.ComponentDetector, false)
 
 	outPath := filepath.Join(t.TempDir(), "results.json")
 	require.NoError(t, tb.WriteObserverOutput(outPath, true))
@@ -153,7 +143,7 @@ func TestWriteObserverOutput_Verbose(t *testing.T) {
 	data, err := os.ReadFile(outPath)
 	require.NoError(t, err)
 
-	var output ObserverOutput
+	var output tboutput.ObserverOutput
 	require.NoError(t, json.Unmarshal(data, &output))
 
 	// Metadata
@@ -198,7 +188,7 @@ func TestWriteObserverOutput_TimelineBoundsFromStorage(t *testing.T) {
 	data, err := os.ReadFile(outPath)
 	require.NoError(t, err)
 
-	var output ObserverOutput
+	var output tboutput.ObserverOutput
 	require.NoError(t, json.Unmarshal(data, &output))
 
 	assert.Equal(t, int64(5000), output.Metadata.TimelineStart)

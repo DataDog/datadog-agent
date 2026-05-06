@@ -14,9 +14,9 @@ import (
 )
 
 // buildRealisticStorage creates storage mimicking the crash-loop scenario.
-func buildRealisticStorage(numMetrics, numSeconds int) *timeSeriesStorage {
+func buildRealisticStorage(numMetrics, numSeconds int) *TimeSeriesStorage {
 	rng := rand.New(rand.NewSource(42))
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	for sec := int64(0); sec < int64(numSeconds); sec++ {
 		for m := 0; m < numMetrics; m++ {
@@ -32,10 +32,10 @@ func buildRealisticStorage(numMetrics, numSeconds int) *timeSeriesStorage {
 }
 
 // buildRealisticEngine creates an engine with windowed or unbounded detectors.
-func buildRealisticEngine(numMetrics, numSeconds int, windowSec int64) *engine {
+func buildRealisticEngine(numMetrics, numSeconds int, windowSec int64) *Engine {
 	storage := buildRealisticStorage(numMetrics, numSeconds)
 
-	catalog := defaultCatalog()
+	catalog := DefaultCatalog()
 	detectors, correlators, _, _ := catalog.Instantiate(ComponentSettings{})
 
 	// Apply window to all seriesDetectorAdapters.
@@ -48,10 +48,10 @@ func buildRealisticEngine(numMetrics, numSeconds int, windowSec int64) *engine {
 		}
 	}
 
-	return newEngine(engineConfig{
-		storage:     storage,
-		detectors:   detectors,
-		correlators: correlators,
+	return NewEngine(EngineConfig{
+		Storage:     storage,
+		Detectors:   detectors,
+		Correlators: correlators,
 	})
 }
 
@@ -100,7 +100,7 @@ func BenchmarkReplayStoredData_Small(b *testing.B) {
 
 // BenchmarkGetSeriesRange isolates storage read cost.
 func BenchmarkGetSeriesRange(b *testing.B) {
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	for sec := int64(0); sec < 576; sec++ {
 		storage.Add("ns", "metric_0", 100.0+rand.Float64()*10, sec, nil)
 	}
@@ -112,7 +112,7 @@ func BenchmarkGetSeriesRange(b *testing.B) {
 
 // BenchmarkForEachPoint isolates the ForEachPoint read path.
 func BenchmarkForEachPoint(b *testing.B) {
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	for sec := int64(0); sec < 576; sec++ {
 		storage.Add("ns", "metric_0", 100.0+rand.Float64()*10, sec, nil)
 	}
@@ -124,7 +124,7 @@ func BenchmarkForEachPoint(b *testing.B) {
 
 // BenchmarkForEachPoint_Small exercises ForEachPoint for a typical incremental read (5 points).
 func BenchmarkForEachPoint_Small(b *testing.B) {
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	for sec := int64(0); sec < 576; sec++ {
 		storage.Add("ns", "metric_0", 100.0+rand.Float64()*10, sec, nil)
 	}
@@ -136,7 +136,7 @@ func BenchmarkForEachPoint_Small(b *testing.B) {
 
 // BenchmarkPointCountUpTo isolates the cheap "has new data" check.
 func BenchmarkPointCountUpTo(b *testing.B) {
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	for sec := int64(0); sec < 576; sec++ {
 		storage.Add("ns", "metric_0", 100.0+rand.Float64()*10, sec, nil)
 	}

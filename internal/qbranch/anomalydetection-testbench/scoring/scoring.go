@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+// Package scoring implements Gaussian F1 and metric TP/FP scoring for anomaly
+// detection evaluation. It consumes observer output JSON produced by the testbench.
+package scoring
 
 import (
 	"encoding/json"
@@ -13,6 +15,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	tboutput "github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench/output"
 )
 
 // ScoreInput contains the inputs for Gaussian F1 scoring.
@@ -179,13 +183,13 @@ func numericalOverlapHalfHalf(d, sigma float64) float64 {
 		// Half-Gaussian prediction (centered at d, zero for t < d)
 		var predDensity float64
 		if t >= d {
-			predDensity = 2.0 * scoreGaussianPDF(t-d, sigma)
+			predDensity = 2.0 * gaussianPDF(t-d, sigma)
 		}
 
 		// Half-Gaussian ground truth (centered at 0, zero for t < 0)
 		var gtDensity float64
 		if t >= 0 {
-			gtDensity = 2.0 * scoreGaussianPDF(t, sigma)
+			gtDensity = 2.0 * gaussianPDF(t, sigma)
 		}
 
 		minDensity := math.Min(predDensity, gtDensity)
@@ -209,8 +213,8 @@ func numericalOverlapHalfHalf(d, sigma float64) float64 {
 	return overlap
 }
 
-// scoreGaussianPDF returns the value of a zero-mean Gaussian PDF with given sigma at point x.
-func scoreGaussianPDF(x, sigma float64) float64 {
+// gaussianPDF returns the value of a zero-mean Gaussian PDF with given sigma at point x.
+func gaussianPDF(x, sigma float64) float64 {
 	return math.Exp(-x*x/(2*sigma*sigma)) / (sigma * math.Sqrt(2*math.Pi))
 }
 
@@ -225,15 +229,15 @@ type scenarioMetadata struct {
 	} `json:"disruption"`
 }
 
-// scoringMetadata holds timestamps extracted from a scenario's episode.json.
-type scoringMetadata struct {
-	groundTruthTimestamps []int64
-	baselineStart         int64 // 0 if not available
-	baselineEnd           int64 // 0 if not available
+// ScoringMetadata holds timestamps extracted from a scenario's episode.json.
+type ScoringMetadata struct {
+	GroundTruthTimestamps []int64
+	BaselineStart         int64 // 0 if not available
+	BaselineEnd           int64 // 0 if not available
 }
 
-// loadScoringMetadata reads disruption.start and baseline.start from a scenario's episode.json.
-func loadScoringMetadata(scenariosDir, scenarioName string) (*scoringMetadata, error) {
+// LoadScoringMetadata reads disruption.start and baseline.start from a scenario's episode.json.
+func LoadScoringMetadata(scenariosDir, scenarioName string) (*ScoringMetadata, error) {
 	path := filepath.Join(scenariosDir, scenarioName, "episode.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -254,8 +258,8 @@ func loadScoringMetadata(scenariosDir, scenarioName string) (*scoringMetadata, e
 		return nil, fmt.Errorf("parsing disruption.start %q: %w", meta.Disruption.Start, err)
 	}
 
-	result := &scoringMetadata{
-		groundTruthTimestamps: []int64{dt.Unix()},
+	result := &ScoringMetadata{
+		GroundTruthTimestamps: []int64{dt.Unix()},
 	}
 
 	if meta.Baseline.Start != "" {
@@ -263,7 +267,7 @@ func loadScoringMetadata(scenariosDir, scenarioName string) (*scoringMetadata, e
 		if err != nil {
 			return nil, fmt.Errorf("parsing baseline.start %q: %w", meta.Baseline.Start, err)
 		}
-		result.baselineStart = bt.Unix()
+		result.BaselineStart = bt.Unix()
 	}
 
 	if meta.Baseline.End != "" {
@@ -271,7 +275,7 @@ func loadScoringMetadata(scenariosDir, scenarioName string) (*scoringMetadata, e
 		if err != nil {
 			return nil, fmt.Errorf("parsing baseline.end %q: %w", meta.Baseline.End, err)
 		}
-		result.baselineEnd = et.Unix()
+		result.BaselineEnd = et.Unix()
 	}
 
 	return result, nil
@@ -291,15 +295,15 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 		return nil, fmt.Errorf("reading output file: %w", err)
 	}
 
-	var output ObserverOutput
-	if err := json.Unmarshal(data, &output); err != nil {
+	var obs tboutput.ObserverOutput
+	if err := json.Unmarshal(data, &obs); err != nil {
 		return nil, fmt.Errorf("parsing output JSON: %w", err)
 	}
 
 	// Load metadata if needed (for ground truth and/or baseline start/end).
 	var baselineStart, baselineEnd int64
-	if scenariosDir != "" && output.Metadata.Scenario != "" {
-		sm, err := loadScoringMetadata(scenariosDir, output.Metadata.Scenario)
+	if scenariosDir != "" && obs.Metadata.Scenario != "" {
+		sm, err := LoadScoringMetadata(scenariosDir, obs.Metadata.Scenario)
 		if err != nil {
 			if len(groundTruthTimestamps) == 0 {
 				return nil, fmt.Errorf("inferring ground truth: %w", err)
@@ -307,10 +311,10 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 			// Metadata load failed but we have explicit GT — continue without baseline filter.
 		} else {
 			if len(groundTruthTimestamps) == 0 {
-				groundTruthTimestamps = sm.groundTruthTimestamps
+				groundTruthTimestamps = sm.GroundTruthTimestamps
 			}
-			baselineStart = sm.baselineStart
-			baselineEnd = sm.baselineEnd
+			baselineStart = sm.BaselineStart
+			baselineEnd = sm.BaselineEnd
 		}
 	}
 
@@ -322,7 +326,7 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 	// Post-onset non-matched predictions are handled by ComputeGaussianF1 (ignored).
 	var predictions []int64
 	var numFilteredWarmup int
-	for _, period := range output.AnomalyPeriods {
+	for _, period := range obs.AnomalyPeriods {
 		if baselineStart > 0 && period.PeriodStart < baselineStart {
 			numFilteredWarmup++
 			continue

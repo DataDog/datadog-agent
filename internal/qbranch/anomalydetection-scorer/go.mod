@@ -6,6 +6,8 @@ replace github.com/DataDog/datadog-agent => ../../../
 
 require github.com/DataDog/datadog-agent v0.0.0-00010101000000-000000000000
 
+require github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench v0.0.0-00010101000000-000000000000
+
 require (
 	cel.dev/expr v0.25.1 // indirect
 	cyphar.com/go-pathrs v0.2.1 // indirect

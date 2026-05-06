@@ -29,7 +29,7 @@ func TestBOCPDDetector_Name(t *testing.T) {
 
 func TestBOCPDDetector_NotEnoughPoints(t *testing.T) {
 	d := testBOCPDDetector()
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	storage.Add("ns", "test.metric", 100, 1, nil)
 
 	result := d.Detect(storage, 1)
@@ -38,7 +38,7 @@ func TestBOCPDDetector_NotEnoughPoints(t *testing.T) {
 
 func TestBOCPDDetector_StableData(t *testing.T) {
 	d := testBOCPDDetector()
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	for i := 0; i < 40; i++ {
 		storage.Add("ns", "test.metric", 100+float64(i%3-1), int64(i+1), nil)
@@ -50,7 +50,7 @@ func TestBOCPDDetector_StableData(t *testing.T) {
 
 func TestBOCPDDetector_DetectsStepChange(t *testing.T) {
 	d := testBOCPDDetector()
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	for i := 0; i < 20; i++ {
 		storage.Add("ns", "test.metric", 100, int64(i+1), nil)
@@ -68,7 +68,7 @@ func TestBOCPDDetector_DetectsStepChange(t *testing.T) {
 
 func TestBOCPDDetector_DetectsDownwardStepChange(t *testing.T) {
 	d := testBOCPDDetector()
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	for i := 0; i < 25; i++ {
 		storage.Add("ns", "test.metric", 100, int64(i+1), nil)
@@ -92,7 +92,7 @@ func TestBOCPDDetector_DetectsSustainedShiftViaShortRunMass(t *testing.T) {
 	config.ShortRunLength = 6
 	d := NewBOCPDDetector(config)
 
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	// Use jittered warmup so the detector learns real variance (~10 stddev)
 	// rather than relying on the MinVariance floor. This keeps the 100→115
@@ -112,7 +112,7 @@ func TestBOCPDDetector_DetectsSustainedShiftViaShortRunMass(t *testing.T) {
 
 func TestBOCPDDetector_SustainedIncidentEmitsOnce(t *testing.T) {
 	d := testBOCPDDetector()
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	// 20 stable points, then 40 shifted points.
 	for i := 0; i < 20; i++ {
@@ -136,7 +136,7 @@ func TestBOCPDDetector_SustainedIncidentEmitsOnce(t *testing.T) {
 
 func TestBOCPDDetector_IncrementalAdvance(t *testing.T) {
 	d := testBOCPDDetector()
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	// First advance: 20 stable points.
 	for i := 0; i < 20; i++ {
@@ -162,7 +162,7 @@ func TestBOCPDDetector_RecoveryAndReAlert(t *testing.T) {
 	config.WarmupPoints = 20
 	config.RecoveryPoints = 5
 	d := NewBOCPDDetector(config)
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	ts := int64(0)
 
 	addN := func(n int, val float64) {
@@ -202,7 +202,7 @@ func TestBOCPDDetector_RecoveryAndReAlert(t *testing.T) {
 
 func TestBOCPDDetector_Reset(t *testing.T) {
 	d := testBOCPDDetector()
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	for i := 0; i < 30; i++ {
 		storage.Add("ns", "test.metric", 100, int64(i+1), nil)
@@ -217,7 +217,7 @@ func TestBOCPDDetector_Reset(t *testing.T) {
 func TestBOCPDDetector_DeterministicReplay(t *testing.T) {
 	makeDetector := func() *BOCPDDetector { return testBOCPDDetector() }
 
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	for i := 0; i < 20; i++ {
 		storage.Add("ns", "m", 100, int64(i+1), nil)
 	}
@@ -269,7 +269,7 @@ func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.
 	config.Aggregations = []observer.Aggregate{observer.AggregateAverage}
 	d := NewBOCPDDetector(config)
 
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	for i := 0; i < warmup; i++ {
 		storage.Add("ns", "metric", 10.0, int64(i+1), nil)
 	}
@@ -352,7 +352,7 @@ func TestFindingM6_BOCPDSkipsSameBucketValueMerges(t *testing.T) {
 	config.Aggregations = []observer.Aggregate{observer.AggregateAverage}
 	d := NewBOCPDDetector(config)
 
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	// Build warmup data (timestamps 1-4)
 	for i := 1; i <= 4; i++ {
@@ -418,7 +418,7 @@ func TestFindingM7_WarmupPointsOneCausesNaN(t *testing.T) {
 	config.Aggregations = []observer.Aggregate{observer.AggregateAverage}
 	d := NewBOCPDDetector(config)
 
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	// Feed a few points. With WarmupPoints=1, the first point triggers
 	// initializeFromWarmup with warmupCount=1, causing 0/0 = NaN in

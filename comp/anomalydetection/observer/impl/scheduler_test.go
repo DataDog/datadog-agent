@@ -12,7 +12,7 @@ import (
 )
 
 func TestCurrentBehaviorPolicy_OnObservation(t *testing.T) {
-	p := &currentBehaviorPolicy{}
+	p := &CurrentBehaviorPolicy{}
 
 	t.Run("advances when data time is ahead", func(t *testing.T) {
 		st := schedulerState{lastAnalyzedDataTime: 10, latestDataTime: 10}
@@ -67,7 +67,7 @@ func TestCurrentBehaviorPolicy_OnObservation(t *testing.T) {
 }
 
 func TestCurrentBehaviorPolicy_OnIdle(t *testing.T) {
-	p := &currentBehaviorPolicy{}
+	p := &CurrentBehaviorPolicy{}
 
 	st := schedulerState{lastAnalyzedDataTime: 10, latestDataTime: 20}
 	reqs := p.onIdle(99999, st)
@@ -75,7 +75,7 @@ func TestCurrentBehaviorPolicy_OnIdle(t *testing.T) {
 }
 
 func TestCurrentBehaviorPolicy_OnReplayEnd(t *testing.T) {
-	p := &currentBehaviorPolicy{}
+	p := &CurrentBehaviorPolicy{}
 
 	t.Run("advances to latest when data remains", func(t *testing.T) {
 		st := schedulerState{lastAnalyzedDataTime: 10, latestDataTime: 20}

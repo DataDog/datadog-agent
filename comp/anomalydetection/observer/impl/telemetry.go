@@ -6,22 +6,22 @@
 package observerimpl
 
 import (
-	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	// Observer
-	telemetryDetectorProcessingTimeNs = "observer.detector.processing_time_ns"
+	TelemetryDetectorProcessingTimeNs = "observer.detector.processing_time_ns"
 	// telemetryObsChannelDropped counts observations silently dropped because
 	// the internal observation channel was full. Tagged by source so per-pipeline
 	// pressure is visible (e.g. "system-checks-hf" vs "all-metrics").
 	telemetryObsChannelDropped = "observer.channel.dropped"
 	// Only in testbench
-	telemetryTbInputMetricsCount       = "observer.input_metrics.count"
-	telemetryTbInputMetricsCardinality = "observer.input_metrics.cardinality"
-	telemetryTbInputLogsCount          = "observer.input_logs.count"
+	TelemetryTbInputMetricsCount       = "observer.input_metrics.count"
+	TelemetryTbInputMetricsCardinality = "observer.input_metrics.cardinality"
+	TelemetryTbInputLogsCount          = "observer.input_logs.count"
 
 	// RRCF detector
 	telemetryRRCFScore     = "observer.rrcf.score"
@@ -34,19 +34,19 @@ const (
 // This is used to:
 // 1. Enumerate all the telemetry metrics that are emitted by the observer
 // 2. Send them to the backend if we are running in observer mode (not testbench)
-type telemetryHandler struct {
+type TelemetryHandler struct {
 	telemetryGauges   map[string]telemetry.Gauge
 	telemetryCounters map[string]telemetry.Counter
 }
 
-func newTelemetryHandler(telemetryComp telemetry.Component) *telemetryHandler {
+func NewTelemetryHandler(telemetryComp telemetry.Component) *TelemetryHandler {
 	gauges := make(map[string]telemetry.Gauge)
 	counters := make(map[string]telemetry.Counter)
 
 	// Gauges
-	gauges[telemetryDetectorProcessingTimeNs] = telemetryComp.NewGauge(
+	gauges[TelemetryDetectorProcessingTimeNs] = telemetryComp.NewGauge(
 		"observer",
-		telemetryDetectorProcessingTimeNs,
+		TelemetryDetectorProcessingTimeNs,
 		[]string{"detector"},
 		"Per detector processing time in nanoseconds (doesn't include storage time)",
 	)
@@ -64,21 +64,21 @@ func newTelemetryHandler(telemetryComp telemetry.Component) *telemetryHandler {
 	)
 
 	// Counters
-	counters[telemetryTbInputMetricsCount] = telemetryComp.NewCounter(
+	counters[TelemetryTbInputMetricsCount] = telemetryComp.NewCounter(
 		"observer",
-		telemetryTbInputMetricsCount,
+		TelemetryTbInputMetricsCount,
 		[]string{},
 		"Total number of metrics processed by the observer",
 	)
-	counters[telemetryTbInputLogsCount] = telemetryComp.NewCounter(
+	counters[TelemetryTbInputLogsCount] = telemetryComp.NewCounter(
 		"observer",
-		telemetryTbInputLogsCount,
+		TelemetryTbInputLogsCount,
 		[]string{},
 		"Total number of logs processed by the observer",
 	)
-	counters[telemetryTbInputMetricsCardinality] = telemetryComp.NewCounter(
+	counters[TelemetryTbInputMetricsCardinality] = telemetryComp.NewCounter(
 		"observer",
-		telemetryTbInputMetricsCardinality,
+		TelemetryTbInputMetricsCardinality,
 		[]string{},
 		"Total number of unique metrics processed by the observer (metrics with different tags are counted as different metrics)",
 	)
@@ -95,17 +95,17 @@ func newTelemetryHandler(telemetryComp telemetry.Component) *telemetryHandler {
 		"Observations dropped because the internal channel was full, tagged by source handle",
 	)
 
-	return &telemetryHandler{
+	return &TelemetryHandler{
 		telemetryGauges:   gauges,
 		telemetryCounters: counters,
 	}
 }
 
-// handleTelemetry handles the telemetry events by sending them to the telemetry backend.
+// HandleTelemetry handles the telemetry events by sending them to the telemetry backend.
 // Note 1: we don't forward the exact timestamp for each telemetry event but this is not a problem
 // because we use this only in the observer with realtime data
 // Note 2: we don't send logs to the backend
-func (h *telemetryHandler) handleTelemetry(events []observerdef.ObserverTelemetry) {
+func (h *TelemetryHandler) HandleTelemetry(events []observerdef.ObserverTelemetry) {
 	for _, event := range events {
 		if event.Metric == nil {
 			continue
@@ -133,8 +133,8 @@ func (h *telemetryHandler) handleTelemetry(events []observerdef.ObserverTelemetr
 	}
 }
 
-// isMetricRegistered checks if a metric is registered in the telemetry handler
-func (h *telemetryHandler) isMetricRegistered(metricName string) bool {
+// IsMetricRegistered checks if a metric is registered in the telemetry handler
+func (h *TelemetryHandler) IsMetricRegistered(metricName string) bool {
 	if _, ok := h.telemetryGauges[metricName]; ok {
 		return true
 	}
@@ -142,8 +142,8 @@ func (h *telemetryHandler) isMetricRegistered(metricName string) bool {
 	return ok
 }
 
-// isCounterMetric reports whether the storage metric name (no :agg suffix) is a registered counter.
-func (h *telemetryHandler) isCounterMetric(name string) bool {
+// IsCounterMetric reports whether the storage metric name (no :agg suffix) is a registered counter.
+func (h *TelemetryHandler) IsCounterMetric(name string) bool {
 	if h == nil {
 		return false
 	}
@@ -151,8 +151,8 @@ func (h *telemetryHandler) isCounterMetric(name string) bool {
 	return ok
 }
 
-// detectorNameFromTags returns the value of the first "detector:" tag, for ObserverTelemetry.DetectorName.
-func detectorNameFromTags(tags []string) string {
+// DetectorNameFromTags returns the value of the first "detector:" tag, for ObserverTelemetry.DetectorName.
+func DetectorNameFromTags(tags []string) string {
 	const prefix = "detector:"
 	for _, t := range tags {
 		if len(t) > len(prefix) && t[:len(prefix)] == prefix {
@@ -167,7 +167,7 @@ func detectorNameFromTags(tags []string) string {
 func newTelemetryGauge(tags []string, telemetryName string, value float64, dataTimeSec int64) observerdef.ObserverTelemetry {
 	tagsCopy := copyTags(tags)
 	return observerdef.ObserverTelemetry{
-		DetectorName: detectorNameFromTags(tagsCopy),
+		DetectorName: DetectorNameFromTags(tagsCopy),
 		Kind:         observerdef.MetricKindGauge,
 		Metric: &metricObs{
 			name:      telemetryName,
@@ -178,11 +178,11 @@ func newTelemetryGauge(tags []string, telemetryName string, value float64, dataT
 	}
 }
 
-// newTelemetryCounter creates counter telemetry: the value is added to the named counter (must be registered in newTelemetryHandler).
-func newTelemetryCounter(tags []string, telemetryName string, value float64, dataTimeSec int64) observerdef.ObserverTelemetry {
+// NewTelemetryCounter creates counter telemetry: the value is added to the named counter (must be registered in NewTelemetryHandler).
+func NewTelemetryCounter(tags []string, telemetryName string, value float64, dataTimeSec int64) observerdef.ObserverTelemetry {
 	tagsCopy := copyTags(tags)
 	return observerdef.ObserverTelemetry{
-		DetectorName: detectorNameFromTags(tagsCopy),
+		DetectorName: DetectorNameFromTags(tagsCopy),
 		Kind:         observerdef.MetricKindCounter,
 		Metric: &metricObs{
 			name:      telemetryName,

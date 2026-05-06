@@ -21,7 +21,7 @@ func testScanWelchDetector() *ScanWelchDetector {
 
 func TestScanWelch_NotEnoughPoints(t *testing.T) {
 	d := testScanWelchDetector()
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	for i := 0; i < 10; i++ {
 		storage.Add("ns", "metric", 100, int64(i+1), nil)
@@ -33,7 +33,7 @@ func TestScanWelch_NotEnoughPoints(t *testing.T) {
 
 func TestScanWelch_DetectsStepChange(t *testing.T) {
 	d := testScanWelchDetector()
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	for i := 0; i < 20; i++ {
 		storage.Add("ns", "metric", 50, int64(i+1), nil)
@@ -51,7 +51,7 @@ func TestScanWelch_DetectsStepChange(t *testing.T) {
 
 func TestScanWelch_IncrementalAdvance(t *testing.T) {
 	d := testScanWelchDetector()
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	for i := 0; i < 20; i++ {
 		storage.Add("ns", "metric", 50, int64(i+1), nil)
@@ -71,7 +71,7 @@ func TestScanWelch_IncrementalAdvance(t *testing.T) {
 
 func TestScanWelch_SegmentAdvancement(t *testing.T) {
 	d := testScanWelchDetector()
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	for i := 0; i < 20; i++ {
 		storage.Add("ns", "metric", 50, int64(i+1), nil)
@@ -92,7 +92,7 @@ func TestScanWelch_SegmentAdvancement(t *testing.T) {
 
 func TestScanWelch_TwoSequentialChanges(t *testing.T) {
 	d := testScanWelchDetector()
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	for i := 0; i < 20; i++ {
 		storage.Add("ns", "metric", 50, int64(i+1), nil)
@@ -115,7 +115,7 @@ func TestScanWelch_TwoSequentialChanges(t *testing.T) {
 func TestScanWelch_DeterministicReplay(t *testing.T) {
 	makeDetector := func() *ScanWelchDetector { return testScanWelchDetector() }
 
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	for i := 0; i < 20; i++ {
 		storage.Add("ns", "metric", 50, int64(i+1), nil)
 	}
@@ -138,7 +138,7 @@ func TestScanWelch_DeterministicReplay(t *testing.T) {
 
 func TestScanWelch_Reset(t *testing.T) {
 	d := testScanWelchDetector()
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 
 	for i := 0; i < 40; i++ {
 		storage.Add("ns", "metric", 50, int64(i+1), nil)

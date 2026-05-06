@@ -6,14 +6,14 @@
 package observerimpl
 
 import (
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 
-// EventReporter sends Datadog events for new correlations via eventSender.
+// EventReporter sends Datadog events for new correlations via EventSender.
 // It tracks seen correlations and only fires when a correlation first appears.
 type EventReporter struct {
-	sender           *eventSender
+	sender           *EventSender
 	logger           log.Component
 	seenCorrelations map[string]bool // pattern -> reported
 }

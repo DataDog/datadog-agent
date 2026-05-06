@@ -3,12 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package main
 
 import (
 	"encoding/json"
 	"fmt"
 	"os"
+
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 )
 
 // TestbenchParamsFile is the top-level structure of a --config JSON file used
@@ -59,34 +61,33 @@ type TestbenchParamsFile struct {
 //
 // Returns an error if the file cannot be read, is invalid JSON, or references
 // an unknown component name.
-func LoadTestbenchParams(path string) (ComponentSettings, error) {
+func LoadTestbenchParams(path string) (observerimpl.ComponentSettings, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return ComponentSettings{}, fmt.Errorf("reading params file %s: %w", path, err)
+		return observerimpl.ComponentSettings{}, fmt.Errorf("reading params file %s: %w", path, err)
 	}
 
 	var file TestbenchParamsFile
 	if err := json.Unmarshal(data, &file); err != nil {
-		return ComponentSettings{}, fmt.Errorf("parsing params file: %w", err)
+		return observerimpl.ComponentSettings{}, fmt.Errorf("parsing params file: %w", err)
 	}
 
-	catalog := defaultCatalog()
+	catalog := observerimpl.DefaultCatalog()
 
 	// Build name→entry index for O(1) lookup.
-	entryByName := make(map[string]componentEntry, len(catalog.entries))
-	for _, e := range catalog.entries {
-		entryByName[e.name] = e
+	entryByName := make(map[string]observerimpl.ComponentEntry, len(catalog.Entries()))
+	for _, e := range catalog.Entries() {
+		entryByName[e.Name()] = e
 	}
 
-	settings := ComponentSettings{
+	settings := observerimpl.ComponentSettings{
 		Enabled: make(map[string]bool),
-		configs: make(map[string]any),
 	}
 
 	for name, raw := range file.Components {
 		entry, ok := entryByName[name]
 		if !ok {
-			return ComponentSettings{}, fmt.Errorf("unknown component %q in params file", name)
+			return observerimpl.ComponentSettings{}, fmt.Errorf("unknown component %q in params file", name)
 		}
 
 		// Extract the optional "enabled" field.
@@ -94,19 +95,15 @@ func LoadTestbenchParams(path string) (ComponentSettings, error) {
 			Enabled *bool `json:"enabled"`
 		}
 		if err := json.Unmarshal(raw, &wrapper); err != nil {
-			return ComponentSettings{}, fmt.Errorf("parsing \"enabled\" for component %q: %w", name, err)
+			return observerimpl.ComponentSettings{}, fmt.Errorf("parsing \"enabled\" for component %q: %w", name, err)
 		}
 		if wrapper.Enabled != nil {
 			settings.Enabled[name] = *wrapper.Enabled
 		}
 
 		// Parse hyperparameters if the component supports it.
-		if entry.parseJSON != nil && entry.defaultConfig != nil {
-			cfg, err := entry.parseJSON(entry.defaultConfig, raw)
-			if err != nil {
-				return ComponentSettings{}, fmt.Errorf("parsing hyperparameters for component %q: %w", name, err)
-			}
-			settings.configs[name] = cfg
+		if err := catalog.ParseComponentConfig(&settings, entry, raw); err != nil {
+			return observerimpl.ComponentSettings{}, fmt.Errorf("parsing hyperparameters for component %q: %w", name, err)
 		}
 	}
 

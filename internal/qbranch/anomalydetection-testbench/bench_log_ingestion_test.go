@@ -3,11 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package main
 
 import (
 	"fmt"
 	"testing"
+
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 )
 
 // diverseLogContent returns distinct line shapes (JSON, kv, syslog, plain) for series s
@@ -65,30 +67,31 @@ func BenchmarkLogExtraction_SeriesCount(b *testing.B) {
 	for _, numSeries := range []int{50, 200, 500, 2000} {
 		numSeries := numSeries
 		b.Run(fmt.Sprintf("series=%d", numSeries), func(b *testing.B) {
-			logs := make([]*logObs, numSeries)
+			type logEntry struct {
+				content []byte
+				tags    []string
+			}
+			logs := make([]logEntry, numSeries)
 			for s := 0; s < numSeries; s++ {
-				logs[s] = &logObs{
-					content:     []byte(fmt.Sprintf(`{"msg":"log from series %d","level":"info"}`, s)),
-					status:      "error",
-					tags:        []string{fmt.Sprintf("series:%d", s)},
-					timestampMs: 0,
+				logs[s] = logEntry{
+					content: []byte(fmt.Sprintf(`{"msg":"log from series %d","level":"info"}`, s)),
+					tags:    []string{fmt.Sprintf("series:%d", s)},
 				}
 			}
 
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
-				_, _, extractors, _ := defaultCatalog().Instantiate(benchmarkSettings)
-				storage := newTimeSeriesStorage()
-				e := newEngine(engineConfig{
-					storage:    storage,
-					extractors: extractors,
+				_, _, extractors, _ := observerimpl.DefaultCatalog().Instantiate(benchmarkSettings)
+				storage := observerimpl.NewTimeSeriesStorage()
+				e := observerimpl.NewEngine(observerimpl.EngineConfig{
+					Storage:    storage,
+					Extractors: extractors,
 				})
 				b.StartTimer()
 
 				tsMs := int64(i) * 1000
 				for _, l := range logs {
-					l.timestampMs = tsMs
-					e.IngestLog("ns", l)
+					e.IngestLog("ns", observerimpl.NewLogObs(l.content, "error", l.tags, "", tsMs))
 				}
 			}
 		})
@@ -102,30 +105,31 @@ func BenchmarkLogExtraction_DiversePatterns(b *testing.B) {
 	for _, numSeries := range []int{50, 200, 500, 2000} {
 		numSeries := numSeries
 		b.Run(fmt.Sprintf("series=%d", numSeries), func(b *testing.B) {
-			logs := make([]*logObs, numSeries)
+			type logEntry struct {
+				content []byte
+				tags    []string
+			}
+			logs := make([]logEntry, numSeries)
 			for s := 0; s < numSeries; s++ {
-				logs[s] = &logObs{
-					content:     diverseLogContent(s),
-					status:      "error",
-					tags:        []string{fmt.Sprintf("series:%d", s)},
-					timestampMs: 0,
+				logs[s] = logEntry{
+					content: diverseLogContent(s),
+					tags:    []string{fmt.Sprintf("series:%d", s)},
 				}
 			}
 
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
-				_, _, extractors, _ := defaultCatalog().Instantiate(benchmarkSettings)
-				storage := newTimeSeriesStorage()
-				e := newEngine(engineConfig{
-					storage:    storage,
-					extractors: extractors,
+				_, _, extractors, _ := observerimpl.DefaultCatalog().Instantiate(benchmarkSettings)
+				storage := observerimpl.NewTimeSeriesStorage()
+				e := observerimpl.NewEngine(observerimpl.EngineConfig{
+					Storage:    storage,
+					Extractors: extractors,
 				})
 				b.StartTimer()
 
 				tsMs := int64(i) * 1000
 				for _, l := range logs {
-					l.timestampMs = tsMs
-					e.IngestLog("ns", l)
+					e.IngestLog("ns", observerimpl.NewLogObs(l.content, "error", l.tags, "", tsMs))
 				}
 			}
 		})

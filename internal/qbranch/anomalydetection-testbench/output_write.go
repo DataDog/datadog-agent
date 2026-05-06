@@ -3,60 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package main
 
 import (
 	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
+
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
+	tboutput "github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench/output"
 )
-
-// ObserverOutput is the top-level JSON structure produced by headless mode.
-// The Go field uses ObserverCorrelation (internal domain type) while the JSON
-// key is "anomaly_periods" — the consumer-facing name that describes what each
-// entry represents: a time period during which correlated anomalies were active.
-type ObserverOutput struct {
-	Metadata       ObserverMetadata      `json:"metadata"`
-	AnomalyPeriods []ObserverCorrelation `json:"anomaly_periods"`
-}
-
-// ObserverMetadata describes the scenario and pipeline configuration.
-type ObserverMetadata struct {
-	Scenario            string   `json:"scenario"`
-	TimelineStart       int64    `json:"timeline_start"`
-	TimelineEnd         int64    `json:"timeline_end"`
-	DetectorsEnabled    []string `json:"detectors_enabled"`
-	CorrelatorsEnabled  []string `json:"correlators_enabled"`
-	TotalAnomalyPeriods int      `json:"total_anomaly_periods"`
-	// ComponentConfigs holds the active configuration of every component in the
-	// --config params-file format: { "bocpd": { "enabled": true, "hazard": 0.05, ... }, ... }.
-	// This can be copy-pasted into a file and passed to --config to reproduce the run.
-	ComponentConfigs map[string]map[string]any `json:"component_configs,omitempty"`
-	Stats            *ReplayStats              `json:"stats,omitempty"`
-}
-
-// ObserverCorrelation is one correlation cluster.
-// Always includes the time span (pattern, period_start, period_end).
-// Verbose mode adds title, message, tags, member_series, and nested anomalies.
-type ObserverCorrelation struct {
-	Pattern      string            `json:"pattern"`
-	PeriodStart  int64             `json:"period_start"`
-	PeriodEnd    int64             `json:"period_end"`
-	Title        string            `json:"title,omitempty"`
-	Message      string            `json:"message,omitempty"`
-	Tags         []string          `json:"tags,omitempty"`
-	MemberSeries []string          `json:"member_series,omitempty"`
-	Anomalies    []ObserverAnomaly `json:"anomalies,omitempty"`
-}
-
-// ObserverAnomaly is a single anomaly nested inside a correlation (verbose only).
-type ObserverAnomaly struct {
-	Timestamp      int64  `json:"timestamp"`
-	Source         string `json:"source"`
-	SourceSeriesID string `json:"source_series_id"`
-	Detector       string `json:"detector"`
-}
 
 // WriteObserverOutput collects correlations and metadata from the TestBench
 // and writes a structured JSON results file.
@@ -74,9 +31,9 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 	var correlatorNames []string
 	componentConfigs := make(map[string]map[string]any, len(tb.components))
 	for name, ci := range tb.components {
-		entry := map[string]any{"enabled": ci.enabled}
-		if ci.activeConfig != nil {
-			if raw, err := json.Marshal(ci.activeConfig); err == nil {
+		entry := map[string]any{"enabled": ci.Enabled()}
+		if ci.ActiveConfig() != nil {
+			if raw, err := json.Marshal(ci.ActiveConfig()); err == nil {
 				var fields map[string]any
 				if err := json.Unmarshal(raw, &fields); err == nil {
 					for k, v := range fields {
@@ -87,13 +44,13 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 		}
 		componentConfigs[name] = entry
 
-		if !ci.enabled {
+		if !ci.Enabled() {
 			continue
 		}
-		switch ci.entry.kind {
-		case componentDetector:
+		switch ci.Kind() {
+		case observerimpl.ComponentDetector:
 			detectorNames = append(detectorNames, name)
-		case componentCorrelator:
+		case observerimpl.ComponentCorrelator:
 			correlatorNames = append(correlatorNames, name)
 		}
 	}
@@ -109,9 +66,9 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 	}
 
 	// Build output correlations
-	outCorrelations := make([]ObserverCorrelation, len(correlations))
+	outCorrelations := make([]tboutput.ObserverCorrelation, len(correlations))
 	for i, corr := range correlations {
-		oc := ObserverCorrelation{
+		oc := tboutput.ObserverCorrelation{
 			Pattern:     corr.Pattern,
 			PeriodStart: corr.FirstSeen,
 			PeriodEnd:   corr.LastUpdated,
@@ -119,19 +76,19 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 
 		if verbose {
 			oc.Title = corr.Title
-			oc.Message = buildChangeMessage(corr, tb.engine.Storage())
+			oc.Message = observerimpl.BuildChangeMessage(corr, tb.engine.Storage())
 			oc.Tags = []string{"source:agent-q-branch-observer", "pattern:" + corr.Pattern}
 			oc.MemberSeries = make([]string, len(corr.Members))
 			for j, m := range corr.Members {
 				oc.MemberSeries[j] = m.DisplayName()
 			}
-			oc.Anomalies = make([]ObserverAnomaly, len(corr.Anomalies))
+			oc.Anomalies = make([]tboutput.ObserverAnomaly, len(corr.Anomalies))
 			for j, a := range corr.Anomalies {
 				sourceID := a.Source.Key()
 				if a.SourceRef != nil {
 					sourceID = a.SourceRef.CompactID()
 				}
-				oc.Anomalies[j] = ObserverAnomaly{
+				oc.Anomalies[j] = tboutput.ObserverAnomaly{
 					Timestamp:      a.Timestamp,
 					Source:         a.Source.String(),
 					SourceSeriesID: sourceID,
@@ -143,8 +100,8 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 		outCorrelations[i] = oc
 	}
 
-	output := ObserverOutput{
-		Metadata: ObserverMetadata{
+	output := tboutput.ObserverOutput{
+		Metadata: tboutput.ObserverMetadata{
 			Scenario:            scenario,
 			TimelineStart:       timelineStart,
 			TimelineEnd:         timelineEnd,

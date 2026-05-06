@@ -3,17 +3,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package main
 
 import (
 	"fmt"
 	"math/rand"
 	"runtime"
 	"testing"
+
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 )
 
 // BenchmarkDetection_SeriesCount measures the steady-state per-advance cost of
-// whatever algorithms are currently enabled in defaultCatalog, across increasing
+// whatever algorithms are currently enabled in DefaultCatalog, across increasing
 // series count.
 //
 // Setup: 600s of pre-existing history, detectors warmed via ReplayStoredData.
@@ -27,11 +29,11 @@ func BenchmarkDetection_SeriesCount(b *testing.B) {
 		numSeries := numSeries
 		b.Run(fmt.Sprintf("series=%d", numSeries), func(b *testing.B) {
 			storage := buildSyntheticStorage(numSeries, 600)
-			detectors, correlators, _, _ := defaultCatalog().Instantiate(benchmarkSettings)
-			e := newEngine(engineConfig{
-				storage:     storage,
-				detectors:   detectors,
-				correlators: correlators,
+			detectors, correlators, _, _ := observerimpl.DefaultCatalog().Instantiate(benchmarkSettings)
+			e := observerimpl.NewEngine(observerimpl.EngineConfig{
+				Storage:     storage,
+				Detectors:   detectors,
+				Correlators: correlators,
 			})
 			e.ReplayStoredData()
 
@@ -68,11 +70,11 @@ func BenchmarkDetection_AdvanceFrequency(b *testing.B) {
 		newSecs := newSecs
 		b.Run(fmt.Sprintf("newSecs=%d", newSecs), func(b *testing.B) {
 			storage := buildSyntheticStorage(numSeries, 600)
-			detectors, correlators, _, _ := defaultCatalog().Instantiate(benchmarkSettings)
-			e := newEngine(engineConfig{
-				storage:     storage,
-				detectors:   detectors,
-				correlators: correlators,
+			detectors, correlators, _, _ := observerimpl.DefaultCatalog().Instantiate(benchmarkSettings)
+			e := observerimpl.NewEngine(observerimpl.EngineConfig{
+				Storage:     storage,
+				Detectors:   detectors,
+				Correlators: correlators,
 			})
 			e.ReplayStoredData()
 

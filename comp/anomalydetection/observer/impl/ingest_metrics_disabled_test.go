@@ -21,14 +21,14 @@ import (
 // ObserveMetric calls while logs and log-derived virtual metrics still
 // reach the engine.
 func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
-	storage := newTimeSeriesStorage()
+	storage := NewTimeSeriesStorage()
 	extractor := NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig())
-	eng := newEngine(engineConfig{
-		storage:    storage,
-		extractors: []observerdef.LogMetricsExtractor{extractor},
+	eng := NewEngine(EngineConfig{
+		Storage:    storage,
+		Extractors: []observerdef.LogMetricsExtractor{extractor},
 	})
 
-	th := newTelemetryHandler(noopsimpl.GetCompatComponent())
+	th := NewTelemetryHandler(noopsimpl.GetCompatComponent())
 	obs := &observerImpl{
 		engine:               eng,
 		obsCh:                make(chan observation, 16),

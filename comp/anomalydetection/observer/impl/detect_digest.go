@@ -11,7 +11,7 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
-const detectDigestFileName = "detect_digests.jsonl"
+const DetectDigestFileName = "detect_digests.jsonl"
 
 // detectDigest captures the output and input summary of a single Detect() call.
 // Primary comparison is on anomaly output; input hash is secondary.

@@ -26,7 +26,7 @@ type bulkStatusReader interface {
 }
 
 // bulkSeriesStatus returns the point count and write generation for each ref.
-// If storage implements bulkStatusReader (e.g. timeSeriesStorage), it uses a
+// If storage implements bulkStatusReader (e.g. TimeSeriesStorage), it uses a
 // single lock acquisition. Otherwise falls back to individual PointCountUpTo +
 // WriteGeneration calls per ref.
 func bulkSeriesStatus(storage observer.StorageReader, refs []observer.SeriesRef, endTime int64) []seriesStatus {
