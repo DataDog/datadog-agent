@@ -46,6 +46,7 @@ import (
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/worker"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -245,6 +246,10 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		// secretResolver.Resolve() which attempts to acquire a lock already held during subscriber callback.
 		ac.refreshConfig <- origin
 	})
+
+	// Register the trial-result callback so that the check runner worker can
+	// report each trial-mode run outcome back to AutoConfig.
+	worker.SetTrialResultCallback(ac.RecordTrialResult)
 
 	return ac
 }

@@ -208,6 +208,29 @@ func (w *Worker) Run(ctx context.Context) {
 
 		expvars.DeleteRunningStats(check.ID())
 
+		// For trial-mode checks: report outcome to AutoConfig and suppress
+		// the normal integration-error reporting on failure.
+		isTrialMode := false
+		if tc, ok := check.(interface{ IsTrialMode() bool }); ok {
+			isTrialMode = tc.IsTrialMode()
+		}
+		if isTrialMode {
+			notifyTrialResult(check.ID(), checkErr == nil)
+			if checkErr != nil {
+				log.Debugf("trial-mode check %s failed (suppressing integration error): %v", check.ID(), checkErr)
+				// Remove from running list and update run counters, then move on.
+				w.checksTracker.DeleteCheck(check.ID())
+				expvars.AddRunningCheckCount(-1)
+				expvars.AddRunsCount(1)
+				checkLogger.CheckFinished()
+				if watchdogCancel != nil {
+					close(watchdogCancel)
+					watchdogWG.Wait()
+				}
+				continue
+			}
+		}
+
 		checkWarnings := check.GetWarnings()
 
 		// Use the default sender for the service checks

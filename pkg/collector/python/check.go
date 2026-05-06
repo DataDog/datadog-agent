@@ -70,6 +70,7 @@ type PythonCheck struct {
 	instanceConfig string
 	haSupported    bool
 	cancelled      bool
+	trialMode      bool // set when scheduled via config-discovery (trial mode)
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
@@ -438,6 +439,13 @@ func (c *PythonCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 // IsHASupported returns the HA_SUPPORTED class attribute defined at Python Check level
 func (c *PythonCheck) IsHASupported() bool {
 	return c.haSupported
+}
+
+// IsTrialMode returns true when this check was scheduled via config-discovery
+// (trial mode). Trial-mode checks report their outcome to AutoConfig and do
+// not contribute to the integration_errors expvar on failure.
+func (c *PythonCheck) IsTrialMode() bool {
+	return c.trialMode
 }
 
 // pythonCheckFinalizer is a finalizer that decreases the reference count on the PyObject refs owned
