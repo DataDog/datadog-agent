@@ -112,4 +112,3 @@ func setupMockDevice(t *testing.T, customize func(device *mock.Device) *mock.Dev
 	require.Len(t, devices, 1)
 	return devices[0]
 }
-

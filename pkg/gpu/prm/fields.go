@@ -5,6 +5,7 @@
 
 //go:build linux && nvml
 
+// Package prm defines GPU Performance Resource Metrics query metadata.
 package prm
 
 const (
