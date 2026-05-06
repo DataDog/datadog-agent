@@ -61,9 +61,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	demultiplexerendpointfx "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/fx"
-	logssourcefx "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/fx"
-	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
-	recorderfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	commonendpoints "github.com/DataDog/datadog-agent/comp/api/commonendpoints/fx"
@@ -507,9 +504,7 @@ func getSharedFxOption() fx.Option {
 			})
 		}),
 		logs.Bundle(),
-		observerfx.Module(),
-		logssourcefx.Module(),
-		recorderfx.Module(),
+		getObserverOptions(),
 		langDetectionClimpl.Module(),
 		metadata.Bundle(),
 		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
