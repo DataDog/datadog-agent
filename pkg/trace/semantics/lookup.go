@@ -104,13 +104,19 @@ type LookupResult struct {
 func conditionMatches[A Accessor](accessor A, c Condition) bool {
 	v := accessor.GetString(c.Attribute)
 	found := v != ""
+
+	// No declared predicate: the condition holds iff the attribute is present.
+	if c.Present == nil && c.Eq == nil {
+		return found
+	}
+	// Each declared predicate must hold.
 	if c.Present != nil && found != *c.Present {
 		return false
 	}
-	if c.Eq != nil {
-		return found && v == fmt.Sprint(c.Eq)
+	if c.Eq != nil && (!found || v != fmt.Sprint(c.Eq)) {
+		return false
 	}
-	return c.Present != nil || found
+	return true
 }
 
 func conditionsMatch[A Accessor](accessor A, conditions []Condition) bool {
