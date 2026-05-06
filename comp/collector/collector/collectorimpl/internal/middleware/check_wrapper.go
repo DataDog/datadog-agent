@@ -103,6 +103,16 @@ func (c *CheckWrapper) ID() checkid.ID {
 	return c.inner.ID()
 }
 
+// IsTrialMode forwards to the inner check when it implements the trial-mode
+// contract used by the worker for discovery probes. Checks that don't
+// implement it are not in trial mode.
+func (c *CheckWrapper) IsTrialMode() bool {
+	if tc, ok := c.inner.(interface{ IsTrialMode() bool }); ok {
+		return tc.IsTrialMode()
+	}
+	return false
+}
+
 // GetWarnings implements Check#GetWarnings
 func (c *CheckWrapper) GetWarnings() []error {
 	return c.inner.GetWarnings()
