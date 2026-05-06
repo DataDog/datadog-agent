@@ -58,13 +58,6 @@ type configManager interface {
 
 	// getActiveServices returns the currently active services
 	getActiveServices() map[string]listeners.Service
-
-	// rescanDiscoveryTemplates re-runs reconcile for every active service
-	// that has at least one template with Discovery set. Intended to be
-	// called once Python becomes ready, to recover services that the
-	// AutoDiscovery startup race resolved before rtloader.Initialize
-	// completed (see discoverer.WaitForPython).
-	rescanDiscoveryTemplates() integration.ConfigChanges
 }
 
 // serviceAndADIDs bundles a service and its associated AD identifiers.
@@ -338,37 +331,6 @@ func (cm *reconcilingConfigManager) getActiveServices() map[string]listeners.Ser
 		res[k] = v.svc
 	}
 	return res
-}
-
-// rescanDiscoveryTemplates re-runs reconcile for every active service that has
-// at least one template with Discovery set. Used to recover from the
-// AutoDiscovery startup race: AD reconciles before rtloader.Initialize
-// completes, the discoverer returns ErrPythonNotReady (not cached), and
-// without this rescan no future event would re-trigger the probe in stable
-// conditions.
-func (cm *reconcilingConfigManager) rescanDiscoveryTemplates() integration.ConfigChanges {
-	cm.m.Lock()
-	defer cm.m.Unlock()
-
-	var changes integration.ConfigChanges
-	for svcID, svcAndADIDs := range cm.activeServices {
-		hasDiscoveryTemplate := false
-		for _, adID := range svcAndADIDs.adIDs {
-			for _, tplDigest := range cm.templatesByADID.get(adID) {
-				if tpl, ok := cm.activeConfigs[tplDigest]; ok && tpl.Discovery != nil {
-					hasDiscoveryTemplate = true
-					break
-				}
-			}
-			if hasDiscoveryTemplate {
-				break
-			}
-		}
-		if hasDiscoveryTemplate {
-			changes.Merge(cm.reconcileService(svcID))
-		}
-	}
-	return cm.applyChanges(changes)
 }
 
 // reconcileService calculates the current set of resolved templates for the

@@ -363,27 +363,6 @@ func (ac *AutoConfig) start() {
 	setupAcErrors()
 	// Start the service listener
 	go ac.serviceListening()
-	// One-shot recovery for the AD-vs-Python startup race: services that
-	// matched a discovery template before rtloader.Initialize completed
-	// got an ErrPythonNotReady (uncached) and were not scheduled. Once
-	// Python is up, re-reconcile those services so they pick up the
-	// successful probe result.
-	go ac.rescanOncePythonReady()
-}
-
-// rescanOncePythonReady blocks until Python is initialised, then re-runs
-// reconcile for every active service that has a Discovery template. On
-// builds without the python tag the wait blocks forever and the goroutine
-// lives until process exit — same fire-and-forget lifecycle as
-// serviceListening.
-func (ac *AutoConfig) rescanOncePythonReady() {
-	if err := discoverer.WaitForPython(context.Background()); err != nil {
-		return
-	}
-	changes := ac.cfgMgr.rescanDiscoveryTemplates()
-	if !changes.IsEmpty() {
-		ac.applyChanges(changes)
-	}
 }
 
 // stop just shuts down AutoConfig in a clean way.

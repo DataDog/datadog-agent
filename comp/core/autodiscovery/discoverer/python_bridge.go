@@ -8,20 +8,10 @@
 package discoverer
 
 import (
-	"context"
 	"errors"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 )
-
-// WaitForPython blocks until Python is initialized or ctx is done. Used
-// by AutoDiscovery to trigger a one-shot rescan of services with
-// Discovery templates once the runtime is up — so the early-startup
-// race (AD reconciles before rtloader.Initialize completes) is recovered
-// without needing a future container event.
-func WaitForPython(ctx context.Context) error {
-	return python.WaitReady(ctx)
-}
 
 // pythonBridge satisfies Bridge by delegating to pkg/collector/python.RunDiscover.
 type pythonBridge struct{}
