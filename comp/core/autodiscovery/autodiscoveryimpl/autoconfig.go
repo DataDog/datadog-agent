@@ -85,6 +85,7 @@ type AutoConfig struct {
 	listenerRetryStop        chan struct{}
 	schedulerController      *scheduler.Controller
 	listenerStop             chan struct{}
+	discoveryRetryStop       chan struct{}
 	healthListening          *health.Handle
 	newService               chan listeners.Service
 	delService               chan listeners.Service
@@ -213,6 +214,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		listenerCandidates:       make(map[string]*listenerCandidate),
 		listenerRetryStop:        nil, // We'll open it if needed
 		listenerStop:             make(chan struct{}),
+		discoveryRetryStop:       make(chan struct{}),
 		healthListening:          health.RegisterLiveness("ad-servicelistening"),
 		newService:               make(chan listeners.Service),
 		delService:               make(chan listeners.Service),
@@ -369,6 +371,8 @@ func (ac *AutoConfig) start() {
 	setupAcErrors()
 	// Start the service listener
 	go ac.serviceListening()
+	// Start the discovery retry loop
+	go ac.discoveryRetryLoop()
 }
 
 // stop just shuts down AutoConfig in a clean way.
@@ -382,6 +386,9 @@ func (ac *AutoConfig) stop() {
 
 	// stop the service listener
 	ac.listenerStop <- struct{}{}
+
+	// stop the discovery retry loop
+	ac.discoveryRetryStop <- struct{}{}
 
 	// stop the meta scheduler
 	ac.schedulerController.Stop()
@@ -817,4 +824,27 @@ func configType(c integration.Config) string {
 	}
 
 	return "unknown"
+}
+
+// discoveryRetryInterval matches the fastest retry slot in the discoverer's
+// default schedule (5 s). Coarser ticks would miss the 5 s slots by up to
+// one tick interval.
+const discoveryRetryInterval = 5 * time.Second
+
+// discoveryRetryLoop periodically re-runs reconcileService for services
+// whose discovery probes haven't matched yet but haven't given up. The
+// discoverer's cache decides per-call whether to actually probe (cache
+// returns "not yet due" for entries inside their nextRetryAt window).
+func (ac *AutoConfig) discoveryRetryLoop() {
+	ticker := time.NewTicker(discoveryRetryInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ac.discoveryRetryStop:
+			return
+		case <-ticker.C:
+			changes := ac.cfgMgr.retryPendingDiscoveries()
+			ac.applyChanges(changes)
+		}
+	}
 }
