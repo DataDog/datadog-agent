@@ -446,6 +446,33 @@ func TestServiceStoreLifetimeProcessCollectionDisabled(t *testing.T) {
 	}
 }
 
+// syncProcessCollection runs a single synchronous process collection and
+// notifies the store, bypassing the async collectProcesses goroutine.
+// This ensures lastCollectedProcesses is populated before Start() launches
+// the service collection goroutine that depends on it.
+func syncProcessCollection(c collectorTest) {
+	event := c.collector.collectProcessesOnce()
+	if event == nil {
+		return
+	}
+	events := make([]workloadmeta.CollectorEvent, 0, len(event.Created)+len(event.Deleted))
+	for _, proc := range event.Deleted {
+		events = append(events, workloadmeta.CollectorEvent{
+			Type:   workloadmeta.EventTypeUnset,
+			Entity: proc,
+			Source: workloadmeta.SourceProcessCollector,
+		})
+	}
+	for _, proc := range event.Created {
+		events = append(events, workloadmeta.CollectorEvent{
+			Type:   workloadmeta.EventTypeSet,
+			Entity: proc,
+			Source: workloadmeta.SourceProcessCollector,
+		})
+	}
+	c.mockStore.Notify(events)
+}
+
 func TestServiceStoreLifetime(t *testing.T) {
 	const collectionIntervalSeconds = 60
 	const collectionInterval = time.Duration(collectionIntervalSeconds) * time.Second
@@ -651,17 +678,13 @@ func TestServiceStoreLifetime(t *testing.T) {
 			c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(tc.processesToCollect, nil).Maybe()
 			c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(map[int]string{}).AnyTimes()
 
+			// Synchronously populate lastCollectedProcesses and store before
+			// Start() so the service collection goroutine sees process data
+			// on its first tick, eliminating the race between goroutines.
+			syncProcessCollection(c)
+
 			err := c.collector.Start(ctx, c.mockStore)
 			assert.NoError(t, err)
-
-			// collectProcesses runs its first iteration immediately (no tick).
-			// Wait for it to update lastCollectedProcesses before advancing
-			// the clock, so collectServicesCached reads a populated cache.
-			require.EventuallyWithT(t, func(collectT *assert.CollectT) {
-				c.collector.mux.RLock()
-				defer c.collector.mux.RUnlock()
-				assert.Len(collectT, c.collector.lastCollectedProcesses, len(tc.processesToCollect))
-			}, 2*time.Second, 10*time.Millisecond)
 
 			// Trigger service collection (service collection waits for first tick)
 			c.mockClock.Add(collectionInterval)
@@ -722,20 +745,15 @@ func TestProcessDeathRemovesServiceData(t *testing.T) {
 
 	c.collector.store = c.mockStore
 
-	c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(nil, nil).Times(2)
-	c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(2)
+	c.probe.On("ProcessesByPID", mock.Anything, mock.Anything).Return(nil, nil).Times(3)
+	c.mockContainerProvider.EXPECT().GetPidToCid(cacheValidityNoRT).Return(nil).Times(3)
+
+	// Synchronously populate lastCollectedProcesses before Start() to
+	// avoid the race between process and service collection goroutines.
+	syncProcessCollection(c)
 
 	err := c.collector.Start(ctx, c.mockStore)
 	assert.NoError(t, err)
-
-	// collectProcesses runs its first iteration immediately (no tick).
-	// Wait for it to update lastCollectedProcesses before advancing
-	// the clock, so collectServicesCached reads the correct cache.
-	require.EventuallyWithT(t, func(collectT *assert.CollectT) {
-		c.collector.mux.RLock()
-		defer c.collector.mux.RUnlock()
-		assert.Empty(collectT, c.collector.lastCollectedProcesses)
-	}, 2*time.Second, 10*time.Millisecond)
 
 	c.mockClock.Add(collectionInterval)
 
