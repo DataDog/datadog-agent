@@ -18,3 +18,9 @@ const LogPatternExtractorNamespace = "log_pattern_extractor"
 // emitted by the log metrics extractor. Used as SeriesDescriptor.Namespace and
 // as the component name in the catalog.
 const LogMetricsExtractorNamespace = "log_metrics_extractor"
+
+// SplitTagKeyOrder is the canonical ordered list of tag dimensions used to split
+// log clusters and to render split-tag summaries (e.g. in anomaly event messages).
+// When adding dimensions, update TagGroupByKey and extractTagGroupByKey in
+// comp/anomalydetection/observer/impl/log_tagged_pattern_clusterer.go.
+var SplitTagKeyOrder = []string{"source", "service", "env", "host"}

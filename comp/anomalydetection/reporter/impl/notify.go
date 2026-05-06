@@ -36,10 +36,6 @@ const (
 	logRateChangeAbsThreshold = 2
 )
 
-// splitTagKeyOrder is the canonical ordered list of tag dimensions used in
-// log-derived anomaly descriptions. Mirrors observer/impl to avoid an import cycle.
-var splitTagKeyOrder = []string{"source", "service", "env", "host"}
-
 // EventSender formats and dispatches one Datadog event per correlation.
 // When api is nil, Send prints to stdout (dry-run mode) instead of calling the API.
 type EventSender struct {
@@ -451,7 +447,7 @@ func logDerivedDescription(a observerdef.Anomaly, storage observerdef.StorageRea
 	var tagsPart string
 	if len(a.Context.SplitTags) > 0 {
 		var parts []string
-		for _, k := range splitTagKeyOrder {
+		for _, k := range observerdef.SplitTagKeyOrder {
 			if v, ok := a.Context.SplitTags[k]; ok {
 				parts = append(parts, k+"="+v)
 			}

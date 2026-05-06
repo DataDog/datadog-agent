@@ -16,12 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl/patterns"
 )
 
-// splitTagKeyOrder is the canonical ordered list of tag dimensions used to split
-// log clusters. The order governs how split-tag summaries are rendered in event
-// messages. Add new fields here AND in TagGroupByKey / extractTagGroupByKey.
-var splitTagKeyOrder = []string{"source", "service", "env", "host"}
-
 // TagGroupByKey holds the tags that are responsible for grouping logs into different clusters.
+// Canonical key order for display is observer.SplitTagKeyOrder (def/constants.go).
 // Absent tags (e.g. a log with no "env" tag) are represented by an empty string.
 type TagGroupByKey struct {
 	// Warning: Don't forget to update functions parsing tags when adding new fields
