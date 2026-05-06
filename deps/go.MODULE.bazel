@@ -251,6 +251,7 @@ use_repo(
     "com_github_datadog_datadog_agent_pkg_util_grpc",
     "com_github_datadog_datadog_agent_pkg_util_hostinfo",
     "com_github_datadog_datadog_agent_pkg_util_hostname_validate",
+    "com_github_datadog_datadog_agent_pkg_util_hostport",
     "com_github_datadog_datadog_agent_pkg_util_http",
     "com_github_datadog_datadog_agent_pkg_util_json",
     "com_github_datadog_datadog_agent_pkg_util_jsonquery",
