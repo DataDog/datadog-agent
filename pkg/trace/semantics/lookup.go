@@ -143,7 +143,7 @@ func Lookup[A Accessor](r Registry, accessor A, concept Concept) (LookupResult, 
 		return LookupResult{}, false
 	}
 	for _, tag := range tags {
-		if !conditionsMatch(accessor, tag.When) {
+		if len(tag.When) > 0 && !conditionsMatch(accessor, tag.When) {
 			continue
 		}
 		switch tag.Type {
@@ -182,7 +182,7 @@ func LookupFloat64[A Accessor](r Registry, accessor A, concept Concept) (float64
 		return 0, false
 	}
 	for _, tag := range tags {
-		if !conditionsMatch(accessor, tag.When) {
+		if len(tag.When) > 0 && !conditionsMatch(accessor, tag.When) {
 			continue
 		}
 		switch tag.Type {
@@ -214,7 +214,7 @@ func LookupInt64[A Accessor](r Registry, accessor A, concept Concept) (int64, bo
 		return 0, false
 	}
 	for _, tag := range tags {
-		if !conditionsMatch(accessor, tag.When) {
+		if len(tag.When) > 0 && !conditionsMatch(accessor, tag.When) {
 			continue
 		}
 		switch tag.Type {
