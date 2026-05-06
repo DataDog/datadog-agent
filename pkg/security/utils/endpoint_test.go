@@ -48,3 +48,9 @@ func TestGetEndpointURLIPv6(t *testing.T) {
 	url := GetEndpointURL(endpoint, "test")
 	assert.Equal(t, "http://[fd38::1]:8080/prefix/url/test", url)
 }
+
+func TestGetEndpointURLIPv6Bracketed(t *testing.T) {
+	endpoint := config.NewEndpoint("key", "keyPath", "[fd38::1]", 8080, "/prefix/url", false)
+	url := GetEndpointURL(endpoint, "test")
+	assert.Equal(t, "http://[fd38::1]:8080/prefix/url/test", url)
+}
