@@ -58,6 +58,11 @@ type configManager interface {
 
 	// getActiveServices returns the currently active services
 	getActiveServices() map[string]listeners.Service
+
+	// retryPendingDiscoveries re-runs reconcileService for each service in
+	// pendingDiscovery. Returns the aggregated ConfigChanges so the caller
+	// can apply them via the scheduler outside of cm's lock.
+	retryPendingDiscoveries() integration.ConfigChanges
 }
 
 // serviceAndADIDs bundles a service and its associated AD identifiers.
@@ -443,6 +448,25 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 	}
 
 	cm.updatePendingDiscovery(svcID)
+	return changes
+}
+
+// retryPendingDiscoveries implements configManager#retryPendingDiscoveries.
+func (cm *reconcilingConfigManager) retryPendingDiscoveries() integration.ConfigChanges {
+	cm.m.Lock()
+	defer cm.m.Unlock()
+
+	// Snapshot to avoid mutating the map mid-iteration: reconcileService
+	// updates pendingDiscovery via updatePendingDiscovery.
+	pending := make([]string, 0, len(cm.pendingDiscovery))
+	for svcID := range cm.pendingDiscovery {
+		pending = append(pending, svcID)
+	}
+
+	var changes integration.ConfigChanges
+	for _, svcID := range pending {
+		changes.Merge(cm.reconcileService(svcID))
+	}
 	return changes
 }
 

@@ -923,3 +923,49 @@ func TestPendingDiscoveryNotPopulatedForNonDiscoveryTemplate(t *testing.T) {
 	assert.NotContains(t, cm.pendingDiscovery, "docker://abc",
 		"non-discovery template must not cause pendingDiscovery membership")
 }
+
+func TestRetryPendingDiscoveriesScheduledOnLateMatch(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	hp := healthplatformmock.Mock(t)
+	disco := newFakeDiscoverer()
+	disco.pending["docker://abc|krakend"] = true // initial: pending, no match
+
+	cm := newReconcilingConfigManager(&mockResolver, hp, disco).(*reconcilingConfigManager)
+
+	tpl := integration.Config{
+		Name:          "krakend",
+		ADIdentifiers: []string{"krakend"},
+		Discovery:     &integration.Discovery{},
+		Provider:      "file",
+	}
+	svc := &dummyService{
+		ID:            "docker://abc",
+		ADIdentifiers: []string{"krakend"},
+		Hosts:         map[string]string{"main": "10.0.0.1"},
+	}
+	cm.processNewConfig(tpl)
+	cm.processNewService(svc)
+	require.Contains(t, cm.pendingDiscovery, "docker://abc")
+
+	// App becomes ready: discoverer now reports a match.
+	disco.results["docker://abc|krakend"] = true
+	disco.pending["docker://abc|krakend"] = false
+
+	changes := cm.retryPendingDiscoveries()
+
+	assert.Len(t, changes.Schedule, 1, "the late-arriving discovery should produce a scheduled config")
+	assert.NotContains(t, cm.pendingDiscovery, "docker://abc",
+		"successful late discovery removes svcID from pending set")
+}
+
+func TestRetryPendingDiscoveriesNoOpWhenEmpty(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	hp := healthplatformmock.Mock(t)
+	disco := newFakeDiscoverer()
+
+	cm := newReconcilingConfigManager(&mockResolver, hp, disco).(*reconcilingConfigManager)
+
+	changes := cm.retryPendingDiscoveries()
+	assert.Empty(t, changes.Schedule)
+	assert.Empty(t, changes.Unschedule)
+}
