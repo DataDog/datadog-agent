@@ -71,29 +71,11 @@ func (c *nvlinkPLRCollector) Collect() ([]*Metric, error) {
 	)
 
 	for _, port := range c.ports {
-		counters, err := c.prmCache.GetCounters(c.DeviceUUID(), port)
+		metrics, err := c.getPortMetrics(port)
 		if err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("get port metrics for port %d: %w", port, err))
-			continue
+			multiErr = multierror.Append(multiErr, err)
 		}
-
-		for _, field := range prm.PLRCounterFields {
-			value, found := counters[field]
-			if !found {
-				multiErr = multierror.Append(multiErr, fmt.Errorf("missing PLR counter %q for port %d", field, port))
-				continue
-			}
-
-			allMetrics = append(allMetrics, Metric{
-				Name:  field,
-				Value: float64(value),
-				Type:  metrics.GaugeType,
-				Tags: []string{
-					fmt.Sprintf("nvlink_port:%d", port),
-				},
-				Priority: Medium,
-			})
-		}
+		allMetrics = append(allMetrics, metrics...)
 	}
 
 	if len(allMetrics) == 0 && multiErr != nil {
@@ -104,7 +86,7 @@ func (c *nvlinkPLRCollector) Collect() ([]*Metric, error) {
 }
 
 func (c *nvlinkPLRCollector) getPortMetrics(port int) ([]*Metric, error) {
-	var allMetrics []Metric
+	var allMetrics []*Metric
 
 	counters, err := c.prmCache.GetCounters(c.DeviceUUID(), port)
 	if err != nil {
