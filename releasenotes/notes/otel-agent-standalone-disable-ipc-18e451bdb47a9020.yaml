@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    The OTel Agent standalone mode now automatically disables IPC with a core
+    Datadog Agent. When ``DD_OTEL_STANDALONE`` is enabled, ``DD_CMD_PORT`` is forced
+    to ``-1``, so users no longer need to set it manually when running DDOT without
+    a core Agent.
