@@ -68,9 +68,9 @@ func (c *nvlinkFECCollector) Name() CollectorName {
 	return nvlinkFEC
 }
 
-func (c *nvlinkFECCollector) Collect() ([]Metric, error) {
+func (c *nvlinkFECCollector) Collect() ([]*Metric, error) {
 	var (
-		allMetrics []Metric
+		allMetrics []*Metric
 		multiErr   error
 	)
 
@@ -86,7 +86,7 @@ func (c *nvlinkFECCollector) Collect() ([]Metric, error) {
 	return allMetrics, multiErr
 }
 
-func (c *nvlinkFECCollector) getPortMetrics(port int) ([]Metric, error) {
+func (c *nvlinkFECCollector) getPortMetrics(port int) ([]*Metric, error) {
 	fields := make([]nvml.FieldValue, len(nvlinkFECHistoryFieldIDs))
 	scopeID := uint32(port - 1)
 	for i, fieldID := range nvlinkFECHistoryFieldIDs {
@@ -100,7 +100,7 @@ func (c *nvlinkFECCollector) getPortMetrics(port int) ([]Metric, error) {
 		return nil, fmt.Errorf("get FEC history field values for scope %d: %w", scopeID, err)
 	}
 
-	var fecMetrics []Metric
+	var fecMetrics []*Metric
 	var multiErr error
 	for bucket, fieldValue := range fields {
 		if fieldValue.NvmlReturn != uint32(nvml.SUCCESS) {
@@ -118,7 +118,7 @@ func (c *nvlinkFECCollector) getPortMetrics(port int) ([]Metric, error) {
 			continue
 		}
 
-		totalMetric := Metric{
+		totalMetric := &Metric{
 			Name:     nvlinkFECTotalHistoryMetricName,
 			Type:     metrics.HistogramType,
 			Value:    float64(count),
@@ -130,10 +130,10 @@ func (c *nvlinkFECCollector) getPortMetrics(port int) ([]Metric, error) {
 				FlushFirstValue: false,
 			},
 		}
-		rateMetric := totalMetric
+		rateMetric := *totalMetric
 		rateMetric.Name = nvlinkFECHistoryMetricName
 
-		fecMetrics = append(fecMetrics, totalMetric, rateMetric)
+		fecMetrics = append(fecMetrics, totalMetric, &rateMetric)
 	}
 
 	return fecMetrics, multiErr

@@ -68,7 +68,7 @@ func TestNVLinkFECCollectorScopesAndBuckets(t *testing.T) {
 
 		require.Equal(t, nvlinkFECTotalHistoryMetricName, totalMetric.Name)
 		require.Equal(t, nvlinkFECHistoryMetricName, rateMetric.Name)
-		for _, metric := range []Metric{totalMetric, rateMetric} {
+		for _, metric := range []*Metric{totalMetric, rateMetric} {
 			require.Equal(t, metrics.HistogramType, metric.Type)
 			require.Equal(t, float64(100+bucket), metric.Value)
 			require.Equal(t, Medium, metric.Priority)
