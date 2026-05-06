@@ -5,7 +5,7 @@ go 1.25.0
 require (
 	github.com/DataDog/datadog-agent/pkg/template v0.65.1
 	github.com/dustin/go-humanize v1.0.1
-	github.com/fatih/color v1.18.0
+	github.com/fatih/color v1.19.0
 	github.com/spf13/cast v1.10.0
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/fx v1.24.0
@@ -128,7 +128,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../../pkg/logs/message
 	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../../pkg/logs/metrics
-	github.com/DataDog/datadog-agent/pkg/logs/processor => ../../../pkg/logs/processor
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../../pkg/logs/status/utils

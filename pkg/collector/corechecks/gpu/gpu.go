@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -54,6 +54,7 @@ type Check struct {
 	deviceEvtGatherer  *nvidia.DeviceEventsGatherer     // deviceEvtGatherer asynchronously listens for device events and gathers them
 	workloadTagCache   *WorkloadTagCache                // workloadTagCache caches workload tags for GPU metrics
 	containerProvider  proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
+	rateCalculator     *nvidia.RateCalculator           // rateCalculator calculates the rate of metrics
 }
 
 type checkTelemetry struct {
@@ -80,12 +81,13 @@ func Factory(tagger tagger.Component, telemetry telemetry.Component, wmeta workl
 
 func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) check.Check {
 	return &Check{
-		CheckBase:   core.NewCheckBase(CheckName),
-		tagger:      tagger,
-		telemetry:   newCheckTelemetry(telemetry),
-		wmeta:       wmeta,
-		deviceTags:  make(map[string][]string),
-		deviceCache: ddnvml.NewDeviceCache(),
+		CheckBase:      core.NewCheckBase(CheckName),
+		tagger:         tagger,
+		telemetry:      newCheckTelemetry(telemetry),
+		wmeta:          wmeta,
+		deviceTags:     make(map[string][]string),
+		deviceCache:    ddnvml.NewDeviceCache(),
+		rateCalculator: nvidia.NewRateCalculator(),
 	}
 }
 
@@ -330,8 +332,8 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 }
 
 type deviceMetricsCollection struct {
-	collectorMetrics map[nvidia.CollectorName][]nvidia.Metric // collector name -> metrics
-	totalCount       int                                      // total number of metrics across all collectors
+	collectorMetrics map[nvidia.CollectorName][]*nvidia.Metric // collector name -> metrics
+	totalCount       int                                       // total number of metrics across all collectors
 }
 
 func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*workloadmeta.Container, currentExecutionTime time.Time) error {
@@ -359,7 +361,7 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 			deviceUUID := collector.DeviceUUID()
 			if perDeviceMetrics[deviceUUID] == nil {
 				perDeviceMetrics[deviceUUID] = &deviceMetricsCollection{
-					collectorMetrics: make(map[nvidia.CollectorName][]nvidia.Metric),
+					collectorMetrics: make(map[nvidia.CollectorName][]*nvidia.Metric),
 				}
 			}
 			perDeviceMetrics[deviceUUID].collectorMetrics[collector.Name()] = metrics
@@ -377,9 +379,11 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 		deviceContainers := gpuToContainersMap[deviceUUID]
 		deviceTags := c.deviceTags[deviceUUID]
 
+		deduplicatedMetrics = c.rateCalculator.ProcessMetrics(deduplicatedMetrics, currentExecutionTime, deviceUUID)
+
 		// iterate through filtered metrics and emit them with the tags
 		for _, metric := range deduplicatedMetrics {
-			if err := c.emitSingleMetric(&metric, snd, currentExecutionTime, deviceContainers, deviceTags); err != nil {
+			if err := c.emitSingleMetric(metric, snd, currentExecutionTime, deviceContainers, deviceTags); err != nil {
 				multiErr = multierror.Append(multiErr, fmt.Errorf("error emitting metric %s: %w", metric.Name, err))
 			}
 		}

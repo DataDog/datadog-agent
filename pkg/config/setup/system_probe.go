@@ -245,6 +245,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	cfg.BindEnvAndSetDefault("network_config.enable_co_re", true)
 	cfg.BindEnvAndSetDefault("network_config.enable_fentry", false)
+	cfg.BindEnvAndSetDefault("network_config.enable_sk_tracer", false)
 
 	// TLS cert collection
 	cfg.BindEnvAndSetDefault("network_config.enable_cert_collection", false)
@@ -350,6 +351,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// Discovery config
 	cfg.BindEnvAndSetDefault("discovery.enabled", runtime.GOOS == "linux")
 	cfg.BindEnvAndSetDefault("discovery.use_system_probe_lite", runtime.GOOS == "linux")
+	cfg.BindEnvAndSetDefault("discovery.use_rust_library", false)
 	cfg.BindEnvAndSetDefault("discovery.cpu_usage_update_delay", "60s")
 	cfg.BindEnvAndSetDefault("discovery.service_collection_interval", "60s")
 
