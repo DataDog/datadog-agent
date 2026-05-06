@@ -8,62 +8,55 @@
 --   credit-based rate limiting, pattern table management (creation,
 --   eviction, ordering), sampled-count metadata tagging, detection-only
 --   noisy-log tagging, optional pattern hash tagging.
+-- Scope: A Sampler implementation that applies credit-based rate
+--   limiting per discovered log pattern. Pattern identity is
+--   defined by token-sequence similarity (the PatternMatching
+--   sub-contract). Each pattern carries a token bucket; messages
+--   matching a pattern are emitted while the bucket has credit,
+--   dropped otherwise. New patterns are discovered and added to a
+--   bounded table; when the table is full, the least-frequently-
+--   matched pattern is evicted. When the protect_important_logs
+--   option is enabled, messages whose token sequence contains a
+--   critical-severity keyword bypass rate limiting entirely.
+--   Used by log sources that opt into adaptive sampling to bound
+--   per-pattern throughput while preserving signal from low-
+--   frequency patterns and from severity-critical events.
+-- Includes: The PatternMatching sub-contract (specific to
+--   pattern-based samplers; not lifted to a shared module yet),
+--   the AdaptiveSampler entity, the PatternEntry per-pattern
+--   state entity, config, the 5 rules driving the
+--   important-bypass / emit / drop / register / evict per-message
+--   lifecycle, the 5 expression invariants on PatternEntries
+--   state, fulfilment of the Sampler contract at the
+--   AdaptiveSampling surface.
 -- Excludes:
---   - Preprocessor pipeline orchestration (JSON aggregation, multiline
---     labeling and combining, aggregation strategies upstream of sampling)
---   - Decoder configuration resolution and per-source sampler instantiation
---   - Message framing, parsing, and raw content handling
---   - Telemetry counter emissions (dropped, kept, new_patterns, evictions)
---   - NoopSampler (trivial pass-through when sampling is disabled)
---   - Include/exclude filter resolution and important-log bypass policy
---     wiring (modelled as preconditions around ProcessLog entry)
+--   - The Sampler contract itself. It lives in sampler.allium and
+--     is imported here to declare fulfilment.
+--   - Tokenization (lifted to tokenizer.allium and imported as
+--     `tokenizer/TokenSequence`).
+--   - Other Sampler implementations. NoopSampler is a trivial
+--     pass-through whose behaviour is described at the Sampler
+--     contract level — its fulfiller is either inlined or
+--     specified separately as a one-line module.
+--   - Preprocessor pipeline orchestration (JSON aggregation,
+--     multi-line labelling and combining, aggregation strategies
+--     upstream of sampling).
+--   - Decoder configuration resolution and per-source sampler
+--     instantiation.
+--   - Message framing, parsing, and raw content handling.
+--   - Telemetry counter emissions (dropped, kept, new_patterns,
+--     evictions, protected). Observability only, no behavioural
+--     effect.
 
-------------------------------------------------------------
--- Value Types
-------------------------------------------------------------
-
--- A Token is a single byte classifying a run of input characters.
--- Tokens fall into five categories:
---
---   Space: whitespace (space, tab, newline, carriage return).
---     Each whitespace run produces one Space token regardless of length.
---
---   Punctuation: each ASCII punctuation character is a distinct token:
---     : ; - _ / \ . , ' " ` ~ * + = ( ) { } [ ] & ! @ # $ % ^
---     Consecutive identical punctuation characters collapse into one
---     token (run length discarded). Different punctuation characters
---     are distinct tokens and do not form runs with each other.
---
---   Digit runs: consecutive digits [0-9] produce a single token
---     encoding the run length: D1 (1 digit) through D10 (10+ digits).
---     Runs longer than 10 are capped at D10.
---
---   Character runs: consecutive letters [a-zA-Z] and any byte not
---     classified above produce a single token encoding the run length:
---     C1 (1 char) through C10 (10+ chars). Capped at C10.
---     Before emitting, short runs (1-9 chars) are checked for special
---     token promotion (see Tokenization contract).
---
---   Special: character runs of 1-9 chars that match known patterns
---     are promoted to one of:
---       Month, Day, Zone, Apm, T
---       Warn, Fatal, Error, Panic, Alert, Severe, Critical,
---       Emergency, Exception, Crash, Failure, Deadlock, Timeout
---     The corresponding regular Cn token is replaced by the special
---     token.
-
-value TokenSequence {
-    -- Ordered sequence of tokens produced by the tokenizer from
-    -- the first line of a log message.
-    length: Integer
-}
+use "./tokenizer.allium" as tokenizer
+use "./sampler.allium" as sampler
 
 ------------------------------------------------------------
 -- Contracts
 ------------------------------------------------------------
 
 contract PatternMatching {
-    is_match: (a: TokenSequence, b: TokenSequence, threshold: Decimal) -> Boolean
+    is_match: (a: tokenizer/TokenSequence, b: tokenizer/TokenSequence, threshold: Decimal) -> Boolean
 
     @invariant Symmetry
         -- is_match(a, b, t) = is_match(b, a, t) for all a, b, t.
@@ -91,136 +84,29 @@ contract PatternMatching {
         -- This affects performance, not results.
 }
 
-contract Tokenization {
-    tokenize: (input: ByteArray, max_bytes: Integer) -> TokenSequence
-
-    @invariant ByteClassification
-        -- Each input byte maps to exactly one base category via a
-        -- 256-entry lookup table:
-        --   Digits [0-9] → digit
-        --   Letters [a-zA-Z] → character
-        --   Whitespace (0x20 space, 0x09 tab, 0x0A newline, 0x0D CR) → space
-        --   Specific ASCII punctuation → one distinct token each:
-        --     : ; - _ / \ . , ' " ` ~ * + = ( ) { } [ ] & ! @ # $ % ^
-        --   All other byte values (non-ASCII, control chars) → character
-
-    @invariant RunLengthEncoding
-        -- Consecutive bytes of the same base token form a run.
-        -- When a different base token is encountered, the accumulated
-        -- run is emitted as a single token:
-        --   Digit runs → D1 through D10 (run length preserved)
-        --   Character runs → C1 through C10 (run length preserved,
-        --     subject to special token promotion)
-        --   Space runs → one Space token (run length discarded)
-        --   Punctuation runs → one token (run length discarded;
-        --     "!!!" produces one Exclamation, same as "!")
-        -- Runs of digits or characters longer than 10 are capped:
-        -- 15 consecutive digits produce D10, identical to 10 digits.
-
-    @invariant SpecialTokenPromotion
-        -- Before emitting a character run of length 1-9, the run's
-        -- bytes are uppercased and checked against a fixed table.
-        -- If matched, the special token replaces the regular Cn:
-        --   Length 1: T → time_separator, Z → zone
-        --   Length 2: AM, PM → apm
-        --   Length 3:
-        --     JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC → month
-        --     MON TUE WED THU FRI SAT SUN → day
-        --     UTC GMT EST EDT CST CDT MST MDT PST PDT JST KST
-        --       IST MSK CET BST HST HDT NST NDT → zone
-        --   Length 4:
-        --     WARN → warn
-        --     CRIT → critical
-        --     CEST NZST NZDT ACST ACDT AEST AEDT AWST AWDT
-        --       AKST AKDT CHST CHDT → zone
-        --   Length 5:
-        --     FATAL → fatal
-        --     ERROR → error
-        --     PANIC → panic
-        --     ALERT → alert
-        --     EMERG → emergency
-        --     CRASH → crash
-        --   Length 6:
-        --     SEVERE → severe
-        --     FAILED → failure
-        --   Length 7:
-        --     WARNING → warn
-        --     CRASHED → crash
-        --     FAILURE → failure
-        --     TIMEOUT → timeout
-        --   Length 8:
-        --     CRITICAL → critical
-        --     DEADLOCK → deadlock
-        --   Length 9:
-        --     EMERGENCY → emergency
-        --     EXCEPTION → exception
-        -- Character runs of length 10+ are never promoted. Runs of
-        -- length 1-9 that match no pattern emit the regular token.
-        -- Matching is case-insensitive: "jan", "JAN", "Jan" all
-        -- match month.
-
-    @invariant InputTruncation
-        -- Only the first max_bytes of the input are tokenized.
-        -- Bytes beyond this offset are ignored. Two messages that
-        -- differ only after max_bytes produce identical token
-        -- sequences.
-
-    @invariant EmptyInput
-        -- An empty input produces an empty token sequence (length 0).
-
-    @invariant Determinism
-        -- tokenize is a pure function: the same input and max_bytes
-        -- always produce the same token sequence.
-
-    @invariant StructuralCollapsing
-        -- Two log lines produce identical token sequences if, at
-        -- every run boundary, the replacement preserves the base
-        -- token category and the run length. Specifically:
-        --   Digits may be substituted with other digits.
-        --   Letters may be substituted with other letters of the
-        --     same case (or any case — case does not affect
-        --     classification or run boundaries).
-        --   A special-token-matching string (e.g. "Jan") may be
-        --     replaced with another that matches the same special
-        --     token (e.g. "Dec"), but NOT with an arbitrary 3-letter
-        --     string (e.g. "Foo"), which would produce C3 instead
-        --     of Month.
-        -- This is the mechanism by which the sampler groups
-        -- structurally similar logs into one pattern.
-        -- Example: "2024-01-15 10:30:45 Jan request" and
-        -- "2025-12-31 23:59:59 Dec startup" both produce:
-        --   D4 Dash D2 Dash D2 Space D2 Colon D2 Colon D2
-        --   Space Month Space C7
-
-    @guidance
-        -- The default classification maps all unrecognised bytes to
-        -- the character category. Non-ASCII bytes, UTF-8 multibyte
-        -- sequences, and control characters all produce character
-        -- run tokens. This means binary content in log lines is
-        -- treated as character runs.
-        --
-        -- The special token table is non-exhaustive and can be
-        -- expanded. Adding new recognised patterns changes which
-        -- log lines are considered structurally equivalent.
-}
-
 ------------------------------------------------------------
 -- Entities
 ------------------------------------------------------------
+
+entity AdaptiveSampler {
+    -- A configured AdaptiveSampler instance. One per log source
+    -- that uses adaptive sampling. The source field is the
+    -- per-source identifier matching the telemetry source tag
+    -- used by counters; the bulk of behavioural state lives in
+    -- the PatternEntries collection and the module-level config.
+    source: String
+}
 
 entity PatternEntry {
     -- A structural class of log messages tracked in the sampler's
     -- pattern table. Each entry represents one known pattern
     -- identified by token-sequence similarity and carries the
     -- per-pattern rate-limiting state.
-    signature: TokenSequence
+    signature: tokenizer/TokenSequence
     credits: Decimal
     last_seen: Timestamp
     match_count: Integer
     sampled_count: Integer
-
-    -- Derived
-    is_exhausted: credits < 1.0
 }
 
 ------------------------------------------------------------
@@ -258,11 +144,48 @@ config {
     -- It does not tag bypassed, new-pattern, protected, under-burst,
     -- or adaptive_sampler_sampled_count:<n> logs.
     tag_pattern_hash: Boolean = false
+    -- When true, messages whose token sequence contains a
+    -- critical-severity keyword (FATAL, ERROR, PANIC, etc.)
+    -- bypass rate limiting entirely. See is_important in the
+    -- AdaptiveSampling surface's @guidance for the predicate's
+    -- scope. When false, severity has no effect on sampling
+    -- decisions and the standard 4 rules apply uniformly.
+    protect_important_logs: Boolean = false
 }
 
 ------------------------------------------------------------
 -- Rules
 ------------------------------------------------------------
+
+-- A critical-severity log bypasses the entire sampler when
+-- protect_important_logs is enabled. The message is emitted
+-- unconditionally; no pattern entry is created, no entry's state
+-- is updated, no credits are consumed. Pattern discovery and rate
+-- limiting do not apply to important logs.
+
+rule ImportantLogBypass {
+    when: ProcessLog(message, incoming)
+    requires: config.protect_important_logs
+    requires: is_important(incoming)
+
+    ensures: LogEmitted(message, sampled_count: 0)
+
+    @guidance
+        -- The is_important predicate is treated as an opaque pure
+        -- function of the input token sequence. The implementation
+        -- checks for critical-severity keyword tokens (FATAL,
+        -- ERROR, PANIC, ALERT, SEVERE, CRITICAL, EMERGENCY, WARN,
+        -- EXCEPTION, CRASH, FAILURE, DEADLOCK, TIMEOUT) — see
+        -- isImportant in sampler.go.
+        --
+        -- The bypass takes precedence over all four pattern-table
+        -- rules below (their requires clauses exclude this case
+        -- explicitly). Pattern table state is wholly untouched —
+        -- an important log with no matching pattern does not
+        -- register a new entry, and a matching pattern's
+        -- match_count, credits, last_seen and sampled_count are
+        -- left as they were.
+}
 
 -- A log matches an existing pattern and has sufficient credits
 -- to be emitted. If logs were suppressed since the last emit for
@@ -270,6 +193,7 @@ config {
 
 rule EmitMatchingLog {
     when: ProcessLog(message, incoming)
+    requires: not (config.protect_important_logs and is_important(incoming))
 
     let matches = filter(PatternEntries, e => is_match(e.signature, incoming, config.match_threshold))
     requires: matches.count > 0
@@ -320,6 +244,7 @@ rule EmitMatchingLog {
 
 rule DropMatchingLog {
     when: ProcessLog(message, incoming)
+    requires: not (config.protect_important_logs and is_important(incoming))
 
     let matches = filter(PatternEntries, e => is_match(e.signature, incoming, config.match_threshold))
     requires: matches.count > 0
@@ -358,6 +283,7 @@ rule DropMatchingLog {
 
 rule RegisterNewPattern {
     when: ProcessLog(message, incoming)
+    requires: not (config.protect_important_logs and is_important(incoming))
     requires: not PatternEntries.any(e => is_match(e.signature, incoming, config.match_threshold))
     requires: PatternEntries.count < config.max_patterns
 
@@ -383,6 +309,7 @@ rule RegisterNewPattern {
 
 rule EvictAndRegisterPattern {
     when: ProcessLog(message, incoming)
+    requires: not (config.protect_important_logs and is_important(incoming))
     requires: not PatternEntries.any(e => is_match(e.signature, incoming, config.match_threshold))
     requires: PatternEntries.count >= config.max_patterns
 
@@ -468,14 +395,172 @@ invariant SampledCountNonNegative {
 --   per second in steady state).
 
 ------------------------------------------------------------
--- Deferred Specifications
+-- Surfaces
 ------------------------------------------------------------
 
-deferred "ValidateMatchThreshold"
-    -- The adaptive sampler must reject match_threshold values
-    -- outside (0, 1] at construction time. A threshold of 0 would
-    -- match everything regardless of token content, defeating
-    -- pattern discrimination. The UserSamples path already enforces
-    -- this range (user_samples.go); the same validation needs to be
-    -- added when match_threshold is wired up as user-configurable
-    -- for the adaptive sampler.
+surface AdaptiveSampling {
+    -- The boundary between the preprocessor pipeline and one
+    -- AdaptiveSampler instance. The pipeline invokes process and
+    -- flush per the Sampler contract; this surface supplies the
+    -- pattern-based credit-driven semantics described by the 4
+    -- rules above.
+
+    context sampler: AdaptiveSampler
+
+    exposes:
+        sampler.source
+
+    provides:
+        ProcessLog(message, incoming)
+
+    contracts:
+        fulfils Sampler
+
+    @guarantee Determinism
+        -- The Sampler contract's Determinism invariant holds:
+        -- process is rule-driven, and the 5 rules
+        -- (ImportantLogBypass, EmitMatchingLog, DropMatchingLog,
+        -- RegisterNewPattern, EvictAndRegisterPattern) partition
+        -- the (incoming, state, config) input space via mutually-
+        -- exclusive requires clauses. Each rule's ensures clauses
+        -- are deterministic functions of pre-state and inputs.
+        -- The seconds_elapsed, is_match, is_important, max_by
+        -- and min_by primitives are pure.
+
+    @guarantee Totality
+        -- The Sampler contract's Totality invariant holds: every
+        -- (incoming, state, config) input matches the preconditions
+        -- of exactly one rule, so process always terminates with a
+        -- defined verdict — either LogEmitted (returning the
+        -- input message, possibly tagged) or LogDropped
+        -- (returning null). The 5 rules cover the cases:
+        --   (protect_important_logs AND is_important)           → ImportantLogBypass
+        --   (matches existing pattern AND credits sufficient)   → EmitMatchingLog
+        --   (matches existing pattern AND credits insufficient) → DropMatchingLog
+        --   (no match AND table has capacity)                   → RegisterNewPattern
+        --   (no match AND table full)                           → EvictAndRegisterPattern
+        --
+        -- The four pattern-table rules each carry a
+        -- `not (config.protect_important_logs and is_important(incoming))`
+        -- guard, making them mutually exclusive with
+        -- ImportantLogBypass.
+
+    @guarantee ContentBytePassthrough
+        -- The Sampler contract's ContentBytePassthrough invariant
+        -- holds: each rule's `ensures: LogEmitted(message, ...)`
+        -- references the original input message symbol; the rules
+        -- never construct a new content body, and they do not
+        -- mutate the message's content bytes. Emitted messages
+        -- are byte-identical to their inputs.
+
+    @guarantee TagAugmentationOnly
+        -- The Sampler contract's TagAugmentationOnly invariant
+        -- holds: the only tag the AdaptiveSampler may append is
+        -- "adaptive_sampler_sampled_count:N", added by
+        -- EmitMatchingLog when prior_sampled_count > 0. Existing
+        -- tags on the input message are preserved verbatim.
+
+    @guarantee NoMessageFabrication
+        -- The Sampler contract's NoMessageFabrication invariant
+        -- holds: every LogEmitted ensures clause references the
+        -- `message` bound by the ProcessLog trigger — the input
+        -- message of that specific process call. No rule
+        -- synthesises a Message value.
+
+    @guarantee TokenAware
+        -- Pattern classification uses the tokens argument to
+        -- process via is_match(entry.signature, incoming,
+        -- config.match_threshold). The sampler's decision is
+        -- functionally determined by the (incoming tokens,
+        -- pattern table state) tuple — content bytes do not
+        -- enter the decision logic.
+
+    @guarantee FirstLogAlwaysEmitted
+        -- A log whose token sequence does not match any
+        -- currently-tracked pattern is ALWAYS emitted. Guaranteed
+        -- by RegisterNewPattern and EvictAndRegisterPattern, both
+        -- of which have unconditional `ensures: LogEmitted(...)`
+        -- clauses. (Follows structurally from burst_size >= 1,
+        -- validated at construction, which ensures the new
+        -- pattern's initial credit budget allows the first emit
+        -- without consulting credit balance.)
+
+    @guarantee SteadyStateRateBound
+        -- Over an interval of T seconds, the count of emitted
+        -- messages matching any single pattern is bounded by
+        -- config.burst_size + config.rate_limit * T. The
+        -- burst_size term is the initial allowance available
+        -- during pattern discovery; the rate_limit * T term is
+        -- the steady-state replenishment. Equivalently, in
+        -- steady state after the initial burst, a pattern emits
+        -- at most config.rate_limit logs per second.
+        --
+        -- This bound applies only to messages that go through
+        -- the pattern-table rules. Messages flowing through
+        -- ImportantLogBypass are not counted against any
+        -- pattern's rate limit — see ImportantLogProtection.
+
+    @guarantee ImportantLogProtection
+        -- When config.protect_important_logs is true, a message
+        -- whose token sequence satisfies the is_important
+        -- predicate is ALWAYS emitted, regardless of pattern
+        -- table state and regardless of any pattern's credit
+        -- balance. Guaranteed by the ImportantLogBypass rule's
+        -- unconditional `ensures: LogEmitted(...)`.
+        --
+        -- The bypass is non-disruptive: pattern table state is
+        -- entirely unaffected (no entry is created, no entry's
+        -- credits / match_count / sampled_count / last_seen is
+        -- updated). Important logs do not contribute to pattern
+        -- discovery; a critical-severity event observed under
+        -- bypass does not register a new pattern. (This means a
+        -- pattern matching the same shape may still be
+        -- discovered later via a non-important message of the
+        -- same shape.)
+        --
+        -- When config.protect_important_logs is false, the
+        -- predicate has no effect — the four pattern-table rules
+        -- apply uniformly regardless of severity.
+
+    @guarantee FlushNoop
+        -- flush always returns null. AdaptiveSampler does not
+        -- buffer messages — every input is decided immediately
+        -- by one of the 5 rules. The Sampler contract's flush
+        -- observable is provided here as a structural
+        -- requirement, not a behavioural one.
+
+    @guidance
+        -- Bridging the rule-based representation to the typed
+        -- contract operations:
+        --
+        -- process(msg, tokens) corresponds to firing exactly one
+        -- of the 5 rules in this module — ImportantLogBypass,
+        -- EmitMatchingLog, DropMatchingLog, RegisterNewPattern,
+        -- or EvictAndRegisterPattern — chosen by the mutually
+        -- exclusive requires clauses. Each rule's
+        -- `ensures: LogEmitted(message, ...)` corresponds to
+        -- returning the input message from process (with the
+        -- adaptive_sampler_sampled_count tag appended when
+        -- prior_sampled_count > 0). `ensures: LogDropped(message)`
+        -- corresponds to returning null. The `incoming` parameter
+        -- of ProcessLog is the tokens argument to process.
+        --
+        -- The is_important predicate referenced in
+        -- ImportantLogBypass is an opaque pure function over the
+        -- input token sequence; semantically it returns true iff
+        -- the sequence contains a critical-severity keyword
+        -- token. The implementation enumerates the keywords in
+        -- isImportant (sampler.go); the spec treats the predicate
+        -- as a black box because severity-keyword tokenization is
+        -- a tokenizer concern, not a sampler concern.
+        --
+        -- flush corresponds to a no-op in this implementation —
+        -- there is no buffer to drain, so the surface observable
+        -- always reads null. See FlushNoop above.
+}
+
+------------------------------------------------------------
+-- Open Questions
+------------------------------------------------------------
+
+open question "match_threshold has no construction-time validation. A value of 0 would match everything regardless of token content, defeating pattern discrimination. The UserSamples path (user_samples.go) already enforces a (0, 1] range; the same validation needs to be added in NewAdaptiveSampler when match_threshold becomes user-configurable. Until then this is a latent foot-gun for anyone wiring up a custom AdaptiveSamplerConfig."

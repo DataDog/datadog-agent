@@ -1,0 +1,191 @@
+-- allium: 3
+-- truncation.allium
+
+-- Scope: Per-emission truncation decoration behaviour shared across
+--   the Datadog Agent's logs pipeline. Captures the common "if the
+--   content exceeds a size threshold, decorate it with `...TRUNCATED...`
+--   marker bytes and propagate a carry-over signal so the next
+--   emission can decorate its head accordingly" pattern. Fulfilled
+--   by: SingleLineHandler and MultiLineHandler (legacy decoder
+--   handlers, paths A and B), PassThroughAggregator, RegexAggregator,
+--   DetectingAggregator, and CombiningAggregator (preprocessor
+--   aggregators, paths C / D / E).
+-- Includes: The Truncatable contract (the abstract truncation
+--   operation), marker semantics, carry-over state across consecutive
+--   calls, upstream-truncation-flag propagation, tag-on-truncation
+--   timing.
+-- Excludes:
+--   - The literal byte value of the truncation marker, which is owned
+--     by the agent's message package and is treated here as an opaque
+--     constant.
+--   - The size threshold value, which is per-instance configuration
+--     supplied by the caller rather than part of the contract.
+--   - The tag VALUE applied on truncation (e.g. "single_line",
+--     "multiline_regex", "auto_multiline"). Each fulfiller chooses
+--     its own tag; the contract only specifies WHEN a tag is added,
+--     not its value.
+--   - Whitespace trimming applied to content before marker decoration:
+--     this is observable in current implementations but is an
+--     implementation choice rather than a Truncatable promise. Callers
+--     should not rely on it.
+--   - Detection-only behaviour, which produces an IsTruncated flag
+--     without adding marker bytes. The framer
+--     (pkg/logs/internal/framer) and the MultiLineParser
+--     (pkg/logs/internal/decoder/line_parser.go) signal detected
+--     overflow via this flag, which Truncatable consumes through
+--     the upstream_truncated input. Detection has its own contract
+--     at truncation_detector.allium (fulfilled by framer);
+--     MultiLineParser is a stateful accumulator with its own
+--     surface spec. Both sites have separate surface specs and
+--     property test coverage as part of the same refactor effort.
+--   - The Windows event 128 KB truncation pathway, which is
+--     single-stage, has no carry-over, and detects truncation
+--     retroactively by scanning for marker presence. It does not
+--     compose with the rest of the logs pipeline and has its own
+--     spec at windows_event_truncation.allium.
+--   - Aggregator-level concerns that surround truncation but are
+--     not part of it: CombiningAggregator's no_aggregate-resets-carry
+--     and overflow-explosion behaviours are described in
+--     combining_aggregator.allium, not here.
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+value TruncationResult {
+    -- The output of applying truncation to one piece of content.
+    --
+    -- content:       the (possibly modified) bytes to be emitted
+    --                downstream. May have the truncation marker
+    --                appended (tail), prepended (head from
+    --                carry-over), both, or neither.
+    -- is_truncated:  whether this output carries any truncation
+    --                marker. Mirrored onto the emitted message's
+    --                IsTruncated metadata flag by callers.
+    -- new_carryover: the carry-over signal for the next call on the
+    --                same Truncatable instance. True iff THIS call's
+    --                input was over-threshold (or pre-marked by
+    --                upstream); causes the next call's output to
+    --                have the marker prepended.
+    content: String
+    is_truncated: Boolean
+    new_carryover: Boolean
+}
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+contract Truncatable {
+    -- Apply truncation to one piece of content, given a size
+    -- threshold, whether an upstream stage already marked the input
+    -- as truncated, and the carry-over signal from the previous call
+    -- on the same instance. Returns the (possibly modified) content,
+    -- the output truncation flag, and the new carry-over signal.
+    --
+    -- Stateful in the sense that consecutive calls form a sequence;
+    -- the state is fully captured by the `prior_carryover` argument,
+    -- making each call's behaviour a pure function of its inputs.
+    apply:
+        (content: String,
+         threshold: Integer,
+         upstream_truncated: Boolean,
+         prior_carryover: Boolean) -> TruncationResult
+
+    @invariant PassThroughUnderThreshold
+        -- When the input is under threshold AND not marked as
+        -- truncated upstream AND there is no carry-over from a
+        -- previous call, the output content equals the input content
+        -- (subject to the trimming note below), and both output
+        -- flags (is_truncated, new_carryover) are false. No marker
+        -- is added.
+
+    @invariant TailMarkerOnOverThreshold
+        -- When the input content's length exceeds the threshold, OR
+        -- the input was marked truncated upstream, the output
+        -- content ends with the truncation marker, output
+        -- is_truncated is true, and new_carryover is true. The
+        -- new_carryover signal is the mechanism by which the next
+        -- call on the same instance knows to prepend the head
+        -- marker.
+
+    @invariant HeadMarkerOnCarryover
+        -- When prior_carryover is true, the output content begins
+        -- with the truncation marker and output is_truncated is
+        -- true. The head marker is independent of whether the
+        -- current call is also over-threshold: a call that receives
+        -- carry-over and is also over-threshold produces content
+        -- decorated at both ends.
+
+    @invariant CarryoverConsumed
+        -- The new_carryover output is determined solely by the
+        -- current call's input — specifically by whether the
+        -- content is over threshold OR upstream_truncated is true.
+        -- The prior_carryover input does NOT propagate into
+        -- new_carryover: a call with prior_carryover=true but
+        -- under-threshold non-upstream-truncated content produces
+        -- new_carryover=false. Carry-over does not "stick" across
+        -- emissions once the input returns under threshold; it is
+        -- consumed when read.
+
+    @invariant UpstreamFlagPropagation
+        -- The upstream_truncated input behaves equivalently to
+        -- "input content is over threshold" — both trigger the tail
+        -- marker and set new_carryover. This lets framer-level
+        -- truncation (where the framer marks the message but does
+        -- not add marker bytes) flow through Truncatable cleanly.
+
+    @invariant TagOnTruncation
+        -- When the output is truncated (is_truncated true), AND
+        -- the agent-wide tag_truncated_logs configuration is
+        -- enabled, the emitted message carries a "truncation reason"
+        -- tag. The tag's value is chosen by the fulfiller (e.g.
+        -- "single_line", "multiline_regex", "auto_multiline") and is
+        -- not specified by this contract. When is_truncated is false
+        -- or the config flag is off, no tag is added.
+
+    @invariant MarkerLiteral
+        -- The marker prepended and appended is the literal byte
+        -- sequence `...TRUNCATED...` (15 bytes). The marker value is
+        -- defined by the agent's message package and reused
+        -- verbatim across fulfillers; downstream consumers may
+        -- detect truncation by scanning for this exact byte
+        -- sequence at the boundaries of emitted content.
+
+    @guidance
+        -- The contract is stateless from the caller's perspective:
+        -- the carry-over signal is threaded through arguments and
+        -- return values rather than held inside the contract.
+        -- Implementations typically maintain `shouldTruncate` (or
+        -- equivalent) as instance state, but the abstract behaviour
+        -- is fully described by the (input, prior_carryover) pair.
+        --
+        -- Whitespace trimming is observable in current preprocessor
+        -- implementations (each aggregator calls `bytes.TrimSpace`
+        -- on the content before marker application). This is not
+        -- part of the contract: a fulfiller that does not trim still
+        -- satisfies Truncatable. Consumers that depend on trimming
+        -- should not rely on this contract for it.
+}
+
+------------------------------------------------------------
+-- Behavioural properties
+------------------------------------------------------------
+
+-- Properties guaranteed by the @invariants above but worth naming
+-- as observable behaviours:
+--
+-- MarkerByteIdempotence: a content already ending with the marker
+--   that is over threshold is decorated again with the marker on
+--   the tail. The marker is not de-duplicated. This is observable
+--   when an upstream stage emits marker-decorated content and a
+--   downstream stage truncates again. Fulfillers that wish to
+--   de-duplicate must do so outside the Truncatable boundary.
+--
+-- ZeroCostUnderLoad: when both carry-over is false and the input is
+--   under threshold and not upstream-truncated, the output content
+--   byte sequence equals the input content byte sequence (modulo
+--   any whitespace trimming the fulfiller chooses to apply, which
+--   is not part of the contract). This is the common path; the
+--   contract promises no allocation or transformation beyond what
+--   the named invariants require.

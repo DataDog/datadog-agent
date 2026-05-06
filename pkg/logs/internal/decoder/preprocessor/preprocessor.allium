@@ -1,0 +1,239 @@
+-- allium: 3
+-- preprocessor.allium
+
+-- Scope: The abstract preprocessor pipeline contract. Defines
+--   the PreprocessorInput / PreprocessorOutput value types
+--   crossing the pipeline boundary and the Preprocessor contract
+--   composing the five component contracts — JSONAggregator,
+--   Tokenization, Labeler, Aggregator, Sampler — into a
+--   pipeline-level interface. The contract is abstract: it
+--   declares the typed operations and end-to-end invariants but
+--   does NOT pick fulfillers for each component slot.
+--
+--   The pipeline is the abstract shape every preprocessor
+--   configuration shares:
+--
+--     PreprocessorInput
+--        ↓
+--     JSONAggregator    (combines multi-line JSON into one line)
+--        ↓
+--     Tokenization      (produces tokens + indices for the line)
+--        ↓
+--     Labeler           (classifies the line as start_group /
+--                        aggregate / no_aggregate)
+--        ↓
+--     Aggregator        (combines lines per the label into
+--                        completed messages)
+--        ↓
+--     Sampler           (drops or keeps each completed message)
+--        ↓
+--     PreprocessorOutput
+--
+--   Concrete configurations (auto-multiline + combining, regex
+--   multi-line, detection-only, default pass-through) live in
+--   their own composing spec modules. Each declares the
+--   fulfillers occupying each component slot and a surface that
+--   `fulfils Preprocessor` and `demands` the corresponding
+--   component contracts.
+-- Includes: PreprocessorInput value, PreprocessorOutput value,
+--   Preprocessor contract.
+-- Excludes:
+--   - Concrete fulfiller selections — see the per-configuration
+--     composing specs (e.g., auto_multiline_combining_pipeline.allium).
+--   - The decoder configuration logic that selects which
+--     configuration a log source uses.
+--   - The tailer / decoder upstream of this pipeline. Raw input
+--     framing is the decoder's concern; the preprocessor receives
+--     already-framed log lines.
+--   - The downstream output stage. PreprocessorOutput is fed to
+--     whatever consumer is wired downstream; that handoff is
+--     outside this contract.
+--   - Pipeline orchestration details: error propagation between
+--     stages, telemetry emission, concurrent processing. The
+--     abstract contract describes the steady-state per-line flow
+--     only.
+
+use "./tokenizer.allium" as tokenizer
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+value PreprocessorInput {
+    -- One raw log line entering the preprocessor pipeline. The
+    -- shape matches json_aggregator/Message: the first stage
+    -- (JSONAggregator) sees the line in its rawest pre-tokenized
+    -- form. Tokens, labels and truncation flags are introduced
+    -- by stages further down — they are NOT present on the input.
+    content: String
+    raw_data_len: Integer
+    tags: Set<String>
+}
+
+value PreprocessorOutput {
+    -- One completed log message leaving the preprocessor
+    -- pipeline. The shape extends aggregator/Message with the
+    -- first-line tokens forwarded by the Aggregator stage. The
+    -- Sampler may have appended sampling-related tags but never
+    -- removed any. is_truncated reflects any truncation
+    -- introduced by upstream framing or by the Aggregator.
+    content: String
+    tags: Set<String>
+    is_truncated: Boolean
+    tokens: tokenizer/TokenSequence
+}
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+contract Preprocessor {
+    -- The pipeline-level contract. A Preprocessor receives one
+    -- raw input line per call to process and returns zero or
+    -- more completed output messages — zero when all stages
+    -- buffer; one when the pipeline produces a single completion;
+    -- more when stages release combined output (e.g., Aggregator
+    -- explosion under overflow). Flush drains whatever the
+    -- buffering stages still hold.
+    --
+    -- Preprocessor is the composition of five component
+    -- contracts. Concrete configurations declare fulfillers for
+    -- each slot and a surface that `fulfils Preprocessor`,
+    -- `demands JSONAggregator, Tokenization, Labeler, Aggregator,
+    -- Sampler`. The invariants below compose from the component
+    -- contracts' invariants; per-configuration specs may refine
+    -- them with implementation-specific details.
+    process: (input: PreprocessorInput) -> Sequence<PreprocessorOutput>
+
+    -- flush takes no arguments in the Go implementation. Allium 3
+    -- does not support zero-argument function signatures
+    -- (`name: () -> Type` is a parse error), so it is declared
+    -- here as a property. Its operational semantics — that flush
+    -- drains buffered state across all stateful stages and
+    -- pumps the emissions through the downstream stages — are
+    -- carried by the FlushDrainsBuffer invariant below and the
+    -- per-stage @guidance.
+    flush: Sequence<PreprocessorOutput>
+
+    @invariant EndToEndDeterminism
+        -- The pipeline as a whole is deterministic given the
+        -- five component fulfillers' states: equal input
+        -- sequences produce equal output sequences. Composes
+        -- from each component contract's Determinism invariant:
+        -- each stage is pure given its own state, and the
+        -- inter-stage handoffs are direct (the output of one
+        -- stage's operation is the input of the next). Pipeline-
+        -- level non-determinism would require non-determinism
+        -- somewhere in the chain; the component invariants
+        -- forbid that.
+
+    @invariant EndToEndByteConservation
+        -- Every byte in a PreprocessorOutput.content traces to a
+        -- byte in a PreprocessorInput.content previously supplied
+        -- to process, plus a finite set of well-known marker
+        -- bytes introduced by specific stages:
+        --   - JSON compaction whitespace elision (JSONAggregator)
+        --   - Escaped-line-feed separator between aggregated lines (Aggregator)
+        --   - Truncation marker on oversize content (Aggregator)
+        -- No stage invents content from external sources.
+        -- Composes from JSONAggregator.ByteConservation,
+        -- Aggregator.ByteConservation, and
+        -- Sampler.ContentBytePassthrough.
+
+    @invariant EndToEndTokenForwarding
+        -- The tokens carried on each PreprocessorOutput.tokens
+        -- are the tokens produced by the Tokenization stage for
+        -- the FIRST line of the message's aggregate (after the
+        -- JSONAggregator has joined any JSON fragments). They
+        -- are forwarded unchanged through Labeler / Aggregator /
+        -- Sampler — none of those stages recomputes or modifies
+        -- tokens. Composes from Aggregator's leader-tokens
+        -- guarantees (the per-fulfiller variant determines the
+        -- exact provenance) and Sampler's contract (no token
+        -- mutation).
+
+    @invariant EndToEndDropOrEmit
+        -- Each PreprocessorInput is either:
+        --   (a) contributed to exactly one PreprocessorOutput
+        --       via aggregation at JSONAggregator and/or
+        --       Aggregator, OR
+        --   (b) dropped at the Sampler stage.
+        -- Messages are never silently lost in the JSONAggregator
+        -- / Tokenization / Labeler / Aggregator chain — those
+        -- stages preserve content via their CompletenessOrPassthrough
+        -- / DeliveryOrPreservation / ByteConservation guarantees.
+        -- The Sampler is the only stage that can drop a message,
+        -- and its drop decision is the explicit null return from
+        -- process per the Sampler contract.
+
+    @invariant FlushDrainsBuffer
+        -- After flush returns, every stateful component reports
+        -- its is_empty observable as true. The pipeline's flush
+        -- procedure calls each buffering component's flush in
+        -- pipeline order (JSONAggregator, then Aggregator) and
+        -- pumps the emissions through the downstream stages.
+        -- Composes from JSONAggregator.FlushDrainsBuffer and
+        -- Aggregator.FlushDrainsBuffer. Tokenization and Labeler
+        -- are stateless; Sampler's flush returns null for the
+        -- non-buffering Sampler implementations.
+
+    @invariant ResultLifetime
+        -- The sequences returned by process and flush are valid
+        -- only until the next call to process or flush on the
+        -- same Preprocessor instance. This is the composition
+        -- of each component contract's ResultLifetime invariant:
+        -- any stage's reused backing storage may be invalidated
+        -- by the next pipeline call. Callers that retain a
+        -- returned sequence beyond the next operation must copy
+        -- it.
+
+    @guidance
+        -- Per-call flow when process is invoked with one
+        -- PreprocessorInput:
+        --
+        -- 1. JSONAggregator.process(input) — yields zero or more
+        --    intermediate messages. Most calls yield one (the
+        --    input passed through unchanged); some buffer the
+        --    input and yield zero; some yield multiple (a flush
+        --    due to size limit or invalid JSON).
+        --
+        -- 2. For each intermediate message yielded by step 1:
+        --    a. Tokenization.tokenize(content) — yields tokens
+        --       and token_indices. Tokenization is stateless;
+        --       this is a pure function of the content bytes.
+        --    b. Labeler.label(content, tokens, indices) — yields
+        --       one of {start_group, aggregate, no_aggregate}.
+        --       Labeler is stateless across calls (its own
+        --       heuristic context resets per call).
+        --    c. Aggregator.process(msg, label, tokens) — yields
+        --       zero or more AggregatedMessageWithTokens. Most
+        --       calls yield 0 or 1; the explosion path (when
+        --       supported) can yield many.
+        --    d. For each AggregatedMessageWithTokens yielded by
+        --       step 2c: Sampler.process(msg, tokens) — yields
+        --       the message or null. Each non-null becomes a
+        --       PreprocessorOutput.
+        --
+        -- 3. Return the accumulated PreprocessorOutputs.
+        --
+        -- Flush flow:
+        --
+        -- 1. JSONAggregator.flush — yields zero or more
+        --    intermediate messages.
+        -- 2. For each yielded message: run steps 2a-d above.
+        -- 3. Aggregator.flush — yields zero or more
+        --    AggregatedMessageWithTokens. (Tokenization /
+        --    Labeler are NOT re-run; the aggregator's buffered
+        --    fragments already carry their tokens.)
+        -- 4. For each yielded AggregatedMessageWithTokens: run
+        --    step 2d (Sampler).
+        -- 5. Sampler.flush — yields zero or one Message.
+        -- 6. Return all accumulated PreprocessorOutputs.
+        --
+        -- The pipeline is sequential per-source: a single
+        -- Preprocessor instance serves one log source's
+        -- sequential message stream. Concurrent process calls
+        -- on the same Preprocessor are not safe (composing the
+        -- component contracts' "not safe for concurrent use"
+        -- guidance).
+}

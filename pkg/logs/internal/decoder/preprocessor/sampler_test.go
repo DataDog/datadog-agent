@@ -91,6 +91,17 @@ var (
 
 // --- NoopSampler ---
 
+// TestNoopSampler_AlwaysPassesThrough anchors:
+//
+//	contract Sampler (sampler.allium)
+//	    @invariant ContentBytePassthrough — returned message has
+//	                                         the same bytes as input.
+//	    @invariant NoMessageFabrication — output is either an input
+//	                                       message or null.
+//
+// NoopSampler is the trivial Sampler fulfiller: it returns the
+// input message pointer unchanged on every Process call. assert.Same
+// pins pointer identity, which is stronger than byte equality.
 func TestNoopSampler_AlwaysPassesThrough(t *testing.T) {
 	s := NewNoopSampler()
 	msg := testMsg()
@@ -98,13 +109,29 @@ func TestNoopSampler_AlwaysPassesThrough(t *testing.T) {
 	assert.Same(t, msg, s.Process(msg, nil))
 }
 
+// TestNoopSampler_FlushReturnsNil anchors:
+//
+//	contract Sampler (sampler.allium)
+//	    @invariant Totality — flush returns either a Message or null.
+//
+// NoopSampler doesn't buffer; flush returns null on every read.
 func TestNoopSampler_FlushReturnsNil(t *testing.T) {
 	assert.Nil(t, NewNoopSampler().Flush())
 }
 
 // --- AdaptiveSampler: new pattern ---
 
-// A new pattern is always allowed through regardless of credits.
+// TestAdaptiveSampler_NewPatternIsAllowed anchors:
+//
+//	surface AdaptiveSampling (adaptive_sampler.allium)
+//	    @guarantee FirstLogAlwaysEmitted
+//	rule RegisterNewPattern (adaptive_sampler.allium)
+//	    — fires when no existing pattern matches and table has
+//	    capacity; emits unconditionally.
+//
+// A new pattern is always emitted regardless of credit state. The
+// rule's `ensures: PatternEntry.created(...)` is verified via
+// s.entries having a single fresh entry with matchCount=1.
 func TestAdaptiveSampler_NewPatternIsAllowed(t *testing.T) {
 	s := newSampler(10, 1.0, 0)
 	out := s.Process(testMsg(), patternA)
@@ -115,8 +142,14 @@ func TestAdaptiveSampler_NewPatternIsAllowed(t *testing.T) {
 	requireNoSampledCountTag(t, out)
 }
 
-// A new pattern entry starts with BurstSize-1 credits so that the burst
-// allowance accounts for the first message already emitted.
+// TestAdaptiveSampler_NewPatternCredits anchors:
+//
+//	rule RegisterNewPattern (adaptive_sampler.allium)
+//	    ensures: PatternEntry.created(credits: config.burst_size - 1.0, ...)
+//
+// A new entry's initial credit budget is burst_size - 1: the first
+// message consumes one credit implicitly (the same message that
+// caused the entry to be created).
 func TestAdaptiveSampler_NewPatternCredits(t *testing.T) {
 	s := newSampler(10, 5.0, 0)
 	s.Process(testMsg(), patternA)
@@ -125,7 +158,16 @@ func TestAdaptiveSampler_NewPatternCredits(t *testing.T) {
 
 // --- AdaptiveSampler: rate limiting ---
 
-// After BurstSize messages the pattern is rate-limited.
+// TestAdaptiveSampler_RateLimitsAfterBurst anchors:
+//
+//	rule DropMatchingLog (adaptive_sampler.allium)
+//	    — fires when an existing pattern matches and credits are
+//	    insufficient.
+//	surface AdaptiveSampling
+//	    @guarantee SteadyStateRateBound — burst_size + rate_limit*T.
+//
+// With rate_limit=0 and burst=3, the 4th message of a matching
+// pattern is dropped. The dropped count increments on the entry.
 func TestAdaptiveSampler_RateLimitsAfterBurst(t *testing.T) {
 	const burst = 3.0
 	s := newSampler(10, burst, 0) // no credit refill
@@ -147,7 +189,18 @@ func TestAdaptiveSampler_RateLimitsAfterBurst(t *testing.T) {
 	assert.Equal(t, int64(1), s.entries[0].sampled, "dropped messages should increment the suppressed count")
 }
 
-// After being rate-limited, credits refill at RateLimit per second.
+// TestAdaptiveSampler_CreditsRefillOverTime anchors:
+//
+//	rule EmitMatchingLog (adaptive_sampler.allium)
+//	    let elapsed_seconds = seconds_elapsed(entry.last_seen, now)
+//	    let refill = elapsed_seconds * config.rate_limit
+//	    let capped_credits = min(entry.credits + refill, burst_size)
+//
+// After credits are exhausted, advancing the clock by N seconds
+// refills N * rate_limit credits (capped at burst_size). The first
+// re-emission after exhaustion also carries the adaptive_sampler_
+// sampled_count tag annotating the prior dropped message — see
+// TagAugmentationOnly on the AdaptiveSampling surface.
 func TestAdaptiveSampler_CreditsRefillOverTime(t *testing.T) {
 	s := newSampler(10, 3.0, 2.0) // 2 credits/sec
 	t0 := time.Now()
@@ -167,6 +220,21 @@ func TestAdaptiveSampler_CreditsRefillOverTime(t *testing.T) {
 	assert.Equal(t, int64(0), s.entries[0].sampled, "emitting should reset the suppressed count")
 }
 
+// TestAdaptiveSampler_TagsSuppressedMatchesAfterLongDelay anchors:
+//
+//	rule EmitMatchingLog (adaptive_sampler.allium)
+//	    let prior_sampled_count = entry.sampled_count
+//	    ensures: entry.sampled_count = 0
+//	    ensures: LogEmitted(message, sampled_count: prior_sampled_count)
+//	rule EmitMatchingLog @guidance — the tag attaches when
+//	    prior_sampled_count > 0.
+//	surface AdaptiveSampling
+//	    @guarantee TagAugmentationOnly
+//
+// The sampled-count tag carries the count from BEFORE the rule
+// reset sampled_count to 0. This requires capturing
+// prior_sampled_count as a let-binding before the ensures clauses
+// take effect.
 func TestAdaptiveSampler_TagsSuppressedMatchesAfterLongDelay(t *testing.T) {
 	s := newSampler(10, 1.0, 1.0) // 1 log/sec
 	t0 := time.Now()
@@ -237,6 +305,16 @@ func TestAdaptiveSampler_DetectionOnlyDoesNotEmitSampledCountAfterRefill(t *test
 }
 
 // Credits are capped at BurstSize even if a long time has passed.
+// TestAdaptiveSampler_CreditsCappedAtBurstSize anchors:
+//
+//	invariant CreditsCapped (adaptive_sampler.allium)
+//	    for entry in PatternEntries: entry.credits <= config.burst_size
+//	rule EmitMatchingLog
+//	    let capped_credits = min(entry.credits + refill, burst_size)
+//
+// The refill computation caps at burst_size — an hour of elapsed
+// time at rate_limit=100 would give 360000 credits without the cap;
+// the cap bounds it to burst_size, then the emission decrements by 1.
 func TestAdaptiveSampler_CreditsCappedAtBurstSize(t *testing.T) {
 	const burst = 3.0
 	s := newSampler(10, burst, 100.0)
@@ -252,7 +330,17 @@ func TestAdaptiveSampler_CreditsCappedAtBurstSize(t *testing.T) {
 
 // --- AdaptiveSampler: pattern isolation ---
 
-// Different structural patterns are tracked independently — each has its own credit pool.
+// TestAdaptiveSampler_PatternsTrackedIndependently anchors:
+//
+//	surface AdaptiveSampling (adaptive_sampler.allium)
+//	    @guarantee TokenAware — pattern classification uses tokens
+//	                             via is_match(...).
+//	rule EmitMatchingLog / DropMatchingLog
+//	    let matches = filter(PatternEntries, e => is_match(...))
+//
+// Pattern A's exhausted credit bucket has no effect on pattern B's
+// freshly-created bucket. Each pattern entry carries its own credit
+// state.
 func TestAdaptiveSampler_PatternsTrackedIndependently(t *testing.T) {
 	s := newSampler(10, 1.0, 0) // burst of exactly 1 per pattern
 	t0 := time.Now()
@@ -272,8 +360,17 @@ func TestAdaptiveSampler_PatternsTrackedIndependently(t *testing.T) {
 
 // --- AdaptiveSampler: bubbling ---
 
-// After multiple hits, a pattern bubbles toward the front of the sorted list
-// so it is found faster on the next scan.
+// TestAdaptiveSampler_HotPatternBubblesToFront anchors:
+//
+//	rule EmitMatchingLog @guidance (adaptive_sampler.allium) —
+//	    the entry is bubbled toward the front of the sorted table
+//	    to maintain descending match_count order via a swap chain.
+//
+// After patternC accumulates the highest matchCount it sits at
+// entries[0]. Remaining entries are in descending matchCount order.
+// This is a performance optimisation (hot patterns hit early in
+// the scan) but is documented in @guidance because it's
+// implementation-visible state ordering.
 func TestAdaptiveSampler_HotPatternBubblesToFront(t *testing.T) {
 	s := newSampler(10, 100.0, 0)
 	t0 := time.Now()
@@ -302,8 +399,19 @@ func TestAdaptiveSampler_HotPatternBubblesToFront(t *testing.T) {
 
 // --- AdaptiveSampler: eviction ---
 
-// When the table is full a new pattern evicts the least-frequently-matched one
-// (the last entry in the sorted list).
+// TestAdaptiveSampler_EvictsLeastFrequentWhenFull anchors:
+//
+//	rule EvictAndRegisterPattern (adaptive_sampler.allium)
+//	    let victim = min_by(PatternEntries, e => e.match_count)
+//	    ensures: not exists victim
+//	    ensures: PatternEntry.created(...)
+//	invariant TableBounded
+//	    PatternEntries.count <= config.max_patterns
+//
+// When max_patterns=2 and the table is full, the least-frequently-
+// matched entry is evicted to make room for a new pattern. The
+// table size remains at max_patterns; the high-frequency pattern A
+// is retained.
 func TestAdaptiveSampler_EvictsLeastFrequentWhenFull(t *testing.T) {
 	s := newSampler(2, 100.0, 0) // table holds at most 2 patterns
 	t0 := time.Now()
@@ -330,10 +438,19 @@ func TestAdaptiveSampler_EvictsLeastFrequentWhenFull(t *testing.T) {
 
 // --- AdaptiveSampler: bubbling aliasing ---
 
-// When a matched entry's incremented matchCount exceeds its predecessor's, the
-// entry bubbles forward via value swaps. All entry mutations (including
-// sampled_count) must complete before bubbling, otherwise the pointer aliases a
-// different entry after the swap.
+// TestAdaptiveSampler_BubblingAliasesSampledCount anchors:
+//
+//	rule EmitMatchingLog @guidance (adaptive_sampler.allium) —
+//	    "All entry mutations complete before bubbling to avoid
+//	    pointer aliasing."
+//
+// Regression test for a specific implementation bug: the bubble-
+// sort swap chain works on values, not pointers; the local pointer
+// `e := &s.entries[i]` aliases a different entry after the first
+// swap. All mutations to the matched entry (credits, sampled_count,
+// last_seen) MUST complete before the bubbling loop starts.
+// Failure mode: the sampled_count increment lands on the wrong
+// entry, so the carry-tag count drifts off the dropped count.
 func TestAdaptiveSampler_BubblingAliasesSampledCount(t *testing.T) {
 	s := newSampler(10, 1.0, 1.0) // burst=1, rate=1/sec
 	t0 := time.Now()
@@ -409,6 +526,15 @@ func TestAdaptiveSampler_DetectionOnlyHashUsesMatchedPatternAfterBubbling(t *tes
 
 // --- AdaptiveSampler: misc ---
 
+// TestAdaptiveSampler_FlushReturnsNil anchors:
+//
+//	surface AdaptiveSampling (adaptive_sampler.allium)
+//	    @guarantee FlushNoop — flush always returns null;
+//	                            AdaptiveSampler does not buffer.
+//
+// After processing a message (which makes an immediate emit-or-drop
+// decision), flush still returns nil. There is no pending state
+// to drain.
 func TestAdaptiveSampler_FlushReturnsNil(t *testing.T) {
 	s := newSampler(10, 10.0, 1.0)
 	s.Process(testMsg(), patternA)
@@ -424,6 +550,27 @@ func TestAdaptiveSampler_EmptyContentIgnored(t *testing.T) {
 	out := s.Process(msg, nil)
 	assert.Same(t, msg, out, "empty-content message should pass through untouched")
 	require.Empty(t, s.entries, "empty-content message must not create a pattern entry")
+}
+
+// TestAdaptiveSampler_EmptyTokensNewPattern anchors:
+//
+//	contract PatternMatching (adaptive_sampler.allium)
+//	    @invariant EmptySemantics — Two empty sequences match;
+//	                                 an empty and a non-empty
+//	                                 sequence never match.
+//
+// An empty-token input never matches a non-empty existing pattern,
+// so it falls through to RegisterNewPattern. The created entry
+// has an empty signature, which would only match a future empty
+// input. (Whether this is desirable is a separate concern;
+// EmptySemantics describes the predicate's mathematical
+// behaviour.)
+func TestAdaptiveSampler_EmptyTokensNewPattern(t *testing.T) {
+	s := newSampler(10, 5.0, 0)
+	msg := testMsg()
+	out := s.Process(msg, nil)
+	assert.NotNil(t, out, "empty-token message should be allowed as new pattern")
+	require.Len(t, s.entries, 1)
 }
 
 func TestAdaptiveSampler_DoesNotTagPatternHashByDefault(t *testing.T) {
@@ -485,7 +632,19 @@ func TestAdaptiveSampler_TagPatternHashSkipsSampledCountLogs(t *testing.T) {
 
 // --- AdaptiveSampler: important log protection ---
 
-// An important log is always returned even when credits are exhausted.
+// TestAdaptiveSampler_ImportantLogBypassesRateLimit anchors:
+//
+//	rule ImportantLogBypass (adaptive_sampler.allium) —
+//	    fires when config.protect_important_logs and
+//	    is_important(incoming); emits unconditionally.
+//	surface AdaptiveSampling
+//	    @guarantee ImportantLogProtection — important logs always
+//	                                         emit regardless of
+//	                                         pattern table state.
+//
+// With burst=1 and rate_limit=0, a normal pattern would be
+// drop-limited after the first message. An important pattern
+// (ERROR token) emits indefinitely.
 func TestAdaptiveSampler_ImportantLogBypassesRateLimit(t *testing.T) {
 	s := newSamplerWithProtect(10, 1.0, 0, true)
 	t0 := time.Now()
@@ -507,7 +666,20 @@ func TestAdaptiveSampler_ImportantLogBypassesRateLimit(t *testing.T) {
 	}
 }
 
-// Important logs bypass the pattern table entirely — no entry created.
+// TestAdaptiveSampler_ImportantLogDoesNotCreateEntry anchors:
+//
+//	surface AdaptiveSampling (adaptive_sampler.allium)
+//	    @guarantee ImportantLogProtection — "The bypass is
+//	                                          non-disruptive:
+//	                                          pattern table state
+//	                                          is entirely
+//	                                          unaffected."
+//
+// An important log under protection does NOT register a new
+// pattern entry. The pattern table is exactly as it was before
+// the call. (Implication: severity-classifying a log doesn't
+// poison the pattern table with shapes the sampler will never use
+// for rate limiting.)
 func TestAdaptiveSampler_ImportantLogDoesNotCreateEntry(t *testing.T) {
 	s := newSamplerWithProtect(10, 1.0, 0, true)
 	importantTokens := tokenize("FATAL: disk full")
@@ -516,7 +688,17 @@ func TestAdaptiveSampler_ImportantLogDoesNotCreateEntry(t *testing.T) {
 	assert.Empty(t, s.entries, "important logs should not create pattern table entries")
 }
 
-// Non-important logs are still rate-limited normally when protection is on.
+// TestAdaptiveSampler_NonImportantLogStillDropped anchors:
+//
+//	surface AdaptiveSampling (adaptive_sampler.allium)
+//	    @guarantee Totality — the 5 rules partition the input
+//	                           space; non-important logs fall to
+//	                           the pattern-table rules even when
+//	                           protect_important_logs is enabled.
+//
+// Enabling protection doesn't suppress the standard rate limiting
+// for ordinary logs — only the is_important branch is rerouted.
+// Pattern-table rules still apply to anything is_important rejects.
 func TestAdaptiveSampler_NonImportantLogStillDropped(t *testing.T) {
 	s := newSamplerWithProtect(10, 1.0, 0, true)
 	t0 := time.Now()
@@ -529,7 +711,19 @@ func TestAdaptiveSampler_NonImportantLogStillDropped(t *testing.T) {
 	assert.Nil(t, s.Process(testMsg(), normalTokens), "second message should be dropped — burst exhausted")
 }
 
-// When ProtectImportantLogs is false, important logs are rate-limited like any other.
+// TestAdaptiveSampler_ProtectDisabled anchors:
+//
+//	surface AdaptiveSampling (adaptive_sampler.allium)
+//	    @guarantee ImportantLogProtection (negative case) —
+//	                "When config.protect_important_logs is false,
+//	                 the predicate has no effect — the four
+//	                 pattern-table rules apply uniformly regardless
+//	                 of severity."
+//
+// With protection disabled, an ERROR log is rate-limited just like
+// any other. The is_important branch of the dispatch is unreachable
+// because ImportantLogBypass's first `requires:
+// config.protect_important_logs` clause fails.
 func TestAdaptiveSampler_ProtectDisabled(t *testing.T) {
 	s := newSamplerWithProtect(10, 1.0, 0, false)
 	t0 := time.Now()
@@ -672,6 +866,18 @@ func TestAdaptiveSampler_ExcludeTakesPrecedenceOverInclude(t *testing.T) {
 }
 
 // isImportant returns false for tokens that contain no critical keywords.
+// TestIsImportant anchors:
+//
+//	rule ImportantLogBypass @guidance (adaptive_sampler.allium) —
+//	    "The implementation checks for critical-severity keyword
+//	    tokens (FATAL, ERROR, PANIC, ALERT, SEVERE, CRITICAL,
+//	    EMERGENCY, WARN, EXCEPTION, CRASH, FAILURE, DEADLOCK,
+//	    TIMEOUT)."
+//
+// Verifies the is_important predicate's keyword list matches the
+// list documented in @guidance. Update both together when adding
+// a new severity keyword: the test grows a row; the @guidance
+// prose grows a name.
 func TestIsImportant(t *testing.T) {
 	assert.True(t, isImportant(tokenize("FATAL: disk full")))
 	assert.True(t, isImportant(tokenize("[ERROR] request failed")))
