@@ -154,6 +154,7 @@ func getTextStatusOutput(pid int, goVersion string, arch string, flavor string, 
 		res += "  FIPS Mode: not available\n"
 	}
 
+	res += "  Log File: " + conf.GetString("log_file") + "\n"
 	res += "  Log Level: info\n"
 
 	if conf.GetLibType() != "viper" {
@@ -392,6 +393,7 @@ X Section
     PID: %d<br>
     Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
     FIPS Mode: not available<br>
+    Log File: %s<br>
     Log Level: info<br>
     Config File: There is no config file<br>
     Conf.d Path: %s<br>
@@ -420,7 +422,7 @@ X Section
     <br>Bar: bar
   </span>
 </div>
-`, agentVersion, agentFlavor, pid, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"), goVersion, arch)
+`, agentVersion, agentFlavor, pid, deps.Config.GetString("log_file"), deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"), goVersion, arch)
 
 				// We replace windows line break by linux so the tests pass on every OS
 				expectedResult := strings.ReplaceAll(expectedStatusHTMLOutput, "\r\n", "\n")
@@ -447,6 +449,7 @@ X Section
     PID: %d<br>
     Agent start: 2018-01-05 11:25:15 UTC (1515151515000)<br>
     FIPS Mode: not available<br>
+    Log File: %s<br>
     Log Level: info<br>
     Config File: There is no config file<br>
     Conf.d Path: %s<br>
@@ -469,7 +472,7 @@ X Section
     <br>Header Bar: bar
   </span>
 </div>
-`, agentVersion, agentFlavor, pid, deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"), goVersion, arch)
+`, agentVersion, agentFlavor, pid, deps.Config.GetString("log_file"), deps.Config.GetString("confd_path"), deps.Config.GetString("additional_checksd"), goVersion, arch)
 
 				// We replace windows line break by linux so the tests pass on every OS
 				expectedResult := strings.ReplaceAll(expectedStatusHTMLOutput, "\r\n", "\n")
