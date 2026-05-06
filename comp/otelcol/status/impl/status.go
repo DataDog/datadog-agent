@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"strconv"
 	"strings"
 
@@ -24,6 +23,7 @@ import (
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	ddflareextensiontypes "github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types"
 	status "github.com/DataDog/datadog-agent/comp/otelcol/status/def"
+	"github.com/DataDog/datadog-agent/pkg/util/hostport"
 	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
 
@@ -142,7 +142,7 @@ func getPrometheusURL(extensionResp ddflareextensiontypes.Response) (string, err
 			break
 		}
 	}
-	return fmt.Sprintf("http://%s/metrics", net.JoinHostPort(prometheusHost, strconv.Itoa(prometheusPort))), nil
+	return fmt.Sprintf("http://%s/metrics", hostport.Join(prometheusHost, strconv.Itoa(prometheusPort))), nil
 }
 
 func (s statusProvider) populatePrometheusStatus(prometheusURL string) error {

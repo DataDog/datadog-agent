@@ -7,11 +7,12 @@
 package converterimpl
 
 import (
-	"net"
 	"strconv"
 	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
+
+	"github.com/DataDog/datadog-agent/pkg/util/hostport"
 )
 
 var (
@@ -343,7 +344,7 @@ func findInternalMetricsAddress(conf *confmap.Conf) string {
 		if p, ok := promExpMap["port"]; ok {
 			port = p.(int)
 		}
-		return net.JoinHostPort(host, strconv.Itoa(port))
+		return hostport.Join(host, strconv.Itoa(port))
 	}
 	return internalMetricsAddress
 }
