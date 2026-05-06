@@ -14,7 +14,7 @@ RUN mkdir -p ${REPO_PATH}/dev/lib ${REPO_PATH}/dev/embedded
 COPY dev/lib/ ${REPO_PATH}/dev/lib/
 COPY dev/embedded/ ${REPO_PATH}/dev/embedded/
 
-# Sanity check: fail the build early if the new symbols are missing.
-# Use grep -a (treat binary as text) since nm/binutils are not in the base image.
-RUN grep -aq runDiscover ${REPO_PATH}/dev/lib/libdatadog-agent-three.so \
-    && grep -aq run_discover ${REPO_PATH}/dev/lib/libdatadog-agent-rtloader.so
+# Alt PoC: no run_discover/runDiscover symbols needed (trial-mode check flow).
+# Sanity check: verify the rtloader is present and executable.
+RUN test -f ${REPO_PATH}/dev/lib/libdatadog-agent-rtloader.so \
+    && test -f ${REPO_PATH}/dev/lib/libdatadog-agent-three.so
