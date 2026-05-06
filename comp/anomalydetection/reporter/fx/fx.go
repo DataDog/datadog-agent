@@ -7,9 +7,6 @@
 package fx
 
 import (
-	"go.uber.org/fx"
-
-	reporter "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	reporterimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -17,7 +14,8 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(reporterimpl.NewComponent),
-		fx.Invoke(func(_ reporter.Component) {}),
+		fxutil.ProvideComponentConstructor(
+			reporterimpl.NewComponent,
+		),
 	)
 }

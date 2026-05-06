@@ -788,6 +788,13 @@ Package observer provides a component for observing data flowing through the age
 
 Package recorder provides a middleware component for recording and replaying observer data.
 
+### [comp/anomalydetection/reporter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/reporter)
+
+*Datadog Team*: q-branch
+
+Package reporter provides a component that formats and dispatches anomaly
+detection events to the Datadog backend or stdout.
+
 ### [comp/autoscaling/datadogclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient)
 
 *Datadog Team*: container-integrations
