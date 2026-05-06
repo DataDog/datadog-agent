@@ -24,7 +24,7 @@ description: Config contains the config of the profiler.
 type: object
 properties:
   endpoint:
-    description: 'Endpoint reports the endpoint used for profiles. Default: BuildInfo.Version (e.g. v0.117.0)'
+    description: 'Endpoint is the local port the profiling HTTP server listens on; used as "localhost:<endpoint>". Default: "7501"'
     type: string
   profiler_options:
     $ref: profiler_options

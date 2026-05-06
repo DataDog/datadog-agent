@@ -1,3 +1,24 @@
+# Settings for upstream's schemagen tool.
+# https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/schemagen
+#
+# To regenerate a component's config.schema.yaml:
+#
+#   1. Build the tool from a local checkout of opentelemetry-collector-contrib:
+#        (cd /path/to/opentelemetry-collector-contrib/cmd/schemagen && go build -o /tmp/schemagen .)
+#   2. Run it against the component's directory (the one containing config.go and metadata.yaml):
+#        /tmp/schemagen comp/otelcol/<component>/...
+#
+# The tool walks up from CWD to find this file, so it must remain at or above
+# every component path it generates schemas for. See ./README.md and individual
+# component metadata.yaml files for context.
+#
+# Known limitation: schemagen treats every Go-embedded field as squashed,
+# regardless of the explicit mapstructure tag value. Components with embedded
+# pointer fields (e.g. ddflareextension's *confighttp.ServerConfig) or embedded
+# fields with a non-squash mapstructure key (e.g. serializerexporter's
+# configtls.ClientConfig with mapstructure:"tls") need hand-tuning after
+# regeneration.
+
 namespace: github.com/DataDog/datadog-agent
 mappings:
   time:

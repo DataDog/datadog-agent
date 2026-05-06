@@ -1,9 +1,9 @@
 type: serializer
+display_name: Datadog Serializer Exporter
 
 status:
   class: exporter
   stability:
     stable: [metrics]
-  distributions: []
   codeowners:
     active: [DataDog/opentelemetry]
