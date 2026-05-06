@@ -205,6 +205,7 @@ func (suite *AutoConfigTestSuite) SetupTest() {
 func getAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logsComp log.Component, telemetryComp telemetry.Component, filterComp workloadfilter.Component) *AutoConfig {
 	ac := createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logsComp, telemetryComp, filterComp, option.None[healthplatformdef.Component]())
 	go ac.serviceListening()
+	go ac.discoveryRetryLoop()
 	return ac
 }
 
