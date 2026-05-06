@@ -133,7 +133,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/workloadfilter/impl
 # gazelle:exclude comp/core/workloadfilter/program
 # gazelle:exclude comp/core/workloadfilter/remoteimpl
-# gazelle:exclude comp/core/workloadfilter/util/celprogram
 # gazelle:exclude comp/core/workloadfilter/util/docker
 # gazelle:exclude comp/core/workloadmeta/collectors
 # gazelle:exclude comp/core/workloadmeta/defaults
