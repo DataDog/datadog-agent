@@ -68,6 +68,16 @@ type IsEmptyExpr struct {
 
 func (ie *IsEmptyExpr) expr() {}
 
+// ContainsExpr represents a contains(map, key) call. It evaluates to true
+// when the map contains the given key and to false otherwise (including
+// when the map is nil).
+type ContainsExpr struct {
+	Base Expr // must resolve to a map
+	Key  Expr // literal key (base type or string)
+}
+
+func (ce *ContainsExpr) expr() {}
+
 // IndexExpr represents an index access expression (e.g., arr[0]).
 type IndexExpr struct {
 	Base  Expr
@@ -149,6 +159,14 @@ func Rewrite(root Expr, f func(Expr) Expr) Expr {
 		newOp := Rewrite(e.Operand, f)
 		if newOp != e.Operand {
 			result = &IsEmptyExpr{Operand: newOp}
+		} else {
+			result = root
+		}
+	case *ContainsExpr:
+		newBase := Rewrite(e.Base, f)
+		newKey := Rewrite(e.Key, f)
+		if newBase != e.Base || newKey != e.Key {
+			result = &ContainsExpr{Base: newBase, Key: newKey}
 		} else {
 			result = root
 		}
@@ -460,6 +478,54 @@ func Parse(dslJSON []byte) (Expr, error) {
 		}
 
 		return &IndexExpr{Base: base, Index: idx}, nil
+
+	case "contains":
+		// Map key-presence check: {"contains": [<map_expr>, <key_expr>]}
+		arrStart, err := dec.ReadToken()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read contains array start: %w", err)
+		}
+		if kind := arrStart.Kind(); kind != '[' {
+			return nil, fmt.Errorf("parse error: malformed contains: got token %v (%v), expected [", arrStart, kind)
+		}
+
+		if dec.PeekKind() == ']' {
+			return nil, errors.New("parse error: malformed contains: expected exactly two operands, got 0")
+		}
+		baseJSON, err := dec.ReadValue()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read contains base expression: %w", err)
+		}
+		base, err := Parse(baseJSON)
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to parse contains base expression: %w", err)
+		}
+
+		if dec.PeekKind() == ']' {
+			return nil, errors.New("parse error: malformed contains: expected exactly two operands, got 1")
+		}
+		keyJSON, err := dec.ReadValue()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read contains key expression: %w", err)
+		}
+		key, err := Parse(keyJSON)
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to parse contains key expression: %w", err)
+		}
+
+		arrEnd, err := dec.ReadToken()
+		if err != nil {
+			return nil, fmt.Errorf("parse error: failed to read contains array end: %w", err)
+		}
+		if kind := arrEnd.Kind(); kind != ']' {
+			return nil, errors.New("parse error: malformed contains: expected exactly two operands")
+		}
+
+		if err := readClosingBrace(); err != nil {
+			return nil, err
+		}
+
+		return &ContainsExpr{Base: base, Key: key}, nil
 
 	case "len", "isEmpty":
 		// Read the argument value and parse it recursively.
