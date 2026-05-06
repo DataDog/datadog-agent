@@ -249,7 +249,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 
 	// Register the trial-result callback so that the check runner worker can
 	// report each trial-mode run outcome back to AutoConfig.
-	worker.SetTrialResultCallback(ac.RecordTrialResult)
+	worker.RegisterTrialResultCallback(ac.RecordTrialResult)
 
 	return ac
 }

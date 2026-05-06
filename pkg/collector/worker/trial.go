@@ -16,11 +16,11 @@ var (
 	trialResultCallbacks []func(id checkid.ID, ok bool)
 )
 
-// SetTrialResultCallback registers a function to be called after each
+// RegisterTrialResultCallback registers a function to be called after each
 // trial-mode check run with the run outcome. Multiple callbacks may be
 // registered; they are called in registration order.
 // This is intended to be called once during agent startup by AutoConfig.
-func SetTrialResultCallback(fn func(id checkid.ID, ok bool)) {
+func RegisterTrialResultCallback(fn func(id checkid.ID, ok bool)) {
 	trialMu.Lock()
 	defer trialMu.Unlock()
 	trialResultCallbacks = append(trialResultCallbacks, fn)
@@ -29,8 +29,10 @@ func SetTrialResultCallback(fn func(id checkid.ID, ok bool)) {
 // notifyTrialResult invokes all registered trial-result callbacks.
 func notifyTrialResult(id checkid.ID, ok bool) {
 	trialMu.RLock()
-	defer trialMu.RUnlock()
-	for _, fn := range trialResultCallbacks {
+	callbacks := make([]func(id checkid.ID, ok bool), len(trialResultCallbacks))
+	copy(callbacks, trialResultCallbacks)
+	trialMu.RUnlock()
+	for _, fn := range callbacks {
 		fn(id, ok)
 	}
 }
