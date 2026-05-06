@@ -62,13 +62,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Otherwise, Python is loaded when the collector is initialized.
 	config.BindEnvAndSetDefault("python_lazy_loading", true)
 
-	// Runtime opt-in for experimental Python sub-interpreter isolation.
-	// Env var: DD_PYTHON_ENABLE_SUBINTERPRETERS=true
-	// Only takes effect when the agent binary was compiled with sub-interpreter
-	// support (RTLOADER_HAS_SUBINTERPRETERS). Safe to set on any binary; has
-	// no effect if the feature was not compiled in.
-	config.BindEnvAndSetDefault("python_enable_subinterpreters", false)
-
 	// List of Python check module names that should NOT run in sub-interpreters.
 	// These checks will run in the main interpreter instead. Needed for checks
 	// that depend on C extensions without sub-interpreter support.

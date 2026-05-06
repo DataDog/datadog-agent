@@ -134,7 +134,6 @@ public:
     void setIsExcludedCb(cb_is_excluded_t);
 
 private:
-#ifdef RTLOADER_HAS_SUBINTERPRETERS
     /*
      * Sub-interpreter support (Python 3.14+)
      * =======================================
@@ -212,7 +211,6 @@ private:
     // via addSubinterpBlocklistEntry(). Checked in _assignInterpreter() —
     // blocklisted modules fall back to the main interpreter.
     std::unordered_set<std::string> _subinterpBlocklist;
-#endif
     //! _importFrom member.
     /*!
       \brief This member function imports a Python object by name from the specified
