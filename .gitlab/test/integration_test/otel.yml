@@ -70,7 +70,7 @@ docker_image_build_otel:
     # Compute the image name and tag the template will push to, so after_script can reference them.
     # ECR_RELEASE_SUFFIX mirrors the logic in .docker_build_job_definition.
     - |
-      if [[ "$BUCKET_BRANCH" == "nightly" ]]; then
+      if [[ "$BUCKET_BRANCH" == "nightly" && "$IMAGE" =~ "ci/datadog-agent/agent" ]]; then
         ECR_RELEASE_SUFFIX="-nightly"
       else
         ECR_RELEASE_SUFFIX="${CI_COMMIT_TAG:+-release}"
@@ -92,11 +92,17 @@ docker_image_build_otel:
       CACHE_REGISTRY="${IMAGE}-amd64:cache"
       CACHE_FROM="--cache-from type=registry,ref=${CACHE_REGISTRY}"
       CACHE_TO=""
+      NO_CACHE=""
       if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" || "$BUCKET_BRANCH" == "nightly" ]]; then
         CACHE_TO="--cache-to type=registry,ref=${CACHE_REGISTRY},mode=max"
       fi
+      if [[ "$BUCKET_BRANCH" == "nightly" ]]; then
+        CACHE_FROM=""
+        NO_CACHE="--no-cache"
+      fi
       docker buildx build \
         --target builder_base \
+        ${NO_CACHE} \
         ${CACHE_FROM} \
         ${CACHE_TO} \
         ${BUILD_ARGS} \
