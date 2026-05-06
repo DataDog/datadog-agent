@@ -99,22 +99,27 @@ type LookupResult struct {
 
 // conditionMatches reports whether a single Condition holds against the accessor's raw
 // attribute store. Conditions read attributes by exact key — fallback chains are not
-// followed. To gate on a renamed attribute (e.g. rpc.system → rpc.system.name), list one
-// fallback entry per condition attribute in mappings.json.
+// followed. To gate on a renamed attribute (e.g. rpc.system → rpc.system.name), list
+// one fallback entry per condition attribute in mappings.json.
+//
+// A Condition has up to two predicate fields, all of which must hold (logical AND)
+// for the condition to match:
+//
+//   - Present: requires the attribute to be present (true) or absent (false).
+//   - Eq:      requires the attribute's value to equal Eq's string form. Implies presence.
+//
+// A Condition with no predicates set always matches (empty conjunction is true).
 func conditionMatches[A Accessor](accessor A, c Condition) bool {
 	value := accessor.GetString(c.Attribute)
 	found := value != ""
 
-	// No declared predicate: the condition holds iff the attribute is present.
-	if c.Present == nil && c.Eq == nil {
-		return found
-	}
-	// Each declared predicate must hold.
 	if c.Present != nil && found != *c.Present {
 		return false
 	}
-	if c.Eq != nil && (!found || value != fmt.Sprint(c.Eq)) {
-		return false
+	if c.Eq != nil {
+		if !found || value != fmt.Sprint(c.Eq) {
+			return false
+		}
 	}
 	return true
 }
