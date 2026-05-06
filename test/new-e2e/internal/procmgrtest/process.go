@@ -19,6 +19,9 @@ import (
 // CLIBin is the standard dd-procmgr CLI path on Unix test hosts.
 const CLIBin = "/opt/datadog-agent/embedded/bin/dd-procmgr"
 
+// DDOTProcessName is the dd-procmgr process name for the DDOT collector.
+const DDOTProcessName = "datadog-agent-ddot"
+
 // CommandExecutor executes a command on the remote host.
 type CommandExecutor interface {
 	ExecuteCommand(command string) (string, error)

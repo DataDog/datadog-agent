@@ -28,8 +28,6 @@ type packageDDOTSuite struct {
 }
 
 const (
-	ddotProcessName = "datadog-agent-ddot"
-
 	// ddotOtelAgentFleetPackage is the collector binary when DDOT is installed as the
 	// datadog-agent-ddot OCI package (datadog-installer install oci://…/ddot-package:…).
 	ddotOtelAgentFleetPackage = "/opt/datadog-packages/datadog-agent-ddot/stable/embedded/bin/otel-agent"
@@ -129,7 +127,7 @@ func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
 	state.AssertFileExists(ddotOtelAgentFleetPackage, 0755, "dd-agent", "dd-agent")
 
 	s.host.Run(`sudo sh -c 'grep -A30 "otelcollector:" /etc/datadog-agent/datadog.yaml | grep -qE "[[:space:]]*enabled:[[:space:]]*true"'`)
-	s.waitForRunningProcess(ddotProcessName, ddotOtelAgentFleetPackage, 90*time.Second)
+	s.waitForRunningProcess(procmgrtest.DDOTProcessName, ddotOtelAgentFleetPackage, 90*time.Second)
 }
 
 func (s *packageDDOTSuite) TestInstallDDOTWithoutDatadogYAML() {
@@ -221,7 +219,7 @@ func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
 	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0640, "dd-agent", "dd-agent")
 	s.host.Run(`sudo sh -c 'grep -A30 "otelcollector:" /etc/datadog-agent/datadog.yaml | grep -qE "[[:space:]]*enabled:[[:space:]]*true"'`)
 	state.AssertFileExists(ddotOtelAgentOtelSubcommand, 0755, "dd-agent", "dd-agent")
-	s.waitForRunningProcess(ddotProcessName, ddotOtelAgentOtelSubcommand, 90*time.Second)
+	s.waitForRunningProcess(procmgrtest.DDOTProcessName, ddotOtelAgentOtelSubcommand, 90*time.Second)
 
 	// Remove the ddot extension and verify the service stops.
 	s.host.Run("sudo datadog-agent otel remove")

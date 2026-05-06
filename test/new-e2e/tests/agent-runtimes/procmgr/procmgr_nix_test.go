@@ -153,7 +153,7 @@ func (s *procmgrLinuxSuite) installDDOTExtension() bool {
 func (s *procmgrLinuxSuite) TestDDOTProcessRunning() {
 	s.requireDDOT()
 
-	pid := s.waitForRunningProcess("datadog-agent-ddot", ddotOtelAgentBinaryPath, 60*time.Second)
+	pid := s.waitForRunningProcess(procmgrtest.DDOTProcessName, ddotOtelAgentBinaryPath, 60*time.Second)
 
 	pidFileContent := strings.TrimSpace(
 		s.Env().RemoteHost.MustExecute("cat /opt/datadog-agent/run/otel-agent.pid"))
@@ -184,7 +184,7 @@ func (s *procmgrLinuxSuite) TestDDOTManagedByProcmgrNotSystemdByDefault() {
 	s.requireCLI()
 	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
 		out := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("list"))
-		assertTableRow(t, out, "datadog-agent-ddot", map[string]string{
+		assertTableRow(t, out, procmgrtest.DDOTProcessName, map[string]string{
 			"STATE": "Running",
 		})
 	}, 60*time.Second, 2*time.Second)
@@ -193,25 +193,25 @@ func (s *procmgrLinuxSuite) TestDDOTManagedByProcmgrNotSystemdByDefault() {
 func (s *procmgrLinuxSuite) TestDDOTRestartAfterKill() {
 	s.requireDDOT()
 
-	originalPID := s.waitForRunningProcess("datadog-agent-ddot", ddotOtelAgentBinaryPath, 60*time.Second)
+	originalPID := s.waitForRunningProcess(procmgrtest.DDOTProcessName, ddotOtelAgentBinaryPath, 60*time.Second)
 
-	baselineRestarts := s.getRestartCount("datadog-agent-ddot")
+	baselineRestarts := s.getRestartCount(procmgrtest.DDOTProcessName)
 
 	s.Env().RemoteHost.MustExecute("sudo kill -9 " + originalPID)
 
-	newPID := s.waitForRunningProcess("datadog-agent-ddot", ddotOtelAgentBinaryPath, 30*time.Second)
+	newPID := s.waitForRunningProcess(procmgrtest.DDOTProcessName, ddotOtelAgentBinaryPath, 30*time.Second)
 
 	require.NotEqual(s.T(), originalPID, newPID,
 		"PID should differ after restart (was %s)", originalPID)
-	assert.Equal(s.T(), baselineRestarts+1, s.getRestartCount("datadog-agent-ddot"),
+	assert.Equal(s.T(), baselineRestarts+1, s.getRestartCount(procmgrtest.DDOTProcessName),
 		"Restarts should have increased by 1 (baseline %d)", baselineRestarts)
 }
 
 func (s *procmgrLinuxSuite) TestDDOTProcessDescribe() {
 	s.requireDDOT()
 	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("describe datadog-agent-ddot"))
-		assertField(t, out, "Name", "datadog-agent-ddot")
+		out := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("describe " + procmgrtest.DDOTProcessName))
+		assertField(t, out, "Name", procmgrtest.DDOTProcessName)
 		assertField(t, out, "State", "Running")
 		assertField(t, out, "Command", ddotOtelAgentBinaryPath)
 		assertField(t, out, "Restart Policy", "on-failure")
