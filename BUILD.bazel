@@ -17,7 +17,6 @@ exports_files(glob(
 
 # TODO(agent-build): remove below `gazelle:exclude` directives (automatically updates @bazelify_go_work//:go.work)
 # gazelle:exclude cmd/agent/command
-# gazelle:exclude cmd/agent/common/misconfig
 # gazelle:exclude cmd/agent/subcommands
 # gazelle:exclude cmd/agent/windows
 # gazelle:exclude cmd/cluster-agent
@@ -25,12 +24,10 @@ exports_files(glob(
 # gazelle:exclude cmd/dogstatsd
 # gazelle:exclude cmd/host-profiler
 # gazelle:exclude cmd/installer/subcommands
-# gazelle:exclude cmd/loader
 # gazelle:exclude cmd/iot-agent
 # gazelle:exclude cmd/otel-agent/command
 # gazelle:exclude cmd/otel-agent/config
 # gazelle:exclude cmd/otel-agent/subcommands/controlsvc
-# gazelle:exclude cmd/otel-agent/subcommands/coverage
 # gazelle:exclude cmd/otel-agent/subcommands/flare
 # gazelle:exclude cmd/otel-agent/subcommands/run
 # gazelle:exclude cmd/otel-agent/windows
@@ -64,7 +61,6 @@ exports_files(glob(
 # gazelle:exclude cmd/trace-agent/command
 # gazelle:exclude cmd/trace-agent/config
 # gazelle:exclude cmd/trace-agent/subcommands/config
-# gazelle:exclude cmd/trace-agent/subcommands/coverage
 # gazelle:exclude cmd/trace-agent/subcommands/info
 # gazelle:exclude cmd/trace-agent/subcommands/run
 # gazelle:exclude cmd/trace-agent/test/testsuite
@@ -83,7 +79,7 @@ exports_files(glob(
 # gazelle:exclude comp/api/api/apiimpl/server_cmd.go
 # gazelle:exclude comp/api/api/apiimpl/server_ipc.go
 # gazelle:exclude comp/api/api/apiimpl/server_test.go
-# gazelle:exclude comp/api/api/utils
+# gazelle:exclude comp/api/api/utils/stream
 # gazelle:exclude comp/api/authtoken
 # gazelle:exclude comp/api/bundle.go
 # gazelle:exclude comp/api/bundle_test.go
@@ -105,7 +101,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/autodiscovery/autodiscoveryimpl
 # gazelle:exclude comp/core/autodiscovery/common/utils
 # gazelle:exclude comp/core/autodiscovery/configresolver
-# gazelle:exclude comp/core/autodiscovery/integration
 # gazelle:exclude comp/core/autodiscovery/listeners
 # gazelle:exclude comp/core/autodiscovery/noopimpl
 # gazelle:exclude comp/core/autodiscovery/proto
@@ -133,8 +128,7 @@ exports_files(glob(
 # gazelle:exclude comp/core/remoteflags
 # gazelle:exclude comp/core/remoteagentregistry/fx
 # gazelle:exclude comp/core/remoteagentregistry/impl
-# gazelle:exclude comp/core/remoteagentregistry/status
-# gazelle:exclude comp/core/sysprobeconfig
+# gazelle:exclude comp/core/sysprobeconfig/sysprobeconfigimpl
 # gazelle:exclude comp/core/tagger/collectors
 # gazelle:exclude comp/core/tagger/fx
 # gazelle:exclude comp/core/tagger/fx-dual
@@ -145,7 +139,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/tagger/mock
 # gazelle:exclude comp/core/tagger/tagstore
 # gazelle:exclude comp/core/workloadfilter/baseimpl
-# gazelle:exclude comp/core/workloadfilter/catalog
 # gazelle:exclude comp/core/workloadfilter/fx
 # gazelle:exclude comp/core/workloadfilter/fx-mock
 # gazelle:exclude comp/core/workloadfilter/fx-remote
@@ -154,7 +147,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/workloadfilter/impl/filter_mock_test.go
 # gazelle:exclude comp/core/workloadfilter/impl/filter_test.go
 # gazelle:exclude comp/core/workloadfilter/remoteimpl
-# gazelle:exclude comp/core/workloadfilter/util/docker
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-core
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-dogstatsd
@@ -174,7 +166,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/remote/processcollector
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/remote/sbomcollector
 # gazelle:exclude comp/core/workloadmeta/collectors/internal/remote/workloadmeta
-# gazelle:exclude comp/core/workloadmeta/collectors/sbomutil
 # gazelle:exclude comp/core/workloadmeta/collectors/util
 # gazelle:exclude comp/core/workloadmeta/defaults
 # gazelle:exclude comp/core/workloadmeta/fx
@@ -312,7 +303,6 @@ exports_files(glob(
 # gazelle:exclude comp/remote-config/rcservicemrf/fx
 # gazelle:exclude comp/remote-config/rcservicemrf/impl
 # gazelle:exclude comp/remote-config/rcstatus/fx
-# gazelle:exclude comp/remote-config/rcstatus/impl
 # gazelle:exclude comp/snmpscan
 # gazelle:exclude comp/snmpscanmanager/fx
 # gazelle:exclude comp/snmpscanmanager/impl
@@ -343,7 +333,6 @@ exports_files(glob(
 # gazelle:exclude comp/trace/config/testdata
 # gazelle:exclude comp/trace/payload-modifier
 # gazelle:exclude comp/trace/status/fx
-# gazelle:exclude comp/trace/status/impl
 # gazelle:exclude internal/third_party/client-go
 # gazelle:exclude pkg/aggregator/mocksender
 # gazelle:exclude pkg/aggregator/sender
@@ -364,7 +353,6 @@ exports_files(glob(
 # gazelle:exclude pkg/clusteragent/admission
 # gazelle:exclude pkg/clusteragent/appsec
 # gazelle:exclude pkg/clusteragent/autoscaling/cluster
-# gazelle:exclude pkg/clusteragent/autoscaling/custommetrics
 # gazelle:exclude pkg/clusteragent/autoscaling/externalmetrics
 # gazelle:exclude pkg/clusteragent/autoscaling/workload/external
 # gazelle:exclude pkg/clusteragent/autoscaling/workload/loadstore

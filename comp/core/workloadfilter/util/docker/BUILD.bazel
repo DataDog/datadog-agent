@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "docker",
+    srcs = ["create.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/docker",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadfilter/def",
+        "//pkg/proto/pbgo/core",
+        "@com_github_moby_moby_api//types/container",
+    ],
+)
