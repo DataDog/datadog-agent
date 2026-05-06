@@ -10,7 +10,6 @@
 package datadoginstrumentation
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -18,16 +17,16 @@ import (
 	admiv1 "k8s.io/api/admission/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 )
-
-var gvr = datadoghq.GroupVersion.WithResource("datadoginstrumentations")
 
 // Webhook validates DatadogInstrumentation custom resources via three ordered stages:
 // unique targetRef, target compatibility, and product-specific validation.
@@ -38,10 +37,11 @@ type Webhook struct {
 	resources  map[string][]string
 	operations []admissionregistrationv1.OperationType
 	handlers   []instrumentation.Handler
+	lister     cache.GenericLister
 }
 
 // NewWebhook returns a new DatadogInstrumentation validating webhook.
-func NewWebhook(datadogConfig config.Component, handlers []instrumentation.Handler) *Webhook {
+func NewWebhook(datadogConfig config.Component, handlers []instrumentation.Handler, lister cache.GenericLister) *Webhook {
 	return &Webhook{
 		name:      "datadog_instrumentation_validation",
 		isEnabled: datadogConfig.GetBool("instrumentation_crd_controller.enabled"),
@@ -54,6 +54,7 @@ func NewWebhook(datadogConfig config.Component, handlers []instrumentation.Handl
 			admissionregistrationv1.Update,
 		},
 		handlers: handlers,
+		lister:   lister,
 	}
 }
 
@@ -88,9 +89,7 @@ func (w *Webhook) Timeout() int32 { return 0 }
 
 // WebhookFunc returns the admission handler function.
 func (w *Webhook) WebhookFunc() admission.WebhookFunc {
-	return func(request *admission.Request) *admiv1.AdmissionResponse {
-		return w.validate(request)
-	}
+	return w.validate
 }
 
 func (w *Webhook) validate(request *admission.Request) *admiv1.AdmissionResponse {
@@ -130,32 +129,32 @@ func (w *Webhook) validate(request *admission.Request) *admiv1.AdmissionResponse
 // DatadogInstrumentation in the same namespace already targets the same workload.
 // On update the CR under review is excluded from the check by name.
 func (w *Webhook) checkDuplicateTargetRef(request *admission.Request, incoming *datadoghq.DatadogInstrumentation) string {
-	listGVR := schema.GroupVersionResource{
-		Group:    gvr.Group,
-		Version:  gvr.Version,
-		Resource: gvr.Resource,
-	}
-	list, err := request.DynamicClient.Resource(listGVR).Namespace(request.Namespace).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		// Fail-open: if we cannot list, admit the request rather than blocking all operations.
+	if w.lister == nil {
+		log.Warn("DatadogInstrumentation validation: lister not available, skipping duplicate check")
 		return ""
 	}
 
-	for i := range list.Items {
-		existing := &list.Items[i]
-		if incoming.Name != "" && existing.GetName() == incoming.Name {
-			// Skip the CR being updated.
+	items, err := w.lister.ByNamespace(request.Namespace).List(labels.Everything())
+	if err != nil {
+		log.Warnf("DatadogInstrumentation validation: failed to list CRs in namespace %q, admitting request: %v", request.Namespace, err)
+		return ""
+	}
+
+	for _, obj := range items {
+		existing, err := instrumentation.DatadogInstrumentationFromObject(obj)
+		if err != nil {
+			log.Warnf("DatadogInstrumentation validation: failed to parse existing CR %v, skipping: %v", obj, err)
 			continue
 		}
-		var di datadoghq.DatadogInstrumentation
-		if err := instrumentation.UnstructuredIntoDatadogInstrumentation(existing, &di); err != nil {
+		// On update, skip the CR being updated.
+		if incoming.Name != "" && existing.Name == incoming.Name {
 			continue
 		}
-		if di.Spec.TargetRef.Kind == incoming.Spec.TargetRef.Kind &&
-			di.Spec.TargetRef.Name == incoming.Spec.TargetRef.Name {
+		if existing.Spec.TargetRef.Kind == incoming.Spec.TargetRef.Kind &&
+			existing.Spec.TargetRef.Name == incoming.Spec.TargetRef.Name {
 			return fmt.Sprintf(
 				"DatadogInstrumentation %q in namespace %q already targets %s/%s",
-				existing.GetName(), request.Namespace,
+				existing.Name, request.Namespace,
 				incoming.Spec.TargetRef.Kind, incoming.Spec.TargetRef.Name,
 			)
 		}

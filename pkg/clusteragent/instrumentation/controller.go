@@ -27,8 +27,6 @@ const (
 	maxRetries = 3
 )
 
-var gvrDatadogInstrumentation = datadoghq.GroupVersion.WithResource("datadoginstrumentations")
-
 // Controller watches DatadogInstrumentation CRs and dispatches section events to product handlers.
 type Controller struct {
 	statusClient dynamic.Interface
@@ -44,7 +42,7 @@ type Controller struct {
 
 // NewController creates a DatadogInstrumentation controller backed by a dynamic informer.
 func NewController(statusClient dynamic.Interface, informer dynamicinformer.DynamicSharedInformerFactory, handlers []Handler, isLeader func() bool) (*Controller, error) {
-	datadogInstrumentationInformer := informer.ForResource(gvrDatadogInstrumentation)
+	datadogInstrumentationInformer := informer.ForResource(DatadogInstrumentationGVR)
 	c := &Controller{
 		statusClient: statusClient,
 		lister:       datadogInstrumentationInformer.Lister(),
@@ -164,7 +162,7 @@ func (c *Controller) getCurrent(key string) (*datadoghq.DatadogInstrumentation, 
 		return nil, err
 	}
 
-	cr, err := datadogInstrumentationFromObject(obj)
+	cr, err := DatadogInstrumentationFromObject(obj)
 	if err != nil {
 		return nil, err
 	}

@@ -44,9 +44,8 @@ type ControllerContext struct {
 	ValidatingStopCh             chan struct{}
 	Demultiplexer                demultiplexer.Component
 	FilterStore                  workloadfilter.Component
-	// InstrumentationHandlers are the product handlers for DatadogInstrumentation CRs.
-	// They are shared with the DatadogInstrumentation validating webhook.
-	InstrumentationHandlers []instrumentation.Handler
+	InstrumentationHandlers      []instrumentation.Handler
+	InstrumentationLister        cache.GenericLister
 }
 
 // StartControllers starts the secret and webhook controllers
@@ -110,6 +109,7 @@ func StartControllers(ctx ControllerContext, datadogConfig config.Component, wme
 		ctx.Demultiplexer,
 		ctx.FilterStore,
 		ctx.InstrumentationHandlers,
+		ctx.InstrumentationLister,
 	)
 
 	go secretController.Run(ctx.StopCh)

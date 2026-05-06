@@ -10,10 +10,12 @@ go_library(
         "//comp/core/config",
         "//pkg/clusteragent/admission/common",
         "//pkg/clusteragent/instrumentation",
+        "//pkg/util/log",
         "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
         "@io_k8s_api//admissionregistration/v1:admissionregistration",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
-        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_apimachinery//pkg/labels",
+        "@io_k8s_client_go//tools/cache",
     ],
 )
 
@@ -39,6 +41,6 @@ go_test(
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
         "@io_k8s_apimachinery//pkg/runtime/schema",
-        "@io_k8s_client_go//dynamic",
+        "@io_k8s_client_go//tools/cache",
     ],
 )

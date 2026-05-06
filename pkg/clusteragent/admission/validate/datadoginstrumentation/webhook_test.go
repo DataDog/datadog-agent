@@ -10,7 +10,6 @@ package datadoginstrumentation
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,7 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -56,40 +55,6 @@ func (m *mockHandler) Validate(cr *datadoghq.DatadogInstrumentation) []instrumen
 	return m.validate(cr)
 }
 
-// fakeDynamicClient provides a minimal dynamic.Interface implementation for tests.
-type fakeDynamicClient struct {
-	dynamic.Interface
-	existingCRs []unstructured.Unstructured
-	listErr     error
-}
-
-func (f *fakeDynamicClient) Resource(_ schema.GroupVersionResource) dynamic.NamespaceableResourceInterface {
-	return &fakeNamespaceableResource{existingCRs: f.existingCRs, listErr: f.listErr}
-}
-
-type fakeNamespaceableResource struct {
-	dynamic.NamespaceableResourceInterface
-	existingCRs []unstructured.Unstructured
-	listErr     error
-}
-
-func (f *fakeNamespaceableResource) Namespace(_ string) dynamic.ResourceInterface {
-	return &fakeResourceInterface{existingCRs: f.existingCRs, listErr: f.listErr}
-}
-
-type fakeResourceInterface struct {
-	dynamic.ResourceInterface
-	existingCRs []unstructured.Unstructured
-	listErr     error
-}
-
-func (f *fakeResourceInterface) List(_ context.Context, _ metav1.ListOptions) (*unstructured.UnstructuredList, error) {
-	if f.listErr != nil {
-		return nil, f.listErr
-	}
-	return &unstructured.UnstructuredList{Items: f.existingCRs}, nil
-}
-
 // test helpers
 
 func buildCR(name, namespace, targetKind, targetName string, checks []datadoghq.DatadogInstrumentationCheckConfig) *datadoghq.DatadogInstrumentation {
@@ -111,13 +76,18 @@ func buildCR(name, namespace, targetKind, targetName string, checks []datadoghq.
 	}
 }
 
-func crAsUnstructured(t *testing.T, cr *datadoghq.DatadogInstrumentation) unstructured.Unstructured {
+func crAsUnstructured(t *testing.T, cr *datadoghq.DatadogInstrumentation) *unstructured.Unstructured {
 	t.Helper()
 	raw, err := json.Marshal(cr)
 	require.NoError(t, err)
 	var u unstructured.Unstructured
 	require.NoError(t, json.Unmarshal(raw, &u))
-	return u
+	u.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   datadoghq.GroupVersion.Group,
+		Version: datadoghq.GroupVersion.Version,
+		Kind:    "DatadogInstrumentation",
+	})
+	return &u
 }
 
 func marshalCR(t *testing.T, cr *datadoghq.DatadogInstrumentation) []byte {
@@ -127,21 +97,35 @@ func marshalCR(t *testing.T, cr *datadoghq.DatadogInstrumentation) []byte {
 	return raw
 }
 
-func newRequest(t *testing.T, op admissionregistrationv1.OperationType, ns string, cr *datadoghq.DatadogInstrumentation, dc dynamic.Interface) *admission.Request {
+func newRequest(t *testing.T, op admissionregistrationv1.OperationType, ns string, cr *datadoghq.DatadogInstrumentation) *admission.Request {
 	t.Helper()
 	return &admission.Request{
-		Name:          cr.Name,
-		Namespace:     ns,
-		Operation:     op,
-		Object:        marshalCR(t, cr),
-		DynamicClient: dc,
+		Name:      cr.Name,
+		Namespace: ns,
+		Operation: op,
+		Object:    marshalCR(t, cr),
 	}
 }
 
-func newTestWebhook(t *testing.T, handlers ...instrumentation.Handler) *Webhook {
+func fakeLister(t *testing.T, crs ...*datadoghq.DatadogInstrumentation) cache.GenericLister {
+	t.Helper()
+	indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{
+		cache.NamespaceIndex: cache.MetaNamespaceIndexFunc,
+	})
+	for _, cr := range crs {
+		u := crAsUnstructured(t, cr)
+		require.NoError(t, indexer.Add(u))
+	}
+	return cache.NewGenericLister(indexer, schema.GroupResource{
+		Group:    datadoghq.GroupVersion.Group,
+		Resource: "datadoginstrumentations",
+	})
+}
+
+func newTestWebhook(t *testing.T, lister cache.GenericLister, handlers ...instrumentation.Handler) *Webhook {
 	cfg := config.NewMock(t)
 	cfg.SetWithoutSource("instrumentation_crd_controller.enabled", true)
-	return NewWebhook(cfg, handlers)
+	return NewWebhook(cfg, handlers, lister)
 }
 
 func defaultChecks() []datadoghq.DatadogInstrumentationCheckConfig {
@@ -158,7 +142,7 @@ func noValidationErrors(_ *datadoghq.DatadogInstrumentation) []instrumentation.V
 }
 
 func TestWebhookInterface(t *testing.T) {
-	w := newTestWebhook(t)
+	w := newTestWebhook(t, fakeLister(t))
 	assert.Equal(t, "datadog_instrumentation_validation", w.Name())
 	assert.Equal(t, common.WebhookType(common.ValidatingWebhook), w.WebhookType())
 	assert.True(t, w.IsEnabled())
@@ -185,7 +169,7 @@ func TestValidate(t *testing.T) {
 	tests := []struct {
 		name        string
 		cr          *datadoghq.DatadogInstrumentation
-		dc          dynamic.Interface
+		existingCRs []*datadoghq.DatadogInstrumentation
 		handlers    []instrumentation.Handler
 		operation   admissionregistrationv1.OperationType
 		wantAllowed bool
@@ -194,7 +178,6 @@ func TestValidate(t *testing.T) {
 		{
 			name:        "valid CR with no handlers passes",
 			cr:          buildCR("di-1", ns, "Deployment", "my-app", defaultChecks()),
-			dc:          &fakeDynamicClient{},
 			handlers:    nil,
 			operation:   admissionregistrationv1.Create,
 			wantAllowed: true,
@@ -202,7 +185,6 @@ func TestValidate(t *testing.T) {
 		{
 			name:        "valid CR with handler passes all stages",
 			cr:          buildCR("di-1", ns, "Deployment", "my-app", defaultChecks()),
-			dc:          &fakeDynamicClient{},
 			handlers:    []instrumentation.Handler{handlerWithSection},
 			operation:   admissionregistrationv1.Create,
 			wantAllowed: true,
@@ -210,10 +192,8 @@ func TestValidate(t *testing.T) {
 		{
 			name: "duplicate targetRef on create is rejected",
 			cr:   buildCR("di-new", ns, "Deployment", "my-app", defaultChecks()),
-			dc: &fakeDynamicClient{
-				existingCRs: []unstructured.Unstructured{
-					crAsUnstructured(t, buildCR("di-existing", ns, "Deployment", "my-app", nil)),
-				},
+			existingCRs: []*datadoghq.DatadogInstrumentation{
+				buildCR("di-existing", ns, "Deployment", "my-app", nil),
 			},
 			handlers:    nil,
 			operation:   admissionregistrationv1.Create,
@@ -223,10 +203,8 @@ func TestValidate(t *testing.T) {
 		{
 			name: "duplicate targetRef on update of the same CR is allowed",
 			cr:   buildCR("di-existing", ns, "Deployment", "my-app", defaultChecks()),
-			dc: &fakeDynamicClient{
-				existingCRs: []unstructured.Unstructured{
-					crAsUnstructured(t, buildCR("di-existing", ns, "Deployment", "my-app", nil)),
-				},
+			existingCRs: []*datadoghq.DatadogInstrumentation{
+				buildCR("di-existing", ns, "Deployment", "my-app", nil),
 			},
 			handlers:    nil,
 			operation:   admissionregistrationv1.Update,
@@ -235,10 +213,8 @@ func TestValidate(t *testing.T) {
 		{
 			name: "different target kind is not a duplicate",
 			cr:   buildCR("di-new", ns, "DaemonSet", "my-app", defaultChecks()),
-			dc: &fakeDynamicClient{
-				existingCRs: []unstructured.Unstructured{
-					crAsUnstructured(t, buildCR("di-existing", ns, "Deployment", "my-app", nil)),
-				},
+			existingCRs: []*datadoghq.DatadogInstrumentation{
+				buildCR("di-existing", ns, "Deployment", "my-app", nil),
 			},
 			handlers:    nil,
 			operation:   admissionregistrationv1.Create,
@@ -247,10 +223,8 @@ func TestValidate(t *testing.T) {
 		{
 			name: "different target name is not a duplicate",
 			cr:   buildCR("di-new", ns, "Deployment", "other-app", defaultChecks()),
-			dc: &fakeDynamicClient{
-				existingCRs: []unstructured.Unstructured{
-					crAsUnstructured(t, buildCR("di-existing", ns, "Deployment", "my-app", nil)),
-				},
+			existingCRs: []*datadoghq.DatadogInstrumentation{
+				buildCR("di-existing", ns, "Deployment", "my-app", nil),
 			},
 			handlers:    nil,
 			operation:   admissionregistrationv1.Create,
@@ -259,7 +233,6 @@ func TestValidate(t *testing.T) {
 		{
 			name: "unsupported target kind is rejected by handler",
 			cr:   buildCR("di-1", ns, "UnknownKind", "my-app", defaultChecks()),
-			dc:   &fakeDynamicClient{},
 			handlers: []instrumentation.Handler{&mockHandler{
 				name:       "rejecting-handler",
 				hasSection: alwaysHasSection,
@@ -275,7 +248,6 @@ func TestValidate(t *testing.T) {
 		{
 			name: "handler validation errors are collected and returned",
 			cr:   buildCR("di-1", ns, "Deployment", "my-app", defaultChecks()),
-			dc:   &fakeDynamicClient{},
 			handlers: []instrumentation.Handler{&mockHandler{
 				name:           "validating-handler",
 				hasSection:     alwaysHasSection,
@@ -294,13 +266,10 @@ func TestValidate(t *testing.T) {
 		{
 			name: "handler with no matching section is skipped",
 			cr:   buildCR("di-1", ns, "Deployment", "my-app", nil),
-			dc:   &fakeDynamicClient{},
 			handlers: []instrumentation.Handler{&mockHandler{
-				name:       "skipped-handler",
-				hasSection: neverHasSection,
-				supportsTarget: func(_ autoscalingv2.CrossVersionObjectReference) bool {
-					return false
-				},
+				name:           "skipped-handler",
+				hasSection:     neverHasSection,
+				supportsTarget: alwaysSupports,
 				validate: func(_ *datadoghq.DatadogInstrumentation) []instrumentation.ValidationError {
 					return []instrumentation.ValidationError{{Message: "should not reach"}}
 				},
@@ -309,10 +278,102 @@ func TestValidate(t *testing.T) {
 			wantAllowed: true,
 		},
 		{
-			name:        "list error on duplicate check admits request (fail-open)",
+			name:        "nil lister admits request (fail-open)",
 			cr:          buildCR("di-1", ns, "Deployment", "my-app", defaultChecks()),
-			dc:          &fakeDynamicClient{listErr: fmt.Errorf("api server unavailable")},
 			handlers:    nil,
+			operation:   admissionregistrationv1.Create,
+			wantAllowed: true,
+		},
+		{
+			name: "multi-handler: first passes, second fails SupportsTarget",
+			cr:   buildCR("di-1", ns, "Deployment", "my-app", defaultChecks()),
+			handlers: []instrumentation.Handler{
+				&mockHandler{
+					name:           "passing-handler",
+					hasSection:     alwaysHasSection,
+					supportsTarget: alwaysSupports,
+					validate:       noValidationErrors,
+				},
+				&mockHandler{
+					name:       "rejecting-handler",
+					hasSection: alwaysHasSection,
+					supportsTarget: func(_ autoscalingv2.CrossVersionObjectReference) bool {
+						return false
+					},
+					validate: noValidationErrors,
+				},
+			},
+			operation:   admissionregistrationv1.Create,
+			wantAllowed: false,
+			wantMsg:     `handler "rejecting-handler" does not support target kind "Deployment"`,
+		},
+		{
+			name: "multi-handler: first passes, second fails Validate",
+			cr:   buildCR("di-1", ns, "Deployment", "my-app", defaultChecks()),
+			handlers: []instrumentation.Handler{
+				&mockHandler{
+					name:           "passing-handler",
+					hasSection:     alwaysHasSection,
+					supportsTarget: alwaysSupports,
+					validate:       noValidationErrors,
+				},
+				&mockHandler{
+					name:           "failing-handler",
+					hasSection:     alwaysHasSection,
+					supportsTarget: alwaysSupports,
+					validate: func(_ *datadoghq.DatadogInstrumentation) []instrumentation.ValidationError {
+						return []instrumentation.ValidationError{{Message: "bad config"}}
+					},
+				},
+			},
+			operation:   admissionregistrationv1.Create,
+			wantAllowed: false,
+			wantMsg:     "bad config",
+		},
+		{
+			name: "multi-handler: first skipped (no section), second fails",
+			cr:   buildCR("di-1", ns, "Deployment", "my-app", defaultChecks()),
+			handlers: []instrumentation.Handler{
+				&mockHandler{
+					name:       "skipped-handler",
+					hasSection: neverHasSection,
+					supportsTarget: func(_ autoscalingv2.CrossVersionObjectReference) bool {
+						return false
+					},
+					validate: func(_ *datadoghq.DatadogInstrumentation) []instrumentation.ValidationError {
+						return []instrumentation.ValidationError{{Message: "should not reach"}}
+					},
+				},
+				&mockHandler{
+					name:           "failing-handler",
+					hasSection:     alwaysHasSection,
+					supportsTarget: alwaysSupports,
+					validate: func(_ *datadoghq.DatadogInstrumentation) []instrumentation.ValidationError {
+						return []instrumentation.ValidationError{{Message: "second handler failed"}}
+					},
+				},
+			},
+			operation:   admissionregistrationv1.Create,
+			wantAllowed: false,
+			wantMsg:     "second handler failed",
+		},
+		{
+			name: "multi-handler: both pass",
+			cr:   buildCR("di-1", ns, "Deployment", "my-app", defaultChecks()),
+			handlers: []instrumentation.Handler{
+				&mockHandler{
+					name:           "handler-a",
+					hasSection:     alwaysHasSection,
+					supportsTarget: alwaysSupports,
+					validate:       noValidationErrors,
+				},
+				&mockHandler{
+					name:           "handler-b",
+					hasSection:     alwaysHasSection,
+					supportsTarget: alwaysSupports,
+					validate:       noValidationErrors,
+				},
+			},
 			operation:   admissionregistrationv1.Create,
 			wantAllowed: true,
 		},
@@ -320,8 +381,12 @@ func TestValidate(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			w := newTestWebhook(t, tc.handlers...)
-			req := newRequest(t, tc.operation, ns, tc.cr, tc.dc)
+			var lister cache.GenericLister
+			if tc.name != "nil lister admits request (fail-open)" {
+				lister = fakeLister(t, tc.existingCRs...)
+			}
+			w := newTestWebhook(t, lister, tc.handlers...)
+			req := newRequest(t, tc.operation, ns, tc.cr)
 			resp := w.validate(req)
 			assert.Equal(t, tc.wantAllowed, resp.Allowed)
 			if !tc.wantAllowed {
@@ -333,9 +398,9 @@ func TestValidate(t *testing.T) {
 }
 
 func TestWebhookFuncReturnsAdmissionResponse(t *testing.T) {
-	w := newTestWebhook(t)
+	w := newTestWebhook(t, fakeLister(t))
 	cr := buildCR("di-1", "ns", "Deployment", "app", nil)
-	req := newRequest(t, admissionregistrationv1.Create, "ns", cr, &fakeDynamicClient{})
+	req := newRequest(t, admissionregistrationv1.Create, "ns", cr)
 	fn := w.WebhookFunc()
 	resp := fn(req)
 	assert.IsType(t, &admiv1.AdmissionResponse{}, resp)

@@ -72,6 +72,7 @@ import (
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroutefx "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/mcp"
 
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -121,7 +122,6 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
-
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -386,6 +386,8 @@ func start(log log.Component,
 	eventBroadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
 
+	instrHandlers := instrumentationhandlers.DefaultHandlers(instrumentationhandlers.Deps{IsLeader: le.IsLeader})
+
 	ctx := controllers.ControllerContext{
 		InformerFactory:             apiCl.InformerFactory,
 		APIExentionsInformerFactory: apiCl.APIExentionsInformerFactory,
@@ -398,6 +400,7 @@ func start(log log.Component,
 		WorkloadMeta:                wmeta,
 		StopCh:                      stopCh,
 		DatadogClient:               dc,
+		InstrumentationHandlers:     instrHandlers,
 	}
 
 	if aggErr := controllers.StartControllers(&ctx); aggErr != nil {
@@ -643,11 +646,7 @@ func start(log log.Component,
 			log.Info("Auto instrumentation patcher is disabled")
 		}
 
-		instrHandlers, err := instrumentationhandlers.DefaultHandlers(instrumentationhandlers.Deps{IsLeader: le.IsLeader})
-		if err != nil {
-			pkglog.Errorf("Failed to create DatadogInstrumentation handlers for admission webhook: %v", err)
-		}
-
+		instrLister := apiCl.DynamicInformerFactory.ForResource(instrumentation.DatadogInstrumentationGVR).Lister()
 		admissionCtx := admissionpkg.ControllerContext{
 			LeadershipStateSubscribeFunc: le.Subscribe,
 			SecretInformers:              apiCl.CertificateSecretInformerFactory,
@@ -659,6 +658,7 @@ func start(log log.Component,
 			Demultiplexer:                demultiplexer,
 			FilterStore:                  filterStore,
 			InstrumentationHandlers:      instrHandlers,
+			InstrumentationLister:        instrLister,
 		}
 
 		webhooks, err := admissionpkg.StartControllers(admissionCtx, datadogConfig, wmeta, pp, sh, healthPlatform)
