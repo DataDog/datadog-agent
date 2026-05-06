@@ -7,17 +7,14 @@
 package fx
 
 import (
-	hfrunnerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/hfrunner/def"
-	hfrunnerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/hfrunner/impl"
+	hfrunnerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/hfrunner/def"
+	hfrunnerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/hfrunner/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
-// We construct fxutil.Module directly because fxutil.Component uses runtime call-stack
-// inspection that only supports paths up to 5 levels deep from comp/, and this
-// component lives at comp/anomalydetection/observer/hfrunner (6 levels deep).
 func Module() fxutil.Module {
 	opts := []fx.Option{
 		fxutil.ProvideComponentConstructor(hfrunnerimpl.NewComponent),
@@ -26,7 +23,7 @@ func Module() fxutil.Module {
 		}),
 	}
 	return fxutil.Module{
-		Option:  fx.Module("comp/anomalydetection/observer/hfrunner", opts...),
+		Option:  fx.Module("comp/anomalydetection/hfrunner", opts...),
 		Options: opts,
 	}
 }

@@ -18,8 +18,8 @@ import (
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
+	hfrunnerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/hfrunner/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	hfrunnerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/hfrunner/def"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"

@@ -8,8 +8,8 @@ package hfrunnerimpl
 import (
 	"context"
 
+	hfrunnerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/hfrunner/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	hfrunnerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/hfrunner/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
