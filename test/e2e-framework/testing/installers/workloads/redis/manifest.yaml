@@ -116,7 +116,7 @@ metadata:
 spec:
   query: avg:redis.net.instantaneous_ops_per_sec{kube_cluster_name:%%tag_kube_cluster_name%%,kube_namespace:{{.Namespace}},kube_deployment:redis}.rollup(60)
 ---
-apiVersion: autoscaling/v2
+apiVersion: {{.HPAAPIVersion}}
 kind: HorizontalPodAutoscaler
 metadata:
   name: redis

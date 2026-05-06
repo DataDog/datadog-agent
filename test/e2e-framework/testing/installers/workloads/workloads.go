@@ -29,6 +29,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"text/template"
@@ -176,6 +177,11 @@ type k8sClients struct {
 	dynamic    dynamic.Interface
 	typed      kubernetes.Interface
 	restMapper meta.RESTMapper
+	// hpaAPIVersion is the apiVersion to use for HorizontalPodAutoscaler
+	// manifests on this cluster. autoscaling/v2 is GA from k8s 1.23 onward;
+	// older clusters (1.19, 1.22) only expose autoscaling/v2beta2. Set once
+	// per Deploy from the server version and used by manifest templates.
+	hpaAPIVersion string
 }
 
 func newK8sClients(kubeconfig string) (*k8sClients, error) {
@@ -200,11 +206,40 @@ func newK8sClients(kubeconfig string) (*k8sClients, error) {
 	}
 	mapper := restmapper.NewDeferredDiscoveryRESTMapper(memory.NewMemCacheClient(dc))
 
+	hpaAPIVersion, err := resolveHPAAPIVersion(typedClient)
+	if err != nil {
+		return nil, fmt.Errorf("resolving HPA API version: %w", err)
+	}
+
 	return &k8sClients{
-		dynamic:    dynClient,
-		typed:      typedClient,
-		restMapper: mapper,
+		dynamic:       dynClient,
+		typed:         typedClient,
+		restMapper:    mapper,
+		hpaAPIVersion: hpaAPIVersion,
 	}, nil
+}
+
+// resolveHPAAPIVersion picks the HorizontalPodAutoscaler apiVersion supported
+// by the target cluster: autoscaling/v2 for k8s >= 1.23, autoscaling/v2beta2
+// for older clusters (1.19, 1.22). Mirrors the version-conditional logic in
+// the Pulumi nginx/redis app definitions.
+func resolveHPAAPIVersion(typedClient kubernetes.Interface) (string, error) {
+	v, err := typedClient.Discovery().ServerVersion()
+	if err != nil {
+		return "", fmt.Errorf("fetching server version: %w", err)
+	}
+	major, err := strconv.Atoi(strings.TrimSuffix(v.Major, "+"))
+	if err != nil {
+		return "", fmt.Errorf("parsing server major version %q: %w", v.Major, err)
+	}
+	minor, err := strconv.Atoi(strings.TrimSuffix(v.Minor, "+"))
+	if err != nil {
+		return "", fmt.Errorf("parsing server minor version %q: %w", v.Minor, err)
+	}
+	if major > 1 || (major == 1 && minor >= 23) {
+		return "autoscaling/v2", nil
+	}
+	return "autoscaling/v2beta2", nil
 }
 
 // Deploy applies the selected workload manifests to the cluster and waits for
@@ -226,9 +261,10 @@ func Deploy(t *testing.T, env *environments.Kubernetes, opts ...Option) {
 	if p.nginx {
 		ns := "workload-nginx"
 		applyManifest(t, clients, render(t, nginxManifest, map[string]any{
-			"Version":   version,
-			"Namespace": ns,
-			"NginxPort": p.nginxPort,
+			"Version":       version,
+			"Namespace":     ns,
+			"NginxPort":     p.nginxPort,
+			"HPAAPIVersion": clients.hpaAPIVersion,
 		}))
 		waitForDeployments(t, clients.typed, ns, 5*time.Minute)
 	}
@@ -236,8 +272,9 @@ func Deploy(t *testing.T, env *environments.Kubernetes, opts ...Option) {
 	if p.redis {
 		ns := "workload-redis"
 		applyManifest(t, clients, render(t, redisManifest, map[string]any{
-			"Version":   version,
-			"Namespace": ns,
+			"Version":       version,
+			"Namespace":     ns,
+			"HPAAPIVersion": clients.hpaAPIVersion,
 		}))
 		waitForDeployments(t, clients.typed, ns, 5*time.Minute)
 	}

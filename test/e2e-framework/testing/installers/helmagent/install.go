@@ -416,25 +416,19 @@ agents:
   priorityClassCreate: true
   useConfigMap: true
   customAgentConfig:
-    # Setting customAgentConfig replaces the chart's default datadog.yaml entirely,
-    # so we restate the kubelet listener and config_provider here. Without these,
-    # the agent loses pod autodiscovery via kubelet, which breaks AD-annotation
-    # checks (http_check, nginx, redis, etc.) and template-based checks alike.
-    listeners:
-      - name: kubelet
-    config_providers:
-      - name: kubelet
-        polling: true
-      # etcd config_provider lets the agent pick up check configurations stored
-      # in etcd by the etcd workload. Used by TestPrometheusWithConfigFromEtcd.
-      - name: etcd
-        polling: true
-        template_dir: /datadog/check_configs
-        template_url: http://etcd.etcd.svc.cluster.local:2379
+    # Mirrors buildLinuxHelmValues exactly: only metadata_providers and the
+    # etcd config_provider. Kubelet listener+config_provider are autodetected
+    # by the agent from DD_KUBERNETES_KUBELET_HOST (set automatically by the
+    # chart via fieldRef), so we don't restate them here.
     metadata_providers:
       - name: host
         interval: 120
         early_interval: 60
+    config_providers:
+      - name: etcd
+        polling: true
+        template_dir: /datadog/check_configs
+        template_url: http://etcd.etcd.svc.cluster.local:2379
   podAnnotations:
     ad.datadoghq.com/agent.checks: '{"openmetrics":{"init_config":{},"instances":[{"openmetrics_endpoint":"http://localhost:6000/telemetry","namespace":"datadog.agent","metrics":[".*"]}]}}'
   containers:
@@ -811,8 +805,31 @@ func buildFakeintakeValues(fi *components.FakeIntake, dualShipping bool) string 
 clusterAgent:
   env:
 %[1]s
+  admissionController:
+    agentSidecarInjection:
+      profiles:
+        - env:
+%[2]s
 clusterChecksRunner:
   env:
 %[1]s
-`, envVars)
+`, envVars, indentEnvVars(envVars, "        "))
+}
+
+// indentEnvVars re-indents the env var YAML block by an extra prefix so it
+// can sit under agentSidecarInjection.profiles[].env. The base envVars block
+// is indented 4 spaces (sized for `<section>.env:`); profiles[].env is two
+// levels deeper, so we prepend 8 more spaces to each non-empty line.
+func indentEnvVars(envVars, extraIndent string) string {
+	if envVars == "" {
+		return ""
+	}
+	lines := strings.Split(envVars, "\n")
+	for i, l := range lines {
+		if l == "" {
+			continue
+		}
+		lines[i] = extraIndent + l
+	}
+	return strings.Join(lines, "\n")
 }

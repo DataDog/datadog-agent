@@ -171,7 +171,7 @@ metadata:
 spec:
   query: avg:nginx.net.request_per_s{kube_cluster_name:%%tag_kube_cluster_name%%,kube_namespace:{{.Namespace}},kube_deployment:nginx}.rollup(60)
 ---
-apiVersion: autoscaling/v2
+apiVersion: {{.HPAAPIVersion}}
 kind: HorizontalPodAutoscaler
 metadata:
   name: nginx
