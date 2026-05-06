@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/workloads"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	awskubernetes "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
@@ -77,7 +78,7 @@ func (w *kindProvisionerWrapper) PostProvision(t *testing.T, env *environments.K
 		kubernetesagentparams.WithTags([]string{"stackid:" + env.KubernetesCluster.ClusterName}),
 	}
 	opts = append(opts, w.agentOpts...)
-	helmagent.Install(t, env, opts...)
+	helmagent.Install(t, env, runner.CloudAWS, opts...)
 
 	if len(w.workloadOpts) > 0 {
 		workloads.Deploy(t, env, w.workloadOpts...)

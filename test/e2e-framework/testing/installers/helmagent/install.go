@@ -54,13 +54,18 @@ const (
 // configures it, and waits for the agent pods to be ready.
 // It populates env.Agent with the initialized agent component.
 //
+// cloud identifies the cloud provider the cluster runs on (e.g.
+// runner.CloudAWS). It is used to resolve the internal CI image registry for
+// the active account when pipeline-built images are requested. Each K8s
+// provisioner is cloud-specific and supplies its own cloud value.
+//
 // Usage in SetupSuite:
 //
-//	helmagent.Install(s.T(), s.Env(),
+//	helmagent.Install(s.T(), s.Env(), runner.CloudAWS,
 //	    kubernetesagentparams.WithHelmValues(myValues),
 //	    kubernetesagentparams.WithNamespace("datadog"),
 //	)
-func Install(t *testing.T, env *environments.Kubernetes, opts ...kubernetesagentparams.Option) {
+func Install(t *testing.T, env *environments.Kubernetes, cloud runner.Cloud, opts ...kubernetesagentparams.Option) {
 	t.Helper()
 	require.NotNil(t, env.KubernetesCluster, "helmagent.Install: KubernetesCluster is nil, infrastructure must be provisioned first")
 
@@ -102,7 +107,7 @@ func Install(t *testing.T, env *environments.Kubernetes, opts ...kubernetesagent
 	require.NoError(t, err, "failed to create image pull secret")
 
 	// Build and merge all values
-	valuesYAML := buildValuesYAML(t, env, p, secretName, pullSecretName)
+	valuesYAML := buildValuesYAML(t, env, p, cloud, secretName, pullSecretName)
 
 	// Parse values into map for the Helm SDK
 	vals := map[string]interface{}{}
@@ -128,7 +133,7 @@ func Install(t *testing.T, env *environments.Kubernetes, opts ...kubernetesagent
 
 	// Store baseline options and set the Helm installer for Configure
 	env.Agent.SetBaseOptions(opts...)
-	env.Agent.Installer = &helmInstaller{env: env}
+	env.Agent.Installer = &helmInstaller{env: env, cloud: cloud}
 }
 
 // helmUpgradeInstall runs helm install or helm upgrade using the Helm Go SDK.
@@ -268,12 +273,13 @@ func (g *inMemoryRESTClientGetter) ToRawKubeConfigLoader() clientcmd.ClientConfi
 
 // helmInstaller implements components.KubernetesAgentInstaller for Helm-based agents.
 type helmInstaller struct {
-	env *environments.Kubernetes
+	env   *environments.Kubernetes
+	cloud runner.Cloud
 }
 
 // Upgrade runs helm upgrade with the given options.
 func (h *helmInstaller) Upgrade(t *testing.T, opts []kubernetesagentparams.Option) error {
-	Install(t, h.env, opts...)
+	Install(t, h.env, h.cloud, opts...)
 	return nil
 }
 
@@ -296,7 +302,7 @@ func buildParams(opts []kubernetesagentparams.Option) (*kubernetesagentparams.Pa
 // buildValuesYAML generates the Helm values YAML that configures the agent.
 // This replicates the values produced by the Pulumi buildLinuxHelmValues
 // function in kubernetes_helm.go to ensure identical agent behavior.
-func buildValuesYAML(t *testing.T, env *environments.Kubernetes, p *kubernetesagentparams.Params, secretName, pullSecretName string) string {
+func buildValuesYAML(t *testing.T, env *environments.Kubernetes, p *kubernetesagentparams.Params, cloud runner.Cloud, secretName, pullSecretName string) string {
 	t.Helper()
 
 	// Cluster name is required for KinD/non-cloud clusters where the agent
@@ -489,7 +495,7 @@ clusterChecksRunner:
 `, secretName, clusterName)
 
 	// Agent and cluster-agent image configuration
-	imageValues := buildImageValues(t, p)
+	imageValues := buildImageValues(t, p, cloud)
 	if imageValues != "" {
 		base = mustMerge(t, base, imageValues)
 	}
@@ -608,7 +614,7 @@ clusterChecksRunner:
 // on the runner profile (pipeline ID, commit SHA) or user-provided image paths.
 // Mirrors the logic in docker_image.go's dockerAgentFullImagePath /
 // dockerClusterAgentFullImagePath when no explicit image is provided.
-func buildImageValues(t *testing.T, p *kubernetesagentparams.Params) string {
+func buildImageValues(t *testing.T, p *kubernetesagentparams.Params, cloud runner.Cloud) string {
 	t.Helper()
 
 	// User-provided full image paths take precedence
@@ -645,9 +651,9 @@ clusterAgent:
 	commitSHA, _ := profile.ParamStore().GetWithDefault(parameters.CommitSHA, "")
 
 	if pipelineID != "" && commitSHA != "" {
-		internalRegistry := runner.InternalRegistry()
+		internalRegistry := runner.InternalRegistry(cloud)
 		if internalRegistry == "" {
-			// No internal registry configured for this environment — fall through to chart defaults
+			// No internal registry configured for this cloud's account — fall through to chart defaults
 			return ""
 		}
 

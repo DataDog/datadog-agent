@@ -88,7 +88,6 @@ func Provisioner(opts ...ProvisionerOption) provisioners.TypedProvisioner[enviro
 			}
 			params.awsEnv = &awsEnv
 		}
-
 		return ec2.Run(ctx, awsEnv, env, runParams)
 	}, params.extraConfigParams)
 

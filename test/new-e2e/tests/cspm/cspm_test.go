@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/helmagent"
 	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 )
 
 type cspmTestSuite struct {
@@ -186,7 +187,7 @@ func (s *cspmTestSuite) SetupSuite() {
 	defer s.CleanupOnSetupFailure()
 
 	// Install agent via Helm, decoupled from Pulumi
-	helmagent.Install(s.T(), s.Env(),
+	helmagent.Install(s.T(), s.Env(), runner.CloudAWS,
 		kubernetesagentparams.WithHelmValues(values),
 	)
 }

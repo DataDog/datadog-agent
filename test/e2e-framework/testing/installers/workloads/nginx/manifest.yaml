@@ -59,7 +59,7 @@ spec:
       annotations:
         x-parent-name: nginx
         ad.datadoghq.com/nginx.checks: |
-          {"nginx":{"instances":[{"nginx_status_url":"http://%%host%%:{{.NginxPort}}/nginx_status","tags":["check_tag_cardinality:high"]}]}}
+          {"nginx":{"init_config":{},"check_tag_cardinality":"high","instances":[{"nginx_status_url":"http://%%host%%:{{.NginxPort}}/nginx_status"}]}}
     spec:
       serviceAccountName: nginx-sa
       containers:
@@ -123,7 +123,7 @@ metadata:
     app: nginx
   annotations:
     ad.datadoghq.com/service.checks: |
-      {"http_check":{"instances":[{"name":"nginx","url":"http://%%host%%/","tags":["check_tag_cardinality:high"]}]}}
+      {"http_check":{"init_config":{},"instances":[{"name":"My Nginx","url":"http://%%host%%","timeout":1}]}}
 spec:
   selector:
     app: nginx
@@ -160,3 +160,54 @@ spec:
           limits:
             cpu: 100m
             memory: 64Mi
+---
+apiVersion: datadoghq.com/v1alpha1
+kind: DatadogMetric
+metadata:
+  name: nginx
+  namespace: {{.Namespace}}
+  labels:
+    app: nginx
+spec:
+  query: avg:nginx.net.request_per_s{kube_cluster_name:%%tag_kube_cluster_name%%,kube_namespace:{{.Namespace}},kube_deployment:nginx}.rollup(60)
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: nginx
+  namespace: {{.Namespace}}
+  labels:
+    app: nginx
+spec:
+  minReplicas: 1
+  maxReplicas: 5
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nginx
+  metrics:
+  - type: External
+    external:
+      metric:
+        name: datadogmetric@{{.Namespace}}:nginx
+      target:
+        type: Value
+        value: "10"
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 0
+---
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: nginx
+  namespace: {{.Namespace}}
+  labels:
+    app: nginx
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nginx
+  updatePolicy:
+    updateMode: Auto

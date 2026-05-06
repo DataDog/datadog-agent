@@ -68,7 +68,7 @@ metadata:
     app: redis
   annotations:
     ad.datadoghq.com/endpoints.checks: |
-      {"redisdb":{"instances":[{"host":"%%host%%","port":"6379","tags":["check_tag_cardinality:high"]}]}}
+      {"http_check":{"init_config":{},"instances":[{"name":"My Redis","url":"http://%%host%%:%%port%%","timeout":1}]}}
 spec:
   selector:
     app: redis
@@ -105,3 +105,51 @@ spec:
           limits:
             cpu: 100m
             memory: 32Mi
+---
+apiVersion: datadoghq.com/v1alpha1
+kind: DatadogMetric
+metadata:
+  name: redis
+  namespace: {{.Namespace}}
+  labels:
+    app: redis
+spec:
+  query: avg:redis.net.instantaneous_ops_per_sec{kube_cluster_name:%%tag_kube_cluster_name%%,kube_namespace:{{.Namespace}},kube_deployment:redis}.rollup(60)
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: redis
+  namespace: {{.Namespace}}
+  labels:
+    app: redis
+spec:
+  minReplicas: 1
+  maxReplicas: 5
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: redis
+  metrics:
+  - type: External
+    external:
+      metric:
+        name: datadogmetric@{{.Namespace}}:redis
+      target:
+        type: AverageValue
+        averageValue: "10"
+---
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: redis
+  namespace: {{.Namespace}}
+  labels:
+    app: redis
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: redis
+  updatePolicy:
+    updateMode: Auto
