@@ -35,6 +35,7 @@ func TestAgentInternalLogsFlowIntoObserver(t *testing.T) {
 	provides := NewComponent(Requires{
 		Telemetry: telemetry.New(t),
 		Config:    cfg,
+		Reporter:  &noopTestReporter{},
 	})
 	obs, ok := provides.Comp.(*observerImpl)
 	require.True(t, ok)

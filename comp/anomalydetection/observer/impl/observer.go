@@ -21,6 +21,7 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl/hfrunner"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
+	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
@@ -50,6 +51,11 @@ type Requires struct {
 	// from remote trace-agents via the ObserverProvider gRPC service.
 	RemoteAgentRegistry remoteagentregistry.Component
 
+	// Reporter receives report outputs after each detection cycle.
+	// Use reporter/fx for the live agent, reporter/fx-testbench for the testbench,
+	// or reporter/fx-noop for unit tests.
+	Reporter reporterdef.Component
+
 	// WMeta, FilterStore, Tagger are optional — required only when
 	// observer.high_frequency_container_checks.enabled is true.
 	// Using option.Option so the observer can start without them (e.g. in tests
@@ -69,6 +75,9 @@ type observation struct {
 	source string
 	metric *metricObs
 	log    *logObs
+	// flush, when non-nil, is closed by the dispatch loop once this observation
+	// is reached, signalling that all prior observations have been processed.
+	flush chan struct{}
 }
 
 // metricObs contains copied metric data and implements observerdef.MetricView.
@@ -181,12 +190,10 @@ func NewComponent(deps Requires) Provides {
 		scheduler:        &currentBehaviorPolicy{},
 	})
 
-	// Wire reporters via event subscription.
-	// The reporterEventSink queries stateView for active correlations on each advance,
-	// so reporters receive all needed data through ReportOutput without backdoor access.
-	reporter := &StdoutReporter{}
+	// Wire the injected reporter via a conversion adapter that maps internal
+	// observerdef.ReportOutput to reporterdef.ReportOutput.
 	eng.Subscribe(&reporterEventSink{
-		reporters: []observerdef.Reporter{reporter},
+		reporters: []observerdef.Reporter{&reporterdefAdapter{reporter: deps.Reporter}},
 		state:     eng.StateView(),
 	})
 
@@ -207,6 +214,7 @@ func NewComponent(deps Requires) Provides {
 
 	obs := &observerImpl{
 		engine:               eng,
+		catalog:              catalog,
 		obsCh:                make(chan observation, 1000),
 		telemetryHandler:     th,
 		dropCounter:          th.telemetryCounters[telemetryObsChannelDropped],
@@ -427,6 +435,7 @@ func samplePass(rate float64, n uint64) bool {
 // detectors, correlators, and raw anomaly tracking.
 type observerImpl struct {
 	engine     *engine
+	catalog    *componentCatalog
 	obsCh      chan observation
 	handleFunc observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
 
@@ -467,6 +476,10 @@ type observerImpl struct {
 // run is the main dispatch loop, processing all observations sequentially.
 func (o *observerImpl) run() {
 	for obs := range o.obsCh {
+		if obs.flush != nil {
+			close(obs.flush)
+			continue
+		}
 		var requests []advanceRequest
 		if obs.metric != nil {
 			requests = o.engine.IngestMetric(obs.source, obs.metric)
@@ -775,6 +788,39 @@ func (o *observerImpl) DumpMetrics(path string) error {
 	return o.engine.Storage().DumpToFile(path)
 }
 
+// --- DebugView implementation ---
+
+// StateView returns a read-only window into engine state.
+// Implements DebugView.
+func (o *observerImpl) StateView() StateView {
+	return o.engine.StateView()
+}
+
+// CatalogEntries returns the list of all registered components with their metadata.
+// Implements DebugView.
+func (o *observerImpl) CatalogEntries() []CatalogEntry {
+	entries := o.catalog.Entries()
+	result := make([]CatalogEntry, len(entries))
+	for i, e := range entries {
+		result[i] = CatalogEntry{
+			Name:           e.name,
+			DisplayName:    e.displayName,
+			Kind:           kindString(e.kind),
+			DefaultEnabled: e.defaultEnabled,
+		}
+	}
+	return result
+}
+
+// Flush blocks until all observations currently queued in the dispatch channel
+// have been processed by the engine. Implements DebugView.
+func (o *observerImpl) Flush() {
+	done := make(chan struct{})
+	o.obsCh <- observation{flush: done}
+	<-done
+}
+
+
 // handle is the lightweight observation interface passed to other components.
 // It only holds a channel and source name - all processing happens in the observer.
 type handle struct {
@@ -889,4 +935,50 @@ func copyBytes(b []byte) []byte {
 	result := make([]byte, len(b))
 	copy(result, b)
 	return result
+}
+
+// --- reporterdef adapter ---
+
+// reporterdefAdapter wraps a reporterdef.Component so it can be registered with
+// the engine's reporterEventSink, which expects observerdef.Reporter.
+// It converts observerdef.ReportOutput → reporterdef.ReportOutput before calling Report.
+type reporterdefAdapter struct {
+	reporter reporterdef.Component
+}
+
+func (a *reporterdefAdapter) Name() string { return a.reporter.Name() }
+
+func (a *reporterdefAdapter) Report(output observerdef.ReportOutput) {
+	a.reporter.Report(toReporterOutput(output))
+}
+
+func toReporterOutput(o observerdef.ReportOutput) reporterdef.ReportOutput {
+	anomalies := make([]reporterdef.Anomaly, len(o.NewAnomalies))
+	for i, a := range o.NewAnomalies {
+		score := a.Score
+		anomalies[i] = reporterdef.Anomaly{
+			DetectorName: a.DetectorName,
+			Title:        a.Title,
+			Description:  a.Description,
+			Timestamp:    a.Timestamp,
+			Score:        score,
+			SeriesName:   a.Source.Name,
+			Tags:         a.Source.Tags,
+		}
+	}
+	correlations := make([]reporterdef.ActiveCorrelation, len(o.ActiveCorrelations))
+	for i, ac := range o.ActiveCorrelations {
+		correlations[i] = reporterdef.ActiveCorrelation{
+			Pattern:     ac.Pattern,
+			Title:       ac.Title,
+			MemberCount: len(ac.Members),
+			FirstSeen:   ac.FirstSeen,
+			LastUpdated: ac.LastUpdated,
+		}
+	}
+	return reporterdef.ReportOutput{
+		AdvancedToSec:      o.AdvancedToSec,
+		NewAnomalies:       anomalies,
+		ActiveCorrelations: correlations,
+	}
 }

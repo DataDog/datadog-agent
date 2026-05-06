@@ -57,20 +57,14 @@ func (sv *stateView) UniqueAnomalySourceCount() int {
 
 // --- Detector info ---
 
-// detectorInfo describes a detector registered with the engine.
-type detectorInfo struct {
-	Name    string
-	Enabled bool
-}
-
 // ListDetectors returns info about all detectors currently in the engine.
-func (sv *stateView) ListDetectors() []detectorInfo {
+func (sv *stateView) ListDetectors() []ComponentStateInfo {
 	sv.engine.mu.RLock()
 	defer sv.engine.mu.RUnlock()
 
-	result := make([]detectorInfo, len(sv.engine.detectors))
+	result := make([]ComponentStateInfo, len(sv.engine.detectors))
 	for i, d := range sv.engine.detectors {
-		result[i] = detectorInfo{
+		result[i] = ComponentStateInfo{
 			Name:    d.Name(),
 			Enabled: true, // detectors in the engine are always enabled
 		}
@@ -118,20 +112,14 @@ func (sv *stateView) AnomaliesForSource(sd observerdef.SeriesDescriptor) []obser
 
 // --- Correlator info ---
 
-// correlatorInfo describes a correlator registered with the engine.
-type correlatorInfo struct {
-	Name    string
-	Enabled bool
-}
-
 // ListCorrelators returns info about all correlators currently in the engine.
-func (sv *stateView) ListCorrelators() []correlatorInfo {
+func (sv *stateView) ListCorrelators() []ComponentStateInfo {
 	sv.engine.mu.RLock()
 	defer sv.engine.mu.RUnlock()
 
-	result := make([]correlatorInfo, len(sv.engine.correlators))
+	result := make([]ComponentStateInfo, len(sv.engine.correlators))
 	for i, c := range sv.engine.correlators {
-		result[i] = correlatorInfo{
+		result[i] = ComponentStateInfo{
 			Name:    c.Name(),
 			Enabled: true, // correlators in the engine are always enabled
 		}
