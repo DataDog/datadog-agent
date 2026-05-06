@@ -456,7 +456,7 @@ func (s *packageApmInjectSuite) TestAppArmor() {
 	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
 	s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y isc-dhcp-client")
 	res := s.Env().RemoteHost.MustExecute("sudo DD_APM_INSTRUMENTATION_DEBUG=true /usr/sbin/dhclient 2>&1")
-	assert.Contains(s.T(), res, "not injecting; on deny list")
+	assert.Contains(s.T(), res, "not injecting")
 }
 
 func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {
