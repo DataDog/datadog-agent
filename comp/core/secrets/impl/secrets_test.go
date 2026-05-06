@@ -296,13 +296,9 @@ func TestConfigurePrecedence(t *testing.T) {
 }
 
 func TestResolveNoCommand(t *testing.T) {
-	tel := nooptelemetry.GetCompatComponent()
-	resolver := newEnabledSecretResolver(tel)
-	resolver.fetchHookFunc = func([]string) (map[string]string, error) {
-		return nil, errors.New("some error")
-	}
+	// newResolver with no params leaves secretBackendMethod empty — Resolve must be a no-op.
+	resolver := newResolver(t, secrets.ConfigParams{})
 
-	// since we didn't set any command this should return without any error
 	resConf, err := resolver.Resolve(testConf, "test", "", "", true)
 	require.NoError(t, err)
 	assert.Equal(t, testConf, resConf)
@@ -344,6 +340,7 @@ func TestResolvePartialFailure(t *testing.T) {
 
 	resolvedConf, err := resolver.Resolve(conf, "test", "", "", true)
 
+	// Error is returned because the secret "unknown_handle" was unresolved.
 	require.Error(t, err)
 
 	resolved := string(resolvedConf)
@@ -353,15 +350,16 @@ func TestResolvePartialFailure(t *testing.T) {
 }
 
 // TestResolveMultiSecretBackendsNamed verifies that ENC[FILE;pass1] is routed to the
-// named "FILE" backend under multi_secret_backends. No secret_backend_command is set —
-// in production the embedded SGC would be assigned as the command by Configure.
+// named "file" backend under multi_secret_backends, and that the lookup is case-insensitive
+// (the handle prefix "FILE" matches the lowercase-stored key "file").
 func TestResolveMultiSecretBackendsNamed(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
-	// Register a named backend "FILE" under multi_secret_backends.
-	// ENC[FILE;pass1] should route to this backend.
+	// Keys are stored lowercase (as Configure normalizes them); the handle prefix is
+	// matched case-insensitively via strings.ToLower at lookup time.
+	resolver.secretBackendMethod = "multi_secret_backends"
 	resolver.multiBackends = map[string]secrets.SecretBackendConfig{
-		"FILE": {Type: "file.yaml", Config: map[string]interface{}{"file_path": "/tmp/secrets.yaml"}},
+		"file": {Type: "file.yaml", Config: map[string]interface{}{"file_path": "/tmp/secrets.yaml"}},
 	}
 	resolver.commandHookFunc = func(string) ([]byte, error) {
 		return []byte(`{"pass1":{"value":"resolved_value"}}`), nil
@@ -400,7 +398,7 @@ func TestResolveBackendTypeSemicolonHandle(t *testing.T) {
 func TestResolveUnprefixedDisallowedWithMultiOnly(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
-	resolver.backendType = ""
+	resolver.secretBackendMethod = "multi_secret_backends"
 	resolver.multiBackends = map[string]secrets.SecretBackendConfig{
 		"file": {Type: "file.yaml", Config: map[string]interface{}{"file_path": "/tmp/secrets.yaml"}},
 	}

@@ -92,6 +92,10 @@ type secretResolver struct {
 	// old values are retained for IsValueFromSecret lookups.
 	resolvedSecretValues map[string]struct{}
 
+	// secretBackendMethod is set by Configure to the active secret method
+	// ("secret_backend_command", "secret_backend_type", or "multi_secret_backends").
+	// Empty means no backend is configured; Resolve exits early in that case.
+	secretBackendMethod             string
 	backendType                     string
 	backendConfig                   map[string]interface{}
 	multiBackends                   map[string]secrets.SecretBackendConfig
@@ -152,6 +156,7 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 		clk:                     newClock(),
 		unresolvedSecrets:       make(map[string]struct{}),
 		refreshTrigger:          make(chan struct{}, 1),
+		secretBackendMethod:     "secret_backend_command",
 	}
 }
 
@@ -296,32 +301,34 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 
 	r.embeddedBackendPermissiveRights = false
 
-	var activeBackend string
-	var ignoredBackends []string
+	var activeMethod string
+	var ignoredMethods []string
+	r.secretBackendMethod = ""
 	if r.backendCommand != "" {
-		activeBackend = "secret_backend_command"
+		activeMethod = "secret_backend_command"
 		if r.backendType != "" {
-			ignoredBackends = append(ignoredBackends, "secret_backend_type")
+			ignoredMethods = append(ignoredMethods, "secret_backend_type")
 		}
 		if len(r.multiBackends) > 0 {
-			ignoredBackends = append(ignoredBackends, "multi_secret_backends")
+			ignoredMethods = append(ignoredMethods, "multi_secret_backends")
 		}
 		r.backendType = ""
 		r.multiBackends = nil
 	} else if r.backendType != "" {
-		activeBackend = "secret_backend_type"
+		activeMethod = "secret_backend_type"
 		if len(r.multiBackends) > 0 {
-			ignoredBackends = append(ignoredBackends, "multi_secret_backends")
+			ignoredMethods = append(ignoredMethods, "multi_secret_backends")
 		}
 		r.multiBackends = nil
 	} else if len(r.multiBackends) > 0 {
-		activeBackend = "multi_secret_backends"
+		activeMethod = "multi_secret_backends"
 	}
-	if len(ignoredBackends) > 0 {
-		log.Warnf("%s takes precedence over %s. Remove %s from datadog.yaml to switch. Docs: %s", activeBackend, strings.Join(ignoredBackends, " and "), activeBackend, secretsManagementDocsURL)
+	r.secretBackendMethod = activeMethod
+	if len(ignoredMethods) > 0 {
+		log.Warnf("%s takes precedence over %s. Remove %s from datadog.yaml to switch. Docs: %s", activeMethod, strings.Join(ignoredMethods, " and "), activeMethod, secretsManagementDocsURL)
 	}
 	// use the embedded connector if a native backend is configured and no explicit command is set
-	if activeBackend != "" && activeBackend != "secret_backend_command" {
+	if activeMethod != "" && activeMethod != "secret_backend_command" {
 		if runtime.GOOS == "windows" {
 			r.backendCommand = filepath.Join(
 				defaultpaths.GetEmbeddedBinPath(),
@@ -523,7 +530,7 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	if data == nil || r.backendCommand == "" {
+	if data == nil || r.secretBackendMethod == "" {
 		return data, nil
 	}
 
