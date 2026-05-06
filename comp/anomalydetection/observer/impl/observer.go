@@ -19,14 +19,13 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	"github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl/hfrunner"
+	hfrunnerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/hfrunner/def"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
-	hfrunnerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/hfrunner/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
