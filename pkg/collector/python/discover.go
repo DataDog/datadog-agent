@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -37,6 +39,18 @@ import "C"
 // or "null"). Returns an error if the rtloader is not initialised, the
 // check class cannot be loaded, or the bridge call fails.
 func RunDiscover(integrationName, serviceJSON string) (string, error) {
+	// Lazy-init Python on demand, mirroring the python check loader's
+	// convention (loader.go). When `python_lazy_loading` is true (the
+	// default), the discoverer is the first caller that needs Python —
+	// triggering init here ensures rtloader is ready by the time we
+	// resolve the check class. The pythonOnce sync.Once shared with the
+	// loader makes this idempotent across all consumers.
+	if pkgconfigsetup.Datadog().GetBool("python_lazy_loading") {
+		pythonOnce.Do(func() {
+			InitPython(common.GetPythonPaths()...)
+		})
+	}
+
 	if rtloader == nil {
 		return "", ErrNotInitialized
 	}
