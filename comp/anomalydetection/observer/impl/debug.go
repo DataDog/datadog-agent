@@ -21,6 +21,23 @@ type DebugView interface {
 	// been processed by the engine. The testbench calls this after feeding
 	// parquet data to ensure StateView reflects all ingested observations.
 	Flush()
+	// Reset clears all engine state, resets storage, and reconfigures components.
+	Reset(settings ComponentSettings)
+	// GetReplayProgress returns lock-free replay progress counters.
+	GetReplayProgress() ReplayProgress
+	// SetReplayPhase updates the replay phase string for progress reporting.
+	SetReplayPhase(phase string)
+	// ExtractorCount returns the number of extractors active in the engine.
+	ExtractorCount() int
+	// AddTelemetry writes a data point into the engine's telemetry namespace.
+	// Used by the testbench to store per-detector timing stats for UI display.
+	AddTelemetry(name string, value float64, timestamp int64, tags []string)
+}
+
+// CorrelationSender sends Datadog events for detected anomaly correlations.
+// Obtain one via NewLiveCorrelationSender.
+type CorrelationSender interface {
+	Send(c observerdef.ActiveCorrelation) error
 }
 
 // StateView is a read-only window into engine state.
@@ -54,6 +71,14 @@ type StateView interface {
 	// Timing
 	LastAnalyzedTime() int64
 	LatestDataTime() int64
+	MaxTimestamp() int64
+
+	// Storage stats (excluding a given namespace, typically TelemetryNamespace)
+	TotalSeriesCount(excludeNamespace string) int
+	TotalSampleCount(excludeNamespace string) int64
+
+	// GetSeriesAll returns all points for a series.
+	GetSeriesAll(ref observerdef.SeriesRef, agg observerdef.Aggregate) *observerdef.Series
 }
 
 // ComponentStateInfo describes a component currently active in the engine.

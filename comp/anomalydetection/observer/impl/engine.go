@@ -889,6 +889,29 @@ func (e *engine) resetFull() {
 	e.resetCorrelations()
 }
 
+// ResetForReplay reconfigures with new components, clears all state, and replaces storage.
+func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []observerdef.Correlator, extractors []observerdef.LogMetricsExtractor) {
+	e.SetDetectors(detectors)
+	e.SetCorrelators(correlators)
+	e.SetExtractors(extractors)
+	e.resetFull()
+	e.mu.Lock()
+	e.storage = newTimeSeriesStorage()
+	e.mu.Unlock()
+}
+
+// ExtractorCount returns the number of extractors currently registered.
+func (e *engine) ExtractorCount() int {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return len(e.extractors)
+}
+
+// SetReplayPhase stores the current replay phase for progress reporting.
+func (e *engine) SetReplayPhase(phase string) {
+	e.replayPhase.Store(phase)
+}
+
 // ReplayProgress holds lock-free replay progress counters.
 type ReplayProgress struct {
 	Phase           string `json:"phase"` // "", "loading", "detecting", "done"

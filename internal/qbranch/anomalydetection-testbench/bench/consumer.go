@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package bench
 
 import (
 	"fmt"
@@ -47,11 +47,9 @@ func (p *PassthroughCorrelator) GetPending() []observer.Anomaly {
 
 // StdoutReporter prints reports to stdout.
 // It tracks correlation state changes and only prints when correlations appear or disappear.
-// All data comes through Report(ReportOutput) — no backdoor access to engine internals.
 type StdoutReporter struct {
-	seenCorrelations map[string]string // pattern -> title for correlations we've reported
-	seenRawAnomalies map[string]bool   // source|detector -> whether we've reported this raw anomaly
-	// lastCorrelations is cached from the most recent Report call for PrintFinalState.
+	seenCorrelations map[string]string
+	seenRawAnomalies map[string]bool
 	lastCorrelations []observer.ActiveCorrelation
 }
 
@@ -60,20 +58,13 @@ func (r *StdoutReporter) Name() string {
 	return "stdout_reporter"
 }
 
-// Report receives a ReportOutput with anomalies and correlations from the engine
-// and prints changes. It prints new anomalies and tracks correlation state changes,
-// printing "[observer] NEW: {title}" when a correlation first appears and
-// "[observer] CLEARED: {title}" when a correlation disappears.
+// Report receives a ReportOutput with anomalies and correlations.
 func (r *StdoutReporter) Report(report observer.ReportOutput) {
-	// Report new anomalies (with detector identification)
 	r.reportNewAnomalies(report.NewAnomalies)
-	// Check for correlation changes
 	r.reportCorrelationChanges(report.ActiveCorrelations)
-	// Cache for PrintFinalState
 	r.lastCorrelations = report.ActiveCorrelations
 }
 
-// reportNewAnomalies prints new anomalies from this advance cycle.
 func (r *StdoutReporter) reportNewAnomalies(anomalies []observer.Anomaly) {
 	if r.seenRawAnomalies == nil {
 		r.seenRawAnomalies = make(map[string]bool)
@@ -89,19 +80,16 @@ func (r *StdoutReporter) reportNewAnomalies(anomalies []observer.Anomaly) {
 	}
 }
 
-// reportCorrelationChanges checks for new and cleared correlations.
 func (r *StdoutReporter) reportCorrelationChanges(activeCorrelations []observer.ActiveCorrelation) {
 	if r.seenCorrelations == nil {
 		r.seenCorrelations = make(map[string]string)
 	}
 
-	// Build set of currently active pattern names
-	currentlyActive := make(map[string]string) // pattern -> title
+	currentlyActive := make(map[string]string)
 	for _, ac := range activeCorrelations {
 		currentlyActive[ac.Pattern] = ac.Title
 	}
 
-	// Check for new correlations (in current but not in seen)
 	for _, ac := range activeCorrelations {
 		if _, seen := r.seenCorrelations[ac.Pattern]; !seen {
 			fmt.Printf("[observer] NEW: %s\n", ac.Title)
@@ -112,7 +100,6 @@ func (r *StdoutReporter) reportCorrelationChanges(activeCorrelations []observer.
 		}
 	}
 
-	// Check for cleared correlations (in seen but not in current)
 	for pattern, title := range r.seenCorrelations {
 		if _, ok := currentlyActive[pattern]; !ok {
 			fmt.Printf("[observer] CLEARED: %s\n", title)
@@ -122,8 +109,6 @@ func (r *StdoutReporter) reportCorrelationChanges(activeCorrelations []observer.
 }
 
 // PrintFinalState prints the current state of all correlations.
-// Call this at the end of a demo to see final cluster contents.
-// Uses the last correlations received via Report.
 func (r *StdoutReporter) PrintFinalState() {
 	if len(r.lastCorrelations) == 0 {
 		fmt.Println("[observer] Final state: no active correlations")
