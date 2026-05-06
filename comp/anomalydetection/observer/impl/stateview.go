@@ -194,3 +194,24 @@ func (sv *stateView) LatestDataTime() int64 {
 	defer sv.engine.mu.RUnlock()
 	return sv.engine.latestDataTime
 }
+
+// TotalSeriesCount returns the number of unique metric series, excluding the given namespace.
+func (sv *stateView) TotalSeriesCount(excludeNamespace string) int {
+	return sv.engine.storage.TotalSeriesCount(excludeNamespace)
+}
+
+// TotalSampleCount returns the total number of stored data points, excluding the given namespace.
+func (sv *stateView) TotalSampleCount(excludeNamespace string) int64 {
+	return sv.engine.storage.TotalSampleCount(excludeNamespace)
+}
+
+// MaxTimestamp returns the latest timestamp across all stored series.
+func (sv *stateView) MaxTimestamp() int64 {
+	return sv.engine.storage.MaxTimestamp()
+}
+
+// GetSeriesAll returns all points for a series from the beginning.
+// Equivalent to GetSeriesRange(ref, 0, MaxTimestamp, agg) but without needing the max.
+func (sv *stateView) GetSeriesAll(ref observerdef.SeriesRef, agg observerdef.Aggregate) *observerdef.Series {
+	return sv.engine.storage.GetSeriesRange(ref, 0, sv.engine.storage.MaxTimestamp(), agg)
+}

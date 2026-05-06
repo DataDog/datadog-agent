@@ -820,6 +820,32 @@ func (o *observerImpl) Flush() {
 	<-done
 }
 
+// Reset clears all engine state and reconfigures with new settings. Implements DebugView.
+func (o *observerImpl) Reset(settings ComponentSettings) {
+	o.Flush()
+	detectors, correlators, extractors, _ := o.catalog.Instantiate(settings)
+	o.engine.ResetForReplay(detectors, correlators, extractors)
+}
+
+// GetReplayProgress returns lock-free replay progress counters. Implements DebugView.
+func (o *observerImpl) GetReplayProgress() ReplayProgress {
+	return o.engine.GetReplayProgress()
+}
+
+// SetReplayPhase updates the replay phase string. Implements DebugView.
+func (o *observerImpl) SetReplayPhase(phase string) {
+	o.engine.SetReplayPhase(phase)
+}
+
+// ExtractorCount returns the number of extractors active in the engine. Implements DebugView.
+func (o *observerImpl) ExtractorCount() int {
+	return o.engine.ExtractorCount()
+}
+
+// AddTelemetry writes a data point into the telemetry namespace. Implements DebugView.
+func (o *observerImpl) AddTelemetry(name string, value float64, timestamp int64, tags []string) {
+	_ = o.engine.storage.Add(observerdef.TelemetryNamespace, name, value, timestamp, tags)
+}
 
 // handle is the lightweight observation interface passed to other components.
 // It only holds a channel and source name - all processing happens in the observer.
