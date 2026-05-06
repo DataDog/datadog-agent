@@ -158,7 +158,14 @@ func defaultCatalog() *componentCatalog {
 				kind:           componentDetector,
 				defaultConfig:  DefaultBOCPDConfig(),
 				factory:        func(cfg any) any { return NewBOCPDDetector(cfg.(BOCPDConfig)) },
-				defaultEnabled: true,
+				// Disabled by default in favour of mc_spike_levelshift — eval
+				// (5/5/2026) showed MC det alone scoring 28.84% mean F1 vs
+				// bocpd alone 11.60% on the 12-scenario corpus, and running
+				// both detectors degrades F1 by 6.5pp because cascading
+				// post-onset firings hide each other from the scorer.
+				// Kept registered so it can be opt-in for workloads
+				// (casino_postgresql, 353_postmark) where bocpd uniquely wins.
+				defaultEnabled: false,
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(BOCPDConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
@@ -173,7 +180,9 @@ func defaultCatalog() *componentCatalog {
 				kind:           componentDetector,
 				defaultConfig:  DefaultRRCFConfig(),
 				factory:        func(cfg any) any { return NewRRCFDetector(cfg.(RRCFConfig)) },
-				defaultEnabled: true,
+				// Disabled by default — was hurting more than helping in
+				// system eval; kept registered so it can be opt-in.
+				defaultEnabled: false,
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(RRCFConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
@@ -188,6 +197,26 @@ func defaultCatalog() *componentCatalog {
 				kind:           componentDetector,
 				factory:        func(any) any { return NewScanMWDetector() },
 				defaultEnabled: false,
+			},
+			{
+				name:           "mc_spike_levelshift",
+				displayName:    "MC Spike + Level-Shift",
+				kind:           componentDetector,
+				defaultConfig:  DefaultMCSpikeLevelShiftConfig(),
+				factory:        func(cfg any) any { return NewMCSpikeLevelShiftDetector(cfg.(MCSpikeLevelShiftConfig)) },
+				// System eval (5/5/2026, 12-scenario corpus) showed
+				// MC det adds +10.7pp system mean F1 vs baseline once
+				// Count aggregation is enabled (catches frequency-shape
+				// anomalies bocpd misses on 221_base and food_delivery_redis,
+				// captures the 703_shopify spike shape with P=1.0).
+				defaultEnabled: true,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(MCSpikeLevelShiftConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, err
+					}
+					return cfg, nil
+				},
 			},
 			{
 				name:           "scanwelch",
