@@ -190,6 +190,17 @@ DATADOG_AGENT_RTLOADER_API int get_check_deprecated(rtloader_t *rtloader, rtload
 */
 DATADOG_AGENT_RTLOADER_API char *run_check(rtloader_t *, rtloader_pyobject_t *check);
 
+/*! \fn char *run_discover(rtloader_t *, rtloader_pyobject_t *py_class, const char *service_json)
+    \brief Calls the _run_discover bridge helper with a check class and a JSON service payload.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param py_class A rtloader_pyobject_t * pointer to the check class object.
+    \param service_json A C-string JSON payload representing the autodiscovery Service.
+    \return A C-string with the JSON-serialized discover result. Caller must free the returned pointer.
+    \sa rtloader_pyobject_t, rtloader_t
+*/
+DATADOG_AGENT_RTLOADER_API char *run_discover(rtloader_t *, rtloader_pyobject_t *py_class,
+                                               const char *service_json);
+
 /*! \fn char *cancel_check(rtloader_t *, rtloader_pyobject_t *check)
     \brief Cancels a check instance. This allow check to be notified when
     they're unscheduled and can free any remaining resources.

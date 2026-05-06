@@ -65,6 +65,7 @@ public:
                   const char *provider_str, RtLoaderPyObject *&check);
 
     char *runCheck(RtLoaderPyObject *check);
+    char *runDiscover(RtLoaderPyObject *py_class, const char *service_json) override;
     void cancelCheck(RtLoaderPyObject *check);
     char **getCheckWarnings(RtLoaderPyObject *check);
     char *getCheckDiagnoses(RtLoaderPyObject *check);
