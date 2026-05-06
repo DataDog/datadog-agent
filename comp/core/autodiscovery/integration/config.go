@@ -123,7 +123,7 @@ type Config struct {
 	// Discovery, when non-nil, signals that this config is a discovery
 	// template: AutoDiscovery must call the integration's Python discover()
 	// method against the matched service to obtain concrete instances.
-	Discovery *Discovery `json:"discovery"` // (include in digest: true)
+	Discovery *Discovery `json:"discovery"` // (include in digest: false)
 }
 
 // Discovery is the marker payload for advanced auto-config templates. It is

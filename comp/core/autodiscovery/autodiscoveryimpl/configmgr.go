@@ -431,8 +431,14 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 		if len(result.Configs) == 0 {
 			return tpl, false
 		}
+		if len(result.Configs) > 1 {
+			// Multi-instance support requires a different return shape from
+			// resolveTemplateForService. Until that lands, log loudly so the
+			// truncation is visible (relevant for druid, tekton, torchserve).
+			log.Warnf("autodiscovery: %s.discover() returned %d configs for service %s; using only the first (multi-instance support is a follow-up)", tpl.Name, len(result.Configs), svc.GetServiceID())
+		}
 		// Single-instance path: take the first discovered config's instances and
-		// graft onto a copy of tpl. Multi-instance per service is a follow-up.
+		// graft onto a copy of tpl.
 		resolved := tpl
 		resolved.Instances = result.Configs[0].Instances
 		// Discovery results are concrete configs — no template substitution needed.
