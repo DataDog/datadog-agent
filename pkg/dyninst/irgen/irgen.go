@@ -752,7 +752,7 @@ func checkConditionLHS(expr exprlang.Expr) error {
 		return checkConditionLHS(e.Operand)
 	case *exprlang.IsEmptyExpr:
 		return checkConditionLHS(e.Operand)
-	case *exprlang.EqExpr, *exprlang.AndExpr, *exprlang.OrExpr, *exprlang.NotExpr:
+	case *exprlang.EqExpr, *exprlang.AndExpr, *exprlang.OrExpr, *exprlang.NotExpr, *exprlang.ContainsExpr:
 		return fmt.Errorf(
 			"condition leaf LHS may not be a boolean expression (%T); "+
 				"use the inner expression directly",
@@ -799,6 +799,8 @@ func conditionLeafSubExpr(leaf exprlang.Expr) (exprlang.Expr, bool) {
 		return l.Left, true
 	case *exprlang.IsEmptyExpr:
 		return l.Operand, true
+	case *exprlang.ContainsExpr:
+		return l.Base, true
 	default:
 		return nil, false
 	}
@@ -893,6 +895,8 @@ func extractRootVariableName(expr exprlang.Expr) (string, bool) {
 		case *exprlang.IsEmptyExpr:
 			expr = e.Operand
 		case *exprlang.IndexExpr:
+			expr = e.Base
+		case *exprlang.ContainsExpr:
 			expr = e.Base
 		case *exprlang.EqExpr:
 			expr = e.Left
@@ -1348,6 +1352,7 @@ func newTemplate(td ir.TemplateDefinition) *ir.Template {
 				case *exprlang.IndexExpr:
 				case *exprlang.LenExpr:
 				case *exprlang.IsEmptyExpr:
+				case *exprlang.ContainsExpr:
 				case *exprlang.EqExpr:
 				case *exprlang.UnsupportedExpr:
 					msg := "unsupported operation: " + expr.Operation
@@ -4011,6 +4016,47 @@ func exploreExpressionTypes(
 	case *exprlang.IndexExpr:
 		return exploreIndexExprTypes(e, currentType, tc, exprPath)
 
+	case *exprlang.ContainsExpr:
+		// Resolve the map base and validate the literal key. The result
+		// type is always bool regardless of the map's value element type.
+		resolvedType, err := exploreExpressionTypes(e.Base, currentType, tc, exprPath)
+		if err != nil {
+			return nil, err
+		}
+		mapType, ok := tc.typesByID[resolvedType.GetID()].(*ir.GoMapType)
+		if !ok {
+			return nil, fmt.Errorf(
+				"contains: operand must be a map, got %s",
+				resolvedType.GetName(),
+			)
+		}
+		litExpr, ok := e.Key.(*exprlang.LiteralExpr)
+		if !ok {
+			return nil, fmt.Errorf(
+				"contains: key must be a literal, got %T", e.Key,
+			)
+		}
+		headerType := tc.typesByID[mapType.HeaderType.GetID()]
+		swissHeader, ok := headerType.(*ir.GoSwissMapHeaderType)
+		if !ok {
+			if _, isHMap := headerType.(*ir.GoHMapHeaderType); isHMap {
+				return nil, errors.New("contains not supported on old-style hmap; only swiss maps (Go 1.24+) are supported")
+			}
+			return nil, fmt.Errorf("contains not supported on map header type %T", headerType)
+		}
+		keyType, _, err := swissMapKeyValueTypes(swissHeader, tc)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve map key type: %w", err)
+		}
+		keyType = tc.typesByID[keyType.GetID()]
+		if err := validateSwissMapKeyLiteral(litExpr, keyType); err != nil {
+			return nil, err
+		}
+		if tc.boolType == 0 {
+			return nil, errors.New("bool type not found")
+		}
+		return tc.typesByID[tc.boolType], nil
+
 	default:
 		// Unknown expression type - nothing to explore.
 		return currentType, nil
@@ -4489,6 +4535,9 @@ func resolveExpression(
 	case *exprlang.IsEmptyExpr:
 		return resolveIsEmptyComparison(e, rootVar, tc)
 
+	case *exprlang.ContainsExpr:
+		return resolveContainsExpression(e, rootVar, tc)
+
 	case *exprlang.EqExpr:
 		lhsExpr, err := resolveExpression(e.Left, rootVar, tc)
 		if err != nil {
@@ -4508,6 +4557,40 @@ func resolveExpression(
 			"unsupported expression type: %T", expr,
 		)
 	}
+}
+
+// resolveContainsExpression resolves contains(map, literalKey) into IR ops
+// that produce a single bool: 1 if the key is present, 0 otherwise (including
+// for nil maps). See ir.SwissMapLookupOp.ExistenceOnly for runtime semantics.
+func resolveContainsExpression(
+	e *exprlang.ContainsExpr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	baseExpr, err := resolveExpression(e.Base, rootVar, tc)
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("failed to resolve contains base: %w", err)
+	}
+	mapType, ok := tc.typesByID[baseExpr.Type.GetID()].(*ir.GoMapType)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf(
+			"contains: operand must be a map, got %s",
+			baseExpr.Type.GetName(),
+		)
+	}
+	litExpr, ok := e.Key.(*exprlang.LiteralExpr)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf(
+			"contains: key must be a literal, got %T", e.Key,
+		)
+	}
+	ops, resultType, err := buildSwissMapLookup(
+		baseExpr.Operations, mapType, litExpr, true, tc,
+	)
+	if err != nil {
+		return ir.Expression{}, err
+	}
+	return ir.Expression{Type: resultType, Operations: ops}, nil
 }
 
 // indexElementType returns the element type for an indexable collection type
@@ -4687,104 +4770,137 @@ func resolveSliceIndex(
 	}, nil
 }
 
-// resolveSwissMapIndex resolves a map index expression into IR operations
-// that perform an O(1) hash lookup. The base expression evaluates to a map
-// pointer. We dereference it to read the map header, then emit a
-// SwissMapLookupOp that encodes all structural offsets and the literal key.
+// resolveSwissMapIndex resolves a map index expression (`m[literalKey]`)
+// into IR operations that perform an O(1) hash lookup. The base expression
+// evaluates to a map pointer. We dereference it to read the map header,
+// then emit a SwissMapLookupOp that encodes all structural offsets and the
+// literal key.
 func resolveSwissMapIndex(
 	baseExpr ir.Expression,
 	mapType *ir.GoMapType,
 	litExpr *exprlang.LiteralExpr,
 	tc *typeCatalog,
 ) (ir.Expression, error) {
+	ops, resultType, err := buildSwissMapLookup(
+		baseExpr.Operations, mapType, litExpr, false, tc,
+	)
+	if err != nil {
+		return ir.Expression{}, err
+	}
+	return ir.Expression{Type: resultType, Operations: ops}, nil
+}
+
+// buildSwissMapLookup emits the IR ops for a swiss-map lookup. When
+// existenceOnly is true the op is the contains(map, key) variant: the
+// returned result type is bool and the emitted SwissMapLookupOp carries
+// ExistenceOnly=true with ValByteSize=1. When false the result type is the
+// map's value element type and SwissMapLookupOp mirrors the Go `m[k]`
+// semantics.
+//
+// `ops` is the input operation list (typically from a resolved base
+// expression that produces the map pointer). In value-lookup mode it is
+// appended with a DereferenceOp for the map header and then the
+// SwissMapLookupOp. In existence-only mode the DereferenceOp is omitted:
+// the setup opcode does the deref itself so it can convert a nil map
+// pointer into a bool-false result without aborting the stack machine.
+func buildSwissMapLookup(
+	ops []ir.ExpressionOp,
+	mapType *ir.GoMapType,
+	litExpr *exprlang.LiteralExpr,
+	existenceOnly bool,
+	tc *typeCatalog,
+) ([]ir.ExpressionOp, ir.Type, error) {
 	// Unwrap GoMapType → header type.
 	headerType := tc.typesByID[mapType.HeaderType.GetID()]
 	swissHeader, ok := headerType.(*ir.GoSwissMapHeaderType)
 	if !ok {
-		return ir.Expression{}, fmt.Errorf(
-			"map index: expected GoSwissMapHeaderType, got %T", headerType,
+		return nil, nil, fmt.Errorf(
+			"swiss map lookup: expected GoSwissMapHeaderType, got %T", headerType,
 		)
 	}
 
 	// The base expression gives us a map pointer (*Map). Dereference to read
-	// the full map header.
+	// the full map header. In existence-only mode the deref is null-tolerant
+	// so contains(nil_map, k) → bool-false rather than aborting with
+	// condition_nil_deref: the zeroed header falls through to the
+	// SwissMapLookupOp handler, which sees dir_ptr == 0 and writes bool 0.
 	headerSize := swissHeader.StructureType.GetByteSize()
-	operations := baseExpr.Operations
-	operations = append(operations, &ir.DereferenceOp{
-		Bias:     0,
-		ByteSize: headerSize,
+	ops = append(ops, &ir.DereferenceOp{
+		Bias:       0,
+		ByteSize:   headerSize,
+		NullAsZero: existenceOnly,
 	})
 
 	// Extract map header field offsets from DWARF.
 	seedField, err := field(tc, swissHeader.StructureType, "seed")
 	if err != nil {
-		return ir.Expression{}, fmt.Errorf("map header missing seed field: %w", err)
+		return nil, nil, fmt.Errorf("map header missing seed field: %w", err)
 	}
 	dirPtrField, err := field(tc, swissHeader.StructureType, "dirPtr")
 	if err != nil {
-		return ir.Expression{}, fmt.Errorf("map header missing dirPtr field: %w", err)
+		return nil, nil, fmt.Errorf("map header missing dirPtr field: %w", err)
 	}
 	dirLenField, err := field(tc, swissHeader.StructureType, "dirLen")
 	if err != nil {
-		return ir.Expression{}, fmt.Errorf("map header missing dirLen field: %w", err)
+		return nil, nil, fmt.Errorf("map header missing dirLen field: %w", err)
 	}
 	globalShiftField, err := field(tc, swissHeader.StructureType, "globalShift")
 	if err != nil {
-		return ir.Expression{}, fmt.Errorf("map header missing globalShift field: %w", err)
+		return nil, nil, fmt.Errorf("map header missing globalShift field: %w", err)
 	}
 
 	// Navigate to the group structure for slot layout:
 	// GroupType → "ctrl" field, "slots" field → ArrayType → Element (slot struct)
 	ctrlField, err := field(tc, swissHeader.GroupType, "ctrl")
 	if err != nil {
-		return ir.Expression{}, fmt.Errorf("group type missing ctrl field: %w", err)
+		return nil, nil, fmt.Errorf("group type missing ctrl field: %w", err)
 	}
 	slotsField, err := field(tc, swissHeader.GroupType, "slots")
 	if err != nil {
-		return ir.Expression{}, fmt.Errorf("group type missing slots field: %w", err)
+		return nil, nil, fmt.Errorf("group type missing slots field: %w", err)
 	}
 	slotsFieldType := tc.typesByID[slotsField.Type.GetID()]
 	entryArray, ok := slotsFieldType.(*ir.ArrayType)
 	if !ok {
-		return ir.Expression{}, fmt.Errorf("slots field is not an array: %T", slotsFieldType)
+		return nil, nil, fmt.Errorf("slots field is not an array: %T", slotsFieldType)
 	}
 	slotStruct, ok := entryArray.Element.(*ir.StructureType)
 	if !ok {
-		return ir.Expression{}, fmt.Errorf("slot element is not a struct: %T", entryArray.Element)
+		return nil, nil, fmt.Errorf("slot element is not a struct: %T", entryArray.Element)
 	}
 	keyField, err := field(tc, slotStruct, "key")
 	if err != nil {
-		return ir.Expression{}, fmt.Errorf("slot struct missing key field: %w", err)
+		return nil, nil, fmt.Errorf("slot struct missing key field: %w", err)
 	}
 	elemField, err := field(tc, slotStruct, "elem")
 	if err != nil {
-		return ir.Expression{}, fmt.Errorf("slot struct missing elem field: %w", err)
+		return nil, nil, fmt.Errorf("slot struct missing elem field: %w", err)
 	}
 
 	// Navigate to table struct → groupsReference for data/lengthMask offsets.
 	tablePtrType, ok := swissHeader.TablePtrSliceType.Element.(*ir.PointerType)
 	if !ok {
-		return ir.Expression{}, fmt.Errorf("table ptr slice element is not a pointer: %T", swissHeader.TablePtrSliceType.Element)
+		return nil, nil, fmt.Errorf("table ptr slice element is not a pointer: %T", swissHeader.TablePtrSliceType.Element)
 	}
 	tableType, ok := tc.typesByID[tablePtrType.Pointee.GetID()].(*ir.StructureType)
 	if !ok {
-		return ir.Expression{}, fmt.Errorf("table pointee is not a struct: %T", tc.typesByID[tablePtrType.Pointee.GetID()])
+		return nil, nil, fmt.Errorf("table pointee is not a struct: %T", tc.typesByID[tablePtrType.Pointee.GetID()])
 	}
 	groupsField, err := field(tc, tableType, "groups")
 	if err != nil {
-		return ir.Expression{}, fmt.Errorf("table type missing groups field: %w", err)
+		return nil, nil, fmt.Errorf("table type missing groups field: %w", err)
 	}
 	groupsType, ok := groupsField.Type.(*ir.GoSwissMapGroupsType)
 	if !ok {
-		return ir.Expression{}, fmt.Errorf("groups field is not GoSwissMapGroupsType: %T", groupsField.Type)
+		return nil, nil, fmt.Errorf("groups field is not GoSwissMapGroupsType: %T", groupsField.Type)
 	}
 	dataField, err := field(tc, groupsType.StructureType, "data")
 	if err != nil {
-		return ir.Expression{}, fmt.Errorf("groupsReference missing data field: %w", err)
+		return nil, nil, fmt.Errorf("groupsReference missing data field: %w", err)
 	}
 	lengthMaskField, err := field(tc, groupsType.StructureType, "lengthMask")
 	if err != nil {
-		return ir.Expression{}, fmt.Errorf("groupsReference missing lengthMask field: %w", err)
+		return nil, nil, fmt.Errorf("groupsReference missing lengthMask field: %w", err)
 	}
 
 	// Encode the literal key.
@@ -4801,24 +4917,40 @@ func resolveSwissMapIndex(
 		goKind, _ := kt.GetGoKind()
 		keyData, err = coerceLiteral(litExpr.Value, goKind, uint32(keyByteSize))
 		if err != nil {
-			return ir.Expression{}, fmt.Errorf("map index: %w", err)
+			return nil, nil, fmt.Errorf("swiss map lookup: %w", err)
 		}
 	case *ir.GoStringHeaderType:
 		isStringKey = true
 		keyByteSize = uint8(kt.StructureType.GetByteSize()) // 16 on amd64
-		litStr := litExpr.Value.(string)                    // validated in explore phase
+		litStr, ok := litExpr.Value.(string)
+		if !ok {
+			return nil, nil, fmt.Errorf(
+				"swiss map lookup: string-keyed map requires string literal, got %T",
+				litExpr.Value,
+			)
+		}
 		keyData = make([]byte, 4+len(litStr))
 		binary.LittleEndian.PutUint32(keyData[:4], uint32(len(litStr)))
 		copy(keyData[4:], litStr)
 	default:
-		return ir.Expression{}, fmt.Errorf("map index: unsupported key type %T", keyType)
+		return nil, nil, fmt.Errorf("swiss map lookup: unsupported key type %T", keyType)
 	}
 
-	operations = append(operations, &ir.SwissMapLookupOp{
-		KeyData:     keyData,
-		IsStringKey: isStringKey,
-		KeyByteSize: keyByteSize,
-		ValByteSize: valType.GetByteSize(),
+	// In existence-only mode the op writes a 1-byte bool at sm->offset.
+	// Keep val_byte_size honest at 1 so the bytecode doesn't carry a
+	// misleading value size (the BPF handler skips the value dereference
+	// anyway, but this documents intent).
+	valByteSize := valType.GetByteSize()
+	if existenceOnly {
+		valByteSize = 1
+	}
+
+	ops = append(ops, &ir.SwissMapLookupOp{
+		KeyData:       keyData,
+		IsStringKey:   isStringKey,
+		ExistenceOnly: existenceOnly,
+		KeyByteSize:   keyByteSize,
+		ValByteSize:   valByteSize,
 
 		SeedOffset:        uint8(seedField.Offset),
 		DirPtrOffset:      uint8(dirPtrField.Offset),
@@ -4840,10 +4972,11 @@ func resolveSwissMapIndex(
 		HeaderByteSize: headerSize,
 	})
 
-	return ir.Expression{
-		Type:       valType,
-		Operations: operations,
-	}, nil
+	var resultType ir.Type = valType
+	if existenceOnly {
+		resultType = tc.typesByID[tc.boolType]
+	}
+	return ops, resultType, nil
 }
 
 // resolveLenExpression resolves a len/isEmpty operand to an IR expression
@@ -5303,6 +5436,8 @@ func emitCondition(
 		return emitEqLeaf(e, leafRoots[e], tc)
 	case *exprlang.IsEmptyExpr:
 		return emitIsEmptyLeaf(e, leafRoots[e], tc)
+	case *exprlang.ContainsExpr:
+		return emitContainsLeaf(e, leafRoots[e], tc)
 	case *exprlang.NotExpr:
 		inner, err := emitCondition(e.Operand, leafRoots, tc, la)
 		if err != nil {
@@ -5382,6 +5517,25 @@ func emitIsEmptyLeaf(
 		return nil, errors.New("condition leaf has no resolved root variable")
 	}
 	expr, err := resolveIsEmptyComparison(ie, rootVar, tc)
+	if err != nil {
+		return nil, err
+	}
+	return expr.Operations, nil
+}
+
+// emitContainsLeaf lowers a ContainsExpr leaf (`contains(map, literalKey)`)
+// into ops that leave a single boolean byte at sm->offset: 1 if the key is
+// in the map, 0 otherwise (including for a nil map). See
+// ir.SwissMapLookupOp.ExistenceOnly for the runtime semantics.
+func emitContainsLeaf(
+	ce *exprlang.ContainsExpr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) ([]ir.ExpressionOp, error) {
+	if rootVar == nil {
+		return nil, errors.New("condition leaf has no resolved root variable")
+	}
+	expr, err := resolveContainsExpression(ce, rootVar, tc)
 	if err != nil {
 		return nil, err
 	}

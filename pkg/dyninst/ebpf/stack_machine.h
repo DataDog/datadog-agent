@@ -744,6 +744,41 @@ sm_copy_from_code(scratch_buf_t* buf, buf_offset_t dst,
   return !ctx.failed;
 }
 
+// zero_bytes_ctx_t is the context for writing zero bytes into the scratch
+// buffer via bpf_loop.
+typedef struct zero_bytes_ctx {
+  scratch_buf_t* buf;
+  buf_offset_t dst;
+  bool failed;
+} zero_bytes_ctx_t;
+
+static long zero_bytes_loop(unsigned long i, void* _ctx) {
+  zero_bytes_ctx_t* ctx = (zero_bytes_ctx_t*)_ctx;
+  buf_offset_t off = ctx->dst + i;
+  if (!scratch_buf_bounds_check(&off, 1)) {
+    ctx->failed = true;
+    return 1;
+  }
+  (*ctx->buf)[off] = 0;
+  return 0;
+}
+
+// sm_zero_bytes_scratch writes byte_size zero bytes at dst in the scratch
+// buffer. Uses bpf_loop so the verifier can reason about the bounded write.
+__attribute__((noinline)) bool
+sm_zero_bytes_scratch(scratch_buf_t* buf, buf_offset_t dst, uint32_t byte_size) {
+  if (!buf) {
+    return false;
+  }
+  zero_bytes_ctx_t ctx = {
+      .buf = buf,
+      .dst = dst,
+      .failed = false,
+  };
+  bpf_loop(byte_size, zero_bytes_loop, &ctx, 0);
+  return !ctx.failed;
+}
+
 // cmp_eq_bytes_ctx_t is the context for comparing two byte sequences in the
 // scratch buffer, using bpf_loop.
 typedef struct cmp_eq_bytes_ctx {
@@ -892,7 +927,12 @@ swiss_map_check_slot(scratch_buf_t* buf, swiss_map_slot_params_t* p) {
     }
   }
 
-  // Key matched — read value.
+  // Key matched. In existence-only mode the caller writes the bool result;
+  // skip the value dereference so exotic val types (large structs, unreadable
+  // pointers, etc.) don't turn a clean "present" into an eval error.
+  if (p->existence_only) {
+    return 1;
+  }
   if (!scratch_buf_dereference(buf, p->result_offset,
                                p->val_byte_size, p->val_addr)) {
     return -1;
@@ -909,6 +949,9 @@ swiss_map_check_slot(scratch_buf_t* buf, swiss_map_slot_params_t* p) {
 // Returns:
 //   1 = success, probe state ready (AES rounds still needed if use_aes)
 //   2 = success, hash done, probe state ready (wyhash path; skip AESENC+HASH_FINISH)
+//   3 = existence-only short circuit: bool 0 written at result_offset and
+//       sm->pc advanced past the remaining four swiss-map opcodes. Caller
+//       should fall through without running them. Used for contains(nil_map).
 //   0 = key not found (nil map or null table — OOB written)
 //  -1 = error
 // ---------------------------------------------------------------------------
@@ -937,6 +980,7 @@ sm_swiss_map_setup(scratch_buf_t* buf, stack_machine_t* sm) {
   ST.group_byte_size = sm_read_program_uint16(sm);
   uint32_t header_byte_size = sm_read_program_uint32(sm);
   ST.expr_status_idx = sm_read_program_uint32(sm);
+  ST.existence_only = sm_read_program_uint8(sm);
   uint16_t key_data_len = sm_read_program_uint16(sm);
 
   // Max key data: 4 (length prefix) + 512 (string) = 516 for strings,
@@ -970,6 +1014,15 @@ sm_swiss_map_setup(scratch_buf_t* buf, stack_machine_t* sm) {
   // Nil map check.
   if (dir_ptr == 0) {
     LOG(4, "swiss_map_setup: nil map");
+    if (ST.existence_only) {
+      // contains(nil_map, k) is false. Write the bool in place at
+      // sm->offset, skip the remaining 4 swiss-map opcodes (AESENC,
+      // HASH_FINISH, PROBE, CHECK_SLOT — each is 1 byte), and continue.
+      if (!scratch_buf_bounds_check(&ST.result_offset, 1)) return -1;
+      (*buf)[ST.result_offset] = 0;
+      sm->pc += 4;
+      return 3;
+    }
     if (ST.expr_status_idx != EXPR_STATUS_IDX_NONE) {
       expr_status_write(buf, sm->expr_results_offset, ST.expr_status_idx,
                         EXPR_STATUS_OOB);
@@ -1691,6 +1744,10 @@ sm_swiss_map_hash_finish(scratch_buf_t* buf, stack_machine_t* sm) {
       return -1;
     }
     if (table_ptr == 0) {
+      // A well-formed Go swiss map never has a null directory entry for a
+      // multi-table map (dir_len > 0): the runtime allocates every table
+      // before installing the directory. Reaching here means we read a
+      // torn or corrupt header, so report OOB regardless of mode.
       if (sm->swiss_map_state.expr_status_idx != EXPR_STATUS_IDX_NONE) {
         expr_status_write(buf, sm->expr_results_offset,
                           sm->swiss_map_state.expr_status_idx, EXPR_STATUS_OOB);
@@ -2089,12 +2146,28 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     uint32_t bias = sm_read_program_uint32(sm);
     uint32_t byte_len = sm_read_program_uint32(sm);
     uint32_t expr_status_idx = sm_read_program_uint32(sm);
+    uint8_t null_as_zero = sm_read_program_uint8(sm);
     buf_offset_t value_offset = sm->offset;
     if (!scratch_buf_bounds_check(&value_offset, sizeof(target_ptr_t))) {
       return 1;
     }
     target_ptr_t addr = *(target_ptr_t*)&((*buf)[value_offset]);
     if (addr == 0) {
+      if (null_as_zero) {
+        // contains(nil_map, k): write byte_len zeros at sm->offset so the
+        // follow-on SwissMapLookupOp sees a zero map header, detects
+        // dir_ptr == 0, and writes bool-false. sm_zero_bytes_scratch uses
+        // bpf_loop so the verifier can bound the write.
+        if (!sm_zero_bytes_scratch(buf, sm->offset, byte_len)) {
+          scratch_buf_set_len(buf, sm->expr_results_end_offset);
+          if (!sm_return(sm)) {
+            return 1;
+          }
+          return 0;
+        }
+        sm->buf_offset_1 = byte_len;
+        break;
+      }
       // NULL pointer: write nil-deref status.
       if (expr_status_idx != EXPR_STATUS_IDX_NONE) {
         expr_status_write(buf, sm->expr_results_offset, expr_status_idx, EXPR_STATUS_NIL_DEREF);
@@ -2914,6 +2987,12 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   case SM_OP_SWISS_MAP_SETUP: {
     LOG(4, "SWISS_MAP_SETUP: starting");
     int rc = sm_swiss_map_setup(buf, sm);
+    if (rc == 3) {
+      // Existence-only short circuit: setup already wrote the bool at
+      // result_offset and advanced sm->pc past the remaining swiss-map
+      // opcodes. Fall through without copying key data or running AES.
+      break;
+    }
     if (rc <= 0) {
       // nil map (0) or error (-1). OOB already written.
       if (!sm_return(sm)) return 1;
@@ -3006,6 +3085,14 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     if (sm->swiss_map_state.empty_matches) {
       // No H2 match and empty slot → key not in map.
       LOG(4, "swiss_map_probe: key not found (empty slot)");
+      if (sm->swiss_map_state.existence_only) {
+        // contains(m, absent_key) → false. Write bool 0, skip CHECK_SLOT.
+        buf_offset_t ro = sm->swiss_map_state.result_offset;
+        if (!scratch_buf_bounds_check(&ro, 1)) return 1;
+        (*buf)[ro] = 0;
+        sm->pc += 1; // skip CHECK_SLOT
+        break;
+      }
       if (sm->swiss_map_state.expr_status_idx != EXPR_STATUS_IDX_NONE) {
         expr_status_write(buf, sm->expr_results_offset,
                           sm->swiss_map_state.expr_status_idx, EXPR_STATUS_OOB);
@@ -3051,12 +3138,21 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     sm->swiss_map_state.slot_params.key_data_len = sm->swiss_map_state.key_data_len;
     sm->swiss_map_state.slot_params.key_byte_size = sm->swiss_map_state.key_byte_size;
     sm->swiss_map_state.slot_params.is_string_key = sm->swiss_map_state.is_string_key;
+    sm->swiss_map_state.slot_params.existence_only = sm->swiss_map_state.existence_only;
     int result = swiss_map_check_slot(buf, &sm->swiss_map_state.slot_params);
     if (result == 1) {
       LOG(4, "swiss_map_check_slot: key found");
-      break; // Value written at result_offset. Done.
+      if (sm->swiss_map_state.existence_only) {
+        // contains(m, present_key) → true. Write bool 1 in place; the slot
+        // helper skipped the value dereference.
+        buf_offset_t ro = sm->swiss_map_state.result_offset;
+        if (!scratch_buf_bounds_check(&ro, 1)) return 1;
+        (*buf)[ro] = 1;
+      }
+      break; // Value (or bool) written at result_offset. Done.
     }
     if (result < 0) {
+      // Genuine read error — fault in both modes.
       LOG(3, "swiss_map_check_slot: error");
       scratch_buf_set_len(buf, sm->expr_results_end_offset);
       if (!sm_return(sm)) return 1;
@@ -3068,6 +3164,12 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     } else if (sm->swiss_map_state.empty_matches) {
       // No more H2 matches + empty slot → key not in map.
       LOG(4, "swiss_map_check_slot: key not found (exhausted h2 matches)");
+      if (sm->swiss_map_state.existence_only) {
+        buf_offset_t ro = sm->swiss_map_state.result_offset;
+        if (!scratch_buf_bounds_check(&ro, 1)) return 1;
+        (*buf)[ro] = 0;
+        break;
+      }
       if (sm->swiss_map_state.expr_status_idx != EXPR_STATUS_IDX_NONE) {
         expr_status_write(buf, sm->expr_results_offset,
                           sm->swiss_map_state.expr_status_idx, EXPR_STATUS_OOB);
