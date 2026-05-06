@@ -240,6 +240,48 @@ func newResolver(_ *testing.T, params secrets.ConfigParams) *secretResolver {
 	return resolver
 }
 
+// TestConfigureCommandBeatsType verifies that secret_backend_command takes precedence over
+// secret_backend_type: after Configure, backendType is cleared and backendCommand is kept.
+func TestConfigureCommandBeatsType(t *testing.T) {
+	r := newResolver(t, secrets.ConfigParams{
+		Command: "my_command",
+		Type:    "file.yaml",
+	})
+
+	assert.Equal(t, "my_command", r.backendCommand)
+	assert.Empty(t, r.backendType, "backendType must be cleared when backendCommand wins")
+	assert.Nil(t, r.multiBackends)
+}
+
+// TestConfigureCommandBeatsMultiBackends verifies that secret_backend_command takes precedence
+// over multi_secret_backends: after Configure, multiBackends is nil and backendCommand is kept.
+func TestConfigureCommandBeatsMultiBackends(t *testing.T) {
+	r := newResolver(t, secrets.ConfigParams{
+		Command: "my_command",
+		MultiBackends: map[string]secrets.SecretBackendConfig{
+			"file": {Type: "file.yaml"},
+		},
+	})
+
+	assert.Equal(t, "my_command", r.backendCommand)
+	assert.Empty(t, r.backendType)
+	assert.Nil(t, r.multiBackends, "multiBackends must be nil when backendCommand wins")
+}
+
+// TestConfigureTypeBeatsMultiBackends verifies that secret_backend_type takes precedence over
+// multi_secret_backends: after Configure, multiBackends is nil and backendType is kept.
+func TestConfigureTypeBeatsMultiBackends(t *testing.T) {
+	r := newResolver(t, secrets.ConfigParams{
+		Type: "file.yaml",
+		MultiBackends: map[string]secrets.SecretBackendConfig{
+			"file": {Type: "file.yaml"},
+		},
+	})
+
+	assert.Equal(t, "file.yaml", r.backendType)
+	assert.Nil(t, r.multiBackends, "multiBackends must be nil when backendType wins")
+}
+
 func TestResolveNoCommand(t *testing.T) {
 	tel := nooptelemetry.GetCompatComponent()
 	resolver := newEnabledSecretResolver(tel)
