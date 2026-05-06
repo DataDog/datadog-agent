@@ -6,7 +6,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/internal/procmgrwait",
     visibility = ["//test/new-e2e:__subpackages__"],
     deps = [
-        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/utils/e2e/client",
         "@com_github_stretchr_testify//require",
     ],
 )

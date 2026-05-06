@@ -228,7 +228,14 @@ func (s *procmgrLinuxSuite) TestDDOTProcessDescribe() {
 func (s *procmgrLinuxSuite) waitForRunningProcess(name, expectedBinary string, timeout time.Duration) string {
 	s.T().Helper()
 	describeCmd := s.platform.cliCmd("describe " + name)
-	return procmgrwait.WaitForRunningProcess(s.T(), s.Env().RemoteHost, describeCmd, name, expectedBinary, timeout)
+	return procmgrwait.WaitForRunningProcess(
+		s.T(),
+		func(command string) (string, error) { return s.Env().RemoteHost.Execute(command) },
+		describeCmd,
+		name,
+		expectedBinary,
+		timeout,
+	)
 }
 
 func (s *procmgrLinuxSuite) getRestartCount(name string) int {

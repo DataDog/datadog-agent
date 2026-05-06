@@ -276,5 +276,12 @@ func (s *packageDDOTSuite) systemdUnitDir(oldUnits bool) string {
 func (s *packageDDOTSuite) waitForRunningProcess(name, expectedBinary string, timeout time.Duration) string {
 	s.T().Helper()
 	describeCmd := fmt.Sprintf(`sudo -u dd-agent -- %q describe %q`, ddProcmgrCLI, name)
-	return procmgrwait.WaitForRunningProcess(s.T(), s.Env().RemoteHost, describeCmd, name, expectedBinary, timeout)
+	return procmgrwait.WaitForRunningProcess(
+		s.T(),
+		func(command string) (string, error) { return s.Env().RemoteHost.Execute(command) },
+		describeCmd,
+		name,
+		expectedBinary,
+		timeout,
+	)
 }

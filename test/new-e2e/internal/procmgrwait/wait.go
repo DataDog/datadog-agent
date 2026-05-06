@@ -14,29 +14,25 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 )
 
-// Executor is satisfied by the remote [client.Host] used in new-e2e suites.
-type Executor interface {
-	Execute(command string, options ...client.ExecuteOption) (string, error)
-}
+// ExecuteFunc executes a command on the remote host.
+type ExecuteFunc func(command string) (string, error)
 
 // WaitForRunningProcess polls describeCmd until describe reports State=Running,
 // Command matches expectedBinary, and /proc/<pid>/exe resolves to the same path
 // as sudo readlink -f expectedBinary (so stable paths match versioned binaries).
 // processName is used only in assertion messages (the process name in describe output).
-func WaitForRunningProcess(t *testing.T, host Executor, describeCmd, processName, expectedBinary string, timeout time.Duration) string {
+func WaitForRunningProcess(t *testing.T, execute ExecuteFunc, describeCmd, processName, expectedBinary string, timeout time.Duration) string {
 	t.Helper()
-	wantExe, err := host.Execute(fmt.Sprintf("sudo readlink -f %q", expectedBinary))
+	wantExe, err := execute(fmt.Sprintf("sudo readlink -f %q", expectedBinary))
 	require.NoError(t, err, "resolve expected binary %q", expectedBinary)
 	wantExe = strings.TrimSpace(wantExe)
 	require.NotEmpty(t, wantExe, "resolved expected binary for %q", expectedBinary)
 
 	var pid string
 	require.Eventually(t, func() bool {
-		out, err := host.Execute(describeCmd)
+		out, err := execute(describeCmd)
 		if err != nil {
 			t.Logf("WaitForRunningProcess: describe command=%q err=%v\noutput:\n%s", describeCmd, err, out)
 			return false
@@ -55,7 +51,7 @@ func WaitForRunningProcess(t *testing.T, host Executor, describeCmd, processName
 			t.Logf("WaitForRunningProcess: describe command=%q missing PID (got %q)\noutput:\n%s", describeCmd, p, out)
 			return false
 		}
-		exeOut, err := host.Execute("sudo readlink -f /proc/" + p + "/exe")
+		exeOut, err := execute("sudo readlink -f /proc/" + p + "/exe")
 		if err != nil {
 			t.Logf("WaitForRunningProcess: readlink /proc/%s/exe failed: %v\n%s", p, err, exeOut)
 			return false
