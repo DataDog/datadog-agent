@@ -530,7 +530,6 @@ exports_files(glob(
 # gazelle:exclude pkg/languagedetection/util
 # gazelle:exclude pkg/logs/client/http
 # gazelle:exclude pkg/logs/client/tcp
-# gazelle:exclude pkg/logs/diagnostic
 # gazelle:exclude pkg/logs/internal/decoder
 # gazelle:exclude pkg/logs/internal/framer
 # gazelle:exclude pkg/logs/internal/parsers
@@ -544,11 +543,9 @@ exports_files(glob(
 # gazelle:exclude pkg/logs/launchers/journald
 # gazelle:exclude pkg/logs/launchers/listener
 # gazelle:exclude pkg/logs/launchers/windowsevent
-# gazelle:exclude pkg/logs/message
 # gazelle:exclude pkg/logs/pipeline
 # gazelle:exclude pkg/logs/processor
 # gazelle:exclude pkg/logs/schedulers
-# gazelle:exclude pkg/logs/sources
 # gazelle:exclude pkg/logs/status/builder.go
 # gazelle:exclude pkg/logs/status/status.go
 # gazelle:exclude pkg/logs/status/status_test.go
