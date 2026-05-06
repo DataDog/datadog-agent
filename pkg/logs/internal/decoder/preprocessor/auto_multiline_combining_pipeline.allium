@@ -1,0 +1,269 @@
+-- allium: 3
+-- auto_multiline_combining_pipeline.allium
+
+-- Scope: A concrete preprocessor pipeline configuration that
+--   composes multi-line JSON aggregation, the
+--   AutoMultilineLabeler with a JSON-detector + timestamp-
+--   detector heuristic chain, the CombiningAggregator, and the
+--   AdaptiveSampler. This is the configuration used by log
+--   sources that opt into auto-multiline detection AND
+--   auto-multiline aggregation — the "auto-multiline combining"
+--   path. The concrete fulfillers chosen here are:
+--
+--     JSONAggregator slot →  MultilineJSONAggregation surface
+--                            (multiline_json_aggregator.allium)
+--     Tokenization slot   →  the default Tokenizer surface
+--                            (tokenizer.allium fulfilment via
+--                            the production NewTokenizer)
+--     Labeler slot        →  AutoMultilineLabeling surface
+--                            (auto_multiline_labeler.allium)
+--                            configured with a heuristic chain
+--                            containing JSONDetection +
+--                            TimestampDetection (and an
+--                            implementation-specific analytics
+--                            chain not affecting labelling)
+--     Aggregator slot     →  CombiningAggregation surface
+--                            (combining_aggregator.allium)
+--     Sampler slot        →  AdaptiveSampling surface
+--                            (adaptive_sampler.allium)
+--
+--   This concrete spec fulfils the abstract Preprocessor
+--   contract: every PreprocessorInput crossing the
+--   AutoMultilineCombiningPreprocessing surface is processed
+--   through the five chosen fulfillers in pipeline order.
+-- Includes: AutoMultilineCombiningPreprocessor entity, the
+--   AutoMultilineCombiningPreprocessing surface, refinement of
+--   the abstract Preprocessor @invariants with implementation-
+--   specific behaviour from the bound fulfillers, surface-
+--   specific guarantees that emerge from this particular
+--   fulfiller combination.
+-- Excludes:
+--   - The decoder configuration logic that selects this
+--     pipeline configuration for a particular log source. That
+--     selection happens upstream and is not part of this spec.
+--   - Other preprocessor pipeline configurations. The regex
+--     multi-line, detection-only, and default pass-through
+--     configurations each get their own composing spec module
+--     when those configurations are needed.
+--   - The internal details of each fulfiller — those live in
+--     the fulfiller-specific spec modules and are imported here
+--     by reference.
+--   - The specific list of severity-critical tokens that
+--     AdaptiveSampler's is_important predicate recognises (a
+--     detail of adaptive_sampler.allium) and the specific JSON-
+--     shape pattern that JSONDetector matches (a detail of
+--     json_detector.allium). Those propagate as opaque pure
+--     functions from the per-fulfiller specs.
+
+use "./preprocessor.allium" as preprocessor
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+entity AutoMultilineCombiningPreprocessor {
+    -- A configured preprocessor instance bound to the auto-
+    -- multiline combining fulfillers. One per log source. The
+    -- entity is intentionally thin — most state lives in the
+    -- individual component fulfillers (PatternEntries in the
+    -- AdaptiveSampler, bucket state in the CombiningAggregator,
+    -- buffer state in the MultilineJSONAggregator). The fields
+    -- here are pipeline-level identifiers.
+    source_id: String
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+surface AutoMultilineCombiningPreprocessing {
+    -- The boundary between the upstream decoder and this
+    -- concrete preprocessor configuration. The decoder drives
+    -- the pipeline by feeding one PreprocessorInput per process
+    -- call and asking for flushes at lifecycle transitions; the
+    -- pipeline emits zero or more PreprocessorOutputs per process
+    -- call and drains buffered state on flush.
+
+    context pipeline: AutoMultilineCombiningPreprocessor
+
+    exposes:
+        pipeline.source_id
+
+    contracts:
+        fulfils Preprocessor
+        demands JSONAggregator
+        demands Tokenization
+        demands Labeler
+        demands Aggregator
+        demands Sampler
+
+    @guarantee EndToEndDeterminism
+        -- The Preprocessor contract's EndToEndDeterminism
+        -- invariant holds. Each chosen fulfiller honours its
+        -- contract's Determinism invariant:
+        --   - MultilineJSONAggregation (Determinism)
+        --   - Tokenization (the contract's purity)
+        --   - AutoMultilineLabeling (Determinism)
+        --   - CombiningAggregation (Determinism)
+        --   - AdaptiveSampling (Determinism)
+        -- The pipeline is the deterministic composition of these
+        -- stages.
+
+    @guarantee EndToEndByteConservation
+        -- The Preprocessor contract's EndToEndByteConservation
+        -- invariant holds. The marker bytes introduced are:
+        --   - JSON compaction whitespace elision (from
+        --     MultilineJSONAggregation's EmitAggregated rule's
+        --     compact() step).
+        --   - Escaped-line-feed separator between lines combined
+        --     by the CombiningAggregator (from CombiningAggregation's
+        --     ByteConservation refinement).
+        --   - Truncation marker on oversize emissions (from
+        --     CombiningAggregation's SingleLineTruncationFlow
+        --     and from per-fragment truncation in the bucket
+        --     flush path).
+        -- No other byte sources contribute. The Labeler and
+        -- Tokenizer do not modify content; the Sampler may only
+        -- augment tags.
+
+    @guarantee EndToEndTokenForwarding
+        -- The Preprocessor contract's EndToEndTokenForwarding
+        -- invariant holds. The tokens carried on each
+        -- PreprocessorOutput.tokens are produced by the
+        -- Tokenization stage on the post-JSON-aggregation
+        -- content. The CombiningAggregator forwards them via
+        -- its TokensFromAggregateLeader guarantee — for a
+        -- combined emission the tokens belong to the bucket
+        -- leader; for an exploded or single-line emission they
+        -- belong to that specific contributing line. The
+        -- AdaptiveSampler does not modify tokens.
+
+    @guarantee EndToEndDropOrEmit
+        -- The Preprocessor contract's EndToEndDropOrEmit
+        -- invariant holds. The MultilineJSONAggregator and the
+        -- CombiningAggregator both honour
+        -- DeliveryOrPreservation — no message is silently
+        -- dropped at those stages; combined emissions carry the
+        -- bytes of every contributing input. The AdaptiveSampler
+        -- is the only stage that may drop, and its drop
+        -- decision is the explicit null return from
+        -- DropMatchingLog (or a non-drop emission from one of
+        -- the other four AdaptiveSampler rules).
+
+    @guarantee FlushDrainsBuffer
+        -- The Preprocessor contract's FlushDrainsBuffer
+        -- invariant holds. Pipeline flush calls
+        -- MultilineJSONAggregator.flush (drains JSON-aggregation
+        -- buffer) and CombiningAggregator.flush (drains the
+        -- aggregation bucket) in pipeline order. AdaptiveSampler
+        -- has no buffer (FlushNoop); Tokenization and Labeler
+        -- are stateless. After the pipeline's flush completes,
+        -- both stateful components report is_empty.
+
+    @guarantee ResultLifetime
+        -- The Preprocessor contract's ResultLifetime invariant
+        -- holds. The fulfillers reuse backing storage between
+        -- calls per their own ResultLifetime invariants; the
+        -- pipeline composes these so the returned sequence is
+        -- valid only until the next pipeline process or flush.
+
+    @guarantee TimestampStartsGroup
+        -- A line whose tokenisation matches the timestamp shape
+        -- model with probability above the configured threshold
+        -- is labelled start_group by the AutoMultilineLabeler
+        -- (via the TimestampDetection surface) and consequently
+        -- begins a new multi-line aggregate at the
+        -- CombiningAggregator. Composes from
+        -- TimestampDetection's LabelDomain (claim is
+        -- start_group) and CombiningAggregation's
+        -- StartGroupBoundary (start_group flushes the prior
+        -- bucket and begins a new one).
+
+    @guarantee JSONLineNotAggregated
+        -- A line whose content matches the JSON-shape detection
+        -- (an opening brace optionally preceded by whitespace,
+        -- followed by an opening quote or closing brace) is
+        -- labelled no_aggregate by the AutoMultilineLabeler
+        -- (via the JSONDetection surface) and is consequently
+        -- flushed by the CombiningAggregator as a single-line
+        -- emission alongside any buffered bucket. Composes from
+        -- JSONDetection's LabelDomain (claim is no_aggregate)
+        -- and CombiningAggregation's NoAggregateFlushes.
+
+    @guarantee OverflowExplodesNeverTruncatesCombined
+        -- When an aggregate continuation would push the
+        -- CombiningAggregator's bucket over line_limit, the
+        -- bucket explodes — all buffered lines are emitted
+        -- individually, the overflowing line is emitted as a
+        -- single-line message. A combined emission's body
+        -- never crosses line_limit purely from aggregation.
+        -- Composes from CombiningAggregation's
+        -- OverflowExplosion guarantee. (The single-line
+        -- truncation flow may still append the truncation
+        -- marker to individual lines that are themselves
+        -- oversize.)
+
+    @guarantee CriticalSeverityBypassesSampling
+        -- When AdaptiveSampler's protect_important_logs is
+        -- enabled and a line's token sequence contains a
+        -- critical-severity keyword (per AdaptiveSampler's
+        -- is_important predicate), the line bypasses both the
+        -- pattern-table sampling AND any rate-limiting decision.
+        -- Composes from AdaptiveSampling's
+        -- ImportantLogProtection guarantee. Pipeline-level
+        -- implication: severity-critical events propagate
+        -- end-to-end with at most one tag augmentation (the
+        -- adaptive_sampler_sampled_count tag is suppressed by
+        -- the bypass since it goes through ImportantLogBypass,
+        -- not EmitMatchingLog).
+
+    @guidance
+        -- The Preprocessor contract's @guidance describes the
+        -- per-call data flow stage-by-stage. This concrete
+        -- configuration's specifics:
+        --
+        -- - At step 1 (JSONAggregator), the MultilineJSONAggregator
+        --   may emit zero, one, or many messages per input. Most
+        --   typical inputs (non-JSON or single-line JSON) pass
+        --   through unchanged (one emission). Multi-line JSON
+        --   bunches into one combined emission after the closing
+        --   brace arrives. Invalid or oversize buffered JSON
+        --   flushes as-is in arrival order.
+        --
+        -- - At step 2b (Labeler), the AutoMultilineLabeler's
+        --   labelling chain runs in this order:
+        --     1. JSONDetector — detects JSON-shape content and
+        --        labels no_aggregate (terminates chain on match).
+        --     2. TimestampDetector — detects timestamp-shape
+        --        content and labels start_group (does NOT
+        --        terminate; advisory).
+        --   When no detector claims, the line keeps the default
+        --   label (aggregate). The analytics chain runs after
+        --   the labelling chain and does not influence the
+        --   chosen label.
+        --
+        -- - At step 2c (Aggregator), the CombiningAggregator
+        --   uses the label to drive its 5 dispatch cases (see
+        --   combining_aggregator.allium @guidance). The label
+        --   from the previous step controls whether the line
+        --   buffers (aggregate continuation of a non-empty
+        --   bucket), starts a new group (start_group), or
+        --   passes through (no_aggregate or aggregate-on-empty).
+        --
+        -- - At step 2d (Sampler), the AdaptiveSampler decides
+        --   drop-or-keep based on the pattern table state and
+        --   the tokens of the message's first line. With
+        --   protect_important_logs enabled, severity-critical
+        --   patterns bypass the table entirely; otherwise the
+        --   standard rate-limit-by-pattern rules apply.
+        --
+        -- - Flush flow: MultilineJSONAggregator.flush yields
+        --   any buffered JSON fragments (in arrival order, not
+        --   combined). Each flushed fragment runs through
+        --   Tokenization, Labeler (its label likely aggregate
+        --   for the trailing fragments of an incomplete JSON),
+        --   then CombiningAggregator (where they may continue
+        --   accumulating its bucket or trigger an explosion).
+        --   Then CombiningAggregator.flush drains whatever
+        --   remains. Sampler.flush is a no-op.
+}
