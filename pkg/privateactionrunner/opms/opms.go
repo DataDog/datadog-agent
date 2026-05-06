@@ -314,15 +314,6 @@ func createHealthCheckData(headers http.Header) *HealthCheckData {
 
 func (c *client) HealthCheck(ctx context.Context) (*HealthCheckData, error) {
 	u, _ := url.Parse(c.endpointURL(healthCheckPath))
-	query := u.Query()
-	query.Add(app.RunnerVersionQueryParam, c.config.Version)
-	modesStr := modes.ToStrings(c.config.Modes)
-	query.Add(app.ModesQueryParam, strings.Join(modesStr, ","))
-	query.Add(app.PlatformQueryParam, runtime.GOOS)
-	query.Add(app.ArchitectureQueryParam, runtime.GOARCH)
-	query.Add(app.FlavorQueryParam, flavor.GetFlavor())
-	query.Add(app.ContainerizedQueryParam, strconv.FormatBool(env.IsContainerized()))
-	u.RawQuery = query.Encode()
 
 	_, resHeaders, err := c.makeRequest(ctx, http.MethodGet, u.String(), nil, nil, http.StatusOK)
 	if err != nil {
