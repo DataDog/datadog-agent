@@ -220,7 +220,7 @@ func GetDefaultLogFile() string {
 	return DefaultLogFile
 }
 
-// GetEmbeddedBinPath returns the path of the embedded binary for the given flavor.
+// GetEmbeddedBinPath returns the path of the embedded binary.
 func GetEmbeddedBinPath() string {
 	return filepath.Join(GetInstallPath(), "..", "..", "embedded", "bin")
 }
