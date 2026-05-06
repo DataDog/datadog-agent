@@ -1,0 +1,388 @@
+-- allium: 3
+-- detecting_aggregator.allium
+
+-- Scope: An Aggregator implementation that uses upstream labelling
+--   to detect what WOULD form a multi-line group — tagging the
+--   detected start line with an "auto_multiline_detected" marker —
+--   but does NOT combine lines into multi-line aggregates. Every
+--   input message produces its own single-line emission. Used by
+--   log sources that want multi-line detection signal for
+--   downstream consumers without paying the aggregation cost.
+-- Includes: The DetectingAggregator entity, fulfilment of the
+--   Aggregator contract at the DetectingAggregation surface, the
+--   label-driven detection rules, the start-line tagging
+--   behaviour, the single-line truncation flow (shared in shape
+--   with PassThroughAggregator).
+-- Excludes:
+--   - Other Aggregator implementations. PassThroughAggregator,
+--     RegexAggregator, CombiningAggregator and JSONAggregator
+--     each live in their own spec modules.
+--   - The selection logic that decides when a log source uses
+--     DetectingAggregator vs another implementation. That is a
+--     preprocessor configuration concern.
+--   - The COAT (Combining-Aggregator Outcome Tracker) telemetry
+--     state — isDefaultPath, simulatedBufLen, linesInCurrentGroup,
+--     inGroup — and its associated processSimulatedStartGroup,
+--     processSimulatedAggregate, finalizeSimulatedGroup and
+--     resetSimulatedGroup procedures. These simulate what
+--     CombiningAggregator would do, for observability purposes
+--     only; they have no effect on emitted content or aggregator
+--     state observable at the surface.
+--   - The truncation-marker byte sequence, the multi-line
+--     detection tag literal and the truncation-reason tag prefix.
+--     These are fixed marker values defined by the message-format
+--     package; the aggregator references them but does not
+--     redefine their content.
+--   - The metric counters incremented during processing
+--     (LogsTruncated, TlmAutoMultilineAggregatorFlush, the
+--     multi-line match status counter). Observability only, no
+--     behavioural effect.
+--   - The shared status.CountInfo counter and its cross-tailer
+--     synchronisation. Observability state, not part of the
+--     aggregator's behavioural contract.
+
+use "./aggregator.allium" as aggregator
+use "./truncation.allium" as truncation
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+entity DetectingAggregator {
+    -- A configured DetectingAggregator instance. One per log
+    -- source that uses detection-only multi-line handling.
+    --
+    -- Configuration (set at construction, not modified during
+    -- the aggregator's lifetime):
+    --
+    -- line_limit:         the byte threshold above which an input
+    --                     line's emitted content has the
+    --                     truncation marker appended and the
+    --                     should_truncate carry is set.
+    -- tag_truncated_logs: per-aggregator configuration controlling
+    --                     whether truncated emissions receive the
+    --                     truncation-reason tag. Distinct from
+    --                     PassThroughAggregator and RegexAggregator,
+    --                     which read this flag from a global
+    --                     runtime config — DetectingAggregator
+    --                     receives it at construction time.
+    --
+    -- Internal state (recomputed during processing):
+    --
+    -- pending_message_present:  true when a previous process call
+    --                           has left a message buffered awaiting
+    --                           the next call's verdict. Mirrors the
+    --                           Aggregator contract's is_empty
+    --                           observable inverted. Initially false.
+    -- pending_was_start_group:  when pending_message_present is true,
+    --                           records whether that buffered message
+    --                           arrived with the start_group label.
+    --                           Drives the multi-line detection tag
+    --                           application. Meaningless when
+    --                           pending_message_present is false.
+    -- should_truncate:          one-bit rolling carry, identical in
+    --                           shape to PassThroughAggregator's
+    --                           should_truncate. Set when the most
+    --                           recent emission triggered truncation
+    --                           (either oversize or upstream-flagged).
+    --                           On the next emission this flag governs
+    --                           whether the truncation marker is
+    --                           prepended to that emission's content.
+    --                           Each emission resets the flag.
+    line_limit: Integer
+    tag_truncated_logs: Boolean
+    pending_message_present: Boolean
+    pending_was_start_group: Boolean
+    should_truncate: Boolean
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+surface DetectingAggregation {
+    -- The boundary between the preprocessor pipeline and one
+    -- DetectingAggregator instance. The pipeline invokes process,
+    -- flush and is_empty per the Aggregator contract; this
+    -- surface supplies the label-driven detect-and-tag semantics.
+
+    context agg: DetectingAggregator
+
+    exposes:
+        agg.line_limit
+        agg.tag_truncated_logs
+        agg.pending_message_present
+        agg.pending_was_start_group
+        agg.should_truncate
+
+    contracts:
+        fulfils Aggregator
+        fulfils Truncatable
+
+    @guarantee Determinism
+        -- The Aggregator contract's Determinism invariant holds:
+        -- process, flush and is_empty are pure functions of the
+        -- aggregator's current state plus their inputs. The label
+        -- argument participates in this determinism — see
+        -- LabelDriven — but does so as a pure function input,
+        -- not via any external state.
+
+    @guarantee ByteConservation
+        -- The Aggregator contract's ByteConservation invariant
+        -- holds and is refined here: each emitted message's
+        -- content is derived from a single input message's
+        -- content via the trim-and-truncation-marker pipeline
+        -- described under SingleLineTruncationFlow. DetectingAggregator
+        -- never combines bytes from multiple input lines into
+        -- one emitted message. The truncation marker is the only
+        -- well-known marker byte sequence the aggregator may add
+        -- to content.
+
+    @guarantee FlushDrainsBuffer
+        -- The Aggregator contract's FlushDrainsBuffer invariant
+        -- holds: after flush returns, pending_message_present is
+        -- false and pending_was_start_group has no observable
+        -- effect. flush also resets the COAT telemetry simulation
+        -- state — out of behavioural scope. A flush call on an
+        -- aggregator with no pending message returns an empty
+        -- sequence and changes no observable state.
+
+    @guarantee IsEmptyConsistency
+        -- The Aggregator contract's IsEmptyConsistency invariant
+        -- holds: is_empty reflects pending_message_present
+        -- inverted exactly. The should_truncate flag is rolling
+        -- state, not buffered content; it does not affect
+        -- is_empty.
+
+    @guarantee ResultLifetime
+        -- The Aggregator contract's ResultLifetime invariant
+        -- holds: DetectingAggregator reuses a single backing slice
+        -- for the sequence returned by process and flush. The
+        -- next call to process or flush invalidates the previous
+        -- return value. Callers retaining a returned sequence
+        -- beyond the next operation observe undefined contents.
+
+    @guarantee LabelDriven
+        -- The label argument to process IS observable: emission
+        -- behaviour is functionally determined by the (label,
+        -- pending_message_present, pending_was_start_group) tuple.
+        -- This contradicts the LabelIgnored guarantee of
+        -- PassThroughAggregator and RegexAggregator —
+        -- DetectingAggregator's whole purpose is to act on
+        -- labelling information from the upstream Labeler stage.
+        -- See @guidance for the per-label dispatch table.
+
+    @guarantee NoLineCombination
+        -- Every emitted AggregatedMessageWithTokens carries the
+        -- content of exactly one input message. DetectingAggregator
+        -- never combines content bytes from multiple input lines
+        -- into one emission, regardless of label sequence or
+        -- truncation state. (This is the distinguishing property
+        -- versus RegexAggregator and CombiningAggregator, both
+        -- of which DO combine.)
+
+    @guarantee TokensFromSameCall
+        -- The tokens emitted on each
+        -- AggregatedMessageWithTokens are the tokens that were
+        -- passed to process alongside the SAME input message
+        -- whose content the emission carries. There is no
+        -- aggregate-leader concept here (per NoLineCombination,
+        -- every aggregate is a single message), so the tokens
+        -- always trace one-to-one with the source line.
+
+    @guarantee MultiLineDetectionTag
+        -- When a process call's label is aggregate AND a previous
+        -- process call buffered a message with the start_group
+        -- label (pending_message_present = true,
+        -- pending_was_start_group = true), the buffered message
+        -- is emitted with an additional tag identifying it as a
+        -- detected multi-line start. The tag literal is
+        -- "auto_multiline_detected:true". The aggregate-labelled
+        -- line that triggered the emission is itself emitted
+        -- immediately afterwards WITHOUT this tag.
+        --
+        -- The tag is NOT applied in any other configuration: a
+        -- noAggregate label flushes any pending message without
+        -- the tag; a startGroup label flushes any pending message
+        -- without the tag (even if that pending was itself a
+        -- start_group); flush of a pending start_group emits it
+        -- without the tag.
+
+    @guarantee StartGroupBufferedUntilNextCall
+        -- A process call with the start_group label flushes any
+        -- previously-pending message and then buffers the current
+        -- message as the new pending message. The buffered
+        -- start_group message is NOT emitted on the call that
+        -- received it; it is emitted on the next process call (with
+        -- or without the detection tag, depending on that call's
+        -- label) or on flush.
+        --
+        -- The aggregate and noAggregate labels never buffer: their
+        -- current message is always emitted on the same call.
+
+    @guarantee PassThroughUnderThreshold
+        -- (Inherited from Truncatable.) When an emission's
+        -- input content is at or under agg.line_limit AND the
+        -- input's ParsingExtra.IsTruncated is false AND
+        -- agg.should_truncate is false at emission entry, the
+        -- emitted content equals the whitespace-trimmed input,
+        -- ParsingExtra.IsTruncated is false, no truncation tag
+        -- is added, and agg.should_truncate remains false.
+
+    @guarantee TailMarkerOnOverThreshold
+        -- (Inherited from Truncatable.) When an emission's
+        -- input content exceeds agg.line_limit OR the input's
+        -- ParsingExtra.IsTruncated is true, the emitted
+        -- content has the truncation marker appended,
+        -- ParsingExtra.IsTruncated is true on the emission,
+        -- and agg.should_truncate is true after the emission.
+
+    @guarantee HeadMarkerOnCarryover
+        -- (Inherited from Truncatable.) When agg.should_truncate
+        -- is true at an emission's entry, the emitted content
+        -- has the truncation marker prepended, and
+        -- ParsingExtra.IsTruncated is true on the emission.
+        -- The head marker is independent of the tail marker;
+        -- both may apply on the same emission.
+
+    @guarantee CarryoverConsumed
+        -- (Inherited from Truncatable.) The new value of
+        -- agg.should_truncate after an emission is determined
+        -- SOLELY by that emission's input — whether the content
+        -- exceeds agg.line_limit OR the input's
+        -- ParsingExtra.IsTruncated is true. The value at
+        -- emission entry does NOT propagate forward.
+
+    @guarantee UpstreamFlagPropagation
+        -- (Inherited from Truncatable.) The input's
+        -- ParsingExtra.IsTruncated being true is equivalent
+        -- to the input being over-threshold — both trigger
+        -- tail marker decoration and set agg.should_truncate
+        -- after the emission.
+
+    @guarantee TagOnTruncation
+        -- (Inherited from Truncatable.) When an emission
+        -- carries any truncation marker,
+        -- ParsingExtra.IsTruncated is set true on the
+        -- emission. When agg.tag_truncated_logs is true, a
+        -- truncation-reason tag is appended to
+        -- ParsingExtra.Tags (see TagReasonSingleLine for the
+        -- tag value).
+
+    @guarantee MarkerLiteral
+        -- (Inherited from Truncatable.) The marker bytes
+        -- prepended and appended are the literal byte
+        -- sequence `...TRUNCATED...` from the agent's
+        -- message package (message.TruncatedFlag).
+
+    @guarantee TagReasonSingleLine
+        -- The truncation-reason tag value applied by this
+        -- aggregator is always the literal string
+        -- "single_line". Identical to PassThroughAggregator's
+        -- and SingleLineHandler's tag reason. Note that this
+        -- is the TRUNCATION tag — distinct from the
+        -- "auto_multiline_detected:true" detection tag
+        -- handled by MultiLineDetectionTag, which is
+        -- orthogonal to truncation.
+
+    @guarantee PerEmissionTruncationFlow
+        -- The Truncatable contract is fulfilled at every
+        -- emission boundary. A single process call may emit
+        -- multiple messages (the aggregate or noAggregate
+        -- branch when a pending message exists emits both
+        -- the pending and the current message), and the
+        -- Truncatable apply operation runs INDEPENDENTLY for
+        -- each emission in sequence. The agg.should_truncate
+        -- carry follows the SEQUENCE of emissions, not the
+        -- sequence of process calls: a process call that
+        -- produces two emissions runs the apply operation
+        -- twice, with the second emission's prior_carryover
+        -- being whatever the first emission's apply operation
+        -- set as new_carryover.
+
+    @guidance
+        -- Per-call dispatch when process is invoked with arguments
+        -- (msg, label, tokens) on a DetectingAggregator instance:
+        --
+        -- 1. Reset the collected output slice (empty it).
+        --
+        -- 2. If label = aggregate:
+        --    a. If pending_message_present is true:
+        --       - If pending_was_start_group is true: tag the
+        --         pending message with "auto_multiline_detected:
+        --         true", then emit the pending message via the
+        --         SingleLineTruncationFlow procedure.
+        --       - Else: emit the pending message via the
+        --         SingleLineTruncationFlow procedure WITHOUT
+        --         the tag.
+        --       - Reset pending_message_present to false and
+        --         pending_was_start_group to false.
+        --    b. Emit msg via the SingleLineTruncationFlow
+        --       procedure. (No tag is added to the current
+        --       message; the detection tag only applies to the
+        --       previous start-group message.)
+        --
+        -- 3. If label = noAggregate:
+        --    a. If pending_message_present is true: emit the
+        --       pending message via the SingleLineTruncationFlow
+        --       procedure WITHOUT any detection tag. Reset
+        --       pending_message_present and
+        --       pending_was_start_group.
+        --    b. Emit msg via the SingleLineTruncationFlow
+        --       procedure.
+        --
+        -- 4. If label = start_group:
+        --    a. If pending_message_present is true: emit the
+        --       pending message via the SingleLineTruncationFlow
+        --       procedure WITHOUT any detection tag. (Even if
+        --       the pending was itself a start_group — the new
+        --       start_group overrides it.)
+        --    b. Store msg as the pending message, set
+        --       pending_message_present to true, set
+        --       pending_was_start_group to true. Do NOT emit msg
+        --       yet.
+        --
+        -- 5. Return the collected slice.
+        --
+        -- flush procedure:
+        --   If pending_message_present is true, emit the pending
+        --   message via the SingleLineTruncationFlow procedure
+        --   WITHOUT any detection tag, and reset
+        --   pending_message_present and pending_was_start_group.
+        --   Return the (possibly empty) collected slice.
+        --
+        -- is_empty procedure:
+        --   Return the negation of pending_message_present.
+        --
+        -- emit_via_truncatable (applied to each emission):
+        --   Given (emit_msg, emit_tokens):
+        --
+        --   1. Apply the Truncatable contract's apply operation
+        --      to emit_msg.content with
+        --      threshold=agg.line_limit,
+        --      upstream_truncated=emit_msg.ParsingExtra.IsTruncated,
+        --      prior_carryover=agg.should_truncate. The contract
+        --      handles whitespace trimming, head/tail marker
+        --      placement, ParsingExtra.IsTruncated setting, and
+        --      tag application (with tag reason "single_line")
+        --      per its invariants.
+        --   2. Overwrite agg.should_truncate with the contract's
+        --      returned new_carryover.
+        --   3. Replace emit_msg.content with the contract's
+        --      returned bytes and append (emit_msg, emit_tokens)
+        --      to the collected slice.
+        --
+        -- The truncation flow runs independently for each
+        -- emission; chained emissions within a single process
+        -- call (the pending-flush followed by current-emit cases
+        -- in step 2a+b and step 3a+b) each update
+        -- should_truncate in sequence.
+        --
+        -- A subtle property of the dispatch: the detection tag
+        -- "auto_multiline_detected:true" is the ONLY tag the
+        -- aggregator attaches based on label sequence (the
+        -- truncation tag is attached based on content size and
+        -- the tag_truncated_logs config, not labels). All other
+        -- tags carried on the input message flow through
+        -- unchanged.
+}
