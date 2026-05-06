@@ -2582,8 +2582,8 @@ github.com/DataDog/go-tuf v1.1.1-0.5.2 h1:YWvghV4ZvrQsPcUw8IOUMSDpqc3W5ruOIC+KJx
 github.com/DataDog/go-tuf v1.1.1-0.5.2/go.mod h1:zBcq6f654iVqmkk8n2Cx81E1JnNTMOAx1UEO/wZR+P0=
 github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee h1:tXibLZk3G6HncIFJKaNItsdzcrk4YqILNDZlXPTNt4k=
 github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee/go.mod h1:nTot/Iy0kW16bXgXr6blEc8gFeAS7vTqYlhAxh+dbc0=
-github.com/DataDog/gopacket v0.0.0-20251104174046-ae42df68210e h1:kWyz88c8oMYcA/26/mG3lmsbHF9MTdmukzK4vWRbwMw=
-github.com/DataDog/gopacket v0.0.0-20251104174046-ae42df68210e/go.mod h1:riddUzxTSBpJXk3qBHtYr4qOhFhT6k/1c0E3qkQjQpA=
+github.com/DataDog/gopacket v0.0.0-20260429164037-ee5a3263d056 h1:S7D0BKyRGQvojPhbLV2R8pZKza+iy+CPSsu1Uz86xRk=
+github.com/DataDog/gopacket v0.0.0-20260429164037-ee5a3263d056/go.mod h1:HRh7JESdpg5Hh6f8QMoFPht5/r/fPs/Hl3qghMoDztI=
 github.com/DataDog/gostackparse v0.7.0 h1:i7dLkXHvYzHV308hnkvVGDL3BR4FWl7IsXNPz/IGQh4=
 github.com/DataDog/gostackparse v0.7.0/go.mod h1:lTfqcJKqS9KnXQGnyQMCugq3u1FP6UZMfWR0aitKFMM=
 github.com/DataDog/jsonapi v0.12.0 h1:N4e9RpmUflcV5hzceltSz8XUpM3PMtQr5C9Bhv0g87s=
@@ -5126,7 +5126,6 @@ github.com/vbatts/tar-split v0.12.2/go.mod h1:eF6B6i6ftWQcDqEn3/iGFRFRo8cBIMSJVO
 github.com/vibrantbyte/go-antpath v1.1.1 h1:SWDIMx4pSjyo7QoAsgTkpNU7QD0X9O0JAgr5O3TsYKk=
 github.com/vibrantbyte/go-antpath v1.1.1/go.mod h1:ZqMGIk+no3BL2o6OdEZ3ZDiWfIteuastNSaTFv7kgUY=
 github.com/vishvananda/netns v0.0.0-20200728191858-db3c7e526aae/go.mod h1:DD4vA1DwXk04H54A1oHXtwZmA0grkVMdPxx/VGLCah0=
-github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f/go.mod h1:DD4vA1DwXk04H54A1oHXtwZmA0grkVMdPxx/VGLCah0=
 github.com/vishvananda/netns v0.0.5 h1:DfiHV+j8bA32MFM7bfEunvT8IAqQ/NzSJHtcmW5zdEY=
 github.com/vishvananda/netns v0.0.5/go.mod h1:SpkAiCQRtJ6TvvxPnOSyH3BMl6unz3xZlaprSwhNNJM=
 github.com/vito/go-sse v1.0.0 h1:e6/iTrrvy8BRrOwJwmQmlndlil+TLdxXvHi55ZDzH6M=
