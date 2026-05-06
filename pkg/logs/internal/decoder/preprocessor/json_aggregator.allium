@@ -49,13 +49,13 @@ contract IncrementalJSONValidator {
     is_complete_object: (bytes: String) -> Boolean
     is_invalid_object: (bytes: String) -> Boolean
 
-    @invariant ObjectOnly
-        -- is_complete_object returns true only when the input
-        -- forms exactly one top-level JSON object. Top-level
-        -- arrays, top-level scalars and any non-object structure
-        -- yield is_invalid_object true, even when the bytes
-        -- would parse as a valid JSON value under a
-        -- general-purpose RFC 8259 validator.
+    @invariant TopLevelArrayInvalid
+        -- A top-level JSON array always yields is_invalid_object
+        -- true, even when the bytes would parse as a valid JSON
+        -- value under a general-purpose RFC 8259 validator. This
+        -- is the property the aggregator depends on to treat a
+        -- top-level array split across messages as a flush
+        -- trigger rather than as in-progress aggregation.
 
     @invariant TristateExclusive
         -- is_complete_object and is_invalid_object are never
@@ -76,13 +76,30 @@ contract IncrementalJSONValidator {
         -- bytes always produce the same result.
 
     @guidance
-        -- The implementation is incremental in the sense that
-        -- it maintains a cursor across successive calls and
-        -- scans only the newly arriving bytes. From the
-        -- aggregator's perspective the only observable property
-        -- is the result computed over the union of all bytes
-        -- since the last reset; the incremental behaviour is a
+        -- The implementation is incremental: it maintains a
+        -- cursor across successive calls and scans only the
+        -- newly arriving bytes. From the aggregator's
+        -- perspective the only observable property is the
+        -- result computed over the union of all bytes since
+        -- the last reset; the incremental behaviour is a
         -- performance characteristic, not part of the contract.
+        --
+        -- Top-level JSON scalars (strings, numbers, booleans,
+        -- null) are NOT rejected by the validator: they yield
+        -- is_complete_object true. This is a quirk of the
+        -- tokenizer-based implementation, which only flags
+        -- non-object delimiters at top level, not bare scalar
+        -- tokens. The quirk is latent in normal operation:
+        -- FastPathEmit's is_valid_json check (RFC 8259-wide)
+        -- catches every single-message scalar before it
+        -- reaches the validator, so the only path to a scalar
+        -- being validated is a degenerate buffered sequence
+        -- where preceding bytes are not valid JSON. In that
+        -- case json.Compact on the joined bytes fails inside
+        -- EmitAggregated and the aggregator falls through to
+        -- the same flush behaviour the validator would have
+        -- requested directly. Spec consumers should not rely
+        -- on the validator to reject top-level scalars.
 }
 
 ------------------------------------------------------------
@@ -158,10 +175,10 @@ rule FastPathEmit {
         -- general-purpose RFC 8259: it accepts top-level
         -- objects, arrays, scalars and nested combinations.
         -- This is wider than the IncrementalJSONValidator
-        -- contract (ObjectOnly invariant). A single-message
-        -- top-level array therefore takes the fast path. A
-        -- top-level array split across messages does not (see
-        -- deferred TopLevelArrayAggregation below).
+        -- contract (TopLevelArrayInvalid invariant). A
+        -- single-message top-level array therefore takes the
+        -- fast path. A top-level array split across messages
+        -- does not (see TopLevelArrayNotAggregated below).
 }
 
 -- Size-limit flush: the next message would push the buffered
@@ -397,12 +414,12 @@ surface JSONAggregation {
 -- A top-level JSON array split across multiple messages (for
 -- example "[" / "{...}," / "{...}" / "]") is not aggregated
 -- as one combined value. The IncrementalJSONValidator's
--- ObjectOnly invariant causes is_invalid_object to return
--- true as soon as the opening "[" is seen at the top level,
--- which fires FlushOnInvalid and emits the buffered messages
--- unmodified. Single-message top-level arrays are unaffected:
--- they take the FastPathEmit path through is_valid_json,
--- which is RFC 8259-wide.
+-- TopLevelArrayInvalid invariant causes is_invalid_object
+-- to return true as soon as the opening "[" is seen at the
+-- top level, which fires FlushOnInvalid and emits the
+-- buffered messages unmodified. Single-message top-level
+-- arrays are unaffected: they take the FastPathEmit path
+-- through is_valid_json, which is RFC 8259-wide.
 -- Implementation: see the object-only loop in
 -- pkg/logs/internal/decoder/preprocessor/incremental_json_validator.go
 -- (IncrementalJSONValidator.Write).
