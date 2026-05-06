@@ -1718,7 +1718,7 @@ api_key:
 #     reject: [<LIST_OF_KEY_VALUE_REGEX_TAGS>]     # e.g. ["<key>:<regex>"]
 
 #   # @param replace_tags - list of object - optional - default: []
-#   # @env DD_APM_REPLACE_TAGS - JSON object of string to string - optional - default: []
+#   # @env DD_APM_REPLACE_TAGS - JSON list of objects - optional - default: []
 #   # Defines a set of rules to replace or remove certain resources, tags containing
 #   # potentially sensitive information.
 #   # Each rules has to contain:
@@ -1734,8 +1734,8 @@ api_key:
 #       repl: "<PATTERN_TO_INLINE>"
 
 #   # @param ignore_resources - list of strings - optional - default: []
-#   # @env DD_APM_IGNORE_RESOURCES - comma separated list of strings - optional - default: []
-#   # @env DD_IGNORE_RESOURCE - comma separated list of strings - optional - default: []
+#   # @env DD_APM_IGNORE_RESOURCES - comma-separated list of strings - optional - default: []
+#   # @env DD_IGNORE_RESOURCE - comma-separated list of strings - optional - default: []
 #   # An exclusion list of regular expressions can be provided to disable certain traces based on their resource name
 #   # all entries must be surrounded by double quotes and separated by commas.
 #
@@ -1793,7 +1793,7 @@ api_key:
 #   peer_tags: []
 
 #   # @param features - list of strings - optional - default: []
-#   # @env DD_APM_FEATURES - comma or space-separated list of strings - optional - default: []
+#   # @env DD_APM_FEATURES - comma or space separated list of strings - optional - default: []
 #   # Configure additional beta APM features.
 #   # The list of items available under apm_config.features is not guaranteed to persist across versions;
 #   # a feature may eventually be promoted to its own configuration option on the agent, or dropped entirely.
@@ -2084,8 +2084,8 @@ api_key:
 #   scrub_args: true
 
 #   # @param custom_sensitive_words - list of strings - optional - default: []
-#   # @env DD_CUSTOM_SENSITIVE_WORDS - space-separated list of strings or JSON array of strings - optional - default: []
-#   # @env DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS - space-separated list of strings or JSON array of strings - optional - default: []
+#   # @env DD_CUSTOM_SENSITIVE_WORDS - comma-separated list of strings or JSON array of strings - optional - default: []
+#   # @env DD_PROCESS_CONFIG_CUSTOM_SENSITIVE_WORDS - comma-separated list of strings or JSON array of strings - optional - default: []
 #   # Define your own list of sensitive data to be merged with the default one.
 #   # Read more on Datadog documentation:
 #   # https://docs.datadoghq.com/graphing/infrastructure/process/#process-arguments-scrubbing
@@ -4984,7 +4984,7 @@ api_key:
 #   task_timeout_seconds: 60
 
 #   # @param actions_allowlist - list of strings - optional - default: []
-#   # @env DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST - comma separated list of strings - optional - default: []
+#   # @env DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST - comma-separated list of strings - optional - default: []
 #   # List of actions that the Private Action Runner is allowed to execute.
 #   # See http://docs.datadoghq.com/actions/private_actions/use_private_actions#change-the-allowlist-of-a-runner
 #   # for the list of available actions.
@@ -5008,7 +5008,7 @@ api_key:
 #   http_timeout_seconds: 30
 
 #   # @param http_allowlist - list of strings - optional - default: []
-#   # @env DD_PRIVATE_ACTION_RUNNER_HTTP_ALLOWLIST - space-separated list of strings - optional - default: []
+#   # @env DD_PRIVATE_ACTION_RUNNER_HTTP_ALLOWLIST - comma-separated list of strings - optional - default: []
 #   # List of allowed URL patterns for HTTP actions.
 #
 #   http_allowlist: []
