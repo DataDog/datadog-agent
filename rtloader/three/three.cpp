@@ -497,52 +497,6 @@ done:
     return ret;
 }
 
-char *Three::runDiscover(RtLoaderPyObject *py_class, const char *service_json)
-{
-    if (py_class == NULL || service_json == NULL) {
-        return NULL;
-    }
-
-    PyObject *klass = reinterpret_cast<PyObject *>(py_class);
-
-    char *ret = NULL;
-    char run_discover[] = "_run_discover";
-    char format[] = "(Os)";
-    PyObject *result = NULL;
-    PyObject *bridge_module = NULL;
-    PyObject *bridge_func = NULL;
-
-    // Resolve datadog_checks.base.utils.discovery._run_discover and call it
-    // as _run_discover(check_class, service_json).
-    bridge_module = PyImport_ImportModule("datadog_checks.base.utils.discovery");
-    if (bridge_module == NULL) {
-        setError("error importing discovery bridge module: " + _fetchPythonError());
-        goto done;
-    }
-    bridge_func = PyObject_GetAttrString(bridge_module, run_discover);
-    if (bridge_func == NULL) {
-        setError("error resolving _run_discover: " + _fetchPythonError());
-        goto done;
-    }
-    result = PyObject_CallFunction(bridge_func, format, klass, service_json);
-    if (result == NULL || !PyUnicode_Check(result)) {
-        setError("error invoking discovery bridge: " + _fetchPythonError());
-        goto done;
-    }
-
-    ret = as_string(result);
-    if (ret == NULL) {
-        setError("error converting discovery result to string");
-        goto done;
-    }
-
-done:
-    Py_XDECREF(result);
-    Py_XDECREF(bridge_func);
-    Py_XDECREF(bridge_module);
-    return ret;
-}
-
 void Three::cancelCheck(RtLoaderPyObject *check)
 {
     if (check == NULL) {

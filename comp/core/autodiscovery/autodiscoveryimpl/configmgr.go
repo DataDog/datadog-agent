@@ -6,7 +6,6 @@
 package autodiscoveryimpl
 
 import (
-	"context"
 	"fmt"
 	"maps"
 	"sync"
@@ -14,7 +13,6 @@ import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
@@ -58,11 +56,6 @@ type configManager interface {
 
 	// getActiveServices returns the currently active services
 	getActiveServices() map[string]listeners.Service
-
-	// retryPendingDiscoveries re-runs reconcileService for each service in
-	// pendingDiscovery. Returns the aggregated ConfigChanges so the caller
-	// can apply them via the scheduler outside of cm's lock.
-	retryPendingDiscoveries() integration.ConfigChanges
 }
 
 // serviceAndADIDs bundles a service and its associated AD identifiers.
@@ -117,18 +110,12 @@ type reconcilingConfigManager struct {
 
 	secretResolver secrets.Component
 	healthPlatform healthplatformdef.Component
-	discoverer     discoverer.Discoverer
-
-	// pendingDiscovery contains svcIDs with at least one discovery template
-	// that is not-yet-given-up. The retry loop walks this set on each tick.
-	pendingDiscovery map[string]struct{}
 }
 
 var _ configManager = &reconcilingConfigManager{}
 
 // newReconcilingConfigManager creates a new, empty reconcilingConfigManager.
-// disco may be nil; templates with Discovery set will be skipped if so.
-func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component, disco discoverer.Discoverer) configManager {
+func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component) configManager {
 	return &reconcilingConfigManager{
 		activeConfigs:      map[string]integration.Config{},
 		activeServices:     map[string]serviceAndADIDs{},
@@ -138,8 +125,6 @@ func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatfor
 		scheduledConfigs:   map[string]integration.Config{},
 		secretResolver:     secretResolver,
 		healthPlatform:     healthPlatform,
-		discoverer:         disco,
-		pendingDiscovery:   map[string]struct{}{},
 	}
 }
 
@@ -192,10 +177,6 @@ func (cm *reconcilingConfigManager) processDelService(svc listeners.Service) int
 	//
 	//  1. update activeConfigs or activeServices
 	delete(cm.activeServices, svcID)
-	if cm.discoverer != nil {
-		cm.discoverer.Forget(svcID)
-	}
-	delete(cm.pendingDiscovery, svcID)
 
 	//  2. update templatesByADID or servicesByADID to match
 	for _, adID := range svcAndADIDs.adIDs {
@@ -350,9 +331,7 @@ func (cm *reconcilingConfigManager) getActiveServices() map[string]listeners.Ser
 // reconcileService calculates the current set of resolved templates for the
 // given service and calculates the difference from what is currently recorded
 // in cm.serviceResolutions.  It updates cm.serviceResolutions and returns the
-// changes.  As a side effect it also updates cm.pendingDiscovery via
-// updatePendingDiscovery to reflect whether any discovery templates for this
-// service still have outstanding probes.
+// changes.
 //
 // This method must be called with cm.m locked.
 func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.ConfigChanges {
@@ -421,61 +400,7 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 		cm.serviceResolutions[svcID] = existingResolutions
 	}
 
-	cm.updatePendingDiscovery(svcID)
 	return changes
-}
-
-// retryPendingDiscoveries implements configManager#retryPendingDiscoveries.
-func (cm *reconcilingConfigManager) retryPendingDiscoveries() integration.ConfigChanges {
-	cm.m.Lock()
-	defer cm.m.Unlock()
-
-	// Snapshot to avoid mutating the map mid-iteration: reconcileService
-	// updates pendingDiscovery via updatePendingDiscovery.
-	pending := make([]string, 0, len(cm.pendingDiscovery))
-	for svcID := range cm.pendingDiscovery {
-		pending = append(pending, svcID)
-	}
-
-	var changes integration.ConfigChanges
-	for _, svcID := range pending {
-		changes.Merge(cm.applyChanges(cm.reconcileService(svcID)))
-	}
-	return changes
-}
-
-// updatePendingDiscovery rebuilds the pendingDiscovery membership for a service:
-// the service is in the set iff at least one matching discovery template has a
-// pending (not-yet-given-up) cache entry.
-func (cm *reconcilingConfigManager) updatePendingDiscovery(svcID string) {
-	if cm.discoverer == nil {
-		return
-	}
-
-	svcAndADIDs, found := cm.activeServices[svcID]
-	if !found {
-		delete(cm.pendingDiscovery, svcID)
-		return
-	}
-
-	seen := map[string]bool{}
-	for _, adID := range svcAndADIDs.adIDs {
-		for _, tplDigest := range cm.templatesByADID.get(adID) {
-			tpl, ok := cm.activeConfigs[tplDigest]
-			if !ok || tpl.Discovery == nil {
-				continue
-			}
-			if seen[tpl.Name] {
-				continue
-			}
-			seen[tpl.Name] = true
-			if cm.discoverer.IsPending(svcID, tpl.Name) {
-				cm.pendingDiscovery[svcID] = struct{}{}
-				return
-			}
-		}
-	}
-	delete(cm.pendingDiscovery, svcID)
 }
 
 // resolveTemplateForService resolves a template config for the given service,
@@ -485,42 +410,8 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 	digest := tpl.Digest()
 
 	if tpl.Discovery != nil {
-		if cm.discoverer == nil {
-			msg := fmt.Sprintf("template %s has Discovery set but no discoverer is configured", tpl.Name)
-			log.Errorf("autodiscovery: %s", msg)
-			errorStats.setResolveWarning(tpl.Name, msg)
-			return tpl, false
-		}
-		result, ok := cm.discoverer.Discover(context.Background(), tpl.Name, svc)
-		if !ok {
-			msg := fmt.Sprintf("discover did not match for template %s and service %s", tpl.Name, svc.GetServiceID())
-			log.Debugf("autodiscovery: %s", msg)
-			errorStats.setResolveWarning(tpl.Name, msg)
-			return tpl, false
-		}
-		if len(result.Configs) == 0 {
-			return tpl, false
-		}
-		if len(result.Configs) > 1 {
-			// Multi-instance support requires a different return shape from
-			// resolveTemplateForService. Until that lands, log loudly so the
-			// truncation is visible (relevant for druid, tekton, torchserve).
-			log.Warnf("autodiscovery: %s.discover() returned %d configs for service %s; using only the first (multi-instance support is a follow-up)", tpl.Name, len(result.Configs), svc.GetServiceID())
-		}
-		// Single-instance path: take the first discovered config's instances and
-		// graft onto a copy of tpl.
-		resolved := tpl
-		resolved.Instances = result.Configs[0].Instances
-		// Discovery results are concrete configs — no template substitution needed.
-		resolvedConfig, err := decryptConfig(resolved, cm.secretResolver, digest)
-		if err != nil {
-			msg := fmt.Sprintf("error decrypting secrets in config %s for service %s: %v", resolved.Name, svc.GetServiceID(), err)
-			errorStats.setResolveWarning(tpl.Name, msg)
-			return resolved, false
-		}
-		errorStats.removeResolveWarnings(tpl.Name)
-		cm.clearTemplateResolutionFailure(tpl, svc)
-		return resolvedConfig, true
+		// Discovery call path stubbed out; will be filled in by the alt mechanism.
+		return tpl, false
 	}
 
 	// Non-discovery templates: existing template-resolution path.

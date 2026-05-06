@@ -208,7 +208,6 @@ func getAutoConfig(schedulerController *scheduler.Controller, secretResolver sec
 	// ac.stop() blocks on each goroutine's stop channel, so a missing
 	// goroutine here causes deadlock in TestStop and leaks in other tests.
 	go ac.serviceListening()
-	go ac.discoveryRetryLoop()
 	return ac
 }
 

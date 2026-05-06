@@ -121,18 +121,6 @@ public:
     */
     virtual char *runCheck(RtLoaderPyObject *check) = 0;
 
-    //! Pure virtual runDiscover member.
-    /*!
-      \param py_class The python class object on which to call the
-                      ``_run_discover`` classmethod (datadog_checks_base
-                      bridge helper).
-      \param service_json A C-string JSON payload representing the
-                          autodiscovery Service.
-      \return A C-string with the JSON-serialized discover result. Caller
-              must free the returned pointer.
-    */
-    virtual char *runDiscover(RtLoaderPyObject *py_class, const char *service_json) = 0;
-
     //! Pure virtual cancelCheck member.
     /*!
       \param check The python object pointer to the check we wish to cancel.
