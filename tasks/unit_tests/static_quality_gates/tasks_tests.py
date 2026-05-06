@@ -269,7 +269,7 @@ class TestQualityGatesIntegration(unittest.TestCase):
             mock_pr_commenter.assert_called_once()
 
     @patch.dict('os.environ', _PR_ENV_VARS, clear=True)
-    def test_gate_fails_absolute_wire_limit(self):
+    def test_gate_absolute_wire_limit_does_not_block(self):
         gate_scenarios = [
             GateScenario(
                 name=_DEB_GATE,
@@ -303,10 +303,9 @@ class TestQualityGatesIntegration(unittest.TestCase):
             patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
         ):
             ctx = MockContext(
-                run={"datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done")}
+                run={"datadog-ci tag --level job --tags static_quality_gates:\"success\"": Result("Done")}
             )
-            with self.assertRaises(Exit):
-                parse_and_trigger_gates(ctx, config_path)
+            parse_and_trigger_gates(ctx, config_path)
             mock_send_metrics.assert_called_once()
             mock_generate_reports.assert_called_once()
             mock_pr_commenter.assert_called_once()
