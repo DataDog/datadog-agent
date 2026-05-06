@@ -2,7 +2,7 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "procmgrtest",
-    srcs = ["wait.go"],
+    srcs = ["process.go"],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/internal/procmgrtest",
     visibility = ["//test/new-e2e:__subpackages__"],
     deps = [
