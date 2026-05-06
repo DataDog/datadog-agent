@@ -216,6 +216,119 @@ func TestPodTerminationHandlerHandle(t *testing.T) {
 	})
 }
 
+// TestPodCreationHandlerCanHandle tests the CanHandle method for the PodCreationHandler.
+//
+// Test partitions:
+// - event type: set | unset | other
+// - entity kind: pod | non-pod
+func TestPodCreationHandlerCanHandle(t *testing.T) {
+	h := NewPodCreationHandler()
+	pod := &workloadmeta.KubernetesPod{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod}}
+	cont := &workloadmeta.Container{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer}}
+
+	tests := []struct {
+		subdomain string
+		ev        workloadmeta.Event
+		want      bool
+	}{
+		{"event type set + entity kind pod", workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod}, true},
+		{"event type unset + entity kind pod", workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: pod}, true},
+		{"event type set + entity kind non-pod", workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: cont}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.subdomain, func(t *testing.T) {
+			assert.Equal(t, tt.want, h.CanHandle(tt.ev))
+		})
+	}
+}
+
+// TestPodCreationHandlerHandle tests the Handle method for the PodCreationHandler.
+//
+// Test partitions:
+// - entity type: *KubernetesPod (correct) | other (wrong)
+// - first observation: yes (emit) | no (suppress)
+// - creation timestamp: zero | non-zero
+// - event type: set | unset (prune)
+func TestPodCreationHandlerHandle(t *testing.T) {
+	now := time.Now()
+
+	t.Run("entity type wrong", func(t *testing.T) {
+		h := NewPodCreationHandler()
+		ev := workloadmeta.Event{
+			Type:   workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.Container{EntityID: workloadmeta.EntityID{ID: "ben-bitdiddle"}},
+		}
+		_, err := h.Handle(ev)
+		assert.Error(t, err)
+	})
+
+	t.Run("first observation set + creation timestamp non-zero", func(t *testing.T) {
+		h := NewPodCreationHandler()
+		ev := workloadmeta.Event{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{
+				EntityID:          workloadmeta.EntityID{ID: "alyssa-hacker", Kind: workloadmeta.KindKubernetesPod},
+				CreationTimestamp: now,
+			},
+		}
+		les, err := h.Handle(ev)
+		require.NoError(t, err)
+		require.Len(t, les, 1)
+		assert.Equal(t, model.Event_Create, les[0].ProtoEvent.GetEventType())
+		pod := les[0].ProtoEvent.GetPod()
+		assert.Equal(t, "alyssa-hacker", pod.GetPodUID())
+		assert.Equal(t, now.Unix(), pod.GetCreationTimestamp())
+	})
+
+	t.Run("first observation set + creation timestamp zero", func(t *testing.T) {
+		h := NewPodCreationHandler()
+		ev := workloadmeta.Event{
+			Type:   workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{EntityID: workloadmeta.EntityID{ID: "lem-tweakit", Kind: workloadmeta.KindKubernetesPod}},
+		}
+		les, err := h.Handle(ev)
+		require.NoError(t, err)
+		require.Len(t, les, 1)
+		assert.Nil(t, les[0].ProtoEvent.GetPod().CreationTimestamp)
+	})
+
+	t.Run("repeat set on same pod is suppressed", func(t *testing.T) {
+		h := NewPodCreationHandler()
+		ev := workloadmeta.Event{
+			Type: workloadmeta.EventTypeSet,
+			Entity: &workloadmeta.KubernetesPod{
+				EntityID:          workloadmeta.EntityID{ID: "louis-reasoner", Kind: workloadmeta.KindKubernetesPod},
+				CreationTimestamp: now,
+			},
+		}
+		first, err := h.Handle(ev)
+		require.NoError(t, err)
+		require.Len(t, first, 1)
+		second, err := h.Handle(ev)
+		require.NoError(t, err)
+		assert.Empty(t, second)
+	})
+
+	t.Run("unset prunes shadow so a later set re-emits", func(t *testing.T) {
+		h := NewPodCreationHandler()
+		pod := &workloadmeta.KubernetesPod{
+			EntityID:          workloadmeta.EntityID{ID: "eva-lu-ator", Kind: workloadmeta.KindKubernetesPod},
+			CreationTimestamp: now,
+		}
+		first, err := h.Handle(workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod})
+		require.NoError(t, err)
+		require.Len(t, first, 1)
+
+		pruneRes, err := h.Handle(workloadmeta.Event{Type: workloadmeta.EventTypeUnset, Entity: pod})
+		require.NoError(t, err)
+		assert.Empty(t, pruneRes)
+
+		second, err := h.Handle(workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: pod})
+		require.NoError(t, err)
+		assert.Len(t, second, 1)
+	})
+}
+
 // TestTaskTerminationHandlerCanHandle tests the CanHandle method for the TaskTerminationHandler.
 //
 // Test partitions:
