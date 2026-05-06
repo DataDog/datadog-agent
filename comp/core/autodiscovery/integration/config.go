@@ -121,18 +121,15 @@ type Config struct {
 	ImageName string `json:"image_name"` // (include in digest: false)
 
 	// Discovery, when non-nil, signals that this config is a discovery
-	// template: AutoDiscovery must run a probe against the matched service
-	// before substituting %%discovered_port%%.
-	Discovery *DiscoveryConfig `json:"discovery"` // (include in digest: true)
+	// template: AutoDiscovery must call the integration's Python discover()
+	// method against the matched service to obtain concrete instances.
+	Discovery *Discovery `json:"discovery"` // (include in digest: true)
 }
 
-// DiscoveryConfig describes how to probe a service to find its check
-// endpoint. Currently only Type=="openmetrics" is supported.
-type DiscoveryConfig struct {
-	Type  string `yaml:"type"  json:"type"`
-	Ports []int  `yaml:"ports,omitempty" json:"ports,omitempty"`
-	Path  string `yaml:"path,omitempty"  json:"path,omitempty"`
-}
+// Discovery is the marker payload for advanced auto-config templates. It is
+// intentionally empty — the per-integration logic lives on the Python side
+// in the integration's discover(service) classmethod.
+type Discovery struct{}
 
 // MatchingProgram is an interface for matching objects against filter rules.
 type MatchingProgram interface {

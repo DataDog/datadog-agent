@@ -302,24 +302,13 @@ func BenchmarkID(b *testing.B) {
 	result = id
 }
 
-func TestDiscoveryConfig_FieldsAndZeroValue(t *testing.T) {
-	var c Config
+func TestDiscovery_ZeroValue(t *testing.T) {
+	c := Config{Name: "krakend"}
 	if c.Discovery != nil {
-		t.Fatalf("Discovery should default to nil, got %+v", c.Discovery)
+		t.Fatalf("expected zero-value Discovery to be nil, got %v", c.Discovery)
 	}
-
-	c.Discovery = &DiscoveryConfig{
-		Type:  "openmetrics",
-		Ports: []int{8090},
-		Path:  "/metrics",
-	}
-	if c.Discovery.Type != "openmetrics" {
-		t.Fatalf("Type round-trip failed: %s", c.Discovery.Type)
-	}
-	if got, want := len(c.Discovery.Ports), 1; got != want {
-		t.Fatalf("Ports length: got %d want %d", got, want)
-	}
-	if c.Discovery.Path != "/metrics" {
-		t.Fatalf("Path round-trip failed: %s", c.Discovery.Path)
+	c.Discovery = &Discovery{}
+	if c.Discovery == nil {
+		t.Fatalf("expected Discovery to be non-nil after assignment")
 	}
 }

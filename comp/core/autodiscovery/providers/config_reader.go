@@ -43,7 +43,7 @@ type configFormat struct {
 	DockerImages            []string                           `yaml:"docker_images,omitempty"`             // Only imported for deprecation warning
 	IgnoreAutodiscoveryTags bool                               `yaml:"ignore_autodiscovery_tags,omitempty"` // Use to ignore tags coming from autodiscovery
 	CheckTagCardinality     string                             `yaml:"check_tag_cardinality,omitempty"`     // Use to set the tag cardinality override for the check
-	Discovery               *integration.DiscoveryConfig       `yaml:"discovery,omitempty"`
+	Discovery               *integration.Discovery             `yaml:"discovery,omitempty"`
 }
 
 // ConfigFormatWrapper is a wrapper for the config format

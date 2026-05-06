@@ -125,9 +125,6 @@ func TestGetIntegrationConfig_Discovery(t *testing.T) {
 	config, _, err := GetIntegrationConfigFromFile("krakend", "tests/auto_conf_discovery.yaml")
 	require.Nil(t, err)
 	require.NotNil(t, config.Discovery)
-	assert.Equal(t, "openmetrics", config.Discovery.Type)
-	assert.Equal(t, []int{8090}, config.Discovery.Ports)
-	assert.Equal(t, "/metrics", config.Discovery.Path)
 	assert.Equal(t, []string{"krakend"}, config.ADIdentifiers)
 	assert.Len(t, config.Instances, 1)
 }
