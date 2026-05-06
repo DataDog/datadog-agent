@@ -30,6 +30,15 @@ type Result struct {
 // any error is logged internally.
 type Discoverer interface {
 	Discover(ctx context.Context, integrationName string, svc listeners.Service) (Result, bool)
+
+	// IsPending reports whether the cache holds a "still retrying" entry for
+	// this (svcID, integration) pair (i.e. a failure entry whose retry
+	// schedule isn't exhausted).
+	IsPending(svcID, integrationName string) bool
+
+	// Forget drops all cache entries for one service. Called by configmgr on
+	// service removal so a restarted container starts fresh.
+	Forget(svcID string)
 }
 
 // Bridge is the boundary between the discoverer and the Python runtime.

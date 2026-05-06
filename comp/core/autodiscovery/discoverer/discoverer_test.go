@@ -134,3 +134,47 @@ func TestDiscoverGivenUpNeverProbesAgain(t *testing.T) {
 	d.Discover(context.Background(), "krakend", newFakeService()) // givenUp: no probe
 	assert.Equal(t, callsAtGiveUp, bridge.calls, "givenUp should suppress all future probes")
 }
+
+func TestDiscoverIsPendingAfterFailure(t *testing.T) {
+	bridge := &fakeBridge{respond: func(string, string) (string, error) {
+		return "null", nil
+	}}
+	d := newDiscoverer(bridge)
+	d.Discover(context.Background(), "krakend", newFakeService())
+	assert.True(t, d.IsPending("docker://abc", "krakend"))
+	assert.False(t, d.IsPending("docker://abc", "other-integration"))
+	assert.False(t, d.IsPending("other-svc", "krakend"))
+}
+
+func TestDiscoverIsPendingFalseAfterGiveUp(t *testing.T) {
+	bridge := &fakeBridge{respond: func(string, string) (string, error) {
+		return "null", nil
+	}}
+	d := newDiscoverer(bridge)
+	d.retrySchedule = []time.Duration{0} // 1 retry, then give up
+	d.Discover(context.Background(), "krakend", newFakeService())
+	d.Discover(context.Background(), "krakend", newFakeService())
+	d.Discover(context.Background(), "krakend", newFakeService())
+	assert.False(t, d.IsPending("docker://abc", "krakend"))
+}
+
+func TestDiscoverIsPendingFalseAfterSuccess(t *testing.T) {
+	bridge := &fakeBridge{respond: func(string, string) (string, error) {
+		return `[{"openmetrics_endpoint":"x"}]`, nil
+	}}
+	d := newDiscoverer(bridge)
+	d.Discover(context.Background(), "krakend", newFakeService())
+	assert.False(t, d.IsPending("docker://abc", "krakend"))
+}
+
+func TestDiscoverForgetClearsEntries(t *testing.T) {
+	bridge := &fakeBridge{respond: func(string, string) (string, error) {
+		return "null", nil
+	}}
+	d := newDiscoverer(bridge)
+	d.Discover(context.Background(), "krakend", newFakeService())
+	require.True(t, d.IsPending("docker://abc", "krakend"))
+
+	d.Forget("docker://abc")
+	assert.False(t, d.IsPending("docker://abc", "krakend"))
+}

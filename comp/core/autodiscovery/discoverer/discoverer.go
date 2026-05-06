@@ -136,6 +136,16 @@ func (d *defaultDiscoverer) Discover(_ context.Context, integrationName string, 
 	return r, true
 }
 
+// IsPending reports whether the cache has a pending failure entry for this pair.
+func (d *defaultDiscoverer) IsPending(svcID, integrationName string) bool {
+	return d.cache.lookup(svcID, integrationName).state == statePending
+}
+
+// Forget drops all cache entries for a service.
+func (d *defaultDiscoverer) Forget(svcID string) {
+	d.cache.forget(svcID)
+}
+
 func pickHost(svc listeners.Service) (string, bool) {
 	hosts, err := svc.GetHosts()
 	if err != nil || len(hosts) == 0 {
