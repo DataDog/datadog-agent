@@ -97,6 +97,18 @@ func TestDiscoverErrorIsFailureCached(t *testing.T) {
 	assert.Equal(t, 1, bridge.calls, "negative cache should prevent re-invocation")
 }
 
+func TestDiscoverPythonNotReadyIsNotCached(t *testing.T) {
+	bridge := &fakeBridge{respond: func(string, string) (string, error) {
+		return "", ErrPythonNotReady
+	}}
+	d := newDiscoverer(bridge)
+	_, ok := d.Discover(context.Background(), "krakend", newFakeService())
+	assert.False(t, ok)
+	_, ok = d.Discover(context.Background(), "krakend", newFakeService())
+	assert.False(t, ok)
+	assert.Equal(t, 2, bridge.calls, "ErrPythonNotReady is transient and must NOT be cached")
+}
+
 func TestDiscoverSuccessCached(t *testing.T) {
 	bridge := &fakeBridge{respond: func(string, string) (string, error) {
 		return `[{"openmetrics_endpoint":"x"}]`, nil

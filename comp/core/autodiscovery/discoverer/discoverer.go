@@ -8,6 +8,7 @@ package discoverer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -84,6 +85,12 @@ func (d *defaultDiscoverer) Discover(_ context.Context, integrationName string, 
 	}
 
 	resJSON, err := d.bridge.RunDiscover(integrationName, string(body))
+	if errors.Is(err, ErrPythonNotReady) {
+		// Transient: do NOT cache. The next AD reconcile event will retry
+		// once Python init completes.
+		log.Debugf("autodiscovery/discoverer: %s.discover() skipped for %s — python not yet ready", integrationName, svcID)
+		return Result{}, false
+	}
 	if err != nil {
 		log.Warnf("autodiscovery/discoverer: %s.discover() failed for %s: %v", integrationName, svcID, err)
 		d.cache.putFailure(svcID, integrationName, d.failureTTL)
