@@ -16,11 +16,17 @@ BPF_TASK_STORAGE_MAP(task_oncpu_pmu, task_pmu_stamp_t)
 
 BPF_PERCPU_HASH_MAP(cgroup_agg_stats, __u64, cgroup_agg_stats_t, MAX_TASK_ENTRIES)
 
-// Per-CPU perf event arrays for cycles and instructions counters. Populated
-// from user space at probe init; if a CPU's slot is unset, the read helper
-// returns -ENOENT and the corresponding deltas are skipped.
+// Per-CPU perf event arrays for hardware counters. Populated from user space
+// at probe init; if a CPU's slot is unset, the read helper returns -ENOENT
+// and the corresponding deltas are skipped.
 BPF_PERF_EVENT_ARRAY_MAP(cycles_pmu, u32)
 BPF_PERF_EVENT_ARRAY_MAP(instructions_pmu, u32)
+BPF_PERF_EVENT_ARRAY_MAP(llc_misses_pmu, u32)
+BPF_PERF_EVENT_ARRAY_MAP(itlb_misses_pmu, u32)
+
+// Per-CPU softirq entry timestamp. Single-slot percpu array; softirq runs in
+// non-preemptible context so per-CPU storage is sufficient.
+BPF_PERCPU_ARRAY_MAP(softirq_start_ns, __u64, 1)
 
 void bpf_rcu_read_lock(void) __ksym;
 void bpf_rcu_read_unlock(void) __ksym;
@@ -102,12 +108,20 @@ int tp_sched_switch(u64 *ctx) {
     // Sample PMU counters once. Reads return -ENOENT (or other negative) when
     // perf events haven't been attached for this CPU; in that case we skip
     // both the prev close-out and the next stamp. The runqueue-wait path
-    // below is unaffected.
+    // below is unaffected. Each counter is independent — if iTLB events
+    // aren't supported but cycles are, only iTLB deltas are skipped.
     struct bpf_perf_event_value cyc_val = {};
     struct bpf_perf_event_value ins_val = {};
+    struct bpf_perf_event_value llc_val = {};
+    struct bpf_perf_event_value itlb_val = {};
     long cyc_err = bpf_perf_event_read_value(&cycles_pmu, BPF_F_CURRENT_CPU, &cyc_val, sizeof(cyc_val));
     long ins_err = bpf_perf_event_read_value(&instructions_pmu, BPF_F_CURRENT_CPU, &ins_val, sizeof(ins_val));
-    bool pmu_ok = (cyc_err == 0) && (ins_err == 0);
+    long llc_err = bpf_perf_event_read_value(&llc_misses_pmu, BPF_F_CURRENT_CPU, &llc_val, sizeof(llc_val));
+    long itlb_err = bpf_perf_event_read_value(&itlb_misses_pmu, BPF_F_CURRENT_CPU, &itlb_val, sizeof(itlb_val));
+    bool ci_ok = (cyc_err == 0) && (ins_err == 0);
+    bool llc_ok = (llc_err == 0);
+    bool itlb_ok = (itlb_err == 0);
+    bool pmu_ok = ci_ok || llc_ok || itlb_ok;
 
     if (pmu_ok && prev_pid) {
         task_pmu_stamp_t *stamp = bpf_task_storage_get(&task_oncpu_pmu, prev, NULL, 0);
@@ -115,8 +129,16 @@ int tp_sched_switch(u64 *ctx) {
             u64 prev_cgroup_id = get_task_cgroup_id(prev);
             cgroup_agg_stats_t *stats = get_or_create_cgroup_stats(prev_cgroup_id);
             if (stats) {
-                stats->sum_cycles += cyc_val.counter - stamp->cycles;
-                stats->sum_instructions += ins_val.counter - stamp->instructions;
+                if (ci_ok) {
+                    stats->sum_cycles += cyc_val.counter - stamp->cycles;
+                    stats->sum_instructions += ins_val.counter - stamp->instructions;
+                }
+                if (llc_ok) {
+                    stats->sum_llc_misses += llc_val.counter - stamp->llc_misses;
+                }
+                if (itlb_ok) {
+                    stats->sum_itlb_misses += itlb_val.counter - stamp->itlb_misses;
+                }
             }
         }
     }
@@ -141,8 +163,16 @@ int tp_sched_switch(u64 *ctx) {
         task_pmu_stamp_t zero = {};
         task_pmu_stamp_t *stamp = bpf_task_storage_get(&task_oncpu_pmu, next, &zero, BPF_LOCAL_STORAGE_GET_F_CREATE);
         if (stamp) {
-            stamp->cycles = cyc_val.counter;
-            stamp->instructions = ins_val.counter;
+            if (ci_ok) {
+                stamp->cycles = cyc_val.counter;
+                stamp->instructions = ins_val.counter;
+            }
+            if (llc_ok) {
+                stamp->llc_misses = llc_val.counter;
+            }
+            if (itlb_ok) {
+                stamp->itlb_misses = itlb_val.counter;
+            }
         }
     }
 
@@ -162,6 +192,61 @@ int tp_sched_switch(u64 *ctx) {
         stats->pid_count = get_cgroup_pids_count(next);
     }
 
+    return 0;
+}
+
+// Softirq accounting: stamp the entry timestamp per CPU; on exit, attribute
+// the elapsed nanoseconds to the cgroup of whatever task was running on this
+// CPU when the softirq fired. For irq-tail softirq processing, this charges
+// time back to the interrupted task's cgroup (the victim — exactly what we
+// want). For ksoftirqd-driven softirqs, it charges to the ksoftirqd cgroup
+// (typically root); a known limitation we accept for the prototype.
+SEC("tp_btf/softirq_entry")
+int tp_softirq_entry(u64 *ctx) {
+    u32 zero = 0;
+    u64 *slot = bpf_map_lookup_elem(&softirq_start_ns, &zero);
+    if (slot) {
+        *slot = bpf_ktime_get_ns();
+    }
+    return 0;
+}
+
+SEC("tp_btf/softirq_exit")
+int tp_softirq_exit(u64 *ctx) {
+    u32 zero = 0;
+    u64 *slot = bpf_map_lookup_elem(&softirq_start_ns, &zero);
+    if (!slot || *slot == 0) {
+        return 0;
+    }
+    u64 delta = bpf_ktime_get_ns() - *slot;
+    *slot = 0;
+
+    struct task_struct *task = bpf_get_current_task_btf();
+    if (!task) {
+        return 0;
+    }
+    u64 cgroup_id = get_task_cgroup_id(task);
+    cgroup_agg_stats_t *stats = get_or_create_cgroup_stats(cgroup_id);
+    if (stats) {
+        stats->sum_softirq_ns += delta;
+    }
+    return 0;
+}
+
+// Block I/O issue tracking: count requests issued from each cgroup. Uses the
+// task that issued the I/O (current task), not the bio's owning cgroup —
+// simple and matches what cgroup CPU accounting attributes elsewhere.
+SEC("tp_btf/block_rq_issue")
+int tp_block_rq_issue(u64 *ctx) {
+    struct task_struct *task = bpf_get_current_task_btf();
+    if (!task) {
+        return 0;
+    }
+    u64 cgroup_id = get_task_cgroup_id(task);
+    cgroup_agg_stats_t *stats = get_or_create_cgroup_stats(cgroup_id);
+    if (stats) {
+        stats->block_io_requests += 1;
+    }
     return 0;
 }
 

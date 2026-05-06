@@ -15,4 +15,8 @@ type NoisyNeighborStats struct {
 	UniquePidCount  uint64 // kernel task_struct->pid (TID) count
 	SumCycles       uint64
 	SumInstructions uint64
+	SumLLCMisses    uint64
+	SumITLBMisses   uint64
+	SumSoftirqNs    uint64
+	BlockIORequests uint64
 }

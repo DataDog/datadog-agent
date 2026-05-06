@@ -56,6 +56,9 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tp_sched_wakeup", UID: uid}},
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tp_sched_wakeup_new", UID: uid}},
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tp_sched_switch", UID: uid}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tp_softirq_entry", UID: uid}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tp_softirq_exit", UID: uid}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tp_block_rq_issue", UID: uid}},
 		}
 		p.mgr.Maps = []*manager.Map{
 			{Name: "runq_enqueued"},
@@ -63,6 +66,9 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 			{Name: "cgroup_agg_stats"},
 			{Name: "cycles_pmu"},
 			{Name: "instructions_pmu"},
+			{Name: "llc_misses_pmu"},
+			{Name: "itlb_misses_pmu"},
+			{Name: "softirq_start_ns"},
 		}
 		if err := p.mgr.InitWithOptions(buf, &opts); err != nil {
 			return fmt.Errorf("failed to init ebpf manager: %w", err)
@@ -82,64 +88,66 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 	return p, nil
 }
 
-// attachPMU opens per-CPU hardware perf events for cycles and instructions,
-// inserting their file descriptors into the corresponding BPF perf-event-array
-// maps. On hosts where the PMU is unavailable (some virtualized environments,
-// restrictive perf_event_paranoid, missing CAP_PERF_MON) the perf event opens
-// will fail; we log once and proceed. The eBPF program checks the read-value
-// helper return code and skips CPI accumulation for those CPUs.
-func (p *Probe) attachPMU() {
-	cyclesMap, _, err := p.mgr.GetMap("cycles_pmu")
-	if err != nil || cyclesMap == nil {
-		log.Warnf("noisy_neighbor: cycles_pmu map missing, CPI metrics disabled: %v", err)
-		return
-	}
-	instMap, _, err := p.mgr.GetMap("instructions_pmu")
-	if err != nil || instMap == nil {
-		log.Warnf("noisy_neighbor: instructions_pmu map missing, CPI metrics disabled: %v", err)
-		return
-	}
+// pmuEvent describes one hardware counter we want per-CPU.
+type pmuEvent struct {
+	mapName    string
+	humanLabel string
+	perfType   uint32
+	perfConfig uint64
+}
 
+// iTLB-load-misses encoded for PERF_TYPE_HW_CACHE: cache_id | (op << 8) | (result << 16).
+const itlbLoadMissesConfig = uint64(unix.PERF_COUNT_HW_CACHE_ITLB) |
+	(uint64(unix.PERF_COUNT_HW_CACHE_OP_READ) << 8) |
+	(uint64(unix.PERF_COUNT_HW_CACHE_RESULT_MISS) << 16)
+
+// attachPMU opens per-CPU hardware perf events and inserts their fds into the
+// corresponding BPF perf-event-array maps. On hosts where a given event isn't
+// supported (virtualized envs, restrictive perf_event_paranoid, missing
+// CAP_PERF_MON, or µarch lacking the event) opens fail and we log once per
+// event type. Other events still attach independently, and the eBPF program
+// checks each read-value return code and skips just that counter's deltas.
+func (p *Probe) attachPMU() {
+	events := []pmuEvent{
+		{"cycles_pmu", "cycles", unix.PERF_TYPE_HARDWARE, unix.PERF_COUNT_HW_CPU_CYCLES},
+		{"instructions_pmu", "instructions", unix.PERF_TYPE_HARDWARE, unix.PERF_COUNT_HW_INSTRUCTIONS},
+		{"llc_misses_pmu", "LLC misses", unix.PERF_TYPE_HARDWARE, unix.PERF_COUNT_HW_CACHE_MISSES},
+		{"itlb_misses_pmu", "iTLB misses", unix.PERF_TYPE_HW_CACHE, itlbLoadMissesConfig},
+	}
 	numCPU := runtime.NumCPU()
-	var loggedPMU bool
-	for cpu := 0; cpu < numCPU; cpu++ {
-		cycFD, err := openHardwarePerfEvent(cpu, unix.PERF_COUNT_HW_CPU_CYCLES)
-		if err != nil {
-			if !loggedPMU {
-				log.Warnf("noisy_neighbor: PMU unavailable, cycles/instructions metrics will be zero: %v", err)
-				loggedPMU = true
-			}
-			continue
-		}
-		insFD, err := openHardwarePerfEvent(cpu, unix.PERF_COUNT_HW_INSTRUCTIONS)
-		if err != nil {
-			unix.Close(cycFD)
-			if !loggedPMU {
-				log.Warnf("noisy_neighbor: PMU unavailable, cycles/instructions metrics will be zero: %v", err)
-				loggedPMU = true
-			}
-			continue
-		}
-		key := uint32(cpu)
-		if err := cyclesMap.Put(key, uint32(cycFD)); err != nil {
-			log.Warnf("noisy_neighbor: failed to register cycles fd on cpu %d: %v", cpu, err)
-			unix.Close(cycFD)
-			unix.Close(insFD)
-			continue
-		}
-		if err := instMap.Put(key, uint32(insFD)); err != nil {
-			log.Warnf("noisy_neighbor: failed to register instructions fd on cpu %d: %v", cpu, err)
-			unix.Close(cycFD)
-			unix.Close(insFD)
-			continue
-		}
-		p.pmuFDs = append(p.pmuFDs, cycFD, insFD)
+	for _, ev := range events {
+		p.attachPMUEvent(ev, numCPU)
 	}
 }
 
-func openHardwarePerfEvent(cpu int, config uint64) (int, error) {
+func (p *Probe) attachPMUEvent(ev pmuEvent, numCPU int) {
+	m, _, err := p.mgr.GetMap(ev.mapName)
+	if err != nil || m == nil {
+		log.Warnf("noisy_neighbor: %s map (%s) missing: %v", ev.humanLabel, ev.mapName, err)
+		return
+	}
+	var logged bool
+	for cpu := 0; cpu < numCPU; cpu++ {
+		fd, err := openHardwarePerfEvent(ev.perfType, ev.perfConfig, cpu)
+		if err != nil {
+			if !logged {
+				log.Warnf("noisy_neighbor: %s PMU event unavailable, metric will be zero: %v", ev.humanLabel, err)
+				logged = true
+			}
+			continue
+		}
+		if err := m.Put(uint32(cpu), uint32(fd)); err != nil {
+			log.Warnf("noisy_neighbor: failed to register %s fd on cpu %d: %v", ev.humanLabel, cpu, err)
+			unix.Close(fd)
+			continue
+		}
+		p.pmuFDs = append(p.pmuFDs, fd)
+	}
+}
+
+func openHardwarePerfEvent(perfType uint32, config uint64, cpu int) (int, error) {
 	attr := &unix.PerfEventAttr{
-		Type:   unix.PERF_TYPE_HARDWARE,
+		Type:   perfType,
 		Config: config,
 		Size:   uint32(unsafe.Sizeof(unix.PerfEventAttr{})),
 	}
@@ -190,12 +198,18 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 	for iter.Next(&cgroupID, &perCPUStats) {
 		var cgroupLatencies, cgroupEvents, cgroupPreemptions, pidCount uint64
 		var cgroupCycles, cgroupInstructions uint64
+		var cgroupLLCMisses, cgroupITLBMisses uint64
+		var cgroupSoftirqNs, cgroupBlockIO uint64
 		for _, cpuStat := range perCPUStats {
 			cgroupLatencies += cpuStat.Sum_latencies_ns
 			cgroupEvents += cpuStat.Event_count
 			cgroupPreemptions += cpuStat.Preemption_count
 			cgroupCycles += cpuStat.Sum_cycles
 			cgroupInstructions += cpuStat.Sum_instructions
+			cgroupLLCMisses += cpuStat.Sum_llc_misses
+			cgroupITLBMisses += cpuStat.Sum_itlb_misses
+			cgroupSoftirqNs += cpuStat.Sum_softirq_ns
+			cgroupBlockIO += cpuStat.Block_io_requests
 			// pid_count is a global cgroup value (not per-CPU), so take the max rather than summing
 			if cpuStat.Pid_count > pidCount {
 				pidCount = cpuStat.Pid_count
@@ -204,7 +218,7 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 
 		cgroupsToDelete = append(cgroupsToDelete, cgroupID)
 
-		if cgroupEvents == 0 {
+		if cgroupEvents == 0 && cgroupSoftirqNs == 0 && cgroupBlockIO == 0 {
 			continue
 		}
 
@@ -216,6 +230,10 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 			UniquePidCount:  pidCount,
 			SumCycles:       cgroupCycles,
 			SumInstructions: cgroupInstructions,
+			SumLLCMisses:    cgroupLLCMisses,
+			SumITLBMisses:   cgroupITLBMisses,
+			SumSoftirqNs:    cgroupSoftirqNs,
+			BlockIORequests: cgroupBlockIO,
 		}
 
 		nnstats = append(nnstats, stat)

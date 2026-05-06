@@ -138,4 +138,8 @@ func (n *NoisyNeighborCheck) submitRawCounters(sender sender.Sender, stat model.
 	sender.Gauge("noisy_neighbor.unique_processes", float64(stat.UniquePidCount), "", tags)
 	sender.Count("noisy_neighbor.cycles", float64(stat.SumCycles), "", tags)
 	sender.Count("noisy_neighbor.instructions", float64(stat.SumInstructions), "", tags)
+	sender.Count("noisy_neighbor.llc_misses", float64(stat.SumLLCMisses), "", tags)
+	sender.Count("noisy_neighbor.itlb_misses", float64(stat.SumITLBMisses), "", tags)
+	sender.Count("noisy_neighbor.softirq_ns", float64(stat.SumSoftirqNs), "", tags)
+	sender.Count("noisy_neighbor.block_io_requests", float64(stat.BlockIORequests), "", tags)
 }
