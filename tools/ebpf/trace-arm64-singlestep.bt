@@ -1,0 +1,415 @@
+#!/usr/bin/env bpftrace
+
+/*
+ * Investigation helper for arm64 TIF_SINGLESTEP state around uprobes.
+ *
+ * Kernel context checked in:
+ *   ~/dd/kernel-analysis/linux-aws-6.14-source/src/linux-aws-6.14-6.14.0
+ *
+ * On arm64, TIF_SINGLESTEP is bit 21 in task->thread_info.flags. The real
+ * setter is user_enable_single_step(), but this kernel marks it NOKPROBE_SYMBOL,
+ * so kprobes cannot attach to it. Its callers split as follows:
+ *   - arch_uprobe_pre_xol           -> probed directly
+ *   - ptrace_resume                 -> probed (kprobe + sys_enter_ptrace tp)
+ *   - breakpoint_handler            -> NOKPROBE, NOT observable
+ *   - watchpoint_handler            -> NOKPROBE, NOT observable
+ * The hw_breakpoint/watchpoint *fire* (which flips TIF_SINGLESTEP via the
+ * NOKPROBE'd handlers) cannot be hooked. Their *configuration* can: see
+ * register_user_hw_breakpoint and register_perf_hw_breakpoint below.
+ *
+ * Additional limitation seen on this host: bpftrace v0.20.2 on this arm64 BTF
+ * crashes when dereferencing curtask or struct task_struct fields. This script
+ * therefore focuses on correlation data available without task_struct reads:
+ *
+ *   1. TIF_SINGLESTEP trigger / configuration sites:
+ *      - ptrace single-step requests via ptrace_resume + sys_enter_ptrace tp
+ *      - HBP/WP configuration: register_user_hw_breakpoint (ptrace regset
+ *        path used by gdb on arm64) and register_perf_hw_breakpoint
+ *        (perf_event_open(PERF_TYPE_BREAKPOINT))
+ *
+ *   2. Uprobe trigger context:
+ *      - breakpoint delivery, post-singlestep notifier and resume handling
+ *      - the actual struct uprobe * from handler_chain()
+ *      - the arch decision: simulated instruction vs XOL single-step
+ *      - direct WARN site (uprobe_single_step_handler)
+ *      - uretprobe trampoline path (uprobe_handle_trampoline)
+ *
+ *   3. WARN correlation:
+ *      - bug_handler, with the WARN kernel stack
+ *      - sticky per-TID "last uprobe hit" context, gated to avoid printing
+ *        bogus state for unrelated WARNs
+ *
+ * Correlate by tid/pid/comm and timestamps. For uprobe paths, "current" is the
+ * target thread. The last_* maps are intentionally sticky per TID: they are
+ * overwritten by the next uprobe hit and printed when a later WARN fires.
+ *
+ * Run:
+ *   sudo bpftrace tools/ebpf/trace-arm64-singlestep.bt
+ *
+ * In another shell, run the repro from ~/dd/gpu-burner.
+ */
+
+#define PTRACE_SINGLESTEP 9
+#define PTRACE_SYSEMU_SINGLESTEP 32
+
+/*
+ * Set to 1 to print every handler_chain / uprobe_handle_trampoline /
+ * arch_uprobe_pre_xol event inline (header line + ustack). With many
+ * uprobe-instrumented processes this is extremely noisy. The stacks are
+ * always stashed in @last_uprobe_ustack[tid] (printed at WARN time) and
+ * aggregated in @uprobe_entry_stacks regardless of this flag.
+ */
+#define PRINT_HANDLER_CHAIN 0
+
+/*
+ * Set to 1 to print every entry/return of the single-step path:
+ * uprobe_pre_sstep_notifier, uprobe_post_sstep_notifier, and
+ * uprobe_single_step_handler. Each uprobe XOL completion fires these,
+ * so volume is comparable to the swbp dispatch noise. The diagnostic
+ * value of an inline print is low: bpftrace cannot safely deref
+ * task_struct on this host, so we cannot read utask->xol_vaddr from
+ * inside these probes. Useful only if you need the raw entry sequence,
+ * e.g. to compare the ratio of single_step_handler fires to WARNs.
+ */
+#define PRINT_SSTEP_HANDLERS 0
+
+BEGIN
+{
+  printf("Tracing arm64 single-step state. Ctrl-C to stop.\n");
+  printf("Fields: nsecs event comm tid pid args/stacks\n");
+}
+
+/*
+ * Section 1: likely TIF_SINGLESTEP trigger sites.
+ *
+ * user_enable_single_step() is the real setter, but it is marked
+ * NOKPROBE_SYMBOL on this kernel. ptrace_resume() is the observable caller for
+ * debugger-driven single-step. The syscall tracepoint filters to explicit
+ * PTRACE_SINGLESTEP requests so the log includes the requesting process and
+ * target pid.
+ */
+kprobe:ptrace_resume
+{
+  $request = arg1;
+
+  printf("%llu ptrace_resume actor=%s/%d/%d child_task=0x%lx request=%ld data=0x%lx\n",
+    nsecs, comm, tid, pid, arg0, $request, arg2);
+  printf("  kstack=%s\n", kstack);
+}
+
+kretprobe:ptrace_resume
+{
+  printf("%llu ptrace_resume_ret actor=%s/%d/%d ret=%ld\n", nsecs, comm, tid, pid, retval);
+}
+
+tracepoint:syscalls:sys_enter_ptrace
+/args.request == PTRACE_SINGLESTEP || args.request == PTRACE_SYSEMU_SINGLESTEP/
+{
+  printf("%llu sys_enter_ptrace_singlestep_request actor=%s/%d/%d request=%ld target_pid=%ld addr=0x%lx data=0x%lx\n",
+    nsecs, comm, tid, pid, args.request, args.pid, args.addr, args.data);
+}
+
+/*
+ * Hardware breakpoints/watchpoints can cause the kernel to single-step user
+ * threads while temporarily disabling debug registers. The actual flip of
+ * TIF_SINGLESTEP happens inside breakpoint_handler / watchpoint_handler,
+ * which are NOKPROBE_SYMBOL on this kernel and therefore unobservable.
+ *
+ * What we *can* observe is the configuration: who set up the HBP/WP and on
+ * which target task. There are two practical user-space paths on arm64:
+ *
+ *   1. ptrace(PTRACE_SETREGSET, NT_ARM_HW_BREAK | NT_ARM_HW_WATCH, ...)
+ *      -> ptrace_hbp_create() -> register_user_hw_breakpoint()
+ *      This is the route gdb uses by default.
+ *
+ *   2. perf_event_open(attr.type = PERF_TYPE_BREAKPOINT)
+ *      -> register_perf_hw_breakpoint()
+ *
+ * sys_enter_perf_event_open is kept as a coarse signal, but it does not
+ * tell us whether attr.type is PERF_TYPE_BREAKPOINT without dereferencing
+ * the user pointer. Use the register_*_hw_breakpoint kprobes for that.
+ */
+tracepoint:syscalls:sys_enter_perf_event_open
+{
+  printf("%llu sys_enter_perf_event_open actor=%s/%d/%d pid_arg=%ld cpu=%ld group_fd=%ld flags=0x%lx\n",
+    nsecs, comm, tid, pid, args.pid, args.cpu, args.group_fd, args.flags);
+}
+
+kprobe:register_user_hw_breakpoint
+{
+  printf("%llu register_user_hw_breakpoint actor=%s/%d/%d attr=0x%lx triggered=0x%lx context=0x%lx tsk=0x%lx\n",
+    nsecs, comm, tid, pid, arg0, arg1, arg2, arg3);
+  printf("  kstack=%s\n", kstack);
+}
+
+kretprobe:register_user_hw_breakpoint
+{
+  printf("%llu register_user_hw_breakpoint_ret actor=%s/%d/%d perf_event=0x%lx\n",
+    nsecs, comm, tid, pid, retval);
+}
+
+kprobe:register_perf_hw_breakpoint
+{
+  printf("%llu register_perf_hw_breakpoint actor=%s/%d/%d bp=0x%lx\n",
+    nsecs, comm, tid, pid, arg0);
+  printf("  kstack=%s\n", kstack);
+}
+
+kretprobe:register_perf_hw_breakpoint
+{
+  printf("%llu register_perf_hw_breakpoint_ret actor=%s/%d/%d ret=%ld\n",
+    nsecs, comm, tid, pid, retval);
+}
+
+/*
+ * Section 2: uprobe trigger context.
+ *
+ * This section records the last uprobe observed on each TID. This is the
+ * context we need at WARN time, because the WARN can happen after the uprobe
+ * path has finished and the current user stack is no longer useful.
+ */
+kprobe:find_active_uprobe_rcu
+{
+  @find_bp_vaddr[tid] = arg0;
+
+  printf("%llu find_active_uprobe_rcu target=%s/%d/%d bp_vaddr=0x%lx is_swbp_ptr=0x%lx\n",
+    nsecs, comm, tid, pid, arg0, arg1);
+}
+
+kretprobe:find_active_uprobe_rcu
+/retval/
+{
+  printf("%llu find_active_uprobe_rcu_ret target=%s/%d/%d uprobe=0x%lx bp_vaddr=0x%lx\n",
+    nsecs, comm, tid, pid, retval, @find_bp_vaddr[tid]);
+}
+
+kretprobe:find_active_uprobe_rcu
+/!retval/
+{
+  delete(@find_bp_vaddr[tid]);
+}
+
+kprobe:uprobe_pre_sstep_notifier
+{
+  if (PRINT_SSTEP_HANDLERS) {
+    printf("%llu uprobe_pre_sstep_notifier target=%s/%d/%d regs=0x%lx\n",
+      nsecs, comm, tid, pid, arg0);
+  }
+}
+
+kretprobe:uprobe_pre_sstep_notifier
+{
+  if (PRINT_SSTEP_HANDLERS) {
+    printf("%llu uprobe_pre_sstep_notifier_ret target=%s/%d/%d ret=%ld\n",
+      nsecs, comm, tid, pid, retval);
+  }
+}
+
+kprobe:uprobe_post_sstep_notifier
+{
+  if (PRINT_SSTEP_HANDLERS) {
+    printf("%llu uprobe_post_sstep_notifier target=%s/%d/%d regs=0x%lx\n",
+      nsecs, comm, tid, pid, arg0);
+  }
+}
+
+kretprobe:uprobe_post_sstep_notifier
+{
+  if (PRINT_SSTEP_HANDLERS) {
+    printf("%llu uprobe_post_sstep_notifier_ret target=%s/%d/%d ret=%ld\n",
+      nsecs, comm, tid, pid, retval);
+  }
+}
+
+/*
+ * uprobe_single_step_handler is the function that emits the WARN we are
+ * chasing. It compares instruction_pointer(regs) against utask->xol_vaddr+4
+ * and WARNs if they differ. The function is static but registered as
+ * uprobes_step_hook.fn and therefore must exist as a real symbol.
+ *
+ * In practice we cannot read utask->xol_vaddr from inside this probe
+ * (bpftrace task_struct deref crashes on this host), so the inline print
+ * carries no information beyond "single-step trap dispatched to uprobe
+ * step hook". bug_handler + @last_uprobe_* already covers the WARN case.
+ */
+kprobe:uprobe_single_step_handler
+{
+  if (PRINT_SSTEP_HANDLERS) {
+    printf("%llu uprobe_single_step_handler target=%s/%d/%d regs=0x%lx esr=0x%lx\n",
+      nsecs, comm, tid, pid, arg0, arg1);
+  }
+}
+
+kretprobe:uprobe_single_step_handler
+{
+  if (PRINT_SSTEP_HANDLERS) {
+    printf("%llu uprobe_single_step_handler_ret target=%s/%d/%d ret=%ld\n",
+      nsecs, comm, tid, pid, retval);
+  }
+}
+
+kprobe:uprobe_notify_resume
+{
+  printf("%llu uprobe_notify_resume target=%s/%d/%d regs=0x%lx\n",
+    nsecs, comm, tid, pid, arg0);
+}
+
+kprobe:handle_swbp
+{
+  printf("%llu handle_swbp target=%s/%d/%d regs=0x%lx\n",
+    nsecs, comm, tid, pid, arg0);
+}
+
+kretprobe:handle_swbp
+{
+  printf("%llu handle_swbp_ret target=%s/%d/%d\n", nsecs, comm, tid, pid);
+}
+
+/*
+ * Uretprobe trampoline hits short-circuit handle_swbp before
+ * find_active_uprobe_rcu / handler_chain are reached, so they are invisible
+ * via those probes. Probe the trampoline path explicitly.
+ */
+kprobe:uprobe_handle_trampoline
+{
+  @last_uprobe_ustack[tid] = ustack;
+  @uprobe_entry_stacks[ustack] = count();
+
+  if (PRINT_HANDLER_CHAIN) {
+    printf("%llu uprobe_handle_trampoline target=%s/%d/%d regs=0x%lx\n",
+      nsecs, comm, tid, pid, arg0);
+    printf("  ustack=%s\n", ustack);
+  }
+}
+
+kprobe:handler_chain
+{
+  @last_uprobe_ns[tid] = nsecs;
+  @last_uprobe_ptr[tid] = arg0;
+  @last_bp_vaddr[tid] = @find_bp_vaddr[tid];
+  @last_uprobe_regs[tid] = arg1;
+  @last_uprobe_path[tid] = 1;
+  @last_uprobe_ustack[tid] = ustack;
+  @uprobe_entry_stacks[ustack] = count();
+
+  if (PRINT_HANDLER_CHAIN) {
+    printf("%llu handler_chain target=%s/%d/%d uprobe=0x%lx regs=0x%lx bp_vaddr=0x%lx\n",
+      nsecs, comm, tid, pid, arg0, arg1, @find_bp_vaddr[tid]);
+    printf("  ustack=%s\n", ustack);
+  }
+
+  delete(@find_bp_vaddr[tid]);
+}
+
+kprobe:arch_uprobe_skip_sstep
+{
+  @skip_sstep_auprobe[tid] = arg0;
+  @skip_sstep_regs[tid] = arg1;
+
+  printf("%llu arch_uprobe_skip_sstep target=%s/%d/%d auprobe=0x%lx regs=0x%lx\n",
+    nsecs, comm, tid, pid, arg0, arg1);
+}
+
+kretprobe:arch_uprobe_skip_sstep
+{
+  @last_decision_ns[tid] = nsecs;
+  @last_auprobe[tid] = @skip_sstep_auprobe[tid];
+  @last_decision_regs[tid] = @skip_sstep_regs[tid];
+  @last_skip_sstep_ret[tid] = retval;
+  @last_uprobe_path[tid] = retval ? 2 : 3;
+
+  printf("%llu arch_uprobe_skip_sstep_ret target=%s/%d/%d ret=%ld auprobe=0x%lx regs=0x%lx\n",
+    nsecs, comm, tid, pid, retval, @skip_sstep_auprobe[tid], @skip_sstep_regs[tid]);
+
+  delete(@skip_sstep_auprobe[tid]);
+  delete(@skip_sstep_regs[tid]);
+}
+
+kprobe:arch_uprobe_pre_xol
+{
+  @last_decision_ns[tid] = nsecs;
+  @last_auprobe[tid] = arg0;
+  @last_decision_regs[tid] = arg1;
+  @last_skip_sstep_ret[tid] = 0;
+  @last_uprobe_path[tid] = 4;
+  @last_uprobe_ustack[tid] = ustack;
+
+  if (PRINT_HANDLER_CHAIN) {
+    printf("%llu arch_uprobe_pre_xol target=%s/%d/%d auprobe=0x%lx regs=0x%lx\n",
+      nsecs, comm, tid, pid, arg0, arg1);
+    printf("  ustack=%s\n", ustack);
+  }
+}
+
+kretprobe:arch_uprobe_pre_xol
+{
+  printf("%llu arch_uprobe_pre_xol_ret target=%s/%d/%d ret=%ld\n",
+    nsecs, comm, tid, pid, retval);
+}
+
+kprobe:arch_uprobe_post_xol
+{
+  printf("%llu arch_uprobe_post_xol target=%s/%d/%d auprobe=0x%lx regs=0x%lx\n",
+    nsecs, comm, tid, pid, arg0, arg1);
+}
+
+kretprobe:arch_uprobe_post_xol
+{
+  printf("%llu arch_uprobe_post_xol_ret target=%s/%d/%d ret=%ld\n",
+    nsecs, comm, tid, pid, retval);
+}
+
+kprobe:arch_uprobe_abort_xol
+{
+  printf("%llu arch_uprobe_abort_xol target=%s/%d/%d auprobe=0x%lx regs=0x%lx\n",
+    nsecs, comm, tid, pid, arg0, arg1);
+}
+
+/*
+ * bug_handler fires for every WARN/BUG in the kernel, not only for the
+ * uprobe_single_step_handler WARN. Gate the last_uprobe_* dumps so we do
+ * not print stale or zeroed map state for unrelated WARNs. comm here is
+ * "current", which for the WARN we are chasing is the target thread that
+ * tripped uprobe_single_step_handler.
+ */
+kprobe:bug_handler
+{
+  printf("%llu bug_handler_warnpath target=%s/%d/%d regs=0x%lx esr=0x%lx\n",
+    nsecs, comm, tid, pid, arg0, arg1);
+  if (@last_uprobe_ns[tid] != 0) {
+    printf("  last_uprobe path=%d hit_ns=%llu age_ns=%llu uprobe=0x%lx bp_vaddr=0x%lx regs=0x%lx\n",
+      @last_uprobe_path[tid], @last_uprobe_ns[tid], nsecs - @last_uprobe_ns[tid], @last_uprobe_ptr[tid], @last_bp_vaddr[tid], @last_uprobe_regs[tid]);
+    printf("  last_uprobe_ustack=%s\n", @last_uprobe_ustack[tid]);
+  }
+  if (@last_decision_ns[tid] != 0) {
+    printf("  last_uprobe_decision ns=%llu age_ns=%llu skip_ret=%ld auprobe=0x%lx regs=0x%lx\n",
+      @last_decision_ns[tid], nsecs - @last_decision_ns[tid], @last_skip_sstep_ret[tid], @last_auprobe[tid], @last_decision_regs[tid]);
+  }
+  printf("  kstack=%s\n", kstack);
+  printf("  ustack=%s\n", ustack);
+}
+
+/*
+ * Suppress the noisy auto-dump of the per-TID sticky maps and the
+ * @uprobe_entry_stacks histogram. The histogram cannot be symbolized at
+ * exit time (originating processes are gone), and the sticky maps carry
+ * no aggregate information -- they are point-in-time context consumed by
+ * the bug_handler probe.
+ */
+END
+{
+  clear(@find_bp_vaddr);
+  clear(@last_uprobe_ns);
+  clear(@last_uprobe_ptr);
+  clear(@last_bp_vaddr);
+  clear(@last_uprobe_regs);
+  clear(@last_uprobe_path);
+  clear(@last_uprobe_ustack);
+  clear(@last_decision_ns);
+  clear(@last_auprobe);
+  clear(@last_decision_regs);
+  clear(@last_skip_sstep_ret);
+  clear(@skip_sstep_auprobe);
+  clear(@skip_sstep_regs);
+  clear(@uprobe_entry_stacks);
+}
