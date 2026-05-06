@@ -285,7 +285,14 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	r.backendType = params.Type
 	r.backendConfig = params.Config
 	r.backendCommand = params.Command
-	r.multiBackends = params.MultiBackends
+	if len(params.MultiBackends) > 0 {
+		r.multiBackends = make(map[string]secrets.SecretBackendConfig, len(params.MultiBackends))
+		for k, v := range params.MultiBackends {
+			r.multiBackends[strings.ToLower(k)] = v
+		}
+	} else {
+		r.multiBackends = params.MultiBackends
+	}
 
 	r.embeddedBackendPermissiveRights = false
 

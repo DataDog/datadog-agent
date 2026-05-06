@@ -197,7 +197,7 @@ func (r *secretResolver) resolveBackendConfig(backendID string) (string, map[str
 		}
 		return r.backendType, r.backendConfig, r.backendTimeout, nil
 	}
-	entry, ok := r.multiBackends[backendID]
+	entry, ok := r.multiBackends[strings.ToLower(backendID)]
 	if !ok {
 		return "", nil, 0, fmt.Errorf("unknown backend %q", backendID)
 	}
