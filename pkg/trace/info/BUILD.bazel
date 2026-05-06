@@ -4,6 +4,7 @@ go_library(
     name = "info",
     srcs = [
         "endpoint.go",
+        "git_version.go",
         "info.go",
         "stats.go",
         "writer.go",
