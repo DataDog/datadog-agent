@@ -103,10 +103,7 @@ exports_files(glob(
 # gazelle:exclude comp/core/autodiscovery/configresolver
 # gazelle:exclude comp/core/autodiscovery/listeners
 # gazelle:exclude comp/core/autodiscovery/noopimpl
-# gazelle:exclude comp/core/autodiscovery/proto
 # gazelle:exclude comp/core/autodiscovery/providers/datastreams
-# gazelle:exclude comp/core/autodiscovery/providers/types
-# gazelle:exclude comp/core/autodiscovery/scheduler
 # gazelle:exclude comp/core/autodiscovery/status
 # gazelle:exclude comp/core/autodiscovery/stream
 # gazelle:exclude comp/core/bundle.go
@@ -369,7 +366,6 @@ exports_files(glob(
 # gazelle:exclude pkg/clusteragent/metricsstore
 # gazelle:exclude pkg/clusteragent/orchestrator
 # gazelle:exclude pkg/collector/aggregator
-# gazelle:exclude pkg/collector/check/id
 # gazelle:exclude pkg/collector/check/stats
 # gazelle:exclude pkg/collector/check/stub
 # gazelle:exclude pkg/collector/check/testdata
@@ -457,10 +453,8 @@ exports_files(glob(
 # gazelle:exclude pkg/discovery/testdata
 # gazelle:exclude pkg/discovery/usm
 # gazelle:exclude pkg/dyninst/decode
-# gazelle:exclude pkg/dyninst/dwarf/loclist
 # gazelle:exclude pkg/dyninst/dyninsttest
 # gazelle:exclude pkg/dyninst/ebpfbench
-# gazelle:exclude pkg/dyninst/exprlang
 # gazelle:exclude pkg/dyninst/gosym
 # gazelle:exclude pkg/dyninst/gotype/abi.go
 # gazelle:exclude pkg/dyninst/gotype/fuzz_test.go
@@ -473,7 +467,6 @@ exports_files(glob(
 # gazelle:exclude pkg/dyninst/gotype/uncommon.go
 # gazelle:exclude pkg/dyninst/htlhash
 # gazelle:exclude pkg/dyninst/irgen
-# gazelle:exclude pkg/dyninst/irprinter
 # gazelle:exclude pkg/dyninst/module
 # gazelle:exclude pkg/dyninst/object
 # gazelle:exclude pkg/dyninst/procsubscribe
@@ -511,7 +504,6 @@ exports_files(glob(
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/structs.go
 # gazelle:exclude pkg/dyninst/testprogs/test_progs.go
 # gazelle:exclude pkg/dyninst/testprogs/test_progs_test.go
-# gazelle:exclude pkg/dyninst/trietest
 # gazelle:exclude pkg/dyninst/uploader
 # gazelle:exclude pkg/dyninst/uprobe
 # gazelle:exclude pkg/ebpf/_obj
