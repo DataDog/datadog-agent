@@ -208,6 +208,10 @@ def display_pr_comment(
 
             if gate.failure == GateFailureKind.PerPRThresholdExceeded:
                 body_error += f"|{status_char}|{gate_name} (per-PR threshold)|{change_str}|{limit_bounds}|\n"
+            elif gate.failure == GateFailureKind.PerPRWireThresholdExceeded:
+                body_error += (
+                    f"|{status_char}|{gate_name} (per-PR wire threshold)|{wire_change_str}|{wire_limit_bounds}|\n"
+                )
             else:
                 # This is probably way more convoluted than it should be, but the best we can do
                 # without refactoring the data structures involved

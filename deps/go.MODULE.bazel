@@ -39,6 +39,12 @@ go_deps.gazelle_override(
     ],
     path = "github.com/coreos/etcd",
 )
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:go_naming_convention go_default_library",
+    ],
+    path = "github.com/google/cel-go",
+)
 use_repo(
     go_deps,
     "cat_dario_mergo",

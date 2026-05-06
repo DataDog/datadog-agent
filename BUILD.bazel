@@ -532,7 +532,19 @@ exports_files(glob(
 # gazelle:exclude pkg/process/util/coreagent
 # gazelle:exclude pkg/process/util/status
 # gazelle:exclude pkg/procmgr
-# gazelle:exclude pkg/proto/datadog
+# gazelle:exclude pkg/proto/datadog/api
+# gazelle:exclude pkg/proto/datadog/autodiscovery
+# gazelle:exclude pkg/proto/datadog/dogstatsdhttp
+# gazelle:exclude pkg/proto/datadog/kubemetadata
+# gazelle:exclude pkg/proto/datadog/model
+# gazelle:exclude pkg/proto/datadog/privateactionrunner
+# gazelle:exclude pkg/proto/datadog/process
+# gazelle:exclude pkg/proto/datadog/remoteagent
+# gazelle:exclude pkg/proto/datadog/remoteconfig
+# gazelle:exclude pkg/proto/datadog/sbom
+# gazelle:exclude pkg/proto/datadog/trace
+# gazelle:exclude pkg/proto/datadog/workloadfilter
+# gazelle:exclude pkg/proto/datadog/workloadmeta
 # gazelle:exclude pkg/proto/protodep
 # gazelle:exclude pkg/sbom/collectors/docker
 # gazelle:exclude pkg/sbom/collectors/host
@@ -785,6 +797,7 @@ exports_files(glob(
 # gazelle:exclude tools/host-profiler
 # gazelle:exclude tools/retry_file_dump
 # gazelle:exclude tools/windows
+# gazelle:exclude vendor
 # Proto definitions under pkg/proto/datadog/ use pre-generated Go code checked
 # into pkg/proto/pbgo/. Gazelle's proto mode is disabled because multiple proto
 # directories share the same go_package ("pkg/proto/pbgo/core"), making
