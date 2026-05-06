@@ -133,6 +133,84 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 	}
 }
 
+func TestFilterOpenBasenameWildcardApprover(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	// generate a basename up to the current limit of the agent
+	basename := strings.Repeat("a", model.MaxSegmentLength)
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.file.path =~ "{{.Root}}/aaaaa*"`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withDynamicOpts(dynamicTestOpts{disableBundledRules: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	var fd1, fd2 int
+	var testFile1, testFile2 string
+
+	testFile1, _, err = test.Path(basename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile1)
+
+	if err := waitForOpenProbeEvent(test, func() error {
+		fd1, err = openTestFile(test, testFile1, syscall.O_CREAT)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd1)
+	}, testFile1); err != nil {
+		t.Fatal(err)
+	}
+
+	testFile2, _, err = test.Path("test-oba-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile2)
+
+	// stats
+	err = retry.Do(func() error {
+		test.eventMonitor.SendStats()
+		defer test.statsdClient.Flush()
+		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":approver_type:basename"); count == 0 {
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
+		}
+
+		if count := test.statsdClient.Get(metrics.MetricEventApproved + ":event_type:open"); count == 0 {
+			return fmt.Errorf("expected metrics not found: %+v", test.statsdClient.GetByPrefix(metrics.MetricEventApproved))
+		}
+
+		return nil
+	}, retry.Delay(1*time.Second), retry.Attempts(5), retry.DelayType(retry.FixedDelay))
+	assert.NoError(t, err)
+
+	if err := waitForOpenProbeEvent(test, func() error {
+		fd2, err = openTestFile(test, testFile2, syscall.O_CREAT)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd2)
+	}, testFile2); err == nil {
+		t.Fatal("shouldn't get an event")
+	}
+
+	if err := waitForOpenProbeEvent(test, func() error {
+		fd2, err = openTestFile(test, testFile2, syscall.O_RDONLY)
+		if err != nil {
+			return err
+		}
+		return syscall.Close(fd2)
+	}, testFile2); err == nil {
+		t.Fatal("shouldn't get an event")
+	}
+}
+
 func TestFilterOpenLeafDiscarder(t *testing.T) {
 	SkipIfNotAvailable(t)
 

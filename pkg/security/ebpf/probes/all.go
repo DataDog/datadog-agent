@@ -214,6 +214,7 @@ type MapSpecEditorOpts struct {
 	EventSamplingConnectEnabled   bool
 	EventSamplingBindEnabled      bool
 	EventSamplingDNSEnabled       bool
+	BasenameApproversSize         int
 }
 
 // AllMapSpecEditors returns the list of map editors
@@ -286,6 +287,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		},
 		"capabilities_contexts": {
 			MaxEntries: capabilitiesContextsMaxEntries,
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"basename_approvers": {
+			MaxEntries: uint32(opts.BasenameApproversSize),
 			EditorFlag: manager.EditMaxEntries,
 		},
 	}

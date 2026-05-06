@@ -10,6 +10,7 @@ package kfilters
 
 import (
 	"path"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -41,6 +42,15 @@ type kfiltersGetter func(approvers rules.Approvers) (KFilters, []eval.Field, err
 var KFilterGetters = make(map[eval.EventType]kfiltersGetter)
 
 func newBasenameKFilter(tableName string, eventType model.EventType, basename string) (kFilter, error) {
+	if strings.Contains(basename, "*") {
+		// Reduce to a fixed-length prefix + '*' so the kernel can match it
+		// with a single map lookup using the same shape built from the event
+		// basename. validateScalarPathFilter guarantees len(els[0]) >=
+		// patternPrefixSize, so the slice below is safe.
+		els := strings.Split(basename, "*")
+		basename = els[0][:patternPrefixSize] + "*"
+	}
+
 	return &eventMaskKFilter{
 		approverType: BasenameApproverType,
 		tableName:    tableName,

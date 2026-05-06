@@ -15,6 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
+const (
+	patternPrefixSize = 4 // has to be in sync with the kernel side of the approvers
+)
+
 // validateScalarPathFilter validates that the path can be handled by the basename filter
 func validateScalarPathFilter(value rules.FilterValue) bool {
 	switch value.Type {
@@ -23,6 +27,15 @@ func validateScalarPathFilter(value rules.FilterValue) bool {
 	case eval.GlobValueType, eval.PatternValueType:
 		pattern := path.Base(value.Value.(string))
 		if !strings.Contains(pattern, "*") {
+			return true
+		}
+
+		// Only accept wildcard basenames with a pre-'*' prefix of at least
+		// patternPrefixSize bytes: newBasenameKFilter slices els[0] to that
+		// length without bounds-checking, and shorter prefixes would be too
+		// coarse to be useful as kernel approvers anyway.
+		els := strings.Split(pattern, "*")
+		if len(els[0]) >= patternPrefixSize {
 			return true
 		}
 	}
