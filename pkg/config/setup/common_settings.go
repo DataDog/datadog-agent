@@ -1523,6 +1523,8 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.compression_level", 0)
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.use_beta", false)
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.beta_route", "/api/intake/metrics/v3beta/series")
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0.001)
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.shadow_sites", []string{"datadoghq.com"})
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
