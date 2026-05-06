@@ -176,3 +176,59 @@ sync.Once is held by the python check loader, so multiple consumers race
 safely. `Initializing rtloader` should appear exactly once per agent
 process, ~6 s after start (when the first AD reconcile that matches a
 discovery template fires).
+
+## Late-arriving service: delayed-startup retry
+
+The discovery probe retry validation uses a krakend container whose
+entrypoint sleeps before exec'ing the actual binary, so the AD event
+fires while the HTTP endpoint is still unreachable:
+
+```yaml
+# /tmp/krakend-delayed/docker-compose.yml (not committed)
+services:
+  krakend:
+    image: krakend:2.10
+    entrypoint: ["sh", "-c"]
+    command: ["sleep 60 && exec /usr/bin/krakend run -d -c /etc/krakend/krakend.json"]
+    # ... ports + volumes per the regular setup
+```
+
+Expected sequence with the retry loop in place:
+
+- t ≈ 2 s: first probe, `discover did not match` (HTTP connection refused).
+- t ≈ 5-10 s: fast retry slots fire (still no match).
+- t ≈ 10-60 s: 30 s retry slots fire periodically (still no match).
+- t ≈ 60 s: krakend starts listening on :9090.
+- Next retry tick after that (≤ 5 s later): probe succeeds, `discoveryRetryLoop` debug log
+  fires showing 1 schedule applied, krakend check goes [OK].
+
+Observed in manual smoke run (2026-05-06, agent `db7f3c8ebcf`):
+
+~~~
+10:16:14  python discover: krakend returned 4 bytes   # initial probe, no match
+10:16:24  python discover: krakend returned 4 bytes   # 1st retry (5 s slot)
+10:16:34  python discover: krakend returned 4 bytes   # 2nd retry (5 s slot)
+10:17:09  python discover: krakend returned 4 bytes   # 3rd retry (30 s slot)
+10:17:44  python discover: krakend returned 62 bytes  # 4th retry — SUCCESS (krakend started ~10:17:13)
+10:17:44  autodiscovery: discovery retry tick applied 1 schedule(s), 0 unschedule(s)
+~~~
+
+`agent configcheck` after the match:
+
+~~~
+=== krakend check ===
+Configuration source: file:/etc/datadog-agent/conf.d/krakend.d/auto_conf_discovery.yaml
+openmetrics_endpoint: http://172.17.133.3:9090/metrics
+~~~
+
+`agent status` after the match:
+
+~~~
+krakend (1.4.1)
+  Instance ID: krakend:d47601757ac15041 [OK]
+  Total Runs: 2
+  Metric Samples: Last Run: 84, Total: 168
+~~~
+
+discover() was called 5 times total (1 initial + 4 retries); the 5th call succeeded
+and `discoveryRetryLoop` applied the resulting ConfigChange.
