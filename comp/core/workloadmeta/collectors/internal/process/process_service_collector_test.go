@@ -654,6 +654,15 @@ func TestServiceStoreLifetime(t *testing.T) {
 			err := c.collector.Start(ctx, c.mockStore)
 			assert.NoError(t, err)
 
+			// collectProcesses runs its first iteration immediately (no tick).
+			// Wait for it to update lastCollectedProcesses before advancing
+			// the clock, so collectServicesCached reads a populated cache.
+			require.EventuallyWithT(t, func(collectT *assert.CollectT) {
+				c.collector.mux.RLock()
+				defer c.collector.mux.RUnlock()
+				assert.Len(collectT, c.collector.lastCollectedProcesses, len(tc.processesToCollect))
+			}, 2*time.Second, 10*time.Millisecond)
+
 			// Trigger service collection (service collection waits for first tick)
 			c.mockClock.Add(collectionInterval)
 
@@ -718,6 +727,15 @@ func TestProcessDeathRemovesServiceData(t *testing.T) {
 
 	err := c.collector.Start(ctx, c.mockStore)
 	assert.NoError(t, err)
+
+	// collectProcesses runs its first iteration immediately (no tick).
+	// Wait for it to update lastCollectedProcesses before advancing
+	// the clock, so collectServicesCached reads the correct cache.
+	require.EventuallyWithT(t, func(collectT *assert.CollectT) {
+		c.collector.mux.RLock()
+		defer c.collector.mux.RUnlock()
+		assert.Empty(collectT, c.collector.lastCollectedProcesses)
+	}, 2*time.Second, 10*time.Millisecond)
 
 	c.mockClock.Add(collectionInterval)
 
