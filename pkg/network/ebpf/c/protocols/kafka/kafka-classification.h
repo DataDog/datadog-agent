@@ -43,6 +43,7 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
 #define CHECK_STRING_VALID_CLIENT_ID(max_buffer_size, real_size, buffer)   \
     CHECK_STRING_COMPOSED_OF_ASCII(max_buffer_size, real_size, buffer, true)
 
+PKTBUF_READ_INTO_BUFFER(client_id, CLIENT_ID_SIZE_TO_VALIDATE, BLK_SIZE)
 
 // Reads the client id (up to CLIENT_ID_SIZE_TO_VALIDATE bytes from the given offset), and verifies if it is valid,
 // namely, composed only from characters from [a-zA-Z0-9._-].
@@ -55,7 +56,7 @@ static __always_inline bool is_valid_client_id(pktbuf_t pkt, u32 offset, u16 rea
         return false;
     }
     bpf_memset(client_id, 0, CLIENT_ID_SIZE_TO_VALIDATE);
-    pktbuf_load_bytes_with_telemetry(pkt, offset, (char *)client_id, CLIENT_ID_SIZE_TO_VALIDATE);
+    pktbuf_read_into_buffer_client_id((char *)client_id, pkt, offset);
 
     // Returns true if client_id is composed out of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
     CHECK_STRING_VALID_CLIENT_ID(CLIENT_ID_SIZE_TO_VALIDATE, real_client_id_size, client_id);
