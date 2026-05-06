@@ -94,6 +94,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/provider"
 	pkgclusterchecks "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	instrumentationhandlers "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/handlers"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions"
 	clusteragentMetricsStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstatus"
 	orchestratorStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
@@ -642,6 +643,11 @@ func start(log log.Component,
 			log.Info("Auto instrumentation patcher is disabled")
 		}
 
+		instrHandlers, err := instrumentationhandlers.DefaultHandlers(instrumentationhandlers.Deps{IsLeader: le.IsLeader})
+		if err != nil {
+			pkglog.Errorf("Failed to create DatadogInstrumentation handlers for admission webhook: %v", err)
+		}
+
 		admissionCtx := admissionpkg.ControllerContext{
 			LeadershipStateSubscribeFunc: le.Subscribe,
 			SecretInformers:              apiCl.CertificateSecretInformerFactory,
@@ -652,6 +658,7 @@ func start(log log.Component,
 			ValidatingStopCh:             validatingStopCh,
 			Demultiplexer:                demultiplexer,
 			FilterStore:                  filterStore,
+			InstrumentationHandlers:      instrHandlers,
 		}
 
 		webhooks, err := admissionpkg.StartControllers(admissionCtx, datadogConfig, wmeta, pp, sh, healthPlatform)

@@ -22,6 +22,7 @@ import (
 	admprobe "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/probe"
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -43,6 +44,9 @@ type ControllerContext struct {
 	ValidatingStopCh             chan struct{}
 	Demultiplexer                demultiplexer.Component
 	FilterStore                  workloadfilter.Component
+	// InstrumentationHandlers are the product handlers for DatadogInstrumentation CRs.
+	// They are shared with the DatadogInstrumentation validating webhook.
+	InstrumentationHandlers []instrumentation.Handler
 }
 
 // StartControllers starts the secret and webhook controllers
@@ -105,6 +109,7 @@ func StartControllers(ctx ControllerContext, datadogConfig config.Component, wme
 		datadogConfig,
 		ctx.Demultiplexer,
 		ctx.FilterStore,
+		ctx.InstrumentationHandlers,
 	)
 
 	go secretController.Run(ctx.StopCh)
