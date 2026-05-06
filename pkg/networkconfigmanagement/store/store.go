@@ -309,8 +309,7 @@ func validateStoreConfigValues(minPerDevice, maxPerDevice int, maxBytes int64) (
 	return minPerDevice, maxPerDevice, maxBytes
 }
 
-// UpdateStoreConfig validates and applies new eviction-policy knobs, logging
-// each individual value that changed.
+// UpdateStoreConfig validates and applies new eviction-policy knobs
 func (cs *configStore) UpdateStoreConfig(minConfigsPerDevice, maxConfigsPerDevice int, maxRawConfigStoreBytes int64) {
 	minConfigsPerDevice, maxConfigsPerDevice, maxRawConfigStoreBytes = validateStoreConfigValues(minConfigsPerDevice, maxConfigsPerDevice, maxRawConfigStoreBytes)
 
