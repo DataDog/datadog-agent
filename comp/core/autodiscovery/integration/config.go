@@ -124,6 +124,11 @@ type Config struct {
 	// template: AutoDiscovery must call the integration's Python discover()
 	// method against the matched service to obtain concrete instances.
 	Discovery *Discovery `json:"discovery"` // (include in digest: false)
+
+	// TrialMode indicates the config was scheduled in discovery probe mode:
+	// the check should self-configure from the embedded service info and the
+	// runner should suppress integration-error reporting until promoted.
+	TrialMode bool `json:"trial_mode"` // (include in digest: true)
 }
 
 // Discovery is the marker payload for advanced auto-config templates. It is
@@ -466,6 +471,9 @@ func (c *Config) IntDigest() uint64 {
 	_, _ = h.Write([]byte(c.LogsConfig))
 	_, _ = h.Write([]byte(c.ServiceID))
 	_, _ = h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags)))
+	if c.TrialMode {
+		_, _ = h.Write([]byte("trial_mode"))
+	}
 
 	return h.Sum64()
 }
