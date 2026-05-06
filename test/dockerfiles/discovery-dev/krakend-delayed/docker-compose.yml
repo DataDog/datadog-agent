@@ -1,0 +1,31 @@
+# Reproducer for the discovery probe retry behaviour. The krakend service's
+# entrypoint sleeps before exec'ing the binary so the AD event fires while
+# the HTTP endpoint at :9090 is still unreachable. Used by the smoke
+# procedure in docs/superpowers/2026-05-06-discover-e2e-smoke.md.
+#
+# INTEGRATIONS_CORE_REPO must point at a checkout of integrations-core on
+# a branch that ships the krakend test fixtures.
+
+services:
+  api:
+    build:
+      context: ${INTEGRATIONS_CORE_REPO}/krakend/tests/docker
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app
+    volumes:
+      - ${INTEGRATIONS_CORE_REPO}/krakend/tests/docker/api.py:/app/api.py
+
+  krakend:
+    image: krakend:2.10
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    volumes:
+      - ${INTEGRATIONS_CORE_REPO}/krakend/tests/docker/krakend.json:/etc/krakend/krakend.json:ro
+    entrypoint: ["sh", "-c"]
+    command: ["echo 'krakend container up; sleeping 60s before listening' && sleep 60 && exec /usr/bin/krakend run -d -c /etc/krakend/krakend.json"]
+    depends_on:
+      - api

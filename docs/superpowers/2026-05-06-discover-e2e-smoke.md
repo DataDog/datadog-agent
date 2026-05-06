@@ -181,16 +181,21 @@ discovery template fires).
 
 The discovery probe retry validation uses a krakend container whose
 entrypoint sleeps before exec'ing the actual binary, so the AD event
-fires while the HTTP endpoint is still unreachable:
+fires while the HTTP endpoint is still unreachable. The reproducer is
+committed at `test/dockerfiles/discovery-dev/krakend-delayed/`:
 
-```yaml
-# /tmp/krakend-delayed/docker-compose.yml (not committed)
-services:
-  krakend:
-    image: krakend:2.10
-    entrypoint: ["sh", "-c"]
-    command: ["sleep 60 && exec /usr/bin/krakend run -d -c /etc/krakend/krakend.json"]
-    # ... ports + volumes per the regular setup
+- `docker-compose.yml` — the krakend service with the delayed entrypoint.
+  Reads `${INTEGRATIONS_CORE_REPO}` from the environment to bind-mount
+  the krakend test fixtures from the integrations-core checkout.
+- `run_repro.sh` — orchestrates the run (starts agent, then the delayed
+  krakend, watches logs, prints `agent configcheck` and `agent status`).
+  By default it expects integrations-core at `../integrations-core`
+  next to the agent repo; override with `INTEGRATIONS_CORE_REPO=/path`.
+
+Run it after building `datadog/agent-dev:discovery-local`:
+
+```
+bash test/dockerfiles/discovery-dev/krakend-delayed/run_repro.sh
 ```
 
 Expected sequence with the retry loop in place:
