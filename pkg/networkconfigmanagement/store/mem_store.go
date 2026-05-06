@@ -100,8 +100,7 @@ func (m *memConfigStore) CheckDuplicate(deviceID string, configType types.Config
 	return m.findLatestMatch(deviceID, configType, rawHash), nil
 }
 
-// UpdateStoreConfig validates and applies new eviction-policy knobs, logging
-// each individual value that changed.
+// UpdateStoreConfig validates and applies new eviction-policy knobs
 func (m *memConfigStore) UpdateStoreConfig(minConfigsPerDevice, maxConfigsPerDevice int, maxRawConfigStoreBytes int64) {
 	minConfigsPerDevice, maxConfigsPerDevice, maxRawConfigStoreBytes = validateStoreConfigValues(minConfigsPerDevice, maxConfigsPerDevice, maxRawConfigStoreBytes)
 
