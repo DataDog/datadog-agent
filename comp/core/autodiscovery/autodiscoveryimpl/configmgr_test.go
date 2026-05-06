@@ -956,6 +956,17 @@ func TestRetryPendingDiscoveriesScheduledOnLateMatch(t *testing.T) {
 	assert.Len(t, changes.Schedule, 1, "the late-arriving discovery should produce a scheduled config")
 	assert.NotContains(t, cm.pendingDiscovery, "docker://abc",
 		"successful late discovery removes svcID from pending set")
+
+	// The newly-scheduled config must be tracked in cm.scheduledConfigs
+	// so subsequent reconciles can correctly unschedule it.
+	var loadedNames []string
+	cm.mapOverLoadedConfigs(func(scheduled map[string]integration.Config) {
+		for _, c := range scheduled {
+			loadedNames = append(loadedNames, c.Name)
+		}
+	})
+	assert.Contains(t, loadedNames, "krakend",
+		"late-discovered config must be tracked in scheduledConfigs after retry")
 }
 
 func TestRetryPendingDiscoveriesNoOpWhenEmpty(t *testing.T) {
@@ -968,4 +979,36 @@ func TestRetryPendingDiscoveriesNoOpWhenEmpty(t *testing.T) {
 	changes := cm.retryPendingDiscoveries()
 	assert.Empty(t, changes.Schedule)
 	assert.Empty(t, changes.Unschedule)
+}
+
+func TestRetryPendingDiscoveriesNoChangeWhenStillPending(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	hp := healthplatformmock.Mock(t)
+	disco := newFakeDiscoverer()
+	disco.pending["docker://abc|krakend"] = true
+
+	cm := newReconcilingConfigManager(&mockResolver, hp, disco).(*reconcilingConfigManager)
+
+	tpl := integration.Config{
+		Name:          "krakend",
+		ADIdentifiers: []string{"krakend"},
+		Discovery:     &integration.Discovery{},
+		Provider:      "file",
+	}
+	svc := &dummyService{
+		ID:            "docker://abc",
+		ADIdentifiers: []string{"krakend"},
+		Hosts:         map[string]string{"main": "10.0.0.1"},
+	}
+	cm.processNewConfig(tpl)
+	cm.processNewService(svc)
+	require.Contains(t, cm.pendingDiscovery, "docker://abc")
+
+	// Discoverer still pending, still not matching — retry tick produces nothing.
+	changes := cm.retryPendingDiscoveries()
+
+	assert.Empty(t, changes.Schedule, "no schedule when service still pending")
+	assert.Empty(t, changes.Unschedule, "no unschedule when service still pending")
+	assert.Contains(t, cm.pendingDiscovery, "docker://abc",
+		"still-pending svcID stays tracked across retry ticks")
 }
