@@ -369,7 +369,6 @@
     "rpc.system": {
       "canonical": "rpc.system",
       "fallbacks": [
-        {"name": "rpc.system.name", "provider": "otel", "version": "1.39.0", "type": "string"},
         {"name": "rpc.system", "provider": "otel", "type": "string"}
       ]
     },
