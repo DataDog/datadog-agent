@@ -171,7 +171,7 @@ func (c *client) endpointURL(path string) string {
 func (c *client) DequeueTask(ctx context.Context) (*types.Task, time.Duration, error) {
 	reqBody, err := c.buildDequeueRequestBody()
 	if err != nil {
-		return nil, 0, fmt.Errorf("error marshaling dequeue request body: %w", err)
+		return nil, 0, fmt.Errorf("error building dequeue request body: %w", err)
 	}
 
 	body, headers, err := c.makeRequest(ctx, http.MethodPost, c.endpointURL(dequeuePath), bytes.NewReader(reqBody), nil, http.StatusOK)
