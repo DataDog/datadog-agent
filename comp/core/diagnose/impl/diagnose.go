@@ -190,16 +190,32 @@ func formatResult(diagnoseResult *diagnose.Result, diagCfg diagnose.Config, form
 // Enumerate registered Diagnose suites and get their diagnoses
 // for structural output
 func getDiagnoses(diagCfg diagnose.Config, suites []suite) (*diagnose.Result, error) {
-	suites, err := getSortedAndFilteredDiagnoseSuites(diagCfg, suites)
-	if err != nil {
-		return nil, err
+	var filter diagSuiteFilter
+	var err error
+
+	if len(diagCfg.Include) > 0 {
+		filter.include, err = strToRegexList(diagCfg.Include)
+		if err != nil {
+			includes := strings.Join(diagCfg.Include, " ")
+			return nil, fmt.Errorf("invalid --include option value(s) provided (%s) compiled with error: %w", includes, err)
+		}
 	}
+
+	if len(diagCfg.Exclude) > 0 {
+		filter.exclude, err = strToRegexList(diagCfg.Exclude)
+		if err != nil {
+			excludes := strings.Join(diagCfg.Exclude, " ")
+			return nil, fmt.Errorf("invalid --exclude option value(s) provided (%s) compiled with error: %w", excludes, err)
+		}
+	}
+
+	sortedSuites := getSortedDiagnoseSuites(suites)
 
 	var suitesDiagnoses []diagnose.Diagnoses
 	var count diagnose.Counters
-	for _, ds := range suites {
-		// Run particular diagnose
-		diagnoses := getSuiteDiagnoses(ds, diagCfg)
+	for _, ds := range sortedSuites {
+		// Run particular diagnose then post-filter by suite name, CheckName, or Category
+		diagnoses := filterSuiteDiagnoses(filter, ds.name, getSuiteDiagnoses(ds, diagCfg))
 		if len(diagnoses) > 0 {
 			for _, d := range diagnoses {
 				count.Increment(d.Status)
@@ -224,40 +240,64 @@ type diagSuiteFilter struct {
 	exclude []*regexp.Regexp
 }
 
-func getSortedAndFilteredDiagnoseSuites(diagCfg diagnose.Config, suites []suite) ([]suite, error) {
-	var filter diagSuiteFilter
-	var err error
-
-	if len(diagCfg.Include) > 0 {
-		filter.include, err = strToRegexList(diagCfg.Include)
-		if err != nil {
-			includes := strings.Join(diagCfg.Include, " ")
-			return nil, fmt.Errorf("invalid --include option value(s) provided (%s) compiled with error: %w", includes, err)
-		}
-	}
-
-	if len(diagCfg.Exclude) > 0 {
-		filter.exclude, err = strToRegexList(diagCfg.Exclude)
-		if err != nil {
-			excludes := strings.Join(diagCfg.Exclude, " ")
-			return nil, fmt.Errorf("invalid --exclude option value(s) provided (%s) compiled with error: %w", excludes, err)
-		}
-	}
-
+func getSortedDiagnoseSuites(suites []suite) []suite {
 	sortedValues := make([]suite, len(suites))
 	copy(sortedValues, suites)
 	sort.Slice(sortedValues, func(i, j int) bool {
 		return sortedValues[i].name < sortedValues[j].name
 	})
+	return sortedValues
+}
 
-	var sortedFilteredValues []suite
-	for _, ds := range sortedValues {
-		if matchConfigFilters(filter, ds.name) {
-			sortedFilteredValues = append(sortedFilteredValues, ds)
+// filterSuiteDiagnoses returns the subset of diagnoses that pass the filter.
+// Candidates for matching are: suite name, CheckName, and Category.
+// Include: a diagnosis passes if ANY candidate matches any include pattern.
+// Exclude: a diagnosis is dropped if ANY candidate matches any exclude pattern.
+// When no filters are set all diagnoses are returned unchanged.
+func filterSuiteDiagnoses(filter diagSuiteFilter, suiteName string, diagnoses []diagnose.Diagnosis) []diagnose.Diagnosis {
+	if len(filter.include) == 0 && len(filter.exclude) == 0 {
+		return diagnoses
+	}
+	var out []diagnose.Diagnosis
+	for _, d := range diagnoses {
+		if diagnosisPassesFilter(filter, suiteName, d) {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+func diagnosisPassesFilter(filter diagSuiteFilter, suiteName string, d diagnose.Diagnosis) bool {
+	candidates := []string{suiteName}
+	if len(d.CheckName) > 0 {
+		candidates = append(candidates, d.CheckName)
+	}
+	if len(d.Category) > 0 {
+		candidates = append(candidates, d.Category)
+	}
+
+	if len(filter.include) > 0 {
+		matched := false
+		for _, c := range candidates {
+			if matchRegExList(filter.include, c) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
 		}
 	}
 
-	return sortedFilteredValues, nil
+	if len(filter.exclude) > 0 {
+		for _, c := range candidates {
+			if matchRegExList(filter.exclude, c) {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 func getSuiteDiagnoses(ds suite, diagConfig diagnose.Config) []diagnose.Diagnosis {
@@ -312,8 +352,8 @@ func strToRegexList(patterns []string) ([]*regexp.Regexp, error) {
 	return nil, nil
 }
 
-// Currently used only to match Diagnose Suite name. In future will be
-// extended to diagnose name or category
+// matchConfigFilters reports whether s passes the include/exclude filter.
+// Used for suite names, CheckName, and Category matching.
 func matchConfigFilters(filter diagSuiteFilter, s string) bool {
 	if len(filter.include) > 0 && len(filter.exclude) > 0 {
 		return matchRegExList(filter.include, s) && !matchRegExList(filter.exclude, s)
