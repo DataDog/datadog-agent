@@ -50,10 +50,17 @@ type rankStalenessEntry struct {
 	parsed   ParsedEvent
 }
 
+// rankKey is the lastSeenRank map key. Keying by commID + rank prevents
+// concurrent jobs with overlapping rank numbers (both having rank 0..N)
+// from overwriting each other's entries.
+func rankKey(parsed ParsedEvent) string {
+	return fmt.Sprintf("%s:rank:%d", parsed.Event.ID, parsed.Event.Rank)
+}
+
 type ncclCheckTelemetry struct {
 	eventsProcessed telemetry.Counter
 	parseErrors     telemetry.Counter
-	filesProcessed  telemetry.Counter
+	eventsDropped   telemetry.Counter
 	metricsSent     telemetry.Counter
 }
 
@@ -61,7 +68,7 @@ func newCheckTelemetry(tm telemetry.Component) *ncclCheckTelemetry {
 	return &ncclCheckTelemetry{
 		eventsProcessed: tm.NewCounter(CheckName, "events_processed", nil, "Number of NCCL events processed"),
 		parseErrors:     tm.NewCounter(CheckName, "parse_errors", nil, "Number of JSON parse errors"),
-		filesProcessed:  tm.NewCounter(CheckName, "files_processed", nil, "Number of JSON files processed"),
+		eventsDropped:   tm.NewCounter(CheckName, "events_dropped", nil, "Number of NCCL events dropped due to the in-memory buffer cap (per-check-interval)"),
 		metricsSent:     tm.NewCounter(CheckName, "metrics_sent", []string{"metric_name"}, "Number of metrics sent"),
 	}
 }
@@ -159,6 +166,13 @@ func (c *Check) Run() error {
 		return nil
 	}
 	events := c.socketListener.Drain()
+	if n := c.socketListener.DrainParseErrors(); n > 0 {
+		c.checkTelemetry.parseErrors.Add(float64(n))
+	}
+	if n := c.socketListener.DrainDropped(); n > 0 {
+		c.checkTelemetry.eventsDropped.Add(float64(n))
+		log.Warnf("NCCL check: dropped %d events due to in-memory buffer cap (%d). Increase check interval or investigate event volume.", n, maxPendingEvents)
+	}
 
 	// Process events and emit per-rank metrics
 	for _, parsed := range events {
@@ -180,8 +194,7 @@ func (c *Check) Run() error {
 	// (both having rank:0..N) don't collide and overwrite each other's entries.
 	now := time.Now()
 	for _, parsed := range events {
-		rankKey := fmt.Sprintf("%s:rank:%d", parsed.Event.ID, parsed.Event.Rank)
-		c.lastSeenRank[rankKey] = rankStalenessEntry{lastSeen: now, parsed: parsed}
+		c.lastSeenRank[rankKey(parsed)] = rankStalenessEntry{lastSeen: now, parsed: parsed}
 	}
 	c.emitStalenessMetrics(snd, now)
 

@@ -36,7 +36,7 @@ func newTestPod() *corev1.Pod {
 func TestMutatePod_HappyPath(t *testing.T) {
 	pod := newTestPod()
 
-	mutated, err := mutatePod(pod, testInjectorImage, testHostSocketPath, testSocketPath)
+	mutated, err := mutatePod(pod, testInjectorImage, testHostSocketPath, testSocketPath, nil)
 
 	require.NoError(t, err)
 	assert.True(t, mutated, "mutatePod should report it mutated the pod")

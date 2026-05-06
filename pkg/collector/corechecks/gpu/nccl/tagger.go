@@ -8,7 +8,6 @@
 package nccl
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 
@@ -76,41 +75,4 @@ func (pt *ProcessTagger) Refresh() {
 		return
 	}
 	pt.cache.MarkStale()
-}
-
-// GetTagsForPIDWithGPU returns tags for a given PID plus GPU-specific tags
-func (pt *ProcessTagger) GetTagsForPIDWithGPU(pid int, gpuUUID string) ([]string, error) {
-	tags, err := pt.GetTagsForPID(pid)
-	if gpuUUID != "" {
-		tags = append(tags, "gpu_uuid:"+gpuUUID)
-	}
-	return tags, err
-}
-
-// GetWorkloadTagsForPID is an alias for compatibility
-func (pt *ProcessTagger) GetWorkloadTagsForPID(pid int) ([]string, error) {
-	workloadID := workloadmeta.EntityID{
-		Kind: workloadmeta.KindProcess,
-		ID:   strconv.Itoa(pid),
-	}
-	return pt.GetWorkloadTags(workloadID)
-}
-
-// GetWorkloadTags retrieves tags for a workload entity
-func (pt *ProcessTagger) GetWorkloadTags(workloadID workloadmeta.EntityID) ([]string, error) {
-	switch workloadID.Kind {
-	case workloadmeta.KindProcess:
-		pid, err := strconv.Atoi(workloadID.ID)
-		if err != nil {
-			return nil, fmt.Errorf("invalid process ID: %w", err)
-		}
-		return pt.GetTagsForPID(pid)
-	case workloadmeta.KindContainer:
-		if pt.cache == nil {
-			return nil, errors.New("workload tag cache not initialized")
-		}
-		return pt.cache.GetOrCreateWorkloadTags(workloadID)
-	default:
-		return nil, fmt.Errorf("unsupported workload kind: %s", workloadID.Kind)
-	}
 }

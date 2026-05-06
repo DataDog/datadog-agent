@@ -78,21 +78,13 @@ func TestHangDetection_EmitsStaleMetricWithTags(t *testing.T) {
 	snd := new(mocksender.MockSender)
 	snd.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
+	r0 := ParsedEvent{Event: NCCLInspectorEvent{Rank: 0, PID: 100, Hostname: "worker-0"}}
+	r1 := ParsedEvent{Event: NCCLInspectorEvent{Rank: 1, PID: 200, Hostname: "worker-1"}}
 	c := &Check{
 		isProcessAlive: func(_ int) bool { return true }, // process still running → real hang
 		lastSeenRank: map[string]rankStalenessEntry{
-			"rank:0": {
-				lastSeen: time.Now().Add(-30 * time.Second),
-				parsed: ParsedEvent{
-					Event: NCCLInspectorEvent{Rank: 0, PID: 100, Hostname: "worker-0"},
-				},
-			},
-			"rank:1": {
-				lastSeen: time.Now().Add(-5 * time.Second),
-				parsed: ParsedEvent{
-					Event: NCCLInspectorEvent{Rank: 1, PID: 200, Hostname: "worker-1"},
-				},
-			},
+			rankKey(r0): {lastSeen: time.Now().Add(-30 * time.Second), parsed: r0},
+			rankKey(r1): {lastSeen: time.Now().Add(-5 * time.Second), parsed: r1},
 		},
 	}
 
@@ -108,15 +100,11 @@ func TestHangDetection_StalenessGrowsWithNoNewEvents(t *testing.T) {
 	snd.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	past := time.Now().Add(-60 * time.Second)
+	r2 := ParsedEvent{Event: NCCLInspectorEvent{Rank: 2, PID: 300}}
 	c := &Check{
 		isProcessAlive: func(_ int) bool { return true }, // process still running → real hang
 		lastSeenRank: map[string]rankStalenessEntry{
-			"rank:2": {
-				lastSeen: past,
-				parsed: ParsedEvent{
-					Event: NCCLInspectorEvent{Rank: 2, PID: 300},
-				},
-			},
+			rankKey(r2): {lastSeen: past, parsed: r2},
 		},
 	}
 
@@ -131,16 +119,11 @@ func TestHangDetection_EvictsWhenProcessGone(t *testing.T) {
 	snd := new(mocksender.MockSender)
 	snd.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
+	r0 := ParsedEvent{HostPID: 999, Event: NCCLInspectorEvent{Rank: 0, PID: 999}}
 	c := &Check{
 		isProcessAlive: func(_ int) bool { return false }, // process gone → job finished
 		lastSeenRank: map[string]rankStalenessEntry{
-			"rank:0": {
-				lastSeen: time.Now().Add(-10 * time.Second),
-				parsed: ParsedEvent{
-					HostPID: 999, // must use HostPID — only host-namespace PIDs are checked
-					Event:   NCCLInspectorEvent{Rank: 0, PID: 999},
-				},
-			},
+			rankKey(r0): {lastSeen: time.Now().Add(-10 * time.Second), parsed: r0},
 		},
 	}
 
@@ -159,16 +142,11 @@ func TestHangDetection_NoEvictionWithoutHostPID(t *testing.T) {
 	snd := new(mocksender.MockSender)
 	snd.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
+	r0 := ParsedEvent{HostPID: 0, Event: NCCLInspectorEvent{Rank: 0, PID: 999}}
 	c := &Check{
 		isProcessAlive: func(_ int) bool { return false }, // would evict if HostPID were set
 		lastSeenRank: map[string]rankStalenessEntry{
-			"rank:0": {
-				lastSeen: time.Now().Add(-10 * time.Second),
-				parsed: ParsedEvent{
-					HostPID: 0, // no host PID available
-					Event:   NCCLInspectorEvent{Rank: 0, PID: 999},
-				},
-			},
+			rankKey(r0): {lastSeen: time.Now().Add(-10 * time.Second), parsed: r0},
 		},
 	}
 

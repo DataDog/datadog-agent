@@ -12,8 +12,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 // In degraded mode (any of tagger/wmeta/telemetry is nil), the underlying
@@ -55,78 +53,4 @@ func TestSetContainerProviderDegradedMode(t *testing.T) {
 
 	// SetContainerProvider on a nil cache must be a no-op (not panic)
 	require.NotPanics(t, func() { pt.SetContainerProvider(nil) })
-}
-
-func TestGetWorkloadTagsProcessDegradedMode(t *testing.T) {
-	pt := NewProcessTagger(nil, nil, nil, nil)
-
-	tags, err := pt.GetWorkloadTags(workloadmeta.EntityID{
-		Kind: workloadmeta.KindProcess,
-		ID:   "12345",
-	})
-	require.NoError(t, err)
-	assert.Equal(t, []string{"pid:12345"}, tags)
-}
-
-func TestGetWorkloadTagsInvalidProcessID(t *testing.T) {
-	pt := NewProcessTagger(nil, nil, nil, nil)
-
-	_, err := pt.GetWorkloadTags(workloadmeta.EntityID{
-		Kind: workloadmeta.KindProcess,
-		ID:   "not-a-number",
-	})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid process ID")
-}
-
-func TestGetWorkloadTagsContainerDegradedMode(t *testing.T) {
-	pt := NewProcessTagger(nil, nil, nil, nil)
-
-	// Container lookups require the cache; in degraded mode this should error
-	// rather than panic.
-	_, err := pt.GetWorkloadTags(workloadmeta.EntityID{
-		Kind: workloadmeta.KindContainer,
-		ID:   "container-123",
-	})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "workload tag cache not initialized")
-}
-
-func TestGetWorkloadTagsUnsupportedKind(t *testing.T) {
-	pt := NewProcessTagger(nil, nil, nil, nil)
-
-	_, err := pt.GetWorkloadTags(workloadmeta.EntityID{
-		Kind: workloadmeta.KindKubernetesPod,
-		ID:   "some-pod",
-	})
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unsupported workload kind")
-}
-
-func TestGetTagsForPIDWithGPU(t *testing.T) {
-	pt := NewProcessTagger(nil, nil, nil, nil)
-
-	tags, err := pt.GetTagsForPIDWithGPU(12345, "GPU-abc123")
-	require.NoError(t, err)
-	assert.Contains(t, tags, "pid:12345")
-	assert.Contains(t, tags, "gpu_uuid:GPU-abc123")
-}
-
-func TestGetTagsForPIDWithGPUEmpty(t *testing.T) {
-	pt := NewProcessTagger(nil, nil, nil, nil)
-
-	tags, err := pt.GetTagsForPIDWithGPU(12345, "")
-	require.NoError(t, err)
-	assert.Contains(t, tags, "pid:12345")
-	for _, tag := range tags {
-		assert.NotContains(t, tag, "gpu_uuid:")
-	}
-}
-
-func TestGetWorkloadTagsForPID(t *testing.T) {
-	pt := NewProcessTagger(nil, nil, nil, nil)
-
-	tags, err := pt.GetWorkloadTagsForPID(54321)
-	require.NoError(t, err)
-	assert.Contains(t, tags, "pid:54321")
 }

@@ -11,7 +11,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
+	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
@@ -53,8 +57,14 @@ func TestWebhook_LabelSelectorTargetsOnlyOptedInPods(t *testing.T) {
 
 	nsSel, objSel := w.LabelSelectors(false)
 
-	assert.Nil(t, nsSel, "namespace selector should be nil - webhook is opt-in per pod, not per namespace")
-	assert.NotNil(t, objSel)
+	require.NotNil(t, nsSel, "namespace selector must exclude system namespaces")
+	require.Len(t, nsSel.MatchExpressions, 1)
+	assert.Equal(t, common.NamespaceLabelKey, nsSel.MatchExpressions[0].Key)
+	assert.Equal(t, metav1.LabelSelectorOpNotIn, nsSel.MatchExpressions[0].Operator)
+	assert.ElementsMatch(t, mutatecommon.DefaultDisabledNamespaces(), nsSel.MatchExpressions[0].Values,
+		"namespace selector must exclude exactly DefaultDisabledNamespaces (kube-system + agent ns)")
+
+	require.NotNil(t, objSel)
 	assert.Equal(t, "true", objSel.MatchLabels[EnabledLabel],
 		"object selector must require admission.datadoghq.com/nccl-profiler.enabled=true")
 }

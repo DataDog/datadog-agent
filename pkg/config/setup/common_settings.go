@@ -712,6 +712,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.ParseEnvSplitComma("admission_controller.auto_instrumentation.container_registry_allow_list")
 	config.BindEnvAndSetDefault("admission_controller.nccl_profiler.enabled", false, "DD_ADMISSION_CONTROLLER_NCCL_PROFILER_ENABLED")
 	config.BindEnvAndSetDefault("admission_controller.nccl_profiler.injector_image", "", "DD_ADMISSION_CONTROLLER_NCCL_PROFILER_INJECTOR_IMAGE")
+	// Optional CPU/memory for the injected init container. Empty -> no Resources
+	// block, cluster default applies. Same shape as cws_instrumentation.
+	config.BindEnvAndSetDefault("admission_controller.nccl_profiler.init_resources.cpu", "")
+	config.BindEnvAndSetDefault("admission_controller.nccl_profiler.init_resources.memory", "")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.pod_endpoint", "/inject-pod-cws")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.command_endpoint", "/inject-command-cws")

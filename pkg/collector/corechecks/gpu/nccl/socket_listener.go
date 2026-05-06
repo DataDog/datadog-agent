@@ -19,15 +19,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// maxPendingEvents bounds the in-memory buffer between two Drain() calls.
+// At default check interval (15s), a typical NCCL job emits ~100s of events
+// per second per rank; this cap covers ~100x typical with no growth, and
+// caps total buffer memory at a few tens of MB. When exceeded, the newest
+// events are dropped and `dropped` is incremented so operators can see it
+// via the datadog.agent.nccl.events_dropped telemetry counter.
+const maxPendingEvents = 100_000
+
 // SocketListener listens on a Unix domain socket for NCCL inspector events.
 // Each connecting process (one per rank) gets a persistent connection.
 // The host PID of each sender is obtained from the kernel via SO_PEERCRED,
 // enabling correct container/pod tag correlation without PID namespace issues.
 type SocketListener struct {
-	listener *net.UnixListener
-	mu       sync.Mutex
-	pending  []ParsedEvent
-	stopCh   chan struct{}
+	listener   *net.UnixListener
+	socketPath string
+	mu         sync.Mutex
+	pending    []ParsedEvent
+	parseErrs  uint64 // count of failed parses; reset by Drain()
+	dropped    uint64 // count of events dropped due to maxPendingEvents cap; reset by DrainDropped()
+	stopCh     chan struct{}
+	conns      map[*net.UnixConn]struct{} // in-flight conns, closed on Stop
+	wg         sync.WaitGroup             // tracks run() + handleConn() goroutines
 }
 
 // newSocketListener creates and starts a UDS listener at socketPath.
@@ -77,15 +90,19 @@ func newSocketListener(socketPath string) (*SocketListener, error) {
 	}
 
 	sl := &SocketListener{
-		listener: ln,
-		stopCh:   make(chan struct{}),
+		listener:   ln,
+		socketPath: socketPath,
+		stopCh:     make(chan struct{}),
+		conns:      make(map[*net.UnixConn]struct{}),
 	}
+	sl.wg.Add(1)
 	go sl.run()
 	log.Infof("NCCL socket listener started at %s", socketPath)
 	return sl, nil
 }
 
 func (sl *SocketListener) run() {
+	defer sl.wg.Done()
 	for {
 		conn, err := sl.listener.AcceptUnix()
 		if err != nil {
@@ -97,12 +114,35 @@ func (sl *SocketListener) run() {
 				continue
 			}
 		}
+		sl.mu.Lock()
+		select {
+		case <-sl.stopCh:
+			sl.mu.Unlock()
+			conn.Close()
+			return
+		default:
+		}
+		sl.conns[conn] = struct{}{}
+		sl.wg.Add(1)
+		sl.mu.Unlock()
 		go sl.handleConn(conn)
 	}
 }
 
+// connIdleTimeout bounds how long a connection can be silent before we
+// drop it. NCCL plugins emit at least once per training step; minutes of
+// silence means the producer is gone (pod terminated, network broken)
+// and we should reclaim the goroutine + conn slot.
+const connIdleTimeout = 5 * time.Minute
+
 func (sl *SocketListener) handleConn(conn *net.UnixConn) {
-	defer conn.Close()
+	defer sl.wg.Done()
+	defer func() {
+		conn.Close()
+		sl.mu.Lock()
+		delete(sl.conns, conn)
+		sl.mu.Unlock()
+	}()
 
 	// Get the host PID of the connecting process via SO_PEERCRED.
 	// This is the process's PID in the HOST namespace (not the container namespace),
@@ -113,8 +153,13 @@ func (sl *SocketListener) handleConn(conn *net.UnixConn) {
 	scanner := bufio.NewScanner(conn)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 
-	parseTime := time.Now()
-	for scanner.Scan() {
+	for {
+		// Refresh the read deadline before every Scan so an active
+		// stream stays open indefinitely but a silent one is dropped.
+		_ = conn.SetReadDeadline(time.Now().Add(connIdleTimeout))
+		if !scanner.Scan() {
+			break
+		}
 		line := scanner.Bytes()
 		if len(line) == 0 {
 			continue
@@ -123,6 +168,9 @@ func (sl *SocketListener) handleConn(conn *net.UnixConn) {
 		event, err := parseEvent(line)
 		if err != nil {
 			log.Debugf("NCCL socket: failed to parse event: %v", err)
+			sl.mu.Lock()
+			sl.parseErrs++
+			sl.mu.Unlock()
 			continue
 		}
 
@@ -131,11 +179,15 @@ func (sl *SocketListener) handleConn(conn *net.UnixConn) {
 		}
 
 		sl.mu.Lock()
-		sl.pending = append(sl.pending, ParsedEvent{
-			Event:     event,
-			ParseTime: parseTime,
-			HostPID:   hostPID,
-		})
+		if len(sl.pending) >= maxPendingEvents {
+			sl.dropped++
+		} else {
+			sl.pending = append(sl.pending, ParsedEvent{
+				Event:     event,
+				ParseTime: time.Now(),
+				HostPID:   hostPID,
+			})
+		}
 		sl.mu.Unlock()
 	}
 
@@ -174,8 +226,50 @@ func (sl *SocketListener) Drain() []ParsedEvent {
 	return events
 }
 
-// Stop shuts down the listener and removes the socket file.
+// DrainParseErrors returns the count of parse failures since the last call.
+func (sl *SocketListener) DrainParseErrors() uint64 {
+	sl.mu.Lock()
+	defer sl.mu.Unlock()
+	n := sl.parseErrs
+	sl.parseErrs = 0
+	return n
+}
+
+// DrainDropped returns the count of events dropped due to the maxPendingEvents
+// cap since the last call.
+func (sl *SocketListener) DrainDropped() uint64 {
+	sl.mu.Lock()
+	defer sl.mu.Unlock()
+	n := sl.dropped
+	sl.dropped = 0
+	return n
+}
+
+// Stop shuts down the listener, closes any in-flight connections,
+// waits for handlers to finish, and removes the socket file.
 func (sl *SocketListener) Stop() {
-	close(sl.stopCh)
+	sl.mu.Lock()
+	select {
+	case <-sl.stopCh:
+		sl.mu.Unlock()
+		return
+	default:
+		close(sl.stopCh)
+	}
+	conns := make([]*net.UnixConn, 0, len(sl.conns))
+	for c := range sl.conns {
+		conns = append(conns, c)
+	}
+	sl.mu.Unlock()
+
 	sl.listener.Close()
+	// Force in-flight handleConn goroutines out of scanner.Scan().
+	for _, c := range conns {
+		c.Close()
+	}
+	sl.wg.Wait()
+
+	if err := os.Remove(sl.socketPath); err != nil && !os.IsNotExist(err) {
+		log.Debugf("NCCL socket: failed to remove %s: %v", sl.socketPath, err)
+	}
 }
