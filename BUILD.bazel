@@ -135,7 +135,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/tagger/kubetags
 # gazelle:exclude comp/core/tagger/mock
 # gazelle:exclude comp/core/tagger/tagstore
-# gazelle:exclude comp/core/workloadfilter/baseimpl
 # gazelle:exclude comp/core/workloadfilter/fx
 # gazelle:exclude comp/core/workloadfilter/fx-mock
 # gazelle:exclude comp/core/workloadfilter/fx-remote
@@ -299,7 +298,6 @@ exports_files(glob(
 # gazelle:exclude comp/remote-config/rcservice/impl
 # gazelle:exclude comp/remote-config/rcservicemrf/fx
 # gazelle:exclude comp/remote-config/rcservicemrf/impl
-# gazelle:exclude comp/remote-config/rcstatus/fx
 # gazelle:exclude comp/snmpscan
 # gazelle:exclude comp/snmpscanmanager/fx
 # gazelle:exclude comp/snmpscanmanager/impl
@@ -329,7 +327,6 @@ exports_files(glob(
 # gazelle:exclude comp/trace/config/mock
 # gazelle:exclude comp/trace/config/testdata
 # gazelle:exclude comp/trace/payload-modifier
-# gazelle:exclude comp/trace/status/fx
 # gazelle:exclude internal/third_party/client-go
 # gazelle:exclude pkg/aggregator/mocksender
 # gazelle:exclude pkg/aggregator/sender
@@ -366,7 +363,6 @@ exports_files(glob(
 # gazelle:exclude pkg/clusteragent/metricsstore
 # gazelle:exclude pkg/clusteragent/orchestrator
 # gazelle:exclude pkg/collector/aggregator
-# gazelle:exclude pkg/collector/check/stats
 # gazelle:exclude pkg/collector/check/stub
 # gazelle:exclude pkg/collector/check/testdata
 # gazelle:exclude pkg/collector/corechecks/agentprofiling
@@ -710,7 +706,6 @@ exports_files(glob(
 # gazelle:exclude pkg/util/cloudproviders/network
 # gazelle:exclude pkg/util/clusteragent
 # gazelle:exclude pkg/util/containerd
-# gazelle:exclude pkg/util/containers/cri/crimock
 # gazelle:exclude pkg/util/containers/metadata
 # gazelle:exclude pkg/util/containers/metrics/containerd
 # gazelle:exclude pkg/util/containers/metrics/cri
@@ -721,13 +716,11 @@ exports_files(glob(
 # gazelle:exclude pkg/util/containers/metrics/mock
 # gazelle:exclude pkg/util/containers/metrics/system
 # gazelle:exclude pkg/util/crashreport
-# gazelle:exclude pkg/util/crio
 # gazelle:exclude pkg/util/docker
 # gazelle:exclude pkg/util/ec2/tags
 # gazelle:exclude pkg/util/ecs/metadata/v1
 # gazelle:exclude pkg/util/ecs/metadata/v2
 # gazelle:exclude pkg/util/ecs/metadata/v3or4
-# gazelle:exclude pkg/util/ecs/telemetry
 # gazelle:exclude pkg/util/fargate
 # gazelle:exclude pkg/util/kernel/headers
 # gazelle:exclude pkg/util/kernel/testdata
@@ -741,7 +734,6 @@ exports_files(glob(
 # gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/status.go
 # gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/status_templates
 # gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/status_test.go
-# gazelle:exclude pkg/util/kubernetes/autoscalers
 # gazelle:exclude pkg/util/kubernetes/cloudprovider
 # gazelle:exclude pkg/util/kubernetes/clusterinfo
 # gazelle:exclude pkg/util/kubernetes/clustername
