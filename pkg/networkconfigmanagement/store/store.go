@@ -317,18 +317,9 @@ func (cs *configStore) UpdateStoreConfig(minConfigsPerDevice, maxConfigsPerDevic
 	cs.lock.Lock()
 	defer cs.lock.Unlock()
 
-	if cs.minConfigsPerDevice != minConfigsPerDevice {
-		log.Infof("NCM config store: minConfigsPerDevice updated %d → %d", cs.minConfigsPerDevice, minConfigsPerDevice)
-		cs.minConfigsPerDevice = minConfigsPerDevice
-	}
-	if cs.maxConfigsPerDevice != maxConfigsPerDevice {
-		log.Infof("NCM config store: maxConfigsPerDevice updated %d → %d", cs.maxConfigsPerDevice, maxConfigsPerDevice)
-		cs.maxConfigsPerDevice = maxConfigsPerDevice
-	}
-	if cs.maxRawConfigStoreBytes != maxRawConfigStoreBytes {
-		log.Infof("NCM config store: maxRawConfigStoreBytes updated %d → %d", cs.maxRawConfigStoreBytes, maxRawConfigStoreBytes)
-		cs.maxRawConfigStoreBytes = maxRawConfigStoreBytes
-	}
+	cs.minConfigsPerDevice = minConfigsPerDevice
+	cs.maxConfigsPerDevice = maxConfigsPerDevice
+	cs.maxRawConfigStoreBytes = maxRawConfigStoreBytes
 }
 
 // hashConfig returns a SHA-256 hash of the config content as a string

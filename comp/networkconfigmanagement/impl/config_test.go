@@ -104,6 +104,76 @@ network_device_config_management:
 	}
 }
 
+func TestConfig_StoreConfig(t *testing.T) {
+	var tests = []struct {
+		name          string
+		configYaml    string
+		expectedStore StoreConfig
+	}{
+		{
+			name: "store config with all knobs set",
+			configYaml: `
+network_device_config_management:
+  namespace: test
+  devices:
+    - ip_address: 10.0.0.1
+      auth:
+        username: admin
+        password: password
+  store:
+    min_configs_per_device: 3
+    max_configs_per_device: 20
+    max_raw_config_store_bytes: 1000000
+`,
+			expectedStore: StoreConfig{
+				MinConfigsPerDevice:    3,
+				MaxConfigsPerDevice:    20,
+				MaxRawConfigStoreBytes: 1000000,
+			},
+		},
+		{
+			name: "store config partially set",
+			configYaml: `
+network_device_config_management:
+  namespace: test
+  devices:
+    - ip_address: 10.0.0.1
+      auth:
+        username: admin
+        password: password
+  store:
+    max_configs_per_device: 50
+`,
+			expectedStore: StoreConfig{
+				MinConfigsPerDevice:    0,
+				MaxConfigsPerDevice:    50,
+				MaxRawConfigStoreBytes: 0,
+			},
+		},
+		{
+			name: "store config omitted entirely yields zero values",
+			configYaml: `
+network_device_config_management:
+  namespace: test
+  devices:
+    - ip_address: 10.0.0.1
+      auth:
+        username: admin
+        password: password
+`,
+			expectedStore: StoreConfig{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := mock.NewFromYAML(t, tt.configYaml)
+			testConfig, err := newConfig(mockConfig)
+			assert.Nil(t, err)
+			assert.Equal(t, tt.expectedStore, testConfig.Store)
+		})
+	}
+}
+
 func TestConfig_Errors(t *testing.T) {
 	var tests = []struct {
 		name       string

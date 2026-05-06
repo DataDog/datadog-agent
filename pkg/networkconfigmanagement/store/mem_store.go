@@ -109,18 +109,9 @@ func (m *memConfigStore) UpdateStoreConfig(minConfigsPerDevice, maxConfigsPerDev
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
-	if m.minConfigsPerDevice != minConfigsPerDevice {
-		log.Infof("NCM config store: minConfigsPerDevice updated %d → %d", m.minConfigsPerDevice, minConfigsPerDevice)
-		m.minConfigsPerDevice = minConfigsPerDevice
-	}
-	if m.maxConfigsPerDevice != maxConfigsPerDevice {
-		log.Infof("NCM config store: maxConfigsPerDevice updated %d → %d", m.maxConfigsPerDevice, maxConfigsPerDevice)
-		m.maxConfigsPerDevice = maxConfigsPerDevice
-	}
-	if m.maxRawConfigStoreBytes != maxRawConfigStoreBytes {
-		log.Infof("NCM config store: maxRawConfigStoreBytes updated %d → %d", m.maxRawConfigStoreBytes, maxRawConfigStoreBytes)
-		m.maxRawConfigStoreBytes = maxRawConfigStoreBytes
-	}
+	m.minConfigsPerDevice = minConfigsPerDevice
+	m.maxConfigsPerDevice = maxConfigsPerDevice
+	m.maxRawConfigStoreBytes = maxRawConfigStoreBytes
 }
 
 // GetConfig retrieves all data for a config by UUID.
