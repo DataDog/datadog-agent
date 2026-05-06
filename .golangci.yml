@@ -47,6 +47,8 @@ linters:
               desc: "prefer pkg/util/safeelf to prevent panics during parsing"
             - pkg: "golang.org/x/exp/slices"
               desc: "use the std slices package instead"
+            - pkg: "golang.org/x/exp/maps"
+              desc: "use the std maps package instead (Keys/Values need slices.Collect wrapping)"
             - pkg: "github.com/aws/aws-sdk-go/"
               desc: "use the v2 sdk instead"
         logger:
@@ -160,6 +162,8 @@ linters:
             - "!**/comp/otelcol/otlp/integrationtest/integration_test.go"
             - "!**/comp/otelcol/otlp/testutil/testutil.go"
             - "!**/comp/process/agent/agent_linux.go"
+            - "!**/comp/process/agent/impl/agent_linux.go"
+            - "!**/comp/process/agent/impl/status.go"
             - "!**/comp/process/agent/status.go"
             - "!**/comp/process/apiserver/apiserver.go"
             - "!**/comp/process/expvars/impl/expvars.go"

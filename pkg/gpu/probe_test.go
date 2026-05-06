@@ -9,9 +9,11 @@ package gpu
 
 import (
 	"encoding/json"
+	"maps"
 	"os"
 	"reflect"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -21,7 +23,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
@@ -169,7 +170,7 @@ func (s *probeTestSuite) TestCanReceiveEvents() {
 	require.Contains(t, probe.sysCtx.selectedDeviceByPIDAndTID, cmd.Process.Pid)
 	tidMap := probe.sysCtx.selectedDeviceByPIDAndTID[cmd.Process.Pid]
 	require.Len(t, tidMap, 1)
-	require.ElementsMatch(t, []int{cmd.Process.Pid}, maps.Keys(tidMap))
+	require.ElementsMatch(t, []int{cmd.Process.Pid}, slices.Collect(maps.Keys(tidMap)))
 
 	streamPastData := handlers.stream.getPastData()
 	require.NotNil(t, streamPastData)

@@ -1,0 +1,18 @@
+# No generators, intentionally: VM side may not have generators active
+generator: []
+
+blackhole:
+  - tcp_rr:
+      addr: "0.0.0.0"
+      threads: 16
+      no_delay: true
+
+target_metrics:
+  - prometheus: # system-probe telemetry
+      uri: "http://127.0.0.1:7654/telemetry"
+      tags:
+        sub_agent: "system-probe"
+
+observer:
+  enable_smaps: false
+  enable_smaps_rollup: false

@@ -117,6 +117,88 @@ func TestProcessOTLPTraces(t *testing.T) {
 			expected: createStatsPayload(agentEnv, agentHost, "svc", "spring.server", "web", "server", "spanname", agentHost, agentEnv, "", "", nil, nil, true, false),
 		},
 		{
+			name:     "gRPC status code is included in trace metrics",
+			spanName: "grpc_span",
+			rattrs:   map[string]string{"service.name": "grpc-svc"},
+			sattrs: map[string]any{
+				"rpc.grpc.status_code":        int64(2),
+				"rpc.system.name":             "grpc",
+				string(semconv.RPCMethodKey):  "GetUser",
+				string(semconv.RPCServiceKey): "UserService",
+			},
+			spanKind: ptrace.SpanKindServer,
+			libname:  "otelgrpc",
+			expected: addGRPCStatusCode(
+				createStatsPayload(agentEnv, agentHost, "grpc-svc", "otelgrpc.server", "web", "server", "GetUser UserService", agentHost, agentEnv, "", "", nil, nil, true, false),
+				"2",
+			),
+		},
+		{
+			name:     "gRPC system can interpret rpc.response.status_code",
+			spanName: "grpc_response_span",
+			rattrs:   map[string]string{"service.name": "grpc-svc"},
+			sattrs: map[string]any{
+				"rpc.response.status_code":    "DEADLINE_EXCEEDED",
+				"rpc.system.name":             "grpc",
+				string(semconv.RPCMethodKey):  "FindUser",
+				string(semconv.RPCServiceKey): "UserService",
+			},
+			spanKind: ptrace.SpanKindServer,
+			libname:  "otelgrpc",
+			expected: addGRPCStatusCode(
+				createStatsPayload(agentEnv, agentHost, "grpc-svc", "otelgrpc.server", "web", "server", "FindUser UserService", agentHost, agentEnv, "", "", nil, nil, true, false),
+				"4",
+			),
+		},
+		{
+			name:     "legacy rpc.system=grpc is also recognized for rpc.response.status_code",
+			spanName: "grpc_legacy_system_span",
+			rattrs:   map[string]string{"service.name": "grpc-svc"},
+			sattrs: map[string]any{
+				"rpc.response.status_code":    "DEADLINE_EXCEEDED",
+				"rpc.system":                  "grpc",
+				string(semconv.RPCMethodKey):  "FindUser",
+				string(semconv.RPCServiceKey): "UserService",
+			},
+			spanKind: ptrace.SpanKindServer,
+			libname:  "otelgrpc",
+			expected: addGRPCStatusCode(
+				createStatsPayload(agentEnv, agentHost, "grpc-svc", "otelgrpc.server", "web", "server", "FindUser UserService", agentHost, agentEnv, "", "", nil, nil, true, false),
+				"4",
+			),
+		},
+		{
+			name:     "non gRPC system does not interpret rpc.response.status_code",
+			spanName: "jsonrpc_response_span",
+			rattrs:   map[string]string{"service.name": "jsonrpc-svc"},
+			sattrs: map[string]any{
+				"rpc.response.status_code":    "-32602",
+				"rpc.system.name":             "jsonrpc",
+				string(semconv.RPCMethodKey):  "CallMethod",
+				string(semconv.RPCServiceKey): "JsonService",
+			},
+			spanKind: ptrace.SpanKindServer,
+			libname:  "oteljsonrpc",
+			expected: createStatsPayload(agentEnv, agentHost, "jsonrpc-svc", "oteljsonrpc.server", "web", "server", "CallMethod JsonService", agentHost, agentEnv, "", "", nil, nil, true, false),
+		},
+		{
+			name:     "explicit gRPC status code is included even for non gRPC systems",
+			spanName: "jsonrpc_span",
+			rattrs:   map[string]string{"service.name": "jsonrpc-svc"},
+			sattrs: map[string]any{
+				"rpc.grpc.status_code":        int64(3),
+				"rpc.system.name":             "jsonrpc",
+				string(semconv.RPCMethodKey):  "CallMethod",
+				string(semconv.RPCServiceKey): "JsonService",
+			},
+			spanKind: ptrace.SpanKindServer,
+			libname:  "oteljsonrpc",
+			expected: addGRPCStatusCode(
+				createStatsPayload(agentEnv, agentHost, "jsonrpc-svc", "oteljsonrpc.server", "web", "server", "CallMethod JsonService", agentHost, agentEnv, "", "", nil, nil, true, false),
+				"3",
+			),
+		},
+		{
 			name:     "span with operation name, resource name and env attributes",
 			spanName: "spanname2",
 			rattrs:   map[string]string{"service.name": "svc", string(semconv.DeploymentEnvironmentKey): "tracer-env"},
@@ -498,6 +580,11 @@ func createStatsPayload(
 				},
 			}}}},
 	}
+}
+
+func addGRPCStatusCode(payload *pb.StatsPayload, grpcStatusCode string) *pb.StatsPayload {
+	payload.Stats[0].Stats[0].Stats[0].GRPCStatusCode = grpcStatusCode
+	return payload
 }
 
 type noopStatsWriter struct{}

@@ -80,6 +80,11 @@ type ExprDereferencePtrOp struct {
 	Bias          uint32
 	Len           uint32
 	ExprStatusIdx uint32 // expression index for writing nil-deref status; ^0 = none
+
+	// NullAsZero: if the pointer is null, write Len zero bytes at sm->offset
+	// and continue instead of aborting with condition_nil_deref. See
+	// ir.DereferenceOp.NullAsZero.
+	NullAsZero bool
 }
 
 // Special type processing ops, that evaluate data of a specific type (already
@@ -253,6 +258,10 @@ type SwissMapSetupOp struct {
 
 	HeaderByteSize uint32
 	ExprStatusIdx  uint32
+
+	// ExistenceOnly switches the op to contains(map, key) semantics. See
+	// ir.SwissMapLookupOp for details.
+	ExistenceOnly bool
 }
 
 // SwissMapAesencOp performs one AESENC round; replays via PC for remaining rounds.
