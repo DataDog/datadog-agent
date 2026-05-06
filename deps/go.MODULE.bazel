@@ -31,6 +31,10 @@ go_deps.gazelle_override(
     ],
     path = "github.com/google/cel-go",
 )
+go_deps.gazelle_override(
+    build_extra_args = ["-build_tags=grpcnotrace"],
+    path = "google.golang.org/grpc",
+)
 use_repo(
     go_deps,
     "cat_dario_mergo",
