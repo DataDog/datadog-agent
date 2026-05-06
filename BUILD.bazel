@@ -569,7 +569,6 @@ exports_files(glob(
 # gazelle:exclude pkg/proto/datadog/remoteagent
 # gazelle:exclude pkg/proto/datadog/remoteconfig
 # gazelle:exclude pkg/proto/datadog/sbom
-# gazelle:exclude pkg/proto/datadog/trace
 # gazelle:exclude pkg/proto/datadog/workloadfilter
 # gazelle:exclude pkg/proto/datadog/workloadmeta
 # gazelle:exclude pkg/proto/protodep
@@ -896,6 +895,7 @@ _GAZELLE_BUILD_TAGS = [
     "zstd",
 ]
 
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx //pkg/proto/pbgo/trace/idx
 gazelle(
     name = "gazelle",
     build_tags = _GAZELLE_BUILD_TAGS,

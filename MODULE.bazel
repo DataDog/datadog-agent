@@ -2,6 +2,8 @@
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+
 env_vars = use_repo_rule("//bazel/repo:env_vars.bzl", "env_vars")
 
 # Environment values available for packaging.
@@ -144,6 +146,22 @@ http_archive(
         "https://codeload.github.com/bazelbuild/buildtools/tar.gz/refs/tags/v8.5.1",
         "https://github.com/bazelbuild/buildtools/archive/refs/tags/v8.5.1.tar.gz",
     ],
+)
+
+# Upstream Linux kernel syscall tables, used by
+# //pkg/security/utils:utils_syscall_table to (re)generate
+# pkg/security/utils/syscalls.go. Bumping the kernel version requires updating
+# the URLs and sha256 of both files together.
+http_file(
+    name = "linux_v6_13_syscall_64_tbl",
+    sha256 = "a25d490b97e98fa2ad7912f229555e1c8f0e5ba70960f508ae4c324b2439aa04",
+    urls = ["https://raw.githubusercontent.com/torvalds/linux/v6.13/arch/x86/entry/syscalls/syscall_64.tbl"],
+)
+
+http_file(
+    name = "linux_v6_13_unistd_h",
+    sha256 = "53b1df8caee4a4c2ff37d0ec895e22663a0e61b188de61b98f025709ba6c8e18",
+    urls = ["https://raw.githubusercontent.com/torvalds/linux/v6.13/include/uapi/asm-generic/unistd.h"],
 )
 
 multitool = use_extension("@rules_multitool//multitool:extension.bzl", "multitool")
