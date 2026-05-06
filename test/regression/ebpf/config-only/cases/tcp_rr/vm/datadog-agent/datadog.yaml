@@ -8,5 +8,7 @@ process_config.process_dd_url: http://localhost:9092
 # has network access.
 cloud_provider_metadata: []
 
-telemetry.enabled: true
-telemetry.checks: '*'
+telemetry:
+  enabled: true
+  checks:
+    - "ebpf"

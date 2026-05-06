@@ -6,6 +6,9 @@ blackhole:
       addr: "0.0.0.0"
       threads: 16
       no_delay: true
+  - datadog:
+      v2:
+        binding_addr: "127.0.0.1:9091"
 
 target_metrics:
   - prometheus: # system-probe telemetry
