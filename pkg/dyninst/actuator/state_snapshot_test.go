@@ -130,6 +130,14 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 			err = handleEvent(s, &effects, ev.event)
 		}
 		require.NoError(t, err)
+		// Populate fake program metadata that the production loader
+		// would have computed for us (probe definitions in BPF probe_id
+		// order). The snapshot fake constructed in
+		// state_event_yaml_test.go starts empty; do this after the
+		// eventProgramLoaded handler so prog.config is populated.
+		if loadedEvent, ok := ev.event.(eventProgramLoaded); ok {
+			populateFakeLoadedProgramProbes(s, loadedEvent.programID)
+		}
 		output[i] = generateEventOutput(t, eventNodes[i], effects, before, s)
 		outputString := string(output[i])
 		validateState(s, func(err error) {
@@ -173,6 +181,24 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 		err = os.Rename(tmpFile.Name(), file)
 		require.NoError(t, err)
 	}
+}
+
+// populateFakeLoadedProgramProbes copies prog.config into the
+// fakeLoadedProgram's probes slice so that ProbeDefinition lookups
+// during checkCosts / tripProbe resolve correctly. Production code
+// derives this list from the IR program returned by the loader; in
+// the snapshot test there is no real loader, so we mirror the actuator
+// state.
+func populateFakeLoadedProgramProbes(s *state, progID ir.ProgramID) {
+	prog, ok := s.programs[progID]
+	if !ok || prog.loaded == nil {
+		return
+	}
+	flp, ok := prog.loaded.loaded.(*fakeLoadedProgram)
+	if !ok {
+		return
+	}
+	flp.probes = append(flp.probes[:0], prog.config...)
 }
 
 func handleRuntimeStatsUpdatedForTest(

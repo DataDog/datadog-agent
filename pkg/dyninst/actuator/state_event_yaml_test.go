@@ -428,6 +428,7 @@ type runtimeStatsYAML struct {
 }
 
 type fakeLoadedProgram struct {
+	probes       []ir.ProbeDefinition
 	runtimeStats []loader.RuntimeStats
 }
 
@@ -446,6 +447,17 @@ func (p *fakeLoadedProgram) RuntimeStats() []loader.RuntimeStats {
 			CPU:          1e3 * time.Second,
 		},
 	}
+}
+
+func (p *fakeLoadedProgram) NumProbes() int {
+	return len(p.probes)
+}
+
+func (p *fakeLoadedProgram) ProbeDefinition(probeID uint32) ir.ProbeDefinition {
+	if int(probeID) >= len(p.probes) {
+		return nil
+	}
+	return p.probes[probeID]
 }
 
 func (p *fakeLoadedProgram) setRuntimeStats(stats []loader.RuntimeStats) {
