@@ -294,10 +294,12 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 	return detectors, correlators, extractors, components
 }
 
-// CatalogEntry is a public view of a catalog component for CLI use.
+// CatalogEntry is a public view of a catalog component.
 type CatalogEntry struct {
-	Name string
-	Kind string // "detector", "correlator", or "extractor"
+	Name           string
+	DisplayName    string
+	Kind           string // "detector", "correlator", or "extractor"
+	DefaultEnabled bool
 }
 
 // TestbenchCatalogEntries returns all component names and kinds from the testbench catalog.
@@ -306,16 +308,12 @@ func TestbenchCatalogEntries() []CatalogEntry {
 	cat := defaultCatalog()
 	result := make([]CatalogEntry, len(cat.entries))
 	for i, e := range cat.entries {
-		kind := "unknown"
-		switch e.kind {
-		case componentDetector:
-			kind = "detector"
-		case componentCorrelator:
-			kind = "correlator"
-		case componentExtractor:
-			kind = "extractor"
+		result[i] = CatalogEntry{
+			Name:           e.name,
+			DisplayName:    e.displayName,
+			Kind:           kindString(e.kind),
+			DefaultEnabled: e.defaultEnabled,
 		}
-		result[i] = CatalogEntry{Name: e.name, Kind: kind}
 	}
 	return result
 }
@@ -325,6 +323,19 @@ func (c *componentCatalog) Entries() []componentEntry {
 	result := make([]componentEntry, len(c.entries))
 	copy(result, c.entries)
 	return result
+}
+
+func kindString(k componentKind) string {
+	switch k {
+	case componentDetector:
+		return "detector"
+	case componentCorrelator:
+		return "correlator"
+	case componentExtractor:
+		return "extractor"
+	default:
+		return "unknown"
+	}
 }
 
 // catalogEnabledDetectors returns the enabled Detector instances from a components map.
