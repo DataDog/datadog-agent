@@ -195,7 +195,7 @@ status and emit flare data
 
 ### [comp/core/remoteflags](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/remoteflags)
 
-*Datadog Team*: agent-metric-pipelines
+*Datadog Team*: agent-configuration
 
 Package remoteflags provides the Remote Flags component for dynamic feature flag management.
 
