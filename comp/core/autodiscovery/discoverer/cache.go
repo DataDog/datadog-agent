@@ -6,6 +6,7 @@
 package discoverer
 
 import (
+	"strings"
 	"sync"
 	"time"
 )
@@ -102,7 +103,7 @@ func (c *cache) forget(svcID string) {
 	defer c.mu.Unlock()
 	prefix := svcID + "|"
 	for k := range c.entries {
-		if len(k) >= len(prefix) && k[:len(prefix)] == prefix {
+		if strings.HasPrefix(k, prefix) {
 			delete(c.entries, k)
 		}
 	}
