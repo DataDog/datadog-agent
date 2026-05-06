@@ -47,8 +47,8 @@ func newTestRunner(t *testing.T) (*checkRunner, *mockReporter) {
 	return r, reporter
 }
 
-// TestCheckRunnerRegisterCheck tests registering a health check
-func TestCheckRunnerRegisterCheck(t *testing.T) {
+// TestCheckRunnerScheduleHealthCheck tests registering a health check
+func TestCheckRunnerScheduleHealthCheck(t *testing.T) {
 	runner, _ := newTestRunner(t)
 
 	checkCalled := false
@@ -57,7 +57,7 @@ func TestCheckRunnerRegisterCheck(t *testing.T) {
 		return nil, nil
 	}
 
-	err := runner.RegisterCheck("test-check", "Test Check", checkFn, 1*time.Minute)
+	err := runner.ScheduleHealthCheck("test-check", "Test Check", checkFn, 1*time.Minute)
 	require.NoError(t, err)
 
 	// Verify check is registered
@@ -70,26 +70,26 @@ func TestCheckRunnerRegisterCheck(t *testing.T) {
 	assert.False(t, checkCalled)
 }
 
-// TestCheckRunnerRegisterCheckValidation tests validation of RegisterCheck
-func TestCheckRunnerRegisterCheckValidation(t *testing.T) {
+// TestCheckRunnerScheduleHealthCheckValidation tests validation of ScheduleHealthCheck
+func TestCheckRunnerScheduleHealthCheckValidation(t *testing.T) {
 	runner, _ := newTestRunner(t)
 
 	// Empty check ID
-	err := runner.RegisterCheck("", "Test Check", func() (*healthplatformpayload.IssueReport, error) { return nil, nil }, 0)
+	err := runner.ScheduleHealthCheck("", "Test Check", func() (*healthplatformpayload.IssueReport, error) { return nil, nil }, 0)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "check ID cannot be empty")
 
 	// Nil check function
-	err = runner.RegisterCheck("test-check", "Test Check", nil, 0)
+	err = runner.ScheduleHealthCheck("test-check", "Test Check", nil, 0)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "check function cannot be nil")
 
 	// Duplicate registration
 	checkFn := func() (*healthplatformpayload.IssueReport, error) { return nil, nil }
-	err = runner.RegisterCheck("test-check", "Test Check", checkFn, 0)
+	err = runner.ScheduleHealthCheck("test-check", "Test Check", checkFn, 0)
 	require.NoError(t, err)
 
-	err = runner.RegisterCheck("test-check", "Test Check 2", checkFn, 0)
+	err = runner.ScheduleHealthCheck("test-check", "Test Check 2", checkFn, 0)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "already registered")
 }
@@ -101,7 +101,7 @@ func TestCheckRunnerDefaultInterval(t *testing.T) {
 	checkFn := func() (*healthplatformpayload.IssueReport, error) { return nil, nil }
 
 	// Zero interval should use default
-	err := runner.RegisterCheck("test-check", "Test Check", checkFn, 0)
+	err := runner.ScheduleHealthCheck("test-check", "Test Check", checkFn, 0)
 	require.NoError(t, err)
 
 	runner.checkMux.RLock()
@@ -122,7 +122,7 @@ func TestCheckRunnerRunsChecks(t *testing.T) {
 	}
 
 	// Register with very short interval for testing
-	err := runner.RegisterCheck("test-check", "Test Check", checkFn, 50*time.Millisecond)
+	err := runner.ScheduleHealthCheck("test-check", "Test Check", checkFn, 50*time.Millisecond)
 	require.NoError(t, err)
 
 	// Start the runner
@@ -143,7 +143,7 @@ func TestCheckRunnerStartStop(t *testing.T) {
 		return nil, nil
 	}
 
-	err := runner.RegisterCheck("test-check", "Test Check", checkFn, 10*time.Millisecond)
+	err := runner.ScheduleHealthCheck("test-check", "Test Check", checkFn, 10*time.Millisecond)
 	require.NoError(t, err)
 
 	// Start and stop should complete gracefully

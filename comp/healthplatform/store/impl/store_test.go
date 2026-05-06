@@ -172,13 +172,13 @@ func TestReportIssue(t *testing.T) {
 	assert.NotNil(t, allIssues)
 	assert.Contains(t, allIssues, "logs-docker-file-permissions")
 
-	// Test GetIssueForCheck
-	issueForCheck := comp.GetIssueForCheck("logs-docker-file-permissions")
+	// Test GetIssue
+	issueForCheck := comp.GetIssue("logs-docker-file-permissions")
 	assert.NotNil(t, issueForCheck)
 	assert.Equal(t, "docker-file-tailing-disabled", issueForCheck.Id)
 
-	// Test GetIssueForCheck with non-existent check
-	nonExistentIssue := comp.GetIssueForCheck("non-existent")
+	// Test GetIssue with non-existent check
+	nonExistentIssue := comp.GetIssue("non-existent")
 	assert.Nil(t, nonExistentIssue)
 
 	// Stop the component
@@ -225,7 +225,7 @@ func TestIssueResolution(t *testing.T) {
 	newCount, _ := comp.GetAllIssues()
 	assert.Equal(t, 0, newCount)
 
-	clearedIssue := comp.GetIssueForCheck("test-check-1")
+	clearedIssue := comp.GetIssue("test-check-1")
 	assert.Nil(t, clearedIssue)
 
 	// Stop the component
@@ -273,13 +273,13 @@ func TestClearMethods(t *testing.T) {
 	count, _ := comp.GetAllIssues()
 	assert.Equal(t, 2, count)
 
-	// Test ClearIssuesForCheck
-	comp.ClearIssuesForCheck("check-1")
+	// Test ResolveIssue
+	comp.ResolveIssue("check-1")
 	count, _ = comp.GetAllIssues()
 	assert.Equal(t, 1, count)
 
-	// Test ClearAllIssues
-	comp.ClearAllIssues()
+	// Test ResolveAllIssues
+	comp.ResolveAllIssues()
 	countAfterClear, allIssuesAfterClear := comp.GetAllIssues()
 	assert.Equal(t, 0, countAfterClear)
 	assert.Len(t, allIssuesAfterClear, 0)
@@ -419,7 +419,7 @@ func TestIssueTimestamp(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify the issue got a timestamp
-	issue := comp.GetIssueForCheck("timestamp-check-1")
+	issue := comp.GetIssue("timestamp-check-1")
 	require.NotNil(t, issue)
 	assert.NotEmpty(t, issue.DetectedAt)
 
@@ -469,13 +469,13 @@ func TestComponentDisabled(t *testing.T) {
 	assert.Equal(t, 0, count)
 	assert.Empty(t, issues)
 
-	// Verify GetIssueForCheck returns nil
-	issue := provides.Comp.GetIssueForCheck("test-check")
+	// Verify GetIssue returns nil
+	issue := provides.Comp.GetIssue("test-check")
 	assert.Nil(t, issue)
 
 	// Verify clear methods work without error
-	provides.Comp.ClearIssuesForCheck("test-check")
-	provides.Comp.ClearAllIssues()
+	provides.Comp.ResolveIssue("test-check")
+	provides.Comp.ResolveAllIssues()
 }
 
 // TestGetIssuesHandlerEmpty tests the HTTP handler returns empty list when no issues
