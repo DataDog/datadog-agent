@@ -19,7 +19,7 @@ import (
 
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/internal/procmgrwait"
+	"github.com/DataDog/datadog-agent/test/new-e2e/internal/procmgrtest"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 )
 
@@ -29,7 +29,6 @@ type packageDDOTSuite struct {
 
 const (
 	ddotProcessName = "datadog-agent-ddot"
-	ddProcmgrCLI    = "/opt/datadog-agent/embedded/bin/dd-procmgr"
 
 	// ddotOtelAgentFleetPackage is the collector binary when DDOT is installed as the
 	// datadog-agent-ddot OCI package (datadog-installer install oci://…/ddot-package:…).
@@ -275,13 +274,15 @@ func (s *packageDDOTSuite) systemdUnitDir(oldUnits bool) string {
 
 func (s *packageDDOTSuite) waitForRunningProcess(name, expectedBinary string, timeout time.Duration) string {
 	s.T().Helper()
-	describeCmd := fmt.Sprintf(`sudo -u dd-agent -- %q describe %q`, ddProcmgrCLI, name)
-	return procmgrwait.WaitForRunningProcess(
+	return procmgrtest.WaitForRunningProcess(
 		s.T(),
-		func(command string) (string, error) { return s.Env().RemoteHost.Execute(command) },
-		describeCmd,
+		s,
 		name,
 		expectedBinary,
 		timeout,
 	)
+}
+
+func (s *packageDDOTSuite) ExecuteCommand(command string) (string, error) {
+	return s.Env().RemoteHost.Execute(command)
 }

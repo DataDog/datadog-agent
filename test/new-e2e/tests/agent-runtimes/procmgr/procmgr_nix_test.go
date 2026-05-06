@@ -20,12 +20,11 @@ import (
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
-	"github.com/DataDog/datadog-agent/test/new-e2e/internal/procmgrwait"
+	"github.com/DataDog/datadog-agent/test/new-e2e/internal/procmgrtest"
 )
 
 const (
 	linuxDaemonBin = "/opt/datadog-agent/embedded/bin/dd-procmgrd"
-	linuxCLIBin    = "/opt/datadog-agent/embedded/bin/dd-procmgr"
 	linuxConfigDir = "/opt/datadog-agent/processes.d"
 
 	// Extension layout after `datadog-agent otel install` (matches installer TestInstallDDOTSubcommand).
@@ -49,7 +48,7 @@ description: should not start
 
 var linuxPlatform = platformConfig{
 	daemonBin:         linuxDaemonBin,
-	cliBin:            linuxCLIBin,
+	cliBin:            procmgrtest.CLIBin,
 	configDir:         linuxConfigDir,
 	sleepCommand:      "/bin/sleep",
 	testProcessYAML:   linuxTestProcessConfig,
@@ -59,7 +58,7 @@ var linuxPlatform = platformConfig{
 	svcRunningOutput:  "active",
 	// Run CLI as dd-agent so it can use the procmgrd socket without chmod (same as installer DDOT tests).
 	cliCmd: func(args string) string {
-		return fmt.Sprintf("sudo -u dd-agent -- %q %s", linuxCLIBin, args)
+		return fmt.Sprintf("sudo -u dd-agent -- %q %s", procmgrtest.CLIBin, args)
 	},
 }
 
@@ -227,15 +226,17 @@ func (s *procmgrLinuxSuite) TestDDOTProcessDescribe() {
 
 func (s *procmgrLinuxSuite) waitForRunningProcess(name, expectedBinary string, timeout time.Duration) string {
 	s.T().Helper()
-	describeCmd := s.platform.cliCmd("describe " + name)
-	return procmgrwait.WaitForRunningProcess(
+	return procmgrtest.WaitForRunningProcess(
 		s.T(),
-		func(command string) (string, error) { return s.Env().RemoteHost.Execute(command) },
-		describeCmd,
+		s,
 		name,
 		expectedBinary,
 		timeout,
 	)
+}
+
+func (s *procmgrLinuxSuite) ExecuteCommand(command string) (string, error) {
+	return s.Env().RemoteHost.Execute(command)
 }
 
 func (s *procmgrLinuxSuite) getRestartCount(name string) int {
