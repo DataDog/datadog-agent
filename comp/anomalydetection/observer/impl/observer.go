@@ -189,8 +189,12 @@ func NewComponent(deps Requires) Provides {
 
 	// Wire reporters provided by the reporter component via the Fx group.
 	// Each reporter gets its own subscription so it receives advance events independently.
+	// Reporters that implement StorageConsumer receive storage for rate annotations.
 	for _, r := range deps.Reporters {
 		r := r
+		if sc, ok := r.(reporterdef.StorageConsumer); ok {
+			sc.SetStorage(eng.Storage())
+		}
 		eng.Subscribe(&reporterEventSink{
 			reporters: []reporterdef.Reporter{r},
 			state:     eng.StateView(),

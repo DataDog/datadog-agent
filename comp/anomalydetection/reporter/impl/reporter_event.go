@@ -6,6 +6,7 @@
 package reporterimpl
 
 import (
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
@@ -21,6 +22,11 @@ type EventReporter struct {
 // Name returns the reporter name.
 func (r *EventReporter) Name() string {
 	return "event_reporter"
+}
+
+// SetStorage injects the engine's storage so rate annotations appear in event messages.
+func (r *EventReporter) SetStorage(s observerdef.StorageReader) {
+	r.sender.storage = s
 }
 
 // Report checks for new correlations and sends an event for each one.

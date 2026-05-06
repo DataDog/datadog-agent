@@ -111,7 +111,8 @@ rule EventReporterReceivesReport {
         -- EventReporter mirrors ReplayReporter.Report() exactly.
         -- This identity is what makes testbench replay trustworthy:
         -- the same logic runs in both live and replay modes.
-        -- Sending is async — Report() enqueues; transport handles retries.
+        -- Sending is synchronous — Report() calls the Datadog API directly.
+        -- This is a known limitation; the advance loop will block on slow HTTP calls.
 }
 
 ------------------------------------------------------------
@@ -178,9 +179,9 @@ contract ReporterContract {
 
     @invariant NonBlocking
         -- Report() is called synchronously from the event sink.
-        -- Implementations must not block (no synchronous network I/O
-        -- on the call path). EventReporter delegates actual sending
-        -- to a background goroutine.
+        -- Implementations must not block on slow I/O.
+        -- Note: EventReporter currently calls the Datadog API synchronously;
+        -- this is a known limitation to address when the engine is isolated.
 }
 
 -- The event formatting contract shared by EventReporter and ReplayReporter.
@@ -197,4 +198,7 @@ contract EventFormatterContract {
         -- build_change_message includes rate-change annotations when the
         -- contributing log pattern extractor shows a significant rate change
         -- (>30% relative and >2 absolute events/minute).
+        -- Requires a non-nil StorageReader. EventReporter receives storage via
+        -- StorageConsumer.SetStorage(), called by the observer during wiring.
+        -- ReplayReporter always has storage passed at construction.
 }

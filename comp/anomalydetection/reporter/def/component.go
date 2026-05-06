@@ -32,3 +32,11 @@ type Reporter interface {
 	// Report delivers a report to its destination (stdout, file, webserver, etc).
 	Report(report ReportOutput)
 }
+
+// StorageConsumer is an optional interface for reporters that need access to
+// the engine's time-series storage (e.g. for rate annotations in event messages).
+// The observer calls SetStorage after constructing the engine, injecting storage
+// without creating a circular Fx dependency between reporter and observer.
+type StorageConsumer interface {
+	SetStorage(storage observerdef.StorageReader)
+}
