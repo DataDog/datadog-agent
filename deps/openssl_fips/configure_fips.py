@@ -46,7 +46,8 @@ def main():
 def _replace_in_file(path: Path, placeholder: str, replacement: str):
     if not path.exists():
         raise RuntimeError(f"{path} not found")
-    path.write_text(path.read_text().replace(placeholder, replacement))
+    original = path.read_text()
+    path.write_text(original.replace(placeholder, replacement))
 
 
 if __name__ == "__main__":
