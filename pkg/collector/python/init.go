@@ -8,6 +8,7 @@
 package python
 
 import (
+	"context"
 	"errors"
 	"expvar"
 	"fmt"
@@ -231,9 +232,35 @@ var (
 	pyDestroyLock sync.RWMutex
 	pyInitErrors  []string
 
+	// pythonReady is closed by signalPythonReady when Initialize completes
+	// successfully. Consumers (e.g. AutoDiscovery's discovery rescan) use
+	// WaitReady to react once the runtime is up — they MUST NOT block in
+	// the agent-startup goroutine, since fx hooks run sequentially and a
+	// blocking wait there would prevent Initialize itself from running.
+	pythonReady     = make(chan struct{})
+	pythonReadyOnce sync.Once
+
 	// ErrNotInitialized is returned when rtloader is not initialized yet
 	ErrNotInitialized = errors.New("rtloader is not initialized")
 )
+
+// signalPythonReady marks Python as initialized. Idempotent.
+func signalPythonReady() {
+	pythonReadyOnce.Do(func() { close(pythonReady) })
+}
+
+// WaitReady blocks until Python is initialized or ctx is done. Intended
+// for callers running in their OWN goroutine — calling this on the agent
+// startup path will deadlock against the very fx hook that triggers
+// Initialize.
+func WaitReady(ctx context.Context) error {
+	select {
+	case <-pythonReady:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
 
 func init() {
 	pyInitErrors = []string{}
@@ -474,6 +501,7 @@ func Initialize(paths ...string) error {
 
 	sendTelemetry()
 
+	signalPythonReady()
 	return nil
 }
 

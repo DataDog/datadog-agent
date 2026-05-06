@@ -7,7 +7,10 @@
 
 package discoverer
 
-import "errors"
+import (
+	"context"
+	"errors"
+)
 
 // pythonBridgeStub satisfies Bridge for builds without the python tag (e.g. the
 // cluster agent). It always errors; templates with Discovery set will be
@@ -22,4 +25,14 @@ func NewPythonBridge() Bridge {
 
 func (b *pythonBridgeStub) RunDiscover(string, string) (string, error) {
 	return "", errors.New("python bridge: agent built without Python support")
+}
+
+// WaitForPython is a no-op on builds without the python tag — Python is
+// not available and the AD rescan goroutine has nothing to wait for.
+// Returns ctx.Err() if ctx is already done; otherwise blocks forever
+// (the rescan goroutine should outlive the agent or be cancelled
+// explicitly via the lifecycle hook).
+func WaitForPython(ctx context.Context) error {
+	<-ctx.Done()
+	return ctx.Err()
 }
