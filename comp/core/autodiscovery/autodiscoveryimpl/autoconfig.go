@@ -828,6 +828,10 @@ func (ac *AutoConfig) discoveryRetryLoop() {
 			return
 		case <-ticker.C:
 			changes := ac.cfgMgr.retryPendingDiscoveries()
+			if !changes.IsEmpty() {
+				log.Debugf("autodiscovery: discovery retry tick applied %d schedule(s), %d unschedule(s)",
+					len(changes.Schedule), len(changes.Unschedule))
+			}
 			ac.applyChanges(changes)
 		}
 	}
