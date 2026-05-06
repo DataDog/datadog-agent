@@ -1,0 +1,21 @@
+namespace: github.com/DataDog/datadog-agent
+mappings:
+  time:
+    Time:
+      schemaType: string
+      format: date-time
+      skipAnnotation: true
+    Duration:
+      schemaType: string
+      format: duration
+      skipAnnotation: true
+  go.opentelemetry.io/collector/component:
+    ID:
+      schemaType: string
+allowedRefs:
+  - go.opentelemetry.io/collector
+  - github.com/open-telemetry/opentelemetry-collector-contrib
+  - github.com/DataDog/datadog-agent
+componentOverrides:
+  exporter/serializer:
+    configName: ExporterConfig

@@ -1,0 +1,7 @@
+description: Config defines configuration for processor.
+type: object
+properties:
+  allow_hostname_override:
+    type: boolean
+  cardinality:
+    $ref: /comp/core/tagger/types.tag_cardinality

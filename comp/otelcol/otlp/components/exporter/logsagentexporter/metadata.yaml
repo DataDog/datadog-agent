@@ -1,0 +1,9 @@
+type: logsagent
+
+status:
+  class: exporter
+  stability:
+    stable: [logs]
+  distributions: []
+  codeowners:
+    active: [DataDog/opentelemetry]

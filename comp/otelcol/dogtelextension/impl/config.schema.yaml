@@ -1,0 +1,47 @@
+description: Config defines the configuration for the dogtelextension
+type: object
+properties:
+  enable_metadata_collection:
+    description: Metadata collection settings. EnableMetadataCollection is a pointer so that nil ("not set") is distinguishable from an explicit false, allowing NewConfigComponent to leave the DD agent default (true) intact when the field is absent.
+    x-pointer: true
+    type: boolean
+  enable_tagger_server:
+    description: Tagger server settings
+    type: boolean
+  hostname:
+    description: Hostname overrides the agent hostname used in standalone mode. Maps to the "hostname" DD agent config key. When empty the agent resolves the hostname automatically.
+    type: string
+  kubelet_tls_verify:
+    x-pointer: true
+    type: boolean
+  kubernetes_http_kubelet_port:
+    type: integer
+  kubernetes_https_kubelet_port:
+    type: integer
+  kubernetes_kubelet_host:
+    description: Kubernetes / kubelet settings for K8s tag enrichment (standalone mode). When the otel-agent runs on a Kubernetes node these allow the workloadmeta kubelet collector and the local tagger to reach the kubelet API without needing a separate datadog.yaml.
+    type: string
+  metadata_interval:
+    type: integer
+  secret_backend_arguments:
+    type: array
+    items:
+      type: string
+  secret_backend_command:
+    description: Secrets backend settings (standalone mode). These map directly to the corresponding DD agent config keys so that ENC[] handles in the OTel config can be resolved without a separate datadog.yaml file.
+    type: string
+  secret_backend_output_max_size:
+    type: integer
+  secret_backend_timeout:
+    type: integer
+  standalone_mode:
+    description: Standalone mode (controls secrets and other features) This is typically set via DD_OTEL_STANDALONE environment variable
+    type: boolean
+  tagger_max_concurrent_sync:
+    type: integer
+  tagger_max_message_size:
+    type: integer
+  tagger_server_addr:
+    type: string
+  tagger_server_port:
+    type: integer

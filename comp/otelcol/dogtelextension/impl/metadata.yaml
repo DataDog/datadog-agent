@@ -1,0 +1,9 @@
+type: dogtel
+
+status:
+  class: extension
+  stability:
+    beta: [extension]
+  distributions: []
+  codeowners:
+    active: [DataDog/opentelemetry]

@@ -1,0 +1,9 @@
+type: infraattributes
+
+status:
+  class: processor
+  stability:
+    alpha: [traces, metrics, logs, profiles]
+  distributions: []
+  codeowners:
+    active: [DataDog/opentelemetry]

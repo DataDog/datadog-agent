@@ -1,0 +1,9 @@
+type: serializer
+
+status:
+  class: exporter
+  stability:
+    stable: [metrics]
+  distributions: []
+  codeowners:
+    active: [DataDog/opentelemetry]
