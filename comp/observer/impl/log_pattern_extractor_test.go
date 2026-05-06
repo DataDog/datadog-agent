@@ -482,9 +482,9 @@ func TestEngine_LogPatternLRUEvictionFreesStorage(t *testing.T) {
 	// All surviving contextRefs must resolve to live storage series — i.e.
 	// nothing dangling on the engine side either.
 	for key := range e.contextRefs {
-		ref, ok := storage.seriesIDs[key]
+		stats, ok := storage.series[key]
 		require.True(t, ok, "engine contextRef without storage series for key %q", key)
-		require.NotNil(t, storage.GetSeriesMeta(ref),
+		require.NotNil(t, storage.GetSeriesMeta(stats.ref),
 			"engine contextRef points at a retired storage ref for key %q", key)
 	}
 	require.Len(t, e.contextRefs, 2,

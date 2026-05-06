@@ -590,8 +590,8 @@ func TestTimeSeriesStorage_RemoveSeriesByKeys(t *testing.T) {
 
 	keyB := seriesKey("ns", "b", []string{"k:2"})
 	keyC := seriesKey("ns", "c", []string{"k:3"})
-	refB := s.seriesIDs[keyB]
-	refC := s.seriesIDs[keyC]
+	refB := s.series[keyB].ref
+	refC := s.series[keyC].ref
 
 	removed := s.RemoveSeriesByKeys([]string{keyB, keyC, "nonexistent"})
 	require.Len(t, removed, 2, "unknown keys are silently ignored")
@@ -602,7 +602,7 @@ func TestTimeSeriesStorage_RemoveSeriesByKeys(t *testing.T) {
 	require.Nil(t, s.GetSeriesMeta(refB), "removed ref resolves to nil")
 	require.Nil(t, s.GetSeriesMeta(refC), "removed ref resolves to nil")
 
-	refA := s.seriesIDs[seriesKey("ns", "a", []string{"k:1"})]
+	refA := s.series[seriesKey("ns", "a", []string{"k:1"})].ref
 	require.NotNil(t, s.GetSeriesMeta(refA), "surviving series still resolvable")
 
 	// Evicted slots in seriesIDKeys are cleared to "" so the original key
@@ -615,7 +615,7 @@ func TestTimeSeriesStorage_RemoveSeriesByKeys(t *testing.T) {
 	// A subsequent Add for the same key creates a fresh series with a new ref.
 	s.Add("ns", "b", 99.0, 1100, []string{"k:2"})
 	require.Equal(t, 2, s.TotalSeriesCount(""), "re-add re-creates the series")
-	newRefB := s.seriesIDs[keyB]
+	newRefB := s.series[keyB].ref
 	require.NotEqual(t, refB, newRefB, "new ref minted; old ref id is retired")
 	require.Nil(t, s.GetSeriesMeta(refB), "old ref still resolves to nil after re-add")
 }
