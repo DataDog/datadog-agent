@@ -99,11 +99,11 @@ func TestLookup(t *testing.T) {
 	})
 }
 
-// TestConditionalLookup exercises the production rpc.grpc.status_code mapping —
-// rpc.response.status_code is only accepted when rpc.system.name=grpc, or as a
-// legacy fallback when rpc.system=grpc and rpc.system.name is absent. The legacy
+// TestGRPCStatusCodeConditionalFallback exercises the production rpc.grpc.status_code
+// mapping — rpc.response.status_code is only accepted when rpc.system.name=grpc, or as
+// a legacy fallback when rpc.system=grpc and rpc.system.name is absent. The legacy
 // row's two-condition AND also gives ANDing implicit coverage.
-func TestConditionalLookup(t *testing.T) {
+func TestGRPCStatusCodeConditionalFallback(t *testing.T) {
 	r, err := NewEmbeddedRegistry()
 	require.NoError(t, err)
 
