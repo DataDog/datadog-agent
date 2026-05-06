@@ -8,12 +8,12 @@ from unittest.mock import MagicMock
 
 from tasks.libs.testing.result_json import ResultJson
 from tasks.libs.testing.utof import UTOFMetadata, format_report
-from tasks.libs.testing.utof.go_parser.failure_parser import (
+from tasks.libs.testing.utof.go.parser.failure_parser import (
     _extract_message_from_raw_output,
     _extract_stacktrace_from_raw_output,
     _parse_assertion_blocks,
 )
-from tasks.libs.testing.utof.go_unit import convert_unit_test_results
+from tasks.libs.testing.utof.go.unit import convert_unit_test_results
 from tasks.libs.testing.utof.metadata import generate_metadata
 from tasks.libs.testing.utof.models import (
     UTOFAttempt,

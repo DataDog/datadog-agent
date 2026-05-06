@@ -461,7 +461,7 @@ def _generate_unified_output(
 
     try:
         from tasks.libs.testing.utof import format_report
-        from tasks.libs.testing.utof.go_unit import convert_unit_test_results, generate_metadata
+        from tasks.libs.testing.utof.go.unit import convert_unit_test_results, generate_metadata
 
         result_json = ResultJson.from_file(test_result.result_json_path)
         metadata = generate_metadata(ctx, test_system=test_system, flavor=flavor.name)

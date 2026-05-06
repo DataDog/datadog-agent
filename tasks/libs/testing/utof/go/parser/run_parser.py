@@ -2,7 +2,7 @@
 
 These functions are format-agnostic — they work on the raw test2json event stream
 and produce UTOFTestResult / UTOFAttempt objects.  Format-specific converters
-(go_unit, e2e, …) call these functions and add their own metadata and fields.
+(unit, e2e, …) call these functions and add their own metadata and fields.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from tasks.libs.testing.result_json import ActionType, ResultJson, run_is_failing
-from tasks.libs.testing.utof.go_parser.failure_parser import FailureExtractor, _extract_failure_info
+from tasks.libs.testing.utof.go.parser.failure_parser import FailureExtractor, _extract_failure_info
 from tasks.libs.testing.utof.models import UTOFAttempt, UTOFFlaky, UTOFSummary, UTOFTestResult
 
 if TYPE_CHECKING:

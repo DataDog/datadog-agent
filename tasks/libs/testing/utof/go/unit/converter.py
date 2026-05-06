@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from tasks.libs.testing.result_json import ResultJson
-from tasks.libs.testing.utof.go_parser.run_parser import (
+from tasks.libs.testing.utof.go.parser.failure_parser import FailureExtractor
+from tasks.libs.testing.utof.go.parser.run_parser import (
     build_attempts,
     build_summary,
     build_test_tree,
@@ -26,7 +28,7 @@ if TYPE_CHECKING:
 
     from tasks.testwasher import TestWasher
 
-_TEST_TYPE = "unit"
+_DEFAULT_TEST_TYPE = "unit"
 
 
 def convert_unit_test_results(
@@ -34,19 +36,31 @@ def convert_unit_test_results(
     result_json: ResultJson,
     test_washer: TestWasher | None = None,
     metadata: UTOFMetadata | None = None,
+    test_type: str = _DEFAULT_TEST_TYPE,
+    suite_fn: Callable[[str], str] = lambda _: "",
+    custom_extractors: list[FailureExtractor] | None = None,
 ) -> UTOFDocument:
-    """Convert unit test results from ResultJson + TestWasher into a UTOFDocument.
+    """Convert Go test results from ResultJson + TestWasher into a UTOFDocument.
+
+    Defaults match unit test conventions; e2e (and other Go-test-based formats)
+    pass overrides for ``test_type``, ``suite_fn`` and ``custom_extractors``.
 
     Args:
         result_json: Parsed test2json JSONL output.
         test_washer: Optional TestWasher instance for flaky test analysis.
         metadata: Optional pre-built metadata. If None, a default is generated.
+        test_type: Value stored on each ``UTOFTestResult.type`` and the test_system
+            metadata field (e.g. ``"unit"`` or ``"e2e"``).
+        suite_fn: Maps a hierarchical test name to its suite. Unit tests leave
+            ``suite`` empty; e2e derives the top-level test function name.
+        custom_extractors: Format-specific failure extractors forwarded to
+            ``build_attempts`` (e.g. Pulumi for e2e infra errors).
 
     Returns:
         A UTOFDocument containing all test results.
     """
     if metadata is None:
-        metadata = generate_metadata(ctx, test_system=_TEST_TYPE)
+        metadata = generate_metadata(ctx, test_system=test_type)
     metadata.duration_seconds = compute_total_duration(result_json)
 
     flaky_failures: dict[str, set[str]] = test_washer.get_flaky_failures() if test_washer else {}
@@ -61,7 +75,7 @@ def convert_unit_test_results(
             status = determine_status(actions)
             duration = compute_duration(actions)
             retry_count = compute_retry_count(actions)
-            attempts = build_attempts(actions)
+            attempts = build_attempts(actions, custom_extractors=custom_extractors)
             flaky = None
             if test_washer:
                 status, flaky = classify_flaky(status, package, test_name, actions, flaky_failures, test_washer)
@@ -72,8 +86,8 @@ def convert_unit_test_results(
                     name=leaf_name(test_name),
                     full_name=test_name,
                     package=package,
-                    suite="",
-                    type=_TEST_TYPE,
+                    suite=suite_fn(test_name),
+                    type=test_type,
                     status=status,
                     duration_seconds=round(duration, 6),
                     retry_count=retry_count,
@@ -87,7 +101,7 @@ def convert_unit_test_results(
         by_package.setdefault(t.package, []).append(t)
     rooted = []
     for pkg_tests in by_package.values():
-        rooted.extend(build_test_tree(pkg_tests))
+        rooted.extend(build_test_tree(pkg_tests, suite_fn=suite_fn))
 
     return UTOFDocument(
         version="1.0.0",
