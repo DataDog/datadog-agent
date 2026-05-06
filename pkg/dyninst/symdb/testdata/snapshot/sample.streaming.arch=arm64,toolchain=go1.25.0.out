@@ -249,9 +249,10 @@ Package: main
 	Function: iterExample.rangeOverIterator.Values[...].func1 (main.iterExample.rangeOverIterator.Values[go.shape.[]int,go.shape.int].func1) in slices/iter.go [38:40] injectible: [39-40]
 		Var: v: go.shape.int (declared at line 39, available: [40-40])
 		Arg: yield: func(go.shape.int) bool (declared at line 0, available: )
-	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go [20:58] injectible: [20-21], [24-25], [27-39], [41-42], [44-46], [48-49], [52-58]
-		Var: it: main.iterExample (declared at line 43, available: [20-58])
-		Var: t: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type (declared at line 40, available: [20-58])
+	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go [21:39] injectible: [21-22], [24-24], [26-29], [33-37], [39-39]
+		Var: ticker: *time.Ticker (declared at line 33, available: [34-34])
+		Scope: 34-37
+			Var: span: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span (declared at line 35, available: [34-37])
 	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2@v2.2.3-rc.1/ddtrace/tracer/option.go [986:989] injectible: [986-989]
 		Arg: c: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.config (declared at line 986, available: [986-988])
 		Var: name: string (declared at line 987, available: [988-989])
@@ -276,6 +277,9 @@ Package: main
 		Arg: ~r0: uint64 (declared at line 40, available: )
 		Var: n: uint64 (declared at line 45, available: [44-46])
 		Var: b: []uint8 (declared at line 41, available: [42-45])
+	Function: runAll (main.runAll) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go [41:73] injectible: [41-54], [56-57], [59-61], [63-64], [67-73]
+		Var: it: main.iterExample (declared at line 58, available: [41-73])
+		Var: t: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type (declared at line 55, available: [41-73])
 	Function: sprintSlice (main.sprintSlice) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go [16:17] injectible: [16-17]
 		Arg: x: []int (declared at line 16, available: [16-17])
 		Arg: ~r0: string (declared at line 16, available: )
