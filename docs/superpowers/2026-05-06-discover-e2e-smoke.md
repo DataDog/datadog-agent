@@ -203,34 +203,23 @@ docker network connect docker_default dd-agent-foo
 error "endpoint with name dd-agent-foo already exists in network
 docker_default" is benign.)
 
-### 6. Wait for Python init, then bounce krakend to clear the negative cache
+### 6. Wait for the rescan-on-Python-ready goroutine
 
-This is the load-bearing step that an automated harness must handle.
+No manual intervention needed. The agent has a fire-and-forget goroutine
+that waits for Python to finish initializing and then re-runs reconcile
+for every active service that has a Discovery template. The "skipped —
+python not yet ready" debug log at startup is expected; the rescan
+fires a few seconds later and schedules the krakend check.
 
-The autodiscovery reconciliation loop runs immediately on agent startup and
-calls `discoverer.Discover` for the krakend template before Python /
-rtloader finish initializing (~30s gap). The discoverer caches the
-"rtloader is not initialized" failure for 30s and won't re-probe until a
-new service event fires.
+Typical timing:
 
-The simplest way to trigger a re-probe is to recycle the krakend
-compose, which produces a fresh container ID and a fresh AD service
-event:
+- t+0:  container start
+- t+~6s: discoverer skipped (Python not yet ready, NOT cached)
+- t+~6s: `Initializing rtloader` log (concurrent with the skip)
+- t+~10–15s: rescan goroutine wakes, krakend check scheduled.
 
-```bash
-sleep 60   # let rtloader finish initializing
-KRAKEND_VERSION=2.10 docker compose down
-KRAKEND_VERSION=2.10 docker compose up -d
-```
-
-After the `up`, AD sees a new service ID for krakend, the discoverer
-ignores the stale cache entry (different svcID), and the probe runs
-against a fully-initialized Python.
-
-For Plan C and beyond, this is a real architectural concern: the
-discoverer should invalidate its cache when Python becomes ready, or the
-bridge should retry once on `ErrNotInitialized`. Until then, the
-"recycle the target after waiting" pattern works for smoke tests.
+The smoke test just needs to wait until `agent status` shows the krakend
+section. ~30 s is a comfortable upper bound.
 
 ### 7. Verify the krakend check is scheduled with the discovered config
 
@@ -361,13 +350,15 @@ is probably missing. The agent does NOT pick autoconfig files up from the
 Python package's `data/` directory at runtime (only at install time, via
 omnibus packaging).
 
-### `rtloader is not initialized` warn at startup
+### "skipped — python not yet ready" debug log at startup
 
-Expected on first reconcile. The discoverer's negative cache clears in
-30s, and a new container with a fresh service ID re-triggers the probe.
-This is the load-bearing reason for the "recycle krakend after 60s" step
-above. A future plan should fix this by invalidating the cache when
-Python becomes ready.
+Expected once on the first reconcile, before `rtloader.Initialize`
+completes. Resolved automatically by the rescan-on-Python-ready
+goroutine in `AutoConfig.start()`; no manual recovery required. A
+future iteration could eliminate the log entirely by ordering fx so
+that Python init is a hard predecessor of AutoDiscovery's listener
+startup (e.g. by extracting `InitPython` into its own fx component
+that AutoDiscovery depends on).
 
 ### "endpoint with name dd-agent-foo already exists in network docker_default"
 
@@ -380,10 +371,26 @@ the agent reaches it on the existing connection.
 
 For reproducibility:
 
-- `datadog-agent` head: e26bc8f038d (after Plan B + final review fixups +
-  rebase onto main).
+- `datadog-agent` head: 7a959105663 (Plan B + final review fixups +
+  rebase onto main + don't-cache-ErrPythonNotReady fix +
+  rescan-once-Python-ready fix).
 - `integrations-core` head: de98ae4025 (Plan A + Plan B Task 4 + krakend
   migration + changelog).
 
 Both branches are local-only (not pushed to `origin`). To reproduce, push
 or check out at those SHAs.
+
+## Note: `dev/lib/` rtloader needs to be restored after every agent rebuild
+
+`dda inv agent.build` rebuilds rtloader via cmake, which links against
+the host system's Python (3.12 in the dev container). The agent
+container ships Python 3.13 and won't load that .so. After every
+rebuild, restore the bazel-built (Python 3.13-linked) rtloader:
+
+```bash
+cp -P dev/embedded/lib/libdatadog-agent-rtloader* dev/lib/
+cp -P dev/embedded/lib/libdatadog-agent-three.so dev/lib/
+```
+
+`dev/embedded/` is populated once by `dda inv rtloader.install-with-bazel`;
+the build chain doesn't touch it.
