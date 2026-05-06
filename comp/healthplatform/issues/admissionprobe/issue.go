@@ -43,7 +43,7 @@ func (t *AdmissionProbeIssue) BuildIssue(context map[string]string) (*healthplat
 		{Order: 2, Text: "Verify the cluster agent service is reachable from the Kubernetes API server on port 8000"},
 		{Order: 3, Text: "Verify the MutatingWebhookConfiguration exists and has the correct service reference: kubectl get mutatingwebhookconfigurations"},
 		{Order: 4, Text: remediation},
-		{Order: 5, Text: "See docs: https://docs.datadoghq.com/containers/troubleshooting/admission-controller"},
+		{Order: 5, Text: "See docs: https://dtdg.co/4eZW0g4"},
 	}
 
 	extra, err := structpb.NewStruct(map[string]any{
