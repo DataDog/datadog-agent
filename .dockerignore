@@ -1,0 +1,2 @@
+# Exclude socket files that the Docker build context scanner cannot read
+*.sock
