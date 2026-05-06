@@ -1,4 +1,4 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "msi",
@@ -13,7 +13,7 @@ go_library(
     target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
     deps = select({
-        "@io_bazel_rules_go//go/platform:windows": [
+        "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/paths",
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/winutil",
@@ -35,7 +35,7 @@ go_test(
     data = glob(["testdata/**"]),
     embed = [":msi"],
     embedsrcs = select({
-        "@io_bazel_rules_go//go/platform:windows": [
+        "@rules_go//go/platform:windows": [
             "testdata/file_in_use.log",
             "testdata/invalid_credentials.log",
             "testdata/missing_password_for_dc.log",
@@ -50,7 +50,7 @@ go_test(
     ],
     target_compatible_with = ["@platforms//os:windows"],
     deps = select({
-        "@io_bazel_rules_go//go/platform:windows": [
+        "@rules_go//go/platform:windows": [
             "@com_github_cenkalti_backoff_v5//:backoff",
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//mock",

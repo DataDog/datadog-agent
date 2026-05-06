@@ -1,4 +1,4 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "publishermetadatacache",
@@ -7,7 +7,7 @@ go_library(
     target_compatible_with = ["@platforms//os:windows"],  # keep
     visibility = ["//visibility:public"],
     deps = select({
-        "@io_bazel_rules_go//go/platform:windows": [
+        "@rules_go//go/platform:windows": [
             "//pkg/util/winutil/eventlog/api",
             "@org_golang_x_sys//windows",
         ],
@@ -22,7 +22,7 @@ go_test(
     gotags = ["test"],
     target_compatible_with = ["@platforms//os:windows"],  # keep
     deps = select({
-        "@io_bazel_rules_go//go/platform:windows": [
+        "@rules_go//go/platform:windows": [
             "//pkg/util/winutil/eventlog/api",
             "//pkg/util/winutil/eventlog/api/fake",
             "@com_github_stretchr_testify//assert",

@@ -1,4 +1,4 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "test",
@@ -11,7 +11,7 @@ go_library(
     target_compatible_with = ["@platforms//os:windows"],  # keep
     visibility = ["//visibility:public"],
     deps = select({
-        "@io_bazel_rules_go//go/platform:windows": [
+        "@rules_go//go/platform:windows": [
             "//pkg/util/winutil/eventlog/api",
             "//pkg/util/winutil/eventlog/api/fake",
             "//pkg/util/winutil/eventlog/api/windows",

@@ -1,6 +1,6 @@
 """Bazel rules for rtloader tests."""
 
-load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 def rtloader_test_go_library(**kwargs):
     """A go_library wrapper that adds the rtloader library.

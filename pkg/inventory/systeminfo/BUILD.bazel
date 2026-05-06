@@ -1,4 +1,4 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "systeminfo",
@@ -12,19 +12,19 @@ go_library(
     ],
     cgo = True,
     clinkopts = select({
-        "@io_bazel_rules_go//go/platform:darwin": [
+        "@rules_go//go/platform:darwin": [
             "-framework Foundation -framework IOKit",
         ],
-        "@io_bazel_rules_go//go/platform:ios": [
+        "@rules_go//go/platform:ios": [
             "-framework Foundation -framework IOKit",
         ],
         "//conditions:default": [],
     }),
     copts = select({
-        "@io_bazel_rules_go//go/platform:darwin": [
+        "@rules_go//go/platform:darwin": [
             "-x objective-c -fobjc-arc",
         ],
-        "@io_bazel_rules_go//go/platform:ios": [
+        "@rules_go//go/platform:ios": [
             "-x objective-c -fobjc-arc",
         ],
         "//conditions:default": [],
@@ -32,7 +32,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/inventory/systeminfo",
     visibility = ["//visibility:public"],
     deps = select({
-        "@io_bazel_rules_go//go/platform:windows": [
+        "@rules_go//go/platform:windows": [
             "//pkg/util/log",
             "@com_github_yusufpapurcu_wmi//:wmi",
         ],
@@ -49,15 +49,15 @@ go_test(
     embed = [":systeminfo"],
     gotags = ["test"],
     deps = select({
-        "@io_bazel_rules_go//go/platform:darwin": [
+        "@rules_go//go/platform:darwin": [
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
-        "@io_bazel_rules_go//go/platform:ios": [
+        "@rules_go//go/platform:ios": [
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
         ],
-        "@io_bazel_rules_go//go/platform:windows": [
+        "@rules_go//go/platform:windows": [
             "@com_github_stretchr_testify//assert",
         ],
         "//conditions:default": [],

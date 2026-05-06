@@ -1,4 +1,4 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library")
 load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
 
 write_pb_go(

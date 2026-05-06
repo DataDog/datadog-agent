@@ -1,4 +1,4 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "bomconvert",
@@ -6,112 +6,112 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/sbom/bomconvert",
     visibility = ["//visibility:public"],
     deps = select({
-        "@io_bazel_rules_go//go/platform:aix": [
+        "@rules_go//go/platform:aix": [
             "//pkg/util/pointer",
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
             "@org_golang_google_protobuf//types/known/durationpb",
             "@org_golang_google_protobuf//types/known/timestamppb",
         ],
-        "@io_bazel_rules_go//go/platform:android": [
+        "@rules_go//go/platform:android": [
             "//pkg/util/pointer",
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
             "@org_golang_google_protobuf//types/known/durationpb",
             "@org_golang_google_protobuf//types/known/timestamppb",
         ],
-        "@io_bazel_rules_go//go/platform:darwin": [
+        "@rules_go//go/platform:darwin": [
             "//pkg/util/pointer",
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
             "@org_golang_google_protobuf//types/known/durationpb",
             "@org_golang_google_protobuf//types/known/timestamppb",
         ],
-        "@io_bazel_rules_go//go/platform:dragonfly": [
+        "@rules_go//go/platform:dragonfly": [
             "//pkg/util/pointer",
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
             "@org_golang_google_protobuf//types/known/durationpb",
             "@org_golang_google_protobuf//types/known/timestamppb",
         ],
-        "@io_bazel_rules_go//go/platform:freebsd": [
+        "@rules_go//go/platform:freebsd": [
             "//pkg/util/pointer",
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
             "@org_golang_google_protobuf//types/known/durationpb",
             "@org_golang_google_protobuf//types/known/timestamppb",
         ],
-        "@io_bazel_rules_go//go/platform:illumos": [
+        "@rules_go//go/platform:illumos": [
             "//pkg/util/pointer",
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
             "@org_golang_google_protobuf//types/known/durationpb",
             "@org_golang_google_protobuf//types/known/timestamppb",
         ],
-        "@io_bazel_rules_go//go/platform:ios": [
+        "@rules_go//go/platform:ios": [
             "//pkg/util/pointer",
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
             "@org_golang_google_protobuf//types/known/durationpb",
             "@org_golang_google_protobuf//types/known/timestamppb",
         ],
-        "@io_bazel_rules_go//go/platform:js": [
+        "@rules_go//go/platform:js": [
             "//pkg/util/pointer",
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
             "@org_golang_google_protobuf//types/known/durationpb",
             "@org_golang_google_protobuf//types/known/timestamppb",
         ],
-        "@io_bazel_rules_go//go/platform:linux": [
+        "@rules_go//go/platform:linux": [
             "//pkg/util/pointer",
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
             "@org_golang_google_protobuf//types/known/durationpb",
             "@org_golang_google_protobuf//types/known/timestamppb",
         ],
-        "@io_bazel_rules_go//go/platform:netbsd": [
+        "@rules_go//go/platform:netbsd": [
             "//pkg/util/pointer",
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
             "@org_golang_google_protobuf//types/known/durationpb",
             "@org_golang_google_protobuf//types/known/timestamppb",
         ],
-        "@io_bazel_rules_go//go/platform:openbsd": [
+        "@rules_go//go/platform:openbsd": [
             "//pkg/util/pointer",
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
             "@org_golang_google_protobuf//types/known/durationpb",
             "@org_golang_google_protobuf//types/known/timestamppb",
         ],
-        "@io_bazel_rules_go//go/platform:osx": [
+        "@rules_go//go/platform:osx": [
             "//pkg/util/pointer",
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
             "@org_golang_google_protobuf//types/known/durationpb",
             "@org_golang_google_protobuf//types/known/timestamppb",
         ],
-        "@io_bazel_rules_go//go/platform:plan9": [
+        "@rules_go//go/platform:plan9": [
             "//pkg/util/pointer",
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
             "@org_golang_google_protobuf//types/known/durationpb",
             "@org_golang_google_protobuf//types/known/timestamppb",
         ],
-        "@io_bazel_rules_go//go/platform:qnx": [
+        "@rules_go//go/platform:qnx": [
             "//pkg/util/pointer",
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
             "@org_golang_google_protobuf//types/known/durationpb",
             "@org_golang_google_protobuf//types/known/timestamppb",
         ],
-        "@io_bazel_rules_go//go/platform:solaris": [
+        "@rules_go//go/platform:solaris": [
             "//pkg/util/pointer",
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
             "@org_golang_google_protobuf//types/known/durationpb",
             "@org_golang_google_protobuf//types/known/timestamppb",
         ],
-        "@io_bazel_rules_go//go/platform:windows": [
+        "@rules_go//go/platform:windows": [
             "//pkg/util/pointer",
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
@@ -131,97 +131,97 @@ go_test(
         "trivy",
     ],
     deps = select({
-        "@io_bazel_rules_go//go/platform:aix": [
+        "@rules_go//go/platform:aix": [
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_google_gofuzz//:gofuzz",
             "@com_github_stretchr_testify//assert",
             "@org_golang_google_protobuf//proto",
         ],
-        "@io_bazel_rules_go//go/platform:android": [
+        "@rules_go//go/platform:android": [
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_google_gofuzz//:gofuzz",
             "@com_github_stretchr_testify//assert",
             "@org_golang_google_protobuf//proto",
         ],
-        "@io_bazel_rules_go//go/platform:darwin": [
+        "@rules_go//go/platform:darwin": [
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_google_gofuzz//:gofuzz",
             "@com_github_stretchr_testify//assert",
             "@org_golang_google_protobuf//proto",
         ],
-        "@io_bazel_rules_go//go/platform:dragonfly": [
+        "@rules_go//go/platform:dragonfly": [
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_google_gofuzz//:gofuzz",
             "@com_github_stretchr_testify//assert",
             "@org_golang_google_protobuf//proto",
         ],
-        "@io_bazel_rules_go//go/platform:freebsd": [
+        "@rules_go//go/platform:freebsd": [
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_google_gofuzz//:gofuzz",
             "@com_github_stretchr_testify//assert",
             "@org_golang_google_protobuf//proto",
         ],
-        "@io_bazel_rules_go//go/platform:illumos": [
+        "@rules_go//go/platform:illumos": [
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_google_gofuzz//:gofuzz",
             "@com_github_stretchr_testify//assert",
             "@org_golang_google_protobuf//proto",
         ],
-        "@io_bazel_rules_go//go/platform:ios": [
+        "@rules_go//go/platform:ios": [
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_google_gofuzz//:gofuzz",
             "@com_github_stretchr_testify//assert",
             "@org_golang_google_protobuf//proto",
         ],
-        "@io_bazel_rules_go//go/platform:js": [
+        "@rules_go//go/platform:js": [
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_google_gofuzz//:gofuzz",
             "@com_github_stretchr_testify//assert",
             "@org_golang_google_protobuf//proto",
         ],
-        "@io_bazel_rules_go//go/platform:linux": [
+        "@rules_go//go/platform:linux": [
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_google_gofuzz//:gofuzz",
             "@com_github_stretchr_testify//assert",
             "@org_golang_google_protobuf//proto",
         ],
-        "@io_bazel_rules_go//go/platform:netbsd": [
+        "@rules_go//go/platform:netbsd": [
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_google_gofuzz//:gofuzz",
             "@com_github_stretchr_testify//assert",
             "@org_golang_google_protobuf//proto",
         ],
-        "@io_bazel_rules_go//go/platform:openbsd": [
+        "@rules_go//go/platform:openbsd": [
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_google_gofuzz//:gofuzz",
             "@com_github_stretchr_testify//assert",
             "@org_golang_google_protobuf//proto",
         ],
-        "@io_bazel_rules_go//go/platform:osx": [
+        "@rules_go//go/platform:osx": [
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_google_gofuzz//:gofuzz",
             "@com_github_stretchr_testify//assert",
             "@org_golang_google_protobuf//proto",
         ],
-        "@io_bazel_rules_go//go/platform:plan9": [
+        "@rules_go//go/platform:plan9": [
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_google_gofuzz//:gofuzz",
             "@com_github_stretchr_testify//assert",
             "@org_golang_google_protobuf//proto",
         ],
-        "@io_bazel_rules_go//go/platform:qnx": [
+        "@rules_go//go/platform:qnx": [
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_google_gofuzz//:gofuzz",
             "@com_github_stretchr_testify//assert",
             "@org_golang_google_protobuf//proto",
         ],
-        "@io_bazel_rules_go//go/platform:solaris": [
+        "@rules_go//go/platform:solaris": [
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_google_gofuzz//:gofuzz",
             "@com_github_stretchr_testify//assert",
             "@org_golang_google_protobuf//proto",
         ],
-        "@io_bazel_rules_go//go/platform:windows": [
+        "@rules_go//go/platform:windows": [
             "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
             "@com_github_google_gofuzz//:gofuzz",
             "@com_github_stretchr_testify//assert",

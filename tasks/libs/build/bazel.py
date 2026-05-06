@@ -75,7 +75,7 @@ class BazelTools:
                 "@com_github_tinylib_msgp//:msgp",
                 "@org_golang_google_grpc_cmd_protoc_gen_go_grpc//:protoc-gen-go-grpc",
                 "@org_golang_google_protobuf//cmd/protoc-gen-go",
-                "@io_bazel_rules_go//go",
+                "@rules_go//go",
             )
             bazel(ctx, "build", *labels)
             root = bazel(ctx, "info", "execution_root", capture_output=True).strip()

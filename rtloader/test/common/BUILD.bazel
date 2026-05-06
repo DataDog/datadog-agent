@@ -13,7 +13,7 @@ rtloader_test_go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//rtloader/test/helpers",
-        "@io_bazel_rules_go//go/runfiles",
+        "@rules_go//go/runfiles",
     ],
 )
 

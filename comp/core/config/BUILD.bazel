@@ -1,4 +1,4 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "config",
@@ -29,7 +29,7 @@ go_library(
         "@in_yaml_go_yaml_v2//:yaml",
         "@org_uber_go_fx//:fx",
     ] + select({
-        "@io_bazel_rules_go//go/platform:windows": [
+        "@rules_go//go/platform:windows": [
             "//pkg/util/winutil",
         ],
         "//conditions:default": [],

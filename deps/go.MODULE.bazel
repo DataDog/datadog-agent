@@ -1,4 +1,4 @@
-go_sdk = use_extension("@io_bazel_rules_go//go:extensions.bzl", "go_sdk")
+go_sdk = use_extension("@rules_go//go:extensions.bzl", "go_sdk")
 go_sdk.from_file(go_work = "//:go.work")
 use_repo(go_sdk, "go_host_compatible_sdk_label")
 # go_sdk.nogo(nogo = "//:nogo")  # TODO(agent-build): assess benefits of the `nogo` static code analyzer
@@ -104,15 +104,12 @@ use_repo(
     "com_github_datadog_agent_payload_v5",
     "com_github_datadog_aptly",
     "com_github_datadog_datadog_agent_comp_core_agenttelemetry_fx",
-    "com_github_datadog_datadog_agent_comp_core_log_fx",
     "com_github_datadog_datadog_agent_comp_otelcol_collector_contrib_impl",
-    "com_github_datadog_datadog_agent_comp_otelcol_ddprofilingextension_impl",
     "com_github_datadog_datadog_agent_comp_otelcol_logsagentpipeline",
     "com_github_datadog_datadog_agent_comp_otelcol_otlp_components_exporter_datadogexporter",
     "com_github_datadog_datadog_agent_comp_otelcol_otlp_components_exporter_logsagentexporter",
     "com_github_datadog_datadog_agent_comp_otelcol_otlp_components_exporter_serializerexporter",
     "com_github_datadog_datadog_agent_comp_otelcol_otlp_components_processor_infraattributesprocessor",
-    "com_github_datadog_datadog_agent_comp_otelcol_status_impl",
     "com_github_datadog_datadog_agent_pkg_logs_diagnostic",
     "com_github_datadog_datadog_agent_pkg_logs_message",
     "com_github_datadog_datadog_agent_pkg_logs_sources",

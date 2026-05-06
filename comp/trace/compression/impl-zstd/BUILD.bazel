@@ -1,4 +1,4 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library")
 
 # TODO(ABLD-424): reconcile @com_github_datadog_zstd CGo build with @zstd//:libzstd cc_library
 

@@ -1,4 +1,4 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "kernel",
@@ -21,10 +21,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/util/kernel",
     visibility = ["//visibility:public"],
     deps = select({
-        "@io_bazel_rules_go//go/platform:aix": [
+        "@rules_go//go/platform:aix": [
             "//pkg/util/funcs",
         ],
-        "@io_bazel_rules_go//go/platform:android": [
+        "@rules_go//go/platform:android": [
             "//pkg/config/env",
             "//pkg/util/funcs",
             "//pkg/util/safeelf",
@@ -33,25 +33,25 @@ go_library(
             "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//unix",
         ],
-        "@io_bazel_rules_go//go/platform:darwin": [
+        "@rules_go//go/platform:darwin": [
             "//pkg/util/funcs",
         ],
-        "@io_bazel_rules_go//go/platform:dragonfly": [
+        "@rules_go//go/platform:dragonfly": [
             "//pkg/util/funcs",
         ],
-        "@io_bazel_rules_go//go/platform:freebsd": [
+        "@rules_go//go/platform:freebsd": [
             "//pkg/util/funcs",
         ],
-        "@io_bazel_rules_go//go/platform:illumos": [
+        "@rules_go//go/platform:illumos": [
             "//pkg/util/funcs",
         ],
-        "@io_bazel_rules_go//go/platform:ios": [
+        "@rules_go//go/platform:ios": [
             "//pkg/util/funcs",
         ],
-        "@io_bazel_rules_go//go/platform:js": [
+        "@rules_go//go/platform:js": [
             "//pkg/util/funcs",
         ],
-        "@io_bazel_rules_go//go/platform:linux": [
+        "@rules_go//go/platform:linux": [
             "//pkg/config/env",
             "//pkg/util/funcs",
             "//pkg/util/safeelf",
@@ -60,25 +60,25 @@ go_library(
             "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//unix",
         ],
-        "@io_bazel_rules_go//go/platform:netbsd": [
+        "@rules_go//go/platform:netbsd": [
             "//pkg/util/funcs",
         ],
-        "@io_bazel_rules_go//go/platform:openbsd": [
+        "@rules_go//go/platform:openbsd": [
             "//pkg/util/funcs",
         ],
-        "@io_bazel_rules_go//go/platform:osx": [
+        "@rules_go//go/platform:osx": [
             "//pkg/util/funcs",
         ],
-        "@io_bazel_rules_go//go/platform:plan9": [
+        "@rules_go//go/platform:plan9": [
             "//pkg/util/funcs",
         ],
-        "@io_bazel_rules_go//go/platform:qnx": [
+        "@rules_go//go/platform:qnx": [
             "//pkg/util/funcs",
         ],
-        "@io_bazel_rules_go//go/platform:solaris": [
+        "@rules_go//go/platform:solaris": [
             "//pkg/util/funcs",
         ],
-        "@io_bazel_rules_go//go/platform:windows": [
+        "@rules_go//go/platform:windows": [
             "//pkg/util/funcs",
         ],
         "//conditions:default": [],
@@ -100,12 +100,12 @@ go_test(
     embed = [":kernel"],
     gotags = ["test"],
     deps = select({
-        "@io_bazel_rules_go//go/platform:android": [
+        "@rules_go//go/platform:android": [
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//unix",
         ],
-        "@io_bazel_rules_go//go/platform:linux": [
+        "@rules_go//go/platform:linux": [
             "@com_github_stretchr_testify//assert",
             "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//unix",

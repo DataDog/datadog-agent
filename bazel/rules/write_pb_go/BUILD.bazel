@@ -1,5 +1,5 @@
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
-load("@io_bazel_rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library")
 
 # strip the leading _ solely meant to prevent `go mod tidy` from adding @gazelle deps to the root go.mod
 copy_file(

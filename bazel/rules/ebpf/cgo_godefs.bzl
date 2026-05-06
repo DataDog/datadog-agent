@@ -1,7 +1,7 @@
 """Bazel rule for generating Go type definitions from C headers via cgo -godefs."""
 
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
-load("@io_bazel_rules_go//go:def.bzl", "go_context")
+load("@rules_go//go:def.bzl", "go_context")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load("//bazel/rules/ebpf:cc_helpers.bzl", "collect_headers", "collect_include_dirs")
 
@@ -143,10 +143,10 @@ _cgo_godefs = rule(
             cfg = "exec",
         ),
         "_go_context_data": attr.label(
-            default = "@io_bazel_rules_go//:go_context_data",
+            default = "@rules_go//:go_context_data",
         ),
     },
-    toolchains = ["@io_bazel_rules_go//go:toolchain"],
+    toolchains = ["@rules_go//go:toolchain"],
 )
 
 _STD_LINUX_DEPS = [
