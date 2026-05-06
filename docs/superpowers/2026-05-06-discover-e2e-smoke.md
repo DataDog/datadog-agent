@@ -203,20 +203,19 @@ docker network connect docker_default dd-agent-foo
 error "endpoint with name dd-agent-foo already exists in network
 docker_default" is benign.)
 
-### 6. Wait for the rescan-on-Python-ready goroutine
+### 6. Wait for the discoverer to lazy-init Python and probe
 
-No manual intervention needed. The agent has a fire-and-forget goroutine
-that waits for Python to finish initializing and then re-runs reconcile
-for every active service that has a Discovery template. The "skipped —
-python not yet ready" debug log at startup is expected; the rescan
-fires a few seconds later and schedules the krakend check.
+No manual intervention needed. The discoverer's bridge mirrors the
+python check loader convention: when `python_lazy_loading` is true
+(default), the first call to `RunDiscover` triggers `InitPython` via
+the shared `pythonOnce` sync.Once. Python comes up, the probe runs,
+the check is scheduled.
 
 Typical timing:
 
 - t+0:  container start
-- t+~6s: discoverer skipped (Python not yet ready, NOT cached)
-- t+~6s: `Initializing rtloader` log (concurrent with the skip)
-- t+~10–15s: rescan goroutine wakes, krakend check scheduled.
+- t+~6s: `Initializing rtloader` (triggered by the discoverer's first call)
+- t+~10s: krakend check `[OK]`, scraping metrics.
 
 The smoke test just needs to wait until `agent status` shows the krakend
 section. ~30 s is a comfortable upper bound.
@@ -350,15 +349,13 @@ is probably missing. The agent does NOT pick autoconfig files up from the
 Python package's `data/` directory at runtime (only at install time, via
 omnibus packaging).
 
-### "skipped — python not yet ready" debug log at startup
+### Python init timing
 
-Expected once on the first reconcile, before `rtloader.Initialize`
-completes. Resolved automatically by the rescan-on-Python-ready
-goroutine in `AutoConfig.start()`; no manual recovery required. A
-future iteration could eliminate the log entirely by ordering fx so
-that Python init is a hard predecessor of AutoDiscovery's listener
-startup (e.g. by extracting `InitPython` into its own fx component
-that AutoDiscovery depends on).
+The discoverer triggers `InitPython` itself via the shared `pythonOnce`
+when `python_lazy_loading` is true (default). The same idempotent
+sync.Once is also held by the python check loader, so multiple
+consumers can race safely. `Initializing rtloader` should appear
+exactly once per agent process.
 
 ### "endpoint with name dd-agent-foo already exists in network docker_default"
 
@@ -371,9 +368,8 @@ the agent reaches it on the existing connection.
 
 For reproducibility:
 
-- `datadog-agent` head: 7a959105663 (Plan B + final review fixups +
-  rebase onto main + don't-cache-ErrPythonNotReady fix +
-  rescan-once-Python-ready fix).
+- `datadog-agent` head: f714c5e5cc2 (Plan B + final review fixups +
+  rebase onto main + lazy-init Python from the discoverer bridge).
 - `integrations-core` head: de98ae4025 (Plan A + Plan B Task 4 + krakend
   migration + changelog).
 
