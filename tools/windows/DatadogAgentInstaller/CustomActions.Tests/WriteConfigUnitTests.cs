@@ -1,7 +1,11 @@
+using System;
+using System.IO;
+using System.Reflection;
 using AutoFixture.Xunit2;
 using CustomActions.Tests.Helpers;
 using Datadog.CustomActions;
 using Moq;
+using WixToolset.Dtf.WindowsInstaller;
 using Xunit;
 using YamlDotNet.RepresentationModel;
 using ISession = Datadog.CustomActions.Interfaces.ISession;
@@ -77,6 +81,119 @@ random_property: test
                 .Should()
                 .HaveKey(key)
                 .And.HaveValue(value);
+        }
+
+        [Theory]
+        [InlineAutoData]
+        public void WriteConfig_Should_Generate_AiUsageNativeHostConfig_With_Default_Apm_Port(Mock<ISession> sessionMock)
+        {
+            WithTempInstallFolders((configFolder, projectLocation) =>
+            {
+                File.WriteAllText(Path.Combine(configFolder, "datadog.yaml.example"), "api_key:\n");
+                WriteAiUsageNativeHostExample(configFolder);
+                sessionMock.Setup(session => session["APPLICATIONDATADIRECTORY"]).Returns(configFolder);
+                sessionMock.Setup(session => session["PROJECTLOCATION"]).Returns(projectLocation);
+
+                var result = InvokeWriteConfig(sessionMock.Object);
+
+                Assert.Equal(ActionResult.Success, result);
+                var aiUsageYaml = File.ReadAllText(Path.Combine(configFolder, "ai_usage_native_host.yaml"));
+                Assert.Contains("trace_agent_url: \"http://localhost:8126\"", aiUsageYaml);
+                Assert.Contains("chrome_extension_id: \"gkmbhgbippkmmmidcikijiblbagbjgjj\"", aiUsageYaml);
+
+                var manifest = File.ReadAllText(AiUsageManifestPath(projectLocation));
+                Assert.Contains("\"name\": \"com.ai_prompt_logger.native_host\"", manifest);
+                Assert.Contains("\"path\": \"" + Path.Combine(projectLocation, "bin", "agent", "ai-prompt-logger-native-host.exe").Replace("\\", "\\\\") + "\"", manifest);
+                Assert.Contains("\"chrome-extension://gkmbhgbippkmmmidcikijiblbagbjgjj/\"", manifest);
+            });
+        }
+
+        [Theory]
+        [InlineAutoData]
+        public void WriteConfig_Should_Generate_AiUsageNativeHostConfig_With_DatadogYaml_Apm_Port(Mock<ISession> sessionMock)
+        {
+            WithTempInstallFolders((configFolder, projectLocation) =>
+            {
+                File.WriteAllText(Path.Combine(configFolder, "datadog.yaml.example"), "api_key:\n");
+                File.WriteAllText(
+                    Path.Combine(configFolder, "datadog.yaml"),
+                    "apm_config:\n  enabled: true\n  receiver_port: 8136\n");
+                WriteAiUsageNativeHostExample(configFolder);
+                sessionMock.Setup(session => session["APPLICATIONDATADIRECTORY"]).Returns(configFolder);
+                sessionMock.Setup(session => session["PROJECTLOCATION"]).Returns(projectLocation);
+
+                var result = InvokeWriteConfig(sessionMock.Object);
+
+                Assert.Equal(ActionResult.Success, result);
+                var aiUsageYaml = File.ReadAllText(Path.Combine(configFolder, "ai_usage_native_host.yaml"));
+                Assert.Contains("trace_agent_url: \"http://localhost:8136\"", aiUsageYaml);
+            });
+        }
+
+        [Theory]
+        [InlineAutoData]
+        public void WriteConfig_Should_Not_Overwrite_Existing_AiUsageNativeHostConfig(Mock<ISession> sessionMock)
+        {
+            WithTempInstallFolders((configFolder, projectLocation) =>
+            {
+                const string existingAiUsageConfig = "trace_agent_url: \"http://localhost:9999\"\n";
+                File.WriteAllText(Path.Combine(configFolder, "datadog.yaml.example"), "api_key:\n");
+                File.WriteAllText(
+                    Path.Combine(configFolder, "datadog.yaml"),
+                    "apm_config:\n  receiver_port: 8136\n");
+                WriteAiUsageNativeHostExample(configFolder);
+                File.WriteAllText(Path.Combine(configFolder, "ai_usage_native_host.yaml"), existingAiUsageConfig);
+                sessionMock.Setup(session => session["APPLICATIONDATADIRECTORY"]).Returns(configFolder);
+                sessionMock.Setup(session => session["PROJECTLOCATION"]).Returns(projectLocation);
+
+                var result = InvokeWriteConfig(sessionMock.Object);
+
+                Assert.Equal(ActionResult.Success, result);
+                Assert.Equal(existingAiUsageConfig, File.ReadAllText(Path.Combine(configFolder, "ai_usage_native_host.yaml")));
+            });
+        }
+
+        private static ActionResult InvokeWriteConfig(ISession session)
+        {
+            var method = typeof(ConfigCustomActions).GetMethod(
+                "WriteConfig",
+                BindingFlags.NonPublic | BindingFlags.Static,
+                null,
+                new[] { typeof(ISession) },
+                null);
+            return (ActionResult)method.Invoke(null, new object[] { session });
+        }
+
+        private static void WithTempInstallFolders(Action<string, string> action)
+        {
+            var tempRoot = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            var configFolder = Path.Combine(tempRoot, "programdata", "Datadog");
+            var projectLocation = Path.Combine(tempRoot, "programfiles", "Datadog Agent");
+            Directory.CreateDirectory(configFolder);
+            Directory.CreateDirectory(projectLocation);
+            try
+            {
+                action(configFolder, projectLocation);
+            }
+            finally
+            {
+                Directory.Delete(tempRoot, recursive: true);
+            }
+        }
+
+        private static string AiUsageManifestPath(string projectLocation)
+        {
+            return Path.Combine(projectLocation, "bin", "agent", "dist", "com.ai_prompt_logger.native_host.json");
+        }
+
+        private static void WriteAiUsageNativeHostExample(string configFolder)
+        {
+            File.WriteAllText(
+                Path.Combine(configFolder, "ai_usage_native_host.yaml.example"),
+                "trace_agent_url: \"http://localhost:8126\"\n" +
+                "evp_proxy_api_version: 2\n" +
+                "logs_evp_subdomain: \"http-intake.logs\"\n" +
+                "chrome_extension_id: \"gkmbhgbippkmmmidcikijiblbagbjgjj\"\n");
         }
     }
 }

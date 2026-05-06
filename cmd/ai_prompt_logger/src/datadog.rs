@@ -119,6 +119,15 @@ impl DatadogClient {
     }
 
     fn yaml_config_path() -> Option<PathBuf> {
+        if let Some(program_data) = std::env::var_os("ProgramData") {
+            let program_data_config = PathBuf::from(program_data)
+                .join("Datadog")
+                .join(CONFIG_BASENAME);
+            if program_data_config.is_file() {
+                return Some(program_data_config);
+            }
+        }
+
         let install_root = Self::install_root_from_exe()?;
         let etc_dd = install_root
             .join("etc")

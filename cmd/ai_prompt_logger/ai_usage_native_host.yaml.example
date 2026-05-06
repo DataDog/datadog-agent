@@ -20,6 +20,7 @@ evp_proxy_api_version: 2
 # Logs intake subdomain header (same role as DD_LOGS_EVP_SUBDOMAIN).
 logs_evp_subdomain: "http-intake.logs"
 
-# Chrome extension ID for Native Messaging host registration. When the installer exposes
-# DD_AI_USAGE_CHROME_EXTENSION_ID, that value is applied here; otherwise set below.
-# chrome_extension_id: ""
+# Chrome extension ID for Native Messaging host registration. Default targets the
+# official AI usage extension; override per environment if you ship a private build.
+# On macOS, DD_AI_USAGE_CHROME_EXTENSION_ID at install time still wins over this value.
+chrome_extension_id: "gkmbhgbippkmmmidcikijiblbagbjgjj"

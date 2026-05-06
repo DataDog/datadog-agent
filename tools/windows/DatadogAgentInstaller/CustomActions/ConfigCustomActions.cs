@@ -16,9 +16,27 @@ namespace Datadog.CustomActions
 {
     public class ConfigCustomActions
     {
+        private const string AiUsageNativeHostConfigName = "ai_usage_native_host.yaml";
+        private const string AiUsageNativeHostName = "com.ai_prompt_logger.native_host";
+        private const string DefaultAiUsageChromeExtensionId = "gkmbhgbippkmmmidcikijiblbagbjgjj";
+
         /// <summary>
         /// Subset of the Datadog config file that we are going to read.
         /// </summary>
+        // ReSharper disable once ArrangeTypeMemberModifiers
+        class ApmConfig
+        {
+            // ReSharper disable once UnusedAutoPropertyAccessor.Local
+            public int? ReceiverPort { get; set; }
+        }
+
+        // ReSharper disable once ArrangeTypeMemberModifiers
+        class AiUsageNativeHostConfig
+        {
+            // ReSharper disable once UnusedAutoPropertyAccessor.Local
+            public string ChromeExtensionId { get; set; }
+        }
+
         // ReSharper disable once ArrangeTypeMemberModifiers
         class DatadogConfig
         {
@@ -26,6 +44,8 @@ namespace Datadog.CustomActions
             public string ApiKey { get; set; }
             // ReSharper disable once UnusedAutoPropertyAccessor.Local
             public string Site { get; set; }
+            // ReSharper disable once UnusedAutoPropertyAccessor.Local
+            public ApmConfig ApmConfig { get; set; }
         }
 
         private static ActionResult ReadConfig(ISession session)
@@ -340,9 +360,100 @@ namespace Datadog.CustomActions
             return yaml;
         }
 
+        private static int ReadAgentReceiverPort(string configFolder)
+        {
+            const int defaultPort = 8126;
+            var datadogYamlPath = Path.Combine(configFolder, "datadog.yaml");
+            if (!File.Exists(datadogYamlPath))
+            {
+                return defaultPort;
+            }
+
+            try
+            {
+                using var input = new StreamReader(datadogYamlPath);
+                var deserializer = new DeserializerBuilder()
+                    .IgnoreUnmatchedProperties()
+                    .WithNamingConvention(UnderscoredNamingConvention.Instance)
+                    .Build();
+                var cfg = deserializer.Deserialize<DatadogConfig>(input);
+                return cfg?.ApmConfig?.ReceiverPort ?? defaultPort;
+            }
+            catch
+            {
+                return defaultPort;
+            }
+        }
+
+        private static string ReadAiUsageChromeExtensionId(string configFolder)
+        {
+            var aiUsageNativeHostYamlPath = Path.Combine(configFolder, AiUsageNativeHostConfigName);
+            if (!File.Exists(aiUsageNativeHostYamlPath))
+            {
+                return DefaultAiUsageChromeExtensionId;
+            }
+
+            try
+            {
+                using var input = new StreamReader(aiUsageNativeHostYamlPath);
+                var deserializer = new DeserializerBuilder()
+                    .IgnoreUnmatchedProperties()
+                    .WithNamingConvention(UnderscoredNamingConvention.Instance)
+                    .Build();
+                var cfg = deserializer.Deserialize<AiUsageNativeHostConfig>(input);
+                return string.IsNullOrEmpty(cfg?.ChromeExtensionId)
+                    ? DefaultAiUsageChromeExtensionId
+                    : cfg.ChromeExtensionId;
+            }
+            catch
+            {
+                return DefaultAiUsageChromeExtensionId;
+            }
+        }
+
+        private static string JsonEscape(string value)
+        {
+            return value
+                .Replace("\\", "\\\\")
+                .Replace("\"", "\\\"");
+        }
+
+        private static void WriteAiUsageNativeMessagingManifest(string projectLocation, string configFolder)
+        {
+            var manifestDir = Path.Combine(projectLocation, "bin", "agent", "dist");
+            Directory.CreateDirectory(manifestDir);
+
+            var hostExe = Path.Combine(projectLocation, "bin", "agent", "ai-prompt-logger-native-host.exe");
+            var extensionId = ReadAiUsageChromeExtensionId(configFolder);
+            var manifestPath = Path.Combine(manifestDir, $"{AiUsageNativeHostName}.json");
+
+            var manifest = "{\n" +
+                           $"  \"name\": \"{AiUsageNativeHostName}\",\n" +
+                           "  \"description\": \"Datadog AI usage native messaging host\",\n" +
+                           $"  \"path\": \"{JsonEscape(hostExe)}\",\n" +
+                           "  \"type\": \"stdio\",\n" +
+                           "  \"allowed_origins\": [\n" +
+                           $"    \"chrome-extension://{JsonEscape(extensionId)}/\"\n" +
+                           "  ]\n" +
+                           "}\n";
+
+            File.WriteAllText(manifestPath, manifest);
+        }
+
+        private static void GrantAiUsageNativeHostConfigReadAccess(string configPath)
+        {
+            var security = File.GetAccessControl(configPath);
+            security.AddAccessRule(new FileSystemAccessRule(
+                new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null),
+                FileSystemRights.Read,
+                AccessControlType.Allow));
+            File.SetAccessControl(configPath, security);
+        }
+
         private static ActionResult WriteConfig(ISession session)
         {
             var configFolder = session.Property("APPLICATIONDATADIRECTORY");
+            var projectLocation = session.Property("PROJECTLOCATION");
             try
             {
                 var copyFileFn = new Action<string>(c => File.Copy(c + ".example", c));
@@ -376,6 +487,31 @@ namespace Datadog.CustomActions
                                     output.Write(yaml);
                                 })
                             }
+                        })
+                        .Concat(new[]
+                        {
+                            new
+                            {
+                                Path = AiUsageNativeHostConfigName,
+                                CreateFn = new Action<string>(c =>
+                                {
+                                    string yaml;
+                                    using (var input = new StreamReader(Path.Combine(configFolder, $"{AiUsageNativeHostConfigName}.example")))
+                                    {
+                                        yaml = input.ReadToEnd();
+                                    }
+
+                                    var port = ReadAgentReceiverPort(configFolder);
+                                    yaml = Regex.Replace(
+                                        yaml,
+                                        "^[ #]*trace_agent_url:.*$",
+                                        $"trace_agent_url: \"http://localhost:{port}\"",
+                                        RegexOptions.Multiline);
+
+                                    using var output = new StreamWriter(c);
+                                    output.Write(yaml);
+                                })
+                            }
                         });
 
                 foreach (var c in configFiles)
@@ -397,7 +533,13 @@ namespace Datadog.CustomActions
                         session.Log($"{configPath}.example doesn't exists.");
                     }
 
+                    if (c.Path == AiUsageNativeHostConfigName && File.Exists(configPath))
+                    {
+                        GrantAiUsageNativeHostConfigReadAccess(configPath);
+                    }
                 }
+
+                WriteAiUsageNativeMessagingManifest(projectLocation, configFolder);
             }
             catch (Exception e)
             {

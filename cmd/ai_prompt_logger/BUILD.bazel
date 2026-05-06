@@ -4,11 +4,17 @@ load("@rules_rust//rust:defs.bzl", "rust_binary")
 
 package(default_visibility = ["//visibility:public"])
 
+_MACOS_OR_WINDOWS = select({
+    "@platforms//os:macos": [],
+    "@platforms//os:windows": [],
+    "//conditions:default": ["@platforms//:incompatible"],
+})
+
 rust_binary(
     name = "ai-prompt-logger-native-host",
     srcs = glob(["src/**/*.rs"]),
     edition = "2024",
-    target_compatible_with = ["@platforms//os:macos"],
+    target_compatible_with = _MACOS_OR_WINDOWS,
     deps = [
         "@crates//:anyhow",
         "@crates//:chrono",
@@ -21,16 +27,30 @@ rust_binary(
 )
 
 pkg_files(
-    name = "native_host_files",
+    name = "native_host_files_macos",
     srcs = [":ai-prompt-logger-native-host"],
     attributes = pkg_attributes(
         mode = "0755",
     ),
     prefix = "embedded/bin",
+    target_compatible_with = ["@platforms//os:macos"],
+    visibility = ["//packages:__subpackages__"],
+)
+
+pkg_files(
+    name = "native_host_files_windows",
+    srcs = [":ai-prompt-logger-native-host"],
+    prefix = "bin/agent",
+    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//packages:__subpackages__"],
 )
 
 pkg_install(
     name = "install",
-    srcs = [":native_host_files"],
+    srcs = select({
+        "@platforms//os:macos": [":native_host_files_macos"],
+        "@platforms//os:windows": [":native_host_files_windows"],
+        "//conditions:default": [],
+    }),
+    target_compatible_with = _MACOS_OR_WINDOWS,
 )
