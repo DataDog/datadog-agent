@@ -10,7 +10,9 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/cmd/process-agent/flags",
     visibility = ["//visibility:public"],
-    deps = select({
+    deps = [
+        "//pkg/util/defaultpaths",
+    ] + select({
         "@rules_go//go/platform:windows": [
             "//pkg/util/winutil",
         ],
