@@ -105,6 +105,9 @@ type AutoConfig struct {
 }
 
 const (
+	// trialFailureThreshold is the number of consecutive failures of a
+	// trial-mode (discovery) check that triggers unscheduling.
+	trialFailureThreshold = 5
 	// wmetaCheckInitialInterval is the initial interval to check if wmeta is ready
 	wmetaCheckInitialInterval = 20 * time.Millisecond
 	// wmetaCheckMaxInterval is the maximum interval to check if wmeta is ready
@@ -218,7 +221,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		serviceListenerFactories: make(map[string]listeners.ServiceListenerFactory),
 		providerCatalog:          make(map[string]providerTypes.ConfigProviderFactory),
 		wmeta:                    wmeta,
-		trialRegistry:            newTrialRegistry(5),
+		trialRegistry:            newTrialRegistry(trialFailureThreshold),
 		taggerComp:               taggerComp,
 		logs:                     logs,
 		filterStore:              filterStore,
@@ -781,6 +784,7 @@ func (ac *AutoConfig) RecordTrialResult(id checkid.ID, ok bool) {
 func (ac *AutoConfig) unscheduleCheckByID(id checkid.ID) {
 	cfg, ok := ac.cfgMgr.findConfigByCheckID(id)
 	if !ok {
+		log.Warnf("autodiscovery: trial check %s past failure threshold but no scheduled config found", id)
 		return
 	}
 	changes := integration.ConfigChanges{Unschedule: []integration.Config{cfg}}
