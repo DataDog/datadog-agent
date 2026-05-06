@@ -1,11 +1,10 @@
 ---
 name: create-core-check
-description: Create a new Go core check that collects metrics and sends them to Datadog
-allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
-argument-hint: "[check-name]"
+description: "Scaffolds a new Go core check for the Datadog Agent that collects metrics, service checks, or events. Use when the user asks to create a new agent check, add a custom core check, scaffold a Go metric collector, or build a new Datadog Agent integration."
+metadata:
+  allowed-tools: "Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion"
+  argument-hint: "[check-name]"
 ---
-
-Create a new Go-based core check for the Datadog Agent. Core checks collect metrics, service checks, or events and send them to Datadog at regular intervals.
 
 ## Instructions
 
@@ -133,36 +132,6 @@ Follow the test patterns from the reference file read in Step 2. The standard te
    ```
 
 4. Report the results to the user.
-
-## Sender Methods Reference
-
-The sender (`c.GetSender()`) provides these methods for submitting data:
-
-| Method | Description |
-|---|---|
-| `Gauge(metric, value, hostname, tags)` | Submit a gauge metric |
-| `Rate(metric, value, hostname, tags)` | Submit a rate metric |
-| `Count(metric, value, hostname, tags)` | Submit a count metric |
-| `MonotonicCount(metric, value, hostname, tags)` | Submit a monotonic count |
-| `Histogram(metric, value, hostname, tags)` | Submit a histogram metric |
-| `Distribution(metric, value, hostname, tags)` | Submit a distribution metric |
-| `ServiceCheck(name, status, hostname, tags, message)` | Submit a service check |
-| `Event(event)` | Submit an event |
-| `Commit()` | Flush all submitted data — **must be called at end of Run()** |
-
-- Pass `""` for hostname to use the agent's default hostname.
-- Pass `nil` for tags if no tags are needed.
-- Service check statuses: `servicecheck.ServiceCheckOK`, `ServiceCheckWarning`, `ServiceCheckCritical`, `ServiceCheckUnknown` (from `pkg/metrics/servicecheck`).
-
-## Important Notes
-
-- `CheckBase` provides default implementations for most `Check` interface methods. You only need to override `Run()` and optionally `Configure()`, `Stop()`, and `Interval()`.
-- `CommonConfigure` handles standard configuration: collection interval (`min_collection_interval`), custom tags, service tag, etc.
-- `FinalizeCheckServiceTag()` must be called after `CommonConfigure` to apply the service tag to the sender.
-- Always call `sender.Commit()` at the end of `Run()` to flush data.
-- For multi-instance checks, `BuildID()` must be called **before** `CommonConfigure()`.
-- The `option.None[func() check.Check]()` pattern is used for platform stubs — the loader skips checks with no factory.
-- `integration.FakeConfigHash` is the constant to use in tests for the config digest parameter.
 
 ## Usage
 

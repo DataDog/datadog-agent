@@ -1,9 +1,10 @@
 ---
 name: create-pr
-description: Create a pull request for the current branch with proper labels and description
-disable-model-invocation: true
-allowed-tools: Bash, Read, Glob
-argument-hint: "[--real] [additional labels...]"
+description: "Creates a pull request for the current branch with proper labels, conventional commit title, and Datadog PR template. Use when the user asks to open a PR, submit code for review, create a pull request, or push changes for merging."
+metadata:
+  disable-model-invocation: true
+  allowed-tools: "Bash, Read, Glob"
+  argument-hint: "[--real] [additional labels...]"
 ---
 
 Create a pull request for the current branch following the Datadog Agent contributing guidelines.
@@ -38,17 +39,6 @@ Create a pull request for the current branch following the Datadog Agent contrib
    - **Motivation**: A reason why the change is made. Point to an issue if applicable. Include drawbacks or tradeoffs if any.
    - **Describe how you validated your changes**: How you validated the change (tests added/run, benchmarks, manual testing). Only needed when testing included work not covered by test suites.
    - **Additional Notes**: Any extra context, links to predecessor PRs if part of a chain, notes that make code understanding easier. **Only include this section if there is genuinely useful context to add** — omit it entirely rather than filling it with filler.
-
-## PR Description Guidelines (from CONTRIBUTING.md)
-
-The PR description should incorporate everything reviewers and future maintainers need:
-- A description of what is changed
-- A reason why the change is made (pointing to an issue is a good reason)
-- When testing had to include work not covered by test suites, a description of how you validated your change
-- Any relevant benchmarks
-- Additional notes that make code understanding easier
-- If part of a chain of PRs, point to the predecessors
-- If there are drawbacks or tradeoffs, raise them
 
 ## Example
 
