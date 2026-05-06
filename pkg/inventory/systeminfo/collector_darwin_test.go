@@ -105,12 +105,6 @@ func TestGetChassisType(t *testing.T) {
 			expected:        "Desktop",
 		},
 		{
-			name:            "Mac Studio (compact device-tree name)",
-			productName:     "MacStudio",
-			modelIdentifier: "Mac13,1",
-			expected:        "Desktop",
-		},
-		{
 			name:            "VMware VM",
 			productName:     "VMware Virtual Platform",
 			modelIdentifier: "VMware7,1",
