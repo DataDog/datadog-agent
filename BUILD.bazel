@@ -691,13 +691,8 @@ exports_files(glob(
 # gazelle:exclude pkg/snmp/snmpparse
 # gazelle:exclude pkg/status/clusteragent
 # gazelle:exclude pkg/status/collector
-# gazelle:exclude pkg/status/endpoints
-# gazelle:exclude pkg/status/httpproxy
-# gazelle:exclude pkg/status/jmx
-# gazelle:exclude pkg/status/render
 # gazelle:exclude pkg/status/status.go
 # gazelle:exclude pkg/status/status_test.go
-# gazelle:exclude pkg/status/systemprobe
 # gazelle:exclude pkg/status/types.go
 # gazelle:exclude pkg/system-probe/api/module
 # gazelle:exclude pkg/trace/otel/integration
@@ -718,9 +713,6 @@ exports_files(glob(
 # gazelle:exclude pkg/util/crashreport
 # gazelle:exclude pkg/util/docker
 # gazelle:exclude pkg/util/ec2/tags
-# gazelle:exclude pkg/util/ecs/metadata/v1
-# gazelle:exclude pkg/util/ecs/metadata/v2
-# gazelle:exclude pkg/util/ecs/metadata/v3or4
 # gazelle:exclude pkg/util/fargate
 # gazelle:exclude pkg/util/kernel/headers
 # gazelle:exclude pkg/util/kernel/testdata
