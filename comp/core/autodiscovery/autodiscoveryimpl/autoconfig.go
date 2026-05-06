@@ -97,6 +97,7 @@ type AutoConfig struct {
 	filterStore              workloadfilter.Component
 	telemetryStore           *acTelemetry.Store
 	healthPlatform           option.Option[healthplatformdef.Component]
+	trialRegistry            *trialRegistry
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
@@ -217,6 +218,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		serviceListenerFactories: make(map[string]listeners.ServiceListenerFactory),
 		providerCatalog:          make(map[string]providerTypes.ConfigProviderFactory),
 		wmeta:                    wmeta,
+		trialRegistry:            newTrialRegistry(5),
 		taggerComp:               taggerComp,
 		logs:                     logs,
 		filterStore:              filterStore,
@@ -761,6 +763,28 @@ func (ac *AutoConfig) applyChanges(changes integration.ConfigChanges) {
 		}
 	}
 	ac.schedulerController.ApplyChanges(changes)
+}
+
+// RecordTrialResult is called by the runner after each trial-mode check run
+// with the run outcome. If consecutive failures reach the internal threshold,
+// the check is unscheduled.
+func (ac *AutoConfig) RecordTrialResult(id checkid.ID, ok bool) {
+	if !ac.trialRegistry.recordResult(id, ok) {
+		return
+	}
+	ac.trialRegistry.forget(id)
+	ac.unscheduleCheckByID(id)
+}
+
+// unscheduleCheckByID finds the scheduled config corresponding to id and
+// unschedules it via the normal ConfigChanges path.
+func (ac *AutoConfig) unscheduleCheckByID(id checkid.ID) {
+	cfg, ok := ac.cfgMgr.findConfigByCheckID(id)
+	if !ok {
+		return
+	}
+	changes := integration.ConfigChanges{Unschedule: []integration.Config{cfg}}
+	ac.applyChanges(changes)
 }
 
 func (ac *AutoConfig) deleteMappingsOfCheckIDsWithSecrets(configs []integration.Config) {

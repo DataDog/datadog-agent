@@ -36,4 +36,8 @@ type Component interface {
 	// TODO (component): once cluster agent uses the API component remove this function
 	GetConfigCheck() integration.ConfigCheckResponse
 	GetHealthPlatform() healthplatformdef.Component
+	// RecordTrialResult records the outcome of a trial-mode (discovery) check
+	// run. When consecutive failures reach the internal threshold, the check
+	// is unscheduled.
+	RecordTrialResult(id checkid.ID, ok bool)
 }

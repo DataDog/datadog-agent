@@ -76,6 +76,8 @@ func (n *noopAutoConfig) GetHealthPlatform() healthplatformdef.Component {
 	return nil
 }
 
+func (n *noopAutoConfig) RecordTrialResult(checkid.ID, bool) {}
+
 func newAutoConfig() autodiscovery.Component {
 	return &noopAutoConfig{}
 }
