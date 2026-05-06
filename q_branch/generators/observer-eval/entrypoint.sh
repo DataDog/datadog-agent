@@ -106,10 +106,24 @@ kubectl patch serviceaccount default -n "$KUBE_NAMESPACE" \
 # Render agent values
 envsubst < /templates/agent-values.yaml.tmpl > "$OUTPUT_DIR/agent-values.yaml"
 
-# Post-renderer: fix imagePullPolicy: Never -> Always
-cat > "$OUTPUT_DIR/fix-pull-policy.sh" <<'FIXEOF'
+# Post-renderer: swap agent image to our observer build, fix pull policy, inject observer env vars
+cat > "$OUTPUT_DIR/fix-pull-policy.sh" <<FIXEOF
 #!/bin/sh
-sed 's/imagePullPolicy: Never/imagePullPolicy: Always/g'
+sed -e 's/imagePullPolicy: Never/imagePullPolicy: Always/g' \
+    -e 's|image: gcr.io/datadoghq/agent:7|image: $AGENT_IMAGE|g' \
+    -e '/DD_DOGSTATSD_NON_LOCAL_TRAFFIC/{
+a\\
+            - name: DD_OBSERVER_RECORDING_ENABLED\\
+              value: "true"\\
+            - name: DD_OBSERVER_ANALYSIS_ENABLED\\
+              value: "true"\\
+            - name: DD_OBSERVER_HIGH_FREQUENCY_SYSTEM_CHECKS_ENABLED\\
+              value: "true"\\
+            - name: DD_OBSERVER_COMPONENTS_SCRAPPY_COLLECTOR_ENABLED\\
+              value: "$SCRAPPY_ENABLED"\\
+            - name: DD_OBSERVER_COMPONENTS_SCRAPPY_COLLECTOR_OUTPUT_PATH\\
+              value: "/tmp/scrappy-collect.jsonl"
+}'
 FIXEOF
 chmod +x "$OUTPUT_DIR/fix-pull-policy.sh"
 
@@ -167,7 +181,9 @@ for EP_SPEC in "${EP_LIST[@]}"; do
     echo "No DinD — expecting pre-built images in $GAR_REGISTRY"
   fi
 
-  # 2. Install episode chart
+  # 2. Install episode chart with agent.enabled=true. The post-renderer swaps
+  # the chart's hardcoded agent image with our observer build, so the SAME agent
+  # that receives DogStatsD/APM/logs also runs the observer + scrappy collector.
   EP_RELEASE=""
   CHART_TARBALL="$EP_DIR/chart.tar.gz"
   if [ -f "$CHART_TARBALL" ]; then
@@ -184,7 +200,7 @@ for EP_SPEC in "${EP_LIST[@]}"; do
 
     # Dry-run first to see rendered manifests
     helm install "$EP_RELEASE" "$CHART_DIR" \
-      --set agent.enabled=false \
+      --set agent.enabled=true \
       --set imageRegistry="${GAR_REGISTRY:-}" \
       --set namespace="$KUBE_NAMESPACE" \
       --set datadog.apiKey="REDACTED" \
@@ -199,7 +215,7 @@ for EP_SPEC in "${EP_LIST[@]}"; do
     # No --wait: episode services may intentionally be degraded (503, crash-loops).
     # play-episode.sh handles its own readiness orchestration.
     if ! helm install "$EP_RELEASE" "$CHART_DIR" \
-      --set agent.enabled=false \
+      --set agent.enabled=true \
       --set imageRegistry="${GAR_REGISTRY:-}" \
       --set namespace="$KUBE_NAMESPACE" \
       --set datadog.apiKey="$DD_API_KEY" \
@@ -222,20 +238,6 @@ for EP_SPEC in "${EP_LIST[@]}"; do
     done
     kubectl get pods -n "$KUBE_NAMESPACE" -o wide || true
   fi
-
-  # 3. Install agent via Datadog helm chart (DaemonSet)
-  echo "Installing agent via helm chart (DaemonSet)..."
-  echo "  Image: $AGENT_IMAGE"
-  echo "  Scrappy: $SCRAPPY_ENABLED, Detectors: $DETECTORS_ENABLED"
-
-  helm upgrade --install datadog-agent datadog/datadog \
-    -f "$OUTPUT_DIR/agent-values.yaml" \
-    -n "$KUBE_NAMESPACE" \
-    --wait --timeout 5m || {
-    echo "--- Agent install FAILED. Diagnosing... ---"
-    kubectl get pods -n "$KUBE_NAMESPACE" -o wide 2>/dev/null || true
-    kubectl get events -n "$KUBE_NAMESPACE" --sort-by='.lastTimestamp' 2>/dev/null | tail -20 || true
-  }
 
   # 4. Run play-episode.sh
   PLAY_SCRIPT="${EPISODE_CHART_DIR:-/episodes}/$EPISODE/play-episode.sh"
@@ -270,12 +272,8 @@ for EP_SPEC in "${EP_LIST[@]}"; do
 
     # Start background artifact collector — copies scrappy/parquet from agent pod
     # every 60s while the episode runs. Protects against vcluster teardown race.
-    # Find the DaemonSet agent pod (not cluster-agent, not operator)
-    AGENT_POD_FOR_BG=""
-    for sel in "app.kubernetes.io/name=datadog-agent-agent" "app=datadog-agent"; do
-      AGENT_POD_FOR_BG=$(kubectl get pod -n "$KUBE_NAMESPACE" -l "$sel" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-      [ -n "$AGENT_POD_FOR_BG" ] && break
-    done
+    # Find the agent pod (chart's agent, now running our observer binary)
+    AGENT_POD_FOR_BG=$(kubectl get pod -n "$KUBE_NAMESPACE" -l app=datadog-agent -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
     if [ -n "$AGENT_POD_FOR_BG" ]; then
       (
         while true; do
@@ -307,6 +305,10 @@ for EP_SPEC in "${EP_LIST[@]}"; do
     # Stop background collector
     [ -n "${BG_COLLECTOR_PID:-}" ] && kill "$BG_COLLECTOR_PID" 2>/dev/null || true
 
+    # Copy episode timeline to artifact root (gs-flow only serves flat files)
+    TIMELINE="$OUTPUT_DIR/results/${SCENARIO}-1.json"
+    [ -f "$TIMELINE" ] && cp "$TIMELINE" "$OUTPUT_DIR/episode-timeline.json"
+
     # Capture agent logs (includes scrappy debug output on stderr)
     if [ -n "${AGENT_POD_FOR_BG:-}" ]; then
       echo "--- Agent logs (last 50 lines) ---"
@@ -321,7 +323,7 @@ for EP_SPEC in "${EP_LIST[@]}"; do
 
   # Try multiple label selectors (helm chart version differences)
   AGENT_POD=""
-  for selector in "app.kubernetes.io/name=datadog-agent-agent" "app=datadog-agent" "app.kubernetes.io/component=agent"; do
+  for selector in "app=datadog-agent" "app.kubernetes.io/name=datadog-agent-agent"; do
     AGENT_POD=$(kubectl get pod -n "$KUBE_NAMESPACE" -l "$selector" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
     if [ -n "$AGENT_POD" ]; then
       echo "Found agent pod: $AGENT_POD (selector: $selector)"
@@ -389,7 +391,7 @@ EOF
   # 6. Teardown episode + agent for next iteration
   echo "Tearing down..."
   [ -n "$EP_RELEASE" ] && helm uninstall "$EP_RELEASE" -n "$KUBE_NAMESPACE" --wait 2>/dev/null || true
-  helm uninstall datadog-agent -n "$KUBE_NAMESPACE" --wait 2>/dev/null || true
+  kubectl delete -f "$OUTPUT_DIR/agent-deployment.yaml" --wait 2>/dev/null || true
   kubectl wait --for=delete pod -l app=datadog-agent -n "$KUBE_NAMESPACE" --timeout=120s 2>/dev/null || true
 
   echo "=== Episode $EPISODE / $SCENARIO complete (${EP_DURATION}s, $EP_OUTCOME) ==="

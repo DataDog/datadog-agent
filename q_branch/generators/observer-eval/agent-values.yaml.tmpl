@@ -8,8 +8,8 @@ datadog:
     instrumentation:
       enabled: true
   logs:
-    enabled: true
-    containerCollectAll: true
+    enabled: ${LOGS_ENABLED}
+    containerCollectAll: ${LOGS_ENABLED}
   processAgent:
     enabled: true
     processCollection: true
@@ -23,12 +23,8 @@ datadog:
   env:
     - name: DD_OBSERVER_RECORDING_ENABLED
       value: "true"
-    - name: DD_OBSERVER_ANALYSIS_ENABLED
-      value: "true"
-    - name: DD_OBSERVER_HIGH_FREQUENCY_SYSTEM_CHECKS_ENABLED
-      value: "true"
-    - name: DD_OBSERVER_HIGH_FREQUENCY_CONTAINER_CHECKS_ENABLED
-      value: "true"
+    - name: DD_OBSERVER_HIGH_FREQUENCY_INTERVAL
+      value: "1s"
 
 agents:
   enabled: true
@@ -42,8 +38,6 @@ agents:
   useConfigMap: true
   customAgentConfig:
     observer:
-      analysis:
-        enabled: true
       recording:
         enabled: true
         parquet_output_dir: /tmp/observer-parquet
@@ -72,10 +66,10 @@ agents:
     agent:
       resources:
         requests:
-          memory: 512Mi
-          cpu: 250m
+          memory: 1500Mi
+          cpu: 500m
         limits:
-          memory: 1024Mi
+          memory: 3000Mi
 
 clusterAgent:
   enabled: true
@@ -87,4 +81,7 @@ clusterAgent:
     mutateUnlabelled: true
 
 clusterChecksRunner:
+  enabled: false
+
+datadog-operator:
   enabled: false
