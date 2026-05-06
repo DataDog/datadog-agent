@@ -8,13 +8,13 @@ package hfrunnerimpl
 import (
 	"context"
 
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	hfrunnerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/hfrunner/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmetadef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	hfrunnerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/hfrunner/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -98,9 +98,6 @@ func (h *hfrunnerComp) StartContainer(containerHandle observerdef.Handle) map[me
 		FilterStore: filterStore,
 		Tagger:      tagger,
 	})
-	if r == nil {
-		return nil
-	}
 	r.start()
 	pkglog.Info("[observer] high-frequency container check runner started (1s interval)")
 	h.lifecycle.Append(compdef.Hook{
