@@ -200,6 +200,9 @@ exports_files(glob(
 # gazelle:exclude comp/anomalydetection/recorder/fx-noop
 # gazelle:exclude comp/anomalydetection/recorder/impl
 # gazelle:exclude comp/anomalydetection/recorder/impl-noop
+# gazelle:exclude comp/anomalydetection/reporter/def
+# gazelle:exclude comp/anomalydetection/reporter/fx
+# gazelle:exclude comp/anomalydetection/reporter/impl
 # gazelle:exclude comp/otelcol/collector
 # gazelle:exclude comp/otelcol/collector-contrib/fx
 # gazelle:exclude comp/otelcol/collector-contrib/impl
