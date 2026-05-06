@@ -508,6 +508,7 @@ func getSharedFxOption() fx.Option {
 			})
 		}),
 		logs.Bundle(),
+		getObserverOptions(),
 		langDetectionClimpl.Module(),
 		metadata.Bundle(),
 		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),

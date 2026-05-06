@@ -79,7 +79,7 @@ type MessageMetadata struct {
 	Hostname           string
 	Origin             *Origin
 	Status             string
-	IngestionTimestamp int64
+	IngestionTimestamp int64 // In nanoseconds
 	// RawDataLen tracks the original size of the message content before any trimming/transformation.
 	// This is used when calculating the tailer offset - so this will NOT always be equal to `len(Content)`
 	// This is also used to track the original content size before the message is processed and encoded later
@@ -361,6 +361,36 @@ func (m *Message) Render() ([]byte, error) {
 	default:
 		return m.content, errors.New("unknown message state for rendering")
 	}
+}
+
+// Methods implementing observer.LogView for read-only observation.
+
+// GetStatus returns the message status.
+func (m *Message) GetStatus() string {
+	return m.MessageMetadata.GetStatus()
+}
+
+// GetTags returns the message processing tags.
+func (m *Message) GetTags() []string {
+	if m.Origin == nil {
+		return m.ProcessingTags
+	}
+	return m.Origin.Tags(m.ProcessingTags)
+}
+
+// GetHostname returns the message hostname.
+func (m *Message) GetHostname() string {
+	return m.Hostname
+}
+
+// GetTimestampMs returns the message ingestion timestamp in Unix milliseconds.
+func (m *Message) GetTimestampMs() int64 {
+	return m.IngestionTimestamp / 1000000
+}
+
+// GetTimestampUnixMilli returns the message ingestion timestamp in Unix milliseconds.
+func (m *Message) GetTimestampUnixMilli() int64 {
+	return m.IngestionTimestamp / 1000000
 }
 
 // StructuredContent stores enough information from a tailer to manipulate a
