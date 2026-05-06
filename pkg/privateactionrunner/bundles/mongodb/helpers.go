@@ -9,12 +9,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/url"
 	"strings"
 
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
+
+	"github.com/DataDog/datadog-agent/pkg/util/hostport"
 )
 
 func createMongoClientOptions(ctx context.Context, credentialTokens map[string]string) (*options.ClientOptions, *connstring.ConnString, error) {
@@ -90,7 +91,7 @@ func buildSRVConnectionURI(username, password, srvHost, database, authSource str
 func buildStandardConnectionURI(username, password, host, port, database, authSource, authMechanism string) (string, error) {
 	escapedUsername := url.QueryEscape(username)
 	escapedPassword := url.QueryEscape(password)
-	hostPort := net.JoinHostPort(host, port)
+	hostPort := hostport.Join(host, port)
 	escapedDatabase := url.QueryEscape(database)
 
 	connectionUri := fmt.Sprintf("mongodb://%v:%v@%s", escapedUsername, escapedPassword, hostPort)
