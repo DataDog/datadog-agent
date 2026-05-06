@@ -107,11 +107,11 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 	var stats loader.RuntimeStats
 	for {
 		stats = loader.RuntimeStats{}
-		perCoreStats := program.RuntimeStats()
-		for _, coreStats := range perCoreStats {
-			stats.HitCnt += coreStats.HitCnt
-			stats.ThrottledCnt += coreStats.ThrottledCnt
-			stats.CPU += coreStats.CPU
+		perProbeStats := program.RuntimeStats()
+		for _, probeStats := range perProbeStats {
+			stats.HitCnt += probeStats.HitCnt
+			stats.ThrottledCnt += probeStats.ThrottledCnt
+			stats.CPU += probeStats.CPU
 		}
 		if int(stats.ThrottledCnt) > 0 {
 			break

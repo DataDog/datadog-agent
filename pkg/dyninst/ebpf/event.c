@@ -366,26 +366,37 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
   return;
 }
 
-// Cumulative stats aggregated throughout probe lifetime.
+// Cumulative per-probe stats. ARRAY (not PERCPU_ARRAY) so we can size
+// it to num_probes and key by probe_id; updates use __sync atomics to
+// remain race-free across CPUs. Resized to num_probes at load time.
+struct {
+  __uint(type, BPF_MAP_TYPE_ARRAY);
+  __uint(max_entries, 0);
+  __type(key, uint32_t);
+  __type(value, stats_t);
+} stats_buf SEC(".maps");
+
+// Cumulative counter for hits whose attach cookie does not resolve to a
+// valid probe_params slot (should never happen in practice; surfaces
+// cookie misconfigurations). PERCPU since it's the slow/error path
+// only.
 struct {
   __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
   __uint(max_entries, 1);
   __type(key, uint32_t);
   __type(value, stats_t);
-} stats_buf SEC(".maps");
+} orphan_stats SEC(".maps");
 
 SEC("uprobe")
 int probe_run_with_cookie(struct pt_regs* regs) {
   uint64_t start_ns = bpf_ktime_get_ns();
 
-  stats_t* stats = bpf_map_lookup_elem(&stats_buf, &zero_uint32);
-  if (!stats) {
-    return 0;
-  }
-  stats->hit_cnt++;
-
   const uint64_t cookie = bpf_get_attach_cookie(regs);
   if (cookie >= num_probe_params) {
+    stats_t* orphan = bpf_map_lookup_elem(&orphan_stats, &zero_uint32);
+    if (orphan) {
+      orphan->hit_cnt++;
+    }
     return 0;
   }
   const probe_params_t* params = bpf_map_lookup_elem(&probe_params, &cookie);
@@ -393,13 +404,20 @@ int probe_run_with_cookie(struct pt_regs* regs) {
     return 0;
   }
 
+  uint32_t probe_id = params->probe_id;
+  stats_t* stats = bpf_map_lookup_elem(&stats_buf, &probe_id);
+  if (!stats) {
+    return 0;
+  }
+  __sync_fetch_and_add(&stats->hit_cnt, 1);
+
   if (params->throttle_mode == THROTTLE_AT_START && should_throttle(params->throttler_idx, start_ns)) {
-    stats->throttled_cnt++;
+    __sync_fetch_and_add(&stats->throttled_cnt, 1);
   } else {
     probe_run(start_ns, params, regs);
   }
 
-  stats->cpu_ns += bpf_ktime_get_ns() - start_ns;
+  __sync_fetch_and_add(&stats->cpu_ns, bpf_ktime_get_ns() - start_ns);
   return 0;
 }
 

@@ -1147,10 +1147,12 @@ func handleHeartbeatCheck(sm *state, effects effectHandler) {
 }
 
 func checkCosts(sm *state, interval time.Duration, effects effectHandler) {
-	// Validate budget on every core independently.
-	var totalCostSPS []float64
-	var maxCostSPS []float64
-	var maxProg []*program
+	// Per-probe stats are aggregated across CPUs in BPF. Sum them
+	// per-program for the per-probe budget check, and across all
+	// programs for the all-probes budget check.
+	var totalCostSPS float64
+	var maxCostSPS float64 = -1
+	var maxProg *program
 	detachedAny := false
 	for _, prog := range sm.programs {
 		if prog.state != programStateLoaded {
@@ -1158,85 +1160,72 @@ func checkCosts(sm *state, interval time.Duration, effects effectHandler) {
 		}
 		proc, ok := sm.processes[prog.processID]
 		if !ok || proc.state != processStateAttached {
-			// Not attached.
 			continue
 		}
 		evaluateDropNotifyEviction(sm, prog)
-		perCoreStats := prog.loaded.loaded.RuntimeStats()
-		if len(prog.lastRuntimeStats) < len(perCoreStats) {
-			lastRuntimeStats := make([]loader.RuntimeStats, len(perCoreStats))
+		perProbeStats := prog.loaded.loaded.RuntimeStats()
+		if len(prog.lastRuntimeStats) < len(perProbeStats) {
+			lastRuntimeStats := make([]loader.RuntimeStats, len(perProbeStats))
 			copy(lastRuntimeStats, prog.lastRuntimeStats)
 			prog.lastRuntimeStats = lastRuntimeStats
 		}
-		for len(totalCostSPS) < len(perCoreStats) {
-			totalCostSPS = append(totalCostSPS, 0)
-			maxCostSPS = append(maxCostSPS, -1)
-			maxProg = append(maxProg, nil)
-		}
-		for core, stats := range perCoreStats {
-			lastStats := prog.lastRuntimeStats[core]
-			hits := stats.HitCnt - lastStats.HitCnt
-			execCost := stats.CPU - lastStats.CPU
+		var progCostSPS float64
+		var progHits uint64
+		var progExecCost time.Duration
+		for probeID, stats := range perProbeStats {
+			last := prog.lastRuntimeStats[probeID]
+			hits := stats.HitCnt - last.HitCnt
+			execCost := stats.CPU - last.CPU
+			prog.lastRuntimeStats[probeID] = stats
+
 			interruptCost := sm.breakerCfg.InterruptOverhead * time.Duration(hits)
-			prog.lastRuntimeStats[core] = stats
-
-			costSPS := (execCost + interruptCost).Seconds() / interval.Seconds()
-			totalCostSPS[core] += costSPS
-			if costSPS > maxCostSPS[core] {
-				maxCostSPS[core] = costSPS
-				maxProg[core] = prog
-			}
-			if costSPS > sm.breakerCfg.PerProbeCPULimit && proc.state == processStateAttached {
-				// Circuit breaker triggered for this probe, detach it.
-				prog.state = programStateDraining
-				prog.needsRecompilation = false
-				proc.state = processStateFailed
-				err := fmt.Errorf(
-					"probe exceeded CPU limit of %fcpus/s using %fcpus/s = %fcpus/s (exec) + %fcpus/s (%d interrupts) over %fs on core %d",
-					sm.breakerCfg.PerProbeCPULimit,
-					costSPS,
-					execCost.Seconds()/interval.Seconds(),
-					interruptCost.Seconds()/interval.Seconds(),
-					hits,
-					interval.Seconds(),
-					core,
-				)
-				effects.detachFromProcess(proc.attachedProgram, err)
-				proc.attachedProgram = nil
-				detachedAny = true
-				break
-			}
+			progCostSPS += (execCost + interruptCost).Seconds() / interval.Seconds()
+			progHits += hits
+			progExecCost += execCost
 		}
-	}
-
-	// Check if any core exceeded the total budget across all probes.
-	// If so, pick the most expensive probe on a core with highest total cost.
-	if len(totalCostSPS) == 0 {
-		return
-	}
-	{
-		maxCore := 0
-		for core, cost := range totalCostSPS {
-			if cost > totalCostSPS[maxCore] {
-				maxCore = core
-			}
+		totalCostSPS += progCostSPS
+		if progCostSPS > maxCostSPS {
+			maxCostSPS = progCostSPS
+			maxProg = prog
 		}
-		if !detachedAny && maxProg[maxCore] != nil && totalCostSPS[maxCore] > sm.breakerCfg.AllProbesCPULimit {
-			prog := maxProg[maxCore]
-			proc := sm.processes[prog.processID]
+		if progCostSPS > sm.breakerCfg.PerProbeCPULimit && proc.state == processStateAttached {
+			// Whole-program budget tripped — detach as before. (The
+			// per-probe enforcement that uses recompile-and-omit is
+			// added in a subsequent commit; this commit preserves
+			// existing program-level behavior with the new map shape.)
 			prog.state = programStateDraining
 			prog.needsRecompilation = false
 			proc.state = processStateFailed
+			interruptCost := sm.breakerCfg.InterruptOverhead * time.Duration(progHits)
 			err := fmt.Errorf(
-				"probes exceeded total CPU limit of %fcpus/s using %fcpus/s on core %d; detaching most expensive probe, that used %fcpus/s (mean over %fs)",
-				sm.breakerCfg.AllProbesCPULimit,
-				totalCostSPS[maxCore],
-				maxCore,
-				maxCostSPS[maxCore],
+				"probe exceeded CPU limit of %fcpus/s using %fcpus/s = %fcpus/s (exec) + %fcpus/s (%d interrupts) over %fs",
+				sm.breakerCfg.PerProbeCPULimit,
+				progCostSPS,
+				progExecCost.Seconds()/interval.Seconds(),
+				interruptCost.Seconds()/interval.Seconds(),
+				progHits,
 				interval.Seconds(),
 			)
 			effects.detachFromProcess(proc.attachedProgram, err)
+			proc.attachedProgram = nil
+			detachedAny = true
 		}
+	}
+
+	if !detachedAny && maxProg != nil && totalCostSPS > sm.breakerCfg.AllProbesCPULimit {
+		prog := maxProg
+		proc := sm.processes[prog.processID]
+		prog.state = programStateDraining
+		prog.needsRecompilation = false
+		proc.state = processStateFailed
+		err := fmt.Errorf(
+			"probes exceeded total CPU limit of %fcpus/s using %fcpus/s; detaching most expensive program, that used %fcpus/s (mean over %fs)",
+			sm.breakerCfg.AllProbesCPULimit,
+			totalCostSPS,
+			maxCostSPS,
+			interval.Seconds(),
+		)
+		effects.detachFromProcess(proc.attachedProgram, err)
 	}
 }
 
