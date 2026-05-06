@@ -646,21 +646,28 @@ func (c *collector) updateDiscoveredServicesMetric() {
 // cache, and returns the resulting event. The caller is responsible for
 // delivering the event (e.g. via processEventsCh or store.Notify).
 func (c *collector) collectProcessesOnce() *Event {
+	// fetch process data
 	procs, err := c.processProbe.ProcessesByPID(c.clock.Now().UTC(), false)
 	if err != nil {
 		log.Errorf("Error getting processes by pid: %v", err)
 		return nil
 	}
 
+	// some processes are in a container so we want to store the container_id for them
 	pidToCid := c.containerProvider.GetPidToCid(cacheValidityNoRT)
+	// Enrich processes with container IDs before diffing so that a CID
+	// change (e.g. becoming available after a race with the container
+	// runtime) is detected by processCacheDifference.
 	enrichProcessesWithContainerID(procs, pidToCid)
 
+	// categorize the processes into events for workloadmeta
 	createdProcs := processCacheDifference(procs, c.lastCollectedProcesses)
 	languages := c.detectLanguages(createdProcs)
 	wlmCreatedProcs := createdProcessesToWorkloadmetaProcesses(createdProcs, pidToCid, languages)
 
 	wlmDeletedProcs := c.findDeletedProcesses(procs)
 
+	// store latest collected processes
 	c.mux.Lock()
 	c.lastCollectedProcesses = procs
 	c.mux.Unlock()
