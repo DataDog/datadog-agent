@@ -6,12 +6,14 @@
 package autodiscoveryimpl
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"sync"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
@@ -115,12 +117,14 @@ type reconcilingConfigManager struct {
 
 	secretResolver secrets.Component
 	healthPlatform healthplatformdef.Component
+	discoverer     discoverer.Discoverer
 }
 
 var _ configManager = &reconcilingConfigManager{}
 
 // newReconcilingConfigManager creates a new, empty reconcilingConfigManager.
-func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component, staticConfigIndex *listeners.StaticConfigIndex) configManager {
+// disco may be nil; templates with Discovery set will be skipped if so.
+func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component, staticConfigIndex *listeners.StaticConfigIndex, disco discoverer.Discoverer) configManager {
 	return &reconcilingConfigManager{
 		activeConfigs:      map[string]integration.Config{},
 		activeServices:     map[string]serviceAndADIDs{},
@@ -131,6 +135,7 @@ func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatfor
 		staticConfigIndex:  staticConfigIndex,
 		secretResolver:     secretResolver,
 		healthPlatform:     healthPlatform,
+		discoverer:         disco,
 	}
 }
 
@@ -434,6 +439,46 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 // returns false.
 func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, bool) {
 	digest := tpl.Digest()
+
+	if tpl.Discovery != nil {
+		if cm.discoverer == nil {
+			msg := fmt.Sprintf("template %s has Discovery set but no discoverer is configured", tpl.Name)
+			log.Errorf("autodiscovery: %s", msg)
+			errorStats.setResolveWarning(tpl.Name, msg)
+			return tpl, false
+		}
+		result, ok := cm.discoverer.Discover(context.Background(), tpl.Name, svc)
+		if !ok {
+			msg := fmt.Sprintf("discover did not match for template %s and service %s", tpl.Name, svc.GetServiceID())
+			log.Debugf("autodiscovery: %s", msg)
+			errorStats.setResolveWarning(tpl.Name, msg)
+			return tpl, false
+		}
+		if len(result.Configs) == 0 {
+			return tpl, false
+		}
+		resolved := tpl
+		resolved.Discovery = nil
+		resolved.Instances = result.Configs[0].Instances
+		config, err := configresolver.Resolve(resolved, svc)
+		if err != nil {
+			msg := fmt.Sprintf("error resolving discovered config %s for service %s: %v", resolved.Name, svc.GetServiceID(), err)
+			errorStats.setResolveWarning(tpl.Name, msg)
+			cm.reportTemplateResolutionFailure(tpl, svc, err)
+			return resolved, false
+		}
+		resolvedConfig, err := decryptConfig(config, cm.secretResolver, digest)
+		if err != nil {
+			msg := fmt.Sprintf("error decrypting secrets in config %s for service %s: %v", resolved.Name, svc.GetServiceID(), err)
+			errorStats.setResolveWarning(tpl.Name, msg)
+			return config, false
+		}
+		errorStats.removeResolveWarnings(tpl.Name)
+		cm.clearTemplateResolutionFailure(tpl, svc)
+		return resolvedConfig, true
+	}
+
+	// Non-discovery templates: existing template-resolution path.
 	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
 		msg := fmt.Sprintf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)

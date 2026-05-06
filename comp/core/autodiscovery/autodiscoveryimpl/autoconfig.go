@@ -28,6 +28,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
@@ -206,7 +207,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		log.Infof("Health platform component not available. Issue reporting disabled for config providers.")
 	}
 	staticConfigIndex := listeners.NewStaticConfigIndex()
-	cfgMgr := newReconcilingConfigManager(secretResolver, hpComp, staticConfigIndex)
+	cfgMgr := newReconcilingConfigManager(secretResolver, hpComp, staticConfigIndex, discoverer.New(discoverer.NewPythonBridge()))
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
 		listenerCandidates:       make(map[string]*listenerCandidate),

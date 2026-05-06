@@ -545,7 +545,7 @@ func TestReconcilingConfigManagement(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	suite.Run(t, &ReconcilingConfigManagerSuite{
 		ConfigManagerSuite{factory: func() configManager {
-			return newReconcilingConfigManager(&mockResolver, nil, nil)
+			return newReconcilingConfigManager(&mockResolver, nil, nil, nil)
 		}},
 	})
 }
@@ -572,7 +572,7 @@ func TestStaticConfigIndexDedupOnReconcile(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	idx := listeners.NewStaticConfigIndex()
 
-	cm := newReconcilingConfigManager(&mockResolver, nil, idx)
+	cm := newReconcilingConfigManager(&mockResolver, nil, idx, nil)
 
 	// A service whose FilterTemplates drops any template whose Name has a
 	// static config in the shared index — this is the contract ProcessService
@@ -626,7 +626,7 @@ func TestStaticConfigIndexRefcountThroughConfigMgr(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	idx := listeners.NewStaticConfigIndex()
 
-	cm := newReconcilingConfigManager(&mockResolver, nil, idx)
+	cm := newReconcilingConfigManager(&mockResolver, nil, idx, nil)
 
 	staticRedis1 := integration.Config{Name: "redis", Instances: []integration.Data{integration.Data("port: 6379")}}
 	staticRedis2 := integration.Config{Name: "redis", Instances: []integration.Data{integration.Data("port: 6380")}}
@@ -653,7 +653,7 @@ func TestStaticConfigIndex_SkipsLogsOnlyConfigs(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	idx := listeners.NewStaticConfigIndex()
 
-	cm := newReconcilingConfigManager(&mockResolver, nil, idx)
+	cm := newReconcilingConfigManager(&mockResolver, nil, idx, nil)
 
 	logsOnly := integration.Config{
 		Name:       "redis",
@@ -672,7 +672,7 @@ func TestResolveTemplateForService_ReportsToHealthPlatform(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	hp := healthplatformmock.Mock(t)
 
-	cm := newReconcilingConfigManager(&mockResolver, hp, nil).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil, nil).(*reconcilingConfigManager)
 
 	tpl := integration.Config{
 		Name:          "postgres",
@@ -706,7 +706,7 @@ func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	hp := healthplatformmock.Mock(t)
 
-	cm := newReconcilingConfigManager(&mockResolver, hp, nil).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil, nil).(*reconcilingConfigManager)
 
 	tpl := integration.Config{
 		Name:          "redis",
