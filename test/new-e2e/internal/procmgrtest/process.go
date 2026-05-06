@@ -45,8 +45,7 @@ func WaitForRunningProcess(t *testing.T, executor CommandExecutor, processName, 
 			t.Logf("WaitForRunningProcess: describe command=%q err=%v\noutput:\n%s", describeCmd, err, out)
 			return false
 		}
-		st := fieldValue(out, "State")
-		if st != "Running" {
+		if st := fieldValue(out, "State"); st != "Running" {
 			t.Logf("WaitForRunningProcess: describe command=%q State=%q (want Running)\noutput:\n%s", describeCmd, st, out)
 			return false
 		}
