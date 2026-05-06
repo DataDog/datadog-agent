@@ -453,9 +453,13 @@ func (w *WinCertChk) collectLocalCertificates() ([]certInfo, []crlInfoCopy, stri
 	}
 	var certificates []certInfo
 	var crlInfo []crlInfoCopy
+	explicitStore := strings.TrimSpace(w.config.CertificateStore)
 	for _, store := range stores {
 		certs, crls, err := w.getCertificates(store, w.config.CertSubjects, w.config.EnableCRLMonitoring)
 		if err != nil {
+			if strings.EqualFold(store, explicitStore) {
+				return nil, nil, "", err
+			}
 			log.Errorf("Error collecting certificates from store %s: %v", store, err)
 			continue
 		}
@@ -500,9 +504,13 @@ func (w *WinCertChk) collectRemoteCertificates() ([]certInfo, []crlInfoCopy, str
 
 	var certificates []certInfo
 	var crlInfo []crlInfoCopy
+	explicitStore := strings.TrimSpace(w.config.CertificateStore)
 	for _, store := range stores {
 		certs, crls, collectErr := w.collectRemoteCertStore(remoteRegKey, store, w.config.CertSubjects, w.config.EnableCRLMonitoring)
 		if collectErr != nil {
+			if strings.EqualFold(store, explicitStore) {
+				return nil, nil, "", collectErr
+			}
 			log.Errorf("Error collecting certificates from remote store %s: %v", store, collectErr)
 			continue
 		}
