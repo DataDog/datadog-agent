@@ -466,7 +466,7 @@ Types:
         - Name: i
           Offset: 288
           Type: 2 BaseType uint32
-        - Name: n
+        - Name: "n"
           Offset: 292
           Type: 2 BaseType uint32
         - Name: c
@@ -851,7 +851,7 @@ Types:
         - Name: fn
           Offset: 0
           Type: 1 BaseType uintptr
-        - Name: n
+        - Name: "n"
           Offset: 8
           Type: 1 BaseType uintptr
         - Name: args
@@ -1213,7 +1213,7 @@ Types:
         - Name: targetpc
           Offset: 0
           Type: 1 BaseType uintptr
-        - Name: off
+        - Name: "off"
           Offset: 8
           Type: 2 BaseType uint32
         - Name: val

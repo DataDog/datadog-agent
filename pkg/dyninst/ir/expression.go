@@ -64,6 +64,14 @@ type DereferenceOp struct {
 
 	// ByteSize is the size in bytes to extract after dereferencing.
 	ByteSize uint32
+
+	// NullAsZero, when true, suppresses the nil-deref abort: on a null
+	// pointer the op writes ByteSize zero bytes at sm->offset and
+	// continues, instead of setting condition_nil_deref and aborting.
+	// Used by contains(map, key) so that contains(nil_map, k) evaluates
+	// to bool-false (the zero header passes through into SwissMapLookupOp,
+	// which detects dir_ptr == 0 and writes the bool).
+	NullAsZero bool
 }
 
 func (*DereferenceOp) irOp() {}
@@ -126,9 +134,18 @@ func (*SliceBoundsCheckOp) irOp() {}
 // scratch buffer at sm->offset contains the map header (already dereferenced).
 // The op computes the hash of the compile-time literal key using the per-map
 // seed and per-process hash secret, then probes the swiss table to find the
-// matching slot. On success the value element is written at sm->offset. On
-// failure (key not found or nil map) ExprStatusOOB is written and the
-// expression is aborted.
+// matching slot.
+//
+// Two modes are supported, selected by ExistenceOnly:
+//
+//   - Default (map index, ExistenceOnly=false): on success the value element
+//     is written at sm->offset; on nil map or key-not-found ExprStatusOOB
+//     is written and the expression is aborted.
+//   - Existence-only (contains(map, key), ExistenceOnly=true): on found,
+//     0x01 is written at sm->offset and the value dereference is skipped;
+//     on nil map or key-not-found, 0x00 is written and the op continues
+//     without setting OOB or aborting. sm->offset is left pointing at the
+//     one-byte bool, matching the leaf contract of ExprCmpEqBaseOp.
 type SwissMapLookupOp struct {
 	// KeyData is the literal key encoded for comparison.
 	// Base types: raw little-endian bytes (1–8 bytes).
@@ -139,12 +156,20 @@ type SwissMapLookupOp struct {
 	// a base type and compared by raw byte equality.
 	IsStringKey bool
 
+	// ExistenceOnly switches the op to contains(map, key) semantics: writes
+	// a one-byte bool at sm->offset (1 on found, 0 on nil map or absent),
+	// and skips the value dereference on key match. See the struct doc
+	// comment for full details.
+	ExistenceOnly bool
+
 	// KeyByteSize is the in-memory size of the key type in bytes.
 	// For base types: 1, 2, 4, or 8.
 	// For strings: 16 (the Go string header: ptr + len).
 	KeyByteSize uint8
 
 	// ValByteSize is the in-memory size of the value element in bytes.
+	// When ExistenceOnly is true this is set to 1 (the bool byte width)
+	// and the value dereference is skipped.
 	ValByteSize uint32
 
 	// Map header field offsets (from DWARF, vary by Go version).

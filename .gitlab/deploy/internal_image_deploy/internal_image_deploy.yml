@@ -19,6 +19,7 @@
     # Constant variables
     - export RELEASE_STAGING="true"
     - export DYNAMIC_BUILD_RENDER_RULES="agent-build-only"
+    - export IMAGES_GIT_REF="master"
     # Job specific variables
     - export BASE_RELEASE_TAG="${CI_COMMIT_REF_NAME//\//-}"
     - export RELEASE_TAG="${BASE_RELEASE_TAG}${RELEASE_TAG_SUFFIX}${RELEASE_TAG_COMPRESSION_SUFFIX}"
@@ -36,7 +37,16 @@
         TMPL_SRC_REPO="${TMPL_SRC_REPO}-nightly"
       fi
     - if [ "$BUCKET_BRANCH" = "dev" ]; then RELEASE_TAG="dev-${BASE_RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}${RELEASE_TAG_SUFFIX}${RELEASE_TAG_COMPRESSION_SUFFIX}"; fi
-    - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref master --timeout 3600 --variable IMAGE_VERSION --variable IMAGE_NAME --variable RELEASE_TAG --variable TMPL_SRC_IMAGE --variable TMPL_SRC_REPO --variable TMPL_ADP_VERSION --variable RELEASE_STAGING --variable RELEASE_PROD --variable DYNAMIC_BUILD_RENDER_RULES --variable APPS --variable BAZEL_TARGET --variable DDR --variable DDR_WORKFLOW_ID --variable TARGET_ENV --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+    - |
+      # TODO: Remove this workaround once JIT replication is reliable for these
+      # images, or once DataDog/images@master can dynamically configure the
+      # replication target per triggered pipeline.
+      if [ -z "$CI_COMMIT_TAG" ]; then
+        export IMAGES_GIT_REF="datadog-agent-staging-replication"
+        export RELEASE_STAGING="true"
+        export RELEASE_PROD=""
+      fi
+    - "dda inv pipeline.trigger-child-pipeline --project-name DataDog/images --git-ref ${IMAGES_GIT_REF} --timeout 3600 --variable IMAGE_VERSION --variable IMAGE_NAME --variable RELEASE_TAG --variable TMPL_SRC_IMAGE --variable TMPL_SRC_REPO --variable TMPL_ADP_VERSION --variable RELEASE_STAGING --variable RELEASE_PROD --variable DYNAMIC_BUILD_RENDER_RULES --variable APPS --variable BAZEL_TARGET --variable DDR --variable DDR_WORKFLOW_ID --variable TARGET_ENV --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
   retry: 2
 
 # -- binary specific variables --
