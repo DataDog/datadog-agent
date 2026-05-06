@@ -1223,8 +1223,20 @@ func checkCosts(sm *state, interval time.Duration, effects effectHandler) {
 
 			interruptCost := sm.breakerCfg.InterruptOverhead * time.Duration(hits)
 			costSPS := (execCost + interruptCost).Seconds() / interval.Seconds()
-			totalCostSPS += costSPS
 
+			// Skip probes already circuit-broken. Their cost is
+			// transient (the recompile will remove them) so do not
+			// charge it against the host-wide AllProbesCPULimit, and
+			// do not count them as candidates for that limit's victim
+			// either.
+			if def := prog.loaded.loaded.ProbeDefinition(uint32(probeID)); def != nil {
+				key := probeKey{id: def.GetID(), version: def.GetVersion()}
+				if _, broken := proc.circuitBrokenProbes[key]; broken {
+					continue
+				}
+			}
+
+			totalCostSPS += costSPS
 			if costSPS > sm.breakerCfg.PerProbeCPULimit {
 				err := fmt.Errorf(
 					"probe exceeded CPU limit of %fcpus/s using %fcpus/s (exec %v + %d interrupts at %v each over %v)",
@@ -1236,6 +1248,9 @@ func checkCosts(sm *state, interval time.Duration, effects effectHandler) {
 					interval,
 				)
 				tripProbe(effects, prog, proc, uint32(probeID), err)
+				// Subtract this probe's cost from the running total
+				// so the all-probes limit doesn't double-count it.
+				totalCostSPS -= costSPS
 				continue
 			}
 			if costSPS > maxCost.cost {
