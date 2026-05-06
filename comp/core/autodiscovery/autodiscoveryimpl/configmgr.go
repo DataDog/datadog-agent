@@ -371,7 +371,9 @@ func (cm *reconcilingConfigManager) getActiveServices() map[string]listeners.Ser
 // reconcileService calculates the current set of resolved templates for the
 // given service and calculates the difference from what is currently recorded
 // in cm.serviceResolutions.  It updates cm.serviceResolutions and returns the
-// changes.
+// changes.  As a side effect it also updates cm.pendingDiscovery via
+// updatePendingDiscovery to reflect whether any discovery templates for this
+// service still have outstanding probes.
 //
 // This method must be called with cm.m locked.
 func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.ConfigChanges {

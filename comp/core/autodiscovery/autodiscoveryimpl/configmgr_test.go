@@ -800,7 +800,8 @@ func TestPendingDiscoveryPrunedOnGiveUp(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	hp := healthplatformmock.Mock(t)
 	disco := newFakeDiscoverer()
-	// Discoverer reports the entry as NOT pending (i.e. given up).
+	disco.pending["docker://abc|krakend"] = true
+
 	cm := newReconcilingConfigManager(&mockResolver, hp, disco).(*reconcilingConfigManager)
 
 	tpl := integration.Config{
@@ -816,9 +817,17 @@ func TestPendingDiscoveryPrunedOnGiveUp(t *testing.T) {
 	}
 	cm.processNewConfig(tpl)
 	cm.processNewService(svc)
+	require.Contains(t, cm.pendingDiscovery, "docker://abc", "service should start tracked")
 
-	_, isPending := cm.pendingDiscovery["docker://abc"]
-	assert.False(t, isPending, "given-up svcID must not be tracked")
+	// Discoverer transitions from pending → given-up.
+	disco.pending["docker://abc|krakend"] = false
+
+	// Re-reconcile (what the retry tick will do in Task 5).
+	cm.m.Lock()
+	cm.reconcileService("docker://abc")
+	cm.m.Unlock()
+
+	assert.NotContains(t, cm.pendingDiscovery, "docker://abc", "given-up svcID must be pruned")
 }
 
 func TestProcessDelServiceCallsForget(t *testing.T) {
@@ -848,4 +857,69 @@ func TestProcessDelServiceCallsForget(t *testing.T) {
 	assert.True(t, disco.forgot["docker://abc"], "Forget should be called on service deletion")
 	_, isPending := cm.pendingDiscovery["docker://abc"]
 	assert.False(t, isPending, "pendingDiscovery entry should be cleared")
+}
+
+func TestPendingDiscoveryPrunedOnSuccess(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	hp := healthplatformmock.Mock(t)
+	disco := newFakeDiscoverer()
+	disco.pending["docker://abc|krakend"] = true
+
+	cm := newReconcilingConfigManager(&mockResolver, hp, disco).(*reconcilingConfigManager)
+
+	tpl := integration.Config{
+		Name:          "krakend",
+		ADIdentifiers: []string{"krakend"},
+		Discovery:     &integration.Discovery{},
+		Provider:      "file",
+	}
+	svc := &dummyService{
+		ID:            "docker://abc",
+		ADIdentifiers: []string{"krakend"},
+		Hosts:         map[string]string{"main": "10.0.0.1"},
+	}
+	cm.processNewConfig(tpl)
+	cm.processNewService(svc)
+	require.Contains(t, cm.pendingDiscovery, "docker://abc")
+
+	// App becomes ready: Discover returns a match; cache transitions to hit;
+	// IsPending becomes false.
+	disco.results["docker://abc|krakend"] = true
+	disco.pending["docker://abc|krakend"] = false
+
+	cm.m.Lock()
+	cm.reconcileService("docker://abc")
+	cm.m.Unlock()
+
+	assert.NotContains(t, cm.pendingDiscovery, "docker://abc",
+		"successful discovery must remove svcID from pendingDiscovery")
+}
+
+func TestPendingDiscoveryNotPopulatedForNonDiscoveryTemplate(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	hp := healthplatformmock.Mock(t)
+	disco := newFakeDiscoverer()
+	// Even if discoverer would say pending, a non-discovery template must not
+	// trigger pendingDiscovery membership.
+	disco.pending["docker://abc|krakend"] = true
+
+	cm := newReconcilingConfigManager(&mockResolver, hp, disco).(*reconcilingConfigManager)
+
+	tpl := integration.Config{
+		Name:          "krakend",
+		ADIdentifiers: []string{"krakend"},
+		Instances:     []integration.Data{integration.Data("host: %%host%%")},
+		Provider:      "file",
+		// Discovery is nil — plain template.
+	}
+	svc := &dummyService{
+		ID:            "docker://abc",
+		ADIdentifiers: []string{"krakend"},
+		Hosts:         map[string]string{"main": "10.0.0.1"},
+	}
+	cm.processNewConfig(tpl)
+	cm.processNewService(svc)
+
+	assert.NotContains(t, cm.pendingDiscovery, "docker://abc",
+		"non-discovery template must not cause pendingDiscovery membership")
 }
