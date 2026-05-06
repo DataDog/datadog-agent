@@ -1,0 +1,295 @@
+-- allium: 3
+-- single_line_handler.allium
+
+-- Scope: The SingleLineHandler at
+--   pkg/logs/internal/decoder/single_line_handler.go. The
+--   SingleLineHandler is the canonical Truncatable fulfiller in
+--   the legacy decoder pipeline's path A: a stateful per-message
+--   handler that applies head/tail truncation marker bytes to
+--   over-threshold content, propagates the upstream
+--   IsTruncated flag, and emits each input as a single message
+--   downstream via its outputFn callback. Carries truncation
+--   state across consecutive calls as a single boolean
+--   (shouldTruncate) that captures whether the previous emission
+--   was tail-truncated and therefore the next emission requires
+--   a head marker.
+--
+--   The SingleLineHandler's truncation behaviour is the
+--   reference implementation of the Truncatable contract; its
+--   logic is structurally identical to PassThroughAggregator's
+--   (in the preprocessor) and is the model for the
+--   shared truncation utility that the refactor will extract.
+-- Includes: The SingleLineHandler entity (truncation-relevant
+--   configuration and state), the SingleLineHandling surface
+--   declaring fulfilment of the Truncatable contract, the
+--   surface-specific refinements: tag reason value, whitespace
+--   trimming, per-message emission via outputFn, and the
+--   mapping between Truncatable's threaded prior_carryover
+--   argument and the instance's shouldTruncate state.
+-- Excludes:
+--   - The outputFn callback target. SingleLineHandler emits
+--     via a constructor-supplied callback; the downstream
+--     stage that receives those emissions is independent of
+--     this surface.
+--   - The flushChan and flush methods on SingleLineHandler.
+--     They are no-ops (SingleLineHandler holds no flushable
+--     state); orthogonal to truncation.
+--   - The LogsTruncated metric increment on tail-marker
+--     application. Observability only; no behavioural effect
+--     on emitted messages.
+--   - The literal byte value of the truncation marker. Owned
+--     by the agent's message package; treated here as an
+--     opaque constant. The marker semantics are inherited
+--     from the Truncatable contract's MarkerLiteral invariant.
+--   - The logs_config.tag_truncated_logs configuration read
+--     from the global agent config. The SingleLineHandler
+--     reads this at every emission via the addTruncatedTag
+--     helper; the configuration value itself is not a
+--     SingleLineHandler attribute.
+
+use "./preprocessor/truncation.allium" as truncation
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+entity SingleLineHandler {
+    -- A configured SingleLineHandler instance. One per path A
+    -- decoder pipeline (per log source using single-line
+    -- legacy handling).
+    --
+    -- line_limit:       the byte threshold above which the
+    --                   handler appends the tail truncation
+    --                   marker to emitted content and sets
+    --                   shouldTruncate=true for the next
+    --                   call's head marker. Set at
+    --                   construction; immutable.
+    -- should_truncate:  the persisted carry-over signal. At
+    --                   the start of each process call, this
+    --                   field's value is captured as the
+    --                   per-call lastWasTruncated (the
+    --                   Truncatable contract's
+    --                   prior_carryover input). At the end
+    --                   of each process call, it is
+    --                   overwritten with the new value
+    --                   determined by the current call's
+    --                   over-threshold or
+    --                   upstream-truncated condition (the
+    --                   Truncatable contract's new_carryover
+    --                   output). Initially false.
+    line_limit: Integer
+    should_truncate: Boolean
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+surface SingleLineHandling {
+    -- The truncation-and-emission boundary of the
+    -- SingleLineHandler. Each process call consumes one
+    -- input *message.Message and emits one (possibly
+    -- decorated) *message.Message via the outputFn callback.
+    -- The Truncatable contract is fulfilled at this
+    -- per-process-call boundary: the contract's
+    -- (content, threshold, upstream_truncated,
+    -- prior_carryover) inputs correspond to (input content,
+    -- h.line_limit, input ParsingExtra.IsTruncated,
+    -- h.should_truncate at call entry), and the contract's
+    -- TruncationResult outputs correspond to (emitted
+    -- content, emitted ParsingExtra.IsTruncated,
+    -- h.should_truncate at call exit).
+
+    context h: SingleLineHandler
+
+    exposes:
+        h.line_limit
+        h.should_truncate
+
+    contracts:
+        fulfils Truncatable
+
+    @guarantee PassThroughUnderThreshold
+        -- (Inherited from Truncatable.) When the input
+        -- content's length is at or under h.line_limit AND
+        -- ParsingExtra.IsTruncated is false on the input
+        -- AND h.should_truncate is false at call entry, the
+        -- emitted message's content equals the
+        -- whitespace-trimmed input content (no marker
+        -- prepend or append), ParsingExtra.IsTruncated is
+        -- false on the emission, no truncation tag is
+        -- added, and h.should_truncate remains false at
+        -- call exit.
+
+    @guarantee TailMarkerOnOverThreshold
+        -- (Inherited from Truncatable.) When the input
+        -- content's length exceeds h.line_limit, the
+        -- emitted message's content has the truncation
+        -- marker appended (after whitespace trim),
+        -- ParsingExtra.IsTruncated is true on the emission,
+        -- and h.should_truncate is true at call exit.
+
+    @guarantee HeadMarkerOnCarryover
+        -- (Inherited from Truncatable.) When h.should_truncate
+        -- is true at call entry (the previous emission was
+        -- tail-truncated), the emitted message's content has
+        -- the truncation marker prepended (before any tail
+        -- marker that this call may also append), and
+        -- ParsingExtra.IsTruncated is true on the emission.
+        -- The head marker is independent of whether the
+        -- current input is also over-threshold; both markers
+        -- may apply on the same emission.
+
+    @guarantee CarryoverConsumed
+        -- (Inherited from Truncatable.) The new value of
+        -- h.should_truncate at call exit is determined
+        -- SOLELY by the current call's input — specifically
+        -- by whether the input content exceeds h.line_limit
+        -- OR the input's ParsingExtra.IsTruncated is true.
+        -- The value at call entry (lastWasTruncated) does
+        -- NOT propagate into the exit value. A call with
+        -- h.should_truncate=true at entry but
+        -- under-threshold non-upstream-truncated content
+        -- produces h.should_truncate=false at exit.
+
+    @guarantee UpstreamFlagPropagation
+        -- (Inherited from Truncatable.) The input's
+        -- ParsingExtra.IsTruncated being true is equivalent
+        -- to the input being over-threshold — both trigger
+        -- the tail marker, set ParsingExtra.IsTruncated on
+        -- the emission, and set h.should_truncate=true at
+        -- call exit. This is the mechanism by which
+        -- framer-side truncation signals flow through
+        -- SingleLineHandler.
+
+    @guarantee TagOnTruncation
+        -- (Inherited from Truncatable, refined.) When the
+        -- emission carries any truncation marker (head,
+        -- tail, or both), ParsingExtra.IsTruncated is set
+        -- to true. AND, when the global
+        -- logs_config.tag_truncated_logs configuration is
+        -- true, a truncation-reason tag with value
+        -- "single_line" is appended to
+        -- ParsingExtra.Tags. The tag check reads the
+        -- global config at every emission (not cached at
+        -- construction).
+
+    @guarantee MarkerLiteral
+        -- (Inherited from Truncatable.) The marker bytes
+        -- prepended and appended are the literal byte
+        -- sequence `...TRUNCATED...` from the agent's
+        -- message package (message.TruncatedFlag).
+
+    @guarantee TagReasonSingleLine
+        -- The truncation-reason tag value applied by this
+        -- handler is always the literal string "single_line"
+        -- (via message.TruncatedReasonTag("single_line")).
+        -- The reason value is not configurable and does not
+        -- depend on input content or pipeline state.
+
+    @guarantee WhitespaceTrimmedBeforeMarkers
+        -- The handler applies bytes.TrimSpace to the input
+        -- content BEFORE applying head/tail markers. As a
+        -- consequence, emitted content never carries
+        -- leading or trailing whitespace from the input;
+        -- when markers are applied, they are adjacent to
+        -- the trimmed content boundary on both sides. This
+        -- trimming is observable in the emitted bytes but
+        -- is NOT part of the Truncatable contract (the
+        -- contract's guidance explicitly notes trimming is
+        -- a fulfiller-specific choice).
+
+    @guarantee PerMessageEmission
+        -- The handler emits exactly one message per
+        -- process call via the outputFn callback. The
+        -- handler is not an aggregator; it does not
+        -- buffer content across calls beyond the single
+        -- shouldTruncate carry-over boolean. Input
+        -- messages are never combined, dropped, or
+        -- duplicated; every process call results in
+        -- exactly one outputFn invocation with the
+        -- (possibly content-modified) input message.
+
+    @guarantee InputMessageMutated
+        -- The input *message.Message is mutated in place
+        -- before being passed to outputFn: SetContent
+        -- replaces its content bytes, ParsingExtra.Tags
+        -- is appended to, and ParsingExtra.IsTruncated
+        -- may be set to true. The handler does not
+        -- construct a new message; the same pointer is
+        -- forwarded. Callers must treat the input as
+        -- consumed after process returns.
+
+    @guarantee StatelessFlush
+        -- The flush method is a no-op. The handler holds
+        -- no buffered or pending state across calls — its
+        -- only persistent state is the single
+        -- shouldTruncate carry-over boolean, which is not
+        -- considered "pending emission" and is not
+        -- drained by flush.
+
+    @guarantee LimitImmutableAfterConstruction
+        -- h.line_limit is set during NewSingleLineHandler
+        -- and not modified subsequently.
+
+    @guidance
+        -- The SingleLineHandler is the truncation
+        -- workhorse of the legacy decoder's path A. Its
+        -- per-call flow is:
+        --
+        -- 1. Capture lastWasTruncated = h.should_truncate
+        --    (the Truncatable contract's prior_carryover
+        --    input).
+        -- 2. Compute the new shouldTruncate value:
+        --      h.should_truncate = (len(content) >
+        --        h.line_limit) OR
+        --        input.ParsingExtra.IsTruncated
+        --    (this is the new_carryover output; note
+        --    that prior_carryover plays no role here —
+        --    CarryoverConsumed).
+        -- 3. Trim whitespace from input content.
+        -- 4. If lastWasTruncated: prepend the marker.
+        -- 5. If h.should_truncate: append the marker
+        --    (and increment the LogsTruncated metric,
+        --    excluded from this spec).
+        -- 6. If either marker was applied:
+        --      input.ParsingExtra.IsTruncated = true
+        --      Append "truncated:single_line" tag if
+        --      logs_config.tag_truncated_logs is true.
+        -- 7. SetContent on input (replacing bytes), call
+        --    outputFn(input).
+        --
+        -- The truncation behaviour is structurally
+        -- identical to PassThroughAggregator's
+        -- (pass_through_aggregator.allium), reflecting
+        -- the parallel existence of both legacy (path A)
+        -- and preprocessor (path C / D / E) handling
+        -- pipelines. A refactor extracting a shared
+        -- "cut at limit + flag" utility from this code
+        -- would replace steps 2-6 with a single utility
+        -- call; the surrounding emission scaffolding
+        -- (input parsing, outputFn invocation) is
+        -- handler-specific and would remain.
+        --
+        -- For property tests anchored to this surface,
+        -- the input distributions of interest are:
+        -- (a) under-threshold inputs with carry=false →
+        --     no markers, flag false (PassThrough).
+        -- (b) over-threshold inputs with carry=false →
+        --     tail marker, flag true, next carry=true.
+        -- (c) under-threshold inputs with carry=true →
+        --     head marker, flag true, next carry=false
+        --     (HeadMarkerOnCarryover +
+        --     CarryoverConsumed).
+        -- (d) over-threshold inputs with carry=true →
+        --     both markers, flag true, next carry=true.
+        -- (e) upstream-truncated inputs (input flag
+        --     true) under threshold with carry=false →
+        --     tail marker, flag true, next carry=true
+        --     (UpstreamFlagPropagation).
+        -- (f) sequences alternating truncated and
+        --     untruncated inputs → verifies carry
+        --     transition logic across calls.
+        -- (g) inputs with leading/trailing whitespace →
+        --     verifies WhitespaceTrimmedBeforeMarkers.
+}

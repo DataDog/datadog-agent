@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package automultilinedetection contains auto multiline detection and aggregation logic.
+// Package preprocessor contains auto multiline detection and aggregation logic.
 package preprocessor
 
 import (
@@ -15,6 +15,14 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
+
+// Anchoring unit tests for the TimestampDetection surface declared
+// in timestamp_detector.allium. Each test names the spec construct
+// (@guarantee or @guidance case) it anchors so that drift in either
+// direction is easy to spot during review.
+//
+// Property tests for the same surface live in
+// timestamp_detector_proptest_test.go.
 
 type testInput struct {
 	label Label
@@ -81,6 +89,24 @@ var inputs = []testInput{
 	{aggregate, "2001:db8:0:1234::5678"},
 }
 
+// TestCorrectLabelIsAssigned anchors:
+//
+//	surface TimestampDetection (timestamp_detector.allium)
+//	    @guidance case 2 — shape match: claim by setting label to
+//	                       start_group and label_assigned_by to
+//	                       assigner_id
+//	    @guidance case 3 — no shape match: take no action
+//
+// The corpus mixes positive cases (start_group, expected to match
+// the static token-shape model with probability > threshold) and
+// negative cases (aggregate, expected to fall below threshold). A
+// regression in either direction — a positive case dropping below
+// threshold or a negative case rising above it — fails this test.
+//
+// The corpus also doubles as the dataset for tuning the detector:
+// keeping the test green is the calibration constraint when adding
+// new timestamp formats to knownTimestampFormats or adjusting the
+// match threshold default.
 func TestCorrectLabelIsAssigned(t *testing.T) {
 	mockConfig := configmock.New(t)
 	tokenizer := NewTokenizer(mockConfig.GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes"))
@@ -130,4 +156,258 @@ func printMatchUnderline(t *testing.T, context *messageContext, input string, ma
 	}
 	dbgBuilder.WriteString(strings.Repeat(printChar, len(evalStr)-last))
 	fmt.Printf("\t\t\t%v\n", dbgBuilder.String())
+}
+
+// timestampDetectorForTests constructs a TimestampDetector with the
+// default match threshold from config. Used by the unit tests below
+// so the construction details don't repeat in every test.
+func timestampDetectorForTests(t *testing.T) *TimestampDetector {
+	t.Helper()
+	mockConfig := configmock.New(t)
+	return NewTimestampDetector(mockConfig.GetFloat64("logs_config.auto_multi_line.timestamp_detector_match_threshold"))
+}
+
+// tokenizerForTests constructs a Tokenizer using the default
+// max-input-bytes config, matching the production wiring.
+func tokenizerForTests(t *testing.T) *Tokenizer {
+	t.Helper()
+	mockConfig := configmock.New(t)
+	return NewTokenizer(mockConfig.GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes"))
+}
+
+// TestTimestampDetector_EmptyTokensNoAction anchors:
+//
+//	surface TimestampDetection (timestamp_detector.allium)
+//	    @guidance case 1 — If context.tokens is empty,
+//	                       TimestampDetector takes no action: it
+//	                       returns true without inspecting or
+//	                       modifying context. The detector cannot
+//	                       evaluate a timestamp shape without
+//	                       tokens to inspect.
+//
+// Exercises both the nil-slice path (the Go impl logs an error and
+// returns) and the empty-but-non-nil-slice path.
+func TestTimestampDetector_EmptyTokensNoAction(t *testing.T) {
+	cases := []struct {
+		name   string
+		tokens []Token
+	}{
+		{"nil tokens", nil},
+		{"empty tokens", []Token{}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := &messageContext{
+				rawMessage:      []byte("2024-03-28T13:45:30.123456Z any content"),
+				tokens:          tc.tokens,
+				label:           aggregate,
+				labelAssignedBy: defaultLabelSource,
+			}
+			result := timestampDetectorForTests(t).ProcessAndContinue(ctx)
+			assert.True(t, result, "TimestampDetector must always return true")
+			assert.Equal(t, aggregate, ctx.label, "label must be unchanged when no tokens are present")
+			assert.Equal(t, defaultLabelSource, ctx.labelAssignedBy, "label_assigned_by must be unchanged when no tokens are present")
+		})
+	}
+}
+
+// TestTimestampDetector_LabelDomain_OnClaim anchors:
+//
+//	surface TimestampDetection (timestamp_detector.allium)
+//	    @guarantee LabelDomain — when TimestampDetector claims the
+//	                              label, it sets context.label to
+//	                              start_group
+//
+// Pins the specific Label value emitted on a claim. The claim is
+// always start_group — never no_aggregate or aggregate.
+func TestTimestampDetector_LabelDomain_OnClaim(t *testing.T) {
+	// A canonical timestamp format from the knownTimestampFormats
+	// corpus; high match probability ensures the detector claims.
+	content := []byte("2024-03-28T13:45:30.123456Z some log line content")
+	tok := tokenizerForTests(t)
+	tokens, indices := tok.Tokenize(content)
+	ctx := &messageContext{
+		rawMessage:      content,
+		tokens:          tokens,
+		tokenIndicies:   indices,
+		label:           aggregate,
+		labelAssignedBy: defaultLabelSource,
+	}
+	timestampDetectorForTests(t).ProcessAndContinue(ctx)
+	assert.Equal(t, startGroup, ctx.label)
+}
+
+// TestTimestampDetector_LabelAssignedByConsistency_OnClaim anchors:
+//
+//	surface TimestampDetection (timestamp_detector.allium)
+//	    @guarantee LabelAssignedByConsistency — when
+//	                                             TimestampDetector
+//	                                             sets context.label,
+//	                                             it also sets
+//	                                             context.label_assigned_by
+//	                                             to its assigner_id
+//
+// On a claim, label and label_assigned_by move together: the
+// assigner_id observable downstream is the TimestampDetector's own
+// provenance tag, not the "default" sentinel.
+func TestTimestampDetector_LabelAssignedByConsistency_OnClaim(t *testing.T) {
+	content := []byte("2024-03-28T13:45:30.123456Z some log line content")
+	tok := tokenizerForTests(t)
+	tokens, indices := tok.Tokenize(content)
+	ctx := &messageContext{
+		rawMessage:      content,
+		tokens:          tokens,
+		tokenIndicies:   indices,
+		label:           aggregate,
+		labelAssignedBy: defaultLabelSource,
+	}
+	timestampDetectorForTests(t).ProcessAndContinue(ctx)
+	assert.NotEqual(t, defaultLabelSource, ctx.labelAssignedBy,
+		"label_assigned_by must move off the default sentinel when TimestampDetector claims")
+	assert.NotEmpty(t, ctx.labelAssignedBy, "label_assigned_by must be a non-empty assigner_id")
+}
+
+// TestTimestampDetector_LabelAssignedByConsistency_OnNoClaim anchors:
+//
+//	surface TimestampDetection (timestamp_detector.allium)
+//	    @guarantee LabelAssignedByConsistency — when
+//	                                             TimestampDetector
+//	                                             does NOT set
+//	                                             context.label, it
+//	                                             leaves
+//	                                             context.label_assigned_by
+//	                                             unchanged
+//
+// On the no-claim paths (case 1 — empty tokens — and case 3 — no
+// shape match), TimestampDetector must not modify
+// label_assigned_by. This is what allows downstream consumers to
+// trust the provenance tag as identifying the heuristic that
+// actually decided the label.
+func TestTimestampDetector_LabelAssignedByConsistency_OnNoClaim(t *testing.T) {
+	cases := []struct {
+		name            string
+		content         string
+		populateTokens  bool
+		labelAssignedBy string
+	}{
+		{"case 1 — empty tokens", "2024-03-28T13:45:30.123456Z content", false, defaultLabelSource},
+		{"case 3 — no shape match", "this is just an ordinary log line without dates", true, "prior_heuristic"},
+		{"case 3 — no shape match, default sentinel", "ordinary log without dates", true, defaultLabelSource},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			content := []byte(tc.content)
+			var tokens []Token
+			var indices []int
+			if tc.populateTokens {
+				tokens, indices = tokenizerForTests(t).Tokenize(content)
+			}
+			ctx := &messageContext{
+				rawMessage:      content,
+				tokens:          tokens,
+				tokenIndicies:   indices,
+				label:           aggregate,
+				labelAssignedBy: tc.labelAssignedBy,
+			}
+			timestampDetectorForTests(t).ProcessAndContinue(ctx)
+			assert.Equal(t, tc.labelAssignedBy, ctx.labelAssignedBy,
+				"label_assigned_by must be unchanged when TimestampDetector does not claim")
+		})
+	}
+}
+
+// TestTimestampDetector_TerminationSemantics_AlwaysContinues anchors:
+//
+//	surface TimestampDetection (timestamp_detector.allium)
+//	    @guarantee TerminationSemantics — process_and_continue
+//	                                       always returns true:
+//	                                       TimestampDetector is an
+//	                                       advisory heuristic that
+//	                                       never terminates the
+//	                                       labelling chain
+//
+// Pins the always-true return as a named anchor. Exercised across
+// all three @guidance cases (empty tokens, claim, no claim).
+func TestTimestampDetector_TerminationSemantics_AlwaysContinues(t *testing.T) {
+	cases := []struct {
+		name            string
+		content         string
+		populateTokens  bool
+		labelAssignedBy string
+	}{
+		{"case 1 — empty tokens", "2024-03-28T13:45:30.123456Z log", false, defaultLabelSource},
+		{"case 2 — claim", "2024-03-28T13:45:30.123456Z log", true, defaultLabelSource},
+		{"case 3 — no shape match", "ordinary log line", true, defaultLabelSource},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			content := []byte(tc.content)
+			var tokens []Token
+			var indices []int
+			if tc.populateTokens {
+				tokens, indices = tokenizerForTests(t).Tokenize(content)
+			}
+			ctx := &messageContext{
+				rawMessage:      content,
+				tokens:          tokens,
+				tokenIndicies:   indices,
+				label:           aggregate,
+				labelAssignedBy: tc.labelAssignedBy,
+			}
+			result := timestampDetectorForTests(t).ProcessAndContinue(ctx)
+			assert.True(t, result, "TimestampDetector must always return true (advisory; never terminates)")
+		})
+	}
+}
+
+// TestTimestampDetector_InputImmutability anchors:
+//
+//	surface TimestampDetection (timestamp_detector.allium)
+//	    @guarantee InputImmutability — TimestampDetector reads
+//	                                    context.tokens but never
+//	                                    modifies it. It does not
+//	                                    read or modify
+//	                                    context.raw_message or
+//	                                    context.token_indices.
+//
+// After a call to ProcessAndContinue, raw_message bytes, tokens,
+// and token_indices are byte-equal to their pre-call state — on
+// the claim path, the no-shape-match path, and the empty-tokens
+// path.
+func TestTimestampDetector_InputImmutability(t *testing.T) {
+	cases := []struct {
+		name           string
+		content        string
+		populateTokens bool
+	}{
+		{"claim", "2024-03-28T13:45:30.123456Z log content", true},
+		{"no shape match", "ordinary log line", true},
+		{"empty tokens", "2024-03-28T13:45:30.123456Z log content", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			content := []byte(tc.content)
+			rawSnapshot := append([]byte(nil), content...)
+			var tokens []Token
+			var indices []int
+			if tc.populateTokens {
+				tokens, indices = tokenizerForTests(t).Tokenize(content)
+			}
+			tokensSnapshot := append([]Token(nil), tokens...)
+			indicesSnapshot := append([]int(nil), indices...)
+
+			ctx := &messageContext{
+				rawMessage:      content,
+				tokens:          tokens,
+				tokenIndicies:   indices,
+				label:           aggregate,
+				labelAssignedBy: defaultLabelSource,
+			}
+			timestampDetectorForTests(t).ProcessAndContinue(ctx)
+
+			assert.Equal(t, rawSnapshot, content, "raw_message bytes must not be mutated")
+			assert.Equal(t, tokensSnapshot, tokens, "tokens must not be mutated")
+			assert.Equal(t, indicesSnapshot, indices, "token_indices must not be mutated")
+		})
+	}
 }

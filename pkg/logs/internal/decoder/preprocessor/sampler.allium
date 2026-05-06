@@ -1,0 +1,169 @@
+-- allium: 3
+-- sampler.allium
+
+-- Scope: Contract layer for the sampling stage in the Datadog
+--   Agent's logs preprocessor pipeline. Defines the Message
+--   value (one completed log message crossing the sampler
+--   boundary) and the Sampler contract (the abstract interface
+--   for any drop-or-keep strategy applied to completed messages).
+--
+--   The sampler stage receives one completed log message per
+--   call — the output of the upstream Aggregator stage — and
+--   decides whether to forward it downstream or drop it. Each
+--   call returns either the message (possibly with augmented
+--   tags) or null. Different sampler implementations apply
+--   different drop strategies: rate-limited pattern matching,
+--   uniform random, always-keep (trivial passthrough).
+--
+--   This module describes only the abstract contract every
+--   sampler must honour; specific strategies live in their own
+--   modules.
+-- Includes: Message value, Sampler contract.
+-- Excludes:
+--   - Specific sampler implementations. The pre-existing
+--     adaptive_sampler.allium spec describes AdaptiveSampler and
+--     will be refactored to declare fulfils Sampler against this
+--     contract in a follow-on branch. NoopSampler is a trivial
+--     pass-through implementation; it may be inlined into a
+--     composing spec or specified separately as a one-line
+--     fulfiller.
+--   - The pipeline orchestration that wires the sampler into
+--     the preprocessor pipeline alongside JSONAggregation,
+--     Labeling, and Aggregation.
+--   - The tokenization that produces the tokens argument to
+--     process — tokens flow from the upstream Aggregator's
+--     AggregatedMessageWithTokens.tokens. The Sampler treats
+--     tokens as opaque inputs whose semantics are described in
+--     tokenizer.allium.
+--   - Caller-side selection of which Sampler implementation a
+--     particular log source uses. That is a preprocessor
+--     configuration concern, not part of the contract.
+
+use "./tokenizer.allium" as tokenizer
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+value Message {
+    -- A completed log message crossing the sampler boundary.
+    -- The sampler observes the message's content bytes and tags;
+    -- the sampler may mutate tags (appending sampling-related
+    -- annotations) but never mutates content. The is_truncated
+    -- flag is preserved on emission as-is.
+    --
+    -- content:       the message bytes, as produced by the
+    --                upstream Aggregator stage. Single-line or
+    --                multi-line combined content; the sampler
+    --                does not distinguish.
+    -- tags:          tags attached by upstream pipeline stages.
+    --                Samplers may append additional tags
+    --                (typically annotating sampling decisions)
+    --                but do not remove or modify existing tags.
+    -- is_truncated:  whether the message was truncated upstream.
+    --                Carried through unchanged.
+    content: String
+    tags: Set<String>
+    is_truncated: Boolean
+}
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+contract Sampler {
+    -- A drop-or-keep strategy applied to completed log messages.
+    -- The sampler receives one message per call to process,
+    -- alongside the tokens of that message's first line (forwarded
+    -- from the upstream Aggregator's
+    -- AggregatedMessageWithTokens.tokens). It returns either the
+    -- input message — possibly with sampling-related tags
+    -- appended — or null to signal the message should be dropped.
+    --
+    -- Samplers may be stateless (NoopSampler) or stateful
+    -- (AdaptiveSampler tracks per-pattern credits and a pattern
+    -- table). The contract's invariants describe the relationship
+    -- between sequential operations on a single sampler instance,
+    -- not pure-function behaviour.
+    process: (msg: Message,
+              tokens: tokenizer/TokenSequence) -> Message?
+
+    -- flush takes no arguments in the Go implementation. Allium 3
+    -- does not support zero-argument function signatures
+    -- (`name: () -> Type` is a parse error), so it is declared
+    -- here as a property. Its operational semantics — that flush
+    -- drains any buffered message and produces a fresh observation
+    -- on every read — are carried by FlushDrainsBuffer below.
+    flush: Message?
+
+    @invariant Determinism
+        -- For a given sampler instance in a given internal state,
+        -- equal (msg, tokens) inputs to process produce equal
+        -- outputs, and equivalently for flush. Samplers may not
+        -- branch on randomness or external state. Random-sampling
+        -- strategies (uniform / probabilistic) honour this by
+        -- treating their pseudo-random generator's state as part
+        -- of the sampler's own state. This is the stateful
+        -- analogue of pure-function determinism: pure given
+        -- state.
+
+    @invariant Totality
+        -- Every call to process returns either a Message value or
+        -- null (the "drop" signal). There is no undefined output
+        -- for any well-formed input. Equivalently for flush:
+        -- every read returns a Message or null. Samplers must
+        -- terminate with a value from {Message, null}.
+
+    @invariant ContentBytePassthrough
+        -- When process returns a Message value (i.e., not null),
+        -- the returned Message's content bytes are byte-equal to
+        -- the input msg's content bytes. The sampler never
+        -- mutates content. (The sampler MAY append tags — see
+        -- TagAugmentationOnly below — but content is invariant
+        -- across the process call.)
+        --
+        -- This invariant applies to flush's emitted message
+        -- analogously: any message emitted from flush has content
+        -- bytes equal to those of the input message it
+        -- originated from.
+
+    @invariant TagAugmentationOnly
+        -- When process returns a Message value, the returned
+        -- message's tags are a superset of the input msg's tags.
+        -- The sampler may APPEND tags (for example, annotating
+        -- the sampling decision) but never removes or modifies
+        -- existing tags. Implementations that do not augment
+        -- tags satisfy this trivially (returned msg's tags equal
+        -- input msg's tags).
+
+    @invariant NoMessageFabrication
+        -- Every Message value returned by process or flush
+        -- originates from a message previously supplied to
+        -- process on this sampler. Samplers never construct
+        -- messages from scratch — the drop-or-keep decision is
+        -- over the input set, not extended by it.
+
+    @guidance
+        -- The tokens argument is the pre-computed first-line
+        -- tokens forwarded from the upstream Aggregator stage's
+        -- AggregatedMessageWithTokens.tokens. Token-aware
+        -- samplers (pattern-matching strategies like
+        -- AdaptiveSampler) use these tokens to classify the
+        -- message; token-agnostic samplers (NoopSampler,
+        -- uniform-random samplers) may ignore them. The
+        -- contract permits both styles.
+        --
+        -- The flush observable corresponds to the
+        -- preprocessor-level flush signal that drains the
+        -- pipeline. It produces a buffered message that the
+        -- sampler was holding back — for example, a sampler
+        -- that batches before emitting may have one pending
+        -- message at flush time. Stateless samplers
+        -- (NoopSampler) and non-buffering samplers
+        -- (AdaptiveSampler) always return null from flush.
+        --
+        -- Sampler instances are not safe for concurrent use. A
+        -- single sampler serves one log source's sequential
+        -- preprocessor pipeline; callers must not invoke process
+        -- or flush concurrently on the same instance.
+}

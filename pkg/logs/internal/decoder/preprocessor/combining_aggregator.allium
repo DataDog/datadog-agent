@@ -1,0 +1,558 @@
+-- allium: 3
+-- combining_aggregator.allium
+
+-- Scope: An Aggregator implementation that combines consecutive
+--   labelled log lines into multi-line messages keyed off
+--   start_group / aggregate boundaries supplied by the upstream
+--   Labeler stage. Lines flow into a bucket; the bucket is
+--   flushed as one combined message when the next start_group
+--   arrives, when a no_aggregate label arrives, or when an
+--   incoming aggregate line would push the bucket over line_limit.
+--   In the overflow case the bucket is exploded into individual
+--   single-line emissions rather than being truncated as a
+--   combined message.
+-- Includes: The CombiningAggregator entity, fulfilment of the
+--   Aggregator contract at the CombiningAggregation surface, the
+--   label-driven bucket lifecycle, the overflow-explosion
+--   behaviour, the multi-line and truncation tagging, the
+--   single-line truncation flow shared in shape with
+--   PassThroughAggregator.
+-- Excludes:
+--   - Other Aggregator implementations. PassThroughAggregator,
+--     RegexAggregator, DetectingAggregator and JSONAggregator
+--     each live in their own spec modules.
+--   - The selection logic that decides when a log source uses
+--     CombiningAggregator vs another implementation. That is a
+--     preprocessor configuration concern.
+--   - The shared status.CountInfo counters (multi-line match
+--     counter, lines-combined counter) and their cross-tailer
+--     synchronisation. Observability state, not part of the
+--     aggregator's behavioural contract.
+--   - The metric counters incremented during processing
+--     (LogsTruncated, TlmAutoMultilineAggregatorFlush).
+--     Observability only, no behavioural effect.
+--   - The truncation-marker byte sequence, the multi-line tag
+--     prefix and the truncation-reason tag prefix. These are
+--     fixed marker values defined by the message-format package;
+--     the aggregator references them but does not redefine their
+--     content.
+--   - The internal bucket helper type as a separate Allium entity.
+--     The bucket's state — accumulated line count, accumulated
+--     content length, rolling truncation carry — is folded into
+--     the CombiningAggregator entity below. The bucket is a
+--     Go-side implementation detail.
+
+use "./aggregator.allium" as aggregator
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+entity CombiningAggregator {
+    -- A configured CombiningAggregator instance. One per log
+    -- source that uses combining multi-line aggregation.
+    --
+    -- Configuration (set at construction, not modified during
+    -- the aggregator's lifetime):
+    --
+    -- line_limit:           the byte threshold used by the
+    --                       wouldOverflowBucket predicate and by
+    --                       the single-line oversize detection.
+    --                       Multi-line aggregates are flushed as
+    --                       a combined message UNLESS appending
+    --                       the next line would push the combined
+    --                       length to or above this threshold —
+    --                       in which case OverflowExplosion fires.
+    -- tag_truncated_logs:   per-aggregator configuration controlling
+    --                       whether truncated emissions receive
+    --                       the truncation-reason tag. Distinct
+    --                       from PassThroughAggregator and
+    --                       RegexAggregator, which read this flag
+    --                       from a global runtime config; matches
+    --                       DetectingAggregator in receiving it
+    --                       at construction time.
+    -- tag_multi_line_logs:  per-aggregator configuration controlling
+    --                       whether combined multi-line emissions
+    --                       receive the multi-line source tag.
+    --
+    -- Internal state (recomputed during processing):
+    --
+    -- bucket_empty:         true when no buffered lines are
+    --                       awaiting combination. Mirrors the
+    --                       Aggregator contract's is_empty
+    --                       observable. Initially true; becomes
+    --                       false when a line is added to the
+    --                       bucket; resets to true after every
+    --                       flush (combined emission), explode
+    --                       (individual emissions), or external
+    --                       flush call.
+    -- bucket_lines_count:   the number of input lines currently
+    --                       contributing to the buffered bucket.
+    --                       Drives the multi-line tagging decision
+    --                       (tag attached when count > 1 at
+    --                       emission time). Resets to zero when
+    --                       the bucket flushes or explodes.
+    -- bucket_content_len:   the predicted byte length of the
+    --                       combined content if flushed now —
+    --                       the running sum of contributing line
+    --                       lengths plus one separator per gap.
+    --                       Used by the wouldOverflowBucket
+    --                       predicate to decide between
+    --                       combination and explosion.
+    -- should_truncate:      rolling truncation carry, shared in
+    --                       semantics with PassThroughAggregator's
+    --                       same-named field. Persists across the
+    --                       bucket reset operations triggered by
+    --                       flushes and explodes — the carry
+    --                       follows the sequence of EMISSIONS,
+    --                       not the bucket lifecycle. The
+    --                       no_aggregate label explicitly resets
+    --                       this carry before processing, per
+    --                       NoAggregateResetsCarry.
+    line_limit: Integer
+    tag_truncated_logs: Boolean
+    tag_multi_line_logs: Boolean
+    bucket_empty: Boolean
+    bucket_lines_count: Integer
+    bucket_content_len: Integer
+    should_truncate: Boolean
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+surface CombiningAggregation {
+    -- The boundary between the preprocessor pipeline and one
+    -- CombiningAggregator instance. The pipeline invokes process,
+    -- flush and is_empty per the Aggregator contract; this
+    -- surface supplies the label-driven multi-line combining
+    -- semantics.
+
+    context agg: CombiningAggregator
+
+    exposes:
+        agg.line_limit
+        agg.tag_truncated_logs
+        agg.tag_multi_line_logs
+        agg.bucket_empty
+        agg.bucket_lines_count
+        agg.bucket_content_len
+        agg.should_truncate
+
+    contracts:
+        fulfils Aggregator
+
+    @guarantee Determinism
+        -- The Aggregator contract's Determinism invariant holds:
+        -- process, flush and is_empty are pure functions of the
+        -- aggregator's current state plus their inputs. The label
+        -- argument participates as a pure function input — see
+        -- LabelDriven.
+
+    @guarantee ByteConservation
+        -- The Aggregator contract's ByteConservation invariant
+        -- holds and is refined: a combined emission's content is
+        -- the trim-spaced concatenation of contributing line
+        -- bytes joined by the escaped-line-feed separator, with
+        -- optional truncation markers prepended and / or
+        -- appended. An exploded emission's content is one
+        -- contributing line's bytes, processed by the same
+        -- single-line truncation flow as PassThroughAggregator
+        -- (trim, prepend on carry, append on overflow). The
+        -- aggregator introduces no other bytes. The separator and
+        -- the truncation marker are the only well-known marker
+        -- byte sequences the aggregator may add.
+
+    @guarantee FlushDrainsBuffer
+        -- The Aggregator contract's FlushDrainsBuffer invariant
+        -- holds: after flush returns, bucket_empty is true,
+        -- bucket_lines_count and bucket_content_len are zero.
+        -- A flush call on an empty bucket returns an empty
+        -- sequence and changes no observable state. The
+        -- should_truncate carry is NOT reset by flush — it
+        -- follows the emission sequence.
+
+    @guarantee IsEmptyConsistency
+        -- The Aggregator contract's IsEmptyConsistency invariant
+        -- holds: is_empty reflects bucket_empty exactly. The
+        -- should_truncate carry is rolling state, not buffered
+        -- content; it does not influence is_empty.
+
+    @guarantee ResultLifetime
+        -- The Aggregator contract's ResultLifetime invariant
+        -- holds: CombiningAggregator reuses a single backing
+        -- slice for the sequence returned by process and flush.
+        -- The next call to process or flush invalidates the
+        -- previous return value. Callers retaining a returned
+        -- sequence beyond the next operation observe undefined
+        -- contents.
+
+    @guarantee LabelDriven
+        -- The label argument to process IS observable: emission
+        -- behaviour is functionally determined by the (label,
+        -- bucket state) tuple. CombiningAggregator's whole
+        -- purpose is to act on labelling information from the
+        -- upstream Labeler stage. See @guidance for the per-label
+        -- dispatch table.
+
+    @guarantee StartGroupBoundary
+        -- A process call with the start_group label flushes any
+        -- buffered bucket as a combined emission and then begins
+        -- a new bucket containing the current message. The
+        -- emitted combined message is the previous group; the
+        -- new bucket holds only this start_group line.
+        --
+        -- A start_group whose own RawDataLen is already at or
+        -- above line_limit triggers an immediate single-line
+        -- flush of the new bucket — the line is emitted as a
+        -- single-line message via the truncation flow before
+        -- the next process call returns.
+
+    @guarantee NoAggregateFlushes
+        -- A process call with the no_aggregate label flushes any
+        -- buffered bucket (as a combined emission if non-empty)
+        -- and then emits the current line as a single-line
+        -- message. The call produces 1 or 2 emissions:
+        -- (bucket-flush if non-empty) followed by (current line
+        -- as single-line). The current line is never buffered
+        -- under no_aggregate.
+
+    @guarantee NoAggregateResetsCarry
+        -- A process call with the no_aggregate label resets
+        -- should_truncate to false BEFORE the no_aggregate
+        -- emission is built. This is a deliberate semantic
+        -- distinction — every other label respects the rolling
+        -- carry. The reset protects no_aggregate messages
+        -- (commonly JSON-formatted single-line logs) from being
+        -- corrupted by an unrelated continuation marker prepended
+        -- to their content.
+        --
+        -- The reset happens AFTER the prior bucket has been
+        -- flushed — so if the prior bucket's flush itself
+        -- triggers truncation, that flush's emission still
+        -- carries the proper marker, but the carry does not
+        -- propagate onto the no_aggregate emission that follows.
+
+    @guarantee OverflowExplosion
+        -- When a process call with the aggregate label arrives,
+        -- the bucket is non-empty, and appending the current
+        -- line would push bucket_content_len plus the
+        -- escaped-line-feed separator length plus the current
+        -- content length to or above line_limit, the aggregator
+        -- ABANDONS combination for this group. The buffered
+        -- lines are emitted INDIVIDUALLY — each through the
+        -- single-line truncation flow — and the current line is
+        -- emitted as a single-line message immediately afterward.
+        --
+        -- The choice to explode rather than truncate-combine is
+        -- deliberate: a combined message that hit line_limit
+        -- would lose information about which contributing lines
+        -- crossed the boundary, while exploded emissions preserve
+        -- all input content distinctly. The reaffirmation is
+        -- that CombiningAggregator never produces a combined
+        -- emission whose body crosses line_limit purely because
+        -- of multi-line aggregation.
+
+    @guarantee TokensFromAggregateLeader
+        -- A combined emission's tokens are the tokens passed to
+        -- process alongside the FIRST line of the bucket — the
+        -- start_group line that initiated the group (or the
+        -- aggregate-on-empty-bucket line that became its own
+        -- group of one).
+        --
+        -- An exploded emission's tokens are the tokens passed
+        -- alongside that specific line (each individually
+        -- emitted line carries its own tokens). A single-line
+        -- emission (no_aggregate, aggregate-on-empty-bucket, or
+        -- the trailing line of an explosion) carries its own
+        -- tokens.
+
+    @guarantee CombinedEmissionCarriesLastLineTimestamp
+        -- A combined emission of two or more lines
+        -- (bucket_lines_count > 1 at flush time) overrides the
+        -- leader line's ParsingExtra.Timestamp with the LAST
+        -- contributing line's ParsingExtra.Timestamp.
+        --
+        -- Single-line emissions through bucket.flush()
+        -- (no_aggregate, aggregate-on-empty-bucket, oversized
+        -- start_group) and every bucket.emitSingle() path
+        -- preserve the contributing message's own Timestamp
+        -- unmodified.
+        --
+        -- This deviates from the leader-metadata pattern
+        -- established by TokensFromAggregateLeader. It is
+        -- deliberate: downstream offset trackers (notably the
+        -- Docker socket tailer's lastSince) advance using the
+        -- emission's Timestamp. Using the leader's timestamp
+        -- caused container log readers to resume from a point
+        -- before lines 2..N of the combined group, replaying
+        -- those lines as duplicates on reconnect. The
+        -- last-line override ensures the tracker advances past
+        -- every contributing line.
+        --
+        -- Implication for a refactor: this metadata-propagation
+        -- semantics is observable and load-bearing. A refactor
+        -- that touches the in-place mutation of b.lines[0].Msg
+        -- in the bucket.flush() path must preserve this
+        -- override; reverting to leader-Timestamp would
+        -- re-introduce the Docker tailer duplicate-replay bug.
+
+    @guarantee MultiLineTagging
+        -- A combined emission of two or more lines
+        -- (bucket_lines_count > 1 at flush time) sets the
+        -- emitted message's is_multi_line flag and — when
+        -- tag_multi_line_logs is true — appends the multi-line
+        -- source tag with value "auto_multiline". The
+        -- is_multi_line flag is set independently of the config
+        -- flag.
+        --
+        -- A combined emission of exactly one line (a flushed
+        -- bucket containing just one start_group) does NOT
+        -- receive the multi-line tag, and is_multi_line is not
+        -- set.
+
+    @guarantee TruncationTagging
+        -- When an emission's content has the truncation marker
+        -- applied (either prepended via the carry or appended
+        -- because this emission's bytes triggered truncation),
+        -- the emitted message's is_truncated flag is set and —
+        -- when tag_truncated_logs is true — a truncation-reason
+        -- tag is appended. The reason value distinguishes
+        -- single-line emissions ("single_line") from combined
+        -- multi-line emissions ("auto_multiline"): the bucket-
+        -- flush procedure selects the reason based purely on
+        -- bucket_lines_count at flush time.
+        --
+        -- The "auto_multiline" reason fires on combined flushes
+        -- (bucket_lines_count > 1 at flush time) that have ANY
+        -- truncation applied — whether the truncation came from
+        -- a prepended continuation marker (carry from a prior
+        -- emission's overflow) or an appended overflow marker
+        -- on the combined content itself.
+        --
+        -- The "single_line" reason fires on all other truncated
+        -- emissions: exploded lines, no_aggregate emissions,
+        -- aggregate-on-empty emissions, single-line start_group
+        -- flushes, and continuation frames.
+        --
+        -- Note on dispatch-level reachability: in normal
+        -- per-call dispatch (@guidance), the appended overflow
+        -- branch of "auto_multiline" is unreachable — the
+        -- would_overflow_bucket guard ensures bucket_content_len
+        -- stays strictly below line_limit whenever the bucket
+        -- holds any line, so the bucket-flush procedure's
+        -- applyTruncation parameter shouldTruncate is always
+        -- false on combined emissions. The combined-emission
+        -- truncation path therefore activates only via the
+        -- inherited should_truncate carry from a preceding
+        -- single-line oversize emission: that carry causes the
+        -- combined flush to emit with a prepended marker, the
+        -- is_truncated flag set, and the "auto_multiline"
+        -- reason tag attached.
+        --
+        -- The append-marker branch on combined flushes is
+        -- preserved in the bucket-flush procedure because the
+        -- procedure is structurally callable in scenarios where
+        -- bucket_content_len could reach line_limit — they just
+        -- don't arise under the dispatch defined here.
+
+    @guarantee BucketFlushIgnoresUpstreamFlag
+        -- The bucket.flush() emission path does NOT honour
+        -- the upstream IsTruncated flag on any contributing
+        -- line. bucket.flush() invokes apply_truncation with
+        -- shouldTruncate = (bucket_content_len >= line_limit)
+        -- only — the per-input upstream IsTruncated flags
+        -- are not OR'd into this argument.
+        --
+        -- bucket.flush() is invoked from MANY code paths,
+        -- not only combined emissions:
+        --   - Normal combined emission (lineCount > 1) at
+        --     pattern-boundary, start_group flush of the
+        --     prior bucket, or external flush().
+        --   - The noAggregate label's own single-line emit
+        --     (the prior bucket is flushed, then msg is
+        --     added to the now-empty bucket and flushed
+        --     again with lineCount = 1).
+        --   - aggregate-on-empty-bucket: msg is added to
+        --     the empty bucket and immediately flushed as
+        --     a single-line emission.
+        --   - Oversized start_group: msg is added to the
+        --     bucket and flushed immediately if its
+        --     RawDataLen >= line_limit.
+        --   - External flush() at end-of-stream.
+        --
+        -- Consequence: a contributing line arriving with
+        -- ParsingExtra.IsTruncated=true (e.g. from the
+        -- framer) does NOT cause marker bytes to be added
+        -- to the emission for any of these paths. The
+        -- emission's IsTruncated may still propagate from
+        -- the bucket leader's pre-emit state by in-place
+        -- mutation (the leader's pointer is reused for the
+        -- emitted message), but no marker decoration is
+        -- applied unless the buffer itself crossed
+        -- line_limit during accumulation.
+        --
+        -- This is a DEVIATION from the Truncatable contract's
+        -- UpstreamFlagPropagation invariant. A refactor
+        -- preserving observable behaviour must preserve this
+        -- ignore-upstream semantics across all bucket.flush()
+        -- code paths.
+
+    @guarantee EmitSingleHonorsUpstreamFlag
+        -- The bucket.emitSingle() emission path DOES honour
+        -- the upstream IsTruncated flag. It invokes
+        -- apply_truncation with shouldTruncate =
+        -- (length(content) > line_limit OR
+        -- msg.is_truncated upstream). The per-message
+        -- upstream flag triggers tail marker decoration even
+        -- when the message's own content is under
+        -- line_limit.
+        --
+        -- bucket.emitSingle() is invoked only from the
+        -- explosion path:
+        --   - explode_bucket emits each buffered line via
+        --     bucket.emitSingle().
+        --   - The current message in the would-overflow
+        --     branch (wouldOverflowBucket) is emitted via
+        --     bucket.emitSingle() after the prior bucket
+        --     is exploded.
+        --
+        -- This is the only code path through which a
+        -- contributor's upstream IsTruncated flag results
+        -- in marker decoration on its emission. The
+        -- asymmetry between bucket.flush() and
+        -- bucket.emitSingle() is intentional and reflects
+        -- how the bucket accumulation is currently
+        -- implemented; a refactor preserving observable
+        -- behaviour must preserve this asymmetry.
+        --
+        -- Consequence for Truncatable conformance:
+        -- CombiningAggregator does NOT declare fulfils
+        -- Truncatable. The bucket.emitSingle() path
+        -- structurally conforms to the contract; the
+        -- bucket.flush() path (per BucketFlushIgnoresUpstreamFlag)
+        -- does not (UpstreamFlagPropagation violated).
+
+    @guidance
+        -- Per-call dispatch when process is invoked with
+        -- arguments (msg, label, tokens) on a CombiningAggregator
+        -- instance:
+        --
+        -- 1. Reset the collected output slice (empty it).
+        --
+        -- 2. If label = no_aggregate:
+        --    a. Flush any buffered bucket as a combined emission
+        --       via the flush_bucket procedure.
+        --    b. Reset should_truncate to false.
+        --    c. Add msg to the (now empty) bucket.
+        --    d. Flush the bucket via flush_bucket — emits as a
+        --       single-line message (lines_count = 1 ⇒ the
+        --       "single_line" truncation reason and no
+        --       multi-line tag).
+        --    Return collected.
+        --
+        -- 3. If label = aggregate AND bucket_empty:
+        --    a. Add msg to the bucket.
+        --    b. Flush the bucket via flush_bucket — emits as a
+        --       single-line message. The carry is honoured: if
+        --       should_truncate was set from a prior emission,
+        --       this emission's content gets the marker
+        --       prepended.
+        --    Return collected.
+        --
+        -- 4. If label = start_group:
+        --    a. Flush any buffered bucket as a combined emission
+        --       via flush_bucket.
+        --    b. Add msg to the (now empty) bucket.
+        --    c. If msg.raw_data_len >= line_limit: flush the
+        --       bucket via flush_bucket — the start_group is
+        --       itself oversized and emits immediately as a
+        --       single-line truncated message.
+        --    d. Otherwise leave the bucket holding the
+        --       start_group line and wait for subsequent
+        --       aggregate or boundary calls.
+        --    Return collected.
+        --
+        -- 5. Otherwise (label = aggregate AND bucket non-empty):
+        --    a. Compute projected_len = bucket_content_len +
+        --       length(separator) + length(msg.content)
+        --       (separator length is added only when the bucket
+        --       already has content, which it does in this
+        --       branch by construction).
+        --    b. If projected_len >= line_limit:
+        --       - Explode the bucket via explode_bucket — emits
+        --         every buffered line individually through the
+        --         single-line truncation flow.
+        --       - Emit msg as a single-line message via the
+        --         single-line truncation flow.
+        --    c. Otherwise: add msg to the bucket. No emission
+        --       on this call.
+        --    Return collected.
+        --
+        -- flush_bucket procedure (called when the bucket may or
+        -- may not be empty; emits the combined bucket if any):
+        --   1. If bucket_empty: reset bucket state (no-op
+        --      semantically — bucket already empty) and return
+        --      without emitting.
+        --   2. Build content = concat(bucket.lines, separator =
+        --      escaped_line_feed), trimmed of leading/trailing
+        --      whitespace.
+        --   3. Determine truncated_reason: "single_line" if
+        --      bucket_lines_count = 1, "auto_multiline" if > 1.
+        --   4. Apply apply_truncation with shouldTruncate =
+        --      (bucket_content_len >= line_limit) — the rare
+        --      "combined bucket itself reaches the limit" path.
+        --   5. Set msg.is_multi_line = (bucket_lines_count > 1).
+        --   6. If bucket_lines_count > 1 AND tag_multi_line_logs:
+        --      append the "auto_multiline" multi-line source tag.
+        --   7. Emit (msg, leader_tokens). leader_tokens are the
+        --      tokens of the FIRST line in the bucket.
+        --   8. Reset bucket state (lines, content_len,
+        --      lines_count, original_data_len). should_truncate
+        --      is NOT reset by this procedure — it follows the
+        --      emission sequence.
+        --
+        -- explode_bucket procedure (called when overflow would
+        -- combine into oversize):
+        --   1. For each line in the bucket, emit it via the
+        --      emit_single procedure.
+        --   2. Reset bucket state. should_truncate is NOT reset
+        --      by this procedure either.
+        --
+        -- emit_single procedure (single-line emission with the
+        -- standard truncation flow):
+        --   1. Trim leading and trailing whitespace from
+        --      msg.content.
+        --   2. Apply apply_truncation with shouldTruncate =
+        --      (length(content) > line_limit OR
+        --       msg.is_truncated upstream).
+        --   3. The truncation-reason value is "single_line".
+        --   4. Emit (msg, that line's tokens).
+        --
+        -- apply_truncation procedure (the shared truncation
+        -- engine, semantically identical to PassThrough's
+        -- inline content-transformation pipeline):
+        --   1. last_was_truncated = should_truncate (capture
+        --      carry).
+        --   2. should_truncate = the input's truncated condition
+        --      (caller-supplied: either content-overflow or
+        --      bucket-overflow or upstream-flagged).
+        --   3. If last_was_truncated: prepend truncation marker
+        --      to content.
+        --   4. If should_truncate: append truncation marker to
+        --      content.
+        --   5. If either last_was_truncated or should_truncate:
+        --      set msg.is_truncated and — when
+        --      tag_truncated_logs is true — append the
+        --      truncation-reason tag with the caller-supplied
+        --      reason value.
+        --
+        -- A subtle property: the should_truncate carry is part
+        -- of CombiningAggregator state, NOT bucket state in the
+        -- Allium model. (In Go it lives on the bucket, but
+        -- semantically it persists across bucket lifecycle
+        -- operations.) The carry follows the SEQUENCE of
+        -- emissions across all paths — combined, exploded,
+        -- single — and is reset only by NoAggregateResetsCarry.
+}
