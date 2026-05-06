@@ -8,7 +8,6 @@ package embedded
 
 import (
 	"embed"
-	"fmt"
 	"path/filepath"
 )
 
@@ -40,18 +39,6 @@ var systemdUnits embed.FS
 //go:embed tmpl/gen/oci-nocap/datadog-agent-ddot.yaml
 //go:embed tmpl/gen/oci-nocap/datadog-agent-ddot-exp.yaml
 var ddotProcessYAML embed.FS
-
-// DDOTProcessConfig is the stable deb/rpm DDOT process definition (tests and
-// callers that only need that variant).
-var DDOTProcessConfig string
-
-func init() {
-	b, err := ddotProcessYAML.ReadFile("tmpl/gen/debrpm/datadog-agent-ddot.yaml")
-	if err != nil {
-		panic(fmt.Sprintf("embedded DDOT process config: %v", err))
-	}
-	DDOTProcessConfig = string(b)
-}
 
 // GetDDOTProcessConfig returns the embedded DDOT process YAML bytes for the
 // given systemd layout (OCI vs deb/rpm), stable vs experiment channel, and
