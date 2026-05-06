@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
@@ -62,6 +63,19 @@ func TestSnapshot(t *testing.T) {
 }
 
 func runSnapshotTest(t *testing.T, file string, rewrite bool) {
+	// Deterministic wall clock for the snapshot. handleHeartbeatCheck
+	// uses nowFunc() to compute the interval since the previous
+	// heartbeat; without override, the interval would be a real
+	// nanosecond gap and trip messages would carry timing-dependent
+	// floating-point values.
+	originalNow := nowFunc
+	t.Cleanup(func() { nowFunc = originalNow })
+	fakeNow := time.Unix(0, 0)
+	nowFunc = func() time.Time {
+		fakeNow = fakeNow.Add(time.Second)
+		return fakeNow
+	}
+
 	content, err := os.ReadFile(file)
 	require.NoError(t, err, "failed to read snapshot file")
 
@@ -77,6 +91,11 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 	// documents. This is a sanity check to ensure that the file is valid.
 	input := documentChunks[0]
 	decoder := yaml.NewDecoder(bytes.NewReader(input))
+	// Strict decoding: any unknown YAML field in the events doc is an
+	// error. This prevents stale snapshots from silently decoding
+	// missing or renamed fields to zero values when the schema
+	// changes (e.g. runtime_stats shape evolution).
+	decoder.KnownFields(true)
 	var eventsNode yaml.Node
 	err = decoder.Decode(&eventsNode)
 	require.NoError(t, err, "failed to decode events list node")
@@ -101,11 +120,14 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 	discoveredTypesLimit := defaultDiscoveredTypesLimit
 	var recompilationRateLimit float64
 	var recompilationRateBurst int
+	var breakerCfg CircuitBreakerConfig
 	if len(events) > 0 {
 		if cfg, ok := events[0].event.(eventConfig); ok {
 			discoveredTypesLimit = cfg.discoveredTypesLimit
 			recompilationRateLimit = cfg.recompilationRateLimit
 			recompilationRateBurst = cfg.recompilationRateBurst
+			breakerCfg.PerProbeCPULimit = cfg.perProbeCPULimit
+			breakerCfg.AllProbesCPULimit = cfg.allProbesCPULimit
 			events = events[1:]
 			eventNodes = eventNodes[1:]
 		}
@@ -116,6 +138,7 @@ func runSnapshotTest(t *testing.T, file string, rewrite bool) {
 		DiscoveredTypesLimit:   discoveredTypesLimit,
 		RecompilationRateLimit: recompilationRateLimit,
 		RecompilationRateBurst: recompilationRateBurst,
+		CircuitBreakerConfig:   breakerCfg,
 	})
 	effects := effectRecorder{}
 	for i, ev := range events {

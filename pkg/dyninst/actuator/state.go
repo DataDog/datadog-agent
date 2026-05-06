@@ -237,7 +237,7 @@ func newState(cfg Config) *state {
 		}),
 		breakerCfg:             cfg.CircuitBreakerConfig,
 		bufferEvictionCfg:      cfg.BufferEvictionConfig,
-		lastHeartbeat:          time.Now(),
+		lastHeartbeat:          nowFunc(),
 		discoveredTypes:        make(map[string][]string),
 		discoveredTypesLimit:   cfg.DiscoveredTypesLimit,
 		recompilationRateLimit: cfg.RecompilationRateLimit,
@@ -1177,8 +1177,12 @@ func handleShutdown(sm *state, effects effectHandler) error {
 	return nil
 }
 
+// nowFunc returns wall-clock time. Overridden by tests to make
+// heartbeat-driven cost calculations deterministic.
+var nowFunc = time.Now
+
 func handleHeartbeatCheck(sm *state, effects effectHandler) {
-	now := time.Now()
+	now := nowFunc()
 	interval := now.Sub(sm.lastHeartbeat)
 	sm.lastHeartbeat = now
 
