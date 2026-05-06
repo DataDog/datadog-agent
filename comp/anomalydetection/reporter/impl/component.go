@@ -12,12 +12,11 @@ import (
 	reporter "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 )
 
 // Requires defines the dependencies for the reporter component.
 type Requires struct {
-	compdef.In
+	fx.In
 
 	Config config.Component
 	Log    log.Component

@@ -17,9 +17,7 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(
-			reporterimpl.NewComponent,
-		),
+		fx.Provide(reporterimpl.NewComponent),
 		fx.Invoke(func(_ reporter.Component) {}),
 	)
 }
