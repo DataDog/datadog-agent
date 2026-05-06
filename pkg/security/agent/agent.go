@@ -264,12 +264,12 @@ func (rsa *RuntimeSecurityAgent) DispatchEvent(evt *api.SecurityEventMessage) {
 		if rsa.secInfoReporter == nil {
 			return
 		}
-		rsa.secInfoReporter.ReportRaw(evt.GetData(), evt.Service, evt.Timestamp.AsTime(), evt.GetTags()...)
+		rsa.secInfoReporter.ReportRaw(evt.GetData(), evt.Service, evt.GetHostname(), evt.Timestamp.AsTime(), evt.GetTags()...)
 	} else {
 		if rsa.reporter == nil {
 			return
 		}
-		rsa.reporter.ReportRaw(evt.GetData(), evt.Service, evt.Timestamp.AsTime(), evt.GetTags()...)
+		rsa.reporter.ReportRaw(evt.GetData(), evt.Service, evt.GetHostname(), evt.Timestamp.AsTime(), evt.GetTags()...)
 
 		log.Tracef("runtime message report : %s", string(evt.GetData()))
 	}

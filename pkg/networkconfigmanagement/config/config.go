@@ -141,7 +141,14 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 	}
 
 	profileCache := &profile.Cache{}
-
+	if deviceInstance.Profile != "" {
+		profile, ok := profMap[deviceInstance.Profile]
+		if !ok {
+			return nil, fmt.Errorf("unknown profile for %s: %s", deviceInstance.IPAddress, deviceInstance.Profile)
+		}
+		profileCache.ProfileName = profile.Name
+		profileCache.Profile = profile
+	}
 	// Build the final context to send out
 	ncc := &NcmCheckContext{
 		Namespace:             initConfig.Namespace,
