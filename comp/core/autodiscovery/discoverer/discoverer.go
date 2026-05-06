@@ -15,19 +15,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const defaultFailureTTL = 30 * time.Second
+// defaultRetrySchedule is the wait time between probe attempts. Length N
+// means an entry is givenUp after the (N+1)th failure. Sum is the total
+// retry window per (svcID, integration) pair.
+var defaultRetrySchedule = []time.Duration{
+	5 * time.Second, 5 * time.Second,
+	30 * time.Second, 30 * time.Second, 30 * time.Second, 30 * time.Second,
+	30 * time.Second, 30 * time.Second, 30 * time.Second, 30 * time.Second,
+}
 
 type defaultDiscoverer struct {
-	bridge     Bridge
-	cache      *cache
-	failureTTL time.Duration
+	bridge        Bridge
+	cache         *cache
+	retrySchedule []time.Duration
+	now           func() time.Time
 }
 
 func newDiscoverer(bridge Bridge) *defaultDiscoverer {
+	now := time.Now
 	return &defaultDiscoverer{
-		bridge:     bridge,
-		cache:      newCache(time.Now),
-		failureTTL: defaultFailureTTL,
+		bridge:        bridge,
+		cache:         newCache(now),
+		retrySchedule: defaultRetrySchedule,
+		now:           now,
 	}
 }
 
@@ -55,20 +65,29 @@ type portPayload struct {
 
 func (d *defaultDiscoverer) Discover(_ context.Context, integrationName string, svc listeners.Service) (Result, bool) {
 	svcID := svc.GetServiceID()
-	if r, ok, hit := d.cache.get(svcID, integrationName); hit {
-		return r, ok
+	state := d.cache.lookup(svcID, integrationName)
+	switch state.state {
+	case stateHit:
+		return state.result, true
+	case stateGivenUp:
+		return Result{}, false
+	case statePending:
+		if d.now().Before(state.nextRetryAt) {
+			return Result{}, false
+		}
+		// fall through and probe
 	}
 
 	host, ok := pickHost(svc)
 	if !ok {
 		log.Debugf("autodiscovery/discoverer: %s has no host, skipping", svcID)
-		d.cache.putFailure(svcID, integrationName, d.failureTTL)
+		d.cache.putFailure(svcID, integrationName, d.retrySchedule)
 		return Result{}, false
 	}
 	exposed, err := svc.GetPorts()
 	if err != nil {
 		log.Debugf("autodiscovery/discoverer: %s GetPorts error: %v", svcID, err)
-		d.cache.putFailure(svcID, integrationName, d.failureTTL)
+		d.cache.putFailure(svcID, integrationName, d.retrySchedule)
 		return Result{}, false
 	}
 
@@ -79,29 +98,29 @@ func (d *defaultDiscoverer) Discover(_ context.Context, integrationName string, 
 	body, err := json.Marshal(payload)
 	if err != nil {
 		log.Errorf("autodiscovery/discoverer: marshal failed for %s: %v", svcID, err)
-		d.cache.putFailure(svcID, integrationName, d.failureTTL)
+		d.cache.putFailure(svcID, integrationName, d.retrySchedule)
 		return Result{}, false
 	}
 
 	resJSON, err := d.bridge.RunDiscover(integrationName, string(body))
 	if err != nil {
 		log.Warnf("autodiscovery/discoverer: %s.discover() failed for %s: %v", integrationName, svcID, err)
-		d.cache.putFailure(svcID, integrationName, d.failureTTL)
+		d.cache.putFailure(svcID, integrationName, d.retrySchedule)
 		return Result{}, false
 	}
 	if resJSON == "" || resJSON == "null" {
-		d.cache.putFailure(svcID, integrationName, d.failureTTL)
+		d.cache.putFailure(svcID, integrationName, d.retrySchedule)
 		return Result{}, false
 	}
 
 	var instances []json.RawMessage
 	if err := json.Unmarshal([]byte(resJSON), &instances); err != nil {
 		log.Errorf("autodiscovery/discoverer: %s returned non-list JSON for %s: %v", integrationName, svcID, err)
-		d.cache.putFailure(svcID, integrationName, d.failureTTL)
+		d.cache.putFailure(svcID, integrationName, d.retrySchedule)
 		return Result{}, false
 	}
 	if len(instances) == 0 {
-		d.cache.putFailure(svcID, integrationName, d.failureTTL)
+		d.cache.putFailure(svcID, integrationName, d.retrySchedule)
 		return Result{}, false
 	}
 

@@ -13,42 +13,68 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCacheMissReturnsFalse(t *testing.T) {
+func TestCacheLookupMiss(t *testing.T) {
 	c := newCache(time.Now)
-	_, _, hit := c.get("svc-1", "krakend")
-	assert.False(t, hit)
+	got := c.lookup("svc-1", "krakend")
+	assert.Equal(t, stateMiss, got.state)
 }
 
-func TestCacheStoresSuccess(t *testing.T) {
+func TestCacheLookupHit(t *testing.T) {
 	c := newCache(time.Now)
 	r := Result{Configs: []integration.Config{{Name: "krakend"}}}
 	c.putSuccess("svc-1", "krakend", r)
-	got, ok, hit := c.get("svc-1", "krakend")
-	assert.True(t, hit)
-	assert.True(t, ok)
-	assert.Len(t, got.Configs, 1)
+	got := c.lookup("svc-1", "krakend")
+	assert.Equal(t, stateHit, got.state)
+	assert.Len(t, got.result.Configs, 1)
 }
 
-func TestCacheStoresFailureAndExpires(t *testing.T) {
+func TestCachePutFailureSchedulesRetries(t *testing.T) {
 	now := time.Now()
 	clock := func() time.Time { return now }
 	c := newCache(clock)
-	c.putFailure("svc-1", "krakend", 30*time.Second)
+	schedule := []time.Duration{5 * time.Second, 10 * time.Second}
 
-	_, ok, hit := c.get("svc-1", "krakend")
-	assert.True(t, hit)
-	assert.False(t, ok, "failure cached")
+	c.putFailure("svc-1", "krakend", schedule)
+	got := c.lookup("svc-1", "krakend")
+	assert.Equal(t, statePending, got.state)
+	assert.Equal(t, now.Add(5*time.Second), got.nextRetryAt)
 
-	now = now.Add(31 * time.Second)
-	_, _, hit = c.get("svc-1", "krakend")
-	assert.False(t, hit, "failure expired")
+	c.putFailure("svc-1", "krakend", schedule)
+	got = c.lookup("svc-1", "krakend")
+	assert.Equal(t, statePending, got.state)
+	assert.Equal(t, now.Add(10*time.Second), got.nextRetryAt)
+
+	c.putFailure("svc-1", "krakend", schedule)
+	got = c.lookup("svc-1", "krakend")
+	assert.Equal(t, stateGivenUp, got.state)
+}
+
+func TestCachePutSuccessClearsFailure(t *testing.T) {
+	c := newCache(time.Now)
+	c.putFailure("svc-1", "krakend", []time.Duration{5 * time.Second})
+	c.putSuccess("svc-1", "krakend", Result{Configs: []integration.Config{{Name: "krakend"}}})
+	got := c.lookup("svc-1", "krakend")
+	assert.Equal(t, stateHit, got.state)
 }
 
 func TestCacheKeyIsolation(t *testing.T) {
 	c := newCache(time.Now)
 	c.putSuccess("svc-1", "krakend", Result{Configs: []integration.Config{{Name: "krakend"}}})
-	_, _, hit := c.get("svc-1", "apache")
-	assert.False(t, hit, "different integration is a different key")
-	_, _, hit = c.get("svc-2", "krakend")
-	assert.False(t, hit, "different service is a different key")
+	got := c.lookup("svc-1", "apache")
+	assert.Equal(t, stateMiss, got.state, "different integration is a different key")
+	got = c.lookup("svc-2", "krakend")
+	assert.Equal(t, stateMiss, got.state, "different service is a different key")
+}
+
+func TestCacheForgetClearsAllEntriesForService(t *testing.T) {
+	c := newCache(time.Now)
+	c.putSuccess("svc-1", "krakend", Result{Configs: []integration.Config{{Name: "krakend"}}})
+	c.putSuccess("svc-1", "apache", Result{Configs: []integration.Config{{Name: "apache"}}})
+	c.putSuccess("svc-2", "krakend", Result{Configs: []integration.Config{{Name: "krakend"}}})
+
+	c.forget("svc-1")
+
+	assert.Equal(t, stateMiss, c.lookup("svc-1", "krakend").state, "svc-1/krakend should be forgotten")
+	assert.Equal(t, stateMiss, c.lookup("svc-1", "apache").state, "svc-1/apache should be forgotten")
+	assert.Equal(t, stateHit, c.lookup("svc-2", "krakend").state, "svc-2/krakend should be unaffected")
 }

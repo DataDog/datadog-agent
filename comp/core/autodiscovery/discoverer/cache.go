@@ -10,10 +10,30 @@ import (
 	"time"
 )
 
+// cacheState is the state of a (svcID, integration) entry in the cache.
+type cacheState int
+
+const (
+	stateMiss    cacheState = iota // no entry
+	stateHit                       // success entry — return cached configs
+	statePending                   // failure entry — may probe again at nextRetryAt
+	stateGivenUp                   // failure entry — schedule exhausted, no more probes
+)
+
 type cacheEntry struct {
-	result    Result
-	success   bool
-	expiresAt time.Time // zero = never
+	success bool
+	result  Result // valid when success
+
+	// failure-only:
+	attemptsMade int       // count of failures so far
+	nextRetryAt  time.Time // zero when givenUp
+	givenUp      bool
+}
+
+type cacheLookupResult struct {
+	state       cacheState
+	result      Result    // valid when state == stateHit
+	nextRetryAt time.Time // valid when state == statePending
 }
 
 type cache struct {
@@ -33,28 +53,57 @@ func cacheKey(svcID, integrationName string) string {
 	return svcID + "|" + integrationName
 }
 
-func (c *cache) get(svcID, integrationName string) (Result, bool, bool) {
+func (c *cache) lookup(svcID, integrationName string) cacheLookupResult {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	e, ok := c.entries[cacheKey(svcID, integrationName)]
 	if !ok {
-		return Result{}, false, false
+		return cacheLookupResult{state: stateMiss}
 	}
-	if !e.expiresAt.IsZero() && c.now().After(e.expiresAt) {
-		delete(c.entries, cacheKey(svcID, integrationName))
-		return Result{}, false, false
+	if e.success {
+		return cacheLookupResult{state: stateHit, result: e.result}
 	}
-	return e.result, e.success, true
+	if e.givenUp {
+		return cacheLookupResult{state: stateGivenUp}
+	}
+	return cacheLookupResult{state: statePending, nextRetryAt: e.nextRetryAt}
 }
 
 func (c *cache) putSuccess(svcID, integrationName string, r Result) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.entries[cacheKey(svcID, integrationName)] = cacheEntry{result: r, success: true}
+	c.entries[cacheKey(svcID, integrationName)] = cacheEntry{success: true, result: r}
 }
 
-func (c *cache) putFailure(svcID, integrationName string, ttl time.Duration) {
+// putFailure records a probe failure and advances the retry schedule.
+// `schedule[attemptsMade-1]` is the wait time before the next probe attempt;
+// once attemptsMade > len(schedule), the entry is marked givenUp.
+func (c *cache) putFailure(svcID, integrationName string, schedule []time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.entries[cacheKey(svcID, integrationName)] = cacheEntry{success: false, expiresAt: c.now().Add(ttl)}
+	k := cacheKey(svcID, integrationName)
+	e := c.entries[k]
+	e.success = false
+	e.result = Result{}
+	e.attemptsMade++
+	if e.attemptsMade > len(schedule) {
+		e.givenUp = true
+		e.nextRetryAt = time.Time{}
+	} else {
+		e.nextRetryAt = c.now().Add(schedule[e.attemptsMade-1])
+	}
+	c.entries[k] = e
+}
+
+// forget drops all entries for a given svcID. Called from configmgr on
+// service removal so a stopped-and-restarted container starts fresh.
+func (c *cache) forget(svcID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	prefix := svcID + "|"
+	for k := range c.entries {
+		if len(k) >= len(prefix) && k[:len(prefix)] == prefix {
+			delete(c.entries, k)
+		}
+	}
 }
