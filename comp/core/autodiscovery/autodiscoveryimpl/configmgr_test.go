@@ -6,6 +6,7 @@
 package autodiscoveryimpl
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -17,6 +18,8 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
@@ -734,4 +737,115 @@ func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
 
 	count, _ = hp.GetAllIssues()
 	assert.Equal(t, 0, count, "health issue should be cleared after successful resolution")
+}
+
+// fakeDiscoverer implements discoverer.Discoverer for tests.
+type fakeDiscoverer struct {
+	results map[string]bool // key svcID|integ -> match (true = scheduled)
+	pending map[string]bool // key svcID|integ -> pending
+	forgot  map[string]bool // svcIDs that received Forget
+}
+
+func newFakeDiscoverer() *fakeDiscoverer {
+	return &fakeDiscoverer{
+		results: map[string]bool{},
+		pending: map[string]bool{},
+		forgot:  map[string]bool{},
+	}
+}
+
+func (f *fakeDiscoverer) Discover(_ context.Context, integ string, svc listeners.Service) (discoverer.Result, bool) {
+	k := svc.GetServiceID() + "|" + integ
+	if f.results[k] {
+		return discoverer.Result{Configs: []integration.Config{{Name: integ, Instances: []integration.Data{integration.Data("{}")}}}}, true
+	}
+	return discoverer.Result{}, false
+}
+
+func (f *fakeDiscoverer) IsPending(svcID, integ string) bool {
+	return f.pending[svcID+"|"+integ]
+}
+
+func (f *fakeDiscoverer) Forget(svcID string) {
+	f.forgot[svcID] = true
+}
+
+func TestPendingDiscoveryPopulatedOnUnmatched(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	hp := healthplatformmock.Mock(t)
+	disco := newFakeDiscoverer()
+	disco.pending["docker://abc|krakend"] = true
+
+	cm := newReconcilingConfigManager(&mockResolver, hp, disco).(*reconcilingConfigManager)
+
+	tpl := integration.Config{
+		Name:          "krakend",
+		ADIdentifiers: []string{"krakend"},
+		Discovery:     &integration.Discovery{},
+		Provider:      "file",
+	}
+	svc := &dummyService{
+		ID:            "docker://abc",
+		ADIdentifiers: []string{"krakend"},
+		Hosts:         map[string]string{"main": "10.0.0.1"},
+	}
+	cm.processNewConfig(tpl)
+	cm.processNewService(svc)
+
+	_, isPending := cm.pendingDiscovery["docker://abc"]
+	assert.True(t, isPending, "svcID should be tracked as pending discovery")
+}
+
+func TestPendingDiscoveryPrunedOnGiveUp(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	hp := healthplatformmock.Mock(t)
+	disco := newFakeDiscoverer()
+	// Discoverer reports the entry as NOT pending (i.e. given up).
+	cm := newReconcilingConfigManager(&mockResolver, hp, disco).(*reconcilingConfigManager)
+
+	tpl := integration.Config{
+		Name:          "krakend",
+		ADIdentifiers: []string{"krakend"},
+		Discovery:     &integration.Discovery{},
+		Provider:      "file",
+	}
+	svc := &dummyService{
+		ID:            "docker://abc",
+		ADIdentifiers: []string{"krakend"},
+		Hosts:         map[string]string{"main": "10.0.0.1"},
+	}
+	cm.processNewConfig(tpl)
+	cm.processNewService(svc)
+
+	_, isPending := cm.pendingDiscovery["docker://abc"]
+	assert.False(t, isPending, "given-up svcID must not be tracked")
+}
+
+func TestProcessDelServiceCallsForget(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	hp := healthplatformmock.Mock(t)
+	disco := newFakeDiscoverer()
+	disco.pending["docker://abc|krakend"] = true
+
+	cm := newReconcilingConfigManager(&mockResolver, hp, disco).(*reconcilingConfigManager)
+
+	tpl := integration.Config{
+		Name:          "krakend",
+		ADIdentifiers: []string{"krakend"},
+		Discovery:     &integration.Discovery{},
+		Provider:      "file",
+	}
+	svc := &dummyService{
+		ID:            "docker://abc",
+		ADIdentifiers: []string{"krakend"},
+		Hosts:         map[string]string{"main": "10.0.0.1"},
+	}
+	cm.processNewConfig(tpl)
+	cm.processNewService(svc)
+
+	cm.processDelService(svc)
+
+	assert.True(t, disco.forgot["docker://abc"], "Forget should be called on service deletion")
+	_, isPending := cm.pendingDiscovery["docker://abc"]
+	assert.False(t, isPending, "pendingDiscovery entry should be cleared")
 }

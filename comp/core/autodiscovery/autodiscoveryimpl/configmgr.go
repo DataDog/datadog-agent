@@ -118,6 +118,10 @@ type reconcilingConfigManager struct {
 	secretResolver secrets.Component
 	healthPlatform healthplatformdef.Component
 	discoverer     discoverer.Discoverer
+
+	// pendingDiscovery contains svcIDs with at least one discovery template
+	// that is not-yet-given-up. The retry loop walks this set on each tick.
+	pendingDiscovery map[string]struct{}
 }
 
 var _ configManager = &reconcilingConfigManager{}
@@ -136,6 +140,7 @@ func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatfor
 		secretResolver:     secretResolver,
 		healthPlatform:     healthPlatform,
 		discoverer:         disco,
+		pendingDiscovery:   map[string]struct{}{},
 	}
 }
 
@@ -188,6 +193,10 @@ func (cm *reconcilingConfigManager) processDelService(svc listeners.Service) int
 	//
 	//  1. update activeConfigs or activeServices
 	delete(cm.activeServices, svcID)
+	if cm.discoverer != nil {
+		cm.discoverer.Forget(svcID)
+	}
+	delete(cm.pendingDiscovery, svcID)
 
 	//  2. update templatesByADID or servicesByADID to match
 	for _, adID := range svcAndADIDs.adIDs {
@@ -431,7 +440,42 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 		cm.serviceResolutions[svcID] = existingResolutions
 	}
 
+	cm.updatePendingDiscovery(svcID)
 	return changes
+}
+
+// updatePendingDiscovery rebuilds the pendingDiscovery membership for a service:
+// the service is in the set iff at least one matching discovery template has a
+// pending (not-yet-given-up) cache entry.
+func (cm *reconcilingConfigManager) updatePendingDiscovery(svcID string) {
+	if cm.discoverer == nil {
+		return
+	}
+
+	svcAndADIDs, found := cm.activeServices[svcID]
+	if !found {
+		delete(cm.pendingDiscovery, svcID)
+		return
+	}
+
+	seen := map[string]bool{}
+	for _, adID := range svcAndADIDs.adIDs {
+		for _, tplDigest := range cm.templatesByADID.get(adID) {
+			tpl, ok := cm.activeConfigs[tplDigest]
+			if !ok || tpl.Discovery == nil {
+				continue
+			}
+			if seen[tpl.Name] {
+				continue
+			}
+			seen[tpl.Name] = true
+			if cm.discoverer.IsPending(svcID, tpl.Name) {
+				cm.pendingDiscovery[svcID] = struct{}{}
+				return
+			}
+		}
+	}
+	delete(cm.pendingDiscovery, svcID)
 }
 
 // resolveTemplateForService resolves a template config for the given service,
