@@ -201,8 +201,11 @@ func NewComponent(deps Requires) Provides {
 	settings := settingsFromAgentConfig(catalog, cfg)
 	detectors, correlators, extractors, _ := catalog.Instantiate(settings)
 
+	storage := newTimeSeriesStorage()
+	storage.maxPointsPerSeries = 600
+
 	eng := newEngine(engineConfig{
-		storage:          newTimeSeriesStorage(),
+		storage:          storage,
 		extractors:       extractors,
 		detectors:        detectors,
 		correlators:      correlators,
