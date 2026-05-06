@@ -29,8 +29,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmetadef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench/bench"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type CLIParams struct {
@@ -129,6 +133,10 @@ func main() {
 		recorderfx.Module(),
 		observerfx.Module(),
 		reportertestbenchfx.Module(),
+		// Observer optional deps: HF container checks not needed by the testbench.
+		fx.Supply(option.None[workloadmetadef.Component]()),
+		fx.Supply(option.None[workloadfilterdef.Component]()),
+		fx.Supply(option.None[taggerdef.Component]()),
 		core.Bundle(),
 		fx.Supply(core.BundleParams{
 			ConfigParams: config.NewAgentParams(""),
@@ -278,3 +286,4 @@ func run(
 
 	return nil
 }
+
