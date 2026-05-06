@@ -351,16 +351,3 @@ func strToRegexList(patterns []string) ([]*regexp.Regexp, error) {
 	}
 	return nil, nil
 }
-
-// matchConfigFilters reports whether s passes the include/exclude filter.
-// Used for suite names, CheckName, and Category matching.
-func matchConfigFilters(filter diagSuiteFilter, s string) bool {
-	if len(filter.include) > 0 && len(filter.exclude) > 0 {
-		return matchRegExList(filter.include, s) && !matchRegExList(filter.exclude, s)
-	} else if len(filter.include) > 0 {
-		return matchRegExList(filter.include, s)
-	} else if len(filter.exclude) > 0 {
-		return !matchRegExList(filter.exclude, s)
-	}
-	return true
-}
