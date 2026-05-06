@@ -50,7 +50,7 @@ func TestVerifySharedLib_BuggyLibrary(t *testing.T) {
 	a := &InjectorInstaller{installPath: tmpDir}
 	err := a.verifySharedLib(context.TODO(), so)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to verify injected lib")
+	assert.Contains(t, err.Error(), "launcher library crashed")
 }
 
 // TestInstrumentLDPreload_BuggyLibrary verifies that InstrumentLDPreload
@@ -72,7 +72,7 @@ func TestInstrumentLDPreload_BuggyLibrary(t *testing.T) {
 
 	err := a.InstrumentLDPreload(context.TODO())
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to verify injected lib")
+	assert.Contains(t, err.Error(), "launcher library crashed")
 
 	// ld.so.preload must not have been created — the sanity check runs first.
 	_, statErr := os.Stat(preloadFile)

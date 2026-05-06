@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 
 	"go.uber.org/multierr"
 	"go.yaml.in/yaml/v2"
@@ -279,6 +280,21 @@ func (a *InjectorInstaller) verifySharedLib(ctx context.Context, libPath string)
 	var buf bytes.Buffer
 	cmd.Stderr = &buf
 	if err := cmd.Run(); err != nil {
+		// Only block the install if the library crashed the host process via a
+		// fatal signal (SIGSEGV, SIGABRT, …). That is the actual danger: a library
+		// that raises a fatal signal would kill every process on the host once
+		// written to /etc/ld.so.preload.
+		// A plain non-zero exit means the library ran, hit an error (e.g. an
+		// AppArmor-blocked syscall), and exited gracefully — it will not crash
+		// application processes at runtime.
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			if status, ok := exitErr.Sys().(syscall.WaitStatus); ok && status.Signaled() {
+				return fmt.Errorf("launcher library crashed (signal %d) %s: %s", status.Signal(), libPath, buf.String())
+			}
+			log.Warnf("launcher library exited non-zero during verification (will not crash processes, continuing): %s", buf.String())
+			return nil
+		}
 		return fmt.Errorf("failed to verify injected lib %s (%w): %s", libPath, err, buf.String())
 	}
 	return nil
