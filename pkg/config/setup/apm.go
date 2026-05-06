@@ -234,6 +234,20 @@ func setupAPM(config pkgconfigmodel.Setup) {
 		return out
 	})
 
+	// Deprecated/Experimental: DD_APM_SPAN_DERIVED_PRIMARY_TAGS is only honored when
+	// the agent runs in a serverless context (the Datadog Azure App Services
+	// extension, or serverless-init for Cloud Run / Container Apps / Cloud Run
+	// Functions). Tracers should populate additional_metric_tags instead — do not
+	// use in new deployments.
+	config.BindEnvAndSetDefault("apm_config.span_derived_primary_tags", []string{}, "DD_APM_SPAN_DERIVED_PRIMARY_TAGS")
+	config.ParseEnvAsStringSlice("apm_config.span_derived_primary_tags", func(in string) []string {
+		var out []string
+		if err := json.Unmarshal([]byte(in), &out); err != nil {
+			log.Warnf(`"apm_config.span_derived_primary_tags" can not be parsed: %v`, err)
+			return nil
+		}
+		return out
+	})
 	config.BindEnvAndSetDefault("apm_config.mode", "", "DD_APM_MODE")
 }
 
