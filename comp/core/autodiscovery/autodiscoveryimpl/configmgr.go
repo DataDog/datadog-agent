@@ -439,7 +439,7 @@ func (cm *reconcilingConfigManager) retryPendingDiscoveries() integration.Config
 
 	var changes integration.ConfigChanges
 	for _, svcID := range pending {
-		changes.Merge(cm.reconcileService(svcID))
+		changes.Merge(cm.applyChanges(cm.reconcileService(svcID)))
 	}
 	return changes
 }
