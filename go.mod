@@ -40,24 +40,24 @@ require (
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.0.0
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx v0.0.0-20251027120702-0e91eee9852f
-	github.com/DataDog/datadog-agent/comp/core/config v0.77.0-devel.0.20260213154712-e02b9359151a
+	github.com/DataDog/datadog-agent/comp/core/config v0.77.3
 	github.com/DataDog/datadog-agent/comp/core/configsync v0.64.0
-	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.77.0-devel.0.20260213154712-e02b9359151a
-	github.com/DataDog/datadog-agent/comp/core/flare/types v0.77.0-devel.0.20260213154712-e02b9359151a
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.77.3
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.77.3
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.73.0-devel.0.20251030121902-cd89eab046d6
 	github.com/DataDog/datadog-agent/comp/core/ipc/def v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers v0.70.0
 	github.com/DataDog/datadog-agent/comp/core/ipc/impl v0.72.0-devel.0.20250915111542-570ca4a195dc
 	github.com/DataDog/datadog-agent/comp/core/ipc/mock v0.70.0
-	github.com/DataDog/datadog-agent/comp/core/log/def v0.77.0-devel.0.20260213154712-e02b9359151a
+	github.com/DataDog/datadog-agent/comp/core/log/def v0.77.3
 	github.com/DataDog/datadog-agent/comp/core/log/fx v0.0.0-20250129172314-517df3f51a84
 	github.com/DataDog/datadog-agent/comp/core/log/impl v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/log/impl-trace v0.59.0
 	github.com/DataDog/datadog-agent/comp/core/log/mock v0.70.0
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.77.0-devel.0.20260213154712-e02b9359151a
+	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.77.3
 	github.com/DataDog/datadog-agent/comp/core/secrets/fx v0.70.0-rc.6
 	github.com/DataDog/datadog-agent/comp/core/secrets/mock v0.72.0-rc.1
-	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.77.0-devel.0.20260213154712-e02b9359151a
+	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.77.3
 	github.com/DataDog/datadog-agent/comp/core/status v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.69.4
 	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.77.0-devel.0.20260213154712-e02b9359151a
@@ -228,7 +228,6 @@ require (
 	github.com/ghodss/yaml v1.0.1-0.20220118164431-d8423dcdf344
 	github.com/glaslos/ssdeep v0.4.0
 	github.com/go-delve/delve v1.26.2
-	github.com/go-ini/ini v1.67.0
 	github.com/go-json-experiment/json v0.0.0-20250517221953-25912455fbc8
 	github.com/go-ole/go-ole v1.3.0
 	github.com/go-sql-driver/mysql v1.9.3
@@ -262,7 +261,7 @@ require (
 	github.com/imdario/mergo v0.3.16
 	github.com/invopop/jsonschema v0.12.0
 	github.com/itchyny/gojq v0.12.19 // indirect
-	github.com/jackc/pgx/v5 v5.8.0
+	github.com/jackc/pgx/v5 v5.9.2
 	github.com/jellydator/ttlcache/v3 v3.4.0
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/json-iterator/go v1.1.12
@@ -302,7 +301,7 @@ require (
 	github.com/prometheus/common v0.67.5
 	github.com/prometheus/procfs v0.20.1
 	github.com/redis/go-redis/v9 v9.17.3
-	github.com/rickar/props v1.0.0
+	github.com/rickar/props v1.1.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/safchain/baloum v0.0.0-20260120132056-b70fa9c29846
 	github.com/safchain/ethtool v0.7.0
@@ -446,7 +445,7 @@ require (
 	code.cloudfoundry.org/tlsconfig v0.0.0-20200131000646-bbe0f8da39b3 // indirect
 	cyphar.com/go-pathrs v0.2.1 // indirect
 	dario.cat/mergo v1.0.2 // indirect
-	filippo.io/edwards25519 v1.1.0 // indirect
+	filippo.io/edwards25519 v1.1.1 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 // indirect
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20231105174938-2b5cbb29f3e2 // indirect
 	github.com/AlekSi/pointer v1.2.0 // indirect
@@ -1074,8 +1073,8 @@ require (
 	github.com/gammazero/workerpool v1.1.3 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.6.2 // indirect
-	github.com/go-git/go-git/v5 v5.16.0 // indirect
-	github.com/go-jose/go-jose/v3 v3.0.4 // indirect
+	github.com/go-git/go-git/v5 v5.16.5 // indirect
+	github.com/go-jose/go-jose/v3 v3.0.5 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect
 	github.com/go-ozzo/ozzo-validation v3.6.0+incompatible // indirect
 	github.com/gocql/gocql v1.6.0 // indirect
