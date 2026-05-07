@@ -50,7 +50,7 @@ var (
 	packagesTestsWithSkippedFlavors = []packageTestsWithSkippedFlavors{
 		{t: testAgent},
 		{t: testDDOT, skippedInstallationMethods: []InstallMethodOption{InstallMethodAnsible}},
-		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.FedoraDefault, e2eos.AmazonLinux2}},
+		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.CentOS7E2E, e2eos.RedHat9, e2eos.RedHat9E2E, e2eos.FedoraDefault, e2eos.AmazonLinux2, e2eos.AmazonLinux2E2E}},
 		{t: testUpgradeScenario},
 	}
 )
