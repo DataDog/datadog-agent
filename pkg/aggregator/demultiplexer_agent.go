@@ -261,7 +261,7 @@ func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
 		return
 	}
 
-	metricsHandle := obs.GetHandle("dogstatsd")
+	metricsHandle := obs.GetHandle("all-metrics")
 
 	for _, worker := range d.statsd.workers {
 		worker.sampler.observerHandle = metricsHandle
