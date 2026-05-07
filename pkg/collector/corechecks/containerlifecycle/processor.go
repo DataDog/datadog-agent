@@ -35,6 +35,8 @@ func newProcessor(sender sender.Sender, chunkSize int, store workloadmeta.Compon
 		sender: sender,
 		handlers: []Handler{
 			NewContainerTerminationHandler(store),
+			NewPodCreationHandler(),
+			NewPodConditionsHandler(),
 			&PodTerminationHandler{},
 			&TaskTerminationHandler{},
 		},

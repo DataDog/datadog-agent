@@ -21,6 +21,13 @@ type PodConditionsHandler struct {
 	shadow map[workloadmeta.EntityID]map[string]workloadmeta.KubernetesPodCondition
 }
 
+// NewPodConditionsHandler returns an initialized PodConditionsHandler.
+func NewPodConditionsHandler() *PodConditionsHandler {
+	return &PodConditionsHandler{
+		shadow: make(map[workloadmeta.EntityID]map[string]workloadmeta.KubernetesPodCondition),
+	}
+}
+
 // String returns a human-readable name for the handler.
 func (h *PodConditionsHandler) String() string {
 	return "PodConditionsHandler"
