@@ -43,8 +43,8 @@ const (
 	spotAssignedLabel           = "autoscaling.datadoghq.com/spot-assigned"
 	spotConfigAnnotation        = "autoscaling.datadoghq.com/spot-config"
 	spotDisabledUntilAnnotation = "autoscaling.datadoghq.com/spot-disabled-until"
-	karpenterCapacityTypeLabel  = "karpenter.sh/capacity-type"
-	karpenterCapacityTypeSpot   = "spot"
+	spotCapacityTypeLabel       = "autoscaling.datadoghq.com/capacity-type"
+	spotCapacityTypeValue       = "interruptible"
 
 	// kindClusterName is the provisioner name; the kind cluster name is derived from it.
 	kindClusterName = "spot-test"
@@ -101,13 +101,11 @@ datadog:
 }
 
 // workerNodes defines the kind cluster topology required by the spot scheduling tests:
-// one on-demand worker and one spot worker with the interruptible taint.
+// one on-demand worker and one spot worker with the interruptible label and taint.
 var workerNodes = []kubeComp.KindWorkerNode{
+	{}, // on-demand
 	{
-		Labels: []kubeComp.Label{{Key: "karpenter.sh/capacity-type", Value: "on-demand"}},
-	},
-	{
-		Labels: []kubeComp.Label{{Key: "karpenter.sh/capacity-type", Value: "spot"}},
+		Labels: []kubeComp.Label{{Key: "autoscaling.datadoghq.com/capacity-type", Value: "interruptible"}},
 		Taints: []kubeComp.Taint{{Key: "autoscaling.datadoghq.com/capacity-type", Value: "interruptible", Effect: "NoSchedule"}},
 	},
 }
@@ -230,21 +228,21 @@ func (s *spotSchedulingSuite) expectRunningOnDemand(c *assert.CollectT, pods []c
 	require.Equal(c, count, actual, "expected %d running on-demand pods", count)
 }
 
-// identifyNodes finds the spot and on-demand worker nodes by karpenter.sh/capacity-type label.
+// identifyNodes finds the spot and on-demand worker nodes by autoscaling.datadoghq.com/capacity-type label.
 func (s *spotSchedulingSuite) identifyNodes() {
 	s.T().Helper()
 	nodes, err := s.kubeClient.CoreV1().Nodes().List(s.T().Context(), metav1.ListOptions{})
 	s.Require().NoError(err)
 	for _, node := range nodes.Items {
-		switch node.Labels[karpenterCapacityTypeLabel] {
-		case karpenterCapacityTypeSpot:
+		switch node.Labels[spotCapacityTypeLabel] {
+		case spotCapacityTypeValue:
 			s.spotNode = node.Name
 		default:
 			s.onDemandNode = node.Name
 		}
 	}
-	s.Require().NotEmpty(s.spotNode, "no node with %s=spot found; check WithKindWorkerNodes", karpenterCapacityTypeLabel)
-	s.Require().NotEmpty(s.onDemandNode, "no node without %s=spot found; check WithKindWorkerNodes", karpenterCapacityTypeLabel)
+	s.Require().NotEmpty(s.spotNode, "no node with %s=%s found; check WithKindWorkerNodes", spotCapacityTypeLabel, spotCapacityTypeValue)
+	s.Require().NotEmpty(s.onDemandNode, "no node without %s=%s found; check WithKindWorkerNodes", spotCapacityTypeLabel, spotCapacityTypeValue)
 }
 
 // waitForWebhook polls MutatingWebhookConfigurations until the spot scheduling webhook is registered.
