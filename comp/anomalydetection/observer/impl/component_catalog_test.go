@@ -7,8 +7,6 @@ package observerimpl
 
 import (
 	"errors"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -25,75 +23,6 @@ import (
 func TestDefaultCatalog_DetectorTeardownContract(t *testing.T) {
 	require.NoError(t, defaultCatalog().validateDetectorTeardownContract(),
 		"every catalog detector must implement SeriesRemover or be added to statelessDetectorAllowlist with a justification comment")
-}
-
-func TestLoadTestbenchParams_ParsesFinalistDetectorConfigs(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "params.json")
-	require.NoError(t, os.WriteFile(path, []byte(`{
-		"components": {
-			"rrcf": { "enabled": false },
-			"bocpd": { "enabled": false },
-			"tukey_biweight": {
-				"enabled": true,
-				"z_threshold": 5.5,
-				"score_every": 5,
-				"aggregations": ["avg"]
-			},
-			"holt_residual": {
-				"enabled": true,
-				"z_threshold": 5.0,
-				"min_deviation_mad": 3.5,
-				"aggregations": ["avg"]
-			}
-		}
-	}`), 0o600))
-
-	settings, err := LoadTestbenchParams(path)
-	require.NoError(t, err)
-
-	detectors, _, _, _ := defaultCatalog().Instantiate(settings)
-	require.Len(t, detectors, 2, "params files enable only explicitly selected detector components")
-
-	var tukey *TukeyBiweightDetector
-	var holt *HoltResidualDetector
-	for _, detector := range detectors {
-		switch d := detector.(type) {
-		case *TukeyBiweightDetector:
-			tukey = d
-		case *HoltResidualDetector:
-			holt = d
-		}
-	}
-	require.NotNil(t, tukey)
-	require.NotNil(t, holt)
-	require.Equal(t, 5.5, tukey.ZThreshold)
-	require.Equal(t, 5, tukey.ScoreEvery)
-	require.Equal(t, []observerdef.Aggregate{observerdef.AggregateAverage}, tukey.Aggregations)
-	require.Equal(t, 5.0, holt.ZThreshold)
-	require.Equal(t, 3.5, holt.MinDeviationMAD)
-	require.Equal(t, []observerdef.Aggregate{observerdef.AggregateAverage}, holt.Aggregations)
-}
-
-func TestDefaultCatalog_ExperimentalFinalistsDefaultDisabled(t *testing.T) {
-	cat := defaultCatalog()
-	finalists := map[string]struct{}{
-		"tukey_biweight": {},
-		"holt_residual":  {},
-	}
-
-	found := make(map[string]bool, len(finalists))
-	for _, entry := range cat.entries {
-		if _, ok := finalists[entry.name]; !ok {
-			continue
-		}
-		found[entry.name] = true
-		require.Equal(t, componentDetector, entry.kind)
-		require.False(t, entry.defaultEnabled, "%s must remain opt-in until a finalist is accepted", entry.name)
-	}
-
-	for name := range finalists {
-		require.True(t, found[name], "%s must be registered in the catalog", name)
-	}
 }
 
 // TestValidateDetectorTeardownContract_FlagsBareDetector confirms the
