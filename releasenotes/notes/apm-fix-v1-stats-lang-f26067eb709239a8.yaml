@@ -2,4 +2,4 @@
 fixes:
   - |
     APM : Fix missing tracer language in stats aggregation key when the V1 stats
-    path is enabled. This issue only affects users with the V1 stats feature flag enabled.
+    path is enabled. This issue only affects users with the V1 feature flag enabled or using the 'convert-traces' flag.
