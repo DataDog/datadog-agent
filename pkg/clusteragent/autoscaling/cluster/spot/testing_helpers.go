@@ -21,7 +21,7 @@ import (
 type TestScheduler = scheduler
 
 // NewTestScheduler creates a scheduler for testing.
-func NewTestScheduler(config Config, wlm workloadmeta.Component, evictPod func(namespace, name string) error, dynamicClient dynamic.Interface) *TestScheduler {
+func NewTestScheduler(config Config, s SpotSender, wlm workloadmeta.Component, evictPod func(namespace, name string) error, dynamicClient dynamic.Interface) *TestScheduler {
 	isLeader := func() bool {
 		return true
 	}
@@ -31,7 +31,8 @@ func NewTestScheduler(config Config, wlm workloadmeta.Component, evictPod func(n
 	patcherFunc := workloadPatcherFunc(func(context.Context, objectRef, time.Time) error {
 		return nil
 	})
-	return newScheduler(config, wlm, evictorFunc, patcherFunc, dynamicClient, newWLMPodLister(wlm), isLeader)
+	tel := newTelemetry(s, isLeader, testGlobalTagsFunc)
+	return newScheduler(config, wlm, evictorFunc, patcherFunc, dynamicClient, newWLMPodLister(wlm), isLeader, tel)
 }
 
 // HasAdmissionsOrPending reports whether the pod tracker has any in-flight admissions or pending pods
@@ -134,3 +135,18 @@ func (f workloadPatcherFunc) setDisabledUntil(ctx context.Context, owner objectR
 
 // CoreV1PodToWLM is an alias for coreV1PodToWLM, exposed for testing.
 var CoreV1PodToWLM = coreV1PodToWLM
+
+// MetricsFlushInterval is the interval at which the telemetry metrics are flushed, exported for tests.
+const MetricsFlushInterval = metricsFlushInterval
+
+// TestClusterID is the cluster ID used in tests.
+const TestClusterID = "31415926-5358-9793-2384-626433832795"
+
+func testGlobalTagsFunc() []string {
+	return []string{
+		"orch_cluster_id:" + TestClusterID,
+		"kube_cluster_name:rubik",
+	}
+}
+
+var TestGlobalTags = append([]string{"join_leader:true"}, testGlobalTagsFunc()...)

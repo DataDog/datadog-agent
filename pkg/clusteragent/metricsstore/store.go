@@ -12,16 +12,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// MetricsSender is the subset of sender.Sender required by MetricsStore.
+type MetricsSender interface {
+	Gauge(metric string, value float64, hostname string, tags []string)
+	MonotonicCount(metric string, value float64, hostname string, tags []string)
+	Count(metric string, value float64, hostname string, tags []string)
+	Commit()
+}
 
 // MetricsStore stores structured metrics for any cluster-agent resource
 // and sends them periodically via a Datadog Sender
 type MetricsStore[T any] struct {
 	metrics             sync.Map // map[string]StructuredMetrics
 	generateMetricsFunc func(T) StructuredMetrics
-	sender              sender.Sender
+	sender              MetricsSender
 	isLeader            func() bool
 	globalTagsFunc      func() []string
 }
@@ -29,7 +36,7 @@ type MetricsStore[T any] struct {
 // NewMetricsStore creates a new metrics store.
 // globalTagsFunc, if non-nil, is called on every WriteAll to retrieve tags that
 // are appended to every metric (e.g. orch_cluster_id from the tagger).
-func NewMetricsStore[T any](generateFunc func(T) StructuredMetrics, senderInstance sender.Sender, isLeaderFunc func() bool, globalTagsFunc func() []string) *MetricsStore[T] {
+func NewMetricsStore[T any](generateFunc func(T) StructuredMetrics, senderInstance MetricsSender, isLeaderFunc func() bool, globalTagsFunc func() []string) *MetricsStore[T] {
 	return &MetricsStore[T]{
 		generateMetricsFunc: generateFunc,
 		sender:              senderInstance,

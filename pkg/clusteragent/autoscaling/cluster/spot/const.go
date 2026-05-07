@@ -36,3 +36,24 @@ const (
 	spotNodeTaintKey   = "autoscaling.datadoghq.com/capacity-type"
 	spotNodeTaintValue = "interruptible"
 )
+
+// Spot scheduling metrics.
+const (
+	metricPrefix = "datadog.cluster_agent.autoscaling.cluster.spot."
+
+	// MetricNamePods is a gauge reporting the number of running pods per workload.
+	MetricNamePods = metricPrefix + "pods"
+	// MetricNameExcessPods is a gauge reporting the number of pods that exceed the target spot ratio per workload.
+	MetricNameExcessPods = metricPrefix + "excess_pods"
+	// MetricNameFallbacks is a counter incremented each time spot scheduling falls back to on-demand for a workload.
+	MetricNameFallbacks = metricPrefix + "fallbacks"
+	// MetricNameRebalanceEvictions is a counter incremented each time the rebalancer evicts a pod.
+	MetricNameRebalanceEvictions = metricPrefix + "rebalance_evictions"
+	// MetricNamePendingSeconds is a histogram of the time a spot pod spent in the Pending phase.
+	MetricNamePendingSeconds = metricPrefix + "pending_seconds"
+
+	// MetricNameWorkloads is a gauge reporting the total number of spot-enabled workloads per workload kind.
+	MetricNameWorkloads = metricPrefix + "workloads"
+	// MetricNameActiveFallbacks is a gauge reporting the number of workloads currently in fallback mode per workload kind.
+	MetricNameActiveFallbacks = metricPrefix + "active_fallbacks"
+)
