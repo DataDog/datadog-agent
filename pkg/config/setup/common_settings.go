@@ -7,16 +7,15 @@
 package setup
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -109,6 +108,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// secrets backend
 	config.BindEnvAndSetDefault("secret_backend_type", "")
 	config.BindEnvAndSetDefault("secret_backend_config", map[string]interface{}{})
+	config.BindEnvAndSetDefault("multi_secret_backends", map[string]interface{}{})
 	config.BindEnvAndSetDefault("secret_backend_command", "")
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
 	config.BindEnvAndSetDefault("secret_backend_output_max_size", 1024*1024)
@@ -389,7 +389,16 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// - nodes
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resources", []string{})
 	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resource_annotations_exclude", []string{})
-	config.BindEnvAndSetDefault("cluster_agent.cluster_tagger.grpc_max_message_size", 4<<20) // 4 MB
+	// partially deprecated: `agent_ipc.grpc_max_message_size` should now be used for configuring the maximum gRPC
+	// message size on the agent IPC server
+	//
+	// this is still used directly for determining the chunking behavior of messages sent from the remote tagger and
+	// remote workloadmeta, to preserve existing behavior until we can better unify chunking behavior across all the
+	// gRPC services on the IPC endpoint.
+	//
+	// if this value is larger than `agent_ipc.grpc_max_message_size`, it will still be honoured by the agent gRPC
+	// server instead of `agent_ipc.grpc_max_message_size`.
+	config.BindEnvAndSetDefault("cluster_agent.cluster_tagger.grpc_max_message_size", 4<<20)
 
 	// Check that the trust chain is valid for Agent cross-node communications (NodeAgent->DCA / CLC->DCA / DCA->CLC).
 	config.BindEnvAndSetDefault("cluster_trust_chain.enable_tls_verification", false)
@@ -690,16 +699,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.iast.enabled", false, "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_IAST_ENABLED")          // config for IAST which is implemented in the client libraries
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.asm_sca.enabled", false, "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_APPSEC_SCA_ENABLED") // config for SCA
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.profiling.enabled", "", "DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_PROFILING_ENABLED")   // config for profiling
-	config.ParseEnvAsStringSlice("admission_controller.auto_instrumentation.container_registry_allow_list", func(s string) []string {
-		var result []string
-		for _, r := range strings.Split(s, ",") {
-			r = strings.TrimSpace(r)
-			if r != "" {
-				result = append(result, r)
-			}
-		}
-		return result
-	})
+	config.ParseEnvSplitComma("admission_controller.auto_instrumentation.container_registry_allow_list")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.pod_endpoint", "/inject-pod-cws")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.command_endpoint", "/inject-command-cws")
@@ -846,12 +846,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("otelcollector.converter.enabled", true)
 	config.BindEnvAndSetDefault("otelcollector.flare.timeout", 60)
 	config.BindEnvAndSetDefault("otelcollector.converter.features", []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare", "datadog"})
-	config.ParseEnvAsStringSlice("otelcollector.converter.features", func(s string) []string {
-		// Support both comma and space separators
-		return strings.FieldsFunc(s, func(r rune) bool {
-			return r == ',' || r == ' '
-		})
-	})
+	pkgconfighelper.ParseEnvSplitCommaAndSpace("otelcollector.converter.features", config)
 	config.BindEnvAndSetDefault("otelcollector.gateway.mode", false)
 	config.BindEnvAndSetDefault("otelcollector.installation_method", "")
 	// otel_standalone controls whether otel-agent runs in standalone mode (with full secrets, tagger server)
@@ -1096,6 +1091,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("hostprofiler.health_metrics.enabled", true)
 	config.BindEnvAndSetDefault("hostprofiler.health_metrics.target", "127.0.0.1:8889")
 	config.BindEnvAndSetDefault("hostprofiler.hpflare.port", 7778)
+
+	// Remote Flags system
+	remoteflags(config)
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1152,6 +1150,8 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("agent_ipc.host", "localhost")
 	config.BindEnvAndSetDefault("agent_ipc.port", 0)
 	config.BindEnvAndSetDefault("agent_ipc.config_refresh_interval", 0)
+	config.BindEnvAndSetDefault("agent_ipc.grpc_max_message_size", 128<<20)
+	config.BindEnvAndSetDefault("agent_ipc.grpc_warning_message_size", 32<<20)
 	config.BindEnvAndSetDefault("default_integration_http_timeout", 9)
 	config.BindEnvAndSetDefault("integration_tracing", false)
 	config.BindEnvAndSetDefault("integration_tracing_exhaustive", false)
@@ -1385,6 +1385,11 @@ func remoteconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_log_config_scheduling", false)
 	// Websocket echo test
 	config.BindEnvAndSetDefault("remote_configuration.no_websocket_echo", false)
+}
+
+func remoteflags(config pkgconfigmodel.Setup) {
+	// Remote flags
+	config.BindEnvAndSetDefault("remote_flags.enabled", false)
 }
 
 func autoconfig(config pkgconfigmodel.Setup) {
@@ -1705,13 +1710,7 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("dogstatsd_mem_based_rate_limiter.soft_limit_freeos_check.factor", 1.5)
 
 	config.BindEnv("dogstatsd_mapper_profiles") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.ParseEnvAsSlice("dogstatsd_mapper_profiles", func(in string) []interface{} {
-		var mappings []interface{}
-		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
-			log.Errorf(`"dogstatsd_mapper_profiles" can not be parsed: %v`, err)
-		}
-		return mappings
-	})
+	config.ParseEnvJSON("dogstatsd_mapper_profiles", []interface{}{})
 
 	config.BindEnvAndSetDefault("statsd_forward_host", "")
 	config.BindEnvAndSetDefault("statsd_forward_port", 0)

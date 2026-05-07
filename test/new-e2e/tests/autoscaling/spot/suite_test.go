@@ -43,8 +43,8 @@ const (
 	spotAssignedLabel           = "autoscaling.datadoghq.com/spot-assigned"
 	spotConfigAnnotation        = "autoscaling.datadoghq.com/spot-config"
 	spotDisabledUntilAnnotation = "autoscaling.datadoghq.com/spot-disabled-until"
-	karpenterCapacityTypeLabel  = "karpenter.sh/capacity-type"
-	karpenterCapacityTypeSpot   = "spot"
+	spotCapacityTypeLabel       = "autoscaling.datadoghq.com/capacity-type"
+	spotCapacityTypeValue       = "interruptible"
 
 	// kindClusterName is the provisioner name; the kind cluster name is derived from it.
 	kindClusterName = "spot-test"
@@ -58,6 +58,10 @@ const (
 	fallbackDuration             = 2 * scheduleTimeout
 	rebalanceStabilizationPeriod = 10 * time.Second
 )
+
+// helmChartVersion is the minimum Datadog Helm chart version that exposes the
+// datadog.autoscaling.cluster.spot.enabled feature toggle.
+const helmChartVersion = "3.208.0"
 
 // makeHelmValues returns the Helm values for the spot scheduling suite.
 // pullPolicy should be "Never" when the image is pre-loaded into kind (local dev)
@@ -74,8 +78,6 @@ clusterAgent:
   env:
     - name: DD_LOG_LEVEL
       value: "DEBUG"
-    - name: DD_AUTOSCALING_CLUSTER_SPOT_ENABLED
-      value: "true"
     - name: DD_AUTOSCALING_CLUSTER_SPOT_DEFAULTS_PERCENTAGE
       value: "100"
     - name: DD_AUTOSCALING_CLUSTER_SPOT_DEFAULTS_MIN_ON_DEMAND_REPLICAS
@@ -97,17 +99,19 @@ datadog:
     # the framework sets this to true by default, which unconditionally enables the
     # cluster checks runner deployment regardless of clusterChecksRunner.enabled
     useClusterCheckRunners: false
+  autoscaling:
+    cluster:
+      spot:
+        enabled: true
 `, pullPolicy, scheduleTimeout, fallbackDuration, rebalanceStabilizationPeriod)
 }
 
 // workerNodes defines the kind cluster topology required by the spot scheduling tests:
-// one on-demand worker and one spot worker with the interruptible taint.
+// one on-demand worker and one spot worker with the interruptible label and taint.
 var workerNodes = []kubeComp.KindWorkerNode{
+	{}, // on-demand
 	{
-		Labels: []kubeComp.Label{{Key: "karpenter.sh/capacity-type", Value: "on-demand"}},
-	},
-	{
-		Labels: []kubeComp.Label{{Key: "karpenter.sh/capacity-type", Value: "spot"}},
+		Labels: []kubeComp.Label{{Key: "autoscaling.datadoghq.com/capacity-type", Value: "interruptible"}},
 		Taints: []kubeComp.Taint{{Key: "autoscaling.datadoghq.com/capacity-type", Value: "interruptible", Effect: "NoSchedule"}},
 	},
 }
@@ -140,6 +144,7 @@ func TestSpotSchedulingKind(t *testing.T) {
 		localkubernetes.WithKindLoadImage(image),
 		localkubernetes.WithAgentOptions(
 			kubernetesagentparams.WithClusterAgentFullImagePath(image),
+			kubernetesagentparams.WithHelmChartVersion(helmChartVersion),
 			kubernetesagentparams.WithHelmValues(makeHelmValues("Never")),
 		),
 	)))
@@ -159,6 +164,7 @@ func TestSpotSchedulingKindCI(t *testing.T) {
 			kindvmscen.WithKindWorkerNodes(workerNodes...),
 			kindvmscen.WithoutFakeIntake(),
 			kindvmscen.WithAgentOptions(
+				kubernetesagentparams.WithHelmChartVersion(helmChartVersion),
 				kubernetesagentparams.WithHelmValues(makeHelmValues("IfNotPresent")),
 			),
 		),
@@ -172,9 +178,6 @@ func (s *spotSchedulingSuite) SetupSuite() {
 	s.kubeClient = s.Env().KubernetesCluster.Client()
 	s.identifyNodes()
 	s.waitForWebhook()
-	// The cluster-agent ClusterRole is missing pods/eviction — a known issue to be fixed
-	// in the next Helm chart release.
-	s.patchClusterAgentEvictionRole()
 }
 
 func (s *spotSchedulingSuite) SetupTest() {
@@ -230,21 +233,21 @@ func (s *spotSchedulingSuite) expectRunningOnDemand(c *assert.CollectT, pods []c
 	require.Equal(c, count, actual, "expected %d running on-demand pods", count)
 }
 
-// identifyNodes finds the spot and on-demand worker nodes by karpenter.sh/capacity-type label.
+// identifyNodes finds the spot and on-demand worker nodes by autoscaling.datadoghq.com/capacity-type label.
 func (s *spotSchedulingSuite) identifyNodes() {
 	s.T().Helper()
 	nodes, err := s.kubeClient.CoreV1().Nodes().List(s.T().Context(), metav1.ListOptions{})
 	s.Require().NoError(err)
 	for _, node := range nodes.Items {
-		switch node.Labels[karpenterCapacityTypeLabel] {
-		case karpenterCapacityTypeSpot:
+		switch node.Labels[spotCapacityTypeLabel] {
+		case spotCapacityTypeValue:
 			s.spotNode = node.Name
 		default:
 			s.onDemandNode = node.Name
 		}
 	}
-	s.Require().NotEmpty(s.spotNode, "no node with %s=spot found; check WithKindWorkerNodes", karpenterCapacityTypeLabel)
-	s.Require().NotEmpty(s.onDemandNode, "no node without %s=spot found; check WithKindWorkerNodes", karpenterCapacityTypeLabel)
+	s.Require().NotEmpty(s.spotNode, "no node with %s=%s found; check WithKindWorkerNodes", spotCapacityTypeLabel, spotCapacityTypeValue)
+	s.Require().NotEmpty(s.onDemandNode, "no node without %s=%s found; check WithKindWorkerNodes", spotCapacityTypeLabel, spotCapacityTypeValue)
 }
 
 // waitForWebhook polls MutatingWebhookConfigurations until the spot scheduling webhook is registered.
@@ -283,21 +286,6 @@ func (s *spotSchedulingSuite) createTestNamespace() {
 
 func (s *spotSchedulingSuite) deleteTestNamespace() {
 	err := s.kubeClient.CoreV1().Namespaces().Delete(context.Background(), s.testNamespace, metav1.DeleteOptions{})
-	s.Require().NoError(err)
-}
-
-// patchClusterAgentEvictionRole adds pods/eviction create permission to the cluster-agent
-// ClusterRole. This is needed because the Helm chart omits this rule; it will be fixed
-// in the next operator release.
-func (s *spotSchedulingSuite) patchClusterAgentEvictionRole() {
-	patch := []byte(`[{"op":"add","path":"/rules/-","value":{"apiGroups":[""],"resources":["pods/eviction"],"verbs":["create"]}}]`)
-	_, err := s.kubeClient.RbacV1().ClusterRoles().Patch(
-		s.T().Context(),
-		"dda-linux-datadog-cluster-agent",
-		types.JSONPatchType,
-		patch,
-		metav1.PatchOptions{},
-	)
 	s.Require().NoError(err)
 }
 

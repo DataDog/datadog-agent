@@ -325,6 +325,7 @@ func (g *generator) addConditionHandler(
 				Bias:          op.Bias,
 				Len:           op.ByteSize,
 				ExprStatusIdx: ^uint32(0),
+				NullAsZero:    op.NullAsZero,
 			})
 		case *ir.ExprPushOffsetOp:
 			ops = append(ops, ExprPushOffsetOp{ByteSize: op.ByteSize})
@@ -332,10 +333,14 @@ func (g *generator) addConditionHandler(
 			ops = append(ops, ExprLoadLiteralOp{Data: op.Data})
 		case *ir.ExprReadStringOp:
 			ops = append(ops, ExprReadStringOp{MaxLen: op.MaxLen})
-		case *ir.ExprCmpEqBaseOp:
-			ops = append(ops, ExprCmpEqBaseOp{ByteSize: op.ByteSize})
-		case *ir.ExprCmpEqStringOp:
-			ops = append(ops, ExprCmpEqStringOp{})
+		case *ir.ExprCmpBaseOp:
+			ops = append(ops, ExprCmpBaseOp{
+				Op:       op.Op,
+				Kind:     op.Kind,
+				ByteSize: op.ByteSize,
+			})
+		case *ir.ExprCmpStringOp:
+			ops = append(ops, ExprCmpStringOp{Op: op.Op})
 		case *ir.SliceBoundsCheckOp:
 			ops = append(ops, ExprSliceBoundsCheckOp{
 				Index:         op.Index,
@@ -427,6 +432,7 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 				Bias:          op.Bias,
 				Len:           op.ByteSize,
 				ExprStatusIdx: exprIdx,
+				NullAsZero:    op.NullAsZero,
 			})
 		case *ir.ExprPushOffsetOp:
 			ops = append(ops, ExprPushOffsetOp{ByteSize: op.ByteSize})
@@ -434,10 +440,14 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 			ops = append(ops, ExprLoadLiteralOp{Data: op.Data})
 		case *ir.ExprReadStringOp:
 			ops = append(ops, ExprReadStringOp{MaxLen: op.MaxLen})
-		case *ir.ExprCmpEqBaseOp:
-			ops = append(ops, ExprCmpEqBaseOp{ByteSize: op.ByteSize})
-		case *ir.ExprCmpEqStringOp:
-			ops = append(ops, ExprCmpEqStringOp{})
+		case *ir.ExprCmpBaseOp:
+			ops = append(ops, ExprCmpBaseOp{
+				Op:       op.Op,
+				Kind:     op.Kind,
+				ByteSize: op.ByteSize,
+			})
+		case *ir.ExprCmpStringOp:
+			ops = append(ops, ExprCmpStringOp{Op: op.Op})
 		case *ir.SliceBoundsCheckOp:
 			// After the bounds check, the scratch still starts with the
 			// data pointer (8 bytes). Update lastOpSize so the following
@@ -1022,6 +1032,7 @@ func swissMapOps(op *ir.SwissMapLookupOp, exprStatusIdx uint32) []Op {
 			GroupByteSize:            op.GroupByteSize,
 			HeaderByteSize:           op.HeaderByteSize,
 			ExprStatusIdx:            exprStatusIdx,
+			ExistenceOnly:            op.ExistenceOnly,
 		},
 		SwissMapAesencOp{},
 		SwissMapHashFinishOp{},
