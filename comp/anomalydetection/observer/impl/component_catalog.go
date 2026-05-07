@@ -197,13 +197,6 @@ func defaultCatalog() *componentCatalog {
 				defaultEnabled: false,
 			},
 			{
-				name:           "acorrshift",
-				displayName:    "AcorrShift",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewAcorrShiftDetector() },
-				defaultEnabled: false,
-			},
-			{
 				name:           "holt_residual",
 				displayName:    "HoltResidual",
 				kind:           componentDetector,
@@ -217,20 +210,6 @@ func defaultCatalog() *componentCatalog {
 					}
 					return cfg, nil
 				},
-			},
-			{
-				name:           "mmdrff",
-				displayName:    "MMDRFFTwoSample",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewMMDRFFTwoSampleDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "spectral_residual",
-				displayName:    "SpectralResidual",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewSpectralResidualDetector() },
-				defaultEnabled: false,
 			},
 			{
 				name:           "tukey_biweight",

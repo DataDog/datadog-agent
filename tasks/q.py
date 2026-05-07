@@ -644,7 +644,7 @@ def eval_report_matrix(
 @task
 def eval_incremental_candidates(
     ctx,
-    components: str = ",".join(["tukey_biweight", "bocpd_student_t", "holt_residual", "acorrshift"]),
+    components: str = ",".join(["tukey_biweight", "holt_residual"]),
     output_dir: str = "/tmp/observer-replacement-eval",
     scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
     sigma: float = 30.0,

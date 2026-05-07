@@ -33,12 +33,7 @@ AWS_PROFILE = "sso-agent-sandbox-account-admin"
 # passthrough is intentionally excluded: it is designed for TP scoring (eval_tp),
 # not for Gaussian F1 eval (eval_scenarios / eval_combinations).
 MANUAL_EVAL_DETECTORS = [
-    "bocpd_persistence",
-    "bocpd_student_t",
-    "acorrshift",
     "holt_residual",
-    "mmdrff",
-    "spectral_residual",
     "tukey_biweight",
 ]
 DETECTORS = ["bocpd", "cusum", "rrcf", "scanmw", "scanwelch"] + MANUAL_EVAL_DETECTORS

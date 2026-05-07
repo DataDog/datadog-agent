@@ -22,12 +22,7 @@ def _write_report(path, score, rows):
 class TestObserverEvalSummaries(unittest.TestCase):
     def test_manual_eval_candidates_are_known_detectors(self):
         for name in [
-            "bocpd_persistence",
-            "bocpd_student_t",
-            "acorrshift",
             "holt_residual",
-            "mmdrff",
-            "spectral_residual",
             "tukey_biweight",
         ]:
             self.assertIn(name, DETECTORS)
