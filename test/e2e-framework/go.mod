@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/test/e2e-framework
 go 1.25.6
 
 require (
-	cloud.google.com/go/compute v1.60.0
+	cloud.google.com/go/compute v1.61.0
 	dario.cat/mergo v1.0.2
 	github.com/DataDog/datadog-agent/pkg/util/option v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.76.0-rc.4
