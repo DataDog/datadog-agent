@@ -1,0 +1,27 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix a class of IPv6 ``host:port`` formatting bugs identified in
+    multiple call sites across the Agent. Code that built ``host:port``
+    strings with ``fmt.Sprintf("%s:%d", ...)`` or string concatenation
+    (instead of ``net.JoinHostPort``) left IPv6 literals unbracketed,
+    producing unparseable URLs / dial addresses
+    (e.g. ``http://fd38::1:5005`` instead of ``http://[fd38::1]:5005``)
+    and ``too many colons in address`` errors. The identified
+    occurrences now use IPv6-safe formatting; affected paths include the
+    local agent IPC endpoint used by various ``agent`` and
+    ``process-agent`` subcommands, the cluster-agent endpoint discovery
+    and inter-pod communication, the security-agent / system-probe
+    communication, the OTel-collector integration, the trace-agent OTLP
+    listeners, the SNMP traps listener, the agent telemetry sender, the
+    AppSec processor address, the ECS metadata autodetection, the
+    Windows systray flare URL, the goroutine pprof URL, the HTTP logs
+    destination, and the MongoDB connection-string builder of the
+    private action runner.
