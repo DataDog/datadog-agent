@@ -161,7 +161,7 @@ in lockstep with the YAML sources.
 | **M2** | Single-component converter: take one `config.schema.yaml` → valid JSON Schema fragment with rewritten `$ref` | Smallest unit; easy to unit-test against the 6 local schemas |
 | **M3** | Transitive `$ref` walker + `$defs` registry + collision handling for upstream-core types (`confighttp`, `configtls`, `exporterhelper`) | The interesting graph problem; failure modes here drive design |
 | **M4** | Top-level envelope (hand-written) + stitching | Once components and registry work, this is mostly templating |
-| **M5** | Invoke task + `--check` mode + self-validation against meta-schema | Productionising |
+| **M5** | Invoke task + `--check` mode + self-validation against meta-schema. Also: lift the `jsonschema` dependency added in M2 from venv-local to the project-wide requirements file so the tool is reproducible across machines and CI. | Productionising |
 
 ## Open decisions
 
