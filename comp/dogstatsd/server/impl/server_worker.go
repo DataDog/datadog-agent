@@ -22,7 +22,7 @@ var (
 )
 
 type worker struct {
-	server *server
+	server *dsdServer
 	// the batcher will be responsible of batching a few samples / events / service
 	// checks and it will automatically forward them to the aggregator, meaning that
 	// the flushing logic to the aggregator is actually in the batcher.
@@ -40,7 +40,7 @@ type worker struct {
 	filterList       utilstrings.Matcher
 }
 
-func newWorker(s *server, workerNum int, wmeta option.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry, filterList utilstrings.Matcher) *worker {
+func newWorker(s *dsdServer, workerNum int, wmeta option.Option[workloadmeta.Component], packetsTelemetry *packets.TelemetryStore, stringInternerTelemetry *stringInternerTelemetry, filterList utilstrings.Matcher) *worker {
 	var batcher *batcher
 	if s.ServerlessMode {
 		batcher = newServerlessBatcher(s.demultiplexer, s.tlmChannel)

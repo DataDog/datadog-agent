@@ -13,7 +13,7 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
-func (s *server) writeStats(w http.ResponseWriter, _ *http.Request) {
+func (s *dsdServer) writeStats(w http.ResponseWriter, _ *http.Request) {
 	s.log.Info("Got a request for the Dogstatsd stats.")
 
 	dsdConfig := dsdconfig.NewConfig(s.config)
