@@ -18,12 +18,12 @@
           {
             "function": "main.mapIndexStringKey",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 811
+            "lineNumber": 827
           },
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 248
+            "lineNumber": 264
           },
           {
             "function": "runtime.main",

@@ -9,7 +9,7 @@ package metadata
 
 import (
 	haagentmetadatafx "github.com/DataDog/datadog-agent/comp/metadata/haagent/fx"
-	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
+	hostfx "github.com/DataDog/datadog-agent/comp/metadata/host/fx"
 	hostgpu "github.com/DataDog/datadog-agent/comp/metadata/hostgpu/fx"
 	hostsysteminfo "github.com/DataDog/datadog-agent/comp/metadata/hostsysteminfo/fx"
 	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
@@ -30,7 +30,7 @@ func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		runnerfx.Module(),
 		resourcesfx.Module(),
-		hostimpl.Module(),
+		hostfx.Module(),
 		inventoryagentfx.Module(),
 		inventoryhostimpl.Module(),
 		hostgpu.Module(),

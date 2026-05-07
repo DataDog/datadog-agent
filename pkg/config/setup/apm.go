@@ -6,14 +6,8 @@
 package setup
 
 import (
-	"encoding/csv"
-	"encoding/json"
-	"errors"
-	"strconv"
-	"strings"
-
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Traces specifies the data type used for Vector override. See https://vector.dev/docs/reference/configuration/sources/datadog_agent/ for additional details.
@@ -75,29 +69,11 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.workload_selection", true, "DD_APM_WORKLOAD_SELECTION")
 	config.BindEnvAndSetDefault("apm_config.instrumentation.injection_mode", "auto", "DD_APM_INSTRUMENTATION_INJECTION_MODE")
 	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled_namespaces", []string{}, "DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES")
-	config.ParseEnvAsStringSlice("apm_config.instrumentation.enabled_namespaces", func(in string) []string {
-		var mappings []string
-		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
-			log.Errorf(`"apm_config.instrumentation.enabled_namespaces" can not be parsed: %v`, err)
-		}
-		return mappings
-	})
+	config.ParseEnvJSON("apm_config.instrumentation.enabled_namespaces", []string{})
 	config.BindEnvAndSetDefault("apm_config.instrumentation.disabled_namespaces", []string{}, "DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES")
-	config.ParseEnvAsStringSlice("apm_config.instrumentation.disabled_namespaces", func(in string) []string {
-		var mappings []string
-		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
-			log.Errorf(`"apm_config.instrumentation.disabled_namespaces" can not be parsed: %v`, err)
-		}
-		return mappings
-	})
+	config.ParseEnvJSON("apm_config.instrumentation.disabled_namespaces", []string{})
 	config.BindEnvAndSetDefault("apm_config.instrumentation.lib_versions", map[string]string{}, "DD_APM_INSTRUMENTATION_LIB_VERSIONS")
-	config.ParseEnvAsMapStringInterface("apm_config.instrumentation.lib_versions", func(in string) map[string]interface{} {
-		var mappings map[string]interface{}
-		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
-			log.Errorf(`"apm_config.instrumentation.lib_versions" can not be parsed: %v`, err)
-		}
-		return mappings
-	})
+	config.ParseEnvJSON("apm_config.instrumentation.lib_versions", map[string]string{})
 	// Default Image Tag for the APM Inject package (https://hub.docker.com/r/datadog/apm-inject/tags).
 	// We pin to a major version by default.
 	config.BindEnvAndSetDefault("apm_config.instrumentation.injector_image_tag", "0", "DD_APM_INSTRUMENTATION_INJECTOR_IMAGE_TAG")
@@ -141,13 +117,7 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.analyzed_spans", map[string]interface{}{}, "DD_APM_ANALYZED_SPANS")
 	config.BindEnvAndSetDefault("apm_config.ignore_resources", []string{}, "DD_APM_IGNORE_RESOURCES", "DD_IGNORE_RESOURCE")
 	config.BindEnvAndSetDefault("apm_config.instrumentation.targets", []interface{}{}, "DD_APM_INSTRUMENTATION_TARGETS")
-	config.ParseEnvAsSlice("apm_config.instrumentation.targets", func(in string) []interface{} {
-		var mappings []interface{}
-		if err := json.Unmarshal([]byte(in), &mappings); err != nil {
-			log.Errorf(`"apm_config.instrumentation.targets" can not be parsed: %v`, err)
-		}
-		return mappings
-	})
+	config.ParseEnvJSON("apm_config.instrumentation.targets", []interface{}{})
 	config.BindEnvAndSetDefault("apm_config.receiver_socket", defaultReceiverSocket, "DD_APM_RECEIVER_SOCKET")
 	config.BindEnvAndSetDefault("apm_config.windows_pipe_name", "", "DD_APM_WINDOWS_PIPE_NAME")
 	config.BindEnvAndSetDefault("apm_config.filter_tags.require", []string{}, "DD_APM_FILTER_TAGS_REQUIRE")
@@ -179,117 +149,20 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.debug_v1_payloads", false, "DD_APM_DEBUG_V1_PAYLOADS")
 	config.BindEnvAndSetDefault("apm_config.send_all_internal_stats", false, "DD_APM_SEND_ALL_INTERNAL_STATS")
 	config.BindEnvAndSetDefault("apm_config.enable_container_tags_buffer", true, "DD_APM_ENABLE_CONTAINER_TAGS_BUFFER")
-	config.ParseEnvAsStringSlice("apm_config.features", func(s string) []string {
-		// Either commas or spaces can be used as separators.
-		// Comma takes precedence as it was the only supported separator in the past.
-		// Mixing separators is not supported.
-		var res []string
-		if strings.ContainsRune(s, ',') {
-			res = strings.Split(s, ",")
-		} else {
-			res = strings.Split(s, " ")
-		}
-		for i, v := range res {
-			res[i] = strings.TrimSpace(v)
-		}
-		return res
-	})
+	pkgconfighelper.ParseEnvSplitCommaThenSpace("apm_config.features", config)
+	pkgconfighelper.ParseEnvCSVSplit("apm_config.ignore_resources", config)
 
-	config.ParseEnvAsStringSlice("apm_config.ignore_resources", func(in string) []string {
-		r, err := splitCSVString(in, ',')
-		if err != nil {
-			log.Warnf(`"apm_config.ignore_resources" can not be parsed: %v`, err)
-			return []string{}
-		}
-		return r
-	})
+	pkgconfighelper.ParseEnvJSONOrSpace("apm_config.filter_tags.require", config)
+	pkgconfighelper.ParseEnvJSONOrSpace("apm_config.filter_tags.reject", config)
+	pkgconfighelper.ParseEnvJSONOrSpace("apm_config.filter_tags_regex.require", config)
+	pkgconfighelper.ParseEnvJSONOrSpace("apm_config.filter_tags_regex.reject", config)
+	pkgconfighelper.ParseEnvJSONOrSpace("apm_config.obfuscation.credit_cards.keep_values", config)
+	config.ParseEnvJSON("apm_config.replace_tags", []map[string]string{})
 
-	config.ParseEnvAsStringSlice("apm_config.filter_tags.require", parseKVList("apm_config.filter_tags.require"))
-	config.ParseEnvAsStringSlice("apm_config.filter_tags.reject", parseKVList("apm_config.filter_tags.reject"))
-	config.ParseEnvAsStringSlice("apm_config.filter_tags_regex.require", parseKVList("apm_config.filter_tags_regex.require"))
-	config.ParseEnvAsStringSlice("apm_config.filter_tags_regex.reject", parseKVList("apm_config.filter_tags_regex.reject"))
-	config.ParseEnvAsStringSlice("apm_config.obfuscation.credit_cards.keep_values", parseKVList("apm_config.obfuscation.credit_cards.keep_values"))
-	config.ParseEnvAsSliceMapString("apm_config.replace_tags", func(in string) []map[string]string {
-		var out []map[string]string
-		if err := json.Unmarshal([]byte(in), &out); err != nil {
-			log.Warnf(`"apm_config.replace_tags" can not be parsed: %v`, err)
-		}
-		return out
-	})
-
-	config.ParseEnvAsMapStringInterface("apm_config.analyzed_spans", func(in string) map[string]interface{} {
-		out, err := parseAnalyzedSpans(in)
-		if err != nil {
-			log.Errorf(`Bad format for "apm_config.analyzed_spans" it should be of the form \"service_name|operation_name=rate,other_service|other_operation=rate\", error: %v`, err)
-		}
-		return out
-	})
+	pkgconfighelper.ParseEnvTraceSpan("apm_config.analyzed_spans", config)
 
 	config.BindEnvAndSetDefault("apm_config.peer_tags", []string{}, "DD_APM_PEER_TAGS")
-	config.ParseEnvAsStringSlice("apm_config.peer_tags", func(in string) []string {
-		var out []string
-		if err := json.Unmarshal([]byte(in), &out); err != nil {
-			log.Warnf(`"apm_config.peer_tags" can not be parsed: %v`, err)
-		}
-		return out
-	})
+	config.ParseEnvJSON("apm_config.peer_tags", []string{})
 
 	config.BindEnvAndSetDefault("apm_config.mode", "", "DD_APM_MODE")
-}
-
-func parseKVList(key string) func(string) []string {
-	return func(in string) []string {
-		if len(in) == 0 {
-			return []string{}
-		}
-		if in[0] != '[' {
-			return strings.Split(in, " ")
-		}
-		// '[' as a first character signals JSON array format
-		var values []string
-		if err := json.Unmarshal([]byte(in), &values); err != nil {
-			log.Warnf(`"%s" can not be parsed: %v`, key, err)
-			return []string{}
-		}
-		return values
-	}
-}
-
-func splitCSVString(s string, sep rune) ([]string, error) {
-	r := csv.NewReader(strings.NewReader(s))
-	r.TrimLeadingSpace = true
-	r.LazyQuotes = true
-	r.Comma = sep
-
-	return r.Read()
-}
-
-func parseNameAndRate(token string) (string, float64, error) {
-	parts := strings.Split(token, "=")
-	if len(parts) != 2 {
-		return "", 0, errors.New("Bad format")
-	}
-	rate, err := strconv.ParseFloat(parts[1], 64)
-	if err != nil {
-		return "", 0, errors.New("Unabled to parse rate")
-	}
-	return parts[0], rate, nil
-}
-
-// parseAnalyzedSpans parses the env string to extract a map of spans to be analyzed by service and operation.
-// the format is: service_name|operation_name=rate,other_service|other_operation=rate
-func parseAnalyzedSpans(env string) (map[string]interface{}, error) {
-	analyzedSpans := make(map[string]interface{})
-	if env == "" {
-		return analyzedSpans, nil
-	}
-	tokens := strings.SplitSeq(env, ",")
-	for token := range tokens {
-		name, rate, err := parseNameAndRate(token)
-		if err != nil {
-			return nil, err
-		}
-		analyzedSpans[name] = rate
-	}
-	return analyzedSpans, nil
 }
