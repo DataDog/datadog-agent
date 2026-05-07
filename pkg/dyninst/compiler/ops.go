@@ -217,13 +217,16 @@ type ExprReadStringOp struct {
 	MaxLen uint16
 }
 
-type ExprCmpEqBaseOp struct {
+type ExprCmpBaseOp struct {
 	baseOp
+	Op       ir.CmpOp
+	Kind     ir.CmpKind
 	ByteSize uint8
 }
 
-type ExprCmpEqStringOp struct {
+type ExprCmpStringOp struct {
 	baseOp
+	Op ir.CmpOp
 }
 
 type ExprSliceBoundsCheckOp struct {

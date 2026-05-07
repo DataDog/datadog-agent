@@ -1,0 +1,16 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix IPv6 address formatting in the URL used by the agent's goroutine
+    dump helper to reach the local expvar / pprof endpoint. The host:port
+    is now properly bracketed (e.g.
+    ``http://[::1]:5000/debug/pprof/goroutine?debug=2``) so the goroutine
+    dump succeeds when ``cmd_host`` (or the deprecated ``ipc_address``)
+    is set to an IPv6 literal.

@@ -8,8 +8,10 @@ package utils
 
 import (
 	"fmt"
+	"strconv"
 
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/util/hostport"
 )
 
 // GetEndpointURL returns the formatted URL of the provided endpoint
@@ -27,5 +29,5 @@ func GetEndpointURL(endpoint logsconfig.Endpoint, uri string) string {
 			port = 80 // use default port
 		}
 	}
-	return fmt.Sprintf("%s://%s:%v%s/%s", protocol, endpoint.Host, port, endpoint.PathPrefix, uri)
+	return fmt.Sprintf("%s://%s%s/%s", protocol, hostport.Join(endpoint.Host, strconv.Itoa(port)), endpoint.PathPrefix, uri)
 }

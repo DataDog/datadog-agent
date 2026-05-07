@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Windows: ``windows_certificate`` check adds ``certificate_store_regex``, a list of
+    Go regular expressions matched against ``HKLM`` certificate store names.
+    Patterns are matched case-insensitively. ``certificate_store`` and
+    ``certificate_store_regex`` can be used together; at least one must be set.
