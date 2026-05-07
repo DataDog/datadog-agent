@@ -146,6 +146,7 @@ type Bench struct {
 	episodeInfo    *EpisodeInfo
 
 	rawLogs                []observerdef.LogView
+	rawMetrics             []*parquetMetricView
 	logAnomalies           []observerdef.Anomaly
 	logAnomaliesByDetector map[string][]observerdef.Anomaly
 
@@ -304,6 +305,7 @@ func (tb *Bench) LoadScenario(name string) error {
 	tb.mu.Lock()
 
 	tb.rawLogs = nil
+	tb.rawMetrics = nil
 	tb.logAnomalies = []observerdef.Anomaly{}
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
 	tb.liveAdvanceTimes = nil
@@ -389,8 +391,6 @@ func (tb *Bench) loadParquetDir(dir string) error {
 		return errors.New("recorder component not configured - cannot load parquet files")
 	}
 
-	handle := tb.obs.GetHandle("testbench-replay")
-
 	if tb.config.LogsOnly {
 		fmt.Printf("  Logs-only mode: skipping parquet metrics and trace stats\n")
 	} else {
@@ -401,36 +401,16 @@ func (tb *Bench) loadParquetDir(dir string) error {
 
 		fmt.Printf("  Loading %d samples from parquet files\n", len(metrics))
 
-		byTimestampCounter := make(map[int64]int64)
-		byTimestampCardinality := make(map[int64]map[string]struct{})
-
 		var droppedCount int
 		for _, m := range metrics {
-			metricName := m.Name
-
-			if strings.HasPrefix(metricName, "datadog.") {
+			if strings.HasPrefix(m.Name, "datadog.") {
 				continue
 			}
-
 			if tb.config.SkipDroppedMetrics && m.Dropped {
 				droppedCount++
 				continue
 			}
-
-			byTimestampCounter[m.Timestamp]++
-
-			if _, ok := byTimestampCardinality[m.Timestamp]; !ok {
-				byTimestampCardinality[m.Timestamp] = make(map[string]struct{})
-			}
-			seriesKey := m.Name + "|" + strings.Join(m.Tags, ",")
-			isNew := false
-			if _, seen := byTimestampCardinality[m.Timestamp][seriesKey]; !seen {
-				byTimestampCardinality[m.Timestamp][seriesKey] = struct{}{}
-				isNew = true
-			}
-			_ = isNew
-
-			handle.ObserveMetric(&parquetMetricView{
+			tb.rawMetrics = append(tb.rawMetrics, &parquetMetricView{
 				name:      m.Name,
 				value:     m.Value,
 				tags:      m.Tags,
@@ -441,33 +421,8 @@ func (tb *Bench) loadParquetDir(dir string) error {
 			fmt.Printf("  Skipped %d dropped observations from parquet\n", droppedCount)
 		}
 
-		// Telemetry for input metrics count by timestamp
-		type byTimestampEntry struct {
-			Timestamp int64
-			Count     int64
-		}
-		byTimestampOrdered := make([]byTimestampEntry, 0, len(byTimestampCounter))
-		for timestamp, count := range byTimestampCounter {
-			byTimestampOrdered = append(byTimestampOrdered, byTimestampEntry{Timestamp: timestamp, Count: count})
-		}
-		sort.Slice(byTimestampOrdered, func(i, j int) bool {
-			return byTimestampOrdered[i].Timestamp < byTimestampOrdered[j].Timestamp
-		})
-		for _, entry := range byTimestampOrdered {
-			tb.debug.AddTelemetry(telemetryTbInputMetricsCount, float64(entry.Count), entry.Timestamp, nil)
-		}
-
-		// Telemetry for cardinality by timestamp
-		byCardOrdered := make([]byTimestampEntry, 0, len(byTimestampCardinality))
-		for timestamp, set := range byTimestampCardinality {
-			byCardOrdered = append(byCardOrdered, byTimestampEntry{Timestamp: timestamp, Count: int64(len(set))})
-		}
-		sort.Slice(byCardOrdered, func(i, j int) bool {
-			return byCardOrdered[i].Timestamp < byCardOrdered[j].Timestamp
-		})
-		for _, entry := range byCardOrdered {
-			tb.debug.AddTelemetry(telemetryTbInputMetricsCardinality, float64(entry.Count), entry.Timestamp, nil)
-		}
+		handle := tb.obs.GetHandle("testbench-replay")
+		tb.feedRawMetrics(handle)
 	}
 
 	parquetLogs, err := tb.config.Recorder.ReadAllLogs(dir)
@@ -481,6 +436,54 @@ func (tb *Bench) loadParquetDir(dir string) error {
 	}
 
 	return nil
+}
+
+// feedRawMetrics feeds tb.rawMetrics through the observer handle and re-adds
+// per-timestamp telemetry counters. It flushes every 500 metrics to prevent
+// the observation channel (capacity 1000) from filling up and silently dropping
+// samples. Called from both loadParquetDir (initial load) and rerunDetectorsLocked
+// (after engine reset on component toggle).
+func (tb *Bench) feedRawMetrics(handle observerdef.Handle) {
+	const flushEvery = 500
+	for i, m := range tb.rawMetrics {
+		handle.ObserveMetric(m)
+		if (i+1)%flushEvery == 0 {
+			tb.debug.Flush()
+		}
+	}
+
+	// Re-add per-timestamp telemetry. These counters live in TelemetryNamespace
+	// which is also cleared by debug.Reset(), so they must be restored on every
+	// call to feedRawMetrics (not just the initial load).
+	type byTimestampEntry struct {
+		Timestamp int64
+		Count     int64
+	}
+	byTimestampCounter := make(map[int64]int64)
+	byTimestampCardinality := make(map[int64]map[string]struct{})
+	for _, m := range tb.rawMetrics {
+		byTimestampCounter[m.timestamp]++
+		if _, ok := byTimestampCardinality[m.timestamp]; !ok {
+			byTimestampCardinality[m.timestamp] = make(map[string]struct{})
+		}
+		byTimestampCardinality[m.timestamp][m.name+"|"+strings.Join(m.tags, ",")] = struct{}{}
+	}
+	countOrdered := make([]byTimestampEntry, 0, len(byTimestampCounter))
+	for ts, count := range byTimestampCounter {
+		countOrdered = append(countOrdered, byTimestampEntry{ts, count})
+	}
+	sort.Slice(countOrdered, func(i, j int) bool { return countOrdered[i].Timestamp < countOrdered[j].Timestamp })
+	for _, e := range countOrdered {
+		tb.debug.AddTelemetry(telemetryTbInputMetricsCount, float64(e.Count), e.Timestamp, nil)
+	}
+	cardOrdered := make([]byTimestampEntry, 0, len(byTimestampCardinality))
+	for ts, set := range byTimestampCardinality {
+		cardOrdered = append(cardOrdered, byTimestampEntry{ts, int64(len(set))})
+	}
+	sort.Slice(cardOrdered, func(i, j int) bool { return cardOrdered[i].Timestamp < cardOrdered[j].Timestamp })
+	for _, e := range cardOrdered {
+		tb.debug.AddTelemetry(telemetryTbInputMetricsCardinality, float64(e.Count), e.Timestamp, nil)
+	}
 }
 
 // parquetMetricView wraps a metric record to satisfy observerdef.MetricView.
@@ -581,11 +584,15 @@ func (tb *Bench) isComponentEnabled(name string) bool {
 // rerunDetectorsLocked re-runs all detectors and correlators on current data.
 // Caller must hold lock.
 func (tb *Bench) rerunDetectorsLocked() {
-	// Reset engine with current settings.
+	// Reset engine with current settings (clears all storage).
 	tb.debug.Reset(tb.settings)
 
-	// Feed raw logs through the observer handle.
 	handle := tb.obs.GetHandle("testbench-replay")
+
+	// Re-feed parquet metrics into the fresh storage.
+	tb.feedRawMetrics(handle)
+
+	// Feed raw logs through the observer handle.
 	for _, logEntry := range tb.rawLogs {
 		handle.ObserveLog(logEntry)
 		ts := logEntry.GetTimestampUnixMilli() / 1000
@@ -1102,6 +1109,7 @@ func (tb *Bench) loadDemoScenario() error {
 	tb.mu.Lock()
 
 	tb.rawLogs = nil
+	tb.rawMetrics = nil
 	tb.logAnomalies = []observerdef.Anomaly{}
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
 	tb.ready = false
@@ -1111,7 +1119,6 @@ func (tb *Bench) loadDemoScenario() error {
 
 	fmt.Println("Generating demo scenario data...")
 
-	handle := tb.obs.GetHandle("testbench-demo")
 	baseTimestamp := int64(1000000)
 	const totalSeconds = 70
 
@@ -1140,7 +1147,7 @@ func (tb *Bench) loadDemoScenario() error {
 				{"connection.errors", getDemoConnectionErrorsValue(elapsed) * 0.6, []string{"service:worker"}},
 			}
 			for _, obs := range observations {
-				handle.ObserveMetric(&parquetMetricView{
+				tb.rawMetrics = append(tb.rawMetrics, &parquetMetricView{
 					name:      obs.name,
 					value:     obs.value,
 					tags:      obs.tags,
