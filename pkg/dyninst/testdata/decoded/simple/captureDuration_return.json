@@ -1,10 +1,10 @@
 [
   {
-    "service": "sample",
+    "service": "simple",
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testEmptyString",
+      "method": "main.condMultiReturn",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,19 +16,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testEmptyString",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go",
-            "lineNumber": 50
-          },
-          {
-            "function": "main.executeStringFuncs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go",
-            "lineNumber": 68
+            "function": "main.condMultiReturn",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 1005
           },
           {
             "function": "main.main",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 30
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 123
           },
           {
             "function": "runtime.main",
@@ -42,33 +37,33 @@
           }
         ],
         "probe": {
-          "id": "testEmptyString",
+          "id": "captureDuration_return",
           "location": {
-            "method": "main.testEmptyString"
+            "method": "main.condMultiReturn"
           }
         },
         "captures": {
-          "entry": {
-            "arguments": {
-              "x": {
-                "type": "string",
-                "value": ""
+          "return": {
+            "captureExpressions": {
+              "duration_ms": {
+                "type": "@duration",
+                "value": "[duration]"
               }
             }
           }
         }
-      },
-      "type": "snapshot"
+      }
     },
     "timestamp": "[ts]",
+    "duration": "[duration]",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
-    "service": "sample",
+    "service": "simple",
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testEmptyString",
+      "method": "main.condMultiReturn",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -80,19 +75,14 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testEmptyString",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go",
-            "lineNumber": 50
-          },
-          {
-            "function": "main.executeStringFuncs",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go",
-            "lineNumber": 69
+            "function": "main.condMultiReturn",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 1005
           },
           {
             "function": "main.main",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 30
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
+            "lineNumber": 124
           },
           {
             "function": "runtime.main",
@@ -106,25 +96,25 @@
           }
         ],
         "probe": {
-          "id": "testEmptyString",
+          "id": "captureDuration_return",
           "location": {
-            "method": "main.testEmptyString"
+            "method": "main.condMultiReturn"
           }
         },
         "captures": {
-          "entry": {
-            "arguments": {
-              "x": {
-                "type": "string",
-                "value": ""
+          "return": {
+            "captureExpressions": {
+              "duration_ms": {
+                "type": "@duration",
+                "value": "[duration]"
               }
             }
           }
         }
-      },
-      "type": "snapshot"
+      }
     },
     "timestamp": "[ts]",
+    "duration": "[duration]",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]
