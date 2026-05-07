@@ -421,8 +421,7 @@ func (tb *Bench) loadParquetDir(dir string) error {
 			fmt.Printf("  Skipped %d dropped observations from parquet\n", droppedCount)
 		}
 
-		handle := tb.obs.GetHandle("testbench-replay")
-		tb.feedRawMetrics(handle)
+		tb.feedRawMetrics()
 	}
 
 	parquetLogs, err := tb.config.Recorder.ReadAllLogs(dir)
@@ -438,18 +437,14 @@ func (tb *Bench) loadParquetDir(dir string) error {
 	return nil
 }
 
-// feedRawMetrics feeds tb.rawMetrics through the observer handle and re-adds
-// per-timestamp telemetry counters. It flushes every 500 metrics to prevent
-// the observation channel (capacity 1000) from filling up and silently dropping
-// samples. Called from both loadParquetDir (initial load) and rerunDetectorsLocked
-// (after engine reset on component toggle).
-func (tb *Bench) feedRawMetrics(handle observerdef.Handle) {
-	const flushEvery = 500
-	for i, m := range tb.rawMetrics {
-		handle.ObserveMetric(m)
-		if (i+1)%flushEvery == 0 {
-			tb.debug.Flush()
-		}
+// feedRawMetrics feeds tb.rawMetrics synchronously into the engine and re-adds
+// per-timestamp telemetry counters. Uses IngestMetricSync to bypass the
+// dispatch channel, so no data is lost regardless of volume. Called from both
+// loadParquetDir (initial load) and rerunDetectorsLocked (after engine reset on
+// component toggle).
+func (tb *Bench) feedRawMetrics() {
+	for _, m := range tb.rawMetrics {
+		tb.debug.IngestMetricSync("testbench-replay", m)
 	}
 
 	// Re-add per-timestamp telemetry. These counters live in TelemetryNamespace
@@ -587,20 +582,16 @@ func (tb *Bench) rerunDetectorsLocked() {
 	// Reset engine with current settings (clears all storage).
 	tb.debug.Reset(tb.settings)
 
-	handle := tb.obs.GetHandle("testbench-replay")
+	// Re-feed parquet metrics synchronously into the fresh storage.
+	tb.feedRawMetrics()
 
-	// Re-feed parquet metrics into the fresh storage.
-	tb.feedRawMetrics(handle)
-
-	// Feed raw logs through the observer handle.
+	// Feed raw logs synchronously into the engine. IngestLogSync bypasses the
+	// dispatch channel so no logs are dropped regardless of volume.
 	for _, logEntry := range tb.rawLogs {
-		handle.ObserveLog(logEntry)
+		tb.debug.IngestLogSync("testbench-replay", logEntry)
 		ts := logEntry.GetTimestampUnixMilli() / 1000
 		tb.debug.AddTelemetry(telemetryTbInputLogsCount, 1, ts, nil)
 	}
-
-	// Flush ensures all observations (metrics + logs) are stored.
-	tb.debug.Flush()
 
 	// Run the full batch replay: reset analysis state (not storage), advance
 	// through every stored timestamp so detectors see the full accumulated

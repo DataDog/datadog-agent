@@ -39,6 +39,14 @@ type DebugView interface {
 	// StorageReader returns a read-only view of the engine's time-series storage.
 	// Used by the testbench to compute windowed log rates in change messages.
 	StorageReader() observerdef.StorageReader
+	// IngestLogSync feeds a log directly into the engine, bypassing the
+	// dispatch channel. Synchronous: returns after IngestLog and any
+	// scheduler-triggered advances complete. Testbench-only — never call
+	// from production hot paths; not safe to interleave with live ObserveLog.
+	IngestLogSync(source string, msg observerdef.LogView)
+	// IngestMetricSync feeds a metric directly into the engine, bypassing
+	// the dispatch channel. Synchronous; same caveats as IngestLogSync.
+	IngestMetricSync(source string, sample observerdef.MetricView)
 }
 
 // StateView is a read-only window into engine state.

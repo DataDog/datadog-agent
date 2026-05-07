@@ -854,6 +854,54 @@ func (o *observerImpl) StorageReader() observerdef.StorageReader {
 	return o.engine.storage
 }
 
+// IngestLogSync feeds a log directly into the engine, bypassing the dispatch
+// channel. It replicates what the dispatcher run() loop does for a log
+// observation: build logObs, call engine.IngestLog, drive any advance
+// requests, and forward telemetry. Implements DebugView.
+func (o *observerImpl) IngestLogSync(source string, msg observerdef.LogView) {
+	timestampMs := msg.GetTimestampUnixMilli()
+	lo := &logObs{
+		content:     copyBytes(msg.GetContent()),
+		status:      msg.GetStatus(),
+		tags:        copyTags(msg.GetTags()),
+		hostname:    msg.GetHostname(),
+		timestampMs: timestampMs,
+	}
+	requests, logTelemetry := o.engine.IngestLog(source, lo)
+	if len(logTelemetry) > 0 {
+		o.telemetryHandler.handleTelemetry(logTelemetry)
+	}
+	for _, req := range requests {
+		result := o.engine.advanceWithReason(req.upToSec, req.reason)
+		o.telemetryHandler.handleTelemetry(result.telemetry)
+	}
+}
+
+// IngestMetricSync feeds a metric directly into the engine, bypassing the
+// dispatch channel. Mirrors the handle.ObserveMetricAndReportDrop path without
+// the non-blocking channel send. Implements DebugView.
+func (o *observerImpl) IngestMetricSync(source string, sample observerdef.MetricView) {
+	name := sample.GetName()
+	if strings.HasPrefix(name, "datadog.") {
+		return
+	}
+	timestamp := sample.GetTimestampUnix()
+	if timestamp == 0 {
+		timestamp = time.Now().Unix()
+	}
+	mo := &metricObs{
+		name:      name,
+		value:     sample.GetValue(),
+		tags:      copyTags(sample.GetRawTags()),
+		timestamp: timestamp,
+	}
+	requests := o.engine.IngestMetric(source, mo)
+	for _, req := range requests {
+		result := o.engine.advanceWithReason(req.upToSec, req.reason)
+		o.telemetryHandler.handleTelemetry(result.telemetry)
+	}
+}
+
 // handle is the lightweight observation interface passed to other components.
 // It only holds a channel and source name - all processing happens in the observer.
 type handle struct {
