@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	serverdef "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
+	server "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	offlinereporter "github.com/DataDog/datadog-agent/comp/offlinereporter/def"
@@ -82,7 +82,7 @@ type dependencies struct {
 	Debug           serverdebug.Component
 	Replay          replay.Component
 	PidMap          pidmap.Component
-	Params          serverdef.Params
+	Params          server.Params
 	WMeta           option.Option[workloadmeta.Component]
 	Telemetry       telemetry.Component
 	Hostname        hostnameinterface.Component
@@ -94,7 +94,7 @@ type dependencies struct {
 type Provides struct {
 	compdef.Out
 
-	Comp          serverdef.Component
+	Comp          server.Component
 	StatsEndpoint api.AgentEndpointProvider
 }
 
@@ -109,7 +109,7 @@ type cachedOriginCounter struct {
 }
 
 // Server represent a Dogstatsd server
-type server struct {
+type dsdServer struct {
 	log    log.Component
 	config model.ReaderWriter
 	// listeners are the instantiated socket listener (UDS or UDP or both)
@@ -222,7 +222,7 @@ func NewComponent(deps dependencies) Provides {
 	}
 }
 
-func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnameinterface.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component, filterList filterlist.Component) *server {
+func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnameinterface.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component, filterList filterlist.Component) *dsdServer {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry() })
 	var stats *statutil.Stats
@@ -283,7 +283,7 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 	dogstatsdTelemetryCount := telemetrycomp.NewCounter("dogstatsd", "processed",
 		[]string{"message_type", "state", "origin"}, "Count of service checks/events/metrics processed by dogstatsd")
 
-	s := &server{
+	s := &dsdServer{
 		log:                     log,
 		config:                  cfg,
 		Started:                 false,
@@ -360,7 +360,7 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 	return s
 }
 
-func (s *server) startHook(context context.Context) error {
+func (s *dsdServer) startHook(context context.Context) error {
 	err := s.start(context)
 	if err != nil {
 		s.log.Errorf("Could not start dogstatsd: %s", err)
@@ -370,7 +370,7 @@ func (s *server) startHook(context context.Context) error {
 	return nil
 }
 
-func (s *server) start(context.Context) error {
+func (s *dsdServer) start(context.Context) error {
 	packetsChannel := make(chan packets.Packets, s.config.GetInt("dogstatsd_queue_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
 
@@ -502,7 +502,7 @@ func (s *server) start(context.Context) error {
 	return nil
 }
 
-func (s *server) stop(context.Context) error {
+func (s *dsdServer) stop(context.Context) error {
 	s.startedMtx.Lock()
 	defer s.startedMtx.Unlock()
 
@@ -527,11 +527,11 @@ func (s *server) stop(context.Context) error {
 	return nil
 }
 
-func (s *server) IsRunning() bool {
+func (s *dsdServer) IsRunning() bool {
 	return s.Started
 }
 
-func (s *server) onFilterListUpdate(filterList utilstrings.Matcher, _ utilstrings.Matcher) {
+func (s *dsdServer) onFilterListUpdate(filterList utilstrings.Matcher, _ utilstrings.Matcher) {
 	s.startedMtx.RLock()
 	defer s.startedMtx.RUnlock()
 
@@ -546,7 +546,7 @@ func (s *server) onFilterListUpdate(filterList utilstrings.Matcher, _ utilstring
 	}
 }
 
-func (s *server) handleMessages() {
+func (s *dsdServer) handleMessages() {
 	if s.Statistics != nil {
 		go s.Statistics.Process()
 		go s.Statistics.Update(&dogstatsdPacketsLastSec)
@@ -586,11 +586,11 @@ func (s *server) handleMessages() {
 	s.filterList.OnUpdateMetricFilterList(s.onFilterListUpdate)
 }
 
-func (s *server) UDPLocalAddr() string {
+func (s *dsdServer) UDPLocalAddr() string {
 	return s.udpLocalAddr
 }
 
-func (s *server) forwarder(fcon net.Conn) {
+func (s *dsdServer) forwarder(fcon net.Conn) {
 	for {
 		select {
 		case <-s.stopChan:
@@ -608,7 +608,7 @@ func (s *server) forwarder(fcon net.Conn) {
 }
 
 // ServerlessFlush flushes all the data to the aggregator to them send it to the Datadog intake.
-func (s *server) ServerlessFlush(sketchesBucketDelay time.Duration) {
+func (s *dsdServer) ServerlessFlush(sketchesBucketDelay time.Duration) {
 	s.log.Debug("Received a Flush trigger")
 
 	// make all workers flush their aggregated data (in the batchers) into the time samplers
@@ -665,7 +665,7 @@ func nextMessage(packet *[]byte, eolTermination bool) (message []byte) {
 	return message
 }
 
-func (s *server) eolEnabled(sourceType packets.SourceType) bool {
+func (s *dsdServer) eolEnabled(sourceType packets.SourceType) bool {
 	switch sourceType {
 	case packets.UDS:
 		return s.eolTerminationUDS
@@ -677,7 +677,7 @@ func (s *server) eolEnabled(sourceType packets.SourceType) bool {
 	return false
 }
 
-func (s *server) errLog(format string, params ...interface{}) {
+func (s *dsdServer) errLog(format string, params ...interface{}) {
 	if s.disableVerboseLogs {
 		s.log.Debugf(format, params...)
 	} else {
@@ -686,7 +686,7 @@ func (s *server) errLog(format string, params ...interface{}) {
 }
 
 // workers are running this function in their goroutine
-func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets []*packets.Packet, samples metrics.MetricSampleBatch, filterList *utilstrings.Matcher) metrics.MetricSampleBatch {
+func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, packets []*packets.Packet, samples metrics.MetricSampleBatch, filterList *utilstrings.Matcher) metrics.MetricSampleBatch {
 	for _, packet := range packets {
 		s.log.Tracef("Dogstatsd receive: %q", packet.Contents)
 		for {
@@ -756,7 +756,7 @@ func (s *server) parsePackets(batcher dogstatsdBatcher, parser *parser, packets 
 // They are stored in cache to avoid heap escape.
 // Only `maxOriginCounters` are stored to avoid an infinite expansion.
 // Counters returned by `getOriginCounter` are thread safe.
-func (s *server) getOriginCounter(origin string) (okCnt telemetry.SimpleCounter, errorCnt telemetry.SimpleCounter) {
+func (s *dsdServer) getOriginCounter(origin string) (okCnt telemetry.SimpleCounter, errorCnt telemetry.SimpleCounter) {
 	s.cachedTlmLock.Lock()
 	defer s.cachedTlmLock.Unlock()
 
@@ -797,7 +797,7 @@ func (s *server) getOriginCounter(origin string) (okCnt telemetry.SimpleCounter,
 // which will be slower when processing millions of samples. It could use a boolean returned by `parseMetricSample` which
 // is the first part aware of processing a late metric. Also, it may help us having a telemetry of a "late_metrics" type here
 // which we can't do today.
-func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string,
+func (s *dsdServer) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string,
 	processID uint32, listenerID string, originTelemetry bool, filterList *utilstrings.Matcher) ([]metrics.MetricSample, error) {
 	okCnt := s.tlmProcessedOk
 	errorCnt := s.tlmProcessedError
@@ -862,7 +862,7 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 	return metricSamples, nil
 }
 
-func (s *server) parseEventMessage(parser *parser, message []byte, origin string, processID uint32) (*event.Event, error) {
+func (s *dsdServer) parseEventMessage(parser *parser, message []byte, origin string, processID uint32) (*event.Event, error) {
 	sample, err := parser.parseEvent(message)
 	if err != nil {
 		dogstatsdEventParseErrors.Add(1)
@@ -876,7 +876,7 @@ func (s *server) parseEventMessage(parser *parser, message []byte, origin string
 	return event, nil
 }
 
-func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin string, processID uint32) (*servicecheck.ServiceCheck, error) {
+func (s *dsdServer) parseServiceCheckMessage(parser *parser, message []byte, origin string, processID uint32) (*servicecheck.ServiceCheck, error) {
 	sample, err := parser.parseServiceCheck(message)
 	if err != nil {
 		dogstatsdServiceCheckParseErrors.Add(1)
