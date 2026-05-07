@@ -83,16 +83,17 @@ var mutatedManifest string
 var argoRolloutManifest string
 
 type deployParams struct {
-	nginx       bool
-	nginxPort   int
-	redis       bool
-	tracegen    bool
-	prometheus  bool
-	dogstatsd   *dogstatsdConfig
-	cpustress   bool
-	etcd        bool
-	mutated     bool
-	argoRollout bool
+	nginx               bool
+	nginxPort           int
+	redis               bool
+	tracegen            bool
+	prometheus          bool
+	dogstatsd           *dogstatsdConfig
+	dogstatsdStandalone bool
+	cpustress           bool
+	etcd                bool
+	mutated             bool
+	argoRollout         bool
 }
 
 type dogstatsdConfig struct {
@@ -128,6 +129,15 @@ func WithEtcd() Option { return func(p *deployParams) { p.etcd = true } }
 
 // WithMutated deploys workloads used for admission controller mutation testing.
 func WithMutated() Option { return func(p *deployParams) { p.mutated = true } }
+
+// WithDogstatsdStandalone deploys DogStatsD client workloads targeting the
+// dogstatsd-standalone DaemonSet (port 8128, socket
+// /run/datadog/dsd-standalone.socket) into the workload-dogstatsd-standalone
+// namespace. Use alongside scenkind.WithDeployDogstatsd() which deploys the
+// standalone DaemonSet itself.
+func WithDogstatsdStandalone() Option {
+	return func(p *deployParams) { p.dogstatsdStandalone = true }
+}
 
 // WithArgoRolloutNginx deploys an nginx Rollout workload in the
 // workload-argo-rollout-nginx namespace. Requires ArgoRollout to be installed.
@@ -304,6 +314,20 @@ func Deploy(t *testing.T, env *environments.Kubernetes, opts ...Option) {
 			"Namespace":    ns,
 			"StatsdPort":   p.dogstatsd.port,
 			"StatsdSocket": p.dogstatsd.socket,
+		}))
+		waitForDeployments(t, clients.typed, ns, 5*time.Minute)
+	}
+
+	if p.dogstatsdStandalone {
+		// Deploy clients that target the dogstatsd-standalone DaemonSet.
+		// Port 8128 and socket /run/datadog/dsd-standalone.socket match the
+		// constants in components/datadog/dogstatsd-standalone/k8s.go.
+		ns := "workload-dogstatsd-standalone"
+		applyManifest(t, clients, render(t, dogstatsdManifest, map[string]any{
+			"Version":      version,
+			"Namespace":    ns,
+			"StatsdPort":   8128,
+			"StatsdSocket": "/run/datadog/dsd-standalone.socket",
 		}))
 		waitForDeployments(t, clients.typed, ns, 5*time.Minute)
 	}

@@ -54,10 +54,12 @@ func TestKindSuite(t *testing.T) {
 			kubernetesagentparams.WithKubernetesUseEndpointSlices(),
 		),
 		// Deploy the standard container-test workloads plus the ArgoRollout nginx
-		// Rollout (the ArgoRollout controller itself is deployed by WithDeployArgoRollout above).
+		// Rollout (the ArgoRollout controller itself is deployed by WithDeployArgoRollout above)
+		// and clients for the dogstatsd-standalone DaemonSet (deployed by WithDeployDogstatsd above).
 		provkind.WithWorkloads(append(
 			workloads.DefaultTestWorkloadOptions(),
 			workloads.WithArgoRolloutNginx(),
+			workloads.WithDogstatsdStandalone(),
 		)...),
 	)))
 }
