@@ -163,6 +163,20 @@ pkg_install(
     srcs = [":all_files"],
 )
 
+# Install target for the libdd_discovery static library. Invoked with
+# `--destdir=pkg/discovery/module/rust` so the .a file lands next to the Go
+# source where cgo LDFLAGS will find it.
+pkg_files(
+    name = "libdd_discovery_files",
+    srcs = [":libdd_discovery"],
+    attributes = pkg_attributes(mode = "0644"),
+)
+
+pkg_install(
+    name = "install_libs",
+    srcs = [":libdd_discovery_files"],
+)
+
 # Disco CLI tool for service discovery
 rust_binary(
     name = "disco",

@@ -83,11 +83,8 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		flaretypes.NewFiller(provideRuntimeDebugInfo),
 	}
 
-	telemetryURL := fmt.Sprintf("http://127.0.0.1:%s/telemetry", pkgconfigsetup.Datadog().GetString("expvar_port"))
-
 	for filename, fromFunc := range map[string]func() ([]byte, error){
 		"envvars.log":                         common.GetEnvVars,
-		"telemetry.log":                       func() ([]byte, error) { return remote.getHTTPCallContent(telemetryURL) },
 		"connectivity/resolved_endpoints.txt": getEndpointDNS,
 	} {
 		providers = append(providers, flaretypes.NewFiller(

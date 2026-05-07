@@ -7,7 +7,6 @@ package structure
 
 import (
 	"bytes"
-	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -1502,13 +1501,7 @@ func TestUnmarshalKeyOnSliceOfMap(t *testing.T) {
 	mockConfig := newEmptyMockConf(t)
 
 	mockConfig.BindEnvAndSetDefault("test_value", []map[string]int{})
-	mockConfig.ParseEnvAsSliceMapString("test_value", func(in string) []map[string]string {
-		var out []map[string]string
-		if err := json.Unmarshal([]byte(in), &out); err != nil {
-			require.FailNow(t, "can not parse JSON")
-		}
-		return out
-	})
+	mockConfig.ParseEnvJSON("test_value", []map[string]string{})
 
 	mockConfig.BuildSchema()
 

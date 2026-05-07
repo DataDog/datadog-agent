@@ -21,7 +21,7 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/server"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterServer "github.com/DataDog/datadog-agent/comp/core/workloadfilter/server"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -93,15 +93,10 @@ func (s *server) BuildServer() http.Handler {
 	maxMessageSize := max(ipcMaxMessageSize, legacyMaxMessageSize)
 
 	// Use the convenience function that combines metrics and auth interceptors
-	var opts []googleGrpc.ServerOption
-	if vsockAddr := s.configComp.GetString("vsock_addr"); vsockAddr == "" {
-		opts = append(opts,
-			grpcutil.ServerOptionsWithMetricsAndAuth(
-				grpcutil.RequireClientCert,
-				grpcutil.RequireClientCertStream,
-			)...,
-		)
-	}
+	opts := grpcutil.ServerOptionsWithMetricsAndAuth(
+		grpcutil.RequireClientCert,
+		grpcutil.RequireClientCertStream,
+	)
 
 	opts = append(opts,
 		googleGrpc.Creds(credentials.NewTLS(s.IPC.GetTLSServerConfig())),

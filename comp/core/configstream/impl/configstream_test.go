@@ -281,51 +281,6 @@ done:
 	}
 }
 
-func TestNewComponentValidation(t *testing.T) {
-	mockLog := logmock.New(t)
-	telemetryComp := telemetrynoops.GetCompatComponent()
-
-	t.Run("error when configstream enabled but registry disabled", func(t *testing.T) {
-		cfg := configmock.New(t)
-		cfg.SetWithoutSource("remote_agent.configstream.enabled", true)
-		cfg.SetWithoutSource("remote_agent.registry.enabled", false)
-		_, err := NewComponent(Requires{
-			Lifecycle: compdef.NewTestLifecycle(t),
-			Config:    cfg,
-			Log:       mockLog,
-			Telemetry: telemetryComp,
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "remote_agent.configstream.enabled is true but remote_agent.registry.enabled is not")
-	})
-
-	t.Run("no error when configstream disabled", func(t *testing.T) {
-		cfg := configmock.New(t)
-		cfg.SetWithoutSource("remote_agent.configstream.enabled", false)
-		cfg.SetWithoutSource("remote_agent.registry.enabled", false)
-		_, err := NewComponent(Requires{
-			Lifecycle: compdef.NewTestLifecycle(t),
-			Config:    cfg,
-			Log:       mockLog,
-			Telemetry: telemetryComp,
-		})
-		require.NoError(t, err)
-	})
-
-	t.Run("no error when both configstream and registry enabled", func(t *testing.T) {
-		cfg := configmock.New(t)
-		cfg.SetWithoutSource("remote_agent.configstream.enabled", true)
-		cfg.SetWithoutSource("remote_agent.registry.enabled", true)
-		_, err := NewComponent(Requires{
-			Lifecycle: compdef.NewTestLifecycle(t),
-			Config:    cfg,
-			Log:       mockLog,
-			Telemetry: telemetryComp,
-		})
-		require.NoError(t, err)
-	})
-}
-
 // newConfigStreamForTest creates a config stream for testing without lifecycle
 func newConfigStreamForTest(t *testing.T, cfg config.Component, logger log.Component) *configStream {
 	telemetryComp := telemetrynoops.GetCompatComponent()
@@ -335,8 +290,7 @@ func newConfigStreamForTest(t *testing.T, cfg config.Component, logger log.Compo
 		Log:       logger,
 		Telemetry: telemetryComp,
 	}
-	provides, err := NewComponent(reqs)
-	require.NoError(t, err)
+	provides := NewComponent(reqs)
 
 	// Extract the underlying configStream
 	// and start the run loop manually since lifecycle hooks are not executed
@@ -388,11 +342,10 @@ func buildComponent(t *testing.T) (Provides, *configInterceptor) {
 		Telemetry: telemetrynoops.GetCompatComponent(),
 	}
 
-	provides, err := NewComponent(reqs)
-	require.NoError(t, err)
+	provides := NewComponent(reqs)
 
 	// Start the component's run loop
-	err = lc.Start(context.Background())
+	err := lc.Start(context.Background())
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
