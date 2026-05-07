@@ -1,9 +1,17 @@
 {
-  "type": "unsupported",
-  "operation": "le",
-  "argument": [
-    1,
-    2
-  ],
+  "type": "le",
+  "operation": "",
+  "left": {
+    "type": "literal",
+    "operation": "",
+    "value": 1,
+    "error": ""
+  },
+  "right": {
+    "type": "literal",
+    "operation": "",
+    "value": 2,
+    "error": ""
+  },
   "error": ""
 }

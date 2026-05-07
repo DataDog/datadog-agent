@@ -80,6 +80,16 @@ func TestBuildURLPathPrefixV1(t *testing.T) {
 	assert.Equal(t, "https://foo:8080/prefix/url/v1/input", url)
 }
 
+func TestBuildURLIPv6BareHost(t *testing.T) {
+	url := buildURL(config.NewEndpoint("bar", "", "fd38::1", 8080, config.EmptyPathPrefix, true))
+	assert.Equal(t, "https://[fd38::1]:8080/v1/input", url)
+}
+
+func TestBuildURLIPv6BracketedHost(t *testing.T) {
+	url := buildURL(config.NewEndpoint("bar", "", "[fd38::1]", 8080, config.EmptyPathPrefix, true))
+	assert.Equal(t, "https://[fd38::1]:8080/v1/input", url)
+}
+
 func TestDestinationSend200(t *testing.T) {
 	cfg := configmock.New(t)
 	server := NewTestServer(200, cfg)

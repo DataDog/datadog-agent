@@ -103,8 +103,8 @@ typedef enum sm_opcode {
   SM_OP_EXPR_PUSH_OFFSET = 24,
   SM_OP_EXPR_LOAD_LITERAL = 25,
   SM_OP_EXPR_READ_STRING = 26,
-  SM_OP_EXPR_CMP_EQ_BASE = 27,
-  SM_OP_EXPR_CMP_EQ_STRING = 28,
+  SM_OP_EXPR_CMP_BASE = 27,
+  SM_OP_EXPR_CMP_STRING = 28,
   SM_OP_CONDITION_CHECK = 29,
   SM_OP_CONDITION_BEGIN = 30,
   SM_OP_CALL_DICT_RESOLVED = 31,
@@ -120,6 +120,27 @@ typedef enum sm_opcode {
   SM_OP_COND_JUMP_IF_FALSE = 39,
   SM_OP_COND_JUMP_IF_TRUE = 40,
 } sm_opcode_t;
+
+// cmp_op_t identifies which comparison SM_OP_EXPR_CMP_BASE /
+// SM_OP_EXPR_CMP_STRING performs. Encoded as a single byte in the
+// instruction stream — values must stay in sync with ir.CmpOp.
+typedef enum cmp_op {
+  CMP_EQ = 0,
+  CMP_NE = 1,
+  CMP_LT = 2,
+  CMP_LE = 3,
+  CMP_GT = 4,
+  CMP_GE = 5,
+} cmp_op_t;
+
+// cmp_kind_t tells SM_OP_EXPR_CMP_BASE how to interpret the bytes being
+// ordered. Equality and string compares ignore the kind. Encoded as a
+// single byte in the instruction stream — values must stay in sync with
+// ir.CmpKind.
+typedef enum cmp_kind {
+  CMP_KIND_UINT = 0,
+  CMP_KIND_INT = 1,
+} cmp_kind_t;
 
 #ifdef DYNINST_DEBUG
 static const char* op_code_name(sm_opcode_t op_code) {
@@ -178,10 +199,10 @@ static const char* op_code_name(sm_opcode_t op_code) {
     return "EXPR_LOAD_LITERAL";
   case SM_OP_EXPR_READ_STRING:
     return "EXPR_READ_STRING";
-  case SM_OP_EXPR_CMP_EQ_BASE:
-    return "EXPR_CMP_EQ_BASE";
-  case SM_OP_EXPR_CMP_EQ_STRING:
-    return "EXPR_CMP_EQ_STRING";
+  case SM_OP_EXPR_CMP_BASE:
+    return "EXPR_CMP_BASE";
+  case SM_OP_EXPR_CMP_STRING:
+    return "EXPR_CMP_STRING";
   case SM_OP_CONDITION_CHECK:
     return "CONDITION_CHECK";
   case SM_OP_CONDITION_BEGIN:

@@ -11,8 +11,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"go.uber.org/fx"
@@ -461,8 +463,8 @@ func printPayload(name payloadName, _ log.Component, config config.Component, cl
 	if err != nil {
 		return err
 	}
-	apiConfigURL := fmt.Sprintf("https://%v:%d%s%s",
-		ipcAddress, config.GetInt("cmd_port"), metadataEndpoint, name)
+	addr := net.JoinHostPort(ipcAddress, strconv.Itoa(config.GetInt("cmd_port")))
+	apiConfigURL := fmt.Sprintf("https://%s%s%s", addr, metadataEndpoint, name)
 
 	r, err := client.Get(apiConfigURL, ipchttp.WithCloseConnection)
 	if err != nil {
@@ -478,8 +480,8 @@ func printHealthPlatformIssues(_ log.Component, config config.Component, client 
 	if err != nil {
 		return err
 	}
-	apiConfigURL := fmt.Sprintf("https://%v:%d/health-platform/issues",
-		ipcAddress, config.GetInt("cmd_port"))
+	addr := net.JoinHostPort(ipcAddress, strconv.Itoa(config.GetInt("cmd_port")))
+	apiConfigURL := fmt.Sprintf("https://%s/health-platform/issues", addr)
 
 	r, err := client.Get(apiConfigURL, ipchttp.WithCloseConnection)
 	if err != nil {
@@ -499,7 +501,8 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnose.Config, client ipc.HTTPCl
 
 	// Form call end-point
 	//nolint:revive // TODO(CINT) Fix revive linter
-	diagnoseURL := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, pkgconfigsetup.Datadog().GetInt("cmd_port"))
+	addr := net.JoinHostPort(ipcAddress, strconv.Itoa(pkgconfigsetup.Datadog().GetInt("cmd_port")))
+	diagnoseURL := fmt.Sprintf("https://%s/agent/diagnose", addr)
 
 	// Serialized diag config to pass it to Agent execution context
 	var cfgSer []byte
@@ -533,7 +536,8 @@ func printAgentFullTelemetry(config config.Component, client ipc.HTTPClient) err
 	if err != nil {
 		return err
 	}
-	r, err := client.Get(fmt.Sprintf("http://%s:%s/telemetry", ipcAddress, config.GetString("expvar_port")))
+	addr := net.JoinHostPort(ipcAddress, config.GetString("expvar_port"))
+	r, err := client.Get(fmt.Sprintf("http://%s/telemetry", addr))
 	if err != nil {
 		return fmt.Errorf("error getting full telemetry payload: %w", err)
 	}

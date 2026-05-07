@@ -13,19 +13,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
-	"github.com/stretchr/testify/mock"
-
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	"github.com/DataDog/datadog-agent/pkg/version"
-
-	"github.com/stretchr/testify/assert"
+	"github.com/benbjohnson/clock"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
-	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNCMSender_SendNCMConfig_Success(t *testing.T) {
@@ -41,8 +38,8 @@ func TestNCMSender_SendNCMConfig_Success(t *testing.T) {
 		{
 			DeviceID:     "default:10.0.0.1",
 			DeviceIP:     "10.0.0.1",
-			ConfigType:   types.RUNNING,
-			ConfigSource: types.CLI,
+			ConfigType:   string(ncmreport.RUNNING),
+			ConfigSource: string(ncmreport.CLI),
 			Timestamp:    mockClock.Now().Unix(),
 			Tags:         []string{"device_ip:10.0.0.1"},
 			Content:      "version 15.1\nhostname Router1",
@@ -159,7 +156,7 @@ func TestNCMSender_SendMetricsFromExtractedMetadata(t *testing.T) {
 	tests := []struct {
 		name              string
 		extractedMetadata profile.ExtractedMetadata
-		configType        types.ConfigType
+		configType        ncmreport.ConfigType
 		tags              []string
 		expectedMetrics   []expectedMetric
 	}{

@@ -1545,6 +1545,25 @@ properties:
     tags:
     - golang_type:map[string]interface{}
     - template_section:Agent
+  multi_secret_backends:
+    node_type: setting
+    type: object
+    default: {}
+    visibility: public
+    description: |-
+      `multi_secret_backends` defines named secret backends for routing. Each entry specifies a `type` and optional `config`.
+      Use `ENC[backendID;secretKey]` handles to route secrets to the named backend.
+      This option is ignored if `secret_backend_command` or `secret_backend_type` is set.
+      For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management
+    example: |2-
+
+        <backend_name>:
+          type: <backend_type>
+          config:
+            <KEY_1>: <VALUE_1>
+    tags:
+    - golang_type:map[string]secrets.SecretBackendConfig
+    - template_section:Agent
   secret_refresh_interval:
     node_type: setting
     type: number
