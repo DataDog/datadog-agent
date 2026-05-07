@@ -106,24 +106,12 @@ kubectl patch serviceaccount default -n "$KUBE_NAMESPACE" \
 # Render agent values
 envsubst < /templates/agent-values.yaml.tmpl > "$OUTPUT_DIR/agent-values.yaml"
 
-# Post-renderer: swap agent image to our observer build, fix pull policy, inject observer env vars
+# Post-renderer: swap chart's stock agent with our observer build + fix pull policy
 cat > "$OUTPUT_DIR/fix-pull-policy.sh" <<FIXEOF
 #!/bin/sh
 sed -e 's/imagePullPolicy: Never/imagePullPolicy: Always/g' \
     -e 's|image: gcr.io/datadoghq/agent:7|image: $AGENT_IMAGE|g' \
-    -e '/DD_DOGSTATSD_NON_LOCAL_TRAFFIC/{
-a\\
-            - name: DD_OBSERVER_RECORDING_ENABLED\\
-              value: "true"\\
-            - name: DD_OBSERVER_ANALYSIS_ENABLED\\
-              value: "true"\\
-            - name: DD_OBSERVER_HIGH_FREQUENCY_SYSTEM_CHECKS_ENABLED\\
-              value: "true"\\
-            - name: DD_OBSERVER_COMPONENTS_SCRAPPY_COLLECTOR_ENABLED\\
-              value: "$SCRAPPY_ENABLED"\\
-            - name: DD_OBSERVER_COMPONENTS_SCRAPPY_COLLECTOR_OUTPUT_PATH\\
-              value: "/tmp/scrappy-collect.jsonl"
-}'
+    -e 's|memory: 512Mi|memory: 768Mi|g'
 FIXEOF
 chmod +x "$OUTPUT_DIR/fix-pull-policy.sh"
 
@@ -181,9 +169,7 @@ for EP_SPEC in "${EP_LIST[@]}"; do
     echo "No DinD — expecting pre-built images in $GAR_REGISTRY"
   fi
 
-  # 2. Install episode chart with agent.enabled=true. The post-renderer swaps
-  # the chart's hardcoded agent image with our observer build, so the SAME agent
-  # that receives DogStatsD/APM/logs also runs the observer + scrappy collector.
+  # 2. Install episode chart
   EP_RELEASE=""
   CHART_TARBALL="$EP_DIR/chart.tar.gz"
   if [ -f "$CHART_TARBALL" ]; then
@@ -239,6 +225,175 @@ for EP_SPEC in "${EP_LIST[@]}"; do
     kubectl get pods -n "$KUBE_NAMESPACE" -o wide || true
   fi
 
+  # 3. Inject observer config into chart's agent (image already swapped by post-renderer)
+  echo "Injecting observer config into chart's agent..."
+  echo "  Image: $AGENT_IMAGE (swapped via post-renderer)"
+  echo "  Scrappy: $SCRAPPY_ENABLED, Detectors: $DETECTORS_ENABLED"
+  # Single patch: add log volume mounts + observer env vars (one restart, not two)
+  kubectl patch deployment datadog-agent -n "$KUBE_NAMESPACE" --type=json -p="[
+    {\"op\":\"add\",\"path\":\"/spec/template/spec/volumes/-\",\"value\":{\"name\":\"podlogs\",\"hostPath\":{\"path\":\"/var/log/pods\"}}},
+    {\"op\":\"add\",\"path\":\"/spec/template/spec/volumes/-\",\"value\":{\"name\":\"containerlogs\",\"hostPath\":{\"path\":\"/var/lib/docker/containers\"}}},
+    {\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/volumeMounts/-\",\"value\":{\"name\":\"podlogs\",\"mountPath\":\"/var/log/pods\",\"readOnly\":true}},
+    {\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/volumeMounts/-\",\"value\":{\"name\":\"containerlogs\",\"mountPath\":\"/var/lib/docker/containers\",\"readOnly\":true}},
+    {\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/env/-\",\"value\":{\"name\":\"DD_OBSERVER_RECORDING_ENABLED\",\"value\":\"true\"}},
+    {\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/env/-\",\"value\":{\"name\":\"DD_OBSERVER_ANALYSIS_ENABLED\",\"value\":\"true\"}},
+    {\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/env/-\",\"value\":{\"name\":\"DD_OBSERVER_HIGH_FREQUENCY_SYSTEM_CHECKS_ENABLED\",\"value\":\"true\"}},
+    {\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/env/-\",\"value\":{\"name\":\"DD_OBSERVER_COMPONENTS_SCRAPPY_COLLECTOR_ENABLED\",\"value\":\"$SCRAPPY_ENABLED\"}},
+    {\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/env/-\",\"value\":{\"name\":\"DD_OBSERVER_COMPONENTS_SCRAPPY_COLLECTOR_OUTPUT_PATH\",\"value\":\"/tmp/scrappy-collect.jsonl\"}}
+  ]" 2>&1 || echo "WARN: patch failed"
+
+  echo "Waiting for agent rollout..."
+  kubectl rollout status deployment/datadog-agent -n "$KUBE_NAMESPACE" --timeout=5m 2>/dev/null || true
+
+  # (observer-agent Deployment removed — chart's agent runs our image now)
+  if false; then
+  cat > /dev/null <<AGENTEOF
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: datadog-agent-config
+  namespace: $KUBE_NAMESPACE
+data:
+  datadog.yaml: |
+    api_key: $DD_API_KEY
+    app_key: $DD_APP_KEY
+    site: $DD_SITE
+    hostname: gensim-observer
+    apm_config:
+      enabled: true
+      apm_non_local_traffic: true
+    process_config:
+      enabled: "true"
+    dogstatsd_non_local_traffic: true
+    log_level: info
+    observer:
+      analysis:
+        enabled: true
+      recording:
+        enabled: true
+        parquet_output_dir: /tmp/observer-parquet
+        parquet_flush_interval: 30s
+      components:
+        scrappy_collector:
+          enabled: $SCRAPPY_ENABLED
+          output_path: /tmp/scrappy-collect.jsonl
+        bocpd:
+          enabled: $DETECTORS_ENABLED
+        rrcf:
+          enabled: $DETECTORS_ENABLED
+        cusum:
+          enabled: false
+        scanmw:
+          enabled: false
+        scanwelch:
+          enabled: false
+        cross_signal:
+          enabled: false
+        time_cluster:
+          enabled: $DETECTORS_ENABLED
+        passthrough:
+          enabled: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: datadog-agent
+  namespace: $KUBE_NAMESPACE
+  labels:
+    app: datadog-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: datadog-agent
+  template:
+    metadata:
+      labels:
+        app: datadog-agent
+    spec:
+      imagePullSecrets:
+      - name: gar-pull-secret
+      serviceAccountName: default
+      containers:
+      - name: agent
+        image: $AGENT_IMAGE
+        imagePullPolicy: Always
+        env:
+        - name: DD_API_KEY
+          value: "$DD_API_KEY"
+        - name: DD_APP_KEY
+          value: "$DD_APP_KEY"
+        - name: DD_SITE
+          value: "$DD_SITE"
+        - name: DD_DOGSTATSD_NON_LOCAL_TRAFFIC
+          value: "true"
+        - name: DD_APM_NON_LOCAL_TRAFFIC
+          value: "true"
+        - name: DD_OBSERVER_RECORDING_ENABLED
+          value: "true"
+        - name: DD_OBSERVER_ANALYSIS_ENABLED
+          value: "true"
+        - name: DD_OBSERVER_HIGH_FREQUENCY_SYSTEM_CHECKS_ENABLED
+          value: "true"
+        - name: DD_OBSERVER_HIGH_FREQUENCY_CONTAINER_CHECKS_ENABLED
+          value: "true"
+        - name: DD_HOSTNAME
+          value: "gensim-observer"
+        - name: DD_KUBELET_TLS_VERIFY
+          value: "false"
+        - name: DD_KUBERNETES_KUBELET_NODENAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        ports:
+        - containerPort: 8125
+          name: dogstatsd
+          protocol: UDP
+        - containerPort: 8126
+          name: apm
+          protocol: TCP
+        resources:
+          requests:
+            memory: 512Mi
+            cpu: 250m
+          limits:
+            memory: 1024Mi
+        volumeMounts:
+        - name: config
+          mountPath: /etc/datadog-agent/datadog.yaml
+          subPath: datadog.yaml
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: config
+        configMap:
+          name: datadog-agent-config
+      - name: tmp
+        emptyDir:
+          sizeLimit: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: datadog-agent
+  namespace: $KUBE_NAMESPACE
+spec:
+  selector:
+    app: datadog-agent
+  ports:
+  - port: 8125
+    targetPort: 8125
+    protocol: UDP
+    name: dogstatsd
+  - port: 8126
+    targetPort: 8126
+    protocol: TCP
+    name: apm
+AGENTEOF
+
+  echo "dead code"
+  fi
+
   # 4. Run play-episode.sh
   PLAY_SCRIPT="${EPISODE_CHART_DIR:-/episodes}/$EPISODE/play-episode.sh"
   SCENARIO_FILE="${EPISODE_CHART_DIR:-/episodes}/$EPISODE/episodes/$SCENARIO.yaml"
@@ -272,8 +427,7 @@ for EP_SPEC in "${EP_LIST[@]}"; do
 
     # Start background artifact collector — copies scrappy/parquet from agent pod
     # every 60s while the episode runs. Protects against vcluster teardown race.
-    # Find the agent pod (chart's agent, now running our observer binary)
-    AGENT_POD_FOR_BG=$(kubectl get pod -n "$KUBE_NAMESPACE" -l app=datadog-agent -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+    AGENT_POD_FOR_BG=$(kubectl get pod -n "$KUBE_NAMESPACE" -l app=datadog-agent --field-selector=status.phase=Running -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
     if [ -n "$AGENT_POD_FOR_BG" ]; then
       (
         while true; do
@@ -305,10 +459,6 @@ for EP_SPEC in "${EP_LIST[@]}"; do
     # Stop background collector
     [ -n "${BG_COLLECTOR_PID:-}" ] && kill "$BG_COLLECTOR_PID" 2>/dev/null || true
 
-    # Copy episode timeline to artifact root (gs-flow only serves flat files)
-    TIMELINE="$OUTPUT_DIR/results/${SCENARIO}-1.json"
-    [ -f "$TIMELINE" ] && cp "$TIMELINE" "$OUTPUT_DIR/episode-timeline.json"
-
     # Capture agent logs (includes scrappy debug output on stderr)
     if [ -n "${AGENT_POD_FOR_BG:-}" ]; then
       echo "--- Agent logs (last 50 lines) ---"
@@ -323,7 +473,7 @@ for EP_SPEC in "${EP_LIST[@]}"; do
 
   # Try multiple label selectors (helm chart version differences)
   AGENT_POD=""
-  for selector in "app=datadog-agent" "app.kubernetes.io/name=datadog-agent-agent"; do
+  for selector in "app.kubernetes.io/name=datadog-agent-agent" "app=datadog-agent" "app.kubernetes.io/component=agent"; do
     AGENT_POD=$(kubectl get pod -n "$KUBE_NAMESPACE" -l "$selector" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
     if [ -n "$AGENT_POD" ]; then
       echo "Found agent pod: $AGENT_POD (selector: $selector)"
@@ -360,9 +510,10 @@ for EP_SPEC in "${EP_LIST[@]}"; do
       echo "ERROR: parquet collection failed" >&2
     fi
 
-    # Scrappy JSONL
+    # Scrappy JSONL — copy to both results dir and artifact root (API serves flat files only)
     if kubectl cp "$KUBE_NAMESPACE/$AGENT_POD:/tmp/scrappy-collect.jsonl" "$OUTPUT_DIR/results/$EPISODE/scrappy/scrappy-collect.jsonl" -c agent; then
-      SCRAPPY_LINES=$(wc -l < "$OUTPUT_DIR/results/$EPISODE/scrappy/scrappy-collect.jsonl")
+      cp "$OUTPUT_DIR/results/$EPISODE/scrappy/scrappy-collect.jsonl" "$OUTPUT_DIR/scrappy-collect.jsonl"
+      SCRAPPY_LINES=$(wc -l < "$OUTPUT_DIR/scrappy-collect.jsonl")
       echo "Scrappy JSONL collected: $SCRAPPY_LINES lines"
     else
       echo "ERROR: scrappy JSONL collection failed" >&2
@@ -391,7 +542,7 @@ EOF
   # 6. Teardown episode + agent for next iteration
   echo "Tearing down..."
   [ -n "$EP_RELEASE" ] && helm uninstall "$EP_RELEASE" -n "$KUBE_NAMESPACE" --wait 2>/dev/null || true
-  kubectl delete -f "$OUTPUT_DIR/agent-deployment.yaml" --wait 2>/dev/null || true
+  # Agent is part of the episode chart, uninstalled above
   kubectl wait --for=delete pod -l app=datadog-agent -n "$KUBE_NAMESPACE" --timeout=120s 2>/dev/null || true
 
   echo "=== Episode $EPISODE / $SCENARIO complete (${EP_DURATION}s, $EP_OUTCOME) ==="
