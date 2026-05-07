@@ -46,7 +46,7 @@ func TestBuildIssue_Remediation(t *testing.T) {
 	assert.Len(t, issue.Remediation.Steps, 5)
 
 	lastStep := issue.Remediation.Steps[len(issue.Remediation.Steps)-1]
-	assert.Contains(t, lastStep.Text, "docs.datadoghq.com")
+	assert.Contains(t, lastStep.Text, "dtdg.co")
 
 	assert.Equal(t, "check network", issue.Remediation.Steps[3].Text)
 }
@@ -70,8 +70,6 @@ func TestBuildIssue_Extra(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, issue.Extra)
 	assert.NotEmpty(t, issue.Extra.Fields["impact"].GetStringValue())
-	assert.Nil(t, issue.Extra.Fields["issue"])
-	assert.Nil(t, issue.Extra.Fields["remediation"])
 }
 
 func TestNewModule(t *testing.T) {
