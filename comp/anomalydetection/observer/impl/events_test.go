@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 )
 
 // collectingSink collects all events for test assertions.
@@ -609,7 +610,7 @@ func TestReporterEventSink(t *testing.T) {
 	reporter := &countingReporter{count: &reported}
 
 	sink := &reporterEventSink{
-		reporters: []observerdef.Reporter{reporter},
+		reporters: []reporterdef.Reporter{reporter},
 	}
 
 	// advanceCompleted should trigger Report.
@@ -637,7 +638,7 @@ type countingReporter struct {
 }
 
 func (r *countingReporter) Name() string                      { return "counting" }
-func (r *countingReporter) Report(_ observerdef.ReportOutput) { *r.count++ }
+func (r *countingReporter) Report(_ reporterdef.ReportOutput) { *r.count++ }
 
 func TestFindingM1_DedupKeyTooCoarse(t *testing.T) {
 	anomalies := []observerdef.Anomaly{

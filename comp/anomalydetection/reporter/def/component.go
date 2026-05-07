@@ -3,48 +3,46 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package reporter provides the injectable reporter component for the observer.
-// It is intentionally standalone — reporter/def has no dependency on observer/def.
-// The observer/impl converts its internal types to ReportOutput before calling Report.
+// Package reporter defines the reporter component contracts.
+// Concrete reporters are provided through the `anomalydetection_reporters` Fx group.
 package reporter
 
 // team: q-branch
 
-// ReportOutput carries the data reporters receive after each detection cycle.
-type ReportOutput struct {
-	// AdvancedToSec is the data time the engine advanced to.
-	AdvancedToSec int64
-	// NewAnomalies are anomalies detected in this advance cycle.
-	NewAnomalies []Anomaly
-	// ActiveCorrelations are the current correlation patterns.
-	ActiveCorrelations []ActiveCorrelation
-}
+import observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 
-// Anomaly is the reporter's view of a detected anomaly.
-type Anomaly struct {
-	DetectorName string
-	Title        string
-	Description  string
-	Timestamp    int64
-	Score        *float64
-	SeriesName   string
-	Tags         []string
-}
-
-// ActiveCorrelation is the reporter's view of a detected correlation pattern.
-type ActiveCorrelation struct {
-	Pattern     string
-	Title       string
-	MemberCount int
-	FirstSeen   int64
-	LastUpdated int64
-}
-
-// Component is the injectable reporter.
-// The live implementation sends Datadog events; the testbench pushes to SSE clients.
-type Component interface {
+// Reporter is the per-reporter contract delivered through the
+// `anomalydetection_reporters` Fx group.
+type Reporter interface {
 	// Name returns the reporter name for identification.
 	Name() string
 	// Report is called by the observer after each detection cycle.
 	Report(output ReportOutput)
+}
+
+// ReportOutput carries the data reporters receive after each detection cycle.
+// It re-uses observerdef types directly so reporters can build rich messages
+// (log-rate annotations, debug info, correlation members) without lossy conversion.
+// reporter/def therefore depends on observer/def — observer/def owns the canonical schema.
+type ReportOutput struct {
+	// AdvancedToSec is the data time the engine advanced to.
+	AdvancedToSec int64
+	// NewAnomalies are anomalies detected in this advance cycle.
+	NewAnomalies []observerdef.Anomaly
+	// ActiveCorrelations are the current correlation patterns across all correlators.
+	ActiveCorrelations []observerdef.ActiveCorrelation
+}
+
+// StorageConsumer is an optional interface for reporters that need access to
+// the engine's time-series storage (e.g. for windowed log-rate annotations).
+// The observer calls SetStorage exactly once after engine construction, before
+// the first Report call.
+type StorageConsumer interface {
+	SetStorage(storage observerdef.StorageReader)
+}
+
+// CorrelationSender sends Datadog events for detected anomaly correlations.
+// Obtain one via reporterimpl.NewLiveCorrelationSender.
+type CorrelationSender interface {
+	Send(c observerdef.ActiveCorrelation) error
 }

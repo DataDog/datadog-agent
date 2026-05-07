@@ -23,6 +23,7 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
+	reporterimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl"
 	testbenchimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl-testbench"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -36,10 +37,10 @@ type logDataView struct {
 // Ensure logDataView implements observerdef.LogView.
 var _ observerdef.LogView = (*logDataView)(nil)
 
-func (v *logDataView) GetContent() []byte        { return v.data.Content }
-func (v *logDataView) GetStatus() string         { return v.data.Status }
-func (v *logDataView) GetHostname() string       { return v.data.Hostname }
-func (v *logDataView) GetTags() []string         { return v.data.Tags }
+func (v *logDataView) GetContent() []byte           { return v.data.Content }
+func (v *logDataView) GetStatus() string            { return v.data.Status }
+func (v *logDataView) GetHostname() string          { return v.data.Hostname }
+func (v *logDataView) GetTags() []string            { return v.data.Tags }
 func (v *logDataView) GetTimestampUnixMilli() int64 { return v.data.TimestampMs }
 
 // EpisodePhase represents a time phase within an episode (baseline, disruption, cooldown, warmup).
@@ -490,9 +491,9 @@ type parquetMetricView struct {
 	timestamp int64
 }
 
-func (m *parquetMetricView) GetName() string       { return m.name }
-func (m *parquetMetricView) GetValue() float64     { return m.value }
-func (m *parquetMetricView) GetRawTags() []string  { return m.tags }
+func (m *parquetMetricView) GetName() string         { return m.name }
+func (m *parquetMetricView) GetValue() float64       { return m.value }
+func (m *parquetMetricView) GetRawTags() []string    { return m.tags }
 func (m *parquetMetricView) GetTimestampUnix() int64 { return m.timestamp }
 func (m *parquetMetricView) GetSampleRate() float64  { return 1.0 }
 
@@ -600,7 +601,7 @@ func (tb *Bench) rerunDetectorsLocked() {
 	tb.logAnomalies = []observerdef.Anomaly{}
 	tb.logAnomaliesByDetector = make(map[string][]observerdef.Anomaly)
 	for _, a := range sv.Anomalies() {
-		if a.Type == observerdef.AnomalyTypeLog || isLogDerivedAnomaly(a) {
+		if a.Type == observerdef.AnomalyTypeLog || reporterimpl.IsLogDerivedAnomaly(a) {
 			tb.logAnomalies = append(tb.logAnomalies, a)
 			tb.logAnomaliesByDetector[a.DetectorName] = append(tb.logAnomaliesByDetector[a.DetectorName], a)
 		}
@@ -623,23 +624,6 @@ func (tb *Bench) rerunDetectorsLocked() {
 	}
 
 	tb.ready = true
-}
-
-// isLogDerivedAnomaly returns true for metric anomalies that originate from
-// log pattern extraction.
-func isLogDerivedAnomaly(a observerdef.Anomaly) bool {
-	if a.Type == observerdef.AnomalyTypeLog || a.Context == nil {
-		return false
-	}
-	const logPatternExtractorName = "log_pattern_extractor"
-	const logMetricsExtractorName = "log_metrics_extractor"
-	switch a.Source.Namespace {
-	case logPatternExtractorName:
-		return strings.TrimSpace(a.Context.Pattern) != ""
-	case logMetricsExtractorName:
-		return strings.TrimSpace(a.Context.Pattern) != "" || strings.TrimSpace(a.Context.Example) != ""
-	}
-	return false
 }
 
 // GetComponents returns all registered components.
@@ -1067,7 +1051,7 @@ func (tb *Bench) RunSendAnomalyEvents(scenario string) error {
 	defer tb.mu.RUnlock()
 
 	// Pass nil as storage; log rate annotations are optional.
-	sender, err := observerimpl.NewLiveCorrelationSender(tb.config.Cfg, tb.config.Logger, nil)
+	sender, err := reporterimpl.NewLiveCorrelationSender(tb.config.Cfg, tb.config.Logger, nil)
 	if err != nil {
 		return err
 	}

@@ -46,10 +46,11 @@ type Requires struct {
 	// If provided, all handles will be wrapped to record metrics to parquet files.
 	Recorder option.Option[recorderdef.Component]
 
-	// Reporter receives report outputs after each detection cycle.
-	// Use reporter/fx for the live agent, reporter/fx-testbench for the testbench,
-	// or reporter/fx-noop for unit tests.
-	Reporter reporterdef.Component
+	// Reporters are provided by reporter/fx, reporter/fx-testbench, etc. via the
+	// `anomalydetection_reporters` Fx group. Each reporter gets its own subscription
+	// so it receives advance events independently. StorageConsumer reporters receive
+	// storage for windowed log-rate annotations.
+	Reporters []reporterdef.Reporter `group:"anomalydetection_reporters"`
 
 	// WMeta, FilterStore, Tagger are optional — required only when
 	// observer.high_frequency_container_checks.enabled is true.
@@ -185,12 +186,18 @@ func NewComponent(deps Requires) Provides {
 		scheduler:        &currentBehaviorPolicy{},
 	})
 
-	// Wire the injected reporter via a conversion adapter that maps internal
-	// observerdef.ReportOutput to reporterdef.ReportOutput.
-	eng.Subscribe(&reporterEventSink{
-		reporters: []observerdef.Reporter{&reporterdefAdapter{reporter: deps.Reporter}},
-		state:     eng.StateView(),
-	})
+	// Wire each injected reporter into its own reporterEventSink subscription.
+	// StorageConsumer reporters receive engine storage for windowed log-rate annotations.
+	for _, r := range deps.Reporters {
+		r := r
+		if sc, ok := r.(reporterdef.StorageConsumer); ok {
+			sc.SetStorage(eng.Storage())
+		}
+		eng.Subscribe(&reporterEventSink{
+			reporters: []reporterdef.Reporter{r},
+			state:     eng.StateView(),
+		})
+	}
 
 	telemetryComp := deps.Telemetry
 	if telemetryComp == nil {
@@ -257,19 +264,6 @@ func NewComponent(deps Requires) Provides {
 					_ = advRec.close()
 				}
 			}
-		}
-	}
-
-	// Optionally add the event reporter when sending is enabled via config.
-	if cfg.GetBool("observer.event_reporter.sending_enabled") {
-		if sender, err := newEventSender(deps.Config, deps.Log, eng.Storage()); err != nil {
-			deps.Log.Warnf("[observer] event_reporter disabled: %v", err)
-		} else {
-			eventReporter := &EventReporter{sender: sender, logger: deps.Log}
-			eng.Subscribe(&reporterEventSink{
-				reporters: []observerdef.Reporter{eventReporter},
-				state:     eng.StateView(),
-			})
 		}
 	}
 
@@ -956,50 +950,4 @@ func copyBytes(b []byte) []byte {
 	result := make([]byte, len(b))
 	copy(result, b)
 	return result
-}
-
-// --- reporterdef adapter ---
-
-// reporterdefAdapter wraps a reporterdef.Component so it can be registered with
-// the engine's reporterEventSink, which expects observerdef.Reporter.
-// It converts observerdef.ReportOutput → reporterdef.ReportOutput before calling Report.
-type reporterdefAdapter struct {
-	reporter reporterdef.Component
-}
-
-func (a *reporterdefAdapter) Name() string { return a.reporter.Name() }
-
-func (a *reporterdefAdapter) Report(output observerdef.ReportOutput) {
-	a.reporter.Report(toReporterOutput(output))
-}
-
-func toReporterOutput(o observerdef.ReportOutput) reporterdef.ReportOutput {
-	anomalies := make([]reporterdef.Anomaly, len(o.NewAnomalies))
-	for i, a := range o.NewAnomalies {
-		score := a.Score
-		anomalies[i] = reporterdef.Anomaly{
-			DetectorName: a.DetectorName,
-			Title:        a.Title,
-			Description:  a.Description,
-			Timestamp:    a.Timestamp,
-			Score:        score,
-			SeriesName:   a.Source.Name,
-			Tags:         a.Source.Tags,
-		}
-	}
-	correlations := make([]reporterdef.ActiveCorrelation, len(o.ActiveCorrelations))
-	for i, ac := range o.ActiveCorrelations {
-		correlations[i] = reporterdef.ActiveCorrelation{
-			Pattern:     ac.Pattern,
-			Title:       ac.Title,
-			MemberCount: len(ac.Members),
-			FirstSeen:   ac.FirstSeen,
-			LastUpdated: ac.LastUpdated,
-		}
-	}
-	return reporterdef.ReportOutput{
-		AdvancedToSec:      o.AdvancedToSec,
-		NewAnomalies:       anomalies,
-		ActiveCorrelations: correlations,
-	}
 }
