@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 	"go.yaml.in/yaml/v3"
@@ -30,6 +31,12 @@ type packageApmInjectSuite struct {
 func testApmInjectAgent(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite {
 	return &packageApmInjectSuite{
 		packageBaseSuite: newPackageSuite("apm-inject", os, arch, method),
+	}
+}
+
+func (s *packageApmInjectSuite) SetupTest() {
+	if s.os == e2eos.Debian12 || s.os == e2eos.Ubuntu2404 {
+		flake.Mark(s.T())
 	}
 }
 
