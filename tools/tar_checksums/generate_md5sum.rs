@@ -19,6 +19,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Wrap the input file in a decompressor stream depending on the file extension.
+    // Since XZ will spawn a thread, we need to Join at the end to catch any errors
+    // which may have happened during decompression.
+    let mut xz_thread: Option<thread::JoinHandle<Result<(), String>>> = None;
     let reader: Box<dyn Read> = match &tar_file_path {
         None => Box::new(io::stdin()),
         Some(path) => {
@@ -28,16 +31,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else if path.ends_with(".xz") {
                 /* We are using lzma-rs because it is pure rust, but it does not
                  * have a streaming interface. So put it in a separate thread
-                 * and make use the write end of that thread as our read end.
+                 * and use the write end of that pipe as our read end.
                  */
                 let (pipe_reader, pipe_writer) = io::pipe()?;
-                thread::spawn(move || {
+                xz_thread = Some(thread::spawn(move || {
                     let mut reader = io::BufReader::new(file);
                     let mut writer = pipe_writer;
-                    if let Err(e) = lzma_rs::xz_decompress(&mut reader, &mut writer) {
-                        eprintln!("XZ decompression error: {e}");
-                    }
-                });
+                    lzma_rs::xz_decompress(&mut reader, &mut writer)
+                        .map_err(|e| e.to_string())
+                }));
                 Box::new(pipe_reader)
             } else {
                 Box::new(file)
@@ -70,6 +72,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let digest = ctx.finalize();
 
         writeln!(output, "{:x}  {}", digest, path_str)?;
+    }
+
+    if let Some(handle) = xz_thread {
+        handle
+            .join()
+            .unwrap_or_else(|_| Err("XZ decompressor thread panicked".to_string()))
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
     }
 
     Ok(())
