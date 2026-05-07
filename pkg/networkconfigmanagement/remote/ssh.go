@@ -13,9 +13,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
+
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 
 	ncmconfig "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -257,6 +258,26 @@ func (c *SSHClient) retrieveConfiguration(commands []string) ([]byte, error) {
 	}
 
 	return result, nil
+}
+
+// PushBoth pushes the given config to the both the running and startup configs
+func (c *SSHClient) PushBoth(config string) error {
+	p := c.prof.PushBoth
+	if p == nil {
+		return fmt.Errorf("profile %q does not support PushBoth", c.prof.GetName())
+	}
+	cmd := p.Before + config + p.After
+	session, err := c.NewSession()
+	if err != nil {
+		return err
+	}
+	// todo check
+	_, err = session.CombinedOutput(cmd)
+	if err != nil {
+		return err
+	}
+
+	return err
 }
 
 // Close closes the SSH client connection
