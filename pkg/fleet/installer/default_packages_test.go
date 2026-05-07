@@ -79,6 +79,31 @@ func TestDefaultPackagesAPMLibrariesIncludingIIS(t *testing.T) {
 	}, packages)
 }
 
+func TestPreRegisteredPackagesNotSelectedByDefault(t *testing.T) {
+	cases := map[string]map[env.ApmLibLanguage]env.ApmLibVersion{
+		"empty libraries":     nil,
+		"all libraries alias": {"all": ""},
+	}
+	for name, libraries := range cases {
+		t.Run(name, func(t *testing.T) {
+			env := &env.Env{
+				RemoteUpdates: true,
+				InstallScript: env.InstallScriptEnv{
+					APMInstrumentationEnabled: env.APMInstrumentationEnabledAll,
+				},
+				ApmLibraries: libraries,
+			}
+			packages := DefaultPackages(env)
+
+			for _, url := range packages {
+				assert.NotContains(t, url, "apm-library-iis-package")
+				assert.NotContains(t, url, "apm-library-iis-rum-package")
+				assert.NotContains(t, url, "apm-library-httpd-package")
+			}
+		})
+	}
+}
+
 func TestCentos6PackagesAPMInjectEnabled(t *testing.T) {
 	env := &env.Env{
 		InstallScript: env.InstallScriptEnv{
