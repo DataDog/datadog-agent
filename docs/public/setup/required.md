@@ -97,7 +97,7 @@ git config remote.origin.tagOpt --no-tags
 If you have an existing clone that has already accumulated submodule tags, delete them once. They will not come back with `--no-tags` set:
 
 ```
-git tag -l 'pkg/*' 'comp/*' 'cmd/*' 'test/*' | xargs -r git tag -d
+git tag -l 'pkg/*' 'comp/*' 'cmd/*' 'test/*' | xargs git tag -d
 ```
 
 You can still fetch a specific submodule tag on demand when you need one:
