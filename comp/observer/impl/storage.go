@@ -255,11 +255,24 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	stats.counts = insertInt64(stats.counts, idx, 1)
 
 	// Trim oldest points when the series exceeds the retention cap.
+	// Copy into fresh slices so the old backing arrays become unreferenced
+	// and the GC can reclaim them. A plain re-slice (s[trim:]) keeps the
+	// original backing array alive because the slice still points into it.
 	if s.maxPointsPerSeries > 0 && len(stats.timestamps) > s.maxPointsPerSeries {
-		trim := len(stats.timestamps) - s.maxPointsPerSeries
-		stats.timestamps = stats.timestamps[trim:]
-		stats.sums = stats.sums[trim:]
-		stats.counts = stats.counts[trim:]
+		n := s.maxPointsPerSeries
+		trim := len(stats.timestamps) - n
+
+		newTs := make([]int64, n)
+		copy(newTs, stats.timestamps[trim:])
+		stats.timestamps = newTs
+
+		newSums := make([]float64, n)
+		copy(newSums, stats.sums[trim:])
+		stats.sums = newSums
+
+		newCounts := make([]int64, n)
+		copy(newCounts, stats.counts[trim:])
+		stats.counts = newCounts
 	}
 	return res
 }
