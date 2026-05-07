@@ -1,7 +1,6 @@
-load("@rules_go//go:def.bzl", "go_binary", "go_library")
-
 """The trace loader."""
 
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
 load(
     "@rules_pkg//pkg:mappings.bzl",
     "pkg_attributes",
