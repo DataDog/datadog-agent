@@ -836,6 +836,17 @@ func (o *observerImpl) AddTelemetry(name string, value float64, timestamp int64,
 	_ = o.engine.storage.Add(observerdef.TelemetryNamespace, name, value, timestamp, tags)
 }
 
+// ReplayStoredData resets the analysis state without clearing storage, then
+// replays all stored data through the scheduler in chronological order.
+// Implements DebugView.
+func (o *observerImpl) ReplayStoredData() {
+	// resetFull resets lastAnalyzedDataTime, detector/correlator/extractor state,
+	// anomaly tracking, and correlation history — but does NOT clear storage.
+	// This lets ReplayStoredData see all data fed since the last Reset() call.
+	o.engine.resetFull()
+	o.engine.ReplayStoredData()
+}
+
 // handle is the lightweight observation interface passed to other components.
 // It only holds a channel and source name - all processing happens in the observer.
 type handle struct {

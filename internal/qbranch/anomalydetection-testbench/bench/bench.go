@@ -599,8 +599,14 @@ func (tb *Bench) rerunDetectorsLocked() {
 		tb.debug.AddTelemetry(telemetryTbInputLogsCount, 1, ts, nil)
 	}
 
-	// Flush ensures all observations are processed.
+	// Flush ensures all observations (metrics + logs) are stored.
 	tb.debug.Flush()
+
+	// Run the full batch replay: reset analysis state (not storage), advance
+	// through every stored timestamp so detectors see the full accumulated
+	// dataset at each step. This matches what the old testbench achieved via
+	// engine.ReplayStoredData() after pre-loading all data into storage.
+	tb.debug.ReplayStoredData()
 
 	sv := tb.debug.StateView()
 
