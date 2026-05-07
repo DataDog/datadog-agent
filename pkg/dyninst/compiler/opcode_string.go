@@ -35,8 +35,8 @@ func _() {
 	_ = x[OpcodeExprPushOffset-24]
 	_ = x[OpcodeExprLoadLiteral-25]
 	_ = x[OpcodeExprReadString-26]
-	_ = x[OpcodeExprCmpEqBase-27]
-	_ = x[OpcodeExprCmpEqString-28]
+	_ = x[OpcodeExprCmpBase-27]
+	_ = x[OpcodeExprCmpString-28]
 	_ = x[OpcodeConditionCheck-29]
 	_ = x[OpcodeConditionBegin-30]
 	_ = x[OpcodeCallDictResolved-31]
@@ -51,9 +51,9 @@ func _() {
 	_ = x[OpcodeCondJumpIfTrue-40]
 }
 
-const _Opcode_name = "InvalidCallReturnIllegalIncrementOutputOffsetExprPrepareExprSaveExprDereferenceCfaExprReadRegisterExprDereferencePtrProcessPointerProcessSliceProcessArrayDataPrepProcessSliceDataPrepProcessSliceDataRepeatProcessStringProcessGoEmptyInterfaceProcessGoInterfaceProcessGoDictTypeProcessGoHmapProcessGoSwissMapProcessGoSwissMapGroupsChasePointersPrepareEventRootExprPushOffsetExprLoadLiteralExprReadStringExprCmpEqBaseExprCmpEqStringConditionCheckConditionBeginCallDictResolvedExprSliceBoundsCheckSwissMapSetupSwissMapAesencSwissMapHashFinishSwissMapProbeSwissMapCheckSlotCondNotCondJumpIfFalseCondJumpIfTrue"
+const _Opcode_name = "InvalidCallReturnIllegalIncrementOutputOffsetExprPrepareExprSaveExprDereferenceCfaExprReadRegisterExprDereferencePtrProcessPointerProcessSliceProcessArrayDataPrepProcessSliceDataPrepProcessSliceDataRepeatProcessStringProcessGoEmptyInterfaceProcessGoInterfaceProcessGoDictTypeProcessGoHmapProcessGoSwissMapProcessGoSwissMapGroupsChasePointersPrepareEventRootExprPushOffsetExprLoadLiteralExprReadStringExprCmpBaseExprCmpStringConditionCheckConditionBeginCallDictResolvedExprSliceBoundsCheckSwissMapSetupSwissMapAesencSwissMapHashFinishSwissMapProbeSwissMapCheckSlotCondNotCondJumpIfFalseCondJumpIfTrue"
 
-var _Opcode_index = [...]uint16{0, 7, 11, 17, 24, 45, 56, 64, 82, 98, 116, 130, 142, 162, 182, 204, 217, 240, 258, 275, 288, 305, 328, 341, 357, 371, 386, 400, 413, 428, 442, 456, 472, 492, 505, 519, 537, 550, 567, 574, 589, 603}
+var _Opcode_index = [...]uint16{0, 7, 11, 17, 24, 45, 56, 64, 82, 98, 116, 130, 142, 162, 182, 204, 217, 240, 258, 275, 288, 305, 328, 341, 357, 371, 386, 400, 411, 424, 438, 452, 468, 488, 501, 515, 533, 546, 563, 570, 585, 599}
 
 func (i Opcode) String() string {
 	idx := int(i) - 0
