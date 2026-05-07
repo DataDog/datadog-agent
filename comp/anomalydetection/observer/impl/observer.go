@@ -836,15 +836,22 @@ func (o *observerImpl) AddTelemetry(name string, value float64, timestamp int64,
 	_ = o.engine.storage.Add(observerdef.TelemetryNamespace, name, value, timestamp, tags)
 }
 
-// ReplayStoredData resets the analysis state without clearing storage, then
+// ReplayStoredData resets analysis state (preserving extractor context) then
 // replays all stored data through the scheduler in chronological order.
 // Implements DebugView.
 func (o *observerImpl) ReplayStoredData() {
-	// resetFull resets lastAnalyzedDataTime, detector/correlator/extractor state,
-	// anomaly tracking, and correlation history — but does NOT clear storage.
-	// This lets ReplayStoredData see all data fed since the last Reset() call.
-	o.engine.resetFull()
+	// resetAnalysisState resets detectors/correlators and tracking state but
+	// preserves extractor state (contextRefs + provider pattern registry) so
+	// enrichAnomaly can still attach log pattern context during replay.
+	o.engine.resetAnalysisState()
 	o.engine.ReplayStoredData()
+}
+
+// StorageReader returns a read-only view of the engine's time-series storage.
+// Used by the testbench to compute windowed log rates in change messages.
+// Implements DebugView.
+func (o *observerImpl) StorageReader() observerdef.StorageReader {
+	return o.engine.storage
 }
 
 // handle is the lightweight observation interface passed to other components.

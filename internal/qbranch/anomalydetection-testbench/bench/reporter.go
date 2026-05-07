@@ -9,7 +9,6 @@ import (
 	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 	reporterimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl"
 )
 
@@ -27,13 +26,13 @@ type ReportedEvent struct {
 	FormattedTime string `json:"formattedTime"`
 }
 
-// buildReportedEvents builds the set of ReportedEvents from a correlation history
-// (used after replay to compute the final event log).
-// storage is nil — log rate annotations fall back to DebugInfo.CurrentValue.
-func buildReportedEvents(correlations []observerdef.ActiveCorrelation, _ observerimpl.StateView) []ReportedEvent {
+// buildReportedEvents builds the set of ReportedEvents from a correlation history.
+// storage is used for windowed log-rate annotations; pass nil to fall back to
+// DebugInfo.CurrentValue (less accurate but still shows pattern/example).
+func buildReportedEvents(correlations []observerdef.ActiveCorrelation, storage observerdef.StorageReader) []ReportedEvent {
 	events := make([]ReportedEvent, 0, len(correlations))
 	for _, ac := range correlations {
-		msg := reporterimpl.BuildChangeMessage(ac, nil)
+		msg := reporterimpl.BuildChangeMessage(ac, storage)
 		tags := reporterimpl.BuildEventTags(ac)
 		events = append(events, ReportedEvent{
 			Pattern:       ac.Pattern,

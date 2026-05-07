@@ -623,7 +623,7 @@ func (tb *Bench) rerunDetectorsLocked() {
 	tb.corrGeneration++
 
 	// Build reported events from correlation history.
-	tb.reportedEvents = buildReportedEvents(sv.CorrelationHistory(), sv)
+	tb.reportedEvents = buildReportedEvents(sv.CorrelationHistory(), tb.debug.StorageReader())
 
 	// Compute replay stats.
 	detectorStats := computeDetectorProcessingStatsFromStateView(sv)

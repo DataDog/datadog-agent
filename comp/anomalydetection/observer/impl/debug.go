@@ -32,13 +32,13 @@ type DebugView interface {
 	// AddTelemetry writes a data point into the engine's telemetry namespace.
 	// Used by the testbench to store per-detector timing stats for UI display.
 	AddTelemetry(name string, value float64, timestamp int64, tags []string)
-	// ReplayStoredData resets the analysis state (lastAnalyzedDataTime, detector
-	// and correlator state, anomaly/correlation history) then replays all data
-	// currently in storage through the scheduler in chronological order.
-	// Storage is NOT cleared — metrics and log-derived series fed before this
-	// call remain available to detectors during the replay.
-	// Call after Flush() to ensure all pending observations have been stored.
+	// ReplayStoredData resets analysis state (preserving extractor context and
+	// contextRefs) then replays all data currently in storage through the
+	// scheduler in chronological order. Call after Flush().
 	ReplayStoredData()
+	// StorageReader returns a read-only view of the engine's time-series storage.
+	// Used by the testbench to compute windowed log rates in change messages.
+	StorageReader() observerdef.StorageReader
 }
 
 // StateView is a read-only window into engine state.
