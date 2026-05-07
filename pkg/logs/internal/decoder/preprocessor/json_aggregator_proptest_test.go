@@ -6,6 +6,9 @@
 package preprocessor
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -158,6 +161,145 @@ func TestAggregator_StateInvariants(t *testing.T) {
 				t.Fatalf("EmptyImpliesZeroSize violated after op %d: IsEmpty=true but currentSize=%d",
 					i, internal.currentSize)
 			}
+		}
+	})
+}
+
+// jsonKey generates a non-empty lowercase ASCII string suitable as a
+// JSON object key. Kept separate from safeString so the alphabet
+// excludes spaces and punctuation that would survive json.Marshal but
+// add irrelevant variation to the test space.
+func jsonKey() *rapid.Generator[string] {
+	return rapid.Custom(func(t *rapid.T) string {
+		bs := rapid.SliceOfN(
+			rapid.SampledFrom([]byte("abcdefghijklmnopqrstuvwxyz")),
+			1, 6,
+		).Draw(t, "keyBytes")
+		return string(bs)
+	})
+}
+
+// jsonStrValue generates a JSON-safe string value (lowercase ASCII +
+// digits + space). Avoids quotes, backslashes and control characters
+// so json.Marshal's escaping does not produce surprising bytes that
+// trip up the byte-equality assertion.
+func jsonStrValue() *rapid.Generator[string] {
+	return rapid.Custom(func(t *rapid.T) string {
+		bs := rapid.SliceOfN(
+			rapid.SampledFrom([]byte("abcdefghijklmnopqrstuvwxyz0123456789 ")),
+			0, 12,
+		).Draw(t, "valBytes")
+		return string(bs)
+	})
+}
+
+// jsonObject generates a flat top-level JSON object with up to 5 keys
+// and scalar values (string, integer, boolean, null). Flat structure
+// is sufficient for exercising EmitAggregated; nested objects are a
+// stronger generator that can be added later if a regression motivates
+// it.
+func jsonObject() *rapid.Generator[map[string]interface{}] {
+	return rapid.Custom(func(t *rapid.T) map[string]interface{} {
+		n := rapid.IntRange(0, 5).Draw(t, "numKeys")
+		m := make(map[string]interface{}, n)
+		for i := 0; i < n; i++ {
+			key := jsonKey().Draw(t, fmt.Sprintf("k%d", i))
+			switch rapid.IntRange(0, 3).Draw(t, fmt.Sprintf("kind%d", i)) {
+			case 0:
+				m[key] = nil
+			case 1:
+				m[key] = rapid.Bool().Draw(t, fmt.Sprintf("b%d", i))
+			case 2:
+				m[key] = rapid.IntRange(-1000, 1000).Draw(t, fmt.Sprintf("n%d", i))
+			default:
+				m[key] = jsonStrValue().Draw(t, fmt.Sprintf("s%d", i))
+			}
+		}
+		return m
+	})
+}
+
+// TestAggregator_EmitAggregatedPreservesContent anchors:
+//
+//	surface JSONAggregation
+//	    @guarantee ContentBytePassthrough
+//
+// on the EmitAggregated rule path specifically. The existing
+// TestAggregator_FlushPathsPreserveBytes covers the flush paths
+// (FlushOnInvalid, FlushOnSizeLimit, DrainOnFlush) and the
+// FastPathEmit fall-through, but explicitly excludes EmitAggregated by
+// generator construction. This test closes that gap.
+//
+// The property: when a valid top-level JSON object is split across two
+// or more Process calls and the aggregator runs the EmitAggregated
+// rule, the emitted bytes equal json.Compact applied to the
+// concatenation of the input chunks. Spec wording: "the only
+// modification is deterministic JSON compaction (whitespace elision)
+// of the concatenated buffered content."
+//
+// Generator strategy:
+//
+//   - Generate a flat top-level JSON object with scalar values.
+//   - Marshal it with indentation so the input has insignificant
+//     whitespace for compaction to strip; otherwise the assertion
+//     would only catch concatenation bugs, not whitespace handling.
+//   - Split into exactly 2 chunks at the byte immediately after the
+//     opening "{". This is a safe split position: the validator
+//     handles the boundary between an opening object delimiter and
+//     the rest of the body cleanly. Splitting mid-token (e.g. inside
+//     a string literal) is not safe — Go's json.Decoder does not
+//     reliably resume Token() reads after ErrUnexpectedEOF in the
+//     middle of a token. That limitation is a separate behavioural
+//     question and deserves its own test if/when the spec promises
+//     anything about it.
+//
+// FragmentBackrefConsistent and FlushOnSizeLimit are intentionally not
+// tested here; max_content_size is generous enough that the size-limit
+// transition does not fire.
+func TestAggregator_EmitAggregatedPreservesContent(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		obj := jsonObject().Draw(t, "obj")
+
+		pretty, err := json.MarshalIndent(obj, "", "  ")
+		if err != nil {
+			t.Fatalf("json.MarshalIndent failed on generated object: %v", err)
+		}
+		if len(pretty) < 2 || pretty[0] != '{' {
+			t.Fatalf("generator produced unexpected JSON shape: %q", pretty)
+		}
+
+		// Always split right after the opening "{" — a safe boundary
+		// that exercises the multi-message EmitAggregated path without
+		// tripping mid-token resumption issues in json.Decoder.
+		chunk1 := pretty[:1]
+		chunk2 := pretty[1:]
+
+		var compacted bytes.Buffer
+		if err := json.Compact(&compacted, pretty); err != nil {
+			t.Fatalf("json.Compact failed on generated object: %v", err)
+		}
+		expected := compacted.String()
+
+		// tag_complete_json=false to keep the byte-equality assertion
+		// focused on content; tag presence is a separate property.
+		agg := NewJSONAggregator(false, 1_000_000)
+
+		emitted1 := agg.Process(newTestMessage(string(chunk1)))
+		if len(emitted1) != 0 {
+			t.Fatalf("expected no emission after first chunk (incomplete prefix), got %d emissions; chunk1=%q",
+				len(emitted1), chunk1)
+		}
+
+		emitted2 := agg.Process(newTestMessage(string(chunk2)))
+		if len(emitted2) != 1 {
+			t.Fatalf("expected exactly one emission after second chunk completes the object, got %d emissions; chunks=%q,%q",
+				len(emitted2), chunk1, chunk2)
+		}
+
+		actual := string(emitted2[0].GetContent())
+		if actual != expected {
+			t.Fatalf("EmitAggregated byte preservation violated:\n  input    = %q\n  expected = %q\n  actual   = %q",
+				pretty, expected, actual)
 		}
 	})
 }
