@@ -218,7 +218,7 @@ func TestFilterOpenLeafDiscarder(t *testing.T) {
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.file.path =~ "{{.Root}}/no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
+		Expression: `open.file.path =~ "{{.Root}}/*-no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
@@ -292,7 +292,7 @@ func TestFilterOpenLeafDiscarderActivityDump(t *testing.T) {
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.filename =~ "/tmp/no-approver-*"`,
+		Expression: `open.filename =~ "/tmp/*-no-approver-*"`,
 	}
 
 	outputDir := t.TempDir()
@@ -365,7 +365,7 @@ func testFilterOpenParentDiscarder(t *testing.T, parents ...string) {
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.file.path =~ "{{.Root}}/no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
+		Expression: `open.file.path =~ "{{.Root}}/*-no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
@@ -1164,7 +1164,7 @@ func TestFilterDiscarderRetention(t *testing.T) {
 	// a discarder is created).
 	rule := &rules.RuleDefinition{
 		ID:         "test_rule",
-		Expression: `open.file.path =~ "{{.Root}}/no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
+		Expression: `open.file.path =~ "{{.Root}}/*-no-approver-*" && open.flags & (O_CREAT | O_SYNC) > 0`,
 	}
 
 	testDrive, err := newTestDrive(t, "xfs", nil, "")
