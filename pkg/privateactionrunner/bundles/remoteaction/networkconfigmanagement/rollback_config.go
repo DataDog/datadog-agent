@@ -94,7 +94,7 @@ func (h *RollbackConfigHandler) Run(
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve NCM config from agent: %w", err)
 	}
-	device, ok := ncmConf.Devices["172.17.0.2"] // TODO map device ID to IP
+	device, ok := ncmConf.Devices["172.17.0.2"] // TODO FIXME map device ID to IP
 	if !ok {
 		fmt.Println(ncmConf.Devices)
 		return nil, fmt.Errorf("unrecognized device %q", inputs.DeviceID)
@@ -108,17 +108,7 @@ func (h *RollbackConfigHandler) Run(
 	if err != nil {
 		return nil, err
 	}
-	// TODO this should be a profile-based thing that client can do
-	// client.PushConfig(storedConfig)
-	sess, err := client.NewSession()
-	if err != nil {
-		return nil, err
-	}
-	cmd := "configure session dd-rollback\n" +
-		storedConfig.RawConfig +
-		"\ncommit\nwrite\n"
-	_, err = sess.CombinedOutput(cmd)
-	if err != nil {
+	if err := client.PushBoth(storedConfig.RawConfig); err != nil {
 		return nil, err
 	}
 
