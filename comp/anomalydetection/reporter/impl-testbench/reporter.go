@@ -20,7 +20,7 @@ type TestbenchReporter struct {
 }
 
 // Ensure TestbenchReporter satisfies both interfaces.
-var _ reporter.Component = (*TestbenchReporter)(nil)
+var _ reporter.Reporter = (*TestbenchReporter)(nil)
 var _ SSEAccess = (*TestbenchReporter)(nil)
 
 // Requires defines dependencies for the testbench reporter component.
@@ -28,14 +28,14 @@ type Requires struct{}
 
 // Provides defines the output of the testbench reporter component.
 type Provides struct {
-	Comp      reporter.Component
+	Reporter  reporter.Reporter `group:"anomalydetection_reporters"`
 	SSEAccess SSEAccess
 }
 
 // NewComponent is the fx constructor for the testbench reporter.
 func NewComponent(_ Requires) Provides {
 	r := NewTestbenchReporter()
-	return Provides{Comp: r, SSEAccess: r}
+	return Provides{Reporter: r, SSEAccess: r}
 }
 
 // NewTestbenchReporter creates a new testbench SSE reporter.
@@ -47,9 +47,9 @@ func (r *TestbenchReporter) Name() string { return "testbench_reporter" }
 
 func (r *TestbenchReporter) Report(output reporter.ReportOutput) {
 	type advancePayload struct {
-		AdvancedToSec  int64 `json:"advancedToSec"`
-		NewAnomalies   int   `json:"newAnomalies"`
-		Correlations   int   `json:"correlations"`
+		AdvancedToSec int64 `json:"advancedToSec"`
+		NewAnomalies  int   `json:"newAnomalies"`
+		Correlations  int   `json:"correlations"`
 	}
 	data, _ := json.Marshal(advancePayload{
 		AdvancedToSec: output.AdvancedToSec,

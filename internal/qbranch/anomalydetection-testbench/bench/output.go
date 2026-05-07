@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"os"
 	"sort"
+
+	reporterimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl"
 )
 
 // ObserverOutput is the top-level JSON structure produced by headless mode.
@@ -109,7 +111,7 @@ func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 
 		if verbose {
 			oc.Title = corr.Title
-			oc.Message = buildLocalChangeMessage(corr)
+			oc.Message = reporterimpl.BuildChangeMessage(corr, nil)
 			oc.Tags = []string{"source:agent-q-branch-observer", "pattern:" + corr.Pattern}
 			oc.MemberSeries = make([]string, len(corr.Members))
 			for j, m := range corr.Members {

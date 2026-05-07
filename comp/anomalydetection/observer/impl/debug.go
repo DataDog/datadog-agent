@@ -34,12 +34,6 @@ type DebugView interface {
 	AddTelemetry(name string, value float64, timestamp int64, tags []string)
 }
 
-// CorrelationSender sends Datadog events for detected anomaly correlations.
-// Obtain one via NewLiveCorrelationSender.
-type CorrelationSender interface {
-	Send(c observerdef.ActiveCorrelation) error
-}
-
 // StateView is a read-only window into engine state.
 // All methods correspond to existing methods on the unexported stateView struct
 // in stateview.go — they are being promoted to a public interface.

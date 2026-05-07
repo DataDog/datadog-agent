@@ -5,7 +5,7 @@
 
 //go:build test
 
-// Package mock provides a mock for the reporter component
+// Package mock provides a mock for the reporter component.
 package mock
 
 import (
@@ -14,8 +14,12 @@ import (
 	reporter "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 )
 
-// Mock returns a mock for reporter component.
-func Mock(t *testing.T) reporter.Component {
-	// TODO: Implement the reporter mock
-	return nil
+type noopReporter struct{}
+
+func (r *noopReporter) Name() string                   { return "mock_reporter" }
+func (r *noopReporter) Report(_ reporter.ReportOutput) {}
+
+// Mock returns a no-op reporter for use in tests.
+func Mock(_ *testing.T) reporter.Reporter {
+	return &noopReporter{}
 }
