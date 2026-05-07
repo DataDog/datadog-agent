@@ -312,7 +312,7 @@ func (v Variable) Serialize(w StringWriter, indent string) {
 	w.WriteString(": ")
 	w.WriteString(v.TypeName)
 	w.WriteString(" (declared at line ")
-	w.WriteString(strconv.Itoa(v.DeclLine))
+	w.WriteString(strconv.FormatUint(uint64(v.DeclLine), 10))
 	w.WriteString(", available: ")
 	for i, r := range v.AvailableLineRanges {
 		if i > 0 {
@@ -331,8 +331,8 @@ type StringWriter interface {
 
 // Scope represents a function or another lexical block.
 type Scope struct {
-	StartLine int
-	EndLine   int
+	StartLine uint32
+	EndLine   uint32
 	Scopes    []Scope
 	Variables []Variable
 }
@@ -349,12 +349,27 @@ type Variable struct {
 	// the variable is not necessarily actually available to be captured by the
 	// debugger from that line to the end of the lexical block; see
 	// AvailableLineRanges.
-	DeclLine            int
+	DeclLine            uint32
 	AvailableLineRanges []LineRange
 }
 
 // LineRange represents a range of source lines, inclusive of both ends.
-type LineRange [2]int
+type LineRange [2]uint32
+
+// clampDwarfLine converts a DWARF line number (signed int64) to a uint32. Out
+// of range values are clamped: negatives become 0, values above math.MaxUint32
+// are saturated to math.MaxUint32. DWARF line numbers fit comfortably into
+// uint32 for any real-world source file, but malformed or sentinel values can
+// fall outside the range, so clamping keeps callers safe without an error path.
+func clampDwarfLine(v int64) uint32 {
+	if v < 0 {
+		return 0
+	}
+	if v > math.MaxUint32 {
+		return math.MaxUint32
+	}
+	return uint32(v)
+}
 
 const mainPackageName = "main"
 
@@ -589,7 +604,7 @@ type abstractFunction struct {
 	name          string
 	receiver      string
 	qualifiedName string
-	startLine     int
+	startLine     uint32
 
 	// Updated as inline instances are replayed.
 	file            string
@@ -709,8 +724,8 @@ func (d *dwarfBlock) resolveLines(dwarfData *dwarf.Data, lines []gosym.LineRange
 	if len(pcRanges) == 0 {
 		return LineRange{}, nil
 	}
-	startLine := math.MaxInt
-	endLine := 0
+	var startLine uint32 = math.MaxUint32
+	var endLine uint32
 	for _, r := range pcRanges {
 		lineRange, ok := pcRangeToLines(r, lines)
 		if !ok {
@@ -1035,7 +1050,7 @@ func buildFunctionFromAbstract(af *abstractFunction) Function {
 		InjectibleLines: af.injectibleLines,
 		Scope: Scope{
 			StartLine: af.startLine,
-			EndLine:   int(af.endLine),
+			EndLine:   af.endLine,
 			Scopes:    nil,
 			Variables: variables,
 		},
@@ -2028,7 +2043,7 @@ func (b *packagesIterator) exploreSubprogram(
 	}
 
 	lineRanges := coalesceLines(selfLines.Lines)
-	var startLine, endLine int
+	var startLine, endLine uint32
 	if len(lineRanges) > 0 {
 		startLine = lineRanges[0][0]
 		endLine = lineRanges[len(lineRanges)-1][1]
@@ -2274,7 +2289,7 @@ func pcRangeToLines(r dwarfutil.PCRange, lines []gosym.LineRange) (LineRange, bo
 	if lineLo == 0 {
 		return LineRange{}, false
 	}
-	return LineRange{int(lineLo), int(lineHi)}, true
+	return LineRange{lineLo, lineHi}, true
 }
 
 // exploreVariable processes a variable or formal parameter entry.
@@ -2355,7 +2370,7 @@ func (b *packagesIterator) parseAbstractFunction(offset dwarf.Offset, reader *dw
 		receiver = funcName.Package + "." + funcName.Type
 	}
 
-	startLine := int(entry.Val(dwarf.AttrDeclLine).(int64))
+	startLine := clampDwarfLine(entry.Val(dwarf.AttrDeclLine).(int64))
 
 	variables := make(map[dwarf.Offset]*abstractVariable)
 	for child, err := reader.Next(); child != nil; child, err = reader.Next() {
@@ -2429,7 +2444,7 @@ func (b *packagesIterator) parseAbstractVariable(entry *dwarf.Entry) (Variable, 
 
 	return Variable{
 		Name:             name,
-		DeclLine:         int(declLine),
+		DeclLine:         clampDwarfLine(declLine),
 		TypeName:         typ.name,
 		FunctionArgument: functionArgument,
 	}, typ, nil
@@ -2492,9 +2507,9 @@ func coalesceLines(linePcRanges []gosym.LineRange) []LineRange {
 	if len(linePcRanges) == 0 {
 		return nil
 	}
-	lines := make([]int, 0, len(linePcRanges))
+	lines := make([]uint32, 0, len(linePcRanges))
 	for _, linePcRange := range linePcRanges {
-		lines = append(lines, int(linePcRange.Line))
+		lines = append(lines, linePcRange.Line)
 	}
 	slices.Sort(lines)
 	var lineRanges []LineRange
@@ -2516,7 +2531,7 @@ func coalesceLines(linePcRanges []gosym.LineRange) []LineRange {
 // To calculate intersection of two sets of ranges, we use a sweep algorithm,
 // handling events that mark the beginning and end of ranges (inclusive).
 type intersectEvent struct {
-	Val int
+	Val uint32
 	// +1 for beginning of range, -1 for end of range.
 	Mod int
 }
@@ -2536,7 +2551,7 @@ func intersectRanges(a, b []LineRange) []LineRange {
 	})
 	intersected := make([]LineRange, 0, len(a)+len(b))
 	active := 0
-	start := 0
+	var start uint32
 	for _, e := range events {
 		active += e.Mod
 		if active == 2 {

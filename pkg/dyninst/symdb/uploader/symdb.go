@@ -387,16 +387,16 @@ func convertFunctionToScope(fn symdb.Function, isMethod bool) Scope {
 	injectibleLines := make([]LineRange, len(fn.InjectibleLines))
 	for i, r := range fn.InjectibleLines {
 		injectibleLines[i] = LineRange{
-			Start: r[0],
-			End:   r[1],
+			Start: int(r[0]),
+			End:   int(r[1]),
 		}
 	}
 	scope := Scope{
 		ScopeType:          scopeType,
 		Name:               fn.Name,
 		SourceFile:         fn.File,
-		StartLine:          fn.StartLine,
-		EndLine:            fn.EndLine,
+		StartLine:          int(fn.StartLine),
+		EndLine:            int(fn.EndLine),
 		Symbols:            make([]Symbol, 0, len(fn.Variables)),
 		Scopes:             make([]Scope, 0, len(fn.Scopes)),
 		HasInjectibleLines: true,
@@ -452,8 +452,8 @@ func convertScopeToScope(s symdb.Scope, sourceFile string) Scope {
 	scope := Scope{
 		ScopeType:  ScopeTypeLocal,
 		SourceFile: sourceFile,
-		StartLine:  s.StartLine,
-		EndLine:    s.EndLine,
+		StartLine:  int(s.StartLine),
+		EndLine:    int(s.EndLine),
 		Symbols:    make([]Symbol, 0, len(s.Variables)),
 		Scopes:     make([]Scope, 0, len(s.Scopes)),
 	}
@@ -478,11 +478,12 @@ func convertVariableToSymbol(variable symdb.Variable) Symbol {
 		symbolType = SymbolTypeArg
 	}
 
+	declLine := int(variable.DeclLine)
 	symbol := Symbol{
 		Name:       variable.Name,
 		Type:       cleanString(variable.TypeName),
 		SymbolType: symbolType,
-		Line:       &variable.DeclLine,
+		Line:       &declLine,
 	}
 
 	// Add language specifics for line ranges if available
@@ -490,8 +491,8 @@ func convertVariableToSymbol(variable symdb.Variable) Symbol {
 		ranges := make([]LineRange, len(variable.AvailableLineRanges))
 		for i, r := range variable.AvailableLineRanges {
 			ranges[i] = LineRange{
-				Start: r[0],
-				End:   r[1],
+				Start: int(r[0]),
+				End:   int(r[1]),
 			}
 		}
 		/*symbol.LanguageSpecifics = &LanguageSpecifics{
