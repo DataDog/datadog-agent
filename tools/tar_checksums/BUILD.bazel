@@ -16,6 +16,10 @@ rust_binary(
         "@crates//:md5",
         "@crates//:tar",
     ],
+    target_compatible_with = select({
+        "//:windows_x86_64": ["@platforms//:incompatible"],
+        "//conditions:default": None
+    }),
 )
 
 pkg_files(
