@@ -57,12 +57,6 @@ import (
 var loclistErrorLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
 var invalidGoRuntimeTypeLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
 
-// errDurationNotOnReturn is the irgen-time error message used when a
-// @duration reference appears on a probe that does not have a return
-// event. It matches the text used in the decode package so
-// capture-expression absent-status reports are identical.
-const errDurationNotOnReturn = "@duration is only available at function return"
-
 // TODO: This code creates a lot of allocations, but we could greatly reduce
 // the number of distinct allocations by using a batched allocation scheme.
 // Such an approach makes sense because we know the lifetimes of all the
@@ -706,7 +700,7 @@ func analyzeCondition(
 			if rootVarName == "@duration" {
 				return nil, ir.Issue{
 					Kind:    ir.IssueKindConditionVariableUnavailable,
-					Message: errDurationNotOnReturn,
+					Message: ir.ErrDurationNotOnReturn,
 				}
 			}
 			return nil, ir.Issue{
@@ -1225,7 +1219,7 @@ func analyzeAllProbes(
 				for _, seg := range segs {
 					if !haveReturn {
 						ap.template.Segments[seg.index] = ir.InvalidSegment{
-							Error: errDurationNotOnReturn,
+							Error: ir.ErrDurationNotOnReturn,
 							DSL:   seg.segment.DSL,
 						}
 						continue
@@ -5434,7 +5428,7 @@ func coerceDurationLiteral(value any) ([]byte, error) {
 		ns = v * 1_000_000
 	default:
 		return nil, fmt.Errorf(
-			"eq: @duration can only be compared to a numeric millisecond "+
+			"@duration can only be compared to a numeric millisecond "+
 				"literal (got %T)", value,
 		)
 	}

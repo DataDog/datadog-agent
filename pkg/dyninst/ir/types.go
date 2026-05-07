@@ -152,6 +152,13 @@ type DurationType struct {
 
 func (t *DurationType) irType() {}
 
+// ErrDurationNotOnReturn is the user-facing message used when a
+// reference to @duration appears on a probe that does not have a paired
+// return event. Both irgen (at IR construction time) and decode (when
+// the BPF program reports an absent expression status at runtime) need
+// to produce the same text, so it lives here next to DurationType.
+const ErrDurationNotOnReturn = "@duration is only available at function return"
+
 // VoidPointerType is a type that represents a pointer to a value of an unknown type.
 // unsafe.Pointer is such a type.
 type VoidPointerType struct {

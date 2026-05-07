@@ -177,7 +177,7 @@ func (m *messageData) processJSONSegment(
 		return errIndexOutOfBounds
 	default: // ExprStatusAbsent
 		if _, ok := expr.Expression.Type.(*ir.DurationType); ok {
-			msg := "@duration is not available: " + errDurationNotOnReturn
+			msg := "@duration is not available: " + ir.ErrDurationNotOnReturn
 			if !limits.canWrite(len(msg)) {
 				return nil
 			}
@@ -424,7 +424,7 @@ func (ce *captureEvent) init(
 				if _, ok := expr.Expression.Type.(*ir.DurationType); ok {
 					*ce.evaluationErrors = append(*ce.evaluationErrors, evaluationError{
 						Expression: expr.Name,
-						Message:    errDurationNotOnReturn,
+						Message:    ir.ErrDurationNotOnReturn,
 					})
 				}
 			}
@@ -445,11 +445,6 @@ func (ddDebuggerSource) MarshalJSONTo(enc *jsontext.Encoder) error {
 var errEvaluation = errors.New("evaluation error")
 var errNilPointerEvaluating = errors.New("nil pointer dereference")
 var errIndexOutOfBounds = errors.New("index out of bounds")
-
-// errDurationNotOnReturn is the message used when a captureExpression
-// references @duration on a probe that does not have a return event, so
-// the BPF program marks the expression status absent at runtime.
-const errDurationNotOnReturn = "@duration is only available at function return"
 
 // processExpression processes a single expression from the root type expressions
 func (ce *captureEvent) processExpression(
