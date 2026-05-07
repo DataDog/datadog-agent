@@ -5,7 +5,7 @@ Functional:
 - must take the path to the input tar file as a command line arg
   - if no input tar is provided, then use stdin as the file
 - must take the path to the output file as a command line arg
-- sample of the outputp
+- sample of the output
 md5 sum and the path
 ```
 e3c6a486a70a471110731b1708d232cc  opt/datadog-installer/LICENSE
@@ -17,7 +17,7 @@ f9a6f2aa44430e18abbc7363751e3f7c  opt/datadog-installer/LICENSES/THIRD-PARTY-0BS
 - directories and symlinks in the tar file should be ignored.
 - We must support different compression algorithms that could be provided
   - we do not have to decode the compression from the binary itself, we can use the file name as a hint
-  - required for first implemenation:  XZ compression, if the file ends in .xz,  gzip compression if the file ends in .gz or .tgz.
+  - required for first implementation:  XZ compression, if the file ends in .xz,  gzip compression if the file ends in .gz or .tgz.
 
 Non functional requirements
 - The code should be in Rust.
