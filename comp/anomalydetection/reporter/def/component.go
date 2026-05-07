@@ -11,6 +11,12 @@ package reporter
 
 import observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 
+// Component is the top-level marker interface required by the component linter.
+// Concrete reporters register via the `anomalydetection_reporters` Fx group as
+// Reporter values rather than through this interface.
+// Component is the top-level marker required by the component linter.
+type Component = any
+
 // Reporter is the per-reporter contract delivered through the
 // `anomalydetection_reporters` Fx group.
 type Reporter interface {
