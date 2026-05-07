@@ -11,7 +11,10 @@ package command
 import (
 	"errors"
 	"flag"
+	"fmt"
+	"log"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -90,9 +93,13 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 		true, // show env variable value in usage
 	)
 
+	if err := validateDurationEnvVars(); err != nil {
+		log.Fatalf("Error: %v", err)
+	}
+
 	// There may be other env vars in addition to the ones in envflag.NewEnvFlag. Do not panic if those env vars do not have a help message (flag.ErrHelp)
 	if err := ef.Parse(os.Args[1:]); err != nil && err != flag.ErrHelp {
-		panic(err)
+		log.Fatalf("Error: failed to parse flags: %v", err)
 	}
 
 	return &otelAgentCmd
@@ -102,6 +109,36 @@ const configFlag = "config"
 const coreConfigFlag = "core-config"
 const syncDelayFlag = "sync-delay" // TODO: Change this to sync-on-init-timeout
 const syncTimeoutFlag = "sync-to"
+
+// durationEnvVars maps environment variable names to their flag names for
+// duration-type flags. Used by validateDurationEnvVars to produce clear
+// diagnostics when a value like "30" is passed instead of "30s".
+var durationEnvVars = map[string]string{
+	"DD_SYNC_DELAY": syncDelayFlag,
+	"DD_SYNC_TO":    syncTimeoutFlag,
+}
+
+// validateDurationEnvVars checks that duration-type environment variables
+// contain valid Go duration strings. The envflag library loses the original
+// time.ParseDuration error, so pre-validating here lets us report the root
+// cause (e.g. missing unit suffix) directly to the user.
+func validateDurationEnvVars() error {
+	for envVar, flagName := range durationEnvVars {
+		val, ok := os.LookupEnv(envVar)
+		if !ok || val == "" {
+			continue
+		}
+		if _, err := time.ParseDuration(val); err != nil {
+			hint := `expected a Go duration string (e.g. "30s", "1m", "500ms")`
+			if _, numErr := strconv.ParseFloat(val, 64); numErr == nil {
+				hint += fmt.Sprintf("; did you mean %q?", val+"s")
+			}
+			return fmt.Errorf("invalid value %q for %s (--%s): %w; %s",
+				val, envVar, flagName, err, hint)
+		}
+	}
+	return nil
+}
 
 func flags(reg *featuregate.Registry, cfgs *subcommands.GlobalParams) *flag.FlagSet {
 	flagSet := new(flag.FlagSet)
