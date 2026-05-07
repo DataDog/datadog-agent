@@ -27,11 +27,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to set PR_SET_NO_NEW_PRIVS: %v\n", err)
 		os.Exit(1)
 	}
-	// Drop ambient capabilities so no child process inherits them.
-	if err := unix.Prctl(unix.PR_CAP_AMBIENT, unix.PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to clear ambient capabilities: %v\n", err)
-		os.Exit(1)
-	}
+
 	flavor.SetFlavor(flavor.HostProfiler)
 	os.Exit(runcmd.Run(command.MakeRootCommand()))
 }
