@@ -124,3 +124,41 @@ func TestValidator_TopLevelArrayInvalid(t *testing.T) {
 		})
 	}
 }
+
+// TestValidator_TristateExclusive anchors:
+//
+//	contract IncrementalJSONValidator
+//	    @invariant TristateExclusive
+//
+// The spec models the validator with two boolean predicates,
+// is_complete_object and is_invalid_object, and asserts they are never
+// simultaneously true. When both are false the input is incomplete: a
+// strict prefix of a complete top-level JSON object.
+//
+// The Go implementation encodes this disjoint result space as a single
+// tristate JSONState enum {Incomplete, Complete, Invalid}. Returning
+// any other value would violate the invariant by failing to express
+// the trichotomy. This test asserts every Write call across an
+// arbitrary sequence of byte chunks returns exactly one of the three
+// known states — defensive against enum-arithmetic bugs and
+// unintended state values.
+func TestValidator_TristateExclusive(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		chunks := rapid.SliceOfN(
+			rapid.SliceOfN(rapid.Byte(), 0, 32),
+			1, 8,
+		).Draw(t, "chunks")
+
+		v := NewIncrementalJSONValidator()
+		for i, c := range chunks {
+			got := v.Write(c)
+			switch got {
+			case Incomplete, Complete, Invalid:
+				// expected: exactly one of the three tristate values
+			default:
+				t.Fatalf("TristateExclusive violated at chunk %d: state=%v is not in {Incomplete, Complete, Invalid} (input=%q)",
+					i, got, c)
+			}
+		}
+	})
+}
