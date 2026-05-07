@@ -28,7 +28,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/impl/utils"
 	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"

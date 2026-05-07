@@ -95,7 +95,7 @@ Rebalancing handles the following cases:
 
 ### TODO
 
-- [ ] Complete StatefulSet support (needs patch permission)
+- [ ] Complete StatefulSet support
 - [ ] Implement Argo Rollout support
 - [ ] Implement CronJob support (needs patch permission)
 - [ ] Emit Kubernetes events

@@ -18,8 +18,7 @@ import (
 	expvarserver "github.com/DataDog/datadog-agent/comp/agent/expvarserver/def"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
-	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
+	etwfx "github.com/DataDog/datadog-agent/comp/etw/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	etwtracer "github.com/DataDog/datadog-agent/comp/trace/etwtracer/def"
 	etwtracerimpl "github.com/DataDog/datadog-agent/comp/trace/etwtracer/fx"
@@ -60,7 +59,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
@@ -70,7 +69,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	haagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
+	host "github.com/DataDog/datadog-agent/comp/metadata/host/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
@@ -149,8 +148,6 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			snmpScanManager snmpscanmanager.Component,
 			traceroute traceroute.Component,
 			healthplatformComp healthplatformdef.Component,
-			ncmComp networkconfigmanagement.Component,
-
 		) error {
 			defer StopAgentWithDefaults(config, sysprobeConf)
 
@@ -178,7 +175,6 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				snmpScanManager,
 				traceroute,
 				healthplatformComp,
-				ncmComp,
 			)
 			if err != nil {
 				return err
@@ -253,7 +249,7 @@ func getPlatformModules() fx.Option {
 		etwtracerimpl.Module(),
 		windowseventlogfx.Module(),
 		winregistryfx.Module(),
-		etwimpl.Module,
+		etwfx.Module(),
 		traceconfigfx.Module(),
 		softwareinventoryfx.Module(),
 		publishermetadatacachefx.Module(),
