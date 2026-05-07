@@ -9,7 +9,7 @@ package network
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
+	npcollectorfx "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/fx"
 	localtraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-local"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	networktracerimpl "github.com/DataDog/datadog-agent/comp/networktracer/fx"
@@ -73,7 +73,7 @@ func Bundle(options ...Option) fxutil.BundleOptions {
 	return fxutil.Bundle(
 		rdnsquerierfx.Module(),
 		opts.tracerouteModule,
-		npcollectorimpl.Module(),
+		npcollectorfx.Module(),
 		opts.networkTracerModule,
 	)
 }
