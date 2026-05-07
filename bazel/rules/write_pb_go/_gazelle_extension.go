@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/bazelbuild/bazel-gazelle/label"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/language/proto"
 	"github.com/bazelbuild/bazel-gazelle/rule"
@@ -21,8 +22,7 @@ const name = "write_pb_go"
 var compilerRe = regexp.MustCompile(`:go_([^_]+)`)
 
 type goProtoLibrary struct {
-	relDir        string
-	relTarget     string
+	label         label.Label
 	generatedSrcs []string
 }
 
@@ -70,10 +70,68 @@ func (l *lang) GenerateRules(args language.GenerateArgs) language.GenerateResult
 	}
 	// GenerateRules is called once per directory; accumulate across visits so that proto dirs
 	// (visited first) are available when Go dirs are processed.
-	for i, libs := range goProtoLibraries(args, protoLibrarySrcs(args)) {
+	// TODO(regis): find an approach that doesn't rely on directory traversal order
+	for i, libs := range goProtoLibraries(args) {
 		l.goProtoLibraries[i] = append(l.goProtoLibraries[i], libs...)
 	}
 	return generateResult(args, l.goProtoLibraries)
+}
+
+// goProtoLibraries indexes go_proto_library entries by fully-qualified importpath; relative
+// importpaths are prefixed with GoPrefix to normalize them.
+func goProtoLibraries(args language.GenerateArgs) map[string][]goProtoLibrary {
+	protoLibrarySrcs := protoLibrarySrcs(args)
+	result := map[string][]goProtoLibrary{}
+	for _, r := range args.OtherGen {
+		if r.Kind() != "go_proto_library" {
+			continue
+		}
+		importPath := r.AttrString("importpath")
+		if importPath == "" {
+			continue
+		}
+		if pc := proto.GetProtoConfig(args.Config); pc != nil && !strings.HasPrefix(importPath, pc.GoPrefix) {
+			importPath = fmt.Sprintf("%s/%s", pc.GoPrefix, importPath)
+		}
+		protoLabel, err := label.Parse(r.AttrString("proto"))
+		if err != nil {
+			continue
+		}
+		if protos, ok := protoLibrarySrcs[protoLabel.Name]; ok {
+			result[importPath] = append(result[importPath], goProtoLibrary{
+				label:         label.New("", args.Rel, r.Name()),
+				generatedSrcs: generatedSrcs(r, protos),
+			})
+		}
+	}
+	return result
+}
+
+// generateResult emits a write_pb_go rule when the current directory holds a go_library whose
+// importpath matches an accumulated go_proto_library, or deletes a stale one otherwise.
+func generateResult(args language.GenerateArgs, goProtoLibraries map[string][]goProtoLibrary) language.GenerateResult {
+	if importPath := goLibraryImportPath(args.File); importPath != "" {
+		srcs := map[string][]string{}
+		for _, lib := range goProtoLibraries[importPath] {
+			srcs[lib.label.Rel("", args.Rel).String()] = lib.generatedSrcs
+		}
+		if len(srcs) > 0 {
+			r := rule.NewRule(name, name)
+			r.SetAttr("srcs", srcs)
+			return language.GenerateResult{
+				Gen:     []*rule.Rule{r},
+				Imports: []interface{}{nil},
+			}
+		}
+	}
+	if args.File != nil {
+		for _, r := range args.File.Rules {
+			if r.Kind() == name {
+				return language.GenerateResult{Empty: []*rule.Rule{rule.NewRule(name, name)}}
+			}
+		}
+	}
+	return language.GenerateResult{}
 }
 
 // protoLibrarySrcs indexes proto_library srcs by rule name; OtherGen takes precedence over
@@ -95,65 +153,6 @@ func protoLibrarySrcs(args language.GenerateArgs) map[string][]string {
 		}
 	}
 	return result
-}
-
-// goProtoLibraries indexes go_proto_library entries by fully-qualified importpath; relative
-// importpaths are prefixed with GoPrefix to normalize them.
-func goProtoLibraries(args language.GenerateArgs, protoLibrarySrcs map[string][]string) map[string][]goProtoLibrary {
-	result := map[string][]goProtoLibrary{}
-	for _, r := range args.OtherGen {
-		if r.Kind() != "go_proto_library" {
-			continue
-		}
-		importPath := r.AttrString("importpath")
-		if importPath == "" {
-			continue
-		}
-		if pc := proto.GetProtoConfig(args.Config); pc != nil && !strings.HasPrefix(importPath, pc.GoPrefix) {
-			importPath = fmt.Sprintf("%s/%s", pc.GoPrefix, importPath)
-		}
-		if protos, ok := protoLibrarySrcs[r.AttrString("proto")[strings.LastIndex(r.AttrString("proto"), ":")+1:]]; ok {
-			result[importPath] = append(result[importPath], goProtoLibrary{
-				relDir:        args.Rel,
-				relTarget:     fmt.Sprintf(":%s", r.Name()),
-				generatedSrcs: generatedSrcs(r, protos),
-			})
-		}
-	}
-	return result
-}
-
-// generateResult emits a write_pb_go rule when the current directory holds a go_library whose
-// importpath matches an accumulated go_proto_library, or deletes a stale one otherwise.
-func generateResult(args language.GenerateArgs, goProtoLibraries map[string][]goProtoLibrary) language.GenerateResult {
-	if importPath := goLibraryImportPath(args.File); importPath != "" {
-		srcs := map[string][]string{}
-		for _, lib := range goProtoLibraries[importPath] {
-			var target string
-			if lib.relDir == args.Rel {
-				target = lib.relTarget // canonical case: .proto and .go coexist
-			} else {
-				target = fmt.Sprintf("//%s%s", lib.relDir, lib.relTarget) // foreign case
-			}
-			srcs[target] = lib.generatedSrcs
-		}
-		if len(srcs) > 0 {
-			r := rule.NewRule(name, name)
-			r.SetAttr("srcs", srcs)
-			return language.GenerateResult{
-				Gen:     []*rule.Rule{r},
-				Imports: []interface{}{nil},
-			}
-		}
-	}
-	if args.File != nil {
-		for _, r := range args.File.Rules {
-			if r.Kind() == name {
-				return language.GenerateResult{Empty: []*rule.Rule{rule.NewRule(name, name)}}
-			}
-		}
-	}
-	return language.GenerateResult{}
 }
 
 // generatedSrcs infers .pb.go filenames from the compiler labels: :go_proto -> .pb.go,
