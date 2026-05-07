@@ -15,7 +15,7 @@ import (
 // noopTestReporter is a no-op reporter.Component for tests.
 type noopTestReporter struct{}
 
-func (r *noopTestReporter) Name() string                    { return "noop" }
+func (r *noopTestReporter) Name() string                      { return "noop" }
 func (r *noopTestReporter) Report(_ reporterdef.ReportOutput) {}
 
 // mockLogView implements observer.LogView for testing.

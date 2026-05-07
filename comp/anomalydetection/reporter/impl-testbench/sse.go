@@ -43,8 +43,8 @@ type sseHub struct {
 // StatusNotify is a 1-buffered channel used as a wakeup signal when new status
 // is available. The actual payload is read from hub.LatestStatus under lock.
 type SSEClient struct {
-	Events       chan SSEEvent   // buffered channel for ephemeral events
-	StatusNotify chan struct{}   // 1-buffered; signals new status available
+	Events       chan SSEEvent // buffered channel for ephemeral events
+	StatusNotify chan struct{} // 1-buffered; signals new status available
 }
 
 func newSSEHub() *sseHub {
