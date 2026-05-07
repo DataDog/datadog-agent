@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package reportertestbenchimpl provides the testbench SSE reporter implementation.
+// Package testbenchimpl provides the testbench SSE reporter implementation.
 package testbenchimpl
 
 import (
