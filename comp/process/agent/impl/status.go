@@ -9,31 +9,23 @@ package agentimpl
 import (
 	"embed"
 	"encoding/json"
-	"fmt"
 	"io"
-	"net"
-	"strconv"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
 )
 
-// StatusProvider is the type for process component status methods
-type StatusProvider struct {
-	testServerURL string
-	config        config.Component
-	hostname      hostnameinterface.Component
-}
+// StatusProvider is the type for process component status methods.
+// It renders the "Process Component" section shown by `agent status` when
+// the process functionality runs embedded in the core agent. Data is read
+// directly from the in-process state populated by InitExpvars at startup,
+// not over HTTP.
+type StatusProvider struct{}
 
-// NewStatusProvider fetches the status
-func NewStatusProvider(Config config.Component, hostname hostnameinterface.Component) *StatusProvider {
-	return &StatusProvider{
-		config:   Config,
-		hostname: hostname,
-	}
+// NewStatusProvider returns a new StatusProvider for the embedded process
+// component status section.
+func NewStatusProvider() *StatusProvider {
+	return &StatusProvider{}
 }
 
 //go:embed status_templates
@@ -59,47 +51,22 @@ func (s StatusProvider) getStatusInfo() map[string]interface{} {
 	return stats
 }
 
+// populateStatus reads the process component's status directly from the
+// in-process state populated by InitExpvars and returns it as a generic map
+// for template rendering. No HTTP, no expvar parsing.
 func (s StatusProvider) populateStatus() map[string]interface{} {
-	status := make(map[string]interface{})
-
-	var url string
-	if s.testServerURL != "" {
-		url = s.testServerURL
-	} else {
-
-		// Get expVar server address
-		ipcAddr, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
-		if err != nil {
-			status["error"] = err.Error()
-			return status
-		}
-
-		// Using the core agent's expvar server
-		port := s.config.GetInt("expvar_port")
-		url = fmt.Sprintf("http://%s/debug/vars", net.JoinHostPort(ipcAddr, strconv.Itoa(port)))
-	}
-
-	agentStatus, err := processStatus.GetStatus(s.config, url, s.hostname)
-	if err != nil {
-		status["error"] = err.Error()
-		return status
-	}
+	agentStatus := processStatus.GetInProcessStatus()
 
 	bytes, err := json.Marshal(agentStatus)
 	if err != nil {
-		return map[string]interface{}{
-			"error": err.Error(),
-		}
+		return map[string]interface{}{"error": err.Error()}
 	}
 
-	err = json.Unmarshal(bytes, &status)
-	if err != nil {
-		return map[string]interface{}{
-			"error": err.Error(),
-		}
+	result := make(map[string]interface{})
+	if err := json.Unmarshal(bytes, &result); err != nil {
+		return map[string]interface{}{"error": err.Error()}
 	}
-
-	return status
+	return result
 }
 
 // JSON populates the status map

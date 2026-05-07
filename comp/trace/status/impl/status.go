@@ -9,21 +9,17 @@ package statusimpl
 import (
 	"embed"
 	"encoding/json"
-	"fmt"
 	"io"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 )
 
 // Requires defines the dependencies of the status component.
 type Requires struct {
-	Config config.Component
-	Client ipc.HTTPClient
+	RAR remoteagentregistry.Component `optional:"true"`
 }
 
 // Provides defines the output of the status component.
@@ -34,8 +30,7 @@ type Provides struct {
 }
 
 type statusProvider struct {
-	Config config.Component
-	Client ipc.HTTPClient
+	RAR remoteagentregistry.Component
 }
 
 // NewComponent creates a new trace agent status component.
@@ -68,26 +63,24 @@ func (s statusProvider) getStatusInfo() map[string]interface{} {
 	return stats
 }
 
+// populateStatus receives the pre-built status from the trace agent via RAR
 func (s statusProvider) populateStatus() map[string]interface{} {
-	port := s.Config.GetInt("apm_config.debug.port")
-
-	url := fmt.Sprintf("https://localhost:%d/debug/vars", port)
-	resp, err := s.Client.Get(url, ipchttp.WithCloseConnection)
-	if err != nil {
-		return map[string]interface{}{
-			"port":  port,
-			"error": err.Error(),
+	if s.RAR != nil {
+		agentStatus, ok := s.RAR.GetStatusByFlavor("trace_agent")
+		if ok {
+			if agentStatus.FailureReason != "" {
+				return map[string]interface{}{"error": agentStatus.FailureReason}
+			}
+			if raw, ok := agentStatus.MainSection["status"]; ok {
+				var result map[string]interface{}
+				if err := json.Unmarshal([]byte(raw), &result); err == nil {
+					return result
+				}
+			}
 		}
 	}
 
-	statusMap := make(map[string]interface{})
-	if err := json.Unmarshal(resp, &statusMap); err != nil {
-		return map[string]interface{}{
-			"port":  port,
-			"error": err.Error(),
-		}
-	}
-	return statusMap
+	return map[string]interface{}{"error": "not running or unreachable"}
 }
 
 // JSON populates the status map

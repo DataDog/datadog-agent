@@ -8,6 +8,7 @@ package systemprobeimpl
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/statusregistry"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
@@ -85,25 +87,6 @@ type remoteagentImpl struct {
 	pbcore.UnimplementedStatusProviderServer
 }
 
-func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
-	text, registered, err := statusregistry.GetTextOrError()
-	if !registered {
-		return &pbcore.GetStatusDetailsResponse{}, nil
-	}
-	if err != nil {
-		return &pbcore.GetStatusDetailsResponse{}, nil
-	}
-	return &pbcore.GetStatusDetailsResponse{
-		NamedSections: map[string]*pbcore.StatusSection{
-			"Compliance": {
-				Fields: map[string]string{
-					"": text,
-				},
-			},
-		},
-	}, nil
-}
-
 // WaitSessionID blocks until the remote agent is registered and a session ID is available.
 // This allows components that need the session ID (e.g. config stream consumer) to wait for RAR registration.
 func (r *remoteagentImpl) WaitSessionID(ctx context.Context) (string, error) {
@@ -145,4 +128,25 @@ func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetry
 			PromText: prometheusText,
 		},
 	}, nil
+}
+
+func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
+	resp := &pbcore.GetStatusDetailsResponse{}
+
+	stats := module.GetStats()
+	if statusBytes, err := json.Marshal(stats); err == nil {
+		resp.MainSection = &pbcore.StatusSection{
+			Fields: map[string]string{"status": string(statusBytes)},
+		}
+	}
+
+	if text, registered, err := statusregistry.GetTextOrError(); registered && err == nil {
+		resp.NamedSections = map[string]*pbcore.StatusSection{
+			"Compliance": {
+				Fields: map[string]string{"": text},
+			},
+		}
+	}
+
+	return resp, nil
 }

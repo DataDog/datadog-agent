@@ -9,137 +9,56 @@ package agentimpl
 
 import (
 	"bytes"
-	"embed"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	procstatus "github.com/DataDog/datadog-agent/pkg/process/status"
 )
 
-//go:embed fixtures
-var fixturesTemplates embed.FS
-
-func fakeStatusServer(t *testing.T, errCode int, response []byte) *httptest.Server {
-	handler := func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
-
-		if errCode != 200 {
-			http.NotFound(w, r)
-		} else {
-			_, err := w.Write(response)
-			require.NoError(t, err)
-		}
-	}
-
-	return httptest.NewServer(http.HandlerFunc(handler))
-}
-
 func TestStatus(t *testing.T) {
-	jsonBytes, err := fixturesTemplates.ReadFile("fixtures/expvar_response.tmpl")
-	assert.NoError(t, err)
+	env.SetFeatures(t)
 
-	server := fakeStatusServer(t, 200, jsonBytes)
-	defer server.Close()
+	cfg := config.NewMock(t)
+	cfg.SetWithoutSource("hostname", "test-host")
 
-	configComponent := config.NewMock(t)
+	// Seed the package-level state that GetInProcessStatus reads.
+	procstatus.InitExpvars(cfg, "test-host", true, true, nil)
 
-	headerProvider := StatusProvider{
-		testServerURL: server.URL,
-		config:        configComponent,
-		hostname:      hostnameimpl.NewHostnameService(),
-	}
+	provider := StatusProvider{}
 
-	tests := []struct {
-		name       string
-		assertFunc func(t *testing.T)
-	}{
-		{"JSON", func(t *testing.T) {
-			stats := make(map[string]interface{})
-			headerProvider.JSON(false, stats)
-			processStats := stats["processComponentStatus"]
+	t.Run("JSON", func(t *testing.T) {
+		stats := make(map[string]interface{})
+		require := assert.New(t)
+		require.NoError(provider.JSON(false, stats))
 
-			val, ok := processStats.(map[string]interface{})
-			assert.True(t, ok)
-			assert.NotEmpty(t, val["core"])
-			assert.Empty(t, val["error"])
-		}},
-		{"Text", func(t *testing.T) {
-			b := new(bytes.Buffer)
-			err := headerProvider.Text(false, b)
+		raw, ok := stats["processComponentStatus"].(map[string]interface{})
+		require.True(ok)
+		require.Empty(raw["error"])
+		require.NotEmpty(raw["core"])
 
-			assert.NoError(t, err)
+		core, ok := raw["core"].(map[string]interface{})
+		require.True(ok)
+		require.NotEmpty(core["version"])
+		require.NotEmpty(core["go_version"])
+	})
 
-			assert.True(t, strings.Contains(b.String(), "API Key ending with:"))
-		}},
-		{"HTML", func(t *testing.T) {
-			b := new(bytes.Buffer)
-			err := headerProvider.HTML(false, b)
+	t.Run("Text", func(t *testing.T) {
+		b := new(bytes.Buffer)
+		require := assert.New(t)
+		require.NoError(provider.Text(false, b))
+		// The template is gated on "if .error"; absence of "Not running"
+		// confirms we took the success branch.
+		require.False(strings.Contains(b.String(), "Not running or unreachable"))
+	})
 
-			assert.NoError(t, err)
-
-			assert.Empty(t, b.String())
-		}},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test.assertFunc(t)
-		})
-	}
-}
-
-func TestStatusError(t *testing.T) {
-	server := fakeStatusServer(t, 500, []byte{})
-	defer server.Close()
-
-	errorResponse, err := fixturesTemplates.ReadFile("fixtures/text_error_response.tmpl")
-	assert.NoError(t, err)
-
-	configComponent := config.NewMock(t)
-
-	headerProvider := StatusProvider{
-		testServerURL: server.URL,
-		config:        configComponent,
-		hostname:      hostnameimpl.NewHostnameService(),
-	}
-
-	tests := []struct {
-		name       string
-		assertFunc func(t *testing.T)
-	}{
-		{"JSON", func(t *testing.T) {
-			stats := make(map[string]interface{})
-			headerProvider.JSON(false, stats)
-			processStats := stats["processComponentStatus"]
-
-			val, ok := processStats.(map[string]interface{})
-			assert.True(t, ok)
-
-			assert.NotEmpty(t, val["error"])
-		}},
-		{"Text", func(t *testing.T) {
-			b := new(bytes.Buffer)
-			err := headerProvider.Text(false, b)
-
-			assert.NoError(t, err)
-
-			// We replace windows line break by linux so the tests pass on every OS
-			expected := strings.ReplaceAll(string(errorResponse), "\r\n", "\n")
-			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
-
-			assert.Equal(t, expected, output)
-		}},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test.assertFunc(t)
-		})
-	}
+	t.Run("HTML", func(t *testing.T) {
+		b := new(bytes.Buffer)
+		require := assert.New(t)
+		require.NoError(provider.HTML(false, b))
+		require.Empty(b.String())
+	})
 }

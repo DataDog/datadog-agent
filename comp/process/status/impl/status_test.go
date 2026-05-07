@@ -7,50 +7,63 @@ package statusimpl
 
 import (
 	"bytes"
-	"embed"
-	"net/http"
-	"net/http/httptest"
+	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
+	rarmock "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/mock"
 )
 
-//go:embed fixtures
-var fixturesTemplates embed.FS
+// makeProcessAgentRAR builds a mock RAR with the minimal status data needed
+// to exercise the consumer's template rendering.
+func makeProcessAgentRAR(t *testing.T) *rarmock.Component {
+	t.Helper()
 
-func fakeStatusServer(t *testing.T, errCode int, response []byte) *httptest.Server {
-	handler := func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
-
-		if errCode != 200 {
-			http.NotFound(w, r)
-		} else {
-			_, err := w.Write(response)
-			require.NoError(t, err)
-		}
+	status := map[string]interface{}{
+		"date": float64(time.Now().UnixNano()),
+		"core": map[string]interface{}{
+			"version":    "7.78.0",
+			"go_version": "go1.22.0",
+			"build_arch": "amd64",
+			"config":     map[string]interface{}{"log_level": "info"},
+			"metadata":   map[string]interface{}{"meta": map[string]interface{}{"hostname": "test-host"}},
+		},
+		"expvars": map[string]interface{}{
+			"process_agent": map[string]interface{}{
+				"enabled_checks": []string{"process", "rtprocess"},
+				"endpoints": map[string]interface{}{
+					"https://process.datadoghq.eu": []string{"72724"},
+				},
+			},
+		},
 	}
+	statusBytes, err := json.Marshal(status)
+	require.NoError(t, err)
 
-	return httptest.NewServer(http.HandlerFunc(handler))
+	return &rarmock.Component{
+		Statuses: []remoteagentregistry.StatusData{
+			{
+				RegisteredAgent: remoteagentregistry.RegisteredAgent{
+					Flavor:      "process_agent",
+					DisplayName: "Process Agent",
+					LastSeen:    time.Now(),
+				},
+				MainSection: remoteagentregistry.StatusSection{
+					"status": string(statusBytes),
+				},
+			},
+		},
+	}
 }
 
 func TestStatus(t *testing.T) {
-	jsonBytes, err := fixturesTemplates.ReadFile("fixtures/expvar_response.tmpl")
-	assert.NoError(t, err)
-
-	server := fakeStatusServer(t, 200, jsonBytes)
-	defer server.Close()
-
-	configComponent := config.NewMock(t)
-
 	headerProvider := statusProvider{
-		testServerURL: server.URL,
-		config:        configComponent,
-		hostname:      hostnameimpl.NewHostnameService(),
+		rar: makeProcessAgentRAR(t),
 	}
 
 	tests := []struct {
@@ -94,50 +107,68 @@ func TestStatus(t *testing.T) {
 }
 
 func TestStatusError(t *testing.T) {
-	server := fakeStatusServer(t, 500, []byte{})
-	defer server.Close()
-
-	errorResponse, err := fixturesTemplates.ReadFile("fixtures/text_error_response.tmpl")
-	assert.NoError(t, err)
-
-	configComponent := config.NewMock(t)
-
-	headerProvider := statusProvider{
-		testServerURL: server.URL,
-		config:        configComponent,
+	rar := &rarmock.Component{
+		Statuses: []remoteagentregistry.StatusData{
+			{
+				RegisteredAgent: remoteagentregistry.RegisteredAgent{
+					Flavor:   "process_agent",
+					LastSeen: time.Now(),
+				},
+				FailureReason: "connection refused",
+			},
+		},
 	}
 
-	tests := []struct {
-		name       string
-		assertFunc func(t *testing.T)
-	}{
-		{"JSON", func(t *testing.T) {
-			stats := make(map[string]interface{})
-			headerProvider.JSON(false, stats)
-			processStats := stats["processAgentStatus"]
+	headerProvider := statusProvider{rar: rar}
 
-			val, ok := processStats.(map[string]interface{})
-			assert.True(t, ok)
+	t.Run("JSON", func(t *testing.T) {
+		stats := make(map[string]interface{})
+		require.NoError(t, headerProvider.JSON(false, stats))
 
-			assert.NotEmpty(t, val["error"])
-		}},
-		{"Text", func(t *testing.T) {
-			b := new(bytes.Buffer)
-			err := headerProvider.Text(false, b)
+		val, ok := stats["processAgentStatus"].(map[string]interface{})
+		assert.True(t, ok)
+		assert.Equal(t, "connection refused", val["error"])
+	})
 
-			assert.NoError(t, err)
+	t.Run("Text", func(t *testing.T) {
+		b := new(bytes.Buffer)
+		require.NoError(t, headerProvider.Text(false, b))
+		assert.True(t, strings.Contains(b.String(), "Not running or unreachable"))
+	})
+}
 
-			// We replace windows line break by linux so the tests pass on every OS
-			expected := strings.ReplaceAll(string(errorResponse), "\r\n", "\n")
-			output := strings.ReplaceAll(b.String(), "\r\n", "\n")
+func TestPopulateStatusNilRAR(t *testing.T) {
+	p := statusProvider{rar: nil}
+	result := p.populateStatus()
+	assert.Equal(t, "not running or unreachable", result["error"])
+}
 
-			assert.Equal(t, expected, output)
-		}},
+func TestPopulateStatusWrongFlavor(t *testing.T) {
+	p := statusProvider{rar: &rarmock.Component{
+		Statuses: []remoteagentregistry.StatusData{
+			{RegisteredAgent: remoteagentregistry.RegisteredAgent{Flavor: "trace_agent", LastSeen: time.Now()}},
+		},
+	}}
+	result := p.populateStatus()
+	assert.Equal(t, "not running or unreachable", result["error"])
+}
+
+func TestPopulateStatusValidJSON(t *testing.T) {
+	status := map[string]interface{}{
+		"date": 1234567890.0,
+		"core": map[string]interface{}{"version": "7.78.0"},
 	}
+	statusBytes, _ := json.Marshal(status)
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			test.assertFunc(t)
-		})
-	}
+	p := statusProvider{rar: &rarmock.Component{
+		Statuses: []remoteagentregistry.StatusData{
+			{
+				RegisteredAgent: remoteagentregistry.RegisteredAgent{Flavor: "process_agent", LastSeen: time.Now()},
+				MainSection:     remoteagentregistry.StatusSection{"status": string(statusBytes)},
+			},
+		},
+	}}
+	result := p.populateStatus()
+	assert.NotEmpty(t, result["core"])
+	assert.Empty(t, result["error"])
 }

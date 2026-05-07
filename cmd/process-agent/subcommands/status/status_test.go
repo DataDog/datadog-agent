@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/impl/utils"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
@@ -43,8 +42,8 @@ func fakeStatusServer(t *testing.T, ipcMock *ipcmock.IPCMock, stats status.Statu
 func TestStatus(t *testing.T) {
 	statusInfo := status.Status{
 		Core: status.CoreStatus{
-			Metadata: hostMetadataUtils.Payload{
-				Meta: &hostMetadataUtils.Meta{},
+			Metadata: status.HostMetadata{
+				Meta: &status.HostMeta{},
 			},
 		},
 		Expvars: status.ProcessExpvars{},
@@ -69,26 +68,9 @@ func TestStatus(t *testing.T) {
 			"log_level": ""
 			},
 			"metadata": {
-			"os": "",
-			"agent-flavor": "",
-			"python": "",
-			"systemStats": null,
 			"meta": {
-				"socket-hostname": "",
-				"timezones": null,
-				"socket-fqdn": "",
-				"ec2-hostname": "",
-				"hostname": "",
-				"host_aliases": null,
-				"instance-id": ""
-			},
-			"host-tags": null,
-			"network": null,
-			"logs": null,
-			"install-method": null,
-			"proxy-info": null,
-			"otlp": null,
-			"fips_mode": false
+				"hostname": ""
+			}
 			}
 		},
 		"expvars": {

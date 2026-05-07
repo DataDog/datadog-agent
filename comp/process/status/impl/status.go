@@ -9,25 +9,17 @@ package statusimpl
 import (
 	"embed"
 	"encoding/json"
-	"fmt"
 	"io"
-	"net"
-	"strconv"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	processStatus "github.com/DataDog/datadog-agent/pkg/process/util/status"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
 type dependencies struct {
 	compdef.In
 
-	Config   config.Component
-	Hostname hostnameinterface.Component
+	RAR remoteagentregistry.Component `optional:"true"`
 }
 
 // Provides defines the output dependencies of the status component.
@@ -41,16 +33,13 @@ type Provides struct {
 func NewComponent(deps dependencies) Provides {
 	return Provides{
 		StatusProvider: status.NewInformationProvider(statusProvider{
-			config:   deps.Config,
-			hostname: deps.Hostname,
+			rar: deps.RAR,
 		}),
 	}
 }
 
 type statusProvider struct {
-	testServerURL string
-	config        config.Component
-	hostname      hostnameinterface.Component
+	rar remoteagentregistry.Component
 }
 
 //go:embed status_templates
@@ -76,52 +65,24 @@ func (s statusProvider) getStatusInfo() map[string]interface{} {
 	return stats
 }
 
+// populateStatus receives the pre-built status from the process agent via RAR.
 func (s statusProvider) populateStatus() map[string]interface{} {
-	status := make(map[string]interface{})
-
-	var url string
-	if s.testServerURL != "" {
-		url = s.testServerURL
-	} else {
-
-		// Get expVar server address
-		// ipc_address is deprecated in favor of cmd_host, but we still need to support it
-		ipcKey := "cmd_host"
-		if s.config.IsSet("ipc_address") {
-			log.Warn("ipc_address is deprecated, use cmd_host instead")
-			ipcKey = "ipc_address"
-		}
-		ipcAddr, err := system.IsLocalAddress(s.config.GetString(ipcKey))
-		if err != nil {
-			status["error"] = fmt.Sprintf("%s: %s", ipcKey, err)
-			return status
-		}
-
-		addr := net.JoinHostPort(ipcAddr, strconv.Itoa(s.config.GetInt("process_config.expvar_port")))
-		url = fmt.Sprintf("http://%s/debug/vars", addr)
-	}
-
-	agentStatus, err := processStatus.GetStatus(s.config, url, s.hostname)
-	if err != nil {
-		status["error"] = err.Error()
-		return status
-	}
-
-	bytes, err := json.Marshal(agentStatus)
-	if err != nil {
-		return map[string]interface{}{
-			"error": err.Error(),
+	if s.rar != nil {
+		agentStatus, ok := s.rar.GetStatusByFlavor("process_agent")
+		if ok {
+			if agentStatus.FailureReason != "" {
+				return map[string]interface{}{"error": agentStatus.FailureReason}
+			}
+			if raw, ok := agentStatus.MainSection["status"]; ok {
+				var result map[string]interface{}
+				if err := json.Unmarshal([]byte(raw), &result); err == nil {
+					return result
+				}
+			}
 		}
 	}
 
-	err = json.Unmarshal(bytes, &status)
-	if err != nil {
-		return map[string]interface{}{
-			"error": err.Error(),
-		}
-	}
-
-	return status
+	return map[string]interface{}{"error": "not running or unreachable"}
 }
 
 // JSON populates the status map
