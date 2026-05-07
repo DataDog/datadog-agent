@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -460,6 +461,14 @@ type observerImpl struct {
 	// and log-derived virtual metrics produced inside the engine by
 	// LogMetricsExtractors are unaffected because they bypass the handle.
 	ingestMetricsEnabled bool
+
+	// replayMu serialises engine access between the run() dispatch loop and
+	// the testbench's IngestLogSync/IngestMetricSync direct-ingest path.
+	// In production the sync methods are never called so this mutex is always
+	// uncontended. In the testbench it prevents a data race between the
+	// agent-internal-log observer (which can post to obsCh while run() is
+	// processing) and a concurrent IngestLogSync call.
+	replayMu sync.Mutex
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
@@ -469,6 +478,7 @@ func (o *observerImpl) run() {
 			close(obs.flush)
 			continue
 		}
+		o.replayMu.Lock()
 		var requests []advanceRequest
 		if obs.metric != nil {
 			requests = o.engine.IngestMetric(obs.source, obs.metric)
@@ -484,6 +494,7 @@ func (o *observerImpl) run() {
 			result := o.engine.advanceWithReason(req.upToSec, req.reason)
 			o.telemetryHandler.handleTelemetry(result.telemetry)
 		}
+		o.replayMu.Unlock()
 	}
 }
 
@@ -867,6 +878,7 @@ func (o *observerImpl) IngestLogSync(source string, msg observerdef.LogView) {
 		hostname:    msg.GetHostname(),
 		timestampMs: timestampMs,
 	}
+	o.replayMu.Lock()
 	requests, logTelemetry := o.engine.IngestLog(source, lo)
 	if len(logTelemetry) > 0 {
 		o.telemetryHandler.handleTelemetry(logTelemetry)
@@ -875,6 +887,7 @@ func (o *observerImpl) IngestLogSync(source string, msg observerdef.LogView) {
 		result := o.engine.advanceWithReason(req.upToSec, req.reason)
 		o.telemetryHandler.handleTelemetry(result.telemetry)
 	}
+	o.replayMu.Unlock()
 }
 
 // IngestMetricSync feeds a metric directly into the engine, bypassing the
@@ -895,11 +908,13 @@ func (o *observerImpl) IngestMetricSync(source string, sample observerdef.Metric
 		tags:      copyTags(sample.GetRawTags()),
 		timestamp: timestamp,
 	}
+	o.replayMu.Lock()
 	requests := o.engine.IngestMetric(source, mo)
 	for _, req := range requests {
 		result := o.engine.advanceWithReason(req.upToSec, req.reason)
 		o.telemetryHandler.handleTelemetry(result.telemetry)
 	}
+	o.replayMu.Unlock()
 }
 
 // handle is the lightweight observation interface passed to other components.
