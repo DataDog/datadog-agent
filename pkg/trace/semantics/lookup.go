@@ -106,7 +106,7 @@ type LookupResult struct {
 // for the condition to match:
 //
 //   - Present: requires the attribute to be present (true) or absent (false).
-//   - Eq:      requires the attribute's value to equal Eq's string form. Implies presence.
+//   - Eq:      requires the attribute's value to equal the literal string. Implies presence.
 //
 // A Condition with no predicates set always matches (empty conjunction is true).
 func conditionMatches[A Accessor](accessor A, c Condition) bool {
@@ -117,7 +117,7 @@ func conditionMatches[A Accessor](accessor A, c Condition) bool {
 		return false
 	}
 	if c.Eq != nil {
-		if !found || value != fmt.Sprint(c.Eq) {
+		if !found || value != *c.Eq {
 			return false
 		}
 	}

@@ -132,9 +132,9 @@ const (
 
 // Condition describes a predicate that must match before a fallback tag can be used.
 type Condition struct {
-	Attribute string `json:"attribute,omitempty"`
-	Present   *bool  `json:"present,omitempty"`
-	Eq        any    `json:"eq,omitempty"`
+	Attribute string  `json:"attribute,omitempty"`
+	Present   *bool   `json:"present,omitempty"`
+	Eq        *string `json:"eq,omitempty"`
 }
 
 // TagInfo contains metadata about a semantic attribute and its location.
