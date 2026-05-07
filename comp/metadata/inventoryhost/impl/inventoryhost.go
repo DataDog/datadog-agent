@@ -12,8 +12,6 @@ import (
 	"net/http"
 	"time"
 
-	"go.uber.org/fx"
-
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -21,7 +19,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/utils"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	inventoryhost "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/def"
 	pkgUtils "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/utils"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
@@ -32,17 +30,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newInventoryHostProvider))
-}
 
 // for testing purpose
 var (
@@ -128,25 +119,24 @@ type invHost struct {
 	hostname string
 }
 
-type dependencies struct {
-	fx.In
-
+// Requires defines the dependencies for the inventoryhost component
+type Requires struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
 	Hostname   hostnameinterface.Component
 }
 
-type provides struct {
-	fx.Out
-
+// Provides defines the output of the inventoryhost component
+type Provides struct {
 	Comp          inventoryhost.Component
 	Provider      runnerdef.Provider
 	FlareProvider flaretypes.Provider
 	Endpoint      api.AgentEndpointProvider
 }
 
-func newInventoryHostProvider(deps dependencies) provides {
+// NewComponent creates a new inventoryhost component
+func NewComponent(deps Requires) Provides {
 	hname, _ := deps.Hostname.Get(context.Background())
 	ih := &invHost{
 		conf:     deps.Config,
@@ -156,7 +146,7 @@ func newInventoryHostProvider(deps dependencies) provides {
 	}
 	ih.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ih.getPayload, "host.json")
 
-	return provides{
+	return Provides{
 		Comp:          ih,
 		Provider:      ih.MetadataProvider(),
 		FlareProvider: ih.FlareProvider(),

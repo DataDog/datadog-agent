@@ -5,26 +5,19 @@
 
 //go:build test
 
-package inventoryhostimpl
+// Package mock provides a mock for the inventoryhost component
+package mock
 
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	inventoryhost "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// MockModule defines the fx options for the mock component.
-//
-// Usage:
-//
-//	fxutil.Test[dependencies](
-//	   t,
-//	   inventoryhost.MockModule(),
-//	)
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMock))
+// Mock implements mock-specific methods for the inventoryhost component.
+type Mock interface {
+	inventoryhost.Component
 }
 
 // MockProvides is the mock component output
@@ -36,10 +29,6 @@ type MockProvides struct {
 
 type inventoryhostMock struct{}
 
-func (m *inventoryhostMock) GetAsJSON() ([]byte, error) {
-	return []byte("{}"), nil
-}
-
 func (m *inventoryhostMock) Refresh() {}
 
 func newMock() MockProvides {
@@ -47,4 +36,17 @@ func newMock() MockProvides {
 	return MockProvides{
 		Comp: ih,
 	}
+}
+
+// Module defines the fx options for the mock component.
+//
+// Usage:
+//
+//	fxutil.Test[dependencies](
+//	   t,
+//	   mock.Module(),
+//	)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMock))
 }

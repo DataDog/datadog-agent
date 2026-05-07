@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/utils"
@@ -30,6 +31,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
+
+// testDeps bridges fx injection for tests since Requires has no fx.In marker.
+type testDeps struct {
+	fx.In
+
+	Log        log.Component
+	Config     config.Component
+	Serializer serializer.MetricSerializer
+	Hostname   hostnameinterface.Component
+}
+
+func makeRequires(deps testDeps) Requires {
+	return Requires{
+		Log:        deps.Log,
+		Config:     deps.Config,
+		Serializer: deps.Serializer,
+		Hostname:   deps.Hostname,
+	}
+}
 
 func cpuMock() *cpu.Info {
 	return &cpu.Info{
@@ -133,14 +153,14 @@ func setupHostMetadataErrorMock(t *testing.T) {
 }
 
 func getTestInventoryHost(t *testing.T) *invHost {
-	p := newInventoryHostProvider(
-		fxutil.Test[dependencies](
+	p := NewComponent(
+		makeRequires(fxutil.Test[testDeps](
 			t,
 			fx.Provide(func() log.Component { return logmock.New(t) }),
 			fx.Provide(func() config.Component { return config.NewMock(t) }),
 			fx.Provide(func() serializer.MetricSerializer { return serializermock.NewMetricSerializer(t) }),
 			hostnameimpl.MockModule(),
-		),
+		)),
 	)
 	return p.Comp.(*invHost)
 }

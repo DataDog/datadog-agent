@@ -50,8 +50,8 @@ import (
 	hostfx "github.com/DataDog/datadog-agent/comp/metadata/host/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
+	inventoryhost "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/def"
+	inventoryhostfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/fx"
 	resources "github.com/DataDog/datadog-agent/comp/metadata/resources/def"
 	resourcesfx "github.com/DataDog/datadog-agent/comp/metadata/resources/fx"
 	resourcesimpl "github.com/DataDog/datadog-agent/comp/metadata/resources/impl"
@@ -167,7 +167,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		ipcfx.ModuleReadWrite(),
 		// sysprobeconfig is optionally required by inventoryagent
 		sysprobeconfig.NoneModule(),
-		inventoryhostimpl.Module(),
+		inventoryhostfx.Module(),
 		fx.Provide(func(config config.Component) healthprobe.Options {
 			return healthprobe.Options{
 				Port:           config.GetInt("health_port"),
