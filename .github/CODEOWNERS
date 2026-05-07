@@ -368,6 +368,7 @@
 /comp/core/flare @DataDog/agent-configuration
 /comp/core/gui @DataDog/agent-configuration
 /comp/core/profiler @DataDog/agent-configuration
+/comp/core/remoteflags @DataDog/agent-configuration
 /comp/core/secrets @DataDog/agent-configuration
 /comp/core/settings @DataDog/agent-configuration
 /comp/core/status @DataDog/agent-configuration
@@ -597,6 +598,7 @@
 /pkg/proto/datadog/trace                @DataDog/agent-apm
 /pkg/proto/datadog/workloadmeta         @DataDog/container-platform
 /pkg/remoteconfig/                      @DataDog/remote-config
+/pkg/remoteflags/                       @DataDog/agent-configuration
 /pkg/runtime/                           @DataDog/agent-runtimes
 /pkg/redact/                            @DataDog/kubernetes-experiences
 /pkg/system-probe/                      @DataDog/ebpf-platform
@@ -898,6 +900,7 @@
 /test/regression/                             @DataDog/single-machine-performance
 /test/regression/ebpf                         @DataDog/single-machine-performance @DataDog/ebpf-platform
 /test/regression/cases/docker_containers*     @DataDog/single-machine-performance @DataDog/container-integrations
+/test/regression/cases/quality_gate_security_* @DataDog/single-machine-performance @DataDog/agent-security
 
 /tools/                                 @DataDog/agent-devx
 /tools/host-profiler/                   @DataDog/profiling-full-host
@@ -937,3 +940,6 @@
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
 
 /q_branch/                               @DataDog/q-branch
+
+# AI-related files
+/.claude/skills/explain-lading-config @DataDog/single-machine-performance

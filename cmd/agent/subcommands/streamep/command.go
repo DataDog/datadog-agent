@@ -11,6 +11,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
+	"strconv"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -69,7 +71,7 @@ func streamEventPlatform(_ log.Component, config config.Component, client ipc.HT
 		return err
 	}
 
-	urlstr := fmt.Sprintf("https://%v:%v/agent/stream-event-platform", ipcAddress, config.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%s/agent/stream-event-platform", net.JoinHostPort(ipcAddress, strconv.Itoa(config.GetInt("cmd_port"))))
 	return streamRequest(client, urlstr, body, func(chunk []byte) {
 		fmt.Print(string(chunk))
 	})

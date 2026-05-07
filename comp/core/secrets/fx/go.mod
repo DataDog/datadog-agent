@@ -90,7 +90,7 @@ require (
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.27.1 // indirect
+	go.uber.org/zap v1.28.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/net v0.53.0 // indirect
@@ -252,6 +252,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/grpc => ../../../../pkg/util/grpc
 	github.com/DataDog/datadog-agent/pkg/util/hostinfo => ../../../../pkg/util/hostinfo
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../pkg/util/hostname/validate
+	github.com/DataDog/datadog-agent/pkg/util/hostport => ../../../../pkg/util/hostport
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../../../pkg/util/http
 	github.com/DataDog/datadog-agent/pkg/util/json => ../../../../pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery => ../../../../pkg/util/jsonquery

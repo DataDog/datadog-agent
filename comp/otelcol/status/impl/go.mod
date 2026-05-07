@@ -10,6 +10,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/status v0.73.0-rc.5
 	github.com/DataDog/datadog-agent/comp/otelcol/ddflareextension/types v0.65.0-devel
 	github.com/DataDog/datadog-agent/comp/otelcol/status/def v0.64.0
+	github.com/DataDog/datadog-agent/pkg/util/hostport v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/prometheus v0.64.0
 	github.com/stretchr/testify v1.11.1
 	go.yaml.in/yaml/v3 v3.0.4
@@ -106,7 +107,7 @@ require (
 	go.uber.org/dig v1.19.0 // indirect
 	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.27.1 // indirect
+	go.uber.org/zap v1.28.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
@@ -268,6 +269,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/grpc => ../../../../pkg/util/grpc
 	github.com/DataDog/datadog-agent/pkg/util/hostinfo => ../../../../pkg/util/hostinfo
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../pkg/util/hostname/validate
+	github.com/DataDog/datadog-agent/pkg/util/hostport => ../../../../pkg/util/hostport
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../../../pkg/util/http
 	github.com/DataDog/datadog-agent/pkg/util/json => ../../../../pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery => ../../../../pkg/util/jsonquery

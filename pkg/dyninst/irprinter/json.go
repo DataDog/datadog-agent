@@ -106,6 +106,12 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 		json.MarshalToFunc(func(enc *jsontext.Encoder, _ *ir.DurationSegment) error {
 			return enc.WriteToken(jsontext.String("@duration"))
 		}),
+		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.CmpOp) error {
+			return enc.WriteToken(jsontext.String(v.String()))
+		}),
+		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.CmpKind) error {
+			return enc.WriteToken(jsontext.String(v.String()))
+		}),
 	)
 	underOperationMarshalers := json.JoinMarshalers(
 		basicMarshalers,
@@ -374,9 +380,9 @@ func makeOperationMarshaler(
 			toMarshal = newWithKind(op)
 		case *ir.ExprReadStringOp:
 			toMarshal = newWithKind(op)
-		case *ir.ExprCmpEqBaseOp:
+		case *ir.ExprCmpBaseOp:
 			toMarshal = newWithKind(op)
-		case *ir.ExprCmpEqStringOp:
+		case *ir.ExprCmpStringOp:
 			toMarshal = newWithKind(op)
 		case *ir.SliceBoundsCheckOp:
 			toMarshal = newWithKind(op)
