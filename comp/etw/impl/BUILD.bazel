@@ -13,10 +13,13 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/etw/impl",
     target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
-    deps = [
-        "//comp/def",
-        "//comp/etw/def",
-        "//pkg/util/winutil",
-        "@org_golang_x_sys//windows",
-    ],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//comp/def",
+            "//comp/etw/def",
+            "//pkg/util/winutil",
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
 )

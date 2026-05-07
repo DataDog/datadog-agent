@@ -8,8 +8,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
+            "//comp/etw/impl",
             "//pkg/util/fxutil",
-            "@//comp/etw/impl",
         ],
         "//conditions:default": [],
     }),
