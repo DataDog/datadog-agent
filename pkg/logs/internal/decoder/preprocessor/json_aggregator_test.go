@@ -398,12 +398,13 @@ func TestJSONAggregator_TopLevelArraySplitNotAggregated(t *testing.T) {
 
 	// The original part bytes must all appear somewhere in the
 	// emitted stream — nothing is silently dropped.
-	emittedJoined := ""
+	var emittedJoined strings.Builder
 	for _, m := range emitted {
-		emittedJoined += string(m.GetContent())
+		emittedJoined.Write(m.GetContent())
 	}
+	joined := emittedJoined.String()
 	for _, p := range parts {
-		assert.Contains(t, emittedJoined, p,
+		assert.Contains(t, joined, p,
 			"every input part must survive somewhere in the emitted output")
 	}
 }
