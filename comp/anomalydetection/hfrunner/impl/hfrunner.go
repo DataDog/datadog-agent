@@ -98,6 +98,9 @@ func (h *hfrunnerComp) StartContainer(containerHandle observerdef.Handle) map[me
 		FilterStore: filterStore,
 		Tagger:      tagger,
 	})
+	if r == nil {
+		return nil
+	}
 	r.start()
 	pkglog.Info("[observer] high-frequency container check runner started (1s interval)")
 	h.lifecycle.Append(compdef.Hook{
