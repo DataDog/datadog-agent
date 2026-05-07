@@ -100,8 +100,8 @@ type RemoteFlagSubscriber interface {
 
 // Flag represents a single flag with its name and value.
 type Flag struct {
-	Name  string    `json:"name"`
-	Value FlagValue `json:"value"`
+	Name    string    `json:"name"`
+	Enabled FlagValue `json:"enabled"`
 	// ConfigurationField is the optional config key (e.g. "feature.x.enabled")
 	// the flag is bound to. When set and a ConfigSetter is configured, the
 	// client mirrors the flag value into pkg/config under SourceRC.
@@ -243,8 +243,8 @@ func (c *Client) SubscribeWithHandler(handler FlagHandler) error {
 
 	// If we already have cached a value for this flag,
 	// invoke the callback immediately via notifyChange
-	if value, exists := c.currentValues[flag]; exists {
-		c.notifyChange(Flag{Name: string(flag), Value: value})
+	if enabled, exists := c.currentValues[flag]; exists {
+		c.notifyChange(Flag{Name: string(flag), Enabled: enabled})
 	}
 
 	return nil
@@ -300,14 +300,14 @@ func (c *Client) OnUpdate(updates map[string]state.RawConfig, applyStateCallback
 						log.Infof("Remote flag %s: not applying to %q (source %q has precedence; set override_local=true to force)", flag.Name, flag.ConfigurationField, currentSource)
 						continue
 					}
-					c.configSetter.Set(flag.ConfigurationField, bool(flag.Value), model.SourceRC)
+					c.configSetter.Set(flag.ConfigurationField, bool(flag.Enabled), model.SourceRC)
 				}
 			}
 
 			// Check if the value changed
 			oldValue, existed := c.currentValues[flagName]
-			if !existed || oldValue != flag.Value {
-				c.currentValues[flagName] = flag.Value
+			if !existed || oldValue != flag.Enabled {
+				c.currentValues[flagName] = flag.Enabled
 				c.notifyChange(flag)
 			}
 		}
@@ -352,13 +352,13 @@ func (c *Client) notifyChange(flag Flag) {
 	for _, sub := range subs {
 		// only notify if the value actually changed from last known value
 		last := sub.lastValue.Load()
-		if last == nil || *last != flag.Value {
+		if last == nil || *last != flag.Enabled {
 			go func(s *subscription, f Flag) {
-				if err := s.handler.OnChange(f.Value); err != nil {
-					applyErr := fmt.Errorf("remote flag %s (value=%v): %w", f.Name, f.Value, err)
+				if err := s.handler.OnChange(f.Enabled); err != nil {
+					applyErr := fmt.Errorf("remote flag %s (enabled=%v): %w", f.Name, f.Enabled, err)
 					c.recoverFlag(s, f, applyErr)
 				} else {
-					successValue := f.Value
+					successValue := f.Enabled
 					s.lastValue.Store(&successValue)
 					c.startHealthMonitor(s, f)
 				}
@@ -374,7 +374,7 @@ func (c *Client) recoverFlag(sub *subscription, flag Flag, err error) {
 	if flag.ConfigurationField != "" && c.configSetter != nil {
 		c.configSetter.UnsetForSource(flag.ConfigurationField, model.SourceRC)
 	}
-	sub.handler.SafeRecover(err, flag.Value)
+	sub.handler.SafeRecover(err, flag.Enabled)
 }
 
 // notifyNoConfig notifies all subscribers that we properly established
@@ -403,7 +403,7 @@ func (c *Client) notifyNoConfig(flag FlagName) {
 // that the recovery was successful.
 func (c *Client) startHealthMonitor(sub *subscription, flag Flag) {
 	// Only monitor when enabling (value=true)
-	if !flag.Value {
+	if !flag.Enabled {
 		return
 	}
 

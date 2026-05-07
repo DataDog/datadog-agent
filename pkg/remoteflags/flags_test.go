@@ -174,7 +174,7 @@ func TestOnUpdate_NotifiesSubscriber(t *testing.T) {
 	h := newStubHandler(testFlag1)
 	require.NoError(t, client.SubscribeWithHandler(h))
 
-	sendUpdate(client, Flag{Name: string(testFlag1), Value: true})
+	sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true})
 
 	v := waitChan(t, h.onChangeCh)
 	assert.True(t, bool(v))
@@ -190,16 +190,16 @@ func TestOnUpdate_DeduplicatesSameValue(t *testing.T) {
 	require.NoError(t, client.SubscribeWithHandler(h))
 
 	// First update
-	sendUpdate(client, Flag{Name: string(testFlag1), Value: true})
+	sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true})
 	waitChan(t, h.onChangeCh)
 
 	// Same value again: should not trigger
-	sendUpdate(client, Flag{Name: string(testFlag1), Value: true})
+	sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true})
 	time.Sleep(50 * time.Millisecond)
 	assert.Empty(t, h.onChangeCh)
 
 	// Different value: should trigger
-	sendUpdate(client, Flag{Name: string(testFlag1), Value: false})
+	sendUpdate(client, Flag{Name: string(testFlag1), Enabled: false})
 	v := waitChan(t, h.onChangeCh)
 	assert.False(t, bool(v))
 }
@@ -227,7 +227,7 @@ func TestOnUpdate_MissingFlagCallsOnNoConfig(t *testing.T) {
 	require.NoError(t, client.SubscribeWithHandler(h))
 
 	// Send an update for a different flag
-	sendUpdate(client, Flag{Name: string(testFlag2), Value: true})
+	sendUpdate(client, Flag{Name: string(testFlag2), Enabled: true})
 
 	waitChan(t, h.noConfigCh)
 }
@@ -240,7 +240,7 @@ func TestOnUpdate_MultipleSubscribers(t *testing.T) {
 	require.NoError(t, client.SubscribeWithHandler(h1))
 	require.NoError(t, client.SubscribeWithHandler(h2))
 
-	sendUpdate(client, Flag{Name: string(testFlag1), Value: true})
+	sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true})
 
 	assert.True(t, bool(waitChan(t, h1.onChangeCh)))
 	assert.True(t, bool(waitChan(t, h2.onChangeCh)))
@@ -253,7 +253,7 @@ func TestOnChange_ErrorTriggersSafeRecover(t *testing.T) {
 	h.onChangeFn = func(FlagValue) error { return errors.New("apply failed") }
 	require.NoError(t, client.SubscribeWithHandler(h))
 
-	sendUpdate(client, Flag{Name: string(testFlag1), Value: true})
+	sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true})
 
 	v := waitChan(t, h.recoverCh)
 	assert.True(t, bool(v))
@@ -266,7 +266,7 @@ func TestSubscribeWithHandler(t *testing.T) {
 	require.NoError(t, client.SubscribeWithHandler(h))
 	require.Error(t, client.SubscribeWithHandler(nil))
 
-	sendUpdate(client, Flag{Name: string(testFlag1), Value: true})
+	sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true})
 	assert.True(t, bool(waitChan(t, h.onChangeCh)))
 }
 
@@ -304,7 +304,7 @@ func TestHealthMonitor_RecoveryProbeConfirmsHealthy(t *testing.T) {
 
 	sendUpdate(client, Flag{
 		Name:                             string(testFlag1),
-		Value:                            true,
+		Enabled:                          true,
 		HealthCheckDurationSeconds:       5,
 		HealthCheckFailuresBeforeRecover: 1,
 	})
@@ -335,25 +335,25 @@ func TestOnUpdate_VersionDropsOlderOrEqual(t *testing.T) {
 	require.NoError(t, client.SubscribeWithHandler(h))
 
 	// Apply version 5 with value=true
-	sendUpdate(client, Flag{Name: string(testFlag1), Value: true, Version: 5})
+	sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true, Version: 5})
 	assert.True(t, bool(waitChan(t, h.onChangeCh)))
 
 	// Older version with a different value: must be dropped
-	sendUpdate(client, Flag{Name: string(testFlag1), Value: false, Version: 3})
+	sendUpdate(client, Flag{Name: string(testFlag1), Enabled: false, Version: 3})
 	time.Sleep(50 * time.Millisecond)
 	assert.Empty(t, h.onChangeCh)
 	v, _ := client.GetCurrentValue(testFlag1)
 	assert.True(t, bool(v), "current value must remain the one from the latest applied version")
 
 	// Same version: also dropped
-	sendUpdate(client, Flag{Name: string(testFlag1), Value: false, Version: 5})
+	sendUpdate(client, Flag{Name: string(testFlag1), Enabled: false, Version: 5})
 	time.Sleep(50 * time.Millisecond)
 	assert.Empty(t, h.onChangeCh)
 	v, _ = client.GetCurrentValue(testFlag1)
 	assert.True(t, bool(v))
 
 	// Strictly newer version: applied
-	sendUpdate(client, Flag{Name: string(testFlag1), Value: false, Version: 6})
+	sendUpdate(client, Flag{Name: string(testFlag1), Enabled: false, Version: 6})
 	assert.False(t, bool(waitChan(t, h.onChangeCh)))
 }
 
@@ -363,11 +363,11 @@ func TestOnUpdate_VersionZeroBypassesCheck(t *testing.T) {
 	h := newStubHandler(testFlag1)
 	require.NoError(t, client.SubscribeWithHandler(h))
 
-	sendUpdate(client, Flag{Name: string(testFlag1), Value: true, Version: 10})
+	sendUpdate(client, Flag{Name: string(testFlag1), Enabled: true, Version: 10})
 	assert.True(t, bool(waitChan(t, h.onChangeCh)))
 
 	// Unversioned update with a different value: applied regardless of prior version
-	sendUpdate(client, Flag{Name: string(testFlag1), Value: false})
+	sendUpdate(client, Flag{Name: string(testFlag1), Enabled: false})
 	assert.False(t, bool(waitChan(t, h.onChangeCh)))
 }
 
@@ -382,7 +382,7 @@ func TestOnUpdate_ConfigurationFieldMirrorsValue(t *testing.T) {
 
 	sendUpdate(client, Flag{
 		Name:               string(testFlag1),
-		Value:              true,
+		Enabled:            true,
 		ConfigurationField: "feature.x.enabled",
 	})
 
@@ -409,7 +409,7 @@ func TestOnUpdate_OverrideLocalFalse_RespectsLocal(t *testing.T) {
 
 	sendUpdate(client, Flag{
 		Name:               string(testFlag1),
-		Value:              true,
+		Enabled:            true,
 		ConfigurationField: "feature.x.enabled",
 		// OverrideLocal default false
 	})
@@ -434,7 +434,7 @@ func TestOnUpdate_OverrideLocalTrue_Overrides(t *testing.T) {
 
 	sendUpdate(client, Flag{
 		Name:               string(testFlag1),
-		Value:              true,
+		Enabled:            true,
 		ConfigurationField: "feature.x.enabled",
 		OverrideLocal:      true,
 	})
@@ -458,7 +458,7 @@ func TestOnUpdate_OverrideLocalFalse_ProtectsAgentRuntime(t *testing.T) {
 
 	sendUpdate(client, Flag{
 		Name:               string(testFlag1),
-		Value:              true,
+		Enabled:            true,
 		ConfigurationField: "feature.x.enabled",
 	})
 
@@ -481,7 +481,7 @@ func TestOnChange_ErrorUnsetsConfigurationField(t *testing.T) {
 
 	sendUpdate(client, Flag{
 		Name:               string(testFlag1),
-		Value:              true,
+		Enabled:            true,
 		ConfigurationField: "feature.x.enabled",
 	})
 
@@ -505,7 +505,7 @@ func TestHealthMonitor_RecoveryProbeStaysUnhealthy(t *testing.T) {
 
 	sendUpdate(client, Flag{
 		Name:                             string(testFlag1),
-		Value:                            true,
+		Enabled:                          true,
 		HealthCheckDurationSeconds:       1, // Short window so test is fast
 		HealthCheckFailuresBeforeRecover: 1,
 	})
