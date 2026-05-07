@@ -451,7 +451,7 @@ type uploadSink interface {
 }
 
 type batchEncoder interface {
-	AddScope(uploader.Scope) error
+	AddPackage(pkg symdb.Package, agentVersion string) error
 	Size() int
 	Flush(context.Context, bool) error
 	BatchCount() int
@@ -487,11 +487,11 @@ type noopBatchEncoder struct {
 	gz         *gzip.Writer
 }
 
-func (n *noopBatchEncoder) AddScope(scope uploader.Scope) error {
+func (n *noopBatchEncoder) AddPackage(pkg symdb.Package, agentVersion string) error {
 	if n.scopeCount == 0 {
 		n.batchNum++
 	}
-	if err := jsonv2.MarshalWrite(n.gz, scope); err != nil {
+	if err := jsonv2.MarshalWrite(n.gz, uploader.NewPackageScope(pkg, agentVersion)); err != nil {
 		return fmt.Errorf("failed to encode scope: %w", err)
 	}
 	n.scopeCount++
@@ -574,8 +574,7 @@ func extractAndUpload(
 		}
 
 		if enc != nil {
-			scope := uploader.ConvertPackageToScope(pkg.Package, agentVersion)
-			if err := enc.AddScope(scope); err != nil {
+			if err := enc.AddPackage(pkg.Package, agentVersion); err != nil {
 				return fmt.Errorf("failed to encode scope: %w", err)
 			}
 			totalPackages++

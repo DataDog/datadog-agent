@@ -159,6 +159,18 @@ func NewBatchEncoder(
 // AddScope writes a single Scope into the current batch's gzip stream. On the
 // first call of a new batch, it also writes the JSON envelope prefix.
 func (b *BatchEncoder) AddScope(scope Scope) error {
+	return b.addEncoded(scope)
+}
+
+// AddPackage streams a symdb.Package directly into the current batch's gzip
+// stream as a "package" scope, without first allocating an intermediate
+// uploader.Scope tree. The emitted JSON is identical to
+// AddScope(ConvertPackageToScope(pkg, agentVersion)).
+func (b *BatchEncoder) AddPackage(pkg symdb.Package, agentVersion string) error {
+	return b.addEncoded(NewPackageScope(pkg, agentVersion))
+}
+
+func (b *BatchEncoder) addEncoded(v any) error {
 	if !b.prefixWritten {
 		b.batchNum++
 
@@ -188,7 +200,7 @@ func (b *BatchEncoder) AddScope(scope Scope) error {
 			return fmt.Errorf("failed to write scope separator: %w", err)
 		}
 	}
-	if err := jsonv2.MarshalWrite(b.gz, scope); err != nil {
+	if err := jsonv2.MarshalWrite(b.gz, v); err != nil {
 		return fmt.Errorf("failed to encode scope: %w", err)
 	}
 	b.scopeCount++

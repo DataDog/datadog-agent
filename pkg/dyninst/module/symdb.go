@@ -659,8 +659,7 @@ func (m *symdbManager) performUpload(
 			return context.Cause(ctx)
 		}
 
-		scope := uploader.ConvertPackageToScope(pkg.Package, version.AgentVersion)
-		if err := enc.AddScope(scope); err != nil {
+		if err := enc.AddPackage(pkg.Package, version.AgentVersion); err != nil {
 			return fmt.Errorf("failed to encode scope for process %v: %w", procID.pid, err)
 		}
 		totalPackages++
