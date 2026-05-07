@@ -2,8 +2,6 @@
 set -euo pipefail
 featureDir=$(cd "$(dirname "$0")"; pwd)
 
-# Get claude from the buildimages /root/.local/bin
-cp /root/.local/bin/claude /home/bits/.local/bin/claude
 
 # Add bits user to the docker group. This should probably be handled by the base feature. But not working for now.
 usermod -aG docker bits
