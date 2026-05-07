@@ -1,10 +1,12 @@
 {
+  "push_both": {
+    "before": "configure session dd-rollback\n",
+    "after": "\ncommit\nwrite\n"
+  },
   "commands": [
     {
       "type": "running",
-      "values": [
-        "show running-config | no-more | exclude ! Time:"
-      ],
+      "values": ["show running-config | no-more | exclude ! Time:"],
       "processing_rules": {
         "validation": [
           {
@@ -55,9 +57,7 @@
     },
     {
       "type": "startup",
-      "values": [
-        "show startup-config | no-more | exclude ! Time:"
-      ],
+      "values": ["show startup-config | no-more | exclude ! Time:"],
       "processing_rules": {
         "metadata": [
           {
