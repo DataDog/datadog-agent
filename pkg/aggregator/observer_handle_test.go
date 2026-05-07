@@ -114,7 +114,7 @@ func TestSetObserverNilIsNoop(t *testing.T) {
 	}
 }
 
-// TestSetObserverConfigOff verifies that when observer.metrics.enabled is false,
+// TestSetObserverConfigOff verifies that when anomaly_detection.metrics.enabled is false,
 // SetObserver does not wire the handle.
 func TestSetObserverConfigOff(t *testing.T) {
 	opts := demuxTestOptions()
@@ -122,7 +122,7 @@ func TestSetObserverConfigOff(t *testing.T) {
 	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
 	defer demux.Stop(true)
 
-	// observer.metrics.enabled defaults to false — config is unset in tests
+	// anomaly_detection.metrics.enabled defaults to false — config is unset in tests
 	comp := &recordingComponent{handle: &recordingHandle{}}
 	demux.SetObserver(comp)
 

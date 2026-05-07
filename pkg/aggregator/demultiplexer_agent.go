@@ -248,7 +248,7 @@ func (d *AgentDemultiplexer) Options() AgentDemultiplexerOptions {
 
 // SetObserver wires an observer component into the DogStatsD metric pipeline.
 //
-// When observer.metrics.enabled is true, every raw metric sample passing through
+// When anomaly_detection.metrics.enabled is true, every raw metric sample passing through
 // the time-sampler workers and the no-aggregation pipeline will be forwarded to
 // the provided observer handle before aggregation. The call is a no-op when the
 // config flag is off or obs is nil, so default overhead is zero.
@@ -256,8 +256,8 @@ func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
 	if obs == nil {
 		return
 	}
-	if !pkgconfigsetup.Datadog().GetBool("observer.metrics.enabled") {
-		d.log.Debug("Observer metric capture disabled (observer.metrics.enabled=false)")
+	if !pkgconfigsetup.Datadog().GetBool("anomaly_detection.metrics.enabled") {
+		d.log.Debug("Observer metric capture disabled (anomaly_detection.metrics.enabled=false)")
 		return
 	}
 
