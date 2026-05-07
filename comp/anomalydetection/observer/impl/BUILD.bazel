@@ -15,5 +15,6 @@ go_test(
     name = "impl_test",
     srcs = ["observer_test.go"],
     embed = [":impl"],
+    gotags = ["test"],
     deps = ["//comp/anomalydetection/observer/def"],
 )
