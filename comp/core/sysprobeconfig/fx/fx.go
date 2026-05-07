@@ -7,11 +7,15 @@
 package fx
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfigdef "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
-	return sysprobeconfigimpl.Module()
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(sysprobeconfigimpl.NewComponent),
+		fxutil.ProvideOptional[sysprobeconfigdef.Component](),
+	)
 }

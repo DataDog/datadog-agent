@@ -26,7 +26,8 @@ import (
 	profilerdef "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	profilermock "github.com/DataDog/datadog-agent/comp/core/profiler/mock"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfigdef "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -70,16 +71,18 @@ type reqs struct {
 }
 
 func getProfiler(t testing.TB, overrideSysProbe map[string]interface{}) profiler {
+	sysprobeConf := sysprobeconfigmock.NewMock(t)
+	for k, v := range overrideSysProbe {
+		sysprobeConf.SetWithoutSource(k, v)
+	}
 	deps := fxutil.Test[reqs](
 		t,
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component {
 			return config.NewMock(t)
 		}),
-		fx.Replace(sysprobeconfigimpl.MockParams{
-			Overrides: overrideSysProbe,
-		}),
-		sysprobeconfigimpl.MockModule(),
+		fx.Provide(func() sysprobeconfigdef.Component { return sysprobeConf }),
+		fxutil.ProvideOptional[sysprobeconfigdef.Component](),
 		settingsimpl.MockModule(),
 		fxutil.ProvideComponentConstructor(NewComponent),
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),

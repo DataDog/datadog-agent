@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	expvars "github.com/DataDog/datadog-agent/comp/process/expvars/def"
 	expvarsfx "github.com/DataDog/datadog-agent/comp/process/expvars/fx"
@@ -40,7 +40,7 @@ func TestExpvarServer(t *testing.T) {
 			})
 		}),
 		mocktelemetry.Module(),
-		sysprobeconfigimpl.MockModule(),
+		sysprobeconfigmock.MockModule(),
 		hostinfomock.MockModule(),
 		expvarsfx.Module(),
 	))
@@ -72,7 +72,7 @@ func TestTelemetry(t *testing.T) {
 		expvarsfx.Module(),
 		hostinfomock.MockModule(),
 		mocktelemetry.Module(),
-		sysprobeconfigimpl.MockModule(),
+		sysprobeconfigmock.MockModule(),
 	))
 
 	assert.Eventually(t, func() bool {

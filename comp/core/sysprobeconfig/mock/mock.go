@@ -9,11 +9,53 @@
 package mock
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"os"
+	"strings"
+	"testing"
+
+	sysprobeconfigdef "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
-// MockModule defines the fx options for the mock component.
+// NewMock creates a mock for the sysprobeconfig component.
+func NewMock(t testing.TB) sysprobeconfigdef.Component {
+	configmock.NewSystemProbe(t)
+
+	// Viper's `GetXxx` methods read environment variables at the time they are
+	// called, if those names were passed explicitly to BindEnv*(), so we must
+	// also strip all `DD_` environment variables for the duration of the test.
+	oldEnv := os.Environ()
+	for _, kv := range oldEnv {
+		if strings.HasPrefix(kv, "DD_") {
+			kvslice := strings.SplitN(kv, "=", 2)
+			_ = os.Unsetenv(kvslice[0])
+		}
+	}
+	t.Cleanup(func() {
+		for _, kv := range oldEnv {
+			kvslice := strings.SplitN(kv, "=", 2)
+			os.Setenv(kvslice[0], kvslice[1])
+		}
+	})
+
+	syscfg, err := sysconfig.New("", "")
+	if err != nil {
+		t.Fatalf("sysprobe config create: %s", err)
+	}
+	return sysprobeconfigimpl.NewTestComponent(pkgconfigsetup.SystemProbe(), syscfg)
+}
+
+// MockModule provides the mock sysprobeconfig component via fx for tests that require it.
 func MockModule() fxutil.Module {
-	return sysprobeconfigimpl.MockModule()
+	return fxutil.Component(
+		fx.Provide(func(t testing.TB) sysprobeconfigdef.Component {
+			return NewMock(t)
+		}),
+		fxutil.ProvideOptional[sysprobeconfigdef.Component](),
+	)
 }

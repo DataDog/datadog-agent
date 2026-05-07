@@ -18,7 +18,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicefx "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/fx"

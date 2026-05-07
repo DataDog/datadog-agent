@@ -10,7 +10,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	processdiscoverycheck "github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"

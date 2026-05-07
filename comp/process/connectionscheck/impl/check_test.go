@@ -10,8 +10,9 @@ package connectionscheckimpl
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	sysprobeconfigdef "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -70,9 +71,13 @@ func TestConnectionsCheckIsEnabled(t *testing.T) {
 			originalFlavor := flavor.GetFlavor()
 			defer flavor.SetFlavor(originalFlavor)
 
+			sysprobeConf := sysprobeconfigmock.NewMock(t)
+			for k, v := range tc.sysprobeConfigs {
+				sysprobeConf.SetWithoutSource(k, v)
+			}
 			c := fxutil.Test[connectionscheck.Component](t, fx.Options(
-				core.MockBundle(),
-				fx.Replace(sysprobeconfigimpl.MockParams{Overrides: tc.sysprobeConfigs}),
+				fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
+				fx.Provide(func() sysprobeconfigdef.Component { return sysprobeConf }),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 				npcollectormock.MockModule(),
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),

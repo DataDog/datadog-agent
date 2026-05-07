@@ -119,7 +119,6 @@ components_classic_style = [
     'comp/core/pid/pidimpl',
     'comp/core/settings/settingsimpl',
     'comp/core/status/statusimpl',
-    'comp/core/sysprobeconfig/sysprobeconfigimpl',
     'comp/dogstatsd/pidmap/pidmapimpl',
     'comp/dogstatsd/serverDebug/serverdebugimpl',
     'comp/dogstatsd/status/statusimpl',
@@ -189,7 +188,6 @@ ignore_fx_import = [
 ]
 
 ignore_provide_component_constructor_missing = [
-    "comp/core/sysprobeconfig",
     "comp/otelcol/logsagentpipeline",
     "comp/core/workloadmeta",
     "comp/trace/agent",

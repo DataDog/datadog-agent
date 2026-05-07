@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	systemprobemetadata "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/def"

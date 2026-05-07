@@ -57,7 +57,7 @@ def _check_dependencies():
 
     if missing:
         raise Exit(
-            f"Missing required dependencies: {', '.join(missing)}\nInstall with: pip install {' '.join(missing)}",
+            f"Missing required dependencies: {', '.join(missing)}\n" f"Install with: pip install {' '.join(missing)}",
             code=1,
         )
 

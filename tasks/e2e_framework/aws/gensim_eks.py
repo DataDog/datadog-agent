@@ -202,7 +202,7 @@ def submit_gensim_eks(
     )
     if status_buf.getvalue().strip():
         raise Exit(
-            f"gensim-episodes checkout is dirty ({gensim_repo_path}).\nCommit or stash changes before submitting."
+            f"gensim-episodes checkout is dirty ({gensim_repo_path}).\n" "Commit or stash changes before submitting."
         )
 
     # ── 5-6. Check cluster accessibility and guard against busy cluster ──
@@ -227,7 +227,7 @@ def submit_gensim_eks(
         if cluster_ok and cluster_ok.ok:
             # Check for active orchestrator job
             job_result = ctx.run(
-                f"KUBECONFIG={kubeconfig_path} kubectl get job gensim-orchestrator -n {namespace} -o json",
+                f"KUBECONFIG={kubeconfig_path} kubectl get job gensim-orchestrator " f"-n {namespace} -o json",
                 warn=True,
                 hide=True,
             )
@@ -250,7 +250,7 @@ def submit_gensim_eks(
                     # Job completed or failed -- clean it up
                     tool.info("Cleaning up previous orchestrator job.")
                     ctx.run(
-                        f"KUBECONFIG={kubeconfig_path} kubectl delete job gensim-orchestrator -n {namespace}",
+                        f"KUBECONFIG={kubeconfig_path} kubectl delete job " f"gensim-orchestrator -n {namespace}",
                         warn=True,
                         hide=True,
                     )

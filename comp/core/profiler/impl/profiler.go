@@ -26,7 +26,7 @@ import (
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	profilercomp "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"

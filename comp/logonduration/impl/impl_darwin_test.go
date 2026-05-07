@@ -23,8 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -525,7 +525,7 @@ func newFixture(t *testing.T, enabled bool) *testFixture {
 	configComp := config.NewMock(t)
 	configComp.SetWithoutSource("logon_duration.enabled", enabled)
 
-	sysprobeConfigComp := fxutil.Test[sysprobeconfig.Component](t, sysprobeconfigimpl.MockModule())
+	sysprobeConfigComp := fxutil.Test[sysprobeconfig.Component](t, sysprobeconfigmock.MockModule())
 
 	hostnameComp := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
 	compressionComp := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())
