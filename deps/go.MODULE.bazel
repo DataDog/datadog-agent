@@ -17,6 +17,20 @@ go_deps.gazelle_default_attributes(
         # We don't want to generate code from protos from dependencies, as this most often fails
         # and is different behavior from the default with go tooling
         "gazelle:proto disable",
+        # ABLD-471: third-party modules that import datadog-agent submodules would
+        # otherwise generate `@com_github_datadog_datadog_agent_*` labels (because
+        # bazelify_go_work materializes our local go.work modules as external repos),
+        # while the same Go package is also reachable in-tree at `//<path>`. The linker
+        # then sees two copies of the package. Redirect every such import to the in-tree
+        # label so both build contexts agree. The list grows as new third-party imports
+        # surface — long-term fix is retiring bazelify_go_work or unifying label spaces.
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace @@//pkg/proto/pbgo/trace:trace",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize @@//pkg/trace/traceutil/normalize:normalize",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/metrics/event @@//pkg/metrics/event:event",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/metrics/servicecheck @@//pkg/metrics/servicecheck:servicecheck",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source @@//pkg/opentelemetry-mapping-go/otlp/attributes/source:source",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/serializer/marshaler @@//pkg/serializer/marshaler:marshaler",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/serializer/types @@//pkg/serializer/types:types",
     ],
 )
 go_deps.gazelle_override(
@@ -94,15 +108,12 @@ use_repo(
     "com_github_datadog_agent_payload_v5",
     "com_github_datadog_aptly",
     "com_github_datadog_datadog_agent_comp_core_agenttelemetry_fx",
-    "com_github_datadog_datadog_agent_comp_core_log_fx",
     "com_github_datadog_datadog_agent_comp_otelcol_collector_contrib_impl",
-    "com_github_datadog_datadog_agent_comp_otelcol_ddprofilingextension_impl",
     "com_github_datadog_datadog_agent_comp_otelcol_logsagentpipeline",
     "com_github_datadog_datadog_agent_comp_otelcol_otlp_components_exporter_datadogexporter",
     "com_github_datadog_datadog_agent_comp_otelcol_otlp_components_exporter_logsagentexporter",
     "com_github_datadog_datadog_agent_comp_otelcol_otlp_components_exporter_serializerexporter",
     "com_github_datadog_datadog_agent_comp_otelcol_otlp_components_processor_infraattributesprocessor",
-    "com_github_datadog_datadog_agent_comp_otelcol_status_impl",
     "com_github_datadog_datadog_agent_pkg_logs_diagnostic",
     "com_github_datadog_datadog_agent_pkg_logs_message",
     "com_github_datadog_datadog_agent_pkg_logs_sources",

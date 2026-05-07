@@ -47,6 +47,41 @@ type EqExpr struct {
 
 func (ee *EqExpr) expr() {}
 
+// NeExpr represents an inequality comparison expression (left != right).
+type NeExpr struct {
+	Left, Right Expr
+}
+
+func (ne *NeExpr) expr() {}
+
+// LtExpr represents a less-than comparison expression (left < right).
+type LtExpr struct {
+	Left, Right Expr
+}
+
+func (lt *LtExpr) expr() {}
+
+// LeExpr represents a less-than-or-equal comparison expression (left <= right).
+type LeExpr struct {
+	Left, Right Expr
+}
+
+func (le *LeExpr) expr() {}
+
+// GtExpr represents a greater-than comparison expression (left > right).
+type GtExpr struct {
+	Left, Right Expr
+}
+
+func (gt *GtExpr) expr() {}
+
+// GeExpr represents a greater-than-or-equal comparison expression (left >= right).
+type GeExpr struct {
+	Left, Right Expr
+}
+
+func (ge *GeExpr) expr() {}
+
 // LiteralExpr represents a literal value (int64, float64, bool, or string).
 type LiteralExpr struct {
 	Value any // int64 | float64 | bool | string
@@ -137,6 +172,46 @@ func Rewrite(root Expr, f func(Expr) Expr) Expr {
 		newRight := Rewrite(e.Right, f)
 		if newLeft != e.Left || newRight != e.Right {
 			result = &EqExpr{Left: newLeft, Right: newRight}
+		} else {
+			result = root
+		}
+	case *NeExpr:
+		newLeft := Rewrite(e.Left, f)
+		newRight := Rewrite(e.Right, f)
+		if newLeft != e.Left || newRight != e.Right {
+			result = &NeExpr{Left: newLeft, Right: newRight}
+		} else {
+			result = root
+		}
+	case *LtExpr:
+		newLeft := Rewrite(e.Left, f)
+		newRight := Rewrite(e.Right, f)
+		if newLeft != e.Left || newRight != e.Right {
+			result = &LtExpr{Left: newLeft, Right: newRight}
+		} else {
+			result = root
+		}
+	case *LeExpr:
+		newLeft := Rewrite(e.Left, f)
+		newRight := Rewrite(e.Right, f)
+		if newLeft != e.Left || newRight != e.Right {
+			result = &LeExpr{Left: newLeft, Right: newRight}
+		} else {
+			result = root
+		}
+	case *GtExpr:
+		newLeft := Rewrite(e.Left, f)
+		newRight := Rewrite(e.Right, f)
+		if newLeft != e.Left || newRight != e.Right {
+			result = &GtExpr{Left: newLeft, Right: newRight}
+		} else {
+			result = root
+		}
+	case *GeExpr:
+		newLeft := Rewrite(e.Left, f)
+		newRight := Rewrite(e.Right, f)
+		if newLeft != e.Left || newRight != e.Right {
+			result = &GeExpr{Left: newLeft, Right: newRight}
 		} else {
 			result = root
 		}
@@ -245,6 +320,56 @@ func (d *pooledDecoder) put() {
 	decoderPool.Put(d)
 }
 
+// parseBinaryOperands reads a strictly two-element JSON array of operand
+// expressions for a binary operator ("eq" / "ne" / "lt" / "le" / "gt" /
+// "ge" / "and" / "or"). It returns the parsed LHS and RHS but does NOT
+// consume the trailing closing brace of the enclosing object.
+func parseBinaryOperands(operation string, dec *jsontext.Decoder) (Expr, Expr, error) {
+	arrStart, err := dec.ReadToken()
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse error: failed to read %s array start: %w", operation, err)
+	}
+	if kind := arrStart.Kind(); kind != '[' {
+		return nil, nil, fmt.Errorf("parse error: malformed %s: got token %v (%v), expected [", operation, arrStart, kind)
+	}
+
+	if dec.PeekKind() == ']' {
+		return nil, nil, fmt.Errorf("parse error: malformed %s: expected exactly two operands, got 0", operation)
+	}
+	lhsJSON, err := dec.ReadValue()
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse error: failed to read %s LHS expression: %w", operation, err)
+	}
+	lhs, err := Parse(lhsJSON)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse error: failed to parse %s LHS expression: %w", operation, err)
+	}
+
+	if dec.PeekKind() == ']' {
+		return nil, nil, fmt.Errorf("parse error: malformed %s: expected exactly two operands, got 1", operation)
+	}
+	rhsJSON, err := dec.ReadValue()
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse error: failed to read %s RHS expression: %w", operation, err)
+	}
+	rhs, err := Parse(rhsJSON)
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse error: failed to parse %s RHS expression: %w", operation, err)
+	}
+
+	if dec.PeekKind() != ']' {
+		return nil, nil, fmt.Errorf("parse error: malformed %s: expected exactly two operands, got 3 or more", operation)
+	}
+	arrEnd, err := dec.ReadToken()
+	if err != nil {
+		return nil, nil, fmt.Errorf("parse error: failed to read %s array end: %w", operation, err)
+	}
+	if kind := arrEnd.Kind(); kind != ']' {
+		return nil, nil, fmt.Errorf("parse error: malformed %s: expected exactly two operands", operation)
+	}
+	return lhs, rhs, nil
+}
+
 // Parse parses a DSL JSON expression into a strongly-typed AST node.
 func Parse(dslJSON []byte) (Expr, error) {
 	if len(dslJSON) == 0 {
@@ -328,50 +453,28 @@ func Parse(dslJSON []byte) (Expr, error) {
 		}
 
 		return &RefExpr{Ref: refValue}, nil
-	case "eq":
-		// Equality comparison: {"eq": [<lhs_expr>, <rhs_expr>]}
-		arrStart, err := dec.ReadToken()
+	case "eq", "ne", "lt", "le", "gt", "ge":
+		lhs, rhs, err := parseBinaryOperands(operation, dec)
 		if err != nil {
-			return nil, fmt.Errorf("parse error: failed to read eq array start: %w", err)
+			return nil, err
 		}
-		if kind := arrStart.Kind(); kind != '[' {
-			return nil, fmt.Errorf("parse error: malformed eq: got token %v (%v), expected [", arrStart, kind)
-		}
-
-		// Read LHS expression.
-		lhsJSON, err := dec.ReadValue()
-		if err != nil {
-			return nil, fmt.Errorf("parse error: failed to read eq LHS expression: %w", err)
-		}
-		lhs, err := Parse(lhsJSON)
-		if err != nil {
-			return nil, fmt.Errorf("parse error: failed to parse eq LHS expression: %w", err)
-		}
-
-		// Read RHS expression.
-		rhsJSON, err := dec.ReadValue()
-		if err != nil {
-			return nil, fmt.Errorf("parse error: failed to read eq RHS expression: %w", err)
-		}
-		rhs, err := Parse(rhsJSON)
-		if err != nil {
-			return nil, fmt.Errorf("parse error: failed to parse eq RHS expression: %w", err)
-		}
-
-		// Read array closing bracket.
-		arrEnd, err := dec.ReadToken()
-		if err != nil {
-			return nil, fmt.Errorf("parse error: failed to read eq array end: %w", err)
-		}
-		if kind := arrEnd.Kind(); kind != ']' {
-			return nil, fmt.Errorf("parse error: malformed eq: got token %v (%v), expected ]", arrEnd, kind)
-		}
-
 		if err := readClosingBrace(); err != nil {
 			return nil, err
 		}
-
-		return &EqExpr{Left: lhs, Right: rhs}, nil
+		switch operation {
+		case "eq":
+			return &EqExpr{Left: lhs, Right: rhs}, nil
+		case "ne":
+			return &NeExpr{Left: lhs, Right: rhs}, nil
+		case "lt":
+			return &LtExpr{Left: lhs, Right: rhs}, nil
+		case "le":
+			return &LeExpr{Left: lhs, Right: rhs}, nil
+		case "gt":
+			return &GtExpr{Left: lhs, Right: rhs}, nil
+		default:
+			return &GeExpr{Left: lhs, Right: rhs}, nil
+		}
 
 	case "getmember":
 		// Handle both lowercase and camelCase variants.
@@ -547,52 +650,13 @@ func Parse(dslJSON []byte) (Expr, error) {
 
 	case "and", "or":
 		// Binary boolean: {"and": [<lhs>, <rhs>]} or {"or": [<lhs>, <rhs>]}.
-		arrStart, err := dec.ReadToken()
+		lhs, rhs, err := parseBinaryOperands(operation, dec)
 		if err != nil {
-			return nil, fmt.Errorf("parse error: failed to read %s array start: %w", operation, err)
+			return nil, err
 		}
-		if kind := arrStart.Kind(); kind != '[' {
-			return nil, fmt.Errorf("parse error: malformed %s: got token %v (%v), expected [", operation, arrStart, kind)
-		}
-
-		// Peek before each operand so arity-0 and arity-1 surface a
-		// dedicated error instead of the generic ReadValue failure.
-		if dec.PeekKind() == ']' {
-			return nil, fmt.Errorf("parse error: malformed %s: expected exactly two operands, got 0", operation)
-		}
-		lhsJSON, err := dec.ReadValue()
-		if err != nil {
-			return nil, fmt.Errorf("parse error: failed to read %s LHS expression: %w", operation, err)
-		}
-		lhs, err := Parse(lhsJSON)
-		if err != nil {
-			return nil, fmt.Errorf("parse error: failed to parse %s LHS expression: %w", operation, err)
-		}
-
-		if dec.PeekKind() == ']' {
-			return nil, fmt.Errorf("parse error: malformed %s: expected exactly two operands, got 1", operation)
-		}
-		rhsJSON, err := dec.ReadValue()
-		if err != nil {
-			return nil, fmt.Errorf("parse error: failed to read %s RHS expression: %w", operation, err)
-		}
-		rhs, err := Parse(rhsJSON)
-		if err != nil {
-			return nil, fmt.Errorf("parse error: failed to parse %s RHS expression: %w", operation, err)
-		}
-
-		arrEnd, err := dec.ReadToken()
-		if err != nil {
-			return nil, fmt.Errorf("parse error: failed to read %s array end: %w", operation, err)
-		}
-		if kind := arrEnd.Kind(); kind != ']' {
-			return nil, fmt.Errorf("parse error: malformed %s: expected exactly two operands", operation)
-		}
-
 		if err := readClosingBrace(); err != nil {
 			return nil, err
 		}
-
 		if operation == "and" {
 			return &AndExpr{Left: lhs, Right: rhs}, nil
 		}
