@@ -11,6 +11,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -95,7 +97,8 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 			return status
 		}
 
-		url = fmt.Sprintf("http://%s:%d/debug/vars", ipcAddr, s.config.GetInt("process_config.expvar_port"))
+		addr := net.JoinHostPort(ipcAddr, strconv.Itoa(s.config.GetInt("process_config.expvar_port")))
+		url = fmt.Sprintf("http://%s/debug/vars", addr)
 	}
 
 	agentStatus, err := processStatus.GetStatus(s.config, url, s.hostname)

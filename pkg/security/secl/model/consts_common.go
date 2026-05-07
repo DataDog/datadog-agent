@@ -47,6 +47,8 @@ const (
 )
 
 const (
+	// the following flags have to be kept in sync with their kernel counterparts in pkg/security/ebpf/c/include/constants/enums.h
+
 	// EventFlagsAsync async event
 	EventFlagsAsync = 1 << iota
 
@@ -61,6 +63,11 @@ const (
 
 	// EventFlagsAnomalyDetectionEvent true if the event is marked as being an anomaly
 	EventFlagsAnomalyDetectionEvent
+
+	// EventFlagsInternal true if the event is an internal event used to keep caches & internal resources up-to-date
+	EventFlagsInternal
+
+	// non kernel flags
 
 	// EventFlagsHasActiveActivityDump true if the event has an active activity dump associated to it
 	EventFlagsHasActiveActivityDump

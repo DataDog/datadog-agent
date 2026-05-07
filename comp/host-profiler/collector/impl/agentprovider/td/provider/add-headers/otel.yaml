@@ -3,7 +3,7 @@ exporters:
         compression: zstd
         headers:
             dd-api-key: test_api_key_123
-            dd-evp-origin: host-profiler
+            dd-evp-origin: host-profiler-bundled
             dd-evp-origin-version: 7.0.0-test
             x-custom-routing: some-value
             x-datadog-profiling-metadata: workspace:peterg17,env:staging
@@ -29,7 +29,7 @@ processors:
         attributes:
             - action: upsert
               key: profiler_name
-              value: host-profiler
+              value: host-profiler-bundled
             - action: upsert
               key: profiler_version
               value: 7.0.0-test

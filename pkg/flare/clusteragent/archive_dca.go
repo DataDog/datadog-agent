@@ -13,9 +13,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
@@ -254,13 +256,23 @@ func getLocalClusterAgentDiagnose(fb flaretypes.FlareBuilder, diagnose diagnose.
 	return fb.AddFile("diagnose.log", bytes)
 }
 
-func getDCAAutoscalerList(remote *flare.RemoteFlareProvider) ([]byte, error) {
+// dcaIPCHostPort returns `host:port` for the local cluster agent IPC
+// endpoint, with IPv6 hosts properly bracketed.
+func dcaIPCHostPort() (string, error) {
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	if err != nil {
+		return "", err
+	}
+	return net.JoinHostPort(ipcAddress, strconv.Itoa(pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))), nil
+}
+
+func getDCAAutoscalerList(remote *flare.RemoteFlareProvider) ([]byte, error) {
+	addr, err := dcaIPCHostPort()
 	if err != nil {
 		return nil, err
 	}
 
-	autoscalerListURL := fmt.Sprintf("https://%v:%v/autoscaler-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
+	autoscalerListURL := fmt.Sprintf("https://%s/autoscaler-list", addr)
 
 	r, err := remote.IPC.GetClient().Get(autoscalerListURL, ipchttp.WithCloseConnection)
 	if err != nil {
@@ -279,11 +291,11 @@ func getDCAAutoscalerList(remote *flare.RemoteFlareProvider) ([]byte, error) {
 }
 
 func getDCALocalAutoscalingWorkloadList(remote *flare.RemoteFlareProvider) ([]byte, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	addr, err := dcaIPCHostPort()
 	if err != nil {
 		return nil, err
 	}
-	localAutoscalingWorkloadListURL := fmt.Sprintf("https://%v:%v/local-autoscaling-check", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
+	localAutoscalingWorkloadListURL := fmt.Sprintf("https://%s/local-autoscaling-check", addr)
 	r, err := remote.IPC.GetClient().Get(localAutoscalingWorkloadListURL, ipchttp.WithCloseConnection)
 	if err != nil {
 		return nil, err
@@ -301,23 +313,23 @@ func getDCALocalAutoscalingWorkloadList(remote *flare.RemoteFlareProvider) ([]by
 }
 
 func getDCATaggerList(remote *flare.RemoteFlareProvider) ([]byte, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	addr, err := dcaIPCHostPort()
 	if err != nil {
 		return nil, err
 	}
 
-	taggerListURL := fmt.Sprintf("https://%v:%v/tagger-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
+	taggerListURL := fmt.Sprintf("https://%s/tagger-list", addr)
 
 	return remote.GetTaggerList(taggerListURL)
 }
 
 func getDCAWorkloadList(remote *flare.RemoteFlareProvider) ([]byte, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	addr, err := dcaIPCHostPort()
 	if err != nil {
 		return nil, err
 	}
 
-	return remote.GetWorkloadList(fmt.Sprintf("https://%v:%v/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")))
+	return remote.GetWorkloadList(fmt.Sprintf("https://%s/workload-list?verbose=true", addr))
 }
 
 func getClusterAgentMetadataPayload(client ipc.HTTPClient) ([]byte, error) {

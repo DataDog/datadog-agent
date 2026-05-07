@@ -206,20 +206,21 @@ func run() (retErr error) {
 
 	opt := symdb.ExtractOptions{Scope: scope}
 
-	var up *uploader.SymDBUploader
-	// Headers to attach to every HTTP request. When the system-probe does the
-	// uploading, it sends the data through the local trace-agent, which deals
-	// with setting these headers.
-	headers := [][2]string{
-		{"DD-EVP-ORIGIN", "symdb-cli"},
-		{"DD-EVP-ORIGIN-VERSION", "0.1"},
-		{"DD-API-KEY", *uploadAPIKey},
-	}
+	var enc *uploader.BatchEncoder
 	if *upload {
-		up = uploader.NewSymDBUploader(
+		// Headers to attach to every HTTP request. When the system-probe does
+		// the uploading, it sends the data through the local trace-agent,
+		// which deals with setting these headers.
+		headers := [][2]string{
+			{"DD-EVP-ORIGIN", "symdb-cli"},
+			{"DD-EVP-ORIGIN-VERSION", "0.1"},
+			{"DD-API-KEY", *uploadAPIKey},
+		}
+		enc = uploader.NewBatchEncoder(
 			uploadURLParsed.String(),
 			*uploadService, *uploadVersion,
 			fmt.Sprintf("manual-upload-%d", rand.Intn(1000)),
+			uuid.New(),
 			headers...,
 		)
 	}
@@ -229,31 +230,13 @@ func run() (retErr error) {
 		return err
 	}
 
-	uploadBuffer := make([]uploader.Scope, 0, 100)
-	bufferFuncs := 0
-	// Flush every so ofter in order to not store too many scopes in memory.
-	const maxBufferFuncs = 10000
-	uploadID := uuid.New()
-	batchNum := 0
 	maybeFlush := func(final bool) error {
-		if len(uploadBuffer) == 0 {
+		if !final && enc.Size() < uploader.DefaultFlushThresholdBytes {
 			return nil
 		}
-		if final || bufferFuncs >= maxBufferFuncs {
-			log.Tracef("SymDB: uploading symbols chunk: %d packages, %d functions", len(uploadBuffer), bufferFuncs)
-			err := up.UploadBatch(
-				context.Background(),
-				uploader.UploadInfo{
-					UploadID: uploadID,
-					BatchNum: batchNum,
-					Final:    final,
-				},
-				uploadBuffer)
-			if err != nil {
-				return fmt.Errorf("upload failed: %w", err)
-			}
-			uploadBuffer = uploadBuffer[:0]
-			bufferFuncs = 0
+		log.Tracef("SymDB: uploading symbols chunk. Final chunk: %t", final)
+		if err := enc.Flush(context.Background(), final); err != nil {
+			return fmt.Errorf("upload failed: %w", err)
 		}
 		return nil
 	}
@@ -264,10 +247,11 @@ func run() (retErr error) {
 			return err
 		}
 
-		if up != nil {
+		if enc != nil {
 			scope := uploader.ConvertPackageToScope(pkg.Package, "cli" /* agentVersion */)
-			uploadBuffer = append(uploadBuffer, scope)
-			bufferFuncs += pkg.Stats().NumFunctions
+			if err := enc.AddScope(scope); err != nil {
+				return fmt.Errorf("failed to encode scope: %w", err)
+			}
 			if err := maybeFlush(pkg.Final); err != nil {
 				return err
 			}

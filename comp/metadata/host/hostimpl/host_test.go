@@ -8,13 +8,14 @@ package hostimpl
 import (
 	"bytes"
 	"context"
+	"maps"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
-	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -202,7 +203,7 @@ func TestStatusHeaderProvider(t *testing.T) {
 			stats := make(map[string]interface{})
 			headerStatusProvider.JSON(false, stats)
 
-			keys := maps.Keys(stats)
+			keys := slices.Collect(maps.Keys(stats))
 
 			assert.Contains(t, keys, "hostnameStats")
 			assert.Contains(t, keys, "hostTags")

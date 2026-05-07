@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
@@ -29,7 +29,7 @@ type float64ListPool struct {
 }
 
 // newFloat64ListPool creates a new pool with a specified buffer size
-func newFloat64ListPool(telemetrycomp telemetry.Component) *float64ListPool {
+func newFloat64ListPool(cfg pkgconfigmodel.Reader, telemetrycomp telemetry.Component) *float64ListPool {
 	return &float64ListPool{
 		pool: sync.Pool{
 			New: func() interface{} {
@@ -37,7 +37,7 @@ func newFloat64ListPool(telemetrycomp telemetry.Component) *float64ListPool {
 			},
 		},
 		// telemetry
-		tlmEnabled: utils.IsTelemetryEnabled(pkgconfigsetup.Datadog()),
+		tlmEnabled: utils.IsTelemetryEnabled(cfg),
 		tlmFloat64ListPoolGet: telemetrycomp.NewCounter("dogstatsd", "float64_list_pool_get",
 			nil, "Count of get done in the float64_list  pool"),
 		tlmFloat64ListPoolPut: telemetrycomp.NewCounter("dogstatsd", "float64_list_pool_put",

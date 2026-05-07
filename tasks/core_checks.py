@@ -48,6 +48,7 @@ AIX_CORECHECKS = [
     "io",
     "load",
     "memory",
+    "network",
     "ntp",
     "oracle",
     "uptime",

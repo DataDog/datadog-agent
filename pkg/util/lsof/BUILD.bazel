@@ -56,7 +56,6 @@ go_test(
         ],
         "@rules_go//go/platform:windows": [
             "@com_github_stretchr_testify//assert",
-            "@org_golang_x_exp//maps",
             "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],

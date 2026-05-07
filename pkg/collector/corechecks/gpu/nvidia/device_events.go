@@ -82,7 +82,7 @@ func (c *deviceEventsCollector) Name() CollectorName {
 	return deviceEvents
 }
 
-func (c *deviceEventsCollector) Collect() ([]Metric, error) {
+func (c *deviceEventsCollector) Collect() ([]*Metric, error) {
 	if !c.ensureDeviceRegistered() {
 		return nil, nil
 	}
@@ -117,9 +117,9 @@ func (c *deviceEventsCollector) Collect() ([]Metric, error) {
 		c.metricsByXidCode[evt.EventData].Value++
 	}
 
-	var metrics []Metric
+	var metrics []*Metric
 	for _, m := range c.metricsByXidCode {
-		metrics = append(metrics, *m)
+		metrics = append(metrics, m)
 	}
 	return metrics, nil
 }

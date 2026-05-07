@@ -9,7 +9,6 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"math"
 	"net"
 	"net/http"
@@ -125,7 +124,7 @@ func (o *OTLPReceiver) Start() {
 		}
 		if ln == nil {
 			// if the fd was not provided, or we failed to get a listener from it, listen on the given address
-			ln, err = loader.GetTCPListener(fmt.Sprintf("%s:%d", cfg.BindHost, cfg.GRPCPort))
+			ln, err = loader.GetTCPListener(net.JoinHostPort(cfg.BindHost, strconv.Itoa(cfg.GRPCPort)))
 		}
 
 		if err != nil {

@@ -185,6 +185,7 @@ go_test(
     name = "expansion_test",
     srcs = ["expand_test.go"],
     embed = [":expansion"],
+    gotags = ["test"],
     tags = ["manual"],  # keep (pre-existing test bug in vendored third-party code)
     deps = ["@io_k8s_api//core/v1:core"],
 )

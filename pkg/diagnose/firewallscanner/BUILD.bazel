@@ -10,10 +10,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/core/diagnose/def",
         "//comp/netflow/common",
         "//comp/netflow/config/def",
         "//pkg/config/structure",
-        "@//comp/core/diagnose/def",
     ],
 )
 
@@ -26,8 +26,8 @@ go_test(
     embed = [":firewallscanner"],
     gotags = ["test"],
     deps = [
+        "//comp/core/diagnose/def",
         "//pkg/config/mock",
-        "@//comp/core/diagnose/def",
         "@com_github_stretchr_testify//assert",
     ],
 )

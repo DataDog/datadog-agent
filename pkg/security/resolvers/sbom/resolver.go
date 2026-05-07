@@ -53,6 +53,7 @@ const (
 	maxSBOMEntries           = 1024
 	scanQueueSize            = 100
 	maxPendingFileEvents     = 256
+	maxRetryForwarding       = 10
 )
 
 // pendingFileEvent holds the minimal information needed to re-process a file
@@ -89,12 +90,14 @@ type SBOM struct {
 	data *Data
 
 	workloadKey workloadKey
+	status      workloadmeta.SBOMStatus
 
 	cgroup *cgroupModel.CacheEntry
 	state  *atomic.Int64
 
-	refresher *debouncer.Debouncer
-	forwarder *debouncer.Debouncer // Debouncer for forwarding SBOM updates
+	refresher         *debouncer.Debouncer
+	forwarder         *debouncer.Debouncer // Debouncer for forwarding SBOM updates
+	forwardRetryCount int
 
 	invalidated bool
 }
@@ -276,8 +279,7 @@ func (r *Resolver) Start(ctx context.Context) error {
 			case <-enrichTicker.C:
 				if r.wmeta != nil {
 					seclog.Debugf("Enriching SBOM with runtime usage")
-					_, err := r.enrichSBOMsWithUsage()
-					if err != nil {
+					if err := r.enrichSBOMsWithUsage(); err != nil {
 						seclog.Errorf("Couldn't enrich SBOMs with usage: %v", err)
 					}
 				}
@@ -300,9 +302,9 @@ func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 		refresher = sbom.refresher
 		if refresher == nil {
 			refresher = debouncer.New(
-				3*time.Second, func() {
+				r.cfg.SBOMResolverRefreshInterval, func() {
 					// invalid cache data
-					r.removeSBOMData(workloadKey(sbom.ContainerID))
+					r.removeSBOMData(sbom.workloadKey)
 
 					r.sbomsLock.Lock()
 					sbom.Lock()
@@ -323,16 +325,74 @@ func (r *Resolver) RefreshSBOM(containerID containerutils.ContainerID) error {
 	return fmt.Errorf("container %s not found", containerID)
 }
 
+func (r *Resolver) getContainerSBOM(containerID containerutils.ContainerID) (*workloadmeta.CompressedSBOM, error) {
+	container, err := r.wmeta.GetContainer(string(containerID))
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get container metadata for '%s': %v", containerID, err)
+	}
+
+	imageID := container.Image.ID
+	if imageID == "" {
+		return nil, fmt.Errorf("Container '%s' has no image ID, cannot forward SBOM", containerID)
+	}
+
+	existingImage, err := r.wmeta.GetImage(imageID)
+	if err != nil || existingImage == nil {
+		// Kubelet reports Image.ID as the manifest/repo digest (e.g. "docker.io/foo@sha256:9fb3...")
+		// but images are stored by config digest. Fall back to a linear search on RepoDigests.
+		for _, img := range r.wmeta.ListImages() {
+			for _, digest := range img.RepoDigests {
+				if digest == imageID {
+					existingImage = img
+					break
+				}
+			}
+			if existingImage != nil {
+				break
+			}
+		}
+	}
+
+	if existingImage == nil {
+		return nil, fmt.Errorf("Image metadata for '%s' not found in workloadmeta, cannot forward SBOM for container '%s'", imageID, containerID)
+	}
+
+	if existingImage.SBOM == nil {
+		return nil, fmt.Errorf("Image '%s' has no SBOM, cannot forward SBOM for container '%s'", imageID, containerID)
+	}
+
+	return existingImage.SBOM, nil
+}
+
 // triggerForwarding triggers the forwarding debouncer to send updated SBOM with LastAccess to remote collector
 // This function assumes sbom is already locked by the caller
 func (r *Resolver) triggerForwarding(sbom *SBOM) {
 	// Create forwarder debouncer on demand
 	if sbom.forwarder == nil {
 		sbom.forwarder = debouncer.New(
-			5*time.Second, func() {
+			r.cfg.SBOMResolverForwardInterval, func() {
 				// Forward current SBOM data with LastAccess to remote collector
 				sbom.Lock()
 				defer sbom.Unlock()
+
+				if sbom.status == workloadmeta.Pending || sbom.status == "" {
+					imageSBOM, err := r.getContainerSBOM(sbom.ContainerID)
+					if err != nil || imageSBOM == nil {
+						seclog.Debugf("Failed to get image SBOM for container '%s': %v", sbom.ContainerID, err)
+					}
+
+					sbom.status = imageSBOM.Status
+				}
+
+				if sbom.status == workloadmeta.Pending || sbom.status == "" {
+					if sbom.forwardRetryCount++; sbom.forwardRetryCount > maxRetryForwarding {
+						seclog.Warnf("Max retries reached for forwarding SBOM of container '%s', giving up", sbom.ContainerID)
+					} else {
+						seclog.Debugf("Image SBOM for container '%s' is still in %s state, will retry forwarding later", sbom.status, sbom.ContainerID)
+						sbom.forwarder.Call()
+					}
+					return
+				}
 
 				if sbom.data == nil || len(sbom.data.packages) == 0 {
 					return
@@ -497,13 +557,12 @@ func (r *Resolver) removeSBOMData(key workloadKey) {
 	r.dataCacheLock.Unlock()
 }
 
-func (r *Resolver) enrichSBOMsWithUsage() (bool, error) {
+func (r *Resolver) enrichSBOMsWithUsage() error {
 	r.sbomsLock.RLock()
 	defer r.sbomsLock.RUnlock()
 
-	images := r.wmeta.ListImages()
 	enriched := false
-
+	images := r.wmeta.ListImages()
 	for _, image := range images {
 		uncompressedSBOM, err := sbomutil.UncompressSBOM(image.SBOM)
 		if err != nil {
@@ -517,14 +576,14 @@ func (r *Resolver) enrichSBOMsWithUsage() (bool, error) {
 
 		for _, sbom := range r.sboms.Values() {
 			sbom.Lock()
-			if sbom.data != nil && sbom.workloadKey == workloadKey(image.Name) {
+			if sbom.data != nil && (sbom.workloadKey == workloadKey(image.Name) || sbom.workloadKey == workloadKey(image.ID)) {
 				enriched = enriched || r.enrichSBOMWithUsage(uncompressedSBOM, sbom)
 			}
 			sbom.Unlock()
 		}
 	}
 
-	return enriched, nil
+	return nil
 }
 
 func (r *Resolver) enrichSBOMWithUsage(wsbom *workloadmeta.SBOM, sbom *SBOM) bool {
@@ -625,7 +684,7 @@ func (r *Resolver) analyzeWorkload(sb *SBOM) error {
 
 	// add to cache
 	r.dataCacheLock.Lock()
-	r.dataCache.Add(workloadKey(sb.ContainerID), data)
+	r.dataCache.Add(workloadKey(sb.workloadKey), data)
 	r.dataCacheLock.Unlock()
 
 	r.removePendingScan(sb.ContainerID)
@@ -715,7 +774,7 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 		pkg.AccessedByRoot = pkg.AccessedByRoot || pc.UID == 0
 
 		// Trigger forwarding debouncer to send updated SBOM to remote collector
-		if pkg.LastAccess.Sub(oldLastAccess) > 1*time.Minute ||
+		if pkg.LastAccess.Sub(oldLastAccess) > r.cfg.SBOMResolverEnrichmentInterval ||
 			pkg.SuidBit != oldSuidBit || pkg.AccessedByRoot != oldAccessedByRoot {
 			sbom.invalidated = true
 		}
@@ -767,12 +826,13 @@ func (r *Resolver) processPendingFileEvents(sbom *SBOM) {
 
 	seclog.Debugf("processing %d pending file events for container '%s'", len(events), sbom.ContainerID)
 
+	now := time.Now()
 	for _, event := range events {
 		pkg := sbom.data.files.queryFile(event.filePath)
 		if pkg == nil {
 			continue
 		}
-		pkg.LastAccess = time.Now()
+		pkg.LastAccess = now
 		pkg.SuidBit = fs.FileMode(event.fileMode)&04000 != 0
 		pkg.AccessedByRoot = pkg.AccessedByRoot || event.uid == 0
 
@@ -803,7 +863,7 @@ func (r *Resolver) queueWorkload(sbom *SBOM) {
 	r.dataCacheLock.Lock()
 	defer r.dataCacheLock.Unlock()
 
-	if data, ok := r.dataCache.Get(workloadKey(sbom.ContainerID)); ok {
+	if data, ok := r.dataCache.Get(sbom.workloadKey); ok {
 		sbom.data = data
 
 		sbom.state.Store(computedState)
@@ -846,10 +906,17 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(workload *tags.Workload) {
 		return
 	}
 
+	workloadKey := workloadKey(utils.GetTagValue("image_id", workload.Tags))
+	if workloadKey == "" {
+		workloadKey = getWorkloadKey(workload.Selector.Copy())
+	}
+
 	_, ok := r.sboms.Get(id)
 	if !ok {
-		workloadKey := getWorkloadKey(workload.Selector.Copy())
 		sbom := r.newSBOM(id, workload.GCroupCacheEntry, workloadKey)
+		if imageSBOM, err := r.getContainerSBOM(id); err == nil && imageSBOM != nil {
+			sbom.status = imageSBOM.Status
+		}
 		r.queueWorkload(sbom)
 	}
 }
@@ -865,25 +932,6 @@ func (r *Resolver) GetWorkload(id containerutils.ContainerID) *SBOM {
 
 	sbom, _ := r.sboms.Peek(id)
 	return sbom
-}
-
-// OnCGroupCreatedEvent is used to handle a CGroupCreated event. It queues an SBOM scan for
-// the container as soon as the cgroup is known, without waiting for tag resolution.
-func (r *Resolver) OnCGroupCreatedEvent(cgroup *cgroupModel.CacheEntry) {
-	id := cgroup.GetContainerID()
-	if len(id) == 0 {
-		return
-	}
-
-	r.sbomsLock.Lock()
-	defer r.sbomsLock.Unlock()
-
-	if _, ok := r.sboms.Get(id); ok {
-		return
-	}
-
-	sbom := r.newSBOM(id, cgroup, workloadKey(id))
-	r.triggerScan(sbom)
 }
 
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event

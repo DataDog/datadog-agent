@@ -641,48 +641,53 @@ func (c *collector) updateDiscoveredServicesMetric() {
 	c.metricDiscoveredServices.Set(float64(count))
 }
 
+// collectProcessesOnce runs a single process collection iteration: scans
+// processes, computes the diff against lastCollectedProcesses, updates the
+// cache, and returns the resulting event. The caller is responsible for
+// delivering the event (e.g. via processEventsCh or store.Notify).
+func (c *collector) collectProcessesOnce() *Event {
+	// fetch process data
+	procs, err := c.processProbe.ProcessesByPID(c.clock.Now().UTC(), false)
+	if err != nil {
+		log.Errorf("Error getting processes by pid: %v", err)
+		return nil
+	}
+
+	// some processes are in a container so we want to store the container_id for them
+	pidToCid := c.containerProvider.GetPidToCid(cacheValidityNoRT)
+	// Enrich processes with container IDs before diffing so that a CID
+	// change (e.g. becoming available after a race with the container
+	// runtime) is detected by processCacheDifference.
+	enrichProcessesWithContainerID(procs, pidToCid)
+
+	// categorize the processes into events for workloadmeta
+	createdProcs := processCacheDifference(procs, c.lastCollectedProcesses)
+	languages := c.detectLanguages(createdProcs)
+	wlmCreatedProcs := createdProcessesToWorkloadmetaProcesses(createdProcs, pidToCid, languages)
+
+	wlmDeletedProcs := c.findDeletedProcesses(procs)
+
+	// store latest collected processes
+	c.mux.Lock()
+	c.lastCollectedProcesses = procs
+	c.mux.Unlock()
+
+	return &Event{
+		Type:    EventTypeProcess,
+		Created: wlmCreatedProcs,
+		Deleted: wlmDeletedProcs,
+	}
+}
+
 // collectProcesses captures all the required process data for the process check
 func (c *collector) collectProcesses(ctx context.Context, collectionTicker *clock.Ticker) {
-	// TODO: implement the full collection logic for the process collector. Once collection is done, submit events.
 	ctx, cancel := context.WithCancel(ctx)
 	defer collectionTicker.Stop()
 	defer cancel()
-	// Run collection immediately on startup, then wait for ticker to repeat
 	for {
-		// fetch process data and submit events to streaming channel for asynchronous processing
-		procs, err := c.processProbe.ProcessesByPID(c.clock.Now().UTC(), false)
-		if err != nil {
-			log.Errorf("Error getting processes by pid: %v", err)
-			return
+		if event := c.collectProcessesOnce(); event != nil {
+			c.processEventsCh <- event
 		}
-
-		// some processes are in a container so we want to store the container_id for them
-		pidToCid := c.containerProvider.GetPidToCid(cacheValidityNoRT)
-		// TODO: potentially scrub process data here instead of in the check?
-
-		// Enrich processes with container IDs before diffing so that a CID
-		// change (e.g. becoming available after a race with the container
-		// runtime) is detected by processCacheDifference.
-		enrichProcessesWithContainerID(procs, pidToCid)
-
-		// categorize the processes into events for workloadmeta
-		createdProcs := processCacheDifference(procs, c.lastCollectedProcesses)
-		languages := c.detectLanguages(createdProcs)
-		wlmCreatedProcs := createdProcessesToWorkloadmetaProcesses(createdProcs, pidToCid, languages)
-
-		wlmDeletedProcs := c.findDeletedProcesses(procs)
-
-		// send these events to the channel
-		c.processEventsCh <- &Event{
-			Type:    EventTypeProcess,
-			Created: wlmCreatedProcs,
-			Deleted: wlmDeletedProcs,
-		}
-
-		// store latest collected processes
-		c.mux.Lock()
-		c.lastCollectedProcesses = procs
-		c.mux.Unlock()
 
 		select {
 		case <-collectionTicker.C:

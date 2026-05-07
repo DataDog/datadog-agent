@@ -227,7 +227,7 @@ func (c *gpmCollector) Name() CollectorName {
 	return gpm
 }
 
-func (c *gpmCollector) Collect() ([]Metric, error) {
+func (c *gpmCollector) Collect() ([]*Metric, error) {
 	err := c.collectSample()
 	if err != nil {
 		return nil, fmt.Errorf("failed to collect GPM sample: %w", err)
@@ -260,5 +260,5 @@ func (c *gpmCollector) Collect() ([]Metric, error) {
 		})
 	}
 
-	return metrics, err
+	return metricValuesToPointers(metrics), err
 }

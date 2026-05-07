@@ -22,6 +22,17 @@ VALID_TYPES = {"string", "number", "boolean", "array", "object"}
 VALID_NODE_TYPES = {"section", "setting"}
 VALID_PLATFORM_KEYS = {"darwin", "windows", "linux", "container", "other"}
 REQUIRED_PLATFORM_KEYS_WITHOUT_OTHER = {"darwin", "windows", "linux"}
+VALID_ENV_PARSERS = {
+    "comma_separated",
+    "space_separated",
+    "json",
+    "comma_and_space_separated",
+    "traces_span",
+    "csv_comma_separated",
+    "comma_then_space_separated",
+    "json_list_or_comma_separated",
+    "json_list_or_space_separated",
+}
 
 SLACK_HINT = "If you have any question please reach out on #agent-configuration"
 
@@ -528,6 +539,39 @@ def check_relative_defaults(path, schema):
 
 
 # ---------------------------------------------------------------------------
+# Check 13: env_parser value validation
+# ---------------------------------------------------------------------------
+
+
+def check_env_parser(path, schema):
+    """
+    Check that 'env_parser' fields:
+      - only appear on setting nodes (not section nodes)
+      - use a recognised value
+
+    Returns a list of error strings.
+    """
+    errors = []
+    for node_path, node in walk_nodes(schema):
+        env_parser = node.get("env_parser")
+        if env_parser is None:
+            continue
+        if node.get("node_type") == "section":
+            errors.append(
+                f"{path}: [{node_path}] 'env_parser' is not valid on section nodes. "
+                f"Fix: remove 'env_parser' from this section node."
+            )
+            continue
+        if env_parser not in VALID_ENV_PARSERS:
+            errors.append(
+                f"{path}: [{node_path}] Invalid 'env_parser' value '{env_parser}'. "
+                f"Must be one of: {sorted(VALID_ENV_PARSERS)}. "
+                f"Fix: change 'env_parser' to a valid value."
+            )
+    return errors
+
+
+# ---------------------------------------------------------------------------
 # Exception list loading
 # ---------------------------------------------------------------------------
 
@@ -597,6 +641,7 @@ def lint(ctx, schema_dir=SCHEMA_DIR, exceptions_file=EXCEPTIONS_FILE):
         all_errors.extend(check_public_section_has_public_child(schema_path, schema))
         all_errors.extend(check_text_scalar_mode(schema_path))
         all_errors.extend(check_relative_defaults(schema_path, schema))
+        all_errors.extend(check_env_parser(schema_path, schema))
 
     if all_errors:
         print(f"\nFound {len(all_errors)} schema linting error(s):\n")

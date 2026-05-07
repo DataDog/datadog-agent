@@ -1,0 +1,5 @@
+{
+  "type": "error",
+  "operation": "",
+  "error": "parse error: malformed eq: expected exactly two operands, got 0"
+}

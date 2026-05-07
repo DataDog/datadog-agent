@@ -13,7 +13,7 @@ go_library(
         "//comp/core/log/def",
         "//comp/netflow/common",
         "//pkg/config/structure",
-        "@//pkg/snmp/utils",
+        "//pkg/snmp/utils",
     ],
 )
 

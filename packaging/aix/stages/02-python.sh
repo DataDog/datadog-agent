@@ -362,7 +362,11 @@ cd "$PYTHON_SRC"
     ARFLAGS="$ARFLAGS" \
     NM="$NM" \
     ac_cv_header_libintl_h=no \
-    ac_cv_lib_intl_textdomain=no
+    ac_cv_lib_intl_textdomain=no \
+    ac_cv_header_ncursesw_panel_h=no \
+    ac_cv_header_ncurses_panel_h=no \
+    ac_cv_header_panel_h=no \
+    ac_cv_search_update_panels=no
 
 log "Configure complete."
 

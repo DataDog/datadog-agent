@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ -x /opt/datadog-agent/embedded/bin/agent-data-plane ]]; then
+exec /opt/datadog-agent/embedded/bin/agent-data-plane --config /etc/datadog-agent/datadog.yaml run
+fi

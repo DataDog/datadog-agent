@@ -256,13 +256,17 @@ type Setup interface {
 	BindEnv(key string, envvars ...string)
 	SetEnvKeyReplacer(r *strings.Replacer)
 
-	// The following helpers allow a type to be enforce when parsing environment variables. Most of them exists to
-	// support historic behavior. Refrain from adding more as it's most likely a sign of poorly design configuration
-	// layout.
+	// ParseEnvSplitComma registers a transformer to parse the env var for key as a comma-separated list.
+	ParseEnvSplitComma(key string)
+	// ParseEnvSplitSpace registers a transformer to parse the env var for key as a space-separated list.
+	ParseEnvSplitSpace(key string)
+	// ParseEnvJSON registers a transformer to parse the env var for key as a JSON payload into varType.
+	// varType must be a zero value of the target type (e.g. []string{}, []map[string]string{}).
+	ParseEnvJSON(key string, varType any)
+
+	// The following helpers are legacy and should no longer be used. Instead leverage the one above
 	ParseEnvAsStringSlice(key string, fx func(string) []string)
 	ParseEnvAsMapStringInterface(key string, fx func(string) map[string]interface{})
-	ParseEnvAsSliceMapString(key string, fx func(string) []map[string]string)
-	ParseEnvAsSlice(key string, fx func(string) []interface{})
 
 	// SetKnown adds a key to the set of known valid config keys
 	SetKnown(key string)

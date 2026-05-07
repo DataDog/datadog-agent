@@ -11,8 +11,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/zstd"
@@ -91,7 +93,7 @@ func triggerDump(config cconfig.Component, client ipc.HTTPClient) (string, error
 	}
 
 	port := config.GetInt("cmd_port")
-	url := fmt.Sprintf("https://%v:%v/agent/dogstatsd-contexts-dump", addr, port)
+	url := fmt.Sprintf("https://%s/agent/dogstatsd-contexts-dump", net.JoinHostPort(addr, strconv.Itoa(port)))
 
 	body, err := client.Post(url, "", nil)
 	if err != nil {

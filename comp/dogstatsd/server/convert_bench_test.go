@@ -47,7 +47,7 @@ var (
 func runParseMetricBenchmark(b *testing.B, multipleValues bool) {
 	deps := newServerDeps(b)
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
 
 	conf := enrichConfig{
 		defaultHostname:           "default-hostname",

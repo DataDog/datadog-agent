@@ -180,7 +180,7 @@ jira_project = "CONTINT"
 jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "container-integrations"
-github_labels = ["team/containers"]
+github_labels = ["team/container-integrations"]
 exclude_members = ["clamoriniere"]
 
 [teams."Container Platform"]

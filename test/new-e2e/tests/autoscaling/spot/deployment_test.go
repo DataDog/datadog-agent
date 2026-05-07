@@ -85,11 +85,14 @@ func (s *spotSchedulingSuite) TestDeploymentFallbackWhenSpotUnavailable() {
 	// 1. Set spot-disabled-until annotation on Deployment
 	// 2. Evict pending spot pods
 	// 3. New pods from ReplicaSet go to on-demand node
+	var lastDisabledUntil string
 	s.eventually(func(c *assert.CollectT) {
 		deploy, err := s.kubeClient.AppsV1().Deployments(s.testNamespace).Get(s.T().Context(), "nginx", metav1.GetOptions{})
 		require.NoError(c, err)
 		require.NotEmpty(c, deploy.Annotations[spotDisabledUntilAnnotation],
 			"spot-disabled-until annotation should be set on Deployment after fallback")
+
+		lastDisabledUntil = deploy.Annotations[spotDisabledUntilAnnotation]
 	})
 
 	// Wait for all 10 pods to run on on-demand (fallback mode).
@@ -104,13 +107,23 @@ func (s *spotSchedulingSuite) TestDeploymentFallbackWhenSpotUnavailable() {
 	s.uncordonNode(s.spotNode)
 
 	const spotPods = 6 // 60% of 10 replicas
+	fallbackCount := 1
 	s.EventuallyWithT(func(c *assert.CollectT) {
+		deploy, err := s.kubeClient.AppsV1().Deployments(s.testNamespace).Get(s.T().Context(), "nginx", metav1.GetOptions{})
+		require.NoError(c, err)
+		disabledUntil := deploy.Annotations[spotDisabledUntilAnnotation]
+		if disabledUntil != "" && disabledUntil != lastDisabledUntil {
+			fallbackCount++
+			lastDisabledUntil = disabledUntil
+			s.T().Logf("spot fallback #%d, disabled until: %s", fallbackCount, disabledUntil)
+		}
+
 		pods := s.listPods("deployment=nginx")
 
 		require.Len(c, pods, 10)
 		s.expectRunningSpot(c, pods, spotPods)
 		s.expectRunningOnDemand(c, pods, 4)
-	}, fallbackDuration+rebalancingTimeout(spotPods), 5*time.Second)
+	}, 2*fallbackDuration+rebalancingTimeout(spotPods), 5*time.Second)
 }
 
 // TestDeploymentOptIn: create a deployment without the spot label, wait for all pods
@@ -298,41 +311,28 @@ func (s *spotSchedulingSuite) createDeployment(name string, replicas int32, conf
 	s.Require().NoError(err)
 }
 
-// updateDeployment reads an existing Deployment, merges in the spot-enabled label and
-// spot-config annotation from config, and updates it.
+// updateDeployment applies the spot-enabled label and spot-config annotation from config
+// using a merge patch to avoid optimistic concurrency conflicts.
 func (s *spotSchedulingSuite) updateDeployment(name string, config *spotConfig) {
 	s.T().Helper()
 	ctx := s.T().Context()
 
-	deploy, err := s.kubeClient.AppsV1().Deployments(s.testNamespace).Get(ctx, name, metav1.GetOptions{})
-	s.Require().NoError(err)
+	configValue := fmt.Sprintf(`{"percentage":%d,"minOnDemandReplicas":%d}`, config.spotPercentage, config.minOnDemandReplicas)
+	patch := fmt.Sprintf(`{"metadata":{"labels":{%q:%q},"annotations":{%q:%q}}}`, spotEnabledLabelKey, spotEnabledLabelValue, spotConfigAnnotation, configValue)
 
-	if config != nil {
-		if deploy.Labels == nil {
-			deploy.Labels = make(map[string]string)
-		}
-		deploy.Labels[spotEnabledLabelKey] = spotEnabledLabelValue
-
-		if deploy.Annotations == nil {
-			deploy.Annotations = make(map[string]string)
-		}
-		deploy.Annotations[spotConfigAnnotation] = fmt.Sprintf(`{"percentage":%d,"minOnDemandReplicas":%d}`, config.spotPercentage, config.minOnDemandReplicas)
-	}
-
-	_, err = s.kubeClient.AppsV1().Deployments(s.testNamespace).Update(ctx, deploy, metav1.UpdateOptions{})
+	_, err := s.kubeClient.AppsV1().Deployments(s.testNamespace).Patch(ctx, name, types.MergePatchType, []byte(patch), metav1.PatchOptions{})
 	s.Require().NoError(err)
 }
 
-// scaleDeployment updates the replica count of a Deployment in s.testNamespace.
+// scaleDeployment updates the replica count of a Deployment
+// using a merge patch to avoid optimistic concurrency conflicts.
 func (s *spotSchedulingSuite) scaleDeployment(name string, replicas int32) {
 	s.T().Helper()
 	ctx := s.T().Context()
 
-	deploy, err := s.kubeClient.AppsV1().Deployments(s.testNamespace).Get(ctx, name, metav1.GetOptions{})
-	s.Require().NoError(err)
+	patch := fmt.Sprintf(`{"spec":{"replicas":%d}}`, replicas)
 
-	deploy.Spec.Replicas = &replicas
-	_, err = s.kubeClient.AppsV1().Deployments(s.testNamespace).Update(ctx, deploy, metav1.UpdateOptions{})
+	_, err := s.kubeClient.AppsV1().Deployments(s.testNamespace).Patch(ctx, name, types.MergePatchType, []byte(patch), metav1.PatchOptions{})
 	s.Require().NoError(err)
 }
 

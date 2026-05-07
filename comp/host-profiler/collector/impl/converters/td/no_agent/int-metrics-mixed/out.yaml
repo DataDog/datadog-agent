@@ -3,13 +3,13 @@ exporters:
         compression: zstd
         headers:
             dd-api-key: test-api-key-2
-            dd-evp-origin: host-profiler
+            dd-evp-origin: host-profiler-standalone
             dd-evp-origin-version: 7.0.0-test
     otlphttp/with-ep:
         compression: zstd
         headers:
             dd-api-key: test-api-key-1
-            dd-evp-origin: host-profiler
+            dd-evp-origin: host-profiler-standalone
             dd-evp-origin-version: 7.0.0-test
         metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
         profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
@@ -27,10 +27,10 @@ processors:
     resource/dd-profiler-internal-metadata:
         attributes:
             - action: upsert
-              key: profiler_name
-              value: host-profiler
+              key: telemetry.distro.name
+              value: host-profiler-standalone
             - action: upsert
-              key: profiler_version
+              key: telemetry.distro.version
               value: 7.0.0-test
     resourcedetection/default:
         detectors:

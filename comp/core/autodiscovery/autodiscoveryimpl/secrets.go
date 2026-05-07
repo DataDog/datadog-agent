@@ -22,19 +22,21 @@ func decryptConfig(conf integration.Config, secretResolver secrets.Component, or
 
 	var err error
 
-	// init_config
+	// init_config is shared by all instances — any failure drops the entire config.
 	conf.InitConfig, err = secretResolver.Resolve(conf.InitConfig, origin, conf.ImageName, conf.PodNamespace, false)
 	if err != nil {
+		conf.Instances = nil
 		return conf, fmt.Errorf("error while decrypting secrets in 'init_config': %s", err)
 	}
 
-	// instances
-	// we cannot update in place as, being a slice, it would modify the input config as well
+	// instances — failing instances are skipped so surviving ones are still scheduled.
+	var instanceErr error
 	instances := make([]integration.Data, 0, len(conf.Instances))
 	for _, inputInstance := range conf.Instances {
 		decryptedInstance, err := secretResolver.Resolve(inputInstance, origin, conf.ImageName, conf.PodNamespace, false)
 		if err != nil {
-			return conf, fmt.Errorf("error while decrypting secrets in an instance: %s", err)
+			instanceErr = fmt.Errorf("error while decrypting secrets in an instance: %s", err)
+			continue
 		}
 		instances = append(instances, decryptedInstance)
 	}
@@ -43,14 +45,16 @@ func decryptConfig(conf integration.Config, secretResolver secrets.Component, or
 	// metrics
 	conf.MetricConfig, err = secretResolver.Resolve(conf.MetricConfig, origin, conf.ImageName, conf.PodNamespace, false)
 	if err != nil {
+		conf.Instances = nil
 		return conf, fmt.Errorf("error while decrypting secrets in 'metrics': %s", err)
 	}
 
 	// logs
 	conf.LogsConfig, err = secretResolver.Resolve(conf.LogsConfig, origin, conf.ImageName, conf.PodNamespace, false)
 	if err != nil {
-		return conf, fmt.Errorf("error while decrypting secrets 'logs': %s", err)
+		conf.Instances = nil
+		return conf, fmt.Errorf("error while decrypting secrets in 'logs': %s", err)
 	}
 
-	return conf, nil
+	return conf, instanceErr
 }

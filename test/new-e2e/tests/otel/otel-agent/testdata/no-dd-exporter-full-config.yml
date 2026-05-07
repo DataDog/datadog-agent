@@ -302,3 +302,5 @@ service:
               without_scope_info: true
               without_type_suffix: true
               without_units: true
+    resource:
+      schema_url: https://opentelemetry.io/schemas/1.40.0

@@ -150,17 +150,22 @@ func (t *teeConfig) ParseEnvAsMapStringInterface(key string, fn func(string) map
 	t.compare.ParseEnvAsMapStringInterface(key, fn)
 }
 
-// ParseEnvAsSliceMapString registers a transformer function to parse an an environment variables as a []map[string]string.
-func (t *teeConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[string]string) {
-	t.baseline.ParseEnvAsSliceMapString(key, fn)
-	t.compare.ParseEnvAsSliceMapString(key, fn)
+// ParseEnvSplitComma registers a transformer function to parse an environment variable as a comma-separated list of strings.
+func (t *teeConfig) ParseEnvSplitComma(key string) {
+	t.baseline.ParseEnvSplitComma(key)
+	t.compare.ParseEnvSplitComma(key)
 }
 
-// ParseEnvAsSlice registers a transformer function to parse an an environment variables as a
-// []interface{}.
-func (t *teeConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
-	t.baseline.ParseEnvAsSlice(key, fn)
-	t.compare.ParseEnvAsSlice(key, fn)
+// ParseEnvSplitSpace registers a transformer function to parse an environment variable as a space-separated list of strings.
+func (t *teeConfig) ParseEnvSplitSpace(key string) {
+	t.baseline.ParseEnvSplitSpace(key)
+	t.compare.ParseEnvSplitSpace(key)
+}
+
+// ParseEnvJSON registers a transformer function to parse an environment variable as a JSON payload into varType.
+func (t *teeConfig) ParseEnvJSON(key string, varType any) {
+	t.baseline.ParseEnvJSON(key, varType)
+	t.compare.ParseEnvJSON(key, varType)
 }
 
 // IsSet wraps Viper for concurrent access

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/processor/ddhostnameprocessor"
 	profilesreceiver "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/receiver"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	ddprofilingextensionimpl "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/impl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
@@ -54,6 +55,7 @@ type ExtraFactories interface {
 	GetExtensions() []extension.Factory
 	GetLoggingOptions() []zap.Option
 	GetAgentConfig() config.Component
+	GetProfilerName() string
 }
 
 // extraFactoriesWithAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is available.
@@ -133,6 +135,11 @@ func (e extraFactoriesWithAgentCore) GetConverters() []confmap.ConverterFactory 
 	return []confmap.ConverterFactory{}
 }
 
+// GetProfilerName returns the name of the profiler when the Agent Core is available.
+func (e extraFactoriesWithAgentCore) GetProfilerName() string {
+	return version.BundledProfilerName
+}
+
 // extraFactoriesWithoutAgentCore is a struct that implements the ExtraFactories interface when the Agent Core is not available.
 type extraFactoriesWithoutAgentCore struct{}
 
@@ -184,10 +191,15 @@ func (e extraFactoriesWithoutAgentCore) GetConverters() []confmap.ConverterFacto
 	}
 }
 
+// GetProfilerName returns the name of the profiler when the Agent Core is not available.
+func (e extraFactoriesWithoutAgentCore) GetProfilerName() string {
+	return version.StandaloneProfilerName
+}
+
 // createFactories creates a function that returns the factories for the collector.
 func createFactories(extraFactories ExtraFactories) func() (otelcol.Factories, error) {
 	return func() (otelcol.Factories, error) {
-		receiverFactories := []receiver.Factory{profilesreceiver.NewFactory(), otlpreceiver.NewFactory(), prometheusreceiver.NewFactory()}
+		receiverFactories := []receiver.Factory{profilesreceiver.NewFactory(extraFactories.GetProfilerName()), otlpreceiver.NewFactory(), prometheusreceiver.NewFactory()}
 		receiverFactories = append(receiverFactories, extraFactories.GetReceivers()...)
 		receivers, err := otelcol.MakeFactoryMap(receiverFactories...)
 		if err != nil {

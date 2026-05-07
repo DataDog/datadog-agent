@@ -10,9 +10,11 @@ import (
 	"context"
 	"debug/elf"
 	"debug/pe"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"runtime"
 	"strings"
@@ -24,6 +26,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/google"
 	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 	"github.com/google/go-containerregistry/pkg/v1/static"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	"github.com/klauspost/compress/zstd"
@@ -164,8 +167,51 @@ func run(agentOCI, otelAgentPath, outputOCI, targetOS, targetArch string, pushKe
 		return fmt.Errorf("replacing ddot binary: %w", err)
 	}
 
-	// Build a single-platform OCI index containing the modified image.
-	newIndex := mutate.AppendManifests(empty.Index, mutate.IndexAddendum{
+	dstRef, err := name.ParseReference(strings.TrimPrefix(outputOCI, "oci://"))
+	if err != nil {
+		return fmt.Errorf("parsing output reference: %w", err)
+	}
+
+	// Attempt to pull the existing multi-platform index at the output destination so
+	// that builds for different platforms accumulate rather than overwrite each other.
+	// A 404 is expected on the first push and we simply start from an empty index.
+	// Any other error (e.g. auth failure) is surfaced immediately to avoid silently
+	// overwriting an index that we could not read.
+	baseIndex := v1.ImageIndex(empty.Index)
+	existingIndex, err := remote.Index(dstRef, remote.WithAuthFromKeychain(pushKeychain), remote.WithContext(ctx))
+	if err != nil {
+		var terr *transport.Error
+		if !errors.As(err, &terr) || terr.StatusCode != http.StatusNotFound {
+			return fmt.Errorf("pulling existing output index: %w", err)
+		}
+		fmt.Println("No existing index at output destination, starting fresh.")
+	} else {
+		existingManifest, err := existingIndex.IndexManifest()
+		if err != nil {
+			return fmt.Errorf("reading existing index manifest: %w", err)
+		}
+		// Carry over all existing platform entries, skipping any that match the
+		// current platform so it gets cleanly replaced rather than duplicated.
+		for _, desc := range existingManifest.Manifests {
+			if desc.Platform != nil && selectedDesc.Platform != nil &&
+				desc.Platform.OS == selectedDesc.Platform.OS &&
+				desc.Platform.Architecture == selectedDesc.Platform.Architecture {
+				fmt.Printf("Replacing existing %s/%s entry in output index\n", desc.Platform.OS, desc.Platform.Architecture)
+				continue
+			}
+			img, err := existingIndex.Image(desc.Digest)
+			if err != nil {
+				return fmt.Errorf("loading existing image %s: %w", desc.Digest, err)
+			}
+			baseIndex = mutate.AppendManifests(baseIndex, mutate.IndexAddendum{
+				Add:        img,
+				Descriptor: desc,
+			})
+		}
+	}
+
+	// Append the newly built platform entry to the (possibly existing) base index.
+	newIndex := mutate.AppendManifests(baseIndex, mutate.IndexAddendum{
 		Add: newImage,
 		Descriptor: v1.Descriptor{
 			Platform: selectedDesc.Platform,
@@ -173,11 +219,6 @@ func run(agentOCI, otelAgentPath, outputOCI, targetOS, targetArch string, pushKe
 	})
 	if len(indexManifest.Annotations) > 0 {
 		newIndex = mutate.Annotations(newIndex, indexManifest.Annotations).(v1.ImageIndex)
-	}
-
-	dstRef, err := name.ParseReference(strings.TrimPrefix(outputOCI, "oci://"))
-	if err != nil {
-		return fmt.Errorf("parsing output reference: %w", err)
 	}
 
 	fmt.Printf("Pushing customized package to %s\n", outputOCI)

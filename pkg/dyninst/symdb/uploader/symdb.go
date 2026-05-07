@@ -14,6 +14,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"mime/multipart"
 	"net/http"
@@ -25,6 +26,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
 	"github.com/google/uuid"
 )
+
+// DefaultFlushThresholdBytes is the default compressed-size threshold at which
+// a BatchEncoder will flush an HTTP chunk.
+const DefaultFlushThresholdBytes = 2 * 1024 * 1024
+
+// ErrUpload is returned (wrapped) by BatchEncoder.Flush when the HTTP upload
+// step fails. Callers can use errors.Is(err, ErrUpload) to distinguish
+// upload-side failures (typically retryable) from local encoder errors.
+var ErrUpload = errors.New("symdb upload failed")
 
 // ScopeType represents the type of scope in the SymDB schema
 type ScopeType string
@@ -92,9 +102,9 @@ type LineRange struct {
 	End   int `json:"end"`
 }
 
-// SymDBUploader deals with uploading SymDB data in the JSON format expected by
-// the debugger backend.
-type SymDBUploader struct {
+// uploader holds the destination and identity metadata used by a
+// BatchEncoder when shipping a batch to the SymDB intake.
+type uploader struct {
 	url       string
 	service   string
 	version   string
@@ -102,77 +112,130 @@ type SymDBUploader struct {
 	headers   [][2]string
 }
 
-// NewSymDBUploader returns a new SymDBUploader.
-func NewSymDBUploader(
-	urlStr string,
+// BatchEncoder streams Scope objects into a gzip-compressed SymDB JSON
+// envelope and ships finalised batches to the SymDB intake when the caller
+// invokes Flush. A single BatchEncoder corresponds to one logical upload
+// (one UploadID) and may emit multiple batches.
+//
+// The encoder does not flush on its own. Callers should consult Size after
+// each AddScope and call Flush when the compressed buffer crosses whatever
+// threshold they choose (DefaultFlushThresholdBytes is provided as a
+// reasonable default).
+type BatchEncoder struct {
+	up            uploader
+	uploadID      uuid.UUID
+	batchNum      int
+	buf           bytes.Buffer
+	gz            *gzip.Writer
+	enc           *json.Encoder
+	scopeCount    int
+	prefixWritten bool
+}
+
+// NewBatchEncoder creates a BatchEncoder for a single logical upload to the
+// SymDB intake at url.
+func NewBatchEncoder(
+	url string,
 	service string,
 	version string,
 	runtimeID string,
+	uploadID uuid.UUID,
 	headers ...[2]string,
-) *SymDBUploader {
-	return &SymDBUploader{
-		url:       urlStr,
-		service:   service,
-		version:   version,
-		runtimeID: runtimeID,
-		headers:   headers,
+) *BatchEncoder {
+	b := &BatchEncoder{
+		up: uploader{
+			url:       url,
+			service:   service,
+			version:   version,
+			runtimeID: runtimeID,
+			headers:   headers,
+		},
+		uploadID: uploadID,
 	}
+	b.gz = gzip.NewWriter(&b.buf)
+	b.enc = json.NewEncoder(b.gz)
+	// json.Encoder defaults to HTML-escaping <, > and & inside string values
+	// (each replaced by its six-character \u00XX escape). The SymDB payload
+	// is not embedded in HTML, so disable that.
+	b.enc.SetEscapeHTML(false)
+	return b
 }
 
-// UploadInfo contains metadata about a batch of packages to be uploaded to
-// SymDB.
-type UploadInfo struct {
-	// UploadID identifies which logical upload this batch is part of: if packages
-	// are split into multiple batches because of size limits, they will all share
-	// the same uploadID.
-	UploadID uuid.UUID
-	// BatchNum is the number of the batch relative to the other batches in this
-	// upload. First batch has number 1.
-	BatchNum int
-	// Final is set if this is the final (or the only) batch of packages for
-	// this upload.
-	Final bool
-}
-
-// UploadBatch uploads a batch the symbols for a batch of packages to SymDB (via
-// the trace-agent).
-func (s *SymDBUploader) UploadBatch(ctx context.Context, info UploadInfo, packages []Scope) error {
-	// Wrap the data in an envelope expected by the debugger backend.
-	var buf bytes.Buffer
-	buf.WriteString(`{
-"service": "` + s.service + `",
-"version": "` + s.version + `",
-"language": "go",
-"upload_id": "` + info.UploadID.String() + `",
-"batch_num": ` + strconv.Itoa(info.BatchNum) + `,
-"final": ` + strconv.FormatBool(info.Final) + `,
-"scopes": `)
-
-	jsonBytes, err := json.Marshal(packages)
-	if err != nil {
-		return fmt.Errorf("failed to marshal scope: %w", err)
+// AddScope writes a single Scope into the current batch's gzip stream. On the
+// first call of a new batch, it also writes the JSON envelope prefix.
+func (b *BatchEncoder) AddScope(scope Scope) error {
+	if !b.prefixWritten {
+		b.batchNum++
+		prefix := `{"service":"` + b.up.service +
+			`","version":"` + b.up.version +
+			`","language":"go","upload_id":"` + b.uploadID.String() +
+			`","batch_num":` + strconv.Itoa(b.batchNum) +
+			`,"scopes":[`
+		if _, err := b.gz.Write([]byte(prefix)); err != nil {
+			return fmt.Errorf("failed to write envelope prefix: %w", err)
+		}
+		b.prefixWritten = true
 	}
-	buf.Write(jsonBytes)
-	buf.WriteString("}")
-
-	if err := s.uploadInner(ctx, buf.Bytes()); err != nil {
-		return fmt.Errorf("failed to send individual SymDB: %w", err)
+	if b.scopeCount > 0 {
+		if _, err := b.gz.Write([]byte{','}); err != nil {
+			return fmt.Errorf("failed to write scope separator: %w", err)
+		}
 	}
-
+	if err := b.enc.Encode(scope); err != nil {
+		return fmt.Errorf("failed to encode scope: %w", err)
+	}
+	b.scopeCount++
 	return nil
 }
 
-func (s *SymDBUploader) uploadInner(ctx context.Context, symdbData []byte) error {
+// Size reports the number of compressed bytes currently buffered for the
+// in-progress batch. The gzip writer buffers internally (~32 KiB deflate
+// window), so Size is a lower bound on the eventual flushed payload size.
+func (b *BatchEncoder) Size() int {
+	return b.buf.Len()
+}
+
+// BatchCount returns the number of batches that have been started so far
+// (each AddScope after a Flush starts a new batch). Useful for logging.
+func (b *BatchEncoder) BatchCount() int {
+	return b.batchNum
+}
+
+// Flush finalises the current batch (if any scopes have been added) and
+// uploads it. If no scopes have been added since the last flush, this is a
+// no-op even when final is true. After Flush returns, the encoder is ready
+// to accept scopes for the next batch.
+//
+// Errors from the HTTP upload step are wrapped with ErrUpload so callers can
+// distinguish them with errors.Is.
+func (b *BatchEncoder) Flush(ctx context.Context, final bool) error {
+	if !b.prefixWritten {
+		return nil
+	}
+	suffix := `],"final":` + strconv.FormatBool(final) + `}`
+	if _, err := b.gz.Write([]byte(suffix)); err != nil {
+		return fmt.Errorf("failed to write envelope suffix: %w", err)
+	}
+	if err := b.gz.Close(); err != nil {
+		return fmt.Errorf("failed to close gzip writer: %w", err)
+	}
+	if err := b.up.uploadInner(ctx, b.buf.Bytes()); err != nil {
+		return fmt.Errorf("%w: %w", ErrUpload, err)
+	}
+	b.buf.Reset()
+	b.gz.Reset(&b.buf)
+	b.enc = json.NewEncoder(b.gz)
+	b.scopeCount = 0
+	b.prefixWritten = false
+	return nil
+}
+
+func (s *uploader) uploadInner(ctx context.Context, compressedData []byte) error {
 	// The upload is a multipart containing metadata expected by the event platform
 	// and the gzipped SymDB data.
 
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
-
-	compressedData, err := compressSymDBData(symdbData)
-	if err != nil {
-		return fmt.Errorf("failed to compress SymDB data: %w", err)
-	}
 
 	fileHeader := make(textproto.MIMEHeader)
 	fileHeader.Set("Content-Disposition", `form-data; name="file"; filename="file.gz"`)
@@ -232,21 +295,6 @@ func (s *SymDBUploader) uploadInner(ctx context.Context, symdbData []byte) error
 	}
 
 	return nil
-}
-
-func compressSymDBData(data []byte) ([]byte, error) {
-	var buf bytes.Buffer
-	gzWriter := gzip.NewWriter(&buf)
-
-	if _, err := gzWriter.Write(data); err != nil {
-		return nil, fmt.Errorf("failed to write to gzip writer: %w", err)
-	}
-
-	if err := gzWriter.Close(); err != nil {
-		return nil, fmt.Errorf("failed to close gzip writer: %w", err)
-	}
-
-	return buf.Bytes(), nil
 }
 
 func cleanString(s string) string {

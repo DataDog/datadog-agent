@@ -18,13 +18,6 @@ const (
 	ArchitectureHeaderName  = "X-Datadog-OnPrem-Architecture"
 	FlavorHeaderName        = "X-Datadog-OnPrem-Flavor"
 	ContainerizedHeaderName = "X-Datadog-OnPrem-Containerized"
-
-	RunnerVersionQueryParam = "runnerVersion"
-	ModesQueryParam         = "modes"
-	PlatformQueryParam      = "platform"
-	ArchitectureQueryParam  = "architecture"
-	FlavorQueryParam        = "flavor"
-	ContainerizedQueryParam = "containerized"
 )
 
 // HTTP Connection Constants

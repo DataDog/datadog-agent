@@ -8,6 +8,7 @@ package viperconfig
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -288,15 +289,36 @@ func (c *safeConfig) ParseEnvAsMapStringInterface(key string, fn func(string) ma
 	c.setEnvTransformer(key, func(data string) interface{} { return fn(data) })
 }
 
-// ParseEnvAsSliceMapString registers a transformer function to parse an an environment variables as a []map[string]string.
-func (c *safeConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[string]string) {
-	c.setEnvTransformer(key, func(data string) interface{} { return fn(data) })
+// ParseEnvSplitComma registers a transformer function to parse an environment variable as a comma-separated list of strings.
+func (c *safeConfig) ParseEnvSplitComma(key string) {
+	c.setEnvTransformer(key, func(data string) interface{} {
+		if data == "" {
+			return []string(nil)
+		}
+		return strings.Split(data, ",")
+	})
 }
 
-// ParseEnvAsSlice registers a transformer function to parse an an environment variables as a
-// []interface{}.
-func (c *safeConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
-	c.setEnvTransformer(key, func(data string) interface{} { return fn(data) })
+// ParseEnvSplitSpace registers a transformer function to parse an environment variable as a space-separated list of strings.
+func (c *safeConfig) ParseEnvSplitSpace(key string) {
+	c.setEnvTransformer(key, func(data string) interface{} {
+		if data == "" {
+			return []string(nil)
+		}
+		return strings.Split(data, " ")
+	})
+}
+
+// ParseEnvJSON registers a transformer function to parse an environment variable as a JSON payload into varType.
+func (c *safeConfig) ParseEnvJSON(key string, varType any) {
+	t := reflect.TypeOf(varType)
+	c.setEnvTransformer(key, func(data string) interface{} {
+		res := reflect.New(t).Interface()
+		if err := json.Unmarshal([]byte(data), res); err != nil {
+			log.Errorf(`"%s" can not be parsed: %v`, key, err)
+		}
+		return reflect.ValueOf(res).Elem().Interface()
+	})
 }
 
 // IsSet wraps Viper for concurrent access

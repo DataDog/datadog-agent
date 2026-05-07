@@ -19,12 +19,17 @@
           "location": {
             "method": "main.condString"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@duration",
+            "message": "not available: maximum call count exceeded"
+          }
+        ]
       },
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
     "message": "tag=match",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }

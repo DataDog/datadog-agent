@@ -43,7 +43,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	flareprofilerdef "github.com/DataDog/datadog-agent/comp/core/profiler/def"
 	flareprofilerfx "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	coresettings "github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
@@ -207,9 +206,7 @@ func makeFlare(flareComp flare.Component,
 	flareprofiler flareprofilerdef.Component,
 	client ipc.HTTPClient,
 	filterStore workloadfilter.Component,
-	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
-	secretResolver secrets.Component,
 	diagnoseComponent diagnose.Component,
 ) error {
 	var (
@@ -290,12 +287,12 @@ func makeFlare(flareComp flare.Component,
 	var filePath string
 
 	if cliParams.forceLocal {
-		diagnoseresult := runLocalDiagnose(diagnoseComponent, diagnose.Config{Verbose: true}, lc, filterStore, wmeta, ac, secretResolver, tagger, config)
+		diagnoseresult := runLocalDiagnose(diagnoseComponent, diagnose.Config{Verbose: true}, lc, filterStore, ac, tagger, config)
 		filePath, err = createArchive(flareComp, profile, cliParams.providerTimeout, nil, diagnoseresult)
 	} else {
 		filePath, err = requestArchive(profile, client, cliParams.providerTimeout)
 		if err != nil {
-			diagnoseresult := runLocalDiagnose(diagnoseComponent, diagnose.Config{Verbose: true}, lc, filterStore, wmeta, ac, secretResolver, tagger, config)
+			diagnoseresult := runLocalDiagnose(diagnoseComponent, diagnose.Config{Verbose: true}, lc, filterStore, ac, tagger, config)
 			filePath, err = createArchive(flareComp, profile, cliParams.providerTimeout, err, diagnoseresult)
 		}
 	}
@@ -389,15 +386,13 @@ func runLocalDiagnose(
 	diagnoseConfig diagnose.Config,
 	log log.Component,
 	filterStore workloadfilter.Component,
-	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
-	secretResolver secrets.Component,
 	tagger tagger.Component,
 	config config.Component) []byte {
 
 	ch := make(chan []byte, 1)
 	go func() {
-		ch <- runLocalDiagnoseInner(diagnoseComponent, diagnoseConfig, log, filterStore, wmeta, ac, secretResolver, tagger, config)
+		ch <- runLocalDiagnoseInner(diagnoseComponent, diagnoseConfig, log, filterStore, ac, tagger, config)
 	}()
 	select {
 	case result := <-ch:
@@ -413,13 +408,11 @@ func runLocalDiagnoseInner(
 	diagnoseConfig diagnose.Config,
 	log log.Component,
 	filterStore workloadfilter.Component,
-	wmeta option.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
-	secretResolver secrets.Component,
 	tagger tagger.Component,
 	config config.Component) []byte {
 
-	result, err := diagnoseLocal.Run(diagnoseComponent, diagnose.Config{Verbose: true}, log, filterStore, wmeta, ac, secretResolver, tagger, config)
+	result, err := diagnoseLocal.Run(diagnoseComponent, diagnose.Config{Verbose: true}, log, filterStore, ac, tagger, config)
 
 	if err != nil {
 		return []byte(color.RedString(fmt.Sprintf("Error running diagnose: %s", err)))

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixed the container ID to PID mapping for processes running in a
+    sub-cgroup of their container's cgroup (for example, CrowdStrike Falcon's
+    ``sensor.falcon`` scope nested under a container scope).

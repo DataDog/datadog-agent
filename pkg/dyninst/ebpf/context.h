@@ -22,6 +22,10 @@ typedef struct swiss_map_slot_params {
   uint16_t key_data_len;
   uint8_t key_byte_size;
   uint8_t is_string_key;
+  // When set, a key match writes a 1-byte bool at result_offset instead of
+  // dereferencing val_addr for val_byte_size bytes. See contains() in the
+  // exprlang package.
+  uint8_t existence_only;
 } swiss_map_slot_params_t;
 
 typedef struct frame_data {
@@ -197,6 +201,11 @@ typedef struct stack_machine {
     uint16_t val_in_slot_offset;
     uint8_t key_byte_size;
     uint8_t is_string_key;
+    // When set, the lookup writes a 1-byte bool at result_offset on key
+    // match (skipping the value dereference), and converts nil-map /
+    // key-not-found into a bool-false result instead of EXPR_STATUS_OOB +
+    // abort. See ir.SwissMapLookupOp.ExistenceOnly.
+    uint8_t existence_only;
 
     // Hash computation state.
     uint8_t hash_phase;

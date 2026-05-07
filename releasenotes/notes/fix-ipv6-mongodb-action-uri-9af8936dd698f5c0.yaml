@@ -1,0 +1,16 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix IPv6 host handling in the MongoDB action's standard connection
+    URI builder. The host:port portion now uses ``net.JoinHostPort`` so
+    IPv6 hosts are properly bracketed (e.g.
+    ``mongodb://user:pass@[fd38::1]:27017``); previously the host was
+    URL-escaped, which percent-encoded any IPv6 brackets and produced an
+    invalid MongoDB connection string.

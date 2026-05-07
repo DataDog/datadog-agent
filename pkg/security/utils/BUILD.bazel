@@ -1,1 +1,25 @@
+load("@bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
+
 # gazelle:ignore
+
+run_binary(
+    name = "utils_syscall_table_gen",
+    srcs = [
+        "@linux_v6_13_syscall_64_tbl//file",
+        "@linux_v6_13_unistd_h//file",
+    ],
+    outs = ["utils_syscall_table_gen.go"],
+    args = [
+        "-amd64-table=$(execpath @linux_v6_13_syscall_64_tbl//file)",
+        "-arm64-table=$(execpath @linux_v6_13_unistd_h//file)",
+        "-output=$(execpath utils_syscall_table_gen.go)",
+    ],
+    tool = "//pkg/security/generators/utils_syscall_table_generator",
+)
+
+write_source_file(
+    name = "utils_syscall_table",
+    in_file = ":utils_syscall_table_gen",
+    out_file = "syscalls.go",
+)

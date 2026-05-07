@@ -1,4 +1,15 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
+
+write_pb_go(
+    name = "write_pb_go",
+    srcs = {
+        "//pkg/proto/datadog/trace/idx:idx_go_proto": [
+            "span.pb.go",
+            "tracer_payload.pb.go",
+        ],
+    },
+)
 
 go_library(
     name = "idx",

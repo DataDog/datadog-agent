@@ -410,16 +410,6 @@ func TestParseEnvAsMapStringInterface(t *testing.T) {
 	assert.Equal(t, map[string]interface{}{"a": 1.0, "b": 2.0, "c": 3.0}, config.GetStringMap("map_of_float"))
 }
 
-func TestParseEnvAsSliceMapString(t *testing.T) {
-	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
-
-	config.BindEnv("map") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.ParseEnvAsSliceMapString("map", func(string) []map[string]string { return []map[string]string{{"a": "a", "b": "b", "c": "c"}} })
-
-	t.Setenv("DD_MAP", "__some_data__")
-	assert.Equal(t, []map[string]string{{"a": "a", "b": "b", "c": "c"}}, config.Get("map"))
-}
-
 func TestUnsetForSource(t *testing.T) {
 	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
 	config.SetDefault("some.setting", "default_value")
@@ -578,6 +568,66 @@ func TestMultipleTransformersRaisesError(t *testing.T) {
 		config.ParseEnvAsStringSlice("list_of_strings", func(in string) []string {
 			return strings.Split(in, ",")
 		})
+	})
+}
+
+func TestParseEnvSplitComma(t *testing.T) {
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+
+	config.BindEnvAndSetDefault("comma_list", []string{"a"}) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.ParseEnvSplitComma("comma_list")
+
+	t.Run("non-empty", func(t *testing.T) {
+		t.Setenv("DD_COMMA_LIST", "a,b,c")
+		assert.Equal(t, []string{"a", "b", "c"}, config.Get("comma_list"))
+		assert.Equal(t, model.SourceEnvVar, config.GetSource("comma_list"))
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		t.Setenv("DD_COMMA_LIST", "")
+		assert.Equal(t, []string{"a"}, config.Get("comma_list"))
+		assert.Equal(t, model.SourceDefault, config.GetSource("comma_list"))
+	})
+}
+
+func TestParseEnvSplitSpace(t *testing.T) {
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+
+	config.BindEnvAndSetDefault("space_list", []string{"a"}) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.ParseEnvSplitSpace("space_list")
+
+	t.Run("non-empty", func(t *testing.T) {
+		t.Setenv("DD_SPACE_LIST", "a b c")
+		assert.Equal(t, []string{"a", "b", "c"}, config.Get("space_list"))
+		assert.Equal(t, model.SourceEnvVar, config.GetSource("space_list"))
+	})
+
+	t.Run("empty", func(t *testing.T) {
+		t.Setenv("DD_SPACE_LIST", "")
+		assert.Equal(t, []string{"a"}, config.Get("space_list"))
+		assert.Equal(t, model.SourceDefault, config.GetSource("space_list"))
+	})
+}
+
+func TestParseEnvJSON(t *testing.T) {
+	type myStruct struct {
+		Name  string `json:"name"`
+		Value int    `json:"value"`
+	}
+
+	config := NewViperConfig("test", "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo
+
+	config.BindEnv("json_setting") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.ParseEnvJSON("json_setting", myStruct{})
+
+	t.Run("valid json", func(t *testing.T) {
+		t.Setenv("DD_JSON_SETTING", `{"name":"foo","value":42}`)
+		assert.Equal(t, myStruct{Name: "foo", Value: 42}, config.Get("json_setting"))
+	})
+
+	t.Run("invalid json returns zero value", func(t *testing.T) {
+		t.Setenv("DD_JSON_SETTING", `not-json`)
+		assert.Equal(t, myStruct{}, config.Get("json_setting"))
 	})
 }
 

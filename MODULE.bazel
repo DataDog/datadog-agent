@@ -2,6 +2,8 @@
 
 http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+
 env_vars = use_repo_rule("//bazel/repo:env_vars.bzl", "env_vars")
 
 # Environment values available for packaging.
@@ -48,7 +50,7 @@ archive_override(
     urls = ["https://github.com/aiuto/supply-chain/archive/refs/tags/dd_test.tar.gz"],
 )
 
-bazel_dep(name = "bazel_lib", version = "3.2.2")
+bazel_dep(name = "bazel_lib", version = "3.3.1")
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "gawk", version = "5.3.2.bcr.3")
 bazel_dep(name = "gazelle", version = "0.50.0")
@@ -70,8 +72,17 @@ bazel_dep(name = "rules_rust", version = "0.69.0")
 bazel_dep(name = "rules_rust_prost", version = "0.69.0")
 bazel_dep(name = "rules_shell", version = "0.8.0")
 bazel_dep(name = "supply_chain_tools", version = "0.0.1")
+bazel_dep(name = "toolchains_llvm", version = "1.7.0")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
+
+# Temporary until gazelle > 0.50.0 is in BCR, so as to pull PR
+# #2326 (use rules_go apparent name in proto compilers).
+git_override(
+    module_name = "gazelle",
+    commit = "4e2af97da47ccf12ff3d5f09c64eb50ebab977c6",  # master as of May 2, 2026
+    remote = "https://github.com/bazel-contrib/bazel-gazelle.git",
+)
 
 # Temporary until rules_go > 0.60.0 with go.work support is in BCR
 # To be reverted to the upstream repo when
@@ -136,6 +147,22 @@ http_archive(
         "https://codeload.github.com/bazelbuild/buildtools/tar.gz/refs/tags/v8.5.1",
         "https://github.com/bazelbuild/buildtools/archive/refs/tags/v8.5.1.tar.gz",
     ],
+)
+
+# Upstream Linux kernel syscall tables, used by
+# //pkg/security/utils:utils_syscall_table to (re)generate
+# pkg/security/utils/syscalls.go. Bumping the kernel version requires updating
+# the URLs and sha256 of both files together.
+http_file(
+    name = "linux_v6_13_syscall_64_tbl",
+    sha256 = "a25d490b97e98fa2ad7912f229555e1c8f0e5ba70960f508ae4c324b2439aa04",
+    urls = ["https://raw.githubusercontent.com/torvalds/linux/v6.13/arch/x86/entry/syscalls/syscall_64.tbl"],
+)
+
+http_file(
+    name = "linux_v6_13_unistd_h",
+    sha256 = "53b1df8caee4a4c2ff37d0ec895e22663a0e61b188de61b98f025709ba6c8e18",
+    urls = ["https://raw.githubusercontent.com/torvalds/linux/v6.13/include/uapi/asm-generic/unistd.h"],
 )
 
 multitool = use_extension("@rules_multitool//multitool:extension.bzl", "multitool")
@@ -234,8 +261,6 @@ gcc_toolchains.toolchain(
 )
 use_repo(gcc_toolchains, "gcc_toolchain_x86_64")
 use_repo(gcc_toolchains, "gcc_toolchain_aarch64")
-
-bazel_dep(name = "toolchains_llvm", version = "1.6.0")
 
 sysroot = use_repo_rule("@toolchains_llvm//toolchain:sysroot.bzl", "sysroot")
 

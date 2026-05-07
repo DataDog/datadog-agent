@@ -5,5 +5,5 @@ go_library(
     srcs = ["mock.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/logs/streamlogs/mock",
     visibility = ["//visibility:public"],
-    deps = ["@//comp/logs/streamlogs/def"],
+    deps = ["//comp/logs/streamlogs/def"],
 )

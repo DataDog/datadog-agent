@@ -254,9 +254,6 @@ func makeRealDependencies(
 	if config.TestingKnobs.LoaderOptions != nil {
 		loaderOpts = config.TestingKnobs.LoaderOptions
 	}
-	if config.UseMultiAttach {
-		loaderOpts = append(loaderOpts, loader.WithUseMultiAttach(true))
-	}
 	ret.loader, err = loader.NewLoader(loaderOpts...)
 	if err != nil {
 		return ret, fmt.Errorf("error creating loader: %w", err)

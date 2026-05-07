@@ -22,7 +22,7 @@ func FuzzParseMetricSample(f *testing.F) {
 		// and the fuzzer cannot call `f.Log()` inside here, it must be `t.Log()`, which we don't have access to if it's initialized once.
 		deps := newServerDeps(t)
 		stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-		parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+		parser := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
 		_, _ = parser.parseMetricSample(rawSample)
 	})
 }

@@ -1,5 +1,8 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# TODO(regis): remove this once protoc-go-inject-tag and msgp are plugged into //pkg/proto/datadog/trace:trace_go_proto
+# gazelle:write_pb_go off
+
 go_library(
     name = "trace",
     srcs = [

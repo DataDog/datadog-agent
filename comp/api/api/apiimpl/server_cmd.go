@@ -44,8 +44,17 @@ func (server *apiServer) startCMDServer(
 	// Validate token for every request
 	agentMux.Use(server.ipc.HTTPMiddleware)
 	// Fill route template captures for the telemetry middleware (reduces metric cardinality).
-	// Pass "/agent" to preserve the full path since agentMux is mounted via http.StripPrefix("/agent", ...).
-	agentMux.Use(observability.CaptureRouteTemplateMiddlewareWithPrefix("/agent"))
+	// Prepend "/agent" since agentMux is mounted via http.StripPrefix("/agent", ...).
+	agentMux.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if route := gorilla.CurrentRoute(r); route != nil {
+				if template, err := route.GetPathTemplate(); err == nil {
+					observability.SetRouteTemplate(r, "/agent"+template)
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	})
 
 	cmdMux := http.NewServeMux()
 	cmdMux.Handle(

@@ -12,15 +12,14 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/gorilla/mux"
 	"github.com/urfave/negroni"
 )
 
-// routeCaptureKey is the context key used to share route template capture between
-// the outer telemetry middleware and the inner CaptureRouteTemplateMiddleware.
+// routeCaptureKey is the context key used to share the route template between
+// the outer telemetry middleware and the per-handler wrapper.
 type routeCaptureKey struct{}
 
-// routeCapture holds the matched route template filled in from inside gorilla/mux context.
+// routeCapture holds the matched route template.
 type routeCapture struct {
 	template string
 }
@@ -35,34 +34,29 @@ func extractPath(r *http.Request) string {
 	return reqURL.Path
 }
 
-// CaptureRouteTemplateMiddlewareWithPrefix returns a gorilla/mux middleware that captures the
-// matched route template and prepends prefix to it. Use this when the router is mounted via
-// http.StripPrefix so that the full request path is reflected in the metric tag.
-//
-// Must be registered via gorilla/mux Router.Use() so that it runs inside the routing context
-// where mux.CurrentRoute returns the matched route.
-func CaptureRouteTemplateMiddlewareWithPrefix(prefix string) mux.MiddlewareFunc {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if capture, ok := r.Context().Value(routeCaptureKey{}).(*routeCapture); ok {
-				if route := mux.CurrentRoute(r); route != nil {
-					if template, err := route.GetPathTemplate(); err == nil {
-						capture.template = prefix + template
-					}
-				}
-			}
-			next.ServeHTTP(w, r)
-		})
+// SetRouteTemplate stores template in the route capture context, if one is present.
+// Callers that know the matched route pattern call this after routing so the telemetry
+// middleware can use the template instead of the raw request path for metric tags.
+func SetRouteTemplate(r *http.Request, template string) {
+	if capture, ok := r.Context().Value(routeCaptureKey{}).(*routeCapture); ok {
+		capture.template = template
 	}
 }
 
-// When the router is mounted under http.StripPrefix, use CaptureRouteTemplateMiddlewareWithPrefix
-// instead to preserve the full path in the metric tag.
-var CaptureRouteTemplateMiddleware mux.MiddlewareFunc = CaptureRouteTemplateMiddlewareWithPrefix("")
+// WrapWithRouteTemplate wraps h, storing prefix+template in the capture context
+// so the telemetry middleware can use it for metric cardinality reduction instead of
+// the raw request path. Use this at handler registration time with net/http ServeMux.
+// Pass prefix="" when the handler is not mounted under http.StripPrefix.
+func WrapWithRouteTemplate(prefix, template string, h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		SetRouteTemplate(r, prefix+template)
+		h.ServeHTTP(w, r)
+	})
+}
 
 // extractStatusCodeHandler is a middleware which extracts the status code from the response,
 // and stores it in the provided pointer.
-func extractStatusCodeHandler(status *int) mux.MiddlewareFunc {
+func extractStatusCodeHandler(status *int) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			lrw := negroni.NewResponseWriter(w)
@@ -74,7 +68,7 @@ func extractStatusCodeHandler(status *int) mux.MiddlewareFunc {
 
 // timeHandler is a middleware which measures the duration of the request,
 // and stores it in the provided pointer.
-func timeHandler(clock clock.Clock, duration *time.Duration) mux.MiddlewareFunc {
+func timeHandler(clock clock.Clock, duration *time.Duration) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := clock.Now()

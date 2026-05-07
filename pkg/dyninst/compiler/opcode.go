@@ -40,8 +40,8 @@ const (
 	OpcodeExprPushOffset
 	OpcodeExprLoadLiteral
 	OpcodeExprReadString
-	OpcodeExprCmpEqBase
-	OpcodeExprCmpEqString
+	OpcodeExprCmpBase
+	OpcodeExprCmpString
 	OpcodeConditionCheck
 	OpcodeConditionBegin
 	OpcodeCallDictResolved

@@ -322,6 +322,14 @@ func (e *Event) IsEventFromReplay() bool {
 	return e.Flags&EventFlagsFromReplay > 0
 }
 
+// IsEventInternal returns true if this is an internal event.
+// Internal events are emitted by the kernel side to keep userspace caches and
+// resources in sync; they don't reflect a user-visible action and rule
+// evaluation can be skipped for them.
+func (e *Event) IsEventInternal() bool {
+	return e.Flags&EventFlagsInternal > 0
+}
+
 // AddToFlags adds a flag to the event
 func (e *Event) AddToFlags(flag uint32) {
 	e.Flags |= flag

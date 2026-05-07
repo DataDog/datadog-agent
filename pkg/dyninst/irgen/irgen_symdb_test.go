@@ -140,7 +140,7 @@ func collectFunctionProbes(
 							Where: &rcjson.Where{
 								MethodName: fn.QualifiedName,
 								SourceFile: fn.File,
-								Lines:      []string{strconv.Itoa(line)},
+								Lines:      []string{strconv.Itoa(int(line))},
 							},
 						},
 					},

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix spurious "Unknown environment variable" warnings for ``DD_SYNC_DELAY``,
+    ``DD_SYNC_TO``, and ``DD_CORE_CONFIG`` when running the OTel Agent.

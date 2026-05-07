@@ -65,8 +65,8 @@ func (c *baseCollector) Name() CollectorName {
 // Collect executes all supported API calls and returns the collected metrics.
 // For stateless collectors, timestamps are ignored (passed as 0, returned timestamp ignored).
 // For sampling collectors, timestamps are maintained per API call.
-func (c *baseCollector) Collect() ([]Metric, error) {
-	var allMetrics []Metric
+func (c *baseCollector) Collect() ([]*Metric, error) {
+	var allMetrics []*Metric
 	var multiErr error
 
 	for _, apiCall := range c.supportedAPIs {
@@ -84,7 +84,7 @@ func (c *baseCollector) Collect() ([]Metric, error) {
 			c.lastTimestamps[apiCall.Name] = newTimestamp
 		}
 
-		allMetrics = append(allMetrics, metrics...)
+		allMetrics = append(allMetrics, metricValuesToPointers(metrics)...)
 	}
 
 	return allMetrics, multiErr

@@ -34,10 +34,9 @@ Important:
   so Cluster Agent cannot directly fix spot-assigned pods that fail to schedule — it must evict them and let the workload to recreate them.
 - spot nodes carry a `NoSchedule` taint to repel unrelated workloads.
 
-The spot node label is currently Karpenter-specific [[2]](#karpenter-nodepool):
-- label: `karpenter.sh/capacity-type=spot`
-
-The spot node taint uses the Datadog namespace and must be configured separately on spot nodes:
+Both the nodeSelector and the taint use the same Datadog-namespaced key and must be configured on spot nodes
+(see the Karpenter NodePool example [[2]](#karpenter-nodepool) for how to set them automatically):
+- label: `autoscaling.datadoghq.com/capacity-type=interruptible`
 - taint: `autoscaling.datadoghq.com/capacity-type=interruptible:NoSchedule`
 
 When a pod is assigned to a spot instance at admission time, Cluster Agent begins tracking it.
@@ -60,6 +59,9 @@ metadata:
   name: spot
 spec:
   template:
+    metadata:
+      labels:
+        autoscaling.datadoghq.com/capacity-type: interruptible
     spec:
       requirements:
         - key: karpenter.sh/capacity-type

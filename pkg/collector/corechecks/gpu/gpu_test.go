@@ -114,7 +114,7 @@ func TestEmitNvmlMetrics(t *testing.T) {
 		check.collectors = append(check.collectors, &mockCollector{
 			name:       "device",
 			deviceUUID: deviceUUID,
-			metrics: []nvidia.Metric{
+			metrics: []*nvidia.Metric{
 				{Name: "metric1", Value: float64(metricValueBase + 1), Type: ddmetrics.GaugeType, Priority: 0},
 				{Name: "metric2", Value: float64(metricValueBase + 2), Type: ddmetrics.GaugeType, Priority: 0},
 			},
@@ -123,7 +123,7 @@ func TestEmitNvmlMetrics(t *testing.T) {
 		check.collectors = append(check.collectors, &mockCollector{
 			name:       "fields",
 			deviceUUID: deviceUUID,
-			metrics: []nvidia.Metric{
+			metrics: []*nvidia.Metric{
 				{Name: "metric2", Value: float64(metricValueBase + 2), Type: ddmetrics.GaugeType, Priority: 1},
 				{Name: "metric3", Value: float64(metricValueBase + 3), Type: ddmetrics.GaugeType, Priority: 1},
 			},
@@ -422,10 +422,10 @@ func TestCollectorsOnMIGDeviceChanges(t *testing.T) {
 type mockCollector struct {
 	name       nvidia.CollectorName
 	deviceUUID string
-	metrics    []nvidia.Metric
+	metrics    []*nvidia.Metric
 }
 
-func (m *mockCollector) Collect() ([]nvidia.Metric, error) {
+func (m *mockCollector) Collect() ([]*nvidia.Metric, error) {
 	return m.metrics, nil
 }
 
@@ -499,7 +499,7 @@ func TestTagsChangeBetweenRuns(t *testing.T) {
 	check.collectors = append(check.collectors, &mockCollector{
 		name:       "device",
 		deviceUUID: deviceUUID,
-		metrics: []nvidia.Metric{
+		metrics: []*nvidia.Metric{
 			{Name: "test_metric", Value: 42.0, Type: ddmetrics.GaugeType, Priority: 0},
 		},
 	})
@@ -596,7 +596,7 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 		fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.GPU, layout.deviceUUID), "foo", deviceTags, nil, nil, nil)
 		wmetaMock.Set(device)
 
-		var metricsToSend []nvidia.Metric
+		var metricsToSend []*nvidia.Metric
 		for i := 0; i < layout.numContainers; i++ {
 			container := &workloadmeta.Container{
 				EntityID: workloadmeta.EntityID{
@@ -637,7 +637,7 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 			wmetaMock.Set(container)
 
 			callCount++
-			metricsToSend = append(metricsToSend, nvidia.Metric{Name: "workload_metric", Value: float64(callCount), Type: ddmetrics.GaugeType, Priority: 0, AssociatedWorkloads: []workloadmeta.EntityID{process.EntityID}})
+			metricsToSend = append(metricsToSend, &nvidia.Metric{Name: "workload_metric", Value: float64(callCount), Type: ddmetrics.GaugeType, Priority: 0, AssociatedWorkloads: []workloadmeta.EntityID{process.EntityID}})
 
 			expectedTags := append(deviceTags, processTags...)
 			expectedTags = append(expectedTags, containerTags...)
@@ -645,13 +645,13 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 		}
 
 		callCount++
-		metricsToSend = append(metricsToSend, nvidia.Metric{Name: "no_workload_metric", Value: float64(callCount), Type: ddmetrics.GaugeType, Priority: 0})
+		metricsToSend = append(metricsToSend, &nvidia.Metric{Name: "no_workload_metric", Value: float64(callCount), Type: ddmetrics.GaugeType, Priority: 0})
 		noWorkloadTags := append(deviceTags, allContainerTags...)
 		mockSender.On("GaugeWithTimestamp", "gpu.no_workload_metric", float64(callCount), "", mockMatchesTags(noWorkloadTags), mock.Anything).Return()
 
 		callCount++
 		// Use a Count metric just to make it easier to distinguish mock calls
-		metricsToSend = append(metricsToSend, nvidia.Metric{Name: "all_workload_metric", Value: float64(callCount), Type: ddmetrics.CountType, Priority: 0, AssociatedWorkloads: allProcessEntityIDs})
+		metricsToSend = append(metricsToSend, &nvidia.Metric{Name: "all_workload_metric", Value: float64(callCount), Type: ddmetrics.CountType, Priority: 0, AssociatedWorkloads: allProcessEntityIDs})
 		allWorkloadTags := append(deviceTags, allContainerTags...)
 		allWorkloadTags = append(allWorkloadTags, allProcessTags...)
 		mockSender.On("CountWithTimestamp", "gpu.all_workload_metric", float64(callCount), "", mockMatchesTags(allWorkloadTags), mock.Anything).Return()
@@ -743,7 +743,7 @@ func TestMemoryLimitTagStabilityOnIdleSample(t *testing.T) {
 		}
 
 		// Collect from the real collectors and group by collector name.
-		collectorMetrics := make(map[nvidia.CollectorName][]nvidia.Metric)
+		collectorMetrics := make(map[nvidia.CollectorName][]*nvidia.Metric)
 		for _, c := range collectors {
 			m, _ := c.Collect() // errors expected from unsupported APIs, ignore
 			collectorMetrics[c.Name()] = m
@@ -752,7 +752,7 @@ func TestMemoryLimitTagStabilityOnIdleSample(t *testing.T) {
 		// Part 1 (deterministic): the two collectors must NOT emit memory.limit
 		// at the same priority. Equal priorities let map-iteration order decide
 		// the dedup winner, which is non-deterministic.
-		memLimitMetrics := make(map[nvidia.CollectorName][]nvidia.Metric)
+		memLimitMetrics := make(map[nvidia.CollectorName][]*nvidia.Metric)
 		for name, metrics := range collectorMetrics {
 			for _, m := range metrics {
 				if m.Name == "memory.limit" {

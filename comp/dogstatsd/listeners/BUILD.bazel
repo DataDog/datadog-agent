@@ -298,6 +298,7 @@ go_test(
             "//comp/core/telemetry/def",
             "//comp/core/telemetry/mock",
             "//comp/dogstatsd/packets",
+            "//pkg/config/mock",
             "//pkg/util/fxutil",
             "@com_github_microsoft_go_winio//:go-winio",
             "@com_github_stretchr_testify//assert",

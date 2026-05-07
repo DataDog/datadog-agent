@@ -33,7 +33,7 @@ func parseMetricSample(t *testing.T, overrides map[string]any, rawSample []byte)
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
 	stringInternerTelemetry := newSiTelemetry(false, deps.Telemetry)
-	p := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
+	p := newParser(deps.Config, newFloat64ListPool(deps.Config, deps.Telemetry), 1, deps.WMeta, stringInternerTelemetry)
 	_, found := overrides["parser"]
 	if found {
 		p = overrides["parser"].(*parser)

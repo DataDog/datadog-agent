@@ -5,5 +5,5 @@ go_library(
     srcs = ["mock.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/mock",
     visibility = ["//visibility:public"],
-    deps = ["@//comp/checks/windowseventlog/def"],
+    deps = ["//comp/checks/windowseventlog/def"],
 )

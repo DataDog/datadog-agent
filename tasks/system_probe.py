@@ -95,6 +95,12 @@ RUST_BINARIES = [
     "pkg/discovery/module/rust",
 ]
 
+# Rust static libraries that must be installed next to the Go source so cgo can
+# link against them. Maps source package -> install destination directory.
+RUST_STATIC_LIBS = {
+    "pkg/discovery/module/rust": "pkg/discovery/module/rust",
+}
+
 
 def get_ebpf_build_dir(arch: Arch) -> Path:
     return Path("pkg/ebpf/bytecode/build") / arch.kmt_arch  # Use KMT arch names for compatibility with CI
@@ -1237,12 +1243,26 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
     if arch.kmt_arch in platform_map:
         platform_flags.append(f"--platforms={platform_map[arch.kmt_arch]}")
 
+    release_flags = ["--config=release"]
+
     for source_path in RUST_BINARIES:
         if packages and not any(source_path.startswith(package) for package in packages):
             continue
 
         install_dest = output_dir / source_path if output_dir else Path(source_path)
-        bazel(ctx, "run", *platform_flags, "--", f"@//{source_path}:install", f"--destdir={install_dest}")
+        bazel(
+            ctx, "run", *platform_flags, *release_flags, "--", f"@//{source_path}:install", f"--destdir={install_dest}"
+        )
+
+    # Install Rust static libraries that cgo needs to find at link time. These
+    # always land in the source tree (alongside the Go files) rather than in
+    # `output_dir`, because cgo LDFLAGS reference them via ${SRCDIR}.
+    for source_path, lib_dest in RUST_STATIC_LIBS.items():
+        if packages and not any(source_path.startswith(package) for package in packages):
+            continue
+        bazel(
+            ctx, "run", *platform_flags, *release_flags, "--", f"@//{source_path}:install_libs", f"--destdir={lib_dest}"
+        )
 
 
 _BAZEL_CWS_BALOUM_TARGETS = {
@@ -1698,6 +1718,19 @@ def save_build_outputs(ctx, destfile):
             shutil.copy2(gofile, outdir)
             outfiles.append(relpath)
             count += 1
+
+        # Include Rust static libraries (built by build_rust_binaries) so that
+        # downstream jobs running `build-sysprobe-binary` — which does not
+        # invoke bazel — can still link cgo code that references them.
+        for _, lib_dest in RUST_STATIC_LIBS.items():
+            for afile in glob.glob(os.path.join(lib_dest, "*.a")):
+                relpath = os.path.relpath(afile)
+                filedir, _ = os.path.split(relpath)
+                outdir = os.path.join(stagedir, filedir)
+                os.makedirs(outdir, exist_ok=True)
+                shutil.copy2(afile, outdir)
+                outfiles.append(relpath)
+                count += 1
 
         if count == 0:
             raise Exit(message="no build outputs captured")
