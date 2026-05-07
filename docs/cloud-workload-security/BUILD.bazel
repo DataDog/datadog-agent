@@ -7,7 +7,6 @@ load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 [
     write_source_file(
         name = "secl_{}".format(variant),
-        check_that_out_file_exists = False,
         in_file = "//pkg/security/secl/model:accessors_{}/secl_{}.json".format(
             "unix" if variant == "linux" else "windows",
             variant,
