@@ -166,9 +166,21 @@ func NewBatchEncoder(
 func (b *BatchEncoder) AddScope(scope Scope) error {
 	if !b.prefixWritten {
 		b.batchNum++
-		prefix := `{"service":"` + b.up.service +
-			`","version":"` + b.up.version +
-			`","language":"go","upload_id":"` + b.uploadID.String() +
+
+		// JSON-encode service and version, in case they contain funky
+		// characters.
+		serviceJSON, err := json.Marshal(b.up.service)
+		if err != nil {
+			return fmt.Errorf("failed to marshal service: %w", err)
+		}
+		versionJSON, err := json.Marshal(b.up.version)
+		if err != nil {
+			return fmt.Errorf("failed to marshal version: %w", err)
+		}
+
+		prefix := `{"service":` + string(serviceJSON) +
+			`,"version":` + string(versionJSON) +
+			`,"language":"go","upload_id":"` + b.uploadID.String() +
 			`","batch_num":` + strconv.Itoa(b.batchNum) +
 			`,"scopes":[`
 		if _, err := b.gz.Write([]byte(prefix)); err != nil {
