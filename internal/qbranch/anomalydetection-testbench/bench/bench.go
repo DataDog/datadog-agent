@@ -1196,39 +1196,6 @@ func (tb *Bench) loadDemoScenario() error {
 	}
 	fmt.Printf("  Generated %d demo log entries\n", len(tb.rawLogs))
 
-	// Add hardcoded log anomalies from two detectors.
-	score := func(v float64) *float64 { return &v }
-	type demoAnomaly struct {
-		ts           int64
-		detectorName string
-		title        string
-		description  string
-		score        *float64
-		service      string
-	}
-	demoAnomalies := []demoAnomaly{
-		{baseTimestamp + 30, "connection_error_extractor", "Connection pool exhausted", "connection pool exhausted: max connections reached", score(0.91), "service_a"},
-		{baseTimestamp + 35, "connection_error_extractor", "Circuit breaker opened", "circuit breaker open: too many recent failures", score(0.95), "service_a"},
-		{baseTimestamp + 40, "connection_error_extractor", "Retry storm detected", "retry limit exceeded after 3 attempts", score(0.88), "service_a"},
-		{baseTimestamp + 45, "connection_error_extractor", "Memory pressure rejecting requests", "memory pressure: request rejected", score(0.82), "service_b"},
-		{baseTimestamp + 26, "log_metrics_extractor", "Log rate ramp-up detected", "Log emission rate increased 2.5x above baseline", score(0.74), "service_a"},
-		{baseTimestamp + 32, "log_metrics_extractor", "Log rate spike at incident peak", "Log emission rate spiked 10x above baseline", score(0.97), "service_a"},
-		{baseTimestamp + 38, "log_metrics_extractor", "Sustained high log rate", "Log rate remains elevated: 1 log/s vs baseline 1 log/5s", score(0.85), "service_b"},
-	}
-	for _, a := range demoAnomalies {
-		anomaly := observerdef.Anomaly{
-			Type:         observerdef.AnomalyTypeLog,
-			Source:       observerdef.SeriesDescriptor{Name: "logs", Tags: []string{"service:" + a.service}},
-			DetectorName: a.detectorName,
-			Title:        a.title,
-			Description:  a.description,
-			Timestamp:    a.ts,
-			Score:        a.score,
-		}
-		tb.logAnomalies = append(tb.logAnomalies, anomaly)
-		tb.logAnomaliesByDetector[a.detectorName] = append(tb.logAnomaliesByDetector[a.detectorName], anomaly)
-	}
-
 	tb.rerunDetectorsLocked()
 	sv := tb.debug.StateView()
 	rs := tb.replayStats
