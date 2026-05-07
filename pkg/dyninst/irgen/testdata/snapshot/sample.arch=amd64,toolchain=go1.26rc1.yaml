@@ -409,7 +409,9 @@ Probes:
                       ByteSize: 8
                     - __kind: ExprLoadLiteralOp
                       Data: AwAAAAAAAAA=
-                    - __kind: ExprCmpEqBaseOp
+                    - __kind: ExprCmpBaseOp
+                      Op: Eq
+                      Kind: Int
                       ByteSize: 8
                     - __kind: ConditionCheckOp
     - id: testCaptureExprLineWithTemplate
@@ -523,7 +525,8 @@ Probes:
                       MaxLen: 255
                     - __kind: ExprLoadLiteralOp
                       Data: AwAAAHRlbg==
-                    - __kind: ExprCmpEqStringOp
+                    - __kind: ExprCmpStringOp
+                      Op: Eq
                     - __kind: ConditionCheckOp
           probeTemplate:
             TemplateString: x={x}
@@ -3673,7 +3676,9 @@ Probes:
                       ByteSize: 8
                     - __kind: ExprLoadLiteralOp
                       Data: pAEAAAAAAAA=
-                    - __kind: ExprCmpEqBaseOp
+                    - __kind: ExprCmpBaseOp
+                      Op: Eq
+                      Kind: Int
                       ByteSize: 8
                     - __kind: ConditionCheckOp
           probeTemplate:
@@ -3718,7 +3723,9 @@ Probes:
                       ByteSize: 8
                     - __kind: ExprLoadLiteralOp
                       Data: jgAAAAAAAAA=
-                    - __kind: ExprCmpEqBaseOp
+                    - __kind: ExprCmpBaseOp
+                      Op: Eq
+                      Kind: Int
                       ByteSize: 8
                     - __kind: ConditionCheckOp
           probeTemplate:
@@ -3760,7 +3767,9 @@ Probes:
                       ByteSize: 8
                     - __kind: ExprLoadLiteralOp
                       Data: jgAAAAAAAAA=
-                    - __kind: ExprCmpEqBaseOp
+                    - __kind: ExprCmpBaseOp
+                      Op: Eq
+                      Kind: Int
                       ByteSize: 8
                     - __kind: ConditionCheckOp
           probeTemplate:
@@ -3805,7 +3814,9 @@ Probes:
                       ByteSize: 8
                     - __kind: ExprLoadLiteralOp
                       Data: AAAAAABARUA=
-                    - __kind: ExprCmpEqBaseOp
+                    - __kind: ExprCmpBaseOp
+                      Op: Eq
+                      Kind: Uint
                       ByteSize: 8
                     - __kind: ConditionCheckOp
           probeTemplate:
