@@ -107,4 +107,9 @@ go_library(
 go_binary(
     name = "loader",
     embed = [":loader_lib"],
+    # keep
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
 )
