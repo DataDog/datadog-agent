@@ -235,7 +235,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_by_basename(struct den
     // whose basename contains '*' (e.g. rule "abcd*xyz" -> key "abcd*"), so
     // this matches every event whose basename shares that prefix — broader
     // than the rule. The userspace re-evaluation rejects the false positives;
-    // distinct rules sharing a 4-byte prefix collide on a single map entry.
+    // distinct rules sharing a N-byte prefix collide on a single map entry.
     struct basename_t wildcard = {};
     #ifndef USE_FENTRY
     #pragma unroll

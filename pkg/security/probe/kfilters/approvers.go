@@ -9,6 +9,7 @@
 package kfilters
 
 import (
+	"errors"
 	"path"
 	"strings"
 
@@ -41,14 +42,21 @@ type kfiltersGetter func(approvers rules.Approvers) (KFilters, []eval.Field, err
 // KFilterGetters var contains all the kfilter getters
 var KFilterGetters = make(map[eval.EventType]kfiltersGetter)
 
-func newBasenameKFilter(tableName string, eventType model.EventType, basename string) (kFilter, error) {
-	if strings.Contains(basename, "*") {
-		// Reduce to a fixed-length prefix + '*' so the kernel can match it
-		// with a single map lookup using the same shape built from the event
-		// basename. validateScalarPathFilter guarantees len(els[0]) >=
-		// patternPrefixSize, so the slice below is safe.
-		els := strings.Split(basename, "*")
-		basename = els[0][:patternPrefixSize] + "*"
+func newBasenameKFilter(tableName string, eventType model.EventType, value string, valueType eval.FieldValueType) (kFilter, error) {
+	basename := path.Base(value)
+
+	if valueType == eval.PatternValueType || valueType == eval.GlobValueType {
+		if strings.Contains(basename, "*") {
+			// Reduce to a fixed-length prefix + '*' so the kernel can match it
+			// with a single map lookup using the same shape built from the event
+			// basename. validateScalarPathFilter guarantees len(els[0]) >=
+			// patternPrefixSize, so the slice below is safe.
+			els := strings.Split(basename, "*")
+			if len(els[0]) < patternPrefixSize {
+				return nil, errors.New("unexpected pattern prefix size")
+			}
+			basename = els[0][:patternPrefixSize] + "*"
+		}
 	}
 
 	return &eventMaskKFilter{
@@ -69,9 +77,14 @@ func newInUpperLayerKFilter(tableName string, eventType model.EventType) (kFilte
 	}, nil
 }
 
-func newBasenameKFilters(tableName string, eventType model.EventType, basenames ...string) (approvers []kFilter, _ error) {
-	for _, basename := range basenames {
-		activeKFilter, err := newBasenameKFilter(tableName, eventType, basename)
+func newBasenameKFilters(tableName string, eventType model.EventType, fvs ...rules.FilterValue) (approvers []kFilter, _ error) {
+	for _, fv := range fvs {
+		basename, ok := fv.Value.(string)
+		if !ok {
+			return nil, errors.New("wrong basename value type")
+		}
+
+		activeKFilter, err := newBasenameKFilter(tableName, eventType, basename, fv.Type)
 		if err != nil {
 			return nil, err
 		}
@@ -148,14 +161,6 @@ func getEnumsKFiltersWithIndex(tableName string, index uint32, enums ...uint64) 
 func getBasenameKFilters(eventType model.EventType, field string, approvers rules.Approvers) ([]kFilter, []eval.Field, error) {
 	var fieldHandled []eval.Field
 
-	stringValues := func(fvs rules.FilterValues) []string {
-		var values []string
-		for _, v := range fvs {
-			values = append(values, v.Value.(string))
-		}
-		return values
-	}
-
 	prefix := eventType.String()
 	if field != "" {
 		prefix += "." + field
@@ -164,22 +169,12 @@ func getBasenameKFilters(eventType model.EventType, field string, approvers rule
 	var kfilters []kFilter
 	for field, values := range approvers {
 		switch field {
-		case prefix + model.NameSuffix:
-			activeKFilters, err := newBasenameKFilters(BasenameApproverKernelMapName, eventType, stringValues(values)...)
+		case prefix + model.NameSuffix, prefix + model.PathSuffix:
+			activeKFilters, err := newBasenameKFilters(BasenameApproverKernelMapName, eventType, values...)
 			if err != nil {
 				return nil, nil, err
 			}
 			kfilters = append(kfilters, activeKFilters...)
-			fieldHandled = append(fieldHandled, field)
-		case prefix + model.PathSuffix:
-			for _, value := range stringValues(values) {
-				basename := path.Base(value)
-				activeKFilter, err := newBasenameKFilter(BasenameApproverKernelMapName, eventType, basename)
-				if err != nil {
-					return nil, nil, err
-				}
-				kfilters = append(kfilters, activeKFilter)
-			}
 			fieldHandled = append(fieldHandled, field)
 		}
 	}
