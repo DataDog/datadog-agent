@@ -7,7 +7,7 @@
 #include "rate_limiter.h"
 
 // has to be in sync with the userspace definition
-#define PATTERN_PREFIX_SIZE 4
+#define PATTERN_PREFIX_SIZE 3
 
 struct approver_stats_t * __attribute__((always_inline)) get_active_approver_stats(u64 event_type) {
     struct bpf_map_def *approver_stats = select_buffer(&fb_approver_stats, &bb_approver_stats, APPROVER_MONITOR_KEY);
