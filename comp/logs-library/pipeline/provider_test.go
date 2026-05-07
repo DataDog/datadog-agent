@@ -18,7 +18,6 @@ import (
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -110,7 +109,7 @@ func TestProviderConfigurations(t *testing.T) {
 			expectedWorkers:        3,                         // numberOfPipelines
 			expectedMinConcurrency: 1,
 			expectedMaxConcurrency: 1,
-			batchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+			batchMaxConcurrentSend: pkgconfigmodel.DefaultBatchMaxConcurrentSend,
 		},
 		{
 			name:                   "TCP sender legacy",
@@ -122,7 +121,7 @@ func TestProviderConfigurations(t *testing.T) {
 			expectedWorkers:        1, // 1 worker per queue
 			expectedMinConcurrency: 1,
 			expectedMaxConcurrency: 1,
-			batchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+			batchMaxConcurrentSend: pkgconfigmodel.DefaultBatchMaxConcurrentSend,
 		},
 		{
 			name:                   "HTTP sender default",
@@ -134,7 +133,7 @@ func TestProviderConfigurations(t *testing.T) {
 			expectedWorkers:        sender.DefaultWorkersPerQueue, // 1
 			expectedMinConcurrency: 3,
 			expectedMaxConcurrency: 30,
-			batchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+			batchMaxConcurrentSend: pkgconfigmodel.DefaultBatchMaxConcurrentSend,
 		},
 		{
 			name:                   "HTTP sender with batch_max_concurrent_send",
@@ -156,9 +155,9 @@ func TestProviderConfigurations(t *testing.T) {
 			serverless:             false,
 			expectedQueues:         3, // numberOfPipelines
 			expectedWorkers:        1, // 1 worker per queue
-			expectedMinConcurrency: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
-			expectedMaxConcurrency: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
-			batchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+			expectedMinConcurrency: pkgconfigmodel.DefaultBatchMaxConcurrentSend,
+			expectedMaxConcurrency: pkgconfigmodel.DefaultBatchMaxConcurrentSend,
+			batchMaxConcurrentSend: pkgconfigmodel.DefaultBatchMaxConcurrentSend,
 		},
 		{
 			name:                   "Http sender legacy with batch_max_concurrent_send",
@@ -182,7 +181,7 @@ func TestProviderConfigurations(t *testing.T) {
 			expectedWorkers:        2, // numberOfPipelines
 			expectedMinConcurrency: 1,
 			expectedMaxConcurrency: 1,
-			batchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+			batchMaxConcurrentSend: pkgconfigmodel.DefaultBatchMaxConcurrentSend,
 		},
 		{
 			name:                   "Serverless legacy",
@@ -192,9 +191,9 @@ func TestProviderConfigurations(t *testing.T) {
 			serverless:             true,
 			expectedQueues:         2, // numberOfPipelines
 			expectedWorkers:        1, // 1 workers per queue
-			expectedMinConcurrency: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
-			expectedMaxConcurrency: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
-			batchMaxConcurrentSend: pkgconfigsetup.DefaultBatchMaxConcurrentSend,
+			expectedMinConcurrency: pkgconfigmodel.DefaultBatchMaxConcurrentSend,
+			expectedMaxConcurrency: pkgconfigmodel.DefaultBatchMaxConcurrentSend,
+			batchMaxConcurrentSend: pkgconfigmodel.DefaultBatchMaxConcurrentSend,
 		},
 	}
 

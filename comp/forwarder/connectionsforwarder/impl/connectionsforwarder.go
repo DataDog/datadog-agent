@@ -16,7 +16,7 @@ import (
 	connectionsforwarder "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 )
@@ -39,8 +39,8 @@ type Provides struct {
 func NewComponent(reqs Requires) (Provides, error) {
 	queueBytes := reqs.Config.GetInt("process_config.process_queue_bytes")
 	if queueBytes <= 0 {
-		reqs.Logger.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, pkgconfigsetup.DefaultProcessQueueBytes)
-		queueBytes = pkgconfigsetup.DefaultProcessQueueBytes
+		reqs.Logger.Warnf("Invalid queue bytes size: %d. Using default value: %d", queueBytes, pkgconfigmodel.DefaultProcessQueueBytes)
+		queueBytes = pkgconfigmodel.DefaultProcessQueueBytes
 	}
 
 	processAPIEndpoints, err := endpoint.GetAPIEndpoints(reqs.Config)

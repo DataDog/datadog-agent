@@ -32,7 +32,7 @@ const (
 
 	// DefaultProcessQueueBytes is the default amount of process-agent check data (in bytes) that can be buffered in memory
 	// Allow buffering up to 60 megabytes of payload data in total
-	DefaultProcessQueueBytes = 60 * 1000 * 1000
+	DefaultProcessQueueBytes = pkgconfigmodel.DefaultProcessQueueBytes
 
 	// DefaultProcessMaxPerMessage is the default maximum number of processes, or containers per message. Note: Only change if the defaults are causing issues.
 	DefaultProcessMaxPerMessage = 100
@@ -47,7 +47,7 @@ const (
 	ProcessMaxMessageBytesLimit = 4000000
 
 	// DefaultProcessExpVarPort is the default port used by the process-agent expvar server
-	DefaultProcessExpVarPort = 6062
+	DefaultProcessExpVarPort = pkgconfigmodel.DefaultProcessExpVarPort
 
 	// DefaultProcessCmdPort is the default port used by process-agent to run a runtime settings server
 	DefaultProcessCmdPort = 6162

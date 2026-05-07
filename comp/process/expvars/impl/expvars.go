@@ -19,7 +19,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	expvars "github.com/DataDog/datadog-agent/comp/process/expvars/def"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -84,8 +84,8 @@ func NewComponent(deps dependencies) (expvars.Component, error) {
 func getExpvarPort(deps dependencies) int {
 	expVarPort := deps.Config.GetInt("process_config.expvar_port")
 	if expVarPort <= 0 {
-		_ = deps.Log.Warnf("Invalid process_config.expvar_port -- %d, using default port %d", expVarPort, pkgconfigsetup.DefaultProcessExpVarPort)
-		expVarPort = pkgconfigsetup.DefaultProcessExpVarPort
+		_ = deps.Log.Warnf("Invalid process_config.expvar_port -- %d, using default port %d", expVarPort, pkgconfigmodel.DefaultProcessExpVarPort)
+		expVarPort = pkgconfigmodel.DefaultProcessExpVarPort
 	}
 	return expVarPort
 }

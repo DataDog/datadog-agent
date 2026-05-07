@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -174,7 +173,7 @@ func NewOptionsWithOPW(config config.Component, log log.Component, eds utils.End
 		return nil, err
 	}
 
-	vectorMetricsURL, err := getObsPipelineURL(log, pkgconfigsetup.Metrics, config)
+	vectorMetricsURL, err := getObsPipelineURL(log, pkgconfigmodel.Metrics, config)
 	if err != nil {
 		log.Error("Misconfiguration of agent observability_pipelines_worker endpoint for metrics: ", err)
 	}
@@ -209,9 +208,9 @@ func NewOptionsWithResolvers(config config.Component, log log.Component, domainR
 		log.Warnf(
 			"'forwarder_apikey_validation_interval' set to invalid value (%d), defaulting to %d minute(s)",
 			validationInterval,
-			pkgconfigsetup.DefaultAPIKeyValidationInterval,
+			pkgconfigmodel.DefaultAPIKeyValidationInterval,
 		)
-		validationInterval = pkgconfigsetup.DefaultAPIKeyValidationInterval
+		validationInterval = pkgconfigmodel.DefaultAPIKeyValidationInterval
 	}
 
 	const forwarderRetryQueueMaxSizeKey = "forwarder_retry_queue_max_size"

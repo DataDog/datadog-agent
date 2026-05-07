@@ -10,7 +10,6 @@ import (
 	"time"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -137,8 +136,8 @@ func (l *LogsConfigKeys) compressionKind() string {
 		return compressionKind
 	}
 
-	log.Warnf("Invalid compression kind: '%s', falling back to default compression: '%s' ", compressionKind, pkgconfigsetup.DefaultLogCompressionKind)
-	return pkgconfigsetup.DefaultLogCompressionKind
+	log.Warnf("Invalid compression kind: '%s', falling back to default compression: '%s' ", compressionKind, pkgconfigmodel.DefaultLogCompressionKind)
+	return pkgconfigmodel.DefaultLogCompressionKind
 }
 
 func (l *LogsConfigKeys) compressionLevel() int {
@@ -213,8 +212,8 @@ func (l *LogsConfigKeys) batchWait() time.Duration {
 	batchWaitFloat := l.getConfig().GetFloat64(key)
 	// Valid range: 0.1 seconds (100ms) to 10 seconds
 	if batchWaitFloat < 0.1 || 10 < batchWaitFloat {
-		log.Warnf("Invalid %s: %v should be in [0.1, 10], fallback on %v", key, batchWaitFloat, pkgconfigsetup.DefaultBatchWait)
-		return pkgconfigsetup.DefaultBatchWait * time.Second
+		log.Warnf("Invalid %s: %v should be in [0.1, 10], fallback on %v", key, batchWaitFloat, pkgconfigmodel.DefaultBatchWait)
+		return pkgconfigmodel.DefaultBatchWait * time.Second
 	}
 	return time.Duration(batchWaitFloat * float64(time.Second))
 }
@@ -223,8 +222,8 @@ func (l *LogsConfigKeys) batchMaxConcurrentSend() int {
 	key := l.getConfigKey("batch_max_concurrent_send")
 	batchMaxConcurrentSend := l.getConfig().GetInt(key)
 	if batchMaxConcurrentSend < 0 {
-		log.Warnf("Invalid %s: %v should be >= 0, fallback on %v", key, batchMaxConcurrentSend, pkgconfigsetup.DefaultBatchMaxConcurrentSend)
-		return pkgconfigsetup.DefaultBatchMaxConcurrentSend
+		log.Warnf("Invalid %s: %v should be >= 0, fallback on %v", key, batchMaxConcurrentSend, pkgconfigmodel.DefaultBatchMaxConcurrentSend)
+		return pkgconfigmodel.DefaultBatchMaxConcurrentSend
 	}
 	return batchMaxConcurrentSend
 }
@@ -233,8 +232,8 @@ func (l *LogsConfigKeys) batchMaxSize() int {
 	key := l.getConfigKey("batch_max_size")
 	batchMaxSize := l.getConfig().GetInt(key)
 	if batchMaxSize <= 0 {
-		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, batchMaxSize, pkgconfigsetup.DefaultBatchMaxSize)
-		return pkgconfigsetup.DefaultBatchMaxSize
+		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, batchMaxSize, pkgconfigmodel.DefaultBatchMaxSize)
+		return pkgconfigmodel.DefaultBatchMaxSize
 	}
 	return batchMaxSize
 }
@@ -243,8 +242,8 @@ func (l *LogsConfigKeys) batchMaxContentSize() int {
 	key := l.getConfigKey("batch_max_content_size")
 	batchMaxContentSize := l.getConfig().GetInt(key)
 	if batchMaxContentSize <= 0 {
-		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, batchMaxContentSize, pkgconfigsetup.DefaultBatchMaxContentSize)
-		return pkgconfigsetup.DefaultBatchMaxContentSize
+		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, batchMaxContentSize, pkgconfigmodel.DefaultBatchMaxContentSize)
+		return pkgconfigmodel.DefaultBatchMaxContentSize
 	}
 	return batchMaxContentSize
 }
@@ -253,8 +252,8 @@ func (l *LogsConfigKeys) inputChanSize() int {
 	key := l.getConfigKey("input_chan_size")
 	inputChanSize := l.getConfig().GetInt(key)
 	if inputChanSize <= 0 {
-		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, inputChanSize, pkgconfigsetup.DefaultInputChanSize)
-		return pkgconfigsetup.DefaultInputChanSize
+		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, inputChanSize, pkgconfigmodel.DefaultInputChanSize)
+		return pkgconfigmodel.DefaultInputChanSize
 	}
 	return inputChanSize
 }
@@ -263,8 +262,8 @@ func (l *LogsConfigKeys) senderBackoffFactor() float64 {
 	key := l.getConfigKey("sender_backoff_factor")
 	senderBackoffFactor := l.getConfig().GetFloat64(key)
 	if senderBackoffFactor < 2 {
-		log.Warnf("Invalid %s: %v should be >= 2, fallback on %v", key, senderBackoffFactor, pkgconfigsetup.DefaultLogsSenderBackoffFactor)
-		return pkgconfigsetup.DefaultLogsSenderBackoffFactor
+		log.Warnf("Invalid %s: %v should be >= 2, fallback on %v", key, senderBackoffFactor, pkgconfigmodel.DefaultLogsSenderBackoffFactor)
+		return pkgconfigmodel.DefaultLogsSenderBackoffFactor
 	}
 	return senderBackoffFactor
 }
@@ -273,8 +272,8 @@ func (l *LogsConfigKeys) senderBackoffBase() float64 {
 	key := l.getConfigKey("sender_backoff_base")
 	senderBackoffBase := l.getConfig().GetFloat64(key)
 	if senderBackoffBase <= 0 {
-		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, senderBackoffBase, pkgconfigsetup.DefaultLogsSenderBackoffBase)
-		return pkgconfigsetup.DefaultLogsSenderBackoffBase
+		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, senderBackoffBase, pkgconfigmodel.DefaultLogsSenderBackoffBase)
+		return pkgconfigmodel.DefaultLogsSenderBackoffBase
 	}
 	return senderBackoffBase
 }
@@ -283,8 +282,8 @@ func (l *LogsConfigKeys) senderBackoffMax() float64 {
 	key := l.getConfigKey("sender_backoff_max")
 	senderBackoffMax := l.getConfig().GetFloat64(key)
 	if senderBackoffMax <= 0 {
-		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, senderBackoffMax, pkgconfigsetup.DefaultLogsSenderBackoffMax)
-		return pkgconfigsetup.DefaultLogsSenderBackoffMax
+		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, senderBackoffMax, pkgconfigmodel.DefaultLogsSenderBackoffMax)
+		return pkgconfigmodel.DefaultLogsSenderBackoffMax
 	}
 	return senderBackoffMax
 }
@@ -293,8 +292,8 @@ func (l *LogsConfigKeys) senderRecoveryInterval() int {
 	key := l.getConfigKey("sender_recovery_interval")
 	recoveryInterval := l.getConfig().GetInt(key)
 	if recoveryInterval <= 0 {
-		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, recoveryInterval, pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval)
-		return pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval
+		log.Warnf("Invalid %s: %v should be > 0, fallback on %v", key, recoveryInterval, pkgconfigmodel.DefaultLogsSenderBackoffRecoveryInterval)
+		return pkgconfigmodel.DefaultLogsSenderBackoffRecoveryInterval
 	}
 	return recoveryInterval
 }

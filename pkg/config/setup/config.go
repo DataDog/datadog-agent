@@ -69,36 +69,36 @@ const (
 	DefaultFingerprintStrategy = "disabled"
 
 	// DefaultSite is the default site the Agent sends data to.
-	DefaultSite = "datadoghq.com"
+	DefaultSite = pkgconfigmodel.DefaultSite
 
 	// DefaultNumWorkers default number of workers for our check runner
 	DefaultNumWorkers = 4
 	// MaxNumWorkers maximum number of workers for our check runner
 	MaxNumWorkers = 25
 	// DefaultAPIKeyValidationInterval is the default interval of api key validation checks
-	DefaultAPIKeyValidationInterval = 60
+	DefaultAPIKeyValidationInterval = pkgconfigmodel.DefaultAPIKeyValidationInterval
 
 	// DefaultForwarderRecoveryInterval is the default recovery interval,
 	// also used if the user-provided value is invalid.
-	DefaultForwarderRecoveryInterval = 2
+	DefaultForwarderRecoveryInterval = pkgconfigmodel.DefaultForwarderRecoveryInterval
 
 	megaByte = 1024 * 1024
 
 	// DefaultBatchWait is the default HTTP batch wait in second for logs
-	DefaultBatchWait = 5.0
+	DefaultBatchWait = pkgconfigmodel.DefaultBatchWait
 
 	// DefaultBatchMaxConcurrentSend is the default HTTP batch max concurrent send for logs
-	DefaultBatchMaxConcurrentSend = 0
+	DefaultBatchMaxConcurrentSend = pkgconfigmodel.DefaultBatchMaxConcurrentSend
 
 	// DefaultBatchMaxSize is the default HTTP batch max size (maximum number of events in a single batch) for logs
-	DefaultBatchMaxSize = 1000
+	DefaultBatchMaxSize = pkgconfigmodel.DefaultBatchMaxSize
 
 	// DefaultInputChanSize is the default input chan size for events
-	DefaultInputChanSize = 100
+	DefaultInputChanSize = pkgconfigmodel.DefaultInputChanSize
 
 	// DefaultBatchMaxContentSize is the default HTTP batch max content size (before compression) for logs
 	// It is also the maximum possible size of a single event. Events exceeding this limit are dropped.
-	DefaultBatchMaxContentSize = 5000000
+	DefaultBatchMaxContentSize = pkgconfigmodel.DefaultBatchMaxContentSize
 
 	// DefaultAuditorTTL is the default logs auditor TTL in hours
 	DefaultAuditorTTL = 23
@@ -107,30 +107,30 @@ const (
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 
 	// DefaultCompressorKind is the default compressor. Options available are 'zlib' and 'zstd'
-	DefaultCompressorKind = "zstd"
+	DefaultCompressorKind = pkgconfigmodel.DefaultCompressorKind
 
 	// DefaultLogCompressionKind is the default log compressor. Options available are 'zstd' and 'gzip'
-	DefaultLogCompressionKind = "zstd"
+	DefaultLogCompressionKind = pkgconfigmodel.DefaultLogCompressionKind
 
 	// DefaultZstdCompressionLevel is the default compression level for `zstd`.
 	// Compression level 1 provides the lowest compression ratio, but uses much less RSS especially
 	// in situations where we have a high value for `GOMAXPROCS`.
-	DefaultZstdCompressionLevel = 1
+	DefaultZstdCompressionLevel = pkgconfigmodel.DefaultZstdCompressionLevel
 
 	// DefaultGzipCompressionLevel is the default gzip compression level for logs.
 	DefaultGzipCompressionLevel = 6
 
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
-	DefaultLogsSenderBackoffFactor = 2.0
+	DefaultLogsSenderBackoffFactor = pkgconfigmodel.DefaultLogsSenderBackoffFactor
 
 	// DefaultLogsSenderBackoffBase is the default logs sender base backoff time, seconds
-	DefaultLogsSenderBackoffBase = 1.0
+	DefaultLogsSenderBackoffBase = pkgconfigmodel.DefaultLogsSenderBackoffBase
 
 	// DefaultLogsSenderBackoffMax is the default logs sender maximum backoff time, seconds
-	DefaultLogsSenderBackoffMax = 120.0
+	DefaultLogsSenderBackoffMax = pkgconfigmodel.DefaultLogsSenderBackoffMax
 
 	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
-	DefaultLogsSenderBackoffRecoveryInterval = 2
+	DefaultLogsSenderBackoffRecoveryInterval = pkgconfigmodel.DefaultLogsSenderBackoffRecoveryInterval
 
 	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
 	maxExternalMetricsProviderChunkSize = 35
@@ -242,7 +242,7 @@ func (l *Listeners) IsProviderEnabled(provider string) bool {
 
 const (
 	// Metrics type covers series & sketches
-	Metrics string = "metrics"
+	Metrics string = pkgconfigmodel.Metrics
 	// Logs type covers all outgoing logs
 	Logs string = "logs"
 )
