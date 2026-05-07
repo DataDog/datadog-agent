@@ -11,7 +11,9 @@ package procmgr
 
 import (
 	"context"
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service/systemd"
@@ -37,7 +39,14 @@ func RestartDaemon(ctx context.Context, experiment bool) error {
 	if experiment {
 		unit = "datadog-agent-procmgr-exp.service"
 	}
-	return systemd.RestartUnit(ctx, unit)
+	err := systemd.RestartUnit(ctx, unit)
+	exitErr := &exec.ExitError{}
+	if errors.As(err, &exitErr) && exitErr.ExitCode() == 5 {
+		// Fresh installs can sync DDOT procmgr config before unit files are loaded.
+		// Treat "unit not loaded" as non-fatal so extension installation can proceed.
+		return nil
+	}
+	return err
 }
 
 // The following helpers delegate to systemctl for ProcmgrType installer hooks
