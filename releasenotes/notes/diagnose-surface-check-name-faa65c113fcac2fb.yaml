@@ -8,13 +8,11 @@
 ---
 enhancements:
   - |
-    The ``agent diagnose`` command now surfaces the owning check name for each
-    diagnosis. Output is rendered as ``[checkname] [category] name``, making it
-    possible to tell which check instance produced each result when multiple
-    checks (for example multiple postgres or DBM instances) are configured.
-    The JSON output gains a ``check_name`` field for the same purpose.
+    ``agent diagnose`` now renders the check name as a prefix for all checks
+    under the ``check-datadog`` suite. The JSON output gains a ``check_name``
+    field for the same purpose.
   - |
-    The ``--include`` and ``--exclude`` flags of the ``agent diagnose`` command
-    now match against the suite name, the owning check name, and the diagnosis
-    category. For example, ``agent diagnose --include postgres`` now filters
-    individual diagnoses across all suites instead of only matching suite names.
+    The ``--include`` and ``--exclude`` flags of ``agent diagnose`` now match
+    against the suite name, the owning check name, and the diagnosis category.
+    For example, ``agent diagnose --include postgres`` now filters individual
+    diagnoses across all suites instead of only matching suite names.
