@@ -12,7 +12,6 @@ import shlex
 import shutil
 import tempfile
 import zipfile
-from statistics import median
 
 from tasks.libs.common.color import Color, color_message
 
@@ -32,11 +31,7 @@ AWS_PROFILE = "sso-agent-sandbox-account-admin"
 # All available detectors and correlators for ablation / combination search.
 # passthrough is intentionally excluded: it is designed for TP scoring (eval_tp),
 # not for Gaussian F1 eval (eval_scenarios / eval_combinations).
-MANUAL_EVAL_DETECTORS = [
-    "holt_residual",
-    "tukey_biweight",
-]
-DETECTORS = ["bocpd", "cusum", "rrcf", "scanmw", "scanwelch"] + MANUAL_EVAL_DETECTORS
+DETECTORS = ["bocpd", "cusum", "holt_residual", "rrcf", "scanmw", "scanwelch", "tukey_biweight"]
 CORRELATORS = ["cross_signal", "time_cluster"]
 
 # Log metrics extractors (component_catalog extractors). Not part of the random
@@ -60,8 +55,6 @@ ANCHOR_COMBOS = [
 ]
 
 _BENCH_FILTER = "BenchmarkDetection|BenchmarkIngestion|BenchmarkLogExtraction"
-DEFAULT_STACK_DETECTORS = ["bocpd"]
-DEFAULT_STACK_CORRELATORS = ["time_cluster"]
 
 
 # --- StepLogger ---
@@ -178,106 +171,6 @@ def _scenario_f1_from_bayesian_report(report: dict | None) -> dict[str, float]:
             except (TypeError, ValueError):
                 continue
     return out
-
-
-def _safe_float(value, default: float = 0.0) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def _sum_metadata_field(metadata: dict, field: str) -> float:
-    return sum(_safe_float(row.get(field, 0.0)) for row in metadata.values() if isinstance(row, dict))
-
-
-def _report_digest(path: str) -> str:
-    """Small stable digest for traceability without storing full report content."""
-    import hashlib
-
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
-
-
-def summarize_eval_report(path: str, baseline: dict | None = None, name: str | None = None) -> dict:
-    """Summarize one q.eval-scenarios report for matrix/manifest output."""
-    with open(path) as f:
-        report = json.load(f)
-
-    metadata = report.get("metadata") or {}
-    f1_values = [_safe_float(row.get("f1", 0.0)) for row in metadata.values() if isinstance(row, dict)]
-    scenario_rows = []
-    for scenario, row in sorted(metadata.items()):
-        if not isinstance(row, dict):
-            continue
-        baseline_row = (baseline or {}).get("metadata", {}).get(scenario, {}) if baseline else {}
-        f1 = _safe_float(row.get("f1", 0.0))
-        baseline_f1 = _safe_float(baseline_row.get("f1", 0.0)) if isinstance(baseline_row, dict) else 0.0
-        scenario_rows.append(
-            {
-                "scenario": scenario,
-                "f1": f1,
-                "baseline_f1": baseline_f1,
-                "delta_f1": f1 - baseline_f1 if baseline else None,
-                "precision": _safe_float(row.get("precision", 0.0)),
-                "recall": _safe_float(row.get("recall", 0.0)),
-                "num_predictions": int(_safe_float(row.get("num_predictions", 0.0))),
-                "num_baseline_fps": int(_safe_float(row.get("num_baseline_fps", 0.0))),
-                "num_filtered_cascading": int(_safe_float(row.get("num_filtered_cascading", 0.0))),
-            }
-        )
-
-    deltas = [r["delta_f1"] for r in scenario_rows if r["delta_f1"] is not None]
-    summary = {
-        "name": name or os.path.splitext(os.path.basename(path))[0],
-        "report_path": path,
-        "report_sha256": _report_digest(path),
-        "score": _safe_float(report.get("score", 0.0)),
-        "median_f1": median(f1_values) if f1_values else 0.0,
-        "num_scenarios": len(f1_values),
-        "num_predictions": int(_sum_metadata_field(metadata, "num_predictions")),
-        "num_baseline_fps": int(_sum_metadata_field(metadata, "num_baseline_fps")),
-        "num_filtered_cascading": int(_sum_metadata_field(metadata, "num_filtered_cascading")),
-        "tp": _sum_metadata_field(metadata, "tp"),
-        "fp": _sum_metadata_field(metadata, "fp"),
-        "fn": _sum_metadata_field(metadata, "fn"),
-        "per_scenario": scenario_rows,
-    }
-    if baseline:
-        baseline_score = _safe_float(baseline.get("score", 0.0))
-        baseline_metadata = baseline.get("metadata") or {}
-        summary.update(
-            {
-                "baseline_score": baseline_score,
-                "delta_score": summary["score"] - baseline_score,
-                "median_delta_f1": median(deltas) if deltas else 0.0,
-                "worst_delta_f1": min(deltas) if deltas else 0.0,
-                "baseline_fp_delta": summary["num_baseline_fps"]
-                - int(_sum_metadata_field(baseline_metadata, "num_baseline_fps")),
-            }
-        )
-    return summary
-
-
-def summarize_eval_reports(named_paths: list[tuple[str, str]], baseline_name: str | None = None) -> dict:
-    """Build a ranked matrix from named q.eval-scenarios report paths."""
-    reports = {}
-    baseline_report = None
-    if baseline_name:
-        for name, path in named_paths:
-            if name == baseline_name:
-                with open(path) as f:
-                    baseline_report = json.load(f)
-                break
-
-    rows = [summarize_eval_report(path, baseline=baseline_report, name=name) for name, path in named_paths]
-    rows.sort(key=lambda r: r["score"], reverse=True)
-    for rank, row in enumerate(rows, 1):
-        row["rank"] = rank
-    return {"baseline_name": baseline_name, "rows": rows}
 
 
 def _best_run_index(runs: list[dict]) -> int:
