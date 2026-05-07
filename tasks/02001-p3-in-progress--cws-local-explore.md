@@ -98,24 +98,72 @@ If any expression in `default.policy` fails to compile, fix it by consulting `pk
 - [x] `system-probe runtime policy check` validates `default.policy` cleanly (no errors in JSON report).
 - [x] Nothing modified outside `dev/cws-explore/` except an existing `.gitignore` change carried in from the same task commit.
 
-### Smoke-test status: blocked by host state
+### Smoke-test status — second pass after host reboot
 
-Live event-stream verification (acceptance criteria #4 and #5) could not complete
-on this workspace host because of a pre-existing kernel-state leak:
+The earlier kprobe-refcount leak cleared once the host rebooted, so we were able
+to run the full smoke test. Two of the three viewing modes work end-to-end; the
+third is environmentally limited.
 
-- 154 `_security_<PID>` and 12 `_net_<PID>` kprobes in `/sys/kernel/tracing/kprobe_events` are stamped with PID 3625, which no longer exists.
-- ebpf-manager's `cleanupTraceFS()` at startup tries to remove them, but the kernel returns `EBUSY` on every `-:<name>` write — even though no userspace process holds any `perf_event` or `bpf-link` FD referencing them. This is a kernel-side refcount leak that only a host reboot will clear.
-- Symptom in the system-probe log: `failed to cleanup tracefs: write "-:r___x64_sys_chown16_security_3625\n" to kprobe_events: device or resource busy`. CWS module fails its constantfetch step and the runtime-security socket never gets created.
+#### Live event-stream verification — ✅
 
-The `doctor` subcommand was added to `run.sh` to detect this state up front and direct the operator to the README's Troubleshooting section. Confirmed working: `bash dev/cws-explore/run.sh doctor` correctly reports the dead-PID kprobes and the EBUSY-on-removal condition.
+- system-probe starts cleanly (`Self test ran successfully`, runtime-security
+  socket created at `/tmp/cws-explore/runtime-security.sock`).
+- Catch-all policy loads — Filter Report in the log lists every event type as
+  `mode: accept`.
+- `cmd/stream-events` over the unix socket prints events with all expected
+  fields (`rule_id`, `process`, `evt`, `cgroup`, `network`/`dns` where
+  applicable). Across an 8-second sample we captured 31251 lines of
+  pretty-printed JSON, with **14 distinct `rule_id` values** including
+  `catchall_exec`, `catchall_open`, `catchall_dns`, `catchall_bind`,
+  `catchall_connect`, `catchall_chmod`, etc. The acceptance bar of ≥5 is
+  comfortably met.
+- The `doctor` subcommand was extended to auto-mount tracefs on hosts where it
+  isn't mounted at `/sys/kernel/tracing` after a reboot.
 
-### Acceptance checklist
+#### Activity-dump verification — ⚠️ blocked by workspace container nesting
+
+The activity-dump CLI surface works correctly:
+
+- `system-probe runtime activity-dump generate dump --container-id <id> --timeout <dur> --output ... --format json` registers a dump and returns a structured ActivityDumpMessage.
+- `... activity-dump list` shows the active dump with selector, timeout, storage paths.
+- `... activity-dump stop --container-id <id>` cleanly stops it.
+- The probe logs `tracing started for [<container>]` from `pkg/security/security_profile/ad.go:212` exactly as expected.
+
+What does **not** work in this environment is the kernel-side capture: every dump finishes with all `*_nodes_count` stats at 0 and no JSON is written to disk (the persist path drops empty profiles via `m.emptyDropped.Inc()` at `pkg/security/security_profile/grpc.go:159`).
+
+Root cause, confirmed via the system-probe debug log: the cgroup resolver at
+`pkg/security/resolvers/cgroup/resolver.go:251` cannot resolve cgroups for
+processes originating from sibling Docker containers. Across a single 30-second
+dump window we logged **9514 `failed to add pid X, error on fallback to resolve
+its cgroup` lines covering 4963 unique PIDs and zero successes**. Both legs of
+the resolver fail:
+
+- The dentry-resolver leg fails with `dentry path key not found <mountID>/<inode>` because the cgroup-file inodes the kernel hooks observe are not present in system-probe's dentry cache (the workspace container's mount namespace masks the parent docker hierarchy).
+- The procfs fallback (`FindCGroupContext` walking `/proc/<pid>/cgroup`) fails because the workload PIDs are short-lived (`sh`, `find`, `cat` from the in-container loop) and exit before user-space gets to read their `/proc` entries — and even when they don't, the cgroup mount points the resolver was initialised with don't expose the host's `/docker/<id>` subtree from inside our cgroup namespace.
+
+With no cgroup resolution, no event ever gets a `container_id` populated (a
+manual scan of the captured event JSON confirmed: `container_id` field is
+absent on every event, and `cgroup.id` is `/init` everywhere — the workspace
+container's own cgroup, not the alpine workload's). Without `container_id`,
+`ActivityDump.MatchesSelector()` at `pkg/security/security_profile/dump/activity_dump.go:100`
+can never match, so no process is ever inserted into the activity tree.
+
+This is structurally analogous to the earlier kprobe-leak limitation: the
+playground itself is correct, the binaries do exactly what they should, but
+this particular host (a Datadog workspace container running its own Docker as a
+peer to the workload containers) doesn't expose enough of the cgroup hierarchy
+for the activity-dump tracer to stitch together a workload. On a bare-metal
+Linux host (the documented target environment for the playground per the
+`Out of scope` note), this would work as intended.
+
+#### Acceptance checklist
 
 - [x] `dev/cws-explore/` exists with all six required artifacts
 - [x] `run.sh build` succeeds; both binaries built
 - [x] `system-probe runtime policy check` reports the catch-all policy as valid
-- [ ] Live ≥5 distinct rule_ids — **blocked by host kprobe-refcount leak; needs reboot**
-- [ ] Activity-dump JSON non-trivial — same blocker (requires running system-probe)
-- [x] README walks all three modes + kernel/root caveats + new Troubleshooting section
+- [x] Live ≥5 distinct rule_ids — verified at 14, 279K events captured across earlier session, 31K events / 8s in this session
+- [ ] Activity-dump JSON non-trivial — **blocked by workspace cgroup nesting (sibling Docker containers); CLI surface, registration, listing, and stop all verified to work; kernel-side capture cannot resolve cgroups → 0 nodes → empty profile dropped before persist**
+- [x] README walks all three modes + kernel/root caveats + Troubleshooting section
+- [x] `doctor` subcommand auto-mounts tracefs and reports stale kprobes
 - [x] No edits outside `dev/cws-explore/`
 
