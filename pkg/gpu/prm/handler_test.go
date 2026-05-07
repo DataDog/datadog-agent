@@ -131,11 +131,17 @@ func setupHandler(t *testing.T, arch string, customize func(device *mock.Device)
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
 		testutil.WithMIGDisabled(),
 		testutil.WithDeviceCount(1),
-		testutil.WithArchitecture(arch),
 	)
 	device := testutil.GetDeviceMock(0, testutil.WithMockAllDeviceFunctions())
 	if customize != nil {
 		device = customize(device)
+	}
+	deviceArch, major, minor := testutil.ArchNameToNVML(arch)
+	device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
+		return deviceArch, nvml.SUCCESS
+	}
+	device.GetCudaComputeCapabilityFunc = func() (int, int, nvml.Return) {
+		return major, minor, nvml.SUCCESS
 	}
 
 	nvmlMock.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
