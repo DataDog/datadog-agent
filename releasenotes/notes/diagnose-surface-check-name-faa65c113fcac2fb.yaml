@@ -1,0 +1,20 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    The ``agent diagnose`` command now surfaces the owning check name for each
+    diagnosis. Output is rendered as ``[checkname] [category] name``, making it
+    possible to tell which check instance produced each result when multiple
+    checks (for example multiple postgres or DBM instances) are configured.
+    The JSON output gains a ``check_name`` field for the same purpose.
+  - |
+    The ``--include`` and ``--exclude`` flags of the ``agent diagnose`` command
+    now match against the suite name, the owning check name, and the diagnosis
+    category. For example, ``agent diagnose --include postgres`` now filters
+    individual diagnoses across all suites instead of only matching suite names.
