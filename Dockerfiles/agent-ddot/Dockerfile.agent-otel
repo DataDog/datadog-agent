@@ -57,7 +57,7 @@ RUN if [ "$PACKAGE_TYPE" = "windows" ]; then \
     fi
 
 # Install Go based on architecture
-ARG GO_VERSION
+ARG GO_VERSION=1.25.9
 RUN ARCH=$(dpkg --print-architecture) && \
 if [ "$ARCH" = "amd64" ]; then \
 GO_ARCH="linux-amd64"; \
@@ -79,7 +79,7 @@ ENV GOPATH=/go
 RUN go version && \
     curl --version
 
-ARG DDA_VERSION
+ARG DDA_VERSION=v0.33.1
 ENV DDA_INTERACTIVE=false
 # Install prebuilt dda and sync tasks
 RUN ARCH=$(dpkg --print-architecture) && \
