@@ -318,7 +318,7 @@ var _ funcOffsetByNameIndex = (*onDiskFuncOffsetByNameIndex)(nil)
 
 func (idx *onDiskFuncOffsetByNameIndex) readName(offset uint32) string {
 	nameLen := binary.NativeEndian.Uint32(idx.strData[offset:])
-	return string(idx.strData[offset+4 : offset+4+nameLen])
+	return unsafe.String(unsafe.SliceData(idx.strData[offset+4:offset+4+nameLen]), int(nameLen))
 }
 
 func (idx *onDiskFuncOffsetByNameIndex) forPackage(pkgName string) iter.Seq2[string, dwarf.Offset] {

@@ -398,7 +398,7 @@
 /comp/haagent @DataDog/network-device-monitoring-core
 /comp/languagedetection/client @DataDog/container-platform
 /comp/logonduration @DataDog/windows-products
-/comp/networkconfigmanagement @DataDog/ndm-integrations
+/comp/networkdeviceconfig @DataDog/ndm-integrations
 /comp/notableevents @DataDog/windows-products
 /comp/offlinereporter @DataDog/agent-metric-pipelines
 /comp/privateactionrunner @DataDog/action-platform
