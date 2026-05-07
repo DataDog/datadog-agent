@@ -47,13 +47,13 @@ func TestGetHandleNotNil(t *testing.T) {
 	}
 }
 
-func TestObserveMetricNoPanic(t *testing.T) {
+func TestObserveMetricNoPanic(_ *testing.T) {
 	obs := newTestObserver()
 	h := obs.GetHandle("test-source")
 	h.ObserveMetric(stubMetric{})
 }
 
-func TestObserveLogNoPanic(t *testing.T) {
+func TestObserveLogNoPanic(_ *testing.T) {
 	obs := newTestObserver()
 	h := obs.GetHandle("test-source")
 	h.ObserveLog(stubLog{})

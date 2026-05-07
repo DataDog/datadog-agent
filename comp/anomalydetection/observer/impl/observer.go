@@ -95,7 +95,7 @@ func NewComponent(deps Requires) Provides {
 // run drains the observation channel. The engine is wired in a later wave;
 // until then observations are discarded to keep overhead at zero.
 func (o *observerImpl) run() {
-	for range o.obsCh {
+	for range o.obsCh { //nolint:revive // empty-block intentional: drain-and-discard until Wave 3
 	}
 }
 
