@@ -88,10 +88,8 @@ type Webhook interface {
 	IsEnabled() bool
 	// Endpoint returns the endpoint of the webhook
 	Endpoint() string
-	// Resources returns the kubernetes resources for which the webhook should
-	// be invoked.
-	// The key is the API group, and the value is a list of resources.
-	Resources() map[string][]string
+	// Resources returns the kubernetes resources for which the webhook should be invoked.
+	Resources() []common.WebhookResourceRule
 	// Operations returns the operations on the resources specified for which
 	// the webhook should be invoked
 	Operations() []admiv1.OperationType

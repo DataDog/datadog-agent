@@ -408,7 +408,7 @@ func (c *ControllerV1) generateTemplates() {
 			"probe",
 			probeEndpoint,
 			[]admiv1.OperationType{admiv1.Create},
-			map[string][]string{"": {"configmaps"}},
+			[]common.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"configmaps"}}},
 			&metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{
 					{
@@ -431,7 +431,7 @@ func (c *ControllerV1) generateTemplates() {
 	c.mutatingWebhookTemplates = mutatingWebhooks
 }
 
-func (c *ControllerV1) getValidatingWebhookSkeleton(nameSuffix, path string, operations []admiv1.OperationType, resourcesMap map[string][]string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1.MatchCondition, timeout int32) admiv1.ValidatingWebhook {
+func (c *ControllerV1) getValidatingWebhookSkeleton(nameSuffix, path string, operations []admiv1.OperationType, resources []common.WebhookResourceRule, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1.MatchCondition, timeout int32) admiv1.ValidatingWebhook {
 	matchPolicy := admiv1.Exact
 	sideEffects := admiv1.SideEffectClassNone
 	port := c.config.getServicePort()
@@ -460,23 +460,21 @@ func (c *ControllerV1) getValidatingWebhookSkeleton(nameSuffix, path string, ope
 		MatchConditions:         matchConditions,
 	}
 
-	for group, resources := range resourcesMap {
-		for _, resource := range resources {
-			webhook.Rules = append(webhook.Rules, admiv1.RuleWithOperations{
-				Operations: operations,
-				Rule: admiv1.Rule{
-					APIGroups:   []string{group},
-					APIVersions: []string{"v1"},
-					Resources:   []string{resource},
-				},
-			})
-		}
+	for _, rule := range resources {
+		webhook.Rules = append(webhook.Rules, admiv1.RuleWithOperations{
+			Operations: operations,
+			Rule: admiv1.Rule{
+				APIGroups:   []string{rule.APIGroup},
+				APIVersions: []string{rule.APIVersion},
+				Resources:   rule.Resources,
+			},
+		})
 	}
 
 	return webhook
 }
 
-func (c *ControllerV1) getMutatingWebhookSkeleton(nameSuffix, path string, operations []admiv1.OperationType, resourcesMap map[string][]string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1.MatchCondition, timeout int32) admiv1.MutatingWebhook {
+func (c *ControllerV1) getMutatingWebhookSkeleton(nameSuffix, path string, operations []admiv1.OperationType, resources []common.WebhookResourceRule, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1.MatchCondition, timeout int32) admiv1.MutatingWebhook {
 	matchPolicy := admiv1.Exact
 	sideEffects := admiv1.SideEffectClassNone
 	port := c.config.getServicePort()
@@ -507,17 +505,15 @@ func (c *ControllerV1) getMutatingWebhookSkeleton(nameSuffix, path string, opera
 		MatchConditions:         matchConditions,
 	}
 
-	for group, resources := range resourcesMap {
-		for _, resource := range resources {
-			webhook.Rules = append(webhook.Rules, admiv1.RuleWithOperations{
-				Operations: operations,
-				Rule: admiv1.Rule{
-					APIGroups:   []string{group},
-					APIVersions: []string{"v1"},
-					Resources:   []string{resource},
-				},
-			})
-		}
+	for _, rule := range resources {
+		webhook.Rules = append(webhook.Rules, admiv1.RuleWithOperations{
+			Operations: operations,
+			Rule: admiv1.Rule{
+				APIGroups:   []string{rule.APIGroup},
+				APIVersions: []string{rule.APIVersion},
+				Resources:   rule.Resources,
+			},
+		})
 	}
 
 	return webhook

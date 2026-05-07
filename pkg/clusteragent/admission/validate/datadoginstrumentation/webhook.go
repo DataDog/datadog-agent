@@ -34,7 +34,7 @@ type Webhook struct {
 	name       string
 	isEnabled  bool
 	endpoint   string
-	resources  map[string][]string
+	resources  []common.WebhookResourceRule
 	operations []admissionregistrationv1.OperationType
 	handlers   []instrumentation.Handler
 	lister     cache.GenericLister
@@ -46,9 +46,7 @@ func NewWebhook(datadogConfig config.Component, handlers []instrumentation.Handl
 		name:      "datadog_instrumentation_validation",
 		isEnabled: datadogConfig.GetBool("instrumentation_crd_controller.enabled"),
 		endpoint:  "/datadog-instrumentation-validation",
-		resources: map[string][]string{
-			"datadoghq.com": {"datadoginstrumentations"},
-		},
+		resources: []common.WebhookResourceRule{{APIGroup: "datadoghq.com", APIVersion: "v1alpha1", Resources: []string{"datadoginstrumentations"}}},
 		operations: []admissionregistrationv1.OperationType{
 			admissionregistrationv1.Create,
 			admissionregistrationv1.Update,
@@ -71,7 +69,7 @@ func (w *Webhook) IsEnabled() bool { return w.isEnabled }
 func (w *Webhook) Endpoint() string { return w.endpoint }
 
 // Resources returns the Kubernetes resources this webhook handles.
-func (w *Webhook) Resources() map[string][]string { return w.resources }
+func (w *Webhook) Resources() []common.WebhookResourceRule { return w.resources }
 
 // Operations returns the admission operations this webhook handles.
 func (w *Webhook) Operations() []admissionregistrationv1.OperationType { return w.operations }

@@ -147,7 +147,7 @@ func TestWebhookInterface(t *testing.T) {
 	assert.Equal(t, common.WebhookType(common.ValidatingWebhook), w.WebhookType())
 	assert.True(t, w.IsEnabled())
 	assert.Equal(t, "/datadog-instrumentation-validation", w.Endpoint())
-	assert.Equal(t, map[string][]string{"datadoghq.com": {"datadoginstrumentations"}}, w.Resources())
+	assert.Equal(t, []common.WebhookResourceRule{{APIGroup: "datadoghq.com", APIVersion: "v1alpha1", Resources: []string{"datadoginstrumentations"}}}, w.Resources())
 	assert.Equal(t, []admissionregistrationv1.OperationType{admissionregistrationv1.Create, admissionregistrationv1.Update}, w.Operations())
 	nsSelector, objSelector := w.LabelSelectors(false)
 	assert.Nil(t, nsSelector)
