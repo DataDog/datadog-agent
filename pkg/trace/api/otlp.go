@@ -297,7 +297,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 
 	// Get container ID from OTel semantic conventions
 	containerID := transform.LookupSemanticStringWithAccessor(resAccessor, semantics.ConceptContainerID, true)
-	if containerID == "" && !o.conf.HasFeature("enable_otlp_container_tags_v2") {
+	if containerID == "" && o.conf.HasFeature("disable_otlp_container_tags_v2") {
 		containerID = transform.LookupSemanticStringWithAccessor(resAccessor, semantics.ConceptK8sPodUID, true)
 	}
 
@@ -307,7 +307,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 	// Get container tags from OTel semantic conventions
 	var containerTags string
 	var builder *strings.Builder
-	if o.conf.HasFeature("enable_otlp_container_tags_v2") {
+	if !o.conf.HasFeature("disable_otlp_container_tags_v2") {
 		// As part of extracting container tags, we remove some of the corresponding resource attributes
 		// from otelres so that OtelSpanToDDSpan does not duplicate them as span attributes.
 		// Because otelres is immutable when this function is called from the Datadog exporter,
