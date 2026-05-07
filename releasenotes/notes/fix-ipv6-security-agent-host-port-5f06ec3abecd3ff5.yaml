@@ -1,0 +1,19 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix IPv6 address handling in the security-agent / system-probe
+    communication code. The TCP listener bind address now wraps IPv6 hosts
+    in brackets, the runtime-security cmd-socket derivation
+    (``runtime_security_config.cmd_socket`` defaulted from
+    ``runtime_security_config.socket``) parses ``host:port`` with
+    ``net.SplitHostPort`` so IPv6 literals are accepted, and the security
+    logs endpoint URL builder uses ``net.JoinHostPort`` so IPv6 endpoints
+    yield URLs like ``https://[fd38::1]:443/prefix/path`` instead of
+    unparseable strings.

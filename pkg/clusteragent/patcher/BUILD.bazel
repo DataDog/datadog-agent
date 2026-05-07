@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "patcher",
+    srcs = [
+        "intent.go",
+        "operations.go",
+        "patcher.go",
+        "target.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_apimachinery//pkg/types",
+        "@io_k8s_client_go//dynamic",
+        "@io_k8s_client_go//util/retry",
+    ],
+)
+
+go_test(
+    name = "patcher_test",
+    srcs = [
+        "intent_test.go",
+        "operations_test.go",
+        "patcher_test.go",
+    ],
+    embed = [":patcher"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_apimachinery//pkg/types",
+        "@io_k8s_client_go//dynamic/fake",
+        "@io_k8s_client_go//testing",
+    ],
+)

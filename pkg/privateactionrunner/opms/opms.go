@@ -18,6 +18,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -31,6 +32,7 @@ import (
 	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/jsonapi"
 )
 
 const (
@@ -47,6 +49,12 @@ const (
 	// idle stretches.
 	maxRetryAfter = 2 * time.Minute
 )
+
+type DequeueJSONRequest struct {
+	ID                 string `jsonapi:"primary,dequeue"`
+	RunnerStartedAt    string `json:"runner_started_at,omitempty" jsonapi:"attribute"`
+	LastTaskReceivedAt string `json:"last_task_received_at,omitempty" jsonapi:"attribute"`
+}
 
 type PublishTaskUpdateJSONRequestPayload struct {
 	Branch       string                            `json:"branch,omitempty"`
@@ -131,6 +139,9 @@ type Client interface {
 type client struct {
 	config     *config.Config
 	httpClient *http.Client
+
+	runnerStartedAt    time.Time
+	lastTaskReceivedAt atomic.Pointer[time.Time]
 }
 
 func NewClient(cfg *config.Config) Client {
@@ -138,7 +149,8 @@ func NewClient(cfg *config.Config) Client {
 		httpClient: &http.Client{
 			Timeout: time.Millisecond * time.Duration(cfg.OpmsRequestTimeout),
 		},
-		config: cfg,
+		config:          cfg,
+		runnerStartedAt: time.Now().UTC(),
 	}
 }
 
@@ -157,7 +169,12 @@ func (c *client) endpointURL(path string) string {
 }
 
 func (c *client) DequeueTask(ctx context.Context) (*types.Task, time.Duration, error) {
-	body, headers, err := c.makeRequest(ctx, http.MethodPost, c.endpointURL(dequeuePath), nil, nil, http.StatusOK)
+	reqBody, err := c.buildDequeueRequestBody()
+	if err != nil {
+		return nil, 0, fmt.Errorf("error building dequeue request body: %w", err)
+	}
+
+	body, headers, err := c.makeRequest(ctx, http.MethodPost, c.endpointURL(dequeuePath), bytes.NewReader(reqBody), nil, http.StatusOK)
 	retryAfter := parseRetryAfterMs(headers)
 	if err != nil {
 		return nil, retryAfter, fmt.Errorf("error making request to dequeue task: %w", err)
@@ -174,7 +191,20 @@ func (c *client) DequeueTask(ctx context.Context) (*types.Task, time.Duration, e
 		return nil, retryAfter, fmt.Errorf("error unmarshaling dequeue task response: %w", err)
 	}
 
+	now := time.Now().UTC()
+	c.lastTaskReceivedAt.Store(&now)
+
 	return res, retryAfter, nil
+}
+
+func (c *client) buildDequeueRequestBody() ([]byte, error) {
+	req := &DequeueJSONRequest{
+		RunnerStartedAt: c.runnerStartedAt.Format(time.RFC3339),
+	}
+	if t := c.lastTaskReceivedAt.Load(); t != nil {
+		req.LastTaskReceivedAt = t.Format(time.RFC3339)
+	}
+	return jsonapi.Marshal(req, jsonapi.MarshalClientMode())
 }
 
 func (c *client) PublishSuccess(
