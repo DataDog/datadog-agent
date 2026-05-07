@@ -340,7 +340,7 @@ func start(remoteTagger *remoteTagger) error {
 	// Initialize the gRPC client.
 	remoteTagger.client = pb.NewAgentSecureClient(remoteTagger.conn)
 
-	remoteTagger.log.Info("remote tagger initialized successfully")
+	remoteTagger.log.Info("remote tagger initialized successfully PROF-14430-memstats")
 
 	// Start the tagger stream.
 	remoteTagger.wg.Add(1)
@@ -356,6 +356,9 @@ func stop(remoteTagger *remoteTagger) error {
 
 	// Wait for the run goroutine to finish before closing the connection
 	remoteTagger.wg.Wait()
+
+	remoteTagger.memStats.recordStore(remoteTagger.store.memoryStats())
+	remoteTagger.logRemoteTaggerMemoryStats()
 
 	onStopErr := remoteTagger.conn.Close()
 	if onStopErr != nil {
