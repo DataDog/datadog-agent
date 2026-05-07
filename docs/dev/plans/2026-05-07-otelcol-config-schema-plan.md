@@ -1,0 +1,228 @@
+# DDOT Collector configuration JSON Schema bundle — plan
+
+> **Status:** Plan stage — implementation has not started.
+> **Predecessor:** PR #50408 added per-component `config.schema.yaml` files
+> for the Datadog-authored OTel components under `comp/otelcol/`.
+
+## Goal
+
+Produce one consolidated JSON Schema file (conformant to
+[JSON Schema 2020-12](https://json-schema.org/draft/2020-12/release-notes))
+that validates a complete OpenTelemetry Collector YAML configuration as
+accepted by the Datadog Distribution of OpenTelemetry (DDOT) Collector.
+
+The bundle covers:
+
+1. Every component listed in
+   [`comp/otelcol/collector-contrib/impl/manifest.yaml`](../../../comp/otelcol/collector-contrib/impl/manifest.yaml).
+2. Every Datadog-authored component under `comp/otelcol/` that has a
+   local `config.schema.yaml`.
+3. The top-level Collector configuration envelope: `receivers`,
+   `processors`, `exporters`, `connectors`, `extensions`, and `service`.
+
+Wherever possible the per-component `config.schema.yaml` files (in the
+local repo or in the Go module cache for upstream components) act as the
+source of truth.
+
+## Output shape
+
+A single JSON file, structurally:
+
+```jsonschema
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id":     "https://github.com/DataDog/datadog-agent/comp/otelcol/.../collector-config.schema.json",
+  "title":   "Datadog OpenTelemetry Collector configuration",
+  "type":    "object",
+  "$defs": {
+    "components": {
+      "receivers":  { "otlp":     { ... }, "prometheus": { ... }, ... },
+      "processors": { "batch":    { ... }, ... },
+      "exporters":  { "datadog":  { ... }, ... },
+      "connectors": { ... },
+      "extensions": { ... }
+    },
+    "common": {
+      "exporterhelper.timeout_config": { ... },
+      "confighttp.client_config":      { ... },
+      "configtls.client_config":       { ... },
+      ...
+    }
+  },
+  "properties": {
+    "receivers":  { ... patternProperties keyed on component type ... },
+    "processors": { ... },
+    "exporters":  { ... },
+    "connectors": { ... },
+    "extensions": { ... },
+    "service":    { ... pipelines, telemetry, extensions ... }
+  }
+}
+```
+
+Per-component blocks use `patternProperties` to honour the Collector's
+`<type>[/<instance>]` key convention:
+
+```jsonschema
+"receivers": {
+  "type": "object",
+  "patternProperties": {
+    "^otlp(/.*)?$":       { "$ref": "#/$defs/components/receivers/otlp" },
+    "^prometheus(/.*)?$": { "$ref": "#/$defs/components/receivers/prometheus" }
+  },
+  "additionalProperties": false
+}
+```
+
+`service.pipelines.<name>` follows the same pattern, keyed on
+`^(traces|metrics|logs|profiles)(/.*)?$`. The `receivers` / `processors`
+/ `exporters` arrays inside each pipeline are `type: array, items: type:
+string`; cross-checking those instance names against the top-level keys
+is dynamic and beyond what JSON Schema can express natively.
+
+## Inputs
+
+1. **OCB manifest** —
+   `comp/otelcol/collector-contrib/impl/manifest.yaml`. Each
+   `gomod`-style entry resolves to a directory in the Go module cache
+   (`~/go/pkg/mod/...`) that ships both `metadata.yaml` (gives the YAML
+   `type:` key and component class) and `config.schema.yaml` (the schema
+   body).
+2. **Local repo schemas** — `comp/otelcol/**/config.schema.yaml`
+   (currently 6 files, courtesy of PR #50408).
+3. **Upstream Datadog config** —
+   `pkg/datadog/config/config.schema.yaml` from
+   `opentelemetry-collector-contrib`. Used as the schema for both
+   `datadogexporter` and `datadogconnector`, since the local exporter
+   reuses the upstream `Config` struct directly.
+4. **Shared Collector-core types** — `confighttp.client_config`,
+   `confighttp.server_config`, `configtls.client_config`,
+   `exporterhelper.timeout_config`, `exporterhelper.queue_batch_config`,
+   etc. Live in `go.opentelemetry.io/collector/...` modules and are
+   resolved transitively from per-component `$ref`s.
+5. **Top-level Collector envelope** — hand-written. There is no formal
+   upstream schema for the `receivers:`/`service:` skeleton, and
+   reverse-engineering it from `service.Config` is unreliable because
+   the Collector decodes that block dynamically.
+
+## Tool
+
+- Build a Python module under `tasks/libs/otelcol_schema/`.
+- Wire a thin invoke task on top: `dda inv otelcol.gen-config-schema`.
+
+Pseudocode for the conversion pipeline:
+
+```python
+manifest = parse_manifest(manifest_yaml_path)
+
+for component in manifest:
+    module_dir          = resolve_go_module(component.gomod, component.version)
+    component.metadata  = read_yaml(module_dir / "metadata.yaml")
+    component.schema    = read_yaml(module_dir / "config.schema.yaml")  # or local override
+
+local_components = scan_local("comp/otelcol/**/config.schema.yaml")
+all_components   = merge(manifest_components, local_components)
+
+# Walk every $ref, resolve transitive deps from go module cache
+defs_registry = collect_transitive_refs(all_components)
+
+# Rewrite "/pkg/datadog/config.api_config" or
+# "github.com/.../pkg/datadog/config.api_config" to
+# "#/$defs/common/<id>"
+canonical = rewrite_refs(all_components, defs_registry)
+
+# Hand-written envelope template
+envelope = load_template("collector_envelope.jsonschema.json")
+
+# Stitch components into the envelope's patternProperties
+output = stitch(envelope, canonical, defs_registry)
+
+# Self-validate against the JSON Schema meta-schema
+jsonschema.Draft202012Validator.check_schema(output)
+
+write_json(output_path, output)
+```
+
+## Invoke task surface
+
+```
+dda inv otelcol.gen-config-schema [--output=<path>] [--check]
+```
+
+`--check` regenerates the bundle and diffs against a checked-in
+`<path>/collector-config.schema.json`. Wire into CI to keep the schema
+in lockstep with the YAML sources.
+
+## Milestones
+
+| M | Deliverable | Why first |
+|---|-------------|-----------|
+| **M1** | Component inventory: parse manifest + scan local; report what has a `config.schema.yaml` and what does not | Surfaces missing-schema gaps before we invest in conversion |
+| **M2** | Single-component converter: take one `config.schema.yaml` → valid JSON Schema fragment with rewritten `$ref` | Smallest unit; easy to unit-test against the 6 local schemas |
+| **M3** | Transitive `$ref` walker + `$defs` registry + collision handling for upstream-core types (`confighttp`, `configtls`, `exporterhelper`) | The interesting graph problem; failure modes here drive design |
+| **M4** | Top-level envelope (hand-written) + stitching | Once components and registry work, this is mostly templating |
+| **M5** | Invoke task + `--check` mode + self-validation against meta-schema | Productionising |
+
+## Open decisions
+
+These should be locked down before — or at the latest during — M2.
+
+1. **Top-level envelope source.** Hand-write (recommended — small, stable,
+   predictable) vs schemagen against `service.Config` from upstream
+   (less manual, but uncertain correctness because that struct decodes
+   dynamically).
+2. **Strictness.** `additionalProperties: false` everywhere catches typos
+   but breaks the moment a feature-gated field appears upstream.
+   `additionalProperties: true` is permissive but lets typos through.
+   Middle ground: `false` at the envelope level (top-level keys are
+   well-known), `true` inside individual component bodies.
+3. **Missing-schema fallback.** When a manifest entry has no
+   `config.schema.yaml`: (a) skip it, (b) emit
+   `additionalProperties: true` for that component, or (c) hard-fail.
+   Recommended: (b) — graceful, keeps the bundle complete, surfaces gaps
+   via a generated report.
+4. **`x-pointer` / `x-optional` / `x-customType` extensions.**
+   Pass through verbatim (valid JSON Schema; ignored by spec-only
+   consumers), map to standard JSON Schema where possible (`x-optional`
+   → `type: [X, "null"]`; `x-pointer` is purely informational), or
+   strip? Recommended: pass-through.
+5. **JSON Schema draft.** `2020-12` is current. `Draft 7` has wider
+   IDE/validator coverage. Some validators only support `Draft 4`.
+   Recommended: ship `2020-12` for v1; revisit compat emission if a
+   consumer needs older drafts.
+6. **Tool language.** Python invoke task (recommended — the repo's task
+   language; cheap to build) vs Go CLI (single binary, could double as a
+   pre-flight validator at agent startup). Not mutually exclusive — start
+   Python, port to Go later if there is a runtime use case.
+
+## Risks worth flagging
+
+- **Upstream schema coverage is incomplete.** `cmd/schemagen` is in
+  active rollout in `opentelemetry-collector-contrib`; not every
+  component listed in the manifest has a `config.schema.yaml` today.
+  See decision (3) for the fallback strategy.
+- **Schemagen's known quirks.** Embedded pointer fields and embedded
+  fields with non-squash `mapstructure` keys both produce broken output
+  and need hand-tuning. The quirks are documented in
+  [`comp/otelcol/.schemagen.yaml`](../../../comp/otelcol/.schemagen.yaml).
+- **Cross-key validation.** Names declared in `service.pipelines.*.receivers`
+  must match keys under `receivers:`. JSON Schema can't express that
+  natively. The bundle will validate shape, not consistency; users will
+  see "missing receiver" errors only at agent startup.
+- **Bundle size.** Inlining transitive defs for every component will
+  produce a multi-megabyte schema. Acceptable for tooling consumption,
+  but worth confirming no consumer expects something tiny.
+
+## Suggested first step
+
+**M1 alone** is a half-day-or-so deliverable that gives full visibility
+into the problem before committing to the full pipeline:
+
+- How many components in `manifest.yaml` are present in the cache?
+- How many of those have `config.schema.yaml`?
+- What `$ref` targets do they collectively reach?
+- How many of those targets resolve, and how many dangle?
+
+The output is a small inventory report and a list of unresolved refs.
+This lets us validate or revise decisions (3) and (4) — and the overall
+scope estimate — before any real conversion work.
