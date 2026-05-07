@@ -19,10 +19,8 @@ pkg/config/schema/*.yaml text eol=lf
 pkg/config/schema/compressed/*.zstd binary -diff -merge linguist-generated=true
 pkg/security/probe/constantfetch/btfhub/constants.json -diff -merge linguist-generated=true
 pkg/security/seclwin/** -diff -merge linguist-generated=true
-# CWS doc artifacts are generated on Linux (LF). The Bazel write_source_file
-# diff_test does a byte-exact comparison, so the worktree must stay LF on
-# Windows too — otherwise core.autocrlf=true rewrites them to CRLF and the
-# test fails even though `git diff` reports no change.
+# CWS doc JSON is generated as LF on Linux; force LF on Windows too 
+# so Bazel's byte-exact diff_test doesn't trip on core.autocrlf-rewritten CRLF.
 docs/cloud-workload-security/** text eol=lf
 # Fixtures should have LF line endings because they are checked against OCI packages built on Linux
 pkg/fleet/installer/fixtures/** text=auto eol=lf
