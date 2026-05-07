@@ -37,8 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 xz_thread = Some(thread::spawn(move || {
                     let mut reader = io::BufReader::new(file);
                     let mut writer = pipe_writer;
-                    lzma_rs::xz_decompress(&mut reader, &mut writer)
-                        .map_err(|e| e.to_string())
+                    lzma_rs::xz_decompress(&mut reader, &mut writer).map_err(|e| e.to_string())
                 }));
                 Box::new(pipe_reader)
             } else {
