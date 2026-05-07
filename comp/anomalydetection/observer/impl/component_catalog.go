@@ -338,55 +338,6 @@ func kindString(k componentKind) string {
 	}
 }
 
-// catalogEnabledDetectors returns the enabled Detector instances from a components map.
-// SeriesDetector implementations are wrapped with seriesDetectorAdapter.
-func catalogEnabledDetectors(components map[string]*componentInstance, catalog *componentCatalog) []observerdef.Detector {
-	var result []observerdef.Detector
-	// Iterate in catalog order for deterministic ordering
-	for _, entry := range catalog.entries {
-		ci, ok := components[entry.name]
-		if !ok || !ci.enabled || ci.entry.kind != componentDetector {
-			continue
-		}
-		if d, ok := ci.instance.(observerdef.Detector); ok {
-			result = append(result, d)
-		} else if sd, ok := ci.instance.(observerdef.SeriesDetector); ok {
-			result = append(result, newSeriesDetectorAdapter(sd, defaultAggregations))
-		}
-	}
-	return result
-}
-
-// catalogEnabledExtractors returns the enabled LogMetricsExtractor instances from a components map.
-func catalogEnabledExtractors(components map[string]*componentInstance, catalog *componentCatalog) []observerdef.LogMetricsExtractor {
-	var result []observerdef.LogMetricsExtractor
-	for _, entry := range catalog.entries {
-		ci, ok := components[entry.name]
-		if !ok || !ci.enabled || ci.entry.kind != componentExtractor {
-			continue
-		}
-		if ext, ok := ci.instance.(observerdef.LogMetricsExtractor); ok {
-			result = append(result, ext)
-		}
-	}
-	return result
-}
-
-// catalogEnabledCorrelators returns the enabled Correlator instances from a components map.
-func catalogEnabledCorrelators(components map[string]*componentInstance, catalog *componentCatalog) []observerdef.Correlator {
-	var result []observerdef.Correlator
-	for _, entry := range catalog.entries {
-		ci, ok := components[entry.name]
-		if !ok || !ci.enabled || ci.entry.kind != componentCorrelator {
-			continue
-		}
-		if cor, ok := ci.instance.(observerdef.Correlator); ok {
-			result = append(result, cor)
-		}
-	}
-	return result
-}
-
 // statelessDetectorAllowlist enumerates catalog detectors that are explicitly
 // permitted to NOT implement observerdef.SeriesRemover. A stateless detector
 // keeps no per-series state (no posterior maps, no segment trackers, no

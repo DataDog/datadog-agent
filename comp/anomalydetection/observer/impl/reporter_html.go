@@ -920,28 +920,6 @@ func (r *HTMLReporter) handleAPISeries(w http.ResponseWriter, req *http.Request)
 	w.Write(data)
 }
 
-// escapeHTML escapes special HTML characters.
-func escapeHTML(s string) string {
-	var result []byte
-	for i := 0; i < len(s); i++ {
-		switch s[i] {
-		case '&':
-			result = append(result, []byte("&amp;")...)
-		case '<':
-			result = append(result, []byte("&lt;")...)
-		case '>':
-			result = append(result, []byte("&gt;")...)
-		case '"':
-			result = append(result, []byte("&quot;")...)
-		case '\'':
-			result = append(result, []byte("&#39;")...)
-		default:
-			result = append(result, s[i])
-		}
-	}
-	return string(result)
-}
-
 // seriesListItem is metadata about an available series.
 type seriesListItem struct {
 	Namespace string   `json:"namespace"`

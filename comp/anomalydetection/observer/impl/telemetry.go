@@ -142,15 +142,6 @@ func (h *telemetryHandler) isMetricRegistered(metricName string) bool {
 	return ok
 }
 
-// isCounterMetric reports whether the storage metric name (no :agg suffix) is a registered counter.
-func (h *telemetryHandler) isCounterMetric(name string) bool {
-	if h == nil {
-		return false
-	}
-	_, ok := h.telemetryCounters[name]
-	return ok
-}
-
 // detectorNameFromTags returns the value of the first "detector:" tag, for ObserverTelemetry.DetectorName.
 func detectorNameFromTags(tags []string) string {
 	const prefix = "detector:"
