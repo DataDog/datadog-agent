@@ -49,7 +49,7 @@ func writerTest(t *testing.T, z bool) {
 
 	// register pools
 
-	manager := packets.NewPoolManager[packets.Packet](packets.NewPool(cfg.GetInt("dogstatsd_buffer_size"), telemetryStore))
+	manager := packets.NewPoolManager[packets.Packet](packets.NewPool(cfg, cfg.GetInt("dogstatsd_buffer_size"), telemetryStore))
 	oobManager := packets.NewPoolManager[[]byte](ddsync.NewSlicePool[byte](32, 32))
 
 	require.NoError(t, writer.RegisterSharedPoolManager(manager))

@@ -154,6 +154,20 @@ var testCases = []struct {
 	{name: "contains arity 0", input: `{"contains": []}`},
 	{name: "contains arity 1", input: `{"contains": [{"ref": "m"}]}`},
 	{name: "contains arity 3", input: `{"contains": [{"ref": "m"}, "k", 1]}`},
+	// Nested forms of the inequality operators.
+	{name: "gt with len", input: `{"gt": [{"len": {"ref": "s"}}, 5]}`},
+	{name: "lt with getmember", input: `{"lt": [{"getmember": [{"ref": "x"}, "I32"]}, 100]}`},
+	{name: "ge with float", input: `{"ge": [{"ref": "x"}, 3.14]}`},
+	{name: "le with string", input: `{"le": [{"ref": "name"}, "hello"]}`},
+	{name: "ne with null", input: `{"ne": [{"ref": "p"}, null]}`},
+	{name: "and with gt and le", input: `{"and": [{"gt": [{"ref": "x"}, 1]}, {"le": [{"ref": "x"}, 10]}]}`},
+	// Arity error cases for the inequality operators.
+	{name: "lt arity 0", input: `{"lt": []}`},
+	{name: "le arity 1", input: `{"le": [{"ref": "x"}]}`},
+	{name: "gt arity 3", input: `{"gt": [1, 2, 3]}`},
+	{name: "ge arity 3", input: `{"ge": [{"ref": "x"}, 1, 2]}`},
+	{name: "ne arity 0", input: `{"ne": []}`},
+	{name: "eq arity 0", input: `{"eq": []}`},
 }
 
 // exprResult represents the result of parsing an expression for storage in JSON.
@@ -191,6 +205,26 @@ func exprToResult(expr Expr, err error) exprResult {
 		left := exprToResult(e.Left, nil)
 		right := exprToResult(e.Right, nil)
 		return exprResult{Type: "eq", Left: &left, Right: &right}
+	case *NeExpr:
+		left := exprToResult(e.Left, nil)
+		right := exprToResult(e.Right, nil)
+		return exprResult{Type: "ne", Left: &left, Right: &right}
+	case *LtExpr:
+		left := exprToResult(e.Left, nil)
+		right := exprToResult(e.Right, nil)
+		return exprResult{Type: "lt", Left: &left, Right: &right}
+	case *LeExpr:
+		left := exprToResult(e.Left, nil)
+		right := exprToResult(e.Right, nil)
+		return exprResult{Type: "le", Left: &left, Right: &right}
+	case *GtExpr:
+		left := exprToResult(e.Left, nil)
+		right := exprToResult(e.Right, nil)
+		return exprResult{Type: "gt", Left: &left, Right: &right}
+	case *GeExpr:
+		left := exprToResult(e.Left, nil)
+		right := exprToResult(e.Right, nil)
+		return exprResult{Type: "ge", Left: &left, Right: &right}
 	case *IndexExpr:
 		base := exprToResult(e.Base, nil)
 		index := exprToResult(e.Index, nil)
@@ -323,10 +357,10 @@ func TestParse(t *testing.T) {
 				actualJSON, _ := json.Marshal(actualResult)
 				expectedJSON, _ := json.Marshal(expectedResult)
 				require.JSONEq(t, string(expectedJSON), string(actualJSON), "index expression mismatch")
-			case *EqExpr:
+			case *EqExpr, *NeExpr, *LtExpr, *LeExpr, *GtExpr, *GeExpr:
 				actualJSON, _ := json.Marshal(actualResult)
 				expectedJSON, _ := json.Marshal(expectedResult)
-				require.JSONEq(t, string(expectedJSON), string(actualJSON), "eq expression mismatch")
+				require.JSONEq(t, string(expectedJSON), string(actualJSON), "comparison expression mismatch")
 			case *LiteralExpr:
 				actualJSON, _ := json.Marshal(actualResult)
 				expectedJSON, _ := json.Marshal(expectedResult)
@@ -376,6 +410,11 @@ func TestRewrite(t *testing.T) {
 			&UnsupportedExpr{Operation: "foo", Argument: nil},
 			&GetMemberExpr{Base: &RefExpr{Ref: "x"}, Member: "f"},
 			&EqExpr{Left: &RefExpr{Ref: "a"}, Right: &LiteralExpr{Value: int64(1)}},
+			&NeExpr{Left: &RefExpr{Ref: "a"}, Right: &LiteralExpr{Value: int64(1)}},
+			&LtExpr{Left: &RefExpr{Ref: "a"}, Right: &LiteralExpr{Value: int64(1)}},
+			&LeExpr{Left: &RefExpr{Ref: "a"}, Right: &LiteralExpr{Value: int64(1)}},
+			&GtExpr{Left: &RefExpr{Ref: "a"}, Right: &LiteralExpr{Value: int64(1)}},
+			&GeExpr{Left: &RefExpr{Ref: "a"}, Right: &LiteralExpr{Value: int64(1)}},
 			&IndexExpr{Base: &RefExpr{Ref: "a"}, Index: &LiteralExpr{Value: int64(0)}},
 			&LenExpr{Operand: &RefExpr{Ref: "s"}},
 			&IsEmptyExpr{Operand: &RefExpr{Ref: "s"}},
@@ -444,6 +483,35 @@ func TestRewrite(t *testing.T) {
 		}, out)
 	})
 
+	t.Run("rewrites both sides of inequality nodes", func(t *testing.T) {
+		// Each new comparison node type recurses into Left and Right and
+		// rebuilds when either child changed.
+		factories := []struct {
+			name string
+			make func(left, right Expr) Expr
+		}{
+			{"NeExpr", func(l, r Expr) Expr { return &NeExpr{Left: l, Right: r} }},
+			{"LtExpr", func(l, r Expr) Expr { return &LtExpr{Left: l, Right: r} }},
+			{"LeExpr", func(l, r Expr) Expr { return &LeExpr{Left: l, Right: r} }},
+			{"GtExpr", func(l, r Expr) Expr { return &GtExpr{Left: l, Right: r} }},
+			{"GeExpr", func(l, r Expr) Expr { return &GeExpr{Left: l, Right: r} }},
+		}
+		for _, f := range factories {
+			t.Run(f.name, func(t *testing.T) {
+				in := f.make(&RefExpr{Ref: "a"}, &RefExpr{Ref: "b"})
+				out := Rewrite(in, func(e Expr) Expr {
+					if ref, ok := e.(*RefExpr); ok {
+						return &RefExpr{Ref: ref.Ref + "!"}
+					}
+					return nil
+				})
+				expected := f.make(&RefExpr{Ref: "a!"}, &RefExpr{Ref: "b!"})
+				require.Equal(t, expected, out)
+				require.NotSame(t, in, out)
+			})
+		}
+	})
+
 	t.Run("rewrites both sides of IndexExpr", func(t *testing.T) {
 		in := &IndexExpr{Base: &RefExpr{Ref: "a"}, Index: &LiteralExpr{Value: int64(0)}}
 		out := Rewrite(in, func(e Expr) Expr {
@@ -489,6 +557,11 @@ func TestRewrite(t *testing.T) {
 		cases := []Expr{
 			&GetMemberExpr{Base: &RefExpr{Ref: "x"}, Member: "f"},
 			&EqExpr{Left: &RefExpr{Ref: "a"}, Right: &RefExpr{Ref: "b"}},
+			&NeExpr{Left: &RefExpr{Ref: "a"}, Right: &RefExpr{Ref: "b"}},
+			&LtExpr{Left: &RefExpr{Ref: "a"}, Right: &RefExpr{Ref: "b"}},
+			&LeExpr{Left: &RefExpr{Ref: "a"}, Right: &RefExpr{Ref: "b"}},
+			&GtExpr{Left: &RefExpr{Ref: "a"}, Right: &RefExpr{Ref: "b"}},
+			&GeExpr{Left: &RefExpr{Ref: "a"}, Right: &RefExpr{Ref: "b"}},
 			&IndexExpr{Base: &RefExpr{Ref: "a"}, Index: &LiteralExpr{Value: int64(0)}},
 			&LenExpr{Operand: &RefExpr{Ref: "s"}},
 			&IsEmptyExpr{Operand: &RefExpr{Ref: "s"}},
@@ -622,6 +695,16 @@ func TestChildren(t *testing.T) {
 		idx := &LiteralExpr{Value: int64(0)}
 		root := &IndexExpr{Base: base, Index: idx}
 		require.Equal(t, []Expr{base, idx, root}, collect(root))
+	})
+
+	t.Run("visits inequality node Left then Right", func(t *testing.T) {
+		// Bottom-up traversal applies to each new comparison node identically
+		// to EqExpr. Sample one (LtExpr) here; other types share the Rewrite
+		// implementation and are covered by TestRewrite.
+		left := &RefExpr{Ref: "a"}
+		right := &LiteralExpr{Value: int64(1)}
+		root := &LtExpr{Left: left, Right: right}
+		require.Equal(t, []Expr{left, right, root}, collect(root))
 	})
 
 	t.Run("visits IsEmptyExpr operand", func(t *testing.T) {
