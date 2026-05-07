@@ -269,12 +269,12 @@ func TestHoltResidual_Name(t *testing.T) {
 
 // TestHoltResidual_InterfaceContracts checks the structural promises that
 // the catalog and engine both rely on: HoltResidualDetector must satisfy
-// observer.Detector AND manualSeriesRemover (it is stateful and is NOT
+// observer.Detector AND observer.SeriesRemover (it is stateful and is NOT
 // listed in statelessDetectorAllowlist).
 func TestHoltResidual_InterfaceContracts(_ *testing.T) {
 	d := NewHoltResidualDetector()
 	var _ observer.Detector = d
-	var _ manualSeriesRemover = d
+	var _ observer.SeriesRemover = d
 }
 
 // TestHoltResidual_IncrementalMatchesBatch verifies that streaming advances
