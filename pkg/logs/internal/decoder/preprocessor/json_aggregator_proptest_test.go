@@ -83,3 +83,81 @@ func TestAggregator_FlushPathsPreserveBytes(t *testing.T) {
 		}
 	})
 }
+
+// TestAggregator_StateInvariants anchors:
+//
+//	invariant BufferedSizeNonNegative
+//	    aggregation.buffered_size >= 0
+//
+//	invariant EmptyImpliesZeroSize
+//	    aggregation.is_empty implies aggregation.buffered_size = 0
+//
+// (The third state invariant — FragmentBackrefConsistent — is
+// structurally trivial in the Go implementation: buffered messages live
+// in the aggregator's own slice, so the backreference is the data
+// structure itself. No separate Go assertion is needed.)
+//
+// The property: after any sequence of Process and Flush calls with
+// arbitrary message content, the aggregator's accumulated state
+// respects both invariants. Driving arbitrary content (not just valid
+// JSON) exercises every rule path — FastPathEmit, BufferIncomplete,
+// EmitAggregated, FlushOnInvalid, FlushOnSizeLimit, DrainOnFlush —
+// without requiring the test to model which rule fires when. The
+// state invariants must hold across the whole rule set, so the test
+// only cares that they hold at every step, not which step produced them.
+//
+// A small max_content_size keeps FlushOnSizeLimit reachable in the
+// generated rotation; otherwise long incomplete-fragment runs would
+// always hit DrainOnFlush via the explicit Flush op instead.
+func TestAggregator_StateInvariants(t *testing.T) {
+	type opKind int
+	const (
+		opProcess opKind = iota
+		opFlush
+	)
+	type op struct {
+		kind    opKind
+		content string
+	}
+
+	// Bias toward Process so sequences accumulate state; sprinkle Flush
+	// to exercise the drain transition. Content is fully arbitrary —
+	// most random strings will drive FlushOnInvalid; some will be valid
+	// JSON; very few will compose into completable objects. The test is
+	// agnostic to which path each op takes.
+	opGen := rapid.Custom(func(t *rapid.T) op {
+		kind := rapid.SampledFrom([]opKind{opProcess, opProcess, opProcess, opFlush}).Draw(t, "kind")
+		if kind == opFlush {
+			return op{kind: opFlush}
+		}
+		return op{kind: opProcess, content: rapid.String().Draw(t, "content")}
+	})
+
+	rapid.Check(t, func(t *rapid.T) {
+		ops := rapid.SliceOfN(opGen, 1, 50).Draw(t, "ops")
+
+		agg := NewJSONAggregator(true, 100)
+		internal, ok := agg.(*jsonAggregator)
+		if !ok {
+			t.Fatalf("NewJSONAggregator returned %T, expected *jsonAggregator", agg)
+		}
+
+		for i, o := range ops {
+			switch o.kind {
+			case opProcess:
+				agg.Process(newTestMessage(o.content))
+			case opFlush:
+				agg.Flush()
+			}
+
+			if internal.currentSize < 0 {
+				t.Fatalf("BufferedSizeNonNegative violated after op %d: currentSize=%d",
+					i, internal.currentSize)
+			}
+			if agg.IsEmpty() && internal.currentSize != 0 {
+				t.Fatalf("EmptyImpliesZeroSize violated after op %d: IsEmpty=true but currentSize=%d",
+					i, internal.currentSize)
+			}
+		}
+	})
+}
