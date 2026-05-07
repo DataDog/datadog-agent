@@ -2,31 +2,37 @@
 
 ## Status
 
-Two PoCs implementing automatic configuration of agent integrations from container service info have been built and exercised end-to-end against krakend.
+Two PoCs implementing automatic configuration of agent integrations from container service info have been built and exercised end-to-end across nine integrations.
 
-- **PoC A** (`vitkyrka/disco-autoconfig`): new `discover()` classmethod on Python check classes called by AD via a dedicated Python bridge.
-- **PoC B** (`vitkyrka/disco-autoconfig-alt`): existing `check()` callback overloaded to handle a synthetic config carrying service info; trial-mode runner suppresses errors during probing.
-
-Both PoCs pass `krakend/tests/test_e2e.py::test_e2e_discovery` (agent picks up krakend container, probes 9090, emits `krakend.api.*` metrics). PoC B's e2e was confirmed by directly running `ddev env test --dev krakend py3.13-2.10 -- -k test_e2e_discovery` on `vitkyrka/disco-autoconfig-alt` (commit `bc5c4e05747`) on 2026-05-06. PoC A's e2e was confirmed during its construction on `vitkyrka/disco-autoconfig`.
-
-Beyond the success-path e2e, PoC B was also exercised against the `krakend-delayed` smoke (krakend container sleeps 60 s before listening, simulating the AD startup race). The first run revealed a missed integration point in `middleware.CheckWrapper`; with that fixed (commit `aa7f243d622`), the smoke shows the intended trial-mode behaviour: 4 consecutive probe failures during the 60 s sleep are emitted at DEBUG (`trial-mode check krakend:... failed (suppressing integration error)`), do not increment `integration_errors`, do not produce a critical service-check, and once krakend starts listening the next check tick succeeds and metrics flow normally. Final status: 7 total runs, 2 service checks total (post-listen only), no error reporting during the probing window. See the smoke trace in this commit for the full timeline.
+- **PoC A** (`vitkyrka/disco-autoconfig`): new `discover()` classmethod on Python check classes called by AD via a dedicated rtloader symbol + Python bridge.
+- **PoC B** (`vitkyrka/disco-autoconfig-alt`): existing check class instantiated normally with a synthetic config carrying service info; an `AgentCheck.__new__` dispatch routes such instances through a `_TrialModeProxy` that iterates `target_cls.generate_configs(service)` and commits the first candidate whose `check()` runs without an error.
 
 Both PoCs share merge-base `80e785f4d0ec` with `origin/main`.
+
+### E2E status (PoC B, all PASS as of 2026-05-07)
+
+`test_e2e_discovery` runs against the ddev e2e environment and asserts metrics/service-checks are emitted via the discovery flow:
+
+- krakend, boundary, cockroachdb, n8n, pulsar, ray, temporal — `test_e2e_discovery` PASS.
+- kuma — runs in a `kind` cluster; would need separate alt-PoC plumbing in conftest.
+- kong — no `test_e2e.py` exists in the repo.
+
+Beyond the success-path e2e, PoC B was also exercised against the `krakend-delayed` smoke (krakend container sleeps 60 s before listening, simulating the AD startup race). After fixing two bugs surfaced by the smoke (see "Findings" below), the trial-mode flow behaves as designed: probe failures during the 60 s sleep are emitted at DEBUG (`trial-mode check krakend:... failed (suppressing integration error)`), do not increment `integration_errors`, do not produce a critical service-check, and once krakend listens the next check tick succeeds and metrics flow normally.
 
 ## Quantitative comparison
 
 ### datadog-agent
 
-Measured via `git diff --shortstat origin/main..<branch>` over the touched subsystems (`comp/core/autodiscovery/`, `pkg/collector/python/`, `pkg/collector/worker/`, `rtloader/`):
+Measured via `git diff --shortstat origin/main..<branch>` over the touched subsystems (`comp/core/autodiscovery/`, `pkg/collector/python/`, `pkg/collector/worker/`, `comp/collector/`, `rtloader/`):
 
-| | PoC A | PoC B |
+|  | PoC A | PoC B |
 |---|---|---|
-| Files changed | 29 | 22 |
-| Lines inserted | +1353 | +437 |
-| Lines deleted | -103 | -97 |
-| Net LOC delta | +1250 | +340 |
+| Files changed | 29 | 23 |
+| Lines inserted | +1353 | +447 |
+| Lines deleted | −103 | −97 |
+| Net LOC delta | +1250 | +350 |
 
-Direct diff PoC A → PoC B: 28 files changed, +358 / -1268 (PoC B removes ~910 net LOC from PoC A's baseline).
+Direct diff PoC A → PoC B: PoC B removes ~900 net LOC from PoC A's baseline.
 
 **New files created (datadog-agent):**
 
@@ -37,7 +43,7 @@ PoC A creates 10 new production files:
 - `comp/core/autodiscovery/discoverer/python_bridge_nopython.go` (16 LOC)
 - `comp/core/autodiscovery/discoverer/types.go` (53 LOC)
 - `pkg/collector/python/discover.go` (107 LOC — cgo bridge)
-- New rtloader symbols: `run_discover` in `rtloader/three/three.cpp` (~46 LOC added) and `rtloader/include/rtloader.h`, `rtloader/include/datadog_agent_rtloader.h`, `rtloader/common/builtins/datadog_agent.c`
+- New rtloader symbols: `run_discover` in `rtloader/three/three.cpp` (~46 LOC) plus declarations in headers and `rtloader/common/builtins/datadog_agent.c`
 
 PoC B creates 2 new production files:
 - `comp/core/autodiscovery/autodiscoveryimpl/trial.go` (49 LOC)
@@ -45,69 +51,121 @@ PoC B creates 2 new production files:
 
 ### integrations-core
 
-Measured via `git diff --shortstat origin/master..<branch>` over `datadog_checks_base/datadog_checks/base/checks/openmetrics/`, `datadog_checks_base/datadog_checks/base/utils/discovery/`, `krakend/`:
+Measured via `git diff --shortstat origin/master..<branch>` over `datadog_checks_base/`, `datadog_checks_dev/`, and the nine seeded integrations:
 
-| | PoC A | PoC B |
+|  | PoC A | PoC B |
 |---|---|---|
-| Files changed | 16 | 16 |
-| Lines inserted | +457 | +433 |
-| Lines deleted | -5 | -4 |
+| Files changed | 67 | 67 |
+| Lines inserted | +832 | +845 |
+| Lines deleted | −48 | −52 |
 
-The integrations-core delta is nearly identical. Both PoCs add the same utility library (`discovery/http.py`, `ports.py`, `service.py`, `tcp.py`, `verifiers.py`). The difference is concentrated in:
-- PoC A adds `_bridge.py` (Python helper called from rtloader) and the `discover()` classmethod (~20 LOC) in `openmetrics/v2/base.py`.
-- PoC B adds ~40 LOC `__init__`/`check()`/`_configure_from_discovery` override directly in `krakend/datadog_checks/krakend/check.py`; the base class gets only a 6-line `__discovery_service__`-awareness stub in `openmetrics/v2/base.py` (optional convenience, not load-bearing).
+The integrations-core deltas are essentially identical. Both PoCs add the same `auto_conf_discovery.yaml` markers, the same `--discovery-min-instances` / `--discovery-timeout` test infrastructure, and the same shared utilities (`Service`/`Port` dataclasses, `candidate_ports`). The mechanism difference falls out cleanly:
+
+- PoC A adds a `_bridge.py` rtloader entry helper (54 LOC) and a `discover()` classmethod (~13 LOC) on `OpenMetricsBaseCheckV2`.
+- PoC B adds an `__new__` + `_TrialModeProxy` dispatch (~80 LOC) in `AgentCheck` and a `generate_configs` classmethod (~15 LOC) on `OpenMetricsBaseCheckV2`. It also removes the `is_prometheus_exposition()` / `http_probe()` verifier helpers' role in the discovery path — they remain in `utils/discovery/` but are no longer load-bearing (the actual scraper is the verifier).
+
+### Per-integration adoption cost (vs `origin/master`)
+
+|  Integration | PoC A check.py LOC | PoC B check.py LOC |
+|---|---|---|
+| krakend | 0 | 0 |
+| n8n | 0 | 0 |
+| pulsar | 1 (`DISCOVERY_PORT_HINTS = [8080]`) | 1 (same) |
+| ray | 1 (`[8080]`) | 1 (same) |
+| temporal | 1 (`[8000]`) | 1 (same) |
+| kuma | 1 (`[5680]`) | 1 (same) |
+| cockroachdb V2 | 2 (port hint + path) | 2 (same) |
+| boundary | 5 (port hint + classmethod `discover()` override for `health_endpoint`) | 8 (port hint + classmethod `generate_configs()` override) |
+| kong wrapper | 1 (delegate to V2 in `discover()`) | 5 (`__discovery_service__` clause in `__new__`, drop legacy `discover()`) |
+| cockroachdb wrapper | 1 (same) | 6 (same) |
+
+The per-integration story is **back to PoC A's level**. The earlier alt-PoC iteration (with placeholder URLs + `__init__` overrides + `_post_discovery_hook` + cached_property invalidation) added ~40 LOC to krakend and similar amounts to other integrations; that approach was discarded in favour of the `__new__` + proxy mechanism, which lets each candidate go through a fresh, full `__init__` of the target class — the cached state and config-model that integrations rely on simply work, no per-integration accommodation needed.
 
 ## Architectural differences
 
-**Python entry points.** PoC A adds `_run_discover` in `datadog_checks_base/datadog_checks/base/utils/discovery/_bridge.py` as a fixed entry point called by name from `rtloader/three/three.cpp:509`. It also adds `run_discover` as a new rtloader C API symbol (`rtloader/include/datadog_agent_rtloader.h`, `rtloader/include/rtloader.h`, `rtloader/common/builtins/datadog_agent.c`). Any integration that defines `DISCOVERY_PORT_HINTS` or overrides `discover()` goes through this path. PoC B adds no new rtloader symbol; the existing `run_check` path handles everything.
+**Python entry points.** PoC A adds `_run_discover` in `datadog_checks_base/.../discovery/_bridge.py` as a fixed entry point called by name from `rtloader/three/three.cpp`. It also adds `run_discover` as a new rtloader C API symbol (`rtloader/include/datadog_agent_rtloader.h`, `rtloader/include/rtloader.h`, `rtloader/common/builtins/datadog_agent.c`). PoC B adds zero rtloader symbols; the existing `run_check` path handles everything.
 
-**AD goroutine.** PoC A adds `discoveryRetryLoop` (`autoconfig.go:822`), a 5 s ticker that calls `cfgMgr.retryPendingDiscoveries()` in a loop. The `AutoConfig` struct gains a `discoveryRetryStop chan struct{}` field. PoC B adds no goroutine; the check runner's existing tick at `min_collection_interval` (default 15 s) is the retry mechanism.
+**AD goroutine.** PoC A adds `discoveryRetryLoop`, a 5 s ticker that calls `cfgMgr.retryPendingDiscoveries()`. The `AutoConfig` struct gains a `discoveryRetryStop` channel. PoC B adds zero goroutines; the check runner's existing tick at `min_collection_interval` is the retry mechanism.
 
-**AD mutex held during probes.** PoC A: `resolveTemplateForService` (called with `cm.m` held — see `configmgr.go` comment "This method must be called with cm.m locked") calls `cm.discoverer.Discover` (`configmgr.go:494`), which crosses into Python synchronously. Every HTTP probe — including retries triggered by `discoveryRetryLoop` → `retryPendingDiscoveries` → `resolveTemplateForService` — blocks the configmgr mutex for the duration of the probe (typically <1 s, but up to several seconds on timeout). With many services this serializes all AD operations behind each probe. PoC B: `resolveTemplateForService` (`configmgr.go:420`) builds a synthetic config synchronously (dict construction, JSON marshal, secrets decrypt — microseconds) and returns. The probe runs later in the check runner goroutine with no AD lock held.
+**AD mutex held during probes.** PoC A's `resolveTemplateForService` is called with `cm.m` held and synchronously invokes `cm.discoverer.Discover` → Python `discover(service)` → HTTP probes. Every probe — initial and retries — holds the configmgr mutex. With many services this serializes all AD operations behind each probe (typically <1 s, but up to several seconds on timeout). PoC B's `resolveTemplateForService` builds the synthetic config in microseconds and returns; the actual scrape happens later in the runner with no AD lock held.
 
-**Multi-instance support.** PoC A's bridge already returns a `list[dict]` from `discover()`. The current single-instance gate is an explicit `if len(result.Configs) > 1 { log.Warnf(...) }` at `configmgr.go`; removing it is a one-line change. PoC B is structurally single-instance per `(service, integration)` pair because it schedules one check per service — each check carries one instance.
+**Probe-vs-scraper asymmetry.** PoC A's `discover()` uses `is_prometheus_exposition()` (or a similar verifier) to decide if a candidate endpoint is "Prometheus enough"; the scraper that runs later may have stricter requirements. The verifier and scraper can drift over time. PoC B's trial proxy runs the actual scraper as the verifier — the first candidate whose `check()` completes without raising is the winner. There is no asymmetry possible.
 
-**Error suppression.** PoC A never schedules the check until `discover()` returns a config, so the normal error reporting path is never triggered by a probe failure. PoC B adds ~22 LOC in `pkg/collector/worker/worker.go:213-232` and `pkg/collector/worker/trial.go` to detect `IsTrialMode()` checks, suppress `integration_errors`, suppress the service check, suppress `log.Error`, and notify AD. The suppression uses a type assertion (`interface{ IsTrialMode() bool }`) which is safe: non-trial checks are unaffected because the assertion fails.
+**Multi-instance support.** PoC A's bridge already returns a `list[dict]` from `discover()`; the current single-instance gate is an explicit one-line warn-and-truncate at `configmgr.go:508`. Removing it requires a small scheduling-loop change. PoC B is structurally single-instance per `(service, integration)` pair: the proxy commits one winning candidate config and runs it forever. Supporting >1 instance per service would require either schedule-N-checks-per-service (a Go-side change) or a fan-out inside one `check()` call (not supported by the AgentCheck contract today).
 
-**State machinery.** PoC A's `discoverer/cache.go` tracks 4 states per `(svcID, integration)`: `stateMiss`, `stateHit`, `statePending`, `stateGivenUp`. The cache enforces the retry schedule (2×5s + 8×30s = 250s window; give up on the 11th failure) and prevents re-probing until `nextRetryAt`. Total: `cache.go` 110 LOC + `discoverer.go` 164 LOC + `types.go` 53 LOC. PoC B's `trial.go` (49 LOC) tracks a single integer per `checkid.ID`: consecutive failure count. After 5 consecutive failures AD unschedules the check. Retry timing is whatever `min_collection_interval` is configured to — default 15 s, giving ~75 s to 5 failures.
+**Error suppression.** PoC A never schedules the check until `discover()` returns a config, so the normal error reporting path is never triggered by a probe failure. PoC B adds ~22 LOC in `pkg/collector/worker/worker.go` and `pkg/collector/worker/trial.go` to detect `IsTrialMode()` checks, suppress `integration_errors`, suppress the service check, suppress `log.Error`, and notify AD via `RecordTrialResult`. The suppression uses a type assertion (`interface{ IsTrialMode() bool }`) — non-trial checks are unaffected because the assertion fails.
+
+**State machinery.** PoC A's `discoverer/cache.go` tracks 4 states per `(svcID, integration)`: `stateMiss`, `stateHit`, `statePending`, `stateGivenUp`. The cache enforces a fixed retry schedule (2×5s + 8×30s = 250 s, give up on the 11th failure) and prevents re-probing until `nextRetryAt`. Total: 327 LOC across `cache.go` + `discoverer.go` + `types.go`. PoC B's `trial.go` (49 LOC) tracks a single integer per `checkid.ID`: consecutive failure count. After 5 failures, AD unschedules the check. Retry timing is `min_collection_interval × threshold` (default 75 s at 15 s × 5).
+
+**Per-integration code surface.** PoC A places its discovery hook on the integration's check class (`@classmethod discover(cls, service)`). PoC B places it on the integration's check class (`@classmethod generate_configs(cls, service_dict)`). Same shape, slightly different signature (PoC B yields candidate complete instance dicts rather than returning a list). Boundary's "derive a related field from the resolved endpoint" pattern is a `super().<method>()` + post-processing override in both PoCs — same lines of code.
 
 ## Tradeoffs
 
-| Concern | PoC A (`discover()`) | PoC B (`check()` reuse) |
+| Concern | PoC A (`discover()`) | PoC B (`__new__` + `generate_configs`) |
 |---|---|---|
-| New Python rtloader symbol | Yes — `run_discover`/`_run_discover` in rtloader C and Python | None |
+| New rtloader C symbol | Yes (`run_discover`) | None |
 | New Go package | `comp/core/autodiscovery/discoverer/` (~460 LOC, 5 files) | None |
-| New agent-side files total | 10 new production files | 2 new production files |
+| New agent-side production files | 10 | 2 |
+| Net agent-side LOC vs main | +1250 | +350 |
 | New AD goroutine | `discoveryRetryLoop` (5 s ticker) | None |
-| AD mutex held during probe | Yes — every probe (initial + retries) blocks all AD | No — synthetic config built in microseconds; probe runs in runner |
+| AD mutex held during probe | Yes — every probe blocks all AD | No — synthetic config built in microseconds |
 | Concurrent probes | Serialized behind `cm.m` | Parallel up to runner pool size |
-| Retry window | Bespoke schedule: 2×5s + 8×30s = 250s (10 retry slots, give up on 11th failure) | Free — `min_collection_interval` × threshold (default 75s at 15s×5) |
-| Multi-instance support | Structurally extensible (1-line gate removal) | Structurally single-instance per service per integration |
+| Probe verifier matches scrape semantics | No (separate `is_prometheus_exposition` etc.) | Yes (the scraper IS the verifier) |
+| Retry window | Bespoke schedule: 2×5s + 8×30s = 250 s | Free — `min_collection_interval × threshold` (default 75 s) |
+| Multi-instance support | Structurally extensible (1-line gate removal) | Structurally single-instance per service |
 | Error suppression | Not needed | ~22 LOC in worker; silent on failure but auditable |
-| Per-integration code (krakend) | `DISCOVERY_PORT_HINTS = [9090]` — 1 line added to existing class | `__init__` + `check()` + `_configure_from_discovery` — ~40 LOC new methods |
-| Integration testability | `KrakendCheck.discover(mock_service)` — pure function, no instance needed | Instantiate check with mock config, call `check()`, inspect scraper state |
-| Integration migration cost | Low: set `DISCOVERY_PORT_HINTS` on any `OpenMetricsBaseCheckV2` subclass | Medium: implement `check()` override + endpoint-injection pattern each time |
+| Per-integration code (typical) | 0–1 lines (port hint) | 0–1 lines (port hint) |
+| Per-integration code (boundary-style outlier) | ~5 lines (`super().discover()` + post-process) | ~5 lines (`super().generate_configs()` + post-process) |
+| Integration unit-test ergonomics | `Cls.discover(mock_service)` — pure-function | Instantiate `Cls(name, init_config, [trial_instance])`, run, inspect |
+
+## Findings from running the PoC end-to-end
+
+These were not anticipated by the original design but became apparent when the implementation was exercised against real test environments. They are PoC B-specific (PoC A has its own different set of edge cases, but those weren't surfaced because PoC A's per-integration adoption is shallower).
+
+### 1. `middleware.CheckWrapper` doesn't forward `IsTrialMode` (datadog-agent fix)
+
+`collectorImpl.RunCheck` wraps every check in a `middleware.CheckWrapper` (`comp/collector/collector/collectorimpl/internal/middleware/check_wrapper.go`) before handing it to the scheduler. The wrapper only forwards methods of the `check.Check` interface. The worker's anonymous-interface assertion `check.(interface{ IsTrialMode() bool })` therefore returned `ok=false` for the wrapped check, and the suppression branch never fired — failures were logged at ERROR and counted as integration errors. Fixed at `aa7f243d622` (10 LOC) by forwarding `IsTrialMode()` from the wrapper. **Lesson:** any layer between the loader and the worker that doesn't forward the trial-mode contract silently breaks suppression. There is exactly one such layer today; future ones must be considered.
+
+### 2. rtloader's "no subclasses" rule prevents dynamic proxy classes (Python finding)
+
+An earlier draft of PoC B's proxy was a dynamically-generated subclass `(_TrialModeMixin, target_cls)`. This worked for the first instantiation, but rtloader's check-class detector at `three.cpp:727` skips any AgentCheck subclass that itself has subclasses ("Agent integrations are supposed to have no subclasses"). After the first instantiation, `target_cls.__subclasses__()` returned the dynamic proxy class, causing the loader to fail to find `target_cls` on subsequent instantiations of the same integration. Replaced with a single fixed `_TrialModeProxy(AgentCheck)` that stashes `target_cls` as an instance attribute. **Lesson:** Python-level metaprogramming on AgentCheck subclasses interacts with the rtloader's class-detection heuristic in non-obvious ways. Stay leaf-class.
+
+### 3. `__new__` returning a non-subclass instance skips `__init__` (Python language gotcha)
+
+`_TrialModeProxy` is intentionally not a subclass of `target_cls` (per finding 2). Python's normal `__new__` → `__init__` chaining only fires `__init__` if the returned instance's class is a subclass of `cls`. Without that, `__init__` was silently skipped, so `_winner` was never set — the first `proxy.run()` raised `AttributeError`. Fixed by calling `proxy.__init__(*args, **kwargs)` explicitly in `__new__` before returning.
+
+### 4. `dd_agent_check` surfaces per-instance errors even with multi-match discovery (test-framework fix)
+
+Auto-discovery's `ad_identifiers` may match multiple containers (ray's case: head + 3 workers serve `/metrics`, but 2 task-runner containers using the same image don't). The agent's check command exits 0 once `discovery_min_instances` configs are *scheduled* — but the test fixture (`replay_check_run`) raised on any per-instance error. With trial-mode, errors from non-metric containers are expected. Added an `ignore_errors` parameter to `replay_check_run` and have `dd_agent_check` set it when `discovery_min_instances` is passed. **Side effect:** the test's metric/service-check assertions are now the source of truth, which is the right semantics for multi-match discovery.
+
+### 5. `discovery_min_instances` is a *scheduling* threshold, not a *success* threshold
+
+The agent's `WaitForConfigsFromAD` waits until `discovery_min_instances` configs are *scheduled* by AD; it then runs all scheduled configs once and returns. If the first-scheduled is a non-metric container, it runs (fails), and the agent exits before the head/worker containers have been scheduled. ray's `test_e2e_discovery` was therefore racy with `discovery_min_instances=1`. The test now uses `discovery_min_instances=6, discovery_timeout=60` to wait for all six matches. A more robust fix would be at the agent level (count *successful* runs, not scheduled configs), but that is out of scope for this PoC comparison.
 
 ## Recommendation
 
-Ship PoC B if multi-instance discovery is not a near-term requirement; revisit if it becomes one.
+Updated from the previous version of this doc. The original recommendation was conditional on whether multi-instance support was a near-term need. After the AgentCheck-level redesign, the per-integration cost gap that was the main concession of PoC B has closed: per-integration code is now matched line-for-line with PoC A.
 
-The primary operational argument for PoC B is the mutex. PoC A holds `cm.m` across every HTTP probe — initial and every retry. At scale (hundreds of containers per host) this serializes `processNewService`, `processDelService`, and config-reload events behind each probe. The issue is called out in PoC A's own design doc (`specs/2026-05-06-discover-retry-design.md`) as a known non-goal and deferred. PoC B eliminates the problem structurally: the synthetic config is built in microseconds and the probe runs without any lock.
+**Ship PoC B.** The deciding factors:
 
-PoC B's agent-side surface is substantially smaller: 2 new files vs 10, +340 net LOC vs +1250, no new rtloader C API, no new goroutine. The integrations-core delta is identical (both require the same utility library). The per-integration authoring overhead is real — ~40 LOC vs 1 line — but it is bounded, explicit, and follows a copy-paste pattern. For a small set of integrations (krakend, boundary, cockroachdb are already seeded) this is not a blocking concern.
+1. **No AD mutex blocking.** PoC A holds `cm.m` across every HTTP probe; at scale this serializes container events behind probe latency. PoC B does the synthetic-config build in microseconds; the actual scrape happens in the runner with no AD lock. This is a real operational gain that grows with deployment size, and PoC A's own design doc calls it out as a known non-goal.
+2. **No probe/scraper asymmetry.** PoC B uses the actual scraper as the verifier; PoC A uses a separate `is_prometheus_exposition()` predicate. Over time the predicate drifts from what the scraper actually accepts, leading to "the probe says yes but the scrape errors forever" failure modes. PoC B is structurally immune.
+3. **Smaller agent-side surface.** 2 new files vs. 10, +350 net LOC vs. +1250, no new rtloader C symbol, no new goroutine. Lower long-term maintenance load.
+4. **Per-integration cost matches PoC A.** Most integrations need 0–1 LOC. The boundary outlier needs ~5 LOC in both PoCs (same shape: `super().<method>()` + post-process).
 
-The error-suppression machinery in `worker.go` is the only PoC B code that requires ongoing audit. The type assertion is opt-in and does not change behavior for non-trial checks. The suppression paths are narrow (integration_errors, log.Error, service check) and covered by the e2e test. The `IsTrialMode()` interface should be documented so future worker refactors know it is a stability contract, not dead code.
+Multi-instance support remains the one place PoC A is structurally ahead. PoC A's bridge returns `list[dict]` today; flipping the single-instance gate is a one-line change. PoC B would need a design spike to handle >1 instance per service. If multi-instance is a near-term requirement (druid, tekton, torchserve), do the design spike before merging — but the trial-mode dispatch via `AgentCheck.__new__` is independently sound and the spike's outcome (e.g., yielding multiple winners from `generate_configs` and scheduling each) doesn't invalidate the architecture.
 
-The audit-cost concern was concretely demonstrated during smoke testing: the initial PoC B implementation passed unit tests and the krakend e2e (which only exercises the success path), but the `krakend-delayed` smoke test (`test/dockerfiles/discovery-dev/krakend-delayed/run_repro.sh`, 60 s startup delay) revealed that `collectorImpl.RunCheck` wraps every check in `middleware.CheckWrapper` (`comp/collector/collector/collectorimpl/internal/middleware/check_wrapper.go`) before handing it to the scheduler. The wrapper only forwards methods of the `check.Check` interface, so the worker's anonymous-interface assertion `check.(interface{ IsTrialMode() bool })` returned `ok=false` and the suppression branch never fired — failures were logged at ERROR and counted as integration errors. Fix: forward `IsTrialMode()` from the wrapper to the inner check (commit `aa7f243d622`, 10 LOC). Lesson: any wrapping or transforming layer between the loader and the worker that doesn't forward the trial-mode contract silently breaks suppression. There is exactly one such layer today (`CheckWrapper`); future ones must be considered when refactoring.
+Two operational items that should land alongside or shortly after a PoC B merge:
 
-Multi-instance (druid, tekton, torchserve) is the one place PoC A is structurally ahead. PoC A's bridge returns `list[dict]` today; PoC B would need a design to handle >1 discovered instance per service (one option: schedule N checks, one per discovered endpoint; another: allow list-returning `_configure_from_discovery`). If multi-instance is required in the next quarter, the PoC B approach warrants a design spike before committing to it.
+- **Document `IsTrialMode()` as a stability contract** in the SDK and worker code so future refactors don't silently break suppression (per finding 1).
+- **Consider tightening `discovery_min_instances` semantics** at the agent level to count successful runs rather than scheduled configs (per finding 5). This would let test authors use `discovery_min_instances=1` and rely on the agent to wait for at least one *useful* discovery, rather than tuning per integration.
 
 ## Code references
 
 ### datadog-agent
 
 **PoC A key files:**
-- `comp/core/autodiscovery/discoverer/discoverer.go` — Discoverer interface, Discover() impl, `defaultRetrySchedule`
+- `comp/core/autodiscovery/discoverer/discoverer.go` — Discoverer interface, `Discover()` impl, `defaultRetrySchedule`
 - `comp/core/autodiscovery/discoverer/cache.go` — 4-state cache with `nextRetryAt`
 - `comp/core/autodiscovery/discoverer/python_bridge.go` — cgo bridge to `run_discover` C symbol
 - `pkg/collector/python/discover.go` — `RunDiscover()` Go wrapper over rtloader
@@ -116,22 +174,50 @@ Multi-instance (druid, tekton, torchserve) is the one place PoC A is structurall
 - `comp/core/autodiscovery/autodiscoveryimpl/configmgr.go:494` — `cm.discoverer.Discover()` call site (inside `cm.m` lock)
 
 **PoC B key files:**
-- `comp/core/autodiscovery/autodiscoveryimpl/trial.go` — `trialRegistry`: consecutive-failure counter, 49 LOC
-- `pkg/collector/worker/trial.go` — `RegisterTrialResultCallback` / `notifyTrialResult`, 38 LOC
-- `comp/core/autodiscovery/autodiscoveryimpl/configmgr.go:420` — synthetic config builder, `TrialMode=true` set here
+- `comp/core/autodiscovery/autodiscoveryimpl/trial.go` — `trialRegistry`: consecutive-failure counter
+- `pkg/collector/worker/trial.go` — `RegisterTrialResultCallback` / `notifyTrialResult`
+- `comp/core/autodiscovery/autodiscoveryimpl/configmgr.go:420` — synthetic config builder, `TrialMode=true`
 - `pkg/collector/worker/worker.go:213` — `IsTrialMode()` detection, error suppression, `notifyTrialResult` call
+- `comp/collector/collector/collectorimpl/internal/middleware/check_wrapper.go` — `IsTrialMode()` forwarder (added)
 - `comp/core/autodiscovery/autodiscoveryimpl/autoconfig.go` — `trialRegistry` wired to `RegisterTrialResultCallback`; `RecordTrialResult` on unschedule
 
-### integrations-core (shared between both PoCs)
+### integrations-core
 
-- `datadog_checks_base/datadog_checks/base/utils/discovery/http.py` — `http_probe()`
-- `datadog_checks_base/datadog_checks/base/utils/discovery/verifiers.py` — `is_prometheus_exposition()`
-- `datadog_checks_base/datadog_checks/base/utils/discovery/ports.py` — `candidate_ports()`
+Shared between both PoCs:
 - `datadog_checks_base/datadog_checks/base/utils/discovery/service.py` — `Service` / `Port` dataclasses
+- `datadog_checks_base/datadog_checks/base/utils/discovery/ports.py` — `candidate_ports()`
+- Each integration's `data/auto_conf_discovery.yaml` and the `--discovery-*` flags in `datadog_checks_dev/.../e2e/docker.py`
 
 **PoC A only:**
-- `datadog_checks_base/datadog_checks/base/utils/discovery/_bridge.py` — `_run_discover()` entry point
-- `datadog_checks_base/datadog_checks/base/checks/openmetrics/v2/base.py` — `discover()` classmethod + `DISCOVERY_PORT_HINTS`/`DISCOVERY_METRICS_PATH` class vars
+- `datadog_checks_base/datadog_checks/base/utils/discovery/_bridge.py` — `_run_discover()` rtloader entry
+- `datadog_checks_base/datadog_checks/base/utils/discovery/{http,verifiers,tcp}.py` — probe helpers used by `discover()`
+- `datadog_checks_base/datadog_checks/base/checks/openmetrics/v2/base.py` — `discover()` classmethod
 
 **PoC B only:**
-- `krakend/datadog_checks/krakend/check.py` — `__init__` endpoint-injection, `check()` override, `_configure_from_discovery()` (~40 LOC new)
+- `datadog_checks_base/datadog_checks/base/checks/base.py` — `AgentCheck.__new__`, `_TrialModeProxy`, default `generate_configs`
+- `datadog_checks_base/datadog_checks/base/checks/openmetrics/v2/base.py` — `generate_configs` classmethod, `DISCOVERY_PORT_HINTS` / `DISCOVERY_METRICS_PATH` class attrs
+- `datadog_checks_dev/datadog_checks/dev/_env.py` and `.../plugin/pytest.py` — `replay_check_run` `ignore_errors` parameter
+
+**Boundary-style outlier (both PoCs, similar shape):**
+
+PoC A:
+```python
+@classmethod
+def discover(cls, service):
+    instances = super().discover(service)
+    if instances:
+        for instance in instances:
+            base = instance['openmetrics_endpoint'].rsplit('/', 1)[0]
+            instance['health_endpoint'] = f"{base}/health"
+    return instances
+```
+
+PoC B:
+```python
+@classmethod
+def generate_configs(cls, service_dict):
+    for cfg in super().generate_configs(service_dict):
+        base_url = cfg["openmetrics_endpoint"].rsplit('/', 1)[0]
+        cfg["health_endpoint"] = f"{base_url}/health"
+        yield cfg
+```
