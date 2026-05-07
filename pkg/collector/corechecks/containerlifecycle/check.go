@@ -109,7 +109,6 @@ func (c *Check) Run() error {
 
 	podFilter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceNodeOrchestrator).
-		SetEventType(workloadmeta.EventTypeUnset).
 		AddKind(workloadmeta.KindKubernetesPod).
 		Build()
 

@@ -59,6 +59,10 @@ func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 
 	for _, event := range evBundle.Events {
 		entityID := event.Entity.GetID()
+		log.Debugf("container_lifecycle processor: event %s/%s type=%v", entityID.Kind, entityID.ID, event.Type)
+		if pod, ok := event.Entity.(*workloadmeta.KubernetesPod); ok {
+			log.Debugf("container_lifecycle processor: pod %s has %d condition(s), creationTimestamp=%v, finishedAt=%v", entityID.ID, len(pod.Conditions), pod.CreationTimestamp, pod.FinishedAt)
+		}
 		handled := false
 		for _, h := range p.handlers {
 			if h.CanHandle(event) {
