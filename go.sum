@@ -2448,6 +2448,8 @@ dario.cat/mergo v1.0.2/go.mod h1:E/hbnu0NxMFBjpMIE34DRGLWqDy0g5FuKDhCb31ngxA=
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
 filippo.io/edwards25519 v1.1.0 h1:FNf4tywRC1HmFuKW5xopWpigGjJKiJSV0Cqo0cJWDaA=
 filippo.io/edwards25519 v1.1.0/go.mod h1:BxyFTGdWcka3PhytdK4V28tE5sGfRvvvRV7EaN4VDT4=
+filippo.io/edwards25519 v1.1.1 h1:YpjwWWlNmGIDyXOn8zLzqiD+9TyIlPhGFG96P39uBpw=
+filippo.io/edwards25519 v1.1.1/go.mod h1:BxyFTGdWcka3PhytdK4V28tE5sGfRvvvRV7EaN4VDT4=
 gioui.org v0.0.0-20210308172011-57750fc8a0a6/go.mod h1:RSH6KIUZ0p2xy5zHDxgAM4zumjgTw83q2ge/PI+yyw8=
 git.sr.ht/~sbinet/gg v0.3.1/go.mod h1:KGYtlADtqsqANL9ueOFkWymvzUvLMQllU5Ixo+8v3pc=
 github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 h1:/vQbFIOMbk2FiG/kXiLl8BRyzTWDw7gX/Hz7Dd5eDMs=
@@ -3171,6 +3173,8 @@ github.com/docker/go-units v0.5.0/go.mod h1:fgPhTUdO+D/Jk86RDLlptpiXQzgHJF7gydDD
 github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815/go.mod h1:WwZ+bS3ebgob9U8Nd0kOddGdZWjyMGR8Wziv+TBNwSE=
 github.com/duosecurity/duo_api_golang v0.0.0-20190308151101-6c680f768e74 h1:2MIhn2R6oXQbgW5yHfS+d6YqyMfXiu2L55rFZC4UD/M=
 github.com/duosecurity/duo_api_golang v0.0.0-20190308151101-6c680f768e74/go.mod h1:UqXY1lYT/ERa4OEAywUqdok1T4RCRdArkhic1Opuavo=
+github.com/duosecurity/duo_api_golang v0.0.0-20250430191550-ac36954387e7 h1:2QX96efe1AvKmqAdqeAn3efxI3lr+EULVbzRxZ/rKGQ=
+github.com/duosecurity/duo_api_golang v0.0.0-20250430191550-ac36954387e7/go.mod h1:hJ6IPTuCAvWv+i9ubnPZB3VpVRuj/+SAblWFcI0mjEU=
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
 github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
@@ -3894,6 +3898,8 @@ github.com/hashicorp/serf v0.10.2 h1:m5IORhuNSjaxeljg5DeQVDlQyVkhRIjJDimbkCa8aAc
 github.com/hashicorp/serf v0.10.2/go.mod h1:T1CmSGfSeGfnfNy/w0odXQUR1rfECGd2Qdsp84DjOiY=
 github.com/hashicorp/vault v1.21.2 h1:t6/vAAhgGvKukkIAQBUPenvfLiJ5oUm8CmOMa6tgUYQ=
 github.com/hashicorp/vault v1.21.2/go.mod h1:mjP/x4G0ueDLcOetPYypOmAIn+ofFDcahAX4LXaTH9c=
+github.com/hashicorp/vault v1.21.4 h1:KHGcdSnJtombvae1gDk+jZ50kiFngJPFDOvcCJRnU0c=
+github.com/hashicorp/vault v1.21.4/go.mod h1:KTaqpox1LUSI3vqfpCXO477nPEPOyLVan8JujzoIMvA=
 github.com/hashicorp/vault-plugin-auth-alicloud v0.22.0 h1:lukm7hwIDQfDyG6IyvBu2tcT6j2bRuyyo22sWqH4w50=
 github.com/hashicorp/vault-plugin-auth-alicloud v0.22.0/go.mod h1:QCuzE/JFqigUf4DyyWyYKq6bvf2dmRKUW340CTy+HZ0=
 github.com/hashicorp/vault-plugin-auth-azure v0.22.0 h1:xvRYu2Xirn6gl/GvhPei7DJgJDDTEvsxxEHkBxuj/Iw=
@@ -3952,6 +3958,8 @@ github.com/hashicorp/vault/api/auth/userpass v0.11.0 h1:iPw1PL6vzQTn2w14quKd0ZnJ
 github.com/hashicorp/vault/api/auth/userpass v0.11.0/go.mod h1:FZ/baZ5rhruevb6kED9eh9KhorGtwM+xxVBvtXSxZsY=
 github.com/hashicorp/vault/sdk v0.20.0 h1:a4ulj2gICzw/qH0A4+6o36qAHxkUdcmgpMaSSjqE3dc=
 github.com/hashicorp/vault/sdk v0.20.0/go.mod h1:xEjAt/n/2lHBAkYiRPRmvf1d5B6HlisPh2pELlRCosk=
+github.com/hashicorp/vault/sdk v0.21.0 h1:3gDqdKLhHY2ekmCEE9EeesoNpgsReq2bo/SpMqvBYdw=
+github.com/hashicorp/vault/sdk v0.21.0/go.mod h1:BkJpVju7qe2cDe+T8gA84uFtRnNYQIPXkiJqqWGUYrc=
 github.com/hashicorp/vic v1.5.1-0.20190403131502-bbfe86ec9443 h1:O/pT5C1Q3mVXMyuqg7yuAWUg/jMZR1/0QTzTRdNR6Uw=
 github.com/hashicorp/vic v1.5.1-0.20190403131502-bbfe86ec9443/go.mod h1:bEpDU35nTu0ey1EXjwNwPjI9xErAsoOCmcMb9GKvyxo=
 github.com/hashicorp/yamux v0.1.2 h1:XtB8kyFOyHXYVFnwT5C3+Bdo8gArse7j2AQ0DA0Uey8=
