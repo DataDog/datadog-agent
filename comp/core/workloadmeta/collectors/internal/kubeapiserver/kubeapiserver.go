@@ -13,13 +13,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"go.uber.org/fx"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
-
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -60,24 +59,6 @@ func shouldHaveDeploymentStore(cfg config.Reader) bool {
 	return cfg.GetBool("language_detection.enabled") && cfg.GetBool("language_detection.reporting.enabled") || hasDeploymentsLabelsAsTags || hasDeploymentsAnnotationsAsTags
 }
 
-// shouldHaveCSIDriverStore returns true when the workloadmeta collector should
-// watch CSIDrivers. Today the only consumer is the APM auto-instrumentation
-// admission controller, which uses CSIDriver presence to decide whether to use
-// the CSI-based library injection provider.
-//
-// We deliberately do not gate on apm_config.instrumentation.injection_mode:
-// pods can override the default mode via the
-// "admission.datadoghq.com/apm-inject.injection-mode" annotation, so the
-// AutoProvider may need CSIDriver state regardless of the cluster default.
-// CSIDriver is a cluster-scoped resource with very few objects in practice,
-// so the additional watch cost is negligible compared to the loss in
-// flexibility we'd incur by gating on the default mode.
-func shouldHaveCSIDriverStore(cfg config.Reader) bool {
-	return cfg.GetBool("admission_controller.enabled") &&
-		cfg.GetBool("admission_controller.auto_instrumentation.enabled") &&
-		cfg.GetBool("apm_config.instrumentation.csi_driver_detection_enabled")
-}
-
 func storeGenerators(cfg config.Reader) []storeGenerator {
 	var generators []storeGenerator
 
@@ -87,10 +68,6 @@ func storeGenerators(cfg config.Reader) []storeGenerator {
 
 	if shouldHaveDeploymentStore(cfg) {
 		generators = append(generators, newDeploymentStore)
-	}
-
-	if shouldHaveCSIDriverStore(cfg) {
-		generators = append(generators, newCSIDriverStore)
 	}
 
 	return generators
@@ -145,6 +122,13 @@ func resourcesWithRequiredMetadataCollection(cfg config.Reader) []string {
 		}
 	}
 
+	for _, groupResource := range resourcesForCSIDetection(cfg) {
+		requestedResource := groupResourceToGVRString(groupResource)
+		if requestedResource != "" {
+			res = append(res, requestedResource)
+		}
+	}
+
 	return res
 }
 
@@ -190,6 +174,23 @@ func resourcesForAPMConfig(cfg config.Reader) []string {
 	}
 
 	return []string{"namespaces"}
+}
+
+// resourcesForCSIDetection returns the list of resources to collect metadata
+// from for the APM auto-instrumentation library injection AutoProvider.
+//
+// When CSI auto-detection is enabled, the AutoProvider needs to know whether
+// the Datadog CSI driver is registered in the cluster and has APM SSI
+// capabilities advertised on its annotations, in order to choose between
+// the CSI- and init-container-based library injection providers.
+func resourcesForCSIDetection(cfg config.Reader) []string {
+	if !cfg.GetBool("admission_controller.enabled") ||
+		!cfg.GetBool("admission_controller.auto_instrumentation.enabled") ||
+		!cfg.GetBool("apm_config.instrumentation.csi_driver_detection_enabled") {
+		return nil
+	}
+
+	return []string{"csidrivers.storage.k8s.io"}
 }
 
 type collector struct {

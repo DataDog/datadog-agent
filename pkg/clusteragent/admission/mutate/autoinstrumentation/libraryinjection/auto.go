@@ -10,12 +10,18 @@ package libraryinjection
 import (
 	corev1 "k8s.io/api/core/v1"
 
+	wmutil "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	csiAPMEnabledAnnotation = "csi.datadoghq.com/apm-enabled"
+
+	// CSIDriver is a cluster-scoped resource in the storage.k8s.io API group.
+	// We look it up via workloadmeta's generic KubernetesMetadata store.
+	csiDriverGVRGroup    = "storage.k8s.io"
+	csiDriverGVRResource = "csidrivers"
 )
 
 // AutoProvider implements LibraryInjectionProvider.
@@ -59,7 +65,8 @@ func pickAutoProvider(cfg LibraryInjectionConfig) LibraryInjectionProvider {
 }
 
 // isDatadogCSIDriverRegistered returns true when the Datadog CSI driver is
-// known to workloadmeta (i.e. its CSIDriver object exists in the cluster).
+// known to workloadmeta (i.e. its CSIDriver object exists in the cluster) and
+// has explicitly opted into APM SSI volumes via the apm-enabled annotation.
 //
 // A nil workloadmeta component (in tests or in environments where the
 // cluster-agent runs without it) is treated as "not registered", which falls
@@ -69,7 +76,8 @@ func isDatadogCSIDriverRegistered(wmeta workloadmeta.Component) bool {
 		return false
 	}
 
-	driver, err := wmeta.GetKubernetesCSIDriver(csiDriverName)
+	id := wmutil.GenerateKubeMetadataEntityID(csiDriverGVRGroup, csiDriverGVRResource, "", csiDriverName)
+	driver, err := wmeta.GetKubernetesMetadata(id)
 	if err != nil || driver == nil {
 		return false
 	}

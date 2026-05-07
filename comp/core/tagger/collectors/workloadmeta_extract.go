@@ -129,18 +129,14 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 		entity := ev.Entity
 		entityID := entity.GetID()
 
-		// Kinds that the tagger does not produce tags for. Skipping here also
-		// avoids calling BuildTaggerEntityID for kinds that have no
-		// corresponding tagger entity prefix (which would log an error and
-		// fabricate a bogus prefix).
-		if entityID.Kind == workloadmeta.KindKubeletMetrics ||
-			entityID.Kind == workloadmeta.KindKubelet ||
-			entityID.Kind == workloadmeta.KindKubernetesCSIDriver {
-			continue
-		}
-
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
+			if entityID.Kind == workloadmeta.KindKubeletMetrics ||
+				entityID.Kind == workloadmeta.KindKubelet {
+				// No tags. Ignore
+				continue
+			}
+
 			taggerEntityID := common.BuildTaggerEntityID(entityID)
 
 			// keep track of children of this entity from previous

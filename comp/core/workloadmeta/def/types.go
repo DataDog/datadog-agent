@@ -49,7 +49,6 @@ const (
 	KindKubeletMetrics         Kind = "kubelet_metrics"
 	KindKubeCapabilities       Kind = "kubernetes_capabilities"
 	KindKubernetesDeployment   Kind = "kubernetes_deployment"
-	KindKubernetesCSIDriver    Kind = "kubernetes_csi_driver"
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
@@ -2307,66 +2306,6 @@ func (kc KubeCapabilities) String(verbose bool) string {
 		for _, featureGate := range kc.FeatureGates {
 			_, _ = fmt.Fprintln(&sb, "\t", featureGate.Name, ":", featureGate.Enabled)
 		}
-	}
-
-	return sb.String()
-}
-
-// KubernetesCSIDriver is an Entity representing a Kubernetes
-// storage.k8s.io/v1.CSIDriver registered in the cluster. The entity ID is the
-// driver name (e.g. "k8s.csi.datadoghq.com"), which is unique cluster-wide.
-type KubernetesCSIDriver struct {
-	EntityID
-	EntityMeta
-
-	// Spec exposes the subset of CSIDriver.Spec fields that we currently care
-	// about. Additional fields can be added here as new use cases arise.
-	Spec KubernetesCSIDriverSpec
-}
-
-// KubernetesCSIDriverSpec mirrors the relevant subset of
-// storage.k8s.io/v1.CSIDriverSpec.
-type KubernetesCSIDriverSpec struct {
-	// VolumeLifecycleModes contains the supported volume lifecycle modes
-	// (e.g. "Persistent", "Ephemeral"). Empty defaults to Persistent on the
-	// Kubernetes side.
-	VolumeLifecycleModes []string
-}
-
-var _ Entity = &KubernetesCSIDriver{}
-
-// GetID implements Entity#GetID.
-func (d *KubernetesCSIDriver) GetID() EntityID {
-	return d.EntityID
-}
-
-// Merge implements Entity#Merge.
-func (d *KubernetesCSIDriver) Merge(e Entity) error {
-	other, ok := e.(*KubernetesCSIDriver)
-	if !ok {
-		return fmt.Errorf("cannot merge KubernetesCSIDriver with different kind %T", e)
-	}
-
-	return merge(d, other)
-}
-
-// DeepCopy implements Entity#DeepCopy.
-func (d KubernetesCSIDriver) DeepCopy() Entity {
-	cd := deepcopy.Copy(d).(KubernetesCSIDriver)
-	return &cd
-}
-
-// String implements Entity#String.
-func (d KubernetesCSIDriver) String(verbose bool) string {
-	var sb strings.Builder
-	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
-	_, _ = fmt.Fprintln(&sb, d.EntityID.String(verbose))
-	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
-	_, _ = fmt.Fprint(&sb, d.EntityMeta.String(verbose))
-
-	if verbose {
-		_, _ = fmt.Fprintln(&sb, "----------- CSI Driver Spec -----------")
-		_, _ = fmt.Fprintln(&sb, "Volume Lifecycle Modes:", strings.Join(d.Spec.VolumeLifecycleModes, ","))
 	}
 
 	return sb.String()

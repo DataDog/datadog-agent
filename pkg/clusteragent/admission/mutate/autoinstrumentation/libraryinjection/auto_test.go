@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	wmutil "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -34,6 +35,23 @@ const (
 	csiAPMEnabledAnnotation = "csi.datadoghq.com/apm-enabled"
 )
 
+// newDatadogCSIDriverEntity builds a workloadmeta KubernetesMetadata entity
+// matching what the kubeapiserver collector would produce for the Datadog
+// CSIDriver object.
+func newDatadogCSIDriverEntity(annotations map[string]string) *workloadmeta.KubernetesMetadata {
+	id := wmutil.GenerateKubeMetadataEntityID("storage.k8s.io", "csidrivers", "", datadogCSIDriverName)
+	return &workloadmeta.KubernetesMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesMetadata,
+			ID:   string(id),
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        datadogCSIDriverName,
+			Annotations: annotations,
+		},
+	}
+}
+
 // newMockWorkloadmeta returns a workloadmeta mock store usable in tests.
 func newMockWorkloadmeta(t *testing.T) workloadmetamock.Mock {
 	t.Helper()
@@ -46,16 +64,7 @@ func newMockWorkloadmeta(t *testing.T) workloadmetamock.Mock {
 
 func TestAutoProvider_PicksCSIWhenDatadogCSIDriverRegistered(t *testing.T) {
 	wmeta := newMockWorkloadmeta(t)
-	wmeta.Set(&workloadmeta.KubernetesCSIDriver{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesCSIDriver,
-			ID:   datadogCSIDriverName,
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name:        datadogCSIDriverName,
-			Annotations: map[string]string{csiAPMEnabledAnnotation: "true"},
-		},
-	})
+	wmeta.Set(newDatadogCSIDriverEntity(map[string]string{csiAPMEnabledAnnotation: "true"}))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-pod", Namespace: "default"},
@@ -158,16 +167,8 @@ func TestAutoProvider_FallsBackToInitContainerWhenAPMAnnotationMissing(t *testin
 	// auto-instrumentation. We only switch to the CSI provider when the driver
 	// explicitly opts in via the apm-enabled annotation.
 	wmeta := newMockWorkloadmeta(t)
-	wmeta.Set(&workloadmeta.KubernetesCSIDriver{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesCSIDriver,
-			ID:   datadogCSIDriverName,
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name: datadogCSIDriverName,
-			// No apm-enabled annotation.
-		},
-	})
+	// No apm-enabled annotation.
+	wmeta.Set(newDatadogCSIDriverEntity(nil))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-pod", Namespace: "default"},
@@ -200,16 +201,7 @@ func TestAutoProvider_FallsBackToInitContainerWhenAPMAnnotationNotTrue(t *testin
 	// The annotation is present but explicitly disables APM (any value other
 	// than "true" must be treated as opt-out).
 	wmeta := newMockWorkloadmeta(t)
-	wmeta.Set(&workloadmeta.KubernetesCSIDriver{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesCSIDriver,
-			ID:   datadogCSIDriverName,
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name:        datadogCSIDriverName,
-			Annotations: map[string]string{csiAPMEnabledAnnotation: "false"},
-		},
-	})
+	wmeta.Set(newDatadogCSIDriverEntity(map[string]string{csiAPMEnabledAnnotation: "false"}))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-pod", Namespace: "default"},
@@ -243,16 +235,7 @@ func TestAutoProvider_FallsBackToInitContainerWhenFlagDisabled(t *testing.T) {
 	// auto provider must stay on the init-container path while the temporary
 	// feature flag is off.
 	wmeta := newMockWorkloadmeta(t)
-	wmeta.Set(&workloadmeta.KubernetesCSIDriver{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesCSIDriver,
-			ID:   datadogCSIDriverName,
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name:        datadogCSIDriverName,
-			Annotations: map[string]string{csiAPMEnabledAnnotation: "true"},
-		},
-	})
+	wmeta.Set(newDatadogCSIDriverEntity(map[string]string{csiAPMEnabledAnnotation: "true"}))
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-pod", Namespace: "default"},
