@@ -824,6 +824,7 @@ exports_files(glob(
 # gazelle:exclude tools/NamedPipeCmd
 # gazelle:exclude tools/agent_QA
 # gazelle:exclude tools/ci
+# gazelle:exclude tools/cws-stream-events
 # gazelle:exclude tools/ebpf
 # gazelle:exclude tools/gdb
 # gazelle:exclude tools/go-update
