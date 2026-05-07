@@ -9,7 +9,6 @@ package model
 
 import (
 	"maps"
-	"reflect"
 	"strings"
 
 	// AWS Karpenter provider registers some variables in shared packages
@@ -147,6 +146,24 @@ func (n *NodePoolInternal) KarpenterNodePool() *karpenterv1.NodePool {
 	return n.karpenterNodePool
 }
 
+// mergePtrs returns rc if non-nil, otherwise target. Used in BuildReplicaNodePool
+// to apply "RC wins if set, else preserve target" semantics for pointer fields.
+func mergePtrs[T any](rc, target *T) *T {
+	if rc != nil {
+		return rc
+	}
+	return target
+}
+
+// mergeSlices returns rc if non-empty, otherwise target. Used in BuildReplicaNodePool
+// to apply "RC wins if set, else preserve target" semantics for slice fields.
+func mergeSlices[T any](rc, target []T) []T {
+	if len(rc) > 0 {
+		return rc
+	}
+	return target
+}
+
 // BuildReplicaNodePool produces a NodePool for a Datadog-managed replica of an existing target NodePool.
 // The target is used as the base and RC values are applied on top:
 //   - Top-level labels/annotations and Spec.Template.Spec.Requirements are always replaced from RC, even if RC's values are empty.
@@ -165,30 +182,28 @@ func (n *NodePoolInternal) BuildReplicaNodePool(targetNp *karpenterv1.NodePool) 
 
 	// Top-level metadata: completely replace from RC. Constructing a fresh ObjectMeta
 	// drops server-set fields (ResourceVersion, UID, Generation, CreationTimestamp,
-	// ManagedFields, ...) that the target carries from the cluster
+	// ManagedFields, ...) that the target carries from the cluster.
 	merged.ObjectMeta = metav1.ObjectMeta{
 		Name:        rc.Name,
 		Labels:      maps.Clone(rc.Labels),
 		Annotations: maps.Clone(rc.Annotations),
 	}
 
-	// NodePoolSpec fields.
+	// NodePoolSpec fields: RC wins if set, else target preserved.
 	if rc.Spec.Weight != nil {
 		merged.Spec.Weight = rc.Spec.Weight
 	} else {
 		merged.Spec.Weight = GetNodePoolWeight(targetNp)
 	}
-	if rc.Spec.Replicas != nil {
-		merged.Spec.Replicas = rc.Spec.Replicas
-	}
+	merged.Spec.Replicas = mergePtrs(rc.Spec.Replicas, merged.Spec.Replicas)
 	if len(rc.Spec.Limits) > 0 {
 		merged.Spec.Limits = rc.Spec.Limits
 	}
-	if !reflect.DeepEqual(rc.Spec.Disruption, karpenterv1.Disruption{}) {
+	if rc.Spec.Disruption.ConsolidationPolicy != "" {
 		merged.Spec.Disruption = rc.Spec.Disruption
 	}
 
-	// Template ObjectMeta: merge RC keys on top of target's.
+	// Template ObjectMeta: RC keys merged on top of target's.
 	for k, v := range rc.Spec.Template.ObjectMeta.Labels {
 		if merged.Spec.Template.ObjectMeta.Labels == nil {
 			merged.Spec.Template.ObjectMeta.Labels = map[string]string{}
@@ -202,21 +217,15 @@ func (n *NodePoolInternal) BuildReplicaNodePool(targetNp *karpenterv1.NodePool) 
 		merged.Spec.Template.ObjectMeta.Annotations[k] = v
 	}
 
-	// NodeClaimTemplateSpec fields.
+	// NodeClaimTemplateSpec fields: RC wins if set, else target preserved.
 	merged.Spec.Template.Spec.Requirements = rc.Spec.Template.Spec.Requirements
 	if rc.Spec.Template.Spec.NodeClassRef != nil {
 		merged.Spec.Template.Spec.NodeClassRef = rc.Spec.Template.Spec.NodeClassRef.DeepCopy()
 	}
-	if len(rc.Spec.Template.Spec.Taints) > 0 {
-		merged.Spec.Template.Spec.Taints = rc.Spec.Template.Spec.Taints
-	}
-	if len(rc.Spec.Template.Spec.StartupTaints) > 0 {
-		merged.Spec.Template.Spec.StartupTaints = rc.Spec.Template.Spec.StartupTaints
-	}
-	if rc.Spec.Template.Spec.TerminationGracePeriod != nil {
-		merged.Spec.Template.Spec.TerminationGracePeriod = rc.Spec.Template.Spec.TerminationGracePeriod
-	}
-	if !reflect.DeepEqual(rc.Spec.Template.Spec.ExpireAfter, karpenterv1.NillableDuration{}) {
+	merged.Spec.Template.Spec.Taints = mergeSlices(rc.Spec.Template.Spec.Taints, merged.Spec.Template.Spec.Taints)
+	merged.Spec.Template.Spec.StartupTaints = mergeSlices(rc.Spec.Template.Spec.StartupTaints, merged.Spec.Template.Spec.StartupTaints)
+	merged.Spec.Template.Spec.TerminationGracePeriod = mergePtrs(rc.Spec.Template.Spec.TerminationGracePeriod, merged.Spec.Template.Spec.TerminationGracePeriod)
+	if rc.Spec.Template.Spec.ExpireAfter.Duration != nil || len(rc.Spec.Template.Spec.ExpireAfter.Raw) > 0 {
 		merged.Spec.Template.Spec.ExpireAfter = rc.Spec.Template.Spec.ExpireAfter
 	}
 
