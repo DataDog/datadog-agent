@@ -27,10 +27,10 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	forwardermock "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/mock"
 	checkrunnermock "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/mock"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	noopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
-	forwardermock "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/mock"
 
 	// Register issue modules so tests that call ReportIssue can resolve issue templates.
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/checkfailure"

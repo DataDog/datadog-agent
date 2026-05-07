@@ -13,9 +13,9 @@
 package healthplatform
 
 import (
+	forwarderfx "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/fx"
 	checkrunnerfx "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/fx"
 	corefx "github.com/DataDog/datadog-agent/comp/healthplatform/store/fx"
-	forwarderfx "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	// Import issue modules to trigger their init() registration.
