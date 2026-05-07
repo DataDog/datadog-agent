@@ -58,7 +58,7 @@ func NewController(statusClient dynamic.Interface, informer dynamicinformer.Dyna
 		UpdateFunc: c.handleUpdate,
 		DeleteFunc: c.handleDelete,
 	}); err != nil {
-		return nil, fmt.Errorf("cannot add event handler to DatadogInstrumentation informer: %v", err)
+		return nil, fmt.Errorf("cannot add event handler to DatadogInstrumentation informer: %w", err)
 	}
 
 	return c, nil
@@ -88,7 +88,7 @@ func (c *Controller) worker(ctx context.Context) {
 func (c *Controller) process(ctx context.Context) bool {
 	key, shutdown := c.workqueue.Get()
 	if shutdown {
-		log.Infof("DatadogInstrumentation Controller: caught stop signal in workqueue")
+		log.Infof("DatadogInstrumentation Controller caught stop signal in workqueue")
 		return false
 	}
 	defer c.workqueue.Done(key)
@@ -99,10 +99,11 @@ func (c *Controller) process(ctx context.Context) bool {
 		numRequeues := c.workqueue.NumRequeues(key)
 		if numRequeues >= maxRetries {
 			c.workqueue.Forget(key)
+			log.Errorf("Max retries reached for DatadogInstrumentation: %s, err: %v", key, err)
 		} else {
 			c.workqueue.AddRateLimited(key)
+			log.Warnf("Couldn't reconcile DatadogInstrumentation (attempt #%d): %s, err: %v", numRequeues, key, err)
 		}
-		log.Errorf("Impossible to synchronize DatadogInstrumentation (attempt #%d): %s, err: %v", numRequeues, key, err)
 	}
 	return true
 }
@@ -151,7 +152,7 @@ func (c *Controller) reconcile(ctx context.Context, key string) error {
 func (c *Controller) getCurrent(key string) (*datadoghq.DatadogInstrumentation, error) {
 	ns, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
-		return nil, fmt.Errorf("invalid key %q: %v", key, err)
+		return nil, fmt.Errorf("invalid key %q: %w", key, err)
 	}
 
 	obj, err := c.lister.ByNamespace(ns).Get(name)
@@ -192,7 +193,7 @@ func (c *Controller) setLastSeen(key string, cr *datadoghq.DatadogInstrumentatio
 func (c *Controller) enqueueKey(obj interface{}) {
 	key, err := cache.MetaNamespaceKeyFunc(obj)
 	if err != nil {
-		log.Debugf("Couldn't get key for DatadogInstrumentation object %v: %v", obj, err)
+		log.Warnf("Couldn't get key for DatadogInstrumentation object %v: %v", obj, err)
 		return
 	}
 	c.workqueue.AddRateLimited(key)
