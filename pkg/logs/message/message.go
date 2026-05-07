@@ -383,11 +383,6 @@ func (m *Message) GetHostname() string {
 	return m.Hostname
 }
 
-// GetTimestampMs returns the message ingestion timestamp in Unix milliseconds.
-func (m *Message) GetTimestampMs() int64 {
-	return m.IngestionTimestamp / 1000000
-}
-
 // GetTimestampUnixMilli returns the message ingestion timestamp in Unix milliseconds.
 func (m *Message) GetTimestampUnixMilli() int64 {
 	return m.IngestionTimestamp / 1000000
