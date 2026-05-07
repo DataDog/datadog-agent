@@ -31,12 +31,14 @@ type NetworkDeviceConfig struct {
 	Content      string             `json:"content"`
 }
 
+// NCMInventory contains entries of what configs are stored locally on the customer's agent
 type NCMInventory struct {
 	Namespace  string           `json:"namespace"`
 	ReportedAt int64            `json:"reported_at"`
 	Entries    []InventoryEntry `json:"entries"`
 }
 
+// InventoryEntry contains the metadata about the configs stored locally on the agent
 type InventoryEntry struct {
 	RawConfigID string           `json:"raw_config_id"`
 	ConfigType  types.ConfigType `json:"config_type"`

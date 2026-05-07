@@ -27,6 +27,14 @@ func Mock(_ *testing.T) networkconfigmanagement.Component {
 	return &mockNetworkConfigManagement{store: ncmstore.NewMemStore()}
 }
 
+// MockWithStore returns a networkconfigmanagement.Component backed by the
+// provided store. Useful for tests that need a memstore with custom options
+// (e.g. deterministic clock or UUID generator) so inventory output is
+// predictable.
+func MockWithStore(_ *testing.T, store ncmstore.ConfigStore) networkconfigmanagement.Component {
+	return &mockNetworkConfigManagement{store: store}
+}
+
 // MockModule provides the mock as an fx module.
 func MockModule() fxutil.Module {
 	return fxutil.Component(

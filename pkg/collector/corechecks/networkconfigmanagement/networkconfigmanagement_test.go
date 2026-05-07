@@ -22,6 +22,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
+	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -138,6 +140,20 @@ func (m *MockRemoteSession) Close() error {
 	return nil
 }
 
+// sequenceUUIDGenerator returns a function that emits the given UUIDs in order
+// on successive calls. Useful for making memstore output deterministic in tests.
+func sequenceUUIDGenerator(ids ...string) func() string {
+	i := 0
+	return func() string {
+		if i >= len(ids) {
+			return fmt.Sprintf("test-uuid-%d", i)
+		}
+		id := ids[i]
+		i++
+		return id
+	}
+}
+
 // Test helper functions
 
 func createTestCheck(t *testing.T) *Check {
@@ -236,7 +252,7 @@ func TestCheck_Run_Success(t *testing.T) {
 	mockSender := mocksender.NewMockSenderWithSenderManager(id, senderManager)
 
 	// Set up mock sender expectations
-	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Twice()
+	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Times(3)
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
@@ -250,6 +266,17 @@ func TestCheck_Run_Success(t *testing.T) {
 	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
 	check.clock = mockClock
 	check.sender = ncmsender.NewNCMSender(mockSender, check.checkContext.Namespace, mockClock)
+
+	// Swap the ncm component for one backed by a memstore configured with the
+	// mock clock and deterministic UUIDs, so inventory output is predictable.
+	memStore := ncmstore.NewMemStore(
+		ncmstore.WithClock(mockClock),
+		ncmstore.WithUUIDGenerator(sequenceUUIDGenerator(
+			"87b2343a-56d9-43bc-a35a-4d842dec9586", // running
+			"d348e53f-db31-47ed-8d50-11462d7a15e5", // startup
+		)),
+	)
+	check.ncmComp = ncmcomp.MockWithStore(t, memStore)
 
 	// Set up mock remote client
 	mockClient := newMockRemoteClient()
@@ -267,7 +294,7 @@ func TestCheck_Run_Success(t *testing.T) {
 		"config_source:cli",
 		"profile:p2",
 	}
-	expectedPayload := report.NCMPayload{
+	expectedConfigPayload := report.NCMPayload{
 		Namespace: "default",
 		Configs: []report.NetworkDeviceConfig{
 			{
@@ -291,7 +318,7 @@ func TestCheck_Run_Success(t *testing.T) {
 		},
 		CollectTimestamp: 1754043600,
 	}
-	expectedEvent, err := json.Marshal(expectedPayload)
+	expectedConfigEvent, err := json.Marshal(expectedConfigPayload)
 	assert.NoError(t, err)
 
 	// Build expected device metadata payload
@@ -310,9 +337,33 @@ func TestCheck_Run_Success(t *testing.T) {
 	expectedDeviceMetadata, err := json.Marshal(expectedDeviceMetadataPayload)
 	assert.NoError(t, err)
 
-	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 2)
-	mockSender.AssertEventPlatformEvent(t, expectedEvent, eventplatform.EventTypeNetworkConfigManagement)
+	expectedInventoryPayload := report.NCMInventory{
+		Namespace:  "default",
+		ReportedAt: 1754043600,
+		Entries: []report.InventoryEntry{
+			{
+				RawConfigID: "87b2343a-56d9-43bc-a35a-4d842dec9586",
+				ConfigType:  types.RUNNING,
+				DeviceID:    "default:10.0.0.1",
+				CapturedAt:  1754043600,
+				RawHash:     "c2351724fbf7fd92fc7a3ec37db69b0e56192a452bbb26d98123fa551a95103a",
+			},
+			{
+				RawConfigID: "d348e53f-db31-47ed-8d50-11462d7a15e5",
+				ConfigType:  types.STARTUP,
+				DeviceID:    "default:10.0.0.1",
+				CapturedAt:  1754043600,
+				RawHash:     "3eac43e557060ec74a62633e16fb496ed14252771403993f2be9bfe87f48e5f4",
+			},
+		},
+	}
+	expectedInventoryEvent, err := json.Marshal(expectedInventoryPayload)
+	assert.NoError(t, err)
+
+	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 3)
+	mockSender.AssertEventPlatformEvent(t, expectedConfigEvent, eventplatform.EventTypeNetworkConfigManagement)
 	mockSender.AssertEventPlatformEvent(t, expectedDeviceMetadata, eventplatform.EventTypeNetworkDevicesMetadata)
+	mockSender.AssertEventPlatformEvent(t, expectedInventoryEvent, eventplatform.EventTypeNetworkConfigManagement)
 	mockSender.AssertMetricTaggedWith(t, "Gauge", "datadog.ncm.check_duration", expectedTags)
 	mockSender.AssertExpectations(t)
 }
