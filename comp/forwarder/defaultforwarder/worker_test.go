@@ -374,7 +374,7 @@ func TestWorkerRequeueDropsTracksPointsDropped(t *testing.T) {
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
-	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), sender, NewSharedConnection(log, false, 1, mockConfig))
+	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), sender, NewSharedConnection(log, false, 1, mockConfig, nil))
 
 	// Fill the requeue channel so the next requeue call falls into the default branch and drops.
 	filler := newTestTransaction()
