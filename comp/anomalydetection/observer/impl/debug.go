@@ -32,6 +32,13 @@ type DebugView interface {
 	// AddTelemetry writes a data point into the engine's telemetry namespace.
 	// Used by the testbench to store per-detector timing stats for UI display.
 	AddTelemetry(name string, value float64, timestamp int64, tags []string)
+	// ReplayStoredData resets the analysis state (lastAnalyzedDataTime, detector
+	// and correlator state, anomaly/correlation history) then replays all data
+	// currently in storage through the scheduler in chronological order.
+	// Storage is NOT cleared — metrics and log-derived series fed before this
+	// call remain available to detectors during the replay.
+	// Call after Flush() to ensure all pending observations have been stored.
+	ReplayStoredData()
 }
 
 // StateView is a read-only window into engine state.
