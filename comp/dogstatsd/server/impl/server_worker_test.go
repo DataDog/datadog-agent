@@ -121,7 +121,7 @@ func TestMetricPermutations(t *testing.T) {
 }
 
 func runTestMetrics(t *testing.T, deps serverDeps, input []byte, expTests []*tMetricSample, expTimeTests []*tMetricSample) {
-	s := deps.Server.(*server)
+	s := deps.Server.(*dsdServer)
 
 	var b batcherMock
 	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
@@ -146,7 +146,7 @@ func TestEvents(t *testing.T) {
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
-	s := deps.Server.(*server)
+	s := deps.Server.(*dsdServer)
 	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 	var b batcherMock
 
@@ -189,7 +189,7 @@ func TestServiceChecks(t *testing.T) {
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
-	s := deps.Server.(*server)
+	s := deps.Server.(*dsdServer)
 	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 	var b batcherMock
 
@@ -357,7 +357,7 @@ dogstatsd_mapper_profiles:
 		t.Run(scenario.name, func(t *testing.T) {
 			deps := fulfillDepsWithConfigYaml(t, scenario.config)
 
-			s := deps.Server.(*server)
+			s := deps.Server.(*dsdServer)
 
 			requireStart(t, s)
 
@@ -453,7 +453,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		cfg["dogstatsd_port"] = listeners.RandomPortName
 
 		deps := fulfillDepsWithConfigOverride(t, cfg)
-		s := deps.Server.(*server)
+		s := deps.Server.(*dsdServer)
 		assert := assert.New(t)
 
 		s.Stop()

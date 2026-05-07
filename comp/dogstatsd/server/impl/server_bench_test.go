@@ -37,7 +37,7 @@ func buildPacketContent(numberOfMetrics int, nbValuePerMessage int) []byte {
 func benchParsePackets(b *testing.B, rawPacket []byte) {
 	cfg := mock.New(b)
 	deps := fulfillDeps(b)
-	s := deps.Server.(*server)
+	s := deps.Server.(*dsdServer)
 	// our logger will log dogstatsd packet by default if nothing is setup
 	pkglogsetup.SetupLogger("", "off", "", "", false, true, false, cfg)
 
@@ -91,7 +91,7 @@ var samplesBench []metrics.MetricSample
 func BenchmarkPbarseMetricMessage(b *testing.B) {
 	cfg := mock.New(b)
 	deps := fulfillDeps(b)
-	s := deps.Server.(*server)
+	s := deps.Server.(*dsdServer)
 	// our logger will log dogstatsd packet by default if nothing is setup
 	pkglogsetup.SetupLogger("", "off", "", "", false, true, false, cfg)
 
@@ -143,7 +143,7 @@ dogstatsd_mapper_profiles:
 func benchmarkMapperControl(b *testing.B, yaml string) {
 	deps := fulfillDepsWithConfigYaml(b, yaml)
 	cfg := mock.New(b)
-	s := deps.Server.(*server)
+	s := deps.Server.(*dsdServer)
 
 	// our logger will log dogstatsd packet by default if nothing is setup
 	pkglogsetup.SetupLogger("", "off", "", "", false, true, false, cfg)

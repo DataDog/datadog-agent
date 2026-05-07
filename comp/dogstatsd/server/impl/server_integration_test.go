@@ -55,7 +55,7 @@ func TestUDPConn(t *testing.T) {
 	cfg["dogstatsd_no_aggregation_pipeline"] = true // another test may have turned it off
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
-	s := deps.Server.(*server)
+	s := deps.Server.(*dsdServer)
 	requireStart(t, s)
 
 	conn, err := net.Dial("udp", s.UDPLocalAddr())
@@ -143,7 +143,7 @@ func TestUDSConn(t *testing.T) {
 
 	runConnTest(t, conn, deps)
 
-	s := deps.Server.(*server)
+	s := deps.Server.(*dsdServer)
 	s.Stop()
 	_, err = net.Dial("unixgram", socketPath)
 	require.Error(t, err, "UDS listener should be closed")
