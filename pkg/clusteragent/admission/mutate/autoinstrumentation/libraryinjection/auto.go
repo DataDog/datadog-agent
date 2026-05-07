@@ -14,6 +14,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	csiAPMEnabledAnnotation = "csi.datadoghq.com/apm-enabled"
+)
+
 // AutoProvider implements LibraryInjectionProvider.
 // It picks the best concrete provider for a pod based on the runtime
 // environment, currently:
@@ -64,8 +68,20 @@ func isDatadogCSIDriverRegistered(wmeta workloadmeta.Component) bool {
 	if wmeta == nil {
 		return false
 	}
-	_, err := wmeta.GetKubernetesCSIDriver(csiDriverName)
-	return err == nil
+
+	driver, err := wmeta.GetKubernetesCSIDriver(csiDriverName)
+	if err != nil || driver == nil {
+		return false
+	}
+
+	apmEnabled, ok := driver.Annotations[csiAPMEnabledAnnotation]
+	if !ok || apmEnabled != "true" {
+		log.Debugf("library injection auto provider: Datadog CSI driver %q is registered but %s != true, falling back to init container",
+			csiDriverName, csiAPMEnabledAnnotation)
+		return false
+	}
+
+	return true
 }
 
 // InjectInjector mutates the pod to add the APM injector.

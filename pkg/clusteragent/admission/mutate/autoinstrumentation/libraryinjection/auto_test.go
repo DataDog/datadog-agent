@@ -26,7 +26,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-const datadogCSIDriverName = "k8s.csi.datadoghq.com"
+const (
+	datadogCSIDriverName = "k8s.csi.datadoghq.com"
+	// csiAPMEnabledAnnotation mirrors the const of the same name in auto.go.
+	// We intentionally hardcode the value here rather than exporting it so the
+	// tests catch any accidental rename of the production string.
+	csiAPMEnabledAnnotation = "csi.datadoghq.com/apm-enabled"
+)
 
 // newMockWorkloadmeta returns a workloadmeta mock store usable in tests.
 func newMockWorkloadmeta(t *testing.T) workloadmetamock.Mock {
@@ -46,7 +52,8 @@ func TestAutoProvider_PicksCSIWhenDatadogCSIDriverRegistered(t *testing.T) {
 			ID:   datadogCSIDriverName,
 		},
 		EntityMeta: workloadmeta.EntityMeta{
-			Name: datadogCSIDriverName,
+			Name:        datadogCSIDriverName,
+			Annotations: map[string]string{csiAPMEnabledAnnotation: "true"},
 		},
 	})
 
@@ -146,9 +153,10 @@ func TestAutoProvider_FallsBackToInitContainerWhenWmetaIsNil(t *testing.T) {
 	t.Fatalf("instrumentation volume %q not found", libraryinjection.InstrumentationVolumeName)
 }
 
-func TestAutoProvider_FallsBackToInitContainerWhenFlagDisabled(t *testing.T) {
-	// Even with the Datadog CSI driver registered, the auto provider must
-	// stay on the init-container path while the temporary feature flag is off.
+func TestAutoProvider_FallsBackToInitContainerWhenAPMAnnotationMissing(t *testing.T) {
+	// The Datadog CSI driver may be installed for purposes other than APM
+	// auto-instrumentation. We only switch to the CSI provider when the driver
+	// explicitly opts in via the apm-enabled annotation.
 	wmeta := newMockWorkloadmeta(t)
 	wmeta.Set(&workloadmeta.KubernetesCSIDriver{
 		EntityID: workloadmeta.EntityID{
@@ -157,6 +165,92 @@ func TestAutoProvider_FallsBackToInitContainerWhenFlagDisabled(t *testing.T) {
 		},
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: datadogCSIDriverName,
+			// No apm-enabled annotation.
+		},
+	})
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-pod", Namespace: "default"},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{Name: "app", Image: "my-app:latest"}},
+		},
+	}
+
+	provider := libraryinjection.NewAutoProvider(libraryinjection.LibraryInjectionConfig{
+		Wmeta:                   wmeta,
+		CSIAutoDetectionEnabled: true,
+	})
+
+	result := provider.InjectInjector(pod, libraryinjection.InjectorConfig{
+		Package: libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/apm-inject:0.52.0", "0.52.0"),
+	})
+	assert.Equal(t, libraryinjection.MutationStatusInjected, result.Status)
+
+	for _, v := range pod.Spec.Volumes {
+		if v.Name == libraryinjection.InstrumentationVolumeName {
+			assert.Nil(t, v.CSI, "without apm-enabled annotation, instrumentation volume must not be a CSI volume")
+			assert.NotNil(t, v.EmptyDir, "without apm-enabled annotation, instrumentation volume must be an EmptyDir")
+			return
+		}
+	}
+	t.Fatalf("instrumentation volume %q not found", libraryinjection.InstrumentationVolumeName)
+}
+
+func TestAutoProvider_FallsBackToInitContainerWhenAPMAnnotationNotTrue(t *testing.T) {
+	// The annotation is present but explicitly disables APM (any value other
+	// than "true" must be treated as opt-out).
+	wmeta := newMockWorkloadmeta(t)
+	wmeta.Set(&workloadmeta.KubernetesCSIDriver{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesCSIDriver,
+			ID:   datadogCSIDriverName,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        datadogCSIDriverName,
+			Annotations: map[string]string{csiAPMEnabledAnnotation: "false"},
+		},
+	})
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-pod", Namespace: "default"},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{Name: "app", Image: "my-app:latest"}},
+		},
+	}
+
+	provider := libraryinjection.NewAutoProvider(libraryinjection.LibraryInjectionConfig{
+		Wmeta:                   wmeta,
+		CSIAutoDetectionEnabled: true,
+	})
+
+	result := provider.InjectInjector(pod, libraryinjection.InjectorConfig{
+		Package: libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/apm-inject:0.52.0", "0.52.0"),
+	})
+	assert.Equal(t, libraryinjection.MutationStatusInjected, result.Status)
+
+	for _, v := range pod.Spec.Volumes {
+		if v.Name == libraryinjection.InstrumentationVolumeName {
+			assert.Nil(t, v.CSI, "with apm-enabled=false, instrumentation volume must not be a CSI volume")
+			assert.NotNil(t, v.EmptyDir, "with apm-enabled=false, instrumentation volume must be an EmptyDir")
+			return
+		}
+	}
+	t.Fatalf("instrumentation volume %q not found", libraryinjection.InstrumentationVolumeName)
+}
+
+func TestAutoProvider_FallsBackToInitContainerWhenFlagDisabled(t *testing.T) {
+	// Even with the Datadog CSI driver registered AND APM-enabled on it, the
+	// auto provider must stay on the init-container path while the temporary
+	// feature flag is off.
+	wmeta := newMockWorkloadmeta(t)
+	wmeta.Set(&workloadmeta.KubernetesCSIDriver{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesCSIDriver,
+			ID:   datadogCSIDriverName,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        datadogCSIDriverName,
+			Annotations: map[string]string{csiAPMEnabledAnnotation: "true"},
 		},
 	})
 
