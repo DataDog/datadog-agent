@@ -29,10 +29,6 @@ type MockProvides struct {
 
 type inventoryhostMock struct{}
 
-func (m *inventoryhostMock) GetAsJSON() ([]byte, error) {
-	return []byte("{}"), nil
-}
-
 func (m *inventoryhostMock) Refresh() {}
 
 func newMock() MockProvides {
