@@ -46,6 +46,9 @@ const (
 // init container. nil means no Resources block is set (cluster default applies);
 // operators with a LimitRange or strict QoS requirements override via
 // admission_controller.nccl_profiler.init_resources.{cpu,memory}.
+//
+// Pod-level opt-in policy (label + mutate_unlabelled) is enforced by the
+// webhook objectSelector at the K8s API server, not re-checked here.
 func mutatePod(pod *corev1.Pod, injectorImage, hostSocketPath, socketPath string, initResources *corev1.ResourceRequirements) (bool, error) {
 	soVolume := corev1.Volume{
 		Name:         soVolumeName,

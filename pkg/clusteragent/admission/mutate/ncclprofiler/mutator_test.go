@@ -24,7 +24,11 @@ const (
 
 func newTestPod() *corev1.Pod {
 	return &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{Name: "training-pod", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "training-pod",
+			Namespace: "default",
+			Labels:    map[string]string{EnabledLabel: "true"},
+		},
 		Spec: corev1.PodSpec{
 			Containers: []corev1.Container{
 				{Name: "trainer", Image: "pytorch:latest"},

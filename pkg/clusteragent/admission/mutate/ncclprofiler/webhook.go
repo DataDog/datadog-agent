@@ -43,11 +43,12 @@ var (
 
 // Webhook injects the NCCL profiler plugin into GPU training pods.
 type Webhook struct {
-	isEnabled      bool
-	injectorImage  string
-	hostSocketPath string
-	socketPath     string
-	initResources  *corev1.ResourceRequirements
+	isEnabled        bool
+	mutateUnlabelled bool
+	injectorImage    string
+	hostSocketPath   string
+	socketPath       string
+	initResources    *corev1.ResourceRequirements
 }
 
 // NewWebhook creates a new NCCL profiler webhook from agent config.
@@ -71,18 +72,27 @@ func NewWebhook(datadogConfig config.Component) *Webhook {
 		enabled = false
 	}
 	return &Webhook{
-		isEnabled:      enabled,
-		injectorImage:  image,
-		hostSocketPath: hostSocketPath,
-		socketPath:     socketPath,
-		initResources:  parseInitResources(datadogConfig),
+		isEnabled:        enabled,
+		mutateUnlabelled: mutateUnlabelledEnabled(datadogConfig),
+		injectorImage:    image,
+		hostSocketPath:   hostSocketPath,
+		socketPath:       socketPath,
+		initResources:    parseInitResources(datadogConfig),
 	}
 }
 
-// parseInitResources reads optional CPU/memory limits for the injected
-// init container from agent config. Returns nil if neither is set so the
-// admission webhook emits a Container with no Resources block (cluster
-// default applies). Mirrors cwsinstrumentation's pattern.
+// mutateUnlabelledEnabled is true when either the per-webhook or global
+// mutate_unlabelled knob is set. See labelSelectors for the policy.
+func mutateUnlabelledEnabled(datadogConfig config.Component) bool {
+	return datadogConfig.GetBool("admission_controller.nccl_profiler.mutate_unlabelled") ||
+		datadogConfig.GetBool("admission_controller.mutate_unlabelled")
+}
+
+// parseInitResources reads optional CPU/memory limits for the injected init
+// container from agent config. Returns nil if neither key is set so the
+// emitted Container has no Resources block (cluster default applies).
+// Mirrors cwsinstrumentation's parseCWSInitContainerResources; both can be
+// extracted into a shared helper as a future cleanup.
 func parseInitResources(datadogConfig config.Component) *corev1.ResourceRequirements {
 	cpuStr := datadogConfig.GetString("admission_controller.nccl_profiler.init_resources.cpu")
 	memStr := datadogConfig.GetString("admission_controller.nccl_profiler.init_resources.memory")
@@ -91,27 +101,42 @@ func parseInitResources(datadogConfig config.Component) *corev1.ResourceRequirem
 	}
 	r := &corev1.ResourceRequirements{Limits: corev1.ResourceList{}, Requests: corev1.ResourceList{}}
 	if cpuStr != "" {
-		q, err := resource.ParseQuantity(cpuStr)
-		if err != nil {
-			log.Warnf("NCCL profiler webhook: invalid init_resources.cpu=%q: %v", cpuStr, err)
-		} else {
+		if q, err := resource.ParseQuantity(cpuStr); err == nil {
 			r.Requests[corev1.ResourceCPU] = q
 			r.Limits[corev1.ResourceCPU] = q
+		} else {
+			log.Warnf("NCCL profiler webhook: invalid init_resources.cpu=%q: %v", cpuStr, err)
 		}
 	}
 	if memStr != "" {
-		q, err := resource.ParseQuantity(memStr)
-		if err != nil {
-			log.Warnf("NCCL profiler webhook: invalid init_resources.memory=%q: %v", memStr, err)
-		} else {
+		if q, err := resource.ParseQuantity(memStr); err == nil {
 			r.Requests[corev1.ResourceMemory] = q
 			r.Limits[corev1.ResourceMemory] = q
+		} else {
+			log.Warnf("NCCL profiler webhook: invalid init_resources.memory=%q: %v", memStr, err)
 		}
 	}
 	if len(r.Requests) == 0 && len(r.Limits) == 0 {
 		return nil
 	}
 	return r
+}
+
+// objectSelector builds the opt-in object selector for the webhook.
+// When mutateUnlabelled is true, the selector matches every pod that does
+// not carry EnabledLabel="false". Otherwise it requires EnabledLabel="true"
+// (strict opt-in). Mirrors cwsinstrumentation's labelSelectors.
+func objectSelector(mutateUnlabelled bool) *metav1.LabelSelector {
+	if mutateUnlabelled {
+		return &metav1.LabelSelector{
+			MatchExpressions: []metav1.LabelSelectorRequirement{{
+				Key:      EnabledLabel,
+				Operator: metav1.LabelSelectorOpNotIn,
+				Values:   []string{"false"},
+			}},
+		}
+	}
+	return &metav1.LabelSelector{MatchLabels: map[string]string{EnabledLabel: "true"}}
 }
 
 // socketPathUnderHost returns true if socketPath is the same as or a
@@ -148,21 +173,35 @@ func (w *Webhook) Resources() map[string][]string { return webhookResources }
 func (w *Webhook) Operations() []admissionregistrationv1.OperationType { return webhookOperations }
 
 // LabelSelectors returns the label selectors for the webhook.
-// Object selector: pod must carry the opt-in label.
-// Namespace selector: exclude kube-system and the Datadog agent namespace
-// (defense in depth, in case the opt-in label is applied to a system pod).
-func (w *Webhook) LabelSelectors(_ bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
-	return &metav1.LabelSelector{
-			MatchExpressions: []metav1.LabelSelectorRequirement{
-				{
-					Key:      common.NamespaceLabelKey,
-					Operator: metav1.LabelSelectorOpNotIn,
-					Values:   mutatecommon.DefaultDisabledNamespaces(),
-				},
-			},
-		}, &metav1.LabelSelector{
-			MatchLabels: map[string]string{EnabledLabel: "true"},
-		}
+// Object selector: opt-in via EnabledLabel; semantics flip with mutate_unlabelled.
+// Namespace selector: exclude kube-system and the Datadog agent namespace.
+//
+// useNamespaceSelector=true is a fallback for K8s 1.10-1.14 (EOL since 2019)
+// when admission_controller.namespace_selector_fallback is set. In that mode
+// objectSelector is ignored by the API server, and pod-level opt-in cannot be
+// expressed via namespaceSelector (which matches namespace labels, not pod
+// labels). We fail closed: return a namespaceSelector that matches no
+// namespace so no pod is mutated. Operators on those K8s versions must
+// either upgrade or explicitly disable namespace_selector_fallback.
+func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelectorOut *metav1.LabelSelector) {
+	if useNamespaceSelector {
+		log.Warnf("NCCL profiler webhook: namespace_selector_fallback is enabled but pod-level opt-in cannot be enforced via namespaceSelector; the webhook will not mutate any pod. Disable admission_controller.namespace_selector_fallback or upgrade Kubernetes to 1.15+.")
+		return &metav1.LabelSelector{
+			MatchExpressions: []metav1.LabelSelectorRequirement{{
+				Key:      common.NamespaceLabelKey,
+				Operator: metav1.LabelSelectorOpIn,
+				Values:   []string{"__nccl_profiler_disabled_fallback__"},
+			}},
+		}, nil
+	}
+	namespaceSelector = &metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{{
+			Key:      common.NamespaceLabelKey,
+			Operator: metav1.LabelSelectorOpNotIn,
+			Values:   mutatecommon.DefaultDisabledNamespaces(),
+		}},
+	}
+	return namespaceSelector, objectSelector(w.mutateUnlabelled)
 }
 
 // MatchConditions returns the match conditions for the webhook (none required).

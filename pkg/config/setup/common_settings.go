@@ -712,6 +712,11 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.ParseEnvSplitComma("admission_controller.auto_instrumentation.container_registry_allow_list")
 	config.BindEnvAndSetDefault("admission_controller.nccl_profiler.enabled", false, "DD_ADMISSION_CONTROLLER_NCCL_PROFILER_ENABLED")
 	config.BindEnvAndSetDefault("admission_controller.nccl_profiler.injector_image", "", "DD_ADMISSION_CONTROLLER_NCCL_PROFILER_INJECTOR_IMAGE")
+	// When true, the webhook injects into every pod that does not have the
+	// opt-in label set to "false" (instead of requiring it to be "true").
+	// Either this knob or the global admission_controller.mutate_unlabelled
+	// switches blanket mode. Same shape as cws_instrumentation.
+	config.BindEnvAndSetDefault("admission_controller.nccl_profiler.mutate_unlabelled", false)
 	// Optional CPU/memory for the injected init container. Empty -> no Resources
 	// block, cluster default applies. Same shape as cws_instrumentation.
 	config.BindEnvAndSetDefault("admission_controller.nccl_profiler.init_resources.cpu", "")
