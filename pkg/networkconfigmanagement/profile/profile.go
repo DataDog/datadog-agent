@@ -16,9 +16,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"go.yaml.in/yaml/v2"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"go.yaml.in/yaml/v2"
 )
 
 //go:embed default_profiles/*
@@ -44,6 +45,12 @@ type Commands struct {
 	Scrubber        *scrubber.Scrubber
 }
 
+// PushCommand represents the code to be executed to push a command
+type PushCommand struct {
+	Before string `json:"before,omitempty" yaml:"before,omitempty"`
+	After  string `json:"after,omitempty" yaml:"after,omitempty"`
+}
+
 // Map represents the mapping profile name to profiles from the loaded directory
 type Map map[string]*NCMProfile
 
@@ -55,7 +62,10 @@ type Definition[T any] interface {
 
 // BaseProfile struct with common fields
 type BaseProfile struct {
-	Name string `json:"name" yaml:"name"`
+	Name        string       `json:"name" yaml:"name"`
+	PushStartup *PushCommand `json:"push_startup" yaml:"push_startup"`
+	PushRunning *PushCommand `json:"push_running" yaml:"push_running"`
+	PushBoth    *PushCommand `json:"push_both" yaml:"push_both"`
 }
 
 // GetName retrieves the name of the profile
