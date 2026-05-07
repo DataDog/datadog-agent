@@ -29,8 +29,6 @@ github.com/CycloneDX/cyclonedx-go v0.9.3 h1:Pyk/lwavPz7AaZNvugKFkdWOm93MzaIyWmBw
 github.com/CycloneDX/cyclonedx-go v0.9.3/go.mod h1:vcK6pKgO1WanCdd61qx4bFnSsDJQ6SbM2ZuMIgq86Jg=
 github.com/DataDog/agent-payload/v5 v5.0.193 h1:HeZY0aFY7fxPbuUwrn2B2UWgqemD+L8UjzApNciKQ5w=
 github.com/DataDog/agent-payload/v5 v5.0.193/go.mod h1:GyA1vuCeRywrNNCbYeR0cOYKE8QkOVNAFDqsH8VNF5M=
-github.com/DataDog/datadog-api-client-go/v2 v2.59.0 h1:vCTFSM4OVMX9tgA7Oz0BgsBzr4rLILE+L7ayFCqT80I=
-github.com/DataDog/datadog-api-client-go/v2 v2.59.0/go.mod h1:d3tOEgUd2kfsr9uuHQdY+nXrWp4uikgTgVCPdKNK30U=
 github.com/DataDog/datadog-go/v5 v5.8.3 h1:s58CUJ9s8lezjhTNJO/SxkPBv2qZjS3ktpRSqGF5n0s=
 github.com/DataDog/datadog-go/v5 v5.8.3/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
 github.com/DataDog/go-acl v1.0.1 h1:uRbp98YmlVZYqNNyTBFNI3Y6bnziBLyCIR4nRu0bIpU=
@@ -214,8 +212,6 @@ github.com/go-viper/mapstructure/v2 v2.5.0 h1:vM5IJoUAy3d7zRSVtIwQgBj7BiWtMPfmPE
 github.com/go-viper/mapstructure/v2 v2.5.0/go.mod h1:oJDH3BJKyqBA2TXFhDsKDGDTlndYOZ6rGS0BRZIxGhM=
 github.com/gobwas/glob v0.2.3 h1:A4xDbljILXROh+kObIiy5kIaPYD8e96x1tgBhUI5J+Y=
 github.com/gobwas/glob v0.2.3/go.mod h1:d3Ez4x06l9bZtSvzIay5+Yzi0fmZzPgnTbPcKjJAkT8=
-github.com/goccy/go-json v0.10.6 h1:p8HrPJzOakx/mn/bQtjgNjdTcN+/S6FcG2CTtQOrHVU=
-github.com/goccy/go-json v0.10.6/go.mod h1:oq7eo15ShAhp70Anwd5lgX2pLfOS3QCiwU/PULtXL6M=
 github.com/gofrs/flock v0.13.0 h1:95JolYOvGMqeH31+FC7D2+uULf6mG61mEZ/A8dRYMzw=
 github.com/gofrs/flock v0.13.0/go.mod h1:jxeyy9R1auM5S6JYDBhDt+E2TCo7DkratH4Pgi8P+Z0=
 github.com/gogo/protobuf v1.3.2 h1:Ov1cvc58UF3b5XjBnZv7+opcTcQFZebYjWzi34vdm4Q=
