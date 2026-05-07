@@ -315,9 +315,28 @@ sm_chase_pointer(global_ctx_t* ctx, pointers_queue_item_t item) {
     }
     break;
   }
-  sm->offset = scratch_buf_serialize(ctx->buf, &item.di, byte_len);
+  // For dynamically-sized objects (strings, slices), byte_len is the
+  // configured upper limit (e.g. maxLength). Clamp it to the actual runtime
+  // length so the size-class dispatch picks an appropriate class. Without
+  // this, a large maxLength (e.g. 65536) would fail the size-class lookup
+  // even for short strings.
+  uint32_t serialize_len = byte_len;
+  if (item.di.length != ENQUEUE_LEN_SENTINEL && item.di.length < serialize_len) {
+    serialize_len = item.di.length;
+  }
+  // Clamp to the largest size class. scratch_buf_serialize_whole's
+  // dispatch table tops out at MAX_DATA_ITEM_SIZE; without this clamp
+  // an oversized configured maxLength (or a slice whose
+  // collection_size_limit * elem_byte_len exceeds the ceiling) would
+  // be silently skipped (serialize_whole returns 0 for any len above
+  // the largest size class) instead of producing a truncated capture.
+  if (serialize_len > MAX_DATA_ITEM_SIZE) {
+    serialize_len = MAX_DATA_ITEM_SIZE;
+  }
+  sm->offset = scratch_buf_serialize(ctx->buf, &item.di, serialize_len);
   if (!sm->offset) {
-    LOG(3, "chase: failed to serialize type %d", item.di.type);
+    LOG(3, "chase: buffer full for type %d", item.di.type);
+    sm->buffer_full = true;
     return true;
   }
 
@@ -725,6 +744,41 @@ sm_copy_from_code(scratch_buf_t* buf, buf_offset_t dst,
   return !ctx.failed;
 }
 
+// zero_bytes_ctx_t is the context for writing zero bytes into the scratch
+// buffer via bpf_loop.
+typedef struct zero_bytes_ctx {
+  scratch_buf_t* buf;
+  buf_offset_t dst;
+  bool failed;
+} zero_bytes_ctx_t;
+
+static long zero_bytes_loop(unsigned long i, void* _ctx) {
+  zero_bytes_ctx_t* ctx = (zero_bytes_ctx_t*)_ctx;
+  buf_offset_t off = ctx->dst + i;
+  if (!scratch_buf_bounds_check(&off, 1)) {
+    ctx->failed = true;
+    return 1;
+  }
+  (*ctx->buf)[off] = 0;
+  return 0;
+}
+
+// sm_zero_bytes_scratch writes byte_size zero bytes at dst in the scratch
+// buffer. Uses bpf_loop so the verifier can reason about the bounded write.
+__attribute__((noinline)) bool
+sm_zero_bytes_scratch(scratch_buf_t* buf, buf_offset_t dst, uint32_t byte_size) {
+  if (!buf) {
+    return false;
+  }
+  zero_bytes_ctx_t ctx = {
+      .buf = buf,
+      .dst = dst,
+      .failed = false,
+  };
+  bpf_loop(byte_size, zero_bytes_loop, &ctx, 0);
+  return !ctx.failed;
+}
+
 // cmp_eq_bytes_ctx_t is the context for comparing two byte sequences in the
 // scratch buffer, using bpf_loop.
 typedef struct cmp_eq_bytes_ctx {
@@ -770,6 +824,121 @@ sm_cmp_eq_bytes(scratch_buf_t* buf, buf_offset_t lhs, buf_offset_t rhs,
   };
   bpf_loop(len, cmp_eq_bytes_loop, &ctx, 0);
   return ctx.equal;
+}
+
+// 3-way ordering result of a byte comparison.
+typedef enum cmp_ord_result {
+  CMP_ORD_LT = -1,
+  CMP_ORD_EQ = 0,
+  CMP_ORD_GT = 1,
+} cmp_ord_result_t;
+
+// cmp_ord_mode_t packs the iteration direction and the sign-handling
+// kind into a single byte so sm_cmp_ord_bytes fits in the BPF 5-arg ABI.
+// Bit 0: msb_first (1 = walk MSB-first for little-endian integers).
+// Bit 1: signed_top_byte (1 = XOR the top byte's sign bit before
+// comparing — used for two's-complement signed integers).
+typedef uint8_t cmp_ord_mode_t;
+#define CMP_ORD_MODE_MSB_FIRST 0x1
+#define CMP_ORD_MODE_SIGNED_TOP 0x2
+
+// cmp_ord_bytes_ctx_t is the context for ordering two byte sequences in
+// the scratch buffer with bpf_loop. ord stays CMP_ORD_EQ until the loop
+// finds a differing byte.
+//
+// Iteration order: bpf_loop only walks i = 0..len-1, so to compare
+// little-endian integer bytes MSB-first we compute idx = len-1-i inside
+// the loop body when msb_first is set. Strings clear msb_first and walk
+// forward for lexicographic order.
+//
+// Signed integer trick: when signed_top_byte is set, the
+// most-significant byte (idx == len-1) gets its sign bit XOR'd with
+// 0x80 before comparison. This maps two's-complement signed compare
+// onto an unsigned byte compare without branching inside the inner
+// step.
+typedef struct cmp_ord_bytes_ctx {
+  scratch_buf_t* buf;
+  buf_offset_t lhs;
+  buf_offset_t rhs;
+  uint32_t len;
+  cmp_ord_mode_t mode;
+  cmp_ord_result_t ord;
+} cmp_ord_bytes_ctx_t;
+
+static long cmp_ord_bytes_loop(unsigned long i, void* _ctx) {
+  cmp_ord_bytes_ctx_t* ctx = (cmp_ord_bytes_ctx_t*)_ctx;
+  bool msb_first = (ctx->mode & CMP_ORD_MODE_MSB_FIRST) != 0;
+  uint32_t idx = msb_first ? (ctx->len - 1 - (uint32_t)i) : (uint32_t)i;
+  buf_offset_t lhs = ctx->lhs + idx;
+  buf_offset_t rhs = ctx->rhs + idx;
+  if (!scratch_buf_bounds_check(&lhs, 1)) {
+    return 1;
+  }
+  if (!scratch_buf_bounds_check(&rhs, 1)) {
+    return 1;
+  }
+  uint8_t lhs_val = (uint8_t)(*ctx->buf)[lhs];
+  uint8_t rhs_val = (uint8_t)(*ctx->buf)[rhs];
+  // Sign-bit flip on the top byte of a signed integer comparison.
+  if ((ctx->mode & CMP_ORD_MODE_SIGNED_TOP) && idx == ctx->len - 1) {
+    lhs_val ^= 0x80;
+    rhs_val ^= 0x80;
+  }
+  barrier_var(lhs_val);
+  barrier_var(rhs_val);
+  LOG(4, "cmp_ord_bytes_loop: i=%d, idx=%d, lhs=%d, rhs=%d, lhs_val=%d, rhs_val=%d",
+      i, idx, lhs, rhs, lhs_val, rhs_val);
+  if (lhs_val < rhs_val) {
+    ctx->ord = CMP_ORD_LT;
+    return 1;
+  }
+  if (lhs_val > rhs_val) {
+    ctx->ord = CMP_ORD_GT;
+    return 1;
+  }
+  return 0;
+}
+
+// sm_cmp_ord_bytes returns CMP_ORD_LT/EQ/GT for a byte-by-byte
+// comparison of two ranges in the scratch buffer. mode is a bitfield of
+// CMP_ORD_MODE_* flags packing the iteration direction and signed-top
+// handling into a single byte (BPF function ABI is limited to 5
+// arguments).
+__attribute__((noinline)) cmp_ord_result_t
+sm_cmp_ord_bytes(scratch_buf_t* buf, buf_offset_t lhs, buf_offset_t rhs,
+                 uint32_t len, cmp_ord_mode_t mode) {
+  if (!buf) {
+    return CMP_ORD_EQ;
+  }
+  cmp_ord_bytes_ctx_t ctx = {
+      .buf = buf,
+      .lhs = lhs,
+      .rhs = rhs,
+      .len = len,
+      .mode = mode,
+      .ord = CMP_ORD_EQ,
+  };
+  bpf_loop(len, cmp_ord_bytes_loop, &ctx, 0);
+  return ctx.ord;
+}
+
+// cmp_ord_to_bool maps a 3-way ordering result + cmp_op to a bool.
+// CMP_EQ / CMP_NE callers use sm_cmp_eq_bytes directly and never reach
+// this helper.
+static __always_inline bool cmp_ord_to_bool(cmp_ord_result_t ord, cmp_op_t op) {
+  switch (op) {
+  case CMP_LT:
+    return ord == CMP_ORD_LT;
+  case CMP_LE:
+    return ord != CMP_ORD_GT;
+  case CMP_GT:
+    return ord == CMP_ORD_GT;
+  case CMP_GE:
+    return ord != CMP_ORD_LT;
+  default:
+    LOG(2, "cmp_ord_to_bool: invalid op: %d, ord: %d", op, ord);
+    return false;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -873,7 +1042,12 @@ swiss_map_check_slot(scratch_buf_t* buf, swiss_map_slot_params_t* p) {
     }
   }
 
-  // Key matched — read value.
+  // Key matched. In existence-only mode the caller writes the bool result;
+  // skip the value dereference so exotic val types (large structs, unreadable
+  // pointers, etc.) don't turn a clean "present" into an eval error.
+  if (p->existence_only) {
+    return 1;
+  }
   if (!scratch_buf_dereference(buf, p->result_offset,
                                p->val_byte_size, p->val_addr)) {
     return -1;
@@ -890,6 +1064,9 @@ swiss_map_check_slot(scratch_buf_t* buf, swiss_map_slot_params_t* p) {
 // Returns:
 //   1 = success, probe state ready (AES rounds still needed if use_aes)
 //   2 = success, hash done, probe state ready (wyhash path; skip AESENC+HASH_FINISH)
+//   3 = existence-only short circuit: bool 0 written at result_offset and
+//       sm->pc advanced past the remaining four swiss-map opcodes. Caller
+//       should fall through without running them. Used for contains(nil_map).
 //   0 = key not found (nil map or null table — OOB written)
 //  -1 = error
 // ---------------------------------------------------------------------------
@@ -918,6 +1095,7 @@ sm_swiss_map_setup(scratch_buf_t* buf, stack_machine_t* sm) {
   ST.group_byte_size = sm_read_program_uint16(sm);
   uint32_t header_byte_size = sm_read_program_uint32(sm);
   ST.expr_status_idx = sm_read_program_uint32(sm);
+  ST.existence_only = sm_read_program_uint8(sm);
   uint16_t key_data_len = sm_read_program_uint16(sm);
 
   // Max key data: 4 (length prefix) + 512 (string) = 516 for strings,
@@ -951,6 +1129,15 @@ sm_swiss_map_setup(scratch_buf_t* buf, stack_machine_t* sm) {
   // Nil map check.
   if (dir_ptr == 0) {
     LOG(4, "swiss_map_setup: nil map");
+    if (ST.existence_only) {
+      // contains(nil_map, k) is false. Write the bool in place at
+      // sm->offset, skip the remaining 4 swiss-map opcodes (AESENC,
+      // HASH_FINISH, PROBE, CHECK_SLOT — each is 1 byte), and continue.
+      if (!scratch_buf_bounds_check(&ST.result_offset, 1)) return -1;
+      (*buf)[ST.result_offset] = 0;
+      sm->pc += 4;
+      return 3;
+    }
     if (ST.expr_status_idx != EXPR_STATUS_IDX_NONE) {
       expr_status_write(buf, sm->expr_results_offset, ST.expr_status_idx,
                         EXPR_STATUS_OOB);
@@ -1672,6 +1859,10 @@ sm_swiss_map_hash_finish(scratch_buf_t* buf, stack_machine_t* sm) {
       return -1;
     }
     if (table_ptr == 0) {
+      // A well-formed Go swiss map never has a null directory entry for a
+      // multi-table map (dir_len > 0): the runtime allocates every table
+      // before installing the directory. Reaching here means we read a
+      // torn or corrupt header, so report OOB regardless of mode.
       if (sm->swiss_map_state.expr_status_idx != EXPR_STATUS_IDX_NONE) {
         expr_status_write(buf, sm->expr_results_offset,
                           sm->swiss_map_state.expr_status_idx, EXPR_STATUS_OOB);
@@ -2070,12 +2261,28 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     uint32_t bias = sm_read_program_uint32(sm);
     uint32_t byte_len = sm_read_program_uint32(sm);
     uint32_t expr_status_idx = sm_read_program_uint32(sm);
+    uint8_t null_as_zero = sm_read_program_uint8(sm);
     buf_offset_t value_offset = sm->offset;
     if (!scratch_buf_bounds_check(&value_offset, sizeof(target_ptr_t))) {
       return 1;
     }
     target_ptr_t addr = *(target_ptr_t*)&((*buf)[value_offset]);
     if (addr == 0) {
+      if (null_as_zero) {
+        // contains(nil_map, k): write byte_len zeros at sm->offset so the
+        // follow-on SwissMapLookupOp sees a zero map header, detects
+        // dir_ptr == 0, and writes bool-false. sm_zero_bytes_scratch uses
+        // bpf_loop so the verifier can bound the write.
+        if (!sm_zero_bytes_scratch(buf, sm->offset, byte_len)) {
+          scratch_buf_set_len(buf, sm->expr_results_end_offset);
+          if (!sm_return(sm)) {
+            return 1;
+          }
+          return 0;
+        }
+        sm->buf_offset_1 = byte_len;
+        break;
+      }
       // NULL pointer: write nil-deref status.
       if (expr_status_idx != EXPR_STATUS_IDX_NONE) {
         expr_status_write(buf, sm->expr_results_offset, expr_status_idx, EXPR_STATUS_NIL_DEREF);
@@ -2244,6 +2451,30 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       LOG(4, "chasing pointer @%llx", item->di.address);
       sm->pc--;
       sm_chase_pointer(ctx, *item);
+
+      if (sm->buffer_full) {
+        sm->buffer_full = false;
+        // Scratch buffer is full. Flush it as a continuation fragment
+        // and retry this item in the fresh buffer.
+        if (!scratch_buf_flush_and_continue(
+                ctx->buf, &sm->continuation_seq,
+                &sm->last_submitted_seq, sm->start_ns,
+                sm->entry_ktime_ns)) {
+          // Ringbuf is full during a mid-chase flush. probe_run will send
+          // a PARTIAL_ENTRY/PARTIAL_RETURN notification and skip the final
+          // submit so userspace can emit the fragments already in flight.
+          sm->continuation_aborted = true;
+          return 1;
+        }
+        sm_chase_pointer(ctx, *item);
+        if (sm->buffer_full) {
+          // The item itself is larger than an empty scratch buffer can hold
+          // (e.g. a slice whose collection_size_limit * element_byte_size
+          // exceeds ~32KiB minus headers). Skip it.
+          LOG(2, "chase: item too large for single buffer, skipping");
+          sm->buffer_full = false;
+        }
+      }
     }
   } break;
 
@@ -2686,7 +2917,10 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
 
   case SM_OP_EXPR_LOAD_LITERAL: {
     uint16_t byte_size = sm_read_program_uint16(sm);
-    if (byte_size > 255 || byte_size == 0) {
+    // Max payload size is 4 (u32 string-length prefix) + 255 (max
+    // string-literal bytes, == ir.MaxStringLiteralLength); base-type
+    // literals are at most 8 bytes, so 259 is the binding ceiling.
+    if (byte_size > 259 || byte_size == 0) {
       LOG(1, "enqueue: load_literal: invalid byte_size %d", byte_size);
       return 1;
     }
@@ -2713,38 +2947,49 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       return 1;
     }
 
-    // Cap the length.
-    uint32_t capped_len = str_len;
-    if (capped_len > max_len) {
-      capped_len = max_len;
-    }
+    // Two distinct lengths:
+    //   copy_len: bytes physically copied into the buffer (capped at
+    //   max_len so the verifier sees a compile-time bound).
+    //   stored_len: written into the [u32 len] prefix; carries the
+    //   *original* Go string length (saturated at u32 max) so
+    //   SM_OP_EXPR_CMP_STRING can distinguish "longer LHS that shares
+    //   the literal's prefix" from "exact match". Without this, a
+    //   long string and a max-length literal with matching prefixes
+    //   would compare equal (and ordering would tie-break wrong).
+    uint32_t copy_len = (str_len > max_len) ? max_len : (uint32_t)str_len;
+    uint32_t stored_len = (str_len > 0xFFFFFFFFu)
+                              ? 0xFFFFFFFFu
+                              : (uint32_t)str_len;
 
     // Overwrite in-place: [u32 len][bytes...]
     // Use constant 259 (4 + max 255) so the verifier sees a compile-time bound.
     if (!scratch_buf_bounds_check(&sm->offset, 259)) {
       return 1;
     }
-    *(uint32_t*)(&(*buf)[sm->offset]) = capped_len;
+    *(uint32_t*)(&(*buf)[sm->offset]) = stored_len;
 
     // Read string data from userspace.
-    if (capped_len > 0 && str_ptr != 0) {
+    if (copy_len > 0 && str_ptr != 0) {
       buf_offset_t data_offset = sm->offset + 4;
-      bpf_probe_read_user(&(*buf)[data_offset], capped_len & 0xFF, (void*)str_ptr);
+      bpf_probe_read_user(&(*buf)[data_offset], copy_len & 0xFF, (void*)str_ptr);
     }
 
-    // Advance offset past materialized data.
-    sm->offset += 4 + capped_len;
+    // Advance offset past the *physically copied* bytes (not the
+    // potentially-larger stored_len).
+    sm->offset += 4 + copy_len;
   } break;
 
-  case SM_OP_EXPR_CMP_EQ_BASE: {
+  case SM_OP_EXPR_CMP_BASE: {
     uint8_t byte_size = sm_read_program_uint8(sm);
+    cmp_op_t op = (cmp_op_t)sm_read_program_uint8(sm);
+    cmp_kind_t kind = (cmp_kind_t)sm_read_program_uint8(sm);
     if (byte_size > 8 || byte_size == 0) {
-      LOG(1, "enqueue: cmp_eq_base: invalid byte_size %d", byte_size);
+      LOG(1, "enqueue: cmp_base: invalid byte_size %d", byte_size);
       return 1;
     }
     // Pop LHS offset from data stack.
     if (sm->data_stack_pointer == 0) {
-      LOG(1, "enqueue: cmp_eq_base: empty data stack");
+      LOG(1, "enqueue: cmp_base: empty data stack");
       return 1;
     }
     sm->data_stack_pointer--;
@@ -2761,19 +3006,36 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       return 1;
     }
 
-    bool eq = sm_cmp_eq_bytes(buf, lhs_off, rhs_off, (uint32_t)byte_size);
+    uint8_t result = 0;
+    if (op == CMP_EQ || op == CMP_NE) {
+      // Equality fast path: byte-equality is direction-independent and
+      // ignores cmp_kind (signed/unsigned have identical bitwise eq).
+      bool eq = sm_cmp_eq_bytes(buf, lhs_off, rhs_off, (uint32_t)byte_size);
+      result = (op == CMP_EQ) ? (eq ? 1 : 0) : (eq ? 0 : 1);
+    } else {
+      // Ordering: walk MSB-first for little-endian integer compare,
+      // with the sign-bit flip on the top byte for signed kinds.
+      cmp_ord_mode_t mode = CMP_ORD_MODE_MSB_FIRST;
+      if (kind == CMP_KIND_INT) {
+        mode |= CMP_ORD_MODE_SIGNED_TOP;
+      }
+      cmp_ord_result_t ord = sm_cmp_ord_bytes(
+          buf, lhs_off, rhs_off, (uint32_t)byte_size, mode);
+      result = cmp_ord_to_bool(ord, op) ? 1 : 0;
+    }
 
     // Write bool result at sm->offset.
     if (!scratch_buf_bounds_check(&sm->offset, 1)) {
       return 1;
     }
-    (*buf)[sm->offset] = eq ? 1 : 0;
+    (*buf)[sm->offset] = result;
   } break;
 
-  case SM_OP_EXPR_CMP_EQ_STRING: {
+  case SM_OP_EXPR_CMP_STRING: {
+    cmp_op_t op = (cmp_op_t)sm_read_program_uint8(sm);
     // Pop LHS offset from data stack.
     if (sm->data_stack_pointer == 0) {
-      LOG(1, "enqueue: cmp_eq_string: empty data stack");
+      LOG(1, "enqueue: cmp_string: empty data stack");
       return 1;
     }
     sm->data_stack_pointer--;
@@ -2785,7 +3047,11 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
 
     buf_offset_t lhs_off = lhs_offset;
     buf_offset_t rhs_off = sm->offset;
-    // Both have format: [u32 len][bytes...]
+    // Both have format: [u32 len][bytes...]. The u32 len holds the
+    // *true* Go string length: lhs_len may exceed the physically
+    // copied byte count (255) when the Go string was longer than the
+    // SM_OP_EXPR_READ_STRING cap; rhs_len is always <= 255 because
+    // IR-gen rejects longer literals.
     if (!scratch_buf_bounds_check(&lhs_off, 4) ||
         !scratch_buf_bounds_check(&rhs_off, 4)) {
       return 1;
@@ -2794,12 +3060,47 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     uint32_t rhs_len = *(uint32_t*)(&(*buf)[rhs_off]);
 
     uint8_t result = 0;
-    if (lhs_len == rhs_len) {
-      uint32_t cmp_len = lhs_len;
-      if (cmp_len > 256) {
-        cmp_len = 256;
+    if (op == CMP_EQ || op == CMP_NE) {
+      bool eq = false;
+      if (lhs_len == rhs_len) {
+        // lhs_len == rhs_len <= 255, so all bytes are physically
+        // present for both sides. (If lhs was truncated, lhs_len >
+        // 255 == rhs_len and we fall into the `eq = false` branch.)
+        // The cap at 255 is a no-op for reachable inputs but keeps
+        // the verifier happy.
+        uint32_t cmp_len = lhs_len;
+        if (cmp_len > 255) {
+          cmp_len = 255;
+        }
+        eq = sm_cmp_eq_bytes(buf, lhs_off + 4, rhs_off + 4, cmp_len);
       }
-      result = sm_cmp_eq_bytes(buf, lhs_off + 4, rhs_off + 4, cmp_len) ? 1 : 0;
+      result = (op == CMP_EQ) ? (eq ? 1 : 0) : (eq ? 0 : 1);
+    } else {
+      // Ordering: lexicographic byte order on the common prefix, then
+      // shorter side wins ties. Since rhs_len <= 255, common <= 255,
+      // so the first `common` bytes of LHS are physically present
+      // even when LHS was truncated.
+      uint32_t common = lhs_len < rhs_len ? lhs_len : rhs_len;
+      if (common > 255) {
+        common = 255;
+      }
+      cmp_ord_result_t ord = CMP_ORD_EQ;
+      if (common > 0) {
+        // Strings: walk forward for lexicographic byte order, no sign
+        // handling — pass mode = 0 (neither MSB_FIRST nor SIGNED_TOP).
+        ord = sm_cmp_ord_bytes(buf, lhs_off + 4, rhs_off + 4, common, 0);
+      }
+      if (ord == CMP_ORD_EQ) {
+        // Length tie-breaker uses the *true* lengths (lhs_len may be
+        // > 255 when the LHS was truncated), so a longer LHS sharing
+        // the literal's prefix correctly compares greater.
+        if (lhs_len < rhs_len) {
+          ord = CMP_ORD_LT;
+        } else if (lhs_len > rhs_len) {
+          ord = CMP_ORD_GT;
+        }
+      }
+      result = cmp_ord_to_bool(ord, op) ? 1 : 0;
     }
 
     // Write result at sm->offset.
@@ -2871,6 +3172,12 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   case SM_OP_SWISS_MAP_SETUP: {
     LOG(4, "SWISS_MAP_SETUP: starting");
     int rc = sm_swiss_map_setup(buf, sm);
+    if (rc == 3) {
+      // Existence-only short circuit: setup already wrote the bool at
+      // result_offset and advanced sm->pc past the remaining swiss-map
+      // opcodes. Fall through without copying key data or running AES.
+      break;
+    }
     if (rc <= 0) {
       // nil map (0) or error (-1). OOB already written.
       if (!sm_return(sm)) return 1;
@@ -2963,6 +3270,14 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     if (sm->swiss_map_state.empty_matches) {
       // No H2 match and empty slot → key not in map.
       LOG(4, "swiss_map_probe: key not found (empty slot)");
+      if (sm->swiss_map_state.existence_only) {
+        // contains(m, absent_key) → false. Write bool 0, skip CHECK_SLOT.
+        buf_offset_t ro = sm->swiss_map_state.result_offset;
+        if (!scratch_buf_bounds_check(&ro, 1)) return 1;
+        (*buf)[ro] = 0;
+        sm->pc += 1; // skip CHECK_SLOT
+        break;
+      }
       if (sm->swiss_map_state.expr_status_idx != EXPR_STATUS_IDX_NONE) {
         expr_status_write(buf, sm->expr_results_offset,
                           sm->swiss_map_state.expr_status_idx, EXPR_STATUS_OOB);
@@ -3008,12 +3323,21 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     sm->swiss_map_state.slot_params.key_data_len = sm->swiss_map_state.key_data_len;
     sm->swiss_map_state.slot_params.key_byte_size = sm->swiss_map_state.key_byte_size;
     sm->swiss_map_state.slot_params.is_string_key = sm->swiss_map_state.is_string_key;
+    sm->swiss_map_state.slot_params.existence_only = sm->swiss_map_state.existence_only;
     int result = swiss_map_check_slot(buf, &sm->swiss_map_state.slot_params);
     if (result == 1) {
       LOG(4, "swiss_map_check_slot: key found");
-      break; // Value written at result_offset. Done.
+      if (sm->swiss_map_state.existence_only) {
+        // contains(m, present_key) → true. Write bool 1 in place; the slot
+        // helper skipped the value dereference.
+        buf_offset_t ro = sm->swiss_map_state.result_offset;
+        if (!scratch_buf_bounds_check(&ro, 1)) return 1;
+        (*buf)[ro] = 1;
+      }
+      break; // Value (or bool) written at result_offset. Done.
     }
     if (result < 0) {
+      // Genuine read error — fault in both modes.
       LOG(3, "swiss_map_check_slot: error");
       scratch_buf_set_len(buf, sm->expr_results_end_offset);
       if (!sm_return(sm)) return 1;
@@ -3025,6 +3349,12 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     } else if (sm->swiss_map_state.empty_matches) {
       // No more H2 matches + empty slot → key not in map.
       LOG(4, "swiss_map_check_slot: key not found (exhausted h2 matches)");
+      if (sm->swiss_map_state.existence_only) {
+        buf_offset_t ro = sm->swiss_map_state.result_offset;
+        if (!scratch_buf_bounds_check(&ro, 1)) return 1;
+        (*buf)[ro] = 0;
+        break;
+      }
       if (sm->swiss_map_state.expr_status_idx != EXPR_STATUS_IDX_NONE) {
         expr_status_write(buf, sm->expr_results_offset,
                           sm->swiss_map_state.expr_status_idx, EXPR_STATUS_OOB);

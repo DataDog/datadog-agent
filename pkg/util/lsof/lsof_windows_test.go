@@ -9,14 +9,15 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
+	"slices"
 	"testing"
 	"unicode/utf16"
 	"unsafe"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 	"golang.org/x/sys/windows"
 )
 
@@ -64,7 +65,7 @@ func TestGetDLLFiles(t *testing.T) {
 			return errors.New("some error")
 		},
 		Stat: func(s string) (os.FileInfo, error) {
-			require.Contains(t, maps.Values(paths), s)
+			require.Contains(t, slices.Collect(maps.Values(paths)), s)
 			stat, ok := stats[s]
 			if ok {
 				return stat, nil

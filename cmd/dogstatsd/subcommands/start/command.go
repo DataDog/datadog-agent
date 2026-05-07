@@ -46,17 +46,17 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
-	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
+	host "github.com/DataDog/datadog-agent/comp/metadata/host/def"
+	hostfx "github.com/DataDog/datadog-agent/comp/metadata/host/fx"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
+	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"
+	inventoryhost "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/def"
+	inventoryhostfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/fx"
 	resources "github.com/DataDog/datadog-agent/comp/metadata/resources/def"
 	resourcesfx "github.com/DataDog/datadog-agent/comp/metadata/resources/fx"
 	resourcesimpl "github.com/DataDog/datadog-agent/comp/metadata/resources/impl"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner"
-	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
+	metadatarunnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -160,14 +160,14 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			return demuxInstance.Serializer()
 		}),
 		fx.Supply(resourcesimpl.Disabled()),
-		metadatarunnerimpl.Module(),
+		metadatarunnerfx.Module(),
 		resourcesfx.Module(),
-		hostimpl.Module(),
-		inventoryagentimpl.Module(),
+		hostfx.Module(),
+		inventoryagentfx.Module(),
 		ipcfx.ModuleReadWrite(),
 		// sysprobeconfig is optionally required by inventoryagent
 		sysprobeconfig.NoneModule(),
-		inventoryhostimpl.Module(),
+		inventoryhostfx.Module(),
 		fx.Provide(func(config config.Component) healthprobe.Options {
 			return healthprobe.Options{
 				Port:           config.GetInt("health_port"),

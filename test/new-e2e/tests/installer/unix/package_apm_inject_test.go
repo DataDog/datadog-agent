@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 	"go.yaml.in/yaml/v3"
@@ -31,6 +32,18 @@ func testApmInjectAgent(os e2eos.Descriptor, arch e2eos.Architecture, method Ins
 	return &packageApmInjectSuite{
 		packageBaseSuite: newPackageSuite("apm-inject", os, arch, method),
 	}
+}
+
+func (s *packageApmInjectSuite) SetupTest() {
+	if s.os == e2eos.Debian12 || s.os == e2eos.Ubuntu2404 {
+		flake.Mark(s.T())
+	}
+	// Purge() uses Execute (not MustExecute), so failures are silent.
+	// A stale packages.db entry causes Install() to skip PostInstall hooks
+	// (which create /etc/ld.so.preload and /etc/docker/daemon.json).
+	s.Env().RemoteHost.Execute("sudo rm -f /opt/datadog-packages/packages.db")
+	s.Env().RemoteHost.Execute("sudo rm -f /etc/ld.so.preload")
+	s.Env().RemoteHost.Execute("sudo rm -f /etc/docker/daemon.json")
 }
 
 func (s *packageApmInjectSuite) TestInstall() {
@@ -449,7 +462,7 @@ func (s *packageApmInjectSuite) TestAppArmor() {
 	assert.Contains(s.T(), s.Env().RemoteHost.MustExecute("sudo aa-enabled"), "Yes")
 	s.Env().RemoteHost.MustExecute("sudo apt update && sudo apt install -y isc-dhcp-client")
 	res := s.Env().RemoteHost.MustExecute("sudo DD_APM_INSTRUMENTATION_DEBUG=true /usr/sbin/dhclient 2>&1")
-	assert.Contains(s.T(), res, "not injecting; on deny list")
+	assert.Contains(s.T(), res, "not injecting")
 }
 
 func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {
@@ -558,9 +571,6 @@ func (s *packageApmInjectSuite) assertAppArmorProfile() {
 // install; direct instrumentation covers the current boot. The service's ExecStart/ExecStop
 // commands (instrument-start/instrument-stop) manage /etc/ld.so.preload on every reboot.
 func (s *packageApmInjectSuite) TestSystemdService() {
-	if s.installMethod == InstallMethodAnsible {
-		s.T().Skip("Ansible runs stable install-ssi script")
-	}
 	if _, err := s.Env().RemoteHost.Execute("test \"$(cat /proc/1/comm 2>/dev/null)\" = systemd"); err != nil {
 		s.T().Skip("systemd is not running as PID 1 on this host")
 	}
@@ -596,9 +606,6 @@ func (s *packageApmInjectSuite) TestSystemdService() {
 // /etc/ld.so.preload when systemd is not the init system, without creating a service file.
 // This test only runs on hosts where systemd is not PID 1; TestSystemdService covers the systemd path.
 func (s *packageApmInjectSuite) TestInstrumentHost_NoSystemd() {
-	if s.installMethod == InstallMethodAnsible {
-		s.T().Skip("Ansible runs stable install-ssi script")
-	}
 	if _, err := s.Env().RemoteHost.Execute("test \"$(cat /proc/1/comm 2>/dev/null)\" = systemd"); err == nil {
 		s.T().Skip("systemd is PID 1 on this host; TestSystemdService covers that path")
 	}

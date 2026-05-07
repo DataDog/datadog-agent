@@ -303,6 +303,44 @@ func TestSetExternalTagsNotTuple(t *testing.T) {
 	helpers.AssertMemoryUsage(t)
 }
 
+func TestSetExternalTagsShortTuple(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	code := `
+	datadog_agent.set_external_tags([('hostname',)])
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "TypeError: external host tags tuple must have at least 2 elements" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
+func TestSetExternalTagsEmptyTuple(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	code := `
+	datadog_agent.set_external_tags([()])
+	`
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "TypeError: external host tags tuple must have at least 2 elements" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
+
 func TestSetExternalTagsInvalidHostname(t *testing.T) {
 	// Reset memory counters
 	helpers.ResetMemoryStats()

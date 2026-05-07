@@ -43,13 +43,12 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
@@ -62,12 +61,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
-	healthplatformnoopfx "github.com/DataDog/datadog-agent/comp/healthplatform/fx-noop"
-	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
+	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
+	inventorychecksfx "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
@@ -184,9 +183,9 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				dualTaggerfx.Module(common.DualTaggerParams()),
 				workloadfilterfx.Module(),
 				autodiscoveryimpl.Module(),
-				healthplatformnoopfx.Module(),
+				healthplatform.Bundle(),
 				defaultforwarder.NoopModule(),
-				inventorychecksimpl.Module(),
+				inventorychecksfx.Module(),
 				logscompression.Module(),
 				metricscompression.Module(),
 				filterlistfx.Module(),
@@ -264,7 +263,6 @@ func run(
 	filterStore workloadfilter.Component,
 	tagger tagger.Component,
 	ac autodiscovery.Component,
-	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
 	statusComponent status.Component,
@@ -315,7 +313,7 @@ func run(
 	//  so the subcommand can't read the RC database if the agent is also running.
 	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil, traceroute)
 
-	common.LoadComponents(secretResolver, wmeta, tagger, filterStore, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
+	common.LoadComponents(ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to

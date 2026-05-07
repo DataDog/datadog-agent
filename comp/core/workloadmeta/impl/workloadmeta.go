@@ -125,7 +125,7 @@ func NewWorkloadMeta(deps Dependencies) Provider {
 
 	return Provider{
 		Comp:          wm,
-		FlareProvider: flaretypes.NewProvider(wm.sbomFlareProvider),
+		FlareProvider: flaretypes.NewProvider(wm.fillFlare),
 		Endpoint:      api.NewAgentEndpointProvider(wm.writeResponse, "/workload-list", "GET"),
 	}
 }

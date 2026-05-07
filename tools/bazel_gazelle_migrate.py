@@ -322,8 +322,10 @@ def try_migrate(path: str, test_targets: list[str]) -> tuple[bool, str]:
     log("  full migration failed; identifying failing sub-packages to exclude")
     delete_files(new_files)
 
-    # Check for stale external Bazel module errors (@@gazelle++go_deps+... repos
-    # that reference an unknown @rules_go).  These are not fixable by adding
+    # Check for stale external Bazel module errors (e.g. @@gazelle++go_deps+...
+    # repos that fail to load because their generated BUILD.bazel references an
+    # unknown repo, or sibling go.mod modules whose materialized external repo
+    # is missing sub-package BUILD files).  These are not fixable by adding
     # more gazelle:exclude lines — they require `bazel sync` or MODULE.bazel
     # updates.  Detect them early so we don't emit a misleading BLOCKED message.
     if re.search(r"@@\[unknown repo|error loading package '@@", test_output):
