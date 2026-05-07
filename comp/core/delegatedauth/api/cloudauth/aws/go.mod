@@ -38,7 +38,7 @@ require (
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/viper v1.15.1 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
-	github.com/aws/smithy-go v1.25.0 // indirect
+	github.com/aws/smithy-go v1.25.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
@@ -222,6 +222,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/grpc => ../../../../../../pkg/util/grpc
 	github.com/DataDog/datadog-agent/pkg/util/hostinfo => ../../../../../../pkg/util/hostinfo
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../../../../pkg/util/hostname/validate
+	github.com/DataDog/datadog-agent/pkg/util/hostport => ../../../../../../pkg/util/hostport
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../../../../../pkg/util/http
 	github.com/DataDog/datadog-agent/pkg/util/json => ../../../../../../pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/jsonquery => ../../../../../../pkg/util/jsonquery
