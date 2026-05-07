@@ -19,13 +19,22 @@ import (
 
 	"go.uber.org/fx"
 
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	recorderfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx"
+	reportertestbenchfx "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx-testbench"
+	testbenchimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl-testbench"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
+	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmetadef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/internal/qbranch/anomalydetection-testbench/bench"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 type CLIParams struct {
@@ -67,7 +76,7 @@ func main() {
 	// --config takes full precedence over --enable/--disable/--only.
 	var componentSettings observerimpl.ComponentSettings
 	if *configFile != "" {
-		loaded, err := observerimpl.LoadTestbenchParams(*configFile)
+		loaded, err := bench.LoadTestbenchParams(*configFile)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to load config file: %v\n", err)
 			os.Exit(1)
@@ -76,7 +85,6 @@ func main() {
 	} else {
 		overrides := make(map[string]bool)
 		if *onlyStr != "" {
-			// --only: enable listed components + extractors, disable everything else.
 			onlySet := make(map[string]bool)
 			for _, name := range strings.Split(*onlyStr, ",") {
 				name = strings.TrimSpace(name)
@@ -86,7 +94,7 @@ func main() {
 			}
 			for _, entry := range observerimpl.TestbenchCatalogEntries() {
 				if entry.Kind == "extractor" {
-					continue // extractors always enabled
+					continue
 				}
 				overrides[entry.Name] = onlySet[entry.Name]
 			}
@@ -123,6 +131,12 @@ func main() {
 
 	err := fxutil.OneShot(run,
 		recorderfx.Module(),
+		observerfx.Module(),
+		reportertestbenchfx.Module(),
+		// Observer optional deps: HF container checks not needed by the testbench.
+		fx.Supply(option.None[workloadmetadef.Component]()),
+		fx.Supply(option.None[workloadfilterdef.Component]()),
+		fx.Supply(option.None[taggerdef.Component]()),
 		core.Bundle(),
 		fx.Supply(core.BundleParams{
 			ConfigParams: config.NewAgentParams(""),
@@ -147,9 +161,20 @@ func main() {
 	}
 }
 
-func run(recorder recorderdef.Component, cfg config.Component, logger log.Component, params CLIParams) error {
-	// Create the test bench
-	tb, err := observerimpl.NewTestBench(observerimpl.TestBenchConfig{
+func run(
+	obs observerdef.Component,
+	recorder recorderdef.Component,
+	sseAccess testbenchimpl.SSEAccess,
+	cfg config.Component,
+	logger log.Component,
+	params CLIParams,
+) error {
+	debug, ok := obs.(observerimpl.DebugView)
+	if !ok {
+		return fmt.Errorf("observer does not implement DebugView")
+	}
+
+	tb, err := bench.New(obs, debug, sseAccess, bench.Config{
 		ScenariosDir:       params.ScenariosDir,
 		HTTPAddr:           params.HTTPAddr,
 		Recorder:           recorder,
@@ -195,7 +220,6 @@ func run(recorder recorderdef.Component, cfg config.Component, logger log.Compon
 
 	fmt.Printf("API server running at http://localhost%s\n", params.HTTPAddr)
 
-	// Print component status from registry
 	components := tb.GetComponents()
 	fmt.Print("Detectors: ")
 	var detectors []string
@@ -251,7 +275,6 @@ func run(recorder recorderdef.Component, cfg config.Component, logger log.Compon
 	fmt.Println("  GET  /api/stats                           - Correlator stats")
 	fmt.Println()
 
-	// Wait for interrupt signal
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
@@ -263,3 +286,4 @@ func run(recorder recorderdef.Component, cfg config.Component, logger log.Compon
 
 	return nil
 }
+

@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -21,9 +22,9 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl/hfrunner"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
+	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
 	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
@@ -46,9 +47,11 @@ type Requires struct {
 	// If provided, all handles will be wrapped to record metrics to parquet files.
 	Recorder option.Option[recorderdef.Component]
 
-	// RemoteAgentRegistry enables fetching traces/profiles
-	// from remote trace-agents via the ObserverProvider gRPC service.
-	RemoteAgentRegistry remoteagentregistry.Component
+	// Reporters are provided by reporter/fx, reporter/fx-testbench, etc. via the
+	// `anomalydetection_reporters` Fx group. Each reporter gets its own subscription
+	// so it receives advance events independently. StorageConsumer reporters receive
+	// storage for windowed log-rate annotations.
+	Reporters []reporterdef.Reporter `group:"anomalydetection_reporters"`
 
 	// WMeta, FilterStore, Tagger are optional — required only when
 	// observer.high_frequency_container_checks.enabled is true.
@@ -69,6 +72,9 @@ type observation struct {
 	source string
 	metric *metricObs
 	log    *logObs
+	// flush, when non-nil, is closed by the dispatch loop once this observation
+	// is reached, signalling that all prior observations have been processed.
+	flush chan struct{}
 }
 
 // metricObs contains copied metric data and implements observerdef.MetricView.
@@ -181,14 +187,18 @@ func NewComponent(deps Requires) Provides {
 		scheduler:        &currentBehaviorPolicy{},
 	})
 
-	// Wire reporters via event subscription.
-	// The reporterEventSink queries stateView for active correlations on each advance,
-	// so reporters receive all needed data through ReportOutput without backdoor access.
-	reporter := &StdoutReporter{}
-	eng.Subscribe(&reporterEventSink{
-		reporters: []observerdef.Reporter{reporter},
-		state:     eng.StateView(),
-	})
+	// Wire each injected reporter into its own reporterEventSink subscription.
+	// StorageConsumer reporters receive engine storage for windowed log-rate annotations.
+	for _, r := range deps.Reporters {
+		r := r
+		if sc, ok := r.(reporterdef.StorageConsumer); ok {
+			sc.SetStorage(eng.Storage())
+		}
+		eng.Subscribe(&reporterEventSink{
+			reporters: []reporterdef.Reporter{r},
+			state:     eng.StateView(),
+		})
+	}
 
 	telemetryComp := deps.Telemetry
 	if telemetryComp == nil {
@@ -207,6 +217,7 @@ func NewComponent(deps Requires) Provides {
 
 	obs := &observerImpl{
 		engine:               eng,
+		catalog:              catalog,
 		obsCh:                make(chan observation, 1000),
 		telemetryHandler:     th,
 		dropCounter:          th.telemetryCounters[telemetryObsChannelDropped],
@@ -254,19 +265,6 @@ func NewComponent(deps Requires) Provides {
 					_ = advRec.close()
 				}
 			}
-		}
-	}
-
-	// Optionally add the event reporter when sending is enabled via config.
-	if cfg.GetBool("observer.event_reporter.sending_enabled") {
-		if sender, err := newEventSender(deps.Config, deps.Log, eng.Storage()); err != nil {
-			deps.Log.Warnf("[observer] event_reporter disabled: %v", err)
-		} else {
-			eventReporter := &EventReporter{sender: sender, logger: deps.Log}
-			eng.Subscribe(&reporterEventSink{
-				reporters: []observerdef.Reporter{eventReporter},
-				state:     eng.StateView(),
-			})
 		}
 	}
 
@@ -427,6 +425,7 @@ func samplePass(rate float64, n uint64) bool {
 // detectors, correlators, and raw anomaly tracking.
 type observerImpl struct {
 	engine     *engine
+	catalog    *componentCatalog
 	obsCh      chan observation
 	handleFunc observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
 
@@ -462,11 +461,24 @@ type observerImpl struct {
 	// and log-derived virtual metrics produced inside the engine by
 	// LogMetricsExtractors are unaffected because they bypass the handle.
 	ingestMetricsEnabled bool
+
+	// replayMu serialises engine access between the run() dispatch loop and
+	// the testbench's IngestLogSync/IngestMetricSync direct-ingest path.
+	// In production the sync methods are never called so this mutex is always
+	// uncontended. In the testbench it prevents a data race between the
+	// agent-internal-log observer (which can post to obsCh while run() is
+	// processing) and a concurrent IngestLogSync call.
+	replayMu sync.Mutex
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
 func (o *observerImpl) run() {
 	for obs := range o.obsCh {
+		if obs.flush != nil {
+			close(obs.flush)
+			continue
+		}
+		o.replayMu.Lock()
 		var requests []advanceRequest
 		if obs.metric != nil {
 			requests = o.engine.IngestMetric(obs.source, obs.metric)
@@ -482,6 +494,7 @@ func (o *observerImpl) run() {
 			result := o.engine.advanceWithReason(req.upToSec, req.reason)
 			o.telemetryHandler.handleTelemetry(result.telemetry)
 		}
+		o.replayMu.Unlock()
 	}
 }
 
@@ -773,6 +786,135 @@ func (o *observerImpl) DumpMetrics(path string) error {
 	// For simplicity, just dump directly (storage access is single-threaded from run loop,
 	// but this is a debug tool so approximate snapshot is fine)
 	return o.engine.Storage().DumpToFile(path)
+}
+
+// --- DebugView implementation ---
+
+// StateView returns a read-only window into engine state.
+// Implements DebugView.
+func (o *observerImpl) StateView() StateView {
+	return o.engine.StateView()
+}
+
+// CatalogEntries returns the list of all registered components with their metadata.
+// Implements DebugView.
+func (o *observerImpl) CatalogEntries() []CatalogEntry {
+	entries := o.catalog.Entries()
+	result := make([]CatalogEntry, len(entries))
+	for i, e := range entries {
+		result[i] = CatalogEntry{
+			Name:           e.name,
+			DisplayName:    e.displayName,
+			Kind:           kindString(e.kind),
+			DefaultEnabled: e.defaultEnabled,
+		}
+	}
+	return result
+}
+
+// Flush blocks until all observations currently queued in the dispatch channel
+// have been processed by the engine. Implements DebugView.
+func (o *observerImpl) Flush() {
+	done := make(chan struct{})
+	o.obsCh <- observation{flush: done}
+	<-done
+}
+
+// Reset clears all engine state and reconfigures with new settings. Implements DebugView.
+func (o *observerImpl) Reset(settings ComponentSettings) {
+	o.Flush()
+	detectors, correlators, extractors, _ := o.catalog.Instantiate(settings)
+	o.engine.ResetForReplay(detectors, correlators, extractors)
+}
+
+// GetReplayProgress returns lock-free replay progress counters. Implements DebugView.
+func (o *observerImpl) GetReplayProgress() ReplayProgress {
+	return o.engine.GetReplayProgress()
+}
+
+// SetReplayPhase updates the replay phase string. Implements DebugView.
+func (o *observerImpl) SetReplayPhase(phase string) {
+	o.engine.SetReplayPhase(phase)
+}
+
+// ExtractorCount returns the number of extractors active in the engine. Implements DebugView.
+func (o *observerImpl) ExtractorCount() int {
+	return o.engine.ExtractorCount()
+}
+
+// AddTelemetry writes a data point into the telemetry namespace. Implements DebugView.
+func (o *observerImpl) AddTelemetry(name string, value float64, timestamp int64, tags []string) {
+	_ = o.engine.storage.Add(observerdef.TelemetryNamespace, name, value, timestamp, tags)
+}
+
+// ReplayStoredData resets analysis state (preserving extractor context) then
+// replays all stored data through the scheduler in chronological order.
+// Implements DebugView.
+func (o *observerImpl) ReplayStoredData() {
+	// resetAnalysisState resets detectors/correlators and tracking state but
+	// preserves extractor state (contextRefs + provider pattern registry) so
+	// enrichAnomaly can still attach log pattern context during replay.
+	o.engine.resetAnalysisState()
+	o.engine.ReplayStoredData()
+}
+
+// StorageReader returns a read-only view of the engine's time-series storage.
+// Used by the testbench to compute windowed log rates in change messages.
+// Implements DebugView.
+func (o *observerImpl) StorageReader() observerdef.StorageReader {
+	return o.engine.storage
+}
+
+// IngestLogSync feeds a log directly into the engine, bypassing the dispatch
+// channel. It replicates what the dispatcher run() loop does for a log
+// observation: build logObs, call engine.IngestLog, drive any advance
+// requests, and forward telemetry. Implements DebugView.
+func (o *observerImpl) IngestLogSync(source string, msg observerdef.LogView) {
+	timestampMs := msg.GetTimestampUnixMilli()
+	lo := &logObs{
+		content:     copyBytes(msg.GetContent()),
+		status:      msg.GetStatus(),
+		tags:        copyTags(msg.GetTags()),
+		hostname:    msg.GetHostname(),
+		timestampMs: timestampMs,
+	}
+	o.replayMu.Lock()
+	requests, logTelemetry := o.engine.IngestLog(source, lo)
+	if len(logTelemetry) > 0 {
+		o.telemetryHandler.handleTelemetry(logTelemetry)
+	}
+	for _, req := range requests {
+		result := o.engine.advanceWithReason(req.upToSec, req.reason)
+		o.telemetryHandler.handleTelemetry(result.telemetry)
+	}
+	o.replayMu.Unlock()
+}
+
+// IngestMetricSync feeds a metric directly into the engine, bypassing the
+// dispatch channel. Mirrors the handle.ObserveMetricAndReportDrop path without
+// the non-blocking channel send. Implements DebugView.
+func (o *observerImpl) IngestMetricSync(source string, sample observerdef.MetricView) {
+	name := sample.GetName()
+	if strings.HasPrefix(name, "datadog.") {
+		return
+	}
+	timestamp := sample.GetTimestampUnix()
+	if timestamp == 0 {
+		timestamp = time.Now().Unix()
+	}
+	mo := &metricObs{
+		name:      name,
+		value:     sample.GetValue(),
+		tags:      copyTags(sample.GetRawTags()),
+		timestamp: timestamp,
+	}
+	o.replayMu.Lock()
+	requests := o.engine.IngestMetric(source, mo)
+	for _, req := range requests {
+		result := o.engine.advanceWithReason(req.upToSec, req.reason)
+		o.telemetryHandler.handleTelemetry(result.telemetry)
+	}
+	o.replayMu.Unlock()
 }
 
 // handle is the lightweight observation interface passed to other components.

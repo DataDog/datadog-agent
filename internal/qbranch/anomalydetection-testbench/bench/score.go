@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package bench
 
 import (
 	"encoding/json"
@@ -145,15 +145,6 @@ func ComputeGaussianF1(input ScoreInput) ScoreResult {
 
 // halfGaussianOverlap computes the overlap between two half-Gaussians:
 // one centered at predTS (the prediction) and one at gtTS (ground truth).
-//
-// Both are right-sided half-Gaussians: zero mass before their center, double
-// the normal density after (total area = 1 each). This reflects that both
-// predictions and ground truth are forward-looking — a detection at time T
-// means "something started here," not "something happened before here."
-//
-// The prediction half-Gaussian is still penalized for being before ground truth
-// onset because its mass extends to the right (after the prediction) and may
-// not overlap with the ground truth's mass (which starts at gtTS).
 func halfGaussianOverlap(predTS, gtTS int64, sigma float64) float64 {
 	d := float64(predTS - gtTS) // positive = prediction is after ground truth
 	return numericalOverlapHalfHalf(d, sigma)
@@ -161,8 +152,6 @@ func halfGaussianOverlap(predTS, gtTS int64, sigma float64) float64 {
 
 // numericalOverlapHalfHalf computes the overlap integral between two right-sided
 // half-Gaussians numerically using the trapezoidal rule.
-// d = predTS - gtTS (positive means prediction is after ground truth).
-// Both half-Gaussians have density 2*φ(t) for t >= their center, 0 otherwise.
 func numericalOverlapHalfHalf(d, sigma float64) float64 {
 	// Integration range: cover from the leftmost center to 5σ past the rightmost
 	lower := math.Min(0, d)
@@ -173,16 +162,13 @@ func numericalOverlapHalfHalf(d, sigma float64) float64 {
 
 	var overlap float64
 	for i := 0; i <= nSteps; i++ {
-		// t is relative to gtTS (so gt center is at 0, pred center is at d)
 		t := lower + float64(i)*dt
 
-		// Half-Gaussian prediction (centered at d, zero for t < d)
 		var predDensity float64
 		if t >= d {
 			predDensity = 2.0 * scoreGaussianPDF(t-d, sigma)
 		}
 
-		// Half-Gaussian ground truth (centered at 0, zero for t < 0)
 		var gtDensity float64
 		if t >= 0 {
 			gtDensity = 2.0 * scoreGaussianPDF(t, sigma)
@@ -190,7 +176,6 @@ func numericalOverlapHalfHalf(d, sigma float64) float64 {
 
 		minDensity := math.Min(predDensity, gtDensity)
 
-		// Trapezoidal rule
 		if i == 0 || i == nSteps {
 			overlap += minDensity * dt / 2
 		} else {
@@ -198,7 +183,6 @@ func numericalOverlapHalfHalf(d, sigma float64) float64 {
 		}
 	}
 
-	// Clamp to [0, 1] to handle numerical imprecision
 	if overlap < 0 {
 		overlap = 0
 	}
@@ -279,9 +263,6 @@ func loadScoringMetadata(scenariosDir, scenarioName string) (*scoringMetadata, e
 
 // ScoreOutputFile loads a headless output JSON file, extracts prediction timestamps,
 // and scores them against the given ground truth.
-// If groundTruthTimestamps is nil and scenariosDir is non-empty, ground truth is
-// inferred from the scenario's episode.json (using the scenario name from the output).
-// Explicit groundTruthTimestamps override episode.json inference.
 func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenariosDir string, sigma float64) (*ScoreResult, error) {
 	if sigma <= 0 {
 		return nil, fmt.Errorf("sigma must be positive, got %f", sigma)
@@ -296,7 +277,6 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 		return nil, fmt.Errorf("parsing output JSON: %w", err)
 	}
 
-	// Load metadata if needed (for ground truth and/or baseline start/end).
 	var baselineStart, baselineEnd int64
 	if scenariosDir != "" && output.Metadata.Scenario != "" {
 		sm, err := loadScoringMetadata(scenariosDir, output.Metadata.Scenario)
@@ -304,7 +284,6 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 			if len(groundTruthTimestamps) == 0 {
 				return nil, fmt.Errorf("inferring ground truth: %w", err)
 			}
-			// Metadata load failed but we have explicit GT — continue without baseline filter.
 		} else {
 			if len(groundTruthTimestamps) == 0 {
 				groundTruthTimestamps = sm.groundTruthTimestamps
@@ -318,8 +297,6 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 		return nil, errors.New("no ground truth: provide --ground-truth-ts or --scenarios-dir with episode.json")
 	}
 
-	// Filter warmup predictions (before baseline.start).
-	// Post-onset non-matched predictions are handled by ComputeGaussianF1 (ignored).
 	var predictions []int64
 	var numFilteredWarmup int
 	for _, period := range output.AnomalyPeriods {
@@ -330,7 +307,6 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 		predictions = append(predictions, period.PeriodStart)
 	}
 
-	// Count baseline FPs: scored predictions that fire before disruption onset.
 	minGT := groundTruthTimestamps[0]
 	for _, gt := range groundTruthTimestamps[1:] {
 		if gt < minGT {
@@ -352,7 +328,6 @@ func ScoreOutputFile(outputPath string, groundTruthTimestamps []int64, scenarios
 	result.NumFilteredWarmup = numFilteredWarmup
 	result.NumBaselineFPs = numBaselineFPs
 
-	// Alpha: FP rate during baseline = num_baseline_fps / baseline_duration_seconds.
 	if baselineStart > 0 && baselineEnd > baselineStart {
 		result.BaselineDurationSeconds = baselineEnd - baselineStart
 		result.Alpha = float64(numBaselineFPs) / float64(result.BaselineDurationSeconds)

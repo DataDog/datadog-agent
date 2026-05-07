@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package reporterimpl
 
 import (
 	"context"
@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
@@ -34,7 +35,15 @@ const (
 	// absolute change guards against large relative swings near zero.
 	logRateChangeRelThreshold = 0.3
 	logRateChangeAbsThreshold = 2
+
+	// Canonical namespace names matching the extractor implementations in observer/impl.
+	logPatternExtractorNamespace = "log_pattern_extractor"
+	logMetricsExtractorNamespace = "log_metrics_extractor"
 )
+
+// splitTagKeyOrder is the canonical ordered list of tag dimensions used to split
+// log series, matching log_tagged_pattern_clusterer in observer/impl.
+var splitTagKeyOrder = []string{"source", "service", "env", "host"}
 
 // eventSender formats and dispatches one Datadog event per correlation.
 // When api is nil, send prints to stdout (dry-run mode) instead of calling the API.
@@ -45,13 +54,11 @@ type eventSender struct {
 	storage observerdef.StorageReader
 }
 
-// newEventSender creates an eventSender. It reads observer.event_reporter.sending_enabled
-// from cfg; when false, api is left nil and events are only logged (dry-run mode).
-// storage is used to compute windowed log rates for display in event messages.
+// newEventSender creates an eventSender. If api_key is not set in cfg the sender
+// operates in dry-run mode (events are logged to stdout only). storage is used
+// to compute windowed log rates for display in event messages; it may be nil and
+// will be set later via EventReporter.SetStorage.
 func newEventSender(cfg config.Component, logger log.Component, storage observerdef.StorageReader) (*eventSender, error) {
-	if !cfg.GetBool("observer.event_reporter.sending_enabled") {
-		return &eventSender{logger: logger, storage: storage}, nil
-	}
 	apiKey := cfg.GetString("api_key")
 	if apiKey == "" {
 		return nil, errors.New("api_key is not set in configuration")
@@ -119,9 +126,13 @@ func logRatePart(a observerdef.Anomaly, storage observerdef.StorageReader) strin
 	return fmt.Sprintf("\n\trate: %.1flog/s", curr)
 }
 
-// send formats a correlation into a change event and either prints or posts it.
+// Send implements reporterdef.CorrelationSender.
+func (s *eventSender) Send(c observerdef.ActiveCorrelation) error {
+	return s.send(c)
+}
+
 func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
-	msg := buildChangeMessage(c, s.storage)
+	msg := BuildChangeMessage(c, s.storage)
 	ts := time.Unix(c.FirstSeen, 0).UTC().Format(time.RFC3339)
 	aggKey := "observer:" + c.Pattern
 
@@ -141,7 +152,7 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 				Title:          c.Title,
 				Message:        datadog.PtrString(msg),
 				Category:       datadogV2.EVENTCATEGORY_CHANGE,
-				Tags:           buildEventTags(c),
+				Tags:           BuildEventTags(c),
 				Timestamp:      datadog.PtrString(ts),
 				AggregationKey: datadog.PtrString(aggKey),
 				Attributes:     attrs,
@@ -159,20 +170,20 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 	return err
 }
 
-// buildEventTags returns the Datadog event tags for a correlation.
+// BuildEventTags returns the Datadog event tags for a correlation.
 // It always includes "source:agent-q-branch-observer" and "pattern:{pattern}".
 // It adds "anomaly_type:metric" and/or "anomaly_type:log" depending on which
 // anomaly types are present (log-derived metric anomalies count as log).
 // It also propagates "service:", "env:", and "host:" dimensions collected from
 // each anomaly's source tags and from Context.SplitTags (set by the log pattern
 // extractor for sub-clustered log series).
-func buildEventTags(c observerdef.ActiveCorrelation) []string {
+func BuildEventTags(c observerdef.ActiveCorrelation) []string {
 	hasMetric := false
 	hasLog := false
 	dimensionSet := make(map[string]struct{})
 
 	for _, a := range c.Anomalies {
-		if a.Type == observerdef.AnomalyTypeLog || isLogDerivedAnomaly(a) {
+		if a.Type == observerdef.AnomalyTypeLog || IsLogDerivedAnomaly(a) {
 			hasLog = true
 		} else {
 			hasMetric = true
@@ -346,7 +357,7 @@ func buildChangeMetadata(c observerdef.ActiveCorrelation) map[string]interface{}
 				entry["context"] = ctx
 			}
 		}
-		if a.Type == observerdef.AnomalyTypeLog || isLogDerivedAnomaly(a) {
+		if a.Type == observerdef.AnomalyTypeLog || IsLogDerivedAnomaly(a) {
 			logAnomalies = append(logAnomalies, entry)
 		} else {
 			metricAnomalies = append(metricAnomalies, entry)
@@ -374,16 +385,17 @@ func buildChangeMetadata(c observerdef.ActiveCorrelation) map[string]interface{}
 	return meta
 }
 
-// buildChangeMessage creates a compact human-readable summary for a correlation (Datadog
-// change events, testbench JSON output, and replay-reported events).
-func buildChangeMessage(c observerdef.ActiveCorrelation, storage observerdef.StorageReader) string {
+// BuildChangeMessage creates a compact human-readable summary for a correlation
+// (Datadog change events, testbench JSON output, and replay-reported events).
+// storage may be nil; log-rate annotations fall back to DebugInfo.CurrentValue.
+func BuildChangeMessage(c observerdef.ActiveCorrelation, storage observerdef.StorageReader) string {
 	var lines []string
 	lines = append(lines, fmt.Sprintf("Correlated behavior change detected: %d anomalies in pattern %q", len(c.Anomalies), c.Pattern))
 	lines = append(lines, "")
 
 	anomalyLines := []string{}
 	for _, a := range c.Anomalies {
-		if isLogDerivedAnomaly(a) {
+		if IsLogDerivedAnomaly(a) {
 			anomalyLines = append(anomalyLines, "- "+logDerivedDescription(a, storage))
 		} else if a.DebugInfo != nil {
 			display := anomalyDisplayKey(a)
@@ -414,17 +426,17 @@ func anomalyDisplayKey(a observerdef.Anomaly) string {
 	return a.Source.String()
 }
 
-// isLogDerivedAnomaly returns true for metric anomalies that originate from
+// IsLogDerivedAnomaly returns true for metric anomalies that originate from
 // log pattern extraction. These should be presented as log anomalies with
 // pattern/example/rate context rather than raw metric descriptions.
-func isLogDerivedAnomaly(a observerdef.Anomaly) bool {
+func IsLogDerivedAnomaly(a observerdef.Anomaly) bool {
 	if a.Type == observerdef.AnomalyTypeLog || a.Context == nil {
 		return false
 	}
 	switch a.Source.Namespace {
-	case LogPatternExtractorName:
+	case logPatternExtractorNamespace:
 		return strings.TrimSpace(a.Context.Pattern) != ""
-	case LogMetricsExtractorName:
+	case logMetricsExtractorNamespace:
 		return strings.TrimSpace(a.Context.Pattern) != "" || strings.TrimSpace(a.Context.Example) != ""
 	}
 	return false
@@ -433,7 +445,7 @@ func isLogDerivedAnomaly(a observerdef.Anomaly) bool {
 // logDerivedDescription builds a human-readable description for a log-derived
 // metric anomaly, including pattern, example, and windowed average rate.
 func logDerivedDescription(a observerdef.Anomaly, storage observerdef.StorageReader) string {
-	if a.Source.Namespace == LogMetricsExtractorName {
+	if a.Source.Namespace == logMetricsExtractorNamespace {
 		return logFrequencyDerivedDescription(a, storage)
 	}
 	pattern := strings.TrimSpace(a.Context.Pattern)
@@ -470,19 +482,9 @@ func logFrequencyDerivedDescription(a observerdef.Anomaly, storage observerdef.S
 	return fmt.Sprintf("Log frequency change detected:\n\texample: %s%s", example, logRatePart(a, storage))
 }
 
-// sendCorrelationEvents sends one event per correlation.
-func (s *eventSender) sendCorrelationEvents(correlations []observerdef.ActiveCorrelation) {
-	for _, c := range correlations {
-		if err := s.send(c); err != nil {
-			s.logger.Errorf("[observer] failed to send event for pattern %s: %v", c.Pattern, err)
-		}
-	}
-}
-
-// newLiveEventSender creates an eventSender that always posts to the Datadog
-// API (ignoring observer.event_reporter.sending_enabled). Used for on-demand
-// sends from the testbench UI. Returns an error if api_key is not set.
-func newLiveEventSender(cfg config.Component, logger log.Component, storage observerdef.StorageReader) (*eventSender, error) {
+// NewLiveCorrelationSender creates a CorrelationSender backed by the Datadog Events API.
+// Returns an error if api_key is not configured.
+func NewLiveCorrelationSender(cfg config.Component, logger log.Component, storage observerdef.StorageReader) (reporterdef.CorrelationSender, error) {
 	apiKey := cfg.GetString("api_key")
 	if apiKey == "" {
 		return nil, errors.New("api_key is not set in configuration")
@@ -498,73 +500,4 @@ func newLiveEventSender(cfg config.Component, logger log.Component, storage obse
 		logger:  logger,
 		storage: storage,
 	}, nil
-}
-
-// sendReportedEvent posts a single ReportedEvent to the Datadog backend.
-// It replaces the original source tag with "source:anomalydetection-testbench" and
-// appends the provided extraTags (e.g. scenario and user).
-func (s *eventSender) sendReportedEvent(event ReportedEvent, extraTags []string) error {
-	// Rebuild tags: drop original source, replace with testbench source, add extras.
-	tags := []string{"source:anomalydetection-testbench"}
-	for _, t := range event.Tags {
-		if strings.HasPrefix(t, "source:") {
-			continue
-		}
-		tags = append(tags, t)
-	}
-	tags = append(tags, extraTags...)
-	sort.Strings(tags[1:]) // keep source:anomalydetection-testbench first
-
-	// Use current time: replay scenario timestamps are often hours/days old and
-	// the Datadog API rejects events with timestamps outside its acceptance window.
-	ts := time.Now().UTC().Format(time.RFC3339)
-	aggKey := "testbench:" + event.Pattern
-
-	s.logger.Infof("[observer] sending testbench event: pattern=%s title=%q", event.Pattern, event.Title)
-
-	if s.api == nil {
-		fmt.Printf("[dry-run] testbench event: pattern=%s title=%q tags=%v\n%s\n\n", event.Pattern, event.Title, tags, event.Message)
-		return nil
-	}
-
-	// EventPayload.Attributes is a required union field — omitting it causes a
-	// marshal error. Build a minimal ChangeEventCustomAttributes from the pattern.
-	name := event.Pattern
-	if len(name) > 128 {
-		name = name[:128]
-	}
-	changedResource := *datadogV2.NewChangeEventCustomAttributesChangedResource(
-		name,
-		datadogV2.CHANGEEVENTCUSTOMATTRIBUTESCHANGEDRESOURCETYPE_CONFIGURATION,
-	)
-	changeAttrs := *datadogV2.NewChangeEventCustomAttributes(changedResource)
-	changeAttrs.SetAuthor(*datadogV2.NewChangeEventCustomAttributesAuthor(
-		"datadog-agent-anomalydetection-testbench",
-		datadogV2.CHANGEEVENTCUSTOMATTRIBUTESAUTHORTYPE_AUTOMATION,
-	))
-	attrs := datadogV2.ChangeEventCustomAttributesAsEventPayloadAttributes(&changeAttrs)
-
-	payload := datadogV2.EventCreateRequestPayload{
-		Data: datadogV2.EventCreateRequest{
-			Type: datadogV2.EVENTCREATEREQUESTTYPE_EVENT,
-			Attributes: datadogV2.EventPayload{
-				Title:          event.Title,
-				Message:        datadog.PtrString(event.Message),
-				Category:       datadogV2.EVENTCATEGORY_CHANGE,
-				Tags:           tags,
-				Timestamp:      datadog.PtrString(ts),
-				AggregationKey: datadog.PtrString(aggKey),
-				Attributes:     attrs,
-			},
-		},
-	}
-	_, httpResp, err := s.api.CreateEvent(s.ctx, payload)
-	if err != nil && httpResp != nil {
-		body, readErr := io.ReadAll(httpResp.Body)
-		httpResp.Body.Close()
-		if readErr == nil {
-			return fmt.Errorf("API error (HTTP %d): %s", httpResp.StatusCode, string(body))
-		}
-	}
-	return err
 }

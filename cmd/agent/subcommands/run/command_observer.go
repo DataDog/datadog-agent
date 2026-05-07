@@ -18,6 +18,7 @@ import (
 	logssourcefx "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/fx"
 	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
 	recorderfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx-noop"
+	reporterfx "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx"
 )
 
 func getObserverOptions() fx.Option {
@@ -25,5 +26,6 @@ func getObserverOptions() fx.Option {
 		observerfx.Module(),
 		logssourcefx.Module(),
 		recorderfx.Module(),
+		reporterfx.Module(),
 	)
 }

@@ -889,6 +889,59 @@ func (e *engine) resetFull() {
 	e.resetCorrelations()
 }
 
+// resetAnalysisState resets detector and correlator state, anomaly tracking,
+// telemetry, and correlations — but does NOT reset extractors and does NOT
+// clear contextRefs. Used before batch replay so that:
+//   - enrichAnomaly can still call provider.GetContextByKey (extractor context intact)
+//   - contextRefs still maps series storage keys to their context keys
+//
+// Detectors and correlators ARE reset so they start from a clean slate and
+// produce correct anomaly/correlation results during the replay.
+func (e *engine) resetAnalysisState() {
+	e.mu.Lock()
+	e.lastAnalyzedDataTime = 0
+	e.latestDataTime = 0
+	e.mu.Unlock()
+
+	for _, detector := range e.detectors {
+		if resetter, ok := detector.(interface{ Reset() }); ok {
+			resetter.Reset()
+		}
+	}
+	for _, correlator := range e.correlators {
+		correlator.Reset()
+	}
+	// Extractors and contextRefs are intentionally NOT reset: their state was
+	// built during log ingestion and is needed by enrichAnomaly during replay.
+
+	e.resetRawAnomalies()
+	e.resetTelemetry()
+	e.resetCorrelations()
+}
+
+// ResetForReplay reconfigures with new components, clears all state, and replaces storage.
+func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []observerdef.Correlator, extractors []observerdef.LogMetricsExtractor) {
+	e.SetDetectors(detectors)
+	e.SetCorrelators(correlators)
+	e.SetExtractors(extractors)
+	e.resetFull()
+	e.mu.Lock()
+	e.storage = newTimeSeriesStorage()
+	e.mu.Unlock()
+}
+
+// ExtractorCount returns the number of extractors currently registered.
+func (e *engine) ExtractorCount() int {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return len(e.extractors)
+}
+
+// SetReplayPhase stores the current replay phase for progress reporting.
+func (e *engine) SetReplayPhase(phase string) {
+	e.replayPhase.Store(phase)
+}
+
 // ReplayProgress holds lock-free replay progress counters.
 type ReplayProgress struct {
 	Phase           string `json:"phase"` // "", "loading", "detecting", "done"

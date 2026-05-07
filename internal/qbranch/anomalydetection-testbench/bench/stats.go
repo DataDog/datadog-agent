@@ -1,15 +1,24 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2026-present Datadog, Inc.
+// Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package bench
 
 import (
 	"math"
 	"sort"
+	"strings"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
+)
+
+const (
+	telemetryDetectorProcessingTimeNs = "observer.detector.processing_time_ns"
+	telemetryTbInputLogsCount         = "observer.input_logs.count"
+	telemetryTbInputMetricsCount      = "observer.input_metrics.count"
+	telemetryTbInputMetricsCardinality = "observer.input_metrics.cardinality"
 )
 
 // DetectorProcessingStats holds aggregate processing-time statistics for a single
@@ -41,21 +50,12 @@ type ReplayStats struct {
 	InputAnomaliesCount int `json:"input_anomalies_count"`
 }
 
-// enrichDetectorStatsKind sets the Kind field on each DetectorProcessingStats entry.
-// It builds a reverse map from instance.Name() → kind, because a component's runtime
-// Name() (e.g. "bocpd_detector") may differ from its catalog key (e.g. "bocpd").
-func enrichDetectorStatsKind(stats map[string]DetectorProcessingStats, components map[string]*componentInstance) {
-	kindStr := map[componentKind]string{
-		componentDetector:   "detector",
-		componentCorrelator: "correlator",
-		componentExtractor:  "extractor",
-	}
-	type namer interface{ Name() string }
-	nameToKind := make(map[string]string, len(components))
-	for _, ci := range components {
-		if n, ok := ci.instance.(namer); ok {
-			nameToKind[n.Name()] = kindStr[ci.entry.kind]
-		}
+// enrichDetectorStatsKind sets the Kind field on each DetectorProcessingStats entry
+// using the catalog entries to map component names to kinds.
+func enrichDetectorStatsKind(stats map[string]DetectorProcessingStats, entries []observerimpl.CatalogEntry) {
+	nameToKind := make(map[string]string, len(entries))
+	for _, e := range entries {
+		nameToKind[e.Name] = e.Kind
 	}
 	for name, s := range stats {
 		if kind, ok := nameToKind[name]; ok {
@@ -66,14 +66,16 @@ func enrichDetectorStatsKind(stats map[string]DetectorProcessingStats, component
 }
 
 // sumStoredTelemetryCounter returns the total value of a telemetry counter metric
-// by summing all matching telemetry series in storage.
-func sumStoredTelemetryCounter(storage *timeSeriesStorage, name string) int {
+// by summing all matching telemetry series from a StateView.
+func sumStoredTelemetryCounter(sv observerimpl.StateView, name string) int {
 	total := 0.0
-	for _, m := range storage.ListSeriesMetadata(observerdef.TelemetryNamespace) {
+	series := sv.ListSeries(observerdef.SeriesFilter{Namespace: observerdef.TelemetryNamespace})
+	maxTs := sv.MaxTimestamp()
+	for _, m := range series {
 		if m.Name != name {
 			continue
 		}
-		s := storage.GetSeriesByNumericID(m.Ref, AggregateSum)
+		s := sv.GetSeriesRange(m.Ref, 0, maxTs, observerdef.AggregateSum)
 		if s == nil {
 			continue
 		}
@@ -84,19 +86,32 @@ func sumStoredTelemetryCounter(storage *timeSeriesStorage, name string) int {
 	return int(total)
 }
 
-// computeDetectorProcessingStats groups telemetry samples for
+// detectorNameFromTags extracts the detector name from a "detector:xxx" tag.
+func detectorNameFromTags(tags []string) string {
+	for _, t := range tags {
+		if strings.HasPrefix(t, "detector:") {
+			return strings.TrimPrefix(t, "detector:")
+		}
+	}
+	return ""
+}
+
+// computeDetectorProcessingStatsFromStateView groups telemetry samples for
 // telemetryDetectorProcessingTimeNs by detector name and computes
 // avg / median / p99 for each.
-func computeDetectorProcessingStatsFromStorage(storage *timeSeriesStorage) map[string]DetectorProcessingStats {
+func computeDetectorProcessingStatsFromStateView(sv observerimpl.StateView) map[string]DetectorProcessingStats {
 	byDetector := make(map[string][]float64)
 
-	for _, m := range storage.ListSeriesMetadata(observerdef.TelemetryNamespace) {
+	series := sv.ListSeries(observerdef.SeriesFilter{Namespace: observerdef.TelemetryNamespace})
+	maxTs := sv.MaxTimestamp()
+
+	for _, m := range series {
 		if m.Name != telemetryDetectorProcessingTimeNs {
 			continue
 		}
 
-		avgSeries := storage.GetSeriesByNumericID(m.Ref, AggregateAverage)
-		countSeries := storage.GetSeriesByNumericID(m.Ref, AggregateCount)
+		avgSeries := sv.GetSeriesRange(m.Ref, 0, maxTs, observerdef.AggregateAverage)
+		countSeries := sv.GetSeriesRange(m.Ref, 0, maxTs, observerdef.AggregateCount)
 		if avgSeries == nil || countSeries == nil {
 			continue
 		}
@@ -111,8 +126,6 @@ func computeDetectorProcessingStatsFromStorage(storage *timeSeriesStorage) map[s
 			n = len(countSeries.Points)
 		}
 		for i := 0; i < n; i++ {
-			// Storage keeps avg+count per bucket. Rehydrate bucket observations
-			// as repeated avg values to compute summary percentiles consistently.
 			sampleCount := int(math.Round(countSeries.Points[i].Value))
 			if sampleCount <= 0 {
 				continue
