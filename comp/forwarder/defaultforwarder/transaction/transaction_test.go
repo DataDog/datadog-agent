@@ -316,120 +316,84 @@ func newTransactionForStatusTest(domain string, pointCount int) *HTTPTransaction
 	return tr
 }
 
-func TestProcessSuccessfulSendIncrementsPointSent(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer ts.Close()
+func TestProcessPointCountTelemetry(t *testing.T) {
+	cases := []struct {
+		name            string
+		status          int
+		pointCount      int
+		setRefreshHook  bool
+		refreshSucceeds bool
+		wantErr         bool
+		wantSent        int
+		wantDropped     int
+	}{
+		{
+			name:       "2xx credits point.sent",
+			status:     http.StatusOK,
+			pointCount: 17,
+			wantSent:   17,
+		},
+		{
+			name:        "400 drop credits point.dropped",
+			status:      http.StatusBadRequest,
+			pointCount:  9,
+			wantDropped: 9,
+		},
+		{
+			name:        "413 drop credits point.dropped",
+			status:      http.StatusRequestEntityTooLarge,
+			pointCount:  4,
+			wantDropped: 4,
+		},
+		{
+			name:            "403 with failed key refresh credits point.dropped",
+			status:          http.StatusForbidden,
+			pointCount:      3,
+			setRefreshHook:  true,
+			refreshSucceeds: false,
+			wantDropped:     3,
+		},
+		{
+			name:            "403 with successful key refresh is retryable",
+			status:          http.StatusForbidden,
+			pointCount:      12,
+			setRefreshHook:  true,
+			refreshSucceeds: true,
+			wantErr:         true,
+		},
+		{
+			name:       "5xx is retryable",
+			status:     http.StatusServiceUnavailable,
+			pointCount: 6,
+			wantErr:    true,
+		},
+	}
 
-	tr := newTransactionForStatusTest(ts.URL, 17)
-	rec := &pointCountTelemetryRecorder{}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.status)
+			}))
+			defer ts.Close()
 
-	mockConfig := configmock.New(t)
-	logger := logmock.New(t)
-	secrets := secretsmock.New(t)
-	err := tr.Process(context.Background(), mockConfig, logger, secrets, &http.Client{}, rec)
+			tr := newTransactionForStatusTest(ts.URL, tc.pointCount)
+			rec := &pointCountTelemetryRecorder{}
 
-	assert.NoError(t, err)
-	assert.Equal(t, 17, rec.sent, "point.sent must be incremented by GetPointCount on a 2xx response")
-	assert.Equal(t, 0, rec.dropped, "point.dropped must not increment on success")
-}
+			secrets := secretsmock.New(t)
+			if tc.setRefreshHook {
+				secrets.SetRefreshHook(func() bool { return tc.refreshSucceeds })
+			}
 
-func TestProcess400DropsIncrementsPointDropped(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusBadRequest)
-	}))
-	defer ts.Close()
+			err := tr.Process(context.Background(), configmock.New(t), logmock.New(t),
+				secrets, &http.Client{}, rec)
 
-	tr := newTransactionForStatusTest(ts.URL, 9)
-	rec := &pointCountTelemetryRecorder{}
-
-	mockConfig := configmock.New(t)
-	logger := logmock.New(t)
-	secrets := secretsmock.New(t)
-	err := tr.Process(context.Background(), mockConfig, logger, secrets, &http.Client{}, rec)
-
-	assert.NoError(t, err, "400 is non-retryable: Process should return nil error")
-	assert.Equal(t, 0, rec.sent, "point.sent must not increment on 400 drop")
-	assert.Equal(t, 9, rec.dropped, "point.dropped must be incremented by GetPointCount on 400")
-}
-
-func TestProcess413DropsIncrementsPointDropped(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusRequestEntityTooLarge)
-	}))
-	defer ts.Close()
-
-	tr := newTransactionForStatusTest(ts.URL, 4)
-	rec := &pointCountTelemetryRecorder{}
-
-	mockConfig := configmock.New(t)
-	logger := logmock.New(t)
-	secrets := secretsmock.New(t)
-	err := tr.Process(context.Background(), mockConfig, logger, secrets, &http.Client{}, rec)
-
-	assert.NoError(t, err, "413 is non-retryable: Process should return nil error")
-	assert.Equal(t, 0, rec.sent, "point.sent must not increment on 413 drop")
-	assert.Equal(t, 4, rec.dropped, "point.dropped must be incremented by GetPointCount on 413")
-}
-
-func TestProcess403NoRefreshIncrementsPointDropped(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusForbidden)
-	}))
-	defer ts.Close()
-
-	tr := newTransactionForStatusTest(ts.URL, 3)
-	rec := &pointCountTelemetryRecorder{}
-
-	mockConfig := configmock.New(t)
-	logger := logmock.New(t)
-	secrets := secretsmock.New(t)
-	secrets.SetRefreshHook(func() bool { return false }) // refresh fails → drop path
-
-	err := tr.Process(context.Background(), mockConfig, logger, secrets, &http.Client{}, rec)
-
-	assert.NoError(t, err, "403 with no key refresh is non-retryable: Process should return nil error")
-	assert.Equal(t, 0, rec.sent, "point.sent must not increment on 403-drop")
-	assert.Equal(t, 3, rec.dropped, "point.dropped must be incremented by GetPointCount on 403-drop")
-}
-
-func TestProcess403WithRefreshDoesNotTouchPointTelemetry(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusForbidden)
-	}))
-	defer ts.Close()
-
-	tr := newTransactionForStatusTest(ts.URL, 12)
-	rec := &pointCountTelemetryRecorder{}
-
-	mockConfig := configmock.New(t)
-	logger := logmock.New(t)
-	secrets := secretsmock.New(t)
-	secrets.SetRefreshHook(func() bool { return true }) // refresh succeeds → retryable
-
-	err := tr.Process(context.Background(), mockConfig, logger, secrets, &http.Client{}, rec)
-
-	assert.Error(t, err, "403 with successful key refresh is retryable")
-	assert.Equal(t, 0, rec.sent, "retryable failures must not credit point.sent")
-	assert.Equal(t, 0, rec.dropped, "retryable failures must not credit point.dropped")
-}
-
-func TestProcess5xxDoesNotTouchPointTelemetry(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusServiceUnavailable)
-	}))
-	defer ts.Close()
-
-	tr := newTransactionForStatusTest(ts.URL, 6)
-	rec := &pointCountTelemetryRecorder{}
-
-	mockConfig := configmock.New(t)
-	logger := logmock.New(t)
-	secrets := secretsmock.New(t)
-	err := tr.Process(context.Background(), mockConfig, logger, secrets, &http.Client{}, rec)
-
-	assert.Error(t, err, "5xx is retryable")
-	assert.Equal(t, 0, rec.sent, "retryable 5xx must not credit point.sent")
-	assert.Equal(t, 0, rec.dropped, "retryable 5xx must not credit point.dropped")
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tc.wantSent, rec.sent, "point.sent")
+			assert.Equal(t, tc.wantDropped, rec.dropped, "point.dropped")
+		})
+	}
 }
