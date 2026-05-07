@@ -13,7 +13,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -31,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	jsonv2 "github.com/go-json-experiment/json"
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
 	container "github.com/google/go-containerregistry/pkg/v1"
@@ -477,8 +477,6 @@ type noopSink struct{}
 func (noopSink) NewBatchEncoder(_ uuid.UUID) batchEncoder {
 	enc := &noopBatchEncoder{}
 	enc.gz = gzip.NewWriter(&enc.buf)
-	enc.enc = json.NewEncoder(enc.gz)
-	enc.enc.SetEscapeHTML(false)
 	return enc
 }
 
@@ -487,14 +485,13 @@ type noopBatchEncoder struct {
 	scopeCount int
 	buf        bytes.Buffer
 	gz         *gzip.Writer
-	enc        *json.Encoder
 }
 
 func (n *noopBatchEncoder) AddScope(scope uploader.Scope) error {
 	if n.scopeCount == 0 {
 		n.batchNum++
 	}
-	if err := n.enc.Encode(scope); err != nil {
+	if err := jsonv2.MarshalWrite(n.gz, scope); err != nil {
 		return fmt.Errorf("failed to encode scope: %w", err)
 	}
 	n.scopeCount++
@@ -517,8 +514,6 @@ func (n *noopBatchEncoder) Flush(_ context.Context, _ bool) error {
 	runtime.KeepAlive(n.buf)
 	n.buf.Reset()
 	n.gz.Reset(&n.buf)
-	n.enc = json.NewEncoder(n.gz)
-	n.enc.SetEscapeHTML(false)
 	n.scopeCount = 0
 	return nil
 }

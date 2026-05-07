@@ -13,7 +13,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"mime/multipart"
@@ -23,8 +22,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
+	jsonv2 "github.com/go-json-experiment/json"
 	"github.com/google/uuid"
+
+	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
 )
 
 // DefaultFlushThresholdBytes is the default compressed-size threshold at which
@@ -127,7 +128,6 @@ type BatchEncoder struct {
 	batchNum      int
 	buf           bytes.Buffer
 	gz            *gzip.Writer
-	enc           *json.Encoder
 	scopeCount    int
 	prefixWritten bool
 }
@@ -153,11 +153,6 @@ func NewBatchEncoder(
 		uploadID: uploadID,
 	}
 	b.gz = gzip.NewWriter(&b.buf)
-	b.enc = json.NewEncoder(b.gz)
-	// json.Encoder defaults to HTML-escaping <, > and & inside string values
-	// (each replaced by its six-character \u00XX escape). The SymDB payload
-	// is not embedded in HTML, so disable that.
-	b.enc.SetEscapeHTML(false)
 	return b
 }
 
@@ -169,11 +164,11 @@ func (b *BatchEncoder) AddScope(scope Scope) error {
 
 		// JSON-encode service and version, in case they contain funky
 		// characters.
-		serviceJSON, err := json.Marshal(b.up.service)
+		serviceJSON, err := jsonv2.Marshal(b.up.service)
 		if err != nil {
 			return fmt.Errorf("failed to marshal service: %w", err)
 		}
-		versionJSON, err := json.Marshal(b.up.version)
+		versionJSON, err := jsonv2.Marshal(b.up.version)
 		if err != nil {
 			return fmt.Errorf("failed to marshal version: %w", err)
 		}
@@ -193,7 +188,7 @@ func (b *BatchEncoder) AddScope(scope Scope) error {
 			return fmt.Errorf("failed to write scope separator: %w", err)
 		}
 	}
-	if err := b.enc.Encode(scope); err != nil {
+	if err := jsonv2.MarshalWrite(b.gz, scope); err != nil {
 		return fmt.Errorf("failed to encode scope: %w", err)
 	}
 	b.scopeCount++
@@ -236,7 +231,6 @@ func (b *BatchEncoder) Flush(ctx context.Context, final bool) error {
 	}
 	b.buf.Reset()
 	b.gz.Reset(&b.buf)
-	b.enc = json.NewEncoder(b.gz)
 	b.scopeCount = 0
 	b.prefixWritten = false
 	return nil
@@ -303,7 +297,7 @@ func (s *uploader) uploadInner(ctx context.Context, compressedData []byte, uploa
 		Final:          final,
 		AttachmentSize: len(compressedData),
 	}
-	meta, err := json.Marshal(event)
+	meta, err := jsonv2.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("failed to marshal event meta: %w", err)
 	}
