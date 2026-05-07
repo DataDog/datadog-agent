@@ -162,11 +162,15 @@ func (n *NodePoolInternal) BuildReplicaNodePool(targetNp *karpenterv1.NodePool) 
 	merged := targetNp.DeepCopy()
 	merged.TypeMeta = rc.TypeMeta
 	merged.Status = karpenterv1.NodePoolStatus{}
-	merged.Name = rc.Name
 
-	// Top-level metadata: completely replace from RC.
-	merged.Labels = maps.Clone(rc.Labels)
-	merged.Annotations = maps.Clone(rc.Annotations)
+	// Top-level metadata: completely replace from RC. Constructing a fresh ObjectMeta
+	// drops server-set fields (ResourceVersion, UID, Generation, CreationTimestamp,
+	// ManagedFields, ...) that the target carries from the cluster
+	merged.ObjectMeta = metav1.ObjectMeta{
+		Name:        rc.Name,
+		Labels:      maps.Clone(rc.Labels),
+		Annotations: maps.Clone(rc.Annotations),
+	}
 
 	// NodePoolSpec fields.
 	if rc.Spec.Weight != nil {

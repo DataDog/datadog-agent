@@ -274,6 +274,8 @@ func TestGetNodePoolWeight(t *testing.T) {
 }
 
 // targetNodePoolFixture returns a populated target NodePool used as the merge base in BuildReplicaNodePool tests.
+// Server-set ObjectMeta fields (ResourceVersion, UID, Generation, ...) are populated to mimic an object
+// fetched from the API server, so tests verify the merge does not leak them into a Create payload.
 func targetNodePoolFixture() *karpenterv1.NodePool {
 	weight := int32(5)
 	terminationGrace := metav1.Duration{Duration: 30 * time.Minute}
@@ -282,9 +284,14 @@ func targetNodePoolFixture() *karpenterv1.NodePool {
 	return &karpenterv1.NodePool{
 		TypeMeta: metav1.TypeMeta{Kind: "NodePool", APIVersion: "karpenter.sh/v1"},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        "user-pool",
-			Labels:      map[string]string{"target-label": "target"},
-			Annotations: map[string]string{"target-ann": "target"},
+			Name:              "user-pool",
+			Labels:            map[string]string{"target-label": "target"},
+			Annotations:       map[string]string{"target-ann": "target"},
+			ResourceVersion:   "12345",
+			UID:               "11111111-2222-3333-4444-555555555555",
+			Generation:        7,
+			CreationTimestamp: metav1.Time{Time: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)},
+			ManagedFields:     []metav1.ManagedFieldsEntry{{Manager: "kubectl", Operation: metav1.ManagedFieldsOperationApply}},
 		},
 		Spec: karpenterv1.NodePoolSpec{
 			Weight: &weight,
@@ -362,6 +369,13 @@ func TestBuildReplicaNodePool_AlwaysReplacedFields(t *testing.T) {
 	// Top-level metadata is completely replaced (Datadog labels/annotations are added by the controller, not here).
 	assert.Equal(t, map[string]string{"rc-label": "rc"}, merged.Labels)
 	assert.Equal(t, map[string]string{"rc-ann": "rc"}, merged.Annotations)
+	// Server-set ObjectMeta fields from the target must not leak through; otherwise the API server rejects
+	// the Create with "resourceVersion should not be set on objects to be created".
+	assert.Empty(t, merged.ResourceVersion, "ResourceVersion must be cleared")
+	assert.Empty(t, merged.UID, "UID must be cleared")
+	assert.Zero(t, merged.Generation, "Generation must be cleared")
+	assert.True(t, merged.CreationTimestamp.IsZero(), "CreationTimestamp must be cleared")
+	assert.Nil(t, merged.ManagedFields, "ManagedFields must be cleared")
 }
 
 func TestBuildReplicaNodePool_TargetNotMutated(t *testing.T) {
