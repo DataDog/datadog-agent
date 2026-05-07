@@ -920,6 +920,8 @@ new-e2e-installer-ansible:
     TARGETS: ./tests/installer/unix
     TEAM: fleet
     FLEET_INSTALL_METHOD: "ansible"
+    E2E_APM_INJECT_PACKAGE_VERSION: "0.59.0"
+    E2E_DATADOG_DD_COLLECTION_VERSION: "6.5.0"
     E2E_USE_AWS_PROFILE: "false"
     MAX_RETRIES_FLAG: "--max-retries=3"
 

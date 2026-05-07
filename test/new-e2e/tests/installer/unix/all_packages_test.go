@@ -227,9 +227,14 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		}
 		// Install ansible then install the agent
 		var ansiblePrefix string
+		collectionVersion := os.Getenv("E2E_DATADOG_DD_COLLECTION_VERSION")
+		if collectionVersion == "" {
+			collectionVersion = "6.5.0"
+		}
 		for i := 0; i < 3; i++ {
 			ansiblePrefix = s.installAnsible(s.os)
-			if _, err := s.Env().RemoteHost.Execute(ansiblePrefix + "ansible-galaxy collection install -vvv datadog.dd"); err == nil {
+			collectionInstallCmd := fmt.Sprintf("%sansible-galaxy collection install -vvv datadog.dd:%s", ansiblePrefix, collectionVersion)
+			if _, err := s.Env().RemoteHost.Execute(collectionInstallCmd); err == nil {
 				break
 			}
 			if i == 2 {
