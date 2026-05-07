@@ -69,8 +69,7 @@ func TestContainerTagsV2(t *testing.T) {
 		return tagger.GenerateContainerIDFromOriginInfo(originInfo)
 	}
 
-	// Enable feature gate
-	cfg.Features["enable_otlp_container_tags_v2"] = struct{}{}
+	// Container tags v2 is now enabled by default (no feature gate needed)
 
 	// Set up pipeline with the Infra Attributes Processor + Trace Agent OTLP Receiver
 	out := make(chan *api.Payload, 1)
