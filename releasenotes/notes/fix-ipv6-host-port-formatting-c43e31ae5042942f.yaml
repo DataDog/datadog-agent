@@ -8,9 +8,9 @@
 ---
 fixes:
   - |
-    Fix IPv6 address formatting in the URL built by the ``agent
-    stream-event-platform`` subcommand to reach the local agent IPC
-    endpoint. The address is now properly bracketed
-    (e.g. ``https://[::1]:5001/agent/stream-event-platform``) so the
-    subcommand succeeds when ``cmd_host`` (or the deprecated
-    ``ipc_address``) is set to an IPv6 literal.
+    Fix a class of IPv6 ``host:port`` formatting bugs found in multiple
+    call sites across the Agent. IPv6 literals in host configuration
+    values were not bracketed when used to build URLs and dial addresses,
+    producing strings like ``http://fd38::1:5005`` instead of
+    ``http://[fd38::1]:5005`` and causing ``too many colons in address``
+    errors at runtime.
