@@ -33,6 +33,12 @@ mappings:
   go.opentelemetry.io/collector/component:
     ID:
       schemaType: string
+  github.com/DataDog/datadog-agent/comp/core/tagger/types:
+    # TagCardinality is a typed int (iota: 0=low, 1=orchestrator, 2=high,
+    # 3=none, 4=checks-config). YAML accepts the integer form; there is no
+    # UnmarshalText hook today, so the schema mirrors that.
+    TagCardinality:
+      schemaType: integer
 allowedRefs:
   - go.opentelemetry.io/collector
   - github.com/open-telemetry/opentelemetry-collector-contrib

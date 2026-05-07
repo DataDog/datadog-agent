@@ -4,4 +4,6 @@ properties:
   allow_hostname_override:
     type: boolean
   cardinality:
-    $ref: /comp/core/tagger/types.tag_cardinality
+    description: 'Cardinality controls which tag cardinality is enriched onto the signal. Accepted values: 0 = low (host-level, default), 1 = orchestrator (per-pod/task), 2 = high (per-container/request).'
+    type: integer
+    x-customType: github.com/DataDog/datadog-agent/comp/core/tagger/types.TagCardinality
