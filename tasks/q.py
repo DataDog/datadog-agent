@@ -646,7 +646,7 @@ def eval_incremental_candidates(
     ctx,
     components: str = ",".join(["tukey_biweight", "bocpd_student_t", "holt_residual", "acorrshift"]),
     output_dir: str = "/tmp/observer-replacement-eval",
-    scenarios_dir: str = "./comp/observer/scenarios",
+    scenarios_dir: str = "./comp/anomalydetection/observer/scenarios",
     sigma: float = 30.0,
     scenarios: str = "",
     timeout: int = 0,

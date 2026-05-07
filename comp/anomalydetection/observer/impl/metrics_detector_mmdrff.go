@@ -71,7 +71,7 @@ import (
 	"math"
 	"math/rand"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // Algorithm constants. Window size, RFF dimension, and persistence-K are

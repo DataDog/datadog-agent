@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"math"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // tbGlitchZCap is the upper bound on |z| for a fire. Anything beyond is

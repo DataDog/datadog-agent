@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"math"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // Holt's-method forecast-residual detector.

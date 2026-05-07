@@ -8,7 +8,7 @@ package observerimpl
 import (
 	"math/rand"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 type manualSeriesRemover interface {

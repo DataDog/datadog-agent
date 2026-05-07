@@ -197,115 +197,10 @@ func defaultCatalog() *componentCatalog {
 				defaultEnabled: false,
 			},
 			{
-				name:           "hellinger",
-				displayName:    "Hellinger",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewHellingerDetector() },
-				defaultEnabled: true,
-			},
-			{
-				name:           "hellingercp",
-				displayName:    "HellingerCP",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewHellingerCPDetector() },
-				defaultEnabled: true,
-			},
-			{
 				name:           "acorrshift",
 				displayName:    "AcorrShift",
 				kind:           componentDetector,
 				factory:        func(any) any { return NewAcorrShiftDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "burgar",
-				displayName:    "BurgAR",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewBurgarDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "cross_decorrelate",
-				displayName:    "CrossDecorrelate",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewCrossDecorrelateDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "denratio",
-				displayName:    "DensityRatio",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewDenRatioDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "dfa_hurst",
-				displayName:    "DFAHurst",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewDFAHurstDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "dirbf",
-				displayName:    "DirichletBF",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewDIRBFDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "energydist",
-				displayName:    "EnergyDistance",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewEnergyDistDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "esn",
-				displayName:    "ESN",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewESNDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "evt_spot",
-				displayName:    "EVTSpot",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewEVTSpotDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "garch_volatility",
-				displayName:    "GARCHVolatility",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewGarchVolatilityDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "glr_mean_variance",
-				displayName:    "GLRMeanVariance",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewGLRMeanVarianceDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "grubbs_loo",
-				displayName:    "GrubbsLOO",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewGrubbsLOODetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "hi_moments",
-				displayName:    "HiMoments",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewHiMomentsDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "hl_shift",
-				displayName:    "HodgesLehmannShift",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewHLShiftDetector() },
 				defaultEnabled: false,
 			},
 			{
@@ -324,55 +219,6 @@ func defaultCatalog() *componentCatalog {
 				},
 			},
 			{
-				name:           "hot_sax",
-				displayName:    "HotSAX",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewHotSAXDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "hwres",
-				displayName:    "HoltWintersResidual",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewHWResDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "kl_divergence",
-				displayName:    "KLDivergence",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewKLDivergenceDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "ks_drift",
-				displayName:    "KSDrift",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewKSDriftDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "mannkendall",
-				displayName:    "MannKendall",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewMannKendallDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "matrix_profile",
-				displayName:    "MatrixProfile",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewMatrixProfileDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "mmd_rff",
-				displayName:    "MMDRFF",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewMMDRFFDetector() },
-				defaultEnabled: false,
-			},
-			{
 				name:           "mmdrff",
 				displayName:    "MMDRFFTwoSample",
 				kind:           componentDetector,
@@ -380,45 +226,10 @@ func defaultCatalog() *componentCatalog {
 				defaultEnabled: false,
 			},
 			{
-				name:           "permentropy",
-				displayName:    "PermutationEntropy",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewPermEntropyDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "pht",
-				displayName:    "PageHinkley",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewPHTDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "shapediscord",
-				displayName:    "ShapeDiscord",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewShapeDiscordDetector() },
-				defaultEnabled: false,
-			},
-			{
 				name:           "spectral_residual",
 				displayName:    "SpectralResidual",
 				kind:           componentDetector,
 				factory:        func(any) any { return NewSpectralResidualDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "stl_seasonal",
-				displayName:    "STLSeasonal",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewSTLSeasonalDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "trendresid",
-				displayName:    "TrendResidual",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewTrendResidDetector() },
 				defaultEnabled: false,
 			},
 			{
@@ -436,76 +247,7 @@ func defaultCatalog() *componentCatalog {
 					return cfg, nil
 				},
 			},
-			{
-				name:           "varshift",
-				displayName:    "VarianceShift",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewVarShiftDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "wasserstein",
-				displayName:    "Wasserstein",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewWassersteinDetector() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "wsr",
-				displayName:    "WilcoxonSignedRank",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewWSRDetector() },
-				defaultEnabled: false,
-			},
-			{
-				// LODA (Lightweight On-line Detector of Anomalies, Pevný 2016)
-				// — sparse-projection ensemble over a 5-D synthetic feature
-				// vector, scored against discounted equi-width histograms.
-				// Disabled by default: the detector is on the same
-				// "earn-your-place" track as scanmw/scanwelch — flip to true
-				// only after a positive evaluation, and never as part of an
-				// unrelated change. TestLODA_DefaultEnabledIsFalse guards
-				// this default.
-				name:           "loda",
-				displayName:    "LODA",
-				kind:           componentDetector,
-				factory:        func(any) any { return NewLODADetector() },
-				defaultEnabled: false,
-			},
-			{
-				// Dempster-Shafer evidence-combination correlator. Treats each
-				// detector's anomaly as a Basic Probability Assignment over the
-				// frame {Anomalous, Normal}, fuses BPAs on the same series via
-				// Dempster's rule, and emits correlations when fused belief
-				// in {Anomalous} clears a threshold AND conflict K is below
-				// a ceiling. Unlike K-of-N consensus this does NOT suppress
-				// single high-confidence detector fires, which is the explicit
-				// anti-pattern from exp-0070.
-				//
-				// Disabled in favor of lord_fdr_correlator; kept registered
-				// for --only eval comparison.
-				name:           "dempster_shafer_correlator",
-				displayName:    "Dempster-Shafer Correlator",
-				kind:           componentCorrelator,
-				factory:        func(any) any { return NewDempsterShaferCorrelator() },
-				defaultEnabled: false,
-			},
 			// ---- Correlators ----
-			{
-				name:           "anomaly_rank",
-				displayName:    "AnomalyRank",
-				kind:           componentCorrelator,
-				defaultConfig:  DefaultAnomalyRankConfig(),
-				factory:        func(cfg any) any { return NewAnomalyRankCorrelator(cfg.(AnomalyRankConfig)) },
-				defaultEnabled: true,
-				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := defaults.(AnomalyRankConfig)
-					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, err
-					}
-					return cfg, nil
-				},
-			},
 			{
 				name:           "cross_signal",
 				displayName:    "CrossSignal",
@@ -542,37 +284,6 @@ func defaultCatalog() *componentCatalog {
 				displayName:    "Passthrough",
 				kind:           componentCorrelator,
 				factory:        func(any) any { return NewDetectorPassthroughCorrelator() },
-				defaultEnabled: false,
-			},
-			{
-				// LORD-1 online-FDR correlator (Javanmard & Montanari 2018,
-				// "Online rules for control of false discovery rate"). Converts
-				// each anomaly's Score to a synthetic p-value and applies the
-				// LORD-1 wealth dynamics to decide whether to emit a
-				// corresponding ActiveCorrelation, capping the long-run FDR at
-				// Alpha=0.10.
-				//
-				// Ships defaultEnabled=true to replace dempster_shafer_correlator
-				// (now flipped to defaultEnabled=false), so the count of default-
-				// enabled correlators is unchanged at 2 (time_cluster + lord_fdr).
-				name:           "lord_fdr_correlator",
-				displayName:    "LORD-FDR Correlator",
-				kind:           componentCorrelator,
-				factory:        func(any) any { return NewLORDFDRCorrelator() },
-				defaultEnabled: true,
-			},
-			{
-				name:           "rankflip_correlator",
-				displayName:    "RankFlipCorrelator",
-				kind:           componentCorrelator,
-				factory:        func(any) any { return NewRankFlipCorrelator() },
-				defaultEnabled: false,
-			},
-			{
-				name:           "affinity_cluster_correlator",
-				displayName:    "AffinityClusterCorrelator",
-				kind:           componentCorrelator,
-				factory:        func(any) any { return NewAffinityClusterCorrelator(DefaultAffinityClusterConfig()) },
 				defaultEnabled: false,
 			},
 		},

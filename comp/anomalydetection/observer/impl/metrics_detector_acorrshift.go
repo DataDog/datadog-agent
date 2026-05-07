@@ -38,7 +38,7 @@ import (
 	"fmt"
 	"math"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
 // Algorithm constants. These are state-array-shape inputs, so they have to be
