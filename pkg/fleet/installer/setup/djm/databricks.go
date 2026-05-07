@@ -54,7 +54,7 @@ var (
 			Source:  "driver_stdout",
 			Service: "databricks",
 			LogProcessingRules: []config.LogProcessingRule{
-				{Type: "multi_line", Name: "logger_multiline", Pattern: "(^\\+[-+]+\\n(\\|.*\\n)+\\+[-+]+$)|^(ERROR|INFO|DEBUG|WARN|CRITICAL|NOTSET|Traceback)"},
+				{Type: "multi_line", Name: "logger_multiline", Pattern: "^\\+[-+]+$|^(ERROR|INFO|DEBUG|WARN|CRITICAL|NOTSET|Traceback)"},
 			},
 			AutoMultiLineDetection: config.BoolToPtr(true),
 		},
@@ -80,7 +80,7 @@ var (
 			Source:  "driver_stdout",
 			Service: "databricks",
 			LogProcessingRules: []config.LogProcessingRule{
-				{Type: "multi_line", Name: "logger_multiline", Pattern: "(^\\+[-+]+\\n(\\|.*\\n)+\\+[-+]+$)|^(ERROR|INFO|DEBUG|WARN|CRITICAL|NOTSET|Traceback)"},
+				{Type: "multi_line", Name: "logger_multiline", Pattern: "^\\+[-+]+$|^(ERROR|INFO|DEBUG|WARN|CRITICAL|NOTSET|Traceback)"},
 			},
 			AutoMultiLineDetection: config.BoolToPtr(true),
 		},
