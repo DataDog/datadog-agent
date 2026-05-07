@@ -792,9 +792,8 @@ Package recorder provides a middleware component for recording and replaying obs
 
 *Datadog Team*: q-branch
 
-Package reporter provides the injectable reporter component for the observer.
-It is intentionally standalone — reporter/def has no dependency on observer/def.
-The observer/impl converts its internal types to ReportOutput before calling Report.
+Package reporter defines the reporter component contracts.
+Concrete reporters are provided through the `anomalydetection_reporters` Fx group.
 
 ### [comp/autoscaling/datadogclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient)
 
