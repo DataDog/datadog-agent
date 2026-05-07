@@ -206,23 +206,25 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, datadogNp *k
 func (c *Controller) createNodePool(ctx context.Context, targetNp *karpenterv1.NodePool, npi model.NodePoolInternal) error {
 	log.Infof("Creating NodePool: %s", npi.Name())
 
-	knp := npi.KarpenterNodePool()
-	if knp == nil {
-		return fmt.Errorf("NodePool %s has no manifest, cannot create", npi.Name())
-	}
-	knp = knp.DeepCopy()
-	// If the manifest omits NodeClassRef and a target NodePool exists, prefer its NodeClassRef
-	if knp.Spec.Template.Spec.NodeClassRef == nil && targetNp != nil {
-		knp.Spec.Template.Spec.NodeClassRef = targetNp.Spec.Template.Spec.NodeClassRef.DeepCopy()
+	var knp *karpenterv1.NodePool
+	if targetNp != nil {
+		// Replica path: use the target NodePool as the base and apply RC values on top.
+		knp = npi.BuildReplicaNodePool(targetNp)
+		if knp == nil {
+			return fmt.Errorf("NodePool %s has no manifest, cannot create", npi.Name())
+		}
+	} else {
+		// Standalone path: build from the RC manifest only.
+		knp = npi.KarpenterNodePool()
+		if knp == nil {
+			return fmt.Errorf("NodePool %s has no manifest, cannot create", npi.Name())
+		}
+		knp = knp.DeepCopy()
 	}
 	var err error
 	knp, err = c.checkValidNodeClass(ctx, knp)
 	if err != nil {
 		return fmt.Errorf("unable to update NodePool with node class: %s, err: %v", npi.Name(), err)
-	}
-	// Update the weight if replica NodePool
-	if knp.Spec.Weight == nil && targetNp != nil {
-		knp.Spec.Weight = model.GetNodePoolWeight(targetNp)
 	}
 	// Ensure Datadog autoscaling node label is always present
 	if knp.Spec.Template.ObjectMeta.Labels == nil {
@@ -254,29 +256,34 @@ func (c *Controller) createNodePool(ctx context.Context, targetNp *karpenterv1.N
 }
 
 func (c *Controller) updateNodePool(ctx context.Context, targetNp *karpenterv1.NodePool, datadogNp *karpenterv1.NodePool, npi model.NodePoolInternal) error {
-	desired := npi.KarpenterNodePool()
-	if desired == nil {
-		return fmt.Errorf("NodePool %s has no manifest, cannot update", npi.Name())
+	var desired *karpenterv1.NodePool
+	if targetNp != nil {
+		// Replica path: use the target NodePool as the base and apply RC values on top.
+		desired = npi.BuildReplicaNodePool(targetNp)
+		if desired == nil {
+			return fmt.Errorf("NodePool %s has no manifest, cannot update", npi.Name())
+		}
+	} else {
+		// Standalone path: build from the RC manifest only.
+		desired = npi.KarpenterNodePool()
+		if desired == nil {
+			return fmt.Errorf("NodePool %s has no manifest, cannot update", npi.Name())
+		}
+		desired = desired.DeepCopy()
+		// Use the NodeClass in the live NodePool if the manifest omits it.
+		if desired.Spec.Template.Spec.NodeClassRef == nil && datadogNp.Spec.Template.Spec.NodeClassRef != nil {
+			desired.Spec.Template.Spec.NodeClassRef = datadogNp.Spec.Template.Spec.NodeClassRef.DeepCopy()
+		}
 	}
-	desired = desired.DeepCopy()
 	if desired.Labels == nil {
 		desired.Labels = make(map[string]string)
 	}
 	desired.Labels[model.DatadogCreatedLabelKey] = "true"
 
-	// Use the NodeClass in the live NodePool if the manifest omits it
-	if desired.Spec.Template.Spec.NodeClassRef == nil && datadogNp.Spec.Template.Spec.NodeClassRef != nil {
-		desired.Spec.Template.Spec.NodeClassRef = datadogNp.Spec.Template.Spec.NodeClassRef.DeepCopy()
-	}
 	var err error
 	desired, err = c.checkValidNodeClass(ctx, desired)
 	if err != nil {
 		return fmt.Errorf("unable to update NodePool with node class: %s, err: %v", npi.Name(), err)
-	}
-
-	// Update the weight if replica NodePool
-	if desired.Spec.Weight == nil && targetNp != nil {
-		desired.Spec.Weight = model.GetNodePoolWeight(targetNp)
 	}
 
 	// Ensure Datadog autoscaling node label is always present

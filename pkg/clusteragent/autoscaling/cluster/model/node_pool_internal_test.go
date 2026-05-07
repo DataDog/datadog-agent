@@ -9,7 +9,10 @@ package model
 
 import (
 	"testing"
+	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	karpenterv1 "sigs.k8s.io/karpenter/pkg/apis/v1"
 
@@ -268,4 +271,320 @@ func TestGetNodePoolWeight(t *testing.T) {
 			assert.Equal(t, tt.expectedWeight, *GetNodePoolWeight(np))
 		})
 	}
+}
+
+// targetNodePoolFixture returns a populated target NodePool used as the merge base in BuildReplicaNodePool tests.
+func targetNodePoolFixture() *karpenterv1.NodePool {
+	weight := int32(5)
+	terminationGrace := metav1.Duration{Duration: 30 * time.Minute}
+	expireAfterDur := 24 * time.Hour
+	consolidateAfterDur := 30 * time.Second
+	return &karpenterv1.NodePool{
+		TypeMeta: metav1.TypeMeta{Kind: "NodePool", APIVersion: "karpenter.sh/v1"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "user-pool",
+			Labels:      map[string]string{"target-label": "target"},
+			Annotations: map[string]string{"target-ann": "target"},
+		},
+		Spec: karpenterv1.NodePoolSpec{
+			Weight: &weight,
+			Limits: karpenterv1.Limits{corev1.ResourceCPU: resource.MustParse("100")},
+			Disruption: karpenterv1.Disruption{
+				ConsolidationPolicy: karpenterv1.ConsolidationPolicyWhenEmpty,
+				ConsolidateAfter:    karpenterv1.NillableDuration{Duration: &consolidateAfterDur},
+			},
+			Template: karpenterv1.NodeClaimTemplate{
+				ObjectMeta: karpenterv1.ObjectMeta{
+					Labels:      map[string]string{"tmpl-label": "target", "shared": "target"},
+					Annotations: map[string]string{"tmpl-ann": "target"},
+				},
+				Spec: karpenterv1.NodeClaimTemplateSpec{
+					NodeClassRef: &karpenterv1.NodeClassReference{Group: "karpenter.k8s.aws", Kind: "EC2NodeClass", Name: "target-nc"},
+					Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{
+						{Key: "node.kubernetes.io/instance-type", Operator: corev1.NodeSelectorOpIn, Values: []string{"m5.large"}},
+					},
+					Taints:                 []corev1.Taint{{Key: "target-taint", Effect: corev1.TaintEffectNoSchedule}},
+					TerminationGracePeriod: &terminationGrace,
+					ExpireAfter:            karpenterv1.NillableDuration{Duration: &expireAfterDur},
+				},
+			},
+		},
+		Status: karpenterv1.NodePoolStatus{
+			Resources: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("12")},
+		},
+	}
+}
+
+// rcNodePoolFromManifest returns a NodePoolInternal whose karpenterNodePool was built from the given manifest.
+func rcNodePoolFromManifest(t *testing.T, m *KarpenterV1NodePool) NodePoolInternal {
+	t.Helper()
+	npi := NewNodePoolInternal(ClusterAutoscalingValues{
+		TargetName: "user-pool",
+		TargetHash: "h1",
+		Type:       TypeKarpenterV1,
+		Manifest:   Manifest{KarpenterV1: m},
+	})
+	require.NotNil(t, npi.KarpenterNodePool())
+	return npi
+}
+
+func TestBuildReplicaNodePool_NilInputs(t *testing.T) {
+	t.Run("nil target", func(t *testing.T) {
+		npi := rcNodePoolFromManifest(t, &KarpenterV1NodePool{
+			Metadata: Metadata{Name: "dd-pool"},
+			Spec:     &karpenterv1.NodePoolSpec{},
+		})
+		assert.Nil(t, npi.BuildReplicaNodePool(nil))
+	})
+	t.Run("no manifest", func(t *testing.T) {
+		npi := NewNodePoolInternal(ClusterAutoscalingValues{TargetName: "user-pool"})
+		assert.Nil(t, npi.BuildReplicaNodePool(targetNodePoolFixture()))
+	})
+}
+
+func TestBuildReplicaNodePool_AlwaysReplacedFields(t *testing.T) {
+	target := targetNodePoolFixture()
+	npi := rcNodePoolFromManifest(t, &KarpenterV1NodePool{
+		Metadata: Metadata{
+			Name:        "dd-pool",
+			Labels:      Labels{{Key: "rc-label", Value: "rc"}},
+			Annotations: Annotations{{Key: "rc-ann", Value: "rc"}},
+		},
+		Spec: &karpenterv1.NodePoolSpec{},
+	})
+
+	merged := npi.BuildReplicaNodePool(target)
+	require.NotNil(t, merged)
+
+	assert.Equal(t, "dd-pool", merged.Name)
+	assert.Equal(t, metav1.TypeMeta{Kind: "NodePool", APIVersion: "karpenter.sh/v1"}, merged.TypeMeta)
+	assert.Equal(t, karpenterv1.NodePoolStatus{}, merged.Status, "status must be reset")
+	// Top-level metadata is completely replaced (Datadog labels/annotations are added by the controller, not here).
+	assert.Equal(t, map[string]string{"rc-label": "rc"}, merged.Labels)
+	assert.Equal(t, map[string]string{"rc-ann": "rc"}, merged.Annotations)
+}
+
+func TestBuildReplicaNodePool_TargetNotMutated(t *testing.T) {
+	target := targetNodePoolFixture()
+	originalTargetName := target.Name
+	originalTargetLabels := map[string]string{}
+	for k, v := range target.Labels {
+		originalTargetLabels[k] = v
+	}
+
+	npi := rcNodePoolFromManifest(t, &KarpenterV1NodePool{
+		Metadata: Metadata{Name: "dd-pool", Labels: Labels{{Key: "rc", Value: "v"}}},
+		Spec:     &karpenterv1.NodePoolSpec{},
+	})
+	_ = npi.BuildReplicaNodePool(target)
+
+	assert.Equal(t, originalTargetName, target.Name)
+	assert.Equal(t, originalTargetLabels, target.Labels)
+}
+
+func TestBuildReplicaNodePool_Weight(t *testing.T) {
+	tests := []struct {
+		name           string
+		rcWeight       *int32
+		expectedWeight int32
+	}{
+		{
+			name:           "RC weight overrides target",
+			rcWeight:       func() *int32 { w := int32(42); return &w }(),
+			expectedWeight: 42,
+		},
+		{
+			name:           "RC nil falls back to target+1",
+			rcWeight:       nil,
+			expectedWeight: 6, // target weight 5 + 1
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			npi := rcNodePoolFromManifest(t, &KarpenterV1NodePool{
+				Metadata: Metadata{Name: "dd-pool"},
+				Spec:     &karpenterv1.NodePoolSpec{Weight: tt.rcWeight},
+			})
+			merged := npi.BuildReplicaNodePool(targetNodePoolFixture())
+			require.NotNil(t, merged.Spec.Weight)
+			assert.Equal(t, tt.expectedWeight, *merged.Spec.Weight)
+		})
+	}
+}
+
+func TestBuildReplicaNodePool_Requirements(t *testing.T) {
+	t.Run("RC has requirements: replaces target", func(t *testing.T) {
+		rcReqs := []karpenterv1.NodeSelectorRequirementWithMinValues{
+			{Key: "node.kubernetes.io/instance-type", Operator: corev1.NodeSelectorOpIn, Values: []string{"c5.large", "c5.xlarge"}},
+		}
+		npi := rcNodePoolFromManifest(t, &KarpenterV1NodePool{
+			Metadata: Metadata{Name: "dd-pool"},
+			Spec: &karpenterv1.NodePoolSpec{Template: karpenterv1.NodeClaimTemplate{Spec: karpenterv1.NodeClaimTemplateSpec{
+				Requirements: rcReqs,
+			}}},
+		})
+		merged := npi.BuildReplicaNodePool(targetNodePoolFixture())
+		assert.Equal(t, rcReqs, merged.Spec.Template.Spec.Requirements)
+	})
+	t.Run("RC has no requirements: target wiped", func(t *testing.T) {
+		npi := rcNodePoolFromManifest(t, &KarpenterV1NodePool{
+			Metadata: Metadata{Name: "dd-pool"},
+			Spec:     &karpenterv1.NodePoolSpec{},
+		})
+		merged := npi.BuildReplicaNodePool(targetNodePoolFixture())
+		assert.Empty(t, merged.Spec.Template.Spec.Requirements)
+	})
+}
+
+func TestBuildReplicaNodePool_NodeClassRef(t *testing.T) {
+	t.Run("RC sets NodeClassRef: overrides target", func(t *testing.T) {
+		rcRef := &karpenterv1.NodeClassReference{Group: "karpenter.k8s.aws", Kind: "EC2NodeClass", Name: "rc-nc"}
+		npi := rcNodePoolFromManifest(t, &KarpenterV1NodePool{
+			Metadata: Metadata{Name: "dd-pool"},
+			Spec: &karpenterv1.NodePoolSpec{Template: karpenterv1.NodeClaimTemplate{Spec: karpenterv1.NodeClaimTemplateSpec{
+				NodeClassRef: rcRef,
+			}}},
+		})
+		merged := npi.BuildReplicaNodePool(targetNodePoolFixture())
+		assert.Equal(t, "rc-nc", merged.Spec.Template.Spec.NodeClassRef.Name)
+	})
+	t.Run("RC nil: target preserved", func(t *testing.T) {
+		npi := rcNodePoolFromManifest(t, &KarpenterV1NodePool{
+			Metadata: Metadata{Name: "dd-pool"},
+			Spec:     &karpenterv1.NodePoolSpec{},
+		})
+		merged := npi.BuildReplicaNodePool(targetNodePoolFixture())
+		assert.Equal(t, "target-nc", merged.Spec.Template.Spec.NodeClassRef.Name)
+	})
+}
+
+func TestBuildReplicaNodePool_Disruption(t *testing.T) {
+	rcConsolidateAfter := 5 * time.Minute
+	rcDisruption := karpenterv1.Disruption{
+		ConsolidationPolicy: karpenterv1.ConsolidationPolicyWhenEmptyOrUnderutilized,
+		ConsolidateAfter:    karpenterv1.NillableDuration{Duration: &rcConsolidateAfter},
+	}
+
+	t.Run("target set, RC unset: target preserved", func(t *testing.T) {
+		npi := rcNodePoolFromManifest(t, &KarpenterV1NodePool{
+			Metadata: Metadata{Name: "dd-pool"},
+			Spec:     &karpenterv1.NodePoolSpec{},
+		})
+		target := targetNodePoolFixture()
+		merged := npi.BuildReplicaNodePool(target)
+		assert.Equal(t, target.Spec.Disruption, merged.Spec.Disruption)
+	})
+	t.Run("target set, RC set: RC overrides", func(t *testing.T) {
+		npi := rcNodePoolFromManifest(t, &KarpenterV1NodePool{
+			Metadata: Metadata{Name: "dd-pool"},
+			Spec:     &karpenterv1.NodePoolSpec{Disruption: rcDisruption},
+		})
+		merged := npi.BuildReplicaNodePool(targetNodePoolFixture())
+		assert.Equal(t, rcDisruption, merged.Spec.Disruption)
+	})
+	t.Run("target unset, RC unset: zero value", func(t *testing.T) {
+		npi := rcNodePoolFromManifest(t, &KarpenterV1NodePool{
+			Metadata: Metadata{Name: "dd-pool"},
+			Spec:     &karpenterv1.NodePoolSpec{},
+		})
+		bareTarget := &karpenterv1.NodePool{
+			Spec: karpenterv1.NodePoolSpec{Template: karpenterv1.NodeClaimTemplate{Spec: karpenterv1.NodeClaimTemplateSpec{
+				NodeClassRef: &karpenterv1.NodeClassReference{Name: "nc"},
+				Requirements: []karpenterv1.NodeSelectorRequirementWithMinValues{},
+			}}},
+		}
+		merged := npi.BuildReplicaNodePool(bareTarget)
+		assert.Equal(t, karpenterv1.Disruption{}, merged.Spec.Disruption)
+	})
+}
+
+func TestBuildReplicaNodePool_ExpireAfter(t *testing.T) {
+	rcExpire := 12 * time.Hour
+	t.Run("target set, RC unset: target preserved", func(t *testing.T) {
+		npi := rcNodePoolFromManifest(t, &KarpenterV1NodePool{
+			Metadata: Metadata{Name: "dd-pool"},
+			Spec:     &karpenterv1.NodePoolSpec{},
+		})
+		target := targetNodePoolFixture()
+		merged := npi.BuildReplicaNodePool(target)
+		assert.Equal(t, target.Spec.Template.Spec.ExpireAfter, merged.Spec.Template.Spec.ExpireAfter)
+	})
+	t.Run("target set, RC set: RC overrides", func(t *testing.T) {
+		npi := rcNodePoolFromManifest(t, &KarpenterV1NodePool{
+			Metadata: Metadata{Name: "dd-pool"},
+			Spec: &karpenterv1.NodePoolSpec{Template: karpenterv1.NodeClaimTemplate{Spec: karpenterv1.NodeClaimTemplateSpec{
+				ExpireAfter: karpenterv1.NillableDuration{Duration: &rcExpire},
+			}}},
+		})
+		merged := npi.BuildReplicaNodePool(targetNodePoolFixture())
+		require.NotNil(t, merged.Spec.Template.Spec.ExpireAfter.Duration)
+		assert.Equal(t, rcExpire, *merged.Spec.Template.Spec.ExpireAfter.Duration)
+	})
+}
+
+func TestBuildReplicaNodePool_TemplateMetadataMerged(t *testing.T) {
+	npi := rcNodePoolFromManifest(t, &KarpenterV1NodePool{
+		Metadata: Metadata{Name: "dd-pool"},
+		TemplateMetadata: &Metadata{
+			Labels:      Labels{{Key: "rc-label", Value: "rc"}, {Key: "shared", Value: "rc"}},
+			Annotations: Annotations{{Key: "rc-ann", Value: "rc"}},
+		},
+		Spec: &karpenterv1.NodePoolSpec{},
+	})
+
+	merged := npi.BuildReplicaNodePool(targetNodePoolFixture())
+	// Target keys preserved; RC keys added; shared keys overridden by RC.
+	assert.Equal(t, map[string]string{
+		"tmpl-label": "target",
+		"rc-label":   "rc",
+		"shared":     "rc",
+	}, merged.Spec.Template.ObjectMeta.Labels)
+	assert.Equal(t, map[string]string{
+		"tmpl-ann": "target",
+		"rc-ann":   "rc",
+	}, merged.Spec.Template.ObjectMeta.Annotations)
+}
+
+func TestBuildReplicaNodePool_OtherSmartMergeFields(t *testing.T) {
+	rcGrace := metav1.Duration{Duration: time.Minute}
+	rcReplicas := int64(7)
+	rcLimits := karpenterv1.Limits{corev1.ResourceMemory: resource.MustParse("64Gi")}
+	rcTaints := []corev1.Taint{{Key: "rc-taint", Effect: corev1.TaintEffectPreferNoSchedule}}
+	rcStartupTaints := []corev1.Taint{{Key: "rc-startup", Effect: corev1.TaintEffectNoExecute}}
+
+	t.Run("RC sets all: overrides target", func(t *testing.T) {
+		npi := rcNodePoolFromManifest(t, &KarpenterV1NodePool{
+			Metadata: Metadata{Name: "dd-pool"},
+			Spec: &karpenterv1.NodePoolSpec{
+				Replicas: &rcReplicas,
+				Limits:   rcLimits,
+				Template: karpenterv1.NodeClaimTemplate{Spec: karpenterv1.NodeClaimTemplateSpec{
+					Taints:                 rcTaints,
+					StartupTaints:          rcStartupTaints,
+					TerminationGracePeriod: &rcGrace,
+				}},
+			},
+		})
+		merged := npi.BuildReplicaNodePool(targetNodePoolFixture())
+		require.NotNil(t, merged.Spec.Replicas)
+		assert.Equal(t, rcReplicas, *merged.Spec.Replicas)
+		assert.Equal(t, rcLimits, merged.Spec.Limits)
+		assert.Equal(t, rcTaints, merged.Spec.Template.Spec.Taints)
+		assert.Equal(t, rcStartupTaints, merged.Spec.Template.Spec.StartupTaints)
+		assert.Equal(t, &rcGrace, merged.Spec.Template.Spec.TerminationGracePeriod)
+	})
+
+	t.Run("RC unset: target preserved", func(t *testing.T) {
+		npi := rcNodePoolFromManifest(t, &KarpenterV1NodePool{
+			Metadata: Metadata{Name: "dd-pool"},
+			Spec:     &karpenterv1.NodePoolSpec{},
+		})
+		target := targetNodePoolFixture()
+		merged := npi.BuildReplicaNodePool(target)
+		assert.Nil(t, merged.Spec.Replicas)
+		assert.Equal(t, target.Spec.Limits, merged.Spec.Limits)
+		assert.Equal(t, target.Spec.Template.Spec.Taints, merged.Spec.Template.Spec.Taints)
+		assert.Empty(t, merged.Spec.Template.Spec.StartupTaints)
+		assert.Equal(t, target.Spec.Template.Spec.TerminationGracePeriod, merged.Spec.Template.Spec.TerminationGracePeriod)
+	})
 }

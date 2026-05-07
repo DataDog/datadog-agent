@@ -8,6 +8,8 @@
 package model
 
 import (
+	"maps"
+	"reflect"
 	"strings"
 
 	// AWS Karpenter provider registers some variables in shared packages
@@ -143,6 +145,78 @@ func (n *NodePoolInternal) TargetHash() string {
 // KarpenterNodePool returns the fully-formed NodePool from the manifest, or nil if the manifest was absent or invalid.
 func (n *NodePoolInternal) KarpenterNodePool() *karpenterv1.NodePool {
 	return n.karpenterNodePool
+}
+
+// BuildReplicaNodePool produces a NodePool for a Datadog-managed replica of an existing target NodePool.
+// The target is used as the base and RC values are applied on top:
+//   - Top-level labels/annotations and Spec.Template.Spec.Requirements are always replaced from RC, even if RC's values are empty.
+//   - Other fields are only overwritten if RC explicitly set them; otherwise the target's value is preserved.
+//   - Spec.Weight defaults to GetNodePoolWeight(targetNp) when RC omits it.
+//   - Template-level labels/annotations from RC are merged on top of the target's (RC keys win, target keys preserved).
+func (n *NodePoolInternal) BuildReplicaNodePool(targetNp *karpenterv1.NodePool) *karpenterv1.NodePool {
+	if n.karpenterNodePool == nil || targetNp == nil {
+		return nil
+	}
+	rc := n.karpenterNodePool
+
+	merged := targetNp.DeepCopy()
+	merged.TypeMeta = rc.TypeMeta
+	merged.Status = karpenterv1.NodePoolStatus{}
+	merged.Name = rc.Name
+
+	// Top-level metadata: completely replace from RC.
+	merged.Labels = maps.Clone(rc.Labels)
+	merged.Annotations = maps.Clone(rc.Annotations)
+
+	// NodePoolSpec fields.
+	if rc.Spec.Weight != nil {
+		merged.Spec.Weight = rc.Spec.Weight
+	} else {
+		merged.Spec.Weight = GetNodePoolWeight(targetNp)
+	}
+	if rc.Spec.Replicas != nil {
+		merged.Spec.Replicas = rc.Spec.Replicas
+	}
+	if len(rc.Spec.Limits) > 0 {
+		merged.Spec.Limits = rc.Spec.Limits
+	}
+	if !reflect.DeepEqual(rc.Spec.Disruption, karpenterv1.Disruption{}) {
+		merged.Spec.Disruption = rc.Spec.Disruption
+	}
+
+	// Template ObjectMeta: merge RC keys on top of target's.
+	for k, v := range rc.Spec.Template.ObjectMeta.Labels {
+		if merged.Spec.Template.ObjectMeta.Labels == nil {
+			merged.Spec.Template.ObjectMeta.Labels = map[string]string{}
+		}
+		merged.Spec.Template.ObjectMeta.Labels[k] = v
+	}
+	for k, v := range rc.Spec.Template.ObjectMeta.Annotations {
+		if merged.Spec.Template.ObjectMeta.Annotations == nil {
+			merged.Spec.Template.ObjectMeta.Annotations = map[string]string{}
+		}
+		merged.Spec.Template.ObjectMeta.Annotations[k] = v
+	}
+
+	// NodeClaimTemplateSpec fields.
+	merged.Spec.Template.Spec.Requirements = rc.Spec.Template.Spec.Requirements
+	if rc.Spec.Template.Spec.NodeClassRef != nil {
+		merged.Spec.Template.Spec.NodeClassRef = rc.Spec.Template.Spec.NodeClassRef.DeepCopy()
+	}
+	if len(rc.Spec.Template.Spec.Taints) > 0 {
+		merged.Spec.Template.Spec.Taints = rc.Spec.Template.Spec.Taints
+	}
+	if len(rc.Spec.Template.Spec.StartupTaints) > 0 {
+		merged.Spec.Template.Spec.StartupTaints = rc.Spec.Template.Spec.StartupTaints
+	}
+	if rc.Spec.Template.Spec.TerminationGracePeriod != nil {
+		merged.Spec.Template.Spec.TerminationGracePeriod = rc.Spec.Template.Spec.TerminationGracePeriod
+	}
+	if !reflect.DeepEqual(rc.Spec.Template.Spec.ExpireAfter, karpenterv1.NillableDuration{}) {
+		merged.Spec.Template.Spec.ExpireAfter = rc.Spec.Template.Spec.ExpireAfter
+	}
+
+	return merged
 }
 
 func GetNodePoolWeight(replicaNp *karpenterv1.NodePool) *int32 {
