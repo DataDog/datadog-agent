@@ -5,6 +5,7 @@ members = [
     "comp/core/log/rust",
     "pkg/discovery/module/rust",
     "pkg/procmgr/rust",
+    "tools/tar_checksums",
 ]
 
 [workspace.package]
@@ -58,6 +59,9 @@ saphyr-parser = "0.0.6"
 yaml-rust2 = "0.11"
 zip = { version = "8.0", default-features = false, features = ["deflate"] }
 flate2 = "1.1"
+lzma-rs = "0.3"
+md5 = "0.8"
+tar = "0.4"
 
 tower = { version = "0.5", features = ["util"] }
 uuid = { version = "1", features = ["v4"] }
