@@ -108,6 +108,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// secrets backend
 	config.BindEnvAndSetDefault("secret_backend_type", "")
 	config.BindEnvAndSetDefault("secret_backend_config", map[string]interface{}{})
+	config.BindEnvAndSetDefault("multi_secret_backends", map[string]interface{}{})
 	config.BindEnvAndSetDefault("secret_backend_command", "")
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
 	config.BindEnvAndSetDefault("secret_backend_output_max_size", 1024*1024)
@@ -1090,6 +1091,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("hostprofiler.health_metrics.enabled", true)
 	config.BindEnvAndSetDefault("hostprofiler.health_metrics.target", "127.0.0.1:8889")
 	config.BindEnvAndSetDefault("hostprofiler.hpflare.port", 7778)
+
+	// Remote Flags system
+	remoteflags(config)
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1381,6 +1385,11 @@ func remoteconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_log_config_scheduling", false)
 	// Websocket echo test
 	config.BindEnvAndSetDefault("remote_configuration.no_websocket_echo", false)
+}
+
+func remoteflags(config pkgconfigmodel.Setup) {
+	// Remote flags
+	config.BindEnvAndSetDefault("remote_flags.enabled", false)
 }
 
 func autoconfig(config pkgconfigmodel.Setup) {

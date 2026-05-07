@@ -59,6 +59,10 @@ const (
 	rebalanceStabilizationPeriod = 10 * time.Second
 )
 
+// helmChartVersion is the minimum Datadog Helm chart version that exposes the
+// datadog.autoscaling.cluster.spot.enabled feature toggle.
+const helmChartVersion = "3.208.0"
+
 // makeHelmValues returns the Helm values for the spot scheduling suite.
 // pullPolicy should be "Never" when the image is pre-loaded into kind (local dev)
 // or "IfNotPresent" when the image is pulled from a registry (CI).
@@ -74,8 +78,6 @@ clusterAgent:
   env:
     - name: DD_LOG_LEVEL
       value: "DEBUG"
-    - name: DD_AUTOSCALING_CLUSTER_SPOT_ENABLED
-      value: "true"
     - name: DD_AUTOSCALING_CLUSTER_SPOT_DEFAULTS_PERCENTAGE
       value: "100"
     - name: DD_AUTOSCALING_CLUSTER_SPOT_DEFAULTS_MIN_ON_DEMAND_REPLICAS
@@ -97,6 +99,10 @@ datadog:
     # the framework sets this to true by default, which unconditionally enables the
     # cluster checks runner deployment regardless of clusterChecksRunner.enabled
     useClusterCheckRunners: false
+  autoscaling:
+    cluster:
+      spot:
+        enabled: true
 `, pullPolicy, scheduleTimeout, fallbackDuration, rebalanceStabilizationPeriod)
 }
 
@@ -138,6 +144,7 @@ func TestSpotSchedulingKind(t *testing.T) {
 		localkubernetes.WithKindLoadImage(image),
 		localkubernetes.WithAgentOptions(
 			kubernetesagentparams.WithClusterAgentFullImagePath(image),
+			kubernetesagentparams.WithHelmChartVersion(helmChartVersion),
 			kubernetesagentparams.WithHelmValues(makeHelmValues("Never")),
 		),
 	)))
@@ -157,6 +164,7 @@ func TestSpotSchedulingKindCI(t *testing.T) {
 			kindvmscen.WithKindWorkerNodes(workerNodes...),
 			kindvmscen.WithoutFakeIntake(),
 			kindvmscen.WithAgentOptions(
+				kubernetesagentparams.WithHelmChartVersion(helmChartVersion),
 				kubernetesagentparams.WithHelmValues(makeHelmValues("IfNotPresent")),
 			),
 		),
@@ -170,9 +178,6 @@ func (s *spotSchedulingSuite) SetupSuite() {
 	s.kubeClient = s.Env().KubernetesCluster.Client()
 	s.identifyNodes()
 	s.waitForWebhook()
-	// The cluster-agent ClusterRole is missing pods/eviction — a known issue to be fixed
-	// in the next Helm chart release.
-	s.patchClusterAgentEvictionRole()
 }
 
 func (s *spotSchedulingSuite) SetupTest() {
@@ -281,21 +286,6 @@ func (s *spotSchedulingSuite) createTestNamespace() {
 
 func (s *spotSchedulingSuite) deleteTestNamespace() {
 	err := s.kubeClient.CoreV1().Namespaces().Delete(context.Background(), s.testNamespace, metav1.DeleteOptions{})
-	s.Require().NoError(err)
-}
-
-// patchClusterAgentEvictionRole adds pods/eviction create permission to the cluster-agent
-// ClusterRole. This is needed because the Helm chart omits this rule; it will be fixed
-// in the next operator release.
-func (s *spotSchedulingSuite) patchClusterAgentEvictionRole() {
-	patch := []byte(`[{"op":"add","path":"/rules/-","value":{"apiGroups":[""],"resources":["pods/eviction"],"verbs":["create"]}}]`)
-	_, err := s.kubeClient.RbacV1().ClusterRoles().Patch(
-		s.T().Context(),
-		"dda-linux-datadog-cluster-agent",
-		types.JSONPatchType,
-		patch,
-		metav1.PatchOptions{},
-	)
 	s.Require().NoError(err)
 }
 
