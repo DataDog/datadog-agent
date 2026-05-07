@@ -11,6 +11,7 @@ package reporterimpl
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
@@ -57,8 +58,12 @@ func (r *stdoutReporter) Report(output reporterdef.ReportOutput) {
 		return
 	}
 	for _, ac := range output.ActiveCorrelations {
-		fmt.Printf("[observer] correlation: %s — %s (%d series)\n",
+		fmt.Printf("[observer] report: pattern=%s — %s (%d series)\n",
 			ac.Pattern, ac.Title, len(ac.Members))
+		for _, a := range ac.Anomalies {
+			ts := time.Unix(a.Timestamp, 0).UTC().Format(time.RFC3339)
+			fmt.Printf("  - %s [%s] at %s\n", a.Source.DisplayName(), a.DetectorName, ts)
+		}
 	}
 	if len(output.NewAnomalies) > 0 {
 		names := make([]string, 0, len(output.NewAnomalies))

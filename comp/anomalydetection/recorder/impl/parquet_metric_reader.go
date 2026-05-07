@@ -46,7 +46,7 @@ func newParquetReader(dirPath string) (*parquetMetricReader, error) {
 	}
 
 	if len(parquetFiles) == 0 {
-		return nil, fmt.Errorf("no parquet files found in %s", dirPath)
+		return &parquetMetricReader{}, nil
 	}
 
 	// Read all metrics from all files, skipping any that fail to parse.
@@ -110,15 +110,18 @@ func (r *parquetMetricReader) EndTime() int64 {
 // minParquetFileSize is the minimum valid size for a parquet file
 const minParquetFileSize = 20
 
-// findParquetFiles recursively finds all .parquet files in a directory,
+// findParquetFiles finds observer-metrics-*.parquet files in a directory,
 // skipping files that are too small to be valid parquet files.
+// It only matches metric parquet files (not log, trace, or trace-stats parquets)
+// to avoid misreading other parquet formats as FGM metric records.
 func findParquetFiles(dirPath string) ([]string, error) {
 	var files []string
 	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() && strings.HasSuffix(path, ".parquet") {
+		name := info.Name()
+		if !info.IsDir() && strings.HasPrefix(name, "observer-metrics-") && strings.HasSuffix(name, ".parquet") {
 			if info.Size() < minParquetFileSize {
 				fmt.Printf("[parquet-reader] Skipping %s: file too small (%d bytes)\n", path, info.Size())
 				return nil
