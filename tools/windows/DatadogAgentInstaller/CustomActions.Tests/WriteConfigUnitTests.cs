@@ -170,7 +170,13 @@ random_property: test
                 Assert.Equal(ActionResult.Success, result);
                 var manifest = File.ReadAllText(AiUsageManifestPath(projectLocation));
                 Assert.Contains($"\"chrome-extension://{Constants.FallbackAiUsageChromeExtensionId}/\"", manifest);
-                sessionMock.Verify(session => session.Log(It.Is<string>(message => message.Contains("using fallback Chrome extension ID"))), Times.Once);
+                sessionMock.Verify(
+                    session => session.Log(
+                        It.Is<string>(message => message.Contains("using fallback Chrome extension ID")),
+                        It.IsAny<string>(),
+                        It.IsAny<string>(),
+                        It.IsAny<int>()),
+                    Times.Once);
             });
         }
 
