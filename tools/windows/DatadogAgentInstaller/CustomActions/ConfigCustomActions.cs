@@ -18,7 +18,6 @@ namespace Datadog.CustomActions
     {
         private const string AiUsageNativeHostConfigName = "ai_usage_native_host.yaml";
         private const string AiUsageNativeHostName = "com.ai_prompt_logger.native_host";
-        private const string DefaultAiUsageChromeExtensionId = "gkmbhgbippkmmmidcikijiblbagbjgjj";
 
         /// <summary>
         /// Subset of the Datadog config file that we are going to read.
@@ -385,30 +384,49 @@ namespace Datadog.CustomActions
             }
         }
 
-        private static string ReadAiUsageChromeExtensionId(string configFolder)
+        private static string ReadAiUsageChromeExtensionIdFromFile(string configPath)
         {
-            var aiUsageNativeHostYamlPath = Path.Combine(configFolder, AiUsageNativeHostConfigName);
-            if (!File.Exists(aiUsageNativeHostYamlPath))
+            if (!File.Exists(configPath))
             {
-                return DefaultAiUsageChromeExtensionId;
+                return "";
             }
 
             try
             {
-                using var input = new StreamReader(aiUsageNativeHostYamlPath);
+                using var input = new StreamReader(configPath);
                 var deserializer = new DeserializerBuilder()
                     .IgnoreUnmatchedProperties()
                     .WithNamingConvention(UnderscoredNamingConvention.Instance)
                     .Build();
                 var cfg = deserializer.Deserialize<AiUsageNativeHostConfig>(input);
-                return string.IsNullOrEmpty(cfg?.ChromeExtensionId)
-                    ? DefaultAiUsageChromeExtensionId
-                    : cfg.ChromeExtensionId;
+                return cfg?.ChromeExtensionId?.Trim() ?? "";
             }
             catch
             {
-                return DefaultAiUsageChromeExtensionId;
+                return "";
             }
+        }
+
+        private static string ReadAiUsageChromeExtensionId(string configFolder, ISession session)
+        {
+            var aiUsageNativeHostYamlPath = Path.Combine(configFolder, AiUsageNativeHostConfigName);
+            var extensionId = ReadAiUsageChromeExtensionIdFromFile(aiUsageNativeHostYamlPath);
+            if (!string.IsNullOrEmpty(extensionId))
+            {
+                return extensionId;
+            }
+
+            var aiUsageNativeHostExamplePath = Path.Combine(configFolder, $"{AiUsageNativeHostConfigName}.example");
+            extensionId = ReadAiUsageChromeExtensionIdFromFile(aiUsageNativeHostExamplePath);
+            if (!string.IsNullOrEmpty(extensionId))
+            {
+                return extensionId;
+            }
+
+            session.Log(
+                $"Could not find chrome_extension_id in {aiUsageNativeHostYamlPath} or {aiUsageNativeHostExamplePath}; " +
+                $"using fallback Chrome extension ID {Constants.FallbackAiUsageChromeExtensionId}.");
+            return Constants.FallbackAiUsageChromeExtensionId;
         }
 
         private static string JsonEscape(string value)
@@ -418,13 +436,13 @@ namespace Datadog.CustomActions
                 .Replace("\"", "\\\"");
         }
 
-        private static void WriteAiUsageNativeMessagingManifest(string projectLocation, string configFolder)
+        private static void WriteAiUsageNativeMessagingManifest(string projectLocation, string configFolder, ISession session)
         {
             var manifestDir = Path.Combine(projectLocation, "bin", "agent", "dist");
             Directory.CreateDirectory(manifestDir);
 
             var hostExe = Path.Combine(projectLocation, "bin", "agent", "ai-prompt-logger-native-host.exe");
-            var extensionId = ReadAiUsageChromeExtensionId(configFolder);
+            var extensionId = ReadAiUsageChromeExtensionId(configFolder, session);
             var manifestPath = Path.Combine(manifestDir, $"{AiUsageNativeHostName}.json");
 
             var manifest = "{\n" +
@@ -539,7 +557,7 @@ namespace Datadog.CustomActions
                     }
                 }
 
-                WriteAiUsageNativeMessagingManifest(projectLocation, configFolder);
+                WriteAiUsageNativeMessagingManifest(projectLocation, configFolder, session);
             }
             catch (Exception e)
             {
