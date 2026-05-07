@@ -241,3 +241,74 @@ func TestNCMSender_SendDeviceMetadata(t *testing.T) {
 	// Verify the integration constant value
 	assert.Equal(t, integrations.Integration("network-configuration-management"), integrations.NetworkConfigManagement)
 }
+
+func TestNCMSender_SendNCMInventory_Success(t *testing.T) {
+	mockSender := &mocksender.MockSender{}
+	namespace := "default"
+	mockClock := clock.NewMock()
+	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
+
+	ncmSender := NewNCMSender(mockSender, namespace, mockClock)
+
+	payload := ncmreport.NCMInventory{
+		Namespace:  namespace,
+		ReportedAt: mockClock.Now().Unix(),
+		Entries: []ncmreport.InventoryEntry{
+			{
+				RawConfigID: "abc-123",
+				ConfigType:  types.RUNNING,
+				DeviceID:    "default:10.0.0.1",
+				CapturedAt:  mockClock.Now().Unix(),
+				RawHash:     "teehee",
+			},
+		},
+	}
+
+	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
+
+	err := ncmSender.SendNCMInventory(payload)
+	assert.NoError(t, err)
+
+	expectedEvent := []byte(`
+{
+  "namespace": "default",
+  "reported_at": 1754043600,
+  "entries": [
+    {
+      "raw_config_id": "abc-123",
+      "config_type": "running",
+      "device_id": "default:10.0.0.1",
+      "captured_at": 1754043600,
+      "raw_hash": "teehee"
+    }
+  ]
+}
+`)
+	compactEvent := new(bytes.Buffer)
+	err = json.Compact(compactEvent, expectedEvent)
+	assert.NoError(t, err)
+
+	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
+	mockSender.AssertEventPlatformEvent(t, compactEvent.Bytes(), eventplatform.EventTypeNetworkConfigManagement)
+	mockSender.AssertExpectations(t)
+}
+
+func TestNCMSender_SendNCMInventory_EmptyEntries(t *testing.T) {
+	// An inventory with no entries is still a valid signal (no configs yet encountered e.g. with an agent reboot)
+	// — it tells the backend the agent has nothing to roll back to. Make sure the sender
+	// doesn't drop or error on this case.
+	mockSender := &mocksender.MockSender{}
+	mockClock := clock.NewMock()
+	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
+
+	ncmSender := NewNCMSender(mockSender, "default", mockClock)
+
+	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
+
+	err := ncmSender.SendNCMInventory(ncmreport.NCMInventory{
+		Namespace:  "default",
+		ReportedAt: mockClock.Now().Unix(),
+	})
+	assert.NoError(t, err)
+	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
+}

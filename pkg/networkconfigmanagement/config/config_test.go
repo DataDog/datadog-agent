@@ -220,6 +220,56 @@ func TestAuthCredentials_DefaultValues(t *testing.T) {
 	assert.Equal(t, "tcp", config.Auth.Protocol)
 }
 
+func TestInitConfig_InventoryReportEveryN_ApplyDefaults(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    int
+		expected int
+	}{
+		{name: "unset (zero) defaults to 1", input: 0, expected: 1},
+		{name: "negative defaults to 1", input: -5, expected: 1},
+		{name: "user-set value preserved", input: 7, expected: 7},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ic := InitConfig{
+				MinCollectionInterval: 60,
+				InventoryReportEveryN: tt.input,
+			}
+			ic.applyDefaults()
+			assert.Equal(t, tt.expected, ic.InventoryReportEveryN)
+		})
+	}
+}
+
+func TestInitConfig_InventoryReportEveryN_Validate(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   int
+		wantErr string
+	}{
+		{name: "zero rejected", value: 0, wantErr: "minimum reporting of inventory must be greater than 0"},
+		{name: "negative rejected", value: -1, wantErr: "minimum reporting of inventory must be greater than 0"},
+		{name: "positive accepted", value: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ic := InitConfig{
+				Namespace:             "default",
+				MinCollectionInterval: 60,
+				InventoryReportEveryN: tt.value,
+			}
+			err := ic.Validate()
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestParsingSSHTimeoutFromYAML(t *testing.T) {
 	var tests = []struct {
 		name     string

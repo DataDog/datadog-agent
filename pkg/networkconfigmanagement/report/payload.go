@@ -35,7 +35,7 @@ type NetworkDeviceConfig struct {
 type NCMInventory struct {
 	Namespace  string           `json:"namespace"`
 	ReportedAt int64            `json:"reported_at"`
-	Entries    []InventoryEntry `json:"entries"`
+	Entries    []InventoryEntry `json:"entries,omitempty"`
 }
 
 // InventoryEntry contains the metadata about the configs stored locally on the agent

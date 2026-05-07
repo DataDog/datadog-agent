@@ -121,6 +121,40 @@ func TestNetworkDevicesConfigPayload_EmptyConfigs(t *testing.T) {
 	assert.Contains(t, string(jsonData), "\"configs\":[]")
 }
 
+func TestNCMInventory_JSONFields(t *testing.T) {
+	// Didn't create an explicit function to create the struct - was straightforward vs. the config
+	// payload that had more logic to deal with regarding timestamps, etc.
+	payload := NCMInventory{
+		Namespace:  "default",
+		ReportedAt: 1754043600,
+		Entries: []InventoryEntry{
+			{
+				RawConfigID: "abc-123",
+				ConfigType:  types.RUNNING,
+				DeviceID:    "default:10.0.0.1",
+				CapturedAt:  1754043600,
+				RawHash:     "teehee",
+			},
+		},
+	}
+
+	data, err := json.Marshal(payload)
+	require.NoError(t, err)
+
+	jsonStr := string(data)
+	for _, key := range []string{
+		`"namespace":"default"`,
+		`"reported_at":1754043600`,
+		`"entries":[`,
+		`"raw_config_id":"abc-123"`,
+		`"config_type":"running"`,
+		`"device_id":"default:10.0.0.1"`,
+		`"captured_at":1754043600`,
+		`"raw_hash":"teehee"`,
+	} {
+		assert.Contains(t, jsonStr, key)
+	}
+}
 func TestNetworkDevicesConfigPayload_EmptyTimestamps(t *testing.T) {
 	agentTs := time.Now().Unix()
 	ndc := NetworkDeviceConfig{
