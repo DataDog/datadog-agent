@@ -29,11 +29,7 @@ func validateBasenameFilter(pattern string) bool {
 	// length without bounds-checking, and shorter prefixes would be too
 	// coarse to be useful as kernel approvers anyway.
 	els := strings.Split(pattern, "*")
-	if len(els[0]) >= patternPrefixSize {
-		return true
-	}
-
-	return false
+	return len(els[0]) >= patternPrefixSize
 }
 
 // validatePathFilter validates that the path can be handled by the basename filter
