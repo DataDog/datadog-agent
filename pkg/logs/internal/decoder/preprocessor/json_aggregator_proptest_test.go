@@ -9,10 +9,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
 	"pgregory.net/rapid"
+
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
 // Property tests for the JSONAggregation surface and Aggregation entity
@@ -300,6 +304,195 @@ func TestAggregator_EmitAggregatedPreservesContent(t *testing.T) {
 		if actual != expected {
 			t.Fatalf("EmitAggregated byte preservation violated:\n  input    = %q\n  expected = %q\n  actual   = %q",
 				pretty, expected, actual)
+		}
+	})
+}
+
+// Shared helpers for TestAggregator_TagsOnlyOnAggregation and
+// TestAggregator_ArrivalOrderEmission.
+//
+// Each input message embeds a unique numeric ID (id_N) in its content
+// so that emissions can be linked back to the inputs that contributed
+// to them. The shapes are chosen to drive different rule paths without
+// ever splitting a JSON token mid-byte — the aggregator's chunk
+// boundary contract requires inputs to break at token boundaries (see
+// MidTokenSplitNotAggregated in json_aggregator.allium).
+
+type opShape int
+
+const (
+	shapeComplete opShape = iota // {"id_N":"v"} — drives FastPathEmit (or EmitAggregated when buffered)
+	shapeOpen                    // {"id_N":     — drives BufferIncomplete (open object, key + colon, awaits a value)
+	shapeClose                   // "v_id_N"}    — completes a buffered shapeOpen via EmitAggregated
+	shapeGarbage                 // not_json_id_N — drives FlushOnInvalid
+	shapeFlush                   // (no input)   — calls aggregator.Flush() — drives DrainOnFlush
+)
+
+func contentForShape(shape opShape, id int) string {
+	switch shape {
+	case shapeComplete:
+		return fmt.Sprintf(`{"id_%d":"v"}`, id)
+	case shapeOpen:
+		return fmt.Sprintf(`{"id_%d":`, id)
+	case shapeClose:
+		return fmt.Sprintf(`"v_id_%d"}`, id)
+	case shapeGarbage:
+		return fmt.Sprintf("not_json_id_%d", id)
+	}
+	return ""
+}
+
+var idMarkerRe = regexp.MustCompile(`id_(\d+)`)
+
+// extractInputIDs returns the ordered, deduplicated list of input IDs
+// found in an emission's content. Duplicates can arise if the same ID
+// appears more than once in a buffered fragment (it does not in the
+// shapes above), so deduplication is defensive.
+func extractInputIDs(content []byte) []int {
+	matches := idMarkerRe.FindAllSubmatch(content, -1)
+	seen := make(map[int]bool)
+	var ids []int
+	for _, m := range matches {
+		n, err := strconv.Atoi(string(m[1]))
+		if err != nil || seen[n] {
+			continue
+		}
+		seen[n] = true
+		ids = append(ids, n)
+	}
+	return ids
+}
+
+func hasAggregatedJSONTag(em *message.Message) bool {
+	for _, tag := range em.ParsingExtra.Tags {
+		if tag == message.AggregatedJSONTag {
+			return true
+		}
+	}
+	return false
+}
+
+// shapeGen draws a single op shape. Weighted toward Process ops over
+// Flush so sequences accumulate state worth observing.
+func shapeGen() *rapid.Generator[opShape] {
+	return rapid.SampledFrom([]opShape{
+		shapeComplete, shapeComplete,
+		shapeOpen, shapeOpen,
+		shapeClose,
+		shapeGarbage,
+		shapeFlush,
+	})
+}
+
+// TestAggregator_TagsOnlyOnAggregation anchors:
+//
+//	-- TagsOnlyOnAggregation: the aggregated JSON marker is added
+//	--   only by EmitAggregated and only when combined_count > 1
+//	--   and config.tag_complete_json is true. Single-fragment
+//	--   emissions and flushes never add the tag.
+//
+// (Behavioural-property comment in json_aggregator.allium.)
+//
+// The property: across an arbitrary sequence of Process and Flush
+// calls with both tag_complete_json values, every emission carries
+// the AggregatedJSONTag iff (a) the emission combines content from
+// more than one input message AND (b) tag_complete_json is true.
+//
+// Counting "more than one input message" by distinct input IDs in
+// the emission content is sound for these shapes: each shape embeds
+// exactly one id_N marker, FlushPath emissions carry exactly one
+// input each, and EmitAggregated emissions carry the markers of
+// every contributing input concatenated in arrival order.
+func TestAggregator_TagsOnlyOnAggregation(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		tagCompleteJSON := rapid.Bool().Draw(t, "tagCompleteJSON")
+		shapes := rapid.SliceOfN(shapeGen(), 1, 30).Draw(t, "shapes")
+
+		// Small max_content_size to make FlushOnSizeLimit reachable in
+		// the rotation alongside the other paths.
+		agg := NewJSONAggregator(tagCompleteJSON, 200)
+
+		nextID := 0
+		for i, shape := range shapes {
+			var emissions []*message.Message
+			if shape == shapeFlush {
+				emissions = agg.Flush()
+			} else {
+				emissions = agg.Process(newTestMessage(contentForShape(shape, nextID)))
+				nextID++
+			}
+
+			for j, em := range emissions {
+				ids := extractInputIDs(em.GetContent())
+				gotTag := hasAggregatedJSONTag(em)
+				wantTag := tagCompleteJSON && len(ids) > 1
+				if gotTag != wantTag {
+					t.Fatalf("TagsOnlyOnAggregation violated at op %d emission %d:\n"+
+						"  tagCompleteJSON=%v  distinctInputIDs=%d\n"+
+						"  expected tag=%v  got tag=%v\n"+
+						"  emission content=%q",
+						i, j, tagCompleteJSON, len(ids), wantTag, gotTag, em.GetContent())
+				}
+			}
+		}
+	})
+}
+
+// TestAggregator_ArrivalOrderEmission anchors:
+//
+//	-- ArrivalOrderEmission: where multiple buffered fragments are
+//	--   emitted (FlushOnSizeLimit, FlushOnInvalid, DrainOnFlush)
+//	--   they are emitted in arrival order, followed by the
+//	--   incoming message where applicable.
+//
+// (Behavioural-property comment in json_aggregator.allium.)
+//
+// The property: when a single Process or Flush call returns more than
+// one message (i.e., a flush path fired), those emitted messages'
+// input IDs appear in strictly increasing arrival order.
+//
+// Single-emission cases — FastPathEmit and EmitAggregated — are not
+// subject to this property as stated in the spec; the order of input
+// IDs within a single aggregated emission is a related but distinct
+// property and is not asserted here.
+func TestAggregator_ArrivalOrderEmission(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		shapes := rapid.SliceOfN(shapeGen(), 1, 30).Draw(t, "shapes")
+
+		// tag_complete_json=false to keep this test focused on ordering;
+		// tag presence is the sibling test's concern.
+		agg := NewJSONAggregator(false, 200)
+
+		nextID := 0
+		for i, shape := range shapes {
+			var emissions []*message.Message
+			if shape == shapeFlush {
+				emissions = agg.Flush()
+			} else {
+				emissions = agg.Process(newTestMessage(contentForShape(shape, nextID)))
+				nextID++
+			}
+
+			if len(emissions) <= 1 {
+				continue
+			}
+
+			prev := -1
+			for j, em := range emissions {
+				ids := extractInputIDs(em.GetContent())
+				if len(ids) != 1 {
+					t.Fatalf("flush-path emission must carry exactly one input ID, got %d at op %d emission %d (content=%q)",
+						len(ids), i, j, em.GetContent())
+				}
+				cur := ids[0]
+				if cur <= prev {
+					t.Fatalf("ArrivalOrderEmission violated at op %d:\n"+
+						"  emission %d carries id_%d, previous emission carried id_%d\n"+
+						"  IDs across emissions of one call must strictly increase",
+						i, j, cur, prev)
+				}
+				prev = cur
+			}
 		}
 	})
 }

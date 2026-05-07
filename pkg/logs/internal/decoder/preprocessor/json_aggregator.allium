@@ -425,3 +425,27 @@ surface JSONAggregation {
 -- (IncrementalJSONValidator.Write).
 -- Anchored in: TestJSONAggregator_TopLevelArraySplitNotAggregated
 -- (pkg/logs/internal/decoder/preprocessor/json_aggregator_test.go).
+
+-- Behavioural limitation: MidTokenSplitNotAggregated
+--
+-- The aggregator's input contract assumes chunk boundaries fall
+-- between JSON tokens. A chunk boundary that lands mid-token
+-- (mid-string, mid-number, mid-keyword) cannot be reliably
+-- resumed by the IncrementalJSONValidator: the underlying
+-- json.Decoder does not support resuming Token() reads after
+-- ErrUnexpectedEOF in the middle of a token, so the validator
+-- returns Invalid on the next Write that completes the token.
+-- The aggregator then takes the FlushOnInvalid path: every
+-- buffered message and the incoming message are emitted
+-- unmodified in arrival order; no aggregation occurs and no
+-- aggregated-JSON tag is added.
+--
+-- This contract is satisfied by the agent's line-based log
+-- framing, which splits at newline boundaries; pretty-printed
+-- JSON output emits newlines between tokens, never mid-token.
+-- Mid-token chunk boundaries are degenerate cases that do not
+-- occur in normal production input. The graceful FlushOnInvalid
+-- fallback ensures no data loss in the degenerate case.
+--
+-- Anchored in: TestJSONAggregator_MidTokenSplitFallsBackToFlushOnInvalid
+-- (pkg/logs/internal/decoder/preprocessor/json_aggregator_test.go).
