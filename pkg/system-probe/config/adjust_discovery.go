@@ -50,6 +50,12 @@ func adjustDiscovery(cfg model.Config) {
 	// Windows bypasses this gate via NewWindowsMonitor, but Linux requires it.
 	cfg.Set(smNS("enabled"), true, model.SourceAgentRuntime)
 
+	// Force-enable process service inference so bare-process traffic on Linux
+	// is attributed to a service. Without this, services not running under a
+	// container or systemd unit would be missing from the service map. On
+	// Windows this defaults to true already, so the Set is a no-op there.
+	cfg.Set(spNS("process_service_inference", "enabled"), true, model.SourceAgentRuntime)
+
 	for _, key := range discoveryForceEnabledProtocols {
 		cfg.Set(key, true, model.SourceAgentRuntime)
 	}

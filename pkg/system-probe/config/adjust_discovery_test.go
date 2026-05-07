@@ -105,6 +105,33 @@ func TestAdjustDiscovery_ForceEnablesRequiredProtocols(t *testing.T) {
 	}
 }
 
+func TestAdjustDiscovery_ForceEnablesProcessServiceInference(t *testing.T) {
+	psiKey := spNS("process_service_inference", "enabled")
+	tests := []struct {
+		name      string
+		discovery bool
+		userSetTo bool
+		want      bool
+	}{
+		{"discovery on overrides explicit disable", true, false, true},
+		{"discovery on keeps explicit enable", true, true, true},
+		{"discovery off leaves explicit disable alone", false, false, false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := mock.NewSystemProbe(t)
+			setBool(cfg, discoveryKey, tc.discovery)
+			setBool(cfg, psiKey, tc.userSetTo)
+
+			adjustDiscovery(cfg)
+
+			assert.Equal(t, tc.want, cfg.GetBool(psiKey),
+				"unexpected value for %s", psiKey)
+		})
+	}
+}
+
 func TestAdjustDiscovery_EnablesNetworkTracerModule(t *testing.T) {
 	_ = mock.NewSystemProbe(t)
 	t.Setenv("DD_DISCOVERY_SERVICE_MAP_ENABLED", "true")
