@@ -59,9 +59,6 @@ saphyr-parser = "0.0.6"
 yaml-rust2 = "0.11"
 zip = { version = "8.0", default-features = false, features = ["deflate"] }
 flate2 = "1.1"
-lzma-rs = "0.3"
-md5 = "0.8"
-tar = "0.4"
 
 tower = { version = "0.5", features = ["util"] }
 uuid = { version = "1", features = ["v4"] }
@@ -69,10 +66,13 @@ windows-sys = { version = "0.61", features = [] }
 
 # dev-dependencies
 dircpy = "0.3.19"
-regex = "1"
+lzma-rs = "0.3"
+md5 = "0.8"
 memmap2 = "0.9"
+regex = "1"
 nix = { version = "0.31", features = ["signal"] }
 scopeguard = "1.2"
+tar = "0.4"
 temp-env = "0.3"
 tempfile = "3.0"
 
