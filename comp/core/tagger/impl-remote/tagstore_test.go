@@ -50,7 +50,7 @@ func TestProcessEvent_AddAndModify(t *testing.T) {
 	tel := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	telemetryStore := taggerTelemetry.NewStore(tel)
 	store := newTagStore(telemetryStore)
-	store.processEvents(events, false)
+	_ = store.processEvents(events, false)
 
 	entity := store.getEntity(entityID)
 
@@ -87,7 +87,7 @@ func TestProcessEvent_AddAndDelete(t *testing.T) {
 	tel := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	telemetryStore := taggerTelemetry.NewStore(tel)
 	store := newTagStore(telemetryStore)
-	store.processEvents(events, false)
+	_ = store.processEvents(events, false)
 
 	entity := store.getEntity(entityID)
 
@@ -103,7 +103,7 @@ func TestProcessEvent_Replace(t *testing.T) {
 	telemetryStore := taggerTelemetry.NewStore(tel)
 	store := newTagStore(telemetryStore)
 
-	store.processEvents([]types.EntityEvent{
+	_ = store.processEvents([]types.EntityEvent{
 		{
 			EventType: types.EventTypeAdded,
 			Entity: types.Entity{
@@ -113,7 +113,7 @@ func TestProcessEvent_Replace(t *testing.T) {
 		},
 	}, false)
 
-	store.processEvents([]types.EntityEvent{
+	_ = store.processEvents([]types.EntityEvent{
 		{
 			EventType: types.EventTypeAdded,
 			Entity: types.Entity{

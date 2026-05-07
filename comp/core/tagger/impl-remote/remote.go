@@ -100,6 +100,7 @@ type remoteTagger struct {
 	telemetryTicker *time.Ticker
 	telemetryStore  *telemetry.Store
 	resyncEvents    []types.EntityEvent
+	memStats        remoteTaggerMemoryStats
 
 	checksCardinality    types.TagCardinality
 	dogstatsdCardinality types.TagCardinality
@@ -111,6 +112,80 @@ type remoteTagger struct {
 type Options struct {
 	Target   string
 	Disabled bool
+}
+
+type remoteTaggerMemoryStats struct {
+	Responses               uint64
+	ResponseEvents          uint64
+	ResponseAdded           uint64
+	ResponseModified        uint64
+	ResponseDeleted         uint64
+	ResponseTags            uint64
+	ResponseTagBytes        uint64
+	LargestResponseEvents   uint64
+	LargestResponseTagBytes uint64
+	InitialSnapshotComplete uint64
+	ResyncEvents            uint64
+	ResyncTags              uint64
+	ResyncTagBytes          uint64
+	StoreEntities           uint64
+	StoreTags               uint64
+	StoreTagBytes           uint64
+	StoreMaxEntityTags      uint64
+	StoreMaxEntityTagBytes  uint64
+}
+
+type responseMemoryStats struct {
+	Events   uint64
+	Added    uint64
+	Modified uint64
+	Deleted  uint64
+	Tags     uint64
+	TagBytes uint64
+}
+
+func (s *remoteTaggerMemoryStats) recordResponse(responseStats responseMemoryStats) {
+	s.Responses++
+	s.ResponseEvents += responseStats.Events
+	s.ResponseAdded += responseStats.Added
+	s.ResponseModified += responseStats.Modified
+	s.ResponseDeleted += responseStats.Deleted
+	s.ResponseTags += responseStats.Tags
+	s.ResponseTagBytes += responseStats.TagBytes
+	if responseStats.Events > s.LargestResponseEvents {
+		s.LargestResponseEvents = responseStats.Events
+	}
+	if responseStats.TagBytes > s.LargestResponseTagBytes {
+		s.LargestResponseTagBytes = responseStats.TagBytes
+	}
+}
+
+func (s *remoteTaggerMemoryStats) recordResync(events []types.EntityEvent) {
+	tags, tagBytes := entityEventsTagStats(events)
+	s.ResyncEvents = uint64(len(events))
+	s.ResyncTags = tags
+	s.ResyncTagBytes = tagBytes
+}
+
+func (s *remoteTaggerMemoryStats) recordStore(storeStats tagStoreMemoryStats) {
+	s.StoreEntities = storeStats.Entities
+	s.StoreTags = storeStats.Tags
+	s.StoreTagBytes = storeStats.TagBytes
+	s.StoreMaxEntityTags = storeStats.MaxEntityTags
+	s.StoreMaxEntityTagBytes = storeStats.MaxEntityTagBytes
+}
+
+func (s *remoteTaggerMemoryStats) resetIntervalCounters() {
+	s.Responses = 0
+	s.ResponseEvents = 0
+	s.ResponseAdded = 0
+	s.ResponseModified = 0
+	s.ResponseDeleted = 0
+	s.ResponseTags = 0
+	s.ResponseTagBytes = 0
+	s.LargestResponseEvents = 0
+	s.LargestResponseTagBytes = 0
+	s.InitialSnapshotComplete = 0
 }
 
 // NewComponent returns a remote tagger
@@ -497,6 +572,60 @@ func (t *remoteTagger) Subscribe(string, *types.Filter) (types.Subscription, err
 	return nil, errors.New("subscription to the remote tagger is not currently supported")
 }
 
+func (t *remoteTagger) logRemoteTaggerMemoryStats() {
+	t.log.Infof(
+		"remote tagger memory stats: ready=%t responses=%d response_events=%d response_added=%d response_modified=%d response_deleted=%d response_tags=%d response_tag_bytes=%d largest_response_events=%d largest_response_tag_bytes=%d initial_snapshot_complete=%d resync_events=%d resync_tags=%d resync_tag_bytes=%d store_entities=%d store_tags=%d store_tag_bytes=%d store_max_entity_tags=%d store_max_entity_tag_bytes=%d",
+		t.ready,
+		t.memStats.Responses,
+		t.memStats.ResponseEvents,
+		t.memStats.ResponseAdded,
+		t.memStats.ResponseModified,
+		t.memStats.ResponseDeleted,
+		t.memStats.ResponseTags,
+		t.memStats.ResponseTagBytes,
+		t.memStats.LargestResponseEvents,
+		t.memStats.LargestResponseTagBytes,
+		t.memStats.InitialSnapshotComplete,
+		t.memStats.ResyncEvents,
+		t.memStats.ResyncTags,
+		t.memStats.ResyncTagBytes,
+		t.memStats.StoreEntities,
+		t.memStats.StoreTags,
+		t.memStats.StoreTagBytes,
+		t.memStats.StoreMaxEntityTags,
+		t.memStats.StoreMaxEntityTagBytes,
+	)
+	t.memStats.resetIntervalCounters()
+}
+
+func entityEventsTagStats(events []types.EntityEvent) (uint64, uint64) {
+	var tags uint64
+	var tagBytes uint64
+	for _, event := range events {
+		entityTags, entityTagBytes := entityTagStats(event.Entity)
+		tags += entityTags
+		tagBytes += entityTagBytes
+	}
+	return tags, tagBytes
+}
+
+func entityTagStats(entity types.Entity) (uint64, uint64) {
+	var tags uint64
+	var tagBytes uint64
+	for _, tagSet := range [][]string{
+		entity.LowCardinalityTags,
+		entity.OrchestratorCardinalityTags,
+		entity.HighCardinalityTags,
+		entity.StandardTags,
+	} {
+		tags += uint64(len(tagSet))
+		for _, tag := range tagSet {
+			tagBytes += uint64(len(tag))
+		}
+	}
+	return tags, tagBytes
+}
+
 func (t *remoteTagger) run() {
 	expBackoff := backoff.NewExponentialBackOff()
 	expBackoff.InitialInterval = 500 * time.Millisecond
@@ -510,6 +639,8 @@ func (t *remoteTagger) run() {
 		select {
 		case <-t.telemetryTicker.C:
 			t.store.collectTelemetry()
+			t.memStats.recordStore(t.store.memoryStats())
+			t.logRemoteTaggerMemoryStats()
 			continue
 		case <-t.ctx.Done():
 			// Ensure we cancel the stream context when the main context is canceled
@@ -550,6 +681,7 @@ func (t *remoteTagger) run() {
 			t.ready = false
 			t.stream = nil
 			t.resyncEvents = nil
+			t.memStats.recordResync(t.resyncEvents)
 
 			t.log.Warnf("error received from remote tagger: %s", err)
 
@@ -591,6 +723,7 @@ func (t *remoteTagger) processResponse(response *pb.StreamTagsResponse) error {
 	}
 
 	events := make([]types.EntityEvent, 0, len(response.Events))
+	var responseStats responseMemoryStats
 	for _, ev := range response.Events {
 		eventType, err := convertEventType(ev.Type)
 		if err != nil {
@@ -599,7 +732,7 @@ func (t *remoteTagger) processResponse(response *pb.StreamTagsResponse) error {
 		}
 
 		entity := ev.Entity
-		events = append(events, types.EntityEvent{
+		event := types.EntityEvent{
 			EventType: eventType,
 			Entity: types.Entity{
 				ID:                          types.NewEntityID(types.EntityIDPrefix(entity.Id.Prefix), entity.Id.Uid),
@@ -609,8 +742,23 @@ func (t *remoteTagger) processResponse(response *pb.StreamTagsResponse) error {
 				StandardTags:                entity.StandardTags,
 				IsComplete:                  entity.GetIsComplete(),
 			},
-		})
+		}
+		events = append(events, event)
+
+		responseStats.Events++
+		switch eventType {
+		case types.EventTypeAdded:
+			responseStats.Added++
+		case types.EventTypeModified:
+			responseStats.Modified++
+		case types.EventTypeDeleted:
+			responseStats.Deleted++
+		}
+		tags, tagBytes := entityTagStats(event.Entity)
+		responseStats.Tags += tags
+		responseStats.TagBytes += tagBytes
 	}
+	t.memStats.recordResponse(responseStats)
 
 	replaceStoreContents := false
 
@@ -618,10 +766,14 @@ func (t *remoteTagger) processResponse(response *pb.StreamTagsResponse) error {
 		// Accumulate events across chunked snapshot messages until the
 		// server signals that the initial snapshot is complete.
 		t.resyncEvents = append(t.resyncEvents, events...)
+		t.memStats.recordResync(t.resyncEvents)
 		if response.GetInitialSnapshotComplete() {
+			t.memStats.InitialSnapshotComplete++
 			replaceStoreContents = true
 			err := t.store.processEvents(t.resyncEvents, replaceStoreContents)
+			t.memStats.recordStore(t.store.memoryStats())
 			t.resyncEvents = nil
+			t.memStats.recordResync(t.resyncEvents)
 			if err != nil {
 				return err
 			}
@@ -630,7 +782,9 @@ func (t *remoteTagger) processResponse(response *pb.StreamTagsResponse) error {
 		return nil
 	}
 
-	return t.store.processEvents(events, replaceStoreContents)
+	err := t.store.processEvents(events, replaceStoreContents)
+	t.memStats.recordStore(t.store.memoryStats())
+	return err
 }
 
 // startTaggerStream tries to establish a stream with the remote gRPC endpoint.

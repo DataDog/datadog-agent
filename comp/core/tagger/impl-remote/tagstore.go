@@ -23,6 +23,14 @@ type tagStore struct {
 	telemetryStore *telemetry.Store
 }
 
+type tagStoreMemoryStats struct {
+	Entities          uint64
+	Tags              uint64
+	TagBytes          uint64
+	MaxEntityTags     uint64
+	MaxEntityTagBytes uint64
+}
+
 func newTagStore(telemetryStore *telemetry.Store) *tagStore {
 	return &tagStore{
 		store:          genericstore.NewObjectStore[*types.Entity](),
@@ -91,6 +99,34 @@ func (s *tagStore) collectTelemetry() {
 		s.telemetryStore.StoredEntities.Set(storedEntities, remoteSource, prefix)
 		s.telemetry[prefix] = 0
 	}
+}
+
+func (s *tagStore) memoryStats() tagStoreMemoryStats {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	return s.memoryStatsLocked()
+}
+
+func (s *tagStore) memoryStatsLocked() tagStoreMemoryStats {
+	stats := tagStoreMemoryStats{
+		Entities: uint64(s.store.Size()),
+	}
+
+	entities := s.store.ListObjects(types.NewMatchAllFilter())
+	for _, entity := range entities {
+		tags, tagBytes := entityTagStats(*entity)
+		stats.Tags += tags
+		stats.TagBytes += tagBytes
+		if tags > stats.MaxEntityTags {
+			stats.MaxEntityTags = tags
+		}
+		if tagBytes > stats.MaxEntityTagBytes {
+			stats.MaxEntityTagBytes = tagBytes
+		}
+	}
+
+	return stats
 }
 
 // reset clears the local store, preparing it to be re-initialized from a fresh
