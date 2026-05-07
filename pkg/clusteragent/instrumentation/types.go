@@ -31,10 +31,19 @@ const (
 
 // Handler owns one product section of a DatadogInstrumentation custom resource.
 type Handler interface {
+	// Name returns the unique handler name.
 	Name() string
+	// HasSection returns true if the CR has a config section relevant to this handler.
 	HasSection(*datadoghq.DatadogInstrumentation) bool
+	// SupportsTarget returns true if this handler supports the given target kind.
 	SupportsTarget(autoscalingv2.CrossVersionObjectReference) bool
+	// Handle is called when a relevant CR event occurs for this handler's config section. Handlers also must
+	// be idempotent, as the controller may send duplicate events for the same change.
+	//
+	// Events are dispatched to handlers regardless of the cluster agent's leadership/follower state. If leadership
+	// matters, then the handler should determine if it's the leader before acting.
 	Handle(context.Context, EventType, *datadoghq.DatadogInstrumentation) (HandlerStatus, error)
+	// Validate checks product-specific fields during webhook admission.
 	Validate(*datadoghq.DatadogInstrumentation) []ValidationError
 }
 

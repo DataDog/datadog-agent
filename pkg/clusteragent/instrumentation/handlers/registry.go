@@ -15,6 +15,7 @@ import "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 // admission webhooks, should be added here rather than constructed in the generic
 // controller startup path.
 type Deps struct {
+	// IsLeader should be used if the handler should only perform actions when the cluster agent is the leader.
 	IsLeader func() bool
 }
 
