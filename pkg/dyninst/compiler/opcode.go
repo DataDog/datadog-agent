@@ -55,6 +55,7 @@ const (
 	OpcodeCondNot
 	OpcodeCondJumpIfFalse
 	OpcodeCondJumpIfTrue
+	OpcodeExprLoadDuration
 )
 
 //revive:enable:exported
