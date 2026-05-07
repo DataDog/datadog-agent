@@ -4,11 +4,21 @@ go_library(
     name = "fault_lib",
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/fault",
+    # keep
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:private"],
 )
 
 go_binary(
     name = "fault",
     embed = [":fault_lib"],
+    # keep
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
 )
