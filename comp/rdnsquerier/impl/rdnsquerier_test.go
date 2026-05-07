@@ -15,6 +15,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	rdnsquerierdef "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
@@ -37,7 +38,7 @@ func TestStartStop(t *testing.T) {
 	assert.NoError(t, ts.lc.Start(ts.ctx))
 	assert.Equal(t, true, internalRDNSQuerier.started)
 
-	assert.NoError(t, ts.lc.Stop(ts.ctx))
+	ts.stop(t)
 	assert.Equal(t, false, internalRDNSQuerier.started)
 }
 
@@ -223,6 +224,10 @@ func TestNormalOperationsCacheDisabled(t *testing.T) {
 // Test that the rate limiter limits the rate as expected.  Set rate limit to 1 per second, send a bunch of requests,
 // wait for N seconds, assert that no more that the expected number of requests succeed within that time period.
 func TestRateLimiter(t *testing.T) {
+	synctest.Test(t, syncTestRateLimiter)
+}
+
+func syncTestRateLimiter(t *testing.T) {
 	const numSeconds = 2
 
 	overrides := map[string]interface{}{
@@ -230,6 +235,7 @@ func TestRateLimiter(t *testing.T) {
 		"reverse_dns_enrichment.rate_limiter.limit_per_sec":      1,
 	}
 	ts := testSetup(t, overrides, true, nil, 0)
+	defer ts.stop(t)
 
 	// IP addresses in private range
 	for i := range 20 {
@@ -266,6 +272,10 @@ func TestRateLimiter(t *testing.T) {
 // Test that the rate limiter throttles the limit down when the error threshold is reached, and throttles the limit back up
 // after a recovery interval when queries are once again successful.
 func TestRateLimiterThrottled(t *testing.T) {
+	synctest.Test(t, syncTestRateLimiterThrottled)
+}
+
+func syncTestRateLimiterThrottled(t *testing.T) {
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled":       true,
 		"reverse_dns_enrichment.workers":                               2,
@@ -289,6 +299,7 @@ func TestRateLimiterThrottled(t *testing.T) {
 		},
 		0,
 	)
+	defer ts.stop(t)
 
 	var wg sync.WaitGroup
 
@@ -514,11 +525,16 @@ func TestChannelFullRequestsDroppedWhenRateLimited(t *testing.T) {
 
 // Test that the cache prevents multiple outstanding requests for an IP address.
 func TestCacheHitInProgress(t *testing.T) {
+	synctest.Test(t, syncTestCacheHitInProgress)
+}
+
+func syncTestCacheHitInProgress(t *testing.T) {
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 		"reverse_dns_enrichment.rate_limiter.limit_per_sec":      1,
 	}
 	ts := testSetup(t, overrides, true, nil, 0)
+	defer ts.stop(t)
 
 	var wg sync.WaitGroup
 
@@ -830,12 +846,17 @@ func TestCacheMaxSize(t *testing.T) {
 
 // Test cache expiration
 func TestCacheExpiration(t *testing.T) {
+	synctest.Test(t, syncTestCacheExpiration)
+}
+
+func syncTestCacheExpiration(t *testing.T) {
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 		"reverse_dns_enrichment.cache.entry_ttl":                 time.Duration(100) * time.Millisecond,
 		"reverse_dns_enrichment.cache.clean_interval":            time.Duration(1) * time.Second,
 	}
 	ts := testSetup(t, overrides, true, nil, 0)
+	defer ts.stop(t)
 
 	var wg sync.WaitGroup
 
@@ -881,6 +902,10 @@ func TestCacheExpiration(t *testing.T) {
 
 // Test that the cache is persisted and that it is loaded and used when the agent starts.
 func TestCachePersist(t *testing.T) {
+	synctest.Test(t, syncTestCachePersist)
+}
+
+func syncTestCachePersist(t *testing.T) {
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 		"run_path": t.TempDir(),
@@ -932,7 +957,7 @@ func TestCachePersist(t *testing.T) {
 	ts.validateExpected(t, expectedTelemetry)
 
 	// stop the original test setup
-	assert.NoError(t, ts.lc.Stop(ts.ctx))
+	ts.stop(t)
 
 	// create new testsetup, validate that the IP address previously queried and cached is still cached
 	ts = testSetup(t, overrides, true, nil, 0)
@@ -962,7 +987,7 @@ func TestCachePersist(t *testing.T) {
 	ts.validateExpected(t, expectedTelemetry)
 
 	// stop the second test setup
-	assert.NoError(t, ts.lc.Stop(ts.ctx))
+	ts.stop(t)
 
 	// create new testsetup with shorter entryTTL, validate that the IP address previously
 	// cached has new shorter expiration time
@@ -997,6 +1022,9 @@ func TestCachePersist(t *testing.T) {
 		"cache_miss":        1.0,
 	})
 	ts.validateExpected(t, expectedTelemetry)
+
+	// stop the third test setup
+	ts.stop(t)
 }
 
 func TestGetHostname(t *testing.T) {
@@ -1093,6 +1121,10 @@ func TestGetHostnameTimeout(t *testing.T) {
 
 // Test that when the rate limit is exceeded and the channel fills requests are dropped.
 func TestGetHostnameChannelFullRequestsDroppedWhenRateLimited(t *testing.T) {
+	synctest.Test(t, syncTestGetHostnameChannelFullRequestsDroppedWhenRateLimited)
+}
+
+func syncTestGetHostnameChannelFullRequestsDroppedWhenRateLimited(t *testing.T) {
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 		"reverse_dns_enrichment.workers":                         1,
@@ -1101,6 +1133,7 @@ func TestGetHostnameChannelFullRequestsDroppedWhenRateLimited(t *testing.T) {
 		"reverse_dns_enrichment.rate_limiter.limit_per_sec":      1,
 	}
 	ts := testSetup(t, overrides, true, nil, 1*time.Second)
+	defer ts.stop(t)
 
 	// IP addresses in private range
 	var errCount atomic.Int32
@@ -1142,18 +1175,18 @@ func TestGetHostnames(t *testing.T) {
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 	}
 
-	defaultTs := testSetup(t, overrides, true, nil, 100*time.Millisecond)
+	defaultDelay := 100 * time.Millisecond
 
 	tests := []struct {
 		name     string
-		ts       *testState
+		delay    time.Duration
 		ipAddrs  []string
 		timeout  time.Duration
 		expected map[string]rdnsquerierdef.ReverseDNSResult
 	}{
 		{
 			name:    "valid IPs",
-			ts:      defaultTs,
+			delay:   defaultDelay,
 			ipAddrs: []string{"192.168.1.100", "192.168.1.101"},
 			timeout: 1 * time.Second,
 			expected: map[string]rdnsquerierdef.ReverseDNSResult{
@@ -1163,7 +1196,7 @@ func TestGetHostnames(t *testing.T) {
 		},
 		{
 			name:    "invalid IP, private IPs, and public IP",
-			ts:      defaultTs,
+			delay:   defaultDelay,
 			ipAddrs: []string{"invalid_ip", "192.168.1.102", "8.8.8.8", "192.168.1.100"},
 			timeout: 1 * time.Second,
 			expected: map[string]rdnsquerierdef.ReverseDNSResult{
@@ -1175,7 +1208,7 @@ func TestGetHostnames(t *testing.T) {
 		},
 		{
 			name:    "invalid IP, timeout for private and public IPs",
-			ts:      testSetup(t, overrides, true, nil, 10*time.Second),
+			delay:   10 * time.Second,
 			ipAddrs: []string{"192.168.1.105", "invalid", "8.8.8.8"},
 			timeout: 1 * time.Second,
 			expected: map[string]rdnsquerierdef.ReverseDNSResult{
@@ -1187,11 +1220,14 @@ func TestGetHostnames(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(tt.ts.ctx, tt.timeout)
+		syncTestGetHostnames := func(t *testing.T) {
+			ts := testSetup(t, overrides, true, nil, tt.delay)
+			defer ts.stop(t)
+
+			ctx, cancel := context.WithTimeout(ts.ctx, tt.timeout)
 			defer cancel()
 
-			internalRDNSQuerier := tt.ts.rdnsQuerier.(*rdnsQuerierImpl)
+			internalRDNSQuerier := ts.rdnsQuerier.(*rdnsQuerierImpl)
 			results := internalRDNSQuerier.GetHostnames(ctx, tt.ipAddrs)
 
 			for ip, expectedResult := range tt.expected {
@@ -1206,6 +1242,9 @@ func TestGetHostnames(t *testing.T) {
 					assert.NoError(t, result.Err)
 				}
 			}
+		}
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, syncTestGetHostnames)
 		})
 	}
 }

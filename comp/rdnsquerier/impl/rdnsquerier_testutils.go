@@ -70,9 +70,18 @@ type testState struct {
 	logComp       log.Component
 }
 
+func (ts *testState) stop(t *testing.T) {
+	assert.NoError(t, ts.lc.Stop(ts.ctx))
+}
+
 func testSetup(t *testing.T, overrides map[string]interface{}, start bool, fakeIPResults map[string]*fakeResults, delay time.Duration) *testState {
 	lc := compdef.NewTestLifecycle(t)
 
+	// Ensure run_path is sandboxed so cache.persist() on stop doesn't write to
+	// the system path (/opt/datadog-agent/run on POSIX systems).
+	if _, ok := overrides["run_path"]; !ok {
+		overrides["run_path"] = t.TempDir()
+	}
 	config := config.NewMockWithOverrides(t, overrides)
 
 	logComp := logmock.New(t)
