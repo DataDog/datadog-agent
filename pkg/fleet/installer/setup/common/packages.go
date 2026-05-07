@@ -32,6 +32,12 @@ const (
 	DatadogAPMLibraryPHPPackage string = "datadog-apm-library-php"
 	// DatadogAPMLibraryNginxPackage is the datadog apm library nginx package
 	DatadogAPMLibraryNginxPackage string = "datadog-apm-library-nginx"
+	// DatadogAPMLibraryIISPackage is the datadog apm library iis package
+	DatadogAPMLibraryIISPackage string = "datadog-apm-library-iis"
+	// DatadogAPMLibraryIISRumPackage is the datadog apm library iis rum package
+	DatadogAPMLibraryIISRumPackage string = "datadog-apm-library-iis-rum"
+	// DatadogAPMLibraryHttpdPackage is the datadog apm library httpd package
+	DatadogAPMLibraryHttpdPackage string = "datadog-apm-library-httpd"
 )
 
 var (
@@ -46,6 +52,9 @@ var (
 		DatadogAPMLibraryDotNetPackage,
 		DatadogAPMLibraryPHPPackage,
 		DatadogAPMLibraryNginxPackage,
+		DatadogAPMLibraryIISPackage,
+		DatadogAPMLibraryIISRumPackage,
+		DatadogAPMLibraryHttpdPackage,
 	}
 
 	// ApmLibraries is a list of all the apm libraries
