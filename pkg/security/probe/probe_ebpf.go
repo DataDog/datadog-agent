@@ -1364,6 +1364,13 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			}
 			p.Resolvers.CGroupResolver.Add(cgroupContext)
 		}
+
+		// internal open events are emitted only to populate the cgroup
+		// resolver above; they don't reflect a user action so skip rule
+		// evaluation
+		if event.IsEventInternal() {
+			return false
+		}
 	case model.FileMkdirEventType:
 		if !p.regularUnmarshalEvent(&event.Mkdir, eventType, offset, dataLen, data) {
 			return false
@@ -1378,6 +1385,13 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if fs == "cgroup2" && event.Rmdir.File.PathKey.Inode != 0 && event.Rmdir.File.IsDir() && event.Rmdir.Retval == 0 {
 			p.Resolvers.CGroupResolver.Delete(event.Rmdir.File.PathKey.Inode)
 		}
+
+		// internal rmdir events are emitted only to update the cgroup
+		// resolver above; they don't reflect a user action so skip rule
+		// evaluation
+		if event.IsEventInternal() {
+			return false
+		}
 	case model.FileUnlinkEventType:
 		if !p.regularUnmarshalEvent(&event.Unlink, eventType, offset, dataLen, data) {
 			return false
@@ -1385,8 +1399,15 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 
 		// handle cgroup v2 deletion
 		fs := p.fieldHandlers.ResolveFileFilesystem(event, &event.Unlink.File)
-		if fs == "cgroup2" && event.Unlink.File.PathKey.Inode != 0 && event.Unlink.File.IsDir() {
+		if fs == "cgroup2" && event.Unlink.File.PathKey.Inode != 0 && event.Unlink.File.IsDir() && event.Unlink.Retval == 0 {
 			p.Resolvers.CGroupResolver.Delete(event.Unlink.File.PathKey.Inode)
+		}
+
+		// internal unlink events are emitted only to update the cgroup
+		// resolver above; they don't reflect a user action so skip rule
+		// evaluation
+		if event.IsEventInternal() {
+			return false
 		}
 	case model.FileRenameEventType:
 		if !p.regularUnmarshalEvent(&event.Rename, eventType, offset, dataLen, data) {

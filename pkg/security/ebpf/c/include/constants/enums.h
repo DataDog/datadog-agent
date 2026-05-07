@@ -89,6 +89,7 @@ enum
     EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE = 1 << 2, // event is a AD sample
     // EventFlagsSecurityProfileInProfile = 1<<3 isn't used in kernel space
     EVENT_FLAGS_ANOMALY_DETECTION_EVENT = 1 << 4, // event is an anomaly detection event
+    EVENT_FLAGS_INTERNAL = 1 << 5, // event used to keep track of internal caches & resources
 };
 
 enum file_flags
