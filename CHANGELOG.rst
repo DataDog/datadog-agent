@@ -2,6 +2,36 @@
 Release Notes
 =============
 
+.. _Release Notes_7.78.3:
+
+7.78.3
+======
+
+.. _Release Notes_7.78.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-05-07
+
+- Please refer to the `7.78.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7783>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.78.3_Security Notes:
+
+Security Notes
+--------------
+
+- Upgrade ``go.opentelemetry.io/otel/sdk`` to ``v1.43.0`` to address
+  `CVE-2026-39883 <https://nvd.nist.gov/vuln/detail/CVE-2026-39883>`_,
+  a PATH-hijacking vulnerability in the OpenTelemetry Go SDK's host
+  detection on BSD and Solaris platforms (the SDK invoked the
+  ``kenv`` command without an absolute path). The Datadog Agent's
+  primary supported platforms (Linux, Windows, macOS) are not
+  affected at runtime, but the dependency is upgraded to keep the
+  shipped binary free of the vulnerable code.
+
+
 .. _Release Notes_7.78.2:
 
 7.78.2
