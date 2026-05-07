@@ -271,7 +271,7 @@ func TestHoltResidual_Name(t *testing.T) {
 // the catalog and engine both rely on: HoltResidualDetector must satisfy
 // observer.Detector AND manualSeriesRemover (it is stateful and is NOT
 // listed in statelessDetectorAllowlist).
-func TestHoltResidual_InterfaceContracts(t *testing.T) {
+func TestHoltResidual_InterfaceContracts(_ *testing.T) {
 	d := NewHoltResidualDetector()
 	var _ observer.Detector = d
 	var _ manualSeriesRemover = d
@@ -307,6 +307,82 @@ func TestHoltResidual_IncrementalMatchesBatch(t *testing.T) {
 	}
 
 	assert.Equal(t, anomalyTimestamps(batchResult.Anomalies), anomalyTimestamps(incrementalAnomalies))
+}
+
+// TestHoltResidual_ReprocessesSameBucketMergeAndDoesNotSkipLatePoints pins two
+// cursor invariants: same-timestamp storage merges must be replayed via
+// WriteGeneration, and a replay that sees no strictly-new bucket must not move
+// lastProcessedTime past late points that still fall inside the dataTime range.
+func TestHoltResidual_ReprocessesSameBucketMergeAndDoesNotSkipLatePoints(t *testing.T) {
+	d := testHoltResidualDetector()
+	d.WarmupPoints = 10
+	d.ResidualWindow = 4
+	storage := newTimeSeriesStorage()
+
+	storage.Add("ns", "metric", 10.0, 10, nil)
+	d.Detect(storage, 10)
+
+	metas := storage.ListSeries(observer.WorkloadSeriesFilter())
+	require.Len(t, metas, 1)
+	ref := metas[0].Ref
+	key := holtStateKey{ref: ref, agg: observer.AggregateAverage}
+	state := d.series[key]
+	require.NotNil(t, state)
+	require.Equal(t, []float64{10.0}, state.warmupBuf)
+	require.Equal(t, int64(10), state.lastProcessedTime)
+
+	storage.Add("ns", "metric", 30.0, 10, nil)
+	series := storage.GetSeriesRange(ref, 0, 10, observer.AggregateAverage)
+	require.NotNil(t, series)
+	require.Len(t, series.Points, 1)
+	require.Equal(t, 20.0, series.Points[0].Value, "storage should expose the merged average")
+
+	d.Detect(storage, 20)
+	state = d.series[key]
+	require.Equal(t, []float64{10.0, 20.0}, state.warmupBuf)
+	require.Equal(t, int64(10), state.lastProcessedTime, "merge replay must not advance to dataTime")
+
+	storage.Add("ns", "metric", 50.0, 15, nil)
+	d.Detect(storage, 20)
+	state = d.series[key]
+	require.Equal(t, []float64{10.0, 20.0, 50.0}, state.warmupBuf)
+	assert.Equal(t, int64(15), state.lastProcessedTime)
+	assert.Equal(t, storage.WriteGeneration(ref), state.lastWriteGen)
+}
+
+// TestHoltResidual_ConfirmationStartsAfterWindowsReady verifies that
+// under-filled MAD windows cannot pre-arm confirmation counters. The first
+// point has a huge residual but is observed before both windows are full; the
+// next ready-window breach should only set the first confirmation count, not
+// fire immediately.
+func TestHoltResidual_ConfirmationStartsAfterWindowsReady(t *testing.T) {
+	d := &HoltResidualDetector{
+		Alpha:           0.01,
+		Beta:            0.01,
+		ResidualWindow:  4,
+		ZThreshold:      0.5,
+		ConfirmM:        2,
+		MinDeviationMAD: 0,
+		Refractory:      0,
+	}
+	state := &holtSeriesState{
+		warmedUp: true,
+		resWin:   []float64{0, 0, 0},
+		valWin:   []float64{0, 0, 0},
+	}
+
+	_, fired := d.processPoint(state, observer.Point{Timestamp: 1, Value: 100}, observer.AggregateAverage)
+	require.False(t, fired)
+	assert.Zero(t, state.consecutivePos, "under-filled windows must not pre-arm confirmation")
+	assert.Zero(t, state.consecutiveNeg)
+
+	_, fired = d.processPoint(state, observer.Point{Timestamp: 2, Value: 100}, observer.AggregateAverage)
+	require.False(t, fired, "first ready-window breach should only arm confirmation")
+	assert.Equal(t, 1, state.consecutivePos)
+	assert.Zero(t, state.consecutiveNeg)
+
+	_, fired = d.processPoint(state, observer.Point{Timestamp: 3, Value: 100}, observer.AggregateAverage)
+	require.True(t, fired, "second ready-window breach should satisfy ConfirmM")
 }
 
 func anomalyTimestamps(anomalies []observer.Anomaly) []int64 {

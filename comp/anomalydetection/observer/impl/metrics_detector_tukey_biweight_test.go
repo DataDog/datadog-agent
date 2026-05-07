@@ -82,6 +82,44 @@ func TestTukeyBiweight_IncrementalMatchesBatch(t *testing.T) {
 	assert.Equal(t, anomalyTimestamps(batchResult.Anomalies), anomalyTimestamps(incrementalAnomalies))
 }
 
+// TestTukeyBiweight_ReprocessesSameBucketMerge verifies that in-place bucket
+// updates are not skipped. Storage merges values with identical timestamps
+// into the same bucket, so PointCountUpTo is unchanged and the detector must
+// use WriteGeneration to replay the updated aggregate.
+func TestTukeyBiweight_ReprocessesSameBucketMerge(t *testing.T) {
+	d := testTukeyBiweightDetector()
+	d.WindowSize = 4
+	d.MinPoints = 4
+	d.ScoreEvery = 100
+	storage := newTimeSeriesStorage()
+
+	storage.Add("ns", "metric", 10.0, 1, nil)
+	d.Detect(storage, 1)
+
+	metas := storage.ListSeries(observer.WorkloadSeriesFilter())
+	require.Len(t, metas, 1)
+	ref := metas[0].Ref
+	key := tbStateKey{ref: ref, agg: observer.AggregateAverage}
+	state := d.series[key]
+	require.NotNil(t, state)
+	require.Equal(t, 1, state.count)
+	assert.Equal(t, 10.0, state.ring[0].Value)
+
+	storage.Add("ns", "metric", 30.0, 1, nil)
+	series := storage.GetSeriesRange(ref, 0, 1, observer.AggregateAverage)
+	require.NotNil(t, series)
+	require.Len(t, series.Points, 1)
+	require.Equal(t, 20.0, series.Points[0].Value, "storage should expose the merged average")
+
+	d.Detect(storage, 1)
+
+	state = d.series[key]
+	require.NotNil(t, state)
+	require.Equal(t, 2, state.count, "same-bucket merge should replay the updated aggregate")
+	assert.Equal(t, 20.0, state.ring[state.count-1].Value)
+	assert.Equal(t, storage.WriteGeneration(ref), state.lastWriteGen)
+}
+
 // TestTukeyBiweight_NoFireOnStableGaussian verifies that 200 deterministic
 // N(10, 0.5²) samples produce zero anomalies. With ZThreshold=5 the per-tick
 // false-positive rate under N(0,1) is ~5.7e-7, so 200 ticks should be well

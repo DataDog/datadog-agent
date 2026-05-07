@@ -23,21 +23,18 @@ import (
 // refractory period suppresses repeat fires while the smoother adapts to
 // the new regime.
 //
-// This complements the level-shift detectors (scanwelch, scanmw,
-// kl_divergence) and the Bayesian changepoint detector (bocpd): unlike
-// those, the HW residual gate operates on a forecast that adapts to
-// drifting / trending baselines, so a slow ramp punctuated by a jump
-// produces a small forecast residual on the ramp itself and a large one
-// on the jump.
+// This complements level-shift scans and the Bayesian changepoint detector:
+// the HW residual gate operates on a forecast that adapts to drifting /
+// trending baselines, so a slow ramp punctuated by a jump produces a small
+// forecast residual on the ramp itself and a large one on the jump.
 //
 // Memory per (series, aggregation): a 24-point warmup buffer, a
 // 60-residual MAD window, a 60-value MAD window, plus scalars — ~1.5 KB.
 // Per-tick cost: O(1) smoother update + O(W log W) MAD recompute (W=60),
 // dominated by the two sort.Float64s calls inside detectorMAD.
 
-// Holt's tunable defaults — chosen conservatively to suppress the recall
-// regressions seen in single-residual gates (see exp-0008/0009 notes in
-// the candidate description).
+// Holt's tunable defaults. The gates are conservative: a residual must repeat
+// with the same sign and clear a raw effect-size check before firing.
 const (
 	holtAlpha           = 0.2
 	holtBeta            = 0.05
@@ -70,7 +67,7 @@ type holtStateKey struct {
 // recurrences run on every ingested point; a separate residual window and
 // a raw-value window feed the two MAD-based gates.
 type holtSeriesState struct {
-	// cursor (mirrors kl_divergence)
+	// Cursor over visible storage buckets plus in-place write generation.
 	lastProcessedCount int
 	lastWriteGen       int64
 	lastProcessedTime  int64
@@ -130,7 +127,7 @@ type HoltResidualDetector struct {
 	// observations required to fire.
 	ConfirmM int
 	// MinDeviationMAD is the minimum |x_t - L_{t-1}| / MAD(values) for the
-	// effect-size gate to pass. Mirrors scanwelch / kl_divergence.
+	// effect-size gate to pass.
 	MinDeviationMAD float64
 	// Refractory is the number of ingested points to suppress fires for
 	// after firing, while the smoother adapts.
@@ -212,10 +209,9 @@ func (d *HoltResidualDetector) Reset() {
 	d.cachedGen = 0
 }
 
-// RemoveSeries drops per-series state for refs that storage has freed.
-// Mirrors KLDivergenceDetector.RemoveSeries: each entry holds rolling
-// buffers, so without the teardown the map grows unbounded with the
-// cumulative series count even after storage shrinks.
+// RemoveSeries drops per-series state for refs that storage has freed. Each
+// entry holds rolling buffers, so without teardown the map grows unbounded with
+// the cumulative series count even after storage shrinks.
 func (d *HoltResidualDetector) RemoveSeries(refs []observer.SeriesRef) {
 	d.ensureDefaults()
 	if len(refs) == 0 || len(d.series) == 0 {
@@ -260,26 +256,33 @@ func (d *HoltResidualDetector) Detect(storage observer.StorageReader, dataTime i
 				d.series[sk] = state
 			}
 
-			// Replay-gate: skip when nothing has been written and the
-			// cursor matches. We deliberately accept any non-zero delta
-			// (no min batch size) because the detector is per-point —
-			// unlike kl_divergence, there is no scan that needs a full
-			// test window before it can run.
-			if status.pointCount == state.lastProcessedCount && status.writeGeneration == state.lastWriteGen {
+			// Replay-gate: skip when no new bucket or in-place merge is visible.
+			mergeOccurred := status.pointCount == state.lastProcessedCount && status.writeGeneration != state.lastWriteGen
+			if status.pointCount <= state.lastProcessedCount && !mergeOccurred {
 				continue
 			}
+			startTime := state.lastProcessedTime
+			if mergeOccurred {
+				startTime = state.lastProcessedTime - 1
+				if startTime < 0 {
+					startTime = 0
+				}
+			}
 
-			anomalies := d.ingestNewPoints(storage, meta.Ref, agg, state, dataTime)
+			anomalies, pointsSeen := d.ingestNewPoints(storage, meta.Ref, agg, state, startTime, dataTime)
 			for j := range anomalies {
 				anomalies[j].SourceRef = &observer.QueryHandle{Ref: meta.Ref, Aggregate: agg}
 			}
 			allAnomalies = append(allAnomalies, anomalies...)
 
-			// Update cursor unconditionally — a quiet series should not
-			// keep replaying through the gate next call.
-			state.lastProcessedCount = status.pointCount
-			state.lastProcessedTime = dataTime
-			state.lastWriteGen = status.writeGeneration
+			if !pointsSeen && mergeOccurred {
+				state.lastWriteGen = status.writeGeneration
+				continue
+			}
+			if pointsSeen {
+				state.lastProcessedCount = status.pointCount
+				state.lastWriteGen = status.writeGeneration
+			}
 		}
 	}
 
@@ -297,8 +300,9 @@ func (d *HoltResidualDetector) newState() *holtSeriesState {
 	}
 }
 
-// ingestNewPoints streams points in (state.lastProcessedTime, dataTime] into
-// the per-series Holt state. Returns any anomalies fired by the gate logic.
+// ingestNewPoints streams points in (startTime, dataTime] into the per-series
+// Holt state. Returns any anomalies fired by the gate logic and whether any
+// points were ingested.
 //
 // Lifecycle:
 //   - During warmup, points accumulate in warmupBuf. When the buffer fills
@@ -312,15 +316,18 @@ func (d *HoltResidualDetector) ingestNewPoints(
 	ref observer.SeriesRef,
 	agg observer.Aggregate,
 	state *holtSeriesState,
+	startTime int64,
 	dataTime int64,
-) []observer.Anomaly {
-	if dataTime <= state.lastProcessedTime {
-		return nil
+) ([]observer.Anomaly, bool) {
+	if dataTime <= startTime {
+		return nil, false
 	}
 
 	var fired []observer.Anomaly
+	pointsSeen := false
 
-	storage.ForEachPoint(ref, state.lastProcessedTime, dataTime, agg, func(s *observer.Series, p observer.Point) {
+	storage.ForEachPoint(ref, startTime, dataTime, agg, func(s *observer.Series, p observer.Point) {
+		pointsSeen = true
 		// Capture series metadata once.
 		if !state.seriesMetaCaptured {
 			state.seriesNamespace = s.Namespace
@@ -333,6 +340,7 @@ func (d *HoltResidualDetector) ingestNewPoints(
 			state.seriesMetaCaptured = true
 		}
 		state.lastSeenTimestamp = p.Timestamp
+		state.lastProcessedTime = p.Timestamp
 		pushTimestamp(state, p.Timestamp)
 
 		if !state.warmedUp {
@@ -359,7 +367,7 @@ func (d *HoltResidualDetector) ingestNewPoints(
 		}
 	})
 
-	return fired
+	return fired, pointsSeen
 }
 
 // processPoint runs one Holt step: forecast → residual → gate → smoother
@@ -400,9 +408,11 @@ func (d *HoltResidualDetector) processPoint(
 	sigmaValue = floorSigma(sigmaValue, state.valWin)
 	devMAD := math.Abs(p.Value-state.level) / sigmaValue
 
-	// 3. Update consecutive counters BEFORE deciding to fire — the fire
-	// requires the counter to reach ConfirmM, so the current point counts.
-	zMagPasses := math.Abs(z) >= d.ZThreshold
+	// 3. Update consecutive counters only after both baseline windows are
+	// representative. Under-filled windows collapse sigma to the floor and can
+	// otherwise pre-arm confirmation before the gate is meaningful.
+	windowsReady := len(state.resWin) >= d.ResidualWindow && len(state.valWin) >= d.ResidualWindow
+	zMagPasses := windowsReady && math.Abs(z) >= d.ZThreshold
 	if zMagPasses {
 		if z > 0 {
 			state.consecutivePos++
@@ -417,11 +427,6 @@ func (d *HoltResidualDetector) processPoint(
 	}
 
 	confirmed := state.consecutivePos >= d.ConfirmM || state.consecutiveNeg >= d.ConfirmM
-	// The MAD windows must be representative before the gate is allowed to
-	// fire: an under-filled window collapses sigma to the floor and turns
-	// every modest residual into a "huge" z. Mirrors kl_divergence's
-	// requirement that both buffers be full before a scan is meaningful.
-	windowsReady := len(state.resWin) >= d.ResidualWindow && len(state.valWin) >= d.ResidualWindow
 	gateOK := windowsReady && zMagPasses && confirmed && devMAD >= d.MinDeviationMAD
 
 	// 4. Smoother update — runs on every post-warmup ingest, regardless of
@@ -451,8 +456,7 @@ func (d *HoltResidualDetector) processPoint(
 		return observer.Anomaly{}, false
 	}
 
-	// 7. Build the anomaly. Mirrors kl_divergence's construction for
-	// shape consistency with the rest of the detector family.
+	// 7. Build the anomaly using the common metric-detector anomaly shape.
 	score := math.Abs(z)
 	seriesName := state.seriesName + ":" + aggSuffix(agg)
 	anomaly := observer.Anomaly{
@@ -567,8 +571,7 @@ func windowRange(win []float64) float64 {
 }
 
 // pushFIFO appends v to buf, dropping the oldest entry once buf reaches
-// maxLen. Same shape as kl_divergence's window FIFO but length-only
-// (no parallel timestamps array).
+// maxLen.
 func pushFIFO(buf *[]float64, maxLen int, v float64) {
 	if len(*buf) < maxLen {
 		*buf = append(*buf, v)
@@ -609,9 +612,8 @@ func medianOfTail(buf []float64, n int) float64 {
 	return detectorMedian(tail)
 }
 
-// ensureDefaults fills zero-valued config fields with sensible defaults.
-// Mirrors kl_divergence / scanwelch ensureDefaults so the detector behaves
-// sanely even when constructed via reflective paths that bypass
+// ensureDefaults fills zero-valued config fields with sensible defaults so the
+// detector behaves sanely when constructed via reflective paths that bypass
 // NewHoltResidualDetector.
 func (d *HoltResidualDetector) ensureDefaults() {
 	if d.Alpha <= 0 {

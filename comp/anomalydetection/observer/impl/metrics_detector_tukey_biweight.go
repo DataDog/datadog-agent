@@ -15,8 +15,7 @@ import (
 // tbGlitchZCap is the upper bound on |z| for a fire. Anything beyond is
 // almost certainly a sensor glitch (NaN-converted 1e308, malformed counter
 // reset) rather than a genuine regime change, and we'd rather miss it than
-// emit a single anomaly with a runaway score. Matches the score-cap value
-// of 50 used by mannkendall / esn for output sanity.
+// emit a single anomaly with a runaway score.
 const tbGlitchZCap = 50.0
 
 // tbStateKey identifies per-series state by ref and aggregation.
@@ -34,7 +33,7 @@ type tbStateKey struct {
 //	                              -------
 //	                             ~1.4 KB
 type tbSeriesState struct {
-	// Cursor (mirrors mannkendall / esn).
+	// Cursor over visible storage buckets plus in-place write generation.
 	lastProcessedCount int
 	lastWriteGen       int64
 	lastProcessedTime  int64
@@ -67,12 +66,12 @@ type tbSeriesState struct {
 // biweight robust to "one historical glitch followed by a real shift later".
 //
 // Implements observer.Detector and observer.SeriesRemover. The iteration
-// shape (cached series + bulk status + ForEachPoint cursor) mirrors
-// MannKendallDetector / ESNDetector.
+// shape matches the other streaming metric detectors: cache series, bulk-fetch
+// per-ref status, then advance each per-series cursor with ForEachPoint.
 type TukeyBiweightDetector struct {
 	// WindowSize is the number of recent points held in the IRLS window.
-	// Default: 80 — matches burgar's burgWarmup so a single biweight pass
-	// covers the same context length as the AR-based detector in the family.
+	// Default: 80, enough context for a robust local baseline without making
+	// each scoring tick too expensive.
 	WindowSize int
 	// MinPoints is the minimum window fill before scoring runs.
 	// Default: WindowSize.
@@ -86,14 +85,13 @@ type TukeyBiweightDetector struct {
 	// occasionally non-convergent on bimodal windows.
 	IRLSIterations int
 	// ZThreshold is the |z| score above which the latest point is flagged.
-	// Default: 5.0 — matches mannkendall's ZThreshold to keep per-tick FP
-	// rate consistent with the existing strict-gate detector family.
+	// Default: 5.0 to keep the per-tick false-positive rate strict.
 	ZThreshold float64
 	// ScoreEvery amortizes IRLS cost: scoreBiweight runs every Nth point
 	// once the window is full. Default: 4.
 	ScoreEvery int
 	// CooldownPoints is the per-series suppression window after a fire.
-	// Default: 30 — matches mannkendall / burgar / esn.
+	// Default: 30.
 	CooldownPoints int
 	// Aggregations to run detection on. Default: [Average, Count].
 	Aggregations []observer.Aggregate
@@ -169,7 +167,7 @@ func (d *TukeyBiweightDetector) Reset() {
 // RemoveSeries drops per-series state for refs that storage has freed.
 // Without this hook the per-series map would grow unbounded with the
 // cumulative number of series ever observed even after storage shrinks
-// (mirrors mannkendall / esn).
+// because each entry owns a rolling window.
 func (d *TukeyBiweightDetector) RemoveSeries(refs []observer.SeriesRef) {
 	d.ensureDefaults()
 	if len(refs) == 0 || len(d.series) == 0 {
@@ -184,10 +182,9 @@ func (d *TukeyBiweightDetector) RemoveSeries(refs []observer.SeriesRef) {
 	d.cachedGen = 0
 }
 
-// Detect implements observer.Detector. The iteration pattern mirrors
-// MannKendallDetector (metrics_detector_mannkendall.go:142-215): cache series
-// on SeriesGeneration, bulk-fetch status, replay-skip when nothing changed,
-// then process only the strictly-new points via ForEachPoint.
+// Detect implements observer.Detector. The cursor follows the BOCPD
+// same-bucket merge pattern: a WriteGeneration change with an unchanged bucket
+// count backs the start time up by one second so merged aggregates are replayed.
 func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
 	d.ensureDefaults()
 
@@ -217,13 +214,22 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 				d.series[sk] = state
 			}
 
-			// Replay-skip: no new points and no in-place writes.
-			if status.pointCount == state.lastProcessedCount && status.writeGeneration == state.lastWriteGen {
+			mergeOccurred := status.pointCount == state.lastProcessedCount && status.writeGeneration != state.lastWriteGen
+			if status.pointCount <= state.lastProcessedCount && !mergeOccurred {
 				continue
+			}
+			startTime := state.lastProcessedTime
+			if mergeOccurred {
+				startTime = state.lastProcessedTime - 1
+				if startTime < 0 {
+					startTime = 0
+				}
 			}
 
 			var seriesMeta *observer.Series
-			storage.ForEachPoint(meta.Ref, state.lastProcessedTime, dataTime, agg, func(s *observer.Series, p observer.Point) {
+			pointsSeen := false
+			storage.ForEachPoint(meta.Ref, startTime, dataTime, agg, func(s *observer.Series, p observer.Point) {
+				pointsSeen = true
 				if seriesMeta == nil {
 					sCopy := *s
 					seriesMeta = &sCopy
@@ -250,8 +256,14 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 				state.lastProcessedTime = p.Timestamp
 			})
 
-			state.lastProcessedCount = status.pointCount
-			state.lastWriteGen = status.writeGeneration
+			if !pointsSeen && mergeOccurred {
+				state.lastWriteGen = status.writeGeneration
+				continue
+			}
+			if pointsSeen {
+				state.lastProcessedCount = status.pointCount
+				state.lastWriteGen = status.writeGeneration
+			}
 		}
 	}
 
@@ -393,8 +405,7 @@ func (d *TukeyBiweightDetector) scoreBiweight(state *tbSeriesState, series *obse
 		return observer.Anomaly{}, false
 	}
 
-	// (g) Score is |z|, capped at 50 to keep downstream UI / scoring sane —
-	// matches mannkendall / esn.
+	// (g) Score is |z|, capped at 50 to keep downstream UI / scoring sane.
 	score := math.Min(zAbs, 50)
 
 	direction := "above"
