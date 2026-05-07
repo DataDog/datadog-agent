@@ -19,7 +19,6 @@ go_library(
     deps = [
         "//comp/logs-library/utils/tls",
         "//pkg/config/model",
-        "//pkg/config/setup",
         "//pkg/config/structure",
         "//pkg/config/utils",
         "//pkg/logs/types",
@@ -46,7 +45,6 @@ go_test(
     deps = [
         "//comp/core/config",
         "//pkg/config/model",
-        "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/logs/types",
         "//pkg/util/log",

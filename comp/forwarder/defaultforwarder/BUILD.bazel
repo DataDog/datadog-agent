@@ -39,7 +39,6 @@ go_library(
         "//comp/forwarder/defaultforwarder/transaction",
         "//pkg/api/security",
         "//pkg/config/model",
-        "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/orchestrator/model",
         "//pkg/status/health",

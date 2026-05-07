@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "config_overrides.go",
         "config_overrides_test_helpers.go",
+        "defaults.go",
         "doc.go",
         "stringify.go",
         "types.go",

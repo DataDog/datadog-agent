@@ -17,7 +17,7 @@ go_library(
         "//comp/forwarder/defaultforwarder",
         "//comp/forwarder/defaultforwarder/resolver",
         "//comp/process/forwarders/def",
-        "//pkg/config/setup",
+        "//pkg/config/model",
         "//pkg/process/runner/endpoint",
         "//pkg/process/util/api/config",
     ],
