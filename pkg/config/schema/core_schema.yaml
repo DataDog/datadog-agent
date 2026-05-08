@@ -1760,8 +1760,8 @@ properties:
     visibility: public
     description: This section configures the Datadog Agent Manager System Tray
     tags:
-    - template_section:Agent
     - platform_only:windows
+    - template_section:Agent
     properties:
       log_file:
         node_type: setting
@@ -5326,8 +5326,8 @@ properties:
         visibility: public
         description: Configuration for scanning container images for software vulnerabilities.
         tags:
-        - platform_only:linux
         - template_section:CoreAgent
+        - platform_only:linux
         properties:
           enabled:
             node_type: setting
