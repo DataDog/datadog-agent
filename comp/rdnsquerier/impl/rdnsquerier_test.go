@@ -360,6 +360,7 @@ func syncTestRateLimiterThrottled(t *testing.T) {
 		"cache_retries_exceeded": 2.0,
 	})
 	ts.validateExpected(t, expectedTelemetry)
+	synctest.Wait() // gauge is set asynchronously by the adjuster goroutine
 	ts.validateExpectedGauge(t, "rate_limiter_limit", 1.0)
 
 	// The rate limiter is throttled now, but queries that are cache hits don't make it to the rate limiter so aren't throttled
@@ -462,6 +463,7 @@ func syncTestRateLimiterThrottled(t *testing.T) {
 		"cache_retries_exceeded": 2.0,
 	})
 	ts.validateExpected(t, expectedTelemetry)
+	synctest.Wait() // gauge is set asynchronously by the adjuster goroutine
 	ts.validateExpectedGauge(t, "rate_limiter_limit", 11.0)
 }
 
