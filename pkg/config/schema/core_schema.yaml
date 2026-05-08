@@ -13616,10 +13616,14 @@ properties:
         node_type: section
         type: object
         properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: false
+          consumer:
+            node_type: section
+            type: object
+            properties:
+              enabled:
+                node_type: setting
+                type: boolean
+                default: false
           sleep_interval:
             node_type: setting
             type: number
