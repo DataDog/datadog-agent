@@ -140,7 +140,7 @@ func NewFramer(
 	case DockerStream:
 		matcher = &dockerStreamMatcher{contentLenLimit}
 	case SyslogFraming:
-		matcher = &syslogFrameMatcher{contentLenLimit}
+		matcher = &syslogFrameMatcher{contentLenLimit: contentLenLimit}
 	case NoFraming:
 		matcher = &noFramingMatcher{}
 	case UTF8NewlineDatagram:
@@ -265,11 +265,10 @@ func (fr *Framer) Flush() {
 			break
 		}
 		buf := fr.buffer.Bytes()[framed:]
-		content, rawDataLen := fr.matcher.FlushFrame(buf)
+		content, rawDataLen, isTruncated := fr.matcher.FlushFrame(buf)
 		if content == nil {
 			break
 		}
-		isTruncated := rawDataLen < len(buf)
 		fr.emitFrame(fr.lastInput, content, rawDataLen, isTruncated)
 		fr.bytesFramed += rawDataLen
 	}

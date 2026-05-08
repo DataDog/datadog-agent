@@ -27,14 +27,14 @@ type oneByteNewLineMatcher struct {
 // lines are not emitted at end-of-stream. When flushPartial is set, any
 // remaining buffered bytes are emitted as a final frame, capped at
 // contentLenLimit.
-func (ob *oneByteNewLineMatcher) FlushFrame(buf []byte) ([]byte, int) {
+func (ob *oneByteNewLineMatcher) FlushFrame(buf []byte) ([]byte, int, bool) {
 	if !ob.flushPartial || len(buf) == 0 {
-		return nil, 0
+		return nil, 0, false
 	}
 	if len(buf) > ob.contentLenLimit {
-		return buf[:ob.contentLenLimit], ob.contentLenLimit
+		return buf[:ob.contentLenLimit], ob.contentLenLimit, true
 	}
-	return buf, len(buf)
+	return buf, len(buf), false
 }
 
 // FindFrame implements FrameMatcher#FindFrame.

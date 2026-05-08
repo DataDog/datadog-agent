@@ -19,5 +19,5 @@ type FrameMatcher interface {
 	// FlushFrame is called at end-of-stream with any unframed remainder in buf.
 	// If the remainder represents a valid frame that should be emitted, return
 	// the content and raw byte length. Return nil, 0 to discard the remainder.
-	FlushFrame(buf []byte) (content []byte, rawDataLen int)
+	FlushFrame(buf []byte) (content []byte, rawDataLen int, wasTruncated bool)
 }
