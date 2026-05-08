@@ -15,6 +15,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
@@ -25,6 +26,7 @@ import (
 	jsonv2 "github.com/go-json-experiment/json"
 	"github.com/google/uuid"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
 )
 
@@ -113,6 +115,68 @@ type uploader struct {
 	headers   [][2]string
 }
 
+// compressedSink is the storage backend a BatchEncoder writes its
+// gzip-compressed payload into. Two implementations are provided:
+// memSink (a bytes.Buffer, the default) and diskSink (a DiskCache-backed
+// file). The interface lets callers spend bounded RAM on the compressed
+// payload by spilling it to disk when a DiskCache is available.
+type compressedSink interface {
+	io.Writer
+	// Size reports the number of bytes written since the last Reset.
+	Size() int
+	// Reader returns an io.Reader that reads back the bytes written so far,
+	// from the start. It must be called only after writes for the current
+	// batch are complete and before Reset.
+	Reader() (io.Reader, error)
+	// Reset discards any data buffered for the current batch and prepares
+	// the sink to accept the next batch.
+	Reset() error
+	// Close releases any resources held by the sink. After Close the sink
+	// must not be used again.
+	Close() error
+}
+
+// memSink is a compressedSink backed by an in-memory bytes.Buffer.
+type memSink struct {
+	buf bytes.Buffer
+}
+
+func (s *memSink) Write(p []byte) (int, error) { return s.buf.Write(p) }
+func (s *memSink) Size() int                   { return s.buf.Len() }
+func (s *memSink) Reader() (io.Reader, error)  { return bytes.NewReader(s.buf.Bytes()), nil }
+func (s *memSink) Reset() error                { s.buf.Reset(); return nil }
+func (s *memSink) Close() error                { s.buf = bytes.Buffer{}; return nil }
+
+// diskSinkMaxBytes caps how large a single batch may grow on disk. With the
+// default flush threshold of 2 MiB this is generous, but it bounds the
+// reservation if a caller forgets to Flush.
+const diskSinkMaxBytes = 64 * 1024 * 1024
+
+// diskSink is a compressedSink backed by a DiskCache-managed file. The file
+// is unlinked at creation time so it disappears with the process even on a
+// crash. Each batch is written, read back for upload, and then truncated.
+type diskSink struct {
+	df *object.DiskFile
+}
+
+func newDiskSink(dc *object.DiskCache) (*diskSink, error) {
+	df, err := dc.NewFile("symdb-upload", diskSinkMaxBytes, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create disk-backed upload buffer: %w", err)
+	}
+	return &diskSink{df: df}, nil
+}
+
+func (s *diskSink) Write(p []byte) (int, error) { return s.df.Write(p) }
+func (s *diskSink) Size() int                   { return int(s.df.Used()) }
+
+func (s *diskSink) Reader() (io.Reader, error) {
+	return io.NewSectionReader(s.df, 0, int64(s.df.Used())), nil
+}
+
+func (s *diskSink) Reset() error { return s.df.Truncate() }
+func (s *diskSink) Close() error { return s.df.Close() }
+
 // BatchEncoder streams Scope objects into a gzip-compressed SymDB JSON
 // envelope and ships finalised batches to the SymDB intake when the caller
 // invokes Flush. A single BatchEncoder corresponds to one logical upload
@@ -126,7 +190,7 @@ type BatchEncoder struct {
 	up            uploader
 	uploadID      uuid.UUID
 	batchNum      int
-	buf           bytes.Buffer
+	sink          compressedSink
 	gz            *gzip.Writer
 	scopeCount    int
 	prefixWritten bool
@@ -134,14 +198,33 @@ type BatchEncoder struct {
 
 // NewBatchEncoder creates a BatchEncoder for a single logical upload to the
 // SymDB intake at url.
+//
+// diskCache is allowed to be nil. When nil, the gzip-compressed batch
+// buffer is held in memory. When non-nil, the BatchEncoder spills the
+// buffer to a DiskCache-managed file (unlinked at creation) instead;
+// failure to allocate the disk file is reported as an error rather than
+// silently falling back.
+//
+// headers are attached to every upload request.
 func NewBatchEncoder(
 	url string,
 	service string,
 	version string,
 	runtimeID string,
 	uploadID uuid.UUID,
-	headers ...[2]string,
-) *BatchEncoder {
+	diskCache *object.DiskCache,
+	headers [][2]string,
+) (*BatchEncoder, error) {
+	var sink compressedSink
+	if diskCache != nil {
+		ds, err := newDiskSink(diskCache)
+		if err != nil {
+			return nil, err
+		}
+		sink = ds
+	} else {
+		sink = &memSink{}
+	}
 	b := &BatchEncoder{
 		up: uploader{
 			url:       url,
@@ -151,9 +234,10 @@ func NewBatchEncoder(
 			headers:   headers,
 		},
 		uploadID: uploadID,
+		sink:     sink,
 	}
-	b.gz = gzip.NewWriter(&b.buf)
-	return b
+	b.gz = gzip.NewWriter(b.sink)
+	return b, nil
 }
 
 // AddScope writes a single Scope into the current batch's gzip stream. On the
@@ -211,13 +295,26 @@ func (b *BatchEncoder) addEncoded(v any) error {
 // in-progress batch. The gzip writer buffers internally (~32 KiB deflate
 // window), so Size is a lower bound on the eventual flushed payload size.
 func (b *BatchEncoder) Size() int {
-	return b.buf.Len()
+	return b.sink.Size()
 }
 
 // BatchCount returns the number of batches that have been started so far
 // (each AddScope after a Flush starts a new batch). Useful for logging.
 func (b *BatchEncoder) BatchCount() int {
 	return b.batchNum
+}
+
+// Close releases any resources held by the encoder (in particular, a
+// DiskCache-managed file when WithDiskCache was used). It is safe to call
+// Close after Flush even if Flush failed; the encoder is unusable
+// afterwards.
+func (b *BatchEncoder) Close() error {
+	if b.sink == nil {
+		return nil
+	}
+	err := b.sink.Close()
+	b.sink = nil
+	return err
 }
 
 // Flush finalises the current batch (if any scopes have been added) and
@@ -238,17 +335,23 @@ func (b *BatchEncoder) Flush(ctx context.Context, final bool) error {
 	if err := b.gz.Close(); err != nil {
 		return fmt.Errorf("failed to close gzip writer: %w", err)
 	}
-	if err := b.up.uploadInner(ctx, b.buf.Bytes(), b.uploadID, b.batchNum, final); err != nil {
+	r, err := b.sink.Reader()
+	if err != nil {
+		return fmt.Errorf("failed to read back compressed batch: %w", err)
+	}
+	if err := b.up.uploadInner(ctx, r, b.uploadID, b.batchNum, final); err != nil {
 		return fmt.Errorf("%w: %w", ErrUpload, err)
 	}
-	b.buf.Reset()
-	b.gz.Reset(&b.buf)
+	if err := b.sink.Reset(); err != nil {
+		return fmt.Errorf("failed to reset compressed batch buffer: %w", err)
+	}
+	b.gz.Reset(b.sink)
 	b.scopeCount = 0
 	b.prefixWritten = false
 	return nil
 }
 
-func (s *uploader) uploadInner(ctx context.Context, compressedData []byte, uploadID uuid.UUID, batchNum int, final bool) error {
+func (s *uploader) uploadInner(ctx context.Context, compressed io.Reader, uploadID uuid.UUID, batchNum int, final bool) error {
 	// The upload is a multipart containing metadata expected by the event platform
 	// and the gzipped SymDB data.
 
@@ -264,7 +367,8 @@ func (s *uploader) uploadInner(ctx context.Context, compressedData []byte, uploa
 		return fmt.Errorf("failed to create file part: %w", err)
 	}
 
-	if _, err := filePart.Write(compressedData); err != nil {
+	attachmentSize, err := io.Copy(filePart, compressed)
+	if err != nil {
 		return fmt.Errorf("failed to write compressed SymDB data: %w", err)
 	}
 
@@ -296,7 +400,7 @@ func (s *uploader) uploadInner(ctx context.Context, compressedData []byte, uploa
 		UploadID       uuid.UUID `json:"upload_id"`
 		BatchNum       int       `json:"batch_num"`
 		Final          bool      `json:"final"`
-		AttachmentSize int       `json:"attachment_size"`
+		AttachmentSize int64     `json:"attachment_size"`
 	}{
 		DDSource:       "dd_debugger",
 		Service:        s.service,
@@ -307,7 +411,7 @@ func (s *uploader) uploadInner(ctx context.Context, compressedData []byte, uploa
 		UploadID:       uploadID,
 		BatchNum:       batchNum,
 		Final:          final,
-		AttachmentSize: len(compressedData),
+		AttachmentSize: attachmentSize,
 	}
 	meta, err := jsonv2.Marshal(event)
 	if err != nil {

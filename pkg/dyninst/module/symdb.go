@@ -624,11 +624,21 @@ func (m *symdbManager) performUpload(
 			procID.pid, procID.service, procID.version, runtimeID, executablePath, err)
 	}
 
-	enc := uploader.NewBatchEncoder(
+	var diskCache *object.DiskCache
+	if dc, ok := m.objectLoader.(*object.DiskCache); ok {
+		diskCache = dc
+	}
+	enc, err := uploader.NewBatchEncoder(
 		m.uploadURL.String(),
 		procID.service, procID.version, runtimeID,
 		uuid.New(),
+		diskCache, nil, /* headers */
 	)
+	if err != nil {
+		return fmt.Errorf("failed to create batch encoder for process %v: %w",
+			procID.pid, err)
+	}
+	defer func() { _ = enc.Close() }()
 	var totalPackages, totalFuncs int
 	// Flush whenever the compressed payload reaches the threshold, or on the
 	// final package, to avoid keeping too much in memory at once.

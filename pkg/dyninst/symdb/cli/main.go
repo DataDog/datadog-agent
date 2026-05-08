@@ -10,6 +10,7 @@ package main
 
 import (
 	"archive/tar"
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -341,6 +342,7 @@ func run() (retErr error) {
 	// as the loader and via ExtractOptions.DiskCache so that symdb uses the
 	// on-disk generic-function index.
 	var objectLoader object.Loader
+	var diskCache *object.DiskCache
 	extractOpts := symdb.ExtractOptions{Scope: scope}
 	if *diskCacheEnabled {
 		cacheDir := *diskCacheDir
@@ -369,6 +371,7 @@ func run() (retErr error) {
 			return fmt.Errorf("failed to create disk cache: %w", err)
 		}
 		objectLoader = dc
+		diskCache = dc
 		extractOpts.DiskCache = dc
 	} else {
 		objectLoader = object.NewInMemoryLoader()
@@ -394,10 +397,11 @@ func run() (retErr error) {
 			version:   *uploadVersion,
 			runtimeID: fmt.Sprintf("manual-upload-%d", rand.Intn(1000)),
 			headers:   headers,
+			diskCache: diskCache,
 		}
 	case *noopUpload:
 		log.Infof("Exercising upload path with noop sink (no HTTP requests will be sent).")
-		sink = noopSink{}
+		sink = noopSink{diskCache: diskCache}
 	}
 
 	var stats symbolStats
@@ -447,7 +451,7 @@ func writeHeapProfile(path string) error {
 // noopSink (which returns a noopBatchEncoder that performs the same JSON +
 // gzip work but drops the result, for profiling).
 type uploadSink interface {
-	NewBatchEncoder(uploadID uuid.UUID) batchEncoder
+	NewBatchEncoder(uploadID uuid.UUID) (batchEncoder, error)
 }
 
 type batchEncoder interface {
@@ -455,6 +459,7 @@ type batchEncoder interface {
 	Size() int
 	Flush(context.Context, bool) error
 	BatchCount() int
+	Close() error
 }
 
 type realSink struct {
@@ -463,27 +468,45 @@ type realSink struct {
 	version   string
 	runtimeID string
 	headers   [][2]string
+	diskCache *object.DiskCache
 }
 
-func (r realSink) NewBatchEncoder(uploadID uuid.UUID) batchEncoder {
-	return uploader.NewBatchEncoder(r.url, r.service, r.version, r.runtimeID, uploadID, r.headers...)
+func (r realSink) NewBatchEncoder(uploadID uuid.UUID) (batchEncoder, error) {
+	return uploader.NewBatchEncoder(
+		r.url, r.service, r.version, r.runtimeID, uploadID,
+		r.diskCache, r.headers,
+	)
 }
 
 // noopSink performs the JSON encoding and gzip compression that the real
 // encoder would perform, then drops the result. Memory and CPU costs of the
-// upload preparation are still observable in profiles.
-type noopSink struct{}
+// upload preparation are still observable in profiles. When a DiskCache is
+// configured it is used for the compressed batch buffer, mirroring the real
+// upload path.
+type noopSink struct {
+	diskCache *object.DiskCache
+}
 
-func (noopSink) NewBatchEncoder(_ uuid.UUID) batchEncoder {
+func (s noopSink) NewBatchEncoder(_ uuid.UUID) (batchEncoder, error) {
 	enc := &noopBatchEncoder{}
+	if s.diskCache != nil {
+		df, err := s.diskCache.NewFile("symdb-upload-noop", 64*1024*1024, 0)
+		if err != nil {
+			return nil, fmt.Errorf("noop sink: failed to allocate DiskCache file: %w", err)
+		}
+		enc.diskFile = df
+		enc.gz = gzip.NewWriter(df)
+		return enc, nil
+	}
 	enc.gz = gzip.NewWriter(&enc.buf)
-	return enc
+	return enc, nil
 }
 
 type noopBatchEncoder struct {
 	batchNum   int
 	scopeCount int
 	buf        bytes.Buffer
+	diskFile   *object.DiskFile
 	gz         *gzip.Writer
 }
 
@@ -499,6 +522,9 @@ func (n *noopBatchEncoder) AddPackage(pkg symdb.Package, agentVersion string) er
 }
 
 func (n *noopBatchEncoder) Size() int {
+	if n.diskFile != nil {
+		return int(n.diskFile.Used())
+	}
 	return n.buf.Len()
 }
 
@@ -509,17 +535,40 @@ func (n *noopBatchEncoder) Flush(_ context.Context, _ bool) error {
 	if err := n.gz.Close(); err != nil {
 		return fmt.Errorf("failed to close gzip writer: %w", err)
 	}
-	// Force the compiler to keep `buf` alive so the noop sink really does
-	// the work of holding the compressed bytes briefly in memory.
-	runtime.KeepAlive(n.buf)
-	n.buf.Reset()
-	n.gz.Reset(&n.buf)
+	if n.diskFile != nil {
+		// Force a read of the compressed bytes so the disk path actually
+		// touches them, matching the real uploader's read-back-for-multipart
+		// step (and tripping any read-side syscall costs into profiles).
+		r := io.NewSectionReader(n.diskFile, 0, int64(n.diskFile.Used()))
+		if _, err := io.Copy(io.Discard, bufio.NewReaderSize(r, 64*1024)); err != nil {
+			return fmt.Errorf("failed to read DiskFile back: %w", err)
+		}
+		if err := n.diskFile.Truncate(); err != nil {
+			return fmt.Errorf("failed to truncate DiskFile: %w", err)
+		}
+		n.gz.Reset(n.diskFile)
+	} else {
+		// Force the compiler to keep `buf` alive so the noop sink really does
+		// the work of holding the compressed bytes briefly in memory.
+		runtime.KeepAlive(n.buf)
+		n.buf.Reset()
+		n.gz.Reset(&n.buf)
+	}
 	n.scopeCount = 0
 	return nil
 }
 
 func (n *noopBatchEncoder) BatchCount() int {
 	return n.batchNum
+}
+
+func (n *noopBatchEncoder) Close() error {
+	if n.diskFile != nil {
+		err := n.diskFile.Close()
+		n.diskFile = nil
+		return err
+	}
+	return nil
 }
 
 // extractAndUpload mirrors module.symdbManager.performUpload: it iterates
@@ -547,7 +596,12 @@ func extractAndUpload(
 
 	var enc batchEncoder
 	if sink != nil {
-		enc = sink.NewBatchEncoder(uuid.New())
+		var err error
+		enc, err = sink.NewBatchEncoder(uuid.New())
+		if err != nil {
+			return fmt.Errorf("failed to create batch encoder: %w", err)
+		}
+		defer func() { _ = enc.Close() }()
 	}
 	var totalPackages, totalFuncs int
 	maybeFlush := func(final bool) error {
