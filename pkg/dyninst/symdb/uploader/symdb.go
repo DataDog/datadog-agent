@@ -263,12 +263,21 @@ func (s *uploader) uploadInner(ctx context.Context, compressedData []byte) error
 		return fmt.Errorf("failed to create event part: %w", err)
 	}
 
-	meta := []byte(`{
-"ddsource": "dd_debugger",
-"service": "` + s.service + `",
-"runtimeId": "` + s.runtimeID + `",
-"type": "symdb"
-}`)
+	event := struct {
+		DDSource  string `json:"ddsource"`
+		Service   string `json:"service"`
+		RuntimeID string `json:"runtimeId"`
+		Type      string `json:"type"`
+	}{
+		DDSource:  "dd_debugger",
+		Service:   s.service,
+		RuntimeID: s.runtimeID,
+		Type:      "symdb",
+	}
+	meta, err := json.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("failed to marshal event meta: %w", err)
+	}
 	if _, err := eventPart.Write(meta); err != nil {
 		return fmt.Errorf("failed to write event data: %w", err)
 	}
