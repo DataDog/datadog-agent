@@ -15,7 +15,6 @@ import "C"
 // testCBatteryInfo is a test fixture with all fields populated
 // Had to move this here because cgo is not supported in test files
 var testCBatteryInfo = C.BatteryInfo{
-	found:               true,
 	cycleCount:          C.OptionalInt{hasValue: true, value: 500},
 	designCapacity:      C.OptionalInt{hasValue: true, value: 5000},  // 5000 mAh
 	appleRawMaxCapacity: C.OptionalInt{hasValue: true, value: 4500},  // 4500 mAh (90% health)
