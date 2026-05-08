@@ -124,6 +124,8 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return 0x27
 	case compiler.OpcodeCondJumpIfTrue:
 		return 0x28
+	case compiler.OpcodeExprLoadDuration:
+		return 0x29
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
 	}

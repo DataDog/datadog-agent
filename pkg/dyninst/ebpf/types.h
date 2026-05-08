@@ -119,6 +119,11 @@ typedef enum sm_opcode {
   SM_OP_COND_NOT = 38,
   SM_OP_COND_JUMP_IF_FALSE = 39,
   SM_OP_COND_JUMP_IF_TRUE = 40,
+  // Writes (sm->start_ns - sm->entry_ktime_ns) as 8 bytes at sm->offset,
+  // matching the byte-layout contract of other location ops. Does not
+  // advance sm->offset. Callers that use the value as a comparison
+  // operand follow with EXPR_PUSH_OFFSET{8} to advance/push.
+  SM_OP_EXPR_LOAD_DURATION = 41,
 } sm_opcode_t;
 
 // cmp_op_t identifies which comparison SM_OP_EXPR_CMP_BASE /
@@ -227,6 +232,8 @@ static const char* op_code_name(sm_opcode_t op_code) {
     return "COND_JUMP_IF_FALSE";
   case SM_OP_COND_JUMP_IF_TRUE:
     return "COND_JUMP_IF_TRUE";
+  case SM_OP_EXPR_LOAD_DURATION:
+    return "EXPR_LOAD_DURATION";
   default:
     break;
   }

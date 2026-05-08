@@ -10,8 +10,8 @@ package admisconfig
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
 func init() {

@@ -13,7 +13,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/comp/etw"
+	etw "github.com/DataDog/datadog-agent/comp/etw/def"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"

@@ -15,21 +15,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
-
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	"github.com/benbjohnson/clock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	ncmcomp "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
@@ -142,8 +140,7 @@ func (m *MockRemoteSession) Close() error {
 
 func createTestCheck(t *testing.T) *Check {
 	cfg := agentconfig.NewMock(t)
-	comp := ncmcomp.Mock(t)
-	return newCheck(cfg, comp).(*Check)
+	return newCheck(cfg).(*Check)
 }
 
 // Configuration test data
@@ -330,10 +327,9 @@ func TestCheck_Run_ConnectionFailure(t *testing.T) {
 	connectionError := errors.New("connection refused")
 	client := newMockRemoteClient()
 	client.ConnectionError = connectionError
-	check.remoteClient = client
 
 	// Run the check
-	err = check.Run()
+	err = client.Connect()
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "connection refused")
@@ -348,10 +344,6 @@ func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
 	t.Cleanup(profile.ResetProfilesPath)
 	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test", "provider")
 	require.NoError(t, err)
-
-	// Clear the profile so FindMatchingProfile is exercised
-	check.checkContext.ProfileCache.ProfileName = ""
-	check.checkContext.ProfileCache.Profile = nil
 
 	// Set up a mock remote client that fails config retrieval
 	mockClient := &MockRemoteClient{

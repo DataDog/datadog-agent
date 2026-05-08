@@ -1,0 +1,16 @@
+# Each section from every releasenote are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix a class of IPv6 ``host:port`` formatting bugs found in multiple
+    call sites across the Agent. IPv6 literals in host configuration
+    values were not bracketed when used to build URLs and dial addresses,
+    producing strings like ``http://fd38::1:5005`` instead of
+    ``http://[fd38::1]:5005`` and causing ``too many colons in address``
+    errors at runtime.

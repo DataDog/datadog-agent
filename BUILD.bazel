@@ -111,6 +111,7 @@ exports_files(glob(
 # gazelle:exclude comp/core/log/rust
 # gazelle:exclude comp/core/profiler/fx
 # gazelle:exclude comp/core/profiler/impl
+# gazelle:exclude comp/core/remoteflags
 # gazelle:exclude comp/core/remoteagentregistry/fx
 # gazelle:exclude comp/core/remoteagentregistry/impl
 # gazelle:exclude comp/core/remoteagentregistry/status
@@ -210,7 +211,6 @@ exports_files(glob(
 # gazelle:exclude comp/networkpath/npcollector/fx
 # gazelle:exclude comp/networkpath/npcollector/mock
 # gazelle:exclude comp/networkpath/npcollector/model
-# gazelle:exclude comp/networkconfigmanagement
 # gazelle:exclude comp/networkpath/traceroute/fx-local
 # gazelle:exclude comp/networkpath/traceroute/fx-remote
 # gazelle:exclude comp/networkpath/traceroute/impl-local
@@ -233,7 +233,6 @@ exports_files(glob(
 # gazelle:exclude comp/otelcol/dogtelextension/fx
 # gazelle:exclude comp/otelcol/logsagentpipeline
 # gazelle:exclude comp/otelcol/otlp/components/exporter
-# gazelle:exclude comp/otelcol/otlp/components/processor
 # gazelle:exclude comp/otelcol/otlp/integrationtest
 # gazelle:exclude comp/otelcol/otlp/internal
 # gazelle:exclude comp/otelcol/otlp/testdata
@@ -534,7 +533,6 @@ exports_files(glob(
 # gazelle:exclude pkg/procmgr
 # gazelle:exclude pkg/proto/datadog/api
 # gazelle:exclude pkg/proto/datadog/autodiscovery
-# gazelle:exclude pkg/proto/datadog/dogstatsdhttp
 # gazelle:exclude pkg/proto/datadog/kubemetadata
 # gazelle:exclude pkg/proto/datadog/model
 # gazelle:exclude pkg/proto/datadog/privateactionrunner
@@ -545,6 +543,7 @@ exports_files(glob(
 # gazelle:exclude pkg/proto/datadog/workloadfilter
 # gazelle:exclude pkg/proto/datadog/workloadmeta
 # gazelle:exclude pkg/proto/protodep
+# gazelle:exclude pkg/remoteflags
 # gazelle:exclude pkg/sbom/collectors/docker
 # gazelle:exclude pkg/sbom/collectors/host
 # gazelle:exclude pkg/sbom/collectors/procfs
@@ -617,7 +616,6 @@ exports_files(glob(
 # gazelle:exclude pkg/system-probe/api/module
 # gazelle:exclude pkg/system-probe/api/server/testutil
 # gazelle:exclude pkg/system-probe/config
-# gazelle:exclude pkg/trace/otel/integration
 # gazelle:exclude pkg/util/cloudproviders/gce
 # gazelle:exclude pkg/util/cloudproviders/kubernetes
 # gazelle:exclude pkg/util/cloudproviders/network

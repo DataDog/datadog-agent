@@ -13,7 +13,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
+	"strconv"
 	"time"
 
 	"go.uber.org/fx"
@@ -99,7 +101,7 @@ func streamLogs(lc log.Component, config config.Component, client ipc.HTTPClient
 		return err
 	}
 
-	urlstr := fmt.Sprintf("https://%v:%v/agent/stream-logs", ipcAddress, config.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%s/agent/stream-logs", net.JoinHostPort(ipcAddress, strconv.Itoa(config.GetInt("cmd_port"))))
 
 	var f *os.File
 	var bufWriter *bufio.Writer

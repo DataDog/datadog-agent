@@ -5,10 +5,11 @@
 
 //go:build ncm
 
+// Package store is provides persistent local storage for network device configurations (for NCM)
+// utilizing bbolt - enabling rollback of configs w/o sending data to the Datadog backend
 package store
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -21,7 +22,6 @@ import (
 	"github.com/google/uuid"
 	"go.etcd.io/bbolt"
 
-	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -29,24 +29,27 @@ import (
 
 const (
 	// Bucket names for bbolt
-	rawConfigBucket = "raw_config" // TODO: temporary bucket, a hybrid approach until the blocks logic is ironed out
-	metadataBucket  = "metadata"
+	rawConfigBucket    = "raw_config" // TODO: temporary bucket, a hybrid approach until the blocks logic is ironed out
+	configBlocksBucket = "config_blocks"
+	metadataBucket     = "metadata"
+	secretsBucket      = "secrets"
 
 	// DB configurations
 	ownerRWFileMode     = 0600 // only the owner can read/write
 	databaseLockTimeout = 1 * time.Second
 )
 
-type configStore struct {
+// ConfigStore implements persistent KV store for configurations for rollbacks
+// whenever a config is retrieved, we will store agent-side along with the payload sent
+// to intake to enable "rollbacks" without sending sensitive data (in configs) back and forth
+type ConfigStore struct {
 	db         *bbolt.DB
 	lock       sync.RWMutex
 	compressor compression.Compressor
 }
 
-var _ ConfigStore = (*configStore)(nil)
-
 // Open creates a new ConfigStore and initializes the underlying boltDB + required buckets
-func Open(path string) (ConfigStore, error) {
+func Open(path string) (*ConfigStore, error) {
 	db, err := bbolt.Open(path, ownerRWFileMode, &bbolt.Options{
 		Timeout: databaseLockTimeout,
 	})
@@ -54,14 +57,14 @@ func Open(path string) (ConfigStore, error) {
 		return nil, fmt.Errorf("failed to open NCM bbolt config store at %s: %w", path, err)
 	}
 
-	cs := &configStore{
+	cs := &ConfigStore{
 		db:         db,
 		compressor: selector.NewCompressor(compression.ZstdKind, 3), // Level 3 is default for compression, can tune iteratively
 	}
 
 	// Create the buckets when we first open
 	err = cs.update(func(tx *bbolt.Tx) error {
-		for _, name := range []string{rawConfigBucket, metadataBucket} {
+		for _, name := range []string{rawConfigBucket, configBlocksBucket, metadataBucket, secretsBucket} {
 			if _, err := tx.CreateBucketIfNotExists([]byte(name)); err != nil {
 				return fmt.Errorf("error creating bucket %s: %w", name, err)
 			}
@@ -69,7 +72,7 @@ func Open(path string) (ConfigStore, error) {
 		return nil
 	})
 	if err != nil {
-		cs.Close(context.TODO())
+		cs.Close()
 		return nil, err
 	}
 
@@ -77,14 +80,14 @@ func Open(path string) (ConfigStore, error) {
 }
 
 // Close cleans up / releases DB resources
-func (cs *configStore) Close(_ context.Context) error {
+func (cs *ConfigStore) Close() error {
 	cs.lock.Lock()
 	defer cs.lock.Unlock()
 	return cs.db.Close()
 }
 
 // Size returns the size of the database file in bytes.
-func (cs *configStore) Size() (int64, error) {
+func (cs *ConfigStore) Size() (int64, error) {
 	var size int64
 	err := cs.view(func(tx *bbolt.Tx) error {
 		size = tx.Size()
@@ -96,14 +99,14 @@ func (cs *configStore) Size() (int64, error) {
 // Base helper transaction functions for the DB
 
 // view wraps the bbolt View transaction with a read lock (for ease of use)
-func (cs *configStore) view(fn func(tx *bbolt.Tx) error) error {
+func (cs *ConfigStore) view(fn func(tx *bbolt.Tx) error) error {
 	cs.lock.RLock()
 	defer cs.lock.RUnlock()
 	return cs.db.View(fn)
 }
 
 // update wraps the bbolt Update transaction with a write lock (for ease of use)
-func (cs *configStore) update(fn func(tx *bbolt.Tx) error) error {
+func (cs *ConfigStore) update(fn func(tx *bbolt.Tx) error) error {
 	cs.lock.Lock()
 	defer cs.lock.Unlock()
 	return cs.db.Update(fn)
@@ -113,7 +116,7 @@ func (cs *configStore) update(fn func(tx *bbolt.Tx) error) error {
 
 // StoreConfig is responsible for checking if the config for the device is new,
 // if so, it will create a new entry in each bucket (for the config, metadata, and secrets)
-func (cs *configStore) StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (string, error) {
+func (cs *ConfigStore) StoreConfig(deviceID, configType string, rawConfig string, blocks []ConfigBlock, secrets map[string]string) (string, error) {
 	// Setup + marshal everything first (does not require DB lock)
 	configUUID := uuid.New().String()
 	now := time.Now().Unix()
@@ -128,8 +131,19 @@ func (cs *configStore) StoreConfig(deviceID string, configType types.ConfigType,
 	if err != nil {
 		return "", fmt.Errorf("compress raw config error: %w", err)
 	}
+
+	// Blocks / raw text
+	blocksJSON, err := json.Marshal(blocks)
+	if err != nil {
+		return "", fmt.Errorf("marshal config blocks error: %w", err)
+	}
+	compressedBlocksJSON, err := cs.compressor.Compress(blocksJSON)
+	if err != nil {
+		return "", fmt.Errorf("compress config blocks error: %w", err)
+	}
+
 	// Metadata
-	metadata := types.ConfigMetadata{
+	metadata := ConfigMetadata{
 		ConfigUUID:     configUUID,
 		DeviceID:       deviceID,
 		ConfigType:     configType,
@@ -141,6 +155,12 @@ func (cs *configStore) StoreConfig(deviceID string, configType types.ConfigType,
 	metadataJSON, err := json.Marshal(metadata)
 	if err != nil {
 		return "", fmt.Errorf("marshal config metadata error: %w", err)
+	}
+
+	// Secrets
+	secretsJSON, err := json.Marshal(secrets)
+	if err != nil {
+		return "", fmt.Errorf("marshal secrets error: %w", err)
 	}
 
 	var existingConfigID string
@@ -162,7 +182,13 @@ func (cs *configStore) StoreConfig(deviceID string, configType types.ConfigType,
 		if err := tx.Bucket([]byte(rawConfigBucket)).Put(key, compressedRawConfigJSON); err != nil {
 			return err
 		}
+		if err := tx.Bucket([]byte(configBlocksBucket)).Put(key, compressedBlocksJSON); err != nil {
+			return err
+		}
 		if err := tx.Bucket([]byte(metadataBucket)).Put(key, metadataJSON); err != nil {
+			return err
+		}
+		if err := tx.Bucket([]byte(secretsBucket)).Put(key, secretsJSON); err != nil {
 			return err
 		}
 		return nil
@@ -180,10 +206,10 @@ func (cs *configStore) StoreConfig(deviceID string, configType types.ConfigType,
 // and checks for configs that match the device ID and config type (e.g. default:10.0.0.1, "running")
 // and compares the hashes with the incoming config retrieved to help check if we need to store it
 // TODO: nice to have optimization since we check duplicates more than we'd check by exact UUID is having a composite key / prefix scan
-func (cs *configStore) checkDuplicateInTx(tx *bbolt.Tx, deviceID string, configType types.ConfigType, rawHash string) (string, error) {
-	var latest *types.ConfigMetadata
+func (cs *ConfigStore) checkDuplicateInTx(tx *bbolt.Tx, deviceID string, configType string, rawHash string) (string, error) {
+	var latest *ConfigMetadata
 	err := tx.Bucket([]byte(metadataBucket)).ForEach(func(_, v []byte) error {
-		var current types.ConfigMetadata
+		var current ConfigMetadata
 		if err := json.Unmarshal(v, &current); err != nil {
 			return err
 		}
@@ -205,7 +231,7 @@ func (cs *configStore) checkDuplicateInTx(tx *bbolt.Tx, deviceID string, configT
 }
 
 // CheckDuplicate is the wrapper around the checkDuplicateInTx function that contains the logic including locking the DB
-func (cs *configStore) CheckDuplicate(deviceID string, configType types.ConfigType, rawHash string) (string, error) {
+func (cs *ConfigStore) CheckDuplicate(deviceID string, configType string, rawHash string) (string, error) {
 	var configID string
 	err := cs.view(func(tx *bbolt.Tx) error {
 		var txErr error
@@ -216,9 +242,11 @@ func (cs *configStore) CheckDuplicate(deviceID string, configType types.ConfigTy
 }
 
 // GetConfig retrieves all the data associated with a config given its UUID
-func (cs *configStore) GetConfig(configUUID string) (string, *types.ConfigMetadata, error) {
+func (cs *ConfigStore) GetConfig(configUUID string) (string, []ConfigBlock, *ConfigMetadata, map[string]string, error) {
 	var rawConfig string
-	var metadata types.ConfigMetadata
+	var blocks []ConfigBlock
+	var metadata ConfigMetadata
+	var secrets map[string]string
 
 	err := cs.view(func(tx *bbolt.Tx) error {
 		key := []byte(configUUID) // TODO: keep UUID as key vs. composite key / index?
@@ -236,6 +264,19 @@ func (cs *configStore) GetConfig(configUUID string) (string, *types.ConfigMetada
 			return fmt.Errorf("unmarshal raw config error: %w", err)
 		}
 
+		// Unmarshal blocks
+		blocksBytes := tx.Bucket([]byte(configBlocksBucket)).Get(key)
+		if blocksBytes == nil {
+			return fmt.Errorf("blocks not found for UUID: %s", configUUID)
+		}
+		decompressedBlocks, err := cs.compressor.Decompress(blocksBytes)
+		if err != nil {
+			return fmt.Errorf("decompress config blocks error: %w", err)
+		}
+		if err := json.Unmarshal(decompressedBlocks, &blocks); err != nil {
+			return fmt.Errorf("unmarshal blocks error: %w", err)
+		}
+
 		// Unmarshal metadata
 		metadataBytes := tx.Bucket([]byte(metadataBucket)).Get(key)
 		if metadataBytes == nil {
@@ -245,17 +286,26 @@ func (cs *configStore) GetConfig(configUUID string) (string, *types.ConfigMetada
 			return fmt.Errorf("unmarshal metadata error: %w", err)
 		}
 
+		// Unmarshal secrets
+		secretBytes := tx.Bucket([]byte(secretsBucket)).Get(key)
+		if secretBytes == nil {
+			return fmt.Errorf("secrets not found for UUID: %s", configUUID)
+		}
+		if err := json.Unmarshal(secretBytes, &secrets); err != nil {
+			return fmt.Errorf("unmarshal secrets error: %w", err)
+		}
+
 		return nil
 	})
 	if err != nil {
-		return "", nil, err
+		return "", nil, nil, nil, err
 	}
 
-	return rawConfig, &metadata, nil
+	return rawConfig, blocks, &metadata, secrets, nil
 }
 
 // DeleteConfig deletes all data associated with the given key (config UUID) from each bucket
-func (cs *configStore) DeleteConfig(key string) error {
+func (cs *ConfigStore) DeleteConfig(key string) error {
 	return cs.update(func(tx *bbolt.Tx) error {
 		bKey := []byte(key)
 
@@ -264,7 +314,7 @@ func (cs *configStore) DeleteConfig(key string) error {
 			return fmt.Errorf("config not found for key: %s", key)
 		}
 
-		for _, bucketName := range []string{rawConfigBucket, metadataBucket} {
+		for _, bucketName := range []string{rawConfigBucket, configBlocksBucket, metadataBucket, secretsBucket} {
 			if err := tx.Bucket([]byte(bucketName)).Delete(bKey); err != nil {
 				return fmt.Errorf("error deleting config from bbolt bucket %s: %w", bucketName, err)
 			}
@@ -281,12 +331,12 @@ func hashConfig(raw string) string {
 
 // buildEvictionIndex returns a count of configs per device and all metadata entries sorted
 // by LastAccessedAt ascending (oldest first), built from a single consistent view transaction.
-func (cs *configStore) buildEvictionIndex() (configsPerDevice map[string]int, entries []*types.ConfigMetadata, err error) {
+func (cs *ConfigStore) buildEvictionIndex() (configsPerDevice map[string]int, entries []*ConfigMetadata, err error) {
 	configsPerDevice = make(map[string]int)
 
 	err = cs.view(func(tx *bbolt.Tx) error {
 		return tx.Bucket([]byte(metadataBucket)).ForEach(func(_, v []byte) error {
-			var meta types.ConfigMetadata
+			var meta ConfigMetadata
 			if err := json.Unmarshal(v, &meta); err != nil {
 				return fmt.Errorf("unmarshal metadata error during eviction index build: %w", err)
 			}
@@ -307,7 +357,7 @@ func (cs *configStore) buildEvictionIndex() (configsPerDevice map[string]int, en
 }
 
 // getEvictableExceedingMax returns UUIDs of configs to evict for devices that exceed maxRetainedConfigs.
-func getEvictableExceedingMax(configsPerDevice map[string]int, sortedEntries []*types.ConfigMetadata, maxRetainedConfigs int) []string {
+func getEvictableExceedingMax(configsPerDevice map[string]int, sortedEntries []*ConfigMetadata, maxRetainedConfigs int) []string {
 	var evictable []string
 	pendingEvictions := make(map[string]int)
 
@@ -325,7 +375,7 @@ func getEvictableExceedingMax(configsPerDevice map[string]int, sortedEntries []*
 }
 
 // getGlobalLRUCandidate returns the UUID of the globally oldest evictable config, or empty if none exists.
-func getGlobalLRUCandidate(configsPerDevice map[string]int, sortedEntries []*types.ConfigMetadata, minRetainedConfigs int) string {
+func getGlobalLRUCandidate(configsPerDevice map[string]int, sortedEntries []*ConfigMetadata, minRetainedConfigs int) string {
 	for _, entry := range sortedEntries {
 		if entry.IsPinned {
 			continue
@@ -339,8 +389,8 @@ func getGlobalLRUCandidate(configsPerDevice map[string]int, sortedEntries []*typ
 }
 
 // updateEvictionIndex removes the given key from the sorted entries and decrements its device count.
-func updateEvictionIndex(configsPerDevice map[string]int, sortedEntries []*types.ConfigMetadata, key string) (map[string]int, []*types.ConfigMetadata) {
-	var remaining []*types.ConfigMetadata
+func updateEvictionIndex(configsPerDevice map[string]int, sortedEntries []*ConfigMetadata, key string) (map[string]int, []*ConfigMetadata) {
+	var remaining []*ConfigMetadata
 
 	for i, entry := range sortedEntries {
 		if entry.ConfigUUID == key {
@@ -356,7 +406,7 @@ func updateEvictionIndex(configsPerDevice map[string]int, sortedEntries []*types
 
 // EvictConfigs evicts configs exceeding per-device caps then LRU-evicts until the DB is within maxSize.
 // Returns the UUIDs of all evicted configs; returns an error if the DB size still exceeds maxSize after eviction.
-func (cs *configStore) EvictConfigs(minRetainedConfigs int, maxRetainedConfigs int, maxSize int64) ([]string, error) {
+func (cs *ConfigStore) EvictConfigs(minRetainedConfigs int, maxRetainedConfigs int, maxSize int64) ([]string, error) {
 	evicted := make([]string, 0)
 
 	configsPerDevice, sortedEntries, err := cs.buildEvictionIndex()

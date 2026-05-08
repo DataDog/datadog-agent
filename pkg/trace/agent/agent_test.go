@@ -1115,6 +1115,32 @@ func TestConcentratorInputV1(t *testing.T) {
 			}(),
 		},
 		{
+			name: "lang propagated from tracer payload",
+			in: func() *api.PayloadV1 {
+				strings := idx.NewStringTable()
+				payload := &api.PayloadV1{
+					TracerPayload: &idx.InternalTracerPayload{
+						Strings: strings,
+						Chunks:  []*idx.InternalTraceChunk{spansToChunkV1(rootSpan(strings))},
+					},
+				}
+				payload.TracerPayload.SetLanguageName("python")
+				return payload
+			}(),
+			expected: func() stats.InputV1 {
+				strings := idx.NewStringTable()
+				return stats.InputV1{
+					Traces: []traceutil.ProcessedTraceV1{
+						{
+							Root:       rootSpan(strings),
+							TraceChunk: spansToChunkV1(rootSpan(strings)),
+							Lang:       "python",
+						},
+					},
+				}
+			}(),
+		},
+		{
 			name: "no tracer tags",
 			in: func() *api.PayloadV1 {
 				strings := idx.NewStringTable()
@@ -1227,6 +1253,7 @@ func assertStatsInputsV1Equal(t *testing.T, expected stats.InputV1, actual stats
 		assert.Equal(t, expectedTrace.ClientDroppedP0sWeight, actualTrace.ClientDroppedP0sWeight)
 		assert.Equal(t, expectedTrace.GitCommitSha, actualTrace.GitCommitSha)
 		assert.Equal(t, expectedTrace.ImageTag, actualTrace.ImageTag)
+		assert.Equal(t, expectedTrace.Lang, actualTrace.Lang)
 		assertInternalSpanEqual(t, expectedTrace.Root, actualTrace.Root)
 		assertInternalTraceChunkEqual(t, expectedTrace.TraceChunk, actualTrace.TraceChunk)
 	}

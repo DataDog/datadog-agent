@@ -51,13 +51,7 @@
               }
             }
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "@duration",
-            "message": "not available: function was inlined"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },

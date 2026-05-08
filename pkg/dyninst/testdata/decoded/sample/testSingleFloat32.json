@@ -46,13 +46,7 @@
           "location": {
             "method": "main.testSingleFloat32"
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "@duration",
-            "message": "not available: function has no body"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },

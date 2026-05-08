@@ -1,0 +1,48 @@
+# Settings for upstream's schemagen tool.
+# https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/cmd/schemagen
+#
+# To regenerate a component's config.schema.yaml:
+#
+#   1. Build the tool from a local checkout of opentelemetry-collector-contrib:
+#        (cd /path/to/opentelemetry-collector-contrib/cmd/schemagen && go build -o /tmp/schemagen .)
+#   2. Run it against the component's directory (the one containing config.go and metadata.yaml):
+#        /tmp/schemagen comp/otelcol/<component>/...
+#
+# The tool walks up from CWD to find this file, so it must remain at or above
+# every component path it generates schemas for. See ./README.md and individual
+# component metadata.yaml files for context.
+#
+# Known limitation: schemagen treats every Go-embedded field as squashed,
+# regardless of the explicit mapstructure tag value. Components with embedded
+# pointer fields (e.g. ddflareextension's *confighttp.ServerConfig) or embedded
+# fields with a non-squash mapstructure key (e.g. serializerexporter's
+# configtls.ClientConfig with mapstructure:"tls") need hand-tuning after
+# regeneration.
+
+namespace: github.com/DataDog/datadog-agent
+mappings:
+  time:
+    Time:
+      schemaType: string
+      format: date-time
+      skipAnnotation: true
+    Duration:
+      schemaType: string
+      format: duration
+      skipAnnotation: true
+  go.opentelemetry.io/collector/component:
+    ID:
+      schemaType: string
+  github.com/DataDog/datadog-agent/comp/core/tagger/types:
+    # TagCardinality is a typed int (iota: 0=low, 1=orchestrator, 2=high,
+    # 3=none, 4=checks-config). YAML accepts the integer form; there is no
+    # UnmarshalText hook today, so the schema mirrors that.
+    TagCardinality:
+      schemaType: integer
+allowedRefs:
+  - go.opentelemetry.io/collector
+  - github.com/open-telemetry/opentelemetry-collector-contrib
+  - github.com/DataDog/datadog-agent
+componentOverrides:
+  exporter/serializer:
+    configName: ExporterConfig

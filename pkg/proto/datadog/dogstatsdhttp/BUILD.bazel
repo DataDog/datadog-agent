@@ -1,0 +1,22 @@
+# gazelle:go_proto_compilers @rules_go//proto:go_proto,//bazel/rules/go_proto_compiler:go_vtproto_full
+
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+
+proto_library(
+    name = "pb_proto",
+    srcs = ["payload.proto"],
+    strip_import_prefix = "/pkg/proto",
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "pb_go_proto",
+    compilers = [
+        "//bazel/rules/go_proto_compiler:go_vtproto_full",
+        "@rules_go//proto:go_proto",
+    ],
+    importpath = "pkg/proto/pbgo/dogstatsdhttp",
+    proto = ":pb_proto",
+    visibility = ["//visibility:public"],
+)

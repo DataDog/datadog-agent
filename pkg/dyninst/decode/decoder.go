@@ -377,7 +377,7 @@ func (s *message) init(
 	}
 	var returnFirstFragment output.Event
 	var returnHeader *output.EventHeader
-	var durationMissingReason *string
+	var returnMissingReason string
 	if event.Return != nil {
 		if err := decoder._return.init(
 			event.Return, decoder.program.Types, &s.Debugger.Snapshot.EvaluationErrors,
@@ -416,42 +416,31 @@ func (s *message) init(
 		s.Duration = uint64(returnHeader.Ktime_ns - header.Ktime_ns)
 		s.Debugger.Snapshot.captures.Return = &decoder._return
 	} else {
-		// Check if we expected a return event but didn't get one.
+		// Check if we expected a return event but didn't get one. The
+		// reason is used to enrich rendering for @duration template
+		// segments (if any) — it is intentionally not emitted as a
+		// standalone EvaluationError, since callers that reference
+		// @duration already see a descriptive message in the template or
+		// via the captureExpression's absent-status path.
 		pairingExpectation := output.EventPairingExpectation(
 			header.Event_pairing_expectation,
 		)
-		var reason string
 		switch pairingExpectation {
 		case output.EventPairingExpectationReturnPairingExpected:
-			reason = "return event not received"
+			returnMissingReason = "return event not received"
 		case output.EventPairingExpectationBufferFull:
-			reason = "userspace buffer capacity exceeded"
+			returnMissingReason = "userspace buffer capacity exceeded"
 		case output.EventPairingExpectationCallMapFull:
-			reason = "call map capacity exceeded"
+			returnMissingReason = "call map capacity exceeded"
 		case output.EventPairingExpectationCallCountExceeded:
-			reason = "maximum call count exceeded"
+			returnMissingReason = "maximum call count exceeded"
 		case output.EventPairingExpectationNoneInlined:
-			reason = "function was inlined"
+			returnMissingReason = "function was inlined"
 		case output.EventPairingExpectationNoneNoBody:
-			reason = "function has no body"
+			returnMissingReason = "function has no body"
 		}
-		log.Tracef("no return reason: %v pairing expectation: %v", reason, pairingExpectation)
-		// The choice to use @duration here is somewhat arbitrary; we want to
-		// choose something that definitely can't collide with a real variable
-		// and is evocative of the thing that is missing. Indeed we know in this
-		// situation we will never @duration, so it seems like a good choice.
-		const missingReturnReasonExpression = "@duration"
-		if reason != "" {
-			message := "not available: " + reason
-			s.Debugger.Snapshot.EvaluationErrors = append(
-				s.Debugger.Snapshot.EvaluationErrors,
-				evaluationError{
-					Expression: missingReturnReasonExpression,
-					Message:    message,
-				},
-			)
-			durationMissingReason = &message
-		}
+		log.Tracef("no return reason: %v pairing expectation: %v",
+			returnMissingReason, pairingExpectation)
 	}
 
 	s.Debugger.Snapshot.Timestamp = int(decoder.approximateBootTime.Add(
@@ -532,16 +521,12 @@ func (s *message) init(
 
 	if instance.Template != nil {
 		decoder.messageData = messageData{
-			entryOrLine: &decoder.entryOrLine,
-			_return:     &decoder._return,
-			template:    instance.Template,
+			entryOrLine:         &decoder.entryOrLine,
+			_return:             &decoder._return,
+			template:            instance.Template,
+			returnMissingReason: returnMissingReason,
 		}
 		s.Message = &decoder.messageData
-		if s.Duration != 0 {
-			s.Message.duration = &s.Duration
-		} else if durationMissingReason != nil {
-			s.Message.durationMissingReason = durationMissingReason
-		}
 	}
 
 	return probe, nil

@@ -140,6 +140,7 @@ deploy_host_profiler_to_reliability_env_*  @DataDog/profiling-full-host
 deploy_installer*                      @DataDog/agent-delivery
 deploy_ddot_oci*                       @DataDog/agent-delivery
 deploy_packages*                       @DataDog/agent-delivery
+deploy_macos_install_script            @DataDog/agent-delivery
 deploy_staging*                        @DataDog/agent-delivery
 publish_winget*                        @DataDog/windows-products
 powershell_script_signing              @DataDog/windows-products

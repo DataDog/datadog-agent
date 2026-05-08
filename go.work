@@ -163,6 +163,7 @@ use (
 	pkg/util/grpc
 	pkg/util/hostinfo
 	pkg/util/hostname/validate
+	pkg/util/hostport
 	pkg/util/http
 	pkg/util/json
 	pkg/util/jsonquery

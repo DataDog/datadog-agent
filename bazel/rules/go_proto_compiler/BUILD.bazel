@@ -1,0 +1,17 @@
+load("@rules_go//proto:compiler.bzl", "go_proto_compiler")
+
+[
+    go_proto_compiler(
+        name = name,
+        options = options,
+        plugin = "@com_github_planetscale_vtprotobuf//cmd/protoc-gen-go-vtproto",
+        suffix = "_vtproto.pb.go",
+        visibility = ["//visibility:public"],
+        deps = ["@com_github_planetscale_vtprotobuf//protohelpers"],
+    )
+    for name, options in {
+        # https://github.com/planetscale/vtprotobuf#usage
+        "go_vtproto_full": [],  # default: "If no features are given, all the codegen steps will be performed"
+        "go_vtproto_serde": ["features=marshal+unmarshal+size"],  # SERialize/DEserialize: "Example from Vitess"
+    }.items()
+]

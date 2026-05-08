@@ -12,11 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
-	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
 func TestNetworkDeviceConfig_Creation(t *testing.T) {
@@ -24,8 +22,8 @@ func TestNetworkDeviceConfig_Creation(t *testing.T) {
 
 	deviceID := "default:10.0.0.1"
 	deviceIP := "10.0.0.1"
-	configType := types.RUNNING
-	configSource := types.CLI
+	configType := RUNNING
+	configSource := CLI
 
 	metadata := &profile.ExtractedMetadata{
 		Timestamp: now,
@@ -37,8 +35,8 @@ func TestNetworkDeviceConfig_Creation(t *testing.T) {
 
 	assert.Equal(t, deviceID, config.DeviceID)
 	assert.Equal(t, deviceIP, config.DeviceIP)
-	assert.Equal(t, configType, config.ConfigType)
-	assert.Equal(t, configSource, config.ConfigSource)
+	assert.Equal(t, string(configType), config.ConfigType)
+	assert.Equal(t, string(configSource), config.ConfigSource)
 	assert.Equal(t, now, config.Timestamp)
 	assert.Equal(t, tags, config.Tags)
 	assert.Equal(t, string(content), config.Content)
@@ -47,20 +45,20 @@ func TestNetworkDeviceConfig_Creation(t *testing.T) {
 func TestNetworkDeviceConfig_ConfigTypes(t *testing.T) {
 	tests := []struct {
 		name         string
-		configType   types.ConfigType
-		configSource types.ConfigSource
-		expected     types.ConfigType
+		configType   ConfigType
+		configSource ConfigSource
+		expected     string
 	}{
 		{
 			name:         "running config",
-			configType:   types.RUNNING,
-			configSource: types.CLI,
+			configType:   RUNNING,
+			configSource: CLI,
 			expected:     "running",
 		},
 		{
 			name:         "startup config",
-			configType:   types.STARTUP,
-			configSource: types.CLI,
+			configType:   STARTUP,
+			configSource: CLI,
 			expected:     "startup",
 		},
 	}
@@ -84,8 +82,8 @@ func TestNetworkDevicesConfigPayload_Creation(t *testing.T) {
 		{
 			DeviceID:     "default:10.0.0.1",
 			DeviceIP:     "10.0.0.1",
-			ConfigType:   types.RUNNING,
-			ConfigSource: types.CLI,
+			ConfigType:   string(RUNNING),
+			ConfigSource: string(CLI),
 			Timestamp:    timestamp,
 			Tags:         []string{"device_type:router"},
 			Content:      "running config content",
@@ -93,8 +91,8 @@ func TestNetworkDevicesConfigPayload_Creation(t *testing.T) {
 		{
 			DeviceID:     "default:10.0.0.1",
 			DeviceIP:     "10.0.0.1",
-			ConfigType:   types.STARTUP,
-			ConfigSource: types.CLI,
+			ConfigType:   string(STARTUP),
+			ConfigSource: string(CLI),
 			Timestamp:    timestamp,
 			Tags:         []string{"device_type:router"},
 			Content:      "startup config content",
@@ -126,8 +124,8 @@ func TestNetworkDevicesConfigPayload_EmptyTimestamps(t *testing.T) {
 	ndc := NetworkDeviceConfig{
 		DeviceID:     "default:10.0.0.1",
 		DeviceIP:     "10.0.0.1",
-		ConfigType:   types.RUNNING,
-		ConfigSource: types.CLI,
+		ConfigType:   string(RUNNING),
+		ConfigSource: string(CLI),
 		Timestamp:    0,
 	}
 	payload := ToNCMPayload("test", []NetworkDeviceConfig{ndc}, agentTs)
@@ -135,8 +133,8 @@ func TestNetworkDevicesConfigPayload_EmptyTimestamps(t *testing.T) {
 	expected := NetworkDeviceConfig{
 		DeviceID:     "default:10.0.0.1",
 		DeviceIP:     "10.0.0.1",
-		ConfigType:   types.RUNNING,
-		ConfigSource: types.CLI,
+		ConfigType:   string(RUNNING),
+		ConfigSource: string(CLI),
 		Timestamp:    agentTs,
 	}
 

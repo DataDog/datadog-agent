@@ -518,13 +518,7 @@
               }
             }
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "@duration",
-            "message": "not available: function has no body"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },

@@ -7,6 +7,7 @@ package containerlifecycle
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -23,19 +24,23 @@ import (
 
 type processor struct {
 	sender          sender.Sender
+	handlers        []Handler
 	podsQueue       *queue
 	containersQueue *queue
 	tasksQueue      *queue
-	store           workloadmeta.Component
 }
 
 func newProcessor(sender sender.Sender, chunkSize int, store workloadmeta.Component) *processor {
 	return &processor{
-		sender:          sender,
+		sender: sender,
+		handlers: []Handler{
+			NewContainerTerminationHandler(store),
+			&PodTerminationHandler{},
+			&TaskTerminationHandler{},
+		},
 		podsQueue:       newQueue(chunkSize),
 		containersQueue: newQueue(chunkSize),
 		tasksQueue:      newQueue(chunkSize),
-		store:           store,
 	}
 }
 
@@ -51,120 +56,36 @@ func (p *processor) processEvents(evBundle workloadmeta.EventBundle) {
 	log.Tracef("Processing %d events", len(evBundle.Events))
 
 	for _, event := range evBundle.Events {
-		entityID := event.Entity.GetID()
-		log.Debugf("Received deletion event for kind %q - ID %q", entityID.Kind, entityID.ID)
+		for _, h := range p.handlers {
+			if h.CanHandle(event) {
+				les, err := h.Handle(event)
+				if err != nil {
+					log.Debugf("Handler '%s' failed to handle event %q: %v", h.String(), event.Entity.GetID().ID, err)
+					continue
+				}
 
-		switch entityID.Kind {
-		case workloadmeta.KindContainer:
-			container, ok := event.Entity.(*workloadmeta.Container)
-			if !ok {
-				log.Debugf("Expected workloadmeta.Container got %T, skipping", event.Entity)
-				continue
-			}
-
-			err := p.processContainer(container, []workloadmeta.Source{workloadmeta.SourceRuntime})
-			if err != nil {
-				log.Debugf("Couldn't process container %q: %v", container.ID, err)
-			}
-		case workloadmeta.KindKubernetesPod:
-			pod, ok := event.Entity.(*workloadmeta.KubernetesPod)
-			if !ok {
-				log.Debugf("Expected workloadmeta.KubernetesPod got %T, skipping", event.Entity)
-				continue
-			}
-
-			err := p.processPod(pod)
-			if err != nil {
-				log.Debugf("Couldn't process pod %q: %v", event.Entity.GetID().ID, err)
-			}
-		case workloadmeta.KindECSTask:
-			task, ok := event.Entity.(*workloadmeta.ECSTask)
-			if !ok {
-				log.Debugf("Expected workloadmeta.ECSTask got %T, skipping", event.Entity)
-				continue
-			}
-
-			err := p.processTask(task)
-			if err != nil {
-				log.Debugf("Couldn't process task %q: %v", event.Entity.GetID().ID, err)
-			}
-		default:
-			log.Tracef("Cannot handle event for entity %q with kind %q", entityID.ID, entityID.Kind)
-		}
-	}
-}
-
-// processContainer enqueue container events
-func (p *processor) processContainer(container *workloadmeta.Container, sources []workloadmeta.Source) error {
-	event := newEvent()
-	event.withObjectKind(types.ObjectKindContainer)
-	event.withEventType(types.EventNameDelete)
-	event.withObjectID(container.ID)
-
-	if len(sources) > 0 {
-		event.withSource(string(sources[0]))
-	}
-
-	if !container.State.FinishedAt.IsZero() {
-		ts := container.State.FinishedAt.Unix()
-		event.withContainerExitTimestamp(&ts)
-	}
-
-	if container.State.ExitCode != nil {
-		code := int32(*container.State.ExitCode)
-		event.withContainerExitCode(&code)
-	}
-
-	// Because the container processor is triggered off of runtime events, and the
-	// container runtime would have no knowledge surrounding what owns the container,
-	// we need to query the workloadmeta store to get this information.
-	if c, err := p.store.GetContainer(container.ID); err == nil {
-		if c.Owner != nil {
-			event.withOwnerID(c.Owner.ID)
-			switch c.Owner.Kind {
-			case workloadmeta.KindKubernetesPod:
-				event.withOwnerType(types.ObjectKindPod)
-			case workloadmeta.KindECSTask:
-				event.withOwnerType(types.ObjectKindTask)
-			default:
-				log.Tracef("Cannot handle owner for container %q with type %q", container.ID, c.Owner.Kind)
+				for _, le := range les {
+					if err := p.enqueue(le); err != nil {
+						log.Debugf("Couldn't enqueue lifecycle event: %+v: %v", le, err)
+					}
+				}
+				// Handlers don't need to be mutually exclusive, so we don't break here
 			}
 		}
 	}
-
-	return p.containersQueue.add(event)
 }
 
-// processPod enqueue pod events
-func (p *processor) processPod(pod *workloadmeta.KubernetesPod) error {
-	event := newEvent()
-	event.withObjectKind(types.ObjectKindPod)
-	event.withEventType(types.EventNameDelete)
-	event.withObjectID(pod.GetID().ID)
-	event.withSource(string(workloadmeta.SourceNodeOrchestrator))
-
-	if !pod.FinishedAt.IsZero() {
-		ts := pod.FinishedAt.Unix()
-		event.withPodExitTimestamp(&ts)
+func (p *processor) enqueue(le LifecycleEvent) error {
+	switch le.ObjectKind {
+	case types.ObjectKindContainer:
+		return p.containersQueue.add(le)
+	case types.ObjectKindPod:
+		return p.podsQueue.add(le)
+	case types.ObjectKindTask:
+		return p.tasksQueue.add(le)
+	default:
+		return fmt.Errorf("unknown object kind %q", le.ObjectKind)
 	}
-
-	return p.podsQueue.add(event)
-}
-
-func (p *processor) processTask(task *workloadmeta.ECSTask) error {
-	event := newEvent()
-	event.withObjectKind(types.ObjectKindTask)
-	event.withEventType(types.EventNameDelete)
-	event.withObjectID(task.GetID().ID)
-	event.withSource(string(workloadmeta.SourceNodeOrchestrator))
-	if task.LaunchType == workloadmeta.ECSLaunchTypeFargate {
-		event.withSource(string(workloadmeta.SourceRuntime))
-	}
-	// we don't have exit timestamp for tasks in the response of metadata v1 api, so we use the current timestamp
-	ts := time.Now().Unix()
-	event.withTaskExitTimestamp(&ts)
-
-	return p.tasksQueue.add(event)
 }
 
 // processQueues consumes the data available in the queues

@@ -216,6 +216,12 @@ func makeInstruction(functionID FunctionID, op Op) codeFragment {
 			bytes:  binary.LittleEndian.AppendUint32(nil, op.ByteSize),
 		}
 
+	case ExprLoadDurationOp:
+		return staticInstruction{
+			opcode: OpcodeExprLoadDuration,
+			bytes:  binary.LittleEndian.AppendUint32(nil, op.ExprStatusIdx),
+		}
+
 	case ExprLoadLiteralOp:
 		bytes := make([]byte, 0, 2+len(op.Data))
 		bytes = binary.LittleEndian.AppendUint16(bytes, uint16(len(op.Data)))

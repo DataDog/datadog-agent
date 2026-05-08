@@ -14,7 +14,7 @@ import (
 	"github.com/mohae/deepcopy"
 
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"

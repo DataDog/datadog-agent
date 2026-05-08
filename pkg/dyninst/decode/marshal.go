@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/time/rate"
 
+	"github.com/DataDog/datadog-agent/pkg/dyninst/exprlang"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/output"
@@ -46,11 +47,20 @@ type debuggerData struct {
 }
 
 type messageData struct {
-	duration              *uint64
-	durationMissingReason *string
-	entryOrLine           *captureEvent
-	_return               *captureEvent
-	template              *ir.Template
+	entryOrLine *captureEvent
+	_return     *captureEvent
+	template    *ir.Template
+	// returnMissingReason is non-empty when the probe expected a return
+	// event but none arrived, carrying the human-readable pairing-failure
+	// reason. Used to produce a specific message when a template segment
+	// references @duration in that case.
+	returnMissingReason string
+}
+
+// isDurationRef reports whether a parsed expression is a bare {"ref":"@duration"}.
+func isDurationRef(e exprlang.Expr) bool {
+	ref, ok := e.(*exprlang.RefExpr)
+	return ok && ref.Ref == "@duration"
 }
 
 func (m *messageData) MarshalJSONTo(enc *jsontext.Encoder) error {
@@ -90,18 +100,6 @@ func (m *messageData) MarshalJSONTo(enc *jsontext.Encoder) error {
 			limits.maxBytes = maxLogLineBytes - result.Len()
 		case ir.InvalidSegment:
 			writeBoundedError(&result, limits, "error", seg.Error)
-		case *ir.DurationSegment:
-			if m.duration == nil {
-				if m.durationMissingReason != nil {
-					writeBoundedError(&result, limits, "error", *m.durationMissingReason)
-				} else {
-					writeBoundedError(&result, limits, "error", "@duration is not available")
-				}
-			} else {
-				n, _ := fmt.Fprintf(&result, "%f", time.Duration(*m.duration).Seconds()*1000)
-				limits.consume(n)
-			}
-
 		default:
 			return fmt.Errorf(
 				"unexpected segment type: %T: %+#v", seg, seg,
@@ -131,6 +129,19 @@ func (m *messageData) processJSONSegment(
 	}
 
 	if ev == nil || ev.rootType == nil || ev.rootData == nil {
+		// If the missing event is the return event and the segment
+		// references @duration, surface the specific pairing-failure
+		// reason instead of the generic "UNAVAILABLE" marker.
+		if seg.EventKind == ir.EventKindReturn && isDurationRef(seg.JSON) &&
+			m.returnMissingReason != "" {
+			msg := "@duration is not available: " + m.returnMissingReason
+			if !limits.canWrite(len(msg)) {
+				return nil
+			}
+			result.WriteString(msg)
+			limits.consume(len(msg))
+			return nil
+		}
 		if !limits.canWrite(len(formatUnavailable)) {
 			return nil
 		}
@@ -165,6 +176,15 @@ func (m *messageData) processJSONSegment(
 	case ir.ExprStatusOOB:
 		return errIndexOutOfBounds
 	default: // ExprStatusAbsent
+		if _, ok := expr.Expression.Type.(*ir.DurationType); ok {
+			msg := "@duration is not available: " + ir.ErrDurationNotOnReturn
+			if !limits.canWrite(len(msg)) {
+				return nil
+			}
+			result.WriteString(msg)
+			limits.consume(len(msg))
+			return nil
+		}
 		if !limits.canWrite(len(formatUnavailable)) {
 			return nil
 		}
@@ -396,6 +416,17 @@ func (ce *captureEvent) init(
 					Expression: expr.Name,
 					Message:    errIndexOutOfBounds.Error(),
 				})
+			case ir.ExprStatusAbsent:
+				// @duration is the only expression type where absent status
+				// has a specific, user-meaningful reason (the BPF program
+				// emits it only when entry_ktime_ns equals the probe's own
+				// start_ns — i.e. the probe is not on a return).
+				if _, ok := expr.Expression.Type.(*ir.DurationType); ok {
+					*ce.evaluationErrors = append(*ce.evaluationErrors, evaluationError{
+						Expression: expr.Name,
+						Message:    ir.ErrDurationNotOnReturn,
+					})
+				}
 			}
 		}
 	}

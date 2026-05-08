@@ -2915,6 +2915,35 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     sm->offset += byte_size;
   } break;
 
+  case SM_OP_EXPR_LOAD_DURATION: {
+    uint32_t expr_status_idx = sm_read_program_uint32(sm);
+    // On probes that do not have a return event (entry/line probes with
+    // no paired entry), the entry timestamp stored on stack_machine
+    // equals start_ns, so the duration is zero. Irgen rejects using
+    // @duration in conditions or templates on such probes, but
+    // captureExpressions are still registered so we can surface an
+    // absent-status evaluation error at decode time.
+    if (sm->start_ns == sm->entry_ktime_ns) {
+      if (expr_status_idx != EXPR_STATUS_IDX_NONE) {
+        expr_status_write(buf, sm->expr_results_offset, expr_status_idx,
+                          EXPR_STATUS_ABSENT);
+      }
+      // Abort expression evaluation so the caller (condition check /
+      // ExprSave) does not read uninitialized bytes.
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      if (!sm_return(sm)) {
+        return 1;
+      }
+      return 0;
+    }
+    if (!scratch_buf_bounds_check(&sm->offset, 8)) {
+      return 1;
+    }
+    int64_t duration_ns =
+        (int64_t)(sm->start_ns) - (int64_t)(sm->entry_ktime_ns);
+    *(int64_t*)(&(*buf)[sm->offset]) = duration_ns;
+  } break;
+
   case SM_OP_EXPR_LOAD_LITERAL: {
     uint16_t byte_size = sm_read_program_uint16(sm);
     // Max payload size is 4 (u32 string-length prefix) + 255 (max

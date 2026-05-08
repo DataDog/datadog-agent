@@ -207,6 +207,20 @@ type ExprPushOffsetOp struct {
 	ByteSize uint32
 }
 
+// ExprLoadDurationOp writes 8 bytes of (return_ktime_ns - entry_ktime_ns)
+// at the current scratch offset. On non-return probes, where those
+// timestamps are equal, it marks the enclosing expression's status as
+// absent and aborts expression evaluation. It does not advance the
+// offset or push onto the data stack — callers that use it as a
+// comparison operand should follow with ExprPushOffsetOp{ByteSize: 8}.
+type ExprLoadDurationOp struct {
+	baseOp
+	// ExprStatusIdx is the expression index for writing status-absent
+	// on non-return probes; ^0 = none (used by conditions, which report
+	// evaluation errors via a different channel).
+	ExprStatusIdx uint32
+}
+
 type ExprLoadLiteralOp struct {
 	baseOp
 	Data []byte

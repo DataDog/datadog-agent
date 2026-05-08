@@ -217,6 +217,10 @@ var defaultRedactors = []jsonRedactor{
 		replacerFunc(redactNonZeroDuration),
 	),
 	redactor(
+		matchRegexp(`/debugger/snapshot/captures/[^/]+/captureExpressions/[^/]+$`),
+		replacerFunc(redactDurationCaptureExpression),
+	),
+	redactor(
 		prefixSuffixMatcher{"/debugger/snapshot/captures/", "/address"},
 		replacerFunc(redactNonZeroAddress),
 	),
@@ -313,6 +317,31 @@ func redactGoID(v jsontext.Value) jsontext.Value {
 		return v
 	}
 	buf, err := json.Marshal("[goid]")
+	if err != nil {
+		return v
+	}
+	return jsontext.Value(buf)
+}
+
+// redactDurationCaptureExpression replaces the (non-deterministic)
+// numeric value of a captureExpression whose type is "@duration" so
+// snapshot tests are stable.
+func redactDurationCaptureExpression(v jsontext.Value) jsontext.Value {
+	if v.Kind() != '{' {
+		return v
+	}
+	var obj struct {
+		Type  string `json:"type"`
+		Value string `json:"value"`
+	}
+	if err := json.Unmarshal(v, &obj); err != nil {
+		return v
+	}
+	if obj.Type != "@duration" {
+		return v
+	}
+	obj.Value = "[duration]"
+	buf, err := json.Marshal(obj)
 	if err != nil {
 		return v
 	}

@@ -11,7 +11,7 @@ import (
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
 // team: agent-health

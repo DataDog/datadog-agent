@@ -172,6 +172,10 @@ const (
 	EcsServiceName = "ecs_service"
 	// EcsServiceARN is the tag for the ECS service ARN (Amazon Resource Name)
 	EcsServiceARN = "service_arn"
+	// EcsDaemonName is the tag for the ECS daemon name
+	EcsDaemonName = "ecs_daemon"
+	// EcsDaemonARN is the tag for the ECS daemon ARN (Amazon Resource Name)
+	EcsDaemonARN = "daemon_arn"
 	// AwsAccount is the tag for ECS account id
 	AwsAccount = "aws_account"
 

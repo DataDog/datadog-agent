@@ -1,0 +1,32 @@
+$defs:
+  metrics_config:
+    description: MetricsConfig defines the metrics exporter specific configuration options
+    type: object
+    properties:
+      apm_stats_receiver_addr:
+        description: APMStatsReceiverAddr is the address to send APM stats to.
+        type: string
+      tags:
+        description: Tags is a comma-separated list of tags to add to all metrics.
+        type: string
+    allOf:
+      - $ref: github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config.metrics_config
+description: ExporterConfig defines configuration for the serializer exporter.
+type: object
+properties:
+  api:
+    description: API defines the Datadog API configuration. It is useful for OSS OpenTelemetry Collector or to use the serializer exporter with the OCB.
+    $ref: github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config.api_config
+  host_metadata:
+    description: HostMetadataConfig defines the host metadata related configuration.
+    $ref: github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config.host_metadata_config
+  metrics:
+    $ref: metrics_config
+  sending_queue:
+    x-optional: true
+    $ref: go.opentelemetry.io/collector/exporter/exporterhelper.queue_batch_config
+  tls:
+    $ref: go.opentelemetry.io/collector/config/configtls.client_config
+allOf:
+  - $ref: go.opentelemetry.io/collector/exporter/exporterhelper.timeout_config
+  - $ref: go.opentelemetry.io/collector/config/confighttp.client_config
