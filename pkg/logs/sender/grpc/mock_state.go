@@ -488,7 +488,7 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 	var jsonContextSchemaID uint64
 	var jsonContextValuesDV []*statefulpb.DynamicValue
 	var compactJSONContext compactJSONContextValues
-	if len(jsonContextKeys) > 0 {
+	if messageKey != "" || len(jsonContextKeys) > 0 {
 		messageKeyDV, jsonContextSchemaID = mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, messageKey, jsonContextKeys)
 
 		var dictDefs []dictEntryDefinition
@@ -769,7 +769,7 @@ func (mt *MessageTranslator) touchJsonSchemaReferences(schemaID uint64) {
 }
 
 func (mt *MessageTranslator) touchJsonSchemaReferencesForKeys(messageKey string, keys []string) {
-	if len(keys) == 0 {
+	if messageKey == "" && len(keys) == 0 {
 		return
 	}
 	if messageKey == "" {
