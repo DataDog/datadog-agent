@@ -88,9 +88,9 @@ func (s *k8sTestSuite) TestNginxDiscovered() {
 			require.NoError(s.T(), err)
 			s.UpdateEnv(k8sProvisioner(helmValues))
 
-			s.validateK8sDiscoveryMode(mode)
-
 			require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+
+			s.validateDiscoveryMode(mode)
 
 			t := s.T()
 			assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -106,7 +106,7 @@ func (s *k8sTestSuite) TestNginxDiscovered() {
 			}, 5*time.Minute, 10*time.Second)
 
 			if t.Failed() {
-				s.dumpK8sDebugInfo(t)
+				s.dumpDebugInfo(t)
 			}
 		})
 	}
@@ -130,7 +130,7 @@ func anyProcessListensOnPort(procs []*agentmodel.Process, port int32) bool {
 	return false
 }
 
-func (s *k8sTestSuite) validateK8sDiscoveryMode(mode discoveryMode) {
+func (s *k8sTestSuite) validateDiscoveryMode(mode discoveryMode) {
 	t := s.T()
 	agentPod := s.getAgentPod(t)
 	stdout, _, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(
@@ -149,7 +149,7 @@ func (s *k8sTestSuite) validateK8sDiscoveryMode(mode discoveryMode) {
 	t.Logf("Discovery mode confirmed: %s", mode)
 }
 
-func (s *k8sTestSuite) dumpK8sDebugInfo(t *testing.T) {
+func (s *k8sTestSuite) dumpDebugInfo(t *testing.T) {
 	agentPod := s.getAgentPod(t)
 	if stdout, _, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(
 		agentPod.Namespace, agentPod.Name, "system-probe",
@@ -182,5 +182,6 @@ func (s *k8sTestSuite) getAgentPod(t testing.TB) corev1.Pod {
 			}
 		}
 	}
-	return res.Items[0]
+	t.Fatalf("no agent pod with ready system-probe container found")
+	return corev1.Pod{} // unreachable; t.Fatalf doesn't return
 }
