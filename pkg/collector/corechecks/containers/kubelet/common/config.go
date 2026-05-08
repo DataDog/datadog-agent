@@ -9,7 +9,10 @@
 package common
 
 import (
+	"runtime"
+
 	"go.yaml.in/yaml/v2"
+	"k8s.io/utils/ptr"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 )
@@ -31,4 +34,17 @@ type KubeletConfig struct {
 // Parse parses the configuration.
 func (c *KubeletConfig) Parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
+}
+
+// UseStatsSummaryAsSource resolves the use_stats_summary_as_source flag,
+// applying the platform default (true on Windows, false elsewhere) when the
+// option is not set explicitly. The kubelet check uses this to decide whether
+// container CPU/memory/filesystem and pod network metrics should come from the
+// /stats/summary endpoint instead of /metrics/cadvisor.
+func UseStatsSummaryAsSource(c *KubeletConfig) bool {
+	platformDefault := runtime.GOOS == "windows"
+	if c == nil {
+		return platformDefault
+	}
+	return ptr.Deref(c.UseStatsSummaryAsSource, platformDefault)
 }
