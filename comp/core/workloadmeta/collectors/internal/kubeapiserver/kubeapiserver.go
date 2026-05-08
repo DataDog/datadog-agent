@@ -38,12 +38,8 @@ const (
 type dependencies struct {
 	fx.In
 
-	Config config.Component
-
-	// AutoscalingGate is optional because this collector is pulled into many
-	// binaries via the shared wmeta catalog, but it only runs in the DCA, which
-	// is the only binary that supplies the gate.
-	AutoscalingGate *autoscalinggate.Gate `optional:"true"`
+	Config          config.Component
+	AutoscalingGate *autoscalinggate.Gate
 }
 
 // storeGenerator returns a new store specific to a given resource
@@ -221,15 +217,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 
 	if shouldHavePodStore(c.config) {
 		autoscalingEnabled := c.config.GetBool("autoscaling.workload.enabled")
-
-		// If autoscaling is enabled, all the commands that run this collector
-		// should define the gate. But if it's not the case, just start eagerly.
-		hasGate := c.autoscalingGate != nil
-		if autoscalingEnabled && !hasGate {
-			log.Warnf("Workload autoscaling is enabled but the autoscaling gate is not wired")
-		}
-
-		lazyStart := !podsRequiredAtStartup(c.config) && autoscalingEnabled && hasGate
+		lazyStart := !podsRequiredAtStartup(c.config) && autoscalingEnabled
 
 		if lazyStart {
 			// The store is intentionally not added to objectStores. It would
@@ -239,7 +227,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 			reflector, store := newPodStore(ctx, wlmetaStore, c.config, client)
 			objectStores = append(objectStores, store)
 			go reflector.Run(ctx.Done())
-			if autoscalingEnabled && hasGate {
+			if autoscalingEnabled {
 				go c.markPodCollectionSyncedWhenReady(ctx, store)
 			}
 		}
