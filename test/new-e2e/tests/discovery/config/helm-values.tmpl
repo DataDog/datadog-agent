@@ -1,0 +1,16 @@
+datadog:
+  processAgent:
+    processCollection: true
+  logs:
+    enabled: false
+  envDict:
+    DD_LANGUAGE_DETECTION_ENABLED: "true"
+
+agents:
+  containers:
+    systemProbe:
+      env:
+        - name: DD_DISCOVERY_ENABLED
+          value: "true"
+        - name: DD_DISCOVERY_USE_SYSTEM_PROBE_LITE
+          value: "{{.UseSystemProbeLite}}"
