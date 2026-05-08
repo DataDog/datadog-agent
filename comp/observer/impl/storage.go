@@ -24,6 +24,11 @@ type timeSeriesStorage struct {
 	mu     sync.RWMutex
 	series map[uint64]*seriesStats // keyed by seriesKeyHash; no string retained per entry
 
+	// maxPointsPerSeries caps the number of retained points in each series.
+	// When an insert would exceed the cap, the oldest points are trimmed.
+	// Zero means unlimited (default for tests; live mode sets 600).
+	maxPointsPerSeries int
+
 	// observationTimestamps tracks all timestamps where observations occurred,
 	// even if no metric series was written for that timestamp.
 	observationTimestamps map[int64]struct{}
@@ -56,11 +61,11 @@ type seriesStats struct {
 	writeGeneration int64
 
 	// Columnar storage — all slices have the same length, indexed by point position.
+	// Only timestamps, sums, and counts are retained; min/max columns were removed
+	// because no active detector uses AggregateMin or AggregateMax.
 	timestamps []int64
 	sums       []float64
 	counts     []int64
-	mins       []float64
-	maxes      []float64
 }
 
 // pointCount returns the number of stored points.
@@ -96,10 +101,9 @@ func (s *seriesStats) aggregateColumn(agg Aggregate) []float64 {
 	switch agg {
 	case AggregateSum:
 		return s.sums
-	case AggregateMin:
-		return s.mins
-	case AggregateMax:
-		return s.maxes
+	case AggregateMin, AggregateMax:
+		// Min/max columns removed; return zeros for compatibility.
+		return make([]float64, len(s.timestamps))
 	case AggregateCount:
 		vals := make([]float64, len(s.counts))
 		for i, c := range s.counts {
@@ -133,10 +137,8 @@ func (s *seriesStats) aggregateAt(i int, agg Aggregate) float64 {
 		return s.sums[i]
 	case AggregateCount:
 		return float64(s.counts[i])
-	case AggregateMin:
-		return s.mins[i]
-	case AggregateMax:
-		return s.maxes[i]
+	case AggregateMin, AggregateMax:
+		return 0
 	default:
 		return 0
 	}
@@ -258,20 +260,33 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		// Update existing bucket in-place.
 		stats.sums[idx] += value
 		stats.counts[idx]++
-		if value < stats.mins[idx] {
-			stats.mins[idx] = value
-		}
-		if value > stats.maxes[idx] {
-			stats.maxes[idx] = value
-		}
 		return res
 	}
 
 	stats.timestamps = insertInt64(stats.timestamps, idx, bucket)
 	stats.sums = insertFloat64(stats.sums, idx, value)
 	stats.counts = insertInt64(stats.counts, idx, 1)
-	stats.mins = insertFloat64(stats.mins, idx, value)
-	stats.maxes = insertFloat64(stats.maxes, idx, value)
+
+	// Trim oldest points when the series exceeds the retention cap.
+	// Copy into fresh slices so the old backing arrays become unreferenced
+	// and the GC can reclaim them. A plain re-slice (s[trim:]) keeps the
+	// original backing array alive because the slice still points into it.
+	if s.maxPointsPerSeries > 0 && len(stats.timestamps) > s.maxPointsPerSeries {
+		n := s.maxPointsPerSeries
+		trim := len(stats.timestamps) - n
+
+		newTs := make([]int64, n)
+		copy(newTs, stats.timestamps[trim:])
+		stats.timestamps = newTs
+
+		newSums := make([]float64, n)
+		copy(newSums, stats.sums[trim:])
+		stats.sums = newSums
+
+		newCounts := make([]int64, n)
+		copy(newCounts, stats.counts[trim:])
+		stats.counts = newCounts
+	}
 	return res
 }
 
@@ -777,8 +792,6 @@ func (s *timeSeriesStorage) DumpToFile(path string) error {
 		Timestamp int64   `json:"ts"`
 		Sum       float64 `json:"sum"`
 		Count     int64   `json:"count"`
-		Min       float64 `json:"min"`
-		Max       float64 `json:"max"`
 	}
 	type dumpSeries struct {
 		Namespace string      `json:"namespace"`
@@ -803,8 +816,6 @@ func (s *timeSeriesStorage) DumpToFile(path string) error {
 				Timestamp: st.timestamps[i],
 				Sum:       st.sums[i],
 				Count:     st.counts[i],
-				Min:       st.mins[i],
-				Max:       st.maxes[i],
 			})
 		}
 		out = append(out, ds)
@@ -1125,20 +1136,6 @@ func (s *timeSeriesStorage) GetSeriesRange(ref observer.SeriesRef, start, end in
 				Value:     stats.sums[lo+i],
 			}
 		}
-	case AggregateMin:
-		for i := 0; i < resultLen; i++ {
-			points[i] = observer.Point{
-				Timestamp: stats.timestamps[lo+i],
-				Value:     stats.mins[lo+i],
-			}
-		}
-	case AggregateMax:
-		for i := 0; i < resultLen; i++ {
-			points[i] = observer.Point{
-				Timestamp: stats.timestamps[lo+i],
-				Value:     stats.maxes[lo+i],
-			}
-		}
 	case AggregateCount:
 		for i := 0; i < resultLen; i++ {
 			points[i] = observer.Point{
@@ -1226,14 +1223,6 @@ func (s *timeSeriesStorage) SumRange(ref observer.SeriesRef, start, end int64, a
 	case AggregateCount:
 		for _, c := range stats.counts[lo:hi] {
 			total += float64(c)
-		}
-	case AggregateMin:
-		for _, v := range stats.mins[lo:hi] {
-			total += v
-		}
-	case AggregateMax:
-		for _, v := range stats.maxes[lo:hi] {
-			total += v
 		}
 	default: // AggregateAverage
 		for i := lo; i < hi; i++ {
