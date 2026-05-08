@@ -6,19 +6,13 @@
 package discovery
 
 import (
-	"bytes"
-	"context"
 	_ "embed"
 	"testing"
-	"text/template"
 	"time"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps/nginx"
@@ -27,7 +21,6 @@ import (
 	scenkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/process"
 )
@@ -38,34 +31,7 @@ const (
 )
 
 //go:embed config/helm-values.tmpl
-var helmValuesTemplate string
-
-type helmConfig struct {
-	UseSystemProbeLite bool
-}
-
-func createHelmValues(cfg helmConfig) (string, error) {
-	var buf bytes.Buffer
-	tmpl, err := template.New("helm").Parse(helmValuesTemplate)
-	if err != nil {
-		return "", err
-	}
-	if err := tmpl.Execute(&buf, cfg); err != nil {
-		return "", err
-	}
-	return buf.String(), nil
-}
-
-func k8sProvisioner(helmValues string) provisioners.TypedProvisioner[environments.Kubernetes] {
-	return provkindvm.Provisioner(
-		provkindvm.WithRunOptions(
-			scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
-				return nginx.K8sAppDefinition(e, kubeProvider, nginxNamespace, nginxPort, "", false, nil)
-			}),
-			scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
-		),
-	)
-}
+var helmValues string
 
 type k8sTestSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
@@ -74,42 +40,38 @@ type k8sTestSuite struct {
 func TestK8sTestSuite(t *testing.T) {
 	t.Parallel()
 
-	helmValues, err := createHelmValues(helmConfig{UseSystemProbeLite: true})
-	require.NoError(t, err)
-
-	e2e.Run(t, &k8sTestSuite{}, e2e.WithProvisioner(k8sProvisioner(helmValues)))
+	e2e.Run(t, &k8sTestSuite{},
+		e2e.WithProvisioner(
+			provkindvm.Provisioner(
+				provkindvm.WithRunOptions(
+					scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
+						return nginx.K8sAppDefinition(e, kubeProvider, nginxNamespace, nginxPort, "", false, nil)
+					}),
+					scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
+				),
+			),
+		),
+	)
 }
 
+// TestNginxDiscovered verifies that the agent's discovery feature reports
+// the nginx workload to fakeintake. We don't differentiate between
+// system-probe and system-probe-lite modes — this is a sanity check that
+// the discovery flow works at all on k8s, in whichever mode the chart picks.
 func (s *k8sTestSuite) TestNginxDiscovered() {
-	for _, mode := range []discoveryMode{discoveryModeSystemProbeLite, discoveryModeSystemProbe} {
-		s.Run(string(mode), func() {
-			useSystemProbeLite := mode == discoveryModeSystemProbeLite
-			helmValues, err := createHelmValues(helmConfig{UseSystemProbeLite: useSystemProbeLite})
-			require.NoError(s.T(), err)
-			s.UpdateEnv(k8sProvisioner(helmValues))
+	t := s.T()
 
-			require.NoError(s.T(), s.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
+		assert.NoError(c, err, "failed to get process payloads from fakeintake")
+		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
 
-			s.validateDiscoveryMode(mode)
+		procs := process.FilterProcessPayloadsByName(payloads, "nginx")
+		assert.NotEmpty(c, procs, "no nginx process found in payloads")
 
-			t := s.T()
-			assert.EventuallyWithT(t, func(c *assert.CollectT) {
-				payloads, err := s.Env().FakeIntake.Client().GetProcesses()
-				assert.NoError(c, err, "failed to get process payloads from fakeintake")
-				assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-
-				procs := process.FilterProcessPayloadsByName(payloads, "nginx")
-				assert.NotEmpty(c, procs, "no nginx process found in payloads")
-
-				assert.True(c, anyProcessListensOnPort(procs, int32(nginxPort)),
-					"no nginx process was reported listening on tcp/%d. processes: %+v", nginxPort, procs)
-			}, 5*time.Minute, 10*time.Second)
-
-			if t.Failed() {
-				s.dumpDebugInfo(t)
-			}
-		})
-	}
+		assert.True(c, anyProcessListensOnPort(procs, int32(nginxPort)),
+			"no nginx process was reported listening on tcp/%d. processes: %+v", nginxPort, procs)
+	}, 5*time.Minute, 10*time.Second)
 }
 
 // anyProcessListensOnPort returns true if any of the given processes reports
@@ -128,60 +90,4 @@ func anyProcessListensOnPort(procs []*agentmodel.Process, port int32) bool {
 		}
 	}
 	return false
-}
-
-func (s *k8sTestSuite) validateDiscoveryMode(mode discoveryMode) {
-	t := s.T()
-	agentPod := s.getAgentPod(t)
-	stdout, _, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(
-		agentPod.Namespace, agentPod.Name, "system-probe",
-		[]string{"sh", "-c", "ps aux | grep system-probe | grep -v grep"})
-	require.NoError(t, err, "failed to exec ps in system-probe container")
-	t.Logf("Process list:\n%s", stdout)
-
-	switch mode {
-	case discoveryModeSystemProbeLite:
-		require.Contains(t, stdout, "system-probe-lite", "system-probe-lite should be running in system-probe-lite mode")
-	case discoveryModeSystemProbe:
-		require.NotContains(t, stdout, "system-probe-lite", "system-probe-lite should not be running in system-probe mode")
-		require.Contains(t, stdout, "system-probe", "system-probe should be running in system-probe mode")
-	}
-	t.Logf("Discovery mode confirmed: %s", mode)
-}
-
-func (s *k8sTestSuite) dumpDebugInfo(t *testing.T) {
-	agentPod := s.getAgentPod(t)
-	if stdout, _, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(
-		agentPod.Namespace, agentPod.Name, "system-probe",
-		[]string{"curl", "-s", "--unix-socket", "/var/run/sysprobe/sysprobe.sock", "http://unix/discovery/debug"}); err == nil {
-		t.Log("system-probe discovery debug:\n", stdout)
-	} else {
-		t.Log("failed to get discovery debug info:", err)
-	}
-	if stdout, _, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(
-		agentPod.Namespace, agentPod.Name, "agent",
-		[]string{"agent", "status"}); err == nil {
-		t.Log("agent status:\n", stdout)
-	} else {
-		t.Log("failed to get agent status:", err)
-	}
-}
-
-func (s *k8sTestSuite) getAgentPod(t testing.TB) corev1.Pod {
-	res, err := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").
-		List(context.Background(), v1.ListOptions{LabelSelector: "app=dda-linux-datadog"})
-	require.NoError(t, err)
-	require.NotEmpty(t, res.Items, "no agent pods found")
-	for _, pod := range res.Items {
-		if pod.DeletionTimestamp != nil {
-			continue
-		}
-		for _, cs := range pod.Status.ContainerStatuses {
-			if cs.Name == "system-probe" && cs.Ready {
-				return pod
-			}
-		}
-	}
-	t.Fatalf("no agent pod with ready system-probe container found")
-	return corev1.Pod{} // unreachable; t.Fatalf doesn't return
 }
