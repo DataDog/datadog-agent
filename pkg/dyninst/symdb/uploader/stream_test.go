@@ -159,6 +159,41 @@ func TestStreamingPackageScopeMatchesConverted(t *testing.T) {
 			},
 			agentVersion: "1.2.3",
 		},
+		{
+			// Variables with AvailableLineRanges: exercises the
+			// Symbol.LanguageSpecifics path so we know the streaming and
+			// converted forms agree on it.
+			name: "vars_with_available_ranges",
+			pkg: symdb.Package{
+				Name: "main",
+				Functions: []symdb.Function{
+					{
+						Name: "f",
+						File: "/src/main.go",
+						Scope: symdb.Scope{
+							StartLine: 1,
+							EndLine:   10,
+							Variables: []symdb.Variable{
+								{
+									Name:                "a",
+									TypeName:            "int",
+									DeclLine:            2,
+									AvailableLineRanges: []symdb.LineRange{{2, 5}, {7, 9}},
+								},
+								{
+									Name:             "b",
+									TypeName:         "string",
+									FunctionArgument: true,
+									DeclLine:         1,
+									// no AvailableLineRanges - should not emit
+									// LanguageSpecifics at all
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

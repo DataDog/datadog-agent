@@ -117,8 +117,13 @@ Package: main
 			Var: i: int (declared at line 196, available: [196-196], [197-197], [199-199])
 		Scope: 202-207
 			Var: i: int (declared at line 202, available: [202-202], [203-205], [207-207])
+			Scope: 202-205
+				Var: value: [4]int (declared at line 204, available: [202-205])
+				Var: key: [4]int (declared at line 203, available: )
 		Scope: 210-214
 			Var: i: int (declared at line 210, available: [210-210], [211-212], [214-214])
+			Scope: 210-212
+				Var: key: [4]int (declared at line 211, available: )
 	Function: executeMultiParamFuncs (main.executeMultiParamFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/multi_params.go [86:118] injectible: [86-87], [100-114], [118-118]
 	Function: executeOther (main.executeOther) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/other.go [51:56] injectible: [51-56]
 		Var: x: chan bool (declared at line 52, available: [53-54])
@@ -219,6 +224,11 @@ Package: main
 		Var: result: map[string][]main.structWithMap (declared at line 110, available: [109-119])
 		Scope: 109-119
 			Var: i: int (declared at line 111, available: [109-119])
+			Scope: 109-119
+				Var: key: string (declared at line 112, available: [113-113], [114-119])
+				Var: slice: []main.structWithMap (declared at line 113, available: )
+				Scope: 109-117
+					Var: j: int (declared at line 114, available: [109-109], [114-115])
 	Function: genericContains[...] (main.genericContains[...]) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go [79:85] injectible: [79-82], [85-85]
 		Arg: haystack: <T> (declared at line 79, available: [79-80])
 		Arg: needle: <T> (declared at line 79, available: [79-85])

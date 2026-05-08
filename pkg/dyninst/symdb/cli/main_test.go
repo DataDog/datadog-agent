@@ -9,8 +9,13 @@ package main
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
+
+	"github.com/google/uuid"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
@@ -24,12 +29,12 @@ import (
 // remains a no-op.
 const benchBinaryEnv = "SYMDBCLI_BENCH_BINARY"
 
-// BenchmarkExtractAndUpload exercises the full symdbcli upload loop —
-// DWARF iteration, package-to-scope conversion, JSON encoding, and
-// gzip compression — against a binary supplied via the
-// SYMDBCLI_BENCH_BINARY environment variable. The output is dropped
-// by noopSink, so the benchmark measures everything the real upload
-// path does except the HTTP request itself.
+// BenchmarkExtractAndUpload exercises the full symdbcli upload pipeline
+// against a binary supplied via the SYMDBCLI_BENCH_BINARY environment
+// variable. It runs an in-process httptest.Server whose handler streams
+// each request body into io.Discard, so the benchmark measures
+// extraction + JSON + gzip + multipart + HTTP send (everything the real
+// path does) without buffering the upload payload in heap.
 //
 // Run with:
 //
@@ -58,6 +63,15 @@ func BenchmarkExtractAndUpload(b *testing.B) {
 		b.Fatalf("NewDiskCache: %v", err)
 	}
 
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Stream the body to io.Discard so we exercise the network read
+		// path without holding the upload in heap.
+		_, _ = io.Copy(io.Discard, r.Body)
+		_ = r.Body.Close()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
 	ctx := context.Background()
 	extractOpts := symdb.ExtractOptions{
 		Scope:     symdb.ExtractScopeModulesFromSameOrg,
@@ -67,19 +81,27 @@ func BenchmarkExtractAndUpload(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for range b.N {
-		var stats symbolStats
-		if err := extractAndUpload(
-			ctx,
-			binaryPath,
-			diskCache,
-			extractOpts,
-			noopSink{},
-			"bench-version",
+		it, err := symdb.PackagesIterator(binaryPath, diskCache, extractOpts)
+		if err != nil {
+			b.Fatalf("PackagesIterator: %v", err)
+		}
+		enc, err := uploader.NewBatchEncoder(
+			srv.URL,
+			"bench-service", "bench-version", "bench-runtime-id",
+			uuid.New(), diskCache, nil,
+		)
+		if err != nil {
+			b.Fatalf("NewBatchEncoder: %v", err)
+		}
+		if _, err := uploader.RunUploadLoop(
+			ctx, enc, it, "bench-version",
 			uploader.DefaultFlushThresholdBytes,
-			true, // silent
-			&stats,
 		); err != nil {
-			b.Fatalf("extractAndUpload: %v", err)
+			_ = enc.Close()
+			b.Fatalf("RunUploadLoop: %v", err)
+		}
+		if err := enc.Close(); err != nil {
+			b.Fatalf("BatchEncoder.Close: %v", err)
 		}
 	}
 }

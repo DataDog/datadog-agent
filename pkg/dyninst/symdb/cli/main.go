@@ -10,9 +10,6 @@ package main
 
 import (
 	"archive/tar"
-	"bufio"
-	"bytes"
-	"compress/gzip"
 	"context"
 	"errors"
 	"flag"
@@ -20,6 +17,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"net/http/httptest"
 	_ "net/http/pprof"
 	"net/url"
 	"os"
@@ -31,7 +29,6 @@ import (
 	"strings"
 	"time"
 
-	jsonv2 "github.com/go-json-experiment/json"
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
 	container "github.com/google/go-containerregistry/pkg/v1"
@@ -39,7 +36,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/symdbutil"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/symdbprinter"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/uploader"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -379,41 +376,81 @@ func run() (retErr error) {
 
 	start := time.Now()
 
-	var sink uploadSink
-	switch {
-	case *upload:
-		// Headers to attach to every HTTP request. When the system-probe does
-		// the uploading, it sends the data through the local trace-agent,
-		// which deals with setting these headers. The CLI uploads directly so
-		// it must set them itself.
-		headers := [][2]string{
-			{"DD-EVP-ORIGIN", "symdb-cli"},
-			{"DD-EVP-ORIGIN-VERSION", "0.1"},
-			{"DD-API-KEY", *uploadAPIKey},
-		}
-		sink = realSink{
-			url:       uploadURLParsed.String(),
-			service:   *uploadService,
-			version:   *uploadVersion,
-			runtimeID: fmt.Sprintf("manual-upload-%d", rand.Intn(1000)),
-			headers:   headers,
-			diskCache: diskCache,
-		}
-	case *noopUpload:
-		log.Infof("Exercising upload path with noop sink (no HTTP requests will be sent).")
-		sink = noopSink{diskCache: diskCache}
-	}
-
-	var stats symbolStats
-	if err := extractAndUpload(
-		context.Background(), localBinPath, objectLoader, extractOpts,
-		sink, *agentVersionFlag, *flushThresholdBytes, *silent, &stats,
-	); err != nil {
+	it, err := symdb.PackagesIterator(localBinPath, objectLoader, extractOpts)
+	if err != nil {
 		return err
 	}
 
+	// Build the per-yield encoder. Three modes:
+	//  - -upload: real BatchEncoder shipping to a SymDB intake.
+	//  - -noop-upload: real BatchEncoder shipping to an in-process
+	//    httptest.Server whose handler reads each request body to EOF and
+	//    discards it. This exercises the entire upload pipeline (JSON +
+	//    gzip + multipart + HTTP send + connection lifecycle) without
+	//    talking to a real intake.
+	//  - neither: printingEncoder that prints each package via
+	//    symdbprinter (or just counts, when -silent is set).
+	var enc uploader.PackageEncoder
+	switch {
+	case *upload, *noopUpload:
+		var (
+			intakeURL string
+			service   = *uploadService
+			version   = *uploadVersion
+			headers   [][2]string
+		)
+		if *upload {
+			// Headers to attach to every HTTP request. When the
+			// system-probe does the uploading, it sends the data through
+			// the local trace-agent, which deals with setting these
+			// headers. The CLI uploads directly so it must set them
+			// itself.
+			intakeURL = uploadURLParsed.String()
+			headers = [][2]string{
+				{"DD-EVP-ORIGIN", "symdb-cli"},
+				{"DD-EVP-ORIGIN-VERSION", "0.1"},
+				{"DD-API-KEY", *uploadAPIKey},
+			}
+		} else {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = io.Copy(io.Discard, r.Body)
+				_ = r.Body.Close()
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer srv.Close()
+			intakeURL = srv.URL
+			service = "noop-service"
+			version = "noop-version"
+			log.Infof("Exercising upload pipeline against in-process server %s.", srv.URL)
+		}
+		runtimeID := fmt.Sprintf("manual-upload-%d", rand.Intn(1000))
+		realEnc, err := uploader.NewBatchEncoder(
+			intakeURL, service, version, runtimeID,
+			uuid.New(), diskCache, headers,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to create batch encoder: %w", err)
+		}
+		defer func() { _ = realEnc.Close() }()
+		enc = realEnc
+	default:
+		enc = &printingEncoder{out: os.Stdout, silent: *silent}
+	}
+
+	stats, err := uploader.RunUploadLoop(
+		context.Background(), enc, it, *agentVersionFlag, *flushThresholdBytes,
+	)
+	if err != nil {
+		return fmt.Errorf("upload failed: %w", err)
+	}
+	if *upload || *noopUpload {
+		log.Infof("SymDB: Successfully uploaded symbols: %d packages, %d functions, %d chunks",
+			stats.Packages, stats.Functions, stats.Batches)
+	}
+
 	log.Infof("Symbol extraction completed in %s.", time.Since(start))
-	log.Infof("Symbol statistics for %s: %s", localBinPath, stats)
+	log.Infof("Symbol statistics for %s: Packages: %d, Functions: %d",
+		localBinPath, stats.Packages, stats.Functions)
 
 	if *silent && !*upload && !*noopUpload {
 		log.Infof("--silent specified; symbols not serialized.")
@@ -445,231 +482,28 @@ func writeHeapProfile(path string) error {
 	return nil
 }
 
-// uploadSink is the interface used by extractAndUpload to construct the
-// per-upload batch encoder. Two implementations exist: realSink (which
-// returns a *uploader.BatchEncoder that streams to the SymDB intake) and
-// noopSink (which returns a noopBatchEncoder that performs the same JSON +
-// gzip work but drops the result, for profiling).
-type uploadSink interface {
-	NewBatchEncoder(uploadID uuid.UUID) (batchEncoder, error)
+// printingEncoder satisfies uploader.PackageEncoder by rendering each
+// AddPackage call as text to out via symdbprinter. Size always returns 0 and
+// Flush is a no-op, so RunUploadLoop never tries to flush a batch.
+type printingEncoder struct {
+	out    io.Writer
+	silent bool
 }
 
-type batchEncoder interface {
-	AddPackage(pkg symdb.Package, agentVersion string) error
-	Size() int
-	Flush(context.Context, bool) error
-	BatchCount() int
-	Close() error
-}
-
-type realSink struct {
-	url       string
-	service   string
-	version   string
-	runtimeID string
-	headers   [][2]string
-	diskCache *object.DiskCache
-}
-
-func (r realSink) NewBatchEncoder(uploadID uuid.UUID) (batchEncoder, error) {
-	return uploader.NewBatchEncoder(
-		r.url, r.service, r.version, r.runtimeID, uploadID,
-		r.diskCache, r.headers,
-	)
-}
-
-// noopSink performs the JSON encoding and gzip compression that the real
-// encoder would perform, then drops the result. Memory and CPU costs of the
-// upload preparation are still observable in profiles. When a DiskCache is
-// configured it is used for the compressed batch buffer, mirroring the real
-// upload path.
-type noopSink struct {
-	diskCache *object.DiskCache
-}
-
-func (s noopSink) NewBatchEncoder(_ uuid.UUID) (batchEncoder, error) {
-	enc := &noopBatchEncoder{}
-	if s.diskCache != nil {
-		df, err := s.diskCache.NewFile("symdb-upload-noop", 64*1024*1024, 0)
-		if err != nil {
-			return nil, fmt.Errorf("noop sink: failed to allocate DiskCache file: %w", err)
-		}
-		enc.diskFile = df
-		enc.gz = gzip.NewWriter(df)
-		return enc, nil
-	}
-	enc.gz = gzip.NewWriter(&enc.buf)
-	return enc, nil
-}
-
-type noopBatchEncoder struct {
-	batchNum   int
-	scopeCount int
-	buf        bytes.Buffer
-	diskFile   *object.DiskFile
-	gz         *gzip.Writer
-}
-
-func (n *noopBatchEncoder) AddPackage(pkg symdb.Package, agentVersion string) error {
-	if n.scopeCount == 0 {
-		n.batchNum++
-	}
-	if err := jsonv2.MarshalWrite(n.gz, uploader.NewPackageScope(pkg, agentVersion)); err != nil {
-		return fmt.Errorf("failed to encode scope: %w", err)
-	}
-	n.scopeCount++
-	return nil
-}
-
-func (n *noopBatchEncoder) Size() int {
-	if n.diskFile != nil {
-		return int(n.diskFile.Used())
-	}
-	return n.buf.Len()
-}
-
-func (n *noopBatchEncoder) Flush(_ context.Context, _ bool) error {
-	if n.scopeCount == 0 {
+func (p *printingEncoder) AddPackage(pkg symdb.Package, agentVersion string) error {
+	if p.silent {
 		return nil
 	}
-	if err := n.gz.Close(); err != nil {
-		return fmt.Errorf("failed to close gzip writer: %w", err)
-	}
-	if n.diskFile != nil {
-		// Force a read of the compressed bytes so the disk path actually
-		// touches them, matching the real uploader's read-back-for-multipart
-		// step (and tripping any read-side syscall costs into profiles).
-		r := io.NewSectionReader(n.diskFile, 0, int64(n.diskFile.Used()))
-		if _, err := io.Copy(io.Discard, bufio.NewReaderSize(r, 64*1024)); err != nil {
-			return fmt.Errorf("failed to read DiskFile back: %w", err)
-		}
-		if err := n.diskFile.Truncate(); err != nil {
-			return fmt.Errorf("failed to truncate DiskFile: %w", err)
-		}
-		n.gz.Reset(n.diskFile)
-	} else {
-		// Force the compiler to keep `buf` alive so the noop sink really does
-		// the work of holding the compressed bytes briefly in memory.
-		runtime.KeepAlive(n.buf)
-		n.buf.Reset()
-		n.gz.Reset(&n.buf)
-	}
-	n.scopeCount = 0
-	return nil
-}
-
-func (n *noopBatchEncoder) BatchCount() int {
-	return n.batchNum
-}
-
-func (n *noopBatchEncoder) Close() error {
-	if n.diskFile != nil {
-		err := n.diskFile.Close()
-		n.diskFile = nil
-		return err
+	scope := uploader.ConvertPackageToScope(pkg, agentVersion)
+	if err := symdbprinter.SerializeScope(p.out, scope); err != nil {
+		return fmt.Errorf("failed to serialize package: %w", err)
 	}
 	return nil
 }
 
-// extractAndUpload mirrors module.symdbManager.performUpload: it iterates
-// packages from the binary using the supplied loader, converts each package
-// to an upload Scope, and streams them through a BatchEncoder which flushes
-// HTTP chunks whenever the compressed buffer reaches the threshold (or on
-// the final package).
-func extractAndUpload(
-	ctx context.Context,
-	binaryPath string,
-	objectLoader object.Loader,
-	extractOpts symdb.ExtractOptions,
-	sink uploadSink,
-	agentVersion string,
-	flushThresholdBytes int,
-	silent bool,
-	stats *symbolStats,
-) error {
-	out := symdbutil.MakePanickingWriter(os.Stdout)
-
-	it, err := symdb.PackagesIterator(binaryPath, objectLoader, extractOpts)
-	if err != nil {
-		return err
-	}
-
-	var enc batchEncoder
-	if sink != nil {
-		var err error
-		enc, err = sink.NewBatchEncoder(uuid.New())
-		if err != nil {
-			return fmt.Errorf("failed to create batch encoder: %w", err)
-		}
-		defer func() { _ = enc.Close() }()
-	}
-	var totalPackages, totalFuncs int
-	maybeFlush := func(final bool) error {
-		if ctx.Err() != nil {
-			return context.Cause(ctx)
-		}
-		if !final && enc.Size() < flushThresholdBytes {
-			return nil
-		}
-		log.Tracef("SymDB: uploading symbols chunk. Final chunk: %t", final)
-		if err := enc.Flush(ctx, final); err != nil {
-			return fmt.Errorf("upload failed: %w", err)
-		}
-		return nil
-	}
-
-	for pkg, err := range it {
-		if err != nil {
-			return err
-		}
-
-		if ctx.Err() != nil {
-			return context.Cause(ctx)
-		}
-
-		if enc != nil {
-			if err := enc.AddPackage(pkg.Package, agentVersion); err != nil {
-				return fmt.Errorf("failed to encode scope: %w", err)
-			}
-			totalPackages++
-			totalFuncs += pkg.Stats().NumFunctions
-			if err := maybeFlush(pkg.Final); err != nil {
-				return err
-			}
-		}
-
-		stats.addPackage(pkg.Package)
-
-		if !silent {
-			pkg.Serialize(out)
-		}
-	}
-
-	if enc != nil {
-		log.Infof("SymDB: Successfully uploaded symbols: %d packages, %d functions, %d chunks",
-			totalPackages, totalFuncs, enc.BatchCount())
-	}
-
-	return nil
-}
-
-type symbolStats struct {
-	numPackages  int
-	numTypes     int
-	numFunctions int
-}
-
-func (stats *symbolStats) addPackage(pkg symdb.Package) {
-	stats.numPackages++
-	s := pkg.Stats()
-	stats.numTypes += s.NumTypes
-	stats.numFunctions += s.NumFunctions
-}
-
-func (stats symbolStats) String() string {
-	return fmt.Sprintf("Packages: %d, Types: %d, Functions: %d",
-		stats.numPackages, stats.numTypes, stats.numFunctions)
-}
+func (p *printingEncoder) Size() int                         { return 0 }
+func (p *printingEncoder) Flush(context.Context, bool) error { return nil }
+func (p *printingEncoder) Close() error                      { return nil }
 
 // extractBinaryFromImage extracts a binary from an image and returns the path
 // to the extracted file.

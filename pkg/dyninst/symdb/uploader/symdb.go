@@ -84,10 +84,11 @@ const (
 
 // Symbol represents a variable, parameter, or field in the SymDB schema
 type Symbol struct {
-	Name       string     `json:"name"`
-	Type       string     `json:"type"`
-	SymbolType SymbolType `json:"symbol_type"`
-	Line       *int       `json:"line,omitempty"`
+	Name              string             `json:"name"`
+	Type              string             `json:"type"`
+	SymbolType        SymbolType         `json:"symbol_type"`
+	Line              *int               `json:"line,omitempty"`
+	LanguageSpecifics *LanguageSpecifics `json:"language_specifics,omitempty"`
 }
 
 // LanguageSpecifics represents Go language-specific data in the SymDB schema.
@@ -287,6 +288,9 @@ func (b *BatchEncoder) addEncoded(v any) error {
 	if err := jsonv2.MarshalWrite(b.gz, v); err != nil {
 		return fmt.Errorf("failed to encode scope: %w", err)
 	}
+	if err := b.gz.Flush(); err != nil {
+		return fmt.Errorf("failed to flush gzip writer: %w", err)
+	}
 	b.scopeCount++
 	return nil
 }
@@ -447,10 +451,6 @@ func (s *uploader) uploadInner(ctx context.Context, compressed io.Reader, upload
 	return nil
 }
 
-func cleanString(s string) string {
-	return strings.ReplaceAll(s, " ", "")
-}
-
 // ConvertPackageToScope converts a symdb.Package to a Scope.
 //
 // agentVersion, if not empty, is reported in the uploaded scope as
@@ -543,7 +543,7 @@ func convertTypeToScope(typ symdb.Type) Scope {
 	for _, field := range typ.Fields {
 		symbol := Symbol{
 			Name:       field.Name,
-			Type:       cleanString(field.Type),
+			Type:       field.Type,
 			SymbolType: SymbolTypeField,
 		}
 		scope.Symbols = append(scope.Symbols, symbol)
@@ -591,12 +591,11 @@ func convertVariableToSymbol(variable symdb.Variable) Symbol {
 	declLine := int(variable.DeclLine)
 	symbol := Symbol{
 		Name:       variable.Name,
-		Type:       cleanString(variable.TypeName),
+		Type:       variable.TypeName,
 		SymbolType: symbolType,
 		Line:       &declLine,
 	}
 
-	// Add language specifics for line ranges if available
 	if len(variable.AvailableLineRanges) > 0 {
 		ranges := make([]LineRange, len(variable.AvailableLineRanges))
 		for i, r := range variable.AvailableLineRanges {
@@ -605,9 +604,9 @@ func convertVariableToSymbol(variable symdb.Variable) Symbol {
 				End:   int(r[1]),
 			}
 		}
-		/*symbol.LanguageSpecifics = &LanguageSpecifics{
+		symbol.LanguageSpecifics = &LanguageSpecifics{
 			AvailableLineRanges: ranges,
-		}*/
+		}
 	}
 
 	return symbol

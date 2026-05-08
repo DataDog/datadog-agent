@@ -464,6 +464,7 @@ exports_files(glob(
 # gazelle:exclude pkg/dyninst/symdb/index_integration_test.go
 # gazelle:exclude pkg/dyninst/symdb/symdb.go
 # gazelle:exclude pkg/dyninst/symdb/symdb_test.go
+# gazelle:exclude pkg/dyninst/symdb/symdbprinter
 # gazelle:exclude pkg/dyninst/symdb/type_emit.go
 # gazelle:exclude pkg/dyninst/symdb/type_info_by_offset_index.go
 # gazelle:exclude pkg/dyninst/symdb/types_by_package_index.go
