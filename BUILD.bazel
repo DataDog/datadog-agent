@@ -626,7 +626,6 @@ exports_files(glob(
 # gazelle:exclude pkg/process/runner/mocks
 # gazelle:exclude pkg/process/subscribers
 # gazelle:exclude pkg/process/util/containers
-# gazelle:exclude pkg/process/util/status
 # gazelle:exclude pkg/procmgr
 # gazelle:exclude pkg/proto/datadog/api
 # gazelle:exclude pkg/proto/datadog/autodiscovery
@@ -695,7 +694,6 @@ exports_files(glob(
 # gazelle:exclude pkg/status/status_test.go
 # gazelle:exclude pkg/status/types.go
 # gazelle:exclude pkg/system-probe/api/client/check_test.go
-# gazelle:exclude pkg/system-probe/api/module
 # gazelle:exclude pkg/system-probe/api/server/testutil
 # gazelle:exclude pkg/util/cloudproviders/gce
 # gazelle:exclude pkg/util/cloudproviders/kubernetes

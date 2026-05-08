@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "impl-systemprobe",
@@ -16,6 +16,20 @@ go_library(
         "//pkg/compliance/statusregistry",
         "//pkg/logs/metrics",
         "//pkg/proto/pbgo/core",
+        "//pkg/system-probe/api/module/stats",
         "//pkg/util/flavor",
+    ],
+)
+
+go_test(
+    name = "impl-systemprobe_test",
+    srcs = ["remoteagent_test.go"],
+    embed = [":impl-systemprobe"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/config",
+        "//pkg/proto/pbgo/core",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

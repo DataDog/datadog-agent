@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/statusregistry"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module/stats"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
@@ -133,8 +133,8 @@ func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetry
 func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
 	resp := &pbcore.GetStatusDetailsResponse{}
 
-	stats := module.GetStats()
-	if statusBytes, err := json.Marshal(stats); err == nil {
+	moduleStats := stats.Get()
+	if statusBytes, err := json.Marshal(moduleStats); err == nil {
 		resp.MainSection = &pbcore.StatusSection{
 			Fields: map[string]string{"status": string(statusBytes)},
 		}

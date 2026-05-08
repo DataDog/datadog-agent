@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"runtime/pprof"
 	"sync"
 	"time"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module/stats"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -40,7 +40,6 @@ type loader struct {
 	sync.Mutex
 	modules map[sysconfigtypes.ModuleName]Module
 	errors  map[sysconfigtypes.ModuleName]error
-	stats   map[string]any
 	cfg     *sysconfigtypes.Config
 	routers map[sysconfigtypes.ModuleName]*Router
 	closed  bool
@@ -125,7 +124,7 @@ func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []*Fact
 
 	l.configureTelemetry(deps.Telemetry)
 
-	l.stats = make(map[string]any)
+	stats.Reset()
 	l.forEachModule(func(name sysconfigtypes.ModuleName, mod Module) {
 		go updateModuleStats(name, mod)
 	})
@@ -136,11 +135,7 @@ func Register(cfg *sysconfigtypes.Config, httpMux *mux.Router, factories []*Fact
 
 // GetStats returns the stats from all modules, namespaced by their names
 func GetStats() map[string]any {
-	l.Lock()
-	defer l.Unlock()
-
-	// Copy the stats map to avoid race conditions
-	return maps.Clone(l.stats)
+	return stats.Get()
 }
 
 // RestartModule triggers a module restart
@@ -221,14 +216,12 @@ func updateModuleStats(name sysconfigtypes.ModuleName, mod Module) {
 		}
 
 		startUpdateTs := time.Now()
-		stats := mod.GetStats()
+		modStats := mod.GetStats()
 		updateTimeSeconds := time.Since(startUpdateTs).Seconds()
 		l.statsUpdateTime.Set(updateTimeSeconds, nameStr)
 		l.statsUpdateCount.Inc(nameStr)
 
-		l.Lock()
-		l.stats[nameStr] = stats
-		l.Unlock()
+		stats.Set(nameStr, modStats)
 
 		<-ticker.C
 	}
@@ -247,12 +240,11 @@ func updateGlobalStats() {
 
 		l.Lock()
 		for name, err := range l.errors {
-			l.stats[string(name)] = map[string]string{"Error": err.Error()}
+			stats.Set(string(name), map[string]string{"Error": err.Error()})
 		}
-
-		l.stats["updated_at"] = time.Now().Unix()
-		l.stats["delta_seconds"] = time.Since(lastUpdate).Seconds()
-		l.stats["uptime"] = time.Since(start).String()
+		stats.Set("updated_at", time.Now().Unix())
+		stats.Set("delta_seconds", time.Since(lastUpdate).Seconds())
+		stats.Set("uptime", time.Since(start).String())
 		l.Unlock()
 
 		lastUpdate = time.Now()

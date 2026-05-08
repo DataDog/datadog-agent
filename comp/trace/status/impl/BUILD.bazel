@@ -10,9 +10,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/trace/status/impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
-        "//comp/core/ipc/def",
-        "//comp/core/ipc/httphelpers",
+        "//comp/core/remoteagentregistry/def",
         "//comp/core/status",
         "//comp/def",
     ],
@@ -24,8 +22,8 @@ go_test(
     embed = [":impl"],
     gotags = ["test"],
     deps = [
-        "//comp/core/config",
-        "//comp/core/ipc/mock",
+        "//comp/core/remoteagentregistry/def",
+        "//comp/core/remoteagentregistry/mock",
         "@com_github_stretchr_testify//assert",
     ],
 )
