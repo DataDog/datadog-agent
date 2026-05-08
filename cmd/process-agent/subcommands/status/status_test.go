@@ -6,7 +6,6 @@
 package status
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -21,18 +20,14 @@ import (
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/process/util/status"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func fakeStatusServer(t *testing.T, ipcMock *ipcmock.IPCMock, stats status.Status) *httptest.Server {
+func fakeStatusServer(t *testing.T, ipcMock *ipcmock.IPCMock, body string) *httptest.Server {
 	handler := func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
-		b, err := json.Marshal(stats)
-		require.NoError(t, err)
-
-		_, err = w.Write(b)
+		_, err := w.Write([]byte(body))
 		require.NoError(t, err)
 	}
 
@@ -40,83 +35,15 @@ func fakeStatusServer(t *testing.T, ipcMock *ipcmock.IPCMock, stats status.Statu
 }
 
 func TestStatus(t *testing.T) {
-	statusInfo := status.Status{
-		Core: status.CoreStatus{
-			Metadata: status.HostMetadata{
-				Meta: &status.HostMeta{},
-			},
-		},
-		Expvars: status.ProcessExpvars{},
-	}
+	const fakeBody = "process-agent status response body"
 
 	ipcMock := ipcmock.New(t)
+	server := fakeStatusServer(t, ipcMock, fakeBody)
 
-	server := fakeStatusServer(t, ipcMock, statusInfo)
-
-	// Build the actual status
 	var statusBuilder strings.Builder
 	getAndWriteStatus(log.NoopLogger, ipcMock.GetClient(), server.URL, &statusBuilder)
 
-	expectedOutput := string(`
-	{
-		"date": 0,
-		"core": {
-			"version": "",
-			"go_version": "",
-			"build_arch": "",
-			"config": {
-			"log_level": ""
-			},
-			"metadata": {
-			"meta": {
-				"hostname": ""
-			}
-			}
-		},
-		"expvars": {
-			"process_agent": {
-			"pid": 0,
-			"uptime": 0,
-			"uptime_nano": 0,
-			"memstats": {
-				"alloc": 0
-			},
-			"version": {
-				"Version": "",
-				"GitCommit": "",
-				"GitBranch": "",
-				"BuildDate": "",
-				"GoVersion": ""
-			},
-			"docker_socket": "",
-			"last_collect_time": "",
-			"process_count": 0,
-			"container_count": 0,
-			"process_queue_size": 0,
-			"rtprocess_queue_size": 0,
-			"connections_queue_size": 0,
-			"event_queue_size": 0,
-			"process_queue_bytes": 0,
-			"rtprocess_queue_bytes": 0,
-			"connections_queue_bytes": 0,
-			"event_queue_bytes": 0,
-			"container_id": "",
-			"proxy_url": "",
-			"log_file": "",
-			"enabled_checks": null,
-			"endpoints": null,
-			"drop_check_payloads": null,
-			"system_probe_process_module_enabled": false,
-			"language_detection_enabled": false,
-			"workloadmeta_extractor_cache_size": 0,
-			"workloadmeta_extractor_stale_diffs": 0,
-			"workloadmeta_extractor_diffs_dropped": 0,
-			"submission_error_count": 0
-			}
-		}
-	}
-	`)
-	assert.JSONEq(t, expectedOutput, statusBuilder.String())
+	assert.Equal(t, fakeBody, statusBuilder.String())
 }
 
 func TestNotRunning(t *testing.T) {
