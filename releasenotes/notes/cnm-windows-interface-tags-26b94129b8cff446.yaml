@@ -1,0 +1,13 @@
+---
+enhancements:
+  - |
+    On Windows, network connections collected by Cloud Network Monitoring
+    are now tagged with ``interface_name`` and ``interface_type``.
+fixes:
+  - |
+    Fixed HTTP flows being incorrectly dropped when a request body arrives
+    before the response.
+    Fixed pending HTTP transactions not being finalized when a connection is
+    closed by a bare FIN or RST.
+    Fixed a bug check (BSOD) caused by mismatched ``maxRequestFragment``
+    values during HTTP initialization.
