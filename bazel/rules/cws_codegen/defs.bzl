@@ -53,6 +53,7 @@ def _event_deep_copy_impl(name, tags, model, types_file, package_path, output, s
         args = args,
         outs = ["{}/{}".format(out_dir, output)],
         tool = "//pkg/security/generators/event_deep_copy",
+        visibility = visibility,
     )
 
     # The output file is already exported package-wide by this BUILD's glob
@@ -63,6 +64,7 @@ def _event_deep_copy_impl(name, tags, model, types_file, package_path, output, s
         in_file = ":{}".format(gen),
         out_file = output,
         check_that_out_file_exists = False,
+        visibility = visibility,
     )
 
 event_deep_copy = macro(
