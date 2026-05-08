@@ -634,12 +634,84 @@ func TestInflightTrackerNextToSendDoesNotPrependStateDefinedInSamePayload(t *tes
 	require.NotNil(t, datumSeq.Data[2].GetLogs())
 }
 
+func TestInflightTrackerDefersDictDeleteWhileInflightPayloadReferencesIt(t *testing.T) {
+	tracker := newInflightTracker("test", 5)
+	tracker.snapshot.apply(&StatefulExtra{
+		StateChanges: []*statefulpb.Datum{
+			createInflightDictEntryDefine(40, "value40"),
+		},
+	})
+
+	require.True(t, tracker.append(createInflightPayloadWithStateChanges(
+		[]*statefulpb.Datum{createInflightDictEntryDelete(40)},
+	)))
+	require.True(t, tracker.append(createInflightPayloadWithWireDatums(
+		createInflightLogDatum(0, 40),
+	)))
+	require.True(t, tracker.markSent())
+	require.True(t, tracker.markSent())
+
+	tracker.pop()
+	require.NotNil(t, tracker.snapshot.dictMap[40], "inflight references still need replay state")
+
+	tracker.pop()
+	require.Nil(t, tracker.snapshot.dictMap[40], "delete applies once inflight references drain")
+}
+
+func TestInflightTrackerDefersJsonSchemaDictDeletesWhileSchemaInflight(t *testing.T) {
+	tracker := newInflightTracker("test", 5)
+	tracker.snapshot.apply(&StatefulExtra{
+		StateChanges: []*statefulpb.Datum{
+			createInflightDictEntryDefine(50, "message"),
+			createInflightDictEntryDefine(51, "level"),
+			createInflightJsonSchemaDefine(60, 50, 51),
+		},
+	})
+
+	require.True(t, tracker.append(createInflightPayloadWithStateChanges(
+		[]*statefulpb.Datum{createInflightDictEntryDelete(51)},
+	)))
+	require.True(t, tracker.append(createInflightPayloadWithWireDatums(
+		createInflightFlatLogDatum(0, 0, 0, 0, 0, 60),
+	)))
+	require.True(t, tracker.markSent())
+	require.True(t, tracker.markSent())
+
+	tracker.pop()
+	require.NotNil(t, tracker.snapshot.dictMap[51], "schema references still need key tokens")
+
+	tracker.pop()
+	require.Nil(t, tracker.snapshot.dictMap[51])
+}
+
 func createInflightPatternDefine(id uint64, template string) *statefulpb.Datum {
 	return &statefulpb.Datum{
 		Data: &statefulpb.Datum_PatternDefine{
 			PatternDefine: &statefulpb.PatternDefine{
 				PatternId: id,
 				Template:  template,
+			},
+		},
+	}
+}
+
+func createInflightDictEntryDelete(id uint64) *statefulpb.Datum {
+	return &statefulpb.Datum{
+		Data: &statefulpb.Datum_DictEntryDelete{
+			DictEntryDelete: &statefulpb.DictEntryDelete{
+				Id: id,
+			},
+		},
+	}
+}
+
+func createInflightJsonSchemaDefine(id uint64, messageKeyID uint64, keyIDs ...uint64) *statefulpb.Datum {
+	return &statefulpb.Datum{
+		Data: &statefulpb.Datum_JsonSchemaDefine{
+			JsonSchemaDefine: &statefulpb.JsonSchemaDefine{
+				SchemaId:     id,
+				MessageKeyId: messageKeyID,
+				Keys:         keyIDs,
 			},
 		},
 	}
@@ -708,11 +780,22 @@ func createInflightPayloadWithWireDatums(datums ...*statefulpb.Datum) *message.P
 	}
 }
 
-func decodeInflightDatumSequence(t *testing.T, data []byte) statefulpb.DatumSequence {
+func createInflightPayloadWithStateChanges(stateChanges []*statefulpb.Datum, wireDatums ...*statefulpb.Datum) *message.Payload {
+	serialized, _ := proto.Marshal(&statefulpb.DatumSequence{Data: wireDatums})
+	return &message.Payload{
+		Encoded: serialized,
+		StatefulExtra: &StatefulExtra{
+			StateChanges: stateChanges,
+			WireDatums:   wireDatums,
+		},
+	}
+}
+
+func decodeInflightDatumSequence(t *testing.T, data []byte) *statefulpb.DatumSequence {
 	t.Helper()
 	var datumSeq statefulpb.DatumSequence
 	require.NoError(t, proto.Unmarshal(data, &datumSeq))
-	return datumSeq
+	return &datumSeq
 }
 
 func findInflightDeltaEncodingSync(t *testing.T, datums []*statefulpb.Datum) *statefulpb.DeltaEncodingSync {

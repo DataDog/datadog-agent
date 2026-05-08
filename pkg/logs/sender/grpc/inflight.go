@@ -47,14 +47,11 @@ type inflightTracker struct {
 // Allocates capacity+1 slots to implement the "waste one slot" ring buffer pattern
 func newInflightTracker(workerID string, capacity int) *inflightTracker {
 	return &inflightTracker{
-		workerID: workerID,
-		items:    make([]*message.Payload, capacity+1),
-		cap:      capacity,
-		snapshot: newSnapshotState(),
-		streamSent: stateReferences{
-			dictEntryIDs: make(map[uint64]struct{}),
-			patternIDs:   make(map[uint64]struct{}),
-		},
+		workerID:   workerID,
+		items:      make([]*message.Payload, capacity+1),
+		cap:        capacity,
+		streamSent: newStateReferences(),
+		snapshot:   newSnapshotState(),
 	}
 }
 
@@ -91,7 +88,11 @@ func (t *inflightTracker) pop() *message.Payload {
 	// Apply state changes from this payload to snapshot
 	if payload.StatefulExtra != nil {
 		if extra, ok := payload.StatefulExtra.(*StatefulExtra); ok {
-			t.snapshot.apply(extra)
+			if refs, ok := t.inflightReferences(); ok {
+				t.snapshot.applyWithProtectedRefs(extra, &refs)
+			} else {
+				t.snapshot.apply(extra)
+			}
 		}
 	}
 
@@ -365,9 +366,10 @@ func (t *inflightTracker) resetStreamSent() {
 // snapshotState maintains the accumulated state changes for stream bootstrapping
 // It represents the state "before" the first payload in the inflight queue
 type snapshotState struct {
-	dictMap       map[uint64]*statefulpb.DictEntryDefine
-	patternMap    map[uint64]*statefulpb.PatternDefine
-	jsonSchemaMap map[uint64]*statefulpb.JsonSchemaDefine
+	dictMap         map[uint64]*statefulpb.DictEntryDefine
+	patternMap      map[uint64]*statefulpb.PatternDefine
+	jsonSchemaMap   map[uint64]*statefulpb.JsonSchemaDefine
+	deferredDeletes stateReferences
 }
 
 type stateReferences struct {
@@ -449,32 +451,81 @@ func (r stateReferences) deleteJsonSchema(id uint64) {
 // newSnapshotState creates a new empty snapshot state
 func newSnapshotState() *snapshotState {
 	return &snapshotState{
-		dictMap:       make(map[uint64]*statefulpb.DictEntryDefine),
-		patternMap:    make(map[uint64]*statefulpb.PatternDefine),
-		jsonSchemaMap: make(map[uint64]*statefulpb.JsonSchemaDefine),
+		dictMap:         make(map[uint64]*statefulpb.DictEntryDefine),
+		patternMap:      make(map[uint64]*statefulpb.PatternDefine),
+		jsonSchemaMap:   make(map[uint64]*statefulpb.JsonSchemaDefine),
+		deferredDeletes: newStateReferences(),
 	}
 }
 
 // apply updates the snapshot state by processing state changes from a payload
 func (s *snapshotState) apply(extra *StatefulExtra) {
+	s.applyWithProtectedRefs(extra, nil)
+}
+
+func (s *snapshotState) applyWithProtectedRefs(extra *StatefulExtra, protectedRefs *stateReferences) {
 	if extra == nil {
 		return
 	}
+	s.pruneDeferredDeletes(protectedRefs)
 
 	for _, datum := range extra.StateChanges {
 		switch d := datum.Data.(type) {
 		case *statefulpb.Datum_PatternDefine:
 			s.patternMap[d.PatternDefine.PatternId] = d.PatternDefine
+			s.deferredDeletes.deletePattern(d.PatternDefine.PatternId)
 		case *statefulpb.Datum_PatternDelete:
-			delete(s.patternMap, d.PatternDelete.PatternId)
+			if protectedRefs != nil && protectedRefs.hasPattern(d.PatternDelete.PatternId) {
+				s.deferredDeletes.addPattern(d.PatternDelete.PatternId)
+			} else {
+				delete(s.patternMap, d.PatternDelete.PatternId)
+				s.deferredDeletes.deletePattern(d.PatternDelete.PatternId)
+			}
 		case *statefulpb.Datum_DictEntryDefine:
 			s.dictMap[d.DictEntryDefine.Id] = d.DictEntryDefine
+			s.deferredDeletes.deleteDictEntry(d.DictEntryDefine.Id)
 		case *statefulpb.Datum_DictEntryDelete:
-			delete(s.dictMap, d.DictEntryDelete.Id)
+			if protectedRefs != nil && protectedRefs.hasDictEntry(d.DictEntryDelete.Id) {
+				s.deferredDeletes.addDictEntry(d.DictEntryDelete.Id)
+			} else {
+				delete(s.dictMap, d.DictEntryDelete.Id)
+				s.deferredDeletes.deleteDictEntry(d.DictEntryDelete.Id)
+			}
 		case *statefulpb.Datum_JsonSchemaDefine:
 			s.jsonSchemaMap[d.JsonSchemaDefine.SchemaId] = d.JsonSchemaDefine
+			s.deferredDeletes.deleteJsonSchema(d.JsonSchemaDefine.SchemaId)
 		case *statefulpb.Datum_JsonSchemaDelete:
-			delete(s.jsonSchemaMap, d.JsonSchemaDelete.SchemaId)
+			if protectedRefs != nil && protectedRefs.hasJsonSchema(d.JsonSchemaDelete.SchemaId) {
+				s.deferredDeletes.addJsonSchema(d.JsonSchemaDelete.SchemaId)
+			} else {
+				delete(s.jsonSchemaMap, d.JsonSchemaDelete.SchemaId)
+				s.deferredDeletes.deleteJsonSchema(d.JsonSchemaDelete.SchemaId)
+			}
+		}
+	}
+	s.pruneDeferredDeletes(protectedRefs)
+}
+
+func (s *snapshotState) pruneDeferredDeletes(protectedRefs *stateReferences) {
+	if protectedRefs == nil {
+		protectedRefs = &stateReferences{}
+	}
+	for id := range s.deferredDeletes.patternIDs {
+		if !protectedRefs.hasPattern(id) {
+			delete(s.patternMap, id)
+			s.deferredDeletes.deletePattern(id)
+		}
+	}
+	for id := range s.deferredDeletes.dictEntryIDs {
+		if !protectedRefs.hasDictEntry(id) {
+			delete(s.dictMap, id)
+			s.deferredDeletes.deleteDictEntry(id)
+		}
+	}
+	for id := range s.deferredDeletes.jsonSchemaIDs {
+		if !protectedRefs.hasJsonSchema(id) {
+			delete(s.jsonSchemaMap, id)
+			s.deferredDeletes.deleteJsonSchema(id)
 		}
 	}
 }
@@ -537,7 +588,14 @@ func (t *inflightTracker) inflightReferences() (stateReferences, bool) {
 		addDatumReferences(refs, extra.WireDatums)
 		index = (index + 1) % len(t.items)
 	}
+	t.addReferencedJsonSchemaDictEntries(refs)
 	return refs, true
+}
+
+func (t *inflightTracker) addReferencedJsonSchemaDictEntries(refs stateReferences) {
+	for id := range refs.jsonSchemaIDs {
+		addJsonSchemaReferences(refs, t.snapshot.jsonSchemaMap[id])
+	}
 }
 
 func (t *inflightTracker) missingSnapshotDefines(datums []*statefulpb.Datum) []*statefulpb.Datum {

@@ -371,6 +371,57 @@ func TestJsonSchemaDeletedWhenReferencedDictEntryEvicted(t *testing.T) {
 	assert.True(t, sawDictDelete, "referenced dict entry should be deleted after dependent json schema")
 }
 
+func TestJsonSchemaRedefinedWhenReferencedDictIDsChange(t *testing.T) {
+	mt := NewMessageTranslator("test-pipeline", rtokenizer.NewRustTokenizer())
+	outputChan := make(chan *message.StatefulMessage, 20)
+	msg := message.NewMessage([]byte("request done"), nil, "", 0)
+
+	_, schemaID := mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, "msg", []string{"level", "object.kind"})
+	require.NotZero(t, schemaID)
+	firstSchema := mt.jsonSchemaByID[schemaID]
+	require.NotNil(t, firstSchema)
+
+	evictedIDs := mt.tagManager.EvictStaleEntries(0)
+	require.Contains(t, evictedIDs, firstSchema.keyIDs[0])
+	// Simulate a stale schema cache where the dictionary entries were evicted
+	// without the corresponding json schema cache entry being invalidated.
+
+	_, redefinedSchemaID := mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, "msg", []string{"level", "object.kind"})
+	require.NotEqual(t, schemaID, redefinedSchemaID)
+	redefinedSchema := mt.jsonSchemaByID[redefinedSchemaID]
+	require.NotNil(t, redefinedSchema)
+	assert.NotEqual(t, firstSchema.keyIDs, redefinedSchema.keyIDs)
+
+	var sawOldSchemaDelete bool
+	var sawNewSchemaDefine bool
+	for len(outputChan) > 0 {
+		statefulMsg := <-outputChan
+		if schemaDelete := statefulMsg.Datum.GetJsonSchemaDelete(); schemaDelete != nil && schemaDelete.SchemaId == schemaID {
+			sawOldSchemaDelete = true
+		}
+		if schemaDefine := statefulMsg.Datum.GetJsonSchemaDefine(); schemaDefine != nil && schemaDefine.SchemaId == redefinedSchemaID {
+			sawNewSchemaDefine = true
+		}
+	}
+	assert.True(t, sawOldSchemaDelete)
+	assert.True(t, sawNewSchemaDefine)
+}
+
+func TestJsonSchemaDefineKeepsEmptyKeysAlignedWithCompactValues(t *testing.T) {
+	mt := NewMessageTranslator("test-pipeline", rtokenizer.NewRustTokenizer())
+	outputChan := make(chan *message.StatefulMessage, 10)
+	msg := message.NewMessage([]byte("request done"), nil, "", 0)
+
+	_, schemaID := mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, "message", []string{"", "level"})
+	require.NotZero(t, schemaID)
+	schema := mt.jsonSchemaByID[schemaID]
+	require.NotNil(t, schema)
+	require.Len(t, schema.keyIDs, 2)
+
+	compact, _ := mt.compactJSONContextValues([]interface{}{"empty-key-value", "INFO"})
+	assert.Len(t, compact.kinds, len(schema.keyIDs))
+}
+
 func ptrInt64(v int64) *int64       { return &v }
 func ptrFloat64(v float64) *float64 { return &v }
 func ptrBool(v bool) *bool          { return &v }
