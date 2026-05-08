@@ -367,7 +367,7 @@ func (c *converterWithoutAgent) ensureOtlpHTTPExporterConfig(conf confMap, expor
 			if !ensureKeyStringValue(headers, fieldDDAPIKey) {
 				return fmt.Errorf("%s exporter missing required dd-api-key header", name)
 			}
-			if _, err := SetDefault(headers, fieldDDEVPOrigin, version.ProfilerName); err != nil {
+			if _, err := SetDefault(headers, fieldDDEVPOrigin, version.StandaloneProfilerName); err != nil {
 				return err
 			}
 			if _, err := SetDefault(headers, fieldDDEVPOriginVersion, version.ProfilerVersion); err != nil {
