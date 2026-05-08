@@ -394,10 +394,14 @@ func (c *cachedSectionData) Close() error {
 // DiskFile is a writable file that reserves space from the DiskCache. It
 // enforces a maximum size and can be converted to a memory map.
 type DiskFile struct {
-	c             *DiskCache
-	f             *os.File
-	name          string
-	reservedSpace uint64
+	c    *DiskCache
+	f    *os.File
+	name string
+	// reservedSpace is heap-allocated and shared with the cleanup closure
+	// registered via runtime.AddCleanup so that the closure can observe the
+	// current reservation at finalization time without keeping the DiskFile
+	// itself reachable.
+	reservedSpace *uint64
 	maxSpace      uint64
 	used          uint64
 	cleanup       runtime.Cleanup
@@ -440,20 +444,27 @@ func (c *DiskCache) NewFile(name string, maxSize, initialSize uint64) (_ *DiskFi
 		return nil, err
 	}
 	type spaceAndFile struct {
-		space uint64
+		// space points at the DiskFile's reservedSpace counter so the cleanup
+		// observes growth from Write at finalization time. The pointer must
+		// not be reachable from the DiskFile itself or finalization would
+		// never run; both the DiskFile and this cleanup arg point at the
+		// same heap-allocated counter.
+		space *uint64
 		file  *os.File
 	}
+	reserved := new(uint64)
+	*reserved = initialSize
 	df := &DiskFile{
 		c:             c,
 		f:             f,
 		name:          name,
-		reservedSpace: initialSize,
+		reservedSpace: reserved,
 		maxSpace:      maxSize,
 	}
 	df.cleanup = runtime.AddCleanup(df, func(s spaceAndFile) {
 		_ = s.file.Close()
-		c.releaseSpace(s.space)
-	}, spaceAndFile{space: initialSize, file: f})
+		c.releaseSpace(*s.space)
+	}, spaceAndFile{space: reserved, file: f})
 	return df, nil
 }
 
@@ -478,15 +489,15 @@ func (df *DiskFile) Write(p []byte) (int, error) {
 	}
 
 	// Ensure reservation is large enough for this write.
-	if neededTotal > df.reservedSpace {
-		needed := neededTotal - df.reservedSpace
-		increment := max(needed, 2*df.reservedSpace)
+	if neededTotal > *df.reservedSpace {
+		needed := neededTotal - *df.reservedSpace
+		increment := max(needed, 2*(*df.reservedSpace))
 		remaining := df.maxSpace - df.used
 		increment = min(increment, remaining)
 		if err := df.c.reserveSpace(increment); err != nil {
 			return 0, err
 		}
-		df.reservedSpace += increment
+		*df.reservedSpace += increment
 	}
 
 	n, err := df.f.Write(p)
@@ -511,9 +522,9 @@ func (df *DiskFile) Close() error {
 	df.closed = true
 	err := df.f.Close()
 	df.f = nil
-	if df.reservedSpace > 0 {
-		df.c.releaseSpace(df.reservedSpace)
-		df.reservedSpace = 0
+	if *df.reservedSpace > 0 {
+		df.c.releaseSpace(*df.reservedSpace)
+		*df.reservedSpace = 0
 	}
 	df.used = 0
 	return err
@@ -594,17 +605,17 @@ func (df *DiskFile) IntoMMap(flags int) (_ SectionData, retErr error) {
 	// Decompression never ran; but release() expects refCount to be set.
 	df.c.mu.Lock()
 	// Replace reservation with actual usage in totalBytes.
-	if df.reservedSpace > df.c.mu.totalBytes {
+	if *df.reservedSpace > df.c.mu.totalBytes {
 		// Should not happen, but guard against underflow.
 		log.Errorf(
 			"IntoMMap: invariant violation: reservedSpace > totalBytes: %s > %s (delta: %s)",
-			humanize.IBytes(df.reservedSpace),
+			humanize.IBytes(*df.reservedSpace),
 			humanize.IBytes(df.c.mu.totalBytes),
-			humanize.IBytes(df.reservedSpace-df.c.mu.totalBytes),
+			humanize.IBytes(*df.reservedSpace-df.c.mu.totalBytes),
 		)
 		df.c.mu.totalBytes = 0
 	} else {
-		df.c.mu.totalBytes -= df.reservedSpace
+		df.c.mu.totalBytes -= *df.reservedSpace
 	}
 	df.c.mu.totalBytes += df.used
 	entry.cacheMu.refCount = 1
@@ -613,7 +624,7 @@ func (df *DiskFile) IntoMMap(flags int) (_ SectionData, retErr error) {
 	df.c.mu.Unlock()
 
 	// Finalize DiskFile state.
-	df.reservedSpace = 0
+	*df.reservedSpace = 0
 	df.closed = true
 	df.cleanup.Stop()
 	runtime.KeepAlive(df)
