@@ -30,9 +30,8 @@ type Requires struct {
 }
 
 type networkDeviceConfigImpl struct {
-	config *ProcessedNcmConfig
-	log    log.Component
-	store  ncmstore.ConfigStore
+	log   log.Component
+	store ncmstore.ConfigStore
 }
 
 // NewComponent creates a new networkconfigmanagement component
@@ -52,11 +51,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 }
 func newComponent(reqs Requires) (networkconfigmanagement.Component, error) {
-	ncmConfig, err := newConfig(reqs.Config)
-	if err != nil {
-		return nil, reqs.Logger.Errorf("Failed to read network device configuration: %v", err)
-	}
-
 	runPath := reqs.Config.GetString("run_path")
 	dbPath := filepath.Join(runPath, "ncm_config.db")
 	store, err := ncmstore.Open(dbPath)
@@ -67,9 +61,8 @@ func newComponent(reqs Requires) (networkconfigmanagement.Component, error) {
 	reqs.Lifecycle.Append(compdef.Hook{OnStop: store.Close})
 
 	impl := &networkDeviceConfigImpl{
-		config: ncmConfig,
-		log:    reqs.Logger,
-		store:  store,
+		log:   reqs.Logger,
+		store: store,
 	}
 	return impl, nil
 }
