@@ -29,6 +29,29 @@ from typing import Any
 
 import yaml
 
+from tasks.libs.otelcol_schema._refs import (
+    RefStatus,
+    classify_ref,
+    encode_module_path,
+    find_module_schema,
+    module_cache_dir,
+    parse_go_mod_versions,
+    parse_go_sum_versions,
+    schema_contains_type,
+    walk_refs,
+)
+
+__all__ = [
+    "RefStatus",
+    "classify_ref",
+    "encode_module_path",
+    "module_cache_dir",
+    "parse_go_mod_versions",
+    "parse_go_sum_versions",
+    "schema_contains_type",
+    "walk_refs",
+]
+
 # ---------------------------------------------------------------------------
 # Repo + filesystem layout
 # ---------------------------------------------------------------------------
@@ -64,19 +87,6 @@ def gomodcache() -> Path:
     return Path(out.stdout.strip())
 
 
-def encode_module_path(path: str) -> str:
-    """Apply Go's module-cache path encoding.
-
-    Each uppercase letter becomes `!<lowercase>`. So
-    `github.com/DataDog/foo` -> `github.com/!data!dog/foo`.
-    """
-    return "".join("!" + ch.lower() if ch.isupper() else ch for ch in path)
-
-
-def module_cache_dir(cache_root: Path, gomod: str, version: str) -> Path:
-    return cache_root / f"{encode_module_path(gomod)}@{version}"
-
-
 def ensure_downloaded(gomod: str, version: str, *, cwd: Path) -> tuple[bool, str]:
     """`go mod download <gomod>@<version>` from `cwd`. Returns (ok, message)."""
     spec = f"{gomod}@{version}"
@@ -85,6 +95,7 @@ def ensure_downloaded(gomod: str, version: str, *, cwd: Path) -> tuple[bool, str
         cwd=cwd,
         capture_output=True,
         text=True,
+        check=False,  # explicit: caller inspects returncode
     )
     if proc.returncode == 0:
         return True, ""
@@ -173,8 +184,7 @@ def load_component_from_dir(
             md = yaml.safe_load(metadata_path.read_text()) or {}
             metadata_type = md.get("type")
             metadata_class = (md.get("status") or {}).get("class")
-        except yaml.YAMLError as e:  # noqa: PERF203
-            metadata_type = metadata_class = None  # noqa: F841
+        except yaml.YAMLError as e:
             return Component(
                 source=source,
                 section=section,
@@ -227,135 +237,6 @@ def load_component_from_dir(
     )
 
 
-def walk_refs(node: Any, acc: set[str] | None = None) -> set[str]:
-    """Recursively collect every `$ref` string in a parsed schema document."""
-    if acc is None:
-        acc = set()
-    if isinstance(node, dict):
-        for k, v in node.items():
-            if k == "$ref" and isinstance(v, str):
-                acc.add(v)
-            else:
-                walk_refs(v, acc)
-    elif isinstance(node, list):
-        for item in node:
-            walk_refs(item, acc)
-    return acc
-
-
-# ---------------------------------------------------------------------------
-# $ref classification + resolution
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class RefStatus:
-    ref: str
-    kind: str  # "uri" | "namespace_relative" | "package_type" | "bare" | "unknown"
-    target_module: str | None = None  # Go import path of the schema we'd look in
-    target_type: str | None = None  # snake_case type name within that schema
-    resolved: bool = False
-    schema_path: str | None = None  # absolute path of the resolving file
-    used_by: list[str] = field(default_factory=list)
-    note: str = ""
-
-
-def classify_ref(ref: str) -> RefStatus:
-    if "://" in ref:
-        return RefStatus(ref=ref, kind="uri")
-
-    if ref.startswith("./") or ref.startswith("../"):
-        # Schemagen's relative form for refs into a sibling sub-package of
-        # the source schema's own module. Resolved against the schema file's
-        # directory rather than against any module root.
-        idx = ref.rfind(".")
-        return RefStatus(
-            ref=ref,
-            kind="relative",
-            target_module=ref[:idx],
-            target_type=ref[idx + 1 :],
-        )
-
-    if ref.startswith("/"):
-        # Upstream-style namespace-relative form: assume the ref's namespace
-        # is the repo it was generated in. We can't resolve these without
-        # knowing that namespace, so mark them and move on.
-        return RefStatus(ref=ref, kind="namespace_relative")
-
-    # `<package_path>.<snake_type>` form: package path contains '/' so we know
-    # it's not a bare same-file ref. Split on the rightmost '.'.
-    if "/" in ref and "." in ref:
-        idx = ref.rfind(".")
-        pkg = ref[:idx]
-        type_name = ref[idx + 1 :]
-        return RefStatus(ref=ref, kind="package_type", target_module=pkg, target_type=type_name)
-
-    if "." not in ref and "/" not in ref:
-        return RefStatus(ref=ref, kind="bare")
-
-    return RefStatus(ref=ref, kind="unknown")
-
-
-GOMOD_REQUIRE_LINE = re.compile(r"^\s*(\S+)\s+(v\S+)\s*(?://.*)?$")
-GOSUM_LINE = re.compile(r"^(\S+)\s+(v\S+?)(?:/go\.mod)?\s+h1:")
-
-
-def parse_go_sum_versions(go_sum: Path) -> dict[str, str]:
-    """Extract `<module> -> <version>` from go.sum, taking any version seen.
-    go.sum lists every transitive dep, including the ones go.mod's `require`
-    block doesn't restate. Multiple versions may appear for one module; we
-    keep the first observed since that's typically the resolved one."""
-    if not go_sum.is_file():
-        return {}
-    out: dict[str, str] = {}
-    for line in go_sum.read_text().splitlines():
-        m = GOSUM_LINE.match(line)
-        if m:
-            out.setdefault(m.group(1), m.group(2))
-    return out
-
-
-def parse_go_mod_versions(go_mod: Path) -> dict[str, str]:
-    """Extract `<module> <version>` pairs from `require` blocks in go.mod."""
-    if not go_mod.is_file():
-        return {}
-    out: dict[str, str] = {}
-    in_require = False
-    for line in go_mod.read_text().splitlines():
-        s = line.strip()
-        if s.startswith("require ("):
-            in_require = True
-            continue
-        if in_require and s == ")":
-            in_require = False
-            continue
-        if s.startswith("require ") and "(" not in s:
-            s = s[len("require ") :]
-            m = GOMOD_REQUIRE_LINE.match(s)
-            if m:
-                out[m.group(1)] = m.group(2)
-            continue
-        if in_require:
-            m = GOMOD_REQUIRE_LINE.match(s)
-            if m:
-                out[m.group(1)] = m.group(2)
-    return out
-
-
-def schema_contains_type(doc: dict[str, Any], type_name: str) -> bool:
-    """A ref `<path>.<type>` resolves if `<type>` is in the file's `$defs`,
-    or if the file is a component-mode schema (has root `properties`) and
-    `<type>` matches the root — by convention `config`, but we also accept
-    when no `$defs` are present and the file has root properties (the
-    schemagen component-mode shape)."""
-    if type_name in (doc.get("$defs") or {}):
-        return True
-    has_root_props = isinstance(doc.get("properties"), dict) or "allOf" in doc
-    if has_root_props and type_name == "config":
-        return True
-    return False
-
-
 def resolve_relative(
     status: RefStatus,
     *,
@@ -405,33 +286,20 @@ def resolve_package_type(
     pkg = status.target_module or ""
     type_name = status.target_type or ""
 
-    # Try progressively shorter prefixes — the schema lives at the package
-    # level it was generated for, which may be the leaf or a parent.
-    parts = pkg.split("/")
-    matched_module: Path | None = None
-    for i in range(len(parts), 0, -1):
-        candidate = "/".join(parts[:i])
-        version = module_versions.get(candidate)
-        if not version:
-            continue
-        module_dir = module_cache_dir(cache_root, candidate, version)
-        rel = "/".join(parts[i:])
-        schema_file = module_dir / rel / "config.schema.yaml" if rel else module_dir / "config.schema.yaml"
-        if matched_module is None and module_dir.is_dir():
-            matched_module = module_dir
-        if schema_file.is_file():
-            try:
-                doc = yaml.safe_load(schema_file.read_text()) or {}
-            except yaml.YAMLError as e:
-                status.note = f"parse error: {e}"
-                return
-            if schema_contains_type(doc, type_name):
-                status.resolved = True
-                status.schema_path = str(schema_file)
-            else:
-                status.note = f"file present, type {type_name!r} not found"
-                status.schema_path = str(schema_file)
+    schema_file, matched_module = find_module_schema(pkg, cache_root=cache_root, versions=module_versions)
+    if schema_file is not None:
+        try:
+            doc = yaml.safe_load(schema_file.read_text()) or {}
+        except yaml.YAMLError as e:
+            status.note = f"parse error: {e}"
             return
+        if schema_contains_type(doc, type_name):
+            status.resolved = True
+            status.schema_path = str(schema_file)
+        else:
+            status.note = f"file present, type {type_name!r} not found"
+            status.schema_path = str(schema_file)
+        return
     if matched_module is not None:
         status.note = "module cached but no config.schema.yaml generated upstream"
     else:

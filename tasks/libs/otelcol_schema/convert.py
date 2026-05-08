@@ -32,6 +32,7 @@ import yaml
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
+from tasks.libs.otelcol_schema._refs import classify_ref
 from tasks.libs.otelcol_schema.inventory import LOCAL_SCHEMAS, REPO_ROOT
 
 JSON_SCHEMA_DRAFT = "https://json-schema.org/draft/2020-12/schema"
@@ -43,18 +44,11 @@ JSON_SCHEMA_DRAFT = "https://json-schema.org/draft/2020-12/schema"
 
 
 def is_bare_ref(ref: str) -> bool:
-    """A schemagen `bare` ref is a same-file lookup: no scheme, no slashes,
-    no dots, just a `$defs` key. (Already-rewritten `#/...` JSON Pointers
-    are not bare.)"""
-    if not ref:
+    """A schemagen `bare` ref is a same-file `$defs` lookup. Already-
+    rewritten `#/...` JSON Pointers are not bare."""
+    if not ref or ref.startswith("#"):
         return False
-    if ref.startswith("#"):
-        return False
-    if "://" in ref:
-        return False
-    if "/" in ref or "." in ref:
-        return False
-    return True
+    return classify_ref(ref).kind == "bare"
 
 
 # ---------------------------------------------------------------------------
