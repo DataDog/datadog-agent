@@ -60,6 +60,20 @@ var (
 	post116ContainerLabels = []string{"namespace", "name", "image", "id", "container", "pod"}
 
 	maxMemoryRss = math.Pow(2, 63)
+
+	// summaryOwnedMetricFamilies lists the cAdvisor metric families that are
+	// also produced by the /stats/summary endpoint. When the summary provider
+	// is configured as the source, these transformers are dropped from the
+	// cAdvisor provider to avoid double-reporting.
+	summaryOwnedMetricFamilies = []string{
+		"container_cpu_usage_seconds_total",
+		"container_memory_usage_bytes",
+		"container_memory_working_set_bytes",
+		"container_fs_usage_bytes",
+		"container_fs_limit_bytes",
+		"container_network_receive_bytes_total",
+		"container_network_transmit_bytes_total",
+	}
 )
 
 type uidFromLabelsFunc func(prom.Metric) string
@@ -125,6 +139,14 @@ func NewProvider(filterStore workloadfilter.Component, config *common.KubeletCon
 		"container_memory_swap":                            provider.containerMemorySwap,
 		"container_spec_memory_limit_bytes":                provider.containerSpecMemoryLimitBytes,
 		"container_spec_memory_swap_limit_bytes":           provider.containerSpecMemorySwapLimitBytes,
+	}
+
+	if config.UseStatsSummary() {
+		// The summary provider emits these metric families when it is configured
+		// as the source, so unregister them here to avoid double-reporting.
+		for _, name := range summaryOwnedMetricFamilies {
+			delete(transformers, name)
+		}
 	}
 
 	scraperConfig := &prometheus.ScraperConfig{

@@ -11,7 +11,6 @@ package summary
 import (
 	"context"
 	"regexp"
-	"runtime"
 	"strings"
 	"time"
 
@@ -77,14 +76,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 		return err
 	}
 
-	useStatsAsSource := false
-	if p.config.UseStatsSummaryAsSource == nil {
-		if runtime.GOOS == "windows" {
-			useStatsAsSource = true
-		}
-	} else {
-		useStatsAsSource = *p.config.UseStatsSummaryAsSource
-	}
+	useStatsAsSource := p.config.UseStatsSummary()
 
 	rateFilterList := p.defaultRateFilterList
 	if len(p.config.EnabledRates) > 0 {

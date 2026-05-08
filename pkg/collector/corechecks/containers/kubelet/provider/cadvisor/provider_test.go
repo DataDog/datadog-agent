@@ -8,6 +8,7 @@
 package cadvisor
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -83,7 +84,30 @@ var (
 		common.KubeletMetricsPrefix + "memory.rss",
 		common.KubeletMetricsPrefix + "memory.swap",
 	}
+
+	// expectedMetricsSummaryOverlap is the subset of expectedMetricsPrometheus
+	// that the summary provider also reports. When summary is the source these
+	// metrics are not emitted by the cAdvisor provider.
+	expectedMetricsSummaryOverlap = []string{
+		common.KubeletMetricsPrefix + "cpu.usage.total",
+		common.KubeletMetricsPrefix + "memory.usage",
+		common.KubeletMetricsPrefix + "memory.working_set",
+		common.KubeletMetricsPrefix + "filesystem.usage",
+		common.KubeletMetricsPrefix + "filesystem.usage_pct",
+		common.KubeletMetricsPrefix + "network.rx_bytes",
+		common.KubeletMetricsPrefix + "network.tx_bytes",
+	}
 )
+
+func expectedMetricsWithoutSummaryOverlap() []string {
+	filtered := make([]string, 0, len(expectedMetricsPrometheus))
+	for _, metric := range expectedMetricsPrometheus {
+		if !slices.Contains(expectedMetricsSummaryOverlap, metric) {
+			filtered = append(filtered, metric)
+		}
+	}
+	return filtered
+}
 
 type ProviderTestSuite struct {
 	suite.Suite
@@ -94,6 +118,10 @@ type ProviderTestSuite struct {
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
+	suite.setupTestWithConfig(nil)
+}
+
+func (suite *ProviderTestSuite) setupTestWithConfig(mutate func(*common.KubeletConfig)) {
 	var err error
 
 	store := fxutil.Test[workloadmetamock.Mock](suite.T(), fx.Options(
@@ -131,6 +159,9 @@ func (suite *ProviderTestSuite) SetupTest() {
 			Namespace:            common.KubeletMetricsPrefix,
 		},
 	}
+	if mutate != nil {
+		mutate(config)
+	}
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(suite.T())
 
 	p, err := NewProvider(
@@ -149,22 +180,18 @@ func TestProviderTestSuite(t *testing.T) {
 }
 
 func (suite *ProviderTestSuite) TestExpectedMetricsShowUp() {
-	type want struct {
-		metrics []string
-		err     error
-	}
 	tests := []struct {
-		name     string
-		response commontesting.EndpointResponse
-		want     want
+		name          string
+		response      commontesting.EndpointResponse
+		configMutator func(*common.KubeletConfig)
+		wantMetrics   []string
+		wantErr       error
 	}{
 		{
 			name: "pre 1.16 metrics all show up",
 			response: commontesting.NewEndpointResponse(
 				"../../testdata/cadvisor_metrics_pre_1_16.txt", 200, nil),
-			want: want{
-				metrics: expectedMetricsPrometheus,
-			},
+			wantMetrics: expectedMetricsPrometheus,
 		},
 		{
 			// All the metrics reported by this provider require container or pod metadata in the store, and drop the
@@ -173,14 +200,22 @@ func (suite *ProviderTestSuite) TestExpectedMetricsShowUp() {
 			name: "no matching pod data no metrics show up",
 			response: commontesting.NewEndpointResponse(
 				"../../testdata/cadvisor_metrics_1_21.txt", 200, nil),
-			want: want{
-				metrics: []string{},
+			wantMetrics: []string{},
+		},
+		{
+			name: "summary as source disables overlapping metrics",
+			response: commontesting.NewEndpointResponse(
+				"../../testdata/cadvisor_metrics_pre_1_16.txt", 200, nil),
+			configMutator: func(c *common.KubeletConfig) {
+				enabled := true
+				c.UseStatsSummaryAsSource = &enabled
 			},
+			wantMetrics: expectedMetricsWithoutSummaryOverlap(),
 		},
 	}
 	for _, tt := range tests {
 		suite.T().Run(tt.name, func(t *testing.T) {
-			suite.SetupTest()
+			suite.setupTestWithConfig(tt.configMutator)
 			kubeletMock, err := commontesting.CreateKubeletMock(tt.response, endpoint)
 			if err != nil {
 				suite.T().Fatalf("error created kubelet mock: %v", err)
@@ -190,12 +225,12 @@ func (suite *ProviderTestSuite) TestExpectedMetricsShowUp() {
 			_ = suite.provider.Provide(kubeletMock, suite.mockSender)
 			suite.mockSender.ResetCalls()
 			err = suite.provider.Provide(kubeletMock, suite.mockSender)
-			if err != tt.want.err {
-				t.Errorf("Collect() error = %v, wantErr %v", err, tt.want.err)
+			if err != tt.wantErr {
+				t.Errorf("Collect() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
-			commontesting.AssertMetricCallsMatch(t, tt.want.metrics, suite.mockSender)
+			commontesting.AssertMetricCallsMatch(t, tt.wantMetrics, suite.mockSender)
 		})
 	}
 }

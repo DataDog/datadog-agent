@@ -9,6 +9,8 @@
 package common
 
 import (
+	"runtime"
+
 	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
@@ -31,4 +33,15 @@ type KubeletConfig struct {
 // Parse parses the configuration.
 func (c *KubeletConfig) Parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
+}
+
+// UseStatsSummary reports whether the /stats/summary endpoint should be the
+// source for metrics that are also emitted by /metrics/cadvisor. When the
+// option is unset, the default is true on Windows (where cAdvisor is not
+// available in modern kubelets) and false elsewhere.
+func (c *KubeletConfig) UseStatsSummary() bool {
+	if c.UseStatsSummaryAsSource != nil {
+		return *c.UseStatsSummaryAsSource
+	}
+	return runtime.GOOS == "windows"
 }
