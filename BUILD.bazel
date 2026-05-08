@@ -629,13 +629,7 @@ exports_files(glob(
 # gazelle:exclude pkg/process/util/status
 # gazelle:exclude pkg/procmgr
 # gazelle:exclude pkg/proto/datadog/api
-# gazelle:exclude pkg/proto/datadog/autodiscovery
-# gazelle:exclude pkg/proto/datadog/kubemetadata
-# gazelle:exclude pkg/proto/datadog/model
 # gazelle:exclude pkg/proto/datadog/remoteagent
-# gazelle:exclude pkg/proto/datadog/remoteconfig
-# gazelle:exclude pkg/proto/datadog/workloadfilter
-# gazelle:exclude pkg/proto/datadog/workloadmeta
 # gazelle:exclude pkg/proto/protodep
 # gazelle:exclude pkg/remoteflags
 # gazelle:exclude pkg/sbom/collectors/docker
