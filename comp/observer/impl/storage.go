@@ -41,6 +41,12 @@ type timeSeriesStorage struct {
 	// series key is created, not on every write to an existing series.
 	seriesGen uint64
 
+	// tagIntern maps a fnv64a hash of a series' sorted tag set to the canonical
+	// []string slice shared by all series with that tag combination, plus a
+	// reference count. When the count drops to zero on eviction the entry is
+	// deleted. Protected by s.mu (write lock).
+	tagIntern map[uint64]*tagInternEntry
+
 	// Drop accounting for invalid/unsafe input values.
 	droppedNonFinite int64
 	droppedExtreme   int64
@@ -51,10 +57,19 @@ type timeSeriesStorage struct {
 // seriesStats contains accumulated statistics for a time series (internal).
 // Data is stored in columnar layout: parallel arrays indexed by point position.
 // Timestamps are stored in sorted order, enabling binary search for range queries.
+// tagInternEntry is the value stored in timeSeriesStorage.tagIntern.
+// tags is the canonical []string shared by all series with the same tag set.
+// count is the number of live series currently referencing it.
+type tagInternEntry struct {
+	tags  []string
+	count int
+}
+
 type seriesStats struct {
 	Namespace string
 	Name      string
 	Tags      []string
+	tagsHash  uint64             // fnv64a hash of Tags; 0 means not interned
 	ref       observer.SeriesRef // compact numeric ID assigned on creation
 
 	// writeGeneration is per-series and increments on every Add, including
@@ -176,6 +191,7 @@ func newTimeSeriesStorage() *timeSeriesStorage {
 	return &timeSeriesStorage{
 		series:                make(map[string]*seriesStats),
 		observationTimestamps: make(map[int64]struct{}),
+		tagIntern:             make(map[uint64]*tagInternEntry),
 		droppedByMetric:       make(map[string]int64),
 		sampledDrops:          make(map[string]int),
 	}
@@ -221,10 +237,12 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	stats, exists := s.series[key]
 	if !exists {
 		id := observer.SeriesRef(len(s.seriesIDKeys))
+		canonical, h := s.internTags(tags)
 		stats = &seriesStats{
 			Namespace: namespace,
 			Name:      name,
-			Tags:      canonicalizeTags(tags),
+			Tags:      canonical,
+			tagsHash:  h,
 			ref:       id,
 		}
 		s.series[key] = stats
@@ -532,6 +550,107 @@ func copyTags(tags []string) []string {
 	return result
 }
 
+// tagInternMaxSize caps the number of unique tag-set entries in the intern
+// pool. New combinations beyond the cap are used as-is (no sharing, no pool
+// growth); hits on already-interned combinations still return the canonical
+// slice. Matches the default for dogstatsd_string_interner_size.
+const tagInternMaxSize = 4096
+
+// hashTags computes a fnv64a hash over sorted tags without constructing the
+// joined string. The result is the key into timeSeriesStorage.tagIntern.
+// Returns 0 only when tags is empty.
+func hashTags(tags []string) uint64 {
+	if len(tags) == 0 {
+		return 0
+	}
+	h := fnvOffsetBasis64
+	for i, t := range tags {
+		if i > 0 {
+			h ^= uint64(',')
+			h *= fnvPrime64
+		}
+		for j := 0; j < len(t); j++ {
+			h ^= uint64(t[j])
+			h *= fnvPrime64
+		}
+	}
+	// Reserve 0 as "not interned" sentinel; remap the vanishingly rare
+	// zero hash to a non-zero value so it can still be interned.
+	if h == 0 {
+		h = 1
+	}
+	return h
+}
+
+// tagsEqual reports whether two sorted tag slices have identical content.
+// Used to detect hash collisions in the intern pool.
+func tagsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// internTags sorts tags (if needed), hashes the result, and either returns
+// the canonical []string from the pool (incrementing its ref count) or inserts
+// a new entry. Returns the canonical slice and its hash. Hash 0 means the
+// combination was not interned (cap reached or hash collision). Must be called
+// with s.mu write-locked.
+func (s *timeSeriesStorage) internTags(tags []string) ([]string, uint64) {
+	if len(tags) == 0 {
+		return nil, 0
+	}
+	sorted := make([]string, len(tags))
+	copy(sorted, tags)
+	if len(sorted) > 1 && !tagsSorted(sorted) {
+		sort.Strings(sorted)
+	}
+	h := hashTags(sorted)
+	if entry, ok := s.tagIntern[h]; ok {
+		if tagsEqual(entry.tags, sorted) {
+			entry.count++
+			return entry.tags, h
+		}
+		// Hash collision — skip interning, return sorted as-is.
+		return sorted, 0
+	}
+	if len(s.tagIntern) >= tagInternMaxSize {
+		// Pool at cap — return sorted without interning.
+		return sorted, 0
+	}
+	entry := &tagInternEntry{tags: sorted, count: 1}
+	s.tagIntern[h] = entry
+	return sorted, h
+}
+
+// releaseTagIntern decrements the ref count for the intern entry at hash h
+// and deletes the entry if the count reaches zero. Must be called with s.mu
+// write-locked. No-op when h is 0 (not interned).
+func (s *timeSeriesStorage) releaseTagIntern(h uint64) {
+	if h == 0 {
+		return
+	}
+	if entry, ok := s.tagIntern[h]; ok {
+		entry.count--
+		if entry.count == 0 {
+			delete(s.tagIntern, h)
+		}
+	}
+}
+
+// TagInternedCount returns the number of unique tag-set entries in the intern
+// pool. Useful for telemetry and tests.
+func (s *timeSeriesStorage) TagInternedCount() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.tagIntern)
+}
+
 func canonicalizeTags(tags []string) []string {
 	if len(tags) <= 1 {
 		return copyTags(tags)
@@ -818,6 +937,7 @@ func (s *timeSeriesStorage) RemoveSeriesByKeys(keys []string) []observer.SeriesR
 			continue
 		}
 		id := stats.ref
+		s.releaseTagIntern(stats.tagsHash)
 		delete(s.series, key)
 		if int(id) < len(s.seriesIDStats) {
 			s.seriesIDStats[id] = nil

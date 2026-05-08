@@ -6,10 +6,12 @@
 package observerimpl
 
 import (
+	"fmt"
 	"hash/fnv"
 	"math"
 	"sync"
 	"testing"
+	"unsafe"
 
 	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	"github.com/stretchr/testify/assert"
@@ -743,4 +745,128 @@ func TestFnv64aMixUint64_MatchesStdlib(t *testing.T) {
 
 	got := fnv64aMixUint64(fnvOffsetBasis64, v)
 	assert.Equal(t, h.Sum64(), got)
+}
+
+func TestTimeSeriesStorage_TagIntern_PoolGrows(t *testing.T) {
+	s := newTimeSeriesStorage()
+	assert.Equal(t, 0, s.TagInternedCount())
+
+	// Each unique tag combination gets one pool entry.
+	s.Add("ns", "m1", 1.0, 1000, []string{"env:prod", "host:a"})
+	assert.Equal(t, 1, s.TagInternedCount(), "one combination interned")
+
+	s.Add("ns", "m2", 1.0, 1000, []string{"env:prod", "host:b"})
+	assert.Equal(t, 2, s.TagInternedCount(), "second distinct combination interned")
+
+	// Same combination as m1 — pool must not grow.
+	s.Add("ns2", "m1", 1.0, 1000, []string{"env:prod", "host:a"})
+	assert.Equal(t, 2, s.TagInternedCount(), "repeated combination must not grow pool")
+}
+
+func TestTimeSeriesStorage_TagIntern_SharedSlice(t *testing.T) {
+	// Verify that two series with the same tag combination share the same
+	// []string backing array. We inspect seriesStats.Tags directly (in-package)
+	// rather than going through GetSeries/toSeries, so the test is not sensitive
+	// to whether toSeries copies the tag slice.
+	s := newTimeSeriesStorage()
+
+	// Build tags at runtime to defeat Go's compile-time string interning.
+	tags := []string{"env:" + string([]byte{'p', 'r', 'o', 'd'}), "host:a"}
+	key1 := seriesKey("ns", "m1", tags)
+	key2 := seriesKey("ns", "m2", tags)
+
+	s.Add("ns", "m1", 1.0, 1000, tags)
+	s.Add("ns", "m2", 1.0, 1000, tags)
+
+	s.mu.RLock()
+	stats1 := s.series[key1]
+	stats2 := s.series[key2]
+	s.mu.RUnlock()
+
+	require.NotNil(t, stats1)
+	require.NotNil(t, stats2)
+
+	// Pointer identity on the backing array — same intern entry.
+	ptr1 := uintptr(unsafe.Pointer(unsafe.SliceData(stats1.Tags)))
+	ptr2 := uintptr(unsafe.Pointer(unsafe.SliceData(stats2.Tags)))
+	assert.Equal(t, ptr1, ptr2, "series with identical tag sets must share the same []string backing array")
+	assert.Equal(t, 1, s.TagInternedCount())
+}
+
+func TestTimeSeriesStorage_TagIntern_Eviction(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	tags := []string{"env:prod", "host:a"}
+	key1 := seriesKey("ns", "m1", tags)
+	key2 := seriesKey("ns", "m2", tags)
+
+	s.Add("ns", "m1", 1.0, 1000, tags)
+	s.Add("ns", "m2", 1.0, 1000, tags)
+	assert.Equal(t, 1, s.TagInternedCount(), "one pool entry for the shared combination")
+
+	// Evict one series — pool entry survives (still referenced by m2).
+	s.RemoveSeriesByKeys([]string{key1})
+	assert.Equal(t, 1, s.TagInternedCount(), "pool entry must survive while m2 still references it")
+
+	// Evict the last — pool entry must be freed.
+	s.RemoveSeriesByKeys([]string{key2})
+	assert.Equal(t, 0, s.TagInternedCount(), "pool entry must be freed when last referencing series is evicted")
+}
+
+func TestTimeSeriesStorage_TagIntern_NilAndEmptyTags(t *testing.T) {
+	// Nil and empty tag slices must not produce an intern pool entry,
+	// and removing such a series must not touch the pool.
+	s := newTimeSeriesStorage()
+
+	s.Add("ns", "nil_tags", 1.0, 1000, nil)
+	assert.Equal(t, 0, s.TagInternedCount(), "nil tags must not create an intern entry")
+
+	s.Add("ns", "empty_tags", 1.0, 1000, []string{})
+	assert.Equal(t, 0, s.TagInternedCount(), "empty tags must not create an intern entry")
+
+	s.RemoveSeriesByKeys([]string{
+		seriesKey("ns", "nil_tags", nil),
+		seriesKey("ns", "empty_tags", []string{}),
+	})
+	assert.Equal(t, 0, s.TagInternedCount(), "removal of uninterned series must leave pool empty")
+}
+
+func TestTimeSeriesStorage_TagIntern_UnsortedTagsShareEntry(t *testing.T) {
+	// Two series with the same tags in different order must share one pool
+	// entry. internTags sorts before hashing, so tag order is irrelevant.
+	s := newTimeSeriesStorage()
+
+	tags1 := []string{"host:a", "env:prod"} // unsorted
+	tags2 := []string{"env:prod", "host:a"} // sorted
+
+	s.Add("ns", "m1", 1.0, 1000, tags1)
+	s.Add("ns", "m2", 1.0, 1000, tags2)
+	assert.Equal(t, 1, s.TagInternedCount(), "same tags in different order must share one pool entry")
+
+	key1 := seriesKey("ns", "m1", tags1)
+	key2 := seriesKey("ns", "m2", tags2)
+
+	s.mu.RLock()
+	ptr1 := uintptr(unsafe.Pointer(unsafe.SliceData(s.series[key1].Tags)))
+	ptr2 := uintptr(unsafe.Pointer(unsafe.SliceData(s.series[key2].Tags)))
+	s.mu.RUnlock()
+	assert.Equal(t, ptr1, ptr2, "unsorted and sorted variants must share the same backing array")
+}
+
+func TestTimeSeriesStorage_TagIntern_Cap(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	// Fill the pool to the cap — each series has a unique tag combination.
+	for i := 0; i < tagInternMaxSize; i++ {
+		s.Add("ns", fmt.Sprintf("m%d", i), 1.0, 1000, []string{fmt.Sprintf("unique:tag%d", i)})
+	}
+	assert.Equal(t, tagInternMaxSize, s.TagInternedCount(), "pool should be at cap")
+
+	// A new unique combination must not grow the pool past the cap.
+	s.Add("ns", "overflow", 1.0, 1000, []string{"unique:overflow"})
+	assert.Equal(t, tagInternMaxSize, s.TagInternedCount(), "pool must not exceed cap")
+
+	// A hit on an already-interned combination must not grow the pool.
+	s.Add("ns2", "m0", 1.0, 1000, []string{"unique:tag0"})
+	assert.Equal(t, tagInternMaxSize, s.TagInternedCount(), "hit on existing entry must not grow pool")
 }
