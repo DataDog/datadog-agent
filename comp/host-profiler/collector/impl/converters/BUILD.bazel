@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "converters",
+    srcs = [
+        "converter_without_agent.go",
+        "converters.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/converters",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/host-profiler/version",
+        "//pkg/config/utils",
+        "@io_opentelemetry_go_collector_confmap//:confmap",
+        "@io_opentelemetry_go_collector_confmap_xconfmap//:xconfmap",
+        "@org_uber_go_zap_exp//zapslog",
+    ],
+)
+
+go_test(
+    name = "converters_test",
+    srcs = [
+        "converter_table_test.go",
+        "converters_test.go",
+    ],
+    data = glob(["td/**"]),
+    embed = [":converters"],
+    gotags = ["test"],
+    deps = [
+        "//comp/host-profiler/version",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v3//:yaml",
+        "@io_opentelemetry_go_collector_confmap//:confmap",
+        "@io_opentelemetry_go_collector_confmap_xconfmap//:xconfmap",
+        "@org_uber_go_zap//:zap",
+        "@org_uber_go_zap//zapcore",
+        "@org_uber_go_zap//zaptest/observer",
+    ],
+)

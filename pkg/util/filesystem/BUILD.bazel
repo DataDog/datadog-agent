@@ -87,7 +87,7 @@ go_library(
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/util/winutil",
-            "@com_github_hectane_go_acl//:go-acl",
+            "@com_github_datadog_go_acl//:go-acl",
             "@org_golang_x_sys//windows",
             "@org_golang_x_sys//windows/registry",
         ],

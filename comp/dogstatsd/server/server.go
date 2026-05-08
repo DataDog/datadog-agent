@@ -29,9 +29,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
+	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	offlinereporter "github.com/DataDog/datadog-agent/comp/offlinereporter/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -290,7 +290,7 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		captureChan:             nil,
 		sharedPacketPool:        nil,
 		sharedPacketPoolManager: nil,
-		sharedFloat64List:       newFloat64ListPool(telemetrycomp),
+		sharedFloat64List:       newFloat64ListPool(cfg, telemetrycomp),
 		demultiplexer:           demux,
 		listeners:               nil,
 		stopChan:                make(chan bool),
@@ -378,7 +378,7 @@ func (s *server) start(context.Context) error {
 
 	// sharedPacketPool is used by the packet assembler to retrieve already allocated
 	// buffer in order to avoid allocation. The packets are pushed back by the server.
-	sharedPacketPool := packets.NewPool(s.config.GetInt("dogstatsd_buffer_size"), s.packetsTelemetry)
+	sharedPacketPool := packets.NewPool(s.config, s.config.GetInt("dogstatsd_buffer_size"), s.packetsTelemetry)
 	sharedPacketPoolManager := packets.NewPoolManager[packets.Packet](sharedPacketPool)
 
 	socketPath := s.config.GetString("dogstatsd_socket")

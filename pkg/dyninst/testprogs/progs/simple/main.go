@@ -7,9 +7,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"strings"
+	"unsafe"
 )
 
 func main() {
@@ -50,6 +52,13 @@ func main() {
 	condInt16(7, "miss")
 	condInt32(42, "match")
 	condInt32(7, "miss")
+	// Negative value to exercise signed comparison: BPF cmp_kind_int
+	// XORs the sign bit of the most-significant byte before comparing,
+	// turning two's-complement compare into unsigned byte compare. A
+	// bug in that trick surfaces here as `x < 0` either firing on
+	// nothing (treats -5 as 0xfffffffb > 0) or firing on the wrong
+	// calls.
+	condInt32(-5, "neg")
 	condInt64(42, "match")
 	condInt64(7, "miss")
 	condUint8(42, "match")
@@ -68,6 +77,15 @@ func main() {
 	condBool(false, "miss")
 	condString("hello", "match")
 	condString("other", "miss")
+	// Long-LHS / max-length-literal regression coverage. The literal
+	// MaxStringLiteralLength (255) imposed by IR-gen used to be
+	// indistinguishable from a longer LHS sharing the same first 255
+	// bytes, because SM_OP_EXPR_READ_STRING capped the stored length at
+	// 255. condString_long_a_then_b is 300 bytes ('a'*255 + 'b'*45),
+	// condString_exact_a255 is 'a'*255 — both are compared against the
+	// 255-byte literal 'a'*255 in simple.yaml.
+	condString(strings.Repeat("a", 255)+strings.Repeat("b", 45), "long_a_then_b")
+	condString(strings.Repeat("a", 255), "exact_a255")
 
 	// Struct with typed fields: called twice with different field values so
 	// field-level conditions can distinguish the calls.
@@ -98,6 +116,13 @@ func main() {
 	condReturnAndLocal(5, 3)
 	condReturnAndLocal(1, 1)
 
+	// Multi-return with two distinct-typed fields. Called with "ok" (→ r0=2,
+	// r1="ok") and "other" (→ r0=5, r1="other") so compound conditions
+	// referencing both @return.r0 and @return.r1 across different leaves
+	// can be distinguished.
+	condMultiReturn("ok")
+	condMultiReturn("other")
+
 	// Condition-only probe: called twice, condition matches only one.
 	condOnly(99, "match")
 	condOnly(0, "miss")
@@ -111,6 +136,38 @@ func main() {
 	// Second call: nil pointer → condition eval error, snapshot still emitted.
 	condNilPtrStruct(&condFields{I32: 300}, "match")
 	condNilPtrStruct(nil, "nilptr")
+
+	// `== null` condition targets: each called twice — once with nil (probe
+	// matches) and once with non-nil (probe does not match). Covers all four
+	// nullable Go types: pointer, slice, map, interface.
+	condNullPtr(nil, "match")
+	v := 7
+	condNullPtr(&v, "miss")
+	condNullSlice(nil, "match")
+	condNullSlice([]int{1, 2, 3}, "miss")
+	condNullMap(nil, "match")
+	condNullMap(map[string]int{"k": 1}, "miss")
+	condNullIface(nil, "match")
+	condNullIface(errors.New("boom"), "miss")
+	condNullUnsafePtr(nil, "match")
+	u := 42
+	condNullUnsafePtr(unsafe.Pointer(&u), "miss")
+
+	// contains(map, key) condition targets. Called three times:
+	// "present" — key is in the map and contains(...) is true.
+	// "absent"  — key is not in the map; contains(...) is false.
+	// "nil"     — map is nil; contains(...) is false.
+	condContainsMap(
+		map[string]int{"existing_key": 1},
+		map[int]int{42: 1},
+		"present",
+	)
+	condContainsMap(
+		map[string]int{"other": 2},
+		map[int]int{7: 1},
+		"absent",
+	)
+	condContainsMap(nil, nil, "nil")
 
 	// Error case targets: called once each (conditions will fail at analysis).
 	condSliceArg([]int{1, 2, 3}, "err")
@@ -517,6 +574,56 @@ func condStructDirect(x condFields, tag string) {
 	fmt.Println(x, tag)
 }
 
+// condNullPtr is a target for `p == null` conditions on pointer values.
+//
+//go:noinline
+func condNullPtr(p *int, tag string) {
+	sink(p, tag)
+	fmt.Println(p, tag)
+}
+
+// condNullSlice is a target for `s == null` conditions on slice values.
+//
+//go:noinline
+func condNullSlice(s []int, tag string) {
+	sink(s, tag)
+	fmt.Println(s, tag)
+}
+
+// condNullMap is a target for `m == null` conditions on map values.
+//
+//go:noinline
+func condNullMap(m map[string]int, tag string) {
+	sink(m, tag)
+	fmt.Println(m, tag)
+}
+
+// condNullIface is a target for `i == null` conditions on interface values.
+//
+//go:noinline
+func condNullIface(i error, tag string) {
+	sink(i, tag)
+	fmt.Println(i, tag)
+}
+
+// condNullUnsafePtr is a target for `p == null` conditions on unsafe.Pointer.
+//
+//go:noinline
+func condNullUnsafePtr(p unsafe.Pointer, tag string) {
+	sink(p, tag)
+	fmt.Println(p, tag)
+}
+
+// condContainsMap is a target for contains(m, key) conditions. Takes both a
+// string-keyed and int-keyed map so a single test function can exercise both
+// key-type flavors.
+//
+//go:noinline
+func condContainsMap(m map[string]int, mi map[int]int, tag string) {
+	sink(m, mi, tag)
+	fmt.Println(m, mi, tag)
+}
+
 // --- len/isEmpty test functions ---
 
 //go:noinline
@@ -884,4 +991,16 @@ func (m *methodValueReceiver) inlinedMethod() int {
 //go:noinline
 func methodValueSink(f func() int) {
 	fmt.Println(f())
+}
+
+// condMultiReturn has two distinct-typed named returns so compound
+// conditions can reference both @return.r0 (int) and @return.r1 (string)
+// from different leaves.
+//
+//go:noinline
+func condMultiReturn(tag string) (r0 int, r1 string) {
+	r0 = len(tag)
+	r1 = tag
+	fmt.Println("condMultiReturn", r0, r1)
+	return r0, r1
 }

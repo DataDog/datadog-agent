@@ -9,6 +9,8 @@ package taggerlist
 import (
 	"errors"
 	"fmt"
+	"net"
+	"strconv"
 
 	"go.uber.org/fx"
 
@@ -107,9 +109,11 @@ func getTaggerURL(config config.Component) (string, error) {
 
 	var urlstr string
 	if flavor.GetFlavor() == flavor.ClusterAgent {
-		urlstr = fmt.Sprintf("https://%v:%v/tagger-list", ipcAddress, config.GetInt("cluster_agent.cmd_port"))
+		addr := net.JoinHostPort(ipcAddress, strconv.Itoa(config.GetInt("cluster_agent.cmd_port")))
+		urlstr = fmt.Sprintf("https://%s/tagger-list", addr)
 	} else {
-		urlstr = fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, config.GetInt("cmd_port"))
+		addr := net.JoinHostPort(ipcAddress, strconv.Itoa(config.GetInt("cmd_port")))
+		urlstr = fmt.Sprintf("https://%s/agent/tagger-list", addr)
 	}
 
 	return urlstr, nil

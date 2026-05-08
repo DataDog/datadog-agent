@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -226,9 +226,12 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 		// Secrets always need to be resolved (done in reconcileService if template)
 		decryptedConfig, err := decryptConfig(config, cm.secretResolver, digest)
 		if err != nil {
-			log.Errorf("Unable to resolve secrets for config '%s', dropping check configuration, err: %s", config.Name, err.Error())
+			if len(decryptedConfig.Instances) == 0 {
+				log.Errorf("Unable to resolve secrets for config '%s', dropping check configuration, err: %s", config.Name, err.Error())
+				return cm.applyChanges(changes), changedIDsOfSecretsWithConfigs
+			}
+			log.Warnf("Unable to resolve secrets for some instances of config '%s', dropping instances that failed to decrypt, err: %s", config.Name, err.Error())
 		}
-
 		// Instances of the decrypted config change their ID when secrets are
 		// resolved.
 		// We're only interested in cluster checks because the change of ID only
