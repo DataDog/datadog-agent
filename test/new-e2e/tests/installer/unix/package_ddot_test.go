@@ -82,7 +82,7 @@ func (s *packageDDOTSuite) TestInstallDDOTInstallScript() {
 
 	s.host.Run(`sudo sh -c 'grep -A30 "otelcollector:" /etc/datadog-agent/datadog.yaml | grep -qE "[[:space:]]*enabled:[[:space:]]*true"'`)
 
-	s.waitForDDOTRunning(procmgrtest.CLIBinFleetStable, procmgrtest.DDOTOtelAgentFleetPackageBinary)
+	s.waitForDDOTRunning(procmgrtest.CLIBinFleetStable, procmgrtest.DDOTOtelAgentFleetStableExtensionBinary)
 }
 
 func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
@@ -171,7 +171,7 @@ func (s *packageDDOTSuite) TestInstallDDOTWithoutDatadogYAML() {
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
 	state = s.host.State()
 	s.assertCoreUnits(state, true)
-	s.waitForDDOTRunning(procmgrtest.CLIBinFleetStable, procmgrtest.DDOTOtelAgentExtensionBinary)
+	s.waitForDDOTRunning(procmgrtest.CLIBinFleetStable, procmgrtest.DDOTOtelAgentFleetStableExtensionBinary)
 }
 
 func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
