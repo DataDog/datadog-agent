@@ -32,7 +32,7 @@ spec:
       hostPID: true
       containers:
         - name: agent
-          image: "gcr.io/datadoghq/agent:7.76.1"
+          image: "registry.datadoghq.com/agent:7.78.0"
           imagePullPolicy: IfNotPresent
           command: ["agent", "run"]
           securityContext:
@@ -142,6 +142,8 @@ spec:
               value: "6000"
             - name: DD_COMPLIANCE_CONFIG_ENABLED
               value: "true"
+            - name: DD_COMPLIANCE_CONFIG_RUN_IN_SYSTEM_PROBE
+              value: "false"
             - name: DD_CONTAINER_IMAGE_ENABLED
               value: "true"
             - name: DD_KUBELET_CORE_CHECK_ENABLED
@@ -248,7 +250,7 @@ spec:
             successThreshold: 1
             timeoutSeconds: 5
         - name: trace-agent
-          image: "gcr.io/datadoghq/agent:7.76.1"
+          image: "registry.datadoghq.com/agent:7.78.0"
           imagePullPolicy: IfNotPresent
           command: ["trace-loader", "/etc/datadog-agent/datadog.yaml", "trace-agent", "-config=/etc/datadog-agent/datadog.yaml"]
           securityContext:
@@ -356,7 +358,7 @@ spec:
               port: 8126
             timeoutSeconds: 5
         - name: process-agent
-          image: "gcr.io/datadoghq/agent:7.76.1"
+          image: "registry.datadoghq.com/agent:7.78.0"
           imagePullPolicy: IfNotPresent
           command: ["process-agent", "--cfgpath=/etc/datadog-agent/datadog.yaml"]
           securityContext:
@@ -459,7 +461,7 @@ spec:
               subPath: system-probe.yaml
               readOnly: true
         - name: system-probe
-          image: "gcr.io/datadoghq/agent:7.76.1"
+          image: "registry.datadoghq.com/agent:7.78.0"
           imagePullPolicy: IfNotPresent
           securityContext:
             capabilities:
@@ -510,6 +512,10 @@ spec:
               value: "INFO"
             - name: HOST_ROOT
               value: "/host/root"
+            - name: DD_COMPLIANCE_CONFIG_ENABLED
+              value: "true"
+            - name: DD_COMPLIANCE_CONFIG_RUN_IN_SYSTEM_PROBE
+              value: "false"
           resources: {}
           volumeMounts:
             - name: auth-token
@@ -569,8 +575,44 @@ spec:
               mountPath: /host/root
               mountPropagation: None
               readOnly: true
+            - name: modules
+              mountPath: /lib/modules
+              mountPropagation: None
+              readOnly: true
+            - name: src
+              mountPath: /usr/src
+              mountPropagation: None
+              readOnly: true
+            - name: runtime-compiler-output-dir
+              mountPath: /var/tmp/datadog-agent/system-probe/build
+              mountPropagation: None
+              readOnly: false
+            - name: kernel-headers-download-dir
+              mountPath: /var/tmp/datadog-agent/system-probe/kernel-headers
+              readOnly: false # Need RW for sys-probe kernel headers
+            - name: apt-config-dir
+              mountPath: /host/etc/apt
+              readOnly: true
+            - name: yum-repos-dir
+              mountPath: /host/etc/yum.repos.d
+              readOnly: true
+            - name: opensuse-repos-dir
+              mountPath: /host/etc/zypp
+              readOnly: true
+            - name: public-key-dir
+              mountPath: /host/etc/pki
+              readOnly: true
+            - name: yum-vars-dir
+              mountPath: /host/etc/yum/vars
+              readOnly: true
+            - name: dnf-vars-dir
+              mountPath: /host/etc/dnf/vars
+              readOnly: true
+            - name: rhel-subscription-dir
+              mountPath: /host/etc/rhsm
+              readOnly: true
         - name: security-agent
-          image: "gcr.io/datadoghq/agent:7.76.1"
+          image: "registry.datadoghq.com/agent:7.78.0"
           imagePullPolicy: IfNotPresent
           securityContext:
             capabilities:
@@ -684,7 +726,7 @@ spec:
               readOnly: true
       initContainers:
         - name: init-volume
-          image: "gcr.io/datadoghq/agent:7.76.1"
+          image: "registry.datadoghq.com/agent:7.78.0"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -695,7 +737,7 @@ spec:
               readOnly: false # Need RW for config path
           resources: {}
         - name: init-config
-          image: "gcr.io/datadoghq/agent:7.76.1"
+          image: "registry.datadoghq.com/agent:7.78.0"
           imagePullPolicy: IfNotPresent
           command:
             - bash
@@ -749,7 +791,7 @@ spec:
               value: "false"
           resources: {}
         - name: seccomp-setup
-          image: "gcr.io/datadoghq/agent:7.76.1"
+          image: "registry.datadoghq.com/agent:7.78.0"
           imagePullPolicy: IfNotPresent
           command:
             - cp
@@ -824,6 +866,41 @@ spec:
           name: bpffs
         - name: sysprobe-socket-dir
           emptyDir: {}
+        - hostPath:
+            path: /lib/modules
+          name: modules
+        - hostPath:
+            path: /usr/src
+          name: src
+        - hostPath:
+            path: /var/tmp/datadog-agent/system-probe/build
+            type: DirectoryOrCreate
+          name: runtime-compiler-output-dir
+        - hostPath:
+            path: /var/tmp/datadog-agent/system-probe/kernel-headers
+            type: DirectoryOrCreate
+          name: kernel-headers-download-dir
+        - hostPath:
+            path: /etc/apt
+          name: apt-config-dir
+        - hostPath:
+            path: /etc/yum.repos.d
+          name: yum-repos-dir
+        - hostPath:
+            path: /etc/zypp
+          name: opensuse-repos-dir
+        - hostPath:
+            path: /etc/pki
+          name: public-key-dir
+        - hostPath:
+            path: /etc/yum/vars
+          name: yum-vars-dir
+        - hostPath:
+            path: /etc/dnf/vars
+          name: dnf-vars-dir
+        - hostPath:
+            path: /etc/rhsm
+          name: rhel-subscription-dir
         - hostPath:
             path: /etc/passwd
           name: passwd

@@ -24,14 +24,15 @@ spec:
         app: datadog
         agent.datadoghq.com/component: agent
       name: datadog
-      annotations: {}
+      annotations:
+        container.apparmor.security.beta.kubernetes.io/system-probe: unconfined
     spec:
       securityContext:
         runAsUser: 0
       hostPID: true
       containers:
         - name: agent
-          image: "registry.datadoghq.com/agent:7.76.1"
+          image: "registry.datadoghq.com/agent:7.78.0"
           imagePullPolicy: IfNotPresent
           command: ["agent", "run"]
           securityContext:
@@ -118,6 +119,8 @@ spec:
               value: "6000"
             - name: DD_COMPLIANCE_CONFIG_ENABLED
               value: "false"
+            - name: DD_COMPLIANCE_CONFIG_RUN_IN_SYSTEM_PROBE
+              value: "false"
             - name: DD_CONTAINER_IMAGE_ENABLED
               value: "true"
             - name: DD_KUBELET_CORE_CHECK_ENABLED
@@ -155,6 +158,13 @@ spec:
             - name: dsdsocket
               mountPath: /var/run/datadog
               readOnly: false
+            - name: sysprobe-socket-dir
+              mountPath: /var/run/sysprobe
+              readOnly: true
+            - name: sysprobe-config
+              mountPath: /etc/datadog-agent/system-probe.yaml
+              subPath: system-probe.yaml
+              readOnly: true
             - name: procdir
               mountPath: /host/proc
               mountPropagation: None
@@ -195,9 +205,139 @@ spec:
             periodSeconds: 15
             successThreshold: 1
             timeoutSeconds: 5
+        - name: system-probe
+          image: "registry.datadoghq.com/agent:7.78.0"
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            capabilities:
+              add:
+                - SYS_ADMIN
+                - SYS_RESOURCE
+                - SYS_PTRACE
+                - NET_ADMIN
+                - NET_BROADCAST
+                - NET_RAW
+                - IPC_LOCK
+                - CHOWN
+                - DAC_READ_SEARCH
+            privileged: false
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: Localhost
+              localhostProfile: system-probe
+          command: ["system-probe", "--config=/etc/datadog-agent/system-probe.yaml"]
+          env:
+            - name: DD_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: "datadog"
+                  key: api-key
+            - name: DD_REMOTE_CONFIGURATION_ENABLED
+              value: "true"
+            - name: DD_AUTH_TOKEN_FILE_PATH
+              value: /etc/datadog-agent/auth/token
+            - name: KUBERNETES
+              value: "yes"
+            - name: DD_CSI_ENABLED
+              value: "false"
+            - name: DD_LANGUAGE_DETECTION_ENABLED
+              value: "false"
+            - name: DD_LANGUAGE_DETECTION_REPORTING_ENABLED
+              value: "false"
+            - name: DD_KUBERNETES_KUBELET_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: DD_KUBELET_USE_API_SERVER
+              value: "false"
+            - name: DD_OTLP_CONFIG_LOGS_ENABLED
+              value: "false"
+            - name: DD_LOG_LEVEL
+              value: "INFO"
+          resources: {}
+          volumeMounts:
+            - name: auth-token
+              mountPath: /etc/datadog-agent/auth
+              readOnly: true
+            - name: logdatadog
+              mountPath: /var/log/datadog
+              readOnly: false # Need RW to write logs
+            - name: tmpdir
+              mountPath: /tmp
+              readOnly: false # Need RW for tmp directory to instantiate self tests
+            - name: debugfs
+              mountPath: /sys/kernel/debug
+              mountPropagation: None
+              readOnly: false # Need RW for kprobe_events
+            - name: config
+              mountPath: /etc/datadog-agent
+              readOnly: true
+            - name: sysprobe-config
+              mountPath: /etc/datadog-agent/system-probe.yaml
+              subPath: system-probe.yaml
+              readOnly: true
+            - name: sysprobe-socket-dir
+              mountPath: /var/run/sysprobe
+              readOnly: false # Need RW for sys-probe socket
+            - name: procdir
+              mountPath: /host/proc
+              mountPropagation: None
+              readOnly: true
+            - name: cgroups
+              mountPath: /host/sys/fs/cgroup
+              mountPropagation: None
+              readOnly: true
+            - name: os-release-file
+              mountPath: /host/etc/os-release
+              readOnly: true
+            - name: etc-redhat-release
+              mountPath: /host/etc/redhat-release
+              readOnly: true
+            - name: etc-fedora-release
+              mountPath: /host/etc/fedora-release
+              readOnly: true
+            - name: etc-lsb-release
+              mountPath: /host/etc/lsb-release
+              readOnly: true
+            - name: modules
+              mountPath: /lib/modules
+              mountPropagation: None
+              readOnly: true
+            - name: src
+              mountPath: /usr/src
+              mountPropagation: None
+              readOnly: true
+            - name: runtime-compiler-output-dir
+              mountPath: /var/tmp/datadog-agent/system-probe/build
+              mountPropagation: None
+              readOnly: false
+            - name: kernel-headers-download-dir
+              mountPath: /var/tmp/datadog-agent/system-probe/kernel-headers
+              readOnly: false # Need RW for sys-probe kernel headers
+            - name: apt-config-dir
+              mountPath: /host/etc/apt
+              readOnly: true
+            - name: yum-repos-dir
+              mountPath: /host/etc/yum.repos.d
+              readOnly: true
+            - name: opensuse-repos-dir
+              mountPath: /host/etc/zypp
+              readOnly: true
+            - name: public-key-dir
+              mountPath: /host/etc/pki
+              readOnly: true
+            - name: yum-vars-dir
+              mountPath: /host/etc/yum/vars
+              readOnly: true
+            - name: dnf-vars-dir
+              mountPath: /host/etc/dnf/vars
+              readOnly: true
+            - name: rhel-subscription-dir
+              mountPath: /host/etc/rhsm
+              readOnly: true
       initContainers:
         - name: init-volume
-          image: "registry.datadoghq.com/agent:7.76.1"
+          image: "registry.datadoghq.com/agent:7.78.0"
           imagePullPolicy: IfNotPresent
           command: ["bash", "-c"]
           args:
@@ -208,7 +348,7 @@ spec:
               readOnly: false # Need RW for config path
           resources: {}
         - name: init-config
-          image: "registry.datadoghq.com/agent:7.76.1"
+          image: "registry.datadoghq.com/agent:7.78.0"
           imagePullPolicy: IfNotPresent
           command:
             - bash
@@ -229,6 +369,10 @@ spec:
             - name: runtimesocketdir
               mountPath: /host/var/run
               mountPropagation: None
+              readOnly: true
+            - name: sysprobe-config
+              mountPath: /etc/datadog-agent/system-probe.yaml
+              subPath: system-probe.yaml
               readOnly: true
           env:
             - name: DD_API_KEY
@@ -257,6 +401,22 @@ spec:
             - name: DD_OTLP_CONFIG_LOGS_ENABLED
               value: "false"
           resources: {}
+        - name: seccomp-setup
+          image: "registry.datadoghq.com/agent:7.78.0"
+          imagePullPolicy: IfNotPresent
+          command:
+            - cp
+            - /etc/config/system-probe-seccomp.json
+            - /host/var/lib/kubelet/seccomp/system-probe
+          volumeMounts:
+            - name: datadog-agent-security
+              mountPath: /etc/config
+              readOnly: true
+            - name: seccomp-root
+              mountPath: /host/var/lib/kubelet/seccomp
+              mountPropagation: None
+              readOnly: false # Need RW for seccomp-root
+          resources: {}
       volumes:
         - name: auth-token
           emptyDir: {}
@@ -281,9 +441,70 @@ spec:
             path: /etc/os-release
           name: os-release-file
         - hostPath:
+            path: /etc/redhat-release
+          name: etc-redhat-release
+        - hostPath:
+            path: /etc/fedora-release
+          name: etc-fedora-release
+        - hostPath:
+            path: /etc/lsb-release
+          name: etc-lsb-release
+        - hostPath:
+            path: /etc/system-release
+          name: etc-system-release
+        - hostPath:
             path: /var/run/datadog
             type: DirectoryOrCreate
           name: dsdsocket
+        - name: sysprobe-config
+          configMap:
+            name: datadog-system-probe-config
+        - name: datadog-agent-security
+          configMap:
+            name: datadog-security
+        - hostPath:
+            path: /var/lib/kubelet/seccomp
+          name: seccomp-root
+        - hostPath:
+            path: /sys/kernel/debug
+          name: debugfs
+        - name: sysprobe-socket-dir
+          emptyDir: {}
+        - hostPath:
+            path: /lib/modules
+          name: modules
+        - hostPath:
+            path: /usr/src
+          name: src
+        - hostPath:
+            path: /var/tmp/datadog-agent/system-probe/build
+            type: DirectoryOrCreate
+          name: runtime-compiler-output-dir
+        - hostPath:
+            path: /var/tmp/datadog-agent/system-probe/kernel-headers
+            type: DirectoryOrCreate
+          name: kernel-headers-download-dir
+        - hostPath:
+            path: /etc/apt
+          name: apt-config-dir
+        - hostPath:
+            path: /etc/yum.repos.d
+          name: yum-repos-dir
+        - hostPath:
+            path: /etc/zypp
+          name: opensuse-repos-dir
+        - hostPath:
+            path: /etc/pki
+          name: public-key-dir
+        - hostPath:
+            path: /etc/yum/vars
+          name: yum-vars-dir
+        - hostPath:
+            path: /etc/dnf/vars
+          name: dnf-vars-dir
+        - hostPath:
+            path: /etc/rhsm
+          name: rhel-subscription-dir
         - hostPath:
             path: /etc/passwd
           name: passwd
