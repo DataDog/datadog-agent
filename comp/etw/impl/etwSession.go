@@ -13,7 +13,7 @@ import (
 	"runtime/cgo"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/comp/etw"
+	etw "github.com/DataDog/datadog-agent/comp/etw/def"
 	"golang.org/x/sys/windows"
 )
 
