@@ -158,11 +158,18 @@ func TestStreamTailer_Unstructured_SourceHostTagFlagDisabled(t *testing.T) {
 // Syslog format tests (migrated from syslog_stream_tailer_test.go)
 // ---------------------------------------------------------------------------
 
+// newSyslogTestSource builds a syslog log source with attribute parsing enabled
+// so the syslog parser runs (it is gated off by default).
+func newSyslogTestSource() *sources.LogSource {
+	attrOn := true
+	return sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat, AttributeParsing: &attrOn})
+}
+
 func TestStreamTailer_Syslog_NonTransparent(t *testing.T) {
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
 
-	source := sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat})
+	source := newSyslogTestSource()
 	outputChan := make(chan *message.Message, 10)
 
 	tailer := NewStreamTailer(source, serverConn, outputChan, testFrameSize, 0, "", nil)
@@ -188,7 +195,7 @@ func TestStreamTailer_Syslog_OctetCounted(t *testing.T) {
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
 
-	source := sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat})
+	source := newSyslogTestSource()
 	outputChan := make(chan *message.Message, 10)
 
 	tailer := NewStreamTailer(source, serverConn, outputChan, testFrameSize, 0, "", nil)
@@ -210,7 +217,7 @@ func TestStreamTailer_Syslog_NULFraming(t *testing.T) {
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
 
-	source := sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat})
+	source := newSyslogTestSource()
 	outputChan := make(chan *message.Message, 10)
 
 	tailer := NewStreamTailer(source, serverConn, outputChan, testFrameSize, 0, "", nil)
@@ -266,7 +273,7 @@ func TestStreamTailer_Syslog_NonTransparent_NoTrailerOnClose(t *testing.T) {
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
 
-	source := sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat})
+	source := newSyslogTestSource()
 	outputChan := make(chan *message.Message, 10)
 
 	tailer := NewStreamTailer(source, serverConn, outputChan, testFrameSize, 0, "", nil)
@@ -288,7 +295,7 @@ func TestStreamTailer_Syslog_NoSourceServiceOverride(t *testing.T) {
 	serverConn, clientConn := net.Pipe()
 	defer serverConn.Close()
 
-	source := sources.NewLogSource("test-syslog", &config.LogsConfig{Format: config.SyslogFormat})
+	source := newSyslogTestSource()
 	outputChan := make(chan *message.Message, 10)
 
 	tailer := NewStreamTailer(source, serverConn, outputChan, testFrameSize, 0, "", nil)
