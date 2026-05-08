@@ -136,17 +136,6 @@ func (s *baseProcmgrSuite) TestConditionPathExistsSkipsMissingBinary() {
 // CLI output parsing helpers
 // ---------------------------------------------------------------------------
 
-func fieldValue(output, label string) string {
-	needle := label + ":"
-	for _, line := range strings.Split(output, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, needle) {
-			return strings.TrimSpace(trimmed[len(needle):])
-		}
-	}
-	return ""
-}
-
 func assertField(t assert.TestingT, output, label, expected string) {
 	needle := label + ":"
 	for _, line := range strings.Split(output, "\n") {

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package procmgrtest provides new-e2e helpers for asserting processes managed by
+// dd-procmgr (describe output, /proc/<pid>/exe, optional expected binary paths).
 package procmgrtest
 
 import (
