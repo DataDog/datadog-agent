@@ -36,6 +36,13 @@ type networkDeviceConfigImpl struct {
 
 // NewComponent creates a new networkconfigmanagement component
 func NewComponent(reqs Requires) (Provides, error) {
+	enabled := reqs.Config.GetBool("network_config_management.rollback.enabled")
+	if !enabled {
+		return Provides{
+			Comp:              option.None[networkconfigmanagement.Component](),
+			GetConfigEndpoint: nilEndpoint(),
+		}, nil
+	}
 	comp, err := newComponent(reqs)
 	if err != nil {
 		reqs.Logger.Errorf("NCM config store service could not be initialized: %s", err)
