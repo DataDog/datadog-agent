@@ -164,5 +164,13 @@ func setupAPM(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("apm_config.peer_tags", []string{}, "DD_APM_PEER_TAGS")
 	config.ParseEnvJSON("apm_config.peer_tags", []string{})
 
+	// Deprecated/Experimental: DD_APM_SPAN_DERIVED_PRIMARY_TAGS is only honored when
+	// the agent runs in a serverless context (the Datadog Azure App Services
+	// extension, or serverless-init for Cloud Run / Container Apps / Cloud Run
+	// Functions). Tracers should populate additional_metric_tags instead — do not
+	// use in new deployments.
+	config.BindEnvAndSetDefault("apm_config.span_derived_primary_tags", []string{}, "DD_APM_SPAN_DERIVED_PRIMARY_TAGS")
+	config.ParseEnvJSON("apm_config.span_derived_primary_tags", []string{})
+
 	config.BindEnvAndSetDefault("apm_config.mode", "", "DD_APM_MODE")
 }

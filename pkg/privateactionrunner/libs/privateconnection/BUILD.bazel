@@ -10,8 +10,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/privateactionrunner/adapters/constants",
+        "//pkg/privateactionrunner/libs/connection",
         "//pkg/proto/pbgo/privateactionrunner/privateactions",
-        "@//pkg/privateactionrunner/adapters/constants",
-        "@//pkg/privateactionrunner/libs/connection",
     ],
 )

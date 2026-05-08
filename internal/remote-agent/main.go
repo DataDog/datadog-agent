@@ -12,6 +12,7 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -166,6 +167,53 @@ func refreshRegistration(agentClient pbcore.AgentSecureClient, sessionID string)
 	return nil
 }
 
+// streamConfigEvents subscribes to the Core Agent config stream and logs received events.
+// It runs until ctx is cancelled or the stream closes/errors.
+func streamConfigEvents(ctx context.Context, agentIpcAddress, agentAuthToken, agentFlavor, sessionID string, cert tls.Certificate) {
+	tlsCreds := credentials.NewTLS(&tls.Config{
+		Certificates: []tls.Certificate{cert},
+		// Test client: no server name verification needed.
+		InsecureSkipVerify: true, //nolint:gosec
+	})
+	conn, err := grpc.NewClient(agentIpcAddress,
+		grpc.WithTransportCredentials(tlsCreds),
+		grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(agentAuthToken)),
+	)
+	if err != nil {
+		log.Printf("config stream: failed to connect: %v", err)
+		return
+	}
+	defer conn.Close()
+
+	client := pbcore.NewAgentSecureClient(conn)
+	md := metadata.New(map[string]string{"session_id": sessionID})
+	ctxWithMD := metadata.NewOutgoingContext(ctx, md)
+
+	stream, err := client.StreamConfigEvents(ctxWithMD, &pbcore.ConfigStreamRequest{Name: agentFlavor})
+	if err != nil {
+		log.Printf("config stream: failed to start: %v", err)
+		return
+	}
+	log.Println("Config stream established.")
+	for {
+		event, err := stream.Recv()
+		if err != nil {
+			if err == io.EOF || ctx.Err() != nil {
+				log.Println("Config stream closed.")
+				return
+			}
+			log.Printf("Config stream receive error: %v", err)
+			return
+		}
+		switch e := event.Event.(type) {
+		case *pbcore.ConfigEvent_Snapshot:
+			log.Printf("Config snapshot received: %d settings (seq=%d)", len(e.Snapshot.GetSettings()), e.Snapshot.GetSequenceId())
+		case *pbcore.ConfigEvent_Update:
+			log.Printf("Config update received: seq=%d", e.Update.GetSequenceId())
+		}
+	}
+}
+
 func main() {
 	// Read in all of the necessary configuration for this remote agent.
 	var agentFlavor string
@@ -213,14 +261,22 @@ func main() {
 	log.Printf("Spawned remote agent gRPC server on %s.", listenAddr)
 
 	// Wait forever, periodically refreshing our registration.
+	var streamCancel context.CancelFunc
 	refreshTicker := time.NewTicker(1 * time.Second)
 	for range refreshTicker.C {
 		if sessionID == "" {
+			if streamCancel != nil {
+				streamCancel()
+				streamCancel = nil
+			}
 			var err error
 			sessionID, agentClient, err = registerWithAgent(agentIpcAddress, agentAuthToken, agentFlavor, displayName, listenAddr, refreshTicker, tlsCert)
 			if err != nil {
 				continue
 			}
+			var streamCtx context.Context
+			streamCtx, streamCancel = context.WithCancel(context.Background())
+			go streamConfigEvents(streamCtx, agentIpcAddress, agentAuthToken, agentFlavor, sessionID, tlsCert)
 		} else {
 			err := refreshRegistration(agentClient, sessionID)
 			if err != nil {

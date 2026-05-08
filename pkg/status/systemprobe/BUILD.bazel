@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "systemprobe",
+    srcs = ["status.go"],
+    embedsrcs = ["status_templates/systemprobe.tmpl"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/status/systemprobe",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/status",
+        "//comp/core/sysprobeconfig",
+        "//pkg/system-probe/api/client",
+    ],
+)

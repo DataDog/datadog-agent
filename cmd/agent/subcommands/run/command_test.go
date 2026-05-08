@@ -43,11 +43,11 @@ func newGlobalParamsTest(t *testing.T) *command.GlobalParams {
 	// which lead to build:
 	//   - config.Component which requires a valid datadog.yaml
 	//   - hostname.Component which requires a valid hostname
-	config := path.Join(t.TempDir(), "datadog.yaml")
-	err := os.WriteFile(config, []byte("hostname: test"), 0644)
+	configPath := path.Join(t.TempDir(), "datadog.yaml")
+	err := os.WriteFile(configPath, []byte("hostname: test"), 0644)
 	require.NoError(t, err)
 
 	return &command.GlobalParams{
-		ConfFilePath: config,
+		ConfFilePath: configPath,
 	}
 }

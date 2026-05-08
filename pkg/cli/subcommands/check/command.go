@@ -51,7 +51,6 @@ import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -144,7 +143,7 @@ type GlobalParams struct {
 }
 
 // MakeCommand returns a `check` command to be used by agent binaries.
-func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
+func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *cobra.Command {
 	cliParams := &cliParams{}
 	cmd := &cobra.Command{
 		Use:   "check <check_name>",
@@ -175,7 +174,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				hostnameimpl.Module(),
 
 				// workloadmeta setup
-				wmcatalog.GetCatalog(),
+				wmCatalog,
 				workloadmetafx.Module(defaults.DefaultParams()),
 				apiimpl.Module(),
 				grpcNonefx.Module(),

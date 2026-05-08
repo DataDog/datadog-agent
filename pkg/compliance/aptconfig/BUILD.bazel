@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/compliance/aptconfig",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/compliance/types",
         "//pkg/util/log",
-        "@//pkg/compliance/types",
     ],
 )
 

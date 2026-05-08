@@ -6,7 +6,7 @@
 package file
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
