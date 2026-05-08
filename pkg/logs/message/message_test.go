@@ -317,3 +317,44 @@ func TestGetStructuredAttribute_EscapedDotInKey(t *testing.T) {
 		assert.Equal(t, "found", val)
 	})
 }
+
+// ---------------------------------------------------------------------------
+// EnsureRendered
+// ---------------------------------------------------------------------------
+
+func TestEnsureRendered(t *testing.T) {
+	t.Run("unstructured promotes state", func(t *testing.T) {
+		msg := NewMessage([]byte("raw"), nil, "", 0)
+		assert.Equal(t, StateUnstructured, msg.State)
+
+		require.NoError(t, msg.EnsureRendered())
+		assert.Equal(t, StateRendered, msg.State)
+		assert.Equal(t, "raw", string(msg.GetContent()))
+	})
+
+	t.Run("already rendered is no-op", func(t *testing.T) {
+		msg := NewMessage([]byte("data"), nil, "", 0)
+		msg.SetRendered([]byte("rendered"))
+
+		require.NoError(t, msg.EnsureRendered())
+		assert.Equal(t, StateRendered, msg.State)
+		assert.Equal(t, "rendered", string(msg.GetContent()))
+	})
+
+	t.Run("already encoded returns error", func(t *testing.T) {
+		msg := NewMessage([]byte("data"), nil, "", 0)
+		msg.SetEncoded([]byte("encoded"))
+
+		require.Error(t, msg.EnsureRendered())
+	})
+
+	t.Run("structured renders", func(t *testing.T) {
+		sc := &BasicStructuredContent{Data: map[string]interface{}{"message": "hello"}}
+		msg := NewStructuredMessage(sc, nil, "", 0)
+		assert.Equal(t, StateStructured, msg.State)
+
+		require.NoError(t, msg.EnsureRendered())
+		assert.Equal(t, StateRendered, msg.State)
+		assert.Contains(t, string(msg.GetContent()), `"message":"hello"`)
+	})
+}

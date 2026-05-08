@@ -154,43 +154,13 @@ func (m *MessageContent) HasContent() bool {
 }
 
 // GetStructuredAttribute retrieves a dot-delimited attribute from structured
-// content. For example, "siem.device_vendor" walks Data["siem"] ->
-// map["device_vendor"]. Returns the string value and true if found.
-// Non-string leaf types (int, float64, bool) are converted via strconv.
+// content. For example, "siem.device_vendor" returns the value at
+// Data["siem"]["device_vendor"]. Returns ("", false) for non-structured messages.
 func (m *MessageContent) GetStructuredAttribute(path string) (string, bool) {
 	if m.State != StateStructured {
 		return "", false
 	}
-	bsc, ok := m.structuredContent.(*BasicStructuredContent)
-	if !ok || bsc == nil {
-		return "", false
-	}
-
-	parts := splitEscapedPath(path)
-	var current interface{} = bsc.Data
-	for _, key := range parts {
-		obj, ok := current.(map[string]interface{})
-		if !ok {
-			return "", false
-		}
-		current, ok = obj[key]
-		if !ok {
-			return "", false
-		}
-	}
-
-	switch v := current.(type) {
-	case string:
-		return v, true
-	case int:
-		return strconv.Itoa(v), true
-	case float64:
-		return strconv.FormatFloat(v, 'g', -1, 64), true
-	case bool:
-		return strconv.FormatBool(v), true
-	default:
-		return "", false
-	}
+	return m.structuredContent.GetAttribute(path)
 }
 
 // splitEscapedPath splits a dot-delimited attribute path while respecting
@@ -275,6 +245,30 @@ func (m *MessageContent) SetRendered(content []byte) {
 func (m *MessageContent) SetEncoded(content []byte) {
 	m.content = content
 	m.State = StateEncoded
+}
+
+// EnsureRendered prepares the message for encoding. For structured messages
+// it calls Render()+SetRendered(). For unstructured messages it simply
+// promotes the state to StateRendered. Already-rendered messages are left
+// unchanged. Returns an error if the message is already encoded.
+func (m *MessageContent) EnsureRendered() error {
+	switch m.State {
+	case StateRendered:
+		return nil
+	case StateEncoded:
+		return errors.New("cannot render an already-encoded message")
+	case StateUnstructured:
+		m.State = StateRendered
+		return nil
+	case StateStructured:
+		rendered, err := m.structuredContent.Render()
+		if err != nil {
+			return err
+		}
+		m.SetRendered(rendered)
+		return nil
+	}
+	return nil
 }
 
 // ParsingExtra ships extra information parsers want to make available
@@ -401,6 +395,9 @@ type StructuredContent interface {
 	Render() ([]byte, error)
 	GetContent() []byte
 	SetContent([]byte)
+	// GetAttribute retrieves a dot-delimited attribute (e.g. "syslog.hostname").
+	// Returns the string value and true if found, or ("", false) otherwise.
+	GetAttribute(path string) (string, bool)
 }
 
 // BasicStructuredContent is used by tailers creating structured logs
@@ -432,6 +429,35 @@ func (m *BasicStructuredContent) SetContent(content []byte) {
 	// we want to store it typed as a string for the json
 	// marshaling to properly marshal it as a string.
 	m.Data["message"] = string(content)
+}
+
+// GetAttribute walks a dot-delimited path through the nested Data map.
+// Non-string leaf types (int, float64, bool) are converted to strings.
+func (m *BasicStructuredContent) GetAttribute(path string) (string, bool) {
+	parts := splitEscapedPath(path)
+	var current interface{} = m.Data
+	for _, key := range parts {
+		obj, ok := current.(map[string]interface{})
+		if !ok {
+			return "", false
+		}
+		current, ok = obj[key]
+		if !ok {
+			return "", false
+		}
+	}
+	switch v := current.(type) {
+	case string:
+		return v, true
+	case int:
+		return strconv.Itoa(v), true
+	case float64:
+		return strconv.FormatFloat(v, 'g', -1, 64), true
+	case bool:
+		return strconv.FormatBool(v), true
+	default:
+		return "", false
+	}
 }
 
 // GetStatus gets the status of the message.
