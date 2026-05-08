@@ -12,7 +12,7 @@ go_library(
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",
         "//comp/haagent/def",
-        "//comp/healthplatform/core/def",
+        "//comp/healthplatform/store/def",
         "//pkg/collector/check/id",
         "//pkg/config/setup",
         "//pkg/config/utils",
@@ -32,7 +32,7 @@ go_test(
     gotags = ["test"],
     deps = [
         "//comp/core/telemetry/impl",
-        "//comp/healthplatform/core/mock",
+        "//comp/healthplatform/store/mock",
         "//pkg/collector/check/id",
         "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",

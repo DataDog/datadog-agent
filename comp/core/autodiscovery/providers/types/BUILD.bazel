@@ -11,7 +11,7 @@ go_library(
         "//comp/core/tagger/def",
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadmeta/def",
-        "//comp/healthplatform/core/def",
+        "//comp/healthplatform/store/def",
         "//pkg/config/setup",
     ],
 )

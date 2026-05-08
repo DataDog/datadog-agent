@@ -118,7 +118,12 @@ var workerNodes = []kubeComp.KindWorkerNode{
 
 // rebalancingTimeout returns the expected duration to rebalance given number of spot pods.
 func rebalancingTimeout(spotPods int) time.Duration {
-	return time.Duration(spotPods)*2*rebalanceStabilizationPeriod + 30*time.Second
+	// Each rebalance cycle costs one rebalanceStabilizationPeriod plus pod startup time: the
+	// rebalancer resets its stabilization clock when a replacement pod joins the pod set, so the
+	// next eviction can only happen once the replacement is Running and the full stabilization
+	// period has elapsed.
+	const waitUntilRunning = 30 * time.Second
+	return time.Duration(spotPods) * (rebalanceStabilizationPeriod + waitUntilRunning)
 }
 
 type spotSchedulingSuite struct {

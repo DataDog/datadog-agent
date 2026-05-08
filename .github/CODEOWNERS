@@ -772,6 +772,7 @@
 /tasks/kernel_matrix_testing/           @DataDog/ebpf-platform
 /tasks/ebpf_verifier/                   @DataDog/ebpf-platform
 /tasks/trace_agent.py                   @DataDog/agent-apm
+/tasks/protobuf.py                      @DataDog/agent-build
 /tasks/quality_gates.py                 @DataDog/agent-build
 /tasks/static_quality_gates/            @DataDog/agent-build
 /tasks/files_inventory.py               @DataDog/agent-build
@@ -899,7 +900,6 @@
 /test/regression/                             @DataDog/single-machine-performance
 /test/regression/ebpf                         @DataDog/single-machine-performance @DataDog/ebpf-platform
 /test/regression/cases/docker_containers*     @DataDog/single-machine-performance @DataDog/container-integrations
-/test/regression/cases/quality_gate_security_* @DataDog/single-machine-performance @DataDog/agent-security
 
 /tools/                                 @DataDog/agent-devx
 /tools/host-profiler/                   @DataDog/profiling-full-host
