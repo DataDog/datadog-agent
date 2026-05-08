@@ -380,6 +380,35 @@ func TestParse_BSD_ImmediateColonNoSpace(t *testing.T) {
 	assert.Equal(t, "syslog message", string(msg.Msg))
 }
 
+func TestParse_BSD_CEFNotConsumedAsTAG(t *testing.T) {
+	// Per the CEF spec, "CEF:0|..." is the message body, not a TAG.
+	// The parser must NOT split "CEF" into AppName when followed by ":digit".
+	msg, err := Parse([]byte(`<14>May  5 14:55:43 PA-5260 CEF:0|Palo Alto Networks|PAN-OS|11.1.0|deny|TRAFFIC|1|src=10.0.0.1`))
+	assert.NoError(t, err)
+	assert.Equal(t, "PA-5260", msg.Hostname)
+	assert.Equal(t, "-", msg.AppName, "CEF must not be parsed as AppName")
+	assert.True(t, len(msg.Msg) > 0)
+	assert.Equal(t, byte('C'), msg.Msg[0], "Msg must start with the CEF header")
+}
+
+func TestParse_BSD_LEEFNotConsumedAsTAG(t *testing.T) {
+	msg, err := Parse([]byte(`<14>May  5 14:55:43 myhost LEEF:1.0|IBM|QRadar|1.0|12345|src=10.0.0.1`))
+	assert.NoError(t, err)
+	assert.Equal(t, "myhost", msg.Hostname)
+	assert.Equal(t, "-", msg.AppName, "LEEF must not be parsed as AppName")
+	assert.True(t, len(msg.Msg) > 0)
+	assert.Equal(t, byte('L'), msg.Msg[0])
+}
+
+func TestParse_BSD_CEFWithSpaceIsTAG(t *testing.T) {
+	// "CEF: CEF:0|..." — the first "CEF:" IS a valid TAG, followed by the body.
+	msg, err := Parse([]byte(`<34>Oct 11 22:14:15 myhost CEF: CEF:0|Vendor|Product|1.0|200|Attack|8|src=1.2.3.4`))
+	assert.NoError(t, err)
+	assert.Equal(t, "myhost", msg.Hostname)
+	assert.Equal(t, "CEF", msg.AppName)
+	assert.Equal(t, "CEF:0|Vendor|Product|1.0|200|Attack|8|src=1.2.3.4", string(msg.Msg))
+}
+
 func TestParseBSDLine_NoPRI(t *testing.T) {
 	msg, err := ParseBSDLine([]byte(`Dec 28 16:49:07 plertrood-thinkpad-x220 nginx: 127.0.0.1 - - request`))
 	assert.NoError(t, err)
@@ -528,7 +557,6 @@ func TestParse_RFC5424_VersionErrors(t *testing.T) {
 		{"version too long", "<14>1234 - - - - - - test"},
 		{"version non-digit", "<14>1a - - - - - - test"},
 		{"no space after version", "<14>1"},
-		{"empty version", "<14> - - - - - - test"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -538,6 +566,16 @@ func TestParse_RFC5424_VersionErrors(t *testing.T) {
 			assert.Equal(t, 14, msg.Pri, "PRI should be preserved on version errors")
 		})
 	}
+
+	// Space after PRI (previously "empty version") is now a valid §4.3.2
+	// message: PRI extracted, remainder is MSG CONTENT.
+	t.Run("space after PRI is section 4.3.2", func(t *testing.T) {
+		msg, err := Parse([]byte("<14> - - - - - - test"))
+		require.NoError(t, err)
+		assert.Equal(t, 14, msg.Pri)
+		assert.Equal(t, " - - - - - - test", string(msg.Msg))
+		assert.False(t, msg.Partial)
+	})
 }
 
 func TestParseBSDLine_EmptyInput_Pri(t *testing.T) {
@@ -627,11 +665,15 @@ func TestParse_VersionZero(t *testing.T) {
 
 func TestParse_FalsePositiveBSD(t *testing.T) {
 	// A line starting with a month name but without valid BSD timestamp
-	// structure should not be parsed as BSD syslog.
+	// structure. Per RFC 3164 §4.3.2 this is a valid-PRI-no-timestamp
+	// message: PRI is extracted, remainder is MSG CONTENT.
 	msg, err := Parse([]byte(`<14>December sales report for Q4`))
-	assert.Error(t, err)
-	assert.True(t, msg.Partial)
+	require.NoError(t, err)
+	assert.False(t, msg.Partial)
 	assert.Equal(t, 14, msg.Pri)
+	assert.Equal(t, "December sales report for Q4", string(msg.Msg))
+	assert.Equal(t, nilvalue, msg.Timestamp)
+	assert.Equal(t, nilvalue, msg.AppName)
 }
 
 // ---------------------------------------------------------------------------
@@ -653,6 +695,87 @@ func BenchmarkParse_RFC5424_WithSD(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		Parse(input) //nolint:errcheck
+	}
+}
+
+// ---------------------------------------------------------------------------
+// RFC 3164 §4.3.2: Valid PRI, no valid TIMESTAMP
+// ---------------------------------------------------------------------------
+
+func TestParseBSDNoTimestamp(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		pri     int
+		msg     string
+		wantErr bool
+	}{
+		{
+			name:  "Python SysLogHandler TCP (warning)",
+			input: "<132>Python SysLogHandler TCP test",
+			pri:   132,
+			msg:   "Python SysLogHandler TCP test",
+		},
+		{
+			name:  "Python SysLogHandler UDP (info)",
+			input: "<134>Python SysLogHandler UDP test",
+			pri:   134,
+			msg:   "Python SysLogHandler UDP test",
+		},
+		{
+			name:  "BSD with ident prefix",
+			input: "<134>myapp: Hello world",
+			pri:   134,
+			msg:   "myapp: Hello world",
+		},
+		{
+			name:  "minimal content (1 byte)",
+			input: "<13>x",
+			pri:   13,
+			msg:   "x",
+		},
+		{
+			name:  "content with leading space",
+			input: "<134> message with leading space",
+			pri:   134,
+			msg:   " message with leading space",
+		},
+		{
+			name:  "content too short for timestamp",
+			input: "<134>short",
+			pri:   134,
+			msg:   "short",
+		},
+		{
+			name:    "empty after PRI remains error",
+			input:   "<14>",
+			pri:     14,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parsed, err := Parse([]byte(tt.input))
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.True(t, parsed.Partial)
+				return
+			}
+
+			require.NoError(t, err, "RFC 3164 §4.3.2 messages should parse successfully")
+			assert.Equal(t, tt.pri, parsed.Pri)
+			assert.Equal(t, tt.msg, string(parsed.Msg))
+			assert.False(t, parsed.Partial)
+
+			// §4.3.2: TIMESTAMP, HOSTNAME, TAG all indeterminate
+			assert.Equal(t, nilvalue, parsed.Timestamp)
+			assert.Equal(t, nilvalue, parsed.Hostname)
+			assert.Equal(t, nilvalue, parsed.AppName)
+			assert.Equal(t, nilvalue, parsed.ProcID)
+			assert.Equal(t, nilvalue, parsed.MsgID)
+		})
 	}
 }
 

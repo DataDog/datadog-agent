@@ -188,15 +188,30 @@ func (f *SyslogFields) getAttribute(field string) (string, bool) {
 	top, rest, hasDot := splitFirst(field)
 	switch top {
 	case "timestamp":
-		return f.Timestamp, !hasDot
+		if f.Timestamp == "" || hasDot {
+			return "", false
+		}
+		return f.Timestamp, true
 	case "hostname":
-		return f.Hostname, !hasDot
+		if f.Hostname == "" || hasDot {
+			return "", false
+		}
+		return f.Hostname, true
 	case "appname":
-		return f.AppName, !hasDot
+		if f.AppName == "" || hasDot {
+			return "", false
+		}
+		return f.AppName, true
 	case "procid":
-		return f.ProcID, !hasDot
+		if f.ProcID == "" || hasDot {
+			return "", false
+		}
+		return f.ProcID, true
 	case "msgid":
-		return f.MsgID, !hasDot
+		if f.MsgID == "" || hasDot {
+			return "", false
+		}
+		return f.MsgID, true
 	case "severity":
 		if f.Severity < 0 || hasDot {
 			return "", false
