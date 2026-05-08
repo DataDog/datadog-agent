@@ -1233,6 +1233,14 @@ replace github.com/vishvananda/netlink => github.com/DataDog/netlink v1.0.1-0.20
 // use datadog fork of vault/api/auth/aws to reduce binary size for secret-generic-connector
 replace github.com/hashicorp/vault/api/auth/aws => github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101
 
+// hashicorp/vault@v1.21.3+ ships an inconsistent module graph: its source uses
+// the 2-arg ActivationFunc from sdk's in-tree code, but its go.mod requires
+// vault/sdk@v0.21.0 from the proxy, which has a 3-arg signature. Upstream's
+// `replace ... => ./sdk` hides this for them but doesn't propagate to consumers.
+// Pin sdk to the same commit as the v1.21.4 tag — that's the exact sdk source
+// the main module is written against.
+replace github.com/hashicorp/vault/sdk => github.com/hashicorp/vault/sdk v0.19.1-0.20260305014005-ffe7023c481d
+
 // Use custom Trivy fork to reduce binary size
 // Pull in replacements needed by upstream Trivy
 // Maps to Trivy fork https://github.com/DataDog/trivy/pull/32
