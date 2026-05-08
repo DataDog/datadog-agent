@@ -179,17 +179,6 @@ func (ts *testState) validateMinimum(t *testing.T, minimumTelemetry map[string]f
 	}
 }
 
-// validate that telemetry counter values are less than or equal to the expected maximum values
-func (ts *testState) validateMaximum(t *testing.T, maximumTelemetry map[string]float64) {
-	for name, expected := range maximumTelemetry {
-		ts.logComp.Debugf("Validating maximum telemetry counter %s", name)
-		metrics, err := ts.telemetryMock.GetCountMetric(moduleName, name)
-		assert.NoError(t, err)
-		assert.Len(t, metrics, 1)
-		assert.LessOrEqual(t, metrics[0].Value(), expected)
-	}
-}
-
 // validate that telemetry gauge value is equal to the expected value
 func (ts *testState) validateExpectedGauge(t *testing.T, name string, value float64) {
 	ts.logComp.Debugf("Validating expected telemetry gauge %s", name)

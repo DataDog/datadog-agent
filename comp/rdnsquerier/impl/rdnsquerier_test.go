@@ -221,15 +221,13 @@ func TestNormalOperationsCacheDisabled(t *testing.T) {
 	ts.validateExpected(t, expectedTelemetry)
 }
 
-// Test that the rate limiter limits the rate as expected.  Set rate limit to 1 per second, send a bunch of requests,
-// wait for N seconds, assert that no more that the expected number of requests succeed within that time period.
+// Test that the rate limiter limits the rate as expected.  Set rate limit to 1 per second, send N requests,
+// assert that all N complete and that N-1 seconds elapsed (1 per second after the initial burst of 1).
 func TestRateLimiter(t *testing.T) {
 	synctest.Test(t, syncTestRateLimiter)
 }
 
 func syncTestRateLimiter(t *testing.T) {
-	const numSeconds = 2
-
 	overrides := map[string]interface{}{
 		"network_devices.netflow.reverse_dns_enrichment_enabled": true,
 		"reverse_dns_enrichment.rate_limiter.limit_per_sec":      1,
@@ -237,6 +235,9 @@ func syncTestRateLimiter(t *testing.T) {
 	ts := testSetup(t, overrides, true, nil, 0)
 	defer ts.stop(t)
 
+	var wg sync.WaitGroup
+	wg.Add(20)
+	start := time.Now()
 	// IP addresses in private range
 	for i := range 20 {
 		err := ts.rdnsQuerier.GetHostnameAsync(
@@ -247,26 +248,22 @@ func syncTestRateLimiter(t *testing.T) {
 			func(hostname string, err error) {
 				assert.NoError(t, err)
 				assert.Equal(t, fmt.Sprintf("fakehostname-192.168.1.%d", i), hostname)
+				wg.Done()
 			},
 		)
 		assert.NoError(t, err)
 	}
-
-	time.Sleep(numSeconds * time.Second)
+	wg.Wait()
+	assert.Equal(t, 19*time.Second, time.Since(start))
 
 	expectedTelemetry := ts.makeExpectedTelemetry(map[string]float64{
 		"total":      20.0,
 		"private":    20.0,
 		"chan_added": 20.0,
 		"cache_miss": 20.0,
+		"successful": 20.0,
 	})
-	delete(expectedTelemetry, "successful")
 	ts.validateExpected(t, expectedTelemetry)
-
-	maximumTelemetry := map[string]float64{
-		"successful": float64(numSeconds + 3), // expect maximum of 1 per second, plus some buffer for test timing
-	}
-	ts.validateMaximum(t, maximumTelemetry)
 }
 
 // Test that the rate limiter throttles the limit down when the error threshold is reached, and throttles the limit back up
