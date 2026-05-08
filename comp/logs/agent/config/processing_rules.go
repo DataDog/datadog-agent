@@ -18,7 +18,16 @@ const (
 	MaskSequences    = "mask_sequences"
 	MultiLine        = "multi_line"
 	ExcludeTruncated = "exclude_truncated"
+	RemapSource      = "remap_source"
 )
+
+// SourceMatchEntry defines a single attribute-value-to-source match
+// used by the RemapSource processing rule type.
+type SourceMatchEntry struct {
+	Attribute string `mapstructure:"attribute" json:"attribute" yaml:"attribute"`
+	Value     string `mapstructure:"value" json:"value" yaml:"value"`
+	NewSource string `mapstructure:"new_source" json:"new_source" yaml:"new_source"`
+}
 
 // ProcessingRule defines an exclusion or a masking rule to
 // be applied on log lines
@@ -29,6 +38,7 @@ type ProcessingRule struct {
 	Pattern            string
 	Regex              *regexp.Regexp
 	Placeholder        []byte
+	Matching           []*SourceMatchEntry `mapstructure:"matching" json:"matching" yaml:"matching"`
 }
 
 // ValidateProcessingRules validates the rules and raises an error if one is misconfigured.
@@ -53,6 +63,21 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 			}
 		case ExcludeTruncated:
 			break
+		case RemapSource:
+			if len(rule.Matching) == 0 {
+				return fmt.Errorf("no matching entries provided for processing rule: %s", rule.Name)
+			}
+			for i, m := range rule.Matching {
+				if m.Attribute == "" {
+					return fmt.Errorf("match %d has empty attribute in processing rule: %s", i, rule.Name)
+				}
+				if m.Value == "" {
+					return fmt.Errorf("match %d has empty value in processing rule: %s", i, rule.Name)
+				}
+				if m.NewSource == "" {
+					return fmt.Errorf("match %d has empty new_source in processing rule: %s", i, rule.Name)
+				}
+			}
 		case "":
 			return fmt.Errorf("type must be set for processing rule `%s`", rule.Name)
 		default:
@@ -65,7 +90,7 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 // CompileProcessingRules compiles all processing rule regular expressions.
 func CompileProcessingRules(rules []*ProcessingRule) error {
 	for _, rule := range rules {
-		if rule.Type == ExcludeTruncated {
+		if rule.Type == ExcludeTruncated || rule.Type == RemapSource {
 			continue
 		}
 		re, err := regexp.Compile(rule.Pattern)

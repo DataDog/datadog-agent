@@ -6,13 +6,20 @@ from enum import Enum
 from tasks.libs.common.color import color_message
 from tasks.static_quality_gates.gates import GateExecutionError, GateMetricHandler, GateResult, byte_to_string
 
-PER_PR_THRESHOLD = 600 * 1024
+PER_PR_THRESHOLDS = {
+    "on_disk": 600 * 1024,
+    # The 5 MiB limit for on-wire size increases is intended solely as a safety check to
+    # catch packaging/compression anomalies that are not accompanied by a proportional
+    # on-disk increase - that's why this threshold is much higher than the one for on-disk.
+    "on_wire": 5 * 1024 * 1024,
+}
 EXCEPTION_APPROVERS = {"cmourot", "dd-ddamien"}
 
 
 class GateFailureKind(Enum):
     AbsoluteLimitExceeded = "AbsoluteLimitExceeded"
     PerPRThresholdExceeded = "PerPRThresholdExceeded"
+    PerPRWireThresholdExceeded = "PerPRWireThresholdExceeded"
     ExecutionError = "ExecutionError"
 
     def __str__(self):
@@ -89,11 +96,13 @@ def evaluate_gates(
     exception_note = None
     if exception_granted_by:
         per_pr_excepted = [
-            v for v in verdicts if v.failure == GateFailureKind.PerPRThresholdExceeded and not v.blocking
+            v
+            for v in verdicts
+            if v.failure in (GateFailureKind.PerPRThresholdExceeded, GateFailureKind.PerPRWireThresholdExceeded)
+            and not v.blocking
         ]
         if per_pr_excepted:
-            threshold_str = byte_to_string(PER_PR_THRESHOLD)
-            exception_note = f"**Exception granted by @{exception_granted_by}**: this PR exceeds the per-PR size threshold ({threshold_str}) but will not be blocked.\n"
+            exception_note = f"**Exception granted by @{exception_granted_by}**: this PR exceeds the per-PR size thresholds but will not be blocked.\n"
     return GateEvaluationResult(
         verdicts=verdicts,
         has_blocking_failures=has_blocking_failures,
@@ -142,17 +151,32 @@ def evaluate_gate(
     # Check per-PR threshold: if a gate increased by more than PER_PR_THRESHOLD, mark it as failing.
     # Skip on merge queue jobs: the MQ working branch is an ephemeral merge preview, not a PR.
     if not is_on_main_branch and not is_merge_queue:
-        delta = metric_handler.metrics.get(outcome.config.gate_name, {}).get("relative_on_disk_size", 0)
-        if delta > PER_PR_THRESHOLD:
-            threshold_str = byte_to_string(PER_PR_THRESHOLD)
-            print(color_message(f"Per-PR threshold ({threshold_str}) exceeded by: {outcome.config.gate_name}", "red"))
+        gate_metrics = metric_handler.metrics.get(outcome.config.gate_name, {})
+        disk_delta = gate_metrics.get("relative_on_disk_size", 0)
+        wire_delta = gate_metrics.get("relative_on_wire_size", 0)
+        disk_exceeded = disk_delta > PER_PR_THRESHOLDS["on_disk"]
+        wire_exceeded = wire_delta > PER_PR_THRESHOLDS["on_wire"]
+
+        if wire_exceeded:
+            print(color_message(f"Per-PR wire threshold exceeded by: {outcome.config.gate_name}", "red"))
+            approver = exception_checker.get()
+            return GateVerdict(
+                name=outcome.config.gate_name,
+                failure=GateFailureKind.PerPRWireThresholdExceeded,
+                blocking=approver is None,
+                blocking_note=f"non-blocking: exception granted by @{approver}" if approver else "",
+                message=f"On-wire size increase of {byte_to_string(wire_delta)} exceeds the per-PR wire threshold of {byte_to_string(PER_PR_THRESHOLDS['on_wire'])}",
+            )
+
+        if disk_exceeded:
+            print(color_message(f"Per-PR threshold exceeded by: {outcome.config.gate_name}", "red"))
             approver = exception_checker.get()
             return GateVerdict(
                 name=outcome.config.gate_name,
                 failure=GateFailureKind.PerPRThresholdExceeded,
                 blocking=approver is None,
                 blocking_note=f"non-blocking: exception granted by @{approver}" if approver else "",
-                message=f"On-disk size increase of {byte_to_string(delta)} exceeds the per-PR threshold of {threshold_str}",
+                message=f"On-disk size increase of {byte_to_string(disk_delta)} exceeds the per-PR threshold of {byte_to_string(PER_PR_THRESHOLDS['on_disk'])}",
             )
 
     return GateVerdict(
