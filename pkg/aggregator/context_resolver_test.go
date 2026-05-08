@@ -320,7 +320,6 @@ func setupTagger(t *testing.T) tagger.Component {
 
 // testStrippingOriginTagsSameKey checks that two samples whose only difference is
 // in origin tags covered by the strip list resolve to the same context key.
-// Parametrized across aggregatable metric types (Distribution, Count).
 func testStrippingOriginTagsSameKey(t *testing.T, store *tags.Store) {
 	cases := []struct {
 		metricName string
@@ -370,7 +369,6 @@ func TestStrippingOriginTagsSameKey(t *testing.T) {
 
 // testStrippingOriginTagsDiffersKey checks that when the strip list does not cover
 // all differing origin tags, contexts remain distinct.
-// Parametrized across aggregatable metric types (Distribution, Count).
 func testStrippingOriginTagsDiffersKey(t *testing.T, store *tags.Store) {
 	cases := []struct {
 		metricName string
@@ -467,12 +465,6 @@ func TestTrackContextStrippingMetricTags(t *testing.T) {
 
 // testStrippingMetricTagsSameKey checks that two samples whose only difference is
 // in metric tags covered by the strip list resolve to the same context key.
-// Parametrized across Count and Counter (CounterType = DogStatsD `|c` wire format).
-//
-// Count and Counter metrics share the same tag-stripping behavior as distributions:
-// when the filterlist matches the metric name, configured tag keys are removed
-// before the context key is generated, so samples differing only in stripped tags
-// aggregate downstream into a single context.
 func testStrippingMetricTagsSameKey(t *testing.T, store *tags.Store) {
 	cases := []struct {
 		metricName string
@@ -480,6 +472,7 @@ func testStrippingMetricTagsSameKey(t *testing.T, store *tags.Store) {
 	}{
 		{"count.metric", metrics.CountType},
 		{"counter.metric", metrics.CounterType},
+		{"distribution.metric", metrics.DistributionType},
 	}
 	for _, tc := range cases {
 		t.Run(tc.mtype.String(), func(t *testing.T) {
@@ -524,13 +517,13 @@ func TestStrippingMetricTagsSameKey(t *testing.T) {
 // testStrippingMetricTagsDiffersKey checks that when a metric tag is NOT in the
 // strip list, samples remain in separate contexts even when other tags differ and
 // are stripped.
-// Parametrized across aggregatable metric types (Distribution, Count).
 func testStrippingMetricTagsDiffersKey(t *testing.T, store *tags.Store) {
 	cases := []struct {
 		metricName string
 		mtype      metrics.MetricType
 	}{
 		{"distribution.metric", metrics.DistributionType},
+		{"count.metric", metrics.CounterType},
 		{"count.metric", metrics.CountType},
 	}
 	for _, tc := range cases {

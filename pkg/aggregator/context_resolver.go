@@ -152,10 +152,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 }
 
 // shouldAggregateTags returns true if the tag for the given metric should be considered
-// for aggregation. Distribution, Count, and Counter (DSD `|c`) metrics apply —
-// the DogStatsD parser produces CounterType for `|c` lines, while
-// internally-emitted counts (e.g. core checks via Sender.Count()) produce
-// CountType, and both need to share contexts when the filterlist strips tags.
+// for aggregation. Distribution, Count (core checks counts), and Counter (dogstatsd counts).
 func shouldAggregateTags(metricSampleContext metrics.MetricSampleContext) bool {
 	mtype := metricSampleContext.GetMetricType()
 	return mtype == metrics.DistributionType ||
