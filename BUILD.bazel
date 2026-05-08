@@ -846,6 +846,10 @@ _GAZELLE_BUILD_TAGS = [
     "zk",
     "zlib",
     "zstd",
+    "pcap",
+    "e2ecoverage",
+    "functionaltests",
+    "manualtest",
 ]
 
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx //pkg/proto/pbgo/trace/idx
