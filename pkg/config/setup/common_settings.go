@@ -1091,6 +1091,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("hostprofiler.health_metrics.enabled", true)
 	config.BindEnvAndSetDefault("hostprofiler.health_metrics.target", "127.0.0.1:8889")
 	config.BindEnvAndSetDefault("hostprofiler.hpflare.port", 7778)
+
+	// Remote Flags system
+	remoteflags(config)
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1382,6 +1385,11 @@ func remoteconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_log_config_scheduling", false)
 	// Websocket echo test
 	config.BindEnvAndSetDefault("remote_configuration.no_websocket_echo", false)
+}
+
+func remoteflags(config pkgconfigmodel.Setup) {
+	// Remote flags
+	config.BindEnvAndSetDefault("remote_flags.enabled", false)
 }
 
 func autoconfig(config pkgconfigmodel.Setup) {
