@@ -33,11 +33,15 @@ unresolved target so the bundle stays internally consistent.
 from __future__ import annotations
 
 import argparse
+import functools
+import hashlib
 import json
 import sys
 from collections import defaultdict, deque
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 import yaml
@@ -46,12 +50,14 @@ from tasks.libs.otelcol_schema._refs import (
     KNOWN_NAMESPACES,
     classify_ref,
     find_module_schema,
+    follow_relative,
     is_component_mode,
     module_cache_dir,
     parse_go_mod_versions,
     parse_go_sum_versions,
     parse_namespace_relative,
     repo_namespace_of,
+    resolve_relative_go_path,
     walk_refs,
 )
 from tasks.libs.otelcol_schema.convert import JSON_SCHEMA_DRAFT, validate_meta
@@ -89,6 +95,18 @@ _NAMESPACE_LABEL_PREFIX = {
 def _flatten(s: str) -> str:
     """Encode an arbitrary string as a snake_case identifier."""
     return s.replace("/", "_").replace(".", "_").replace("-", "_")
+
+
+def _missing_id(ref: str) -> str:
+    """Stable, collision-free placeholder ID for an unresolved ref.
+
+    `_flatten` lossily collapses `/`, `.`, `-` to `_`, so two distinct refs
+    can produce the same flattened stem. Append the first eight hex chars
+    of SHA-1(ref) to keep the human-readable prefix while guaranteeing
+    one-to-one mapping with the original ref string.
+    """
+    digest = hashlib.sha1(ref.encode("utf-8"), usedforsecurity=False).hexdigest()[:8]
+    return f"__missing__{_flatten(ref)}__{digest}"
 
 
 def short_label(go_path: str) -> str:
@@ -163,9 +181,17 @@ def _go_path_of_local_dir(directory: Path) -> str:
     return "github.com/DataDog/datadog-agent/" + str(rel)
 
 
-def _module_versions() -> dict[str, str]:
+@functools.cache
+def _module_versions() -> Mapping[str, str]:
     """Module-version lookup combining manifest entries, the impl's go.mod,
-    and go.sum (covers transitive deps not in `require`)."""
+    and go.sum (covers transitive deps not in `require`).
+
+    Cached for the process lifetime — neither file changes mid-build, and
+    re-parsing thousands of go.sum lines on every call is wasteful. Returned
+    as a `MappingProxyType` so the cached value is read-only and accidental
+    mutation by a caller can't corrupt subsequent builds in the same
+    interpreter.
+    """
     impl = MANIFEST_PATH.parent
     versions: dict[str, str] = {}
     for entries in parse_manifest(MANIFEST_PATH).values():
@@ -176,47 +202,23 @@ def _module_versions() -> dict[str, str]:
         versions.setdefault(gomod, version)
     for gomod, version in parse_go_sum_versions(impl / "go.sum").items():
         versions.setdefault(gomod, version)
-    return versions
+    return MappingProxyType(versions)
 
 
-def _follow_relative(schema_dir: Path, target_module: str | None) -> Path | None:
-    """Resolve a `./<rel>` or `../<rel>` ref's target dir, then point at that
-    dir's `config.schema.yaml`. Returns the path if the file exists, else
-    None. Handles `..` correctly via `Path.resolve()`."""
-    if not target_module:
-        return None
-    rel = target_module
-    if rel.startswith("./"):
-        rel = rel[2:]
-    candidate = (schema_dir / rel / "config.schema.yaml").resolve()
-    return candidate if candidate.is_file() else None
-
-
-def _resolve_relative_go_path(source_go_path: str, rel: str) -> str:
-    """Apply Go-import-path semantics to a relative ref string.
-
-    Mirrors `Path.resolve()` for go_path strings: `./sub` adds segments,
-    `../` pops one. The earlier `lstrip("./").replace("..", "")` shortcut
-    silently turned `../sibling` into `sibling`, producing a synthetic
-    go_path that pointed back into the source instead of up-and-over.
-
-    Examples:
-        ("a/b", "./internal/foo") -> "a/b/internal/foo"
-        ("a/b", "../sibling")     -> "a/sibling"
-        ("a/b", "./.")            -> "a/b"
-    """
-    parts = source_go_path.split("/") if source_go_path else []
-    if rel.startswith("./"):
-        rel = rel[2:]
-    for segment in rel.split("/"):
-        if segment in ("", "."):
-            continue
-        if segment == "..":
-            if parts:
-                parts.pop()
-            continue
-        parts.append(segment)
-    return "/".join(parts)
+def _lookup_module_schema(
+    go_path: str,
+    *,
+    cache: dict[str, Path | None],
+    cache_root: Path,
+    versions: Mapping[str, str],
+) -> Path | None:
+    """Memoised wrapper around `find_module_schema`. Returns just the schema
+    path (callers needing the matched-module-dir distinction must call
+    `find_module_schema` directly)."""
+    if go_path not in cache:
+        schema, _ = find_module_schema(go_path, cache_root=cache_root, versions=versions)
+        cache[go_path] = schema
+    return cache[go_path]
 
 
 def _enqueue_refs(
@@ -225,22 +227,27 @@ def _enqueue_refs(
     source_go_path: str,
     refs: list[str],
     cache_root: Path,
-    versions: dict[str, str],
+    versions: Mapping[str, str],
+    schema_cache: dict[str, Path | None],
     queue: deque[tuple[Path, str, str | None, str | None]],
     seen: set[Path],
 ) -> None:
     """Look at every ref a source emits and enqueue the target schema files
-    we'd need to load to follow them."""
+    we'd need to load to follow them. Module-schema lookups go through
+    `schema_cache` so the same go_path is resolved once across discovery
+    and rewriting."""
     for ref in refs:
         status = classify_ref(ref)
         if status.kind == "package_type" and status.target_module:
-            target_path, _ = find_module_schema(status.target_module, cache_root=cache_root, versions=versions)
+            target_path = _lookup_module_schema(
+                status.target_module, cache=schema_cache, cache_root=cache_root, versions=versions
+            )
             if target_path and target_path not in seen:
                 queue.append((target_path, status.target_module, None, None))
         elif status.kind == "relative":
-            target_path = _follow_relative(source_path.parent, status.target_module)
+            target_path = follow_relative(source_path.parent, status.target_module)
             if target_path and target_path not in seen:
-                sub_go_path = _resolve_relative_go_path(source_go_path, status.target_module or "")
+                sub_go_path = resolve_relative_go_path(source_go_path, status.target_module or "")
                 queue.append((target_path, sub_go_path, None, None))
         elif status.kind == "namespace_relative":
             ns = repo_namespace_of(source_go_path)
@@ -250,19 +257,29 @@ def _enqueue_refs(
             if parsed is None:
                 continue
             target_module, _type_name = parsed
-            target_path, _ = find_module_schema(target_module, cache_root=cache_root, versions=versions)
+            target_path = _lookup_module_schema(
+                target_module, cache=schema_cache, cache_root=cache_root, versions=versions
+            )
             if target_path and target_path not in seen:
                 queue.append((target_path, target_module, None, None))
         # `bare` refs are intra-file (handled by ID assignment); `uri` refs
         # are not followed.
 
 
-def collect_schemas() -> tuple[list[SchemaSource], list[tuple[str, str, str]]]:
+def collect_schemas(
+    *, schema_cache: dict[str, Path | None] | None = None
+) -> tuple[list[SchemaSource], list[tuple[str, str, str]]]:
     """Discover and load every schema we need.
 
     Returns (sources, missing_components). Sources are in BFS order from
     component roots through transitive `$ref` deps.
+
+    `schema_cache` is mutated in place: callers may pass a dict to share the
+    module-schema lookups with the subsequent rewriting phase. When None, a
+    transient dict is used and discarded.
     """
+    if schema_cache is None:
+        schema_cache = {}
     cache_root = gomodcache()
     manifest = parse_manifest(MANIFEST_PATH)
     versions = _module_versions()
@@ -324,6 +341,7 @@ def collect_schemas() -> tuple[list[SchemaSource], list[tuple[str, str, str]]]:
             refs=source.refs_used,
             cache_root=cache_root,
             versions=versions,
+            schema_cache=schema_cache,
             queue=queue,
             seen=seen,
         )
@@ -360,7 +378,7 @@ def assign_ids(sources: list[SchemaSource]) -> dict[Path, IdMapping]:
     def _claim(candidate: str, src_path: Path) -> str:
         owner = used.get(candidate)
         if owner is not None and owner != src_path:
-            raise RuntimeError(f"canonical ID collision: {candidate!r} claimed by both " f"{owner} and {src_path}")
+            raise RuntimeError(f"canonical ID collision: {candidate!r} claimed by both {owner} and {src_path}")
         used[candidate] = src_path
         return candidate
 
@@ -387,12 +405,21 @@ def assign_ids(sources: list[SchemaSource]) -> dict[Path, IdMapping]:
 @dataclass
 class _Resolver:
     """Bundles together everything `_canonicalise_ref` needs across a single
-    bundle build. Reduces the kwarg-fanout in the recursive walker."""
+    bundle build. Reduces the kwarg-fanout in the recursive walker, and
+    memoises `find_module_schema` results since the same module can be
+    referenced from many sources during ref rewriting. The cache is
+    typically shared with the discovery phase via `collect_schemas`."""
 
     sources_by_path: dict[Path, IdMapping]
-    versions: dict[str, str]
+    versions: Mapping[str, str]
     cache_root: Path
     unresolved: dict[str, list[str]]
+    schema_cache: dict[str, Path | None] = field(default_factory=dict)
+
+    def find_schema(self, go_path: str) -> Path | None:
+        return _lookup_module_schema(
+            go_path, cache=self.schema_cache, cache_root=self.cache_root, versions=self.versions
+        )
 
 
 def _resolve_in_mapping(mapping: IdMapping, type_name: str) -> str | None:
@@ -417,7 +444,7 @@ def _record_unresolved(
     if note:
         detail += f" ({note})"
     resolver.unresolved.setdefault(ref, []).append(detail)
-    return f"#/$defs/__missing__{_flatten(ref)}"
+    return f"#/$defs/{_missing_id(ref)}"
 
 
 def _rewrite_refs(node: Any, *, source: SchemaSource, own_defs_ids: dict[str, str], resolver: _Resolver) -> None:
@@ -454,9 +481,7 @@ def _canonicalise_ref(ref: str, *, source: SchemaSource, own_defs_ids: dict[str,
         return _record_unresolved(ref=ref, source=source, note=f"no $defs entry {ref!r}", resolver=resolver)
 
     if status.kind == "package_type" and status.target_module:
-        target_path, _ = find_module_schema(
-            status.target_module, cache_root=resolver.cache_root, versions=resolver.versions
-        )
+        target_path = resolver.find_schema(status.target_module)
         if target_path and target_path in resolver.sources_by_path:
             resolved = _resolve_in_mapping(resolver.sources_by_path[target_path], status.target_type or "")
             if resolved:
@@ -464,7 +489,7 @@ def _canonicalise_ref(ref: str, *, source: SchemaSource, own_defs_ids: dict[str,
         return _record_unresolved(ref=ref, source=source, note="", resolver=resolver)
 
     if status.kind == "relative":
-        target_path = _follow_relative(source.path.parent, status.target_module)
+        target_path = follow_relative(source.path.parent, status.target_module)
         if target_path and target_path in resolver.sources_by_path:
             resolved = _resolve_in_mapping(resolver.sources_by_path[target_path], status.target_type or "")
             if resolved:
@@ -477,9 +502,7 @@ def _canonicalise_ref(ref: str, *, source: SchemaSource, own_defs_ids: dict[str,
             parsed = parse_namespace_relative(ref, ns)
             if parsed is not None:
                 target_module, type_name = parsed
-                target_path, _ = find_module_schema(
-                    target_module, cache_root=resolver.cache_root, versions=resolver.versions
-                )
+                target_path = resolver.find_schema(target_module)
                 if target_path and target_path in resolver.sources_by_path:
                     resolved = _resolve_in_mapping(resolver.sources_by_path[target_path], type_name)
                     if resolved:
@@ -517,13 +540,18 @@ def build_bundle(*, missing_strategy: str = "permissive") -> BundleResult:
     if missing_strategy not in ("permissive", "strict"):
         raise ValueError(f"unknown missing strategy: {missing_strategy!r}")
 
-    sources, missing_components = collect_schemas()
+    # Share the schema cache across discovery and rewriting: the same target
+    # module is often referenced from both phases, so resolving once saves
+    # repeated prefix walks over the module cache.
+    schema_cache: dict[str, Path | None] = {}
+    sources, missing_components = collect_schemas(schema_cache=schema_cache)
     mappings = assign_ids(sources)
     resolver = _Resolver(
         sources_by_path=mappings,
         versions=_module_versions(),
         cache_root=gomodcache(),
         unresolved={},
+        schema_cache=schema_cache,
     )
 
     for src in sources:
@@ -542,11 +570,18 @@ def build_bundle(*, missing_strategy: str = "permissive") -> BundleResult:
         msg = "; ".join(f"{ref}: {', '.join(reasons)}" for ref, reasons in resolver.unresolved.items())
         raise RuntimeError(f"strict mode: unresolved refs: {msg}")
 
-    # permissive: insert placeholders so internal refs resolve.
+    # permissive: insert placeholders so internal refs resolve. The
+    # placeholder ID is a 1:1 hash over the original ref, so distinct
+    # unresolved refs never share a $defs entry.
     for ref in resolver.unresolved:
-        placeholder_id = f"__missing__{_flatten(ref)}"
+        placeholder_id = _missing_id(ref)
         if placeholder_id not in defs:
             defs[placeholder_id] = _placeholder()
+    # Invariant: one placeholder per unresolved ref. Raised (not asserted)
+    # so the check survives `python -O`.
+    placeholder_count = sum(1 for k in defs if k.startswith("__missing__"))
+    if placeholder_count != len(resolver.unresolved):
+        raise RuntimeError(f"placeholder count {placeholder_count} != unresolved-refs {len(resolver.unresolved)}")
 
     bundle = {"$schema": JSON_SCHEMA_DRAFT, "$defs": defs}
     return BundleResult(

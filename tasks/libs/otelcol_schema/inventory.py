@@ -17,6 +17,7 @@ working directory as `otelcol-schema-inventory.{json,md}`.
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import re
 import shutil
@@ -32,25 +33,14 @@ import yaml
 from tasks.libs.otelcol_schema._refs import (
     RefStatus,
     classify_ref,
-    encode_module_path,
     find_module_schema,
+    follow_relative,
     module_cache_dir,
     parse_go_mod_versions,
     parse_go_sum_versions,
     schema_contains_type,
     walk_refs,
 )
-
-__all__ = [
-    "RefStatus",
-    "classify_ref",
-    "encode_module_path",
-    "module_cache_dir",
-    "parse_go_mod_versions",
-    "parse_go_sum_versions",
-    "schema_contains_type",
-    "walk_refs",
-]
 
 # ---------------------------------------------------------------------------
 # Repo + filesystem layout
@@ -76,8 +66,10 @@ LOCAL_OTELCOL = REPO_ROOT / "comp" / "otelcol"
 # ---------------------------------------------------------------------------
 
 
+@functools.cache
 def gomodcache() -> Path:
-    """Run `go env GOMODCACHE` and return the resolved path."""
+    """Run `go env GOMODCACHE` and return the resolved path. Cached for the
+    process lifetime so repeated calls don't re-fork `go env`."""
     out = subprocess.run(
         ["go", "env", "GOMODCACHE"],
         check=True,
@@ -99,9 +91,8 @@ def ensure_downloaded(gomod: str, version: str, *, cwd: Path) -> tuple[bool, str
     )
     if proc.returncode == 0:
         return True, ""
-    return False, (proc.stderr or proc.stdout).strip().splitlines()[-1] if (
-        proc.stderr or proc.stdout
-    ).strip() else f"exit {proc.returncode}"
+    err = (proc.stderr or proc.stdout).strip()
+    return False, err.splitlines()[-1] if err else f"exit {proc.returncode}"
 
 
 # ---------------------------------------------------------------------------
@@ -242,33 +233,63 @@ def resolve_relative(
     *,
     consumers: list[Component],
 ) -> None:
-    """Resolve a `./<rel>.<type>` ref against the source schema's own module."""
+    """Resolve a `./<rel>.<type>` or `../<rel>.<type>` ref against the source
+    schema's own module. Uses `follow_relative` so `..` segments are honoured
+    (an earlier `lstrip("./")` shortcut silently turned `../sibling` into
+    a same-dir lookup).
+
+    Iterates over all consumers and only stops on a successful type lookup,
+    so a ref shared by two consumer dirs where only the second contains the
+    type still resolves. Diagnostics distinguish four failure modes, in
+    priority order: parse-error, file-present-but-type-missing,
+    dir-cached-but-no-schema, dir-does-not-exist.
+    """
     assert status.kind == "relative"
-    rel_path = (status.target_module or "").lstrip("./")
     type_name = status.target_type or ""
+    rel_module = status.target_module or ""
+    rel_dir = rel_module[2:] if rel_module.startswith("./") else rel_module
 
     sibling_dir_exists = False
+    type_not_found_path: Path | None = None
+    parse_error: tuple[Path, yaml.YAMLError] | None = None
+
     for consumer in consumers:
         if not consumer.schema_path:
             continue
         schema_dir = Path(consumer.schema_path).parent
-        candidate = schema_dir / rel_path / "config.schema.yaml"
-        if (schema_dir / rel_path).is_dir():
+        if (schema_dir / rel_dir).resolve().is_dir():
             sibling_dir_exists = True
-        if candidate.is_file():
-            try:
-                doc = yaml.safe_load(candidate.read_text()) or {}
-            except yaml.YAMLError as e:
-                status.note = f"parse error: {e}"
-                return
-            if schema_contains_type(doc, type_name):
-                status.resolved = True
-                status.schema_path = str(candidate)
-                return
-            status.note = f"file present, type {type_name!r} not found"
+        candidate = follow_relative(schema_dir, status.target_module)
+        if candidate is None:
+            continue
+        try:
+            doc = yaml.safe_load(candidate.read_text()) or {}
+        except yaml.YAMLError as e:
+            # Record the parse error but keep looking — a malformed
+            # candidate under one consumer must not block discovery via
+            # another consumer that points at a well-formed copy.
+            if parse_error is None:
+                parse_error = (candidate, e)
+            continue
+        if schema_contains_type(doc, type_name):
+            status.resolved = True
             status.schema_path = str(candidate)
             return
-    if sibling_dir_exists:
+        # File exists but type not found here; remember and keep looking.
+        type_not_found_path = candidate
+
+    # Resolution-failure diagnostics in priority order: a parse error is the
+    # most actionable signal (the malformed file is likely the one meant to
+    # define the type — fix the YAML and the ref resolves). Type-missing
+    # comes next, then dir-without-schema, then dir-not-found.
+    if parse_error is not None:
+        path, err = parse_error
+        status.note = f"parse error: {err}"
+        status.schema_path = str(path)
+    elif type_not_found_path is not None:
+        status.note = f"file present, type {type_name!r} not found"
+        status.schema_path = str(type_not_found_path)
+    elif sibling_dir_exists:
         status.note = "sibling dir cached but no config.schema.yaml generated upstream"
     else:
         status.note = "sibling dir does not exist at the resolved path"

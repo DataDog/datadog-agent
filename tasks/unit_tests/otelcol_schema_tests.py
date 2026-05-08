@@ -18,9 +18,11 @@ from pathlib import Path
 
 from tasks.libs.otelcol_schema._refs import (
     classify_ref,
+    follow_relative,
     is_component_mode,
     parse_namespace_relative,
     repo_namespace_of,
+    resolve_relative_go_path,
     schema_contains_type,
 )
 from tasks.libs.otelcol_schema.bundle import (
@@ -28,15 +30,15 @@ from tasks.libs.otelcol_schema.bundle import (
     SchemaSource,
     _canonicalise_ref,
     _flatten,
-    _follow_relative,
+    _missing_id,
     _resolve_in_mapping,
-    _resolve_relative_go_path,
     _Resolver,
     assign_ids,
     component_id,
     short_label,
 )
 from tasks.libs.otelcol_schema.convert import is_bare_ref
+from tasks.libs.otelcol_schema.inventory import Component, RefStatus, resolve_relative
 
 
 class TestShortLabel(unittest.TestCase):
@@ -206,6 +208,27 @@ class TestFlatten(unittest.TestCase):
         self.assertEqual(_flatten("snake_case"), "snake_case")
 
 
+class TestMissingId(unittest.TestCase):
+    """`_missing_id` must produce stable, collision-free IDs for unresolved
+    refs even when their `_flatten` stems collide."""
+
+    def test_format_includes_prefix_stem_and_hash(self):
+        out = _missing_id("foo.bar")
+        self.assertTrue(out.startswith("__missing__foo_bar__"))
+        # 8-char hex suffix
+        self.assertRegex(out, r"^__missing__foo_bar__[0-9a-f]{8}$")
+
+    def test_distinct_refs_with_same_flatten_get_distinct_ids(self):
+        # `_flatten` collapses `/` and `.` to `_`, so these two refs would
+        # collide without the hash suffix.
+        a = _missing_id("foo.bar")
+        b = _missing_id("foo/bar")
+        self.assertNotEqual(a, b)
+
+    def test_same_input_is_stable(self):
+        self.assertEqual(_missing_id("foo.bar"), _missing_id("foo.bar"))
+
+
 class TestResolveInMapping(unittest.TestCase):
     def test_defs_lookup(self):
         m = IdMapping(root_id=None, defs_ids={"a": "shared__pkg__a"})
@@ -278,35 +301,35 @@ class TestResolveRelativeGoPath(unittest.TestCase):
 
     def test_dot_slash_appends_segments(self):
         self.assertEqual(
-            _resolve_relative_go_path("github.com/foo/bar", "./internal/sub"),
+            resolve_relative_go_path("github.com/foo/bar", "./internal/sub"),
             "github.com/foo/bar/internal/sub",
         )
 
     def test_parent_pops_one_segment(self):
         self.assertEqual(
-            _resolve_relative_go_path("github.com/foo/bar", "../sibling"),
+            resolve_relative_go_path("github.com/foo/bar", "../sibling"),
             "github.com/foo/sibling",
         )
 
     def test_double_parent_pops_two(self):
         self.assertEqual(
-            _resolve_relative_go_path("a/b/c", "../../sibling"),
+            resolve_relative_go_path("a/b/c", "../../sibling"),
             "a/sibling",
         )
 
     def test_dot_only_is_idempotent(self):
-        self.assertEqual(_resolve_relative_go_path("a/b", "./."), "a/b")
+        self.assertEqual(resolve_relative_go_path("a/b", "./."), "a/b")
 
     def test_empty_source_starts_fresh(self):
-        self.assertEqual(_resolve_relative_go_path("", "./foo"), "foo")
+        self.assertEqual(resolve_relative_go_path("", "./foo"), "foo")
 
     def test_pop_past_root_is_clamped(self):
         # Defensive: walking ".." past the source root should not error.
-        self.assertEqual(_resolve_relative_go_path("a", "../../foo"), "foo")
+        self.assertEqual(resolve_relative_go_path("a", "../../foo"), "foo")
 
 
 class TestFollowRelative(unittest.TestCase):
-    """Filesystem-bound test for `_follow_relative` using tmp dirs."""
+    """Filesystem-bound test for `follow_relative` using tmp dirs."""
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -325,24 +348,24 @@ class TestFollowRelative(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_dot_slash_finds_sibling_subdir(self):
-        result = _follow_relative(self.source_dir, "./internal/sub")
+        result = follow_relative(self.source_dir, "./internal/sub")
         self.assertIsNotNone(result)
         assert result is not None  # for type-checkers
         self.assertEqual(result.name, "config.schema.yaml")
         self.assertEqual(result.parent.name, "sub")
 
     def test_parent_resolves_via_path_resolve(self):
-        result = _follow_relative(self.source_dir, "../sibling")
+        result = follow_relative(self.source_dir, "../sibling")
         self.assertIsNotNone(result)
         assert result is not None
         self.assertEqual(result.parent.name, "sibling")
 
     def test_missing_target_returns_none(self):
-        self.assertIsNone(_follow_relative(self.source_dir, "./nope"))
+        self.assertIsNone(follow_relative(self.source_dir, "./nope"))
 
     def test_empty_target_returns_none(self):
-        self.assertIsNone(_follow_relative(self.source_dir, None))
-        self.assertIsNone(_follow_relative(self.source_dir, ""))
+        self.assertIsNone(follow_relative(self.source_dir, None))
+        self.assertIsNone(follow_relative(self.source_dir, ""))
 
 
 def _make_resolver(
@@ -422,7 +445,7 @@ class TestCanonicaliseRef(unittest.TestCase):
         self.assertIn("go.opentelemetry.io/collector/pipeline.id", resolver.unresolved)
 
     def test_relative_miss_records_unresolved(self):
-        # `_follow_relative` returns None because the target file doesn't exist.
+        # `follow_relative` returns None because the target file doesn't exist.
         resolver = _make_resolver()
         source = _make_source()
         out = _canonicalise_ref("./internal/nope.foo", source=source, own_defs_ids={}, resolver=resolver)
@@ -482,6 +505,155 @@ class TestCanonicaliseRef(unittest.TestCase):
             source = _make_source(path=str(root / "src" / "config.schema.yaml"))
             out = _canonicalise_ref("./internal/sub.config", source=source, own_defs_ids={}, resolver=resolver)
             self.assertEqual(out, "#/$defs/component__processor__sub")
+
+
+def _make_component(schema_path: Path | str | None) -> Component:
+    """Minimal `Component` for resolve_relative tests. Only schema_path is
+    consulted by `resolve_relative`; everything else is filler."""
+    return Component(
+        source="local",
+        section="processors",
+        gomod=None,
+        version=None,
+        module_dir=None,
+        in_cache=True,
+        metadata_path=None,
+        metadata_type=None,
+        metadata_class=None,
+        schema_path=str(schema_path) if schema_path is not None else None,
+        schema_present=schema_path is not None,
+    )
+
+
+class TestInventoryResolveRelative(unittest.TestCase):
+    """Pin diagnostic granularity and the multi-consumer fall-through that
+    parallels bundle's relative-ref handling. Mirror of `TestFollowRelative`
+    plus the type-found / type-not-found / dir-missing cases the previous
+    implementation collapsed."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        # Layout:
+        #   root/src1/config.schema.yaml         (consumer 1)
+        #   root/src2/config.schema.yaml         (consumer 2)
+        #   root/src1/internal/has_type/config.schema.yaml  ($defs has 'foo')
+        #   root/src1/internal/wrong_type/config.schema.yaml ($defs has 'bar')
+        #   root/src1/internal/dir_only/         (no schema file)
+        for sub in ("src1", "src2", "src1/internal/has_type", "src1/internal/wrong_type", "src1/internal/dir_only"):
+            (self.root / sub).mkdir(parents=True, exist_ok=True)
+        for sub in ("src1", "src2"):
+            (self.root / sub / "config.schema.yaml").write_text("type: object\n")
+        (self.root / "src1" / "internal" / "has_type" / "config.schema.yaml").write_text(
+            "$defs:\n  foo: {type: object}\n"
+        )
+        (self.root / "src1" / "internal" / "wrong_type" / "config.schema.yaml").write_text(
+            "$defs:\n  bar: {type: object}\n"
+        )
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _consumer(self, sub: str) -> Component:
+        return _make_component(self.root / sub / "config.schema.yaml")
+
+    def _status(self, ref: str) -> RefStatus:
+        s = classify_ref(ref)
+        self.assertEqual(s.kind, "relative")
+        return s
+
+    def test_resolved_when_type_present(self):
+        status = self._status("./internal/has_type.foo")
+        resolve_relative(status, consumers=[self._consumer("src1")])
+        self.assertTrue(status.resolved)
+        self.assertIn("has_type", status.schema_path or "")
+
+    def test_falls_through_to_second_consumer(self):
+        # Regression test: `./internal/has_type.foo` only resolves when we
+        # iterate past the consumer whose dir doesn't contain it.
+        status = self._status("./internal/has_type.foo")
+        # src2 has no `internal/has_type`; src1 does. Old buggy code stopped
+        # at the first consumer's "type not found" branch.
+        resolve_relative(status, consumers=[self._consumer("src2"), self._consumer("src1")])
+        self.assertTrue(status.resolved)
+
+    def test_type_missing_in_present_file(self):
+        status = self._status("./internal/wrong_type.missing_t")
+        resolve_relative(status, consumers=[self._consumer("src1")])
+        self.assertFalse(status.resolved)
+        self.assertIn("'missing_t' not found", status.note)
+        self.assertIn("wrong_type", status.schema_path or "")
+
+    def test_sibling_dir_exists_but_no_schema(self):
+        status = self._status("./internal/dir_only.foo")
+        resolve_relative(status, consumers=[self._consumer("src1")])
+        self.assertFalse(status.resolved)
+        self.assertIn("cached but no config.schema.yaml", status.note)
+
+    def test_sibling_dir_does_not_exist(self):
+        status = self._status("./internal/nope.foo")
+        resolve_relative(status, consumers=[self._consumer("src1")])
+        self.assertFalse(status.resolved)
+        self.assertIn("does not exist", status.note)
+
+    def test_parent_relative_resolves(self):
+        # Regression test for the `../` bug fix. Layout:
+        #   root/src1/internal/has_type/config.schema.yaml (the target)
+        #   root/src1/internal/dir_only/                   (the source dir)
+        # A `../has_type.foo` ref from `dir_only` should hit `has_type`.
+        consumer = _make_component(self.root / "src1" / "internal" / "dir_only" / "consumer.schema.yaml")
+        status = self._status("../has_type.foo")
+        resolve_relative(status, consumers=[consumer])
+        self.assertTrue(status.resolved)
+        self.assertIn("has_type", status.schema_path or "")
+
+    def test_malformed_candidate_does_not_block_other_consumers(self):
+        # Regression test: a YAML parse error under one consumer's sibling
+        # dir must not short-circuit the multi-consumer fall-through. Set
+        # up `src2/internal/has_type/config.schema.yaml` with corrupt YAML
+        # so it's tried first; src1's clean copy must still resolve.
+        bad_dir = self.root / "src2" / "internal" / "has_type"
+        bad_dir.mkdir(parents=True)
+        (bad_dir / "config.schema.yaml").write_text(
+            "type: object\n" "  this:: is not valid yaml\n" "  - mixed: [up, with, lists\n"
+        )
+        status = self._status("./internal/has_type.foo")
+        resolve_relative(
+            status,
+            consumers=[self._consumer("src2"), self._consumer("src1")],
+        )
+        self.assertTrue(status.resolved)
+        self.assertIn("has_type", status.schema_path or "")
+
+    def test_only_malformed_candidate_reports_parse_error(self):
+        # When every candidate parses fail, `parse error` is the diagnostic.
+        bad_dir = self.root / "src1" / "internal" / "broken"
+        bad_dir.mkdir(parents=True)
+        (bad_dir / "config.schema.yaml").write_text("foo: [\n")
+        status = self._status("./internal/broken.foo")
+        resolve_relative(status, consumers=[self._consumer("src1")])
+        self.assertFalse(status.resolved)
+        self.assertIn("parse error", status.note)
+        self.assertIn("broken", status.schema_path or "")
+
+    def test_parse_error_priority_beats_type_not_found(self):
+        # Pin the diagnostic priority order: a parse error in one consumer's
+        # candidate must take precedence over a type-not-found result from a
+        # later consumer's well-formed-but-wrong-type candidate. Parse errors
+        # are actionable (fix the YAML); pointing the operator at the
+        # wrong-type file would hide the real problem.
+        bad_dir = self.root / "src2" / "internal" / "wrong_type"
+        bad_dir.mkdir(parents=True)
+        (bad_dir / "config.schema.yaml").write_text("foo: [\n")
+        # `wrong_type.bar` exists in src1 (defined in setUp), parse-fails in src2.
+        status = self._status("./internal/wrong_type.unknown_t")
+        resolve_relative(
+            status,
+            consumers=[self._consumer("src2"), self._consumer("src1")],
+        )
+        self.assertFalse(status.resolved)
+        self.assertIn("parse error", status.note)
+        self.assertIn("src2", status.schema_path or "")
 
 
 if __name__ == "__main__":

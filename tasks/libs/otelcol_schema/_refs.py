@@ -12,6 +12,7 @@ from any of them without cycles.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -150,7 +151,9 @@ def module_cache_dir(cache_root: Path, gomod: str, version: str) -> Path:
     return cache_root / f"{encode_module_path(gomod)}@{version}"
 
 
-def find_module_schema(go_path: str, *, cache_root: Path, versions: dict[str, str]) -> tuple[Path | None, Path | None]:
+def find_module_schema(
+    go_path: str, *, cache_root: Path, versions: Mapping[str, str]
+) -> tuple[Path | None, Path | None]:
     """Walk module-path prefixes until we find one with a config.schema.yaml.
 
     Returns `(schema_path_or_None, matched_module_dir_or_None)`. The
@@ -252,3 +255,48 @@ def is_component_mode(doc: dict[str, Any]) -> bool:
     `properties: {}` still indicates component mode.
     """
     return any(key in doc for key in ("type", "properties", "allOf"))
+
+
+# ---------------------------------------------------------------------------
+# Relative-ref resolution
+# ---------------------------------------------------------------------------
+
+
+def follow_relative(schema_dir: Path, target_module: str | None) -> Path | None:
+    """Resolve a `./<rel>` or `../<rel>` ref's target dir, then point at that
+    dir's `config.schema.yaml`. Returns the path if the file exists, else
+    None. Handles `..` correctly via `Path.resolve()`."""
+    if not target_module:
+        return None
+    rel = target_module
+    if rel.startswith("./"):
+        rel = rel[2:]
+    candidate = (schema_dir / rel / "config.schema.yaml").resolve()
+    return candidate if candidate.is_file() else None
+
+
+def resolve_relative_go_path(source_go_path: str, rel: str) -> str:
+    """Apply Go-import-path semantics to a relative ref string.
+
+    Mirrors `Path.resolve()` for go_path strings: `./sub` adds segments,
+    `../` pops one. The earlier `lstrip("./").replace("..", "")` shortcut
+    silently turned `../sibling` into `sibling`, producing a synthetic
+    go_path that pointed back into the source instead of up-and-over.
+
+    Examples:
+        ("a/b", "./internal/foo") -> "a/b/internal/foo"
+        ("a/b", "../sibling")     -> "a/sibling"
+        ("a/b", "./.")            -> "a/b"
+    """
+    parts = source_go_path.split("/") if source_go_path else []
+    if rel.startswith("./"):
+        rel = rel[2:]
+    for segment in rel.split("/"):
+        if segment in ("", "."):
+            continue
+        if segment == "..":
+            if parts:
+                parts.pop()
+            continue
+        parts.append(segment)
+    return "/".join(parts)
