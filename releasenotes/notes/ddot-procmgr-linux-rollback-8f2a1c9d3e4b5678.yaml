@@ -1,6 +1,6 @@
 enhancements:
   - |
-    On Linux, when the Datadog Agent uses the process manager for the DDOT (Datadog Distribution of OpenTelemetry) collector, you can **roll back** to the legacy **systemd**-managed ``datadog-agent-ddot`` service if needed.
+    On Linux, DDOT is now supervised by the agent process manager; to revert to the previous model supervised by systemd:
 
     **Disable only the DDOT process-manager path**
 
