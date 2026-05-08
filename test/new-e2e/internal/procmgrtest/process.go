@@ -18,14 +18,15 @@ import (
 )
 
 const (
-	DDOTProcessName                 = "datadog-agent-ddot"
-	CLIBinDefault                   = "/opt/datadog-agent/embedded/bin/dd-procmgr"
-	CLIBinFleetStable               = "/opt/datadog-packages/datadog-agent/stable/embedded/bin/dd-procmgr"
-	waitForProcessTimeout           = 90 * time.Second
-	waitForProcessPollInterval      = 2 * time.Second
-	ProcessStateRunning             = "Running"
-	DDOTOtelAgentFleetPackageBinary = "/opt/datadog-packages/datadog-agent-ddot/stable/embedded/bin/otel-agent"
-	DDOTOtelAgentExtensionBinary    = "/opt/datadog-agent/ext/ddot/embedded/bin/otel-agent"
+	DDOTProcessName                         = "datadog-agent-ddot"
+	CLIBinDefault                           = "/opt/datadog-agent/embedded/bin/dd-procmgr"
+	CLIBinFleetStable                       = "/opt/datadog-packages/datadog-agent/stable/embedded/bin/dd-procmgr"
+	waitForProcessTimeout                   = 90 * time.Second
+	waitForProcessPollInterval              = 2 * time.Second
+	ProcessStateRunning                     = "Running"
+	DDOTOtelAgentFleetPackageBinary         = "/opt/datadog-packages/datadog-agent-ddot/stable/embedded/bin/otel-agent"
+	DDOTOtelAgentFleetStableExtensionBinary = "/opt/datadog-packages/datadog-agent/stable/ext/ddot/embedded/bin/otel-agent"
+	DDOTOtelAgentExtensionBinary            = "/opt/datadog-agent/ext/ddot/embedded/bin/otel-agent"
 )
 
 // CommandExecutor executes a command on the remote host.
