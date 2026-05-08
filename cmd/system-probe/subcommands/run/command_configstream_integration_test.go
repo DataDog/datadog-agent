@@ -149,13 +149,11 @@ system_probe_config:
 		telemetryfx.Module(),
 		fx.Provide(func() ipc.Component { return ipcComp }),
 		fx.Provide(func(c config.Component) model.Writer { return c }),
-		fx.Provide(func() configstreamconsumer.Params {
-			return configstreamconsumer.Params{
-				ClientName:        "system-probe",
-				CoreAgentAddress:  serverAddr,
-				SessionIDProvider: &mockRAR{},
-				ReadyTimeout:      10 * time.Second,
-			}
+		fx.Supply(configstreamconsumer.Params{
+			ClientName:        "system-probe",
+			CoreAgentAddress:  serverAddr,
+			SessionIDProvider: &mockRAR{},
+			ReadyTimeout:      10 * time.Second,
 		}),
 		configstreamconsumerfx.Module(),
 	)

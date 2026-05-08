@@ -16,7 +16,9 @@ import (
 	"os"
 	"os/signal"
 	"os/user"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -100,6 +102,9 @@ type spLiteExecCmd struct {
 
 // configPrefix is the system-probe config namespace (avoids importing pkg/system-probe/config and its setup dependency cycle).
 const configPrefix = "system_probe_config."
+
+// configstreamConsumerEnabledEnvVar is the environment variable that controls whether the configstream consumer is enabled.
+const configstreamConsumerEnabledEnvVar = "DD_REMOTE_AGENT_CONFIGSTREAM_CONSUMER_ENABLED"
 
 type cliParams struct {
 	*command.GlobalParams
@@ -223,10 +228,7 @@ func configstreamFxOptions() fx.Option {
 			}
 			return nil
 		}),
-		fx.Provide(func(c config.Component, deps struct {
-			fx.In
-			SessionProvider configstreamconsumer.SessionIDProvider `optional:"true"`
-		}) configstreamconsumer.Params {
+		fx.Provide(func(c config.Component, sessionProvider configstreamconsumer.SessionIDProvider) configstreamconsumer.Params {
 			host := c.GetString("cmd_host")
 			port := c.GetInt("cmd_port")
 			if port <= 0 {
@@ -235,7 +237,7 @@ func configstreamFxOptions() fx.Option {
 			return configstreamconsumer.Params{
 				ClientName:        "system-probe",
 				CoreAgentAddress:  net.JoinHostPort(host, strconv.Itoa(port)),
-				SessionIDProvider: deps.SessionProvider,
+				SessionIDProvider: sessionProvider,
 			}
 		}),
 		configstreamconsumerfx.Module(),
@@ -244,29 +246,40 @@ func configstreamFxOptions() fx.Option {
 	)
 }
 
-// isConfigstreamEnabled does a lightweight pre-FX check of whether config stream consumer is enabled in the YAML config.
-// The default is false, matching the BindEnvAndSetDefault in pkg/config/setup/config.go.
-func isConfigstreamEnabled(configPath string) bool {
-	if configPath == "" {
-		return false
+
+// isConfigstreamEnabled is a pre-FX feature flag check; the env var takes precedence over YAML.
+func isConfigstreamEnabled(cliConfigPath string) bool {
+	if v, ok := os.LookupEnv(configstreamConsumerEnabledEnvVar); ok {
+		if enabled, err := strconv.ParseBool(v); err == nil {
+			return enabled
+		}
 	}
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return false
+	for _, path := range []string{cliConfigPath, config.DefaultConfPath} {
+		if path == "" {
+			continue
+		}
+		if !strings.HasSuffix(path, ".yaml") && !strings.HasSuffix(path, ".yml") {
+			path = filepath.Join(path, "datadog.yaml")
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		var cfg struct {
+			RemoteAgent struct {
+				ConfigStream struct {
+					Consumer struct {
+						Enabled bool `yaml:"enabled"`
+					} `yaml:"consumer"`
+				} `yaml:"configstream"`
+			} `yaml:"remote_agent"`
+		}
+		if err := yaml.Unmarshal(data, &cfg); err != nil {
+			return false
+		}
+		return cfg.RemoteAgent.ConfigStream.Consumer.Enabled
 	}
-	var cfg struct {
-		RemoteAgent struct {
-			ConfigStream struct {
-				Consumer struct {
-					Enabled bool `yaml:"enabled"`
-				} `yaml:"consumer"`
-			} `yaml:"configstream"`
-		} `yaml:"remote_agent"`
-	}
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return false
-	}
-	return cfg.RemoteAgent.ConfigStream.Consumer.Enabled
+	return false
 }
 
 // run starts the main loop.
