@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 )
 
 func TestGetOTelEnv(t *testing.T) {
@@ -332,6 +333,122 @@ func TestGetOTelStatusCode(t *testing.T) {
 				res.Attributes().PutInt(k, int64(v))
 			}
 			assert.Equal(t, tt.expected, GetOTelStatusCode(span, res))
+		})
+	}
+}
+
+func TestGetOTelGRPCStatusCode(t *testing.T) {
+	tests := []struct {
+		name     string
+		sattrs   map[string]any
+		rattrs   map[string]any
+		expected string
+	}{
+		{
+			name:     "neither set",
+			expected: "",
+		},
+		{
+			name:     "rpc.grpc.status_code on span (int)",
+			sattrs:   map[string]any{"rpc.grpc.status_code": int64(0)},
+			expected: "0",
+		},
+		{
+			name:     "rpc.grpc.status_code on span (string)",
+			sattrs:   map[string]any{"rpc.grpc.status_code": "2"},
+			expected: "2",
+		},
+		{
+			name:     "rpc.grpc.status_code on resource",
+			rattrs:   map[string]any{"rpc.grpc.status_code": int64(3)},
+			expected: "3",
+		},
+		{
+			name:     "rpc.grpc.status_code on both span and resource (span wins)",
+			sattrs:   map[string]any{"rpc.grpc.status_code": int64(4)},
+			rattrs:   map[string]any{"rpc.grpc.status_code": int64(5)},
+			expected: "4",
+		},
+		{
+			name:     "grpc.code fallback (datadog-style)",
+			sattrs:   map[string]any{"grpc.code": int64(6)},
+			expected: "6",
+		},
+		{
+			name:     "rpc.grpc.status.code fallback (otel-style)",
+			sattrs:   map[string]any{"rpc.grpc.status.code": int64(7)},
+			expected: "7",
+		},
+		{
+			name:     "grpc.status.code fallback (datadog-style)",
+			sattrs:   map[string]any{"grpc.status.code": int64(8)},
+			expected: "8",
+		},
+		{
+			name:     "rpc.response.status_code with rpc.system=grpc (legacy)",
+			sattrs:   map[string]any{"rpc.system": "grpc", "rpc.response.status_code": "DEADLINE_EXCEEDED"},
+			expected: "DEADLINE_EXCEEDED",
+		},
+		{
+			name:     "rpc.response.status_code with rpc.system.name=grpc (current semconv)",
+			sattrs:   map[string]any{"rpc.system.name": "grpc", "rpc.response.status_code": int64(4)},
+			expected: "4",
+		},
+		{
+			name:     "rpc.response.status_code on resource with rpc.system.name=grpc on span",
+			sattrs:   map[string]any{"rpc.system.name": "grpc"},
+			rattrs:   map[string]any{"rpc.response.status_code": "UNAVAILABLE"},
+			expected: "UNAVAILABLE",
+		},
+		{
+			name:     "rpc.response.status_code ignored without rpc.system",
+			sattrs:   map[string]any{"rpc.response.status_code": "DEADLINE_EXCEEDED"},
+			expected: "",
+		},
+		{
+			name:     "rpc.response.status_code ignored for non-grpc system",
+			sattrs:   map[string]any{"rpc.system": "jsonrpc", "rpc.response.status_code": "DEADLINE_EXCEEDED"},
+			expected: "",
+		},
+		{
+			name:     "rpc.response.status_code ignored for non-grpc system.name",
+			sattrs:   map[string]any{"rpc.system.name": "jsonrpc", "rpc.response.status_code": "-32602"},
+			expected: "",
+		},
+		{
+			name:     "rpc.grpc.status_code wins over rpc.response.status_code",
+			sattrs:   map[string]any{"rpc.system.name": "grpc", "rpc.grpc.status_code": int64(2), "rpc.response.status_code": "DEADLINE_EXCEEDED"},
+			expected: "2",
+		},
+		{
+			name:     "explicit rpc.grpc.status_code preserved for non-grpc system",
+			sattrs:   map[string]any{"rpc.system.name": "jsonrpc", "rpc.grpc.status_code": int64(3)},
+			expected: "3",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			for k, v := range tt.sattrs {
+				switch val := v.(type) {
+				case int64:
+					span.Attributes().PutInt(k, val)
+				case string:
+					span.Attributes().PutStr(k, val)
+				}
+			}
+			res := pcommon.NewResource()
+			for k, v := range tt.rattrs {
+				switch val := v.(type) {
+				case int64:
+					res.Attributes().PutInt(k, val)
+				case string:
+					res.Attributes().PutStr(k, val)
+				}
+			}
+			reg := semantics.DefaultRegistry()
+			accessor := semantics.NewOTelSpanAccessor(span.Attributes(), res.Attributes())
+			assert.Equal(t, tt.expected, getOTelGRPCStatusCode(reg, accessor, span.Attributes(), res.Attributes()))
 		})
 	}
 }
