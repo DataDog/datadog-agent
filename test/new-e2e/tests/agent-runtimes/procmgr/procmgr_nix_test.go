@@ -8,7 +8,6 @@ package procmgr
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -26,9 +25,9 @@ import (
 const (
 	linuxDaemonBin = "/opt/datadog-agent/embedded/bin/dd-procmgrd"
 	linuxConfigDir = "/opt/datadog-agent/processes.d"
+	ddotConfigPath = linuxConfigDir + "/datadog-agent-ddot.yaml"
 
-	// Extension layout after `datadog-agent otel install` (matches installer TestInstallDDOTSubcommand).
-	ddotOtelAgentBinaryPath = "/opt/datadog-agent/ext/ddot/embedded/bin/otel-agent"
+	ddotRestartTestRuntimeSuccessSec = 5
 
 	linuxTestProcessConfig = `command: /bin/sleep
 args:
@@ -48,7 +47,7 @@ description: should not start
 
 var linuxPlatform = platformConfig{
 	daemonBin:         linuxDaemonBin,
-	cliBin:            procmgrtest.CLIBin,
+	cliBin:            procmgrtest.CLIBinDefault,
 	configDir:         linuxConfigDir,
 	sleepCommand:      "/bin/sleep",
 	testProcessYAML:   linuxTestProcessConfig,
@@ -58,7 +57,7 @@ var linuxPlatform = platformConfig{
 	svcRunningOutput:  "active",
 	// Run CLI as dd-agent so it can use the procmgrd socket without chmod (same as installer DDOT tests).
 	cliCmd: func(args string) string {
-		return fmt.Sprintf("sudo -u dd-agent -- %q %s", procmgrtest.CLIBin, args)
+		return fmt.Sprintf("sudo -u dd-agent -- %q %s", procmgrtest.CLIBinDefault, args)
 	},
 }
 
@@ -91,12 +90,6 @@ func (s *procmgrLinuxSuite) SetupSuite() {
 	s.hasDDOT = s.installDDOTExtension()
 }
 
-// ---------------------------------------------------------------------------
-// Linux-only: DDOT tests
-// ---------------------------------------------------------------------------
-
-// datadogAgentCLI returns the on-host agent binary name used for `otel install`
-// (matches installer unix DDOT tests and FIPS CI when E2E_FIPS is set).
 func datadogAgentCLI() string {
 	if os.Getenv("E2E_FIPS") != "" {
 		return "datadog-fips-agent"
@@ -104,9 +97,6 @@ func datadogAgentCLI() string {
 	return "datadog-agent"
 }
 
-// e2ePipelineIDForOCI returns the pipeline id used in installtesting OCI tags
-// (agent-package:pipeline-<id>). Prefer E2E_PIPELINE_ID; fall back to CI_PIPELINE_ID
-// so jobs that do not inject E2E_PIPELINE_ID still work on GitLab runners.
 func e2ePipelineIDForOCI() string {
 	if id := strings.TrimSpace(os.Getenv("E2E_PIPELINE_ID")); id != "" {
 		return id
@@ -114,11 +104,6 @@ func e2ePipelineIDForOCI() string {
 	return strings.TrimSpace(os.Getenv("CI_PIPELINE_ID"))
 }
 
-// installDDOTExtension installs the DDOT extension the same way as production:
-// `datadog-agent otel install` pulling the pipeline agent-package OCI (see
-// test/new-e2e/tests/installer/unix/package_ddot_test.go). The installer already
-// restarts datadog-agent after extension install (pkg/fleet/installer/installer.go
-// InstallExtensions); procmgrd follows via unit dependencies.
 func (s *procmgrLinuxSuite) installDDOTExtension() bool {
 	pipelineID := e2ePipelineIDForOCI()
 	if pipelineID == "" {
@@ -153,7 +138,7 @@ func (s *procmgrLinuxSuite) installDDOTExtension() bool {
 func (s *procmgrLinuxSuite) TestDDOTProcessRunning() {
 	s.requireDDOT()
 
-	pid := s.waitForRunningProcess(procmgrtest.DDOTProcessName, ddotOtelAgentBinaryPath, 60*time.Second)
+	pid := s.waitForDDOTRunning().PID
 
 	pidFileContent := strings.TrimSpace(
 		s.Env().RemoteHost.MustExecute("cat /opt/datadog-agent/run/otel-agent.pid"))
@@ -164,9 +149,6 @@ func (s *procmgrLinuxSuite) TestDDOTProcessRunning() {
 	assert.NotEqual(s.T(), "active", unitState, "systemd unit should not be active; procmgrd manages DDOT")
 }
 
-// TestDDOTManagedByProcmgrNotSystemdByDefault checks that when processes.d
-// contains the DDOT definition (default when procmgr gates are on), systemd
-// skips the datadog-agent-ddot unit and dd-procmgr runs the collector instead.
 func (s *procmgrLinuxSuite) TestDDOTManagedByProcmgrNotSystemdByDefault() {
 	s.requireDDOT()
 
@@ -182,29 +164,24 @@ func (s *procmgrLinuxSuite) TestDDOTManagedByProcmgrNotSystemdByDefault() {
 		"ConditionPathExists=!…/processes.d/datadog-agent-ddot.yaml should fail so systemd does not own DDOT")
 
 	s.requireCLI()
-	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("list"))
-		assertTableRow(t, out, procmgrtest.DDOTProcessName, map[string]string{
-			"STATE": "Running",
-		})
-	}, 60*time.Second, 2*time.Second)
+	s.waitForDDOTRunning()
 }
 
 func (s *procmgrLinuxSuite) TestDDOTRestartAfterKill() {
 	s.requireDDOT()
+	s.configureDDOTRuntimeSuccess(ddotRestartTestRuntimeSuccessSec)
 
-	originalPID := s.waitForRunningProcess(procmgrtest.DDOTProcessName, ddotOtelAgentBinaryPath, 60*time.Second)
-
-	baselineRestarts := s.getRestartCount(procmgrtest.DDOTProcessName)
+	originalPID := s.waitForDDOTRunning().PID
 
 	s.Env().RemoteHost.MustExecute("sudo kill -9 " + originalPID)
 
-	newPID := s.waitForRunningProcess(procmgrtest.DDOTProcessName, ddotOtelAgentBinaryPath, 30*time.Second)
+	newResult := s.waitForDDOTRunning()
+	newPID, newRestarts := newResult.PID, newResult.Restarts
 
 	require.NotEqual(s.T(), originalPID, newPID,
 		"PID should differ after restart (was %s)", originalPID)
-	assert.Equal(s.T(), baselineRestarts+1, s.getRestartCount(procmgrtest.DDOTProcessName),
-		"Restarts should have increased by 1 (baseline %d)", baselineRestarts)
+	assert.Equal(s.T(), 1, newRestarts,
+		"Restarts should be 1 on the second running describe after kill (new %d)", newRestarts)
 }
 
 func (s *procmgrLinuxSuite) TestDDOTProcessDescribe() {
@@ -213,38 +190,36 @@ func (s *procmgrLinuxSuite) TestDDOTProcessDescribe() {
 		out := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("describe " + procmgrtest.DDOTProcessName))
 		assertField(t, out, "Name", procmgrtest.DDOTProcessName)
 		assertField(t, out, "State", "Running")
-		assertField(t, out, "Command", ddotOtelAgentBinaryPath)
+		assertField(t, out, "Command", procmgrtest.DDOTOtelAgentExtensionBinary)
 		assertField(t, out, "Restart Policy", "on-failure")
 		assertHasField(t, out, "PID")
 		assertHasField(t, out, "UUID")
 	}, 60*time.Second, 2*time.Second)
 }
 
-// ---------------------------------------------------------------------------
-// Linux-only helpers
-// ---------------------------------------------------------------------------
-
-func (s *procmgrLinuxSuite) waitForRunningProcess(name, expectedBinary string, timeout time.Duration) string {
+func (s *procmgrLinuxSuite) waitForDDOTRunning() procmgrtest.WaitForProcessResult {
 	s.T().Helper()
-	return procmgrtest.WaitForRunningProcess(
-		s.T(),
-		s,
-		name,
-		expectedBinary,
-		timeout,
-	)
+	return procmgrtest.WaitForProcess(s.T(), s, procmgrtest.WaitForProcessArgs{
+		ProcessName:    procmgrtest.DDOTProcessName,
+		ExpectedBinary: procmgrtest.DDOTOtelAgentExtensionBinary,
+		ProcmgrCLIBin:  s.platform.cliBin,
+		DesiredState:   procmgrtest.ProcessStateRunning,
+	})
 }
 
 func (s *procmgrLinuxSuite) ExecuteCommand(command string) (string, error) {
 	return s.Env().RemoteHost.Execute(command)
 }
 
-func (s *procmgrLinuxSuite) getRestartCount(name string) int {
+func (s *procmgrLinuxSuite) configureDDOTRuntimeSuccess(seconds int) {
 	s.T().Helper()
-	out := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("describe " + name))
-	count, err := strconv.Atoi(fieldValue(out, "Restarts"))
-	require.NoError(s.T(), err, "Restarts field for %s should be a number", name)
-	return count
+	require.Greater(s.T(), seconds, 0, "runtime_success_sec must be > 0")
+
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf(`sudo sh -c 'f=%q; if grep -q "^runtime_success_sec:" "$f"; then sed -i.bak -E "s/^runtime_success_sec:.*/runtime_success_sec: %d/" "$f"; else printf "\nruntime_success_sec: %d\n" >> "$f"; fi'`,
+		ddotConfigPath, seconds, seconds))
+	s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent-procmgr.service")
+	s.Env().RemoteHost.MustExecute("sudo systemctl is-active datadog-agent-procmgr.service")
+	s.waitForDDOTRunning()
 }
 
 func (s *procmgrLinuxSuite) requireDDOT() {

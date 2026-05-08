@@ -41,7 +41,7 @@ func RestartDaemon(ctx context.Context, experiment bool) error {
 	}
 	err := systemd.RestartUnit(ctx, unit)
 	exitErr := &exec.ExitError{}
-	if errors.As(err, &exitErr) && exitErr.ExitCode() == 5 {
+	if errors.As(err, &exitErr) && exitErr.ExitCode() == systemd.SystemctlExitUnitNotLoaded {
 		// Fresh installs can sync DDOT procmgr config before unit files are loaded.
 		// Treat "unit not loaded" as non-fatal so extension installation can proceed.
 		return nil

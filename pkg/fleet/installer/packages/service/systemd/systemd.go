@@ -28,6 +28,8 @@ import (
 const (
 	// UserUnitsPath is the directory where systemd user unit files are stored
 	UserUnitsPath = "/etc/systemd/system"
+	// SystemctlExitUnitNotLoaded is the systemctl exit code when a unit is not loaded.
+	SystemctlExitUnitNotLoaded = 5
 )
 
 func handleSystemdSelfStops(err error) error {
@@ -63,8 +65,8 @@ func StopUnit(ctx context.Context, unit string, args ...string) error {
 	if !errors.As(err, &exitErr) {
 		return err
 	}
-	// exit code 5 means the unit is not loaded, we can continue
-	if exitErr.ExitCode() == 5 {
+	// exit code means the unit is not loaded, we can continue
+	if exitErr.ExitCode() == SystemctlExitUnitNotLoaded {
 		return nil
 	}
 	return handleSystemdSelfStops(err)
@@ -136,8 +138,8 @@ func DisableUnit(ctx context.Context, unit string) error {
 	if !errors.As(err, &exitErr) {
 		return err
 	}
-	if exitErr.ExitCode() == 5 {
-		// exit code 5 means the unit is not loaded, we can continue
+	if exitErr.ExitCode() == SystemctlExitUnitNotLoaded {
+		// exit code means the unit is not loaded, we can continue
 		return nil
 	}
 	return err
