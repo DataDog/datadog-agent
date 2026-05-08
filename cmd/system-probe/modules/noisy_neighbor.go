@@ -10,6 +10,7 @@ package modules
 import (
 	"fmt"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -48,23 +49,47 @@ var _ module.Module = &noisyNeighborModule{}
 type noisyNeighborModule struct {
 	*noisyneighbor.Probe
 	lastCheck *atomic.Int64
+	inflight  sync.WaitGroup
+	closed    atomic.Bool
 }
 
 // GetStats implements module.Module.GetStats
-func (n noisyNeighborModule) GetStats() map[string]interface{} {
+func (n *noisyNeighborModule) GetStats() map[string]interface{} {
 	return map[string]interface{}{
 		"last_check": n.lastCheck.Load(),
 	}
 }
 
 // Register implements module.Module.Register
-func (n noisyNeighborModule) Register(httpMux *module.Router) error {
+func (n *noisyNeighborModule) Register(httpMux *module.Router) error {
 	// Limit concurrency to one as the probe check is not thread safe (mainly in the entry count buffers)
 	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
+		if n.closed.Load() {
+			http.Error(w, "module closing", http.StatusServiceUnavailable)
+			return
+		}
+		n.inflight.Add(1)
+		defer n.inflight.Done()
+		// Re-check after Add to close the race where Close() observed inflight==0
+		// before our Add but set closed afterwards.
+		if n.closed.Load() {
+			http.Error(w, "module closing", http.StatusServiceUnavailable)
+			return
+		}
 		n.lastCheck.Store(time.Now().Unix())
 		stats := n.Probe.GetAndFlush()
 		utils.WriteAsJSON(req, w, stats, utils.GetPrettyPrintFromQueryParams(req))
 	}))
 
 	return nil
+}
+
+// Close marks the module as closing, waits for any in-flight /check
+// handlers to complete, and then tears down the underlying eBPF probe.
+// Without this, an in-flight GetAndFlush iterating the BPF map could race
+// with Probe.Close() unloading the manager.
+func (n *noisyNeighborModule) Close() {
+	n.closed.Store(true)
+	n.inflight.Wait()
+	n.Probe.Close()
 }

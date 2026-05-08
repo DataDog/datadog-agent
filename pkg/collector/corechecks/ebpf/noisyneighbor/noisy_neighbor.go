@@ -29,8 +29,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
+// NoisyNeighborConfig holds the YAML-parseable configuration for the
+// noisy_neighbor check. The check currently has no tunable knobs, but the
+// type is kept so the standard check Configure flow can call Parse.
 type NoisyNeighborConfig struct{}
 
+// NoisyNeighborCheck is the agent-side core check that consumes per-cgroup
+// scheduling and PMU stats from the system-probe noisyneighbor module and
+// emits Datadog metrics tagged by container.
 type NoisyNeighborCheck struct {
 	core.CheckBase
 	config         *NoisyNeighborConfig
@@ -39,6 +45,8 @@ type NoisyNeighborCheck struct {
 	cgroupReader   *cgroups.Reader
 }
 
+// Factory returns the check.Check constructor used by the collector to
+// instantiate the noisy_neighbor check.
 func Factory(tagger tagger.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
 		return newCheck(tagger)
@@ -53,40 +61,45 @@ func newCheck(tagger tagger.Component) check.Check {
 	}
 }
 
+// Parse unmarshals the check's YAML configuration into c.
 func (c *NoisyNeighborConfig) Parse(data []byte) error {
 	return yaml.Unmarshal(data, c)
 }
 
+// Configure sets up the check by parsing its configuration, building a
+// system-probe client, and initializing the cgroup reader used for tagging.
 func (n *NoisyNeighborCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string, provider string) error {
 	if err := n.CommonConfigure(senderManager, initConfig, config, source, provider); err != nil {
 		return err
 	}
 	if err := n.config.Parse(config); err != nil {
-		return fmt.Errorf("noisy_neighbor check config: %s", err)
+		return fmt.Errorf("noisy_neighbor check config: %w", err)
 	}
 	n.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")))
 	reader, err := cgroups.NewReader(cgroups.WithReaderFilter(cgroups.ContainerFilter))
 	if err != nil {
-		return fmt.Errorf("noisy_neighbor: cgroup reader init failed: %s", err)
+		return fmt.Errorf("noisy_neighbor: cgroup reader init failed: %w", err)
 	}
 	n.cgroupReader = reader
 	return nil
 }
 
+// Run fetches the latest per-cgroup stats from system-probe, refreshes the
+// cgroup reader, and emits Datadog metrics for each tracked container.
 func (n *NoisyNeighborCheck) Run() error {
 	stats, err := sysprobeclient.GetCheck[[]model.NoisyNeighborStats](n.sysProbeClient, sysconfig.NoisyNeighborModule)
 	if err != nil {
-		return fmt.Errorf("get noisy neighbor check: %s", err)
+		return fmt.Errorf("get noisy neighbor check: %w", err)
 	}
 
 	sender, err := n.GetSender()
 	if err != nil {
-		return fmt.Errorf("get metric sender: %s", err)
+		return fmt.Errorf("get metric sender: %w", err)
 	}
 
 	err = n.cgroupReader.RefreshCgroups(0)
 	if err != nil {
-		return fmt.Errorf("unable to refresh cgroups: %s", err)
+		return fmt.Errorf("unable to refresh cgroups: %w", err)
 	}
 
 	var totalCgroups uint64
@@ -95,6 +108,7 @@ func (n *NoisyNeighborCheck) Run() error {
 		tags := n.getContainerTags(stat)
 		n.submitPrimaryMetrics(sender, stat, tags)
 		n.submitRawCounters(sender, stat, tags)
+		n.submitPSIFullMetrics(sender, stat, tags)
 	}
 	sender.Gauge("noisy_neighbor.system.cgroups_tracked", float64(totalCgroups), "", nil)
 	sender.Commit()
@@ -140,6 +154,40 @@ func (n *NoisyNeighborCheck) submitRawCounters(sender sender.Sender, stat model.
 	sender.Count("noisy_neighbor.instructions", float64(stat.SumInstructions), "", tags)
 	sender.Count("noisy_neighbor.llc_misses", float64(stat.SumLLCMisses), "", tags)
 	sender.Count("noisy_neighbor.itlb_misses", float64(stat.SumITLBMisses), "", tags)
+	sender.Count("noisy_neighbor.branch_misses", float64(stat.SumBranchMisses), "", tags)
+	sender.Count("noisy_neighbor.cpu_migrations", float64(stat.SumCPUMigrations), "", tags)
 	sender.Count("noisy_neighbor.softirq_ns", float64(stat.SumSoftirqNs), "", tags)
 	sender.Count("noisy_neighbor.block_io_requests", float64(stat.BlockIORequests), "", tags)
+	sender.Count("noisy_neighbor.wakeups", float64(stat.WakeupCount), "", tags)
+}
+
+// submitPSIFullMetrics emits the cgroup-scoped PSI "full" stalls for memory
+// and io. The "some" variants are already emitted by the generic container
+// processor as container.{memory,io}.partial_stall — we deliberately do not
+// duplicate those here. CPU "full" PSI is not exposed at the cgroup level
+// by the kernel.
+//
+// Emitted as Gauge of the cumulative-since-cgroup-creation microsecond
+// counter. Backend or dashboard math can compute deltas; emitting Gauge
+// (rather than Rate or MonotonicCount) means single-shot `agent check`
+// invocations include the value, which Rate/MonotonicCount would drop for
+// lack of a prior sample.
+func (n *NoisyNeighborCheck) submitPSIFullMetrics(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
+	cg := n.cgroupReader.GetCgroupByInode(stat.CgroupID)
+	if cg == nil {
+		log.Debugf("noisy_neighbor: cgroup not found for inode %d, skipping PSI metrics", stat.CgroupID)
+		return
+	}
+	memStats := &cgroups.MemoryStats{}
+	if err := cg.GetMemoryStats(memStats); err != nil {
+		log.Debugf("noisy_neighbor: GetMemoryStats failed for cgroup %d: %v", stat.CgroupID, err)
+	} else if memStats.PSIFull.Total != nil {
+		sender.Gauge("noisy_neighbor.memory.pressure.full.total_us", float64(*memStats.PSIFull.Total), "", tags)
+	}
+	ioStats := &cgroups.IOStats{}
+	if err := cg.GetIOStats(ioStats); err != nil {
+		log.Debugf("noisy_neighbor: GetIOStats failed for cgroup %d: %v", stat.CgroupID, err)
+	} else if ioStats.PSIFull.Total != nil {
+		sender.Gauge("noisy_neighbor.io.pressure.full.total_us", float64(*ioStats.PSIFull.Total), "", tags)
+	}
 }

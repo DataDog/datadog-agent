@@ -37,7 +37,7 @@ type Probe struct {
 func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
-		return nil, fmt.Errorf("kernel version: %s", err)
+		return nil, fmt.Errorf("kernel version: %w", err)
 	}
 	if kv < minimumKernelVersion {
 		return nil, fmt.Errorf("minimum kernel version %s not met, read %s", minimumKernelVersion, kv)
@@ -68,6 +68,8 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 			{Name: "instructions_pmu"},
 			{Name: "llc_misses_pmu"},
 			{Name: "itlb_misses_pmu"},
+			{Name: "branch_misses_pmu"},
+			{Name: "cpu_migrations_pmu"},
 			{Name: "softirq_start_ns"},
 		}
 		if err := p.mgr.InitWithOptions(buf, &opts); err != nil {
@@ -95,7 +97,8 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 	return p, nil
 }
 
-// pmuEvent describes one hardware counter we want per-CPU.
+// pmuEvent describes one perf event (hardware or software counter) that we
+// open per-CPU and expose to BPF via a perf-event-array map.
 type pmuEvent struct {
 	mapName    string
 	humanLabel string
@@ -108,18 +111,19 @@ const itlbLoadMissesConfig = uint64(unix.PERF_COUNT_HW_CACHE_ITLB) |
 	(uint64(unix.PERF_COUNT_HW_CACHE_OP_READ) << 8) |
 	(uint64(unix.PERF_COUNT_HW_CACHE_RESULT_MISS) << 16)
 
-// attachPMU opens per-CPU hardware perf events and inserts their fds into the
-// corresponding BPF perf-event-array maps. On hosts where a given event isn't
-// supported (virtualized envs, restrictive perf_event_paranoid, missing
-// CAP_PERF_MON, or µarch lacking the event) opens fail and we log once per
-// event type. Other events still attach independently, and the eBPF program
-// checks each read-value return code and skips just that counter's deltas.
+// attachPMU opens per-CPU perf events for every counter we track and
+// populates the corresponding BPF perf-event-array maps. See attachPMUEvent
+// for per-event semantics and failure modes.
 func (p *Probe) attachPMU() {
 	events := []pmuEvent{
 		{"cycles_pmu", "cycles", unix.PERF_TYPE_HARDWARE, unix.PERF_COUNT_HW_CPU_CYCLES},
 		{"instructions_pmu", "instructions", unix.PERF_TYPE_HARDWARE, unix.PERF_COUNT_HW_INSTRUCTIONS},
 		{"llc_misses_pmu", "LLC misses", unix.PERF_TYPE_HARDWARE, unix.PERF_COUNT_HW_CACHE_MISSES},
 		{"itlb_misses_pmu", "iTLB misses", unix.PERF_TYPE_HW_CACHE, itlbLoadMissesConfig},
+		{"branch_misses_pmu", "branch misses", unix.PERF_TYPE_HARDWARE, unix.PERF_COUNT_HW_BRANCH_MISSES},
+		// CPU migrations is a software counter — doesn't compete for hardware
+		// PMU counters and is always available regardless of µarch.
+		{"cpu_migrations_pmu", "CPU migrations", unix.PERF_TYPE_SOFTWARE, unix.PERF_COUNT_SW_CPU_MIGRATIONS},
 	}
 	numCPU := runtime.NumCPU()
 	for _, ev := range events {
@@ -127,6 +131,12 @@ func (p *Probe) attachPMU() {
 	}
 }
 
+// attachPMUEvent opens one perf event per CPU and inserts the fds into the
+// associated BPF perf-event-array map. On hosts where the event isn't
+// supported (virtualized envs, restrictive perf_event_paranoid, missing
+// CAP_PERF_MON, or µarch lacking the event) opens fail and we log once per
+// event type. Other events still attach independently, and the eBPF program
+// checks each read-value return code and skips just that counter's deltas.
 func (p *Probe) attachPMUEvent(ev pmuEvent, numCPU int) {
 	m, _, err := p.mgr.GetMap(ev.mapName)
 	if err != nil || m == nil {
@@ -145,7 +155,7 @@ func (p *Probe) attachPMUEvent(ev pmuEvent, numCPU int) {
 		}
 		if err := m.Put(uint32(cpu), uint32(fd)); err != nil {
 			log.Warnf("noisy_neighbor: failed to register %s fd on cpu %d: %v", ev.humanLabel, cpu, err)
-			unix.Close(fd)
+			_ = unix.Close(fd)
 			continue
 		}
 		p.pmuFDs = append(p.pmuFDs, fd)
@@ -163,7 +173,7 @@ func openHardwarePerfEvent(perfType uint32, config uint64, cpu int) (int, error)
 		return -1, err
 	}
 	if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, 0); err != nil {
-		unix.Close(fd)
+		_ = unix.Close(fd)
 		return -1, fmt.Errorf("enable perf event: %w", err)
 	}
 	return fd, nil
@@ -172,7 +182,9 @@ func openHardwarePerfEvent(perfType uint32, config uint64, cpu int) (int, error)
 // Close releases all associated resources
 func (p *Probe) Close() {
 	for _, fd := range p.pmuFDs {
-		unix.Close(fd)
+		if err := unix.Close(fd); err != nil {
+			log.Warnf("noisy_neighbor: failed to close PMU fd %d: %v", fd, err)
+		}
 	}
 	p.pmuFDs = nil
 	if p.mgr != nil {
@@ -183,7 +195,10 @@ func (p *Probe) Close() {
 	}
 }
 
-// GetAndFlush gets the stats
+// GetAndFlush returns aggregated per-cgroup stats for the current window
+// and atomically deletes each returned cgroup's entry from the BPF map.
+// Cgroups with zero observable activity (no events, softirq, block-IO,
+// or wakeups) are filtered out of the return slice but still flushed.
 func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 	var nnstats []model.NoisyNeighborStats
 
@@ -207,6 +222,7 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 		var cgroupCycles, cgroupInstructions uint64
 		var cgroupLLCMisses, cgroupITLBMisses uint64
 		var cgroupSoftirqNs, cgroupBlockIO uint64
+		var cgroupBranchMisses, cgroupCPUMigrations, cgroupWakeups uint64
 		for _, cpuStat := range perCPUStats {
 			cgroupLatencies += cpuStat.Sum_latencies_ns
 			cgroupEvents += cpuStat.Event_count
@@ -217,6 +233,9 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 			cgroupITLBMisses += cpuStat.Sum_itlb_misses
 			cgroupSoftirqNs += cpuStat.Sum_softirq_ns
 			cgroupBlockIO += cpuStat.Block_io_requests
+			cgroupBranchMisses += cpuStat.Sum_branch_misses
+			cgroupCPUMigrations += cpuStat.Sum_cpu_migrations
+			cgroupWakeups += cpuStat.Wakeup_count
 			// pid_count is a global cgroup value (not per-CPU), so take the max rather than summing
 			if cpuStat.Pid_count > pidCount {
 				pidCount = cpuStat.Pid_count
@@ -225,22 +244,25 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 
 		cgroupsToDelete = append(cgroupsToDelete, cgroupID)
 
-		if cgroupEvents == 0 && cgroupSoftirqNs == 0 && cgroupBlockIO == 0 {
+		if cgroupEvents == 0 && cgroupSoftirqNs == 0 && cgroupBlockIO == 0 && cgroupWakeups == 0 {
 			continue
 		}
 
 		stat := model.NoisyNeighborStats{
-			CgroupID:        cgroupID,
-			SumLatenciesNs:  cgroupLatencies,
-			EventCount:      cgroupEvents,
-			PreemptionCount: cgroupPreemptions,
-			UniquePidCount:  pidCount,
-			SumCycles:       cgroupCycles,
-			SumInstructions: cgroupInstructions,
-			SumLLCMisses:    cgroupLLCMisses,
-			SumITLBMisses:   cgroupITLBMisses,
-			SumSoftirqNs:    cgroupSoftirqNs,
-			BlockIORequests: cgroupBlockIO,
+			CgroupID:         cgroupID,
+			SumLatenciesNs:   cgroupLatencies,
+			EventCount:       cgroupEvents,
+			PreemptionCount:  cgroupPreemptions,
+			UniquePidCount:   pidCount,
+			SumCycles:        cgroupCycles,
+			SumInstructions:  cgroupInstructions,
+			SumLLCMisses:     cgroupLLCMisses,
+			SumITLBMisses:    cgroupITLBMisses,
+			SumSoftirqNs:     cgroupSoftirqNs,
+			BlockIORequests:  cgroupBlockIO,
+			SumBranchMisses:  cgroupBranchMisses,
+			SumCPUMigrations: cgroupCPUMigrations,
+			WakeupCount:      cgroupWakeups,
 		}
 
 		nnstats = append(nnstats, stat)
