@@ -98,6 +98,9 @@ exports_files(glob(
 # gazelle:exclude comp/core/bundle_mock.go
 # gazelle:exclude comp/core/bundle_params.go
 # gazelle:exclude comp/core/bundle_test.go
+# gazelle:exclude comp/core/configstreamconsumer/fx
+# gazelle:exclude comp/core/configstreamconsumer/impl
+# gazelle:exclude comp/core/configstreamconsumer/mock
 # gazelle:exclude comp/core/diagnose/fx
 # gazelle:exclude comp/core/diagnose/impl
 # gazelle:exclude comp/core/diagnose/local
@@ -233,7 +236,6 @@ exports_files(glob(
 # gazelle:exclude comp/otelcol/dogtelextension/fx
 # gazelle:exclude comp/otelcol/logsagentpipeline
 # gazelle:exclude comp/otelcol/otlp/components/exporter
-# gazelle:exclude comp/otelcol/otlp/components/processor
 # gazelle:exclude comp/otelcol/otlp/integrationtest
 # gazelle:exclude comp/otelcol/otlp/internal
 # gazelle:exclude comp/otelcol/otlp/testdata
@@ -540,7 +542,6 @@ exports_files(glob(
 # gazelle:exclude pkg/proto/datadog/process
 # gazelle:exclude pkg/proto/datadog/remoteagent
 # gazelle:exclude pkg/proto/datadog/remoteconfig
-# gazelle:exclude pkg/proto/datadog/sbom
 # gazelle:exclude pkg/proto/datadog/workloadfilter
 # gazelle:exclude pkg/proto/datadog/workloadmeta
 # gazelle:exclude pkg/proto/protodep
@@ -617,7 +618,6 @@ exports_files(glob(
 # gazelle:exclude pkg/system-probe/api/module
 # gazelle:exclude pkg/system-probe/api/server/testutil
 # gazelle:exclude pkg/system-probe/config
-# gazelle:exclude pkg/trace/otel/integration
 # gazelle:exclude pkg/util/cloudproviders/gce
 # gazelle:exclude pkg/util/cloudproviders/kubernetes
 # gazelle:exclude pkg/util/cloudproviders/network
