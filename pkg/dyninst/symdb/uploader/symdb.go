@@ -267,9 +267,7 @@ func (s *uploader) uploadInner(ctx context.Context, compressedData []byte) error
 "ddsource": "dd_debugger",
 "service": "` + s.service + `",
 "runtimeId": "` + s.runtimeID + `",
-"debugger": {
-	"type": "symdb"
-}
+"type": "symdb"
 }`)
 	if _, err := eventPart.Write(meta); err != nil {
 		return fmt.Errorf("failed to write event data: %w", err)
