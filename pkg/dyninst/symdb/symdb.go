@@ -217,19 +217,36 @@ func (p *Package) Serialize(w StringWriter) {
 	w.WriteString("Package: ")
 	w.WriteString(p.Name)
 	w.WriteString("\n")
-	// Serialize functions sorted by name for stable output.
-	sort.Slice(p.Functions, func(i, j int) bool { return p.Functions[i].Name < p.Functions[j].Name })
+
+	type serializable interface {
+		Serialize(w StringWriter, indent string)
+	}
+	toSerialize := make([]serializable, 0, len(p.Functions)+len(p.Types))
 	for _, fn := range p.Functions {
-		fn.Serialize(w, "\t")
+		toSerialize = append(toSerialize, fn)
 	}
-	// Serialize types sorted by name for stable output.
-	typeNames := make([]string, 0, len(p.Types))
-	for name := range p.Types {
-		typeNames = append(typeNames, name)
+	for _, t := range p.Types {
+		toSerialize = append(toSerialize, t)
 	}
-	sort.Strings(typeNames)
-	for _, name := range typeNames {
-		p.Types[name].Serialize(w, "\t")
+	nameFunc := func(a serializable) string {
+		switch a := a.(type) {
+		case Function:
+			return a.Name
+		case *Function:
+			return a.Name
+		case Type:
+			return a.Name
+		case *Type:
+			return a.Name
+		default:
+			panic(fmt.Sprintf("unexpected type: %T", a))
+		}
+	}
+	slices.SortFunc(toSerialize, func(a, b serializable) int {
+		return strings.Compare(nameFunc(a), nameFunc(b))
+	})
+	for _, s := range toSerialize {
+		s.Serialize(w, "\t")
 	}
 }
 

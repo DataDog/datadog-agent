@@ -252,9 +252,428 @@ Package: main
 		Var: service: string (declared at line 24, available: [25-28])
 		Scope: 40-43
 			Var: span: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span (declared at line 41, available: [40-43])
+	Type: main.Pair[...]
+		Field: Key: <T>
+		Field: Value: <T>
+		Function: SetValue (main.(*Pair[...]).SetValue) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go [68:70] injectible: [68-70]
+			Arg: x: <T> (declared at line 67, available: [68-70])
+			Arg: k: <T> (declared at line 67, available: [68-70])
+			Arg: v: <T> (declared at line 67, available: [68-70])
 	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2@v2.2.3-rc.1/ddtrace/tracer/option.go [986:989] injectible: [986-989]
 		Arg: c: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.config (declared at line 986, available: [986-988])
 		Var: name: string (declared at line 987, available: [987-989])
+	Type: main.aStruct
+		Field: aBool: bool
+		Field: aString: string
+		Field: aNumber: int
+		Field: nested: main.nestedStruct
+	Type: main.anotherStruct
+		Field: nested: *main.nestedStruct
+	Type: main.bStruct
+		Field: aInt16: int16
+		Field: nested: main.aStruct
+		Field: aBool: bool
+		Field: aInt32: int32
+	Type: main.behavior
+	Type: main.bigStruct
+		Field: x: []*string
+		Field: z: int
+		Field: writer: io.Writer
+	Type: main.cStruct
+		Field: aInt32: int32
+		Field: aUint: uint
+		Field: nested: main.structWithNoStrings
+	Type: main.celsius
+	Type: main.circularReferenceType
+		Field: t: *main.circularReferenceType
+	Type: main.deepMap1
+		Field: a: map[int]*main.deepMap2
+	Type: main.deepMap2
+		Field: a: map[int]*main.deepMap3
+	Type: main.deepMap3
+		Field: a: map[int]*main.deepMap4
+	Type: main.deepMap4
+		Field: a: map[int]*main.deepMap5
+	Type: main.deepMap5
+		Field: a: map[int]*main.deepMap6
+	Type: main.deepMap6
+		Field: a: map[int]*main.deepMap7
+	Type: main.deepMap7
+		Field: a: map[int]*main.deepMap8
+	Type: main.deepMap8
+		Field: a: map[int]*main.deepMap9
+	Type: main.deepMap9
+		Field: a: map[int]interface {}
+	Type: main.deepPtr1
+		Field: a: *main.deepPtr2
+	Type: main.deepPtr2
+		Field: a: *main.deepPtr3
+	Type: main.deepPtr3
+		Field: a: *main.deepPtr4
+	Type: main.deepPtr4
+		Field: a: *main.deepPtr5
+	Type: main.deepPtr5
+		Field: a: *main.deepPtr6
+	Type: main.deepPtr6
+		Field: a: *main.deepPtr7
+	Type: main.deepPtr7
+		Field: a: *main.deepPtr8
+	Type: main.deepPtr8
+		Field: a: *main.deepPtr9
+	Type: main.deepPtr9
+		Field: a: interface {}
+	Type: main.deepSlice1
+		Field: a: []*main.deepSlice2
+	Type: main.deepSlice2
+		Field: a: []*main.deepSlice3
+	Type: main.deepSlice3
+		Field: a: []*main.deepSlice4
+	Type: main.deepSlice4
+		Field: a: []*main.deepSlice5
+	Type: main.deepSlice5
+		Field: a: []*main.deepSlice6
+	Type: main.deepSlice6
+		Field: a: []*main.deepSlice7
+	Type: main.deepSlice7
+		Field: a: []*main.deepSlice8
+	Type: main.deepSlice8
+		Field: a: []*main.deepSlice9
+	Type: main.deepSlice9
+		Field: a: []interface {}
+	Type: main.deepStruct1
+		Field: a: int
+		Field: b: main.deepStruct2
+	Type: main.deepStruct2
+		Field: c: int
+		Field: d: main.deepStruct3
+	Type: main.deepStruct3
+		Field: e: int
+		Field: f: main.deepStruct4
+	Type: main.deepStruct4
+		Field: g: int
+		Field: h: main.deepStruct5
+	Type: main.deepStruct5
+		Field: i: int
+		Field: j: main.deepStruct6
+	Type: main.deepStruct6
+		Field: k: int
+	Type: main.emptyStruct
+	Type: main.esotericHeap
+		Field: esotericStack: main.esotericStack
+		Field: mu: sync.Mutex
+		Field: once: sync.Once
+		Field: wg: sync.WaitGroup
+		Field: a: sync/atomic.Int32
+	Type: main.esotericStack
+		Field: _: int32
+		Field: _valid: int32
+		Field: c: chan struct {}
+		Field: val: interface {}
+		Field: _: uint64
+		Field: work: main.something
+		Field: foo: func()
+	Type: main.firstBehavior
+		Field: s: string
+		Function: DoSomething (main.firstBehavior.DoSomething) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [28:29] injectible: [28-29]
+			Arg: b: main.firstBehavior (declared at line 0, available: [28-29])
+	Type: main.hasUnsupportedFields
+		Field: b: int
+		Field: c: float32
+		Field: d: []uint8
+	Type: main.inner
+		Field: C: int
+		Field: D: uint8
+		Field: E: string
+	Type: main.interfaceComplexityA
+		Field: b: int
+		Field: c: main.interfaceComplexityB
+	Type: main.interfaceComplexityB
+		Field: d: int
+		Field: e: error
+		Field: f: main.interfaceComplexityC
+	Type: main.interfaceComplexityC
+		Field: g: int
+	Type: main.iterExample
+		Function: rangeOverIterator (main.iterExample.rangeOverIterator) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/ranges.go [15:19] injectible: [15-16], [19-19]
+			Arg: ~p0: main.iterExample (declared at line 15, available: )
+	Type: main.largeGenericType[...]
+		Field: A: [16]uint8
+		Field: B: [16]uint8
+		Field: C: [16]uint8
+		Field: D: [16]uint8
+		Field: E: [16]uint8
+		Field: F: [16]uint8
+		Field: G: [16]uint8
+		Field: H: [16]uint8
+		Field: Value: <T>
+		Function: LargeGet (main.largeGenericType[...].LargeGet) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go [125:125] injectible: [125-125]
+			Arg: x: <T> (declared at line 124, available: [125-125])
+			Arg: ~r0: <T> (declared at line 124, available: )
+	Type: main.largeStruct
+		Field: a: int
+		Field: b: int
+		Field: c: int
+		Field: d: int
+		Field: e: int
+		Field: f: int
+		Field: g: int
+		Field: h: int
+		Field: i: int
+		Field: j: int
+	Type: main.lotsOfFields
+		Field: a: uint8
+		Field: b: uint8
+		Field: c: uint8
+		Field: d: uint8
+		Field: e: uint8
+		Field: f: uint8
+		Field: g: uint8
+		Field: h: uint8
+		Field: i: uint8
+		Field: j: uint8
+		Field: k: uint8
+		Field: l: uint8
+		Field: m: uint8
+		Field: n: uint8
+		Field: o: uint8
+		Field: p: uint8
+		Field: q: uint8
+		Field: r: uint8
+		Field: s: uint8
+		Field: t: uint8
+		Field: u: uint8
+		Field: v: uint8
+		Field: w: uint8
+		Field: x: uint8
+		Field: y: uint8
+		Field: z: uint8
+	Type: main.manyPointers
+		Field: p00: *main.paddedData
+		Field: p01: *main.paddedData
+		Field: p02: *main.paddedData
+		Field: p03: *main.paddedData
+		Field: p04: *main.paddedData
+		Field: p05: *main.paddedData
+		Field: p06: *main.paddedData
+		Field: p07: *main.paddedData
+		Field: p08: *main.paddedData
+		Field: p09: *main.paddedData
+		Field: p10: *main.paddedData
+		Field: p11: *main.paddedData
+		Field: p12: *main.paddedData
+		Field: p13: *main.paddedData
+		Field: p14: *main.paddedData
+		Field: p15: *main.paddedData
+		Field: p16: *main.paddedData
+		Field: p17: *main.paddedData
+		Field: p18: *main.paddedData
+		Field: p19: *main.paddedData
+		Field: p20: *main.paddedData
+		Field: p21: *main.paddedData
+		Field: p22: *main.paddedData
+		Field: p23: *main.paddedData
+		Field: p24: *main.paddedData
+		Field: p25: *main.paddedData
+		Field: p26: *main.paddedData
+		Field: p27: *main.paddedData
+		Field: p28: *main.paddedData
+		Field: p29: *main.paddedData
+		Field: p30: *main.paddedData
+		Field: p31: *main.paddedData
+		Field: p32: *main.paddedData
+		Field: p33: *main.paddedData
+		Field: p34: *main.paddedData
+		Field: p35: *main.paddedData
+		Field: p36: *main.paddedData
+		Field: p37: *main.paddedData
+		Field: p38: *main.paddedData
+		Field: p39: *main.paddedData
+		Field: p40: *main.paddedData
+		Field: p41: *main.paddedData
+		Field: p42: *main.paddedData
+		Field: p43: *main.paddedData
+		Field: p44: *main.paddedData
+		Field: p45: *main.paddedData
+		Field: p46: *main.paddedData
+		Field: p47: *main.paddedData
+		Field: p48: *main.paddedData
+		Field: p49: *main.paddedData
+		Field: p50: *main.paddedData
+		Field: p51: *main.paddedData
+		Field: p52: *main.paddedData
+		Field: p53: *main.paddedData
+		Field: p54: *main.paddedData
+		Field: p55: *main.paddedData
+		Field: p56: *main.paddedData
+		Field: p57: *main.paddedData
+		Field: p58: *main.paddedData
+		Field: p59: *main.paddedData
+		Field: p60: *main.paddedData
+		Field: p61: *main.paddedData
+		Field: p62: *main.paddedData
+		Field: p63: *main.paddedData
+		Field: p64: *main.paddedData
+		Field: p65: *main.paddedData
+		Field: p66: *main.paddedData
+		Field: p67: *main.paddedData
+		Field: p68: *main.paddedData
+		Field: p69: *main.paddedData
+	Type: main.middle
+		Field: B: *main.inner
+	Type: main.mixedStruct
+		Field: a: int
+		Field: b: float64
+		Field: c: int
+	Type: main.nStruct
+		Field: aBool: bool
+		Field: aInt: int
+		Field: aInt16: int16
+	Type: main.namedInt
+	Type: main.nestedStruct
+		Field: anotherInt: int
+		Field: anotherString: string
+	Type: main.node
+		Field: val: int
+		Field: b: *main.node
+	Type: main.oneStringStruct
+		Field: a: string
+	Type: main.otherFirstBehavior·1
+		Field: s: string
+	Type: main.otherSecondBehavior·2
+		Field: i: int
+	Type: main.outer
+		Field: A: *main.middle
+	Type: main.paddedData
+		Field: id: int
+		Field: data: [63]uint64
+	Type: main.reallyComplexType
+		Field: pointerToStructWithAPointerToAStruct: *main.swsp
+		Field: anArray: [1]main.nStruct
+		Field: aString: string
+		Field: aStringPtr: *string
+	Type: main.receiver
+		Field: u: uint
+		Function: testPointerMethodReceiver (main.(*receiver).testPointerMethodReceiver) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [52:52] injectible: [52-52]
+			Arg: r: *main.receiver (declared at line 52, available: [52-52])
+			Arg: a: int (declared at line 52, available: [52-52])
+		Function: testMethodReceiver (main.receiver.testMethodReceiver) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [56:56] injectible: [56-56]
+			Arg: r: main.receiver (declared at line 56, available: [56-56])
+			Arg: a: int (declared at line 56, available: [56-56])
+	Type: main.score
+	Type: main.secondBehavior
+		Field: i: int
+		Function: DoSomething (main.secondBehavior.DoSomething) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [32:33] injectible: [32-33]
+			Arg: b: main.secondBehavior (declared at line 0, available: [32-33])
+	Type: main.smallStruct
+		Field: X: int
+		Field: Y: int
+	Type: main.something
+	Type: main.somethingImpl
+		Function: Do (main.(*somethingImpl).Do) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go [21:21] injectible: [21-21]
+			Arg: s: *main.somethingImpl (declared at line 21, available: [21-21])
+	Type: main.spws
+		Field: a: int
+		Field: x: *string
+	Type: main.stringType1
+	Type: main.stringType2
+	Type: main.structWithASlice
+		Field: x: int
+		Field: slice: []uint8
+		Field: z: uint64
+	Type: main.structWithAString
+		Field: x: int
+		Field: s: string
+	Type: main.structWithAnArray
+		Field: arr: [5]uint8
+	Type: main.structWithAny
+		Field: a: interface {}
+	Type: main.structWithArray
+		Field: arr: [2]int
+		Field: x: int
+	Type: main.structWithCyclicMaps
+		Field: m1: map[struct {}]main.structWithCyclicMaps
+		Field: m2: map[struct {}]map[struct {}]main.structWithCyclicMaps
+		Field: m3: map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
+		Field: m4: map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
+		Field: m5: map[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
+		Field: m6: map[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
+	Type: main.structWithCyclicSlices
+		Field: s1: []main.structWithCyclicSlices
+		Field: s2: [][]main.structWithCyclicSlices
+		Field: s3: [][][]main.structWithCyclicSlices
+		Field: s4: [][][][]main.structWithCyclicSlices
+		Field: s5: [][][][][]main.structWithCyclicSlices
+		Field: s6: [][][][][][]main.structWithCyclicSlices
+	Type: main.structWithMap
+		Field: m: map[int]int
+	Type: main.structWithNoStrings
+		Field: aUint8: uint8
+		Field: aBool: bool
+	Type: main.structWithPointer
+		Field: a: *uint64
+	Type: main.structWithTwoArrays
+		Field: a: [3]uint64
+		Field: b: uint8
+		Field: c: [5]int64
+	Type: main.structWithTwoValues
+		Field: a: uint
+		Field: b: bool
+	Type: main.swsp
+		Field: a: int
+		Field: b: *main.nStruct
+	Type: main.t
+	Type: main.tenStrings
+		Field: first: string
+		Field: second: string
+		Field: third: string
+		Field: fourth: string
+		Field: fifth: string
+		Field: sixth: string
+		Field: seventh: string
+		Field: eighth: string
+		Field: ninth: string
+		Field: tenth: string
+	Type: main.threeStringStruct
+		Field: a: string
+		Field: b: string
+		Field: c: string
+	Type: main.threestrings
+		Field: a: string
+		Field: b: string
+		Field: c: string
+	Type: main.tierA
+		Field: a: int
+		Field: b: main.tierB
+	Type: main.tierB
+		Field: c: int
+		Field: d: main.tierC
+	Type: main.tierC
+		Field: e: int
+		Field: f: main.tierD
+	Type: main.tierD
+		Field: g: int
+	Type: main.tinyStruct
+		Field: Name: string
+	Type: main.triggerVerifierErrorForTesting
+	Type: main.typeAlias
+	Type: main.typeWithGenerics[...]
+		Field: Value: <T>
+		Function: Guess (main.typeWithGenerics[...].Guess) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go [59:59] injectible: [59-59]
+			Arg: x: <T> (declared at line 58, available: [59-59])
+			Arg: value: <T> (declared at line 58, available: [59-59])
+			Arg: ~r0: bool (declared at line 58, available: )
+	Type: main.wideStruct
+		Field: a: int
+		Field: b: int
+		Field: c: int
+		Field: d: int
+		Field: e: int
+		Field: f: int
+		Field: g: int
+		Field: h: int
+		Field: i: int
+		Field: j: int
+		Field: k: int
 	Function: makePaddedData (main.makePaddedData) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/continuation.go [104:107] injectible: [105-107]
 		Var: i: int (declared at line 106, available: [105-105])
 		Arg: id: int (declared at line 0, available: )
@@ -970,425 +1389,6 @@ Package: main
 	Function: wrapBox[...] (main.wrapBox[...]) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go [193:193] injectible: [193-193]
 		Arg: val: <T> (declared at line 192, available: [193-193])
 		Arg: ~r0: <T> (declared at line 192, available: )
-	Type: main.Pair[...]
-		Field: Key: <T>
-		Field: Value: <T>
-		Function: SetValue (main.(*Pair[...]).SetValue) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go [68:70] injectible: [68-70]
-			Arg: x: <T> (declared at line 67, available: [68-70])
-			Arg: k: <T> (declared at line 67, available: [68-70])
-			Arg: v: <T> (declared at line 67, available: [68-70])
-	Type: main.aStruct
-		Field: aBool: bool
-		Field: aString: string
-		Field: aNumber: int
-		Field: nested: main.nestedStruct
-	Type: main.anotherStruct
-		Field: nested: *main.nestedStruct
-	Type: main.bStruct
-		Field: aInt16: int16
-		Field: nested: main.aStruct
-		Field: aBool: bool
-		Field: aInt32: int32
-	Type: main.behavior
-	Type: main.bigStruct
-		Field: x: []*string
-		Field: z: int
-		Field: writer: io.Writer
-	Type: main.cStruct
-		Field: aInt32: int32
-		Field: aUint: uint
-		Field: nested: main.structWithNoStrings
-	Type: main.celsius
-	Type: main.circularReferenceType
-		Field: t: *main.circularReferenceType
-	Type: main.deepMap1
-		Field: a: map[int]*main.deepMap2
-	Type: main.deepMap2
-		Field: a: map[int]*main.deepMap3
-	Type: main.deepMap3
-		Field: a: map[int]*main.deepMap4
-	Type: main.deepMap4
-		Field: a: map[int]*main.deepMap5
-	Type: main.deepMap5
-		Field: a: map[int]*main.deepMap6
-	Type: main.deepMap6
-		Field: a: map[int]*main.deepMap7
-	Type: main.deepMap7
-		Field: a: map[int]*main.deepMap8
-	Type: main.deepMap8
-		Field: a: map[int]*main.deepMap9
-	Type: main.deepMap9
-		Field: a: map[int]interface {}
-	Type: main.deepPtr1
-		Field: a: *main.deepPtr2
-	Type: main.deepPtr2
-		Field: a: *main.deepPtr3
-	Type: main.deepPtr3
-		Field: a: *main.deepPtr4
-	Type: main.deepPtr4
-		Field: a: *main.deepPtr5
-	Type: main.deepPtr5
-		Field: a: *main.deepPtr6
-	Type: main.deepPtr6
-		Field: a: *main.deepPtr7
-	Type: main.deepPtr7
-		Field: a: *main.deepPtr8
-	Type: main.deepPtr8
-		Field: a: *main.deepPtr9
-	Type: main.deepPtr9
-		Field: a: interface {}
-	Type: main.deepSlice1
-		Field: a: []*main.deepSlice2
-	Type: main.deepSlice2
-		Field: a: []*main.deepSlice3
-	Type: main.deepSlice3
-		Field: a: []*main.deepSlice4
-	Type: main.deepSlice4
-		Field: a: []*main.deepSlice5
-	Type: main.deepSlice5
-		Field: a: []*main.deepSlice6
-	Type: main.deepSlice6
-		Field: a: []*main.deepSlice7
-	Type: main.deepSlice7
-		Field: a: []*main.deepSlice8
-	Type: main.deepSlice8
-		Field: a: []*main.deepSlice9
-	Type: main.deepSlice9
-		Field: a: []interface {}
-	Type: main.deepStruct1
-		Field: a: int
-		Field: b: main.deepStruct2
-	Type: main.deepStruct2
-		Field: c: int
-		Field: d: main.deepStruct3
-	Type: main.deepStruct3
-		Field: e: int
-		Field: f: main.deepStruct4
-	Type: main.deepStruct4
-		Field: g: int
-		Field: h: main.deepStruct5
-	Type: main.deepStruct5
-		Field: i: int
-		Field: j: main.deepStruct6
-	Type: main.deepStruct6
-		Field: k: int
-	Type: main.emptyStruct
-	Type: main.esotericHeap
-		Field: esotericStack: main.esotericStack
-		Field: mu: sync.Mutex
-		Field: once: sync.Once
-		Field: wg: sync.WaitGroup
-		Field: a: sync/atomic.Int32
-	Type: main.esotericStack
-		Field: _: int32
-		Field: _valid: int32
-		Field: c: chan struct {}
-		Field: val: interface {}
-		Field: _: uint64
-		Field: work: main.something
-		Field: foo: func()
-	Type: main.firstBehavior
-		Field: s: string
-		Function: DoSomething (main.firstBehavior.DoSomething) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [28:29] injectible: [28-29]
-			Arg: b: main.firstBehavior (declared at line 0, available: [28-29])
-	Type: main.hasUnsupportedFields
-		Field: b: int
-		Field: c: float32
-		Field: d: []uint8
-	Type: main.inner
-		Field: C: int
-		Field: D: uint8
-		Field: E: string
-	Type: main.interfaceComplexityA
-		Field: b: int
-		Field: c: main.interfaceComplexityB
-	Type: main.interfaceComplexityB
-		Field: d: int
-		Field: e: error
-		Field: f: main.interfaceComplexityC
-	Type: main.interfaceComplexityC
-		Field: g: int
-	Type: main.iterExample
-		Function: rangeOverIterator (main.iterExample.rangeOverIterator) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/ranges.go [15:19] injectible: [15-16], [19-19]
-			Arg: ~p0: main.iterExample (declared at line 15, available: )
-	Type: main.largeGenericType[...]
-		Field: A: [16]uint8
-		Field: B: [16]uint8
-		Field: C: [16]uint8
-		Field: D: [16]uint8
-		Field: E: [16]uint8
-		Field: F: [16]uint8
-		Field: G: [16]uint8
-		Field: H: [16]uint8
-		Field: Value: <T>
-		Function: LargeGet (main.largeGenericType[...].LargeGet) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go [125:125] injectible: [125-125]
-			Arg: x: <T> (declared at line 124, available: [125-125])
-			Arg: ~r0: <T> (declared at line 124, available: )
-	Type: main.largeStruct
-		Field: a: int
-		Field: b: int
-		Field: c: int
-		Field: d: int
-		Field: e: int
-		Field: f: int
-		Field: g: int
-		Field: h: int
-		Field: i: int
-		Field: j: int
-	Type: main.lotsOfFields
-		Field: a: uint8
-		Field: b: uint8
-		Field: c: uint8
-		Field: d: uint8
-		Field: e: uint8
-		Field: f: uint8
-		Field: g: uint8
-		Field: h: uint8
-		Field: i: uint8
-		Field: j: uint8
-		Field: k: uint8
-		Field: l: uint8
-		Field: m: uint8
-		Field: n: uint8
-		Field: o: uint8
-		Field: p: uint8
-		Field: q: uint8
-		Field: r: uint8
-		Field: s: uint8
-		Field: t: uint8
-		Field: u: uint8
-		Field: v: uint8
-		Field: w: uint8
-		Field: x: uint8
-		Field: y: uint8
-		Field: z: uint8
-	Type: main.manyPointers
-		Field: p00: *main.paddedData
-		Field: p01: *main.paddedData
-		Field: p02: *main.paddedData
-		Field: p03: *main.paddedData
-		Field: p04: *main.paddedData
-		Field: p05: *main.paddedData
-		Field: p06: *main.paddedData
-		Field: p07: *main.paddedData
-		Field: p08: *main.paddedData
-		Field: p09: *main.paddedData
-		Field: p10: *main.paddedData
-		Field: p11: *main.paddedData
-		Field: p12: *main.paddedData
-		Field: p13: *main.paddedData
-		Field: p14: *main.paddedData
-		Field: p15: *main.paddedData
-		Field: p16: *main.paddedData
-		Field: p17: *main.paddedData
-		Field: p18: *main.paddedData
-		Field: p19: *main.paddedData
-		Field: p20: *main.paddedData
-		Field: p21: *main.paddedData
-		Field: p22: *main.paddedData
-		Field: p23: *main.paddedData
-		Field: p24: *main.paddedData
-		Field: p25: *main.paddedData
-		Field: p26: *main.paddedData
-		Field: p27: *main.paddedData
-		Field: p28: *main.paddedData
-		Field: p29: *main.paddedData
-		Field: p30: *main.paddedData
-		Field: p31: *main.paddedData
-		Field: p32: *main.paddedData
-		Field: p33: *main.paddedData
-		Field: p34: *main.paddedData
-		Field: p35: *main.paddedData
-		Field: p36: *main.paddedData
-		Field: p37: *main.paddedData
-		Field: p38: *main.paddedData
-		Field: p39: *main.paddedData
-		Field: p40: *main.paddedData
-		Field: p41: *main.paddedData
-		Field: p42: *main.paddedData
-		Field: p43: *main.paddedData
-		Field: p44: *main.paddedData
-		Field: p45: *main.paddedData
-		Field: p46: *main.paddedData
-		Field: p47: *main.paddedData
-		Field: p48: *main.paddedData
-		Field: p49: *main.paddedData
-		Field: p50: *main.paddedData
-		Field: p51: *main.paddedData
-		Field: p52: *main.paddedData
-		Field: p53: *main.paddedData
-		Field: p54: *main.paddedData
-		Field: p55: *main.paddedData
-		Field: p56: *main.paddedData
-		Field: p57: *main.paddedData
-		Field: p58: *main.paddedData
-		Field: p59: *main.paddedData
-		Field: p60: *main.paddedData
-		Field: p61: *main.paddedData
-		Field: p62: *main.paddedData
-		Field: p63: *main.paddedData
-		Field: p64: *main.paddedData
-		Field: p65: *main.paddedData
-		Field: p66: *main.paddedData
-		Field: p67: *main.paddedData
-		Field: p68: *main.paddedData
-		Field: p69: *main.paddedData
-	Type: main.middle
-		Field: B: *main.inner
-	Type: main.mixedStruct
-		Field: a: int
-		Field: b: float64
-		Field: c: int
-	Type: main.nStruct
-		Field: aBool: bool
-		Field: aInt: int
-		Field: aInt16: int16
-	Type: main.namedInt
-	Type: main.nestedStruct
-		Field: anotherInt: int
-		Field: anotherString: string
-	Type: main.node
-		Field: val: int
-		Field: b: *main.node
-	Type: main.oneStringStruct
-		Field: a: string
-	Type: main.otherFirstBehavior·1
-		Field: s: string
-	Type: main.otherSecondBehavior·2
-		Field: i: int
-	Type: main.outer
-		Field: A: *main.middle
-	Type: main.paddedData
-		Field: id: int
-		Field: data: [63]uint64
-	Type: main.reallyComplexType
-		Field: pointerToStructWithAPointerToAStruct: *main.swsp
-		Field: anArray: [1]main.nStruct
-		Field: aString: string
-		Field: aStringPtr: *string
-	Type: main.receiver
-		Field: u: uint
-		Function: testPointerMethodReceiver (main.(*receiver).testPointerMethodReceiver) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [52:52] injectible: [52-52]
-			Arg: r: *main.receiver (declared at line 52, available: [52-52])
-			Arg: a: int (declared at line 52, available: [52-52])
-		Function: testMethodReceiver (main.receiver.testMethodReceiver) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [56:56] injectible: [56-56]
-			Arg: r: main.receiver (declared at line 56, available: [56-56])
-			Arg: a: int (declared at line 56, available: [56-56])
-	Type: main.score
-	Type: main.secondBehavior
-		Field: i: int
-		Function: DoSomething (main.secondBehavior.DoSomething) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/interfaces.go [32:33] injectible: [32-33]
-			Arg: b: main.secondBehavior (declared at line 0, available: [32-33])
-	Type: main.smallStruct
-		Field: X: int
-		Field: Y: int
-	Type: main.something
-	Type: main.somethingImpl
-		Function: Do (main.(*somethingImpl).Do) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/esoteric.go [21:21] injectible: [21-21]
-			Arg: s: *main.somethingImpl (declared at line 21, available: [21-21])
-	Type: main.spws
-		Field: a: int
-		Field: x: *string
-	Type: main.stringType1
-	Type: main.stringType2
-	Type: main.structWithASlice
-		Field: x: int
-		Field: slice: []uint8
-		Field: z: uint64
-	Type: main.structWithAString
-		Field: x: int
-		Field: s: string
-	Type: main.structWithAnArray
-		Field: arr: [5]uint8
-	Type: main.structWithAny
-		Field: a: interface {}
-	Type: main.structWithArray
-		Field: arr: [2]int
-		Field: x: int
-	Type: main.structWithCyclicMaps
-		Field: m1: map[struct {}]main.structWithCyclicMaps
-		Field: m2: map[struct {}]map[struct {}]main.structWithCyclicMaps
-		Field: m3: map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
-		Field: m4: map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
-		Field: m5: map[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
-		Field: m6: map[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]map[struct {}]main.structWithCyclicMaps
-	Type: main.structWithCyclicSlices
-		Field: s1: []main.structWithCyclicSlices
-		Field: s2: [][]main.structWithCyclicSlices
-		Field: s3: [][][]main.structWithCyclicSlices
-		Field: s4: [][][][]main.structWithCyclicSlices
-		Field: s5: [][][][][]main.structWithCyclicSlices
-		Field: s6: [][][][][][]main.structWithCyclicSlices
-	Type: main.structWithMap
-		Field: m: map[int]int
-	Type: main.structWithNoStrings
-		Field: aUint8: uint8
-		Field: aBool: bool
-	Type: main.structWithPointer
-		Field: a: *uint64
-	Type: main.structWithTwoArrays
-		Field: a: [3]uint64
-		Field: b: uint8
-		Field: c: [5]int64
-	Type: main.structWithTwoValues
-		Field: a: uint
-		Field: b: bool
-	Type: main.swsp
-		Field: a: int
-		Field: b: *main.nStruct
-	Type: main.t
-	Type: main.tenStrings
-		Field: first: string
-		Field: second: string
-		Field: third: string
-		Field: fourth: string
-		Field: fifth: string
-		Field: sixth: string
-		Field: seventh: string
-		Field: eighth: string
-		Field: ninth: string
-		Field: tenth: string
-	Type: main.threeStringStruct
-		Field: a: string
-		Field: b: string
-		Field: c: string
-	Type: main.threestrings
-		Field: a: string
-		Field: b: string
-		Field: c: string
-	Type: main.tierA
-		Field: a: int
-		Field: b: main.tierB
-	Type: main.tierB
-		Field: c: int
-		Field: d: main.tierC
-	Type: main.tierC
-		Field: e: int
-		Field: f: main.tierD
-	Type: main.tierD
-		Field: g: int
-	Type: main.tinyStruct
-		Field: Name: string
-	Type: main.triggerVerifierErrorForTesting
-	Type: main.typeAlias
-	Type: main.typeWithGenerics[...]
-		Field: Value: <T>
-		Function: Guess (main.typeWithGenerics[...].Guess) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go [59:59] injectible: [59-59]
-			Arg: x: <T> (declared at line 58, available: [59-59])
-			Arg: value: <T> (declared at line 58, available: [59-59])
-			Arg: ~r0: bool (declared at line 58, available: )
-	Type: main.wideStruct
-		Field: a: int
-		Field: b: int
-		Field: c: int
-		Field: d: int
-		Field: e: int
-		Field: f: int
-		Field: g: int
-		Field: h: int
-		Field: i: int
-		Field: j: int
-		Field: k: int
 === yield 2 [final=false] ===
 Package: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib
 	Function: Filter[...] (github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[...]) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib/lib.go [113:120] injectible: [113-113], [115-117], [120-120]
