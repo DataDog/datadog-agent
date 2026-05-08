@@ -11,8 +11,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/adapters/logging",
+        "//pkg/privateactionrunner/adapters/modes",
         "//pkg/proto/pbgo/privateactionrunner/actionsclient",
-        "@//pkg/privateactionrunner/adapters/modes",
         "@com_github_datadog_datadog_go_v5//statsd",
     ],
 )

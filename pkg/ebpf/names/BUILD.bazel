@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "names",
+    srcs = ["names.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/names",
+    # keep
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_cilium_ebpf//:ebpf",
+        "@com_github_datadog_ebpf_manager//:ebpf-manager",
+    ],
+)
