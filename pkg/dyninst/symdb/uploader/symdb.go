@@ -219,7 +219,7 @@ func (b *BatchEncoder) Flush(ctx context.Context, final bool) error {
 	if err := b.gz.Close(); err != nil {
 		return fmt.Errorf("failed to close gzip writer: %w", err)
 	}
-	if err := b.up.uploadInner(ctx, b.buf.Bytes()); err != nil {
+	if err := b.up.uploadInner(ctx, b.buf.Bytes(), b.uploadID, b.batchNum, final); err != nil {
 		return fmt.Errorf("%w: %w", ErrUpload, err)
 	}
 	b.buf.Reset()
@@ -230,7 +230,7 @@ func (b *BatchEncoder) Flush(ctx context.Context, final bool) error {
 	return nil
 }
 
-func (s *uploader) uploadInner(ctx context.Context, compressedData []byte) error {
+func (s *uploader) uploadInner(ctx context.Context, compressedData []byte, uploadID uuid.UUID, batchNum int, final bool) error {
 	// The upload is a multipart containing metadata expected by the event platform
 	// and the gzipped SymDB data.
 
@@ -263,16 +263,33 @@ func (s *uploader) uploadInner(ctx context.Context, compressedData []byte) error
 		return fmt.Errorf("failed to create event part: %w", err)
 	}
 
+	// Some of the fields in here are duplicated inside the envelope in the
+	// attachment file; that's on purpose: having them in this message allows
+	// the debugger backend to have enough information for its bookkeeping
+	// without downloading the attachment. Having the info in the attachment is
+	// useful in order to make attachments self-contained.
 	event := struct {
-		DDSource  string `json:"ddsource"`
-		Service   string `json:"service"`
-		RuntimeID string `json:"runtimeId"`
-		Type      string `json:"type"`
+		DDSource       string    `json:"ddsource"`
+		Service        string    `json:"service"`
+		Version        string    `json:"version"`
+		Language       string    `json:"language"`
+		RuntimeID      string    `json:"runtimeId"`
+		Type           string    `json:"type"`
+		UploadID       uuid.UUID `json:"upload_id"`
+		BatchNum       int       `json:"batch_num"`
+		Final          bool      `json:"final"`
+		AttachmentSize int       `json:"attachment_size"`
 	}{
-		DDSource:  "dd_debugger",
-		Service:   s.service,
-		RuntimeID: s.runtimeID,
-		Type:      "symdb",
+		DDSource:       "dd_debugger",
+		Service:        s.service,
+		Version:        s.version,
+		Language:       "go",
+		RuntimeID:      s.runtimeID,
+		Type:           "symdb",
+		UploadID:       uploadID,
+		BatchNum:       batchNum,
+		Final:          final,
+		AttachmentSize: len(compressedData),
 	}
 	meta, err := json.Marshal(event)
 	if err != nil {
