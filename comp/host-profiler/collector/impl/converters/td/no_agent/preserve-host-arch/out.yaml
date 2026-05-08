@@ -3,17 +3,17 @@ exporters:
         compression: zstd
         headers:
             dd-api-key: test-key
-            dd-evp-origin: host-profiler
+            dd-evp-origin: host-profiler-standalone
             dd-evp-origin-version: 7.0.0-test
 processors:
     ddhostname/default: {}
     resource/dd-profiler-internal-metadata:
         attributes:
             - action: upsert
-              key: profiler_name
-              value: host-profiler
+              key: telemetry.distro.name
+              value: host-profiler-standalone
             - action: upsert
-              key: profiler_version
+              key: telemetry.distro.version
               value: 7.0.0-test
     resourcedetection:
         detectors:
