@@ -101,7 +101,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/configstreamconsumer/fx
 # gazelle:exclude comp/core/configstreamconsumer/impl
 # gazelle:exclude comp/core/configstreamconsumer/mock
-# gazelle:exclude comp/core/diagnose/def
 # gazelle:exclude comp/core/diagnose/fx
 # gazelle:exclude comp/core/diagnose/impl
 # gazelle:exclude comp/core/diagnose/local
