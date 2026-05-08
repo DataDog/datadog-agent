@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
@@ -294,6 +295,17 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 
 	if core.IsConfigured("apm_config.peer_tags") {
 		c.PeerTags = core.GetStringSlice("apm_config.peer_tags")
+	}
+
+	// Deprecated/Experimental: apm_config.span_derived_primary_tags is only honored
+	// in serverless contexts — the Datadog Azure App Services extension (detected
+	// via DD_AZURE_APP_SERVICES=1) and cmd/serverless-init (which sets
+	// serverless.enabled=true before loading this config). Outside of those it is
+	// silently ignored. Tracers should populate additional_metric_tags directly.
+	if (serverlessenv.IsAzureAppServicesExtension() || core.GetBool("serverless.enabled")) &&
+		core.IsConfigured("apm_config.span_derived_primary_tags") {
+		c.SpanDerivedPrimaryTagKeys = core.GetStringSlice("apm_config.span_derived_primary_tags")
+		log.Infof("span_derived_primary_tags configured (serverless): %v", c.SpanDerivedPrimaryTagKeys)
 	}
 
 	if core.IsConfigured("apm_config.extra_sample_rate") {
