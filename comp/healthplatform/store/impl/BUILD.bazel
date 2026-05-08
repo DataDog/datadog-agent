@@ -1,0 +1,55 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "persistence.go",
+        "persistence_noop.go",
+        "store.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/store/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/log/def",
+        "//comp/core/telemetry/def",
+        "//comp/def",
+        "//comp/healthplatform/forwarder/def",
+        "//comp/healthplatform/issues",
+        "//comp/healthplatform/scheduler/def",
+        "//comp/healthplatform/store/def",
+        "//comp/healthplatform/store/noop-impl",
+        "//pkg/config/env",
+        "//pkg/util/flavor",
+        "//pkg/version",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["store_test.go"],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/log/mock",
+        "//comp/core/telemetry/impl/noops",
+        "//comp/def",
+        "//comp/healthplatform/forwarder/mock",
+        "//comp/healthplatform/issues/checkfailure",
+        "//comp/healthplatform/issues/dockerpermissions",
+        "//comp/healthplatform/issues/rofspermissions",
+        "//comp/healthplatform/scheduler/mock",
+        "//comp/healthplatform/store/def",
+        "//comp/healthplatform/store/noop-impl",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

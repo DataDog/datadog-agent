@@ -11,6 +11,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/privateactionrunner/adapters/config",
+        "//pkg/privateactionrunner/adapters/constants",
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/privateactionrunner/adapters/rcclient",
         "//pkg/privateactionrunner/types",
@@ -19,7 +20,6 @@ go_library(
         "//pkg/proto/pbgo/privateactionrunner/privateactions",
         "//pkg/remoteconfig/state",
         "//pkg/util/log",
-        "@//pkg/privateactionrunner/adapters/constants",
         "@org_golang_google_protobuf//proto",
     ],
 )
