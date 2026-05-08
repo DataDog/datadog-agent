@@ -39,6 +39,7 @@ func TestIgnoreComm(t *testing.T) {
 	}{
 		{"go", setupGoDiscoveryModule},
 		{"rust", setupRustDiscoveryModule},
+		{"rust-library", setupRustLibraryDiscoveryModule},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			discovery := tt.setup(t)

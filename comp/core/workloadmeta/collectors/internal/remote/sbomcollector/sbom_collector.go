@@ -121,49 +121,59 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 	log.Debugf("Container %s uses image %s, updating image SBOM", event.ID, imageID)
 
 	// Get existing image to merge SBOM data
-	var finalBom *cyclonedx_v1_4.Bom
-	var finalCompressedSBOM *workloadmeta.CompressedSBOM
-
 	existingImage, err := store.GetImage(imageID)
-	if err == nil && existingImage != nil && existingImage.SBOM != nil {
-		// Decompress existing image SBOM to get CycloneDXBOM
-		existingSBOM, err := sbomutil.UncompressSBOM(existingImage.SBOM)
-		if err == nil && existingSBOM != nil && existingSBOM.CycloneDXBOM != nil {
-			// Merge runtime properties from new BOM into existing image SBOM
-			finalBom = mergeRuntimeProperties(existingSBOM.CycloneDXBOM, &newBom)
-			log.Debugf("Merged runtime properties for image %s SBOM", imageID)
-		} else {
-			// Decompression failed or no CycloneDXBOM, use the new one directly
-			finalBom = &newBom
-			if err != nil {
-				log.Warnf("Failed to decompress existing SBOM for image %s: %v, using new SBOM", imageID, err)
-			} else {
-				log.Debugf("No existing CycloneDXBOM for image %s, using new SBOM", imageID)
+	if err != nil || existingImage == nil {
+		// Kubelet reports Image.ID as the manifest/repo digest (e.g. "docker.io/foo@sha256:9fb3...")
+		// but images are stored by config digest. Fall back to a linear search on RepoDigests.
+		for _, img := range store.ListImages() {
+			for _, digest := range img.RepoDigests {
+				if digest == imageID {
+					existingImage = img
+					break
+				}
+			}
+			if existingImage != nil {
+				break
 			}
 		}
-	} else {
-		// No existing SBOM on image, use the new one directly
-		finalBom = &newBom
-		if err != nil {
-			log.Debugf("Could not get image %s from store: %v, using new SBOM", imageID, err)
-		} else {
-			log.Debugf("No existing SBOM for image %s, using new SBOM", imageID)
-		}
 	}
+	if existingImage == nil {
+		log.Debugf("Ignoring system-probe SBOM for image %s: image not found in workloadmeta", imageID)
+		return workloadmeta.Event{}, nil
+	}
+
+	if existingImage.SBOM == nil {
+		log.Debugf("Existing image %s has no SBOM, skipping", imageID)
+		return workloadmeta.Event{}, fmt.Errorf("existing image %s has no SBOM to merge with", imageID)
+	}
+
+	if existingImage.SBOM.Status == workloadmeta.Pending || existingImage.SBOM.Status == "" {
+		log.Debugf("Image %s SBOM is still in state '%s', skipping merge for now", imageID, existingImage.SBOM.Status)
+		return workloadmeta.Event{}, fmt.Errorf("image %s SBOM is still pending", imageID)
+	}
+
+	// Decompress existing image SBOM to get CycloneDXBOM
+	existingSBOM, err := sbomutil.UncompressSBOM(existingImage.SBOM)
+	if err != nil || existingSBOM == nil || existingSBOM.CycloneDXBOM == nil {
+		return workloadmeta.Event{}, fmt.Errorf("Failed to decompress existing SBOM for image %s: %v, using new SBOM", imageID, err)
+	}
+
+	// Merge runtime properties from new BOM into existing image SBOM
+	finalBom := mergeRuntimeProperties(existingSBOM.CycloneDXBOM, &newBom)
+	log.Debugf("Merged runtime properties for image %s SBOM", imageID)
 
 	// Compress the final merged SBOM, preserving scan metadata from the existing
 	// SBOM so Status/GenerationTime/etc. survive the runtime-enrichment update.
 	sbomToCompress := &workloadmeta.SBOM{
-		CycloneDXBOM: finalBom,
+		CycloneDXBOM:       finalBom,
+		Status:             existingImage.SBOM.Status,
+		GenerationTime:     existingImage.SBOM.GenerationTime,
+		GenerationDuration: existingImage.SBOM.GenerationDuration,
+		GenerationMethod:   existingImage.SBOM.GenerationMethod,
+		Error:              existingImage.SBOM.Error,
 	}
-	if existingImage != nil && existingImage.SBOM != nil {
-		sbomToCompress.Status = existingImage.SBOM.Status
-		sbomToCompress.GenerationTime = existingImage.SBOM.GenerationTime
-		sbomToCompress.GenerationDuration = existingImage.SBOM.GenerationDuration
-		sbomToCompress.GenerationMethod = existingImage.SBOM.GenerationMethod
-		sbomToCompress.Error = existingImage.SBOM.Error
-	}
-	finalCompressedSBOM, err = sbomutil.CompressSBOM(sbomToCompress)
+
+	finalCompressedSBOM, err := sbomutil.CompressSBOM(sbomToCompress)
 	if err != nil {
 		return workloadmeta.Event{}, fmt.Errorf("failed to compress SBOM for image %s: %w", imageID, err)
 	}
@@ -412,6 +422,9 @@ func handleEvents(store workloadmeta.Component, collectorEvents []workloadmeta.C
 		workloadmetaEvent, err := convertFunc(store, protoEvent)
 		if err != nil {
 			log.Warnf("error converting workloadmeta event: %v", err)
+			continue
+		}
+		if workloadmetaEvent.Entity == nil {
 			continue
 		}
 

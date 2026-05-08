@@ -35,32 +35,33 @@ default_path = {
     },
 }
 
-# Exception to the default schema. These should be merged in the schema at some point.
-
-# All settings with custom env parsers in the Agent.
-custom_env_parsers = {
-    "apm_config.instrumentation.enabled_namespaces": "JSON array of strings",
-    "apm_config.instrumentation.disabled_namespaces": "JSON array of strings",
-    "apm_config.instrumentation.lib_versions": "JSON array of strings",
-    "apm_config.instrumentation.targets": "JSON array of strings",
-    "apm_config.features": "comma or space-separated list of strings",
-    "apm_config.ignore_resources": "comma separated list of strings",
-    "apm_config.filter_tags.require": "space-separated list of strings or JSON array of strings",
-    "apm_config.filter_tags.reject": "space-separated list of strings or JSON array of strings",
-    "apm_config.filter_tags_regex.require": "space-separated list of strings or JSON array of strings",
-    "apm_config.filter_tags_regex.reject": "space-separated list of strings or JSON array of strings",
-    "apm_config.obfuscation.credit_cards.keep_values": "space-separated list of strings or JSON array of strings",
-    "apm_config.replace_tags": "JSON object of string to string",
-    "apm_config.analyzed_spans": "comma separated list of key-value pairs",
-    "apm_config.peer_tags": "JSON array of strings",
-    "otelcollector.converter.features": "comma and space-separated list of strings",
-    "dogstatsd_mapper_profiles": "JSON list of objects",
-    "process_config.custom_sensitive_words": "space-separated list of strings or JSON array of strings",
-    "service_monitoring_config.http.replace_rules": "JSON object of string to string",
-    "service_monitoring_config.http_replace_rules": "JSON object of string to string",
-    "network_config.http_replace_rules": "JSON object of string to string",
-    "private_action_runner.actions_allowlist": "comma separated list of strings",
+# Maps env_parser schema values to their human-readable env var type descriptions.
+# Used by _get_node_types_and_default to produce the @env line in config templates.
+# The special value "json" is handled separately by _env_type_for_json().
+_ENV_PARSER_ENV_TYPES = {
+    "comma_separated": "comma-separated list of strings",
+    "space_separated": "space-separated list of strings",
+    "comma_and_space_separated": "comma and space separated list of strings",
+    "comma_then_space_separated": "comma or space separated list of strings",
+    "csv_comma_separated": "comma-separated list of strings",
+    "traces_span": "comma-separated list of key-value pairs",
+    "json_list_or_comma_separated": "comma-separated list of strings or JSON array of strings",
+    "json_list_or_space_separated": "space-separated list of strings or JSON array of strings",
 }
+
+
+def _env_type_for_json(node):
+    """Return the env var type description for a node whose env_parser is 'json'."""
+    node_type = node.get("type")
+    if node_type == "array":
+        items_type = node.get("items", {}).get("type", "object")
+        if items_type == "string":
+            return "JSON array of strings"
+        elif items_type == "number":
+            return "JSON array of numbers"
+        return "JSON list of objects"
+    return "JSON object"
+
 
 # Settings declared with BindEnv() don't have a type or a default but some are still listed in the config example.
 # Until the team migrates to BindEnvAndSetDefault we use the following list pulled from the config template.
@@ -251,7 +252,11 @@ def _get_node_types_and_default(full_name, node, os_target):
     else:
         yaml_type, env_type = node_type, node_type
 
-    env_type = custom_env_parsers.get(full_name, env_type)
+    env_parser = node.get("env_parser")
+    if env_parser == "json":
+        env_type = _env_type_for_json(node)
+    elif env_parser in _ENV_PARSER_ENV_TYPES:
+        env_type = _ENV_PARSER_ENV_TYPES[env_parser]
     return yaml_type, env_type, default
 
 

@@ -58,6 +58,7 @@ func visitTypeReferences(tc *typeCatalog, f func(t *ir.Type)) {
 			f(&t.Element)
 
 		case *ir.BaseType:
+		case *ir.DurationType:
 		case *ir.GoChannelType:
 		case *ir.GoEmptyInterfaceType:
 		case *ir.GoHMapHeaderType:
