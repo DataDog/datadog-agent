@@ -584,6 +584,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("external_metrics_provider.num_workers", 2)                     // Number of workers spawned by controller (only when CRD is used)
 	config.BindEnvAndSetDefault("external_metrics_provider.max_parallel_queries", 10)           // Maximum number of parallel queries sent to Datadog simultaneously
 	pkgconfigmodel.AddOverrideFunc(sanitizeExternalMetricsProviderChunkSize)
+	// DatadogInstrumentation controller
+	config.BindEnvAndSetDefault("instrumentation_crd_controller.enabled", false)
 	// Cluster check Autodiscovery
 	config.BindEnvAndSetDefault("cluster_checks.support_hybrid_ignore_ad_tags", false) // TODO(CINT)(Agent 7.53+) Remove this flag when hybrid ignore_ad_tags is fully deprecated
 	config.BindEnvAndSetDefault("cluster_checks.enabled", false)
