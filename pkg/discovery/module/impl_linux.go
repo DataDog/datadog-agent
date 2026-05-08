@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/discovery/core"
+	"github.com/DataDog/datadog-agent/pkg/discovery/model"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
@@ -84,9 +85,7 @@ func (s *discovery) handleServices(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	s.mux.Lock()
-	services, err := rustGetServices(params)
-	s.mux.Unlock()
+	services, err := s.getServices(params)
 	if err != nil {
 		_ = log.Errorf("failed to handle /discovery%s: %v", pathServices, err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -94,4 +93,10 @@ func (s *discovery) handleServices(w http.ResponseWriter, req *http.Request) {
 	}
 
 	utils.WriteAsJSON(req, w, services, utils.CompactOutput)
+}
+
+func (s *discovery) getServices(params core.Params) (*model.ServicesResponse, error) {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	return rustGetServices(params)
 }
