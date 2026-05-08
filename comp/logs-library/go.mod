@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/logs-library
 go 1.25.0
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.193
+	github.com/DataDog/agent-payload/v5 v5.0.195
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.72.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.77.0-devel.0.20260211235139-a5361978c2b6
@@ -16,7 +16,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.64.0-rc.12
-	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.61.0
 	github.com/DataDog/datadog-agent/pkg/status/health v0.77.0-devel.0.20260211235139-a5361978c2b6
@@ -220,7 +219,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/logs/client => ../../pkg/logs/client
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic => ../../pkg/logs/diagnostic
 	github.com/DataDog/datadog-agent/pkg/logs/message => ../../pkg/logs/message
-	github.com/DataDog/datadog-agent/pkg/logs/metrics => ../../pkg/logs/metrics
 	github.com/DataDog/datadog-agent/pkg/logs/sources => ../../pkg/logs/sources
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface => ../../pkg/logs/status/statusinterface
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils => ../../pkg/logs/status/utils
