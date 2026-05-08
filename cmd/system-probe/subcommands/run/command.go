@@ -246,7 +246,6 @@ func configstreamFxOptions() fx.Option {
 	)
 }
 
-
 // isConfigstreamEnabled is a pre-FX feature flag check; the env var takes precedence over YAML.
 func isConfigstreamEnabled(cliConfigPath string) bool {
 	if v, ok := os.LookupEnv(configstreamConsumerEnabledEnvVar); ok {
