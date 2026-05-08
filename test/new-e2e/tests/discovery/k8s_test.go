@@ -7,6 +7,7 @@ package discovery
 
 import (
 	_ "embed"
+	"slices"
 	"testing"
 	"time"
 
@@ -80,13 +81,8 @@ func (s *k8sTestSuite) TestNginxDiscovered() {
 // tracer metadata (those are covered by the VM suite).
 func anyProcessListensOnPort(procs []*agentmodel.Process, port int32) bool {
 	for _, p := range procs {
-		if p.PortInfo == nil {
-			continue
-		}
-		for _, tcp := range p.PortInfo.Tcp {
-			if tcp == port {
-				return true
-			}
+		if p.PortInfo != nil && slices.Contains(p.PortInfo.Tcp, port) {
+			return true
 		}
 	}
 	return false
