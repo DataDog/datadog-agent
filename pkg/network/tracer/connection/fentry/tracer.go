@@ -34,6 +34,12 @@ const probeUID = "net"
 // ErrorDisabled is the error that occurs when enable_fentry is false
 var ErrorDisabled = errors.New("fentry tracer is disabled")
 
+// ErrorUnsupported is the error that occurs when the fentry tracer is enabled but
+// cannot run on this system because of a known kernel limitation (as opposed to an
+// unexpected load failure). It is currently treated as a hard failure by callers;
+// a future changeset will validate falling back to another tracer in this case.
+var ErrorUnsupported = errors.New("fentry tracer is not supported on this system")
+
 // LoadTracer loads a new tracer
 func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler *perf.EventHandler) (*ddebpf.Manager, func(), error) {
 	if !config.EnableFentry {
@@ -45,7 +51,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 		return nil, nil, fmt.Errorf("failed to check HasTasksRCUExitLockSymbol: %w", err)
 	}
 	if hasPotentialFentryDeadlock {
-		return nil, nil, errors.New("unable to load fentry because this kernel version has a potential deadlock (fixed in kernel v6.9+)")
+		return nil, nil, fmt.Errorf("%w: this kernel version has a potential deadlock (fixed in kernel v6.9+)", ErrorUnsupported)
 	}
 
 	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{}, connCloseEventHandler)
@@ -114,15 +120,18 @@ func protocolClassificationTailCalls() []manager.TailCallRoute {
 		},
 	}
 	// Note: unlike kprobe, fentry does NOT use bpf_tail_call into tcp_close_progs.
-	// The fexit/tcp_close handler directly calls flush_conn_close_if_full(),
-	// so tcpCloseReturn should NOT be added as a tail call route here.
+	// Protocol classification cleanup is handled directly by the fexit/tcp_close
+	// handler (which runs post-socket-filter, mirroring kretprobe__tcp_close), so
+	// no tcp_close_progs tail call route is added here.
 	return tcs
 }
 
 // initFentryTracer sets up and initializes the fentry tracer
 func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config.Config, m *ddebpf.Manager) (func(), error) {
+	isClassificationSupported := classificationSupported(config)
+
 	// Use the config to determine what kernel probes should be enabled
-	enabledProbes, err := enabledPrograms(config)
+	enabledProbes, err := enabledPrograms(config, isClassificationSupported)
 	if err != nil {
 		return nil, fmt.Errorf("invalid probe configuration: %v", err)
 	}
@@ -157,7 +166,6 @@ func initFentryTracer(ar bytecode.AssetReader, o manager.Options, config *config
 
 	// Protocol classification setup
 	var closeProtocolClassifierSocketFilterFn func()
-	isClassificationSupported := classificationSupported(config)
 	util.AddBoolConst(&o, "protocol_classification_enabled", isClassificationSupported)
 	var tailCallsIdentifiersSet map[manager.ProbeIdentificationPair]struct{}
 

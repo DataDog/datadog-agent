@@ -38,11 +38,13 @@ const (
 	tcpRecvMsgPre5190Return = "tcp_recvmsg_exit_pre_5_19_0"
 	// tcpClose traces the tcp_close() system call
 	tcpClose = "tcp_close"
+	// tcpCloseReturn traces the return of tcp_close(); it cleans protocol
+	// classification after the socket filter has seen the termination packets
+	// (mirrors kretprobe__tcp_close in the kprobe tracer)
+	tcpCloseReturn = "tcp_close_exit"
 
 	// tcpDone traces the tcp_done() kernel function for failed connection tracking
 	tcpDone = "tcp_done"
-	// tcpDoneReturn traces the return of tcp_done()
-	tcpDoneReturn = "tcp_done_exit"
 
 	// tcpReadSockReturn traces the return of tcp_read_sock() — only fexit is needed
 	tcpReadSockReturn = "tcp_read_sock_exit"
@@ -52,7 +54,7 @@ const (
 	udpRecvMsgReturn        = "udp_recvmsg_exit"
 	udpRecvMsgPre5190Return = "udp_recvmsg_exit_pre_5_19_0"
 	udpSendMsgReturn        = "udp_sendmsg_exit"
-	udpSendSkb              = "kprobe__udp_send_skb"
+	udpSendSkb              = "udp_send_skb_entry"
 
 	skbFreeDatagramLocked   = "skb_free_datagram_locked"
 	__skbFreeDatagramLocked = "__skb_free_datagram_locked" // nolint:revive
@@ -62,7 +64,7 @@ const (
 	udpv6RecvMsgReturn        = "udpv6_recvmsg_exit"
 	udpv6RecvMsgPre5190Return = "udpv6_recvmsg_exit_pre_5_19_0"
 	udpv6SendMsgReturn        = "udpv6_sendmsg_exit"
-	udpv6SendSkb              = "kprobe__udp_v6_send_skb"
+	udpv6SendSkb              = "udp_v6_send_skb_entry"
 
 	// udpDestroySock traces the udp_destroy_sock() function
 	udpDestroySock = "udp_destroy_sock"
@@ -82,8 +84,10 @@ const (
 	// tcpSendProbe0 traces tcp_send_probe0() to count zero-window probe events.
 	tcpSendProbe0 = "kprobe__tcp_send_probe0"
 
-	// inetCskAcceptReturn traces the return value for the inet_csk_accept syscall
+	// inetCskAcceptReturn traces the return value for the inet_csk_accept syscall (kernels < 6.10)
 	inetCskAcceptReturn = "inet_csk_accept_exit"
+	// inetCskAcceptReturn610 is the 6.10+ variant where inet_csk_accept takes proto_accept_arg
+	inetCskAcceptReturn610 = "inet_csk_accept_exit_610"
 
 	// inetBind traces the bind() syscall for IPv4
 	inetBind = "inet_bind_enter"
@@ -112,9 +116,11 @@ var programs = map[string]struct{}{
 	inet6BindRet:              {},
 	inetBindRet:               {},
 	inetCskAcceptReturn:       {},
+	inetCskAcceptReturn610:    {},
 	inetCskListenStop:         {},
 	tcpRecvMsgReturn:          {},
 	tcpClose:                  {},
+	tcpCloseReturn:            {},
 	tcpConnect:                {},
 	tcpFinishConnect:          {},
 	tcpRetransmit:             {},
@@ -125,7 +131,6 @@ var programs = map[string]struct{}{
 	tcpSendMsgReturn:          {},
 	tcpSendPageReturn:         {},
 	tcpDone:                   {},
-	tcpDoneReturn:             {},
 	tcpReadSockReturn:         {},
 	udpDestroySock:            {},
 	udpRecvMsg:                {},
@@ -197,7 +202,7 @@ func classificationSupported(c *config.Config) bool {
 }
 
 // enabledPrograms returns a map of probes that are enabled per config settings.
-func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
+func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[string]struct{}, error) {
 	enabled := make(map[string]struct{}, 0)
 	kv5190 := kernel.VersionCode(5, 19, 0)
 	kv, err := kernel.HostVersion()
@@ -211,9 +216,10 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, tcpSendMsgReturn)
 		enableProgram(enabled, selectVersionBasedProbe(kv, tcpRecvMsgReturn, tcpRecvMsgPre5190Return, kv5190))
 		enableProgram(enabled, tcpClose)
+		enableProgram(enabled, tcpCloseReturn)
 		enableProgram(enabled, tcpConnect)
 		enableProgram(enabled, tcpFinishConnect)
-		enableProgram(enabled, inetCskAcceptReturn)
+		enableProgram(enabled, selectVersionBasedProbe(kv, inetCskAcceptReturn610, inetCskAcceptReturn, kernel.VersionCode(6, 10, 0)))
 		enableProgram(enabled, inetCskListenStop)
 		enableProgram(enabled, tcpRetransmit)
 		enableProgram(enabled, tcpRetransmitRet)
@@ -223,25 +229,12 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		enableProgram(enabled, tcpDone)
 		enableProgram(enabled, tcpReadSockReturn)
 
-		// TODO: see comments above on availability for these
-		//       hooks
-		// ksymPath := filepath.Join(c.ProcRoot, "kallsyms")
-		// missing, err := ebpf.VerifyKernelFuncs(ksymPath, []string{"sockfd_lookup_light"})
-		// if err == nil && len(missing) == 0 {
-		// 	enableProgram(enabled, sockFDLookupRet)
-		// }
-
-		if c.CustomBatchingEnabled {
-			enableProgram(enabled, tcpCloseReturn)
-			enableProgram(enabled, tcpDoneReturn)
-		}
-
 		if hasSendPage {
 			enableProgram(enabled, tcpSendPageReturn)
 		}
 
 		// Protocol classification probes
-		if classificationSupported(c) {
+		if isClassificationSupported {
 			enableProgram(enabled, protocolClassifierEntry)
 			enableProgram(enabled, protocolClassifierTLSClient)
 			enableProgram(enabled, protocolClassifierTLSServer)
