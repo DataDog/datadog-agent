@@ -271,9 +271,14 @@ func writeProcmgrMarker(ctx HookContext, path string) error {
 
 // writeProcmgrGlobalMarkerIfSystemd creates /etc/datadog-agent/.procmgr-enabled
 // on systemd hosts so the global procmgr gate is on by default on every agent
-// install (DD_PROCMGR_ENABLED still overrides when set).
+// install. If DD_PROCMGR_ENABLED is explicitly set false, remove/avoid the
+// marker so the opt-out persists for later hooks that may not inherit env.
 func writeProcmgrGlobalMarkerIfSystemd(ctx HookContext) error {
 	if service.BaseServiceManagerType() != service.SystemdType {
+		return nil
+	}
+	if raw, ok := os.LookupEnv(procmgr.GlobalEnvVar); ok && !procmgr.EnvTruthy(raw) {
+		_ = os.Remove(procmgr.GlobalMarkerPath)
 		return nil
 	}
 	if err := writeProcmgrMarker(ctx, procmgr.GlobalMarkerPath); err != nil {
