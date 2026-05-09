@@ -256,6 +256,25 @@ func ddotProcmgrProcessesDir(ctx HookContext, stable bool) string {
 	return filepath.Join("/opt/datadog-agent", "processes.d")
 }
 
+// ociAgentStableAndExperimentProcessesDirsEquivalent reports whether the fleet
+// OCI stable and experiment trees use the same processes.d directory on disk.
+// After repository.PromoteExperiment both symlinks often target the same version
+// directory, so cleaning "experiment/processes.d" would remove the DDOT YAML
+// just written under "stable/processes.d".
+func ociAgentStableAndExperimentProcessesDirsEquivalent() (bool, error) {
+	stableDir := filepath.Join(paths.PackagesPath, "datadog-agent", "stable", "processes.d")
+	expDir := filepath.Join(paths.PackagesPath, "datadog-agent", "experiment", "processes.d")
+	stableResolved, err := filepath.EvalSymlinks(stableDir)
+	if err != nil {
+		return false, err
+	}
+	expResolved, err := filepath.EvalSymlinks(expDir)
+	if err != nil {
+		return false, err
+	}
+	return stableResolved == expResolved, nil
+}
+
 func procmgrBinaryExists(ctx HookContext, stable bool) bool {
 	var binPath string
 	if ctx.PackageType == PackageTypeOCI {
@@ -368,6 +387,44 @@ func writeProcmgrDDOTEnabledMarkerIfSystemd(ctx HookContext) error {
 
 func removeProcmgrDDOTMarker() {
 	_ = os.Remove(procmgr.DDOTMarkerPath)
+}
+
+// syncDDOTProcmgrAfterAgentPromotion rewrites stable OCI processes.d DDOT YAML
+// after the datadog-agent package experiment is promoted. When stable and
+// experiment package paths still refer to different version directories, it
+// also drops DDOT YAML under .../experiment/processes.d and restarts the
+// experiment procmgr unit. When both symlinks already point at the same
+// directory (typical right after promote), that cleanup is skipped so we do not
+// delete the definition we just wrote for stable. Post-promote hooks use
+// PackagePath under the experiment tree (basename "experiment"), while stable
+// dd-procmgrd reads .../datadog-agent/stable/processes.d.
+func syncDDOTProcmgrAfterAgentPromotion(ctx HookContext) error {
+	if ctx.PackageType != PackageTypeOCI {
+		return nil
+	}
+	if service.BaseServiceManagerType() != service.SystemdType {
+		return nil
+	}
+	stableOCI := filepath.Join(paths.PackagesPath, "datadog-agent", "stable")
+	if _, err := os.Stat(stableOCI); err != nil {
+		return nil
+	}
+	stableCtx := ctx
+	stableCtx.PackagePath = stableOCI
+	if _, err := syncDDOTProcmgrState(stableCtx, true, false); err != nil {
+		return err
+	}
+	equiv, err := ociAgentStableAndExperimentProcessesDirsEquivalent()
+	if err != nil {
+		log.Warnf("skipping experiment DDOT procmgr cleanup after promote: resolve processes.d paths: %v", err)
+		return nil
+	}
+	if equiv {
+		return nil
+	}
+	expCtx := ctx
+	expCtx.PackagePath = filepath.Join(paths.PackagesPath, "datadog-agent", "experiment")
+	return syncDDOTProcmgrStop(expCtx, false)
 }
 
 // syncDDOTProcmgrAfterExtension writes processes.d DDOT config after the DDOT
