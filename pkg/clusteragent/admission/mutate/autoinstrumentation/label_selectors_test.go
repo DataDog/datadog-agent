@@ -24,6 +24,7 @@ func NewFakeLabelSelector() *autoinstrumentation.LabelSelectors {
 		MutateUnlabelled:   false,
 		AddAksSelectors:    false,
 		DisabledNamespaces: []string{},
+		OnDemand:           false,
 	})
 }
 
@@ -38,6 +39,7 @@ func TestLabelSelectorsConfig(t *testing.T) {
 				MutateUnlabelled:   false,
 				AddAksSelectors:    false,
 				DisabledNamespaces: []string{},
+				OnDemand:           false,
 			},
 		},
 		"overridden values match expected": {
@@ -46,12 +48,14 @@ func TestLabelSelectorsConfig(t *testing.T) {
 				"admission_controller.mutate_unlabelled":         true,
 				"admission_controller.add_aks_selectors":         true,
 				"apm_config.instrumentation.disabled_namespaces": []string{"foo"},
+				"apm_config.instrumentation.on_demand":           true,
 			},
 			expected: &autoinstrumentation.LabelSelectorsConfig{
 				Enabled:            true,
 				MutateUnlabelled:   true,
 				AddAksSelectors:    true,
 				DisabledNamespaces: []string{"foo"},
+				OnDemand:           true,
 			},
 		},
 	}
@@ -142,6 +146,32 @@ func TestLabelSelectors(t *testing.T) {
 			config: &autoinstrumentation.LabelSelectorsConfig{
 				Enabled:          false,
 				MutateUnlabelled: true,
+			},
+			useNamespaceSelector: false,
+			expectedNamespaceSelector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      common.NamespaceLabelKey,
+						Operator: metav1.LabelSelectorOpNotIn,
+						Values:   mutatecommon.DefaultDisabledNamespaces(),
+					},
+				},
+			},
+			expectedObjectSelector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      common.EnabledLabelKey,
+						Operator: metav1.LabelSelectorOpNotIn,
+						Values:   []string{"false"},
+					},
+				},
+			},
+		},
+		"when instrumentation and mutate unlabelled are disabled but on demand is enabled, everything should be allowed except for opt-outs": {
+			config: &autoinstrumentation.LabelSelectorsConfig{
+				Enabled:          false,
+				MutateUnlabelled: false,
+				OnDemand:         true,
 			},
 			useNamespaceSelector: false,
 			expectedNamespaceSelector: &metav1.LabelSelector{

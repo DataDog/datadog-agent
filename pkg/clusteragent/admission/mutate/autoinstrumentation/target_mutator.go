@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/dynamic"
 
@@ -25,6 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/imageresolver"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/ssi/crstore"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -44,6 +47,7 @@ type TargetMutator struct {
 	containerRegistry             string
 	mutateUnlabelled              bool
 	defaultLibVersions            []libInfo
+	crStore                       *crstore.Store
 }
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
@@ -152,6 +156,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		containerRegistry:             config.containerRegistry,
 		mutateUnlabelled:              config.mutateUnlabelled,
 		defaultLibVersions:            defaultLibVersions,
+		crStore:                       crstore.GetOrCreate(),
 	}
 
 	// Create the core mutator. This is a bit gross.
@@ -320,27 +325,130 @@ func (m *TargetMutator) getTarget(pod *corev1.Pod) *targetInternal {
 		return result.target
 	}
 
+	result = m.getTargetFromCRD(pod)
+	if !result.shouldContinue {
+		return result.target
+	}
+
 	return m.getMatchingTarget(pod)
 }
 
-type annotationResult struct {
+type filterResult struct {
 	shouldContinue bool
 	target         *targetInternal
 }
 
+// getTargetFromCRD resolves the pod's owning workload and looks up APM configuration in the CRStore. If
+// the workload has a DatadogInstrumentation CR applied, this short-circuits the target resolution chain
+// and the resulting targetInternal is used for the mutation.
+//
+// Pod owner resolution is in-memory only (controller-ref + name parsing) to keep the admission hot path
+// fast: no API calls.
+func (m *TargetMutator) getTargetFromCRD(pod *corev1.Pod) *filterResult {
+	if m.crStore == nil {
+		return &filterResult{shouldContinue: true}
+	}
+
+	workload, ok := workloadKeyForPod(pod)
+	if !ok {
+		return &filterResult{shouldContinue: true}
+	}
+
+	entry, ok := m.crStore.GetAPM(workload)
+	if !ok {
+		return &filterResult{shouldContinue: true}
+	}
+
+	// CRD explicitly opts the workload out of APM. Break the chain so we don't fall back
+	// to config-based targets.
+	if !entry.Enabled {
+		return &filterResult{shouldContinue: false, target: nil}
+	}
+
+	return &filterResult{shouldContinue: false, target: m.buildCRDTarget(entry, workload)}
+}
+
+// workloadKeyForPod resolves a pod's owning workload (Deployment, StatefulSet, or DaemonSet) entirely
+// from the pod's controller reference. For Deployments, the pod's direct controller is a ReplicaSet,
+// which we strip back to the Deployment via name parsing.
+func workloadKeyForPod(pod *corev1.Pod) (crstore.WorkloadKey, bool) {
+	ref := metav1.GetControllerOf(pod)
+	if ref == nil {
+		return crstore.WorkloadKey{}, false
+	}
+	switch ref.Kind {
+	case "ReplicaSet":
+		deployName := kubernetes.ParseDeploymentForReplicaSet(ref.Name)
+		if deployName == "" {
+			return crstore.WorkloadKey{}, false
+		}
+		return crstore.WorkloadKey{Kind: "Deployment", Namespace: pod.Namespace, Name: deployName}, true
+	case "StatefulSet", "DaemonSet":
+		return crstore.WorkloadKey{Kind: ref.Kind, Namespace: pod.Namespace, Name: ref.Name}, true
+	default:
+		return crstore.WorkloadKey{}, false
+	}
+}
+
+// buildCRDTarget translates a CRStore APM entry into the autoinstrumentation targetInternal format.
+// It reuses the same getPinnedLibraries / default-lib helpers as config-based targets so that pinned
+// versions, default versions, and language detection behave identically regardless of source.
+func (m *TargetMutator) buildCRDTarget(entry crstore.APMEntry, workload crstore.WorkloadKey) *targetInternal {
+	var libVersions []libInfo
+	usesDefaults := true
+	if len(entry.TracerVersions) == 0 {
+		libVersions = m.defaultLibVersions
+	} else {
+		pinned := getPinnedLibraries(entry.TracerVersions, m.containerRegistry, true)
+		libVersions = pinned.libs
+		usesDefaults = pinned.areSetToDefaults
+	}
+
+	name := fmt.Sprintf("crd:%s/%s", entry.CR.Namespace, entry.CR.Name)
+	return &targetInternal{
+		name:            name,
+		libVersions:     libVersions,
+		envVars:         append([]corev1.EnvVar(nil), entry.TracerConfigs...),
+		usesDefaultLibs: usesDefaults,
+		json:            createCRDTargetJSON(name, workload, entry),
+	}
+}
+
+// createCRDTargetJSON produces the AppliedTarget JSON for a CRD-sourced target. Mirrors createJSON for
+// the config-based Target, but with the CR identity and workload baked in.
+func createCRDTargetJSON(name string, workload crstore.WorkloadKey, entry crstore.APMEntry) string {
+	payload := struct {
+		Name           string              `json:"name"`
+		Workload       crstore.WorkloadKey `json:"workload"`
+		TracerVersions map[string]string   `json:"ddTraceVersions,omitempty"`
+		TracerConfigs  []corev1.EnvVar     `json:"ddTraceConfigs,omitempty"`
+	}{
+		Name:           name,
+		Workload:       workload,
+		TracerVersions: entry.TracerVersions,
+		TracerConfigs:  entry.TracerConfigs,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		log.Errorf("error marshalling CRD target %q: %v", name, err)
+		return fmt.Sprintf("error marshalling CRD target %q: %v", name, err)
+	}
+	return string(data)
+}
+
 // getTargetFromAnnotation determines which tracing libraries to use given
-func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResult {
+func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *filterResult {
 	// The enabled label existing takes precedence...
 	enabledLabelVal, enabledLabelExists := getEnabledLabel(pod)
 	if enabledLabelExists && !enabledLabelVal {
-		return &annotationResult{
+		return &filterResult{
 			shouldContinue: false,
 			target:         nil,
 		}
 	}
 
 	if !enabledLabelExists && !m.mutateUnlabelled {
-		return &annotationResult{
+		return &filterResult{
 			shouldContinue: true,
 			target:         nil,
 		}
@@ -349,7 +457,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 	// If local lib is enabled, then we should prefer the user defined libs.
 	extractedLibraries := extractLibrariesFromAnnotations(pod, m.containerRegistry)
 	if len(extractedLibraries) > 0 {
-		return &annotationResult{
+		return &filterResult{
 			shouldContinue: false,
 			target: &targetInternal{
 				libVersions: extractedLibraries,
@@ -359,7 +467,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 
 	injectAllAnnotation := strings.ToLower(annotation.LibraryVersion.Format("all"))
 	if _, found := pod.Annotations[injectAllAnnotation]; found {
-		return &annotationResult{
+		return &filterResult{
 			shouldContinue: false,
 			target: &targetInternal{
 				libVersions: m.defaultLibVersions,
@@ -367,7 +475,7 @@ func (m *TargetMutator) getTargetFromAnnotation(pod *corev1.Pod) *annotationResu
 		}
 	}
 
-	return &annotationResult{
+	return &filterResult{
 		shouldContinue: true,
 		target:         nil,
 	}

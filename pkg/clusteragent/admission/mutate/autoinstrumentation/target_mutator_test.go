@@ -11,10 +11,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -30,6 +32,7 @@ import (
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/ssi/crstore"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -532,6 +535,154 @@ func TestGetTargetFromAnnotation(t *testing.T) {
 	}
 }
 
+func TestGetTargetFromCRD(t *testing.T) {
+	deploymentKey := crstore.WorkloadKey{Kind: "Deployment", Namespace: "default", Name: "web"}
+	statefulSetKey := crstore.WorkloadKey{Kind: "StatefulSet", Namespace: "default", Name: "db"}
+
+	storeWithDisabled := crstore.New()
+	storeWithDisabled.UpsertAPM(deploymentKey, crstore.APMEntry{
+		CR:      types.NamespacedName{Namespace: "default", Name: "ddi-web"},
+		Enabled: false,
+	})
+
+	storeWithPinned := crstore.New()
+	storeWithPinned.UpsertAPM(deploymentKey, crstore.APMEntry{
+		CR:             types.NamespacedName{Namespace: "default", Name: "ddi-web"},
+		Enabled:        true,
+		TracerVersions: map[string]string{"java": "v1"},
+		TracerConfigs:  []corev1.EnvVar{{Name: "DD_SERVICE", Value: "svc"}},
+	})
+
+	storeWithDefaults := crstore.New()
+	storeWithDefaults.UpsertAPM(statefulSetKey, crstore.APMEntry{
+		CR:      types.NamespacedName{Namespace: "default", Name: "ddi-db"},
+		Enabled: true,
+	})
+
+	defaults := getAllLatestDefaultLibraries("registry")
+
+	tests := map[string]struct {
+		store              *crstore.Store
+		pod                *corev1.Pod
+		defaultLibVersions []libInfo
+
+		wantContinue bool
+		// If non-nil, asserts on the returned target. Otherwise expects target to be nil.
+		check func(t *testing.T, target *targetInternal)
+	}{
+		"nil store continues chain": {
+			store:        nil,
+			pod:          newPodOwnedBy("default", "web-7f9d-abc12", "ReplicaSet", "web-7f9d"),
+			wantContinue: true,
+		},
+		"no owner continues chain": {
+			store:        crstore.New(),
+			pod:          &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "standalone"}},
+			wantContinue: true,
+		},
+		"workload not in store continues chain": {
+			store:        crstore.New(),
+			pod:          newPodOwnedBy("default", "web-7f9d-abc12", "ReplicaSet", "web-7f9d"),
+			wantContinue: true,
+		},
+		"disabled entry breaks chain": {
+			store:        storeWithDisabled,
+			pod:          newPodOwnedBy("default", "web-7f9d-abc12", "ReplicaSet", "web-7f9d"),
+			wantContinue: false,
+		},
+		"enabled with pinned versions": {
+			store:        storeWithPinned,
+			pod:          newPodOwnedBy("default", "web-7f9d-abc12", "ReplicaSet", "web-7f9d"),
+			wantContinue: false,
+			check: func(t *testing.T, target *targetInternal) {
+				require.NotNil(t, target)
+				assert.Equal(t, "crd:default/ddi-web", target.name)
+				require.Len(t, target.libVersions, 1)
+				assert.Equal(t, java, target.libVersions[0].lang)
+				require.Len(t, target.envVars, 1)
+				assert.Equal(t, "DD_SERVICE", target.envVars[0].Name)
+				assert.NotEmpty(t, target.json)
+			},
+		},
+		"enabled without versions uses defaults": {
+			store:              storeWithDefaults,
+			pod:                newPodOwnedBy("default", "db-0", "StatefulSet", "db"),
+			defaultLibVersions: defaults,
+			wantContinue:       false,
+			check: func(t *testing.T, target *targetInternal) {
+				require.NotNil(t, target)
+				assert.True(t, target.usesDefaultLibs)
+				assert.Equal(t, defaults, target.libVersions)
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			m := &TargetMutator{
+				crStore:            tc.store,
+				containerRegistry:  "registry",
+				defaultLibVersions: tc.defaultLibVersions,
+			}
+
+			result := m.getTargetFromCRD(tc.pod)
+			assert.Equal(t, tc.wantContinue, result.shouldContinue)
+
+			if tc.check != nil {
+				tc.check(t, result.target)
+			} else {
+				assert.Nil(t, result.target)
+			}
+		})
+	}
+}
+
+func TestWorkloadKeyForPod(t *testing.T) {
+	tests := map[string]struct {
+		pod    *corev1.Pod
+		want   crstore.WorkloadKey
+		wantOk bool
+	}{
+		"deployment via replicaset": {
+			pod:    newPodOwnedBy("default", "web-7f9d-abc12", "ReplicaSet", "web-7f9d"),
+			want:   crstore.WorkloadKey{Kind: "Deployment", Namespace: "default", Name: "web"},
+			wantOk: true,
+		},
+		"statefulset": {
+			pod:    newPodOwnedBy("default", "db-0", "StatefulSet", "db"),
+			want:   crstore.WorkloadKey{Kind: "StatefulSet", Namespace: "default", Name: "db"},
+			wantOk: true,
+		},
+		"daemonset": {
+			pod:    newPodOwnedBy("kube-system", "agent-xyz", "DaemonSet", "agent"),
+			want:   crstore.WorkloadKey{Kind: "DaemonSet", Namespace: "kube-system", Name: "agent"},
+			wantOk: true,
+		},
+		"no controller": {
+			pod:    &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "standalone"}},
+			wantOk: false,
+		},
+		"unsupported owner kind": {
+			pod:    newPodOwnedBy("default", "job-1", "Job", "job"),
+			wantOk: false,
+		},
+		"replicaset without parseable parent": {
+			// Suffix is too short to be a valid hash.
+			pod:    newPodOwnedBy("default", "web-xy", "ReplicaSet", "x"),
+			wantOk: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			got, ok := workloadKeyForPod(tc.pod)
+			assert.Equal(t, tc.wantOk, ok)
+			if tc.wantOk {
+				assert.Equal(t, tc.want, got)
+			}
+		})
+	}
+}
+
 func TestGetTargetLibraries(t *testing.T) {
 	imageResolver := imageresolver.NewNoOpResolver()
 
@@ -911,6 +1062,23 @@ func TestLanguageDetection(t *testing.T) {
 			}
 			require.ElementsMatch(t, test.expectedInitContainerNames, actualInitContainerNames)
 		})
+	}
+}
+
+func newPodOwnedBy(namespace, name, ownerKind, ownerName string) *corev1.Pod {
+	controller := true
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					Kind:       ownerKind,
+					Name:       ownerName,
+					Controller: &controller,
+				},
+			},
+		},
 	}
 }
 

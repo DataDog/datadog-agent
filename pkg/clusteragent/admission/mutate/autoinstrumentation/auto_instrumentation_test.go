@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic/fake"
 	"k8s.io/utils/ptr"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	"github.com/DataDog/datadog-agent/pkg/ssi/crstore"
 	"github.com/DataDog/datadog-agent/pkg/ssi/testutils"
 )
 
@@ -92,6 +94,7 @@ func TestAutoinstrumentation(t *testing.T) {
 		pod          *corev1.Pod
 		namespaces   []workloadmeta.KubernetesMetadata
 		deployments  []common.MockDeployment
+		crEntries    map[crstore.WorkloadKey]crstore.APMEntry
 		shouldMutate bool
 		expected     *expected
 	}{
@@ -2671,10 +2674,108 @@ func TestAutoinstrumentation(t *testing.T) {
 				},
 			},
 		},
+		// CRD path: a DatadogInstrumentation CR pinned to java should mutate the workload's pods even
+		// when SSI is disabled globally.
+		"CRD with pinned tracer version opts the workload in even with SSI disabled": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+				"apm_config.instrumentation.on_demand":   true,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         defaultNamespace,
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: defaultDeployments,
+			namespaces:  defaultNamespaces,
+			crEntries: map[crstore.WorkloadKey]crstore.APMEntry{
+				{Kind: "Deployment", Namespace: defaultNamespace, Name: "deployment"}: {
+					CR:             types.NamespacedName{Namespace: defaultNamespace, Name: "ddi-web"},
+					Enabled:        true,
+					TracerVersions: map[string]string{"java": "v1"},
+				},
+			},
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: map[string]string{"java": "v1"},
+				containerNames:  defaultContainerNames,
+				expectedAnnotations: map[string]string{
+					"internal.apm.datadoghq.com/applied-target": `{"name":"crd:application/ddi-web","workload":{"Kind":"Deployment","Namespace":"application","Name":"deployment"},"ddTraceVersions":{"java":"v1"}}`,
+				},
+			},
+		},
+		// CRD path: a DatadogInstrumentation CR with Enabled=false should opt the workload out even when
+		// the namespace is otherwise enabled by SSI config.
+		"CRD with Enabled=false opts the workload out even when SSI is on": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":            true,
+				"apm_config.instrumentation.enabled_namespaces": []string{defaultNamespace},
+				"apm_config.instrumentation.on_demand":   true,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         defaultNamespace,
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: defaultDeployments,
+			namespaces:  defaultNamespaces,
+			crEntries: map[crstore.WorkloadKey]crstore.APMEntry{
+				{Kind: "Deployment", Namespace: defaultNamespace, Name: "deployment"}: {
+					CR:      types.NamespacedName{Namespace: defaultNamespace, Name: "ddi-disabled"},
+					Enabled: false,
+				},
+			},
+			shouldMutate: false,
+		},
+		// CRD path: an enabled CR without TracerVersions should fall back to the default library set.
+		"CRD without tracer versions falls back to default libraries": {
+			config: map[string]any{
+				"apm_config.instrumentation.enabled":     false,
+				"admission_controller.mutate_unlabelled": false,
+				"apm_config.instrumentation.on_demand":   true,
+			},
+			pod: common.FakePodSpec{
+				Name:       defaultTestContainer,
+				NS:         defaultNamespace,
+				ParentKind: "replicaset",
+				ParentName: "deployment-123",
+			}.Create(),
+			deployments: defaultDeployments,
+			namespaces:  defaultNamespaces,
+			crEntries: map[crstore.WorkloadKey]crstore.APMEntry{
+				{Kind: "Deployment", Namespace: defaultNamespace, Name: "deployment"}: {
+					CR:      types.NamespacedName{Namespace: defaultNamespace, Name: "ddi-defaults"},
+					Enabled: true,
+				},
+			},
+			shouldMutate: true,
+			expected: &expected{
+				injectorVersion: defaultInjectorVersion,
+				libraryVersions: defaultLibraries,
+				containerNames:  defaultContainerNames,
+			},
+		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
+			// Seed the process-wide CR store and tear down after the test so cases don't leak state.
+			if len(test.crEntries) > 0 {
+				store := crstore.GetOrCreate()
+				for key, entry := range test.crEntries {
+					store.UpsertAPM(key, entry)
+				}
+				t.Cleanup(func() {
+					for _, entry := range test.crEntries {
+						store.DeleteByCR(entry.CR)
+					}
+				})
+			}
+
 			// Setup mocks.
 			mockConfig := common.FakeConfigWithValues(t, test.config)
 			mockMeta := common.FakeStoreWithDeployment(t, test.deployments)

@@ -183,6 +183,9 @@ type InstrumentationConfig struct {
 	// caveat of the annotation based instrumentation. Full config
 	// key: apm_config.instrumentation.enabled
 	Enabled bool `mapstructure:"enabled" json:"enabled"`
+	// OnDemand is a flag that allows APM to be enabled in an opt-in fashion rather then mutating all pods by default.
+	// Full config key: apm_config.instrumentation.on_demand
+	OnDemand bool `mapstructure:"on_demand" json:"on_demand"`
 	// EnabledNamespaces is a list of namespaces where the autoinstrumentation is enabled. If empty, it is enabled in
 	// all namespaces. EnabledNamespace and DisabledNamespaces are mutually exclusive and cannot be set together. Full
 	// config key: apm_config.instrumentation.enabled_namespaces

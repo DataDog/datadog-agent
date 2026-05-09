@@ -8,7 +8,10 @@
 // Package handlers provide product-specific handlers for the Datadog Instrumentation CRD controller.
 package handlers
 
-import "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
+import (
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
+	"github.com/DataDog/datadog-agent/pkg/ssi/crstore"
+)
 
 // Deps contains dependencies used to construct DatadogInstrumentation product handlers.
 // Product-specific services that are shared with other integration surfaces, such as
@@ -17,11 +20,15 @@ import "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 type Deps struct {
 	// IsLeader should be used if the handler should only perform actions when the cluster agent is the leader.
 	IsLeader func() bool
+	// CRStore is the shared store of APM configuration sourced from DatadogInstrumentation CRs. The
+	// auto-instrumentation admission webhook reads from this store at pod admission time.
+	CRStore *crstore.Store
 }
 
 // DefaultHandlers returns the product handlers registered for the shared controller.
 func DefaultHandlers(deps Deps) ([]instrumentation.Handler, error) {
 	return []instrumentation.Handler{
 		NewAutodiscoveryHandler(deps),
+		NewAPMHandler(deps),
 	}, nil
 }

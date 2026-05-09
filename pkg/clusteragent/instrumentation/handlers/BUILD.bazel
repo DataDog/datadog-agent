@@ -1,8 +1,9 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "handlers",
     srcs = [
+        "apm.go",
         "autodiscovery.go",
         "registry.go",
     ],
@@ -10,8 +11,29 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/clusteragent/instrumentation",
+        "//pkg/ssi/crstore",
         "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
         "@io_k8s_api//autoscaling/v2:autoscaling",
+        "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types",
+    ],
+)
+
+go_test(
+    name = "handlers_test",
+    srcs = ["apm_test.go"],
+    gotags = ["test"],
+    deps = [
+        ":handlers",
+        "//pkg/clusteragent/instrumentation",
+        "//pkg/ssi/crstore",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//autoscaling/v2:autoscaling",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types",
     ],
 )

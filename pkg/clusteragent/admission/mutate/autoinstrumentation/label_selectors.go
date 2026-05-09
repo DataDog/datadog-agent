@@ -21,6 +21,7 @@ type LabelSelectorsConfig struct {
 	MutateUnlabelled   bool
 	AddAksSelectors    bool
 	DisabledNamespaces []string
+	OnDemand           bool
 }
 
 // NewLabelSelectorsConfig initializes a config object from the datadog config.
@@ -30,6 +31,7 @@ func NewLabelSelectorsConfig(datadogConfig config.Component) *LabelSelectorsConf
 		MutateUnlabelled:   datadogConfig.GetBool("admission_controller.mutate_unlabelled"),
 		AddAksSelectors:    datadogConfig.GetBool("admission_controller.add_aks_selectors"),
 		DisabledNamespaces: datadogConfig.GetStringSlice("apm_config.instrumentation.disabled_namespaces"),
+		OnDemand:           datadogConfig.GetBool("apm_config.instrumentation.on_demand"),
 	}
 }
 
@@ -81,7 +83,7 @@ func (ls *LabelSelectors) Get(useNamespaceSelector bool) (*metav1.LabelSelector,
 }
 
 func (ls *LabelSelectors) setupObjectSelector(selector *metav1.LabelSelector) {
-	if ls.config.Enabled || ls.config.MutateUnlabelled {
+	if ls.config.Enabled || ls.config.MutateUnlabelled || ls.config.OnDemand {
 		// If instrumentation or mutate unlabelled is enabled, then we want to receive webhooks for everything but
 		// workloads that have explicitly opted out.
 		selector.MatchExpressions = []metav1.LabelSelectorRequirement{

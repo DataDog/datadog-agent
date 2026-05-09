@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 	instrumentationhandlers "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation/handlers"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/ssi/crstore"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -198,6 +199,7 @@ func startAutoscalersController(ctx *ControllerContext, c chan error) {
 func startDatadogInstrumentationController(ctx *ControllerContext, c chan error) {
 	handlers, err := instrumentationhandlers.DefaultHandlers(instrumentationhandlers.Deps{
 		IsLeader: ctx.IsLeaderFunc,
+		CRStore:  crstore.GetOrCreate(),
 	})
 	if err != nil {
 		c <- err
