@@ -34,8 +34,7 @@ const (
 	otelConfigPath        = "/etc/datadog-agent/otel-config.yaml"
 	otelConfigExamplePath = "/etc/datadog-agent/otel-config.yaml.example"
 
-	ddotProcmgrYAMLStable     = "datadog-agent-ddot.yaml"
-	ddotProcmgrYAMLExperiment = "datadog-agent-ddot-exp.yaml"
+	ddotProcmgrYAMLStable = "datadog-agent-ddot.yaml"
 )
 
 var (
@@ -302,9 +301,6 @@ func syncDDOTProcmgrState(ctx HookContext, stable, standalone bool) (bool, error
 	}
 	dir := ddotProcmgrProcessesDir(ctx, stable)
 	yamlName := ddotProcmgrYAMLStable
-	if !stable {
-		yamlName = ddotProcmgrYAMLExperiment
-	}
 	ownsDDOT := procmgrOwnsDDOT(ctx, stable)
 	if !ownsDDOT {
 		procmgr.RemoveConfig(dir, yamlName)
@@ -337,9 +333,6 @@ func syncDDOTProcmgrStop(ctx HookContext, stable bool) error {
 	}
 	dir := ddotProcmgrProcessesDir(ctx, stable)
 	yamlName := ddotProcmgrYAMLStable
-	if !stable {
-		yamlName = ddotProcmgrYAMLExperiment
-	}
 	procmgr.RemoveConfig(dir, yamlName)
 	if !procmgrBinaryExists(ctx, stable) {
 		return nil
