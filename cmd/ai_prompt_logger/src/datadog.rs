@@ -162,7 +162,10 @@ impl DatadogClient {
             .send_json(&body)
         {
             Ok(resp) => {
-                eprintln!("[datadog] AI usage event shipped via agent ({})", resp.status());
+                eprintln!(
+                    "[datadog] AI usage event shipped via agent ({})",
+                    resp.status()
+                );
                 true
             }
             Err(e) => {
@@ -252,9 +255,14 @@ mod tests {
         event.provider = Some("Google".to_string());
 
         let body = DatadogClient::ai_usage_body(&event).expect("AI usage body should serialize");
-        let body = body.as_object().expect("AI usage body should be a JSON object");
+        let body = body
+            .as_object()
+            .expect("AI usage body should be a JSON object");
 
-        assert_eq!(body.get("hostname"), Some(&Value::String("host-1".to_string())));
+        assert_eq!(
+            body.get("hostname"),
+            Some(&Value::String("host-1".to_string()))
+        );
         assert_eq!(body.get("tool"), Some(&Value::String("gemini".to_string())));
         assert_eq!(
             body.get("provider"),
