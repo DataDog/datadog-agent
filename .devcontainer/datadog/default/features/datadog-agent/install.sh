@@ -2,11 +2,11 @@
 set -euo pipefail
 featureDir=$(cd "$(dirname "$0")"; pwd)
 
-# Get claude from the buildimages /root/.local/bin
-cp /root/.local/bin/claude /home/bits/.local/bin/claude
-
-# Add bits user to the docker group. This should probably be handled by the base feature. But not working for now.
-usermod -aG docker bits
+# Keep Claude available when the image already carries it.
+if [[ -f /root/.local/bin/claude && -x /root/.local/bin/claude ]]; then
+    install -d -o bits -g dog /home/bits/.local/bin
+    install -m 755 -o bits -g dog /root/.local/bin/claude /home/bits/.local/bin/claude
+fi
 
 # Copy lifecycle scripts into the image
 install -d /opt/doghome/devcontainer/features/datadog-agent/lifecycle
