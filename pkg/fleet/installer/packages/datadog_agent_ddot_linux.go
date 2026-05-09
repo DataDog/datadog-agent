@@ -349,6 +349,10 @@ func writeProcmgrDDOTEnabledMarkerIfSystemd(ctx HookContext) error {
 	if service.BaseServiceManagerType() != service.SystemdType {
 		return nil
 	}
+	if raw, ok := os.LookupEnv(procmgr.DDOTEnvVar); ok && !procmgr.EnvTruthy(raw) {
+		_ = os.Remove(procmgr.DDOTMarkerPath)
+		return nil
+	}
 	if err := writeProcmgrMarker(ctx, procmgr.DDOTMarkerPath); err != nil {
 		return fmt.Errorf("write ddot procmgr marker: %w", err)
 	}
