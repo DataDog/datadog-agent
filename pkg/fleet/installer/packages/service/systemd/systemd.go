@@ -102,12 +102,15 @@ func RestartUnit(ctx context.Context, unit string, args ...string) error {
 	return handleSystemdSelfStops(err)
 }
 
-// ScheduleRestartUnit starts a transient unit that runs
-// `systemctl restart <unit>` without blocking for the restart to finish.
+// ScheduleRestartUnit enqueues `systemctl restart <unit>` with --no-block so
+// systemctl returns without waiting for the restart job to finish.
 //
 // Used when a synchronous restart would stop the caller before it can finish
 // its work (for example promote-experiment handled by datadog-agent-installer-exp,
 // which systemd stops when datadog-agent.service restarts).
+//
+// We use systemctl --no-block instead of systemd-run --no-block because older
+// systemd packages ship systemd-run without that flag.
 func ScheduleRestartUnit(ctx context.Context, unit string) error {
 	running, err := IsRunning()
 	if err != nil {
@@ -117,8 +120,9 @@ func ScheduleRestartUnit(ctx context.Context, unit string) error {
 		log.Infof("Installer: systemd not running, skipping scheduled restart of %s", unit)
 		return nil
 	}
-	args := []string{"--no-block", "systemctl", "restart", unit}
-	return telemetry.CommandContext(ctx, "systemd-run", args...).Run()
+	args := []string{"--no-block", "restart", unit}
+	err = telemetry.CommandContext(ctx, "systemctl", args...).Run()
+	return handleSystemdSelfStops(err)
 }
 
 // EnableUnit enables a systemd unit
