@@ -489,8 +489,10 @@ func postPromoteExperimentDatadogAgent(ctx HookContext) error {
 	if err := syncDDOTProcmgrAfterAgentPromotion(ctx); err != nil {
 		return fmt.Errorf("failed to resync DDOT process manager config after promotion: %w", err)
 	}
-	err = agentService.RestartStable(ctx)
-	if err != nil {
+	// Restart stable asynchronously: this hook runs under datadog-agent-installer-exp.
+	// A synchronous restart of datadog-agent.service stops the experiment stack
+	// (Conflicts=/BindsTo=) and drops the promote RPC before it returns.
+	if err := agentService.RestartStableDeferred(ctx); err != nil {
 		return err
 	}
 	return nil
@@ -524,8 +526,7 @@ func preStopConfigExperimentDatadogAgent(ctx HookContext) error {
 func postPromoteConfigExperimentDatadogAgent(ctx HookContext) error {
 	detachedCtx := context.WithoutCancel(ctx.Context)
 	ctx.Context = detachedCtx
-	err := agentService.RestartStable(ctx)
-	if err != nil {
+	if err := agentService.RestartStableDeferred(ctx); err != nil {
 		return err
 	}
 	return nil
@@ -660,6 +661,33 @@ func (s *datadogAgentService) RestartStable(ctx HookContext) error {
 		return systemd.RestartUnit(ctx, s.SystemdMainUnitStable)
 	case service.ProcmgrType:
 		return procmgr.RestartUnit(ctx, s.SystemdMainUnitStable)
+	case service.UpstartType:
+		return upstart.Restart(ctx, s.UpstartMainService)
+	case service.SysvinitType:
+		return sysvinit.Restart(ctx, s.SysvinitMainService)
+	default:
+		return errors.New("unsupported service manager")
+	}
+}
+
+// RestartStableDeferred schedules a restart of the stable main unit without waiting
+// for it to complete. On systemd (including ProcmgrType, which uses systemctl),
+// this uses systemd-run so promote handlers can return before the experiment
+// installer unit is torn down.
+func (s *datadogAgentService) RestartStableDeferred(ctx HookContext) error {
+	if err := s.checkPlatformSupport(ctx); err != nil {
+		return err
+	}
+	present, err := isAgentConfigFilePresent()
+	if err != nil {
+		return fmt.Errorf("failed to check if /etc/datadog-agent/datadog.yaml exists: %v", err)
+	}
+	if !present {
+		return nil
+	}
+	switch service.GetServiceManagerType() {
+	case service.SystemdType, service.ProcmgrType:
+		return systemd.ScheduleRestartUnit(ctx, s.SystemdMainUnitStable)
 	case service.UpstartType:
 		return upstart.Restart(ctx, s.UpstartMainService)
 	case service.SysvinitType:
