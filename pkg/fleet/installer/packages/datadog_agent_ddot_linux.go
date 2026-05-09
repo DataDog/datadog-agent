@@ -200,6 +200,13 @@ func postInstallDatadogAgentDDOTDEBRPM(ctx HookContext) (err error) {
 // preRemoveDatadogAgentDDOT performs pre-removal steps for the DDOT package
 // All the steps are allowed to fail
 func preRemoveDatadogAgentDDOT(ctx HookContext) error {
+	if err := syncDDOTProcmgrStop(ctx, true); err != nil {
+		log.Warnf("failed to remove DDOT procmgr stable config: %s", err)
+	}
+	if err := syncDDOTProcmgrStop(ctx, false); err != nil {
+		log.Warnf("failed to remove DDOT procmgr experiment config: %s", err)
+	}
+
 	err := agentDDOTService.StopExperiment(ctx)
 	if err != nil {
 		log.Warnf("failed to stop experiment unit: %s", err)
