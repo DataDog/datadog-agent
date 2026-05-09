@@ -47,7 +47,8 @@ type WaitForProcessResult struct {
 }
 
 // WaitForProcess polls dd-procmgr describe until State matches DesiredState and returns
-// PID/Restarts from that snapshot. For ProcessStateRunning it also validates Command,
+// a snapshot result. Restarts is always populated; PID is only populated for
+// ProcessStateRunning. For ProcessStateRunning it also validates Command,
 // readlink -f on Command vs /proc/<pid>/exe, and optional ExpectedBinary resolution.
 func WaitForProcess(t *testing.T, executor CommandExecutor, args WaitForProcessArgs) WaitForProcessResult {
 	t.Helper()
@@ -57,15 +58,7 @@ func WaitForProcess(t *testing.T, executor CommandExecutor, args WaitForProcessA
 	describeCmd := fmt.Sprintf(`sudo -u dd-agent -- %q describe %q`, args.ProcmgrCLIBin, args.ProcessName)
 	desiredState := args.DesiredState
 
-	var wantExeFromHint string
-	hintResolves := false
-	if desiredState == ProcessStateRunning && args.ExpectedBinary != "" {
-		out, err := executor.ExecuteCommand(fmt.Sprintf("sudo readlink -f %q", args.ExpectedBinary))
-		hintResolves = err == nil && strings.TrimSpace(out) != ""
-		if hintResolves {
-			wantExeFromHint = strings.TrimSpace(out)
-		}
-	}
+	wantExeFromHint, hintResolves := resolveExpectedBinaryHint(executor, desiredState, args.ExpectedBinary)
 
 	var result WaitForProcessResult
 	require.Eventually(t, func() bool {
@@ -84,8 +77,14 @@ func WaitForProcess(t *testing.T, executor CommandExecutor, args WaitForProcessA
 				return false
 			}
 		}
+		if desiredState != ProcessStateRunning {
+			result = WaitForProcessResult{
+				Restarts: restartsFromDescribe(out),
+			}
+			return true
+		}
 
-		r, ok := runningSnapshotFromDescribe(t, executor, describeCmd, out, hintResolves, wantExeFromHint, args.ExpectedBinary)
+		r, ok := resolveRunningPIDFromDescribe(t, executor, describeCmd, out, hintResolves, wantExeFromHint, args.ExpectedBinary)
 		if !ok {
 			return false
 		}
@@ -95,7 +94,25 @@ func WaitForProcess(t *testing.T, executor CommandExecutor, args WaitForProcessA
 	return result
 }
 
-func runningSnapshotFromDescribe(
+func resolveExpectedBinaryHint(
+	executor CommandExecutor,
+	desiredState, expectedBinary string,
+) (string, bool) {
+	if desiredState != ProcessStateRunning || expectedBinary == "" {
+		return "", false
+	}
+	out, err := executor.ExecuteCommand(fmt.Sprintf("sudo readlink -f %q", expectedBinary))
+	if err != nil {
+		return "", false
+	}
+	trimmedOut := strings.TrimSpace(out)
+	if trimmedOut == "" {
+		return "", false
+	}
+	return trimmedOut, true
+}
+
+func resolveRunningPIDFromDescribe(
 	t *testing.T,
 	executor CommandExecutor,
 	describeCmd, describeOut string,
@@ -103,39 +120,67 @@ func runningSnapshotFromDescribe(
 	wantExeFromHint, expectedBinaryForLog string,
 ) (WaitForProcessResult, bool) {
 	t.Helper()
-	cmd := fieldValue(describeOut, "Command")
-	cmdExe, err := executor.ExecuteCommand(fmt.Sprintf("sudo readlink -f %q", cmd))
-	if err != nil {
-		t.Logf("runningSnapshotFromDescribe: readlink -f %q (Command field from prior dd-procmgr describe) err=%v\n%s", cmd, err, cmdExe)
+	cmd, cmdExe, ok := resolveCommandExeFromDescribe(t, executor, describeCmd, describeOut, hintResolves, wantExeFromHint, expectedBinaryForLog)
+	if !ok {
 		return WaitForProcessResult{}, false
 	}
-	cmdExe = strings.TrimSpace(cmdExe)
-	if cmdExe == "" {
-		t.Logf("runningSnapshotFromDescribe: readlink -f %q returned empty path (Command field from prior dd-procmgr describe)", cmd)
-		return WaitForProcessResult{}, false
-	}
-	if hintResolves && cmdExe != wantExeFromHint {
-		t.Logf("runningSnapshotFromDescribe: dd-procmgr describe cmd=%q resolved exe got=%q want=%q (hint from ExpectedBinary %q)\noutput:\n%s", describeCmd, cmdExe, wantExeFromHint, expectedBinaryForLog, describeOut)
-		return WaitForProcessResult{}, false
-	}
-	pid := fieldValue(describeOut, "PID")
-	if pid == "" || pid == "-" {
-		t.Logf("runningSnapshotFromDescribe: dd-procmgr describe cmd=%q missing PID (got %q)\noutput:\n%s", describeCmd, pid, describeOut)
-		return WaitForProcessResult{}, false
-	}
-	exeOut, err := executor.ExecuteCommand("sudo readlink -f /proc/" + pid + "/exe")
-	if err != nil {
-		t.Logf("runningSnapshotFromDescribe: readlink -f /proc/%s/exe err=%v\n%s", pid, err, exeOut)
-		return WaitForProcessResult{}, false
-	}
-	if strings.TrimSpace(exeOut) != cmdExe {
-		t.Logf("runningSnapshotFromDescribe: readlink -f /proc/%s/exe got=%q want=%q (canonical Command %q from dd-procmgr describe)\ndd-procmgr describe output:\n%s", pid, strings.TrimSpace(exeOut), cmdExe, cmd, describeOut)
+	pid, ok := resolveRunningPIDFromProc(t, executor, describeCmd, describeOut, cmd, cmdExe)
+	if !ok {
 		return WaitForProcessResult{}, false
 	}
 	return WaitForProcessResult{
 		PID:      pid,
 		Restarts: restartsFromDescribe(describeOut),
 	}, true
+}
+
+func resolveCommandExeFromDescribe(
+	t *testing.T,
+	executor CommandExecutor,
+	describeCmd, describeOut string,
+	hintResolves bool,
+	wantExeFromHint, expectedBinaryForLog string,
+) (string, string, bool) {
+	t.Helper()
+	cmd := fieldValue(describeOut, "Command")
+	cmdExe, err := executor.ExecuteCommand(fmt.Sprintf("sudo readlink -f %q", cmd))
+	if err != nil {
+		t.Logf("resolveCommandExeFromDescribe: readlink -f %q (Command field from prior dd-procmgr describe) err=%v\n%s", cmd, err, cmdExe)
+		return "", "", false
+	}
+	cmdExe = strings.TrimSpace(cmdExe)
+	if cmdExe == "" {
+		t.Logf("resolveCommandExeFromDescribe: readlink -f %q returned empty path (Command field from prior dd-procmgr describe)", cmd)
+		return "", "", false
+	}
+	if hintResolves && cmdExe != wantExeFromHint {
+		t.Logf("resolveCommandExeFromDescribe: dd-procmgr describe cmd=%q resolved exe got=%q want=%q (hint from ExpectedBinary %q)\noutput:\n%s", describeCmd, cmdExe, wantExeFromHint, expectedBinaryForLog, describeOut)
+		return "", "", false
+	}
+	return cmd, cmdExe, true
+}
+
+func resolveRunningPIDFromProc(
+	t *testing.T,
+	executor CommandExecutor,
+	describeCmd, describeOut, cmd, cmdExe string,
+) (string, bool) {
+	t.Helper()
+	pid := fieldValue(describeOut, "PID")
+	if pid == "" || pid == "-" {
+		t.Logf("resolveRunningPIDFromProc: dd-procmgr describe cmd=%q missing PID (got %q)\noutput:\n%s", describeCmd, pid, describeOut)
+		return "", false
+	}
+	exeOut, err := executor.ExecuteCommand("sudo readlink -f /proc/" + pid + "/exe")
+	if err != nil {
+		t.Logf("resolveRunningPIDFromProc: readlink -f /proc/%s/exe err=%v\n%s", pid, err, exeOut)
+		return "", false
+	}
+	if strings.TrimSpace(exeOut) != cmdExe {
+		t.Logf("resolveRunningPIDFromProc: readlink -f /proc/%s/exe got=%q want=%q (canonical Command %q from dd-procmgr describe)\ndd-procmgr describe output:\n%s", pid, strings.TrimSpace(exeOut), cmdExe, cmd, describeOut)
+		return "", false
+	}
+	return pid, true
 }
 
 func restartsFromDescribe(describeOut string) int {
