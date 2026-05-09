@@ -257,13 +257,6 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     return 0;
 }
 
-SEC("fexit/tcp_close")
-int BPF_PROG(tcp_close_exit, struct sock *sk, long timeout) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_close");
-    flush_conn_close_if_full(ctx);
-    return 0;
-}
-
 SEC("fentry/tcp_done")
 int BPF_PROG(tcp_done, struct sock *sk) {
     // NOTE: no RETURN_IF_NOT_IN_SYSPROBE_TASK here — tcp_done often fires from
@@ -298,14 +291,6 @@ int BPF_PROG(tcp_done, struct sock *sk) {
         increment_telemetry_count(tcp_done_connection_flush);
     }
 
-    return 0;
-}
-
-SEC("fexit/tcp_done")
-int BPF_PROG(tcp_done_exit, struct sock *sk) {
-    // NOTE: no RETURN_IF_NOT_IN_SYSPROBE_TASK here — must match tcp_done entry
-    // which runs without the guard for timeout/RST/softirq context events.
-    flush_conn_close_if_full(ctx);
     return 0;
 }
 
