@@ -389,6 +389,12 @@ func syncDDOTProcmgrAfterStandalonePackageInstall(ctx HookContext) error {
 	}
 	if !ownsDDOT {
 		// Keep systemd ownership when procmgr path is not active.
+		if err := agentDDOTService.EnableStable(ctx); err != nil {
+			return fmt.Errorf("failed to enable legacy ddot systemd unit: %w", err)
+		}
+		if err := agentDDOTService.RestartStable(ctx); err != nil {
+			return fmt.Errorf("failed to restart legacy ddot systemd unit: %w", err)
+		}
 		return nil
 	}
 	// Ensure convergence on process manager ownership.
