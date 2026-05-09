@@ -34,13 +34,14 @@ func GlobalGateOpen() bool {
 func ProcessGateOpen(envVar, markerPath string) bool {
 	v, set := os.LookupEnv(envVar)
 	if set {
-		return envTruthy(v)
+		return EnvTruthy(v)
 	}
 	_, err := os.Stat(markerPath)
 	return err == nil
 }
 
-func envTruthy(v string) bool {
+// EnvTruthy reports whether a procmgr gate env value should be interpreted as enabled.
+func EnvTruthy(v string) bool {
 	switch strings.ToLower(strings.TrimSpace(v)) {
 	case "1", "true", "t", "yes", "y", "on":
 		return true
