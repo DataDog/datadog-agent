@@ -290,25 +290,30 @@ func ddotEmbeddedUnitType(ctx HookContext) embedded.SystemdUnitType {
 	return embedded.SystemdUnitTypeDebRpm
 }
 
-func syncDDOTProcmgrState(ctx HookContext, stable, standalone bool) error {
+func procmgrOwnsDDOT(ctx HookContext, stable bool) bool {
+	return service.GetServiceManagerType() == service.ProcmgrType &&
+		procmgr.ProcessGateOpen(procmgr.DDOTEnvVar, procmgr.DDOTMarkerPath) &&
+		procmgrBinaryExists(ctx, stable)
+}
+
+func syncDDOTProcmgrState(ctx HookContext, stable, standalone bool) (bool, error) {
 	if service.BaseServiceManagerType() != service.SystemdType {
-		return nil
+		return false, nil
 	}
 	dir := ddotProcmgrProcessesDir(ctx, stable)
 	yamlName := ddotProcmgrYAMLStable
 	if !stable {
 		yamlName = ddotProcmgrYAMLExperiment
 	}
-	if service.GetServiceManagerType() != service.ProcmgrType ||
-		!procmgr.ProcessGateOpen(procmgr.DDOTEnvVar, procmgr.DDOTMarkerPath) ||
-		!procmgrBinaryExists(ctx, stable) {
+	ownsDDOT := procmgrOwnsDDOT(ctx, stable)
+	if !ownsDDOT {
 		procmgr.RemoveConfig(dir, yamlName)
 		if procmgrBinaryExists(ctx, stable) {
 			if err := procmgr.RestartDaemon(ctx, !stable); err != nil {
 				log.Warnf("failed to restart dd-procmgrd after dropping DDOT config: %v", err)
 			}
 		}
-		return nil
+		return false, nil
 	}
 	ambiantCapabilitiesSupported, err := isAmbiantCapabilitiesSupported()
 	if err != nil {
@@ -317,13 +322,13 @@ func syncDDOTProcmgrState(ctx HookContext, stable, standalone bool) error {
 	}
 	raw, err := embedded.GetDDOTProcessConfig(ddotEmbeddedUnitType(ctx), stable, ambiantCapabilitiesSupported)
 	if err != nil {
-		return fmt.Errorf("ddot procmgr yaml: %w", err)
+		return ownsDDOT, fmt.Errorf("ddot procmgr yaml: %w", err)
 	}
 	content := adjustDDOTProcessYAML(string(raw), ctx, standalone)
 	if err := procmgr.WriteConfig(dir, yamlName, content); err != nil {
-		return err
+		return ownsDDOT, err
 	}
-	return procmgr.RestartDaemon(ctx, !stable)
+	return ownsDDOT, procmgr.RestartDaemon(ctx, !stable)
 }
 
 func syncDDOTProcmgrStop(ctx HookContext, stable bool) error {
@@ -371,9 +376,11 @@ func syncDDOTProcmgrAfterExtension(ctx HookContext) error {
 	switch ctx.PackageType {
 	case PackageTypeOCI:
 		stable := filepath.Base(ctx.PackagePath) != "experiment"
-		return syncDDOTProcmgrState(ctx, stable, false)
+		_, err := syncDDOTProcmgrState(ctx, stable, false)
+		return err
 	case PackageTypeDEB, PackageTypeRPM:
-		return syncDDOTProcmgrState(ctx, true, false)
+		_, err := syncDDOTProcmgrState(ctx, true, false)
+		return err
 	default:
 		return nil
 	}
@@ -383,8 +390,13 @@ func syncDDOTProcmgrAfterStandalonePackageInstall(ctx HookContext) error {
 	if err := writeProcmgrDDOTEnabledMarkerIfSystemd(ctx); err != nil {
 		return err
 	}
-	if err := syncDDOTProcmgrState(ctx, true, true); err != nil {
+	ownsDDOT, err := syncDDOTProcmgrState(ctx, true, true)
+	if err != nil {
 		return err
+	}
+	if !ownsDDOT {
+		// Keep systemd ownership when procmgr path is not active.
+		return nil
 	}
 	// Ensure convergence on process manager ownership.
 	if err := agentDDOTService.StopStable(ctx); err != nil {
