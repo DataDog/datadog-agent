@@ -171,7 +171,7 @@ func (s *packageDDOTSuite) TestInstallDDOTWithoutDatadogYAML() {
 	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
 	state = s.host.State()
 	s.assertCoreUnits(state, true)
-	s.waitForDDOTRunning(procmgrtest.CLIBinFleetStable, procmgrtest.DDOTOtelAgentFleetStableExtensionBinary)
+	s.waitForDDOTRunning(procmgrtest.CLIBinFleetStable, procmgrtest.DDOTOtelAgentExtensionBinary)
 }
 
 func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
