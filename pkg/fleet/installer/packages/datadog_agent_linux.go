@@ -486,6 +486,9 @@ func postPromoteExperimentDatadogAgent(ctx HookContext) error {
 	if err != nil {
 		return fmt.Errorf("failed to promote extensions: %s", err)
 	}
+	if err := syncDDOTProcmgrAfterAgentPromotion(ctx); err != nil {
+		return fmt.Errorf("failed to resync DDOT process manager config after promotion: %w", err)
+	}
 	err = agentService.RestartStable(ctx)
 	if err != nil {
 		return err
