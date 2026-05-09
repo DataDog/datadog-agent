@@ -1,0 +1,98 @@
+# Top-level envelope for an OpenTelemetry Collector configuration document,
+# as accepted by the DDOT Collector. Hand-authored: no upstream JSON Schema
+# exists for this layer (see docs/dev/plans/2026-05-07-otelcol-config-schema-plan.md
+# "Two layers of schema").
+#
+# Each component-class block (`receivers`, `processors`, etc.) declares an
+# empty `patternProperties: {}` here; the bundler walks the M3 `$defs`
+# registry and fills in `^<type>(/.*)?$` entries pointing at
+# `#/$defs/component__<class>__<type>` at build time.
+#
+# `additionalProperties: false` at the envelope level catches typos in
+# top-level keys. Inside individual component bodies the per-component
+# `config.schema.yaml` files decide their own strictness — schemagen emits
+# bodies without `additionalProperties`, which JSON Schema treats as `true`,
+# so feature-gated upstream additions don't break validation.
+
+description: Configuration accepted by the DDOT OpenTelemetry Collector.
+type: object
+additionalProperties: false
+properties:
+  receivers:
+    type: object
+    description: Receivers ingest data into the Collector.
+    patternProperties: {}  # filled by the bundler
+    additionalProperties: false
+  processors:
+    type: object
+    description: Processors transform data as it passes through the Collector.
+    patternProperties: {}  # filled by the bundler
+    additionalProperties: false
+  exporters:
+    type: object
+    description: Exporters send data out of the Collector.
+    patternProperties: {}  # filled by the bundler
+    additionalProperties: false
+  connectors:
+    type: object
+    description: |
+      Connectors join two pipelines, acting as both an exporter for the
+      sender pipeline and a receiver for the receiver pipeline.
+    patternProperties: {}  # filled by the bundler
+    additionalProperties: false
+  extensions:
+    type: object
+    description: |
+      Extensions provide capabilities that don't directly process telemetry
+      (health checks, profiling, configuration sources, etc.).
+    patternProperties: {}  # filled by the bundler
+    additionalProperties: false
+  service:
+    type: object
+    description: |
+      Wires the configured components into pipelines and declares which
+      extensions are enabled.
+    additionalProperties: false
+    properties:
+      extensions:
+        type: array
+        description: Names of configured extensions to enable, in order.
+        items:
+          type: string
+      pipelines:
+        type: object
+        description: |
+          Map of pipeline IDs (`<signal>[/<instance>]`) to pipeline configs.
+          `signal` is one of `traces`, `metrics`, `logs`, `profiles`.
+        patternProperties:
+          "^(traces|metrics|logs|profiles)(/.*)?$":
+            type: object
+            additionalProperties: false
+            properties:
+              receivers:
+                type: array
+                description: Names of receivers feeding this pipeline.
+                items:
+                  type: string
+                minItems: 1
+              processors:
+                type: array
+                description: Names of processors applied to this pipeline, in order.
+                items:
+                  type: string
+              exporters:
+                type: array
+                description: Names of exporters this pipeline writes to.
+                items:
+                  type: string
+                minItems: 1
+            required: [receivers, exporters]
+        additionalProperties: false
+      telemetry:
+        type: object
+        description: |
+          The Collector's own observability — logs, metrics, traces emitted
+          by the Collector itself, distinct from the data it processes.
+        # The shape of `telemetry` is decoded dynamically by upstream and
+        # doesn't have a published schema; pass-through.
+        additionalProperties: true

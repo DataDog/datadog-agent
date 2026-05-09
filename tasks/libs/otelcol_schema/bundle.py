@@ -36,6 +36,7 @@ import argparse
 import functools
 import hashlib
 import json
+import re
 import sys
 from collections import defaultdict, deque
 from collections.abc import Mapping
@@ -583,13 +584,91 @@ def build_bundle(*, missing_strategy: str = "permissive") -> BundleResult:
     if placeholder_count != len(resolver.unresolved):
         raise RuntimeError(f"placeholder count {placeholder_count} != unresolved-refs {len(resolver.unresolved)}")
 
-    bundle = {"$schema": JSON_SCHEMA_DRAFT, "$defs": defs}
+    envelope = _stitch_envelope(sources, mappings, missing_components, missing_strategy=missing_strategy)
+    if missing_strategy == "permissive":
+        # The fallback placeholder for unmodeled components needs a $defs entry
+        # to point at; reuse the same shape we use for unresolved $refs.
+        defs.setdefault("__component__permissive__", _placeholder())
+    bundle = {"$schema": JSON_SCHEMA_DRAFT, **envelope, "$defs": defs}
     return BundleResult(
         bundle=bundle,
         sources=sources,
         unresolved_refs=resolver.unresolved,
         missing_components=missing_components,
     )
+
+
+# ---------------------------------------------------------------------------
+# Envelope stitching (M4)
+# ---------------------------------------------------------------------------
+
+
+_ENVELOPE_PATH = Path(__file__).parent / "envelope.yaml"
+
+# Collector class -> envelope key. Class is the singular form used inside our
+# `component__<class>__<type>` IDs (matching metadata.yaml `status.class`);
+# the envelope keys are the conventional plural names.
+_ENVELOPE_KEY_FOR_CLASS = {
+    "receiver": "receivers",
+    "processor": "processors",
+    "exporter": "exporters",
+    "connector": "connectors",
+    "extension": "extensions",
+}
+
+
+def _stitch_envelope(
+    sources: list[SchemaSource],
+    mappings: dict[Path, IdMapping],
+    missing_components: list[tuple[str, str, str]],
+    *,
+    missing_strategy: str,
+) -> dict[str, Any]:
+    """Load the hand-authored envelope and fill its `patternProperties` lists
+    with one entry per registered component type, pointing at the canonical
+    `$defs` ID.
+
+    Under `permissive` strategy, also adds a class-wide fallback so component
+    types whose schema we couldn't bundle (no `config.schema.yaml` published
+    upstream — see `missing_components`) still validate. The fallback uses
+    `^.*$` ranked last by pattern matching, pointing at a permissive
+    placeholder that accepts any object body.
+    """
+    envelope = yaml.safe_load(_ENVELOPE_PATH.read_text())
+
+    # Group components by envelope key.
+    by_key: dict[str, list[tuple[str, str]]] = defaultdict(list)
+    for src in sources:
+        if not src.is_component or src.component_class is None or src.component_type is None:
+            continue
+        key = _ENVELOPE_KEY_FOR_CLASS.get(src.component_class)
+        if key is None:
+            continue
+        canonical = mappings[src.path].root_id
+        if canonical is None:
+            continue
+        by_key[key].append((src.component_type, canonical))
+
+    # Fill patternProperties for each component class.
+    for key, entries in by_key.items():
+        pattern_props = envelope["properties"][key].setdefault("patternProperties", {})
+        for type_name, canonical in sorted(entries):
+            pattern = f"^{re.escape(type_name)}(/.*)?$"
+            pattern_props[pattern] = {"$ref": f"#/$defs/{canonical}"}
+
+    # Permissive fallback for component classes that have at least one entry
+    # in `missing_components`: accept any unmodeled component body without
+    # complaint. Strict mode skips this — unmodeled types fail validation.
+    if missing_strategy == "permissive":
+        classes_with_gaps = {cls for cls, _src, _reason in missing_components}
+        for cls in classes_with_gaps:
+            key = _ENVELOPE_KEY_FOR_CLASS.get(cls)
+            if key is None or key not in envelope["properties"]:
+                continue
+            pattern_props = envelope["properties"][key].setdefault("patternProperties", {})
+            pattern_props.setdefault("^.*$", {"$ref": "#/$defs/__component__permissive__"})
+
+    return {k: v for k, v in envelope.items() if k != "$schema"}
 
 
 # ---------------------------------------------------------------------------

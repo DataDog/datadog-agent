@@ -33,7 +33,9 @@ from tasks.libs.otelcol_schema.bundle import (
     _missing_id,
     _resolve_in_mapping,
     _Resolver,
+    _stitch_envelope,
     assign_ids,
+    build_bundle,
     component_id,
     short_label,
 )
@@ -654,6 +656,150 @@ class TestInventoryResolveRelative(unittest.TestCase):
         self.assertFalse(status.resolved)
         self.assertIn("parse error", status.note)
         self.assertIn("src2", status.schema_path or "")
+
+
+def _component_source(cls: str, type_name: str, *, path: str = "/tmp/c.yaml") -> SchemaSource:
+    """Build a `SchemaSource` representing a registered component for stitch tests."""
+    return SchemaSource(
+        path=Path(path),
+        go_path=f"github.com/example/{type_name}",
+        doc={"type": "object"},  # component-mode
+        component_class=cls,
+        component_type=type_name,
+    )
+
+
+class TestStitchEnvelope(unittest.TestCase):
+    """Pin envelope-stitching behaviour: registered components produce
+    `patternProperties` entries; missing-component classes get a fallback
+    only under permissive strategy."""
+
+    def test_registered_component_produces_pattern_entry(self):
+        src = _component_source("receiver", "otlp")
+        mappings = {src.path: IdMapping(root_id="component__receiver__otlp", defs_ids={})}
+        env = _stitch_envelope([src], mappings, [], missing_strategy="strict")
+        receivers_pp = env["properties"]["receivers"]["patternProperties"]
+        self.assertIn(r"^otlp(/.*)?$", receivers_pp)
+        self.assertEqual(receivers_pp[r"^otlp(/.*)?$"]["$ref"], "#/$defs/component__receiver__otlp")
+
+    def test_class_mapping_for_all_five_classes(self):
+        # Build one component per class to confirm class -> envelope key mapping.
+        sources = []
+        mappings = {}
+        for cls in ("receiver", "processor", "exporter", "connector", "extension"):
+            src = _component_source(cls, f"my_{cls}", path=f"/tmp/{cls}.yaml")
+            sources.append(src)
+            mappings[src.path] = IdMapping(root_id=f"component__{cls}__my_{cls}", defs_ids={})
+        env = _stitch_envelope(sources, mappings, [], missing_strategy="strict")
+        for cls, key in [
+            ("receiver", "receivers"),
+            ("processor", "processors"),
+            ("exporter", "exporters"),
+            ("connector", "connectors"),
+            ("extension", "extensions"),
+        ]:
+            pp = env["properties"][key]["patternProperties"]
+            self.assertIn(rf"^my_{cls}(/.*)?$", pp)
+
+    def test_strict_mode_no_fallback_for_missing_classes(self):
+        env = _stitch_envelope([], {}, [("receiver", "go.example/foo", "no schema")], missing_strategy="strict")
+        self.assertNotIn("^.*$", env["properties"]["receivers"]["patternProperties"])
+
+    def test_permissive_mode_adds_fallback_only_for_classes_with_gaps(self):
+        # `processor` has a gap, `exporter` doesn't. Only processors get the
+        # fallback pattern.
+        missing = [("processor", "go.example/p", "no schema")]
+        env = _stitch_envelope([], {}, missing, missing_strategy="permissive")
+        self.assertIn("^.*$", env["properties"]["processors"]["patternProperties"])
+        self.assertNotIn("^.*$", env["properties"]["exporters"]["patternProperties"])
+        self.assertEqual(
+            env["properties"]["processors"]["patternProperties"]["^.*$"]["$ref"],
+            "#/$defs/__component__permissive__",
+        )
+
+    def test_unknown_class_in_missing_list_is_ignored(self):
+        # `widget` isn't a Collector class; envelope shouldn't grow.
+        env = _stitch_envelope([], {}, [("widget", "go.example/foo", "no schema")], missing_strategy="permissive")
+        for key in ("receivers", "processors", "exporters", "connectors", "extensions"):
+            self.assertNotIn("^.*$", env["properties"][key]["patternProperties"])
+
+    def test_multi_instance_pipeline_pattern_matches(self):
+        # The `(/.*)?` suffix on signal patterns is the whole point of letting
+        # operators define multiple pipelines per signal (`traces/foo`,
+        # `traces/bar`). Pin that the regex actually matches the upstream
+        # convention: `<signal>` and `<signal>/<instance>`.
+        import re as _re
+
+        env = _stitch_envelope([], {}, [], missing_strategy="strict")
+        signal_pat = next(iter(env["properties"]["service"]["properties"]["pipelines"]["patternProperties"]))
+        for ok in ("traces", "metrics/foo", "logs/api-gateway", "profiles/cpu_only"):
+            self.assertTrue(_re.match(signal_pat, ok), f"{ok!r} should match {signal_pat!r}")
+        # The pattern is permissive about the instance suffix (`traces/`
+        # matches with an empty instance) — upstream validates component-id
+        # syntax at runtime, the schema only enforces shape. So we only
+        # assert that obviously-wrong signals are rejected.
+        for nope in ("bogus", "tracesx", "/traces"):
+            m = _re.match(signal_pat, nope)
+            self.assertFalse(
+                m and m.group(0) == nope,
+                f"{nope!r} should not fully match {signal_pat!r}",
+            )
+
+
+class TestBuildBundleEndToEnd(unittest.TestCase):
+    """One smoke test that drives the full `build_bundle` pipeline and
+    validates a minimal Collector config against the resulting schema.
+
+    This is the only test that exercises the discovery → assign_ids →
+    rewrite → stitch → assemble chain end-to-end. It catches envelope-shape
+    regressions that the unit tests around `_stitch_envelope` can't see —
+    e.g. broken `service.pipelines` shape or missing top-level keys.
+
+    Skips gracefully if jsonschema is not available; M5 will lift it into
+    project-wide requirements.
+    """
+
+    def test_minimal_valid_config_passes(self):
+        try:
+            from jsonschema import Draft202012Validator
+        except ImportError:
+            self.skipTest("jsonschema not available in this environment")
+
+        result = build_bundle(missing_strategy="permissive")
+        Draft202012Validator.check_schema(result.bundle)
+
+        # A minimal Collector config that exercises every envelope branch:
+        # at least one receiver, processor, exporter, extension, and a
+        # multi-instance pipeline name.
+        config = {
+            "receivers": {"otlp": {}},
+            "processors": {"batch": {}},
+            "exporters": {"logsagent": {}},
+            "extensions": {"ddflare": {}},
+            "service": {
+                "extensions": ["ddflare"],
+                "pipelines": {
+                    "logs": {"receivers": ["otlp"], "processors": ["batch"], "exporters": ["logsagent"]},
+                    "logs/secondary": {"receivers": ["otlp"], "exporters": ["logsagent"]},
+                },
+            },
+        }
+        errors = list(Draft202012Validator(result.bundle).iter_errors(config))
+        self.assertEqual(errors, [], f"unexpected errors: {[e.message for e in errors[:3]]}")
+
+    def test_top_level_typo_is_caught(self):
+        try:
+            from jsonschema import Draft202012Validator
+        except ImportError:
+            self.skipTest("jsonschema not available in this environment")
+
+        result = build_bundle(missing_strategy="permissive")
+        config = {"recievers": {}, "service": {"pipelines": {}}}
+        errors = list(Draft202012Validator(result.bundle).iter_errors(config))
+        self.assertTrue(
+            any("recievers" in e.message for e in errors),
+            f"expected 'recievers' typo error, got: {[e.message for e in errors[:3]]}",
+        )
 
 
 if __name__ == "__main__":
