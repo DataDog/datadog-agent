@@ -659,28 +659,6 @@ int BPF_PROG(inet6_bind_exit, struct socket *sock, struct sockaddr *uaddr, int a
     return sys_exit_bind(rc);
 }
 
-// tcp_enter_loss, tcp_enter_recovery, and tcp_send_probe0 are static kernel
-// functions (not exported via BTF), so they must use kprobes even in the
-// fentry tracer. They fire from kernel timer/softirq context. The shared
-// helpers in tracer/stats.h handle the map lookup and atomic increment.
-SEC("kprobe/tcp_enter_loss")
-int BPF_BYPASSABLE_KPROBE(kprobe__tcp_enter_loss, struct sock *sk) {
-    handle_tcp_enter_loss(sk);
-    return 0;
-}
-
-SEC("kprobe/tcp_enter_recovery")
-int BPF_BYPASSABLE_KPROBE(kprobe__tcp_enter_recovery, struct sock *sk) {
-    handle_tcp_enter_recovery(sk);
-    return 0;
-}
-
-SEC("kprobe/tcp_send_probe0")
-int BPF_BYPASSABLE_KPROBE(kprobe__tcp_send_probe0, struct sock *sk) {
-    handle_tcp_send_probe0(sk);
-    return 0;
-}
-
 // tcp_read_sock fexit probe — fexit gives us both args and return value,
 // so no fentry entry probe is needed
 SEC("fexit/tcp_read_sock")
