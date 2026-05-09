@@ -41,8 +41,6 @@ const (
 
 	// tcpDone traces the tcp_done() kernel function for failed connection tracking
 	tcpDone = "tcp_done"
-	// tcpDoneReturn traces the return of tcp_done()
-	tcpDoneReturn = "tcp_done_exit"
 
 	// tcpReadSockReturn traces the return of tcp_read_sock() — only fexit is needed
 	tcpReadSockReturn = "tcp_read_sock_exit"
@@ -125,7 +123,6 @@ var programs = map[string]struct{}{
 	tcpSendMsgReturn:          {},
 	tcpSendPageReturn:         {},
 	tcpDone:                   {},
-	tcpDoneReturn:             {},
 	tcpReadSockReturn:         {},
 	udpDestroySock:            {},
 	udpRecvMsg:                {},
@@ -230,11 +227,6 @@ func enabledPrograms(c *config.Config) (map[string]struct{}, error) {
 		// if err == nil && len(missing) == 0 {
 		// 	enableProgram(enabled, sockFDLookupRet)
 		// }
-
-		if c.CustomBatchingEnabled {
-			enableProgram(enabled, tcpCloseReturn)
-			enableProgram(enabled, tcpDoneReturn)
-		}
 
 		if hasSendPage {
 			enableProgram(enabled, tcpSendPageReturn)
