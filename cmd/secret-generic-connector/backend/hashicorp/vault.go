@@ -49,10 +49,11 @@ type VaultSessionBackendConfig struct {
 
 // VaultBackendConfig contains the configuration to connect to Hashicorp vault backend
 type VaultBackendConfig struct {
-	VaultSession VaultSessionBackendConfig `mapstructure:"vault_session"`
-	VaultToken   string                    `mapstructure:"vault_token"`
-	VaultAddress string                    `mapstructure:"vault_address"`
-	VaultTLS     *VaultTLSConfig           `mapstructure:"vault_tls_config"`
+	VaultSession   VaultSessionBackendConfig `mapstructure:"vault_session"`
+	VaultToken     string                    `mapstructure:"vault_token"`
+	VaultAddress   string                    `mapstructure:"vault_address"`
+	VaultNamespace string                    `mapstructure:"vault_namespace"`
+	VaultTLS       *VaultTLSConfig           `mapstructure:"vault_tls_config"`
 }
 
 // VaultTLSConfig contains the TLS and certificate configuration
@@ -231,6 +232,10 @@ func NewVaultBackend(bc map[string]interface{}) (*VaultBackend, error) {
 	client, err := api.NewClient(clientConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create vault client: %s", err)
+	}
+
+	if backendConfig.VaultNamespace != "" {
+		client.SetNamespace(backendConfig.VaultNamespace)
 	}
 
 	authMethod, authToken, err := newAuthenticationFromBackendConfig(backendConfig, client)
