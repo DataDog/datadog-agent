@@ -19,18 +19,19 @@
           "location": {
             "method": "main.lenStructFields"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "isEmpty(x.Dict)",
+            "message": "nil pointer dereference"
+          }
+        ]
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "isEmpty(x.Dict)",
-          "message": "nil pointer dereference"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "tag=miss"
+    "message": "tag=miss",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

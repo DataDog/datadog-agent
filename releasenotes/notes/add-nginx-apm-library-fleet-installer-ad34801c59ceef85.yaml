@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Add datadog-apm-library-nginx to the fleet installer so it is
+    installed alongside the other APM libraries when APM instrumentation
+    is enabled.

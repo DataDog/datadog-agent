@@ -230,6 +230,18 @@ func TestNormalizeSpanLinkName(t *testing.T) {
 	assert.Equal(t, validLinkNameSpan.SpanLinks[0].Attributes["link.name"], "valid_name")
 }
 
+func TestNormalizeTraceRegressionFuzzInput(t *testing.T) {
+	a := &Agent{conf: config.New()}
+	ts := newTagStats()
+
+	payload := []byte("\x92\x8d\xa70000000\xa6000000\xa40000\xb100000000000000000\xa800000000\xb2000000000000000000\xa8trace_id\xce0000\xa7span_id\xcf00000000\xa90000000000\xa5000000\xa800000000\xd20000\xa5000000\xa40000\x82\xa40000\xa3000\xa40000\xa6000000\xa70000000\x81\xad00000000000000\xa40000\xa40000\xaaspan_links\x91\xc0\xc0")
+	var trace pb.Trace
+	_, err := trace.UnmarshalMsg(payload)
+	assert.NoError(t, err)
+
+	assert.NoError(t, a.normalizeTrace(ts, trace))
+}
+
 func TestNormalizeLongName(t *testing.T) {
 	a := &Agent{conf: config.New()}
 	ts := newTagStats()
@@ -712,7 +724,7 @@ func TestLexerNormalization(t *testing.T) {
 		Type:     "sql",
 		Meta:     map[string]string{"db.type": "sqlserver"},
 	}
-	agnt.obfuscateSpan(span)
+	agnt.ObfuscateSpan(span)
 	assert.Equal(t, "SELECT * FROM u.users", span.Resource)
 }
 

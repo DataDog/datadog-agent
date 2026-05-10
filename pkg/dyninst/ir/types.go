@@ -60,6 +60,7 @@ func (t *GoTypeAttributes) GetGoKind() (reflect.Kind, bool) {
 
 var (
 	_ Type = (*BaseType)(nil)
+	_ Type = (*DurationType)(nil)
 	_ Type = (*PointerType)(nil)
 	_ Type = (*UnresolvedPointeeType)(nil)
 	_ Type = (*StructureType)(nil)
@@ -138,6 +139,25 @@ type BaseType struct {
 }
 
 func (t *BaseType) irType() {}
+
+// DurationType is a synthetic 8-byte integer type used by the synthetic
+// @duration variable. Its underlying representation is a signed int64 of
+// nanoseconds, computed at BPF evaluation time as
+// (entry_to_return_duration_ns). It renders in templates and snapshots as
+// a float of milliseconds.
+type DurationType struct {
+	TypeCommon
+	syntheticType
+}
+
+func (t *DurationType) irType() {}
+
+// ErrDurationNotOnReturn is the user-facing message used when a
+// reference to @duration appears on a probe that does not have a paired
+// return event. Both irgen (at IR construction time) and decode (when
+// the BPF program reports an absent expression status at runtime) need
+// to produce the same text, so it lives here next to DurationType.
+const ErrDurationNotOnReturn = "@duration is only available at function return"
 
 // VoidPointerType is a type that represents a pointer to a value of an unknown type.
 // unsafe.Pointer is such a type.
@@ -379,6 +399,16 @@ func (syntheticType) GetGoKind() (reflect.Kind, bool) {
 	return reflect.Invalid, false
 }
 
+// DictEntry describes a runtime dictionary entry that will be resolved at
+// probe time for generic shape functions. The eBPF reads the dict pointer
+// from DictRegister, indexes into it at DictIndex, and writes the resolved
+// *runtime._type offset into the event output at Offset.
+type DictEntry struct {
+	DictIndex    int    // flat index into the dictionary array
+	DictRegister uint8  // DWARF register number for the dict pointer
+	Offset       uint32 // byte offset in the event output where the resolved type is written
+}
+
 // EventRootType is the type of the event output.
 type EventRootType struct {
 	TypeCommon
@@ -386,9 +416,14 @@ type EventRootType struct {
 
 	// EventKind is the kind of the event.
 	EventKind EventKind
-	// Bitset tracking successful expression evaluation (one bit per
-	// expression).
-	PresenceBitsetSize uint32
+	// ExprStatusArraySize is the size in bytes of the packed expression
+	// status array at the start of the event root data. Each expression
+	// occupies ExprStatusBits bits.
+	ExprStatusArraySize uint32
+	// DictEntries describes runtime dictionary entries to resolve at probe
+	// time. Each entry occupies 8 bytes in the event output (after the
+	// expression status array, before expressions). Empty for non-generic probes.
+	DictEntries []DictEntry
 	// Expressions is the list of expressions that are used to evaluate the
 	// value of the event.
 	Expressions []*RootExpression
@@ -411,6 +446,11 @@ type RootExpression struct {
 	// Expression is the logical operations to be evaluated to produce the
 	// value of the event.
 	Expression Expression
+	// DictIndex is the dictionary index for generic shape type resolution.
+	// -1 means no dict resolution needed. When >= 0, the decoder should
+	// read the resolved runtime type from the corresponding DictEntry
+	// in the EventRootType.
+	DictIndex int
 }
 
 // RootExpressionKind is the kind of a root expression.
@@ -422,6 +462,8 @@ const (
 	RootExpressionKindArgument
 	// RootExpressionKindLocal corresponds to a local variable of the event.
 	RootExpressionKindLocal
+	// RootExpressionKindReturn corresponds to a return value of the event.
+	RootExpressionKindReturn
 	// RootExpressionKindTemplateSegment means that this expression is part of a
 	// template segment.
 	RootExpressionKindTemplateSegment
@@ -436,6 +478,8 @@ func (k RootExpressionKind) String() string {
 		return "argument"
 	case RootExpressionKindLocal:
 		return "local"
+	case RootExpressionKindReturn:
+		return "return"
 	case RootExpressionKindTemplateSegment:
 		return "template_segment"
 	case RootExpressionKindCaptureExpression:

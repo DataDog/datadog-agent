@@ -84,6 +84,17 @@ void __attribute__((always_inline)) handle_discard_prctl(void * data) {
     discard_pr_name(discarder);
 }
 
+void __attribute__((always_inline)) handle_discard_auid(void * data) {
+    if (!is_runtime_request()) {
+        return;
+    }
+    u32 auid;
+    u64 event_type;
+    char *payload = (char *)data;
+    bpf_probe_read(&auid, sizeof(auid), payload);
+    bpf_probe_read(&event_type, sizeof(event_type), payload + sizeof(auid));
+    discard_auid(auid, event_type);
+}
 int __attribute__((always_inline)) handle_erpc_request(ctx_t *ctx) {
     void *req = (void *)CTX_PARM3(ctx);
 
@@ -121,6 +132,9 @@ int __attribute__((always_inline)) handle_erpc_request(ctx_t *ctx) {
         return handle_bump_discarders_revision(data);
     case PRCTL_DISCARDER:
         handle_discard_prctl(data);
+        return 0;
+    case AUID_DISCARDER:
+        handle_discard_auid(data);
         return 0;
     case NOP_EVENT_OP:
         return handle_nop_event(ctx);

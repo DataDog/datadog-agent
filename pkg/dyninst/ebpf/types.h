@@ -92,21 +92,60 @@ typedef enum sm_opcode {
   SM_OP_PROCESS_STRING = 15,
   SM_OP_PROCESS_GO_EMPTY_INTERFACE = 16,
   SM_OP_PROCESS_GO_INTERFACE = 17,
-  SM_OP_PROCESS_GO_HMAP = 18,
-  SM_OP_PROCESS_GO_SWISS_MAP = 19,
-  SM_OP_PROCESS_GO_SWISS_MAP_GROUPS = 20,
+  SM_OP_PROCESS_GO_DICT_TYPE = 18,
+  SM_OP_PROCESS_GO_HMAP = 19,
+  SM_OP_PROCESS_GO_SWISS_MAP = 20,
+  SM_OP_PROCESS_GO_SWISS_MAP_GROUPS = 21,
   // Top level ops.
-  SM_OP_CHASE_POINTERS = 21,
-  SM_OP_PREPARE_EVENT_ROOT = 22,
+  SM_OP_CHASE_POINTERS = 22,
+  SM_OP_PREPARE_EVENT_ROOT = 23,
   // Condition expression ops.
-  SM_OP_EXPR_PUSH_OFFSET = 23,
-  SM_OP_EXPR_LOAD_LITERAL = 24,
-  SM_OP_EXPR_READ_STRING = 25,
-  SM_OP_EXPR_CMP_EQ_BASE = 26,
-  SM_OP_EXPR_CMP_EQ_STRING = 27,
-  SM_OP_CONDITION_CHECK = 28,
-  SM_OP_CONDITION_BEGIN = 29,
+  SM_OP_EXPR_PUSH_OFFSET = 24,
+  SM_OP_EXPR_LOAD_LITERAL = 25,
+  SM_OP_EXPR_READ_STRING = 26,
+  SM_OP_EXPR_CMP_BASE = 27,
+  SM_OP_EXPR_CMP_STRING = 28,
+  SM_OP_CONDITION_CHECK = 29,
+  SM_OP_CONDITION_BEGIN = 30,
+  SM_OP_CALL_DICT_RESOLVED = 31,
+  SM_OP_EXPR_SLICE_BOUNDS_CHECK = 32,
+  // Swiss map lookup opcodes (decomposed for verifier budget).
+  SM_OP_SWISS_MAP_SETUP = 33,
+  SM_OP_SWISS_MAP_AESENC = 34,
+  SM_OP_SWISS_MAP_HASH_FINISH = 35,
+  SM_OP_SWISS_MAP_PROBE = 36,
+  SM_OP_SWISS_MAP_CHECK_SLOT = 37,
+  // Compound condition opcodes.
+  SM_OP_COND_NOT = 38,
+  SM_OP_COND_JUMP_IF_FALSE = 39,
+  SM_OP_COND_JUMP_IF_TRUE = 40,
+  // Writes (sm->start_ns - sm->entry_ktime_ns) as 8 bytes at sm->offset,
+  // matching the byte-layout contract of other location ops. Does not
+  // advance sm->offset. Callers that use the value as a comparison
+  // operand follow with EXPR_PUSH_OFFSET{8} to advance/push.
+  SM_OP_EXPR_LOAD_DURATION = 41,
 } sm_opcode_t;
+
+// cmp_op_t identifies which comparison SM_OP_EXPR_CMP_BASE /
+// SM_OP_EXPR_CMP_STRING performs. Encoded as a single byte in the
+// instruction stream — values must stay in sync with ir.CmpOp.
+typedef enum cmp_op {
+  CMP_EQ = 0,
+  CMP_NE = 1,
+  CMP_LT = 2,
+  CMP_LE = 3,
+  CMP_GT = 4,
+  CMP_GE = 5,
+} cmp_op_t;
+
+// cmp_kind_t tells SM_OP_EXPR_CMP_BASE how to interpret the bytes being
+// ordered. Equality and string compares ignore the kind. Encoded as a
+// single byte in the instruction stream — values must stay in sync with
+// ir.CmpKind.
+typedef enum cmp_kind {
+  CMP_KIND_UINT = 0,
+  CMP_KIND_INT = 1,
+} cmp_kind_t;
 
 #ifdef DYNINST_DEBUG
 static const char* op_code_name(sm_opcode_t op_code) {
@@ -147,6 +186,8 @@ static const char* op_code_name(sm_opcode_t op_code) {
     return "PROCESS_GO_EMPTY_INTERFACE";
   case SM_OP_PROCESS_GO_INTERFACE:
     return "PROCESS_GO_INTERFACE";
+  case SM_OP_PROCESS_GO_DICT_TYPE:
+    return "PROCESS_GO_DICT_TYPE";
   case SM_OP_PROCESS_GO_HMAP:
     return "PROCESS_GO_HMAP";
   case SM_OP_PROCESS_GO_SWISS_MAP:
@@ -163,14 +204,36 @@ static const char* op_code_name(sm_opcode_t op_code) {
     return "EXPR_LOAD_LITERAL";
   case SM_OP_EXPR_READ_STRING:
     return "EXPR_READ_STRING";
-  case SM_OP_EXPR_CMP_EQ_BASE:
-    return "EXPR_CMP_EQ_BASE";
-  case SM_OP_EXPR_CMP_EQ_STRING:
-    return "EXPR_CMP_EQ_STRING";
+  case SM_OP_EXPR_CMP_BASE:
+    return "EXPR_CMP_BASE";
+  case SM_OP_EXPR_CMP_STRING:
+    return "EXPR_CMP_STRING";
   case SM_OP_CONDITION_CHECK:
     return "CONDITION_CHECK";
   case SM_OP_CONDITION_BEGIN:
     return "CONDITION_BEGIN";
+  case SM_OP_CALL_DICT_RESOLVED:
+    return "CALL_DICT_RESOLVED";
+  case SM_OP_EXPR_SLICE_BOUNDS_CHECK:
+    return "EXPR_SLICE_BOUNDS_CHECK";
+  case SM_OP_SWISS_MAP_SETUP:
+    return "SWISS_MAP_SETUP";
+  case SM_OP_SWISS_MAP_AESENC:
+    return "SWISS_MAP_AESENC";
+  case SM_OP_SWISS_MAP_HASH_FINISH:
+    return "SWISS_MAP_HASH_FINISH";
+  case SM_OP_SWISS_MAP_PROBE:
+    return "SWISS_MAP_PROBE";
+  case SM_OP_SWISS_MAP_CHECK_SLOT:
+    return "SWISS_MAP_CHECK_SLOT";
+  case SM_OP_COND_NOT:
+    return "COND_NOT";
+  case SM_OP_COND_JUMP_IF_FALSE:
+    return "COND_JUMP_IF_FALSE";
+  case SM_OP_COND_JUMP_IF_TRUE:
+    return "COND_JUMP_IF_TRUE";
+  case SM_OP_EXPR_LOAD_DURATION:
+    return "EXPR_LOAD_DURATION";
   default:
     break;
   }

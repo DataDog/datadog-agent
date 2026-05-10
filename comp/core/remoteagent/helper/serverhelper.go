@@ -253,13 +253,13 @@ func newAgentSecureClient(ipcComp ipc.Component, agentIpcAddress string, cfg con
 			return nil, err
 		}
 
-		cmdPort, parseErr := strconv.Atoi(sPort)
+		cmdPort, parseErr := strconv.ParseUint(sPort, 10, 16)
 		if parseErr != nil {
 			return nil, fmt.Errorf("invalid vsock socket path '%s'", agentIpcAddress)
 		}
 
-		if cmdPort <= 0 {
-			return nil, fmt.Errorf("invalid port '%d' for vsock", cmdPort)
+		if cmdPort == 0 {
+			return nil, errors.New("invalid port '0' for vsock")
 		}
 
 		opts = append(opts, grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
@@ -328,4 +328,24 @@ func (s *UnimplementedRemoteAgentServer) refreshRegistration() error {
 // GetGRPCServer returns the gRPC server
 func (s *UnimplementedRemoteAgentServer) GetGRPCServer() *grpc.Server {
 	return s.grpcServer
+}
+
+// WaitSessionID blocks until the remote agent is registered and a session ID is available, or ctx is done.
+// It returns the session ID or an error if the context is cancelled before registration completes.
+func (s *UnimplementedRemoteAgentServer) WaitSessionID(ctx context.Context) (string, error) {
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		s.sessionIDMutex.RLock()
+		sid := s.sessionID
+		s.sessionIDMutex.RUnlock()
+		if sid != "" {
+			return sid, nil
+		}
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }

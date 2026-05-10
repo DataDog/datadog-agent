@@ -9,6 +9,7 @@
 package enhancedmetrics
 
 import (
+	"errors"
 	"math"
 	"testing"
 	"time"
@@ -282,4 +283,27 @@ func TestCalculateCPUUsageValueDiffPositive(t *testing.T) {
 	CPUUsage := calculateCPUUsage(pointer.Ptr(uint64(6e8)), pointer.Ptr(uint64(5e8)), currentTime, previousTime)
 
 	assert.Equal(t, float64(1e8), CPUUsage)
+}
+
+func TestCollectorSendsUsageMetricOnCgroupFailure(t *testing.T) {
+	mockAgent := new(mockEnhancedMetricSender)
+	mockAgent.On("AddEnhancedUsageMetric", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+	mockReader := &mockCgroupReader{refreshErr: errors.New("cgroup failure"), version: 1}
+
+	c := &Collector{
+		metricAgent:       mockAgent,
+		metricSource:      metrics.MetricSourceGoogleCloudRunEnhanced,
+		cgroupReader:      mockReader,
+		metricPrefix:      "gcp.run.container.enhanced.",
+		usageMetricSuffix: "instance",
+		previousRateStats: NullServerlessRateStats,
+	}
+
+	c.collect()
+
+	mockAgent.AssertCalled(t, "AddEnhancedUsageMetric",
+		"gcp.run.container.enhanced.instance", float64(1),
+		metrics.MetricSourceGoogleCloudRunEnhanced, mock.Anything, mock.Anything)
+	mockAgent.AssertNotCalled(t, "AddEnhancedMetric", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }

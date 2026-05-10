@@ -403,13 +403,13 @@ func TestIsNamespaceEligible(t *testing.T) {
 			},
 			expected: false,
 		},
-		"a common disabled namespace is not eligible": {
+		"kube-system is eligible because default namespaces are filtered at the webhook layer": {
 			configPath: "testdata/filter_no_default.yaml",
 			in:         "kube-system",
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("kube-system", nil),
 			},
-			expected: false,
+			expected: true,
 		},
 	}
 
@@ -698,7 +698,7 @@ func TestGetTargetLibraries(t *testing.T) {
 				},
 			},
 		},
-		"a default disabled namespace gets no tracers": {
+		"kube-system matches target because default namespaces are filtered at the webhook layer": {
 			configPath: "testdata/filter.yaml",
 			in: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
@@ -711,7 +711,11 @@ func TestGetTargetLibraries(t *testing.T) {
 			namespaces: []workloadmeta.KubernetesMetadata{
 				newTestNamespace("kube-system", nil),
 			},
-			expected: nil,
+			expected: &targetInternal{
+				libVersions: []libInfo{
+					defaultLibInfoWithVersion(java, "v1"),
+				},
+			},
 		},
 		"enabled namespace gets converted to target": {
 			configPath: "testdata/enabled_namespaces.yaml",

@@ -25,7 +25,8 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "len=3"
+    "message": "len=3",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "simple",
@@ -53,6 +54,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "len=0"
+    "message": "len=0",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

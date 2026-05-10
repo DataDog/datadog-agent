@@ -14,10 +14,11 @@ import (
 	"strings"
 	"sync"
 
+	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 
 	"golang.org/x/net/http2"
 )
@@ -84,7 +85,7 @@ func NewTestServerWithOptions(statusCode int, concurrentSends int, retryDestinat
 	endpoint.BackoffMax = 10
 	endpoint.RecoveryInterval = 1
 
-	dest := NewDestination(endpoint, JSONContentType, destCtx, retryDestination, client.NewNoopDestinationMetadata(), cfg, concurrentSends, concurrentSends, metrics.NewNoopPipelineMonitor(""), "test")
+	dest := NewDestination(endpoint, JSONContentType, destCtx, retryDestination, client.NewNoopDestinationMetadata(), cfg, concurrentSends, concurrentSends, metrics.NewNoopPipelineMonitor(""), "test", secretsnoopimpl.NewComponent().Comp)
 	return &TestServer{
 		httpServer:          ts,
 		DestCtx:             destCtx,

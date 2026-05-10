@@ -7,6 +7,7 @@ package cloudservice
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"strconv"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -100,7 +102,8 @@ func (c *CloudRunJobs) GetEnhancedMetricTags(tags map[string]string) EnhancedMet
 		"project_id": tagValueOrUnknown(tags["project_id"]),
 	}
 
-	usageTags := map[string]string{}
+	usageTags := maps.Clone(baseTags)
+	usageTags["instance"] = tagValueOrUnknown(tags["container_id"])
 
 	return EnhancedMetricTags{Base: baseTags, Usage: usageTags}
 }
@@ -117,7 +120,7 @@ func (c *CloudRunJobs) GetMetricPrefix() string {
 }
 
 func (c *CloudRunJobs) GetUsageMetricSuffix() string {
-	return ""
+	return cloudRunUsageMetricSuffix
 }
 
 // GetOrigin returns the `origin` attribute type for the given cloud service.
@@ -205,6 +208,7 @@ func (c *CloudRunJobs) initJobSpan() {
 		c.startTime.UnixNano(),
 		tags,
 	)
+	traceutil.SetMeasured(c.jobSpan, true)
 }
 
 // setSpanModifier sets up the span modifier to reparent user spans under the job span

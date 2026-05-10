@@ -119,6 +119,7 @@ func AllProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
 	allProbes = append(allProbes, getPrCtlProbes(fentry)...)
 	allProbes = append(allProbes, getSocketProbes(cgroup2MountPoint)...)
 	allProbes = append(allProbes, getMemfdProbes(fentry)...)
+	allProbes = appendSyscallProbes(allProbes, fentry, EntryAndExit, false, "setsid")
 
 	allProbes = append(allProbes,
 		&manager.Probe{
@@ -152,6 +153,7 @@ func AllMaps() []*manager.Map {
 		{Name: "filter_policy"},
 		{Name: "inode_discarders"},
 		{Name: "prctl_discarders"},
+		{Name: "auid_discarders"},
 		{Name: "inode_disc_revisions"},
 		{Name: "basename_approvers"},
 		// Dentry resolver table

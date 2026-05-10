@@ -9,9 +9,40 @@
 
 use crate::fs::SubDirFs;
 use normalize_path::NormalizePath;
+use std::io;
 use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 use walkdir::WalkDir;
+
+/// A reader that yields valid data from an inner reader, then produces
+/// repeating I/O errors forever.  This simulates what happens when reading
+/// /proc/<pid>/maps after the process dies (ESRCH) or any persistent I/O
+/// error on a file.
+pub struct ErrorAfterReader<R> {
+    inner: R,
+    done: bool,
+}
+
+impl<R> ErrorAfterReader<R> {
+    pub fn new(inner: R) -> Self {
+        Self { inner, done: false }
+    }
+}
+
+impl<R: io::Read> io::Read for ErrorAfterReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if self.done {
+            return Err(io::Error::from_raw_os_error(3)); // ESRCH
+        }
+        match self.inner.read(buf) {
+            Ok(0) => {
+                self.done = true;
+                Err(io::Error::from_raw_os_error(3))
+            }
+            other => other,
+        }
+    }
+}
 
 /// Get the base path for testdata files.
 pub fn testdata_path() -> PathBuf {

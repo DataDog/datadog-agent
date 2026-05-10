@@ -9,6 +9,7 @@ package diagnoseimpl
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -153,7 +154,7 @@ func (d *diagnoseRegistry) run(diagCfg diagnose.Config) (*diagnose.Result, error
 	return getDiagnoses(diagCfg, suites)
 }
 
-func (d *diagnoseRegistry) fillFlare(fb flaretypes.FlareBuilder) error {
+func (d *diagnoseRegistry) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 	fb.AddFileFromFunc("diagnose.log", func() ([]byte, error) {
 		diagnoseConfig := diagnose.Config{Verbose: true}
 		result, err := d.run(diagnoseConfig)

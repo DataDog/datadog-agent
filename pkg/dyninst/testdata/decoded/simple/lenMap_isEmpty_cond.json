@@ -19,18 +19,19 @@
           "location": {
             "method": "main.lenMap"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "isEmpty(m)",
+            "message": "nil pointer dereference"
+          }
+        ]
       },
-      "type": "snapshot",
-      "evaluationErrors": [
-        {
-          "expr": "isEmpty(m)",
-          "message": "nil pointer dereference"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "tag=miss"
+    "message": "tag=miss",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

@@ -113,7 +113,7 @@ func newSymdbManager(
 	opts ...option,
 ) *symdbManager {
 	cfg := symdbManagerConfig{
-		maxBufferFuncs: 10000,
+		flushThresholdBytes: uploader.DefaultFlushThresholdBytes,
 	}
 	for _, opt := range opts {
 		opt(&cfg)
@@ -154,8 +154,8 @@ func newSymdbManager(
 }
 
 type symdbManagerConfig struct {
-	maxBufferFuncs int
-	testingKnobs   struct {
+	flushThresholdBytes int
+	testingKnobs        struct {
 		onDeferUpload                     func()
 		onUploadRejectedByPersistentCache func()
 		onUploadQueued                    func(queuedUploadInfo)
@@ -168,9 +168,9 @@ type symdbManagerConfig struct {
 
 type option func(config *symdbManagerConfig)
 
-func withMaxBufferFuncs(maxBufferFuncs int) option {
+func withFlushThresholdBytes(flushThresholdBytes int) option {
 	return func(c *symdbManagerConfig) {
-		c.maxBufferFuncs = maxBufferFuncs
+		c.flushThresholdBytes = flushThresholdBytes
 	}
 }
 
@@ -606,49 +606,40 @@ func (m *symdbManager) performUpload(
 	log.Infof("SymDB: uploading symbols for process %v (service: %s, version: %s, executable: %s)",
 		procID.pid, procID.service, procID.version, executablePath)
 	startTime := time.Now()
+	extractOpts := symdb.ExtractOptions{Scope: symdb.ExtractScopeModulesFromSameOrg}
+	if dc, ok := m.objectLoader.(*object.DiskCache); ok {
+		extractOpts.DiskCache = dc
+	}
 	it, err := symdb.PackagesIterator(
 		executablePath,
 		m.objectLoader,
-		symdb.ExtractOptions{Scope: symdb.ExtractScopeModulesFromSameOrg})
+		extractOpts)
 	if err != nil {
 		return fmt.Errorf("failed to read symbols for process %v (executable: %s): %w",
 			procID.pid, executablePath, err)
 	}
 
-	sender := uploader.NewSymDBUploader(
+	enc := uploader.NewBatchEncoder(
 		m.uploadURL.String(),
 		procID.service, procID.version, runtimeID,
+		uuid.New(),
 	)
-	uploadBuffer := make([]uploader.Scope, 0, 100)
-	bufferFuncs := 0
-	uploadID := uuid.New()
-	batchNum := 0
 	var totalPackages, totalFuncs int
-	// Flush every so often in order to not store too many scopes in memory.
+	// Flush whenever the compressed payload reaches the threshold, or on the
+	// final package, to avoid keeping too much in memory at once.
 	maybeFlush := func(final bool) error {
 		if ctx.Err() != nil {
 			return context.Cause(ctx)
 		}
-
-		if len(uploadBuffer) == 0 {
+		if !final && enc.Size() < m.cfg.flushThresholdBytes {
 			return nil
 		}
-		if final || bufferFuncs >= m.cfg.maxBufferFuncs {
-			log.Tracef("SymDB: uploading symbols chunk: %d packages, %d functions. Final chunk: %t", len(uploadBuffer), bufferFuncs, final)
-			batchNum++
-			err := sender.UploadBatch(ctx,
-				uploader.UploadInfo{
-					UploadID: uploadID,
-					BatchNum: batchNum,
-					Final:    final,
-				},
-				uploadBuffer,
-			)
-			if err != nil {
+		log.Tracef("SymDB: uploading symbols chunk. Final chunk: %t", final)
+		if err := enc.Flush(ctx, final); err != nil {
+			if errors.Is(err, uploader.ErrUpload) {
 				return uploadError{cause: err}
 			}
-			uploadBuffer = uploadBuffer[:0]
-			bufferFuncs = 0
+			return err
 		}
 		return nil
 	}
@@ -663,10 +654,11 @@ func (m *symdbManager) performUpload(
 		}
 
 		scope := uploader.ConvertPackageToScope(pkg.Package, version.AgentVersion)
-		uploadBuffer = append(uploadBuffer, scope)
+		if err := enc.AddScope(scope); err != nil {
+			return fmt.Errorf("failed to encode scope for process %v: %w", procID.pid, err)
+		}
 		totalPackages++
 		totalFuncs += pkg.Stats().NumFunctions
-		bufferFuncs += pkg.Stats().NumFunctions
 		if err := maybeFlush(pkg.Final); err != nil {
 			return err
 		}
@@ -676,7 +668,7 @@ func (m *symdbManager) performUpload(
 		"(service: %s, version: %s, executable: %s):"+
 		" %d packages, %d functions, %d chunks in %v",
 		procID.pid, procID.service, procID.version, executablePath,
-		totalPackages, totalFuncs, batchNum, time.Since(startTime))
+		totalPackages, totalFuncs, enc.BatchCount(), time.Since(startTime))
 	return nil
 }
 

@@ -6,7 +6,7 @@ receivers:
     protocols:
       grpc:
       http:
-  hostprofiler:
+  profiling:
     symbol_uploader:
       enabled: true
       symbol_endpoints:
@@ -44,7 +44,7 @@ service:
   extensions: [hpflare/default]
   pipelines:
     profiles:
-      receivers: [hostprofiler]
+      receivers: [profiling]
       # infraattributes/default is automatically removed when the Agent Core is not available
       # resourcedetection is automatically removed when the Agent Core is available
       processors: [infraattributes/default, resourcedetection]

@@ -16,6 +16,7 @@ go_test(
     name = "prometheus_test",
     srcs = ["parse_test.go"],
     embed = [":prometheus"],
+    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

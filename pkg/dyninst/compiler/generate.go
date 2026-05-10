@@ -21,6 +21,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// exprStatusIdxNone signals that a generated stack-machine op is not
+// associated with any per-expression status slot — it mirrors the
+// EXPR_STATUS_IDX_NONE sentinel in pkg/dyninst/ebpf/stack_machine.h.
+const exprStatusIdxNone uint32 = ^uint32(0)
+
 // Function represents stack machine function.
 type Function struct {
 	ID  FunctionID
@@ -40,7 +45,9 @@ type Program struct {
 	Types            []ir.Type
 	Throttlers       []Throttler
 	GoModuledataInfo ir.GoModuledataInfo
+	GoMapHashInfo    ir.GoMapHashInfo
 	CommonTypes      ir.CommonTypes
+	IsARM64          bool
 }
 
 type generator struct {
@@ -76,40 +83,57 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 		return Program{}, err
 	}
 	throttlers := make([]Throttler, 0, len(program.Probes))
-	for idx, probe := range program.Probes {
-		// Determine which event kind has a condition (if any).
+	for probeIdx, probe := range program.Probes {
+		// Determine which event kind has a condition (if any) across all
+		// instances. All instances share the same probe config so conditions
+		// are uniform.
 		var conditionEventKind ir.EventKind
-		for _, event := range probe.Events {
-			if event.Condition != nil {
-				conditionEventKind = event.Kind
+		for _, inst := range probe.Instances {
+			for _, event := range inst.Events {
+				if event.Condition != nil {
+					conditionEventKind = event.Kind
+					break
+				}
+			}
+			if conditionEventKind != 0 {
 				break
 			}
 		}
-		for _, event := range probe.Events {
-			throttleMode := computeThrottleMode(event, conditionEventKind)
-			for _, injectionPoint := range event.InjectionPoints {
-				err := g.addEventHandler(
-					injectionPoint,
-					len(throttlers),
-					probe.GetCaptureConfig(),
-					uint32(idx),
-					event.Type,
-					event.Kind,
-					event.Condition,
-					throttleMode,
-				)
-				if err != nil {
-					return Program{}, err
+
+		// Track throttler indices per event kind so that all instances of
+		// the same event kind share a single throttler.
+		throttlerByKind := make(map[ir.EventKind]int)
+		for _, inst := range probe.Instances {
+			for _, event := range inst.Events {
+				throttlerIdx, ok := throttlerByKind[event.Kind]
+				if !ok {
+					throttlerIdx = len(throttlers)
+					throttlerByKind[event.Kind] = throttlerIdx
+					throttleConfig := probe.GetThrottleConfig()
+					periodMs := throttleConfig.GetThrottlePeriodMs()
+					periodNs := uint64(periodMs) * uint64(time.Millisecond)
+					throttlers = append(throttlers, Throttler{
+						PeriodNs: periodNs,
+						Budget:   throttleConfig.GetThrottleBudget(),
+					})
+				}
+				throttleMode := computeThrottleMode(event, conditionEventKind)
+				for _, injectionPoint := range event.InjectionPoints {
+					err := g.addEventHandler(
+						injectionPoint,
+						throttlerIdx,
+						probe.GetCaptureConfig(),
+						uint32(probeIdx),
+						event.Type,
+						event.Kind,
+						event.Condition,
+						throttleMode,
+					)
+					if err != nil {
+						return Program{}, err
+					}
 				}
 			}
-			// We throttle each event individually, across all its injection points.
-			throttleConfig := probe.GetThrottleConfig()
-			periodMs := throttleConfig.GetThrottlePeriodMs()
-			periodNs := uint64(periodMs) * uint64(time.Millisecond)
-			throttlers = append(throttlers, Throttler{
-				PeriodNs: periodNs,
-				Budget:   throttleConfig.GetThrottleBudget(),
-			})
 		}
 	}
 	// Add all the types for which we know the Go runtime type to the
@@ -158,14 +182,18 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 		Types:            types,
 		Throttlers:       throttlers,
 		GoModuledataInfo: program.GoModuledataInfo,
+		GoMapHashInfo:    program.GoMapHashInfo,
 		CommonTypes:      program.CommonTypes,
+		IsARM64:          program.IsARM64,
 	}, nil
 }
 
 // computeThrottleMode determines the throttle mode for an event based on
 // whether this event or its sibling has a condition.
 //
-// Note importantly at time of writing only one event can have a condition!
+// Condition evaluation (including compound and/or/not conditions) is
+// constrained to a single event kind per probe (see irgen's event-kind
+// unification), so at most one event per probe carries a condition.
 func computeThrottleMode(event *ir.Event, conditionEventKind ir.EventKind) ThrottleMode {
 	hasCond := event.Condition != nil
 	isReturn := event.Kind == ir.EventKindReturn
@@ -210,6 +238,10 @@ func (g *generator) addEventHandler(
 		ThrottlerIdx:        throttlerIdx,
 		PointerChasingLimit: captureConfig.GetMaxReferenceDepth(),
 		CollectionSizeLimit: captureConfig.GetMaxCollectionSize(),
+		// StringSizeLimit is forwarded as configured. The BPF stack
+		// machine clamps to MAX_DATA_ITEM_SIZE before serialization
+		// so an oversized maxLength produces a truncated capture
+		// rather than a silent skip; see pkg/dyninst/ebpf/stack_machine.h.
 		StringSizeLimit:     captureConfig.GetMaxLength(),
 		Frameless:           injectionPoint.Frameless,
 		HasAssociatedReturn: injectionPoint.HasAssociatedReturn,
@@ -237,6 +269,23 @@ func (g *generator) addEventHandler(
 	ops = append(ops, PrepareEventRootOp{
 		EventRootType: rootType,
 	})
+	// For generic shape functions, resolve dict entries right after
+	// preparing the event root. Each dict entry reads the dictionary
+	// pointer from a register, indexes into it, and writes the resolved
+	// runtime type into the event output. For return events, bit 7 of
+	// DictRegister is set to signal the eBPF handler to read the dict
+	// pointer from saved call context instead of a CPU register.
+	for _, de := range rootType.DictEntries {
+		reg := de.DictRegister
+		if eventKind == ir.EventKindReturn {
+			reg |= 0x80
+		}
+		ops = append(ops, ProcessGoDictTypeOp{
+			DictIndex:    int32(de.DictIndex),
+			DictRegister: reg,
+			OutputOffset: de.Offset,
+		})
+	}
 	for i := range rootType.Expressions {
 		exprFunctionID, err := g.addExpressionHandler(injectionPoint.PC, rootType, uint32(i))
 		if err != nil {
@@ -268,7 +317,7 @@ func (g *generator) addConditionHandler(
 	for _, op := range condition.Operations {
 		switch op := op.(type) {
 		case *ir.LocationOp:
-			opsAfter, err := g.EncodeLocationOp(injectionPC, op, ops)
+			opsAfter, err := g.EncodeLocationOp(injectionPC, op, exprStatusIdxNone, ops)
 			if err != nil {
 				logLocationIssue(
 					"error encoding location op for condition: %v", err,
@@ -278,9 +327,10 @@ func (g *generator) addConditionHandler(
 			ops = opsAfter
 		case *ir.DereferenceOp:
 			ops = append(ops, ExprDereferencePtrOp{
-				Bias:      op.Bias,
-				Len:       op.ByteSize,
-				NilBitIdx: ^uint32(0),
+				Bias:          op.Bias,
+				Len:           op.ByteSize,
+				ExprStatusIdx: exprStatusIdxNone,
+				NullAsZero:    op.NullAsZero,
 			})
 		case *ir.ExprPushOffsetOp:
 			ops = append(ops, ExprPushOffsetOp{ByteSize: op.ByteSize})
@@ -288,12 +338,29 @@ func (g *generator) addConditionHandler(
 			ops = append(ops, ExprLoadLiteralOp{Data: op.Data})
 		case *ir.ExprReadStringOp:
 			ops = append(ops, ExprReadStringOp{MaxLen: op.MaxLen})
-		case *ir.ExprCmpEqBaseOp:
-			ops = append(ops, ExprCmpEqBaseOp{ByteSize: op.ByteSize})
-		case *ir.ExprCmpEqStringOp:
-			ops = append(ops, ExprCmpEqStringOp{})
+		case *ir.ExprCmpBaseOp:
+			ops = append(ops, ExprCmpBaseOp{
+				Op:       op.Op,
+				Kind:     op.Kind,
+				ByteSize: op.ByteSize,
+			})
+		case *ir.ExprCmpStringOp:
+			ops = append(ops, ExprCmpStringOp{Op: op.Op})
+		case *ir.SliceBoundsCheckOp:
+			ops = append(ops, ExprSliceBoundsCheckOp{
+				Index:         op.Index,
+				ExprStatusIdx: exprStatusIdxNone, // conditions don't have per-expression status
+			})
+		case *ir.SwissMapLookupOp:
+			ops = append(ops, swissMapOps(op, exprStatusIdxNone)...) // conditions don't have per-expression status
 		case *ir.ConditionCheckOp:
 			ops = append(ops, ConditionCheckOp{})
+		case *ir.CondNotOp:
+			ops = append(ops, CondNotOp{})
+		case *ir.CondJumpOp:
+			ops = append(ops, CondJumpOp{Cond: op.Cond, Label: op.Target})
+		case *ir.CondLabelOp:
+			ops = append(ops, CondLabelOp{ID: op.ID})
 		default:
 			panic(fmt.Sprintf("unexpected ir.Operation in condition: %#v", op))
 		}
@@ -304,6 +371,19 @@ func (g *generator) addConditionHandler(
 		return nil, err
 	}
 	return id, nil
+}
+
+// findDictEntry returns the DictEntry matching the given dictIndex, or nil.
+func findDictEntry(rootType *ir.EventRootType, dictIndex int) *ir.DictEntry {
+	if dictIndex < 0 {
+		return nil
+	}
+	for i := range rootType.DictEntries {
+		if rootType.DictEntries[i].DictIndex == dictIndex {
+			return &rootType.DictEntries[i]
+		}
+	}
+	return nil
 }
 
 var encodeLocationLogLimiter = rate.NewLimiter(rate.Every(10*time.Minute), 10)
@@ -336,7 +416,7 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 		switch op := op.(type) {
 		case *ir.LocationOp:
 			lastOpSize = op.ByteSize
-			opsAfter, err := g.EncodeLocationOp(injectionPC, op, ops)
+			opsAfter, err := g.EncodeLocationOp(injectionPC, op, exprIdx, ops)
 			// Treat an error as if the location op is not available.
 			if err != nil {
 				logLocationIssue(
@@ -354,9 +434,10 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 			}
 			lastOpSize = op.ByteSize
 			ops = append(ops, ExprDereferencePtrOp{
-				Bias:      op.Bias,
-				Len:       op.ByteSize,
-				NilBitIdx: 2*exprIdx + 1,
+				Bias:          op.Bias,
+				Len:           op.ByteSize,
+				ExprStatusIdx: exprIdx,
+				NullAsZero:    op.NullAsZero,
 			})
 		case *ir.ExprPushOffsetOp:
 			ops = append(ops, ExprPushOffsetOp{ByteSize: op.ByteSize})
@@ -364,10 +445,27 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 			ops = append(ops, ExprLoadLiteralOp{Data: op.Data})
 		case *ir.ExprReadStringOp:
 			ops = append(ops, ExprReadStringOp{MaxLen: op.MaxLen})
-		case *ir.ExprCmpEqBaseOp:
-			ops = append(ops, ExprCmpEqBaseOp{ByteSize: op.ByteSize})
-		case *ir.ExprCmpEqStringOp:
-			ops = append(ops, ExprCmpEqStringOp{})
+		case *ir.ExprCmpBaseOp:
+			ops = append(ops, ExprCmpBaseOp{
+				Op:       op.Op,
+				Kind:     op.Kind,
+				ByteSize: op.ByteSize,
+			})
+		case *ir.ExprCmpStringOp:
+			ops = append(ops, ExprCmpStringOp{Op: op.Op})
+		case *ir.SliceBoundsCheckOp:
+			// After the bounds check, the scratch still starts with the
+			// data pointer (8 bytes). Update lastOpSize so the following
+			// DereferenceOp sees a pointer-sized value.
+			lastOpSize = 8
+			ops = append(ops, ExprSliceBoundsCheckOp{
+				Index:         op.Index,
+				ExprStatusIdx: exprIdx,
+			})
+		case *ir.SwissMapLookupOp:
+			// The lookup writes the value element at sm->offset on success.
+			lastOpSize = op.ValByteSize
+			ops = append(ops, swissMapOps(op, exprIdx)...)
 		default:
 			panic(fmt.Sprintf("unexpected ir.Operation: %#v", op))
 		}
@@ -381,9 +479,21 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 		return nil, err
 	}
 	if needed {
-		ops = append(ops, CallOp{
-			FunctionID: typeFunctionID,
-		})
+		// For dict-resolved shape types, emit a dynamic dispatch that
+		// tries to call the concrete type's ProcessType, falling back
+		// to the shape type's.
+		rootExpr := rootType.Expressions[exprIdx]
+		dictEntry := findDictEntry(rootType, rootExpr.DictIndex)
+		if dictEntry != nil {
+			ops = append(ops, CallDictResolvedOp{
+				OutputOffset: dictEntry.Offset,
+				FallbackFunc: typeFunctionID,
+			})
+		} else {
+			ops = append(ops, CallOp{
+				FunctionID: typeFunctionID,
+			})
+		}
 	}
 	ops = append(ops, ReturnOp{})
 	err = g.addFunction(id, ops)
@@ -449,6 +559,10 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 	switch t := t.(type) {
 	case *ir.BaseType:
 		// Nothing to process.
+
+	case *ir.DurationType:
+		// Nothing to process; the ExprLoadDurationOp writes the value
+		// directly at the expression's result offset.
 
 	case *ir.GoHMapBucketType:
 		if err := structureTypeHandler(t.StructureType); err != nil {
@@ -710,7 +824,7 @@ func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 			}
 
 		// Base or pointer types.
-		case *ir.BaseType, *ir.GoChannelType, *ir.PointerType, *ir.VoidPointerType, *ir.GoMapType, *ir.GoSubroutineType:
+		case *ir.BaseType, *ir.DurationType, *ir.GoChannelType, *ir.PointerType, *ir.VoidPointerType, *ir.GoMapType, *ir.GoSubroutineType:
 			pieces = append(pieces, memoryLayoutPiece{
 				PaddedOffset: offset,
 				Size:         uint32(t.GetByteSize()),
@@ -789,7 +903,25 @@ func hasDuplicateInterfacePieces(typ ir.Type, pieces []ir.Piece) bool {
 }
 
 // `ops` is used as an output buffer for the encoded instructions.
-func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]Op, error) {
+// exprStatusIdx identifies the expression for writing a status-absent
+// flag at runtime (used by expression lowering); conditions pass ^0 to
+// indicate none.
+func (g *generator) EncodeLocationOp(
+	pc uint64, op *ir.LocationOp, exprStatusIdx uint32, ops []Op,
+) ([]Op, error) {
+	// @duration is a synthetic variable without DWARF locations. Its IR
+	// LocationOp is always emitted with Offset=0 and ByteSize=8, and
+	// resolves at BPF eval time to (ktime_ns - entry_ktime_ns) via a
+	// dedicated opcode. The caller (condition or expression lowering)
+	// wraps this output in the same way it would for a base type, so
+	// the same ExprPushOffsetOp/ExprLoadLiteral/ExprCmpBase sequence
+	// works regardless of the LHS origin.
+	if op.Variable != nil && op.Variable.Role == ir.VariableRoleDuration {
+		ops = append(ops, ExprLoadDurationOp{
+			ExprStatusIdx: exprStatusIdx,
+		})
+		return ops, nil
+	}
 outer:
 	for _, loclist := range op.Variable.Locations {
 		if pc < loclist.Range[0] || pc >= loclist.Range[1] {
@@ -902,6 +1034,38 @@ outer:
 	// Variable is not available, just return. Expression ops are allowed to "return early" on error.
 	ops = append(ops, ReturnOp{})
 	return ops, nil
+}
+
+// swissMapOps returns the 5-opcode sequence for a swiss map lookup.
+func swissMapOps(op *ir.SwissMapLookupOp, exprStatusIdx uint32) []Op {
+	return []Op{
+		SwissMapSetupOp{
+			KeyData:                  op.KeyData,
+			IsStringKey:              op.IsStringKey,
+			KeyByteSize:              op.KeyByteSize,
+			ValByteSize:              op.ValByteSize,
+			SeedOffset:               op.SeedOffset,
+			DirPtrOffset:             op.DirPtrOffset,
+			DirLenOffset:             op.DirLenOffset,
+			GlobalShiftOffset:        op.GlobalShiftOffset,
+			CtrlOffset:               op.CtrlOffset,
+			SlotsOffset:              op.SlotsOffset,
+			SlotSize:                 op.SlotSize,
+			KeyInSlotOffset:          op.KeyInSlotOffset,
+			ValInSlotOffset:          op.ValInSlotOffset,
+			TableGroupsFieldOffset:   op.TableGroupsFieldOffset,
+			GroupsDataFieldOffset:    op.GroupsDataFieldOffset,
+			GroupsLenMaskFieldOffset: op.GroupsLenMaskFieldOffset,
+			GroupByteSize:            op.GroupByteSize,
+			HeaderByteSize:           op.HeaderByteSize,
+			ExprStatusIdx:            exprStatusIdx,
+			ExistenceOnly:            op.ExistenceOnly,
+		},
+		SwissMapAesencOp{},
+		SwissMapHashFinishOp{},
+		SwissMapProbeOp{},
+		SwissMapCheckSlotOp{},
+	}
 }
 
 var errUnsupportedAddrLocationOp = errors.New("unsupported addr location op")

@@ -102,18 +102,82 @@ configure_make(
     if libversion
 ]
 
-[
-    so_symlink(
-        name = "_lib_" + libname,
-        src = "_symlink_src_" + libname,
-        libname = libname.removesuffix(".so"),
-        version = libversion,
-        # so_symlink already adds a lib/ folder
-        prefix = libname.rpartition("/")[0],
-    )
-    for (libname, libversion) in SHARED_LIBS.items()
-    if libversion
-]
+so_symlink(
+    name = "_lib_libcom_err.so",
+    src = ":_symlink_src_libcom_err.so",
+    libname = "libcom_err",
+    version = "3.0",
+)
+
+so_symlink(
+    name = "_lib_libgssapi_krb5.so",
+    src = ":_symlink_src_libgssapi_krb5.so",
+    libname = "libgssapi_krb5",
+    version = "2.2",
+)
+
+so_symlink(
+    name = "_lib_libgssrpc.so",
+    src = ":_symlink_src_libgssrpc.so",
+    libname = "libgssrpc",
+    version = "4.2",
+)
+
+so_symlink(
+    name = "_lib_libk5crypto.so",
+    src = ":_symlink_src_libk5crypto.so",
+    libname = "libk5crypto",
+    version = "3.1",
+)
+
+so_symlink(
+    name = "_lib_libkadm5clnt_mit.so",
+    src = ":_symlink_src_libkadm5clnt_mit.so",
+    libname = "libkadm5clnt_mit",
+    version = "12.0",
+)
+
+so_symlink(
+    name = "_lib_libkadm5srv_mit.so",
+    src = ":_symlink_src_libkadm5srv_mit.so",
+    libname = "libkadm5srv_mit",
+    version = "12.0",
+)
+
+so_symlink(
+    name = "_lib_libkdb5.so",
+    src = ":_symlink_src_libkdb5.so",
+    libname = "libkdb5",
+    version = "10.0",
+)
+
+so_symlink(
+    name = "_lib_libkrad.so",
+    src = ":_symlink_src_libkrad.so",
+    libname = "libkrad",
+    version = "0.0",
+)
+
+so_symlink(
+    name = "_lib_libkrb5.so",
+    src = ":_symlink_src_libkrb5.so",
+    libname = "libkrb5",
+    version = "3.3",
+)
+
+so_symlink(
+    name = "_lib_libkrb5support.so",
+    src = ":_symlink_src_libkrb5support.so",
+    libname = "libkrb5support",
+    version = "0.1",
+)
+
+so_symlink(
+    name = "_lib_libverto.so",
+    src = ":_symlink_src_libverto.so",
+    libname = "libverto",
+    version = "0.0",
+)
 
 filegroup(
     name = "_headers",

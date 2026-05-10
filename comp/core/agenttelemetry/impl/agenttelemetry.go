@@ -12,19 +12,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"golang.org/x/exp/maps"
-
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
@@ -275,7 +275,7 @@ func (a *atel) aggregateMetricTags(mCfg *MetricConfig, mt dto.MetricType, ms []*
 	}
 
 	// Convert the map to a slice
-	return maps.Values(amMap)
+	return slices.Collect(maps.Values(amMap))
 }
 
 // Using Prometheus  terminology. Metrics name or in "Prom" MetricFamily is technically a Datadog metrics.
@@ -405,8 +405,10 @@ func (a *atel) transformMetricFamily(p *Profile, mfam *dto.MetricFamily) *agentm
 	var mCfg *MetricConfig
 	var ok bool
 
-	// Check if the metric is included in the profile
-	if mCfg, ok = p.metricsMap[mfam.GetName()]; !ok {
+	// Check if the metric is included in the profile. Normalize "__" to "_"
+	// so that metrics registered with or without NoDoubleUnderscoreSep are matched.
+	normalizedName := strings.Replace(mfam.GetName(), "__", "_", 1)
+	if mCfg, ok = p.metricsMap[normalizedName]; !ok {
 		return nil
 	}
 

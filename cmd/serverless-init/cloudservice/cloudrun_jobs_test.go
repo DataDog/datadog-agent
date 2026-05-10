@@ -90,6 +90,40 @@ func TestGetCloudRunJobsTagsWithEnvironmentVariables(t *testing.T) {
 	}, tags)
 }
 
+func TestCloudRunJobsGetEnhancedMetricTags(t *testing.T) {
+	skipOnWindows(t)
+	service := &CloudRunJobs{}
+	tags := map[string]string{
+		"job_name":     "test-job",
+		"location":     "us-central1",
+		"origin":       "cloudrunjobs",
+		"project_id":   "test-project",
+		"container_id": "abc123",
+	}
+	result := service.GetEnhancedMetricTags(tags)
+
+	assert.Equal(t, map[string]string{
+		"job_name":   "test-job",
+		"location":   "us-central1",
+		"origin":     "cloudrunjobs",
+		"project_id": "test-project",
+	}, result.Base)
+
+	assert.Equal(t, map[string]string{
+		"job_name":   "test-job",
+		"location":   "us-central1",
+		"origin":     "cloudrunjobs",
+		"project_id": "test-project",
+		"instance":   "abc123",
+	}, result.Usage)
+}
+
+func TestCloudRunJobsGetUsageMetricSuffix(t *testing.T) {
+	skipOnWindows(t)
+	service := &CloudRunJobs{}
+	assert.Equal(t, "instance", service.GetUsageMetricSuffix())
+}
+
 func TestCloudRunJobsGetOrigin(t *testing.T) {
 	skipOnWindows(t)
 	service := &CloudRunJobs{}
@@ -192,6 +226,8 @@ func TestCloudRunJobsSpanCreation(t *testing.T) {
 		assert.Equal(t, uint64(0), jobs.jobSpan.ParentID)
 		assert.NotNil(t, jobs.jobSpan.Meta)
 		assert.Equal(t, "cloudrunjobs", jobs.jobSpan.Meta["origin"])
+		// Verify _dd.measured=1 is set for stats computation
+		assert.Equal(t, float64(1), jobs.jobSpan.Metrics["_dd.measured"])
 	}
 }
 

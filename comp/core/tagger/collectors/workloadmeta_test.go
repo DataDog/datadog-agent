@@ -29,7 +29,7 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
@@ -1868,6 +1868,67 @@ func TestHandleECSTask(t *testing.T) {
 			},
 		},
 		{
+			name: "ECS Managed Instances daemon task",
+			task: workloadmeta.ECSTask{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "foobar",
+				},
+				ClusterName:  "ecs-cluster",
+				Family:       "datadog-agent-daemon",
+				Version:      "1",
+				AWSAccountID: "1234567891234",
+				LaunchType:   workloadmeta.ECSLaunchTypeManagedInstances,
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   containerID,
+						Name: containerName,
+					},
+				},
+				DaemonName:        "datadog-agent-daemon-daemon-o9hflg",
+				Region:            "us-east-1",
+				ClusterARN:        "arn:aws:ecs:us-east-1:1234567891234:cluster/ecs-cluster",
+				DaemonARN:         "arn:aws:ecs:us-east-1:1234567891234:daemon/ecs-cluster/datadog-agent-daemon-daemon-o9hflg",
+				TaskDefinitionARN: "arn:aws:ecs:us-east-1:1234567891234:daemon-task-definition/datadog-agent-daemon:1",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       taskSource,
+					EntityID:     taggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						"task_arn:foobar",
+						"task_definition_arn:arn:aws:ecs:us-east-1:1234567891234:daemon-task-definition/datadog-agent-daemon:1",
+					},
+					LowCardTags: []string{
+						"cluster_name:ecs-cluster",
+						"ecs_cluster_name:ecs-cluster",
+						"ecs_container_name:agent",
+						"task_family:datadog-agent-daemon",
+						"task_name:datadog-agent-daemon",
+						"task_version:1",
+						"ecs_daemon:datadog-agent-daemon-daemon-o9hflg",
+						"aws_account:1234567891234",
+						"region:us-east-1",
+						"cluster_arn:arn:aws:ecs:us-east-1:1234567891234:cluster/ecs-cluster",
+						"daemon_arn:arn:aws:ecs:us-east-1:1234567891234:daemon/ecs-cluster/datadog-agent-daemon-daemon-o9hflg",
+					},
+					StandardTags: []string{},
+				},
+				{
+					Source:               taskSource,
+					EntityID:             types.GetGlobalEntityID(),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"ecs_cluster_name:ecs-cluster",
+						"cluster_arn:arn:aws:ecs:us-east-1:1234567891234:cluster/ecs-cluster",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
 			// Tasks can be emitted from metadata API that are still pending
 			// and thus only contain constant task-definition level metadata
 			// It should not trigger an update to the global-entity
@@ -2559,8 +2620,9 @@ func TestHandleContainer(t *testing.T) {
 
 func TestHandleContainer_IsComplete(t *testing.T) {
 	podID := "test-pod"
+	taskARN := "test-task-arn"
 
-	container := workloadmeta.Container{
+	kubeContainer := workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
 			ID:   "test-container",
@@ -2571,6 +2633,20 @@ func TestHandleContainer_IsComplete(t *testing.T) {
 		Owner: &workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
 			ID:   podID,
+		},
+	}
+
+	ecsContainer := workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "test-container",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "agent",
+		},
+		Owner: &workloadmeta.EntityID{
+			Kind: workloadmeta.KindECSTask,
+			ID:   taskARN,
 		},
 	}
 
@@ -2585,54 +2661,124 @@ func TestHandleContainer_IsComplete(t *testing.T) {
 		},
 	}
 
+	ecsTask := &workloadmeta.ECSTask{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindECSTask,
+			ID:   taskARN,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "test-task",
+		},
+		ClusterName: "test-cluster",
+	}
+
+	// ecsTaskWithoutClusterName simulates the v1 fallback case, where the ECS
+	// collector reports a task without ClusterName because the v4 metadata
+	// endpoint was not yet available.
+	ecsTaskWithoutClusterName := &workloadmeta.ECSTask{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindECSTask,
+			ID:   taskARN,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "test-task",
+		},
+	}
+
 	tests := []struct {
 		name                string
-		isKubernetesEnv     bool
-		podInStore          bool
-		podIsComplete       bool
+		features            []env.Feature
+		container           workloadmeta.Container
+		ecsTask             *workloadmeta.ECSTask
+		parentInStore       bool // "parent" means pod or ECS task
+		parentIsComplete    bool
 		containerIsComplete bool
 		expectedIsComplete  bool
 	}{
 		{
-			name:                "non-Kubernetes: container complete",
-			isKubernetesEnv:     false,
+			name:                "no orchestrator: container complete",
+			features:            []env.Feature{}, // No kubernetes, no ECS
+			container:           kubeContainer,
 			containerIsComplete: true,
 			expectedIsComplete:  true,
 		},
 		{
-			name:                "non-Kubernetes: container incomplete",
-			isKubernetesEnv:     false,
+			name:                "no orchestrator: container incomplete",
+			features:            []env.Feature{}, // No kubernetes, no ECS
+			container:           kubeContainer,
 			containerIsComplete: false,
 			expectedIsComplete:  false,
 		},
 		{
 			name:                "kubernetes: container incomplete",
-			isKubernetesEnv:     true,
-			podInStore:          true,
-			podIsComplete:       true,
+			features:            []env.Feature{env.Kubernetes},
+			container:           kubeContainer,
+			parentInStore:       true,
+			parentIsComplete:    true,
 			containerIsComplete: false,
 			expectedIsComplete:  false,
 		},
 		{
 			name:                "kubernetes: container complete but pod incomplete",
-			isKubernetesEnv:     true,
-			podInStore:          true,
-			podIsComplete:       false,
+			features:            []env.Feature{env.Kubernetes},
+			container:           kubeContainer,
+			parentInStore:       true,
+			parentIsComplete:    false,
 			containerIsComplete: true,
 			expectedIsComplete:  false,
 		},
 		{
 			name:                "kubernetes: both container and pod complete",
-			isKubernetesEnv:     true,
-			podInStore:          true,
-			podIsComplete:       true,
+			features:            []env.Feature{env.Kubernetes},
+			container:           kubeContainer,
+			parentInStore:       true,
+			parentIsComplete:    true,
 			containerIsComplete: true,
 			expectedIsComplete:  true,
 		},
 		{
 			name:                "kubernetes: pod not found in store",
-			isKubernetesEnv:     true,
-			podInStore:          false,
+			features:            []env.Feature{env.Kubernetes},
+			container:           kubeContainer,
+			parentInStore:       false,
+			containerIsComplete: true,
+			expectedIsComplete:  false,
+		},
+		{
+			name:                "ECS EC2: container incomplete",
+			features:            []env.Feature{env.ECSEC2},
+			container:           ecsContainer,
+			ecsTask:             ecsTask,
+			parentInStore:       true,
+			parentIsComplete:    true,
+			containerIsComplete: false,
+			expectedIsComplete:  false,
+		},
+		{
+			name:                "ECS EC2: task without cluster name is incomplete",
+			features:            []env.Feature{env.ECSEC2},
+			container:           ecsContainer,
+			ecsTask:             ecsTaskWithoutClusterName,
+			parentInStore:       true,
+			parentIsComplete:    true,
+			containerIsComplete: true,
+			expectedIsComplete:  false,
+		},
+		{
+			name:                "ECS EC2: both container and task complete",
+			features:            []env.Feature{env.ECSEC2},
+			container:           ecsContainer,
+			ecsTask:             ecsTask,
+			parentInStore:       true,
+			parentIsComplete:    true,
+			containerIsComplete: true,
+			expectedIsComplete:  true,
+		},
+		{
+			name:                "ECS EC2: task not found in store",
+			features:            []env.Feature{env.ECSEC2},
+			container:           ecsContainer,
+			parentInStore:       false,
 			containerIsComplete: true,
 			expectedIsComplete:  false,
 		},
@@ -2640,8 +2786,8 @@ func TestHandleContainer_IsComplete(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if test.isKubernetesEnv {
-				env.SetFeatures(t, env.Kubernetes)
+			if len(test.features) > 0 {
+				env.SetFeatures(t, test.features...)
 			}
 
 			cfg := configmock.New(t)
@@ -2652,25 +2798,32 @@ func TestHandleContainer_IsComplete(t *testing.T) {
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
-			wmeta.Set(&container)
-
-			if test.isKubernetesEnv && test.podInStore {
-				wmeta.Set(pod)
-			}
+			wmeta.Set(&test.container)
 
 			collector := NewWorkloadMetaCollector(context.TODO(), cfg, wmeta, nil)
 
-			if test.isKubernetesEnv {
-				collector.handleKubePod(workloadmeta.Event{
-					Type:       workloadmeta.EventTypeSet,
-					Entity:     pod,
-					IsComplete: test.podIsComplete,
-				})
+			if test.container.Owner != nil && test.parentInStore {
+				switch test.container.Owner.Kind {
+				case workloadmeta.KindKubernetesPod:
+					wmeta.Set(pod)
+					collector.handleKubePod(workloadmeta.Event{
+						Type:       workloadmeta.EventTypeSet,
+						Entity:     pod,
+						IsComplete: test.parentIsComplete,
+					})
+				case workloadmeta.KindECSTask:
+					wmeta.Set(test.ecsTask)
+					collector.handleECSTask(workloadmeta.Event{
+						Type:       workloadmeta.EventTypeSet,
+						Entity:     test.ecsTask,
+						IsComplete: test.parentIsComplete,
+					})
+				}
 			}
 
 			actual := collector.handleContainer(workloadmeta.Event{
 				Type:       workloadmeta.EventTypeSet,
-				Entity:     &container,
+				Entity:     &test.container,
 				IsComplete: test.containerIsComplete,
 			})
 
@@ -3113,6 +3266,7 @@ func TestNoGlobalTags(t *testing.T) {
 		OrchestratorCardTags: []string{},
 		LowCardTags:          []string{},
 		StandardTags:         []string{},
+		IsComplete:           true,
 	}
 
 	var actualStaticSourceEvent *types.TagInfo
@@ -3128,6 +3282,28 @@ func TestNoGlobalTags(t *testing.T) {
 		"Global Entity should be set with no tags:\nexpected: %v\nfound: %v ",
 		expectedEmptyEvent, actualStaticSourceEvent,
 	)
+}
+
+func TestCollectStaticGlobalTags_SetsIsComplete(t *testing.T) {
+	mockConfig := configmock.New(t)
+	tagInfosCh := make(chan []*types.TagInfo, 10)
+
+	wmetaCollector := NewWorkloadMetaCollector(context.TODO(), mockConfig, nil, &fakeProcessor{tagInfosCh})
+	wmetaCollector.collectStaticGlobalTags(context.TODO(), mockConfig)
+
+	tagInfos := <-tagInfosCh
+
+	var actualStaticSourceEvent *types.TagInfo
+	for _, event := range tagInfos {
+		if event.Source == staticSource {
+			actualStaticSourceEvent = event
+			break
+		}
+	}
+
+	require.NotNil(t, actualStaticSourceEvent)
+	assert.Equal(t, types.GetGlobalEntityID(), actualStaticSourceEvent.EntityID)
+	assert.True(t, actualStaticSourceEvent.IsComplete)
 }
 
 func TestParseJSONValue(t *testing.T) {

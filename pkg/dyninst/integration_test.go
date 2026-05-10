@@ -86,6 +86,7 @@ func TestDyninst(t *testing.T) {
 			continue
 		}
 		t.Run(svc, func(t *testing.T) {
+			t.Parallel()
 			runIntegrationTestSuite(
 				t, svc, rewrite, sem, collector, cfgs...,
 			)
@@ -127,6 +128,7 @@ func testDyninst(
 		loader.WithAdditionalSerializer(&compiler.DebugSerializer{
 			Out: codeDump,
 		}),
+		loader.WithRingBufSize(8 << 20), // 8 MiB
 	}
 	if debug {
 		loaderOpts = append(loaderOpts, loader.WithDebugLevel(100))
@@ -169,8 +171,9 @@ func testDyninst(
 	}()
 
 	// On failure in debug mode, output trace_pipe logs for this process.
+	forceTracePipePrint, _ := strconv.ParseBool(os.Getenv("FORCE_TRACE_PIPE_PRINT"))
 	t.Cleanup(func() {
-		if collector == nil || !t.Failed() || !debug {
+		if collector == nil || !debug || (!t.Failed() && !forceTracePipePrint) {
 			return
 		}
 		if err := collector.Flush(); err != nil {
@@ -198,9 +201,10 @@ func testDyninst(
 		Updates: []process.Config{
 			{
 				Info: process.Info{
-					ProcessID:  process.ID{PID: int32(sampleProc.Process.Pid)},
-					Executable: exe,
-					Service:    service,
+					ProcessID:   process.ID{PID: int32(sampleProc.Process.Pid)},
+					Executable:  exe,
+					Service:     service,
+					ProcessTags: []string{"entrypoint.name:sample", "svc.user:sample"},
 				},
 				RuntimeID:         runtimeID,
 				Probes:            slices.Clone(probes),
@@ -230,6 +234,8 @@ func testDyninst(
 		t, assertProbesInstalled, 180*time.Second, 100*time.Millisecond,
 		"diagnostics should indicate that the probes are installed",
 	)
+	time.Sleep(10 * time.Second)
+	t.Logf("slept for 10 seconds")
 
 	// Trigger the function calls, receive the events, and wait for the process
 	// to exit.
@@ -279,12 +285,13 @@ func testDyninst(
 		makeRedactorForFunctionWithChangingState())
 	for _, log := range testServer.getLogs() {
 		redacted := redactJSON(t, "", log.body, redactors)
+		t.Logf("Snapshot [probe=%s]: %s", log.id, string(log.body))
 		if debugEnabled {
 			t.Logf("Output: %v\n", string(log.body))
 			t.Logf("Sorted and redacted: %v\n", string(redacted))
 		}
-		expIdx := len(retMap[log.id])
 		id := resultNames[log.id]
+		expIdx := len(retMap[id])
 		retMap[id] = append(retMap[id], redacted)
 		if !rewriteEnabled {
 			expOut, ok := expOut[id]
@@ -336,9 +343,16 @@ func runIntegrationTestSuite(
 	// use this environment variable to run all the tests individually.
 	const runAllDebugTestsEnv = "RUN_ALL_DEBUG_TESTS"
 	runAllDebugTests, _ := strconv.ParseBool(os.Getenv(runAllDebugTestsEnv))
-	for _, cfg := range cfgs {
-		probes := testprogs.MustGetProbeDefinitions(t, service)
-		probes = slices.DeleteFunc(probes, testprogs.HasIssueTag)
+	// Debug mode runs are expensive and largely redundant across configs for
+	// the same binary. By default we only run debug=true for the first config;
+	// set RUN_ALL_DEBUG_CONFIGS=1 to run debug=true for every config.
+	const runAllDebugConfigsEnv = "RUN_ALL_DEBUG_CONFIGS"
+	runAllDebugConfigs, _ := strconv.ParseBool(os.Getenv(runAllDebugConfigsEnv))
+	for cfgIdx, cfg := range cfgs {
+		allProbes := testprogs.MustGetProbeDefinitions(t, service)
+		probes := slices.DeleteFunc(slices.Clone(allProbes), func(p ir.ProbeDefinition) bool {
+			return testprogs.HasIssueTag(p, cfg)
+		})
 
 		// For each probe, resolve which output file name applies to the
 		// current config (stored in resultNames) and which names belong
@@ -354,6 +368,16 @@ func runIntegrationTestSuite(
 		//     with result name "foo_geq_1.23" still has "foo" on disk
 		//     for older toolchains; that name goes here.
 		otherVariantNames := make(map[string]struct{})
+		// Probes removed by config-scoped issue tags (e.g. hmap on go1.23)
+		// may still have output files from other configs where the probe
+		// works. Add their names to otherVariantNames so the "unexpected
+		// probes" check doesn't flag them. Probes with unconditional issue
+		// tags never produce output for any config and are excluded.
+		for _, p := range allProbes {
+			if _, ok, conditional := testprogs.GetIssueTag(p, cfg); ok && conditional {
+				otherVariantNames[p.GetID()] = struct{}{}
+			}
+		}
 		resultNames := make(map[string]string)
 		var keptProbes []ir.ProbeDefinition
 		for _, p := range probes {
@@ -449,6 +473,12 @@ func runIntegrationTestSuite(
 				t.Run(fmt.Sprintf("debug=%t", debug), func(t *testing.T) {
 					if debug && testing.Short() {
 						t.Skip("skipping debug with short")
+					}
+					if debug && cfgIdx != 0 && !runAllDebugConfigs {
+						t.Skipf(
+							"skipping debug variant for non-first config; set %s=1 to run debug for every config",
+							runAllDebugConfigsEnv,
+						)
 					}
 					t.Parallel()
 					t.Run("all-probes", func(t *testing.T) {
@@ -793,7 +823,7 @@ func (f *fakeProcessSubscriber) Start() {}
 func makeRedactorForManyFloats(arch string) jsonRedactor {
 	return redactor(
 		exactMatcher(
-			"/debugger/snapshot/captures/return/locals/onlyOnAmd64_16",
+			"/debugger/snapshot/captures/return/locals/@return/fields/onlyOnAmd64_16",
 		),
 		replacerFunc(func(v jsontext.Value) jsontext.Value {
 			// If we've already redacted this, don't do it again.

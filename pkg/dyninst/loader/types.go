@@ -67,6 +67,8 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return C.SM_OP_PROCESS_GO_EMPTY_INTERFACE
 	case compiler.OpcodeProcessGoInterface:
 		return C.SM_OP_PROCESS_GO_INTERFACE
+	case compiler.OpcodeProcessGoDictType:
+		return C.SM_OP_PROCESS_GO_DICT_TYPE
 	case compiler.OpcodeProcessGoHmap:
 		return C.SM_OP_PROCESS_GO_HMAP
 	case compiler.OpcodeProcessGoSwissMap:
@@ -83,14 +85,36 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return C.SM_OP_EXPR_LOAD_LITERAL
 	case compiler.OpcodeExprReadString:
 		return C.SM_OP_EXPR_READ_STRING
-	case compiler.OpcodeExprCmpEqBase:
-		return C.SM_OP_EXPR_CMP_EQ_BASE
-	case compiler.OpcodeExprCmpEqString:
-		return C.SM_OP_EXPR_CMP_EQ_STRING
+	case compiler.OpcodeExprCmpBase:
+		return C.SM_OP_EXPR_CMP_BASE
+	case compiler.OpcodeExprCmpString:
+		return C.SM_OP_EXPR_CMP_STRING
 	case compiler.OpcodeConditionCheck:
 		return C.SM_OP_CONDITION_CHECK
 	case compiler.OpcodeConditionBegin:
 		return C.SM_OP_CONDITION_BEGIN
+	case compiler.OpcodeCallDictResolved:
+		return C.SM_OP_CALL_DICT_RESOLVED
+	case compiler.OpcodeExprSliceBoundsCheck:
+		return C.SM_OP_EXPR_SLICE_BOUNDS_CHECK
+	case compiler.OpcodeSwissMapSetup:
+		return C.SM_OP_SWISS_MAP_SETUP
+	case compiler.OpcodeSwissMapAesenc:
+		return C.SM_OP_SWISS_MAP_AESENC
+	case compiler.OpcodeSwissMapHashFinish:
+		return C.SM_OP_SWISS_MAP_HASH_FINISH
+	case compiler.OpcodeSwissMapProbe:
+		return C.SM_OP_SWISS_MAP_PROBE
+	case compiler.OpcodeSwissMapCheckSlot:
+		return C.SM_OP_SWISS_MAP_CHECK_SLOT
+	case compiler.OpcodeCondNot:
+		return C.SM_OP_COND_NOT
+	case compiler.OpcodeCondJumpIfFalse:
+		return C.SM_OP_COND_JUMP_IF_FALSE
+	case compiler.OpcodeCondJumpIfTrue:
+		return C.SM_OP_COND_JUMP_IF_TRUE
+	case compiler.OpcodeExprLoadDuration:
+		return C.SM_OP_EXPR_LOAD_DURATION
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
 	}

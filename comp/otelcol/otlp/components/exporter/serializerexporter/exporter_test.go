@@ -23,8 +23,8 @@ import (
 	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -209,6 +209,28 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			}, nil),
 			instrumentationScopeMetadataAsTags: true,
 		},
+		{
+			name: "service.instance.id resource attribute becomes tag",
+			genMetrics: func(_ *testing.T) pmetric.Metrics {
+				h := pmetric.NewHistogramDataPoint()
+				h.BucketCounts().FromRaw([]uint64{100})
+				h.SetCount(100)
+				h.SetSum(0)
+
+				n := pmetric.NewNumberDataPoint()
+				n.SetIntValue(777)
+				md := newMetrics(histogramMetricName, h, numberMetricName, n)
+				md.ResourceMetrics().At(0).Resource().Attributes().PutStr("service.instance.id", "my-instance-123")
+				return md
+			},
+			extraTags: []string{},
+			wantSketchTags: tagset.NewCompositeTags([]string{
+				"service.instance.id:my-instance-123",
+			}, nil),
+			wantSerieTags: tagset.NewCompositeTags([]string{
+				"service.instance.id:my-instance-123",
+			}, nil),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -374,10 +396,16 @@ func TestMetricPrefix(t *testing.T) {
 }
 
 func testMetricPrefixWithFeatureGates(t *testing.T, disablePrefix bool, inName string, outName string) {
-	prevVal := pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled()
+	// Explicitly set BOTH feature gates. In OTel v0.150.0 both gates moved from
+	// StageAlpha (off by default) to StageBeta (on by default), so tests must
+	// not rely on the default value.
+	prevOld := pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled()
+	prevNew := featuregates.DisableMetricRemappingFeatureGate.IsEnabled()
 	require.NoError(t, featuregate.GlobalRegistry().Set(pkgdatadog.MetricRemappingDisabledFeatureGate.ID(), disablePrefix))
+	require.NoError(t, featuregate.GlobalRegistry().Set(featuregates.DisableMetricRemappingFeatureGate.ID(), disablePrefix))
 	defer func() {
-		require.NoError(t, featuregate.GlobalRegistry().Set(pkgdatadog.MetricRemappingDisabledFeatureGate.ID(), prevVal))
+		require.NoError(t, featuregate.GlobalRegistry().Set(pkgdatadog.MetricRemappingDisabledFeatureGate.ID(), prevOld))
+		require.NoError(t, featuregate.GlobalRegistry().Set(featuregates.DisableMetricRemappingFeatureGate.ID(), prevNew))
 	}()
 
 	rec := &metricRecorder{}
@@ -464,7 +492,7 @@ func newMetrics(
 func TestUsageMetric_AgentOTLPIngest(t *testing.T) {
 	rec := &metricRecorder{}
 	ctx := context.Background()
-	telemetryComp := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	telemetryComp := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
 	store := TelemetryStore{
 		OTLPIngestMetrics: telemetryComp.NewGauge(
 			"runtime",
@@ -508,7 +536,7 @@ func TestUsageMetric_AgentOTLPIngest(t *testing.T) {
 func TestUsageMetric_DDOT(t *testing.T) {
 	rec := &metricRecorder{}
 	ctx := context.Background()
-	telemetryComp := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	telemetryComp := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
 	store := TelemetryStore{
 		DDOTMetrics: telemetryComp.NewGauge(
 			"runtime",
@@ -574,7 +602,7 @@ func TestUsageMetric_DDOT(t *testing.T) {
 func usageMetricGW(t *testing.T, gwUsage otel.GatewayUsage, expGwUsage float64, expGwEnvVar float64) {
 	rec := &metricRecorder{}
 	ctx := context.Background()
-	telemetryComp := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	telemetryComp := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
 	store := TelemetryStore{
 		DDOTGWUsage: telemetryComp.NewGauge(
 			"runtime",
@@ -793,6 +821,95 @@ func TestMetricRemapping(t *testing.T) {
 				actualMetrics = append(actualMetrics, s.Name)
 			}
 			assert.ElementsMatch(t, tt.expectedMetrics, actualMetrics)
+		})
+	}
+}
+
+func TestDeltaSumAsRateAttribute(t *testing.T) {
+	tests := []struct {
+		name          string
+		genMetrics    func() pmetric.Metrics
+		wantType      metrics.APIMetricType
+		wantName      string
+		checkHasAsTag bool
+	}{
+		{
+			name: "delta sum with as_type=rate becomes rate",
+			genMetrics: func() pmetric.Metrics {
+				md := pmetric.NewMetrics()
+				rm := md.ResourceMetrics().AppendEmpty()
+				ilm := rm.ScopeMetrics().AppendEmpty()
+				met := ilm.Metrics().AppendEmpty()
+				met.SetName("test.delta.sum")
+				met.SetEmptySum()
+				met.Sum().SetIsMonotonic(false)
+				met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+				dp := met.Sum().DataPoints().AppendEmpty()
+				dp.SetIntValue(100)
+				dp.Attributes().PutStr("datadog.metric.as_type", "rate")
+				dp.Attributes().PutStr("env", "test")
+				return md
+			},
+			wantType:      metrics.APIRateType,
+			wantName:      "test.delta.sum",
+			checkHasAsTag: true,
+		},
+		{
+			name: "delta sum without attribute stays count",
+			genMetrics: func() pmetric.Metrics {
+				md := pmetric.NewMetrics()
+				rm := md.ResourceMetrics().AppendEmpty()
+				ilm := rm.ScopeMetrics().AppendEmpty()
+				met := ilm.Metrics().AppendEmpty()
+				met.SetName("test.delta.sum")
+				met.SetEmptySum()
+				met.Sum().SetIsMonotonic(false)
+				met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+				dp := met.Sum().DataPoints().AppendEmpty()
+				dp.SetIntValue(100)
+				return md
+			},
+			wantType: metrics.APICountType,
+			wantName: "test.delta.sum",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := &metricRecorder{}
+			f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
+				return "", nil
+			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+			cfg := f.CreateDefaultConfig().(*ExporterConfig)
+			exp, err := f.CreateMetrics(
+				t.Context(),
+				exportertest.NewNopSettings(component.MustNewType("datadog")),
+				cfg,
+			)
+			require.NoError(t, err)
+			require.NoError(t, exp.Start(t.Context(), componenttest.NewNopHost()))
+			require.NoError(t, exp.ConsumeMetrics(t.Context(), tt.genMetrics()))
+			require.NoError(t, exp.Shutdown(t.Context()))
+
+			found := false
+			for _, s := range rec.series {
+				if s.Name == tt.wantName {
+					found = true
+					assert.Equal(t, tt.wantType, s.MType, "metric type mismatch for %s", s.Name)
+					if tt.checkHasAsTag {
+						hasAsTag := false
+						s.Tags.ForEach(func(tag string) {
+							if tag == "datadog.metric.as_type:rate" {
+								hasAsTag = true
+							}
+						})
+						assert.True(t, hasAsTag,
+							"control attribute should be present as a tag for debugging")
+					}
+					break
+				}
+			}
+			assert.True(t, found, "metric %s not found in recorded series", tt.wantName)
 		})
 	}
 }

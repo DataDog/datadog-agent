@@ -60,7 +60,7 @@ func hostDockerHttpbinEnvProvisioner(opt ...ec2.Option) provisioners.PulumiEnvRu
 		}
 
 		// install docker.io
-		manager, err := docker.NewManager(&awsEnv, nginxHost)
+		manager, err := docker.NewAWSManager(&awsEnv, nginxHost)
 		if err != nil {
 			return err
 		}

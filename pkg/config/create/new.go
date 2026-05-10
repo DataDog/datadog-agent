@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config/buildschema"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
 	"github.com/DataDog/datadog-agent/pkg/config/teeconfig"
@@ -29,7 +30,7 @@ import (
 //   - "<Agent version>": enable NTM if the Agent has a version equal or higher than the given version. This acts has a
 //     minimum version for whitch to enable NTM, useful when using the same configuration across
 //     different agent versions.
-//   - other:             Use viper
+//   - other:             Use nodetreemodel
 func NewConfig(name string, configLib string) model.BuildableConfig {
 	lib, ok := os.LookupEnv("DD_CONF_NODETREEMODEL")
 	if !ok {
@@ -38,6 +39,9 @@ func NewConfig(name string, configLib string) model.BuildableConfig {
 
 	lib = strings.Trim(lib, " ")
 
+	if len(os.Args) >= 2 && os.Args[1] == "createschema" {
+		return buildschema.NewSchemaBuilder(name, "DD", strings.NewReplacer(".", "_"))
+	}
 	if lib == "viper" {
 		return viperconfig.NewViperConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 	} else if lib == "enable" {
@@ -58,13 +62,13 @@ func NewConfig(name string, configLib string) model.BuildableConfig {
 				if res >= 0 {
 					return nodetreemodel.NewNodeTreeConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 				}
-			} else {
-				// agentVersion.CompareTo didn't parse the value, it's something else
-				log.Warnf("unrecognized value for DD_CONF_NODETREEMODEL: %s", lib)
+				return viperconfig.NewViperConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 			}
+			// agentVersion.CompareTo didn't parse the value, it's something else
+			log.Warnf("unrecognized value for DD_CONF_NODETREEMODEL: %s", lib)
 		}
 	}
 
 	// default config implementation
-	return viperconfig.NewViperConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
+	return nodetreemodel.NewNodeTreeConfig(name, "DD", strings.NewReplacer(".", "_")) // nolint: forbidigo // legit use case
 }
