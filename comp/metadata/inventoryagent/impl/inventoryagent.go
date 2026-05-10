@@ -307,24 +307,34 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	ia.data["feature_cws_network_enabled"] = sysProbeConf.GetBool("event_monitoring_config.network.enabled")
 
 	// Service monitoring / system-probe
+	//
+	// Discovery service map mode internally force-enables several USM
+	// flags (service_monitoring_config.enabled, http.enabled, tls.*) so
+	// the USM monitor starts in restricted mode. But the inventory must
+	// reflect billing intent: discovery is free, so USM-derived feature
+	// flags are masked to false whenever discovery is on. The mask is a
+	// no-op in the "user explicitly enabled both" case because
+	// adjustDiscovery flips discovery.service_map.enabled to false in
+	// that case (USM wins).
+	discoveryServiceMap := sysProbeConf.GetBool("discovery.service_map.enabled")
 
 	ia.data["feature_networks_enabled"] = sysProbeConf.GetBool("network_config.enabled")
-	ia.data["feature_networks_http_enabled"] = sysProbeConf.GetBool("service_monitoring_config.http.enabled")
-	ia.data["feature_networks_https_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.native.enabled")
+	ia.data["feature_networks_http_enabled"] = sysProbeConf.GetBool("service_monitoring_config.http.enabled") && !discoveryServiceMap
+	ia.data["feature_networks_https_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.native.enabled") && !discoveryServiceMap
 	ia.data["feature_traceroute_enabled"] = sysProbeConf.GetBool("traceroute.enabled")
 
-	ia.data["feature_usm_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enabled")
+	ia.data["feature_usm_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enabled") && !discoveryServiceMap
 	ia.data["feature_usm_kafka_enabled"] = sysProbeConf.GetBool("service_monitoring_config.kafka.enabled")
 	ia.data["feature_usm_postgres_enabled"] = sysProbeConf.GetBool("service_monitoring_config.postgres.enabled")
 	ia.data["feature_usm_redis_enabled"] = sysProbeConf.GetBool("service_monitoring_config.redis.enabled")
 	ia.data["feature_usm_http2_enabled"] = sysProbeConf.GetBool("service_monitoring_config.http2.enabled")
-	ia.data["feature_usm_istio_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.istio.enabled")
-	ia.data["feature_usm_go_tls_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.go.enabled")
+	ia.data["feature_usm_istio_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.istio.enabled") && !discoveryServiceMap
+	ia.data["feature_usm_go_tls_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.go.enabled") && !discoveryServiceMap
 
 	// Discovery module / system-probe
 
 	ia.data["feature_discovery_enabled"] = sysProbeConf.GetBool("discovery.enabled")
-	ia.data["feature_discovery_service_map_enabled"] = sysProbeConf.GetBool("discovery.service_map.enabled")
+	ia.data["feature_discovery_service_map_enabled"] = discoveryServiceMap
 
 	// GPU monitoring / system-probe
 
