@@ -20,4 +20,3 @@ Powershell -C "%BUILD_ROOT%\datadog-agent\tasks\winbuildscripts\sysprobe.ps1" ||
 REM copy resulting packages to expected location for collection by gitlab.
 if not exist c:\mnt\test\new-e2e\tests\sysprobe-functional\artifacts\ mkdir c:\mnt\ttest\new-e2e\tests\sysprobe-functional\artifacts\ || exit /b 6
 xcopy /e/s/q %BUILD_ROOT%\datadog-agent\test\new-e2e\tests\sysprobe-functional\artifacts\*.* c:\mnt\test\new-e2e\tests\sysprobe-functional\artifacts\ || exit /b 7
-
