@@ -743,7 +743,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "519"
+      - "551"
   when:
     dsl: "n == 7"
     json: {eq: [{ref: "n"}, 7]}
@@ -768,7 +768,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "519"
+      - "551"
   sampling:
     snapshotsPerSecond: 10
 
@@ -2866,6 +2866,82 @@ probes:
   sampling:
     snapshotsPerSecond: 10
 
+# @duration used as a condition operand on a return-capable function.
+# Compiles to an 8-byte eq comparison in BPF; the user-facing literal
+# 0.0 ms translates to 0 nanoseconds at IR time, so the condition is
+# true only when the return fires in the same nanosecond as entry
+# (essentially never in practice — this probe exists to exercise
+# lowering, not to fire under load).
+- id: condDuration_eq
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condMultiReturn
+  when:
+    dsl: "@duration == 0.0"
+    json: {eq: [{ref: "@duration"}, 0.0]}
+  template: "duration={@duration}"
+  segments:
+    - str: "duration="
+    - json: {ref: "@duration"}
+      dsl: "@duration"
+  sampling:
+    snapshotsPerSecond: 10
+
+# @duration as a condition operand with an inequality. Exercises
+# CmpKindInt ordering on the synthetic int64-ns operand. The literal is
+# in milliseconds and is coerced to nanoseconds at IR time, so the
+# condition holds for any nonzero elapsed time.
+- id: condDuration_gt
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condMultiReturn
+  when:
+    dsl: "@duration > 0.0"
+    json: {gt: [{ref: "@duration"}, 0.0]}
+  template: "duration_gt"
+  segments:
+    - str: "duration_gt"
+  sampling:
+    snapshotsPerSecond: 10
+
+# @duration as a captureExpression on a return probe — the snapshot
+# carries the value as a named capture, rendered as a millisecond
+# float.
+- id: captureDuration_return
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condMultiReturn
+  captureExpressions:
+    - name: "duration_ms"
+      expr:
+        dsl: "@duration"
+        json: {ref: "@duration"}
+  sampling:
+    snapshotsPerSecond: 10
+
+# @duration in a condition on a line probe — must be rejected at
+# irgen time because line probes are not return events.
+- id: condDuration_on_line
+  type: LOG_PROBE
+  tags: ["issue:ConditionVariableUnavailable"]
+  captureSnapshot: false
+  where:
+    methodName: main.condLine
+    sourceFile: main.go
+    lines:
+      - "551"
+  when:
+    dsl: "@duration == 0.0"
+    json: {eq: [{ref: "@duration"}, 0.0]}
+  template: "line"
+  segments:
+    - str: "line"
+  sampling:
+    snapshotsPerSecond: 10
+
 # Standalone not(isEmpty(...)) under short-circuit OR. Exercises the jump
 # landing after a NotOp (label PC must point just past the Not, not just
 # past the underlying IsEmpty comparison).
@@ -2964,7 +3040,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "519"
+      - "551"
   when:
     dsl: "n == 7 && tag == \"match\""
     json:
@@ -3099,6 +3175,765 @@ probes:
   when:
     dsl: "x == nil"
     json: {eq: [{ref: "x"}, null]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# ==========================================================================
+# contains(map, key) probes. condContainsMap is called with (present/absent/
+# nil-map, tag). Each positive probe fires only on the call where
+# contains(...) is true.
+# ==========================================================================
+
+- id: condContains_present_string
+  tags:
+    # contains() requires swisstable maps; not supported on old-style hmap
+    # (Go 1.23 and earlier).
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condContainsMap
+  when:
+    dsl: "contains(m, \"existing_key\")"
+    json: {contains: [{ref: "m"}, "existing_key"]}
+  template: "m contains \"existing_key\" [tag={tag}]"
+  segments:
+    - str: "m contains \"existing_key\" [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: condContains_absent_string
+  tags:
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condContainsMap
+  when:
+    dsl: "contains(m, \"missing_key\")"
+    json: {contains: [{ref: "m"}, "missing_key"]}
+  template: "m contains \"missing_key\" [tag={tag}]"
+  segments:
+    - str: "m contains \"missing_key\" [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: condContains_present_int
+  tags:
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condContainsMap
+  when:
+    dsl: "contains(mi, 42)"
+    json: {contains: [{ref: "mi"}, 42]}
+  template: "mi contains 42 [tag={tag}]"
+  segments:
+    - str: "mi contains 42 [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: condContains_absent_int
+  tags:
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condContainsMap
+  when:
+    dsl: "contains(mi, 999)"
+    json: {contains: [{ref: "mi"}, 999]}
+  template: "mi contains 999 [tag={tag}]"
+  segments:
+    - str: "mi contains 999 [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Empty string literal: verifies the lit_len==0 path of swiss_map_check_slot
+# is reached and pairs correctly with existence_only (key mismatch → false).
+- id: condContains_empty_string
+  tags:
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condContainsMap
+  when:
+    dsl: "contains(m, \"\")"
+    json: {contains: [{ref: "m"}, ""]}
+  template: "m contains \"\" [tag={tag}]"
+  segments:
+    - str: "m contains \"\" [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# contains under `not`: CondNotOp flips the bool.
+- id: condContains_negated
+  tags:
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condContainsMap
+  when:
+    dsl: "!contains(m, \"missing_key\")"
+    json: {not: {contains: [{ref: "m"}, "missing_key"]}}
+  template: "not contains m \"missing_key\" [tag={tag}]"
+  segments:
+    - str: "not contains m \"missing_key\" [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Compound AND with contains as a leaf: exercises short-circuit with the
+# tag==present check. Fires only on the "present" call.
+- id: condContains_and_tag
+  tags:
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condContainsMap
+  when:
+    dsl: "contains(m, \"existing_key\") && tag == \"present\""
+    json:
+      and:
+        - contains: [{ref: "m"}, "existing_key"]
+        - eq: [{ref: "tag"}, "present"]
+  template: "contains(m,existing_key) && tag==present [tag={tag}]"
+  segments:
+    - str: "contains(m,existing_key) && tag==present [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Negative: contains applied to a non-map operand (string) — must fail at
+# irgen with ConditionExpressionUnresolvable.
+- id: condContains_on_string
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condContainsMap
+  when:
+    dsl: "contains(tag, \"x\")"
+    json: {contains: [{ref: "tag"}, "x"]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Negative: contains applied to a slice operand — must fail at irgen.
+- id: condContains_on_slice
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condSliceArg
+  when:
+    dsl: "contains(x, 1)"
+    json: {contains: [{ref: "x"}, 1]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Negative: contains applied to an array operand — must fail at irgen.
+- id: condContains_on_array
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.intArrayArg
+  when:
+    dsl: "contains(s, 1)"
+    json: {contains: [{ref: "s"}, 1]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Negative: contains with a non-literal key — must fail at irgen with
+# ConditionExpressionUnresolvable.
+- id: condContains_non_literal_key
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condContainsMap
+  when:
+    dsl: "contains(m, tag)"
+    json: {contains: [{ref: "m"}, {ref: "tag"}]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# contains(map, key) as a template segment. The bool result is rendered
+# through the standard bool formatting path. On Go 1.23 (hmap-based maps)
+# the segment is recorded as invalid; on Go 1.24+ (swiss maps) it renders
+# the bool result.
+- id: condContains_template_string
+  type: LOG_PROBE
+  tags: ["version_diff:go1.24.3"]
+  captureSnapshot: false
+  where:
+    methodName: main.condContainsMap
+  template: "has={contains(m, \"existing_key\")} [tag={tag}]"
+  segments:
+    - str: "has="
+    - json: {contains: [{ref: "m"}, "existing_key"]}
+      dsl: "contains(m, \"existing_key\")"
+    - str: " [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: condContains_template_int
+  type: LOG_PROBE
+  captureSnapshot: false
+  tags: ["version_diff:go1.24.3"]
+  where:
+    methodName: main.condContainsMap
+  template: "has={contains(mi, 42)} [tag={tag}]"
+  segments:
+    - str: "has="
+    - json: {contains: [{ref: "mi"}, 42]}
+      dsl: "contains(mi, 42)"
+    - str: " [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# contains(map, key) as a capture expression — produces a named bool
+# capture in the snapshot output rather than a template substitution.
+- id: condContains_capture
+  type: LOG_PROBE
+  captureSnapshot: false
+  tags: ["version_diff:go1.24.3"]
+  where:
+    methodName: main.condContainsMap
+  captureExpressions:
+    - name: "m_has_existing"
+      expr:
+        dsl: "contains(m, \"existing_key\")"
+        json: {contains: [{ref: "m"}, "existing_key"]}
+  sampling:
+    snapshotsPerSecond: 10
+
+# ==========================================================================
+# Inequality conditions: lt / le / gt / ge / ne
+#
+# One representative type per kind class — the BPF op decoder branches on
+# (op, kind), so covering signed int / unsigned int / string / struct-field
+# exercises every code path. Floats and bools accept only eq/ne in this
+# revision; ordering is rejected via the issue probes at the bottom.
+#
+# Calls: condInt32 / condUint32 are called with (42, "match") and
+# (7, "miss"); condString with ("hello", "match") and ("other", "miss");
+# condStructArg with I32=300 then I32=3. Each probe below fires on
+# exactly one of the two calls — the threshold is chosen so half the
+# matches go each way, giving end-to-end coverage of which side is
+# "less".
+# ==========================================================================
+
+# --- int32 ---
+- id: condInt32_lt
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condInt32
+  when:
+    dsl: "x < 20"
+    json: {lt: [{ref: "x"}, 20]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condInt32_le
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condInt32
+  when:
+    dsl: "x <= 7"
+    json: {le: [{ref: "x"}, 7]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condInt32_gt
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condInt32
+  when:
+    dsl: "x > 20"
+    json: {gt: [{ref: "x"}, 20]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condInt32_ge
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condInt32
+  when:
+    dsl: "x >= 42"
+    json: {ge: [{ref: "x"}, 42]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condInt32_ne
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condInt32
+  when:
+    dsl: "x != 42"
+    json: {ne: [{ref: "x"}, 42]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+# Signed-vs-unsigned smoke test: `x < 0` must fire only on the negative
+# call (x=-5). If the BPF op compared bytes unsigned instead of doing the
+# sign-bit flip, -5 would appear as 0xfffffffb > 0 and this probe would
+# fire on nothing, so the integration snapshot would visibly diverge.
+- id: condInt32_lt_zero
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condInt32
+  when:
+    dsl: "x < 0"
+    json: {lt: [{ref: "x"}, 0]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- uint32 ---
+- id: condUint32_lt
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condUint32
+  when:
+    dsl: "x < 20"
+    json: {lt: [{ref: "x"}, 20]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condUint32_le
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condUint32
+  when:
+    dsl: "x <= 7"
+    json: {le: [{ref: "x"}, 7]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condUint32_gt
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condUint32
+  when:
+    dsl: "x > 20"
+    json: {gt: [{ref: "x"}, 20]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condUint32_ge
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condUint32
+  when:
+    dsl: "x >= 42"
+    json: {ge: [{ref: "x"}, 42]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condUint32_ne
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condUint32
+  when:
+    dsl: "x != 42"
+    json: {ne: [{ref: "x"}, 42]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- float64 (only ne — ordering on floats is rejected) ---
+- id: condFloat64_ne
+  type: LOG_PROBE
+  tags: ["issue:ConditionVariableUnavailable"]
+  captureSnapshot: false
+  where:
+    methodName: main.condFloat64
+  when:
+    dsl: "x != 3.14"
+    json: {ne: [{ref: "x"}, 3.14]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- bool (only ne — ordering on bool is rejected) ---
+- id: condBool_ne
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condBool
+  when:
+    dsl: "x != true"
+    json: {ne: [{ref: "x"}, true]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- string (lexicographic order; ne is byte equality with inversion) ---
+- id: condString_lt
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condString
+  when:
+    dsl: "x < \"m\""
+    json: {lt: [{ref: "x"}, "m"]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condString_le
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condString
+  when:
+    dsl: "x <= \"hello\""
+    json: {le: [{ref: "x"}, "hello"]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condString_gt
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condString
+  when:
+    dsl: "x > \"hello\""
+    json: {gt: [{ref: "x"}, "hello"]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condString_ge
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condString
+  when:
+    dsl: "x >= \"other\""
+    json: {ge: [{ref: "x"}, "other"]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condString_ne
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condString
+  when:
+    dsl: "x != \"hello\""
+    json: {ne: [{ref: "x"}, "hello"]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- max-length-literal regression coverage. The literal below is
+# exactly MaxStringLiteralLength (255) bytes of 'a'. main() also calls
+# condString twice with strings tied to this literal:
+#   tag=long_a_then_b: 'a'*255 + 'b'*45 (300 bytes; first 255 match)
+#   tag=exact_a255:    'a'*255          (exact match)
+# These probes exercise the SM_OP_EXPR_READ_STRING / SM_OP_EXPR_CMP_STRING
+# fix that preserves the *true* Go string length in the buffer so a
+# truncated long LHS sharing the literal's prefix does not falsely
+# report equal (or tie in ordering). ---
+- id: condString_eq_max_literal
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condString
+  when:
+    dsl: "x == \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""
+    json: {eq: [{ref: "x"}, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condString_ne_max_literal
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condString
+  when:
+    dsl: "x != \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""
+    json: {ne: [{ref: "x"}, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condString_gt_max_literal
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condString
+  when:
+    dsl: "x > \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""
+    json: {gt: [{ref: "x"}, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condString_le_max_literal
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condString
+  when:
+    dsl: "x <= \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\""
+    json: {le: [{ref: "x"}, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- struct field (getmember on x.I32, called with 300 then 3) ---
+- id: condStruct_field_i32_lt
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condStructArg
+  when:
+    dsl: "x.I32 < 100"
+    json: {lt: [{getmember: [{ref: "x"}, "I32"]}, 100]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+- id: condStruct_field_i32_ne
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condStructArg
+  when:
+    dsl: "x.I32 != 300"
+    json: {ne: [{getmember: [{ref: "x"}, "I32"]}, 300]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- compound conditions mixing new operators ---
+# Range: `10 < x && x < 100` on condInt32 (x=42 fires; x=7 misses).
+- id: condCompound_range
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condInt32
+  when:
+    dsl: "10 < x && x < 100"
+    json: {and: [{gt: [{ref: "x"}, 10]}, {lt: [{ref: "x"}, 100]}]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+# Or-inequality: `x < 0 || x > 30` on condInt32 (x=42 fires; x=7 misses).
+- id: condCompound_or_inequality
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condInt32
+  when:
+    dsl: "x < 0 || x > 30"
+    json: {or: [{lt: [{ref: "x"}, 0]}, {gt: [{ref: "x"}, 30]}]}
+  template: "tag={tag}"
+  segments:
+    - str: "tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# --- issue probes: ordering against unsupported LHS types must be rejected
+# at IR generation time (UnsupportedFeature). Each probe references a
+# disallowed combination so the snapshot test asserts the failure path. ---
+
+# Ordering against null: null is only comparable with eq/ne.
+- id: condInequality_null
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condNullPtr
+  when:
+    dsl: "p < nil"
+    json: {lt: [{ref: "p"}, null]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Ordering on bool: bools accept only eq/ne.
+- id: condInequality_bool
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condBool
+  when:
+    dsl: "x < true"
+    json: {lt: [{ref: "x"}, true]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Ordering on float: deferred (IEEE-754 NaN/signed-zero semantics).
+# Targets `x.F64` on condStructArg rather than the float64 parameter on
+# condFloat64 — eBPF can't read floating-point registers, so a bare
+# float64 parameter is ConditionVariableUnavailable before we reach the
+# ordering check. Pulling F64 out of an addressable struct keeps it
+# reachable via memory and forces the compiler to surface the
+# ordering-rejection error.
+- id: condInequality_float
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condStructArg
+  when:
+    dsl: "x.F64 < 1.0"
+    json: {lt: [{getmember: [{ref: "x"}, "F64"]}, 1.0]}
   sampling:
     snapshotsPerSecond: 10
   tags:

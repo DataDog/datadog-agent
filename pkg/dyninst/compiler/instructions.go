@@ -79,10 +79,15 @@ func makeInstruction(functionID FunctionID, op Op) codeFragment {
 		}
 
 	case ExprDereferencePtrOp:
-		bytes := make([]byte, 0, 12)
+		bytes := make([]byte, 0, 13)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.Bias)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.Len)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.ExprStatusIdx)
+		nullAsZero := uint8(0)
+		if op.NullAsZero {
+			nullAsZero = 1
+		}
+		bytes = append(bytes, nullAsZero)
 		return staticInstruction{
 			opcode: OpcodeExprDereferencePtr,
 			bytes:  bytes,
@@ -211,6 +216,12 @@ func makeInstruction(functionID FunctionID, op Op) codeFragment {
 			bytes:  binary.LittleEndian.AppendUint32(nil, op.ByteSize),
 		}
 
+	case ExprLoadDurationOp:
+		return staticInstruction{
+			opcode: OpcodeExprLoadDuration,
+			bytes:  binary.LittleEndian.AppendUint32(nil, op.ExprStatusIdx),
+		}
+
 	case ExprLoadLiteralOp:
 		bytes := make([]byte, 0, 2+len(op.Data))
 		bytes = binary.LittleEndian.AppendUint16(bytes, uint16(len(op.Data)))
@@ -226,16 +237,16 @@ func makeInstruction(functionID FunctionID, op Op) codeFragment {
 			bytes:  binary.LittleEndian.AppendUint16(nil, op.MaxLen),
 		}
 
-	case ExprCmpEqBaseOp:
+	case ExprCmpBaseOp:
 		return staticInstruction{
-			opcode: OpcodeExprCmpEqBase,
-			bytes:  []byte{op.ByteSize},
+			opcode: OpcodeExprCmpBase,
+			bytes:  []byte{op.ByteSize, uint8(op.Op), uint8(op.Kind)},
 		}
 
-	case ExprCmpEqStringOp:
+	case ExprCmpStringOp:
 		return staticInstruction{
-			opcode: OpcodeExprCmpEqString,
-			bytes:  []byte{},
+			opcode: OpcodeExprCmpString,
+			bytes:  []byte{uint8(op.Op)},
 		}
 
 	case ExprSliceBoundsCheckOp:
@@ -271,6 +282,11 @@ func makeInstruction(functionID FunctionID, op Op) codeFragment {
 		bytes = binary.LittleEndian.AppendUint16(bytes, op.GroupByteSize)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.HeaderByteSize)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.ExprStatusIdx)
+		existenceOnly := uint8(0)
+		if op.ExistenceOnly {
+			existenceOnly = 1
+		}
+		bytes = append(bytes, existenceOnly)
 		bytes = binary.LittleEndian.AppendUint16(bytes, uint16(len(op.KeyData)))
 		bytes = append(bytes, op.KeyData...)
 		return staticInstruction{

@@ -91,19 +91,18 @@ message ConfigSetting {
 
 ## Configuration
 
-The config stream is **only available** when both of the following are true on the core agent:
-- `remote_agent.registry.enabled: true`
-- `remote_agent.configstream.enabled: true`
+The config stream component always runs. Individual connections are RAR-gated: the caller must be a registered remote agent.
 
-**Optional settings:**
+**Settings:**
 ```yaml
 # datadog.yaml
 remote_agent:
   registry:
-    enabled: true          # Required for RAR-gated authorization and for use_configstream
+    enabled: true          # Required for RAR authorization; remote agents must register before subscribing
   configstream:
-    enabled: true # Enables config stream for remote agents (requires remote_agent.registry.enabled)
-    sleep_interval: 10s  # Backoff on non-terminal errors (default: 10s)
+    sleep_interval: 10s    # Backoff on non-terminal send errors (default: 10s)
+    consumer:
+      enabled: false       # Default: false. Set to true on Go-based remote agents to enable the configstreamconsumer component.
 agent_ipc:
   # Maximum size of a single gRPC message accepted/sent by the agent's gRPC
   # server. Configstream snapshots can be large (the entire flattened agent

@@ -23,12 +23,14 @@ import (
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
+
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
+	"github.com/DataDog/datadog-agent/pkg/util/hostport"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -489,7 +491,7 @@ func buildURL(endpoint config.Endpoint) string {
 	}
 	var address string
 	if endpoint.Port != 0 {
-		address = fmt.Sprintf("%v:%v", endpoint.Host, endpoint.Port)
+		address = hostport.Join(endpoint.Host, strconv.Itoa(endpoint.Port))
 	} else {
 		address = endpoint.Host
 	}

@@ -16,8 +16,6 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-type transformerFunction func(string) []map[string]string
-
 const (
 	defaultConnsMessageBatchSize = 600
 
@@ -351,6 +349,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// Discovery config
 	cfg.BindEnvAndSetDefault("discovery.enabled", runtime.GOOS == "linux")
 	cfg.BindEnvAndSetDefault("discovery.use_system_probe_lite", runtime.GOOS == "linux")
+	cfg.BindEnvAndSetDefault("discovery.use_rust_library", false)
 	cfg.BindEnvAndSetDefault("discovery.cpu_usage_update_delay", "60s")
 	cfg.BindEnvAndSetDefault("discovery.service_collection_interval", "60s")
 	cfg.BindEnvAndSetDefault("discovery.service_map.enabled", false)
