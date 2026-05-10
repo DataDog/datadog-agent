@@ -47,6 +47,19 @@ func TestAdjustDiscovery_Coexistence(t *testing.T) {
 	}
 }
 
+func TestAdjustDiscovery_DisablesWhenSKTracerEnabled(t *testing.T) {
+	// SK tracer disables USM in adjustNetwork; discovery requires USM, so
+	// adjustDiscovery must disable itself rather than silently fail later.
+	cfg := mock.NewSystemProbe(t)
+	setBool(cfg, discoveryKey, true)
+	setBool(cfg, netNS("enable_sk_tracer"), true)
+
+	adjustDiscovery(cfg)
+
+	assert.False(t, cfg.GetBool(discoveryKey),
+		"discovery should be disabled when sk tracer is enabled")
+}
+
 func TestAdjustDiscovery_ForceDisablesUnusedProtocols(t *testing.T) {
 	tests := []struct {
 		name                 string

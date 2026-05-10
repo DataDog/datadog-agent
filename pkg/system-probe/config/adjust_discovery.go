@@ -44,6 +44,19 @@ func adjustDiscovery(cfg model.Config) {
 		return
 	}
 
+	// The experimental SK tracer (network_config.enable_sk_tracer) is
+	// incompatible with USM — adjustNetwork unconditionally disables
+	// service_monitoring_config.enabled when sk_tracer is on, which would
+	// silently undo the force-enable below and leave discovery mode
+	// producing no data. Detect the conflict here and disable discovery
+	// with a clear warning, instead of failing silently downstream.
+	if cfg.GetBool(netNS("enable_sk_tracer")) {
+		log.Warn("network_config.enable_sk_tracer is set; discovery service map is disabled because " +
+			"sk tracer is incompatible with USM, which discovery mode requires")
+		cfg.Set(discoveryNS("service_map", "enabled"), false, model.SourceAgentRuntime)
+		return
+	}
+
 	log.Info("discovery.service_map.enabled is set; booting USM monitor in restricted mode (HTTP and TLS only)")
 
 	// Enable USM so that newUSMMonitor starts on Linux (gated on ServiceMonitoringEnabled).
