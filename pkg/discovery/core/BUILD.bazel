@@ -12,9 +12,11 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "//pkg/config/setup",
             "@com_github_golang_mock//gomock",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/config/setup",
             "@com_github_golang_mock//gomock",
         ],
         "//conditions:default": [],
@@ -25,6 +27,7 @@ go_test(
     name = "core_test",
     srcs = ["core_test.go"],
     embed = [":core"],
+    gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:android": [
             "@com_github_stretchr_testify//assert",

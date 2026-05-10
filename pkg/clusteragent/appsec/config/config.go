@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net"
 	"slices"
 	"strconv"
 	"strings"
@@ -113,7 +114,7 @@ func (p Processor) String() string {
 	if address == "" {
 		address = p.ServiceName + "." + p.Namespace + ".svc"
 	}
-	return address + ":" + strconv.Itoa(p.Port)
+	return net.JoinHostPort(address, strconv.Itoa(p.Port))
 }
 
 // Product represents the configuration of the AppSec Injection Proxy agent feature
