@@ -319,11 +319,15 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	// because adjustDiscovery flips discovery.service_map.enabled to false
 	// when both are user-set (USM wins on coexistence).
 	if sysProbeConf.GetBool("discovery.service_map.enabled") {
-		ia.data["feature_usm_enabled"] = false
-		ia.data["feature_networks_http_enabled"] = false
-		ia.data["feature_networks_https_enabled"] = false
-		ia.data["feature_usm_istio_enabled"] = false
-		ia.data["feature_usm_go_tls_enabled"] = false
+		for _, key := range []string{
+			"feature_usm_enabled",
+			"feature_networks_http_enabled",
+			"feature_networks_https_enabled",
+			"feature_usm_istio_enabled",
+			"feature_usm_go_tls_enabled",
+		} {
+			ia.data[key] = false
+		}
 	} else {
 		ia.data["feature_usm_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enabled")
 		ia.data["feature_networks_http_enabled"] = sysProbeConf.GetBool("service_monitoring_config.http.enabled")
