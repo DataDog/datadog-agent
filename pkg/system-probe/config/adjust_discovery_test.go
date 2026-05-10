@@ -159,6 +159,24 @@ func TestAdjustDiscovery_ForceEnablesUSMConnectionRollup(t *testing.T) {
 	}
 }
 
+// TestAdjustDiscovery_FullAdjustKeepsProcessServiceInference is a regression
+// test for the bug where the post-adjust guard in Adjust() captured the
+// pre-adjust value of service_monitoring_config.enabled and would silently
+// re-disable process_service_inference after adjustDiscovery had just
+// force-enabled it in discovery-only mode.
+func TestAdjustDiscovery_FullAdjustKeepsProcessServiceInference(t *testing.T) {
+	psiKey := spNS("process_service_inference", "enabled")
+	cfg := mock.NewSystemProbe(t)
+	setBool(cfg, discoveryKey, true)
+
+	Adjust(cfg)
+
+	assert.True(t, cfg.GetBool(psiKey),
+		"process_service_inference should remain enabled after the full Adjust() in discovery-only mode")
+	assert.True(t, cfg.GetBool(smNS("enabled")),
+		"service_monitoring_config.enabled should be force-enabled in discovery mode")
+}
+
 func TestAdjustDiscovery_EnablesNetworkTracerModule(t *testing.T) {
 	_ = mock.NewSystemProbe(t)
 	t.Setenv("DD_DISCOVERY_SERVICE_MAP_ENABLED", "true")
