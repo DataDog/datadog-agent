@@ -60,6 +60,20 @@ func TestAdjustDiscovery_DisablesWhenSKTracerEnabled(t *testing.T) {
 		"discovery should be disabled when sk tracer is enabled")
 }
 
+func TestAdjustDiscovery_DisablesWhenEbpfless(t *testing.T) {
+	// eBPF-less mode is rejected by CheckUSMSupported; discovery requires
+	// USM, so adjustDiscovery must disable itself rather than silently
+	// fail later with a misleading "USM unsupported" error.
+	cfg := mock.NewSystemProbe(t)
+	setBool(cfg, discoveryKey, true)
+	setBool(cfg, netNS("enable_ebpfless"), true)
+
+	adjustDiscovery(cfg)
+
+	assert.False(t, cfg.GetBool(discoveryKey),
+		"discovery should be disabled when ebpfless is enabled")
+}
+
 func TestAdjustDiscovery_ForceDisablesUnusedProtocols(t *testing.T) {
 	tests := []struct {
 		name                 string

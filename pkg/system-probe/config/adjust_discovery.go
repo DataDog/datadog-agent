@@ -57,6 +57,18 @@ func adjustDiscovery(cfg model.Config) {
 		return
 	}
 
+	// eBPF-less mode (network_config.enable_ebpfless) is also incompatible
+	// with USM — pkg/network/usm/config.CheckUSMSupported returns
+	// ErrNotSupported outright, which would cause the network_tracer
+	// module to fail to load with a misleading "USM unsupported" error
+	// rather than a clear discovery-mode message. Bail here instead.
+	if cfg.GetBool(netNS("enable_ebpfless")) {
+		log.Warn("network_config.enable_ebpfless is set; discovery service map is disabled because " +
+			"eBPF-less mode is incompatible with USM, which discovery mode requires")
+		cfg.Set(discoveryNS("service_map", "enabled"), false, model.SourceAgentRuntime)
+		return
+	}
+
 	log.Info("discovery.service_map.enabled is set; booting USM monitor in restricted mode (HTTP and TLS only)")
 
 	// Enable USM so that newUSMMonitor starts on Linux (gated on ServiceMonitoringEnabled).
