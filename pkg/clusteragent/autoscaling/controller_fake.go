@@ -21,6 +21,7 @@ import (
 	kscheme "k8s.io/client-go/kubernetes/scheme"
 	k8stesting "k8s.io/client-go/testing"
 
+	datadoghqv1alpha1 "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
 )
 
@@ -32,6 +33,7 @@ var (
 
 func init() {
 	_ = datadoghq.AddToScheme(scheme)
+	_ = datadoghqv1alpha1.AddToScheme(scheme)
 }
 
 // CreateControllerFunc is a function that creates a new controller.

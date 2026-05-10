@@ -164,6 +164,10 @@ type PodAutoscalerInternal struct {
 	// error is the an error encountered by the controller not specific to a scaling action
 	error error
 
+	// hpaMigrationActive is true when this DPA has taken over management of an HPA
+	// (i.e. the HPAMigrationFinalizer is present on the DPA object).
+	hpaMigrationActive bool
+
 	// deleted flags the PodAutoscaler as deleted (removal to be handled by the controller)
 	// (only if owner == remote or profile-managed)
 	deleted bool
@@ -238,7 +242,8 @@ func NewPodAutoscalerFromProfile(
 
 // previewOptions holds the parsed feature flags from PreviewAnnotation.
 type previewOptions struct {
-	Burstable bool `json:"burstable,omitempty"`
+	Burstable    bool `json:"burstable,omitempty"`
+	HPAMigration bool `json:"hpa-migration,omitempty"`
 }
 
 // parsePreviewAnnotationString parses a raw PreviewAnnotation JSON string.
@@ -686,6 +691,13 @@ func (p *PodAutoscalerInternal) IsBurstable() bool {
 	return p.previewOptions.Burstable
 }
 
+// IsHPAMigrationEnabled returns true if the hpa-migration preview option is enabled.
+// When true the controller will detect an existing HPA for the same target, neutralise it,
+// and take over horizontal scaling.
+func (p *PodAutoscalerInternal) IsHPAMigrationEnabled() bool {
+	return p.previewOptions.HPAMigration
+}
+
 // PreviewAnnotation returns the JSON-encoded preview annotation forwarded from the cluster
 // profile (e.g. `{"burstable":true}`).  Returns empty string when no preview features are
 // active.  For standalone (non-profile-managed) autoscalers this always returns empty string.
@@ -889,6 +901,16 @@ func (p *PodAutoscalerInternal) Error() error {
 	return p.error
 }
 
+// HPAMigrationActive returns true when this DPA has taken over management of an HPA.
+func (p *PodAutoscalerInternal) HPAMigrationActive() bool {
+	return p.hpaMigrationActive
+}
+
+// SetHPAMigrationActive sets whether the DPA currently owns an HPA via the migration finalizer.
+func (p *PodAutoscalerInternal) SetHPAMigrationActive(active bool) {
+	p.hpaMigrationActive = active
+}
+
 // ProfileName returns the profile name if this is a profile-managed autoscaler.
 func (p *PodAutoscalerInternal) ProfileName() string {
 	return p.profileName
@@ -913,6 +935,23 @@ func (p *PodAutoscalerInternal) AppliedProfileHash() string {
 // Must be called after a successful K8s create or update of a profile-managed DPA.
 func (p *PodAutoscalerInternal) MarkProfileTemplateApplied() {
 	p.appliedProfileHash = p.desiredProfileTemplateHash
+}
+
+// RestoreHPAImportedSpec copies objectives and constraints from a Kubernetes DPA spec
+// into the PAI's internal spec. This preserves HPA-imported fields (objectives, constraints)
+// when a profile template update would otherwise overwrite them with empty values, since
+// the profile template intentionally omits objectives and constraints — those are imported
+// one-shot from the existing HPA.
+func (p *PodAutoscalerInternal) RestoreHPAImportedSpec(k8sSpec *datadoghq.DatadogPodAutoscalerSpec) {
+	if p.upstreamCR == nil || k8sSpec == nil {
+		return
+	}
+	if len(k8sSpec.Objectives) > 0 {
+		p.upstreamCR.Spec.Objectives = append([]datadoghqcommon.DatadogPodAutoscalerObjective{}, k8sSpec.Objectives...)
+	}
+	if k8sSpec.Constraints != nil {
+		p.upstreamCR.Spec.Constraints = k8sSpec.Constraints.DeepCopy()
+	}
 }
 
 // Deleted returns the deletion status of the PodAutoscaler
@@ -1017,6 +1056,7 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 		datadoghqcommon.DatadogPodAutoscalerVerticalAbleToRecommendCondition:   nil,
 		datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply:                nil,
 		datadoghqcommon.DatadogPodAutoscalerVerticalScalingLimitedCondition:    nil,
+		DatadogPodAutoscalerHPAMigrationCondition:                              nil,
 	}
 
 	if currentStatus != nil {
@@ -1093,6 +1133,15 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 		rolloutStatus = corev1.ConditionTrue
 	}
 	status.Conditions = append(status.Conditions, newCondition(rolloutStatus, verticalReason, verticalMessage, currentTime, datadoghqcommon.DatadogPodAutoscalerVerticalAbleToApply, existingConditions))
+
+	// HPAMigration condition: only emitted when the DPA has the hpa-migration preview flag set.
+	if p.IsHPAMigrationEnabled() {
+		if p.hpaMigrationActive {
+			status.Conditions = append(status.Conditions, newCondition(corev1.ConditionTrue, "Migrated", "HPA is managed by this DPA", currentTime, DatadogPodAutoscalerHPAMigrationCondition, existingConditions))
+		} else {
+			status.Conditions = append(status.Conditions, newCondition(corev1.ConditionFalse, "Pending", "", currentTime, DatadogPodAutoscalerHPAMigrationCondition, existingConditions))
+		}
+	}
 
 	return status
 }

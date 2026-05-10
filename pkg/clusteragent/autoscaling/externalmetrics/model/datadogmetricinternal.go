@@ -310,7 +310,7 @@ func (d *DatadogMetricInternal) newCondition(status bool, updateTime metav1.Time
 
 // resolveQuery tries to resolve the query and set the DatadogMetricInternal fields accordingly
 func (d *DatadogMetricInternal) resolveQuery(query string) {
-	resolvedQuery, err := resolveQuery(query)
+	resolvedQuery, err := ResolveMetricQuery(query)
 	if err != nil {
 		log.Errorf("Unable to resolve DatadogMetric query %q: %v", d.query, err)
 		d.Valid = false
@@ -319,12 +319,8 @@ func (d *DatadogMetricInternal) resolveQuery(query string) {
 		d.resolvedQuery = nil
 		return
 	}
-	if resolvedQuery != "" {
-		log.Debugf("DatadogMetric query %q was resolved successfully, new query: %q", query, resolvedQuery)
-		d.resolvedQuery = &resolvedQuery
-		return
-	}
-	d.resolvedQuery = &d.query
+	log.Debugf("DatadogMetric query %q was resolved successfully, new query: %q", query, resolvedQuery)
+	d.resolvedQuery = &resolvedQuery
 }
 
 // SetQueries is only used for testing in other packages

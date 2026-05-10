@@ -352,6 +352,22 @@ func (c *ControllerV1) deleteMutatingWebhook(webhook *admiv1.MutatingWebhookConf
 	return err
 }
 
+// webhookWithResourceAPIVersions is an optional interface that webhooks implement
+// when they target resources at a non-default API version (i.e. not "v1").
+// Webhooks that do not implement this interface default to apiVersions: ["v1"].
+type webhookWithResourceAPIVersions interface {
+	ResourceAPIVersions() []string
+}
+
+// resourceAPIVersions returns the API versions a webhook targets.
+// Falls back to ["v1"] when the webhook does not implement webhookWithResourceAPIVersions.
+func resourceAPIVersions(w Webhook) []string {
+	if wh, ok := w.(webhookWithResourceAPIVersions); ok {
+		return wh.ResourceAPIVersions()
+	}
+	return []string{"v1"}
+}
+
 // generateTemplates generates the webhook templates from the configuration.
 func (c *ControllerV1) generateTemplates() {
 	// Generate validating webhook templates
@@ -368,6 +384,7 @@ func (c *ControllerV1) generateTemplates() {
 				webhook.Endpoint(),
 				webhook.Operations(),
 				webhook.Resources(),
+				resourceAPIVersions(webhook),
 				nsSelector,
 				objSelector,
 				webhook.MatchConditions(),
@@ -391,6 +408,7 @@ func (c *ControllerV1) generateTemplates() {
 				webhook.Endpoint(),
 				webhook.Operations(),
 				webhook.Resources(),
+				resourceAPIVersions(webhook),
 				nsSelector,
 				objSelector,
 				webhook.MatchConditions(),
@@ -406,6 +424,7 @@ func (c *ControllerV1) generateTemplates() {
 			probeEndpoint,
 			[]admiv1.OperationType{admiv1.Create},
 			map[string][]string{"": {"configmaps"}},
+			[]string{"v1"},
 			&metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{
 					{
@@ -428,7 +447,7 @@ func (c *ControllerV1) generateTemplates() {
 	c.mutatingWebhookTemplates = mutatingWebhooks
 }
 
-func (c *ControllerV1) getValidatingWebhookSkeleton(nameSuffix, path string, operations []admiv1.OperationType, resourcesMap map[string][]string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1.MatchCondition, timeout int32) admiv1.ValidatingWebhook {
+func (c *ControllerV1) getValidatingWebhookSkeleton(nameSuffix, path string, operations []admiv1.OperationType, resourcesMap map[string][]string, apiVersions []string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1.MatchCondition, timeout int32) admiv1.ValidatingWebhook {
 	matchPolicy := admiv1.Exact
 	sideEffects := admiv1.SideEffectClassNone
 	port := c.config.getServicePort()
@@ -463,7 +482,7 @@ func (c *ControllerV1) getValidatingWebhookSkeleton(nameSuffix, path string, ope
 				Operations: operations,
 				Rule: admiv1.Rule{
 					APIGroups:   []string{group},
-					APIVersions: []string{"v1"},
+					APIVersions: apiVersions,
 					Resources:   []string{resource},
 				},
 			})
@@ -473,7 +492,7 @@ func (c *ControllerV1) getValidatingWebhookSkeleton(nameSuffix, path string, ope
 	return webhook
 }
 
-func (c *ControllerV1) getMutatingWebhookSkeleton(nameSuffix, path string, operations []admiv1.OperationType, resourcesMap map[string][]string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1.MatchCondition, timeout int32) admiv1.MutatingWebhook {
+func (c *ControllerV1) getMutatingWebhookSkeleton(nameSuffix, path string, operations []admiv1.OperationType, resourcesMap map[string][]string, apiVersions []string, namespaceSelector, objectSelector *metav1.LabelSelector, matchConditions []admiv1.MatchCondition, timeout int32) admiv1.MutatingWebhook {
 	matchPolicy := admiv1.Exact
 	sideEffects := admiv1.SideEffectClassNone
 	port := c.config.getServicePort()
@@ -510,7 +529,7 @@ func (c *ControllerV1) getMutatingWebhookSkeleton(nameSuffix, path string, opera
 				Operations: operations,
 				Rule: admiv1.Rule{
 					APIGroups:   []string{group},
-					APIVersions: []string{"v1"},
+					APIVersions: apiVersions,
 					Resources:   []string{resource},
 				},
 			})

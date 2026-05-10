@@ -44,13 +44,14 @@ var templatedTags = map[string]tagGetter{
 	},
 }
 
-// resolveQuery replaces the template variables in the query
-// The supported template variable types are %%tag_<tag_name>%% and %%env_<ENV_VAR>%%
-// The only supported <tag_name> in %%tag_<tag_name>%% is kube_cluster_name
-func resolveQuery(q string) (string, error) {
+// ResolveMetricQuery replaces %%tag_<tag_name>%% and %%env_<ENV_VAR>%% template
+// variables in a Datadog metrics query string. Returns q unchanged when it contains
+// no template variables.
+// The only supported <tag_name> is kube_cluster_name.
+func ResolveMetricQuery(q string) (string, error) {
 	vars := tmplvar.ParseString(q)
 	if len(vars) == 0 {
-		return "", nil
+		return q, nil
 	}
 
 	result := q

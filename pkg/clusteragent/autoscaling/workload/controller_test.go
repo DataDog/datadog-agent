@@ -76,6 +76,8 @@ func newFixture(t *testing.T, testTime time.Time) *fixture {
 				c.horizontalController.scaler = scaler
 				c.verticalController.inPlaceResizeSupported = func() *bool { b := true; return &b }()
 				c.verticalController.inPlaceResizeSupportedTime = clock.Now()
+				c.hpaInformerSynced = func() bool { return true }
+				c.datadogMetricInformerSynced = func() bool { return true }
 				return c.Controller, err
 			},
 		),

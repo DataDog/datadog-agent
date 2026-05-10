@@ -45,7 +45,7 @@ const (
 )
 
 var (
-	gvrDDM  = datadoghq.GroupVersion.WithResource("datadogmetrics")
+	gvrDDM  = autoscaling.DatadogMetricGVR
 	metaDDM = metav1.TypeMeta{
 		Kind:       "DatadogMetric",
 		APIVersion: "datadoghq.com/v1alpha1",

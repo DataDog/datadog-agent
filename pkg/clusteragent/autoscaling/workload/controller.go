@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
@@ -24,6 +25,7 @@ import (
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	k8sclient "k8s.io/client-go/kubernetes"
 	scaleclient "k8s.io/client-go/scale"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/utils/clock"
@@ -84,6 +86,19 @@ type Controller struct {
 
 	isFallbackEnabled bool
 
+	kubeClient k8sclient.Interface
+
+	// hpaIndexer is backed by the HPA informer and indexed by "<namespace>/<scaleTargetRef.name>".
+	// Used by initiateHPAMigration to find existing HPAs without live API calls.
+	hpaIndexer        cache.Indexer
+	hpaInformerSynced cache.InformerSynced
+
+	// datadogMetricIndexer is backed by the shared DatadogMetric informer (same factory used by
+	// the externalmetrics controller). Used by extractHPAConfig to resolve DatadogMetric CRDs
+	// referenced by HPA external metrics without live API calls.
+	datadogMetricIndexer        cache.Indexer
+	datadogMetricInformerSynced cache.InformerSynced
+
 	metricsStore *metricsstore.MetricsStore[*model.PodAutoscalerInternal]
 }
 
@@ -110,6 +125,7 @@ func NewController(
 		eventRecorder:     eventRecorder,
 		localSender:       localSender,
 		isFallbackEnabled: false, // keep fallback disabled by default
+		kubeClient:        client,
 	}
 
 	autoscalingWorkqueue := workqueue.NewTypedRateLimitingQueueWithConfig(
@@ -130,6 +146,45 @@ func NewController(
 	c.store = store
 	c.podWatcher = podWatcher
 	c.scaler = newScaler(restMapper, scaleClient)
+
+	// Set up the HPA informer with a reverse index by scaleTargetRef name so that
+	// findHPAForTarget can do O(1) cache lookups instead of live API calls.
+	hpaInformer := dynamicInformer.ForResource(hpaGVR)
+	if err := hpaInformer.Informer().AddIndexers(cache.Indexers{
+		hpaTargetIndexName: hpaByTargetRefIndex,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to add HPA target indexer: %w", err)
+	}
+	c.hpaIndexer = hpaInformer.Informer().GetIndexer()
+	hpaHandler, err := hpaInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to add HPA informer event handler: %w", err)
+	}
+	c.hpaInformerSynced = hpaHandler.HasSynced
+
+	// Set up the DatadogMetric informer only when the CRD is installed in the cluster.
+	// Registering an informer for a non-existent resource causes the reflector to spam
+	// error logs on every retry. The REST mapper is used as a cheap CRD presence check.
+	// When the externalmetrics controller is running it has already registered this informer
+	// with the same factory, so ForResource is idempotent in that case.
+	if restMapper != nil {
+		_, mappingErr := restMapper.RESTMapping(schema.GroupKind{Group: autoscaling.DatadogMetricGVR.Group, Kind: "DatadogMetric"}, autoscaling.DatadogMetricGVR.Version)
+		if mappingErr == nil {
+			ddmInformer := dynamicInformer.ForResource(autoscaling.DatadogMetricGVR)
+			c.datadogMetricIndexer = ddmInformer.Informer().GetIndexer()
+			ddmHandler, err := ddmInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{})
+			if err != nil {
+				return nil, fmt.Errorf("failed to add DatadogMetric informer event handler: %w", err)
+			}
+			c.datadogMetricInformerSynced = ddmHandler.HasSynced
+		} else {
+			log.Infof("DatadogMetric CRD not found in cluster (%v); DatadogMetric-backed HPA migration will be unavailable", mappingErr)
+		}
+	}
+	if c.datadogMetricIndexer == nil {
+		c.datadogMetricIndexer = cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+		c.datadogMetricInformerSynced = func() bool { return true }
+	}
 
 	// Initialize metrics store
 	c.metricsStore = metricsstore.NewMetricsStore(metrics.GeneratePodAutoscalerMetrics, localSender, c.IsLeader, globalTagsFunc)
@@ -219,6 +274,14 @@ func (c *Controller) processPodAutoscaler(ctx context.Context, key, ns, name str
 // podAutoscaler is read-only, any changes require a DeepCopy
 func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string, podAutoscaler *datadoghq.DatadogPodAutoscaler) (autoscaling.ProcessResult, error) {
 	podAutoscalerInternal, podAutoscalerInternalFound, storeUnlock := c.store.LockRead(key, true)
+
+	// Handle HPA migration finalizer cleanup before any ownership logic.
+	// When a DPA with the HPAMigrationFinalizer is being deleted, we restore the HPA first.
+	if podAutoscaler != nil && !podAutoscaler.DeletionTimestamp.IsZero() {
+		if slices.Contains(podAutoscaler.Finalizers, model.HPAMigrationFinalizer) {
+			return c.handleHPAMigrationCleanup(ctx, key, ns, name, podAutoscaler, storeUnlock)
+		}
+	}
 
 	// Object is missing from our store
 	if !podAutoscalerInternalFound {
@@ -371,6 +434,13 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		// (set by the syncer) with the hash we last applied to Kubernetes.
 		desiredHash := podAutoscalerInternal.DesiredProfileTemplateHash()
 		if desiredHash != "" && desiredHash != podAutoscalerInternal.AppliedProfileHash() {
+			// If HPA config was already imported into this DPA, restore objectives and
+			// constraints from Kubernetes before syncing the profile spec. The profile
+			// template intentionally omits both fields; they are imported one-shot from
+			// the HPA and must survive profile template updates.
+			if podAutoscaler.Annotations[model.HPAConfigImportedAnnotation] != "" {
+				podAutoscalerInternal.RestoreHPAImportedSpec(&podAutoscaler.Spec)
+			}
 			updatedGeneration, err := c.updatePodAutoscalerSpec(ctx, podAutoscalerInternal, podAutoscaler)
 			if err != nil {
 				storeUnlock()
@@ -434,6 +504,26 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		notFoundErr := autoscaling.NewConditionError(autoscaling.ConditionReasonTargetNotFound,
 			fmt.Errorf("target %s %s/%s not found", targetGVK.Kind, target.Namespace, target.Name))
 		return handleNonRetryableError(notFoundErr)
+	}
+
+	// Initiate HPA migration when the preview flag is set and the migration has not yet run
+	// (indicated by the absence of HPAMigrationFinalizer on the DPA).
+	if podAutoscaler != nil && podAutoscalerInternal.IsHPAMigrationEnabled() &&
+		!slices.Contains(podAutoscaler.Finalizers, model.HPAMigrationFinalizer) {
+		requeue, migrationErr := c.initiateHPAMigration(ctx, ns, name, podAutoscaler)
+		if migrationErr != nil {
+			return handleNonRetryableError(migrationErr)
+		}
+		if requeue {
+			// A Kubernetes object was patched; stop here and wait for the informer to re-queue.
+			c.store.UnlockSet(key, podAutoscalerInternal, c.ID)
+			return autoscaling.NoRequeue, nil
+		}
+	}
+
+	// Reflect whether the HPA migration is currently active (finalizer present) in the status.
+	if podAutoscaler != nil {
+		podAutoscalerInternal.SetHPAMigrationActive(slices.Contains(podAutoscaler.Finalizers, model.HPAMigrationFinalizer))
 	}
 
 	// Now that everything is synced, we can perform the actual processing
