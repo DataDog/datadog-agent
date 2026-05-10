@@ -44,3 +44,12 @@ func Set(state MonitorState) {
 func Get() MonitorState {
 	return globalState.Load().(MonitorState)
 }
+
+// IsActive reports whether the USM monitor is currently up and processing
+// traffic, in either full or discovery-restricted mode. Use this instead of
+// `Get() == Running` when deciding whether dependent subsystems (e.g. the
+// Linux process exec/exit consumer for TLS uprobe attachment) should run.
+func IsActive() bool {
+	s := Get()
+	return s == Running || s == Restricted
+}
