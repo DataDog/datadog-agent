@@ -225,6 +225,22 @@ func (s *extensionsSuite) TestDDOTProcmgrYAMLAfterAgentPromoteExperiment() {
 		DesiredState:   procmgrtest.ProcessStateRunning,
 	})
 
+	stableProcessesD := filepath.Join(paths.PackagesPath, "datadog-agent", "stable", "processes.d")
+	expProcessesD := filepath.Join(paths.PackagesPath, "datadog-agent", "experiment", "processes.d")
+	stableResolved, errStable := s.Env().RemoteHost.Execute(`sudo readlink -f "` + stableProcessesD + `"`)
+	expResolved, errExp := s.Env().RemoteHost.Execute(`sudo readlink -f "` + expProcessesD + `"`)
+	if errStable == nil && errExp == nil {
+		sr := strings.TrimSpace(stableResolved)
+		er := strings.TrimSpace(expResolved)
+		if sr != "" && sr == er {
+			// Matches ociAgentStableAndExperimentProcessesDirsEquivalent: after promote both
+			// symlinks often point at the same version dir, so the DDOT YAML exists at
+			// both paths and the installer must not delete it from "experiment".
+			s.T().Logf("stable and experiment processes.d are the same directory (%s); skipping experiment YAML absence check", sr)
+			return
+		}
+	}
+
 	expYAML := filepath.Join(paths.PackagesPath, "datadog-agent", "experiment", "processes.d", "datadog-agent-ddot.yaml")
 	exists, ferr := s.Env().RemoteHost.FileExists(expYAML)
 	s.Require().NoError(ferr)
