@@ -309,40 +309,41 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	// Service monitoring / system-probe
 
 	ia.data["feature_networks_enabled"] = sysProbeConf.GetBool("network_config.enabled")
-	ia.data["feature_networks_http_enabled"] = sysProbeConf.GetBool("service_monitoring_config.http.enabled")
-	ia.data["feature_networks_https_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.native.enabled")
 	ia.data["feature_traceroute_enabled"] = sysProbeConf.GetBool("traceroute.enabled")
 
-	ia.data["feature_usm_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enabled")
+	// These USM-derived flags reflect billing intent. Discovery service
+	// map mode internally force-enables service_monitoring_config.enabled
+	// and the TLS protocol keys so the USM monitor can start in restricted
+	// mode, but the user has not opted into paid USM — so we report all
+	// of these as false. Mutually exclusive with paid USM at this point
+	// because adjustDiscovery flips discovery.service_map.enabled to false
+	// when both are user-set (USM wins on coexistence).
+	if sysProbeConf.GetBool("discovery.service_map.enabled") {
+		ia.data["feature_usm_enabled"] = false
+		ia.data["feature_networks_http_enabled"] = false
+		ia.data["feature_networks_https_enabled"] = false
+		ia.data["feature_usm_istio_enabled"] = false
+		ia.data["feature_usm_go_tls_enabled"] = false
+	} else {
+		ia.data["feature_usm_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enabled")
+		ia.data["feature_networks_http_enabled"] = sysProbeConf.GetBool("service_monitoring_config.http.enabled")
+		ia.data["feature_networks_https_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.native.enabled")
+		ia.data["feature_usm_istio_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.istio.enabled")
+		ia.data["feature_usm_go_tls_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.go.enabled")
+	}
+
+	// USM application protocols not affected by discovery mode
+	// (adjustDiscovery force-disables them, so the reads already return
+	// false when discovery is on).
 	ia.data["feature_usm_kafka_enabled"] = sysProbeConf.GetBool("service_monitoring_config.kafka.enabled")
 	ia.data["feature_usm_postgres_enabled"] = sysProbeConf.GetBool("service_monitoring_config.postgres.enabled")
 	ia.data["feature_usm_redis_enabled"] = sysProbeConf.GetBool("service_monitoring_config.redis.enabled")
 	ia.data["feature_usm_http2_enabled"] = sysProbeConf.GetBool("service_monitoring_config.http2.enabled")
-	ia.data["feature_usm_istio_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.istio.enabled")
-	ia.data["feature_usm_go_tls_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.go.enabled")
 
 	// Discovery module / system-probe
 
 	ia.data["feature_discovery_enabled"] = sysProbeConf.GetBool("discovery.enabled")
 	ia.data["feature_discovery_service_map_enabled"] = sysProbeConf.GetBool("discovery.service_map.enabled")
-
-	// Discovery service map force-enables USM internally (so the monitor
-	// starts in restricted mode), but inventory reflects billing intent:
-	// discovery is free, so the USM-derived flags above are overridden
-	// to false here. No-op when paid USM is also user-enabled, since
-	// adjustDiscovery flips discovery.service_map.enabled to false in
-	// that case (USM wins on coexistence).
-	if ia.data["feature_discovery_service_map_enabled"].(bool) {
-		for _, key := range []string{
-			"feature_usm_enabled",
-			"feature_networks_http_enabled",
-			"feature_networks_https_enabled",
-			"feature_usm_istio_enabled",
-			"feature_usm_go_tls_enabled",
-		} {
-			ia.data[key] = false
-		}
-	}
 
 	// GPU monitoring / system-probe
 
