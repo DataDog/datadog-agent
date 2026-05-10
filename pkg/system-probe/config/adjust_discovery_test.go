@@ -132,6 +132,33 @@ func TestAdjustDiscovery_ForceEnablesProcessServiceInference(t *testing.T) {
 	}
 }
 
+func TestAdjustDiscovery_ForceEnablesUSMConnectionRollup(t *testing.T) {
+	rollupKey := smNS("enable_connection_rollup")
+	tests := []struct {
+		name      string
+		discovery bool
+		userSetTo bool
+		want      bool
+	}{
+		{"discovery on overrides explicit disable", true, false, true},
+		{"discovery on keeps explicit enable", true, true, true},
+		{"discovery off leaves explicit disable alone", false, false, false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := mock.NewSystemProbe(t)
+			setBool(cfg, discoveryKey, tc.discovery)
+			setBool(cfg, rollupKey, tc.userSetTo)
+
+			adjustDiscovery(cfg)
+
+			assert.Equal(t, tc.want, cfg.GetBool(rollupKey),
+				"unexpected value for %s", rollupKey)
+		})
+	}
+}
+
 func TestAdjustDiscovery_EnablesNetworkTracerModule(t *testing.T) {
 	_ = mock.NewSystemProbe(t)
 	t.Setenv("DD_DISCOVERY_SERVICE_MAP_ENABLED", "true")

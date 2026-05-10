@@ -56,6 +56,12 @@ func adjustDiscovery(cfg model.Config) {
 	// Windows this defaults to true already, so the Set is a no-op there.
 	cfg.Set(spNS("process_service_inference", "enabled"), true, model.SourceAgentRuntime)
 
+	// Force-enable USM connection rollup so ephemeral source ports collapse
+	// into a single (client, server) entry. With path/method already dropped
+	// from the key, this is the next-largest cardinality reducer and keeps
+	// the in-memory stats map well below max_stats_buffered on busy hosts.
+	cfg.Set(smNS("enable_connection_rollup"), true, model.SourceAgentRuntime)
+
 	for _, key := range discoveryForceEnabledProtocols {
 		cfg.Set(key, true, model.SourceAgentRuntime)
 	}
