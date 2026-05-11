@@ -168,7 +168,7 @@ def _minimize_bazel_patterns(patterns: list[str]) -> list[str]:
     return result
 
 
-def get_bazel_test_targets(ctx, modules: list[GoModule]) -> dict[str, str]:
+def get_bazel_test_targets(ctx, flavor: str, modules: list[GoModule], bazel_flags: list[str] = None) -> dict[str, str]:
     """Query Bazel for go_test targets within the scope of the given modules.
 
     Returns a dict mapping Bazel label (without config hash) to Go import path.
@@ -208,7 +208,9 @@ def get_bazel_test_targets(ctx, modules: list[GoModule]) -> dict[str, str]:
         return {}
 
     scope = ' + '.join(bazel_patterns)
-    output = bazel(ctx, "cquery", f"kind(go_test, {scope})", capture_output=True, capture_stderr=True)
+    if not bazel_flags:
+        bazel_flags = []
+    output = bazel(ctx, "cquery", *bazel_flags, f"kind(go_test, {scope})", capture_output=True, capture_stderr=True)
     if not output:
         return {}
 
@@ -250,7 +252,9 @@ def _parse_bazel_test_line(line: str) -> tuple[str, str, str | None, bool] | Non
     return None
 
 
-def _run_bazel_tests(ctx, bazel_targets: list[str], verbose: bool = False) -> TestStats:
+def _run_bazel_tests(
+    ctx, flavor: AgentFlavor, targets: list[str], bazel_flags: list[str] = None, verbose: bool = False
+) -> TestStats:
     """Run Bazel test targets and print results formatted like go test output.
 
     Targets are batched so the total command length stays under 32000 chars,
@@ -262,20 +266,22 @@ def _run_bazel_tests(ctx, bazel_targets: list[str], verbose: bool = False) -> Te
     """
     from invoke.exceptions import UnexpectedExit
 
-    if not bazel_targets:
+    if not targets:
         return TestStats()
 
     # Windows-safe command-length limit.
     # TODO: on Linux runners, the limit is much higher; consider platform-specific batching.
     MAX_CMD_LENGTH = 32000
-    FIXED_ARGS = ["test", "--keep_going"]
-    fixed_len = sum([len(a) for a in FIXED_ARGS]) + len(FIXED_ARGS) + 1  # args + spaces
+    base_args = ["test", "--keep_going"]
+    if bazel_flags:
+        base_args.extend(bazel_flags)
+    fixed_len = sum([len(a) for a in base_args]) + len(base_args) + 1  # args + spaces
 
     # Batch targets so no single invocation exceeds the limit.
     batches: list[list[str]] = []
     current_batch: list[str] = []
     current_len = fixed_len
-    for target in bazel_targets:
+    for target in targets:
         target_len = len(target) + 1  # +1 for the separating space
         if current_batch and current_len + target_len > MAX_CMD_LENGTH:
             batches.append(current_batch)
@@ -297,7 +303,7 @@ def _run_bazel_tests(ctx, bazel_targets: list[str], verbose: bool = False) -> Te
     for batch in batches:
         try:
             # capture_stderr=True because Bazel writes test result lines to stderr.
-            output = bazel(ctx, *FIXED_ARGS, *batch, capture_output=True, capture_stderr=True)
+            output = bazel(ctx, *base_args, *batch, capture_output=True, capture_stderr=False)
         except UnexpectedExit as e:
             output = (e.result.stdout or "") + (e.result.stderr or "")
             run_failed = True
@@ -335,7 +341,7 @@ def _run_bazel_tests(ctx, bazel_targets: list[str], verbose: bool = False) -> Te
     # This avoids reporting success when a later batch fails due to build/infra issues.
     if run_failed:
         if total == 0:
-            n_failed = len(bazel_targets)
+            n_failed = len(targets)
             total = n_failed
         elif n_failed == 0:
             n_failed += 1
@@ -684,8 +690,11 @@ def test(
 
     exclude_packages: set[str] = set()
     bazel_targets: dict[str, str] = {}
+    bazel_flags = []
+    if unit_tests_tags:
+        bazel_flags.append(f"--@rules_go//go/config:tags={','.join(unit_tests_tags)}")
     if skip_tests_covered_by_bazel or write_bazel_test_list or run_bazel_tests:
-        bazel_targets = get_bazel_test_targets(ctx, list(modules))
+        bazel_targets = get_bazel_test_targets(ctx, flavor=flavor, modules=list(modules), bazel_flags=bazel_flags)
         print(f"Found {len(bazel_targets)} Bazel-covered go_test targets")
 
         if write_bazel_test_list:
@@ -743,7 +752,9 @@ def test(
     if run_bazel_tests and bazel_targets:
         print(f"\n{'=' * 12} Bazel tests {'=' * 12}")
         with gitlab_section("Bazel test results", collapsed=True):
-            bazel_stats = _run_bazel_tests(ctx, list(bazel_targets), verbose=verbose)
+            bazel_stats = _run_bazel_tests(
+                ctx, flavor=flavor, targets=list(bazel_targets), bazel_flags=bazel_flags, verbose=verbose
+            )
         bazel_success = bazel_stats.failed == 0
         bazel_status = (
             color_message('All tests passed', 'green') if bazel_success else color_message('Tests FAILED', 'red')
