@@ -6,6 +6,5 @@ features:
     ``datadog.yaml`` the Agent forwards records logged at ``ERROR`` level or
     higher to the COAT intake so Datadog Engineers can aggregate Agent
     errors across customer organizations. The forwarder is off by default
-    and is gated by ``errortracking.enabled``; tuning is available via
-    ``errortracking.buffer_size``, ``errortracking.batch_size``, and
-    ``errortracking.flush_interval_seconds``.
+    and shares the agent telemetry transport, inheriting endpoint and
+    compression settings from the ``agent_telemetry.*`` configuration.

@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	_ "expvar" // Blank import used because this isn't directly used in this file
-	"log/slog"
 	"net/http"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
@@ -203,7 +202,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	errortrackingpkg "github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
-	errortrackingprocessors "github.com/DataDog/datadog-agent/pkg/util/log/errortracking/processors"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -577,13 +575,12 @@ func getSharedFxOption() fx.Option {
 		}),
 		settingsfx.Module(),
 		agenttelemetryfx.Module(),
-		// AGTHEAL-15: install the errortracking branch into the slog handler
-		// chain. The agenttelemetry component above provides the COAT
-		// SendErrorLogs path; we wrap it in the in-package Pipeline
-		// (Source channel -> Processors -> batched Sender) and register the
-		// resulting Handler with the pkg/util/log/setup slot. The slot is a
-		// no-op until this Invoke runs, so SetupLogger does not need to know
-		// about errortracking during its own construction.
+		// AGTHEAL-15: connect pkg/util/log/setup's errortracking submitter
+		// slot to the agenttelemetry component's SubmitErrorRecord. The
+		// agenttelemetry component owns the bounded buffer, flush
+		// scheduling, and recursion guard; this Invoke is just the wire.
+		// The slot is a no-op until this Invoke runs, so SetupLogger does
+		// not need to know about errortracking during its own construction.
 		fx.Invoke(installErrortrackingHandler),
 		remotetraceroute.Module(),
 		networkpath.Bundle(),
@@ -605,66 +602,36 @@ func getSharedFxOption() fx.Option {
 	)
 }
 
-// sendErrorLogsAdapter adapts the agenttelemetry Component's batch-level
-// SendErrorLogs entry point to pkg/util/log/errortracking.Sender, which is
-// the contract the in-package Pipeline calls. It is the only glue between
-// the foundational pkg/util/log subtree and the comp/core/agenttelemetry
-// HTTP path; keeping the adapter inline (rather than exporting it) keeps
-// the dependency arrow one-way.
-type sendErrorLogsAdapter struct {
-	at agenttelemetry.Component
-}
-
-// Send forwards the batch to agenttelemetry. The error semantics required
-// by errortracking.Sender (5xx/network → non-nil for one retry; 4xx → nil
-// because retrying is pointless) are owned by the agenttelemetry
-// implementation; we just pass the result through.
-func (a sendErrorLogsAdapter) Send(ctx context.Context, batch []slog.Record) error {
-	return a.at.SendErrorLogs(ctx, batch)
-}
-
 // installErrortrackingHandler is the AGTHEAL-15 Fx invoke that wires the
-// agenttelemetry SendErrorLogs path into the in-package Pipeline at
-// pkg/util/log/errortracking and registers the resulting Handler with
-// pkg/util/log/setup. The function is a no-op when errortracking.enabled
-// is false; agenttelemetry is constructed regardless (it has other
-// responsibilities), but its SendErrorLogs entry point is never called
-// because no Pipeline points at it.
+// pkg/util/log/setup errortracking submitter slot to the agenttelemetry
+// component's SubmitErrorRecord. agenttelemetry owns the bounded buffer,
+// flush scheduling, and recursion guard; this function is a single-line
+// wire from the foundational logger subtree to the comp/core consumer.
 //
-// Lifecycle: OnStart spins up the Pipeline goroutine and installs the
-// Handler so error records are forwarded from then on. OnStop unregisters
-// the Handler so any logs emitted during shutdown fall through to the
-// existing chain only, then drains the Pipeline with a 5s deadline so
-// in-flight batches reach the Sender before the agent exits.
+// The Invoke is a no-op when errortracking.enabled is false. agenttelemetry
+// is constructed regardless (it has other responsibilities), but its
+// SubmitErrorRecord is never reached because the submitter slot stays nil
+// and the slog handler under pkg/util/log/setup short-circuits.
+//
+// Lifecycle: OnStart installs the submitter; OnStop clears it so records
+// emitted during shutdown do not race agenttelemetry's own teardown.
 func installErrortrackingHandler(lc fx.Lifecycle, cfg config.Component, at agenttelemetry.Component) {
 	if !cfg.GetBool("errortracking.enabled") {
 		return
 	}
 
-	pipeline := errortrackingpkg.NewPipeline(sendErrorLogsAdapter{at: at}, errortrackingpkg.Options{
-		BufferSize:    cfg.GetInt("errortracking.buffer_size"),
-		BatchSize:     cfg.GetInt("errortracking.batch_size"),
-		FlushInterval: time.Duration(cfg.GetInt("errortracking.flush_interval_seconds")) * time.Second,
-		Processors:    []errortrackingpkg.Processor{errortrackingprocessors.Noop()},
-	})
-	handler := errortrackingpkg.New(pipeline)
-
-	runCtx, runCancel := context.WithCancel(context.Background())
+	submitter := func(elog errortrackingpkg.ErrorLog) {
+		at.SubmitErrorRecord(elog)
+	}
 
 	lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
-			go pipeline.Run(runCtx)
-			pkglogsetup.RegisterErrortrackingHandler(handler)
+			pkglogsetup.RegisterErrortrackingSubmitter(submitter)
 			return nil
 		},
-		OnStop: func(stopCtx context.Context) error {
-			pkglogsetup.RegisterErrortrackingHandler(nil)
-
-			drainCtx, drainCancel := context.WithTimeout(stopCtx, 5*time.Second)
-			defer drainCancel()
-			err := pipeline.Drain(drainCtx)
-			runCancel()
-			return err
+		OnStop: func(_ context.Context) error {
+			pkglogsetup.RegisterErrortrackingSubmitter(nil)
+			return nil
 		},
 	})
 }
