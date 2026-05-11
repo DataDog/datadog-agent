@@ -63,13 +63,21 @@ def _load_e2e_local_config():
         return None
 
 
-def _check_e2e_local_config_or_exit(profile: str | None = None):
+def _check_e2e_local_config_or_exit(
+    profile: str | None = None,
+    with_azure: bool = False,
+    with_gcp: bool = False,
+):
     """
     Pre-flight check for `dda inv new-e2e-tests.run` on a developer machine.
 
     Fails fast with a single actionable line if ~/.test_infra_config.yaml is missing
     or doesn't contain the fields the runner relies on. Skipped in CI (where config
     comes from AWS SSM via the CI profile).
+
+    Prints a warning when Azure or GCP are not configured, because the test target
+    is not known until the test actually runs. Pass --with-azure / --with-gcp to
+    turn those warnings into hard errors.
     """
     if running_in_ci() or os.environ.get("E2E_PROFILE") == "ci" or profile == "ci":
         return
@@ -81,33 +89,26 @@ def _check_e2e_local_config_or_exit(profile: str | None = None):
             "Run `dda inv e2e.setup` once to configure (~30s, opens an SSO browser flow).",
             1,
         )
-
-
-def _should_wrap_with_aws_vault() -> bool:
-    """
-    True when we're outside an aws-vault session and have no other AWS auth in the
-    environment, so wrapping the test command in `aws-vault exec` is helpful.
-    """
-    if running_in_ci() or os.environ.get("E2E_PROFILE") == "ci":
-        return False
-    if os.environ.get("AWS_VAULT"):
-        return False
-    if os.environ.get("AWS_PROFILE"):
-        return False
-    if shutil.which("aws-vault") is None:
-        return False
-    return True
-
-
-def _aws_vault_prefix(cfg) -> str:
-    """
-    Compute the `aws-vault exec <profile> -- ` prefix using the profile derived
-    from the local config (defaults to sso-agent-sandbox-account-admin).
-    """
-    from tasks.e2e_framework.setup.aws import get_default_aws_vault_profile
-
-    profile = get_default_aws_vault_profile(cfg)
-    return f"aws-vault exec {profile} -- "
+    azure_missing = cfg is None or cfg.configParams.azure is None
+    gcp_missing = cfg is None or cfg.configParams.gcp is None
+    if azure_missing:
+        msg = (
+            "Azure is not configured in ~/.test_infra_config.yaml. "
+            "Tests targeting Azure will fail. "
+            "Run `dda inv e2e.setup --with-azure` to configure it."
+        )
+        if with_azure:
+            raise Exit(msg, 1)
+        print(color_message(f"Warning: {msg}", "yellow"))
+    if gcp_missing:
+        msg = (
+            "GCP is not configured in ~/.test_infra_config.yaml. "
+            "Tests targeting GCP will fail. "
+            "Run `dda inv e2e.setup --with-gcp` to configure it."
+        )
+        if with_gcp:
+            raise Exit(msg, 1)
+        print(color_message(f"Warning: {msg}", "yellow"))
 
 
 class TestState:
@@ -435,7 +436,6 @@ def _download_prebuilt_binaries(ctx, s3_base_uri, targets):
         "max_retries": "Maximum number of retries for failed tests, default 3",
         "impacted": "Only run tests that are impacted by the changes (only available in CI for now)",
         "keep_stack": "Keep the stack after running the test, you are responsible for destroying the stack later.",
-        "no_aws_vault": "Do not auto-wrap the test command with `aws-vault exec`. Use when you're managing AWS credentials yourself.",
     },
 )
 def run(
@@ -471,7 +471,6 @@ def run(
     osdescriptors="",
     module_name="test/new-e2e",
     recursive=True,
-    no_aws_vault=False,
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -661,10 +660,6 @@ def run(
 
     cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osdescriptors}} {{flavor}} {{cws_supported_osdescriptors}} {{src_agent_version}} {{dest_agent_version}} {{extra_flags}}'
 
-    # Auto-wrap with `aws-vault exec` when running locally without a managed AWS
-    # session, so developers don't need to remember the wrapping per shell.
-    if not no_aws_vault and _should_wrap_with_aws_vault():
-        cmd = _aws_vault_prefix(local_e2e_cfg) + cmd
     # Strinbuilt_binaries:gs can come with extra double-quotes which can break the command, remove them
     clean_run = []
     clean_skip = []

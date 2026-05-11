@@ -13,8 +13,6 @@ def setup_agent_config(config: Config):
     Populate the agent block with placeholder API/APP keys if they are missing.
     Existing user-provided values are preserved.
     """
-    if config.configParams is None:
-        config.configParams = Config.Params(aws=None, agent=None, pulumi=None, azure=None, gcp=None)
     if config.configParams.agent is None:
         config.configParams.agent = Config.Params.Agent(apiKey=None, appKey=None)
 

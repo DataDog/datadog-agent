@@ -20,9 +20,6 @@ def setup_pulumi_config(config: Config):
 
     Re-running is safe: existing values are preserved.
     """
-    if config.configParams is None:
-        # Caller (setup_aws_config) typically initialises this, but be defensive.
-        config.configParams = Config.Params(aws=None, agent=None, pulumi=None, azure=None, gcp=None)
     if config.configParams.pulumi is None:
         config.configParams.pulumi = Config.Params.Pulumi()
 

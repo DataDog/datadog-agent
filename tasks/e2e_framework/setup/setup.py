@@ -259,9 +259,6 @@ def debug_keys(ctx: Context, config_path: str | None = None):
         error(f"{e}")
         error("Failed to load config")
         raise Exit(code=1) from e
-    if config.configParams is None:
-        error("configParams missing from config")
-        raise Exit(code=1)
     if config.configParams.aws is None:
         error("configParams.aws missing from config")
         raise Exit(code=1)

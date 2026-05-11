@@ -16,18 +16,6 @@ DEFAULT_AWS_ACCOUNT = "agent-sandbox"
 DEFAULT_KEY_TYPE = "rsa"
 
 
-def get_default_aws_vault_profile(config: Config | None = None) -> str:
-    """
-    Return the aws-vault profile name to wrap commands with for the configured account.
-    Defaults to the agent-sandbox profile.
-    """
-    if config is not None:
-        aws = config.get_aws()
-        if aws.account:
-            return f"sso-{aws.account}-account-admin"
-    return f"sso-{DEFAULT_AWS_ACCOUNT}-account-admin"
-
-
 def _default_keypair_name(account: str, user: str) -> str:
     return f"e2e-{account}-{user}".replace("_", "-")
 
@@ -48,8 +36,6 @@ def setup_aws_config(ctx: Context, config: Config, account: str | None = None):
     lines and exits without prompts. The only interactive step is the team tag, asked
     once on first setup.
     """
-    if config.configParams is None:
-        config.configParams = Config.Params(aws=None, agent=None, pulumi=None, azure=None, gcp=None)
     if config.configParams.aws is None:
         config.configParams.aws = Config.Params.Aws(keyPairName=None, publicKeyPath=None, account=None, teamTag=None)
 
@@ -102,7 +88,7 @@ def _ensure_aws_keypair(ctx: Context, config: Config) -> None:
     - AWS keypair only → fail with actionable message (don't auto-overwrite).
     - Neither → create in AWS and save locally.
     """
-    assert config.configParams is not None and config.configParams.aws is not None
+    assert config.configParams.aws is not None
     aws = config.configParams.aws
     keypair_name = aws.keyPairName or ""
     private_path = Path(aws.privateKeyPath or "").expanduser()
@@ -186,7 +172,7 @@ def setup_aws_sso_config(config: Config, interactive: bool = True):
     profile is added unconditionally. When interactive=True (used by the standalone
     e2e.setup.aws-sso task), the user is asked to confirm.
     """
-    if not config.configParams or not config.configParams.aws:
+    if not config.configParams.aws:
         raise Exit("AWS config not found")
 
     aws = config.configParams.aws
@@ -253,7 +239,7 @@ def _aws_create_keypair(
     use_aws_vault: bool | None = False,
     aws_account_name: str | None = None,
 ) -> None:
-    if config.configParams is None or config.configParams.aws is None:
+    if config.configParams.aws is None:
         raise Exit("Config is missing aws section")
 
     keypair_opts = aws_resolve_keypair_opts(
@@ -337,7 +323,7 @@ def aws_resolve_keypair_opts(
 
     Returns a dict with the resolved values.
     """
-    if config.configParams is None or config.configParams.aws is None:
+    if config.configParams.aws is None:
         raise Exit("Config is missing aws section")
     awsConf = config.configParams.aws
 
@@ -451,7 +437,7 @@ def update_config_aws_keypair(
     config: Config,
     config_path: str | None = None,
 ) -> None:
-    if config.configParams is None or config.configParams.aws is None:
+    if config.configParams.aws is None:
         raise Exit("Config is missing aws section")
     awsConf = config.configParams.aws
     info(f"keyPairName: {awsConf.keyPairName}")
@@ -494,7 +480,7 @@ def _aws_import_keypair(
     use_aws_vault: bool | None = False,
     aws_account_name: str | None = None,
 ) -> None:
-    if config.configParams is None or config.configParams.aws is None:
+    if config.configParams.aws is None:
         raise Exit("Config is missing aws section")
 
     keypair_opts = aws_resolve_keypair_opts(
