@@ -20,6 +20,13 @@ typedef enum event_pairing_expectation {
   EVENT_PAIRING_EXPECTATION_NONE_INLINED = 6,
   EVENT_PAIRING_EXPECTATION_NONE_NO_BODY = 7,
   EVENT_PAIRING_EXPECTATION_CONDITION_FAILED = 8,
+  // Stamped on the single synthetic event the recovery probe emits
+  // when a goroutine recovers a panic that has unwound one or more
+  // probed frames. The header's panic_lo_depth / panic_hi_depth bound
+  // the unwound depth range; userspace fans the panic-value payload
+  // out across every in-flight invocation on the goid whose
+  // StackByteDepth is in (lo, hi] via NotePanicUnwoundRange.
+  EVENT_PAIRING_RETURN_PANIC_UNWOUND = 9,
 } event_pairing_expectation_t;
 
 // The message header used for the event program.
@@ -83,6 +90,19 @@ typedef struct di_event_header {
   // return for a single invocation, and to disambiguate rapid sequential
   // calls with the same (goid, stack_byte_depth, probe_id).
   uint64_t entry_ktime_ns;
+
+  // Recovery-probe-only fields. Zero on every non-recovery event (the
+  // scratch buffer is zero-initialised by events_scratch_buf_init).
+  //
+  // panic_lo_depth and panic_hi_depth describe the stack-byte-depth
+  // range of in-progress probed calls being unwound by panic-recover,
+  // computed by SM_OP_PANIC_UNWIND_PREPARE as
+  //   lo = stack_hi - p.sp        (exclusive lower bound)
+  //   hi = stack_hi - p.startSP   (inclusive upper bound)
+  // Userspace scans buffered entries with matching goid and
+  // stack_byte_depth in (lo, hi] to finalize them as panic-unwound.
+  uint32_t panic_lo_depth;
+  uint32_t panic_hi_depth;
 }
 // Use aligned attribute to ensure that the size of the structure is a multiple
 // of 8 bytes; the attribute leads to the compiler adding padding.

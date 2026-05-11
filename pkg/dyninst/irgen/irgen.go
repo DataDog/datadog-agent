@@ -136,6 +136,14 @@ func generateIR(
 		}
 	}()
 
+	// Splice in the synthetic runtime.recovery probe before sort so it
+	// flows through the standard symbol-resolution + injection-point
+	// pipeline. The probe attaches at runtime.recovery and lets BPF
+	// emit synthetic returns for probed frames being unwound by
+	// panic+recover (otherwise their in_progress_calls slot and the
+	// userspace bufferedEvent leak).
+	probeDefs = maybeAddRuntimeRecoveryProbe(probeDefs)
+
 	// Ensure deterministic output.
 	slices.SortFunc(probeDefs, func(a, b ir.ProbeDefinition) int {
 		return cmp.Compare(a.GetID(), b.GetID())
@@ -214,6 +222,8 @@ func generateIR(
 			commonTypes.G, ok = t.(*ir.StructureType)
 		case "runtime.m":
 			commonTypes.M, ok = t.(*ir.StructureType)
+		case "runtime._panic":
+			commonTypes.Panic, ok = t.(*ir.StructureType)
 		}
 		if !ok {
 			return nil, fmt.Errorf("expected structure type for %q, got %T", t.GetName(), t)
@@ -637,9 +647,30 @@ func generateIR(
 	)
 	issues = append(issues, eventIssues...)
 
+	// Synthesise the recovery probe's EventRootType after the standard
+	// pipeline runs (it's skipped above because its captures are not
+	// user-configurable). The synthesis builds a single @exception capture
+	// expression bookended by PanicUnwindPrepareOp / PanicUnwindEvictSlotsOp
+	// that drives the standard PROCESS_GO_EMPTY_INTERFACE + CHASE_POINTERS
+	// pipeline. Drops the probe (filtering it out of the successful set)
+	// if runtime.eface / runtime._panic aren't available in the binary.
+	probes = synthesizeRecoveryProbes(probes, commonTypes, typeCatalog)
+
 	// Detect probe definitions that did not match any symbol in the binary.
 	unused := findUnusedConfigs(probes, issues, probeDefs)
 	for _, probe := range unused {
+		if probe.GetKind() == ir.ProbeKindRuntimeRecovery {
+			// runtime.recovery is missing from this binary (stripped
+			// runtime, exotic toolchain, etc.). Don't surface the
+			// internal probe as a user-visible issue; log instead so
+			// operators see the protection is disabled.
+			log.Warnf(
+				"dyninst: runtime.recovery probe could not be attached " +
+					"(symbol not found); panic-recover leaks will not be " +
+					"cleaned up for this binary",
+			)
+			continue
+		}
 		issues = append(issues, ir.ProbeIssue{
 			ProbeDefinition: probe,
 			Issue: ir.Issue{
@@ -1266,6 +1297,20 @@ func analyzeAllProbes(
 		kind := probe.GetKind()
 		isSnapshot := kind == ir.ProbeKindSnapshot
 		isCaptureExpression := kind == ir.ProbeKindCaptureExpression
+
+		// Internal runtime.recovery probe has no template, condition,
+		// or user-configurable capture expressions. Its @exception capture
+		// is built later by synthesizeRecoveryProbeEventRoot, so skip
+		// the rcjson-driven analysis pipeline here.
+		if kind == ir.ProbeKindRuntimeRecovery {
+			for instIdx := range probe.Instances {
+				analyzed = append(analyzed, analyzedProbe{
+					probe:    probe,
+					instance: &probe.Instances[instIdx],
+				})
+			}
+			continue
+		}
 
 		for instIdx := range probe.Instances {
 			inst := &probe.Instances[instIdx]
@@ -3035,7 +3080,7 @@ func (v *unitChildVisitor) push(
 		}
 
 		interesting := false
-		if entry.Tag != dwarf.TagTypedef && (name == "runtime.g" || name == "runtime.m") {
+		if entry.Tag != dwarf.TagTypedef && (name == "runtime.g" || name == "runtime.m" || name == "runtime._panic") {
 			interesting = true
 		}
 		if !interesting {
@@ -7237,6 +7282,13 @@ func populateProbeEventsExpressions(
 	failedProbes := make(map[*ir.Probe]ir.Issue)
 	for i := range analyzedProbes {
 		ap := &analyzedProbes[i]
+		if ap.probe.GetKind() == ir.ProbeKindRuntimeRecovery {
+			// Recovery probe's Event.Type and capture expression are
+			// built by synthesizeRecoveryProbes (called by the caller
+			// immediately after this function returns). Skip the
+			// rcjson-driven expression resolution.
+			continue
+		}
 		if _, alreadyFailed := failedProbes[ap.probe]; alreadyFailed {
 			continue
 		}
@@ -7465,6 +7517,32 @@ func newProbeInstance(
 			Kind:    ir.IssueKindMalformedExecutable,
 			Message: fmt.Sprintf("subprogram %s has no pc ranges", subprogram.Name),
 		}, nil
+	}
+
+	// runtime.recovery probe: skip the normal entry/return resolution
+	// and disassembly. runtime.recovery never returns normally (it
+	// tail-calls into gogo), so a single entry injection point at the
+	// subprogram's start is sufficient.
+	if kind == ir.ProbeKindRuntimeRecovery {
+		if subprogram.OutOfLinePCRanges == nil {
+			return nil, ir.Issue{
+				Kind:    ir.IssueKindMalformedExecutable,
+				Message: "runtime.recovery has no out-of-line PC range",
+			}, nil
+		}
+		entryPC := subprogram.OutOfLinePCRanges[0][0]
+		return &ir.ProbeInstance{
+			Subprogram: subprogram,
+			Events: []*ir.Event{{
+				Kind: ir.EventKindEntry,
+				InjectionPoints: []ir.InjectionPoint{{
+					PC:                  entryPC,
+					Frameless:           false,
+					HasAssociatedReturn: false,
+					NoReturnReason:      ir.NoReturnReasonReturnsDisabled,
+				}},
+			}},
+		}, ir.Issue{}, nil
 	}
 	var injectionPoints []ir.InjectionPoint
 	var returnEvent *ir.Event
@@ -8248,6 +8326,7 @@ func makeInterests(cfg []ir.ProbeDefinition) (interests, []ir.ProbeIssue) {
 		switch probe.GetKind() {
 		case ir.ProbeKindSnapshot, ir.ProbeKindCaptureExpression:
 		case ir.ProbeKindLog:
+		case ir.ProbeKindRuntimeRecovery:
 		default:
 			issues = append(issues, ir.ProbeIssue{
 				ProbeDefinition: probe,

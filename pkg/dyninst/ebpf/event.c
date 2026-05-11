@@ -15,8 +15,6 @@
 
 char _license[] SEC("license") = "GPL";
 
-const uint32_t zero_uint32 = 0;
-
 static inline __attribute__((always_inline)) void
 read_g_fields(uint64_t g_ptr, uint64_t stack_ptr, uint64_t* goid, uint32_t* stack_byte_depth) {
   if (OFFSET_runtime_dot_g__goid == 0 && OFFSET_runtime_dot_g__m == 0) {
@@ -365,16 +363,6 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
   LOG(1, "probe_run done: %d steps", process_steps + chase_steps);
   return;
 }
-
-// Cumulative per-probe stats. ARRAY (not PERCPU_ARRAY) so we can size
-// it per IR probe count and key by probe_id; updates use __sync atomics
-// to remain race-free across CPUs. max_entries is set by the loader.
-struct {
-  __uint(type, BPF_MAP_TYPE_ARRAY);
-  __uint(max_entries, 0);
-  __type(key, uint32_t);
-  __type(value, stats_t);
-} stats_buf SEC(".maps");
 
 SEC("uprobe")
 int probe_run_with_cookie(struct pt_regs* regs) {

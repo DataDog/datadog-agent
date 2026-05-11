@@ -127,6 +127,11 @@ type Ready struct {
 	// probe fired but its signal couldn't reach userspace. The entry is
 	// complete; Return is nil.
 	ReturnLost bool
+	// PanicUnwound is set when the invocation exited via panic that was
+	// recovered by an ancestor frame. Return holds a single synthetic
+	// fragment carrying the panic value (as captured at runtime.recovery).
+	// The frame never executed its return statement.
+	PanicUnwound bool
 }
 
 // bufferedEvent is an in-progress invocation.
@@ -164,6 +169,11 @@ type bufferedEvent struct {
 	// returnLost: a RETURN_LOST notification was received. Finalize as soon
 	// as the entry is complete; do not wait for any return fragments.
 	returnLost bool
+	// panicUnwound: a panic-unwound synthetic return arrived from the
+	// runtime.recovery probe in place of a normal return. The single
+	// return-side fragment carries the panic value rather than return
+	// captures. Surfaced to the caller via Ready.PanicUnwound.
+	panicUnwound bool
 
 	// touch is a monotonic counter used by the budget-driven eviction path
 	// to find the longest-idle entry (smallest touch) to evict first when
@@ -343,6 +353,72 @@ func (b *Buffer) chargeForFragment(excludeKey Key, nbytes int) {
 	)
 }
 
+// NotePanicUnwoundRange records the goroutine's panic-recovered unwind:
+// every in-flight invocation on goid whose StackByteDepth is in (loDepth,
+// hiDepth] receives a return-side fragment carrying the shared panic-value
+// message, and finalizes if its entry side is already complete.
+//
+// shared must wrap the single synthetic message emitted by BPF's
+// SM_OP_PANIC_UNWIND_PREPARE pipeline. Each matched invocation acquires
+// a handle on shared, so a single payload fans out to N user-probe
+// finalizations. The caller is responsible for releasing the shared
+// message (via ReleaseBase) when no entries matched — i.e. when the
+// returned Readys slice is empty.
+//
+// Returns the Readys for invocations that finalized as a result of the
+// range scan, in tree order.
+func (b *Buffer) NotePanicUnwoundRange(
+	goid uint64, loDepth, hiDepth uint32, shared *SharedMessage,
+) []Ready {
+	// Collect matching entries first, then mutate; the btree iterator
+	// does not support mutation in-place.
+	var matches []*bufferedEvent
+	pivot := &bufferedEvent{key: Key{Goid: goid, StackByteDepth: loDepth + 1}}
+	b.tree.AscendGreaterOrEqual(pivot, func(be *bufferedEvent) bool {
+		if be.key.Goid != goid {
+			return false
+		}
+		if be.key.StackByteDepth > hiDepth {
+			return false
+		}
+		matches = append(matches, be)
+		return true
+	})
+
+	var readys []Ready
+	for _, be := range matches {
+		if be.returnList != nil {
+			// Invariant: a frame whose return uprobe fired cannot also
+			// be in the unwound range — runtime.recovery only sees
+			// frames the panic is about to unwind, and those frames'
+			// return instructions never execute. If this branch is hit
+			// we have either a kernel-side bug (wrong (lo, hi]) or
+			// userspace state corruption; the regular pairing will
+			// still finalize the entry, so we just log and skip.
+			log.Errorf(
+				"eventbuf: panic-unwound range hit key %+v with %d return fragments already present; skipping",
+				be.key, be.returnFragments,
+			)
+			continue
+		}
+		handle := shared.Acquire()
+		nbytes := len(handle.Event())
+		b.chargeForFragment(be.key, nbytes)
+		b.touch(be)
+		be.bytes += nbytes
+		b.bytes += nbytes
+		be.returnList = NewMessageList(handle)
+		be.returnFragments = 1
+		be.returnExpected = 1
+		be.expectReturn = true
+		be.panicUnwound = true
+		if ready, done := b.tryFinalize(be); done {
+			readys = append(readys, ready)
+		}
+	}
+	return readys
+}
+
 // NoteReturnLost records a RETURN_LOST drop notification: the return side
 // had no fragments reach userspace. If the entry is already complete the
 // invocation finalizes immediately.
@@ -520,6 +596,7 @@ func readyFrom(be *bufferedEvent) Ready {
 		EntryTruncated:  be.entryTruncated,
 		ReturnTruncated: be.returnTruncated,
 		ReturnLost:      be.returnLost,
+		PanicUnwound:    be.panicUnwound,
 	}
 }
 

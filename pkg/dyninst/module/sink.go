@@ -137,6 +137,26 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 		msg.Release()
 		s.postMutate()
 		return nil
+	case output.EventPairingExpectationReturnPanicUnwound:
+		// The recovery probe emitted a single synthetic return for every
+		// probed frame on h.Goid whose StackByteDepth ∈ (Panic_lo_depth,
+		// Panic_hi_depth] is being unwound by panic+recover. Hand the one
+		// payload to the buffer with a shared/refcounted message and let
+		// the buffer fan it out across matching invocations.
+		shared := eventbuf.NewSharedMessage(wrapMessage(msg))
+		readys := s.buffer.NotePanicUnwoundRange(
+			h.Goid, h.Panic_lo_depth, h.Panic_hi_depth, shared,
+		)
+		if len(readys) == 0 {
+			// No matching in-flight invocations; release the synthetic
+			// payload directly so the underlying ringbuf slot recycles.
+			shared.ReleaseBase()
+		}
+		for _, ready := range readys {
+			s.emit(ready)
+		}
+		s.postMutate()
+		return nil
 	case output.EventPairingExpectationCallMapFull:
 		// BPF ran out of room in the in_progress_calls map. The entry event
 		// is emitted standalone (no return will come) with an operator log.
@@ -258,11 +278,12 @@ func (s *sink) emit(ready eventbuf.Ready) {
 	// would corrupt previously-enqueued events on the next overwrite.
 	var decodedBytes []byte
 	decoded, probe, err := s.decoder.Decode(decode.Event{
-		EntryOrLine: entry,
-		Return:      ret,
-		ServiceName: s.service,
-		ProcessTags: s.processTags,
-		Truncated:   ready.EntryTruncated || ready.ReturnTruncated,
+		EntryOrLine:  entry,
+		Return:       ret,
+		ServiceName:  s.service,
+		ProcessTags:  s.processTags,
+		Truncated:    ready.EntryTruncated || ready.ReturnTruncated,
+		PanicUnwound: ready.PanicUnwound,
 	}, s.symbolicator, &s.missingTypes, decodedBytes)
 	if err != nil {
 		if probe != nil {
