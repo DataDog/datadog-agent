@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"maps"
 	"net/http"
 	"runtime"
@@ -647,19 +646,6 @@ func (a *atel) SendEvent(eventType string, eventPayload []byte) error {
 	}
 
 	return nil
-}
-
-// SendErrorLogs ships a batch of slog records to the COAT intake using the
-// apmtelemetry logs envelope (request_type=logs). Returns nil silently
-// when the component is disabled or the batch is empty so the calling
-// Pipeline does not waste its single retry on a request that will never
-// succeed; transport errors (5xx, network) propagate so the Pipeline can
-// retry once and then drop the batch.
-func (a *atel) SendErrorLogs(ctx context.Context, batch []slog.Record) error {
-	if !a.enabled || len(batch) == 0 {
-		return nil
-	}
-	return a.sender.sendLogsBatch(ctx, batch)
 }
 
 // SubmitErrorRecord is the v3 per-record entry point. Non-blocking:
