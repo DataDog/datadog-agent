@@ -96,21 +96,28 @@ func (w *Webhook) validate(request *admission.Request) *admiv1.AdmissionResponse
 		return rejected(fmt.Sprintf("failed to decode DatadogInstrumentation: %v", err))
 	}
 
-	// Stage 1: no two CRs in the same namespace may target the same workload.
+	// Stage 1: targetRef is immutable after creation.
+	if request.Operation == admissionregistrationv1.Update {
+		if msg := w.checkTargetRefImmutable(request, &cr); msg != "" {
+			return rejected(msg)
+		}
+	}
+
+	// Stage 2: no two CRs in the same namespace may target the same workload.
 	if msg := w.checkDuplicateTargetRef(request, &cr); msg != "" {
 		return rejected(msg)
 	}
 
-	// Stages 2 & 3 are driven by the handlers that own each product section.
+	// Stages 3 & 4 are driven by the handlers that own each product section.
 	for _, h := range w.handlers {
 		if !h.HasSection(&cr) {
 			continue
 		}
-		// Stage 2: the handler must support the target workload kind.
+		// Stage 3: the handler must support the target workload kind.
 		if !h.SupportsTarget(cr.Spec.TargetRef) {
 			return rejected(fmt.Sprintf("handler %q does not support target kind %q", h.Name(), cr.Spec.TargetRef.Kind))
 		}
-		// Stage 3: product-specific validation.
+		// Stage 4: product-specific validation.
 		if errs := h.Validate(&cr); len(errs) > 0 {
 			msgs := make([]string, 0, len(errs))
 			for _, e := range errs {
@@ -121,6 +128,29 @@ func (w *Webhook) validate(request *admission.Request) *admiv1.AdmissionResponse
 	}
 
 	return &admiv1.AdmissionResponse{Allowed: true}
+}
+
+// checkTargetRefImmutable returns a non-empty rejection message when an update
+// attempts to change the targetRef. The targetRef is immutable after creation.
+func (w *Webhook) checkTargetRefImmutable(request *admission.Request, incoming *datadoghq.DatadogInstrumentation) string {
+	if len(request.OldObject) == 0 {
+		return ""
+	}
+	var old datadoghq.DatadogInstrumentation
+	if err := json.Unmarshal(request.OldObject, &old); err != nil {
+		log.Warnf("DatadogInstrumentation validation: failed to decode old object, skipping immutability check: %v", err)
+		return ""
+	}
+	if old.Spec.TargetRef.Kind != incoming.Spec.TargetRef.Kind ||
+		old.Spec.TargetRef.Name != incoming.Spec.TargetRef.Name ||
+		old.Spec.TargetRef.APIVersion != incoming.Spec.TargetRef.APIVersion {
+		return fmt.Sprintf(
+			"spec.targetRef is immutable: cannot change from %s/%s to %s/%s",
+			old.Spec.TargetRef.Kind, old.Spec.TargetRef.Name,
+			incoming.Spec.TargetRef.Kind, incoming.Spec.TargetRef.Name,
+		)
+	}
+	return ""
 }
 
 // checkDuplicateTargetRef returns a non-empty rejection message when another

@@ -107,6 +107,17 @@ func newRequest(t *testing.T, op admissionregistrationv1.OperationType, ns strin
 	}
 }
 
+func newUpdateRequest(t *testing.T, ns string, oldCR, newCR *datadoghq.DatadogInstrumentation) *admission.Request {
+	t.Helper()
+	return &admission.Request{
+		Name:      newCR.Name,
+		Namespace: ns,
+		Operation: admissionregistrationv1.Update,
+		Object:    marshalCR(t, newCR),
+		OldObject: marshalCR(t, oldCR),
+	}
+}
+
 func fakeLister(t *testing.T, crs ...*datadoghq.DatadogInstrumentation) cache.GenericLister {
 	t.Helper()
 	indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{
@@ -169,6 +180,7 @@ func TestValidate(t *testing.T) {
 	tests := []struct {
 		name        string
 		cr          *datadoghq.DatadogInstrumentation
+		oldCR       *datadoghq.DatadogInstrumentation
 		existingCRs []*datadoghq.DatadogInstrumentation
 		handlers    []instrumentation.Handler
 		operation   admissionregistrationv1.OperationType
@@ -201,14 +213,37 @@ func TestValidate(t *testing.T) {
 			wantMsg:     `DatadogInstrumentation "di-existing" in namespace "test-ns" already targets Deployment/my-app`,
 		},
 		{
-			name: "duplicate targetRef on update of the same CR is allowed",
-			cr:   buildCR("di-existing", ns, "Deployment", "my-app", defaultChecks()),
+			name:  "duplicate targetRef on update of the same CR is allowed",
+			cr:    buildCR("di-existing", ns, "Deployment", "my-app", defaultChecks()),
+			oldCR: buildCR("di-existing", ns, "Deployment", "my-app", nil),
 			existingCRs: []*datadoghq.DatadogInstrumentation{
 				buildCR("di-existing", ns, "Deployment", "my-app", nil),
 			},
 			handlers:    nil,
 			operation:   admissionregistrationv1.Update,
 			wantAllowed: true,
+		},
+		{
+			name:  "changing targetRef name on update is rejected",
+			cr:    buildCR("di-1", ns, "Deployment", "other-app", defaultChecks()),
+			oldCR: buildCR("di-1", ns, "Deployment", "my-app", defaultChecks()),
+			existingCRs: []*datadoghq.DatadogInstrumentation{
+				buildCR("di-1", ns, "Deployment", "my-app", defaultChecks()),
+			},
+			operation:   admissionregistrationv1.Update,
+			wantAllowed: false,
+			wantMsg:     "spec.targetRef is immutable: cannot change from Deployment/my-app to Deployment/other-app",
+		},
+		{
+			name:  "changing targetRef kind on update is rejected",
+			cr:    buildCR("di-1", ns, "DaemonSet", "my-app", defaultChecks()),
+			oldCR: buildCR("di-1", ns, "Deployment", "my-app", defaultChecks()),
+			existingCRs: []*datadoghq.DatadogInstrumentation{
+				buildCR("di-1", ns, "Deployment", "my-app", defaultChecks()),
+			},
+			operation:   admissionregistrationv1.Update,
+			wantAllowed: false,
+			wantMsg:     "spec.targetRef is immutable: cannot change from Deployment/my-app to DaemonSet/my-app",
 		},
 		{
 			name: "different target kind is not a duplicate",
@@ -386,7 +421,14 @@ func TestValidate(t *testing.T) {
 				lister = fakeLister(t, tc.existingCRs...)
 			}
 			w := newTestWebhook(t, lister, tc.handlers...)
-			req := newRequest(t, tc.operation, ns, tc.cr)
+
+			var req *admission.Request
+			if tc.oldCR != nil {
+				req = newUpdateRequest(t, ns, tc.oldCR, tc.cr)
+			} else {
+				req = newRequest(t, tc.operation, ns, tc.cr)
+			}
+
 			resp := w.validate(req)
 			assert.Equal(t, tc.wantAllowed, resp.Allowed)
 			if !tc.wantAllowed {
