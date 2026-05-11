@@ -422,17 +422,31 @@ func ddotProcmgrYAMLBodyUsesStandaloneOCIPackage(data []byte) bool {
 	return false
 }
 
-// ociStableDDOTProcmgrYAMLIsStandaloneLayout reports whether stable processes.d
-// already contains DDOT YAML for the standalone datadog-agent-ddot OCI layout
-// (not the agent extension layout). Used on agent promote so we do not replace
-// standalone paths with extension paths.
-func ociStableDDOTProcmgrYAMLIsStandaloneLayout() bool {
-	dir := filepath.Join(paths.PackagesPath, "datadog-agent", "stable", "processes.d")
-	data, err := os.ReadFile(filepath.Join(dir, ddotProcmgrYAMLStable))
-	if err != nil {
+// ociUseStandaloneDDOTLayoutAfterAgentPromote picks standalone=true for apply after
+// repository.PromoteExperiment (stable symlink already repointed). Prefer YAML
+// on stable or experiment processes.d; if neither file exists (e.g. cleanup removed
+// the old stable tree), fall back to the standalone OCI package layout.
+func ociUseStandaloneDDOTLayoutAfterAgentPromote() bool {
+	dirs := []string{
+		filepath.Join(paths.PackagesPath, "datadog-agent", "stable", "processes.d"),
+		filepath.Join(paths.PackagesPath, "datadog-agent", "experiment", "processes.d"),
+	}
+	foundYAML := false
+	for _, dir := range dirs {
+		data, err := os.ReadFile(filepath.Join(dir, ddotProcmgrYAMLStable))
+		if err != nil {
+			continue
+		}
+		foundYAML = true
+		if ddotProcmgrYAMLBodyUsesStandaloneOCIPackage(data) {
+			return true
+		}
+	}
+	if foundYAML {
 		return false
 	}
-	return ddotProcmgrYAMLBodyUsesStandaloneOCIPackage(data)
+	_, err := os.Stat(filepath.Join(paths.PackagesPath, "datadog-agent-ddot", "stable"))
+	return err == nil
 }
 
 // syncDDOTProcmgrAfterAgentPromotion refreshes stable DDOT YAML in processes.d
@@ -452,7 +466,7 @@ func syncDDOTProcmgrAfterAgentPromotion(ctx HookContext) error {
 	}
 	stableCtx := ctx
 	stableCtx.PackagePath = stableOCI
-	standalone := ociStableDDOTProcmgrYAMLIsStandaloneLayout()
+	standalone := ociUseStandaloneDDOTLayoutAfterAgentPromote()
 	if _, err := applyDDOTProcmgrProcessesYAML(stableCtx, true, standalone); err != nil {
 		return err
 	}
