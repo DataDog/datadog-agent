@@ -584,6 +584,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("external_metrics_provider.num_workers", 2)                     // Number of workers spawned by controller (only when CRD is used)
 	config.BindEnvAndSetDefault("external_metrics_provider.max_parallel_queries", 10)           // Maximum number of parallel queries sent to Datadog simultaneously
 	pkgconfigmodel.AddOverrideFunc(sanitizeExternalMetricsProviderChunkSize)
+	// DatadogInstrumentation controller
+	config.BindEnvAndSetDefault("instrumentation_crd_controller.enabled", false)
 	// Cluster check Autodiscovery
 	config.BindEnvAndSetDefault("cluster_checks.support_hybrid_ignore_ad_tags", false) // TODO(CINT)(Agent 7.53+) Remove this flag when hybrid ignore_ad_tags is fully deprecated
 	config.BindEnvAndSetDefault("cluster_checks.enabled", false)
@@ -1035,8 +1037,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_agent.registry.idle_timeout", time.Duration(30*time.Second))
 	config.BindEnvAndSetDefault("remote_agent.registry.query_timeout", time.Duration(3*time.Second))
 	config.BindEnvAndSetDefault("remote_agent.registry.recommended_refresh_interval", time.Duration(10*time.Second))
-	config.BindEnvAndSetDefault("remote_agent.configstream.enabled", false)
 	config.BindEnvAndSetDefault("remote_agent.configstream.sleep_interval", 10*time.Second)
+	config.BindEnvAndSetDefault("remote_agent.configstream.consumer.enabled", false)
 
 	// Data Plane
 	config.BindEnvAndSetDefault("data_plane.enabled", false)
@@ -1532,6 +1534,8 @@ func serializer(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.compression_level", 0)
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.use_beta", false)
 	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.beta_route", "/api/intake/metrics/v3beta/series")
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.shadow_sample_rate", 0.001)
+	config.BindEnvAndSetDefault("serializer_experimental_use_v3_api.series.shadow_sites", []string{"datadoghq.com"})
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
@@ -2023,7 +2027,7 @@ func kubernetes(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("kubernetes_collect_metadata_tags", true)
 	config.BindEnvAndSetDefault("kubernetes_use_endpoint_slices", false)
 	config.BindEnvAndSetDefault("kubernetes_metadata_tag_update_freq", 60) // Polling frequency of the Agent to the DCA in seconds (gets the local cache if the DCA is disabled)
-	config.BindEnvAndSetDefault("kubernetes_metadata_streaming", false)    // Not exposed yet
+	config.BindEnvAndSetDefault("kubernetes_metadata_streaming", true)
 	config.BindEnvAndSetDefault("kubernetes_apiserver_client_timeout", 10)
 	config.BindEnvAndSetDefault("kubernetes_apiserver_informer_client_timeout", 0)
 	config.BindEnvAndSetDefault("kubernetes_map_services_on_ip", false) // temporary opt-out of the new mapping logic
