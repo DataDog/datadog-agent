@@ -663,8 +663,9 @@ def generate_cws_proto(ctx):
     )
 
     # API
+    go_out = "paths=source_relative:."
     ctx.run(
-        f"{bt.protoc} {plugin_opts} -I. -Ipkg/proto/protodep --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/proto/api/api.proto"
+        f"{bt.protoc} {plugin_opts} -I. -Ipkg/proto/protodep --go_out={go_out} --go-vtproto_out={go_out} --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out={go_out} pkg/security/proto/api/api.proto"
     )
     # no need to strip protoc version from headers: hermetic tools guarantee it's identical on all execution platforms
 
