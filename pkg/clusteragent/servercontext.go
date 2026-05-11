@@ -11,13 +11,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 )
 
-// InstrumentationConfigLister exposes integration.Configs derived from DatadogInstrumentation CRs.
-type InstrumentationConfigLister interface {
+// ConfigLister exposes integration.Configs derived from DatadogInstrumentation CRs.
+type ConfigLister interface {
 	ListConfigs() []integration.Config
 }
 
 // ServerContext holds business logic classes required to setup API endpoints
 type ServerContext struct {
-	ClusterCheckHandler         *clusterchecks.Handler
-	InstrumentationConfigLister InstrumentationConfigLister
+	ClusterCheckHandler *clusterchecks.Handler
 }

@@ -33,5 +33,10 @@ func InstallChecksEndpoints(r *mux.Router, sc clusteragent.ServerContext) {
 	log.Debug("Registering checks endpoints")
 	installClusterCheckEndpoints(r, sc)
 	installEndpointsCheckEndpoints(r, sc)
-	installInstrumentationCheckEndpoints(r, sc)
+}
+
+// InstallInstrumentationChecksEndpoints registers endpoint for instrumentation checks
+func InstallInstrumentationChecksEndpoints(r *mux.Router, configLister clusteragent.ConfigLister) {
+	log.Debug("Registering instrumentation checks endpoints")
+	installInstrumentationCheckEndpoints(r, configLister)
 }

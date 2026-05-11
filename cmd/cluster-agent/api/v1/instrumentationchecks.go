@@ -18,12 +18,12 @@ import (
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 )
 
-func installInstrumentationCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) {
-	r.HandleFunc("/instrumentation/configs", api.WithTelemetryWrapper("getInstrumentationConfigs", getInstrumentationConfigs(sc))).Methods("GET")
+func installInstrumentationCheckEndpoints(r *mux.Router, confLister clusteragent.ConfigLister) {
+	r.HandleFunc("/instrumentation/configs", api.WithTelemetryWrapper("getInstrumentationConfigs", getInstrumentationConfigs(confLister))).Methods("GET")
 }
 
-func getInstrumentationConfigs(sc clusteragent.ServerContext) func(w http.ResponseWriter, r *http.Request) {
-	if sc.InstrumentationConfigLister == nil {
+func getInstrumentationConfigs(confLister clusteragent.ConfigLister) func(w http.ResponseWriter, r *http.Request) {
+	if confLister == nil {
 		return func(w http.ResponseWriter, _ *http.Request) {
 			http.Error(w, "instrumentation config provider not available", http.StatusServiceUnavailable)
 		}
@@ -31,7 +31,7 @@ func getInstrumentationConfigs(sc clusteragent.ServerContext) func(w http.Respon
 
 	return func(w http.ResponseWriter, _ *http.Request) {
 		response := cctypes.ConfigResponse{
-			Configs: sc.InstrumentationConfigLister.ListConfigs(),
+			Configs: confLister.ListConfigs(),
 		}
 		slcB, err := json.Marshal(response)
 		if err != nil {

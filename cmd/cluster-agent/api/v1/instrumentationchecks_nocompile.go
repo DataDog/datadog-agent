@@ -14,4 +14,4 @@ import (
 )
 
 // installInstrumentationCheckEndpoints not implemented
-func installInstrumentationCheckEndpoints(_ *mux.Router, _ clusteragent.ServerContext) {}
+func installInstrumentationCheckEndpoints(_ *mux.Router, _ clusteragent.ConfigLister) {}
