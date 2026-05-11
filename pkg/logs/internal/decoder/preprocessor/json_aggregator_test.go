@@ -363,8 +363,9 @@ func TestJSONAggregatorFastPathWithTrailingWhitespace(t *testing.T) {
 // first Process call (FlushOnInvalid in the spec) and each part is
 // emitted unmodified.
 //
-// If this test ever starts failing, the spec's deferred-style
-// limitation note must be updated to match the new behaviour.
+// If this test ever starts failing, the matching limitation note
+// in json_aggregator.allium must be updated to match the new
+// behaviour.
 func TestJSONAggregator_TopLevelArraySplitNotAggregated(t *testing.T) {
 	aggregator := NewJSONAggregator(true, 1000)
 
