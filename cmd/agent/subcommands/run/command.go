@@ -104,7 +104,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-core"
@@ -139,8 +139,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	haagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
 	host "github.com/DataDog/datadog-agent/comp/metadata/host/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
+	inventoryagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
+	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
 	inventoryhost "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/def"
 	packagesigning "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/def"
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
@@ -220,16 +220,16 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		GlobalParams: globalParams,
 	}
 	runE := func(*cobra.Command, []string) (rErr error) {
-		// Best-effort rescue hook: when Fx init panics or returns an error the
-		// full agent never starts, so the Health Platform forwarder never runs.
-		// lite.Rescue POSTs an issue directly. Bounded by its own 3s timeout.
+		// best-effort agent lite mode rescue: when init panics or returns an error the
+		// full agent never starts so lite.Rescue tries to run and POSTs an issue directly
+		// to agent health.
 		defer func() {
 			if r := recover(); r != nil {
 				_ = lite.Rescue(context.Background(),
 					globalParams.ConfFilePath,
 					lite.DefaultConfigPath(),
 					fmt.Errorf("agent run panic: %v", r))
-				panic(r) // re-raise so systemd sees a non-zero exit
+				panic(r) // re-raise for non-zero exit
 			}
 			if rErr != nil {
 				_ = lite.Rescue(context.Background(),
