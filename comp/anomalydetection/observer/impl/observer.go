@@ -731,7 +731,9 @@ func (o *observerImpl) Flush() {
 func (o *observerImpl) Reset(settings ComponentSettings) {
 	o.Flush()
 	detectors, correlators, extractors, _ := o.catalog.Instantiate(settings)
+	o.replayMu.Lock()
 	o.engine.ResetForReplay(detectors, correlators, extractors)
+	o.replayMu.Unlock()
 }
 
 // GetReplayProgress returns lock-free replay progress counters. Implements DebugView.

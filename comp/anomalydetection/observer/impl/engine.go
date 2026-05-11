@@ -858,7 +858,7 @@ func (e *engine) resetRawAnomalies() {
 	defer e.rawAnomalyMu.Unlock()
 
 	e.rawAnomalies = nil
-	e.rawAnomalyIndex = nil
+	e.rawAnomalyIndex = make(map[anomalyDedupKey]int)
 	e.totalAnomalyCount = 0
 	e.uniqueAnomalySources = nil
 	e.currentDataTime = 0
