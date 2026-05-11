@@ -20,11 +20,10 @@ const (
 	// soMountPath is the directory where the .so volume is mounted.
 	soMountPath = "/datadog-nccl"
 
-	// soDestPath is the full in-container path to the wrapper .so after injection.
-	soDestPath = "/datadog-nccl/libnccl-profiler-dd.so"
-
-	// soSourcePathWrapper is where the wrapper .so lives inside the injector image.
-	soSourcePathWrapper = "/libnccl-profiler-dd.so"
+	// soDestPath is the full in-container path to the Inspector .so after injection.
+	// NCCL_PROFILER_PLUGIN points here; NCCL dlopens this and the patched Inspector
+	// emits events directly to the agent's Unix socket (no wrapper layer).
+	soDestPath = "/datadog-nccl/libnccl-profiler-inspector.so"
 
 	// soSourcePathInspector is where the Inspector .so lives inside the injector image.
 	soSourcePathInspector = "/libnccl-profiler-inspector.so"
@@ -34,8 +33,8 @@ const (
 )
 
 // mutatePod injects the NCCL profiler plugin into pod by:
-//  1. Adding an emptyDir volume for the .so files.
-//  2. Prepending an init container that copies both .so files from the injector image.
+//  1. Adding an emptyDir volume for the Inspector .so.
+//  2. Prepending an init container that copies the Inspector .so from the injector image.
 //  3. Mounting the .so volume and the agent socket directory into every app container.
 //  4. Setting NCCL env vars (incl. NCCL_DD_SOCKET_PATH from the agent config).
 //
@@ -75,7 +74,7 @@ func mutatePod(pod *corev1.Pod, injectorImage, hostSocketPath, socketPath string
 	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_DD_INSPECTOR_PATH", Value: soMountPath + "/libnccl-profiler-inspector.so"}) || envAdded
 	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_INSPECTOR_ENABLE", Value: "1"}) || envAdded
 
-	// Prepend init container that copies both .so files from injector image.
+	// Prepend init container that copies the Inspector .so from the injector image.
 	// SecurityContext drops all capabilities + disallows privilege escalation so
 	// the container passes the "restricted" PodSecurity standard. Resource
 	// requirements are operator-supplied (nil = cluster default applies).
@@ -84,9 +83,7 @@ func mutatePod(pod *corev1.Pod, injectorImage, hostSocketPath, socketPath string
 		Name:            "datadog-nccl-profiler-inject",
 		Image:           injectorImage,
 		ImagePullPolicy: corev1.PullIfNotPresent,
-		Command: []string{"sh", "-c",
-			"cp " + soSourcePathWrapper + " " + soMountPath + "/ && " +
-				"cp " + soSourcePathInspector + " " + soMountPath + "/"},
+		Command:         []string{"sh", "-c", "cp " + soSourcePathInspector + " " + soMountPath + "/"},
 		SecurityContext: &corev1.SecurityContext{
 			AllowPrivilegeEscalation: &allowPrivEsc,
 			Capabilities: &corev1.Capabilities{
