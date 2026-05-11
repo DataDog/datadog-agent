@@ -351,9 +351,8 @@ exports_files(glob(
 # gazelle:exclude pkg/dyninst/gosym/cli
 # gazelle:exclude pkg/dyninst/gotype/gotypecli
 # gazelle:exclude pkg/dyninst/irgen/cli
-# gazelle:exclude pkg/dyninst/symdb/cli
 # gazelle:exclude pkg/dyninst/module
-# gazelle:exclude pkg/dyninst/procsubscribe
+# gazelle:exclude pkg/dyninst/symdb/cli
 # gazelle:exclude pkg/dyninst/testprogs/progs/rc_tester
 # gazelle:exclude pkg/dyninst/testprogs/progs/rc_tester_v1
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/arrays.go
@@ -378,8 +377,6 @@ exports_files(glob(
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/strings.go
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/structs.go
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/times.go
-# gazelle:exclude pkg/dyninst/uploader
-# gazelle:exclude pkg/dyninst/uprobe
 # gazelle:exclude pkg/ebpf/_obj
 # gazelle:exclude pkg/ebpf/bytecode/runtime
 # gazelle:exclude pkg/ebpf/ebpftest
