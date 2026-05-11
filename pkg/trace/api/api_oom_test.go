@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -33,11 +34,15 @@ func TestOOMKill(t *testing.T) {
 		kills.Inc()
 	}
 
+	// Derive the port from PID so that parallel test runs don't collide on
+	// the same listener.
+	port := 1024 + (os.Getpid() % 64512)
+
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "apikey_2"
 	conf.WatchdogInterval = time.Millisecond
 	conf.MaxMemory = 0.1 * 1000 * 1000 // 100KB
-	conf.ReceiverPort = 8327           // use non-default port to avoid conflict with running agent
+	conf.ReceiverPort = port
 
 	r := newTestReceiverFromConfig(conf)
 	r.Start()
@@ -59,7 +64,7 @@ func TestOOMKill(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			resp, err := http.Post("http://localhost:8327/v0.4/traces", "application/msgpack", bytes.NewReader(data))
+			resp, err := http.Post(fmt.Sprintf("http://localhost:%d/v0.4/traces", port), "application/msgpack", bytes.NewReader(data))
 			if err != nil {
 				t.Log("Error posting payload", err)
 				return
