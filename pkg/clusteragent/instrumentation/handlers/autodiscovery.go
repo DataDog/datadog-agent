@@ -108,7 +108,7 @@ func (h *AutodiscoveryHandler) Handle(_ context.Context, event instrumentation.E
 		}, nil
 	}
 
-	key := storeKey(cr.Namespace, cr.Name)
+	key := cr.Namespace + "/" + cr.Name
 
 	if event == instrumentation.EventDelete {
 		h.deleteConfigs(key)
@@ -120,14 +120,18 @@ func (h *AutodiscoveryHandler) Handle(_ context.Context, event instrumentation.E
 		}, nil
 	}
 
-	configs, err := translateChecks(cr)
-	if err != nil {
-		return instrumentation.HandlerStatus{
-			Type:    checksReadyConditionType,
-			Status:  metav1.ConditionFalse,
-			Reason:  "TranslationFailed",
-			Message: err.Error(),
-		}, nil
+	configs := make([]integration.Config, 0, len(cr.Spec.Config.Checks))
+	for _, check := range cr.Spec.Config.Checks {
+		cfg, err := translateCheck(cr, check)
+		if err != nil {
+			return instrumentation.HandlerStatus{
+				Type:    checksReadyConditionType,
+				Status:  metav1.ConditionFalse,
+				Reason:  "TranslationFailed",
+				Message: err.Error(),
+			}, nil
+		}
+		configs = append(configs, cfg)
 	}
 
 	h.setConfigs(key, configs)
@@ -168,22 +172,6 @@ func (h *AutodiscoveryHandler) deleteConfigs(key string) {
 	delete(h.configs, key)
 }
 
-func storeKey(namespace, name string) string {
-	return namespace + "/" + name
-}
-
-func translateChecks(cr *datadoghq.DatadogInstrumentation) ([]integration.Config, error) {
-	configs := make([]integration.Config, 0, len(cr.Spec.Config.Checks))
-	for i, check := range cr.Spec.Config.Checks {
-		cfg, err := translateCheck(cr, check)
-		if err != nil {
-			return nil, fmt.Errorf("spec.config.checks[%d]: %w", i, err)
-		}
-		configs = append(configs, cfg)
-	}
-	return configs, nil
-}
-
 func translateCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq.DatadogInstrumentationCheckConfig) (integration.Config, error) {
 	initConfig, err := rawExtensionToData(check.InitConfig)
 	if err != nil {
@@ -208,13 +196,13 @@ func translateCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq.Datado
 	}
 
 	return integration.Config{
-		Name:        check.Integration,
-		InitConfig:  initConfig,
-		Instances:   instances,
-		LogsConfig:  logsConfig,
-		CELSelector: buildCELSelector(cr.Spec.TargetRef, cr.Namespace, check.ContainerImage),
-		Provider:    autodiscoveryProvider,
-		Source:      fmt.Sprintf("%s:%s/%s", autodiscoveryProvider, cr.Namespace, cr.Name),
+		Name:          check.Integration,
+		ADIdentifiers: check.ContainerImage,
+		InitConfig:    initConfig,
+		Instances:     instances,
+		LogsConfig:    logsConfig,
+		CELSelector:   buildCELSelector(cr.Spec.TargetRef, cr.Namespace),
+		Source:        fmt.Sprintf("%s:%s/%s", autodiscoveryProvider, cr.Namespace, cr.Name),
 	}, nil
 }
 
@@ -243,18 +231,11 @@ func marshalLogs(logs []datadoghq.DatadogInstrumentationLogConfig) (integration.
 	return b, nil
 }
 
-func buildCELSelector(ref autoscalingv2.CrossVersionObjectReference, namespace string, images []string) workloadfilter.Rules {
+func buildCELSelector(ref autoscalingv2.CrossVersionObjectReference, namespace string) workloadfilter.Rules {
 	expr := fmt.Sprintf(
 		`container.pod.rootowner.kind == %q && container.pod.rootowner.name == %q && container.pod.namespace == %q`,
 		ref.Kind, ref.Name, namespace,
 	)
-	if len(images) > 0 {
-		quoted := make([]string, 0, len(images))
-		for _, img := range images {
-			quoted = append(quoted, fmt.Sprintf("%q", img))
-		}
-		expr = fmt.Sprintf("%s && container.image.name in [%s]", expr, strings.Join(quoted, ", "))
-	}
 	return workloadfilter.Rules{
 		Containers: []string{expr},
 	}

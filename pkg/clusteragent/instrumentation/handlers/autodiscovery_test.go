@@ -255,7 +255,6 @@ func TestHandle_CreateAndUpdate(t *testing.T) {
 	configs := h.ListConfigs()
 	require.Len(t, configs, 1)
 	assert.Equal(t, "redisdb", configs[0].Name)
-	assert.Equal(t, autodiscoveryProvider, configs[0].Provider)
 	assert.Equal(t, "datadoginstrumentation:default/test", configs[0].Source)
 
 	// Update with two checks
@@ -300,6 +299,7 @@ func TestTranslateCheck(t *testing.T) {
 		check            datadoghq.DatadogInstrumentationCheckConfig
 		expectedInit     string
 		expectedInstLen  int
+		expectedADIDs    []string
 		instanceContains []string
 		logsNil          bool
 		logsContains     string
@@ -307,28 +307,33 @@ func TestTranslateCheck(t *testing.T) {
 		{
 			name: "empty init config defaults to {}",
 			check: datadoghq.DatadogInstrumentationCheckConfig{
-				Integration: "http_check",
-				Instances:   []runtime.RawExtension{{Raw: []byte(`{"url":"http://localhost"}`)}},
+				Integration:    "http_check",
+				ContainerImage: []string{"container-image"},
+				Instances:      []runtime.RawExtension{{Raw: []byte(`{"url":"http://localhost"}`)}},
 			},
 			expectedInit:    "{}",
 			expectedInstLen: 1,
+			expectedADIDs:   []string{"container-image"},
 			logsNil:         true,
 		},
 		{
 			name: "provided init config is preserved",
 			check: datadoghq.DatadogInstrumentationCheckConfig{
-				Integration: "http_check",
-				InitConfig:  runtime.RawExtension{Raw: []byte(`{"service":"myservice"}`)},
-				Instances:   []runtime.RawExtension{{Raw: []byte(`{"url":"http://localhost"}`)}},
+				Integration:    "http_check",
+				ContainerImage: []string{"container-image"},
+				InitConfig:     runtime.RawExtension{Raw: []byte(`{"service":"myservice"}`)},
+				Instances:      []runtime.RawExtension{{Raw: []byte(`{"url":"http://localhost"}`)}},
 			},
 			expectedInit:    `{"service":"myservice"}`,
 			expectedInstLen: 1,
+			expectedADIDs:   []string{"container-image"},
 			logsNil:         true,
 		},
 		{
 			name: "multiple instances are translated",
 			check: datadoghq.DatadogInstrumentationCheckConfig{
-				Integration: "http_check",
+				Integration:    "http_check",
+				ContainerImage: []string{"container-image", "other-container"},
 				Instances: []runtime.RawExtension{
 					{Raw: []byte(`{"url":"http://host1"}`)},
 					{Raw: []byte(`{"url":"http://host2"}`)},
@@ -336,6 +341,7 @@ func TestTranslateCheck(t *testing.T) {
 			},
 			expectedInit:     "{}",
 			expectedInstLen:  2,
+			expectedADIDs:    []string{"container-image", "other-container"},
 			instanceContains: []string{"host1", "host2"},
 			logsNil:          true,
 		},
@@ -372,6 +378,11 @@ func TestTranslateCheck(t *testing.T) {
 			require.Len(t, configs, 1)
 			assert.Equal(t, tt.expectedInit, string(configs[0].InitConfig))
 			require.Len(t, configs[0].Instances, tt.expectedInstLen)
+
+			if tt.expectedADIDs != nil {
+				require.ElementsMatch(t, tt.expectedADIDs, configs[0].ADIdentifiers)
+			}
+
 			for i, substr := range tt.instanceContains {
 				assert.Contains(t, string(configs[0].Instances[i]), substr)
 			}
@@ -390,7 +401,6 @@ func TestBuildCELSelector(t *testing.T) {
 		kind      string
 		target    string
 		namespace string
-		images    []string
 		contains  []string
 	}{
 		{
@@ -409,10 +419,8 @@ func TestBuildCELSelector(t *testing.T) {
 			kind:      "StatefulSet",
 			target:    "redis",
 			namespace: "data",
-			images:    []string{"redis"},
 			contains: []string{
 				`container.pod.rootowner.kind == "StatefulSet"`,
-				`container.image.name in ["redis"]`,
 			},
 		},
 		{
@@ -420,18 +428,16 @@ func TestBuildCELSelector(t *testing.T) {
 			kind:      "Deployment",
 			target:    "multi",
 			namespace: "default",
-			images:    []string{"nginx", "redis"},
 			contains: []string{
 				`container.pod.rootowner.kind == "Deployment"`,
 				`container.pod.rootowner.name == "multi"`,
-				`container.image.name in ["nginx", "redis"]`,
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ref := autoscalingv2.CrossVersionObjectReference{Kind: tt.kind, Name: tt.target}
-			rules := buildCELSelector(ref, tt.namespace, tt.images)
+			rules := buildCELSelector(ref, tt.namespace)
 			require.Len(t, rules.Containers, 1)
 			for _, substr := range tt.contains {
 				assert.Contains(t, rules.Containers[0], substr)
