@@ -1,5 +1,0 @@
-# gazelle:exclude fx
-# gazelle:exclude impl
-# TODO(agent-build): add arrow-go to Bazel deps and remove these exclusions
-# recorder/impl and recorder/fx depend on apache/arrow-go which is not yet
-# registered as a Bazel external dependency.
