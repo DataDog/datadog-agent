@@ -107,7 +107,7 @@ spec:
       - name: var-run
         emptyDir: {}
 ---
-apiVersion: policy/v1
+apiVersion: {{.PDBAPIVersion}}
 kind: PodDisruptionBudget
 metadata:
   name: nginx
