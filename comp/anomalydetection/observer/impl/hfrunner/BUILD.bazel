@@ -1,0 +1,4 @@
+# gazelle:ignore
+# hfrunner imports corechecks/system/cpu, memory, disk, io, network, uptime, filehandles,
+# and corechecks/containers/generic — none of these are migrated to Bazel yet.
+# Migrate those packages first, then add a proper go_library rule here.
