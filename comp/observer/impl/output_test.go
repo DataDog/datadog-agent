@@ -95,7 +95,7 @@ func TestWriteObserverOutput_EmptyScenario(t *testing.T) {
 func TestWriteObserverOutput_NonVerbose(t *testing.T) {
 	tb := newTestBenchForOutput()
 	tb.loadedScenario = "test_scenario"
-	tb.engine.Storage().Add("parquet", "cpu.user", 1.0, 1000, []string{"host:a"})
+	tb.engine.Storage().Add("parquet", "cpu.user", 1.0, 1990, []string{"host:a"})
 	tb.engine.Storage().Add("parquet", "cpu.user", 2.0, 2000, []string{"host:a"})
 	// Add a correlator that returns our test correlation
 	tb.engine.SetCorrelators([]observerdef.Correlator{&staticCorrelator{correlations: []observerdef.ActiveCorrelation{testCorrelation()}}})
@@ -130,7 +130,7 @@ func TestWriteObserverOutput_NonVerbose(t *testing.T) {
 func TestWriteObserverOutput_Verbose(t *testing.T) {
 	tb := newTestBenchForOutput()
 	tb.loadedScenario = "test_scenario"
-	tb.engine.Storage().Add("parquet", "cpu.user", 1.0, 1000, []string{"host:a"})
+	tb.engine.Storage().Add("parquet", "cpu.user", 1.0, 1990, []string{"host:a"})
 	tb.engine.Storage().Add("parquet", "cpu.user", 2.0, 2000, []string{"host:a"})
 	// Add a correlator that returns our test correlation
 	tb.engine.SetCorrelators([]observerdef.Correlator{&staticCorrelator{correlations: []observerdef.ActiveCorrelation{testCorrelation()}}})
@@ -158,7 +158,7 @@ func TestWriteObserverOutput_Verbose(t *testing.T) {
 
 	// Metadata
 	assert.Equal(t, "test_scenario", output.Metadata.Scenario)
-	assert.Equal(t, int64(1000), output.Metadata.TimelineStart)
+	assert.Equal(t, int64(1990), output.Metadata.TimelineStart)
 	assert.Equal(t, int64(2000), output.Metadata.TimelineEnd)
 	assert.Equal(t, []string{"cusum"}, output.Metadata.DetectorsEnabled)
 	assert.Equal(t, []string{"time_cluster"}, output.Metadata.CorrelatorsEnabled)
@@ -189,7 +189,7 @@ func TestWriteObserverOutput_Verbose(t *testing.T) {
 
 func TestWriteObserverOutput_TimelineBoundsFromStorage(t *testing.T) {
 	tb := newTestBenchForOutput()
-	tb.engine.Storage().Add("parquet", "disk.io", 10.0, 5000, []string{"device:sda"})
+	tb.engine.Storage().Add("parquet", "disk.io", 10.0, 8990, []string{"device:sda"})
 	tb.engine.Storage().Add("parquet", "disk.io", 20.0, 9000, []string{"device:sda"})
 
 	outPath := filepath.Join(t.TempDir(), "results.json")
@@ -201,7 +201,7 @@ func TestWriteObserverOutput_TimelineBoundsFromStorage(t *testing.T) {
 	var output ObserverOutput
 	require.NoError(t, json.Unmarshal(data, &output))
 
-	assert.Equal(t, int64(5000), output.Metadata.TimelineStart)
+	assert.Equal(t, int64(8990), output.Metadata.TimelineStart)
 	assert.Equal(t, int64(9000), output.Metadata.TimelineEnd)
 }
 

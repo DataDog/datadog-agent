@@ -293,7 +293,28 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	stats.counts = insertInt64(stats.counts, idx, 1)
 	stats.mins = insertFloat64(stats.mins, idx, value)
 	stats.maxes = insertFloat64(stats.maxes, idx, value)
+
+	if storagePointRetentionSecs > 0 {
+		// searchAfter returns first index where ts > value; subtracting 1 makes
+		// the window inclusive: keep points where ts >= bucket-storagePointRetentionSecs.
+		if trim := searchAfter(stats.timestamps, bucket-storagePointRetentionSecs-1); trim > 0 {
+			stats.timestamps = trimFront(stats.timestamps, trim)
+			stats.sums = trimFront(stats.sums, trim)
+			stats.counts = trimFront(stats.counts, trim)
+			stats.mins = trimFront(stats.mins, trim)
+			stats.maxes = trimFront(stats.maxes, trim)
+		}
+	}
+
 	return res
+}
+
+// trimFront removes the first n elements from s in-place, preserving the
+// backing array to avoid allocation. Used to enforce the point retention window.
+func trimFront[T any](s []T, n int) []T {
+	keep := len(s) - n
+	copy(s, s[n:])
+	return s[:keep]
 }
 
 // insertInt64 inserts v at position idx in s, maintaining order.
@@ -669,6 +690,29 @@ func tagsEqual(a, b []string) bool {
 	return true
 }
 
+// storageMaxSeries is the default cap on the number of live series in storage.
+// When exceeded on an Advance call, the oldest series (by last write timestamp)
+// are evicted until the count drops to storageEvictionTarget (see below).
+// Set to 0 to disable.
+const storageMaxSeries = 50_000
+
+// storageEvictionBandRatio controls how far below the cap eviction drains.
+// When the cap is hit, series are removed until count ≤ storageEvictionTarget.
+// A ratio of 0.1 means evict down to 90% of the cap — creating a 10% band
+// before the next eviction pass is needed. Larger = rarer but bigger passes.
+const storageEvictionBandRatio = 0.1
+
+// storageEvictionTarget is the count eviction drains to when the cap fires.
+// Derived from the two constants above so callers use a single value.
+const storageEvictionTarget = storageMaxSeries - int(storageMaxSeries*storageEvictionBandRatio)
+
+// storagePointRetentionSecs is how long data points are retained per series.
+// Points older than (latest data timestamp - retention) are trimmed on each Add.
+// At 10k logs/sec total ingest, 120s ≈ 60 MB of point data regardless of
+// series cardinality. ScanMW needs at least 30 points per segment; 120s
+// satisfies that at any realistic per-series rate. Set to 0 to disable.
+const storagePointRetentionSecs = 120
+
 // tagInternMaxSize caps the number of unique tag-set entries in the intern
 // pool. New combinations beyond the cap are used as-is (no sharing, no pool
 // growth); hits on already-interned combinations still return the canonical
@@ -794,6 +838,74 @@ func (s *timeSeriesStorage) GetSeriesMeta(ref observer.SeriesRef) *observer.Seri
 		Name:      ss.Name,
 		Tags:      ss.Tags,
 	}
+}
+
+// EvictToCapacity evicts the oldest series (by last write timestamp) when the
+// live series count exceeds cap, draining down to target. The band between the
+// two thresholds prevents a fan-out on every Advance when the count hovers
+// near the cap. Returns the freed SeriesRefs for detector state cleanup.
+// Pass storageMaxSeries and storageEvictionTarget for production use.
+func (s *timeSeriesStorage) EvictToCapacity(seriesLimit, target int) []observer.SeriesRef {
+	if seriesLimit <= 0 {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Count first — common case is under limit, skip the allocation entirely.
+	count := 0
+	for _, st := range s.seriesIDStats {
+		if st != nil {
+			count++
+		}
+	}
+	if count <= seriesLimit {
+		return nil
+	}
+
+	type entry struct {
+		ref    observer.SeriesRef
+		lastTs int64
+	}
+	candidates := make([]entry, 0, count)
+	for _, st := range s.seriesIDStats {
+		if st == nil {
+			continue
+		}
+		lastTs := int64(0)
+		if n := len(st.timestamps); n > 0 {
+			lastTs = st.timestamps[n-1]
+		}
+		candidates = append(candidates, entry{ref: st.ref, lastTs: lastTs})
+	}
+
+	excess := count - target
+	if excess <= 0 {
+		return nil
+	}
+
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].lastTs < candidates[j].lastTs
+	})
+
+	var freed []observer.SeriesRef
+	for i := 0; i < excess; i++ {
+		st := s.resolveByID(candidates[i].ref)
+		if st == nil {
+			continue
+		}
+		s.releaseTagIntern(st.tagsHash)
+		h := seriesKeyHash(st.Namespace, st.Name, st.Tags)
+		if s.series[h] == st {
+			delete(s.series, h)
+		}
+		s.seriesIDStats[candidates[i].ref] = nil
+		freed = append(freed, candidates[i].ref)
+	}
+	if len(freed) > 0 {
+		s.seriesGen++
+	}
+	return freed
 }
 
 // SetContext attaches enrichment context to a series. Called by the engine

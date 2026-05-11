@@ -564,6 +564,57 @@ func TestTimeBoundsSkipsNonPositivePrefixOnly(t *testing.T) {
 	assert.Equal(t, int64(20), maxTs)
 }
 
+func TestEvictToCapacity_EviictsOldestToTarget(t *testing.T) {
+	const cap, target = 20, 15
+	s := newTimeSeriesStorage()
+	n := cap + 5
+	// Add n series with distinct last timestamps: series i gets timestamp i+1.
+	for i := 0; i < n; i++ {
+		s.Add("ns", fmt.Sprintf("metric.%d", i), 1.0, int64(i+1), nil)
+	}
+	require.Equal(t, n, s.TotalSeriesCount(""))
+
+	freed := s.EvictToCapacity(cap, target)
+
+	// Should drain to target, not just cap.
+	want := n - target
+	assert.Len(t, freed, want)
+	assert.Equal(t, target, s.TotalSeriesCount(""))
+
+	// The freed series must be the oldest (lowest timestamps).
+	for i := 0; i < want; i++ {
+		assert.Nil(t, s.GetSeries("ns", fmt.Sprintf("metric.%d", i), nil, AggregateAverage),
+			"series %d (oldest) should have been evicted", i)
+	}
+	for i := want; i < n; i++ {
+		assert.NotNil(t, s.GetSeries("ns", fmt.Sprintf("metric.%d", i), nil, AggregateAverage),
+			"series %d (newest) should survive", i)
+	}
+}
+
+func TestPointRetentionTruncatesOldAndPreservesOrder(t *testing.T) {
+	s := newTimeSeriesStorage()
+	// Add points spanning twice the retention window so trimming definitely fires.
+	total := storagePointRetentionSecs * 2
+	for i := 0; i < total; i++ {
+		s.Add("ns", "metric", float64(i), int64(i+1), nil)
+	}
+
+	series := s.GetSeries("ns", "metric", nil, AggregateSum)
+	require.NotNil(t, series)
+
+	// Only points within the retention window should be kept.
+	// Window is [latest-retention, latest] inclusive, so at most retention+1 points.
+	assert.LessOrEqual(t, len(series.Points), storagePointRetentionSecs+1,
+		"points older than retention window should be dropped")
+
+	// Timestamps must remain sorted (binary search invariant).
+	for i := 1; i < len(series.Points); i++ {
+		assert.Greater(t, series.Points[i].Timestamp, series.Points[i-1].Timestamp,
+			"timestamps must be strictly increasing after trimming")
+	}
+}
+
 func TestTimeSeriesStorage_ListSeries_ExcludeNamespaces(t *testing.T) {
 	s := newTimeSeriesStorage()
 	s.Add(observer.TelemetryNamespace, "internal.gauge", 1, 1000, nil)
