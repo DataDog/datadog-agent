@@ -32,6 +32,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-securityagent"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
@@ -88,27 +89,7 @@ type cliParams struct {
 func (s *service) Run(svcctx context.Context) error {
 
 	params := &cliParams{}
-	err := fxutil.OneShot(
-		func(log log.Component, config config.Component, secrets secrets.Component, _ statsd.Component, _ sysprobeconfig.Component,
-			telemetry telemetry.Component, _ workloadmeta.Component, _ *cliParams, statusComponent status.Component, _ autoexit.Component,
-			settings settings.Component, wmeta workloadmeta.Component, ipc ipc.Component) error {
-			defer start.StopAgent(log)
-
-			err := start.RunAgent(log, config, secrets, telemetry, statusComponent, settings, wmeta, ipc)
-			if err != nil {
-				if errors.Is(err, start.ErrAllComponentsDisabled) {
-					// If all components are disabled, we should exit cleanly
-					return fmt.Errorf("%w: %w", servicemain.ErrCleanStopAfterInit, err)
-				}
-				return err
-			}
-
-			// Wait for stop signal
-			<-svcctx.Done()
-			log.Info("Received stop from service manager, shutting down...")
-
-			return nil
-		},
+	opts := []fx.Option{
 		fx.Supply(params),
 		fx.Supply(core.BundleParams{
 			ConfigParams:         config.NewSecurityAgentParams(defaultSecurityAgentConfigFilePaths),
@@ -171,6 +152,34 @@ func (s *service) Run(svcctx context.Context) error {
 		settingsimpl.Module(),
 		logscompressionfx.Module(),
 		ipcfx.ModuleReadWrite(),
+		remoteagentfx.Module(),
+	}
+	if start.IsConfigstreamEnabled(defaultSecurityAgentConfigFilePaths) {
+		opts = append(opts, start.ConfigstreamFxOptions())
+	}
+
+	err := fxutil.OneShot(
+		func(log log.Component, config config.Component, secrets secrets.Component, _ statsd.Component, _ sysprobeconfig.Component,
+			telemetry telemetry.Component, _ workloadmeta.Component, _ *cliParams, statusComponent status.Component, _ autoexit.Component,
+			settings settings.Component, wmeta workloadmeta.Component, ipc ipc.Component) error {
+			defer start.StopAgent(log)
+
+			err := start.RunAgent(log, config, secrets, telemetry, statusComponent, settings, wmeta, ipc)
+			if err != nil {
+				if errors.Is(err, start.ErrAllComponentsDisabled) {
+					// If all components are disabled, we should exit cleanly
+					return fmt.Errorf("%w: %w", servicemain.ErrCleanStopAfterInit, err)
+				}
+				return err
+			}
+
+			// Wait for stop signal
+			<-svcctx.Done()
+			log.Info("Received stop from service manager, shutting down...")
+
+			return nil
+		},
+		opts...,
 	)
 
 	return err

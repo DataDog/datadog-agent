@@ -197,8 +197,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				remoteagentfx.Module(),
 				fxinstrumentation.Module(),
 			}
-			if isConfigstreamEnabled(params.ConfigFilePaths) {
-				opts = append(opts, configstreamFxOptions())
+			if IsConfigstreamEnabled(params.ConfigFilePaths) {
+				opts = append(opts, ConfigstreamFxOptions())
 			}
 			return fxutil.OneShot(start, opts...)
 		},
@@ -426,9 +426,9 @@ func secAgentKey(sub string) string {
 // configstreamConsumerEnabledEnvVar is the environment variable that controls whether the configstream consumer is enabled.
 const configstreamConsumerEnabledEnvVar = "DD_REMOTE_AGENT_CONFIGSTREAM_CONSUMER_ENABLED"
 
-// configstreamFxOptions returns FX options for the config stream consumer.
-// Only include this when remote_agent.configstream.consumer.enabled is true.
-func configstreamFxOptions() fx.Option {
+// ConfigstreamFxOptions returns FX options for the config stream consumer.
+// Only include when remote_agent.configstream.consumer.enabled is true.
+func ConfigstreamFxOptions() fx.Option {
 	return fx.Options(
 		// Expose config.Component as model.Writer for the config stream consumer to write remote config into.
 		fx.Provide(func(c config.Component) model.Writer {
@@ -462,9 +462,9 @@ func configstreamFxOptions() fx.Option {
 	)
 }
 
-// isConfigstreamEnabled is a pre-FX feature flag check; the env var takes precedence over YAML.
-// security-agent accepts multiple --cfgpath flags, so we look in each in order.
-func isConfigstreamEnabled(cliConfigPaths []string) bool {
+// IsConfigstreamEnabled is a pre-FX feature flag check; the env var takes precedence over YAML.
+// Scans every --cfgpath because NewSecurityAgentParams merges them.
+func IsConfigstreamEnabled(cliConfigPaths []string) bool {
 	if v, ok := os.LookupEnv(configstreamConsumerEnabledEnvVar); ok {
 		if enabled, err := strconv.ParseBool(v); err == nil {
 			return enabled
@@ -493,9 +493,11 @@ func isConfigstreamEnabled(cliConfigPaths []string) bool {
 			} `yaml:"remote_agent"`
 		}
 		if err := yaml.Unmarshal(data, &cfg); err != nil {
-			return false
+			continue
 		}
-		return cfg.RemoteAgent.ConfigStream.Consumer.Enabled
+		if cfg.RemoteAgent.ConfigStream.Consumer.Enabled {
+			return true
+		}
 	}
 	return false
 }
