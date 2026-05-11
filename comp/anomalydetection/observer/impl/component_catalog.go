@@ -38,13 +38,7 @@ type componentEntry struct {
 	// populated config struct. Only components that need agent-config
 	// tuning set this; others leave it nil.
 	readConfig func(ConfigReader, string) any
-
-	// parseJSON optionally parses component hyperparameters from a JSON object
-	// (the component's sub-object from a --config params file, with "enabled"
-	// already stripped). It starts from the provided defaults and overlays JSON
-	// values, so unspecified fields keep their default. Returns the populated
-	// typed config. Nil means the component has no tunable hyperparameters.
-	parseJSON func(defaults any, raw []byte) (any, error)
+	// parseJSON is added by algorithm PRs that support per-component JSON config tuning.
 }
 
 // componentInstance tracks a component entry paired with its runtime instance and enabled state.
