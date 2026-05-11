@@ -37,7 +37,24 @@ func NewRCListCommand(cl **client.Client) *cobra.Command {
 				cfgs = filtered
 			}
 			if !pretty {
-				out, err := json.MarshalIndent(cfgs, "", "  ")
+				type rcConfigOut struct {
+					OrgID      string          `json:"org_id"`
+					Product    string          `json:"product"`
+					ConfigID   string          `json:"config_id"`
+					ConfigName string          `json:"config_name"`
+					Data       json.RawMessage `json:"data"`
+				}
+				rendered := make([]rcConfigOut, len(cfgs))
+				for i, c := range cfgs {
+					rendered[i] = rcConfigOut{
+						OrgID:      c.OrgID,
+						Product:    c.Product,
+						ConfigID:   c.ConfigID,
+						ConfigName: c.ConfigName,
+						Data:       json.RawMessage(c.Data),
+					}
+				}
+				out, err := json.MarshalIndent(rendered, "", "  ")
 				if err != nil {
 					return err
 				}
