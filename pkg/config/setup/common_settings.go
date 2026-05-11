@@ -70,6 +70,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("use_diskv2_check", true)
 	config.BindEnvAndSetDefault("disk_check.use_core_loader", true)
 
+	// If true, then the OpenMetrics core check will be used.
+	// Otherwise, the Python openmetrics check remains the default.
+	config.BindEnvAndSetDefault("openmetrics.use_core_loader", false)
+
 	// the darwin and bsd network check has not been ported from python
 	if runtime.GOOS == "linux" || runtime.GOOS == "windows" {
 		// If true, then new version of network v2 check will be used.
