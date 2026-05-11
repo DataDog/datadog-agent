@@ -622,8 +622,6 @@ exports_files(glob(
 # gazelle:exclude pkg/process/util/containers
 # gazelle:exclude pkg/process/util/status
 # gazelle:exclude pkg/procmgr
-# gazelle:exclude pkg/proto/datadog/api
-# gazelle:exclude pkg/proto/datadog/remoteagent
 # gazelle:exclude pkg/proto/protodep
 # gazelle:exclude pkg/remoteflags
 # gazelle:exclude pkg/sbom/collectors/docker
@@ -850,13 +848,6 @@ exports_files(glob(
 # gazelle:exclude tools/host-profiler
 # gazelle:exclude tools/retry_file_dump
 # gazelle:exclude tools/windows
-# Proto definitions under pkg/proto/datadog/ use pre-generated Go code checked
-# into pkg/proto/pbgo/. Gazelle's proto mode is disabled because multiple proto
-# directories share the same go_package ("pkg/proto/pbgo/core"), making
-# per-directory go_proto_library targets impossible. Additionally, some directories
-# (remoteagent, privateactionrunner) contain multiple proto packages which
-# gazelle cannot handle at all.
-# Vendored proto definitions used only for protoc code-gen, not Bazel builds.
 
 # All custom build tags from tasks/build_tags.py ALL_TAGS, plus "test".
 # "test" is included so Gazelle analyzes test-only sources and generates their
