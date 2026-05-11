@@ -211,11 +211,11 @@ func (cb *CollectorBundle) addCollectorFromConfig(collectorName string, isCRD bo
 			return
 		}
 
-		if c, _ := cb.inventory.CollectorForVersion(resource, groupVersion); c != nil {
-			_ = cb.check.Warnf("Ignoring CRD collector %s: use builtin collection instead", collectorName)
-
-			return
-		}
+		//if c, _ := cb.inventory.CollectorForVersion(resource, groupVersion); c != nil {
+		//	_ = cb.check.Warnf("Ignoring CRD collector %s: use builtin collection instead", collectorName)
+		//
+		//	return
+		//}
 		collector, err = cb.collectorDiscovery.VerifyForCRDInventory(resource, groupVersion)
 	} else if idx := strings.LastIndex(collectorName, "/"); idx != -1 {
 		groupVersion := collectorName[:idx]
@@ -586,6 +586,12 @@ func newBuiltinCRDConfigs() []builtinCRDConfig {
 		newBuiltinCRDConfig(KongAPIGroup, "", isIngressControllersEnabled, "v1", "v1beta1"),
 		newBuiltinCRDConfig(HAProxyCoreAPIGroup, "", isIngressControllersEnabled, "v1alpha2"),
 		newBuiltinCRDConfig(HAProxyIngressV1APIGroup, "", isIngressControllersEnabled, "v1"),
+
+		// RBAC resources
+		newBuiltinCRDConfig("rbac.authorization.k8s.io", "clusterroles", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig("rbac.authorization.k8s.io", "clusterrolebindings", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig("rbac.authorization.k8s.io", "roles", isOOTBCRDEnabled, "v1"),
+		newBuiltinCRDConfig("rbac.authorization.k8s.io", "rolebindings", isOOTBCRDEnabled, "v1"),
 	}
 }
 

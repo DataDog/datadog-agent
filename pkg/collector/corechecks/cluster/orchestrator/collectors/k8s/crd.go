@@ -18,6 +18,7 @@ import (
 
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 )
@@ -31,10 +32,11 @@ func NewCRDCollectorVersions() collectors.CollectorVersions {
 
 // CRDCollector is a collector for Kubernetes CRDs.
 type CRDCollector struct {
-	informer  informers.GenericInformer
-	lister    cache.GenericLister
-	metadata  *collectors.CollectorMetadata
-	processor *processors.Processor
+	informer      informers.GenericInformer
+	lister        cache.GenericLister
+	metadata      *collectors.CollectorMetadata
+	processor     *processors.Processor
+	syntheticCRDs []runtime.Object
 }
 
 // NewCRDCollector creates a new collector for the Kubernetes CRD
@@ -71,7 +73,8 @@ func (c *CRDCollector) Init(rcfg *collectors.CollectorRunConfig) {
 	if err != nil {
 		log.Errorc(err.Error(), orchestrator.ExtraLogContext...)
 	}
-	c.lister = c.informer.Lister() // return that Lister
+	c.lister = c.informer.Lister()
+	c.syntheticCRDs = syntheticBuiltinCRDs()
 }
 
 // Metadata is used to access information about the collector.
@@ -85,6 +88,8 @@ func (c *CRDCollector) Run(rcfg *collectors.CollectorRunConfig) (*collectors.Col
 	if err != nil {
 		return nil, collectors.NewListingError(err)
 	}
+
+	list = append(list, c.syntheticCRDs...)
 
 	return c.Process(rcfg, list)
 }
