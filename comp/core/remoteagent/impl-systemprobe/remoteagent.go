@@ -53,7 +53,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	// Set the agent identity for log metrics partitioning so that
-	// logs.bytes_sent is tagged with remote_agent="system-probe".
+	// logs.bytes_sent is tagged with emitter="system-probe".
 	metrics.SetAgentIdentity("system-probe")
 
 	remoteagentImpl := &remoteagentImpl{
@@ -115,7 +115,7 @@ func (r *remoteagentImpl) WaitSessionID(ctx context.Context) (string, error) {
 func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetryRequest) (*pbcore.GetTelemetryResponse, error) {
 	prometheusText, err := r.telemetry.GatherText(false, telemetry.StaticMetricFilter(
 		// Metrics to forward from system-probe to core agent.
-		// The remote_agent tag is set to "system-probe" via metrics.SetAgentIdentity() above.
+		// The emitter tag is set to "system-probe" via metrics.SetAgentIdentity() above.
 		"logs__bytes_sent",
 		"logs__encoded_bytes_sent",
 

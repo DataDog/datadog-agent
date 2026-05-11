@@ -217,22 +217,30 @@ var defaultProfiles = `
         zero_metric: true
       metrics:
         - name: dogstatsd.udp_packets_bytes
-          aggregate_tags:
-            - remote_agent
+          preserve_tags:
+            - emitter
+          default_tags:
+            emitter: agent
         - name: dogstatsd.uds_packets_bytes
-          aggregate_tags:
-            - remote_agent
+          preserve_tags:
+            - emitter
+          default_tags:
+            emitter: agent
         - name: logs.bytes_missed
         - name: logs.bytes_sent
           preserve_tags:
-            - remote_agent
+            - emitter
+          default_tags:
+            emitter: agent
           aggregate_total: true
         - name: logs.decoded
         - name: logs.dropped
         - name: logs.encoded_bytes_sent
           preserve_tags:
-            - remote_agent
+            - emitter
             - compression_kind
+          default_tags:
+            emitter: agent
           aggregate_total: true
         - name: logs.http_connectivity_check
           preserve_tags:

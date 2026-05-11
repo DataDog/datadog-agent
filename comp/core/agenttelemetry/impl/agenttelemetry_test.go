@@ -2409,3 +2409,42 @@ func TestAgentTelemetrySendNonRegisteredEvent(t *testing.T) {
 	err = a.SendEvent("agentbsod2", payload)
 	require.Error(t, err)
 }
+
+// TestDogstatsdDefaultEmitterTagInjected verifies that a dogstatsd metric with no emitter
+// tag (as emitted by Core Agent) gets emitter=agent injected via default_tags.
+func TestDogstatsdDefaultEmitterTagInjected(t *testing.T) {
+	var c = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: logs-and-metrics
+          metric:
+            exclude:
+              zero_metric: true
+            metrics:
+              - name: dogstatsd.uds_packets_bytes
+                preserve_tags:
+                  - emitter
+                default_tags:
+                  emitter: agent
+    `
+	tel := makeTelMock(t)
+	counter := tel.NewCounter("dogstatsd", "uds_packets_bytes", []string{}, "")
+	counter.Add(100) // Core Agent metric — no emitter tag
+
+	s := &senderMock{}
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, c, s, nil, r)
+	require.True(t, a.enabled)
+
+	a.start()
+	r.(*runnerMock).run()
+
+	require.Equal(t, 1, len(s.sentMetrics))
+	require.Equal(t, 1, len(s.sentMetrics[0].metrics))
+	m := s.sentMetrics[0].metrics[0]
+	assert.Equal(t, float64(100), m.Counter.GetValue())
+	require.Equal(t, 1, len(m.GetLabel()))
+	assert.Equal(t, "emitter", m.GetLabel()[0].GetName())
+	assert.Equal(t, "agent", m.GetLabel()[0].GetValue())
+}
