@@ -11,6 +11,7 @@ go_library(
         "//comp/core/log/def",
         "//comp/def",
         "//comp/healthplatform/forwarder/def",
+        "//pkg/config/lite",
         "//pkg/config/model",
         "//pkg/config/utils",
         "//pkg/util/flavor",
