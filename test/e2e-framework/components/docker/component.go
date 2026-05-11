@@ -56,7 +56,7 @@ func NewManager(e config.Env, host *remoteComp.Host, opts ...pulumi.ResourceOpti
 		}
 		comp.opts = utils.MergeOptions(comp.opts, utils.PulumiDependsOn(installCmd))
 
-		composeCmd, err := comp.installCompose()
+		composeCmd, err := comp.assertCompose()
 		if err != nil {
 			return err
 		}
@@ -224,14 +224,43 @@ func (d *Manager) install() (command.Command, error) {
 	return groupCmd, err
 }
 
-func (d *Manager) installCompose() (command.Command, error) {
+// assertCompose verifies that docker-compose at composeVersion is already
+// present on the host. Actual installs happen either via the pre-baked AWS e2e
+// AMI or via docker.InstallCompose, called explicitly by Azure/GCP
+// provisioners before NewManager. This method never installs — runtime
+// installs on AWS are disallowed.
+//
+// Version validation runs in Go (via ApplyT) so a missing or wrong version
+// surfaces as a typed Go error rather than a bare bash exit code.
+func (d *Manager) assertCompose() (command.Command, error) {
 	opts := append(d.opts, pulumi.Parent(d))
-	checkCompose := pulumi.Sprintf("docker-compose version | grep %s", composeVersion)
-	return d.Host.OS.Runner().Command(
-		d.namer.ResourceName("install-compose"),
+
+	versionCmd, err := d.Host.OS.Runner().Command(
+		d.namer.ResourceName("compose-version"),
 		&command.Args{
-			Create: checkCompose,
+			Create: pulumi.String("docker-compose version"),
 			Sudo:   false,
 		},
 		opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	validated := versionCmd.StdoutOutput().ApplyT(func(out string) (string, error) {
+		if !strings.Contains(out, composeVersion) {
+			return "", fmt.Errorf(
+				"docker-compose %s expected on host but got %q; runtime installs are not allowed on AWS — use docker.InstallCompose on Azure/GCP",
+				composeVersion, strings.TrimSpace(out),
+			)
+		}
+		return ":", nil
+	}).(pulumi.StringOutput)
+
+	return d.Host.OS.Runner().Command(
+		d.namer.ResourceName("assert-compose"),
+		&command.Args{
+			Create: validated,
+			Sudo:   false,
+		},
+		utils.MergeOptions(opts, utils.PulumiDependsOn(versionCmd))...)
 }
