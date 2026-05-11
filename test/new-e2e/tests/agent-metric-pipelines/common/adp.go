@@ -49,22 +49,28 @@ func AssertADPRunning(t *testing.T, host *components.RemoteHost) {
 	t.Helper()
 	ok := assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		// ss -lnup lists listening UDP sockets with process info. The owning
-		// process appears as users:(("agent-data-plane",pid=...,fd=...)).
+		// process appears as users:(("agent-data-plan",pid=...,fd=...)).
+		//
+		// Note: the process name shows as "agent-data-plan" (15 chars), not
+		// "agent-data-plane" (16 chars). This is a Linux kernel limitation —
+		// /proc/<pid>/comm caps process names at TASK_COMM_LEN = 16 (15 chars
+		// + null), so the full 16-char binary name is truncated by one
+		// character. Match on the truncated form.
 		out, err := host.Execute("sudo ss -lnup 'sport = :8125'")
 		if !assert.NoError(c, err) {
 			return
 		}
-		assert.Contains(c, out, "agent-data-plane",
-			"UDP/8125 should be bound by agent-data-plane; got: %s", out)
+		assert.Contains(c, out, "agent-data-plan",
+			"UDP/8125 should be bound by agent-data-plane (shown as truncated 'agent-data-plan' by ss); got: %s", out)
 	}, 2*time.Minute, 5*time.Second,
 		"timed out waiting for agent-data-plane to bind UDP/8125")
 
 	if !ok {
 		// Surface the agent-data-plane systemd log so CI failures don't require
 		// SSHing into a torn-down host to figure out why ADP didn't start.
-		// Mirrors the journalctl-on-failure pattern in agent-platform's
-		// CheckADPEnabled (test/new-e2e/tests/agent-platform/common/agent_behaviour.go).
-		journal, _ := host.Execute("sudo journalctl -u agent-data-plane --no-pager -n 200")
+		// The unit is named "datadog-agent-data-plane" on installed packages
+		// but "agent-data-plane" in some dev builds — query both.
+		journal, _ := host.Execute("sudo journalctl -u agent-data-plane -u datadog-agent-data-plane --no-pager -n 200")
 		require.FailNowf(t, "agent-data-plane did not bind UDP/8125",
 			"agent-data-plane journalctl tail:\n%s", journal)
 	}
