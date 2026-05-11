@@ -9,6 +9,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -231,6 +232,9 @@ func TestENC_WithoutBackendStaysEncrypted(t *testing.T) {
 }
 
 func TestENC_ResolvedViaSecretBackend(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake backend is a POSIX shell script; the exec path is platform-agnostic")
+	}
 	// Build a fake secret backend: a tiny shell script that reads a JSON
 	// request on stdin and writes a JSON response on stdout.
 	dir := t.TempDir()
