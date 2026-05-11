@@ -10,20 +10,12 @@ import (
 	hfrunnerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/hfrunner/def"
 	hfrunnerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/hfrunner/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
-	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
-	opts := []fx.Option{
+	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(hfrunnerimpl.NewComponent),
-		fx.Provide(func(c hfrunnerdef.Component) option.Option[hfrunnerdef.Component] {
-			return option.New(c)
-		}),
-	}
-	return fxutil.Module{
-		Option:  fx.Module("comp/anomalydetection/hfrunner", opts...),
-		Options: opts,
-	}
+		fxutil.ProvideOptional[hfrunnerdef.Component](),
+	)
 }

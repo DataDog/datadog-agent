@@ -39,26 +39,32 @@ type Provides struct {
 }
 
 type hfrunnerComp struct {
-	lifecycle        compdef.Lifecycle
 	systemEnabled    bool
 	containerEnabled bool
 	wmeta            option.Option[workloadmetadef.Component]
 	filterStore      option.Option[workloadfilterdef.Component]
 	tagger           option.Option[taggerdef.Component]
+	stoppers         []func()
 }
 
 // NewComponent creates the hfrunner component.
 func NewComponent(deps Requires) Provides {
-	return Provides{
-		Comp: &hfrunnerComp{
-			lifecycle:        deps.Lifecycle,
-			systemEnabled:    deps.Config.GetBool("observer.high_frequency_system_checks.enabled"),
-			containerEnabled: deps.Config.GetBool("observer.high_frequency_container_checks.enabled"),
-			wmeta:            deps.WMeta,
-			filterStore:      deps.FilterStore,
-			tagger:           deps.Tagger,
-		},
+	h := &hfrunnerComp{
+		systemEnabled:    deps.Config.GetBool("observer.high_frequency_system_checks.enabled"),
+		containerEnabled: deps.Config.GetBool("observer.high_frequency_container_checks.enabled"),
+		wmeta:            deps.WMeta,
+		filterStore:      deps.FilterStore,
+		tagger:           deps.Tagger,
 	}
+	deps.Lifecycle.Append(compdef.Hook{
+		OnStop: func(_ context.Context) error {
+			for _, stop := range h.stoppers {
+				stop()
+			}
+			return nil
+		},
+	})
+	return Provides{Comp: h}
 }
 
 // StartSystem starts the HF system check runner with the given handle.
@@ -70,13 +76,8 @@ func (h *hfrunnerComp) StartSystem(systemHandle observerdef.Handle) map[metrics.
 	}
 	r := newRunner(systemHandle)
 	r.start()
-	pkglog.Info("[observer] high-frequency system check runner started (1s interval)")
-	h.lifecycle.Append(compdef.Hook{
-		OnStop: func(_ context.Context) error {
-			r.stop()
-			return nil
-		},
-	})
+	pkglog.Info("[observer/hfrunner] high-frequency system check runner started (1s interval)")
+	h.stoppers = append(h.stoppers, r.stop)
 	return copySourceSet(systemCheckSources)
 }
 
@@ -90,7 +91,7 @@ func (h *hfrunnerComp) StartContainer(containerHandle observerdef.Handle) map[me
 	filterStore, fok := h.filterStore.Get()
 	tagger, tok := h.tagger.Get()
 	if !wok || !fok || !tok {
-		pkglog.Warn("[observer] high_frequency_container_checks.enabled=true but WMeta/FilterStore/Tagger not available; skipping")
+		pkglog.Warn("[observer/hfrunner] high_frequency_container_checks.enabled=true but WMeta/FilterStore/Tagger not available; skipping")
 		return nil
 	}
 	r := newContainerRunner(containerHandle, ContainerDeps{
@@ -102,12 +103,7 @@ func (h *hfrunnerComp) StartContainer(containerHandle observerdef.Handle) map[me
 		return nil
 	}
 	r.start()
-	pkglog.Info("[observer] high-frequency container check runner started (1s interval)")
-	h.lifecycle.Append(compdef.Hook{
-		OnStop: func(_ context.Context) error {
-			r.stop()
-			return nil
-		},
-	})
+	pkglog.Info("[observer/hfrunner] high-frequency container check runner started (1s interval)")
+	h.stoppers = append(h.stoppers, r.stop)
 	return copySourceSet(containerCheckSources)
 }
