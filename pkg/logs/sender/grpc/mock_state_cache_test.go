@@ -140,6 +140,14 @@ func TestBuildStructuredLogUsesFlatLog(t *testing.T) {
 	assert.Equal(t, "uuid", flatLog.GetUuid())
 }
 
+func TestBuildStructuredLogOmitsEmptyUUID(t *testing.T) {
+	datum := buildStructuredLog(123, 12, nil, nil, "", nil, 0, nil, 0, nil, compactJSONContextValues{})
+
+	flatLog := datum.GetFlatLog()
+	require.NotNil(t, flatLog)
+	assert.Nil(t, flatLog.Uuid)
+}
+
 func TestBuildRawLogUsesFlatLog(t *testing.T) {
 	ts := time.UnixMilli(123)
 
