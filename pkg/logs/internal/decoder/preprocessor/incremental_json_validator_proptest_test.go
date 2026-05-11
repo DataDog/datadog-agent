@@ -17,7 +17,7 @@ import (
 // names the contract @invariant it anchors so that drift in either
 // direction is easy to spot during review.
 //
-// Anchoring (Layer 1) tests for the validator live in
+// Anchoring tests for the validator live in
 // incremental_json_validator_test.go.
 
 // TestValidator_Determinism anchors:

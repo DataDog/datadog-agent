@@ -17,9 +17,9 @@ import (
 // Each test names the spec construct it anchors so that drift in either
 // direction is easy to spot during review.
 //
-// Anchoring (Layer 1) tests for the aggregator live in
-// json_aggregator_test.go. Property tests for the IncrementalJSONValidator
-// contract live in incremental_json_validator_proptest_test.go.
+// Anchoring tests for the aggregator live in json_aggregator_test.go.
+// Property tests for the IncrementalJSONValidator contract live in
+// incremental_json_validator_proptest_test.go.
 
 // safeString generates a non-empty string that contains no JSON
 // structural characters. Callers use this when they need to construct
