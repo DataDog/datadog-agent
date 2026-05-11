@@ -14414,6 +14414,17 @@ properties:
             default: []
             items:
               type: string
+          shadow_sample_rate:
+            node_type: setting
+            type: number
+            default: 0.001
+          shadow_sites:
+            node_type: setting
+            type: array
+            default:
+              - datadoghq.com
+            items:
+              type: string
           use_beta:
             node_type: setting
             type: boolean

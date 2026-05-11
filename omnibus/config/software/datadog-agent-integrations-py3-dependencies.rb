@@ -2,7 +2,6 @@ name 'datadog-agent-integrations-py3-dependencies'
 
 dependency 'python3'
 dependency 'setuptools3'
-dependency 'openssl3'
 
 if linux_target?
 

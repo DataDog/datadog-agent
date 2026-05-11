@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "types",
+    srcs = [
+        "checksum.go",
+        "package.go",
+        "repo.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/rpm/dnfv2/types",
+    visibility = ["//visibility:public"],
+)

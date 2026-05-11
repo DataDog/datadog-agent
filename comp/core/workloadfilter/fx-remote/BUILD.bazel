@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx-remote",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-remote",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadfilter/remoteimpl",
+        "//pkg/util/fxutil",
+    ],
+)

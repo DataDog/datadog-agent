@@ -1,6 +1,4 @@
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
 load("@rules_python//python:defs.bzl", "py_binary")
 
 package(default_visibility = ["//visibility:public"])
@@ -78,67 +76,34 @@ filegroup(
     output_group = "gen_dir",
 )
 
-pkg_files(
-    name = "openssl_fips_provider",
-    srcs = [":fips_provider"],
-    attributes = pkg_attributes(
-        mode = "0644",
-    ),
-    prefix = select({
-        "@platforms//os:windows": "lib/ossl-modules",
-        "//conditions:default": "lib/ossl-modules",
-    }),
-)
-
-pkg_files(
+genrule(
     name = "fipsinstall_sh",
     srcs = ["fipsinstall.sh"],
-    attributes = pkg_attributes(
-        mode = "0755",
-    ),
-    prefix = "bin",
+    outs = ["fipsinstall.sh.out"],
+    cmd = "$(execpath :_configure_fips_tool) --input $< --output $@ '{{install_dir}}=$(INSTALL_DIR)/embedded'",
+    tools = [":_configure_fips_tool"],
+    toolchains = ["@@//:install_dir"],
     target_compatible_with = select({
         "@platforms//os:windows": ["@platforms//:incompatible"],
         "//conditions:default": [],
     }),
 )
 
-pkg_files(
+genrule(
     name = "openssl_cnf_tmp",
     srcs = ["openssl.cnf.tmp"],
-    attributes = pkg_attributes(
-        mode = "0644",
-    ),
-    prefix = "ssl",
-)
-
-# FIPS version of the agent requires libraries and headers of the regular OpenSSL installation.
-# Thus, bringing them in here with openssl_install_files target.
-pkg_filegroup(
-    name = "all_files",
-    srcs = [
-        ":openssl_cnf_tmp",
-        ":openssl_fips_provider",
-    ] + select({
-        "@platforms//os:windows": [],
-        "//conditions:default": [":fipsinstall_sh"],
+    outs = ["openssl.cnf.tmp.out"],
+    cmd = select({
+        "@platforms//os:windows": "$(execpath :_configure_fips_tool) --input $< --output $@ '{{embedded_ssl_dir}}=C:/Program Files/Datadog/Datadog Agent/embedded3/ssl'",
+        "//conditions:default": "$(execpath :_configure_fips_tool) --input $< --output $@ '{{embedded_ssl_dir}}=$(INSTALL_DIR)/embedded/ssl'",
     }),
-    prefix = select({
-        "@platforms//os:windows": "embedded3",
-        "//conditions:default": "embedded",
-    }),
+    tools = [":_configure_fips_tool"],
+    toolchains = ["@@//:install_dir"],
 )
 
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
-    ],
-)
-
-# Cross-platform helper to set the correct paths in openssl.cnf and fipsinstall.sh.
-# Usage: bazel run @openssl_fips//:configure_fips -- --destdir <directory> [--embedded_ssl_dir <directory>]
+# configure_fips.py also supports a legacy --destdir interface for manual use.
 py_binary(
-    name = "configure_fips",
+    name = "_configure_fips_tool",
     srcs = ["configure_fips.py"],
+    main = "configure_fips.py",
 )
