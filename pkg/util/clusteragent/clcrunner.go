@@ -9,7 +9,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -87,12 +89,19 @@ func (c *CLCRunnerClient) init() {
 	c.clcRunnerPort = pkgconfigsetup.Datadog().GetInt("cluster_checks.clc_runners_port")
 }
 
+// runnerURL builds the URL of a CLC Runner endpoint, properly bracketing
+// IPv6 hosts.
+func (c *CLCRunnerClient) runnerURL(IP, subPath string) string {
+	addr := net.JoinHostPort(IP, strconv.Itoa(c.clcRunnerPort))
+	return fmt.Sprintf("https://%s/%s/%s", addr, clcRunnerPath, subPath)
+}
+
 // GetVersion fetches the version of the CLC Runner
 func (c *CLCRunnerClient) GetVersion(IP string) (version.Version, error) {
 	var version version.Version
 	var err error
 
-	rawURL := fmt.Sprintf("https://%s:%d/%s/%s", IP, c.clcRunnerPort, clcRunnerPath, clcRunnerVersionPath)
+	rawURL := c.runnerURL(IP, clcRunnerVersionPath)
 
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
@@ -125,7 +134,7 @@ func (c *CLCRunnerClient) GetRunnerStats(IP string) (types.CLCRunnersStats, erro
 	var stats types.CLCRunnersStats
 	var err error
 
-	rawURL := fmt.Sprintf("https://%s:%d/%s/%s", IP, c.clcRunnerPort, clcRunnerPath, clcRunnerStatsPath)
+	rawURL := c.runnerURL(IP, clcRunnerStatsPath)
 
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
@@ -160,7 +169,7 @@ func (c *CLCRunnerClient) GetRunnerStats(IP string) (types.CLCRunnersStats, erro
 func (c *CLCRunnerClient) GetRunnerWorkers(IP string) (types.Workers, error) {
 	var workers types.Workers
 
-	rawURL := fmt.Sprintf("https://%s:%d/%s/%s", IP, c.clcRunnerPort, clcRunnerPath, clcRunnerWorkersPath)
+	rawURL := c.runnerURL(IP, clcRunnerWorkersPath)
 
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
