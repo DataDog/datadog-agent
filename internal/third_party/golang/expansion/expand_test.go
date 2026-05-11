@@ -55,7 +55,7 @@ func TestMapReference(t *testing.T) {
 			Value: "$(ZOO)-2",
 		},
 		{
-			Name:  "INCOMPLETE",
+			Name:  "FAIL",
 			Value: "$(ZOO)-2-$(DNE)",
 		},
 	}
