@@ -166,9 +166,21 @@ func NewBatchEncoder(
 func (b *BatchEncoder) AddScope(scope Scope) error {
 	if !b.prefixWritten {
 		b.batchNum++
-		prefix := `{"service":"` + b.up.service +
-			`","version":"` + b.up.version +
-			`","language":"go","upload_id":"` + b.uploadID.String() +
+
+		// JSON-encode service and version, in case they contain funky
+		// characters.
+		serviceJSON, err := json.Marshal(b.up.service)
+		if err != nil {
+			return fmt.Errorf("failed to marshal service: %w", err)
+		}
+		versionJSON, err := json.Marshal(b.up.version)
+		if err != nil {
+			return fmt.Errorf("failed to marshal version: %w", err)
+		}
+
+		prefix := `{"service":` + string(serviceJSON) +
+			`,"version":` + string(versionJSON) +
+			`,"language":"go","upload_id":"` + b.uploadID.String() +
 			`","batch_num":` + strconv.Itoa(b.batchNum) +
 			`,"scopes":[`
 		if _, err := b.gz.Write([]byte(prefix)); err != nil {
@@ -219,7 +231,7 @@ func (b *BatchEncoder) Flush(ctx context.Context, final bool) error {
 	if err := b.gz.Close(); err != nil {
 		return fmt.Errorf("failed to close gzip writer: %w", err)
 	}
-	if err := b.up.uploadInner(ctx, b.buf.Bytes()); err != nil {
+	if err := b.up.uploadInner(ctx, b.buf.Bytes(), b.uploadID, b.batchNum, final); err != nil {
 		return fmt.Errorf("%w: %w", ErrUpload, err)
 	}
 	b.buf.Reset()
@@ -230,7 +242,7 @@ func (b *BatchEncoder) Flush(ctx context.Context, final bool) error {
 	return nil
 }
 
-func (s *uploader) uploadInner(ctx context.Context, compressedData []byte) error {
+func (s *uploader) uploadInner(ctx context.Context, compressedData []byte, uploadID uuid.UUID, batchNum int, final bool) error {
 	// The upload is a multipart containing metadata expected by the event platform
 	// and the gzipped SymDB data.
 
@@ -250,6 +262,10 @@ func (s *uploader) uploadInner(ctx context.Context, compressedData []byte) error
 		return fmt.Errorf("failed to write compressed SymDB data: %w", err)
 	}
 
+	// Add a part containing the JSON that will eventually become the EvP event
+	// (as opposed to the part above, which will become an EvP attachment). The
+	// name="event" is recognized by EvP intake:
+	// https://github.com/DataDog/logs-backend/blob/038d9b05a3904b60b06c32e03db1aebb757ba41d/domains/intake/libs/intake-backend/edge/src/main/java/com/dd/evp/intake_backend/edge/http/multipart/V2MultiPartMessageDecoder.java#L40
 	eventHeader := make(textproto.MIMEHeader)
 	eventHeader.Set("Content-Disposition", `form-data; name="event"; filename="event.json"`)
 	eventHeader.Set("Content-Type", "application/json")
@@ -259,14 +275,38 @@ func (s *uploader) uploadInner(ctx context.Context, compressedData []byte) error
 		return fmt.Errorf("failed to create event part: %w", err)
 	}
 
-	meta := []byte(`{
-"ddsource": "dd_debugger",
-"service": "` + s.service + `",
-"runtimeId": "` + s.runtimeID + `",
-"debugger": {
-	"type": "symdb"
-}
-}`)
+	// Some of the fields in here are duplicated inside the envelope in the
+	// attachment file; that's on purpose: having them in this message allows
+	// the debugger backend to have enough information for its bookkeeping
+	// without downloading the attachment. Having the info in the attachment is
+	// useful in order to make attachments self-contained.
+	event := struct {
+		DDSource       string    `json:"ddsource"`
+		Service        string    `json:"service"`
+		Version        string    `json:"version"`
+		Language       string    `json:"language"`
+		RuntimeID      string    `json:"runtimeId"`
+		Type           string    `json:"type"`
+		UploadID       uuid.UUID `json:"upload_id"`
+		BatchNum       int       `json:"batch_num"`
+		Final          bool      `json:"final"`
+		AttachmentSize int       `json:"attachment_size"`
+	}{
+		DDSource:       "dd_debugger",
+		Service:        s.service,
+		Version:        s.version,
+		Language:       "go",
+		RuntimeID:      s.runtimeID,
+		Type:           "symdb",
+		UploadID:       uploadID,
+		BatchNum:       batchNum,
+		Final:          final,
+		AttachmentSize: len(compressedData),
+	}
+	meta, err := json.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("failed to marshal event meta: %w", err)
+	}
 	if _, err := eventPart.Write(meta); err != nil {
 		return fmt.Errorf("failed to write event data: %w", err)
 	}
