@@ -7,6 +7,7 @@ package lite
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
@@ -63,13 +64,63 @@ type IssueInfo struct {
 // datadog.yaml. The same content shape is emitted by the in-Fx template path
 // and the rescue path so the backend dedupes both into one record.
 func BuildInvalidConfigIssue(info IssueInfo) *healthplatform.Issue {
+	var issue *healthplatform.Issue
 	switch info.Kind {
 	case ErrorKindYAMLParse:
-		return yamlParseIssue(info)
+		issue = yamlParseIssue(info)
 	case ErrorKindStartupFailure:
-		return startupFailureIssue(info)
+		issue = startupFailureIssue(info)
 	default:
-		return schemaValidationIssue(info)
+		issue = schemaValidationIssue(info)
+	}
+	issue.Tags = info.Tags()
+	return issue
+}
+
+// TruncateSchemaErrors clips errs to MaxSchemaErrorsInPayload. Callers use the
+// returned bool to populate IssueInfo.Truncated.
+func TruncateSchemaErrors(errs []string) (visible []string, truncated bool) {
+	if len(errs) <= MaxSchemaErrorsInPayload {
+		return errs, false
+	}
+	return errs[:MaxSchemaErrorsInPayload], true
+}
+
+// Tags returns the static tag list that pairs with this issue kind.
+func (info IssueInfo) Tags() []string {
+	switch info.Kind {
+	case ErrorKindYAMLParse:
+		return []string{"config", "yaml_parse"}
+	case ErrorKindStartupFailure:
+		return []string{"agent", "startup_failure"}
+	default:
+		return []string{"config", "schema"}
+	}
+}
+
+// ToContext serialises IssueInfo into the IssueReport.Context bag the
+// platform forwards to the template at expansion time.
+func (info IssueInfo) ToContext() map[string]string {
+	return map[string]string{
+		ContextKeyErrorKind:    string(info.Kind),
+		ContextKeyConfigPath:   info.ConfigPath,
+		ContextKeyErrorMessage: info.ErrorMessage,
+		ContextKeyErrors:       info.Errors,
+		ContextKeyErrorCount:   strconv.Itoa(info.ErrorCount),
+		ContextKeyTruncated:    strconv.FormatBool(info.Truncated),
+	}
+}
+
+// IssueInfoFromContext is the inverse of IssueInfo.ToContext.
+func IssueInfoFromContext(ctx map[string]string) IssueInfo {
+	count, _ := strconv.Atoi(ctx[ContextKeyErrorCount])
+	return IssueInfo{
+		Kind:         ErrorKind(ctx[ContextKeyErrorKind]),
+		ConfigPath:   ctx[ContextKeyConfigPath],
+		ErrorMessage: ctx[ContextKeyErrorMessage],
+		Errors:       ctx[ContextKeyErrors],
+		ErrorCount:   count,
+		Truncated:    ctx[ContextKeyTruncated] == "true",
 	}
 }
 
@@ -93,7 +144,6 @@ func yamlParseIssue(info IssueInfo) *healthplatform.Issue {
 			ContextKeyErrorMessage: info.ErrorMessage,
 			ContextKeyImpact:       "The Datadog Agent cannot load its configuration and is running with defaults only. Telemetry will not be sent.",
 		}),
-		Tags: []string{"config", "yaml_parse"},
 		Remediation: &healthplatform.Remediation{
 			Summary: "Open the configuration file and fix the YAML syntax error, then restart the agent.",
 			Steps: []*healthplatform.RemediationStep{
@@ -134,7 +184,6 @@ func schemaValidationIssue(info IssueInfo) *healthplatform.Issue {
 			ContextKeyTruncated:  info.Truncated,
 			ContextKeyImpact:     "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
 		}),
-		Tags: []string{"config", "schema"},
 		Remediation: &healthplatform.Remediation{
 			Summary: "Fix each schema violation in the configuration file and restart the agent.",
 			Steps: []*healthplatform.RemediationStep{
@@ -163,7 +212,6 @@ func startupFailureIssue(info IssueInfo) *healthplatform.Issue {
 			ContextKeyErrorMessage: info.ErrorMessage,
 			ContextKeyImpact:       "The Datadog Agent process failed to start. No telemetry will be collected until the underlying problem is resolved.",
 		}),
-		Tags: []string{"agent", "startup_failure"},
 		Remediation: &healthplatform.Remediation{
 			Summary: "Inspect the agent logs for the underlying cause and address it before restarting.",
 			Steps: []*healthplatform.RemediationStep{

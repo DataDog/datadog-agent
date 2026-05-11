@@ -7,7 +7,6 @@ package invalidconfig
 
 import (
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
@@ -42,47 +41,44 @@ func (c *checker) Run() (*healthplatform.IssueReport, error) {
 		return nil, nil
 	}
 
-	result := lite.ValidateRawConfig(raw)
-	switch result.Verdict {
-	case lite.VerdictOK:
+	info, raise := issueInfoFor(path, lite.ValidateRawConfig(raw))
+	if !raise {
 		return nil, nil
+	}
+	return &healthplatform.IssueReport{
+		IssueId: healthplatformdef.InvalidConfigIssueID,
+		Context: info.ToContext(),
+		Tags:    info.Tags(),
+	}, nil
+}
 
+// issueInfoFor translates a validation verdict into the IssueInfo the
+// platform expands later via the template. Returns false when there is
+// nothing to raise (healthy config or schema-validator infrastructure error).
+func issueInfoFor(path string, result lite.ValidationResult) (lite.IssueInfo, bool) {
+	switch result.Verdict {
 	case lite.VerdictYAMLParseFailure:
-		return &healthplatform.IssueReport{
-			IssueId: healthplatformdef.InvalidConfigIssueID,
-			Context: map[string]string{
-				lite.ContextKeyErrorKind:    string(lite.ErrorKindYAMLParse),
-				lite.ContextKeyConfigPath:   path,
-				lite.ContextKeyErrorMessage: result.ParseError.Error(),
-			},
-			Tags: []string{"config", "yaml_parse"},
-		}, nil
+		return lite.IssueInfo{
+			Kind:         lite.ErrorKindYAMLParse,
+			ConfigPath:   path,
+			ErrorMessage: result.ParseError.Error(),
+		}, true
 
 	case lite.VerdictSchemaInvalid:
-		visible := result.SchemaErrors
-		truncated := false
-		if len(visible) > lite.MaxSchemaErrorsInPayload {
-			visible = visible[:lite.MaxSchemaErrorsInPayload]
-			truncated = true
-		}
-		return &healthplatform.IssueReport{
-			IssueId: healthplatformdef.InvalidConfigIssueID,
-			Context: map[string]string{
-				lite.ContextKeyErrorKind:  string(lite.ErrorKindSchemaValidation),
-				lite.ContextKeyConfigPath: path,
-				lite.ContextKeyErrorCount: strconv.Itoa(len(result.SchemaErrors)),
-				lite.ContextKeyErrors:     strings.Join(visible, "\n"),
-				lite.ContextKeyTruncated:  strconv.FormatBool(truncated),
-			},
-			Tags: []string{"config", "schema"},
-		}, nil
+		visible, truncated := lite.TruncateSchemaErrors(result.SchemaErrors)
+		return lite.IssueInfo{
+			Kind:       lite.ErrorKindSchemaValidation,
+			ConfigPath: path,
+			Errors:     strings.Join(visible, "\n"),
+			ErrorCount: len(result.SchemaErrors),
+			Truncated:  truncated,
+		}, true
 
 	case lite.VerdictSchemaUnavailable:
 		// Build problem, not a customer problem — log and skip.
 		pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check")
-		return nil, nil
 	}
-	return nil, nil
+	return lite.IssueInfo{}, false
 }
 
 func (c *checker) configFilePath() string {

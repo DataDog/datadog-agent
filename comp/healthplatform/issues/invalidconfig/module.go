@@ -16,17 +16,13 @@ func init() {
 }
 
 type invalidConfigModule struct {
-	template *InvalidConfigIssue
-	checker  *checker
+	checker *checker
 }
 
 // NewModule captures the config component so the periodic check can read
 // ConfigFileUsed at run time.
 func NewModule(cfg config.Component) issues.Module {
-	return &invalidConfigModule{
-		template: NewInvalidConfigIssue(),
-		checker:  newChecker(cfg),
-	}
+	return &invalidConfigModule{checker: newChecker(cfg)}
 }
 
 func (m *invalidConfigModule) IssueID() string {
@@ -34,7 +30,7 @@ func (m *invalidConfigModule) IssueID() string {
 }
 
 func (m *invalidConfigModule) IssueTemplate() issues.IssueTemplate {
-	return m.template
+	return InvalidConfigIssue{}
 }
 
 // BuiltInCheck leaves Interval at zero so the platform applies its default,

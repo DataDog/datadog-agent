@@ -122,16 +122,13 @@ func buildRescueIssue(cfg LiteConfig, startupErr error) *healthplatform.Issue {
 }
 
 func rescueSchemaIssue(path string, errs []string) *healthplatform.Issue {
-	visible := errs
-	if len(visible) > MaxSchemaErrorsInPayload {
-		visible = visible[:MaxSchemaErrorsInPayload]
-	}
+	visible, truncated := TruncateSchemaErrors(errs)
 	issue := BuildInvalidConfigIssue(IssueInfo{
 		Kind:       ErrorKindSchemaValidation,
 		ConfigPath: path,
 		Errors:     strings.Join(visible, "\n"),
 		ErrorCount: len(errs),
-		Truncated:  len(errs) > MaxSchemaErrorsInPayload,
+		Truncated:  truncated,
 	})
 	stampDetectedAt(issue)
 	return issue

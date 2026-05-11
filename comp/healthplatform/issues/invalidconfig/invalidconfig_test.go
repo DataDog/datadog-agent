@@ -17,7 +17,7 @@ import (
 )
 
 func TestBuildIssue_YAMLParseHasHighSeverity(t *testing.T) {
-	issue, err := NewInvalidConfigIssue().BuildIssue(map[string]string{
+	issue, err := InvalidConfigIssue{}.BuildIssue(map[string]string{
 		lite.ContextKeyErrorKind:    string(lite.ErrorKindYAMLParse),
 		lite.ContextKeyConfigPath:   "/etc/datadog-agent/datadog.yaml",
 		lite.ContextKeyErrorMessage: "yaml: line 12: did not find expected ',' or ']'",
@@ -33,7 +33,7 @@ func TestBuildIssue_YAMLParseHasHighSeverity(t *testing.T) {
 }
 
 func TestBuildIssue_SchemaValidationHasMediumSeverity(t *testing.T) {
-	issue, err := NewInvalidConfigIssue().BuildIssue(map[string]string{
+	issue, err := InvalidConfigIssue{}.BuildIssue(map[string]string{
 		lite.ContextKeyErrorKind:  string(lite.ErrorKindSchemaValidation),
 		lite.ContextKeyConfigPath: "/etc/datadog-agent/datadog.yaml",
 		lite.ContextKeyErrorCount: "3",
