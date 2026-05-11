@@ -290,24 +290,6 @@ func procmgrBinaryExists(ctx HookContext, stable bool) bool {
 	return err == nil
 }
 
-// adjustDDOTProcessYAML tweaks embedded YAML for extension vs standalone DDOT
-// package layout differences.
-func adjustDDOTProcessYAML(content string, ctx HookContext, standalone bool) string {
-	if standalone && (ctx.PackageType == PackageTypeDEB || ctx.PackageType == PackageTypeRPM) {
-		// Standalone datadog-agent-ddot DEB/RPM packages install otel-agent under
-		// embedded/bin (no ext/ddot). The DDOT extension keeps binaries under ext/ddot.
-		content = strings.ReplaceAll(content, "/ext/ddot", "")
-	}
-	if standalone && ctx.PackageType == PackageTypeOCI {
-		// Standalone OCI DDOT package installs under datadog-agent-ddot and
-		// does not use /ext/ddot in embedded/bin paths.
-		content = strings.ReplaceAll(content, "/ext/ddot", "")
-		content = strings.ReplaceAll(content, "/opt/datadog-packages/datadog-agent/stable", "/opt/datadog-packages/datadog-agent-ddot/stable")
-		content = strings.ReplaceAll(content, "/opt/datadog-packages/datadog-agent/experiment", "/opt/datadog-packages/datadog-agent-ddot/experiment")
-	}
-	return content
-}
-
 func ddotEmbeddedUnitType(ctx HookContext) embedded.SystemdUnitType {
 	if ctx.PackageType == PackageTypeOCI {
 		return embedded.SystemdUnitTypeOCI
@@ -339,12 +321,11 @@ func applyDDOTProcmgrProcessesYAML(ctx HookContext, stable, standalone bool) (ow
 		log.Errorf("failed to check if ambiant capabilities are supported: %v", aerr)
 		ambiantCapabilitiesSupported = true // Assume true if we can't check
 	}
-	raw, err := embedded.GetDDOTProcessConfig(ddotEmbeddedUnitType(ctx), stable, ambiantCapabilitiesSupported)
+	raw, err := embedded.GetDDOTProcessConfig(ddotEmbeddedUnitType(ctx), stable, ambiantCapabilitiesSupported, standalone)
 	if err != nil {
 		return true, fmt.Errorf("ddot procmgr yaml: %w", err)
 	}
-	content := adjustDDOTProcessYAML(string(raw), ctx, standalone)
-	if err := procmgr.WriteConfig(dir, yamlName, content); err != nil {
+	if err := procmgr.WriteConfig(dir, yamlName, string(raw)); err != nil {
 		return true, err
 	}
 	return true, nil
