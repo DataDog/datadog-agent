@@ -25,6 +25,7 @@ go_test(
     embed = [":invalidconfig"],
     gotags = ["test"],
     deps = [
+        "//comp/core/config",
         "//comp/healthplatform/store/def",
         "//pkg/config/lite",
         "@com_github_stretchr_testify//assert",

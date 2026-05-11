@@ -6,12 +6,14 @@
 package invalidconfig
 
 import (
-	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/config/lite"
 )
@@ -56,14 +58,30 @@ func TestBuildIssue_SharesIssueIDWithRescue(t *testing.T) {
 	assert.Equal(t, lite.IssueID, healthplatformdef.InvalidConfigIssueID)
 }
 
-func newTestChecker(read func(string) ([]byte, error)) *checker {
-	return &checker{readFile: read}
+// cfgForPath wraps the standard config mock so ConfigFileUsed() returns a
+// specific path. The rest of the Component surface forwards to the real mock.
+type cfgForPath struct {
+	config.Component
+	path string
+}
+
+func (c cfgForPath) ConfigFileUsed() string { return c.path }
+
+func mockCfg(t *testing.T, path string) config.Component {
+	t.Helper()
+	return cfgForPath{Component: config.NewMock(t), path: path}
+}
+
+func writeYAML(t *testing.T, content string) string {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "datadog.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+	return path
 }
 
 func TestCheck_ParseFailureProducesReport(t *testing.T) {
-	c := newTestChecker(func(string) ([]byte, error) {
-		return []byte("{ this is not yaml\n"), nil
-	})
+	c := newChecker(mockCfg(t, writeYAML(t, "{ this is not yaml\n")))
 	report, err := c.Run()
 	require.NoError(t, err)
 	require.NotNil(t, report)
@@ -75,25 +93,22 @@ func TestCheck_ParseFailureProducesReport(t *testing.T) {
 // Healthy YAML hits VerdictSchemaUnavailable in tests (no embedded schema)
 // which the checker swallows — the report should be nil either way.
 func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
-	c := newTestChecker(func(string) ([]byte, error) {
-		return []byte("api_key: abc\nsite: dd.eu\n"), nil
-	})
+	c := newChecker(mockCfg(t, writeYAML(t, "api_key: abc\nsite: dd.eu\n")))
 	report, err := c.Run()
 	require.NoError(t, err)
 	assert.Nil(t, report)
 }
 
 func TestCheck_FileMissingReturnsNil(t *testing.T) {
-	c := newTestChecker(func(string) ([]byte, error) {
-		return nil, errors.New("no such file or directory")
-	})
+	c := newChecker(mockCfg(t, "/does/not/exist/datadog.yaml"))
 	report, err := c.Run()
 	require.NoError(t, err)
 	assert.Nil(t, report)
 }
 
-// configFilePath must always return a non-empty path so Run can decide to
-// readFile or skip based on a single check.
-func TestConfigFilePath_FallsBackToDefault(t *testing.T) {
-	assert.NotEmpty(t, (&checker{cfg: nil}).configFilePath())
+func TestCheck_EmptyPathReturnsNil(t *testing.T) {
+	c := newChecker(mockCfg(t, ""))
+	report, err := c.Run()
+	require.NoError(t, err)
+	assert.Nil(t, report)
 }

@@ -17,25 +17,22 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// checker is the periodic built-in check. readFile is overridable so tests
-// can simulate file-not-found / permission errors without touching disk.
+// checker is the periodic built-in check
 type checker struct {
-	cfg      config.Component
-	readFile func(string) ([]byte, error)
+	cfg config.Component
 }
 
 func newChecker(cfg config.Component) *checker {
-	return &checker{cfg: cfg, readFile: os.ReadFile}
+	return &checker{cfg: cfg}
 }
 
-// Run reads datadog.yaml from disk every tick (rather than the live merged
-// config) so this check's output mirrors the rescue path's output exactly.
+// Run reads datadog.yaml from disk every interval
 func (c *checker) Run() (*healthplatform.IssueReport, error) {
-	path := c.configFilePath()
+	path := c.cfg.ConfigFileUsed()
 	if path == "" {
 		return nil, nil
 	}
-	raw, err := c.readFile(path)
+	raw, err := os.ReadFile(path)
 	if err != nil {
 		// Missing file / permission denied are owned by other modules.
 		return nil, nil
@@ -53,8 +50,8 @@ func (c *checker) Run() (*healthplatform.IssueReport, error) {
 }
 
 // issueInfoFor translates a validation verdict into the IssueInfo the
-// platform expands later via the template. Returns false when there is
-// nothing to raise (healthy config or schema-validator infrastructure error).
+// platform expands via the template. Returns false when there is nothing to
+// raise (healthy config or schema-validator infrastructure error).
 func issueInfoFor(path string, result lite.ValidationResult) (lite.IssueInfo, bool) {
 	switch result.Verdict {
 	case lite.VerdictYAMLParseFailure:
@@ -79,13 +76,4 @@ func issueInfoFor(path string, result lite.ValidationResult) (lite.IssueInfo, bo
 		pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check")
 	}
 	return lite.IssueInfo{}, false
-}
-
-func (c *checker) configFilePath() string {
-	if c.cfg != nil {
-		if p := c.cfg.ConfigFileUsed(); p != "" {
-			return p
-		}
-	}
-	return lite.DefaultConfigPath()
 }
