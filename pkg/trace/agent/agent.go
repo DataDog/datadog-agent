@@ -870,6 +870,7 @@ func processedTraceV1(p *api.PayloadV1, chunk *idx.InternalTraceChunk, root *idx
 		AppVersion:             p.TracerPayload.AppVersion(),
 		TracerEnv:              p.TracerPayload.Env(),
 		TracerHostname:         p.TracerPayload.Hostname(),
+		Lang:                   p.TracerPayload.LanguageName(),
 		ClientDroppedP0sWeight: float64(p.ClientDroppedP0s) / float64(len(p.TracerPayload.Chunks)),
 		GitCommitSha:           gitCommitSha,
 	}

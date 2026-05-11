@@ -672,6 +672,10 @@ properties:
         node_type: setting
         type: boolean
         default: true
+      enable_co_re:
+        node_type: setting
+        type: boolean
+        default: true
       enable_connection_rollup:
         node_type: setting
         type: boolean
@@ -735,6 +739,10 @@ properties:
         node_type: setting
         type: boolean
         default: true
+      enable_sk_tracer:
+        node_type: setting
+        type: boolean
+        default: false
       enable_tcp_failed_connections:
         node_type: setting
         type: boolean
@@ -754,6 +762,7 @@ properties:
         node_type: setting
         env_vars:
         - DD_SYSTEM_PROBE_NETWORK_HTTP_REPLACE_RULES
+        env_parser: json
         tags:
         - golang_type:nil
         - TODO:fix-missing-type
@@ -897,6 +906,7 @@ properties:
             default: 512
           replace_rules:
             node_type: setting
+            env_parser: json
             tags:
             - golang_type:nil
             - TODO:fix-missing-type
@@ -939,6 +949,7 @@ properties:
         default: 512
       http_replace_rules:
         node_type: setting
+        env_parser: json
         tags:
         - golang_type:nil
         - TODO:fix-missing-type
@@ -1459,7 +1470,7 @@ properties:
       event_retry_queue_threshold:
         node_type: setting
         type: number
-        default: 30
+        default: 512
       event_sampling:
         node_type: section
         type: object
@@ -1655,10 +1666,18 @@ properties:
             node_type: setting
             type: boolean
             default: false
+          enrichment_interval:
+            node_type: setting
+            type: string
+            default: 1m
           enrichment_ticker:
             node_type: setting
             type: string
             default: 1m
+          forward_interval:
+            node_type: setting
+            type: string
+            default: 20s
           generate_policies:
             node_type: setting
             type: boolean
@@ -1671,6 +1690,10 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+          refresh_interval:
+            node_type: setting
+            type: string
+            default: 3s
           workloads_cache_size:
             node_type: setting
             type: number
@@ -2519,15 +2542,19 @@ properties:
       enabled:
         node_type: setting
         type: boolean
-        default: true
+        default: false
       service_collection_interval:
         node_type: setting
         type: string
         default: 60s
+      use_rust_library:
+        node_type: setting
+        type: boolean
+        default: false
       use_system_probe_lite:
         node_type: setting
         type: boolean
-        default: true
+        default: false
   dogstatsd_port:
     node_type: setting
     type: number

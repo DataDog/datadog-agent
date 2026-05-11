@@ -61,7 +61,7 @@ func FuzzDecoder(f *testing.F) {
 		decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
 		require.NoError(t, err)
 		_, _, _ = decoder.Decode(Event{
-			EntryOrLine: output.Event(item),
+			EntryOrLine: output.SingleEvent(item),
 			ServiceName: "foo",
 		}, &noopSymbolicator{}, nil, []byte{})
 		require.Empty(t, decoder.entryOrLine.dataItems)
@@ -101,7 +101,7 @@ func TestDecoderManually(t *testing.T) {
 			decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
 			require.NoError(t, err)
 			buf, probe, err := decoder.Decode(Event{
-				EntryOrLine: output.Event(item),
+				EntryOrLine: output.SingleEvent(item),
 				ServiceName: "foo",
 			}, &noopSymbolicator{}, nil, []byte{})
 			require.NoError(t, err)
@@ -131,7 +131,7 @@ func TestDecoderProcessTags(t *testing.T) {
 		decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
 		require.NoError(t, err)
 		buf, _, err := decoder.Decode(Event{
-			EntryOrLine: output.Event(item),
+			EntryOrLine: output.SingleEvent(item),
 			ServiceName: "foo",
 			ProcessTags: "entrypoint.name:myapp,svc.user:my-service",
 		}, &noopSymbolicator{}, nil, []byte{})
@@ -145,7 +145,7 @@ func TestDecoderProcessTags(t *testing.T) {
 		decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
 		require.NoError(t, err)
 		buf, _, err := decoder.Decode(Event{
-			EntryOrLine: output.Event(item),
+			EntryOrLine: output.SingleEvent(item),
 			ServiceName: "foo",
 		}, &noopSymbolicator{}, nil, []byte{})
 		require.NoError(t, err)
@@ -161,7 +161,7 @@ func BenchmarkDecoder(b *testing.B) {
 			require.NoError(b, err)
 			symbolicator := &noopSymbolicator{}
 			event := Event{
-				EntryOrLine: output.Event(c.eventConstructor(b, irProg)),
+				EntryOrLine: output.SingleEvent(c.eventConstructor(b, irProg)),
 				ServiceName: "foo",
 			}
 			b.ResetTimer()
@@ -1351,7 +1351,7 @@ func TestDecoderPanics(t *testing.T) {
 	stringID := stringType.GetID()
 	decoder.decoderTypes[stringID] = &panicDecoderType{decoder.decoderTypes[stringID]}
 	_, _, err = decoder.Decode(Event{
-		EntryOrLine: output.Event(input),
+		EntryOrLine: output.SingleEvent(input),
 		ServiceName: "foo"},
 		&noopSymbolicator{},
 		nil,
@@ -1381,7 +1381,7 @@ func TestDecoderFailsOnEvaluationError(t *testing.T) {
 	stringID := stringType.GetID()
 	delete(decoder.decoderTypes, stringID)
 	out, _, err := decoder.Decode(Event{
-		EntryOrLine: output.Event(input),
+		EntryOrLine: output.SingleEvent(input),
 		ServiceName: "foo"},
 		&noopSymbolicator{},
 		nil,
@@ -1421,7 +1421,7 @@ func TestDecoderIsRobustToDataItemDecodingErrors(t *testing.T) {
 	require.Regexp(t, "not enough bytes to read data item", itemErr)
 
 	buf, probe, err := decoder.Decode(Event{
-		EntryOrLine: event,
+		EntryOrLine: output.SingleEvent(event),
 		ServiceName: "foo",
 	}, &noopSymbolicator{}, nil, []byte{})
 	require.NoError(t, err)
@@ -1462,7 +1462,7 @@ func TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer(t *testing.T) {
 	// by each iteration of the loop. It's expected/possible that consumers
 	// of the decoder API will call Decode every time with the same buffer.
 	out, _, err := decoder.Decode(Event{
-		EntryOrLine: output.Event(input),
+		EntryOrLine: output.SingleEvent(input),
 		ServiceName: "foo"},
 		&noopSymbolicator{},
 		nil,
@@ -1475,59 +1475,43 @@ func TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer(t *testing.T) {
 }
 
 func TestDecoderMissingReturnEventEvaluationError(t *testing.T) {
+	// The stringArg probe does not reference @duration, so an unpaired
+	// return no longer produces a synthetic @duration evaluation error.
+	// When the probe actually references @duration (via template or
+	// captureExpression) the missing-return case is surfaced through the
+	// template rendering / expression-status-absent paths instead — see
+	// TestDecoderMissingDurationReference below.
 	tests := []struct {
-		name                    string
-		pairingExpectation      output.EventPairingExpectation
-		expectedErrorExpression string
-		expectedErrorMessage    string
-		shouldHaveError         bool
+		name               string
+		pairingExpectation output.EventPairingExpectation
 	}{
 		{
-			name:                    "return pairing expected",
-			pairingExpectation:      output.EventPairingExpectationReturnPairingExpected,
-			expectedErrorExpression: "@duration",
-			expectedErrorMessage:    "not available: return event not received",
-			shouldHaveError:         true,
+			name:               "return pairing expected",
+			pairingExpectation: output.EventPairingExpectationReturnPairingExpected,
 		},
 		{
-			name:                    "buffer full",
-			pairingExpectation:      output.EventPairingExpectationBufferFull,
-			expectedErrorExpression: "@duration",
-			expectedErrorMessage:    "not available: userspace buffer capacity exceeded",
-			shouldHaveError:         true,
+			name:               "buffer full",
+			pairingExpectation: output.EventPairingExpectationBufferFull,
 		},
 		{
-			name:                    "call map full",
-			pairingExpectation:      output.EventPairingExpectationCallMapFull,
-			expectedErrorExpression: "@duration",
-			expectedErrorMessage:    "not available: call map capacity exceeded",
-			shouldHaveError:         true,
+			name:               "call map full",
+			pairingExpectation: output.EventPairingExpectationCallMapFull,
 		},
 		{
-			name:                    "call count exceeded",
-			pairingExpectation:      output.EventPairingExpectationCallCountExceeded,
-			expectedErrorExpression: "@duration",
-			expectedErrorMessage:    "not available: maximum call count exceeded",
-			shouldHaveError:         true,
+			name:               "call count exceeded",
+			pairingExpectation: output.EventPairingExpectationCallCountExceeded,
 		},
 		{
-			name:                    "inlined",
-			pairingExpectation:      output.EventPairingExpectationNoneInlined,
-			expectedErrorExpression: "@duration",
-			expectedErrorMessage:    "not available: function was inlined",
-			shouldHaveError:         true,
+			name:               "inlined",
+			pairingExpectation: output.EventPairingExpectationNoneInlined,
 		},
 		{
-			name:                    "no body",
-			pairingExpectation:      output.EventPairingExpectationNoneNoBody,
-			expectedErrorExpression: "@duration",
-			expectedErrorMessage:    "not available: function has no body",
-			shouldHaveError:         true,
+			name:               "no body",
+			pairingExpectation: output.EventPairingExpectationNoneNoBody,
 		},
 		{
 			name:               "no pairing expected",
 			pairingExpectation: output.EventPairingExpectationNone,
-			shouldHaveError:    false,
 		},
 	}
 
@@ -1550,7 +1534,7 @@ func TestDecoderMissingReturnEventEvaluationError(t *testing.T) {
 			header.Event_pairing_expectation = uint8(tt.pairingExpectation)
 
 			buf, probe, err := decoder.Decode(Event{
-				EntryOrLine: newEvent,
+				EntryOrLine: output.SingleEvent(newEvent),
 				Return:      nil, // Explicitly no return event
 				ServiceName: "foo",
 			}, &noopSymbolicator{}, nil, []byte{})
@@ -1560,25 +1544,10 @@ func TestDecoderMissingReturnEventEvaluationError(t *testing.T) {
 			var e eventCaptures
 			require.NoError(t, json.Unmarshal(buf, &e))
 
-			if tt.shouldHaveError {
-				require.NotEmpty(t, e.Debugger.Snapshot.EvaluationErrors,
-					"expected evaluation error but none found")
-				found := false
-				for _, evalErr := range e.Debugger.Snapshot.EvaluationErrors {
-					if evalErr.Expression == tt.expectedErrorExpression &&
-						evalErr.Message == tt.expectedErrorMessage {
-						found = true
-						break
-					}
-				}
-				require.True(t, found,
-					"expected evaluation error with expression %q and message %q, got errors: %+v",
-					tt.expectedErrorExpression, tt.expectedErrorMessage,
-					e.Debugger.Snapshot.EvaluationErrors)
-			} else {
-				// Check that there's no return-related error
-				require.Empty(t, e.Debugger.Snapshot.EvaluationErrors)
-			}
+			// The stringArg probe does not reference @duration, so no
+			// evaluation error should be emitted for any pairing
+			// expectation.
+			require.Empty(t, e.Debugger.Snapshot.EvaluationErrors)
 		})
 	}
 }
@@ -1600,7 +1569,7 @@ func TestDecoderNilPointerCaptureExpression(t *testing.T) {
 	input[bitsetOffset] = 9
 
 	buf, probe, err := decoder.Decode(Event{
-		EntryOrLine: output.Event(input),
+		EntryOrLine: output.SingleEvent(input),
 		ServiceName: "foo",
 	}, &noopSymbolicator{}, nil, []byte{})
 	require.NoError(t, err)
@@ -1641,7 +1610,7 @@ func TestDecoderNilPointerTemplateExpression(t *testing.T) {
 	input[bitsetOffset] = 6
 
 	buf, probe, err := decoder.Decode(Event{
-		EntryOrLine: output.Event(input),
+		EntryOrLine: output.SingleEvent(input),
 		ServiceName: "foo",
 	}, &noopSymbolicator{}, nil, []byte{})
 	require.NoError(t, err)

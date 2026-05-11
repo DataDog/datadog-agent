@@ -64,18 +64,19 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
         syscall->rmdir.dentry = dentry;
         syscall->policy = fetch_policy(EVENT_RMDIR);
 
-        // let the cgroup event being forwarded as it is used userspace side to track the cgroups
-        if (is_cgroup2fs(syscall->rmdir.dentry) && S_ISDIR(syscall->rmdir.file.metadata.mode)) {
-            syscall->state = ACCEPTED;
-            break;
-        }
+        approve_syscall(syscall, rmdir_approvers);
 
-        if (approve_syscall(syscall, rmdir_approvers) == DISCARDED) {
-            // do not pop, we want to invalidate the inode even if the syscall is discarded
-            return 0;
-        }
         if (is_auid_discarder(EVENT_RMDIR)) {
             syscall->state = DISCARDED;
+        }
+
+        // let the cgroup event being forwarded as it is used userspace side to track the cgroups
+        if (is_cgroup2fs(syscall->rmdir.dentry) && S_ISDIR(syscall->rmdir.file.metadata.mode)) {
+            syscall->state = INTERNAL;
+        }
+
+        // do not pop, we want to invalidate the inode even if the syscall is discarded
+        if (syscall->state == DISCARDED) {
             return 0;
         }
 
@@ -98,14 +99,15 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
         // fake rmdir event as we will generate and rmdir event at the end
         syscall->policy = fetch_policy(EVENT_RMDIR);
 
+        approve_syscall(syscall, rmdir_approvers);
+
         // let the cgroup event being forwarded as it is used userspace side to track the cgroups
         if (is_cgroup2fs(syscall->unlink.dentry) && S_ISDIR(syscall->unlink.file.metadata.mode)) {
-            syscall->state = ACCEPTED;
-            break;
+            syscall->state = INTERNAL;
         }
 
-        if (approve_syscall(syscall, rmdir_approvers) == DISCARDED) {
-            // do not pop, we want to invalidate the inode even if the syscall is discarded
+        // do not pop, we want to invalidate the inode even if the syscall is discarded
+        if (syscall->state == DISCARDED) {
             return 0;
         }
 
@@ -136,7 +138,7 @@ TAIL_CALL_FNC(dr_security_inode_rmdir_callback, ctx_t *ctx) {
         return 0;
     }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
+    if (syscall->resolver.ret == DENTRY_DISCARDED && syscall->state != INTERNAL) {
         monitor_discarded(syscall->type);
         // do not pop, we want to invalidate the inode even if the syscall is discarded
         syscall->state = DISCARDED;
@@ -158,7 +160,8 @@ int __attribute__((always_inline)) sys_rmdir_ret(void *ctx, int retval) {
         struct rmdir_event_t event = {
             .syscall.retval = retval,
             .syscall_ctx.id = syscall->ctx_id,
-            .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
+            .event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
+                           (syscall->state == INTERNAL ? EVENT_FLAGS_INTERNAL : 0),
             .file = syscall->rmdir.file,
         };
 

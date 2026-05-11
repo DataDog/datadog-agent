@@ -343,6 +343,14 @@ class TestDockerArtifactMeasurer(unittest.TestCase):
                 "static_quality_gate_docker_agent_jmx_amd64",
                 "registry.ddbuild.io/ci/datadog-agent/agent:v71580015-668844-7-jmx-amd64",
             ),
+            (
+                "static_quality_gate_docker_host_profiler_amd64",
+                "registry.ddbuild.io/ci/datadog-agent/ddot-ebpf:v71580015-668844-7-amd64",
+            ),
+            (
+                "static_quality_gate_docker_host_profiler_arm64",
+                "registry.ddbuild.io/ci/datadog-agent/ddot-ebpf:v71580015-668844-7-arm64",
+            ),
         ]
 
         for gate_name, expected_url in test_cases:
@@ -365,6 +373,10 @@ class TestDockerArtifactMeasurer(unittest.TestCase):
             (
                 "static_quality_gate_docker_cluster_amd64",
                 "registry.ddbuild.io/ci/datadog-agent/cluster-agent-nightly:v71580015-668844-amd64",
+            ),
+            (
+                "static_quality_gate_docker_host_profiler_amd64",
+                "registry.ddbuild.io/ci/datadog-agent/ddot-ebpf-nightly:v71580015-668844-7-amd64",
             ),
         ]
 
@@ -433,7 +445,8 @@ class TestStaticQualityGate(unittest.TestCase):
         measurement = ArtifactMeasurement("/path", 120 * 1024 * 1024, 150 * 1024 * 1024)
         self.mock_measurer.measure.return_value = measurement
 
-        self.assertFalse(self.gate.execute_gate(self.mock_ctx).success)
+        # on-wire gates are non-blocking
+        self.assertTrue(self.gate.execute_gate(self.mock_ctx).success)
 
     def test_execute_gate_on_disk_violation(self):
         # Mock measurement exceeding disk limit (250MB > 200MB limit)
@@ -454,14 +467,11 @@ class TestStaticQualityGate(unittest.TestCase):
         violations = self.gate._check_size_limits(measurement)
         self.assertEqual(len(violations), 0)
 
-    def test_check_size_limits_on_wire_violation(self):
+    def test_check_size_limits_on_wire_causes_no_violation(self):
         measurement = ArtifactMeasurement("/path", 120 * 1024 * 1024, 150 * 1024 * 1024)
         violations = self.gate._check_size_limits(measurement)
 
-        self.assertEqual(len(violations), 1)
-        self.assertEqual(violations[0].measurement_type, "wire")
-        self.assertEqual(violations[0].current_size, 120 * 1024 * 1024)
-        self.assertEqual(violations[0].max_size, 100 * 1024 * 1024)
+        self.assertEqual(len(violations), 0)
 
     def test_check_size_limits_on_disk_violation(self):
         measurement = ArtifactMeasurement("/path", 80 * 1024 * 1024, 250 * 1024 * 1024)

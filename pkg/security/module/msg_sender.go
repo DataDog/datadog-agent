@@ -96,9 +96,9 @@ var _ EndpointsStatusFetcher = &DirectEventMsgSender{}
 // Send the message
 func (ds *DirectEventMsgSender) Send(msg *api.SecurityEventMessage, _ func(*api.SecurityEventMessage)) {
 	if msg.Track == string(common.SecInfo) {
-		ds.secInfoReporter.ReportRaw(msg.Data, msg.Service, msg.Timestamp.AsTime(), msg.Tags...)
+		ds.secInfoReporter.ReportRaw(msg.Data, msg.Service, msg.Hostname, msg.Timestamp.AsTime(), msg.Tags...)
 	} else {
-		ds.reporter.ReportRaw(msg.Data, msg.Service, msg.Timestamp.AsTime(), msg.Tags...)
+		ds.reporter.ReportRaw(msg.Data, msg.Service, msg.Hostname, msg.Timestamp.AsTime(), msg.Tags...)
 	}
 }
 
