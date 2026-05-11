@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "hfrunner",
+    srcs = ["runner.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl/hfrunner",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/anomalydetection/observer/def",
+        "//comp/core/tagger/def",
+        "//comp/core/workloadfilter/def",
+        "//comp/core/workloadmeta/def",
+    ],
+)
