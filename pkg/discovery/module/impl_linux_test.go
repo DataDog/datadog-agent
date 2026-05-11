@@ -62,12 +62,23 @@ type testDiscoveryModule struct {
 
 func setupGoDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	t.Helper()
+	return setupInProcessDiscoveryModule(t, false)
+}
+
+func setupRustLibraryDiscoveryModule(t *testing.T) *testDiscoveryModule {
+	t.Helper()
+	return setupInProcessDiscoveryModule(t, true)
+}
+
+func setupInProcessDiscoveryModule(t *testing.T, useRustLibrary bool) *testDiscoveryModule {
+	t.Helper()
 
 	mux := gorillamux.NewRouter()
 
 	mod, err := NewDiscoveryModule(nil, module.FactoryDependencies{})
 	require.NoError(t, err)
 	discovery := mod.(*discovery)
+	discovery.config.UseRustLibrary = useRustLibrary
 
 	discovery.Register(module.NewRouter(string(config.DiscoveryModule), mux))
 	t.Cleanup(discovery.Close)
@@ -114,10 +125,17 @@ func setupRustDiscoveryModule(t *testing.T) *testDiscoveryModule {
 		_ = cmd.Wait()
 	})
 
+	// Dial rather than stat: the socket file becomes visible after bind(2) but
+	// before listen(2), so a stale poll can win that window and the subsequent
+	// HTTP request fails with ECONNREFUSED.
 	require.Eventually(t, func() bool {
-		_, err := os.Stat(socketPath)
-		return err == nil
-	}, 10*time.Second, 50*time.Millisecond, "system-probe-lite socket did not appear")
+		conn, err := net.Dial("unix", socketPath)
+		if err != nil {
+			return false
+		}
+		conn.Close()
+		return true
+	}, 10*time.Second, 50*time.Millisecond, "system-probe-lite socket did not become ready")
 
 	return &testDiscoveryModule{
 		url: "http://sysprobe",
@@ -166,6 +184,9 @@ func TestDiscovery(t *testing.T) {
 	})
 	t.Run("rust", func(t *testing.T) {
 		suite.Run(t, &discoveryTestSuite{setupModule: setupRustDiscoveryModule, expectedImplementation: "system-probe-lite"})
+	})
+	t.Run("rust-library", func(t *testing.T) {
+		suite.Run(t, &discoveryTestSuite{setupModule: setupRustLibraryDiscoveryModule, expectedImplementation: "system-probe"})
 	})
 }
 

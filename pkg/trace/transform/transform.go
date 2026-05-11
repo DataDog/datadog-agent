@@ -91,6 +91,9 @@ func otelSpanToDDSpanMinimal(
 	if code, ok := semantics.LookupInt64(reg, spanAccessor, semantics.ConceptHTTPStatusCode); ok && code >= 0 {
 		ddspan.Metrics[traceutil.TagStatusCode] = float64(code)
 	}
+	if grpcCode := semantics.LookupString(reg, spanAccessor, semantics.ConceptGRPCStatusCode); grpcCode != "" {
+		ddspan.Meta[string(semantics.ConceptGRPCStatusCode)] = grpcCode
+	}
 	if isTopLevel {
 		traceutil.SetTopLevel(ddspan, true)
 	}

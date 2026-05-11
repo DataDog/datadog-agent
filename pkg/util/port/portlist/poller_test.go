@@ -78,6 +78,30 @@ func TestEqualLessThan(t *testing.T) {
 			Port{Proto: "tcp", Port: 100, Process: "proc1"},
 			false,
 		},
+		{
+			"IP a < b",
+			Port{Proto: "tcp", Port: 100, IP: "0.0.0.0", Process: "proc1"},
+			Port{Proto: "tcp", Port: 100, IP: "127.0.0.1", Process: "proc1"},
+			true,
+		},
+		{
+			"IP a > b",
+			Port{Proto: "tcp", Port: 100, IP: "127.0.0.1", Process: "proc1"},
+			Port{Proto: "tcp", Port: 100, IP: "0.0.0.0", Process: "proc1"},
+			false,
+		},
+		{
+			"IP evaluated third",
+			Port{Proto: "tcp", Port: 100, IP: "0.0.0.0", Process: "proc2"},
+			Port{Proto: "tcp", Port: 100, IP: "127.0.0.1", Process: "proc1"},
+			true,
+		},
+		{
+			"equal with IP",
+			Port{Proto: "tcp", Port: 100, IP: "0.0.0.0", Process: "proc1"},
+			Port{Proto: "tcp", Port: 100, IP: "0.0.0.0", Process: "proc1"},
+			false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -140,6 +164,17 @@ func TestSortAndDedup(t *testing.T) {
 			List{
 				{Port: 80, Proto: "tcp", Process: "nginx"},
 				{Port: 8080, Proto: "tcp", Process: "node"},
+			},
+		},
+		{
+			"Same port different IPs preserved",
+			List{
+				{Port: 80, Proto: "tcp", IP: "127.0.0.1", Process: "nginx"},
+				{Port: 80, Proto: "tcp", IP: "0.0.0.0", Process: "nginx"},
+			},
+			List{
+				{Port: 80, Proto: "tcp", IP: "0.0.0.0", Process: "nginx"},
+				{Port: 80, Proto: "tcp", IP: "127.0.0.1", Process: "nginx"},
 			},
 		},
 	}
@@ -232,5 +267,62 @@ func TestPoller(t *testing.T) {
 	p3 := get(t)
 	if containsPort(p3) {
 		t.Error("unexpectedly found ephemeral port in p3, after it was closed", port)
+	}
+}
+
+func TestPollerIPPopulated(t *testing.T) {
+	if runtime.GOOS == "darwin" {
+		t.Skip("Skipping test on macOS -- IP parsing not implemented")
+	}
+	tests := []struct {
+		addr   string
+		wantIP string
+	}{
+		{"127.0.0.1:0", "127.0.0.1"},
+		{"[::1]:0", "::1"},
+		{"[::]:0", "::"},
+	}
+
+	type bound struct {
+		port   uint16
+		wantIP string
+		ln     net.Listener
+	}
+	var bounds []bound
+	for _, tt := range tests {
+		ln, err := net.Listen("tcp", tt.addr)
+		if err != nil {
+			t.Skipf("failed to bind %s: %v", tt.addr, err)
+		}
+		bounds = append(bounds, bound{
+			port:   uint16(ln.Addr().(*net.TCPAddr).Port),
+			wantIP: tt.wantIP,
+			ln:     ln,
+		})
+	}
+	defer func() {
+		for _, b := range bounds {
+			b.ln.Close()
+		}
+	}()
+
+	var p Poller
+	p.IncludeLocalhost = true
+	pl, _, err := p.Poll()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, b := range bounds {
+		found := false
+		for _, entry := range pl {
+			if entry.Proto == "tcp" && entry.Port == b.port && entry.IP == b.wantIP {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("tcp (port=%d, IP=%q) not found in poll results", b.port, b.wantIP)
+		}
 	}
 }

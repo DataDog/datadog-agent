@@ -63,7 +63,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/rules/bundled"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -1122,13 +1121,14 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
 
-	if process.IsKworker(event.ProcessContext.PPid, event.ProcessContext.Pid) {
-		return false
-	}
-
 	if !eventWithNoProcessContext(eventType) {
 		if !isResolved {
-			event.Error = model.ErrNoProcessContext
+			// Kworker/kthread processes run in kernel space and have no user-space
+			// process context by design; missing context is expected for them.
+			// For all other processes it is a genuine resolution error.
+			if !event.ProcessContext.IsKworker {
+				event.Error = model.ErrNoProcessContext
+			}
 		} else {
 			// If the kernel reports a different ppid than the one in our
 			// cache, the process was reparented (e.g. subreaper). Update
@@ -1364,6 +1364,13 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 			}
 			p.Resolvers.CGroupResolver.Add(cgroupContext)
 		}
+
+		// internal open events are emitted only to populate the cgroup
+		// resolver above; they don't reflect a user action so skip rule
+		// evaluation
+		if event.IsEventInternal() {
+			return false
+		}
 	case model.FileMkdirEventType:
 		if !p.regularUnmarshalEvent(&event.Mkdir, eventType, offset, dataLen, data) {
 			return false
@@ -1378,6 +1385,13 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		if fs == "cgroup2" && event.Rmdir.File.PathKey.Inode != 0 && event.Rmdir.File.IsDir() && event.Rmdir.Retval == 0 {
 			p.Resolvers.CGroupResolver.Delete(event.Rmdir.File.PathKey.Inode)
 		}
+
+		// internal rmdir events are emitted only to update the cgroup
+		// resolver above; they don't reflect a user action so skip rule
+		// evaluation
+		if event.IsEventInternal() {
+			return false
+		}
 	case model.FileUnlinkEventType:
 		if !p.regularUnmarshalEvent(&event.Unlink, eventType, offset, dataLen, data) {
 			return false
@@ -1385,8 +1399,15 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 
 		// handle cgroup v2 deletion
 		fs := p.fieldHandlers.ResolveFileFilesystem(event, &event.Unlink.File)
-		if fs == "cgroup2" && event.Unlink.File.PathKey.Inode != 0 && event.Unlink.File.IsDir() {
+		if fs == "cgroup2" && event.Unlink.File.PathKey.Inode != 0 && event.Unlink.File.IsDir() && event.Unlink.Retval == 0 {
 			p.Resolvers.CGroupResolver.Delete(event.Unlink.File.PathKey.Inode)
+		}
+
+		// internal unlink events are emitted only to update the cgroup
+		// resolver above; they don't reflect a user action so skip rule
+		// evaluation
+		if event.IsEventInternal() {
+			return false
 		}
 	case model.FileRenameEventType:
 		if !p.regularUnmarshalEvent(&event.Rename, eventType, offset, dataLen, data) {
@@ -3634,7 +3655,9 @@ func (p *EBPFProbe) newOpenEventFromReplay(entry *model.ProcessCacheEntry, snaps
 
 	event.Open.SyscallEvent.Retval = 0
 	event.Open.File.PathnameStr = snapshottedFile.Path
+	event.Open.File.IsPathnameStrResolved = true
 	event.Open.File.BasenameStr = filepath.Base(snapshottedFile.Path)
+	event.Open.File.IsBasenameStrResolved = true
 
 	// Try to stat the file to get basic metadata (best effort)
 	// This helps with file resolution and enrichment
