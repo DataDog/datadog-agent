@@ -118,9 +118,15 @@ component temporarily wraps pkg/config.
 
 ### [comp/core/configstream](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configstream)
 
-*Datadog Team*: agent-metric-pipelines agent-configuration
+*Datadog Team*: agent-configuration
 
 Package configstream implements a component to handle streaming configuration events to subscribers.
+
+### [comp/core/configstreamconsumer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configstreamconsumer)
+
+*Datadog Team*: agent-configuration
+
+Package configstreamconsumer implements a component that consumes config streams from the core agent.
 
 ### [comp/core/configsync](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configsync)
 
@@ -833,11 +839,11 @@ Package client implements a component to send process metadata to the Cluster-Ag
 
 Package logonduration provides a component that monitors the duration of a user logon after boot and forwards them to the Datadog Event Management v2 API.
 
-### [comp/networkdeviceconfig](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkdeviceconfig)
+### [comp/networkconfigmanagement](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkconfigmanagement)
 
 *Datadog Team*: ndm-integrations
 
-Package networkdeviceconfig provides the component for retrieving network device configurations.
+Package networkconfigmanagement provides the component for retrieving network device configurations.
 
 ### [comp/notableevents](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/notableevents)
 
