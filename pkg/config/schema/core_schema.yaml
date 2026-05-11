@@ -855,6 +855,93 @@ properties:
     example: 'false'
     tags:
     - template_section:Common
+  gpu:
+    node_type: section
+    type: object
+    visibility: public
+    description: GPU monitoring configuration.
+    tags:
+    - template_section:Common
+    properties:
+      nccl:
+        node_type: section
+        type: object
+        visibility: public
+        description: |-
+          NCCL collective communication metrics. When enabled, the Agent listens on a
+          Unix domain socket for events emitted by the NCCL profiler plugin in
+          training pods and emits per-collective performance metrics.
+          Pair with admission_controller.nccl_profiler to inject the plugin into
+          training pods, or mount the plugin into containers manually.
+        tags:
+        - template_section:Common
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            visibility: public
+            description: Enable the NCCL collective performance check.
+            example: 'false'
+            tags:
+            - template_section:Common
+          host_socket_path:
+            node_type: setting
+            type: string
+            default: /var/run/datadog
+            visibility: public
+            description: |-
+              Host directory containing the Agent's NCCL socket. Must match the
+              hostPath volume mounted into training pods.
+            example: '"/var/run/datadog"'
+            tags:
+            - template_section:Common
+          socket_path:
+            node_type: setting
+            type: string
+            default: /var/run/datadog/nccl.socket
+            visibility: public
+            description: |-
+              Full path to the Unix domain socket the Agent listens on for NCCL events.
+              Must be under host_socket_path.
+            example: '"/var/run/datadog/nccl.socket"'
+            tags:
+            - template_section:Common
+      disabled_collectors:
+        node_type: setting
+        type: array
+        default: []
+        items:
+          type: string
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+      integrate_with_workloadmeta_processes:
+        node_type: setting
+        type: boolean
+        default: true
+      nvml_lib_path:
+        node_type: setting
+        type: string
+        default: ''
+      sp_process_metrics_request_timeout:
+        node_type: setting
+        type: number
+        default: 3s
+        format: duration
+        tags:
+        - golang_type:duration
+      use_sp_process_metrics:
+        node_type: setting
+        type: boolean
+        default: false
+      workload_tag_cache_size:
+        node_type: setting
+        type: number
+        default: 1024
+        tags:
+        - golang_type:int
   azure_metadata_timeout:
     node_type: setting
     type: number
@@ -1796,8 +1883,8 @@ properties:
     visibility: public
     description: This section configures the Datadog Agent Manager System Tray
     tags:
-    - platform_only:windows
     - template_section:Agent
+    - platform_only:windows
     properties:
       log_file:
         node_type: setting
@@ -7752,6 +7839,83 @@ properties:
                 env_vars:
                 - DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_PROFILING_ENABLED
                 tags: []
+      nccl_profiler:
+        node_type: section
+        type: object
+        visibility: public
+        description: |-
+          NCCL profiler injection. When enabled, the admission controller injects
+          an init container into pods labelled `admission.datadoghq.com/nccl-profiler.enabled: "true"`
+          to mount the NCCL profiler plugin and configure NCCL env vars so the
+          Agent's NCCL check can collect collective performance events over a UDS.
+        tags:
+        - template_section:AdmissionController
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            env_vars:
+            - DD_ADMISSION_CONTROLLER_NCCL_PROFILER_ENABLED
+            visibility: public
+            description: Enable the NCCL profiler injection webhook.
+            example: 'false'
+            tags:
+            - template_section:AdmissionController
+          injector_image:
+            node_type: setting
+            type: string
+            default: ''
+            env_vars:
+            - DD_ADMISSION_CONTROLLER_NCCL_PROFILER_INJECTOR_IMAGE
+            visibility: public
+            description: |-
+              Fully-qualified image reference for the NCCL profiler injector. The
+              webhook self-disables if this is empty when enabled is true.
+            example: '""'
+            tags:
+            - template_section:AdmissionController
+          mutate_unlabelled:
+            node_type: setting
+            type: boolean
+            default: false
+            visibility: public
+            description: |-
+              When true, the webhook injects into every pod that does not carry the
+              `admission.datadoghq.com/nccl-profiler.enabled: "false"` label, instead
+              of requiring `"true"` to opt in. Useful in clusters dedicated to ML
+              training. Either this or admission_controller.mutate_unlabelled enables
+              blanket mode. Note: when enabled, every pod's admission depends on the
+              injector image being reachable from the kubelet.
+            example: 'false'
+            tags:
+            - template_section:AdmissionController
+          init_resources:
+            node_type: section
+            type: object
+            visibility: public
+            description: CPU and memory resources applied to the injected init container.
+            tags:
+            - template_section:AdmissionController
+            properties:
+              cpu:
+                node_type: setting
+                type: string
+                default: ''
+                visibility: public
+                description: CPU request and limit for the init container.
+                example: '""'
+                tags:
+                - template_section:AdmissionController
+              memory:
+                node_type: setting
+                type: string
+                default: ''
+                visibility: public
+                description: Memory request and limit for the init container.
+                example: '""'
+                tags:
+                - template_section:AdmissionController
       agent_sidecar:
         node_type: section
         type: object
@@ -7975,34 +8139,6 @@ properties:
         type: object
         properties:
           enabled:
-            node_type: setting
-            type: boolean
-            default: false
-      nccl_profiler:
-        node_type: section
-        type: object
-        properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: false
-          init_resources:
-            node_type: section
-            type: object
-            properties:
-              cpu:
-                node_type: setting
-                type: string
-                default: ''
-              memory:
-                node_type: setting
-                type: string
-                default: ''
-          injector_image:
-            node_type: setting
-            type: string
-            default: ''
-          mutate_unlabelled:
             node_type: setting
             type: boolean
             default: false
@@ -8532,6 +8668,18 @@ properties:
     example: '60'
     tags:
     - golang_type:int
+    - template_section:KubeApiServer
+  kubernetes_metadata_streaming:
+    node_type: setting
+    type: boolean
+    default: true
+    visibility: public
+    description: |-
+      Stream Kubernetes metadata from the Cluster Agent instead of polling it every
+      `kubernetes_metadata_tag_update_freq` seconds. This propagates the associated
+      tags with less delay.
+    example: 'true'
+    tags:
     - template_section:KubeApiServer
   kubernetes_apiserver_client_timeout:
     node_type: setting
@@ -13378,61 +13526,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-  gpu:
-    node_type: section
-    type: object
-    properties:
-      disabled_collectors:
-        node_type: setting
-        type: array
-        default: []
-        items:
-          type: string
-      enabled:
-        node_type: setting
-        type: boolean
-        default: false
-      integrate_with_workloadmeta_processes:
-        node_type: setting
-        type: boolean
-        default: true
-      nccl:
-        node_type: section
-        type: object
-        properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: false
-          host_socket_path:
-            node_type: setting
-            type: string
-            default: /var/run/datadog
-          socket_path:
-            node_type: setting
-            type: string
-            default: /var/run/datadog/nccl.socket
-      nvml_lib_path:
-        node_type: setting
-        type: string
-        default: ''
-      sp_process_metrics_request_timeout:
-        node_type: setting
-        type: number
-        default: 3s
-        format: duration
-        tags:
-        - golang_type:duration
-      use_sp_process_metrics:
-        node_type: setting
-        type: boolean
-        default: false
-      workload_tag_cache_size:
-        node_type: setting
-        type: number
-        default: 1024
-        tags:
-        - golang_type:int
   health_platform:
     node_type: section
     type: object
@@ -14091,10 +14184,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-  kubernetes_metadata_streaming:
-    node_type: setting
-    type: boolean
-    default: false
   kubernetes_namespace_annotations_as_tags:
     node_type: setting
     type: object
@@ -14453,6 +14542,14 @@ properties:
             default: 1
             tags:
             - golang_type:int
+      rollback:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
   notable_events:
     node_type: section
     type: object
@@ -15298,11 +15395,13 @@ properties:
             node_type: setting
             type: number
             default: 0.001
+            tags:
+            - golang_type:float64
           shadow_sites:
             node_type: setting
             type: array
             default:
-              - datadoghq.com
+            - datadoghq.com
             items:
               type: string
           use_beta:
