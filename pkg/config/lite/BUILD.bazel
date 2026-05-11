@@ -10,22 +10,31 @@ go_library(
         "lite.go",
         "parse.go",
         "regex.go",
+        "rescue.go",
+        "runtime.go",
         "strings.go",
         "types.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/config/lite",
     visibility = ["//visibility:public"],
     deps = [
-        "@org_yaml_in_yaml_v2//:yaml_v2",
+        "//pkg/config/schema",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@org_golang_google_protobuf//types/known/structpb",
+        "@org_yaml_in_yaml_v3//:yaml_v3",
     ],
 )
 
 go_test(
     name = "lite_test",
-    srcs = ["lite_test.go"],
+    srcs = [
+        "lite_test.go",
+        "rescue_test.go",
+    ],
     embed = [":lite"],
     gotags = ["test"],
     deps = [
+        "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
