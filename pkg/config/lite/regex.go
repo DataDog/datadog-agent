@@ -1,0 +1,50 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+package lite
+
+import "regexp"
+
+// regexBindings drives the Tier-4 column-0 anchored regex. Each pattern
+// captures the value between the colon and an optional trailing comment.
+// The (?m) flag makes ^ match at the start of every line.
+var regexBindings = []struct {
+	field   func(*LiteConfig) *ConfigField
+	name    string
+	pattern *regexp.Regexp
+}{
+	{func(c *LiteConfig) *ConfigField { return &c.APIKey }, "api_key",
+		regexp.MustCompile(`(?m)^api_key:[ \t]+(.+?)[ \t]*(?:#.*)?$`)},
+	{func(c *LiteConfig) *ConfigField { return &c.Site }, "site",
+		regexp.MustCompile(`(?m)^site:[ \t]+(.+?)[ \t]*(?:#.*)?$`)},
+	{func(c *LiteConfig) *ConfigField { return &c.DDURL }, "dd_url",
+		regexp.MustCompile(`(?m)^dd_url:[ \t]+(.+?)[ \t]*(?:#.*)?$`)},
+	{func(c *LiteConfig) *ConfigField { return &c.SecretBackendCommand }, "secret_backend_command",
+		regexp.MustCompile(`(?m)^secret_backend_command:[ \t]+(.+?)[ \t]*(?:#.*)?$`)},
+}
+
+// applyRegex is the Tier-4 strategy. It looks for column-0 exact-name matches
+// in the raw bytes — bypassing yaml.Unmarshal entirely. The column-0 anchor
+// guarantees we never accidentally match nested `api_key:` inside
+// additional_endpoints or logs_config.
+func applyRegex(cfg *LiteConfig, raw []byte) {
+	for _, b := range regexBindings {
+		f := b.field(cfg)
+		if f.resolved() {
+			continue
+		}
+		m := b.pattern.FindSubmatch(raw)
+		if m == nil {
+			continue
+		}
+		val := cleanValue(string(m[1]))
+		if val == "" {
+			continue
+		}
+		f.Value = val
+		f.Source = SourceFileRegex
+		f.MatchedKey = b.name
+	}
+}

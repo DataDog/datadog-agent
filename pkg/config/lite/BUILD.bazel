@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "lite",
+    srcs = [
+        "enc.go",
+        "env.go",
+        "file.go",
+        "fuzzy.go",
+        "lite.go",
+        "parse.go",
+        "regex.go",
+        "strings.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/lite",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@org_yaml_in_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "lite_test",
+    srcs = ["lite_test.go"],
+    embed = [":lite"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
