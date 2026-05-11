@@ -19,29 +19,40 @@ import (
 
 	"github.com/DataDog/zstd"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-// sendLogsBatch ships a batch of slog records to the COAT intake using the
-// logs-track payload (request_type=logs). It mirrors flushSession's
-// transport behavior (marshal, scrub, optionally compress, POST to each
-// endpoint) but skips the metric/event session abstraction since logs
-// batches are single-shot.
-//
-// Error semantics (per pkg/util/log/errortracking.Sender contract):
-//   - empty batch is a no-op
-//   - 5xx response or network failure: non-nil error (calling Pipeline
-//     retries once then drops the batch)
-//   - 4xx response: log internally and return nil (terminal; retrying a
-//     malformed payload wastes the Pipeline's single retry slot)
+// sendLogsBatch is the v2 (deprecated) entry that takes []slog.Record.
+// It does the slog -> Log conversion and delegates the transport to
+// sendLogsTypedBatch. Will be removed once SendErrorLogs is gone from
+// the public Component interface.
 func (s *senderImpl) sendLogsBatch(ctx context.Context, batch []slog.Record) error {
 	if len(batch) == 0 {
 		return nil
 	}
-
 	logs := make([]Log, len(batch))
 	for i, r := range batch {
 		logs[i] = slogRecordToLog(r)
+	}
+	return s.sendLogsTypedBatch(ctx, logs)
+}
+
+// sendLogsTypedBatch is the v3 entry that takes already-converted wire
+// Log structs (produced by either slogRecordToLog or errorLogToLog) and
+// POSTs them as a single LogsPayload-envelope to every configured
+// endpoint via the shared sendPayloadBody helper.
+//
+// Error semantics:
+//   - empty batch is a no-op
+//   - 5xx or request-timeout from any endpoint: non-nil joined error
+//     (callers may retry once or drop, per their policy)
+//   - 4xx from any endpoint: logged at error, treated as terminal for
+//     that endpoint (no error returned for that endpoint specifically)
+//   - transport failure: non-nil joined error
+func (s *senderImpl) sendLogsTypedBatch(ctx context.Context, logs []Log) error {
+	if len(logs) == 0 {
+		return nil
 	}
 
 	payload := s.payloadTemplate
@@ -67,10 +78,6 @@ func (s *senderImpl) sendLogsBatch(ctx context.Context, batch []slog.Record) err
 		// flushSession's behavior).
 	}
 
-	// Per-endpoint POST via the shared sendPayloadBody helper. Status-code
-	// interpretation here keeps the pkg/util/log/errortracking.Sender
-	// contract: 5xx + request-timeout = retryable (non-nil), 4xx = terminal
-	// (logged + nil), 2xx = success.
 	var errs error
 	for _, ep := range s.endpoints.Endpoints {
 		url := buildURL(ep)
@@ -87,10 +94,56 @@ func (s *senderImpl) sendLogsBatch(ctx context.Context, batch []slog.Record) err
 				fmt.Errorf("logs intake returned %d at %s", status, url))
 		default:
 			s.logComp.Errorf("logs intake returned terminal %d at %s; dropping batch (%d records)",
-				status, url, len(batch))
+				status, url, len(logs))
 		}
 	}
 	return errs
+}
+
+// errorLogToLog converts the foundational ErrorLog DTO (carried across
+// the pkg/util/log -> comp/core boundary) into the wire-shape Log struct
+// expected by dd-go's tracer-telemetry-intake/telemetry-payload/logs.go.
+// Same mapping rules as slogRecordToLog but operating on the typed DTO
+// instead of an opaque slog.Record:
+//   - Time -> tracer_time (unix seconds)
+//   - Level -> uppercase LogLevel
+//   - Message -> message
+//   - PC -> single-frame stack_trace ("file:line")
+//   - Attrs.trace_id / .span_id -> reserved typed fields (extracted)
+//   - remaining Attrs -> sorted CSV "key:value" tags
+//   - count: 1 (no client-side dedup in v3)
+//   - is_crash: false (this path does not emit crash logs)
+func errorLogToLog(e errortracking.ErrorLog) Log {
+	out := Log{
+		Message:    e.Message,
+		Level:      slogLevelToLogLevel(e.Level),
+		TracerTime: e.Time.Unix(),
+		Count:      1,
+		IsCrash:    false,
+	}
+
+	if e.PC != 0 {
+		frame, _ := runtime.CallersFrames([]uintptr{e.PC}).Next()
+		if frame.File != "" {
+			out.StackTrace = fmt.Sprintf("%s:%d", frame.File, frame.Line)
+		}
+	}
+
+	var pairs []string
+	for _, a := range e.Attrs {
+		switch a.Key {
+		case "trace_id":
+			out.TraceID = a.Value.String()
+		case "span_id":
+			out.SpanID = a.Value.String()
+		default:
+			pairs = append(pairs, a.Key+":"+a.Value.String())
+		}
+	}
+	sort.Strings(pairs)
+	out.Tags = strings.Join(pairs, ",")
+
+	return out
 }
 
 // slogRecordToLog maps an slog.Record to a wire-level Log per the schema
