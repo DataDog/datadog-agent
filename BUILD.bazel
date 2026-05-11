@@ -37,10 +37,8 @@ exports_files(glob(
 # gazelle:exclude cmd/process-agent/subcommands
 # gazelle:exclude cmd/sbomgen
 # gazelle:exclude cmd/secret-generic-connector/backend/backend.go
-# gazelle:exclude cmd/secret-generic-connector/backend/backend_test.go
 # gazelle:exclude cmd/secret-generic-connector/backend/error.go
 # gazelle:exclude cmd/secret-generic-connector/backend/error_test.go
-# gazelle:exclude cmd/secret-generic-connector/backend/main.go
 # gazelle:exclude cmd/secret-generic-connector/main.go
 # gazelle:exclude cmd/secrethelper
 # gazelle:exclude cmd/security-agent
@@ -180,9 +178,6 @@ exports_files(glob(
 # gazelle:exclude comp/forwarder/orchestrator/orchestratorimpl
 # gazelle:exclude comp/haagent/fx
 # gazelle:exclude comp/haagent/impl
-# gazelle:exclude comp/healthplatform/fx
-# gazelle:exclude comp/healthplatform/impl
-# gazelle:exclude comp/healthplatform/mock
 # gazelle:exclude comp/host-profiler/collector/fx
 # gazelle:exclude comp/host-profiler/collector/impl/agentprovider
 # gazelle:exclude comp/host-profiler/collector/impl/converters
@@ -436,7 +431,6 @@ exports_files(glob(
 # gazelle:exclude pkg/discovery/apm
 # gazelle:exclude pkg/discovery/language
 # gazelle:exclude pkg/discovery/module/rust/include
-# gazelle:exclude pkg/discovery/module/rust/sd-agent
 # gazelle:exclude pkg/discovery/module/rust/src
 # gazelle:exclude pkg/discovery/module/rust/testdata
 # gazelle:exclude pkg/discovery/module/rust/tests
@@ -623,8 +617,6 @@ exports_files(glob(
 # gazelle:exclude pkg/proto/datadog/autodiscovery
 # gazelle:exclude pkg/proto/datadog/kubemetadata
 # gazelle:exclude pkg/proto/datadog/model
-# gazelle:exclude pkg/proto/datadog/privateactionrunner
-# gazelle:exclude pkg/proto/datadog/process
 # gazelle:exclude pkg/proto/datadog/remoteagent
 # gazelle:exclude pkg/proto/datadog/remoteconfig
 # gazelle:exclude pkg/proto/datadog/workloadfilter
@@ -877,7 +869,6 @@ exports_files(glob(
 # gazelle:exclude tools/host-profiler
 # gazelle:exclude tools/retry_file_dump
 # gazelle:exclude tools/windows
-# gazelle:exclude vendor
 # Proto definitions under pkg/proto/datadog/ use pre-generated Go code checked
 # into pkg/proto/pbgo/. Gazelle's proto mode is disabled because multiple proto
 # directories share the same go_package ("pkg/proto/pbgo/core"), making
@@ -940,8 +931,14 @@ _GAZELLE_BUILD_TAGS = [
     "zk",
     "zlib",
     "zstd",
+    "e2ecoverage",
+    "functionaltests",
+    "manualtest",
 ]
 
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient //pkg/proto/pbgo/privateactionrunner/actionsclient
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode //pkg/proto/pbgo/privateactionrunner/errorcode
+# gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions //pkg/proto/pbgo/privateactionrunner/privateactions
 # gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx //pkg/proto/pbgo/trace/idx
 gazelle(
     name = "gazelle",
