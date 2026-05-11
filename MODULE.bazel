@@ -320,7 +320,7 @@ pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
 pip.parse(
     hub_name = "py_dev_requirements",
     python_version = PYTHON_VERSION,
-    requirements_lock = "//deps:py_dev_requirements.txt",
+    requirements_lock = "//deps:py_dev_requirements_lock.txt",
 )
 use_repo(pip, "py_dev_requirements")
 
