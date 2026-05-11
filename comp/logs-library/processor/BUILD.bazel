@@ -18,6 +18,7 @@ go_library(
         "//comp/logs-library/metrics",
         "//comp/logs/agent/config",
         "//pkg/config/model",
+        "//pkg/config/setup",
         "//pkg/logs/diagnostic",
         "//pkg/logs/message",
         "//pkg/util/log",
@@ -37,9 +38,11 @@ go_test(
     deps = [
         "//comp/core/hostname/hostnameinterface",
         "//comp/logs/agent/config",
+        "//pkg/config/setup",
         "//pkg/logs/message",
         "//pkg/logs/sources",
         "@com_github_datadog_agent_payload_v5//pb",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

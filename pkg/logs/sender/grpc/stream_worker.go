@@ -711,10 +711,10 @@ func (s *streamWorker) receiverLoop(streamInfo *streamInfo) {
 		if st, ok := status.FromError(err); ok {
 			switch st.Code() {
 			case codes.Unauthenticated, codes.PermissionDenied:
-				s.handleIrrecoverableError("auth/perm: "+st.Message(), streamInfo)
+				s.handleIrrecoverableError("auth/perm", st.Code(), st.Message(), err, streamInfo)
 				return
 			case codes.InvalidArgument, codes.FailedPrecondition, codes.OutOfRange, codes.Unimplemented:
-				s.handleIrrecoverableError("protocol: "+st.Message(), streamInfo)
+				s.handleIrrecoverableError("protocol", st.Code(), st.Message(), err, streamInfo)
 				return
 			default:
 				// All other non-OK statuses: signal stream failure
@@ -756,11 +756,11 @@ func (s *streamWorker) signalBatchAck(streamInfo *streamInfo, msg *statefulpb.Ba
 
 // handleIrrecoverableError are errors that shouldn't be retried, and ideally
 // should be block the ingestion, until the error is resolved.
-func (s *streamWorker) handleIrrecoverableError(reason string, streamInfo *streamInfo) {
+func (s *streamWorker) handleIrrecoverableError(category string, code codes.Code, message string, err error, streamInfo *streamInfo) {
 	// Currently this is treated as stream error, which will trigger a stream rotation
 	// and retry of the same payload, which loops on. this IS NOT the desired behavior.
 	// TODO: Implement proper handling of irrecoverable errors, by blocking the ingestion
-	log.Infof("Worker %s: irrecoverable error detected: %s", s.workerID, reason)
+	log.Infof("Worker %s: irrecoverable error detected: category=%s code=%s message=%q error=%q", s.workerID, category, code.String(), message, err.Error())
 	s.signalStreamFailure(streamInfo, "irrecoverable_error")
 }
 
