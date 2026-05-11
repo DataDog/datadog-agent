@@ -14,32 +14,25 @@ PROTO_PKGS = {
     'remoteconfig': False,
     'api/v1': False,
     'trace': True,
-    'process': False,
     'workloadmeta': False,
     'kubemetadata': False,
     'privateactionrunner': False,
     'remoteagent': False,
     'autodiscovery': False,
-    'trace/idx': False,
     'workloadfilter': False,
-    'dogstatsdhttp': False,
-    'sbom': False,
 }
 
 CLI_EXTRAS = {
-    'trace/idx': '--go_opt=module=github.com/DataDog/datadog-agent',
     'privateactionrunner': '--go_opt=module=github.com/DataDog/datadog-agent',
 }
 
 CLI_EXTRAS_GRPC = {
-    'trace/idx': '--go-grpc_opt=module=github.com/DataDog/datadog-agent',
     'privateactionrunner': '--go-grpc_opt=module=github.com/DataDog/datadog-agent',
 }
 
 # maybe put this in a separate function
 PKG_PLUGINS = {
     'trace': '--go-vtproto_out=',
-    'dogstatsdhttp': '--go-vtproto_out=',
 }
 
 PKG_CLI_EXTRAS = {
@@ -79,7 +72,11 @@ def generate(ctx, pre_commit=False):
     with ctx.cd(repo_root):
         # protobuf defs
         print(f"generating protobuf code from: {proto_root}")
+        bazel(ctx, "run", "//pkg/proto/pbgo/dogstatsdhttp:write_pb_go")
         bazel(ctx, "run", "//pkg/proto/pbgo/languagedetection:write_pb_go")
+        bazel(ctx, "run", "//pkg/proto/pbgo/process:write_pb_go")
+        bazel(ctx, "run", "//pkg/proto/pbgo/sbom:write_pb_go")
+        bazel(ctx, "run", "//pkg/proto/pbgo/trace/idx:write_pb_go")
         for pkg, inject_tags in PROTO_PKGS.items():
             files = []
             pkg_root = Path(proto_root, "datadog", pkg)

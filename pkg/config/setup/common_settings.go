@@ -108,6 +108,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// secrets backend
 	config.BindEnvAndSetDefault("secret_backend_type", "")
 	config.BindEnvAndSetDefault("secret_backend_config", map[string]interface{}{})
+	config.BindEnvAndSetDefault("multi_secret_backends", map[string]interface{}{})
 	config.BindEnvAndSetDefault("secret_backend_command", "")
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
 	config.BindEnvAndSetDefault("secret_backend_output_max_size", 1024*1024)
@@ -583,6 +584,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("external_metrics_provider.num_workers", 2)                     // Number of workers spawned by controller (only when CRD is used)
 	config.BindEnvAndSetDefault("external_metrics_provider.max_parallel_queries", 10)           // Maximum number of parallel queries sent to Datadog simultaneously
 	pkgconfigmodel.AddOverrideFunc(sanitizeExternalMetricsProviderChunkSize)
+	// DatadogInstrumentation controller
+	config.BindEnvAndSetDefault("instrumentation_crd_controller.enabled", false)
 	// Cluster check Autodiscovery
 	config.BindEnvAndSetDefault("cluster_checks.support_hybrid_ignore_ad_tags", false) // TODO(CINT)(Agent 7.53+) Remove this flag when hybrid ignore_ad_tags is fully deprecated
 	config.BindEnvAndSetDefault("cluster_checks.enabled", false)
@@ -1034,8 +1037,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_agent.registry.idle_timeout", time.Duration(30*time.Second))
 	config.BindEnvAndSetDefault("remote_agent.registry.query_timeout", time.Duration(3*time.Second))
 	config.BindEnvAndSetDefault("remote_agent.registry.recommended_refresh_interval", time.Duration(10*time.Second))
-	config.BindEnvAndSetDefault("remote_agent.configstream.enabled", false)
 	config.BindEnvAndSetDefault("remote_agent.configstream.sleep_interval", 10*time.Second)
+	config.BindEnvAndSetDefault("remote_agent.configstream.consumer.enabled", false)
 
 	// Data Plane
 	config.BindEnvAndSetDefault("data_plane.enabled", false)
@@ -1090,6 +1093,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("hostprofiler.health_metrics.enabled", true)
 	config.BindEnvAndSetDefault("hostprofiler.health_metrics.target", "127.0.0.1:8889")
 	config.BindEnvAndSetDefault("hostprofiler.hpflare.port", 7778)
+
+	// Remote Flags system
+	remoteflags(config)
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -1381,6 +1387,11 @@ func remoteconfig(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_log_config_scheduling", false)
 	// Websocket echo test
 	config.BindEnvAndSetDefault("remote_configuration.no_websocket_echo", false)
+}
+
+func remoteflags(config pkgconfigmodel.Setup) {
+	// Remote flags
+	config.BindEnvAndSetDefault("remote_flags.enabled", false)
 }
 
 func autoconfig(config pkgconfigmodel.Setup) {

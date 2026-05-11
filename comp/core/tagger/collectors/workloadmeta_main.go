@@ -52,6 +52,7 @@ var CollectorPriorities = make(map[string]types.CollectorPriority)
 // store.
 type WorkloadMetaCollector struct {
 	store        workloadmeta.Component
+	cfg          config.Component
 	children     map[types.EntityID]map[types.EntityID]struct{}
 	tagProcessor taggerdef.Processor
 
@@ -182,6 +183,7 @@ func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store w
 	c := &WorkloadMetaCollector{
 		tagProcessor:                      p,
 		store:                             store,
+		cfg:                               cfg,
 		children:                          make(map[types.EntityID]map[types.EntityID]struct{}),
 		staticTags:                        make(map[string][]string),
 		collectEC2ResourceTags:            cfg.GetBool("ecs_collect_resource_tags_ec2"),
