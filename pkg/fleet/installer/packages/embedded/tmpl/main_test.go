@@ -30,8 +30,13 @@ func TestGenerationIsUpToDate(t *testing.T) {
 		t.Skip("TestGenerationIsUpToDate is known to fail on the macOS Gitlab runners.")
 	}
 
-	generated := filepath.Join(os.TempDir(), "gen")
-	os.MkdirAll(generated, 0755)
+	// Use a fresh directory: generate() only overwrites known filenames; a fixed
+	// path under os.TempDir() would keep removed artifacts (e.g. renamed YAML)
+	// and break comparison with the embedded gen tree.
+	generated := filepath.Join(t.TempDir(), "gen")
+	if err := os.MkdirAll(generated, 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	err := generate(generated)
 	assert.NoError(t, err)
