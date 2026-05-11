@@ -91,7 +91,6 @@ func TestCheck_ParseFailureProducesReport(t *testing.T) {
 }
 
 // Healthy YAML hits VerdictSchemaUnavailable in tests (no embedded schema)
-// which the checker swallows — the report should be nil either way.
 func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
 	c := newChecker(mockCfg(t, writeYAML(t, "api_key: abc\nsite: dd.eu\n")))
 	report, err := c.Run()

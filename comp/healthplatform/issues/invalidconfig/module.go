@@ -19,8 +19,7 @@ type invalidConfigModule struct {
 	checker *checker
 }
 
-// NewModule captures the config component so the periodic check can read
-// ConfigFileUsed at run time.
+// NewModule captures the config so the periodic check can read ConfigFileUsed at run time.
 func NewModule(cfg config.Component) issues.Module {
 	return &invalidConfigModule{checker: newChecker(cfg)}
 }
@@ -33,8 +32,7 @@ func (m *invalidConfigModule) IssueTemplate() issues.IssueTemplate {
 	return InvalidConfigIssue{}
 }
 
-// BuiltInCheck leaves Interval at zero so the platform applies its default,
-// matching the forwarder cadence.
+// BuiltInCheck leaves Interval at zero so the platform applies its default, matching the forwarder cadence.
 func (m *invalidConfigModule) BuiltInCheck() *issues.BuiltInCheck {
 	return &issues.BuiltInCheck{
 		ID:      healthplatformdef.InvalidConfigCheckID,
