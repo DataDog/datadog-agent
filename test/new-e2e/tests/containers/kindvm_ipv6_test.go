@@ -27,8 +27,11 @@ type kindIPv6Suite struct {
 }
 
 // TestKindIPv6Suite runs the kind container-integration assertions against a
-// cluster configured with networking.ipFamily=ipv6. External egress relies on
-// kindnet's NAT64 (64:ff9b::/96) and CoreDNS DNS64. See [CONS-8164].
+// dual-stack kind cluster. Pods get both IPv4 and IPv6 PodIPs, so the agent
+// can still reach the IPv4-only fakeintake ALB while intra-cluster IPv6 paths
+// (kubelet, services, peer pods) are exercised. Strict ipFamily=ipv6 is
+// blocked until the fakeintake exposes an IPv6-reachable endpoint. See
+// [CONS-8164].
 func TestKindIPv6Suite(t *testing.T) {
 	helmValues := `
 datadog:
@@ -41,7 +44,7 @@ clusterAgent:
 		e2e.WithStackName("kind-ipv6"),
 		e2e.WithProvisioner(provkind.Provisioner(
 			provkind.WithRunOptions(
-				scenkind.WithIPFamily("ipv6"),
+				scenkind.WithIPFamily("dual"),
 				scenkind.WithVMOptions(
 					scenec2.WithInstanceType("t3.xlarge"),
 				),
@@ -63,11 +66,10 @@ clusterAgent:
 	)
 }
 
-// Test0AgentPodIsIPv6 asserts the agent DaemonSet pods got IPv6 PodIPs, so
-// later IPv6-specific assertions don't pass for the wrong reason if the
-// ipFamily plumbing silently falls back to IPv4. The leading 0 orders this
-// test right after k8sSuite.Test00UpAndRunning.
-func (suite *kindIPv6Suite) Test0AgentPodIsIPv6() {
+// Test0AgentPodHasIPv6 asserts each agent DaemonSet pod has at least one IPv6
+// PodIP, catching the case where the ipFamily plumbing silently falls back to
+// IPv4-only. The leading 0 orders it right after k8sSuite.Test00UpAndRunning.
+func (suite *kindIPv6Suite) Test0AgentPodHasIPv6() {
 	ctx := context.Background()
 
 	pods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
@@ -77,9 +79,15 @@ func (suite *kindIPv6Suite) Test0AgentPodIsIPv6() {
 	require.NotEmpty(suite.T(), pods.Items, "no datadog agent pods found")
 
 	for _, pod := range pods.Items {
-		require.NotEmpty(suite.T(), pod.Status.PodIP, "pod %s has no PodIP", pod.Name)
-		ip := net.ParseIP(pod.Status.PodIP)
-		require.NotNil(suite.T(), ip, "pod %s PodIP %q is not a valid IP", pod.Name, pod.Status.PodIP)
-		assert.Nil(suite.T(), ip.To4(), "pod %s PodIP %q is IPv4, expected IPv6", pod.Name, pod.Status.PodIP)
+		require.NotEmpty(suite.T(), pod.Status.PodIPs, "pod %s has no PodIPs", pod.Name)
+		hasIPv6 := false
+		for _, entry := range pod.Status.PodIPs {
+			ip := net.ParseIP(entry.IP)
+			require.NotNilf(suite.T(), ip, "pod %s PodIP %q is not a valid IP", pod.Name, entry.IP)
+			if ip.To4() == nil {
+				hasIPv6 = true
+			}
+		}
+		assert.Truef(suite.T(), hasIPv6, "pod %s has no IPv6 entry in PodIPs %+v", pod.Name, pod.Status.PodIPs)
 	}
 }
