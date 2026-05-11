@@ -346,7 +346,7 @@ remote_agent_registry_action_duration_seconds_count 20
 		)
 
 		// This should NOT panic - the remote agent metric uses ConstHistogram which is not registered
-		// and the remote_agent label provides namespace separation
+		// and the emitter label provides namespace separation
 		metrics, err := telemetryComp.Gather(false)
 		require.NoError(t, err)
 
@@ -355,7 +355,7 @@ remote_agent_registry_action_duration_seconds_count 20
 		for _, mf := range metrics {
 			if mf.GetName() == "remote_agent_registry_action_duration_seconds" {
 				for _, m := range mf.GetMetric() {
-					// Check if this metric has the remote_agent label (from the remote agent)
+					// Check if this metric has the emitter label (from the remote agent)
 					for _, label := range m.GetLabel() {
 						if label.GetName() == emitterMetricTagName && label.GetValue() == "test-agent" {
 							foundRemoteAgentHistogram = true
@@ -443,7 +443,7 @@ my_shared_histogram_count 300
 		component := provides.Comp
 
 		// This histogram tries to use the same labels ("name", "action") as the internal metric
-		// but the remote_agent label will still be injected, making them distinct
+		// but the emitter label will still be injected, making them distinct
 		promText := `
 # HELP remote_agent_registry_action_duration_seconds Histogram trying to match internal labels
 # TYPE remote_agent_registry_action_duration_seconds histogram
@@ -458,7 +458,7 @@ remote_agent_registry_action_duration_seconds_count{name="fake-agent",action="qu
 			withTelemetryProvider(promText),
 		)
 
-		// This should NOT panic - the remote_agent label is always injected
+		// This should NOT panic - the emitter label is always injected
 		metrics, err := telemetryComp.Gather(false)
 		require.NoError(t, err)
 
@@ -467,13 +467,13 @@ remote_agent_registry_action_duration_seconds_count{name="fake-agent",action="qu
 			if mf.GetName() == "remote_agent_registry_action_duration_seconds" {
 				for _, m := range mf.GetMetric() {
 					labels := m.GetLabel()
-					// Check for remote_agent label being present and find it among all labels
-					var hasRemoteAgentLabel, hasNameLabel, hasActionLabel bool
+					// Check for emitter label being present and find it among all labels
+					var hasEmitterLabel, hasNameLabel, hasActionLabel bool
 					for _, label := range labels {
 						switch label.GetName() {
 						case emitterMetricTagName:
 							if label.GetValue() == "sneaky-agent" {
-								hasRemoteAgentLabel = true
+								hasEmitterLabel = true
 							}
 						case "name":
 							if label.GetValue() == "fake-agent" {
@@ -485,15 +485,15 @@ remote_agent_registry_action_duration_seconds_count{name="fake-agent",action="qu
 							}
 						}
 					}
-					if hasRemoteAgentLabel && hasNameLabel && hasActionLabel {
+					if hasEmitterLabel && hasNameLabel && hasActionLabel {
 						foundSneakyHistogram = true
-						// Verify all 3 labels are present: remote_agent, name, action
+						// Verify all 3 labels are present: emitter, name, action
 						require.Len(t, labels, 3, "Should have exactly 3 labels")
 					}
 				}
 			}
 		}
-		require.True(t, foundSneakyHistogram, "Sneaky agent histogram should be present with remote_agent label")
+		require.True(t, foundSneakyHistogram, "Sneaky agent histogram should be present with emitter label")
 	})
 
 	t.Run("scenario 4: unique histogram name works fine", func(t *testing.T) {
@@ -550,7 +550,7 @@ func TestDescriptorConflicts(t *testing.T) {
 		defer lc.Stop(context.Background())
 		component := provides.Comp
 
-		// Both agents send the EXACT same metric with same labels - only remote_agent will differ
+		// Both agents send the EXACT same metric with same labels - only emitter will differ
 		promText := `
 # HELP shared_request_duration Request duration
 # TYPE shared_request_duration histogram
@@ -568,7 +568,7 @@ shared_request_duration_count{method="GET",path="/api"} 30
 			withTelemetryProvider(promText),
 		)
 
-		// This tests if having identical metrics (except remote_agent label) causes issues
+		// This tests if having identical metrics (except emitter label) causes issues
 		metrics, err := telemetryComp.Gather(false)
 		require.NoError(t, err)
 
@@ -683,9 +683,9 @@ http_requests{endpoint="api",status="200"} 50
 		)
 
 		// This is the interesting case - same metric name but DIFFERENT label schemas
-		// The remote_agent label is added to both, making them:
-		// - http_requests{remote_agent="agent-labels-1", method="GET", path="/api"}
-		// - http_requests{remote_agent="agent-labels-2", endpoint="api", status="200"}
+		// The emitter label is added to both, making them:
+		// - http_requests{emitter="agent-labels-1", method="GET", path="/api"}
+		// - http_requests{emitter="agent-labels-2", endpoint="api", status="200"}
 		// These have different label sets which could cause issues with some Prometheus registries
 		metrics, err := telemetryComp.Gather(false)
 		require.NoError(t, err)
