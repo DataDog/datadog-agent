@@ -38,6 +38,7 @@ func NewRCListCommand(cl **client.Client) *cobra.Command {
 			}
 			if !pretty {
 				type rcConfigOut struct {
+					Key        string          `json:"key"`
 					OrgID      string          `json:"org_id"`
 					Product    string          `json:"product"`
 					ConfigID   string          `json:"config_id"`
@@ -47,6 +48,7 @@ func NewRCListCommand(cl **client.Client) *cobra.Command {
 				rendered := make([]rcConfigOut, len(cfgs))
 				for i, c := range cfgs {
 					rendered[i] = rcConfigOut{
+						Key:        fmt.Sprintf("%s/%s/%s/%s", c.OrgID, c.Product, c.ConfigID, c.ConfigName),
 						OrgID:      c.OrgID,
 						Product:    c.Product,
 						ConfigID:   c.ConfigID,
