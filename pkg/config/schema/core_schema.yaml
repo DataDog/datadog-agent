@@ -7978,6 +7978,34 @@ properties:
             node_type: setting
             type: boolean
             default: false
+      nccl_profiler:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          init_resources:
+            node_type: section
+            type: object
+            properties:
+              cpu:
+                node_type: setting
+                type: string
+                default: ''
+              memory:
+                node_type: setting
+                type: string
+                default: ''
+          injector_image:
+            node_type: setting
+            type: string
+            default: ''
+          mutate_unlabelled:
+            node_type: setting
+            type: boolean
+            default: false
       probe:
         node_type: section
         type: object
@@ -13368,6 +13396,22 @@ properties:
         node_type: setting
         type: boolean
         default: true
+      nccl:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          host_socket_path:
+            node_type: setting
+            type: string
+            default: /var/run/datadog
+          socket_path:
+            node_type: setting
+            type: string
+            default: /var/run/datadog/nccl.socket
       nvml_lib_path:
         node_type: setting
         type: string
@@ -15248,6 +15292,17 @@ properties:
             node_type: setting
             type: array
             default: []
+            items:
+              type: string
+          shadow_sample_rate:
+            node_type: setting
+            type: number
+            default: 0.001
+          shadow_sites:
+            node_type: setting
+            type: array
+            default:
+              - datadoghq.com
             items:
               type: string
           use_beta:
