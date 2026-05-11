@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	_ "expvar" // Blank import used because this isn't directly used in this file
+	"fmt"
 	"net/http"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
@@ -176,6 +177,7 @@ import (
 	profileStatus "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/status"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
+	"github.com/DataDog/datadog-agent/pkg/config/lite"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -217,7 +219,27 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,
 	}
-	runE := func(*cobra.Command, []string) error {
+	runE := func(*cobra.Command, []string) (rErr error) {
+		// Wrap normal startup in a rescue hook so the Agent Health Platform
+		// still hears about a panic or Fx-init failure even when the full
+		// agent could not bootstrap. lite.Rescue is best-effort and
+		// 3-second timeout bounded; it must not block process exit.
+		defer func() {
+			if r := recover(); r != nil {
+				_ = lite.Rescue(context.Background(),
+					globalParams.ConfFilePath,
+					lite.DefaultConfigPath(),
+					fmt.Errorf("agent run panic: %v", r))
+				panic(r) // re-raise so systemd sees a non-zero exit
+			}
+			if rErr != nil {
+				_ = lite.Rescue(context.Background(),
+					globalParams.ConfFilePath,
+					lite.DefaultConfigPath(),
+					rErr)
+			}
+		}()
+
 		// TODO: once the agent is represented as a component, and not a function (run),
 		// this will use `fxutil.Run` instead of `fxutil.OneShot`.
 		configOpts := []func(*config.Params){

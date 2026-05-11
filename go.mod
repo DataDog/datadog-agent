@@ -98,6 +98,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/create v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/config/env v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.77.0-devel.0.20260213154712-e02b9359151a
+	github.com/DataDog/datadog-agent/pkg/config/lite v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2
 	github.com/DataDog/datadog-agent/pkg/config/remote v0.59.0-rc.5
@@ -1360,6 +1361,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/config/create => ./pkg/config/create
 	github.com/DataDog/datadog-agent/pkg/config/env => ./pkg/config/env
 	github.com/DataDog/datadog-agent/pkg/config/helper => ./pkg/config/helper
+	github.com/DataDog/datadog-agent/pkg/config/lite => ./pkg/config/lite
 	github.com/DataDog/datadog-agent/pkg/config/mock => ./pkg/config/mock
 	github.com/DataDog/datadog-agent/pkg/config/model => ./pkg/config/model
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel => ./pkg/config/nodetreemodel
