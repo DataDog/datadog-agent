@@ -47,7 +47,7 @@ type HelmComponent struct {
 
 func boolValue(i pulumi.Input) bool {
 	pv := reflect.ValueOf(i)
-	if pv.Kind() == reflect.Ptr {
+	if pv.Kind() == reflect.Pointer {
 		if pv.IsNil() {
 			return false
 		}
