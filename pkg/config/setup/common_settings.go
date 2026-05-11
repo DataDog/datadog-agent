@@ -2001,6 +2001,8 @@ func cloudfoundry(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("bosh_id", "")
 	config.BindEnvAndSetDefault("cf_os_hostname_aliasing", false)
 	config.BindEnvAndSetDefault("cloud_foundry_buildpack", false)
+
+	initAnomalyDetection(config)
 }
 
 func containerd(config pkgconfigmodel.Setup) {
