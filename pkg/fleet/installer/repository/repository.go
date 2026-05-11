@@ -400,12 +400,12 @@ func movePackageFromSource(ctx context.Context, packageName string, rootPath str
 	if !errors.Is(err, os.ErrNotExist) {
 		return "", fmt.Errorf("could not stat target package: %w", err)
 	}
-	if err := paths.SetRepositoryPermissions(sourcePath); err != nil {
-		return "", fmt.Errorf("could not set permissions on package: %w", err)
-	}
 	err = paths.Rename(ctx, sourcePath, targetPath)
 	if err != nil {
 		return "", fmt.Errorf("could not move source: %w", err)
+	}
+	if err := paths.SetRepositoryPermissions(targetPath); err != nil {
+		return "", fmt.Errorf("could not set permissions on package: %w", err)
 	}
 	return targetPath, nil
 }
