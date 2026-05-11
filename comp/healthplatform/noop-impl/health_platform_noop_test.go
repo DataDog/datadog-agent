@@ -29,12 +29,12 @@ func TestReportIssueWithNilReportReturnsNilError(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestRegisterCheckReturnsNilError(t *testing.T) {
+func TestScheduleHealthCheckReturnsNilError(t *testing.T) {
 	provides := NewComponent()
 	checkFn := func() (*healthplatformpayload.IssueReport, error) {
 		return nil, nil
 	}
-	err := provides.Comp.RegisterCheck("check-1", "mycheck", checkFn, 0)
+	err := provides.Comp.ScheduleHealthCheck("check-1", "mycheck", checkFn, 0)
 	require.NoError(t, err)
 }
 
@@ -46,9 +46,9 @@ func TestGetAllIssuesReturnsZeroCountAndEmptyMap(t *testing.T) {
 	assert.Empty(t, issues)
 }
 
-func TestGetIssueForCheckReturnsNil(t *testing.T) {
+func TestGetIssueReturnsNil(t *testing.T) {
 	provides := NewComponent()
-	issue := provides.Comp.GetIssueForCheck("any-check")
+	issue := provides.Comp.GetIssue("any-check")
 	assert.Nil(t, issue)
 }
 
@@ -84,9 +84,9 @@ func TestFlareProviderCallbackReturnsNil(t *testing.T) {
 func TestClearMethodsDoNotPanic(t *testing.T) {
 	provides := NewComponent()
 	assert.NotPanics(t, func() {
-		provides.Comp.ClearIssuesForCheck("check-1")
+		provides.Comp.ResolveIssue("check-1")
 	})
 	assert.NotPanics(t, func() {
-		provides.Comp.ClearAllIssues()
+		provides.Comp.ResolveAllIssues()
 	})
 }
