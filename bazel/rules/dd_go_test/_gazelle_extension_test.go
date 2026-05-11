@@ -21,9 +21,13 @@ func makeGoTestResult(rules ...*rule.Rule) language.GenerateResult {
 	return language.GenerateResult{Gen: rules, Imports: imports}
 }
 
+func newLang() *lang {
+	return NewLanguage().(*lang)
+}
+
 func TestReplaceGoTests_NonGoTestPassesThrough(t *testing.T) {
 	lib := rule.NewRule("go_library", "lib")
-	result := replaceGoTests(makeGoTestResult(lib))
+	result := newLang().replaceGoTests(makeGoTestResult(lib), nil)
 
 	if len(result.Gen) != 1 || result.Gen[0].Kind() != "go_library" {
 		t.Errorf("expected go_library to pass through, got %v", result.Gen)
@@ -41,7 +45,7 @@ func TestReplaceGoTests_SingleGoTest(t *testing.T) {
 	orig.SetAttr("embed", []string{":pkg"})
 	orig.SetAttr("deps", []string{"//some/dep"})
 
-	result := replaceGoTests(makeGoTestResult(orig))
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil)
 
 	if len(result.Gen) != 1 {
 		t.Fatalf("expected 1 gen rule, got %d", len(result.Gen))
@@ -69,7 +73,7 @@ func TestReplaceGoTests_AttrsCarriedOver(t *testing.T) {
 	orig.SetAttr("data", []string{"testdata/foo.json"})
 	orig.SetAttr("target_compatible_with", []string{"@platforms//os:linux"})
 
-	result := replaceGoTests(makeGoTestResult(orig))
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil)
 	r := result.Gen[0]
 
 	if got := r.AttrStrings("embed"); !stringSlicesEqual(got, []string{":mypkg"}) {
@@ -83,9 +87,46 @@ func TestReplaceGoTests_AttrsCarriedOver(t *testing.T) {
 	}
 }
 
+// TestReplaceGoTests_ExistingAttrsPreserved guards the case where the BUILD
+// already contains a go_test with user-managed attrs (data, env, tags, …) that
+// the freshly generated go_test does not. Without consulting args.File, those
+// attrs would be silently dropped along with the deleted go_test rule.
+func TestReplaceGoTests_ExistingAttrsPreserved(t *testing.T) {
+	fresh := rule.NewRule("go_test", "mytest")
+	fresh.SetAttr("srcs", []string{"mytest.go"})
+	fresh.SetAttr("embed", []string{":mypkg"})
+
+	prior := rule.NewRule("go_test", "mytest")
+	prior.SetAttr("data", []string{"testdata/foo.json"})
+	prior.SetAttr("env", map[string]string{"FOO": "bar"})
+	prior.SetAttr("tags", []string{"manual"})
+	prior.SetAttr("gotags", []string{"test"})   // dd_go_test owns gotags -> should NOT carry over
+	prior.SetAttr("srcs", []string{"stale.go"}) // Gazelle-owned -> should NOT carry over
+	file := &rule.File{Rules: []*rule.Rule{prior}}
+
+	result := newLang().replaceGoTests(makeGoTestResult(fresh), file)
+	r := result.Gen[0]
+
+	if got := r.AttrStrings("data"); !stringSlicesEqual(got, []string{"testdata/foo.json"}) {
+		t.Errorf("data: got %v, want [testdata/foo.json]", got)
+	}
+	if got := r.AttrStrings("tags"); !stringSlicesEqual(got, []string{"manual"}) {
+		t.Errorf("tags: got %v, want [manual]", got)
+	}
+	if r.Attr("env") == nil {
+		t.Error("env: expected to be preserved from existing rule")
+	}
+	if r.Attr("gotags") != nil {
+		t.Errorf("gotags: expected to be dropped (dd_go_test-managed), got %v", r.AttrStrings("gotags"))
+	}
+	if got := r.AttrStrings("srcs"); !stringSlicesEqual(got, []string{"mytest.go"}) {
+		t.Errorf("srcs: expected fresh value, got %v", got)
+	}
+}
+
 func TestReplaceGoTests_ImportsForwarded(t *testing.T) {
 	orig := rule.NewRule("go_test", "t")
-	result := replaceGoTests(makeGoTestResult(orig))
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil)
 	if len(result.Imports) != len(result.Gen) {
 		t.Errorf("Imports len %d != Gen len %d", len(result.Imports), len(result.Gen))
 	}
@@ -99,7 +140,7 @@ func TestReplaceGoTests_MixedRules(t *testing.T) {
 	tst := rule.NewRule("go_test", "lib_test")
 	bin := rule.NewRule("go_binary", "main")
 
-	result := replaceGoTests(makeGoTestResult(lib, tst, bin))
+	result := newLang().replaceGoTests(makeGoTestResult(lib, tst, bin), nil)
 
 	if len(result.Gen) != 3 {
 		t.Fatalf("expected 3 gen rules, got %d", len(result.Gen))

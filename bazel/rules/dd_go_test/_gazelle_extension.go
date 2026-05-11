@@ -91,11 +91,37 @@ func (l *lang) GenerateRules(args language.GenerateArgs) language.GenerateResult
 	if cfg, ok := args.Config.Exts[extName].(ddGoTestConfig); ok && !cfg.enabled {
 		return result
 	}
-	return replaceGoTests(result)
+	return l.replaceGoTests(result, args.File)
 }
 
 // replaceGoTests converts all go_test rules in result to dd_go_test rules.
-func replaceGoTests(result language.GenerateResult) language.GenerateResult {
+// file is the parsed existing BUILD file (may be nil for fresh packages); it
+// is consulted to carry over user-managed attrs from any pre-existing go_test
+// rule that the merger would otherwise discard along with the rule itself.
+//
+// "User-managed" is derived from MergeableAttrs: attrs in the Go extension's
+// go_test MergeableAttrs are regenerated from source analysis, and attrs in
+// dd_go_test's MergeableAttrs are owned by the macro (e.g. gotags is replaced
+// by flavor_gotags at expansion time). Everything else is hand-maintained and
+// must be carried over.
+func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File) language.GenerateResult {
+	managed := make(map[string]bool)
+	for attr := range l.Language.Kinds()["go_test"].MergeableAttrs {
+		managed[attr] = true
+	}
+	for attr := range l.Kinds()["dd_go_test"].MergeableAttrs {
+		managed[attr] = true
+	}
+
+	existing := make(map[string]*rule.Rule)
+	if file != nil {
+		for _, r := range file.Rules {
+			if r.Kind() == "go_test" {
+				existing[r.Name()] = r
+			}
+		}
+	}
+
 	var gen []*rule.Rule
 	var empty []*rule.Rule
 	var imports []interface{}
@@ -113,6 +139,16 @@ func replaceGoTests(result language.GenerateResult) language.GenerateResult {
 		nr := rule.NewRule("dd_go_test", r.Name())
 		for _, attr := range r.AttrKeys() {
 			copyAttr(r, nr, attr)
+		}
+		if ex, ok := existing[r.Name()]; ok {
+			for _, attr := range ex.AttrKeys() {
+				if managed[attr] {
+					continue
+				}
+				if nr.Attr(attr) == nil {
+					copyAttr(ex, nr, attr)
+				}
+			}
 		}
 		gen = append(gen, nr)
 		imports = append(imports, imp)

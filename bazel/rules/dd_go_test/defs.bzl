@@ -5,7 +5,7 @@ _ALL_FLAVORS = ["base", "dogstatsd", "fips", "heroku", "iot"]
 
 # TODO: remove gotags once Gazelle has been re-run repo-wide; at that point all
 # stale gotags attrs will have been cleaned up and this param becomes dead.
-def dd_go_test(name, flavors = None, gotags = None, **kwargs):
+def dd_go_test(name, flavors = None, gotags = None, tags = None, **kwargs):
     """Wraps go_test with per-flavor variants grouped under a test_suite.
 
     The flavor-to-gotags mapping and the tag naming scheme are encapsulated
@@ -18,15 +18,20 @@ def dd_go_test(name, flavors = None, gotags = None, **kwargs):
               per-flavor go_test (e.g. "foo_test_base", "foo_test_iot").
         flavors: List of flavor names to test under. Defaults to all flavors.
                  Override to restrict testing to a subset.
+        tags: Optional user-supplied bazel tags; merged with the per-flavor
+              tags this macro adds. Declared explicitly (rather than left in
+              **kwargs) so passing it doesn't collide with the macro's own
+              `tags=` on each underlying go_test.
         **kwargs: Remaining attrs forwarded to each go_test (srcs, embed, deps, …).
     """
     if flavors == None:
         flavors = _ALL_FLAVORS
+    user_tags = tags or []
     for flavor in flavors:
         go_test(
             name = name + "_" + flavor,
             gotags = flavor_gotags(flavor),
-            tags = ["go_tests", "flavor_" + flavor],
+            tags = user_tags + ["go_tests", "flavor_" + flavor],
             **kwargs
         )
     native.test_suite(
