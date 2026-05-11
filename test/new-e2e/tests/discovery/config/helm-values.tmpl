@@ -5,5 +5,14 @@ datadog:
     enabled: false
   discovery:
     enabled: true
+{{- if .EnableOOMKill }}
+  systemProbe:
+    enableOOMKill: true
+{{- end }}
   envDict:
     DD_LANGUAGE_DETECTION_ENABLED: "true"
+
+agents:
+  image:
+    tag: "7.78.0"
+    doNotCheckTag: true
