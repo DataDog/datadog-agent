@@ -104,8 +104,8 @@ func TestTimeSamplerObserverHandleNil(t *testing.T) {
 func TestSetObserverNilIsNoop(t *testing.T) {
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
+	// Use initAgentDemultiplexer (not started) — no goroutines, no Stop() needed.
 	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
-	defer demux.Stop(true)
 
 	demux.SetObserver(nil)
 
@@ -119,8 +119,8 @@ func TestSetObserverNilIsNoop(t *testing.T) {
 func TestSetObserverConfigOff(t *testing.T) {
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
+	// Use initAgentDemultiplexer (not started) — no goroutines, no Stop() needed.
 	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
-	defer demux.Stop(true)
 
 	// anomaly_detection.metrics.enabled defaults to false — config is unset in tests
 	comp := &recordingComponent{handle: &recordingHandle{}}
