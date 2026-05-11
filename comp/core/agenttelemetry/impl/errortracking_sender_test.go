@@ -308,6 +308,52 @@ func TestSendErrorLogs_NetworkError(t *testing.T) {
 	assert.Contains(t, err.Error(), "simulated network failure")
 }
 
+// TestSendPayloadBody_StatusCodes locks the contract of the extracted
+// shared transport helper (review comment C3 on PR #49946). Both
+// flushSession and sendLogsBatch route per-endpoint POSTs through this
+// helper; the helper must return the raw HTTP status code so each caller
+// can apply its own policy (flushSession logs only; sendLogsBatch
+// distinguishes retryable 5xx from terminal 4xx).
+func TestSendPayloadBody_StatusCodes(t *testing.T) {
+	cases := []struct {
+		name   string
+		status int
+	}{
+		{"2xx success", http.StatusOK},
+		{"4xx terminal", http.StatusBadRequest},
+		{"5xx retryable", http.StatusInternalServerError},
+		{"request timeout", http.StatusRequestTimeout},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cl := &captureClient{statusCode: tc.status}
+			s := newTestSender(t, cl)
+			status, err := s.sendPayloadBody(context.Background(),
+				[]byte(`{"k":"v"}`), "logs", "test-key",
+				"https://example.invalid/api/v2/apmtelemetry", false)
+			require.NoError(t, err)
+			assert.Equal(t, tc.status, status)
+
+			reqs, bodies := cl.snapshot()
+			require.Len(t, reqs, 1)
+			assert.Equal(t, "logs", reqs[0].Header.Get("DD-Telemetry-request-type"))
+			assert.Equal(t, "test-key", reqs[0].Header.Get("DD-Api-Key"))
+			assert.Equal(t, "application/json", reqs[0].Header.Get("Content-Type"))
+			assert.Equal(t, `{"k":"v"}`, string(bodies[0]))
+		})
+	}
+}
+
+func TestSendPayloadBody_NetworkError(t *testing.T) {
+	cl := &captureClient{err: errors.New("simulated network down")}
+	s := newTestSender(t, cl)
+	status, err := s.sendPayloadBody(context.Background(),
+		[]byte("{}"), "logs", "key", "https://example.invalid/path", false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "simulated network down")
+	assert.Equal(t, 0, status, "network failure must surface as status=0")
+}
+
 func TestSendErrorLogs_PayloadShape_ByteForByte(t *testing.T) {
 	cl := &captureClient{}
 	s := newTestSender(t, cl)

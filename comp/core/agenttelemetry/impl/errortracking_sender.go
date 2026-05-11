@@ -6,7 +6,6 @@
 package agenttelemetryimpl
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -15,7 +14,6 @@ import (
 	"net/http"
 	"runtime"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -69,37 +67,27 @@ func (s *senderImpl) sendLogsBatch(ctx context.Context, batch []slog.Record) err
 		// flushSession's behavior).
 	}
 
-	bodyLen := strconv.Itoa(len(body))
+	// Per-endpoint POST via the shared sendPayloadBody helper. Status-code
+	// interpretation here keeps the pkg/util/log/errortracking.Sender
+	// contract: 5xx + request-timeout = retryable (non-nil), 4xx = terminal
+	// (logged + nil), 2xx = success.
 	var errs error
 	for _, ep := range s.endpoints.Endpoints {
 		url := buildURL(ep)
-		req, reqErr := http.NewRequest("POST", url, bytes.NewReader(body))
-		if reqErr != nil {
-			errs = errors.Join(errs, fmt.Errorf("new logs request to %s: %w", url, reqErr))
+		status, sendErr := s.sendPayloadBody(ctx, body, logsPayloadType, ep.GetAPIKey(), url, compressed)
+		if sendErr != nil {
+			errs = errors.Join(errs, sendErr)
 			continue
-		}
-		s.addHeaders(req, logsPayloadType, ep.GetAPIKey(), bodyLen, compressed)
-		resp, doErr := s.client.Do(req.WithContext(ctx))
-		if doErr != nil {
-			errs = errors.Join(errs, fmt.Errorf("post logs to %s: %w", url, doErr))
-			continue
-		}
-		if resp.Body != nil {
-			resp.Body.Close()
 		}
 		switch {
-		case resp.StatusCode >= 200 && resp.StatusCode < 300:
-			s.logComp.Debugf("Logs intake response status:%s, request type:%s, status code:%d",
-				resp.Status, logsPayloadType, resp.StatusCode)
-		case resp.StatusCode >= 500 || resp.StatusCode == http.StatusRequestTimeout:
-			// Retryable per the Pipeline contract.
+		case status >= 200 && status < 300:
+			s.logComp.Debugf("Logs intake response status code:%d, request type:%s", status, logsPayloadType)
+		case status >= 500 || status == http.StatusRequestTimeout:
 			errs = errors.Join(errs,
-				fmt.Errorf("logs intake returned %d at %s", resp.StatusCode, url))
+				fmt.Errorf("logs intake returned %d at %s", status, url))
 		default:
-			// 4xx — terminal. Log and treat as delivered so the Pipeline
-			// does not retry a request that will not succeed.
 			s.logComp.Errorf("logs intake returned terminal %d at %s; dropping batch (%d records)",
-				resp.StatusCode, url, len(batch))
+				status, url, len(batch))
 		}
 	}
 	return errs

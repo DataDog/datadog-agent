@@ -413,6 +413,39 @@ func (ss *senderSession) flush() Payload {
 	return payload
 }
 
+// sendPayloadBody POSTs body to a single endpoint with the given request
+// type and API key, and returns the HTTP status code plus any transport
+// error.
+//
+// Status-code interpretation (2xx success, 4xx terminal, 5xx retryable) is
+// the caller's responsibility — flushSession and the errortracking path
+// want different policies despite sharing the marshal / scrub / compress
+// / transport stack. Centralising the per-endpoint POST here means there
+// is exactly one place to audit headers, compression handling, response
+// body lifecycle and error wrapping; addresses review comment C3 on
+// PR #49946.
+//
+// Return contract:
+//   - (statusCode, nil) on a successful round trip (caller inspects status).
+//   - (0, err) on request-build or transport failure.
+//
+// The response body is always closed before this function returns.
+func (s *senderImpl) sendPayloadBody(ctx context.Context, body []byte, reqType, apiKey, url string, compressed bool) (int, error) {
+	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
+	if err != nil {
+		return 0, fmt.Errorf("new %s request to %s: %w", reqType, url, err)
+	}
+	s.addHeaders(req, reqType, apiKey, strconv.Itoa(len(body)), compressed)
+	resp, err := s.client.Do(req.WithContext(ctx))
+	if err != nil {
+		return 0, fmt.Errorf("post %s to %s: %w", reqType, url, err)
+	}
+	if resp.Body != nil {
+		resp.Body.Close()
+	}
+	return resp.StatusCode, nil
+}
+
 func (s *senderImpl) flushSession(ss *senderSession) error {
 	// There is nothing to do if there are no payloads
 	if ss.payloadCount() == 0 {
@@ -446,34 +479,22 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 		}
 	}
 
-	// Send the payload to all endpoints
+	// Send the payload to all endpoints. Behavior here matches the v2
+	// pre-extraction semantics: status codes are logged at debug level,
+	// only transport errors surface in the joined return.
 	var errs error
 	reqType := payloads.RequestType
-	bodyLen := strconv.Itoa(len(reqBody))
 	for _, ep := range s.endpoints.Endpoints {
 		url := buildURL(ep)
-		req, err := http.NewRequest("POST", url, bytes.NewReader(reqBody))
-		if err != nil {
-			errs = errors.Join(errs, err)
+		status, sendErr := s.sendPayloadBody(ss.cancelCtx, reqBody, reqType, ep.GetAPIKey(), url, compressed)
+		if sendErr != nil {
+			errs = errors.Join(errs, sendErr)
 			continue
 		}
-		s.addHeaders(req, reqType, ep.GetAPIKey(), bodyLen, compressed)
-		resp, err := s.client.Do(req.WithContext(ss.cancelCtx))
-		if err != nil {
-			errs = errors.Join(errs, err)
-			continue
-		}
-		defer func() {
-			if resp != nil && resp.Body != nil {
-				resp.Body.Close()
-			}
-		}()
-
-		// Log return status (and URL if unsuccessful)
-		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			s.logComp.Debugf("Telemetry endpoint response status:%s, request type:%s, status code:%d", resp.Status, reqType, resp.StatusCode)
+		if status >= 200 && status < 300 {
+			s.logComp.Debugf("Telemetry endpoint response status code:%d, request type:%s", status, reqType)
 		} else {
-			s.logComp.Debugf("Telemetry endpoint response status:%s, request type:%s, status code:%d, url:%s", resp.Status, reqType, resp.StatusCode, url)
+			s.logComp.Debugf("Telemetry endpoint response status code:%d, request type:%s, url:%s", status, reqType, url)
 		}
 	}
 
