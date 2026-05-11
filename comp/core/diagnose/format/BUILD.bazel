@@ -17,7 +17,7 @@ go_test(
     embed = [":format"],
     gotags = ["test"],
     deps = [
-        "@//comp/core/diagnose/def",
+        "//comp/core/diagnose/def",
         "@com_github_stretchr_testify//assert",
     ],
 )
