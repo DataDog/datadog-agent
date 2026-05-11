@@ -17,5 +17,10 @@
     "forwardPorts": [22],
     "containerUser": "root",
     "remoteUser": "bits",
-    "waitFor": "postStartCommand"
+    "waitFor": "postStartCommand",
+    "customizations": {
+    "dog.infra.workspace": {
+        "base-feature-version": "0.4.0"
+    }
+    }
 }
