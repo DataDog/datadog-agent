@@ -47,6 +47,24 @@ func makeHFHandle(sources map[metrics.MetricSource]struct{}) *hfFilteredHandle {
 	return &hfFilteredHandle{inner: &countingHandle{}, sources: sources}
 }
 
+// systemCheckSources and containerCheckSources mirror the sets the real hfrunner impl
+// returns from StartSystem/StartContainer. Kept here so the hfFilteredHandle tests
+// remain self-contained without importing hfrunner/impl.
+var systemCheckSources = map[metrics.MetricSource]struct{}{
+	metrics.MetricSourceCPU:        {},
+	metrics.MetricSourceLoad:       {},
+	metrics.MetricSourceMemory:     {},
+	metrics.MetricSourceIo:         {},
+	metrics.MetricSourceDisk:       {},
+	metrics.MetricSourceNetwork:    {},
+	metrics.MetricSourceUptime:     {},
+	metrics.MetricSourceFileHandle: {},
+}
+
+var containerCheckSources = map[metrics.MetricSource]struct{}{
+	metrics.MetricSourceContainer: {},
+}
+
 func TestHFFilteredHandle_SystemSources(t *testing.T) {
 	tests := []struct {
 		name     string
