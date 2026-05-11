@@ -321,34 +321,49 @@ func procmgrOwnsDDOT(ctx HookContext, stable bool) bool {
 		procmgrBinaryExists(ctx, stable)
 }
 
-func syncDDOTProcmgrState(ctx HookContext, stable, standalone bool) (bool, error) {
+// applyDDOTProcmgrProcessesYAML updates processes.d for DDOT only (no systemd
+// restart). Removes the YAML when procmgr does not own DDOT; otherwise writes it.
+func applyDDOTProcmgrProcessesYAML(ctx HookContext, stable, standalone bool) (ownsDDOT bool, err error) {
 	if service.BaseServiceManagerType() != service.SystemdType {
 		return false, nil
 	}
 	dir := ddotProcmgrProcessesDir(ctx, stable)
 	yamlName := ddotProcmgrYAMLStable
-	ownsDDOT := procmgrOwnsDDOT(ctx, stable)
+	ownsDDOT = procmgrOwnsDDOT(ctx, stable)
 	if !ownsDDOT {
 		procmgr.RemoveConfig(dir, yamlName)
+		return false, nil
+	}
+	ambiantCapabilitiesSupported, aerr := isAmbiantCapabilitiesSupported()
+	if aerr != nil {
+		log.Errorf("failed to check if ambiant capabilities are supported: %v", aerr)
+		ambiantCapabilitiesSupported = true // Assume true if we can't check
+	}
+	raw, err := embedded.GetDDOTProcessConfig(ddotEmbeddedUnitType(ctx), stable, ambiantCapabilitiesSupported)
+	if err != nil {
+		return true, fmt.Errorf("ddot procmgr yaml: %w", err)
+	}
+	content := adjustDDOTProcessYAML(string(raw), ctx, standalone)
+	if err := procmgr.WriteConfig(dir, yamlName, content); err != nil {
+		return true, err
+	}
+	return true, nil
+}
+
+// syncDDOTProcmgrState applies DDOT processes.d YAML then restarts the matching
+// dd-procmgrd unit so the daemon reloads configuration.
+func syncDDOTProcmgrState(ctx HookContext, stable, standalone bool) (bool, error) {
+	ownsDDOT, err := applyDDOTProcmgrProcessesYAML(ctx, stable, standalone)
+	if err != nil {
+		return false, err
+	}
+	if !ownsDDOT {
 		if procmgrBinaryExists(ctx, stable) {
 			if err := procmgr.RestartDaemon(ctx, !stable); err != nil {
 				log.Warnf("failed to restart dd-procmgrd after dropping DDOT config: %v", err)
 			}
 		}
 		return false, nil
-	}
-	ambiantCapabilitiesSupported, err := isAmbiantCapabilitiesSupported()
-	if err != nil {
-		log.Errorf("failed to check if ambiant capabilities are supported: %v", err)
-		ambiantCapabilitiesSupported = true // Assume true if we can't check
-	}
-	raw, err := embedded.GetDDOTProcessConfig(ddotEmbeddedUnitType(ctx), stable, ambiantCapabilitiesSupported)
-	if err != nil {
-		return ownsDDOT, fmt.Errorf("ddot procmgr yaml: %w", err)
-	}
-	content := adjustDDOTProcessYAML(string(raw), ctx, standalone)
-	if err := procmgr.WriteConfig(dir, yamlName, content); err != nil {
-		return ownsDDOT, err
 	}
 	return ownsDDOT, procmgr.RestartDaemon(ctx, !stable)
 }
@@ -389,15 +404,10 @@ func removeProcmgrDDOTMarker() {
 	_ = os.Remove(procmgr.DDOTMarkerPath)
 }
 
-// syncDDOTProcmgrAfterAgentPromotion rewrites stable OCI processes.d DDOT YAML
-// after the datadog-agent package experiment is promoted. When stable and
-// experiment package paths still refer to different version directories, it
-// also drops DDOT YAML under .../experiment/processes.d and restarts the
-// experiment procmgr unit. When both symlinks already point at the same
-// directory (typical right after promote), that cleanup is skipped so we do not
-// delete the definition we just wrote for stable. Post-promote hooks use
-// PackagePath under the experiment tree (basename "experiment"), while stable
-// dd-procmgrd reads .../datadog-agent/stable/processes.d.
+// syncDDOTProcmgrAfterAgentPromotion refreshes stable DDOT YAML in processes.d
+// after OCI promote (YAML only—stable agent may still be down). If stable and
+// experiment package paths differ, also removes experiment DDOT YAML and restarts
+// experiment procmgr; skipped when both paths are the same directory.
 func syncDDOTProcmgrAfterAgentPromotion(ctx HookContext) error {
 	if ctx.PackageType != PackageTypeOCI {
 		return nil
@@ -411,7 +421,7 @@ func syncDDOTProcmgrAfterAgentPromotion(ctx HookContext) error {
 	}
 	stableCtx := ctx
 	stableCtx.PackagePath = stableOCI
-	if _, err := syncDDOTProcmgrState(stableCtx, true, false); err != nil {
+	if _, err := applyDDOTProcmgrProcessesYAML(stableCtx, true, false); err != nil {
 		return err
 	}
 	equiv, err := ociAgentStableAndExperimentProcessesDirsEquivalent()
