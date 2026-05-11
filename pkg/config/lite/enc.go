@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"regexp"
@@ -87,7 +88,7 @@ type secretBackendResponseEntry struct {
 // mode is a one-shot path running during agent rescue.
 func execSecretBackend(ctx context.Context, command string, handles []string, timeout time.Duration) (map[string]string, error) {
 	if command == "" {
-		return nil, fmt.Errorf("secret_backend_command not set")
+		return nil, errors.New("secret_backend_command not set")
 	}
 
 	cctx, cancel := context.WithTimeout(ctx, timeout)
@@ -98,7 +99,7 @@ func execSecretBackend(ctx context.Context, command string, handles []string, ti
 	// callers can quote it themselves if they want positional args.
 	parts := strings.Fields(command)
 	if len(parts) == 0 {
-		return nil, fmt.Errorf("secret_backend_command is empty after splitting")
+		return nil, errors.New("secret_backend_command is empty after splitting")
 	}
 
 	req := secretBackendRequest{

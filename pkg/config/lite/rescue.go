@@ -186,7 +186,7 @@ func yamlParseIssue(cfg LiteConfig) *healthplatform.Issue {
 			Summary: "Open the configuration file and fix the YAML syntax error, then restart the agent.",
 			Steps: []*healthplatform.RemediationStep{
 				{Order: 1, Text: fmt.Sprintf("Open %s in an editor.", path)},
-				{Order: 2, Text: fmt.Sprintf("Look at the location reported by the parser: %s", truncate(parseMsg, 200))},
+				{Order: 2, Text: "Look at the location reported by the parser: " + truncate(parseMsg, 200)},
 				{Order: 3, Text: "Fix the YAML syntax (check indentation, quoting, brackets)."},
 				{Order: 4, Text: "Validate with: datadog-agent experimental check-config -c " + path},
 				{Order: 5, Text: "Restart the agent: sudo systemctl restart datadog-agent (or your platform's equivalent)."},
@@ -260,7 +260,7 @@ func startupFailureIssue(cfg LiteConfig, startupErr error) *healthplatform.Issue
 		Id:          IssueID,
 		IssueName:   "invalid_config",
 		Title:       "Datadog Agent failed to start",
-		Description: fmt.Sprintf("Configuration is parseable but the agent could not complete startup: %s", truncate(msg, 400)),
+		Description: "Configuration is parseable but the agent could not complete startup: " + truncate(msg, 400),
 		Category:    "config",
 		Location:    "agent",
 		Severity:    "high",

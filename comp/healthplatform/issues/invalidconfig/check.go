@@ -6,8 +6,8 @@
 package invalidconfig
 
 import (
-	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
@@ -86,7 +86,7 @@ func (c *checker) Run() (*healthplatform.IssueReport, error) {
 			Context: map[string]string{
 				contextKeyErrorKind:  errorKindSchemaValidation,
 				contextKeyConfigPath: path,
-				contextKeyErrorCount: fmt.Sprintf("%d", len(result.SchemaErrors)),
+				contextKeyErrorCount: strconv.Itoa(len(result.SchemaErrors)),
 				contextKeyErrors:     strings.Join(visible, "\n"),
 				contextKeyTruncated:  boolStr(truncated),
 			},

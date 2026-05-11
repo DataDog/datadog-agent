@@ -97,7 +97,7 @@ func buildYAMLParseIssue(path, parseMsg string) (*healthplatform.Issue, error) {
 				{Order: 1, Text: fmt.Sprintf("Open %s in an editor.", path)},
 				{Order: 2, Text: "Look at the location reported by the parser: " + truncate(parseMsg, 200)},
 				{Order: 3, Text: "Fix the YAML syntax (check indentation, quoting, brackets)."},
-				{Order: 4, Text: fmt.Sprintf("Validate with: datadog-agent experimental check-config -c %s", path)},
+				{Order: 4, Text: "Validate with: datadog-agent experimental check-config -c " + path},
 				{Order: 5, Text: "Restart the agent: sudo systemctl restart datadog-agent (or your platform's equivalent)."},
 			},
 		},
@@ -145,7 +145,7 @@ func buildSchemaValidationIssue(path string, context map[string]string) (*health
 			Steps: []*healthplatform.RemediationStep{
 				{Order: 1, Text: fmt.Sprintf("Open %s in an editor.", path)},
 				{Order: 2, Text: "Review the listed violations (see Extra.errors)."},
-				{Order: 3, Text: fmt.Sprintf("Validate after fixing: datadog-agent experimental check-config -c %s", path)},
+				{Order: 3, Text: "Validate after fixing: datadog-agent experimental check-config -c " + path},
 				{Order: 4, Text: "Restart the agent."},
 			},
 		},
