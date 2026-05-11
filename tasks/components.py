@@ -178,6 +178,9 @@ components_missing_implementation_folder = [
     "comp/dogstatsd/statsd",
     "comp/forwarder/orchestrator/orchestratorinterface",
     "comp/core/hostname/hostnameinterface",
+    # Observer components: impl lands in a later PR (Wave 3)
+    "comp/anomalydetection/recorder",
+    "comp/anomalydetection/reporter",
 ]
 
 ignore_fx_import = [
