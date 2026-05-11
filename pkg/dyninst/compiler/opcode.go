@@ -40,8 +40,8 @@ const (
 	OpcodeExprPushOffset
 	OpcodeExprLoadLiteral
 	OpcodeExprReadString
-	OpcodeExprCmpEqBase
-	OpcodeExprCmpEqString
+	OpcodeExprCmpBase
+	OpcodeExprCmpString
 	OpcodeConditionCheck
 	OpcodeConditionBegin
 	OpcodeCallDictResolved
@@ -55,6 +55,7 @@ const (
 	OpcodeCondNot
 	OpcodeCondJumpIfFalse
 	OpcodeCondJumpIfTrue
+	OpcodeExprLoadDuration
 )
 
 //revive:enable:exported

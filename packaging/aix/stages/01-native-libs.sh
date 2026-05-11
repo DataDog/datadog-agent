@@ -76,6 +76,7 @@ READLINE_VERSION="8.2"     # yum install readline-devel
 SQLITE_VERSION="3.53.0"    # built from source (amalgamation)
 GDBM_VERSION="1.23"        # yum install gdbm-devel
 LIBICONV_VERSION="1.17"    # yum install libiconv
+LIBUNWIND_VERSION="1.0"    # derived from /opt/freeware/lib/libgcc_s.a (GCC runtime)
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -520,6 +521,35 @@ done
 # to suppress the libintl link entirely, since the agent does not use Python i18n.
 stage_toolbox_lib libiconv "$LIBICONV_VERSION" \
     /opt/freeware/lib/libiconv.a
+
+# ── libunwind (derived from GCC runtime libgcc_s.a) ──────────────────────────
+#
+# pydantic_core links against libunwind.a(libunwind.so.1). We build this
+# archive by extracting the shared object from the GCC runtime libgcc_s.a
+# (which contains all _Unwind_* symbols) and re-packaging it under the
+# libunwind.so.1 member name that pydantic_core expects.
+#
+# This avoids the IBM XL C++ Runtime version (/usr/lib/libunwind.a) which
+# needs __xlcxx_personality_v0 from libc++abi.a — absent on AIX 7.2 TL2-TL4.
+# The GCC-derived version only depends on libc.a, making it fully portable.
+if lib_done libunwind "$LIBUNWIND_VERSION"; then
+    log "libunwind ${LIBUNWIND_VERSION} already staged — skipping"
+else
+    log "Staging libunwind ${LIBUNWIND_VERSION} (from libgcc_s.a)"
+    GCC_LIBGCC_S=/opt/freeware/lib/libgcc_s.a
+    if [ ! -f "$GCC_LIBGCC_S" ]; then
+        log "ERROR: $GCC_LIBGCC_S not found — install GCC from the AIX Toolbox"
+        exit 1
+    fi
+    _tmpdir="$BUILD_DIR/build/libunwind-tmp"
+    rm -rf "$_tmpdir" && mkdir -p "$_tmpdir"
+    (cd "$_tmpdir" && ar -X64 -x "$GCC_LIBGCC_S" shr.o)
+    cp "$_tmpdir/shr.o" "$_tmpdir/libunwind.so.1"
+    ar -X64 -rcs "$EMBEDDED_DESTDIR/lib/libunwind.a" "$_tmpdir/libunwind.so.1"
+    rm -rf "$_tmpdir"
+    lib_mark libunwind "$LIBUNWIND_VERSION"
+    log "libunwind ${LIBUNWIND_VERSION} staged"
+fi
 
 # ─── Ensure standard directories exist ────────────────────────────────────────
 
