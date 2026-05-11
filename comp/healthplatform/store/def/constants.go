@@ -6,9 +6,11 @@
 package store
 
 const (
-	// ADMisconfigurationIssueID is the unique identifier for AD misconfiguration issues
-	ADMisconfigurationIssueID = "ad-misconfiguration"
+	// ADMisconfigurationIssueType is the IssueType value for autodiscovery
+	// misconfiguration issues, used to look up the template in the issue registry.
+	ADMisconfigurationIssueType = "ad-misconfiguration"
 
-	// ADMisconfigurationCheckName is the name of the check for AD misconfigurations
-	ADMisconfigurationCheckName = "Autodiscovery Misconfiguration"
+	// ADMisconfigurationSource is the Source value reported when the
+	// autodiscovery component detects a misconfiguration.
+	ADMisconfigurationSource = "autodiscovery"
 )

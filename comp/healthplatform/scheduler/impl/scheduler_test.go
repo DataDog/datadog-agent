@@ -19,20 +19,26 @@ import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
-// mockReporter is a simple mock for testing check runner registration/validation
+// mockReporter is a simple mock for testing health check scheduling/validation.
 type mockReporter struct {
-	reportCount int32
+	reportCount  int32
+	resolveCount int32
 }
 
 func newMockReporter() *mockReporter {
 	return &mockReporter{}
 }
 
-func (m *mockReporter) ReportIssue(_ string, _ string, _ *healthplatformpayload.IssueReport) error {
+func (m *mockReporter) ReportIssue(_ storedef.IssueReport) error {
 	atomic.AddInt32(&m.reportCount, 1)
 	return nil
+}
+
+func (m *mockReporter) ResolveIssue(_ string) {
+	atomic.AddInt32(&m.resolveCount, 1)
 }
 
 // newTestRunner creates a checkRunner with reporter wired for testing
@@ -129,9 +135,9 @@ func TestCheckRunnerRunsChecks(t *testing.T) {
 	runner.start(context.Background())      //nolint:errcheck
 	defer runner.stop(context.Background()) //nolint:errcheck
 
-	// Wait for at least 2 executions
+	// The check returns nil so ResolveIssue (not ReportIssue) is called each tick.
 	assert.Eventually(t, func() bool {
-		return atomic.LoadInt32(&callCount) >= 2 && atomic.LoadInt32(&reporter.reportCount) >= 2
+		return atomic.LoadInt32(&callCount) >= 2 && atomic.LoadInt32(&reporter.resolveCount) >= 2
 	}, 500*time.Millisecond, 10*time.Millisecond)
 }
 
@@ -149,9 +155,9 @@ func TestCheckRunnerStartStop(t *testing.T) {
 	// Start and stop should complete gracefully
 	runner.start(context.Background()) //nolint:errcheck
 
-	// Wait for at least one execution
+	// Check returns nil, so ResolveIssue is called each tick (not ReportIssue).
 	assert.Eventually(t, func() bool {
-		return atomic.LoadInt32(&reporter.reportCount) >= 1
+		return atomic.LoadInt32(&reporter.resolveCount) >= 1
 	}, 100*time.Millisecond, 5*time.Millisecond)
 
 	runner.stop(context.Background()) //nolint:errcheck // Stop blocks until all goroutines finish

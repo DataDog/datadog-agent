@@ -84,7 +84,7 @@ func TestBuildIssue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			template := NewADMisconfigurationIssue()
-			issue, err := template.BuildIssue(tt.context)
+			issue, err := template.BuildIssue("ad-misconfiguration", tt.context)
 
 			if tt.expectErr {
 				assert.Error(t, err)

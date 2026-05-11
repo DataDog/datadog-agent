@@ -20,9 +20,9 @@ type mockIssueTemplate struct {
 	issueID string
 }
 
-func (m *mockIssueTemplate) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
+func (m *mockIssueTemplate) BuildIssue(issueID string, context map[string]string) (*healthplatform.Issue, error) {
 	return &healthplatform.Issue{
-		Id:          m.issueID,
+		Id:          issueID,
 		Title:       "Test Issue: " + m.issueID,
 		Description: "Context value: " + context["key"],
 		Severity:    "medium",
@@ -43,8 +43,8 @@ func (m *mockModuleWithCheck) IssueTemplate() IssueTemplate {
 	return m.template
 }
 
-func (m *mockModuleWithCheck) BuiltInCheck() *BuiltInCheck {
-	return &BuiltInCheck{
+func (m *mockModuleWithCheck) BuiltInHealthCheck() *BuiltInHealthCheck {
+	return &BuiltInHealthCheck{
 		ID:       "check-" + m.id,
 		Name:     "Check for " + m.id,
 		CheckFn:  func() (*healthplatform.IssueReport, error) { return nil, nil },
@@ -66,7 +66,7 @@ func (m *mockModuleWithoutCheck) IssueTemplate() IssueTemplate {
 	return m.template
 }
 
-func (m *mockModuleWithoutCheck) BuiltInCheck() *BuiltInCheck {
+func (m *mockModuleWithoutCheck) BuiltInHealthCheck() *BuiltInHealthCheck {
 	return nil
 }
 
@@ -95,7 +95,7 @@ func TestRegisterModuleWithCheck(t *testing.T) {
 	assert.NotNil(t, template)
 
 	// Verify check was registered
-	checks := registry.GetBuiltInChecks()
+	checks := registry.GetBuiltInHealthChecks()
 	assert.Len(t, checks, 1)
 	assert.Equal(t, "check-test-issue-1", checks[0].ID)
 	assert.Equal(t, "Check for test-issue-1", checks[0].Name)
@@ -117,7 +117,7 @@ func TestRegisterModuleWithoutCheck(t *testing.T) {
 	assert.NotNil(t, template)
 
 	// Verify no check was registered
-	checks := registry.GetBuiltInChecks()
+	checks := registry.GetBuiltInHealthChecks()
 	assert.Empty(t, checks)
 }
 
@@ -151,7 +151,7 @@ func TestRegisterMultipleModules(t *testing.T) {
 	assert.True(t, exists3)
 
 	// Verify only modules with checks are in the checks list
-	checks := registry.GetBuiltInChecks()
+	checks := registry.GetBuiltInHealthChecks()
 	assert.Len(t, checks, 2)
 }
 
@@ -196,8 +196,8 @@ func TestGetBuiltInChecksReturnsCopy(t *testing.T) {
 		template: &mockIssueTemplate{issueID: "test-issue"},
 	})
 
-	checks1 := registry.GetBuiltInChecks()
-	checks2 := registry.GetBuiltInChecks()
+	checks1 := registry.GetBuiltInHealthChecks()
+	checks2 := registry.GetBuiltInHealthChecks()
 
 	// Verify they are different slices (copies)
 	assert.NotSame(t, &checks1[0], &checks2[0])
@@ -229,7 +229,7 @@ func TestRegistryConcurrentAccess(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			registry.GetBuiltInChecks()
+			registry.GetBuiltInHealthChecks()
 			registry.GetTemplate("concurrent-issue-A")
 		}()
 	}
@@ -237,6 +237,6 @@ func TestRegistryConcurrentAccess(t *testing.T) {
 	wg.Wait()
 
 	// Verify all registrations completed
-	checks := registry.GetBuiltInChecks()
+	checks := registry.GetBuiltInHealthChecks()
 	assert.Len(t, checks, 10)
 }

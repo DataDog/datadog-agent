@@ -9,7 +9,6 @@ import (
 	"fmt"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -47,7 +46,7 @@ func NewADMisconfigurationIssue() *ADMisconfigurationIssue {
 }
 
 // BuildIssue creates a complete issue with metadata and remediation for AD annotation errors
-func (t *ADMisconfigurationIssue) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
+func (t *ADMisconfigurationIssue) BuildIssue(issueID string, context map[string]string) (*healthplatform.Issue, error) {
 	entityName := context["entityName"]
 	if entityName == "" {
 		entityName = unknownVal
@@ -73,7 +72,7 @@ func (t *ADMisconfigurationIssue) BuildIssue(context map[string]string) (*health
 	}
 
 	return &healthplatform.Issue{
-		Id:          healthplatformdef.ADMisconfigurationIssueID,
+		Id:          issueID,
 		IssueName:   issueName,
 		Title:       content.title,
 		Description: content.description,
