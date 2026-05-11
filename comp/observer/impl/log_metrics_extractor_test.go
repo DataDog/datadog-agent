@@ -117,7 +117,7 @@ func TestLogMetricsExtractor_InvalidJSONFallsBackToUnstructured(t *testing.T) {
 	assert.Equal(t, patternCountMetricName(sig), res.Metrics[0].Name)
 }
 
-func TestLogMetricsExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
+func TestLogMetricsExtractor_MetricOutputHasInlineContext(t *testing.T) {
 	a := &LogMetricsExtractor{}
 	log := &mockLogView{
 		content: "Request completed in 45ms",
@@ -126,15 +126,12 @@ func TestLogMetricsExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
 
 	res := a.ProcessLog(log)
 	require.Len(t, res.Metrics, 1)
-	require.NotEmpty(t, res.Metrics[0].ContextKey)
-
-	ctx, ok := a.GetContextByKey(res.Metrics[0].ContextKey)
-	require.True(t, ok)
-	assert.Equal(t, "log_metrics_extractor", ctx.Source)
-	assert.Equal(t, "Request completed in 45ms", ctx.Example)
+	require.NotNil(t, res.Metrics[0].Context)
+	assert.Equal(t, "log_metrics_extractor", res.Metrics[0].Context.Source)
+	assert.Equal(t, "Request completed in 45ms", res.Metrics[0].Context.Example)
 }
 
-func TestLogMetricsExtractor_ContextKeySeparatesSameMetricByTags(t *testing.T) {
+func TestLogMetricsExtractor_ContextSeparatesSameMetricByTags(t *testing.T) {
 	a := &LogMetricsExtractor{}
 	logA := &mockLogView{
 		content: "Request completed in 45ms",
@@ -150,14 +147,12 @@ func TestLogMetricsExtractor_ContextKeySeparatesSameMetricByTags(t *testing.T) {
 	require.Len(t, resA.Metrics, 1)
 	require.Len(t, resB.Metrics, 1)
 	require.Equal(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
-	require.NotEqual(t, resA.Metrics[0].ContextKey, resB.Metrics[0].ContextKey)
+	// Different tags → different series keys (verified via Tags field).
+	require.NotEqual(t, resA.Metrics[0].Tags, resB.Metrics[0].Tags)
 
-	ctxA, ok := a.GetContextByKey(resA.Metrics[0].ContextKey)
-	require.True(t, ok)
-	ctxB, ok := a.GetContextByKey(resB.Metrics[0].ContextKey)
-	require.True(t, ok)
-
-	assert.Equal(t, "Request completed in 45ms", ctxA.Example)
-	assert.Equal(t, "Request completed in 45ms", ctxB.Example)
-	assert.Equal(t, ctxA.Pattern, ctxB.Pattern)
+	require.NotNil(t, resA.Metrics[0].Context)
+	require.NotNil(t, resB.Metrics[0].Context)
+	assert.Equal(t, "Request completed in 45ms", resA.Metrics[0].Context.Example)
+	assert.Equal(t, "Request completed in 45ms", resB.Metrics[0].Context.Example)
+	assert.Equal(t, resA.Metrics[0].Context.Pattern, resB.Metrics[0].Context.Pattern)
 }

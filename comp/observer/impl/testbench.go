@@ -204,7 +204,6 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 		extractors:                 extractors,
 		detectors:                  detectors,
 		correlators:                correlators,
-		contextProviders:           collectContextProviders(extractors),
 		scheduler:                  &currentBehaviorPolicy{},
 		enableAccumulatedTelemetry: true,
 	})

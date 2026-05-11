@@ -207,11 +207,14 @@ type AddResult struct {
 	// IsNew is true if this Add created a brand-new series (cardinality +1).
 	IsNew bool
 	// StorageKey is the canonical seriesKey for this point. Callers that
-	// need to index further state by the same key (e.g. engine.contextRefs)
+	// need to index further state by the same key (e.g. engine.contextKeyToStorageKey)
 	// can reuse this value instead of recomputing seriesKey(...) themselves.
 	// Empty string is returned when the point is dropped pre-key-compute
 	// (non-finite or sentinel values).
 	StorageKey string
+	// Ref is the compact numeric ID for the series. -1 when the point is
+	// dropped (non-finite or sentinel values).
+	Ref observer.SeriesRef
 }
 
 // Add inserts a (namespace, name, value, timestamp, tags) point into storage.
@@ -224,13 +227,13 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 
 	if math.IsInf(value, 0) || math.IsNaN(value) {
 		s.recordDroppedValue("non_finite", namespace, name, value, timestamp, tags)
-		return AddResult{}
+		return AddResult{Ref: -1}
 	}
 	// Guard against known finite sentinel values (MaxFloat64 used as "unlimited")
 	// that overflow downstream aggregation math when summed.
 	if value == math.MaxFloat64 || value == -math.MaxFloat64 {
 		s.recordDroppedValue("extreme", namespace, name, value, timestamp, tags)
-		return AddResult{}
+		return AddResult{Ref: -1}
 	}
 	key := seriesKey(namespace, name, tags)
 
@@ -250,7 +253,7 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 		s.seriesIDStats = append(s.seriesIDStats, stats)
 		s.seriesGen++
 	}
-	res := AddResult{IsNew: !exists, StorageKey: key}
+	res := AddResult{IsNew: !exists, StorageKey: key, Ref: stats.ref}
 	stats.writeGeneration++
 
 	// Bucket by second.

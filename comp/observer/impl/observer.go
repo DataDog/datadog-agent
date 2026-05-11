@@ -209,7 +209,6 @@ func NewComponent(deps Requires) Provides {
 		extractors:       extractors,
 		detectors:        detectors,
 		correlators:      correlators,
-		contextProviders: collectContextProviders(extractors),
 		scheduler:        &currentBehaviorPolicy{},
 	})
 

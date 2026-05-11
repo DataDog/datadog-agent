@@ -258,9 +258,16 @@ type LogObserver interface {
 // The storage keeps full summaries (min/max/sum/count) so aggregation
 // is specified at read time, not write time.
 type MetricOutput struct {
-	Name       string
-	Value      float64
-	Tags       []string
+	Name    string
+	Value   float64
+	Tags    []string
+	// Context is the pre-built enrichment context for this metric. The engine
+	// stores it keyed by SeriesRef so anomaly enrichment is O(1) without any
+	// string lookups. Nil means no enrichment context for this metric.
+	Context *MetricContext
+	// ContextKey is an opaque string used by the engine to map this metric to
+	// its storage series for eviction. Only set by extractors that implement
+	// LRU eviction (e.g. LogPatternExtractor). Leave empty if not needed.
 	ContextKey string
 }
 
@@ -574,17 +581,6 @@ func AggregateString(agg Aggregate) string {
 	default:
 		return "unknown"
 	}
-}
-
-// ContextProvider resolves metric keys back to richer context about their
-// origin. Components that synthesize metrics from richer data (e.g. log
-// extractors that turn log patterns into count metrics) can implement this
-// interface so that downstream consumers (detectors, reporters) can produce
-// more descriptive anomaly reports.
-type ContextProvider interface {
-	// GetContextByKey returns contextual information for a previously emitted
-	// context key, if available.
-	GetContextByKey(key string) (MetricContext, bool)
 }
 
 // MetricContext describes the origin of a synthesized metric.
