@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+other:
+  - |
+    The Discovery module's service-detection backend is now exclusively the
+    Rust implementation provided by ``libdd_discovery``. The previous pure-Go
+    detection path has been removed along with the
+    ``discovery.use_rust_library`` toggle in ``system-probe.yaml``; setting it
+    no longer has any effect.
