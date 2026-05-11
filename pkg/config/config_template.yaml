@@ -3772,14 +3772,6 @@ api_key:
 #
 # kubernetes_metadata_tag_update_freq: 60
 
-## @param kubernetes_metadata_streaming - boolean - optional - default: true
-## @env DD_KUBERNETES_METADATA_STREAMING - boolean - optional - default: true
-## Stream Kubernetes metadata from the Cluster Agent instead of polling it every
-## `kubernetes_metadata_tag_update_freq` seconds. This propagates the associated
-## tags with less delay.
-#
-# kubernetes_metadata_streaming: true
-
 ## @param kubernetes_apiserver_client_timeout - integer - optional - default: 10
 ## @env DD_KUBERNETES_APISERVER_CLIENT_TIMEOUT - integer - optional - default: 10
 ## Set the timeout for the Agent when connecting to the Kubernetes API server.
