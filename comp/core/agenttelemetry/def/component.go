@@ -8,7 +8,6 @@ package agenttelemetry
 
 import (
 	"context"
-	"log/slog"
 
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
@@ -34,11 +33,6 @@ type Component interface {
 	// pkg/util/log/errortracking; the component never sees raw slog
 	// types on its public surface.
 	SubmitErrorRecord(log errortracking.ErrorLog)
-
-	// SendErrorLogs is the v2 batch-mode entry point retained for the
-	// existing wiring. Deprecated: prefer SubmitErrorRecord on the new
-	// per-record path. Will be removed once the v3 migration completes.
-	SendErrorLogs(ctx context.Context, batch []slog.Record) error
 
 	StartStartupSpan(operationName string) (*installertelemetry.Span, context.Context)
 }

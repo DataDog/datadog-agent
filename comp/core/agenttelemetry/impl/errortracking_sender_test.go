@@ -7,7 +7,6 @@ package agenttelemetryimpl
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -24,6 +23,7 @@ import (
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 )
 
 // captureClient records every Do(req) call's request and body, and returns
@@ -106,92 +106,11 @@ func newTestSender(t *testing.T, cl client) *senderImpl {
 	}
 }
 
-func errorRecord(msg string, attrs ...slog.Attr) slog.Record {
-	r := slog.NewRecord(time.Date(2026, 4, 28, 12, 0, 0, 0, time.UTC), slog.LevelError, msg, 0)
-	if len(attrs) > 0 {
-		r.AddAttrs(attrs...)
-	}
-	return r
-}
-
-// envelopeForTest is a decode-only shadow of Payload that intentionally
-// does NOT trigger Payload's custom UnmarshalJSON method (which is defined
-// in agenttelemetry_test.go and only knows the metric/event request types).
-// We need to read the wire bytes our sender produced for "logs" — a third
-// request type — so this shadow gives us field access without that
-// validation.
-type envelopeForTest struct {
-	APIVersion  string          `json:"api_version"`
-	RequestType string          `json:"request_type"`
-	EventTime   int64           `json:"event_time"`
-	DebugFlag   bool            `json:"debug"`
-	Host        HostPayload     `json:"host"`
-	Payload     json.RawMessage `json:"payload"`
-}
-
-// decodeLogsPayload decodes a request body into the apmtelemetry envelope
-// and the inner LogsPayload.
-func decodeLogsPayload(t *testing.T, body []byte) (envelopeForTest, LogsPayload) {
-	t.Helper()
-	var env envelopeForTest
-	require.NoError(t, json.Unmarshal(body, &env))
-	var lp LogsPayload
-	require.NoError(t, json.Unmarshal(env.Payload, &lp))
-	return env, lp
-}
-
-func TestSendErrorLogs_OneRecord(t *testing.T) {
-	cl := &captureClient{}
-	s := newTestSender(t, cl)
-
-	require.NoError(t, s.sendLogsBatch(context.Background(), []slog.Record{
-		errorRecord("single-record"),
-	}))
-
-	reqs, bodies := cl.snapshot()
-	require.Len(t, reqs, 1)
-	require.Len(t, bodies, 1)
-
-	// Headers
-	assert.Equal(t, "logs", reqs[0].Header.Get("DD-Telemetry-request-type"))
-	assert.Equal(t, "v2", reqs[0].Header.Get("DD-Telemetry-api-version"))
-	assert.Equal(t, "test-api-key", reqs[0].Header.Get("DD-Api-Key"))
-	assert.Equal(t, "application/json", reqs[0].Header.Get("Content-Type"))
-	assert.Equal(t, "agent", reqs[0].Header.Get("DD-Telemetry-Product"))
-
-	env, lp := decodeLogsPayload(t, bodies[0])
-	assert.Equal(t, "v2", env.APIVersion)
-	assert.Equal(t, "logs", env.RequestType)
-	assert.NotZero(t, env.EventTime)
-
-	require.Len(t, lp.Logs, 1)
-	assert.Equal(t, "single-record", lp.Logs[0].Message)
-	assert.Equal(t, LogLevelError, lp.Logs[0].Level)
-	assert.Equal(t, 1, lp.Logs[0].Count)
-	assert.False(t, lp.Logs[0].IsCrash)
-}
-
-func TestSendErrorLogs_BatchOfThirty(t *testing.T) {
-	cl := &captureClient{}
-	s := newTestSender(t, cl)
-
-	batch := make([]slog.Record, 30)
-	for i := range batch {
-		batch[i] = errorRecord(fmt.Sprintf("m-%d", i))
-	}
-	require.NoError(t, s.sendLogsBatch(context.Background(), batch))
-
-	reqs, bodies := cl.snapshot()
-	require.Len(t, reqs, 1, "batch must produce exactly one POST; chunking is the Pipeline's concern")
-
-	_, lp := decodeLogsPayload(t, bodies[0])
-	require.Len(t, lp.Logs, 30)
-	for i, log := range lp.Logs {
-		assert.Equal(t, fmt.Sprintf("m-%d", i), log.Message)
-	}
-}
-
-func TestSendErrorLogs_LevelMapping(t *testing.T) {
+// TestSlogLevelToLogLevel_AllLevels locks the slog.Level -> wire LogLevel
+// mapping used by errorLogToLog. Although only ERROR is emitted in
+// practice (the pkg/util/log handler filters Level >= Error), the
+// mapping is exercised end-to-end here for completeness.
+func TestSlogLevelToLogLevel_AllLevels(t *testing.T) {
 	cases := []struct {
 		in   slog.Level
 		want LogLevel
@@ -209,111 +128,12 @@ func TestSendErrorLogs_LevelMapping(t *testing.T) {
 	}
 }
 
-func TestSendErrorLogs_TraceIDExtraction(t *testing.T) {
-	cl := &captureClient{}
-	s := newTestSender(t, cl)
-
-	rec := errorRecord("with-trace",
-		slog.String("trace_id", "abc-123"),
-		slog.String("span_id", "span-7"),
-		slog.String("svc", "frontend"),
-	)
-	require.NoError(t, s.sendLogsBatch(context.Background(), []slog.Record{rec}))
-
-	_, bodies := cl.snapshot()
-	_, lp := decodeLogsPayload(t, bodies[0])
-
-	assert.Equal(t, "abc-123", lp.Logs[0].TraceID)
-	assert.Equal(t, "span-7", lp.Logs[0].SpanID)
-	assert.NotContains(t, lp.Logs[0].Tags, "trace_id")
-	assert.NotContains(t, lp.Logs[0].Tags, "span_id")
-	assert.Contains(t, lp.Logs[0].Tags, "svc:frontend")
-}
-
-func TestSendErrorLogs_TagsCSVOrdering(t *testing.T) {
-	cl := &captureClient{}
-	s := newTestSender(t, cl)
-
-	rec := errorRecord("ordered",
-		slog.String("c", "3"),
-		slog.String("a", "1"),
-		slog.String("b", "2"),
-	)
-	require.NoError(t, s.sendLogsBatch(context.Background(), []slog.Record{rec}))
-
-	_, bodies := cl.snapshot()
-	_, lp := decodeLogsPayload(t, bodies[0])
-
-	assert.Equal(t, "a:1,b:2,c:3", lp.Logs[0].Tags,
-		"tags MUST be CSV-encoded in alphabetical key order for deterministic wire output")
-}
-
-func TestSendErrorLogs_StackTraceFromPC(t *testing.T) {
-	cl := &captureClient{}
-	s := newTestSender(t, cl)
-
-	// Capture the current PC so we have a known caller location.
-	var pcs [1]uintptr
-	n := runtime.Callers(1, pcs[:])
-	require.Equal(t, 1, n)
-	pc := pcs[0]
-
-	rWithPC := slog.NewRecord(time.Now().UTC(), slog.LevelError, "with-pc", pc)
-	rNoPC := slog.NewRecord(time.Now().UTC(), slog.LevelError, "no-pc", 0)
-
-	require.NoError(t, s.sendLogsBatch(context.Background(), []slog.Record{rWithPC, rNoPC}))
-
-	_, bodies := cl.snapshot()
-	_, lp := decodeLogsPayload(t, bodies[0])
-
-	assert.NotEmpty(t, lp.Logs[0].StackTrace, "non-zero PC should resolve to file:line")
-	assert.Contains(t, lp.Logs[0].StackTrace, ":")
-	assert.Equal(t, "", lp.Logs[1].StackTrace, "PC=0 should produce empty stack_trace")
-}
-
-func TestSendErrorLogs_Empty_NoOp(t *testing.T) {
-	cl := &captureClient{}
-	s := newTestSender(t, cl)
-
-	require.NoError(t, s.sendLogsBatch(context.Background(), nil))
-	require.NoError(t, s.sendLogsBatch(context.Background(), []slog.Record{}))
-
-	reqs, _ := cl.snapshot()
-	assert.Empty(t, reqs, "empty batch must not fire any HTTP request")
-}
-
-func TestSendErrorLogs_5xxReturnsError(t *testing.T) {
-	cl := &captureClient{statusCode: http.StatusInternalServerError}
-	s := newTestSender(t, cl)
-
-	err := s.sendLogsBatch(context.Background(), []slog.Record{errorRecord("boom")})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "500")
-}
-
-func TestSendErrorLogs_4xxIsTerminal(t *testing.T) {
-	cl := &captureClient{statusCode: http.StatusBadRequest}
-	s := newTestSender(t, cl)
-
-	err := s.sendLogsBatch(context.Background(), []slog.Record{errorRecord("boom")})
-	assert.NoError(t, err, "4xx must be terminal (return nil) so the Pipeline does not retry a malformed payload")
-}
-
-func TestSendErrorLogs_NetworkError(t *testing.T) {
-	cl := &captureClient{err: errors.New("simulated network failure")}
-	s := newTestSender(t, cl)
-
-	err := s.sendLogsBatch(context.Background(), []slog.Record{errorRecord("boom")})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "simulated network failure")
-}
-
 // TestSendPayloadBody_StatusCodes locks the contract of the extracted
 // shared transport helper (review comment C3 on PR #49946). Both
-// flushSession and sendLogsBatch route per-endpoint POSTs through this
-// helper; the helper must return the raw HTTP status code so each caller
-// can apply its own policy (flushSession logs only; sendLogsBatch
-// distinguishes retryable 5xx from terminal 4xx).
+// flushSession and sendLogsTypedBatch route per-endpoint POSTs through
+// this helper; the helper must return the raw HTTP status code so each
+// caller can apply its own policy (flushSession logs only;
+// sendLogsTypedBatch distinguishes retryable 5xx from terminal 4xx).
 func TestSendPayloadBody_StatusCodes(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -354,59 +174,198 @@ func TestSendPayloadBody_NetworkError(t *testing.T) {
 	assert.Equal(t, 0, status, "network failure must surface as status=0")
 }
 
-func TestSendErrorLogs_PayloadShape_ByteForByte(t *testing.T) {
-	cl := &captureClient{}
-	s := newTestSender(t, cl)
+// =============================================================================
+// v3 tests (atel-owned buffered channel + flush + recursion guard, errorLogToLog)
+// =============================================================================
 
-	fixed := slog.NewRecord(
-		time.Date(2026, 4, 28, 14, 30, 0, 0, time.UTC),
-		slog.LevelError,
-		"golden-message",
-		0,
-	)
-	fixed.AddAttrs(
-		slog.String("svc", "auth"),
-		slog.Int("code", 500),
-	)
+// TestErrorLogToLog_FieldMapping exercises the DTO -> wire conversion:
+// reserved trace_id / span_id extraction, alphabetically-ordered CSV
+// tags, file:line stack_trace from PC, and the v3 defaults
+// (count=1, is_crash=false, uppercase level).
+func TestErrorLogToLog_FieldMapping(t *testing.T) {
+	var pcs [1]uintptr
+	n := runtime.Callers(1, pcs[:])
+	require.Equal(t, 1, n)
+	pc := pcs[0]
 
-	require.NoError(t, s.sendLogsBatch(context.Background(), []slog.Record{fixed}))
-
-	_, bodies := cl.snapshot()
-	require.Len(t, bodies, 1)
-
-	// Decode into a generic map so we can assert exact JSON keys, which is
-	// what dd-go's processor dispatches on.
-	var raw map[string]any
-	require.NoError(t, json.Unmarshal(bodies[0], &raw))
-
-	for _, key := range []string{"api_version", "request_type", "event_time", "host", "payload"} {
-		assert.Containsf(t, raw, key, "envelope must contain top-level key %q", key)
+	in := errortracking.ErrorLog{
+		Time:    time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC),
+		Level:   slog.LevelError,
+		Message: "boom",
+		PC:      pc,
+		Attrs: []slog.Attr{
+			slog.String("c", "3"),
+			slog.String("a", "1"),
+			slog.String("trace_id", "abc-trace"),
+			slog.String("b", "2"),
+			slog.String("span_id", "abc-span"),
+		},
 	}
-	assert.Equal(t, "logs", raw["request_type"])
+	out := errorLogToLog(in)
 
-	payload, ok := raw["payload"].(map[string]any)
-	require.True(t, ok)
-	assert.Contains(t, payload, "logs", `inner key MUST be "logs" (NOT "records")`)
-	assert.NotContains(t, payload, "records")
+	assert.Equal(t, "boom", out.Message)
+	assert.Equal(t, LogLevelError, out.Level)
+	assert.Equal(t, in.Time.Unix(), out.TracerTime)
+	assert.Equal(t, 1, out.Count)
+	assert.False(t, out.IsCrash)
+	assert.Equal(t, "abc-trace", out.TraceID)
+	assert.Equal(t, "abc-span", out.SpanID)
+	assert.Equal(t, "a:1,b:2,c:3", out.Tags,
+		"reserved attrs trace_id/span_id MUST be extracted; remaining attrs alphabetical CSV")
+	assert.NotEmpty(t, out.StackTrace, "non-zero PC must produce file:line stack_trace")
+}
 
-	logs, ok := payload["logs"].([]any)
-	require.True(t, ok)
-	require.Len(t, logs, 1)
-	log := logs[0].(map[string]any)
-	for _, key := range []string{
-		"message", "tags", "level", "stack_trace",
-		"tracer_time", "count", "trace_id", "span_id", "is_crash",
-	} {
-		assert.Containsf(t, log, key, "Log payload must have key %q (dd-go schema)", key)
+func TestErrorLogToLog_NoPC_EmptyStackTrace(t *testing.T) {
+	in := errortracking.ErrorLog{
+		Time:    time.Now(),
+		Level:   slog.LevelError,
+		Message: "no pc",
+		PC:      0,
+	}
+	out := errorLogToLog(in)
+	assert.Equal(t, "", out.StackTrace, "PC=0 must produce empty stack_trace")
+}
+
+// errorLog is a convenience for the atel-level tests below.
+func errorLog(msg string, attrs ...slog.Attr) errortracking.ErrorLog {
+	return errortracking.ErrorLog{
+		Time:    time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC),
+		Level:   slog.LevelError,
+		Message: msg,
+		Attrs:   attrs,
+	}
+}
+
+// newTestAtelMinimal builds a minimal *atel just enough for the
+// per-record entry-point tests: enabled=true, sender wired, cancelCtx
+// initialised, errLogsCh present. Does NOT spawn the flush goroutine;
+// tests that need that lifecycle call atel.runErrorLogsFlush themselves
+// (see TestFlushJob_DrainsOnStop).
+func newTestAtelMinimal(t *testing.T, sndr sender, bufSize int) *atel {
+	t.Helper()
+	a := &atel{
+		enabled:   true,
+		logComp:   logmock.New(t),
+		sender:    sndr,
+		errLogsCh: make(chan errortracking.ErrorLog, bufSize),
+	}
+	a.cancelCtx, a.cancel = context.WithCancel(context.Background())
+	return a
+}
+
+// TestSubmitErrorRecord_DisabledNoOp: a disabled atel must accept calls
+// and drop them silently (no panic, no enqueue, no drop counter bump —
+// because we never reached the enqueue path).
+func TestSubmitErrorRecord_DisabledNoOp(t *testing.T) {
+	a := &atel{enabled: false}
+	a.SubmitErrorRecord(errorLog("dropped"))
+	assert.Equal(t, uint64(0), a.errLogsDropped.Load())
+}
+
+// TestSubmitErrorRecord_RecursionGuard: a record whose PC resolves into
+// the agenttelemetry package itself MUST be dropped without enqueue.
+// This is the C1 fix on PR #49946: prevent the feedback loop where
+// log.Errorf inside the flush path would re-enter SubmitErrorRecord.
+func TestSubmitErrorRecord_RecursionGuard(t *testing.T) {
+	// Capture a PC from inside this test (which lives in package
+	// agenttelemetryimpl, i.e. comp/core/agenttelemetry/impl). The
+	// guard's substring match on "datadog-agent/comp/core/agenttelemetry"
+	// will fire.
+	var pcs [1]uintptr
+	n := runtime.Callers(1, pcs[:])
+	require.Equal(t, 1, n)
+	pcInsideAgenttelemetry := pcs[0]
+
+	a := newTestAtelMinimal(t, &senderMock{}, 8)
+	defer a.cancel()
+
+	rec := errorLog("would-loop")
+	rec.PC = pcInsideAgenttelemetry
+	a.SubmitErrorRecord(rec)
+
+	assert.Equal(t, 0, len(a.errLogsCh), "recursion guard must prevent enqueue")
+	assert.Equal(t, uint64(0), a.errLogsDropped.Load(),
+		"recursion guard drops are not overflow drops; counter must stay at 0")
+}
+
+// TestSubmitErrorRecord_RecursionGuard_AllowsExternalCaller: a record
+// whose PC resolves outside the agenttelemetry / log/setup packages must
+// be enqueued normally.
+func TestSubmitErrorRecord_RecursionGuard_AllowsExternalCaller(t *testing.T) {
+	a := newTestAtelMinimal(t, &senderMock{}, 8)
+	defer a.cancel()
+
+	// PC=0 bypasses the guard and reaches the enqueue path.
+	a.SubmitErrorRecord(errorLog("from-external"))
+	assert.Equal(t, 1, len(a.errLogsCh))
+	assert.Equal(t, uint64(0), a.errLogsDropped.Load())
+}
+
+// TestSubmitErrorRecord_NonBlocking_DropsOnOverflow: when the bounded
+// channel is full, SubmitErrorRecord MUST drop silently (NOT block) and
+// increment the drop counter. The hot path is the slog handler — it
+// cannot block on a slow or stuck backend.
+func TestSubmitErrorRecord_NonBlocking_DropsOnOverflow(t *testing.T) {
+	a := newTestAtelMinimal(t, &senderMock{}, 2)
+	defer a.cancel()
+
+	a.SubmitErrorRecord(errorLog("one"))
+	a.SubmitErrorRecord(errorLog("two"))
+	// Channel full (cap=2). The next two must be dropped silently.
+	a.SubmitErrorRecord(errorLog("drop-1"))
+	a.SubmitErrorRecord(errorLog("drop-2"))
+
+	assert.Equal(t, 2, len(a.errLogsCh), "buffer should still hold exactly cap records")
+	assert.Equal(t, uint64(2), a.errLogsDropped.Load(),
+		"both overflow submits MUST be counted as drops")
+}
+
+// TestDrainAndSend_BatchesAndDispatches: drainAndSend, called once,
+// must drain the channel in batches of errLogsBatchSize and dispatch
+// each via sender.sendLogsTypedBatch.
+func TestDrainAndSend_BatchesAndDispatches(t *testing.T) {
+	sm := &senderMock{}
+	a := newTestAtelMinimal(t, sm, errLogsBatchSize*3)
+	defer a.cancel()
+
+	// Enqueue 2.5 batches' worth of records.
+	total := errLogsBatchSize*2 + errLogsBatchSize/2
+	for i := 0; i < total; i++ {
+		a.SubmitErrorRecord(errorLog(fmt.Sprintf("r-%d", i)))
 	}
 
-	// Level MUST be UPPERCASE.
-	assert.Equal(t, "ERROR", log["level"])
-	// Tags CSV alphabetical (code:500 sorts before svc:auth).
-	assert.Equal(t, "code:500,svc:auth", log["tags"])
-	// Defaults for v1.
-	assert.Equal(t, float64(1), log["count"])
-	assert.Equal(t, false, log["is_crash"])
-	assert.Equal(t, "", log["trace_id"])
-	assert.Equal(t, "", log["span_id"])
+	batch := make([]errortracking.ErrorLog, 0, errLogsBatchSize)
+	a.drainAndSend(&batch)
+
+	got := sm.capturedLogs()
+	require.Len(t, got, total, "every enqueued record must be dispatched in one drain pass")
+	for i, log := range got {
+		assert.Equal(t, fmt.Sprintf("r-%d", i), log.Message)
+		assert.Equal(t, LogLevelError, log.Level)
+	}
+}
+
+// TestFlushJob_DrainsOnStop: the flush goroutine, on cancelCtx.Done,
+// performs one final drain so records buffered just before stop are
+// still dispatched. Test by spawning runErrorLogsFlush, enqueueing,
+// cancelling, and waiting on errLogsFlushWG.
+func TestFlushJob_DrainsOnStop(t *testing.T) {
+	sm := &senderMock{}
+	a := newTestAtelMinimal(t, sm, 16)
+
+	a.errLogsFlushWG.Add(1)
+	go a.runErrorLogsFlush()
+
+	a.SubmitErrorRecord(errorLog("pending-1"))
+	a.SubmitErrorRecord(errorLog("pending-2"))
+	a.SubmitErrorRecord(errorLog("pending-3"))
+
+	a.cancel()
+	a.errLogsFlushWG.Wait()
+
+	got := sm.capturedLogs()
+	require.Len(t, got, 3, "all pending records must be flushed on stop")
+	assert.Equal(t, "pending-1", got[0].Message)
+	assert.Equal(t, "pending-2", got[1].Message)
+	assert.Equal(t, "pending-3", got[2].Message)
 }

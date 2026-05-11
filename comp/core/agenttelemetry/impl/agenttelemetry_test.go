@@ -11,10 +11,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"maps"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 
 	dto "github.com/prometheus/client_model/go"
@@ -54,6 +54,14 @@ func newClientMock() client {
 // Sender mock
 type senderMock struct {
 	sentMetrics []*agentmetric
+
+	// Captures from the v3 errortracking flush path. Protected by mu
+	// because the flush goroutine runs concurrently with test setup
+	// and assertions; readers MUST take the lock or wait on a sync
+	// barrier (e.g. errLogsFlushWG.Wait) that establishes
+	// happens-before with the goroutine exit.
+	sentLogsMu sync.Mutex
+	sentLogs   []Log
 }
 
 func (s *senderMock) startSession(_ context.Context) *senderSession {
@@ -67,11 +75,22 @@ func (s *senderMock) sendAgentMetricPayloads(_ *senderSession, metrics []*agentm
 }
 func (s *senderMock) sendEventPayload(_ *senderSession, _ *Event, _ map[string]interface{}) {
 }
-func (s *senderMock) sendLogsBatch(_ context.Context, _ []slog.Record) error {
+func (s *senderMock) sendLogsTypedBatch(_ context.Context, logs []Log) error {
+	s.sentLogsMu.Lock()
+	defer s.sentLogsMu.Unlock()
+	s.sentLogs = append(s.sentLogs, logs...)
 	return nil
 }
-func (s *senderMock) sendLogsTypedBatch(_ context.Context, _ []Log) error {
-	return nil
+
+// capturedLogs returns a thread-safe snapshot of the records captured
+// via sendLogsTypedBatch. Tests should call this rather than reading
+// sentLogs directly.
+func (s *senderMock) capturedLogs() []Log {
+	s.sentLogsMu.Lock()
+	defer s.sentLogsMu.Unlock()
+	out := make([]Log, len(s.sentLogs))
+	copy(out, s.sentLogs)
+	return out
 }
 
 // Runner mock (TODO: use use mock.Mock)

@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"math"
 	"net"
 	"net/http"
@@ -64,11 +63,6 @@ type sender interface {
 
 	sendAgentMetricPayloads(ss *senderSession, metrics []*agentmetric)
 	sendEventPayload(ss *senderSession, eventInfo *Event, eventPayload map[string]interface{})
-
-	// sendLogsBatch is the v2 entry point: takes raw slog.Records and
-	// converts them internally. Deprecated; will be removed once W2/W3
-	// have migrated all callers off SendErrorLogs.
-	sendLogsBatch(ctx context.Context, batch []slog.Record) error
 
 	// sendLogsTypedBatch is the v3 entry point used by atel's
 	// errortracking flush goroutine. It takes already-converted wire
