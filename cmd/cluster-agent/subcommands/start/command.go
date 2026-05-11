@@ -508,14 +508,22 @@ func start(log log.Component,
 	// start the autoconfig, this will immediately run any configured check
 	ac.LoadAndRun(mainCtx)
 
+	// Find the AutodiscoveryHandler from instrumentation handlers to expose configs via API.
+	var adConfigLister clusteragent.InstrumentationConfigLister
+	for _, h := range instrHandlers {
+		if ad, ok := h.(*instrumentationhandlers.AutodiscoveryHandler); ok {
+			adConfigLister = ad
+			break
+		}
+	}
+
+	sc := clusteragent.ServerContext{InstrumentationConfigLister: adConfigLister}
+
 	if config.GetBool("cluster_checks.enabled") {
 		// Start the cluster check Autodiscovery
 		clusterCheckHandler, err := setupClusterCheck(mainCtx, ac, taggerComp)
 		if err == nil {
-			api.ModifyAPIRouter(func(r *mux.Router) {
-				dcav1.InstallChecksEndpoints(r, clusteragent.ServerContext{ClusterCheckHandler: clusterCheckHandler})
-			})
-
+			sc.ClusterCheckHandler = clusterCheckHandler
 			// Set cluster checks handler in clusterchecks component
 			clusterChecksMetadataComp.SetClusterHandler(clusterCheckHandler)
 		} else {
@@ -524,6 +532,10 @@ func start(log log.Component,
 	} else {
 		pkglog.Debug("Cluster check Autodiscovery disabled")
 	}
+
+	api.ModifyAPIRouter(func(r *mux.Router) {
+		dcav1.InstallChecksEndpoints(r, sc)
+	})
 
 	wg := sync.WaitGroup{}
 	// Autoscaler Controller Goroutine
