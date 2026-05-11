@@ -28,6 +28,10 @@ spec:
         admission.datadoghq.com/config.mode: csi
         admission.datadoghq.com/enabled: "true"
     spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
       serviceAccountName: dogstatsd-sa
       containers:
       - name: dogstatsd
@@ -57,6 +61,10 @@ spec:
       labels:
         app: dogstatsd-uds
     spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
       containers:
       - name: dogstatsd
         image: ghcr.io/datadog/apps-dogstatsd:{{.Version}}
@@ -96,6 +104,10 @@ spec:
       labels:
         app: dogstatsd-udp
     spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
       containers:
       - name: dogstatsd
         image: ghcr.io/datadog/apps-dogstatsd:{{.Version}}
@@ -135,6 +147,10 @@ spec:
       labels:
         app: dogstatsd-udp-origin-detection
     spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
       containers:
       - name: dogstatsd
         image: ghcr.io/datadog/apps-dogstatsd:{{.Version}}
@@ -170,6 +186,10 @@ spec:
       labels:
         app: dogstatsd-udp-contname-injected
     spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
       containers:
       - name: dogstatsd
         image: ghcr.io/datadog/apps-dogstatsd:{{.Version}}
@@ -212,6 +232,10 @@ spec:
         app: dogstatsd-udp-external-data-only
         admission.datadoghq.com/enabled: "true"
     spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
       containers:
       - name: dogstatsd
         image: ghcr.io/datadog/apps-dogstatsd:{{.Version}}

@@ -21,6 +21,10 @@ spec:
       annotations:
         prometheus.io/scrape: "true"
     spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
       containers:
       - name: prometheus
         image: ghcr.io/datadog/apps-prometheus:{{.Version}}

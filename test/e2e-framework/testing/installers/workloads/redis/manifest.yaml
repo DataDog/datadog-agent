@@ -20,6 +20,10 @@ spec:
         app: redis
         team: container-integrations
     spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
       containers:
       - name: redis
         image: ghcr.io/datadog/redis:{{.Version}}
@@ -94,6 +98,10 @@ spec:
       labels:
         app: redis-query
     spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
       containers:
       - name: redis-query
         image: ghcr.io/datadog/apps-redis-client:{{.Version}}

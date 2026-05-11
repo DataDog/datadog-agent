@@ -53,6 +53,10 @@ spec:
       labels:
         app: nginx
     spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
       serviceAccountName: nginx-sa
       containers:
       - name: nginx

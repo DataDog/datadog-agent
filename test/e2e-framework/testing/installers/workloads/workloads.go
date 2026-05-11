@@ -27,6 +27,7 @@ package workloads
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -53,6 +54,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/apps"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 )
 
 //go:embed nginx/manifest.yaml
@@ -266,54 +269,71 @@ func Deploy(t *testing.T, env *environments.Kubernetes, opts ...Option) {
 	clients, err := newK8sClients(env.KubernetesCluster.KubeConfig)
 	require.NoError(t, err, "workloads.Deploy: failed to build k8s clients")
 
+	ctx := context.Background()
 	version := apps.Version
+	imageRegistry, _ := runner.GetProfile().ParamStore().GetWithDefault(parameters.ImagePullRegistry, "")
 
 	if p.nginx {
 		ns := "workload-nginx"
+		pullSecret, err := ensureImagePullSecret(ctx, clients, ns)
+		require.NoError(t, err, "workloads.Deploy: failed to create pull secret in %s", ns)
 		applyManifest(t, clients, render(t, nginxManifest, map[string]any{
-			"Version":       version,
-			"Namespace":     ns,
-			"NginxPort":     p.nginxPort,
-			"HPAAPIVersion": clients.hpaAPIVersion,
+			"Version":         version,
+			"Namespace":       ns,
+			"NginxPort":       p.nginxPort,
+			"HPAAPIVersion":   clients.hpaAPIVersion,
+			"ImagePullSecret": pullSecret,
 		}))
 		waitForDeployments(t, clients.typed, ns, 5*time.Minute)
 	}
 
 	if p.redis {
 		ns := "workload-redis"
+		pullSecret, err := ensureImagePullSecret(ctx, clients, ns)
+		require.NoError(t, err, "workloads.Deploy: failed to create pull secret in %s", ns)
 		applyManifest(t, clients, render(t, redisManifest, map[string]any{
-			"Version":       version,
-			"Namespace":     ns,
-			"HPAAPIVersion": clients.hpaAPIVersion,
+			"Version":         version,
+			"Namespace":       ns,
+			"HPAAPIVersion":   clients.hpaAPIVersion,
+			"ImagePullSecret": pullSecret,
 		}))
 		waitForDeployments(t, clients.typed, ns, 5*time.Minute)
 	}
 
 	if p.tracegen {
 		ns := "workload-tracegen"
+		pullSecret, err := ensureImagePullSecret(ctx, clients, ns)
+		require.NoError(t, err, "workloads.Deploy: failed to create pull secret in %s", ns)
 		applyManifest(t, clients, render(t, tracegenManifest, map[string]any{
-			"Version":   version,
-			"Namespace": ns,
+			"Version":         version,
+			"Namespace":       ns,
+			"ImagePullSecret": pullSecret,
 		}))
 		waitForDeployments(t, clients.typed, ns, 5*time.Minute)
 	}
 
 	if p.prometheus {
 		ns := "workload-prometheus"
+		pullSecret, err := ensureImagePullSecret(ctx, clients, ns)
+		require.NoError(t, err, "workloads.Deploy: failed to create pull secret in %s", ns)
 		applyManifest(t, clients, render(t, prometheusManifest, map[string]any{
-			"Version":   version,
-			"Namespace": ns,
+			"Version":         version,
+			"Namespace":       ns,
+			"ImagePullSecret": pullSecret,
 		}))
 		waitForDeployments(t, clients.typed, ns, 5*time.Minute)
 	}
 
 	if p.dogstatsd != nil {
 		ns := "workload-dogstatsd"
+		pullSecret, err := ensureImagePullSecret(ctx, clients, ns)
+		require.NoError(t, err, "workloads.Deploy: failed to create pull secret in %s", ns)
 		applyManifest(t, clients, render(t, dogstatsdManifest, map[string]any{
-			"Version":      version,
-			"Namespace":    ns,
-			"StatsdPort":   p.dogstatsd.port,
-			"StatsdSocket": p.dogstatsd.socket,
+			"Version":         version,
+			"Namespace":       ns,
+			"StatsdPort":      p.dogstatsd.port,
+			"StatsdSocket":    p.dogstatsd.socket,
+			"ImagePullSecret": pullSecret,
 		}))
 		waitForDeployments(t, clients.typed, ns, 5*time.Minute)
 	}
@@ -323,11 +343,14 @@ func Deploy(t *testing.T, env *environments.Kubernetes, opts ...Option) {
 		// Port 8128 and socket /run/datadog/dsd-standalone.socket match the
 		// constants in components/datadog/dogstatsd-standalone/k8s.go.
 		ns := "workload-dogstatsd-standalone"
+		pullSecret, err := ensureImagePullSecret(ctx, clients, ns)
+		require.NoError(t, err, "workloads.Deploy: failed to create pull secret in %s", ns)
 		applyManifest(t, clients, render(t, dogstatsdManifest, map[string]any{
-			"Version":      version,
-			"Namespace":    ns,
-			"StatsdPort":   8128,
-			"StatsdSocket": "/run/datadog/dsd-standalone.socket",
+			"Version":         version,
+			"Namespace":       ns,
+			"StatsdPort":      8128,
+			"StatsdSocket":    "/run/datadog/dsd-standalone.socket",
+			"ImagePullSecret": pullSecret,
 		}))
 		waitForDeployments(t, clients.typed, ns, 5*time.Minute)
 	}
@@ -342,18 +365,33 @@ func Deploy(t *testing.T, env *environments.Kubernetes, opts ...Option) {
 	}
 
 	if p.etcd {
+		ns := "etcd"
+		pullSecret, err := ensureImagePullSecret(ctx, clients, ns)
+		require.NoError(t, err, "workloads.Deploy: failed to create pull secret in %s", ns)
 		applyManifest(t, clients, render(t, etcdManifest, map[string]any{
 			"Version":   version,
-			"Namespace": "etcd",
+			"Namespace": ns,
+			// Route through ECR pull-through cache in CI to avoid Quay.io rate limits.
+			// Mirrors etcd/k8s.go: imageRegistry + "/quay/coreos/etcd:v3.5.1"
+			"EtcdImage":       resolveImage(imageRegistry, "quay.io/coreos/etcd:v3.5.1"),
+			"ImagePullSecret": pullSecret,
 		}))
-		waitForDeployments(t, clients.typed, "etcd", 5*time.Minute)
+		waitForDeployments(t, clients.typed, ns, 5*time.Minute)
 	}
 
 	if p.mutated {
+		pullSecret1, err := ensureImagePullSecret(ctx, clients, "workload-mutated")
+		require.NoError(t, err, "workloads.Deploy: failed to create pull secret in workload-mutated")
+		_, err = ensureImagePullSecret(ctx, clients, "workload-mutated-lib-injection")
+		require.NoError(t, err, "workloads.Deploy: failed to create pull secret in workload-mutated-lib-injection")
 		applyManifest(t, clients, render(t, mutatedManifest, map[string]any{
 			"Version":             version,
 			"NamespaceWithoutLib": "workload-mutated",
 			"NamespaceWithLib":    "workload-mutated-lib-injection",
+			// Route through ECR pull-through cache in CI to avoid Docker Hub rate limits.
+			// Mirrors mutatedbyadmissioncontroller/k8s.go: imageRegistry + "/dockerhub/library/python:3.12-slim"
+			"PythonImage":     resolveImage(imageRegistry, "python:3.12-slim"),
+			"ImagePullSecret": pullSecret1,
 		}))
 		waitForDeployments(t, clients.typed, "workload-mutated", 10*time.Minute)
 		waitForDeployments(t, clients.typed, "workload-mutated-lib-injection", 10*time.Minute)
@@ -361,10 +399,13 @@ func Deploy(t *testing.T, env *environments.Kubernetes, opts ...Option) {
 
 	if p.argoRollout {
 		ns := "workload-argo-rollout-nginx"
+		pullSecret, err := ensureImagePullSecret(ctx, clients, ns)
+		require.NoError(t, err, "workloads.Deploy: failed to create pull secret in %s", ns)
 		applyManifest(t, clients, render(t, argoRolloutManifest, map[string]any{
-			"Version":   version,
-			"Namespace": ns,
-			"NginxPort": 80,
+			"Version":         version,
+			"Namespace":       ns,
+			"NginxPort":       80,
+			"ImagePullSecret": pullSecret,
 		}))
 		waitForPods(t, clients.typed, ns, 5*time.Minute)
 	}
@@ -378,8 +419,7 @@ func applyManifest(t *testing.T, clients *k8sClients, manifest string) {
 	ctx := context.Background()
 
 	// Split on YAML document separator; each segment is applied independently.
-	docs := strings.Split(manifest, "\n---")
-	for _, doc := range docs {
+	for doc := range strings.SplitSeq(manifest, "\n---") {
 		doc = strings.TrimSpace(doc)
 		// Skip empty docs and bare separator lines
 		if doc == "" || doc == "---" {
@@ -519,6 +559,25 @@ func podReady(pod *corev1.Pod) bool {
 	return false
 }
 
+// resolveImage returns the image reference routed through the ECR pull-through
+// cache when ImagePullRegistry is configured, mirroring the logic in the
+// Pulumi app components (e.g. etcd/k8s.go, mutatedbyadmissioncontroller/k8s.go).
+//
+// The mapping mirrors the ECR pull-through cache path conventions:
+//   - quay.io/foo/bar:tag  → <registry>/quay/foo/bar:tag
+//   - python:3.12-slim     → <registry>/dockerhub/library/python:3.12-slim
+func resolveImage(imageRegistry, image string) string {
+	if imageRegistry == "" {
+		return image
+	}
+	primaryRegistry := strings.SplitN(imageRegistry, ",", 2)[0]
+	if path, ok := strings.CutPrefix(image, "quay.io/"); ok {
+		return primaryRegistry + "/quay/" + path
+	}
+	// Docker Hub official image (no registry prefix)
+	return primaryRegistry + "/dockerhub/library/" + image
+}
+
 // render executes a text/template with the given variables.
 func render(t *testing.T, tmplStr string, vars map[string]any) string {
 	t.Helper()
@@ -527,4 +586,79 @@ func render(t *testing.T, tmplStr string, vars map[string]any) string {
 	var buf bytes.Buffer
 	require.NoError(t, tmpl.Execute(&buf, vars), "failed to render manifest template")
 	return buf.String()
+}
+
+const workloadPullSecretName = "registry-credentials"
+
+// ensureImagePullSecret pre-creates the namespace and inserts a
+// kubernetes.io/dockerconfigjson secret named "registry-credentials" into it
+// when ImagePullRegistry is configured. The namespace is created before the
+// secret so the secret does not race with pod scheduling when the manifest is
+// applied immediately after. Returns the secret name, or "" if no registry
+// credentials are configured.
+func ensureImagePullSecret(ctx context.Context, clients *k8sClients, namespace string) (string, error) {
+	profile := runner.GetProfile()
+	registryStr, _ := profile.ParamStore().GetWithDefault(parameters.ImagePullRegistry, "")
+	if registryStr == "" {
+		return "", nil
+	}
+
+	// Pre-create namespace before inserting the pull secret
+	_, err := clients.typed.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: namespace},
+	}, metav1.CreateOptions{})
+	if err != nil && !strings.Contains(err.Error(), "already exists") {
+		return "", fmt.Errorf("creating namespace %s: %w", namespace, err)
+	}
+
+	usernameStr, _ := profile.ParamStore().GetWithDefault(parameters.ImagePullUsername, "")
+	passwordStr, _ := profile.ParamStore().GetWithDefault(parameters.ImagePullPassword, "")
+	if usernameStr == "" || passwordStr == "" {
+		return "", fmt.Errorf("image_pull_registry is set but image_pull_username or image_pull_password is missing")
+	}
+
+	registries := strings.Split(registryStr, ",")
+	usernames := strings.Split(usernameStr, ",")
+	passwords := strings.Split(passwordStr, ",")
+
+	if len(registries) != len(usernames) || len(registries) != len(passwords) {
+		return "", fmt.Errorf("image_pull_registry, image_pull_username, and image_pull_password must have the same number of comma-separated entries")
+	}
+
+	authMap := make(map[string]map[string]string, len(registries))
+	for i := range registries {
+		pwd := strings.TrimSpace(passwords[i])
+		if strings.HasPrefix(pwd, "b64=") {
+			decoded, err := base64.StdEncoding.DecodeString(pwd[4:])
+			if err != nil {
+				return "", fmt.Errorf("failed to base64-decode password for registry %s: %w", registries[i], err)
+			}
+			pwd = string(decoded)
+		}
+		reg := strings.TrimSpace(registries[i])
+		usr := strings.TrimSpace(usernames[i])
+		authMap[reg] = map[string]string{
+			"username": usr,
+			"password": pwd,
+			"auth":     base64.StdEncoding.EncodeToString([]byte(usr + ":" + pwd)),
+		}
+	}
+
+	dockerConfigJSON, err := json.Marshal(map[string]map[string]map[string]string{"auths": authMap})
+	if err != nil {
+		return "", fmt.Errorf("marshaling dockerconfigjson: %w", err)
+	}
+
+	_, err = clients.typed.CoreV1().Secrets(namespace).Create(ctx, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: workloadPullSecretName, Namespace: namespace},
+		StringData: map[string]string{
+			".dockerconfigjson": string(dockerConfigJSON),
+		},
+		Type: corev1.SecretTypeDockerConfigJson,
+	}, metav1.CreateOptions{})
+	if err != nil && !strings.Contains(err.Error(), "already exists") {
+		return "", fmt.Errorf("creating pull secret in %s: %w", namespace, err)
+	}
+
+	return workloadPullSecretName, nil
 }

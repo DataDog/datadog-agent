@@ -61,6 +61,10 @@ spec:
         ad.datadoghq.com/nginx.checks: |
           {"nginx":{"init_config":{},"check_tag_cardinality":"high","instances":[{"nginx_status_url":"http://%%host%%:{{.NginxPort}}/nginx_status"}]}}
     spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
       serviceAccountName: nginx-sa
       containers:
       - name: nginx
@@ -149,6 +153,10 @@ spec:
       labels:
         app: nginx-query
     spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
       containers:
       - name: nginx-query
         image: ghcr.io/datadog/apps-http-client:{{.Version}}

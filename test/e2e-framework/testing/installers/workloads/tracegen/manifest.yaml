@@ -25,6 +25,10 @@ spec:
       labels:
         app: tracegen-uds
     spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
       serviceAccountName: tracegen-uds-sa
       containers:
       - name: tracegen-uds
@@ -63,6 +67,10 @@ spec:
       labels:
         app: tracegen-tcp
     spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
       containers:
       - name: tracegen-tcp
         image: ghcr.io/datadog/apps-tracegen:{{.Version}}

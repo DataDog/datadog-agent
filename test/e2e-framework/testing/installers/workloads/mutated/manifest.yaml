@@ -32,6 +32,10 @@ spec:
       annotations:
         openshift.io/required-scc: hostaccess
     spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
       serviceAccountName: mutated-sa
       containers:
       - name: mutated
@@ -73,10 +77,14 @@ spec:
         openshift.io/required-scc: hostaccess
         admission.datadoghq.com/python-lib.version: v2.7.3
     spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
       serviceAccountName: mutated-with-lib-sa
       containers:
       - name: mutated-with-lib-annotation
-        image: python:3.12-slim
+        image: {{.PythonImage}}
         command: ["python", "-c", "while True: import time; time.sleep(60)"]
 ---
 # mutated-with-auto-detected-language: lib injection with auto-detected language
@@ -103,8 +111,12 @@ spec:
       annotations:
         openshift.io/required-scc: hostaccess
     spec:
+      {{- if .ImagePullSecret}}
+      imagePullSecrets:
+      - name: {{.ImagePullSecret}}
+      {{- end}}
       serviceAccountName: mutated-with-lib-sa
       containers:
       - name: mutated-with-auto-detected-language
-        image: python:3.12-slim
+        image: {{.PythonImage}}
         command: ["python", "-c", "while True: import time; time.sleep(60)"]
