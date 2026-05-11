@@ -128,6 +128,50 @@ The signing key is persisted at `~/.fakeintake/signing.key` by default — it mu
 match the agent's stored `remote-config.db`. Generating a new key requires
 flushing that DB.
 
+## CLI usage (`fakeintakectl`)
+
+Use `fakeintakectl` (built from `cmd/client/`) for non-Go callers — Python
+integration tests, shell debugging, ad-hoc queries. **Prefer this over hitting
+`/fakeintake/payloads?endpoint=...&format=json` directly**: the CLI gives you
+typed JSON output (the parsed `MetricSeries` / `Sketch` slices, not raw
+payloads), filter-by-name and filter-by-tags built in, and tracks the same
+aggregator surface the Go client exposes.
+
+```bash
+# Build server + CLI (artifacts land in test/fakeintake/build/):
+dda inv fakeintake.build
+
+FAKEINTAKECTL=test/fakeintake/build/fakeintakectl
+
+# Filter series at /api/v2/series (counts/gauges/rates) — JSON list of
+# aggregator.MetricSeries, each with .metric, .tags, .points[].value/.timestamp,
+# .type (1=COUNT, 2=RATE, 3=GAUGE).
+$FAKEINTAKECTL --url http://127.0.0.1:8080 \
+    filter metrics --name my.count.metric --tags env:prod
+
+# Filter sketches at /api/beta/sketches (distributions) — JSON list of
+# aggregator.Sketch, each with .metric, .tags, .dogsketches[].sum/.cnt/.min/...
+$FAKEINTAKECTL --url http://127.0.0.1:8080 \
+    filter sketches --name my.distribution
+
+# Discovery: what did the agent actually send?
+$FAKEINTAKECTL --url http://127.0.0.1:8080 get metric names
+$FAKEINTAKECTL --url http://127.0.0.1:8080 get sketch names
+$FAKEINTAKECTL --url http://127.0.0.1:8080 route-stats
+
+# Reset state between assertions:
+$FAKEINTAKECTL --url http://127.0.0.1:8080 flush
+```
+
+**`filter <type>` exits non-zero with no matches** — wrap in shell with
+`|| true` or treat empty/`null` stdout as no matches in callers.
+
+**Stale-binary trap:** the CLI is a thin wrapper around `client/client.go`.
+Adding a new endpoint without rebuilding means the new subcommand silently
+isn't there — `filter sketches` may even be missing from older builds.
+Always run `dda inv fakeintake.build` after pulling.
+
+
 ## Adding a new payload type
 
 When the agent starts sending a new type of data to a new endpoint:
@@ -147,7 +191,14 @@ When the agent starts sending a new type of data to a new endpoint:
    - Create public `Filter<Type>()` / `Get<Type>()` methods
    - Add filter options (`MatchOpt[*<Type>]`) as needed
 
-4. **Add tests** for the new aggregator and client methods
+4. **Register CLI subcommand(s)** in `cmd/client/cmd/`:
+   - Add `filter<type>.go` and/or `get<type>.go` wired into `filter.go` /
+     `get.go` so `fakeintakectl filter <type>` and `fakeintakectl get <type>`
+     work for shell / Python callers
+   - Without this step, non-Go callers have to fall back to raw
+     `/fakeintake/payloads`
+
+5. **Add tests** for the new aggregator and client methods
 
 ## Key files
 
