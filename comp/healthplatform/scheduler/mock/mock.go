@@ -18,10 +18,10 @@ import (
 type mockCheckRunner struct{}
 
 func (m *mockCheckRunner) SetReporter(_ checkrunner.IssueReporter) {}
-func (m *mockCheckRunner) RegisterCheck(_ string, _ string, _ checkrunner.HealthCheckFunc, _ time.Duration) error {
+func (m *mockCheckRunner) ScheduleHealthCheck(_ string, _ string, _ checkrunner.HealthCheckFunc, _ time.Duration) error {
 	return nil
 }
-func (m *mockCheckRunner) RunCheck(_ string, _ string, _ checkrunner.HealthCheckFunc) error {
+func (m *mockCheckRunner) RunHealthCheck(_ string, _ string, _ checkrunner.HealthCheckFunc) error {
 	return nil
 }
 

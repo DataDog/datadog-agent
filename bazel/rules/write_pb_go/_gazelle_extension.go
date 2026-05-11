@@ -97,10 +97,10 @@ func goProtoLibraries(args language.GenerateArgs) map[string][]goProtoLibrary {
 		if err != nil {
 			continue
 		}
-		if protos, ok := protoLibrarySrcs[protoLabel.Name]; ok {
+		if protoInfos, ok := protoLibrarySrcs[protoLabel.Name]; ok {
 			result[importPath] = append(result[importPath], goProtoLibrary{
 				label:         label.New("", args.Rel, r.Name()),
-				generatedSrcs: generatedSrcs(r, protos),
+				generatedSrcs: generatedSrcs(r, protoInfos),
 			})
 		}
 	}
@@ -134,30 +134,31 @@ func generateResult(args language.GenerateArgs, goProtoLibraries map[string][]go
 	return language.GenerateResult{}
 }
 
-// protoLibrarySrcs indexes proto_library srcs by rule name; OtherGen takes precedence over
-// File.Rules so Gazelle-generated rules are preferred over potentially stale committed ones.
-func protoLibrarySrcs(args language.GenerateArgs) map[string][]string {
-	result := map[string][]string{}
+// protoLibrarySrcs indexes proto_library srcs by rule name.
+func protoLibrarySrcs(args language.GenerateArgs) map[string][]proto.FileInfo {
+	result := map[string][]proto.FileInfo{}
 	for _, r := range args.OtherGen {
-		if r.Kind() == "proto_library" {
-			result[r.Name()] = r.AttrStrings("srcs")
+		if r.Kind() != "proto_library" {
+			continue
 		}
-	}
-	if args.File != nil {
-		for _, r := range args.File.Rules {
-			if r.Kind() == "proto_library" {
-				if _, ok := result[r.Name()]; !ok {
-					result[r.Name()] = r.AttrStrings("srcs")
-				}
-			}
+		pkg, ok := r.PrivateAttr(proto.PackageKey).(proto.Package)
+		if !ok {
+			continue
 		}
+		var protoInfos []proto.FileInfo
+		for _, src := range r.AttrStrings("srcs") {
+			protoInfos = append(protoInfos, pkg.Files[src])
+		}
+		result[r.Name()] = protoInfos
 	}
 	return result
 }
 
 // generatedSrcs infers .pb.go filenames from the compiler labels: :go_proto -> .pb.go,
 // :go_{name}_* -> _{name}.pb.go; defaults to [.pb.go].
-func generatedSrcs(r *rule.Rule, protos []string) []string {
+// For serviceless protos, omit dummy _grpc.pb.go backfilled by rules_go
+// (https://github.com/bazel-contrib/rules_go/pull/1394) that would only pollute the source tree.
+func generatedSrcs(r *rule.Rule, protoInfos []proto.FileInfo) []string {
 	var suffixes []string
 	for _, compiler := range r.AttrStrings("compilers") {
 		m := compilerRe.FindStringSubmatch(compiler)
@@ -174,9 +175,10 @@ func generatedSrcs(r *rule.Rule, protos []string) []string {
 		suffixes = []string{".pb.go"}
 	}
 	var result []string
-	for _, proto := range protos {
-		if stem, ok := strings.CutSuffix(proto, ".proto"); ok {
-			for _, suffix := range suffixes {
+	for _, protoInfo := range protoInfos {
+		stem := strings.TrimSuffix(protoInfo.Name, ".proto")
+		for _, suffix := range suffixes {
+			if protoInfo.HasServices || suffix != "_grpc.pb.go" {
 				result = append(result, stem+suffix)
 			}
 		}

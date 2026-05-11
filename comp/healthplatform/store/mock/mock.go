@@ -59,8 +59,8 @@ func (m *mockHealthPlatform) ReportIssue(checkID string, checkName string, repor
 	return nil
 }
 
-// RegisterCheck does nothing in the mock implementation
-func (m *mockHealthPlatform) RegisterCheck(_ string, _ string, _ healthplatform.HealthCheckFunc, _ time.Duration) error {
+// ScheduleHealthCheck does nothing in the mock implementation
+func (m *mockHealthPlatform) ScheduleHealthCheck(_ string, _ string, _ healthplatform.HealthCheckFunc, _ time.Duration) error {
 	return nil
 }
 
@@ -79,8 +79,8 @@ func (m *mockHealthPlatform) GetAllIssues() (int, map[string]*healthplatformpayl
 	return count, result
 }
 
-// GetIssueForCheck returns the issue for a specific check
-func (m *mockHealthPlatform) GetIssueForCheck(checkID string) *healthplatformpayload.Issue {
+// GetIssue returns the issue for a specific check
+func (m *mockHealthPlatform) GetIssue(checkID string) *healthplatformpayload.Issue {
 	issue := m.issues[checkID]
 	if issue == nil {
 		return nil
@@ -88,12 +88,12 @@ func (m *mockHealthPlatform) GetIssueForCheck(checkID string) *healthplatformpay
 	return proto.Clone(issue).(*healthplatformpayload.Issue)
 }
 
-// ClearIssuesForCheck clears issues for a specific check
-func (m *mockHealthPlatform) ClearIssuesForCheck(checkID string) {
+// ResolveIssue clears issues for a specific check
+func (m *mockHealthPlatform) ResolveIssue(checkID string) {
 	delete(m.issues, checkID)
 }
 
-// ClearAllIssues clears all issues
-func (m *mockHealthPlatform) ClearAllIssues() {
+// ResolveAllIssues clears all issues
+func (m *mockHealthPlatform) ResolveAllIssues() {
 	m.issues = make(map[string]*healthplatformpayload.Issue)
 }

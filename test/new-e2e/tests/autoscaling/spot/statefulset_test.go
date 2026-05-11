@@ -282,7 +282,7 @@ func (s *spotSchedulingSuite) createStatefulSet(name string, replicas int32, con
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Name:  "app",
-						Image: "registry.k8s.io/pause",
+						Image: "registry.k8s.io/pause:3.10.1",
 					}},
 				},
 			},

@@ -1671,3 +1671,34 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaceTypeZero(t *test
 
 	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 }
+
+func Test_buildMetadataStore_scalar_skipsEmptyStringForNextSymbol(t *testing.T) {
+	meta := profiledefinition.MetadataConfig{
+		"device": {
+			Fields: map[string]profiledefinition.MetadataField{
+				"serial_number": {
+					Symbols: []profiledefinition.SymbolConfig{
+						{OID: "1.3.6.1.4.1.9.5.1.2.19.0", Name: "chassisSerialNumberString"},
+						{OID: "1.3.6.1.2.1.47.1.1.1.1.11.1000", Name: "entPhysicalSerialNum"},
+						{OID: "1.3.6.1.2.1.47.1.1.1.1.11.1", Name: "entPhysicalSerialNum"},
+					},
+				},
+			},
+		},
+	}
+	store := &valuestore.ResultValueStore{
+		ScalarValues: valuestore.ScalarResultValuesType{
+			"1.3.6.1.2.1.47.1.1.1.1.11.1000": {Value: ""},
+			"1.3.6.1.2.1.47.1.1.1.1.11.1":    {Value: "FOC2628YLVB.1"},
+		},
+	}
+	ms := buildMetadataStore(meta, store)
+	assert.Equal(t, "FOC2628YLVB.1", ms.GetScalarAsString("device.serial_number"))
+}
+
+func Test_isEmptyMetadataScalarValue(t *testing.T) {
+	assert.True(t, isEmptyMetadataScalarValue(valuestore.ResultValue{Value: ""}))
+	assert.True(t, isEmptyMetadataScalarValue(valuestore.ResultValue{Value: "   \t"}))
+	assert.True(t, isEmptyMetadataScalarValue(valuestore.ResultValue{Value: []byte{}}))
+	assert.False(t, isEmptyMetadataScalarValue(valuestore.ResultValue{Value: "x"}))
+}

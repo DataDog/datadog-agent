@@ -41,7 +41,11 @@ func newFakeContainer(layerPaths []string, imgMeta *workloadmeta.ContainerImageM
 	imageLayers := lo.Filter(imgMeta.Layers, func(layer workloadmeta.ContainerImageLayer, _ int) bool {
 		return layer.Digest != ""
 	})
-	if len(layerIDs) != len(layerPaths) || len(layerIDs) != len(imageLayers) {
+	// Path / DiffID alignment must be exact: these are what trivy looks up.
+	// imageLayers feeds the optional Digest annotation; tolerate the Docker
+	// fallback in layersFromDockerHistoryAndInspect that can emit more
+	// non-empty entries than RootFS.Layers.
+	if len(layerIDs) != len(layerPaths) || len(layerIDs) > len(imageLayers) {
 		return nil, fmt.Errorf("mismatch count for layer IDs, paths and image layers (ids=%d, paths=%d, layers=%d)",
 			len(layerIDs), len(layerPaths), len(imageLayers))
 	}

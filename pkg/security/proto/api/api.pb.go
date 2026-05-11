@@ -3704,7 +3704,7 @@ const file_pkg_security_proto_api_api_proto_rawDesc = "" +
 	"\x13SaveSecurityProfile\x12\x1e.api.SecurityProfileSaveParams\x1a\x1f.api.SecurityProfileSaveMessage\"\x002\xac\x01\n" +
 	"\x10SecurityAgentAPI\x12B\n" +
 	"\tSendEvent\x12\x19.api.SecurityEventMessage\x1a\x16.google.protobuf.Empty\"\x00(\x01\x12T\n" +
-	"\x16SendActivityDumpStream\x12\x1e.api.ActivityDumpStreamMessage\x1a\x16.google.protobuf.Empty\"\x00(\x01B\x18Z\x16pkg/security/proto/apib\x06proto3"
+	"\x16SendActivityDumpStream\x12\x1e.api.ActivityDumpStreamMessage\x1a\x16.google.protobuf.Empty\"\x00(\x01B9Z7github.com/DataDog/datadog-agent/pkg/security/proto/apib\x06proto3"
 
 var (
 	file_pkg_security_proto_api_api_proto_rawDescOnce sync.Once

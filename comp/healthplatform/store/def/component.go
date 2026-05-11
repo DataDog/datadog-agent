@@ -22,37 +22,39 @@ import (
 // having to import checkrunner/def directly.
 type HealthCheckFunc = checkrunnerdef.HealthCheckFunc
 
-// Component is the health platform component interface
+// Component is the health platform store component interface.
 type Component interface {
-	// ReportIssue reports an issue with context, and the health platform fills in remediation
-	// This is the main way for integrations to report issues
-	// If report is nil, it clears any existing issue (issue resolution)
+	// ReportIssue reports an issue with context; the health platform fills in
+	// remediation from the issue template registry. It is the main way for
+	// integrations to report issues. If report is nil, any existing issue for
+	// the given checkID is resolved.
 	ReportIssue(checkID string, checkName string, report *healthplatformpayload.IssueReport) error
 
-	// RegisterCheck registers a function to be called periodically to check for issues
-	// Use this when you need the health platform to run your check at regular intervals
-	// If interval is 0 or negative, defaults to 15 minutes
-	RegisterCheck(checkID string, checkName string, checkFn HealthCheckFunc, interval time.Duration) error
+	// ScheduleHealthCheck schedules a function to be called periodically to
+	// check for issues. If interval is 0 or negative, the runner's default
+	// interval is used.
+	ScheduleHealthCheck(checkID string, checkName string, checkFn HealthCheckFunc, interval time.Duration) error
 
 	// =========================================================================
 	// Query Methods
 	// =========================================================================
 
-	// GetAllIssues returns the count and all issues from all checks (indexed by check ID)
-	// Returns the total number of issues and a map of issues (nil for checks with no issues)
+	// GetAllIssues returns the count and all active issues, indexed by checkID.
+	// The returned map contains deep copies; modifying it does not affect the store.
 	GetAllIssues() (int, map[string]*healthplatformpayload.Issue)
 
-	// GetIssueForCheck returns the issue for a specific check
-	// Returns nil if no issue
-	GetIssueForCheck(checkID string) *healthplatformpayload.Issue
+	// GetIssue returns the issue reported for the given checkID, or nil if
+	// no such issue is currently active.
+	GetIssue(checkID string) *healthplatformpayload.Issue
 
 	// =========================================================================
-	// Clear Methods
+	// Resolve Methods
 	// =========================================================================
 
-	// ClearIssuesForCheck clears issues for a specific check (useful when issues are resolved)
-	ClearIssuesForCheck(checkID string)
+	// ResolveIssue marks the issue for the given checkID as resolved.
+	// No-op if no issue is currently active for that checkID.
+	ResolveIssue(checkID string)
 
-	// ClearAllIssues clears all issues (useful for testing or when all issues are resolved)
-	ClearAllIssues()
+	// ResolveAllIssues marks every active issue as resolved.
+	ResolveAllIssues()
 }
