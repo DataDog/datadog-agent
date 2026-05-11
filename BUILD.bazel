@@ -164,9 +164,6 @@ exports_files(glob(
 # gazelle:exclude comp/host-profiler/collector/impl/processor
 # gazelle:exclude comp/host-profiler/collector/impl/receiver
 # gazelle:exclude comp/host-profiler/flare
-# gazelle:exclude comp/host-profiler/symboluploader/pclntab
-# gazelle:exclude comp/host-profiler/symboluploader/symbol
-# gazelle:exclude comp/host-profiler/symboluploader/symbolcopier
 # gazelle:exclude comp/languagedetection/client/fx
 # gazelle:exclude comp/languagedetection/client/impl
 # gazelle:exclude comp/logonduration/fx
@@ -294,7 +291,6 @@ exports_files(glob(
 # gazelle:exclude comp/trace/config/fx
 # gazelle:exclude comp/trace/config/impl
 # gazelle:exclude comp/trace/config/mock
-# gazelle:exclude internal/third_party/client-go
 # gazelle:exclude pkg/aggregator/mocksender
 # gazelle:exclude pkg/cli/standalone
 # gazelle:exclude pkg/cli/subcommands/autoscalerlist
@@ -788,13 +784,11 @@ exports_files(glob(
 # gazelle:exclude test/regression
 # gazelle:exclude test/required_files
 # gazelle:exclude test/static
-# gazelle:exclude tools/NamedPipeCmd
 # gazelle:exclude tools/agent_QA
 # gazelle:exclude tools/ci
 # gazelle:exclude tools/ebpf
 # gazelle:exclude tools/gdb
 # gazelle:exclude tools/go-update
-# gazelle:exclude tools/host-profiler
 # gazelle:exclude tools/retry_file_dump
 # gazelle:exclude tools/windows
 
