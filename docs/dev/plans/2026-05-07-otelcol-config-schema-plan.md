@@ -197,7 +197,7 @@ in lockstep with the YAML sources.
 | **M2** | Single-component converter: take one `config.schema.yaml` → valid JSON Schema fragment with rewritten `$ref` | Smallest unit; easy to unit-test against the 6 local schemas |
 | **M3** | Transitive `$ref` walker + `$defs` registry + collision handling for upstream-core types (`confighttp`, `configtls`, `exporterhelper`) | The interesting graph problem; failure modes here drive design |
 | **M4** | Top-level envelope (hand-written) + stitching | Once components and registry work, this is mostly templating |
-| **M5** | Invoke task + `--check` mode + self-validation against meta-schema. Also: lift the `jsonschema` dependency added in M2 from venv-local to the project-wide requirements file so the tool is reproducible across machines and CI. | Productionising |
+| **M5** | Invoke task + `--check` mode + optional self-validation against meta-schema. **Note (revised 2026-05-09):** the planned project-wide requirements lift for `jsonschema` is not actionable in this repo — `tasks/requirements.txt` was removed in PR #34865 (March 2025) and Python deps for `dda inv` now live in dda's own upstream `pyproject.toml` (`legacy-tasks` group). For M5 we make `jsonschema` an optional dependency: the bundler self-validation degrades gracefully when it's missing, with a clear error if a caller asks for `--validate`. Adding `jsonschema` to dda's `legacy-tasks` group is a separate upstream PR, tracked outside this repo. | Productionising |
 
 ## Open decisions
 

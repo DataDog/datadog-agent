@@ -58,6 +58,7 @@ from tasks import (
     omnibus,
     oracle,
     otel_agent,
+    otelcol_schema,
     owners,
     package,
     pipeline,
@@ -235,6 +236,7 @@ ns.add_collection(notes)
 ns.add_collection(notify)
 ns.add_collection(oracle)
 ns.add_collection(otel_agent)
+ns.add_collection(otelcol_schema, name="otelcol-schema")
 ns.add_collection(host_profiler)
 ns.add_collection(selinux)
 ns.add_collection(setup)

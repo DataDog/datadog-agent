@@ -66,6 +66,7 @@ from tasks.libs.otelcol_schema.inventory import (
     LOCAL_SCHEMAS,
     MANIFEST_PATH,
     REPO_ROOT,
+    ensure_downloaded,
     gomodcache,
     parse_manifest,
 )
@@ -535,6 +536,32 @@ def _entry_for_root(doc: dict[str, Any]) -> dict[str, Any]:
 
 def _placeholder() -> dict[str, Any]:
     return {"type": "object", "additionalProperties": True}
+
+
+def ensure_manifest_modules_downloaded() -> list[tuple[str, str]]:
+    """Walk every manifest entry and `go mod download` any module that isn't
+    already in `gomodcache`. Returns a list of `(<gomod>@<version>, error)`
+    tuples for downloads that failed.
+
+    A fresh clone has none of the OCB manifest's pinned modules in cache.
+    Without this pre-flight, `build_bundle` silently treats every upstream
+    component as "missing schema" and the resulting bundle is degraded into
+    permissive-fallback shape — a footgun for first-time contributors
+    running `dda inv otelcol-schema.{gen,check}`.
+    """
+    cache_root = gomodcache()
+    impl_dir = MANIFEST_PATH.parent
+    failures: list[tuple[str, str]] = []
+    for entries in parse_manifest(MANIFEST_PATH).values():
+        for gomod, version in entries:
+            if not (gomod and version):
+                continue
+            if module_cache_dir(cache_root, gomod, version).is_dir():
+                continue
+            ok, msg = ensure_downloaded(gomod, version, cwd=impl_dir)
+            if not ok:
+                failures.append((f"{gomod}@{version}", msg))
+    return failures
 
 
 def build_bundle(*, missing_strategy: str = "permissive") -> BundleResult:

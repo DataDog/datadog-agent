@@ -29,13 +29,26 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from jsonschema import Draft202012Validator
-from jsonschema.exceptions import SchemaError
 
 from tasks.libs.otelcol_schema._refs import classify_ref
 from tasks.libs.otelcol_schema.inventory import LOCAL_SCHEMAS, REPO_ROOT
 
 JSON_SCHEMA_DRAFT = "https://json-schema.org/draft/2020-12/schema"
+
+
+def jsonschema_available() -> bool:
+    """Whether the `jsonschema` package is importable in this environment.
+
+    We make `jsonschema` an optional dependency: the bundler can produce
+    output without it; only the meta-schema self-validation step requires
+    it. When dda upstream lifts `jsonschema` into its `legacy-tasks` group,
+    this predicate becomes uniformly true and callers can drop the guards.
+    """
+    try:
+        import jsonschema  # noqa: F401
+    except ImportError:
+        return False
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -95,7 +108,17 @@ def _rewrite_refs_inplace(node: Any, defs_names: set[str]) -> None:
 
 def validate_meta(doc: dict[str, Any]) -> list[str]:
     """Validate a converted fragment against the JSON Schema 2020-12
-    meta-schema. Returns a list of error messages (empty if valid)."""
+    meta-schema. Returns a list of error messages (empty if valid).
+
+    Returns an empty list when `jsonschema` is not available — callers
+    that need to know whether validation actually happened should call
+    `jsonschema_available()` separately.
+    """
+    if not jsonschema_available():
+        return []
+    from jsonschema import Draft202012Validator
+    from jsonschema.exceptions import SchemaError
+
     try:
         Draft202012Validator.check_schema(doc)
     except SchemaError as e:

@@ -802,5 +802,191 @@ class TestBuildBundleEndToEnd(unittest.TestCase):
         )
 
 
+class TestOtelcolSchemaInvokeTasks(unittest.TestCase):
+    """Exercises the `tasks.otelcol_schema` invoke task surface.
+
+    Drives the tasks in-process with a real `invoke.Context` rather than
+    shelling out to `dda inv` so the test suite stays fast and doesn't
+    depend on the dda venv state.
+    """
+
+    def setUp(self):
+        from invoke import Context
+
+        self.ctx = Context()
+        self.tmp = tempfile.TemporaryDirectory()
+        self.tmp_path = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_gen_writes_bundle(self):
+        from tasks.otelcol_schema import gen
+
+        out = self.tmp_path / "bundle.json"
+        gen(self.ctx, output=str(out), no_download=True)
+        self.assertTrue(out.is_file())
+        # Bundle is valid JSON and structurally a JSON Schema 2020-12 doc.
+        import json
+
+        bundle = json.loads(out.read_text())
+        self.assertEqual(bundle["$schema"], "https://json-schema.org/draft/2020-12/schema")
+        self.assertIn("$defs", bundle)
+        self.assertIn("properties", bundle)
+
+    def test_check_passes_for_matching_bundle(self):
+        from tasks.otelcol_schema import check, gen
+
+        out = self.tmp_path / "bundle.json"
+        gen(self.ctx, output=str(out), no_download=True)
+        # Should not raise: the just-generated bundle matches itself.
+        check(self.ctx, against=str(out), no_download=True)
+
+    def test_check_fails_for_drifted_bundle(self):
+        from invoke.exceptions import Exit
+
+        from tasks.otelcol_schema import check, gen
+
+        out = self.tmp_path / "bundle.json"
+        gen(self.ctx, output=str(out), no_download=True)
+
+        # Inject a drift and confirm `check` reports it.
+        import json
+
+        bundle = json.loads(out.read_text())
+        bundle["$defs"]["__corrupted_for_test__"] = {"type": "string"}
+        out.write_text(json.dumps(bundle, indent=2) + "\n")
+
+        with self.assertRaises(Exit) as cm:
+            check(self.ctx, against=str(out), no_download=True)
+        self.assertEqual(cm.exception.code, 1)
+        self.assertIn("out of date", str(cm.exception.message))
+
+    def test_check_errors_when_artifact_missing(self):
+        from invoke.exceptions import Exit
+
+        from tasks.otelcol_schema import check
+
+        missing = self.tmp_path / "does-not-exist.json"
+        with self.assertRaises(Exit) as cm:
+            check(self.ctx, against=str(missing), no_download=True)
+        self.assertEqual(cm.exception.code, 2)
+
+    def test_gen_with_validate_errors_when_jsonschema_missing(self):
+        """When --validate is requested and jsonschema isn't importable,
+        the task must fail with a clear exit code rather than silently
+        skipping. Simulated by monkey-patching `jsonschema_available`."""
+        from invoke.exceptions import Exit
+
+        from tasks.libs.otelcol_schema import convert as convert_mod
+        from tasks.otelcol_schema import gen
+
+        original = convert_mod.jsonschema_available
+        convert_mod.jsonschema_available = lambda: False
+        try:
+            out = self.tmp_path / "bundle.json"
+            with self.assertRaises(Exit) as cm:
+                gen(self.ctx, output=str(out), validate=True, no_download=True)
+            self.assertEqual(cm.exception.code, 2)
+            self.assertIn("jsonschema", str(cm.exception.message))
+        finally:
+            convert_mod.jsonschema_available = original
+
+    def test_gen_with_validate_passes_when_jsonschema_available(self):
+        """Happy path for --validate: jsonschema is installed, so validation
+        runs and succeeds (the bundler's output is JSON-Schema-2020-12 valid
+        by construction)."""
+        from tasks.libs.otelcol_schema.convert import jsonschema_available
+        from tasks.otelcol_schema import gen
+
+        if not jsonschema_available():
+            self.skipTest("jsonschema not available in this environment")
+        out = self.tmp_path / "bundle.json"
+        gen(self.ctx, output=str(out), validate=True, no_download=True)
+        self.assertTrue(out.is_file())
+
+    def test_gen_writes_report_when_requested(self):
+        """--report writes a markdown summary alongside the bundle."""
+        from tasks.otelcol_schema import gen
+
+        out = self.tmp_path / "bundle.json"
+        report = self.tmp_path / "report.md"
+        gen(self.ctx, output=str(out), report=str(report), no_download=True)
+        self.assertTrue(report.is_file())
+        content = report.read_text()
+        # Sanity: the report should mention component classes the bundler covered.
+        self.assertIn("Components included", content)
+
+    def test_gen_translates_runtime_error_to_exit_2(self):
+        """Pins the RuntimeError → Exit(2) translation in `gen` without
+        coupling to the live manifest's unresolved-ref count. Monkey-patch
+        `build_bundle` to raise; the task wrapper must surface the message
+        on Exit and preserve the underlying error."""
+        from invoke.exceptions import Exit
+
+        from tasks.libs.otelcol_schema import bundle as bundle_mod
+        from tasks.otelcol_schema import gen
+
+        original = bundle_mod.build_bundle
+
+        def _raising(*, missing_strategy):  # noqa: ARG001 — match the real signature
+            raise RuntimeError("strict mode: unresolved refs: sample.ref")
+
+        bundle_mod.build_bundle = _raising
+        try:
+            out = self.tmp_path / "bundle.json"
+            with self.assertRaises(Exit) as cm:
+                gen(self.ctx, output=str(out), missing="strict", no_download=True)
+            self.assertEqual(cm.exception.code, 2)
+            self.assertIn("strict mode", str(cm.exception.message))
+            self.assertIn("sample.ref", str(cm.exception.message))
+        finally:
+            bundle_mod.build_bundle = original
+
+    def test_gen_pre_flight_raises_exit_when_download_fails(self):
+        """When `gen` is called without `--no-download` and the pre-flight
+        download of a manifest module fails, the task must Exit(2) with a
+        message that includes both the failing spec and the `--no-download`
+        remediation hint. Simulated by monkey-patching the lib helper to
+        return a synthetic failure."""
+        from invoke.exceptions import Exit
+
+        from tasks.libs.otelcol_schema import bundle as bundle_mod
+        from tasks.otelcol_schema import gen
+
+        original = bundle_mod.ensure_manifest_modules_downloaded
+        bundle_mod.ensure_manifest_modules_downloaded = lambda: [
+            ("github.com/example/foo@v1.2.3", "network unreachable")
+        ]
+        try:
+            out = self.tmp_path / "bundle.json"
+            with self.assertRaises(Exit) as cm:
+                gen(self.ctx, output=str(out))  # note: no_download defaults to False
+            self.assertEqual(cm.exception.code, 2)
+            message = str(cm.exception.message)
+            self.assertIn("could not download", message)
+            self.assertIn("github.com/example/foo@v1.2.3", message)
+            self.assertIn("network unreachable", message)
+            self.assertIn("--no-download", message)
+        finally:
+            bundle_mod.ensure_manifest_modules_downloaded = original
+
+    def test_inventory_writes_reports(self):
+        """The `inventory` task wraps the M1 script and writes both JSON
+        and markdown reports to caller-supplied paths."""
+        from tasks.otelcol_schema import inventory
+
+        json_out = self.tmp_path / "inventory.json"
+        md_out = self.tmp_path / "inventory.md"
+        inventory(self.ctx, json_out=str(json_out), md=str(md_out), no_download=True)
+        self.assertTrue(json_out.is_file())
+        self.assertTrue(md_out.is_file())
+        # Sanity: the JSON parses and reports a non-trivial component count.
+        import json
+
+        data = json.loads(json_out.read_text())
+        self.assertGreater(data["summary"]["total_components"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()
