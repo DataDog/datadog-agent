@@ -51,23 +51,18 @@ const (
 
 // forwarder handles periodic sending of health reports to the Datadog intake
 type forwarder struct {
-	cfg         pkgconfigmodel.Reader
-	intakeURL   string
-	interval    time.Duration
-	hostname    string
-	agentFlavor string
-	providerMu  sync.RWMutex
-	provider    forwarderdef.IssueProvider
-	httpClient  *http.Client
-	log         log.Component
-
-	// liteFallback is consulted only when the live config Reader returns an
-	// empty api_key — e.g. when schema validation rejected the value or the
-	// normal layer fell back to defaults. Populated once at New().
-	liteFallback lite.LiteConfig
-
-	stopCh chan struct{}
-	doneCh chan struct{}
+	cfg             pkgconfigmodel.Reader
+	liteCfgFallback lite.LiteConfig // used only when live config is broken
+	intakeURL       string
+	interval        time.Duration
+	hostname        string
+	agentFlavor     string
+	providerMu      sync.RWMutex
+	provider        forwarderdef.IssueProvider
+	httpClient      *http.Client
+	log             log.Component
+	stopCh          chan struct{}
+	doneCh          chan struct{}
 }
 
 // Requires defines the dependencies for the forwarder.
@@ -96,16 +91,16 @@ func New(reqs Requires) forwarderdef.Component {
 	}
 
 	f := &forwarder{
-		cfg:          reqs.Config,
-		intakeURL:    buildIntakeURL(reqs.Config),
-		interval:     interval,
-		hostname:     hostname,
-		agentFlavor:  flavor.GetFlavor(),
-		httpClient:   buildHTTPClient(reqs.Config),
-		log:          reqs.Log,
-		liteFallback: lite.Extract(context.Background(), reqs.Config.ConfigFileUsed(), lite.DefaultConfigPath()),
-		stopCh:       make(chan struct{}),
-		doneCh:       make(chan struct{}),
+		cfg:             reqs.Config,
+		liteCfgFallback: lite.Extract(context.Background(), reqs.Config.ConfigFileUsed(), lite.DefaultConfigPath()),
+		intakeURL:       buildIntakeURL(reqs.Config),
+		interval:        interval,
+		hostname:        hostname,
+		agentFlavor:     flavor.GetFlavor(),
+		httpClient:      buildHTTPClient(reqs.Config),
+		log:             reqs.Log,
+		stopCh:          make(chan struct{}),
+		doneCh:          make(chan struct{}),
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{
@@ -213,11 +208,11 @@ func (f *forwarder) send(report *healthplatform.HealthReport) error {
 	// When the live config Reader has nothing (broken YAML the normal layer
 	// fell back to defaults for) fall back to the lite snapshot.
 	apiKey := f.cfg.GetString("api_key")
-	if apiKey == "" && f.liteFallback.APIKey.Value != "" && f.liteFallback.APIKey.Source != lite.SourceEncrypted {
-		apiKey = f.liteFallback.APIKey.Value
+	if apiKey == "" && f.liteCfgFallback.APIKey.Value != "" && f.liteCfgFallback.APIKey.Source != lite.SourceEncrypted {
+		apiKey = f.liteCfgFallback.APIKey.Value
 		f.log.Info(fmt.Sprintf(
 			"Health platform forwarder using api_key from lite fallback (source=%s matched_key=%q)",
-			f.liteFallback.APIKey.Source, f.liteFallback.APIKey.MatchedKey))
+			f.liteCfgFallback.APIKey.Source, f.liteCfgFallback.APIKey.MatchedKey))
 	}
 	if apiKey == "" {
 		return errors.New("API key not configured")
