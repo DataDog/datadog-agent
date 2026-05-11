@@ -40,6 +40,8 @@ import (
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
 	workloadselectionfx "github.com/DataDog/datadog-agent/comp/workloadselection/fx"
 
+	logssourcefx "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/fx"
+	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
 	doqueryactionsfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	snmpscanfx "github.com/DataDog/datadog-agent/comp/snmpscan/fx"
@@ -504,7 +506,8 @@ func getSharedFxOption() fx.Option {
 			})
 		}),
 		logs.Bundle(),
-		getObserverOptions(),
+		observerfx.Module(),
+		logssourcefx.Module(),
 		langDetectionClimpl.Module(),
 		metadata.Bundle(),
 		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
