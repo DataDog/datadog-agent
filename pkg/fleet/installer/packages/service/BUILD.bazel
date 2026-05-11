@@ -1,4 +1,3 @@
-# gazelle:ignore
 load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
@@ -6,6 +5,7 @@ go_library(
     srcs = ["service.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/service",
     visibility = ["//visibility:public"],
+    # keep: platform select; procmgr dep is Linux-only, empty on Windows
     deps = select({
         "@rules_go//go/platform:windows": [],
         "//conditions:default": [
