@@ -13,136 +13,90 @@ import (
 var _ slog.Handler = (*Handler)(nil)
 
 // Handler is an slog.Handler that captures records at level >= Error and
-// submits them to an in-package Pipeline. It is intended to be plugged into
-// the existing logger handler chain alongside the file/console handlers,
-// AFTER the level filter so non-error records do not reach it.
+// forwards them to the currently registered Submitter as an ErrorLog DTO.
 //
-// Handler is safe for concurrent use; the underlying Pipeline serializes
-// dispatch internally.
+// The handler holds no transport, no buffer and no goroutines. Each Handle
+// call atomically loads the current Submitter via the load closure supplied
+// at construction. When load returns nil the record is dropped silently;
+// this is the steady state before the agenttelemetry component registers
+// its Submitter during Fx startup, and again during test cleanup.
+//
+// The Submitter contract requires non-blocking submission (the consumer
+// owns a bounded channel and flushes asynchronously), so Handle is
+// non-blocking by construction. The handler is safe for concurrent use.
 type Handler struct {
-	pipeline *Pipeline
-	ops      []op
+	load  func() Submitter
+	attrs []slog.Attr
 }
 
-// op records a single WithAttrs or WithGroup operation in the order it
-// was applied. The slog spec requires that subsequent WithAttrs after a
-// WithGroup are nested inside that group; we therefore replay operations
-// in order on Handle to rebuild the correct attribute structure.
-type op struct {
-	kind  opKind
-	attrs []slog.Attr // valid when kind == opAttrs
-	group string      // valid when kind == opGroup
+// NewHandler returns a Handler whose Handle method atomically loads the
+// current Submitter via load on every record. load MUST be safe for
+// concurrent use and MUST return nil to indicate "no submitter registered";
+// nil records are dropped silently rather than panicking the logger chain.
+func NewHandler(load func() Submitter) *Handler {
+	return &Handler{load: load}
 }
 
-type opKind int
-
-const (
-	opAttrs opKind = iota
-	opGroup
-)
-
-// New returns a Handler that submits captured records to p.
-func New(p *Pipeline) *Handler {
-	return &Handler{pipeline: p}
-}
-
-// Enabled reports whether the Handler captures records at the given level.
-// It captures level >= Error and nothing below.
+// Enabled reports whether the Handler will forward records at the given
+// level. It returns true only when level >= slog.LevelError AND a Submitter
+// is currently registered; an unregistered handler short-circuits the
+// parent multi-handler so non-error formatting work is not wasted.
 func (h *Handler) Enabled(_ context.Context, level slog.Level) bool {
-	return level >= slog.LevelError
+	if level < slog.LevelError {
+		return false
+	}
+	return h.load() != nil
 }
 
-// Handle materializes the WithAttrs/WithGroup chain onto a copy of r and
-// submits the result to the Pipeline. Always returns nil - errortracking
-// must NEVER break the rest of the logger chain.
+// Handle builds an ErrorLog from r and submits it. Records below Error are
+// dropped (defensive: slog calls Enabled first, but direct callers might
+// not). If no Submitter is registered the record is dropped silently.
+// Handle always returns nil - errortracking must never break the rest of
+// the logger chain.
 func (h *Handler) Handle(_ context.Context, r slog.Record) error {
-	// Defensive: slog calls Enabled before Handle, but a direct caller
-	// might not. Drop non-error records silently.
 	if r.Level < slog.LevelError {
 		return nil
 	}
-
-	if len(h.ops) == 0 {
-		h.pipeline.Submit(r)
+	submit := h.load()
+	if submit == nil {
 		return nil
 	}
 
-	h.pipeline.Submit(h.applyOps(r))
-	return nil
-}
-
-// applyOps returns a fresh Record with the recorded WithAttrs/WithGroup
-// chain materialized. The original record's own attrs are placed at the
-// innermost group level, matching slog.Handler spec semantics.
-func (h *Handler) applyOps(r slog.Record) slog.Record {
-	type layer struct {
-		groupName string
-		attrs     []slog.Attr
-	}
-	// layers[0] is the outermost (no enclosing group); each opGroup pushes
-	// a new layer.
-	layers := []layer{{}}
-	for _, o := range h.ops {
-		switch o.kind {
-		case opGroup:
-			layers = append(layers, layer{groupName: o.group})
-		case opAttrs:
-			last := &layers[len(layers)-1]
-			last.attrs = append(last.attrs, o.attrs...)
-		}
-	}
-	// The record's own attrs go at the innermost layer.
+	attrs := make([]slog.Attr, 0, len(h.attrs)+r.NumAttrs())
+	attrs = append(attrs, h.attrs...)
 	r.Attrs(func(a slog.Attr) bool {
-		last := &layers[len(layers)-1]
-		last.attrs = append(last.attrs, a)
+		attrs = append(attrs, a)
 		return true
 	})
 
-	// Collapse innermost layers into nested slog.Group attrs.
-	// Skip empty groups so we do not emit attrs like {grp: {}}.
-	for i := len(layers) - 1; i > 0; i-- {
-		inner := layers[i]
-		if len(inner.attrs) == 0 {
-			continue
-		}
-		args := make([]any, len(inner.attrs))
-		for j, a := range inner.attrs {
-			args[j] = a
-		}
-		grouped := slog.Group(inner.groupName, args...)
-		layers[i-1].attrs = append(layers[i-1].attrs, grouped)
-	}
-
-	nr := slog.NewRecord(r.Time, r.Level, r.Message, r.PC)
-	nr.AddAttrs(layers[0].attrs...)
-	return nr
+	submit(ErrorLog{
+		Time:    r.Time,
+		Level:   r.Level,
+		Message: r.Message,
+		PC:      r.PC,
+		Attrs:   attrs,
+	})
+	return nil
 }
 
-// WithAttrs returns a new Handler that prepends attrs to every captured
-// record at the current group nesting level (per slog.Handler spec).
+// WithAttrs returns a Handler that prepends attrs to every captured record.
+// Group nesting from prior WithGroup calls is intentionally not preserved -
+// the wire format flattens groups anyway, and the previous nesting
+// implementation was 40+ LOC of layered replay for no observable benefit.
 func (h *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	if len(attrs) == 0 {
 		return h
 	}
-	return h.with(op{kind: opAttrs, attrs: attrs})
+	merged := make([]slog.Attr, 0, len(h.attrs)+len(attrs))
+	merged = append(merged, h.attrs...)
+	merged = append(merged, attrs...)
+	return &Handler{load: h.load, attrs: merged}
 }
 
-// WithGroup returns a new Handler that nests subsequent WithAttrs and the
-// captured record's own attrs inside a group named name. WithGroup("") is
-// a no-op per slog.Handler spec.
-func (h *Handler) WithGroup(name string) slog.Handler {
-	if name == "" {
-		return h
-	}
-	return h.with(op{kind: opGroup, group: name})
-}
-
-func (h *Handler) with(o op) *Handler {
-	nh := &Handler{
-		pipeline: h.pipeline,
-		ops:      make([]op, len(h.ops), len(h.ops)+1),
-	}
-	copy(nh.ops, h.ops)
-	nh.ops = append(nh.ops, o)
-	return nh
+// WithGroup is a no-op. The wire payload does not distinguish nested
+// groups from flat attrs, so preserving group structure here would only add
+// complexity and allocation; subsequent WithAttrs calls accumulate at the
+// top level.
+func (h *Handler) WithGroup(_ string) slog.Handler {
+	return h
 }

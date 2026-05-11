@@ -17,6 +17,7 @@ import (
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog/filewriter"
 	"github.com/DataDog/datadog-agent/pkg/util/log/slog/handlers"
@@ -188,10 +189,11 @@ func buildSlogLogger(
 	asyncHandler := handlers.NewAsync(multiHandler)
 
 	// AGTHEAL-15: errortracking branch is a sibling of asyncHandler under the
-	// global level filter so error records reach the COAT pipeline directly
-	// (no async batching) while non-error records are filtered by the slot's
-	// Enabled check before reaching multi.
-	topHandler := handlers.NewMulti(asyncHandler, newErrortrackingSlot())
+	// global level filter. The Handler atomic-loads the current Submitter on
+	// every record, so the chain is correctly wired whether or not the
+	// agenttelemetry component has registered yet; its Enabled returns false
+	// when no Submitter is registered, short-circuiting the multi-handler.
+	topHandler := handlers.NewMulti(asyncHandler, errortracking.NewHandler(loadErrortrackingSubmitter))
 
 	levelVar := new(stdslog.LevelVar)
 	levelVar.Set(types.ToSlogLevel(logLevel))
@@ -285,72 +287,42 @@ func (t *tlsHandshakeErrorWriter) Write(p []byte) (n int, err error) {
 	return t.writer.Write(p)
 }
 
-// errortrackingHandlerSlot is the package-global atomic pointer that backs
-// every errortrackingSlot returned by buildSlogLogger. The Fx wiring at
-// cmd/agent/subcommands/run/ registers the COAT errortracking handler here
-// at startup; until then the slot is a no-op so the chain works whether or
-// not errortracking is enabled.
-var errortrackingHandlerSlot atomic.Pointer[stdslog.Handler]
+// errortrackingSubmitterSlot is the package-global atomic pointer that
+// backs every errortracking.Handler returned by buildSlogLogger. The Fx
+// wiring at cmd/agent/subcommands/run/ registers the agenttelemetry
+// component's SubmitErrorRecord method here at startup; until then the slot
+// is nil and the handler in the chain reports Enabled = false so the
+// parent multi-handler skips it entirely.
+var errortrackingSubmitterSlot atomic.Pointer[errortracking.Submitter]
 
-// RegisterErrortrackingHandler installs h as the inner handler that the
-// errortracking branch of every slog chain built via buildSlogLogger
-// delegates to. Passing nil clears the registration so the branch becomes a
-// no-op again - tests use this to clean up between cases.
+// RegisterErrortrackingSubmitter installs s as the destination for error
+// records routed through the errortracking branch of every slog chain
+// built via buildSlogLogger. Passing nil clears the registration so the
+// branch becomes a no-op again - tests use this to clean up between cases.
 //
-// This is a setter rather than a constructor argument because SetupLogger is
-// invoked from many call-sites (most without Fx access) and we do not want
-// to thread an errortracking.Sender through every one. The Fx graph in the
-// run command resolves the COAT sender, builds the in-package Pipeline +
-// Handler, and calls RegisterErrortrackingHandler exactly once during
-// startup.
-func RegisterErrortrackingHandler(h stdslog.Handler) {
-	if h == nil {
-		errortrackingHandlerSlot.Store(nil)
+// This is a setter rather than a constructor argument because SetupLogger
+// is invoked from many call-sites (most without Fx access) and we do not
+// want to thread a Submitter through every one. The Fx graph in the run
+// command resolves the agenttelemetry component and calls
+// RegisterErrortrackingSubmitter exactly once during startup. The
+// errortracking.Handler atomic-loads the slot on every record, so there
+// is no slow-path mutex on the logger hot path.
+func RegisterErrortrackingSubmitter(s errortracking.Submitter) {
+	if s == nil {
+		errortrackingSubmitterSlot.Store(nil)
 		return
 	}
-	errortrackingHandlerSlot.Store(&h)
+	errortrackingSubmitterSlot.Store(&s)
 }
 
-// errortrackingSlot is the slog.Handler placed in the chain at construction
-// time so SetupLogger does not need to know whether errortracking is enabled.
-// It defers to whichever handler is currently registered in
-// errortrackingHandlerSlot; when nothing is registered it reports Enabled =
-// false so the parent multi-handler skips it entirely.
-type errortrackingSlot struct{}
-
-func newErrortrackingSlot() *errortrackingSlot { return &errortrackingSlot{} }
-
-func (s *errortrackingSlot) Enabled(ctx context.Context, level stdslog.Level) bool {
-	if h := errortrackingHandlerSlot.Load(); h != nil {
-		return (*h).Enabled(ctx, level)
+// loadErrortrackingSubmitter is the closure handed to errortracking.NewHandler.
+// It atomically loads the current Submitter on every Handle call; returning
+// nil signals "no submitter registered yet" and the handler drops the record
+// silently.
+func loadErrortrackingSubmitter() errortracking.Submitter {
+	p := errortrackingSubmitterSlot.Load()
+	if p == nil {
+		return nil
 	}
-	return false
-}
-
-func (s *errortrackingSlot) Handle(ctx context.Context, r stdslog.Record) error {
-	if h := errortrackingHandlerSlot.Load(); h != nil {
-		return (*h).Handle(ctx, r)
-	}
-	return nil
-}
-
-// WithAttrs delegates to the registered handler when present, returning a
-// concrete handler derived from it. When nothing is registered, the call is
-// a no-op: the slot returns itself, so future Handle calls still defer to
-// whatever gets registered later. The trade-off is that WithAttrs values
-// applied before registration are not retained on the errortracking branch;
-// this is acceptable for v1 because the Fx graph registers the handler
-// during startup, before any feature code attaches per-call attrs.
-func (s *errortrackingSlot) WithAttrs(attrs []stdslog.Attr) stdslog.Handler {
-	if h := errortrackingHandlerSlot.Load(); h != nil {
-		return (*h).WithAttrs(attrs)
-	}
-	return s
-}
-
-func (s *errortrackingSlot) WithGroup(name string) stdslog.Handler {
-	if h := errortrackingHandlerSlot.Load(); h != nil {
-		return (*h).WithGroup(name)
-	}
-	return s
+	return *p
 }

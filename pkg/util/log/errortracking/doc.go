@@ -4,17 +4,29 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package errortracking forwards Agent error logs to Datadog Cross-Org Agent
-// Telemetry (COAT). It exposes an slog.Handler that captures records at
-// level >= Error and submits them to an in-package Pipeline (Source channel
-// -> Processors -> batched Sender). The Sender interface is the boundary
-// between this package (foundational, dependency-light) and the existing
-// COAT component at comp/core/agenttelemetry/, whose SendErrorLogs method
-// implements Sender and is wired in via Fx.
+// Telemetry (COAT). It exposes:
 //
-// The package is disabled by default; the agent must be configured with
-// errortracking.enabled = true to install the handler in the logger chain.
+//   - ErrorLog: the value-typed DTO that crosses the boundary from
+//     pkg/util/log into comp/core/agenttelemetry. Keeping a plain struct on
+//     the boundary lets the foundational logger subtree stay free of
+//     comp/core dependencies and lets agenttelemetry's public method avoid
+//     leaking log/slog into every consumer.
 //
-// The Processors slice on the Pipeline is the extension surface for future
-// filters such as sampling, PII scrubbing, rate-limiting or fingerprinting.
-// A Noop processor is provided as scaffolding so the slice is never empty.
+//   - Submitter: the function type that consumers register to receive
+//     ErrorLog values. Implementations MUST be non-blocking and safe for
+//     concurrent use; the agenttelemetry component owns an internal bounded
+//     channel and flushes asynchronously.
+//
+//   - Handler: the slog.Handler installed in the Agent's logger chain at
+//     construction. It captures records at level >= Error, builds an
+//     ErrorLog, and calls the currently registered Submitter (atomically
+//     loaded on every record). When no Submitter is registered, Handle is
+//     a silent no-op so the chain works whether or not errortracking is
+//     opted in.
+//
+// Wiring: pkg/util/log/setup installs the Handler at logger build time with
+// a closure that atomically loads the package-global Submitter slot. The
+// Fx graph in cmd/agent/subcommands/run/ calls
+// RegisterErrortrackingSubmitter exactly once during startup, pointing at
+// agenttelemetry's SubmitErrorRecord method.
 package errortracking
