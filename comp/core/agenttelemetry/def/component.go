@@ -11,6 +11,7 @@ import (
 	"log/slog"
 
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 )
 
 // team: agent-runtimes
@@ -22,16 +23,21 @@ type Component interface {
 	//    payload     - de-serializable into JSON
 	SendEvent(eventType string, eventPayload []byte) error
 
-	// SendErrorLogs ships a batch of slog records to the Cross-Org Agent
-	// Telemetry (COAT) intake using the apmtelemetry-style logs envelope
-	// (request_type=logs). The wire payload conforms to dd-go's
-	// trace/apps/tracer-telemetry-intake/telemetry-payload/logs.go schema.
+	// SubmitErrorRecord accepts a single error log record from the
+	// pkg/util/log slog handler and enqueues it for asynchronous flush
+	// to the Cross-Org Agent Telemetry (COAT) intake. Implementations
+	// MUST be non-blocking on the hot path: enqueue to a bounded buffer
+	// and drop silently on overflow. Records emitted from inside the
+	// agenttelemetry component (recursion guard) MUST be dropped.
 	//
-	// Implementations MUST be safe for concurrent use. Empty batches are a
-	// no-op. A non-nil error signals a retryable transport failure
-	// (network error, 5xx). 4xx responses and the "component disabled"
-	// case return nil so the calling Pipeline does not waste its retry on
-	// a request that will never succeed.
+	// This method receives the foundational ErrorLog DTO defined at
+	// pkg/util/log/errortracking; the component never sees raw slog
+	// types on its public surface.
+	SubmitErrorRecord(log errortracking.ErrorLog)
+
+	// SendErrorLogs is the v2 batch-mode entry point retained for the
+	// existing wiring. Deprecated: prefer SubmitErrorRecord on the new
+	// per-record path. Will be removed once the v3 migration completes.
 	SendErrorLogs(ctx context.Context, batch []slog.Record) error
 
 	StartStartupSpan(operationName string) (*installertelemetry.Span, context.Context)

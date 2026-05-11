@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
 	dto "github.com/prometheus/client_model/go"
@@ -646,6 +647,19 @@ func (a *atel) SendErrorLogs(ctx context.Context, batch []slog.Record) error {
 		return nil
 	}
 	return a.sender.sendLogsBatch(ctx, batch)
+}
+
+// SubmitErrorRecord is the v3 per-record entry point. The real
+// implementation (bounded channel + flush job scheduled via atel's
+// runner + recursion guard) lands in a follow-up commit on this branch.
+// This stub keeps the Component interface satisfied so the build stays
+// green while the contract is in flight.
+func (a *atel) SubmitErrorRecord(_ errortracking.ErrorLog) {
+	if !a.enabled {
+		return
+	}
+	// TODO(AGTHEAL-15 v3): enqueue to bounded channel, drop on overflow,
+	// flush via atel's runner; recursion-guard on PC.
 }
 
 func (a *atel) StartStartupSpan(operationName string) (*installertelemetry.Span, context.Context) {
