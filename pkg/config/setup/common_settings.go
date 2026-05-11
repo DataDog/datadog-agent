@@ -1096,6 +1096,11 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Remote Flags system
 	remoteflags(config)
+
+	// Anomaly Detection
+	config.BindEnvAndSetDefault("anomaly_detection.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.recording.enabled", false)
 }
 
 func agent(config pkgconfigmodel.Setup) {
