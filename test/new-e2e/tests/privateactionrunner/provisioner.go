@@ -95,7 +95,8 @@ func parK8sProvisioner(runnerURN, privateKeyB64 string) provisioners.Provisioner
 				return fmt.Errorf("docker.SetupECRDockerAuth: %w", err)
 			}
 
-			// 3. Create standard Kind cluster — also installs Docker
+			// 3. Create standard Kind cluster. Docker is pre-baked in the AWS e2e AMI;
+			//    NewKindCluster only wires the daemon and asserts compose presence.
 			kindCluster, err := kubeComp.NewKindCluster(&awsEnv, host, name,
 				awsEnv.KubernetesVersion(),
 				utils.PulumiDependsOn(installEcrCmd),

@@ -66,9 +66,11 @@ func NewManager(e config.Env, host *remoteComp.Host, opts ...pulumi.ResourceOpti
 	}, opts...)
 }
 
-// NewAWSManager creates a docker Manager with the Amazon ECR credentials helper pre-installed.
-// The ECR credentials helper enables automatic authentication against ECR registries,
-// including our pull-through cache. Use this instead of NewManager when the host is on AWS.
+// NewAWSManager creates a docker Manager and wires the host's Amazon ECR
+// credentials helper so it authenticates automatically against ECR registries
+// (including our pull-through cache). The helper itself is pre-baked into the
+// AWS e2e AMI — NewAWSManager only writes ~/.docker/config.json via
+// SetupECRDockerAuth. Use this instead of NewManager when the host is on AWS.
 //
 // When ImagePullRegistry is configured, DD_REGISTRY is automatically injected into every
 // ComposeStrUp call so that compose files using ${DD_REGISTRY:-docker.io} pull from the

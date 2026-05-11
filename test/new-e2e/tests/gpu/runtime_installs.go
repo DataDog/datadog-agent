@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 )
 
-// gpuRuntimeComposeVersion must match the version checked by docker.installCompose.
+// gpuRuntimeComposeVersion must match the version checked by docker.assertCompose.
 const gpuRuntimeComposeVersion = "v2.27.0"
 
 // installGPURuntimeDeps installs jq, amazon-ecr-credential-helper, and
