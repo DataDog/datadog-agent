@@ -32,18 +32,29 @@ var systemdUnits embed.FS
 
 //go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
 //go:embed tmpl/gen/debrpm/datadog-agent-ddot-exp.yaml
+//go:embed tmpl/gen/debrpm/datadog-agent-ddot-standalone.yaml
+//go:embed tmpl/gen/debrpm/datadog-agent-ddot-standalone-exp.yaml
 //go:embed tmpl/gen/debrpm-nocap/datadog-agent-ddot.yaml
 //go:embed tmpl/gen/debrpm-nocap/datadog-agent-ddot-exp.yaml
+//go:embed tmpl/gen/debrpm-nocap/datadog-agent-ddot-standalone.yaml
+//go:embed tmpl/gen/debrpm-nocap/datadog-agent-ddot-standalone-exp.yaml
 //go:embed tmpl/gen/oci/datadog-agent-ddot.yaml
 //go:embed tmpl/gen/oci/datadog-agent-ddot-exp.yaml
+//go:embed tmpl/gen/oci/datadog-agent-ddot-standalone.yaml
+//go:embed tmpl/gen/oci/datadog-agent-ddot-standalone-exp.yaml
 //go:embed tmpl/gen/oci-nocap/datadog-agent-ddot.yaml
 //go:embed tmpl/gen/oci-nocap/datadog-agent-ddot-exp.yaml
+//go:embed tmpl/gen/oci-nocap/datadog-agent-ddot-standalone.yaml
+//go:embed tmpl/gen/oci-nocap/datadog-agent-ddot-standalone-exp.yaml
 var ddotProcessYAML embed.FS
 
 // GetDDOTProcessConfig returns the embedded DDOT process YAML bytes for the
 // given systemd layout (OCI vs deb/rpm), stable vs experiment channel, and
 // ambient capabilities support (same directory convention as GetSystemdUnit).
-func GetDDOTProcessConfig(unitType SystemdUnitType, stable bool, ambiantCapabilitiesSupported bool) ([]byte, error) {
+// When standalone is true, returns YAML for the datadog-agent-ddot package
+// layout (embedded/bin, OCI paths under datadog-agent-ddot); when false, the
+// DDOT extension layout (ext/ddot under the agent package).
+func GetDDOTProcessConfig(unitType SystemdUnitType, stable bool, ambiantCapabilitiesSupported bool, standalone bool) ([]byte, error) {
 	dir := string(unitType)
 	if !ambiantCapabilitiesSupported {
 		dir += "-nocap"
@@ -52,7 +63,11 @@ func GetDDOTProcessConfig(unitType SystemdUnitType, stable bool, ambiantCapabili
 	if !stable {
 		exp = "-exp"
 	}
-	name := "datadog-agent-ddot" + exp + ".yaml"
+	prefix := "datadog-agent-ddot"
+	if standalone {
+		prefix += "-standalone"
+	}
+	name := prefix + exp + ".yaml"
 	return ddotProcessYAML.ReadFile(filepath.Join("tmpl/gen", dir, name))
 }
 
