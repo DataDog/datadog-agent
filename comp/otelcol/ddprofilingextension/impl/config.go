@@ -9,6 +9,9 @@ package ddprofilingextensionimpl
 // Config contains the config of the profiler.
 type Config struct {
 	ProfilerOptions ProfilerOptions `mapstructure:"profiler_options"`
+	// AgentAddr is the host:port of an external trace-agent profiling intake.
+	// If unset in standalone mode, DD_AGENT_HOST and DD_TRACE_AGENT_PORT are used.
+	AgentAddr string `mapstructure:"agent_addr"`
 	// Endpoint is the local port the profiling HTTP server listens on; used as "localhost:<endpoint>".
 	// Default: "7501"
 	Endpoint string `mapstructure:"endpoint"`

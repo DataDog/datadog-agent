@@ -9,6 +9,10 @@ exporters:
 extensions:
     custom:
         config: value
+    ddprofiling:
+        config: value
+    ddprofiling/custom:
+        config: custom
     other:
         config: value
 processors:
@@ -40,6 +44,8 @@ receivers:
             enabled: false
 service:
     extensions:
+        - ddprofiling
+        - ddprofiling/custom
         - custom
         - other
     pipelines:

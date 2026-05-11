@@ -9,6 +9,7 @@ package ddprofilingextensionimpl
 import (
 	"context"
 	"net/http"
+	"os"
 	"time"
 
 	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -35,6 +36,7 @@ type ddExtension struct {
 	traceAgent traceagent.Component
 	server     *http.Server
 	log        corelog.Component
+	agentMode  bool
 }
 
 // NewExtension creates a new instance of the extension.
@@ -44,14 +46,18 @@ func NewExtension(cfg *Config, info component.BuildInfo, traceAgent traceagent.C
 		info:       info,
 		traceAgent: traceAgent,
 		log:        log,
+		agentMode:  traceAgent != nil,
 	}, nil
 }
 
 func (e *ddExtension) Start(_ context.Context, host component.Host) error {
-	return e.startForOTelAgent(host)
+	if e.agentMode {
+		return e.startForAgent(host)
+	}
+	return e.startForStandalone()
 }
 
-func (e *ddExtension) startForOTelAgent(host component.Host) error {
+func (e *ddExtension) startForAgent(host component.Host) error {
 	// start server that handles profiles
 	err := e.newServer()
 	if err != nil {
@@ -67,6 +73,12 @@ func (e *ddExtension) startForOTelAgent(host component.Host) error {
 	return profiler.Start(
 		profilerOptions...,
 	)
+}
+
+func (e *ddExtension) startForStandalone() error {
+	profilerOptions := e.buildProfilerOptions()
+	profilerOptions = append(profilerOptions, profiler.WithAgentAddr(e.standaloneAgentAddr()))
+	return profiler.Start(profilerOptions...)
 }
 
 func (e *ddExtension) buildProfilerOptions() []profiler.Option {
@@ -113,7 +125,28 @@ func (e *ddExtension) buildProfilerOptions() []profiler.Option {
 	return profilerOptions
 }
 
+func (e *ddExtension) standaloneAgentAddr() string {
+	if e.cfg.AgentAddr != "" {
+		return e.cfg.AgentAddr
+	}
+
+	host := os.Getenv("DD_AGENT_HOST")
+	if host == "" {
+		host = "localhost"
+	}
+
+	port := os.Getenv("DD_TRACE_AGENT_PORT")
+	if port == "" {
+		port = "8126"
+	}
+
+	return host + ":" + port
+}
+
 func (e *ddExtension) Shutdown(ctx context.Context) error {
 	profiler.Stop()
+	if e.server == nil {
+		return nil
+	}
 	return e.server.Shutdown(ctx)
 }
