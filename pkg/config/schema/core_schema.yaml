@@ -1760,8 +1760,8 @@ properties:
     visibility: public
     description: This section configures the Datadog Agent Manager System Tray
     tags:
-    - platform_only:windows
     - template_section:Agent
+    - platform_only:windows
     properties:
       log_file:
         node_type: setting
@@ -4567,8 +4567,8 @@ properties:
     visibility: public
     description: Network Path configuration
     tags:
-    - template_section:CoreAgent
     - platform_only:windows,linux
+    - template_section:CoreAgent
     properties:
       connections_monitoring:
         node_type: section
@@ -13408,14 +13408,12 @@ properties:
     properties:
       api_key:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       dd_url:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       enabled:
         node_type: setting
         type: boolean
@@ -13434,14 +13432,16 @@ properties:
         default: false
       logs_service_allowlist:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: array
+        default: []
+        items:
+          type: string
       metric_allowlist:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: array
+        default: []
+        items:
+          type: string
       remote_configuration:
         node_type: section
         type: object
@@ -13502,9 +13502,8 @@ properties:
             - TODO:fix-missing-type
       site:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
   network:
     node_type: section
     type: object
