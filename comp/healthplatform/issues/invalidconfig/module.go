@@ -20,8 +20,8 @@ type invalidConfigModule struct {
 	checker  *checker
 }
 
-// NewModule creates a new invalid-config issue module. The config component
-// is captured so the periodic check can read ConfigFileUsed at run time.
+// NewModule captures the config component so the periodic check can read
+// ConfigFileUsed at run time.
 func NewModule(cfg config.Component) issues.Module {
 	return &invalidConfigModule{
 		template: NewInvalidConfigIssue(),
@@ -37,8 +37,8 @@ func (m *invalidConfigModule) IssueTemplate() issues.IssueTemplate {
 	return m.template
 }
 
-// BuiltInCheck returns the periodic schema-validation check. Interval is left
-// at zero so the platform applies its default (matches the forwarder cadence).
+// BuiltInCheck leaves Interval at zero so the platform applies its default,
+// matching the forwarder cadence.
 func (m *invalidConfigModule) BuiltInCheck() *issues.BuiltInCheck {
 	return &issues.BuiltInCheck{
 		ID:      healthplatformdef.InvalidConfigCheckID,

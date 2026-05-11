@@ -3,10 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package invalidconfig provides an issue module that reports datadog.yaml
-// problems (unparseable YAML or schema violations) through the Agent Health
-// Platform. Detection runs as a periodic built-in check; the rescue path in
-// pkg/config/lite reports the same issue when normal agent startup fails.
+// Package invalidconfig reports datadog.yaml problems (unparseable YAML or
+// schema violations) through the Agent Health Platform. The periodic in-Fx
+// check and the rescue path in pkg/config/lite share the same issue payload.
 package invalidconfig
 
 import (
@@ -17,17 +16,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/lite"
 )
 
-// InvalidConfigIssue is the template implementation. The actual issue content
-// (titles, descriptions, remediation steps) lives in pkg/config/lite so the
-// rescue path produces an identical payload.
+// InvalidConfigIssue is a thin template; the issue content lives in
+// pkg/config/lite so the rescue path produces an identical payload.
 type InvalidConfigIssue struct{}
 
-// NewInvalidConfigIssue creates a new invalid-config issue template.
 func NewInvalidConfigIssue() *InvalidConfigIssue { return &InvalidConfigIssue{} }
 
-// BuildIssue decodes the IssueReport.Context bag and delegates to the shared
-// builder. Unknown error_kind values fall through to the schema shape since
-// "the config has problems" is still useful information.
+// BuildIssue delegates to the shared builder. Unknown error_kind values fall
+// through to the schema shape since "the config has problems" is still useful.
 func (t *InvalidConfigIssue) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
 	count, _ := strconv.Atoi(context[lite.ContextKeyErrorCount])
 	info := lite.IssueInfo{

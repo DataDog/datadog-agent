@@ -18,9 +18,8 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// checker captures the dependencies a built-in check needs at run time.
-// readFile is overridable so tests can simulate file-not-found / permission
-// errors without touching the real filesystem.
+// checker is the periodic built-in check. readFile is overridable so tests
+// can simulate file-not-found / permission errors without touching disk.
 type checker struct {
 	cfg      config.Component
 	readFile func(string) ([]byte, error)
@@ -30,14 +29,8 @@ func newChecker(cfg config.Component) *checker {
 	return &checker{cfg: cfg, readFile: os.ReadFile}
 }
 
-// Run reads the configured datadog.yaml, validates it with the lite resolver,
-// and returns the IssueReport corresponding to its verdict (or nil to clear
-// any prior issue).
-//
-// Reading from disk on every tick — instead of inspecting the live merged
-// config — keeps this check's output identical to the rescue path's output
-// and matches the customer's mental model: "I edit datadog.yaml, the agent
-// tells me what's wrong with that file."
+// Run reads datadog.yaml from disk every tick (rather than the live merged
+// config) so this check's output mirrors the rescue path's output exactly.
 func (c *checker) Run() (*healthplatform.IssueReport, error) {
 	path := c.configFilePath()
 	if path == "" {
@@ -85,16 +78,13 @@ func (c *checker) Run() (*healthplatform.IssueReport, error) {
 		}, nil
 
 	case lite.VerdictSchemaUnavailable:
-		// The validator itself broke (embedded schema missing). That's a
-		// build problem, not a customer problem.
+		// Build problem, not a customer problem — log and skip.
 		pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check")
 		return nil, nil
 	}
 	return nil, nil
 }
 
-// configFilePath returns the on-disk path of the resolved datadog.yaml,
-// falling back to the platform default if the config component is absent.
 func (c *checker) configFilePath() string {
 	if c.cfg != nil {
 		if p := c.cfg.ConfigFileUsed(); p != "" {

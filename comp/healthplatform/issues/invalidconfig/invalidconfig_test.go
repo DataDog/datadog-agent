@@ -16,13 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/lite"
 )
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Template tests — BuildIssue dispatching
-// ─────────────────────────────────────────────────────────────────────────────
-
 func TestBuildIssue_YAMLParseHasHighSeverity(t *testing.T) {
-	tmpl := NewInvalidConfigIssue()
-	issue, err := tmpl.BuildIssue(map[string]string{
+	issue, err := NewInvalidConfigIssue().BuildIssue(map[string]string{
 		lite.ContextKeyErrorKind:    string(lite.ErrorKindYAMLParse),
 		lite.ContextKeyConfigPath:   "/etc/datadog-agent/datadog.yaml",
 		lite.ContextKeyErrorMessage: "yaml: line 12: did not find expected ',' or ']'",
@@ -32,20 +27,13 @@ func TestBuildIssue_YAMLParseHasHighSeverity(t *testing.T) {
 	assert.Equal(t, "high", issue.GetSeverity())
 	assert.Contains(t, issue.GetTitle(), "not valid YAML")
 	assert.Contains(t, issue.GetDescription(), "/etc/datadog-agent/datadog.yaml")
-
-	require.NotNil(t, issue.GetExtra())
 	assert.Equal(t, string(lite.ErrorKindYAMLParse),
 		issue.GetExtra().GetFields()[lite.ContextKeyErrorKind].GetStringValue())
-
-	// Remediation must mention the config path and the parser error so
-	// support can copy/paste actionable steps.
-	require.NotNil(t, issue.GetRemediation())
 	require.NotEmpty(t, issue.GetRemediation().GetSteps())
 }
 
 func TestBuildIssue_SchemaValidationHasMediumSeverity(t *testing.T) {
-	tmpl := NewInvalidConfigIssue()
-	issue, err := tmpl.BuildIssue(map[string]string{
+	issue, err := NewInvalidConfigIssue().BuildIssue(map[string]string{
 		lite.ContextKeyErrorKind:  string(lite.ErrorKindSchemaValidation),
 		lite.ContextKeyConfigPath: "/etc/datadog-agent/datadog.yaml",
 		lite.ContextKeyErrorCount: "3",
@@ -63,25 +51,17 @@ func TestBuildIssue_SchemaValidationHasMediumSeverity(t *testing.T) {
 		"agent_ipc/port")
 }
 
+// Backend dedupe depends on both code paths emitting the same Issue ID.
 func TestBuildIssue_SharesIssueIDWithRescue(t *testing.T) {
-	// MUST match so the backend dedupes happy-path and rescue-path
-	// issues into the same recommendation.
-	assert.Equal(t, lite.IssueID, healthplatformdef.InvalidConfigIssueID,
-		"lite.IssueID and core/def.InvalidConfigIssueID must be identical")
+	assert.Equal(t, lite.IssueID, healthplatformdef.InvalidConfigIssueID)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Check tests — using the injectable readFile hook to simulate file states
-// ─────────────────────────────────────────────────────────────────────────────
-
 func newTestChecker(read func(string) ([]byte, error)) *checker {
-	// Skip the config.Component — we provide the path via a closure below.
-	c := &checker{cfg: nil, readFile: read}
-	return c
+	return &checker{readFile: read}
 }
 
 func TestCheck_ParseFailureProducesReport(t *testing.T) {
-	c := newTestChecker(func(_ string) ([]byte, error) {
+	c := newTestChecker(func(string) ([]byte, error) {
 		return []byte("{ this is not yaml\n"), nil
 	})
 	report, err := c.Run()
@@ -92,44 +72,28 @@ func TestCheck_ParseFailureProducesReport(t *testing.T) {
 	assert.NotEmpty(t, report.GetContext()[lite.ContextKeyErrorMessage])
 }
 
+// Healthy YAML hits VerdictSchemaUnavailable in tests (no embedded schema)
+// which the checker swallows — the report should be nil either way.
 func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
-	c := newTestChecker(func(_ string) ([]byte, error) {
-		// Valid YAML; the embedded schema is unavailable in tests so this
-		// returns VerdictSchemaUnavailable, which the checker swallows.
-		// That is the intended behaviour: schema-infra issues never
-		// surface as customer-facing issues.
+	c := newTestChecker(func(string) ([]byte, error) {
 		return []byte("api_key: abc\nsite: dd.eu\n"), nil
 	})
 	report, err := c.Run()
 	require.NoError(t, err)
-	assert.Nil(t, report, "healthy / schema-unavailable cases must clear the issue")
+	assert.Nil(t, report)
 }
 
 func TestCheck_FileMissingReturnsNil(t *testing.T) {
-	c := newTestChecker(func(_ string) ([]byte, error) {
-		return nil, errors.New("open /etc/datadog-agent/datadog.yaml: no such file or directory")
+	c := newTestChecker(func(string) ([]byte, error) {
+		return nil, errors.New("no such file or directory")
 	})
 	report, err := c.Run()
 	require.NoError(t, err)
-	assert.Nil(t, report, "missing file is handled by other modules, not us")
+	assert.Nil(t, report)
 }
 
-func TestCheck_EmptyPathSkips(t *testing.T) {
-	// Override DefaultConfigPath() via the env override.
-	t.Setenv("DD_CONFIG", "")
-	c := &checker{cfg: nil, readFile: func(_ string) ([]byte, error) {
-		t.Fatal("readFile must NOT be called when configFilePath returns empty")
-		return nil, nil
-	}}
-	// Force configFilePath to return "" by stubbing the fallback.
-	original := c.configFilePath
-	_ = original
-	// In production cfg==nil falls back to lite.DefaultConfigPath which
-	// always returns something non-empty. We're really exercising the
-	// path-empty branch below.
-	c2 := &checker{cfg: nil}
-	c2.readFile = nil // no readFile to avoid trying os.ReadFile if we wrong
-	// Manually invoke the parts of Run we want to verify; skip the branch
-	// already covered by other tests.
-	assert.NotEmpty(t, c2.configFilePath(), "configFilePath must always return a default")
+// configFilePath must always return a non-empty path so Run can decide to
+// readFile or skip based on a single check.
+func TestConfigFilePath_FallsBackToDefault(t *testing.T) {
+	assert.NotEmpty(t, (&checker{cfg: nil}).configFilePath())
 }
