@@ -56,7 +56,6 @@ def build(
     rebuild=False,
     install_path=None,
     go_mod="readonly",
-    skip_assets=False,
     static=False,
     fips_mode=False,
 ):
