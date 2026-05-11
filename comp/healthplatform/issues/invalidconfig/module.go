@@ -7,8 +7,8 @@ package invalidconfig
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
 func init() {
