@@ -63,8 +63,9 @@ type seriesStats struct {
 	Namespace string
 	Name      string
 	Tags      []string
-	tagsHash  uint64            // fnv64a hash of Tags; 0 means not interned
-	ref       observer.SeriesRef // compact numeric ID assigned on creation
+	tagsHash  uint64                  // fnv64a hash of Tags; 0 means not interned
+	ref       observer.SeriesRef      // compact numeric ID assigned on creation
+	context   *observer.MetricContext // optional; set by extractors for anomaly enrichment
 
 	// writeGeneration is per-series and increments on every Add, including
 	// same-bucket merges into an existing point.
@@ -793,6 +794,57 @@ func (s *timeSeriesStorage) GetSeriesMeta(ref observer.SeriesRef) *observer.Seri
 		Name:      ss.Name,
 		Tags:      ss.Tags,
 	}
+}
+
+// SetContext attaches enrichment context to a series. Called by the engine
+// after storage.Add whenever a MetricOutput carries a non-nil Context.
+func (s *timeSeriesStorage) SetContext(ref observer.SeriesRef, ctx *observer.MetricContext) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if ss := s.resolveByID(ref); ss != nil {
+		ss.context = ctx
+	}
+}
+
+// GetContext returns the enrichment context for a series, or nil if none was set.
+func (s *timeSeriesStorage) GetContext(ref observer.SeriesRef) *observer.MetricContext {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if ss := s.resolveByID(ref); ss != nil {
+		return ss.context
+	}
+	return nil
+}
+
+// RemoveSeriesByMetricName removes all series in the given namespace with the
+// given metric name (all tag variants). Used by the engine when an extractor
+// signals that a pattern has been evicted. Returns the freed SeriesRefs.
+func (s *timeSeriesStorage) RemoveSeriesByMetricName(namespace, name string) []observer.SeriesRef {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var refs []observer.SeriesRef
+	for _, st := range s.seriesIDStats {
+		if st != nil && st.Namespace == namespace && st.Name == name {
+			refs = append(refs, st.ref)
+		}
+	}
+	if len(refs) == 0 {
+		return nil
+	}
+	for _, ref := range refs {
+		st := s.resolveByID(ref)
+		if st == nil {
+			continue
+		}
+		s.releaseTagIntern(st.tagsHash)
+		h := seriesKeyHash(st.Namespace, st.Name, st.Tags)
+		if s.series[h] == st {
+			delete(s.series, h)
+		}
+		s.seriesIDStats[ref] = nil
+	}
+	s.seriesGen++
+	return refs
 }
 
 // seriesMeta is lightweight series metadata including point count,

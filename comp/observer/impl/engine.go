@@ -26,11 +26,6 @@ type anomalyDedupKey struct {
 	title        string
 }
 
-type seriesContextRef struct {
-	namespace  string
-	contextKey string
-}
-
 // engine is the shared orchestration core for the observer pipeline.
 // It encapsulates storage, log extraction, detection, and correlation,
 // providing a single execution path used by both the live observer and testbench.
@@ -44,12 +39,10 @@ type engine struct {
 	// take a write lock; readers (stateView methods) take a read lock.
 	mu sync.RWMutex
 
-	storage          *timeSeriesStorage
-	extractors       []observerdef.LogMetricsExtractor
-	detectors        []observerdef.Detector
-	correlators      []observerdef.Correlator
-	contextProviders map[string]observerdef.ContextProvider // namespace → provider
-	contextRefs      map[observerdef.SeriesRef]seriesContextRef
+	storage     *timeSeriesStorage
+	extractors  []observerdef.LogMetricsExtractor
+	detectors   []observerdef.Detector
+	correlators []observerdef.Correlator
 
 	// scheduler decides when the engine should advance analysis.
 	scheduler schedulerPolicy
@@ -133,11 +126,10 @@ type engine struct {
 
 // engineConfig holds the parameters for constructing an engine.
 type engineConfig struct {
-	storage          *timeSeriesStorage
-	extractors       []observerdef.LogMetricsExtractor
-	detectors        []observerdef.Detector
-	correlators      []observerdef.Correlator
-	contextProviders map[string]observerdef.ContextProvider // namespace → provider
+	storage     *timeSeriesStorage
+	extractors  []observerdef.LogMetricsExtractor
+	detectors   []observerdef.Detector
+	correlators []observerdef.Correlator
 
 	// scheduler is the scheduling policy. If nil, defaults to currentBehaviorPolicy.
 	scheduler schedulerPolicy
@@ -160,13 +152,11 @@ func newEngine(cfg engineConfig) *engine {
 	validateUniqueExtractorNames(cfg.extractors)
 
 	e := &engine{
-		storage:          cfg.storage,
-		extractors:       cfg.extractors,
-		detectors:        cfg.detectors,
-		correlators:      cfg.correlators,
-		contextProviders: cfg.contextProviders,
-		contextRefs:      make(map[observerdef.SeriesRef]seriesContextRef),
-		scheduler:        sched,
+		storage:     cfg.storage,
+		extractors:  cfg.extractors,
+		detectors:   cfg.detectors,
+		correlators: cfg.correlators,
+		scheduler:   sched,
 
 		rawAnomalyWindow:           cfg.rawAnomalyWindow,
 		maxRawAnomalies:            cfg.maxRawAnomalies,
@@ -307,7 +297,7 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 	for _, extractor := range e.extractors {
 		processingStartTime := time.Now()
 		out := extractor.ProcessLog(view)
-		e.removeContextRefsForEvictedKeys(extractor.Name(), out.EvictedContextKeys)
+		e.removeEvictedMetricSeries(extractor.Name(), out.EvictedMetricNames)
 		nanos := float64(time.Since(processingStartTime).Nanoseconds())
 		if e.onProcessingTime != nil {
 			e.onProcessingTime(e.detectorTag(extractor.Name()), nanos)
@@ -327,11 +317,8 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 				tags = append(newTags, sourceTag)
 			}
 			res := e.storage.Add(extractor.Name(), m.Name, m.Value, l.timestampMs/1000, tags)
-			if m.ContextKey != "" && res.Ref >= 0 {
-				e.contextRefs[res.Ref] = seriesContextRef{
-					namespace:  extractor.Name(),
-					contextKey: m.ContextKey,
-				}
+			if m.Context != nil && res.Ref >= 0 {
+				e.storage.SetContext(res.Ref, m.Context)
 			}
 		}
 		if len(out.Telemetry) > 0 {
@@ -368,38 +355,15 @@ func sliceContains(items []string, want string) bool {
 	return false
 }
 
-// removeContextRefsForEvictedKeys drops engine contextRefs whose extractor
-// namespace and context key match an eviction from extractor GC, and frees
-// the corresponding storage series. Without the storage cleanup, evicted
-// patterns leak their tags + columnar arrays indefinitely (the contextRefs
-// map is just metadata; the heavy data lives in storage.series).
-func (e *engine) removeContextRefsForEvictedKeys(namespace string, evictedKeys []string) {
-	// No garbage collection done
-	if len(evictedKeys) == 0 {
-		return
-	}
-	want := make(map[string]struct{}, len(evictedKeys))
-	for _, k := range evictedKeys {
-		if k != "" {
-			want[k] = struct{}{}
-		}
-	}
-	if len(want) == 0 {
-		return
-	}
-	var refsToRemove []observerdef.SeriesRef
-	for seriesRef, ref := range e.contextRefs {
-		if ref.namespace != namespace {
+// removeEvictedMetricSeries removes all storage series for the given metric
+// names in namespace. Called when an extractor GC/LRU evicts a pattern cluster.
+func (e *engine) removeEvictedMetricSeries(namespace string, evictedNames []string) {
+	for _, name := range evictedNames {
+		if name == "" {
 			continue
 		}
-		if _, ok := want[ref.contextKey]; ok {
-			delete(e.contextRefs, seriesRef)
-			refsToRemove = append(refsToRemove, seriesRef)
-		}
-	}
-	if len(refsToRemove) > 0 {
-		freedRefs := e.storage.RemoveSeriesByRefs(refsToRemove)
-		e.fanOutSeriesRemoval(freedRefs)
+		freed := e.storage.RemoveSeriesByMetricName(namespace, name)
+		e.fanOutSeriesRemoval(freed)
 	}
 }
 
@@ -631,28 +595,15 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 	}
 }
 
-// enrichAnomaly decorates an anomaly with context from the originating
-// extractor, if available. This runs automatically on every anomaly so
-// detectors don't need to be aware of context providers.
-// Lookup builds the storage key from Source fields (namespace, name, tags)
-// and maps that to a provider namespace and context key.
+// enrichAnomaly decorates an anomaly with context stored on its series.
+// The context is set at ingest time (storage.SetContext) and retrieved here
+// via a single O(1) ref lookup — no string keys or provider indirection.
 func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
-	if a.Source.Name == "" {
-		return
-	}
 	if a.SourceRef == nil {
 		return
 	}
-	ref, ok := e.contextRefs[a.SourceRef.Ref]
-	if !ok {
-		return
-	}
-	provider, ok := e.contextProviders[ref.namespace]
-	if !ok {
-		return
-	}
-	ctx, ok := provider.GetContextByKey(ref.contextKey)
-	if !ok {
+	ctx := e.storage.GetContext(a.SourceRef.Ref)
+	if ctx == nil {
 		return
 	}
 	a.Context = &observerdef.MetricContext{
@@ -889,8 +840,6 @@ func (e *engine) SetExtractors(extractors []observerdef.LogMetricsExtractor) {
 
 	validateUniqueExtractorNames(extractors)
 	e.extractors = extractors
-	e.contextProviders = collectContextProviders(extractors)
-	e.contextRefs = make(map[observerdef.SeriesRef]seriesContextRef)
 	e.rebuildDetectorTags()
 }
 
@@ -919,7 +868,6 @@ func (e *engine) Reset() {
 		}
 	}
 
-	e.contextRefs = make(map[observerdef.SeriesRef]seriesContextRef)
 }
 
 // resetRawAnomalies clears the raw anomaly tracking state.
