@@ -9,7 +9,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 

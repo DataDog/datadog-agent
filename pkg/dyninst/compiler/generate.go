@@ -21,6 +21,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// exprStatusIdxNone signals that a generated stack-machine op is not
+// associated with any per-expression status slot — it mirrors the
+// EXPR_STATUS_IDX_NONE sentinel in pkg/dyninst/ebpf/stack_machine.h.
+const exprStatusIdxNone uint32 = ^uint32(0)
+
 // Function represents stack machine function.
 type Function struct {
 	ID  FunctionID
@@ -312,7 +317,7 @@ func (g *generator) addConditionHandler(
 	for _, op := range condition.Operations {
 		switch op := op.(type) {
 		case *ir.LocationOp:
-			opsAfter, err := g.EncodeLocationOp(injectionPC, op, ops)
+			opsAfter, err := g.EncodeLocationOp(injectionPC, op, exprStatusIdxNone, ops)
 			if err != nil {
 				logLocationIssue(
 					"error encoding location op for condition: %v", err,
@@ -324,7 +329,7 @@ func (g *generator) addConditionHandler(
 			ops = append(ops, ExprDereferencePtrOp{
 				Bias:          op.Bias,
 				Len:           op.ByteSize,
-				ExprStatusIdx: ^uint32(0),
+				ExprStatusIdx: exprStatusIdxNone,
 				NullAsZero:    op.NullAsZero,
 			})
 		case *ir.ExprPushOffsetOp:
@@ -333,17 +338,21 @@ func (g *generator) addConditionHandler(
 			ops = append(ops, ExprLoadLiteralOp{Data: op.Data})
 		case *ir.ExprReadStringOp:
 			ops = append(ops, ExprReadStringOp{MaxLen: op.MaxLen})
-		case *ir.ExprCmpEqBaseOp:
-			ops = append(ops, ExprCmpEqBaseOp{ByteSize: op.ByteSize})
-		case *ir.ExprCmpEqStringOp:
-			ops = append(ops, ExprCmpEqStringOp{})
+		case *ir.ExprCmpBaseOp:
+			ops = append(ops, ExprCmpBaseOp{
+				Op:       op.Op,
+				Kind:     op.Kind,
+				ByteSize: op.ByteSize,
+			})
+		case *ir.ExprCmpStringOp:
+			ops = append(ops, ExprCmpStringOp{Op: op.Op})
 		case *ir.SliceBoundsCheckOp:
 			ops = append(ops, ExprSliceBoundsCheckOp{
 				Index:         op.Index,
-				ExprStatusIdx: ^uint32(0), // conditions don't have per-expression status
+				ExprStatusIdx: exprStatusIdxNone, // conditions don't have per-expression status
 			})
 		case *ir.SwissMapLookupOp:
-			ops = append(ops, swissMapOps(op, ^uint32(0))...) // conditions don't have per-expression status
+			ops = append(ops, swissMapOps(op, exprStatusIdxNone)...) // conditions don't have per-expression status
 		case *ir.ConditionCheckOp:
 			ops = append(ops, ConditionCheckOp{})
 		case *ir.CondNotOp:
@@ -407,7 +416,7 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 		switch op := op.(type) {
 		case *ir.LocationOp:
 			lastOpSize = op.ByteSize
-			opsAfter, err := g.EncodeLocationOp(injectionPC, op, ops)
+			opsAfter, err := g.EncodeLocationOp(injectionPC, op, exprIdx, ops)
 			// Treat an error as if the location op is not available.
 			if err != nil {
 				logLocationIssue(
@@ -436,10 +445,14 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 			ops = append(ops, ExprLoadLiteralOp{Data: op.Data})
 		case *ir.ExprReadStringOp:
 			ops = append(ops, ExprReadStringOp{MaxLen: op.MaxLen})
-		case *ir.ExprCmpEqBaseOp:
-			ops = append(ops, ExprCmpEqBaseOp{ByteSize: op.ByteSize})
-		case *ir.ExprCmpEqStringOp:
-			ops = append(ops, ExprCmpEqStringOp{})
+		case *ir.ExprCmpBaseOp:
+			ops = append(ops, ExprCmpBaseOp{
+				Op:       op.Op,
+				Kind:     op.Kind,
+				ByteSize: op.ByteSize,
+			})
+		case *ir.ExprCmpStringOp:
+			ops = append(ops, ExprCmpStringOp{Op: op.Op})
 		case *ir.SliceBoundsCheckOp:
 			// After the bounds check, the scratch still starts with the
 			// data pointer (8 bytes). Update lastOpSize so the following
@@ -546,6 +559,10 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 	switch t := t.(type) {
 	case *ir.BaseType:
 		// Nothing to process.
+
+	case *ir.DurationType:
+		// Nothing to process; the ExprLoadDurationOp writes the value
+		// directly at the expression's result offset.
 
 	case *ir.GoHMapBucketType:
 		if err := structureTypeHandler(t.StructureType); err != nil {
@@ -807,7 +824,7 @@ func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 			}
 
 		// Base or pointer types.
-		case *ir.BaseType, *ir.GoChannelType, *ir.PointerType, *ir.VoidPointerType, *ir.GoMapType, *ir.GoSubroutineType:
+		case *ir.BaseType, *ir.DurationType, *ir.GoChannelType, *ir.PointerType, *ir.VoidPointerType, *ir.GoMapType, *ir.GoSubroutineType:
 			pieces = append(pieces, memoryLayoutPiece{
 				PaddedOffset: offset,
 				Size:         uint32(t.GetByteSize()),
@@ -886,7 +903,25 @@ func hasDuplicateInterfacePieces(typ ir.Type, pieces []ir.Piece) bool {
 }
 
 // `ops` is used as an output buffer for the encoded instructions.
-func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]Op, error) {
+// exprStatusIdx identifies the expression for writing a status-absent
+// flag at runtime (used by expression lowering); conditions pass ^0 to
+// indicate none.
+func (g *generator) EncodeLocationOp(
+	pc uint64, op *ir.LocationOp, exprStatusIdx uint32, ops []Op,
+) ([]Op, error) {
+	// @duration is a synthetic variable without DWARF locations. Its IR
+	// LocationOp is always emitted with Offset=0 and ByteSize=8, and
+	// resolves at BPF eval time to (ktime_ns - entry_ktime_ns) via a
+	// dedicated opcode. The caller (condition or expression lowering)
+	// wraps this output in the same way it would for a base type, so
+	// the same ExprPushOffsetOp/ExprLoadLiteral/ExprCmpBase sequence
+	// works regardless of the LHS origin.
+	if op.Variable != nil && op.Variable.Role == ir.VariableRoleDuration {
+		ops = append(ops, ExprLoadDurationOp{
+			ExprStatusIdx: exprStatusIdx,
+		})
+		return ops, nil
+	}
 outer:
 	for _, loclist := range op.Variable.Locations {
 		if pc < loclist.Range[0] || pc >= loclist.Range[1] {
