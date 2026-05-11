@@ -34,7 +34,7 @@ type componentEntry struct {
 
 	// readConfig optionally reads component config from the agent config
 	// system. When set, settingsFromAgentConfig calls it with a ConfigReader
-	// and the key prefix "observer.components.<name>.". It returns the
+	// and the key prefix "anomaly_detection.detectors.<name>.". It returns the
 	// populated config struct. Only components that need agent-config
 	// tuning set this; others leave it nil.
 	readConfig func(ConfigReader, string) any

@@ -136,8 +136,8 @@ func (l *logObs) GetTimestampUnixMilli() int64 {
 // settingsFromAgentConfig reads component configuration from the agent config
 // system (datadog.yaml). Keys follow the pattern:
 //
-//	observer.components.<name>.enabled        (bool)
-//	observer.components.<name>.<field>        (type-specific)
+//	anomaly_detection.detectors.<name>.enabled        (bool)
+//	anomaly_detection.detectors.<name>.<field>        (type-specific)
 //
 // Enabled keys must be registered in pkg/config/setup/config.go.
 // Component-specific keys are read via the AgentConfigurable interface —
@@ -150,7 +150,7 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 	}
 	settings.Enabled = make(map[string]bool, len(catalog.entries))
 	for _, entry := range catalog.Entries() {
-		prefix := "observer.components." + entry.name + "."
+		prefix := "anomaly_detection.detectors." + entry.name + "."
 		if cfg.IsKnown(prefix + "enabled") {
 			settings.Enabled[entry.name] = cfg.GetBool(prefix + "enabled")
 		}
@@ -207,17 +207,17 @@ func NewComponent(deps Requires) Provides {
 		telemetryHandler:     th,
 		dropCounter:          th.telemetryCounters[telemetryObsChannelDropped],
 		hfFilterSources:      make(map[metrics.MetricSource]struct{}),
-		ingestMetricsEnabled: cfg.GetBool("observer.ingest_metrics.enabled"),
+		ingestMetricsEnabled: cfg.GetBool("anomaly_detection.metrics.enabled"),
 	}
 
 	if !obs.ingestMetricsEnabled {
-		pkglog.Warn("[observer] observer.ingest_metrics.enabled=false: externally-ingested metrics will be dropped at the handle factory")
+		pkglog.Warn("[observer] anomaly_detection.metrics.enabled=false: externally-ingested metrics will be dropped at the handle factory")
 	}
 
 	// Set up handle function based on recording and analysis configuration.
-	// Recording (observer.recording.enabled) enables parquet writers.
-	// Analysis (observer.analysis.enabled) enables the anomaly detection pipeline.
-	analysisEnabled := cfg.GetBool("observer.analysis.enabled")
+	// Recording (anomaly_detection.recording.enabled) enables parquet writers.
+	// Analysis (anomaly_detection.enabled) enables the anomaly detection pipeline.
+	analysisEnabled := cfg.GetBool("anomaly_detection.enabled")
 
 	obs.handleFunc = obs.noopHandle
 	if analysisEnabled {
@@ -228,7 +228,7 @@ func NewComponent(deps Requires) Provides {
 		obs.handleFunc = recorder.GetHandle(obs.handleFunc)
 
 		// Record detect digests and advance log alongside parquet for parity debugging.
-		parquetDir := cfg.GetString("observer.recording.parquet_output_dir")
+		parquetDir := cfg.GetString("anomaly_detection.recording.output_dir")
 		if parquetDir != "" {
 			digestPath := filepath.Join(parquetDir, detectDigestFileName)
 			cleanup, err := enableDetectDigestRecordingToFile(eng, digestPath)
@@ -265,8 +265,8 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	// Start periodic metric dump if configured
-	dumpPath := cfg.GetString("observer.debug_dump_path")
-	dumpInterval := cfg.GetDuration("observer.debug_dump_interval")
+	dumpPath := cfg.GetString("anomaly_detection.debug.dump_path")
+	dumpInterval := cfg.GetDuration("anomaly_detection.debug.dump_interval")
 	if dumpPath != "" && dumpInterval > 0 {
 		go func() {
 			ticker := time.NewTicker(dumpInterval)
@@ -282,11 +282,11 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	// Capture agent-internal logs into the observer by default (best-effort, non-blocking).
-	enabled := cfg.GetBool("observer.capture_agent_internal_logs.enabled")
+	enabled := cfg.GetBool("anomaly_detection.agent_logs.enabled")
 	if enabled {
-		sampleInfo := cfg.GetFloat64("observer.capture_agent_internal_logs.sample_rate_info")
-		sampleDebug := cfg.GetFloat64("observer.capture_agent_internal_logs.sample_rate_debug")
-		sampleTrace := cfg.GetFloat64("observer.capture_agent_internal_logs.sample_rate_trace")
+		sampleInfo := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_info")
+		sampleDebug := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_debug")
+		sampleTrace := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_trace")
 
 		handle := obs.GetHandle("agent-internal-logs")
 		baseTags := []string{"source:datadog-agent"}
@@ -600,7 +600,7 @@ func (o *observerImpl) GetHandle(name string) observerdef.Handle {
 // When any HF check collection is enabled, the "all-metrics" handle is wrapped
 // with hfFilteredHandle to suppress 15s samples for checks that have a 1s HF
 // counterpart active — the scorer should only see the higher-resolution stream.
-// When observer.ingest_metrics.enabled=false, the resulting handle is further
+// When anomaly_detection.metrics.enabled=false, the resulting handle is further
 // wrapped with metricDropHandle so external metrics are dropped at the edge,
 // while ObserveLog/ObserveProfile pass through.
 func (o *observerImpl) innerHandle(name string) observerdef.Handle {
@@ -658,7 +658,7 @@ func (f *hfFilteredHandle) ObserveMetricAndReportDrop(sample observerdef.MetricV
 func (f *hfFilteredHandle) ObserveLog(msg observerdef.LogView) { f.inner.ObserveLog(msg) }
 
 // metricDropHandle drops every ObserveMetric call but lets logs and
-// profiles through. Used when observer.ingest_metrics.enabled=false so
+// profiles through. Used when anomaly_detection.metrics.enabled=false so
 // external metric sources (DogStatsD, check samplers, HF runners) do not
 // feed the engine. Virtual metrics produced by LogMetricsExtractors
 // during engine.IngestLog are unaffected because they bypass this handle
