@@ -1,17 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
-
-go_library(
-    name = "fx",
-    srcs = [
-        "fx.go",
-        "fx_noop.go",
-    ],
-    importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx",
-    visibility = ["//visibility:public"],
-    deps = [
-        "//comp/anomalydetection/observer/def",
-        "//comp/anomalydetection/observer/impl",
-        "//pkg/util/fxutil",
-        "@org_uber_go_fx//:fx",
-    ],
-)
+# gazelle:ignore
+# fx.go (python build) imports observer/impl which cannot be built in Bazel yet
+# (observer.go depends on hfrunner, which depends on corechecks/* not yet migrated).
+# Restore a proper go_library once hfrunner's deps are migrated.

@@ -1,9 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
-
-go_library(
-    name = "impl",
-    srcs = ["observer.go"],
-    importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl",
-    visibility = ["//visibility:public"],
-    deps = ["//comp/anomalydetection/observer/def"],
-)
+# gazelle:ignore
+# observer.go imports comp/anomalydetection/observer/impl/hfrunner, which itself
+# depends on pkg/collector/corechecks/* packages not yet migrated to Bazel.
+# Migrate hfrunner's corechecks deps first, then restore a full go_library here.
