@@ -79,9 +79,15 @@ func main() {
 		InsecureSkipVerify: true, // For local/testing; server cert verification can be enabled for production
 	})
 
+	// Match the agent's default `agent_ipc.grpc_max_message_size` so this client can
+	// receive snapshots that exceed gRPC's 4 MiB built-in default. Production clients
+	// should read the same setting from config rather than hardcoding a value.
+	const maxRecvMsgSize = 128 << 20 // 128 MiB
+
 	conn, err := grpc.NewClient(*ipcAddress,
 		grpc.WithTransportCredentials(tlsCreds),
 		grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(token)),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxRecvMsgSize)),
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create gRPC client: %v\n", err)

@@ -61,7 +61,7 @@ func createTestFactories(t *testing.T) otelcol.Factories {
 	t.Helper()
 
 	receivers, err := otelcol.MakeFactoryMap(
-		receiver.NewFactory(),
+		receiver.NewFactory(version.BundledProfilerName),
 		otlpreceiver.NewFactory(),
 		prometheusreceiver.NewFactory(),
 	)

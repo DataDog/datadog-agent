@@ -8,6 +8,7 @@
 package store
 
 import (
+	"context"
 	"encoding/json"
 	"path/filepath"
 	"testing"
@@ -15,6 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/bbolt"
+
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
 var testRawConfig = `
@@ -23,26 +26,14 @@ enable password cisco123
 username someuser password 0 cg6#107X
 aaa some-model
 `
-var testBlocks = []ConfigBlock{
-	{Type: TextBlock, Value: "hostname retail\nenable password "},
-	{Type: SecretBlock, ID: "secret-1"},
-	{Type: TextBlock, Value: "\nusername someuser password 0 "},
-	{Type: SecretBlock, ID: "secret-2"},
-	{Type: TextBlock, Value: "\naaa some-model"},
-}
 
-var testSecrets = map[string]string{
-	"secret-1": "cisco123",
-	"secret-2": "cg6#107X",
-}
-
-func newTestConfigStore(t *testing.T) *ConfigStore {
+func newTestConfigStore(t *testing.T) *configStore {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "test.db")
 	cs, err := Open(dbPath)
 	require.NoError(t, err)
-	t.Cleanup(func() { cs.Close() })
-	return cs
+	t.Cleanup(func() { cs.Close(context.Background()) })
+	return cs.(*configStore)
 }
 
 func TestOpen(t *testing.T) {
@@ -62,25 +53,25 @@ func TestOpen(t *testing.T) {
 func TestStoreConfig(t *testing.T) {
 	t.Run("stores and returns a UUID", func(t *testing.T) {
 		cs := newTestConfigStore(t)
-		configUUID, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig, testBlocks, testSecrets)
+		configUUID, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig)
 		require.NoError(t, err)
 		assert.NotEmpty(t, configUUID)
 	})
 
 	t.Run("each call for a device generates a unique UUID", func(t *testing.T) {
 		cs := newTestConfigStore(t)
-		uuid1, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig, testBlocks, testSecrets)
+		uuid1, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig)
 		require.NoError(t, err)
-		uuid2, err := cs.StoreConfig("device:10.0.0.2", "running", testRawConfig, testBlocks, testSecrets)
+		uuid2, err := cs.StoreConfig("device:10.0.0.2", "running", testRawConfig)
 		require.NoError(t, err)
 		assert.NotEqual(t, uuid1, uuid2)
 	})
 
 	t.Run("device deduplicate returns UUID of latest config if matches", func(t *testing.T) {
 		cs := newTestConfigStore(t)
-		uuid1, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig, testBlocks, testSecrets)
+		uuid1, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig)
 		require.NoError(t, err)
-		uuid2, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig, testBlocks, testSecrets) // the same exact one, should return the first UUID (uuid1)
+		uuid2, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig) // the same exact one, should return the first UUID (uuid1)
 		require.NoError(t, err)
 		assert.Equal(t, uuid1, uuid2)
 	})
@@ -89,19 +80,17 @@ func TestStoreConfig(t *testing.T) {
 func TestGetConfig(t *testing.T) {
 	t.Run("retrieves stored config", func(t *testing.T) {
 		cs := newTestConfigStore(t)
-		configUUID, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig, testBlocks, testSecrets)
+		configUUID, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig)
 		require.NoError(t, err)
 
-		rawConfig, blocks, metadata, secrets, err := cs.GetConfig(configUUID)
+		rawConfig, metadata, err := cs.GetConfig(configUUID)
 		require.NoError(t, err)
 
 		assert.Equal(t, testRawConfig, rawConfig)
-		assert.Equal(t, testBlocks, blocks)
-		assert.Equal(t, testSecrets, secrets)
 
 		assert.Equal(t, configUUID, metadata.ConfigUUID)
 		assert.Equal(t, "device:10.0.0.1", metadata.DeviceID)
-		assert.Equal(t, "running", metadata.ConfigType)
+		assert.Equal(t, types.RUNNING, metadata.ConfigType)
 		assert.NotZero(t, metadata.CapturedAt)
 		assert.Equal(t, metadata.CapturedAt, metadata.LastAccessedAt)
 		assert.Equal(t, hashConfig(testRawConfig), metadata.RawHash)
@@ -110,42 +99,40 @@ func TestGetConfig(t *testing.T) {
 
 	t.Run("returns error for nonexistent UUID", func(t *testing.T) {
 		cs := newTestConfigStore(t)
-		_, _, _, _, err := cs.GetConfig("nonexistent-uuid")
+		_, _, err := cs.GetConfig("nonexistent-uuid")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
 
 	t.Run("gets configs by UUID (two different configs)", func(t *testing.T) {
 		cs := newTestConfigStore(t)
-		uuid1, err := cs.StoreConfig("device:10.0.0.1", "running", "config-one", nil, map[string]string{"a": "1"})
+		uuid1, err := cs.StoreConfig("device:10.0.0.1", "running", "config-one")
 		require.NoError(t, err)
-		uuid2, err := cs.StoreConfig("device:10.0.0.2", "startup", "config-two", nil, map[string]string{"b": "2"})
+		uuid2, err := cs.StoreConfig("device:10.0.0.2", "startup", "config-two")
 		require.NoError(t, err)
 
-		raw1, _, meta1, secrets1, err := cs.GetConfig(uuid1)
+		raw1, meta1, err := cs.GetConfig(uuid1)
 		require.NoError(t, err)
 		assert.Equal(t, "config-one", raw1)
 		assert.Equal(t, "device:10.0.0.1", meta1.DeviceID)
-		assert.Equal(t, map[string]string{"a": "1"}, secrets1)
 
-		raw2, _, meta2, secrets2, err := cs.GetConfig(uuid2)
+		raw2, meta2, err := cs.GetConfig(uuid2)
 		require.NoError(t, err)
 		assert.Equal(t, "config-two", raw2)
 		assert.Equal(t, "device:10.0.0.2", meta2.DeviceID)
-		assert.Equal(t, map[string]string{"b": "2"}, secrets2)
 	})
 }
 
 func TestDeleteConfig(t *testing.T) {
 	t.Run("deletes config from all buckets", func(t *testing.T) {
 		cs := newTestConfigStore(t)
-		configUUID, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig, testBlocks, testSecrets)
+		configUUID, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig)
 		require.NoError(t, err)
 
 		err = cs.DeleteConfig(configUUID)
 		require.NoError(t, err)
 
-		_, _, _, _, err = cs.GetConfig(configUUID)
+		_, _, err = cs.GetConfig(configUUID)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not found")
 	})
@@ -159,15 +146,15 @@ func TestDeleteConfig(t *testing.T) {
 
 	t.Run("deleting one config does not affect another", func(t *testing.T) {
 		cs := newTestConfigStore(t)
-		uuid1, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig, testBlocks, testSecrets)
+		uuid1, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig)
 		require.NoError(t, err)
-		uuid2, err := cs.StoreConfig("device:10.0.0.2", "running", testRawConfig, testBlocks, testSecrets)
+		uuid2, err := cs.StoreConfig("device:10.0.0.2", "running", testRawConfig)
 		require.NoError(t, err)
 
 		err = cs.DeleteConfig(uuid1)
 		require.NoError(t, err)
 
-		_, _, _, _, err = cs.GetConfig(uuid2)
+		_, _, err = cs.GetConfig(uuid2)
 		require.NoError(t, err)
 	})
 }
@@ -189,9 +176,9 @@ func TestHashConfig(t *testing.T) {
 func TestCheckDuplicate(t *testing.T) {
 	tests := []struct {
 		name           string
-		existing       []ConfigMetadata // seed these into the metadata bucket
+		existing       []types.ConfigMetadata // seed these into the metadata bucket
 		deviceID       string
-		configType     string
+		configType     types.ConfigType
 		rawHash        string
 		wantConfigUUID string // empty means no match expected
 	}{
@@ -204,7 +191,7 @@ func TestCheckDuplicate(t *testing.T) {
 		},
 		{
 			name: "matching hash returns UUID (duplicate config)",
-			existing: []ConfigMetadata{
+			existing: []types.ConfigMetadata{
 				{ConfigUUID: "uuid-1", DeviceID: "device:10.0.0.1", ConfigType: "running", CapturedAt: 100, RawHash: "abc123"},
 			},
 			deviceID:       "device:10.0.0.1",
@@ -214,7 +201,7 @@ func TestCheckDuplicate(t *testing.T) {
 		},
 		{
 			name: "same device, but different hash returns no match (new config, not duplicate)",
-			existing: []ConfigMetadata{
+			existing: []types.ConfigMetadata{
 				{ConfigUUID: "uuid-1", DeviceID: "device:10.0.0.1", ConfigType: "running", CapturedAt: 100, RawHash: "abc123"},
 			},
 			deviceID:       "device:10.0.0.1",
@@ -224,7 +211,7 @@ func TestCheckDuplicate(t *testing.T) {
 		},
 		{
 			name: "matches latest by CapturedAt (duplicate of the latest config)",
-			existing: []ConfigMetadata{
+			existing: []types.ConfigMetadata{
 				{ConfigUUID: "uuid-old", DeviceID: "device:10.0.0.1", ConfigType: "running", CapturedAt: 100, RawHash: "old-hash"},
 				{ConfigUUID: "uuid-new", DeviceID: "device:10.0.0.1", ConfigType: "running", CapturedAt: 200, RawHash: "new-hash"},
 			},
@@ -235,7 +222,7 @@ func TestCheckDuplicate(t *testing.T) {
 		},
 		{
 			name: "old hash no longer matches when latest differs (seen hash, but not duplicate since it doesn't match latest)",
-			existing: []ConfigMetadata{
+			existing: []types.ConfigMetadata{
 				{ConfigUUID: "uuid-old", DeviceID: "device:10.0.0.1", ConfigType: "running", CapturedAt: 100, RawHash: "old-hash"},
 				{ConfigUUID: "uuid-new", DeviceID: "device:10.0.0.1", ConfigType: "running", CapturedAt: 200, RawHash: "new-hash"},
 			},
@@ -246,7 +233,7 @@ func TestCheckDuplicate(t *testing.T) {
 		},
 		{
 			name: "different device not matched (same hash, but different device)",
-			existing: []ConfigMetadata{
+			existing: []types.ConfigMetadata{
 				{ConfigUUID: "uuid-1", DeviceID: "device:10.0.0.2", ConfigType: "running", CapturedAt: 100, RawHash: "abc123"},
 			},
 			deviceID:       "device:10.0.0.1",
@@ -256,7 +243,7 @@ func TestCheckDuplicate(t *testing.T) {
 		},
 		{
 			name: "different config type not matched (same config, same device, but different config type should store as new config)",
-			existing: []ConfigMetadata{
+			existing: []types.ConfigMetadata{
 				{ConfigUUID: "uuid-1", DeviceID: "device:10.0.0.1", ConfigType: "startup", CapturedAt: 100, RawHash: "abc123"},
 			},
 			deviceID:       "device:10.0.0.1",
@@ -266,7 +253,7 @@ func TestCheckDuplicate(t *testing.T) {
 		},
 		{
 			name: "existing metadata has same capturedAt ts - should break by config UUID order",
-			existing: []ConfigMetadata{
+			existing: []types.ConfigMetadata{
 				{ConfigUUID: "uuid-1", DeviceID: "device:10.0.0.1", ConfigType: "running", CapturedAt: 100, RawHash: "hash123"},
 				{ConfigUUID: "uuid-2", DeviceID: "device:10.0.0.1", ConfigType: "running", CapturedAt: 100, RawHash: "hash345"}, // will win from config UUID
 			},

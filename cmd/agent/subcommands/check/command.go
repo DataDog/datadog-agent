@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/check"
 )
 
@@ -24,7 +25,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			ConfigName:           command.ConfigName,
 			LoggerName:           command.LoggerName,
 		}
-	})
+	}, wmcatalog.GetCatalog())
 
 	return []*cobra.Command{cmd}
 }

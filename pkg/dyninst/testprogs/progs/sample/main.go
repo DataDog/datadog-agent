@@ -9,6 +9,7 @@ package main
 import (
 	"bufio"
 	"os"
+	"time"
 
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 
@@ -20,10 +21,24 @@ import (
 func main() {
 	tracer.Start(tracer.WithService("sample-service"))
 
-	// Wait for input before executing functions to allow time for uprobe attachment
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Scan()
+	if os.Getenv("DD_SAMPLE_LOOP") == "" {
+		// Wait for input before executing functions to allow time for uprobe attachment
+		scanner := bufio.NewScanner(os.Stdin)
+		scanner.Scan()
+		runAll()
+		return
+	}
 
+	// Long-running mode used by the debugger demo deployment.
+	ticker := time.NewTicker(500 * time.Millisecond)
+	for range ticker.C {
+		span := tracer.StartSpan("demo-round")
+		runAll()
+		span.Finish()
+	}
+}
+
+func runAll() {
 	executeOther()
 	executeBasicFuncs()
 	executeMultiParamFuncs()

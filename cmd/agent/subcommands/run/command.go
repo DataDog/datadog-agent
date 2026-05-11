@@ -124,7 +124,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 
 	hostProfilerFlareFx "github.com/DataDog/datadog-agent/comp/host-profiler/flare/fx"
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client/def"
@@ -135,10 +135,10 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	haagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
+	host "github.com/DataDog/datadog-agent/comp/metadata/host/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	inventoryhost "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/def"
 	packagesigning "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/def"
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	securityagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/securityagent/def"
@@ -494,11 +494,11 @@ func getSharedFxOption() fx.Option {
 		// Workloadmeta component needs to be initialized before this hook is executed, and thus is included
 		// in the function args to order the execution. This pattern might be worth revising because it is
 		// error prone.
-		fx.Invoke(func(lc fx.Lifecycle, wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component, ac autodiscovery.Component, secretResolver secrets.Component, cfg config.Component) {
+		fx.Invoke(func(lc fx.Lifecycle, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, ac autodiscovery.Component, _ secrets.Component, cfg config.Component) {
 			lc.Append(fx.Hook{
 				OnStart: func(_ context.Context) error {
 					//  setup the AutoConfig instance
-					common.LoadComponents(secretResolver, wmeta, tagger, filterStore, ac, cfg.GetString("confd_path"))
+					common.LoadComponents(ac, cfg.GetString("confd_path"))
 					return nil
 				},
 			})
