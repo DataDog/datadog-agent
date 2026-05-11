@@ -23,6 +23,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	forwarderdef "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/def"
+	"github.com/DataDog/datadog-agent/pkg/config/lite"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -60,6 +61,14 @@ type forwarder struct {
 	httpClient  *http.Client
 	log         log.Component
 
+	// liteFallback is a one-shot snapshot of credentials read directly
+	// from datadog.yaml via the tolerant pkg/config/lite resolver. It is
+	// consulted only when the live config Reader returns empty for
+	// api_key — for example when schema validation rejected the value or
+	// the YAML had a localised parse failure the normal config layer
+	// recovered from with defaults. Populated once at New(); never mutated.
+	liteFallback lite.LiteConfig
+
 	stopCh chan struct{}
 	doneCh chan struct{}
 }
@@ -90,15 +99,16 @@ func New(reqs Requires) forwarderdef.Component {
 	}
 
 	f := &forwarder{
-		cfg:         reqs.Config,
-		intakeURL:   buildIntakeURL(reqs.Config),
-		interval:    interval,
-		hostname:    hostname,
-		agentFlavor: flavor.GetFlavor(),
-		httpClient:  buildHTTPClient(reqs.Config),
-		log:         reqs.Log,
-		stopCh:      make(chan struct{}),
-		doneCh:      make(chan struct{}),
+		cfg:          reqs.Config,
+		intakeURL:    buildIntakeURL(reqs.Config),
+		interval:     interval,
+		hostname:     hostname,
+		agentFlavor:  flavor.GetFlavor(),
+		httpClient:   buildHTTPClient(reqs.Config),
+		log:          reqs.Log,
+		liteFallback: lite.Extract(context.Background(), reqs.Config.ConfigFileUsed(), lite.DefaultConfigPath()),
+		stopCh:       make(chan struct{}),
+		doneCh:       make(chan struct{}),
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{
@@ -203,8 +213,17 @@ func (f *forwarder) buildReport(issues map[string]*healthplatform.Issue) *health
 
 // send marshals and sends the report to the intake endpoint
 func (f *forwarder) send(report *healthplatform.HealthReport) error {
-	// Fetch API key once and check if configured
+	// Fetch API key once and check if configured. When the live config
+	// Reader has nothing (e.g. broken YAML that the normal config layer
+	// fell back to defaults for), consult the pkg/config/lite snapshot
+	// that was taken when the forwarder was constructed.
 	apiKey := f.cfg.GetString("api_key")
+	if apiKey == "" && f.liteFallback.APIKey.Value != "" && f.liteFallback.APIKey.Source != lite.SourceEncrypted {
+		apiKey = f.liteFallback.APIKey.Value
+		f.log.Info(fmt.Sprintf(
+			"Health platform forwarder using api_key from lite fallback (source=%s matched_key=%q)",
+			f.liteFallback.APIKey.Source, f.liteFallback.APIKey.MatchedKey))
+	}
 	if apiKey == "" {
 		return errors.New("API key not configured")
 	}
