@@ -46,12 +46,21 @@ const (
 var helmValuesTemplate string
 
 type helmConfig struct {
-	// EnableOOMKill forces full system-probe to run by enabling a
-	// second system-probe feature alongside discovery. The agent's
-	// shouldExecSPLite logic only exec's into system-probe-lite when
-	// discovery is the *only* enabled system-probe module
-	// (cmd/system-probe/subcommands/run/splite.go).
-	EnableOOMKill bool
+	// Mode controls which discovery mode the chart renders for, and
+	// is also written verbatim as a DaemonSet pod annotation. The
+	// annotation is the mechanism that actually rolls the pod when
+	// we flip modes via UpdateEnv between sub-tests — without it,
+	// only the system-probe configmap changes and the existing pod
+	// stays alive (the chart's daemonset.yaml has no checksum
+	// annotation tying the pod template to that configmap).
+	//
+	// "spl" → discovery alone → agent execs into system-probe-lite
+	// "sp"  → discovery + datadog.systemProbe.enableOOMKill → the
+	//         agent's shouldExecSPLite logic keeps the full binary
+	//         running because discovery is no longer the only
+	//         enabled system-probe module
+	//         (cmd/system-probe/subcommands/run/splite.go).
+	Mode string
 }
 
 func createHelmValues(cfg helmConfig) (string, error) {
@@ -90,8 +99,9 @@ type k8sTestSuite struct {
 func TestK8sTestSuite(t *testing.T) {
 	t.Parallel()
 
-	// Initial helm values: discovery only → SPL mode.
-	helmValues, err := createHelmValues(helmConfig{})
+	// Initial helm values: SPL mode. The first sub-test will UpdateEnv
+	// to the same mode (no-op) and the second to "sp".
+	helmValues, err := createHelmValues(helmConfig{Mode: "spl"})
 	require.NoError(t, err)
 
 	e2e.Run(t, &k8sTestSuite{}, e2e.WithProvisioner(k8sProvisioner(helmValues)))
@@ -100,9 +110,11 @@ func TestK8sTestSuite(t *testing.T) {
 func (s *k8sTestSuite) TestNginxDiscovered() {
 	for _, mode := range []discoveryMode{discoveryModeSystemProbeLite, discoveryModeSystemProbe} {
 		s.Run(string(mode), func() {
-			helmValues, err := createHelmValues(helmConfig{
-				EnableOOMKill: mode == discoveryModeSystemProbe,
-			})
+			modeName := "spl"
+			if mode == discoveryModeSystemProbe {
+				modeName = "sp"
+			}
+			helmValues, err := createHelmValues(helmConfig{Mode: modeName})
 			require.NoError(s.T(), err)
 			s.UpdateEnv(k8sProvisioner(helmValues))
 
