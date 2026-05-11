@@ -137,7 +137,9 @@ func pruneOldResolvedIssues(issues map[string]*PersistedIssue) {
 }
 
 // PersistedIssue tracks issue state for disk persistence.
-// Custom JSON marshaling keeps the on-disk format unchanged (state as string).
+// IssueID is the issue id as defined by Module.IssueID(), used to look up the
+// template in the registry on reload. Custom JSON marshaling keeps the on-disk
+// state field as a string.
 type PersistedIssue struct {
 	IssueID    string     `json:"issue_id"`
 	State      IssueState `json:"state"`
@@ -275,7 +277,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		issuesCounter: reqs.Telemetry.NewCounter(
 			"health_platform",
 			"issues_detected",
-			[]string{"health_check_id"},
+			[]string{"issue_type"},
 			"Number of health issues detected",
 		),
 	}
@@ -319,7 +321,7 @@ func (h *healthPlatformImpl) start(_ context.Context) error {
 		if check.Once {
 			continue
 		}
-		if err := h.RegisterCheck(check.ID, check.Name, check.CheckFn, check.Interval); err != nil {
+		if err := h.ScheduleHealthCheck(check.ID, check.Name, check.CheckFn, check.Interval); err != nil {
 			h.log.Warn("Failed to register health check " + check.ID + ": " + err.Error())
 		}
 	}
@@ -381,22 +383,22 @@ func (h *healthPlatformImpl) ReportIssue(checkID string, checkName string, repor
 	if newIssue != nil {
 		h.storeIssue(checkID, newIssue)
 	} else {
-		h.ClearIssuesForCheck(checkID)
+		h.ResolveIssue(checkID)
 	}
 
 	return nil
 }
 
-// RegisterCheck registers a periodic health check function
+// ScheduleHealthCheck registers a periodic health check function
 // The check function will be called at the specified interval
 // If interval is 0 or negative, uses default of 15 minutes
-func (h *healthPlatformImpl) RegisterCheck(checkID string, checkName string, checkFn healthplatformdef.HealthCheckFunc, interval time.Duration) error {
-	return h.checkRunner.RegisterCheck(checkID, checkName, checkrunnerdef.HealthCheckFunc(checkFn), interval)
+func (h *healthPlatformImpl) ScheduleHealthCheck(checkID string, checkName string, checkFn healthplatformdef.HealthCheckFunc, interval time.Duration) error {
+	return h.checkRunner.ScheduleHealthCheck(checkID, checkName, checkrunnerdef.HealthCheckFunc(checkFn), interval)
 }
 
-// RunCheck runs a single health check immediately
-func (h *healthPlatformImpl) RunCheck(checkID, checkName string, checkFn healthplatformdef.HealthCheckFunc) error {
-	return h.checkRunner.RunCheck(checkID, checkName, checkrunnerdef.HealthCheckFunc(checkFn))
+// RunHealthCheck runs a single health check immediately
+func (h *healthPlatformImpl) RunHealthCheck(checkID, checkName string, checkFn healthplatformdef.HealthCheckFunc) error {
+	return h.checkRunner.RunHealthCheck(checkID, checkName, checkrunnerdef.HealthCheckFunc(checkFn))
 }
 
 // ============================================================================
@@ -422,8 +424,8 @@ func (h *healthPlatformImpl) GetAllIssues() (int, map[string]*healthplatform.Iss
 	return count, result
 }
 
-// GetIssueForCheck returns the issue for a specific check (nil if no issue)
-func (h *healthPlatformImpl) GetIssueForCheck(checkID string) *healthplatform.Issue {
+// GetIssue returns the issue for a specific check (nil if no issue)
+func (h *healthPlatformImpl) GetIssue(checkID string) *healthplatform.Issue {
 	h.issuesMux.RLock()
 	defer h.issuesMux.RUnlock()
 
@@ -440,8 +442,8 @@ func (h *healthPlatformImpl) GetIssueForCheck(checkID string) *healthplatform.Is
 // Clear Methods
 // ============================================================================
 
-// ClearIssuesForCheck clears the issue for a specific check (useful when issue is resolved)
-func (h *healthPlatformImpl) ClearIssuesForCheck(checkID string) {
+// ResolveIssue clears the issue for a specific check (useful when issue is resolved)
+func (h *healthPlatformImpl) ResolveIssue(checkID string) {
 	h.issuesMux.Lock()
 
 	// Only log and update persistence if there was actually an issue to clear
@@ -468,8 +470,8 @@ func (h *healthPlatformImpl) ClearIssuesForCheck(checkID string) {
 	}
 }
 
-// ClearAllIssues clears all issues (useful for testing or when all issues are resolved)
-func (h *healthPlatformImpl) ClearAllIssues() {
+// ResolveAllIssues clears all issues (useful for testing or when all issues are resolved)
+func (h *healthPlatformImpl) ResolveAllIssues() {
 	h.issuesMux.Lock()
 
 	now := time.Now().Format(time.RFC3339)
@@ -536,13 +538,15 @@ func (h *healthPlatformImpl) storeIssue(checkID string, issue *healthplatform.Is
 	// Add timestamp to issue if present
 	if issue != nil {
 		issue.DetectedAt = now
-		// Update telemetry
-		h.metrics.issuesCounter.Add(1, checkID)
+		// Update telemetry, tagged by issue template id (matches the
+		// `issue_type` label declared on the counter).
+		h.metrics.issuesCounter.Add(1, issue.Id)
 	}
 
 	h.issues[checkID] = issue
 
-	// Update persisted issue with state tracking
+	// Update persisted issue with state tracking.
+	// IssueID is the issue id as registered in the registry (Module.IssueID()).
 	existing := h.persistedIssues[checkID]
 	if existing == nil {
 		// No previous record - new issue
@@ -560,9 +564,9 @@ func (h *healthPlatformImpl) storeIssue(checkID string, issue *healthplatform.Is
 		existing.LastSeen = now
 		existing.ResolvedAt = ""
 	} else if existing.IssueID != issue.Id {
-		// The check is reporting a different issue ID than what was previously stored.
-		// This is an internal agent bug: a given check should always report the same issue type.
-		_ = h.log.Errorf("health platform: check %s changed issue ID from %q to %q; this is an agent bug",
+		// The check is reporting a different issue id than what was previously stored.
+		// This is an internal agent bug: a given check should always report the same issue id.
+		_ = h.log.Errorf("health platform: check %s changed issue id from %q to %q; this is an agent bug",
 			checkID, existing.IssueID, issue.Id)
 		existing.IssueID = issue.Id
 		existing.State = IssueStateNew
@@ -727,7 +731,7 @@ func (h *healthPlatformImpl) startupChecks() {
 			continue
 		}
 
-		err := h.RunCheck(check.ID, check.Name, check.CheckFn)
+		err := h.RunHealthCheck(check.ID, check.Name, check.CheckFn)
 		if err != nil {
 			h.log.Warnf("Failed to run startup check %s: %v", check.Name, err)
 		}
