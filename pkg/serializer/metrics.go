@@ -64,16 +64,18 @@ func v3BetaShadowEndpoint(config config.Component) transaction.Endpoint {
 }
 
 // metricsShadowSites returns the list of Datadog sites for which v3beta shadow
-// sampling is enabled. Sites are matched against the resolver's base domain via
-// configutils.ExtractSiteFromURL. Defaults to US1 only.
+// sampling is enabled. Sites are matched against the resolved v2 series
+// destination via configutils.ExtractSiteFromURL. Defaults to US1 only.
 func metricsShadowSites(config config.Component) []string {
 	return config.GetStringSlice("serializer_experimental_use_v3_api.series.shadow_sites")
 }
 
 // metricsShadowAllowed reports whether the resolver targets a site that opts
-// into v3beta shadowing.
+// into v3beta shadowing. It resolves the v2 series endpoint so that when v2
+// metrics are diverted to a non-Datadog destination (e.g. vector/OPW), the
+// resolved domain falls outside the allow list and shadowing is skipped.
 func metricsShadowAllowed(r resolver.DomainResolver, sites []string) bool {
-	site := configutils.ExtractSiteFromURL(r.GetBaseDomain())
+	site := configutils.ExtractSiteFromURL(r.Resolve(endpoints.SeriesEndpoint))
 	if site == "" {
 		return false
 	}

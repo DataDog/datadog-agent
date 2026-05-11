@@ -738,3 +738,35 @@ outer:
 		},
 	)
 }
+
+// TestBuildPipelinesShadowSkippedWhenVectorConfigured verifies that when
+// metrics are diverted to a vector/OPW endpoint, the v3beta shadow does not
+// fire even though the resolver's base domain is in shadow_sites. The shadow
+// gate resolves the v2 series endpoint, so a non-Datadog destination falls
+// out of the allow list.
+func TestBuildPipelinesShadowSkippedWhenVectorConfigured(t *testing.T) {
+	logger := logmock.New(t)
+	config := configmock.New(t)
+
+	config.SetWithoutSource("dd_url", "https://app.datadoghq.com")
+	config.SetWithoutSource("api_key", "test_key")
+	config.SetWithoutSource("vector.metrics.enabled", true)
+	config.SetWithoutSource("vector.metrics.url", "https://vector.example.test:8080")
+	config.SetWithoutSource("serializer_experimental_use_v3_api.series.shadow_sample_rate", 1)
+
+	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
+	require.NoError(t, err)
+	compressor := metricscompressionimpl.NewCompressorReq(metricscompressionimpl.Requires{Cfg: config}).Comp
+	s := NewSerializer(f, nil, compressor, config, logger, "")
+
+	pipelines := s.buildPipelinesRng(metricsKindSeries, fixedRand{v: 0})
+	require.Len(t, pipelines, 1, "vector-diverted metrics must not produce a v3beta shadow pipeline")
+
+	for conf, ctx := range pipelines {
+		require.Len(t, ctx.Destinations, 1)
+		dest := ctx.Destinations[0]
+		assert.False(t, conf.V3)
+		assert.Equal(t, endpoints.SeriesEndpoint, dest.Endpoint)
+		assert.Empty(t, dest.ValidationBatchID)
+	}
+}
