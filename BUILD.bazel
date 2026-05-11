@@ -633,7 +633,6 @@ exports_files(glob(
 # gazelle:exclude pkg/proto/datadog/kubemetadata
 # gazelle:exclude pkg/proto/datadog/model
 # gazelle:exclude pkg/proto/datadog/privateactionrunner
-# gazelle:exclude pkg/proto/datadog/process
 # gazelle:exclude pkg/proto/datadog/remoteagent
 # gazelle:exclude pkg/proto/datadog/remoteconfig
 # gazelle:exclude pkg/proto/datadog/workloadfilter
