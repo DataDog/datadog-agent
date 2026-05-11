@@ -205,9 +205,9 @@ func (f *forwarder) buildReport(issues map[string]*healthplatform.Issue) *health
 
 // send marshals and sends the report to the intake endpoint
 func (f *forwarder) send(report *healthplatform.HealthReport) error {
-	// When the live config Reader has nothing (broken YAML the normal layer
-	// fell back to defaults for) fall back to the lite snapshot.
+	// Fetch API key once and check if configured
 	apiKey := f.cfg.GetString("api_key")
+	// When the live config Reader has nothing, fall back to the lite snapshot
 	if apiKey == "" && f.liteCfgFallback.APIKey.Value != "" && f.liteCfgFallback.APIKey.Source != lite.SourceEncrypted {
 		apiKey = f.liteCfgFallback.APIKey.Value
 		f.log.Info(fmt.Sprintf(
