@@ -7,7 +7,6 @@
 package observerimpl
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -281,84 +280,7 @@ func NewComponent(deps Requires) Provides {
 		}()
 	}
 
-	// Capture agent-internal logs into the observer by default (best-effort, non-blocking).
-	enabled := cfg.GetBool("anomaly_detection.agent_logs.enabled")
-	if enabled {
-		sampleInfo := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_info")
-		sampleDebug := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_debug")
-		sampleTrace := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_trace")
-
-		handle := obs.GetHandle("agent-internal-logs")
-		baseTags := []string{"source:datadog-agent"}
-
-		var infoN, debugN, traceN uint64
-		shouldSample := func(level pkglog.LogLevel) bool {
-			var rate float64
-			switch level {
-			case pkglog.WarnLvl, pkglog.ErrorLvl, pkglog.CriticalLvl:
-				return true
-			case pkglog.InfoLvl:
-				rate = sampleInfo
-				n := atomic.AddUint64(&infoN, 1)
-				return samplePass(rate, n)
-			case pkglog.DebugLvl:
-				rate = sampleDebug
-				n := atomic.AddUint64(&debugN, 1)
-				return samplePass(rate, n)
-			case pkglog.TraceLvl:
-				rate = sampleTrace
-				n := atomic.AddUint64(&traceN, 1)
-				return samplePass(rate, n)
-			default:
-				// Unknown level: treat as info.
-				n := atomic.AddUint64(&infoN, 1)
-				return samplePass(sampleInfo, n)
-			}
-		}
-
-		pkglog.SetLogObserver(func(level pkglog.LogLevel, message string) {
-			if !shouldSample(level) {
-				return
-			}
-			// Build tags per callback so component:<...> stays accurate if the logger name changes.
-			tags := make([]string, 0, 3)
-			tags = append(tags, baseTags...)
-			if name := pkglog.GetLoggerName(); name != "" {
-				tags = append(tags, "component:"+name)
-			}
-			tags = append(tags, "level:"+strings.ToLower(level.String()))
-			// Emit structured JSON so LogMetricsExtractor can extract fields consistently.
-			// Level is carried as a tag (separate timeseries per level).
-			payload, _ := json.Marshal(map[string]any{
-				"msg": message,
-			})
-			handle.ObserveLog(&agentLogView{
-				content:     payload,
-				status:      strings.ToLower(level.String()),
-				tags:        tags,
-				hostname:    "",
-				timestampMs: time.Now().UnixMilli(),
-			})
-		})
-	}
-
 	return Provides{Comp: obs}
-}
-
-func samplePass(rate float64, n uint64) bool {
-	if rate <= 0 {
-		return false
-	}
-	if rate >= 1 {
-		return true
-	}
-	const denom = 1000
-	threshold := uint64(rate * denom)
-	// Ensure very small non-zero rates still occasionally pass.
-	if threshold == 0 {
-		threshold = 1
-	}
-	return (n % denom) < threshold
 }
 
 // observerImpl is the implementation of the observer component.
@@ -915,22 +837,6 @@ func (v *logView) GetStatus() string            { return v.obs.status }
 func (v *logView) GetTags() []string            { return v.obs.tags }
 func (v *logView) GetHostname() string          { return v.obs.hostname }
 func (v *logView) GetTimestampUnixMilli() int64 { return v.obs.timestampMs }
-
-// agentLogView is a minimal LogView implementation for agent-internal logs.
-// It is immediately copied by the observer handle, so it must not be retained.
-type agentLogView struct {
-	content     []byte
-	status      string
-	tags        []string
-	hostname    string
-	timestampMs int64
-}
-
-func (v *agentLogView) GetContent() []byte           { return v.content }
-func (v *agentLogView) GetStatus() string            { return v.status }
-func (v *agentLogView) GetTags() []string            { return v.tags }
-func (v *agentLogView) GetHostname() string          { return v.hostname }
-func (v *agentLogView) GetTimestampUnixMilli() int64 { return v.timestampMs }
 
 // copyBytes creates a copy of a byte slice.
 func copyBytes(b []byte) []byte {
