@@ -88,10 +88,27 @@ func (l *lang) Configure(c *config.Config, rel string, f *rule.File) {
 // sync so the resolver can still add deps to each dd_go_test.
 func (l *lang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 	result := l.Language.GenerateRules(args)
-	if cfg, ok := args.Config.Exts[extName].(ddGoTestConfig); ok && !cfg.enabled {
+	if !shouldReplace(args.Config) {
 		return result
 	}
 	return l.replaceGoTests(result, args.File)
+}
+
+// shouldReplace decides whether go_test rules in this package should be
+// rewritten to dd_go_test. It declines when:
+//   - the # gazelle:dd_go_test off directive is set, or
+//   - the package has a # gazelle:map_kind go_test <wrapper> directive,
+//     because the user has already chosen a different wrapper for go_test
+//     (e.g. rtloader_go_test that sets up dlopen runfiles) and dd_go_test
+//     doesn't compose with such wrappers.
+func shouldReplace(c *config.Config) bool {
+	if cfg, ok := c.Exts[extName].(ddGoTestConfig); ok && !cfg.enabled {
+		return false
+	}
+	if _, mapped := c.KindMap["go_test"]; mapped {
+		return false
+	}
+	return true
 }
 
 // replaceGoTests converts all go_test rules in result to dd_go_test rules.

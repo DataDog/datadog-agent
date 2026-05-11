@@ -196,6 +196,53 @@ func TestConfigure_DirectiveOff(t *testing.T) {
 	}
 }
 
+func TestShouldReplace(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		c    *config.Config
+		want bool
+	}{
+		{
+			name: "default",
+			c:    &config.Config{Exts: map[string]interface{}{}},
+			want: true,
+		},
+		{
+			name: "directive off",
+			c: &config.Config{Exts: map[string]interface{}{
+				extName: ddGoTestConfig{enabled: false},
+			}},
+			want: false,
+		},
+		{
+			name: "map_kind go_test redirects to a custom wrapper",
+			c: &config.Config{
+				Exts: map[string]interface{}{},
+				KindMap: map[string]config.MappedKind{
+					"go_test": {KindName: "rtloader_go_test", KindLoad: "//rtloader/test:defs.bzl"},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "map_kind on unrelated kind",
+			c: &config.Config{
+				Exts: map[string]interface{}{},
+				KindMap: map[string]config.MappedKind{
+					"go_library": {KindName: "my_go_library"},
+				},
+			},
+			want: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := shouldReplace(tc.c); got != tc.want {
+				t.Errorf("shouldReplace = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestKinds(t *testing.T) {
 	kinds := NewLanguage().(*lang).Kinds()
 	info, ok := kinds["dd_go_test"]
