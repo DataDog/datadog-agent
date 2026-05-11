@@ -27,9 +27,9 @@ import (
 const (
 	checksReadyConditionType = "ChecksReady"
 
-	// AutodiscoveryProvider is the integration.Config Provider value used for configs
+	// autodiscoveryProvider is the integration.Config Provider value used for configs
 	// translated from a DatadogInstrumentation CR by the Autodiscovery handler.
-	AutodiscoveryProvider = "datadoginstrumentation"
+	autodiscoveryProvider = "datadoginstrumentation"
 )
 
 // AutodiscoveryHandler translates DatadogInstrumentation check sections into
@@ -57,9 +57,9 @@ func (h *AutodiscoveryHandler) HasSection(cr *datadoghq.DatadogInstrumentation) 
 }
 
 // SupportsTarget returns whether Autodiscovery check delivery supports the target kind.
-// Service is delivered through endpoint checks by ServiceAutodiscoveryHandler.
 func (h *AutodiscoveryHandler) SupportsTarget(ref autoscalingv2.CrossVersionObjectReference) bool {
 	switch ref.Kind {
+	// 'Service' kind isn't supported but will be in the future.
 	case "Deployment", "DaemonSet", "StatefulSet", "CronJob", "Job":
 		return true
 	default:
@@ -213,14 +213,14 @@ func translateCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq.Datado
 		Instances:   instances,
 		LogsConfig:  logsConfig,
 		CELSelector: buildCELSelector(cr.Spec.TargetRef, cr.Namespace, check.ContainerImage),
-		Provider:    AutodiscoveryProvider,
-		Source:      fmt.Sprintf("%s:%s/%s", AutodiscoveryProvider, cr.Namespace, cr.Name),
+		Provider:    autodiscoveryProvider,
+		Source:      fmt.Sprintf("%s:%s/%s", autodiscoveryProvider, cr.Namespace, cr.Name),
 	}, nil
 }
 
 func rawExtensionToData(raw runtime.RawExtension) (integration.Data, error) {
 	if len(raw.Raw) > 0 {
-		return integration.Data(raw.Raw), nil
+		return raw.Raw, nil
 	}
 	if raw.Object == nil {
 		return nil, nil
@@ -229,7 +229,7 @@ func rawExtensionToData(raw runtime.RawExtension) (integration.Data, error) {
 	if err != nil {
 		return nil, err
 	}
-	return integration.Data(b), nil
+	return b, nil
 }
 
 func marshalLogs(logs []datadoghq.DatadogInstrumentationLogConfig) (integration.Data, error) {
@@ -240,7 +240,7 @@ func marshalLogs(logs []datadoghq.DatadogInstrumentationLogConfig) (integration.
 	if err != nil {
 		return nil, err
 	}
-	return integration.Data(b), nil
+	return b, nil
 }
 
 func buildCELSelector(ref autoscalingv2.CrossVersionObjectReference, namespace string, images []string) workloadfilter.Rules {
