@@ -365,6 +365,7 @@
 /comp/core/configstream @DataDog/agent-configuration
 /comp/core/configstreamconsumer @DataDog/agent-configuration
 /comp/core/configsync @DataDog/agent-configuration
+/comp/core/diagnose @DataDog/agent-configuration
 /comp/core/flare @DataDog/agent-configuration
 /comp/core/gui @DataDog/agent-configuration
 /comp/core/profiler @DataDog/agent-configuration
@@ -564,7 +565,7 @@
 /pkg/config/remote/                     @DataDog/remote-config
 /pkg/config/remote/meta/                @DataDog/remote-config
 /pkg/containerlifecycle/                @DataDog/container-integrations
-/pkg/diagnose/                          @DataDog/container-platform
+/pkg/diagnose/                          @DataDog/agent-configuration
 /pkg/diagnose/connectivity/             @DataDog/agent-configuration
 /pkg/diagnose/firewallscanner/          @DataDog/network-device-monitoring-core
 /pkg/diagnose/ports/                    @DataDog/agent-configuration
