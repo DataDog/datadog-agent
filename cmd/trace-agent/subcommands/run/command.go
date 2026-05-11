@@ -135,17 +135,20 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		configsyncimpl.Module(configsyncimpl.NewDefaultParams()),
 		fxinstrumentation.Module(),
 		remoteagentfx.Module(),
+		agenttelemetryfx.Module(),
+	}
+	// Wire the consumer before trace-agent so its OnStart blocks on snapshot first.
+	if isConfigstreamEnabled(cliParams.ConfPath) {
+		opts = append(opts, configstreamFxOptions())
+	}
+	opts = append(opts,
 		// Force the instantiation of the components
 		fx.Invoke(func(_ traceagent.Component, _ autoexit.Component) {}),
-		agenttelemetryfx.Module(),
 		fx.Invoke(func(tm coretelemetry.Component) {
 			api.InitTelemetry(tm)
 		}),
 		fx.Invoke(func(_ option.Option[agenttelemetry.Component]) {}),
-	}
-	if isConfigstreamEnabled(cliParams.ConfPath) {
-		opts = append(opts, configstreamFxOptions())
-	}
+	)
 	err := fxutil.Run(opts...)
 	if err != nil && errors.Is(err, traceagentimpl.ErrAgentDisabled) {
 		return nil
