@@ -12,14 +12,12 @@ const (
 	// ADMisconfigurationCheckName is the name of the check for AD misconfigurations
 	ADMisconfigurationCheckName = "Autodiscovery Misconfiguration"
 
-	// InvalidConfigIssueID is the stable identifier shared by both the in-Fx
-	// schema check and the lite-mode rescue path, so the backend dedupes both
-	// detection paths into a single Agent Health issue.
+	// InvalidConfigIssueID is shared by the in-Fx check and the lite-mode rescue path so the backend dedupes both into one issue
 	InvalidConfigIssueID = "invalid-config"
 
 	// InvalidConfigCheckID is the stable ID for the periodic schema-validation check.
 	InvalidConfigCheckID = "invalid-config-check"
 
 	// InvalidConfigCheckName is the human-readable name shown in diagnose / flare.
-	InvalidConfigCheckName = "Datadog Agent Configuration"
+	InvalidConfigCheckName = "Datadog Agent Configuration Validation"
 )
