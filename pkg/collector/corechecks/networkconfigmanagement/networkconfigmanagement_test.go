@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	ncmcomp "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
@@ -142,8 +141,7 @@ func (m *MockRemoteSession) Close() error {
 
 func createTestCheck(t *testing.T) *Check {
 	cfg := agentconfig.NewMock(t)
-	comp := ncmcomp.Mock(t)
-	return newCheck(cfg, comp).(*Check)
+	return newCheck(cfg).(*Check)
 }
 
 // Configuration test data

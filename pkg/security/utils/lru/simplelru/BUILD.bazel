@@ -5,7 +5,7 @@ go_library(
     srcs = ["lru.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru",
     visibility = ["//visibility:public"],
-    deps = ["@//pkg/security/utils/lru/internal"],
+    deps = ["//pkg/security/utils/lru/internal"],
 )
 
 go_test(

@@ -52,6 +52,13 @@ func main() {
 	condInt16(7, "miss")
 	condInt32(42, "match")
 	condInt32(7, "miss")
+	// Negative value to exercise signed comparison: BPF cmp_kind_int
+	// XORs the sign bit of the most-significant byte before comparing,
+	// turning two's-complement compare into unsigned byte compare. A
+	// bug in that trick surfaces here as `x < 0` either firing on
+	// nothing (treats -5 as 0xfffffffb > 0) or firing on the wrong
+	// calls.
+	condInt32(-5, "neg")
 	condInt64(42, "match")
 	condInt64(7, "miss")
 	condUint8(42, "match")
@@ -70,6 +77,15 @@ func main() {
 	condBool(false, "miss")
 	condString("hello", "match")
 	condString("other", "miss")
+	// Long-LHS / max-length-literal regression coverage. The literal
+	// MaxStringLiteralLength (255) imposed by IR-gen used to be
+	// indistinguishable from a longer LHS sharing the same first 255
+	// bytes, because SM_OP_EXPR_READ_STRING capped the stored length at
+	// 255. condString_long_a_then_b is 300 bytes ('a'*255 + 'b'*45),
+	// condString_exact_a255 is 'a'*255 — both are compared against the
+	// 255-byte literal 'a'*255 in simple.yaml.
+	condString(strings.Repeat("a", 255)+strings.Repeat("b", 45), "long_a_then_b")
+	condString(strings.Repeat("a", 255), "exact_a255")
 
 	// Struct with typed fields: called twice with different field values so
 	// field-level conditions can distinguish the calls.
