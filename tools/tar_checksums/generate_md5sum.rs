@@ -1,4 +1,24 @@
 // Read a tarball and emit a file of the md5 checksums of all the plain files in it.
+//
+// Requirements:
+// Read a .tar file (which might be compressed) and emits a file containing the md5 checksum of each file within that tar file.
+// 
+// - must take the path to the input tar file as a command line arg
+//   - if no input tar is provided, then use stdin as the file
+// - must take the path to the output file as a command line arg
+// - sample of the desired output format:  md5_sum path
+// ```
+// e3c6a486a70a471110731b1708d232cc  opt/datadog-installer/LICENSE
+// f9a6f2aa44430e18abbc7363751e3f7c  opt/datadog-installer/LICENSES/THIRD-PARTY-0BSD
+// 3b83ef96387f14655fc854ddc3c6bd57  opt/datadog-installer/LICENSES/THIRD-PARTY-Apache-2.0
+// 11d3feb7137319430849e84dbc75ac27  opt/datadog-installer/LICENSES/THIRD-PARTY-BSD-2-Clause
+// ```
+// - emitted paths must be relative, with no preceding "./"
+// - directories and symlinks in the tar file should be ignored.
+// - support different compression algorithms that are used in our product
+//   - we do not have to decode the compression from the binary itself, we can use the file name as a hint
+//   - required for first implementation:  XZ compression, if the file ends in .xz,  gzip compression if the file ends in .gz or .tgz.
+
 use std::env;
 use std::fs;
 use std::io::{self, Read, Write};
