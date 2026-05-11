@@ -97,8 +97,8 @@ func (r *checkRunner) SetReporter(reporter checkrunnerdef.IssueReporter) {
 	r.reporter = reporter
 }
 
-// RegisterCheck registers a new periodic health check
-func (r *checkRunner) RegisterCheck(checkID, checkName string, checkFn checkrunnerdef.HealthCheckFunc, interval time.Duration) error {
+// ScheduleHealthCheck registers a new periodic health check.
+func (r *checkRunner) ScheduleHealthCheck(checkID, checkName string, checkFn checkrunnerdef.HealthCheckFunc, interval time.Duration) error {
 	if checkID == "" {
 		return errors.New("check ID cannot be empty")
 	}
@@ -138,8 +138,8 @@ func (r *checkRunner) RegisterCheck(checkID, checkName string, checkFn checkrunn
 	return nil
 }
 
-// RunCheck runs a single health check immediately
-func (r *checkRunner) RunCheck(checkID, checkName string, checkFn checkrunnerdef.HealthCheckFunc) error {
+// RunHealthCheck runs a single health check immediately.
+func (r *checkRunner) RunHealthCheck(checkID, checkName string, checkFn checkrunnerdef.HealthCheckFunc) error {
 	if checkID == "" {
 		return errors.New("check ID cannot be empty")
 	}
