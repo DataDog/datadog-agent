@@ -509,7 +509,7 @@ func TestNoTagSpecifiedAggregationCounter(t *testing.T) {
           metric:
             metrics:
               - name: bar.zoo
-                aggregate_tags: []
+                preserve_tags: []
   `
 
 	// setup and initiate atel
@@ -548,7 +548,7 @@ func TestNoTagSpecifiedExplicitAggregationGauge(t *testing.T) {
           metric:
             metrics:
               - name: bar.zoo
-                aggregate_tags: []
+                preserve_tags: []
   `
 
 	// setup and initiate atel
@@ -625,7 +625,7 @@ func TestNoTagSpecifiedAggregationHistogram(t *testing.T) {
           metric:
             metrics:
               - name: bar.zoo
-                aggregate_tags: []
+                preserve_tags: []
   `
 
 	// setup and initiate atel
@@ -666,7 +666,7 @@ func TestTagSpecifiedAggregationCounter(t *testing.T) {
           metric:
             metrics:
               - name: bar.zoo
-                aggregate_tags:
+                preserve_tags:
                   - tag1
     `
 
@@ -715,7 +715,7 @@ func TestTagAggregateTotalCounter(t *testing.T) {
             metrics:
               - name: bar.zoo
                 aggregate_total: true
-                aggregate_tags:
+                preserve_tags:
                   - tag1
     `
 	// setup and initiate atel
@@ -781,7 +781,7 @@ func TestAggregateTotalDeltaStabilityOnTimeseriesCountChange(t *testing.T) {
             metrics:
               - name: bar.zoo
                 aggregate_total: true
-                aggregate_tags:
+                preserve_tags:
                   - tag1
     `
 	tel := makeTelMock(t)
@@ -854,13 +854,13 @@ func TestTwoProfilesOnTheSameScheduleGenerateSinglePayload(t *testing.T) {
           metric:
             metrics:
               - name: bar.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag1
         - name: bar
           metric:
             metrics:
               - name: foo.foo
-                aggregate_tags:
+                preserve_tags:
                   - tag1
     `
 	// setup and initiate a tel
@@ -897,7 +897,7 @@ func TestOneProfileWithOneMetricMultipleContextsGenerateTwoPayloads(t *testing.T
           metric:
             metrics:
               - name: bar.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag1
     `
 	// setup and initiate atel
@@ -968,10 +968,10 @@ func TestOneProfileWithTwoMetricGenerateSinglePayloads(t *testing.T) {
           metric:
             metrics:
               - name: bar.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag1
               - name: foo.foo
-                aggregate_tags:
+                preserve_tags:
                   - tag1
     `
 	// setup and initiate atel
@@ -1141,13 +1141,13 @@ func TestGetAsJSONScrub(t *testing.T) {
           metric:
             metrics:
               - name: foo.bar_auth
-                aggregate_tags:
+                preserve_tags:
                   - password
               - name: foo.bar_key
-                aggregate_tags:
+                preserve_tags:
                   - api_key
               - name: foo.bar_text
-                aggregate_tags:
+                preserve_tags:
                   - text
     `
 
@@ -1195,14 +1195,14 @@ func TestAdjustPrometheusCounterValueMultipleTags(t *testing.T) {
           metric:
             metrics:
               - name: foo.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag1
                   - tag2
               - name: foo.cat
-                aggregate_tags:
+                preserve_tags:
                   - tag
               - name: zoo.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag1
                   - tag2
               - name: zoo.cat
@@ -1312,7 +1312,7 @@ func TestAdjustPrometheusCounterValueMultipleTagValues(t *testing.T) {
           metric:
             metrics:
               - name: foo.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag
     `
 
@@ -1615,7 +1615,7 @@ func TestHistogramFloatUpperBoundNormalizationWithTags(t *testing.T) {
           metric:
             metrics:
               - name: foo.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag1
                   - tag2
     `
@@ -1732,7 +1732,7 @@ func TestHistogramFloatUpperBoundNormalizationWithMultivalueTags(t *testing.T) {
           metric:
             metrics:
               - name: foo.bar
-                aggregate_tags:
+                preserve_tags:
                   - tag
     `
 
@@ -2083,7 +2083,7 @@ func TestUsingPayloadCompressionInAgentTelemetrySender(t *testing.T) {
           metric:
             metrics:
               - name: foo.bar
-                aggregate_tags:
+                preserve_tags:
     `
 
 	// setup and initiate atel
@@ -2166,7 +2166,7 @@ func TestAgentTelemetryEventConfiguration(t *testing.T) {
         metric:
           metrics:
             - name: checks.execution_time
-              aggregate_tags:
+              preserve_tags:
                 - check_name
             - name: pymem.inuse
         schedule:
