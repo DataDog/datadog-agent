@@ -1,7 +1,7 @@
 """Convert Go e2e test results into a UTOFDocument.
 
-Reuses the unit converter and overrides the test type, suite extractor, and
-failure extractors so Pulumi infrastructure errors are surfaced.
+Calls the generic Go test converter with ``test_type="e2e"``, a top-level
+suite extractor, and the Pulumi failure extractor for infrastructure errors.
 """
 
 from __future__ import annotations
@@ -9,8 +9,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from tasks.libs.testing.result_json import ResultJson
+from tasks.libs.testing.utof.go.converter import convert_go_test_results
 from tasks.libs.testing.utof.go.e2e.extractors import pulumi_extractor
-from tasks.libs.testing.utof.go.unit.converter import convert_unit_test_results
 from tasks.libs.testing.utof.models import UTOFDocument, UTOFMetadata
 
 if TYPE_CHECKING:
@@ -39,12 +39,12 @@ def convert_e2e_test_results(
     metadata: UTOFMetadata | None = None,
 ) -> UTOFDocument:
     """Convert e2e test results from test2json output into a UTOFDocument."""
-    return convert_unit_test_results(
+    return convert_go_test_results(
         ctx,
         result_json,
+        test_type=_TEST_TYPE,
         test_washer=test_washer,
         metadata=metadata,
-        test_type=_TEST_TYPE,
         suite_fn=_suite_name,
         custom_extractors=_E2E_EXTRACTORS,
     )
