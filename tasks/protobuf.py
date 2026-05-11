@@ -14,7 +14,6 @@ PROTO_PKGS = {
     'remoteconfig': False,
     'api/v1': False,
     'trace': True,
-    'process': False,
     'workloadmeta': False,
     'kubemetadata': False,
     'privateactionrunner': False,
@@ -75,6 +74,7 @@ def generate(ctx, pre_commit=False):
         print(f"generating protobuf code from: {proto_root}")
         bazel(ctx, "run", "//pkg/proto/pbgo/dogstatsdhttp:write_pb_go")
         bazel(ctx, "run", "//pkg/proto/pbgo/languagedetection:write_pb_go")
+        bazel(ctx, "run", "//pkg/proto/pbgo/process:write_pb_go")
         bazel(ctx, "run", "//pkg/proto/pbgo/sbom:write_pb_go")
         bazel(ctx, "run", "//pkg/proto/pbgo/trace/idx:write_pb_go")
         for pkg, inject_tags in PROTO_PKGS.items():
