@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"github.com/google/uuid"
@@ -56,6 +57,9 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 	cardinality, err := proto.Pb2TaggerCardinality(in.GetCardinality())
 	if err != nil {
 		return err
+	}
+	if err := out.SetHeader(metadata.Pairs(grpc.InitialSnapshotCompleteHeader, "true")); err != nil {
+		log.Debugf("unable to set tagger stream initial snapshot capability header: %s", err)
 	}
 
 	ticker := time.NewTicker(streamKeepAliveInterval)

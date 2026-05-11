@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/grpclog"
+	"google.golang.org/grpc/metadata"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
@@ -90,6 +91,10 @@ type stream struct {
 
 func (s *stream) Recv() (interface{}, error) {
 	return s.cl.Recv()
+}
+
+func (s *stream) Header() (metadata.MD, error) {
+	return s.cl.Header()
 }
 
 type streamHandler struct {

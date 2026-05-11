@@ -97,7 +97,10 @@ type remoteTagger struct {
 
 	telemetryTicker *time.Ticker
 	telemetryStore  *telemetry.Store
-	resyncEvents    []types.EntityEvent
+
+	resyncEvents                             []types.EntityEvent
+	initialSnapshotCompleteSupportChecked    bool
+	initialSnapshotCompleteSupportedByServer bool
 
 	checksCardinality    types.TagCardinality
 	dogstatsdCardinality types.TagCardinality
@@ -538,6 +541,8 @@ func (t *remoteTagger) run() {
 			t.ready = false
 			t.stream = nil
 			t.resyncEvents = nil
+			t.initialSnapshotCompleteSupportChecked = false
+			t.initialSnapshotCompleteSupportedByServer = false
 
 			t.log.Warnf("error received from remote tagger: %s", err)
 
@@ -559,6 +564,8 @@ func (t *remoteTagger) run() {
 		timer.Reset(0)
 
 		t.telemetryStore.Receives.Inc()
+
+		t.checkInitialSnapshotCompleteSupport()
 
 		err = t.processResponse(response)
 		if err != nil {
@@ -604,9 +611,11 @@ func (t *remoteTagger) processResponse(response *pb.StreamTagsResponse) error {
 
 	if !t.ready {
 		// Accumulate events across chunked snapshot messages until the
-		// server signals that the initial snapshot is complete.
+		// server signals that the initial snapshot is complete. Older servers
+		// do not advertise or send that signal, so treat their first response as
+		// the complete snapshot to preserve pre-49682 behavior.
 		t.resyncEvents = append(t.resyncEvents, events...)
-		if response.GetInitialSnapshotComplete() {
+		if response.GetInitialSnapshotComplete() || !t.initialSnapshotCompleteSupportedByServer {
 			replaceStoreContents = true
 			err := t.store.processEvents(t.resyncEvents, replaceStoreContents)
 			t.resyncEvents = nil
@@ -619,6 +628,26 @@ func (t *remoteTagger) processResponse(response *pb.StreamTagsResponse) error {
 	}
 
 	return t.store.processEvents(events, replaceStoreContents)
+}
+
+func (t *remoteTagger) checkInitialSnapshotCompleteSupport() {
+	if t.initialSnapshotCompleteSupportChecked || t.stream == nil {
+		return
+	}
+	t.initialSnapshotCompleteSupportChecked = true
+
+	headers, err := t.stream.Header()
+	if err != nil {
+		t.log.Debugf("unable to read remote tagger stream headers: %s", err)
+		return
+	}
+
+	for _, value := range headers.Get(grpcutil.InitialSnapshotCompleteHeader) {
+		if value == "true" {
+			t.initialSnapshotCompleteSupportedByServer = true
+			return
+		}
+	}
 }
 
 // startTaggerStream tries to establish a stream with the remote gRPC endpoint.

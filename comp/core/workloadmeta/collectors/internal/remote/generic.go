@@ -50,6 +50,10 @@ type Stream interface {
 	Recv() (interface{}, error)
 }
 
+type headerProvider interface {
+	Header() (metadata.MD, error)
+}
+
 // StreamHandler is an interface that defines a gRPC stream handler.
 type StreamHandler interface {
 	// Port returns the targeted port
@@ -78,9 +82,11 @@ type GenericCollector struct {
 	Catalog       workloadmeta.AgentType
 	StreamHandler StreamHandler
 
-	store        workloadmeta.Component
-	resyncNeeded bool
-	resyncEvents []workloadmeta.CollectorEvent
+	store                                    workloadmeta.Component
+	resyncNeeded                             bool
+	resyncEvents                             []workloadmeta.CollectorEvent
+	initialSnapshotCompleteSupportChecked    bool
+	initialSnapshotCompleteSupportedByServer bool
 
 	client GrpcClient
 	stream Stream
@@ -230,6 +236,8 @@ func (c *GenericCollector) Run() {
 			c.stream = nil
 			c.resyncNeeded = true
 			c.resyncEvents = nil
+			c.initialSnapshotCompleteSupportChecked = false
+			c.initialSnapshotCompleteSupportedByServer = false
 
 			if err != io.EOF {
 				telemetry.RemoteClientErrors.Inc(c.CollectorID)
@@ -239,6 +247,8 @@ func (c *GenericCollector) Run() {
 			continue
 		}
 
+		c.checkInitialSnapshotCompleteSupport()
+
 		collectorEvents, err := c.StreamHandler.HandleResponse(c.store, response)
 		if err != nil {
 			log.Warnf("error processing event received from remote workloadmeta: %s", err)
@@ -247,13 +257,38 @@ func (c *GenericCollector) Run() {
 
 		if c.resyncNeeded {
 			c.resyncEvents = append(c.resyncEvents, collectorEvents...)
-			if c.StreamHandler.IsResyncComplete(response) {
+			if c.StreamHandler.IsResyncComplete(response) || !c.initialSnapshotCompleteSupportedByServer {
 				c.StreamHandler.HandleResync(c.store, c.resyncEvents)
 				c.resyncEvents = nil
 				c.resyncNeeded = false
 			}
 		} else {
 			c.store.Notify(collectorEvents)
+		}
+	}
+}
+
+func (c *GenericCollector) checkInitialSnapshotCompleteSupport() {
+	if c.initialSnapshotCompleteSupportChecked || c.stream == nil {
+		return
+	}
+	c.initialSnapshotCompleteSupportChecked = true
+
+	stream, ok := c.stream.(headerProvider)
+	if !ok {
+		return
+	}
+
+	headers, err := stream.Header()
+	if err != nil {
+		log.Debugf("unable to read remote workloadmeta stream headers: %s", err)
+		return
+	}
+
+	for _, value := range headers.Get(grpcutil.InitialSnapshotCompleteHeader) {
+		if value == "true" {
+			c.initialSnapshotCompleteSupportedByServer = true
+			return
 		}
 	}
 }

@@ -23,11 +23,16 @@ import (
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // TestNewComponent tests that the Remote Tagger can be instantiated and started.
@@ -171,4 +176,64 @@ func TestNewComponentWithOverride(t *testing.T) {
 		assert.GreaterOrEqual(t, elapsed, 10*time.Second, "Should wait at least 10s before failing")
 		assert.Less(t, elapsed, 15*time.Second, "Should not wait excessively long")
 	})
+}
+
+func TestProcessResponseLegacyServerMarksReadyAfterFirstUnmarkedSnapshot(t *testing.T) {
+	tagger := newTestRemoteTagger(t)
+
+	err := tagger.processResponse(newStreamTagsResponse("container-1", []string{"pod_name:one"}, false))
+	require.NoError(t, err)
+
+	assert.True(t, tagger.ready)
+	assert.Empty(t, tagger.resyncEvents)
+	entity := tagger.store.getEntity(types.NewEntityID(types.ContainerID, "container-1"))
+	require.NotNil(t, entity)
+	assert.Equal(t, []string{"pod_name:one"}, entity.LowCardinalityTags)
+}
+
+func TestProcessResponseSupportedChunkedSnapshotWaitsForCompletion(t *testing.T) {
+	tagger := newTestRemoteTagger(t)
+	tagger.initialSnapshotCompleteSupportedByServer = true
+
+	err := tagger.processResponse(newStreamTagsResponse("container-1", []string{"pod_name:one"}, false))
+	require.NoError(t, err)
+
+	assert.False(t, tagger.ready)
+	assert.Len(t, tagger.resyncEvents, 1)
+	assert.Nil(t, tagger.store.getEntity(types.NewEntityID(types.ContainerID, "container-1")))
+
+	err = tagger.processResponse(newStreamTagsResponse("container-2", []string{"pod_name:two"}, true))
+	require.NoError(t, err)
+
+	assert.True(t, tagger.ready)
+	assert.Empty(t, tagger.resyncEvents)
+	assert.NotNil(t, tagger.store.getEntity(types.NewEntityID(types.ContainerID, "container-1")))
+	assert.NotNil(t, tagger.store.getEntity(types.NewEntityID(types.ContainerID, "container-2")))
+}
+
+func newTestRemoteTagger(t testing.TB) *remoteTagger {
+	t.Helper()
+	tel := fxutil.Test[coretelemetry.Component](t, mocktelemetry.Module())
+	return &remoteTagger{
+		store: newTagStore(taggerTelemetry.NewStore(tel)),
+		log:   logmock.New(t),
+	}
+}
+
+func newStreamTagsResponse(id string, lowCardinalityTags []string, initialSnapshotComplete bool) *pb.StreamTagsResponse {
+	return &pb.StreamTagsResponse{
+		Events: []*pb.StreamTagsEvent{
+			{
+				Type: pb.EventType_ADDED,
+				Entity: &pb.Entity{
+					Id: &pb.EntityId{
+						Prefix: string(types.ContainerID),
+						Uid:    id,
+					},
+					LowCardinalityTags: lowCardinalityTags,
+				},
+			},
+		},
+		InitialSnapshotComplete: initialSnapshotComplete,
+	}
 }

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"time"
 
+	"google.golang.org/grpc/metadata"
 	goproto "google.golang.org/protobuf/proto"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -53,6 +54,9 @@ func (s *Server) StreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSe
 	filter, err := proto.WorkloadmetaFilterFromProtoFilter(in.GetFilter())
 	if err != nil {
 		return err
+	}
+	if err := out.SetHeader(metadata.Pairs(grpcutil.InitialSnapshotCompleteHeader, "true")); err != nil {
+		log.Debugf("unable to set workloadmeta stream initial snapshot capability header: %s", err)
 	}
 
 	workloadmetaEventsChannel := s.wmeta.Subscribe("stream-client", workloadmeta.NormalPriority, filter)

@@ -5,6 +5,12 @@
 
 package grpc
 
+const (
+	// InitialSnapshotCompleteHeader is sent by streaming servers that mark the
+	// final chunk of the initial snapshot with InitialSnapshotComplete.
+	InitialSnapshotCompleteHeader = "dd-initial-snapshot-complete-supported"
+)
+
 // CountChunks returns the number of chunks that ProcessChunksInPlace would
 // produce for the given slice and size limit.
 func CountChunks[T any](slice []T, maxChunkSize int, computeSize func(T) int) int {

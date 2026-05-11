@@ -61,6 +61,7 @@ go_test(
         "//comp/def",
         "//pkg/config/mock",
         "//pkg/config/model",
+        "//pkg/proto/pbgo/core",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
