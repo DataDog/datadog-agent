@@ -893,10 +893,24 @@ func (s *discoveryTestSuite) TestServicesDocker() {
 
 	proc, err := procfs.NewDefaultFS()
 	require.NoError(t, err)
-	processes, err := proc.AllProcs()
-	require.NoError(t, err)
 	pid1111 := 0
+	// Re-list /proc on each iteration rather than snapshotting once. A
+	// rare CI failure was observed where dockerutils.Run() reported
+	// success but python-1111 was not present in /proc at this point.
+	// The suspected cause is that dockerutils.Run reuses the same
+	// PatternScanner across retry attempts: PatternScanner.DoneChan is
+	// closed at most once, so if attempt #1's container output arrives
+	// late (after the per-attempt timeout but before attempt #2's
+	// checkReadiness runs), attempt #2 sees the already-closed channel
+	// and returns "success" before its own container has started. We
+	// are not fixing that pattern-matcher bug here; the loop just
+	// rescans /proc until python-1111 appears so a slightly-delayed
+	// container start cannot fail this assertion.
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		processes, err := proc.AllProcs()
+		if !assert.NoError(collect, err) {
+			return
+		}
 		for _, process := range processes {
 			comm, err := process.Comm()
 			if err != nil {
