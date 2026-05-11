@@ -1,0 +1,21 @@
+---
+enhancements:
+  - |
+    The Datadog Agent now reports invalid configuration through the
+    Agent Health Platform. A new periodic check validates
+    ``datadog.yaml`` against the embedded JSON schema every 15 minutes
+    and raises an ``invalid-config`` issue when the file cannot be
+    parsed or fails schema validation. Customers can see these issues
+    in the Datadog UI under ``@recommendation.product:agent_health``
+    and in the ``datadog-agent diagnose`` output.
+  - |
+    If the Agent itself fails to start because of a malformed
+    ``datadog.yaml``, a small lite-mode rescue path extracts the
+    ``api_key`` and ``site`` directly from the raw file (tolerant of
+    syntax errors and typos in those keys) and reports the same
+    ``invalid-config`` issue to the Agent Health Platform before the
+    process exits. ``ENC[handle]`` placeholders are resolved through
+    the configured ``secret_backend_command`` when present.
+    The Agent Health Platform must be enabled
+    (``health_platform.enabled: true``) for these issues to be
+    forwarded.
