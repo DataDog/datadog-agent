@@ -5,5 +5,5 @@ go_library(
     srcs = ["doc.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/generators/accessors/doc",
     visibility = ["//visibility:public"],
-    deps = ["@//pkg/security/generators/accessors/common"],
+    deps = ["//pkg/security/generators/accessors/common"],
 )

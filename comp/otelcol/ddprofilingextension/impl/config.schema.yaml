@@ -1,0 +1,30 @@
+$defs:
+  profiler_options:
+    description: ProfilerOptions defines settings relevant to the profiler.
+    type: object
+    properties:
+      env:
+        description: 'Env the profiler will report with. Default: none'
+        type: string
+      period:
+        description: 'Period in seconds the profiler will report with. Default: 60s'
+        type: integer
+      profile_types:
+        description: ProfileTypes specifies additional profile types to enable. supported values are blockprofile, mutexprofile and goroutineprofile. By default CPU and Heap profiles are enabled.
+        type: array
+        items:
+          type: string
+      service:
+        description: 'Service the profiler will report with. Default: BuildInfo.Command (e.g. otel-agent)'
+        type: string
+      version:
+        description: 'Version the profiler will report with. Default: BuildInfo.Version (e.g. v0.117.0)'
+        type: string
+description: Config contains the config of the profiler.
+type: object
+properties:
+  endpoint:
+    description: 'Endpoint is the local port the profiling HTTP server listens on; used as "localhost:<endpoint>". Default: "7501"'
+    type: string
+  profiler_options:
+    $ref: profiler_options

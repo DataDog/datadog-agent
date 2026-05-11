@@ -191,6 +191,7 @@ func (e *encodingContext) recordPointer(addr uint64, typeID ir.TypeID) (release 
 
 // Type equivalent definitions
 type baseType ir.BaseType
+type durationType ir.DurationType
 type pointerType ir.PointerType
 type structureType ir.StructureType
 type arrayType ir.ArrayType
@@ -414,6 +415,8 @@ func newDecoderType(
 		}, nil
 	case *ir.BaseType:
 		return (*baseType)(s), nil
+	case *ir.DurationType:
+		return (*durationType)(s), nil
 	case *ir.StructureType:
 		return (*structureType)(s), nil
 	case *ir.ArrayType:
@@ -660,6 +663,44 @@ func (b *baseType) formatValueFields(
 		return nil
 	}
 	writeBoundedString(buf, limits, output)
+	return nil
+}
+
+func (d *durationType) irType() ir.Type { return (*ir.DurationType)(d) }
+
+// encodeValueFields renders the duration as a millisecond float string for
+// captureExpression snapshots. Input is 8 bytes of signed int64 nanoseconds.
+func (d *durationType) encodeValueFields(
+	_ *encodingContext,
+	enc *jsontext.Encoder,
+	data []byte,
+) error {
+	if err := writeTokens(enc, jsontext.String("value")); err != nil {
+		return err
+	}
+	if len(data) != 8 {
+		return errors.New("passed data not long enough for duration")
+	}
+	ns := int64(binary.NativeEndian.Uint64(data))
+	ms := float64(ns) / 1e6
+	return writeTokens(enc, jsontext.String(strconv.FormatFloat(ms, 'f', -1, 64)))
+}
+
+// formatValueFields renders the duration as a millisecond float for template
+// segments.
+func (d *durationType) formatValueFields(
+	_ *encodingContext,
+	buf *bytes.Buffer,
+	data []byte,
+	limits *formatLimits,
+) error {
+	if len(data) != 8 {
+		writeBoundedFallback(buf, limits, "invalid duration data")
+		return nil
+	}
+	ns := int64(binary.NativeEndian.Uint64(data))
+	ms := float64(ns) / 1e6
+	writeBoundedString(buf, limits, strconv.FormatFloat(ms, 'f', 6, 64))
 	return nil
 }
 
