@@ -198,7 +198,27 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Set the pid file path
 		fx.Supply(pidimpl.NewParams(globalParams.PidFilePath)),
-
+		fx.Provide(func(c config.Component) settings.Params {
+			return settings.Params{
+				Settings: map[string]settings.RuntimeSetting{
+					"log_level":                      commonsettings.NewLogLevelRuntimeSetting(),
+					"runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
+					"runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
+					"internal_profiling_goroutines":  commonsettings.NewProfilingGoroutines(),
+					"internal_profiling":             commonsettings.NewProfilingRuntimeSetting("internal_profiling", "process-agent"),
+				},
+				Config: c,
+			}
+		}),
+		settingsimpl.Module(),
+		ipcfx.ModuleReadWrite(),
+		remoteagentfx.Module(),
+	}
+	// Wire the consumer before workload invokes so its OnStart blocks on snapshot first.
+	if isConfigstreamEnabled(globalParams.ConfFilePath) {
+		opts = append(opts, configstreamFxOptions())
+	}
+	opts = append(opts,
 		// Set `HOST_PROC` and `HOST_SYS` environment variables
 		fx.Invoke(SetHostMountEnv),
 
@@ -223,25 +243,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			}
 			return nil
 		}),
-		fx.Provide(func(c config.Component) settings.Params {
-			return settings.Params{
-				Settings: map[string]settings.RuntimeSetting{
-					"log_level":                      commonsettings.NewLogLevelRuntimeSetting(),
-					"runtime_mutex_profile_fraction": commonsettings.NewRuntimeMutexProfileFraction(),
-					"runtime_block_profile_rate":     commonsettings.NewRuntimeBlockProfileRate(),
-					"internal_profiling_goroutines":  commonsettings.NewProfilingGoroutines(),
-					"internal_profiling":             commonsettings.NewProfilingRuntimeSetting("internal_profiling", "process-agent"),
-				},
-				Config: c,
-			}
-		}),
-		settingsimpl.Module(),
-		ipcfx.ModuleReadWrite(),
-		remoteagentfx.Module(),
-	}
-	if isConfigstreamEnabled(globalParams.ConfFilePath) {
-		opts = append(opts, configstreamFxOptions())
-	}
+	)
 	app := fx.New(opts...)
 
 	err := app.Start(ctx)
