@@ -404,6 +404,37 @@ func removeProcmgrDDOTMarker() {
 	_ = os.Remove(procmgr.DDOTMarkerPath)
 }
 
+// ddotProcmgrYAMLBodyUsesStandaloneOCIPackage reports whether existing DDOT
+// procmgr YAML targets the standalone datadog-agent-ddot OCI package paths.
+// Only the command and condition_path_exists entries are inspected so we do
+// not match unrelated lines (env, comments) if the path appears elsewhere.
+func ddotProcmgrYAMLBodyUsesStandaloneOCIPackage(data []byte) bool {
+	const marker = "datadog-packages/datadog-agent-ddot/"
+	for _, raw := range strings.Split(string(data), "\n") {
+		line := strings.TrimSpace(raw)
+		if !strings.HasPrefix(line, "command:") && !strings.HasPrefix(line, "condition_path_exists:") {
+			continue
+		}
+		if strings.Contains(line, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// ociStableDDOTProcmgrYAMLIsStandaloneLayout reports whether stable processes.d
+// already contains DDOT YAML for the standalone datadog-agent-ddot OCI layout
+// (not the agent extension layout). Used on agent promote so we do not replace
+// standalone paths with extension paths.
+func ociStableDDOTProcmgrYAMLIsStandaloneLayout() bool {
+	dir := filepath.Join(paths.PackagesPath, "datadog-agent", "stable", "processes.d")
+	data, err := os.ReadFile(filepath.Join(dir, ddotProcmgrYAMLStable))
+	if err != nil {
+		return false
+	}
+	return ddotProcmgrYAMLBodyUsesStandaloneOCIPackage(data)
+}
+
 // syncDDOTProcmgrAfterAgentPromotion refreshes stable DDOT YAML in processes.d
 // after OCI promote (YAML only—stable agent may still be down). If stable and
 // experiment package paths differ, also removes experiment DDOT YAML and restarts
@@ -421,7 +452,8 @@ func syncDDOTProcmgrAfterAgentPromotion(ctx HookContext) error {
 	}
 	stableCtx := ctx
 	stableCtx.PackagePath = stableOCI
-	if _, err := applyDDOTProcmgrProcessesYAML(stableCtx, true, false); err != nil {
+	standalone := ociStableDDOTProcmgrYAMLIsStandaloneLayout()
+	if _, err := applyDDOTProcmgrProcessesYAML(stableCtx, true, standalone); err != nil {
 		return err
 	}
 	equiv, err := ociAgentStableAndExperimentProcessesDirsEquivalent()
