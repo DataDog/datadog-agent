@@ -18,8 +18,9 @@ import (
 	corefx "github.com/DataDog/datadog-agent/comp/healthplatform/store/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
-	// Side-effect imports register issue modules. The bundle is the right
-	// place for these — impl packages must not import other impl packages.
+	// Import issue modules to trigger their init() registration.
+	// The bundle is the correct place for side-effect imports; impl packages
+	// must not import other impl packages.
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admisconfig"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/checkfailure"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dockerpermissions"

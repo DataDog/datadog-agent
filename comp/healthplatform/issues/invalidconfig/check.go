@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+// Package invalidconfig reports datadog.yaml problems through the Agent Health Platform.
 package invalidconfig
 
 import (
