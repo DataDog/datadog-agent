@@ -1,0 +1,16 @@
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+
+proto_library(
+    name = "kubemetadata_proto",
+    srcs = ["kubemetadata.proto"],
+    strip_import_prefix = "/pkg/proto",
+    visibility = ["//visibility:public"],
+)
+
+go_proto_library(
+    name = "kubemetadata_go_proto",
+    importpath = "pkg/proto/pbgo/core",
+    proto = ":kubemetadata_proto",
+    visibility = ["//visibility:public"],
+)

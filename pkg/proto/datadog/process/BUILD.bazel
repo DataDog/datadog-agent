@@ -1,5 +1,3 @@
-# gazelle:go_grpc_compilers @rules_go//proto:go_proto,//bazel/rules/go_proto_compiler:go_grpc_futureproof
-
 load("@protobuf//bazel:proto_library.bzl", "proto_library")
 load("@rules_go//proto:def.bzl", "go_proto_library")
 

@@ -9,8 +9,6 @@ from tasks.e2e_framework.tool import ask, warn
 
 
 def setup_gcp_config(config: Config):
-    if config.configParams is None:
-        config.configParams = Config.Params(aws=None, agent=None, pulumi=None, azure=None, gcp=None)
     if config.configParams.gcp is None:
         config.configParams.gcp = Config.Params.GCP(publicKeyPath=None)
 

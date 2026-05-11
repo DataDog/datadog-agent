@@ -421,7 +421,7 @@ core,github.com/alecthomas/units,MIT,Copyright (C) 2014 Alec Thomas
 core,github.com/antchfx/xmlquery,MIT,Copyright (c) 2016 Zheng Chun
 core,github.com/antchfx/xpath,MIT,Copyright (c) 2016 Zheng Chun
 core,github.com/antlr4-go/antlr/v4,BSD-3-Clause,Copyright (c) 2012-2023 The ANTLR Project. All rights reserved
-core,github.com/apache/thrift/lib/go/thrift,Apache-2.0,"Copyright (C) 2006 - 2019, The Apache Software Foundation | Copyright (c) 2006- Facebook | Copyright (c) 2006-2008 Alexander Chemeris | Copyright (c) 2007 Thomas Porschberg <thomas@randspringer.de> | Copyright (c) 2008- Patrick Collison <patrick@collison.ie> | Copyright 2007 by Nathan C. Myers <ncm@cantrip.org>; some rights reserved | Copyright 2012 Twitter, Inc"
+core,github.com/apache/thrift/lib/go/thrift,Apache-2.0,"Copyright (C) 2006 - 2019, The Apache Software Foundation | Copyright (c) 2006- Facebook | Copyright (c) 2006-2008 Alexander Chemeris | Copyright (c) 2007 Thomas Porschberg <thomas@randspringer.de> | Copyright (c) 2008- Patrick Collison <patrick@collison.ie> | Copyright 2007 by Nathan C. Myers <ncm@cantrip.org>; some rights reserved | Copyright 2012 Twitter, Inc | copyright claimed)"
 core,github.com/aquasecurity/go-gem-version,Apache-2.0,Copyright (c) 2020 Teppei Fukuda (knqyf263)
 core,github.com/aquasecurity/go-npm-version/pkg,Apache-2.0,Copyright (c) 2020 Teppei Fukuda (knqyf263)
 core,github.com/aquasecurity/go-pep440-version,Apache-2.0,Copyright (c) 2020 Teppei Fukuda (knqyf263)
