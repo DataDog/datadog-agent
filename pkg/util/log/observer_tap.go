@@ -14,13 +14,13 @@ import (
 // LogObserver is an optional hook that receives agent-internal logs (already formatted and scrubbed)
 // after level filtering but before they are written to the underlying logger.
 //
-// Observers MUST be fast and MUST NOT block. Implementations should treat this callback as best-effort.
+// Observers MUST be fast and MUST NOT block. The callback runs synchronously on the
+// logging goroutine, so any blocking or logging inside the callback will stall the caller.
+// Implementations must not call any log.* function from within the callback.
 type LogObserver func(level LogLevel, message string)
 
 var (
 	logObserverHook atomic.Pointer[LogObserver]
-	// observing guards against accidental recursion if an observer emits logs.
-	observing atomic.Bool
 
 	loggerName atomic.String
 )
@@ -53,10 +53,5 @@ func maybeObserve(level LogLevel, message string) {
 	if hp == nil {
 		return
 	}
-	// Best-effort recursion protection.
-	if !observing.CompareAndSwap(false, true) {
-		return
-	}
-	defer observing.Store(false)
 	(*hp)(level, message)
 }

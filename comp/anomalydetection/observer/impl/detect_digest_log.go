@@ -8,10 +8,11 @@ package observerimpl
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"sync"
+
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // detectDigestRecorder writes detect digests to a JSONL file.
@@ -36,7 +37,7 @@ func (r *detectDigestRecorder) record(d detectDigest) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if err := r.enc.Encode(d); err != nil {
-		log.Printf("[observer] detect digest record error: %v", err)
+		pkglog.Warnf("[observer] detect digest record error: %v", err)
 	}
 }
 
@@ -54,7 +55,7 @@ func enableDetectDigestRecordingToFile(e *engine, path string) (func(), error) {
 		return nil, err
 	}
 	e.enableDetectDigestRecording(rec.record)
-	log.Printf("[observer] detect digest recording enabled: %s", path)
+	pkglog.Infof("[observer] detect digest recording enabled: %s", path)
 	return func() {
 		e.enableDetectDigestRecording(nil)
 		_ = rec.close()

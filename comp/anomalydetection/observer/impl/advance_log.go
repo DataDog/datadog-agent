@@ -8,9 +8,10 @@ package observerimpl
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"sync"
+
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const advanceLogFileName = "advances.jsonl"
@@ -60,7 +61,7 @@ func (r *advanceLogRecorder) record(e advanceEntry) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if err := r.enc.Encode(e); err != nil {
-		log.Printf("[observer] advance log record error: %v", err)
+		pkglog.Warnf("[observer] advance log record error: %v", err)
 	}
 }
 

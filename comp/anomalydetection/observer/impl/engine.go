@@ -151,6 +151,7 @@ func newEngine(cfg engineConfig) *engine {
 
 		rawAnomalyWindow: cfg.rawAnomalyWindow,
 		maxRawAnomalies:  cfg.maxRawAnomalies,
+		rawAnomalyIndex:  make(map[anomalyDedupKey]int),
 	}
 
 	// Cache log observers from detectors.
@@ -673,9 +674,6 @@ func (e *engine) captureRawAnomaly(anomaly observerdef.Anomaly) bool {
 	}
 	if _, ok := e.rawAnomalyIndex[key]; ok {
 		return false // exact duplicate
-	}
-	if e.rawAnomalyIndex == nil {
-		e.rawAnomalyIndex = make(map[anomalyDedupKey]int)
 	}
 	e.rawAnomalyIndex[key] = len(e.rawAnomalies)
 	e.rawAnomalies = append(e.rawAnomalies, anomaly)

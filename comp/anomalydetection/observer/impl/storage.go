@@ -8,7 +8,6 @@ package observerimpl
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"math"
 	"os"
 	"sort"
@@ -17,6 +16,7 @@ import (
 	"sync"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // timeSeriesStorage is an internal storage for time series data.
@@ -295,7 +295,7 @@ func (s *timeSeriesStorage) recordDroppedValue(reason, namespace, name string, v
 	sampled := s.sampledDrops[metricKey]
 	if sampled < 3 {
 		s.sampledDrops[metricKey] = sampled + 1
-		log.Printf("[observer] dropped %s metric value namespace=%q metric=%q value=%g ts=%d tags=%v sample=%d",
+		pkglog.Warnf("[observer] dropped %s metric value namespace=%q metric=%q value=%g ts=%d tags=%v sample=%d",
 			reason, namespace, name, value, timestamp, tags, sampled+1)
 	}
 }
