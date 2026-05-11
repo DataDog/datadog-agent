@@ -75,6 +75,13 @@ DEFINE_QUEUE(pointers, pointers_queue_item_t, 128);
 #define LEAF_STATUS_EVAL_ERROR 2
 #define LEAF_STATUS_NIL_DEREF 3
 
+// MAX_CONDITION_ENTRY_LEAVES is the maximum number of entry-side leaves
+// allowed in a split-event-kind condition. condition_state is a uint16
+// storing 2 bits per leaf, so the cap is 8. Keep in sync with
+// maxConditionEntryLeaves in pkg/dyninst/irgen/irgen.go.
+#define MAX_CONDITION_ENTRY_LEAVES 8
+#define CONDITION_LEAF_IDX_MASK (MAX_CONDITION_ENTRY_LEAVES - 1)
+
 #define ENQUEUE_STACK_DEPTH 32
 typedef struct stack_machine {
   // Initialized on every entry point.
@@ -119,10 +126,19 @@ typedef struct stack_machine {
   bool condition_failed;
   // "Arm" flag for the condition-evaluation error channel.
   //
+  // Every condition-leaf abort path (nil deref, OOB, map miss, deref
+  // fail, swiss-map probe failure, @duration absent, etc.) sets this
+  // directly before calling sm_return — but only when the current
+  // expression is a condition (i.e. expr_status_idx == EXPR_STATUS_IDX_NONE).
+  // Capture expressions report errors via the per-expression status
+  // array (EXPR_STATUS_NIL_DEREF, EXPR_STATUS_OOB, EXPR_STATUS_ABSENT)
+  // and must NOT poison this flag. Single-event ConditionBeginOp also
+  // arms it at the start of the condition as belt-and-braces.
+  //
   // Single-event-kind conditions:
   //   - SM_OP_CONDITION_BEGIN arms it at the start of the condition.
-  //   - If any leaf aborts (nil deref, OOB, map miss, etc.), the abort
-  //     path leaves it armed so userspace sees a failed condition.
+  //   - If any leaf aborts, the abort path also arms it (see above),
+  //     so userspace sees a failed condition.
   //   - The tail SM_OP_CONDITION_CHECK clears it iff the full condition
   //     tree ran to completion. The intermediate SM_OP_COND_JUMP_IF_*
   //     ops deliberately do NOT clear it: a short-circuit jump may
@@ -132,13 +148,15 @@ typedef struct stack_machine {
   // Split-event-kind conditions (entry-side driver and return-side AST
   // replay): each entry leaf is its own SM sub-function. The leaf arms
   // the flag in its prelude, and the success-path
-  // SM_OP_CONDITION_LEAF_COMPLETE clears it; abort paths leave it armed.
-  // The driver's SM_OP_CONDITION_LEAF_RECORD reads the flag to derive
-  // a 2-bit status, then clears it before the next leaf. AST-replay
-  // SM_OP_CONDITION_LEAF_LOAD sets the flag (and condition_nil_deref)
-  // when it dispatches an errored leaf, and the tail
-  // SM_OP_CONDITION_CHECK_PRESERVE_ERROR deliberately does NOT clear
-  // it so the error survives to event.c.
+  // SM_OP_CONDITION_LEAF_COMPLETE clears it; abort paths leave it armed
+  // (and also arm it directly, per above — important for the
+  // return-side replay, which inlines its return leaves and skips
+  // SM_OP_CONDITION_BEGIN). The driver's SM_OP_CONDITION_LEAF_RECORD
+  // reads the flag to derive a 2-bit status, then clears it before the
+  // next leaf. AST-replay SM_OP_CONDITION_LEAF_LOAD sets the flag (and
+  // condition_nil_deref) when it dispatches an errored leaf, and the
+  // tail SM_OP_CONDITION_CHECK_PRESERVE_ERROR deliberately does NOT
+  // clear it so the error survives to event.c.
   //
   // event.c surfaces the flag as header->condition_eval_error (0, 1, 2).
   bool condition_eval_error;

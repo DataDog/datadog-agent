@@ -590,6 +590,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
             LeafBodies: []
+            IsSplit: false
           DictIndex: -1
         - Name: r
           Offset: 17
@@ -602,6 +603,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
             LeafBodies: []
+            IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
       ID: 212
@@ -623,6 +625,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
             LeafBodies: []
+            IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
       ID: 214

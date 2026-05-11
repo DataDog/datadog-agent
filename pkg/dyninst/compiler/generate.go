@@ -354,11 +354,12 @@ func (g *generator) addEventHandler(
 // Generates a function that evaluates a condition expression. If the condition
 // evaluates to false, the stack machine sets condition_failed and aborts.
 //
-// Split-event-kind conditions are detected from the IR ops via
-// isCarryModeCondition; in that case the implicit ConditionBeginOp prelude
-// is skipped (the per-leaf record/load ops manage condition_eval_error
-// directly). When the Expression has LeafBodies (the entry-side driver
-// emits them; the return-side replay does not), this also generates one
+// Split-event-kind conditions are signalled by condition.IsSplit (set by
+// irgen when building either the entry-side driver or the return-side AST
+// replay). In that case the implicit ConditionBeginOp prelude is skipped
+// — the per-leaf record/load ops manage condition_eval_error directly.
+// When the Expression has LeafBodies (the entry-side driver emits them;
+// the return-side replay does not), this also generates one
 // ProcessConditionLeaf sub-function per body before emitting the main
 // handler. The driver's IR ConditionLeafEvalOp then lowers to a CallOp +
 // ConditionLeafRecordOp pair pointing at the corresponding leaf function.
@@ -383,15 +384,7 @@ func (g *generator) addConditionHandler(
 		InjectionPC:   injectionPC,
 	}
 	ops := make([]Op, 0, 5+len(condition.Operations))
-	// Split-event-kind drivers (entry and return) manage
-	// condition_eval_error per-leaf (record clears, load sets) — they
-	// must NOT use the global ConditionBegin/Check arm/clear lifecycle.
-	// Detect from the IR ops: any ConditionLeafLoad / ConditionLeafEval
-	// / ConditionCheckPreserveError op signals carry mode. Single-event
-	// conditions keep the existing arm-on-begin / clear-on-success
-	// semantics.
-	splitDriver := isCarryModeCondition(condition.Operations)
-	if !splitDriver {
+	if !condition.IsSplit {
 		ops = append(ops, ConditionBeginOp{})
 	}
 	ops = append(ops, ExprPrepareOp{})
@@ -404,25 +397,6 @@ func (g *generator) addConditionHandler(
 		return nil, err
 	}
 	return id, nil
-}
-
-// isCarryModeCondition reports whether the IR op slice represents a
-// split-event-kind condition program (driver or return-side replay) that
-// uses the per-leaf 2-bit status / AST replay mechanism. These programs
-// manage condition_eval_error directly via ConditionLeafLoadOp and
-// terminate with ConditionCheckPreserveErrorOp; they must skip the
-// implicit ConditionBegin arm in the prelude.
-func isCarryModeCondition(ops []ir.ExpressionOp) bool {
-	for _, op := range ops {
-		switch op.(type) {
-		case *ir.ConditionStateInitOp,
-			*ir.ConditionLeafEvalOp,
-			*ir.ConditionLeafLoadOp,
-			*ir.ConditionCheckPreserveErrorOp:
-			return true
-		}
-	}
-	return false
 }
 
 // addConditionLeafHandler generates the SM sub-function for one entry-side

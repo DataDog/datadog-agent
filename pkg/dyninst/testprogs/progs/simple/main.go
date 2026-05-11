@@ -332,6 +332,12 @@ func main() {
 	// probe it.
 	mv := (&methodValueReceiver{val: 42}).inlinedMethod
 	methodValueSink(mv)
+
+	// condReturnPtr for split-condition return-side nil-deref tests:
+	// returns a pointer that is nil on the "nilret" tag. A return-side
+	// leaf like @return.I32 == 1 nil-derefs on the nil-returning call.
+	condReturnPtr("match")
+	condReturnPtr("nilret")
 }
 
 //go:noinline
@@ -1027,4 +1033,19 @@ func condMultiReturn(tag string) (r0 int, r1 string) {
 	r1 = tag
 	fmt.Println("condMultiReturn", r0, r1)
 	return r0, r1
+}
+
+// condReturnPtr returns a *condFields that is nil on the "nilret" tag.
+// Used by split-condition probes that put the nil-deref leaf on the
+// return side, exercising the abort-path arming of condition_eval_error
+// when no ConditionBeginOp ran (return-side AST replay inlines its
+// return leaves).
+//
+//go:noinline
+func condReturnPtr(tag string) *condFields {
+	fmt.Println("condReturnPtr", tag)
+	if tag == "nilret" {
+		return nil
+	}
+	return &condFields{I32: 1}
 }

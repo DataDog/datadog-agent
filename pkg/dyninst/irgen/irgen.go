@@ -525,6 +525,8 @@ type analyzedCondition struct {
 // allowed in a split-event-kind condition. The runtime stores each
 // leaf's outcome as a 2-bit status in condition_state (uint16; see
 // call_depths_entry_t.condition_state in pkg/dyninst/ebpf/context.h).
+// Keep in sync with MAX_CONDITION_ENTRY_LEAVES in
+// pkg/dyninst/ebpf/context.h.
 const maxConditionEntryLeaves = 8
 
 // analyzedProbe holds all analyzed expressions for a single probe instance.
@@ -5834,6 +5836,7 @@ func resolveSplitConditionEntry(
 		Type:       boolType,
 		Operations: ops,
 		LeafBodies: leafBodies,
+		IsSplit:    true,
 	}, nil
 }
 
@@ -5869,7 +5872,7 @@ func resolveSplitConditionReturn(
 	ops = append(ops, &ir.CondLabelOp{ID: tail})
 	ops = append(ops, &ir.ConditionCheckPreserveErrorOp{})
 	boolType := tc.typesByID[tc.boolType]
-	return &ir.Expression{Type: boolType, Operations: ops}, nil
+	return &ir.Expression{Type: boolType, Operations: ops, IsSplit: true}, nil
 }
 
 // buildLeafBodies compiles each entry-side leaf of a split-event-kind

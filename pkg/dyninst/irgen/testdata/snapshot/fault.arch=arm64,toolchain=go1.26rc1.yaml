@@ -313,6 +313,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
             LeafBodies: []
+            IsSplit: false
           DictIndex: -1
         - Name: s2
           Offset: 17
@@ -325,6 +326,7 @@ Types:
                   Offset: 0
                   ByteSize: 16
             LeafBodies: []
+            IsSplit: false
           DictIndex: -1
         - Name: i
           Offset: 33
@@ -337,6 +339,7 @@ Types:
                   Offset: 0
                   ByteSize: 8
             LeafBodies: []
+            IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
       ID: 123

@@ -743,7 +743,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "575"
+      - "581"
   when:
     dsl: "n == 7"
     json: {eq: [{ref: "n"}, 7]}
@@ -768,7 +768,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "575"
+      - "581"
   sampling:
     snapshotsPerSecond: 10
 
@@ -3189,6 +3189,36 @@ probes:
   sampling:
     snapshotsPerSecond: 10
 
+# Split condition with the nil-deref leaf on the RETURN side. Exercises
+# the abort-path arming of condition_eval_error: the return-side AST
+# replay inlines its return leaves and skips ConditionBeginOp, so the
+# leaf abort must arm the flag directly. The entry leaf is true on both
+# calls so the AND does not short-circuit past the return leaf. Calls:
+#   condReturnPtr("match")  → @return=&{I32:1}, tag="match":
+#                              entry true, return true → fires (no err)
+#   condReturnPtr("nilret") → @return=nil, tag="nilret":
+#                              entry true, return leaf nil-derefs →
+#                              fail-open fires with eval_error=2
+- id: condCompound_split_unguarded_return_nilderef
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condReturnPtr
+  when:
+    dsl: "tag != \"skip\" && @return.I32 == 1"
+    json:
+      and:
+        - ne: [{ref: "tag"}, "skip"]
+        - eq: [{getmember: [{ref: "@return"}, "I32"]}, 1]
+  template: "split_ret_nilderef [tag={tag}]"
+  segments:
+    - str: "split_ret_nilderef [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
 # Static-error leaf in one branch. Today this must fail the whole probe
 # with issue:ConditionExpressionUnresolvable (matching single-leaf
 # semantics). obj.missingField does not exist on condFields.
@@ -3386,7 +3416,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "575"
+      - "581"
   when:
     dsl: "@duration == 0.0"
     json: {eq: [{ref: "@duration"}, 0.0]}
@@ -3494,7 +3524,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "575"
+      - "581"
   when:
     dsl: "n == 7 && tag == \"match\""
     json:

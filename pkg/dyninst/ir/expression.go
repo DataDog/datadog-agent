@@ -36,6 +36,14 @@ type Expression struct {
 	// SM sub-function so leaf-internal aborts return to the entry-side
 	// driver rather than the event handler. Nil for non-split conditions.
 	LeafBodies []*Expression
+	// IsSplit marks a split-event-kind condition program (the entry-side
+	// driver or the return-side AST replay). When true, the compiler
+	// skips the implicit ConditionBeginOp prelude and emits
+	// ConditionCheckPreserveErrorOp at the tail instead of the regular
+	// ConditionCheckOp: the per-leaf record / load ops in such programs
+	// manage condition_eval_error directly, and the begin/check
+	// arm/clear lifecycle would corrupt that.
+	IsSplit bool
 }
 
 var (
