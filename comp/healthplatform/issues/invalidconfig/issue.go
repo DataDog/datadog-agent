@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/lite"
 )
 
+// InvalidConfigIssue uses the payload that lives in pkg/config/lite
 type InvalidConfigIssue struct{}
 
 // BuildIssue decodes the IssueReport.Context bag and builds the Issue.
