@@ -41,9 +41,16 @@ type SymDBRoot struct {
 }
 
 type EventMetadata struct {
-	DDSource  string `json:"ddsource"`
-	Service   string `json:"service"`
-	RuntimeID string `json:"runtimeId"`
+	DDSource       string `json:"ddsource"`
+	Service        string `json:"service"`
+	Version        string `json:"version"`
+	Language       string `json:"language"`
+	RuntimeID      string `json:"runtimeId"`
+	Type           string `json:"type"`
+	UploadID       string `json:"upload_id"`
+	BatchNum       int    `json:"batch_num"`
+	Final          bool   `json:"final"`
+	AttachmentSize int    `json:"attachment_size"`
 }
 
 type testServer struct {
@@ -93,7 +100,7 @@ func newTestServer() *testServer {
 }
 func validateSymDBRequest(
 	t *testing.T,
-	expectedService, expectedRuntimeID string,
+	expectedService, expectedVersion, expectedRuntimeID string,
 	expectedUploadID uuid.UUID,
 	req *http.Request,
 ) {
@@ -141,9 +148,19 @@ func validateSymDBRequest(
 
 	var eventMetadata EventMetadata
 	require.NoError(t, json.Unmarshal(eventData, &eventMetadata))
-	require.Equal(t, "dd_debugger", eventMetadata.DDSource)
-	require.Equal(t, expectedService, eventMetadata.Service)
-	require.Equal(t, expectedRuntimeID, eventMetadata.RuntimeID)
+	expectedEvent := EventMetadata{
+		DDSource:       "dd_debugger",
+		Service:        expectedService,
+		Version:        expectedVersion,
+		Language:       "go",
+		RuntimeID:      expectedRuntimeID,
+		Type:           "symdb",
+		UploadID:       expectedUploadID.String(),
+		BatchNum:       1,
+		Final:          true,
+		AttachmentSize: len(fileData),
+	}
+	require.Equal(t, expectedEvent, eventMetadata)
 
 	// Validate file part - it should always be compressed as file.gz
 	require.Equal(t, "file.gz", filePart.FileName())
@@ -283,7 +300,7 @@ func TestBatchEncoder(t *testing.T) {
 			}()
 
 			req := <-ts.requests
-			validateSymDBRequest(t, "service1", "dummy-runtime-id", uploadID, req.r)
+			validateSymDBRequest(t, "service1", "1.0.0", "dummy-runtime-id", uploadID, req.r)
 			if injectError {
 				req.w.WriteHeader(http.StatusInternalServerError)
 			} else {

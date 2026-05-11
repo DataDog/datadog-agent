@@ -47,11 +47,14 @@ func GetInstanceDiagnoses(instance check.Check) []diagnose.Diagnosis {
 		}
 	}
 
-	// Set category as check name if it was not set
+	// Set category and check name if not provided by the check
 	if len(diagnoses) > 0 {
 		for i, d := range diagnoses {
 			if len(d.Category) == 0 {
 				diagnoses[i].Category = instance.String()
+			}
+			if len(d.CheckName) == 0 {
+				diagnoses[i].CheckName = instance.String()
 			}
 		}
 	}

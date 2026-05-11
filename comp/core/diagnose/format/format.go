@@ -84,10 +84,15 @@ func outputDiagnosis(w io.Writer, cfg diagnose.Config, result string, diagnosisI
 	// Running index (1, 2, 3, etc)
 	fmt.Fprintf(w, "%d. --------------\n", diagnosisIdx)
 
-	// [Required] Diagnosis name (and category if it us not empty)
-	if len(d.Category) > 0 {
+	// [Required] Diagnosis name with optional [checkname] [category] prefix
+	switch {
+	case len(d.CheckName) > 0 && len(d.Category) > 0:
+		fmt.Fprintf(w, "  %s [%s] [%s] %s\n", result, d.CheckName, d.Category, d.Name)
+	case len(d.CheckName) > 0:
+		fmt.Fprintf(w, "  %s [%s] %s\n", result, d.CheckName, d.Name)
+	case len(d.Category) > 0:
 		fmt.Fprintf(w, "  %s [%s] %s\n", result, d.Category, d.Name)
-	} else {
+	default:
 		fmt.Fprintf(w, "  %s %s\n", result, d.Name)
 	}
 
