@@ -11,14 +11,14 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"sort"
 	"strings"
-
-	"golang.org/x/tools/go/packages"
 
 	"github.com/DataDog/datadog-agent/pkg/security/generators/accessors/common"
 )
@@ -306,7 +306,16 @@ func constsLinkFromName(constName string) string {
 	return nonLinkCharactersRegex.ReplaceAllString(strings.ReplaceAll(strings.ToLower(strings.TrimSpace(constName)), " ", "-"), "")
 }
 
-func parseConstantsFile(filepath string, tags []string) ([]constants, error) {
+// The second argument used to be passed to `packages.Load` as `-tags=<tags>`
+// so the loader honored //go:build constraints inside the file. After the
+// switch to `parser.ParseFile` we no longer evaluate build constraints here,
+// and in practice all callers only ever pass `unix` or `windows` — platform
+// gating happens one level up in `parseConstants` via a filename whitelist.
+// The parameter is kept on the signature for API stability; if real
+// custom-tag support is ever needed, plug `go/build/constraint` in here to
+// evaluate the file's `//go:build` line against the supplied tag set
+// (stays hermetic, no `golang.org/x/tools/go/packages` needed). See ABLD-420.
+func parseConstantsFile(filepath string, _ []string) ([]constants, error) {
 	// extract architecture from filename
 	arch, err := parseArchFromFilepath(filepath)
 	if err != nil {
@@ -315,22 +324,16 @@ func parseConstantsFile(filepath string, tags []string) ([]constants, error) {
 
 	// generate constants
 	var output []constants
-	cfg := packages.Config{
-		Mode:       packages.NeedSyntax | packages.NeedTypes | packages.NeedImports,
-		BuildFlags: []string{"-mod=readonly", fmt.Sprintf("-tags=%s", tags)},
-	}
-
-	pkgs, err := packages.Load(&cfg, filepath)
+	// We only need the AST to read const declarations and their doc comments,
+	// not type info or imports — so go/parser is enough and keeps this hermetic
+	// (no Go toolchain required at action time).
+	astFile, err := parser.ParseFile(token.NewFileSet(), filepath, nil, parser.ParseComments)
 	if err != nil {
-		return nil, fmt.Errorf("load error:%w", err)
+		return nil, fmt.Errorf("parse error: %w", err)
 	}
-
-	if len(pkgs) == 0 || len(pkgs[0].Syntax) == 0 {
+	if astFile == nil {
 		return nil, errors.New("couldn't parse constant file")
 	}
-
-	pkg := pkgs[0]
-	astFile := pkg.Syntax[0]
 	for _, decl := range astFile.Decls {
 		if decl, ok := decl.(*ast.GenDecl); ok {
 			for _, s := range decl.Specs {
