@@ -70,6 +70,9 @@ func (s *senderMock) sendEventPayload(_ *senderSession, _ *Event, _ map[string]i
 func (s *senderMock) sendLogsBatch(_ context.Context, _ []slog.Record) error {
 	return nil
 }
+func (s *senderMock) sendLogsTypedBatch(_ context.Context, _ []Log) error {
+	return nil
+}
 
 // Runner mock (TODO: use use mock.Mock)
 type runnerMock struct {

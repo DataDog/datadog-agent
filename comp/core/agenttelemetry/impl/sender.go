@@ -44,6 +44,14 @@ const (
 	batchPayloadType  = "message-batch"
 	logsPayloadType   = "logs"
 
+	// Errortracking flush configuration. Hardcoded for v3 — the
+	// configurable v2 `errortracking.buffer_size` / `batch_size` /
+	// `flush_interval_seconds` keys were dropped per review comment C8
+	// on PR #49946. Re-plumb through atelCfg if tuning is ever needed.
+	errLogsBufferSize    = 1024
+	errLogsBatchSize     = 50
+	errLogsFlushInterval = 10 * time.Second
+
 	httpClientResetInterval = 5 * time.Minute
 	httpClientTimeout       = 10 * time.Second
 )
@@ -56,7 +64,17 @@ type sender interface {
 
 	sendAgentMetricPayloads(ss *senderSession, metrics []*agentmetric)
 	sendEventPayload(ss *senderSession, eventInfo *Event, eventPayload map[string]interface{})
+
+	// sendLogsBatch is the v2 entry point: takes raw slog.Records and
+	// converts them internally. Deprecated; will be removed once W2/W3
+	// have migrated all callers off SendErrorLogs.
 	sendLogsBatch(ctx context.Context, batch []slog.Record) error
+
+	// sendLogsTypedBatch is the v3 entry point used by atel's
+	// errortracking flush goroutine. It takes already-converted wire
+	// Log structs and POSTs them as a single LogsPayload via the
+	// shared sendPayloadBody helper.
+	sendLogsTypedBatch(ctx context.Context, logs []Log) error
 }
 
 type client interface {

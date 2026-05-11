@@ -15,10 +15,12 @@ import (
 	"log/slog"
 	"maps"
 	"net/http"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
@@ -56,6 +58,15 @@ type atel struct {
 	prevPromMetricCounterValues   map[string]float64
 	prevPromMetricHistogramValues map[string]uint64
 	prevPromMetricValuesMU        sync.Mutex
+
+	// Errortracking (v3): bounded channel + flush goroutine.
+	// SubmitErrorRecord enqueues here non-blockingly; runErrorLogsFlush
+	// drains the channel on a ticker and on shutdown, dispatching via
+	// sender.sendLogsTypedBatch. The previous v2 Pipeline/Processor
+	// abstractions were removed per review comment C2 on PR #49946.
+	errLogsCh      chan errortracking.ErrorLog
+	errLogsDropped atomic.Uint64
+	errLogsFlushWG sync.WaitGroup
 }
 
 // Requires defines the dependencies for the agenttelemetry component
@@ -160,6 +171,8 @@ func createAtel(
 
 		prevPromMetricCounterValues:   make(map[string]float64),
 		prevPromMetricHistogramValues: make(map[string]uint64),
+
+		errLogsCh: make(chan errortracking.ErrorLog, errLogsBufferSize),
 	}
 }
 
@@ -649,17 +662,127 @@ func (a *atel) SendErrorLogs(ctx context.Context, batch []slog.Record) error {
 	return a.sender.sendLogsBatch(ctx, batch)
 }
 
-// SubmitErrorRecord is the v3 per-record entry point. The real
-// implementation (bounded channel + flush job scheduled via atel's
-// runner + recursion guard) lands in a follow-up commit on this branch.
-// This stub keeps the Component interface satisfied so the build stays
-// green while the contract is in flight.
-func (a *atel) SubmitErrorRecord(_ errortracking.ErrorLog) {
+// SubmitErrorRecord is the v3 per-record entry point. Non-blocking:
+// enqueues into the bounded errLogsCh buffer; on overflow, drops
+// silently and increments errLogsDropped (the calling goroutine — the
+// slog handler hot path — MUST NOT block on a misbehaving backend).
+//
+// Recursion guard (review comment C1 on PR #49946): records whose
+// caller PC resolves inside the agenttelemetry component or the
+// pkg/util/log/setup package are dropped without enqueue. This breaks
+// the feedback loop where logging an error inside SubmitErrorRecord
+// would re-trigger SubmitErrorRecord.
+func (a *atel) SubmitErrorRecord(log errortracking.ErrorLog) {
 	if !a.enabled {
 		return
 	}
-	// TODO(AGTHEAL-15 v3): enqueue to bounded channel, drop on overflow,
-	// flush via atel's runner; recursion-guard on PC.
+	if isRecursiveCaller(log.PC) {
+		return
+	}
+	select {
+	case a.errLogsCh <- log:
+	default:
+		a.errLogsDropped.Add(1)
+	}
+}
+
+// isRecursiveCaller returns true if the call site identified by pc
+// resolves into a package that itself produces errortracking traffic
+// (agenttelemetry or the slog setup), which would otherwise create a
+// feedback loop. Matches both frame.Function (importpath form) and
+// frame.File (file-path form) to remain robust under both trimpath and
+// non-trimpath builds.
+func isRecursiveCaller(pc uintptr) bool {
+	if pc == 0 {
+		return false
+	}
+	frame, _ := runtime.CallersFrames([]uintptr{pc}).Next()
+	if strings.Contains(frame.Function, "datadog-agent/comp/core/agenttelemetry") ||
+		strings.Contains(frame.Function, "datadog-agent/pkg/util/log/setup") {
+		return true
+	}
+	if strings.Contains(frame.File, "/comp/core/agenttelemetry/") ||
+		strings.Contains(frame.File, "/pkg/util/log/setup/") {
+		return true
+	}
+	return false
+}
+
+// runErrorLogsFlush is the v3 flush goroutine for errortracking
+// records. Started by atel.start, stopped by atel.stop (via cancelCtx).
+// On each tick it drains the buffered channel — in batches of up to
+// errLogsBatchSize — and dispatches via sender.sendLogsTypedBatch. On
+// shutdown it performs one final drain so records buffered just before
+// stop are not lost.
+//
+// Behavioral note: send failures (5xx, network) are logged at Debug and
+// the batch is dropped. The pkg/util/log/errortracking handler is a
+// producer with no retry expectation; the v2 Pipeline's retry-once-
+// then-drop policy is collapsed into "log and move on" here because
+// retrying at flush time would block subsequent ticks and require
+// additional buffering complexity.
+func (a *atel) runErrorLogsFlush() {
+	defer a.errLogsFlushWG.Done()
+
+	ticker := time.NewTicker(errLogsFlushInterval)
+	defer ticker.Stop()
+
+	batch := make([]errortracking.ErrorLog, 0, errLogsBatchSize)
+	for {
+		select {
+		case <-a.cancelCtx.Done():
+			a.drainAndSend(&batch)
+			return
+		case <-ticker.C:
+			a.drainAndSend(&batch)
+		}
+	}
+}
+
+// drainAndSend non-blockingly drains errLogsCh into batches of up to
+// errLogsBatchSize and dispatches each. Keeps going while the channel
+// has more records, so a tick that arrives behind a burst can catch up
+// in one wakeup. Reuses the supplied batch slice across iterations to
+// avoid per-tick allocations.
+func (a *atel) drainAndSend(batch *[]errortracking.ErrorLog) {
+	for {
+		full := false
+		for !full {
+			select {
+			case r := <-a.errLogsCh:
+				*batch = append(*batch, r)
+				if len(*batch) >= errLogsBatchSize {
+					full = true
+				}
+			default:
+				// channel drained — send anything we have and return
+				if len(*batch) > 0 {
+					a.sendErrorLogsBatch(*batch)
+					*batch = (*batch)[:0]
+				}
+				return
+			}
+		}
+		// Batch full — send and keep draining.
+		a.sendErrorLogsBatch(*batch)
+		*batch = (*batch)[:0]
+	}
+}
+
+// sendErrorLogsBatch converts a slice of ErrorLog into wire Log structs
+// and dispatches via the shared typed sender path. Failures are logged
+// at Debug; this is a fire-and-forget telemetry path.
+func (a *atel) sendErrorLogsBatch(records []errortracking.ErrorLog) {
+	if len(records) == 0 {
+		return
+	}
+	logs := make([]Log, len(records))
+	for i, r := range records {
+		logs[i] = errorLogToLog(r)
+	}
+	if err := a.sender.sendLogsTypedBatch(a.cancelCtx, logs); err != nil {
+		a.logComp.Debugf("errortracking flush failed (%d records): %v", len(records), err)
+	}
 }
 
 func (a *atel) StartStartupSpan(operationName string) (*installertelemetry.Span, context.Context) {
@@ -703,6 +826,12 @@ func (a *atel) start() error {
 		})
 	}
 
+	// Start the v3 errortracking flush goroutine. Lifecycle is bound
+	// to a.cancelCtx; stop() waits on errLogsFlushWG for the final
+	// drain to complete.
+	a.errLogsFlushWG.Add(1)
+	go a.runErrorLogsFlush()
+
 	return nil
 }
 
@@ -723,6 +852,11 @@ func (a *atel) stop() error {
 	<-runnerCtx.Done()
 
 	<-a.cancelCtx.Done()
+
+	// Wait for the errortracking flush goroutine's final drain to
+	// complete so records buffered just before stop are still sent.
+	a.errLogsFlushWG.Wait()
+
 	a.logComp.Info("Agent telemetry is stopped")
 	return nil
 }
