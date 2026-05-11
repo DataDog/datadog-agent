@@ -17,8 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// withYAML writes a datadog.yaml into a t.TempDir() and returns the dir path.
-// Pass the directory to Extract() as the defaultConfPath.
+// withYAML writes a datadog.yaml into a t.TempDir() and returns the dir path,
+// suitable to pass to Extract() as defaultConfPath.
 func withYAML(t *testing.T, content string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -26,23 +26,18 @@ func withYAML(t *testing.T, content string) string {
 	return dir
 }
 
-// extract is a tiny wrapper that runs Extract with a TODO context — secret-
-// backend resolution requires a context but the test suite never configures
+// extract runs Extract with a TODO context — the test suite never configures
 // a secret_backend_command, so the resolver no-ops.
-func extract(_ *testing.T, cliPath, defaultPath string) LiteConfig {
+func extract(cliPath, defaultPath string) LiteConfig {
 	return Extract(context.TODO(), cliPath, defaultPath)
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Tier 1 — environment variables
-// ─────────────────────────────────────────────────────────────────────────────
 
 func TestEnvBeatsFile(t *testing.T) {
 	dir := withYAML(t, "api_key: file_key\nsite: file_site.com\n")
 	t.Setenv("DD_API_KEY", "env_key")
 	t.Setenv("DD_SITE", "env_site.com")
 
-	cfg := extract(t, "", dir)
+	cfg := extract("", dir)
 	assert.Equal(t, "env_key", cfg.APIKey.Value)
 	assert.Equal(t, SourceEnv, cfg.APIKey.Source)
 	assert.Equal(t, "env_site.com", cfg.Site.Value)
@@ -52,24 +47,20 @@ func TestEnvBeatsFile(t *testing.T) {
 func TestDDURLEnvPriority(t *testing.T) {
 	t.Setenv("DD_DD_URL", "https://primary.example")
 	t.Setenv("DD_URL", "https://legacy.example") // should lose
-	cfg := extract(t, "", "")
+	cfg := extract("", "")
 	assert.Equal(t, "https://primary.example", cfg.DDURL.Value)
 	assert.Equal(t, SourceEnv, cfg.DDURL.Source)
 }
 
 func TestDDURLLegacyFallback(t *testing.T) {
 	t.Setenv("DD_URL", "https://legacy.example")
-	cfg := extract(t, "", "")
+	cfg := extract("", "")
 	assert.Equal(t, "https://legacy.example", cfg.DDURL.Value)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Tier 2 — full yaml.Unmarshal
-// ─────────────────────────────────────────────────────────────────────────────
-
 func TestTier2_FullYAML(t *testing.T) {
 	dir := withYAML(t, "api_key: abc123\nsite: datadoghq.eu\ndd_url: https://example.com\n")
-	cfg := extract(t, "", dir)
+	cfg := extract("", dir)
 	assert.Equal(t, "abc123", cfg.APIKey.Value)
 	assert.Equal(t, SourceFileYAMLFull, cfg.APIKey.Source)
 	assert.Equal(t, "datadoghq.eu", cfg.Site.Value)
@@ -90,14 +81,10 @@ additional_endpoints:
 logs_config:
   api_key: nested_logs_key
 `)
-	cfg := extract(t, "", dir)
+	cfg := extract("", dir)
 	assert.Equal(t, "top_level_wins", cfg.APIKey.Value,
 		"Lite mode must never surface a nested api_key — only top-level")
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Tier 3 — strip-indented YAML rescue
-// ─────────────────────────────────────────────────────────────────────────────
 
 func TestTier3_StripIndentedRescuesBrokenNested(t *testing.T) {
 	// Top-level api_key/site are fine, but process_config block has bad YAML
@@ -110,22 +97,18 @@ process_config:
   scrub_args: [unterminated
   more_broken: {missing
 `)
-	cfg := extract(t, "", dir)
+	cfg := extract("", dir)
 	assert.Equal(t, "rescued_key", cfg.APIKey.Value)
 	assert.Equal(t, SourceFileYAMLTop, cfg.APIKey.Source)
 	assert.Equal(t, "datadoghq.eu", cfg.Site.Value)
 	assert.Error(t, cfg.YAMLParseErr, "Tier 2 should have failed")
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Tier 4 — column-0 regex
-// ─────────────────────────────────────────────────────────────────────────────
-
 func TestTier4_RegexWhenYAMLCompletelyBroken(t *testing.T) {
-	// File is so broken that both Tier 2 and Tier 3 fail (the very first line
-	// is malformed). Regex must still find the top-level api_key.
+	// File so broken that both Tier 2 and Tier 3 fail (the first line is
+	// malformed). Regex must still find the top-level api_key.
 	dir := withYAML(t, "{ this is not yaml at all\napi_key: still_works\nsite: dd.eu\n}}}\n")
-	cfg := extract(t, "", dir)
+	cfg := extract("", dir)
 	assert.Equal(t, "still_works", cfg.APIKey.Value)
 	assert.Equal(t, SourceFileRegex, cfg.APIKey.Source)
 	assert.Equal(t, "api_key", cfg.APIKey.MatchedKey)
@@ -133,36 +116,32 @@ func TestTier4_RegexWhenYAMLCompletelyBroken(t *testing.T) {
 
 func TestTier4_RegexSkipsCommentedLines(t *testing.T) {
 	dir := withYAML(t, "# api_key: this_is_in_a_comment\napi_key: real_key\n")
-	cfg := extract(t, "", dir)
+	cfg := extract("", dir)
 	assert.Equal(t, "real_key", cfg.APIKey.Value)
 }
 
 func TestTier4_RegexSkipsIndentedLines(t *testing.T) {
-	// YAML is too broken for Tier 2/3 to parse. The only `api_key:` line is
-	// indented under a (broken) parent — regex must NOT match it, fuzzy
-	// likewise. We want SourceNone, not a nested key surfaced as primary.
+	// YAML too broken for Tier 2/3 to parse. The only `api_key:` line is
+	// indented under a (broken) parent — regex must NOT match it. Want
+	// SourceNone, not a nested key surfaced as primary.
 	dir := withYAML(t, "{ broken yaml at top level\nadditional_endpoints:\n  api_key: nested_should_be_ignored\n")
-	cfg := extract(t, "", dir)
+	cfg := extract("", dir)
 	assert.Equal(t, SourceNone, cfg.APIKey.Source,
 		"indented api_key under a broken parent must not be promoted")
 }
 
 func TestTier4_RegexCleansAnchorPrefix(t *testing.T) {
 	dir := withYAML(t, "{ broken yaml\napi_key: &my_anchor abc123\n")
-	cfg := extract(t, "", dir)
+	cfg := extract("", dir)
 	assert.Equal(t, "abc123", cfg.APIKey.Value,
 		"Regex tier must strip the YAML anchor prefix from the captured value")
 }
 
 func TestTier4_RegexTrimsTrailingComment(t *testing.T) {
 	dir := withYAML(t, "{ broken\napi_key: abc # this is the key\n")
-	cfg := extract(t, "", dir)
+	cfg := extract("", dir)
 	assert.Equal(t, "abc", cfg.APIKey.Value)
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Tier 5 — fuzzy match
-// ─────────────────────────────────────────────────────────────────────────────
 
 func TestTier5_FuzzyCatchesTypos(t *testing.T) {
 	cases := []struct {
@@ -177,7 +156,7 @@ func TestTier5_FuzzyCatchesTypos(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			dir := withYAML(t, c.content)
-			cfg := extract(t, "", dir)
+			cfg := extract("", dir)
 			if strings.Contains(c.content, "stie:") {
 				assert.Equal(t, c.want, cfg.Site.Value)
 				assert.Equal(t, SourceFileFuzzy, cfg.Site.Source)
@@ -190,39 +169,28 @@ func TestTier5_FuzzyCatchesTypos(t *testing.T) {
 }
 
 func TestTier5_FuzzyHonoursDenylist(t *testing.T) {
-	// app_key is one Damerau-Levenshtein edit from api_key, but it's a real,
-	// distinct config field. It must NEVER be promoted to api_key.
+	// app_key is one Damerau-Levenshtein edit from api_key but is a real,
+	// distinct field. Must NEVER be promoted to api_key.
 	dir := withYAML(t, "{broken\napp_key: never_use_as_api_key\n")
-	cfg := extract(t, "", dir)
+	cfg := extract("", dir)
 	assert.Equal(t, SourceNone, cfg.APIKey.Source,
 		"app_key must not be matched as api_key — it's a real distinct field")
 }
 
 func TestTier5_FuzzyAmbiguousRefuses(t *testing.T) {
-	// "ait_key" is equidistant from "api_key" (substitute 'p'→'t') and
-	// from no other target. Should match api_key (distance 1, only candidate).
-	// But if we add a contender at the same distance... actually for a single-
-	// target test, just verify "abi_key" (distance 1 from api_key) wins.
+	// "abi_key" is distance 1 from api_key with no contender; should match.
 	dir := withYAML(t, "{broken\nabi_key: foo\n")
-	cfg := extract(t, "", dir)
+	cfg := extract("", dir)
 	assert.Equal(t, "foo", cfg.APIKey.Value)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Tier 6 — defaults
-// ─────────────────────────────────────────────────────────────────────────────
-
 func TestTier6_DefaultSite(t *testing.T) {
-	cfg := extract(t, "", "")
+	cfg := extract("", "")
 	assert.Equal(t, DefaultSite, cfg.Site.Value)
 	assert.Equal(t, SourceDefault, cfg.Site.Source)
 	assert.Equal(t, SourceNone, cfg.APIKey.Source, "no default for api_key")
 	assert.Equal(t, SourceNone, cfg.DDURL.Source, "no default for dd_url")
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ENC[] handling
-// ─────────────────────────────────────────────────────────────────────────────
 
 func TestENC_WithoutBackendStaysEncrypted(t *testing.T) {
 	dir := withYAML(t, "api_key: ENC[some_handle]\nsite: datadoghq.eu\n")
@@ -235,8 +203,8 @@ func TestENC_ResolvedViaSecretBackend(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("fake backend is a POSIX shell script; the exec path is platform-agnostic")
 	}
-	// Build a fake secret backend: a tiny shell script that reads a JSON
-	// request on stdin and writes a JSON response on stdout.
+	// Fake secret backend: tiny shell script that reads a JSON request on
+	// stdin and writes a JSON response on stdout.
 	dir := t.TempDir()
 	backend := filepath.Join(dir, "fake_backend.sh")
 	const script = `#!/bin/sh
@@ -255,12 +223,8 @@ printf '%s' '{"ENC[the_handle]":{"value":"resolved_value","error":""}}'
 	assert.Equal(t, SourceSecretBackend, cfg.APIKey.Source)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Edge cases
-// ─────────────────────────────────────────────────────────────────────────────
-
 func TestNoConfigFileAtAll(t *testing.T) {
-	cfg := extract(t, "/nonexistent", "/also/nonexistent")
+	cfg := extract("/nonexistent", "/also/nonexistent")
 	assert.Empty(t, cfg.ConfigFilePath)
 	assert.NoError(t, cfg.FileReadErr)
 	assert.Equal(t, DefaultSite, cfg.Site.Value)
@@ -269,16 +233,15 @@ func TestNoConfigFileAtAll(t *testing.T) {
 func TestExplicitCLIPathBeatsDefault(t *testing.T) {
 	cli := withYAML(t, "api_key: cli_key\n")
 	def := withYAML(t, "api_key: default_key\n")
-	cfg := extract(t, cli, def)
+	cfg := extract(cli, def)
 	assert.Equal(t, "cli_key", cfg.APIKey.Value)
 }
 
 func TestQuotedAndCRLFAreCleaned(t *testing.T) {
-	// CRLF line endings + quoted value.
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "datadog.yaml"),
 		[]byte("api_key: \"quoted\"\r\nsite: 'singled'\r\n"), 0o600))
-	cfg := extract(t, "", dir)
+	cfg := extract("", dir)
 	assert.Equal(t, "quoted", cfg.APIKey.Value)
 	assert.Equal(t, "singled", cfg.Site.Value)
 }
@@ -287,20 +250,16 @@ func TestBOMIsStripped(t *testing.T) {
 	dir := t.TempDir()
 	content := append([]byte{0xEF, 0xBB, 0xBF}, []byte("api_key: bom_key\n")...)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "datadog.yaml"), content, 0o600))
-	cfg := extract(t, "", dir)
+	cfg := extract("", dir)
 	assert.Equal(t, "bom_key", cfg.APIKey.Value)
 }
 
 func TestEmptyValueIsSkipped(t *testing.T) {
 	dir := withYAML(t, "api_key:\nsite: dd.eu\n")
-	cfg := extract(t, "", dir)
+	cfg := extract("", dir)
 	assert.Equal(t, SourceNone, cfg.APIKey.Source)
 	assert.Equal(t, "dd.eu", cfg.Site.Value)
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Direct tests of helper functions
-// ─────────────────────────────────────────────────────────────────────────────
 
 func TestDamerauLevenshtein(t *testing.T) {
 	cases := []struct {

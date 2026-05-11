@@ -52,10 +52,10 @@ func ValidateRawConfig(raw []byte) ValidationResult {
 	}
 
 	errs, schemaErr := schema.ValidateCoreConfig(parsed)
-	if schemaErr != nil {
+	switch {
+	case schemaErr != nil:
 		return ValidationResult{Verdict: VerdictSchemaUnavailable, Parsed: parsed}
-	}
-	if len(errs) > 0 {
+	case len(errs) > 0:
 		return ValidationResult{Verdict: VerdictSchemaInvalid, SchemaErrors: errs, Parsed: parsed}
 	}
 	return ValidationResult{Verdict: VerdictOK, Parsed: parsed}

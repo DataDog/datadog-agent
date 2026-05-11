@@ -28,9 +28,9 @@ const (
 	rescueIntakePath   = "/api/v2/agenthealth"
 	rescueEventType    = "agent-health-issues"
 
-	// rescueFlavor is the service name we tag rescue payloads with. The real
-	// flavor isn't always knowable at rescue time (Fx hasn't initialised), so
-	// a static placeholder keeps backend dedup stable.
+	// rescueFlavor tags rescue payloads with a static service name: the real
+	// flavor isn't always knowable at rescue time (Fx hasn't initialised), and
+	// a stable placeholder keeps backend dedup stable.
 	rescueFlavor = "agent"
 )
 
@@ -49,25 +49,7 @@ func Rescue(ctx context.Context, cliConfPath, defaultConfPath string, startupErr
 	defer cancel()
 
 	cfg := Extract(rctx, cliConfPath, defaultConfPath)
-
-	issue := buildRescueIssue(cfg, startupErr)
-	if issue == nil {
-		return nil
-	}
-
-	if !cfg.APIKey.resolved() {
-		return fmt.Errorf("rescue: no usable api_key resolved (source=%s)", cfg.APIKey.Source)
-	}
-
-	report := &healthplatform.HealthReport{
-		EventType: rescueEventType,
-		EmittedAt: time.Now().UTC().Format(time.RFC3339),
-		Service:   rescueFlavor,
-		Host:      &healthplatform.HostInfo{Hostname: hostnameOrEmpty()},
-		Issues:    map[string]*healthplatform.Issue{"datadog.yaml": issue},
-	}
-
-	return postRescue(rctx, cfg.Site.Value, cfg.APIKey.Value, report)
+	return rescueWithURL(rctx, cfg, intakeURL(cfg.Site.Value), startupErr)
 }
 
 // DefaultConfigPath returns the platform-default location of datadog.yaml.
@@ -90,77 +72,70 @@ func defaultConfigPathForGOOS(goos string) string {
 	}
 }
 
-// buildRescueIssue inspects cfg + startupErr and produces the appropriate
-// Issue payload. Returns nil if there is nothing worth reporting.
-func buildRescueIssue(cfg LiteConfig, startupErr error) *healthplatform.Issue {
-	switch {
-	case cfg.YAMLParseErr != nil:
-		issue := BuildInvalidConfigIssue(IssueInfo{
-			Kind:         ErrorKindYAMLParse,
-			ConfigPath:   cfg.ConfigFilePath,
-			ErrorMessage: cfg.YAMLParseErr.Error(),
-		})
-		stampDetectedAt(issue)
-		return issue
-
-	case cfg.ParsedConfig != nil:
-		errs, _ := schema.ValidateCoreConfig(cfg.ParsedConfig)
-		if len(errs) > 0 {
-			return rescueSchemaIssue(cfg.ConfigFilePath, errs)
-		}
-		if startupErr != nil {
-			return rescueStartupIssue(cfg.ConfigFilePath, startupErr)
-		}
-		return nil
-
-	case startupErr != nil:
-		return rescueStartupIssue(cfg.ConfigFilePath, startupErr)
-
-	default:
-		return nil
-	}
-}
-
-func rescueSchemaIssue(path string, errs []string) *healthplatform.Issue {
-	visible, truncated := TruncateSchemaErrors(errs)
-	issue := BuildInvalidConfigIssue(IssueInfo{
-		Kind:       ErrorKindSchemaValidation,
-		ConfigPath: path,
-		Errors:     strings.Join(visible, "\n"),
-		ErrorCount: len(errs),
-		Truncated:  truncated,
-	})
-	stampDetectedAt(issue)
-	return issue
-}
-
-func rescueStartupIssue(path string, startupErr error) *healthplatform.Issue {
-	issue := BuildInvalidConfigIssue(IssueInfo{
-		Kind:         ErrorKindStartupFailure,
-		ConfigPath:   path,
-		ErrorMessage: startupErr.Error(),
-	})
-	stampDetectedAt(issue)
-	return issue
-}
-
-// stampDetectedAt sets the rescue timestamp. The in-Fx path leaves DetectedAt
-// empty and the store fills it; rescue bypasses the store so it stamps here.
-func stampDetectedAt(issue *healthplatform.Issue) {
-	if issue != nil {
-		issue.DetectedAt = time.Now().UTC().Format(time.RFC3339)
-	}
-}
-
-// buildIntakeURL is a var so tests can stub the destination.
-var buildIntakeURL = func(site string) string {
+func intakeURL(site string) string {
 	if site == "" {
 		site = DefaultSite
 	}
 	return rescueIntakePrefix + strings.TrimRight(site, "/") + rescueIntakePath
 }
 
-func postRescue(ctx context.Context, site, apiKey string, report *healthplatform.HealthReport) error {
+// rescueWithURL is the URL-decoupled core of Rescue. Tests target it directly
+// to route POSTs at an httptest.Server without stubbing module-level state.
+func rescueWithURL(ctx context.Context, cfg LiteConfig, url string, startupErr error) error {
+	issue := buildRescueIssue(cfg, startupErr)
+	if issue == nil {
+		return nil
+	}
+	if !cfg.APIKey.resolved() {
+		return fmt.Errorf("rescue: no usable api_key resolved (source=%s)", cfg.APIKey.Source)
+	}
+
+	issue.DetectedAt = time.Now().UTC().Format(time.RFC3339)
+	hostname, _ := os.Hostname()
+	report := &healthplatform.HealthReport{
+		EventType: rescueEventType,
+		EmittedAt: time.Now().UTC().Format(time.RFC3339),
+		Service:   rescueFlavor,
+		Host:      &healthplatform.HostInfo{Hostname: hostname},
+		Issues:    map[string]*healthplatform.Issue{"datadog.yaml": issue},
+	}
+	return postRescue(ctx, url, cfg.APIKey.Value, report)
+}
+
+// buildRescueIssue inspects cfg + startupErr and produces the Issue payload.
+// Returns nil if there is nothing worth reporting. Priority: yaml_parse >
+// schema_validation > startup_failure.
+func buildRescueIssue(cfg LiteConfig, startupErr error) *healthplatform.Issue {
+	if cfg.YAMLParseErr != nil {
+		return BuildInvalidConfigIssue(IssueInfo{
+			Kind:         ErrorKindYAMLParse,
+			ConfigPath:   cfg.ConfigFilePath,
+			ErrorMessage: cfg.YAMLParseErr.Error(),
+		})
+	}
+	if cfg.ParsedConfig != nil {
+		if errs, _ := schema.ValidateCoreConfig(cfg.ParsedConfig); len(errs) > 0 {
+			visible, truncated := TruncateSchemaErrors(errs)
+			return BuildInvalidConfigIssue(IssueInfo{
+				Kind:       ErrorKindSchemaValidation,
+				ConfigPath: cfg.ConfigFilePath,
+				Errors:     strings.Join(visible, "\n"),
+				ErrorCount: len(errs),
+				Truncated:  truncated,
+			})
+		}
+	}
+	if startupErr != nil {
+		return BuildInvalidConfigIssue(IssueInfo{
+			Kind:         ErrorKindStartupFailure,
+			ConfigPath:   cfg.ConfigFilePath,
+			ErrorMessage: startupErr.Error(),
+		})
+	}
+	return nil
+}
+
+func postRescue(ctx context.Context, url, apiKey string, report *healthplatform.HealthReport) error {
 	if apiKey == "" {
 		return errors.New("rescue: api_key is empty")
 	}
@@ -170,7 +145,7 @@ func postRescue(ctx context.Context, site, apiKey string, report *healthplatform
 		return fmt.Errorf("marshal rescue payload: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, buildIntakeURL(site), bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
 	if err != nil {
 		return fmt.Errorf("build rescue request: %w", err)
 	}
@@ -187,12 +162,4 @@ func postRescue(ctx context.Context, site, apiKey string, report *healthplatform
 		return fmt.Errorf("rescue intake returned status %d", resp.StatusCode)
 	}
 	return nil
-}
-
-func hostnameOrEmpty() string {
-	h, err := os.Hostname()
-	if err != nil {
-		return ""
-	}
-	return h
 }

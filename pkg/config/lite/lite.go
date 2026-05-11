@@ -10,10 +10,8 @@ import "context"
 // Extract runs the tiered resolver pipeline against the process environment
 // and the candidate datadog.yaml paths. cliConfPath is from `--cfgpath` (or
 // empty); defaultConfPath is the platform-specific default. The first path
-// that exists is used.
-//
-// Pass a real ctx to enable ENC[] resolution via secret_backend_command; a
-// nil ctx skips that step.
+// that exists is used. Pass a real ctx to enable ENC[] resolution via
+// secret_backend_command; a nil ctx skips that step.
 func Extract(ctx context.Context, cliConfPath, defaultConfPath string) LiteConfig {
 	cfg := LiteConfig{
 		APIKey:               ConfigField{Source: SourceNone},
@@ -24,33 +22,28 @@ func Extract(ctx context.Context, cliConfPath, defaultConfPath string) LiteConfi
 
 	applyEnv(&cfg)
 
-	path := resolveConfigPath(cliConfPath, defaultConfPath)
-	cfg.ConfigFilePath = path
-
+	cfg.ConfigFilePath = resolveConfigPath(cliConfPath, defaultConfPath)
 	var raw []byte
-	if path != "" {
+	if cfg.ConfigFilePath != "" {
 		var err error
-		raw, err = readConfigFile(path)
-		if err != nil {
+		if raw, err = readConfigFile(cfg.ConfigFilePath); err != nil {
 			cfg.FileReadErr = err
 		}
 	}
 
 	if len(raw) > 0 {
+		// applyFullYAML always runs to capture YAMLParseErr / ParsedConfig.
 		applyFullYAML(&cfg, raw)
-	}
-	if len(raw) > 0 && !allResolved(&cfg) {
-		applyTopLevelYAML(&cfg, raw)
-	}
-	if len(raw) > 0 && !allResolved(&cfg) {
-		applyRegex(&cfg, raw)
-	}
-	if len(raw) > 0 && !allResolved(&cfg) {
-		applyFuzzy(&cfg, raw)
+		for _, apply := range []func(*LiteConfig, []byte){applyTopLevelYAML, applyRegex, applyFuzzy} {
+			if allResolved(&cfg) {
+				break
+			}
+			apply(&cfg, raw)
+		}
 	}
 
 	// ENC[] resolution runs before defaults so an unresolvable encrypted
-	// credential is treated as unresolved and never wins over a fallback.
+	// credential stays unresolved and never wins over a fallback.
 	if ctx != nil {
 		resolveENC(ctx, &cfg)
 	}
@@ -60,7 +53,7 @@ func Extract(ctx context.Context, cliConfPath, defaultConfPath string) LiteConfi
 }
 
 // allResolved reports whether the three credential fields have all settled.
-// SecretBackendCommand is not counted: it only exists to feed resolveENC.
+// SecretBackendCommand is excluded: it only exists to feed resolveENC.
 func allResolved(cfg *LiteConfig) bool {
 	return cfg.APIKey.resolved() && cfg.Site.resolved() && cfg.DDURL.resolved()
 }

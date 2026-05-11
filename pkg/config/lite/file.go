@@ -20,18 +20,17 @@ func resolveConfigPath(candidates ...string) string {
 		if p == "" {
 			continue
 		}
-		candidate := p
-		if !strings.HasSuffix(candidate, ".yaml") && !strings.HasSuffix(candidate, ".yml") {
-			candidate = filepath.Join(candidate, "datadog.yaml")
+		if !strings.HasSuffix(p, ".yaml") && !strings.HasSuffix(p, ".yml") {
+			p = filepath.Join(p, "datadog.yaml")
 		}
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate
+		if _, err := os.Stat(p); err == nil {
+			return p
 		}
 	}
 	return ""
 }
 
-// readConfigFile loads the raw bytes from path and strips a leading UTF-8 BOM.
+// readConfigFile loads path's raw bytes with any leading UTF-8 BOM stripped.
 func readConfigFile(path string) ([]byte, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

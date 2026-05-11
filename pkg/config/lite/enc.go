@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-// secretBackendVersion matches the agent's own resolver wire-protocol version
+// secretBackendVersion matches the agent's resolver wire-protocol version
 // (see comp/core/secrets/def/type.go).
 const secretBackendVersion = "1.1"
 
@@ -32,14 +32,11 @@ var encRegexp = regexp.MustCompile(`^ENC\[([^\]]+)\]$`)
 // resolveENC walks the credential fields and decrypts ENC[handle] placeholders
 // via secret_backend_command. The field's source is rewritten to
 // SourceSecretBackend (success) or SourceEncrypted (failure); SourceEncrypted
-// is treated as still-unresolved so the next pipeline tier can produce a value.
+// is treated as unresolved so the next pipeline tier can produce a value.
 func resolveENC(ctx context.Context, cfg *LiteConfig) {
 	cmd := cfg.SecretBackendCommand.Value
 	for _, f := range []*ConfigField{&cfg.APIKey, &cfg.Site, &cfg.DDURL} {
-		if f.Value == "" {
-			continue
-		}
-		if !encRegexp.MatchString(f.Value) {
+		if f.Value == "" || !encRegexp.MatchString(f.Value) {
 			continue
 		}
 		if cmd == "" {
@@ -78,14 +75,13 @@ func execSecretBackend(ctx context.Context, command string, handles []string, ti
 	if command == "" {
 		return nil, errors.New("secret_backend_command not set")
 	}
-
-	cctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
 	parts := strings.Fields(command)
 	if len(parts) == 0 {
 		return nil, errors.New("secret_backend_command is empty after splitting")
 	}
+
+	cctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 
 	body, err := json.Marshal(secretBackendRequest{
 		Version:              secretBackendVersion,

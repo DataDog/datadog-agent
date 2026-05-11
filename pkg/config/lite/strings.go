@@ -7,9 +7,9 @@ package lite
 
 import "strings"
 
-// cleanValue normalises a raw value captured by the regex or fuzzy tiers.
-// It strips surrounding quotes, leading YAML anchor/alias markers, and any
-// trailing carriage return left over from CRLF line endings.
+// cleanValue normalises a raw value captured by the regex or fuzzy tiers:
+// strips surrounding quotes, leading YAML anchor/alias markers, and any
+// trailing CR left over from CRLF.
 func cleanValue(s string) string {
 	s = strings.TrimRight(s, "\r")
 	s = strings.TrimSpace(s)
@@ -34,7 +34,11 @@ func stripAnchor(s string) string {
 		return s
 	}
 	i := 1
-	for i < len(s) && (isIdent(s[i]) || s[i] == '-') {
+	for i < len(s) {
+		b := s[i]
+		if !((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9') || b == '_' || b == '-') {
+			break
+		}
 		i++
 	}
 	if i == 1 || i >= len(s) || (s[i] != ' ' && s[i] != '\t') {
@@ -43,15 +47,8 @@ func stripAnchor(s string) string {
 	return strings.TrimLeft(s[i:], " \t")
 }
 
-func isIdent(b byte) bool {
-	return (b >= 'a' && b <= 'z') ||
-		(b >= 'A' && b <= 'Z') ||
-		(b >= '0' && b <= '9') ||
-		b == '_'
-}
-
-// stripSeparators removes underscores and hyphens so that "apikey",
-// "api-key" and "api_key" collapse to the same shape for fuzzy matching.
+// stripSeparators removes underscores and hyphens so "apikey", "api-key" and
+// "api_key" collapse to the same shape for fuzzy matching.
 func stripSeparators(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))
@@ -64,9 +61,9 @@ func stripSeparators(s string) string {
 	return b.String()
 }
 
-// parseLine splits a single config line into key/value. It rejects empty,
-// indented, and commented lines so the fuzzy tier never matches inside
-// nested mappings or commented-out keys.
+// parseLine splits a single config line into key/value. Empty, indented and
+// commented lines are rejected so the fuzzy tier never matches inside nested
+// mappings or commented-out keys.
 func parseLine(line string) (key, value string, ok bool) {
 	line = strings.TrimRight(line, "\r")
 	if len(line) == 0 || line[0] == '#' || line[0] == ' ' || line[0] == '\t' {

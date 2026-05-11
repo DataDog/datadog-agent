@@ -23,8 +23,8 @@ import (
 )
 
 // stubRescueIntake registers a fake intake server that captures the POSTed
-// HealthReport. The site arg in Rescue() is irrelevant; we point the prefix
-// at the test server directly.
+// HealthReport. Returns (server, &captured). Tests pass srv.URL+rescueIntakePath
+// to rescueWithURL to route POSTs at the test server.
 func stubRescueIntake(t *testing.T) (*httptest.Server, *[]*healthplatform.HealthReport) {
 	t.Helper()
 
@@ -47,19 +47,23 @@ func stubRescueIntake(t *testing.T) (*httptest.Server, *[]*healthplatform.Health
 		w.WriteHeader(http.StatusOK)
 	}))
 	t.Cleanup(srv.Close)
-
-	// Route all rescue POSTs to the test server, regardless of the site
-	// resolved by Extract.
-	originalBuilder := buildIntakeURL
-	buildIntakeURL = func(string) string { return srv.URL + rescueIntakePath }
-	t.Cleanup(func() { buildIntakeURL = originalBuilder })
-
 	return srv, &captured
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// buildRescueIssue dispatching
-// ─────────────────────────────────────────────────────────────────────────────
+// schemaIssue is a test helper that builds a schema-validation issue exactly
+// the way rescueWithURL does — keeps the truncation/joining logic out of the
+// production path while still exercised here.
+func schemaIssue(t *testing.T, path string, errs []string) *healthplatform.Issue {
+	t.Helper()
+	visible, truncated := TruncateSchemaErrors(errs)
+	return BuildInvalidConfigIssue(IssueInfo{
+		Kind:       ErrorKindSchemaValidation,
+		ConfigPath: path,
+		Errors:     strings.Join(visible, "\n"),
+		ErrorCount: len(errs),
+		Truncated:  truncated,
+	})
+}
 
 func TestBuildRescue_YAMLParseHasHighSeverity(t *testing.T) {
 	cfg := LiteConfig{
@@ -78,15 +82,13 @@ func TestBuildRescue_YAMLParseHasHighSeverity(t *testing.T) {
 }
 
 func TestBuildRescue_SchemaErrorsHaveMediumSeverity(t *testing.T) {
-	// schema.ValidateCoreConfig returns an infra error in the test build
-	// because the compressed schema isn't embedded — but our handler still
-	// dispatches on cfg.ParsedConfig + len(errs)>0. To exercise the medium-
-	// severity path here we drive the rescue helper directly.
+	// schema.ValidateCoreConfig returns an infra error in the test build (the
+	// compressed schema isn't embedded), so we drive the helper directly.
 	errs := []string{
 		"/agent_ipc/port: expected integer, got string",
 		"/tags: expected array, got string",
 	}
-	issue := rescueSchemaIssue("/etc/datadog-agent/datadog.yaml", errs)
+	issue := schemaIssue(t, "/etc/datadog-agent/datadog.yaml", errs)
 	assert.Equal(t, "medium", issue.Severity)
 	assert.Equal(t, IssueID, issue.Id)
 	assert.Contains(t, issue.Title, "2 schema violation(s)")
@@ -105,7 +107,7 @@ func TestBuildRescue_SchemaTruncation(t *testing.T) {
 	for i := range errs {
 		errs[i] = "violation"
 	}
-	issue := rescueSchemaIssue("", errs)
+	issue := schemaIssue(t, "", errs)
 	count := int(issue.Extra.Fields["error_count"].GetNumberValue())
 	assert.Equal(t, 30, count)
 	assert.True(t, issue.Extra.Fields["truncated"].GetBoolValue())
@@ -119,9 +121,6 @@ func TestBuildRescue_StartupFailureWhenConfigIsClean(t *testing.T) {
 		Site:         ConfigField{Value: "datadoghq.com", Source: SourceFileYAMLFull},
 		ParsedConfig: map[string]any{},
 	}
-	// ParsedConfig is empty so schema.ValidateCoreConfig returns no errors
-	// (or infra error, which we treat as no errors). startupErr is what
-	// should win in this case.
 	issue := buildRescueIssue(cfg, errors.New("port :8126 already in use"))
 	require.NotNil(t, issue)
 	assert.Equal(t, "high", issue.Severity)
@@ -141,18 +140,15 @@ func TestBuildRescue_NothingToReportReturnsNil(t *testing.T) {
 		"clean config + no startup error must produce nil — Rescue MUST NOT post a useless issue")
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// End-to-end via httptest.Server
-// ─────────────────────────────────────────────────────────────────────────────
-
 func TestRescue_PostsYAMLParseIssue(t *testing.T) {
-	_, captured := stubRescueIntake(t)
+	srv, captured := stubRescueIntake(t)
 
 	dir := withYAML(t, "{ this is not yaml\napi_key: rescued\nsite: dd.eu\n")
+	cfg := Extract(context.Background(), "", dir)
 
-	err := Rescue(context.Background(), "", dir, nil)
+	err := rescueWithURL(context.Background(), cfg, srv.URL+rescueIntakePath, nil)
 	require.NoError(t, err)
-	require.Len(t, *captured, 1, "Rescue must POST exactly one HealthReport")
+	require.Len(t, *captured, 1, "rescueWithURL must POST exactly one HealthReport")
 
 	report := (*captured)[0]
 	assert.Equal(t, rescueEventType, report.GetEventType())
@@ -165,20 +161,20 @@ func TestRescue_PostsYAMLParseIssue(t *testing.T) {
 }
 
 func TestRescue_NoAPIKeyReturnsError(t *testing.T) {
-	_, captured := stubRescueIntake(t)
+	srv, captured := stubRescueIntake(t)
 
 	dir := withYAML(t, "{ broken\nsite: dd.eu\n")
-	// No api_key anywhere → resolver leaves APIKey=SourceNone → Rescue errors.
+	cfg := Extract(context.Background(), "", dir)
 
-	err := Rescue(context.Background(), "", dir, nil)
+	err := rescueWithURL(context.Background(), cfg, srv.URL+rescueIntakePath, nil)
 	require.Error(t, err)
 	assert.Empty(t, *captured, "no POST should have been attempted without api_key")
 }
 
 func TestRescue_RespectsTimeout(t *testing.T) {
-	// Server replies eventually, but slowly enough that Rescue's 3-second
-	// budget expires first. We sleep with a short cancel-aware wait so the
-	// handler doesn't keep running after the test ends.
+	// Server replies eventually, but slowly enough that the 3-second budget
+	// expires first. r.Context().Done() lets the handler stop when the test
+	// ends.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-time.After(10 * time.Second):
@@ -188,23 +184,19 @@ func TestRescue_RespectsTimeout(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	originalBuilder := buildIntakeURL
-	buildIntakeURL = func(string) string { return srv.URL + rescueIntakePath }
-	t.Cleanup(func() { buildIntakeURL = originalBuilder })
-
 	dir := withYAML(t, "{ broken\napi_key: rescued\nsite: dd.eu\n")
+	cfg := Extract(context.Background(), "", dir)
+
+	ctx, cancel := context.WithTimeout(context.Background(), rescueHTTPTimeout)
+	defer cancel()
 
 	start := time.Now()
-	err := Rescue(context.Background(), "", dir, nil)
+	err := rescueWithURL(ctx, cfg, srv.URL+rescueIntakePath, nil)
 	elapsed := time.Since(start)
 
 	require.Error(t, err, "slow server must trip the 3s timeout and surface as error")
-	require.Less(t, elapsed, 8*time.Second, "Rescue must not block past its own timeout")
+	require.Less(t, elapsed, 8*time.Second, "rescueWithURL must not block past its own timeout")
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DefaultConfigPath
-// ─────────────────────────────────────────────────────────────────────────────
 
 func TestDefaultConfigPath_EnvOverride(t *testing.T) {
 	t.Setenv("DD_CONFIG", "/custom/path")

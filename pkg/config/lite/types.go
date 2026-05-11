@@ -5,16 +5,16 @@
 
 // Package lite extracts a minimum bootstrap config (api_key, site, dd_url and
 // optionally secret_backend_command) from a possibly-broken datadog.yaml,
-// without depending on the full agent config layer. It is used by the Agent
-// Health Platform forwarder and by the agent's failure-path rescue hook.
+// without depending on the full agent config layer. Used by the Agent Health
+// Platform forwarder and by the agent's failure-path rescue hook.
 //
-// Resolution walks a tiered pipeline (env → full YAML → indent-stripped YAML →
-// column-0 regex → fuzzy match → defaults) and resolves ENC[handle] values via
-// secret_backend_command. The first tier to produce a value wins.
+// Resolution walks a tiered pipeline (env → full YAML → indent-stripped YAML
+// → column-0 regex → fuzzy match → defaults) and resolves ENC[handle] values
+// via secret_backend_command. The first tier to produce a value wins.
 package lite
 
-// Source records where a ConfigField value was resolved from. It mirrors the
-// agent's source priority order (env beats file beats default).
+// Source records where a ConfigField value was resolved from. Order mirrors
+// the agent's source priority (env beats file beats default).
 type Source string
 
 const (
@@ -40,8 +40,8 @@ type ConfigField struct {
 }
 
 // resolved reports whether the field carries a usable value. Encrypted
-// placeholders we could not resolve count as unresolved so the next tier
-// can try.
+// placeholders we could not resolve count as unresolved so the next tier can
+// try.
 func (f ConfigField) resolved() bool {
 	switch f.Source {
 	case SourceNone, SourceEncrypted:

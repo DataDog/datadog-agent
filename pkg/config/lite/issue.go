@@ -14,17 +14,17 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-// IssueID is the stable Agent Health issue identifier for any
-// configuration-validation problem. It MUST match the identifier used by the
-// in-Fx invalidconfig module so the backend dedupes both detection paths.
+// IssueID is the stable Agent Health issue identifier for any configuration-
+// validation problem. It MUST match the identifier used by the in-Fx
+// invalidconfig module so the backend dedupes both detection paths.
 const IssueID = "invalid-config"
 
 // MaxSchemaErrorsInPayload bounds how many individual schema-validation errors
 // are embedded in the issue. The full count is still reported in ErrorCount.
 const MaxSchemaErrorsInPayload = 20
 
-// ErrorKind discriminates the variant of invalid-config issue. It is exposed
-// as a string in Extra["error_kind"] so dashboards can filter on it.
+// ErrorKind discriminates the variant of invalid-config issue. Exposed as a
+// string in Extra["error_kind"] so dashboards can filter on it.
 type ErrorKind string
 
 const (
@@ -232,9 +232,9 @@ func truncate(s string, n int) string {
 	return s[:n] + "…"
 }
 
-// mustStruct converts a map to a structpb.Struct. Inputs are always
-// strings/ints/bools so this never fails in practice; an empty struct is
-// returned on the unreachable error path rather than panicking.
+// mustStruct converts a map to a structpb.Struct. Inputs are always strings/
+// ints/bools so this never fails in practice; an empty struct is returned on
+// the unreachable error path rather than panicking.
 func mustStruct(m map[string]any) *structpb.Struct {
 	s, err := structpb.NewStruct(m)
 	if err != nil {

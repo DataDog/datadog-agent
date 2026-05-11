@@ -27,10 +27,10 @@ func applyFullYAML(cfg *LiteConfig, raw []byte) {
 	applyFromMap(cfg, m, SourceFileYAMLFull)
 }
 
-// applyTopLevelYAML is the Tier-3 strategy: drop every indented line, then
+// applyTopLevelYAML is the Tier-3 strategy: drop every indented line then
 // re-run yaml.Unmarshal. This rescues the common "broken nested block" case
-// where top-level fields are fine but a sub-block like `process_config:`
-// further down is malformed.
+// where top-level fields are fine but a sub-block like `process_config:` is
+// malformed.
 func applyTopLevelYAML(cfg *LiteConfig, raw []byte) {
 	stripped := stripIndented(raw)
 	if len(stripped) == 0 {
@@ -47,12 +47,7 @@ func stripIndented(raw []byte) []byte {
 	var b strings.Builder
 	b.Grow(len(raw))
 	for line := range strings.SplitSeq(string(raw), "\n") {
-		if len(line) == 0 {
-			b.WriteByte('\n')
-			continue
-		}
-		c := line[0]
-		if c == ' ' || c == '\t' {
+		if len(line) == 0 || line[0] == ' ' || line[0] == '\t' {
 			b.WriteByte('\n')
 			continue
 		}
@@ -62,7 +57,7 @@ func stripIndented(raw []byte) []byte {
 	return []byte(b.String())
 }
 
-// applyFromMap copies top-level values into unresolved fields. Nested
+// applyFromMap copies top-level string values into unresolved fields. Nested
 // *_api_key / additional_endpoints / logs_config.api_key are intentionally
 // ignored — they are auxiliary and would confuse lite-mode if promoted.
 func applyFromMap(cfg *LiteConfig, m map[string]any, src Source) {
@@ -70,11 +65,8 @@ func applyFromMap(cfg *LiteConfig, m map[string]any, src Source) {
 		if field.resolved() {
 			return
 		}
-		raw, ok := m[key]
-		if !ok {
-			return
-		}
-		s := stringOrEmpty(raw)
+		// Typo'd values often come back as int/bool — only strings are usable.
+		s, _ := m[key].(string)
 		if s == "" {
 			return
 		}
@@ -86,17 +78,4 @@ func applyFromMap(cfg *LiteConfig, m map[string]any, src Source) {
 	set(&cfg.Site, "site")
 	set(&cfg.DDURL, "dd_url")
 	set(&cfg.SecretBackendCommand, "secret_backend_command")
-}
-
-// stringOrEmpty coerces a yaml.Unmarshal'd value into a string. Typo'd values
-// often come back as int / bool — we only accept strings.
-func stringOrEmpty(v any) string {
-	switch x := v.(type) {
-	case string:
-		return x
-	case []byte:
-		return string(x)
-	default:
-		return ""
-	}
 }

@@ -8,7 +8,7 @@ package lite
 import "strings"
 
 // fuzzyKeys defines the Tier-5 fuzzy targets. maxDist is the Damerau-
-// Levenshtein cutoff: we accept "apikey" (distance 1 from "api_key"), but not
+// Levenshtein cutoff: we accept "apikey" (distance 1 from "api_key") but not
 // keys that diverge by more.
 var fuzzyKeys = []struct {
 	field   func(*LiteConfig) *ConfigField
@@ -21,8 +21,8 @@ var fuzzyKeys = []struct {
 }
 
 // fuzzyDenylist contains real config keys that sit close to one of our
-// targets but must never be promoted to it. Without this, a customer who set
-// `app_key` (one edit from `api_key`) would have it surfaced as the api_key.
+// targets but must never be promoted to it. Without this a customer who set
+// `app_key` (one edit from `api_key`) would have it surfaced as api_key.
 var fuzzyDenylist = map[string]bool{
 	"app_key":              true,
 	"api_keys":             true,
@@ -106,7 +106,7 @@ func bestFuzzyMatch(candidate string, cfg *LiteConfig) int {
 	return bestIdx
 }
 
-// damerauLevenshtein computes Damerau-Levenshtein distance (insertions,
+// damerauLevenshtein is the Damerau-Levenshtein edit distance (insertions,
 // deletions, substitutions and adjacent transpositions) between two ASCII
 // strings. Three rolling rows; allocation is O(n).
 func damerauLevenshtein(a, b string) int {
