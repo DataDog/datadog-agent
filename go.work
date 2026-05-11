@@ -111,7 +111,6 @@ use (
 	pkg/logs/client
 	pkg/logs/diagnostic
 	pkg/logs/message
-	pkg/logs/metrics
 	pkg/logs/sources
 	pkg/logs/status/statusinterface
 	pkg/logs/status/utils
@@ -163,6 +162,7 @@ use (
 	pkg/util/grpc
 	pkg/util/hostinfo
 	pkg/util/hostname/validate
+	pkg/util/hostport
 	pkg/util/http
 	pkg/util/json
 	pkg/util/jsonquery
