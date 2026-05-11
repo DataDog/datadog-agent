@@ -8,6 +8,6 @@
 ---
 other:
   - |
-    Add handling for dbm-column-stats events in the event platform forwarder.
+    Add handling for dbm-column-statistics events in the event platform forwarder.
     These events are used by Database Monitoring integrations to
     report column statistics from database catalogs.
