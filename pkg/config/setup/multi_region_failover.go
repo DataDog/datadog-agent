@@ -24,11 +24,11 @@ func setupMultiRegionFailover(config pkgconfigmodel.Setup) {
 
 	config.BindEnv("multi_region_failover.remote_configuration.refresh_interval") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	config.BindEnvAndSetDefault("multi_region_failover.remote_configuration.org_status_refresh_interval", 1*time.Minute)
-	config.BindEnv("multi_region_failover.remote_configuration.max_backoff_time") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("multi_region_failover.remote_configuration.max_backoff_time", time.Duration(0))
 	config.BindEnvAndSetDefault("multi_region_failover.remote_configuration.max_backoff_interval", 5*time.Minute)
-	config.BindEnv("multi_region_failover.remote_configuration.config_root")   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("multi_region_failover.remote_configuration.director_root") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	config.BindEnv("multi_region_failover.remote_configuration.key")           //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	config.BindEnvAndSetDefault("multi_region_failover.remote_configuration.config_root", "")
+	config.BindEnvAndSetDefault("multi_region_failover.remote_configuration.director_root", "")
+	config.BindEnvAndSetDefault("multi_region_failover.remote_configuration.key", "")
 
 	config.BindEnvAndSetDefault("multi_region_failover.remote_configuration.clients.ttl_seconds", 30*time.Second)
 	config.BindEnvAndSetDefault("multi_region_failover.remote_configuration.clients.cache_bypass_limit", 5)

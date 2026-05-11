@@ -1760,8 +1760,8 @@ properties:
     visibility: public
     description: This section configures the Datadog Agent Manager System Tray
     tags:
-    - template_section:Agent
     - platform_only:windows
+    - template_section:Agent
     properties:
       log_file:
         node_type: setting
@@ -5326,8 +5326,8 @@ properties:
         visibility: public
         description: Configuration for scanning container images for software vulnerabilities.
         tags:
-        - template_section:CoreAgent
         - platform_only:linux
+        - template_section:CoreAgent
         properties:
           enabled:
             node_type: setting
@@ -13463,19 +13463,16 @@ properties:
                 - golang_type:duration
           config_root:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           director_root:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           key:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           max_backoff_interval:
             node_type: setting
             type: number
@@ -13485,9 +13482,11 @@ properties:
             - golang_type:duration
           max_backoff_time:
             node_type: setting
+            type: number
+            default: 0s
+            format: duration
             tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            - golang_type:duration
           org_status_refresh_interval:
             node_type: setting
             type: number

@@ -63,6 +63,10 @@ func TestMultiRegionFailoverDefaultConfig(t *testing.T) {
 		{key: "multi_region_failover.site", defaultValue: ""},
 		{key: "multi_region_failover.metric_allowlist", defaultValue: []string{}},
 		{key: "multi_region_failover.logs_service_allowlist", defaultValue: []string{}},
+		{key: "multi_region_failover.remote_configuration.config_root", defaultValue: ""},
+		{key: "multi_region_failover.remote_configuration.director_root", defaultValue: ""},
+		{key: "multi_region_failover.remote_configuration.key", defaultValue: ""},
+		{key: "multi_region_failover.remote_configuration.max_backoff_time", defaultValue: time.Duration(0)},
 	} {
 		t.Run(tc.key, func(t *testing.T) {
 			switch expected := tc.defaultValue.(type) {
@@ -71,6 +75,9 @@ func TestMultiRegionFailoverDefaultConfig(t *testing.T) {
 				assert.False(t, cfg.IsConfigured(tc.key), "key %s must not be IsConfigured by default", tc.key)
 			case []string:
 				assert.Equal(t, expected, cfg.GetStringSlice(tc.key))
+				assert.False(t, cfg.IsConfigured(tc.key), "key %s must not be IsConfigured by default", tc.key)
+			case time.Duration:
+				assert.Equal(t, expected, cfg.GetDuration(tc.key))
 				assert.False(t, cfg.IsConfigured(tc.key), "key %s must not be IsConfigured by default", tc.key)
 			default:
 				t.Fatalf("unsupported type %T for key %s", tc.defaultValue, tc.key)
