@@ -73,6 +73,17 @@ func mutatePod(pod *corev1.Pod, injectorImage, hostSocketPath, socketPath string
 	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_DD_SOCKET_PATH", Value: socketPath}) || envAdded
 	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_DD_INSPECTOR_PATH", Value: soMountPath + "/libnccl-profiler-inspector.so"}) || envAdded
 	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_INSPECTOR_ENABLE", Value: "1"}) || envAdded
+	// Point NVIDIA Inspector's file-dump at /tmp — a path that's writable in
+	// virtually every customer training container (Ubuntu, Rocky, AL2023, ...).
+	// Without this, Inspector's dump thread tries the default location, and if
+	// THAT isn't writable, the thread breaks before it ever calls our patched
+	// inspectorCommInfoDump → socket delivery silently emits nothing. Setting
+	// the dump dir explicitly to /tmp keeps the dump thread alive (its file
+	// writes are a side effect we don't depend on, but its lifecycle gates
+	// when our socket-emit hook runs). Customer can override if they need
+	// to redirect file dumps elsewhere; they shouldn't need to set this for
+	// socket telemetry to work.
+	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_INSPECTOR_DUMP_DIR", Value: "/tmp/nccl-inspector"}) || envAdded
 
 	// Prepend init container that copies the Inspector .so from the injector image.
 	// SecurityContext drops all capabilities + disallows privilege escalation so
