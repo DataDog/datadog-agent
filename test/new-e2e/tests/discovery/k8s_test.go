@@ -140,12 +140,22 @@ func (s *k8sTestSuite) TestNginxDiscovered() {
 				}
 				assert.NotNil(c, matched, "no nginx process was reported listening on tcp/%d", nginxPort)
 			}, 5*time.Minute, 10*time.Second)
+			require.NotNil(t, matched, "no matching nginx process found")
 
-			// Log the matched payload so we can tighten assertions in a follow-up.
-			if matched != nil {
-				t.Logf("matched nginx process payload:\n%+v\nServiceDiscovery: %+v\nPortInfo: %+v",
-					matched, matched.ServiceDiscovery, matched.PortInfo)
-			}
+			t.Logf("matched nginx process payload:\n%+v", matched)
+
+			// nginx is C/native, so no language or tracer-metadata
+			// fields are populated. What discovery does fill in:
+			sd := matched.ServiceDiscovery
+			require.NotNil(t, sd, "ServiceDiscovery is unset on the matched process")
+			require.NotNil(t, sd.GeneratedServiceName, "GeneratedServiceName is unset")
+			assert.Equal(t, "nginx", sd.GeneratedServiceName.Name, "generated service name should be 'nginx'")
+			assert.Equal(t, agentmodel.ServiceNameSource_SERVICE_NAME_SOURCE_COMMAND_LINE, sd.GeneratedServiceName.Source,
+				"service name source should be SERVICE_NAME_SOURCE_COMMAND_LINE")
+			assert.Equal(t, agentmodel.InjectionState_INJECTION_NOT_INJECTED, matched.InjectionState,
+				"nginx isn't instrumented; injection state should be NOT_INJECTED")
+			assert.False(t, sd.ApmInstrumentation, "ServiceDiscovery.ApmInstrumentation should be false for unmodified nginx")
+			assert.NotEmpty(t, matched.ContainerId, "containerId should be populated by the discovery → tagger pipeline")
 		})
 	}
 }
