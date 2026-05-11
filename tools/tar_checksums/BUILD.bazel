@@ -1,6 +1,7 @@
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "strip_prefix")
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_rust//rust:defs.bzl", "rust_binary")
 load(":tar_md5sums.bzl", "tar_md5sums")
 
@@ -65,5 +66,40 @@ diff_test(
 diff_test(
     name = "checksums_xz_test",
     file1 = ":gen_checksums_xz",
+    file2 = "testdata/expected_checksums.txt",
+)
+
+py_binary(
+    name = "tar_checksums_py",
+    srcs = ["generate_md5sum.py"],
+    main = "generate_md5sum.py",
+    visibility = ["//visibility:public"],
+)
+
+genrule(
+    name = "gen_checksums_py_gz",
+    srcs = [":test_archive_gz"],
+    outs = ["test_checksums_py_gz.txt"],
+    cmd = "$(execpath :tar_checksums_py) $(location :test_archive_gz) $@",
+    tools = [":tar_checksums_py"],
+)
+
+genrule(
+    name = "gen_checksums_py_xz",
+    srcs = [":test_archive_xz"],
+    outs = ["test_checksums_py_xz.txt"],
+    cmd = "$(execpath :tar_checksums_py) $(location :test_archive_xz) $@",
+    tools = [":tar_checksums_py"],
+)
+
+diff_test(
+    name = "checksums_py_gz_test",
+    file1 = ":gen_checksums_py_gz",
+    file2 = "testdata/expected_checksums.txt",
+)
+
+diff_test(
+    name = "checksums_py_xz_test",
+    file1 = ":gen_checksums_py_xz",
     file2 = "testdata/expected_checksums.txt",
 )
