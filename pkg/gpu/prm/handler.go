@@ -15,18 +15,20 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	sputils "github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 )
 
+// GetDeviceFunc returns a GPU device by UUID.
+type GetDeviceFunc func(uuid string) (Device, error)
+
 // Handler serves privileged PRM requests over the system-probe HTTP API.
 type Handler struct {
-	deviceCache ddnvml.DeviceCache
+	getDevice GetDeviceFunc
 }
 
-// NewHandler creates a PRM HTTP handler backed by the given device cache.
-func NewHandler(deviceCache ddnvml.DeviceCache) *Handler {
-	return &Handler{deviceCache: deviceCache}
+// NewHandler creates a PRM HTTP handler backed by the given device lookup function.
+func NewHandler(getDevice GetDeviceFunc) *Handler {
+	return &Handler{getDevice: getDevice}
 }
 
 // HandlePRMMetrics executes the requested PRM queries and returns one response per request.
@@ -41,7 +43,7 @@ func (h *Handler) HandlePRMMetrics(w http.ResponseWriter, req *http.Request) {
 	for _, request := range requests {
 		response := model.PRMResponse{Request: request}
 
-		device, err := h.deviceCache.GetByUUID(request.DeviceUUID)
+		device, err := h.getDevice(request.DeviceUUID)
 		if err != nil {
 			response.Error = fmt.Sprintf("get device %s: %v", request.DeviceUUID, err)
 			responses = append(responses, response)

@@ -12,11 +12,7 @@ import (
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
-
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
-	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
 func TestPackUnpackTLVRoundTrip(t *testing.T) {
@@ -41,15 +37,13 @@ func TestPackUnpackTLVRoundTrip(t *testing.T) {
 }
 
 func TestQueryPortCounters(t *testing.T) {
-	mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-		testutil.WithMockAllDeviceFunctions()(device)
-		device.ReadWritePRM_v1Func = func(buffer *nvml.PRMTLV_v1) nvml.Return {
+	mockDevice := setupMockDevice(func(device *testDevice) {
+		device.readWritePRM = func(buffer *nvml.PRMTLV_v1) error {
 			port := int(binary.BigEndian.Uint32(buffer.InData[20:24]) >> 16)
 			response := makePLRResponseBytes(uint64(port * 100))
 			copy(buffer.InData[:], response)
-			return nvml.SUCCESS
+			return nil
 		}
-		return device
 	})
 
 	counters, err := QueryPortCounters(mockDevice, PPCNTGroupPLR, 2)
@@ -59,12 +53,10 @@ func TestQueryPortCounters(t *testing.T) {
 }
 
 func TestQueryPortCountersError(t *testing.T) {
-	mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
-		testutil.WithMockAllDeviceFunctions()(device)
-		device.ReadWritePRM_v1Func = func(_ *nvml.PRMTLV_v1) nvml.Return {
+	mockDevice := setupMockDevice(func(device *testDevice) {
+		device.readWritePRM = func(_ *nvml.PRMTLV_v1) error {
 			return nvml.ERROR_UNKNOWN
 		}
-		return device
 	})
 
 	_, err := QueryPortCounters(mockDevice, PPCNTGroupPLR, 1)
@@ -86,29 +78,10 @@ func makePLRResponseBytes(seed uint64) []byte {
 	return packTLV(ppcntRegID, ppcntSizeBytes, payload)
 }
 
-func setupMockDevice(t *testing.T, customize func(device *mock.Device) *mock.Device) ddnvml.Device {
-	t.Helper()
-
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
-		testutil.WithMIGDisabled(),
-		testutil.WithDeviceCount(1),
-	)
-	device := testutil.GetDeviceMock(0, testutil.WithMockAllDeviceFunctions())
+func setupMockDevice(customize func(device *testDevice)) Device {
+	device := &testDevice{arch: nvml.DEVICE_ARCH_BLACKWELL}
 	if customize != nil {
-		device = customize(device)
+		customize(device)
 	}
-
-	nvmlMock.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
-		if index == 0 {
-			return device, nvml.SUCCESS
-		}
-		return nil, nvml.ERROR_INVALID_ARGUMENT
-	}
-
-	ddnvml.WithMockNVML(t, nvmlMock)
-	deviceCache := ddnvml.NewDeviceCache()
-	devices, err := deviceCache.AllPhysicalDevices()
-	require.NoError(t, err)
-	require.Len(t, devices, 1)
-	return devices[0]
+	return device
 }

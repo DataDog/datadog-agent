@@ -16,23 +16,21 @@ import (
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
-	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
+
+const testGPUUUID = "GPU-00000000-1234-1234-1234-123456789012"
 
 func TestPRMMetricsEndpoint(t *testing.T) {
 	t.Run("happy path", func(t *testing.T) {
-		handler, uuid := setupHandler(t, "blackwell", func(device *mock.Device) *mock.Device {
-			device.ReadWritePRM_v1Func = func(buffer *nvml.PRMTLV_v1) nvml.Return {
+		handler, uuid := setupHandler(nvml.DEVICE_ARCH_BLACKWELL, func(device *testDevice) {
+			device.readWritePRM = func(buffer *nvml.PRMTLV_v1) error {
 				port := int(binary.BigEndian.Uint32(buffer.InData[20:24]) >> 16)
 				copy(buffer.InData[:], makePLRResponseBytes(uint64(port*100)))
-				return nvml.SUCCESS
+				return nil
 			}
-			return device
 		})
 
 		response := performRequest(t, handler, []model.PRMRequest{
@@ -48,7 +46,7 @@ func TestPRMMetricsEndpoint(t *testing.T) {
 	})
 
 	t.Run("unknown device", func(t *testing.T) {
-		handler, _ := setupHandler(t, "blackwell", nil)
+		handler, _ := setupHandler(nvml.DEVICE_ARCH_BLACKWELL, nil)
 
 		response := performRequest(t, handler, []model.PRMRequest{
 			{DeviceUUID: "GPU-missing", Port: 1, Group: PPCNTGroupPLR},
@@ -60,16 +58,15 @@ func TestPRMMetricsEndpoint(t *testing.T) {
 	})
 
 	t.Run("partial failure", func(t *testing.T) {
-		handler, uuid := setupHandler(t, "blackwell", func(device *mock.Device) *mock.Device {
-			device.ReadWritePRM_v1Func = func(buffer *nvml.PRMTLV_v1) nvml.Return {
+		handler, uuid := setupHandler(nvml.DEVICE_ARCH_BLACKWELL, func(device *testDevice) {
+			device.readWritePRM = func(buffer *nvml.PRMTLV_v1) error {
 				port := int(binary.BigEndian.Uint32(buffer.InData[20:24]) >> 16)
 				if port == 2 {
 					return nvml.ERROR_NOT_SUPPORTED
 				}
 				copy(buffer.InData[:], makePLRResponseBytes(123))
-				return nvml.SUCCESS
+				return nil
 			}
-			return device
 		})
 
 		response := performRequest(t, handler, []model.PRMRequest{
@@ -84,13 +81,13 @@ func TestPRMMetricsEndpoint(t *testing.T) {
 	})
 
 	t.Run("empty request list", func(t *testing.T) {
-		handler, _ := setupHandler(t, "blackwell", nil)
+		handler, _ := setupHandler(nvml.DEVICE_ARCH_BLACKWELL, nil)
 		response := performRequest(t, handler, []model.PRMRequest{})
 		require.Empty(t, response)
 	})
 
 	t.Run("malformed json", func(t *testing.T) {
-		handler, _ := setupHandler(t, "blackwell", nil)
+		handler, _ := setupHandler(nvml.DEVICE_ARCH_BLACKWELL, nil)
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/gpu/prm-metrics", bytes.NewBufferString("{"))
 		handler.HandlePRMMetrics(rec, req)
@@ -98,7 +95,7 @@ func TestPRMMetricsEndpoint(t *testing.T) {
 	})
 
 	t.Run("pre blackwell architecture", func(t *testing.T) {
-		handler, uuid := setupHandler(t, "hopper", nil)
+		handler, uuid := setupHandler(nvml.DEVICE_ARCH_HOPPER, nil)
 
 		response := performRequest(t, handler, []model.PRMRequest{
 			{DeviceUUID: uuid, Port: 1, Group: PPCNTGroupPLR},
@@ -125,35 +122,16 @@ func performRequest(t *testing.T, handler *Handler, requests []model.PRMRequest)
 	return response
 }
 
-func setupHandler(t *testing.T, arch string, customize func(device *mock.Device) *mock.Device) (*Handler, string) {
-	t.Helper()
-
-	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
-		testutil.WithMIGDisabled(),
-		testutil.WithDeviceCount(1),
-	)
-	device := testutil.GetDeviceMock(0, testutil.WithMockAllDeviceFunctions())
+func setupHandler(arch nvml.DeviceArchitecture, customize func(device *testDevice)) (*Handler, string) {
+	device := &testDevice{arch: arch}
 	if customize != nil {
-		device = customize(device)
-	}
-	deviceArch, major, minor := testutil.ArchNameToNVML(arch)
-	device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
-		return deviceArch, nvml.SUCCESS
-	}
-	device.GetCudaComputeCapabilityFunc = func() (int, int, nvml.Return) {
-		return major, minor, nvml.SUCCESS
+		customize(device)
 	}
 
-	nvmlMock.DeviceGetHandleByIndexFunc = func(index int) (nvml.Device, nvml.Return) {
-		if index == 0 {
-			return device, nvml.SUCCESS
+	return NewHandler(func(uuid string) (Device, error) {
+		if uuid != testGPUUUID {
+			return nil, errDeviceNotFound
 		}
-		return nil, nvml.ERROR_INVALID_ARGUMENT
-	}
-
-	ddnvml.WithMockNVML(t, nvmlMock)
-	deviceCache := ddnvml.NewDeviceCache()
-	require.NoError(t, deviceCache.Refresh())
-
-	return NewHandler(deviceCache), testutil.GPUUUIDs[0]
+		return device, nil
+	}), testGPUUUID
 }

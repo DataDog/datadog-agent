@@ -79,8 +79,10 @@ var GPUMonitoring = &module.Factory{
 		}
 
 		return &GPUMonitoringModule{
-			Probe:         p,
-			prmHandler:    prm.NewHandler(p.GetDeviceCache()),
+			Probe: p,
+			prmHandler: prm.NewHandler(func(uuid string) (prm.Device, error) {
+				return p.GetDeviceCache().GetByUUID(uuid)
+			}),
 			cfg:           c,
 			contextCancel: cancel,
 			context:       ctx,

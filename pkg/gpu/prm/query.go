@@ -11,12 +11,17 @@ import (
 	"fmt"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-
-	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 )
 
+// Device is the minimal GPU device interface needed for PRM queries.
+type Device interface {
+	GetArchitecture() (nvml.DeviceArchitecture, error)
+	//nolint:revive // Maintaining consistency with go-nvml API naming
+	ReadWritePRM_v1(buffer *nvml.PRMTLV_v1) error
+}
+
 // QueryPortCounters issues a raw PRM query for a device/port/group and returns the decoded counters.
-func QueryPortCounters(device ddnvml.Device, group int, port int) (map[string]uint64, error) {
+func QueryPortCounters(device Device, group int, port int) (map[string]uint64, error) {
 	tlvBytes := PackPPCNTTLV(uint32(group), uint32(port))
 	var prm nvml.PRMTLV_v1
 	if len(tlvBytes) > len(prm.InData) {
