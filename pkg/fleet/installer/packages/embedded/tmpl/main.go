@@ -147,9 +147,10 @@ func systemdUnits(stableData, expData systemdTemplateData, ambiantCapabilitiesSu
 		// dd-procmgrd process configs (extension: binaries under ext/ddot)
 		"datadog-agent-ddot.yaml":     mustRenderYAMLConfig("datadog-agent-ddot.yaml", stableData),
 		"datadog-agent-ddot-exp.yaml": mustRenderYAMLConfig("datadog-agent-ddot.yaml", expData),
-		// Standalone datadog-agent-ddot package (embedded/bin, no ext/ddot; OCI uses datadog-agent-ddot paths)
-		"datadog-agent-ddot-standalone.yaml":     mustRenderYAMLConfig("datadog-agent-ddot-standalone.yaml", standaloneStable),
-		"datadog-agent-ddot-standalone-exp.yaml": mustRenderYAMLConfig("datadog-agent-ddot-standalone.yaml", standaloneExp),
+		// Standalone datadog-agent-ddot package (embedded/bin, no ext/ddot; OCI uses datadog-agent-ddot paths).
+		// Filenames use "-sa-" (not "standalone") to satisfy repo max-path checks under tmpl/gen/*-nocap/.
+		"datadog-agent-ddot-sa.yaml":     mustRenderYAMLConfig("datadog-agent-ddot-sa.yaml", standaloneStable),
+		"datadog-agent-ddot-sa-exp.yaml": mustRenderYAMLConfig("datadog-agent-ddot-sa.yaml", standaloneExp),
 	}
 	return units
 }
