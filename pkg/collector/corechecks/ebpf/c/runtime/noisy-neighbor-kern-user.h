@@ -17,6 +17,7 @@ typedef struct {
     __u64 sum_branch_misses;
     __u64 sum_cpu_migrations;
     __u64 wakeup_count;
+    __u64 sum_cache_references;
 } cgroup_agg_stats_t;
 
 // Per-PMU-event stamp: counter value plus enabled/running times.
@@ -39,6 +40,7 @@ typedef struct {
     pmu_event_stamp_t itlb_misses;
     pmu_event_stamp_t branch_misses;
     pmu_event_stamp_t cpu_migrations;
+    pmu_event_stamp_t cache_references;
 } task_pmu_stamp_t;
 
 #endif

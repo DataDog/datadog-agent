@@ -25,6 +25,7 @@ BPF_PERF_EVENT_ARRAY_MAP(llc_misses_pmu, u32)
 BPF_PERF_EVENT_ARRAY_MAP(itlb_misses_pmu, u32)
 BPF_PERF_EVENT_ARRAY_MAP(branch_misses_pmu, u32)
 BPF_PERF_EVENT_ARRAY_MAP(cpu_migrations_pmu, u32)
+BPF_PERF_EVENT_ARRAY_MAP(cache_references_pmu, u32)
 
 // Per-CPU softirq entry timestamp. Single-slot percpu array; softirq runs in
 // non-preemptible context so per-CPU storage is sufficient.
@@ -156,18 +157,21 @@ int tp_sched_switch(u64 *ctx) {
     struct bpf_perf_event_value itlb_val = {};
     struct bpf_perf_event_value bm_val = {};
     struct bpf_perf_event_value cm_val = {};
+    struct bpf_perf_event_value cr_val = {};
     long cyc_err = bpf_perf_event_read_value(&cycles_pmu, BPF_F_CURRENT_CPU, &cyc_val, sizeof(cyc_val));
     long ins_err = bpf_perf_event_read_value(&instructions_pmu, BPF_F_CURRENT_CPU, &ins_val, sizeof(ins_val));
     long llc_err = bpf_perf_event_read_value(&llc_misses_pmu, BPF_F_CURRENT_CPU, &llc_val, sizeof(llc_val));
     long itlb_err = bpf_perf_event_read_value(&itlb_misses_pmu, BPF_F_CURRENT_CPU, &itlb_val, sizeof(itlb_val));
     long bm_err = bpf_perf_event_read_value(&branch_misses_pmu, BPF_F_CURRENT_CPU, &bm_val, sizeof(bm_val));
     long cm_err = bpf_perf_event_read_value(&cpu_migrations_pmu, BPF_F_CURRENT_CPU, &cm_val, sizeof(cm_val));
+    long cr_err = bpf_perf_event_read_value(&cache_references_pmu, BPF_F_CURRENT_CPU, &cr_val, sizeof(cr_val));
     bool ci_ok = (cyc_err == 0) && (ins_err == 0);
     bool llc_ok = (llc_err == 0);
     bool itlb_ok = (itlb_err == 0);
     bool bm_ok = (bm_err == 0);
     bool cm_ok = (cm_err == 0);
-    bool pmu_ok = ci_ok || llc_ok || itlb_ok || bm_ok || cm_ok;
+    bool cr_ok = (cr_err == 0);
+    bool pmu_ok = ci_ok || llc_ok || itlb_ok || bm_ok || cm_ok || cr_ok;
 
     if (pmu_ok && prev_pid) {
         task_pmu_stamp_t *stamp = bpf_task_storage_get(&task_oncpu_pmu, prev, NULL, 0);
@@ -190,6 +194,9 @@ int tp_sched_switch(u64 *ctx) {
                 }
                 if (cm_ok) {
                     stats->sum_cpu_migrations += scaled_pmu_delta(&cm_val, &stamp->cpu_migrations);
+                }
+                if (cr_ok) {
+                    stats->sum_cache_references += scaled_pmu_delta(&cr_val, &stamp->cache_references);
                 }
             }
         }
@@ -242,6 +249,11 @@ int tp_sched_switch(u64 *ctx) {
                 stamp->cpu_migrations.counter = cm_val.counter;
                 stamp->cpu_migrations.enabled = cm_val.enabled;
                 stamp->cpu_migrations.running = cm_val.running;
+            }
+            if (cr_ok) {
+                stamp->cache_references.counter = cr_val.counter;
+                stamp->cache_references.enabled = cr_val.enabled;
+                stamp->cache_references.running = cr_val.running;
             }
         }
     }

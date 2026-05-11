@@ -70,6 +70,7 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 			{Name: "itlb_misses_pmu"},
 			{Name: "branch_misses_pmu"},
 			{Name: "cpu_migrations_pmu"},
+			{Name: "cache_references_pmu"},
 			{Name: "softirq_start_ns"},
 		}
 		if err := p.mgr.InitWithOptions(buf, &opts); err != nil {
@@ -124,6 +125,10 @@ func (p *Probe) attachPMU() {
 		// CPU migrations is a software counter — doesn't compete for hardware
 		// PMU counters and is always available regardless of µarch.
 		{"cpu_migrations_pmu", "CPU migrations", unix.PERF_TYPE_SOFTWARE, unix.PERF_COUNT_SW_CPU_MIGRATIONS},
+		// Cache references pairs with llc_misses to give LLC hit-rate: under
+		// cache thrashing the rate moves even when absolute miss count stays
+		// flat for memory-bound workloads already at floor miss rate.
+		{"cache_references_pmu", "cache references", unix.PERF_TYPE_HARDWARE, unix.PERF_COUNT_HW_CACHE_REFERENCES},
 	}
 	numCPU := runtime.NumCPU()
 	for _, ev := range events {
@@ -222,7 +227,7 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 		var cgroupCycles, cgroupInstructions uint64
 		var cgroupLLCMisses, cgroupITLBMisses uint64
 		var cgroupSoftirqNs, cgroupBlockIO uint64
-		var cgroupBranchMisses, cgroupCPUMigrations, cgroupWakeups uint64
+		var cgroupBranchMisses, cgroupCPUMigrations, cgroupWakeups, cgroupCacheReferences uint64
 		for _, cpuStat := range perCPUStats {
 			cgroupLatencies += cpuStat.Sum_latencies_ns
 			cgroupEvents += cpuStat.Event_count
@@ -236,6 +241,7 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 			cgroupBranchMisses += cpuStat.Sum_branch_misses
 			cgroupCPUMigrations += cpuStat.Sum_cpu_migrations
 			cgroupWakeups += cpuStat.Wakeup_count
+			cgroupCacheReferences += cpuStat.Sum_cache_references
 			// pid_count is a global cgroup value (not per-CPU), so take the max rather than summing
 			if cpuStat.Pid_count > pidCount {
 				pidCount = cpuStat.Pid_count
@@ -249,20 +255,21 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 		}
 
 		stat := model.NoisyNeighborStats{
-			CgroupID:         cgroupID,
-			SumLatenciesNs:   cgroupLatencies,
-			EventCount:       cgroupEvents,
-			PreemptionCount:  cgroupPreemptions,
-			UniquePidCount:   pidCount,
-			SumCycles:        cgroupCycles,
-			SumInstructions:  cgroupInstructions,
-			SumLLCMisses:     cgroupLLCMisses,
-			SumITLBMisses:    cgroupITLBMisses,
-			SumSoftirqNs:     cgroupSoftirqNs,
-			BlockIORequests:  cgroupBlockIO,
-			SumBranchMisses:  cgroupBranchMisses,
-			SumCPUMigrations: cgroupCPUMigrations,
-			WakeupCount:      cgroupWakeups,
+			CgroupID:           cgroupID,
+			SumLatenciesNs:     cgroupLatencies,
+			EventCount:         cgroupEvents,
+			PreemptionCount:    cgroupPreemptions,
+			UniquePidCount:     pidCount,
+			SumCycles:          cgroupCycles,
+			SumInstructions:    cgroupInstructions,
+			SumLLCMisses:       cgroupLLCMisses,
+			SumITLBMisses:      cgroupITLBMisses,
+			SumSoftirqNs:       cgroupSoftirqNs,
+			BlockIORequests:    cgroupBlockIO,
+			SumBranchMisses:    cgroupBranchMisses,
+			SumCPUMigrations:   cgroupCPUMigrations,
+			WakeupCount:        cgroupWakeups,
+			SumCacheReferences: cgroupCacheReferences,
 		}
 
 		nnstats = append(nnstats, stat)
