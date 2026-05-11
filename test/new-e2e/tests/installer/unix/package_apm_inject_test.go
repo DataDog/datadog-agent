@@ -33,6 +33,15 @@ func testApmInjectAgent(os e2eos.Descriptor, arch e2eos.Architecture, method Ins
 	}
 }
 
+func (s *packageApmInjectSuite) SetupTest() {
+	// Purge() uses Execute (not MustExecute), so failures are silent.
+	// A stale packages.db entry causes Install() to skip PostInstall hooks
+	// (which create /etc/ld.so.preload and /etc/docker/daemon.json).
+	s.Env().RemoteHost.Execute("sudo rm -f /opt/datadog-packages/packages.db")
+	s.Env().RemoteHost.Execute("sudo rm -f /etc/ld.so.preload")
+	s.Env().RemoteHost.Execute("sudo rm -f /etc/docker/daemon.json")
+}
+
 func (s *packageApmInjectSuite) TestInstall() {
 	s.host.InstallDocker()
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
