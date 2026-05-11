@@ -18,6 +18,14 @@ type FakeintakeOutput struct { // nolint:revive, We want to keep the name as <Co
 	Scheme string `json:"scheme"`
 	Port   uint32 `json:"port"`
 	URL    string `json:"url"`
+
+	// AgentHost/AgentURL are the host and URL the in-cluster agent should
+	// use to reach the fakeintake. They differ from Host/URL only when the
+	// fakeintake exposes a NAT64-translated IPv6 endpoint for an IPv6-only
+	// cluster (see WithIPv6NAT64 on the aws fakeintake scenario); otherwise
+	// they equal Host/URL.
+	AgentHost string `json:"agent_host"`
+	AgentURL  string `json:"agent_url"`
 }
 
 type Fakeintake struct {
@@ -29,6 +37,11 @@ type Fakeintake struct {
 	Port   pulumi.IntOutput    `pulumi:"port"`   // Same for Port
 
 	URL pulumi.StringOutput `pulumi:"url"`
+
+	// AgentHost/AgentURL are the in-cluster agent's view of the fakeintake.
+	// See FakeintakeOutput.AgentHost for the contract.
+	AgentHost pulumi.StringOutput `pulumi:"agent_host"`
+	AgentURL  pulumi.StringOutput `pulumi:"agent_url"`
 }
 
 func (fi *Fakeintake) Export(ctx *pulumi.Context, out *FakeintakeOutput) error {

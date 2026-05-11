@@ -155,17 +155,22 @@ func fargateSvcNoLB(e aws.Environment, namer namer.Namer, taskDef *awsxEcs.Farga
 		}
 		e.Ctx().Log.Info(fmt.Sprintf("fakeintake healthy at %s", ipAddress), nil)
 
-		exportedHost := ipAddress
+		clientURL := buildFakeIntakeURL("http", ipAddress, "", httpPort)
+		agentHost := ipAddress
+		agentURL := clientURL
 		if ipv6NAT64 {
-			exportedHost = "64:ff9b::" + ipAddress
+			agentHost = "64:ff9b::" + ipAddress
+			agentURL = buildFakeIntakeURL("http", agentHost, "", httpPort)
 		}
-		return []string{exportedHost, buildFakeIntakeURL("http", exportedHost, "", httpPort)}, nil
+		return []string{ipAddress, clientURL, agentHost, agentURL}, nil
 	}).(pulumi.StringArrayOutput)
 
 	fi.Scheme = pulumi.Sprintf("%s", "http")
 	fi.Port = pulumi.Int(httpPort).ToIntOutput()
 	fi.Host = output.Index(pulumi.Int(0))
 	fi.URL = output.Index(pulumi.Int(1))
+	fi.AgentHost = output.Index(pulumi.Int(2))
+	fi.AgentURL = output.Index(pulumi.Int(3))
 
 	return err
 }
@@ -226,6 +231,8 @@ func fargateSvcLB(e aws.Environment, namer namer.Namer, taskDef *awsxEcs.Fargate
 	fi.Port = pulumi.Int(httpsPort).ToIntOutput()
 	fi.Host = host
 	fi.URL = pulumi.Sprintf("%s://%s", fi.Scheme, host)
+	fi.AgentHost = fi.Host
+	fi.AgentURL = fi.URL
 	return nil
 }
 

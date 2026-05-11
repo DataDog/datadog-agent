@@ -910,19 +910,19 @@ func (values HelmValues) configureFakeintake(e config.Env, fakeintake *fakeintak
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`{"%s": ["FAKEAPIKEY"]}`, fakeintake.URL),
+				"value": pulumi.Sprintf(`{"%s": ["FAKEAPIKEY"]}`, fakeintake.AgentURL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_PROCESS_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`{"%s": ["FAKEAPIKEY"]}`, fakeintake.URL),
+				"value": pulumi.Sprintf(`{"%s": ["FAKEAPIKEY"]}`, fakeintake.AgentURL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`{"%s": ["FAKEAPIKEY"]}`, fakeintake.URL),
+				"value": pulumi.Sprintf(`{"%s": ["FAKEAPIKEY"]}`, fakeintake.AgentURL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_LOGS_CONFIG_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fakeintake.Host, fakeintake.Port, useSSL),
+				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fakeintake.AgentHost, fakeintake.Port, useSSL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_LOGS_CONFIG_USE_HTTP"),
@@ -930,38 +930,38 @@ func (values HelmValues) configureFakeintake(e config.Env, fakeintake *fakeintak
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_CONTAINER_IMAGE_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fakeintake.Host, fakeintake.Port, useSSL),
+				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fakeintake.AgentHost, fakeintake.Port, useSSL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_CONTAINER_LIFECYCLE_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fakeintake.Host, fakeintake.Port, useSSL),
+				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fakeintake.AgentHost, fakeintake.Port, useSSL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_SBOM_ADDITIONAL_ENDPOINTS"),
-				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fakeintake.Host, fakeintake.Port, useSSL),
+				"value": pulumi.Sprintf(`[{"host": "%s", "port": %v, "use_ssl": %t}]`, fakeintake.AgentHost, fakeintake.Port, useSSL),
 			},
 		}
 	} else {
 		endpointsEnvVar = pulumi.StringMapArray{
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_DD_URL"),
-				"value": pulumi.Sprintf("%s", fakeintake.URL),
+				"value": pulumi.Sprintf("%s", fakeintake.AgentURL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_PROCESS_CONFIG_PROCESS_DD_URL"),
-				"value": pulumi.Sprintf("%s", fakeintake.URL),
+				"value": pulumi.Sprintf("%s", fakeintake.AgentURL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_APM_DD_URL"),
-				"value": pulumi.Sprintf("%s", fakeintake.URL),
+				"value": pulumi.Sprintf("%s", fakeintake.AgentURL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_LOGS_CONFIG_LOGS_DD_URL"),
-				"value": pulumi.Sprintf("%s", fakeintake.URL),
+				"value": pulumi.Sprintf("%s", fakeintake.AgentURL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_ORCHESTRATOR_EXPLORER_ORCHESTRATOR_DD_URL"),
-				"value": pulumi.Sprintf("%s", fakeintake.URL),
+				"value": pulumi.Sprintf("%s", fakeintake.AgentURL),
 			},
 			pulumi.StringMap{
 				"name":  pulumi.String("DD_SKIP_SSL_VALIDATION"),
@@ -1031,7 +1031,7 @@ func (values HelmValues) configureFakeintake(e config.Env, fakeintake *fakeintak
 			parEnvDict = pulumi.StringMap{}
 			par["envDict"] = parEnvDict
 		}
-		parEnvDict["DD_DD_URL"] = pulumi.Sprintf("%s", fakeintake.URL)
+		parEnvDict["DD_DD_URL"] = pulumi.Sprintf("%s", fakeintake.AgentURL)
 		parEnvDict["DD_INTERNAL_PAR_SKIP_TASK_VERIFICATION"] = pulumi.String("true")
 	}
 }
@@ -1049,7 +1049,7 @@ func (values HelmValues) ToYAMLPulumiAssetOutput() pulumi.AssetOutput {
 
 func buildOTelConfigWithFakeintake(otelConfig string, fakeintake *fakeintake.Fakeintake) pulumi.AssetOutput {
 
-	return fakeintake.URL.ApplyT(func(url string) (pulumi.Asset, error) {
+	return fakeintake.AgentURL.ApplyT(func(url string) (pulumi.Asset, error) {
 		defaultConfig := map[string]any{
 			"exporters": map[string]any{
 				"datadog": map[string]any{
@@ -1087,7 +1087,7 @@ datadog:
 }
 
 func buildOTelAgentGatewayConfigWithFakeintake(otelConfig string, fakeintake *fakeintake.Fakeintake) pulumi.AssetOutput {
-	return fakeintake.URL.ApplyT(func(url string) (pulumi.Asset, error) {
+	return fakeintake.AgentURL.ApplyT(func(url string) (pulumi.Asset, error) {
 		defaultConfig := map[string]any{
 			"exporters": map[string]any{
 				"datadog": map[string]any{
