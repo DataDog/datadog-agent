@@ -9,13 +9,18 @@
 package fx
 
 import (
+	"go.uber.org/fx"
+
 	recorder "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // Module defines the fx options for the no-op recorder component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideOptional[recorder.Component](),
+		fx.Provide(func() option.Option[recorder.Component] {
+			return option.None[recorder.Component]()
+		}),
 	)
 }

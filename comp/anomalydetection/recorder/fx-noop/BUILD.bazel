@@ -8,5 +8,7 @@ go_library(
     deps = [
         "//comp/anomalydetection/recorder/def",
         "//pkg/util/fxutil",
+        "//pkg/util/option",
+        "@org_uber_go_fx//:fx",
     ],
 )
