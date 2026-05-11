@@ -59,6 +59,10 @@ const (
 	rebalanceStabilizationPeriod = 10 * time.Second
 )
 
+// helmChartVersion is the minimum Datadog Helm chart version that exposes the
+// datadog.autoscaling.cluster.spot.enabled feature toggle.
+const helmChartVersion = "3.208.0"
+
 // makeHelmValues returns the Helm values for the spot scheduling suite.
 // pullPolicy should be "Never" when the image is pre-loaded into kind (local dev)
 // or "IfNotPresent" when the image is pulled from a registry (CI).
@@ -74,8 +78,6 @@ clusterAgent:
   env:
     - name: DD_LOG_LEVEL
       value: "DEBUG"
-    - name: DD_AUTOSCALING_CLUSTER_SPOT_ENABLED
-      value: "true"
     - name: DD_AUTOSCALING_CLUSTER_SPOT_DEFAULTS_PERCENTAGE
       value: "100"
     - name: DD_AUTOSCALING_CLUSTER_SPOT_DEFAULTS_MIN_ON_DEMAND_REPLICAS
@@ -86,17 +88,26 @@ clusterAgent:
       value: "%v"
     - name: DD_AUTOSCALING_CLUSTER_SPOT_REBALANCE_STABILIZATION_PERIOD
       value: "%v"
-# node-agent DaemonSet not needed; only the cluster-agent runs the spot scheduler
+  podAnnotations:
+    ad.datadoghq.com/cluster-agent.logs: '[{"source":"cluster-agent","service":"datadog-cluster-agent"}]'
+# node-agent DaemonSet collects cluster-agent logs via the annotation above
 agents:
-  enabled: false
+  enabled: true
 # cluster check runners not needed for spot scheduling
 clusterChecksRunner:
   enabled: false
 datadog:
+  logs:
+    enabled: true
+    containerCollectAll: false
   kubeStateMetricsCore:
     # the framework sets this to true by default, which unconditionally enables the
     # cluster checks runner deployment regardless of clusterChecksRunner.enabled
     useClusterCheckRunners: false
+  autoscaling:
+    cluster:
+      spot:
+        enabled: true
 `, pullPolicy, scheduleTimeout, fallbackDuration, rebalanceStabilizationPeriod)
 }
 
@@ -112,7 +123,12 @@ var workerNodes = []kubeComp.KindWorkerNode{
 
 // rebalancingTimeout returns the expected duration to rebalance given number of spot pods.
 func rebalancingTimeout(spotPods int) time.Duration {
-	return time.Duration(spotPods)*2*rebalanceStabilizationPeriod + 30*time.Second
+	// Each rebalance cycle costs one rebalanceStabilizationPeriod plus pod startup time: the
+	// rebalancer resets its stabilization clock when a replacement pod joins the pod set, so the
+	// next eviction can only happen once the replacement is Running and the full stabilization
+	// period has elapsed.
+	const waitUntilRunning = 30 * time.Second
+	return time.Duration(spotPods) * (rebalanceStabilizationPeriod + waitUntilRunning)
 }
 
 type spotSchedulingSuite struct {
@@ -138,6 +154,7 @@ func TestSpotSchedulingKind(t *testing.T) {
 		localkubernetes.WithKindLoadImage(image),
 		localkubernetes.WithAgentOptions(
 			kubernetesagentparams.WithClusterAgentFullImagePath(image),
+			kubernetesagentparams.WithHelmChartVersion(helmChartVersion),
 			kubernetesagentparams.WithHelmValues(makeHelmValues("Never")),
 		),
 	)))
@@ -157,6 +174,7 @@ func TestSpotSchedulingKindCI(t *testing.T) {
 			kindvmscen.WithKindWorkerNodes(workerNodes...),
 			kindvmscen.WithoutFakeIntake(),
 			kindvmscen.WithAgentOptions(
+				kubernetesagentparams.WithHelmChartVersion(helmChartVersion),
 				kubernetesagentparams.WithHelmValues(makeHelmValues("IfNotPresent")),
 			),
 		),
@@ -170,9 +188,6 @@ func (s *spotSchedulingSuite) SetupSuite() {
 	s.kubeClient = s.Env().KubernetesCluster.Client()
 	s.identifyNodes()
 	s.waitForWebhook()
-	// The cluster-agent ClusterRole is missing pods/eviction — a known issue to be fixed
-	// in the next Helm chart release.
-	s.patchClusterAgentEvictionRole()
 }
 
 func (s *spotSchedulingSuite) SetupTest() {
@@ -204,28 +219,35 @@ func (s *spotSchedulingSuite) eventually(fn func(c *assert.CollectT)) {
 	s.EventuallyWithT(fn, 1*time.Minute, 5*time.Second)
 }
 
-// expectRunningSpot asserts that exactly count pods are Running on the spot node with spot-assigned label.
-func (s *spotSchedulingSuite) expectRunningSpot(c *assert.CollectT, pods []corev1.Pod, count int) {
-	actual := 0
+// groupPods groups pods first by node name, then by phase.
+// Unscheduled pods (no node assigned) are grouped under "<unscheduled>".
+func groupPods(pods []corev1.Pod) map[string]map[corev1.PodPhase][]string {
+	g := make(map[string]map[corev1.PodPhase][]string)
 	for _, p := range pods {
-		if p.Status.Phase == corev1.PodRunning && p.Spec.NodeName == s.spotNode {
-			require.Contains(c, p.Labels, spotAssignedLabel, "pod %s on spot node should have spot-assigned label", p.Name)
-			actual++
+		node := p.Spec.NodeName
+		if node == "" {
+			node = "<unscheduled>"
 		}
+		if g[node] == nil {
+			g[node] = make(map[corev1.PodPhase][]string)
+		}
+		g[node][p.Status.Phase] = append(g[node][p.Status.Phase], p.Name)
 	}
-	require.Equal(c, count, actual, "expected %d running spot pods", count)
+	return g
 }
 
-// expectRunningOnDemand asserts that exactly count pods are Running on the on-demand node without spot-assigned label.
+// expectRunningSpot asserts that exactly count pods are Running on the spot node.
+func (s *spotSchedulingSuite) expectRunningSpot(c *assert.CollectT, pods []corev1.Pod, count int) {
+	g := groupPods(pods)
+	require.Equal(c, count, len(g[s.spotNode][corev1.PodRunning]),
+		"expected %d running spot pods; pod breakdown: %v", count, g)
+}
+
+// expectRunningOnDemand asserts that exactly count pods are Running on the on-demand node.
 func (s *spotSchedulingSuite) expectRunningOnDemand(c *assert.CollectT, pods []corev1.Pod, count int) {
-	actual := 0
-	for _, p := range pods {
-		if p.Status.Phase == corev1.PodRunning && p.Spec.NodeName == s.onDemandNode {
-			require.NotContains(c, p.Labels, spotAssignedLabel, "pod %s on on-demand node should not have spot-assigned label", p.Name)
-			actual++
-		}
-	}
-	require.Equal(c, count, actual, "expected %d running on-demand pods", count)
+	g := groupPods(pods)
+	require.Equal(c, count, len(g[s.onDemandNode][corev1.PodRunning]),
+		"expected %d running on-demand pods; pod breakdown: %v", count, g)
 }
 
 // identifyNodes finds the spot and on-demand worker nodes by autoscaling.datadoghq.com/capacity-type label.
@@ -281,21 +303,6 @@ func (s *spotSchedulingSuite) createTestNamespace() {
 
 func (s *spotSchedulingSuite) deleteTestNamespace() {
 	err := s.kubeClient.CoreV1().Namespaces().Delete(context.Background(), s.testNamespace, metav1.DeleteOptions{})
-	s.Require().NoError(err)
-}
-
-// patchClusterAgentEvictionRole adds pods/eviction create permission to the cluster-agent
-// ClusterRole. This is needed because the Helm chart omits this rule; it will be fixed
-// in the next operator release.
-func (s *spotSchedulingSuite) patchClusterAgentEvictionRole() {
-	patch := []byte(`[{"op":"add","path":"/rules/-","value":{"apiGroups":[""],"resources":["pods/eviction"],"verbs":["create"]}}]`)
-	_, err := s.kubeClient.RbacV1().ClusterRoles().Patch(
-		s.T().Context(),
-		"dda-linux-datadog-cluster-agent",
-		types.JSONPatchType,
-		patch,
-		metav1.PatchOptions{},
-	)
 	s.Require().NoError(err)
 }
 

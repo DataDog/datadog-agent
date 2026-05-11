@@ -37,9 +37,9 @@ type Worker struct {
 	// RequeueChan is the channel used to send failed transaction back to the Forwarder.
 	RequeueChan chan<- transaction.Transaction
 
-	stopped               chan struct{}
-	blockedList           *blockedEndpoints
-	pointSuccessfullySent PointSuccessfullySent
+	stopped             chan struct{}
+	blockedList         *blockedEndpoints
+	pointCountTelemetry PointCountTelemetry
 
 	// The maximum number of HTTP requests we can have inflight at any one time.
 	maxConcurrentRequests *semaphore.Weighted
@@ -48,9 +48,11 @@ type Worker struct {
 	requestWg             sync.WaitGroup
 }
 
-// PointSuccessfullySent is called when sending successfully a point to the intake.
-type PointSuccessfullySent interface {
-	OnPointSuccessfullySent(int)
+// PointCountTelemetry tracks the number of points that were either
+// successfully delivered or dropped by the forwarder.
+type PointCountTelemetry interface {
+	OnPointSuccessfullySent(count int)
+	OnPointDropped(count int)
 }
 
 // NewWorker returns a new worker to consume Transaction from inputChan
@@ -63,7 +65,7 @@ func NewWorker(
 	lowPrioChan <-chan transaction.Transaction,
 	requeueChan chan<- transaction.Transaction,
 	blocked *blockedEndpoints,
-	pointSuccessfullySent PointSuccessfullySent,
+	pointCountTelemetry PointCountTelemetry,
 	httpClient *SharedConnection,
 ) *Worker {
 	maxConcurrentRequests := config.GetInt64("forwarder_max_concurrent_requests")
@@ -84,7 +86,7 @@ func NewWorker(
 		stopped:               make(chan struct{}),
 		Client:                httpClient,
 		blockedList:           blocked,
-		pointSuccessfullySent: pointSuccessfullySent,
+		pointCountTelemetry:   pointCountTelemetry,
 		maxConcurrentRequests: semaphore.NewWeighted(maxConcurrentRequests),
 		workerCtx:             workerCtx,
 		cancel:                cancel,
@@ -198,12 +200,11 @@ func (w *Worker) process(ctx context.Context, t transaction.Transaction) {
 	if w.blockedList.isBlockForSend(target, time.Now()) {
 		w.requeue(t)
 		w.log.Warnf("Too many errors for endpoint '%s': retrying later", target)
-	} else if err := t.Process(ctx, w.config, w.log, w.secrets, w.Client.GetClient()); err != nil {
+	} else if err := t.Process(ctx, w.config, w.log, w.secrets, w.Client.GetClient(), w.pointCountTelemetry); err != nil {
 		w.blockedList.close(target, time.Now())
 		w.requeue(t)
 		w.log.Errorf("Error while processing transaction: %v", err)
 	} else {
-		w.pointSuccessfullySent.OnPointSuccessfullySent(t.GetPointCount())
 		w.blockedList.recover(target, time.Now())
 	}
 }
@@ -212,6 +213,7 @@ func (w *Worker) requeue(t transaction.Transaction) {
 	select {
 	case w.RequeueChan <- t:
 	default:
+		w.pointCountTelemetry.OnPointDropped(t.GetPointCount())
 		w.log.Errorf("dropping transaction because the retry goroutine is too busy to handle another one")
 	}
 }
