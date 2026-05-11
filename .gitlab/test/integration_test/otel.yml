@@ -41,7 +41,6 @@ docker_image_build_otel:
       --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx
       --build-arg BASE_IMAGE_REGISTRY=registry.ddbuild.io/images/mirror
       --build-arg CI
-      --build-arg DDA_VERSION
       --build-arg GOPROXY
       --build-arg GONOSUMDB
       --build-arg GO_VERSION
@@ -63,8 +62,6 @@ docker_image_build_otel:
       '.processors += [{"gomod": "github.com/open-telemetry/opentelemetry-collector-contrib/processor/metricstransformprocessor " + env(OTELCOL_VERSION)}]'
       /tmp/otel-ci/manifest.yaml
     - !reference [.login_to_docker_readonly]
-    - export BUILDIMAGES_COMMIT="${CI_IMAGE_LINUX#*-}"
-    - export DDA_VERSION="$(curl -s https://raw.githubusercontent.com/DataDog/datadog-agent-buildimages/${BUILDIMAGES_COMMIT}/dda.env | awk -F= '/^DDA_VERSION=/ {print $2}')"
     - export GO_VERSION=$(cat .go-version)
   after_script:
     # Compute the image name and tag the template will push to, so after_script can reference them.
