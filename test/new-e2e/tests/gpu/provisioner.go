@@ -198,7 +198,9 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("installGPURuntimeDeps: %w", err)
 		}
 
-		// Install Docker (after GPU devices are validated); NewAWSManager ensures the ECR credentials helper is installed first
+		// Set up Docker (after GPU devices are validated). Docker and the ECR
+		// credentials helper come from runtimeDeps above (GPU AMIs don't have
+		// them pre-baked); NewAWSManager only wires ECR auth via SetupECRDockerAuth.
 		dockerManager, err := docker.NewAWSManager(&awsEnv, host, utils.PulumiDependsOn(runtimeDeps))
 		if err != nil {
 			return fmt.Errorf("docker.NewAWSManager: %w", err)
