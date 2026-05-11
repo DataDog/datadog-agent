@@ -1129,23 +1129,9 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 	if !eventWithNoProcessContext(eventType) {
 		if !isResolved {
 			event.Error = model.ErrNoProcessContext
-		} else {
-			// If the kernel reports a different ppid than the one in our
-			// cache, the process was reparented (e.g. subreaper). Update
-			// the cache tree immediately using the authoritative kernel value.
-			if event.PIDContext.PPid != 0 {
-				p.Resolvers.ProcessResolver.TryReparentFromKernelPPid(entry, event.PIDContext.PPid, newEntryCb)
-			}
-
-			// Attempt to repair the lineage of processes that were orphaned
-			// during subreaper reparenting (the exit tracepoint may fire
-			// before the kernel has completed forget_original_parent).
-			p.Resolvers.ProcessResolver.TryReparentFromProcfs(entry, metrics.ReparentCallpathSetProcessContext, newEntryCb)
-
-			if _, err := entry.HasValidLineage(); err != nil {
-				event.Error = &model.ErrProcessBrokenLineage{Err: err}
-				p.Resolvers.ProcessResolver.CountBrokenLineage()
-			}
+		} else if _, err := entry.HasValidLineage(); err != nil {
+			event.Error = &model.ErrProcessBrokenLineage{Err: err}
+			p.Resolvers.ProcessResolver.CountBrokenLineage()
 		}
 	}
 
@@ -1222,8 +1208,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 					return
 				}
 			}
-
-			p.Resolvers.ProcessResolver.TryReparentFromProcfsLocked(entry, metrics.ReparentCallpathRelatedEvent, nil)
 
 			relatedEvents = append(relatedEvents, relatedEvent)
 		}
@@ -3374,8 +3358,6 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	} else {
 		appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructPID, "struct task_struct", "thread_pid")
 	}
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructRealParent, "struct task_struct", "real_parent")
-	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameTaskStructTGID, "struct task_struct", "tgid")
 
 	// splice event
 	constantFetcher.AppendSizeofRequest(constantfetch.SizeOfPipeBuffer, "struct pipe_buffer")
