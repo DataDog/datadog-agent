@@ -135,13 +135,13 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("system_probe_config.btf_path", "", "DD_SYSTEM_PROBE_BTF_PATH")
 	cfg.BindEnvAndSetDefault("system_probe_config.btf_output_dir", defaultBTFOutputDir, "DD_SYSTEM_PROBE_BTF_OUTPUT_DIR")
 	cfg.BindEnvAndSetDefault("system_probe_config.remote_config_btf_enabled", false, "DD_SYSTEM_PROBE_REMOTE_CONFIG_BTF_ENABLED")
-	cfg.BindEnv("system_probe_config.enable_runtime_compiler", "DD_ENABLE_RUNTIME_COMPILER") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault("system_probe_config.enable_runtime_compiler", false, "DD_ENABLE_RUNTIME_COMPILER")
 	// deprecated in favor of allow_prebuilt_fallback below
-	cfg.BindEnv("system_probe_config.allow_precompiled_fallback", "DD_ALLOW_PRECOMPILED_FALLBACK") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	cfg.BindEnv("system_probe_config.allow_prebuilt_fallback", "DD_ALLOW_PREBUILT_FALLBACK")       //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault("system_probe_config.allow_precompiled_fallback", false, "DD_ALLOW_PRECOMPILED_FALLBACK")
+	cfg.BindEnvAndSetDefault("system_probe_config.allow_prebuilt_fallback", false, "DD_ALLOW_PREBUILT_FALLBACK")
 	cfg.BindEnvAndSetDefault("system_probe_config.allow_runtime_compiled_fallback", true, "DD_ALLOW_RUNTIME_COMPILED_FALLBACK")
 	cfg.BindEnvAndSetDefault("system_probe_config.runtime_compiler_output_dir", defaultRuntimeCompilerOutputDir, "DD_RUNTIME_COMPILER_OUTPUT_DIR")
-	cfg.BindEnv("system_probe_config.enable_kernel_header_download", "DD_ENABLE_KERNEL_HEADER_DOWNLOAD") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault("system_probe_config.enable_kernel_header_download", false, "DD_ENABLE_KERNEL_HEADER_DOWNLOAD")
 	cfg.BindEnvAndSetDefault("system_probe_config.kernel_header_dirs", []string{}, "DD_KERNEL_HEADER_DIRS")
 	cfg.BindEnvAndSetDefault("system_probe_config.kernel_header_download_dir", defaultKernelHeadersDownloadDir, "DD_KERNEL_HEADER_DOWNLOAD_DIR")
 	cfg.BindEnvAndSetDefault("system_probe_config.apt_config_dir", suffixHostEtc(defaultAptConfigDirSuffix), "DD_APT_CONFIG_DIR")
@@ -181,12 +181,12 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("system_probe_config.offset_guess_threshold", int64(defaultOffsetThreshold))
 
 	cfg.BindEnvAndSetDefault("system_probe_config.max_tracked_connections", int64(65536))
-	cfg.BindEnv("system_probe_config.max_closed_connections_buffered")   //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	cfg.BindEnv("network_config.max_failed_connections_buffered")        //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	cfg.BindEnv("system_probe_config.closed_connection_flush_threshold") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	cfg.BindEnv("network_config.closed_connection_flush_threshold")      //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	cfg.BindEnv("system_probe_config.closed_channel_size")               //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-	cfg.BindEnv("network_config.closed_channel_size")                    //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault("system_probe_config.max_closed_connections_buffered", int64(0))
+	cfg.BindEnvAndSetDefault("network_config.max_failed_connections_buffered", int64(0))
+	cfg.BindEnvAndSetDefault("system_probe_config.closed_connection_flush_threshold", 0)
+	cfg.BindEnvAndSetDefault("network_config.closed_connection_flush_threshold", 0)
+	cfg.BindEnvAndSetDefault("system_probe_config.closed_channel_size", 0)
+	cfg.BindEnvAndSetDefault("network_config.closed_channel_size", 500)
 	cfg.BindEnvAndSetDefault("network_config.closed_buffer_wakeup_count", 4)
 	cfg.BindEnvAndSetDefault("system_probe_config.max_connection_state_buffered", 75000)
 
@@ -364,7 +364,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// GPU monitoring
 	cfg.BindEnvAndSetDefault("gpu_monitoring.enabled", false)
-	cfg.BindEnv("gpu_monitoring.nvml_lib_path") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	cfg.BindEnvAndSetDefault("gpu_monitoring.nvml_lib_path", "")
 	cfg.BindEnvAndSetDefault("gpu_monitoring.process_scan_interval_seconds", 5)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.initial_process_sync", true)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.configure_cgroup_perms", false)

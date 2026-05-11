@@ -29,7 +29,6 @@ func adjustNetwork(cfg model.Config) {
 
 	deprecateInt(cfg, spNS("closed_connection_flush_threshold"), netNS("closed_connection_flush_threshold"))
 	deprecateInt(cfg, spNS("closed_channel_size"), netNS("closed_channel_size"))
-	applyDefault(cfg, netNS("closed_channel_size"), 500)
 
 	limitMaxInt(cfg, spNS("max_conns_per_message"), maxConnsMessageBatchSize)
 
