@@ -48,6 +48,10 @@ type RunParams struct {
 	// workerNodes configures the kind cluster worker nodes with custom labels and taints.
 	// When empty the cluster uses the default single worker node.
 	workerNodes []kubecomp.KindWorkerNode
+
+	// ipFamily selects the kind cluster's IP family ("ipv4", "ipv6", "dual").
+	// Empty leaves it to the kind default (ipv4).
+	ipFamily string
 }
 
 type RunOption = func(*RunParams) error
@@ -210,4 +214,9 @@ func WithKindWorkerNodes(nodes ...kubecomp.KindWorkerNode) RunOption {
 		p.workerNodes = append(p.workerNodes, nodes...)
 		return nil
 	}
+}
+
+// WithIPFamily sets the kind cluster's IP family ("ipv4", "ipv6", "dual")
+func WithIPFamily(family string) RunOption {
+	return func(p *RunParams) error { p.ipFamily = family; return nil }
 }

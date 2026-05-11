@@ -49,6 +49,9 @@ containerdConfigPatches:
 networking:
   apiServerAddress: "0.0.0.0"
   apiServerPort: 8443
+{{- if .IPFamily }}
+  ipFamily: {{ .IPFamily }}
+{{- end }}
 {{- if .KubeProxyReplacement }}
   disableDefaultCNI: true
   kubeProxyMode: "none"

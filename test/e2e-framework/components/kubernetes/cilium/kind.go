@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 )
 
-func NewKindCluster(env config.Env, vm *remote.Host, name string, kubeVersion string, ciliumOpts []Option, opts ...pulumi.ResourceOption) (*kubernetes.Cluster, error) {
+func NewKindCluster(env config.Env, vm *remote.Host, name string, kubeVersion string, ipFamily string, ciliumOpts []Option, opts ...pulumi.ResourceOption) (*kubernetes.Cluster, error) {
 	params, err := NewParams(ciliumOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("could not create cilium params from opts: %w", err)
@@ -28,6 +28,7 @@ func NewKindCluster(env config.Env, vm *remote.Host, name string, kubeVersion st
 	kindClusterConfigFlags := kubernetes.KindConfigFlags{
 		KubeProxyReplacement: params.hasKubeProxyReplacement(),
 		WorkerNodes:          []kubernetes.KindWorkerNode{{}},
+		IPFamily:             ipFamily,
 	}
 
 	cluster, err := kubernetes.NewKindClusterWithConfig(env, vm, name, kubeVersion, kindClusterConfigFlags, opts...)
