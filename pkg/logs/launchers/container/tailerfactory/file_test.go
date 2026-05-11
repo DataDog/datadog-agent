@@ -631,7 +631,7 @@ func setNonZero(v reflect.Value, name string) {
 		v.SetFloat(0.42)
 	case reflect.Bool:
 		v.SetBool(true)
-	case reflect.Ptr:
+	case reflect.Pointer:
 		elem := reflect.New(v.Type().Elem())
 		setNonZero(elem.Elem(), name)
 		v.Set(elem)
