@@ -228,7 +228,7 @@ func (s *extensionsSuite) TestDDOTProcmgrYAMLAfterAgentPromoteExperiment() {
 	s.verifyDDOTRunning()
 
 	procmgrtest.WaitForProcess(s.T(), s, procmgrtest.WaitForProcessArgs{
-		ProcmgrCLIBin:  procmgrtest.CLIBinFleetStable,
+		ProcmgrCLIBin:  procmgrtest.CLIBinForLinuxHost(s.T(), s),
 		ProcessName:    procmgrtest.DDOTProcessName,
 		ExpectedBinary: procmgrtest.DDOTOtelAgentFleetStableExtensionBinary,
 		DesiredState:   procmgrtest.ProcessStateRunning,
@@ -280,8 +280,9 @@ func (s *extensionsSuite) TestStandaloneDDOTProcmgrAfterAgentPromoteRegression()
 	}()
 
 	s.verifyDDOTRunning()
+	procmgrCLI := procmgrtest.CLIBinForLinuxHost(s.T(), s)
 	procmgrtest.WaitForProcess(s.T(), s, procmgrtest.WaitForProcessArgs{
-		ProcmgrCLIBin:  procmgrtest.CLIBinFleetStable,
+		ProcmgrCLIBin:  procmgrCLI,
 		ProcessName:    procmgrtest.DDOTProcessName,
 		ExpectedBinary: procmgrtest.DDOTOtelAgentFleetPackageBinary,
 		DesiredState:   procmgrtest.ProcessStateRunning,
@@ -298,14 +299,15 @@ func (s *extensionsSuite) TestStandaloneDDOTProcmgrAfterAgentPromoteRegression()
 	s.Require().NoError(err)
 	s.verifyDDOTRunning()
 
+	procmgrCLI = procmgrtest.CLIBinForLinuxHost(s.T(), s)
 	procmgrtest.WaitForProcess(s.T(), s, procmgrtest.WaitForProcessArgs{
-		ProcmgrCLIBin:  procmgrtest.CLIBinFleetStable,
+		ProcmgrCLIBin:  procmgrCLI,
 		ProcessName:    procmgrtest.DDOTProcessName,
 		ExpectedBinary: procmgrtest.DDOTOtelAgentFleetPackageBinary,
 		DesiredState:   procmgrtest.ProcessStateRunning,
 	})
 
-	stableYAML := filepath.Join(paths.PackagesPath, "datadog-agent", "stable", "processes.d", "datadog-agent-ddot.yaml")
+	stableYAML := procmgrtest.StableDDOTProcmgrYAMLPath(s.T(), s)
 	cmdLine, gerr := s.Env().RemoteHost.Execute(`sudo grep -E '^command:' "` + stableYAML + `"`)
 	s.Require().NoError(gerr)
 	s.Require().Contains(strings.TrimSpace(cmdLine), "datadog-packages/datadog-agent-ddot/",

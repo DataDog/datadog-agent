@@ -18,6 +18,14 @@ import (
 )
 
 const (
+	ddotProcmgrYAMLFileName = "datadog-agent-ddot.yaml"
+	// StableDDOTProcmgrYAMLDeb is the stable processes.d DDOT file on classic deb/rpm installs.
+	StableDDOTProcmgrYAMLDeb = "/opt/datadog-agent/processes.d/" + ddotProcmgrYAMLFileName
+	// StableDDOTProcmgrYAMLOCI is the stable processes.d DDOT file on fleet OCI agent installs.
+	StableDDOTProcmgrYAMLOCI = "/opt/datadog-packages/datadog-agent/stable/processes.d/" + ddotProcmgrYAMLFileName
+)
+
+const (
 	DDOTProcessName                         = "datadog-agent-ddot"
 	CLIBinDefault                           = "/opt/datadog-agent/embedded/bin/dd-procmgr"
 	CLIBinFleetStable                       = "/opt/datadog-packages/datadog-agent/stable/embedded/bin/dd-procmgr"
@@ -28,6 +36,33 @@ const (
 	DDOTOtelAgentFleetStableExtensionBinary = "/opt/datadog-packages/datadog-agent/stable/ext/ddot/embedded/bin/otel-agent"
 	DDOTOtelAgentExtensionBinary            = "/opt/datadog-agent/ext/ddot/embedded/bin/otel-agent"
 )
+
+// CLIBinForLinuxHost returns CLIBinFleetStable when that binary is executable on the host,
+// otherwise CLIBinDefault (classic deb/rpm layout). Staging install-script suites often use
+// /opt/datadog-agent only until an OCI experiment is promoted.
+func CLIBinForLinuxHost(t *testing.T, executor CommandExecutor) string {
+	t.Helper()
+	cmd := fmt.Sprintf(`if sudo test -x %q; then echo %q; elif sudo test -x %q; then echo %q; else echo ""; fi`,
+		CLIBinFleetStable, CLIBinFleetStable, CLIBinDefault, CLIBinDefault)
+	out, err := executor.ExecuteCommand(cmd)
+	require.NoError(t, err)
+	path := strings.TrimSpace(out)
+	require.NotEmpty(t, path, "dd-procmgr CLI not found (checked %s and %s)", CLIBinFleetStable, CLIBinDefault)
+	return path
+}
+
+// StableDDOTProcmgrYAMLPath returns the on-disk path to stable DDOT procmgr YAML, preferring
+// the fleet OCI layout when present, otherwise the classic deb/rpm path.
+func StableDDOTProcmgrYAMLPath(t *testing.T, executor CommandExecutor) string {
+	t.Helper()
+	cmd := fmt.Sprintf(`if sudo test -f %q; then echo %q; elif sudo test -f %q; then echo %q; else echo ""; fi`,
+		StableDDOTProcmgrYAMLOCI, StableDDOTProcmgrYAMLOCI, StableDDOTProcmgrYAMLDeb, StableDDOTProcmgrYAMLDeb)
+	out, err := executor.ExecuteCommand(cmd)
+	require.NoError(t, err)
+	path := strings.TrimSpace(out)
+	require.NotEmpty(t, path, "datadog-agent-ddot.yaml not found (checked %s and %s)", StableDDOTProcmgrYAMLOCI, StableDDOTProcmgrYAMLDeb)
+	return path
+}
 
 // CommandExecutor executes a command on the remote host.
 type CommandExecutor interface {
