@@ -167,7 +167,10 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("dynamic_instrumentation.circuit_breaker.interrupt_overhead", 2*time.Microsecond)
 
 	// network_tracer settings
-	// we cannot use BindEnvAndSetDefault for network_config.enabled because we need to know if it was manually set.
+	// migration to BindEnvAndSetDefault is possible but requires switching
+	// the IsSet caller in pkg/system-probe/config/adjust.go to IsConfigured
+	// (same pattern as allow_prebuilt_fallback) so the legacy auto-enable
+	// from system_probe_config.enabled keeps respecting an explicit false.
 	cfg.BindEnv("network_config.enabled", "DD_SYSTEM_PROBE_NETWORK_ENABLED") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv' //nolint:errcheck
 	cfg.BindEnvAndSetDefault("system_probe_config.disable_tcp", false, "DD_DISABLE_TCP_TRACING")
 	cfg.BindEnvAndSetDefault("system_probe_config.disable_udp", false, "DD_DISABLE_UDP_TRACING")
