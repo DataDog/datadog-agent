@@ -52,11 +52,11 @@ func RemovePackage(ctx context.Context, pkg string) (err error) {
 	var removeCmd *telemetry.TracedCmd
 	if dpkgInstalled {
 		removeCmd = telemetry.CommandContext(ctx, "dpkg", "-r", pkg)
-		packageInstalled = telemetry.CommandContext(ctx, "dpkg", "-s", pkg).Run() == nil
+		packageInstalled = telemetry.CommandContext(ctx, "dpkg", "-s", pkg).RunProbe() == nil
 	}
 	if rpmInstalled {
 		removeCmd = telemetry.CommandContext(ctx, "rpm", "-e", pkg)
-		packageInstalled = telemetry.CommandContext(ctx, "rpm", "-q", pkg).Run() == nil
+		packageInstalled = telemetry.CommandContext(ctx, "rpm", "-q", pkg).RunProbe() == nil
 	}
 	if !packageInstalled {
 		return nil

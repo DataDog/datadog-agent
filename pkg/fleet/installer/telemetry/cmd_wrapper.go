@@ -58,3 +58,30 @@ func (c *TracedCmd) Run() (err error) {
 	}
 	return nil
 }
+
+// RunProbe runs the command and finishes the span as successful regardless of exit code.
+// Use for boolean-probe commands where non-zero exit is a valid "not found" signal, not an error.
+func (c *TracedCmd) RunProbe() error {
+	var stderr bytes.Buffer
+	var stdout bytes.Buffer
+	if c.Cmd.Stderr != nil {
+		c.Cmd.Stderr = io.MultiWriter(c.Cmd.Stderr, &stderr)
+	} else {
+		c.Cmd.Stderr = &stderr
+	}
+	if c.Cmd.Stdout != nil {
+		c.Cmd.Stdout = io.MultiWriter(c.Cmd.Stdout, &stdout)
+	} else {
+		c.Cmd.Stdout = &stdout
+	}
+	err := c.Cmd.Run()
+	if err != nil {
+		exitErr := &exec.ExitError{}
+		if errors.As(err, &exitErr) {
+			c.span.SetTag("exit_code", exitErr.ExitCode())
+		}
+		err = fmt.Errorf("%s\n%s\n%w", stdout.String(), stderr.String(), err)
+	}
+	c.span.FinishOK()
+	return err
+}

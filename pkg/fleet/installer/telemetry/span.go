@@ -100,6 +100,15 @@ func (s *Span) Finish(err error) {
 	globalTracer.finishSpan(s)
 }
 
+// FinishOK finishes the span as successful regardless of the command's exit code.
+func (s *Span) FinishOK() {
+	s.finished.Store(true)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.span.Duration = time.Now().UnixNano() - s.span.Start
+	globalTracer.finishSpan(s)
+}
+
 // SetResourceName sets the resource name of the span.
 func (s *Span) SetResourceName(name string) {
 	if s.finished.Load() {

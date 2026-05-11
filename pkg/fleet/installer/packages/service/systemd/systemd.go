@@ -125,7 +125,7 @@ func DisableUnits(ctx context.Context, units ...string) error {
 
 // DisableUnit disables a systemd unit
 func DisableUnit(ctx context.Context, unit string) error {
-	enabledErr := telemetry.CommandContext(ctx, "systemctl", "is-enabled", "--quiet", unit).Run()
+	enabledErr := telemetry.CommandContext(ctx, "systemctl", "is-enabled", "--quiet", unit).RunProbe()
 	if enabledErr != nil {
 		// unit is already disabled or doesn't exist, we can return fast
 		return nil
