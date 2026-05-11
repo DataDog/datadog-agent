@@ -11,27 +11,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/schema"
 )
 
-// Verdict is the outcome of running ValidateRawConfig against datadog.yaml.
+// Verdict is the outcome of ValidateRawConfig.
 type Verdict int
 
 const (
-	// VerdictOK means the file parsed as YAML and the parsed map passed
-	// schema validation.
+	// VerdictOK means the file parsed and passed schema validation (or was empty).
 	VerdictOK Verdict = iota
-	// VerdictYAMLParseFailure means yaml.Unmarshal returned an error. The
-	// configuration cannot be loaded at all.
+	// VerdictYAMLParseFailure means yaml.Unmarshal returned an error.
 	VerdictYAMLParseFailure
-	// VerdictSchemaInvalid means yaml.Unmarshal succeeded but
-	// schema.ValidateCoreConfig produced at least one error string.
+	// VerdictSchemaInvalid means YAML parsed but the schema produced at least one error.
 	VerdictSchemaInvalid
-	// VerdictSchemaUnavailable means the validator itself failed (e.g.
-	// the embedded schema file is missing). The caller should log a
-	// warning and treat this as "no opinion".
+	// VerdictSchemaUnavailable means the validator itself failed (e.g. missing
+	// embedded schema). Caller should treat as "no opinion".
 	VerdictSchemaUnavailable
 )
 
-// ValidationResult is what ValidateRawConfig returns. Callers inspect Verdict
-// first and only use the matching fields.
+// ValidationResult is what ValidateRawConfig returns. Inspect Verdict first
+// and only use the matching fields.
 type ValidationResult struct {
 	Verdict      Verdict
 	ParseError   error
@@ -40,10 +36,9 @@ type ValidationResult struct {
 }
 
 // ValidateRawConfig is the single source of truth for "parse datadog.yaml,
-// run it through the embedded schema, summarise the result." It is used by
-// both the in-Fx invalidconfig issue module and lite.Rescue so the two
-// paths emit consistent issue payloads regardless of who detected the
-// problem.
+// run it through the embedded schema, summarise the result." Used by both the
+// in-Fx invalidconfig issue module and lite.Rescue so the two paths emit
+// consistent issue payloads regardless of who detected the problem.
 //
 // Empty input is treated as VerdictOK — there is no file to complain about.
 func ValidateRawConfig(raw []byte) ValidationResult {
@@ -53,25 +48,15 @@ func ValidateRawConfig(raw []byte) ValidationResult {
 
 	var parsed map[string]any
 	if err := yaml.Unmarshal(raw, &parsed); err != nil {
-		return ValidationResult{
-			Verdict:    VerdictYAMLParseFailure,
-			ParseError: err,
-		}
+		return ValidationResult{Verdict: VerdictYAMLParseFailure, ParseError: err}
 	}
 
 	errs, schemaErr := schema.ValidateCoreConfig(parsed)
 	if schemaErr != nil {
-		return ValidationResult{
-			Verdict: VerdictSchemaUnavailable,
-			Parsed:  parsed,
-		}
+		return ValidationResult{Verdict: VerdictSchemaUnavailable, Parsed: parsed}
 	}
 	if len(errs) > 0 {
-		return ValidationResult{
-			Verdict:      VerdictSchemaInvalid,
-			SchemaErrors: errs,
-			Parsed:       parsed,
-		}
+		return ValidationResult{Verdict: VerdictSchemaInvalid, SchemaErrors: errs, Parsed: parsed}
 	}
 	return ValidationResult{Verdict: VerdictOK, Parsed: parsed}
 }

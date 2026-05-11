@@ -16,7 +16,6 @@ go_library(
         "//pkg/config/lite",
         "//pkg/util/log",
         "@com_github_datadog_agent_payload_v5//healthplatform",
-        "@org_golang_google_protobuf//types/known/structpb",
     ],
 )
 

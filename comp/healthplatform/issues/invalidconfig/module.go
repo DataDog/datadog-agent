@@ -15,7 +15,6 @@ func init() {
 	issues.RegisterModuleFactory(NewModule)
 }
 
-// invalidConfigModule implements issues.Module
 type invalidConfigModule struct {
 	template *InvalidConfigIssue
 	checker  *checker
@@ -30,19 +29,16 @@ func NewModule(cfg config.Component) issues.Module {
 	}
 }
 
-// IssueID returns the unique identifier for this issue type.
 func (m *invalidConfigModule) IssueID() string {
 	return healthplatformdef.InvalidConfigIssueID
 }
 
-// IssueTemplate returns the template for building complete issues.
 func (m *invalidConfigModule) IssueTemplate() issues.IssueTemplate {
 	return m.template
 }
 
-// BuiltInCheck returns the periodic schema-validation check. Interval is
-// left at zero so the platform applies its default (15 minutes), matching
-// the forwarder cadence.
+// BuiltInCheck returns the periodic schema-validation check. Interval is left
+// at zero so the platform applies its default (matches the forwarder cadence).
 func (m *invalidConfigModule) BuiltInCheck() *issues.BuiltInCheck {
 	return &issues.BuiltInCheck{
 		ID:      healthplatformdef.InvalidConfigCheckID,

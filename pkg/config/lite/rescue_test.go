@@ -74,25 +74,19 @@ func TestBuildRescue_YAMLParseHasHighSeverity(t *testing.T) {
 	assert.Contains(t, issue.Title, "not valid YAML")
 	kind, ok := issue.Extra.Fields["error_kind"]
 	require.True(t, ok)
-	assert.Equal(t, string(errorKindYAMLParse), kind.GetStringValue())
+	assert.Equal(t, string(ErrorKindYAMLParse), kind.GetStringValue())
 }
 
 func TestBuildRescue_SchemaErrorsHaveMediumSeverity(t *testing.T) {
 	// schema.ValidateCoreConfig returns an infra error in the test build
 	// because the compressed schema isn't embedded — but our handler still
 	// dispatches on cfg.ParsedConfig + len(errs)>0. To exercise the medium-
-	// severity path here we hand-craft a config where ParsedConfig is set
-	// and inspect schemaValidationIssue() directly.
-	cfg := LiteConfig{
-		APIKey:         ConfigField{Value: "k", Source: SourceFileYAMLFull},
-		Site:           ConfigField{Value: "datadoghq.com", Source: SourceFileYAMLFull},
-		ConfigFilePath: "/etc/datadog-agent/datadog.yaml",
-	}
+	// severity path here we drive the rescue helper directly.
 	errs := []string{
 		"/agent_ipc/port: expected integer, got string",
 		"/tags: expected array, got string",
 	}
-	issue := schemaValidationIssue(cfg, errs)
+	issue := rescueSchemaIssue("/etc/datadog-agent/datadog.yaml", errs)
 	assert.Equal(t, "medium", issue.Severity)
 	assert.Equal(t, IssueID, issue.Id)
 	assert.Contains(t, issue.Title, "2 schema violation(s)")
@@ -111,7 +105,7 @@ func TestBuildRescue_SchemaTruncation(t *testing.T) {
 	for i := range errs {
 		errs[i] = "violation"
 	}
-	issue := schemaValidationIssue(LiteConfig{}, errs)
+	issue := rescueSchemaIssue("", errs)
 	count := int(issue.Extra.Fields["error_count"].GetNumberValue())
 	assert.Equal(t, 30, count)
 	assert.True(t, issue.Extra.Fields["truncated"].GetBoolValue())
@@ -132,7 +126,7 @@ func TestBuildRescue_StartupFailureWhenConfigIsClean(t *testing.T) {
 	require.NotNil(t, issue)
 	assert.Equal(t, "high", issue.Severity)
 	assert.Equal(t, "Datadog Agent failed to start", issue.Title)
-	assert.Equal(t, string(errorKindStartupFailure),
+	assert.Equal(t, string(ErrorKindStartupFailure),
 		issue.Extra.Fields["error_kind"].GetStringValue())
 	assert.Contains(t, issue.Extra.Fields["error_message"].GetStringValue(), "port :8126")
 }
@@ -218,20 +212,9 @@ func TestDefaultConfigPath_EnvOverride(t *testing.T) {
 }
 
 func TestDefaultConfigPath_PerPlatform(t *testing.T) {
-	t.Setenv("DD_CONFIG", "")
-
-	stubGOOS := func(s string) func() {
-		orig := runtimeGOOS
-		runtimeGOOS = func() string { return s }
-		return func() { runtimeGOOS = orig }
-	}
-
-	defer stubGOOS("linux")()
-	assert.Equal(t, "/etc/datadog-agent", DefaultConfigPath())
-
-	defer stubGOOS("darwin")()
-	assert.Equal(t, "/opt/datadog-agent/etc", DefaultConfigPath())
-
-	defer stubGOOS("windows")()
-	assert.Equal(t, `C:\ProgramData\Datadog`, DefaultConfigPath())
+	assert.Equal(t, "/etc/datadog-agent", defaultConfigPathForGOOS("linux"))
+	assert.Equal(t, "/opt/datadog-agent/etc", defaultConfigPathForGOOS("darwin"))
+	assert.Equal(t, `C:\ProgramData\Datadog`, defaultConfigPathForGOOS("windows"))
+	assert.Equal(t, "/etc/datadog-agent", defaultConfigPathForGOOS("freebsd"),
+		"unknown platforms fall back to the linux default")
 }

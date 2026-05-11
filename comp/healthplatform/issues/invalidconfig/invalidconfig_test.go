@@ -23,9 +23,9 @@ import (
 func TestBuildIssue_YAMLParseHasHighSeverity(t *testing.T) {
 	tmpl := NewInvalidConfigIssue()
 	issue, err := tmpl.BuildIssue(map[string]string{
-		contextKeyErrorKind:    errorKindYAMLParse,
-		contextKeyConfigPath:   "/etc/datadog-agent/datadog.yaml",
-		contextKeyErrorMessage: "yaml: line 12: did not find expected ',' or ']'",
+		lite.ContextKeyErrorKind:    string(lite.ErrorKindYAMLParse),
+		lite.ContextKeyConfigPath:   "/etc/datadog-agent/datadog.yaml",
+		lite.ContextKeyErrorMessage: "yaml: line 12: did not find expected ',' or ']'",
 	})
 	require.NoError(t, err)
 	assert.Equal(t, healthplatformdef.InvalidConfigIssueID, issue.GetId())
@@ -34,8 +34,8 @@ func TestBuildIssue_YAMLParseHasHighSeverity(t *testing.T) {
 	assert.Contains(t, issue.GetDescription(), "/etc/datadog-agent/datadog.yaml")
 
 	require.NotNil(t, issue.GetExtra())
-	assert.Equal(t, errorKindYAMLParse,
-		issue.GetExtra().GetFields()[contextKeyErrorKind].GetStringValue())
+	assert.Equal(t, string(lite.ErrorKindYAMLParse),
+		issue.GetExtra().GetFields()[lite.ContextKeyErrorKind].GetStringValue())
 
 	// Remediation must mention the config path and the parser error so
 	// support can copy/paste actionable steps.
@@ -46,20 +46,20 @@ func TestBuildIssue_YAMLParseHasHighSeverity(t *testing.T) {
 func TestBuildIssue_SchemaValidationHasMediumSeverity(t *testing.T) {
 	tmpl := NewInvalidConfigIssue()
 	issue, err := tmpl.BuildIssue(map[string]string{
-		contextKeyErrorKind:  errorKindSchemaValidation,
-		contextKeyConfigPath: "/etc/datadog-agent/datadog.yaml",
-		contextKeyErrorCount: "3",
-		contextKeyErrors:     "/agent_ipc/port: expected integer\n/tags: expected array",
+		lite.ContextKeyErrorKind:  string(lite.ErrorKindSchemaValidation),
+		lite.ContextKeyConfigPath: "/etc/datadog-agent/datadog.yaml",
+		lite.ContextKeyErrorCount: "3",
+		lite.ContextKeyErrors:     "/agent_ipc/port: expected integer\n/tags: expected array",
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "medium", issue.GetSeverity())
 	assert.Contains(t, issue.GetTitle(), "3 schema violation(s)")
-	assert.Equal(t, errorKindSchemaValidation,
-		issue.GetExtra().GetFields()[contextKeyErrorKind].GetStringValue())
-	assert.Equal(t, "3",
-		issue.GetExtra().GetFields()[contextKeyErrorCount].GetStringValue())
+	assert.Equal(t, string(lite.ErrorKindSchemaValidation),
+		issue.GetExtra().GetFields()[lite.ContextKeyErrorKind].GetStringValue())
+	assert.Equal(t, float64(3),
+		issue.GetExtra().GetFields()[lite.ContextKeyErrorCount].GetNumberValue())
 	assert.Contains(t,
-		issue.GetExtra().GetFields()[contextKeyErrors].GetStringValue(),
+		issue.GetExtra().GetFields()[lite.ContextKeyErrors].GetStringValue(),
 		"agent_ipc/port")
 }
 
@@ -88,8 +88,8 @@ func TestCheck_ParseFailureProducesReport(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, report)
 	assert.Equal(t, healthplatformdef.InvalidConfigIssueID, report.GetIssueId())
-	assert.Equal(t, errorKindYAMLParse, report.GetContext()[contextKeyErrorKind])
-	assert.NotEmpty(t, report.GetContext()[contextKeyErrorMessage])
+	assert.Equal(t, string(lite.ErrorKindYAMLParse), report.GetContext()[lite.ContextKeyErrorKind])
+	assert.NotEmpty(t, report.GetContext()[lite.ContextKeyErrorMessage])
 }
 
 func TestCheck_HealthyConfigReturnsNil(t *testing.T) {

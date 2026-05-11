@@ -7,9 +7,9 @@ package lite
 
 import "regexp"
 
-// regexBindings drives the Tier-4 column-0 anchored regex. Each pattern
-// captures the value between the colon and an optional trailing comment.
-// The (?m) flag makes ^ match at the start of every line.
+// regexBindings drives the Tier-4 column-0 regex. The (?m) flag makes ^ match
+// at the start of every line, so nested `api_key:` inside additional_endpoints
+// or logs_config never gets surfaced as the primary credential.
 var regexBindings = []struct {
 	field   func(*LiteConfig) *ConfigField
 	name    string
@@ -25,10 +25,6 @@ var regexBindings = []struct {
 		regexp.MustCompile(`(?m)^secret_backend_command:[ \t]+(.+?)[ \t]*(?:#.*)?$`)},
 }
 
-// applyRegex is the Tier-4 strategy. It looks for column-0 exact-name matches
-// in the raw bytes — bypassing yaml.Unmarshal entirely. The column-0 anchor
-// guarantees we never accidentally match nested `api_key:` inside
-// additional_endpoints or logs_config.
 func applyRegex(cfg *LiteConfig, raw []byte) {
 	for _, b := range regexBindings {
 		f := b.field(cfg)

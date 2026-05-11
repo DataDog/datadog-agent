@@ -61,12 +61,9 @@ type forwarder struct {
 	httpClient  *http.Client
 	log         log.Component
 
-	// liteFallback is a one-shot snapshot of credentials read directly
-	// from datadog.yaml via the tolerant pkg/config/lite resolver. It is
-	// consulted only when the live config Reader returns empty for
-	// api_key — for example when schema validation rejected the value or
-	// the YAML had a localised parse failure the normal config layer
-	// recovered from with defaults. Populated once at New(); never mutated.
+	// liteFallback is consulted only when the live config Reader returns an
+	// empty api_key — e.g. when schema validation rejected the value or the
+	// normal layer fell back to defaults. Populated once at New().
 	liteFallback lite.LiteConfig
 
 	stopCh chan struct{}
@@ -213,10 +210,8 @@ func (f *forwarder) buildReport(issues map[string]*healthplatform.Issue) *health
 
 // send marshals and sends the report to the intake endpoint
 func (f *forwarder) send(report *healthplatform.HealthReport) error {
-	// Fetch API key once and check if configured. When the live config
-	// Reader has nothing (e.g. broken YAML that the normal config layer
-	// fell back to defaults for), consult the pkg/config/lite snapshot
-	// that was taken when the forwarder was constructed.
+	// When the live config Reader has nothing (broken YAML the normal layer
+	// fell back to defaults for) fall back to the lite snapshot.
 	apiKey := f.cfg.GetString("api_key")
 	if apiKey == "" && f.liteFallback.APIKey.Value != "" && f.liteFallback.APIKey.Source != lite.SourceEncrypted {
 		apiKey = f.liteFallback.APIKey.Value

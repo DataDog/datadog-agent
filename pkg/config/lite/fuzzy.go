@@ -21,12 +21,8 @@ var fuzzyKeys = []struct {
 }
 
 // fuzzyDenylist contains real config keys that sit close to one of our
-// targets but must never be matched as it. Without the denylist a customer
-// who only set `app_key` (one edit from `api_key`) would have their app_key
-// promoted into the api_key slot — disastrous.
-//
-// The full list of nearby keys was derived by grepping the schema for
-// `*_api_key` and `app_key`-style names.
+// targets but must never be promoted to it. Without this, a customer who set
+// `app_key` (one edit from `api_key`) would have it surfaced as the api_key.
 var fuzzyDenylist = map[string]bool{
 	"app_key":              true,
 	"api_keys":             true,
@@ -39,10 +35,9 @@ var fuzzyDenylist = map[string]bool{
 	"dd_url_secure":        true,
 }
 
-// applyFuzzy is the Tier-5 strategy. It walks the file line by line and, for
-// each top-level key, picks the closest unresolved target within its allowed
-// distance. The match is ambiguity-rejecting: if a key is equidistant to two
-// targets, it matches neither.
+// applyFuzzy walks the file line by line and, for each top-level key, picks
+// the closest unresolved target within its allowed distance. Ambiguous ties
+// match neither.
 func applyFuzzy(cfg *LiteConfig, raw []byte) {
 	for line := range strings.SplitSeq(string(raw), "\n") {
 		key, value, ok := parseLine(line)
@@ -111,9 +106,9 @@ func bestFuzzyMatch(candidate string, cfg *LiteConfig) int {
 	return bestIdx
 }
 
-// damerauLevenshtein computes the Damerau-Levenshtein distance — counting
-// insertions, deletions, substitutions and adjacent transpositions — between
-// two ASCII strings. Three rolling rows of cost are kept; allocation is O(n).
+// damerauLevenshtein computes Damerau-Levenshtein distance (insertions,
+// deletions, substitutions and adjacent transpositions) between two ASCII
+// strings. Three rolling rows; allocation is O(n).
 func damerauLevenshtein(a, b string) int {
 	la, lb := len(a), len(b)
 	if la == 0 {

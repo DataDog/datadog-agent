@@ -220,10 +220,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		GlobalParams: globalParams,
 	}
 	runE := func(*cobra.Command, []string) (rErr error) {
-		// Wrap normal startup in a rescue hook so the Agent Health Platform
-		// still hears about a panic or Fx-init failure even when the full
-		// agent could not bootstrap. lite.Rescue is best-effort and
-		// 3-second timeout bounded; it must not block process exit.
+		// Best-effort rescue hook: when Fx init panics or returns an error the
+		// full agent never starts, so the Health Platform forwarder never runs.
+		// lite.Rescue POSTs an issue directly. Bounded by its own 3s timeout.
 		defer func() {
 			if r := recover(); r != nil {
 				_ = lite.Rescue(context.Background(),

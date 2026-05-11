@@ -11,10 +11,8 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-// applyFullYAML is the Tier-2 strategy. It runs yaml.Unmarshal on the entire
-// file and, on success, populates any unresolved top-level field from the map.
-// On failure it records the error on cfg.YAMLParseErr and leaves the fields
-// alone — the next tier will try.
+// applyFullYAML is the Tier-2 strategy: yaml.Unmarshal of the entire file.
+// On failure it records cfg.YAMLParseErr and leaves the fields alone.
 func applyFullYAML(cfg *LiteConfig, raw []byte) {
 	if len(raw) == 0 {
 		return
@@ -29,11 +27,10 @@ func applyFullYAML(cfg *LiteConfig, raw []byte) {
 	applyFromMap(cfg, m, SourceFileYAMLFull)
 }
 
-// applyTopLevelYAML is the Tier-3 strategy. It drops any line that begins with
-// whitespace so deeply-nested blocks that fail YAML parsing get pruned, and
-// then re-runs yaml.Unmarshal on the surviving top-level mapping. This rescues
-// the common "broken nested block" case where api_key/site are fine at the
-// top level but `process_config:` further down is malformed.
+// applyTopLevelYAML is the Tier-3 strategy: drop every indented line, then
+// re-run yaml.Unmarshal. This rescues the common "broken nested block" case
+// where top-level fields are fine but a sub-block like `process_config:`
+// further down is malformed.
 func applyTopLevelYAML(cfg *LiteConfig, raw []byte) {
 	stripped := stripIndented(raw)
 	if len(stripped) == 0 {
@@ -46,10 +43,6 @@ func applyTopLevelYAML(cfg *LiteConfig, raw []byte) {
 	applyFromMap(cfg, m, SourceFileYAMLTop)
 }
 
-// stripIndented keeps lines that start at column 0 and removes everything
-// else. Commented lines and blank lines are preserved (yaml handles them).
-// Lines starting with a tab are dropped too — yaml treats them as invalid
-// indentation anyway.
 func stripIndented(raw []byte) []byte {
 	var b strings.Builder
 	b.Grow(len(raw))
@@ -69,10 +62,9 @@ func stripIndented(raw []byte) []byte {
 	return []byte(b.String())
 }
 
-// applyFromMap copies values from a successfully-parsed top-level map into
-// the not-yet-resolved fields. We intentionally only look at top-level keys:
-// nested *_api_key / additional_endpoints / logs_config.api_key fields are
-// auxiliary and would confuse lite-mode if surfaced as the primary credential.
+// applyFromMap copies top-level values into unresolved fields. Nested
+// *_api_key / additional_endpoints / logs_config.api_key are intentionally
+// ignored — they are auxiliary and would confuse lite-mode if promoted.
 func applyFromMap(cfg *LiteConfig, m map[string]any, src Source) {
 	set := func(field *ConfigField, key string) {
 		if field.resolved() {
@@ -96,8 +88,8 @@ func applyFromMap(cfg *LiteConfig, m map[string]any, src Source) {
 	set(&cfg.SecretBackendCommand, "secret_backend_command")
 }
 
-// stringOrEmpty coerces a yaml.Unmarshal'd interface{} into a string. YAML
-// often produces int / bool for typo'd values; we only care about strings.
+// stringOrEmpty coerces a yaml.Unmarshal'd value into a string. Typo'd values
+// often come back as int / bool — we only accept strings.
 func stringOrEmpty(v any) string {
 	switch x := v.(type) {
 	case string:

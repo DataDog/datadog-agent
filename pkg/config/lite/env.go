@@ -8,8 +8,8 @@ package lite
 import "os"
 
 // applyEnv resolves any unresolved field from the process environment.
-// The env-var names mirror pkg/config/setup/common_settings.go BindEnv order:
-// the agent honours DD_DD_URL ahead of the legacy DD_URL, so we do the same.
+// DD_DD_URL beats the legacy DD_URL — matching the agent's BindEnv order in
+// pkg/config/setup/common_settings.go.
 func applyEnv(cfg *LiteConfig) {
 	set := func(field *ConfigField, vars ...string) {
 		if field.resolved() {

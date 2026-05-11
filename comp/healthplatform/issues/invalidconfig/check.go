@@ -18,43 +18,34 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// checker captures the dependencies a built-in check needs at run time. The
-// module stamps a *checker into the BuiltInCheck and uses its Run method as
-// the HealthCheckFunc.
+// checker captures the dependencies a built-in check needs at run time.
+// readFile is overridable so tests can simulate file-not-found / permission
+// errors without touching the real filesystem.
 type checker struct {
-	cfg config.Component
-
-	// readFile is overridable for tests; production callers always use
-	// os.ReadFile. Wrapping it lets us simulate file-not-found / permission
-	// errors without touching the real filesystem.
+	cfg      config.Component
 	readFile func(string) ([]byte, error)
 }
 
-// newChecker is the production constructor.
 func newChecker(cfg config.Component) *checker {
 	return &checker{cfg: cfg, readFile: os.ReadFile}
 }
 
-// Run is the HealthCheckFunc signature. It reads the configured datadog.yaml
-// from disk, runs the lite validator, and returns the appropriate IssueReport
-// (or nil to auto-clear any prior issue).
+// Run reads the configured datadog.yaml, validates it with the lite resolver,
+// and returns the IssueReport corresponding to its verdict (or nil to clear
+// any prior issue).
 //
 // Reading from disk on every tick — instead of inspecting the live merged
-// config — keeps the in-Fx check's output identical to the rescue path's
-// output and matches the customer's mental model: "I edit datadog.yaml, the
-// agent tells me what's wrong with that file."
+// config — keeps this check's output identical to the rescue path's output
+// and matches the customer's mental model: "I edit datadog.yaml, the agent
+// tells me what's wrong with that file."
 func (c *checker) Run() (*healthplatform.IssueReport, error) {
 	path := c.configFilePath()
 	if path == "" {
-		// No config file means the agent is running on env vars only —
-		// nothing for the schema validator to look at.
 		return nil, nil
 	}
-
 	raw, err := c.readFile(path)
 	if err != nil {
-		// Not our problem (missing file, permissions). Other modules cover
-		// permission issues directly.
+		// Missing file / permission denied are owned by other modules.
 		return nil, nil
 	}
 
@@ -67,9 +58,9 @@ func (c *checker) Run() (*healthplatform.IssueReport, error) {
 		return &healthplatform.IssueReport{
 			IssueId: healthplatformdef.InvalidConfigIssueID,
 			Context: map[string]string{
-				contextKeyErrorKind:    errorKindYAMLParse,
-				contextKeyConfigPath:   path,
-				contextKeyErrorMessage: result.ParseError.Error(),
+				lite.ContextKeyErrorKind:    string(lite.ErrorKindYAMLParse),
+				lite.ContextKeyConfigPath:   path,
+				lite.ContextKeyErrorMessage: result.ParseError.Error(),
 			},
 			Tags: []string{"config", "yaml_parse"},
 		}, nil
@@ -77,35 +68,33 @@ func (c *checker) Run() (*healthplatform.IssueReport, error) {
 	case lite.VerdictSchemaInvalid:
 		visible := result.SchemaErrors
 		truncated := false
-		if len(visible) > maxErrorsInPayload {
-			visible = visible[:maxErrorsInPayload]
+		if len(visible) > lite.MaxSchemaErrorsInPayload {
+			visible = visible[:lite.MaxSchemaErrorsInPayload]
 			truncated = true
 		}
 		return &healthplatform.IssueReport{
 			IssueId: healthplatformdef.InvalidConfigIssueID,
 			Context: map[string]string{
-				contextKeyErrorKind:  errorKindSchemaValidation,
-				contextKeyConfigPath: path,
-				contextKeyErrorCount: strconv.Itoa(len(result.SchemaErrors)),
-				contextKeyErrors:     strings.Join(visible, "\n"),
-				contextKeyTruncated:  boolStr(truncated),
+				lite.ContextKeyErrorKind:  string(lite.ErrorKindSchemaValidation),
+				lite.ContextKeyConfigPath: path,
+				lite.ContextKeyErrorCount: strconv.Itoa(len(result.SchemaErrors)),
+				lite.ContextKeyErrors:     strings.Join(visible, "\n"),
+				lite.ContextKeyTruncated:  strconv.FormatBool(truncated),
 			},
 			Tags: []string{"config", "schema"},
 		}, nil
 
 	case lite.VerdictSchemaUnavailable:
-		// The validator itself broke (embedded schema missing, decompress
-		// failure). That's an agent-build problem, not a customer
-		// problem; log once per tick and don't raise an issue.
+		// The validator itself broke (embedded schema missing). That's a
+		// build problem, not a customer problem.
 		pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check")
 		return nil, nil
 	}
 	return nil, nil
 }
 
-// configFilePath returns the on-disk path of the resolved datadog.yaml.
-// Falls back to the platform default if the config component cannot tell
-// us (e.g. in test contexts).
+// configFilePath returns the on-disk path of the resolved datadog.yaml,
+// falling back to the platform default if the config component is absent.
 func (c *checker) configFilePath() string {
 	if c.cfg != nil {
 		if p := c.cfg.ConfigFileUsed(); p != "" {
@@ -113,11 +102,4 @@ func (c *checker) configFilePath() string {
 		}
 	}
 	return lite.DefaultConfigPath()
-}
-
-func boolStr(b bool) string {
-	if b {
-		return "true"
-	}
-	return "false"
 }

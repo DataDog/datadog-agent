@@ -8,13 +8,12 @@ package lite
 import "context"
 
 // Extract runs the tiered resolver pipeline against the process environment
-// and the candidate datadog.yaml paths. cliConfPath is the path supplied via
-// `--cfgpath` (or empty); defaultConfPath is the platform-specific default
-// such as /etc/datadog-agent. The first path that exists is used.
+// and the candidate datadog.yaml paths. cliConfPath is from `--cfgpath` (or
+// empty); defaultConfPath is the platform-specific default. The first path
+// that exists is used.
 //
-// Extract is read-only and side-effect-free apart from secret-backend
-// resolution, which it skips when ctx is nil or no secret_backend_command was
-// discovered. Pass a real ctx to enable ENC[] resolution.
+// Pass a real ctx to enable ENC[] resolution via secret_backend_command; a
+// nil ctx skips that step.
 func Extract(ctx context.Context, cliConfPath, defaultConfPath string) LiteConfig {
 	cfg := LiteConfig{
 		APIKey:               ConfigField{Source: SourceNone},
@@ -23,10 +22,8 @@ func Extract(ctx context.Context, cliConfPath, defaultConfPath string) LiteConfi
 		SecretBackendCommand: ConfigField{Source: SourceNone},
 	}
 
-	// Tier 1 — environment variables (highest priority).
 	applyEnv(&cfg)
 
-	// Locate the file once and read it; every file-based tier reuses raw.
 	path := resolveConfigPath(cliConfPath, defaultConfPath)
 	cfg.ConfigFilePath = path
 
@@ -39,36 +36,26 @@ func Extract(ctx context.Context, cliConfPath, defaultConfPath string) LiteConfi
 		}
 	}
 
-	// Tier 2 — full yaml.Unmarshal of the raw bytes.
 	if len(raw) > 0 {
 		applyFullYAML(&cfg, raw)
 	}
-
-	// Tier 3 — strip indented lines, retry yaml.Unmarshal.
 	if len(raw) > 0 && !allResolved(&cfg) {
 		applyTopLevelYAML(&cfg, raw)
 	}
-
-	// Tier 4 — column-0 anchored regex.
 	if len(raw) > 0 && !allResolved(&cfg) {
 		applyRegex(&cfg, raw)
 	}
-
-	// Tier 5 — Damerau-Levenshtein fuzzy match on top-level keys.
 	if len(raw) > 0 && !allResolved(&cfg) {
 		applyFuzzy(&cfg, raw)
 	}
 
-	// ENC[handle] resolution. Done before defaults so that an unresolvable
-	// encrypted credential is treated as still-unresolved and never wins over
-	// a later fallback.
+	// ENC[] resolution runs before defaults so an unresolvable encrypted
+	// credential is treated as unresolved and never wins over a fallback.
 	if ctx != nil {
 		resolveENC(ctx, &cfg)
 	}
 
-	// Tier 6 — defaults (only site has one).
 	applyDefaults(&cfg)
-
 	return cfg
 }
 

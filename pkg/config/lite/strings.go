@@ -27,10 +27,8 @@ func stripQuotes(s string) string {
 	return s
 }
 
-// stripAnchor removes a leading YAML anchor (`&name`) or alias (`*name`).
-// The grammar is one ASCII letter/digit/underscore/hyphen run followed by at
-// least one space; anything else is left untouched. Anchors and aliases are
-// extremely rare in datadog.yaml but we have seen them in support cases.
+// stripAnchor removes a leading YAML anchor (&name) or alias (*name) followed
+// by whitespace. Anchors are rare in datadog.yaml but seen in support cases.
 func stripAnchor(s string) string {
 	if len(s) < 2 || (s[0] != '&' && s[0] != '*') {
 		return s
@@ -52,8 +50,8 @@ func isIdent(b byte) bool {
 		b == '_'
 }
 
-// stripSeparators removes underscores and hyphens. Used by the fuzzy matcher
-// so that "apikey", "api-key" and "api_key" collapse to the same shape.
+// stripSeparators removes underscores and hyphens so that "apikey",
+// "api-key" and "api_key" collapse to the same shape for fuzzy matching.
 func stripSeparators(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))
@@ -66,8 +64,8 @@ func stripSeparators(s string) string {
 	return b.String()
 }
 
-// parseLine splits a single config line into key/value. It rejects any line
-// that is empty, indented, or a comment so the fuzzy tier never matches inside
+// parseLine splits a single config line into key/value. It rejects empty,
+// indented, and commented lines so the fuzzy tier never matches inside
 // nested mappings or commented-out keys.
 func parseLine(line string) (key, value string, ok bool) {
 	line = strings.TrimRight(line, "\r")
