@@ -26,7 +26,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	healthplatformnoopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -113,8 +114,8 @@ func (suite *CollectorTestSuite) SetupTest() {
 		fx.Provide(func() option.Option[agenttelemetry.Component] {
 			return option.None[agenttelemetry.Component]()
 		}),
-		fx.Provide(func() option.Option[healthplatform.Component] {
-			return option.None[healthplatform.Component]()
+		fx.Provide(func() healthplatform.Component {
+			return healthplatformnoopimpl.NewNoopComponent()
 		}),
 	))
 	suite.c.start(context.TODO())

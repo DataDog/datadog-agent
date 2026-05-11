@@ -10,13 +10,13 @@ import (
 	"unsafe"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/size"
 )
 
@@ -113,7 +113,8 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 	defer cr.metricBuffer.Reset()
 
 	contextKey, taggerKey, metricKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
-	if filterList != nil && metricSampleContext.GetMetricType() == metrics.DistributionType {
+
+	if filterList != nil && shouldAggregateTags(metricSampleContext) {
 		if tagMatcher, filter := filterList.ShouldStripTags(metricSampleContext.GetName()); filter {
 			contextKey, taggerKey, metricKey = cr.filterTags(metricSampleContext, tagMatcher, contextKey)
 		}
@@ -148,6 +149,15 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 	}
 
 	return contextKey
+}
+
+// shouldAggregateTags returns true if the tag for the given metric should be considered
+// for aggregation. Distribution, Count (core checks counts), and Counter (dogstatsd counts).
+func shouldAggregateTags(metricSampleContext metrics.MetricSampleContext) bool {
+	mtype := metricSampleContext.GetMetricType()
+	return mtype == metrics.DistributionType ||
+		mtype == metrics.CountType ||
+		mtype == metrics.CounterType
 }
 
 // filterTags filters tags from the context that match the given tagMatcher.

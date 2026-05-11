@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "tracecmd",
+    srcs = ["trace.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands/tracecmd",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//cmd/cws-instrumentation/subcommands/selftestscmd",
+            "//pkg/config/setup/constants",
+            "//pkg/security/ptracer",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//cmd/cws-instrumentation/subcommands/selftestscmd",
+            "//pkg/config/setup/constants",
+            "//pkg/security/ptracer",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -10,11 +10,15 @@ import (
 	"maps"
 	"sync"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -105,12 +109,13 @@ type reconcilingConfigManager struct {
 	scheduledConfigs map[string]integration.Config
 
 	secretResolver secrets.Component
+	healthPlatform healthplatformdef.Component
 }
 
 var _ configManager = &reconcilingConfigManager{}
 
 // newReconcilingConfigManager creates a new, empty reconcilingConfigManager.
-func newReconcilingConfigManager(secretResolver secrets.Component) configManager {
+func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component) configManager {
 	return &reconcilingConfigManager{
 		activeConfigs:      map[string]integration.Config{},
 		activeServices:     map[string]serviceAndADIDs{},
@@ -119,6 +124,7 @@ func newReconcilingConfigManager(secretResolver secrets.Component) configManager
 		serviceResolutions: map[string]map[string]string{},
 		scheduledConfigs:   map[string]integration.Config{},
 		secretResolver:     secretResolver,
+		healthPlatform:     healthPlatform,
 	}
 }
 
@@ -220,9 +226,12 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 		// Secrets always need to be resolved (done in reconcileService if template)
 		decryptedConfig, err := decryptConfig(config, cm.secretResolver, digest)
 		if err != nil {
-			log.Errorf("Unable to resolve secrets for config '%s', dropping check configuration, err: %s", config.Name, err.Error())
+			if len(decryptedConfig.Instances) == 0 {
+				log.Errorf("Unable to resolve secrets for config '%s', dropping check configuration, err: %s", config.Name, err.Error())
+				return cm.applyChanges(changes), changedIDsOfSecretsWithConfigs
+			}
+			log.Warnf("Unable to resolve secrets for some instances of config '%s', dropping instances that failed to decrypt, err: %s", config.Name, err.Error())
 		}
-
 		// Instances of the decrypted config change their ID when secrets are
 		// resolved.
 		// We're only interested in cluster checks because the change of ID only
@@ -368,6 +377,10 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 		if _, found = expectedResolutions[templateDigest]; !found {
 			changes.UnscheduleConfig(cm.scheduledConfigs[resolvedDigest])
 			delete(existingResolutions, templateDigest)
+			// Clear any health issue for this template+service pair
+			if tpl, ok := cm.activeConfigs[templateDigest]; ok {
+				cm.clearTemplateResolutionFailureByID(tpl.Name, tpl.Digest(), svcID)
+			}
 		}
 	}
 
@@ -401,8 +414,9 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
 		msg := fmt.Sprintf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
-		log.Debug(msg)
+		log.Errorf("autodiscovery: skipping config - %s", msg)
 		errorStats.setResolveWarning(tpl.Name, msg)
+		cm.reportTemplateResolutionFailure(tpl, svc, err)
 		return tpl, false
 	}
 	resolvedConfig, err := decryptConfig(config, cm.secretResolver, digest)
@@ -412,7 +426,50 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 		return config, false
 	}
 	errorStats.removeResolveWarnings(tpl.Name)
+	cm.clearTemplateResolutionFailure(tpl, svc)
 	return resolvedConfig, true
+}
+
+// reportTemplateResolutionFailure reports a template resolution failure to the health platform.
+func (cm *reconcilingConfigManager) reportTemplateResolutionFailure(tpl integration.Config, svc listeners.Service, err error) {
+	if cm.healthPlatform == nil {
+		return
+	}
+	checkID := "ad-template:" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
+	report := &healthplatformpayload.IssueReport{
+		IssueId: healthplatformdef.ADMisconfigurationIssueID,
+		Context: map[string]string{
+			"entityName":   tpl.Name + " (" + svc.GetServiceID() + ")",
+			"errorMessage": err.Error(),
+			"errorSource":  string(types.TemplateResolutionSource),
+		},
+	}
+	if reportErr := cm.healthPlatform.ReportIssue(checkID, healthplatformdef.ADMisconfigurationCheckName, report); reportErr != nil {
+		log.Debugf("Failed to report template resolution issue: %v", reportErr)
+	}
+}
+
+// clearTemplateResolutionFailure clears a previously reported template resolution failure.
+func (cm *reconcilingConfigManager) clearTemplateResolutionFailure(tpl integration.Config, svc listeners.Service) {
+	if cm.healthPlatform == nil {
+		return
+	}
+	checkID := "ad-template:" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
+	if err := cm.healthPlatform.ReportIssue(checkID, healthplatformdef.ADMisconfigurationCheckName, nil); err != nil {
+		log.Debugf("Failed to clear template resolution issue %s: %v", checkID, err)
+	}
+}
+
+// clearTemplateResolutionFailureByID clears a health issue using string identifiers.
+// Used in deletion paths where the service object may no longer be available.
+func (cm *reconcilingConfigManager) clearTemplateResolutionFailureByID(tplName, tplDigest, svcID string) {
+	if cm.healthPlatform == nil {
+		return
+	}
+	checkID := "ad-template:" + tplName + ":" + svcID + ":" + tplDigest
+	if err := cm.healthPlatform.ReportIssue(checkID, healthplatformdef.ADMisconfigurationCheckName, nil); err != nil {
+		log.Debugf("Failed to clear template resolution issue %s: %v", checkID, err)
+	}
 }
 
 // applyChanges applies the given changes to cm.scheduledConfigs

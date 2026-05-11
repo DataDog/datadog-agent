@@ -6,10 +6,7 @@
 package setup
 
 import (
-	"path"
-	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -38,19 +35,17 @@ const (
 	PARHttpAllowImdsEndpoint = "private_action_runner.http_allow_imds_endpoint"
 
 	// Restricted Shell
-	PARRestrictedShellAllowedPaths = "private_action_runner.restricted_shell_allowed_paths"
+	PARRestrictedShellAllowedPaths     = "private_action_runner.restricted_shell.allowed_paths"
+	PARRestrictedShellAllowedCommands  = "private_action_runner.restricted_shell.allowed_commands"
+	RShellCommandNamespacePrefix       = "rshell:"
+	RShellCommandAllowAllWildcard      = RShellCommandNamespacePrefix + "*"
+	RShellPathAllowAll                 = "/"
+	RShellPathAllowMapContainerizedKey = "containerized"
+	RShellPathAllowMapDefaultKey       = "default"
+
+	// Meant for internal usage
+	PAROpmsExtraHeaders = "private_action_runner.opms_extra_headers"
 )
-
-const (
-	// Default allowed paths for restricted shell
-	defaultLogPath = "/var/log"
-
-	containerizedPathPrefix = "/host"
-)
-
-// parPathExists is the function used to check path existence. It defaults to
-// pathExists and can be overridden in tests.
-var parPathExists = pathExists
 
 // setupPrivateActionRunner registers all configuration keys for the private action runner
 func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
@@ -74,30 +69,32 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault(PARTaskTimeoutSeconds, 60)
 	config.BindEnvAndSetDefault(PARActionsAllowlist, []string{})
 	config.BindEnvAndSetDefault(PARDefaultActionsEnabled, true)
-	config.ParseEnvAsStringSlice(PARActionsAllowlist, func(s string) []string {
-		return strings.Split(s, ",")
-	})
+	config.ParseEnvSplitComma(PARActionsAllowlist)
 
 	// HTTP action
 	config.BindEnvAndSetDefault(PARHttpTimeoutSeconds, 30)
 	config.BindEnvAndSetDefault(PARHttpAllowlist, []string{})
-	config.ParseEnvAsStringSlice(PARHttpAllowlist, func(s string) []string {
-		return strings.Split(s, ",")
-	})
+	config.ParseEnvSplitComma(PARHttpAllowlist)
 	config.BindEnvAndSetDefault(PARHttpAllowImdsEndpoint, false)
 
-	defaultPaths := []string{defaultLogPath}
-	if env.IsContainerized() {
-		for i, v := range defaultPaths {
-			hostPath := path.Join(containerizedPathPrefix, v)
-			defaultPaths[i] = hostPath
-		}
-	}
-	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, defaultPaths)
-	config.ParseEnvAsStringSlice(PARRestrictedShellAllowedPaths, func(s string) []string {
-		if s == "" {
-			return nil
-		}
-		return strings.Split(s, ",")
-	})
+	// Restricted shell allow-lists are opt-in restrictions layered on top of
+	// the backend-injected lists. By default, they act as a no-op, allowing
+	// everything: the backend is the only filter.
+	//
+	// To allow none, use an explicit empty list.
+	// Env vars support both CSV and JSON-array forms; the JSON form gives
+	// env/YAML parity, including the explicit kill-switch via "[]".
+	//
+	//   - allowed_paths defaults to ["/"].
+	//   - allowed_commands defaults to ["rshell:*"]. The wildcard token is
+	//     handled as a special case in the operator-side intersection: when
+	//     it appears in the operator list, every backend command in the
+	//     "rshell:" namespace is admitted.
+	config.BindEnvAndSetDefault(PARRestrictedShellAllowedPaths, []string{RShellPathAllowAll})
+	pkgconfighelper.ParseEnvJSONOrComma(PARRestrictedShellAllowedPaths, config)
+
+	config.BindEnvAndSetDefault(PARRestrictedShellAllowedCommands, []string{RShellCommandAllowAllWildcard})
+	pkgconfighelper.ParseEnvJSONOrComma(PARRestrictedShellAllowedCommands, config)
+
+	config.BindEnvAndSetDefault(PAROpmsExtraHeaders, map[string]string{})
 }

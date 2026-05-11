@@ -168,6 +168,9 @@ func (s *Setup) Run() (err error) {
 	if err != nil {
 		return fmt.Errorf("could not create config directory: %w", err)
 	}
+	// Record which config files don't exist yet (fresh install).
+	// After package installation we backfill template comments into these files.
+	freshConfigs := s.detectFreshConfigs()
 	if !s.NoConfig {
 		err = config.WriteConfigs(s.Config, s.configDir)
 		if err != nil {
@@ -193,6 +196,9 @@ func (s *Setup) Run() (err error) {
 			return err
 		}
 	}
+	if !s.NoConfig && runtime.GOOS == "windows" && len(freshConfigs) > 0 {
+		s.backfillConfigTemplates(freshConfigs)
+	}
 	err = s.restartServices(ctx, packages)
 	if err != nil {
 		return fmt.Errorf("failed to restart services: %w", err)
@@ -202,6 +208,48 @@ func (s *Setup) Run() (err error) {
 	}
 	s.Out.WriteString(fmt.Sprintf("Successfully ran the %s install script in %s!\n", s.flavor, time.Since(s.start).Round(time.Second)))
 	return nil
+}
+
+// configTemplates maps config files to their .example template counterparts.
+var configTemplates = map[string]string{
+	"datadog.yaml":        "datadog.yaml.example",
+	"security-agent.yaml": "security-agent.yaml.example",
+	"system-probe.yaml":   "system-probe.yaml.example",
+}
+
+// detectFreshConfigs returns the list of config files that don't exist yet.
+// Must be called before WriteConfigs so we know which files are fresh.
+func (s *Setup) detectFreshConfigs() []string {
+	var fresh []string
+	for configFile := range configTemplates {
+		if !fileExists(filepath.Join(s.configDir, configFile)) {
+			fresh = append(fresh, configFile)
+		}
+	}
+	return fresh
+}
+
+// backfillConfigTemplates merges .example template content into the config files
+// so that customers get the rich commented-out example options alongside their
+// fleet-configured values.
+//
+// Setup writes the configs before the Agent package/MSI writes the template files,
+// also, some packages/extensions read/modify the config, too, so we can't just strictly write the config
+// after package installation.
+func (s *Setup) backfillConfigTemplates(freshConfigs []string) {
+	for _, configFile := range freshConfigs {
+		templateFile := configTemplates[configFile]
+		configPath := filepath.Join(s.configDir, configFile)
+		templatePath := filepath.Join(s.configDir, templateFile)
+		if err := config.BackfillFromTemplate(configPath, templatePath, 0640); err != nil {
+			s.Out.WriteString(fmt.Sprintf("Warning: could not backfill %s from template: %v\n", configFile, err))
+		}
+	}
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // installPackage mimicks the telemetry of calling the install package command

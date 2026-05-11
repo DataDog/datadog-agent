@@ -80,6 +80,11 @@ type ExprDereferencePtrOp struct {
 	Bias          uint32
 	Len           uint32
 	ExprStatusIdx uint32 // expression index for writing nil-deref status; ^0 = none
+
+	// NullAsZero: if the pointer is null, write Len zero bytes at sm->offset
+	// and continue instead of aborting with condition_nil_deref. See
+	// ir.DereferenceOp.NullAsZero.
+	NullAsZero bool
 }
 
 // Special type processing ops, that evaluate data of a specific type (already
@@ -202,6 +207,20 @@ type ExprPushOffsetOp struct {
 	ByteSize uint32
 }
 
+// ExprLoadDurationOp writes 8 bytes of (return_ktime_ns - entry_ktime_ns)
+// at the current scratch offset. On non-return probes, where those
+// timestamps are equal, it marks the enclosing expression's status as
+// absent and aborts expression evaluation. It does not advance the
+// offset or push onto the data stack — callers that use it as a
+// comparison operand should follow with ExprPushOffsetOp{ByteSize: 8}.
+type ExprLoadDurationOp struct {
+	baseOp
+	// ExprStatusIdx is the expression index for writing status-absent
+	// on non-return probes; ^0 = none (used by conditions, which report
+	// evaluation errors via a different channel).
+	ExprStatusIdx uint32
+}
+
 type ExprLoadLiteralOp struct {
 	baseOp
 	Data []byte
@@ -212,13 +231,16 @@ type ExprReadStringOp struct {
 	MaxLen uint16
 }
 
-type ExprCmpEqBaseOp struct {
+type ExprCmpBaseOp struct {
 	baseOp
+	Op       ir.CmpOp
+	Kind     ir.CmpKind
 	ByteSize uint8
 }
 
-type ExprCmpEqStringOp struct {
+type ExprCmpStringOp struct {
 	baseOp
+	Op ir.CmpOp
 }
 
 type ExprSliceBoundsCheckOp struct {
@@ -253,6 +275,10 @@ type SwissMapSetupOp struct {
 
 	HeaderByteSize uint32
 	ExprStatusIdx  uint32
+
+	// ExistenceOnly switches the op to contains(map, key) semantics. See
+	// ir.SwissMapLookupOp for details.
+	ExistenceOnly bool
 }
 
 // SwissMapAesencOp performs one AESENC round; replays via PC for remaining rounds.
@@ -273,6 +299,27 @@ type ConditionBeginOp struct {
 
 type ConditionCheckOp struct {
 	baseOp
+}
+
+// CondNotOp flips the boolean result byte at sm->offset.
+type CondNotOp struct {
+	baseOp
+}
+
+// CondJumpOp branches past Right of a binary And/Or when the preceding leaf's
+// result matches Cond (false -> and short-circuit, true -> or short-circuit).
+// Label identifies the target, resolved at code-layout time.
+type CondJumpOp struct {
+	baseOp
+	Cond  bool
+	Label ir.LabelID
+}
+
+// CondLabelOp marks a jump target. Emits no bytes; the layout pass records
+// its PC in codeTracker.labelLoc.
+type CondLabelOp struct {
+	baseOp
+	ID ir.LabelID
 }
 
 //revive:enable:exported

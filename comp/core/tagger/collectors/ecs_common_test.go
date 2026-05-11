@@ -100,7 +100,7 @@ func TestAddResourceTags(t *testing.T) {
 			defer tt.resetFunc()
 			tags := taglist.NewTagList()
 			expectedTags := tt.loadFunc()
-			addResourceTags(tags, tt.taskTags)
+			addResourceTags(cfg, tags, tt.taskTags)
 			assert.Equal(t, expectedTags, tags)
 		})
 	}

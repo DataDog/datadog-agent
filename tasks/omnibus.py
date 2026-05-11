@@ -32,17 +32,23 @@ from tasks.libs.dependencies import get_effective_dependencies_env
 from tasks.libs.releasing.version import get_version
 
 
+def _format_omnibus_overrides(**overrides):
+    override_values = [f"{key}:{value}" for key, value in overrides.items() if value]
+    if not override_values:
+        return ""
+
+    return f"--override={' '.join(override_values)}"
+
+
 def omnibus_run_task(
     ctx, task, target_project, base_dir, env, log_level="info", host_distribution=None, cache_dir=None
 ):
     with ctx.cd("omnibus"):
-        overrides = []
-        if base_dir:
-            overrides.append(f"--override=base_dir:{base_dir}")
-        if cache_dir:
-            overrides.append(f"--override=cache_dir:{cache_dir}")
-        if host_distribution:
-            overrides.append(f"--override=host_distribution:{host_distribution}")
+        overrides = _format_omnibus_overrides(
+            base_dir=base_dir,
+            cache_dir=cache_dir,
+            host_distribution=host_distribution,
+        )
 
         omnibus = f"bundle exec {'omnibus.bat' if sys.platform == 'win32' else 'omnibus'}"
         cmd = "{omnibus} {task} {project_name} --log-level={log_level} {overrides}"
@@ -51,7 +57,7 @@ def omnibus_run_task(
             "task": task,
             "project_name": target_project,
             "log_level": log_level,
-            "overrides": " ".join(overrides),
+            "overrides": overrides,
         }
 
         with gitlab_section(f"Running omnibus task {task}", collapsed=True):
@@ -100,7 +106,7 @@ def get_omnibus_env(
     hardened_runtime=False,
     system_probe_bin=None,
     with_sd_agent=False,  # No-op; kept for backward compatibility
-    with_dd_procmgrd=False,
+    with_dd_procmgrd=False,  # No-op; kept for backward compatibility
     go_mod_cache=None,
     flavor=AgentFlavor.base,
     pip_config_file="pip.conf",
@@ -151,8 +157,6 @@ def get_omnibus_env(
 
     if system_probe_bin:
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
-    if with_dd_procmgrd:
-        env['WITH_DD_PROCMGRD'] = 'true'
     env['AGENT_FLAVOR'] = flavor.name
 
     if custom_config_dir:
@@ -220,7 +224,7 @@ def build(
     hardened_runtime=False,
     system_probe_bin=None,
     with_sd_agent=False,  # No-op; kept for backward compatibility
-    with_dd_procmgrd=False,
+    with_dd_procmgrd=False,  # No-op; kept for backward compatibility
     go_mod_cache=None,
     python_mirror=None,
     pip_config_file="pip.conf",
@@ -686,6 +690,10 @@ def docker_build(
         "-e GIT_CONFIG_VALUE_0=/go/src/github.com/DataDog/datadog-agent",
         # Skip XZ compression - faster for local dev, use omnibus.build for CI
         "-e SKIP_PKG_COMPRESSION=true",
+        # Pass-through Go proxy env vars
+        "-e GOPROXY",
+        "-e GONOSUMDB",
+        "-e GOPRIVATE",
     ]
 
     # Build volume mounts (note: /opt/datadog-agent is a symlink created in build_cmd)
@@ -852,6 +860,8 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
         file, file_type = line.split(":")
         file_type = file_type.strip()
 
+        modified = False
+
         if platform == "linux":
             if file_type not in ["application/x-executable", "inode/symlink", "application/x-sharedlib"]:
                 continue
@@ -871,15 +881,26 @@ def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
             # if a dylib ID use our installation path we replace it with @rpath instead
             if install_path in dylib_id_paths:
                 _replace_dylib_id_paths_with_rpath(ctx, dylib_id_paths, install_path, file)
+                modified = True
 
             # if a dylib use our installation path we replace it with @rpath instead
             if install_path in dylib_paths:
                 _replace_dylib_paths_with_rpath(ctx, dylib_paths, install_path, file)
+                modified = True
 
         # if a binary has an rpath that use our installation path we are patching it
         if install_path in binary_rpath:
             new_rpath = os.path.relpath(target_rpath_dd_folder, os.path.dirname(file))
             _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, file)
+            modified = True
+
+        if modified and platform != "linux":
+            # Re-sign with an ad-hoc signature after install_name_tool modifications,
+            # which invalidate any existing code signature. On arm64 Macs, macOS
+            # enforces valid signatures at the kernel level (SIGKILL on tainted pages).
+            # When SIGN_MAC=true, the Developer ID signing in datadog-agent-finalize.rb
+            # overwrites these ad-hoc signatures afterward.
+            ctx.run(f"codesign --sign - --force {file}")
 
 
 @task

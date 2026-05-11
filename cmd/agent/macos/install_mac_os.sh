@@ -23,7 +23,10 @@ else
     BLUE=''
     NC=''
 fi
-install_log_file=/tmp/ddagent-install.log
+# Use mktemp so the log path is unpredictable (0600, random suffix). A fixed
+# /tmp path would let a local user pre-create it as a symlink and redirect
+# root-owned `tee` output into a privileged file.
+install_log_file=$(mktemp /tmp/ddagent-install.XXXXXX)
 exec > >(tee "$install_log_file") 2>&1
 dmg_file=/tmp/datadog-agent.dmg
 dmg_base_url="https://s3.amazonaws.com/dd-agent"
@@ -69,19 +72,38 @@ if [ -n "$DD_AGENT_DIST_CHANNEL" ]; then
     agent_dist_channel="$DD_AGENT_DIST_CHANNEL"
 fi
 
+# When fetching a beta (RC) build, default to the macOS testing bucket unless
+# DD_REPO_URL is explicitly set. Latest RC versions are tracked on the
+# Confluence "Build links" page in the Datadog Agent space.
+# Example: DD_AGENT_DIST_CHANNEL=beta DD_AGENT_MINOR_VERSION=79.0~rc.1
+if [ "$agent_dist_channel" = "beta" ] && [ -z "$DD_REPO_URL" ]; then
+    dmg_base_url="https://dd-agent-macostesting.s3.amazonaws.com"
+fi
+
 gui_app_menu_enabled=false
 if [ "$DD_GUI_APP_MENU_ENABLED" = "true" ]; then
     gui_app_menu_enabled=true
 fi
 
+# Optional: Chrome extension ID for AI usage native messaging host (postinst writes NativeMessagingHosts manifest).
+ai_usage_chrome_extension_id=
+if [ -n "$DD_AI_USAGE_CHROME_EXTENSION_ID" ]; then
+    ai_usage_chrome_extension_id=$DD_AI_USAGE_CHROME_EXTENSION_ID
+fi
+infrastructure_mode=
+if [ -n "$DD_INFRASTRUCTURE_MODE" ]; then
+    infrastructure_mode="$DD_INFRASTRUCTURE_MODE"
+fi
+
 if [ -n "$DD_AGENT_MINOR_VERSION" ]; then
   # Examples:
-  #  - 20   = defaults to highest patch version x.20.2
-  #  - 20.0 = sets explicit patch version x.20.0
+  #  - 20        = defaults to highest patch version x.20.2
+  #  - 20.0      = sets explicit patch version x.20.0
+  #  - 79.0~rc.1 = sets explicit RC build 7.79.0-rc.1 (pair with DD_AGENT_DIST_CHANNEL=beta)
   # Note: Specifying an invalid minor version will terminate the script.
   agent_minor_version=${DD_AGENT_MINOR_VERSION}
   # Handle pre-release versions like "35.0~rc.5" -> "35.0" or "27.1~viper~conflict~fix" -> "27.1"
-  clean_agent_minor_version=$(echo "${DD_AGENT_MINOR_VERSION}" | sed -E 's/-.*//g')
+  clean_agent_minor_version=$(echo "${DD_AGENT_MINOR_VERSION}" | sed -E 's/[-~].*//g')
   # remove the patch version if the minor version includes it (eg: 33.1 -> 33)
   agent_minor_version_without_patch="${clean_agent_minor_version%.*}"
   if [ "$clean_agent_minor_version" != "$agent_minor_version_without_patch" ]; then
@@ -159,16 +181,13 @@ if [ -z "$local_dmg_path" ]; then
         if [ "$agent_minor_version" = "$clean_agent_minor_version" ]; then
             dmg_version="7.${agent_minor_version_without_patch}.${agent_patch_version}-1"
         else
-            dmg_version="7.${agent_minor_version}-1"
+            # S3 DMG filenames use "-rc.N" while DD_AGENT_MINOR_VERSION takes "~rc.N"
+            # (matching deb/rpm convention), so normalise before building the URL.
+            dmg_version="7.$(echo "${agent_minor_version}" | tr '~' '-')-1"
         fi
     else
         dmg_version="7-latest"
     fi
-fi
-
-if [ -z "$apikey" ]; then
-    printf "${RED}API key not available in DD_API_KEY environment variable.${NC}\n"
-    exit 1
 fi
 
 function on_error() {
@@ -176,9 +195,9 @@ function on_error() {
 It looks like you hit an issue when trying to install the Agent.
 See the following log files for details:
 
-    - $install_log_file
     - /opt/datadog-agent/logs/preinstall.log
     - /opt/datadog-agent/logs/postinstall.log
+    - $install_log_file
 
 If you're still having problems, please send an email to support@datadoghq.com
 with the contents of the log files and we'll do our very best to help
@@ -202,9 +221,11 @@ $sudo_cmd rm -rf "$install_staging_dir"
 $sudo_cmd mkdir -p "$install_staging_dir"
 $sudo_cmd chmod 700 "$install_staging_dir"
 {
-    echo "DD_API_KEY=$apikey"
+    [ -n "$apikey" ] && echo "DD_API_KEY=$apikey"
     [ -n "$site" ] && echo "DD_SITE=$site"
     [ "$gui_app_menu_enabled" = true ] && echo "DD_GUI_APP_MENU_ENABLED=true"
+    [ -n "$ai_usage_chrome_extension_id" ] && echo "DD_AI_USAGE_CHROME_EXTENSION_ID=$ai_usage_chrome_extension_id"
+    [ -n "$infrastructure_mode" ] && echo "DD_INFRASTRUCTURE_MODE=$infrastructure_mode"
     echo "DD_INSTALL_METHOD=install_script_mac"
     echo "DD_INSTALL_SCRIPT_VERSION=$install_script_version"
 } | $sudo_cmd tee "$install_env_file" > /dev/null

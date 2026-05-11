@@ -61,22 +61,33 @@ func (l *Loop) Run(parentCtx context.Context) {
 		}
 
 		var task *types.Task
+		var retryAfterDuration time.Duration
 		breaker.Do(
 			ctx,
 			func() error {
-				dequeuedTask, err := l.runner.opmsClient.DequeueTask(ctx)
+				dequeuedTask, retryAfter, err := l.runner.opmsClient.DequeueTask(ctx)
 				if err != nil {
 					logger.Error("failed to dequeue task", log.ErrorField(err))
 					return err
 				}
 
 				task = dequeuedTask
+				retryAfterDuration = retryAfter
 				return nil
 			},
 		)
 
 		if task == nil {
-			time.Sleep(l.runner.config.LoopInterval)
+			sleepDuration := l.runner.config.LoopInterval
+			if retryAfterDuration > 0 {
+				sleepDuration = retryAfterDuration
+			}
+			select {
+			case <-l.shutdownChannel:
+				logger.Info("Stopping loop")
+				return
+			case <-time.After(sleepDuration):
+			}
 			continue
 		}
 
@@ -95,6 +106,9 @@ func (l *Loop) Run(parentCtx context.Context) {
 
 		// JobId is generated on dequeue so its not part of the signature, it will be checked by the backend when publishing the result
 		unwrappedTask.Data.Attributes.JobId = task.Data.Attributes.JobId
+		// TraceId/SpanId are dequeue-time observability metadata, not part of the signed task
+		unwrappedTask.Data.Attributes.TraceId = task.Data.Attributes.TraceId
+		unwrappedTask.Data.Attributes.SpanId = task.Data.Attributes.SpanId
 		task = unwrappedTask
 
 		credential, err := l.runner.resolver.ResolveConnectionInfoToCredential(ctx, task.Data.Attributes.ConnectionInfo, nil)

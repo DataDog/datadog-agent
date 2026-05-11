@@ -97,6 +97,7 @@ use (
 	pkg/config/nodetreemodel
 	pkg/config/remote
 	pkg/config/render_config
+	pkg/config/schema
 	pkg/config/setup
 	pkg/config/structure
 	pkg/config/teeconfig
@@ -110,9 +111,6 @@ use (
 	pkg/logs/client
 	pkg/logs/diagnostic
 	pkg/logs/message
-	pkg/logs/metrics
-	pkg/logs/processor
-	pkg/logs/sender
 	pkg/logs/sources
 	pkg/logs/status/statusinterface
 	pkg/logs/status/utils
@@ -142,7 +140,6 @@ use (
 	pkg/status/health
 	pkg/tagger/types
 	pkg/tagset
-	pkg/telemetry
 	pkg/template
 	pkg/trace
 	pkg/trace/log
@@ -165,6 +162,7 @@ use (
 	pkg/util/grpc
 	pkg/util/hostinfo
 	pkg/util/hostname/validate
+	pkg/util/hostport
 	pkg/util/http
 	pkg/util/json
 	pkg/util/jsonquery

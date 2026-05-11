@@ -39,6 +39,7 @@ import (
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	traceconfigfx "github.com/DataDog/datadog-agent/comp/trace/config/fx"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
+	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -109,7 +110,12 @@ func runHostProfilerCommand(ctx context.Context, cliParams *cliParams) error {
 		opts = append(opts, getTraceAgentOptions(ctx)...)
 		opts = append(opts, getConfigOptions(cliParams.GlobalParams)...)
 	} else {
-		opts = append(opts, fx.Provide(collectorimpl.NewExtraFactoriesWithoutAgentCore))
+		opts = append(opts,
+			fx.Invoke(func() {
+				pkgconfigenv.DetectFeatures(setup.Datadog())
+			}),
+			fx.Provide(collectorimpl.NewExtraFactoriesWithoutAgentCore),
+		)
 	}
 
 	return fxutil.OneShot(run, opts...)

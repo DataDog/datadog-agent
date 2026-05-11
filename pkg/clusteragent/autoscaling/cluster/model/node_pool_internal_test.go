@@ -55,8 +55,8 @@ func TestNewNodePoolInternal_KarpenterV1(t *testing.T) {
 	assert.Equal(t, map[string]string{"env": "prod"}, knp.Labels)
 	assert.Equal(t, map[string]string{"note": "managed"}, knp.Annotations)
 	assert.Equal(t, &weight, knp.Spec.Weight)
-	assert.Equal(t, map[string]string{"env": "prod"}, knp.Spec.Template.ObjectMeta.Labels)
-	assert.Equal(t, map[string]string{"note": "managed"}, knp.Spec.Template.ObjectMeta.Annotations)
+	assert.Empty(t, knp.Spec.Template.ObjectMeta.Labels)
+	assert.Empty(t, knp.Spec.Template.ObjectMeta.Annotations)
 }
 
 func TestNewNodePoolInternal_MissingManifest(t *testing.T) {
@@ -116,9 +116,114 @@ func TestBuildKarpenterNodePoolFromManifest(t *testing.T) {
 	assert.Equal(t, map[string]string{"foo": "bar"}, knp.Labels)
 	assert.Equal(t, map[string]string{"ann-key": "ann-val"}, knp.Annotations)
 	assert.Equal(t, &weight, knp.Spec.Weight)
-	assert.Equal(t, map[string]string{"foo": "bar"}, knp.Spec.Template.ObjectMeta.Labels)
-	assert.Equal(t, map[string]string{"ann-key": "ann-val"}, knp.Spec.Template.ObjectMeta.Annotations)
+	assert.Empty(t, knp.Spec.Template.ObjectMeta.Labels)
+	assert.Empty(t, knp.Spec.Template.ObjectMeta.Annotations)
 	assert.NotContains(t, knp.Labels, DatadogCreatedLabelKey)
+}
+
+func TestBuildKarpenterNodePoolFromManifest_WithTemplateMetadata(t *testing.T) {
+	kv1 := &KarpenterV1NodePool{
+		Metadata: Metadata{
+			Name:        "test-pool",
+			Labels:      Labels{{Key: "foo", Value: "bar"}},
+			Annotations: Annotations{{Key: "ann-key", Value: "ann-val"}},
+		},
+		TemplateMetadata: &Metadata{
+			Labels:      Labels{{Key: "node-label", Value: "node-val"}},
+			Annotations: Annotations{{Key: "node-ann", Value: "node-ann-val"}},
+		},
+		Spec: &karpenterv1.NodePoolSpec{},
+	}
+
+	knp := buildKarpenterNodePoolFromManifest(kv1)
+
+	require.NotNil(t, knp)
+	assert.Equal(t, map[string]string{"foo": "bar"}, knp.Labels)
+	assert.Equal(t, map[string]string{"ann-key": "ann-val"}, knp.Annotations)
+	assert.Equal(t, map[string]string{"node-label": "node-val"}, knp.Spec.Template.ObjectMeta.Labels)
+	assert.Equal(t, map[string]string{"node-ann": "node-ann-val"}, knp.Spec.Template.ObjectMeta.Annotations)
+}
+
+func TestBuildKarpenterNodePoolFromManifest_TemplateMetadataBlocklist(t *testing.T) {
+	kv1 := &KarpenterV1NodePool{
+		Metadata: Metadata{Name: "test-pool"},
+		TemplateMetadata: &Metadata{
+			Labels: Labels{
+				{Key: "app", Value: "my-app"},
+				{Key: "karpenter.sh/capacity-type", Value: "spot"},
+				{Key: "node-role.kubernetes.io/control-plane", Value: ""},
+				{Key: "k8s.io/foo", Value: "bar"},
+			},
+			Annotations: Annotations{
+				{Key: "team", Value: "infra"},
+				{Key: "kubernetes.io/created-by", Value: "value"},
+				{Key: "karpenter.sh/do-not-disrupt", Value: "true"},
+			},
+		},
+		Spec: &karpenterv1.NodePoolSpec{},
+	}
+
+	knp := buildKarpenterNodePoolFromManifest(kv1)
+
+	require.NotNil(t, knp)
+	assert.Equal(t, map[string]string{"app": "my-app"}, knp.Spec.Template.ObjectMeta.Labels)
+	assert.Equal(t, map[string]string{"team": "infra"}, knp.Spec.Template.ObjectMeta.Annotations)
+}
+
+func TestFilterTemplateMetadataKeys(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []KeyValue
+		expected map[string]string
+	}{
+		{
+			name:     "empty input",
+			input:    nil,
+			expected: map[string]string{},
+		},
+		{
+			name: "all allowed",
+			input: []KeyValue{
+				{Key: "app", Value: "web"},
+				{Key: "team", Value: "platform"},
+			},
+			expected: map[string]string{"app": "web", "team": "platform"},
+		},
+		{
+			name: "keys that contain blocked strings but are not in blocked domains are allowed",
+			input: []KeyValue{
+				{Key: "teamk8s.io/role", Value: "worker"},
+				{Key: "example.com/karpenter.sh-mode", Value: "fast"},
+			},
+			expected: map[string]string{"teamk8s.io/role": "worker", "example.com/karpenter.sh-mode": "fast"},
+		},
+		{
+			name: "reserved labels are dropped",
+			input: []KeyValue{
+				{Key: "app", Value: "web"},
+				{Key: "node-role.kubernetes.io/control-plane", Value: ""},
+				{Key: "k8s.io/foo", Value: "bar"},
+				{Key: "karpenter.sh/capacity-type", Value: "spot"},
+				{Key: "karpenter.sh/injected", Value: "bad"},
+			},
+			expected: map[string]string{"app": "web"},
+		},
+		{
+			name: "reserved annotations are dropped",
+			input: []KeyValue{
+				{Key: "team", Value: "infra"},
+				{Key: "karpenter.sh/do-not-disrupt", Value: "true"},
+				{Key: "kubernetes.io/created-by", Value: "value"},
+			},
+			expected: map[string]string{"team": "infra"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, filterTemplateMetadataKeys(tt.input))
+		})
+	}
 }
 
 func TestBuildKarpenterNodePoolFromManifest_NilSpec(t *testing.T) {

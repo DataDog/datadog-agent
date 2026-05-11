@@ -4,7 +4,7 @@ exporters:
         endpoint: http://localhost:4318
         headers:
             dd-api-key: test-key
-            dd-evp-origin: host-profiler
+            dd-evp-origin: host-profiler-standalone
             dd-evp-origin-version: 7.0.0-test
 extensions:
     custom:
@@ -14,13 +14,14 @@ extensions:
 processors:
     batch:
         timeout: 10s
+    ddhostname/default: {}
     resource/dd-profiler-internal-metadata:
         attributes:
             - action: upsert
-              key: profiler_name
-              value: host-profiler
+              key: telemetry.distro.name
+              value: host-profiler-standalone
             - action: upsert
-              key: profiler_version
+              key: telemetry.distro.version
               value: 7.0.0-test
     resourcedetection/default:
         detectors:
@@ -50,6 +51,7 @@ service:
             processors:
                 - batch
                 - resourcedetection/default
+                - ddhostname/default
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - profiling

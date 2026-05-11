@@ -13,12 +13,28 @@ init_config:
 #
 instances:
 
-    ## @param certificate_store - string - required
+    ## @param certificate_store - string - optional
     ## The certificate store to query from when verifying the Windows certificates.
     ## This check can only query from local machine certificates.
     ## Enter the store name as found in `HKEY_LOCAL_MACHINE\Software\Microsoft\SystemCertificates`
+    ##
+    ## At least one of `certificate_store` or `certificate_store_regex` (non-empty) must be set.
+    ## If both are set, `certificate_store` is always monitored in addition to every store matching any pattern.
     #
     # - certificate_store: MY
+
+    ## @param certificate_store_regex - list of strings - optional
+    ## Each entry is a regular expression (Go `regexp` syntax) matched against subkey names under
+    ## `HKEY_LOCAL_MACHINE\Software\Microsoft\SystemCertificates`. All stores matching any pattern
+    ## are opened and monitored. Use anchors (for example `^MY$`) to match a single store name exactly.
+    ##
+    ## At least one of `certificate_store` or `certificate_store_regex` (non-empty) must be set.
+    ## When both are set, the explicit `certificate_store` is included together with regex matches (union, deduplicated).
+    ## `certificate_store_regex: []` is invalid when `certificate_store` is omitted.
+    #
+    # certificate_store_regex:
+    #   - '^MY$'
+    #   - '^CA$'
 
     ## @param certificate_subject - list of strings - optional
     ## A list of strings to filter by the subjects of the certificates.
@@ -26,7 +42,7 @@ instances:
     ## and you have a certificate with subject,
     ## "CN=Microsoft Root Authority, OU=Microsoft Corporation, OU=Copyright (c) 1997 Microsoft Corp."
     ## then the certificate will be matched and metrics will be collected for that certificate.
-    ## If `certificate_subjects` is empty then all certificates in `certificate_store` are collected.
+    ## If `certificate_subjects` is empty then all certificates in the selected store or stores are collected.
     #
     # certificate_subjects:
     #   - <SUBJECT_1>
@@ -60,7 +76,7 @@ instances:
     # days_critical: 7
 
     ## @param enable_crl_monitoring - boolean - optional - default: false
-    ## Enables monitoring of expiration of all Certificate Revocation Lists (CRLs) in `certificate_store`.
+    ## Enables monitoring of expiration of all Certificate Revocation Lists (CRLs) in the selected store or stores.
     #
     # enable_crl_monitoring: false
 
@@ -114,6 +130,55 @@ instances:
       ## policy_validation_flags:
       ##   - "CERT_CHAIN_POLICY_IGNORE_ALL_NOT_TIME_VALID_FLAGS"
       ##   - "CERT_CHAIN_POLICY_IGNORE_ALL_REV_UNKNOWN_FLAGS"
+
+    ## @param certificate_template_tag - boolean - optional - default: false
+    ## Set to `true` to attach Microsoft certificate template tags to every metric and service check emitted by
+    ## this instance. Values are sourced from the Microsoft certificate template extensions
+    ## (OID `1.3.6.1.4.1.311.20.2` for V1, `1.3.6.1.4.1.311.21.7` for V2). Tags are emitted under a split
+    ## namespace so V1 and V2 never collide on the same key:
+    ##
+    ## - `certificate_template_name:<name>` - V1 certificates carry the template name in-band. For V2-only
+    ##   certificates the name is resolved on a best-effort basis via the local CryptoAPI OID cache; it is
+    ##   omitted when the OID is not locally known (for example, on non-domain-joined hosts).
+    ## - `certificate_template_oid:<oid>` - V2 only. Stable identifier that does not change if the template
+    ##   is renamed in Active Directory.
+    ## - `certificate_template_major_version:<n>` - V2 only.
+    ## - `certificate_template_minor_version:<n>` - V2 only.
+    #
+    # certificate_template_tag: false
+
+    ## @param enhanced_key_usage_tag - boolean - optional - default: false
+    ## Set to `true` to attach an `enhanced_key_usage` tag for each OID in the certificate's
+    ## Extended Key Usage extension. Well-known OIDs are emitted by short name (e.g. `serverAuth`, `clientAuth`);
+    ## unknown OIDs are emitted as dotted strings.
+    #
+    # enhanced_key_usage_tag: false
+
+    ## @param friendly_name_tag - boolean - optional - default: false
+    ## Set to `true` to attach the `friendly_name` tag (sourced from the Windows
+    ## `CERT_FRIENDLY_NAME_PROP_ID` certificate context property). Certificates without a
+    ## friendly name do not receive this tag.
+    #
+    # friendly_name_tag: false
+
+    ## @param subject_alternative_names_tag - boolean - optional - default: false
+    ## Set to `true` to attach `subject_alt_name_dns`, `subject_alt_name_ip`,
+    ## `subject_alt_name_email`, and `subject_alt_name_uri` tags for each entry in
+    ## the certificate's Subject Alternative Names extension.
+    #
+    # subject_alternative_names_tag: false
+
+    ## @param issuer_tag - boolean - optional - default: false
+    ## Set to `true` to attach an `issuer_<attr>` tag for each attribute in the certificate's issuer
+    ## distinguished name (e.g. `issuer_cn`, `issuer_o`, `issuer_ou`).
+    #
+    # issuer_tag: false
+
+    ## @param signature_algorithm_tag - boolean - optional - default: false
+    ## Set to `true` to attach a `signature_algorithm` tag describing the
+    ## certificate's signature algorithm (e.g. `signature_algorithm:sha256-rsa`).
+    #
+    # signature_algorithm_tag: false
 
     ## @param tags - list of strings - optional
     ## A list of tags to attach to every metric and service check emitted by this instance.

@@ -8,7 +8,8 @@
 package languagedetection
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	workqueuetelemetry "github.com/DataDog/datadog-agent/pkg/util/workqueue/telemetry"
 )
 
@@ -20,7 +21,7 @@ var (
 
 var (
 	// Patches is the number of patch requests sent by the patcher to the kubernetes api server
-	Patches = telemetry.NewCounterWithOpts(
+	Patches = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		subsystem,
 		"patches",
 		[]string{"owner_kind", "owner_name", "namespace", "status"},

@@ -12,6 +12,26 @@ import (
 	"time"
 )
 
+func (b *builder) setEnvParser(name string, parser string) {
+	b.Lock()
+	defer b.Unlock()
+
+	parts := strings.Split(name, ".")
+	curr := b.Schema
+	for i := 0; i < len(parts)-1; i++ {
+		section, ok := curr["properties"].(map[string]interface{})[parts[i]]
+		if !ok {
+			panic(fmt.Sprintf("buildschema: setEnvParser: section %q not found for key %q", parts[i], name))
+		}
+		curr = section.(map[string]interface{})
+	}
+	leaf, ok := curr["properties"].(map[string]interface{})[parts[len(parts)-1]]
+	if !ok {
+		panic(fmt.Sprintf("buildschema: setEnvParser: key %q not found in schema", name))
+	}
+	leaf.(map[string]interface{})["env_parser"] = parser
+}
+
 func (b *builder) addToSchema(name string, val interface{}, envVars []string, noEnv bool, noDefault bool) {
 	b.Lock()
 	defer b.Unlock()
@@ -39,8 +59,10 @@ func (b *builder) addToSchema(name string, val interface{}, envVars []string, no
 	var node map[string]interface{}
 
 	if noDefault {
+		// Settings registered without a default also have no derivable type.
+		// Both markers are added so the schema linter can identify them as known issues.
 		node = map[string]interface{}{
-			"tags": []string{"TODO:fix-no-default"},
+			"tags": []string{"TODO:fix-no-default", "TODO:fix-missing-type"},
 		}
 	} else {
 		switch v := val.(type) {
@@ -165,8 +187,10 @@ func (b *builder) addToSchema(name string, val interface{}, envVars []string, no
 				node["default"] = v
 			}
 		case nil:
+			// nil values have neither a usable type nor a meaningful default.
+			// Both markers are added so the schema linter can identify them as known issues.
 			node = map[string]interface{}{
-				"tags": []string{"golang_type:nil", "TODO:fix-missing-type"},
+				"tags": []string{"golang_type:nil", "TODO:fix-missing-type", "TODO:fix-no-default"},
 			}
 		default:
 			fmt.Printf("Error: unknown type for %s: %v\n", name, reflect.TypeOf(val))
@@ -186,5 +210,6 @@ func (b *builder) addToSchema(name string, val interface{}, envVars []string, no
 			node["env_vars"] = envVars
 		}
 	}
+	node["node_type"] = "setting"
 	curr["properties"].(map[string]interface{})[parts[len(parts)-1]] = node
 }
