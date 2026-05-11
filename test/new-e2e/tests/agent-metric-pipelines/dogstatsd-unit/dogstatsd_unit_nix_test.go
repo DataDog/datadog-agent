@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-pipelines/common"
 )
 
 const (
@@ -58,6 +59,7 @@ histogram_aggregates:
 histogram_percentiles:
   - "0.95"
 `),
+					common.WithADPEnabled(),
 				),
 			),
 		),
@@ -73,6 +75,8 @@ func (s *dogstatsdUnitSuite) sendMetric(name string, value float32, metricType s
 // TestDogstatsdUnitOnlyOnTimingMetrics sends a counter, a histogram, and a timing
 // metric in parallel and verifies that only the timing metric carries a unit.
 func (s *dogstatsdUnitSuite) TestDogstatsdUnitOnlyOnTimingMetrics() {
+	common.AssertADPRunning(s.T(), s.Env().RemoteHost)
+
 	// Phase 1: keep sending all three metrics until at least one flushed serie for
 	// each has reached fakeintake.
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {

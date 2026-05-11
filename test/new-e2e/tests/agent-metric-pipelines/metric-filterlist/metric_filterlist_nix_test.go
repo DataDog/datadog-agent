@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-pipelines/common"
 )
 
 const (
@@ -41,6 +42,7 @@ func TestMetricFilterList(t *testing.T) {
 metric_filterlist:
   - "%s"
 `, blockedMetric)),
+					common.WithADPEnabled(),
 				),
 			),
 		),
@@ -57,6 +59,8 @@ func (s *metricFilterListSuite) sendStatsdGauge(name string, value int) {
 //   - a metric listed in metric_filterlist is NOT forwarded to the intake
 //   - a metric NOT in metric_filterlist IS forwarded normally
 func (s *metricFilterListSuite) TestMetricFilterListBlocksMetric() {
+	common.AssertADPRunning(s.T(), s.Env().RemoteHost)
+
 	// Send both metrics on each retry so metrics keep flowing until the pipeline confirms a flush.
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		s.sendStatsdGauge(allowedMetric, 1)
