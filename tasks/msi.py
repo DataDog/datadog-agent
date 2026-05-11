@@ -109,7 +109,10 @@ def _msbuild_configuration(debug=False):
 def sign_file(ctx, path, force=False):
     dd_wcs_enabled = os.environ.get('SIGN_WINDOWS_DD_WCS')
     if dd_wcs_enabled or force:
-        return ctx.run(f'dd-wcs sign "{path}"')
+        beta_args = ''
+        if os.environ.get('WINDOWS_SIGNING_BETA'):
+            beta_args = '--cert s3://windows-code-signing-certificates/certs/beta/kms-signed.crt --config s3://windows-code-signing-certificates/certs/beta/config.json '
+        return ctx.run(f'dd-wcs sign {beta_args}"{path}"')
 
 
 def _ensure_wix_tools(ctx):

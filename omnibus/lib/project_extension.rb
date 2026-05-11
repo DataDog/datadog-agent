@@ -60,6 +60,10 @@ module Omnibus
         cmd = Array.new.tap do |arr|
           arr << "dd-wcs"
           arr << "sign"
+          if ENV['WINDOWS_SIGNING_BETA']
+            arr << "--cert" << "s3://windows-code-signing-certificates/certs/beta/kms-signed.crt"
+            arr << "--config" << "s3://windows-code-signing-certificates/certs/beta/config.json"
+          end
           arr << "\"#{file}\""
         end.join(" ")
 
