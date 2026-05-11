@@ -216,7 +216,7 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			eventType:                     eventplatform.EventTypeNetworkConfigManagement,
 			category:                      "Network Config Management",
 			contentType:                   logshttp.JSONContentType,
-			endpointsConfigPrefix:         "network_config_management.forwarder.",
+			endpointsConfigPrefix:         "network_devices.config_management.forwarder.",
 			hostnameEndpointPrefix:        "ndm-intake.",
 			intakeTrackType:               "ndmconfig",
 			defaultBatchMaxConcurrentSend: 10,
