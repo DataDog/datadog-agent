@@ -6,134 +6,69 @@
 package logs
 
 import (
-	"context"
 	"log/slog"
 	"path/filepath"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 	pkgslog "github.com/DataDog/datadog-agent/pkg/util/log/slog"
 )
 
-// recordingHandler is a test-only slog.Handler that captures every record it
-// is asked to handle. Tests use it as the inner handler behind the
-// errortracking slot to assert the chain forwards (or filters) records.
-type recordingHandler struct {
-	mu       sync.Mutex
-	enabled  func(context.Context, slog.Level) bool
-	records  []slog.Record
-	withCall int
+// recordingSubmitter captures every ErrorLog routed through the chain.
+// Tests use it as the registered Submitter to assert the chain forwards
+// (or filters) records.
+type recordingSubmitter struct {
+	mu   sync.Mutex
+	logs []errortracking.ErrorLog
 }
 
-func (h *recordingHandler) Enabled(ctx context.Context, l slog.Level) bool {
-	if h.enabled != nil {
-		return h.enabled(ctx, l)
-	}
-	return true
+func (r *recordingSubmitter) submit(e errortracking.ErrorLog) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.logs = append(r.logs, e)
 }
 
-func (h *recordingHandler) Handle(_ context.Context, r slog.Record) error {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.records = append(h.records, r)
-	return nil
-}
-
-func (h *recordingHandler) WithAttrs(_ []slog.Attr) slog.Handler {
-	h.withCall++
-	return h
-}
-
-func (h *recordingHandler) WithGroup(_ string) slog.Handler {
-	h.withCall++
-	return h
-}
-
-func (h *recordingHandler) snapshot() []slog.Record {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	out := make([]slog.Record, len(h.records))
-	copy(out, h.records)
+func (r *recordingSubmitter) snapshot() []errortracking.ErrorLog {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]errortracking.ErrorLog, len(r.logs))
+	copy(out, r.logs)
 	return out
 }
 
 func resetErrortrackingSlot(t *testing.T) {
 	t.Helper()
-	t.Cleanup(func() { RegisterErrortrackingHandler(nil) })
-	RegisterErrortrackingHandler(nil)
+	t.Cleanup(func() { RegisterErrortrackingSubmitter(nil) })
+	RegisterErrortrackingSubmitter(nil)
 }
 
-func TestErrortrackingSlot_DisabledWhenUnregistered(t *testing.T) {
+// TestRegisterErrortrackingSubmitter_NilResets verifies the on/off contract:
+// after registering and then clearing, the slot must return to a no-op
+// state. Tests rely on this for cleanup between cases.
+func TestRegisterErrortrackingSubmitter_NilResets(t *testing.T) {
 	resetErrortrackingSlot(t)
 
-	s := newErrortrackingSlot()
-	require.False(t, s.Enabled(context.Background(), slog.LevelError))
-	require.False(t, s.Enabled(context.Background(), slog.LevelInfo))
+	rec := &recordingSubmitter{}
+	RegisterErrortrackingSubmitter(rec.submit)
+	require.NotNil(t, loadErrortrackingSubmitter())
 
-	// Handle on the empty slot must not panic and must return nil.
-	r := slog.NewRecord(time.Now(), slog.LevelError, "ignored", 0)
-	require.NoError(t, s.Handle(context.Background(), r))
+	RegisterErrortrackingSubmitter(nil)
+	require.Nil(t, loadErrortrackingSubmitter())
 }
 
-func TestErrortrackingSlot_DelegatesAfterRegister(t *testing.T) {
-	resetErrortrackingSlot(t)
-
-	rec := &recordingHandler{}
-	RegisterErrortrackingHandler(rec)
-
-	s := newErrortrackingSlot()
-	require.True(t, s.Enabled(context.Background(), slog.LevelError))
-
-	r := slog.NewRecord(time.Now(), slog.LevelError, "boom", 0)
-	require.NoError(t, s.Handle(context.Background(), r))
-
-	got := rec.snapshot()
-	require.Len(t, got, 1)
-	require.Equal(t, "boom", got[0].Message)
-}
-
-func TestErrortrackingSlot_HonorsInnerEnabled(t *testing.T) {
-	resetErrortrackingSlot(t)
-
-	rec := &recordingHandler{
-		enabled: func(_ context.Context, l slog.Level) bool { return l >= slog.LevelError },
-	}
-	RegisterErrortrackingHandler(rec)
-
-	s := newErrortrackingSlot()
-	require.False(t, s.Enabled(context.Background(), slog.LevelInfo))
-	require.False(t, s.Enabled(context.Background(), slog.LevelWarn))
-	require.True(t, s.Enabled(context.Background(), slog.LevelError))
-}
-
-func TestRegisterErrortrackingHandler_NilResets(t *testing.T) {
-	resetErrortrackingSlot(t)
-
-	rec := &recordingHandler{}
-	RegisterErrortrackingHandler(rec)
-	s := newErrortrackingSlot()
-	require.True(t, s.Enabled(context.Background(), slog.LevelError))
-
-	RegisterErrortrackingHandler(nil)
-	require.False(t, s.Enabled(context.Background(), slog.LevelError))
-}
-
-// TestBuildSlogLogger_ForwardsErrorRecord asserts that the chain assembled by
-// buildSlogLogger fans error records out to the registered errortracking
-// handler while routing non-error records only to the formatted writer
-// branch.
+// TestBuildSlogLogger_ForwardsErrorRecord asserts that the chain assembled
+// by buildSlogLogger fans error records out to the registered Submitter
+// while routing non-error records only to the formatted writer branch.
 func TestBuildSlogLogger_ForwardsErrorRecord(t *testing.T) {
 	resetErrortrackingSlot(t)
 
-	rec := &recordingHandler{
-		enabled: func(_ context.Context, l slog.Level) bool { return l >= slog.LevelError },
-	}
-	RegisterErrortrackingHandler(rec)
+	rec := &recordingSubmitter{}
+	RegisterErrortrackingSubmitter(rec.submit)
 
 	dir := t.TempDir()
 	ddCfg := pkgconfigsetup.Datadog()
@@ -163,8 +98,8 @@ func TestBuildSlogLogger_ForwardsErrorRecord(t *testing.T) {
 }
 
 // TestBuildSlogLogger_NoForwardingWhenUnregistered asserts that the chain
-// built by buildSlogLogger remains a no-op for the errortracking branch when
-// no Sender has been registered (the common path before opt-in).
+// built by buildSlogLogger remains a no-op for the errortracking branch
+// when no Submitter has been registered (the common path before opt-in).
 func TestBuildSlogLogger_NoForwardingWhenUnregistered(t *testing.T) {
 	resetErrortrackingSlot(t)
 
@@ -183,7 +118,7 @@ func TestBuildSlogLogger_NoForwardingWhenUnregistered(t *testing.T) {
 	wrapper := logger.(*pkgslog.Wrapper)
 	sl := slog.New(wrapper.Handler())
 
-	// Should not panic, should produce nothing observable on the
+	// Should not panic; should produce nothing observable on the
 	// errortracking side.
 	sl.Error("error with nobody listening")
 	logger.Flush()
