@@ -36,6 +36,10 @@ import (
 const (
 	nginxNamespace = "workload-nginx"
 	nginxPort      = 80
+	// helmChartVersion is the minimum chart version that ships the
+	// discovery-use-system-probe-lite template (added in chart 3.205.0
+	// via DataDog/helm-charts#2598). The framework default predates it.
+	helmChartVersion = "3.208.2"
 )
 
 //go:embed config/helm-values.tmpl
@@ -68,7 +72,13 @@ func k8sProvisioner(helmValues string) provisioners.TypedProvisioner[environment
 			scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
 				return nginx.K8sAppDefinition(e, kubeProvider, nginxNamespace, nginxPort, "", false, nil)
 			}),
-			scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(helmValues)),
+			scenkindvm.WithAgentOptions(
+				kubernetesagentparams.WithHelmValues(helmValues),
+				// Pin to a chart version that has the discovery /
+				// system-probe-lite logic. The framework default
+				// (HelmVersion in kubernetes_helm.go) predates it.
+				kubernetesagentparams.WithHelmChartVersion(helmChartVersion),
+			),
 		),
 	)
 }
