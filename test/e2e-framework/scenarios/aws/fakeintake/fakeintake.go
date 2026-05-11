@@ -82,10 +82,14 @@ func NewECSFargateInstance(e aws.Environment, name string, option ...Option) (*f
 			}
 		}
 
+		if useLoadBalancer && params.IPv6NAT64 {
+			return fmt.Errorf("WithIPv6NAT64 is incompatible with the load-balanced fakeintake mode")
+		}
+
 		if useLoadBalancer {
 			err = fargateSvcLB(e, namer, taskDef, fi, opts...)
 		} else {
-			err = fargateSvcNoLB(e, namer, taskDef, fi, opts...)
+			err = fargateSvcNoLB(e, namer, taskDef, fi, params.IPv6NAT64, opts...)
 		}
 		if err != nil {
 			return err
@@ -95,9 +99,11 @@ func NewECSFargateInstance(e aws.Environment, name string, option ...Option) (*f
 	})
 }
 
-// fargateSvcNoLB deploys one fakeintake container to a dedicated Fargate cluster
-// Hardcoded on sandbox
-func fargateSvcNoLB(e aws.Environment, namer namer.Namer, taskDef *awsxEcs.FargateTaskDefinition, fi *fakeintake.Fakeintake, opts ...pulumi.ResourceOption) error {
+// fargateSvcNoLB deploys one fakeintake container to a dedicated Fargate cluster.
+// Hardcoded on sandbox. When ipv6NAT64 is true, fi.Host/fi.URL advertise the
+// NAT64-translated IPv6 form (64:ff9b::<ipv4>) of the task's private IPv4; the
+// pulumi-side healthcheck still dials IPv4 directly from the host.
+func fargateSvcNoLB(e aws.Environment, namer namer.Namer, taskDef *awsxEcs.FargateTaskDefinition, fi *fakeintake.Fakeintake, ipv6NAT64 bool, opts ...pulumi.ResourceOption) error {
 	fargateService, err := ecs.FargateService(e, namer.ResourceName("srv"), e.ECSFargateFakeintakeClusterArn(), taskDef.TaskDefinition.Arn(), nil, opts...)
 	if err != nil {
 		return err
@@ -149,7 +155,11 @@ func fargateSvcNoLB(e aws.Environment, namer namer.Namer, taskDef *awsxEcs.Farga
 		}
 		e.Ctx().Log.Info(fmt.Sprintf("fakeintake healthy at %s", ipAddress), nil)
 
-		return []string{ipAddress, buildFakeIntakeURL("http", ipAddress, "", httpPort)}, nil
+		exportedHost := ipAddress
+		if ipv6NAT64 {
+			exportedHost = "64:ff9b::" + ipAddress
+		}
+		return []string{exportedHost, buildFakeIntakeURL("http", exportedHost, "", httpPort)}, nil
 	}).(pulumi.StringArrayOutput)
 
 	fi.Scheme = pulumi.Sprintf("%s", "http")

@@ -26,12 +26,10 @@ type kindIPv6Suite struct {
 	kindSuite
 }
 
-// TestKindIPv6Suite runs the kind container-integration assertions against a
-// dual-stack kind cluster. Pods get both IPv4 and IPv6 PodIPs, so the agent
-// can still reach the IPv4-only fakeintake ALB while intra-cluster IPv6 paths
-// (kubelet, services, peer pods) are exercised. Strict ipFamily=ipv6 is
-// blocked until the fakeintake exposes an IPv6-reachable endpoint. See
-// [CONS-8164].
+// TestKindIPv6Suite runs the kind container-integration assertions against an
+// IPv6-only kind cluster. Agent pods have no IPv4 stack, so the IPv4-only
+// fakeintake is reached through kindnet's NAT64 gateway via the well-known
+// 64:ff9b::/96 prefix. See [CONS-8164].
 func TestKindIPv6Suite(t *testing.T) {
 	helmValues := `
 datadog:
@@ -44,13 +42,14 @@ clusterAgent:
 		e2e.WithStackName("kind-ipv6"),
 		e2e.WithProvisioner(provkind.Provisioner(
 			provkind.WithRunOptions(
-				scenkind.WithIPFamily("dual"),
+				scenkind.WithIPFamily("ipv6"),
 				scenkind.WithVMOptions(
 					scenec2.WithInstanceType("t3.xlarge"),
 				),
 				scenkind.WithFakeintakeOptions(
 					fakeintake.WithMemory(2048),
 					fakeintake.WithRetentionPeriod("31m"),
+					fakeintake.WithIPv6NAT64(),
 				),
 				scenkind.WithDeployDogstatsd(),
 				scenkind.WithDeployTestWorkload(),
@@ -66,10 +65,11 @@ clusterAgent:
 	)
 }
 
-// Test0AgentPodHasIPv6 asserts each agent DaemonSet pod has at least one IPv6
-// PodIP, catching the case where the ipFamily plumbing silently falls back to
-// IPv4-only. The leading 0 orders it right after k8sSuite.Test00UpAndRunning.
-func (suite *kindIPv6Suite) Test0AgentPodHasIPv6() {
+// Test0AgentPodIsIPv6Only asserts each agent DaemonSet pod has only IPv6
+// PodIPs, catching the case where the ipFamily plumbing silently falls back
+// to dual-stack or IPv4. The leading 0 orders it right after
+// k8sSuite.Test00UpAndRunning.
+func (suite *kindIPv6Suite) Test0AgentPodIsIPv6Only() {
 	ctx := context.Background()
 
 	pods, err := suite.Env().KubernetesCluster.Client().CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
@@ -80,14 +80,10 @@ func (suite *kindIPv6Suite) Test0AgentPodHasIPv6() {
 
 	for _, pod := range pods.Items {
 		require.NotEmpty(suite.T(), pod.Status.PodIPs, "pod %s has no PodIPs", pod.Name)
-		hasIPv6 := false
 		for _, entry := range pod.Status.PodIPs {
 			ip := net.ParseIP(entry.IP)
 			require.NotNilf(suite.T(), ip, "pod %s PodIP %q is not a valid IP", pod.Name, entry.IP)
-			if ip.To4() == nil {
-				hasIPv6 = true
-			}
+			assert.Nilf(suite.T(), ip.To4(), "pod %s PodIP %q is IPv4 (expected IPv6-only); full PodIPs=%+v", pod.Name, entry.IP, pod.Status.PodIPs)
 		}
-		assert.Truef(suite.T(), hasIPv6, "pod %s has no IPv6 entry in PodIPs %+v", pod.Name, pod.Status.PodIPs)
 	}
 }

@@ -14,6 +14,7 @@ type Params struct {
 	Memory              int
 	DDDevForwarding     bool
 	RetentionPeriod     string
+	IPv6NAT64           bool
 }
 
 type Option = func(*Params) error
@@ -81,6 +82,17 @@ func WithoutDDDevForwarding() Option {
 func WithRetentionPeriod(retentionPeriod string) Option {
 	return func(p *Params) error {
 		p.RetentionPeriod = retentionPeriod
+		return nil
+	}
+}
+
+// WithIPv6NAT64 makes the fakeintake export its endpoint as the NAT64-translated
+// IPv6 form (64:ff9b::<ipv4>, RFC 6052) of the Fargate task's private IPv4, so
+// IPv6-only callers can reach it through a NAT64 gateway. Incompatible with
+// WithLoadBalancer.
+func WithIPv6NAT64() Option {
+	return func(p *Params) error {
+		p.IPv6NAT64 = true
 		return nil
 	}
 }

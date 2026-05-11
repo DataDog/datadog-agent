@@ -267,7 +267,7 @@ new-e2e-containers:
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.29"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:20-04"
       - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22-04"
-      - EXTRA_PARAMS: "--run TestKindIPv6Suite -c ddinfra:kubernetesVersion=1.29"
+      - EXTRA_PARAMS: "--run TestKindIPv6Suite -c ddinfra:kubernetesVersion=1.34"
       - EXTRA_PARAMS: --run TestDockerSuite
       - EXTRA_PARAMS: --run "TestK8S(CEL|Legacy)FilteringSuite"
       - EXTRA_PARAMS: --skip "Test(Kind(IPv6)?|EKS|OpenShiftVM|ECS|Docker|K8SCELFiltering|K8SLegacyFiltering)Suite"
