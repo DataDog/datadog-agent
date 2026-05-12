@@ -1,0 +1,193 @@
+-- allium: 3
+-- pass_through_aggregator.allium
+
+-- Scope: An Aggregator implementation that does no line-combining
+--   at all. Each incoming log line is emitted as a single-message
+--   aggregate after whitespace trimming and truncation-flag
+--   handling. Used by log sources whose framing already produces
+--   complete logical messages and that do not require any
+--   multi-line grouping.
+-- Includes: The PassThroughAggregator entity, fulfilment of the
+--   Aggregator contract at the PassThroughAggregation surface,
+--   the content-transformation rules the aggregator applies, the
+--   rolling truncation-flag carry semantics.
+-- Excludes:
+--   - Other Aggregator implementations. RegexAggregator,
+--     DetectingAggregator, CombiningAggregator and JSONAggregator
+--     each live in their own spec modules.
+--   - The selection logic that decides when a log source uses
+--     PassThroughAggregator vs another implementation. That is a
+--     preprocessor configuration concern.
+--   - The truncation-flag byte sequence itself and the
+--     truncation-reason tag string. These are fixed marker values
+--     defined by the message-format package; the aggregator
+--     references them but does not redefine their content.
+--   - The metric counter incremented on each truncation
+--     (LogsTruncated). Observability only, no behavioural effect.
+--   - The runtime configuration key that gates truncation-reason
+--     tagging. The aggregator's behaviour is described in terms
+--     of "tag-truncated-logs enabled / disabled" rather than the
+--     specific config key.
+
+use "./aggregator.allium" as aggregator
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+entity PassThroughAggregator {
+    -- A configured PassThroughAggregator instance. One per log
+    -- source that uses pass-through aggregation.
+    --
+    -- line_limit:      the maximum content byte count above which
+    --                  the aggregator treats the line as oversized
+    --                  and applies truncation-flag handling. Set
+    --                  at construction; not modified during the
+    --                  aggregator's lifetime.
+    -- should_truncate: rolling state — true when the most recent
+    --                  call to process saw content that triggered
+    --                  truncation handling (either oversize or
+    --                  upstream-flagged). On the NEXT call to
+    --                  process, this flag governs whether the
+    --                  truncation marker is prepended to that
+    --                  call's emitted content. After construction,
+    --                  the flag is false; it is recomputed on every
+    --                  process call.
+    line_limit: Integer
+    should_truncate: Boolean
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+surface PassThroughAggregation {
+    -- The boundary between the preprocessor pipeline and one
+    -- PassThroughAggregator instance. The pipeline invokes process,
+    -- flush and is_empty per the Aggregator contract; this surface
+    -- supplies their PassThrough-specific semantics.
+
+    context agg: PassThroughAggregator
+
+    exposes:
+        agg.line_limit
+        agg.should_truncate
+
+    contracts:
+        fulfils Aggregator
+
+    @guarantee Determinism
+        -- The Aggregator contract's Determinism invariant holds:
+        -- process and the flush / is_empty observations are pure
+        -- functions of (line_limit, should_truncate, msg, tokens).
+        -- The label argument is ignored — see LabelIgnored — and
+        -- therefore does not feature in the determinism predicate.
+        -- The aggregator branches only on inputs and on
+        -- should_truncate; it has no other internal state and
+        -- reads no clocks or randomness.
+
+    @guarantee ByteConservation
+        -- The Aggregator contract's ByteConservation invariant
+        -- holds and is refined here: each emitted message's
+        -- content is derived from the input message's content via
+        -- a fixed transformation pipeline of (a) whitespace
+        -- trimming, (b) optional prepending of the truncation
+        -- marker, (c) optional appending of the truncation marker.
+        -- The aggregator introduces no other bytes from any other
+        -- source. The truncation marker is the only well-known
+        -- marker the aggregator may add.
+
+    @guarantee FlushDrainsBuffer
+        -- The Aggregator contract's FlushDrainsBuffer invariant
+        -- holds trivially: PassThroughAggregator has no buffer
+        -- state. flush always returns an empty sequence and never
+        -- changes any observable state. (The rolling
+        -- should_truncate flag is recomputed on the next process
+        -- call, not drained by flush.)
+
+    @guarantee IsEmptyConsistency
+        -- The Aggregator contract's IsEmptyConsistency invariant
+        -- holds trivially: is_empty always returns true.
+        -- PassThroughAggregator never holds buffered content
+        -- awaiting emission — every line is emitted on the same
+        -- process call that received it. The should_truncate flag
+        -- is rolling-state carry, not buffered content; its value
+        -- does not affect is_empty.
+
+    @guarantee ResultLifetime
+        -- The Aggregator contract's ResultLifetime invariant
+        -- holds: PassThroughAggregator reuses a single one-element
+        -- backing storage for the sequence returned by process.
+        -- The next call to process overwrites that storage.
+        -- Callers that retain the returned sequence beyond the
+        -- next operation observe undefined contents.
+
+    @guarantee NoGrouping
+        -- Every call to process emits exactly one
+        -- AggregatedMessageWithTokens; PassThroughAggregator does
+        -- not combine consecutive lines into multi-line aggregates.
+        -- This is the defining characteristic that distinguishes
+        -- PassThroughAggregator from the other Aggregator
+        -- fulfillers.
+
+    @guarantee LabelIgnored
+        -- The label argument to process is consumed but has no
+        -- observable effect on the output sequence or on the
+        -- should_truncate state. PassThroughAggregator's behaviour
+        -- is identical for label = start_group, no_aggregate, or
+        -- aggregate.
+
+    @guarantee TokensForwarded
+        -- The tokens argument to process is forwarded unchanged
+        -- into AggregatedMessageWithTokens.tokens of the emitted
+        -- message. PassThroughAggregator does not modify, replace,
+        -- recompute or reorder the tokens.
+
+    @guidance
+        -- Per-call procedure when process is invoked with arguments
+        -- (msg, label, tokens) on a PassThroughAggregator instance:
+        --
+        -- 1. Capture the current should_truncate value as
+        --    `prepend_marker` (a local variable name for clarity).
+        --
+        -- 2. Recompute should_truncate for the next call. It
+        --    becomes true if either:
+        --      - the input msg.content exceeds line_limit in byte
+        --        length, OR
+        --      - the input msg.is_truncated is already true.
+        --    Otherwise should_truncate becomes false.
+        --
+        -- 3. Trim leading and trailing whitespace from the input
+        --    content. This is unconditional; it applies whether or
+        --    not the line was truncated.
+        --
+        -- 4. If prepend_marker is true, prepend the truncation
+        --    marker to the trimmed content.
+        --
+        -- 5. If should_truncate is true (i.e., this line itself
+        --    triggers truncation), append the truncation marker to
+        --    the content.
+        --
+        -- 6. If either prepend_marker or should_truncate is true,
+        --    mark the emitted message as truncated and — when the
+        --    runtime's truncated-log tagging is enabled — attach
+        --    a truncation-reason tag identifying this aggregator
+        --    as the source.
+        --
+        -- 7. Replace the input message's content with the
+        --    transformed bytes and emit a single
+        --    AggregatedMessageWithTokens pairing the (now-mutated)
+        --    message with the tokens argument.
+        --
+        -- The aggregator mutates the input message in place rather
+        -- than copying. Callers that need to retain the original
+        -- bytes must capture them before invoking process.
+        --
+        -- Note on rolling state: should_truncate carries one bit
+        -- of information from one call to the next. The mapping
+        -- is: "did the previous line trigger truncation? If so,
+        -- prepend a marker to this line as a visual continuation."
+        -- The carry exists so that the marker forms a complete
+        -- pair around any genuinely oversized content (marker
+        -- after the oversized line, marker before the next line).
+}
