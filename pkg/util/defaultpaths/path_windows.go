@@ -47,9 +47,11 @@ const (
 	DefaultPrivateActionRunnerLogFile = "c:\\programdata\\datadog\\logs\\private-action-runner.log"
 	DefaultStreamlogsLogFile          = "c:\\programdata\\datadog\\logs\\streamlogs_info\\streamlogs.log"
 	DefaultSystemProbeLogFile         = "c:\\programdata\\datadog\\logs\\system-probe.log"
+	DefaultSystemProbeAddress         = `\\.\pipe\dd_system_probe`
 	DefaultStatsdSocket               = ""
 	DefaultReceiverSocket             = ""
 	DefaultRunPath                    = "c:\\programdata\\datadog\\run"
+	DefaultDDAgentBin                 = "c:\\Program Files\\Datadog\\Datadog Agent\\bin\\agent.exe"
 )
 
 // Default paths for Windows systems.

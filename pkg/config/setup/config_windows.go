@@ -26,11 +26,11 @@ const (
 // Note: On Windows, defaultpaths.init() handles registry-based path customization.
 var (
 	// InstallPath is the default install path for the agent
-	InstallPath = defaultpaths.InstallPath
+	InstallPath = defaultpaths.GetInstallPath()
 	// DefaultUpdaterLogFile is the default updater log file
-	DefaultUpdaterLogFile = defaultpaths.DefaultUpdaterLogFile
+	DefaultUpdaterLogFile = defaultpaths.GetDefaultUpdaterLogFile()
 	// DefaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
-	DefaultSecurityAgentLogFile = defaultpaths.DefaultSecurityAgentLogFile
+	DefaultSecurityAgentLogFile = defaultpaths.DefaultSecurityAgentLogFile()
 	// DefaultProcessAgentLogFile is the default process-agent log file
 	DefaultProcessAgentLogFile = defaultpaths.DefaultProcessAgentLogFile
 	// DefaultOTelAgentLogFile is the default otel-agent log file
@@ -38,11 +38,11 @@ var (
 	// DefaultHostProfilerLogFile is the default host-profiler log file
 	DefaultHostProfilerLogFile = defaultpaths.DefaultHostProfilerLogFile
 	// DefaultPrivateActionRunnerLogFile is the default private-action-runner log file
-	DefaultPrivateActionRunnerLogFile = defaultpaths.DefaultPrivateActionRunnerLogFile
+	DefaultPrivateActionRunnerLogFile = defaultpaths.GetDefaultPrivateActionRunnerLogFile()
 	// DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
-	DefaultStreamlogsLogFile = defaultpaths.DefaultStreamlogsLogFile
+	DefaultStreamlogsLogFile = defaultpaths.GetDefaultStreamlogsLogFile()
 	// DefaultSystemProbeAddress is the default address to be used for connecting to the system probe
-	DefaultStreamlogsLogFile = defaultpaths.DefaultSystemProbeAddress
+	DefaultSystemProbeAddress = defaultpaths.DefaultSystemProbeAddress
 	// DefaultDDAgentBin the process agent's binary
 	DefaultDDAgentBin = defaultpaths.DefaultDDAgentBin
 )
