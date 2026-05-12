@@ -24,7 +24,7 @@ func NewRofsPermissionIssue() *RofsPermissionIssue {
 }
 
 // BuildIssue creates a complete issue with metadata and remediation steps
-func (t *RofsPermissionIssue) BuildIssue(issueType string, context map[string]string) (*healthplatform.Issue, error) {
+func (t *RofsPermissionIssue) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
 	directoriesStr := context["directories"]
 	if directoriesStr == "" {
 		directoriesStr = "unknown"
@@ -55,7 +55,6 @@ func (t *RofsPermissionIssue) BuildIssue(issueType string, context map[string]st
 	}
 
 	return &healthplatform.Issue{
-		Id:          issueType,
 		IssueName:   "read_only_filesystem_error",
 		Title:       "Agent Cannot Write to Read-Only Filesystem",
 		Description: fmt.Sprintf("Agent is missing write access to %v %v. Without write access, the Agent may experience issues starting or operating correctly.", len(directories), descriptionDirectory),

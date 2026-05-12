@@ -56,7 +56,7 @@ func (r *Registry) BuildIssue(issueType string, context map[string]string) (*hea
 		return nil, fmt.Errorf("no issue template found for: %s", issueType)
 	}
 
-	return template.BuildIssue(issueType, context)
+	return template.BuildIssue(context)
 }
 
 // GetBuiltInHealthChecks returns all built-in health checks from registered modules

@@ -84,7 +84,7 @@ func TestBuildIssue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			template := NewADMisconfigurationIssue()
-			issue, err := template.BuildIssue("ad-misconfiguration", tt.context)
+			issue, err := template.BuildIssue(tt.context)
 
 			if tt.expectErr {
 				assert.Error(t, err)
@@ -94,7 +94,7 @@ func TestBuildIssue(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, issue)
 
-			assert.Equal(t, "ad-misconfiguration", issue.Id)
+			assert.Empty(t, issue.Id, "Id is set by the caller (ReportIssue), not by the template")
 			assert.Equal(t, issueName, issue.IssueName)
 			assert.Equal(t, tt.expectedTitle, issue.Title)
 			assert.Contains(t, issue.Description, tt.expectedDescSub)

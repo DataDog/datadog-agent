@@ -46,7 +46,7 @@ func NewADMisconfigurationIssue() *ADMisconfigurationIssue {
 }
 
 // BuildIssue creates a complete issue with metadata and remediation for AD annotation errors
-func (t *ADMisconfigurationIssue) BuildIssue(issueType string, context map[string]string) (*healthplatform.Issue, error) {
+func (t *ADMisconfigurationIssue) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
 	entityName := context["entityName"]
 	if entityName == "" {
 		entityName = unknownVal
@@ -72,7 +72,6 @@ func (t *ADMisconfigurationIssue) BuildIssue(issueType string, context map[strin
 	}
 
 	return &healthplatform.Issue{
-		Id:          issueType,
 		IssueName:   issueName,
 		Title:       content.title,
 		Description: content.description,

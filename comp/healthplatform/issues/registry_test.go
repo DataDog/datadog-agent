@@ -20,9 +20,8 @@ type mockIssueTemplate struct {
 	issueID string
 }
 
-func (m *mockIssueTemplate) BuildIssue(issueType string, context map[string]string) (*healthplatform.Issue, error) {
+func (m *mockIssueTemplate) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
 	return &healthplatform.Issue{
-		Id:          issueType,
 		Title:       "Test Issue: " + m.issueID,
 		Description: "Context value: " + context["key"],
 		Severity:    "medium",
@@ -174,7 +173,7 @@ func TestBuildIssue(t *testing.T) {
 	issue, err := registry.BuildIssue("test-issue", map[string]string{"key": "test-value"})
 
 	require.NoError(t, err)
-	assert.Equal(t, "test-issue", issue.Id)
+	assert.Empty(t, issue.Id, "Id is set by the caller (ReportIssue), not by the template")
 	assert.Equal(t, "Test Issue: test-issue", issue.Title)
 	assert.Equal(t, "Context value: test-value", issue.Description)
 }
