@@ -33,6 +33,7 @@ var peerTagConcepts = []semantics.Concept{
 }
 
 // basePeerTags returns the base set of peer tag precursors derived from the live registry.
+// This is intentionally a function (not a cached var) so RC registry updates are reflected on each call.
 func basePeerTags() []string {
 	r := semantics.DefaultRegistry()
 	var precursors []string

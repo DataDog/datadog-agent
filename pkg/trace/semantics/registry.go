@@ -6,7 +6,7 @@
 package semantics
 
 import (
-	_ "embed"
+	_ "embed" //nolint:revive
 	"encoding/json"
 	"fmt"
 	"sync/atomic"
@@ -47,6 +47,7 @@ func DefaultRegistry() Registry {
 }
 
 // UpdateRegistry atomically replaces the live registry.
+// Callers are responsible for refreshing any derived state (e.g. concentrator peer tag keys) after the swap.
 // Called by RemoteConfigHandler only after successful validation.
 func UpdateRegistry(r Registry) {
 	globalRegistry.Store(&r)
