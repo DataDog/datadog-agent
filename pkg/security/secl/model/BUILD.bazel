@@ -1,5 +1,9 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
+<<<<<<< HEAD
 load("//bazel/rules/cws_codegen:defs.bzl", "accessors", "bpf_maps_generator", "event_deep_copy")
+=======
+load("//bazel/rules/cws_codegen:defs.bzl", "accessors", "bpf_maps_generator")
+>>>>>>> origin/main
 load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
 
 exports_files(

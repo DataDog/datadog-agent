@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fixtures",
+    srcs = ["payloads.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client/fixtures",
+    visibility = ["//visibility:public"],
+)
