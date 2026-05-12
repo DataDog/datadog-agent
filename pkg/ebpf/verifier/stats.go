@@ -204,7 +204,7 @@ func generateLoadFunction(file string, opts *StatsOptions, results *StatsResult,
 				continue
 			}
 
-			if prog.Type().Kind() != reflect.Pointer {
+			if prog.Type().Kind() != reflect.Ptr {
 				return fmt.Errorf("%T is not a pointer to struct", prog)
 			}
 
