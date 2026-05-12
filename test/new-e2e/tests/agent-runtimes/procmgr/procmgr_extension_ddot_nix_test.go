@@ -132,13 +132,7 @@ func (s *procmgrExtensionDDOTLinuxSuite) TestExtensionDDOTManagedByProcmgrNotSys
 		"ConditionPathExists=!…/processes.d/datadog-agent-ddot.yaml should fail so systemd does not own DDOT")
 
 	s.requireCLI()
-	procmgrCLI := procmgrtest.CLIBinForLinuxHost(s.T(), s)
-	procmgrtest.WaitForProcess(s.T(), s, procmgrtest.WaitForProcessArgs{
-		ProcmgrCLIBin:  procmgrCLI,
-		ProcessName:    procmgrtest.DDOTProcessName,
-		ExpectedBinary: procmgrtest.DDOTOtelAgentExtensionBinary,
-		DesiredState:   procmgrtest.ProcessStateRunning,
-	})
+	s.waitForDDOTRunning()
 
 	cmdLine, gerr := s.Env().RemoteHost.Execute(`sudo grep -E '^command:' "` + stableYAML + `"`)
 	require.NoError(s.T(), gerr)
@@ -179,13 +173,7 @@ func (s *procmgrExtensionDDOTLinuxSuite) TestDDOTProcessDescribe() {
 
 func (s *procmgrExtensionDDOTLinuxSuite) waitForDDOTRunning() procmgrtest.WaitForProcessResult {
 	s.T().Helper()
-	procmgrCLI := procmgrtest.CLIBinForLinuxHost(s.T(), s)
-	return procmgrtest.WaitForProcess(s.T(), s, procmgrtest.WaitForProcessArgs{
-		ProcmgrCLIBin:  procmgrCLI,
-		ProcessName:    procmgrtest.DDOTProcessName,
-		ExpectedBinary: procmgrtest.DDOTOtelAgentExtensionBinary,
-		DesiredState:   procmgrtest.ProcessStateRunning,
-	})
+	return procmgrtest.WaitForDDOTRunning(s.T(), s, procmgrtest.DDOTOtelAgentExtensionBinary)
 }
 
 func (s *procmgrExtensionDDOTLinuxSuite) ExecuteCommand(command string) (string, error) {

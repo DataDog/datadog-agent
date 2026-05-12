@@ -136,6 +136,22 @@ func WaitForProcess(t *testing.T, executor CommandExecutor, args WaitForProcessA
 	return result
 }
 
+// WaitForDDOTRunning polls until process datadog-agent-ddot is Running, using CLIBinForLinuxHost
+// and validating describe Command against expectedBinary (e.g. DDOTOtelAgentExtensionBinary vs
+// DDOTOtelAgentFleetPackageBinary for extension vs standalone ddot-package installs).
+func WaitForDDOTRunning(t *testing.T, executor CommandExecutor, expectedBinary string) WaitForProcessResult {
+	t.Helper()
+	require.NotEmpty(t, expectedBinary,
+		"expectedBinary is required (use DDOTOtelAgentExtensionBinary or DDOTOtelAgentFleetPackageBinary)")
+	cli := CLIBinForLinuxHost(t, executor)
+	return WaitForProcess(t, executor, WaitForProcessArgs{
+		ProcmgrCLIBin:  cli,
+		ProcessName:    DDOTProcessName,
+		ExpectedBinary: expectedBinary,
+		DesiredState:   ProcessStateRunning,
+	})
+}
+
 // requireStableRunningPID polls describe for stableWindow and fails if State or PID drifts.
 func requireStableRunningPID(t *testing.T, executor CommandExecutor, describeCmd, wantState, wantPID string) {
 	t.Helper()
