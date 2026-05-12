@@ -9,6 +9,7 @@ package tests
 
 import (
 	"context"
+	"fmt"
 	"os/exec"
 	"testing"
 	"time"
@@ -182,5 +183,40 @@ func TestReplay(t *testing.T) {
 		defer cmd.Cancel()
 
 		assert.Eventually(t, func() bool { return gotEvent.Load() }, 10*time.Second, 100*time.Millisecond, "didn't get the event from replay")
+	})
+
+	t.Run("procfs-snapshot-load-module", func(t *testing.T) {
+		if testEnvironment == DockerEnvironment {
+			t.Skip("skipping kernel module snapshot test in docker")
+		}
+
+		// Make sure the module is loaded before the agent starts so that the
+		// snapshot path picks it up. testModuleName is defined in
+		// kernel_module_test.go (same package) and points at cifs by default.
+		if _, err := loadModule(testModuleName); err != nil {
+			t.Skipf("failed to load %s module: %v", testModuleName, err)
+		}
+
+		ruleDefs := []*rules.RuleDefinition{
+			{
+				ID:         "test_rule_replay_load_module",
+				Expression: fmt.Sprintf(`event.source == "replay" && load_module.name == "%s"`, testModuleName),
+			},
+		}
+
+		gotEvent := atomic.NewBool(false)
+
+		test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
+			ruleMatchHandler: func(_ *testModule, _ *model.Event, r *rules.Rule) {
+				assertTriggeredRule(t, r, "test_rule_replay_load_module")
+				gotEvent.Store(true)
+			},
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer test.Close()
+
+		assert.Eventually(t, func() bool { return gotEvent.Load() }, 10*time.Second, 100*time.Millisecond, "didn't get the load_module event from snapshot")
 	})
 }

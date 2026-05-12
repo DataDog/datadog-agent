@@ -881,6 +881,12 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 
 	p.Walk(entryToEvent)
 
+	// replay synthetic load_module events for every kernel module currently in
+	// /proc/modules. Done after the process-cache walk above so that
+	// findLoaderProcessFromSnapshot can pick from any loader process the walk
+	// surfaced.
+	events = append(events, p.snapshotLoadedModules()...)
+
 	// order events so that they're dispatched in creation time order
 	sort.Slice(events, func(i, j int) bool {
 		eventA := events[i]
@@ -901,6 +907,75 @@ func (p *EBPFProbe) replayEvents(notifyConsumers bool) {
 	}
 	// send not triggered remediations
 	p.HandleRemediationNotTriggered()
+}
+
+// kernelModuleLoaderComms enumerates the well-known userspace process names
+// that load kernel modules. Used as a best-effort match when looking for an
+// anchor for replayed load_module events.
+var kernelModuleLoaderComms = map[string]struct{}{
+	"modprobe":             {},
+	"insmod":               {},
+	"kmod":                 {},
+	"systemd-modules-load": {},
+}
+
+// findLoaderProcessFromSnapshot best-effort searches the process cache for a
+// process whose Comm matches one of the well-known kernel-module loaders.
+// Returns nil when none is found.
+func (p *EBPFProbe) findLoaderProcessFromSnapshot() *model.ProcessCacheEntry {
+	var found *model.ProcessCacheEntry
+	p.Walk(func(entry *model.ProcessCacheEntry) {
+		if found != nil {
+			return
+		}
+		if _, ok := kernelModuleLoaderComms[entry.Process.Comm]; ok {
+			found = entry
+		}
+	})
+	return found
+}
+
+// newSyntheticUnknownLoaderEntry returns a transient (not-cached) process cache
+// entry used as the anchor for synthetic load_module events whose real loader
+// could not be identified by walking the process cache.
+func newSyntheticUnknownLoaderEntry() *model.ProcessCacheEntry {
+	entry := model.NewPlaceholderProcessCacheEntry(0, 0, false)
+	entry.Source = model.ProcessCacheEntryFromUnknownLoader
+	return entry
+}
+
+// snapshotLoadedModules synthesises load_module events for every entry currently
+// in /proc/modules, anchored on a best-effort loader process from the snapshot
+// or a fabricated unknown-loader PCE when none is found. The fallback PCE is
+// constructed lazily and shared across modules. A single up-front scan of
+// /lib/modules/$(uname -r)/ resolves all on-disk module paths so each module
+// is looked up in O(1).
+func (p *EBPFProbe) snapshotLoadedModules() []*model.Event {
+	modules, err := utils.FetchLoadedModules()
+	if err != nil {
+		seclog.Debugf("loaded-module snapshot skipped: %v", err)
+		return nil
+	}
+	if len(modules) == 0 {
+		return nil
+	}
+
+	modulePaths := utils.ScanKernelModulePaths()
+	loader := p.findLoaderProcessFromSnapshot()
+	var fallback *model.ProcessCacheEntry
+
+	events := make([]*model.Event, 0, len(modules))
+	for _, mod := range modules {
+		anchor := loader
+		if anchor == nil {
+			if fallback == nil {
+				fallback = newSyntheticUnknownLoaderEntry()
+			}
+			anchor = fallback
+		}
+		events = append(events, p.newLoadModuleEventFromProcFSSnapshot(mod, modulePaths[mod.Name], anchor))
+	}
+	return events
 }
 
 func (p *EBPFProbe) sendAnomalyDetection(event *model.Event) {
@@ -3639,6 +3714,67 @@ func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *m
 	event.ProcessCacheEntry = entry
 	event.ProcessContext = &entry.ProcessContext
 	event.Exec.Process = &entry.Process
+
+	return event
+}
+
+// newLoadModuleEventFromProcFSSnapshot builds a synthetic load_module event
+// for a kernel module discovered by snapshotting /proc/modules. The event is
+// anchored on the provided process cache entry: when a known userspace loader
+// (modprobe / insmod / kmod / systemd-modules-load) is found in the cache its
+// PCE is reused; otherwise the caller passes a fabricated PCE whose Source is
+// ProcessCacheEntryFromUnknownLoader. modulePath is the on-disk .ko[.xz]
+// resolved by ScanKernelModulePaths, or "" when the module file could not be
+// located.
+func (p *EBPFProbe) newLoadModuleEventFromProcFSSnapshot(mod utils.ProcFSModule, modulePath string, anchor *model.ProcessCacheEntry) *model.Event {
+	event := p.getPoolEvent()
+	event.Timestamp = time.Now()
+	event.TimestampRaw = uint64(p.Resolvers.TimeResolver.ComputeMonotonicTimestamp(event.Timestamp))
+	event.Type = uint32(model.LoadModuleEventType)
+	event.ProcessCacheEntry = anchor
+	event.ProcessContext = &anchor.ProcessContext
+	event.Source = model.EventSourceReplay
+	event.AddToFlags(model.EventFlagsFromReplay)
+
+	event.LoadModule.SyscallEvent.Retval = 0
+	event.LoadModule.Name = mod.Name
+
+	if modulePath == "" {
+		// We could not find a matching file under /lib/modules/$(uname -r)/.
+		// /proc/modules does not record how the module was originally loaded,
+		// so falling back to LoadedFromMemory=true is the best heuristic: it
+		// makes file-path rules skip the event rather than match on stale or
+		// empty data.
+		event.LoadModule.LoadedFromMemory = true
+		event.LoadModule.File.SetPathnameStr("")
+		event.LoadModule.File.SetBasenameStr("")
+		return event
+	}
+
+	// NOTE: we cannot tell whether this module was actually loaded via
+	// init_module(2) (from memory) or finit_module(2) (from file) just from
+	// /proc/modules. Setting LoadedFromMemory=false reflects the fact that we
+	// found a corresponding file on disk; rules that depend on the syscall
+	// distinction should anchor on runtime events, not snapshot events.
+	event.LoadModule.LoadedFromMemory = false
+	event.LoadModule.File.SetPathnameStr(modulePath)
+	event.LoadModule.File.SetBasenameStr(filepath.Base(modulePath))
+
+	// Best-effort file metadata (mirrors newOpenEventFromReplay).
+	var fileStats unix.Statx_t
+	if err := unix.Statx(unix.AT_FDCWD, modulePath, 0, unix.STATX_ALL, &fileStats); err == nil {
+		event.LoadModule.File.FileFields.Mode = uint16(fileStats.Mode)
+		event.LoadModule.File.FileFields.Inode = fileStats.Ino
+		event.LoadModule.File.FileFields.UID = fileStats.Uid
+		event.LoadModule.File.FileFields.GID = fileStats.Gid
+		event.LoadModule.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).Nanosecond())
+		event.LoadModule.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).Nanosecond())
+		event.LoadModule.File.Mode = fileStats.Mode
+		event.LoadModule.File.Inode = fileStats.Ino
+		event.LoadModule.File.Device = fileStats.Dev_major<<20 | fileStats.Dev_minor
+		event.LoadModule.File.NLink = fileStats.Nlink
+		event.LoadModule.File.MountID = uint32(fileStats.Mnt_id)
+	}
 
 	return event
 }

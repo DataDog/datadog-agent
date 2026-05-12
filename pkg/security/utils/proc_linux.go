@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -460,6 +461,72 @@ func FetchLoadedModules() (map[string]ProcFSModule, error) {
 	}
 
 	return output, nil
+}
+
+// ScanKernelModulePaths walks /lib/modules/$(uname -r)/ once and returns a map
+// of module name -> on-disk path. Keys are normalised to the form used in
+// /proc/modules (underscores, no .ko[.xz] suffix) so callers can look up paths
+// directly by the name reported by FetchLoadedModules. Both .ko and .ko.xz
+// files are recognised. Parent symlinks on the returned paths are resolved
+// (common on flatcar/coreos/NixOS where /lib/modules/<release> is itself a
+// symlink).
+//
+// Returns nil when the kernel release cannot be resolved or the modules tree
+// is unreadable. Callers should treat the result as best-effort: not every
+// loaded module necessarily has a file under /lib/modules/<release>.
+func ScanKernelModulePaths() map[string]string {
+	release, err := kernel.Release()
+	if err != nil {
+		return nil
+	}
+	return scanKernelModulePathsIn(filepath.Join("/lib/modules", release))
+}
+
+// scanKernelModulePathsIn is the testable core of ScanKernelModulePaths.
+func scanKernelModulePathsIn(root string) map[string]string {
+	if _, err := os.Stat(root); err != nil {
+		return nil
+	}
+
+	paths := make(map[string]string)
+	_ = filepath.WalkDir(root, func(p string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			// keep walking siblings on permission / stat errors
+			return nil
+		}
+		if d.IsDir() {
+			return nil
+		}
+
+		name := d.Name()
+		switch {
+		case strings.HasSuffix(name, ".ko.xz"):
+			name = strings.TrimSuffix(name, ".ko.xz")
+		case strings.HasSuffix(name, ".ko"):
+			name = strings.TrimSuffix(name, ".ko")
+		default:
+			return nil
+		}
+		// Normalise to the /proc/modules form (underscores). The kernel
+		// transparently accepts both dashes and underscores in module file
+		// names but reports the normalised name through /proc/modules.
+		name = strings.ReplaceAll(name, "-", "_")
+
+		resolved := p
+		if r, err := filepath.EvalSymlinks(p); err == nil {
+			resolved = r
+		}
+
+		// First match wins: in the rare case where two file names normalise to
+		// the same key (e.g. nf-nat.ko and nf_nat.ko coexist), we keep the
+		// first hit rather than oscillating with WalkDir's traversal order.
+		if _, exists := paths[name]; !exists {
+			paths[name] = resolved
+		}
+		return nil
+	})
+
+	return paths
 }
 
 // GetProcessPidNamespace returns the PID namespace of the given PID
