@@ -9,7 +9,6 @@ package configstreamimpl
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -20,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstream "github.com/DataDog/datadog-agent/comp/core/configstream/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -69,10 +68,6 @@ type subscription struct {
 
 // NewComponent creates a new configstream component.
 func NewComponent(reqs Requires) (Provides, error) {
-	if reqs.Config.GetBool("remote_agent.configstream.enabled") && !reqs.Config.GetBool("remote_agent.registry.enabled") {
-		return Provides{}, errors.New("remote_agent.configstream.enabled is true but remote_agent.registry.enabled is not; set remote_agent.registry.enabled: true to use config stream for remote agents")
-	}
-
 	cs := &configStream{
 		config:          reqs.Config,
 		log:             reqs.Log,

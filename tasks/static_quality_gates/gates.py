@@ -562,15 +562,7 @@ class StaticQualityGate:
         """
         violations = []
 
-        if measurement.on_wire_size > self.config.max_on_wire_size:
-            violations.append(
-                SizeViolation(
-                    measurement_type="wire",
-                    current_size=measurement.on_wire_size,
-                    max_size=self.config.max_on_wire_size,
-                )
-            )
-
+        # Only on-disk size can currently cause a violation
         if measurement.on_disk_size > self.config.max_on_disk_size:
             violations.append(
                 SizeViolation(

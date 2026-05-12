@@ -1,11 +1,17 @@
 {
-  "type": "unsupported",
-  "operation": "contains",
-  "argument": [
-    {
-      "ref": "payload"
-    },
-    "hello"
-  ],
+  "type": "contains",
+  "operation": "",
+  "left": {
+    "type": "ref",
+    "ref": "payload",
+    "operation": "",
+    "error": ""
+  },
+  "right": {
+    "type": "literal",
+    "operation": "",
+    "value": "hello",
+    "error": ""
+  },
   "error": ""
 }

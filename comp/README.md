@@ -199,6 +199,12 @@ Package remoteagent implements the remote agent component
 Package remoteagentregistry provides an integration point for remote agents to register and be able to report their
 status and emit flare data
 
+### [comp/core/remoteflags](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/remoteflags)
+
+*Datadog Team*: agent-configuration
+
+Package remoteflags provides the Remote Flags component for dynamic feature flag management.
+
 ### [comp/core/secrets](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/secrets)
 
 *Datadog Team*: agent-configuration
@@ -325,20 +331,21 @@ Package orchestratorinterface defines the interface for the orchestrator forward
 Package healthplatform implements the "healthplatform" bundle, providing the
 health platform component for detecting and reporting agent health issues.
 
-### [comp/healthplatform/checkrunner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/checkrunner)
-
-Package checkrunner defines the interface for the health platform check runner.
-
-### [comp/healthplatform/core](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/core)
-
-Package core provides the interface for the health platform component.
-This component collects and reports health information from the host system,
-sending it to the Datadog backend with hostname, host ID, organization ID,
-and a list of issues.
-
 ### [comp/healthplatform/forwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/forwarder)
 
 Package forwarder defines the interface for the health platform forwarder.
+
+### [comp/healthplatform/scheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/scheduler)
+
+Package scheduler defines the interface for the health platform scheduler
+(the periodic runner of built-in health checks).
+
+### [comp/healthplatform/store](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/store)
+
+Package store provides the interface for the health platform store component.
+The store collects and reports health information from the host system,
+sending it to the Datadog backend with hostname, host ID, organization ID,
+and a list of issues.
 
 ## [comp/host-profiler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/host-profiler) (Component Bundle)
 
@@ -832,11 +839,11 @@ Package client implements a component to send process metadata to the Cluster-Ag
 
 Package logonduration provides a component that monitors the duration of a user logon after boot and forwards them to the Datadog Event Management v2 API.
 
-### [comp/networkdeviceconfig](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkdeviceconfig)
+### [comp/networkconfigmanagement](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkconfigmanagement)
 
 *Datadog Team*: ndm-integrations
 
-Package networkdeviceconfig provides the component for retrieving network device configurations.
+Package networkconfigmanagement provides the component for retrieving network device configurations.
 
 ### [comp/notableevents](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/notableevents)
 
