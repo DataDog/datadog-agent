@@ -212,6 +212,8 @@ func (c *NTPCheck) Run() error {
 				c.cfg.instance.Hosts = servers // Update the list of hosts for this run
 			}
 			// Silent when no change - removed repetitive debug logging
+			// Local servers are active; clear hostsFromCloud so the waterfall does not fire.
+			c.cfg.hostsFromCloud = false
 		}
 	}
 
@@ -310,9 +312,15 @@ func (c *NTPCheck) queryOffset() (float64, float64, error) {
 	}
 
 	if len(samples) == 0 {
+		hostMsg := fmt.Sprintf("[ %s ]", strings.Join(c.cfg.instance.Hosts, ", "))
+		if c.cfg.hostsFromCloud {
+			hostMsg = fmt.Sprintf("cloud hosts [ %s ] and fallback pool [ %s ] both unreachable",
+				strings.Join(c.cfg.instance.Hosts, ", "),
+				strings.Join(defaultDatadogPool, ", "))
+		}
 		return 0, 0, fmt.Errorf(
-			"failed to get clock offset from any ntp host: [ %s ]. See https://docs.datadoghq.com/agent/troubleshooting/ntp/ for more details on how to debug this issue",
-			strings.Join(c.cfg.instance.Hosts, ", "),
+			"failed to get clock offset from any ntp host: %s. See https://docs.datadoghq.com/agent/troubleshooting/ntp/ for more details on how to debug this issue",
+			hostMsg,
 		)
 	}
 

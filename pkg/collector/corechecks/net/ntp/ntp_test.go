@@ -339,7 +339,51 @@ func TestNTPCloudAndPoolBothFail(t *testing.T) {
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 	assert.Error(t, err)
-	assert.EqualError(t, err, "failed to get clock offset from any ntp host: [ 169.254.169.123 ]. See https://docs.datadoghq.com/agent/troubleshooting/ntp/ for more details on how to debug this issue")
+	assert.EqualError(t, err, "failed to get clock offset from any ntp host: cloud hosts [ 169.254.169.123 ] and fallback pool [ 0.datadog.pool.ntp.org, 1.datadog.pool.ntp.org, 2.datadog.pool.ntp.org, 3.datadog.pool.ntp.org ] both unreachable. See https://docs.datadoghq.com/agent/troubleshooting/ntp/ for more details on how to debug this issue")
+}
+
+func TestNTPUserConfiguredHostsNoFallback(t *testing.T) {
+	// Cloud provider returns EC2 hosts, but explicit YAML hosts must suppress the waterfall
+	getCloudProviderNTPHosts = func(_ context.Context) []string { return []string{"169.254.169.123"} }
+	defer func() { getCloudProviderNTPHosts = cloudproviders.GetCloudProviderNTPHosts }()
+
+	var queriedHosts []string
+	// all NTP queries fail, no host should succeed
+	ntpQuery = func(host string, _ ntp.QueryOptions) (*ntp.Response, error) {
+		queriedHosts = append(queriedHosts, host)
+		return nil, errors.New("all hosts fail")
+	}
+	defer func() { ntpQuery = ntp.QueryWithOptions }()
+
+	ntpCheck := new(NTPCheck)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	// Set hosts: [custom.ntp.example.com] in the YAML config
+	ntpCheck.Configure(senderManager, integration.FakeConfigHash, []byte("hosts:\n  - custom.ntp.example.com"), []byte(""), "test", "provider")
+
+	mockSender := mocksender.NewMockSenderWithSenderManager(ntpCheck.ID(), senderManager)
+	mockSender.On("GaugeWithTimestamp",
+		"ntp.intake_offset",
+		mock.AnythingOfType("float64"),
+		"",
+		[]string(nil),
+		mock.AnythingOfType("float64")).Return().Maybe()
+	mockSender.On("ServiceCheck",
+		"ntp.in_sync",
+		servicecheck.ServiceCheckUnknown,
+		"",
+		[]string(nil),
+		mock.AnythingOfType("string")).Return().Times(1)
+	mockSender.On("Commit").Return().Times(1)
+	err := ntpCheck.Run()
+
+	mockSender.AssertExpectations(t)
+	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
+	mockSender.AssertNumberOfCalls(t, "Commit", 1)
+	assert.Error(t, err)
+	// Default Datadog pool must never be queried, waterfall suppressed by user-configured hosts
+	assert.NotContains(t, queriedHosts, defaultDatadogPool[0])
+	// Error lists only the user-configured host
+	assert.EqualError(t, err, "failed to get clock offset from any ntp host: [ custom.ntp.example.com ]. See https://docs.datadoghq.com/agent/troubleshooting/ntp/ for more details on how to debug this issue")
 }
 
 func TestNTPInvalid(t *testing.T) {
