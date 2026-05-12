@@ -80,14 +80,15 @@ func dictValueKeys(dict *bzl.DictExpr) map[string]string {
 	return m
 }
 
-// allPlatformsExcept returns all knownOSPlatforms except the named ones.
+// allPlatformsExcept returns all known platforms except the named ones, in
+// arbitrary order.
 func allPlatformsExcept(excluded ...string) []string {
 	excl := make(map[string]struct{}, len(excluded))
 	for _, e := range excluded {
 		excl[e] = struct{}{}
 	}
 	var out []string
-	for _, p := range knownOSPlatforms {
+	for p := range knownOSPlatformSet {
 		if _, skip := excl[p]; !skip {
 			out = append(out, p)
 		}
@@ -95,9 +96,16 @@ func allPlatformsExcept(excluded ...string) []string {
 	return out
 }
 
-// nPlatforms returns the first n platforms from knownOSPlatforms.
+// nPlatforms returns any n known platforms, in arbitrary order.
 func nPlatforms(n int) []string {
-	return knownOSPlatforms[:n]
+	out := make([]string, 0, n)
+	for p := range knownOSPlatformSet {
+		if len(out) == n {
+			break
+		}
+		out = append(out, p)
+	}
+	return out
 }
 
 // --- exprKey -----------------------------------------------------------------
@@ -160,7 +168,7 @@ func TestExprKey(t *testing.T) {
 // --- extractOSPlatform -------------------------------------------------------
 
 func TestExtractOSPlatform(t *testing.T) {
-	for _, platform := range knownOSPlatforms {
+	for platform := range knownOSPlatformSet {
 		t.Run("valid/"+platform, func(t *testing.T) {
 			got, ok := extractOSPlatform(rulesGoPrefix + platform)
 			assert.True(t, ok)
@@ -265,7 +273,7 @@ func TestCollapseDictNoInversionWhenNotBeneficial(t *testing.T) {
 
 func TestCollapseDictEvenSplitNoInversion(t *testing.T) {
 	// Half explicit, half missing: inversion produces the same number of entries, so it provides no benefit.
-	platforms := nPlatforms(len(knownOSPlatforms) / 2)
+	platforms := nPlatforms(len(knownOSPlatformSet) / 2)
 	var args []interface{}
 	for _, p := range platforms {
 		args = append(args, osKey(p), []string{unixPkg})
@@ -279,11 +287,16 @@ func TestCollapseDictEvenSplitNoInversion(t *testing.T) {
 
 func TestCollapseDictInversionBeneficial(t *testing.T) {
 	// Use 1/4 of platforms as the "missing" minority so inversion clearly wins.
-	numMissing := len(knownOSPlatforms) / 4
-	numExplicit := len(knownOSPlatforms) - numMissing
-	platforms := nPlatforms(numExplicit)
+	// Build a single slice and split it so the explicit and missing halves stay
+	// complementary across the map iteration.
+	all := make([]string, 0, len(knownOSPlatformSet))
+	for p := range knownOSPlatformSet {
+		all = append(all, p)
+	}
+	numMissing := len(all) / 4
+	numExplicit := len(all) - numMissing
 	var args []interface{}
-	for _, p := range platforms {
+	for _, p := range all[:numExplicit] {
 		args = append(args, osKey(p), []string{unixPkg})
 	}
 	args = append(args, condDefault, []string{})
@@ -300,7 +313,7 @@ func TestCollapseDictInversionBeneficial(t *testing.T) {
 
 	// All missing platforms are present with the old default value.
 	missing := make(map[string]struct{})
-	for _, p := range knownOSPlatforms[numExplicit:] {
+	for _, p := range all[numExplicit:] {
 		missing[osKey(p)] = struct{}{}
 	}
 	for cond, vk := range got {
@@ -518,9 +531,9 @@ func TestConfigureParentNotMutated(t *testing.T) {
 func TestInvertedSelectMissingPlatformsSorted(t *testing.T) {
 	// Missing platforms in the inverted select should appear in sorted order,
 	// giving deterministic BUILD file output across runs.
-	numMissing := len(knownOSPlatforms) / 4
+	numMissing := len(knownOSPlatformSet) / 4
 	var args []interface{}
-	for _, p := range knownOSPlatforms[numMissing:] {
+	for _, p := range nPlatforms(len(knownOSPlatformSet) - numMissing) {
 		args = append(args, osKey(p), []string{unixPkg})
 	}
 	args = append(args, condDefault, []string{})

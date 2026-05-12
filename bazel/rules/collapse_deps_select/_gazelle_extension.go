@@ -35,7 +35,7 @@
 // //conditions:default, the select is inverted. The shared value becomes the
 // new //conditions:default, and explicit branches are added only for the
 // platforms that were previously covered by //conditions:default (computed as
-// knownOSPlatforms minus the explicitly listed platforms). This transformation
+// knownOSPlatformSet minus the explicitly listed platforms). This transformation
 // is only applied when inversion produces fewer entries than the original, and
 // only when all explicit conditions are OS-level @rules_go//go/platform:{os}
 // keys (no GOARCH suffix).
@@ -71,12 +71,12 @@ import (
 
 const extName = "collapse_deps_select"
 
-// knownOSPlatforms is the complete set of OS platform names that rules_go
+// knownOSPlatformSet is the complete set of OS platform names that rules_go
 // emits as select() condition keys (the "{os}" part of "@rules_go//go/platform:{os}",
 // without any GOARCH suffix). When the Go extension resolves a //go:build
-// constraint, it generates one select branch per platform in this list.
+// constraint, it generates one select branch per platform in this set.
 //
-// Keep this list in sync with the platforms emitted by rules_go. If a new
+// Keep this set in sync with the platforms emitted by rules_go. If a new
 // platform is added to rules_go and is missing here, selects covering all
 // platforms except that one will not be collapsed — the extension skips any
 // select containing an unrecognized condition key, which is safe.
@@ -98,7 +98,6 @@ var knownOSPlatformSet = map[string]struct{}{
 	"solaris":   {},
 	"windows":   {},
 }
-}()
 
 const (
 	rulesGoPrefix = "@rules_go//go/platform:"
@@ -330,7 +329,7 @@ func collapseDict(dict *bzl.DictExpr) *bzl.DictExpr {
 // invertOSSelect attempts to invert a select where all non-default entries are
 // OS-level @rules_go//go/platform:{os} conditions with the same value. It
 // replaces the explicit entries with entries for the "missing" platforms (those
-// in knownOSPlatforms but not in the explicit list), giving the majority value
+// in knownOSPlatformSet but not in the explicit list), giving the majority value
 // to //conditions:default. Returns nil if inversion would not reduce entry count.
 func invertOSSelect(nonDefault []*bzl.KeyValueExpr, defaultKV *bzl.KeyValueExpr) *bzl.DictExpr {
 	explicit := make(map[string]struct{}, len(nonDefault))
@@ -343,7 +342,7 @@ func invertOSSelect(nonDefault []*bzl.KeyValueExpr, defaultKV *bzl.KeyValueExpr)
 	}
 
 	var missing []string
-	for _, p := range knownOSPlatforms {
+	for p := range knownOSPlatformSet {
 		if _, ok := explicit[p]; !ok {
 			missing = append(missing, p)
 		}
@@ -372,7 +371,7 @@ func invertOSSelect(nonDefault []*bzl.KeyValueExpr, defaultKV *bzl.KeyValueExpr)
 // of the form "@rules_go//go/platform:{os}" with no architecture suffix (e.g.
 // "@rules_go//go/platform:linux" is accepted, "@rules_go//go/platform:linux_amd64"
 // is not). Returns the OS name and true on success, empty string and false
-// otherwise. Keys not in knownOSPlatforms are rejected so that an unrecognized
+// otherwise. Keys not in knownOSPlatformSet are rejected so that an unrecognized
 // platform causes the caller to bail out rather than silently mishandling it.
 func extractOSPlatform(condition string) (string, bool) {
 	platform, ok := strings.CutPrefix(condition, rulesGoPrefix)
