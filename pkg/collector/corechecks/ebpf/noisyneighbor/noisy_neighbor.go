@@ -108,7 +108,6 @@ func (n *NoisyNeighborCheck) Run() error {
 		tags := n.getContainerTags(stat)
 		n.submitPrimaryMetrics(sender, stat, tags)
 		n.submitRawCounters(sender, stat, tags)
-		n.submitPSIFullMetrics(sender, stat, tags)
 	}
 	sender.Gauge("noisy_neighbor.system.cgroups_tracked", float64(totalCgroups), "", nil)
 	sender.Commit()
@@ -160,35 +159,4 @@ func (n *NoisyNeighborCheck) submitRawCounters(sender sender.Sender, stat model.
 	sender.Count("noisy_neighbor.softirq_ns", float64(stat.SumSoftirqNs), "", tags)
 	sender.Count("noisy_neighbor.block_io_requests", float64(stat.BlockIORequests), "", tags)
 	sender.Count("noisy_neighbor.wakeups", float64(stat.WakeupCount), "", tags)
-}
-
-// submitPSIFullMetrics emits the cgroup-scoped PSI "full" stalls for memory
-// and io. The "some" variants are already emitted by the generic container
-// processor as container.{memory,io}.partial_stall — we deliberately do not
-// duplicate those here. CPU "full" PSI is not exposed at the cgroup level
-// by the kernel.
-//
-// Emitted as Gauge of the cumulative-since-cgroup-creation microsecond
-// counter. Backend or dashboard math can compute deltas; emitting Gauge
-// (rather than Rate or MonotonicCount) means single-shot `agent check`
-// invocations include the value, which Rate/MonotonicCount would drop for
-// lack of a prior sample.
-func (n *NoisyNeighborCheck) submitPSIFullMetrics(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
-	cg := n.cgroupReader.GetCgroupByInode(stat.CgroupID)
-	if cg == nil {
-		log.Debugf("noisy_neighbor: cgroup not found for inode %d, skipping PSI metrics", stat.CgroupID)
-		return
-	}
-	memStats := &cgroups.MemoryStats{}
-	if err := cg.GetMemoryStats(memStats); err != nil {
-		log.Debugf("noisy_neighbor: GetMemoryStats failed for cgroup %d: %v", stat.CgroupID, err)
-	} else if memStats.PSIFull.Total != nil {
-		sender.Gauge("noisy_neighbor.memory.pressure.full.total_us", float64(*memStats.PSIFull.Total), "", tags)
-	}
-	ioStats := &cgroups.IOStats{}
-	if err := cg.GetIOStats(ioStats); err != nil {
-		log.Debugf("noisy_neighbor: GetIOStats failed for cgroup %d: %v", stat.CgroupID, err)
-	} else if ioStats.PSIFull.Total != nil {
-		sender.Gauge("noisy_neighbor.io.pressure.full.total_us", float64(*ioStats.PSIFull.Total), "", tags)
-	}
 }
