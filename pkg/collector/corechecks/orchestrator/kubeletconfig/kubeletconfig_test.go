@@ -102,6 +102,9 @@ func (f *fakeDCAClient) GetClusterCheckConfigs(_ context.Context, _ string) (typ
 func (f *fakeDCAClient) GetEndpointsCheckConfigs(_ context.Context, _ string) (types.ConfigResponse, error) {
 	panic("not used")
 }
+func (f *fakeDCAClient) GetInstrumentationConfigs(_ context.Context) (types.ConfigResponse, error) {
+	panic("not used")
+}
 func (f *fakeDCAClient) GetKubernetesClusterID() (string, error) { panic("not used") }
 func (f *fakeDCAClient) PostLanguageMetadata(_ context.Context, _ *pbgo.ParentLanguageAnnotationRequest) error {
 	panic("not used")

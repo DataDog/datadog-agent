@@ -127,6 +127,10 @@ func (f *FakeDCAClient) GetEndpointsCheckConfigs(_ context.Context, _ string) (t
 	return f.EndpointsCheckConfigs, f.EndpointsCheckConfigsErr
 }
 
+func (f *FakeDCAClient) GetInstrumentationConfigs(_ context.Context) (types.ConfigResponse, error) {
+	return types.ConfigResponse{}, nil
+}
+
 func (f *FakeDCAClient) GetKubernetesClusterID() (string, error) {
 	return f.ClusterID, f.ClusterIDErr
 }

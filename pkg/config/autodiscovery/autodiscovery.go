@@ -36,6 +36,14 @@ func DiscoverComponentsFromConfig() ([]pkgconfigsetup.ConfigurationProviders, []
 		log.Infof("Prometheus scraping is enabled: Adding the Prometheus config provider '%s'", prometheusProvider.Name)
 		detectedProviders = append(detectedProviders, prometheusProvider)
 	}
+
+	// Add instrumentation checks provider if `instrumentation_crd_controller.enabled` is true
+	if pkgconfigsetup.Datadog().GetBool("instrumentation_crd_controller.enabled") && flavor.GetFlavor() == flavor.DefaultAgent {
+		instrumentationChecksProvider := pkgconfigsetup.ConfigurationProviders{Name: "instrumentation_checks", Polling: true, PollInterval: "30s"}
+		log.Info("Instrumentation controller is enabled: Adding the instrumentation checks config provider")
+		detectedProviders = append(detectedProviders, instrumentationChecksProvider)
+	}
+
 	// Add database-monitoring aurora listener if the feature is enabled
 	if pkgconfigsetup.Datadog().GetBool("database_monitoring.autodiscovery.aurora.enabled") {
 		detectedListeners = append(detectedListeners, pkgconfigsetup.Listeners{Name: "database-monitoring-aurora"})

@@ -86,6 +86,7 @@ type DCAClientInterface interface {
 	PostClusterCheckStatus(ctx context.Context, nodeName string, status types.NodeStatus) (types.StatusResponse, error)
 	GetClusterCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error)
 	GetEndpointsCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error)
+	GetInstrumentationConfigs(ctx context.Context) (types.ConfigResponse, error)
 	GetKubernetesClusterID() (string, error)
 
 	PostLanguageMetadata(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) error
