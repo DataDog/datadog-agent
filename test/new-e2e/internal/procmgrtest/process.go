@@ -31,6 +31,8 @@ const (
 	CLIBinFleetStable                       = "/opt/datadog-packages/datadog-agent/stable/embedded/bin/dd-procmgr"
 	waitForProcessTimeout                   = 90 * time.Second
 	waitForProcessPollInterval              = 2 * time.Second
+	waitForProcessRunningStableWindow       = 5 * time.Second
+	waitForProcessRunningStablePoll         = 500 * time.Millisecond
 	ProcessStateRunning                     = "Running"
 	DDOTOtelAgentFleetPackageBinary         = "/opt/datadog-packages/datadog-agent-ddot/stable/embedded/bin/otel-agent"
 	DDOTOtelAgentFleetStableExtensionBinary = "/opt/datadog-packages/datadog-agent/stable/ext/ddot/embedded/bin/otel-agent"
@@ -85,6 +87,8 @@ type WaitForProcessResult struct {
 // a snapshot result. Restarts is always populated; PID is only populated for
 // ProcessStateRunning. For ProcessStateRunning it also validates Command,
 // readlink -f on Command vs /proc/<pid>/exe, and optional ExpectedBinary resolution.
+// When DesiredState is Running, it then polls for waitForProcessRunningStableWindow
+// to assert State stays Running and PID does not change.
 func WaitForProcess(t *testing.T, executor CommandExecutor, args WaitForProcessArgs) WaitForProcessResult {
 	t.Helper()
 	require.NotEmpty(t, args.ProcmgrCLIBin, "WaitForProcessArgs.ProcmgrCLIBin must be set")
@@ -126,7 +130,28 @@ func WaitForProcess(t *testing.T, executor CommandExecutor, args WaitForProcessA
 		result = r
 		return true
 	}, waitForProcessTimeout, waitForProcessPollInterval, fmt.Sprintf("process %q should be %s via dd-procmgr describe", args.ProcessName, desiredState))
+	if desiredState == ProcessStateRunning && result.PID != "" {
+		requireStableRunningPID(t, executor, describeCmd, desiredState, result.PID)
+	}
 	return result
+}
+
+// requireStableRunningPID polls describe for stableWindow and fails if State or PID drifts.
+func requireStableRunningPID(t *testing.T, executor CommandExecutor, describeCmd, wantState, wantPID string) {
+	t.Helper()
+	start := time.Now()
+	for {
+		out, err := executor.ExecuteCommand(describeCmd)
+		require.NoError(t, err, "dd-procmgr describe during stable window: %s", describeCmd)
+		st := fieldValue(out, "State")
+		require.Equal(t, wantState, st, "State changed during stable window (elapsed %s)\ndescribe:\n%s", time.Since(start), out)
+		pid := fieldValue(out, "PID")
+		require.Equal(t, wantPID, pid, "PID changed during stable window (elapsed %s)\ndescribe:\n%s", time.Since(start), out)
+		if time.Since(start) >= waitForProcessRunningStableWindow {
+			return
+		}
+		time.Sleep(waitForProcessRunningStablePoll)
+	}
 }
 
 func resolveExpectedBinaryHint(
