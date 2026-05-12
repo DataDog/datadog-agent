@@ -482,6 +482,10 @@ cc_library(
         "-O2",
     ],
     deps = [
+        # libxml2 is needed only for the <libxml/xmlerror.h> header pulled in by
+        # common/_error.h. The xmlError type is referenced as a pointer parameter
+        # but no libxml2 function is actually called, so nothing from libxml2
+        # gets linked into libopenscap_sce.so.
         "@libxml2//:libxml2",
     ],
     local_defines = COMMON_DEFINES,
