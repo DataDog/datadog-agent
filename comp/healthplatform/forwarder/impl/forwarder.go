@@ -81,7 +81,7 @@ func New(reqs Requires) forwarderdef.Component {
 
 	hostname, err := reqs.Hostname.Get(context.Background())
 	if err != nil {
-		reqs.Log.Warn("Health platform forwarder: failed to get hostname, will use empty string: " + err.Error())
+		reqs.Log.Warn("[AGENTLITECONFIG] Health platform forwarder: failed to get hostname, will use empty string: " + err.Error())
 		hostname = ""
 	}
 
@@ -112,13 +112,13 @@ func New(reqs Requires) forwarderdef.Component {
 }
 
 func (f *forwarder) start(_ context.Context) error {
-	f.log.Info(fmt.Sprintf("Starting health platform forwarder with %v interval to %s", f.interval, f.intakeURL))
+	f.log.Info(fmt.Sprintf("[AGENTLITECONFIG] Starting health platform forwarder with %v interval to %s", f.interval, f.intakeURL))
 	go f.run()
 	return nil
 }
 
 func (f *forwarder) stop(_ context.Context) error {
-	f.log.Info("Stopping health platform forwarder")
+	f.log.Info("[AGENTLITECONFIG] Stopping health platform forwarder")
 	close(f.stopCh)
 	<-f.doneCh
 	return nil
@@ -169,24 +169,24 @@ func (f *forwarder) sendHealthReport() {
 	f.providerMu.RUnlock()
 
 	if provider == nil {
-		f.log.Warn("Health platform forwarder has no provider set, skipping report")
+		f.log.Warn("[AGENTLITECONFIG] Health platform forwarder has no provider set, skipping report")
 		return
 	}
 	count, issues := provider.GetAllIssues()
 
 	if count == 0 {
-		f.log.Info("No health issues to report")
+		f.log.Info("[AGENTLITECONFIG] No health issues to report")
 		return
 	}
 
 	report := f.buildReport(issues)
 
 	if err := f.send(report); err != nil {
-		f.log.Warn(fmt.Sprintf("Failed to send health report: %v", err))
+		f.log.Warn(fmt.Sprintf("[AGENTLITECONFIG] Failed to send health report: %v", err))
 		return
 	}
 
-	f.log.Info(fmt.Sprintf("Successfully sent health report with %d issues", count))
+	f.log.Info(fmt.Sprintf("[AGENTLITECONFIG] Successfully sent health report with %d issues", count))
 }
 
 // buildReport creates a HealthReport from the current issues
@@ -214,7 +214,7 @@ func (f *forwarder) send(report *healthplatform.HealthReport) error {
 		apiKey = f.liteCfgFallback.APIKey.Value
 		intakeURL = lite.IntakeURL(f.liteCfgFallback.Site.Value)
 		f.log.Info(fmt.Sprintf(
-			"Health platform forwarder using api_key from lite fallback (source=%s matched_key=%q)",
+			"[AGENTLITECONFIG] Health platform forwarder using api_key from lite fallback (source=%s matched_key=%q)",
 			f.liteCfgFallback.APIKey.Source, f.liteCfgFallback.APIKey.MatchedKey))
 	}
 	if apiKey == "" {

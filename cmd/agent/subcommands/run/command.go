@@ -225,17 +225,27 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		// to agent health.
 		defer func() {
 			if r := recover(); r != nil {
-				_ = lite.Rescue(context.Background(),
+				fmt.Fprintf(os.Stderr, "[AGENTLITECONFIG] rescue firing on panic: %v\n", r)
+				if err := lite.Rescue(context.Background(),
 					globalParams.ConfFilePath,
 					lite.DefaultConfigPath(),
-					fmt.Errorf("agent run panic: %v", r))
+					fmt.Errorf("agent run panic: %v", r)); err != nil {
+					fmt.Fprintf(os.Stderr, "[AGENTLITECONFIG] rescue returned error: %v\n", err)
+				} else {
+					fmt.Fprintln(os.Stderr, "[AGENTLITECONFIG] rescue POST succeeded")
+				}
 				panic(r) // re-raise for non-zero exit
 			}
 			if rErr != nil {
-				_ = lite.Rescue(context.Background(),
+				fmt.Fprintf(os.Stderr, "[AGENTLITECONFIG] rescue firing on Fx error: %v\n", rErr)
+				if err := lite.Rescue(context.Background(),
 					globalParams.ConfFilePath,
 					lite.DefaultConfigPath(),
-					rErr)
+					rErr); err != nil {
+					fmt.Fprintf(os.Stderr, "[AGENTLITECONFIG] rescue returned error: %v\n", err)
+				} else {
+					fmt.Fprintln(os.Stderr, "[AGENTLITECONFIG] rescue POST succeeded")
+				}
 			}
 		}()
 

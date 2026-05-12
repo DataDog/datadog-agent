@@ -90,7 +90,7 @@ func (c *checker) issueInfoFor(path string, result lite.ValidationResult) (lite.
 	case lite.VerdictSchemaUnavailable:
 		// log once to avoid spam
 		c.schemaUnavailable.Do(func() {
-			pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check")
+			pkglog.Warnf("[AGENTLITECONFIG] invalidconfig: schema validator unavailable; skipping check")
 		})
 	}
 	return lite.IssueInfo{}, false
