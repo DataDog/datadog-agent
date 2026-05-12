@@ -1,6 +1,10 @@
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# Exported as a data dep for //bazel/flavors:verify_flavor_tags, which parses
+# the flavorUnitTestTags literal to ensure it stays in sync with defs.bzl.
+exports_files(["_gazelle_extension.go"])
+
 # strip the leading _ solely meant to prevent `go mod tidy` from adding @gazelle deps to the root go.mod
 copy_file(
     name = "gazelle_extension_src",

@@ -6,6 +6,9 @@
 package dd_go_test
 
 import (
+	"os"
+	"path/filepath"
+	"sort"
 	"testing"
 
 	"github.com/bazelbuild/bazel-gazelle/config"
@@ -27,7 +30,7 @@ func newLang() *lang {
 
 func TestReplaceGoTests_NonGoTestPassesThrough(t *testing.T) {
 	lib := rule.NewRule("go_library", "lib")
-	result := newLang().replaceGoTests(makeGoTestResult(lib), nil)
+	result := newLang().replaceGoTests(makeGoTestResult(lib), nil, "")
 
 	if len(result.Gen) != 1 || result.Gen[0].Kind() != "go_library" {
 		t.Errorf("expected go_library to pass through, got %v", result.Gen)
@@ -45,7 +48,7 @@ func TestReplaceGoTests_SingleGoTest(t *testing.T) {
 	orig.SetAttr("embed", []string{":pkg"})
 	orig.SetAttr("deps", []string{"//some/dep"})
 
-	result := newLang().replaceGoTests(makeGoTestResult(orig), nil)
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, "")
 
 	if len(result.Gen) != 1 {
 		t.Fatalf("expected 1 gen rule, got %d", len(result.Gen))
@@ -73,7 +76,7 @@ func TestReplaceGoTests_AttrsCarriedOver(t *testing.T) {
 	orig.SetAttr("data", []string{"testdata/foo.json"})
 	orig.SetAttr("target_compatible_with", []string{"@platforms//os:linux"})
 
-	result := newLang().replaceGoTests(makeGoTestResult(orig), nil)
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, "")
 	r := result.Gen[0]
 
 	if got := r.AttrStrings("embed"); !stringSlicesEqual(got, []string{":mypkg"}) {
@@ -104,7 +107,7 @@ func TestReplaceGoTests_ExistingAttrsPreserved(t *testing.T) {
 	prior.SetAttr("srcs", []string{"stale.go"}) // Gazelle-owned -> should NOT carry over
 	file := &rule.File{Rules: []*rule.Rule{prior}}
 
-	result := newLang().replaceGoTests(makeGoTestResult(fresh), file)
+	result := newLang().replaceGoTests(makeGoTestResult(fresh), file, "")
 	r := result.Gen[0]
 
 	if got := r.AttrStrings("data"); !stringSlicesEqual(got, []string{"testdata/foo.json"}) {
@@ -126,7 +129,7 @@ func TestReplaceGoTests_ExistingAttrsPreserved(t *testing.T) {
 
 func TestReplaceGoTests_ImportsForwarded(t *testing.T) {
 	orig := rule.NewRule("go_test", "t")
-	result := newLang().replaceGoTests(makeGoTestResult(orig), nil)
+	result := newLang().replaceGoTests(makeGoTestResult(orig), nil, "")
 	if len(result.Imports) != len(result.Gen) {
 		t.Errorf("Imports len %d != Gen len %d", len(result.Imports), len(result.Gen))
 	}
@@ -140,7 +143,7 @@ func TestReplaceGoTests_MixedRules(t *testing.T) {
 	tst := rule.NewRule("go_test", "lib_test")
 	bin := rule.NewRule("go_binary", "main")
 
-	result := newLang().replaceGoTests(makeGoTestResult(lib, tst, bin), nil)
+	result := newLang().replaceGoTests(makeGoTestResult(lib, tst, bin), nil, "")
 
 	if len(result.Gen) != 3 {
 		t.Fatalf("expected 3 gen rules, got %d", len(result.Gen))
@@ -238,6 +241,90 @@ func TestShouldReplace(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := shouldReplace(tc.c); got != tc.want {
 				t.Errorf("shouldReplace = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestApplicableFlavors(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, header string) string {
+		path := filepath.Join(dir, name)
+		body := ""
+		if header != "" {
+			body = header + "\n\n"
+		}
+		body += "package x\n"
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+		return name
+	}
+
+	noConstraint := write("plain_test.go", "")
+	linuxBpf := write("bpf_test.go", "//go:build linux_bpf")
+	requireFips := write("fips_test.go", "//go:build requirefips")
+	windowsOnly := write("win_test.go", "//go:build windows")
+	notRequireFips := write("nofips_test.go", "//go:build !requirefips")
+	goVersion := write("ver_test.go", "//go:build go1.22")
+	tagCombined := write("combo_test.go", "//go:build kubeapiserver && linux")
+
+	for _, tc := range []struct {
+		name string
+		srcs []string
+		want []string
+	}{
+		{
+			name: "unconstrained file => all flavors",
+			srcs: []string{noConstraint},
+			want: []string{"base", "dogstatsd", "fips", "heroku", "iot"},
+		},
+		{
+			name: "linux_bpf only => no flavor (no flavor's tag set contains linux_bpf)",
+			srcs: []string{linuxBpf},
+			want: nil,
+		},
+		{
+			name: "requirefips => only fips",
+			srcs: []string{requireFips},
+			want: []string{"fips"},
+		},
+		{
+			name: "windows-only => all flavors (platform tokens treated as may-match)",
+			srcs: []string{windowsOnly},
+			want: []string{"base", "dogstatsd", "fips", "heroku", "iot"},
+		},
+		{
+			name: "!requirefips => everything except fips",
+			srcs: []string{notRequireFips},
+			want: []string{"base", "dogstatsd", "heroku", "iot"},
+		},
+		{
+			name: "go1.x version constraint => all flavors",
+			srcs: []string{goVersion},
+			want: []string{"base", "dogstatsd", "fips", "heroku", "iot"},
+		},
+		{
+			name: "kubeapiserver && linux => only flavors whose tag set includes kubeapiserver",
+			srcs: []string{tagCombined},
+			want: []string{"base", "fips"},
+		},
+		{
+			name: "mix: one unconstrained file overrides everything",
+			srcs: []string{linuxBpf, noConstraint},
+			want: []string{"base", "dogstatsd", "fips", "heroku", "iot"},
+		},
+		{
+			name: "mix: any matching src is enough",
+			srcs: []string{linuxBpf, requireFips},
+			want: []string{"fips"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := applicableFlavors(tc.srcs, dir)
+			sort.Strings(got) // applicableFlavors already returns sorted, double-check stability
+			if !stringSlicesEqual(got, tc.want) {
+				t.Errorf("got %v, want %v", got, tc.want)
 			}
 		})
 	}
