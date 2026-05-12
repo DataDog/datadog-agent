@@ -52,6 +52,10 @@ type RunParams struct {
 	// ipFamily selects the kind cluster's IP family ("ipv4", "ipv6", "dual").
 	// Empty leaves it to the kind default (ipv4).
 	ipFamily string
+
+	// deployNAT64 toggles deployment of the aojea/nat64 DaemonSet, which
+	// makes the 64:ff9b::/96 NAT64 prefix reachable from pods.
+	deployNAT64 bool
 }
 
 type RunOption = func(*RunParams) error
@@ -219,4 +223,12 @@ func WithKindWorkerNodes(nodes ...kubecomp.KindWorkerNode) RunOption {
 // WithIPFamily sets the kind cluster's IP family ("ipv4", "ipv6", "dual")
 func WithIPFamily(family string) RunOption {
 	return func(p *RunParams) error { p.ipFamily = family; return nil }
+}
+
+// WithIPv6NAT64Daemon deploys an aojea/nat64 DaemonSet on the cluster so
+// that IPv6-only pods can reach IPv4 destinations through the well-known
+// NAT64 prefix 64:ff9b::/96. Needed when ipFamily=ipv6 because kindest/kindnetd
+// (kind's default CNI) does not provide NAT64 itself.
+func WithIPv6NAT64Daemon() RunOption {
+	return func(p *RunParams) error { p.deployNAT64 = true; return nil }
 }

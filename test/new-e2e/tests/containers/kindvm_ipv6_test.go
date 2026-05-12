@@ -43,6 +43,7 @@ clusterAgent:
 		e2e.WithProvisioner(provkind.Provisioner(
 			provkind.WithRunOptions(
 				scenkind.WithIPFamily("ipv6"),
+				scenkind.WithIPv6NAT64Daemon(),
 				scenkind.WithVMOptions(
 					scenec2.WithInstanceType("t3.xlarge"),
 				),

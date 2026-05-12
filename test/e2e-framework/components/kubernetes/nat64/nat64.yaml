@@ -1,0 +1,84 @@
+---
+# Pinned copy of https://github.com/aojea/nat64/blob/main/install.yaml.
+# Provides a NAT64 gateway for the well-known prefix 64:ff9b::/96 so that
+# IPv6-only pods can reach IPv4-only services. Needed in kind clusters
+# because kindest/kindnetd (kind's default CNI) does not implement NAT64
+# (only the upstream aojea/kindnet does).
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nat64
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: nat64
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: nat64
+subjects:
+- kind: ServiceAccount
+  name: nat64
+  namespace: kube-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nat64
+  namespace: kube-system
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nat64
+  namespace: kube-system
+  labels:
+    tier: node
+    app: nat64
+    k8s-app: nat64
+spec:
+  selector:
+    matchLabels:
+      app: nat64
+  template:
+    metadata:
+      labels:
+        tier: node
+        app: nat64
+        k8s-app: nat64
+    spec:
+      hostNetwork: true
+      tolerations:
+      - operator: Exists
+        effect: NoSchedule
+      serviceAccountName: nat64
+      containers:
+      - name: nat64
+        image: aojea/nat64:v0.1.0
+        volumeMounts:
+        - name: xtables-lock
+          mountPath: /run/xtables.lock
+          readOnly: false
+        - name: lib-modules
+          mountPath: /lib/modules
+          readOnly: true
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "50Mi"
+          limits:
+            cpu: "100m"
+            memory: "50Mi"
+        securityContext:
+          privileged: true
+          capabilities:
+            add: ["NET_ADMIN"]
+      volumes:
+      - name: xtables-lock
+        hostPath:
+          path: /run/xtables.lock
+          type: FileOrCreate
+      - name: lib-modules
+        hostPath:
+          path: /lib/modules

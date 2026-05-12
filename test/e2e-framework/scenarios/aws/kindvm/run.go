@@ -32,6 +32,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/argorollouts"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/cilium"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/nat64"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/vpa"
 	resAws "github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -135,6 +136,12 @@ func RunWithEnv(ctx *pulumi.Context, awsEnv resAws.Environment, env outputs.Kube
 	})
 	if err != nil {
 		return err
+	}
+
+	if params.deployNAT64 {
+		if _, err := nat64.Deploy(ctx, awsEnv.Namer.ResourceName("nat64"), kubeProvider); err != nil {
+			return err
+		}
 	}
 
 	vpaCrd, err := vpa.DeployCRD(&awsEnv, kubeProvider)
