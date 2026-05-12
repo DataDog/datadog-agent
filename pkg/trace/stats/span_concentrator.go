@@ -55,9 +55,10 @@ func matchingPeerTags(meta map[string]string, peerTagKeys []string) []string {
 	if len(peerTagKeys) == 0 {
 		return nil
 	}
+	reg := semantics.DefaultRegistry()
 	a := semantics.NewStringMapAccessor(meta)
-	spanKind := semantics.LookupString(semantics.DefaultRegistry(), a, semantics.ConceptSpanKind)
-	baseService := semantics.LookupString(semantics.DefaultRegistry(), a, semantics.ConceptDDBaseService)
+	spanKind := semantics.LookupString(reg, a, semantics.ConceptSpanKind)
+	baseService := semantics.LookupString(reg, a, semantics.ConceptDDBaseService)
 	var pt []string
 	for _, t := range peerTagKeysToAggregateForSpan(spanKind, baseService, peerTagKeys) {
 		if v, ok := meta[t]; ok && v != "" {

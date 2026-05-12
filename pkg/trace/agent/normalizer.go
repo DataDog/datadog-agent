@@ -229,16 +229,17 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 	svc, _ := a.normalizeService(ts, s.Service, ts.Lang)
 	s.Service = svc
 
+	reg := semantics.DefaultRegistry()
 	spanAccessor := semantics.NewDDSpanAccessor(s.Meta, s.Metrics)
-	if pSvc := semantics.LookupString(semantics.DefaultRegistry(), spanAccessor, semantics.ConceptPeerService); pSvc != "" {
+	if pSvc := semantics.LookupString(reg, spanAccessor, semantics.ConceptPeerService); pSvc != "" {
 		s.Meta[string(semantics.ConceptPeerService)] = a.normalizePeerService(ts, pSvc)
 	}
-	if bSvc := semantics.LookupString(semantics.DefaultRegistry(), spanAccessor, semantics.ConceptDDBaseService); bSvc != "" {
+	if bSvc := semantics.LookupString(reg, spanAccessor, semantics.ConceptDDBaseService); bSvc != "" {
 		s.Meta[string(semantics.ConceptDDBaseService)] = a.normalizeBaseService(ts, bSvc)
 	}
 
 	if a.conf.HasFeature("component2name") {
-		if v := semantics.LookupString(semantics.DefaultRegistry(), spanAccessor, semantics.ConceptComponent); v != "" {
+		if v := semantics.LookupString(reg, spanAccessor, semantics.ConceptComponent); v != "" {
 			s.Name = v
 		}
 	}
@@ -261,7 +262,7 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 
 	s.Type = a.validateAndFixType(ts, s.Type)
 
-	if env := semantics.LookupString(semantics.DefaultRegistry(), spanAccessor, semantics.ConceptDDEnv); env != "" {
+	if env := semantics.LookupString(reg, spanAccessor, semantics.ConceptDDEnv); env != "" {
 		s.Meta["env"] = normalizeutil.NormalizeTagValue(env)
 	}
 
@@ -290,11 +291,12 @@ func (a *Agent) normalizeV1(ts *info.TagStats, s *idx.InternalSpan) error {
 	svc, _ := a.normalizeService(ts, s.Service(), ts.Lang)
 	s.SetService(svc)
 
+	reg := semantics.DefaultRegistry()
 	spanAccessorV1 := semantics.NewDDSpanAccessorV1(s)
-	if pSvc := semantics.LookupString(semantics.DefaultRegistry(), spanAccessorV1, semantics.ConceptPeerService); pSvc != "" {
+	if pSvc := semantics.LookupString(reg, spanAccessorV1, semantics.ConceptPeerService); pSvc != "" {
 		s.SetStringAttribute(string(semantics.ConceptPeerService), a.normalizePeerService(ts, pSvc))
 	}
-	if bSvc := semantics.LookupString(semantics.DefaultRegistry(), spanAccessorV1, semantics.ConceptDDBaseService); bSvc != "" {
+	if bSvc := semantics.LookupString(reg, spanAccessorV1, semantics.ConceptDDBaseService); bSvc != "" {
 		s.SetStringAttribute(string(semantics.ConceptDDBaseService), a.normalizeBaseService(ts, bSvc))
 	}
 
@@ -348,14 +350,15 @@ func (a *Agent) normalizeV1(ts *info.TagStats, s *idx.InternalSpan) error {
 // * populates Priority field if it wasn't populated
 // * promotes the decision maker found in any internal span to a chunk tag
 func setChunkAttributes(chunk *pb.TraceChunk, root *pb.Span) {
+	reg := semantics.DefaultRegistry()
 	// check if priority is already populated
 	if chunk.Priority == int32(sampler.PriorityNone) {
 		// Older tracers set sampling priority in the root span.
-		if p, ok := semantics.LookupFloat64(semantics.DefaultRegistry(), semantics.NewMetricsMapAccessor(root.Metrics), semantics.ConceptSamplingPriority); ok {
+		if p, ok := semantics.LookupFloat64(reg, semantics.NewMetricsMapAccessor(root.Metrics), semantics.ConceptSamplingPriority); ok {
 			chunk.Priority = int32(p)
 		} else {
 			for _, s := range chunk.Spans {
-				if p, ok := semantics.LookupFloat64(semantics.DefaultRegistry(), semantics.NewMetricsMapAccessor(s.Metrics), semantics.ConceptSamplingPriority); ok {
+				if p, ok := semantics.LookupFloat64(reg, semantics.NewMetricsMapAccessor(s.Metrics), semantics.ConceptSamplingPriority); ok {
 					chunk.Priority = int32(p)
 					break
 				}
@@ -364,7 +367,7 @@ func setChunkAttributes(chunk *pb.TraceChunk, root *pb.Span) {
 	}
 	if chunk.Origin == "" && root.Meta != nil {
 		// Older tracers set origin in the root span.
-		chunk.Origin = semantics.LookupString(semantics.DefaultRegistry(), semantics.NewStringMapAccessor(root.Meta), semantics.ConceptDDOrigin)
+		chunk.Origin = semantics.LookupString(reg, semantics.NewStringMapAccessor(root.Meta), semantics.ConceptDDOrigin)
 	}
 
 	if _, ok := chunk.Tags[tagDecisionMaker]; !ok {
