@@ -530,7 +530,7 @@
         {
           "name": "process.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "process.ancestors.tid",
@@ -1550,7 +1550,7 @@
         {
           "name": "process.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "process.parent.tid",
@@ -1640,7 +1640,7 @@
         {
           "name": "process.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "process.tid",
@@ -3253,7 +3253,7 @@
         {
           "name": "exec.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "exec.syscall.path",
@@ -3832,7 +3832,7 @@
         {
           "name": "exit.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "exit.tid",
@@ -5840,7 +5840,7 @@
         {
           "name": "ptrace.tracee.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.tid",
@@ -6860,7 +6860,7 @@
         {
           "name": "ptrace.tracee.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "ptrace.tracee.parent.tid",
@@ -6950,7 +6950,7 @@
         {
           "name": "ptrace.tracee.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "ptrace.tracee.tid",
@@ -8214,7 +8214,7 @@
         {
           "name": "setrlimit.target.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "setrlimit.target.ancestors.tid",
@@ -9234,7 +9234,7 @@
         {
           "name": "setrlimit.target.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "setrlimit.target.parent.tid",
@@ -9324,7 +9324,7 @@
         {
           "name": "setrlimit.target.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "setrlimit.target.tid",
@@ -10165,7 +10165,7 @@
         {
           "name": "signal.target.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "signal.target.ancestors.tid",
@@ -11185,7 +11185,7 @@
         {
           "name": "signal.target.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "signal.target.parent.tid",
@@ -11275,7 +11275,7 @@
         {
           "name": "signal.target.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-pidcontext-ppid-doc"
+          "property_doc_link": "common-process-ppid-doc"
         },
         {
           "name": "signal.target.tid",
@@ -14578,7 +14578,7 @@
     },
     {
       "name": "*.ppid",
-      "link": "common-pidcontext-ppid-doc",
+      "link": "common-process-ppid-doc",
       "type": "int",
       "definition": "Parent process ID",
       "prefixes": [
