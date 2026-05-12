@@ -3,18 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package lite extracts a minimum bootstrap config (api_key, site, dd_url and
-// optionally secret_backend_command) from a possibly-broken datadog.yaml,
-// without depending on the full agent config layer. Used by the Agent Health
-// Platform forwarder and by the agent's failure-path rescue hook.
-//
-// Resolution walks a tiered pipeline (env → full YAML → indent-stripped YAML
-// → column-0 regex → fuzzy match → defaults) and resolves ENC[handle] values
-// via secret_backend_command. The first tier to produce a value wins.
+// Package lite extracts a minimum bootstrap config from a possibly-broken datadog.yaml,
+// without depending on the full agent config layer
 package lite
 
-// Source records where a ConfigField value was resolved from. Order mirrors
-// the agent's source priority (env beats file beats default).
+// Source records where a ConfigField value was resolved from. Order somewhat mirrors
+// the agent's source priority
 type Source string
 
 const (
@@ -40,8 +34,7 @@ type ConfigField struct {
 }
 
 // resolved reports whether the field carries a usable value. Encrypted
-// placeholders we could not resolve count as unresolved so the next tier can
-// try.
+// placeholders we could not resolve count as unresolved so the next tier can try
 func (f ConfigField) resolved() bool {
 	switch f.Source {
 	case SourceNone, SourceEncrypted:
@@ -50,8 +43,7 @@ func (f ConfigField) resolved() bool {
 	return f.Value != ""
 }
 
-// LiteConfig is the result of running Extract against env + a candidate
-// datadog.yaml.
+// LiteConfig is the result of running Extract against env + datadog.yaml.
 type LiteConfig struct {
 	APIKey ConfigField
 	Site   ConfigField
@@ -59,18 +51,14 @@ type LiteConfig struct {
 
 	// APIKeyCandidates holds alternative api_key candidates the fuzzy tier
 	// found alongside APIKey (sorted best-to-worst by edit distance). The
-	// rescue path tries each in order when the primary 401s — this is how
-	// we handle the case where `app_key` and a typo'd `api_kye` are both
-	// distance 1 from "api_key" with no way to distinguish them statically.
+	// rescue path tries each in order to find a working key.
 	APIKeyCandidates []ConfigField
 
-	// SecretBackendCommand is resolved through the same pipeline as the
-	// credentials. It is consulted only to decrypt ENC[handle] placeholders
-	// found in APIKey / Site / DDURL.
+	// used to decrypt ENC[handle] placeholders
 	SecretBackendCommand ConfigField
 
-	ConfigFilePath string         // absolute path of the datadog.yaml we read, or ""
-	FileReadErr    error          // set if a file was located but reading it failed
-	YAMLParseErr   error          // set if the Tier-2 full yaml.Unmarshal failed
-	ParsedConfig   map[string]any // Tier-2 result on success, for downstream schema checks
+	ConfigFilePath string // absolute path of the datadog.yaml we read, or ""
+	FileReadErr    error
+	YAMLParseErr   error          // set if the full yaml.Unmarshal failed
+	ParsedConfig   map[string]any // parse config success, for schema checks
 }
