@@ -9,11 +9,8 @@
 package noisyneighbor
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"runtime"
-	"sync"
 	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -27,80 +24,32 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// minimumKernelVersion is 6.2.0, the first kernel with bpf_rcu_read_lock,
-// which the probe uses to walk task_struct pointers safely.
+// 5.13 for kfuncs, 6.2 for bpf_rcu_read_lock kfunc
 var minimumKernelVersion = kernel.VersionCode(6, 2, 0)
 
-// ErrKernelTooOld is returned by NewProbe when the host kernel is below
-// minimumKernelVersion. Callers can use errors.Is to skip the module silently
-// on unsupported hosts.
-var ErrKernelTooOld = errors.New("kernel version below minimum")
-
-// Probe is the eBPF side of the noisy neighbor check. Construct only via
-// NewProbe — the zero value is not usable.
+// Probe is the eBPF side of the noisy neighbor check
 type Probe struct {
-	// mgr and closeFn are set once during NewProbe (before *Probe is
-	// published to other goroutines) and never reassigned afterward; safe
-	// to read without holding mu.
-	mgr     *ddebpf.Manager
-	closeFn func()
-
-	// mu serializes GetAndFlush against doClose and guards pmuFds against
-	// concurrent shutdown. pmuFds is written by attachPMU (pre-publication,
-	// no lock required) and read/cleared in doClose under mu.
-	mu     sync.Mutex
-	pmuFds []int
+	mgr    *ddebpf.Manager
+	pmuFDs []int
 }
 
-// NewProbe loads the noisy_neighbor eBPF asset, attaches its tracepoints,
-// and opens per-CPU PMU counters. Returns an error wrapping ErrKernelTooOld
-// on unsupported hosts (callers can use errors.Is). PMU events that fail to
-// open are logged and skipped — the returned Probe is still usable, but the
-// affected counters report zero. On any error after manager initialization,
-// resources are released before the error is returned. The caller must
-// invoke Close to release the probe on the success path.
+// NewProbe creates a [Probe]
 func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
-	if err := checkKernelVersion(); err != nil {
-		return nil, err
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, fmt.Errorf("kernel version: %w", err)
+	}
+	if kv < minimumKernelVersion {
+		return nil, fmt.Errorf("minimum kernel version %s not met, read %s", minimumKernelVersion, kv)
 	}
 
 	p := &Probe{}
-	// Wire close before any resource-acquiring step so cleanup paths can
-	// rely on p.closeFn() to release everything.
-	p.closeFn = sync.OnceFunc(p.doClose)
 
-	if err := p.loadManager(cfg); err != nil {
-		return nil, err
-	}
-	if err := p.attachProbes(); err != nil {
-		p.closeFn()
-		return nil, err
-	}
-	ddebpf.AddNameMappings(p.mgr.Manager, "noisy_neighbor")
-	p.attachPMU()
-	return p, nil
-}
-
-func checkKernelVersion() error {
-	kv, err := kernel.HostVersion()
-	if err != nil {
-		return fmt.Errorf("kernel version: %w", err)
-	}
-	if kv < minimumKernelVersion {
-		return fmt.Errorf("%w: minimum %s, got %s", ErrKernelTooOld, minimumKernelVersion, kv)
-	}
-	return nil
-}
-
-// loadManager selects the noisy-neighbor BPF asset (debug or release) and
-// initializes the ebpf-manager with the tracepoints and maps the kernel
-// program expects.
-func (p *Probe) loadManager(cfg *ddebpf.Config) error {
 	filename := "noisy-neighbor.o"
 	if cfg.BPFDebug {
 		filename = "noisy-neighbor-debug.o"
 	}
-	err := ddebpf.LoadCOREAsset(filename, func(r bytecode.AssetReader, opts manager.Options) error {
+	err = ddebpf.LoadCOREAsset(filename, func(buf bytecode.AssetReader, opts manager.Options) error {
 		p.mgr = ddebpf.NewManagerWithDefault(&manager.Manager{}, "noisy_neighbor", &ebpftelemetry.ErrorsTelemetryModifier{})
 		const uid = "noisy"
 		p.mgr.Probes = []*manager.Probe{
@@ -124,35 +73,29 @@ func (p *Probe) loadManager(cfg *ddebpf.Config) error {
 			{Name: "cache_references_pmu"},
 			{Name: "softirq_start_ns"},
 		}
-		if err := p.mgr.InitWithOptions(r, &opts); err != nil {
-			return fmt.Errorf("init ebpf manager: %w", err)
+		if err := p.mgr.InitWithOptions(buf, &opts); err != nil {
+			return fmt.Errorf("failed to init ebpf manager: %w", err)
 		}
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("load CO-RE asset %s: %w", filename, err)
+		return nil, err
 	}
-	return nil
-}
 
-// attachProbes attaches each manager probe sequentially. On failure the
-// caller (NewProbe) is expected to invoke p.closeFn() so the partially-
-// loaded manager and any prior attachments are torn down by doClose.
-//
-// We skip mgr.Start() and attach probes manually: Start() runs
-// cleanupTraceFS which tries to remove ALL orphaned kprobe events on the
-// host and fails fatally if any are pinned (common on dev machines where
-// a previous agent left tail-called kprobes behind). This module only
-// uses tracepoints, so we don't need the perf/ring reader startup that
-// Start() also handles. Stop() requires state >= initialized, which
-// InitWithOptions already set.
-func (p *Probe) attachProbes() error {
+	// Skip mgr.Start() and attach probes manually. Start() runs cleanupTraceFS
+	// which tries to remove ALL orphaned kprobe events on the host and fails
+	// fatally if any are pinned (common on dev machines where a previous agent
+	// left tail-called kprobes behind). This module only uses tracepoints, so
+	// we don't need the perf/ring reader startup that Start() also handles.
+	// Stop() requires state >= initialized, which InitWithOptions already set.
 	for _, probe := range p.mgr.Probes {
 		if err := probe.Attach(); err != nil {
-			return fmt.Errorf("attach probe %s: %w", probe.EBPFFuncName, err)
+			return nil, fmt.Errorf("failed to attach probe %s: %w", probe.EBPFFuncName, err)
 		}
 	}
-	return nil
+	ddebpf.AddNameMappings(p.mgr.Manager, "noisy_neighbor")
+	p.attachPMU()
+	return p, nil
 }
 
 // pmuEvent describes one perf event (hardware or software counter) that we
@@ -170,27 +113,24 @@ const itlbLoadMissesConfig = uint64(unix.PERF_COUNT_HW_CACHE_ITLB) |
 	(uint64(unix.PERF_COUNT_HW_CACHE_RESULT_MISS) << 16)
 
 // attachPMU opens per-CPU perf events for every counter we track and
-// populates the corresponding BPF perf-event-array maps. Called only from
-// NewProbe before the Probe is published to other goroutines, so writes to
-// p.pmuFds need no synchronization. See attachPMUEvent for per-event
-// semantics and failure modes.
+// populates the corresponding BPF perf-event-array maps. See attachPMUEvent
+// for per-event semantics and failure modes.
 func (p *Probe) attachPMU() {
 	events := []pmuEvent{
-		{mapName: "cycles_pmu", humanLabel: "cycles", perfType: unix.PERF_TYPE_HARDWARE, perfConfig: unix.PERF_COUNT_HW_CPU_CYCLES},
-		{mapName: "instructions_pmu", humanLabel: "instructions", perfType: unix.PERF_TYPE_HARDWARE, perfConfig: unix.PERF_COUNT_HW_INSTRUCTIONS},
-		{mapName: "llc_misses_pmu", humanLabel: "LLC misses", perfType: unix.PERF_TYPE_HARDWARE, perfConfig: unix.PERF_COUNT_HW_CACHE_MISSES},
-		{mapName: "itlb_misses_pmu", humanLabel: "iTLB misses", perfType: unix.PERF_TYPE_HW_CACHE, perfConfig: itlbLoadMissesConfig},
-		{mapName: "branch_misses_pmu", humanLabel: "branch misses", perfType: unix.PERF_TYPE_HARDWARE, perfConfig: unix.PERF_COUNT_HW_BRANCH_MISSES},
+		{"cycles_pmu", "cycles", unix.PERF_TYPE_HARDWARE, unix.PERF_COUNT_HW_CPU_CYCLES},
+		{"instructions_pmu", "instructions", unix.PERF_TYPE_HARDWARE, unix.PERF_COUNT_HW_INSTRUCTIONS},
+		{"llc_misses_pmu", "LLC misses", unix.PERF_TYPE_HARDWARE, unix.PERF_COUNT_HW_CACHE_MISSES},
+		{"itlb_misses_pmu", "iTLB misses", unix.PERF_TYPE_HW_CACHE, itlbLoadMissesConfig},
+		{"branch_misses_pmu", "branch misses", unix.PERF_TYPE_HARDWARE, unix.PERF_COUNT_HW_BRANCH_MISSES},
 		// CPU migrations is a software counter — doesn't compete for hardware
 		// PMU counters and is always available regardless of µarch.
-		{mapName: "cpu_migrations_pmu", humanLabel: "CPU migrations", perfType: unix.PERF_TYPE_SOFTWARE, perfConfig: unix.PERF_COUNT_SW_CPU_MIGRATIONS},
+		{"cpu_migrations_pmu", "CPU migrations", unix.PERF_TYPE_SOFTWARE, unix.PERF_COUNT_SW_CPU_MIGRATIONS},
 		// Cache references pairs with llc_misses to give LLC hit-rate: under
 		// cache thrashing the rate moves even when absolute miss count stays
 		// flat for memory-bound workloads already at floor miss rate.
-		{mapName: "cache_references_pmu", humanLabel: "cache references", perfType: unix.PERF_TYPE_HARDWARE, perfConfig: unix.PERF_COUNT_HW_CACHE_REFERENCES},
+		{"cache_references_pmu", "cache references", unix.PERF_TYPE_HARDWARE, unix.PERF_COUNT_HW_CACHE_REFERENCES},
 	}
 	numCPU := runtime.NumCPU()
-	p.pmuFds = make([]int, 0, len(events)*numCPU)
 	for _, ev := range events {
 		p.attachPMUEvent(ev, numCPU)
 	}
@@ -204,17 +144,13 @@ func (p *Probe) attachPMU() {
 // checks each read-value return code and skips just that counter's deltas.
 func (p *Probe) attachPMUEvent(ev pmuEvent, numCPU int) {
 	m, _, err := p.mgr.GetMap(ev.mapName)
-	if err != nil {
-		log.Warnf("noisy_neighbor: %s map (%s) lookup failed: %v", ev.humanLabel, ev.mapName, err)
-		return
-	}
-	if m == nil {
-		log.Warnf("noisy_neighbor: %s map (%s) not registered in manager", ev.humanLabel, ev.mapName)
+	if err != nil || m == nil {
+		log.Warnf("noisy_neighbor: %s map (%s) missing: %v", ev.humanLabel, ev.mapName, err)
 		return
 	}
 	var logged bool
-	for cpu := range numCPU {
-		fd, err := openPerfEvent(ev.perfType, ev.perfConfig, cpu)
+	for cpu := 0; cpu < numCPU; cpu++ {
+		fd, err := openHardwarePerfEvent(ev.perfType, ev.perfConfig, cpu)
 		if err != nil {
 			if !logged {
 				log.Warnf("noisy_neighbor: %s PMU event unavailable, metric will be zero: %v", ev.humanLabel, err)
@@ -224,64 +160,43 @@ func (p *Probe) attachPMUEvent(ev pmuEvent, numCPU int) {
 		}
 		if err := m.Put(uint32(cpu), uint32(fd)); err != nil {
 			log.Warnf("noisy_neighbor: failed to register %s fd on cpu %d: %v", ev.humanLabel, cpu, err)
-			if cerr := unix.Close(fd); cerr != nil {
-				log.Warnf("noisy_neighbor: failed to close orphaned %s fd on cpu %d: %v", ev.humanLabel, cpu, cerr)
-			}
+			_ = unix.Close(fd)
 			continue
 		}
-		p.pmuFds = append(p.pmuFds, fd)
+		p.pmuFDs = append(p.pmuFDs, fd)
 	}
 }
 
-// openPerfEvent opens a single perf event of any type (hardware, software,
-// or hw_cache) on the given CPU and returns the fd. unsafe.Sizeof is
-// required by the kernel ABI for perf_event_attr.size.
-func openPerfEvent(typ uint32, config uint64, cpu int) (int, error) {
+func openHardwarePerfEvent(perfType uint32, config uint64, cpu int) (int, error) {
 	attr := &unix.PerfEventAttr{
-		Type:   typ,
+		Type:   perfType,
 		Config: config,
 		Size:   uint32(unsafe.Sizeof(unix.PerfEventAttr{})),
 	}
 	fd, err := unix.PerfEventOpen(attr, -1, cpu, -1, unix.PERF_FLAG_FD_CLOEXEC)
 	if err != nil {
-		return -1, fmt.Errorf("perf_event_open(type=%d, config=%#x, cpu=%d): %w", typ, config, cpu, err)
+		return -1, err
 	}
 	if err := unix.IoctlSetInt(fd, unix.PERF_EVENT_IOC_ENABLE, 0); err != nil {
-		if cerr := unix.Close(fd); cerr != nil {
-			return -1, fmt.Errorf("enable perf event: %w (also close failed: %v)", err, cerr)
-		}
+		_ = unix.Close(fd)
 		return -1, fmt.Errorf("enable perf event: %w", err)
 	}
 	return fd, nil
 }
 
-// Close releases all associated resources. Safe to call multiple times.
+// Close releases all associated resources
 func (p *Probe) Close() {
-	p.closeFn()
-}
-
-// doClose is the unguarded shutdown path. It runs exactly once, gated by
-// p.closeFn = sync.OnceFunc(p.doClose).
-func (p *Probe) doClose() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	var errs []error
-	for _, fd := range p.pmuFds {
+	for _, fd := range p.pmuFDs {
 		if err := unix.Close(fd); err != nil {
-			errs = append(errs, fmt.Errorf("close PMU fd %d: %w", fd, err))
+			log.Warnf("noisy_neighbor: failed to close PMU fd %d: %v", fd, err)
 		}
 	}
-	p.pmuFds = nil
+	p.pmuFDs = nil
 	if p.mgr != nil {
 		ddebpf.RemoveNameMappings(p.mgr.Manager)
 		if err := p.mgr.Stop(manager.CleanAll); err != nil {
-			// Manager stop failure is operationally critical: orphan kprobes
-			// can pin the next startup.
-			errs = append(errs, fmt.Errorf("stop ebpf manager: %w", err))
+			log.Warnf("error stopping ebpf manager: %s", err)
 		}
-	}
-	if err := errors.Join(errs...); err != nil {
-		log.Errorf("noisy_neighbor: shutdown errors: %v", err)
 	}
 }
 
@@ -289,100 +204,86 @@ func (p *Probe) doClose() {
 // and atomically deletes each returned cgroup's entry from the BPF map.
 // Cgroups with zero observable activity (no events, softirq, block-IO,
 // or wakeups) are filtered out of the return slice but still flushed.
-//
-// A non-nil error means the returned slice is nil and callers must not
-// emit metrics — the next cycle will double-count any cgroups whose Delete
-// failed. ctx cancellation aborts iteration between map operations.
-//
-// GetAndFlush holds p.mu for the entire iteration; Close blocks for the
-// same duration. Callers serialize at a higher layer (the system-probe
-// HTTP handler uses WithConcurrencyLimit(1)).
-func (p *Probe) GetAndFlush(ctx context.Context) ([]model.Stats, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
+	var nnstats []model.NoisyNeighborStats
 
 	aggMap, found, err := p.mgr.GetMap("cgroup_agg_stats")
 	if err != nil {
-		return nil, fmt.Errorf("get cgroup_agg_stats map: %w", err)
+		log.Errorf("failed to get cgroup_agg_stats map: %v", err)
+		return nnstats
 	}
 	if !found {
-		return nil, errors.New("cgroup_agg_stats map not found")
+		log.Warn("cgroup_agg_stats map not found")
+		return nnstats
 	}
-
-	// No capacity hint: the BPF map is sized for worst case (4096) but
-	// typical hosts carry tens to low hundreds of active cgroups, so
-	// pre-allocating would waste hundreds of KB per call.
-	var stats []model.Stats
-	var cgroupsToDelete []uint64
 
 	iter := aggMap.Iterate()
 	var cgroupID uint64
-	perCPUStats := make([]ebpfCgroupAggStats, runtime.NumCPU())
+	var perCPUStats []ebpfCgroupAggStats
+	var cgroupsToDelete []uint64
 
 	for iter.Next(&cgroupID, &perCPUStats) {
-		if err := ctx.Err(); err != nil {
-			return nil, err
+		var cgroupLatencies, cgroupEvents, cgroupPreemptions, pidCount uint64
+		var cgroupCycles, cgroupInstructions uint64
+		var cgroupLLCMisses, cgroupITLBMisses uint64
+		var cgroupSoftirqNs, cgroupBlockIO uint64
+		var cgroupBranchMisses, cgroupCPUMigrations, cgroupWakeups, cgroupCacheReferences uint64
+		for _, cpuStat := range perCPUStats {
+			cgroupLatencies += cpuStat.Sum_latencies_ns
+			cgroupEvents += cpuStat.Event_count
+			cgroupPreemptions += cpuStat.Preemption_count
+			cgroupCycles += cpuStat.Sum_cycles
+			cgroupInstructions += cpuStat.Sum_instructions
+			cgroupLLCMisses += cpuStat.Sum_llc_misses
+			cgroupITLBMisses += cpuStat.Sum_itlb_misses
+			cgroupSoftirqNs += cpuStat.Sum_softirq_ns
+			cgroupBlockIO += cpuStat.Block_io_requests
+			cgroupBranchMisses += cpuStat.Sum_branch_misses
+			cgroupCPUMigrations += cpuStat.Sum_cpu_migrations
+			cgroupWakeups += cpuStat.Wakeup_count
+			cgroupCacheReferences += cpuStat.Sum_cache_references
+			// pid_count is a global cgroup value (not per-CPU), so take the max rather than summing
+			if cpuStat.Pid_count > pidCount {
+				pidCount = cpuStat.Pid_count
+			}
 		}
+
 		cgroupsToDelete = append(cgroupsToDelete, cgroupID)
-		var agg model.Stats
-		aggregatePerCPU(&agg, cgroupID, perCPUStats)
-		if !hasActivity(&agg) {
+
+		if cgroupEvents == 0 && cgroupSoftirqNs == 0 && cgroupBlockIO == 0 && cgroupWakeups == 0 {
 			continue
 		}
-		stats = append(stats, agg)
+
+		stat := model.NoisyNeighborStats{
+			CgroupID:           cgroupID,
+			SumLatenciesNs:     cgroupLatencies,
+			EventCount:         cgroupEvents,
+			PreemptionCount:    cgroupPreemptions,
+			UniquePidCount:     pidCount,
+			SumCycles:          cgroupCycles,
+			SumInstructions:    cgroupInstructions,
+			SumLLCMisses:       cgroupLLCMisses,
+			SumITLBMisses:      cgroupITLBMisses,
+			SumSoftirqNs:       cgroupSoftirqNs,
+			BlockIORequests:    cgroupBlockIO,
+			SumBranchMisses:    cgroupBranchMisses,
+			SumCPUMigrations:   cgroupCPUMigrations,
+			WakeupCount:        cgroupWakeups,
+			SumCacheReferences: cgroupCacheReferences,
+		}
+
+		nnstats = append(nnstats, stat)
 	}
 
 	if err := iter.Err(); err != nil {
-		return nil, fmt.Errorf("iterate cgroup_agg_stats: %w", err)
+		log.Errorf("error iterating cgroup_agg_stats map: %v", err)
 	}
 
-	var deleteErrs []error
-	for _, cgroupID := range cgroupsToDelete {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		if err := aggMap.Delete(&cgroupID); err != nil {
-			if errors.Is(err, unix.ENOENT) {
-				// The entry got deleted between Iterate and Delete (concurrent
-				// removal by the eBPF side). Benign.
-				continue
-			}
-			deleteErrs = append(deleteErrs, fmt.Errorf("delete cgroup %d: %w", cgroupID, err))
+	for _, cgID := range cgroupsToDelete {
+		if err := aggMap.Delete(&cgID); err != nil {
+			log.Errorf("failed to delete cgroup %d from agg map: %v", cgID, err)
 		}
 	}
-	if err := errors.Join(deleteErrs...); err != nil {
-		return nil, fmt.Errorf("flush cgroup_agg_stats: %w", err)
-	}
 
-	return stats, nil
-}
-
-// aggregatePerCPU sums per-CPU counters for one cgroup into dst. Range by
-// index to avoid copying the 112-byte ebpfCgroupAggStats per iteration.
-func aggregatePerCPU(dst *model.Stats, cgroupID uint64, perCPU []ebpfCgroupAggStats) {
-	dst.CgroupID = cgroupID
-	for i := range perCPU {
-		cpuStat := &perCPU[i]
-		dst.SumLatenciesNs += cpuStat.Sum_latencies_ns
-		dst.EventCount += cpuStat.Event_count
-		dst.PreemptionCount += cpuStat.Preemption_count
-		dst.SumCycles += cpuStat.Sum_cycles
-		dst.SumInstructions += cpuStat.Sum_instructions
-		dst.SumLLCMisses += cpuStat.Sum_llc_misses
-		dst.SumITLBMisses += cpuStat.Sum_itlb_misses
-		dst.SumSoftirqNs += cpuStat.Sum_softirq_ns
-		dst.BlockIORequests += cpuStat.Block_io_requests
-		dst.SumBranchMisses += cpuStat.Sum_branch_misses
-		dst.SumCPUMigrations += cpuStat.Sum_cpu_migrations
-		dst.WakeupCount += cpuStat.Wakeup_count
-		dst.SumCacheReferences += cpuStat.Sum_cache_references
-		// pid_count is a global cgroup value (not per-CPU): take max, not sum.
-		dst.UniquePidCount = max(dst.UniquePidCount, cpuStat.Pid_count)
-	}
-}
-
-// hasActivity reports whether the cgroup had any observable scheduling,
-// softirq, block-IO, or wakeup activity in the window.
-func hasActivity(s *model.Stats) bool {
-	return s.EventCount != 0 || s.SumSoftirqNs != 0 || s.BlockIORequests != 0 || s.WakeupCount != 0
+	return nnstats
 }

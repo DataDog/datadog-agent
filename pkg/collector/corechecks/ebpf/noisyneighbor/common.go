@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-// Package noisyneighbor contains the Noisy Neighbor check.
+// Package noisyneighbor contains the Noisy Neighbor check
 package noisyneighbor
 
 const (
-	// CheckName is the name of the check.
+	// CheckName is the name of the check
 	CheckName = "noisy_neighbor"
 )
