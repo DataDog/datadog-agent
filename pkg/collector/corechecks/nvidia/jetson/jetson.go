@@ -143,6 +143,18 @@ func (c *JetsonCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
 	return nil
 }
 
+// runCommand executes the tegrastats command, optionally with sudo.
+func runCommand(ctx context.Context, cmdStr string, useSudo bool) ([]byte, error) {
+	var cmd *exec.Cmd
+	if useSudo {
+		// -n, non-interactive mode, no prompts are used
+		cmd = exec.CommandContext(ctx, "sudo", "-n", "sh", "-c", cmdStr)
+	} else {
+		cmd = exec.CommandContext(ctx, "sh", "-c", cmdStr)
+	}
+	return cmd.Output()
+}
+
 // Run executes the check
 func (c *JetsonCheck) Run() error {
 	tegraStatsCmd := fmt.Sprintf("%s %s", c.tegraStatsPath, strings.Join(c.commandOpts, " "))
@@ -151,15 +163,8 @@ func (c *JetsonCheck) Run() error {
 	defer cancel()
 
 	cmdStr := fmt.Sprintf("(%s) & pid=$!; (sleep %d && kill -9 $pid)", tegraStatsCmd, int((2 * tegraStatsInterval).Seconds()))
-	var cmd *exec.Cmd
-	if c.useSudo {
-		// -n, non-interactive mode, no prompts are used
-		cmd = exec.CommandContext(ctx, "sudo", "-n", cmdStr)
-	} else {
-		cmd = exec.CommandContext(ctx, cmdStr)
-	}
 
-	tegrastatsOutput, err := cmd.Output()
+	tegrastatsOutput, err := runCommand(ctx, cmdStr, c.useSudo)
 	if err != nil {
 		switch err := err.(type) {
 		case *exec.ExitError:

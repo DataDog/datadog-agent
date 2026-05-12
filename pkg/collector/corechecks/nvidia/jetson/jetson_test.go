@@ -8,10 +8,12 @@
 package nvidia
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -616,4 +618,10 @@ use_sudo: true
 			}
 		})
 	}
+}
+
+func TestRunCommand(t *testing.T) {
+	out, err := runCommand(context.Background(), "echo hello", false)
+	require.NoError(t, err)
+	assert.Equal(t, "hello\n", string(out))
 }
