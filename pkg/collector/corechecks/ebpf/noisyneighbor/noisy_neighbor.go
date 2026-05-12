@@ -95,6 +95,7 @@ func (n *NoisyNeighborCheck) Run() error {
 		tags := n.getContainerTags(stat)
 		n.submitPrimaryMetrics(sender, stat, tags)
 		n.submitRawCounters(sender, stat, tags)
+		n.submitPMUMetrics(sender, stat, tags)
 	}
 	sender.Gauge("noisy_neighbor.system.cgroups_tracked", float64(totalCgroups), "", nil)
 	sender.Commit()
@@ -136,4 +137,23 @@ func (n *NoisyNeighborCheck) submitPrimaryMetrics(sender sender.Sender, stat mod
 func (n *NoisyNeighborCheck) submitRawCounters(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
 	sender.Count("noisy_neighbor.events.total", float64(stat.EventCount), "", tags)
 	sender.Gauge("noisy_neighbor.unique_processes", float64(stat.UniquePidCount), "", tags)
+}
+
+// submitPMUMetrics emits per-cgroup hardware/software perf counters. Values
+// arrive pre-scaled by the manager (counter * enabled / running) so we just
+// pass them through as Count() samples — the consumer divides by interval to
+// recover a rate. EnabledNs == 0 means the system-probe could not open any
+// PMU events on this cgroup so we skip emission rather than reporting zeros.
+func (n *NoisyNeighborCheck) submitPMUMetrics(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
+	p := stat.PMU
+	if p.EnabledNs == 0 {
+		return
+	}
+	sender.Count("noisy_neighbor.pmu.cycles", float64(p.Cycles), "", tags)
+	sender.Count("noisy_neighbor.pmu.instructions", float64(p.Instructions), "", tags)
+	sender.Count("noisy_neighbor.pmu.llc_misses", float64(p.LLCMisses), "", tags)
+	sender.Count("noisy_neighbor.pmu.branch_misses", float64(p.BranchMisses), "", tags)
+	sender.Count("noisy_neighbor.pmu.cache_references", float64(p.CacheReferences), "", tags)
+	sender.Count("noisy_neighbor.pmu.itlb_misses", float64(p.ITLBMisses), "", tags)
+	sender.Count("noisy_neighbor.pmu.cpu_migrations", float64(p.CPUMigrations), "", tags)
 }

@@ -24,9 +24,17 @@ import (
 // 5.13 for kfuncs, 6.2 for bpf_rcu_read_lock kfunc
 var minimumKernelVersion = kernel.VersionCode(6, 2, 0)
 
+// defaultCgroupRoot is where the host's cgroup v2 hierarchy is visible from
+// inside the system-probe container. The system-probe container itself only
+// has a cgroup-namespaced view of /sys/fs/cgroup (rooted at its own cgroup);
+// the host's full tree is reachable through /host/proc/1/root because the
+// /host/proc mount is the host proc filesystem.
+const defaultCgroupRoot = "/host/proc/1/root/sys/fs/cgroup"
+
 // Probe is the eBPF side of the noisy neighbor check
 type Probe struct {
-	mgr *ddebpf.Manager
+	mgr    *ddebpf.Manager
+	pmuMgr *cgroupPMUManager
 }
 
 // NewProbe creates a [Probe]
@@ -71,11 +79,22 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 		return nil, err
 	}
 	ddebpf.AddNameMappings(p.mgr.Manager, "noisy_neighbor")
+
+	p.pmuMgr = newCgroupPMUManager(defaultCgroupRoot)
+	if err := p.pmuMgr.Refresh(); err != nil {
+		// A failure here is informational — perf_event_open may be denied on
+		// some hosts (paranoid kernel.perf_event_paranoid, missing
+		// CAP_PERF_MON) but BPF-side metrics still work.
+		log.Warnf("noisy_neighbor: initial cgroup PMU refresh failed: %v", err)
+	}
 	return p, nil
 }
 
 // Close releases all associated resources
 func (p *Probe) Close() {
+	if p.pmuMgr != nil {
+		p.pmuMgr.Close()
+	}
 	if p.mgr != nil {
 		ddebpf.RemoveNameMappings(p.mgr.Manager)
 		if err := p.mgr.Stop(manager.CleanAll); err != nil {
@@ -84,63 +103,83 @@ func (p *Probe) Close() {
 	}
 }
 
-// GetAndFlush gets the stats
+// GetAndFlush refreshes the user-space PMU fd set against the current cgroup
+// tree, reads counters, drains the BPF cgroup_agg_stats map, and returns the
+// merged per-cgroup statistics. A row is returned whenever either source has
+// non-empty data for that cgroup; missing fields are zero. The BPF map is
+// reset after every read; PMU counters are u64-monotonic and tracked
+// per-cgroup as deltas internally.
 func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
-	var nnstats []model.NoisyNeighborStats
+	if p.pmuMgr != nil {
+		if err := p.pmuMgr.Refresh(); err != nil {
+			log.Debugf("noisy_neighbor: cgroup PMU refresh: %v", err)
+		}
+	}
+
+	merged := make(map[uint64]*model.NoisyNeighborStats)
+	if p.pmuMgr != nil {
+		for cgID, ps := range p.pmuMgr.ReadAll() {
+			merged[cgID] = &model.NoisyNeighborStats{
+				CgroupID: cgID,
+				PMU:      ps,
+			}
+		}
+	}
 
 	aggMap, found, err := p.mgr.GetMap("cgroup_agg_stats")
 	if err != nil {
 		log.Errorf("failed to get cgroup_agg_stats map: %v", err)
-		return nnstats
-	}
-	if !found {
+	} else if !found {
 		log.Warn("cgroup_agg_stats map not found")
-		return nnstats
-	}
+	} else {
+		iter := aggMap.Iterate()
+		var cgroupID uint64
+		var perCPUStats []ebpfCgroupAggStats
+		var cgroupsToDelete []uint64
 
-	iter := aggMap.Iterate()
-	var cgroupID uint64
-	var perCPUStats []ebpfCgroupAggStats
-	var cgroupsToDelete []uint64
+		for iter.Next(&cgroupID, &perCPUStats) {
+			var cgroupLatencies, cgroupEvents, cgroupPreemptions, pidCount uint64
+			for _, cpuStat := range perCPUStats {
+				cgroupLatencies += cpuStat.Sum_latencies_ns
+				cgroupEvents += cpuStat.Event_count
+				cgroupPreemptions += cpuStat.Preemption_count
+				// pid_count is a global cgroup value (not per-CPU), so take the max rather than summing
+				if cpuStat.Pid_count > pidCount {
+					pidCount = cpuStat.Pid_count
+				}
+			}
 
-	for iter.Next(&cgroupID, &perCPUStats) {
-		var cgroupLatencies, cgroupEvents, cgroupPreemptions, pidCount uint64
-		for _, cpuStat := range perCPUStats {
-			cgroupLatencies += cpuStat.Sum_latencies_ns
-			cgroupEvents += cpuStat.Event_count
-			cgroupPreemptions += cpuStat.Preemption_count
-			// pid_count is a global cgroup value (not per-CPU), so take the max rather than summing
-			if cpuStat.Pid_count > pidCount {
-				pidCount = cpuStat.Pid_count
+			cgroupsToDelete = append(cgroupsToDelete, cgroupID)
+
+			if cgroupEvents == 0 {
+				continue
+			}
+
+			entry, ok := merged[cgroupID]
+			if !ok {
+				entry = &model.NoisyNeighborStats{CgroupID: cgroupID}
+				merged[cgroupID] = entry
+			}
+			entry.SumLatenciesNs = cgroupLatencies
+			entry.EventCount = cgroupEvents
+			entry.PreemptionCount = cgroupPreemptions
+			entry.UniquePidCount = pidCount
+		}
+
+		if err := iter.Err(); err != nil {
+			log.Errorf("error iterating cgroup_agg_stats map: %v", err)
+		}
+
+		for _, cgID := range cgroupsToDelete {
+			if err := aggMap.Delete(&cgID); err != nil {
+				log.Errorf("failed to delete cgroup %d from agg map: %v", cgID, err)
 			}
 		}
-
-		cgroupsToDelete = append(cgroupsToDelete, cgroupID)
-
-		if cgroupEvents == 0 {
-			continue
-		}
-
-		stat := model.NoisyNeighborStats{
-			CgroupID:        cgroupID,
-			SumLatenciesNs:  cgroupLatencies,
-			EventCount:      cgroupEvents,
-			PreemptionCount: cgroupPreemptions,
-			UniquePidCount:  pidCount,
-		}
-
-		nnstats = append(nnstats, stat)
 	}
 
-	if err := iter.Err(); err != nil {
-		log.Errorf("error iterating cgroup_agg_stats map: %v", err)
+	nnstats := make([]model.NoisyNeighborStats, 0, len(merged))
+	for _, s := range merged {
+		nnstats = append(nnstats, *s)
 	}
-
-	for _, cgID := range cgroupsToDelete {
-		if err := aggMap.Delete(&cgID); err != nil {
-			log.Errorf("failed to delete cgroup %d from agg map: %v", cgID, err)
-		}
-	}
-
 	return nnstats
 }
