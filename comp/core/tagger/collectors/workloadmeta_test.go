@@ -1868,6 +1868,67 @@ func TestHandleECSTask(t *testing.T) {
 			},
 		},
 		{
+			name: "ECS Managed Instances daemon task",
+			task: workloadmeta.ECSTask{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "foobar",
+				},
+				ClusterName:  "ecs-cluster",
+				Family:       "datadog-agent-daemon",
+				Version:      "1",
+				AWSAccountID: "1234567891234",
+				LaunchType:   workloadmeta.ECSLaunchTypeManagedInstances,
+				Containers: []workloadmeta.OrchestratorContainer{
+					{
+						ID:   containerID,
+						Name: containerName,
+					},
+				},
+				DaemonName:        "datadog-agent-daemon-daemon-o9hflg",
+				Region:            "us-east-1",
+				ClusterARN:        "arn:aws:ecs:us-east-1:1234567891234:cluster/ecs-cluster",
+				DaemonARN:         "arn:aws:ecs:us-east-1:1234567891234:daemon/ecs-cluster/datadog-agent-daemon-daemon-o9hflg",
+				TaskDefinitionARN: "arn:aws:ecs:us-east-1:1234567891234:daemon-task-definition/datadog-agent-daemon:1",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:       taskSource,
+					EntityID:     taggerEntityID,
+					HighCardTags: []string{},
+					OrchestratorCardTags: []string{
+						"task_arn:foobar",
+						"task_definition_arn:arn:aws:ecs:us-east-1:1234567891234:daemon-task-definition/datadog-agent-daemon:1",
+					},
+					LowCardTags: []string{
+						"cluster_name:ecs-cluster",
+						"ecs_cluster_name:ecs-cluster",
+						"ecs_container_name:agent",
+						"task_family:datadog-agent-daemon",
+						"task_name:datadog-agent-daemon",
+						"task_version:1",
+						"ecs_daemon:datadog-agent-daemon-daemon-o9hflg",
+						"aws_account:1234567891234",
+						"region:us-east-1",
+						"cluster_arn:arn:aws:ecs:us-east-1:1234567891234:cluster/ecs-cluster",
+						"daemon_arn:arn:aws:ecs:us-east-1:1234567891234:daemon/ecs-cluster/datadog-agent-daemon-daemon-o9hflg",
+					},
+					StandardTags: []string{},
+				},
+				{
+					Source:               taskSource,
+					EntityID:             types.GetGlobalEntityID(),
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"ecs_cluster_name:ecs-cluster",
+						"cluster_arn:arn:aws:ecs:us-east-1:1234567891234:cluster/ecs-cluster",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+		{
 			// Tasks can be emitted from metadata API that are still pending
 			// and thus only contain constant task-definition level metadata
 			// It should not trigger an update to the global-entity

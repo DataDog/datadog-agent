@@ -1,0 +1,17 @@
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+load("@rules_go//proto:def.bzl", "go_proto_library")
+
+proto_library(
+    name = "workloadmeta_proto",
+    srcs = ["workloadmeta.proto"],
+    strip_import_prefix = "/pkg/proto",
+    visibility = ["//visibility:public"],
+    deps = ["@protobuf//:timestamp_proto"],
+)
+
+go_proto_library(
+    name = "workloadmeta_go_proto",
+    importpath = "pkg/proto/pbgo/core",
+    proto = ":workloadmeta_proto",
+    visibility = ["//visibility:public"],
+)
