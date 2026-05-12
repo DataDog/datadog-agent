@@ -7,23 +7,26 @@
 package invalidconfig
 
 import (
-	"os"
 	"strings"
 	"sync"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/config/lite"
+	"github.com/DataDog/datadog-agent/pkg/config/schema"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-// checker is the periodic built-in check. Validates the on-disk datadog.yaml
-// against the schema each interval
+// checker validates the merged in-memory config against the schema
+// Runs once at startup and caches the result for the health runner
 type checker struct {
-	cfg               config.Component
-	schemaUnavailable sync.Once
+	cfg    config.Component
+	once   sync.Once
+	cached *healthplatform.IssueReport
 }
 
 func newChecker(cfg config.Component) *checker {
@@ -31,53 +34,58 @@ func newChecker(cfg config.Component) *checker {
 }
 
 func (c *checker) Run() (*healthplatform.IssueReport, error) {
-	path := c.cfg.ConfigFileUsed()
-	if path == "" {
-		return nil, nil
+	c.once.Do(func() { c.cached = c.validate() })
+	return c.cached, nil
+}
+
+func (c *checker) validate() *healthplatform.IssueReport {
+	// AllSettingsWithoutDefaultOrSecrets returns only values the customer actually set
+	raw := c.cfg.AllSettingsWithoutDefaultOrSecrets()
+	if len(raw) == 0 {
+		return nil
 	}
-	raw, err := os.ReadFile(path)
+	normalized, err := normalizeForSchema(raw)
 	if err != nil {
-		// Missing file / permission denied are owned by other modules.
-		return nil, nil
+		return nil
 	}
-	info, raise := c.issueInfoFor(path, lite.ValidateRawConfig(raw))
-	if !raise {
-		return nil, nil
+	errs, schemaErr := schema.ValidateCoreConfig(normalized)
+	if schemaErr != nil {
+		pkglog.Warnf("[AGENTLITECONFIG] invalidconfig: schema validator unavailable; skipping check")
+		return nil
+	}
+	if len(errs) == 0 {
+		return nil
+	}
+	visible, truncated := lite.TruncateSchemaErrors(errs)
+	info := lite.IssueInfo{
+		Kind:       lite.ErrorKindSchemaValidation,
+		ConfigPath: c.cfg.ConfigFileUsed(),
+		Errors:     strings.Join(visible, "\n"),
+		ErrorCount: len(errs),
+		Truncated:  truncated,
 	}
 	return &healthplatform.IssueReport{
 		IssueId: healthplatformdef.InvalidConfigIssueID,
 		Context: info.ToContext(),
 		Tags:    info.Tags(),
-	}, nil
+	}
 }
 
-// issueInfoFor translates a validation verdict into the IssueInfo the platform
-// expands via the template. Returns false when there is nothing to raise
-// (healthy config or schema-validator infrastructure error).
-func (c *checker) issueInfoFor(path string, result lite.ValidationResult) (lite.IssueInfo, bool) {
-	switch result.Verdict {
-	case lite.VerdictYAMLParseFailure:
-		return lite.IssueInfo{
-			Kind:         lite.ErrorKindYAMLParse,
-			ConfigPath:   path,
-			ErrorMessage: result.ParseError.Error(),
-		}, true
-
-	case lite.VerdictSchemaInvalid:
-		visible, truncated := lite.TruncateSchemaErrors(result.SchemaErrors)
-		return lite.IssueInfo{
-			Kind:       lite.ErrorKindSchemaValidation,
-			ConfigPath: path,
-			Errors:     strings.Join(visible, "\n"),
-			ErrorCount: len(result.SchemaErrors),
-			Truncated:  truncated,
-		}, true
-
-	case lite.VerdictSchemaUnavailable:
-		// log once to avoid spam
-		c.schemaUnavailable.Do(func() {
-			pkglog.Warnf("[AGENTLITECONFIG] invalidconfig: schema validator unavailable; skipping check")
-		})
+// normalizeForSchema coerces a Go-native config map into JSON-native types
+// via a YAML round-trip
+// ScrubYaml strips any accidental secret-like values
+func normalizeForSchema(in map[string]any) (map[string]any, error) {
+	b, err := yaml.Marshal(in)
+	if err != nil {
+		return nil, err
 	}
-	return lite.IssueInfo{}, false
+	scrubbed, err := scrubber.ScrubYaml(b)
+	if err != nil {
+		return nil, err
+	}
+	var out map[string]any
+	if err := yaml.Unmarshal(scrubbed, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }

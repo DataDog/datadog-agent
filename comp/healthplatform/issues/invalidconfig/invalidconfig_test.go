@@ -6,8 +6,6 @@
 package invalidconfig
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -58,65 +56,39 @@ func TestBuildIssue_SharesIssueIDWithRescue(t *testing.T) {
 	assert.Equal(t, lite.IssueID, healthplatformdef.InvalidConfigIssueID)
 }
 
-// cfgForPath wraps the standard config mock so ConfigFileUsed() returns a
-// specific path. The rest of the Component surface forwards to the real mock.
-type cfgForPath struct {
-	config.Component
-	path string
+// A vanilla mock has only defaults, which round-trip through YAML cleanly and
+// pass the schema. Confirms Run() is a no-op on a healthy config.
+func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
+	report, err := newChecker(config.NewMock(t)).Run()
+	require.NoError(t, err)
+	assert.Nil(t, report)
 }
 
-func (c cfgForPath) ConfigFileUsed() string { return c.path }
+// Inject a string into an integer-typed field Confirms the validator surfaces the violation and the
+// checker wraps it into an IssueReport.
+func TestCheck_SchemaViolationProducesReport(t *testing.T) {
+	cfg := config.NewMock(t)
+	cfg.SetWithoutSource("agent_ipc.port", "not-a-number")
 
-func mockCfg(t *testing.T, path string) config.Component {
-	t.Helper()
-	return cfgForPath{Component: config.NewMock(t), path: path}
-}
-
-func writeYAML(t *testing.T, content string) string {
-	t.Helper()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "datadog.yaml")
-	require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
-	return path
-}
-
-func TestCheck_ParseFailureProducesReport(t *testing.T) {
-	c := newChecker(mockCfg(t, writeYAML(t, "{ this is not yaml\n")))
-	report, err := c.Run()
+	report, err := newChecker(cfg).Run()
 	require.NoError(t, err)
 	require.NotNil(t, report)
 	assert.Equal(t, healthplatformdef.InvalidConfigIssueID, report.GetIssueId())
-	assert.Equal(t, string(lite.ErrorKindYAMLParse), report.GetContext()[lite.ContextKeyErrorKind])
-	assert.NotEmpty(t, report.GetContext()[lite.ContextKeyErrorMessage])
-}
-
-func TestCheck_SchemaViolationProducesReport(t *testing.T) {
-	c := newChecker(mockCfg(t, writeYAML(t,
-		"api_key: abc\nsite: datadoghq.com\nagent_ipc:\n  port: \"not-a-number\"\n")))
-	report, err := c.Run()
-	require.NoError(t, err)
-	require.NotNil(t, report)
-	assert.Equal(t, string(lite.ErrorKindSchemaValidation), report.GetContext()[lite.ContextKeyErrorKind])
+	assert.Equal(t, string(lite.ErrorKindSchemaValidation),
+		report.GetContext()[lite.ContextKeyErrorKind])
 	assert.Contains(t, report.GetContext()[lite.ContextKeyErrors], "agent_ipc/port")
 }
 
-func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
-	c := newChecker(mockCfg(t, writeYAML(t, "api_key: abc\nsite: datadoghq.com\n")))
-	report, err := c.Run()
-	require.NoError(t, err)
-	assert.Nil(t, report)
-}
+func TestCheck_VerdictIsCachedAtStartup(t *testing.T) {
+	cfg := config.NewMock(t)
+	cfg.SetWithoutSource("agent_ipc.port", "not-a-number")
 
-func TestCheck_FileMissingReturnsNil(t *testing.T) {
-	c := newChecker(mockCfg(t, "/does/not/exist/datadog.yaml"))
-	report, err := c.Run()
-	require.NoError(t, err)
-	assert.Nil(t, report)
-}
+	c := newChecker(cfg)
+	first, _ := c.Run()
+	require.NotNil(t, first)
 
-func TestCheck_EmptyPathReturnsNil(t *testing.T) {
-	c := newChecker(mockCfg(t, ""))
-	report, err := c.Run()
-	require.NoError(t, err)
-	assert.Nil(t, report)
+	// Mutate the config after the first run. The cached verdict must still win.
+	cfg.SetWithoutSource("agent_ipc.port", 5001)
+	second, _ := c.Run()
+	assert.Same(t, first, second, "Run must return the same cached IssueReport on subsequent calls")
 }
