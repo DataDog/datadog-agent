@@ -20,7 +20,6 @@ const (
 )
 
 // ExprStatusBits is the number of bits per entry in the ExprStatusArray.
-// Currently 2; can be expanded to 4 for alignment if more statuses are needed.
 const ExprStatusBits = 2
 
 // Expression is a typed and validated set of operations for compilation
@@ -320,3 +319,190 @@ func (*ConditionLeafLoadOp) irOp() {}
 type ConditionCheckPreserveErrorOp struct{}
 
 func (*ConditionCheckPreserveErrorOp) irOp() {}
+
+// ExprLoadAddressOp loads an 8-byte address into scratch at sm->offset.
+//
+// When Variable is non-nil, the op resolves Variable's DWARF location and
+// produces the address `<location> + Offset`. The variable must be a memory
+// location (CFA + offset); register-only locations are rejected at irgen
+// time as a typed Issue.
+//
+// When Variable is nil, scratch at sm->offset is expected to already hold an
+// 8-byte pointer (placed there by an immediately-preceding DereferenceOp
+// chain that produced a pointer rather than reading through to the pointee).
+// The op then adds PointerBias to those 8 bytes in place.
+//
+// In both modes the op leaves an 8-byte pointer at sm->offset and does not
+// advance sm->offset; ArrayLoopBeginOp consumes the pointer in place.
+type ExprLoadAddressOp struct {
+	Variable    *Variable
+	Offset      uint32
+	PointerBias uint32
+}
+
+func (*ExprLoadAddressOp) irOp() {}
+
+// Quantifier selects the any vs. all semantics for collection loop ops.
+type Quantifier uint8
+
+const (
+	// QuantifierAny is the `any` quantifier: result is true if at least one
+	// element satisfies the predicate; false if the collection is empty.
+	QuantifierAny Quantifier = 1
+	// QuantifierAll is the `all` quantifier: result is true if every element
+	// satisfies the predicate; true if the collection is empty (vacuous).
+	QuantifierAll Quantifier = 2
+)
+
+// CollectionPredicateMaxIterations is the cap on per-call iteration count
+// inside an any/all loop. Larger collections still short-circuit normally;
+// only the case where iteration exhausts the cap without a short-circuit
+// result is flagged as an evaluation error.
+//
+// Must stay in sync with COLLECTION_PREDICATE_MAX_ITERATIONS in
+// pkg/dyninst/ebpf/stack_machine.h.
+const CollectionPredicateMaxIterations = 4096
+
+// CollectionPredicateMaxElemBytes is the per-iteration scratch budget for
+// @it in an any/all loop. Slice/array element size must be ≤ this value;
+// for swiss maps the synthetic {key, value} entry (with 8-byte alignment
+// between key and value) must also fit. Larger types are rejected at
+// irgen time with a typed Issue.
+//
+// Must stay in sync with the upfront scratch reservation in
+// sm_slice_loop_begin / sm_swissmap_loop_begin
+// (`1 + CollectionPredicateMaxElemBytes + 16`).
+const CollectionPredicateMaxElemBytes = 256
+
+// ArrayLoopBeginOp begins iteration over a Go array. At entry, scratch at
+// sm->offset holds an 8-byte pointer to the array base in user memory (placed
+// there by an ExprLoadAddressOp). The array contents do NOT enter scratch;
+// elements are streamed via bpf_probe_read_user into a fixed scratch slot.
+//
+// CompileTimeLen is known at irgen time; irgen rejects arrays with
+// CompileTimeLen > COLLECTION_PREDICATE_MAX_ITERATIONS (4096), so the BPF
+// handler does no runtime too-large check.
+//
+// Quantifier selects accumulator semantics (Any: init=0, exit on body=1;
+// All: init=1, exit on body=0). On entry the op:
+//   - stashes data_ptr / initial_len / elem_size / quantifier in
+//     sm->slice_loop_state (the End op reads them from there)
+//   - writes the initial accumulator byte at sm->offset
+//   - if CompileTimeLen == 0, jumps to EndLabel (vacuous result is the init)
+//   - reads the first element into the @it scratch slot
+//   - falls through to the body
+type ArrayLoopBeginOp struct {
+	Quantifier     Quantifier
+	ElemByteSize   uint32
+	CompileTimeLen uint32
+	EndLabel       LabelID
+}
+
+func (*ArrayLoopBeginOp) irOp() {}
+
+// SliceLoopBeginOp begins iteration over a Go slice. At entry, scratch at
+// sm->offset holds the 24-byte slice header (data ptr, len, cap). The op:
+//   - reads len from header[8..16]; caps it to
+//     COLLECTION_PREDICATE_MAX_ITERATIONS (4096) and records `capped` in
+//     slice_loop_state so the End op can surface eval_error if iteration
+//     exhausts the cap without short-circuiting
+//   - stashes data_ptr / initial_len / elem_size / quantifier in
+//     sm->slice_loop_state
+//   - writes the initial accumulator byte at sm->offset
+//   - if len == 0, jumps to EndLabel
+//   - reads the first element into the @it scratch slot
+//   - falls through to the body
+type SliceLoopBeginOp struct {
+	Quantifier   Quantifier
+	ElemByteSize uint32
+	EndLabel     LabelID
+}
+
+func (*SliceLoopBeginOp) irOp() {}
+
+// SwissMapLoopBeginOp begins iteration over a Go swiss-table map. At entry,
+// scratch at sm->offset holds the dereferenced map header. The op reads
+// dir_ptr / dir_len from it; on a nil map, treats it as empty (jumps to
+// EndLabel with accumulator init).
+//
+// Iteration walks the dir-of-tables, then groups within each table, then
+// slots within each group, copying (key, value) into the @it scratch slot
+// before invoking the body. Body invocations are bounded by an online counter
+// in the End op; cursor advancement that skips empty slots uses a separate
+// BPF-side scan budget. On exceeding either cap the loop sets
+// condition_eval_error and aborts via sm_return.
+//
+// The synthetic @it scratch struct lays the key at offset 0 and the value
+// at the next 8-byte-aligned offset after the key. Irgen registers this
+// synthetic struct in the type catalog so that @it.key / @it.value resolve
+// via the normal GetMemberExpr path.
+type SwissMapLoopBeginOp struct {
+	Quantifier  Quantifier
+	KeyByteSize uint32
+	ValByteSize uint32
+	EndLabel    LabelID
+
+	// Swiss-map header / group / table layout (mirroring SwissMapLookupOp).
+	// Iteration walks every slot, so we don't need the hash-related
+	// GlobalShiftOffset or the HeaderByteSize (the preceding DereferenceOp
+	// already placed the header at sm->offset).
+	DirPtrOffset             uint8
+	DirLenOffset             uint8
+	CtrlOffset               uint8
+	SlotsOffset              uint8
+	KeyInSlotOffset          uint8
+	ValInSlotOffset          uint16
+	SlotSize                 uint16
+	GroupByteSize            uint16
+	TableGroupsFieldOffset   uint8
+	GroupsDataFieldOffset    uint8
+	GroupsLenMaskFieldOffset uint8
+}
+
+func (*SwissMapLoopBeginOp) irOp() {}
+
+// ArrayLoopEndOp closes an ArrayLoopBeginOp loop body. The Begin op stashed
+// quantifier/elem_size in sm->slice_loop_state, so the End op reads them
+// from there rather than encoding them again in its own params.
+//
+// On each invocation it:
+//   - reads the predicate body's bool result at sm->offset
+//   - on a short-circuiting result (Any: 1, All: 0), writes the accumulator,
+//     pops the loop state, and exits
+//   - on continuation: bumps base_ptr by ElemByteSize (from loop state),
+//     decrements remaining; if exhausted, pops state and exits with the
+//     current accumulator; otherwise reads the next element via
+//     bpf_probe_read_user and jumps back to BodyLabel.
+//   - if the loop was capped at MAX_ITERATIONS and exhausted without a
+//     short-circuit result, sets condition_eval_error.
+//
+// Body-side faults (nil deref / OOB) sm_return out of the enclosing condition
+// before this op runs; condition_eval_error is already set on that path and
+// surfaces in the event header.
+type ArrayLoopEndOp struct {
+	BodyLabel LabelID
+}
+
+func (*ArrayLoopEndOp) irOp() {}
+
+// SliceLoopEndOp closes a SliceLoopBeginOp loop body. Same semantics as
+// ArrayLoopEndOp; differs only in the upstream Begin op's setup.
+type SliceLoopEndOp struct {
+	BodyLabel LabelID
+}
+
+func (*SliceLoopEndOp) irOp() {}
+
+// SwissMapLoopEndOp closes a SwissMapLoopBeginOp loop body. In addition to
+// the short-circuit-on-result handling shared with the slice/array ops,
+// it drives the swiss-map iteration state machine: slot+1 within current
+// group, then group+1 within current table, then table+1 in the dir,
+// skipping duplicate consecutive table pointers (Go's incremental-growth
+// aliasing). After each visited occupied element it increments an online
+// iterations counter; if it exceeds COLLECTION_PREDICATE_MAX_ITERATIONS the
+// op sets condition_eval_error and aborts via sm_return.
+type SwissMapLoopEndOp struct {
+	BodyLabel LabelID
+}
+
+func (*SwissMapLoopEndOp) irOp() {}
