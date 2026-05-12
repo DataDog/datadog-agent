@@ -62,6 +62,7 @@ type ExcludeMetricConfig struct {
 type MetricConfig struct {
 	Name           string   `yaml:"name"` // required
 	PreserveTags   []string `yaml:"preserve_tags,omitempty"`
+	AggregateTags  []string `yaml:"aggregate_tags,omitempty"` // deprecated: use preserve_tags
 	AggregateTotal bool     `yaml:"aggregate_total"`
 
 	// compiled
@@ -119,6 +120,12 @@ type Event struct {
 // others are dropped and their timeseries values are summed. In case none of the tags match
 // any timeseries, those timeseries are removed from the metric's JSON object.
 // The primary goal is to prevent accidental privacy leaks by requiring explicit tag allowlists.
+//
+// profiles[].metric.metrics[].aggregate_tags (deprecated alias for preserve_tags)
+// ---------------------------------------------------------------------------------
+// Accepted for backward compatibility with existing custom configurations. If both
+// preserve_tags and aggregate_tags are present, preserve_tags takes precedence.
+// New configurations should use preserve_tags instead.
 //
 // profiles[].metric.metrics[].aggregate_total (optional)
 // -----------------------------------------------------
@@ -602,13 +609,18 @@ func compileMetric(p *Profile, m *MetricConfig) error {
 	promName := fmt.Sprintf("%s_%s", names[0], names[1])
 	p.metricsMap[promName] = m
 
-	// Compile preserve tags (optional)
-	if len(m.PreserveTags) == 0 {
+	// Compile preserve tags (optional). AggregateTags is a deprecated alias for PreserveTags;
+	// if both are set, PreserveTags takes precedence.
+	tags := m.PreserveTags
+	if len(tags) == 0 {
+		tags = m.AggregateTags
+	}
+	if len(tags) == 0 {
 		m.preserveTagsExists = false
 	} else {
 		m.preserveTagsExists = true
 		m.preserveTagsMap = make(map[string]any)
-		for _, t := range m.PreserveTags {
+		for _, t := range tags {
 			m.preserveTagsMap[t] = struct{}{}
 		}
 	}

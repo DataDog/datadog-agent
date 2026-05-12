@@ -657,6 +657,45 @@ func TestNoTagSpecifiedAggregationHistogram(t *testing.T) {
 	assert.Nil(t, m.GetLabel())
 }
 
+// TestAggregateTagsAliasBackwardCompat verifies that the deprecated aggregate_tags YAML key
+// is accepted and behaves identically to preserve_tags for existing custom configurations.
+func TestAggregateTagsAliasBackwardCompat(t *testing.T) {
+	var c = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: foo
+          metric:
+            metrics:
+              - name: bar.zoo
+                aggregate_tags:
+                  - tag1
+    `
+	tel := makeTelMock(t)
+	counter := tel.NewCounter("bar", "zoo", []string{"tag1", "tag2"}, "")
+	counter.AddWithTags(10, map[string]string{"tag1": "a1", "tag2": "b1"})
+	counter.AddWithTags(20, map[string]string{"tag1": "a1", "tag2": "b2"})
+	counter.AddWithTags(30, map[string]string{"tag1": "a2", "tag2": "b3"})
+
+	s := &senderMock{}
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, c, s, nil, r)
+	require.True(t, a.enabled)
+
+	a.start()
+	r.(*runnerMock).run()
+
+	// aggregate_tags: [tag1] should aggregate by tag1, dropping tag2
+	require.Equal(t, 1, len(s.sentMetrics))
+	require.Equal(t, 2, len(s.sentMetrics[0].metrics))
+	metrics := makeStableMetricMap(s.sentMetrics[0].metrics)
+
+	require.Contains(t, metrics, "tag1:a1:")
+	assert.Equal(t, float64(30), metrics["tag1:a1:"].Counter.GetValue())
+	require.Contains(t, metrics, "tag1:a2:")
+	assert.Equal(t, float64(30), metrics["tag1:a2:"].Counter.GetValue())
+}
+
 func TestTagSpecifiedAggregationCounter(t *testing.T) {
 	var c = `
     agent_telemetry:
