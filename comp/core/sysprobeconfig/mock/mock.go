@@ -57,12 +57,3 @@ func NewMockWithOverrides(t testing.TB, overrides map[string]interface{}) syspro
 	}
 	return sysprobeconfigimpl.NewTestComponent(pkgconfigsetup.SystemProbe(), syscfg)
 }
-
-// NewMockWithOverrides returns a mock with specific config key/value overrides applied.
-func NewMockWithOverrides(t testing.TB, overrides map[string]interface{}) sysprobeconfigdef.Component {
-	c := NewMock(t)
-	for k, v := range overrides {
-		c.SetWithoutSource(k, v)
-	}
-	return c
-}
