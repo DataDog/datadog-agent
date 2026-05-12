@@ -9,7 +9,6 @@ package preprocessor
 import (
 	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
@@ -96,11 +95,10 @@ type AdaptiveSamplerConfig struct {
 }
 
 // AdaptiveSamplerFilter matches messages by raw-content regex, structural sample,
-// status, or any combination of those fields.
+// or both.
 type AdaptiveSamplerFilter struct {
 	Regex        *regexp.Regexp
 	SampleTokens []Token
-	Status       string
 }
 
 // samplerEntry tracks the credit-based rate limiting state for a single log pattern.
@@ -160,12 +158,6 @@ func (f AdaptiveSamplerFilter) matches(msg *message.Message, tokens []Token, mat
 	}
 	if len(f.SampleTokens) > 0 {
 		if !IsMatch(f.SampleTokens, tokens, matchThreshold) {
-			return false
-		}
-		matched = true
-	}
-	if f.Status != "" {
-		if !strings.EqualFold(msg.GetStatus(), f.Status) {
 			return false
 		}
 		matched = true

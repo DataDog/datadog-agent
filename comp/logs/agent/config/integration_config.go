@@ -204,9 +204,6 @@ type AdaptiveSamplingRule struct {
 
 	// Sample is tokenized and structurally matched against the log content.
 	Sample string `mapstructure:"sample,omitempty" json:"sample,omitempty" yaml:"sample,omitempty"`
-
-	// Status is matched against the log status, for example "info" or "error".
-	Status string `mapstructure:"status,omitempty" json:"status,omitempty" yaml:"status,omitempty"`
 }
 
 // AutoMultilineSample defines a sample used to create auto multiline detection

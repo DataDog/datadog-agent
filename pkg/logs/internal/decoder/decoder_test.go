@@ -543,56 +543,54 @@ func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 			Include: []*config.AdaptiveSamplingRule{
 				{Regex: "foo.*bar"},
 				{Sample: "my 123 fun log sample"},
-				{Status: " INFO "},
 			},
 			Exclude: []*config.AdaptiveSamplingRule{
 				{Regex: "baz.*qux"},
 				{Sample: "my 456 bad log sample"},
-				{Status: "ERROR"},
 			},
 		}, preprocessor.NewTokenizer(0))
 
 		assert.True(t, got.IncludeConfigured)
-		require.Len(t, got.Include, 3)
+		require.Len(t, got.Include, 2)
 		require.NotNil(t, got.Include[0].Regex)
 		assert.Equal(t, "foo.*bar", got.Include[0].Regex.String())
 		assert.NotEmpty(t, got.Include[1].SampleTokens)
-		assert.Equal(t, "info", got.Include[2].Status)
-		require.Len(t, got.Exclude, 3)
+		require.Len(t, got.Exclude, 2)
 		require.NotNil(t, got.Exclude[0].Regex)
 		assert.Equal(t, "baz.*qux", got.Exclude[0].Regex.String())
 		assert.NotEmpty(t, got.Exclude[1].SampleTokens)
-		assert.Equal(t, "error", got.Exclude[2].Status)
 	})
 
 	t.Run("global filters are resolved", func(t *testing.T) {
 		mockConfig.Set("logs_config.experimental_adaptive_sampling.include", []map[string]interface{}{
-			{"status": "info"},
+			{"regex": "foo.*bar"},
 		}, pkgconfigmodel.SourceAgentRuntime)
 		mockConfig.Set("logs_config.experimental_adaptive_sampling.exclude", []map[string]interface{}{
-			{"status": "error"},
+			{"sample": "my 456 bad log sample"},
 		}, pkgconfigmodel.SourceAgentRuntime)
 
 		got := resolveAdaptiveSamplerConfig(nil, preprocessor.NewTokenizer(0))
 
 		assert.True(t, got.IncludeConfigured)
 		require.Len(t, got.Include, 1)
-		assert.Equal(t, "info", got.Include[0].Status)
+		require.NotNil(t, got.Include[0].Regex)
+		assert.Equal(t, "foo.*bar", got.Include[0].Regex.String())
 		require.Len(t, got.Exclude, 1)
-		assert.Equal(t, "error", got.Exclude[0].Status)
+		assert.NotEmpty(t, got.Exclude[0].SampleTokens)
 	})
 
 	t.Run("source filters override global filters", func(t *testing.T) {
 		got := resolveAdaptiveSamplerConfig(&config.SourceAdaptiveSamplingOptions{
 			Include: []*config.AdaptiveSamplingRule{
-				{Status: "debug"},
+				{Regex: "source.*only"},
 			},
 			Exclude: []*config.AdaptiveSamplingRule{},
 		}, preprocessor.NewTokenizer(0))
 
 		assert.True(t, got.IncludeConfigured)
 		require.Len(t, got.Include, 1)
-		assert.Equal(t, "debug", got.Include[0].Status)
+		require.NotNil(t, got.Include[0].Regex)
+		assert.Equal(t, "source.*only", got.Include[0].Regex.String())
 		assert.Empty(t, got.Exclude)
 	})
 }

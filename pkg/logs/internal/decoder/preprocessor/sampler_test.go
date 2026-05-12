@@ -400,12 +400,6 @@ func TestAdaptiveSampler_IncludeFiltersSampleMatchingLogs(t *testing.T) {
 			msg:    testMsgWith("my 456 fun log sample", message.StatusDebug),
 			tokens: tokenize("my 456 fun log sample"),
 		},
-		{
-			name:   "status",
-			filter: AdaptiveSamplerFilter{Status: message.StatusInfo},
-			msg:    testMsgWith("ordinary info log", message.StatusInfo),
-			tokens: tokenize("ordinary info log"),
-		},
 	}
 
 	for _, tt := range tests {
@@ -433,7 +427,7 @@ func TestAdaptiveSampler_IncludeFiltersBypassNonMatchingLogs(t *testing.T) {
 		RateLimit:      0,
 		BurstSize:      1,
 		MatchThreshold: 0.9,
-		Include:        []AdaptiveSamplerFilter{{Status: message.StatusError}},
+		Include:        []AdaptiveSamplerFilter{{Regex: regexp.MustCompile(`error`)}},
 	}, "test")
 	msg := testMsgWith("ordinary info log", message.StatusInfo)
 	tokens := tokenize("ordinary info log")
@@ -478,12 +472,6 @@ func TestAdaptiveSampler_ExcludeFiltersBypassMatchingLogs(t *testing.T) {
 			msg:    testMsgWith("my 456 fun log sample", message.StatusDebug),
 			tokens: tokenize("my 456 fun log sample"),
 		},
-		{
-			name:   "status",
-			filter: AdaptiveSamplerFilter{Status: message.StatusError},
-			msg:    testMsgWith("ordinary error log", message.StatusError),
-			tokens: tokenize("ordinary error log"),
-		},
 	}
 
 	for _, tt := range tests {
@@ -509,8 +497,8 @@ func TestAdaptiveSampler_ExcludeTakesPrecedenceOverInclude(t *testing.T) {
 		RateLimit:      0,
 		BurstSize:      1,
 		MatchThreshold: 0.9,
-		Include:        []AdaptiveSamplerFilter{{Status: message.StatusInfo}},
-		Exclude:        []AdaptiveSamplerFilter{{Regex: regexp.MustCompile(`foo.*bar`)}},
+		Include:        []AdaptiveSamplerFilter{{Regex: regexp.MustCompile(`foo.*bar`)}},
+		Exclude:        []AdaptiveSamplerFilter{{SampleTokens: tokenize("foo hello bar")}},
 	}, "test")
 	msg := testMsgWith("foo hello bar", message.StatusInfo)
 	tokens := tokenize("foo hello bar")

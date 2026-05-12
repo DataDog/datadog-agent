@@ -74,12 +74,10 @@ func testAdaptiveSamplingOptions(enabled bool) *config.SourceAdaptiveSamplingOpt
 		Include: []*config.AdaptiveSamplingRule{
 			{Regex: "foo.*bar"},
 			{Sample: "my 123 fun log sample"},
-			{Status: "info"},
 		},
 		Exclude: []*config.AdaptiveSamplingRule{
 			{Regex: "baz.*qux"},
 			{Sample: "my 456 bad log sample"},
-			{Status: "error"},
 		},
 	}
 }

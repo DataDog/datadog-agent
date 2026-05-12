@@ -7,7 +7,6 @@ package decoder
 
 import (
 	"regexp"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -259,10 +258,7 @@ func resolveAdaptiveSamplerFilters(rules []*config.AdaptiveSamplingRule, tok *pr
 		if rule.Sample != "" {
 			filter.SampleTokens, _ = tok.Tokenize([]byte(rule.Sample))
 		}
-		if rule.Status != "" {
-			filter.Status = strings.ToLower(strings.TrimSpace(rule.Status))
-		}
-		if filter.Regex == nil && len(filter.SampleTokens) == 0 && filter.Status == "" {
+		if filter.Regex == nil && len(filter.SampleTokens) == 0 {
 			log.Warn("Adaptive sampler filter rule is empty, skipping")
 			continue
 		}
