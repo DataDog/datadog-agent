@@ -14,9 +14,10 @@
 -- Excludes:
 --   - Any specific labeller implementation. The auto-multiline
 --     labeller lives in its own spec module
---     (auto_multiline_labeler.allium). The noop labeller (paths A
---     and E) is trivial and may be inlined in the tie-spec rather
---     than getting its own module.
+--     (auto_multiline_labeler.allium). A trivial passthrough
+--     labeller used by log sources that do not enable auto-multiline
+--     detection may be specified separately or described inline by
+--     an upstream composing spec.
 --   - Any specific heuristic. Each Heuristic-fulfilling entity
 --     (JSONDetector, TimestampDetector, etc.) lives in its own spec
 --     module and declares fulfils Heuristic against this contract.
