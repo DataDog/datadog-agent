@@ -877,14 +877,6 @@ exports_files(glob(
 # ======= END TESTDATA EXCLUDES =======
 
 # ======= PROTO EXCLUDES =======
-# Proto source-only directories (no .go files). We ship pre-generated .pb.go in
-# pkg/proto/pbgo/ and don't want Gazelle generating proto_library targets here.
-# Excludes are required because Gazelle's proto extension can't represent these
-# trees: api/v1 and remoteagent share go_package = "pkg/proto/pbgo/core" with
-# sibling dirs (fan-in), remoteagent additionally packs multiple proto packages
-# into one directory, and protodep is vendored .proto used only by protoc.
-# gazelle:exclude pkg/proto/datadog/api
-# gazelle:exclude pkg/proto/datadog/remoteagent
 # gazelle:exclude pkg/proto/protodep
 # ======= END PROTO EXCLUDES =======
 
