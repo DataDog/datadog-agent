@@ -36,9 +36,6 @@ exports_files(glob(
 # gazelle:exclude cmd/process-agent/command
 # gazelle:exclude cmd/process-agent/subcommands
 # gazelle:exclude cmd/sbomgen
-# gazelle:exclude cmd/secret-generic-connector/backend/backend.go
-# gazelle:exclude cmd/secret-generic-connector/backend/error.go
-# gazelle:exclude cmd/secret-generic-connector/backend/error_test.go
 # gazelle:exclude cmd/secret-generic-connector/main.go
 # gazelle:exclude cmd/secrethelper
 # gazelle:exclude cmd/security-agent
