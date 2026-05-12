@@ -4,21 +4,28 @@ upload_debug_symbols:
   rules: !reference [.on_deploy_internal_or_internal_image_change_or_manual]
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
+  timeout: 30m
+  retry: 2
   needs:
     - job: datadog-agent-7-x64
       artifacts: true
     - job: datadog-agent-7-arm64
       artifacts: true
   script:
+    - datadog-ci --version || { echo "ERROR: datadog-ci not found in PATH"; exit 1; }
     - DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?
     - export DATADOG_API_KEY
     - export DD_BETA_COMMANDS_ENABLED=1
     - |
-      for pkg in $(find "$OMNIBUS_PACKAGE_DIR" -name '*-dbg-*.tar.xz' 2>/dev/null); do
-        echo "Uploading ELF debug symbols from $(basename $pkg)"
+      while IFS= read -r pkg; do
+        echo "Uploading ELF debug symbols from $(basename "$pkg")"
         SYMBOL_TMPDIR=$(mktemp -d)
-        tar xf "$pkg" -C "$SYMBOL_TMPDIR"
+        if ! tar xf "$pkg" -C "$SYMBOL_TMPDIR"; then
+          echo "WARNING: failed to extract $(basename "$pkg"), skipping"
+          rm -rf "$SYMBOL_TMPDIR"
+          continue
+        fi
         datadog-ci elf-symbols upload "$SYMBOL_TMPDIR" || \
-          echo "WARNING: elf-symbols upload failed for $(basename $pkg) (non-fatal)"
+          echo "WARNING: elf-symbols upload failed for $(basename "$pkg") (non-fatal)"
         rm -rf "$SYMBOL_TMPDIR"
-      done
+      done < <(find "$OMNIBUS_PACKAGE_DIR" -name '*-dbg-*.tar.xz' 2>/dev/null)
