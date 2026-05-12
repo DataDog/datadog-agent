@@ -11,7 +11,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/tinylib/msgp v1.6.4
 	github.com/vmihailenco/msgpack/v4 v4.3.13
-	google.golang.org/grpc v1.80.0
+	google.golang.org/grpc v1.81.0
 	google.golang.org/protobuf v1.36.11
 )
 
@@ -25,8 +25,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/vmihailenco/tagparser v0.1.2 // indirect
-	go.opentelemetry.io/otel v1.43.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.43.0 // indirect
 	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
