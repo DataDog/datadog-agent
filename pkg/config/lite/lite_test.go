@@ -168,20 +168,24 @@ func TestTier5_FuzzyCatchesTypos(t *testing.T) {
 	}
 }
 
-func TestTier5_FuzzyHonoursDenylist(t *testing.T) {
-	// app_key is one Damerau-Levenshtein edit from api_key but is a real,
-	// distinct field. Must NEVER be promoted to api_key.
-	dir := withYAML(t, "{broken\napp_key: never_use_as_api_key\n")
+func TestTier5_FuzzyCollects_AllCandidatesForAPIKey(t *testing.T) {
+	// Both `app_key` and `api_kye` are distance 1 from "api_key". The fuzzy
+	// tier should pick one as primary and stash the other for the rescue
+	// path to retry on 401 — the intake decides which one is real.
+	dir := withYAML(t, "{broken\napp_key: app_secret\napi_kye: api_secret\n")
 	cfg := extract("", dir)
-	assert.Equal(t, SourceNone, cfg.APIKey.Source,
-		"app_key must not be matched as api_key — it's a real distinct field")
+	assert.Equal(t, SourceFileFuzzy, cfg.APIKey.Source)
+	require.Len(t, cfg.APIKeyCandidates, 1)
+	values := []string{cfg.APIKey.Value, cfg.APIKeyCandidates[0].Value}
+	assert.ElementsMatch(t, []string{"app_secret", "api_secret"}, values)
 }
 
-func TestTier5_FuzzyAmbiguousRefuses(t *testing.T) {
-	// "abi_key" is distance 1 from api_key with no contender; should match.
+func TestTier5_FuzzySingleCandidate(t *testing.T) {
+	// One distance-1 match, nothing else nearby — no extras to stash.
 	dir := withYAML(t, "{broken\nabi_key: foo\n")
 	cfg := extract("", dir)
 	assert.Equal(t, "foo", cfg.APIKey.Value)
+	assert.Empty(t, cfg.APIKeyCandidates)
 }
 
 func TestTier6_DefaultSite(t *testing.T) {

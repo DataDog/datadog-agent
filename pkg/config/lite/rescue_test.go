@@ -171,6 +171,41 @@ func TestRescue_NoAPIKeyReturnsError(t *testing.T) {
 	assert.Empty(t, *captured, "no POST should have been attempted without api_key")
 }
 
+// TestRescue_RetriesCandidatesUntilSuccess covers the fuzzy-collision case:
+// when both `app_key` and a typo'd `api_kye` are distance 1 from "api_key",
+// the rescue path POSTs with the primary first; if it 401s it should retry
+// with the next candidate until one succeeds.
+func TestRescue_RetriesCandidatesUntilSuccess(t *testing.T) {
+	const goodKey = "real_api_key_value"
+
+	// Server: 401 unless the request bears goodKey.
+	captured := []string{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got := r.Header.Get("DD-API-KEY")
+		captured = append(captured, got)
+		if got == goodKey {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	t.Cleanup(srv.Close)
+
+	cfg := LiteConfig{
+		APIKey: ConfigField{Value: "wrong_app_key", Source: SourceFileFuzzy, MatchedKey: "app_key"},
+		APIKeyCandidates: []ConfigField{
+			{Value: goodKey, Source: SourceFileFuzzy, MatchedKey: "api_kye"},
+		},
+		Site:         ConfigField{Value: "dd.eu", Source: SourceFileYAMLFull},
+		YAMLParseErr: errors.New("forced parse failure"),
+	}
+
+	err := rescueWithURL(context.Background(), cfg, srv.URL+rescueIntakePath, nil)
+	require.NoError(t, err)
+	require.Equal(t, []string{"wrong_app_key", goodKey}, captured,
+		"rescue must try the primary then walk candidates until one returns 2xx")
+}
+
 func TestRescue_RespectsTimeout(t *testing.T) {
 	// Server replies eventually, but slowly enough that the 3-second budget
 	// expires first. r.Context().Done() lets the handler stop when the test
@@ -195,7 +230,7 @@ func TestRescue_RespectsTimeout(t *testing.T) {
 	elapsed := time.Since(start)
 
 	require.Error(t, err, "slow server must trip the 3s timeout and surface as error")
-	require.Less(t, elapsed, 8*time.Second, "rescueWithURL must not block past its own timeout")
+	require.Less(t, elapsed, rescueHTTPTimeout+2*time.Second, "rescueWithURL must not block past its own timeout")
 }
 
 func TestDefaultConfigPath_EnvOverride(t *testing.T) {

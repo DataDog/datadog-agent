@@ -5,7 +5,10 @@
 
 package lite
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
 // fuzzyKeys defines the Tier-5 fuzzy targets. maxDist is the Damerau-
 // Levenshtein cutoff: we accept "apikey" (distance 1 from "api_key") but not
@@ -20,90 +23,65 @@ var fuzzyKeys = []struct {
 	{func(c *LiteConfig) *ConfigField { return &c.DDURL }, "dd_url", 2},
 }
 
-// fuzzyDenylist contains real config keys that sit close to one of our
-// targets but must never be promoted to it. Without this a customer who set
-// `app_key` (one edit from `api_key`) would have it surfaced as api_key.
-var fuzzyDenylist = map[string]bool{
-	"app_key":              true,
-	"api_keys":             true,
-	"api_key_password":     true,
-	"logs_no_ssl":          true,
-	"debugger_api_key":     true,
-	"symdb_api_key":        true,
-	"additional_endpoints": true,
-	"non_local_traffic":    true,
-	"dd_url_secure":        true,
+// applyFuzzy walks every top-level key in raw and, for each unresolved target,
+// collects all candidates within maxDist sorted by distance ascending. The
+// best becomes the field's primary value; remaining candidates for api_key
+// are stashed on cfg.APIKeyCandidates so the rescue path can retry on 401
+// (e.g. when `app_key` and a typo'd `api_kye` are both distance 1).
+func applyFuzzy(cfg *LiteConfig, raw []byte) {
+	for i, k := range fuzzyKeys {
+		f := k.field(cfg)
+		if f.resolved() {
+			continue
+		}
+		cands := fuzzyCandidatesFor(raw, k.name, k.maxDist)
+		if len(cands) == 0 {
+			continue
+		}
+		*f = cands[0]
+		if i == 0 && len(cands) > 1 { // api_key only — extras feed rescue retries
+			cfg.APIKeyCandidates = append(cfg.APIKeyCandidates, cands[1:]...)
+		}
+	}
 }
 
-// applyFuzzy walks the file line by line and, for each top-level key, picks
-// the closest unresolved target within its allowed distance. Ambiguous ties
-// match neither.
-func applyFuzzy(cfg *LiteConfig, raw []byte) {
+// fuzzyCandidatesFor returns every top-level key within maxDist of target,
+// sorted by distance ascending (stable on file order for ties).
+func fuzzyCandidatesFor(raw []byte, target string, maxDist int) []ConfigField {
+	targetStripped := stripSeparators(target)
+	type scored struct {
+		cand ConfigField
+		dist int
+	}
+	var matches []scored
 	for line := range strings.SplitSeq(string(raw), "\n") {
 		key, value, ok := parseLine(line)
 		if !ok {
 			continue
 		}
 		lowerKey := strings.ToLower(key)
-		if fuzzyDenylist[lowerKey] {
+		d := damerauLevenshtein(lowerKey, target)
+		if norm := damerauLevenshtein(stripSeparators(lowerKey), targetStripped); norm < d {
+			d = norm
+		}
+		if d > maxDist {
 			continue
 		}
-
-		idx := bestFuzzyMatch(lowerKey, cfg)
-		if idx < 0 {
-			continue
-		}
-		f := fuzzyKeys[idx].field(cfg)
-		if f.resolved() {
-			continue
-		}
-
 		val := cleanValue(value)
 		if val == "" {
 			continue
 		}
-		f.Value = val
-		f.Source = SourceFileFuzzy
-		f.MatchedKey = key
+		matches = append(matches, scored{
+			cand: ConfigField{Value: val, Source: SourceFileFuzzy, MatchedKey: key},
+			dist: d,
+		})
 	}
-}
-
-// bestFuzzyMatch returns the index of the closest unresolved target within
-// its allowed distance, or -1 for no acceptable match.
-func bestFuzzyMatch(candidate string, cfg *LiteConfig) int {
-	strippedCand := stripSeparators(candidate)
-
-	bestIdx := -1
-	bestDist := -1
-	ambiguous := false
-
-	for i, k := range fuzzyKeys {
-		if k.field(cfg).resolved() {
-			continue
-		}
-
-		d := damerauLevenshtein(candidate, k.name)
-		if normalised := damerauLevenshtein(strippedCand, stripSeparators(k.name)); normalised < d {
-			d = normalised
-		}
-		if d > k.maxDist {
-			continue
-		}
-
-		switch {
-		case bestDist == -1 || d < bestDist:
-			bestIdx = i
-			bestDist = d
-			ambiguous = false
-		case d == bestDist:
-			ambiguous = true
-		}
+	sort.SliceStable(matches, func(i, j int) bool { return matches[i].dist < matches[j].dist })
+	out := make([]ConfigField, len(matches))
+	for i, m := range matches {
+		out[i] = m.cand
 	}
-
-	if ambiguous {
-		return -1
-	}
-	return bestIdx
+	return out
 }
 
 // damerauLevenshtein is the Damerau-Levenshtein edit distance (insertions,

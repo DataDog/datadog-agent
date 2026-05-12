@@ -23,7 +23,10 @@ import (
 )
 
 const (
-	rescueHTTPTimeout  = 3 * time.Second
+	// rescueHTTPTimeout bounds the entire candidate-iteration loop. Generous
+	// enough for ~5 POST attempts in the worst case; well under systemd's
+	// default 90s start timeout.
+	rescueHTTPTimeout  = 10 * time.Second
 	rescueIntakePrefix = "https://agenthealth-intake."
 	rescueIntakePath   = "/api/v2/agenthealth"
 	rescueEventType    = "agent-health-issues"
@@ -81,13 +84,15 @@ func intakeURL(site string) string {
 
 // rescueWithURL is the URL-decoupled core of Rescue. Tests target it directly
 // to route POSTs at an httptest.Server without stubbing module-level state.
+//
+// Walks the api_key candidates best-to-worst (primary + any fuzzy alternates)
+// and stops at the first 2xx. The intake decides which credential is right —
+// fuzzy collisions like `app_key` vs `api_kye` self-heal here instead of
+// being blocked by a static denylist.
 func rescueWithURL(ctx context.Context, cfg LiteConfig, url string, startupErr error) error {
 	issue := buildRescueIssue(cfg, startupErr)
 	if issue == nil {
 		return nil
-	}
-	if !cfg.APIKey.resolved() {
-		return fmt.Errorf("rescue: no usable api_key resolved (source=%s)", cfg.APIKey.Source)
 	}
 
 	issue.DetectedAt = time.Now().UTC().Format(time.RFC3339)
@@ -99,7 +104,24 @@ func rescueWithURL(ctx context.Context, cfg LiteConfig, url string, startupErr e
 		Host:      &healthplatform.HostInfo{Hostname: hostname},
 		Issues:    map[string]*healthplatform.Issue{"datadog.yaml": issue},
 	}
-	return postRescue(ctx, url, cfg.APIKey.Value, report)
+
+	var lastErr error
+	attempted := false
+	for _, c := range append([]ConfigField{cfg.APIKey}, cfg.APIKeyCandidates...) {
+		if !c.resolved() {
+			continue
+		}
+		attempted = true
+		if err := postRescue(ctx, url, c.Value, report); err == nil {
+			return nil
+		} else {
+			lastErr = err
+		}
+	}
+	if !attempted {
+		return fmt.Errorf("rescue: no usable api_key resolved (source=%s)", cfg.APIKey.Source)
+	}
+	return lastErr
 }
 
 // buildRescueIssue inspects cfg + startupErr and produces the Issue payload.

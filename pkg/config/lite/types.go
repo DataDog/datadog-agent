@@ -57,6 +57,13 @@ type LiteConfig struct {
 	Site   ConfigField
 	DDURL  ConfigField
 
+	// APIKeyCandidates holds alternative api_key candidates the fuzzy tier
+	// found alongside APIKey (sorted best-to-worst by edit distance). The
+	// rescue path tries each in order when the primary 401s — this is how
+	// we handle the case where `app_key` and a typo'd `api_kye` are both
+	// distance 1 from "api_key" with no way to distinguish them statically.
+	APIKeyCandidates []ConfigField
+
 	// SecretBackendCommand is resolved through the same pipeline as the
 	// credentials. It is consulted only to decrypt ENC[handle] placeholders
 	// found in APIKey / Site / DDURL.
