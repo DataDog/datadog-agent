@@ -98,12 +98,17 @@ func (s *eudmSuite) TestEUDMHostTags() {
 	// Hardware tag keys are populated by the agent on macOS and Windows only
 	// (see comp/metadata/host/impl/hosttags/eudm.go). Linux EUDM hosts only
 	// receive the infrastructure_mode marker tag.
+	//
+	// device_model is intentionally omitted: it derives from
+	// Win32_ComputerSystem.SystemSKUNumber on Windows, which is empty on
+	// many hosts (notably EC2 instances). On OEM hardware where the SKU is
+	// populated, the agent will emit device_model — the unit tests cover
+	// that path.
 	hardwareTagKeys := []string{
 		"os_name:",
 		"os_version:",
 		"cpu_model:",
 		"total_memory_gb:",
-		"device_model:",
 	}
 	expectHardwareTags := s.descriptor.Family() == e2eos.WindowsFamily ||
 		s.descriptor.Family() == e2eos.MacOSFamily
