@@ -24,9 +24,7 @@ type scanmwStateKey struct {
 // (metrics_detector_bocpd.go). If more scan-based detectors are added,
 // consider extracting a shared scanSeriesState base.
 type scanmwSeriesState struct {
-	// Cursor (same pattern as BOCPD: metrics_detector_bocpd.go:16-22)
-	lastProcessedCount int
-	lastWriteGen       int64
+	lastWriteGen int64
 
 	// Segment tracking: only scan [segmentStartTime, dataTime].
 	// 0 initially (scan full history), advances to changepoint timestamp on fire.
@@ -162,13 +160,8 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 				d.series[sk] = state
 			}
 
-			// Replay optimization: skip unless MinSegment new points are visible.
-			// The scan needs MinSegment points per side to evaluate a split, so
-			// fewer new points can't create a new valid split boundary. This cuts
-			// per-series scans from O(timestamps) to O(timestamps/MinSegment).
-			// During live ingestion, writeGen changes on every write so this
-			// condition falls through to the gen check and behaves as before.
-			if status.pointCount < state.lastProcessedCount+d.MinSegment && status.writeGeneration == state.lastWriteGen {
+			// Skip if nothing has been written since last Detect.
+			if status.writeGeneration == state.lastWriteGen {
 				continue
 			}
 
@@ -184,7 +177,6 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 			})
 
 			if seriesMeta == nil || len(state.buf) < d.MinPoints {
-				state.lastProcessedCount = status.pointCount
 				state.lastWriteGen = status.writeGeneration
 				continue
 			}
@@ -196,7 +188,6 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 				state.segmentStartTime = state.buf[changeIdx].Timestamp - 1
 			}
 
-			state.lastProcessedCount = status.pointCount
 			state.lastWriteGen = status.writeGeneration
 		}
 	}

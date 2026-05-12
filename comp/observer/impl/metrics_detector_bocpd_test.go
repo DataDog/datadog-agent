@@ -339,14 +339,11 @@ func TestFindingH3_CPProbUsesOnlyPriorPredictiveNotSumOverRunLengths(t *testing.
 
 func TestFindingM6_BOCPDSkipsSameBucketValueMerges(t *testing.T) {
 	// When two values arrive at the same timestamp, storage merges them into
-	// one bucket. But PointCountUpTo doesn't change (still 1 bucket), so
-	// BOCPD's cache check skips the series on the second Detect call.
-	//
-	// Steps:
-	// 1. Add first value at timestamp T, call Detect
-	// 2. Add second value at same timestamp T (storage merges), call Detect again
-	// 3. Assert the detector processed the updated merged value
-
+	// one bucket. PointCountUpTo doesn't change (still 1 bucket), but
+	// writeGeneration does. The detector must notice the write and advance
+	// lastWriteGen — it will not re-process the merged value (to avoid
+	// double-counting the posterior), but gen must advance so future writes
+	// are not missed.
 	config := DefaultBOCPDConfig()
 	config.WarmupPoints = 5
 	config.Aggregations = []observer.Aggregate{observer.AggregateAverage}
@@ -374,16 +371,6 @@ func TestFindingM6_BOCPDSkipsSameBucketValueMerges(t *testing.T) {
 	assert.Equal(t, 150.0, series.Points[0].Value,
 		"storage should have merged the two values at timestamp 5")
 
-	// Now Detect again. The detector should process the updated merged value.
-	// But the bug is: PointCountUpTo still returns 5 (same as before), so the
-	// detector's lastProcessedCount check causes it to skip this series.
-
-	// To detect whether the detector re-processed, we check its internal state.
-	// After processing x=100 at t=5, the posterior was updated with x=100.
-	// After re-processing x=150 (merged average), it should update with x=150.
-	// But if skipped, the posterior still reflects x=100.
-
-	// Snapshot the writeGeneration the detector saw after first Detect.
 	var stateBefore *bocpdSeriesState
 	for _, s := range d.series {
 		stateBefore = s
@@ -401,15 +388,11 @@ func TestFindingM6_BOCPDSkipsSameBucketValueMerges(t *testing.T) {
 	}
 	genAfter := stateAfter.lastWriteGen
 
-	pointCount := storage.PointCountUpTo(observer.SeriesRef(0), 5)
-	t.Logf("genBefore=%d, genAfter=%d, PointCountUpTo=%d, writeGen=%d",
-		genBefore, genAfter, pointCount, storage.WriteGeneration(observer.SeriesRef(0)))
-
-	// The detector should notice the merge via writeGeneration even though
-	// PointCountUpTo didn't change. If it re-processed, genAfter > genBefore.
+	// The detector must advance lastWriteGen when a same-bucket merge changes
+	// writeGeneration, even though no new points are processed (using the
+	// lastProcessedTime exclusive cursor avoids double-counting the posterior).
 	assert.Greater(t, genAfter, genBefore,
-		"detector should re-process when a same-bucket merge changes the value; "+
-			"lastWriteGen should advance but didn't (%d == %d)", genBefore, genAfter)
+		"detector should advance lastWriteGen on same-bucket merge; got %d == %d", genBefore, genAfter)
 }
 
 func TestFindingM7_WarmupPointsOneCausesNaN(t *testing.T) {

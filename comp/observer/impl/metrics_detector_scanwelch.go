@@ -21,8 +21,7 @@ type scanwelchStateKey struct {
 // scanwelchSeriesState holds per-series streaming state for the ScanWelch detector.
 // Same pattern as scanmwSeriesState and BOCPD (metrics_detector_bocpd.go).
 type scanwelchSeriesState struct {
-	lastProcessedCount int
-	lastWriteGen       int64
+	lastWriteGen int64
 
 	// Segment tracking: only scan [segmentStartTime, dataTime].
 	segmentStartTime int64
@@ -151,13 +150,12 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 				d.series[sk] = state
 			}
 
-			// Replay optimization: skip unless MinSegment new points are visible.
-			// The scan needs MinSegment points per side to evaluate a split, so
-			// fewer new points can't create a new valid split boundary. This cuts
-			// per-series scans from O(timestamps) to O(timestamps/MinSegment).
-			// During live ingestion, writeGen changes on every write so this
-			// condition falls through to the gen check and behaves as before.
-			if status.pointCount < state.lastProcessedCount+d.MinSegment && status.writeGeneration == state.lastWriteGen {
+			// Skip if nothing has been written since last Detect.
+			// writeGeneration increments on every Add (including same-bucket merges),
+			// so this is the sole correct guard. A count-based skip is broken under
+			// time-based point retention because trim+add keeps pointCount stable
+			// while still changing writeGeneration.
+			if status.writeGeneration == state.lastWriteGen {
 				continue
 			}
 
@@ -176,7 +174,6 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 			})
 
 			if seriesMeta == nil || len(state.buf) < d.MinPoints {
-				state.lastProcessedCount = status.pointCount
 				state.lastWriteGen = status.writeGeneration
 				continue
 			}
@@ -188,7 +185,6 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 				state.segmentStartTime = state.buf[changeIdx].Timestamp - 1
 			}
 
-			state.lastProcessedCount = status.pointCount
 			state.lastWriteGen = status.writeGeneration
 		}
 	}
