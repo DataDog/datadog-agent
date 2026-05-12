@@ -269,7 +269,7 @@ func NewComponent(deps Requires) Provides {
 	// anomaly_detection.logs.enabled is the parent gate; without it,
 	// agent_logs are also disabled.  anomaly_detection.agent_logs.enabled
 	// defaults to true when unset (explicit false disables it).
-	logsEnabled := cfg.GetBool("anomaly_detection.logs.enabled")
+	logsEnabled := !cfg.IsConfigured("anomaly_detection.logs.enabled") || cfg.GetBool("anomaly_detection.logs.enabled")
 	agentLogsEnabled := !cfg.IsConfigured("anomaly_detection.agent_logs.enabled") || cfg.GetBool("anomaly_detection.agent_logs.enabled")
 	if analysisEnabled && logsEnabled && agentLogsEnabled {
 		sampleInfo := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_info")

@@ -90,7 +90,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	wmeta, wmetaOk := deps.WMeta.Get()
 
 	analysisEnabled := deps.Config.GetBool("anomaly_detection.enabled")
-	logsEnabled := deps.Config.GetBool("anomaly_detection.logs.enabled")
+	logsEnabled := !deps.Config.IsConfigured("anomaly_detection.logs.enabled") || deps.Config.GetBool("anomaly_detection.logs.enabled")
 	recordingEnabled := deps.Config.GetBool("anomaly_detection.recording.enabled")
 
 	// Skip when the observer is absent, workloadmeta is absent,
