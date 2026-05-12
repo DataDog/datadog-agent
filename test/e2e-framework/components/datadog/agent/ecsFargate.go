@@ -40,7 +40,7 @@ func ECSFargateLinuxContainerDefinition(e config.Env, image string, apiKeySSMPar
 		Cpu:                    pulumi.IntPtr(0),
 		Name:                   pulumi.String("datadog-agent"),
 		Image:                  pulumi.String(image),
-		Essential:              pulumi.BoolPtr(false),
+		Essential:              pulumi.BoolPtr(true),
 		ReadonlyRootFilesystem: pulumi.BoolPtr(true),
 		DependsOn: ecs.TaskDefinitionContainerDependencyArray{
 			ecs.TaskDefinitionContainerDependencyArgs{
