@@ -57,7 +57,9 @@ var (
 		DatadogAPMLibraryHttpdPackage,
 	}
 
-	// ApmLibraries is a list of all the apm libraries
+	// ApmLibraries is the list of apm libraries selectable via the setup
+	// default script (DD_APM_INSTRUMENTATION_LIBRARIES), including by the
+	// "all" / install-all-when-empty fallback.
 	ApmLibraries = []string{
 		DatadogAPMLibraryJavaPackage,
 		DatadogAPMLibraryPythonPackage,
@@ -66,6 +68,17 @@ var (
 		DatadogAPMLibraryDotNetPackage,
 		DatadogAPMLibraryPHPPackage,
 		DatadogAPMLibraryNginxPackage,
+	}
+
+	// ExplicitOnlyApmLibraries are apm libraries that must be named in
+	// DD_APM_INSTRUMENTATION_LIBRARIES to be installed via the setup default
+	// script. They are excluded from "all" and the empty-libraries fallback
+	// because the underlying packages are pre-registered and gated on remote
+	// updates.
+	ExplicitOnlyApmLibraries = []string{
+		DatadogAPMLibraryIISPackage,
+		DatadogAPMLibraryIISRumPackage,
+		DatadogAPMLibraryHttpdPackage,
 	}
 )
 
