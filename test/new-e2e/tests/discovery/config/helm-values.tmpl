@@ -1,8 +1,4 @@
 datadog:
-  processAgent:
-    processCollection: true
-  logs:
-    enabled: false
   discovery:
     enabled: true
 {{- if eq .Mode "sp" }}
@@ -12,8 +8,6 @@ datadog:
   systemProbe:
     enableOOMKill: true
 {{- end }}
-  envDict:
-    DD_LANGUAGE_DETECTION_ENABLED: "true"
 
 agents:
   # The discovery-e2e-mode annotation is purely a no-op marker
