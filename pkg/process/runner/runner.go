@@ -444,6 +444,7 @@ func (l *CheckRunner) UpdateRTStatus(statuses []*model.CollectorStatus) {
 			select {
 			case l.rtIntervalCh <- l.realTimeInterval:
 			case <-l.stop:
+				// Stop sending when shutting down to avoid blocking forever without receivers.
 				return
 			}
 		}
