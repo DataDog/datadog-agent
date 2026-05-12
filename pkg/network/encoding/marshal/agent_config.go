@@ -19,9 +19,6 @@ func NewAgentConfiguration(syscfg, ddcfg pkgconfigmodel.Reader) *model.AgentConf
 	discoveryEnabled := syscfg.GetBool("discovery.service_map.enabled")
 	return &model.AgentConfiguration{
 		NpmEnabled: syscfg.GetBool("network_config.enabled"),
-		// !discoveryEnabled: mask USM to false on the wire when discovery
-		// mode is on, even though the agent internally force-enabled USM
-		// to start the monitor. Discovery is free; USM is billed.
 		// When both USM and discovery are enabled in config, USM still bills:
 		// adjustDiscovery flips discovery.service_map.enabled to false before
 		// the encoder runs (coexistence rule: USM wins).

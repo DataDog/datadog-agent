@@ -27,7 +27,7 @@ const (
 
 	// Status code bucket keys used by discovery mode.
 	successBucket = uint16(200)
-	errorBucket   = uint16(500)
+	errorBucket   = uint16(400)
 
 	statusCodeBelowValidRange = 99
 )
