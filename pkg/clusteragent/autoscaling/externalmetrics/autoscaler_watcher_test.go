@@ -16,6 +16,7 @@ import (
 	autoscaler "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	dynamic_informer "k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/dynamic/fake"
@@ -60,7 +61,7 @@ func newAutoscalerFixture(t *testing.T) *autoscalerFixture {
 	}
 }
 
-func (f *autoscalerFixture) newAutoscalerWatcher() (*AutoscalerWatcher, kube_informer.SharedInformerFactory, dynamic_informer.DynamicSharedInformerFactory) {
+func (f *autoscalerFixture) newAutoscalerWatcher(selector labels.Selector) (*AutoscalerWatcher, kube_informer.SharedInformerFactory, dynamic_informer.DynamicSharedInformerFactory) {
 	for _, hpa := range f.hpaLister {
 		f.kubeObjects = append(f.kubeObjects, hpa)
 	}
@@ -85,7 +86,7 @@ func (f *autoscalerFixture) newAutoscalerWatcher() (*AutoscalerWatcher, kube_inf
 	wpaClient := fake.NewSimpleDynamicClient(scheme, f.wpaObjects...)
 	wpaInformer := dynamic_informer.NewDynamicSharedInformerFactory(wpaClient, noResyncPeriodFunc())
 
-	autoscalerWatcher, err := NewAutoscalerWatcher(0, true, 1, "default", kubeClient, kubeInformer, wpaInformer, getIsLeaderFunction(true), &f.store)
+	autoscalerWatcher, err := NewAutoscalerWatcher(0, true, 1, "default", selector, kubeClient, kubeInformer, wpaInformer, getIsLeaderFunction(true), &f.store)
 	if err != nil {
 		return nil, nil, nil
 	}
@@ -104,7 +105,7 @@ func (f *autoscalerFixture) newAutoscalerWatcher() (*AutoscalerWatcher, kube_inf
 }
 
 func (f *autoscalerFixture) runWatcherUpdate() {
-	autoscalerWatcher, kubeInformer, wpaInformer := f.newAutoscalerWatcher()
+	autoscalerWatcher, kubeInformer, wpaInformer := f.newAutoscalerWatcher(nil)
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 	kubeInformer.Start(stopCh)
@@ -114,10 +115,15 @@ func (f *autoscalerFixture) runWatcherUpdate() {
 }
 
 func newFakeHorizontalPodAutoscaler(ns, name string, metrics []autoscaler.MetricSpec) *autoscaler.HorizontalPodAutoscaler {
+	return newFakeHorizontalPodAutoscalerWithLabels(ns, name, nil, metrics)
+}
+
+func newFakeHorizontalPodAutoscalerWithLabels(ns, name string, hpaLabels map[string]string, metrics []autoscaler.MetricSpec) *autoscaler.HorizontalPodAutoscaler {
 	return &autoscaler.HorizontalPodAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: ns,
 			Name:      name,
+			Labels:    hpaLabels,
 		},
 		Spec: autoscaler.HorizontalPodAutoscalerSpec{
 			Metrics: metrics,
@@ -381,7 +387,7 @@ func TestDisableDatadogMetricAutogen(t *testing.T) {
 		}),
 	}
 
-	autoscalerWatcher, kubeInformer, wpaInformer := f.newAutoscalerWatcher()
+	autoscalerWatcher, kubeInformer, wpaInformer := f.newAutoscalerWatcher(nil)
 	autoscalerWatcher.autogenEnabled = false
 
 	stopCh := make(chan struct{})
@@ -487,4 +493,87 @@ func TestCleanUpAutogenDatadogMetrics(t *testing.T) {
 	}
 	ddm.SetQueries("avg:docker.cpu.usage{bar:foo}.rollup(30)")
 	compareDatadogMetricInternal(t, &ddm, f.store.Get("default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412"))
+}
+
+func TestHPALabelSelectorFiltering(t *testing.T) {
+	f := newAutoscalerFixture(t)
+
+	f.hpaLister = []*autoscaler.HorizontalPodAutoscaler{
+		// hpa0 matches label selector, no datadogmetric@ reference — included via label match
+		newFakeHorizontalPodAutoscalerWithLabels("ns0", "hpa0", map[string]string{"team": "infra"}, []autoscaler.MetricSpec{
+			{
+				Type: autoscaler.ExternalMetricSourceType,
+				External: &autoscaler.ExternalMetricSource{
+					MetricName:     "requests_per_s",
+					MetricSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"kube_container_name": "app"}},
+				},
+			},
+		}),
+		// hpa1 does NOT match label selector, but has datadogmetric@ reference — included via OR
+		newFakeHorizontalPodAutoscalerWithLabels("ns0", "hpa1", map[string]string{"app.kubernetes.io/managed-by": "keda-operator"}, []autoscaler.MetricSpec{
+			{
+				Type: autoscaler.ExternalMetricSourceType,
+				External: &autoscaler.ExternalMetricSource{
+					MetricName: "datadogmetric@default:dd-metric-ref",
+				},
+			},
+		}),
+		// hpa2 does NOT match label selector and has no datadogmetric@ reference — excluded
+		newFakeHorizontalPodAutoscalerWithLabels("ns0", "hpa2", map[string]string{"app.kubernetes.io/managed-by": "keda-operator"}, []autoscaler.MetricSpec{
+			{
+				Type: autoscaler.ExternalMetricSourceType,
+				External: &autoscaler.ExternalMetricSource{
+					MetricName:     "keda_metric",
+					MetricSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"queue": "jobs"}},
+				},
+			},
+		}),
+	}
+
+	ddm := model.DatadogMetricInternal{
+		ID:         "default/dd-metric-ref",
+		Active:     false,
+		Valid:      true,
+		Value:      20.0,
+		UpdateTime: time.Now(),
+		Error:      nil,
+	}
+	ddm.SetQueries("metric query ref")
+	f.store.Set("default/dd-metric-ref", ddm, "utest")
+
+	// Parse a selector that excludes HPAs with app.kubernetes.io/managed-by=keda-operator
+	selector, err := labels.Parse("app.kubernetes.io/managed-by!=keda-operator")
+	assert.NoError(t, err)
+
+	autoscalerWatcher, kubeInformer, wpaInformer := f.newAutoscalerWatcher(selector)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	kubeInformer.Start(stopCh)
+	wpaInformer.Start(stopCh)
+
+	autoscalerWatcher.processAutoscalers()
+
+	// Check all store entries for autoscaler references
+	foundHpa0Ref := false
+	foundHpa2Ref := false
+	for _, m := range f.store.GetAll() {
+		if m.AutoscalerReferences == "hpa:ns0/hpa0" {
+			foundHpa0Ref = true
+		}
+		if m.AutoscalerReferences == "hpa:ns0/hpa2" {
+			foundHpa2Ref = true
+		}
+	}
+
+	// hpa0 matched label selector — should be included and create autogen metric
+	assert.True(t, foundHpa0Ref, "hpa0 should be included (matches label selector)")
+
+	// hpa1 has datadogmetric@ reference — dd-metric-ref should be active despite failing label selector
+	refMetric := f.store.Get("default/dd-metric-ref")
+	assert.NotNil(t, refMetric)
+	assert.True(t, refMetric.Active)
+	assert.Equal(t, "hpa:ns0/hpa1", refMetric.AutoscalerReferences)
+
+	// hpa2 should be excluded — no label match, no datadogmetric@ reference
+	assert.False(t, foundHpa2Ref, "hpa2 should be excluded (no label match and no datadogmetric@ reference)")
 }

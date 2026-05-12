@@ -86,6 +86,16 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, d
 	}
 	go metricsRetriever.Run(ctx.Done())
 
+	selectorStr := pkgconfigsetup.Datadog().GetString("external_metrics_provider.hpa_label_selector")
+	var hpaLabelSelector labels.Selector
+	hpaLabelSelector, err = labels.Parse(selectorStr)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse external_metrics_provider.hpa_label_selector %q: %v", selectorStr, err)
+	}
+	if selectorStr != "" {
+		log.Infof("HPA label selector configured: %s", selectorStr)
+	}
+
 	var wpaInformer dynamicinformer.DynamicSharedInformerFactory
 	if wpaEnabled {
 		wpaInformer = apiCl.DynamicInformerFactory
@@ -98,6 +108,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient, d
 		autogenEnabled,
 		autogenExpirationPeriodHours,
 		autogenNamespace,
+		hpaLabelSelector,
 		apiCl.Cl,
 		apiCl.InformerFactory,
 		wpaInformer,
