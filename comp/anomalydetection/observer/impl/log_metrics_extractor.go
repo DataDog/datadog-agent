@@ -82,7 +82,7 @@ func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetri
 
 	// For JSON logs, also extract numeric field metrics
 	if isJSONObject(content) {
-		metrics = append(metrics, a.extractJSONFieldMetrics(content, tags, string(content))...)
+		metrics = append(metrics, a.extractJSONFieldMetrics(content, tags)...)
 	}
 
 	return observer.LogMetricsExtractorOutput{Metrics: metrics}
@@ -101,10 +101,6 @@ func (a *LogMetricsExtractor) extractJSONFieldMetrics(content string, tags []str
 	var obj map[string]any
 	if err := dec.Decode(&obj); err != nil {
 		return nil
-	}
-
-	if a.patternContext == nil {
-		a.patternContext = make(map[string]observer.MetricContext)
 	}
 
 	var out []observer.MetricOutput
@@ -126,18 +122,15 @@ func (a *LogMetricsExtractor) extractJSONFieldMetrics(content string, tags []str
 		}
 
 		metricName := "log.field." + sanitizeMetricFragment(k)
-		contextKey := metricContextKey(metricName, tags)
-		a.patternContext[contextKey] = observer.MetricContext{
-			Pattern: k,
-			Example: truncate(example, 160),
-			Source:  "log_metrics_extractor",
-		}
-
 		out = append(out, observer.MetricOutput{
-			Name:       metricName,
-			Value:      f,
-			Tags:       tags,
-			ContextKey: contextKey,
+			Name:  metricName,
+			Value: f,
+			Tags:  tags,
+			Context: &observer.MetricContext{
+				Pattern: k,
+				Example: truncate(content, 160),
+				Source:  "log_metrics_extractor",
+			},
 		})
 	}
 

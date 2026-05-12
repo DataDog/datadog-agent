@@ -799,7 +799,7 @@ func (o *observerImpl) StorageReader() observerdef.StorageReader {
 func (o *observerImpl) IngestLogSync(source string, msg observerdef.LogView) {
 	timestampMs := msg.GetTimestampUnixMilli()
 	lo := &logObs{
-		content:     copyBytes(msg.GetContent()),
+		content:     msg.GetContent(),
 		status:      msg.GetStatus(),
 		tags:        copyTags(msg.GetTags()),
 		hostname:    msg.GetHostname(),
