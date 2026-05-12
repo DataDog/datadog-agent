@@ -10,6 +10,7 @@ package kubelet
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	pkgErrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -42,8 +43,9 @@ const (
 )
 
 var (
-	globalKubeUtil      *KubeUtil
-	globalKubeUtilMutex sync.Mutex
+	globalKubeUtil              *KubeUtil
+	globalKubeUtilMutex         sync.Mutex
+	errFailedKubeletClientHTTPS = errors.New("failed to use HTTPS for kubelet client")
 )
 
 // Time is used to mirror the wrapped Time struct inn"k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -65,6 +67,9 @@ type KubeUtil struct {
 	// used to setup the KubeUtil
 	initRetry retry.Retrier
 
+	// used to switch to HTTPS scheme if available
+	httpsRetry retry.Retrier
+
 	kubeletClient        *kubeletClient
 	rawConnectionInfo    map[string]string // kept to pass to the python kubelet check
 	podListCacheDuration time.Duration     // a duration of 0 disables the cache
@@ -78,6 +83,20 @@ type KubeUtil struct {
 	// be cached
 	nodeName      string
 	nodeNameMutex sync.Mutex
+}
+
+func (ku *KubeUtil) initUsingHTTPS() error {
+	err := ku.init()
+	if err != nil {
+		return err
+	}
+
+	if ku.kubeletClient.config.scheme == "http" {
+		return errFailedKubeletClientHTTPS
+	}
+
+	return nil
+
 }
 
 func (ku *KubeUtil) init() error {
@@ -162,12 +181,39 @@ func GetKubeUtilWithRetrier() (KubeUtilInterface, *retry.Retrier) {
 			InitialRetryDelay: 1 * time.Second,
 			MaxRetryDelay:     5 * time.Minute,
 		})
+
+		// prepare a retrier to switch from HTTP to HTTPS if available
+		globalKubeUtil.httpsRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
+			Name:              "kubeutil with HTTPS",
+			AttemptMethod:     globalKubeUtil.initUsingHTTPS, // call init(), returns an error until it uses HTTPS
+			Strategy:          retry.Backoff,
+			InitialRetryDelay: 10 * time.Second,
+			MaxRetryDelay:     30 * time.Hour,
+		})
 	}
 	err := globalKubeUtil.initRetry.TriggerRetry()
 	if err != nil {
-		log.Debugf("Kube util init error: %s", err)
+		log.Debugf("Kube util init error=%s", err.Error())
 		return nil, &globalKubeUtil.initRetry
 	}
+
+	// try to switch to https
+	if globalKubeUtil.kubeletClient.config.scheme == "http" && time.Now().After(globalKubeUtil.httpsRetry.NextRetry()) {
+		err := globalKubeUtil.httpsRetry.TriggerRetry()
+
+		// no error => happy path, we have HTTPS now.
+		// when the error is `errFailedKubeletClientHTTPS` this mean we succeed to have a kubeletClient
+		// but it uses HTTP, we failed to reach kubelet using HTTPS.
+		// we can still return the client as is, as it works using HTTP only.
+		// the next call to this function will retry reaching it using HTTPS
+		if err == nil || errors.Is(err, errFailedKubeletClientHTTPS) {
+			return globalKubeUtil, nil
+		}
+
+		// error while init kubelet client
+		return nil, &globalKubeUtil.httpsRetry
+	}
+
 	return globalKubeUtil, nil
 }
 
@@ -252,15 +298,15 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 
 	data, code, err := ku.QueryKubelet(ctx, kubeletPodPath)
 	if err != nil {
-		return nil, errors.NewRetriable("podlist", fmt.Errorf("error performing kubelet query %s%s: %w", ku.kubeletClient.kubeletURL, kubeletPodPath, err))
+		return nil, pkgErrors.NewRetriable("podlist", fmt.Errorf("error performing kubelet query %s%s: %w", ku.kubeletClient.kubeletURL, kubeletPodPath, err))
 	}
 	if code != http.StatusOK {
-		return nil, errors.NewRetriable("podlist", fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletClient.kubeletURL, kubeletPodPath, string(data)))
+		return nil, pkgErrors.NewRetriable("podlist", fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletClient.kubeletURL, kubeletPodPath, string(data)))
 	}
 
 	err = ku.podUnmarshaller.unmarshal(data, &pods)
 	if err != nil {
-		return nil, errors.NewRetriable("podlist", fmt.Errorf("unable to unmarshal podlist, invalid or null: %w", err))
+		return nil, pkgErrors.NewRetriable("podlist", fmt.Errorf("unable to unmarshal podlist, invalid or null: %w", err))
 	}
 
 	err = ku.addContainerResourcesData(ctx, pods.Items)
@@ -393,10 +439,10 @@ func (ku *KubeUtil) GetLocalPodListWithMetadata(ctx context.Context) (*PodList, 
 func (ku *KubeUtil) GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error) {
 	data, code, err := ku.QueryKubelet(ctx, kubeletStatsSummary)
 	if err != nil {
-		return nil, errors.NewRetriable("statssummary", fmt.Errorf("error performing kubelet query %s%s: %w", ku.kubeletClient.kubeletURL, kubeletStatsSummary, err))
+		return nil, pkgErrors.NewRetriable("statssummary", fmt.Errorf("error performing kubelet query %s%s: %w", ku.kubeletClient.kubeletURL, kubeletStatsSummary, err))
 	}
 	if code != http.StatusOK {
-		return nil, errors.NewRetriable("statssummary", fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletClient.kubeletURL, kubeletStatsSummary, string(data)))
+		return nil, pkgErrors.NewRetriable("statssummary", fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletClient.kubeletURL, kubeletStatsSummary, string(data)))
 	}
 
 	statsSummary := &kubeletv1alpha1.Summary{}

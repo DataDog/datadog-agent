@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    When the kubelet client fails to init using HTTPS is fallsback to HTTP.
+    Once set, it never changes even though the HTTPS is available and the error at init
+    was only temporary.
+    Improve that by trying to re-init the kubelet client using HTTPS each time a new component
+    tries to get the kubelet client.
+fixes:
+  - |
+    Fixes the issue when the kubelet keeps using HTTP when HTTPS is available
+    to reach the kubelet server.
