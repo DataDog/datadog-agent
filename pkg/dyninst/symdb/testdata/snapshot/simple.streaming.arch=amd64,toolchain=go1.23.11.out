@@ -101,8 +101,8 @@ Package: main
 	Function: funcArg (main.funcArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [368:370] injectible: [368-370]
 		Arg: f: func(int) (declared at line 368, available: [368-369])
 	Function: genericIdentity[...] (main.genericIdentity[...]) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [971:973] injectible: [971-973]
-		Arg: x: .param0 (declared at line 971, available: [971-973])
-		Arg: ~r0: .param0 (declared at line 971, available: )
+		Arg: x: <T> (declared at line 971, available: [971-973])
+		Arg: ~r0: <T> (declared at line 971, available: )
 	Function: indexMemberWrapperArg (main.indexMemberWrapperArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [811:813] injectible: [811-813]
 		Arg: s: *main.indexMemberWrapper (declared at line 811, available: [811-813])
 		Arg: tag: string (declared at line 811, available: [811-813])
@@ -162,6 +162,56 @@ Package: main
 		Var: elem2: main.indexMemberStruct (declared at line 255, available: [17-327])
 		Scope: 266-269
 			Var: i: int (declared at line 266, available: [266-266], [267-267], [269-269])
+	Type: main.aStructNotUsedAsAnArgument
+		Field: a: int
+	Type: main.bigArrayStruct
+		Field: tag: int
+		Field: data: [131072]int64
+	Type: main.bigStruct
+		Field: Field1: int
+		Field: Field2: int
+		Field: Field3: int
+		Field: Field4: int
+		Field: Field5: int
+		Field: Field6: int
+		Field: Field7: int
+		Field: data: [128]uint8
+	Type: main.condFields
+		Field: I8: int8
+		Field: I16: int16
+		Field: I32: int32
+		Field: I64: int64
+		Field: U8: uint8
+		Field: U16: uint16
+		Field: U32: uint32
+		Field: U64: uint64
+		Field: F32: float32
+		Field: F64: float64
+		Field: B: bool
+		Field: S: string
+		Field: arr: [3]int16
+	Type: main.indexMemberStruct
+		Field: Val: int32
+		Field: Txt: string
+		Field: pad: [3]int16
+	Type: main.indexMemberWrapper
+		Field: Arr: *[2]main.indexMemberStruct
+		Field: PtrArr: *[2]*main.indexMemberStruct
+		Field: pad: [3]int16
+	Type: main.largeValueStruct
+		Field: Pad: [256]uint8
+		Field: Val: int
+	Type: main.lenFields
+		Field: S: string
+		Field: Items: []int
+		Field: Dict: map[string]int
+		Field: PtrStr: *string
+		Field: PtrSlice: *[]int
+		Field: pad: [3]int16
+	Type: main.methodValueReceiver
+		Field: val: int
+		Function: inlinedMethod (main.(*methodValueReceiver).inlinedMethod) in  [987:0] injectible: 
+			Arg: m: *main.methodValueReceiver (declared at line 0, available: )
 	Function: makeKey (main.makeKey) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [848:853] injectible: [848-853]
 		Arg: length: int (declared at line 848, available: [848-849])
 		Arg: i: int (declared at line 848, available: [848-853])
@@ -241,39 +291,3 @@ Package: main
 	Function: usesMapsOfMapsThatDoNotAppearAsArguments (main.usesMapsOfMapsThatDoNotAppearAsArguments) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [718:728] injectible: [718-718], [721-722], [724-725], [727-728]
 		Arg: ~r0: map[uint8]map[int]main.aStructNotUsedAsAnArgument (declared at line 718, available: )
 		Var: m: map[string]map[int]main.aStructNotUsedAsAnArgument (declared at line 721, available: )
-	Type: main.bigArrayStruct
-		Field: tag: int
-		Field: data: [131072]int64
-	Type: main.condFields
-		Field: I8: int8
-		Field: I16: int16
-		Field: I32: int32
-		Field: I64: int64
-		Field: U8: uint8
-		Field: U16: uint16
-		Field: U32: uint32
-		Field: U64: uint64
-		Field: F32: float32
-		Field: F64: float64
-		Field: B: bool
-		Field: S: string
-		Field: arr: [3]int16
-	Type: main.indexMemberStruct
-		Field: Val: int32
-		Field: Txt: string
-		Field: pad: [3]int16
-	Type: main.indexMemberWrapper
-		Field: Arr: *[2]main.indexMemberStruct
-		Field: PtrArr: *[2]*main.indexMemberStruct
-		Field: pad: [3]int16
-	Type: main.lenFields
-		Field: S: string
-		Field: Items: []int
-		Field: Dict: map[string]int
-		Field: PtrStr: *string
-		Field: PtrSlice: *[]int
-		Field: pad: [3]int16
-	Type: main.methodValueReceiver
-		Field: val: int
-		Function: inlinedMethod (main.(*methodValueReceiver).inlinedMethod) in  [987:0] injectible: 
-			Arg: m: *main.methodValueReceiver (declared at line 0, available: )

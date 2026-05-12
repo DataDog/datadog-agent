@@ -74,6 +74,21 @@ func mutatePod(pod *corev1.Pod, injectorImage, hostSocketPath, socketPath string
 	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_DD_INSPECTOR_PATH", Value: soMountPath + "/libnccl-profiler-inspector.so"}) || envAdded
 	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_INSPECTOR_ENABLE", Value: "1"}) || envAdded
 
+	// Point NVIDIA Inspector's file-dump at /tmp — writable in virtually
+	// every customer training container. Without this, Inspector's dump
+	// thread tries the default location, and if THAT isn't writable, the
+	// thread breaks before calling our patched inspectorCommInfoDump →
+	// socket delivery silently emits nothing. Customer can override.
+	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_INSPECTOR_DUMP_DIR", Value: "/tmp/nccl-inspector"}) || envAdded
+
+	// Inspector's dump thread sets the needs_writing flag that gates the
+	// .so's socket-delivery hook. Default interval is 0 (thread sits
+	// idle), so without an explicit value the .so emits nothing. Default
+	// to 100 ms; consumers can override (InjectEnv is a no-op if already
+	// set). The Inspector .so also setenv-defaults this at init time as a
+	// belt-and-suspenders for pods loading the .so outside the webhook.
+	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_INSPECTOR_DUMP_THREAD_INTERVAL_MICROSECONDS", Value: "100000"}) || envAdded
+
 	// Prepend init container that copies the Inspector .so from the injector image.
 	// SecurityContext drops all capabilities + disallows privilege escalation so
 	// the container passes the "restricted" PodSecurity standard. Resource

@@ -1,8 +1,0 @@
-load("@rules_go//go:def.bzl", "go_library")
-
-go_library(
-    name = "symdbutil",
-    srcs = ["util.go"],
-    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/symdb/symdbutil",
-    visibility = ["//visibility:public"],
-)

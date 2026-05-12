@@ -25,6 +25,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 )
 
 // SymDBRoot models the root structure for SymDB uploads, following the JSON
@@ -280,17 +282,19 @@ func TestBatchEncoder(t *testing.T) {
 			uploadID := uuid.New()
 			go func() {
 				defer wg.Done()
-				enc := NewBatchEncoder(
+				enc, err := NewBatchEncoder(
 					ts.serverURL.String(),
 					"service1",
 					"1.0.0",
 					"dummy-runtime-id",
 					uploadID,
+					nil, nil,
 				)
+				assert.NoError(t, err)
 				for _, s := range createPackageScopes() {
 					assert.NoError(t, enc.AddScope(s))
 				}
-				err := enc.Flush(context.Background(), true /* final */)
+				err = enc.Flush(context.Background(), true /* final */)
 				if injectError {
 					assert.Error(t, err)
 					assert.ErrorIs(t, err, ErrUpload)
@@ -328,13 +332,15 @@ func TestBatchEncoder_MultiBatch(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		enc := NewBatchEncoder(
+		enc, err := NewBatchEncoder(
 			ts.serverURL.String(),
 			"service1",
 			"1.0.0",
 			"dummy-runtime-id",
 			uploadID,
+			nil, nil,
 		)
+		assert.NoError(t, err)
 		for i, s := range scopes {
 			assert.NoError(t, enc.AddScope(s))
 			final := i == len(scopes)-1
@@ -362,13 +368,15 @@ func TestBatchEncoder_Size(t *testing.T) {
 	ts := newTestServer()
 	defer ts.Close()
 
-	enc := NewBatchEncoder(
+	enc, err := NewBatchEncoder(
 		ts.serverURL.String(),
 		"service1",
 		"1.0.0",
 		"dummy-runtime-id",
 		uuid.New(),
+		nil, nil,
 	)
+	require.NoError(t, err)
 	require.Zero(t, enc.Size(), "Size should be zero before any scopes")
 
 	// Add scopes until Size grows. gzip buffers internally (~32 KiB deflate
@@ -398,19 +406,65 @@ func TestBatchEncoder_Size(t *testing.T) {
 	require.Zero(t, enc.Size(), "Size should reset after Flush")
 }
 
+// TestBatchEncoder_DiskCache verifies that the disk-cache-backed sink
+// produces an identical upload payload to the in-memory sink.
+func TestBatchEncoder_DiskCache(t *testing.T) {
+	ts := newTestServer()
+	defer ts.Close()
+
+	dc, err := object.NewDiskCache(object.DiskCacheConfig{
+		DirPath:                  t.TempDir(),
+		MaxTotalBytes:            64 * 1024 * 1024,
+		RequiredDiskSpaceBytes:   1 * 1024 * 1024,
+		RequiredDiskSpacePercent: 0.1,
+	})
+	require.NoError(t, err)
+
+	uploadID := uuid.New()
+	scopes := createPackageScopes()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		enc, err := NewBatchEncoder(
+			ts.serverURL.String(),
+			"service1",
+			"1.0.0",
+			"dummy-runtime-id",
+			uploadID,
+			dc, nil,
+		)
+		assert.NoError(t, err)
+		defer func() { _ = enc.Close() }()
+		for _, s := range scopes {
+			assert.NoError(t, enc.AddScope(s))
+		}
+		assert.NoError(t, enc.Flush(context.Background(), true /* final */))
+	}()
+
+	req := <-ts.requests
+	validateSymDBRequest(t, "service1", "1.0.0", "dummy-runtime-id", uploadID, req.r)
+	req.w.WriteHeader(http.StatusOK)
+	close(req.done)
+	wg.Wait()
+}
+
 // TestBatchEncoder_EmptyFinal verifies that Flush(ctx, true) with no scopes
 // added is a no-op (no HTTP request).
 func TestBatchEncoder_EmptyFinal(t *testing.T) {
 	ts := newTestServer()
 	defer ts.Close()
 
-	enc := NewBatchEncoder(
+	enc, err := NewBatchEncoder(
 		ts.serverURL.String(),
 		"service1",
 		"1.0.0",
 		"dummy-runtime-id",
 		uuid.New(),
+		nil, nil,
 	)
+	require.NoError(t, err)
 	// No AddScope calls.
 	require.NoError(t, enc.Flush(context.Background(), true))
 	require.Equal(t, 0, enc.BatchCount())

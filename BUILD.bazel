@@ -464,6 +464,11 @@ exports_files(glob(
 # gazelle:exclude pkg/dyninst/symdb/index_integration_test.go
 # gazelle:exclude pkg/dyninst/symdb/symdb.go
 # gazelle:exclude pkg/dyninst/symdb/symdb_test.go
+# gazelle:exclude pkg/dyninst/symdb/symdbprinter
+# gazelle:exclude pkg/dyninst/symdb/type_emit.go
+# gazelle:exclude pkg/dyninst/symdb/type_info_by_offset_index.go
+# gazelle:exclude pkg/dyninst/symdb/types_by_package_index.go
+# gazelle:exclude pkg/dyninst/symdb/uploader
 # gazelle:exclude pkg/dyninst/testprogs/probes.go
 # gazelle:exclude pkg/dyninst/testprogs/progs/rc_tester
 # gazelle:exclude pkg/dyninst/testprogs/progs/rc_tester_v1
@@ -614,8 +619,6 @@ exports_files(glob(
 # gazelle:exclude pkg/process/util/containers
 # gazelle:exclude pkg/process/util/status
 # gazelle:exclude pkg/procmgr
-# gazelle:exclude pkg/proto/datadog/api
-# gazelle:exclude pkg/proto/datadog/remoteagent
 # gazelle:exclude pkg/proto/protodep
 # gazelle:exclude pkg/remoteflags
 # gazelle:exclude pkg/sbom/collectors/docker
@@ -864,13 +867,6 @@ exports_files(glob(
 # gazelle:exclude tools/host-profiler
 # gazelle:exclude tools/retry_file_dump
 # gazelle:exclude tools/windows
-# Proto definitions under pkg/proto/datadog/ use pre-generated Go code checked
-# into pkg/proto/pbgo/. Gazelle's proto mode is disabled because multiple proto
-# directories share the same go_package ("pkg/proto/pbgo/core"), making
-# per-directory go_proto_library targets impossible. Additionally, some directories
-# (remoteagent, privateactionrunner) contain multiple proto packages which
-# gazelle cannot handle at all.
-# Vendored proto definitions used only for protoc code-gen, not Bazel builds.
 
 # All custom build tags from tasks/build_tags.py ALL_TAGS, plus "test".
 # "test" is included so Gazelle analyzes test-only sources and generates their

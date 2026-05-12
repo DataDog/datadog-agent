@@ -17,24 +17,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
-// TestForPackageEscapeRoundTrip exercises funcOffsetByNameIndex.forPackage
-// against the indexes built from the sample testprog. The sample contains a
-// package "lib.v2" whose name has a dot in its last path segment — DWARF
-// emits the linker symbol with the segment-dot escaped as %2e, while the
-// compile unit's DW_AT_name keeps the unescaped form. forPackage takes the
-// unescaped form and must internally escape it before binary-searching.
+// TestForPackageEscapeRoundTrip exercises forPackage on the prepass
+// indexes built from the sample testprog. The sample contains a
+// package "lib.v2" whose name has a dot in its last path segment —
+// DWARF emits the linker symbol with the segment-dot escaped as %2e,
+// while the compile unit's DW_AT_name keeps the unescaped form.
+// forPackage takes the unescaped form and must internally escape it
+// before binary-searching.
 //
 // Concretely we assert:
-//  1. inlineDefs.forPackage("…/lib.v2") returns the inline definitions for
-//     lib.v2's symbols (otherwise cross-CU inline replay misses them).
-//  2. inlineDefs.forPackage("…/lib") yields no entries from lib.v2 — the
-//     escape boundary keeps sibling packages with shared dot-prefixed
-//     segments separate (the issue Andrei flagged).
+//  1. typesByPackage.forPackage("…/lib.v2") yields type DIE offsets
+//     that the typeInfoByOffset reverse index reports under the
+//     escaped name form (lib%2ev2.…).
+//  2. typesByPackage.forPackage("…/lib") yields no entries whose
+//     names contain "lib%2ev2." — the escape boundary keeps sibling
+//     packages with shared dot-prefixed segments separate.
 //  3. genericFuncs.forPackage works on unescaped names too.
-//  4. genericTypes.forPackage("…/lib.v2") returns lib.v2's generic types
-//     in DWARF (escaped) form — the index keys must match the lookup
-//     prefix's escape form, otherwise displaced generic types in
-//     dotted-segment packages are silently dropped.
+//  4. typesByPackage reaches non-generic types like lib.v2's V2Type.
 func TestForPackageEscapeRoundTrip(t *testing.T) {
 	cfgs, err := testprogs.GetCommonConfigs()
 	require.NoError(t, err)
@@ -62,21 +61,26 @@ func TestForPackageEscapeRoundTrip(t *testing.T) {
 				libV2Pkg = "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2"
 			)
 
-			// (1) lib.v2's inline definitions must be reachable.
+			// (1) lib.v2's type DIEs must be reachable, and their
+			// names — fetched via the reverse index — must use the
+			// escaped package form.
 			var libV2Names []string
-			for name := range indexes.inlineDefs.forPackage(libV2Pkg) {
+			for offset := range indexes.typesByPackage.forPackage(libV2Pkg) {
+				name, _, ok := indexes.typeInfoByOffset.infoAt(offset)
+				require.True(t, ok, "typeInfoByOffset has no entry for offset 0x%x", offset)
 				libV2Names = append(libV2Names, name)
 			}
 			require.NotEmpty(t, libV2Names,
-				"forPackage(%q) returned no inline-def entries — escape mismatch suspected", libV2Pkg)
+				"forPackage(%q) returned no type entries — escape mismatch suspected", libV2Pkg)
 			for _, name := range libV2Names {
-				// Stored names are in DWARF (escaped) form.
 				require.Contains(t, name, "lib%2ev2.",
 					"expected entry %q to use the escaped package form", name)
 			}
 
 			// (2) forPackage("lib") must not yield lib.v2 entries.
-			for name := range indexes.inlineDefs.forPackage(libPkg) {
+			for offset := range indexes.typesByPackage.forPackage(libPkg) {
+				name, _, ok := indexes.typeInfoByOffset.infoAt(offset)
+				require.True(t, ok)
 				require.False(t, strings.Contains(name, "lib%2ev2."),
 					"forPackage(%q) leaked a lib.v2 entry: %s", libPkg, name)
 			}
@@ -95,19 +99,24 @@ func TestForPackageEscapeRoundTrip(t *testing.T) {
 					"genericFuncs entry %q does not belong to %q", name, libPkg)
 			}
 
-			// (4) genericTypes for a dotted-segment package. lib.v2
-			// defines V2GenericBox[T]; if its key were stored unescaped
-			// the escaped-prefix lookup would miss it.
-			var libV2GenericTypeNames []string
-			for name := range indexes.genericTypes.forPackage(libV2Pkg) {
-				libV2GenericTypeNames = append(libV2GenericTypeNames, name)
+			// (4) Non-generic types in lib.v2 are now reachable via
+			// typesByPackage. V2Type is declared as `type V2Type
+			// struct{}` in lib.v2 — its DIE name is
+			// "…/lib%2ev2.V2Type" with no [go.shape.…] suffix, which
+			// the previous genericTypes index would have rejected.
+			// This is the new-coverage signal: the index-driven
+			// emission walk picks up types defined elsewhere as
+			// well as types whose only mentions are in foreign CUs.
+			foundV2Type := false
+			for _, name := range libV2Names {
+				if strings.HasSuffix(name, "lib%2ev2.V2Type") {
+					foundV2Type = true
+					break
+				}
 			}
-			require.NotEmpty(t, libV2GenericTypeNames,
-				"forPackage(%q) returned no generic-type entries — escape mismatch in genericTypes keys?", libV2Pkg)
-			for _, name := range libV2GenericTypeNames {
-				require.Contains(t, name, "lib%2ev2.",
-					"expected genericTypes entry %q to use the escaped package form", name)
-			}
+			require.True(t, foundV2Type,
+				"expected V2Type non-generic struct to appear in typesByPackage(%q); got %v",
+				libV2Pkg, libV2Names)
 		})
 	}
 }
