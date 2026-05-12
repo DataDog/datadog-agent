@@ -12,12 +12,12 @@ upload_debug_symbols:
     - job: datadog-agent-7-arm64
       artifacts: true
   script:
-    - datadog-ci --version || { echo "ERROR: datadog-ci not found in PATH"; exit 1; }
+    - 'datadog-ci --version || { echo "ERROR: datadog-ci not found in PATH"; exit 1; }'
     - DATADOG_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?
     - export DATADOG_API_KEY
     - export DD_BETA_COMMANDS_ENABLED=1
     - |
-      while IFS= read -r pkg; do
+      find "$OMNIBUS_PACKAGE_DIR" -name '*-dbg-*.tar.xz' 2>/dev/null | while IFS= read -r pkg; do
         echo "Uploading ELF debug symbols from $(basename "$pkg")"
         SYMBOL_TMPDIR=$(mktemp -d)
         if ! tar xf "$pkg" -C "$SYMBOL_TMPDIR"; then
@@ -28,4 +28,4 @@ upload_debug_symbols:
         datadog-ci elf-symbols upload "$SYMBOL_TMPDIR" || \
           echo "WARNING: elf-symbols upload failed for $(basename "$pkg") (non-fatal)"
         rm -rf "$SYMBOL_TMPDIR"
-      done < <(find "$OMNIBUS_PACKAGE_DIR" -name '*-dbg-*.tar.xz' 2>/dev/null)
+      done
