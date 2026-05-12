@@ -13,7 +13,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.75.4
 	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.75.4
-	github.com/DataDog/datadog-agent/pkg/logs/client v0.75.4
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.61.0
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.75.4
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.75.4
