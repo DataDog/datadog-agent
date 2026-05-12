@@ -17,6 +17,7 @@ func getMountProbes(fentry bool) []*manager.Probe {
 				UID:          SecurityAgentUID,
 				EBPFFuncName: "hook_attach_recursive_mnt",
 			},
+			MatchFuncName: `^attach_recursive_mnt(\.isra\.0)?$`,
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{

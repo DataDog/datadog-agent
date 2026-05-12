@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix CWS event_monitor failing to load on kernels that export
+    ``attach_recursive_mnt`` as ``attach_recursive_mnt.isra.0`` (the result of
+    GCC's IPA-SRA optimization, observed on Talos Linux with kernel 6.18).
+    The kprobe now matches both the unsuffixed and ``.isra.0`` symbol names.
