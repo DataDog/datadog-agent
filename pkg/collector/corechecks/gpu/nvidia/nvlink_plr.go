@@ -10,6 +10,7 @@ package nvidia
 import (
 	"fmt"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
@@ -37,6 +38,10 @@ func newNVLinkPLRCollector(device ddnvml.Device, deps *CollectorDependencies) (C
 	c := &nvlinkPLRCollector{
 		device:   device,
 		prmCache: deps.PRMCache,
+	}
+
+	if device.GetDeviceInfo().Architecture < nvml.DEVICE_ARCH_BLACKWELL {
+		return nil, fmt.Errorf("%w: NVLink PLR PRM metrics require Blackwell or newer architecture", errUnsupportedDevice)
 	}
 
 	var err error

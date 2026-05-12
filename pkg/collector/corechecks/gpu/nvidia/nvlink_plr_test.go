@@ -165,11 +165,35 @@ func TestNVLinkPLRCollectorUnsupportedDevice(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDevice := setupMockDeviceWithLibOpts(t, tt.customize)
-			_, err := newNVLinkPLRCollector(mockDevice, nil)
+			mockDevice := setupMockDeviceWithLibOpts(t, func(device *mock.Device) *mock.Device {
+				device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
+					return nvml.DEVICE_ARCH_BLACKWELL, nvml.SUCCESS
+				}
+				return tt.customize(device)
+			})
+			_, err := newNVLinkPLRCollector(mockDevice, &CollectorDependencies{PRMCache: &PRMCache{}})
 			require.ErrorIs(t, err, errUnsupportedDevice)
 		})
 	}
+}
+
+func TestNVLinkPLRCollectorPreBlackwellUnsupported(t *testing.T) {
+	mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+		device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
+			return nvml.DEVICE_ARCH_HOPPER, nvml.SUCCESS
+		}
+		device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
+			require.Len(t, values, 1)
+			values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
+			values[0].Value = [8]byte{2, 0, 0, 0, 0, 0, 0, 0}
+			return nvml.SUCCESS
+		}
+		return device
+	})
+
+	_, err := newNVLinkPLRCollector(mockDevice, &CollectorDependencies{PRMCache: &PRMCache{}})
+	require.ErrorIs(t, err, errUnsupportedDevice)
+	require.ErrorContains(t, err, "Blackwell or newer")
 }
 
 func TestPLRMetricSpecEntries(t *testing.T) {
