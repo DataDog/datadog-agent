@@ -15,19 +15,16 @@ import (
 type Verdict int
 
 const (
-	// VerdictOK means the file parsed and passed schema validation (or was empty).
+	// VerdictOK means the file parsed and passed schema validation
 	VerdictOK Verdict = iota
-	// VerdictYAMLParseFailure means yaml.Unmarshal returned an error.
+	// VerdictYAMLParseFailure means yaml.Unmarshal returned an error
 	VerdictYAMLParseFailure
-	// VerdictSchemaInvalid means YAML parsed but the schema produced at least one error.
+	// VerdictSchemaInvalid means YAML parsed but the schema produced at least one error
 	VerdictSchemaInvalid
-	// VerdictSchemaUnavailable means the validator itself failed (e.g. missing
-	// embedded schema). Caller should treat as "no opinion".
+	// VerdictSchemaUnavailable means the validator itself failed
 	VerdictSchemaUnavailable
 )
 
-// ValidationResult is what ValidateRawConfig returns. Inspect Verdict first
-// and only use the matching fields.
 type ValidationResult struct {
 	Verdict      Verdict
 	ParseError   error
@@ -35,12 +32,8 @@ type ValidationResult struct {
 	Parsed       map[string]any
 }
 
-// ValidateRawConfig is the single source of truth for "parse datadog.yaml,
-// run it through the embedded schema, summarise the result." Used by both the
-// in-Fx invalidconfig issue module and lite.Rescue so the two paths emit
-// consistent issue payloads regardless of who detected the problem.
-//
-// Empty input is treated as VerdictOK — there is no file to complain about.
+// ValidateRawConfig uses the schema to validate a raw datadog.yaml
+// Empty input is treated as VerdictOK
 func ValidateRawConfig(raw []byte) ValidationResult {
 	if len(raw) == 0 {
 		return ValidationResult{Verdict: VerdictOK}
