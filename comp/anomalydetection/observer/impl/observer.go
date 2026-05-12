@@ -265,10 +265,13 @@ func NewComponent(deps Requires) Provides {
 	}
 
 	// Wire agent-internal logs into the observer via the pkg/util/log tap.
-	// The observer handle receives formatted, scrubbed log lines from every
-	// emit site in the agent.  WARN/ERROR/CRITICAL are always forwarded;
-	// INFO/DEBUG/TRACE are sampled to limit overhead.
-	if analysisEnabled && cfg.GetBool("anomaly_detection.agent_logs.enabled") {
+	// Wire agent-internal logs into the observer.
+	// anomaly_detection.logs.enabled is the parent gate; without it,
+	// agent_logs are also disabled.  anomaly_detection.agent_logs.enabled
+	// defaults to true when unset (explicit false disables it).
+	logsEnabled := cfg.GetBool("anomaly_detection.logs.enabled")
+	agentLogsEnabled := !cfg.IsConfigured("anomaly_detection.agent_logs.enabled") || cfg.GetBool("anomaly_detection.agent_logs.enabled")
+	if analysisEnabled && logsEnabled && agentLogsEnabled {
 		sampleInfo := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_info")
 		sampleDebug := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_debug")
 		sampleTrace := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_trace")

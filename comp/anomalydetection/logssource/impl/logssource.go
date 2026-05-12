@@ -67,6 +67,12 @@ type logssourceComponent struct{}
 
 // NewComponent creates the logssource component.
 //
+// anomaly_detection.logs.enabled is the main toggle for all log ingestion:
+// setting it to false disables both container/AD logs (this component) and
+// agent-internal logs (observer's agent_logs tap). Defaults to false.
+// anomaly_detection.agent_logs.enabled additionally controls the agent-internal
+// log tap and defaults to true when logs.enabled is true.
+//
 // The component is a no-op when any of these are true:
 //   - the observer is unavailable
 //   - workloadmeta is unavailable
