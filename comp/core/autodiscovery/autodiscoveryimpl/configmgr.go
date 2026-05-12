@@ -367,7 +367,7 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 	// the service, in which case no resolutions are expected.
 	if svc != nil {
 		// Warning: this must be called with the configs stored in cm.activeConfigs
-		// which contain the compiled matchingProgram for the config template.
+		// which contain the compiled matchingPrograms for the config template.
 		svc.FilterTemplates(expectedResolutions)
 	}
 
