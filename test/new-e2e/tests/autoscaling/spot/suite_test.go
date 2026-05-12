@@ -93,6 +93,9 @@ clusterAgent:
 # node-agent DaemonSet collects cluster-agent logs via the annotation above
 agents:
   enabled: true
+  # tolerate all taints so the DaemonSet runs on all nodes
+  tolerations:
+    - operator: Exists
 # cluster check runners not needed for spot scheduling
 clusterChecksRunner:
   enabled: false
