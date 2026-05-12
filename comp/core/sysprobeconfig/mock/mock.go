@@ -24,7 +24,17 @@ import (
 
 // NewMock creates a mock for the sysprobeconfig component.
 func NewMock(t testing.TB) sysprobeconfigdef.Component {
-	configmock.NewSystemProbe(t)
+	return NewMockWithOverrides(t, nil)
+}
+
+// NewMockWithOverrides creates a mock for the sysprobeconfig component with
+// config overrides applied before sysconfig.New() is called, so that
+// SysProbeObject() reflects them.
+func NewMockWithOverrides(t testing.TB, overrides map[string]interface{}) sysprobeconfigdef.Component {
+	cfg := configmock.NewSystemProbe(t)
+	for k, v := range overrides {
+		cfg.SetWithoutSource(k, v)
+	}
 
 	// Viper's `GetXxx` methods read environment variables at the time they are
 	// called, if those names were passed explicitly to BindEnv*(), so we must

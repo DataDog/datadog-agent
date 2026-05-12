@@ -36,11 +36,7 @@ func createFakeSPLiteBinary(t *testing.T) string {
 // newMockSysprobeConfig creates a sysprobeconfig mock with overrides applied
 // before the config is loaded, so SysProbeObject() reflects them.
 func newMockSysprobeConfig(t *testing.T, overrides map[string]interface{}) sysprobeconfig.Component {
-	c := sysprobeconfigmock.NewMock(t)
-	for k, v := range overrides {
-		c.SetWithoutSource(k, v)
-	}
-	return c
+	return sysprobeconfigmock.NewMockWithOverrides(t, overrides)
 }
 
 func TestMaybeSPLite(t *testing.T) {
