@@ -7,26 +7,21 @@ package lite
 
 import "regexp"
 
-// regexBindings drives the Tier-4 column-0 regex. The (?m) flag makes ^ match
-// at the start of every line, so nested `api_key:` inside additional_endpoints
-// or logs_config never gets surfaced as the primary credential.
-var regexBindings = []struct {
-	field   func(*LiteConfig) *ConfigField
-	name    string
-	pattern *regexp.Regexp
-}{
-	{func(c *LiteConfig) *ConfigField { return &c.APIKey }, "api_key",
-		regexp.MustCompile(`(?m)^api_key:[ \t]+(.+?)[ \t]*(?:#.*)?$`)},
-	{func(c *LiteConfig) *ConfigField { return &c.Site }, "site",
-		regexp.MustCompile(`(?m)^site:[ \t]+(.+?)[ \t]*(?:#.*)?$`)},
-	{func(c *LiteConfig) *ConfigField { return &c.DDURL }, "dd_url",
-		regexp.MustCompile(`(?m)^dd_url:[ \t]+(.+?)[ \t]*(?:#.*)?$`)},
-	{func(c *LiteConfig) *ConfigField { return &c.SecretBackendCommand }, "secret_backend_command",
-		regexp.MustCompile(`(?m)^secret_backend_command:[ \t]+(.+?)[ \t]*(?:#.*)?$`)},
-}
-
 func applyRegex(cfg *LiteConfig, raw []byte) {
-	for _, b := range regexBindings {
+	for _, b := range []struct {
+		field   func(*LiteConfig) *ConfigField
+		name    string
+		pattern *regexp.Regexp
+	}{
+		{func(c *LiteConfig) *ConfigField { return &c.APIKey }, "api_key",
+			regexp.MustCompile(`(?m)^api_key:[ \t]+(.+?)[ \t]*(?:#.*)?$`)},
+		{func(c *LiteConfig) *ConfigField { return &c.Site }, "site",
+			regexp.MustCompile(`(?m)^site:[ \t]+(.+?)[ \t]*(?:#.*)?$`)},
+		{func(c *LiteConfig) *ConfigField { return &c.DDURL }, "dd_url",
+			regexp.MustCompile(`(?m)^dd_url:[ \t]+(.+?)[ \t]*(?:#.*)?$`)},
+		{func(c *LiteConfig) *ConfigField { return &c.SecretBackendCommand }, "secret_backend_command",
+			regexp.MustCompile(`(?m)^secret_backend_command:[ \t]+(.+?)[ \t]*(?:#.*)?$`)},
+	} {
 		f := b.field(cfg)
 		if f.resolved() {
 			continue
