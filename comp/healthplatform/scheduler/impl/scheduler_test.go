@@ -9,6 +9,7 @@ package schedulerimpl
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -26,13 +27,18 @@ import (
 type mockReporter struct {
 	reportCount  int32
 	resolveCount int32
+	mu           sync.Mutex
+	lastReport   storedef.IssueReport
 }
 
 func newMockReporter() *mockReporter {
 	return &mockReporter{}
 }
 
-func (m *mockReporter) ReportIssue(_ storedef.IssueReport) error {
+func (m *mockReporter) ReportIssue(r storedef.IssueReport) error {
+	m.mu.Lock()
+	m.lastReport = r
+	m.mu.Unlock()
 	atomic.AddInt32(&m.reportCount, 1)
 	return nil
 }
@@ -166,4 +172,34 @@ func TestCheckRunnerStartStop(t *testing.T) {
 	runner.checkMux.RLock()
 	assert.False(t, runner.started)
 	runner.checkMux.RUnlock()
+}
+
+// TestExecuteCheckDoesNotOverrideSource verifies that the scheduler never sets Source
+// in the IssueReport forwarded to the reporter. Issue templates own the Source field;
+// setting it from checkName would shadow the template's value (e.g. "logs" becomes
+// "Docker Socket Permissions").
+func TestExecuteCheckDoesNotOverrideSource(t *testing.T) {
+	runner, reporter := newTestRunner(t)
+
+	checkFn := func() (*healthplatformpayload.IssueReport, error) {
+		return &healthplatformpayload.IssueReport{
+			IssueId: "some-issue-type",
+		}, nil
+	}
+
+	runner.executeCheck(&registeredCheck{
+		checkID:   "my-check-id",
+		checkName: "My Check Display Name",
+		checkFn:   checkFn,
+		stopCh:    make(chan struct{}),
+	})
+
+	require.Equal(t, int32(1), atomic.LoadInt32(&reporter.reportCount))
+	reporter.mu.Lock()
+	got := reporter.lastReport
+	reporter.mu.Unlock()
+
+	assert.Empty(t, got.Source, "scheduler must not set Source; issue template owns that field")
+	assert.Equal(t, "my-check-id", got.IssueID)
+	assert.Equal(t, "some-issue-type", got.IssueType)
 }

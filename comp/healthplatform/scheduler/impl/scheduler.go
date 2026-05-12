@@ -216,7 +216,6 @@ func (r *checkRunner) executeCheck(check *registeredCheck) {
 	report := storedef.IssueReport{
 		IssueID:   check.checkID,
 		IssueType: protoReport.IssueId,
-		Source:    check.checkName,
 		Context:   protoReport.Context,
 		Tags:      protoReport.Tags,
 	}
