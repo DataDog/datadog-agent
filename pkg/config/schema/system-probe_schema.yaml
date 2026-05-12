@@ -137,10 +137,14 @@ properties:
         node_type: setting
         type: number
         default: 0
+        tags:
+        - golang_type:int
       closed_connection_flush_threshold:
         node_type: setting
         type: number
         default: 0
+        tags:
+        - golang_type:int
       collect_dns_domains:
         node_type: setting
         type: boolean
@@ -442,6 +446,8 @@ properties:
         node_type: setting
         type: number
         default: 0
+        tags:
+        - golang_type:int64
       max_connection_state_buffered:
         node_type: setting
         type: number
@@ -644,10 +650,14 @@ properties:
         node_type: setting
         type: number
         default: 500
+        tags:
+        - golang_type:int
       closed_connection_flush_threshold:
         node_type: setting
         type: number
         default: 0
+        tags:
+        - golang_type:int
       collect_tcp_v4:
         node_type: setting
         type: boolean
@@ -807,6 +817,8 @@ properties:
         node_type: setting
         type: number
         default: 0
+        tags:
+        - golang_type:int64
       max_http_stats_buffered:
         node_type: setting
         type: number
