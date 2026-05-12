@@ -1,6 +1,7 @@
 #ifndef __SHARED_LIBRARIES_PROBES_H
 #define __SHARED_LIBRARIES_PROBES_H
 
+#include <asm-generic/errno-base.h>
 #include "bpf_telemetry.h"
 #include "bpf_bypass.h"
 
