@@ -143,44 +143,21 @@ func (m *cgroupPMUManager) Refresh() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	seen := make(map[uint64]struct{})
-	walkErr := filepath.WalkDir(m.cgroupRoot, func(path string, d fs.DirEntry, err error) error {
+	seen, err := walkContainerCgroups(m.cgroupRoot)
+	if err != nil {
+		return fmt.Errorf("walking cgroup tree %q: %w", m.cgroupRoot, err)
+	}
+
+	for inode, path := range seen {
+		if _, ok := m.entries[inode]; ok {
+			continue
+		}
+		entry, err := m.openCgroupEvents(inode, path)
 		if err != nil {
-			// Don't bail the whole walk on a permission denied or transient
-			// ENOENT (cgroups disappear under us all the time). Skip the
-			// offending directory but keep walking siblings.
-			if d != nil && d.IsDir() {
-				return fs.SkipDir
-			}
-			return nil
+			log.Debugf("noisy_neighbor: open perf events for cgroup %s (inode %d): %v", path, inode, err)
+			continue
 		}
-		if !d.IsDir() || path == m.cgroupRoot {
-			return nil
-		}
-		name := d.Name()
-		switch classifyCgroupName(name) {
-		case cgroupSkip:
-			return fs.SkipDir
-		case cgroupContainer:
-			inode, err := statInode(path)
-			if err != nil {
-				return nil
-			}
-			seen[inode] = struct{}{}
-			if _, ok := m.entries[inode]; ok {
-				return nil
-			}
-			entry, err := m.openCgroupEvents(inode, path)
-			if err != nil {
-				log.Debugf("noisy_neighbor: open perf events for cgroup %s (inode %d): %v", path, inode, err)
-				return nil
-			}
-			m.entries[inode] = entry
-		}
-		return nil
-	})
-	if walkErr != nil {
-		return fmt.Errorf("walking cgroup tree %q: %w", m.cgroupRoot, walkErr)
+		m.entries[inode] = entry
 	}
 
 	for inode, entry := range m.entries {
@@ -191,6 +168,40 @@ func (m *cgroupPMUManager) Refresh() error {
 		delete(m.entries, inode)
 	}
 	return nil
+}
+
+// walkContainerCgroups walks cgroupRoot and returns a {inode → path} map for
+// every directory whose basename classifies as a container scope. Pure
+// filesystem operation — no perf_event_open, no privileged syscalls — so it's
+// the natural seam for unit-testing cgroup discovery without root.
+func walkContainerCgroups(cgroupRoot string) (map[uint64]string, error) {
+	seen := make(map[uint64]string)
+	walkErr := filepath.WalkDir(cgroupRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			// Don't bail the whole walk on a permission denied or transient
+			// ENOENT (cgroups disappear under us all the time). Skip the
+			// offending directory but keep walking siblings.
+			if d != nil && d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if !d.IsDir() || path == cgroupRoot {
+			return nil
+		}
+		switch classifyCgroupName(d.Name()) {
+		case cgroupSkip:
+			return fs.SkipDir
+		case cgroupContainer:
+			inode, err := statInode(path)
+			if err != nil {
+				return nil
+			}
+			seen[inode] = path
+		}
+		return nil
+	})
+	return seen, walkErr
 }
 
 // ReadAll snapshots every tracked cgroup's counters, computes a delta against
