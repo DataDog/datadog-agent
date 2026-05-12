@@ -126,17 +126,17 @@ func (c *nvlinkFECCollector) getPortMetrics(port int) ([]*Metric, error) {
 			Priority: Medium,
 			Tags:     []string{nvlinkPortTag(port)},
 			HistogramBucket: &Bucket{
-				Bounds:          histBounds,
-				Monotonic:       false,
+				Bounds:    histBounds,
+				Monotonic: false,
 			},
 		}
 
 		// Duplicate the total, create a rate metric
 		rateMetric := *totalMetric
 		rateMetric.Name = nvlinkFECHistoryMetricName
-		rateMetric.HistogramBucket = & Bucket{
-			Bounds:          histBounds,
-			Monotonic:       true,
+		rateMetric.HistogramBucket = &Bucket{
+			Bounds:    histBounds,
+			Monotonic: true,
 		}
 
 		fecMetrics = append(fecMetrics, totalMetric, &rateMetric)
