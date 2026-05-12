@@ -1,8 +1,9 @@
 ---
 name: omnibus-to-bazel
-description: Convert an omnibus/config/software/<name>.rb dependency to a Bazel third-party dep under deps/. Use when asked to migrate, convert, or add a dep from omnibus to Bazel.
-argument-hint: "<software-name>"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash
+description: "Converts an omnibus software dependency to a Bazel third-party dep under deps/. Use when the user asks to migrate, convert, or move a dependency from omnibus to Bazel, or add a new Bazel dep from an existing omnibus .rb file."
+metadata:
+  argument-hint: "software-name"
+  allowed-tools: "Read, Write, Edit, Glob, Grep, Bash"
 ---
 
 Convert `omnibus/config/software/$ARGUMENTS.rb` into a Bazel third-party dep.

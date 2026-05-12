@@ -1,8 +1,9 @@
 ---
 name: create-status-provider
-description: Add a new section to the agent status output (agent status command)
-allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion
-argument-hint: "[provider-name]"
+description: "Adds a new status provider section to the Datadog Agent status command output in JSON, text, and HTML formats. Use when the user asks to extend the agent status output, add a status section, create a status provider, or customize what the agent status command displays."
+metadata:
+  allowed-tools: "Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion"
+  argument-hint: "[provider-name]"
 ---
 
 Add a new status provider to the Datadog Agent. Status providers contribute sections to the `agent status` output in JSON, plain text, and HTML formats.
@@ -32,7 +33,29 @@ Before writing any code, read the appropriate reference files to follow existing
 
 ### Step 3: Implement the provider
 
-Create the provider implementation following the reference. Also create the `status_templates/<name>.tmpl` and `status_templates/<name>HTML.tmpl` files following the templates in the reference's `status_templates/` directory.
+Create the provider implementation following the reference. Minimal provider skeleton:
+
+```go
+//go:embed status_templates
+var templatesFS embed.FS
+
+type myProvider struct{}
+
+func (p myProvider) Name() string      { return "My Feature" }
+func (p myProvider) Section() string   { return "my_section" }
+func (p myProvider) JSON(_ bool, stats map[string]interface{}) error {
+    stats["myFeatureStats"] = collectStats()
+    return nil
+}
+func (p myProvider) Text(_ bool, buffer io.Writer) error {
+    return status.RenderText(templatesFS, "myfeature.tmpl", buffer, collectStats())
+}
+func (p myProvider) HTML(_ bool, buffer io.Writer) error {
+    return status.RenderHTML(templatesFS, "myfeatureHTML.tmpl", buffer, collectStats())
+}
+```
+
+Also create `status_templates/<name>.tmpl` and `status_templates/<name>HTML.tmpl` following the templates in the reference's `status_templates/` directory.
 
 To make a provider conditional, return `nil` from the constructor when the feature is disabled.
 
