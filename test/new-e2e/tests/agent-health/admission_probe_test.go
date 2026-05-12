@@ -75,10 +75,10 @@ func (suite *admissionProbeSuite) TestAdmissionProbeIssueLifecycle() {
 	// =========================================================================
 	suite.T().Run("ProbeHealthy", func(t *testing.T) {
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		stdout, _, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec(
-			clusterAgentNamespace, clusterAgentPod.Name, "cluster-agent",
-			[]string{"env", "DD_LOG_LEVEL=off", "datadog-cluster-agent", "status", "--json"},
-		)
+			stdout, _, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec(
+				clusterAgentNamespace, clusterAgentPod.Name, "cluster-agent",
+				[]string{"env", "DD_LOG_LEVEL=off", "datadog-cluster-agent", "status", "--json"},
+			)
 			assert.NoError(ct, err)
 
 			var status map[string]interface{}
