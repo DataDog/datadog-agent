@@ -10,7 +10,6 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
@@ -20,12 +19,10 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// checker is the periodic built-in check. Caches the last verdict against the
-// file's modified time so an unchanged datadog.yaml isn't reparsed every interval
+// checker is the periodic built-in check. Validates the on-disk datadog.yaml
+// against the schema each interval
 type checker struct {
 	cfg               config.Component
-	lastModified      time.Time
-	lastReport        *healthplatform.IssueReport
 	schemaUnavailable sync.Once
 }
 
@@ -38,31 +35,20 @@ func (c *checker) Run() (*healthplatform.IssueReport, error) {
 	if path == "" {
 		return nil, nil
 	}
-	stat, err := os.Stat(path)
+	raw, err := os.ReadFile(path)
 	if err != nil {
 		// Missing file / permission denied are owned by other modules.
 		return nil, nil
 	}
-	if stat.ModTime().Equal(c.lastModified) {
-		return c.lastReport, nil
-	}
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil, nil
-	}
-
 	info, raise := c.issueInfoFor(path, lite.ValidateRawConfig(raw))
-	c.lastModified = stat.ModTime()
 	if !raise {
-		c.lastReport = nil
 		return nil, nil
 	}
-	c.lastReport = &healthplatform.IssueReport{
+	return &healthplatform.IssueReport{
 		IssueId: healthplatformdef.InvalidConfigIssueID,
 		Context: info.ToContext(),
 		Tags:    info.Tags(),
-	}
-	return c.lastReport, nil
+	}, nil
 }
 
 // issueInfoFor translates a validation verdict into the IssueInfo the platform

@@ -90,9 +90,18 @@ func TestCheck_ParseFailureProducesReport(t *testing.T) {
 	assert.NotEmpty(t, report.GetContext()[lite.ContextKeyErrorMessage])
 }
 
-// Healthy YAML hits VerdictSchemaUnavailable in tests (no embedded schema)
+func TestCheck_SchemaViolationProducesReport(t *testing.T) {
+	c := newChecker(mockCfg(t, writeYAML(t,
+		"api_key: abc\nsite: datadoghq.com\nagent_ipc:\n  port: \"not-a-number\"\n")))
+	report, err := c.Run()
+	require.NoError(t, err)
+	require.NotNil(t, report)
+	assert.Equal(t, string(lite.ErrorKindSchemaValidation), report.GetContext()[lite.ContextKeyErrorKind])
+	assert.Contains(t, report.GetContext()[lite.ContextKeyErrors], "agent_ipc/port")
+}
+
 func TestCheck_HealthyConfigReturnsNil(t *testing.T) {
-	c := newChecker(mockCfg(t, writeYAML(t, "api_key: abc\nsite: dd.eu\n")))
+	c := newChecker(mockCfg(t, writeYAML(t, "api_key: abc\nsite: datadoghq.com\n")))
 	report, err := c.Run()
 	require.NoError(t, err)
 	assert.Nil(t, report)
