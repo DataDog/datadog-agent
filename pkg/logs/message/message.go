@@ -397,12 +397,12 @@ func (m *Message) GetStatus() string {
 	return m.MessageMetadata.GetStatus()
 }
 
-// GetTags returns the message processing tags.
+// GetTags returns the message tags.
 func (m *Message) GetTags() []string {
 	if m.Origin == nil {
-		return m.ProcessingTags
+		return nil
 	}
-	return m.Origin.Tags(m.ProcessingTags)
+	return m.Origin.Tags()
 }
 
 // GetHostname returns the message hostname.
@@ -471,12 +471,12 @@ func (m *MessageMetadata) GetLatency() int64 {
 
 // Tags returns all tags that this message is attached with.
 func (m *MessageMetadata) Tags() []string {
-	return m.Origin.Tags(nil)
+	return m.Origin.Tags()
 }
 
 // TagsToString returns all tags that this message is attached with, as a string.
 func (m *MessageMetadata) TagsToString() string {
-	return m.Origin.TagsToString(nil)
+	return m.Origin.TagsToString()
 }
 
 // Count returns the number of messages
