@@ -19,7 +19,7 @@ copy_file(
 go_library(
     name = "gazelle_extension",
     srcs = [":gazelle_extension_src"],
-    importpath = "github.com/DataDog/datadog-agent/bazel/rules/collapse_selects",
+    importpath = "github.com/DataDog/datadog-agent/bazel/rules/collapse_deps_select",
     visibility = ["//visibility:public"],
     deps = [
         "@gazelle//language",

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package collapse_selects is a Gazelle extension that collapses redundant
+// Package collapse_deps_select is a Gazelle extension that collapses redundant
 // select() branches in go_library, go_test, and go_binary deps attributes.
 //
 // Gazelle's Go language extension resolves platform build constraints by
@@ -45,7 +45,7 @@
 //	    "@rules_go//go/platform:windows": [],
 //	    "//conditions:default":           ["@org_golang_x_sys//unix"],
 //	  })
-package collapse_selects
+package collapse_deps_select
 
 import (
 	"context"
@@ -58,7 +58,7 @@ import (
 	bzl "github.com/bazelbuild/buildtools/build"
 )
 
-const extName = "collapse_selects"
+const extName = "collapse_deps_select"
 
 // knownOSPlatforms is the complete set of OS platform names that rules_go
 // emits as select() condition keys (the "{os}" part of "@rules_go//go/platform:{os}",

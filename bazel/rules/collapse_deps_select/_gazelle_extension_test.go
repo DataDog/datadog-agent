@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package collapse_selects
+package collapse_deps_select
 
 import (
 	"sort"
