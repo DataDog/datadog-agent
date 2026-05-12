@@ -39,15 +39,6 @@ type RunParams struct {
 	deployDogstatsd    bool
 	deployTestWorkload bool
 	deployArgoRollout  bool
-
-	// standaloneAgentFunc, when non-nil, deploys a standalone agent DaemonSet
-	// using raw Kubernetes resources instead of the Datadog Helm chart.
-	// See StandaloneAgentDeployFunc and WithStandaloneOTelAgent.
-	standaloneAgentFunc StandaloneAgentDeployFunc
-
-	// workerNodes configures the kind cluster worker nodes with custom labels and taints.
-	// When empty the cluster uses the default single worker node.
-	workerNodes []kubecomp.KindWorkerNode
 }
 
 type RunOption = func(*RunParams) error
@@ -64,7 +55,6 @@ func GetRunParams(opts ...RunOption) *RunParams {
 		operatorDDAOptions:  nil, // nil by default - DDA is only deployed when options are explicitly provided
 		deployDogstatsd:     false,
 		deployOperator:      false,
-		workerNodes:         []kubecomp.KindWorkerNode{},
 	}
 	if err := optional.ApplyOptions(p, opts); err != nil {
 		panic(fmt.Errorf("unable to apply RunOption, err: %w", err))
@@ -173,6 +163,14 @@ func WithDeployTestWorkload() RunOption {
 	return func(p *RunParams) error { p.deployTestWorkload = true; return nil }
 }
 
+// WithoutDeployTestWorkload disables the default test workload deployment.
+// Use this when you install the agent and workloads outside of Pulumi
+// (e.g., via helmagent.Install in SetupSuite) so the provisioner only
+// creates infrastructure.
+func WithoutDeployTestWorkload() RunOption {
+	return func(p *RunParams) error { p.deployTestWorkload = false; return nil }
+}
+
 // WithWorkloadApp adds a workload app to the environment
 func WithWorkloadApp(appFunc kubecomp.WorkloadAppFunc) RunOption {
 	return func(p *RunParams) error { p.workloadAppFuncs = append(p.workloadAppFuncs, appFunc); return nil }
@@ -194,20 +192,4 @@ func WithDeployArgoRollout() RunOption {
 // WithOperatorOptions sets operator options
 func WithOperatorOptions(opts ...operatorparams.Option) RunOption {
 	return func(p *RunParams) error { p.operatorOptions = append(p.operatorOptions, opts...); return nil }
-}
-
-// WithStandaloneOTelAgent sets a callback that deploys a standalone agent DaemonSet
-// (e.g. otel-agent with DD_OTEL_STANDALONE=true) using raw Kubernetes resources,
-// bypassing the Datadog Helm chart.
-func WithStandaloneOTelAgent(fn StandaloneAgentDeployFunc) RunOption {
-	return func(p *RunParams) error { p.standaloneAgentFunc = fn; return nil }
-}
-
-// WithKindWorkerNodes configures the kind cluster worker nodes with custom labels and taints.
-// Use this to test workloads that depend on node topology (e.g. spot vs on-demand capacity types).
-func WithKindWorkerNodes(nodes ...kubecomp.KindWorkerNode) RunOption {
-	return func(p *RunParams) error {
-		p.workerNodes = append(p.workerNodes, nodes...)
-		return nil
-	}
 }

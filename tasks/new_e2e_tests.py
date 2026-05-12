@@ -578,7 +578,10 @@ def run(
                 )
             )
             commit_sha = get_commit_sha(ctx)
-            short_commit_sha = get_commit_sha(ctx, short=True)
+            # GitLab CI sets CI_COMMIT_SHORT_SHA to exactly 8 chars; agent-qa /
+            # dogstatsd-qa images are tagged <pipeline_id>-<8-char SHA>. Match
+            # that here so locally resolved tags hit the actual ECR images.
+            short_commit_sha = commit_sha[:8]
             print(color_message(f"Auto-detecting pipeline for commit {short_commit_sha}...", "blue"))
             pipeline_id = _find_pipeline_for_commit_sha(ctx, commit_sha)
             if pipeline_id:

@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{.Namespace}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stress-ng
+  namespace: {{.Namespace}}
+  labels:
+    app: stress-ng
+spec:
+  selector:
+    matchLabels:
+      app: stress-ng
+  template:
+    metadata:
+      labels:
+        app: stress-ng
+    spec:
+      containers:
+      - name: stress-ng
+        image: ghcr.io/datadog/apps-stress-ng:{{.Version}}
+        args: ["--cpu=1", "--cpu-load=15", "--temp-path=/tmp/"]
+        workingDir: /tmp
+        resources:
+          requests:
+            cpu: 200m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 64Mi
+        volumeMounts:
+        - name: temp-dir
+          mountPath: /tmp
+      volumes:
+      - name: temp-dir
+        emptyDir: {}

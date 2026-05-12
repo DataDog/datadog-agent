@@ -10,6 +10,7 @@ import (
 	"context"
 	"io"
 	"maps"
+	"testing"
 )
 
 // Diagnosable defines the interface for a diagnosable provisioner.
@@ -41,6 +42,14 @@ type UntypedProvisioner interface {
 type TypedProvisioner[Env any] interface {
 	Provisioner
 	ProvisionEnv(context.Context, string, io.Writer, *Env) (RawResources, error)
+}
+
+// PostProvisioner is an optional interface for provisioners that need to
+// perform post-infrastructure setup steps that require *testing.T, such as
+// installing the agent via Helm/SSH or deploying test workloads. BaseSuite
+// calls PostProvision after Pulumi completes and the environment is populated.
+type PostProvisioner[Env any] interface {
+	PostProvision(t *testing.T, env *Env)
 }
 
 // ProvisionerMap is a map of provisioners.

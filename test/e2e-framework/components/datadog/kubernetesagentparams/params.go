@@ -55,8 +55,11 @@ type Params struct {
 	HelmRepoURL string
 	// HelmChartPath is the Helm chart path to use for the agent installation.
 	HelmChartPath string
-	// HelmValues is the Helm values to use for the agent installation.
+	// HelmValues is the Helm values to use for the agent installation (Pulumi path).
 	HelmValues pulumi.AssetOrArchiveArray
+	// HelmValuesRaw stores the raw YAML strings passed via WithHelmValues.
+	// Used by non-Pulumi installers (helmagent.Install) to read the values.
+	HelmValuesRaw []string
 	// PulumiDependsOn is a list of resources to depend on.
 	PulumiResourceOptions []pulumi.ResourceOption
 	// FakeIntake is the fake intake to use for the agent installation.
@@ -85,9 +88,6 @@ type Params struct {
 	WindowsImage bool
 	// TimeoutSeconds is the timeout for Helm operations in seconds (default: 300)
 	TimeoutSeconds int
-	// HelmChartVersion overrides the default Helm chart version for this installation.
-	// When empty, the framework default HelmVersion is used.
-	HelmChartVersion string
 }
 
 type Option = func(*Params) error
@@ -181,15 +181,6 @@ func WithHelmRepoURL(repoURL string) func(*Params) error {
 	}
 }
 
-// WithHelmChartVersion overrides the Helm chart version for this installation.
-// Use this to pin a specific chart version without changing the global framework default.
-func WithHelmChartVersion(version string) func(*Params) error {
-	return func(p *Params) error {
-		p.HelmChartVersion = version
-		return nil
-	}
-}
-
 // WithHelmChartPath specifies the remote chart name or local chart path to use for the agent installation.
 func WithHelmChartPath(chartPath string) func(*Params) error {
 	return func(p *Params) error {
@@ -203,6 +194,7 @@ func WithHelmChartPath(chartPath string) func(*Params) error {
 func WithHelmValues(values string) func(*Params) error {
 	return func(p *Params) error {
 		p.HelmValues = append(p.HelmValues, pulumi.NewStringAsset(values))
+		p.HelmValuesRaw = append(p.HelmValuesRaw, values)
 		return nil
 	}
 }

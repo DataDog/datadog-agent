@@ -27,7 +27,6 @@ import (
 
 // Host is an environment that contains a Host, FakeIntake and Agent configured to talk to each other.
 type Host struct {
-	CoverageBase
 	RemoteHost *components.RemoteHost
 	FakeIntake *components.FakeIntake
 	Agent      *components.RemoteHostAgent
@@ -39,8 +38,12 @@ var _ outputs.HostOutputs = (*Host)(nil)
 
 var _ common.Initializable = (*Host)(nil)
 
-// Init initializes the environment
+// Init initializes the environment.
+// It wires up cross-component references needed for agent configuration.
 func (e *Host) Init(_ common.Context) error {
+	if e.Agent != nil {
+		e.Agent.SetComponents(e.RemoteHost, e.FakeIntake)
+	}
 	return nil
 }
 
@@ -162,10 +165,9 @@ func generateAndDownloadAgentFlare(agent *components.RemoteHostAgent, host *comp
 }
 
 func (e *Host) getAgentCoverageCommands(family os.Family) ([]CoverageTargetSpec, error) {
-	var targets []CoverageTargetSpec
 	switch family {
 	case os.LinuxFamily:
-		targets = []CoverageTargetSpec{{
+		return []CoverageTargetSpec{{
 			AgentName:       "datadog-agent",
 			CoverageCommand: []string{"sudo", "datadog-agent", "coverage", "generate"},
 			Required:        true,
@@ -185,10 +187,10 @@ func (e *Host) getAgentCoverageCommands(family os.Family) ([]CoverageTargetSpec,
 			AgentName:       "system-probe",
 			CoverageCommand: []string{"sudo", "/opt/datadog-agent/embedded/bin/system-probe", "coverage", "generate"},
 			Required:        false,
-		}}
+		}}, nil
 	case os.WindowsFamily:
 		installPath := client.DefaultWindowsAgentInstallPath(e.RemoteHost.Host)
-		targets = []CoverageTargetSpec{{
+		return []CoverageTargetSpec{{
 			AgentName:       "datadog-agent",
 			CoverageCommand: []string{fmt.Sprintf(`& "%s\bin\agent.exe" "coverage" "generate"`, installPath)},
 			Required:        true,
@@ -208,12 +210,9 @@ func (e *Host) getAgentCoverageCommands(family os.Family) ([]CoverageTargetSpec,
 			AgentName:       "system-probe",
 			CoverageCommand: []string{fmt.Sprintf(`& "%s\bin\agent\system-probe.exe" "coverage" "generate"`, installPath)},
 			Required:        false,
-		}}
-	default:
-		return nil, fmt.Errorf("unsupported OS family: %v", family)
+		}}, nil
 	}
-	e.applyCoverageOverrides(targets)
-	return targets, nil
+	return nil, fmt.Errorf("unsupported OS family: %v", family)
 }
 
 // Coverage runs the coverage command for each agent and downloads the coverage folders to the output directory
