@@ -54,7 +54,10 @@ clusterAgent:
 				scenkind.WithDeployDogstatsd(),
 				scenkind.WithDeployTestWorkload(),
 				scenkind.WithAgentOptions(
-					kubernetesagentparams.WithDualShipping(),
+					// Single-shipping (no dual): every payload goes to the
+					// fakeintake via the IPv6/NAT64 path. The dddev primary
+					// is IPv4-only and unreachable from these IPv6-only pods,
+					// so enabling dual-shipping would stall the forwarder.
 					kubernetesagentparams.WithHelmValues(helmValues),
 					kubernetesagentparams.WithHelmValues(containerHelmValues),
 					kubernetesagentparams.WithKubernetesUseEndpointSlices(),
