@@ -38,6 +38,13 @@ func Setup(ctx context.Context, env *env.Env, flavor string) error {
 	if !ok {
 		return fmt.Errorf("unknown flavor \"%s\"", flavor)
 	}
+	handled, err := handoffToRequestedAgentInstallerVersion(ctx, env, flavor)
+	if err != nil {
+		return err
+	}
+	if handled {
+		return nil
+	}
 	s, err := common.NewSetup(ctx, env, flavor, f.path, os.Stdout)
 	if err != nil {
 		return err
