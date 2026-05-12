@@ -33,6 +33,7 @@ type typeCatalog struct {
 	ptrSize              uint8
 	boolType             ir.TypeID
 	uint64Type           ir.TypeID
+	durationType         ir.TypeID
 	dwarf                *dwarf.Data
 	idAlloc              idAllocator[ir.TypeID]
 	typesByDwarfType     map[dwarf.Offset]ir.TypeID
@@ -44,13 +45,23 @@ func newTypeCatalog(
 	dwarfData *dwarf.Data,
 	ptrSize uint8,
 ) *typeCatalog {
-	return &typeCatalog{
+	c := &typeCatalog{
 		ptrSize:          ptrSize,
 		dwarf:            dwarfData,
 		idAlloc:          idAllocator[ir.TypeID]{},
 		typesByDwarfType: make(map[dwarf.Offset]ir.TypeID),
 		typesByID:        make(map[ir.TypeID]ir.Type),
 	}
+	durationID := c.idAlloc.next()
+	c.typesByID[durationID] = &ir.DurationType{
+		TypeCommon: ir.TypeCommon{
+			ID:       durationID,
+			Name:     "@duration",
+			ByteSize: 8,
+		},
+	}
+	c.durationType = durationID
+	return c
 }
 
 func (c *typeCatalog) addType(offset dwarf.Offset) (ret ir.Type, retErr error) {

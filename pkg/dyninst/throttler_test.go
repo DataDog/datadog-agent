@@ -20,7 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/uprobe"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 func TestThrottler(t *testing.T) {
@@ -48,7 +51,7 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 
 	// Load the binary and generate the IR.
 	t.Logf("loading binary")
-	obj, irp := dyninsttest.GenerateIr(
+	_, irp := dyninsttest.GenerateIr(
 		t, tempDir, busyloopPath, "busyloop", irgen.WithSkipReturnEvents(true),
 	)
 
@@ -76,10 +79,13 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 		ctx, t, tempDir, busyloopPath,
 		"1" /*round_cnt*/, "20" /*round_sec*/, "3", /*concurrency*/
 	)
-	cleanup = dyninsttest.AttachBPFProbes(
-		t, busyloopPath, obj, sampleProc.Process.Pid, program,
-	)
-	defer cleanup()
+
+	pid := process.ID{PID: int32(sampleProc.Process.Pid)}
+	exe, err := process.ResolveExecutable(kernel.ProcFSRoot(), pid.PID)
+	require.NoError(t, err)
+	attached, err := uprobe.Attach(program, exe, pid)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, attached.Detach(nil)) }()
 	defer func() {
 		sampleProc.Process.Kill()
 		sampleProc.Wait()
@@ -129,7 +135,7 @@ func refreshesBudget(t *testing.T, busyloopPath string) {
 
 	// Load the binary and generate the IR.
 	t.Logf("loading binary")
-	obj, irp := dyninsttest.GenerateIr(
+	_, irp := dyninsttest.GenerateIr(
 		t, tempDir, busyloopPath, "busyloop", irgen.WithSkipReturnEvents(true),
 	)
 
@@ -155,8 +161,12 @@ func refreshesBudget(t *testing.T, busyloopPath string) {
 		ctx, t, tempDir, busyloopPath,
 		"1" /*round_cnt*/, "20" /*round_sec*/, "3", /*concurrency*/
 	)
-	cleanup = dyninsttest.AttachBPFProbes(t, busyloopPath, obj, sampleProc.Process.Pid, program)
-	defer cleanup()
+	pid := process.ID{PID: int32(sampleProc.Process.Pid)}
+	exe, err := process.ResolveExecutable(kernel.ProcFSRoot(), pid.PID)
+	require.NoError(t, err)
+	attached, err := uprobe.Attach(program, exe, pid)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, attached.Detach(nil)) }()
 	defer func() {
 		sampleProc.Process.Kill()
 		sampleProc.Wait()

@@ -34,8 +34,7 @@ func optionalBool(o C.OptionalBool) option.Option[bool] {
 }
 
 func hasBatteryAvailable() (bool, error) {
-	cInfo := C.getBatteryInfo()
-	return bool(cInfo.found), nil
+	return bool(C.hasInternalBattery()), nil
 }
 
 // getBatteryInfo retrieves battery information from IOKit
