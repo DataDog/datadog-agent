@@ -150,3 +150,60 @@ func TestServiceFilterTemplatesCCA(t *testing.T) {
 			filterDrops(&WorkloadService{}, noLogsTpl, logsTpl, ccaTpl))
 	})
 }
+
+func TestServiceFilterTemplatesPreferStaticConfig(t *testing.T) {
+	filterDrops := func(svc *WorkloadService, configs ...integration.Config) (dropped []integration.Config) {
+		return filterConfigsDropped(svc.filterTemplatesPreferStaticConfig, configs...)
+	}
+
+	yieldingTpl := integration.Config{
+		Name:               "postgres",
+		Source:             "file:/etc/datadog-agent/conf.d/postgres.d/auto_conf.yaml",
+		ADIdentifiers:      []string{"postgres"},
+		PreferStaticConfig: true,
+	}
+	nonYieldingTpl := integration.Config{
+		Name:          "postgres",
+		Source:        "file:/etc/datadog-agent/conf.d/postgres.d/auto_conf.yaml",
+		ADIdentifiers: []string{"postgres"},
+	}
+	otherYieldingTpl := integration.Config{
+		Name:               "redis",
+		Source:             "file:/etc/datadog-agent/conf.d/redis.d/auto_conf.yaml",
+		ADIdentifiers:      []string{"redis"},
+		PreferStaticConfig: true,
+	}
+	nothingDropped := []integration.Config{}
+
+	t.Run("drops yielding template when matching static is scheduled", func(t *testing.T) {
+		idx := NewStaticConfigIndex()
+		idx.Add("postgres")
+		assert.Equal(t, []integration.Config{yieldingTpl},
+			filterDrops(&WorkloadService{staticConfigIndex: idx}, yieldingTpl))
+	})
+
+	t.Run("keeps template when flag is false", func(t *testing.T) {
+		idx := NewStaticConfigIndex()
+		idx.Add("postgres")
+		assert.Equal(t, nothingDropped,
+			filterDrops(&WorkloadService{staticConfigIndex: idx}, nonYieldingTpl))
+	})
+
+	t.Run("keeps yielding template when no matching static", func(t *testing.T) {
+		idx := NewStaticConfigIndex()
+		assert.Equal(t, nothingDropped,
+			filterDrops(&WorkloadService{staticConfigIndex: idx}, yieldingTpl))
+	})
+
+	t.Run("nil index is safe", func(t *testing.T) {
+		assert.Equal(t, nothingDropped,
+			filterDrops(&WorkloadService{staticConfigIndex: nil}, yieldingTpl))
+	})
+
+	t.Run("distinct names are independent", func(t *testing.T) {
+		idx := NewStaticConfigIndex()
+		idx.Add("redis")
+		assert.Equal(t, []integration.Config{otherYieldingTpl},
+			filterDrops(&WorkloadService{staticConfigIndex: idx}, yieldingTpl, otherYieldingTpl))
+	})
+}

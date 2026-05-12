@@ -43,6 +43,7 @@ type configFormat struct {
 	DockerImages            []string                           `yaml:"docker_images,omitempty"`             // Only imported for deprecation warning
 	IgnoreAutodiscoveryTags bool                               `yaml:"ignore_autodiscovery_tags,omitempty"` // Use to ignore tags coming from autodiscovery
 	CheckTagCardinality     string                             `yaml:"check_tag_cardinality,omitempty"`     // Use to set the tag cardinality override for the check
+	PreferStaticConfig      bool                               `yaml:"prefer_static_config,omitempty"`      // Dynamic template yields to a static config of the same Name
 }
 
 // ConfigFormatWrapper is a wrapper for the config format
@@ -501,6 +502,10 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, Confi
 
 	// Copy check_tag_cardinality parameter
 	conf.CheckTagCardinality = cf.CheckTagCardinality
+
+	// Copy prefer_static_config flag (auto_conf templates can opt in to
+	// yielding to a same-name static config)
+	conf.PreferStaticConfig = cf.PreferStaticConfig
 
 	// DockerImages entry was found: we ignore it if no ADIdentifiers has been found
 	if len(cf.DockerImages) > 0 && len(cf.ADIdentifiers) == 0 {

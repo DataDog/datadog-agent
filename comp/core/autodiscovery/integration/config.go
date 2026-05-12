@@ -120,6 +120,13 @@ type Config struct {
 
 	// ImageName is the container image name if any
 	ImageName string `json:"image_name"` // (include in digest: false)
+
+	// PreferStaticConfig, when true on a dynamic AD template, causes the
+	// template to be dropped at resolution time if a non-template (static)
+	// config of the same integration Name is already scheduled. Intended for
+	// shipped auto_conf templates so they yield to user-authored conf.d
+	// configs. The flag has no meaning on a non-template static config.
+	PreferStaticConfig bool `json:"prefer_static_config"` // (include in digest: false)
 }
 
 // MatchingProgram is an interface for matching objects against filter rules.

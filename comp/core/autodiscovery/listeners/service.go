@@ -27,21 +27,22 @@ import (
 // WorkloadService implements the Service interface and stores data collected from
 // workloadmeta.Store. Covers containers and kubernetes pods.
 type WorkloadService struct {
-	entity          workloadmeta.Entity
-	tagsHash        string
-	adIdentifiers   []string
-	hosts           map[string]string
-	ports           []workloadmeta.ContainerPort
-	pid             int
-	hostname        string
-	ready           bool
-	checkNames      []string
-	extraConfig     map[string]string
-	metricsExcluded bool
-	logsExcluded    bool
-	tagger          tagger.Component
-	wmeta           workloadmeta.Component
-	imageName       string
+	entity            workloadmeta.Entity
+	tagsHash          string
+	adIdentifiers     []string
+	hosts             map[string]string
+	ports             []workloadmeta.ContainerPort
+	pid               int
+	hostname          string
+	ready             bool
+	checkNames        []string
+	extraConfig       map[string]string
+	metricsExcluded   bool
+	logsExcluded      bool
+	tagger            tagger.Component
+	wmeta             workloadmeta.Component
+	imageName         string
+	staticConfigIndex *StaticConfigIndex
 }
 
 var _ Service = &WorkloadService{}
@@ -149,8 +150,25 @@ func (s *WorkloadService) FilterTemplates(configs map[string]integration.Config)
 	s.filterTemplatesOverriddenChecks(configs)
 	filterTemplatesMatched(s, configs)
 
+	// Drop templates that opt in to yielding to a same-name static config.
+	s.filterTemplatesPreferStaticConfig(configs)
+
 	// Container Collect All filtering should always be last
 	s.filterTemplatesContainerCollectAll(configs)
+}
+
+// filterTemplatesPreferStaticConfig drops templates whose PreferStaticConfig
+// flag is set and whose integration Name already has a scheduled non-template
+// (static) config. Lets shipped auto_conf templates yield to user-authored
+// conf.d configs without scheduling a duplicate check.
+func (s *WorkloadService) filterTemplatesPreferStaticConfig(configs map[string]integration.Config) {
+	for digest, config := range configs {
+		if config.PreferStaticConfig && s.staticConfigIndex.Has(config.Name) {
+			log.Debugf("Ignoring template %s from %s: a static config of the same name is scheduled",
+				config.Name, config.Source)
+			delete(configs, digest)
+		}
+	}
 }
 
 // GetFilterableEntity returns the filterable entity of the service
