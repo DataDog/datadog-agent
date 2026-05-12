@@ -64,7 +64,7 @@ func TestSetTagsWithConfigTags(t *testing.T) {
 	assert.Equal(t, "[dd ddsource=\"a\"][dd ddsourcecategory=\"b\"][dd ddtags=\"c:d,e,foo:bar,baz\"]", string(origin.TagsPayload(nil)))
 }
 
-func TestSetTagsWithConfigTagsAndProcessingTags(t *testing.T) {
+func TestSetTagsWithConfigTagsAndExtraTags(t *testing.T) {
 	cfg := &config.LogsConfig{
 		Source:         "a",
 		SourceCategory: "b",
