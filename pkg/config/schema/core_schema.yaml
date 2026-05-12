@@ -2609,11 +2609,11 @@ properties:
       tag_multi_line_logs:
         node_type: setting
         type: boolean
-        default: false
+        default: true
       tag_truncated_logs:
         node_type: setting
         type: boolean
-        default: false
+        default: true
       tagger_warmup_duration:
         node_type: setting
         type: number
