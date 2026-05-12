@@ -475,9 +475,13 @@ func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		enabledMsgs = append(enabledMsgs, string(libset)+"="+strconv.FormatUint(value, 10))
 	}
 
+	pagesize := uint64(os.Getpagesize())
+	if pagesize < 4096 {
+		pagesize = uint64(4096)
+	}
 	options.ConstantEditors = append(options.ConstantEditors, manager.ConstantEditor{
 		Name:  "pagesize",
-		Value: os.Getpagesize(),
+		Value: pagesize,
 	})
 
 	log.Infof("loading shared libraries program with libsets enabled: %s", strings.Join(enabledMsgs, ", "))
