@@ -280,7 +280,16 @@ func (p *Processor) applyRedactingRules(msg *message.Message) bool {
 				msg.RecordProcessingRule(rule.Type, rule.Name)
 				return false
 			}
-
+		case config.RemapSource:
+			for _, match := range rule.Matching {
+				if val, ok := msg.GetStructuredAttribute(match.Attribute); ok && val == match.Value {
+					if msg.Origin != nil {
+						msg.Origin.SetMappedSource(match.NewSource)
+					}
+					msg.RecordProcessingRule(rule.Type, rule.Name)
+					break
+				}
+			}
 		}
 	}
 

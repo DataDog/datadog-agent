@@ -238,8 +238,10 @@ def _get_node_types_and_default(full_name, node, os_target):
             yaml_type, env_type = "list of integers", "space-separated list of integers"
         else:
             raise Exception(f"unknown array of type: {node['items']['type']}")
-    elif node_type == "number":
+    elif node_type in ["number", "integer", "int", "int64"]:
         yaml_type, env_type = "integer", "integer"
+    elif node_type == '[]int':
+        yaml_type, env_type = "list of integers", "space-separated list of integers"
     elif node_type == "float64":
         return "float", "float", default
     elif node_type == "object":

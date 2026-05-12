@@ -122,14 +122,14 @@ func (o *Origin) SetSource(source string) {
 }
 
 // SetMappedSource sets a high-priority source override, typically from a
-// remap_attribute_to_source processing rule. It takes precedence over both
-// the config source and the parser-derived source.
+// remap_source processing rule. It takes precedence over both the config
+// source and the parser-derived source.
 func (o *Origin) SetMappedSource(source string) {
 	o.mappedSource = source
 }
 
 // Source returns the source with the following priority:
-//  1. mappedSource (set by remap_attribute_to_source processing rule)
+//  1. mappedSource (set by remap_source processing rule)
 //  2. LogSource.Config.Source (user-configured source)
 //  3. o.source (parser-derived, e.g. syslog AppName)
 func (o *Origin) Source() string {
