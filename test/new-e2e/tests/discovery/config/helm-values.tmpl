@@ -16,9 +16,6 @@ datadog:
     DD_LANGUAGE_DETECTION_ENABLED: "true"
 
 agents:
-  image:
-    tag: "7.78.0"
-    doNotCheckTag: true
   # The discovery-e2e-mode annotation is purely a no-op marker
   # whose only purpose is to change the DaemonSet pod template
   # hash between sub-tests, forcing a pod rollout. Without it,

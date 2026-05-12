@@ -36,10 +36,13 @@ import (
 const (
 	nginxNamespace = "workload-nginx"
 	nginxPort      = 80
-	// helmChartVersion is the minimum chart version that ships the
-	// discovery-use-system-probe-lite template (added in chart 3.205.0
-	// via DataDog/helm-charts#2598). The framework default predates it.
-	helmChartVersion = "3.208.2"
+	// helmChartVersion needs to be ≥ 3.205.0 for the
+	// discovery-use-system-probe-lite template (DataDog/helm-charts#2598)
+	// and ≥ 3.213.0 for the get-agent-version fallback fix
+	// (DataDog/helm-charts#2643) that maps "latest"/"7" to ≥ 7.78.0 so
+	// the SPL auto-enable threshold is met without an explicit image
+	// tag pin. The framework's default chart version predates both.
+	helmChartVersion = "3.213.0"
 )
 
 //go:embed config/helm-values.tmpl
