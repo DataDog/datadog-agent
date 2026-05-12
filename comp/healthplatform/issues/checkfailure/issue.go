@@ -32,7 +32,7 @@ func NewCheckFailureIssue() *CheckFailureIssue {
 }
 
 // BuildIssue creates a complete issue with metadata and remediation for check failures
-func (t *CheckFailureIssue) BuildIssue(issueID string, context map[string]string) (*healthplatform.Issue, error) {
+func (t *CheckFailureIssue) BuildIssue(issueType string, context map[string]string) (*healthplatform.Issue, error) {
 	checkName := context["checkName"]
 	if checkName == "" {
 		checkName = unknownVal
@@ -111,7 +111,7 @@ func (t *CheckFailureIssue) BuildIssue(issueID string, context map[string]string
 	}
 
 	return &healthplatform.Issue{
-		Id:          issueID,
+		Id:          issueType,
 		IssueName:   issueName,
 		Title:       string(title),
 		Description: string(desc),

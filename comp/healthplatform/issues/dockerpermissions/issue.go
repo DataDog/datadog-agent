@@ -31,7 +31,7 @@ func NewDockerPermissionIssue() *DockerPermissionIssue {
 }
 
 // BuildIssue creates a complete issue with metadata and OS-specific remediation
-func (t *DockerPermissionIssue) BuildIssue(issueID string, context map[string]string) (*healthplatform.Issue, error) {
+func (t *DockerPermissionIssue) BuildIssue(issueType string, context map[string]string) (*healthplatform.Issue, error) {
 	// Support both "dockerDirs" (comma-separated, from socket check) and
 	// "dockerDir" (single path, from file tailing permission check)
 	dockerDir := context["dockerDirs"]
@@ -59,7 +59,7 @@ func (t *DockerPermissionIssue) BuildIssue(issueID string, context map[string]st
 	}
 
 	return &healthplatform.Issue{
-		Id:          issueID,
+		Id:          issueType,
 		IssueName:   "docker_file_tailing_disabled",
 		Title:       "Host Agent Cannot Tail Docker Log Files",
 		Description: fmt.Sprintf("Docker file tailing is enabled by default but cannot work on this host install. The directory %s has restricted permissions, causing the agent to fall back to socket tailing. This becomes problematic with high volume Docker logs as socket tailing can hit limits.", dockerDir),

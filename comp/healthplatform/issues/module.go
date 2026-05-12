@@ -55,9 +55,8 @@ func GetAllModules(config config.Component) []Module {
 
 // IssueTemplate defines how to build a complete issue (metadata + remediation) from context
 type IssueTemplate interface {
-	// BuildIssue creates a complete issue using the provided issue id and context.
-	// The issueID is set as Issue.Id so callers do not need to override it.
-	BuildIssue(issueID string, context map[string]string) (*healthplatform.Issue, error)
+	// BuildIssue creates a complete issue using the provided issue type and context.
+	BuildIssue(issueType string, context map[string]string) (*healthplatform.Issue, error)
 }
 
 // BuiltInHealthCheck represents configuration for a built-in health check
