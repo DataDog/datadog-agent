@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build !ncm
-
 // Package networkconfigmanagementimpl implements a stub component when ncm is disabled.
 package networkconfigmanagementimpl
 
@@ -15,7 +13,7 @@ import (
 )
 
 // NewComponent creates a stub networkconfigmanagement component
-func NewComponent(_ compdef.In) (Provides, error) {
+func NewNoopComponent(_ compdef.In) (Provides, error) {
 	provides := Provides{
 		Comp:              option.None[networkconfigmanagement.Component](),
 		GetConfigEndpoint: nilEndpoint(),
