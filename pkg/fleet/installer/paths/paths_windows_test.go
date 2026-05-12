@@ -110,52 +110,32 @@ func assertDACLAutoInherit(t *testing.T, sd *windows.SECURITY_DESCRIPTOR) {
 	assert.NotZero(t, control&windows.SE_DACL_AUTO_INHERITED)
 }
 
-// TestSetRepositoryPermissionsBeforeRenameBlocksMove is a regression test for
-// the ordering bug fixed in PR #50620. SetRepositoryPermissions applies a
-// protected DACL via TreeResetNamedSecurityInfoW that severs inheritance and,
-// in UAC-filtered contexts, removes the process's DELETE right — causing the
-// subsequent MoveFileEx to fail with ERROR_ACCESS_DENIED.
+// TestRenameBeforeSetRepositoryPermissions verifies the ordering fix from
+// PR #50620: Rename must be called before SetRepositoryPermissions.
 //
-// Part 1 demonstrates the failure mode using a fully-restrictive DACL
-// (Everyone read+execute only, no DELETE for anyone) so the assertion is
-// reliable regardless of the CI process privilege level.
-// Part 2 demonstrates the fix: rename first, then apply permissions.
-func TestSetRepositoryPermissionsBeforeRenameBlocksMove(t *testing.T) {
+// SetRepositoryPermissions applies a protected DACL via
+// TreeResetNamedSecurityInfoW that severs DACL inheritance. In UAC-filtered
+// or service-account contexts the Administrators SID may be deny-only, so the
+// resulting DACL strips the process's DELETE right and makes MoveFileEx fail
+// with ERROR_ACCESS_DENIED.
+//
+// Reliably reproducing that failure in a unit test would require a
+// non-elevated token, which is not guaranteed in CI. This test therefore only
+// asserts the correct ordering (rename then permissions) and verifies that the
+// target directory ends up with the expected protected DACL.
+func TestRenameBeforeSetRepositoryPermissions(t *testing.T) {
 	root := t.TempDir()
+	src := filepath.Join(root, "src")
+	dst := filepath.Join(root, "dst")
+	require.NoError(t, os.Mkdir(src, 0o755))
 
-	// Part 1: permissions BEFORE rename — the old, broken order.
-	srcBug := filepath.Join(root, "src-bug")
-	dstBug := filepath.Join(root, "dst-bug")
-	require.NoError(t, os.Mkdir(srcBug, 0o755))
+	require.NoError(t, Rename(t.Context(), src, dst))
+	require.NoError(t, SetRepositoryPermissions(dst))
 
-	// Apply a fully-restrictive protected DACL (Everyone R+X, no DELETE for
-	// anyone including SYSTEM) to simulate what SetRepositoryPermissions does in
-	// non-elevated contexts where the Administrators SID is filtered.
-	require.NoError(t, treeResetNamedSecurityInfoWithSDDL(srcBug, "D:PAI(A;OICI;0x1200A9;;;WD)"))
-	// Register cleanup before assertions so it runs (LIFO) before t.TempDir's
-	// cleanup and can restore the DACL for os.RemoveAll.
-	t.Cleanup(func() {
-		_ = treeResetNamedSecurityInfoWithSDDL(srcBug, "D:PAI(A;OICI;FA;;;WD)")
-	})
+	assert.DirExists(t, dst)
+	assert.NoDirExists(t, src)
 
-	// Use os.Rename directly (not paths.Rename) to avoid the 60-second retry loop.
-	err := os.Rename(srcBug, dstBug)
-	require.Error(t, err, "rename after locking DACL should fail with ERROR_ACCESS_DENIED")
-	var linkErr *os.LinkError
-	require.ErrorAs(t, err, &linkErr)
-	assert.ErrorIs(t, linkErr.Err, windows.ERROR_ACCESS_DENIED)
-
-	// Part 2: rename BEFORE permissions — the fix.
-	srcFix := filepath.Join(root, "src-fix")
-	dstFix := filepath.Join(root, "dst-fix")
-	require.NoError(t, os.Mkdir(srcFix, 0o755))
-
-	require.NoError(t, Rename(t.Context(), srcFix, dstFix))
-	require.NoError(t, SetRepositoryPermissions(dstFix))
-	assert.DirExists(t, dstFix)
-	assert.NoDirExists(t, srcFix)
-
-	sd, err := getSecurityDescriptor(dstFix)
+	sd, err := getSecurityDescriptor(dst)
 	require.NoError(t, err)
 	assertDACLProtected(t, sd)
 	assertDACLAutoInherit(t, sd)
