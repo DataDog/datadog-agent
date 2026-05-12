@@ -1,3 +1,4 @@
+# gazelle:ignore
 load("@rules_go//go:def.bzl", "go_library")
 
 # Only the noop variant is built here. fx.go imports logssource/impl which
