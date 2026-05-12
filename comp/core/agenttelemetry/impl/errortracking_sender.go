@@ -7,34 +7,30 @@ package agenttelemetryimpl
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"runtime"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/DataDog/zstd"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 // sendLogsTypedBatch is the v3 entry that takes already-converted wire
 // Log structs (produced by errorLogToLog) and POSTs them as a single
 // LogsPayload-envelope to every configured endpoint via the shared
-// sendPayloadBody helper.
+// sendSerializedPayload helper.
 //
-// Error semantics:
-//   - empty batch is a no-op
-//   - 5xx or request-timeout from any endpoint: non-nil joined error
-//     (callers may retry once or drop, per their policy)
-//   - 4xx from any endpoint: logged at error, treated as terminal for
-//     that endpoint (no error returned for that endpoint specifically)
-//   - transport failure: non-nil joined error
+// The marshal -> scrub -> compress -> endpoint-fanout pipeline is owned by
+// sendSerializedPayload (see sender.go); this method only constructs the
+// logs payload envelope. Error semantics are uniform across reqType: any
+// non-2xx status or transport failure joins into the returned error.
+//
+// This function does NOT log at Error. Doing so would re-enter the
+// errortracking slog handler and feed records back into the same flush
+// path (review comment F6 on PR #50607); callers observe failures via
+// the returned error and log at Debug.
 func (s *senderImpl) sendLogsTypedBatch(ctx context.Context, logs []Log) error {
 	if len(logs) == 0 {
 		return nil
@@ -45,44 +41,7 @@ func (s *senderImpl) sendLogsTypedBatch(ctx context.Context, logs []Log) error {
 	payload.EventTime = time.Now().Unix()
 	payload.Payload = LogsPayload{Logs: logs}
 
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("marshal logs payload: %w", err)
-	}
-	body, err = scrubber.ScrubJSON(body)
-	if err != nil {
-		return fmt.Errorf("scrub logs payload: %w", err)
-	}
-	compressed := false
-	if s.compress {
-		if cBody, cErr := zstd.CompressLevel(nil, body, s.compressionLevel); cErr == nil {
-			body = cBody
-			compressed = true
-		}
-		// On compression failure, fall back to uncompressed (matches
-		// flushSession's behavior).
-	}
-
-	var errs error
-	for _, ep := range s.endpoints.Endpoints {
-		url := buildURL(ep)
-		status, sendErr := s.sendPayloadBody(ctx, body, logsPayloadType, ep.GetAPIKey(), url, compressed)
-		if sendErr != nil {
-			errs = errors.Join(errs, sendErr)
-			continue
-		}
-		switch {
-		case status >= 200 && status < 300:
-			s.logComp.Debugf("Logs intake response status code:%d, request type:%s", status, logsPayloadType)
-		case status >= 500 || status == http.StatusRequestTimeout:
-			errs = errors.Join(errs,
-				fmt.Errorf("logs intake returned %d at %s", status, url))
-		default:
-			s.logComp.Errorf("logs intake returned terminal %d at %s; dropping batch (%d records)",
-				status, url, len(logs))
-		}
-	}
-	return errs
+	return s.sendSerializedPayload(ctx, payload, logsPayloadType)
 }
 
 // errorLogToLog converts the foundational ErrorLog DTO (carried across
@@ -129,20 +88,16 @@ func errorLogToLog(e errortracking.ErrorLog) Log {
 	return out
 }
 
-// slogLevelToLogLevel maps slog.Level to the UPPERCASE wire LogLevel
-// constants accepted by dd-go's logs intake. The handler at
-// pkg/util/log/errortracking only forwards Level >= Error, so in
-// practice only LogLevelError is emitted; other levels are mapped here
-// for completeness and test coverage.
+// slogLevelToLogLevel maps the slog level on an ErrorLog to the
+// UPPERCASE wire LogLevel constant accepted by dd-go's logs intake.
+// The pkg/util/log/errortracking handler filters Level < Error before
+// dispatch, so only LevelError ever reaches this function in practice.
+// Lower levels are a contract violation and panic loudly so a future
+// regression is caught in tests instead of silently producing an
+// invalid wire payload.
 func slogLevelToLogLevel(l slog.Level) LogLevel {
-	switch {
-	case l >= slog.LevelError:
-		return LogLevelError
-	case l >= slog.LevelWarn:
-		return LogLevelWarn
-	case l >= slog.LevelInfo:
-		return LogLevelInfo
-	default:
-		return LogLevelDebug
+	if l < slog.LevelError {
+		panic(fmt.Sprintf("slogLevelToLogLevel: handler must filter Level < Error; got %v", l))
 	}
+	return LogLevelError
 }

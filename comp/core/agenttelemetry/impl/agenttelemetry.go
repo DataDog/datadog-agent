@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -63,9 +62,15 @@ type atel struct {
 	// drains the channel on a ticker and on shutdown, dispatching via
 	// sender.sendLogsTypedBatch. The previous v2 Pipeline/Processor
 	// abstractions were removed per review comment C2 on PR #49946.
-	errLogsCh      chan errortracking.ErrorLog
-	errLogsDropped atomic.Uint64
-	errLogsFlushWG sync.WaitGroup
+	//
+	// errortrackingEnabled gates allocation of errLogsCh and the spawn
+	// of runErrorLogsFlush on the errortracking.enabled feature flag, so
+	// deployments that don't opt in pay zero overhead (no ~80KB buffer,
+	// no idle goroutine).
+	errortrackingEnabled bool
+	errLogsCh            chan errortracking.ErrorLog
+	errLogsDropped       atomic.Uint64
+	errLogsFlushWG       sync.WaitGroup
 }
 
 // Requires defines the dependencies for the agenttelemetry component
@@ -152,6 +157,17 @@ func createAtel(
 		Transport: httputils.CreateHTTPTransport(cfgComp),
 	}
 
+	// Only allocate the errortracking channel (and later spawn the flush
+	// goroutine in start) when the errortracking feature is enabled.
+	// Otherwise leave errLogsCh nil; SubmitErrorRecord is then a no-op
+	// (see the errLogsCh==nil guard there) and we avoid the ~80KB buffer
+	// + idle goroutine for deployments that don't opt in.
+	errortrackingEnabled := cfgComp.GetBool("errortracking.enabled")
+	var errLogsCh chan errortracking.ErrorLog
+	if errortrackingEnabled {
+		errLogsCh = make(chan errortracking.ErrorLog, errLogsBufferSize)
+	}
+
 	return &atel{
 		enabled: true,
 		cfgComp: cfgComp,
@@ -171,7 +187,8 @@ func createAtel(
 		prevPromMetricCounterValues:   make(map[string]float64),
 		prevPromMetricHistogramValues: make(map[string]uint64),
 
-		errLogsCh: make(chan errortracking.ErrorLog, errLogsBufferSize),
+		errortrackingEnabled: errortrackingEnabled,
+		errLogsCh:            errLogsCh,
 	}
 }
 
@@ -653,16 +670,18 @@ func (a *atel) SendEvent(eventType string, eventPayload []byte) error {
 // silently and increments errLogsDropped (the calling goroutine — the
 // slog handler hot path — MUST NOT block on a misbehaving backend).
 //
-// Recursion guard (review comment C1 on PR #49946): records whose
-// caller PC resolves inside the agenttelemetry component or the
-// pkg/util/log/setup package are dropped without enqueue. This breaks
-// the feedback loop where logging an error inside SubmitErrorRecord
-// would re-trigger SubmitErrorRecord.
+// Recursion prevention: the flush path (sendLogsTypedBatch →
+// sendSerializedPayload) is required to log only at Debug. A future
+// addition of any Errorf in that path would re-enter this method via
+// the slog handler.
 func (a *atel) SubmitErrorRecord(log errortracking.ErrorLog) {
 	if !a.enabled {
 		return
 	}
-	if isRecursiveCaller(log.PC) {
+	if a.errLogsCh == nil {
+		// errortracking feature flag disabled: no channel allocated and
+		// no flush goroutine running. Calling this should be a no-op
+		// rather than a nil-channel send (which would block forever).
 		return
 	}
 	select {
@@ -670,28 +689,6 @@ func (a *atel) SubmitErrorRecord(log errortracking.ErrorLog) {
 	default:
 		a.errLogsDropped.Add(1)
 	}
-}
-
-// isRecursiveCaller returns true if the call site identified by pc
-// resolves into a package that itself produces errortracking traffic
-// (agenttelemetry or the slog setup), which would otherwise create a
-// feedback loop. Matches both frame.Function (importpath form) and
-// frame.File (file-path form) to remain robust under both trimpath and
-// non-trimpath builds.
-func isRecursiveCaller(pc uintptr) bool {
-	if pc == 0 {
-		return false
-	}
-	frame, _ := runtime.CallersFrames([]uintptr{pc}).Next()
-	if strings.Contains(frame.Function, "datadog-agent/comp/core/agenttelemetry") ||
-		strings.Contains(frame.Function, "datadog-agent/pkg/util/log/setup") {
-		return true
-	}
-	if strings.Contains(frame.File, "/comp/core/agenttelemetry/") ||
-		strings.Contains(frame.File, "/pkg/util/log/setup/") {
-		return true
-	}
-	return false
 }
 
 // runErrorLogsFlush is the v3 flush goroutine for errortracking
@@ -726,32 +723,25 @@ func (a *atel) runErrorLogsFlush() {
 }
 
 // drainAndSend non-blockingly drains errLogsCh into batches of up to
-// errLogsBatchSize and dispatches each. Keeps going while the channel
-// has more records, so a tick that arrives behind a burst can catch up
-// in one wakeup. Reuses the supplied batch slice across iterations to
-// avoid per-tick allocations.
+// errLogsBatchSize, dispatching each batch via sendErrorLogsBatch.
+// Keeps going while the channel has records; returns when the channel
+// is empty (after flushing any partial batch).
 func (a *atel) drainAndSend(batch *[]errortracking.ErrorLog) {
 	for {
-		full := false
-		for !full {
-			select {
-			case r := <-a.errLogsCh:
-				*batch = append(*batch, r)
-				if len(*batch) >= errLogsBatchSize {
-					full = true
-				}
-			default:
-				// channel drained — send anything we have and return
-				if len(*batch) > 0 {
-					a.sendErrorLogsBatch(*batch)
-					*batch = (*batch)[:0]
-				}
-				return
+		select {
+		case r := <-a.errLogsCh:
+			*batch = append(*batch, r)
+			if len(*batch) >= errLogsBatchSize {
+				a.sendErrorLogsBatch(*batch)
+				*batch = (*batch)[:0]
 			}
+		default:
+			if len(*batch) > 0 {
+				a.sendErrorLogsBatch(*batch)
+				*batch = (*batch)[:0]
+			}
+			return
 		}
-		// Batch full — send and keep draining.
-		a.sendErrorLogsBatch(*batch)
-		*batch = (*batch)[:0]
 	}
 }
 
@@ -812,11 +802,14 @@ func (a *atel) start() error {
 		})
 	}
 
-	// Start the v3 errortracking flush goroutine. Lifecycle is bound
-	// to a.cancelCtx; stop() waits on errLogsFlushWG for the final
-	// drain to complete.
-	a.errLogsFlushWG.Add(1)
-	go a.runErrorLogsFlush()
+	// Start the v3 errortracking flush goroutine only when the
+	// errortracking feature is enabled. Lifecycle is bound to
+	// a.cancelCtx; stop() waits on errLogsFlushWG for the final drain
+	// to complete (a no-op WaitGroup.Wait when this branch was skipped).
+	if a.errortrackingEnabled {
+		a.errLogsFlushWG.Add(1)
+		go a.runErrorLogsFlush()
+	}
 
 	return nil
 }
