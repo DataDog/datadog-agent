@@ -77,8 +77,6 @@ exports_files(glob(
 # gazelle:exclude comp/api/api/apiimpl/server_ipc.go
 # gazelle:exclude comp/api/api/apiimpl/server_test.go
 # gazelle:exclude comp/api/authtoken
-# gazelle:exclude comp/api/bundle.go
-# gazelle:exclude comp/api/bundle_test.go
 # gazelle:exclude comp/api/commonendpoints
 # gazelle:exclude comp/api/grpcserver/fx-agent
 # gazelle:exclude comp/api/grpcserver/impl-agent
