@@ -1,0 +1,9 @@
+agent_integrations = use_repo_rule(
+    "//deps/agent_integrations:agent_integrations.bzl",
+    "agent_integrations",
+)
+
+agent_integrations(
+    name = "integrations_core",
+    wheels_storage = "stable",
+)
