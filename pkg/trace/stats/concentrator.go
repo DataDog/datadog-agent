@@ -72,10 +72,12 @@ func NewConcentrator(conf *config.AgentConfig, writer Writer, now time.Time, sta
 		statsd:           statsd,
 		bsize:            bsize,
 		peerTagKeys:      conf.ConfiguredPeerTags(),
-		// additionalMetricTagKeys is intentionally nil on the agent side. This feature is only
-		// configurable through the Go tracer (dd-trace-go), which imports the SpanConcentrator
-		// directly and passes its own tag keys via NewStatSpanWithConfig's StatSpanConfig.AdditionalMetricTagKeys.
-		additionalMetricTagKeys: nil,
+		// On the agent side, this is non-nil only in serverless contexts (AAS extension
+		// or cmd/serverless-init) via the deprecated DD_APM_SPAN_DERIVED_PRIMARY_TAGS
+		// option. The Go tracer (dd-trace-go) also configures it via
+		// SpanConcentratorConfig.AdditionalMetricTagKeys when it imports SpanConcentrator
+		// directly.
+		additionalMetricTagKeys: conf.ConfiguredSpanDerivedPrimaryTagKeys(),
 	}
 	return &c
 }
@@ -244,6 +246,7 @@ func (c *Concentrator) addNowV1(pt *traceutil.ProcessedTraceV1, tags infraTags) 
 		ContainerID:     tags.containerID,
 		GitCommitSha:    pt.GitCommitSha,
 		ImageTag:        pt.ImageTag,
+		Lang:            pt.Lang,
 		ProcessTagsHash: tags.processTagsHash,
 		BaseService:     baseService,
 	}
