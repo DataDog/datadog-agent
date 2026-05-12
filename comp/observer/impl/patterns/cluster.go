@@ -162,6 +162,13 @@ type PatternClusterer struct {
 	// match by value for an incoming line to merge into an existing cluster. Set at
 	// construction from rawMinTokenMatchRatio via effectiveMinTokenMatchRatio.
 	minTokenMatchRatio float64
+	// MaxClusters caps the number of live clusters. When a new cluster would push
+	// allClusters past this size, the cluster with the smallest LastSeenUnix is
+	// evicted (LRU). Zero (the default) disables the cap.
+	MaxClusters int
+	// lruEvicted holds cluster IDs evicted by the LRU cap since the last
+	// DrainLRUEvictedClusterIDs call. Distinct from GC eviction.
+	lruEvicted []int64
 }
 
 func NewPatternClusterer() *PatternClusterer {
@@ -242,7 +249,51 @@ func (pc *PatternClusterer) ProcessTokens(tokens []Token, message string, unixSe
 	pc.allClusters = append(pc.allClusters, c)
 	pc.nextID++
 
+	pc.evictLRUOverCap(c.ID)
+
 	return c, true
+}
+
+// evictLRUOverCap evicts the least-recently-seen cluster (smallest LastSeenUnix)
+// when MaxClusters > 0 and len(allClusters) exceeds it. The just-inserted cluster
+// id (justInserted) is excluded from eviction; in the corner case where every
+// existing cluster has a younger or equal LastSeenUnix than justInserted, the
+// oldest non-just-inserted cluster is evicted. Evicted IDs are appended to
+// pc.lruEvicted; callers retrieve them via DrainLRUEvictedClusterIDs.
+func (pc *PatternClusterer) evictLRUOverCap(justInserted int64) {
+	if pc.MaxClusters <= 0 || len(pc.allClusters) <= pc.MaxClusters {
+		return
+	}
+	// Find min-LastSeenUnix cluster, excluding justInserted.
+	var oldestIdx = -1
+	var oldestUnix int64
+	for i, c := range pc.allClusters {
+		if c.ID == justInserted {
+			continue
+		}
+		if oldestIdx < 0 || c.LastSeenUnix < oldestUnix {
+			oldestIdx = i
+			oldestUnix = c.LastSeenUnix
+		}
+	}
+	if oldestIdx < 0 {
+		return
+	}
+	evictID := pc.allClusters[oldestIdx].ID
+	_ = pc.RemoveClusters([]int64{evictID})
+	pc.lruEvicted = append(pc.lruEvicted, evictID)
+}
+
+// DrainLRUEvictedClusterIDs returns and clears the IDs of clusters evicted by
+// the LRU cap (MaxClusters) since the last call. GC-evicted clusters are NOT
+// reported here; see ClusterIDsBeforeUnix / RemoveClusters.
+func (pc *PatternClusterer) DrainLRUEvictedClusterIDs() []int64 {
+	if len(pc.lruEvicted) == 0 {
+		return nil
+	}
+	out := pc.lruEvicted
+	pc.lruEvicted = nil
+	return out
 }
 
 // ClusterIDsBeforeUnix returns IDs of clusters whose LastSeenUnix is strictly

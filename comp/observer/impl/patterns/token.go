@@ -148,11 +148,34 @@ func NumericValueToken(text string) Token {
 	return Token{Type: TypeNumericValue, Value: text}
 }
 
+// specialCharStrings interns single-byte strings so SpecialCharToken — called
+// once per non-token byte during tokenization — does not allocate.
+var specialCharStrings = func() [256]string {
+	var arr [256]string
+	for i := range arr {
+		arr[i] = string([]byte{byte(i)})
+	}
+	return arr
+}()
+
 func SpecialCharToken(ch byte) Token {
-	return Token{Type: TypeSpecialCharacter, Value: string(ch)}
+	return Token{Type: TypeSpecialCharacter, Value: specialCharStrings[ch]}
 }
 
+// whitespacePool holds shared "space-only" strings for common whitespace runs.
+// Avoids per-call allocations from strings.Repeat for typical small runs.
+var whitespacePool = func() [33]string {
+	var arr [33]string
+	for i := range arr {
+		arr[i] = strings.Repeat(" ", i)
+	}
+	return arr
+}()
+
 func WhitespaceToken(count int) Token {
+	if count >= 0 && count < len(whitespacePool) {
+		return Token{Type: TypeWhitespace, Value: whitespacePool[count]}
+	}
 	return Token{Type: TypeWhitespace, Value: strings.Repeat(" ", count)}
 }
 
@@ -169,71 +192,132 @@ func IPv4Token(text string, _, _, _, _ int) Token {
 }
 
 func PathToken(segments []string) Token {
+	return pathTokenRaw("", segments)
+}
+
+func pathTokenRaw(value string, segments []string) Token {
+	if value == "" {
+		var b strings.Builder
+		b.WriteByte('/')
+		for i, seg := range segments {
+			if i > 0 {
+				b.WriteByte('/')
+			}
+			b.WriteString(seg)
+		}
+		value = b.String()
+	}
 	return Token{
 		Type:  TypeAbsolutePath,
-		Value: "/" + strings.Join(segments, "/"),
+		Value: value,
 		extra: &tokenExtra{Segments: segments},
 	}
 }
 
 func PathQueryFragmentToken(segments []string, query, fragment *string) Token {
-	v := "/" + strings.Join(segments, "/")
-	if query != nil {
-		v += "?" + *query
-	}
-	if fragment != nil {
-		v += "#" + *fragment
+	return pathQueryFragmentTokenRaw("", segments, query, fragment)
+}
+
+// pathQueryFragmentTokenRaw is like PathQueryFragmentToken but takes a
+// pre-built Value. The tokenizer always already has the matched substring at
+// hand, so it can skip the strings.Join + concat the public constructor would
+// do (the caller used to overwrite Value anyway).
+func pathQueryFragmentTokenRaw(value string, segments []string, query, fragment *string) Token {
+	if value == "" {
+		var b strings.Builder
+		b.WriteByte('/')
+		for i, seg := range segments {
+			if i > 0 {
+				b.WriteByte('/')
+			}
+			b.WriteString(seg)
+		}
+		if query != nil {
+			b.WriteByte('?')
+			b.WriteString(*query)
+		}
+		if fragment != nil {
+			b.WriteByte('#')
+			b.WriteString(*fragment)
+		}
+		value = b.String()
 	}
 	return Token{
 		Type:  TypePathQueryFragment,
-		Value: v,
+		Value: value,
 		extra: &tokenExtra{Segments: segments, Query: query, Fragment: fragment},
 	}
 }
 
 func URIToken(scheme string, authority *Token, path *Token, query, fragment *string) Token {
-	v := scheme + "://"
-	if authority != nil {
-		v += authority.Value
-	}
-	if path != nil {
-		v += path.Value
-	}
-	if query != nil {
-		v += "?" + *query
-	}
-	if fragment != nil {
-		v += "#" + *fragment
+	return uriTokenRaw("", scheme, authority, path, query, fragment)
+}
+
+func uriTokenRaw(value string, scheme string, authority *Token, path *Token, query, fragment *string) Token {
+	if value == "" {
+		var b strings.Builder
+		b.WriteString(scheme)
+		b.WriteString("://")
+		if authority != nil {
+			b.WriteString(authority.Value)
+		}
+		if path != nil {
+			b.WriteString(path.Value)
+		}
+		if query != nil {
+			b.WriteByte('?')
+			b.WriteString(*query)
+		}
+		if fragment != nil {
+			b.WriteByte('#')
+			b.WriteString(*fragment)
+		}
+		value = b.String()
 	}
 	return Token{
 		Type:  TypeURI,
-		Value: v,
+		Value: value,
 		extra: &tokenExtra{Scheme: scheme, Authority: authority, Path: path, Query: query, Fragment: fragment},
 	}
 }
 
 func AuthorityToken(host *Token, port int, hasPort bool, userInfo string, hasUser bool) Token {
-	v := ""
-	if hasUser {
-		v += userInfo + "@"
-	}
-	if host != nil {
-		v += host.Value
-	}
-	if hasPort {
-		v += fmt.Sprintf(":%d", port)
+	return authorityTokenRaw("", host, port, hasPort, userInfo, hasUser)
+}
+
+func authorityTokenRaw(value string, host *Token, port int, hasPort bool, userInfo string, hasUser bool) Token {
+	if value == "" {
+		var b strings.Builder
+		if hasUser {
+			b.WriteString(userInfo)
+			b.WriteByte('@')
+		}
+		if host != nil {
+			b.WriteString(host.Value)
+		}
+		if hasPort {
+			fmt.Fprintf(&b, ":%d", port)
+		}
+		value = b.String()
 	}
 	return Token{
 		Type:  TypeAuthority,
-		Value: v,
+		Value: value,
 		extra: &tokenExtra{Host: host, Port: port, HasPort: hasPort, UserInfo: userInfo, HasUser: hasUser},
 	}
 }
 
 func EmailToken(localPart, domain string) Token {
+	return emailTokenRaw("", localPart, domain)
+}
+
+func emailTokenRaw(value, localPart, domain string) Token {
+	if value == "" {
+		value = localPart + "@" + domain
+	}
 	return Token{
 		Type:  TypeEmailAddress,
-		Value: localPart + "@" + domain,
+		Value: value,
 		extra: &tokenExtra{LocalPart: localPart, Domain: domain},
 	}
 }

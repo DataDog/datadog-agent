@@ -48,6 +48,17 @@ type LogPatternExtractorConfig struct {
 	ClusterTimeToLiveSec int64 `json:"cluster_time_to_live_sec,omitempty"`
 	// GarbageCollectionIntervalSec is the minimum time between GC passes when ClusterTimeToLiveSec > 0.
 	GarbageCollectionIntervalSec int64 `json:"garbage_collection_interval_sec,omitempty"`
+	// MaxPatternsPerGroup caps the number of live clusters in any single tag
+	// group. When exceeded, the least-recently-seen cluster is evicted (LRU)
+	// and its engine context is dropped. Zero means use the default; set
+	// negative to disable. Bounds memory/series-cardinality on workloads with
+	// high pattern diversity (e.g. container log churn).
+	MaxPatternsPerGroup int `json:"max_patterns_per_group,omitempty"`
+	// MaxTagGroups caps the number of distinct tag groups (source/service/env/host
+	// combinations) tracked simultaneously. When exceeded, the least-recently-
+	// touched group's clusters are all evicted at once. Zero means use the
+	// default; set negative to disable.
+	MaxTagGroups int `json:"max_tag_groups,omitempty"`
 }
 
 // DefaultLogPatternExtractorConfig returns defaults aligned with the patterns package.
@@ -62,6 +73,8 @@ func DefaultLogPatternExtractorConfig() LogPatternExtractorConfig {
 		MaxTokenizedStringLength:     12500,
 		MaxNumTokens:                 250,
 		ParseHexDump:                 &parseHexDump,
+		MaxPatternsPerGroup:          1024,
+		MaxTagGroups:                 256,
 	}
 }
 
@@ -155,6 +168,8 @@ func (c *logPatternExtractorContext) removeTaggedCluster(taggedKey string) {
 
 // NewLogPatternExtractor creates a new LogPatternExtractor.
 // A zero-value cfg is accepted; zero fields fall back to DefaultLogPatternExtractorConfig values.
+// MaxPatternsPerGroup and MaxTagGroups follow the same convention: 0 → default,
+// negative → disabled (unbounded).
 func NewLogPatternExtractor(cfg LogPatternExtractorConfig) *LogPatternExtractor {
 	// Apply defaults first and then refresh config to finalize it
 	defaults := DefaultLogPatternExtractorConfig()
@@ -169,6 +184,12 @@ func NewLogPatternExtractor(cfg LogPatternExtractorConfig) *LogPatternExtractor 
 			cfg.GarbageCollectionIntervalSec = defaults.GarbageCollectionIntervalSec
 		}
 	}
+	if cfg.MaxPatternsPerGroup == 0 {
+		cfg.MaxPatternsPerGroup = defaults.MaxPatternsPerGroup
+	}
+	if cfg.MaxTagGroups == 0 {
+		cfg.MaxTagGroups = defaults.MaxTagGroups
+	}
 	cfg.RefreshConfig()
 
 	registry := NewTagGroupByKeyRegistry()
@@ -176,8 +197,15 @@ func NewLogPatternExtractor(cfg LogPatternExtractorConfig) *LogPatternExtractor 
 	newSub := func() *patterns.PatternClusterer {
 		return patterns.NewPatternClustererWithTokenizer(tok, cfg.MinTokenMatchRatio)
 	}
+	tc := NewTaggedPatternClustererWithFactory(registry, newSub)
+	if cfg.MaxPatternsPerGroup > 0 {
+		tc.MaxClustersPerGroup = cfg.MaxPatternsPerGroup
+	}
+	if cfg.MaxTagGroups > 0 {
+		tc.MaxTagGroups = cfg.MaxTagGroups
+	}
 	return &LogPatternExtractor{
-		taggedClusterer: NewTaggedPatternClustererWithFactory(registry, newSub),
+		taggedClusterer: tc,
 		registry:        registry,
 		config:          cfg,
 	}
@@ -252,7 +280,26 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	message := string(log.GetContent())
 	groupTags := tagsForPatternGrouping(log.GetTags(), log.GetHostname())
 	groupHash, cluster, ok := e.taggedClusterer.Process(groupTags, message, logUnixSec)
+	// Drain LRU evictions — from per-group MaxClusters or whole-group MaxTagGroups
+	// caps. Treated identically to GC evictions: drop engine context, decrement
+	// pattern_count telemetry. Done unconditionally so that whole-group evictions
+	// caused by the new sub-clusterer creation aren't lost when Process returns
+	// !ok (defensive; current Process only returns !ok for empty messages, after
+	// which no eviction can have occurred, but keep this path honest).
+	if evicted := e.taggedClusterer.DrainLRUEvictions(); len(evicted) > 0 {
+		var lruKeys []string
+		for _, ev := range evicted {
+			taggedKey := globalClusterHash(ev.GroupHash, ev.ClusterID)
+			if e.ctx.keysByTaggedCluster != nil {
+				lruKeys = append(lruKeys, e.ctx.keysByTaggedCluster[taggedKey]...)
+			}
+			e.ctx.removeTaggedCluster(taggedKey)
+		}
+		result.EvictedContextKeys = append(result.EvictedContextKeys, lruKeys...)
+		telemetry = append(telemetry, newTelemetryCounter([]string{"detector:" + e.Name()}, telemetryLogPatternExtractorPatternCount, -float64(len(evicted)), logUnixSec))
+	}
 	if !ok {
+		result.Telemetry = telemetry
 		return result
 	}
 	// Not enough patterns yet, don't emit metric
@@ -260,6 +307,7 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	if cluster.Count == e.config.MinClusterSizeBeforeEmit {
 		telemetry = append(telemetry, newTelemetryCounter([]string{"detector:" + e.Name()}, telemetryLogPatternExtractorPatternCount, 1, logUnixSec))
 	} else if cluster.Count < e.config.MinClusterSizeBeforeEmit {
+		result.Telemetry = telemetry
 		return result
 	}
 
