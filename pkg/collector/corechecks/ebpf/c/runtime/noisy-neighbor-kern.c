@@ -103,6 +103,95 @@ static __always_inline u64 scaled_pmu_delta(struct bpf_perf_event_value *val, pm
     return raw + (raw * missing) / running_delta;
 }
 
+// pmu_sample_t holds one sample of every PMU event we track, along with
+// per-event ok flags marking which reads succeeded. A failed read leaves
+// the bpf_perf_event_value buffer at zero; the ok flag prevents that zero
+// from being used as a stamp baseline (which would produce a huge bogus
+// delta on the next sched_switch) or as an accumulator input.
+//
+// cycles and instructions share a single ok flag because CPI requires
+// both; if either fails we skip the pair.
+typedef struct {
+    struct bpf_perf_event_value cycles;
+    struct bpf_perf_event_value instructions;
+    struct bpf_perf_event_value llc_misses;
+    struct bpf_perf_event_value itlb_misses;
+    struct bpf_perf_event_value branch_misses;
+    struct bpf_perf_event_value cpu_migrations;
+    struct bpf_perf_event_value cache_references;
+    bool ci_ok;
+    bool llc_ok;
+    bool itlb_ok;
+    bool bm_ok;
+    bool cm_ok;
+    bool cr_ok;
+} pmu_sample_t;
+
+static __always_inline void pmu_sample_all(pmu_sample_t *s) {
+    long cyc_err = bpf_perf_event_read_value(&cycles_pmu, BPF_F_CURRENT_CPU, &s->cycles, sizeof(s->cycles));
+    long ins_err = bpf_perf_event_read_value(&instructions_pmu, BPF_F_CURRENT_CPU, &s->instructions, sizeof(s->instructions));
+    s->ci_ok = (cyc_err == 0) && (ins_err == 0);
+    s->llc_ok = bpf_perf_event_read_value(&llc_misses_pmu, BPF_F_CURRENT_CPU, &s->llc_misses, sizeof(s->llc_misses)) == 0;
+    s->itlb_ok = bpf_perf_event_read_value(&itlb_misses_pmu, BPF_F_CURRENT_CPU, &s->itlb_misses, sizeof(s->itlb_misses)) == 0;
+    s->bm_ok = bpf_perf_event_read_value(&branch_misses_pmu, BPF_F_CURRENT_CPU, &s->branch_misses, sizeof(s->branch_misses)) == 0;
+    s->cm_ok = bpf_perf_event_read_value(&cpu_migrations_pmu, BPF_F_CURRENT_CPU, &s->cpu_migrations, sizeof(s->cpu_migrations)) == 0;
+    s->cr_ok = bpf_perf_event_read_value(&cache_references_pmu, BPF_F_CURRENT_CPU, &s->cache_references, sizeof(s->cache_references)) == 0;
+}
+
+static __always_inline bool pmu_any_ok(pmu_sample_t *s) {
+    return s->ci_ok || s->llc_ok || s->itlb_ok || s->bm_ok || s->cm_ok || s->cr_ok;
+}
+
+static __always_inline void pmu_stamp_event(pmu_event_stamp_t *slot, struct bpf_perf_event_value *val) {
+    slot->counter = val->counter;
+    slot->enabled = val->enabled;
+    slot->running = val->running;
+}
+
+static __always_inline void pmu_stamp_from_sample(task_pmu_stamp_t *stamp, pmu_sample_t *s) {
+    if (s->ci_ok) {
+        pmu_stamp_event(&stamp->cycles, &s->cycles);
+        pmu_stamp_event(&stamp->instructions, &s->instructions);
+    }
+    if (s->llc_ok) {
+        pmu_stamp_event(&stamp->llc_misses, &s->llc_misses);
+    }
+    if (s->itlb_ok) {
+        pmu_stamp_event(&stamp->itlb_misses, &s->itlb_misses);
+    }
+    if (s->bm_ok) {
+        pmu_stamp_event(&stamp->branch_misses, &s->branch_misses);
+    }
+    if (s->cm_ok) {
+        pmu_stamp_event(&stamp->cpu_migrations, &s->cpu_migrations);
+    }
+    if (s->cr_ok) {
+        pmu_stamp_event(&stamp->cache_references, &s->cache_references);
+    }
+}
+
+static __always_inline void pmu_accum_to_stats(cgroup_agg_stats_t *stats, task_pmu_stamp_t *stamp, pmu_sample_t *s) {
+    if (s->ci_ok) {
+        stats->sum_cycles += scaled_pmu_delta(&s->cycles, &stamp->cycles);
+        stats->sum_instructions += scaled_pmu_delta(&s->instructions, &stamp->instructions);
+    }
+    if (s->llc_ok) {
+        stats->sum_llc_misses += scaled_pmu_delta(&s->llc_misses, &stamp->llc_misses);
+    }
+    if (s->itlb_ok) {
+        stats->sum_itlb_misses += scaled_pmu_delta(&s->itlb_misses, &stamp->itlb_misses);
+    }
+    if (s->bm_ok) {
+        stats->sum_branch_misses += scaled_pmu_delta(&s->branch_misses, &stamp->branch_misses);
+    }
+    if (s->cm_ok) {
+        stats->sum_cpu_migrations += scaled_pmu_delta(&s->cpu_migrations, &stamp->cpu_migrations);
+    }
+    if (s->cr_ok) {
+        stats->sum_cache_references += scaled_pmu_delta(&s->cache_references, &stamp->cache_references);
+    }
+}
+
 static __always_inline cgroup_agg_stats_t *get_or_create_cgroup_stats(u64 cgroup_id) {
     cgroup_agg_stats_t *stats = bpf_map_lookup_elem(&cgroup_agg_stats, &cgroup_id);
     if (!stats) {
@@ -113,29 +202,50 @@ static __always_inline cgroup_agg_stats_t *get_or_create_cgroup_stats(u64 cgroup
     return stats;
 }
 
+// task_cgroup_stats returns the cgroup aggregate stats entry for the given
+// task, creating it on first observation. Returns NULL if the map insert fails.
+static __always_inline cgroup_agg_stats_t *task_cgroup_stats(struct task_struct *task) {
+    u64 cgroup_id = get_task_cgroup_id(task);
+    return get_or_create_cgroup_stats(cgroup_id);
+}
+
+// current_cgroup_stats returns the cgroup aggregate stats entry for the
+// currently-running task. Returns NULL if the current task pointer can't be
+// resolved or if the map insert fails.
+static __always_inline cgroup_agg_stats_t *current_cgroup_stats(void) {
+    struct task_struct *task = bpf_get_current_task_btf();
+    if (!task) {
+        return NULL;
+    }
+    return task_cgroup_stats(task);
+}
+
 // count_wakeup increments the per-cgroup wakeup counter for the given task.
 // Called only from the genuine wakeup tracepoints — not from the sched_switch
 // re-enqueue path (which is a preemption-driven re-enqueue, not a wakeup).
 static __always_inline void count_wakeup(struct task_struct *task) {
-    u64 cgroup_id = get_task_cgroup_id(task);
-    cgroup_agg_stats_t *stats = get_or_create_cgroup_stats(cgroup_id);
+    cgroup_agg_stats_t *stats = task_cgroup_stats(task);
     if (stats) {
         stats->wakeup_count += 1;
     }
 }
 
-SEC("tp_btf/sched_wakeup")
-int tp_sched_wakeup(u64 *ctx) {
-    struct task_struct *task = (void *)ctx[0];
+// handle_wakeup is the shared body of tp_sched_wakeup and tp_sched_wakeup_new.
+// Both tracepoints carry the same (task) shape and need the same accounting:
+// count the wakeup, then stamp the enqueue timestamp.
+static __always_inline int handle_wakeup(struct task_struct *task) {
     count_wakeup(task);
     return enqueue_timestamp(task);
 }
 
+SEC("tp_btf/sched_wakeup")
+int tp_sched_wakeup(u64 *ctx) {
+    return handle_wakeup((struct task_struct *)ctx[0]);
+}
+
 SEC("tp_btf/sched_wakeup_new")
 int tp_sched_wakeup_new(u64 *ctx) {
-    struct task_struct *task = (void *)ctx[0];
-    count_wakeup(task);
-    return enqueue_timestamp(task);
+    return handle_wakeup((struct task_struct *)ctx[0]);
 }
 
 SEC("tp_btf/sched_switch")
@@ -146,58 +256,18 @@ int tp_sched_switch(u64 *ctx) {
     u32 prev_pid = prev->pid;
     u32 next_pid = next->pid;
 
-    // Sample PMU counters once. Reads return -ENOENT (or other negative) when
-    // perf events haven't been attached for this CPU; in that case we skip
-    // both the prev close-out and the next stamp. The runqueue-wait path
-    // below is unaffected. Each counter is independent — if iTLB events
+    // Sample PMU counters once. Each read is independent — if iTLB events
     // aren't supported but cycles are, only iTLB deltas are skipped.
-    struct bpf_perf_event_value cyc_val = {};
-    struct bpf_perf_event_value ins_val = {};
-    struct bpf_perf_event_value llc_val = {};
-    struct bpf_perf_event_value itlb_val = {};
-    struct bpf_perf_event_value bm_val = {};
-    struct bpf_perf_event_value cm_val = {};
-    struct bpf_perf_event_value cr_val = {};
-    long cyc_err = bpf_perf_event_read_value(&cycles_pmu, BPF_F_CURRENT_CPU, &cyc_val, sizeof(cyc_val));
-    long ins_err = bpf_perf_event_read_value(&instructions_pmu, BPF_F_CURRENT_CPU, &ins_val, sizeof(ins_val));
-    long llc_err = bpf_perf_event_read_value(&llc_misses_pmu, BPF_F_CURRENT_CPU, &llc_val, sizeof(llc_val));
-    long itlb_err = bpf_perf_event_read_value(&itlb_misses_pmu, BPF_F_CURRENT_CPU, &itlb_val, sizeof(itlb_val));
-    long bm_err = bpf_perf_event_read_value(&branch_misses_pmu, BPF_F_CURRENT_CPU, &bm_val, sizeof(bm_val));
-    long cm_err = bpf_perf_event_read_value(&cpu_migrations_pmu, BPF_F_CURRENT_CPU, &cm_val, sizeof(cm_val));
-    long cr_err = bpf_perf_event_read_value(&cache_references_pmu, BPF_F_CURRENT_CPU, &cr_val, sizeof(cr_val));
-    bool ci_ok = (cyc_err == 0) && (ins_err == 0);
-    bool llc_ok = (llc_err == 0);
-    bool itlb_ok = (itlb_err == 0);
-    bool bm_ok = (bm_err == 0);
-    bool cm_ok = (cm_err == 0);
-    bool cr_ok = (cr_err == 0);
-    bool pmu_ok = ci_ok || llc_ok || itlb_ok || bm_ok || cm_ok || cr_ok;
+    pmu_sample_t pmu = {};
+    pmu_sample_all(&pmu);
+    bool pmu_ok = pmu_any_ok(&pmu);
 
     if (pmu_ok && prev_pid) {
         task_pmu_stamp_t *stamp = bpf_task_storage_get(&task_oncpu_pmu, prev, NULL, 0);
         if (stamp) {
-            u64 prev_cgroup_id = get_task_cgroup_id(prev);
-            cgroup_agg_stats_t *stats = get_or_create_cgroup_stats(prev_cgroup_id);
+            cgroup_agg_stats_t *stats = task_cgroup_stats(prev);
             if (stats) {
-                if (ci_ok) {
-                    stats->sum_cycles += scaled_pmu_delta(&cyc_val, &stamp->cycles);
-                    stats->sum_instructions += scaled_pmu_delta(&ins_val, &stamp->instructions);
-                }
-                if (llc_ok) {
-                    stats->sum_llc_misses += scaled_pmu_delta(&llc_val, &stamp->llc_misses);
-                }
-                if (itlb_ok) {
-                    stats->sum_itlb_misses += scaled_pmu_delta(&itlb_val, &stamp->itlb_misses);
-                }
-                if (bm_ok) {
-                    stats->sum_branch_misses += scaled_pmu_delta(&bm_val, &stamp->branch_misses);
-                }
-                if (cm_ok) {
-                    stats->sum_cpu_migrations += scaled_pmu_delta(&cm_val, &stamp->cpu_migrations);
-                }
-                if (cr_ok) {
-                    stats->sum_cache_references += scaled_pmu_delta(&cr_val, &stamp->cache_references);
-                }
+                pmu_accum_to_stats(stats, stamp, &pmu);
             }
         }
     }
@@ -207,8 +277,7 @@ int tp_sched_switch(u64 *ctx) {
     }
 
     if (preempted && prev_pid) {
-        u64 prev_cgroup_id = get_task_cgroup_id(prev);
-        cgroup_agg_stats_t *stats = get_or_create_cgroup_stats(prev_cgroup_id);
+        cgroup_agg_stats_t *stats = task_cgroup_stats(prev);
         if (stats) {
             stats->preemption_count += 1;
         }
@@ -222,39 +291,7 @@ int tp_sched_switch(u64 *ctx) {
         task_pmu_stamp_t zero = {};
         task_pmu_stamp_t *stamp = bpf_task_storage_get(&task_oncpu_pmu, next, &zero, BPF_LOCAL_STORAGE_GET_F_CREATE);
         if (stamp) {
-            if (ci_ok) {
-                stamp->cycles.counter = cyc_val.counter;
-                stamp->cycles.enabled = cyc_val.enabled;
-                stamp->cycles.running = cyc_val.running;
-                stamp->instructions.counter = ins_val.counter;
-                stamp->instructions.enabled = ins_val.enabled;
-                stamp->instructions.running = ins_val.running;
-            }
-            if (llc_ok) {
-                stamp->llc_misses.counter = llc_val.counter;
-                stamp->llc_misses.enabled = llc_val.enabled;
-                stamp->llc_misses.running = llc_val.running;
-            }
-            if (itlb_ok) {
-                stamp->itlb_misses.counter = itlb_val.counter;
-                stamp->itlb_misses.enabled = itlb_val.enabled;
-                stamp->itlb_misses.running = itlb_val.running;
-            }
-            if (bm_ok) {
-                stamp->branch_misses.counter = bm_val.counter;
-                stamp->branch_misses.enabled = bm_val.enabled;
-                stamp->branch_misses.running = bm_val.running;
-            }
-            if (cm_ok) {
-                stamp->cpu_migrations.counter = cm_val.counter;
-                stamp->cpu_migrations.enabled = cm_val.enabled;
-                stamp->cpu_migrations.running = cm_val.running;
-            }
-            if (cr_ok) {
-                stamp->cache_references.counter = cr_val.counter;
-                stamp->cache_references.enabled = cr_val.enabled;
-                stamp->cache_references.running = cr_val.running;
-            }
+            pmu_stamp_from_sample(stamp, &pmu);
         }
     }
 
@@ -266,8 +303,7 @@ int tp_sched_switch(u64 *ctx) {
     u64 runq_lat = bpf_ktime_get_ns() - *tsp;
     bpf_task_storage_delete(&runq_enqueued, next);
 
-    u64 cgroup_id = get_task_cgroup_id(next);
-    cgroup_agg_stats_t *stats = get_or_create_cgroup_stats(cgroup_id);
+    cgroup_agg_stats_t *stats = task_cgroup_stats(next);
     if (stats) {
         stats->sum_latencies_ns += runq_lat;
         stats->event_count += 1;
@@ -303,12 +339,7 @@ int tp_softirq_exit(u64 *ctx) {
     u64 delta = bpf_ktime_get_ns() - *slot;
     *slot = 0;
 
-    struct task_struct *task = bpf_get_current_task_btf();
-    if (!task) {
-        return 0;
-    }
-    u64 cgroup_id = get_task_cgroup_id(task);
-    cgroup_agg_stats_t *stats = get_or_create_cgroup_stats(cgroup_id);
+    cgroup_agg_stats_t *stats = current_cgroup_stats();
     if (stats) {
         stats->sum_softirq_ns += delta;
     }
@@ -320,12 +351,7 @@ int tp_softirq_exit(u64 *ctx) {
 // simple and matches what cgroup CPU accounting attributes elsewhere.
 SEC("tp_btf/block_rq_issue")
 int tp_block_rq_issue(u64 *ctx) {
-    struct task_struct *task = bpf_get_current_task_btf();
-    if (!task) {
-        return 0;
-    }
-    u64 cgroup_id = get_task_cgroup_id(task);
-    cgroup_agg_stats_t *stats = get_or_create_cgroup_stats(cgroup_id);
+    cgroup_agg_stats_t *stats = current_cgroup_stats();
     if (stats) {
         stats->block_io_requests += 1;
     }

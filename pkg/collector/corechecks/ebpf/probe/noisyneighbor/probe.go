@@ -117,18 +117,18 @@ const itlbLoadMissesConfig = uint64(unix.PERF_COUNT_HW_CACHE_ITLB) |
 // for per-event semantics and failure modes.
 func (p *Probe) attachPMU() {
 	events := []pmuEvent{
-		{"cycles_pmu", "cycles", unix.PERF_TYPE_HARDWARE, unix.PERF_COUNT_HW_CPU_CYCLES},
-		{"instructions_pmu", "instructions", unix.PERF_TYPE_HARDWARE, unix.PERF_COUNT_HW_INSTRUCTIONS},
-		{"llc_misses_pmu", "LLC misses", unix.PERF_TYPE_HARDWARE, unix.PERF_COUNT_HW_CACHE_MISSES},
-		{"itlb_misses_pmu", "iTLB misses", unix.PERF_TYPE_HW_CACHE, itlbLoadMissesConfig},
-		{"branch_misses_pmu", "branch misses", unix.PERF_TYPE_HARDWARE, unix.PERF_COUNT_HW_BRANCH_MISSES},
+		{mapName: "cycles_pmu", humanLabel: "cycles", perfType: unix.PERF_TYPE_HARDWARE, perfConfig: unix.PERF_COUNT_HW_CPU_CYCLES},
+		{mapName: "instructions_pmu", humanLabel: "instructions", perfType: unix.PERF_TYPE_HARDWARE, perfConfig: unix.PERF_COUNT_HW_INSTRUCTIONS},
+		{mapName: "llc_misses_pmu", humanLabel: "LLC misses", perfType: unix.PERF_TYPE_HARDWARE, perfConfig: unix.PERF_COUNT_HW_CACHE_MISSES},
+		{mapName: "itlb_misses_pmu", humanLabel: "iTLB misses", perfType: unix.PERF_TYPE_HW_CACHE, perfConfig: itlbLoadMissesConfig},
+		{mapName: "branch_misses_pmu", humanLabel: "branch misses", perfType: unix.PERF_TYPE_HARDWARE, perfConfig: unix.PERF_COUNT_HW_BRANCH_MISSES},
 		// CPU migrations is a software counter — doesn't compete for hardware
 		// PMU counters and is always available regardless of µarch.
-		{"cpu_migrations_pmu", "CPU migrations", unix.PERF_TYPE_SOFTWARE, unix.PERF_COUNT_SW_CPU_MIGRATIONS},
+		{mapName: "cpu_migrations_pmu", humanLabel: "CPU migrations", perfType: unix.PERF_TYPE_SOFTWARE, perfConfig: unix.PERF_COUNT_SW_CPU_MIGRATIONS},
 		// Cache references pairs with llc_misses to give LLC hit-rate: under
 		// cache thrashing the rate moves even when absolute miss count stays
 		// flat for memory-bound workloads already at floor miss rate.
-		{"cache_references_pmu", "cache references", unix.PERF_TYPE_HARDWARE, unix.PERF_COUNT_HW_CACHE_REFERENCES},
+		{mapName: "cache_references_pmu", humanLabel: "cache references", perfType: unix.PERF_TYPE_HARDWARE, perfConfig: unix.PERF_COUNT_HW_CACHE_REFERENCES},
 	}
 	numCPU := runtime.NumCPU()
 	for _, ev := range events {
@@ -144,8 +144,12 @@ func (p *Probe) attachPMU() {
 // checks each read-value return code and skips just that counter's deltas.
 func (p *Probe) attachPMUEvent(ev pmuEvent, numCPU int) {
 	m, _, err := p.mgr.GetMap(ev.mapName)
-	if err != nil || m == nil {
-		log.Warnf("noisy_neighbor: %s map (%s) missing: %v", ev.humanLabel, ev.mapName, err)
+	if err != nil {
+		log.Warnf("noisy_neighbor: %s map (%s) lookup failed: %v", ev.humanLabel, ev.mapName, err)
+		return
+	}
+	if m == nil {
+		log.Warnf("noisy_neighbor: %s map (%s) not registered in manager", ev.humanLabel, ev.mapName)
 		return
 	}
 	var logged bool
@@ -223,53 +227,31 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 	var cgroupsToDelete []uint64
 
 	for iter.Next(&cgroupID, &perCPUStats) {
-		var cgroupLatencies, cgroupEvents, cgroupPreemptions, pidCount uint64
-		var cgroupCycles, cgroupInstructions uint64
-		var cgroupLLCMisses, cgroupITLBMisses uint64
-		var cgroupSoftirqNs, cgroupBlockIO uint64
-		var cgroupBranchMisses, cgroupCPUMigrations, cgroupWakeups, cgroupCacheReferences uint64
+		stat := model.NoisyNeighborStats{CgroupID: cgroupID}
 		for _, cpuStat := range perCPUStats {
-			cgroupLatencies += cpuStat.Sum_latencies_ns
-			cgroupEvents += cpuStat.Event_count
-			cgroupPreemptions += cpuStat.Preemption_count
-			cgroupCycles += cpuStat.Sum_cycles
-			cgroupInstructions += cpuStat.Sum_instructions
-			cgroupLLCMisses += cpuStat.Sum_llc_misses
-			cgroupITLBMisses += cpuStat.Sum_itlb_misses
-			cgroupSoftirqNs += cpuStat.Sum_softirq_ns
-			cgroupBlockIO += cpuStat.Block_io_requests
-			cgroupBranchMisses += cpuStat.Sum_branch_misses
-			cgroupCPUMigrations += cpuStat.Sum_cpu_migrations
-			cgroupWakeups += cpuStat.Wakeup_count
-			cgroupCacheReferences += cpuStat.Sum_cache_references
+			stat.SumLatenciesNs += cpuStat.Sum_latencies_ns
+			stat.EventCount += cpuStat.Event_count
+			stat.PreemptionCount += cpuStat.Preemption_count
+			stat.SumCycles += cpuStat.Sum_cycles
+			stat.SumInstructions += cpuStat.Sum_instructions
+			stat.SumLLCMisses += cpuStat.Sum_llc_misses
+			stat.SumITLBMisses += cpuStat.Sum_itlb_misses
+			stat.SumSoftirqNs += cpuStat.Sum_softirq_ns
+			stat.BlockIORequests += cpuStat.Block_io_requests
+			stat.SumBranchMisses += cpuStat.Sum_branch_misses
+			stat.SumCPUMigrations += cpuStat.Sum_cpu_migrations
+			stat.WakeupCount += cpuStat.Wakeup_count
+			stat.SumCacheReferences += cpuStat.Sum_cache_references
 			// pid_count is a global cgroup value (not per-CPU), so take the max rather than summing
-			if cpuStat.Pid_count > pidCount {
-				pidCount = cpuStat.Pid_count
+			if cpuStat.Pid_count > stat.UniquePidCount {
+				stat.UniquePidCount = cpuStat.Pid_count
 			}
 		}
 
 		cgroupsToDelete = append(cgroupsToDelete, cgroupID)
 
-		if cgroupEvents == 0 && cgroupSoftirqNs == 0 && cgroupBlockIO == 0 && cgroupWakeups == 0 {
+		if stat.EventCount == 0 && stat.SumSoftirqNs == 0 && stat.BlockIORequests == 0 && stat.WakeupCount == 0 {
 			continue
-		}
-
-		stat := model.NoisyNeighborStats{
-			CgroupID:           cgroupID,
-			SumLatenciesNs:     cgroupLatencies,
-			EventCount:         cgroupEvents,
-			PreemptionCount:    cgroupPreemptions,
-			UniquePidCount:     pidCount,
-			SumCycles:          cgroupCycles,
-			SumInstructions:    cgroupInstructions,
-			SumLLCMisses:       cgroupLLCMisses,
-			SumITLBMisses:      cgroupITLBMisses,
-			SumSoftirqNs:       cgroupSoftirqNs,
-			BlockIORequests:    cgroupBlockIO,
-			SumBranchMisses:    cgroupBranchMisses,
-			SumCPUMigrations:   cgroupCPUMigrations,
-			WakeupCount:        cgroupWakeups,
-			SumCacheReferences: cgroupCacheReferences,
 		}
 
 		nnstats = append(nnstats, stat)
