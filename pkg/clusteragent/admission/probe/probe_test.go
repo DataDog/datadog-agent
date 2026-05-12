@@ -23,8 +23,8 @@ import (
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
-	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/core/mock"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	admcommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -260,7 +260,7 @@ func TestRunProbe_ReportsHealthIssueOnConnectivityFailure(t *testing.T) {
 
 	p.runProbe(context.Background())
 
-	issue := hp.GetIssueForCheck(healthCheckID)
+	issue := hp.GetIssue(healthCheckID)
 	require.NotNil(t, issue, "expected a health issue to be reported on connectivity failure")
 }
 
@@ -273,7 +273,7 @@ func TestRunProbe_NoHealthIssueOnForbidden(t *testing.T) {
 	p, hp := newTestProbeWithHP(t, client)
 	p.runProbe(context.Background())
 
-	assert.Nil(t, hp.GetIssueForCheck(healthCheckID), "forbidden errors should not report health issues")
+	assert.Nil(t, hp.GetIssue(healthCheckID), "forbidden errors should not report health issues")
 }
 
 func TestRunProbe_ClearsHealthIssueOnSuccess(t *testing.T) {
@@ -281,13 +281,13 @@ func TestRunProbe_ClearsHealthIssueOnSuccess(t *testing.T) {
 	p, hp := newTestProbeWithHP(t, client)
 
 	p.runProbe(context.Background())
-	require.NotNil(t, hp.GetIssueForCheck(healthCheckID))
+	require.NotNil(t, hp.GetIssue(healthCheckID))
 
 	client.ReactionChain = nil
 	client.PrependReactor("create", "configmaps", webhookReachableReactor)
 
 	p.runProbe(context.Background())
-	assert.Nil(t, hp.GetIssueForCheck(healthCheckID), "expected health issue to be cleared after successful probe")
+	assert.Nil(t, hp.GetIssue(healthCheckID), "expected health issue to be cleared after successful probe")
 }
 
 func TestRunProbe_ReportsHealthIssueOnAPITimeout(t *testing.T) {
@@ -299,7 +299,7 @@ func TestRunProbe_ReportsHealthIssueOnAPITimeout(t *testing.T) {
 	p, hp := newTestProbeWithHP(t, client)
 	p.runProbe(context.Background())
 
-	issue := hp.GetIssueForCheck(healthCheckID)
+	issue := hp.GetIssue(healthCheckID)
 	require.NotNil(t, issue, "API timeout errors should report health issues as they indicate connectivity problems")
 }
 
