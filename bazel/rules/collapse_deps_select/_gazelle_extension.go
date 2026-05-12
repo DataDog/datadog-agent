@@ -80,18 +80,24 @@ const extName = "collapse_deps_select"
 // platform is added to rules_go and is missing here, selects covering all
 // platforms except that one will not be collapsed — the extension skips any
 // select containing an unrecognized condition key, which is safe.
-var knownOSPlatforms = []string{
-	"aix", "android", "darwin", "dragonfly", "freebsd", "illumos",
-	"ios", "js", "linux", "netbsd", "openbsd", "osx", "plan9",
-	"qnx", "solaris", "windows",
+var knownOSPlatformSet = map[string]struct{}{
+	"aix":       {},
+	"android":   {},
+	"darwin":    {},
+	"dragonfly": {},
+	"freebsd":   {},
+	"illumos":   {},
+	"ios":       {},
+	"js":        {},
+	"linux":     {},
+	"netbsd":    {},
+	"openbsd":   {},
+	"osx":       {},
+	"plan9":     {},
+	"qnx":       {},
+	"solaris":   {},
+	"windows":   {},
 }
-
-var knownOSPlatformSet = func() map[string]struct{} {
-	m := make(map[string]struct{}, len(knownOSPlatforms))
-	for _, p := range knownOSPlatforms {
-		m[p] = struct{}{}
-	}
-	return m
 }()
 
 const (
