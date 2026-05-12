@@ -20,9 +20,9 @@ type mockIssueTemplate struct {
 	issueID string
 }
 
-func (m *mockIssueTemplate) BuildIssue(issueID string, context map[string]string) (*healthplatform.Issue, error) {
+func (m *mockIssueTemplate) BuildIssue(issueType string, context map[string]string) (*healthplatform.Issue, error) {
 	return &healthplatform.Issue{
-		Id:          issueID,
+		Id:          issueType,
 		Title:       "Test Issue: " + m.issueID,
 		Description: "Context value: " + context["key"],
 		Severity:    "medium",
