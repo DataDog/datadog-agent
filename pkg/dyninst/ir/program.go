@@ -139,6 +139,11 @@ const (
 	VariableRoleParameter
 	VariableRoleReturn
 	VariableRoleLocal
+	// VariableRoleDuration is a synthetic variable that resolves at
+	// BPF evaluation time to the nanoseconds elapsed between the entry
+	// event and the return event for the invocation. Only available on
+	// subprograms that have a return event.
+	VariableRoleDuration
 )
 
 func (vr VariableRole) String() string {
@@ -149,6 +154,8 @@ func (vr VariableRole) String() string {
 		return "Return"
 	case VariableRoleLocal:
 		return "Local"
+	case VariableRoleDuration:
+		return "Duration"
 	default:
 		return fmt.Sprintf("VariableRole(%d)", vr)
 	}
@@ -216,11 +223,6 @@ type InvalidSegment struct {
 }
 
 func (s InvalidSegment) templateSegment() {}
-
-// DurationSegment is a segment that is a simple reference to @duration.
-type DurationSegment struct{}
-
-func (s *DurationSegment) templateSegment() {}
 
 // Probe represents a probe from the config as it applies to the program.
 // A single probe may target multiple subprograms (e.g. different shape

@@ -379,9 +379,9 @@ func (r *Resolver) triggerForwarding(sbom *SBOM) {
 					imageSBOM, err := r.getContainerSBOM(sbom.ContainerID)
 					if err != nil || imageSBOM == nil {
 						seclog.Debugf("Failed to get image SBOM for container '%s': %v", sbom.ContainerID, err)
+					} else {
+						sbom.status = imageSBOM.Status
 					}
-
-					sbom.status = imageSBOM.Status
 				}
 
 				if sbom.status == workloadmeta.Pending || sbom.status == "" {

@@ -27,7 +27,7 @@ DD_TEST_CLUSTER_AGENT_IMAGE=${USER}/cluster-agent:test \
   PULUMI_CONFIG_PASSPHRASE=dummy \
   dda inv new-e2e-tests.run --targets=./tests/autoscaling/spot/... \
   --run "^TestSpotSchedulingKind$" \
-  -e "-test.timeout 10m"
+  -e "-test.timeout 25m"
 ```
 
 The `--run "^TestSpotSchedulingKind$"` filter is required to exclude `TestSpotSchedulingKindCI`,
@@ -45,7 +45,7 @@ If `DD_TEST_CLUSTER_AGENT_IMAGE` is not set, tests are skipped.
    - 1 worker labeled `autoscaling.datadoghq.com/capacity-type=interruptible` with a `autoscaling.datadoghq.com/capacity-type=interruptible:NoSchedule` taint
 2. The cluster-agent image is loaded into kind via `WithKindLoadImage`.
 3. The cluster-agent is deployed via Helm with spot scheduling enabled and short timeouts.
-4. Tests create Deployments, observe pod placement via the k8s API, and verify spot/on-demand ratios.
+4. Tests create Deployments and StatefulSets, observe pod placement via the k8s API, and verify spot/on-demand ratios.
 
 ## Debug
 
