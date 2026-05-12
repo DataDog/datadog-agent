@@ -7,7 +7,7 @@ package cmd
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
 	"os"
 	"strings"
@@ -40,7 +40,7 @@ func NewRCAddCommand(cl **client.Client) *cobra.Command {
 				return err
 			}
 			if !json.Valid(data) {
-				return fmt.Errorf("--data is not valid JSON")
+				return errors.New("--data is not valid JSON")
 			}
 			return (*cl).RCAddConfig(orgID, product, configID, configName, data)
 		},

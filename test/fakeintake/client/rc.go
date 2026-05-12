@@ -8,6 +8,7 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -19,7 +20,7 @@ import (
 // JSON document; fakeintake re-marshals it for stable storage.
 func (c *Client) RCAddConfig(orgID, product, configID, configName string, data []byte) error {
 	if !json.Valid(data) {
-		return fmt.Errorf("data is not valid JSON")
+		return errors.New("data is not valid JSON")
 	}
 	body, err := json.Marshal(api.RCAddConfigRequest{
 		OrgID:      orgID,

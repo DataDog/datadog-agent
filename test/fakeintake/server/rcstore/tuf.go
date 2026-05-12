@@ -13,6 +13,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -285,7 +286,7 @@ func VerifyEnvelope(pub ed25519.PublicKey, envelope []byte) error {
 		return fmt.Errorf("unmarshal envelope: %w", err)
 	}
 	if len(env.Signatures) == 0 {
-		return fmt.Errorf("envelope has no signatures")
+		return errors.New("envelope has no signatures")
 	}
 	sig, err := hex.DecodeString(env.Signatures[0].Sig)
 	if err != nil {
@@ -293,7 +294,7 @@ func VerifyEnvelope(pub ed25519.PublicKey, envelope []byte) error {
 	}
 	signed := bytes.TrimRight(env.Signed, "\n")
 	if !ed25519.Verify(pub, signed, sig) {
-		return fmt.Errorf("signature verification failed")
+		return errors.New("signature verification failed")
 	}
 	return nil
 }
