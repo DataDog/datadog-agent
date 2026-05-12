@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "component.go",
+        "flush.go",
+        "record.go",
+        "registry.go",
+        "shard.go",
+        "store.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/loopback/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/loopback/def",
+        "@com_github_datadog_datadog_agent_pkg_hook//:hook",
+        "@com_github_twmb_murmur3//:murmur3",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = [
+        "component_test.go",
+        "flush_test.go",
+        "record_test.go",
+        "registry_test.go",
+        "shard_test.go",
+    ],
+    embed = [":impl"],
+    deps = [
+        "//comp/loopback/def",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

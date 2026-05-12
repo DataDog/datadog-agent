@@ -119,6 +119,8 @@ import (
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/fx"
 	fleetfx "github.com/DataDog/datadog-agent/comp/fleetstatus/fx"
 	hookbenchsubscriberfx "github.com/DataDog/datadog-agent/comp/hookbenchsubscriber/fx"
+	loopback "github.com/DataDog/datadog-agent/comp/loopback/def"
+	loopbackfx "github.com/DataDog/datadog-agent/comp/loopback/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
@@ -313,6 +315,7 @@ func run(log log.Component,
 	ipc ipc.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
+	_ loopback.Component,
 ) error {
 	defer func() {
 		stopAgent(cfg, sysprobeConf)
@@ -480,6 +483,7 @@ func getSharedFxOption() fx.Option {
 		daemoncheckerfx.Module(),
 		fleetfx.Module(),
 		hookbenchsubscriberfx.Module(),
+		loopbackfx.Module(),
 		dualTaggerfx.Module(common.DualTaggerParams()),
 		autodiscoveryimpl.Module(),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.

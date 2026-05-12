@@ -1578,6 +1578,15 @@ func aggregator(config pkgconfigmodel.Setup) {
 	// Number of no-op hook subscribers to register on the metrics pipeline hook at startup.
 	// Used exclusively for benchmark experiments — set to 0 in normal operation.
 	config.BindEnvAndSetDefault("hook.bench_subscriber_count", 0)
+
+	// Disk-based loopback ring buffer for pre-aggregation metrics.
+	config.BindEnvAndSetDefault("loopback.enabled", false)
+	config.BindEnvAndSetDefault("loopback.dir", "")
+	config.BindEnvAndSetDefault("loopback.num_shards", 16)
+	config.BindEnvAndSetDefault("loopback.window_duration", time.Duration(5*time.Minute))
+	config.BindEnvAndSetDefault("loopback.max_age", time.Duration(24*time.Hour))
+	config.BindEnvAndSetDefault("loopback.max_disk_bytes", int64(1024*1024*1024))
+	config.BindEnvAndSetDefault("loopback.write_buffer_size", 64*1024)
 }
 
 func serverless(config pkgconfigmodel.Setup) {
