@@ -275,7 +275,7 @@ func (r *RequestStats) AddRequest(statusCode uint16, latency float64, staticTags
 }
 
 // AddDiscoveryRequest records a transaction in discovery mode.
-// Status codes are collapsed to two buckets (200 = success, 500 = error)
+// Status codes are collapsed to two buckets (200 = success, 400 = error)
 // and no DDSketch is created — only counters and a running latency sum
 // (LatencySum) are tracked. The encoder converts LatencySum to an average
 // (LatencySum / Count) at serialization time.
@@ -283,7 +283,7 @@ func (r *RequestStats) AddDiscoveryRequest(statusCode uint16, latency float64, s
 	// Collapse all status codes into two buckets
 	bucket := uint16(200)
 	if statusCode >= 400 {
-		bucket = 500
+		bucket = 400
 	}
 
 	stats, exists := r.Data[bucket]
