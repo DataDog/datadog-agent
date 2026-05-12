@@ -117,7 +117,7 @@ fn drop_capabilities() {
             warn!("Not all required capabilities were available; service discovery may be impaired")
         }
         Err(e) => {
-            warn!("Failed to restrict capabilities: {e}; continuing with inherited capabilities")
+            warn!("Failed to restrict capabilities: {e:#}; continuing with inherited capabilities")
         }
     }
 }
@@ -381,7 +381,7 @@ async fn run_system_probe_lite(socket_path: &str) -> Result<()> {
                             io,
                             service_fn(|req| async {
                                 Ok::<_, anyhow::Error>(handle_request(req).await.unwrap_or_else(|e| {
-                                    error!("Request handling failed: {e}");
+                                    error!("Request handling failed: {e:#}");
                                     // Return an internal server error response
                                     Response::builder()
                                         .status(StatusCode::INTERNAL_SERVER_ERROR)
@@ -403,7 +403,7 @@ async fn run_system_probe_lite(socket_path: &str) -> Result<()> {
                         )
                         .await
                     {
-                        error!("Error serving connection: {err}");
+                        error!("Error serving connection: {:#}", anyhow::Error::new(err));
                     }
                 });
             }

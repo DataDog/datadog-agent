@@ -17,6 +17,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -33,9 +34,9 @@ type dependencies struct {
 
 	Lc fx.Lifecycle
 
-	Log logComp.Component
-
-	IPC ipc.Component
+	Config config.Component
+	Log    logComp.Component
+	IPC    ipc.Component
 
 	APIServerDeps api.APIServerDeps
 }
@@ -46,12 +47,12 @@ func newApiServer(deps dependencies) Component {
 	r.Use(deps.IPC.HTTPMiddleware)
 	api.SetupAPIServerHandlers(deps.APIServerDeps, r) // Set up routes
 
-	addr, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
+	addr, err := pkgconfigsetup.GetProcessAPIAddressPort(deps.Config)
 	if err != nil {
 		return err
 	}
 	deps.Log.Infof("API server listening on %s", addr)
-	timeout := time.Duration(pkgconfigsetup.Datadog().GetInt("server_timeout")) * time.Second
+	timeout := time.Duration(deps.Config.GetInt("server_timeout")) * time.Second
 
 	apiserver := &apiserver{
 		server: &http.Server{
