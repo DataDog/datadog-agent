@@ -213,11 +213,9 @@ type Variable struct {
 // LineRange represents a range of source lines, inclusive of both ends.
 type LineRange [2]uint32
 
-// clampDwarfLine converts a DWARF line number (signed int64) to a uint32. Out
-// of range values are clamped: negatives become 0, values above math.MaxUint32
-// are saturated to math.MaxUint32. DWARF line numbers fit comfortably into
-// uint32 for any real-world source file, but malformed or sentinel values can
-// fall outside the range, so clamping keeps callers safe without an error path.
+// clampDwarfLine converts a signed DWARF line number to a uint32, saturating
+// out-of-range values (negatives to 0, values above math.MaxUint32 to
+// math.MaxUint32).
 func clampDwarfLine(v int64) uint32 {
 	if v < 0 {
 		return 0
@@ -257,10 +255,7 @@ type packagesIterator struct {
 	currentCompileUnit compileUnitInfo
 
 	// types holds the package-membership filter parameters used at
-	// emission time. Type DIEs themselves are now reached entirely
-	// through the on-disk indexes (typesByPackage,
-	// typeInfoByOffset) — no in-memory resolver state is retained
-	// per-iteration.
+	// emission time.
 	types typesCollection
 
 	// Stack of blocks currently being explored. Variable location lists can
@@ -284,25 +279,14 @@ type packagesIterator struct {
 	// regardless of compile-unit ordering. See prePassIndexes for the
 	// per-index details.
 	indexes prePassIndexes
-	// cuContextCache caches compile-unit context (file table, etc.) for
-	// compile units other than the one currently being walked. Populated
-	// lazily when a foreign compile unit is needed — to process a
-	// displaced generic function, to parse an abstract inline definition
-	// that lives in a different compile unit than its owning package, or
-	// to replay an inline instance whose compile unit has already been
-	// walked. Bounded LRU: cuContextCacheSize covers the working set of
-	// foreign CUs touched while emitting one package; eviction is safe
-	// because getCUContext rebuilds entries on miss.
+	// cuContextCache caches the context (file table, etc.) for foreign
+	// compile units encountered while emitting a package. Bounded LRU;
+	// entries are rebuilt on miss.
 	cuContextCache *lru.Cache[dwarf.Offset, *cachedCUContext]
 
-	// fileNameInterner deduplicates file-name strings across compile
-	// units. Only file names that escape into emitted Function.File
-	// values pass through the interner — the per-CU file tables held
-	// in cachedCUContext / currentCompileUnit hold raw path.Join
-	// strings that are GC'd when the CU is dropped. Most files in any
-	// given CU's table never escape (they're declared in code that
-	// gets filtered out), so deferring interning keeps the retained
-	// dedup'd set small.
+	// fileNameInterner deduplicates file names that escape into emitted
+	// Function.File values. Per-CU file tables are not interned and
+	// are GC'd when the CU is dropped.
 	fileNameInterner *btree.BTreeG[string]
 }
 
@@ -315,17 +299,20 @@ const cuContextCacheSize = 64
 // prePassIndexes bundles the indexes built by buildPrePassIndexes
 // during a single top-to-bottom DWARF walk. They exist because the
 // Go compiler places DIEs for a given source package across many
-// compile units: a type defined in package P may have its DIE
-// emitted in P's CU, in another package's CU that referenced it
-// first, or — for the runtime's shared types and for types
-// substituted into generic shapes — in the runtime CU. A
-// CU-by-CU iterator that only walks variable/parameter DIEs in P's
-// CU therefore misses every type, function, and inline body that
-// lives elsewhere. The prepass scans every CU once and records
-// pointers back into the DWARF that the per-CU emission walk uses
-// to recover the displaced material.
+// compile units: most types — including the runtime's shared types
+// and types substituted into generic shapes — have their DIE
+// emitted in the runtime CU, even when the source-level type is
+// declared in a different package. A CU-by-CU iterator that only
+// walks variable/parameter DIEs in P's CU therefore misses every
+// type, function, and inline body that lives elsewhere. The prepass
+// scans every CU once and records pointers back into the DWARF that
+// the per-CU emission walk uses to recover the displaced material.
 //
-// Filtering by interestingPackage:
+// To keep these indexes small, entries belonging to uninteresting
+// packages (i.e. packages rejected by interestingPackage — usually
+// 3rd-party code outside the main module's GitHub org) are dropped
+// at index-build time when the index key makes the owning package
+// available:
 //   - The name-keyed indexes (genericFuncs, inlineDefs) and the
 //     package-keyed typesByPackage filter at collection time
 //     because their key encodes the owning package.
@@ -334,17 +321,6 @@ const cuContextCacheSize = 64
 //     only ever originate from offsets that already appear in
 //     filtered indexes, so uninteresting packages are never
 //     reached.
-//
-// Why typesByPackage and typeInfoByOffset are separate indexes:
-// they answer different questions on disjoint data sets.
-// typesByPackage drives the per-package emission walk and only
-// contains DIEs whose name parses to a known package (sparse).
-// typeInfoByOffset drives variable resolution and struct-field-
-// type lookups, which need to handle anonymous types, basic
-// types, and types from out-of-scope packages — every named-tag
-// DIE goes in (dense). Splitting them keeps the per-package walk
-// from yielding noise and keeps variable lookups O(log n) over a
-// uniform index.
 type prePassIndexes struct {
 	// genericFuncs maps canonicalized qualified names to DWARF offsets
 	// for generic shape Subprograms whose body is out-of-line (not
@@ -360,26 +336,10 @@ type prePassIndexes struct {
 	// shared runtime types (error, iface aliases) whose DIE is emitted
 	// in the runtime CU but whose name parses to runtime.
 	typesByPackage typesByPackageIndex
-	// typeInfoByOffset maps any named-tag type DIE offset to its
-	// (raw AttrName, byte size). Two consumers:
-	//   - lookupVariableType: a variable's AttrType points at its
-	//     type DIE, and we read (name, size) here without
-	//     touching the DWARF reader.
-	//   - emitTypeForPackage: struct-field-type names are
-	//     resolved by looking up each field's AttrType offset.
-	// Coverage is intentionally broader than typesByPackage:
-	// every DIE under the six named-type tags is recorded, with
-	// or without an AttrName, in or out of any interesting
-	// package. Variables can point at anonymous DIEs (`[]int`,
-	// `struct{...}`) and at types from out-of-scope packages
-	// (`runtime.iface`); both must resolve, so the index has to
-	// hold them.
-	//
-	// Sizes follow Delve's godwarf.Common().Size() rules: pointer
-	// and subroutine types fall back to the binary's address size
-	// when AttrByteSize is absent, and typedef chains
-	// back-substitute through the inner type. Computed once at
-	// build() time so use-time lookups are pure binary searches.
+	// typeInfoByOffset maps every named-tag type DIE offset to its
+	// (raw AttrName, byte size), including anonymous DIEs and DIEs from
+	// uninteresting packages so that lookupVariableType and
+	// emitTypeForPackage can resolve any AttrType offset they encounter.
 	typeInfoByOffset typeInfoByOffsetIndex
 	// inlineDefs maps canonicalized qualified names to DWARF offsets for
 	// every Subprogram with DW_AT_inline = DW_INL_inlined (both generic
@@ -498,11 +458,6 @@ type typesCollection struct {
 // at the outermost DIE for the type (which may be a typedef chain
 // fronting a struct/iface/etc.); we read the raw DWARF name and the
 // pre-computed byte size from the index, then unescape the name.
-//
-// Unlike the old resolveType, this never inserts into Package.Types
-// — type discovery is exclusively the index-driven emitTypesForPackage
-// path. It also never touches the DWARF reader: the index already
-// holds everything we need.
 func (b *packagesIterator) lookupVariableType(offset dwarf.Offset) (typeInfo, error) {
 	if b.indexes.typeInfoByOffset == nil {
 		return typeInfo{}, errors.New("typeInfoByOffset index not built")
@@ -663,7 +618,6 @@ func newPackagesIterator(bin binaryInfo, opt ExtractOptions) *packagesIterator {
 		offsetToUnit:     make(map[dwarf.Offset]dwarfutil.CompileUnitHeader), // filled in below
 		fileNameInterner: btree.NewOrderedG[string](16),
 	}
-	// lru.New only returns an error for non-positive sizes; cuContextCacheSize is a positive constant.
 	b.cuContextCache, _ = lru.New[dwarf.Offset, *cachedCUContext](cuContextCacheSize)
 	headers := bin.obj.UnitHeaders()
 	b.sortedCUOffsets = make([]dwarf.Offset, 0, len(headers))
@@ -1874,10 +1828,6 @@ func (b *packagesIterator) exploreSubprogram(
 	if fileName == "<autogenerated>" {
 		return earlyExit()
 	}
-	// We're going to keep this file name in the emitted Function.
-	// Intern now so that copies of the same path coming from other CUs
-	// (path.Join allocates fresh) collapse to one retained string.
-	fileName = b.internFileName(fileName)
 
 	lowpc, ok := entry.Val(dwarf.AttrLowpc).(uint64)
 	if !ok {
@@ -1930,9 +1880,12 @@ func (b *packagesIterator) exploreSubprogram(
 	}
 
 	res := Function{
-		Name:            funcName.Name,
-		QualifiedName:   funcName.QualifiedName,
-		File:            fileName,
+		Name:          funcName.Name,
+		QualifiedName: funcName.QualifiedName,
+		// Intern the file name so that copies of the same path coming from
+		// other CUs (path.Join allocates fresh) collapse to one retained
+		// string.
+		File:            b.internFileName(fileName),
 		InjectibleLines: lineRanges,
 		Scope: Scope{
 			StartLine: startLine,

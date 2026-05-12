@@ -183,17 +183,9 @@ func (s *diskSink) Close() error { return s.df.Close() }
 // envelope wrapped in a multipart upload body, and ships finalised batches
 // to the SymDB intake when the caller invokes Flush. A single BatchEncoder
 // corresponds to one logical upload (one UploadID) and may emit multiple
-// batches.
-//
-// The full multipart request body — boundaries, part headers, gzipped
-// payload, and event metadata — is written into the underlying sink, so
-// the in-flight upload never needs to be held in memory beyond what the
-// sink itself buffers.
-//
-// The encoder does not flush on its own. Callers should consult Size after
-// each AddScope and call Flush when the compressed buffer crosses whatever
-// threshold they choose (DefaultFlushThresholdBytes is provided as a
-// reasonable default).
+// batches. The full request body is written into the underlying sink, so
+// the in-flight upload need not be held in memory beyond what the sink
+// itself buffers.
 type BatchEncoder struct {
 	up             uploader
 	uploadID       uuid.UUID
@@ -268,8 +260,7 @@ func (b *BatchEncoder) AddScope(scope Scope) error {
 
 // AddPackage streams a symdb.Package directly into the current batch's gzip
 // stream as a "package" scope, without first allocating an intermediate
-// uploader.Scope tree. The emitted JSON is identical to
-// AddScope(ConvertPackageToScope(pkg, agentVersion)).
+// uploader.Scope tree.
 func (b *BatchEncoder) AddPackage(pkg symdb.Package, agentVersion string) error {
 	return b.addEncoded(NewPackageScope(pkg, agentVersion))
 }

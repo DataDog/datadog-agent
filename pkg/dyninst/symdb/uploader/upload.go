@@ -15,8 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
 )
 
-// PackageEncoder is the minimal interface RunUploadLoop needs. Both
-// *BatchEncoder and the symdb-cli's noopBatchEncoder satisfy it.
+// PackageEncoder is the minimal interface RunUploadLoop needs.
 type PackageEncoder interface {
 	// AddPackage encodes pkg as a "package" scope into the current batch.
 	AddPackage(pkg symdb.Package, agentVersion string) error

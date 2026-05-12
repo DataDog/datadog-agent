@@ -21,11 +21,7 @@ import (
 )
 
 // SerializeScope writes a human-readable text representation of scope to w.
-//
-// The format mirrors the legacy symdb.Package.Serialize output, with one
-// behavioural change that comes from reading the wire form: nested local
-// scopes recurse to their full depth (the legacy Scope.Serialize did not
-// recurse).
+// Nested local scopes are recursively expanded to their full depth.
 func SerializeScope(w io.Writer, scope uploader.Scope) (retErr error) {
 	bw := bufio.NewWriter(w)
 	p := &printer{w: bw}
@@ -120,8 +116,7 @@ func (p *printer) writeSymbol(sym uploader.Symbol, indent string) {
 	p.writeString(": ")
 	p.writeString(sym.Type)
 	if sym.SymbolType == uploader.SymbolTypeField {
-		// Fields are printed without declared/available metadata to match
-		// the legacy Type.Serialize output.
+		// Fields don't carry declared-line or availability metadata.
 		p.writeByte('\n')
 		return
 	}

@@ -54,8 +54,7 @@ var (
 
 	onlyFirstParty = flag.Bool("only-1stparty", false,
 		"Only output symbols for \"1st party\" code (i.e. code from modules belonging "+
-			"to the same GitHub org as the main one). This matches the scope used by "+
-			"the system-probe symdb manager.")
+			"to the same GitHub org as the main one).")
 
 	silent = flag.Bool("silent", false, "If set, the collected symbols are not printed.")
 
@@ -412,6 +411,11 @@ func run() (retErr error) {
 				{"DD-API-KEY", *uploadAPIKey},
 			}
 		} else {
+			// -noop-upload: the BatchEncoder still expects a real HTTP
+			// endpoint to POST batches to, so we stand up an in-process
+			// server that drains and discards each request body. This
+			// exercises the full upload pipeline (marshal, gzip, multipart,
+			// HTTP send) end-to-end without needing a real intake.
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				_, _ = io.Copy(io.Discard, r.Body)
 				_ = r.Body.Close()

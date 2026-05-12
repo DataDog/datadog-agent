@@ -25,15 +25,14 @@ import (
 //
 // Each child (function or type) is still converted to an uploader.Scope and
 // passed through default reflection-based marshalling, but only one child is
-// live at a time — the dominant allocation under ConvertPackageToScope was
-// the outer pkg.Scopes slice plus all of its sub-trees held simultaneously.
+// live at a time.
 type PackageScope struct {
 	pkg          symdb.Package
 	agentVersion string
 }
 
-// NewPackageScope returns a marshaler that emits the same JSON shape as
-// jsonv2.MarshalWrite(w, ConvertPackageToScope(pkg, agentVersion)).
+// NewPackageScope returns a marshaler that emits the JSON representation of
+// pkg as a "package" scope.
 func NewPackageScope(pkg symdb.Package, agentVersion string) PackageScope {
 	return PackageScope{pkg: pkg, agentVersion: agentVersion}
 }
