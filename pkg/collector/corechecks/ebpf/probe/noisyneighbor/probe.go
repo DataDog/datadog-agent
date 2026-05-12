@@ -60,10 +60,14 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tp_sched_wakeup", UID: uid}},
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tp_sched_wakeup_new", UID: uid}},
 			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tp_sched_switch", UID: uid}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tp_softirq_entry", UID: uid}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tp_softirq_exit", UID: uid}},
+			{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "tp_block_rq_issue", UID: uid}},
 		}
 		p.mgr.Maps = []*manager.Map{
 			{Name: "runq_enqueued"},
 			{Name: "cgroup_agg_stats"},
+			{Name: "softirq_start_ns"},
 		}
 		if err := p.mgr.InitWithOptions(buf, &opts); err != nil {
 			return fmt.Errorf("failed to init ebpf manager: %w", err)
@@ -138,11 +142,15 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 		var cgroupsToDelete []uint64
 
 		for iter.Next(&cgroupID, &perCPUStats) {
-			var cgroupLatencies, cgroupEvents, cgroupPreemptions, pidCount uint64
+			var sumLatencies, eventCount, preemptionCount, pidCount uint64
+			var wakeupCount, sumSoftirqNs, blockIORequests uint64
 			for _, cpuStat := range perCPUStats {
-				cgroupLatencies += cpuStat.Sum_latencies_ns
-				cgroupEvents += cpuStat.Event_count
-				cgroupPreemptions += cpuStat.Preemption_count
+				sumLatencies += cpuStat.Sum_latencies_ns
+				eventCount += cpuStat.Event_count
+				preemptionCount += cpuStat.Preemption_count
+				wakeupCount += cpuStat.Wakeup_count
+				sumSoftirqNs += cpuStat.Sum_softirq_ns
+				blockIORequests += cpuStat.Block_io_requests
 				// pid_count is a global cgroup value (not per-CPU), so take the max rather than summing
 				if cpuStat.Pid_count > pidCount {
 					pidCount = cpuStat.Pid_count
@@ -151,7 +159,11 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 
 			cgroupsToDelete = append(cgroupsToDelete, cgroupID)
 
-			if cgroupEvents == 0 {
+			// Skip cgroups with no scheduling activity AND no other counters
+			// to keep the metric stream from emitting rows for cgroups the
+			// kernel never scheduled in the interval. PMU-only rows are kept
+			// because the PMU manager populated them already.
+			if eventCount == 0 && wakeupCount == 0 && sumSoftirqNs == 0 && blockIORequests == 0 {
 				continue
 			}
 
@@ -160,10 +172,13 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 				entry = &model.NoisyNeighborStats{CgroupID: cgroupID}
 				merged[cgroupID] = entry
 			}
-			entry.SumLatenciesNs = cgroupLatencies
-			entry.EventCount = cgroupEvents
-			entry.PreemptionCount = cgroupPreemptions
+			entry.SumLatenciesNs = sumLatencies
+			entry.EventCount = eventCount
+			entry.PreemptionCount = preemptionCount
 			entry.UniquePidCount = pidCount
+			entry.WakeupCount = wakeupCount
+			entry.SumSoftirqNs = sumSoftirqNs
+			entry.BlockIORequests = blockIORequests
 		}
 
 		if err := iter.Err(); err != nil {

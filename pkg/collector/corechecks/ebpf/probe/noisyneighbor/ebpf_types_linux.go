@@ -4,8 +4,11 @@
 package noisyneighbor
 
 type ebpfCgroupAggStats struct {
-	Sum_latencies_ns uint64
-	Event_count      uint64
-	Preemption_count uint64
-	Pid_count        uint64
+	Sum_latencies_ns  uint64
+	Event_count       uint64
+	Preemption_count  uint64
+	Pid_count         uint64
+	Wakeup_count      uint64
+	Sum_softirq_ns    uint64
+	Block_io_requests uint64
 }

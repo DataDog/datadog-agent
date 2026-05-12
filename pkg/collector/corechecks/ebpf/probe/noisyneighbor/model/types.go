@@ -8,15 +8,19 @@ package model
 
 // NoisyNeighborStats is one row of per-cgroup statistics returned by the
 // system-probe /check endpoint. The BPF-side counters (latencies, events,
-// preemptions, pids) come from the cgroup_agg_stats map; the PMU-side counters
-// come from user-space perf-event reads. Any field may be zero when the
-// corresponding source had no data for this cgroup in the interval.
+// preemptions, pids, wakeups, softirq ns, block-io issues) come from the
+// cgroup_agg_stats map; the PMU-side counters come from user-space
+// perf-event reads. Any field may be zero when the corresponding source had
+// no data for this cgroup in the interval.
 type NoisyNeighborStats struct {
 	CgroupID        uint64
 	SumLatenciesNs  uint64
 	EventCount      uint64
 	PreemptionCount uint64
 	UniquePidCount  uint64 // kernel task_struct->pid (TID) count
+	WakeupCount     uint64
+	SumSoftirqNs    uint64
+	BlockIORequests uint64
 
 	// PMU is the delta-since-last-read for the seven hardware/software perf
 	// counters opened per cgroup. EnabledNs and RunningNs let the consumer

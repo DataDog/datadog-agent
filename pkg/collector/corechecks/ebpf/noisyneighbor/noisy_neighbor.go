@@ -137,6 +137,9 @@ func (n *NoisyNeighborCheck) submitPrimaryMetrics(sender sender.Sender, stat mod
 func (n *NoisyNeighborCheck) submitRawCounters(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
 	sender.Count("noisy_neighbor.events.total", float64(stat.EventCount), "", tags)
 	sender.Gauge("noisy_neighbor.unique_processes", float64(stat.UniquePidCount), "", tags)
+	sender.Count("noisy_neighbor.wakeups.total", float64(stat.WakeupCount), "", tags)
+	sender.Count("noisy_neighbor.softirq_ns.total", float64(stat.SumSoftirqNs), "", tags)
+	sender.Count("noisy_neighbor.block_io_requests.total", float64(stat.BlockIORequests), "", tags)
 }
 
 // submitPMUMetrics emits per-cgroup hardware/software perf counters. Values
