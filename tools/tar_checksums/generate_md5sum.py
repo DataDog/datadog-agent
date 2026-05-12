@@ -35,13 +35,7 @@ def _open_tar(path):
     """Open a tar archive, selecting the decompression mode from the file extension."""
     if path is None:
         return tarfile.open(fileobj=sys.stdin.buffer, mode='r|*')
-    if path.endswith('.gz') or path.endswith('.tgz'):
-        return tarfile.open(path, 'r|gz')
-    if path.endswith('.xz'):
-        return tarfile.open(path, 'r|xz')
-    if path.endswith('.bz2'):
-        return tarfile.open(path, 'r|bz2')
-    return tarfile.open(path, 'r|')
+    return tarfile.open(path, 'r|*')
 
 
 def generate_md5sums(tar_path, output_path):
@@ -51,21 +45,13 @@ def generate_md5sums(tar_path, output_path):
             if not member.isfile():
                 continue
 
-            path = member.name.lstrip('./')
-
+            path = member.name.removeprefix('./')
             f = tf.extractfile(member)
             if f is None:
                 continue
 
-            h = hashlib.md5()
-            with f:
-                while True:
-                    chunk = f.read(65536)
-                    if not chunk:
-                        break
-                    h.update(chunk)
-
-            out.write(f"{h.hexdigest()}  {path}\n")
+            digest = hashlib.file_digest(f, 'md5').hexdigest()
+            out.write(f"{digest}  {path}\n")
 
 
 def main():
