@@ -128,10 +128,7 @@ func (*lang) KnownDirectives() []string { return []string{extName} }
 // parent's enabled state and applies the local directive, if any. The result is
 // inherited by descendant directories.
 func (*lang) Configure(c *config.Config, _ string, f *rule.File) {
-	cfg := extConfig{}
-	if parent, ok := c.Exts[extName].(extConfig); ok {
-		cfg = parent
-	}
+	cfg, _ := c.Exts[extName].(extConfig) // zero value (off) when no parent set it
 	if f != nil {
 		for _, d := range f.Directives {
 			if d.Key != extName {
@@ -257,21 +254,17 @@ func collapseSelect(call *bzl.CallExpr) *bzl.CallExpr {
 // collapseDict applies the collapsing strategies to a select dict.
 // Returns the new dict if any change was made, or nil.
 func collapseDict(dict *bzl.DictExpr) *bzl.DictExpr {
-	for _, kv := range dict.List {
-		if _, ok := kv.Key.(*bzl.StringExpr); !ok {
-			// unexpected key type; leave the entire dict untouched
-			// to avoid processing an incomplete set of values which could
-			// drop some entries
-			return nil
-		}
-	}
-
-	// Locate the //conditions:default entry.
+	// Validate every key is a StringExpr and find the //conditions:default
+	// entry in a single pass. Bailing on an unexpected key type avoids
+	// silently dropping entries we don't understand.
 	defaultIdx := -1
 	for i, kv := range dict.List {
-		if kv.Key.(*bzl.StringExpr).Value == condDefault {
+		key, ok := kv.Key.(*bzl.StringExpr)
+		if !ok {
+			return nil
+		}
+		if key.Value == condDefault {
 			defaultIdx = i
-			break
 		}
 	}
 	if defaultIdx < 0 {
@@ -281,12 +274,9 @@ func collapseDict(dict *bzl.DictExpr) *bzl.DictExpr {
 	defaultKV := dict.List[defaultIdx]
 	defaultKey := exprKey(defaultKV.Value)
 
-	var nonDefault []*bzl.KeyValueExpr
-	for i, kv := range dict.List {
-		if i != defaultIdx {
-			nonDefault = append(nonDefault, kv)
-		}
-	}
+	nonDefault := make([]*bzl.KeyValueExpr, 0, len(dict.List)-1)
+	nonDefault = append(nonDefault, dict.List[:defaultIdx]...)
+	nonDefault = append(nonDefault, dict.List[defaultIdx+1:]...)
 	if len(nonDefault) == 0 {
 		return nil // only a default entry; nothing to do
 	}
