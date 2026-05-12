@@ -48,6 +48,11 @@ message StreamTagsRequest {
 
 message StreamTagsResponse {
     repeated StreamTagsEvent events = 1;
+    // When true, this message is the last chunk of the initial full-state
+    // snapshot sent after a (re)connection. Clients should accumulate events
+    // until they receive a response with this flag set, then apply the
+    // complete set atomically.
+    bool initial_snapshot_complete = 2;
 }
 
 message StreamTagsEvent {

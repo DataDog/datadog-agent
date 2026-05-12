@@ -21,5 +21,6 @@ rtloader_go_test(
     name = "common_test",
     srcs = ["cgo_free_test.go"],
     embed = [":common"],
+    gotags = ["test"],
     deps = ["//rtloader/test/helpers"],
 )

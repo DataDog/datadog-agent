@@ -8,7 +8,6 @@ package agent
 
 import (
 	"context"
-	"net/http"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -17,7 +16,6 @@ import (
 	"time"
 
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
-	observerbuffer "github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
@@ -134,10 +132,6 @@ type Agent struct {
 	Statsd                statsd.ClientInterface
 	Timing                timing.Reporter
 
-	// ObserverBuffer is a buffer for storing traces/profiles
-	// to be fetched by the core-agent's observer component.
-	ObserverBuffer observerbuffer.Component
-
 	// obfuscator is used to obfuscate sensitive data from various span
 	// tags based on their type. It is lazy initialized with obfuscatorConf in obfuscate.go
 	obfuscator     *obfuscate.Obfuscator
@@ -168,6 +162,10 @@ type Agent struct {
 	// Used to synchronize on a clean exit
 	ctx context.Context
 
+	// stopped is closed when Run() returns, allowing callers to wait for
+	// the agent's full shutdown sequence to complete.
+	stopped chan struct{}
+
 	firstSpanMap sync.Map
 
 	processWg *sync.WaitGroup
@@ -185,7 +183,7 @@ type TracerPayloadModifier = payload.TracerPayloadModifier
 
 // NewAgent returns a new Agent object, ready to be started. It takes a context
 // which may be cancelled in order to gracefully stop the agent.
-func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface, comp compression.Component, obsBuf observerbuffer.Component) *Agent {
+func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface, comp compression.Component) *Agent {
 	dynConf := sampler.NewDynamicConfig()
 	log.Infof("Starting Agent with processor trace buffer of size %d", conf.TraceBuffer)
 	in := make(chan *api.Payload, conf.TraceBuffer)
@@ -197,7 +195,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 	timing := timing.New(statsd)
 
 	containerTagsBuffer := containertagsbuffer.NewContainerTagsBuffer(conf, statsd)
-	statsWriter := writer.NewStatsWriter(conf, telemetryCollector, statsd, timing, containerTagsBuffer, obsBuf)
+	statsWriter := writer.NewStatsWriter(conf, telemetryCollector, statsd, timing, containerTagsBuffer)
 	agnt := &Agent{
 		Concentrator:          stats.NewConcentrator(conf, statsWriter, time.Now(), statsd),
 		ContainerTagsBuffer:   containerTagsBuffer,
@@ -217,20 +215,14 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		InV1:                  inV1,
 		conf:                  conf,
 		ctx:                   ctx,
+		stopped:               make(chan struct{}),
 		DebugServer:           api.NewDebugServer(conf),
 		Statsd:                statsd,
 		Timing:                timing,
 		processWg:             &sync.WaitGroup{},
-		ObserverBuffer:        obsBuf,
 	}
 	agnt.SamplerMetrics.Add(agnt.PrioritySampler, agnt.ErrorsSampler, agnt.NoPrioritySampler, agnt.RareSampler)
 	agnt.Receiver = api.NewHTTPReceiver(conf, dynConf, in, inV1, agnt, telemetryCollector, statsd, timing)
-	// Wire up profile capture to forward raw profile data to the buffer
-	if obsBuf != nil {
-		agnt.Receiver.ProfileCaptureFunc = func(body []byte, headers http.Header) {
-			obsBuf.AddRawProfile(body, headers)
-		}
-	}
 	agnt.OTLPReceiver = api.NewOTLPReceiver(in, conf, statsd, timing)
 	agnt.RemoteConfigHandler = remoteconfighandler.New(conf, agnt.PrioritySampler, agnt.RareSampler, agnt.ErrorsSampler)
 	agnt.TraceWriter = writer.NewTraceWriter(conf, agnt.PrioritySampler, agnt.ErrorsSampler, agnt.RareSampler, telemetryCollector, statsd, timing, comp)
@@ -240,6 +232,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 
 // Run starts routers routines and individual pieces then stop them when the exit order is received.
 func (a *Agent) Run() {
+	defer close(a.stopped)
 	a.Timing.Start()
 	defer a.Timing.Stop()
 	for _, starter := range []interface{ Start() }{
@@ -300,6 +293,18 @@ func (a *Agent) FlushSync() {
 	}
 }
 
+// WaitForStopped blocks until the agent's Run() method has fully returned,
+// meaning all components have been stopped and the shutdown sequence is complete.
+// It returns nil on clean shutdown, or the context's error if ctx is done first.
+func (a *Agent) WaitForStopped(ctx context.Context) error {
+	select {
+	case <-a.stopped:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 // UpdateAPIKey receives the API Key update signal and propagates it across all internal
 // components that rely on API Key configuration:
 // - HTTP Receiver (used in reverse proxies)
@@ -354,9 +359,28 @@ func (a *Agent) loop() {
 	//Wait to process any leftover payloads in flight before closing components that might be needed
 	a.processWg.Wait()
 
+	// Phase 1: Stop stats producers. Their Stop() methods flush remaining stats
+	// into the StatsWriter's buffer (via Write calls).
 	for _, stopper := range []interface{ Stop() }{
 		a.Concentrator,
 		a.ClientStatsAggregator,
+	} {
+		if stopper != nil && !reflect.ValueOf(stopper).IsNil() {
+			stopper.Stop()
+		}
+	}
+
+	// Phase 2: In sync mode, flush all buffered data to the network.
+	// Stats buffered by Concentrator.Stop() and ClientStatsAggregator.Stop()
+	// above are sent here, along with any buffered traces.
+	if a.conf.SynchronousFlushing {
+		a.FlushSync()
+	}
+
+	// Phase 3: Stop remaining components. Writers have nothing left to send
+	// since FlushSync already drained their buffers (sync mode) or they flush
+	// on their own during Stop (async mode).
+	for _, stopper := range []interface{ Stop() }{
 		a.TraceWriter,
 		a.TraceWriterV1,
 		a.StatsWriter,
@@ -576,26 +600,30 @@ func (a *Agent) Process(p *api.Payload) {
 }
 
 func (a *Agent) writeChunks(p *writer.SampledChunks) {
-	// Add to observer buffer (before async enrichment to avoid data races)
-	if a.ObserverBuffer != nil {
-		a.ObserverBuffer.AddTrace(p.TracerPayload)
-	}
-
 	// fast path: no container ID or the buffering feature is disabled,
 	if p.TracerPayload.ContainerID == "" || !a.ContainerTagsBuffer.IsEnabled() {
 		a.TraceWriter.WriteChunks(p)
 		return
 	}
 	// callback function to be executed once tags are resolved, or buffer times out
-	fn := func(cTags []string, err error) {
-		enrichTracesWithCtags(p, cTags, err)
+	fn := func(cTags []string, err error, debug *containertagsbuffer.DebugInfo) {
+		enrichTracesWithCtags(p, cTags, err, debug)
 		a.TraceWriter.WriteChunks(p)
 	}
 	a.ContainerTagsBuffer.AsyncEnrichment(p.TracerPayload.ContainerID, fn, int64(p.Size))
 }
 
 // enrichTracesWithCtags modifies the trace payload in-place by overriding container tags.
-func enrichTracesWithCtags(p *writer.SampledChunks, ctags []string, err error) {
+func enrichTracesWithCtags(p *writer.SampledChunks, ctags []string, err error, debug *containertagsbuffer.DebugInfo) {
+	if debug.HasData() {
+		p.TracerPayload.ContainerDebug = &pb.ContainerDebug{
+			Error:                debug.Error,
+			LatencyMs:            debug.LatencyMs,
+			WasBuffered:          debug.WasBuffered,
+			BufferMs:             debug.BufferMs,
+			BufferEvictionReason: debug.BufferEvictionReason,
+		}
+	}
 	if err != nil {
 		log.Debugf("Failed getting container tags post buffering for ID %s: %v", p.TracerPayload.ContainerID, err)
 		return
@@ -750,17 +778,26 @@ func (a *Agent) writeChunksV1(p *writer.SampledChunksV1) {
 		return
 	}
 	// callback function to be executed once tags are resolved, or buffer times out
-	fn := func(cTags []string, err error) {
-		enrichTracesWithCtagsV1(p, cTags, err)
+	fn := func(cTags []string, err error, debug *containertagsbuffer.DebugInfo) {
+		enrichTracesWithCtagsV1(p, cTags, err, debug)
 		a.TraceWriterV1.WriteChunksV1(p)
 	}
 	a.ContainerTagsBuffer.AsyncEnrichment(containerID, fn, int64(p.TracerPayload.Msgsize()))
 }
 
 // enrichTracesWithCtagsV1 modifies the trace payload in-place by overriding container tags.
-func enrichTracesWithCtagsV1(p *writer.SampledChunksV1, ctags []string, err error) {
+func enrichTracesWithCtagsV1(p *writer.SampledChunksV1, ctags []string, err error, debug *containertagsbuffer.DebugInfo) {
+	if debug.HasData() {
+		p.TracerPayload.ContainerDebug = &idx.ContainerDebug{
+			Error:                debug.Error,
+			LatencyMs:            debug.LatencyMs,
+			WasBuffered:          debug.WasBuffered,
+			BufferMs:             debug.BufferMs,
+			BufferEvictionReason: debug.BufferEvictionReason,
+		}
+	}
 	if err != nil {
-		log.Debugf("Failed getting container tags post buffering for ID %s: %v", p.TracerPayload.ContainerID, err)
+		log.Debugf("Failed getting container tags post buffering for ID %s: %v", p.TracerPayload.ContainerID(), err)
 		return
 	}
 	if len(ctags) == 0 {

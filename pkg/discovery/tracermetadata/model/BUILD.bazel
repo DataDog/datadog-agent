@@ -18,6 +18,7 @@ go_test(
         "tracer_metadata_test.go",
     ],
     embed = [":model"],
+    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_tinylib_msgp//msgp",

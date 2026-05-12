@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "lldp",
+    srcs = ["lldp.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/lldp",
+    visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
+)

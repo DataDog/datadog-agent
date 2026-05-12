@@ -9,8 +9,10 @@ package testutils
 
 import (
 	"fmt"
+	"hash/fnv"
 	"net"
 	"strconv"
+	"strings"
 )
 
 // GetFreePort finds a free port to use for testing.
@@ -31,4 +33,13 @@ func GetFreePort() (uint16, error) {
 	}
 
 	return uint16(portInt), nil
+}
+
+// UniqueTestPort returns a deterministic high-range UDP port derived from inputs,
+// reducing the chance of collisions across concurrent tests without TOCTOU races.
+func UniqueTestPort(keys ...string) uint16 {
+	h := fnv.New32a()
+	h.Write([]byte(strings.Join(keys, "|")))
+	// Choose from 62000-63999 (typically outside Linux default ephemeral range)
+	return uint16(62000 + (h.Sum32() % 2000))
 }

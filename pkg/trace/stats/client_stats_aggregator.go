@@ -267,14 +267,14 @@ func (b *bucket) aggregateStatsBucket(sb *pb.ClientStatsBucket, payloadAggKey Pa
 		agg, ok := payloadAgg[aggKey]
 		if !ok {
 			agg = &aggregatedStats{
-				hits:                   gs.Hits,
-				topLevelHits:           gs.TopLevelHits,
-				errors:                 gs.Errors,
-				duration:               gs.Duration,
-				peerTags:               gs.PeerTags,
-				spanDerivedPrimaryTags: gs.SpanDerivedPrimaryTags,
-				okDistributionRaw:      gs.OkSummary,    // store encoded version only
-				errDistributionRaw:     gs.ErrorSummary, // store encoded version only
+				hits:                 gs.Hits,
+				topLevelHits:         gs.TopLevelHits,
+				errors:               gs.Errors,
+				duration:             gs.Duration,
+				peerTags:             gs.PeerTags,
+				additionalMetricTags: gs.AdditionalMetricTags,
+				okDistributionRaw:    gs.OkSummary,    // store encoded version only
+				errDistributionRaw:   gs.ErrorSummary, // store encoded version only
 			}
 			payloadAgg[aggKey] = agg
 			continue
@@ -287,7 +287,7 @@ func (b *bucket) aggregateStatsBucket(sb *pb.ClientStatsBucket, payloadAggKey Pa
 		agg.duration += gs.Duration
 
 		// Decode, if needed, the raw ddsketches from the first payload that reached the bucket
-		if agg.okDistributionRaw != nil {
+		if len(agg.okDistributionRaw) > 0 {
 			sketch, err := decodeSketch(agg.okDistributionRaw)
 			if err != nil {
 				log.Errorf("Unable to decode OK distribution ddsketch: %v", err)
@@ -296,7 +296,7 @@ func (b *bucket) aggregateStatsBucket(sb *pb.ClientStatsBucket, payloadAggKey Pa
 			}
 			agg.okDistributionRaw = nil
 		}
-		if agg.errDistributionRaw != nil {
+		if len(agg.errDistributionRaw) > 0 {
 			sketch, err := decodeSketch(agg.errDistributionRaw)
 			if err != nil {
 				log.Errorf("Unable to decode Error distribution ddsketch: %v", err)
@@ -379,26 +379,26 @@ func exporGroupedStats(aggrKey BucketsAggregationKey, stats *aggregatedStats) (*
 		}
 	}
 	return &pb.ClientGroupedStats{
-		Service:                aggrKey.Service,
-		Name:                   aggrKey.Name,
-		SpanKind:               aggrKey.SpanKind,
-		Resource:               aggrKey.Resource,
-		HTTPStatusCode:         aggrKey.StatusCode,
-		Type:                   aggrKey.Type,
-		Synthetics:             aggrKey.Synthetics,
-		ServiceSource:          aggrKey.ServiceSource,
-		IsTraceRoot:            aggrKey.IsTraceRoot,
-		GRPCStatusCode:         aggrKey.GRPCStatusCode,
-		HTTPMethod:             aggrKey.HTTPMethod,
-		HTTPEndpoint:           aggrKey.HTTPEndpoint,
-		PeerTags:               stats.peerTags,
-		SpanDerivedPrimaryTags: stats.spanDerivedPrimaryTags,
-		TopLevelHits:           stats.topLevelHits,
-		Hits:                   stats.hits,
-		Errors:                 stats.errors,
-		Duration:               stats.duration,
-		OkSummary:              okSummary,
-		ErrorSummary:           errSummary,
+		Service:              aggrKey.Service,
+		Name:                 aggrKey.Name,
+		SpanKind:             aggrKey.SpanKind,
+		Resource:             aggrKey.Resource,
+		HTTPStatusCode:       aggrKey.StatusCode,
+		Type:                 aggrKey.Type,
+		Synthetics:           aggrKey.Synthetics,
+		ServiceSource:        aggrKey.ServiceSource,
+		IsTraceRoot:          aggrKey.IsTraceRoot,
+		GRPCStatusCode:       aggrKey.GRPCStatusCode,
+		HTTPMethod:           aggrKey.HTTPMethod,
+		HTTPEndpoint:         aggrKey.HTTPEndpoint,
+		PeerTags:             stats.peerTags,
+		AdditionalMetricTags: stats.additionalMetricTags,
+		TopLevelHits:         stats.topLevelHits,
+		Hits:                 stats.hits,
+		Errors:               stats.errors,
+		Duration:             stats.duration,
+		OkSummary:            okSummary,
+		ErrorSummary:         errSummary,
 	}, nil
 }
 
@@ -434,8 +434,8 @@ func newBucketAggregationKey(b *pb.ClientGroupedStats) BucketsAggregationKey {
 	if tags := b.GetPeerTags(); len(tags) > 0 {
 		k.PeerTagsHash = tagsFnvHash(tags)
 	}
-	if tags := b.GetSpanDerivedPrimaryTags(); len(tags) > 0 {
-		k.SpanDerivedPrimaryTagsHash = tagsFnvHash(tags)
+	if tags := b.GetAdditionalMetricTags(); len(tags) > 0 {
+		k.AdditionalMetricTagsHash = tagsFnvHash(tags)
 	}
 	return k
 }
@@ -445,7 +445,7 @@ type aggregatedStats struct {
 	// aggregated counts
 	hits, topLevelHits, errors, duration uint64
 	peerTags                             []string
-	spanDerivedPrimaryTags               []string
+	additionalMetricTags                 []string
 
 	// aggregated DDSketches
 	okDistribution, errDistribution *ddsketch.DDSketch
@@ -458,7 +458,7 @@ type aggregatedStats struct {
 
 // mergeSketch take an existing DDSketch, and merges a second one, decoding its contents
 func mergeSketch(s1 *ddsketch.DDSketch, raw []byte) (*ddsketch.DDSketch, error) {
-	if raw == nil {
+	if len(raw) == 0 {
 		return s1, nil
 	}
 
@@ -479,6 +479,9 @@ func mergeSketch(s1 *ddsketch.DDSketch, raw []byte) (*ddsketch.DDSketch, error) 
 }
 
 func normalizeSketch(s *ddsketch.DDSketch) *ddsketch.DDSketch {
+	if s == nil {
+		return nil
+	}
 	if s.IndexMapping.Equals(ddsketchMapping) {
 		// already normalized
 		return s

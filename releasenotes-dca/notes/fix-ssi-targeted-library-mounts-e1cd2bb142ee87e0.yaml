@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fixed a Cluster Agent issue where container-targeted APM library injection could mount a tracing library into all application containers in a pod instead of only the annotated container.

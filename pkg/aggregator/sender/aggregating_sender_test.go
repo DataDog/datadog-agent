@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	observerdef "github.com/DataDog/datadog-agent/comp/observer/def"
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -25,11 +25,8 @@ type capturingHandle struct {
 	samples []observerdef.MetricView
 }
 
-func (h *capturingHandle) ObserveMetric(s observerdef.MetricView)         { h.samples = append(h.samples, s) }
-func (h *capturingHandle) ObserveLog(_ observerdef.LogView)               {}
-func (h *capturingHandle) ObserveTrace(_ observerdef.TraceView)           {}
-func (h *capturingHandle) ObserveTraceStats(_ observerdef.TraceStatsView) {}
-func (h *capturingHandle) ObserveProfile(_ observerdef.ProfileView)       {}
+func (h *capturingHandle) ObserveMetric(s observerdef.MetricView) { h.samples = append(h.samples, s) }
+func (h *capturingHandle) ObserveLog(_ observerdef.LogView)       {}
 
 // noopSender satisfies Sender and discards everything.
 type noopSender struct{}
@@ -49,6 +46,8 @@ func (noopSender) Distribution(_ string, _ float64, _ string, _ []string) {}
 func (noopSender) ServiceCheck(_ string, _ servicecheck.ServiceCheckStatus, _ string, _ []string, _ string) {
 }
 func (noopSender) HistogramBucket(_ string, _ int64, _, _ float64, _ bool, _ string, _ []string, _ bool) {
+}
+func (noopSender) OpenmetricsBucket(_ string, _ int64, _, _ float64, _ bool, _ string, _ []string, _ bool) {
 }
 func (noopSender) GaugeWithTimestamp(_ string, _ float64, _ string, _ []string, _ float64) error {
 	return nil

@@ -23,7 +23,7 @@ import (
 // batchBuilder builds an Arrow record from accumulated data.
 // Returns nil if no data has been accumulated since the last build.
 type batchBuilder interface {
-	build() arrow.Record
+	build() arrow.RecordBatch
 }
 
 // parquetWriter handles the common lifecycle for all parquet writers:
@@ -53,7 +53,7 @@ func (b *parquetWriter) start() {
 // writeRecord creates a timestamped parquet file, writes the record, and closes it atomically.
 // Only called when there is data; no file is created for empty batches.
 // Must be called with b.mu held.
-func (b *parquetWriter) writeRecord(record arrow.Record) error {
+func (b *parquetWriter) writeRecord(record arrow.RecordBatch) error {
 	timestamp := time.Now().UTC().Format("20060102-150405")
 	filename := fmt.Sprintf("%s-%sZ.parquet", b.filePrefix, timestamp)
 	filePath := filepath.Join(b.outputDir, filename)

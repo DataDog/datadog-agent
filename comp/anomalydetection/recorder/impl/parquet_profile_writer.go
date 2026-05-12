@@ -165,7 +165,7 @@ func (b *profileBatchBuilder) add(
 	b.tags = append(b.tags, tagsCopy)
 }
 
-func (b *profileBatchBuilder) build() arrow.Record {
+func (b *profileBatchBuilder) build() arrow.RecordBatch {
 	if len(b.runIDs) == 0 {
 		return nil
 	}
@@ -226,7 +226,7 @@ func (b *profileBatchBuilder) build() arrow.Record {
 		}
 	}
 
-	record := recordBuilder.NewRecord()
+	record := recordBuilder.NewRecordBatch()
 	recordBuilder.Release()
 
 	// Reset builder

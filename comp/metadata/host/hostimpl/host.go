@@ -23,8 +23,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	hostComp "github.com/DataDog/datadog-agent/comp/metadata/host"
-	"github.com/DataDog/datadog-agent/comp/metadata/resources"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	resources "github.com/DataDog/datadog-agent/comp/metadata/resources/def"
+	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/gohai"
@@ -78,7 +78,7 @@ type provides struct {
 	fx.Out
 
 	Comp                 hostComp.Component
-	MetadataProvider     runnerimpl.Provider
+	MetadataProvider     runnerdef.Provider
 	FlareProvider        flaretypes.Provider
 	StatusHeaderProvider status.HeaderInformationProvider
 	Endpoint             api.AgentEndpointProvider
@@ -141,7 +141,7 @@ func newHostProvider(deps dependencies) provides {
 	}
 	return provides{
 		Comp:             &h,
-		MetadataProvider: runnerimpl.NewProvider(h.collect),
+		MetadataProvider: runnerdef.NewProvider(h.collect),
 		FlareProvider:    flaretypes.NewProvider(h.fillFlare),
 		StatusHeaderProvider: status.NewHeaderInformationProvider(StatusProvider{
 			Config:   h.config,
@@ -174,7 +174,7 @@ func (h *host) GetPayloadAsJSON(ctx context.Context) ([]byte, error) {
 	return json.MarshalIndent(h.getPayload(ctx), "", "    ")
 }
 
-func (h *host) fillFlare(fb flaretypes.FlareBuilder) error {
+func (h *host) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 	return fb.AddFileFromFunc(filepath.Join("metadata", "host.json"), func() ([]byte, error) { return h.GetPayloadAsJSON(context.Background()) })
 }
 

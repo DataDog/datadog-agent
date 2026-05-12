@@ -125,7 +125,7 @@ func (b *logBatchBuilder) add(
 	b.tags = append(b.tags, tagsCopy)
 }
 
-func (b *logBatchBuilder) build() arrow.Record {
+func (b *logBatchBuilder) build() arrow.RecordBatch {
 	if len(b.runIDs) == 0 {
 		return nil
 	}
@@ -160,7 +160,7 @@ func (b *logBatchBuilder) build() arrow.Record {
 		}
 	}
 
-	record := recordBuilder.NewRecord()
+	record := recordBuilder.NewRecordBatch()
 	recordBuilder.Release()
 
 	// Reset builder

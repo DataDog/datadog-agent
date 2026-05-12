@@ -119,7 +119,7 @@ func (b *metricBatchBuilder) add(source, name string, value float64, tags []stri
 	b.tags = append(b.tags, tagsCopy)
 }
 
-func (b *metricBatchBuilder) build() arrow.Record {
+func (b *metricBatchBuilder) build() arrow.RecordBatch {
 	if len(b.metricNames) == 0 {
 		return nil
 	}
@@ -152,7 +152,7 @@ func (b *metricBatchBuilder) build() arrow.Record {
 		}
 	}
 
-	record := recordBuilder.NewRecord()
+	record := recordBuilder.NewRecordBatch()
 	recordBuilder.Release()
 
 	// Reset builder for next batch

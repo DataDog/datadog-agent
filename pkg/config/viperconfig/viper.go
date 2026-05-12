@@ -71,6 +71,8 @@ type safeConfig struct {
 	warnings []error
 
 	existingTransformers map[string]bool
+
+	startTime time.Time
 }
 
 // GetLibType return "viper"
@@ -129,12 +131,13 @@ func (c *safeConfig) Set(key string, newValue interface{}, source model.Source) 
 	}
 	// Increment the sequence ID only if the value has changed
 	c.sequenceID++
+	sequenceID := c.sequenceID
 	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
 		log.Debugf("notifying %s about configuration change for '%s'", getCallerLocation(1), key)
-		receiver(key, source, oldValue, latestValue, c.sequenceID)
+		receiver(key, source, oldValue, latestValue, sequenceID)
 	}
 }
 
@@ -171,11 +174,12 @@ func (c *safeConfig) UnsetForSource(key string, source model.Source) {
 		receivers = slices.Clone(c.notificationReceivers)
 		c.sequenceID++
 	}
+	sequenceID := c.sequenceID
 	c.Unlock()
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
-		receiver(key, source, previousValue, newValue, c.sequenceID)
+		receiver(key, source, previousValue, newValue, sequenceID)
 	}
 }
 
@@ -205,6 +209,11 @@ func (c *safeConfig) IsKnown(key string) bool {
 	defer c.RUnlock()
 
 	return c.Viper.IsKnown(key)
+}
+
+// IsSetting always returns true for Viper, because it doesn't have a way to tell
+func (c *safeConfig) IsSetting(_ string) bool {
+	return true
 }
 
 // checkKnownKey checks if a key is known, and if not logs a warning
@@ -317,7 +326,10 @@ func (c *safeConfig) HasSection(key string) bool {
 				return true
 			}
 		} else if c.configSources[src].HasSection(key) {
-			return true
+			// If a given layer has found a node at the given key...
+			v := c.configSources[model.SourceDefault].Get(key)
+			// it is only a section if the default layer does not have a scalar leaf there
+			return v == nil || reflect.ValueOf(v).Kind() == reflect.Map
 		}
 	}
 	return false
@@ -817,6 +829,16 @@ func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	return c.Viper.AllSettingsWithoutDefault()
 }
 
+// AllSettingsWithoutSecrets falls back to AllSettings (viper has no secrets layer).
+func (c *safeConfig) AllSettingsWithoutSecrets() map[string]interface{} {
+	return c.AllSettings()
+}
+
+// AllSettingsWithoutDefaultOrSecrets falls back to AllSettingsWithoutDefault (viper has no secrets layer).
+func (c *safeConfig) AllSettingsWithoutDefaultOrSecrets() map[string]interface{} {
+	return c.AllSettingsWithoutDefault()
+}
+
 // AllSettingsBySource returns the settings from each source (file, env vars, ...)
 func (c *safeConfig) AllSettingsBySource() map[model.Source]interface{} {
 	c.Lock()
@@ -982,6 +1004,10 @@ func (c *safeConfig) Warnings() *model.Warnings {
 	return &model.Warnings{Errors: c.warnings}
 }
 
+func (c *safeConfig) StartTime() time.Time {
+	return c.startTime
+}
+
 func (c *safeConfig) Object() model.Reader {
 	return c
 }
@@ -1003,6 +1029,7 @@ func NewViperConfig(name string, envPrefix string, envKeyReplacer *strings.Repla
 		configEnvVars:        map[string]struct{}{},
 		unknownKeys:          map[string]struct{}{},
 		existingTransformers: make(map[string]bool),
+		startTime:            time.Now(),
 	}
 
 	// load one Viper instance per source of setting change

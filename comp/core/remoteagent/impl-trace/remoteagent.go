@@ -15,18 +15,16 @@ import (
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	"github.com/DataDog/datadog-agent/comp/core/remoteagent/helper"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	observerbuffer "github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 // Requires defines the dependencies for the remoteagent component
 type Requires struct {
-	Lifecycle      compdef.Lifecycle
-	Log            log.Component
-	IPC            ipc.Component
-	Config         config.Component
-	ObserverBuffer observerbuffer.Component
+	Lifecycle compdef.Lifecycle
+	Log       log.Component
+	IPC       ipc.Component
+	Config    config.Component
 }
 
 // Provides defines the output of the remoteagent component
@@ -54,12 +52,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 		ipc:               reqs.IPC,
 		cfg:               reqs.Config,
 		remoteAgentServer: remoteAgentServer,
-		observerBuffer:    reqs.ObserverBuffer,
-	}
-
-	// Register the ObserverProvider gRPC service if the buffer is available
-	if reqs.Config.GetBool("observer.analysis.enabled") || reqs.Config.GetBool("observer.recording.enabled") {
-		pbcore.RegisterObserverProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
 	}
 
 	provides := Provides{
@@ -74,8 +66,6 @@ type remoteagentImpl struct {
 	cfg config.Component
 
 	remoteAgentServer *helper.UnimplementedRemoteAgentServer
-	observerBuffer    observerbuffer.Component
 
 	pbcore.UnimplementedTelemetryProviderServer
-	pbcore.UnimplementedObserverProviderServer
 }

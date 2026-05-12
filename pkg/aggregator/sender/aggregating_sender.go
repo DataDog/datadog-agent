@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -201,6 +201,16 @@ func (s *AggregatingSender) HistogramBucket(metric string, value int64, lowerBou
 	s.mu.Lock()
 	s.aggregator.addHistogramBucket(metric, value, lowerBound, upperBound, monotonic, hostname, tags, flushFirstValue)
 	s.mu.Unlock()
+}
+
+// OpenmetricsBucket forwards directly to backend; the observer doesn't model
+// OpenMetrics buckets distinctly from histogram buckets.
+// TODO(agent-q): OpenmetricsBucket bypasses local interval aggregation — if an OpenMetrics check
+// ever runs through the hfrunner, buckets will be emitted at 1s cadence instead of originalInterval.
+// Add localAggregator support for OpenMetrics buckets to fix this.
+// https://github.com/DataDog/datadog-agent/pull/50297/changes/BASE..0cc0c644f7d8f54adf6e827b2c718c1b48cb4de9#r3181897116
+func (s *AggregatingSender) OpenmetricsBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue bool) {
+	s.backendSender.OpenmetricsBucket(metric, value, lowerBound, upperBound, monotonic, hostname, tags, flushFirstValue)
 }
 
 // Event forwards directly to backend

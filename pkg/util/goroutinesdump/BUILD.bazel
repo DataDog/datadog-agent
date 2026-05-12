@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "goroutinesdump",
+    srcs = ["goroutinedump.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/goroutinesdump",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/config/setup"],
+)

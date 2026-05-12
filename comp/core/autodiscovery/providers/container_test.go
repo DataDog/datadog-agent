@@ -19,8 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -34,7 +34,7 @@ func TestProcessEvents(t *testing.T) {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	telemetry := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	telemetry := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	telemetryStore := acTelemetry.NewStore(telemetry)
 
 	cp := &ContainerConfigProvider{
@@ -483,7 +483,7 @@ func TestGenerateConfig(t *testing.T) {
 				configErrors:      make(map[string]types.ErrorMsgSet),
 			}
 
-			configs, err := cp.generateConfig(tt.entity)
+			configs, err, _ := cp.generateConfig(tt.entity)
 
 			assert.Equal(t, tt.expectedConfigs, configs)
 			assert.Equal(t, tt.expectedErr, err)

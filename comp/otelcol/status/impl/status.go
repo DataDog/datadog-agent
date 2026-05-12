@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	"go.yaml.in/yaml/v3"
 
@@ -221,12 +222,16 @@ func (s statusProvider) populateStatus() map[string]interface{} {
 			"error": err.Error(),
 		}
 	}
-	return map[string]interface{}{
+	result := map[string]interface{}{
 		"agentVersion":     extensionResp.AgentVersion,
 		"collectorVersion": extensionResp.ExtensionVersion,
 		"receiver":         s.receiverStatus,
 		"exporter":         s.exporterStatus,
 	}
+	if warnings := checkConfigWarnings(extensionResp.RuntimeConfig, s.Config); len(warnings) > 0 {
+		result["warnings"] = warnings
+	}
+	return result
 }
 
 // JSON populates the status map
@@ -246,4 +251,41 @@ func (s statusProvider) Text(_ bool, buffer io.Writer) error {
 // HTML renders the html output
 func (s statusProvider) HTML(_ bool, buffer io.Writer) error {
 	return statusComponent.RenderHTML(templatesFS, "otelagentHTML.tmpl", buffer, s.getStatusInfo())
+}
+
+// checkConfigWarnings inspects the runtime OTel config and agent config for
+// problematic configurations and returns a list of human-readable warnings.
+func checkConfigWarnings(runtimeConfigYAML string, cfg config.Component) []string {
+	var warnings []string
+
+	if cfg.GetBool("otel_standalone") {
+		return warnings
+	}
+
+	var parsed map[string]interface{}
+	if err := yaml.Unmarshal([]byte(runtimeConfigYAML), &parsed); err != nil {
+		return warnings
+	}
+	receivers, ok := parsed["receivers"]
+	if !ok {
+		return warnings
+	}
+	receiversMap, ok := receivers.(map[string]interface{})
+	if !ok {
+		return warnings
+	}
+	for name := range receiversMap {
+		baseName := name
+		if idx := strings.IndexByte(name, '/'); idx >= 0 {
+			baseName = name[:idx]
+		}
+		if baseName == "hostmetrics" {
+			warnings = append(warnings, "The hostmetrics receiver is enabled in connected mode. "+
+				"The core Datadog Agent already collects host metrics. "+
+				"Use standalone mode (DD_OTEL_STANDALONE=true) to avoid metric conflicts.")
+			break
+		}
+	}
+
+	return warnings
 }

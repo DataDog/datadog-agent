@@ -311,7 +311,7 @@ func TestRuntimeSettings(t *testing.T) {
 				// simply compare strings.
 				expected := map[string]interface{}{}
 				actual := map[string]interface{}{}
-				json.Unmarshal([]byte("{\"value\":{\"Value\":\"\",\"Source\":\"\"},\"sources_value\":[{\"Source\":\"default\",\"Value\":null},{\"Source\":\"unknown\",\"Value\":null},{\"Source\":\"infra-mode\",\"Value\":null},{\"Source\":\"file\",\"Value\":null},{\"Source\":\"environment-variable\",\"Value\":null},{\"Source\":\"fleet-policies\",\"Value\":null},{\"Source\":\"agent-runtime\",\"Value\":null},{\"Source\":\"local-config-process\",\"Value\":null},{\"Source\":\"remote-config\",\"Value\":null},{\"Source\":\"cli\",\"Value\":null}]}"), &expected)
+				json.Unmarshal([]byte("{\"value\":{\"Value\":\"\",\"Source\":\"\"},\"sources_value\":[{\"Source\":\"default\",\"Value\":null},{\"Source\":\"unknown\",\"Value\":null},{\"Source\":\"infra-mode\",\"Value\":null},{\"Source\":\"file\",\"Value\":null},{\"Source\":\"environment-variable\",\"Value\":null},{\"Source\":\"fleet-policies\",\"Value\":null},{\"Source\":\"config-post-init\",\"Value\":null},{\"Source\":\"secret\",\"Value\":null},{\"Source\":\"local-config-process\",\"Value\":null},{\"Source\":\"agent-runtime\",\"Value\":null},{\"Source\":\"remote-config\",\"Value\":null},{\"Source\":\"cli\",\"Value\":null}]}"), &expected)
 				err = json.Unmarshal(body, &actual)
 
 				require.NoError(t, err, fmt.Sprintf("error loading JSON body: %s", err))
@@ -361,6 +361,28 @@ func TestRuntimeSettings(t *testing.T) {
 
 				assert.Equal(t, 200, resp.StatusCode)
 				assert.Equal(t, "{\"value\":{\"Value\":\"fancy\",\"Source\":\"cli\"}}", string(body))
+			},
+		},
+		{
+			"SetValue non-existent setting",
+			func(t *testing.T, comp settings.Component) {
+				router := mux.NewRouter()
+				router.HandleFunc("/config/{setting}", comp.SetValue).Methods("POST")
+				ts := httptest.NewServer(router)
+				defer ts.Close()
+
+				requestBody := "value=" + html.EscapeString("test")
+				request, err := http.NewRequest("POST", ts.URL+"/config/non_existing", bytes.NewBuffer([]byte(requestBody)))
+				require.NoError(t, err)
+				request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+				resp, err := ts.Client().Do(request)
+				require.NoError(t, err)
+				body, _ := io.ReadAll(resp.Body)
+				resp.Body.Close()
+
+				assert.Equal(t, 400, resp.StatusCode)
+				assert.Contains(t, string(body), "non_existing not found")
 			},
 		},
 	}

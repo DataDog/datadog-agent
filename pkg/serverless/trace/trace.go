@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
@@ -125,7 +126,7 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 			tc.Hostname = ""
 			tc.SynchronousFlushing = true
 			tc.AdditionalProfileTags = args.AdditionalProfileTags
-			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent(), nil)
+			ta := agent.NewAgent(context, tc, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, zstd.NewComponent())
 
 			// Check if trace stats should be disabled for serverless
 			if disabled, _ := strconv.ParseBool(os.Getenv(disableTraceStatsEnvVar)); disabled {
@@ -193,9 +194,17 @@ func (t *serverlessTraceAgent) SetTags(tags map[string]string) {
 	}
 }
 
-// Stop stops the trace agent
+// Stop cancels the trace agent's context and waits for its Run loop to finish.
+// The Run loop handles the full shutdown sequence: draining in-flight traces,
+// flushing stats producers, sending buffered data to the network, and stopping
+// all writers and components.
 func (t *serverlessTraceAgent) Stop() {
 	t.cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := t.ta.WaitForStopped(ctx); err != nil {
+		log.Warnf("Trace agent did not stop in time, continuing shutdown: %v", err)
+	}
 }
 
 // SetTargetTPS sets the target TPS to the trace agent.

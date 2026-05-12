@@ -609,13 +609,13 @@ func (m *mockContainerTagsBuffer) IsEnabled() bool {
 	return m.enabled
 }
 
-func (m *mockContainerTagsBuffer) AsyncEnrichment(containerID string, cb func([]string, error), _ int64) bool {
+func (m *mockContainerTagsBuffer) AsyncEnrichment(containerID string, cb func([]string, error, *containertagsbuffer.DebugInfo), _ int64) bool {
 	returnTags := m.returnTags[containerID]
 	var returnErr error
 	if retErrStr := m.returnErr[containerID]; retErrStr != "" {
 		returnErr = errors.New(retErrStr)
 	}
-	cb(returnTags, returnErr)
+	cb(returnTags, returnErr, nil)
 	return m.pending
 }
 
@@ -632,7 +632,7 @@ func testStatsWriter() (*DatadogStatsWriter, *testServer) {
 		StatsWriter:   &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
 		ContainerTags: func(_ string) ([]string, error) { return nil, nil },
 	}
-	return NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, &containertagsbuffer.NoOpTagsBuffer{}, nil), srv
+	return NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, &containertagsbuffer.NoOpTagsBuffer{}), srv
 }
 
 func testStatsSyncWriter() (*DatadogStatsWriter, *testServer) {
@@ -642,7 +642,7 @@ func testStatsSyncWriter() (*DatadogStatsWriter, *testServer) {
 		StatsWriter:         &config.WriterConfig{ConnectionLimit: 20, QueueSize: 20},
 		SynchronousFlushing: true,
 	}
-	return NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, &containertagsbuffer.NoOpTagsBuffer{}, nil), srv
+	return NewStatsWriter(cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, &containertagsbuffer.NoOpTagsBuffer{}), srv
 }
 
 type key struct {

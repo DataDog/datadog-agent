@@ -31,7 +31,6 @@ import (
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
-	observerbuffer "github.com/DataDog/datadog-agent/comp/trace/observerbuffer/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
@@ -71,10 +70,6 @@ type dependencies struct {
 	Compressor            compression.Component
 	IPC                   ipc.Component
 	TracerPayloadModifier pkgagent.TracerPayloadModifier
-
-	// ObserverBuffer is a buffer for storing traces/profiles
-	// to be fetched by the core-agent's observer component.
-	ObserverBuffer observerbuffer.Component
 }
 
 var _ traceagent.Component = (*component)(nil)
@@ -103,6 +98,7 @@ type component struct {
 	*pkgagent.Agent
 
 	cancel             context.CancelFunc
+	ctx                context.Context
 	config             traceconfigdef.Component
 	secrets            secrets.Component
 	params             *Params
@@ -126,6 +122,7 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 	ctx, cancel := context.WithCancel(deps.Context) // Several related non-components require a shared context to gracefully stop.
 	c = component{
 		cancel:             cancel,
+		ctx:                ctx,
 		config:             deps.Config,
 		secrets:            deps.Secrets,
 		params:             deps.Params,
@@ -156,7 +153,6 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 		c.telemetryCollector,
 		statsdCl,
 		deps.Compressor,
-		deps.ObserverBuffer,
 	)
 	c.Agent.TracerPayloadModifier = deps.TracerPayloadModifier
 

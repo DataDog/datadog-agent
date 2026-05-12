@@ -104,7 +104,7 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 	if cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib > 0 {
 		grpcMaxRecvMsgSize = cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib * 1024 * 1024
 	}
-	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot, cfg.ContainerIDFromOriginInfo), statsd: statsd, timing: timing, grpcMaxRecvMsgSize: grpcMaxRecvMsgSize}
+	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewContainerIDProviderFromConfig(cfg), statsd: statsd, timing: timing, grpcMaxRecvMsgSize: grpcMaxRecvMsgSize}
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
@@ -346,7 +346,7 @@ func (o *OTLPReceiver) receiveResourceSpansV2(ctx context.Context, rspans ptrace
 			}
 			ddspan := transform.OtelSpanToDDSpan(otelspan, otelres, libspans.Scope(), o.conf)
 
-			if p, ok := ddspan.Metrics["_sampling_priority_v1"]; ok {
+			if p, ok := semantics.LookupFloat64(registry, semantics.NewMetricsMapAccessor(ddspan.Metrics), semantics.ConceptSamplingPriority); ok {
 				priorityByID[traceID] = sampler.SamplingPriority(p)
 			}
 			tracesByID[traceID] = append(tracesByID[traceID], ddspan)

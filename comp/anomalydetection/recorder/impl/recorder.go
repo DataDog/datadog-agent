@@ -11,9 +11,9 @@ import (
 	"fmt"
 	"time"
 
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	observer "github.com/DataDog/datadog-agent/comp/observer/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -291,98 +291,4 @@ func (h *recordingHandle) ObserveLog(msg observer.LogView) {
 		msg.GetTags(),
 		time.Now().UnixMilli(),
 	)
-}
-
-// ObserveTraceStats forwards stats to the inner handle and records them to the
-// dedicated trace-stats parquet file (not to the metrics parquet file).
-func (h *recordingHandle) ObserveTraceStats(stats observer.TraceStatsView) {
-	h.inner.ObserveTraceStats(stats)
-
-	agentHostname := stats.GetAgentHostname()
-	agentEnv := stats.GetAgentEnv()
-	rows := stats.GetRows()
-	for rows.Next() {
-		row := rows.Row()
-		h.recorder.traceStatsParquetWriter.WriteStatRow(
-			h.name,
-			agentHostname, agentEnv,
-			row.GetClientHostname(), row.GetClientEnv(), row.GetClientVersion(), row.GetClientContainerID(),
-			row.GetBucketStartUnixNano(), row.GetBucketDurationNano(),
-			row.GetService(), row.GetName(), row.GetResource(), row.GetType(),
-			row.GetHTTPStatusCode(), row.GetSpanKind(), row.GetIsTraceRoot(), row.GetSynthetics(),
-			row.GetHits(), row.GetErrors(), row.GetTopLevelHits(), row.GetDurationNano(),
-			row.GetOkSummary(), row.GetErrorSummary(),
-			row.GetPeerTags(),
-		)
-	}
-}
-
-// ObserveTrace forwards the trace to the inner handle and records it.
-func (h *recordingHandle) ObserveTrace(trace observer.TraceView) {
-	h.inner.ObserveTrace(trace)
-
-	traceIDHigh, traceIDLow := trace.GetTraceID()
-	traceService := trace.GetService()
-	traceTags := mapToTagSlice(trace.GetTags())
-
-	// Iterate over all spans and write each one with trace context
-	iter := trace.GetSpans()
-	for iter.Next() {
-		span := iter.Span()
-		h.recorder.traceParquetWriter.WriteSpan(
-			h.name,
-			traceIDHigh, traceIDLow,
-			trace.GetEnv(), traceService, trace.GetHostname(), trace.GetContainerID(),
-			trace.GetTimestampUnixNano(), trace.GetDurationNano(),
-			trace.GetPriority(), trace.IsError(), traceTags,
-			span.GetSpanID(), span.GetParentID(),
-			span.GetService(), span.GetName(), span.GetResource(), span.GetType(),
-			span.GetStartUnixNano(), span.GetDurationNano(), span.GetError(),
-			mapToTagSlice(span.GetMeta()), mapToMetricSlice(span.GetMetrics()),
-		)
-	}
-}
-
-// ObserveProfile forwards the profile to the inner handle and records it.
-func (h *recordingHandle) ObserveProfile(profile observer.ProfileView) {
-	h.inner.ObserveProfile(profile)
-
-	h.recorder.profileParquetWriter.WriteProfile(
-		h.name,
-		profile.GetProfileID(), profile.GetProfileType(),
-		profile.GetService(), profile.GetEnv(), profile.GetVersion(),
-		profile.GetHostname(), profile.GetContainerID(),
-		profile.GetTimestampUnixNano(), profile.GetDurationNano(),
-		profile.GetContentType(),
-		profile.GetRawData(),
-		mapToTagSlice(profile.GetTags()),
-	)
-}
-
-// mapToTagSlice converts a map to a slice of "key:value" strings.
-func mapToTagSlice(m map[string]string) []string {
-	if m == nil {
-		return nil
-	}
-	result := make([]string, 0, len(m))
-	for k, v := range m {
-		if v != "" {
-			result = append(result, k+":"+v)
-		} else {
-			result = append(result, k)
-		}
-	}
-	return result
-}
-
-// mapToMetricSlice converts a float64 map to a slice of "key:value" strings.
-func mapToMetricSlice(m map[string]float64) []string {
-	if m == nil {
-		return nil
-	}
-	result := make([]string, 0, len(m))
-	for k, v := range m {
-		result = append(result, fmt.Sprintf("%s:%g", k, v))
-	}
-	return result
 }

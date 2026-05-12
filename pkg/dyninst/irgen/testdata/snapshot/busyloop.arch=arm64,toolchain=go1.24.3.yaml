@@ -7,18 +7,20 @@ Probes:
       template: ""
       segments: []
       captureSnapshot: true
-      subprogram: {subprogram: 1}
-      events:
-        - Kind: Entry
-          Type: 111 EventRootType Probe[main.noop]
-          InjectionPoints: [{PC: "0xb5170", Frameless: true}]
-          Condition: null
+      instances:
+        - subprogram: {subprogram: 1}
+          events:
+            - Kind: Entry
+              Type: 111 EventRootType Probe[main.noop]
+              InjectionPoints: [{PC: "0xb5170", Frameless: true}]
+              Condition: null
 Subprograms:
     - ID: 1
       Name: main.noop
       OutOfLinePCRanges: [0xb5170..0xb5180]
       InlinePCRanges: []
       Variables: []
+      DictRegister: null
 Types:
     - __kind: PointerType
       ID: 39
@@ -470,7 +472,7 @@ Types:
         - Name: i
           Offset: 288
           Type: 2 BaseType uint32
-        - Name: n
+        - Name: "n"
           Offset: 292
           Type: 2 BaseType uint32
         - Name: c
@@ -855,7 +857,7 @@ Types:
         - Name: fn
           Offset: 0
           Type: 1 BaseType uintptr
-        - Name: n
+        - Name: "n"
           Offset: 8
           Type: 1 BaseType uintptr
         - Name: args
@@ -1217,7 +1219,7 @@ Types:
         - Name: targetpc
           Offset: 0
           Type: 1 BaseType uintptr
-        - Name: off
+        - Name: "off"
           Offset: 8
           Type: 2 BaseType uint32
         - Name: val
@@ -1371,6 +1373,8 @@ Types:
 MaxTypeID: 111
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x191360", TypesOffset: 296}
+GoMapHashInfo: {UseAeshashAddr: "0x1c0ae9", AeskeyschedAddr: "0x1c11e0"}
 CommonTypes:
     G: 22 StructureType runtime.g
     M: 29 StructureType runtime.m
+IsARM64: true
