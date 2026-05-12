@@ -32,9 +32,8 @@ var peerTagConcepts = []semantics.Concept{
 	semantics.ConceptPeerAWSKinesisStream,
 }
 
-// basePeerTags is the base set of peer tag precursors (tags from which peer tags
-// are derived) we aggregate on when peer tag aggregation is enabled.
-var basePeerTags = func() []string {
+// basePeerTags returns the base set of peer tag precursors derived from the live registry.
+func basePeerTags() []string {
 	r := semantics.DefaultRegistry()
 	var precursors []string
 	for _, concept := range peerTagConcepts {
@@ -44,7 +43,7 @@ var basePeerTags = func() []string {
 	}
 	sort.Strings(precursors)
 	return precursors
-}()
+}
 
 func preparePeerTags(tags []string) []string {
 	if len(tags) == 0 {
