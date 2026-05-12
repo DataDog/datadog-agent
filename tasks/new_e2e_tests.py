@@ -4,6 +4,7 @@ Running E2E Tests with infra based on Pulumi
 
 from __future__ import annotations
 
+import datetime
 import json
 import multiprocessing
 import os
@@ -419,6 +420,100 @@ def _download_prebuilt_binaries(ctx, s3_base_uri, targets):
     return True
 
 
+# Buffer subtracted from the remaining GitLab job time to derive the go test
+# timeout. It gives the test framework (TearDownSuite: pulumi destroy, cluster
+# state dump, dashboard URL log) a window to run after go test panics on its
+# own timeout and before GitLab kills the whole job.
+GO_TEST_CI_TIMEOUT_BUFFER_SECONDS = 5 * 60
+
+# Floor for the go test timeout: below this, attempting cleanup is pointless,
+# but we still want go test to exit with its own timeout (and stack dump)
+# rather than be killed mid-run by GitLab with no output.
+GO_TEST_MIN_TIMEOUT_SECONDS = 60
+
+# Fallback go test timeout when no GitLab CI timeout is available (local runs).
+DEFAULT_GO_TEST_TIMEOUT = "4h"
+
+
+def _format_go_duration(seconds: int) -> str:
+    """Format an integer number of seconds as a Go duration literal (e.g. "1h55m0s")."""
+    if seconds < 0:
+        seconds = 0
+    hours, remainder = divmod(seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+    return f"{hours}h{minutes}m{secs}s"
+
+
+def _ci_job_elapsed_seconds(now: datetime.datetime | None = None) -> int | None:
+    """Return seconds elapsed since the GitLab job started, or None when unknown.
+
+    Uses `CI_JOB_STARTED_AT` (ISO 8601 UTC) set by GitLab, so the value
+    accounts for `before_script` time and any earlier retry attempts within
+    the same job.
+    """
+    started_at = os.environ.get("CI_JOB_STARTED_AT")
+    if not started_at:
+        return None
+    try:
+        # GitLab uses trailing 'Z' for UTC; datetime.fromisoformat needs '+00:00'.
+        parsed = datetime.datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+    except ValueError:
+        print(f"WARNING: CI_JOB_STARTED_AT={started_at!r} is not a valid ISO 8601 datetime")
+        return None
+    if now is None:
+        now = datetime.datetime.now(datetime.timezone.utc)
+    return int((now - parsed).total_seconds())
+
+
+def _compute_go_test_timeout(explicit: str | None, now: datetime.datetime | None = None) -> str:
+    """Resolve the value passed to `go test -timeout`.
+
+    Priority:
+      1. Explicit CLI value (`--timeout`).
+      2. Remaining GitLab job time (`CI_JOB_TIMEOUT` minus elapsed since
+         `CI_JOB_STARTED_AT`) minus a teardown buffer, so go test panics a
+         few minutes before GitLab kills the job and TearDownSuite can
+         complete.
+      3. Hardcoded fallback (`DEFAULT_GO_TEST_TIMEOUT`).
+    """
+    if explicit:
+        print(f"Using explicit go test timeout: {explicit}")
+        return explicit
+
+    ci_job_timeout = os.environ.get("CI_JOB_TIMEOUT")
+    if not ci_job_timeout:
+        return DEFAULT_GO_TEST_TIMEOUT
+    try:
+        job_seconds = int(ci_job_timeout)
+    except ValueError:
+        print(
+            f"WARNING: CI_JOB_TIMEOUT={ci_job_timeout!r} is not an integer, "
+            f"falling back to default go test timeout {DEFAULT_GO_TEST_TIMEOUT}"
+        )
+        return DEFAULT_GO_TEST_TIMEOUT
+
+    elapsed = _ci_job_elapsed_seconds(now=now) or 0
+    remaining = job_seconds - elapsed
+    go_seconds = remaining - GO_TEST_CI_TIMEOUT_BUFFER_SECONDS
+
+    if go_seconds < GO_TEST_MIN_TIMEOUT_SECONDS:
+        print(
+            f"WARNING: only {remaining}s left in the GitLab job (CI_JOB_TIMEOUT={job_seconds}s, "
+            f"elapsed={elapsed}s); the {GO_TEST_CI_TIMEOUT_BUFFER_SECONDS}s teardown buffer does "
+            f"not fit. Clamping go test timeout to {GO_TEST_MIN_TIMEOUT_SECONDS}s — cleanup may "
+            f"not finish before GitLab kills the job."
+        )
+        return _format_go_duration(GO_TEST_MIN_TIMEOUT_SECONDS)
+
+    go_timeout = _format_go_duration(go_seconds)
+    print(
+        f"Derived go test timeout from remaining GitLab job time "
+        f"(CI_JOB_TIMEOUT={job_seconds}s, elapsed={elapsed}s, "
+        f"buffer={GO_TEST_CI_TIMEOUT_BUFFER_SECONDS}s): {go_timeout}"
+    )
+    return go_timeout
+
+
 @task(
     iterable=['tags', 'targets', 'configparams', 'run', 'skip'],
     help={
@@ -436,6 +531,7 @@ def _download_prebuilt_binaries(ctx, s3_base_uri, targets):
         "max_retries": "Maximum number of retries for failed tests, default 3",
         "impacted": "Only run tests that are impacted by the changes (only available in CI for now)",
         "keep_stack": "Keep the stack after running the test, you are responsible for destroying the stack later.",
+        "timeout": "Go test timeout (Go duration string, e.g. '1h55m'). Defaults to CI_JOB_TIMEOUT minus a teardown buffer when running in GitLab CI, otherwise to 4h.",
     },
 )
 def run(
@@ -471,6 +567,7 @@ def run(
     osdescriptors="",
     module_name="test/new-e2e",
     recursive=True,
+    timeout="",
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -670,7 +767,9 @@ def run(
 
     args = {
         "go_mod": "readonly",
-        "timeout": "4h",
+        # Set per-attempt inside the retry loop so each attempt reflects the
+        # remaining GitLab job budget.
+        "timeout": "",
         "verbose": "-test.v" if verbose else "",
         "nocache": "-test.count=1" if not cache else "",
         "REPO_PATH": REPO_PATH,
@@ -692,6 +791,10 @@ def run(
     result_jsons: list[str] = []
     result_junits: list[str] = []
     for attempt in range(max_retries + 1):
+        # Recomputed each attempt because retries eat into the GitLab job
+        # budget; a stale value would overshoot the kill deadline.
+        args["timeout"] = _compute_go_test_timeout(timeout)
+
         remaining_tries = max_retries - attempt
         if remaining_tries > 0:
             # If any tries are left, avoid destroying infra on failure
