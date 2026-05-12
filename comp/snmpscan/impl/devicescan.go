@@ -62,7 +62,7 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(ctx context.Context, connParams *
 		)
 	}
 	err = s.runDeviceScan(ctx, snmp, namespace, deviceID,
-		scanParams.CallInterval, scanParams.MaxCallCount)
+		scanParams.CallInterval, scanParams.MaxCallCount, connParams.IgnoreNonincreasingOid)
 	if err != nil {
 		errs := []error{err}
 
@@ -104,9 +104,10 @@ func (s snmpScannerImpl) runDeviceScan(
 	deviceID string,
 	callInterval time.Duration,
 	maxCallCount int,
+	ignoreNonIncreasingOid bool,
 ) error {
 	// execute the scan
-	pdus, err := gatherPDUs(ctx, snmpConnection, callInterval, maxCallCount)
+	pdus, err := gatherPDUs(ctx, snmpConnection, callInterval, maxCallCount, ignoreNonIncreasingOid)
 	if err != nil {
 		return err
 	}
@@ -134,7 +135,7 @@ func (s snmpScannerImpl) runDeviceScan(
 
 // gatherPDUs returns PDUs from the given SNMP device that should cover ever
 // scalar value and at least one row of every table.
-func gatherPDUs(ctx context.Context, snmp *gosnmp.GoSNMP, callInterval time.Duration, maxCallCount int) ([]*gosnmp.SnmpPDU, error) {
+func gatherPDUs(ctx context.Context, snmp *gosnmp.GoSNMP, callInterval time.Duration, maxCallCount int, ignoreNonIncreasingOid bool) ([]*gosnmp.SnmpPDU, error) {
 	var pdus []*gosnmp.SnmpPDU
 	err := gosnmplib.ConditionalWalk(
 		ctx,
@@ -143,6 +144,7 @@ func gatherPDUs(ctx context.Context, snmp *gosnmp.GoSNMP, callInterval time.Dura
 		false,
 		callInterval,
 		maxCallCount,
+		ignoreNonIncreasingOid,
 		func(dataUnit gosnmp.SnmpPDU) (string, error) {
 			pdus = append(pdus, &dataUnit)
 			return gosnmplib.SkipOIDRowsNaive(dataUnit.Name), nil

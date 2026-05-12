@@ -261,6 +261,9 @@ func setDefaultsFromAgent(connParams *snmpparse.SNMPConfig, agentParams *snmppar
 	if connParams.Timeout == 0 {
 		connParams.Timeout = agentParams.Timeout
 	}
+	if !connParams.IgnoreNonincreasingOid {
+		connParams.IgnoreNonincreasingOid = agentParams.IgnoreNonincreasingOid
+	}
 }
 
 func scanDevice(connParams *snmpparse.SNMPConfig, args argsType, snmpScanner snmpscan.Component, conf config.Component, client ipc.HTTPClient) error {

@@ -48,6 +48,8 @@ type SNMPConfig struct {
 	SecurityLevel           string `yaml:"-"`
 	UseUnconnectedUDPSocket bool   `yaml:"-"`
 
+	IgnoreNonincreasingOid bool `yaml:"ignore_nonincreasing_oid"`
+
 	// NamespaceInternal is for internal use only and should not be used outside of this package.
 	NamespaceInternal string `yaml:"namespace"`
 }

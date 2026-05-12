@@ -54,9 +54,16 @@ func ResultToScalarValues(result *gosnmp.SnmpPacket) ScalarResultValuesType {
 // ResultToColumnValues builds column values
 // - ColumnResultValuesType: column values
 // - nextOidsMap: represent the oids that can be used to retrieve following rows/values
-func ResultToColumnValues(columnOids []string, snmpPacket *gosnmp.SnmpPacket) (ColumnResultValuesType, map[string]string) {
+// - nonMonotonicOids: OIDs that are not after the previous OID for the same column
+func ResultToColumnValues(columnOids []string, snmpPacket *gosnmp.SnmpPacket) (ColumnResultValuesType, map[string]string, []string) {
 	returnValues := make(ColumnResultValuesType, len(columnOids))
 	nextOidsMap := make(map[string]string, len(columnOids))
+	if len(columnOids) == 0 {
+		return returnValues, nextOidsMap, nil
+	}
+
+	lastOidPerColumn := make(map[string]string, len(columnOids))
+	var nonMonotonicOids []string
 	maxRowsPerCol := int(math.Ceil(float64(len(snmpPacket.Variables)) / float64(len(columnOids))))
 	for i, pduVariable := range snmpPacket.Variables {
 		if shouldSkip(pduVariable.Type) {
@@ -77,16 +84,40 @@ func ResultToColumnValues(columnOids []string, snmpPacket *gosnmp.SnmpPacket) (C
 
 		prefix := columnOid + "."
 		if strings.HasPrefix(oid, prefix) {
+			if lastOid, ok := lastOidPerColumn[columnOid]; ok {
+				isAfter, err := isOidAfter(oid, lastOid)
+				if err != nil {
+					log.Debugf("Cannot compare OIDs `%s` and `%s`: %v", oid, lastOid, err)
+				} else if !isAfter {
+					nonMonotonicOids = append(nonMonotonicOids, oid)
+					delete(nextOidsMap, columnOid)
+					continue
+				}
+			}
+
 			index := oid[len(prefix):]
 			returnValues[columnOid][index] = value
 			nextOidsMap[columnOid] = oid
+			lastOidPerColumn[columnOid] = oid
 		} else {
 			// If oid is not prefixed by columnOid, it means it's not part of the column
 			// and we can stop requesting the next row of this column. This is expected.
 			delete(nextOidsMap, columnOid)
 		}
 	}
-	return returnValues, nextOidsMap
+	return returnValues, nextOidsMap, nonMonotonicOids
+}
+
+func isOidAfter(oid, lastOid string) (bool, error) {
+	oidInts, err := gosnmplib.OIDToInts(oid)
+	if err != nil {
+		return false, err
+	}
+	lastOidInts, err := gosnmplib.OIDToInts(lastOid)
+	if err != nil {
+		return false, err
+	}
+	return gosnmplib.CmpOIDs(oidInts, lastOidInts).IsAfter(), nil
 }
 
 func shouldSkip(berType gosnmp.Asn1BER) bool {

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"maps"
 	"sort"
+	"strings"
 
 	"github.com/gosnmp/gosnmp"
 
@@ -20,7 +21,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func fetchColumnOidsWithBatching(sess session.Session, oids []string, batchSizeOptimizer *oidBatchSizeOptimizer, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
+type nonIncreasingOidError struct {
+	oids []string
+}
+
+func newNonIncreasingOidError(oids []string) *nonIncreasingOidError {
+	oids = sortedUniqueOids(oids)
+	return &nonIncreasingOidError{oids: oids}
+}
+
+func (e *nonIncreasingOidError) Error() string {
+	return fmt.Sprintf("non-increasing OID response detected for OIDs: %s", strings.Join(e.oids, ", "))
+}
+
+func fetchColumnOidsWithBatching(sess session.Session, oids []string, batchSizeOptimizer *oidBatchSizeOptimizer, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy, ignoreNonIncreasingOid bool, deviceAddress string) (valuestore.ColumnResultValuesType, error) {
 	retValues := make(valuestore.ColumnResultValuesType, len(oids))
 	if len(oids) == 0 {
 		return retValues, nil
@@ -32,25 +46,28 @@ func fetchColumnOidsWithBatching(sess session.Session, oids []string, batchSizeO
 	}
 
 	for _, batchColumnOids := range batches {
-		results, err := fetchColumnOids(sess, batchColumnOids, bulkMaxRepetitions, fetchStrategy)
-		if err != nil {
-			var fetchErr *fetchError
-			if errors.As(err, &fetchErr) {
-				shouldRetry := batchSizeOptimizer.onBatchSizeFailure()
-				if shouldRetry {
-					return fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizer, bulkMaxRepetitions, fetchStrategy)
-				}
-			}
-
-			return nil, fmt.Errorf("failed to fetch column oids: %s", err.Error())
-		}
-
+		results, err := fetchColumnOids(sess, batchColumnOids, bulkMaxRepetitions, fetchStrategy, ignoreNonIncreasingOid, deviceAddress)
 		for columnOid, instanceOids := range results {
 			if _, ok := retValues[columnOid]; !ok {
 				retValues[columnOid] = instanceOids
 				continue
 			}
 			maps.Copy(retValues[columnOid], instanceOids)
+		}
+		if err != nil {
+			var fetchErr *fetchError
+			if errors.As(err, &fetchErr) {
+				shouldRetry := batchSizeOptimizer.onBatchSizeFailure()
+				if shouldRetry {
+					return fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizer, bulkMaxRepetitions, fetchStrategy, ignoreNonIncreasingOid, deviceAddress)
+				}
+			}
+
+			var nonIncreasingErr *nonIncreasingOidError
+			if errors.As(err, &nonIncreasingErr) {
+				return retValues, fmt.Errorf("failed to fetch column oids: %w", err)
+			}
+			return nil, fmt.Errorf("failed to fetch column oids: %w", err)
 		}
 	}
 
@@ -63,7 +80,7 @@ func fetchColumnOidsWithBatching(sess session.Session, oids []string, batchSizeO
 // bulkMaxRepetitions is the number of entries to request per OID per SNMP
 // request when fetchStrategy = useGetBulk; it is ignored when fetchStrategy is
 // useGetNext.
-func fetchColumnOids(sess session.Session, oids []string, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
+func fetchColumnOids(sess session.Session, oids []string, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy, ignoreNonIncreasingOid bool, deviceAddress string) (valuestore.ColumnResultValuesType, error) {
 	returnValues := make(valuestore.ColumnResultValuesType, len(oids))
 	alreadyProcessedOids := make(map[string]bool)
 	curOids := make(map[string]string, len(oids))
@@ -76,14 +93,22 @@ func fetchColumnOids(sess session.Session, oids []string, bulkMaxRepetitions uin
 		}
 		log.Debugf("fetch column: request oids (maxRep:%d,fetchStrategy:%s): %v", bulkMaxRepetitions, fetchStrategy, curOids)
 		var columnOids, requestOids []string
+		var repeatedOids []string
 		for k, v := range curOids {
 			if alreadyProcessedOids[v] {
 				log.Debugf("fetch column: OID already processed: %s", v)
+				repeatedOids = append(repeatedOids, v)
 				continue
 			}
 			alreadyProcessedOids[v] = true
 			columnOids = append(columnOids, k)
 			requestOids = append(requestOids, v)
+		}
+		if len(repeatedOids) > 0 {
+			warnNonIncreasingOids(deviceAddress, repeatedOids)
+			if !ignoreNonIncreasingOid {
+				return returnValues, newNonIncreasingOidError(repeatedOids)
+			}
 		}
 		if len(columnOids) == 0 {
 			break
@@ -96,11 +121,47 @@ func fetchColumnOids(sess session.Session, oids []string, bulkMaxRepetitions uin
 		if err != nil {
 			return nil, err
 		}
-		newValues, nextOids := valuestore.ResultToColumnValues(columnOids, results)
+		newValues, nextOids, nonMonotonicOids := valuestore.ResultToColumnValues(columnOids, results)
 		updateColumnResultValues(returnValues, newValues)
+		if len(nonMonotonicOids) > 0 {
+			warnNonIncreasingOids(deviceAddress, nonMonotonicOids)
+			if !ignoreNonIncreasingOid {
+				return returnValues, newNonIncreasingOidError(nonMonotonicOids)
+			}
+		}
 		curOids = nextOids
 	}
 	return returnValues, nil
+}
+
+func warnNonIncreasingOids(deviceAddress string, oids []string) {
+	oids = sortedUniqueOids(oids)
+	if deviceAddress == "" {
+		log.Warnf("SNMP device returned non-increasing OIDs; stopping affected column walks for OIDs: %s", strings.Join(oids, ", "))
+		return
+	}
+	log.Warnf("SNMP device %s returned non-increasing OIDs; stopping affected column walks for OIDs: %s", deviceAddress, strings.Join(oids, ", "))
+}
+
+func sortedUniqueOids(oids []string) []string {
+	oids = append([]string(nil), oids...)
+	sort.Strings(oids)
+	return slicesCompact(oids)
+}
+
+func slicesCompact(values []string) []string {
+	if len(values) < 2 {
+		return values
+	}
+	writeIndex := 1
+	for readIndex := 1; readIndex < len(values); readIndex++ {
+		if values[readIndex] == values[readIndex-1] {
+			continue
+		}
+		values[writeIndex] = values[readIndex]
+		writeIndex++
+	}
+	return values[:writeIndex]
 }
 
 func getResults(sess session.Session, requestOids []string, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (*gosnmp.SnmpPacket, error) {
