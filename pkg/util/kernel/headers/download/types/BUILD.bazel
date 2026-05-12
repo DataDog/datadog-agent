@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "types",
+    srcs = ["types.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/types",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/kernel",
+            "@com_github_acobaugh_osrelease//:osrelease",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/kernel",
+            "@com_github_acobaugh_osrelease//:osrelease",
+        ],
+        "//conditions:default": [],
+    }),
+)

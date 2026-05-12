@@ -206,7 +206,7 @@ var defaultProfiles = `
         - name: pymem.inuse
         - name: health_platform.issues_detected
           preserve_tags:
-            - health_check_id
+            - issue_type
     schedule:
       start_after: 30
       iterations: 0
@@ -217,7 +217,11 @@ var defaultProfiles = `
         zero_metric: true
       metrics:
         - name: dogstatsd.udp_packets_bytes
+          aggregate_tags:
+            - remote_agent
         - name: dogstatsd.uds_packets_bytes
+          aggregate_tags:
+            - remote_agent
         - name: logs.bytes_missed
         - name: logs.bytes_sent
           preserve_tags:

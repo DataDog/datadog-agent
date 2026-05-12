@@ -44,7 +44,7 @@ import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -490,20 +490,22 @@ func (ac *AutoConfig) AddConfigProviderFromCatalog(cp pkgconfigsetup.Configurati
 }
 
 func (ac *AutoConfig) initializeConfiguration(config *integration.Config) error {
-	prg, celADID, compileErr, recErr := integration.CreateMatchingProgram(config.CELSelector)
-	if compileErr != nil {
-		return compileErr
+	hasExplicitADIDs := len(config.ADIdentifiers) > 0
+
+	// Only enforce recommendation checks when no explicit ad_identifiers are
+	// defined. When ADIDs are present, CEL rules act as secondary filters.
+	programs, celADIDs, err := integration.CreateMatchingPrograms(config.CELSelector, !hasExplicitADIDs)
+	if err != nil {
+		return err
 	}
 
-	if len(config.ADIdentifiers) == 0 && celADID != "" {
-		// Only throw recError if no explicit ADIDs are defined
-		if recErr != nil {
-			return recErr
+	for _, celADID := range celADIDs {
+		if celADID.ConfigRequired(hasExplicitADIDs) {
+			config.ADIdentifiers = append(config.ADIdentifiers, string(celADID))
 		}
-		config.ADIdentifiers = []string{string(celADID)}
 	}
 
-	config.SetMatchingProgram(prg)
+	config.SetMatchingPrograms(programs)
 
 	return nil
 }
