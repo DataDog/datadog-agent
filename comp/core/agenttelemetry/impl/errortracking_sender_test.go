@@ -87,7 +87,8 @@ func (c *captureClient) snapshot() ([]*http.Request, [][]byte) {
 // newTestSender constructs a senderImpl wired to a single in-memory
 // endpoint, bypassing the heavyweight newSenderImpl path that would
 // require a full config.Component and BuildHTTPEndpointsWithConfig call.
-// The fields populated here are exactly the ones sendLogsBatch reads.
+// The fields populated here are exactly the ones sendLogsTypedBatch and
+// sendSerializedPayload read.
 func newTestSender(t *testing.T, cl client) *senderImpl {
 	t.Helper()
 	main := logconfig.NewEndpoint("test-api-key", "", "instrumentation-telemetry-intake.datad0g.com", 0, "", true)
@@ -106,34 +107,45 @@ func newTestSender(t *testing.T, cl client) *senderImpl {
 	}
 }
 
-// TestSlogLevelToLogLevel_AllLevels locks the slog.Level -> wire LogLevel
-// mapping used by errorLogToLog. Although only ERROR is emitted in
-// practice (the pkg/util/log handler filters Level >= Error), the
-// mapping is exercised end-to-end here for completeness.
-func TestSlogLevelToLogLevel_AllLevels(t *testing.T) {
+// TestSlogLevelToLogLevel_ErrorAndAbove: the only contract the function
+// honors is "Level >= Error -> LogLevelError". The pkg/util/log
+// errortracking handler filters everything lower before dispatch, so
+// the mapping never sees Warn/Info/Debug in practice (review comment F5
+// on PR #50607).
+func TestSlogLevelToLogLevel_ErrorAndAbove(t *testing.T) {
 	cases := []struct {
 		in   slog.Level
 		want LogLevel
 	}{
 		{slog.LevelError, LogLevelError},
 		{slog.LevelError + 4, LogLevelError},
-		{slog.LevelWarn, LogLevelWarn},
-		{slog.LevelInfo, LogLevelInfo},
-		{slog.LevelDebug, LogLevelDebug},
-		{slog.LevelDebug - 4, LogLevelDebug},
 	}
 	for _, c := range cases {
 		got := slogLevelToLogLevel(c.in)
-		assert.Equalf(t, c.want, got, "level %v → %s", c.in, c.want)
+		assert.Equalf(t, c.want, got, "level %v -> %s", c.in, c.want)
+	}
+}
+
+// TestSlogLevelToLogLevel_BelowErrorPanics: lower levels are a contract
+// violation -- they cannot reach the wire mapping because the handler
+// filters them. Panic loudly so a future regression is caught in tests
+// instead of producing an invalid wire payload (review comment F5).
+func TestSlogLevelToLogLevel_BelowErrorPanics(t *testing.T) {
+	for _, lvl := range []slog.Level{slog.LevelWarn, slog.LevelInfo, slog.LevelDebug, slog.LevelDebug - 4} {
+		lvl := lvl
+		t.Run(lvl.String(), func(t *testing.T) {
+			require.Panics(t, func() { slogLevelToLogLevel(lvl) })
+		})
 	}
 }
 
 // TestSendPayloadBody_StatusCodes locks the contract of the extracted
 // shared transport helper (review comment C3 on PR #49946). Both
 // flushSession and sendLogsTypedBatch route per-endpoint POSTs through
-// this helper; the helper must return the raw HTTP status code so each
-// caller can apply its own policy (flushSession logs only;
-// sendLogsTypedBatch distinguishes retryable 5xx from terminal 4xx).
+// sendSerializedPayload, which in turn calls this helper; the helper
+// must return the raw HTTP status code regardless of value so the
+// uniform Debug-log policy in sendSerializedPayload can apply
+// (non-2xx is observability noise, only transport errors propagate).
 func TestSendPayloadBody_StatusCodes(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -262,43 +274,45 @@ func TestSubmitErrorRecord_DisabledNoOp(t *testing.T) {
 	assert.Equal(t, uint64(0), a.errLogsDropped.Load())
 }
 
-// TestSubmitErrorRecord_RecursionGuard: a record whose PC resolves into
-// the agenttelemetry package itself MUST be dropped without enqueue.
-// This is the C1 fix on PR #49946: prevent the feedback loop where
-// log.Errorf inside the flush path would re-enter SubmitErrorRecord.
-func TestSubmitErrorRecord_RecursionGuard(t *testing.T) {
-	// Capture a PC from inside this test (which lives in package
-	// agenttelemetryimpl, i.e. comp/core/agenttelemetry/impl). The
-	// guard's substring match on "datadog-agent/comp/core/agenttelemetry"
-	// will fire.
-	var pcs [1]uintptr
-	n := runtime.Callers(1, pcs[:])
-	require.Equal(t, 1, n)
-	pcInsideAgenttelemetry := pcs[0]
-
+// TestSubmitErrorRecord_AcceptsRecord_PCZero: a record carrying PC=0
+// (the common case for caller-PC-less origins, e.g. synthetic test
+// inputs) must be enqueued normally. Regression coverage for the
+// positive-path enqueue contract previously folded into the now-removed
+// recursion-guard tests.
+func TestSubmitErrorRecord_AcceptsRecord_PCZero(t *testing.T) {
 	a := newTestAtelMinimal(t, &senderMock{}, 8)
 	defer a.cancel()
 
-	rec := errorLog("would-loop")
-	rec.PC = pcInsideAgenttelemetry
-	a.SubmitErrorRecord(rec)
-
-	assert.Equal(t, 0, len(a.errLogsCh), "recursion guard must prevent enqueue")
-	assert.Equal(t, uint64(0), a.errLogsDropped.Load(),
-		"recursion guard drops are not overflow drops; counter must stay at 0")
-}
-
-// TestSubmitErrorRecord_RecursionGuard_AllowsExternalCaller: a record
-// whose PC resolves outside the agenttelemetry / log/setup packages must
-// be enqueued normally.
-func TestSubmitErrorRecord_RecursionGuard_AllowsExternalCaller(t *testing.T) {
-	a := newTestAtelMinimal(t, &senderMock{}, 8)
-	defer a.cancel()
-
-	// PC=0 bypasses the guard and reaches the enqueue path.
 	a.SubmitErrorRecord(errorLog("from-external"))
 	assert.Equal(t, 1, len(a.errLogsCh))
 	assert.Equal(t, uint64(0), a.errLogsDropped.Load())
+}
+
+// TestSubmitErrorRecord_FeatureDisabled_NoChannel: when
+// errortracking.enabled is false (default), SubmitErrorRecord must be a
+// no-op and the underlying channel must not be allocated. This is the
+// F2 gating contract: deployments that don't opt in pay zero overhead
+// (no ~80KB buffer, no idle flush goroutine).
+func TestSubmitErrorRecord_FeatureDisabled_NoChannel(t *testing.T) {
+	// Simulate the "createAtel saw errortracking.enabled=false" shape:
+	// enabled (agenttelemetry) is true, errortrackingEnabled is false,
+	// errLogsCh is left as the zero value (nil).
+	a := &atel{
+		enabled:              true,
+		errortrackingEnabled: false,
+		logComp:              logmock.New(t),
+	}
+
+	assert.Nil(t, a.errLogsCh, "feature-disabled atel must not allocate the channel")
+
+	// Calling SubmitErrorRecord must be a no-op: the errLogsCh==nil
+	// guard short-circuits before the select, so no panic and no drop
+	// counter bump (we never reached the enqueue path).
+	assert.NotPanics(t, func() {
+		a.SubmitErrorRecord(errorLog("ignored"))
+	})
+	assert.Equal(t, uint64(0), a.errLogsDropped.Load(),
+		"feature-disabled drops are not overflow drops; counter must stay at 0")
 }
 
 // TestSubmitErrorRecord_NonBlocking_DropsOnOverflow: when the bounded

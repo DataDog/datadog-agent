@@ -458,6 +458,63 @@ func (s *senderImpl) sendPayloadBody(ctx context.Context, body []byte, reqType, 
 	return resp.StatusCode, nil
 }
 
+// sendSerializedPayload marshals v, scrubs sensitive fields, optionally
+// zstd-compresses, and POSTs to every configured endpoint via the shared
+// sendPayloadBody helper. The four steps (marshal -> scrub -> compress ->
+// endpoint iteration) are identical for both the metrics-style payload
+// flushed by flushSession and the logs-style payload sent by
+// sendLogsTypedBatch -- this is the single home for them.
+//
+// Returns a joined error containing every endpoint's transport failure
+// and every non-2xx status, with the URL embedded. Callers may log the
+// error at Debug (telemetry is opportunistic) and move on.
+func (s *senderImpl) sendSerializedPayload(ctx context.Context, v any, reqType string) error {
+	payloadJSON, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Errorf("marshal %s payload: %w", reqType, err)
+	}
+
+	reqBodyRaw, err := scrubber.ScrubJSON(payloadJSON)
+	if err != nil {
+		return fmt.Errorf("scrub %s payload: %w", reqType, err)
+	}
+
+	// Try to compress the payload if needed. On compression failure we
+	// fall back to the uncompressed body and emit a Debug log -- this
+	// flush path is opportunistic and must never log at Error (an Error
+	// here would re-enter the errortracking handler in the worst case;
+	// see review comment F6 on PR #50607).
+	reqBody := reqBodyRaw
+	compressed := false
+	if s.compress {
+		reqBodyCompressed, errTemp := zstd.CompressLevel(nil, reqBodyRaw, s.compressionLevel)
+		if errTemp == nil {
+			compressed = true
+			reqBody = reqBodyCompressed
+		} else {
+			s.logComp.Debugf("Failed to compress %s payload: %v", reqType, errTemp)
+		}
+	}
+
+	// Send to every configured endpoint. Status codes -- both 2xx and
+	// non-2xx -- are logged at Debug; only transport failures surface in
+	// the returned joined error. This preserves the pre-F1 flushSession
+	// contract (non-2xx is not an error to the caller) and keeps the
+	// errortracking flush path free of any Errorf-level log that would
+	// re-enter the slog handler (see F1/F6 on PR #50607).
+	var errs error
+	for _, ep := range s.endpoints.Endpoints {
+		url := buildURL(ep)
+		status, sendErr := s.sendPayloadBody(ctx, reqBody, reqType, ep.GetAPIKey(), url, compressed)
+		if sendErr != nil {
+			errs = errors.Join(errs, sendErr)
+			continue
+		}
+		s.logComp.Debugf("Telemetry endpoint response status code:%d, request type:%s, url:%s", status, reqType, url)
+	}
+	return errs
+}
+
 func (s *senderImpl) flushSession(ss *senderSession) error {
 	// There is nothing to do if there are no payloads
 	if ss.payloadCount() == 0 {
@@ -467,50 +524,7 @@ func (s *senderImpl) flushSession(ss *senderSession) error {
 	s.logComp.Debugf("Flushing Agent Telemetery session with %d payloads", ss.payloadCount())
 
 	payloads := ss.flush()
-	payloadJSON, err := json.Marshal(payloads)
-	if err != nil {
-		return fmt.Errorf("failed to marshal agent telemetry payload: %w", err)
-	}
-
-	reqBodyRaw, err := scrubber.ScrubJSON(payloadJSON)
-	if err != nil {
-		return fmt.Errorf("failed to scrubl agent telemetry payload: %w", err)
-	}
-
-	// Try to compress the payload if needed
-	reqBody := reqBodyRaw
-	compressed := false
-	if s.compress {
-		// In case of failed to compress continue with uncompress body
-		reqBodyCompressed, errTemp := zstd.CompressLevel(nil, reqBodyRaw, s.compressionLevel)
-		if errTemp == nil {
-			compressed = true
-			reqBody = reqBodyCompressed
-		} else {
-			s.logComp.Errorf("Failed to compress agent telemetry payload: %v", errTemp)
-		}
-	}
-
-	// Send the payload to all endpoints. Behavior here matches the v2
-	// pre-extraction semantics: status codes are logged at debug level,
-	// only transport errors surface in the joined return.
-	var errs error
-	reqType := payloads.RequestType
-	for _, ep := range s.endpoints.Endpoints {
-		url := buildURL(ep)
-		status, sendErr := s.sendPayloadBody(ss.cancelCtx, reqBody, reqType, ep.GetAPIKey(), url, compressed)
-		if sendErr != nil {
-			errs = errors.Join(errs, sendErr)
-			continue
-		}
-		if status >= 200 && status < 300 {
-			s.logComp.Debugf("Telemetry endpoint response status code:%d, request type:%s", status, reqType)
-		} else {
-			s.logComp.Debugf("Telemetry endpoint response status code:%d, request type:%s, url:%s", status, reqType, url)
-		}
-	}
-
-	return errs
+	return s.sendSerializedPayload(ss.cancelCtx, payloads, payloads.RequestType)
 }
 
 func (s *senderImpl) sendAgentMetricPayloads(ss *senderSession, metrics []*agentmetric) {
