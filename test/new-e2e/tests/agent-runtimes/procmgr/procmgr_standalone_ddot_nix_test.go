@@ -91,7 +91,7 @@ func (s *procmgrStandaloneDDOTLinuxSuite) requireStandaloneDDOT() {
 func (s *procmgrStandaloneDDOTLinuxSuite) TestStandaloneDDOTManagedByProcmgrNotSystemdByDefault() {
 	s.requireStandaloneDDOT()
 
-	// Same contract as TestDDOTManagedByProcmgrNotSystemdByDefault: processes.d YAML,
+	// Same contract as TestExtensionDDOTManagedByProcmgrNotSystemdByDefault: processes.d YAML,
 	// global procmgr marker, systemd must not own DDOT, then dd-procmgr describe Running + stable
 	// command line matches the standalone datadog-agent-ddot package (vs extension ext/ddot paths).
 	stableYAML := procmgrtest.StableDDOTProcmgrYAMLPath(s.T(), s)
@@ -105,18 +105,17 @@ func (s *procmgrStandaloneDDOTLinuxSuite) TestStandaloneDDOTManagedByProcmgrNotS
 		"ConditionPathExists=!…/processes.d/datadog-agent-ddot.yaml should fail so systemd does not own DDOT")
 
 	s.requireCLI()
-	procmgrCLI := procmgrtest.CLIBinForLinuxHost(s.T(), s)
-	procmgrtest.WaitForProcess(s.T(), s, procmgrtest.WaitForProcessArgs{
-		ProcmgrCLIBin:  procmgrCLI,
-		ProcessName:    procmgrtest.DDOTProcessName,
-		ExpectedBinary: procmgrtest.DDOTOtelAgentFleetPackageBinary,
-		DesiredState:   procmgrtest.ProcessStateRunning,
-	})
+	s.waitForStandaloneDDOTRunning()
 
 	cmdLine, gerr := s.Env().RemoteHost.Execute(`sudo grep -E '^command:' "` + stableYAML + `"`)
 	require.NoError(s.T(), gerr)
 	require.Contains(s.T(), strings.TrimSpace(cmdLine), "datadog-packages/datadog-agent-ddot/",
 		"processes.d command should use standalone package paths; got %q", strings.TrimSpace(cmdLine))
+}
+
+func (s *procmgrStandaloneDDOTLinuxSuite) waitForStandaloneDDOTRunning() procmgrtest.WaitForProcessResult {
+	s.T().Helper()
+	return procmgrtest.WaitForDDOTRunning(s.T(), s, procmgrtest.DDOTOtelAgentFleetPackageBinary)
 }
 
 func (s *procmgrStandaloneDDOTLinuxSuite) ExecuteCommand(command string) (string, error) {
