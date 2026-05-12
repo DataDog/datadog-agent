@@ -11,6 +11,8 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	sysprobeconfigdef "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -71,12 +73,10 @@ func TestConnectionsCheckIsEnabled(t *testing.T) {
 			originalFlavor := flavor.GetFlavor()
 			defer flavor.SetFlavor(originalFlavor)
 
-			sysprobeConf := sysprobeconfigmock.NewMock(t)
-			for k, v := range tc.sysprobeConfigs {
-				sysprobeConf.SetWithoutSource(k, v)
-			}
+			sysprobeConf := sysprobeconfigmock.NewMockWithOverrides(t, tc.sysprobeConfigs)
 			c := fxutil.Test[connectionscheck.Component](t, fx.Options(
 				fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
+				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func() sysprobeconfigdef.Component { return sysprobeConf }),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 				npcollectormock.MockModule(),

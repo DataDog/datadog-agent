@@ -71,10 +71,7 @@ type reqs struct {
 }
 
 func getProfiler(t testing.TB, overrideSysProbe map[string]interface{}) profiler {
-	sysprobeConf := sysprobeconfigmock.NewMock(t)
-	for k, v := range overrideSysProbe {
-		sysprobeConf.SetWithoutSource(k, v)
-	}
+	sysprobeConf := sysprobeconfigmock.NewMockWithOverrides(t, overrideSysProbe)
 	deps := fxutil.Test[reqs](
 		t,
 		fx.Provide(func() log.Component { return logmock.New(t) }),

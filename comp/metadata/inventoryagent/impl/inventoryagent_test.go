@@ -69,10 +69,7 @@ func makeRequires(deps testDeps) Requires {
 }
 
 func getProvides(t *testing.T, confOverrides map[string]any, sysprobeConfOverrides map[string]any) Provides {
-	sysprobeConf := sysprobeconfigmock.NewMock(t)
-	for k, v := range sysprobeConfOverrides {
-		sysprobeConf.SetWithoutSource(k, v)
-	}
+	sysprobeConf := sysprobeconfigmock.NewMockWithOverrides(t, sysprobeConfOverrides)
 	return NewComponent(
 		makeRequires(fxutil.Test[testDeps](
 			t,
