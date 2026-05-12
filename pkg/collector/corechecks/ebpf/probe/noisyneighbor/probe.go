@@ -24,12 +24,17 @@ import (
 // 5.13 for kfuncs, 6.2 for bpf_rcu_read_lock kfunc
 var minimumKernelVersion = kernel.VersionCode(6, 2, 0)
 
-// defaultCgroupRoot is where the host's cgroup v2 hierarchy is visible from
-// inside the system-probe container. The system-probe container itself only
-// has a cgroup-namespaced view of /sys/fs/cgroup (rooted at its own cgroup);
-// the host's full tree is reachable through /host/proc/1/root because the
-// /host/proc mount is the host proc filesystem.
-const defaultCgroupRoot = "/host/proc/1/root/sys/fs/cgroup"
+// hostCgroupRoot returns the path under which the host's cgroup v2 hierarchy
+// is reachable from inside the system-probe process. The system-probe
+// container has a cgroup-namespaced view of /sys/fs/cgroup (rooted at its own
+// cgroup with no siblings visible), so we resolve the host tree through
+// procfs: /<host_proc>/1/root/sys/fs/cgroup is PID 1's filesystem-root view
+// of the cgroup mount, which on a normal host is the unconstrained tree.
+// kernel.HostProc() respects the HOST_PROC env var and DOCKER_DD_AGENT
+// detection that the rest of system-probe uses for procfs access.
+func hostCgroupRoot() string {
+	return kernel.HostProc("1", "root", "sys", "fs", "cgroup")
+}
 
 // Probe is the eBPF side of the noisy neighbor check
 type Probe struct {
@@ -84,7 +89,7 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 	}
 	ddebpf.AddNameMappings(p.mgr.Manager, "noisy_neighbor")
 
-	p.pmuMgr = newCgroupPMUManager(defaultCgroupRoot)
+	p.pmuMgr = newCgroupPMUManager(hostCgroupRoot())
 	if err := p.pmuMgr.Refresh(); err != nil {
 		// A failure here is informational — perf_event_open may be denied on
 		// some hosts (paranoid kernel.perf_event_paranoid, missing
