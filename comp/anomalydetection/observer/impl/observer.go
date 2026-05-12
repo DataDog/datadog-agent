@@ -779,8 +779,8 @@ func (o *observerImpl) AddTelemetry(name string, value float64, timestamp int64,
 // Implements DebugView.
 func (o *observerImpl) ReplayStoredData() {
 	// resetAnalysisState resets detectors/correlators and tracking state but
-	// preserves extractor state (contextRefs + provider pattern registry) so
-	// enrichAnomaly can still attach log pattern context during replay.
+	// preserves extractor state so enrichAnomaly can still attach log pattern
+	// context (stored on seriesStats) during replay.
 	o.engine.resetAnalysisState()
 	o.engine.ReplayStoredData()
 }
@@ -949,13 +949,3 @@ func (v *agentLogView) GetStatus() string            { return v.status }
 func (v *agentLogView) GetTags() []string            { return v.tags }
 func (v *agentLogView) GetHostname() string          { return v.hostname }
 func (v *agentLogView) GetTimestampUnixMilli() int64 { return v.timestampMs }
-
-// copyBytes creates a copy of a byte slice.
-func copyBytes(b []byte) []byte {
-	if b == nil {
-		return nil
-	}
-	result := make([]byte, len(b))
-	copy(result, b)
-	return result
-}

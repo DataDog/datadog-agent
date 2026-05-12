@@ -910,13 +910,10 @@ func (e *engine) resetFull() {
 }
 
 // resetAnalysisState resets detector and correlator state, anomaly tracking,
-// telemetry, and correlations — but does NOT reset extractors and does NOT
-// clear contextRefs. Used before batch replay so that:
-//   - enrichAnomaly can still call provider.GetContextByKey (extractor context intact)
-//   - contextRefs still maps series storage keys to their context keys
-//
-// Detectors and correlators ARE reset so they start from a clean slate and
-// produce correct anomaly/correlation results during the replay.
+// telemetry, and correlations — but does NOT reset extractors. Used before
+// batch replay so that enrichAnomaly can still attach context (stored on
+// seriesStats) during replay. Detectors and correlators ARE reset so they
+// start from a clean slate and produce correct results.
 func (e *engine) resetAnalysisState() {
 	e.mu.Lock()
 	e.lastAnalyzedDataTime = 0
@@ -931,8 +928,8 @@ func (e *engine) resetAnalysisState() {
 	for _, correlator := range e.correlators {
 		correlator.Reset()
 	}
-	// Extractors and contextRefs are intentionally NOT reset: their state was
-	// built during log ingestion and is needed by enrichAnomaly during replay.
+	// Extractors are intentionally NOT reset: their state was built during
+	// log ingestion and is needed by enrichAnomaly during replay.
 
 	e.resetRawAnomalies()
 	e.resetTelemetry()
