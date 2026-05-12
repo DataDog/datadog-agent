@@ -1,17 +1,16 @@
 load("@rules_go//go:def.bzl", "go_library")
 
+# NOTE: Only the noop variant is built here. The full implementation
+# (fx.go / logssource/impl) depends on pkg/logs packages not yet migrated
+# to Bazel (pkg/logs/schedulers, pkg/logs/launchers/file, etc.).
+# See root BUILD.bazel: gazelle:exclude comp/anomalydetection/logssource/impl
 go_library(
     name = "fx",
-    srcs = [
-        "fx.go",
-        "fx_noop.go",
-    ],
+    srcs = ["fx_noop.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/fx",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/anomalydetection/logssource/def",
-        "//comp/anomalydetection/logssource/impl",
-        "//pkg/util/fxutil",
         "@org_uber_go_fx//:fx",
+        "//pkg/util/fxutil",
     ],
 )
