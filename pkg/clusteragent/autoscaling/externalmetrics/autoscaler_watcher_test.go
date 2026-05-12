@@ -16,6 +16,7 @@ import (
 	autoscaler "k8s.io/api/autoscaling/v2beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	dynamic_informer "k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/dynamic/fake"
@@ -60,6 +61,49 @@ func newAutoscalerFixture(t *testing.T) *autoscalerFixture {
 	}
 }
 
+func (f *autoscalerFixture) newAutoscalerWatcherWithSelector(selector labels.Selector) (*AutoscalerWatcher, kube_informer.SharedInformerFactory, dynamic_informer.DynamicSharedInformerFactory) {
+	for _, hpa := range f.hpaLister {
+		f.kubeObjects = append(f.kubeObjects, hpa)
+	}
+	kubeClient := kube_fake.NewSimpleClientset(f.kubeObjects...)
+	kubeClient.Resources = []*metav1.APIResourceList{
+		{
+			GroupVersion: fmt.Sprintf("%s/%s", autoscalingGroup, "v2beta1"),
+			APIResources: []metav1.APIResource{
+				{
+					Name:    hpaResource,
+					Group:   autoscalingGroup,
+					Version: "v2beta1",
+				},
+			},
+		},
+	}
+	kubeInformer := kube_informer.NewSharedInformerFactory(kubeClient, noResyncPeriodFunc())
+
+	for _, wpa := range f.wpaLister {
+		f.wpaObjects = append(f.wpaObjects, wpa)
+	}
+	wpaClient := fake.NewSimpleDynamicClient(scheme, f.wpaObjects...)
+	wpaInformer := dynamic_informer.NewDynamicSharedInformerFactory(wpaClient, noResyncPeriodFunc())
+
+	autoscalerWatcher, err := NewAutoscalerWatcher(0, true, 1, "default", selector, kubeClient, kubeInformer, wpaInformer, getIsLeaderFunction(true), &f.store)
+	if err != nil {
+		return nil, nil, nil
+	}
+	autoscalerWatcher.autoscalerListerSynced = alwaysReady
+	autoscalerWatcher.wpaListerSynced = alwaysReady
+
+	for _, hpa := range f.hpaLister {
+		kubeInformer.Autoscaling().V2beta1().HorizontalPodAutoscalers().Informer().GetIndexer().Add(hpa)
+	}
+
+	for _, wpa := range f.wpaLister {
+		wpaInformer.ForResource(gvr).Informer().GetIndexer().Add(wpa)
+	}
+
+	return autoscalerWatcher, kubeInformer, wpaInformer
+}
+
 func (f *autoscalerFixture) newAutoscalerWatcher() (*AutoscalerWatcher, kube_informer.SharedInformerFactory, dynamic_informer.DynamicSharedInformerFactory) {
 	for _, hpa := range f.hpaLister {
 		f.kubeObjects = append(f.kubeObjects, hpa)
@@ -85,7 +129,7 @@ func (f *autoscalerFixture) newAutoscalerWatcher() (*AutoscalerWatcher, kube_inf
 	wpaClient := fake.NewSimpleDynamicClient(scheme, f.wpaObjects...)
 	wpaInformer := dynamic_informer.NewDynamicSharedInformerFactory(wpaClient, noResyncPeriodFunc())
 
-	autoscalerWatcher, err := NewAutoscalerWatcher(0, true, 1, "default", kubeClient, kubeInformer, wpaInformer, getIsLeaderFunction(true), &f.store)
+	autoscalerWatcher, err := NewAutoscalerWatcher(0, true, 1, "default", nil, kubeClient, kubeInformer, wpaInformer, getIsLeaderFunction(true), &f.store)
 	if err != nil {
 		return nil, nil, nil
 	}
@@ -114,10 +158,15 @@ func (f *autoscalerFixture) runWatcherUpdate() {
 }
 
 func newFakeHorizontalPodAutoscaler(ns, name string, metrics []autoscaler.MetricSpec) *autoscaler.HorizontalPodAutoscaler {
+	return newFakeHorizontalPodAutoscalerWithLabels(ns, name, nil, metrics)
+}
+
+func newFakeHorizontalPodAutoscalerWithLabels(ns, name string, hpaLabels map[string]string, metrics []autoscaler.MetricSpec) *autoscaler.HorizontalPodAutoscaler {
 	return &autoscaler.HorizontalPodAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: ns,
 			Name:      name,
+			Labels:    hpaLabels,
 		},
 		Spec: autoscaler.HorizontalPodAutoscalerSpec{
 			Metrics: metrics,
@@ -487,4 +536,75 @@ func TestCleanUpAutogenDatadogMetrics(t *testing.T) {
 	}
 	ddm.SetQueries("avg:docker.cpu.usage{bar:foo}.rollup(30)")
 	compareDatadogMetricInternal(t, &ddm, f.store.Get("default/dcaautogen-b6ea72b610c00aba6791b5eca1912e68dc7412"))
+}
+
+func TestHPALabelSelectorFiltering(t *testing.T) {
+	f := newAutoscalerFixture(t)
+
+	// hpa0 has no managed-by label — should be included
+	f.hpaLister = []*autoscaler.HorizontalPodAutoscaler{
+		newFakeHorizontalPodAutoscalerWithLabels("ns0", "hpa0", map[string]string{"team": "infra"}, []autoscaler.MetricSpec{
+			{
+				Type: autoscaler.ExternalMetricSourceType,
+				External: &autoscaler.ExternalMetricSource{
+					MetricName: "datadogmetric@default:dd-metric-included",
+				},
+			},
+		}),
+		// hpa1 is managed by keda-operator — should be excluded
+		newFakeHorizontalPodAutoscalerWithLabels("ns0", "hpa1", map[string]string{"app.kubernetes.io/managed-by": "keda-operator"}, []autoscaler.MetricSpec{
+			{
+				Type: autoscaler.ExternalMetricSourceType,
+				External: &autoscaler.ExternalMetricSource{
+					MetricName: "datadogmetric@default:dd-metric-excluded",
+				},
+			},
+		}),
+	}
+
+	ddm := model.DatadogMetricInternal{
+		ID:         "default/dd-metric-included",
+		Active:     false,
+		Valid:      true,
+		Value:      10.0,
+		UpdateTime: time.Now(),
+		Error:      nil,
+	}
+	ddm.SetQueries("metric query included")
+	f.store.Set("default/dd-metric-included", ddm, "utest")
+
+	ddm = model.DatadogMetricInternal{
+		ID:         "default/dd-metric-excluded",
+		Active:     true,
+		Valid:      true,
+		Value:      20.0,
+		UpdateTime: time.Now(),
+		Error:      nil,
+	}
+	ddm.SetQueries("metric query excluded")
+	f.store.Set("default/dd-metric-excluded", ddm, "utest")
+
+	// Parse a selector that excludes HPAs with app.kubernetes.io/managed-by=keda-operator
+	selector, err := labels.Parse("app.kubernetes.io/managed-by!=keda-operator")
+	assert.NoError(t, err)
+
+	autoscalerWatcher, kubeInformer, wpaInformer := f.newAutoscalerWatcherWithSelector(selector)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	kubeInformer.Start(stopCh)
+	wpaInformer.Start(stopCh)
+
+	autoscalerWatcher.processAutoscalers()
+
+	// dd-metric-included should be active (its HPA passes the selector)
+	includedMetric := f.store.Get("default/dd-metric-included")
+	assert.NotNil(t, includedMetric)
+	assert.True(t, includedMetric.Active)
+	assert.Equal(t, "hpa:ns0/hpa0", includedMetric.AutoscalerReferences)
+
+	// dd-metric-excluded should be inactive (its HPA is filtered out by the selector)
+	excludedMetric := f.store.Get("default/dd-metric-excluded")
+	assert.NotNil(t, excludedMetric)
+	assert.False(t, excludedMetric.Active)
+	assert.Equal(t, "", excludedMetric.AutoscalerReferences)
 }

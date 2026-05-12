@@ -48,6 +48,7 @@ type AutoscalerWatcher struct {
 	autogenEnabled          bool
 	autogenExpirationPeriod time.Duration
 	autogenNamespace        string
+	hpaLabelSelector        labels.Selector
 	autoscalerLister        cache.GenericLister
 	autoscalerListerSynced  cache.InformerSynced
 	wpaLister               cache.GenericLister
@@ -75,6 +76,7 @@ func NewAutoscalerWatcher(
 	autogenEnabled bool,
 	autogenExpirationPeriodHours int64,
 	autogenNamespace string,
+	hpaLabelSelector labels.Selector,
 	client kubernetes.Interface,
 	informer informers.SharedInformerFactory,
 	wpaInformer dynamic_informer.DynamicSharedInformerFactory,
@@ -117,11 +119,16 @@ func NewAutoscalerWatcher(
 		wpaListerSynced = wpaInformer.ForResource(gvr).Informer().HasSynced
 	}
 
+	if hpaLabelSelector == nil {
+		hpaLabelSelector = labels.Everything()
+	}
+
 	autoscalerWatcher := &AutoscalerWatcher{
 		refreshPeriod:           refreshPeriod,
 		autogenEnabled:          autogenEnabled,
 		autogenExpirationPeriod: time.Duration(autogenExpirationPeriodHours) * time.Hour,
 		autogenNamespace:        autogenNamespace,
+		hpaLabelSelector:        hpaLabelSelector,
 		autoscalerLister:        autoscalerLister,
 		autoscalerListerSynced:  autoscalerListerSynced,
 		wpaLister:               wpaLister,
@@ -261,7 +268,7 @@ func (w *AutoscalerWatcher) getAutoscalerReferences() (map[string]*externalMetri
 	}
 
 	if w.autoscalerLister != nil {
-		hpaList, err := w.autoscalerLister.List(labels.Everything())
+		hpaList, err := w.autoscalerLister.List(w.hpaLabelSelector)
 		if err != nil {
 			return nil, fmt.Errorf("Could not list HPAs (to update DatadogMetric active status): %v", err)
 		}
