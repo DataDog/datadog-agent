@@ -19,8 +19,10 @@ import (
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/dynamic/dynamicinformer"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -118,25 +120,30 @@ func newUpdateRequest(t *testing.T, ns string, oldCR, newCR *datadoghq.DatadogIn
 	}
 }
 
-func fakeLister(t *testing.T, crs ...*datadoghq.DatadogInstrumentation) cache.GenericLister {
+func fakeInformerFactory(t *testing.T, crs ...*datadoghq.DatadogInstrumentation) dynamicinformer.DynamicSharedInformerFactory {
 	t.Helper()
-	indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{
-		cache.NamespaceIndex: cache.MetaNamespaceIndexFunc,
-	})
+	objs := make([]runtime.Object, 0, len(crs))
 	for _, cr := range crs {
-		u := crAsUnstructured(t, cr)
-		require.NoError(t, indexer.Add(u))
+		objs = append(objs, crAsUnstructured(t, cr))
 	}
-	return cache.NewGenericLister(indexer, schema.GroupResource{
-		Group:    datadoghq.GroupVersion.Group,
-		Resource: "datadoginstrumentations",
-	})
+	scheme := runtime.NewScheme()
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, map[schema.GroupVersionResource]string{
+		instrumentation.DatadogInstrumentationGVR: "DatadogInstrumentationList",
+	}, objs...)
+	factory := dynamicinformer.NewDynamicSharedInformerFactory(client, 0)
+	// Pre-create the informer so it is included in Start/WaitForCacheSync.
+	factory.ForResource(instrumentation.DatadogInstrumentationGVR)
+	stopCh := make(chan struct{})
+	t.Cleanup(func() { close(stopCh) })
+	factory.Start(stopCh)
+	factory.WaitForCacheSync(stopCh)
+	return factory
 }
 
-func newTestWebhook(t *testing.T, lister cache.GenericLister, handlers ...instrumentation.Handler) *Webhook {
+func newTestWebhook(t *testing.T, factory dynamicinformer.DynamicSharedInformerFactory, handlers ...instrumentation.Handler) *Webhook {
 	cfg := config.NewMock(t)
 	cfg.SetWithoutSource("instrumentation_crd_controller.enabled", true)
-	return NewWebhook(cfg, handlers, lister)
+	return NewWebhook(cfg, handlers, factory)
 }
 
 func defaultChecks() []datadoghq.DatadogInstrumentationCheckConfig {
@@ -153,7 +160,7 @@ func noValidationErrors(_ *datadoghq.DatadogInstrumentation) []instrumentation.V
 }
 
 func TestWebhookInterface(t *testing.T) {
-	w := newTestWebhook(t, fakeLister(t))
+	w := newTestWebhook(t, fakeInformerFactory(t))
 	assert.Equal(t, "datadog_instrumentation_validation", w.Name())
 	assert.Equal(t, common.WebhookType(common.ValidatingWebhook), w.WebhookType())
 	assert.True(t, w.IsEnabled())
@@ -313,13 +320,6 @@ func TestValidate(t *testing.T) {
 			wantAllowed: true,
 		},
 		{
-			name:        "nil lister admits request (fail-open)",
-			cr:          buildCR("di-1", ns, "Deployment", "my-app", defaultChecks()),
-			handlers:    nil,
-			operation:   admissionregistrationv1.Create,
-			wantAllowed: true,
-		},
-		{
 			name: "multi-handler: first passes, second fails SupportsTarget",
 			cr:   buildCR("di-1", ns, "Deployment", "my-app", defaultChecks()),
 			handlers: []instrumentation.Handler{
@@ -416,11 +416,8 @@ func TestValidate(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var lister cache.GenericLister
-			if tc.name != "nil lister admits request (fail-open)" {
-				lister = fakeLister(t, tc.existingCRs...)
-			}
-			w := newTestWebhook(t, lister, tc.handlers...)
+			factory := fakeInformerFactory(t, tc.existingCRs...)
+			w := newTestWebhook(t, factory, tc.handlers...)
 
 			var req *admission.Request
 			if tc.oldCR != nil {
@@ -440,7 +437,7 @@ func TestValidate(t *testing.T) {
 }
 
 func TestWebhookFuncReturnsAdmissionResponse(t *testing.T) {
-	w := newTestWebhook(t, fakeLister(t))
+	w := newTestWebhook(t, fakeInformerFactory(t))
 	cr := buildCR("di-1", "ns", "Deployment", "app", nil)
 	req := newRequest(t, admissionregistrationv1.Create, "ns", cr)
 	fn := w.WebhookFunc()

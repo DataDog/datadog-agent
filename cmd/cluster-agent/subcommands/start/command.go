@@ -72,7 +72,6 @@ import (
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroutefx "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/mcp"
 
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -646,19 +645,18 @@ func start(log log.Component,
 			log.Info("Auto instrumentation patcher is disabled")
 		}
 
-		instrLister := apiCl.DynamicInformerFactory.ForResource(instrumentation.DatadogInstrumentationGVR).Lister()
 		admissionCtx := admissionpkg.ControllerContext{
 			LeadershipStateSubscribeFunc: le.Subscribe,
 			SecretInformers:              apiCl.CertificateSecretInformerFactory,
 			ValidatingInformers:          apiCl.WebhookConfigInformerFactory,
 			MutatingInformers:            apiCl.WebhookConfigInformerFactory,
+			DynamicInformer:              apiCl.DynamicInformerFactory,
 			Client:                       apiCl.Cl,
 			StopCh:                       stopCh,
 			ValidatingStopCh:             validatingStopCh,
 			Demultiplexer:                demultiplexer,
 			FilterStore:                  filterStore,
 			InstrumentationHandlers:      instrHandlers,
-			InstrumentationLister:        instrLister,
 		}
 
 		webhooks, err := admissionpkg.StartControllers(admissionCtx, datadogConfig, wmeta, pp, sh, healthPlatform)

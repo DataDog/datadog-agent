@@ -18,6 +18,7 @@ import (
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
@@ -41,10 +42,16 @@ type Webhook struct {
 }
 
 // NewWebhook returns a new DatadogInstrumentation validating webhook.
-func NewWebhook(datadogConfig config.Component, handlers []instrumentation.Handler, lister cache.GenericLister) *Webhook {
+func NewWebhook(datadogConfig config.Component, handlers []instrumentation.Handler, informerFactory dynamicinformer.DynamicSharedInformerFactory) *Webhook {
+	var lister cache.GenericLister
+	isEnabled := datadogConfig.GetBool("instrumentation_crd_controller.enabled")
+	if isEnabled {
+		lister = informerFactory.ForResource(instrumentation.DatadogInstrumentationGVR).Lister()
+	}
+
 	return &Webhook{
 		name:      "datadog_instrumentation_validation",
-		isEnabled: datadogConfig.GetBool("instrumentation_crd_controller.enabled"),
+		isEnabled: isEnabled,
 		endpoint:  "/datadog-instrumentation-validation",
 		resources: []common.WebhookResourceRule{{APIGroup: "datadoghq.com", APIVersion: "v1alpha1", Resources: []string{"datadoginstrumentations"}}},
 		operations: []admissionregistrationv1.OperationType{

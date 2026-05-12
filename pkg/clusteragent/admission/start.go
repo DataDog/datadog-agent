@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -39,13 +40,13 @@ type ControllerContext struct {
 	SecretInformers              informers.SharedInformerFactory
 	ValidatingInformers          informers.SharedInformerFactory
 	MutatingInformers            informers.SharedInformerFactory
+	DynamicInformer              dynamicinformer.DynamicSharedInformerFactory
 	Client                       kubernetes.Interface
 	StopCh                       chan struct{}
 	ValidatingStopCh             chan struct{}
 	Demultiplexer                demultiplexer.Component
 	FilterStore                  workloadfilter.Component
 	InstrumentationHandlers      []instrumentation.Handler
-	InstrumentationLister        cache.GenericLister
 }
 
 // StartControllers starts the secret and webhook controllers
@@ -109,7 +110,7 @@ func StartControllers(ctx ControllerContext, datadogConfig config.Component, wme
 		ctx.Demultiplexer,
 		ctx.FilterStore,
 		ctx.InstrumentationHandlers,
-		ctx.InstrumentationLister,
+		ctx.DynamicInformer,
 	)
 
 	go secretController.Run(ctx.StopCh)
