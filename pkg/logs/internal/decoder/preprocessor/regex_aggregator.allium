@@ -211,18 +211,35 @@ surface RegexAggregation {
         -- forward the LAST line's tokens.
 
     @guarantee PreMatchSinglePass
-        -- Before pattern_matched_once becomes true, every process
-        -- call's input is emitted as its own single-line
-        -- aggregate, regardless of any state that might otherwise
-        -- trigger combination. This protects against a
-        -- misconfigured pattern that never matches: rather than
-        -- silently combining the entire log stream into one
-        -- message, the aggregator behaves like PassThrough until
-        -- the pattern has demonstrated at least one match.
+        -- Before pattern_matched_once becomes true, each call's
+        -- input is the sole occupant of the buffer: the buffer is
+        -- flushed at the start of every pre-match call before the
+        -- new line is appended. Each pre-match emission therefore
+        -- contains exactly one input line — no multi-line
+        -- combination occurs during pre-match. This protects
+        -- against a misconfigured pattern that never matches:
+        -- rather than silently combining the entire log stream
+        -- into one message, the aggregator behaves like a
+        -- per-line passthrough until the pattern has demonstrated
+        -- at least one match.
+        --
+        -- Pre-match emission is NOT necessarily synchronous with
+        -- the call that received the line. The line is buffered
+        -- and emitted on the NEXT process call (when the next
+        -- pre-match call's opening flush drains it) or on flush.
+        -- The exception is line_limit overflow: a pre-match line
+        -- whose own bytes drive the buffer to line_limit is
+        -- flushed within the same call via the
+        -- MidAggregateTruncation flow.
         --
         -- pattern_matched_once is a sticky bit: it transitions
         -- from false to true on the first pattern-matching input
-        -- and never resets.
+        -- and never resets. Once the bit is set, the opening
+        -- flush is no longer performed on non-matching inputs
+        -- (those lines are appended to the current aggregate
+        -- instead) — and should_truncate consequently propagates
+        -- across lines, enabling continuation-marker carry during
+        -- multi-line truncation.
 
     @guarantee PatternBoundary
         -- After pattern_matched_once is true, an incoming line
