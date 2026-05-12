@@ -11,8 +11,7 @@ import (
 	"time"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
-	dogstatsdServerless "github.com/DataDog/datadog-agent/comp/dogstatsd/server/serverless"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -58,7 +57,7 @@ func (m *MetricConfig) GetMultipleEndpoints() (utils.EndpointDescriptorSet, erro
 
 // NewServer returns a running DogStatsD server
 func (m *MetricDogStatsD) NewServer(demux aggregator.Demultiplexer, extraTags []string) (dogstatsdServer.ServerlessDogstatsd, error) {
-	return dogstatsdServerless.NewServerlessServer(demux, extraTags)
+	return dogstatsdServer.NewServerlessServer(demux, extraTags)
 }
 
 // Start starts the DogStatsD agent
