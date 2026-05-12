@@ -39,19 +39,19 @@ def _open_tar(path):
 
 
 def generate_md5sums(tar_path, output_path):
-    tf = _open_tar(tar_path)
-    with tf, open(output_path, 'w') as out:
-        for member in tf:
-            if not member.isfile():
-                continue
+    with open(output_path, 'w') as out:
+        with _open_tar(tar_path) as tf:
+            for member in tf:
+                if not member.isfile():
+                    continue
 
-            path = member.name.removeprefix('./')
-            f = tf.extractfile(member)
-            if f is None:
-                continue
+                path = member.name.removeprefix('./')
+                f = tf.extractfile(member)
+                if f is None:
+                    continue
 
-            digest = hashlib.file_digest(f, 'md5').hexdigest()
-            out.write(f"{digest}  {path}\n")
+                digest = hashlib.file_digest(f, 'md5').hexdigest()
+                out.write(f"{digest}  {path}\n")
 
 
 def main():
