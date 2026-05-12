@@ -261,7 +261,9 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 		p.logger.Warnf("api_key does not match the expected format; enrollment may fail")
 	}
 
-	if appKeyOK, err := util.ValidateAppKey(appKey); err != nil {
+	if appKey == "" {
+		p.logger.Info("No app_key configured; using API-key-only enrollment endpoint")
+	} else if appKeyOK, err := util.ValidateAppKey(appKey); err != nil {
 		return nil, fmt.Errorf("invalid app_key: %w", err)
 	} else if !appKeyOK {
 		p.logger.Warnf("app_key does not match the expected format; enrollment may fail")
