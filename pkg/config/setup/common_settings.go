@@ -1114,10 +1114,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("hostprofiler.health_metrics.target", "127.0.0.1:8889")
 	config.BindEnvAndSetDefault("hostprofiler.hpflare.port", 7778)
 
-	// Anomaly detection / observer
-	config.BindEnvAndSetDefault("anomaly_detection.enabled", false)
-	config.BindEnvAndSetDefault("anomaly_detection.metrics.enabled", false)
-
 	// Remote Flags system
 	remoteflags(config)
 }
