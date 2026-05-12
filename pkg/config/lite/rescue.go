@@ -112,11 +112,11 @@ func rescueWithURL(ctx context.Context, cfg LiteConfig, url string, startupErr e
 			continue
 		}
 		attempted = true
-		if err := postRescue(ctx, url, c.Value, report); err == nil {
+		err := postRescue(ctx, url, c.Value, report)
+		if err == nil {
 			return nil
-		} else {
-			lastErr = err
 		}
+		lastErr = err
 	}
 	if !attempted {
 		return fmt.Errorf("rescue: no usable api_key resolved (source=%s)", cfg.APIKey.Source)
