@@ -19,3 +19,12 @@ func Module() fxutil.Module {
 		),
 	)
 }
+
+// NoopModule defines a version of the module that exposes an empty component
+func NoopModule() fxutil.Module {
+	return fxutil.Component(
+		fxutil.ProvideComponentConstructor(
+			networkconfigmanagementimpl.NewNoopComponent,
+		),
+	)
+}
