@@ -624,57 +624,38 @@ func (m *symdbManager) performUpload(
 			procID.pid, procID.service, procID.version, runtimeID, executablePath, err)
 	}
 
-	enc := uploader.NewBatchEncoder(
+	var diskCache *object.DiskCache
+	if dc, ok := m.objectLoader.(*object.DiskCache); ok {
+		diskCache = dc
+	}
+	enc, err := uploader.NewBatchEncoder(
 		m.uploadURL.String(),
 		procID.service, procID.version, runtimeID,
 		uuid.New(),
+		diskCache, nil, /* headers */
 	)
-	var totalPackages, totalFuncs int
-	// Flush whenever the compressed payload reaches the threshold, or on the
-	// final package, to avoid keeping too much in memory at once.
-	maybeFlush := func(final bool) error {
-		if ctx.Err() != nil {
-			return context.Cause(ctx)
-		}
-		if !final && enc.Size() < m.cfg.flushThresholdBytes {
-			return nil
-		}
-		log.Tracef("SymDB: uploading symbols chunk for process %s (service: %s, version: %s, runtime ID: %s). Final chunk: %t",
-			procID.pid, procID.service, procID.version, runtimeID, final)
-		if err := enc.Flush(ctx, final); err != nil {
-			if errors.Is(err, uploader.ErrUpload) {
-				return uploadError{cause: err}
-			}
-			return err
-		}
-		return nil
+	if err != nil {
+		return fmt.Errorf("failed to create batch encoder for process %v: %w",
+			procID.pid, err)
 	}
-	for pkg, err := range it {
-		if err != nil {
-			return fmt.Errorf("failed to iterate packages for process %s (service: %s, version: %s, runtime ID: %s, executable: %s): %w",
-				procID.pid, procID.service, procID.version, runtimeID, executablePath, err)
-		}
+	defer func() { _ = enc.Close() }()
 
-		if ctx.Err() != nil {
-			return context.Cause(ctx)
+	stats, err := uploader.RunUploadLoop(
+		ctx, enc, it, version.AgentVersion, m.cfg.flushThresholdBytes,
+	)
+	if err != nil {
+		if errors.Is(err, uploader.ErrUpload) {
+			return uploadError{cause: err}
 		}
-
-		scope := uploader.ConvertPackageToScope(pkg.Package, version.AgentVersion)
-		if err := enc.AddScope(scope); err != nil {
-			return fmt.Errorf("failed to encode scope for process %v: %w", procID.pid, err)
-		}
-		totalPackages++
-		totalFuncs += pkg.Stats().NumFunctions
-		if err := maybeFlush(pkg.Final); err != nil {
-			return err
-		}
+		return fmt.Errorf("upload for process %s (service: %s, version: %s, runtime ID: %s, executable: %s): %w",
+			procID.pid, procID.service, procID.version, runtimeID, executablePath, err)
 	}
 
 	log.Infof("SymDB: Successfully uploaded symbols for process %s "+
 		"(service: %s, version: %s, runtime ID: %s, executable: %s):"+
 		" %d packages, %d functions, %d chunks in %v",
 		procID.pid, procID.service, procID.version, runtimeID, executablePath,
-		totalPackages, totalFuncs, enc.BatchCount(), time.Since(startTime))
+		stats.Packages, stats.Functions, stats.Batches, time.Since(startTime))
 	return nil
 }
 

@@ -510,6 +510,42 @@ func (df *DiskFile) Write(p []byte) (int, error) {
 	return n, nil
 }
 
+// Used reports the number of bytes that have been written to the DiskFile
+// since it was created or last reset.
+func (df *DiskFile) Used() uint64 {
+	if df == nil {
+		return 0
+	}
+	return df.used
+}
+
+// ReadAt reads from the file starting at the given offset, satisfying
+// io.ReaderAt. Together with Used() this lets callers wrap the DiskFile in an
+// io.SectionReader for sequential reads.
+func (df *DiskFile) ReadAt(p []byte, off int64) (int, error) {
+	if df == nil || df.f == nil || df.closed {
+		return 0, errors.New("read on closed DiskFile")
+	}
+	return df.f.ReadAt(p, off)
+}
+
+// Truncate truncates the file to zero length and rewinds the write offset
+// to the start. The space reservation against the parent DiskCache is left
+// in place so a follow-up write can reuse it without re-checking quota.
+func (df *DiskFile) Truncate() error {
+	if df == nil || df.f == nil || df.closed {
+		return errors.New("truncate on closed DiskFile")
+	}
+	if err := df.f.Truncate(0); err != nil {
+		return fmt.Errorf("failed to truncate DiskFile: %w", err)
+	}
+	if _, err := df.f.Seek(0, io.SeekStart); err != nil {
+		return fmt.Errorf("failed to seek DiskFile: %w", err)
+	}
+	df.used = 0
+	return nil
+}
+
 // Close aborts the DiskFile without converting it to a memory map, releasing
 // its reservation and closing the underlying file.
 func (df *DiskFile) Close() error {
