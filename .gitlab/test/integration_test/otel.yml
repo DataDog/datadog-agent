@@ -132,7 +132,6 @@ docker_image_build_otel:
         --build-arg AGENT_OCI=registry.ddbuild.io/ci/remote-updates/datadog-agent:7.78.0-beta-byoc-integration-test-1 \
         --build-arg OUTPUT_OCI=$OUTPUT_OCI \
         --build-arg CI \
-        --build-arg DDA_VERSION=$DDA_VERSION \
         --build-arg GOPROXY=$GOPROXY \
         --build-arg GONOSUMDB=$GONOSUMDB \
         --build-arg GO_VERSION=$(cat .go-version)"
@@ -200,7 +199,6 @@ ddot_byoc_binary_build_test_ubuntu2004:
         --build-arg AGENT_DOCKER_TAG=nightly-full-main-jmx \
         --build-arg UBUNTU_VERSION=20.04 \
         --build-arg CI \
-        --build-arg DDA_VERSION=$DDA_VERSION \
         --build-arg GOPROXY=$GOPROXY \
         --build-arg GONOSUMDB=$GONOSUMDB \
         --build-arg GO_VERSION=$(cat .go-version)"
