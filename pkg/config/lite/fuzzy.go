@@ -14,22 +14,27 @@ import (
 // Levenshtein cutoff: we accept "apikey" (distance 1 from "api_key") but not
 // keys that diverge by more.
 var fuzzyKeys = []struct {
-	field   func(*LiteConfig) *ConfigField
+	field   func(*Config) *ConfigField
 	name    string
 	maxDist int
 }{
-	{func(c *LiteConfig) *ConfigField { return &c.APIKey }, "api_key", 2},
-	{func(c *LiteConfig) *ConfigField { return &c.Site }, "site", 1},
-	{func(c *LiteConfig) *ConfigField { return &c.DDURL }, "dd_url", 2},
+	{func(c *Config) *ConfigField { return &c.APIKey }, "api_key", 2},
+	{func(c *Config) *ConfigField { return &c.Site }, "site", 1},
+	{func(c *Config) *ConfigField { return &c.DDURL }, "dd_url", 2},
 }
+
+// maxAPIKeyExtras caps how many alternative api_key candidates we stash. One
+// extra is enough for the documented `app_key` + `api_kye` collision; more
+// would let a malicious config use the intake as a credential oracle.
+const maxAPIKeyExtras = 1
 
 // applyFuzzy walks every top-level key in raw and, for each unresolved target,
 // collects all candidates within maxDist sorted by distance ascending. The
-// best becomes the field's primary value; remaining candidates for api_key
-// are stashed on cfg.APIKeyCandidates so the rescue path can retry on 401
-// (e.g. when `app_key` and a typo'd `api_kye` are both distance 1).
-func applyFuzzy(cfg *LiteConfig, raw []byte) {
-	for i, k := range fuzzyKeys {
+// best becomes the field's primary value; up to maxAPIKeyExtras additional
+// api_key candidates are stashed on cfg.APIKeyCandidates so the rescue path
+// can retry on 401.
+func applyFuzzy(cfg *Config, raw []byte) {
+	for _, k := range fuzzyKeys {
 		f := k.field(cfg)
 		if f.resolved() {
 			continue
@@ -39,8 +44,12 @@ func applyFuzzy(cfg *LiteConfig, raw []byte) {
 			continue
 		}
 		*f = cands[0]
-		if i == 0 && len(cands) > 1 { // api_key only — extras feed rescue retries
-			cfg.APIKeyCandidates = append(cfg.APIKeyCandidates, cands[1:]...)
+		if k.name == "api_key" && len(cands) > 1 {
+			extras := cands[1:]
+			if len(extras) > maxAPIKeyExtras {
+				extras = extras[:maxAPIKeyExtras]
+			}
+			cfg.APIKeyCandidates = append(cfg.APIKeyCandidates, extras...)
 		}
 	}
 }

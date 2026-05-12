@@ -28,7 +28,7 @@ func withYAML(t *testing.T, content string) string {
 
 // extract runs Extract with a TODO context — the test suite never configures
 // a secret_backend_command, so the resolver no-ops.
-func extract(cliPath, defaultPath string) LiteConfig {
+func extract(cliPath, defaultPath string) Config {
 	return Extract(context.TODO(), cliPath, defaultPath)
 }
 

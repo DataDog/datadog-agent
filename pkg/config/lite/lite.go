@@ -13,13 +13,17 @@ import (
 	"strings"
 )
 
+// maxConfigFileSize bounds the bytes we read from datadog.yaml. Anything larger
+// is almost certainly malicious or a symlink to something we don't want to
+// slurp; the real config is < 10 KiB.
+const maxConfigFileSize = 1 << 20 // 1 MiB
+
 // Extract runs the tiered resolver pipeline against the process environment
 // and the candidate datadog.yaml paths. cliConfPath is from `--cfgpath` (or
 // empty); defaultConfPath is the platform-specific default. The first path
-// that exists is used. Pass a real ctx to enable ENC[] resolution via
-// secret_backend_command; a nil ctx skips that step.
-func Extract(ctx context.Context, cliConfPath, defaultConfPath string) LiteConfig {
-	cfg := LiteConfig{
+// that exists is used.
+func Extract(ctx context.Context, cliConfPath, defaultConfPath string) Config {
+	cfg := Config{
 		APIKey:               ConfigField{Source: SourceNone},
 		Site:                 ConfigField{Source: SourceNone},
 		DDURL:                ConfigField{Source: SourceNone},
@@ -55,7 +59,7 @@ func Extract(ctx context.Context, cliConfPath, defaultConfPath string) LiteConfi
 	if len(raw) > 0 {
 		// applyFullYAML always runs to capture YAMLParseErr / ParsedConfig.
 		applyFullYAML(&cfg, raw)
-		for _, apply := range []func(*LiteConfig, []byte){applyTopLevelYAML, applyRegex, applyFuzzy} {
+		for _, apply := range []func(*Config, []byte){applyTopLevelYAML, applyRegex, applyFuzzy} {
 			// SecretBackendCommand is excluded: it only exists to feed resolveENC.
 			if cfg.APIKey.resolved() && cfg.Site.resolved() && cfg.DDURL.resolved() {
 				break
@@ -65,10 +69,12 @@ func Extract(ctx context.Context, cliConfPath, defaultConfPath string) LiteConfi
 	}
 
 	// ENC[] resolution runs before defaults so an unresolvable encrypted
-	// credential stays unresolved and never wins over a fallback.
-	if ctx != nil {
-		resolveENC(ctx, &cfg)
+	// credential stays unresolved and never wins over a fallback. No-ops when
+	// SecretBackendCommand is empty.
+	if ctx == nil {
+		ctx = context.Background()
 	}
+	resolveENC(ctx, &cfg)
 
 	if cfg.Site.Source == SourceNone {
 		cfg.Site.Value = DefaultSite

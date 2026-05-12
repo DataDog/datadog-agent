@@ -13,7 +13,7 @@ import (
 
 // applyFullYAML is the Tier-2 strategy: yaml.Unmarshal of the entire file.
 // On failure it records cfg.YAMLParseErr and leaves the fields alone.
-func applyFullYAML(cfg *LiteConfig, raw []byte) {
+func applyFullYAML(cfg *Config, raw []byte) {
 	if len(raw) == 0 {
 		return
 	}
@@ -31,7 +31,7 @@ func applyFullYAML(cfg *LiteConfig, raw []byte) {
 // re-run yaml.Unmarshal. This rescues the common "broken nested block" case
 // where top-level fields are fine but a sub-block like `process_config:` is
 // malformed.
-func applyTopLevelYAML(cfg *LiteConfig, raw []byte) {
+func applyTopLevelYAML(cfg *Config, raw []byte) {
 	stripped := stripIndented(raw)
 	if len(stripped) == 0 {
 		return
@@ -60,7 +60,7 @@ func stripIndented(raw []byte) []byte {
 // applyFromMap copies top-level string values into unresolved fields. Nested
 // *_api_key / additional_endpoints / logs_config.api_key are intentionally
 // ignored — they are auxiliary and would confuse lite-mode if promoted.
-func applyFromMap(cfg *LiteConfig, m map[string]any, src Source) {
+func applyFromMap(cfg *Config, m map[string]any, src Source) {
 	set := func(field *ConfigField, key string) {
 		if field.resolved() {
 			return

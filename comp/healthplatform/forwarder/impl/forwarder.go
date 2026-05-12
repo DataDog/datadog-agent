@@ -52,7 +52,7 @@ const (
 // forwarder handles periodic sending of health reports to the Datadog intake
 type forwarder struct {
 	cfg             pkgconfigmodel.Reader
-	liteCfgFallback lite.LiteConfig // used only when live config is broken
+	liteCfgFallback lite.Config // used only when live config is broken
 	intakeURL       string
 	interval        time.Duration
 	hostname        string
@@ -205,11 +205,14 @@ func (f *forwarder) buildReport(issues map[string]*healthplatform.Issue) *health
 
 // send marshals and sends the report to the intake endpoint
 func (f *forwarder) send(report *healthplatform.HealthReport) error {
-	// Fetch API key once and check if configured
 	apiKey := f.cfg.GetString("api_key")
-	// When the live config Reader has nothing, fall back to the lite snapshot
+	intakeURL := f.intakeURL
+	// When the live config Reader has nothing, fall back to the lite snapshot.
+	// Derive the intake URL from lite's site to avoid sending one
+	// customer's api_key to a different org's intake
 	if apiKey == "" && f.liteCfgFallback.APIKey.Value != "" && f.liteCfgFallback.APIKey.Source != lite.SourceEncrypted {
 		apiKey = f.liteCfgFallback.APIKey.Value
+		intakeURL = lite.IntakeURL(f.liteCfgFallback.Site.Value)
 		f.log.Info(fmt.Sprintf(
 			"Health platform forwarder using api_key from lite fallback (source=%s matched_key=%q)",
 			f.liteCfgFallback.APIKey.Source, f.liteCfgFallback.APIKey.MatchedKey))
@@ -226,7 +229,7 @@ func (f *forwarder) send(report *healthplatform.HealthReport) error {
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, f.intakeURL, bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, intakeURL, bytes.NewReader(payload))
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}

@@ -9,6 +9,8 @@ package invalidconfig
 import (
 	"os"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
@@ -18,42 +20,55 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// checker is the periodic built-in check
+// checker is the periodic built-in check. Caches the last verdict against the
+// file's modified time so an unchanged datadog.yaml isn't reparsed every interval
 type checker struct {
-	cfg config.Component
+	cfg               config.Component
+	lastModified      time.Time
+	lastReport        *healthplatform.IssueReport
+	schemaUnavailable sync.Once
 }
 
 func newChecker(cfg config.Component) *checker {
 	return &checker{cfg: cfg}
 }
 
-// Run reads datadog.yaml from disk every interval
 func (c *checker) Run() (*healthplatform.IssueReport, error) {
 	path := c.cfg.ConfigFileUsed()
 	if path == "" {
 		return nil, nil
 	}
-	raw, err := os.ReadFile(path)
+	stat, err := os.Stat(path)
 	if err != nil {
 		// Missing file / permission denied are owned by other modules.
 		return nil, nil
 	}
-
-	info, raise := issueInfoFor(path, lite.ValidateRawConfig(raw))
-	if !raise {
+	if stat.ModTime().Equal(c.lastModified) {
+		return c.lastReport, nil
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
 		return nil, nil
 	}
-	return &healthplatform.IssueReport{
+
+	info, raise := c.issueInfoFor(path, lite.ValidateRawConfig(raw))
+	c.lastModified = stat.ModTime()
+	if !raise {
+		c.lastReport = nil
+		return nil, nil
+	}
+	c.lastReport = &healthplatform.IssueReport{
 		IssueId: healthplatformdef.InvalidConfigIssueID,
 		Context: info.ToContext(),
 		Tags:    info.Tags(),
-	}, nil
+	}
+	return c.lastReport, nil
 }
 
-// issueInfoFor translates a validation verdict into the IssueInfo the
-// platform expands via the template. Returns false when there is nothing to
-// raise (healthy config or schema-validator infrastructure error).
-func issueInfoFor(path string, result lite.ValidationResult) (lite.IssueInfo, bool) {
+// issueInfoFor translates a validation verdict into the IssueInfo the platform
+// expands via the template. Returns false when there is nothing to raise
+// (healthy config or schema-validator infrastructure error).
+func (c *checker) issueInfoFor(path string, result lite.ValidationResult) (lite.IssueInfo, bool) {
 	switch result.Verdict {
 	case lite.VerdictYAMLParseFailure:
 		return lite.IssueInfo{
@@ -73,8 +88,10 @@ func issueInfoFor(path string, result lite.ValidationResult) (lite.IssueInfo, bo
 		}, true
 
 	case lite.VerdictSchemaUnavailable:
-		// Build problem, not a customer problem — log and skip.
-		pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check")
+		// log once to avoid spam
+		c.schemaUnavailable.Do(func() {
+			pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check")
+		})
 	}
 	return lite.IssueInfo{}, false
 }

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -224,12 +225,18 @@ func startupFailureIssue(info IssueInfo) *healthplatform.Issue {
 	}
 }
 
-// truncate clips s to at most n bytes, appending an ellipsis when it cut.
+// truncate clips s to at most n bytes at a rune boundary, appending an
+// ellipsis when it cut. Stepping back to a boundary avoids emitting invalid
+// UTF-8 when a multi-byte rune straddles the cutoff.
 func truncate(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
-	return s[:n] + "…"
+	cut := n
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut] + "…"
 }
 
 // mustStruct converts a map to a structpb.Struct. Inputs are always strings/

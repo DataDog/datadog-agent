@@ -11,8 +11,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -23,9 +25,8 @@ import (
 )
 
 const (
-	// rescueHTTPTimeout bounds the entire candidate-iteration loop. Generous
-	// enough for ~5 POST attempts in the worst case; well under systemd's
-	// default 90s start timeout.
+	// rescueHTTPTimeout bounds the entire candidate-iteration loop, well under
+	// typical service-manager start timeouts (systemd default is 90s).
 	rescueHTTPTimeout  = 10 * time.Second
 	rescueIntakePrefix = "https://agenthealth-intake."
 	rescueIntakePath   = "/api/v2/agenthealth"
@@ -35,7 +36,27 @@ const (
 	// flavor isn't always knowable at rescue time (Fx hasn't initialised), and
 	// a stable placeholder keeps backend dedup stable.
 	rescueFlavor = "agent"
+
+	// rescueMaxAttempts caps the api_key candidates posted to the intake.
+	// Defends against a crafted datadog.yaml using the intake as a credential
+	// validation oracle.
+	rescueMaxAttempts = 3
 )
+
+// validSite restricts intake site values to DNS-label syntax. Rejects schemes,
+// path separators, userinfo, fragments — anything that could redirect the
+// rescue POST (with DD-API-KEY attached) outside agenthealth-intake.*.
+var validSite = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$`)
+
+// rescueHTTPClient refuses redirects. Go's stdlib strips Authorization on
+// cross-host 3xx but NOT custom headers, so otherwise DD-API-KEY would leak
+// to the redirect target.
+var rescueHTTPClient = &http.Client{
+	Timeout: rescueHTTPTimeout,
+	CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	},
+}
 
 // Rescue is the one-shot orchestrator invoked from the agent's failure path
 // (defer/recover or returned Fx error). It runs the resolver pipeline,
@@ -44,7 +65,12 @@ const (
 //
 // Rescue never panics. On any internal failure it returns the wrapped error
 // for the caller to log; it must not gate process exit on the result.
-func Rescue(ctx context.Context, cliConfPath, defaultConfPath string, startupErr error) error {
+func Rescue(ctx context.Context, cliConfPath, defaultConfPath string, startupErr error) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("rescue: recovered panic: %v", r)
+		}
+	}()
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -52,7 +78,7 @@ func Rescue(ctx context.Context, cliConfPath, defaultConfPath string, startupErr
 	defer cancel()
 
 	cfg := Extract(rctx, cliConfPath, defaultConfPath)
-	return rescueWithURL(rctx, cfg, intakeURL(cfg.Site.Value), startupErr)
+	return rescueWithURL(rctx, cfg, IntakeURL(cfg.Site.Value), startupErr)
 }
 
 // DefaultConfigPath returns the platform-default location of datadog.yaml.
@@ -75,21 +101,25 @@ func defaultConfigPathForGOOS(goos string) string {
 	}
 }
 
-func intakeURL(site string) string {
-	if site == "" {
+// IntakeURL builds the rescue POST target for site. Falls back to DefaultSite
+// when site is empty or fails DNS-label validation, preventing an attacker-
+// controlled `site:` value from redirecting the request to an arbitrary host.
+func IntakeURL(site string) string {
+	site = strings.ToLower(strings.TrimRight(site, "/"))
+	if !validSite.MatchString(site) {
 		site = DefaultSite
 	}
-	return rescueIntakePrefix + strings.TrimRight(site, "/") + rescueIntakePath
+	return rescueIntakePrefix + site + rescueIntakePath
 }
 
 // rescueWithURL is the URL-decoupled core of Rescue. Tests target it directly
 // to route POSTs at an httptest.Server without stubbing module-level state.
 //
 // Walks the api_key candidates best-to-worst (primary + any fuzzy alternates)
-// and stops at the first 2xx. The intake decides which credential is right —
-// fuzzy collisions like `app_key` vs `api_kye` self-heal here instead of
-// being blocked by a static denylist.
-func rescueWithURL(ctx context.Context, cfg LiteConfig, url string, startupErr error) error {
+// and stops at the first 2xx, capped at rescueMaxAttempts. The intake decides
+// which credential is right — fuzzy collisions like `app_key` vs `api_kye`
+// self-heal here instead of being blocked by a static denylist.
+func rescueWithURL(ctx context.Context, cfg Config, url string, startupErr error) error {
 	issue := buildRescueIssue(cfg, startupErr)
 	if issue == nil {
 		return nil
@@ -99,26 +129,29 @@ func rescueWithURL(ctx context.Context, cfg LiteConfig, url string, startupErr e
 	hostname, _ := os.Hostname()
 	report := &healthplatform.HealthReport{
 		EventType: rescueEventType,
-		EmittedAt: time.Now().UTC().Format(time.RFC3339),
+		EmittedAt: issue.DetectedAt,
 		Service:   rescueFlavor,
 		Host:      &healthplatform.HostInfo{Hostname: hostname},
 		Issues:    map[string]*healthplatform.Issue{"datadog.yaml": issue},
 	}
 
 	var lastErr error
-	attempted := false
+	attempts := 0
 	for _, c := range append([]ConfigField{cfg.APIKey}, cfg.APIKeyCandidates...) {
 		if !c.resolved() {
 			continue
 		}
-		attempted = true
+		if attempts >= rescueMaxAttempts {
+			break
+		}
+		attempts++
 		err := postRescue(ctx, url, c.Value, report)
 		if err == nil {
 			return nil
 		}
 		lastErr = err
 	}
-	if !attempted {
+	if attempts == 0 {
 		return fmt.Errorf("rescue: no usable api_key resolved (source=%s)", cfg.APIKey.Source)
 	}
 	return lastErr
@@ -127,7 +160,7 @@ func rescueWithURL(ctx context.Context, cfg LiteConfig, url string, startupErr e
 // buildRescueIssue inspects cfg + startupErr and produces the Issue payload.
 // Returns nil if there is nothing worth reporting. Priority: yaml_parse >
 // schema_validation > startup_failure.
-func buildRescueIssue(cfg LiteConfig, startupErr error) *healthplatform.Issue {
+func buildRescueIssue(cfg Config, startupErr error) *healthplatform.Issue {
 	if cfg.YAMLParseErr != nil {
 		return BuildInvalidConfigIssue(IssueInfo{
 			Kind:         ErrorKindYAMLParse,
@@ -175,11 +208,15 @@ func postRescue(ctx context.Context, url, apiKey string, report *healthplatform.
 	req.Header.Set("DD-API-KEY", apiKey)
 	req.Header.Set("User-Agent", "datadog-agent-lite")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := rescueHTTPClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("send rescue request: %w", err)
 	}
-	defer resp.Body.Close()
+	// Drain so the connection can be reused across candidate retries.
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("rescue intake returned status %d", resp.StatusCode)
 	}

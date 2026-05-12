@@ -66,7 +66,7 @@ func schemaIssue(t *testing.T, path string, errs []string) *healthplatform.Issue
 }
 
 func TestBuildRescue_YAMLParseHasHighSeverity(t *testing.T) {
-	cfg := LiteConfig{
+	cfg := Config{
 		APIKey:       ConfigField{Value: "k", Source: SourceFileRegex},
 		Site:         ConfigField{Value: "datadoghq.com", Source: SourceDefault},
 		YAMLParseErr: errors.New("yaml: line 12: did not find expected ',' or ']'"),
@@ -116,7 +116,7 @@ func TestBuildRescue_SchemaTruncation(t *testing.T) {
 }
 
 func TestBuildRescue_StartupFailureWhenConfigIsClean(t *testing.T) {
-	cfg := LiteConfig{
+	cfg := Config{
 		APIKey:       ConfigField{Value: "k", Source: SourceFileYAMLFull},
 		Site:         ConfigField{Value: "datadoghq.com", Source: SourceFileYAMLFull},
 		ParsedConfig: map[string]any{},
@@ -131,7 +131,7 @@ func TestBuildRescue_StartupFailureWhenConfigIsClean(t *testing.T) {
 }
 
 func TestBuildRescue_NothingToReportReturnsNil(t *testing.T) {
-	cfg := LiteConfig{
+	cfg := Config{
 		APIKey:       ConfigField{Value: "k", Source: SourceFileYAMLFull},
 		Site:         ConfigField{Value: "datadoghq.com", Source: SourceFileYAMLFull},
 		ParsedConfig: map[string]any{},
@@ -191,7 +191,7 @@ func TestRescue_RetriesCandidatesUntilSuccess(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	cfg := LiteConfig{
+	cfg := Config{
 		APIKey: ConfigField{Value: "wrong_app_key", Source: SourceFileFuzzy, MatchedKey: "app_key"},
 		APIKeyCandidates: []ConfigField{
 			{Value: goodKey, Source: SourceFileFuzzy, MatchedKey: "api_kye"},
@@ -207,9 +207,9 @@ func TestRescue_RetriesCandidatesUntilSuccess(t *testing.T) {
 }
 
 func TestRescue_RespectsTimeout(t *testing.T) {
-	// Server replies eventually, but slowly enough that the 3-second budget
-	// expires first. r.Context().Done() lets the handler stop when the test
-	// ends.
+	// Server replies eventually, but slowly enough that the rescueHTTPTimeout
+	// budget expires first. r.Context().Done() lets the handler stop when the
+	// test ends.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-time.After(10 * time.Second):
@@ -256,10 +256,12 @@ func TestIntakeURL(t *testing.T) {
 		{"empty defaults to datadoghq.com", "", "https://agenthealth-intake.datadoghq.com/api/v2/agenthealth"},
 		{"eu site", "datadoghq.eu", "https://agenthealth-intake.datadoghq.eu/api/v2/agenthealth"},
 		{"trailing slash trimmed", "datadoghq.com/", "https://agenthealth-intake.datadoghq.com/api/v2/agenthealth"},
+		{"attacker host rejected", "attacker.com/evil", "https://agenthealth-intake.datadoghq.com/api/v2/agenthealth"},
+		{"embedded scheme rejected", "evil@host.com", "https://agenthealth-intake.datadoghq.com/api/v2/agenthealth"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			assert.Equal(t, c.want, intakeURL(c.site))
+			assert.Equal(t, c.want, IntakeURL(c.site))
 		})
 	}
 }
