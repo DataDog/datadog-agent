@@ -14,8 +14,8 @@ py_binary(
 pkg_files(
     name = "test_files",
     srcs = [
-        "testdata/alphabet.txt",
-        "testdata/hello.txt",
+        "testdata/alphabet.bin",
+        "testdata/hello.bin",
     ],
     prefix = "opt/test",
     strip_prefix = strip_prefix.from_pkg("testdata"),
