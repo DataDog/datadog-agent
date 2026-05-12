@@ -60,7 +60,7 @@ Package: main
 		Arg: w: net/http.ResponseWriter (declared at line 258, available: [258-266])
 		Arg: r: *net/http.Request (declared at line 258, available: [258-266])
 		Var: size: int (declared at line 259, available: [258-266])
-		Var: iter: int (declared at line 260, available: [260-261], [262-263])
+		Var: iter: int (declared at line 260, available: [258-266])
 		Var: payload: []uint8 (declared at line 261, available: [258-266])
 		Scope: 262-265
 			Var: i: int (declared at line 262, available: [258-266])
@@ -72,12 +72,12 @@ Package: main
 		Var: iter: int (declared at line 271, available: [268-286])
 		Var: payload: []uint8 (declared at line 272, available: [268-286])
 		Scope: 278-285
-			Var: i: int (declared at line 282, available: [270-285])
+			Var: i: int (declared at line 282, available: [282-286])
 	Function: handleChain (main.handleChain) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/drop_tester/main.go [297:305] injectible: [297-302], [304-305]
 		Arg: w: net/http.ResponseWriter (declared at line 297, available: [297-305])
 		Arg: r: *net/http.Request (declared at line 297, available: [297-305])
 		Var: length: int (declared at line 298, available: [297-305])
-		Var: iter: int (declared at line 299, available: [299-301])
+		Var: iter: int (declared at line 299, available: [297-305])
 		Var: chain: *main.Node (declared at line 300, available: [297-305])
 		Scope: 301-304
 			Var: i: int (declared at line 301, available: [299-300], [301-304])
@@ -86,7 +86,7 @@ Package: main
 		Arg: r: *net/http.Request (declared at line 307, available: [307-316])
 		Var: entryNodes: int (declared at line 308, available: [307-316])
 		Var: returnNodes: int (declared at line 309, available: [307-316])
-		Var: iter: int (declared at line 310, available: [310-312])
+		Var: iter: int (declared at line 310, available: [307-316])
 		Var: entryChain: *main.Node (declared at line 311, available: [307-316])
 		Scope: 312-315
 			Var: i: int (declared at line 312, available: [309-311], [312-315])
@@ -94,7 +94,7 @@ Package: main
 		Arg: w: net/http.ResponseWriter (declared at line 288, available: [288-295])
 		Arg: r: *net/http.Request (declared at line 288, available: [288-295])
 		Var: ms: int (declared at line 289, available: [288-295])
-		Var: iter: int (declared at line 290, available: [291-291])
+		Var: iter: int (declared at line 290, available: [288-295])
 		Scope: 289-294
 			Var: i: int (declared at line 291, available: [288-295])
 	Function: handleStringChain (main.handleStringChain) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/drop_tester/main.go [318:327] injectible: [318-324], [326-327]

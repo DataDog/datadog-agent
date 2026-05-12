@@ -300,7 +300,7 @@ probes:
     type: LOG_PROBE
     tags:
       - "foo:bar"
-      - "version_diff:go1.26rc1"
+      - "version_diff:go1.26.3"
     where:
       methodName: main.testThreeStringsInStruct
     template: "{a}"
@@ -313,7 +313,7 @@ probes:
     type: LOG_PROBE
     tags:
       - "foo:bar"
-      - "version_diff:go1.26rc1"
+      - "version_diff:go1.26.3"
     where:
       methodName: main.testThreeStringsInStruct
     template: "{a.a} {a.b} {a.c}"
@@ -893,7 +893,7 @@ probes:
     type: LOG_PROBE
     tags:
       - "foo:bar"
-      - "version_diff:go1.26rc1"
+      - "version_diff:go1.26.3"
     where:
       methodName: main.testStruct
     template: "{x}"
@@ -1042,7 +1042,7 @@ probes:
     type: LOG_PROBE
     tags:
       - "foo:bar"
-      - "version_diff:go1.26rc1"
+      - "version_diff:go1.26.3"
     where:
       methodName: main.testBigStruct
     template: "{b}"
@@ -1726,7 +1726,7 @@ probes:
   - id: testStructWithCyclicMaps
     type: LOG_PROBE
     tags:
-      - "version_diff:go1.26rc1"
+      - "version_diff:go1.26.3"
     where:
       methodName: main.testStructWithCyclicMaps
     template: "{a}"
@@ -2145,7 +2145,7 @@ probes:
   - id: testLongFunctionWithChangingStateLineB
     type: LOG_PROBE
     tags:
-      - "version_diff:go1.26rc1"
+      - "version_diff:go1.26.3"
     where:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
@@ -2160,7 +2160,7 @@ probes:
   - id: testLongFunctionWithChangingStateLineC
     type: LOG_PROBE
     tags:
-      - "version_diff:go1.26rc1"
+      - "version_diff:go1.26.3"
     where:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
@@ -2560,7 +2560,7 @@ probes:
   - id: testCaptureExprGetmember
     type: LOG_PROBE
     tags:
-      - "version_diff:go1.26rc1"
+      - "version_diff:go1.26.3"
     where:
       methodName: main.testStruct
     captureSnapshot: false
@@ -2671,7 +2671,7 @@ probes:
   - id: testErrorAtLine
     type: LOG_PROBE
     tags:
-      - "config_diff:arch=amd64,toolchain=go1.26rc1"
+      - "config_diff:arch=amd64,toolchain=go1.26.3"
       - "skip_integration:arch=arm64,toolchain=go1.25.0" # https://github.com/golang/go/issues/74576
     where:
       methodName: main.testErrorAtLine
@@ -2723,13 +2723,16 @@ probes:
       snapshotsPerSecond: 100
 
   # Line probe inside generic free function
-  - id: testGenericFuncContainsLine
+  - id: testContainsLine
     type: LOG_PROBE
     where:
       methodName: "main.genericContains[...]"
       sourceFile: "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go"
       lines:
         - "80"
+    tags:
+      - "config_diff:arch=arm64,toolchain=go1.26.3"
+      - "config_diff:arch=amd64,toolchain=go1.26.3"
     captureSnapshot: true
     template: "v={v}"
     segments:

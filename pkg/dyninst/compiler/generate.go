@@ -1039,7 +1039,7 @@ func offsetOfUint8(fields []ir.Field, name string) (uint8, error) {
 // hasDuplicateInterfacePieces returns true if an interface type has both
 // pieces claiming the same register. Interface types have two distinct
 // pointers (type/itab and data) that can never have the same value, so
-// duplicate registers indicate invalid DWARF. Seen on ARM64 with go1.26rc1.
+// duplicate registers indicate invalid DWARF. Seen on ARM64 with go1.26.
 func hasDuplicateInterfacePieces(typ ir.Type, pieces []ir.Piece) bool {
 	switch typ.(type) {
 	case *ir.GoInterfaceType, *ir.GoEmptyInterfaceType:
@@ -1096,7 +1096,7 @@ outer:
 		// available.
 		//
 		// Also check for duplicate interface pieces where both claim the same
-		// register (seen on ARM64 with go1.26rc1). Interface types have two
+		// register (seen on ARM64 with go1.26). Interface types have two
 		// distinct pointers that can never share a register.
 		if len(loclist.Pieces) == 0 ||
 			hasDuplicateInterfacePieces(op.Variable.Type, loclist.Pieces) {

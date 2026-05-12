@@ -3,6 +3,7 @@ Package: main
 	Function: doNothing (main.doNothing) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go [12:12] injectible: [12-12]
 		Arg: x: []int (declared at line 12, available: [12-12])
 	Function: executeArrayFuncs (main.executeArrayFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/arrays.go [102:129] injectible: [102-117], [119-122], [124-124], [128-129]
+		Var: .autotmp_0: [2]struct {} (declared at line 128, available: [102-129])
 	Function: executeBasicFuncs (main.executeBasicFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/basics.go [76:95] injectible: [76-80], [82-87], [89-95]
 	Function: executeComplexFuncs (main.executeComplexFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/complex.go [246:314] injectible: [246-246], [249-252], [257-258], [260-263], [266-266], [277-277], [280-281], [283-283], [287-287], [289-289], [294-294], [296-296], [298-299], [301-302], [304-305], [307-311], [313-314]
 		Var: s: []*string (declared at line 258, available: )
@@ -154,7 +155,7 @@ Package: main
 		Var: abc: string (declared at line 58, available: )
 		Var: uninitializedString: string (declared at line 66, available: )
 		Var: s: string (declared at line 72, available: )
-	Function: executeStructFuncs (main.executeStructFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [135:236] injectible: [135-137], [140-140], [142-143], [145-146], [150-150], [152-160], [172-172], [174-174], [177-182], [190-192], [194-195], [198-198], [200-201], [203-206], [208-208], [210-213], [215-216], [220-220], [222-223], [225-226], [228-229], [231-232], [235-236]
+	Function: executeStructFuncs (main.executeStructFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/structs.go [135:236] injectible: [135-137], [140-140], [142-143], [145-146], [150-150], [152-160], [172-172], [174-174], [177-182], [190-192], [194-195], [198-198], [200-201], [203-206], [208-208], [210-213], [215-216], [219-220], [222-223], [225-226], [228-229], [231-232], [235-236]
 		Var: n: main.nStruct (declared at line 139, available: )
 		Var: ns: main.structWithNoStrings (declared at line 148, available: )
 		Var: cs: main.cStruct (declared at line 149, available: )
@@ -725,7 +726,7 @@ Package: main
 		Arg: arg: [3]int (declared at line 297, available: [297-302])
 		Arg: ~r0: [3]int (declared at line 297, available: )
 	Function: testArrayEmptyStructs (main.testArrayEmptyStructs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/arrays.go [87:87] injectible: [87-87]
-		Arg: a: [2]struct {} (declared at line 87, available: [87-87])
+		Arg: a: [2]struct {} (declared at line 87, available: )
 	Function: testArrayOfArrays (main.testArrayOfArrays) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/arrays.go [70:70] injectible: [70-70]
 		Arg: a: [2][2]int (declared at line 70, available: [70-70])
 	Function: testArrayOfArraysOfArrays (main.testArrayOfArraysOfArrays) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/arrays.go [78:78] injectible: [78-78]
@@ -1126,7 +1127,7 @@ Package: main
 			Var: val: interface {} (declared at line 71, available: [60-72])
 	Function: testReturnsAnyAndError (main.testReturnsAnyAndError) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go [44:55] injectible: [44-46], [49-53], [55-55]
 		Arg: v: interface {} (declared at line 44, available: [44-51])
-		Arg: failed: bool (declared at line 44, available: [44-51])
+		Arg: failed: bool (declared at line 44, available: [44-50])
 		Arg: ~r0: interface {} (declared at line 44, available: )
 		Arg: ~r1: error (declared at line 44, available: )
 		Scope: 49-51

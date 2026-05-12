@@ -1,10 +1,10 @@
-- offset: "0x0004cd40"
+- offset: "0x0004cd60"
   size: 72
   kind: struct
   nameEntry: main.Node (exported)
   name: main.Node
   pkg: main
-  ptrToThis: "0x00016f00"
+  ptrToThis: "0x00016f40"
   struct:
     fields:
         - name: Value (exported)
@@ -13,13 +13,13 @@
         - name: Next (exported)
           type: '*main.Node'
           offset: 64
-- offset: "0x0004cde0"
+- offset: "0x0004ce00"
   size: 24
   kind: struct
   nameEntry: main.StringNode (exported)
   name: main.StringNode
   pkg: main
-  ptrToThis: "0x00016f40"
+  ptrToThis: "0x00016f80"
   struct:
     fields:
         - name: Value (exported)

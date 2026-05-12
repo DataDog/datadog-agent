@@ -1,9 +1,9 @@
 === yield 1 [final=true] ===
 Package: main
-	Function: HandleHTTP (main.HandleHTTP) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/rc_tester_v1/main.go [79:88] injectible: [79-88]
-		Arg: w: net/http.ResponseWriter (declared at line 79, available: [79-88])
-		Arg: r: *net/http.Request (declared at line 79, available: [79-88])
-		Var: &buf: *bytes.Buffer (declared at line 85, available: [79-88])
+	Function: HandleHTTP (main.HandleHTTP) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/rc_tester_v1/main.go [60:88] injectible: [60-60], [79-88]
+		Arg: w: net/http.ResponseWriter (declared at line 79, available: [60-88])
+		Arg: r: *net/http.Request (declared at line 79, available: [60-88])
+		Var: &buf: *bytes.Buffer (declared at line 85, available: [60-88])
 		Var: span: gopkg.in/DataDog/dd-trace-go.v1/ddtrace.Span (declared at line 80, available: [81-82])
 	Function: HandleHTTP.Printf.func1 (main.HandleHTTP.Printf.func1) in log/log.go [408:409] injectible: [408-409]
 		Arg: b: []uint8 (declared at line 408, available: [408-409])

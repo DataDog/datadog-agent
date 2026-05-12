@@ -258,7 +258,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.testBigStruct}
-      tags: ['foo:bar', 'version_diff:go1.26rc1']
+      tags: ['foo:bar', 'version_diff:go1.26.3']
       template: '{b}'
       segments: [{json: {ref: b}, dsl: b}]
       captureSnapshot: true
@@ -328,7 +328,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.testStruct}
-      tags: ['version_diff:go1.26rc1']
+      tags: ['version_diff:go1.26.3']
       template: ""
       segments: []
       captureSnapshot: false
@@ -937,7 +937,7 @@ Probes:
         sourceFile: complex.go
         lines: ["108"]
       tags:
-        - config_diff:arch=amd64,toolchain=go1.26rc1
+        - config_diff:arch=amd64,toolchain=go1.26.3
         - skip_integration:arch=arm64,toolchain=go1.25.0
       sampling: {snapshotsPerSecond: 100}
       template: x={x}, err={err}
@@ -1241,13 +1241,14 @@ Probes:
                   DSL: needle
                   EventKind: Entry
                   EventExpressionIndex: 0
-    - id: testGenericFuncContainsLine
+    - id: testContainsLine
       version: 0
       type: LOG_PROBE
       where:
         methodName: main.genericContains[...]
         sourceFile: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/generics.go
         lines: ["80"]
+      tags: ['config_diff:arch=arm64,toolchain=go1.26.3', 'config_diff:arch=amd64,toolchain=go1.26.3']
       sampling: {snapshotsPerSecond: 100}
       template: v={v}
       segments: [v=, {json: {ref: v}, dsl: v}]
@@ -2265,7 +2266,7 @@ Probes:
         methodName: main.testLongFunctionWithChangingState
         sourceFile: complex.go
         lines: ["237"]
-      tags: ['version_diff:go1.26rc1']
+      tags: ['version_diff:go1.26.3']
       sampling: {snapshotsPerSecond: 100}
       template: testLongFunctionWithChangingState
       segments: [testLongFunctionWithChangingState]
@@ -2287,7 +2288,7 @@ Probes:
         methodName: main.testLongFunctionWithChangingState
         sourceFile: complex.go
         lines: ["242"]
-      tags: ['version_diff:go1.26rc1']
+      tags: ['version_diff:go1.26.3']
       sampling: {snapshotsPerSecond: 100}
       template: testLongFunctionWithChangingState
       segments: [testLongFunctionWithChangingState]
@@ -5153,7 +5154,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.testStruct}
-      tags: ['foo:bar', 'version_diff:go1.26rc1']
+      tags: ['foo:bar', 'version_diff:go1.26.3']
       template: '{x}'
       segments: [{json: {ref: x}, dsl: x}]
       captureSnapshot: true
@@ -5258,7 +5259,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.testStructWithCyclicMaps}
-      tags: ['version_diff:go1.26rc1']
+      tags: ['version_diff:go1.26.3']
       template: '{a}'
       segments: [{json: {ref: a}, dsl: a}]
       captureSnapshot: true
@@ -5536,7 +5537,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.testThreeStringsInStruct}
-      tags: ['foo:bar', 'version_diff:go1.26rc1']
+      tags: ['foo:bar', 'version_diff:go1.26.3']
       template: '{a}'
       segments: [{json: {ref: a}, dsl: a}]
       captureSnapshot: true
@@ -5562,7 +5563,7 @@ Probes:
       version: 0
       type: LOG_PROBE
       where: {methodName: main.testThreeStringsInStruct}
-      tags: ['foo:bar', 'version_diff:go1.26rc1']
+      tags: ['foo:bar', 'version_diff:go1.26.3']
       template: '{a.a} {a.b} {a.c}'
       segments:
         - json: {getmember: [{ref: a}, a]}

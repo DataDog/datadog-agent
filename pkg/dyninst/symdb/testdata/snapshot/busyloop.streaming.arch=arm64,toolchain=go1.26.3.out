@@ -14,7 +14,7 @@ Package: main
 		Scope: 26-54
 			Var: i: int (declared at line 46, available: [23-54])
 		Scope: 46-56
-			Var: i: int (declared at line 53, available: [23-46], [53-53], [54-54], [56-56])
+			Var: i: int (declared at line 53, available: [21-56])
 	Function: busyloop.func1 (main.busyloop.func1) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/busyloop/main.go [27:44] injectible: [27-27], [30-32], [35-35], [39-40], [43-44]
 		Var: ready: chan struct {} (declared at line 30, available: [31-31])
 		Var: start: chan struct {} (declared at line 31, available: [27-44])
