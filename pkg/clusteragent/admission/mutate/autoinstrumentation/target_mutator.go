@@ -320,6 +320,7 @@ type targetInternal struct {
 }
 
 // getTarget determines which target to use for a given a pod, which includes the set of tracing libraries to inject.
+// The precedence is Annotation -> CRD -> Config. If a pod matches multiple, the first match will win.
 func (m *TargetMutator) getTarget(pod *corev1.Pod) *targetInternal {
 	result := m.getTargetFromAnnotation(pod)
 	if !result.shouldContinue {
