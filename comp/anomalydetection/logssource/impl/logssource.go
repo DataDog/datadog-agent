@@ -143,7 +143,7 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	var adScheduler schedulers.Scheduler
 	if deps.Autodiscovery != nil {
-		adScheduler = logsadscheduler.New(deps.Autodiscovery)
+		adScheduler = logsadscheduler.NewNamed(deps.Autodiscovery, "observer-logssource AD scheduler")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
