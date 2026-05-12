@@ -159,12 +159,11 @@ func runCommand(ctx context.Context, cmdStr string, useSudo bool) ([]byte, error
 func (c *JetsonCheck) Run() error {
 	tegraStatsCmd := fmt.Sprintf("%s %s", c.tegraStatsPath, strings.Join(c.commandOpts, " "))
 
+	// Kill tegrastats if it runs for twice as long as the interval we specified, to avoid blocking
+	// the check forever
 	ctx, cancel := context.WithTimeout(context.Background(), 2*tegraStatsInterval)
 	defer cancel()
-
-	cmdStr := fmt.Sprintf("(%s) & pid=$!; (sleep %d && kill -9 $pid)", tegraStatsCmd, int((2 * tegraStatsInterval).Seconds()))
-
-	tegrastatsOutput, err := runCommand(ctx, cmdStr, c.useSudo)
+	tegrastatsOutput, err := runCommand(ctx, tegraStatsCmd, c.useSudo)
 	if err != nil {
 		switch err := err.(type) {
 		case *exec.ExitError:
