@@ -39,7 +39,7 @@ var encRegexp = regexp.MustCompile(`^ENC\[([^\]]+)\]$`)
 // via secret_backend_command. The field's source is rewritten to
 // SourceSecretBackend (success) or SourceEncrypted (failure); SourceEncrypted
 // is treated as unresolved so the next pipeline tier can produce a value.
-func resolveENC(ctx context.Context, cfg *Config) {
+func resolveENC(ctx context.Context, cfg *LiteConfig) {
 	cmd := cfg.SecretBackendCommand.Value
 	for _, f := range []*ConfigField{&cfg.APIKey, &cfg.Site, &cfg.DDURL} {
 		if f.Value == "" || !encRegexp.MatchString(f.Value) {

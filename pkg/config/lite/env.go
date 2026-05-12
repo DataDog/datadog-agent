@@ -8,7 +8,7 @@ package lite
 import "os"
 
 // applyEnv fills any unresolved field from DD_* env vars
-func applyEnv(cfg *Config) {
+func applyEnv(cfg *LiteConfig) {
 	set := func(field *ConfigField, vars ...string) {
 		if field.resolved() {
 			return

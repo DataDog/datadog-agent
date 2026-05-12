@@ -119,7 +119,7 @@ func IntakeURL(site string) string {
 // and stops at the first 2xx, capped at rescueMaxAttempts. The intake decides
 // which credential is right — fuzzy collisions like `app_key` vs `api_kye`
 // self-heal here instead of being blocked by a static denylist.
-func rescueWithURL(ctx context.Context, cfg Config, url string, startupErr error) error {
+func rescueWithURL(ctx context.Context, cfg LiteConfig, url string, startupErr error) error {
 	issue := buildRescueIssue(cfg, startupErr)
 	if issue == nil {
 		return nil
@@ -160,7 +160,7 @@ func rescueWithURL(ctx context.Context, cfg Config, url string, startupErr error
 // buildRescueIssue inspects cfg + startupErr and produces the Issue payload.
 // Returns nil if there is nothing worth reporting. Priority: yaml_parse >
 // schema_validation > startup_failure.
-func buildRescueIssue(cfg Config, startupErr error) *healthplatform.Issue {
+func buildRescueIssue(cfg LiteConfig, startupErr error) *healthplatform.Issue {
 	if cfg.YAMLParseErr != nil {
 		return BuildInvalidConfigIssue(IssueInfo{
 			Kind:         ErrorKindYAMLParse,

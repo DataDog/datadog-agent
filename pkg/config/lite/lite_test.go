@@ -28,7 +28,7 @@ func withYAML(t *testing.T, content string) string {
 
 // extract runs Extract with a TODO context — the test suite never configures
 // a secret_backend_command, so the resolver no-ops.
-func extract(cliPath, defaultPath string) Config {
+func extract(cliPath, defaultPath string) LiteConfig {
 	return Extract(context.TODO(), cliPath, defaultPath)
 }
 
@@ -227,7 +227,7 @@ printf '%s' '{"ENC[the_handle]":{"value":"resolved_value","error":""}}'
 	assert.Equal(t, SourceSecretBackend, cfg.APIKey.Source)
 }
 
-func TestNoConfigFileAtAll(t *testing.T) {
+func TestNoLiteConfigFileAtAll(t *testing.T) {
 	cfg := extract("/nonexistent", "/also/nonexistent")
 	assert.Empty(t, cfg.ConfigFilePath)
 	assert.NoError(t, cfg.FileReadErr)

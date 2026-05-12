@@ -52,7 +52,7 @@ const (
 // forwarder handles periodic sending of health reports to the Datadog intake
 type forwarder struct {
 	cfg             pkgconfigmodel.Reader
-	liteCfgFallback lite.Config // used only when live config is broken
+	liteCfgFallback lite.LiteConfig // used only when live config is broken
 	intakeURL       string
 	interval        time.Duration
 	hostname        string

@@ -11,21 +11,21 @@ import "regexp"
 // at the start of every line, so nested `api_key:` inside additional_endpoints
 // or logs_config never gets surfaced as the primary credential.
 var regexBindings = []struct {
-	field   func(*Config) *ConfigField
+	field   func(*LiteConfig) *ConfigField
 	name    string
 	pattern *regexp.Regexp
 }{
-	{func(c *Config) *ConfigField { return &c.APIKey }, "api_key",
+	{func(c *LiteConfig) *ConfigField { return &c.APIKey }, "api_key",
 		regexp.MustCompile(`(?m)^api_key:[ \t]+(.+?)[ \t]*(?:#.*)?$`)},
-	{func(c *Config) *ConfigField { return &c.Site }, "site",
+	{func(c *LiteConfig) *ConfigField { return &c.Site }, "site",
 		regexp.MustCompile(`(?m)^site:[ \t]+(.+?)[ \t]*(?:#.*)?$`)},
-	{func(c *Config) *ConfigField { return &c.DDURL }, "dd_url",
+	{func(c *LiteConfig) *ConfigField { return &c.DDURL }, "dd_url",
 		regexp.MustCompile(`(?m)^dd_url:[ \t]+(.+?)[ \t]*(?:#.*)?$`)},
-	{func(c *Config) *ConfigField { return &c.SecretBackendCommand }, "secret_backend_command",
+	{func(c *LiteConfig) *ConfigField { return &c.SecretBackendCommand }, "secret_backend_command",
 		regexp.MustCompile(`(?m)^secret_backend_command:[ \t]+(.+?)[ \t]*(?:#.*)?$`)},
 }
 
-func applyRegex(cfg *Config, raw []byte) {
+func applyRegex(cfg *LiteConfig, raw []byte) {
 	for _, b := range regexBindings {
 		f := b.field(cfg)
 		if f.resolved() {

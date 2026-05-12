@@ -50,9 +50,9 @@ func (f ConfigField) resolved() bool {
 	return f.Value != ""
 }
 
-// Config is the result of running Extract against env + a candidate
+// LiteConfig is the result of running Extract against env + a candidate
 // datadog.yaml.
-type Config struct {
+type LiteConfig struct {
 	APIKey ConfigField
 	Site   ConfigField
 	DDURL  ConfigField

@@ -13,17 +13,12 @@ import (
 	"strings"
 )
 
-// maxConfigFileSize bounds the bytes we read from datadog.yaml. Anything larger
-// is almost certainly malicious or a symlink to something we don't want to
-// slurp; the real config is < 10 KiB.
-const maxConfigFileSize = 1 << 20 // 1 MiB
-
 // Extract runs the tiered resolver pipeline against the process environment
 // and the candidate datadog.yaml paths. cliConfPath is from `--cfgpath` (or
 // empty); defaultConfPath is the platform-specific default. The first path
 // that exists is used.
-func Extract(ctx context.Context, cliConfPath, defaultConfPath string) Config {
-	cfg := Config{
+func Extract(ctx context.Context, cliConfPath, defaultConfPath string) LiteConfig {
+	cfg := LiteConfig{
 		APIKey:               ConfigField{Source: SourceNone},
 		Site:                 ConfigField{Source: SourceNone},
 		DDURL:                ConfigField{Source: SourceNone},
@@ -59,7 +54,7 @@ func Extract(ctx context.Context, cliConfPath, defaultConfPath string) Config {
 	if len(raw) > 0 {
 		// applyFullYAML always runs to capture YAMLParseErr / ParsedConfig.
 		applyFullYAML(&cfg, raw)
-		for _, apply := range []func(*Config, []byte){applyTopLevelYAML, applyRegex, applyFuzzy} {
+		for _, apply := range []func(*LiteConfig, []byte){applyTopLevelYAML, applyRegex, applyFuzzy} {
 			// SecretBackendCommand is excluded: it only exists to feed resolveENC.
 			if cfg.APIKey.resolved() && cfg.Site.resolved() && cfg.DDURL.resolved() {
 				break

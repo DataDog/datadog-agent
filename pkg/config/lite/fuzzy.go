@@ -14,13 +14,13 @@ import (
 // Levenshtein cutoff: we accept "apikey" (distance 1 from "api_key") but not
 // keys that diverge by more.
 var fuzzyKeys = []struct {
-	field   func(*Config) *ConfigField
+	field   func(*LiteConfig) *ConfigField
 	name    string
 	maxDist int
 }{
-	{func(c *Config) *ConfigField { return &c.APIKey }, "api_key", 2},
-	{func(c *Config) *ConfigField { return &c.Site }, "site", 1},
-	{func(c *Config) *ConfigField { return &c.DDURL }, "dd_url", 2},
+	{func(c *LiteConfig) *ConfigField { return &c.APIKey }, "api_key", 2},
+	{func(c *LiteConfig) *ConfigField { return &c.Site }, "site", 1},
+	{func(c *LiteConfig) *ConfigField { return &c.DDURL }, "dd_url", 2},
 }
 
 // maxAPIKeyExtras caps how many alternative api_key candidates we stash. One
@@ -33,7 +33,7 @@ const maxAPIKeyExtras = 1
 // best becomes the field's primary value; up to maxAPIKeyExtras additional
 // api_key candidates are stashed on cfg.APIKeyCandidates so the rescue path
 // can retry on 401.
-func applyFuzzy(cfg *Config, raw []byte) {
+func applyFuzzy(cfg *LiteConfig, raw []byte) {
 	for _, k := range fuzzyKeys {
 		f := k.field(cfg)
 		if f.resolved() {

@@ -66,7 +66,7 @@ func schemaIssue(t *testing.T, path string, errs []string) *healthplatform.Issue
 }
 
 func TestBuildRescue_YAMLParseHasHighSeverity(t *testing.T) {
-	cfg := Config{
+	cfg := LiteConfig{
 		APIKey:       ConfigField{Value: "k", Source: SourceFileRegex},
 		Site:         ConfigField{Value: "datadoghq.com", Source: SourceDefault},
 		YAMLParseErr: errors.New("yaml: line 12: did not find expected ',' or ']'"),
@@ -115,8 +115,8 @@ func TestBuildRescue_SchemaTruncation(t *testing.T) {
 	assert.Equal(t, MaxSchemaErrorsInPayload, strings.Count(visible, "violation"))
 }
 
-func TestBuildRescue_StartupFailureWhenConfigIsClean(t *testing.T) {
-	cfg := Config{
+func TestBuildRescue_StartupFailureWhenLiteConfigIsClean(t *testing.T) {
+	cfg := LiteConfig{
 		APIKey:       ConfigField{Value: "k", Source: SourceFileYAMLFull},
 		Site:         ConfigField{Value: "datadoghq.com", Source: SourceFileYAMLFull},
 		ParsedConfig: map[string]any{},
@@ -131,7 +131,7 @@ func TestBuildRescue_StartupFailureWhenConfigIsClean(t *testing.T) {
 }
 
 func TestBuildRescue_NothingToReportReturnsNil(t *testing.T) {
-	cfg := Config{
+	cfg := LiteConfig{
 		APIKey:       ConfigField{Value: "k", Source: SourceFileYAMLFull},
 		Site:         ConfigField{Value: "datadoghq.com", Source: SourceFileYAMLFull},
 		ParsedConfig: map[string]any{},
@@ -191,7 +191,7 @@ func TestRescue_RetriesCandidatesUntilSuccess(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	cfg := Config{
+	cfg := LiteConfig{
 		APIKey: ConfigField{Value: "wrong_app_key", Source: SourceFileFuzzy, MatchedKey: "app_key"},
 		APIKeyCandidates: []ConfigField{
 			{Value: goodKey, Source: SourceFileFuzzy, MatchedKey: "api_kye"},
