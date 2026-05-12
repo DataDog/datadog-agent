@@ -50,13 +50,13 @@ func (r *Registry) GetTemplate(issueID string) (IssueTemplate, bool) {
 }
 
 // BuildIssue creates a complete issue using the template and context
-func (r *Registry) BuildIssue(issueID string, context map[string]string) (*healthplatform.Issue, error) {
-	template, exists := r.GetTemplate(issueID)
+func (r *Registry) BuildIssue(issueType string, context map[string]string) (*healthplatform.Issue, error) {
+	template, exists := r.GetTemplate(issueType)
 	if !exists {
-		return nil, fmt.Errorf("no issue template found for: %s", issueID)
+		return nil, fmt.Errorf("no issue template found for: %s", issueType)
 	}
 
-	return template.BuildIssue(issueID, context)
+	return template.BuildIssue(issueType, context)
 }
 
 // GetBuiltInHealthChecks returns all built-in health checks from registered modules
