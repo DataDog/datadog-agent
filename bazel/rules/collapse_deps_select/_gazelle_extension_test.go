@@ -9,6 +9,8 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/bazelbuild/bazel-gazelle/config"
+	"github.com/bazelbuild/bazel-gazelle/rule"
 	bzl "github.com/bazelbuild/buildtools/build"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -418,6 +420,100 @@ func TestCollapseExprAlreadyCollapsedIsNoop(t *testing.T) {
 }
 
 // --- sorting of missing-platform entries -------------------------------------
+
+// --- Configure (directive activation) ---------------------------------------
+
+// fileWithDirective builds a *rule.File carrying a single # gazelle:<key> <value>
+// directive, which is all Configure needs to read.
+func fileWithDirective(key, value string) *rule.File {
+	return &rule.File{Directives: []rule.Directive{{Key: key, Value: value}}}
+}
+
+func TestConfigure(t *testing.T) {
+	l := &lang{}
+
+	tests := []struct {
+		name   string
+		parent *extConfig // nil means no parent state (root invocation)
+		file   *rule.File // nil means directory has no BUILD file
+		want   bool
+	}{
+		{
+			name: "default off when no parent and no directive",
+			want: false,
+		},
+		{
+			name: "directive on activates",
+			file: fileWithDirective(extName, "on"),
+			want: true,
+		},
+		{
+			name: "directive true activates",
+			file: fileWithDirective(extName, "true"),
+			want: true,
+		},
+		{
+			name: "bare directive activates",
+			file: fileWithDirective(extName, ""),
+			want: true,
+		},
+		{
+			name:   "inherits parent on",
+			parent: &extConfig{enabled: true},
+			want:   true,
+		},
+		{
+			name:   "directive off overrides parent on",
+			parent: &extConfig{enabled: true},
+			file:   fileWithDirective(extName, "off"),
+			want:   false,
+		},
+		{
+			name:   "directive false overrides parent on",
+			parent: &extConfig{enabled: true},
+			file:   fileWithDirective(extName, "false"),
+			want:   false,
+		},
+		{
+			name: "unrelated directive does not flip state",
+			file: fileWithDirective("some_other_extension", "on"),
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &config.Config{Exts: map[string]interface{}{}}
+			if tt.parent != nil {
+				c.Exts[extName] = *tt.parent
+			}
+			l.Configure(c, "rel/path", tt.file)
+			got, ok := c.Exts[extName].(extConfig)
+			require.True(t, ok, "Configure must populate c.Exts[%q] with extConfig", extName)
+			assert.Equal(t, tt.want, got.enabled)
+		})
+	}
+}
+
+// TestConfigureParentNotMutated guards against accidental aliasing: a child's
+// directive must not flip the parent's enabled state.
+func TestConfigureParentNotMutated(t *testing.T) {
+	l := &lang{}
+
+	parentCfg := &config.Config{Exts: map[string]interface{}{extName: extConfig{enabled: false}}}
+	l.Configure(parentCfg, "", nil)
+
+	child := &config.Config{Exts: map[string]interface{}{}}
+	for k, v := range parentCfg.Exts {
+		child.Exts[k] = v
+	}
+	l.Configure(child, "child", fileWithDirective(extName, "on"))
+
+	parentState, _ := parentCfg.Exts[extName].(extConfig)
+	assert.False(t, parentState.enabled, "parent state must remain off")
+	childState, _ := child.Exts[extName].(extConfig)
+	assert.True(t, childState.enabled, "child state must be on")
+}
 
 func TestInvertedSelectMissingPlatformsSorted(t *testing.T) {
 	// Missing platforms in the inverted select should appear in sorted order,

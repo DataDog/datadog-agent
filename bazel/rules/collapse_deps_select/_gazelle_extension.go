@@ -4,7 +4,8 @@
 // Copyright 2026-present Datadog, Inc.
 
 // Package collapse_deps_select is a Gazelle extension that collapses redundant
-// select() branches in go_library, go_test, and go_binary deps attributes.
+// select() branches in the deps attribute of go_library, go_test, and go_binary
+// rules.
 //
 // Gazelle's Go language extension resolves platform build constraints by
 // enumerating every known platform and evaluating the constraint for each one.
@@ -15,6 +16,15 @@
 // This extension runs after all deps have been resolved and written into the
 // build rules, but before BUILD files are written to disk, and collapses the
 // deps selects of go_library, go_test, and go_binary rules.
+//
+// Activation:
+//
+// New BUILD files (none exists in the directory yet) are always processed.
+// Existing BUILD files are only processed when the # gazelle:collapse_deps_select
+// directive is set to "on" in that file or in an ancestor BUILD file. Setting
+// the directive to "off" in a child BUILD file overrides an inherited "on" for
+// that subtree. This lets the cleanup of pre-existing BUILD files roll out in
+// small, scoped PRs without flagging the rest of the repository as out-of-date.
 //
 // Two collapsing strategies are applied:
 //
@@ -53,6 +63,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/rule"
 	bzl "github.com/bazelbuild/buildtools/build"
@@ -96,18 +107,62 @@ type lang struct {
 	newRules   []*rule.Rule // rules to insert into new BUILD files; same objects are written to disk
 }
 
+// extConfig is the per-directory state for this extension. It is stored in
+// config.Config.Exts under extName and inherits from the parent directory's
+// config unless the local BUILD file overrides it via the directive.
+type extConfig struct {
+	enabled bool
+}
+
 func NewLanguage() language.Language {
 	return &lang{}
 }
 
 func (*lang) Name() string { return extName }
 
+// KnownDirectives declares the gazelle:collapse_deps_select directive so that
+// `gazelle -strict` accepts it instead of erroring on an unknown key.
+func (*lang) KnownDirectives() []string { return []string{extName} }
+
+// Configure walks the directory tree once before GenerateRules. It clones the
+// parent's enabled state and applies the local directive, if any. The result is
+// inherited by descendant directories.
+func (*lang) Configure(c *config.Config, _ string, f *rule.File) {
+	cfg := extConfig{}
+	if parent, ok := c.Exts[extName].(extConfig); ok {
+		cfg = parent
+	}
+	if f != nil {
+		for _, d := range f.Directives {
+			if d.Key != extName {
+				continue
+			}
+			switch d.Value {
+			case "on", "true", "":
+				cfg.enabled = true
+			case "off", "false":
+				cfg.enabled = false
+			}
+		}
+	}
+	c.Exts[extName] = cfg
+}
+
 // GenerateRules collects references to the files and rules we will process
 // later. deps attributes are not populated at this stage — the Go extension
 // fills them in during a separate resolution pass. The actual collapsing
 // happens in AfterResolvingDeps.
+//
+// New BUILD files are always captured. Existing BUILD files are only captured
+// when the directive has opted this directory in; this keeps untouched parts of
+// the repository out of Gazelle's diff once the extension is enabled at the
+// gazelle_binary level.
 func (l *lang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 	if args.File != nil {
+		cfg, _ := args.Config.Exts[extName].(extConfig)
+		if !cfg.enabled {
+			return language.GenerateResult{}
+		}
 		// deps is not set yet at this point; it is written by the Go extension's
 		// Resolve and then merged back into f.Rules by PostResolve. Store the
 		// file so that AfterResolvingDeps can iterate f.Rules once they are final.
