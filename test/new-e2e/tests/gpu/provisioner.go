@@ -198,9 +198,9 @@ func gpuHostProvisioner(params *provisionerParams) provisioners.Provisioner {
 			return fmt.Errorf("installGPURuntimeDeps: %w", err)
 		}
 
-		// Set up Docker (after GPU devices are validated). Docker and the ECR
-		// credentials helper come from runtimeDeps above (GPU AMIs don't have
-		// them pre-baked); NewAWSManager only wires ECR auth via SetupECRDockerAuth.
+		// Set up Docker (after GPU devices are validated). Docker is pre-baked in
+		// the NVIDIA GPU AMI; runtimeDeps adds jq, the ECR credential helper, and
+		// docker-compose which are present in Ubuntu2204E2E but not in GPU AMIs.
 		dockerManager, err := docker.NewAWSManager(&awsEnv, host, utils.PulumiDependsOn(runtimeDeps))
 		if err != nil {
 			return fmt.Errorf("docker.NewAWSManager: %w", err)
