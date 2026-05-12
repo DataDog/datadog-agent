@@ -15,6 +15,12 @@ const (
 // CelIdentifier represents a CEL-based AD identifier.
 type CelIdentifier string
 
+// ConfigRequired returns true if this CEL identifier should be
+// injected into a config's ADIdentifiers
+func (c CelIdentifier) ConfigRequired(hasADIDs bool) bool {
+	return c == CelProcessIdentifier || !hasADIDs
+}
+
 const (
 	// CelContainerIdentifier is the CEL identifier for container resources.
 	CelContainerIdentifier CelIdentifier = CelIdentifierPrefix + "container"

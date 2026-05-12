@@ -10,6 +10,7 @@ package executors
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 
 	"github.com/DataDog/agent-payload/v5/kubeactions"
@@ -99,15 +100,15 @@ func NewRollbackDeploymentExecutor(clientset kubernetes.Interface) *RollbackDepl
 func validateTargetDeployment(ctx context.Context, client kubernetes.Interface, name string, namespace string, uid string) (*appsv1.Deployment, error) {
 	deployment, err := client.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
-		return nil, log.Errorf("failed to get deployment %s/%s: %v", namespace, name, err)
+		return nil, fmt.Errorf("failed to get deployment %s/%s: %v", namespace, name, err)
 	}
 
 	if string(deployment.UID) != uid {
-		return nil, log.Errorf("deployment %s/%s UID mismatch: expected %s, got %s - deployment may have been replaced", namespace, name, uid, deployment.UID)
+		return nil, fmt.Errorf("deployment %s/%s UID mismatch: expected %s, got %s - deployment may have been replaced", namespace, name, uid, deployment.UID)
 	}
 
 	if deployment.Spec.Paused {
-		return nil, log.Errorf("deployment %s/%s is paused, cannot perform a rollback", namespace, name)
+		return nil, fmt.Errorf("deployment %s/%s is paused, cannot perform a rollback", namespace, name)
 	}
 
 	return deployment, nil
@@ -121,19 +122,19 @@ func getReplicaSetByRevision(ctx context.Context, client kubernetes.Interface, d
 
 	// Revisions can never be negative, they start at 1
 	if targetRevision < 0 {
-		return unset, nil, log.Errorf("revision %d is invalid", targetRevision)
+		return unset, nil, fmt.Errorf("revision %d is invalid", targetRevision)
 	}
 
 	selector, err := metav1.LabelSelectorAsSelector(deployment.Spec.Selector)
 	if err != nil {
-		return unset, nil, log.Errorf("failed to build deployment label selector for %s/%s", namespace, name)
+		return unset, nil, fmt.Errorf("failed to build deployment label selector for %s/%s", namespace, name)
 	}
 
 	// List all ReplicaSets with a label selector matching the deployments
 	rsInterface := client.AppsV1().ReplicaSets(namespace)
 	allReplicaSets, err := rsInterface.List(ctx, metav1.ListOptions{LabelSelector: selector.String()})
 	if err != nil {
-		return unset, nil, log.Errorf("failed to list replicasets in namespace %s", namespace)
+		return unset, nil, fmt.Errorf("failed to list replicasets in namespace %s", namespace)
 	}
 
 	// Revisions are not always sequential or ordered
@@ -159,7 +160,7 @@ func getReplicaSetByRevision(ctx context.Context, client kubernetes.Interface, d
 		// Parse the revision integer from the "deployment.kubernetes.io/revision" annotation
 		rev, err := strconv.ParseInt(revision, 10, 64)
 		if err != nil {
-			log.Errorf("failed to parse replicaset revision from %s", revision)
+			log.Debugf("failed to parse replicaset revision from %s", revision)
 			continue
 		}
 
@@ -185,12 +186,12 @@ func getReplicaSetByRevision(ctx context.Context, client kubernetes.Interface, d
 
 	// If targetRevision is > 0, and we didn't return early, that means it wasn't found
 	if targetRevision > 0 {
-		return unset, nil, log.Errorf("failed to find revision %d", targetRevision)
+		return unset, nil, fmt.Errorf("failed to find revision %d", targetRevision)
 	}
 
 	// If previous index is -1 that means there is one (or none) revisions
 	if previousRevisionIndex == int(unset) {
-		return unset, nil, log.Errorf("failed to find revision %d", targetRevision)
+		return unset, nil, fmt.Errorf("failed to find revision %d", targetRevision)
 	}
 
 	// Return the previous revision by default
@@ -250,13 +251,10 @@ func (r *RollbackDeploymentExecutor) Execute(ctx context.Context, action *kubeac
 
 	// Restore revision by patching the Deployment
 	if _, err = r.clientset.AppsV1().Deployments(namespace).Patch(ctx, name, patchType, patch, metav1.PatchOptions{}); err != nil {
-		msg := "failed restoring revision " + strconv.FormatInt(foundRevision, 10) + ": " + err.Error()
-		log.Error(msg)
 		return ExecutionResult{
 			Status:  StatusFailed,
-			Message: msg,
+			Message: "failed restoring revision " + strconv.FormatInt(foundRevision, 10) + ": " + err.Error(),
 		}
-
 	}
 
 	return ExecutionResult{

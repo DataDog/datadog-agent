@@ -1,0 +1,59 @@
+load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files", "strip_prefix")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load(":tar_md5sums.bzl", "tar_md5sums")
+
+py_binary(
+    name = "tar_checksums",
+    srcs = ["generate_md5sum.py"],
+    main = "generate_md5sum.py",
+    visibility = ["//visibility:public"],
+)
+
+pkg_files(
+    name = "test_files",
+    # The files are intentionally named bin so git doesn't CRLF them on windows.
+    srcs = [
+        "testdata/alphabet.bin",
+        "testdata/hello.bin",
+    ],
+    prefix = "opt/test",
+    strip_prefix = strip_prefix.from_pkg("testdata"),
+)
+
+pkg_tar(
+    name = "test_archive_gz",
+    srcs = [":test_files"],
+    extension = "tar.gz",
+)
+
+pkg_tar(
+    name = "test_archive_xz",
+    srcs = [":test_files"],
+    extension = "tar.xz",
+)
+
+tar_md5sums(
+    name = "gen_checksums_gz",
+    src = ":test_archive_gz",
+    md5sums = "test_checksums_gz.txt",
+)
+
+tar_md5sums(
+    name = "gen_checksums_xz",
+    src = ":test_archive_xz",
+    md5sums = "test_checksums_xz.txt",
+)
+
+diff_test(
+    name = "checksums_gz_test",
+    file1 = ":gen_checksums_gz",
+    file2 = "testdata/expected_checksums.txt",
+)
+
+diff_test(
+    name = "checksums_xz_test",
+    file1 = ":gen_checksums_xz",
+    file2 = "testdata/expected_checksums.txt",
+)

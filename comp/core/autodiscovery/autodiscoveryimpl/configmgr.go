@@ -108,6 +108,11 @@ type reconcilingConfigManager struct {
 	// methods correspond exactly to changes in this map.
 	scheduledConfigs map[string]integration.Config
 
+	// staticConfigIndex is a shared name set published to listeners so they
+	// can deduplicate templates against static configs (see ProcessService).
+	// May be nil; callers that don't need cross-listener dedup can omit it.
+	staticConfigIndex *listeners.StaticConfigIndex
+
 	secretResolver secrets.Component
 	healthPlatform healthplatformdef.Component
 }
@@ -115,7 +120,7 @@ type reconcilingConfigManager struct {
 var _ configManager = &reconcilingConfigManager{}
 
 // newReconcilingConfigManager creates a new, empty reconcilingConfigManager.
-func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component) configManager {
+func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatform healthplatformdef.Component, staticConfigIndex *listeners.StaticConfigIndex) configManager {
 	return &reconcilingConfigManager{
 		activeConfigs:      map[string]integration.Config{},
 		activeServices:     map[string]serviceAndADIDs{},
@@ -123,6 +128,7 @@ func newReconcilingConfigManager(secretResolver secrets.Component, healthPlatfor
 		servicesByADID:     newMultimap(),
 		serviceResolutions: map[string]map[string]string{},
 		scheduledConfigs:   map[string]integration.Config{},
+		staticConfigIndex:  staticConfigIndex,
 		secretResolver:     secretResolver,
 		healthPlatform:     healthPlatform,
 	}
@@ -244,6 +250,16 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 		}
 
 		changes.ScheduleConfig(decryptedConfig)
+
+		// Publish to the cross-listener index so that subsequently
+		// reconciled services (e.g. ProcessService) can deduplicate
+		// templates against this static config.
+		//
+		// TODO: re-reconcile already-resolved services whose templates of
+		// this name would now be deduplicated. Without this, a static
+		// config that arrives after a dynamic process discovery leaves the
+		// duplicate scheduled until something else perturbs the service.
+		cm.staticConfigIndex.Add(config.Name)
 	}
 
 	//  4. update scheduledConfigs
@@ -295,6 +311,11 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 			}
 
 			changes.UnscheduleConfig(config)
+
+			// Update the cross-listener index. See processNewConfig for the
+			// TODO on runtime re-reconciliation of services whose templates
+			// of this name may now be (re)schedulable.
+			cm.staticConfigIndex.Remove(config.Name)
 		}
 
 		//  4. update scheduledConfigs
@@ -367,7 +388,7 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 	// the service, in which case no resolutions are expected.
 	if svc != nil {
 		// Warning: this must be called with the configs stored in cm.activeConfigs
-		// which contain the compiled matchingProgram for the config template.
+		// which contain the compiled matchingPrograms for the config template.
 		svc.FilterTemplates(expectedResolutions)
 	}
 

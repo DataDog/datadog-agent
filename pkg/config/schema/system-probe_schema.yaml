@@ -71,18 +71,18 @@ properties:
         - no-env
       allow_prebuilt_fallback:
         node_type: setting
+        type: boolean
+        default: false
         env_vars:
         - DD_ALLOW_PREBUILT_FALLBACK
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        tags: []
       allow_precompiled_fallback:
         node_type: setting
+        type: boolean
+        default: false
         env_vars:
         - DD_ALLOW_PRECOMPILED_FALLBACK
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        tags: []
       allow_runtime_compiled_fallback:
         node_type: setting
         type: boolean
@@ -135,14 +135,16 @@ properties:
         tags: []
       closed_channel_size:
         node_type: setting
+        type: number
+        default: 0
         tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        - golang_type:int
       closed_connection_flush_threshold:
         node_type: setting
+        type: number
+        default: 0
         tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        - golang_type:int
       collect_dns_domains:
         node_type: setting
         type: boolean
@@ -248,22 +250,22 @@ properties:
         tags: []
       enable_kernel_header_download:
         node_type: setting
+        type: boolean
+        default: false
         env_vars:
         - DD_ENABLE_KERNEL_HEADER_DOWNLOAD
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        tags: []
       enable_oom_kill:
         node_type: setting
         type: boolean
         default: false
       enable_runtime_compiler:
         node_type: setting
+        type: boolean
+        default: false
         env_vars:
         - DD_ENABLE_RUNTIME_COMPILER
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        tags: []
       enable_tcp_queue_length:
         node_type: setting
         type: boolean
@@ -442,9 +444,10 @@ properties:
         default: ''
       max_closed_connections_buffered:
         node_type: setting
+        type: number
+        default: 0
         tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        - golang_type:int64
       max_connection_state_buffered:
         node_type: setting
         type: number
@@ -645,14 +648,16 @@ properties:
         - golang_type:int
       closed_channel_size:
         node_type: setting
+        type: number
+        default: 500
         tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        - golang_type:int
       closed_connection_flush_threshold:
         node_type: setting
+        type: number
+        default: 0
         tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        - golang_type:int
       collect_tcp_v4:
         node_type: setting
         type: boolean
@@ -810,9 +815,10 @@ properties:
         tags: []
       max_failed_connections_buffered:
         node_type: setting
+        type: number
+        default: 0
         tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        - golang_type:int64
       max_http_stats_buffered:
         node_type: setting
         type: number
@@ -2700,7 +2706,7 @@ properties:
       enabled:
         node_type: setting
         type: boolean
-        default: false
+        default: true
       service_collection_interval:
         node_type: setting
         type: string
@@ -2712,7 +2718,7 @@ properties:
       use_system_probe_lite:
         node_type: setting
         type: boolean
-        default: false
+        default: true
   dogstatsd_port:
     node_type: setting
     type: number
@@ -2924,9 +2930,8 @@ properties:
         default: true
       nvml_lib_path:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       process_scan_interval_seconds:
         node_type: setting
         type: number

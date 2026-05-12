@@ -56,6 +56,12 @@ const (
 	OpcodeCondJumpIfFalse
 	OpcodeCondJumpIfTrue
 	OpcodeExprLoadDuration
+	// Split-event-kind condition opcodes (per-leaf 2-bit status + AST replay).
+	OpcodeConditionStateInit
+	OpcodeConditionLeafRecord
+	OpcodeConditionLeafLoad
+	OpcodeConditionCheckPreserveError
+	OpcodeConditionLeafComplete
 )
 
 //revive:enable:exported

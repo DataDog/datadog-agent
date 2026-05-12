@@ -74,7 +74,7 @@ func allowPrebuiltEbpfFallback(cfg model.Config) {
 	// only allow falling back to prebuilt eBPF if the config
 	// is not explicitly set and prebuilt eBPF is not deprecated
 	// on the platform
-	if !cfg.IsSet(allowPrebuiltFallbackKey) && !prebuilt.IsDeprecated() {
+	if !cfg.IsConfigured(allowPrebuiltFallbackKey) && !prebuilt.IsDeprecated() {
 		cfg.Set(allowPrebuiltFallbackKey, true, model.SourceAgentRuntime)
 	}
 }

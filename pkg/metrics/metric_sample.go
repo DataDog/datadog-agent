@@ -153,3 +153,25 @@ func (m *MetricSample) IsNoIndex() bool {
 func (m *MetricSample) GetSource() MetricSource {
 	return m.Source
 }
+
+// GetValue returns the metric sample value, satisfying observer.MetricView.
+func (m *MetricSample) GetValue() float64 {
+	return m.Value
+}
+
+// GetRawTags returns the metric sample tags, satisfying observer.MetricView.
+// The caller must not retain the slice — it may be returned to a pool.
+func (m *MetricSample) GetRawTags() []string {
+	return m.Tags
+}
+
+// GetTimestampUnix returns the metric sample timestamp in Unix seconds, satisfying observer.MetricView.
+// Returns 0 for un-timestamped samples (standard DogStatsD submissions).
+func (m *MetricSample) GetTimestampUnix() int64 {
+	return int64(m.Timestamp)
+}
+
+// GetSampleRate returns the metric sample rate, satisfying observer.MetricView.
+func (m *MetricSample) GetSampleRate() float64 {
+	return m.SampleRate
+}

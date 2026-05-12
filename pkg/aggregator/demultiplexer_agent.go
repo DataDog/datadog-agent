@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
@@ -243,6 +244,38 @@ func initAgentDemultiplexer(log log.Component,
 // Options returns options used during the demux initialization.
 func (d *AgentDemultiplexer) Options() AgentDemultiplexerOptions {
 	return d.options
+}
+
+// SetObserver wires an observer component into the DogStatsD metric pipeline.
+//
+// Requires both anomaly_detection.enabled and anomaly_detection.metrics.enabled to be true.
+// Every raw metric sample passing through the time-sampler workers and the
+// no-aggregation pipeline will be forwarded to the provided observer handle
+// before aggregation. The call is a no-op when either flag is off or obs is
+// nil, so default overhead is zero.
+func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
+	if obs == nil {
+		return
+	}
+	cfg := pkgconfigsetup.Datadog()
+	if !cfg.GetBool("anomaly_detection.enabled") {
+		d.log.Debug("Observer disabled (anomaly_detection.enabled=false)")
+		return
+	}
+	if !cfg.GetBool("anomaly_detection.metrics.enabled") {
+		d.log.Debug("Observer metric capture disabled (anomaly_detection.metrics.enabled=false)")
+		return
+	}
+
+	metricsHandle := obs.GetHandle("all-metrics")
+
+	for _, worker := range d.statsd.workers {
+		worker.sampler.observerHandle = metricsHandle
+	}
+
+	if d.statsd.noAggStreamWorker != nil {
+		d.statsd.noAggStreamWorker.observerHandle = metricsHandle
+	}
 }
 
 // AddAgentStartupTelemetry adds a startup event and count (in a DSD time sampler)

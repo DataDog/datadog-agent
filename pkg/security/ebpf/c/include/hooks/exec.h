@@ -802,7 +802,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
                 u64 has_current_cgroup_id_helper = 0;
                 LOAD_CONSTANT("has_current_cgroup_id_helper", has_current_cgroup_id_helper);
                 if (has_current_cgroup_id_helper) {
-                    pc.cgroup.cgroup_file.ino = bpf_get_current_cgroup_id();
+                    pc.cgroup.path_key.ino = bpf_get_current_cgroup_id();
                 }
             }
         }

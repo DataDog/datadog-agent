@@ -365,6 +365,7 @@
 /comp/core/configstream @DataDog/agent-configuration
 /comp/core/configstreamconsumer @DataDog/agent-configuration
 /comp/core/configsync @DataDog/agent-configuration
+/comp/core/diagnose @DataDog/agent-configuration
 /comp/core/flare @DataDog/agent-configuration
 /comp/core/gui @DataDog/agent-configuration
 /comp/core/profiler @DataDog/agent-configuration
@@ -391,6 +392,8 @@
 /comp/trace-telemetry @DataDog/agent-runtimes
 /comp/updater/daemonchecker @DataDog/fleet
 /comp/updater/ssistatus @DataDog/fleet
+/comp/anomalydetection/logssource @DataDog/q-branch
+/comp/anomalydetection/observer @DataDog/q-branch
 /comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/connectivitychecker @DataDog/fleet
 /comp/dataobs/queryactions @DataDog/data-observability
@@ -567,7 +570,7 @@
 /pkg/config/remote/                     @DataDog/remote-config
 /pkg/config/remote/meta/                @DataDog/remote-config
 /pkg/containerlifecycle/                @DataDog/container-integrations
-/pkg/diagnose/                          @DataDog/container-platform
+/pkg/diagnose/                          @DataDog/agent-configuration
 /pkg/diagnose/connectivity/             @DataDog/agent-configuration
 /pkg/diagnose/firewallscanner/          @DataDog/network-device-monitoring-core
 /pkg/diagnose/ports/                    @DataDog/agent-configuration

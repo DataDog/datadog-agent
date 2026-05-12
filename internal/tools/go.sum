@@ -569,8 +569,8 @@ github.com/uudashr/gocognit v1.2.1 h1:CSJynt5txTnORn/DkhiB4mZjwPuifyASC8/6Q0I/QS
 github.com/uudashr/gocognit v1.2.1/go.mod h1:acaubQc6xYlXFEMb9nWX2dYBzJ/bIjEkc1zzvyIZg5Q=
 github.com/uudashr/iface v1.4.1 h1:J16Xl1wyNX9ofhpHmQ9h9gk5rnv2A6lX/2+APLTo0zU=
 github.com/uudashr/iface v1.4.1/go.mod h1:pbeBPlbuU2qkNDn0mmfrxP2X+wjPMIQAy+r1MBXSXtg=
-github.com/vektra/mockery/v3 v3.6.3 h1:YaBokm33LG0E8w1TccCkcJr/6tRf+zSYiHS8ct4ttCc=
-github.com/vektra/mockery/v3 v3.6.3/go.mod h1:kh58mpWIghfUCfFkNCP72TJmuJUR/dKnrqBZ3HspVq8=
+github.com/vektra/mockery/v3 v3.7.0 h1:Dd0EeaOcRJBVP9n3oYOVPV7KdPaaE3EcwTppaZIsFSM=
+github.com/vektra/mockery/v3 v3.7.0/go.mod h1:z9Wr23Ha8etImqQwS3boTNR9WkjX6tIklW5c88DRkSw=
 github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad h1:W0LEBv82YCGEtcmPA3uNZBI33/qF//HAAs3MawDjRa0=
 github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad/go.mod h1:Hy8o65+MXnS6EwGElrSRjUzQDLXreJlzYLlWiHtt8hM=
 github.com/xanzy/ssh-agent v0.3.3 h1:+/15pJfg/RsTxqYcX6fHqOXZwwMP+2VyYWJeWM2qQFM=

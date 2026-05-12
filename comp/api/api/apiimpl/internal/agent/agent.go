@@ -37,34 +37,12 @@ func SetupHandlers(
 
 	// TODO: move these to a component that is registerable
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
-	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
-	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
+	r.HandleFunc("/jmx/status", setJMXStatus).Methods("POST")
+	r.HandleFunc("/jmx/configs", getJMXConfigs).Methods("GET")
 	r.HandleFunc("/install-info", installinfo.HandleGetInstallInfo).Methods("GET")
 	r.HandleFunc("/install-info", installinfo.HandleSetInstallInfo).Methods("POST", "PUT")
 	coverage.SetupCoverageHandler(r)
 	return r
-}
-
-func componentConfigHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	component := vars["component"]
-	switch component {
-	case "jmx":
-		getJMXConfigs(w, r)
-	default:
-		http.Error(w, log.Errorf("bad url or resource does not exist").Error(), 404)
-	}
-}
-
-func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	component := vars["component"]
-	switch component {
-	case "jmx":
-		setJMXStatus(w, r)
-	default:
-		http.Error(w, log.Errorf("bad url or resource does not exist").Error(), 404)
-	}
 }
 
 func getHealth(w http.ResponseWriter, _ *http.Request) {

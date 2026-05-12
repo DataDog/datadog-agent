@@ -30,6 +30,20 @@ type Expression struct {
 	Type Type
 	// The operations that make up the expression, in reverse-polish notation.
 	Operations []ExpressionOp
+	// LeafBodies holds the per-leaf sub-expressions for split-event-kind
+	// conditions. Indexed by leaf index (matching ConditionLeafEvalOp.LeafIdx
+	// and ConditionLeafLoadOp.LeafIdx). Each leaf is compiled to its own
+	// SM sub-function so leaf-internal aborts return to the entry-side
+	// driver rather than the event handler. Nil for non-split conditions.
+	LeafBodies []*Expression
+	// IsSplit marks a split-event-kind condition program (the entry-side
+	// driver or the return-side AST replay). When true, the compiler
+	// skips the implicit ConditionBeginOp prelude and emits
+	// ConditionCheckPreserveErrorOp at the tail instead of the regular
+	// ConditionCheckOp: the per-leaf record / load ops in such programs
+	// manage condition_eval_error directly, and the begin/check
+	// arm/clear lifecycle would corrupt that.
+	IsSplit bool
 }
 
 var (
@@ -247,3 +261,62 @@ type CondLabelOp struct {
 }
 
 func (*CondLabelOp) irOp() {}
+
+// ExprPrepareOp resets the SM's expression-result scratch frame to the
+// current scratch_buf_len, ready for a fresh expression evaluation. The
+// compiler emits this implicitly at the start of every condition handler
+// (and again inside split-event-kind drivers between the per-leaf calls
+// and the AST replay). At the IR level, ExprPrepareOp lets irgen request
+// a re-prepare in the middle of a condition program; without it, the
+// scratch frame established by the implicit prelude can be left in
+// arbitrary state by per-leaf evaluations.
+type ExprPrepareOp struct{}
+
+func (*ExprPrepareOp) irOp() {}
+
+// ConditionStateInitOp clears the per-SM condition_state scratch (uint16)
+// to zero. Emitted at the start of a split-event-kind entry-side
+// condition driver.
+type ConditionStateInitOp struct{}
+
+func (*ConditionStateInitOp) irOp() {}
+
+// ConditionLeafEvalOp instructs the compiler to emit (a) a CallOp to the
+// per-leaf SM sub-function for entry leaf LeafIdx and (b) a record op
+// that captures the leaf's outcome (boolean / eval-error / nil-deref) as
+// a 2-bit status into condition_state[LeafIdx]. Used in the entry-side
+// driver before the AST replay.
+type ConditionLeafEvalOp struct {
+	LeafIdx uint8
+}
+
+func (*ConditionLeafEvalOp) irOp() {}
+
+// ConditionLeafLoadOp reads the 2-bit status for entry leaf LeafIdx from
+// condition_state and dispatches:
+//   - LEAF_FALSE → write 0 at sm->offset, continue.
+//   - LEAF_TRUE  → write 1 at sm->offset, continue.
+//   - LEAF_EVAL_ERROR → set sm->condition_eval_error, write 1, jump to
+//     ErrorTarget (the tail label of the surrounding condition program).
+//   - LEAF_NIL_DEREF  → set both condition_eval_error and
+//     condition_nil_deref, write 1, jump to ErrorTarget.
+//
+// The error→jump-to-tail behaviour intentionally bypasses surrounding
+// short-circuit and Not ops; once an entry-leaf load surfaces an error
+// the eval-error flag must propagate to event.c's header, regardless of
+// surrounding boolean operators.
+type ConditionLeafLoadOp struct {
+	LeafIdx     uint8
+	ErrorTarget LabelID
+}
+
+func (*ConditionLeafLoadOp) irOp() {}
+
+// ConditionCheckPreserveErrorOp behaves like ConditionCheckOp (sets
+// condition_failed when the byte at sm->offset is 0) but does NOT clear
+// condition_eval_error. Used at the tail of a split-event-kind condition
+// driver so that an eval-error surfaced by ConditionLeafLoadOp during
+// AST replay survives to event.c's header surfacing.
+type ConditionCheckPreserveErrorOp struct{}
+
+func (*ConditionCheckPreserveErrorOp) irOp() {}

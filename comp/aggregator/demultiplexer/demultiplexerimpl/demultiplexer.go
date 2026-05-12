@@ -12,6 +12,7 @@ import (
 	"go.uber.org/fx"
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -48,6 +49,7 @@ type dependencies struct {
 	Tagger                 tagger.Component
 	Hostname               hostnameinterface.Component
 	FilterList             filterlist.Component
+	Observer               observer.Component `optional:"true"`
 
 	Params Params
 }
@@ -88,6 +90,7 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		deps.FilterList,
 		hostnameDetected,
 	)
+	agentDemultiplexer.SetObserver(deps.Observer)
 	demultiplexer := demultiplexer{
 		AgentDemultiplexer: agentDemultiplexer,
 	}

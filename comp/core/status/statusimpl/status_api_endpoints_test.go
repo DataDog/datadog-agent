@@ -167,8 +167,8 @@ func TestStatusAPIEndpoints(t *testing.T) {
 		{
 			testDesc:    "with header section",
 			method:      "GET",
-			routerPath:  "/{component}/status",
-			testedPath:  "/header/status",
+			routerPath:  "/status/section/{component}",
+			testedPath:  "/status/section/header",
 			httpHandler: provider.APIGetSection.Provider.HandlerFunc(),
 			expectedBody: func() []byte {
 				status, err := provider.Comp.GetStatusBySections([]string{"header"}, "text", false)
@@ -180,8 +180,8 @@ func TestStatusAPIEndpoints(t *testing.T) {
 		{
 			testDesc:    "with unknown section text format",
 			method:      "GET",
-			routerPath:  "/{component}/status",
-			testedPath:  "/unknown/status",
+			routerPath:  "/status/section/{component}",
+			testedPath:  "/status/section/unknown",
 			httpHandler: provider.APIGetSection.Provider.HandlerFunc(),
 			expectedBody: func() []byte {
 				_, err := provider.Comp.GetStatusBySections([]string{"unknown"}, "text", false)
@@ -194,8 +194,8 @@ func TestStatusAPIEndpoints(t *testing.T) {
 		{
 			testDesc:    "with unknown section json format",
 			method:      "GET",
-			routerPath:  "/{component}/status",
-			testedPath:  "/unknown/status?format=json",
+			routerPath:  "/status/section/{component}",
+			testedPath:  "/status/section/unknown?format=json",
 			httpHandler: provider.APIGetSection.Provider.HandlerFunc(),
 			expectedBody: func() []byte {
 				_, err := provider.Comp.GetStatusBySections([]string{"unknown"}, "json", false)

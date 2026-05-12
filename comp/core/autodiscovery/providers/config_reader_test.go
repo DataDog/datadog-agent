@@ -180,8 +180,8 @@ func TestReadConfigFiles(t *testing.T) {
 	require.Equal(t, 2, len(configs))
 
 	// Ignore the Source field for comparison because varies by OS
-	// Ignore the matchingProgram field for comparison since it's not relevant for the test
-	ignoreFields := cmpopts.IgnoreFields(integration.Config{}, "Source", "matchingProgram")
+	// Ignore the matchingPrograms field for comparison since it's not relevant for the test
+	ignoreFields := cmpopts.IgnoreFields(integration.Config{}, "Source", "matchingPrograms")
 
 	// Check if expectedConfig1 is in the configs slice
 	found := false

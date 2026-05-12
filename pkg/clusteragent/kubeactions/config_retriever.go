@@ -45,28 +45,24 @@ func NewConfigRetriever(processor *ActionProcessor, isLeader func() bool, rcClie
 
 // actionsCallback is called when remote config updates are received
 func (cr *ConfigRetriever) actionsCallback(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	isLeader := cr.isLeader()
-
-	log.Infof("[KubeActions] RC callback invoked: received %d config(s), leader=%v", len(update), isLeader)
-
 	if len(update) == 0 {
 		return
 	}
+
+	isLeader := cr.isLeader()
+	log.Debugf("[KubeActions] RC callback invoked: received %d config(s), leader=%v", len(update), isLeader)
 
 	cr.mu.Lock()
 	defer cr.mu.Unlock()
 
 	if cr.stopped {
-		log.Infof("[KubeActions] Config retriever stopped, skipping config update")
+		log.Debugf("[KubeActions] Config retriever stopped, skipping config update")
 		return
 	}
 
 	for configKey, rawConfig := range update {
-		log.Infof("[KubeActions] Processing config: key=%s, id=%s, version=%d, size=%d bytes",
-			configKey, rawConfig.Metadata.ID, rawConfig.Metadata.Version, len(rawConfig.Config))
-
 		if !isLeader {
-			log.Infof("[KubeActions] Skipping config %s - not the leader", configKey)
+			log.Debugf("[KubeActions] Skipping config %s - not the leader", configKey)
 			applyStateCallback(configKey, state.ApplyStatus{
 				State: state.ApplyStateUnacknowledged,
 				Error: "not the leader",
@@ -82,10 +78,8 @@ func (cr *ConfigRetriever) actionsCallback(update map[string]state.RawConfig, ap
 		cr.wg.Add(1)
 		go func(ck string, rc state.RawConfig) {
 			defer cr.wg.Done()
-			err := cr.processor.Process(ck, rc)
-			if err != nil {
-				log.Errorf("[KubeActions] Error processing actions for %s: %v", ck, err)
-			}
+			// Errors from Process are already logged with action context.
+			_ = cr.processor.Process(ck, rc)
 		}(configKey, rawConfig)
 	}
 }

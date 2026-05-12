@@ -16,11 +16,12 @@ func _() {
 	_ = x[IssueKindDisassemblyFailed-6]
 	_ = x[IssueKindConditionVariableUnavailable-7]
 	_ = x[IssueKindConditionExpressionUnresolvable-8]
+	_ = x[IssueKindConditionCarryTooLarge-9]
 }
 
-const _IssueKind_name = "InvalidProbeDefinitionTargetNotFoundInBinaryUnsupportedFeatureMalformedExecutableInvalidDWARFDisassemblyFailedConditionVariableUnavailableConditionExpressionUnresolvable"
+const _IssueKind_name = "InvalidProbeDefinitionTargetNotFoundInBinaryUnsupportedFeatureMalformedExecutableInvalidDWARFDisassemblyFailedConditionVariableUnavailableConditionExpressionUnresolvableConditionCarryTooLarge"
 
-var _IssueKind_index = [...]uint8{0, 22, 44, 62, 81, 93, 110, 138, 169}
+var _IssueKind_index = [...]uint8{0, 22, 44, 62, 81, 93, 110, 138, 169, 191}
 
 func (i IssueKind) String() string {
 	idx := int(i) - 1

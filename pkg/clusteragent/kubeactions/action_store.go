@@ -69,7 +69,7 @@ func NewActionStore(ctx context.Context) *ActionStore {
 	// Start background cleanup goroutine
 	go store.cleanupLoop(ctx)
 
-	log.Infof("Created in-memory action store with action TTL=%v, record retention=%v, cleanup interval=%v",
+	log.Debugf("[KubeActions] Action store initialized (TTL=%v, retention=%v, cleanup=%v)",
 		ActionTTL, RecordRetentionTTL, CleanupInterval)
 	return store
 }
@@ -176,7 +176,7 @@ func (s *ActionStore) cleanupLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Infof("Action store cleanup loop stopped")
+			log.Debugf("[KubeActions] Action store cleanup loop stopped")
 			return
 		case <-s.stopCh:
 			return

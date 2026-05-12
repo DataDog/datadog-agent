@@ -545,7 +545,7 @@ func TestReconcilingConfigManagement(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	suite.Run(t, &ReconcilingConfigManagerSuite{
 		ConfigManagerSuite{factory: func() configManager {
-			return newReconcilingConfigManager(&mockResolver, nil)
+			return newReconcilingConfigManager(&mockResolver, nil, nil)
 		}},
 	})
 }
@@ -559,11 +559,93 @@ func (s *dummyServiceWithExtraConfigError) GetExtraConfig(key string) (string, e
 	return "", fmt.Errorf("extra config %q is not supported", key)
 }
 
+// A service whose FilterTemplates consults the shared StaticConfigIndex
+// (as ProcessService does) has its templates correctly deduped when its
+// reconciliation runs after a static config has already been published to
+// the index. This covers the common startup ordering: static configs from
+// conf.d are loaded before the process listener starts discovering
+// services.
+//
+// TODO: runtime ordering (static arrives after dynamic, or static leaves
+// while dynamic is scheduled) is not covered yet — see configmgr.go.
+func TestStaticConfigIndexDedupOnReconcile(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	idx := listeners.NewStaticConfigIndex()
+
+	cm := newReconcilingConfigManager(&mockResolver, nil, idx)
+
+	// A service whose FilterTemplates drops any template whose Name has a
+	// static config in the shared index — this is the contract ProcessService
+	// implements.
+	procSvc := &dummyService{
+		ID:            "process://1234",
+		ADIdentifiers: []string{"proc-redis"},
+		Hosts:         map[string]string{"main": "127.0.0.1"},
+	}
+	procSvc.filterTemplates = func(configs map[string]integration.Config) {
+		for digest, cfg := range configs {
+			if idx.Has(cfg.Name) {
+				delete(configs, digest)
+			}
+		}
+	}
+
+	redisTemplate := integration.Config{
+		Name:          "redis",
+		LogsConfig:    []byte("source: %%host%%"),
+		ADIdentifiers: []string{"proc-redis"},
+	}
+	staticRedis := integration.Config{Name: "redis"}
+
+	// Startup ordering: static config arrives first, then the template,
+	// then the matching service.
+	changes, _ := cm.processNewConfig(staticRedis)
+	assertConfigsMatch(t, changes.Schedule, matchName("redis"))
+	assertConfigsMatch(t, changes.Unschedule)
+	assert.True(t, idx.Has("redis"))
+
+	changes, _ = cm.processNewConfig(redisTemplate)
+	assertConfigsMatch(t, changes.Schedule)
+	assertConfigsMatch(t, changes.Unschedule)
+
+	// When the service arrives, reconciliation runs FilterTemplates and
+	// drops the redis template because the index reports a static config.
+	changes = cm.processNewService(procSvc)
+	assertConfigsMatch(t, changes.Schedule)
+	assertConfigsMatch(t, changes.Unschedule)
+	assertLoadedConfigsMatch(t, cm, matchAll(matchName("redis"), matchSvc("")))
+}
+
+// Static configs that share an integration name are refcounted in the
+// index, so Has stays true through partial removals and only flips false
+// when the last one goes away.
+func TestStaticConfigIndexRefcountThroughConfigMgr(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	idx := listeners.NewStaticConfigIndex()
+
+	cm := newReconcilingConfigManager(&mockResolver, nil, idx)
+
+	staticRedis1 := integration.Config{Name: "redis"}
+	staticRedis2 := integration.Config{Name: "redis", Instances: []integration.Data{integration.Data("port: 6380")}}
+
+	cm.processNewConfig(staticRedis1)
+	assert.True(t, idx.Has("redis"))
+
+	cm.processNewConfig(staticRedis2)
+	assert.True(t, idx.Has("redis"))
+
+	cm.processDelConfigs([]integration.Config{staticRedis1})
+	assert.True(t, idx.Has("redis"))
+
+	cm.processDelConfigs([]integration.Config{staticRedis2})
+	assert.False(t, idx.Has("redis"))
+}
+
 func TestResolveTemplateForService_ReportsToHealthPlatform(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	hp := healthplatformmock.Mock(t)
 
-	cm := newReconcilingConfigManager(&mockResolver, hp).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil).(*reconcilingConfigManager)
 
 	tpl := integration.Config{
 		Name:          "postgres",
@@ -596,7 +678,7 @@ func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
 	mockResolver := MockSecretResolver{}
 	hp := healthplatformmock.Mock(t)
 
-	cm := newReconcilingConfigManager(&mockResolver, hp).(*reconcilingConfigManager)
+	cm := newReconcilingConfigManager(&mockResolver, hp, nil).(*reconcilingConfigManager)
 
 	tpl := integration.Config{
 		Name:          "redis",
