@@ -75,9 +75,11 @@ func newTestReceiverConfig() *config.AgentConfig {
 	conf.Endpoints[0].APIKey = "test"
 	conf.DecoderTimeout = 10000
 	conf.ReceiverTimeout = 1
-	// Derive the port from PID so that parallel test runs don't collide on
-	// the same listener.
-	conf.ReceiverPort = 1024 + (os.Getpid() % 64512)
+	port, err := testutil.FindTCPPort()
+	if err != nil {
+		panic(err)
+	}
+	conf.ReceiverPort = port
 	// Reset IdleTimeout so the server uses ReadTimeout (1s) instead of the production
 	// default (60s). Without this, tests that call io.ReadAll(resp.Body) on a real server
 	// block for 60 seconds waiting for the connection to close.

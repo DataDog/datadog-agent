@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"fmt"
 	"net/http"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -34,9 +33,7 @@ func TestOOMKill(t *testing.T) {
 		kills.Inc()
 	}
 
-	// Derive the port from PID so that parallel test runs don't collide on
-	// the same listener.
-	port := 1024 + (os.Getpid() % 64512)
+	port := testutil.FreeTCPPort(t)
 
 	conf := config.New()
 	conf.Endpoints[0].APIKey = "apikey_2"
