@@ -162,6 +162,14 @@
         "matchManagers": ["bundler"],
         "matchDatasources": ["git-refs"],
         "registryUrls": []
+      },
+      {
+        "matchDepNames": ["FluentAssertions"],
+        "allowedVersions": "(,8.0.0)"
+      },
+      {
+        "matchDepNames": ["WixToolset.Dtf.WindowsInstaller"],
+        "allowedVersions": "(,6.0.0)"
       }
     ],
     "customManagers" : [
