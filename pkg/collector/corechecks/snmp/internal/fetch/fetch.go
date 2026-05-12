@@ -7,6 +7,7 @@
 package fetch
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -37,7 +38,7 @@ func (c columnFetchStrategy) String() string {
 
 // Fetch oid values from device
 func Fetch(sess session.Session, scalarOIDs, columnOIDs []string, batchSizeOptimizers *OidBatchSizeOptimizers,
-	bulkMaxRepetitions uint32) (*valuestore.ResultValueStore, error) {
+	bulkMaxRepetitions uint32, ignoreNonIncreasingOid bool, deviceAddress string) (*valuestore.ResultValueStore, error) {
 	now := time.Now()
 
 	batchSizeOptimizers.refreshIfOutdated(now)
@@ -49,14 +50,21 @@ func Fetch(sess session.Session, scalarOIDs, columnOIDs []string, batchSizeOptim
 	}
 
 	columnResults, err := fetchColumnOidsWithBatching(sess, columnOIDs, batchSizeOptimizers.snmpGetBulkOptimizer,
-		bulkMaxRepetitions, useGetBulk)
+		bulkMaxRepetitions, useGetBulk, ignoreNonIncreasingOid, deviceAddress)
 	if err != nil {
+		var nonIncreasingErr *nonIncreasingOidError
+		if errors.As(err, &nonIncreasingErr) {
+			return &valuestore.ResultValueStore{ScalarValues: scalarResults, ColumnValues: columnResults},
+				fmt.Errorf("failed to fetch oids with GetBulk batching: %v", err)
+		}
+
 		log.Debugf("failed to fetch oids with GetBulk batching: %v", err)
 
 		columnResults, err = fetchColumnOidsWithBatching(sess, columnOIDs, batchSizeOptimizers.snmpGetNextOptimizer,
-			bulkMaxRepetitions, useGetNext)
+			bulkMaxRepetitions, useGetNext, ignoreNonIncreasingOid, deviceAddress)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch oids with GetNext batching: %v", err)
+			return &valuestore.ResultValueStore{ScalarValues: scalarResults, ColumnValues: columnResults},
+				fmt.Errorf("failed to fetch oids with GetNext batching: %v", err)
 		}
 	}
 

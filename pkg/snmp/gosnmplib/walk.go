@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/gosnmp/gosnmp"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -34,6 +36,47 @@ func ConditionalWalk(
 	useBulk bool,
 	callInterval time.Duration,
 	maxCallCount int,
+	ignoreNonIncreasingOid bool,
+	walkFn func(dataUnit gosnmp.SnmpPDU) (string, error),
+) error {
+	return conditionalWalk(ctx, gosnmpConditionalWalkSession{session: session}, rootOID, useBulk, callInterval, maxCallCount, ignoreNonIncreasingOid, walkFn)
+}
+
+type conditionalWalkSession interface {
+	getBulk(oids []string, nonRepeaters uint8, maxRepetitions uint32) (*gosnmp.SnmpPacket, error)
+	getNext(oids []string) (*gosnmp.SnmpPacket, error)
+	maxRepetitions() uint32
+	logf(format string, v ...interface{})
+}
+
+type gosnmpConditionalWalkSession struct {
+	session *gosnmp.GoSNMP
+}
+
+func (s gosnmpConditionalWalkSession) getBulk(oids []string, nonRepeaters uint8, maxRepetitions uint32) (*gosnmp.SnmpPacket, error) {
+	return s.session.GetBulk(oids, nonRepeaters, maxRepetitions)
+}
+
+func (s gosnmpConditionalWalkSession) getNext(oids []string) (*gosnmp.SnmpPacket, error) {
+	return s.session.GetNext(oids)
+}
+
+func (s gosnmpConditionalWalkSession) maxRepetitions() uint32 {
+	return s.session.MaxRepetitions
+}
+
+func (s gosnmpConditionalWalkSession) logf(format string, v ...interface{}) {
+	s.session.Logger.Printf(format, v...)
+}
+
+func conditionalWalk(
+	ctx context.Context,
+	session conditionalWalkSession,
+	rootOID string,
+	useBulk bool,
+	callInterval time.Duration,
+	maxCallCount int,
+	ignoreNonIncreasingOid bool,
 	walkFn func(dataUnit gosnmp.SnmpPDU) (string, error),
 ) error {
 	if rootOID == "" || rootOID == "." {
@@ -46,7 +89,7 @@ func ConditionalWalk(
 
 	oid := rootOID
 	requests := 0
-	maxReps := session.MaxRepetitions
+	maxReps := session.maxRepetitions()
 
 	if maxReps == 0 {
 		maxReps = defaultMaxRepetitions
@@ -56,7 +99,7 @@ RequestLoop:
 	for {
 		select {
 		case <-ctx.Done():
-			session.Logger.Printf("ConditionalWalk cancelled after %d requests", requests)
+			session.logf("ConditionalWalk cancelled after %d requests", requests)
 			return ctx.Err()
 		default:
 		}
@@ -67,16 +110,16 @@ RequestLoop:
 
 		requests++
 		if maxCallCount > 0 && requests >= maxCallCount {
-			session.Logger.Printf("ConditionalWalk exceeded the maximum request limit (%d)", maxCallCount)
+			session.logf("ConditionalWalk exceeded the maximum request limit (%d)", maxCallCount)
 			return fmt.Errorf("exceeded the maximum request limit (%d)", maxCallCount)
 		}
 
 		var response *gosnmp.SnmpPacket
 		var err error
 		if useBulk {
-			response, err = session.GetBulk([]string{oid}, 0, maxReps)
+			response, err = session.getBulk([]string{oid}, 0, maxReps)
 		} else {
-			response, err = session.GetNext([]string{oid})
+			response, err = session.getNext([]string{oid})
 		}
 		if err != nil {
 			return NewConnectionError(err)
@@ -85,7 +128,7 @@ RequestLoop:
 			break RequestLoop
 		}
 		if response.Error != gosnmp.NoError {
-			session.Logger.Printf("ConditionalWalk terminated with %s", response.Error.String())
+			session.logf("ConditionalWalk terminated with %s", response.Error.String())
 			break RequestLoop
 		}
 
@@ -93,7 +136,7 @@ RequestLoop:
 
 		for i, pdu := range response.Variables {
 			if pdu.Type == gosnmp.EndOfMibView || pdu.Type == gosnmp.NoSuchObject || pdu.Type == gosnmp.NoSuchInstance {
-				session.Logger.Printf("ConditionalWalk terminated with type 0x%x", pdu.Type)
+				session.logf("ConditionalWalk terminated with type 0x%x", pdu.Type)
 				break RequestLoop
 			}
 			// skip PDUs that are less than our next OID when we're handling
@@ -132,11 +175,18 @@ RequestLoop:
 			return err
 		}
 		if !CmpOIDs(next, last).IsAfter() {
-			session.Logger.Printf("Error: detected infinite cycle: next OID '%s' is not after last OID '%s'", oid, lastOid)
+			if ignoreNonIncreasingOid {
+				message := fmt.Sprintf("detected non-increasing OID while walking: next OID '%s' is not after last OID '%s'; skipping affected row", oid, lastOid)
+				session.logf("Warning: %s", message)
+				log.Warn(message)
+				oid = SkipOIDRowsNaive(lastOid)
+				continue
+			}
+			session.logf("Error: detected infinite cycle: next OID '%s' is not after last OID '%s'", oid, lastOid)
 			return fmt.Errorf("detected infinite cycle: next OID '%s' is not after last OID '%s'", oid, lastOid)
 		}
 	}
-	session.Logger.Printf("ConditionalWalk completed in %d requests", requests)
+	session.logf("ConditionalWalk completed in %d requests", requests)
 	return nil
 }
 

@@ -278,11 +278,12 @@ func Test_getValueFromPDU(t *testing.T) {
 
 func Test_resultToColumnValues(t *testing.T) {
 	tests := []struct {
-		name                string
-		columnOids          []string
-		snmpPacket          *gosnmp.SnmpPacket
-		expectedValues      ColumnResultValuesType
-		expectedNextOidsMap map[string]string
+		name                     string
+		columnOids               []string
+		snmpPacket               *gosnmp.SnmpPacket
+		expectedValues           ColumnResultValuesType
+		expectedNextOidsMap      map[string]string
+		expectedNonMonotonicOids []string
 	}{
 		{
 			"simple nominal case",
@@ -352,6 +353,7 @@ func Test_resultToColumnValues(t *testing.T) {
 				"1.3.6.1.2.1.2.2.1.2":  "1.3.6.1.2.1.2.2.1.2.2",
 				"1.3.6.1.2.1.2.2.1.20": "1.3.6.1.2.1.2.2.1.20.2",
 			},
+			nil,
 		},
 		{
 			"no such object is skipped",
@@ -399,13 +401,62 @@ func Test_resultToColumnValues(t *testing.T) {
 				"1.3.6.1.2.1.2.2.1.14": "1.3.6.1.2.1.2.2.1.14.2",
 				"1.3.6.1.2.1.2.2.1.2":  "1.3.6.1.2.1.2.2.1.2.2",
 			},
+			nil,
+		},
+		{
+			"non-monotonic column oid stops that column",
+			[]string{"1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.2.2.1.2"},
+			&gosnmp.SnmpPacket{
+				Variables: []gosnmp.SnmpPDU{
+					{
+						Name:  "1.3.6.1.2.1.2.2.1.14.2",
+						Type:  gosnmp.Integer,
+						Value: 142,
+					},
+					{
+						Name:  "1.3.6.1.2.1.2.2.1.2.1",
+						Type:  gosnmp.OctetString,
+						Value: []byte("desc1"),
+					},
+					{
+						Name:  "1.3.6.1.2.1.2.2.1.14.1",
+						Type:  gosnmp.Integer,
+						Value: 141,
+					},
+					{
+						Name:  "1.3.6.1.2.1.2.2.1.2.2",
+						Type:  gosnmp.OctetString,
+						Value: []byte("desc2"),
+					},
+				},
+			},
+			ColumnResultValuesType{
+				"1.3.6.1.2.1.2.2.1.14": {
+					"2": ResultValue{
+						Value: float64(142),
+					},
+				},
+				"1.3.6.1.2.1.2.2.1.2": {
+					"1": ResultValue{
+						Value: []byte("desc1"),
+					},
+					"2": ResultValue{
+						Value: []byte("desc2"),
+					},
+				},
+			},
+			map[string]string{
+				"1.3.6.1.2.1.2.2.1.2": "1.3.6.1.2.1.2.2.1.2.2",
+			},
+			[]string{"1.3.6.1.2.1.2.2.1.14.1"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			values, nextOidsMap := ResultToColumnValues(tt.columnOids, tt.snmpPacket)
+			values, nextOidsMap, nonMonotonicOids := ResultToColumnValues(tt.columnOids, tt.snmpPacket)
 			assert.Equal(t, tt.expectedValues, values)
 			assert.Equal(t, tt.expectedNextOidsMap, nextOidsMap)
+			assert.Equal(t, tt.expectedNonMonotonicOids, nonMonotonicOids)
 		})
 	}
 }

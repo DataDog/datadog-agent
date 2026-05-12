@@ -93,7 +93,7 @@ func Test_fetchColumnOids(t *testing.T) {
 
 	batchSizeOptimizer := newOidBatchSizeOptimizer(snmpGetBulk, 100)
 
-	columnValues, err := fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizer, checkconfig.DefaultBulkMaxRepetitions, useGetBulk)
+	columnValues, err := fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizer, checkconfig.DefaultBulkMaxRepetitions, useGetBulk, false, "")
 	assert.Nil(t, err)
 
 	expectedColumnValues := valuestore.ColumnResultValuesType{
@@ -186,7 +186,7 @@ func Test_fetchColumnOidsBatch_usingGetBulk(t *testing.T) {
 
 	batchSizeOptimizer := newOidBatchSizeOptimizer(snmpGetBulk, 2)
 
-	columnValues, err := fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizer, 10, useGetBulk)
+	columnValues, err := fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizer, 10, useGetBulk, false, "")
 	assert.Nil(t, err)
 
 	expectedColumnValues := valuestore.ColumnResultValuesType{
@@ -285,11 +285,11 @@ func Test_fetchColumnOidsBatch_usingGetNext(t *testing.T) {
 
 	batchSizeOptimizers := NewOidBatchSizeOptimizers(2)
 
-	columnValues, err := fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizers.snmpGetBulkOptimizer, 10, useGetBulk)
+	columnValues, err := fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizers.snmpGetBulkOptimizer, 10, useGetBulk, false, "")
 	assert.EqualError(t, err, "failed to fetch column oids: GetBulk not supported in SNMP v1")
 	assert.Nil(t, columnValues)
 
-	columnValues, err = fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizers.snmpGetNextOptimizer, 10, useGetNext)
+	columnValues, err = fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizers.snmpGetNextOptimizer, 10, useGetNext, false, "")
 	assert.Nil(t, err)
 
 	expectedColumnValues := valuestore.ColumnResultValuesType{
@@ -345,7 +345,7 @@ func Test_fetchColumnOidsBatch_truncatedResponse_reducesBatchSize(t *testing.T) 
 	oids := []string{"1.1.1", "1.1.2"}
 	batchSizeOptimizer := newOidBatchSizeOptimizer(snmpGetBulk, 2)
 
-	columnValues, err := fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizer, checkconfig.DefaultBulkMaxRepetitions, useGetBulk)
+	columnValues, err := fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizer, checkconfig.DefaultBulkMaxRepetitions, useGetBulk, false, "")
 	require.NoError(t, err)
 
 	expectedColumnValues := valuestore.ColumnResultValuesType{
@@ -374,7 +374,7 @@ func Test_fetchColumnOidsBatch_truncatedResponseAtBatchSizeOne_returnsError(t *t
 	oids := []string{"1.1.1"}
 	batchSizeOptimizer := newOidBatchSizeOptimizer(snmpGetBulk, 1)
 
-	columnValues, err := fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizer, checkconfig.DefaultBulkMaxRepetitions, useGetBulk)
+	columnValues, err := fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizer, checkconfig.DefaultBulkMaxRepetitions, useGetBulk, false, "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "response truncated")
 	assert.Nil(t, columnValues)
@@ -462,7 +462,7 @@ func Test_fetchColumnOidsBatch_usingGetBulkAndGetNextFallback(t *testing.T) {
 
 	batchSizeOptimizers := NewOidBatchSizeOptimizers(2)
 
-	columnValues, err := Fetch(sess, nil, columnOIDs, batchSizeOptimizers, checkconfig.DefaultBulkMaxRepetitions)
+	columnValues, err := Fetch(sess, nil, columnOIDs, batchSizeOptimizers, checkconfig.DefaultBulkMaxRepetitions, false, "")
 	assert.Nil(t, err)
 
 	expectedColumnValues := &valuestore.ResultValueStore{
@@ -937,7 +937,7 @@ func Test_fetchValues_errors(t *testing.T) {
 
 			batchSizeOptimizers := NewOidBatchSizeOptimizers(tt.batchSize)
 
-			_, err := Fetch(sess, tt.ScalarOIDs, tt.ColumnOIDs, batchSizeOptimizers, tt.maxReps)
+			_, err := Fetch(sess, tt.ScalarOIDs, tt.ColumnOIDs, batchSizeOptimizers, tt.maxReps, false, "")
 
 			assert.Equal(t, tt.expectedError, err)
 		})
@@ -1047,7 +1047,7 @@ func Test_fetchColumnOids_alreadyProcessed(t *testing.T) {
 
 	batchSizeOptimizer := newOidBatchSizeOptimizer(snmpGetBulk, 100)
 
-	columnValues, err := fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizer, checkconfig.DefaultBulkMaxRepetitions, useGetBulk)
+	columnValues, err := fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizer, checkconfig.DefaultBulkMaxRepetitions, useGetBulk, true, "")
 	assert.Nil(t, err)
 
 	expectedColumnValues := valuestore.ColumnResultValuesType{
@@ -1074,7 +1074,117 @@ func Test_fetchColumnOids_alreadyProcessed(t *testing.T) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, 1, strings.Count(logs, "[DEBUG] fetchColumnOids: fetch column: OID already processed: 1.1.1.5"), logs)
-	assert.Equal(t, 1, strings.Count(logs, "[DEBUG] fetchColumnOids: fetch column: OID already processed: 1.1.2.5"), logs)
+	assert.Equal(t, 0, strings.Count(logs, "[DEBUG] fetchColumnOids: fetch column: OID already processed: 1.1.2.5"), logs)
+	assert.Equal(t, 1, strings.Count(logs, "[WARN] warnNonIncreasingOids: SNMP device returned non-increasing OIDs; stopping affected column walks for OIDs: 1.1.1.5"), logs)
+	assert.Equal(t, 1, strings.Count(logs, "[WARN] warnNonIncreasingOids: SNMP device returned non-increasing OIDs; stopping affected column walks for OIDs: 1.1.2.5"), logs)
+}
+
+func Test_fetchColumnOids_nonIncreasingOid(t *testing.T) {
+	tests := []struct {
+		name                   string
+		ignoreNonIncreasingOid bool
+		expectedError          string
+	}{
+		{
+			name:                   "returns partial values and error when flag is disabled",
+			ignoreNonIncreasingOid: false,
+			expectedError:          "failed to fetch column oids: non-increasing OID response detected for OIDs: 1.1.1.1",
+		},
+		{
+			name:                   "returns partial values without error when flag is enabled",
+			ignoreNonIncreasingOid: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var b bytes.Buffer
+			w := bufio.NewWriter(&b)
+			l, err := log.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, log.DebugLvl)
+			require.NoError(t, err)
+			log.SetupLogger(l, "debug")
+
+			sess := session.CreateMockSession()
+			packet := gosnmp.SnmpPacket{
+				Variables: []gosnmp.SnmpPDU{
+					{
+						Name:  "1.1.1.1",
+						Type:  gosnmp.TimeTicks,
+						Value: 11,
+					},
+					{
+						Name:  "1.1.1.2",
+						Type:  gosnmp.TimeTicks,
+						Value: 12,
+					},
+					{
+						Name:  "1.1.1.1",
+						Type:  gosnmp.TimeTicks,
+						Value: 11,
+					},
+				},
+			}
+			sess.On("GetBulk", []string{"1.1.1"}, checkconfig.DefaultBulkMaxRepetitions).Return(&packet, nil)
+
+			batchSizeOptimizer := newOidBatchSizeOptimizer(snmpGetBulk, 100)
+			columnValues, err := fetchColumnOidsWithBatching(sess, []string{"1.1.1"}, batchSizeOptimizer,
+				checkconfig.DefaultBulkMaxRepetitions, useGetBulk, tt.ignoreNonIncreasingOid, "1.2.3.4")
+
+			expectedColumnValues := valuestore.ColumnResultValuesType{
+				"1.1.1": {
+					"1": valuestore.ResultValue{Value: float64(11)},
+					"2": valuestore.ResultValue{Value: float64(12)},
+				},
+			}
+			assert.Equal(t, expectedColumnValues, columnValues)
+			if tt.expectedError != "" {
+				assert.EqualError(t, err, tt.expectedError)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			_ = w.Flush()
+			assert.Contains(t, b.String(), "SNMP device 1.2.3.4 returned non-increasing OIDs; stopping affected column walks for OIDs: 1.1.1.1")
+		})
+	}
+}
+
+func TestFetchNonIncreasingOidDoesNotFallback(t *testing.T) {
+	sess := session.CreateMockSession()
+	packet := gosnmp.SnmpPacket{
+		Variables: []gosnmp.SnmpPDU{
+			{
+				Name:  "1.1.1.1",
+				Type:  gosnmp.TimeTicks,
+				Value: 11,
+			},
+			{
+				Name:  "1.1.1.2",
+				Type:  gosnmp.TimeTicks,
+				Value: 12,
+			},
+			{
+				Name:  "1.1.1.1",
+				Type:  gosnmp.TimeTicks,
+				Value: 11,
+			},
+		},
+	}
+	sess.On("GetBulk", []string{"1.1.1"}, checkconfig.DefaultBulkMaxRepetitions).Return(&packet, nil)
+
+	values, err := Fetch(sess, nil, []string{"1.1.1"}, NewOidBatchSizeOptimizers(100), checkconfig.DefaultBulkMaxRepetitions, false, "1.2.3.4")
+
+	assert.EqualError(t, err, "failed to fetch oids with GetBulk batching: failed to fetch column oids: non-increasing OID response detected for OIDs: 1.1.1.1")
+	assert.Equal(t, &valuestore.ResultValueStore{
+		ScalarValues: valuestore.ScalarResultValuesType{},
+		ColumnValues: valuestore.ColumnResultValuesType{
+			"1.1.1": {
+				"1": valuestore.ResultValue{Value: float64(11)},
+				"2": valuestore.ResultValue{Value: float64(12)},
+			},
+		},
+	}, values)
+	assert.Equal(t, uint32(0), sess.GetSnmpGetNextCount())
 }
 
 func Test_batchSizeOptimizers(t *testing.T) {
@@ -1536,7 +1646,7 @@ func Test_batchSizeOptimizers(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sess := tt.sessionFactory()
-			values, err := Fetch(sess, tt.scalarOids, tt.columnOids, tt.batchSizeOptimizers, checkconfig.DefaultBulkMaxRepetitions)
+			values, err := Fetch(sess, tt.scalarOids, tt.columnOids, tt.batchSizeOptimizers, checkconfig.DefaultBulkMaxRepetitions, false, "")
 			if tt.expectedError != nil {
 				assert.Equal(t, tt.expectedError, err)
 			} else {
@@ -1588,7 +1698,7 @@ func Test_batchSizeOptimizers_notFetchErrors(t *testing.T) {
 	}, batchSizeOptimizers)
 
 	columnValues, err := fetchColumnOidsWithBatching(sess, []string{"1.1.1"}, batchSizeOptimizers.snmpGetBulkOptimizer,
-		checkconfig.DefaultBulkMaxRepetitions, useGetBulk)
+		checkconfig.DefaultBulkMaxRepetitions, useGetBulk, false, "")
 	assert.EqualError(t, err, "failed to fetch column oids: GetBulk not supported in SNMP v1")
 	assert.Nil(t, columnValues)
 	assert.Equal(t, &OidBatchSizeOptimizers{
@@ -1625,7 +1735,7 @@ func Test_batchSizeOptimizers_areRefreshed(t *testing.T) {
 
 	oldLastRefreshTs := batchSizeOptimizers.lastRefreshTs
 
-	values, err := Fetch(sess, nil, nil, batchSizeOptimizers, checkconfig.DefaultBulkMaxRepetitions)
+	values, err := Fetch(sess, nil, nil, batchSizeOptimizers, checkconfig.DefaultBulkMaxRepetitions, false, "")
 	assert.Nil(t, err)
 	assert.Equal(t, &valuestore.ResultValueStore{
 		ScalarValues: valuestore.ScalarResultValuesType{},

@@ -57,6 +57,24 @@ func TestDefaultSet(t *testing.T) {
 	assertSNMP(t, input, Exoutput)
 }
 
+func TestIgnoreNonincreasingOid(t *testing.T) {
+	type Data = integration.Data
+	input := integration.Config{
+		Name:      "snmp",
+		Instances: []Data{Data("{\"ip_address\":\"98.6.18.158\",\"ignore_nonincreasing_oid\":true}")},
+	}
+	expectedOutput := []SNMPConfig{
+		{
+			IPAddress:              "98.6.18.158",
+			Port:                   161,
+			Timeout:                2,
+			Retries:                3,
+			IgnoreNonincreasingOid: true,
+		},
+	}
+	assertSNMP(t, input, expectedOutput)
+}
+
 func TestSeveralInstances(t *testing.T) {
 	// define the input
 	type Data = integration.Data
