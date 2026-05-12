@@ -63,6 +63,8 @@ docker_image_build_otel:
       /tmp/otel-ci/manifest.yaml
     - !reference [.login_to_docker_readonly]
     - export GO_VERSION=$(cat .go-version)
+    # See .ddot_byoc_build_cache_setup for the rationale behind this docker buildx create call.
+    - docker buildx create --use --driver docker-container --bootstrap
   after_script:
     # Compute the image name and tag the template will push to, so after_script can reference them.
     # ECR_RELEASE_SUFFIX mirrors the logic in .docker_build_job_definition.
@@ -85,6 +87,19 @@ docker_image_build_otel:
 # Defines CACHE_FROM and CACHE_TO for use in subsequent build steps.
 .ddot_byoc_build_cache_setup:
   script:
+    # These jobs run on docker-in-docker:amd64 runners rather than the standard arch:amd64 runners
+    # used by .docker_build_job_definition, for two reasons:
+    #   1. The Python docker SDK in the docker_x64 image is <7.0.0, which uses an http+docker://
+    #      URL scheme over the Unix socket that newer urllib3 rejects. DinD runners expose Docker
+    #      over TCP, avoiding this entirely.
+    #   2. The BYOC OCI tests start a local registry and reach it via --network=host; this only
+    #      works cleanly inside DinD's isolated network namespace.
+    #
+    # The arch:amd64 runners used by .docker_build_job_definition have a buildx builder with a
+    # capable driver (docker-container or remote) pre-configured at the runner level. DinD runners
+    # don't — they start with a fresh Docker daemon whose default buildx driver is "docker", which
+    # does not support --cache-to type=registry. We therefore create an explicit builder here.
+    - docker buildx create --use --driver docker-container --bootstrap
     - |
       CACHE_REGISTRY="${IMAGE}-amd64:cache"
       CACHE_FROM="--cache-from type=registry,ref=${CACHE_REGISTRY}"
