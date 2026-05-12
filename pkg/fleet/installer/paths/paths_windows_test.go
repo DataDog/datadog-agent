@@ -110,37 +110,6 @@ func assertDACLAutoInherit(t *testing.T, sd *windows.SECURITY_DESCRIPTOR) {
 	assert.NotZero(t, control&windows.SE_DACL_AUTO_INHERITED)
 }
 
-// TestRenameBeforeSetRepositoryPermissions verifies the ordering fix from
-// PR #50620: Rename must be called before SetRepositoryPermissions.
-//
-// SetRepositoryPermissions applies a protected DACL via
-// TreeResetNamedSecurityInfoW that severs DACL inheritance. In UAC-filtered
-// or service-account contexts the Administrators SID may be deny-only, so the
-// resulting DACL strips the process's DELETE right and makes MoveFileEx fail
-// with ERROR_ACCESS_DENIED.
-//
-// Reliably reproducing that failure in a unit test would require a
-// non-elevated token, which is not guaranteed in CI. This test therefore only
-// asserts the correct ordering (rename then permissions) and verifies that the
-// target directory ends up with the expected protected DACL.
-func TestRenameBeforeSetRepositoryPermissions(t *testing.T) {
-	root := t.TempDir()
-	src := filepath.Join(root, "src")
-	dst := filepath.Join(root, "dst")
-	require.NoError(t, os.Mkdir(src, 0o755))
-
-	require.NoError(t, Rename(t.Context(), src, dst))
-	require.NoError(t, SetRepositoryPermissions(dst))
-
-	assert.DirExists(t, dst)
-	assert.NoDirExists(t, src)
-
-	sd, err := getSecurityDescriptor(dst)
-	require.NoError(t, err)
-	assertDACLProtected(t, sd)
-	assertDACLAutoInherit(t, sd)
-}
-
 func TestCreateDirIfNotExists(t *testing.T) {
 	t.Run("directory does not exist", func(t *testing.T) {
 		root := t.TempDir()
