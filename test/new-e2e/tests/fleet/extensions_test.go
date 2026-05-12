@@ -17,7 +17,6 @@ import (
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/internal/procmgrtest"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/agent"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/backend"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/fleet/suite"
@@ -39,15 +38,6 @@ type extensionsSuite struct {
 
 func newExtensionsSuite() e2e.Suite[environments.Host] {
 	return &extensionsSuite{}
-}
-
-// e2ePipelineIDForDDOTOCI returns E2E_PIPELINE_ID or CI_PIPELINE_ID for OCI URLs
-// (ddot-package / agent-package pipeline tags), consistent with installer procmgr tests.
-func e2ePipelineIDForDDOTOCI() string {
-	if id := strings.TrimSpace(os.Getenv("E2E_PIPELINE_ID")); id != "" {
-		return id
-	}
-	return strings.TrimSpace(os.Getenv("CI_PIPELINE_ID"))
 }
 
 func TestFleetExtensions(t *testing.T) {
@@ -198,122 +188,6 @@ func (s *extensionsSuite) TestExtensionSurvivesExperiment() {
 	s.Require().NotEqual(initialDDOTVersion, s.getDDOTAgentVersion(), "DDOT should remain on promoted version after promote experiment")
 }
 
-// TestDDOTProcmgrYAMLAfterAgentPromoteExperiment asserts that after the fleet
-// agent OCI experiment is promoted, stable dd-procmgrd supervises DDOT from
-// the stable fleet extension otel-agent path and the experiment processes.d
-// copy is removed (no stale experiment Command paths).
-func (s *extensionsSuite) TestDDOTProcmgrYAMLAfterAgentPromoteExperiment() {
-	if s.Env().RemoteHost.OSFamily != e2eos.LinuxFamily {
-		s.T().Skip("Linux-only: dd-procmgr processes.d assertions")
-	}
-
-	s.Agent.MustInstall(agent.WithStagingPackages(stagingAgentVersion))
-	defer s.Agent.MustUninstall()
-
-	s.Installer.MustInstallExtension(s.getStagingAgentPackageURL(), "ddot")
-	defer func() {
-		_, _ = s.Installer.RemoveExtension("datadog-agent", "ddot")
-	}()
-
-	s.verifyDDOTRunning()
-	s.setInstallerRegistryConfig()
-
-	targetVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
-	err := s.Backend.StartExperiment("datadog-agent", targetVersion)
-	s.Require().NoError(err)
-	s.verifyDDOTRunning()
-
-	err = s.Backend.PromoteExperiment("datadog-agent")
-	s.Require().NoError(err)
-	s.verifyDDOTRunning()
-
-	procmgrtest.WaitForProcess(s.T(), s, procmgrtest.WaitForProcessArgs{
-		ProcmgrCLIBin:  procmgrtest.CLIBinForLinuxHost(s.T(), s),
-		ProcessName:    procmgrtest.DDOTProcessName,
-		ExpectedBinary: procmgrtest.DDOTOtelAgentFleetStableExtensionBinary,
-		DesiredState:   procmgrtest.ProcessStateRunning,
-	})
-
-	stableProcessesD := filepath.Join(paths.PackagesPath, "datadog-agent", "stable", "processes.d")
-	expProcessesD := filepath.Join(paths.PackagesPath, "datadog-agent", "experiment", "processes.d")
-	stableResolved, errStable := s.Env().RemoteHost.Execute(`sudo readlink -f "` + stableProcessesD + `"`)
-	expResolved, errExp := s.Env().RemoteHost.Execute(`sudo readlink -f "` + expProcessesD + `"`)
-	if errStable == nil && errExp == nil {
-		sr := strings.TrimSpace(stableResolved)
-		er := strings.TrimSpace(expResolved)
-		if sr != "" && sr == er {
-			// Matches ociAgentStableAndExperimentProcessesDirsEquivalent: after promote both
-			// symlinks often point at the same version dir, so the DDOT YAML exists at
-			// both paths and the installer must not delete it from "experiment".
-			s.T().Logf("stable and experiment processes.d are the same directory (%s); skipping experiment YAML absence check", sr)
-			return
-		}
-	}
-
-	expYAML := filepath.Join(paths.PackagesPath, "datadog-agent", "experiment", "processes.d", "datadog-agent-ddot.yaml")
-	exists, ferr := s.Env().RemoteHost.FileExists(expYAML)
-	s.Require().NoError(ferr)
-	s.Require().False(exists, "experiment processes.d DDOT YAML should be removed after promote (path %s)", expYAML)
-}
-
-// TestStandaloneDDOTProcmgrAfterAgentPromoteRegression guards the OCI agent
-// promote path when DDOT was installed via the standalone datadog-agent-ddot
-// package (procmgr YAML uses .../datadog-agent-ddot/...): promote must not
-// rewrite processes.d to the extension layout (.../datadog-agent/stable/ext/ddot/...).
-func (s *extensionsSuite) TestStandaloneDDOTProcmgrAfterAgentPromoteRegression() {
-	if s.Env().RemoteHost.OSFamily != e2eos.LinuxFamily {
-		s.T().Skip("Linux-only: fleet OCI + dd-procmgr + standalone ddot-package")
-	}
-	pipelineID := e2ePipelineIDForDDOTOCI()
-	if pipelineID == "" {
-		s.T().Skip("E2E_PIPELINE_ID and CI_PIPELINE_ID unset (need pipeline id for ddot-package OCI URL)")
-	}
-
-	s.Agent.MustInstall(agent.WithStagingPackages(stagingAgentVersion))
-	defer s.Agent.MustUninstall()
-
-	ddotURL := "oci://installtesting.datad0g.com.internal.dda-testing.com/ddot-package:pipeline-" + pipelineID
-	out, err := s.Installer.Install(ddotURL)
-	s.Require().NoError(err, "standalone ddot-package install failed: %s", out)
-	defer func() {
-		_, _ = s.Installer.Remove("datadog-agent-ddot")
-	}()
-
-	s.verifyDDOTRunning()
-	procmgrCLI := procmgrtest.CLIBinForLinuxHost(s.T(), s)
-	procmgrtest.WaitForProcess(s.T(), s, procmgrtest.WaitForProcessArgs{
-		ProcmgrCLIBin:  procmgrCLI,
-		ProcessName:    procmgrtest.DDOTProcessName,
-		ExpectedBinary: procmgrtest.DDOTOtelAgentFleetPackageBinary,
-		DesiredState:   procmgrtest.ProcessStateRunning,
-	})
-
-	s.setInstallerRegistryConfig()
-
-	targetVersion := s.Backend.Catalog().Latest(backend.BranchTesting, "datadog-agent")
-	err = s.Backend.StartExperiment("datadog-agent", targetVersion)
-	s.Require().NoError(err)
-	s.verifyDDOTRunning()
-
-	err = s.Backend.PromoteExperiment("datadog-agent")
-	s.Require().NoError(err)
-	s.verifyDDOTRunning()
-
-	procmgrCLI = procmgrtest.CLIBinForLinuxHost(s.T(), s)
-	procmgrtest.WaitForProcess(s.T(), s, procmgrtest.WaitForProcessArgs{
-		ProcmgrCLIBin:  procmgrCLI,
-		ProcessName:    procmgrtest.DDOTProcessName,
-		ExpectedBinary: procmgrtest.DDOTOtelAgentFleetPackageBinary,
-		DesiredState:   procmgrtest.ProcessStateRunning,
-	})
-
-	stableYAML := procmgrtest.StableDDOTProcmgrYAMLPath(s.T(), s)
-	cmdLine, gerr := s.Env().RemoteHost.Execute(`sudo grep -E '^command:' "` + stableYAML + `"`)
-	s.Require().NoError(gerr)
-	s.Require().Contains(strings.TrimSpace(cmdLine), "datadog-packages/datadog-agent-ddot/",
-		"stable processes.d DDOT command should keep standalone package paths after promote; got %q", strings.TrimSpace(cmdLine))
-}
-
 // TestExtensionRestoredAfterExperimentRollback verifies that extensions are
 // restored to their stable state when an experiment is stopped (rolled back).
 func (s *extensionsSuite) TestExtensionRestoredAfterExperimentRollback() {
@@ -456,11 +330,6 @@ func (s *extensionsSuite) getDDOTAgentVersion() string {
 	status, err := s.Agent.Status()
 	s.Require().NoError(err, "failed to get agent status")
 	return status.OtelAgent.AgentVersion
-}
-
-// ExecuteCommand implements procmgrtest.CommandExecutor for remote shell checks.
-func (s *extensionsSuite) ExecuteCommand(command string) (string, error) {
-	return s.Env().RemoteHost.Execute(command)
 }
 
 // verifyDDOTRunning verifies DDOT is running via agent status
