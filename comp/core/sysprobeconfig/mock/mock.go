@@ -18,8 +18,6 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // NewMock creates a mock for the sysprobeconfig component.
@@ -60,12 +58,11 @@ func NewMockWithOverrides(t testing.TB, overrides map[string]interface{}) syspro
 	return sysprobeconfigimpl.NewTestComponent(pkgconfigsetup.SystemProbe(), syscfg)
 }
 
-// MockModule provides the mock sysprobeconfig component via fx for tests that require it.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(func(t testing.TB) sysprobeconfigdef.Component {
-			return NewMock(t)
-		}),
-		fxutil.ProvideOptional[sysprobeconfigdef.Component](),
-	)
+// NewMockWithOverrides returns a mock with specific config key/value overrides applied.
+func NewMockWithOverrides(t testing.TB, overrides map[string]interface{}) sysprobeconfigdef.Component {
+	c := NewMock(t)
+	for k, v := range overrides {
+		c.SetWithoutSource(k, v)
+	}
+	return c
 }

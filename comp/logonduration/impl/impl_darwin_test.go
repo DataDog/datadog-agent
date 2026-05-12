@@ -525,7 +525,7 @@ func newFixture(t *testing.T, enabled bool) *testFixture {
 	configComp := config.NewMock(t)
 	configComp.SetWithoutSource("logon_duration.enabled", enabled)
 
-	sysprobeConfigComp := fxutil.Test[sysprobeconfig.Component](t, sysprobeconfigmock.MockModule())
+	sysprobeConfigComp := sysprobeconfigmock.NewMock(t)
 
 	hostnameComp := fxutil.Test[hostnameinterface.Component](t, hostnameimpl.MockModule())
 	compressionComp := fxutil.Test[logscompression.Component](t, logscompressionmock.MockModule())

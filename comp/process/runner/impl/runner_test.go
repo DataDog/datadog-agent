@@ -126,7 +126,7 @@ func createDeps(t *testing.T, confOverrides map[string]interface{}, options ...f
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		fx.Options(options...),
-		sysprobeconfigmock.MockModule(),
+		fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
 	))
 }
 

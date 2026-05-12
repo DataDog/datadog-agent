@@ -38,8 +38,8 @@ func makeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
 		fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
 		logParams,
 		logger,
-		fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
-		sysprobeconfigmock.MockModule(),
+		fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
+		fxutil.ProvideOptional[sysprobeconfig.Component](),
 		mocktelemetry.Module(),
 		fx.Provide(delegatedauthmock.New),
 	)

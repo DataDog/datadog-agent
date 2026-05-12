@@ -128,7 +128,7 @@ func TestBundleOneShot(t *testing.T) {
 		fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-		sysprobeconfigmock.MockModule(),
+		fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
 		workloadfilterfxmock.MockModule(),
 		fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component) {
 			proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)

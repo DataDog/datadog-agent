@@ -490,7 +490,7 @@ func getSubmitterDepsWithConfig(t *testing.T, configObj config.Component) submit
 		fx.Provide(func() config.Component {
 			return configObj
 		}),
-		sysprobeconfigmock.MockModule(),
+		fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
 		connectionsforwarderfx.Module(),
 		secretsfxnoop.Module(),
 		forwardersimpl.Module(),

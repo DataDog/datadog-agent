@@ -40,7 +40,7 @@ func TestExpvarServer(t *testing.T) {
 			})
 		}),
 		mocktelemetry.Module(),
-		sysprobeconfigmock.MockModule(),
+		fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
 		hostinfomock.MockModule(),
 		expvarsfx.Module(),
 	))
@@ -72,7 +72,7 @@ func TestTelemetry(t *testing.T) {
 		expvarsfx.Module(),
 		hostinfomock.MockModule(),
 		mocktelemetry.Module(),
-		sysprobeconfigmock.MockModule(),
+		fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
 	))
 
 	assert.Eventually(t, func() bool {

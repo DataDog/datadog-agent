@@ -61,7 +61,7 @@ func TestProcessCheckEnablementOnCoreAgent(t *testing.T) {
 			c := fxutil.Test[processcheck.Component](t, fx.Options(
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, configs) }),
-				sysprobeconfigmock.MockModule(),
+				fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 				gpusubscriberfxmock.MockModule(),
 				taggerfxnoop.Module(),

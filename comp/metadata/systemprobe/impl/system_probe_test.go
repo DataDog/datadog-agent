@@ -69,7 +69,7 @@ func getSystemProbeComp(t *testing.T, enableConfig bool) *systemprobe {
 			fx.Provide(func() log.Component { return l }),
 			fx.Provide(func() config.Component { return cfg }),
 		),
-		SysProbeConfig: fxutil.Test[option.Option[sysprobeconfig.Component]](t, sysprobeconfigmock.MockModule()),
+		SysProbeConfig: option.New[sysprobeconfig.Component](sysprobeconfigmock.NewMock(t)),
 		Hostname:       hostnameimpl.NewHostnameService(),
 	}
 

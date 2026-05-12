@@ -106,7 +106,7 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 				statsdimpl.MockModule(),
 				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
-				sysprobeconfigmock.MockModule(),
+				fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
 				fxutil.ProvideComponentConstructor(NewComponent),
 				hostnameimpl.MockModule(),
 				fx.Provide(func() configComp.Component {
@@ -181,7 +181,7 @@ func TestStatusProvider(t *testing.T) {
 				fx.Provide(func() configComp.Component {
 					return configComp.NewMock(t)
 				}),
-				sysprobeconfigmock.MockModule(),
+				fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
 				hostnameimpl.MockModule(),
 				fx.Provide(func() func(c *checkMocks.Check) {
 					return func(c *checkMocks.Check) {
@@ -235,7 +235,7 @@ func TestTelemetryCoreAgent(t *testing.T) {
 				"telemetry.enabled": true,
 			})
 		}),
-		sysprobeconfigmock.MockModule(),
+		fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
 		hostnameimpl.MockModule(),
 		fx.Provide(func() func(c *checkMocks.Check) {
 			return func(c *checkMocks.Check) {
