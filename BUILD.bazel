@@ -858,22 +858,7 @@ exports_files(glob(
 # gazelle:exclude tools/windows
 
 # ======= TESTDATA EXCLUDES =======
-# testdata/ directories hold fixture inputs for tests (configs, sample binaries,
-# helper source files). They are not packages we ship, so we never generate
-# go_library / go_test targets inside them. Consuming tests reach the files via
-# `data = glob(["testdata/**"], allow_empty = True)` on the parent go_test.
-# gazelle:exclude cmd/testdata
-# gazelle:exclude comp/host-profiler/symboluploader/testdata
-# gazelle:exclude comp/otelcol/ddflareextension/impl/testdata
-# gazelle:exclude comp/otelcol/otlp/testdata
-# gazelle:exclude comp/trace/config/testdata
-# gazelle:exclude pkg/collector/check/testdata
-# gazelle:exclude pkg/discovery/module/rust/testdata
-# gazelle:exclude pkg/discovery/testdata
-# gazelle:exclude pkg/gpu/cuda/testutil/testdata
-# gazelle:exclude pkg/network/testdata
-# gazelle:exclude pkg/security/probe/testdata
-# gazelle:exclude pkg/util/kernel/testdata
+# gazelle:exclude **/testdata/**/*.go
 # ======= END TESTDATA EXCLUDES =======
 
 # ======= PROTO EXCLUDES =======
