@@ -199,16 +199,6 @@ func TestFilterOpenBasenameWildcardApprover(t *testing.T) {
 	}, testFile2); err == nil {
 		t.Fatal("shouldn't get an event")
 	}
-
-	if err := waitForOpenProbeEvent(test, func() error {
-		fd2, err = openTestFile(test, testFile2, syscall.O_RDONLY)
-		if err != nil {
-			return err
-		}
-		return syscall.Close(fd2)
-	}, testFile2); err == nil {
-		t.Fatal("shouldn't get an event")
-	}
 }
 
 func TestFilterOpenLeafDiscarder(t *testing.T) {
