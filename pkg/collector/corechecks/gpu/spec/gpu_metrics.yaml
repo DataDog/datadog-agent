@@ -1246,7 +1246,7 @@ metrics:
       metric_type: histogram
       description: >-
         NVLink FEC history histogram for the port. Each emitted histogram bucket
-        represents the cumulative count of messages with exactly N FEC errors.
+        represents the count of messages with exactly N FEC errors in the last interval.
     tagsets:
       - device
     custom_tags:
@@ -1272,7 +1272,7 @@ metrics:
       description: >-
         NVLink FEC history cumulative histogram for the port. Each emitted
         histogram bucket represents the cumulative count of messages with
-        exactly N FEC errors.
+        exactly N FEC errors over the lifetime of the port.
     tagsets:
       - device
     custom_tags:
