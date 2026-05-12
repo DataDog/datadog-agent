@@ -7,9 +7,7 @@ package lite
 
 import "strings"
 
-// cleanValue normalises a raw value captured by the regex or fuzzy tiers:
-// strips surrounding quotes, leading YAML anchor/alias markers, and any
-// trailing CR left over from CRLF.
+// cleanValue normalises a raw value captured by the regex or fuzzy tiers
 func cleanValue(s string) string {
 	s = strings.TrimRight(s, "\r")
 	s = strings.TrimSpace(s)
@@ -27,8 +25,7 @@ func stripQuotes(s string) string {
 	return s
 }
 
-// stripAnchor removes a leading YAML anchor (&name) or alias (*name) followed
-// by whitespace. Anchors are rare in datadog.yaml but seen in support cases.
+// stripAnchor removes a leading YAML anchor (&name) or alias (*name) followed by whitespace.
 func stripAnchor(s string) string {
 	if len(s) < 2 || (s[0] != '&' && s[0] != '*') {
 		return s
