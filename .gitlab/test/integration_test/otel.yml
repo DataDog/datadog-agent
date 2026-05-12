@@ -101,7 +101,10 @@ docker_image_build_otel:
     # capable driver (docker-container or remote) pre-configured at the runner level. DinD runners
     # don't — they start with a fresh Docker daemon whose default buildx driver is "docker", which
     # does not support --cache-to type=registry. We therefore create an explicit builder here.
-    - docker buildx create --use --driver docker-container --bootstrap
+    # --driver-opt network=host is required so that the BuildKit daemon container shares the DinD
+    # host's network namespace; without it, build steps using --network=host cannot reach
+    # localhost:5000 (the local OCI registry started in the before_script).
+    - docker buildx create --use --driver docker-container --driver-opt network=host --bootstrap
     - |
       CACHE_REGISTRY="${IMAGE}-amd64:cache"
       CACHE_FROM="--cache-from type=registry,ref=${CACHE_REGISTRY}"
