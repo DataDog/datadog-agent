@@ -1,0 +1,23 @@
+load("@py_agent_integrations_tool_requirements//:requirements.bzl", "requirement")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("//deps/agent_integrations:defs.bzl", "install_wheels")
+
+py_binary(
+    name = "install_wheels_tool",
+    srcs = ["install_wheels.py"],
+    main = "install_wheels.py",
+    deps = [requirement("installer")],
+)
+
+install_wheels(
+    name = "integrations_dependencies",
+    srcs = ["@integrations_core//:dependency_wheels"],
+    script_interpreter_relative_path = select({
+        "@platforms//os:windows": "embedded3/python3.exe",
+        "//conditions:default": "embedded/bin/python3",
+    }),
+    script_kind = select({
+        "@platforms//os:windows": "win-amd64",
+        "//conditions:default": "posix",
+    }),
+)
