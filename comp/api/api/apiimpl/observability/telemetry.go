@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 )
@@ -32,10 +31,10 @@ type telemetryMiddlewareFactory struct {
 
 // TelemetryMiddlewareFactory creates a telemetry middleware tagged with a given server name
 type TelemetryMiddlewareFactory interface {
-	Middleware(serverName string) mux.MiddlewareFunc
+	Middleware(serverName string) func(http.Handler) http.Handler
 }
 
-func (th *telemetryMiddlewareFactory) Middleware(serverName string) mux.MiddlewareFunc {
+func (th *telemetryMiddlewareFactory) Middleware(serverName string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var statusCode int
@@ -47,10 +46,9 @@ func (th *telemetryMiddlewareFactory) Middleware(serverName string) mux.Middlewa
 			var duration time.Duration
 			next = timeHandler(th.clock, &duration)(next)
 
-			// Plant a route capture in the context so that CaptureRouteTemplateMiddleware
-			// (registered inside the gorilla/mux router) can fill it with the matched route
-			// template. This avoids high-cardinality tags from user-provided path values such
-			// as /{component}/status where {component} varies per request.
+			// Plant a route capture in the context so that WrapWithRouteTemplate (called at
+			// handler registration) can fill it with the matched route template. This avoids
+			// high-cardinality metric tags from path variables such as /{component}/status.
 			r, capture := withRouteCapture(r)
 			next.ServeHTTP(w, r)
 
