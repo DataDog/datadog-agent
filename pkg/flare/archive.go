@@ -29,6 +29,7 @@ import (
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	rcflare "github.com/DataDog/datadog-agent/pkg/config/remote/flare"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/flare/common"
@@ -73,6 +74,12 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		flaretypes.NewFiller(remote.provideExtraFiles),
 		flaretypes.NewFiller(provideSystemProbe),
 		flaretypes.NewFiller(remote.provideConfigDump),
+		flaretypes.NewFiller(func(_ context.Context, fb flaretypes.FlareBuilder) error {
+			if !fb.IsLocal() {
+				return nil
+			}
+			return rcflare.CopyRemoteConfigDB(fb, pkgconfigsetup.Datadog().GetString("run_path"))
+		}),
 		flaretypes.NewFiller(getRegistryJSON),
 		flaretypes.NewFiller(getVersionHistory),
 		flaretypes.NewFiller(getWindowsData),
