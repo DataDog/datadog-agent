@@ -7,7 +7,7 @@ If no input tar is provided, reads from stdin.
 
 
 Requirements:
-Read a .tar file (which might be compressed) and emits a file containing the md5 checksum of each file within that tar file.
+Read a .tar file (which might be compressed) and emit a file containing the md5 checksum of each file within that tar file.
 
 - must take the path to the input tar file as a command line arg
   - if no input tar is provided, then use stdin as the file
