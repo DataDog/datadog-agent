@@ -23,8 +23,7 @@ import (
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
-	dogstatsdServerless "github.com/DataDog/datadog-agent/comp/dogstatsd/server/serverless"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -97,7 +96,7 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 	require.NoError(t, err, "cannot start Demultiplexer")
 	defer demux.Stop(false)
 
-	s, err := dogstatsdServerless.NewServerlessServer(demux, nil)
+	s, err := dogstatsdServer.NewServerlessServer(demux, nil)
 	require.NoError(t, err, "cannot start DSD")
 	defer s.Stop()
 
