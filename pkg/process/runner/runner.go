@@ -441,7 +441,12 @@ func (l *CheckRunner) UpdateRTStatus(statuses []*model.CollectorStatus) {
 		// Pass along the real-time interval, one per check, so that every
 		// check routine will see the new interval.
 		for range l.enabledChecks {
-			l.rtIntervalCh <- l.realTimeInterval
+			select {
+			case l.rtIntervalCh <- l.realTimeInterval:
+			case <-l.stop:
+				// Stop sending when shutting down to avoid blocking forever without receivers.
+				return
+			}
 		}
 		log.Infof("real time interval updated to %s", l.realTimeInterval)
 	}
