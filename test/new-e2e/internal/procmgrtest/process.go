@@ -87,8 +87,9 @@ type WaitForProcessResult struct {
 // a snapshot result. Restarts is always populated; PID is only populated for
 // ProcessStateRunning. For ProcessStateRunning it also validates Command,
 // readlink -f on Command vs /proc/<pid>/exe, and optional ExpectedBinary resolution.
-// When DesiredState is Running, it then polls for waitForProcessRunningStableWindow
-// to assert State stays Running and PID does not change.
+// For Running, success additionally requires State and PID to remain stable for
+// waitForProcessRunningStableWindow within the same Eventually attempt (so a brief
+// Running before exit 255 does not pass; Eventually retries until stability holds).
 func WaitForProcess(t *testing.T, executor CommandExecutor, args WaitForProcessArgs) WaitForProcessResult {
 	t.Helper()
 	require.NotEmpty(t, args.ProcmgrCLIBin, "WaitForProcessArgs.ProcmgrCLIBin must be set")
@@ -127,12 +128,12 @@ func WaitForProcess(t *testing.T, executor CommandExecutor, args WaitForProcessA
 		if !ok {
 			return false
 		}
+		if !confirmStableRunningPID(t, executor, describeCmd, desiredState, r.PID) {
+			return false
+		}
 		result = r
 		return true
 	}, waitForProcessTimeout, waitForProcessPollInterval, fmt.Sprintf("process %q should be %s via dd-procmgr describe", args.ProcessName, desiredState))
-	if desiredState == ProcessStateRunning && result.PID != "" {
-		requireStableRunningPID(t, executor, describeCmd, desiredState, result.PID)
-	}
 	return result
 }
 
@@ -152,22 +153,29 @@ func WaitForDDOTRunning(t *testing.T, executor CommandExecutor, expectedBinary s
 	})
 }
 
-// requireStableRunningPID polls describe for stableWindow and fails if State or PID drifts.
-func requireStableRunningPID(t *testing.T, executor CommandExecutor, describeCmd, wantState, wantPID string) {
+// confirmStableRunningPID returns true iff describe shows wantState and wantPID on every
+// poll for waitForProcessRunningStableWindow. Any drift returns false so the caller can
+// retry (e.g. DDOT may briefly report Running before a failed restart settles on a stable PID).
+func confirmStableRunningPID(t *testing.T, executor CommandExecutor, describeCmd, wantState, wantPID string) bool {
 	t.Helper()
 	start := time.Now()
-	for {
+	for time.Since(start) < waitForProcessRunningStableWindow {
 		out, err := executor.ExecuteCommand(describeCmd)
-		require.NoError(t, err, "dd-procmgr describe during stable window: %s", describeCmd)
-		st := fieldValue(out, "State")
-		require.Equal(t, wantState, st, "State changed during stable window (elapsed %s)\ndescribe:\n%s", time.Since(start), out)
-		pid := fieldValue(out, "PID")
-		require.Equal(t, wantPID, pid, "PID changed during stable window (elapsed %s)\ndescribe:\n%s", time.Since(start), out)
-		if time.Since(start) >= waitForProcessRunningStableWindow {
-			return
+		if err != nil {
+			t.Logf("confirmStableRunningPID: describe err=%v\n%s", err, out)
+			return false
+		}
+		if st := fieldValue(out, "State"); st != wantState {
+			t.Logf("confirmStableRunningPID: State=%q want %q", st, wantState)
+			return false
+		}
+		if pid := fieldValue(out, "PID"); pid != wantPID {
+			t.Logf("confirmStableRunningPID: PID=%q want %q", pid, wantPID)
+			return false
 		}
 		time.Sleep(waitForProcessRunningStablePoll)
 	}
+	return true
 }
 
 func resolveExpectedBinaryHint(
