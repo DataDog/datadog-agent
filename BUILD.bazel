@@ -129,10 +129,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/tagger/tagstore
 # gazelle:exclude comp/core/workloadfilter/fx
 # gazelle:exclude comp/core/workloadfilter/fx-mock
-# gazelle:exclude comp/core/workloadfilter/impl/filter.go
-# gazelle:exclude comp/core/workloadfilter/impl/filter_mock.go
-# gazelle:exclude comp/core/workloadfilter/impl/filter_mock_test.go
-# gazelle:exclude comp/core/workloadfilter/impl/filter_test.go
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-clusteragent
 # gazelle:exclude comp/core/workloadmeta/collectors/catalog-core
@@ -530,10 +526,6 @@ exports_files(glob(
 # gazelle:exclude pkg/logs/pipeline
 # gazelle:exclude pkg/logs/processor
 # gazelle:exclude pkg/logs/schedulers
-# gazelle:exclude pkg/logs/status/builder.go
-# gazelle:exclude pkg/logs/status/status.go
-# gazelle:exclude pkg/logs/status/status_test.go
-# gazelle:exclude pkg/logs/status/test_utils.go
 # gazelle:exclude pkg/logs/tailers/container
 # gazelle:exclude pkg/logs/tailers/file
 # gazelle:exclude pkg/logs/tailers/journald
