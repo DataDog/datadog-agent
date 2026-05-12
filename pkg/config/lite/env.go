@@ -7,9 +7,7 @@ package lite
 
 import "os"
 
-// applyEnv resolves any unresolved field from the process environment.
-// DD_DD_URL beats the legacy DD_URL — matching the agent's BindEnv order in
-// pkg/config/setup/common_settings.go.
+// applyEnv fills any unresolved field from DD_* env vars
 func applyEnv(cfg *LiteConfig) {
 	set := func(field *ConfigField, vars ...string) {
 		if field.resolved() {
