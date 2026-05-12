@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Add ``private_action_runner.skip_connection_creation`` configuration flag
+    to control auto-connection creation during Private Action Runner
+    enrollment. When set to ``true``, the runner skips creating connections
+    during app-key enrollment. Defaults to ``false``, which preserves the
+    existing behavior of auto-creating connections.

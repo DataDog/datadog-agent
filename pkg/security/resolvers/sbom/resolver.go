@@ -379,9 +379,9 @@ func (r *Resolver) triggerForwarding(sbom *SBOM) {
 					imageSBOM, err := r.getContainerSBOM(sbom.ContainerID)
 					if err != nil || imageSBOM == nil {
 						seclog.Debugf("Failed to get image SBOM for container '%s': %v", sbom.ContainerID, err)
+					} else {
+						sbom.status = imageSBOM.Status
 					}
-
-					sbom.status = imageSBOM.Status
 				}
 
 				if sbom.status == workloadmeta.Pending || sbom.status == "" {
@@ -762,7 +762,7 @@ func (r *Resolver) ResolvePackage(pc *model.ProcessContext, file *model.FileEven
 
 	pkg := sbom.data.files.queryFile(file.PathnameStr)
 	if pkg != nil {
-		seclog.Debugf("file '%s' found in sbom for container '%s'", file.PathnameStr, sbom.ContainerID)
+		seclog.Tracef("file '%s' found in sbom for container '%s'", file.PathnameStr, sbom.ContainerID)
 
 		oldLastAccess := pkg.LastAccess
 		oldSuidBit := pkg.SuidBit
