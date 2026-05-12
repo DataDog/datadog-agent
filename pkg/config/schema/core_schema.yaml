@@ -4567,8 +4567,8 @@ properties:
     visibility: public
     description: Network Path configuration
     tags:
-    - platform_only:windows,linux
     - template_section:CoreAgent
+    - platform_only:windows,linux
     properties:
       connections_monitoring:
         node_type: section
