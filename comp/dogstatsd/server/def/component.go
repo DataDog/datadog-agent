@@ -23,3 +23,10 @@ type Component interface {
 	// UDPLocalAddr returns the local address of the UDP statsd listener, if enabled.
 	UDPLocalAddr() string
 }
+
+// ServerlessDogstatsd is the interface for the serverless dogstatsd server.
+type ServerlessDogstatsd interface {
+	Component
+	// Stop stops the serverless dogstatsd server.
+	Stop()
+}
