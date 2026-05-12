@@ -8,6 +8,7 @@
 package noisyneighbor
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"path/filepath"
@@ -37,23 +38,36 @@ type pmuEvent struct {
 	config uint64
 }
 
+// PMU event indices. The const block is the canonical ordering: pmuEvents
+// initialises slots by name (idxCycles: {…}) and ReadAll's struct literal
+// reads them back the same way, so reordering this list is a compile error
+// rather than a silent metric mislabel.
+const (
+	idxCycles = iota
+	idxInstructions
+	idxLLCMisses
+	idxBranchMisses
+	idxCacheReferences
+	idxITLBMisses
+	idxCPUMigrations
+	numPMUEvents
+)
+
 // pmuEvents is the fixed set of counters we attempt to sample per cgroup. An
 // event whose perf_event_open returns EINVAL/ENOTSUP on probe is recorded as
 // unsupported and skipped for all subsequent cgroup opens.
-var pmuEvents = [...]pmuEvent{
-	{name: "cycles", typ: unix.PERF_TYPE_HARDWARE, config: unix.PERF_COUNT_HW_CPU_CYCLES},
-	{name: "instructions", typ: unix.PERF_TYPE_HARDWARE, config: unix.PERF_COUNT_HW_INSTRUCTIONS},
-	{name: "llc_misses", typ: unix.PERF_TYPE_HARDWARE, config: unix.PERF_COUNT_HW_CACHE_MISSES},
-	{name: "branch_misses", typ: unix.PERF_TYPE_HARDWARE, config: unix.PERF_COUNT_HW_BRANCH_MISSES},
-	{name: "cache_references", typ: unix.PERF_TYPE_HARDWARE, config: unix.PERF_COUNT_HW_CACHE_REFERENCES},
-	{name: "itlb_misses", typ: unix.PERF_TYPE_HW_CACHE,
+var pmuEvents = [numPMUEvents]pmuEvent{
+	idxCycles:          {name: "cycles", typ: unix.PERF_TYPE_HARDWARE, config: unix.PERF_COUNT_HW_CPU_CYCLES},
+	idxInstructions:    {name: "instructions", typ: unix.PERF_TYPE_HARDWARE, config: unix.PERF_COUNT_HW_INSTRUCTIONS},
+	idxLLCMisses:       {name: "llc_misses", typ: unix.PERF_TYPE_HARDWARE, config: unix.PERF_COUNT_HW_CACHE_MISSES},
+	idxBranchMisses:    {name: "branch_misses", typ: unix.PERF_TYPE_HARDWARE, config: unix.PERF_COUNT_HW_BRANCH_MISSES},
+	idxCacheReferences: {name: "cache_references", typ: unix.PERF_TYPE_HARDWARE, config: unix.PERF_COUNT_HW_CACHE_REFERENCES},
+	idxITLBMisses: {name: "itlb_misses", typ: unix.PERF_TYPE_HW_CACHE,
 		config: uint64(unix.PERF_COUNT_HW_CACHE_ITLB) |
 			(uint64(unix.PERF_COUNT_HW_CACHE_OP_READ) << 8) |
 			(uint64(unix.PERF_COUNT_HW_CACHE_RESULT_MISS) << 16)},
-	{name: "cpu_migrations", typ: unix.PERF_TYPE_SOFTWARE, config: unix.PERF_COUNT_SW_CPU_MIGRATIONS},
+	idxCPUMigrations: {name: "cpu_migrations", typ: unix.PERF_TYPE_SOFTWARE, config: unix.PERF_COUNT_SW_CPU_MIGRATIONS},
 }
-
-const numPMUEvents = len(pmuEvents)
 
 // perfReadValue is the layout returned by read(fd) when read_format is
 // PERF_FORMAT_TOTAL_TIME_ENABLED | PERF_FORMAT_TOTAL_TIME_RUNNING — exactly
@@ -178,9 +192,19 @@ func walkContainerCgroups(cgroupRoot string) (map[uint64]string, error) {
 	seen := make(map[uint64]string)
 	walkErr := filepath.WalkDir(cgroupRoot, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			// Don't bail the whole walk on a permission denied or transient
-			// ENOENT (cgroups disappear under us all the time). Skip the
-			// offending directory but keep walking siblings.
+			// ENOENT is expected — cgroups vanish under us all the time as
+			// containers exit between WalkDir's readdir and stat. Anything
+			// else (EACCES on a permission-denied mount, EIO on a wedged
+			// fs) is worth surfacing at debug level so operators can
+			// diagnose a misconfigured /host/proc/1/root mount without it
+			// looking identical to "no containers ran during this window".
+			// d == nil happens when WalkDir cannot stat the root itself;
+			// callers of walkContainerCgroups depend on that path returning
+			// an empty result so the probe doesn't crash at startup if the
+			// cgroupRoot mount hasn't materialised yet.
+			if !errors.Is(err, fs.ErrNotExist) {
+				log.Debugf("noisy_neighbor: walk %s: %v", path, err)
+			}
 			if d != nil && d.IsDir() {
 				return fs.SkipDir
 			}
@@ -195,6 +219,7 @@ func walkContainerCgroups(cgroupRoot string) (map[uint64]string, error) {
 		case cgroupContainer:
 			inode, err := statInode(path)
 			if err != nil {
+				log.Debugf("noisy_neighbor: stat %s: %v", path, err)
 				return nil
 			}
 			seen[inode] = path
@@ -249,13 +274,13 @@ func (m *cgroupPMUManager) ReadAll() map[uint64]model.CgroupPMUStats {
 			entry.last[i] = cur
 		}
 		stats[inode] = model.CgroupPMUStats{
-			Cycles:          scaled[0],
-			Instructions:    scaled[1],
-			LLCMisses:       scaled[2],
-			BranchMisses:    scaled[3],
-			CacheReferences: scaled[4],
-			ITLBMisses:      scaled[5],
-			CPUMigrations:   scaled[6],
+			Cycles:          scaled[idxCycles],
+			Instructions:    scaled[idxInstructions],
+			LLCMisses:       scaled[idxLLCMisses],
+			BranchMisses:    scaled[idxBranchMisses],
+			CacheReferences: scaled[idxCacheReferences],
+			ITLBMisses:      scaled[idxITLBMisses],
+			CPUMigrations:   scaled[idxCPUMigrations],
 			EnabledNs:       enabledNs,
 			RunningNs:       runningNs,
 		}
@@ -297,10 +322,39 @@ func (m *cgroupPMUManager) Close() {
 // cgroup directory at path. If a single (event, CPU) open fails after the
 // startup probe accepted that event, we record the slot as -1 and continue —
 // the read path skips negative fds.
+//
+// Two correctness checks happen here that aren't obvious from a glance:
+//
+//  1. After opening cgroupFD, we fstat it and bail if the inode no longer
+//     matches the one walkContainerCgroups recorded for this path. On busy
+//     hosts a container can exit and a new container can be created with the
+//     same path between the walk and the open; without this check we'd open
+//     perf events against the new cgroup but key the entry under the old
+//     inode, silently miscounting until the next refresh.
+//
+//  2. After all fds are opened, we do an initial readEvent for each supported
+//     event and stash the result as entry.last. Without this, the first
+//     ReadAll's delta is current_counter - 0, i.e. everything that
+//     accumulated between perf_event_open and the first /check — over-reports
+//     the first window for any long-lived cgroup tracked from probe init.
 func (m *cgroupPMUManager) openCgroupEvents(inode uint64, path string) (*cgroupPMUEntry, error) {
 	cgroupFD, err := unix.Open(path, unix.O_RDONLY|unix.O_CLOEXEC, 0)
 	if err != nil {
 		return nil, fmt.Errorf("open cgroup dir %q: %w", path, err)
+	}
+
+	var st syscall.Stat_t
+	if err := syscall.Fstat(cgroupFD, &st); err != nil {
+		unix.Close(cgroupFD)
+		return nil, fmt.Errorf("fstat cgroup dir %q: %w", path, err)
+	}
+	if st.Ino != inode {
+		// A different cgroup now lives at this path; the inode we walked is
+		// gone. Refusing to register this entry leaves it as a candidate
+		// for the next refresh, where walkContainerCgroups will pick up the
+		// new inode.
+		unix.Close(cgroupFD)
+		return nil, fmt.Errorf("cgroup inode changed under us: walked=%d open=%d at %q", inode, st.Ino, path)
 	}
 
 	entry := &cgroupPMUEntry{
@@ -317,12 +371,10 @@ func (m *cgroupPMUManager) openCgroupEvents(inode uint64, path string) (*cgroupP
 		}
 		fds := make([]int, m.numCPU)
 		for cpu := range fds {
-			fds[cpu] = -1
-		}
-		for cpu := 0; cpu < m.numCPU; cpu++ {
 			fd, err := openPerfEvent(cgroupFD, cpu, pmuEvents[i])
 			if err != nil {
 				log.Debugf("noisy_neighbor: open %s on cgroup %s cpu=%d: %v", pmuEvents[i].name, path, cpu, err)
+				fds[cpu] = -1
 				continue
 			}
 			fds[cpu] = fd
@@ -334,6 +386,18 @@ func (m *cgroupPMUManager) openCgroupEvents(inode uint64, path string) (*cgroupP
 		entry.close()
 		return nil, fmt.Errorf("no PMU events opened for %q", path)
 	}
+
+	// Prime entry.last with the current counter value so the first ReadAll
+	// returns a delta-since-open rather than the full accumulated counter.
+	for i := range pmuEvents {
+		if !m.supported[i] {
+			continue
+		}
+		if cur, ok := entry.readEvent(i); ok {
+			entry.last[i] = cur
+		}
+	}
+
 	return entry, nil
 }
 

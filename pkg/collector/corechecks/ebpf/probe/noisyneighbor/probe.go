@@ -10,6 +10,7 @@ package noisyneighbor
 
 import (
 	"fmt"
+	"sync"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -36,17 +37,27 @@ func hostCgroupRoot() string {
 	return kernel.HostProc("1", "root", "sys", "fs", "cgroup")
 }
 
-// Probe is the eBPF side of the noisy neighbor check
+// Probe is the eBPF side of the noisy neighbor check.
+//
+// The closeMu RWMutex coordinates Close with concurrent GetAndFlush calls:
+// readers (GetAndFlush) take the read lock and refuse to run when closed is
+// set, and Close takes the write lock so it can only proceed once every
+// in-flight reader has returned. Without this, system-probe shutdown (or
+// module restart) can race a /check that's mid-iteration of the BPF map and
+// trigger use-after-free of the map handle once mgr.Stop(CleanAll) runs.
 type Probe struct {
 	mgr    *ddebpf.Manager
 	pmuMgr *cgroupPMUManager
+
+	closeMu sync.RWMutex
+	closed  bool
 }
 
-// NewProbe creates a [Probe]
+// NewProbe creates a [Probe].
 func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
-		return nil, fmt.Errorf("kernel version: %s", err)
+		return nil, fmt.Errorf("kernel version: %w", err)
 	}
 	if kv < minimumKernelVersion {
 		return nil, fmt.Errorf("minimum kernel version %s not met, read %s", minimumKernelVersion, kv)
@@ -99,15 +110,21 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 	return p, nil
 }
 
-// Close releases all associated resources
+// Close releases all associated resources. Blocks until any in-flight
+// GetAndFlush returns; subsequent GetAndFlush calls return errProbeClosed
+// without touching teardown-in-progress resources.
 func (p *Probe) Close() {
+	p.closeMu.Lock()
+	p.closed = true
+	p.closeMu.Unlock()
+
 	if p.pmuMgr != nil {
 		p.pmuMgr.Close()
 	}
 	if p.mgr != nil {
 		ddebpf.RemoveNameMappings(p.mgr.Manager)
 		if err := p.mgr.Stop(manager.CleanAll); err != nil {
-			log.Warnf("error stopping ebpf manager: %s", err)
+			log.Warnf("noisy_neighbor: error stopping ebpf manager: %v", err)
 		}
 	}
 }
@@ -118,7 +135,16 @@ func (p *Probe) Close() {
 // non-empty data for that cgroup; missing fields are zero. The BPF map is
 // reset after every read; PMU counters are u64-monotonic and tracked
 // per-cgroup as deltas internally.
+//
+// Returns an empty slice (no error path on this signature) when Close has
+// been called — system-probe's HTTP handler treats nil/empty results as
+// "no data this interval", which is the right behaviour during shutdown.
 func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
+	p.closeMu.RLock()
+	defer p.closeMu.RUnlock()
+	if p.closed {
+		return nil
+	}
 	if p.pmuMgr != nil {
 		if err := p.pmuMgr.Refresh(); err != nil {
 			log.Debugf("noisy_neighbor: cgroup PMU refresh: %v", err)

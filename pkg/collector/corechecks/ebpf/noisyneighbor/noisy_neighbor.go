@@ -62,12 +62,13 @@ func (n *NoisyNeighborCheck) Configure(senderManager sender.SenderManager, _ uin
 		return err
 	}
 	if err := n.config.Parse(config); err != nil {
-		return fmt.Errorf("noisy_neighbor check config: %s", err)
+		return fmt.Errorf("noisy_neighbor check config: %w", err)
 	}
-	n.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")))
+	socketPath := pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")
+	n.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(socketPath))
 	reader, err := cgroups.NewReader(cgroups.WithReaderFilter(cgroups.ContainerFilter))
 	if err != nil {
-		return fmt.Errorf("noisy_neighbor: cgroup reader init failed: %s", err)
+		return fmt.Errorf("noisy_neighbor: cgroup reader init failed: %w", err)
 	}
 	n.cgroupReader = reader
 	return nil
@@ -76,17 +77,17 @@ func (n *NoisyNeighborCheck) Configure(senderManager sender.SenderManager, _ uin
 func (n *NoisyNeighborCheck) Run() error {
 	stats, err := sysprobeclient.GetCheck[[]model.NoisyNeighborStats](n.sysProbeClient, sysconfig.NoisyNeighborModule)
 	if err != nil {
-		return fmt.Errorf("get noisy neighbor check: %s", err)
+		return fmt.Errorf("get noisy neighbor check: %w", err)
 	}
 
 	sender, err := n.GetSender()
 	if err != nil {
-		return fmt.Errorf("get metric sender: %s", err)
+		return fmt.Errorf("get metric sender: %w", err)
 	}
 
 	err = n.cgroupReader.RefreshCgroups(0)
 	if err != nil {
-		return fmt.Errorf("unable to refresh cgroups: %s", err)
+		return fmt.Errorf("unable to refresh cgroups: %w", err)
 	}
 
 	var totalCgroups uint64

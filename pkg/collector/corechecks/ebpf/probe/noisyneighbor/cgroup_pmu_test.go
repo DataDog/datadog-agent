@@ -101,7 +101,9 @@ func TestScalePMUDelta(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := scalePMUDelta(tt.counter, tt.enabled, tt.running)
-			assert.Equal(t, tt.want, got)
+			assert.Equalf(t, tt.want, got,
+				"scalePMUDelta(counter=%d, enabled=%d, running=%d)",
+				tt.counter, tt.enabled, tt.running)
 		})
 	}
 }
@@ -139,7 +141,8 @@ func TestClassifyCgroupName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, classifyCgroupName(tt.in))
+			assert.Equalf(t, tt.want, classifyCgroupName(tt.in),
+				"classifyCgroupName(%q)", tt.in)
 		})
 	}
 }
@@ -255,9 +258,11 @@ func TestWalkContainerCgroups(t *testing.T) {
 // usual container or /host/proc wasn't mounted yet at startup). The walker
 // swallows per-entry stat errors and just returns an empty result — this
 // matches the behaviour Refresh() expects so a missing tree doesn't crash
-// the probe at startup.
+// the probe at startup. The nil-error part of the contract is what makes
+// Refresh() safe to call before any cgroups appear; lock it down.
 func TestWalkContainerCgroups_NonexistentRoot(t *testing.T) {
-	seen, _ := walkContainerCgroups("/this/path/should/never/exist/cgrp")
+	seen, err := walkContainerCgroups("/this/path/should/never/exist/cgrp")
+	require.NoError(t, err, "missing root must surface as empty result, not error (so Refresh is safe at startup)")
 	assert.Empty(t, seen)
 }
 
