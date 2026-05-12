@@ -572,6 +572,7 @@ func (pc *ProcessCacheEntry) IsContainerRoot() bool {
 // Reset the entry
 func (pc *ProcessCacheEntry) Reset() {
 	pc.ProcessContext = zeroProcessContext
+	pc.Children = nil
 }
 
 type cleanupKey struct{}
