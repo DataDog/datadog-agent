@@ -43,6 +43,16 @@ type NoisyNeighborCheck struct {
 	tagger         tagger.Component
 	sysProbeClient *sysprobeclient.CheckClient
 	cgroupReader   *cgroups.Reader
+	// pmuMetricsEnabled is captured once during Configure to avoid a config
+	// lookup per metric per Run tick. Keys are the agent-side metric short
+	// names ("cycles", "instructions", ...); a missing or false entry means
+	// the metric is not emitted.
+	pmuMetricsEnabled map[string]bool
+}
+
+var pmuMetricConfigKeys = []string{
+	"cycles", "instructions", "llc_misses", "cache_references",
+	"itlb_misses", "branch_misses", "cpu_migrations",
 }
 
 // Factory returns the check.Check constructor used by the collector to
@@ -75,12 +85,17 @@ func (n *NoisyNeighborCheck) Configure(senderManager sender.SenderManager, _ uin
 	if err := n.config.Parse(config); err != nil {
 		return fmt.Errorf("noisy_neighbor check config: %w", err)
 	}
-	n.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(pkgconfigsetup.SystemProbe().GetString("system_probe_config.sysprobe_socket")))
+	sysCfg := pkgconfigsetup.SystemProbe()
+	n.sysProbeClient = sysprobeclient.GetCheckClient(sysprobeclient.WithSocketPath(sysCfg.GetString("system_probe_config.sysprobe_socket")))
 	reader, err := cgroups.NewReader(cgroups.WithReaderFilter(cgroups.ContainerFilter))
 	if err != nil {
 		return fmt.Errorf("noisy_neighbor: cgroup reader init failed: %w", err)
 	}
 	n.cgroupReader = reader
+	n.pmuMetricsEnabled = make(map[string]bool, len(pmuMetricConfigKeys))
+	for _, name := range pmuMetricConfigKeys {
+		n.pmuMetricsEnabled[name] = sysCfg.GetBool("noisy_neighbor.pmu_metrics." + name)
+	}
 	return nil
 }
 
@@ -147,16 +162,35 @@ func (n *NoisyNeighborCheck) submitPrimaryMetrics(sender sender.Sender, stat mod
 }
 
 func (n *NoisyNeighborCheck) submitRawCounters(sender sender.Sender, stat model.NoisyNeighborStats, tags []string) {
+	// Always-on counters: scheduling and software accounting that don't
+	// consume PMU counter slots.
 	sender.Count("noisy_neighbor.events.total", float64(stat.EventCount), "", tags)
 	sender.Gauge("noisy_neighbor.unique_processes", float64(stat.UniquePidCount), "", tags)
-	sender.Count("noisy_neighbor.cycles", float64(stat.SumCycles), "", tags)
-	sender.Count("noisy_neighbor.instructions", float64(stat.SumInstructions), "", tags)
-	sender.Count("noisy_neighbor.llc_misses", float64(stat.SumLLCMisses), "", tags)
-	sender.Count("noisy_neighbor.cache_references", float64(stat.SumCacheReferences), "", tags)
-	sender.Count("noisy_neighbor.itlb_misses", float64(stat.SumITLBMisses), "", tags)
-	sender.Count("noisy_neighbor.branch_misses", float64(stat.SumBranchMisses), "", tags)
-	sender.Count("noisy_neighbor.cpu_migrations", float64(stat.SumCPUMigrations), "", tags)
 	sender.Count("noisy_neighbor.softirq_ns", float64(stat.SumSoftirqNs), "", tags)
 	sender.Count("noisy_neighbor.block_io_requests", float64(stat.BlockIORequests), "", tags)
 	sender.Count("noisy_neighbor.wakeups", float64(stat.WakeupCount), "", tags)
+
+	// PMU counters: each is independently gated by noisy_neighbor.pmu_metrics.X.
+	// Disabled events don't emit (no zero-valued noise on dashboards).
+	if n.pmuMetricsEnabled["cycles"] {
+		sender.Count("noisy_neighbor.cycles", float64(stat.SumCycles), "", tags)
+	}
+	if n.pmuMetricsEnabled["instructions"] {
+		sender.Count("noisy_neighbor.instructions", float64(stat.SumInstructions), "", tags)
+	}
+	if n.pmuMetricsEnabled["llc_misses"] {
+		sender.Count("noisy_neighbor.llc_misses", float64(stat.SumLLCMisses), "", tags)
+	}
+	if n.pmuMetricsEnabled["cache_references"] {
+		sender.Count("noisy_neighbor.cache_references", float64(stat.SumCacheReferences), "", tags)
+	}
+	if n.pmuMetricsEnabled["itlb_misses"] {
+		sender.Count("noisy_neighbor.itlb_misses", float64(stat.SumITLBMisses), "", tags)
+	}
+	if n.pmuMetricsEnabled["branch_misses"] {
+		sender.Count("noisy_neighbor.branch_misses", float64(stat.SumBranchMisses), "", tags)
+	}
+	if n.pmuMetricsEnabled["cpu_migrations"] {
+		sender.Count("noisy_neighbor.cpu_migrations", float64(stat.SumCPUMigrations), "", tags)
+	}
 }

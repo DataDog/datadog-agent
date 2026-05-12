@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/noisyneighbor"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
@@ -23,6 +24,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// pmuMetricConfigKeys maps each BPF perf-event-array map name to its
+// noisy_neighbor.pmu_metrics.* config key. Kept in one place so adding a
+// new PMU event is a single edit.
+var pmuMetricConfigKeys = map[string]string{
+	"cycles_pmu":           "noisy_neighbor.pmu_metrics.cycles",
+	"instructions_pmu":     "noisy_neighbor.pmu_metrics.instructions",
+	"llc_misses_pmu":       "noisy_neighbor.pmu_metrics.llc_misses",
+	"cache_references_pmu": "noisy_neighbor.pmu_metrics.cache_references",
+	"itlb_misses_pmu":      "noisy_neighbor.pmu_metrics.itlb_misses",
+	"branch_misses_pmu":    "noisy_neighbor.pmu_metrics.branch_misses",
+	"cpu_migrations_pmu":   "noisy_neighbor.pmu_metrics.cpu_migrations",
+}
+
+func readPMUMetricsConfig() map[string]bool {
+	cfg := pkgconfigsetup.SystemProbe()
+	out := make(map[string]bool, len(pmuMetricConfigKeys))
+	for mapName, configKey := range pmuMetricConfigKeys {
+		out[mapName] = cfg.GetBool(configKey)
+	}
+	return out
+}
+
 func init() { registerModule(NoisyNeighbor) }
 
 // NoisyNeighbor Factory
@@ -30,13 +53,15 @@ var NoisyNeighbor = &module.Factory{
 	Name: config.NoisyNeighborModule,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		log.Infof("Starting the noisy neighbor module")
-		p, err := noisyneighbor.NewProbe(ebpf.NewConfig())
+		pmuMetrics := readPMUMetricsConfig()
+		p, err := noisyneighbor.NewProbe(ebpf.NewConfig(), noisyneighbor.Config{PMUMetrics: pmuMetrics})
 		if err != nil {
 			return nil, fmt.Errorf("unable to start the noisy neighbor probe: %w", err)
 		}
 		return &noisyNeighborModule{
-			Probe:     p,
-			lastCheck: &atomic.Int64{},
+			Probe:      p,
+			lastCheck:  &atomic.Int64{},
+			pmuMetrics: pmuMetrics,
 		}, nil
 	},
 	NeedsEBPF: func() bool {
@@ -48,15 +73,17 @@ var _ module.Module = &noisyNeighborModule{}
 
 type noisyNeighborModule struct {
 	*noisyneighbor.Probe
-	lastCheck *atomic.Int64
-	inflight  sync.WaitGroup
-	closed    atomic.Bool
+	lastCheck  *atomic.Int64
+	pmuMetrics map[string]bool
+	inflight   sync.WaitGroup
+	closed     atomic.Bool
 }
 
 // GetStats implements module.Module.GetStats
 func (n *noisyNeighborModule) GetStats() map[string]interface{} {
 	return map[string]interface{}{
-		"last_check": n.lastCheck.Load(),
+		"last_check":  n.lastCheck.Load(),
+		"pmu_metrics": n.pmuMetrics,
 	}
 }
 

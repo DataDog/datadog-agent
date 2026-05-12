@@ -27,6 +27,15 @@ import (
 // 5.13 for kfuncs, 6.2 for bpf_rcu_read_lock kfunc
 var minimumKernelVersion = kernel.VersionCode(6, 2, 0)
 
+// Config holds noisy_neighbor-specific runtime knobs read from system-probe
+// config. PMUMetrics keys are the BPF perf-event-array map names (e.g.
+// "cycles_pmu"); a missing key or a false value disables the corresponding
+// counter: no perf fds are opened for it, the eBPF program reads -ENOENT
+// and skips the deltas for that event.
+type Config struct {
+	PMUMetrics map[string]bool
+}
+
 // Probe is the eBPF side of the noisy neighbor check
 type Probe struct {
 	mgr    *ddebpf.Manager
@@ -34,7 +43,7 @@ type Probe struct {
 }
 
 // NewProbe creates a [Probe]
-func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
+func NewProbe(cfg *ddebpf.Config, modCfg Config) (*Probe, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("kernel version: %w", err)
@@ -94,7 +103,7 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 		}
 	}
 	ddebpf.AddNameMappings(p.mgr.Manager, "noisy_neighbor")
-	p.attachPMU()
+	p.attachPMU(modCfg.PMUMetrics)
 	return p, nil
 }
 
@@ -112,10 +121,13 @@ const itlbLoadMissesConfig = uint64(unix.PERF_COUNT_HW_CACHE_ITLB) |
 	(uint64(unix.PERF_COUNT_HW_CACHE_OP_READ) << 8) |
 	(uint64(unix.PERF_COUNT_HW_CACHE_RESULT_MISS) << 16)
 
-// attachPMU opens per-CPU perf events for every counter we track and
-// populates the corresponding BPF perf-event-array maps. See attachPMUEvent
-// for per-event semantics and failure modes.
-func (p *Probe) attachPMU() {
+// attachPMU opens per-CPU perf events for every counter enabled via
+// pmuEnabled (keyed by BPF map name) and populates the corresponding BPF
+// perf-event-array maps. Events absent from the map or set to false are
+// skipped — no perf fds are opened, the eBPF read returns -ENOENT, and
+// deltas for that event are dropped. See attachPMUEvent for per-event
+// semantics and failure modes.
+func (p *Probe) attachPMU(pmuEnabled map[string]bool) {
 	events := []pmuEvent{
 		{mapName: "cycles_pmu", humanLabel: "cycles", perfType: unix.PERF_TYPE_HARDWARE, perfConfig: unix.PERF_COUNT_HW_CPU_CYCLES},
 		{mapName: "instructions_pmu", humanLabel: "instructions", perfType: unix.PERF_TYPE_HARDWARE, perfConfig: unix.PERF_COUNT_HW_INSTRUCTIONS},
@@ -132,6 +144,10 @@ func (p *Probe) attachPMU() {
 	}
 	numCPU := runtime.NumCPU()
 	for _, ev := range events {
+		if !pmuEnabled[ev.mapName] {
+			log.Debugf("noisy_neighbor: %s PMU event disabled by config, skipping", ev.humanLabel)
+			continue
+		}
 		p.attachPMUEvent(ev, numCPU)
 	}
 }

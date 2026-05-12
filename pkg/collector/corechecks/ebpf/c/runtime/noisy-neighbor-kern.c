@@ -109,8 +109,11 @@ static __always_inline u64 scaled_pmu_delta(struct bpf_perf_event_value *val, pm
 // from being used as a stamp baseline (which would produce a huge bogus
 // delta on the next sched_switch) or as an accumulator input.
 //
-// cycles and instructions share a single ok flag because CPI requires
-// both; if either fails we skip the pair.
+// Every counter is gated independently: cycles can be on while instructions
+// is off, etc. (CPI, if needed, is computed dashboard-side from the raw
+// counters.) When a userspace toggle disables a perf event, that event's
+// perf-event-array map stays empty, the read returns -ENOENT, the ok flag
+// stays false, and accumulation skips that counter only.
 typedef struct {
     struct bpf_perf_event_value cycles;
     struct bpf_perf_event_value instructions;
@@ -119,27 +122,28 @@ typedef struct {
     struct bpf_perf_event_value branch_misses;
     struct bpf_perf_event_value cpu_migrations;
     struct bpf_perf_event_value cache_references;
-    bool ci_ok;
+    bool cycles_ok;
+    bool instructions_ok;
     bool llc_ok;
     bool itlb_ok;
-    bool bm_ok;
-    bool cm_ok;
-    bool cr_ok;
+    bool branch_misses_ok;
+    bool cpu_migrations_ok;
+    bool cache_references_ok;
 } pmu_sample_t;
 
 static __always_inline void pmu_sample_all(pmu_sample_t *s) {
-    long cyc_err = bpf_perf_event_read_value(&cycles_pmu, BPF_F_CURRENT_CPU, &s->cycles, sizeof(s->cycles));
-    long ins_err = bpf_perf_event_read_value(&instructions_pmu, BPF_F_CURRENT_CPU, &s->instructions, sizeof(s->instructions));
-    s->ci_ok = (cyc_err == 0) && (ins_err == 0);
+    s->cycles_ok = bpf_perf_event_read_value(&cycles_pmu, BPF_F_CURRENT_CPU, &s->cycles, sizeof(s->cycles)) == 0;
+    s->instructions_ok = bpf_perf_event_read_value(&instructions_pmu, BPF_F_CURRENT_CPU, &s->instructions, sizeof(s->instructions)) == 0;
     s->llc_ok = bpf_perf_event_read_value(&llc_misses_pmu, BPF_F_CURRENT_CPU, &s->llc_misses, sizeof(s->llc_misses)) == 0;
     s->itlb_ok = bpf_perf_event_read_value(&itlb_misses_pmu, BPF_F_CURRENT_CPU, &s->itlb_misses, sizeof(s->itlb_misses)) == 0;
-    s->bm_ok = bpf_perf_event_read_value(&branch_misses_pmu, BPF_F_CURRENT_CPU, &s->branch_misses, sizeof(s->branch_misses)) == 0;
-    s->cm_ok = bpf_perf_event_read_value(&cpu_migrations_pmu, BPF_F_CURRENT_CPU, &s->cpu_migrations, sizeof(s->cpu_migrations)) == 0;
-    s->cr_ok = bpf_perf_event_read_value(&cache_references_pmu, BPF_F_CURRENT_CPU, &s->cache_references, sizeof(s->cache_references)) == 0;
+    s->branch_misses_ok = bpf_perf_event_read_value(&branch_misses_pmu, BPF_F_CURRENT_CPU, &s->branch_misses, sizeof(s->branch_misses)) == 0;
+    s->cpu_migrations_ok = bpf_perf_event_read_value(&cpu_migrations_pmu, BPF_F_CURRENT_CPU, &s->cpu_migrations, sizeof(s->cpu_migrations)) == 0;
+    s->cache_references_ok = bpf_perf_event_read_value(&cache_references_pmu, BPF_F_CURRENT_CPU, &s->cache_references, sizeof(s->cache_references)) == 0;
 }
 
 static __always_inline bool pmu_any_ok(pmu_sample_t *s) {
-    return s->ci_ok || s->llc_ok || s->itlb_ok || s->bm_ok || s->cm_ok || s->cr_ok;
+    return s->cycles_ok || s->instructions_ok || s->llc_ok || s->itlb_ok ||
+           s->branch_misses_ok || s->cpu_migrations_ok || s->cache_references_ok;
 }
 
 static __always_inline void pmu_stamp_event(pmu_event_stamp_t *slot, struct bpf_perf_event_value *val) {
@@ -149,8 +153,10 @@ static __always_inline void pmu_stamp_event(pmu_event_stamp_t *slot, struct bpf_
 }
 
 static __always_inline void pmu_stamp_from_sample(task_pmu_stamp_t *stamp, pmu_sample_t *s) {
-    if (s->ci_ok) {
+    if (s->cycles_ok) {
         pmu_stamp_event(&stamp->cycles, &s->cycles);
+    }
+    if (s->instructions_ok) {
         pmu_stamp_event(&stamp->instructions, &s->instructions);
     }
     if (s->llc_ok) {
@@ -159,20 +165,22 @@ static __always_inline void pmu_stamp_from_sample(task_pmu_stamp_t *stamp, pmu_s
     if (s->itlb_ok) {
         pmu_stamp_event(&stamp->itlb_misses, &s->itlb_misses);
     }
-    if (s->bm_ok) {
+    if (s->branch_misses_ok) {
         pmu_stamp_event(&stamp->branch_misses, &s->branch_misses);
     }
-    if (s->cm_ok) {
+    if (s->cpu_migrations_ok) {
         pmu_stamp_event(&stamp->cpu_migrations, &s->cpu_migrations);
     }
-    if (s->cr_ok) {
+    if (s->cache_references_ok) {
         pmu_stamp_event(&stamp->cache_references, &s->cache_references);
     }
 }
 
 static __always_inline void pmu_accum_to_stats(cgroup_agg_stats_t *stats, task_pmu_stamp_t *stamp, pmu_sample_t *s) {
-    if (s->ci_ok) {
+    if (s->cycles_ok) {
         stats->sum_cycles += scaled_pmu_delta(&s->cycles, &stamp->cycles);
+    }
+    if (s->instructions_ok) {
         stats->sum_instructions += scaled_pmu_delta(&s->instructions, &stamp->instructions);
     }
     if (s->llc_ok) {
@@ -181,13 +189,13 @@ static __always_inline void pmu_accum_to_stats(cgroup_agg_stats_t *stats, task_p
     if (s->itlb_ok) {
         stats->sum_itlb_misses += scaled_pmu_delta(&s->itlb_misses, &stamp->itlb_misses);
     }
-    if (s->bm_ok) {
+    if (s->branch_misses_ok) {
         stats->sum_branch_misses += scaled_pmu_delta(&s->branch_misses, &stamp->branch_misses);
     }
-    if (s->cm_ok) {
+    if (s->cpu_migrations_ok) {
         stats->sum_cpu_migrations += scaled_pmu_delta(&s->cpu_migrations, &stamp->cpu_migrations);
     }
-    if (s->cr_ok) {
+    if (s->cache_references_ok) {
         stats->sum_cache_references += scaled_pmu_delta(&s->cache_references, &stamp->cache_references);
     }
 }
