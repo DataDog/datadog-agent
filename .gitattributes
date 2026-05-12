@@ -2,13 +2,6 @@
 *.bat text eol=crlf
 *.cmd text eol=crlf
 
-# Force LF for files whose content hashes are recorded in MODULE.bazel.lock.
-# On Windows, autocrlf would otherwise rewrite them to CRLF and produce
-# spurious lockfile drift when `bazel mod tidy` runs locally.
-.bazelversion text eol=lf
-tools/bazel text eol=lf
-tools/bazelisk.md text eol=lf
-
 # Set go source line endings to LF on all platforms so gofmt can be used
 *.go text=auto eol=lf
 # Same for gopatch (does not handle CRLF line endings)
