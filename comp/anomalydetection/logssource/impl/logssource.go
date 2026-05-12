@@ -81,12 +81,12 @@ func NewComponent(deps Requires) (Provides, error) {
 	obs, obsOk := deps.Observer.Get()
 	wmeta, wmetaOk := deps.WMeta.Get()
 
-	analysisEnabled := deps.Config.GetBool("observer.analysis.enabled")
-	recordingEnabled := deps.Config.GetBool("observer.recording.enabled")
-	if !obsOk || !wmetaOk || (!analysisEnabled && !recordingEnabled) {
+	if !obsOk || !wmetaOk {
 		return Provides{Comp: &logssourceComponent{}}, nil
 	}
 
+	// GetHandle returns a noop handle when analysis is disabled, so the pipeline
+	// runs regardless — this lets us measure logssource overhead in isolation.
 	observerHandle := obs.GetHandle("logs")
 
 	processingRules, err := logsconfig.GlobalProcessingRules(deps.Config)
