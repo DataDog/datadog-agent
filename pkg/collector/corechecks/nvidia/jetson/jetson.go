@@ -154,9 +154,9 @@ func (c *JetsonCheck) Run() error {
 	var cmd *exec.Cmd
 	if c.useSudo {
 		// -n, non-interactive mode, no prompts are used
-		cmd = exec.CommandContext(ctx, "sudo", "-n", cmdStr)
+		cmd = exec.CommandContext(ctx, "sudo", "-n", "sh", "-c", cmdStr)
 	} else {
-		cmd = exec.CommandContext(ctx, cmdStr)
+		cmd = exec.CommandContext(ctx, "sh", "-c", cmdStr)
 	}
 
 	tegrastatsOutput, err := cmd.Output()
