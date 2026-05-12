@@ -621,7 +621,19 @@ use_sudo: true
 }
 
 func TestRunCommand(t *testing.T) {
-	out, err := runCommand(context.Background(), "echo hello", false)
-	require.NoError(t, err)
-	assert.Equal(t, "hello\n", string(out))
+	tests := []struct {
+		cmd            string
+		expectedOutput string
+	}{
+		{cmd: "echo hello", expectedOutput: "hello\n"},
+		{cmd: "printf '%s' hello", expectedOutput: "hello"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.cmd, func(t *testing.T) {
+			out, err := runCommand(context.Background(), tt.cmd, false)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedOutput, string(out))
+		})
+	}
 }
