@@ -143,7 +143,7 @@ func pruneOldResolvedIssues(issues map[string]*PersistedIssue) {
 // PersistedIssue tracks issue state for disk persistence.
 // Custom JSON marshaling keeps the on-disk state field as a string.
 type PersistedIssue struct {
-	IssueID    string     `json:"issue_id"`
+	IssueType  string     `json:"issue_type"`
 	State      IssueState `json:"state"`
 	FirstSeen  string     `json:"first_seen"`
 	LastSeen   string     `json:"last_seen"`
@@ -358,11 +358,14 @@ func (h *healthPlatformImpl) ReportIssue(report healthplatformdef.IssueReport) e
 		return errors.New("issue type cannot be empty")
 	}
 
-	// Build the proto Issue from the registry template.
+	// Build the proto Issue from the registry template, then override Id with the
+	// unique instance key. Templates set issue.Id to the template type, but callers
+	// expect issue.Id to identify the specific instance.
 	issue, err := h.issueRegistry.BuildIssue(report.IssueType, report.Context)
 	if err != nil {
 		return fmt.Errorf("failed to build issue %s: %w", report.IssueType, err)
 	}
+	issue.Id = report.IssueID
 	if report.Source != "" {
 		issue.Source = report.Source
 	}
@@ -431,19 +434,19 @@ func (h *healthPlatformImpl) GetIssue(checkID string) *healthplatform.Issue {
 // ============================================================================
 
 // ResolveIssue clears the issue for a specific check (useful when issue is resolved)
-func (h *healthPlatformImpl) ResolveIssue(checkID string) {
+func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 	h.issuesMux.Lock()
 
 	// Only log and update persistence if there was actually an issue to clear
 	existed := false
-	if _, ok := h.issues[checkID]; ok {
+	if _, ok := h.issues[issueID]; ok {
 		existed = true
-		h.log.Info("Cleared issue for check: " + checkID)
+		h.log.Info("Cleared issue: " + issueID)
 	}
-	delete(h.issues, checkID)
+	delete(h.issues, issueID)
 
 	// Update persisted issue status to resolved
-	if persisted := h.persistedIssues[checkID]; persisted != nil {
+	if persisted := h.persistedIssues[issueID]; persisted != nil {
 		persisted.State = IssueStateResolved
 		persisted.ResolvedAt = time.Now().Format(time.RFC3339)
 	}
@@ -512,14 +515,13 @@ func (h *healthPlatformImpl) handleIssueStateChange(source string, oldIssue, new
 }
 
 // storeIssue stores an issue keyed by its unique instance id (issueID) and persists to disk.
-// issue.Id holds the issue type id (set by BuildIssue from the registry template);
-// issueID is the unique per-instance key used in HealthReport.Issues map keys.
+// issueID is the unique per-instance key; issue.Id holds the same value (set by ReportIssue).
+// issueType is the template identifier, used for telemetry tagging.
 func (h *healthPlatformImpl) storeIssue(issueID string, issueType string, issue *healthplatform.Issue) {
 	h.issuesMux.Lock()
 
 	now := time.Now().Format(time.RFC3339)
 	issue.DetectedAt = now
-	// telemetry counter tagged by the issue type id (issue.Id, set by BuildIssue)
 	h.metrics.issuesCounter.Add(1, issueType)
 
 	h.issues[issueID] = issue
@@ -527,13 +529,20 @@ func (h *healthPlatformImpl) storeIssue(issueID string, issueType string, issue 
 	existing := h.persistedIssues[issueID]
 	if existing == nil {
 		h.persistedIssues[issueID] = &PersistedIssue{
-			IssueID:   issueType,
+			IssueType: issueType,
 			State:     IssueStateNew,
 			FirstSeen: now,
 			LastSeen:  now,
 		}
 	} else if existing.State == IssueStateResolved {
-		existing.IssueID = issueType
+		existing.IssueType = issueType
+		existing.State = IssueStateNew
+		existing.FirstSeen = now
+		existing.LastSeen = now
+		existing.ResolvedAt = ""
+	} else if existing.IssueType != issueType {
+		h.log.Warnf("health platform: issue %s changed type from %s to %s; resetting to new", issueID, existing.IssueType, issueType)
+		existing.IssueType = issueType
 		existing.State = IssueStateNew
 		existing.FirstSeen = now
 		existing.LastSeen = now
@@ -582,14 +591,15 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 	pruneOldResolvedIssues(h.persistedIssues)
 	activeCount := 0
 	for issueID, persisted := range state.Issues {
-		if persisted.State == IssueStateResolved || persisted.IssueID == "" {
+		if persisted.State == IssueStateResolved || persisted.IssueType == "" {
 			continue
 		}
-		issue, err := h.issueRegistry.BuildIssue(persisted.IssueID, nil)
+		issue, err := h.issueRegistry.BuildIssue(persisted.IssueType, nil)
 		if err != nil {
-			h.log.Warn(fmt.Sprintf("Failed to rebuild issue %s for %s: %v", persisted.IssueID, issueID, err))
+			h.log.Warn(fmt.Sprintf("Failed to rebuild issue %s for %s: %v", persisted.IssueType, issueID, err))
 			continue
 		}
+		issue.Id = issueID
 		issue.PersistedIssue = persistedIssueToProto(persisted)
 		h.issues[issueID] = issue
 		activeCount++

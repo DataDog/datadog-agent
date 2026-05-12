@@ -2,7 +2,7 @@
 upgrade:
   - |
     Health Platform: the ``ReportIssue`` method now takes a single
-    ``*IssueReport`` argument instead of ``(checkID, checkName string,
+    ``IssueReport`` argument instead of ``(checkID, checkName string,
     report *IssueReport)``. The ``IssueReport`` struct carries three new
     fields — ``IssueID`` (unique instance id), ``IssueType`` (template id),
     and ``Source`` (reporting integration name) — replacing the separate

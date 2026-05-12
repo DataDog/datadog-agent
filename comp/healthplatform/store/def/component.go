@@ -18,8 +18,8 @@ import (
 // Component is the health platform store component interface.
 type Component interface {
 	// ReportIssue records a new or ongoing issue. Two calls with the same
-	// report.IssueId update the same instance (state machine: new → ongoing).
-	// report must be non-nil; call ResolveIssue to mark an issue as resolved.
+	// report.IssueID update the same instance (state machine: new → ongoing).
+	// Call ResolveIssue to mark an issue as resolved.
 	ReportIssue(report IssueReport) error
 
 	// =========================================================================
