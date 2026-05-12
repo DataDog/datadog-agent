@@ -210,3 +210,21 @@ func TestDefaultConfigPath_PerPlatform(t *testing.T) {
 	assert.Equal(t, "/etc/datadog-agent", defaultConfigPathForGOOS("freebsd"),
 		"unknown platforms fall back to the linux default")
 }
+
+// TestIntakeURL locks in the production URL format so the Rescue() wrapper,
+// which composes intakeURL + rescueWithURL with no other logic, doesn't need
+// its own end-to-end test.
+func TestIntakeURL(t *testing.T) {
+	cases := []struct {
+		name, site, want string
+	}{
+		{"empty defaults to datadoghq.com", "", "https://agenthealth-intake.datadoghq.com/api/v2/agenthealth"},
+		{"eu site", "datadoghq.eu", "https://agenthealth-intake.datadoghq.eu/api/v2/agenthealth"},
+		{"trailing slash trimmed", "datadoghq.com/", "https://agenthealth-intake.datadoghq.com/api/v2/agenthealth"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.want, intakeURL(c.site))
+		})
+	}
+}
