@@ -21,6 +21,7 @@ go_library(
         "//pkg/logs/message",
         "//pkg/util/log",
         "@com_github_datadog_agent_payload_v5//pb",
+        "@com_github_datadog_datadog_agent_pkg_hook//:hook",
     ],
 )
 
@@ -28,16 +29,20 @@ go_test(
     name = "processor_test",
     srcs = [
         "encoder_test.go",
+        "processor_bench_test.go",
         "processor_test.go",
     ],
     embed = [":processor"],
     gotags = ["test"],
     deps = [
         "//comp/core/hostname/hostnameinterface",
+        "//comp/logs-library/metrics",
         "//comp/logs/agent/config",
+        "//pkg/logs/diagnostic",
         "//pkg/logs/message",
         "//pkg/logs/sources",
         "@com_github_datadog_agent_payload_v5//pb",
+        "@com_github_datadog_datadog_agent_pkg_hook//:hook",
         "@com_github_stretchr_testify//assert",
     ],
 )
