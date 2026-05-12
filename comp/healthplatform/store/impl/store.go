@@ -378,7 +378,7 @@ func (h *healthPlatformImpl) ReportIssue(report healthplatformdef.IssueReport) e
 	h.issuesMux.RUnlock()
 
 	h.handleIssueStateChange(report.Source, previousIssue, issue)
-	h.storeIssue(report.IssueID, report.IssueType, issue)
+	h.storeIssue(report.IssueType, issue)
 	return nil
 }
 
@@ -514,12 +514,12 @@ func (h *healthPlatformImpl) handleIssueStateChange(source string, oldIssue, new
 	}
 }
 
-// storeIssue stores an issue keyed by its unique instance id (issueID) and persists to disk.
-// issueID is the unique per-instance key; issue.Id holds the same value (set by ReportIssue).
-// issueType is the template identifier, used for telemetry tagging.
-func (h *healthPlatformImpl) storeIssue(issueID string, issueType string, issue *healthplatform.Issue) {
+// storeIssue stores an issue keyed by issue.Id (the unique instance key set by ReportIssue).
+// issueType is the template identifier, used for telemetry tagging and persistence.
+func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.Issue) {
 	h.issuesMux.Lock()
 
+	issueID := issue.Id
 	now := time.Now().Format(time.RFC3339)
 	issue.DetectedAt = now
 	h.metrics.issuesCounter.Add(1, issueType)
