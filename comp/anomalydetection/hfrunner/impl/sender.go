@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build python
+
 // Package hfrunnerimpl implements the hfrunner component. It provides a
 // high-frequency system check runner that runs checks at 1-second intervals and
 // routes their output directly into the observer pipeline, bypassing the normal

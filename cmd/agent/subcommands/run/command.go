@@ -40,7 +40,7 @@ import (
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
 	workloadselectionfx "github.com/DataDog/datadog-agent/comp/workloadselection/fx"
 
-	hfrunnernoopfx "github.com/DataDog/datadog-agent/comp/anomalydetection/hfrunner/fx-noop"
+	hfrunnerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/hfrunner/fx"
 	logssourcefx "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/fx"
 	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
 	recordernoopfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx-noop"
@@ -511,7 +511,7 @@ func getSharedFxOption() fx.Option {
 		logs.Bundle(),
 		observerfx.Module(),
 		logssourcefx.Module(),
-		hfrunnernoopfx.Module(),
+		hfrunnerfx.Module(),
 		recordernoopfx.Module(),
 		reporternoopfx.Module(),
 		langDetectionClimpl.Module(),
