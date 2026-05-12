@@ -5,7 +5,13 @@
 
 package lite
 
-import "context"
+import (
+	"bytes"
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+)
 
 // Extract runs the tiered resolver pipeline against the process environment
 // and the candidate datadog.yaml paths. cliConfPath is from `--cfgpath` (or
@@ -22,12 +28,27 @@ func Extract(ctx context.Context, cliConfPath, defaultConfPath string) LiteConfi
 
 	applyEnv(&cfg)
 
-	cfg.ConfigFilePath = resolveConfigPath(cliConfPath, defaultConfPath)
+	// Pick the first existing datadog.yaml. A path without a .yaml/.yml
+	// suffix is treated as a directory.
+	for _, p := range []string{cliConfPath, defaultConfPath} {
+		if p == "" {
+			continue
+		}
+		if !strings.HasSuffix(p, ".yaml") && !strings.HasSuffix(p, ".yml") {
+			p = filepath.Join(p, "datadog.yaml")
+		}
+		if _, err := os.Stat(p); err == nil {
+			cfg.ConfigFilePath = p
+			break
+		}
+	}
+
 	var raw []byte
 	if cfg.ConfigFilePath != "" {
-		var err error
-		if raw, err = readConfigFile(cfg.ConfigFilePath); err != nil {
+		if data, err := os.ReadFile(cfg.ConfigFilePath); err != nil {
 			cfg.FileReadErr = err
+		} else {
+			raw = bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF}) // strip UTF-8 BOM
 		}
 	}
 
