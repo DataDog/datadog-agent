@@ -685,8 +685,10 @@ func (o *observerImpl) ReplayStoredData() {
 	// resetAnalysisState resets detectors/correlators and tracking state but
 	// preserves extractor state (contextRefs + provider pattern registry) so
 	// enrichAnomaly can still attach log pattern context during replay.
+	o.replayMu.Lock()
 	o.engine.resetAnalysisState()
 	o.engine.ReplayStoredData()
+	o.replayMu.Unlock()
 }
 
 // StorageReader returns a read-only view of the engine's time-series storage.

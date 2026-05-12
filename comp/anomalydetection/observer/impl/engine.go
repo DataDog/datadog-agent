@@ -413,9 +413,11 @@ func (e *engine) fanOutSeriesRemoval(refs []observerdef.SeriesRef) {
 
 // trackLatestDataTime updates latestDataTime if the given timestamp is newer.
 func (e *engine) trackLatestDataTime(dataTimeSec int64) {
+	e.mu.Lock()
 	if dataTimeSec > e.latestDataTime {
 		e.latestDataTime = dataTimeSec
 	}
+	e.mu.Unlock()
 }
 
 // schedulerState returns the current scheduler-relevant state.
