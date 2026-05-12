@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cgroup",
+    srcs = ["utils.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/utils/cgroup",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/security/secl/containerutils",
+    ],
+)
+
+go_test(
+    name = "cgroup_test",
+    srcs = ["utils_test.go"],
+    embed = [":cgroup"],
+    deps = [
+        "//pkg/security/secl/containerutils",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

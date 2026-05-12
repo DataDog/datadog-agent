@@ -30,6 +30,7 @@ go_library(
             "//pkg/security/secl/containerutils",
             "//pkg/security/secl/model/sharedconsts",
             "//pkg/security/secl/model/utils",
+            "//pkg/security/utils/cgroup",
             "//pkg/util/safeelf",
             "@com_github_avast_retry_go_v4//:retry-go",
             "@com_github_elastic_go_seccomp_bpf//:go-seccomp-bpf",
@@ -45,6 +46,7 @@ go_library(
             "//pkg/security/secl/containerutils",
             "//pkg/security/secl/model/sharedconsts",
             "//pkg/security/secl/model/utils",
+            "//pkg/security/utils/cgroup",
             "//pkg/util/safeelf",
             "@com_github_avast_retry_go_v4//:retry-go",
             "@com_github_elastic_go_seccomp_bpf//:go-seccomp-bpf",
@@ -112,7 +114,6 @@ go_test(
     name = "ptracer_test",
     srcs = [
         "ptracer_test.go",
-        "utils_test.go",
     ],
     embed = [":ptracer"],
     gotags = ["test"],
