@@ -51,8 +51,9 @@ type TargetMutator struct {
 }
 
 // NewTargetMutator creates a new mutator for target based workload selection. We convert the targets to a more
-// efficient internal format for quick lookups.
-func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver) (*TargetMutator, error) {
+// efficient internal format for quick lookups. crStore is the shared CR store used to look up
+// DatadogInstrumentation-sourced APM configuration; pass nil to disable the CRD-driven target path.
+func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolver imageresolver.Resolver, crStore *crstore.Store) (*TargetMutator, error) {
 	// Create a map of user-configured disabled namespaces for quick lookups.
 	// Default namespaces (kube-system, datadog agent namespace) are excluded at
 	// the webhook layer via namespace selectors and not duplicated here.
@@ -156,7 +157,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		containerRegistry:             config.containerRegistry,
 		mutateUnlabelled:              config.mutateUnlabelled,
 		defaultLibVersions:            defaultLibVersions,
-		crStore:                       crstore.GetOrCreate(),
+		crStore:                       crStore,
 	}
 
 	// Create the core mutator. This is a bit gross.

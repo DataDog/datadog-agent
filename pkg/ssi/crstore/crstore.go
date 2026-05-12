@@ -6,7 +6,9 @@
 // Package crstore provides an in-memory store of Single Step Instrumentation
 // configuration sourced from DatadogInstrumentation custom resources. It is the
 // shared state between the DatadogInstrumentation controller (writer) and the
-// auto-instrumentation admission webhook (reader).
+// auto-instrumentation admission webhook (reader). A single Store is
+// constructed at cluster-agent startup and passed to both consumers via
+// explicit dependency injection.
 package crstore
 
 import (
@@ -48,21 +50,6 @@ func New() *Store {
 		apmByWorkload: make(map[WorkloadKey]APMEntry),
 		workloadByCR:  make(map[types.NamespacedName]WorkloadKey),
 	}
-}
-
-var (
-	singleton     *Store
-	singletonOnce sync.Once
-)
-
-// GetOrCreate returns a process-wide Store. The controller and admission
-// webhook both call this so that writes from the controller are visible to
-// the webhook without explicit dependency plumbing.
-func GetOrCreate() *Store {
-	singletonOnce.Do(func() {
-		singleton = New()
-	})
-	return singleton
 }
 
 // UpsertAPM stores the APM configuration for a workload. If the CR previously

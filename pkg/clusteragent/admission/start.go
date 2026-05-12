@@ -21,6 +21,7 @@ import (
 	admprobe "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/probe"
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	"github.com/DataDog/datadog-agent/pkg/ssi/crstore"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -41,6 +42,12 @@ type ControllerContext struct {
 	ValidatingStopCh             chan struct{}
 	Demultiplexer                demultiplexer.Component
 	FilterStore                  workloadfilter.Component
+	// CRStore is the shared store of APM configuration sourced from
+	// DatadogInstrumentation CRs. The auto-instrumentation admission webhook
+	// reads from this store at pod admission time. The same instance is also
+	// passed to the DatadogInstrumentation controller (writer) so changes are
+	// visible across components without a process-wide singleton.
+	CRStore *crstore.Store
 }
 
 // StartControllers starts the secret and webhook controllers
@@ -103,6 +110,7 @@ func StartControllers(ctx ControllerContext, datadogConfig config.Component, wme
 		datadogConfig,
 		ctx.Demultiplexer,
 		ctx.FilterStore,
+		ctx.CRStore,
 	)
 
 	go secretController.Run(ctx.StopCh)

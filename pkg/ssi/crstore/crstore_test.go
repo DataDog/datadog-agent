@@ -155,9 +155,3 @@ func TestStore_ConcurrentAccess(_ *testing.T) {
 	}
 	wg.Wait()
 }
-
-func TestStore_GetOrCreateReturnsSingleton(t *testing.T) {
-	a := GetOrCreate()
-	b := GetOrCreate()
-	assert.Same(t, a, b)
-}

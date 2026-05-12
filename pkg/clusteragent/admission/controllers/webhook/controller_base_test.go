@@ -32,6 +32,7 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/ssi/crstore"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -67,6 +68,7 @@ func TestNewController(t *testing.T) {
 		datadogConfig,
 		nil,
 		newFilterStoreFromConfig(t, datadogConfig),
+		crstore.New(),
 	)
 
 	assert.IsType(t, &ControllerV1{}, controller)
@@ -86,6 +88,7 @@ func TestNewController(t *testing.T) {
 		datadogConfig,
 		nil,
 		newFilterStoreFromConfig(t, datadogConfig),
+		crstore.New(),
 	)
 
 	assert.IsType(t, &ControllerV1beta1{}, controller)
@@ -156,7 +159,7 @@ func TestAutoInstrumentation(t *testing.T) {
 				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 			))
 
-			apm, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, wmeta, nil)
+			apm, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, wmeta, nil, crstore.New())
 			assert.NoError(t, err)
 
 			// Create request.

@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/ssi/crstore"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 )
@@ -1014,7 +1015,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 			c := &ControllerV1beta1{}
 			c.config = tt.configFunc(mockConfig)
 			filterStore := newFilterStoreFromConfig(t, mockConfig)
-			c.webhooks = c.generateWebhooks(mockConfig, wmeta, nil, nil, nil, filterStore)
+			c.webhooks = c.generateWebhooks(mockConfig, wmeta, nil, nil, nil, filterStore, crstore.New())
 			c.generateTemplates()
 
 			assert.EqualValues(t, tt.want(), c.mutatingWebhookTemplates)
@@ -1261,6 +1262,7 @@ func (f *fixtureV1beta1) createController() (*ControllerV1beta1, informers.Share
 		datadogConfig,
 		nil,
 		newFilterStoreFromConfig(f.t, datadogConfig),
+		crstore.New(),
 	), factory
 }
 

@@ -98,6 +98,11 @@ type ControllerContext struct {
 	WorkloadMeta                workloadmeta.Component
 	DatadogClient               option.Option[datadogclient.Component]
 	StopCh                      chan struct{}
+	// CRStore is the shared store of APM configuration written by the
+	// DatadogInstrumentation controller and read by the auto-instrumentation
+	// admission webhook. The same instance must be passed to the admission
+	// controller context so reads and writes hit the same memory.
+	CRStore *crstore.Store
 }
 
 // StartControllers runs the enabled Kubernetes controllers for the Datadog Cluster Agent. This is
@@ -197,9 +202,13 @@ func startAutoscalersController(ctx *ControllerContext, c chan error) {
 
 // startDatadogInstrumentationController starts the shared DatadogInstrumentation reconciliation controller.
 func startDatadogInstrumentationController(ctx *ControllerContext, c chan error) {
+	if ctx.CRStore == nil {
+		c <- errors.New("DatadogInstrumentation controller: CRStore is not configured")
+		return
+	}
 	handlers, err := instrumentationhandlers.DefaultHandlers(instrumentationhandlers.Deps{
 		IsLeader: ctx.IsLeaderFunc,
-		CRStore:  crstore.GetOrCreate(),
+		CRStore:  ctx.CRStore,
 	})
 	if err != nil {
 		c <- err

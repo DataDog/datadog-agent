@@ -103,6 +103,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/ssi/crstore"
 	hostnameStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent/hostname"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -383,6 +384,12 @@ func start(log log.Component,
 	eventBroadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
 
+	// instrumentationCRStore is the single shared state between the
+	// DatadogInstrumentation CRD controller (writer) and the auto-instrumentation
+	// admission webhook (reader). Construct it once here and inject it into both
+	// controller contexts.
+	instrumentationCRStore := crstore.New()
+
 	ctx := controllers.ControllerContext{
 		InformerFactory:             apiCl.InformerFactory,
 		APIExentionsInformerFactory: apiCl.APIExentionsInformerFactory,
@@ -395,6 +402,7 @@ func start(log log.Component,
 		WorkloadMeta:                wmeta,
 		StopCh:                      stopCh,
 		DatadogClient:               dc,
+		CRStore:                     instrumentationCRStore,
 	}
 
 	if aggErr := controllers.StartControllers(&ctx); aggErr != nil {
@@ -650,6 +658,7 @@ func start(log log.Component,
 			ValidatingStopCh:             validatingStopCh,
 			Demultiplexer:                demultiplexer,
 			FilterStore:                  filterStore,
+			CRStore:                      instrumentationCRStore,
 		}
 
 		webhooks, err := admissionpkg.StartControllers(admissionCtx, datadogConfig, wmeta, pp, sh)

@@ -2763,17 +2763,10 @@ func TestAutoinstrumentation(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			// Seed the process-wide CR store and tear down after the test so cases don't leak state.
-			if len(test.crEntries) > 0 {
-				store := crstore.GetOrCreate()
-				for key, entry := range test.crEntries {
-					store.UpsertAPM(key, entry)
-				}
-				t.Cleanup(func() {
-					for _, entry := range test.crEntries {
-						store.DeleteByCR(entry.CR)
-					}
-				})
+			// Build a fresh CR store per-test so cases don't leak state.
+			store := crstore.New()
+			for key, entry := range test.crEntries {
+				store.UpsertAPM(key, entry)
 			}
 
 			// Setup mocks.
@@ -2788,7 +2781,7 @@ func TestAutoinstrumentation(t *testing.T) {
 				mockMeta.(workloadmetamock.Mock).Set(&ns)
 			}
 
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, store)
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -2856,7 +2849,7 @@ func TestAutoinstrumentation_LocalLibInjectionPerContainerOnlyMountsLibraryOnTar
 		mockMeta.(workloadmetamock.Mock).Set(&ns)
 	}
 
-	webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
+	webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, crstore.New())
 	require.NoError(t, err)
 
 	pod := common.FakePodSpec{
@@ -3019,7 +3012,7 @@ func TestEnvVarsAlreadySet(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, crstore.New())
 			require.NoError(t, err)
 
 			// Mutate pod.
@@ -3218,7 +3211,7 @@ func TestSkippedDueToResources(t *testing.T) {
 			}
 
 			// Setup webhook.
-			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil)
+			webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, mockMeta, nil, crstore.New())
 			require.NoError(t, err)
 
 			// Mutate pod.
