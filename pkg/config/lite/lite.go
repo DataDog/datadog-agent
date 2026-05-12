@@ -56,7 +56,8 @@ func Extract(ctx context.Context, cliConfPath, defaultConfPath string) LiteConfi
 		// applyFullYAML always runs to capture YAMLParseErr / ParsedConfig.
 		applyFullYAML(&cfg, raw)
 		for _, apply := range []func(*LiteConfig, []byte){applyTopLevelYAML, applyRegex, applyFuzzy} {
-			if allResolved(&cfg) {
+			// SecretBackendCommand is excluded: it only exists to feed resolveENC.
+			if cfg.APIKey.resolved() && cfg.Site.resolved() && cfg.DDURL.resolved() {
 				break
 			}
 			apply(&cfg, raw)
@@ -69,19 +70,9 @@ func Extract(ctx context.Context, cliConfPath, defaultConfPath string) LiteConfi
 		resolveENC(ctx, &cfg)
 	}
 
-	applyDefaults(&cfg)
-	return cfg
-}
-
-// allResolved reports whether the three credential fields have all settled.
-// SecretBackendCommand is excluded: it only exists to feed resolveENC.
-func allResolved(cfg *LiteConfig) bool {
-	return cfg.APIKey.resolved() && cfg.Site.resolved() && cfg.DDURL.resolved()
-}
-
-func applyDefaults(cfg *LiteConfig) {
 	if cfg.Site.Source == SourceNone {
 		cfg.Site.Value = DefaultSite
 		cfg.Site.Source = SourceDefault
 	}
+	return cfg
 }
