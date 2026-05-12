@@ -475,6 +475,11 @@ func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		enabledMsgs = append(enabledMsgs, string(libset)+"="+strconv.FormatUint(value, 10))
 	}
 
+	options.ConstantEditors = append(options.ConstantEditors, manager.ConstantEditor{
+		Name:  "pagesize",
+		Value: os.Getpagesize(),
+	})
+
 	log.Infof("loading shared libraries program with libsets enabled: %s", strings.Join(enabledMsgs, ", "))
 
 	options.BypassEnabled = e.cfg.BypassEnabled

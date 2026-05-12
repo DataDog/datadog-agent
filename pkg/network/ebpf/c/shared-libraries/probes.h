@@ -23,8 +23,9 @@ static __always_inline long fill_path(lib_path_t *path, const char *path_argumen
     // if the read will cross a page boundary and the actual path size is less than sizeof(path->buf) and
     // the following page is unmapped, then we will emit a spurious EFAULT telemetry. If the read crosses 
     // a page boundary suppress EFAULT errors. If this is a faulting read `fill_path_safe` will take care of it.
-#define PAGESIZE (4096)
-    if (sizeof(path->buf) + ((u64)path_argument % PAGESIZE) > (PAGESIZE - 1)) {
+    u64 pagesize = 0;
+    LOAD_CONSTANT("pagesize", pagesize);
+    if (sizeof(path->buf) + ((u64)path_argument % pagesize) > (pagesize - 1)) {
         return bpf_probe_read_user_with_telemetry(&path->buf, sizeof(path->buf), path_argument, -EFAULT);
     }
 
