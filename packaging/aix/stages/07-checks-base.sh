@@ -73,32 +73,41 @@ log "datadog-checks-base installed successfully"
 
 # ─── Step 1b: Install datadog-checks-base [deps] extra packages ───────────────
 #
-# The [deps] extra lists all runtime-required packages, but pip will NOT install
-# them unless you request [deps] explicitly. We cannot use
-#   pip install datadog-checks-base[deps]
-# because two packages in the [deps] extra require a Rust toolchain to build
-# from source and are not available as pre-built wheels for AIX/ppc64:
-#   - ddtrace    (requires Rust, not available on AIX)
-#   - jellyfish  (requires Rust, not available on AIX)
-# We therefore install all other [deps] packages explicitly using the exact
-# versions pinned in the datadog-checks-base METADATA.
+# Read the [deps] extra directly from pyproject.toml and install everything
+# except ddtrace. Versions are taken from pyproject.toml so they stay in sync
+# with integrations-core automatically.
+#
+# ddtrace is skipped: it requires the cmake Python package as a build
+# dependency, which itself cannot be built from source on AIX. ddtrace is a
+# Datadog APM tracing library not needed for core infrastructure checks.
+#
+# jellyfish is a Rust extension that builds using the IBM Rust SDK.
+# The Rust SDK must be on PATH.
 
-log "Installing datadog-checks-base deps (excluding ddtrace and jellyfish which require Rust)"
-$PIP install \
-    'lazy-loader==0.4' \
-    'PyYAML==6.0.2' \
-    'cachetools==6.2.0' \
-    'requests==2.32.5' \
-    'wrapt==1.17.3' \
-    'simplejson==3.20.1' \
-    'requests-toolbelt==1.0.0' \
-    'requests-unixsocket2==1.0.0' \
-    'python-dateutil==2.9.0.post0' \
-    'urllib3==2.6.3' \
-    'prometheus-client==0.22.1' \
-    'protobuf==6.33.5' \
-    'binary==1.0.2'
-log "datadog-checks-base deps installed successfully"
+log "Reading [deps] extra from $INTEGRATIONS_CORE/datadog_checks_base/pyproject.toml"
+DEPS_FILE="$BUILD_DIR/.deps-extra.txt"
+python3.12 << PYEOF > "$DEPS_FILE"
+import tomllib, sys
+with open("$INTEGRATIONS_CORE/datadog_checks_base/pyproject.toml", "rb") as f:
+    t = tomllib.load(f)
+deps = t["project"]["optional-dependencies"].get("deps", [])
+for d in deps:
+    # Skip ddtrace: requires cmake Python package which cannot be built on AIX
+    if d.lower().startswith("ddtrace"):
+        print(f"# skipped: {d}", file=sys.stderr)
+        continue
+    # Skip Windows-only deps
+    if "sys_platform" in d and "win32" in d:
+        continue
+    print(d)
+PYEOF
+log "Deps to install ($(wc -l < "$DEPS_FILE") packages, ddtrace skipped):"
+cat "$DEPS_FILE"
+
+log "Installing datadog-checks-base [deps] (excluding ddtrace)"
+PATH="/opt/freeware/lib/RustSDK/${RUST_VERSION}/bin:$PATH" \
+  xargs "$PIP" install --no-cache-dir < "$DEPS_FILE"
+log "datadog-checks-base [deps] installed successfully"
 
 # ─── Step 2: Freeze installed state to constraints file ───────────────────────
 #

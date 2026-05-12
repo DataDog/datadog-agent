@@ -555,6 +555,9 @@ func batchConnections(
 			// tags remap
 			serviceCtx := serviceExtractor.GetServiceContext(c.Pid)
 			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx...)
+			if len(tagsStr) > 0 {
+				log.Debugf("batchConnections: pid=%d resolved tags from system-probe: %v", c.Pid, tagsStr)
+			}
 
 			// For same-host connections, resolve and attach the remote service tags.
 			c.RemoteServiceTagsIdx = -1
