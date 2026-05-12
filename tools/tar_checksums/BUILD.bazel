@@ -13,6 +13,7 @@ py_binary(
 
 pkg_files(
     name = "test_files",
+    # The files are intentionally named bin so git doesn't CRLF them on windows.
     srcs = [
         "testdata/alphabet.bin",
         "testdata/hello.bin",

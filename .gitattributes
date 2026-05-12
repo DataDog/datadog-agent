@@ -1,6 +1,7 @@
 # Set batch file line endings to CRLF so that they can be executed on Windows
 *.bat text eol=crlf
 *.cmd text eol=crlf
+*.bin binary
 
 # Set go source line endings to LF on all platforms so gofmt can be used
 *.go text=auto eol=lf
