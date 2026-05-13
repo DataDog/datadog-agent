@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 )
@@ -21,6 +23,20 @@ import (
 // suite methods if we ever want to.
 type milvusEnv struct {
 	e2e.BaseSuite[environments.DockerHost]
+}
+
+// TestProvisioned is a placeholder test method. It exists for one reason:
+// testify's Suite runner skips suites that have zero Test* methods
+// entirely — it never calls SetupSuite, which is where the e2e-framework
+// runs `pulumi up`. Without this method the test "passes" in tens of
+// milliseconds and provisions nothing. This method asserts the env was
+// initialized; the real assertion that matters is that we got here at
+// all (i.e. SetupSuite completed).
+func (s *milvusEnv) TestProvisioned() {
+	env := s.Env()
+	require.NotNil(s.T(), env, "environment should be provisioned")
+	require.NotNil(s.T(), env.RemoteHost, "RemoteHost should be provisioned")
+	s.T().Logf("provisioned host address = %s", env.RemoteHost.Address)
 }
 
 // TestMilvusEnv is intentionally a no-op test: its only purpose is to drive
