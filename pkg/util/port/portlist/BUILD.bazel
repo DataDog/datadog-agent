@@ -54,6 +54,8 @@ go_test(
         "poller_test.go",
     ],
     embed = [":portlist"],
+    # macOS tests need to inherit the parent PATH in order to be able to
+    # execute the netstat tool which the tests need
     env_inherit = ["PATH"],
     gotags = ["test"],
     deps = select({
