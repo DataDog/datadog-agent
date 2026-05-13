@@ -8,10 +8,10 @@
 package netlink
 
 import (
+	"encoding/binary"
 	"errors"
 
 	"github.com/mdlayher/netlink"
-	"github.com/mdlayher/netlink/nlenc"
 	"golang.org/x/sys/unix"
 )
 
@@ -182,8 +182,8 @@ func (f *NestedFrame) unmarshal() error {
 		return errInvalidAttribute
 	}
 
-	f.attr.Length = nlenc.Uint16(b[0:2])
-	f.attr.Type = nlenc.Uint16(b[2:4])
+	f.attr.Length = binary.NativeEndian.Uint16(b[0:2])
+	f.attr.Type = binary.NativeEndian.Uint16(b[2:4])
 
 	if int(f.attr.Length) > len(b) {
 		return errInvalidAttribute

@@ -9,6 +9,7 @@ package netlink
 
 import (
 	"errors"
+	"iter"
 	"math"
 	"os"
 	"syscall"
@@ -150,6 +151,13 @@ func (s *Socket) Send(m netlink.Message) error {
 // Receive is not implemented. See ReceiveInto
 func (s *Socket) Receive() ([]netlink.Message, error) {
 	return nil, errNotImplemented
+}
+
+// ReceiveIter is not implemented. See ReceiveInto
+func (s *Socket) ReceiveIter() iter.Seq2[netlink.Message, error] {
+	return func(yield func(netlink.Message, error) bool) {
+		yield(netlink.Message{}, errNotImplemented)
+	}
 }
 
 // ReceiveAndDiscard reads netlink messages off the socket & discards them.
