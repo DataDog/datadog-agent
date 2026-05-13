@@ -563,7 +563,6 @@ exports_files(glob(
 # gazelle:exclude pkg/process/metadata
 # gazelle:exclude pkg/process/monitor
 # gazelle:exclude pkg/process/net
-# gazelle:exclude pkg/process/procutil
 # gazelle:exclude pkg/process/runner/mocks
 # gazelle:exclude pkg/process/subscribers
 # gazelle:exclude pkg/process/util/containers
