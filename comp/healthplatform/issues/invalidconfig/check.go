@@ -8,7 +8,6 @@ package invalidconfig
 
 import (
 	"strings"
-	"sync"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"go.yaml.in/yaml/v3"
@@ -21,12 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-// checker validates the merged in-memory config against the schema
-// Runs once at startup and caches the result for the health runner
+// checker validates the merged in-memory config against the schema.
 type checker struct {
-	cfg    config.Component
-	once   sync.Once
-	cached *healthplatform.IssueReport
+	cfg config.Component
 }
 
 func newChecker(cfg config.Component) *checker {
@@ -34,8 +30,7 @@ func newChecker(cfg config.Component) *checker {
 }
 
 func (c *checker) Run() (*healthplatform.IssueReport, error) {
-	c.once.Do(func() { c.cached = c.validate() })
-	return c.cached, nil
+	return c.validate(), nil
 }
 
 func (c *checker) validate() *healthplatform.IssueReport {

@@ -83,17 +83,3 @@ func TestCheck_SchemaViolationProducesReport(t *testing.T) {
 		report.GetContext()[lite.ContextKeyErrorKind])
 	assert.Contains(t, report.GetContext()[lite.ContextKeyErrors], "agent_ipc/port")
 }
-
-func TestCheck_VerdictIsCachedAtStartup(t *testing.T) {
-	cfg := config.NewMock(t)
-	cfg.SetWithoutSource("agent_ipc.port", "not-a-number")
-
-	c := newChecker(cfg)
-	first, _ := c.Run()
-	require.NotNil(t, first)
-
-	// Mutate the config after the first run. The cached verdict must still win.
-	cfg.SetWithoutSource("agent_ipc.port", 5001)
-	second, _ := c.Run()
-	assert.Same(t, first, second, "Run must return the same cached IssueReport on subsequent calls")
-}
