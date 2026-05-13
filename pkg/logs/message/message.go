@@ -394,11 +394,6 @@ func (m *Message) Render() ([]byte, error) {
 
 // Methods implementing observer.LogView for read-only observation.
 
-// GetTags returns all tags for the message, including origin and processing tags.
-func (m *Message) GetTags() []string {
-	return m.MessageMetadata.Tags()
-}
-
 // GetHostname returns the message hostname.
 func (m *Message) GetHostname() string {
 	return m.Hostname

@@ -252,7 +252,7 @@ func TestPayloadAllowsMessageContentGC(t *testing.T) {
 	assert.Equal(t, int64(2), payload.MessageMetas[0].IngestionTimestamp)
 }
 
-func TestMessageGetTagsIncludesOriginAndProcessingTags(t *testing.T) {
+func TestMessageTagsIncludesOriginAndProcessingTags(t *testing.T) {
 	cfg := &config.LogsConfig{
 		Source:         "a",
 		SourceCategory: "b",
@@ -265,14 +265,14 @@ func TestMessageGetTagsIncludesOriginAndProcessingTags(t *testing.T) {
 	msg := NewMessage([]byte("hello"), origin, "", 0)
 	msg.ProcessingTags = []string{"processing:tag"}
 
-	assert.Equal(t, []string{"foo:bar", "sourcecategory:b", "c:d", "e", "processing:tag"}, msg.GetTags())
+	assert.Equal(t, []string{"foo:bar", "sourcecategory:b", "c:d", "e", "processing:tag"}, msg.Tags())
 }
 
-func TestMessageGetTagsNilOrigin(t *testing.T) {
+func TestMessageTagsNilOrigin(t *testing.T) {
 	msg := NewMessage([]byte("hello"), nil, "", 0)
 	msg.ProcessingTags = []string{"processing:tag"}
 
-	assert.Equal(t, []string{"processing:tag"}, msg.GetTags())
+	assert.Equal(t, []string{"processing:tag"}, msg.Tags())
 }
 
 func TestSplitEscapedPath(t *testing.T) {
