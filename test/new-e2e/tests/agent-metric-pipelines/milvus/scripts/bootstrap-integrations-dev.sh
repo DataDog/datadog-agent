@@ -24,12 +24,26 @@ PUBLIC_KEY_PATH="${PRIVATE_KEY_PATH%.pem}.pub"
 STATE_DIR="${HOME}/.config/dd-agent-milvus-lab"
 PASSPHRASE_FILE="${STATE_DIR}/pulumi.passphrase"
 
-vault() { aws-vault exec "${AWS_PROFILE_NAME}" -- "$@"; }
+# If the caller is already inside an aws-vault subshell against the right
+# profile, reuse those creds instead of re-wrapping (`aws-vault exec` refuses
+# to nest). Otherwise wrap with `aws-vault exec <profile> --`.
+if [[ -n "${AWS_VAULT:-}" ]]; then
+    if [[ "${AWS_VAULT}" != "${AWS_PROFILE_NAME}" ]]; then
+        fail "AWS_VAULT=${AWS_VAULT} but expected ${AWS_PROFILE_NAME}; exit that shell and re-run, or unset AWS_VAULT"
+    fi
+    log "reusing live aws-vault session (AWS_VAULT=${AWS_VAULT})"
+    vault() { "$@"; }
+else
+    vault() { aws-vault exec "${AWS_PROFILE_NAME}" -- "$@"; }
+fi
 
 # 1. SSO session ------------------------------------------------------------
 
-log "checking aws-vault SSO session for ${AWS_PROFILE_NAME}..."
+log "checking AWS credentials for ${AWS_PROFILE_NAME}..."
 if ! vault aws sts get-caller-identity >/dev/null 2>&1; then
+    if [[ -n "${AWS_VAULT:-}" ]]; then
+        fail "aws sts get-caller-identity failed inside AWS_VAULT=${AWS_VAULT} shell; session may have expired"
+    fi
     log "  no active session; running 'aws-vault login'"
     aws-vault login "${AWS_PROFILE_NAME}"
 fi

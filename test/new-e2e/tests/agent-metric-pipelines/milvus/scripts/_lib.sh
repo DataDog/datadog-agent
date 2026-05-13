@@ -121,6 +121,18 @@ ensure_aws_setup_integrations_dev() {
         [[ -f "${f}" ]] || fail "missing ${f} — run ./scripts/bootstrap-integrations-dev.sh first"
     done
 
+    # If the user invoked us from inside an `aws-vault exec ... --` subshell,
+    # the AWS profile's credential_process (`aws-vault export ...`) will
+    # refuse to nest and fail with:
+    #   aws-vault: error: exec: aws-vault sessions should be nested with care
+    # Drop AWS_VAULT for child processes so credential_process can run
+    # cleanly. The user's session cache stays in aws-vault, so the freshly
+    # spawned `aws-vault export` will reuse it without re-prompting.
+    if [[ -n "${AWS_VAULT:-}" ]]; then
+        log "detected nested AWS_VAULT=${AWS_VAULT}; unsetting for child processes"
+        unset AWS_VAULT
+    fi
+
     export E2E_KEY_PAIR_NAME="${INTEGRATIONS_DEV_KEY_NAME}"
     export E2E_AWS_PRIVATE_KEY_PATH="${INTEGRATIONS_DEV_KEY_PRIVATE}"
     export E2E_AWS_PUBLIC_KEY_PATH="${INTEGRATIONS_DEV_KEY_PUBLIC}"
