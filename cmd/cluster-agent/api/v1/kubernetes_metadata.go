@@ -54,7 +54,7 @@ func installCloudFoundryMetadataEndpoints(r *http.ServeMux) {}
 func getNodeMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component, f func(*workloadmeta.KubernetesMetadata) map[string]string, what string, filterList []string) {
 	/*
 		Input
-			localhost:5001tags/node/localhost
+			localhost:5001/api/v1/tags/node/localhost
 		Outputs
 			Status: 200
 			Returns: []string
@@ -247,7 +247,7 @@ func getNamespaceMetadataWithTransformerFunc[T any](w http.ResponseWriter, r *ht
 func getNamespaceLabels(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
 	/*
 		Input
-			localhost:5001tags/namespace/default
+			localhost:5001/api/v1/tags/namespace/default
 		Outputs
 			Status: 200
 			Returns: []string
@@ -270,7 +270,7 @@ func getNamespaceLabels(w http.ResponseWriter, r *http.Request, wmeta workloadme
 func getNamespaceMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
 	/*
 		Input
-			localhost:5001metadata/namespace/default
+			localhost:5001/api/v1/metadata/namespace/default
 		Outputs
 			Status: 200
 			Returns: []string
@@ -294,7 +294,7 @@ func getNamespaceMetadata(w http.ResponseWriter, r *http.Request, wmeta workload
 func getPodMetadata(w http.ResponseWriter, r *http.Request) {
 	/*
 		Input
-			localhost:5001metadata/localhost/default/my-nginx-5d69
+			localhost:5001/api/v1/metadata/localhost/default/my-nginx-5d69
 		Outputs
 			Status: 200
 			Returns: []string
@@ -388,7 +388,7 @@ func getPodMetadataForNode(w http.ResponseWriter, r *http.Request) {
 func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	/*
 		Input
-			localhost:5001metadata
+			localhost:5001/api/v1/metadata
 		Outputs
 			Status: 200
 			Returns: map[string][]string
