@@ -6,9 +6,7 @@
 package lite
 
 import (
-	"strings"
 	"testing"
-	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -131,23 +129,4 @@ func TestIssueInfo_ContextRoundTrip_StartupFailure(t *testing.T) {
 		ErrorMessage: "boom",
 	}
 	assert.Equal(t, original, IssueInfoFromContext(original.ToContext()))
-}
-
-func TestTruncate_ShortString(t *testing.T) {
-	assert.Equal(t, "hello", truncate("hello", 10))
-	assert.Equal(t, "hello", truncate("hello", 5))
-}
-
-func TestTruncate_AppendsEllipsis(t *testing.T) {
-	long := strings.Repeat("a", 100)
-	out := truncate(long, 50)
-	assert.True(t, strings.HasSuffix(out, "…"), "expected ellipsis suffix, got: %q", out)
-}
-
-// truncate must back up to a UTF-8 rune boundary so it never emits half a multi-byte rune.
-func TestTruncate_RuneBoundary(t *testing.T) {
-	// "é" is 2 bytes in UTF-8; cutting at byte 51 would split a rune in half.
-	s := strings.Repeat("é", 50)
-	out := truncate(s, 51)
-	assert.True(t, utf8.ValidString(out), "truncated output must be valid UTF-8: %q", out)
 }

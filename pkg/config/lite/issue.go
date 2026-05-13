@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -111,7 +110,7 @@ func yamlParseIssue(info IssueInfo) *healthplatform.Issue {
 		Id:          IssueID,
 		IssueName:   "invalid_config",
 		Title:       "Datadog Agent configuration is not valid YAML",
-		Description: fmt.Sprintf("The Datadog Agent could not parse %s as YAML: %s", path, truncate(info.ErrorMessage, 400)),
+		Description: fmt.Sprintf("The Datadog Agent could not parse %s as YAML: %s", path, info.ErrorMessage),
 		Category:    "config",
 		Location:    "config",
 		Severity:    "high",
@@ -126,7 +125,7 @@ func yamlParseIssue(info IssueInfo) *healthplatform.Issue {
 			Summary: "Open the configuration file and fix the YAML syntax error, then restart the agent.",
 			Steps: []*healthplatform.RemediationStep{
 				{Order: 1, Text: fmt.Sprintf("Open %s in an editor.", path)},
-				{Order: 2, Text: "Look at the location reported by the parser: " + truncate(info.ErrorMessage, 200)},
+				{Order: 2, Text: "Look at the location reported by the parser: " + info.ErrorMessage},
 				{Order: 3, Text: "Fix the YAML syntax (check indentation, quoting, brackets)."},
 				{Order: 4, Text: "Validate with: datadog-agent experimental check-config -c " + path},
 				{Order: 5, Text: "Restart the agent: sudo systemctl restart datadog-agent (or your platform's equivalent)."},
@@ -141,15 +140,9 @@ func schemaValidationIssue(info IssueInfo) *healthplatform.Issue {
 		path = "(unknown path)"
 	}
 	errList := splitErrors(info.Errors)
-	firstLine := ""
-	if len(errList) > 0 {
-		firstLine = errList[0]
-	}
 	n, s := info.ErrorCount, pluralS(info.ErrorCount)
 	desc := fmt.Sprintf("Found %d schema violation%s in %s.", n, s, path)
-	if firstLine != "" {
-		desc += " First: " + truncate(firstLine, 240)
-	}
+	desc += " " + summarizeViolations(errList, 3)
 	return &healthplatform.Issue{
 		Id:          IssueID,
 		IssueName:   "invalid_config",
@@ -170,7 +163,7 @@ func schemaValidationIssue(info IssueInfo) *healthplatform.Issue {
 			Summary: "Fix each schema violation in the configuration file and restart the agent.",
 			Steps: []*healthplatform.RemediationStep{
 				{Order: 1, Text: fmt.Sprintf("Open %s in an editor.", path)},
-				{Order: 2, Text: "Review the listed violations (see Extra.errors)."},
+				{Order: 2, Text: "Fix each violation listed in the description (full list available in Extra.errors)."},
 				{Order: 3, Text: "Validate after fixing: datadog-agent experimental check-config -c " + path},
 				{Order: 4, Text: "Restart the agent."},
 			},
@@ -183,7 +176,7 @@ func startupFailureIssue(info IssueInfo) *healthplatform.Issue {
 		Id:          IssueID,
 		IssueName:   "invalid_config",
 		Title:       "Datadog Agent failed to start",
-		Description: "Configuration is parseable but the agent could not complete startup: " + truncate(info.ErrorMessage, 400),
+		Description: "Configuration is parseable but the agent could not complete startup: " + info.ErrorMessage,
 		Category:    "config",
 		Location:    "agent",
 		Severity:    "high",
@@ -198,7 +191,7 @@ func startupFailureIssue(info IssueInfo) *healthplatform.Issue {
 			Summary: "Inspect the agent logs for the underlying cause and address it before restarting.",
 			Steps: []*healthplatform.RemediationStep{
 				{Order: 1, Text: "Check the agent log file (default /var/log/datadog/agent.log)."},
-				{Order: 2, Text: "Look for the error message: " + truncate(info.ErrorMessage, 200)},
+				{Order: 2, Text: "Look for the error message: " + info.ErrorMessage},
 				{Order: 3, Text: "Resolve the underlying issue (port conflicts, missing files, permissions, etc.)."},
 				{Order: 4, Text: "Restart the agent."},
 			},
@@ -222,6 +215,21 @@ func splitErrors(joined string) []string {
 	return strings.Split(joined, "\n")
 }
 
+// summarizeViolations joins up to max violations with "; " and appends "… and N more" if truncated.
+// Visible separator survives both CLI diagnose output and HTML rendering (newlines don't).
+func summarizeViolations(errs []string, max int) string {
+	if len(errs) == 0 {
+		return ""
+	}
+	shown := errs
+	suffix := ""
+	if len(errs) > max {
+		shown = errs[:max]
+		suffix = fmt.Sprintf(" … and %d more", len(errs)-max)
+	}
+	return strings.Join(shown, "; ") + suffix
+}
+
 // toAnySlice converts []string to []any so structpb renders it as a JSON array
 // (one entry per violation) instead of a single concatenated string.
 func toAnySlice(ss []string) []any {
@@ -230,20 +238,6 @@ func toAnySlice(ss []string) []any {
 		out[i] = s
 	}
 	return out
-}
-
-// truncate clips s to at most n bytes at a rune boundary, appending an
-// ellipsis when it cut. Stepping back to a boundary avoids emitting invalid
-// UTF-8 when a multi-byte rune straddles the cutoff.
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	cut := n
-	for cut > 0 && !utf8.RuneStart(s[cut]) {
-		cut--
-	}
-	return s[:cut] + "…"
 }
 
 // mustStruct converts a map to a structpb.Struct. Inputs are always strings/
