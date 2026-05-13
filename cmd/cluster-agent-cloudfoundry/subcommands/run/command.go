@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"regexp"
@@ -20,7 +21,6 @@ import (
 
 	"code.cloudfoundry.org/bbs"
 	"github.com/cloudfoundry-community/go-cfclient/v2"
-	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -244,7 +244,7 @@ func run(
 	var clusterCheckHandler *clusterchecksHandler.Handler
 	clusterCheckHandler, err = setupClusterCheck(mainCtx, ac, taggerComp)
 	if err == nil {
-		api.ModifyAPIRouter(func(r *mux.Router) {
+		api.ModifyAPIRouter(func(r *http.ServeMux) {
 			dcav1.InstallChecksEndpoints(r, clusteragent.ServerContext{ClusterCheckHandler: clusterCheckHandler})
 		})
 
