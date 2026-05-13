@@ -3,8 +3,8 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "impl",
     srcs = [
-        "component.go",
         "flush.go",
+        "loopback.go",
         "record.go",
         "registry.go",
         "shard.go",
@@ -27,13 +27,14 @@ go_library(
 go_test(
     name = "impl_test",
     srcs = [
-        "component_test.go",
         "flush_test.go",
+        "loopback_test.go",
         "record_test.go",
         "registry_test.go",
         "shard_test.go",
     ],
     embed = [":impl"],
+    gotags = ["test"],
     deps = [
         "//comp/loopback/def",
         "@com_github_stretchr_testify//assert",
