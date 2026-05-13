@@ -99,8 +99,13 @@ func TestHandler_FiltersByLevel(t *testing.T) {
 }
 
 // TestHandler_CallsSubmitter_BuildsErrorLog asserts the Handler builds a
-// faithful ErrorLog from the incoming Record - same Time/Level/Message/PC
-// and the union of WithAttrs-accumulated attrs plus the record's own.
+// faithful ErrorLog from the incoming Record on the fields it still
+// captures after the PR #50607 PII pivot: Time, Level, Message, PC.
+// Attrs (WithAttrs-accumulated and record-level) are intentionally not
+// copied into the DTO any more — they would be dropped at the sender
+// boundary anyway, so the handler does not allocate them. Adding
+// attrs to the slog chain MUST NOT break the call (other handlers in
+// the multi-handler chain still see them).
 func TestHandler_CallsSubmitter_BuildsErrorLog(t *testing.T) {
 	rec := &recordingSubmitter{}
 	var slot atomic.Pointer[Submitter]
@@ -135,9 +140,8 @@ func TestHandler_CallsSubmitter_BuildsErrorLog(t *testing.T) {
 	if e.PC != uintptr(0xC0FFEE) {
 		t.Errorf("PC = %v, want 0xC0FFEE", e.PC)
 	}
-	// WithAttrs attrs come first, then record's own attrs.
-	if len(e.Attrs) != 2 || e.Attrs[0].Key != "svc" || e.Attrs[1].Key != "code" {
-		t.Errorf("Attrs = %v, want [svc=auth, code=500]", e.Attrs)
+	if len(e.Attrs) != 0 {
+		t.Errorf("Attrs must be empty post-PII-pivot, got %v", e.Attrs)
 	}
 }
 

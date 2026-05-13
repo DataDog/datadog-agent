@@ -11,18 +11,17 @@ package agenttelemetryimpl
 // exact JSON keys and an UPPERCASE LogLevel; deviation will silently fail
 // validation in dd-go's Validate() chain.
 
-// LogLevel is the wire-level severity of a single log record. Only
-// "ERROR", "WARN" and "DEBUG" are accepted by the receiver in all
-// configurations; "INFO" is accepted only when the surrounding request
-// type is "debug-logs".
+// LogLevel is the wire-level severity of a single log record. The
+// dd-go intake accepts "ERROR", "WARN", "DEBUG" (and "INFO" when the
+// envelope request_type is "debug-logs"), but the errortracking path
+// only ever emits LogLevelError; the other constants were dropped as
+// dead code per iglendd's "why bother with anything but ERRORS"
+// thread on PR #50607.
 type LogLevel string
 
-// LogLevel values accepted by the dd-go logs intake.
+// LogLevel value emitted on the wire by the errortracking path.
 const (
 	LogLevelError LogLevel = "ERROR"
-	LogLevelWarn  LogLevel = "WARN"
-	LogLevelDebug LogLevel = "DEBUG"
-	LogLevelInfo  LogLevel = "INFO"
 )
 
 // Log mirrors dd-go's tracer-telemetry-intake/telemetry-payload/logs.go::Log

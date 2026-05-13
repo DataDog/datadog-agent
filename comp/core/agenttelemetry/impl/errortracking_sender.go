@@ -10,27 +10,34 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 )
 
-// sendLogsTypedBatch is the v3 entry that takes already-converted wire
+// sendLogsTypedBatch is the entry that takes already-converted wire
 // Log structs (produced by errorLogToLog) and POSTs them as a single
 // LogsPayload-envelope to every configured endpoint via the shared
 // sendSerializedPayload helper.
 //
-// The marshal -> scrub -> compress -> endpoint-fanout pipeline is owned by
-// sendSerializedPayload (see sender.go); this method only constructs the
-// logs payload envelope. Error semantics are uniform across reqType: any
-// non-2xx status or transport failure joins into the returned error.
+// The marshal -> scrub -> compress -> endpoint-fanout pipeline is owned
+// by sendSerializedPayload (see sender.go); this method only constructs
+// the logs payload envelope.
+//
+// Error semantics: only transport errors (network failures,
+// request-build errors) are joined into the returned error. Non-2xx
+// HTTP statuses (4xx/5xx including 429) are logged at Debug by
+// sendSerializedPayload and NOT surfaced to the caller — this matches
+// the existing flushSession contract and keeps the shutdown drain
+// treating "enqueue-to-HTTP succeeded" as success regardless of server
+// response. Addresses louis-cqrl's 🟡 "doc comment misrepresents the
+// error contract" thread on PR #50607.
 //
 // This function does NOT log at Error. Doing so would re-enter the
 // errortracking slog handler and feed records back into the same flush
-// path (review comment F6 on PR #50607); callers observe failures via
-// the returned error and log at Debug.
+// path; callers observe failures via the returned error and log at
+// Debug. The invariant is enforced by convention — see
+// comp/core/agenttelemetry/def/component.go.
 func (s *senderImpl) sendLogsTypedBatch(ctx context.Context, logs []Log) error {
 	if len(logs) == 0 {
 		return nil
@@ -46,18 +53,25 @@ func (s *senderImpl) sendLogsTypedBatch(ctx context.Context, logs []Log) error {
 
 // errorLogToLog converts the foundational ErrorLog DTO (carried across
 // the pkg/util/log -> comp/core boundary) into the wire-shape Log struct
-// expected by dd-go's tracer-telemetry-intake/telemetry-payload/logs.go:
-//   - Time -> tracer_time (unix seconds)
-//   - Level -> uppercase LogLevel
-//   - Message -> message
-//   - PC -> single-frame stack_trace ("file:line")
-//   - Attrs.trace_id / .span_id -> reserved typed fields (extracted)
-//   - remaining Attrs -> sorted CSV "key:value" tags
-//   - count: 1 (no client-side dedup in v3)
-//   - is_crash: false (this path does not emit crash logs)
+// expected by dd-go's tracer-telemetry-intake/telemetry-payload/logs.go.
+//
+// PII pivot (PR #50607): Message and Tags are intentionally emitted as
+// empty strings. Every formatted slog message and every slog.Attr value
+// is potentially user-controlled — paths, hostnames, request bodies,
+// or error strings carrying user data. Until template-aware static-
+// message capture lands (follow-up PR), the only fields safe by
+// construction are PC and Level. The schema fields stay (wire-shape
+// parity with dd-go) but always emit empty.
+//
+//   - Time   -> tracer_time (unix seconds)
+//   - Level  -> uppercase LogLevel (always "ERROR" today)
+//   - PC     -> single-frame stack_trace ("file:line")
+//   - Count  -> 1 today; the Bouncer (see follow-up commit) populates
+//     the suppressed-duplicate count here when it lands.
+//   - Message, Tags, TraceID, SpanID -> "" (PII or unpopulated)
+//   - IsCrash -> false (this path does not emit crash logs)
 func errorLogToLog(e errortracking.ErrorLog) Log {
 	out := Log{
-		Message:    e.Message,
 		Level:      slogLevelToLogLevel(e.Level),
 		TracerTime: e.Time.Unix(),
 		Count:      1,
@@ -70,20 +84,6 @@ func errorLogToLog(e errortracking.ErrorLog) Log {
 			out.StackTrace = fmt.Sprintf("%s:%d", frame.File, frame.Line)
 		}
 	}
-
-	var pairs []string
-	for _, a := range e.Attrs {
-		switch a.Key {
-		case "trace_id":
-			out.TraceID = a.Value.String()
-		case "span_id":
-			out.SpanID = a.Value.String()
-		default:
-			pairs = append(pairs, a.Key+":"+a.Value.String())
-		}
-	}
-	sort.Strings(pairs)
-	out.Tags = strings.Join(pairs, ",")
 
 	return out
 }
