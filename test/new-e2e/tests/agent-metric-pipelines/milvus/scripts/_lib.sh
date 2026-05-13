@@ -144,6 +144,13 @@ ensure_aws_setup_integrations_dev() {
     # (subnets, security groups) must be embedded as JSON strings, so we
     # let python do the encoding to avoid quoting headaches.
     #
+    # IMPORTANT: keys must use Pulumi's `<namespace>:<key>` syntax. The
+    # framework reads `aws/defaultVPCID` from the `ddinfra` namespace and
+    # `region`/`profile` from the `aws` namespace, so the full Pulumi keys
+    # are `ddinfra:aws/defaultVPCID` and `aws:profile`. Using the plain
+    # `aws/profile` form silently no-ops (the auto.ConfigMap setter treats
+    # the whole string as the namespace and an empty key).
+    #
     # ddinfra:osDescriptor + ddinfra:osImageIDUseLatest force the framework
     # to look up the AMI via *public* SSM Parameter Store at deploy time
     # instead of using the hard-coded AMI IDs in
@@ -162,20 +169,23 @@ ensure_aws_setup_integrations_dev() {
         python3 - <<'PY'
 import json, os
 print(json.dumps({
-    "aws/profile":                        os.environ["AWS_PROFILE"],
-    "aws/defaultVPCID":                   os.environ["VPC_ID"],
-    "aws/defaultSubnets":                 os.environ["SUBNETS_JSON"],
-    "aws/defaultSecurityGroups":          os.environ["SGS_JSON"],
+    # `aws` namespace.
+    "aws:profile":                                os.environ["AWS_PROFILE"],
+    # `ddinfra` namespace. The AWS-related infra keys all live under
+    # `ddinfra:aws/...` (see test/e2e-framework/resources/aws/environment.go).
+    "ddinfra:aws/defaultVPCID":                   os.environ["VPC_ID"],
+    "ddinfra:aws/defaultSubnets":                 os.environ["SUBNETS_JSON"],
+    "ddinfra:aws/defaultSecurityGroups":          os.environ["SGS_JSON"],
     # No 'ec2InstanceRole' instance profile exists in this account.
-    "aws/defaultInstanceProfile":         "",
+    "ddinfra:aws/defaultInstanceProfile":         "",
     # No internal ECR mirror in this account; compose images pull from
     # public quay.io / docker.io.
-    "aws/defaultInternalRegistry":        "",
-    "aws/defaultInternalDockerhubMirror": "",
+    "ddinfra:aws/defaultInternalRegistry":        "",
+    "ddinfra:aws/defaultInternalDockerhubMirror": "",
     # AMI resolution: force public SSM lookup for an Amazon-Linux-2 ECS
     # image (the platforms.json AMIs are private to agent-sandbox).
-    "ddinfra:osDescriptor":                "amazon-linux-ecs::x86_64",
-    "ddinfra:osImageIDUseLatest":          "true",
+    "ddinfra:osDescriptor":                       "amazon-linux-ecs::x86_64",
+    "ddinfra:osImageIDUseLatest":                 "true",
 }))
 PY
     )
