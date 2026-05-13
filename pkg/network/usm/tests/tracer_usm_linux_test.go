@@ -1949,7 +1949,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 		Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, _ *nethttp.Request) {
 			w.WriteHeader(200)
 			w.Write([]byte("test"))
-		},
+		}),
 		Protocols: new(http.Protocols),
 	}
 	http2Server.Protocols.SetHTTP1(true)
