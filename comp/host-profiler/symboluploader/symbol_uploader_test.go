@@ -83,6 +83,10 @@ func (d *dummyProcess) OpenELF(name string) (*pfelf.File, error) {
 	return pfelf.Open(name)
 }
 
+func (d *dummyProcess) OpenELFMapping(_ *process.RawMapping) (*pfelf.File, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (d *dummyProcess) Close() error {
 	return nil
 }
