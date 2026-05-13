@@ -2713,7 +2713,7 @@ func TestAutoinstrumentation(t *testing.T) {
 			config: map[string]any{
 				"apm_config.instrumentation.enabled":            true,
 				"apm_config.instrumentation.enabled_namespaces": []string{defaultNamespace},
-				"apm_config.instrumentation.on_demand":   true,
+				"apm_config.instrumentation.on_demand":          true,
 			},
 			pod: common.FakePodSpec{
 				Name:       defaultTestContainer,
