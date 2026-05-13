@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from tasks.libs.testing.result_json import ResultJson
-from tasks.libs.testing.utof.go.e2e.converter import convert_e2e_test_results
+from tasks.libs.testing.utof.go.converter import convert_go_test_results
 from tasks.libs.testing.utof.go.e2e.extractors import _extract_pulumi_errors, pulumi_extractor
 
 TESTDATA = Path(__file__).parents[2] / "testdata"
@@ -33,7 +33,7 @@ class TestE2EConverterPulumiFailure(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         result = ResultJson.from_file(str(TESTDATA / "test_output_e2e_pulumi_failure.json"))
-        cls.doc = convert_e2e_test_results(_mock_ctx(), result)
+        cls.doc = convert_go_test_results(_mock_ctx(), result, test_type="e2e", custom_extractors=[pulumi_extractor])
 
     def test_test_marked_e2e(self):
         leaves = [t for t in self.doc.tests if not t.subtests]
