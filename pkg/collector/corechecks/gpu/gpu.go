@@ -11,6 +11,7 @@ package gpu
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -72,10 +73,27 @@ type checkTelemetryMetrics struct {
 	deviceCount                telemetry.Gauge // emitted as a telemetry metric too in order to send it through COAT
 }
 
+// gpuCheckSingleton ensures only one *Check instance exists per agent process.
+// Autodiscovery can reschedule the GPU check (e.g. when the cluster-agent
+// reconnects and the synthetic _gpu AD service reappears), which would create
+// a second instance via the factory function. The second instance calls
+// NewWorkloadTagCache → newWorkloadTagCacheTelemetry → tm.NewCounter which
+// wraps prometheus.MustRegister and panics on duplicate registration.
+//
+// Returning the same instance every time prevents the duplicate registration
+// and also makes the nil-check guard in Configure effective across re-schedules.
+var (
+	gpuCheckSingleton     *Check
+	gpuCheckSingletonOnce sync.Once
+)
+
 // Factory creates a new check factory
 func Factory(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
-		return newCheck(tagger, telemetry, wmeta)
+		gpuCheckSingletonOnce.Do(func() {
+			gpuCheckSingleton = newCheck(tagger, telemetry, wmeta).(*Check)
+		})
+		return gpuCheckSingleton
 	})
 }
 
@@ -149,12 +167,21 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		c.containerProvider = containerProvider
 	}
 
-	workloadTagCacheSize := pkgconfigsetup.Datadog().GetInt("gpu.workload_tag_cache_size")
-	workloadTagCache, err := NewWorkloadTagCache(c.tagger, c.wmeta, c.containerProvider, c.telemetry.component, workloadTagCacheSize)
-	if err != nil {
-		return fmt.Errorf("error creating workload tag cache: %w", err)
+	// Guard creation so that Configure can be called more than once without
+	// re-registering the same Prometheus counters (which panics on duplicate
+	// registration). The container provider is updated in place if it has
+	// become available since the first call.
+	if c.workloadTagCache == nil {
+		workloadTagCacheSize := pkgconfigsetup.Datadog().GetInt("gpu.workload_tag_cache_size")
+		workloadTagCache, err := NewWorkloadTagCache(c.tagger, c.wmeta, c.containerProvider, c.telemetry.component, workloadTagCacheSize)
+		if err != nil {
+			return fmt.Errorf("error creating workload tag cache: %w", err)
+		}
+		c.workloadTagCache = workloadTagCache
+	} else {
+		// Propagate a newly-available container provider into the existing cache.
+		c.workloadTagCache.containerProvider = c.containerProvider
 	}
-	c.workloadTagCache = workloadTagCache
 	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer()
 
 	// Compute whether we should prefer system-probe process metrics
