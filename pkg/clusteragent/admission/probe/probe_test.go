@@ -260,7 +260,7 @@ func TestRunProbe_ReportsHealthIssueOnConnectivityFailure(t *testing.T) {
 
 	p.runProbe(context.Background())
 
-	issue := hp.GetIssue(healthCheckID)
+	issue := hp.GetIssue(healthIssueID)
 	require.NotNil(t, issue, "expected a health issue to be reported on connectivity failure")
 }
 
@@ -273,7 +273,7 @@ func TestRunProbe_NoHealthIssueOnForbidden(t *testing.T) {
 	p, hp := newTestProbeWithHP(t, client)
 	p.runProbe(context.Background())
 
-	assert.Nil(t, hp.GetIssue(healthCheckID), "forbidden errors should not report health issues")
+	assert.Nil(t, hp.GetIssue(healthIssueID), "forbidden errors should not report health issues")
 }
 
 func TestRunProbe_ClearsHealthIssueOnSuccess(t *testing.T) {
@@ -281,13 +281,13 @@ func TestRunProbe_ClearsHealthIssueOnSuccess(t *testing.T) {
 	p, hp := newTestProbeWithHP(t, client)
 
 	p.runProbe(context.Background())
-	require.NotNil(t, hp.GetIssue(healthCheckID))
+	require.NotNil(t, hp.GetIssue(healthIssueID))
 
 	client.ReactionChain = nil
 	client.PrependReactor("create", "configmaps", webhookReachableReactor)
 
 	p.runProbe(context.Background())
-	assert.Nil(t, hp.GetIssue(healthCheckID), "expected health issue to be cleared after successful probe")
+	assert.Nil(t, hp.GetIssue(healthIssueID), "expected health issue to be cleared after successful probe")
 }
 
 func TestRunProbe_ReportsHealthIssueOnAPITimeout(t *testing.T) {
@@ -299,7 +299,7 @@ func TestRunProbe_ReportsHealthIssueOnAPITimeout(t *testing.T) {
 	p, hp := newTestProbeWithHP(t, client)
 	p.runProbe(context.Background())
 
-	issue := hp.GetIssue(healthCheckID)
+	issue := hp.GetIssue(healthIssueID)
 	require.NotNil(t, issue, "API timeout errors should report health issues as they indicate connectivity problems")
 }
 

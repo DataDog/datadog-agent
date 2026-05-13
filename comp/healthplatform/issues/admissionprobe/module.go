@@ -41,7 +41,7 @@ func (m *admissionProbeModule) IssueTemplate() issues.IssueTemplate {
 	return m.template
 }
 
-// BuiltInCheck returns nil — probe failures are reported by the admission controller probe.
-func (m *admissionProbeModule) BuiltInCheck() *issues.BuiltInCheck {
+// BuiltInHealthCheck returns nil — probe failures are reported by the admission controller probe.
+func (m *admissionProbeModule) BuiltInHealthCheck() *issues.BuiltInHealthCheck {
 	return nil
 }

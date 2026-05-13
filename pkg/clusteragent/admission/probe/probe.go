@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -256,14 +255,16 @@ func (p *Probe) reportHealthIssue() {
 		return
 	}
 
-	report := &healthplatformpayload.IssueReport{
-		IssueId: healthIssueID,
+	report := healthplatformdef.IssueReport{
+		IssueID:   healthIssueID,
+		IssueType: healthIssueID,
+		Source:    "cluster-agent",
 		Context: map[string]string{
 			"remediation": p.diagnosticHint,
 		},
 	}
 
-	if reportErr := hp.ReportIssue(healthCheckID, healthCheckName, report); reportErr != nil {
+	if reportErr := hp.ReportIssue(report); reportErr != nil {
 		log.Warnf("Failed to report admission probe health issue: %v", reportErr)
 	}
 }
@@ -273,9 +274,7 @@ func (p *Probe) clearHealthIssue() {
 	if !ok {
 		return
 	}
-	if clearErr := hp.ReportIssue(healthCheckID, healthCheckName, nil); clearErr != nil {
-		log.Warnf("Failed to clear admission probe health issue: %v", clearErr)
-	}
+	hp.ResolveIssue(healthIssueID)
 }
 
 func (p *Probe) execute(ctx context.Context) error {

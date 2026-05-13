@@ -76,5 +76,5 @@ func TestNewModule(t *testing.T) {
 	m := NewModule(nil)
 	assert.Equal(t, IssueID, m.IssueID())
 	assert.NotNil(t, m.IssueTemplate())
-	assert.Nil(t, m.BuiltInCheck())
+	assert.Nil(t, m.BuiltInHealthCheck())
 }
