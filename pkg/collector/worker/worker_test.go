@@ -952,3 +952,68 @@ func TestWorkerRecoverFromCheckPanic(t *testing.T) {
 
 	AssertAsyncWorkerCount(t, 0)
 }
+
+// trialCheck is a testCheck that reports itself as trial-mode.
+type trialCheck struct {
+	testCheck
+}
+
+func (c *trialCheck) IsTrialMode() bool { return true }
+
+func TestWorkerTrialModeErrorSuppression(t *testing.T) {
+	mockConfig := configmock.New(t)
+	expvars.Reset()
+	mockConfig.SetWithoutSource("hostname", "myhost")
+
+	resetTrialCallbacks(t)
+	t.Cleanup(func() { resetTrialCallbacks(t) })
+
+	var callbackOKs []bool
+	RegisterTrialResultCallback(func(_ checkid.ID, ok bool) {
+		callbackOKs = append(callbackOKs, ok)
+	})
+
+	var wg sync.WaitGroup
+
+	checksTracker := tracker.NewRunningChecksTracker()
+	pendingChecksChan := make(chan check.Check, 10)
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
+
+	// A trial check that errors on every run.
+	tc := &trialCheck{
+		testCheck: testCheck{
+			doErr:    true,
+			id:       "trial_check:abc",
+			t:        t,
+			runCount: atomic.NewUint64(0),
+		},
+	}
+
+	pendingChecksChan <- tc
+	close(pendingChecksChan)
+
+	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
+	require.Nil(t, err)
+	AssertAsyncWorkerCount(t, 0)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		worker.Run(context.Background())
+	}()
+
+	wg.Wait()
+
+	// Check ran once.
+	assert.Equal(t, 1, tc.RunCount())
+
+	// Trial-mode errors must NOT contribute to the integration-error expvar.
+	// (CheckStats are not tracked for the early-return trial path.)
+	assert.Equal(t, 0, int(expvars.GetErrorsCount()), "global error count should not increase for trial checks")
+
+	// The trial callback must have been invoked with ok=false.
+	require.Len(t, callbackOKs, 1)
+	assert.False(t, callbackOKs[0], "callback should have been called with ok=false")
+
+	AssertAsyncWorkerCount(t, 0)
+}

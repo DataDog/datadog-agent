@@ -31,6 +31,13 @@ func (m *mockCheck) String() string {
 	return "mock_check"
 }
 
+type mockTrialCheck struct {
+	mockCheck
+	trialMode bool
+}
+
+func (m *mockTrialCheck) IsTrialMode() bool { return m.trialMode }
+
 type mockTelemetry struct {
 	agenttelemetry.Component
 	spanStarted bool
@@ -71,4 +78,19 @@ func TestCheckWrapperCreatesSpan(t *testing.T) {
 	// Verify a span was started
 	assert.True(t, mockTelemetry.spanStarted)
 	assert.Equal(t, "check.mock_check", mockTelemetry.spanName)
+}
+
+func TestCheckWrapperForwardsIsTrialMode(t *testing.T) {
+	// Inner check that implements IsTrialMode.
+	inner := &mockTrialCheck{trialMode: true}
+	wrapper := NewCheckWrapper(inner, nil, option.None[agenttelemetry.Component]())
+	assert.True(t, wrapper.IsTrialMode(), "wrapper should forward IsTrialMode=true from inner check")
+
+	inner.trialMode = false
+	assert.False(t, wrapper.IsTrialMode(), "wrapper should forward IsTrialMode=false from inner check")
+
+	// Inner check that does NOT implement IsTrialMode: should return false.
+	plain := &mockCheck{}
+	wrapper2 := NewCheckWrapper(plain, nil, option.None[agenttelemetry.Component]())
+	assert.False(t, wrapper2.IsTrialMode(), "wrapper should return false when inner check has no IsTrialMode")
 }
