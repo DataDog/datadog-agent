@@ -322,6 +322,7 @@ var allTypes = []reflect.Type{
 	reflect.TypeOf((*ir.ArrayType)(nil)),
 	reflect.TypeOf((*ir.BaseType)(nil)),
 	reflect.TypeOf((*ir.DurationType)(nil)),
+	reflect.TypeOf((*ir.TraceContextType)(nil)),
 	reflect.TypeOf((*ir.EventRootType)(nil)),
 	reflect.TypeOf((*ir.GoChannelType)(nil)),
 	reflect.TypeOf((*ir.GoEmptyInterfaceType)(nil)),
@@ -338,6 +339,8 @@ var allTypes = []reflect.Type{
 	reflect.TypeOf((*ir.GoSwissMapHeaderType)(nil)),
 	reflect.TypeOf((*ir.PointerType)(nil)),
 	reflect.TypeOf((*ir.StructureType)(nil)),
+	reflect.TypeOf((*ir.GoContextImplementationType)(nil)),
+	reflect.TypeOf((*ir.DDTraceSpanType)(nil)),
 	reflect.TypeOf((*ir.VoidPointerType)(nil)),
 	reflect.TypeOf((*ir.UnresolvedPointeeType)(nil)),
 }
@@ -405,6 +408,16 @@ func makeOperationMarshaler(
 		case *ir.CondJumpOp:
 			toMarshal = newWithKind(op)
 		case *ir.CondLabelOp:
+			toMarshal = newWithKind(op)
+		case *ir.ExprPrepareOp:
+			toMarshal = newWithKind(op)
+		case *ir.ConditionStateInitOp:
+			toMarshal = newWithKind(op)
+		case *ir.ConditionLeafEvalOp:
+			toMarshal = newWithKind(op)
+		case *ir.ConditionLeafLoadOp:
+			toMarshal = newWithKind(op)
+		case *ir.ConditionCheckPreserveErrorOp:
 			toMarshal = newWithKind(op)
 		default:
 			return fmt.Errorf("unknown operation: %T", op)

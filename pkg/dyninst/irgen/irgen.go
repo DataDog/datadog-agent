@@ -252,6 +252,9 @@ func generateIR(
 	for _, name := range cfg.additionalTypes {
 		additionalTypeSet[name] = struct{}{}
 	}
+	specialAdditionalTypeSet := make(map[string]struct{})
+	addDDTraceGoContextTypes(specialAdditionalTypeSet)
+	specialAdditionalTypeOffsets := make(map[string]dwarf.Offset, len(specialAdditionalTypeSet))
 
 	var additionalTypeRoots []explorationRoot
 	var methodBuf []gotype.Method
@@ -278,8 +281,37 @@ func generateIR(
 
 		// If this type was requested as an additional type, resolve it to
 		// a DWARF offset and add it to the type catalog for exploration.
+		// We match against the package-qualified full name (constructed
+		// from PkgPath + "." + lastSegmentOf(Name)) AND the short name —
+		// Go's runtime stores type names in short form
+		// ("<pkgLastSegment>.<typeName>"), while specialAdditionalTypeSet
+		// uses full paths to disambiguate between e.g. v1 and v2
+		// dd-trace-go.
+		name := goType.Name().UnsafeName()
+		fullName := name
+		if pkgPath := goType.PkgPath().UnsafeName(); pkgPath != "" {
+			star := ""
+			short := name
+			if strings.HasPrefix(short, "*") {
+				star = "*"
+				short = short[1:]
+			}
+			if dot := strings.IndexByte(short, '.'); dot >= 0 {
+				fullName = star + pkgPath + short[dot:]
+			}
+		}
+		var matchName string
+		if _, special := specialAdditionalTypeSet[fullName]; special {
+			matchName = fullName
+		} else if _, special := specialAdditionalTypeSet[name]; special {
+			matchName = name
+		}
+		if matchName != "" {
+			if dwarfOffset, ok := typeIndex.resolveDwarfOffset(tid); ok {
+				specialAdditionalTypeOffsets[matchName] = dwarfOffset
+			}
+		}
 		if len(additionalTypeSet) > 0 {
-			name := goType.Name().UnsafeName()
 			if _, requested := additionalTypeSet[name]; requested {
 				if dwarfOffset, ok := typeIndex.resolveDwarfOffset(tid); ok {
 					t, addErr := typeCatalog.addType(dwarfOffset)
@@ -289,9 +321,13 @@ func generateIR(
 							name, dwarfOffset, addErr,
 						)
 					} else {
+						budget := uint32(additionalTypeBudget)
+						if _, special := specialAdditionalTypeSet[name]; special {
+							budget = 1
+						}
 						additionalTypeRoots = append(additionalTypeRoots, explorationRoot{
 							typeID: t.GetID(),
-							budget: additionalTypeBudget,
+							budget: budget,
 						})
 					}
 				}
@@ -396,6 +432,50 @@ func generateIR(
 	// instance.
 	budgets := computeDepthBudgets(processed.pendingSubprograms)
 	analyzedProbes, explorationRoots := analyzeAllProbes(probes, budgets, typeCatalog)
+	needsGoContextSupport := analyzedProbesContainGoContext(analyzedProbes)
+	// Also enable context support if context.Context appears anywhere in
+	// the binary's go runtime types (via the special-additional-types
+	// gotype iteration). This catches the common case where a probe
+	// captures something whose type tree contains a context.Context
+	// field but the static walk above sees a placeholder for the
+	// transitively-reachable type.
+	if !needsGoContextSupport {
+		if _, ok := specialAdditionalTypeOffsets["context.Context"]; ok {
+			needsGoContextSupport = true
+		}
+	}
+	if needsGoContextSupport {
+		// Pull every dd-trace-go support type and the context.Context
+		// interface itself into the catalog now, so that the unified
+		// expansion below has them as roots. context.Context gets budget
+		// 2 (enough to dereference the interface to its impl pointer and
+		// then dereference that pointer to the impl struct, materializing
+		// the struct as a real StructureType rather than a placeholder).
+		// All other special types get budget 1 — they're either directly
+		// captured or reached via valueCtx's value field at runtime.
+		for _, name := range ddTraceGoContextTypes {
+			dwarfOffset, ok := specialAdditionalTypeOffsets[name]
+			if !ok {
+				continue
+			}
+			t, addErr := typeCatalog.addType(dwarfOffset)
+			if addErr != nil {
+				log.Debugf(
+					"failed to add context support type %q at offset %#x: %v",
+					name, dwarfOffset, addErr,
+				)
+				continue
+			}
+			budget := uint32(1)
+			if name == "context.Context" {
+				budget = 2
+			}
+			additionalTypeRoots = append(additionalTypeRoots, explorationRoot{
+				typeID: t.GetID(),
+				budget: budget,
+			})
+		}
+	}
 
 	// Resolve placeholder types by a unified, budgeted expansion from
 	// exploration roots. Container internals are zero-cost.
@@ -415,6 +495,13 @@ func generateIR(
 		}
 	}
 
+	// All expansion is complete. annotateSpecialGoTypes runs after this on
+	// `needsGoContextSupport`; it was set during the special-types
+	// resolution above (where we tried to add context.Context and friends
+	// as exploration roots). The chain walk's runtime metadata
+	// (GoContext.IsContext, DDTrace span layouts) is then attached to the
+	// concrete impls in the catalog.
+
 	// Validate that all expression types were properly explored during
 	// expandTypesWithBudgets. This marks invalid segments for expressions
 	// that fail to resolve (e.g., type mismatches, missing fields).
@@ -424,6 +511,7 @@ func generateIR(
 	if err := finalizeTypes(typeCatalog, materializedSubprograms); err != nil {
 		return nil, err
 	}
+	annotateSpecialGoTypes(typeCatalog, needsGoContextSupport)
 
 	// Populate event root expressions for every probe.
 	probes, eventIssues := populateProbeEventsExpressions(
@@ -486,8 +574,10 @@ type analyzedExpression struct {
 
 // analyzedCondition represents a parsed and resolved condition tree. The
 // tree may be a single leaf (eq / isEmpty) or a compound of and/or/not
-// over leaves. All leaves must reference variables available at the same
-// event kind; that single kind is stored here.
+// over leaves. Leaves may reference variables at one event kind ("single"
+// — eventKind is set, splitCondition is false) or at both entry and
+// return ("split" — eventKind is zero, splitCondition is true,
+// leafEventKind / entryLeafSlotIndex describe the split).
 //
 // Only analyzeCondition should construct values of this type: leafRoots
 // is keyed by pointer identity of the leaves reachable from expr, and
@@ -500,9 +590,32 @@ type analyzedCondition struct {
 	// leafRoots maps each condition leaf (EqExpr / IsEmptyExpr) reachable
 	// from expr to the variable feeding its LHS.
 	leafRoots map[exprlang.Expr]*ir.Variable
-	// eventKind is the single event kind shared by every leaf's root.
+	// eventKind is the single event kind shared by every leaf's root in
+	// the non-split case. Zero in the split case (use leafEventKind).
 	eventKind ir.EventKind
+	// splitCondition is true when leaves resolve to both entry and return
+	// event kinds. In that case each entry-side leaf is compiled to its
+	// own SM sub-function and its outcome is captured as a 2-bit status
+	// in a per-call condition_state (uint16); the return-side condition
+	// program reads the slots back via ConditionLeafLoadOp. See
+	// pkg/dyninst/ir/expression.go for the full set of carry ops.
+	splitCondition bool
+	// leafEventKind maps each leaf to the event kind of its root variable.
+	// Populated for both single and split conditions.
+	leafEventKind map[exprlang.Expr]ir.EventKind
+	// entryLeafSlotIndex maps each entry-side leaf to its 2-bit slot index
+	// in the per-call condition_state. Only populated for split
+	// conditions; nil for single-event conditions.
+	entryLeafSlotIndex map[exprlang.Expr]uint8
 }
+
+// maxConditionEntryLeaves is the maximum number of entry-side leaves
+// allowed in a split-event-kind condition. The runtime stores each
+// leaf's outcome as a 2-bit status in condition_state (uint16; see
+// call_depths_entry_t.condition_state in pkg/dyninst/ebpf/context.h).
+// Keep in sync with MAX_CONDITION_ENTRY_LEAVES in
+// pkg/dyninst/ebpf/context.h.
+const maxConditionEntryLeaves = 8
 
 // analyzedProbe holds all analyzed expressions for a single probe instance.
 // There is one analyzedProbe per ProbeInstance (i.e. per (probe, subprogram)
@@ -681,11 +794,15 @@ func analyzeCondition(
 		}
 	}
 
-	// Resolve each leaf's root variable and event kind, and check that
-	// every leaf lands on the same event.
+	// Resolve each leaf's root variable and event kind. Compound conditions
+	// that span entry and return are allowed: each entry-side leaf is
+	// assigned a 2-bit slot in condition_state and the return-side
+	// condition program reads them back via ConditionLeafLoadOp.
+	// Conditions whose leaves all share the same event kind take the
+	// non-split path.
 	leafRoots := make(map[exprlang.Expr]*ir.Variable, len(leaves))
-	var evKind ir.EventKind
-	var evKindSet bool
+	leafEventKindMap := make(map[exprlang.Expr]ir.EventKind, len(leaves))
+	var sawEntry, sawReturn, sawLine bool
 	for _, leaf := range leaves {
 		sub, _ := conditionLeafSubExpr(leaf)
 		rootVarName, ok := extractRootVariableName(sub)
@@ -715,25 +832,73 @@ func analyzeCondition(
 				Message: fmt.Sprintf("condition variable %q not available at any event", rootVarName),
 			}
 		}
-		if evKindSet && leafEvKind != evKind {
-			return nil, ir.Issue{
-				Kind: ir.IssueKindConditionVariableUnavailable,
-				Message: fmt.Sprintf(
-					"compound condition references variables from multiple event kinds (%v and %v)",
-					evKind, leafEvKind,
-				),
-			}
+		switch leafEvKind {
+		case ir.EventKindEntry:
+			sawEntry = true
+		case ir.EventKindReturn:
+			sawReturn = true
+		case ir.EventKindLine:
+			sawLine = true
 		}
-		evKind = leafEvKind
-		evKindSet = true
 		leafRoots[leaf] = rootVar
+		leafEventKindMap[leaf] = leafEvKind
 		addRoot(rootVar.Type.GetID(), budget)
+	}
+	// Line probes only have a single event so a leaf classified as
+	// EventKindLine cannot legitimately mix with anything else; a probe
+	// targeting a line cannot also have entry / return events. Reject any
+	// such mix as the language does not express it.
+	if sawLine && (sawEntry || sawReturn) {
+		return nil, ir.Issue{
+			Kind:    ir.IssueKindConditionVariableUnavailable,
+			Message: "condition references both line and entry/return variables",
+		}
+	}
+	splitCondition := sawEntry && sawReturn
+	var evKind ir.EventKind
+	var entryLeafSlotIndex map[exprlang.Expr]uint8
+	if !splitCondition {
+		// Single-event condition. Pick the lone event kind.
+		switch {
+		case sawEntry:
+			evKind = ir.EventKindEntry
+		case sawReturn:
+			evKind = ir.EventKindReturn
+		case sawLine:
+			evKind = ir.EventKindLine
+		}
+	} else {
+		// Split condition: assign condition_state slot indices to entry-side
+		// leaves in iteration order. Reject if the count exceeds the slot
+		// budget (16-bit condition_state / 2 bits per slot = 8 slots).
+		entryLeafSlotIndex = make(map[exprlang.Expr]uint8, len(leaves))
+		var nextIdx uint8
+		for _, leaf := range leaves {
+			if leafEventKindMap[leaf] != ir.EventKindEntry {
+				continue
+			}
+			if int(nextIdx) >= maxConditionEntryLeaves {
+				return nil, ir.Issue{
+					Kind: ir.IssueKindConditionCarryTooLarge,
+					Message: fmt.Sprintf(
+						"split condition has more than %d entry-side leaves; "+
+							"condition_state cannot represent more",
+						maxConditionEntryLeaves,
+					),
+				}
+			}
+			entryLeafSlotIndex[leaf] = nextIdx
+			nextIdx++
+		}
 	}
 
 	return &analyzedCondition{
-		expr:      condExpr,
-		leafRoots: leafRoots,
-		eventKind: evKind,
+		expr:               condExpr,
+		leafRoots:          leafRoots,
+		eventKind:          evKind,
+		splitCondition:     splitCondition,
+		leafEventKind:      leafEventKindMap,
+		entryLeafSlotIndex: entryLeafSlotIndex,
 	}, ir.Issue{}
 }
 
@@ -1650,6 +1815,7 @@ func (p *typeQueueProcessor) drainQueue() error {
 		// Nothing to do for these types.
 		case *ir.BaseType,
 			*ir.DurationType,
+			*ir.TraceContextType,
 			*ir.EventRootType,
 			*ir.GoChannelType,
 			*ir.GoEmptyInterfaceType,
@@ -1670,6 +1836,14 @@ func (p *typeQueueProcessor) drainQueue() error {
 		case *ir.StructureType:
 			for i := range tt.RawFields {
 				p.push(tt.RawFields[i].Type, wi.remaining)
+			}
+		case *ir.GoContextImplementationType:
+			for i := range tt.StructureType.RawFields {
+				p.push(tt.StructureType.RawFields[i].Type, wi.remaining)
+			}
+		case *ir.DDTraceSpanType:
+			for i := range tt.StructureType.RawFields {
+				p.push(tt.StructureType.RawFields[i].Type, wi.remaining)
 			}
 		case *ir.GoSliceHeaderType:
 			p.push(tt.Data, wi.remaining)
@@ -5692,6 +5866,347 @@ func resolveCondition(
 	return &ir.Expression{Type: boolType, Operations: ops}, nil
 }
 
+// resolveSplitConditionEntry builds the entry-side IR Expression for a
+// split-event-kind condition. The returned program is the entry-side
+// driver:
+//
+//  1. ConditionStateInit clears condition_state.
+//  2. For each entry leaf in iteration order, ConditionLeafEval triggers
+//     a Call to the per-leaf SM sub-function followed by a record op
+//     that captures the leaf's outcome (false / true / eval-error /
+//     nil-deref) into condition_state[i]. Leaf-internal aborts return
+//     to the driver via sm_return — they do not abort the driver.
+//  3. ExprPrepare resets the scratch frame for the AST replay.
+//  4. emitGate walks the AST: entry leaves lower to ConditionLeafLoad
+//     (reads condition_state[i] and short-circuits surrounding ops on
+//     error); pure-return subtrees prune to a polarity-correct
+//     constant via ExprLoadLiteral.
+//  5. Tail label, then ConditionCheckPreserveError. On false →
+//     condition_failed = true, event.c skips the entry event AND
+//     bypasses in_progress_calls insertion (the return event then
+//     sees CALL_DEPTHS_ABSENT and is suppressed). On true with the
+//     eval_error flag set by a ConditionLeafLoad → the entry event
+//     fires with condition_eval_error surfaced on the header.
+//
+// The function also populates condition.LeafBodies — one *ir.Expression
+// per entry leaf — so the compiler can emit each leaf as its own
+// SM sub-function.
+func resolveSplitConditionEntry(
+	condExpr exprlang.Expr,
+	leafRoots map[exprlang.Expr]*ir.Variable,
+	leafEventKind map[exprlang.Expr]ir.EventKind,
+	entryLeafSlotIndex map[exprlang.Expr]uint8,
+	tc *typeCatalog,
+) (*ir.Expression, error) {
+	var la labelAllocator
+	tail := la.newLabel()
+	leafBodies, err := buildLeafBodies(condExpr, leafRoots, leafEventKind, entryLeafSlotIndex, tc)
+	if err != nil {
+		return nil, err
+	}
+	ops := []ir.ExpressionOp{&ir.ConditionStateInitOp{}}
+	// Issue per-leaf evaluation calls in iteration order matching the
+	// indices assigned by entryLeafSlotIndex. Each ConditionLeafEvalOp
+	// lowers to (CallOp leafFn, ConditionLeafRecordOp) at compile time.
+	leaves := conditionLeafExprs(condExpr)
+	for _, leaf := range leaves {
+		if leafEventKind[leaf] != ir.EventKindEntry {
+			continue
+		}
+		ops = append(ops, &ir.ConditionLeafEvalOp{
+			LeafIdx: entryLeafSlotIndex[leaf],
+		})
+	}
+	// Reset scratch for the AST replay: per-leaf eval can leave the
+	// scratch frame in arbitrary state on abort, and even on success
+	// we want a clean slate before the gate writes its boolean.
+	ops = append(ops, &ir.ExprPrepareOp{})
+	gateOps, err := emitGate(condExpr, leafEventKind, entryLeafSlotIndex, &la, false, tail)
+	if err != nil {
+		return nil, err
+	}
+	ops = append(ops, gateOps...)
+	ops = append(ops, &ir.CondLabelOp{ID: tail})
+	ops = append(ops, &ir.ConditionCheckPreserveErrorOp{})
+	boolType := tc.typesByID[tc.boolType]
+	return &ir.Expression{
+		Type:       boolType,
+		Operations: ops,
+		LeafBodies: leafBodies,
+		IsSplit:    true,
+	}, nil
+}
+
+// resolveSplitConditionReturn builds the return-side IR Expression for a
+// split-event-kind condition. The returned program runs entirely as an
+// AST replay over condition_state (populated at entry time and propagated
+// through call_depths_delete onto the return-side SM):
+//
+//  1. emitReturnSplit walks the AST: entry leaves lower to
+//     ConditionLeafLoad (which surfaces eval errors only when the
+//     surrounding short-circuit actually reaches the leaf); return
+//     leaves use the existing emitCondition machinery. The compiler
+//     prepends an implicit ExprPrepareOp before this body.
+//  2. Tail label, then ConditionCheckPreserveError. The check sets
+//     condition_failed when the AST evaluates to false; preserves
+//     condition_eval_error if any leaf surfaced an error.
+//
+// LeafBodies is left nil here — the entry-side driver owns leaf-body
+// generation; the return-side only consumes condition_state.
+func resolveSplitConditionReturn(
+	condExpr exprlang.Expr,
+	leafRoots map[exprlang.Expr]*ir.Variable,
+	leafEventKind map[exprlang.Expr]ir.EventKind,
+	entryLeafSlotIndex map[exprlang.Expr]uint8,
+	tc *typeCatalog,
+) (*ir.Expression, error) {
+	var la labelAllocator
+	tail := la.newLabel()
+	ops, err := emitReturnSplit(condExpr, leafRoots, leafEventKind, entryLeafSlotIndex, tc, &la, tail)
+	if err != nil {
+		return nil, err
+	}
+	ops = append(ops, &ir.CondLabelOp{ID: tail})
+	ops = append(ops, &ir.ConditionCheckPreserveErrorOp{})
+	boolType := tc.typesByID[tc.boolType]
+	return &ir.Expression{Type: boolType, Operations: ops, IsSplit: true}, nil
+}
+
+// buildLeafBodies compiles each entry-side leaf of a split-event-kind
+// condition into its own *ir.Expression. The compiler turns each into a
+// ProcessConditionLeaf SM sub-function. Each body's Operations leaves a
+// boolean byte at sm->offset on success; on abort (nil deref / OOB) the
+// existing condition error paths handle the abort and propagate
+// condition_eval_error / condition_nil_deref to the driver via
+// sm_return.
+//
+// The returned slice is indexed by leaf index (matching
+// entryLeafSlotIndex values), with nil entries left for leaves that are
+// not entry-side.
+func buildLeafBodies(
+	condExpr exprlang.Expr,
+	leafRoots map[exprlang.Expr]*ir.Variable,
+	leafEventKind map[exprlang.Expr]ir.EventKind,
+	entryLeafSlotIndex map[exprlang.Expr]uint8,
+	tc *typeCatalog,
+) ([]*ir.Expression, error) {
+	leaves := conditionLeafExprs(condExpr)
+	// Determine the highest assigned leaf index so the slice is sized
+	// right. Indexes are dense (0..N-1) but we don't rely on that here.
+	maxIdx := -1
+	for _, leaf := range leaves {
+		if leafEventKind[leaf] != ir.EventKindEntry {
+			continue
+		}
+		if int(entryLeafSlotIndex[leaf]) > maxIdx {
+			maxIdx = int(entryLeafSlotIndex[leaf])
+		}
+	}
+	if maxIdx < 0 {
+		return nil, nil
+	}
+	bodies := make([]*ir.Expression, maxIdx+1)
+	for _, leaf := range leaves {
+		if leafEventKind[leaf] != ir.EventKindEntry {
+			continue
+		}
+		var la labelAllocator
+		leafOps, err := emitCondition(leaf, leafRoots, tc, &la)
+		if err != nil {
+			return nil, err
+		}
+		boolType := tc.typesByID[tc.boolType]
+		bodies[entryLeafSlotIndex[leaf]] = &ir.Expression{
+			Type:       boolType,
+			Operations: leafOps,
+		}
+	}
+	return bodies, nil
+}
+
+// emitGate lowers a condition tree to an entry-side gate program. Used
+// by the entry-side driver after per-leaf evaluation has populated
+// condition_state; the gate decides whether to short-circuit the entire
+// probe firing (return event included) when the entry-only slice of the
+// tree is already false.
+//
+// An entry-side leaf compiles to ConditionLeafLoadOp{i, ErrorTarget=tail}.
+// On boolean status (false/true) it writes the bit at sm->offset and
+// continues; on error status it sets condition_eval_error, writes 1 at
+// sm->offset, and jumps to tail — bypassing surrounding short-circuit
+// and Not ops so the eval-error flag survives to event.c surfacing.
+//
+// A pure-return subtree is "pruned" to a constant ExprLoadLiteralOp.
+// `negated` tracks polarity through NotOps so the pruned constant flips
+// back to `true` (the safe value: it cannot prove the gate false) after
+// any wrapping NotOps. Without polarity tracking, !(@return == X) under
+// an AND with an entry leaf would prune to true → NotOp-flip to false,
+// falsely proving the gate false and incorrectly suppressing the return
+// event.
+func emitGate(
+	e exprlang.Expr,
+	leafEventKind map[exprlang.Expr]ir.EventKind,
+	entryLeafSlotIndex map[exprlang.Expr]uint8,
+	la *labelAllocator,
+	negated bool,
+	tail ir.LabelID,
+) ([]ir.ExpressionOp, error) {
+	if !subtreeHasEntryLeaf(e, leafEventKind) {
+		// Conservative answer for an unknown-at-entry subtree.
+		var data byte = 1
+		if negated {
+			data = 0
+		}
+		return []ir.ExpressionOp{
+			&ir.ExprLoadLiteralOp{Data: []byte{data}},
+		}, nil
+	}
+	switch n := e.(type) {
+	case *exprlang.NotExpr:
+		inner, err := emitGate(
+			n.Operand, leafEventKind, entryLeafSlotIndex, la, !negated, tail,
+		)
+		if err != nil {
+			return nil, err
+		}
+		return append(inner, &ir.CondNotOp{}), nil
+	case *exprlang.AndExpr:
+		end := la.newLabel()
+		left, err := emitGate(
+			n.Left, leafEventKind, entryLeafSlotIndex, la, negated, tail,
+		)
+		if err != nil {
+			return nil, err
+		}
+		right, err := emitGate(
+			n.Right, leafEventKind, entryLeafSlotIndex, la, negated, tail,
+		)
+		if err != nil {
+			return nil, err
+		}
+		out := left
+		out = append(out, &ir.CondJumpOp{Cond: false, Target: end})
+		out = append(out, right...)
+		out = append(out, &ir.CondLabelOp{ID: end})
+		return out, nil
+	case *exprlang.OrExpr:
+		end := la.newLabel()
+		left, err := emitGate(
+			n.Left, leafEventKind, entryLeafSlotIndex, la, negated, tail,
+		)
+		if err != nil {
+			return nil, err
+		}
+		right, err := emitGate(
+			n.Right, leafEventKind, entryLeafSlotIndex, la, negated, tail,
+		)
+		if err != nil {
+			return nil, err
+		}
+		out := left
+		out = append(out, &ir.CondJumpOp{Cond: true, Target: end})
+		out = append(out, right...)
+		out = append(out, &ir.CondLabelOp{ID: end})
+		return out, nil
+	default:
+		// Entry-side leaf (subtreeHasEntryLeaf is true and this node is
+		// a leaf). Read condition_state[i] and either write the bit or
+		// short-circuit to tail on error.
+		return []ir.ExpressionOp{
+			&ir.ConditionLeafLoadOp{
+				LeafIdx:     entryLeafSlotIndex[e],
+				ErrorTarget: tail,
+			},
+		}, nil
+	}
+}
+
+// subtreeHasEntryLeaf returns true when at least one leaf reachable from e
+// is an entry-side leaf in leafEventKind.
+func subtreeHasEntryLeaf(
+	e exprlang.Expr,
+	leafEventKind map[exprlang.Expr]ir.EventKind,
+) bool {
+	switch n := e.(type) {
+	case *exprlang.NotExpr:
+		return subtreeHasEntryLeaf(n.Operand, leafEventKind)
+	case *exprlang.AndExpr:
+		return subtreeHasEntryLeaf(n.Left, leafEventKind) ||
+			subtreeHasEntryLeaf(n.Right, leafEventKind)
+	case *exprlang.OrExpr:
+		return subtreeHasEntryLeaf(n.Left, leafEventKind) ||
+			subtreeHasEntryLeaf(n.Right, leafEventKind)
+	default:
+		return leafEventKind[e] == ir.EventKindEntry
+	}
+}
+
+// emitReturnSplit emits the body of a split-event-kind return-side
+// condition program. Entry-side leaves lower to ConditionLeafLoadOp
+// (reads the leaf's status from condition_state and short-circuits to
+// `tail` on error); return-side leaves fall through to the existing
+// emitCondition machinery (evaluated at runtime as today).
+func emitReturnSplit(
+	e exprlang.Expr,
+	leafRoots map[exprlang.Expr]*ir.Variable,
+	leafEventKind map[exprlang.Expr]ir.EventKind,
+	entryLeafSlotIndex map[exprlang.Expr]uint8,
+	tc *typeCatalog,
+	la *labelAllocator,
+	tail ir.LabelID,
+) ([]ir.ExpressionOp, error) {
+	switch n := e.(type) {
+	case *exprlang.NotExpr:
+		inner, err := emitReturnSplit(n.Operand, leafRoots, leafEventKind, entryLeafSlotIndex, tc, la, tail)
+		if err != nil {
+			return nil, err
+		}
+		return append(inner, &ir.CondNotOp{}), nil
+	case *exprlang.AndExpr:
+		end := la.newLabel()
+		left, err := emitReturnSplit(n.Left, leafRoots, leafEventKind, entryLeafSlotIndex, tc, la, tail)
+		if err != nil {
+			return nil, err
+		}
+		right, err := emitReturnSplit(n.Right, leafRoots, leafEventKind, entryLeafSlotIndex, tc, la, tail)
+		if err != nil {
+			return nil, err
+		}
+		out := left
+		out = append(out, &ir.CondJumpOp{Cond: false, Target: end})
+		out = append(out, right...)
+		out = append(out, &ir.CondLabelOp{ID: end})
+		return out, nil
+	case *exprlang.OrExpr:
+		end := la.newLabel()
+		left, err := emitReturnSplit(n.Left, leafRoots, leafEventKind, entryLeafSlotIndex, tc, la, tail)
+		if err != nil {
+			return nil, err
+		}
+		right, err := emitReturnSplit(n.Right, leafRoots, leafEventKind, entryLeafSlotIndex, tc, la, tail)
+		if err != nil {
+			return nil, err
+		}
+		out := left
+		out = append(out, &ir.CondJumpOp{Cond: true, Target: end})
+		out = append(out, right...)
+		out = append(out, &ir.CondLabelOp{ID: end})
+		return out, nil
+	default:
+		// Leaf. Entry-side → ConditionLeafLoadOp; return-side → existing
+		// emitCondition path.
+		if kind, ok := leafEventKind[e]; ok && kind == ir.EventKindEntry {
+			return []ir.ExpressionOp{
+				&ir.ConditionLeafLoadOp{
+					LeafIdx:     entryLeafSlotIndex[e],
+					ErrorTarget: tail,
+				},
+			}, nil
+		}
+		return emitCondition(e, leafRoots, tc, la)
+	}
+}
+
 // labelAllocator hands out LabelIDs unique within a single condition handler.
 type labelAllocator struct {
 	next ir.LabelID
@@ -5879,16 +6394,48 @@ func populateInstanceExpressions(
 	}
 
 	for _, event := range inst.Events {
-		// Resolve condition for the matching event only.
-		if cond := ap.condition; cond != nil && cond.eventKind == event.Kind {
-			resolved, err := resolveCondition(cond.expr, cond.leafRoots, typeCatalog)
-			if err != nil {
-				return ir.Issue{
-					Kind:    ir.IssueKindConditionExpressionUnresolvable,
-					Message: fmt.Sprintf("failed to resolve condition: %v", err),
+		// Resolve condition. Single-event conditions go on the matching
+		// event only. Split-event conditions emit two distinct programs:
+		// the entry-side gate on the entry event and the return-side
+		// combination on the return event.
+		if cond := ap.condition; cond != nil {
+			if cond.splitCondition {
+				switch event.Kind {
+				case ir.EventKindEntry:
+					resolved, err := resolveSplitConditionEntry(
+						cond.expr, cond.leafRoots, cond.leafEventKind,
+						cond.entryLeafSlotIndex, typeCatalog,
+					)
+					if err != nil {
+						return ir.Issue{
+							Kind:    ir.IssueKindConditionExpressionUnresolvable,
+							Message: fmt.Sprintf("failed to resolve entry-side condition: %v", err),
+						}
+					}
+					event.Condition = resolved
+				case ir.EventKindReturn:
+					resolved, err := resolveSplitConditionReturn(
+						cond.expr, cond.leafRoots, cond.leafEventKind,
+						cond.entryLeafSlotIndex, typeCatalog,
+					)
+					if err != nil {
+						return ir.Issue{
+							Kind:    ir.IssueKindConditionExpressionUnresolvable,
+							Message: fmt.Sprintf("failed to resolve return-side condition: %v", err),
+						}
+					}
+					event.Condition = resolved
 				}
+			} else if cond.eventKind == event.Kind {
+				resolved, err := resolveCondition(cond.expr, cond.leafRoots, typeCatalog)
+				if err != nil {
+					return ir.Issue{
+						Kind:    ir.IssueKindConditionExpressionUnresolvable,
+						Message: fmt.Sprintf("failed to resolve condition: %v", err),
+					}
+				}
+				event.Condition = resolved
 			}
-			event.Condition = resolved
 		}
 
 		issue := populateEventExpressions(inst, event, ap, typeCatalog)

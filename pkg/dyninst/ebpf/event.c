@@ -126,20 +126,21 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
       return;
     }
     int remaining;
-    uint64_t saved_dict_ptr = 0;
     uint64_t entry_ktime_ns = 0;
+    // Write directly into stack_machine_t fields where possible so the
+    // verifier doesn't have to track extra stack-local addresses; this
+    // keeps probe_run_with_cookie's frame within budget.
     if (!call_depths_delete(
-            depths, header->stack_byte_depth, params->probe_id,
-            &remaining, &saved_dict_ptr, &entry_ktime_ns)) {
+            depths, header->stack_byte_depth, (uint16_t)params->probe_id,
+            &remaining, &global_ctx.stack_machine->saved_dict_ptr,
+            &entry_ktime_ns,
+            &global_ctx.stack_machine->condition_state)) {
       // Somewhat common case where the goroutine has open calls, but it's not
       // this one.
       LOG(4, "failed to delete in_progress_calls %lld (%lld): %d",
           header->goid, header->stack_byte_depth, params->probe_id);
       return;
     }
-    // Restore the dict pointer saved at entry time so the stack machine
-    // can resolve generic shape types on the return path.
-    global_ctx.stack_machine->saved_dict_ptr = saved_dict_ptr;
     // Stamp the entry's timestamp on the return event so userspace can
     // correlate entry and return for the same invocation. Also record it
     // on stack_machine for any drop notifications this probe sends.
@@ -283,7 +284,8 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
       return;
     }
     depths->depths[0].depth = header->stack_byte_depth;
-    depths->depths[0].probe_id = params->probe_id;
+    depths->depths[0].probe_id = (uint16_t)params->probe_id;
+    depths->depths[0].condition_state = global_ctx.stack_machine->condition_state;
     depths->depths[0].dict_ptr = global_ctx.stack_machine->saved_dict_ptr;
     depths->depths[0].entry_ktime_ns = start_ns;
     int ret = bpf_map_update_elem(&in_progress_calls, &header->goid, depths, BPF_NOEXIST);
@@ -296,7 +298,8 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
           LOG(1, "failed to lookup in_progress_calls for goid %lld after failing to insert", header->goid);
           return;
         }
-        if (!call_depths_insert(depths, header->stack_byte_depth, params->probe_id,
+        if (!call_depths_insert(depths, header->stack_byte_depth, (uint16_t)params->probe_id,
+                                global_ctx.stack_machine->condition_state,
                                 global_ctx.stack_machine->saved_dict_ptr, start_ns)) {
           header->event_pairing_expectation = EVENT_PAIRING_EXPECTATION_CALL_COUNT_EXCEEDED;
         }

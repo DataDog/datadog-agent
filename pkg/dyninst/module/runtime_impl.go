@@ -299,8 +299,11 @@ func (l *loadedProgramImpl) EvictBufferOlderThan(cutoffKtimeNs uint64) {
 
 func (l *loadedProgramImpl) Close() error {
 	l.loadedProgram.Close()
-	l.runtime.dispatcher.UnregisterSink(l.programID)
+	// Detach before unregistering: UnregisterSink drains the sink, which
+	// emits buffered events and would otherwise re-report diagnostics for a
+	// runtimeID whose tracker entries were just cleared.
 	l.runtime.onProgramDetached(l.programID)
+	l.runtime.dispatcher.UnregisterSink(l.programID)
 	return nil
 }
 

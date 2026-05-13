@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    Reduce the payload size of SNMP device metrics by letting the Datadog
+    backend enrich device tags (such as ``snmp_device``, ``device_ip``, and
+    ``device_id``) from device metadata instead of attaching them to every
+    metric. Existing queries and monitors continue to work, and no action is
+    required. This only applies when ``collect_device_metadata`` is enabled
+    (the default).

@@ -10,10 +10,20 @@ import (
 )
 
 type typeInfo struct {
-	Dynamic_size_class uint32
-	Byte_len           uint32
-	Enqueue_pc         uint32
-	X__padding         uint32
+	Dynamic_size_class                   uint32
+	Byte_len                             uint32
+	Enqueue_pc                           uint32
+	Go_context_context_offset            int32
+	Go_context_key_offset                int32
+	Go_context_value_offset              int32
+	Ddtrace_trace_id_offset              int32
+	Ddtrace_span_id_offset               int32
+	Ddtrace_parent_id_offset             int32
+	Ddtrace_span_context_offset          int32
+	Ddtrace_span_context_trace_id_offset int32
+	Go_context_is_context                uint8
+	Ddtrace_span_kind                    uint8
+	X__padding                           [2]uint8
 }
 type probeParams struct {
 	Throttler_idx         uint32
@@ -126,6 +136,20 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return 0x28
 	case compiler.OpcodeExprLoadDuration:
 		return 0x29
+	case compiler.OpcodeConditionStateInit:
+		return 0x2a
+	case compiler.OpcodeConditionLeafRecord:
+		return 0x2b
+	case compiler.OpcodeConditionLeafLoad:
+		return 0x2c
+	case compiler.OpcodeConditionCheckPreserveError:
+		return 0x2d
+	case compiler.OpcodeConditionLeafComplete:
+		return 0x2e
+	case compiler.OpcodeGoContextChainInit:
+		return 0x2f
+	case compiler.OpcodeGoContextChainHop:
+		return 0x30
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
 	}

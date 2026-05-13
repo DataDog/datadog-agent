@@ -370,7 +370,11 @@ func TestHistogramUnitPropagation(t *testing.T) {
 	require.Nil(t, err)
 	require.NotEmpty(t, series)
 	for _, s := range series {
-		assert.Equal(t, UnitMilliseconds, s.Unit, "serie %s should carry unit", s.NameSuffix)
+		if s.NameSuffix == ".count" {
+			assert.Emptyf(t, s.Unit, "serie %s should be dimensionless", s.NameSuffix)
+		} else {
+			assert.Equal(t, UnitMilliseconds, s.Unit, "serie %s should carry unit", s.NameSuffix)
+		}
 	}
 
 	// Plain histogram sample (no unit): every flushed serie must have empty unit.

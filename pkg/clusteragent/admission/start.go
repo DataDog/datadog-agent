@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
 	admprobe "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/probe"
@@ -24,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -44,7 +46,7 @@ type ControllerContext struct {
 }
 
 // StartControllers starts the secret and webhook controllers
-func StartControllers(ctx ControllerContext, datadogConfig config.Component, wmeta workloadmeta.Component, pp workload.PodPatcher, sh clusterspot.PodHandler) ([]webhook.Webhook, error) {
+func StartControllers(ctx ControllerContext, datadogConfig config.Component, wmeta workloadmeta.Component, pp workload.PodPatcher, sh clusterspot.PodHandler, healthPlatform option.Option[healthplatformdef.Component]) ([]webhook.Webhook, error) {
 	var webhooks []webhook.Webhook
 
 	if !datadogConfig.GetBool("admission_controller.enabled") {
@@ -131,7 +133,7 @@ func StartControllers(ctx ControllerContext, datadogConfig config.Component, wme
 	webhooks = append(webhooks, webhookController.EnabledWebhooks()...)
 
 	if datadogConfig.GetBool("admission_controller.probe.enabled") {
-		admissionProbe := admprobe.New(ctx.Client, isLeaderFunc, namespace.GetResourcesNamespace(), datadogConfig)
+		admissionProbe := admprobe.New(ctx.Client, isLeaderFunc, namespace.GetResourcesNamespace(), datadogConfig, healthPlatform)
 		setProbe(admissionProbe)
 		probeCtx, probeCancel := context.WithCancel(context.Background())
 		go func() {
