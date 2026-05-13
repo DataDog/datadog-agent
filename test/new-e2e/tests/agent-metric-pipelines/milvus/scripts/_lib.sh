@@ -80,33 +80,25 @@ require_dda() {
         || fail "$(dda_bin) not found in PATH (see docs/public/how-to/test/e2e.md)"
 }
 
-# AWS resource overrides for the `agent-integrations-dev` account.
+# Targeting the `agent-integrations-dev` AWS account is done by:
 #
-# These IDs were discovered with `aws ec2 describe-*` against account
-# 030537971304 on 2026-05-13 (account-admin role). They are intentionally
-# hard-coded here rather than a real first-class `agentIntegrationsDev`
-# entry in test/e2e-framework/resources/aws/environmentDefaults.go — that
-# upstream change is option B in the design discussion; this is option A.
+#  1. A first-class environment entry added to
+#     test/e2e-framework/resources/aws/environmentDefaults.go:
+#     agentIntegrationsDevDefault() (env name "aws/agent-integrations-dev").
+#     That's where the VPC, subnets, SG, region and AWS profile live.
+#     We rely on `test/new-e2e/go.mod`'s replace directive that points the
+#     framework dependency at the in-tree `test/e2e-framework/`, so the
+#     patch takes effect immediately with no version bump.
 #
-# Network layout:
-#   VPC 'agent-integrations-dev' (10.11.208.112/28 + secondary /22)
-#     ├─ public  10.11.220.x/26  → IGW (MapPublicIpOnLaunch=False)
-#     ├─ private 10.11.221-223.x/24 → NAT for egress, TGW for VPN inbound
-#     └─ transit 10.11.208.x/28  → Appgate VPN
-# We place the EC2 in a private subnet so:
-#   * inbound SSH works over Datadog VPN (TGW route 10.0.0.0/8)
-#   * outbound (pulumi up plumbing, docker pulls, agent → intake) goes
-#     through the NAT gateway.
+#  2. Setting `E2E_ENVIRONMENTS=aws/agent-integrations-dev` so the
+#     framework looks up that entry instead of the default
+#     `aws/agent-sandbox`.
 #
-# The 'common' SG (sg-03d583f7425a802f7) allows:
-#   * all traffic from CIDRs 10.11.{192,193,194}.0/24 (corp VPN networks)
-#   * all traffic from itself (intra-VPC)
-#   * unrestricted egress
-INTEGRATIONS_DEV_VPC=vpc-07e6913338cbe8fea
-INTEGRATIONS_DEV_SUBNETS_JSON='[{"id":"subnet-0acb59fda8504f5bb","macos_compatible":false},{"id":"subnet-0d7bb3d71e68abcc2","macos_compatible":false},{"id":"subnet-0658d161c778e6168","macos_compatible":false}]'
-INTEGRATIONS_DEV_SGS_JSON='["sg-03d583f7425a802f7"]'
-INTEGRATIONS_DEV_AWS_PROFILE=exec-sso-agent-integrations-dev-account-admin
-
+#  3. A small E2E_STACK_PARAMS payload that forces *public* SSM-based
+#     AMI resolution (the AMI IDs hard-coded in
+#     test/e2e-framework/resources/aws/platforms.json are private to
+#     agent-sandbox / agent-qa and unreadable from this account).
+#
 # State produced by ./scripts/bootstrap-integrations-dev.sh.
 INTEGRATIONS_DEV_KEY_NAME="e2e-agent-integrations-dev-${USER}"
 INTEGRATIONS_DEV_KEY_PRIVATE="${HOME}/.ssh/id_rsa_e2e_agent_integrations_dev_${USER}.pem"
@@ -138,59 +130,25 @@ ensure_aws_setup_integrations_dev() {
     export E2E_AWS_PUBLIC_KEY_PATH="${INTEGRATIONS_DEV_KEY_PUBLIC}"
     export E2E_PULUMI_PASSWORD="$(<"${INTEGRATIONS_DEV_PASSPHRASE_FILE}")"
 
-    # E2E_STACK_PARAMS is forwarded verbatim to `pulumi config set` by
-    # tasks/new_e2e_tests.py, overriding the agentSandboxDefault() values
-    # baked into environmentDefaults.go.  Values that are themselves JSON
-    # (subnets, security groups) must be embedded as JSON strings, so we
-    # let python do the encoding to avoid quoting headaches.
-    #
-    # IMPORTANT: keys must use Pulumi's `<namespace>:<key>` syntax. The
-    # framework reads `aws/defaultVPCID` from the `ddinfra` namespace and
-    # `region`/`profile` from the `aws` namespace, so the full Pulumi keys
-    # are `ddinfra:aws/defaultVPCID` and `aws:profile`. Using the plain
-    # `aws/profile` form silently no-ops (the auto.ConfigMap setter treats
-    # the whole string as the namespace and an empty key).
-    #
-    # ddinfra:osDescriptor + ddinfra:osImageIDUseLatest force the framework
-    # to look up the AMI via *public* SSM Parameter Store at deploy time
-    # instead of using the hard-coded AMI IDs in
-    # test/e2e-framework/resources/aws/platforms.json — those IDs are
-    # private to the agent-sandbox / agent-qa accounts and would fail with
-    # 'Not authorized for images: […]' here. The empty version slot in the
-    # descriptor is required so resolveAmazonLinuxECSAMI() takes the
-    # SSM path (os_resolver.go:78). The SSM parameter
-    # /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id is
-    # universally readable so this works in any account.
-    E2E_STACK_PARAMS=$(
-        AWS_PROFILE="${INTEGRATIONS_DEV_AWS_PROFILE}" \
-        VPC_ID="${INTEGRATIONS_DEV_VPC}" \
-        SUBNETS_JSON="${INTEGRATIONS_DEV_SUBNETS_JSON}" \
-        SGS_JSON="${INTEGRATIONS_DEV_SGS_JSON}" \
-        python3 - <<'PY'
-import json, os
+    # Select our framework environment entry.
+    export E2E_ENVIRONMENTS="aws/agent-integrations-dev"
+
+    # The only remaining Pulumi overrides we need are the AMI hints:
+    # the hard-coded AMI IDs in test/e2e-framework/resources/aws/platforms.json
+    # are private to agent-sandbox / agent-qa and unreadable here, so we
+    # force the framework's os_resolver to take its `useLatestAMI` branch
+    # (os_resolver.go:78) which queries the *public* SSM parameter
+    # /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id.
+    # The empty version slot in the descriptor is what triggers that path.
+    export E2E_STACK_PARAMS=$(python3 - <<'PY'
+import json
 print(json.dumps({
-    # `aws` namespace.
-    "aws:profile":                                os.environ["AWS_PROFILE"],
-    # `ddinfra` namespace. The AWS-related infra keys all live under
-    # `ddinfra:aws/...` (see test/e2e-framework/resources/aws/environment.go).
-    "ddinfra:aws/defaultVPCID":                   os.environ["VPC_ID"],
-    "ddinfra:aws/defaultSubnets":                 os.environ["SUBNETS_JSON"],
-    "ddinfra:aws/defaultSecurityGroups":          os.environ["SGS_JSON"],
-    # No 'ec2InstanceRole' instance profile exists in this account.
-    "ddinfra:aws/defaultInstanceProfile":         "",
-    # No internal ECR mirror in this account; compose images pull from
-    # public quay.io / docker.io.
-    "ddinfra:aws/defaultInternalRegistry":        "",
-    "ddinfra:aws/defaultInternalDockerhubMirror": "",
-    # AMI resolution: force public SSM lookup for an Amazon-Linux-2 ECS
-    # image (the platforms.json AMIs are private to agent-sandbox).
-    "ddinfra:osDescriptor":                       "amazon-linux-ecs::x86_64",
-    "ddinfra:osImageIDUseLatest":                 "true",
+    "ddinfra:osDescriptor":       "amazon-linux-ecs::x86_64",
+    "ddinfra:osImageIDUseLatest": "true",
 }))
 PY
     )
-    export E2E_STACK_PARAMS
-    log "agent-integrations-dev overrides ready (profile=${INTEGRATIONS_DEV_AWS_PROFILE})"
+    log "agent-integrations-dev env wired (E2E_ENVIRONMENTS=${E2E_ENVIRONMENTS})"
 }
 
 # Retrieve a single Pulumi stack output value (e.g. host address). Returns

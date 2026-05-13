@@ -70,24 +70,41 @@ and uses `dd-auth` to populate the API key. From the milvus directory:
 ./scripts/down.sh                          # destroy the stack
 ```
 
-### Targeting `agent-integrations-dev` (Option A, no framework patch)
+### Targeting `agent-integrations-dev`
 
 The scenario targets the **agent-integrations-dev** AWS account
-(`030537971304`) by pushing Pulumi config overrides through
-`E2E_STACK_PARAMS` instead of relying on the framework's hard-coded
-`agent-sandbox` defaults in
-`test/e2e-framework/resources/aws/environmentDefaults.go`. `_lib.sh` ships
-with the relevant resource IDs baked in (discovered via `aws ec2 describe-*`
-on 2026-05-13):
+(`030537971304`). Plumbing:
 
-| Pulumi key | Value |
+1. **First-class environment entry in the framework.** We added
+   `agentIntegrationsDevDefault()` in
+   `test/e2e-framework/resources/aws/environmentDefaults.go` with the
+   account’s VPC, three private subnets, `common` security group, and
+   AWS SDK profile. Pure `E2E_STACK_PARAMS` overrides aren’t sufficient
+   because the framework’s `DefaultSubnets()` reads from the per-env
+   defaults struct, not from Pulumi config. `test/new-e2e/go.mod` already
+   has a `replace` directive pointing at the in-tree e2e-framework, so
+   the patch takes effect with no version bump.
+2. **Env selection at runtime.** `_lib.sh` exports
+   `E2E_ENVIRONMENTS=aws/agent-integrations-dev` so the framework picks
+   the new entry instead of the default `aws/agent-sandbox`.
+3. **AMI override.** The AMI IDs in
+   `test/e2e-framework/resources/aws/platforms.json` are private to
+   agent-sandbox / agent-qa. `_lib.sh` adds two Pulumi config overrides
+   (`ddinfra:osDescriptor=amazon-linux-ecs::x86_64`,
+   `ddinfra:osImageIDUseLatest=true`) that force the framework’s
+   `os_resolver.go` to look the AMI up via the *public* SSM parameter
+   `/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id`,
+   which is readable from any account.
+
+Resource details (from `aws ec2 describe-*` on 2026-05-13):
+
+| Where it lives | Value |
 |---|---|
-| `aws/profile` | `exec-sso-agent-integrations-dev-account-admin` |
-| `aws/defaultVPCID` | `vpc-07e6913338cbe8fea` (“agent-integrations-dev”) |
-| `aws/defaultSubnets` | the three private subnets (`10.11.22{1,2,3}.0/24`) |
-| `aws/defaultSecurityGroups` | `["sg-03d583f7425a802f7"]` (“common”) |
-| `aws/defaultInstanceProfile` | _empty_ (no `ec2InstanceRole` exists here) |
-| `aws/defaultInternal{Registry,DockerhubMirror}` | _empty_ (compose pulls public images) |
+| `aws:profile` | `exec-sso-agent-integrations-dev-account-admin` |
+| VPC | `vpc-07e6913338cbe8fea` (`agent-integrations-dev`) |
+| Subnets | the three private subnets `subnet-0acb59fda8504f5bb` / `0d7bb3d71e68abcc2` / `0658d161c778e6168` |
+| Security group | `sg-03d583f7425a802f7` (`common`) |
+| Instance profile | _empty_ (no `ec2InstanceRole` in this account) |
 
 The EC2 lands in a private subnet — outbound goes through the NAT gateway,
 and inbound SSH works over the Datadog VPN through the VPC’s Transit
