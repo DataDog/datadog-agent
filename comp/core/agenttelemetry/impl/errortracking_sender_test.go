@@ -305,16 +305,24 @@ func TestSubmitErrorRecord_DisabledNoOp(t *testing.T) {
 
 // TestSubmitErrorRecord_AcceptsRecord_PCZero: a record carrying PC=0
 // (the common case for caller-PC-less origins, e.g. synthetic test
-// inputs) must be enqueued normally. Regression coverage for the
-// positive-path enqueue contract previously folded into the now-removed
-// recursion-guard tests.
+// inputs) must be enqueued normally and reach the sender on flush.
+// Regression coverage for the positive-path enqueue contract previously
+// folded into the now-removed recursion-guard tests. Drives via the
+// public SubmitErrorRecord + fake-sender observation rather than
+// reading a.errLogsCh directly (pducolin's "skip internals from
+// testing" comment on PR #50607).
 func TestSubmitErrorRecord_AcceptsRecord_PCZero(t *testing.T) {
-	a := newTestAtelMinimal(t, &senderMock{}, 8)
+	sm := &senderMock{}
+	a := newTestAtelMinimal(t, sm, 8)
 	defer a.cancel()
 
 	a.SubmitErrorRecord(errorLog("from-external"))
-	assert.Equal(t, 1, len(a.errLogsCh))
-	assert.Equal(t, uint64(0), a.errLogsDropped.Load())
+
+	batch := make([]errortracking.ErrorLog, 0, a.errLogsBatchSize)
+	a.drainAndSend(context.Background(), &batch)
+
+	assert.Len(t, sm.capturedLogs(), 1,
+		"PC=0 record must be enqueued and flushed to the sender")
 }
 
 // TestSubmitErrorRecord_FeatureDisabled_NoChannel: when

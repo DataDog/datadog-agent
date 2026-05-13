@@ -16,6 +16,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // recordingSubmitter captures every ErrorLog it receives. Safe for
@@ -52,15 +55,20 @@ func loaderFor(s *atomic.Pointer[Submitter]) func() Submitter {
 	}
 }
 
-// TestHandler_FiltersByLevel asserts the Error threshold on both Enabled
-// (used by the parent multi-handler to skip work) and Handle (defensive
-// against direct callers that bypass Enabled).
-func TestHandler_FiltersByLevel(t *testing.T) {
+func newRecordingHandler(t *testing.T) (*Handler, *recordingSubmitter) {
+	t.Helper()
 	rec := &recordingSubmitter{}
 	var slot atomic.Pointer[Submitter]
 	sub := Submitter(rec.submit)
 	slot.Store(&sub)
-	h := NewHandler(loaderFor(&slot))
+	return NewHandler(loaderFor(&slot)), rec
+}
+
+// TestHandler_FiltersByLevel asserts the Error threshold on both Enabled
+// (used by the parent multi-handler to skip work) and Handle (defensive
+// against direct callers that bypass Enabled).
+func TestHandler_FiltersByLevel(t *testing.T) {
+	h, rec := newRecordingHandler(t)
 
 	cases := []struct {
 		level       slog.Level
@@ -73,31 +81,23 @@ func TestHandler_FiltersByLevel(t *testing.T) {
 		{slog.LevelError + 4, true}, // Critical-ish levels remain enabled.
 	}
 	for _, c := range cases {
-		if got := h.Enabled(context.Background(), c.level); got != c.wantEnabled {
-			t.Errorf("Enabled(%v) = %v, want %v", c.level, got, c.wantEnabled)
-		}
+		assert.Equalf(t, c.wantEnabled, h.Enabled(context.Background(), c.level),
+			"Enabled(%v)", c.level)
 	}
 
 	// Handle drops below-threshold records even if a caller bypasses Enabled.
 	for _, lvl := range []slog.Level{slog.LevelDebug, slog.LevelInfo, slog.LevelWarn} {
 		r := slog.NewRecord(time.Now(), lvl, "skip", 0)
-		if err := h.Handle(context.Background(), r); err != nil {
-			t.Fatalf("Handle(%v): %v", lvl, err)
-		}
+		require.NoError(t, h.Handle(context.Background(), r))
 	}
-	if got := rec.snapshot(); len(got) != 0 {
-		t.Fatalf("below-threshold records leaked: %v", got)
-	}
+	assert.Empty(t, rec.snapshot(), "below-threshold records must NOT leak to the Submitter")
 
 	// Error record is captured.
 	r := slog.NewRecord(time.Now(), slog.LevelError, "boom", 0)
-	if err := h.Handle(context.Background(), r); err != nil {
-		t.Fatalf("Handle(error): %v", err)
-	}
+	require.NoError(t, h.Handle(context.Background(), r))
 	got := rec.snapshot()
-	if len(got) != 1 || got[0].Message != "boom" {
-		t.Fatalf("want only 'boom' captured, got %v", got)
-	}
+	require.Len(t, got, 1)
+	assert.Equal(t, "boom", got[0].Message)
 }
 
 // TestHandler_CallsSubmitter_BuildsErrorLog asserts the Handler builds a
@@ -105,46 +105,44 @@ func TestHandler_FiltersByLevel(t *testing.T) {
 // captures after the PR #50607 PII pivot: Time, Level, Message, PC.
 // Attrs (WithAttrs-accumulated and record-level) are intentionally not
 // copied into the DTO any more — they would be dropped at the sender
-// boundary anyway, so the handler does not allocate them. Adding
-// attrs to the slog chain MUST NOT break the call (other handlers in
-// the multi-handler chain still see them).
+// boundary anyway, so the handler does not allocate them. Adding attrs
+// to the slog chain MUST NOT break the call (other handlers in the
+// multi-handler chain still see them).
 func TestHandler_CallsSubmitter_BuildsErrorLog(t *testing.T) {
-	rec := &recordingSubmitter{}
-	var slot atomic.Pointer[Submitter]
-	sub := Submitter(rec.submit)
-	slot.Store(&sub)
+	h, rec := newRecordingHandler(t)
 
-	var sh slog.Handler = NewHandler(loaderFor(&slot))
+	var sh slog.Handler = h
 	sh = sh.WithAttrs([]slog.Attr{slog.String("svc", "auth")})
 
 	now := time.Date(2026, time.May, 11, 15, 0, 0, 0, time.UTC)
 	r := slog.NewRecord(now, slog.LevelError, "boom", uintptr(0xC0FFEE))
 	r.AddAttrs(slog.Int("code", 500))
 
-	if err := sh.Handle(context.Background(), r); err != nil {
-		t.Fatalf("Handle: %v", err)
-	}
+	require.NoError(t, sh.Handle(context.Background(), r))
 
 	got := rec.snapshot()
-	if len(got) != 1 {
-		t.Fatalf("want 1 ErrorLog, got %d", len(got))
-	}
+	require.Len(t, got, 1)
 	e := got[0]
-	if !e.Time.Equal(now) {
-		t.Errorf("Time = %v, want %v", e.Time, now)
-	}
-	if e.Level != slog.LevelError {
-		t.Errorf("Level = %v, want Error", e.Level)
-	}
-	if e.Message != "boom" {
-		t.Errorf("Message = %q, want %q", e.Message, "boom")
-	}
-	if e.PC != uintptr(0xC0FFEE) {
-		t.Errorf("PC = %v, want 0xC0FFEE", e.PC)
-	}
-	if len(e.Attrs) != 0 {
-		t.Errorf("Attrs must be empty post-PII-pivot, got %v", e.Attrs)
-	}
+	assert.True(t, e.Time.Equal(now), "Time mismatch: got %v, want %v", e.Time, now)
+	assert.Equal(t, slog.LevelError, e.Level)
+	assert.Equal(t, "boom", e.Message)
+	assert.Equal(t, uintptr(0xC0FFEE), e.PC)
+	assert.Empty(t, e.Attrs, "Attrs must be empty post-PII-pivot")
+}
+
+// TestHandler_WithGroup_ReturnsNewInstance: WithGroup MUST return a new
+// Handler instance with the same load closures and attrs (group name
+// discarded). A no-op-receiver shape can subtly break parent
+// multi-handlers that clone via WithGroup expecting each child to
+// materialize a fresh instance per group context. Matches the canonical
+// shape of pkg/util/log/slog/handlers/multi.go::WithGroup. Closes
+// iglendd's "we probably need empty implementation here" thread on
+// PR #50607.
+func TestHandler_WithGroup_ReturnsNewInstance(t *testing.T) {
+	h, _ := newRecordingHandler(t)
+	withGroup := h.WithGroup("group-name")
+	assert.NotSame(t, any(h), any(withGroup),
+		"WithGroup must return a new instance, not the receiver")
 }
 
 // TestHandle_StackSkipBase locks the stackSkipBase constant: a real
@@ -154,92 +152,65 @@ func TestHandler_CallsSubmitter_BuildsErrorLog(t *testing.T) {
 // the number of internal frames between user code and Handler.Handle,
 // this test fails and the constant must be re-calibrated.
 func TestHandle_StackSkipBase(t *testing.T) {
-	rec := &recordingSubmitter{}
-	var slot atomic.Pointer[Submitter]
-	sub := Submitter(rec.submit)
-	slot.Store(&sub)
+	h, rec := newRecordingHandler(t)
 
-	h := NewHandler(loaderFor(&slot))
 	logger := slog.New(h)
 	logger.Error("calibration-marker") // <- user call site we expect at PCs[0]
 
 	got := rec.snapshot()
-	if len(got) != 1 {
-		t.Fatalf("want 1 ErrorLog, got %d", len(got))
-	}
+	require.Len(t, got, 1)
 	e := got[0]
-	if e.PCsLen == 0 {
-		t.Fatalf("handler must populate PCs")
-	}
+	require.NotZero(t, e.PCsLen, "handler must populate PCs")
+
 	frame, _ := runtime.CallersFrames(e.PCs[:1]).Next()
-	if frame.File == "" {
-		t.Fatalf("frame symbol resolution failed for PCs[0]")
-	}
-	if !strings.HasSuffix(frame.File, "handler_test.go") {
-		t.Fatalf("PCs[0] must point at the user call site, got %s (skipBase=%d miscalibrated)",
-			frame.File, stackSkipBase)
-	}
+	require.NotEmpty(t, frame.File, "frame symbol resolution failed for PCs[0]")
+	assert.Truef(t, strings.HasSuffix(frame.File, "handler_test.go"),
+		"PCs[0] must point at the user call site, got %s (skipBase=%d miscalibrated)",
+		frame.File, stackSkipBase)
 }
 
 // TestHandler_BouncerSuppressesDuplicates: when a Bouncer is attached
 // via WithBouncerLoader, the second sighting of a given PC inside the
 // window must NOT reach the Submitter. The Submitter sees the first
-// sighting with Count==1, and the count accumulates on subsequent
-// non-suppressed sightings.
+// sighting with Count==1.
 func TestHandler_BouncerSuppressesDuplicates(t *testing.T) {
-	rec := &recordingSubmitter{}
-	var slot atomic.Pointer[Submitter]
-	sub := Submitter(rec.submit)
-	slot.Store(&sub)
+	h, rec := newRecordingHandler(t)
 
 	bouncer := NewBouncer(15*time.Minute, 0)
-	h := NewHandler(loaderFor(&slot)).WithBouncerLoader(func() *Bouncer { return bouncer })
+	h = h.WithBouncerLoader(func() *Bouncer { return bouncer })
 
-	// Same PC repeated four times — slog.NewRecord with explicit PC.
 	pc := uintptr(0xABCDEF)
 	for i := 0; i < 4; i++ {
 		r := slog.NewRecord(time.Now(), slog.LevelError, "same site", pc)
-		if err := h.Handle(context.Background(), r); err != nil {
-			t.Fatalf("Handle: %v", err)
-		}
+		require.NoError(t, h.Handle(context.Background(), r))
 	}
 
 	got := rec.snapshot()
-	if len(got) != 1 {
-		t.Fatalf("Bouncer must suppress duplicates — got %d records, want 1", len(got))
-	}
-	if got[0].Count != 1 {
-		t.Fatalf("first sighting Count = %d, want 1", got[0].Count)
-	}
+	require.Len(t, got, 1, "Bouncer must suppress duplicates")
+	assert.Equal(t, uint32(1), got[0].Count, "first sighting Count")
 }
 
-// TestHandler_BouncerNilLoaderIsPassThrough: a nil bouncer loader (or
-// a loader returning nil) MUST disable dedup. Every record reaches the
-// Submitter with Count=1.
+// TestHandler_BouncerNilLoaderIsPassThrough: a nil bouncer loader (or a
+// loader returning nil) MUST disable dedup. Every record reaches the
+// Submitter.
 func TestHandler_BouncerNilLoaderIsPassThrough(t *testing.T) {
-	rec := &recordingSubmitter{}
-	var slot atomic.Pointer[Submitter]
-	sub := Submitter(rec.submit)
-	slot.Store(&sub)
-
-	h := NewHandler(loaderFor(&slot)).WithBouncerLoader(func() *Bouncer { return nil })
+	h, rec := newRecordingHandler(t)
+	h = h.WithBouncerLoader(func() *Bouncer { return nil })
 
 	pc := uintptr(0xABCDEF)
 	for i := 0; i < 3; i++ {
 		r := slog.NewRecord(time.Now(), slog.LevelError, "same site", pc)
-		_ = h.Handle(context.Background(), r)
+		require.NoError(t, h.Handle(context.Background(), r))
 	}
 
-	got := rec.snapshot()
-	if len(got) != 3 {
-		t.Fatalf("nil-bouncer loader must NOT dedup — got %d records, want 3", len(got))
-	}
+	assert.Len(t, rec.snapshot(), 3, "nil-bouncer loader must NOT dedup")
 }
 
 // TestHandler_NeverBlocks_WhenNoSubmitter asserts that the steady-state
 // "no submitter registered" path is a fast no-op. The atomic-load fast
-// path must not allocate or contend even at high call rates - this is the
-// guarantee the logger hot path depends on before Fx wires the consumer.
+// path must not allocate or contend even at high call rates - this is
+// the guarantee the logger hot path depends on before Fx wires the
+// consumer.
 func TestHandler_NeverBlocks_WhenNoSubmitter(t *testing.T) {
 	var slot atomic.Pointer[Submitter]
 	h := NewHandler(loaderFor(&slot))
