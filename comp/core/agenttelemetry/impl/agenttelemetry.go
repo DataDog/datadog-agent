@@ -31,6 +31,7 @@ import (
 	installertelemetry "github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
+	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
 	dto "github.com/prometheus/client_model/go"
@@ -821,6 +822,16 @@ func (a *atel) start() error {
 
 // stop is called by FX when the application stops.
 func (a *atel) stop() error {
+	// Clear the errortracking submitter slot before any other shutdown
+	// step so producers stop reaching SubmitErrorRecord. The slot is a
+	// package-global atomic.Pointer in pkg/util/log/setup; storing nil
+	// is idempotent and cheap, so the call is unconditional. After this
+	// point, errortracking.Handler.Enabled returns false and the parent
+	// multi-handler short-circuits — no further enqueues can race the
+	// final drain below. Addresses louis-cqrl's "records after final
+	// drain stranded" thread on PR #50607.
+	pkglogsetup.RegisterErrortrackingSubmitter(nil)
+
 	if a.startupSpan != nil {
 		a.startupSpan.Finish(nil)
 	}
