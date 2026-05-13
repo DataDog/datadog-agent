@@ -26,9 +26,11 @@ import (
 )
 
 const (
-	ncmCheckDurationMetric  = "datadog.ncm.check_duration"
-	ncmCheckIntervalMetric  = "datadog.ncm.check_interval"
-	ncmConfigSizeMetric     = "ncm.config_size"
+	ncmCheckDurationMetric             = "datadog.ncm.check_duration"
+	ncmCheckIntervalMetric             = "datadog.ncm.check_interval"
+	ncmCheckInventoryEntriesSentMetric = "datadog.ncm.inventory.entries_sent"
+	ncmConfigSizeMetric                = "ncm.config_size"
+
 	ncmRunningConfigTypeTag = "config_type:running"
 	ncmStartupConfigTypeTag = "config_type:startup"
 )
@@ -73,6 +75,11 @@ func (s *NCMSender) SendNCMCheckMetrics(startTime time.Time, lastCheckTime time.
 	}
 }
 
+func (s *NCMSender) sendNCMInventoryMetrics(inventory ncmreport.NCMInventory) {
+	tags := utils.GetCommonAgentTags()
+	s.Sender.Count(ncmCheckInventoryEntriesSentMetric, float64(len(inventory.Entries)), s.agentHostname, tags)
+}
+
 // SendMetricsFromExtractedMetadata sends metrics from data extracted from the device config after processing
 func (s *NCMSender) SendMetricsFromExtractedMetadata(metadata profile.ExtractedMetadata, configType types.ConfigType) {
 	tags := append(s.getDeviceTags(), utils.GetCommonAgentTags()...)
@@ -106,7 +113,7 @@ func (s *NCMSender) SendNCMInventory(payload ncmreport.NCMInventory) error {
 		return err
 	}
 	s.Sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkConfigManagement)
-	// TODO: send metrics about inventory payloads?
+	s.sendNCMInventoryMetrics(payload)
 	return nil
 }
 

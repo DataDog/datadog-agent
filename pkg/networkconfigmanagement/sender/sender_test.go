@@ -264,6 +264,7 @@ func TestNCMSender_SendNCMInventory_Success(t *testing.T) {
 	}
 
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
+	mockSender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	err := ncmSender.SendNCMInventory(payload)
 	assert.NoError(t, err)
@@ -288,6 +289,7 @@ func TestNCMSender_SendNCMInventory_Success(t *testing.T) {
 
 	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
 	mockSender.AssertEventPlatformEvent(t, compactEvent.Bytes(), eventplatform.EventTypeNetworkConfigManagement)
+	mockSender.AssertMetric(t, "Count", ncmCheckInventoryEntriesSentMetric, 1, "test-agent-host", []string{"agent_version:" + version.AgentVersion})
 	mockSender.AssertExpectations(t)
 }
 
@@ -302,6 +304,7 @@ func TestNCMSender_SendNCMInventory_EmptyEntries(t *testing.T) {
 	ncmSender := NewNCMSender(mockSender, "default", mockClock, "test-agent-host")
 
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
+	mockSender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	err := ncmSender.SendNCMInventory(ncmreport.NCMInventory{
 		Namespace:  "default",
@@ -309,4 +312,5 @@ func TestNCMSender_SendNCMInventory_EmptyEntries(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
+	mockSender.AssertMetric(t, "Count", ncmCheckInventoryEntriesSentMetric, 0, "test-agent-host", []string{"agent_version:" + version.AgentVersion})
 }
