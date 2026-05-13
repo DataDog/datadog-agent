@@ -25,16 +25,23 @@ const (
 
 // ProcessTagger handles PID -> container -> pod tag correlation
 type ProcessTagger struct {
-	cache *gpu.WorkloadTagCache
+	cache     *gpu.WorkloadTagCache
+	tagger    tagger.Component
+	wmeta     workloadmeta.Component
+	telemetry telemetry.Component
 }
 
 // NewProcessTagger creates a new ProcessTagger
 func NewProcessTagger(taggerComp tagger.Component, wmeta workloadmeta.Component, containerProvider proccontainers.ContainerProvider, tm telemetry.Component) *ProcessTagger {
-	pt := &ProcessTagger{}
+	pt := &ProcessTagger{
+		tagger:    taggerComp,
+		wmeta:     wmeta,
+		telemetry: tm,
+	}
 	if taggerComp == nil || wmeta == nil || tm == nil {
 		return pt
 	}
-	cache, err := gpu.NewWorkloadTagCacheWithSubsystem(processTaggerSubsystem, taggerComp, wmeta, containerProvider, tm, processTaggerCacheSize)
+	cache, err := gpu.NewWorkloadTagCache(taggerComp, wmeta, containerProvider, tm, processTaggerCacheSize)
 	if err != nil {
 		return pt
 	}
@@ -42,12 +49,17 @@ func NewProcessTagger(taggerComp tagger.Component, wmeta workloadmeta.Component,
 	return pt
 }
 
-// SetContainerProvider sets the container provider after construction.
+// SetContainerProvider rebuilds the cache with the given container provider.
+// Called lazily after construction once the shared provider becomes available.
 func (pt *ProcessTagger) SetContainerProvider(p proccontainers.ContainerProvider) {
-	if pt.cache == nil {
+	if pt.tagger == nil || pt.wmeta == nil || pt.telemetry == nil || p == nil {
 		return
 	}
-	pt.cache.SetContainerProvider(p)
+	cache, err := gpu.NewWorkloadTagCache(pt.tagger, pt.wmeta, p, pt.telemetry, processTaggerCacheSize)
+	if err != nil {
+		return
+	}
+	pt.cache = cache
 }
 
 // GetTagsForPID returns tags for a given PID by correlating to container/pod
