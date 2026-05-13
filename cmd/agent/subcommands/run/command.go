@@ -43,7 +43,7 @@ import (
 	hfrunnernoopfx "github.com/DataDog/datadog-agent/comp/anomalydetection/hfrunner/fx-noop"
 	logssourcefx "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/fx"
 	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
-	recordernoopfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx-noop"
+	recorderfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx"
 	reporternoopfx "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx-noop"
 	doqueryactionsfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
@@ -512,7 +512,7 @@ func getSharedFxOption() fx.Option {
 		observerfx.Module(),
 		logssourcefx.Module(),
 		hfrunnernoopfx.Module(),
-		recordernoopfx.Module(),
+		recorderfx.Module(),
 		reporternoopfx.Module(),
 		langDetectionClimpl.Module(),
 		metadata.Bundle(),
