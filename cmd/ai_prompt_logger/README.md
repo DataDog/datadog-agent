@@ -1,6 +1,6 @@
 # AI usage native messaging host (Rust)
 
-Chrome **Native Messaging** host that forwards **AI usage** events to the **local Datadog Agent** via the trace receiver **EVP proxy** (Logs v2), not directly to Datadog with a customer API key.
+Chrome **Native Messaging** host that forwards **AI usage** events to the **local Datadog Agent** via the trace receiver **EVP proxy** and the dedicated AI usage track, not directly to Datadog with a customer API key.
 
 Standalone **`install_mac.sh` / `install.ps1`** helpers are **not** part of this tree; Chrome registration for macOS is done by the **Datadog Agent** package (`postinst` + per-user manifests). Windows packaging will follow Agent conventions when added.
 
@@ -37,9 +37,9 @@ On a **packaged macOS** agent, Chrome is pointed at **`embedded/bin/run_ai_usage
 
 EVP / Agent URL behaviour (defaults):
 
-- URL: `{trace_agent_url}/evp_proxy/v{evp_proxy_api_version}/api/v2/logs` (defaults match trace receiver / EVP v2).
-- Header: `X-Datadog-EVP-Subdomain: {logs_evp_subdomain}` (default `http-intake.logs`).
-- The Agent injects `DD-API-KEY` and forwards to the correct Logs intake for your site.
+- URL: `{trace_agent_url}/evp_proxy/v{evp_proxy_api_version}/api/v2/aiusage` (defaults match trace receiver / EVP v2).
+- Header: `X-Datadog-EVP-Subdomain: {ai_usage_evp_subdomain}` (default `event-platform-intake`).
+- The Agent injects `DD-API-KEY` and forwards to the dedicated AI usage intake for your site.
 
 Ensure the Agent is listening on the trace port (default `localhost:8126`) with EVP proxy enabled.
 
@@ -98,4 +98,4 @@ With an explicit config file (any path the host can read):
 python3 cmd/ai_prompt_logger/scripts/test_host.py target/release/ai-prompt-logger-native-host --config=/path/to/ai_usage_native_host.yaml
 ```
 
-`SEND_USAGE_EVENT` reports `success: true` only if the local Agent accepts the EVP/logs request.
+`SEND_USAGE_EVENT` reports `success: true` only if the local Agent accepts the EVP AI usage request.
