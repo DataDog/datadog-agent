@@ -444,7 +444,7 @@ func TestNetworkConnectionTagsWithService(t *testing.T) {
 	p[0].Tags = []*intern.Value{intern.GetByString(tags[0])}
 
 	// Have to be sorted with the usage of tags encoder v3
-	expectedTags := []string{"process_context:my-server", "tag0"}
+	expectedTags := []string{"process_context:my-server", "process_name:my-server.sh", "tag0"}
 
 	var dsch eventmonitor.EventConsumerHandler
 	d := mockDirectSender(t)
