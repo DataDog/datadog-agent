@@ -19,7 +19,7 @@ import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
+	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	npmodel "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/model"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -511,6 +511,9 @@ func batchConnections(
 			// tags remap
 			serviceCtx := serviceExtractor.GetServiceContext(c.Pid)
 			tagsStr := convertAndEnrichWithServiceCtx(tags, c.Tags, serviceCtx...)
+			if len(tagsStr) > 0 {
+				log.Debugf("batchConnections: pid=%d resolved tags from system-probe: %v", c.Pid, tagsStr)
+			}
 
 			// Get process tags and add them to the connection tags
 			if processTagProvider != nil {

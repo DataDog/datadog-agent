@@ -1,224 +1,188 @@
-Main module: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs
+=== yield 1 [final=true] ===
 Package: main
-	Function: PointerChainArg (main.PointerChainArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [341:342] injectible: [342-342]
-		Arg: ptr: *****int (declared at line 0, available: [342-342])
-	Function: PointerSmallChainArg (main.PointerSmallChainArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [345:346] injectible: [346-346]
-		Arg: ptr: **int (declared at line 0, available: [346-346])
-	Function: bigArrayArg (main.bigArrayArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [636:638] injectible: [636-638]
-		Arg: s: [131072]int64 (declared at line 636, available: [636-638])
-	Function: bigArrayStructArg (main.bigArrayStructArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [643:645] injectible: [643-645]
-		Arg: s: *main.bigArrayStruct (declared at line 643, available: [643-645])
-	Function: bigMapArg (main.bigMapArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [333:339] injectible: [333-335], [338-339]
-		Arg: m: map[string]main.bigStruct (declared at line 333, available: [333-339])
-	Function: condBool (main.condBool) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [430:432] injectible: [430-432]
-		Arg: x: bool (declared at line 430, available: [430-431])
-		Arg: tag: string (declared at line 430, available: [430-431])
-	Function: condFloat32 (main.condFloat32) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [420:422] injectible: [420-422]
-		Arg: x: float32 (declared at line 420, available: [420-422])
-		Arg: tag: string (declared at line 420, available: [420-422])
-	Function: condFloat64 (main.condFloat64) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [425:427] injectible: [425-427]
-		Arg: x: float64 (declared at line 425, available: [425-427])
-		Arg: tag: string (declared at line 425, available: [425-427])
-	Function: condInt16 (main.condInt16) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [385:387] injectible: [385-387]
-		Arg: x: int16 (declared at line 385, available: [385-387])
-		Arg: tag: string (declared at line 385, available: [385-387])
-	Function: condInt32 (main.condInt32) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [390:392] injectible: [390-392]
-		Arg: x: int32 (declared at line 390, available: [390-392])
-		Arg: tag: string (declared at line 390, available: [390-392])
-	Function: condInt64 (main.condInt64) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [395:397] injectible: [395-397]
-		Arg: x: int64 (declared at line 395, available: [395-397])
-		Arg: tag: string (declared at line 395, available: [395-397])
-	Function: condInt8 (main.condInt8) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [380:382] injectible: [380-382]
-		Arg: x: int8 (declared at line 380, available: [380-381])
-		Arg: tag: string (declared at line 380, available: [380-381])
-	Function: condLine (main.condLine) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [491:496] injectible: [491-491], [494-496]
-		Arg: n: int (declared at line 491, available: [491-496])
-		Arg: tag: string (declared at line 491, available: [491-496])
-	Function: condMapArg (main.condMapArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [508:510] injectible: [508-510]
-		Arg: x: map[string]int (declared at line 508, available: [508-509])
-		Arg: tag: string (declared at line 508, available: [508-509])
-	Function: condNilPtrStruct (main.condNilPtrStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [461:463] injectible: [461-463]
-		Arg: x: *main.condFields (declared at line 461, available: [461-462])
-		Arg: tag: string (declared at line 461, available: [461-462])
-	Function: condOnly (main.condOnly) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [482:484] injectible: [482-484]
-		Arg: x: int (declared at line 482, available: [482-484])
-		Arg: tag: string (declared at line 482, available: [482-484])
-	Function: condPtrStructArg (main.condPtrStructArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [451:453] injectible: [451-453]
-		Arg: x: *main.condFields (declared at line 451, available: [451-453])
-		Arg: tag: string (declared at line 451, available: [451-453])
-	Function: condReturnAndLocal (main.condReturnAndLocal) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [470:473] injectible: [470-473]
-		Arg: a: int (declared at line 470, available: [470-471])
-		Arg: b: int (declared at line 470, available: [470-472])
-		Arg: ~r0: int (declared at line 470, available: )
-		Var: sum: int (declared at line 471, available: [470-473])
-	Function: condSliceArg (main.condSliceArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [501:503] injectible: [501-503]
-		Arg: x: []int (declared at line 501, available: [501-503])
-		Arg: tag: string (declared at line 501, available: [501-503])
-	Function: condString (main.condString) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [435:437] injectible: [435-437]
-		Arg: x: string (declared at line 435, available: [435-437])
-		Arg: tag: string (declared at line 435, available: [435-437])
-	Function: condStructArg (main.condStructArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [443:445] injectible: [443-445]
-		Arg: x: main.condFields (declared at line 443, available: [443-445])
-		Arg: tag: string (declared at line 443, available: [443-445])
-	Function: condStructDirect (main.condStructDirect) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [516:518] injectible: [516-518]
-		Arg: x: main.condFields (declared at line 516, available: [516-518])
-		Arg: tag: string (declared at line 516, available: [516-518])
-	Function: condUint16 (main.condUint16) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [405:407] injectible: [405-407]
-		Arg: x: uint16 (declared at line 405, available: [405-407])
-		Arg: tag: string (declared at line 405, available: [405-407])
-	Function: condUint32 (main.condUint32) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [410:412] injectible: [410-412]
-		Arg: x: uint32 (declared at line 410, available: [410-412])
-		Arg: tag: string (declared at line 410, available: [410-412])
-	Function: condUint64 (main.condUint64) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [415:417] injectible: [415-417]
-		Arg: x: uint64 (declared at line 415, available: [415-417])
-		Arg: tag: string (declared at line 415, available: [415-417])
-	Function: condUint8 (main.condUint8) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [400:402] injectible: [400-402]
-		Arg: x: uint8 (declared at line 400, available: [400-401])
-		Arg: tag: string (declared at line 400, available: [400-401])
-	Function: funcArg (main.funcArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [311:313] injectible: [311-313]
-		Arg: f: func(int) (declared at line 311, available: [311-312])
-	Function: genericIdentity[...] (main.genericIdentity[...]) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [864:866] injectible: [864-866]
-		Arg: x: .param0 (declared at line 864, available: [864-866])
-		Arg: ~r0: .param0 (declared at line 864, available: )
-	Function: indexMemberWrapperArg (main.indexMemberWrapperArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [704:706] injectible: [704-706]
-		Arg: s: *main.indexMemberWrapper (declared at line 704, available: [704-706])
-		Arg: tag: string (declared at line 704, available: [704-706])
-	Function: indexNilPtrSlice (main.indexNilPtrSlice) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [598:600] injectible: [598-600]
-		Arg: x: *main.lenFields (declared at line 598, available: [598-599])
-		Arg: tag: string (declared at line 598, available: [598-599])
-	Function: inlined (main.inlined) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [306:308] injectible: [307-307]
-		Arg: x: int (declared at line 0, available: [306-307])
-	Function: intArg (main.intArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [273:275] injectible: [273-275]
-		Arg: x: int (declared at line 273, available: [273-274])
-	Function: intArrayArg (main.intArrayArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [288:290] injectible: [288-290]
-		Arg: s: [3]int (declared at line 288, available: [288-290])
-	Function: intSliceArg (main.intSliceArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [283:285] injectible: [283-285]
-		Arg: s: []int (declared at line 283, available: [283-284])
-	Function: lenErrInt (main.lenErrInt) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [579:582] injectible: [579-582]
-		Arg: x: int (declared at line 579, available: [579-582])
-		Arg: tag: string (declared at line 579, available: [579-582])
-	Function: lenErrStruct (main.lenErrStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [587:590] injectible: [587-590]
-		Arg: x: main.condFields (declared at line 587, available: [587-590])
-		Arg: tag: string (declared at line 587, available: [587-590])
-	Function: lenMap (main.lenMap) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [541:544] injectible: [541-544]
-		Arg: m: map[string]int (declared at line 541, available: [541-544])
-		Arg: tag: string (declared at line 541, available: [541-544])
-	Function: lenPtrString (main.lenPtrString) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [547:550] injectible: [547-550]
-		Arg: s: *string (declared at line 547, available: [547-550])
-		Arg: tag: string (declared at line 547, available: [547-550])
-	Function: lenPtrStructFields (main.lenPtrStructFields) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [571:574] injectible: [571-574]
-		Arg: x: *main.lenFields (declared at line 571, available: [571-574])
-		Arg: tag: string (declared at line 571, available: [571-574])
-	Function: lenSlice (main.lenSlice) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [535:538] injectible: [535-538]
-		Arg: s: []int (declared at line 535, available: [535-538])
-		Arg: tag: string (declared at line 535, available: [535-538])
-	Function: lenString (main.lenString) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [529:532] injectible: [529-532]
-		Arg: s: string (declared at line 529, available: [529-532])
-		Arg: tag: string (declared at line 529, available: [529-532])
-	Function: lenStructFields (main.lenStructFields) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [565:568] injectible: [565-568]
-		Arg: x: main.lenFields (declared at line 565, available: [565-568])
-		Arg: tag: string (declared at line 565, available: [565-568])
-	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [15:270] injectible: [15-18], [20-27], [29-36], [38-41], [47-70], [74-74], [79-79], [86-89], [91-94], [98-99], [102-103], [106-107], [112-113], [116-118], [122-131], [134-138], [140-142], [146-148], [150-150], [152-152], [156-157], [162-166], [171-172], [175-177], [179-179], [186-188], [190-192], [197-201], [206-210], [212-213], [218-222], [225-227], [229-231], [233-233], [236-237], [240-240], [243-243], [246-248], [252-253], [261-262], [268-270]
-		Var: &val: *int (declared at line 32, available: [15-270])
-		Var: &ptr1: **int (declared at line 33, available: [15-270])
-		Var: &ptr2: ***int (declared at line 34, available: [15-270])
-		Var: &ptr3: ****int (declared at line 35, available: [15-270])
-		Var: &ptr4: *****int (declared at line 36, available: [38-38])
-		Var: ptr5: *****int (declared at line 37, available: [38-38])
-		Var: mv: func() int (declared at line 268, available: )
-		Var: &str: *string (declared at line 128, available: [15-270])
-		Var: &emptyStr: *string (declared at line 130, available: [15-270])
-		Var: &sl: *[]int (declared at line 134, available: [15-270])
-		Var: mp: map[string]int (declared at line 135, available: [15-270])
-		Var: largeMap: map[string]int (declared at line 208, available: )
-		Var: err: error (declared at line 16, available: [17-18])
-		Var: bigArr: [131072]int64 (declared at line 162, available: [15-270])
-		Var: elem1: main.indexMemberStruct (declared at line 197, available: [15-270])
-		Var: elem2: main.indexMemberStruct (declared at line 198, available: [15-270])
-		Scope: 209-212
-			Var: i: int (declared at line 209, available: [209-209], [210-210], [212-212])
-	Function: makeKey (main.makeKey) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [741:746] injectible: [741-746]
-		Arg: length: int (declared at line 741, available: [741-742])
-		Arg: i: int (declared at line 741, available: [741-746])
-		Arg: ~r0: string (declared at line 741, available: )
-		Var: paddedDigits: int (declared at line 742, available: [741-746])
-		Var: extraPad: int (declared at line 743, available: [744-744])
-		Var: pad: string (declared at line 744, available: [741-746])
-		Var: format: string (declared at line 745, available: [741-742], [746-746])
-	Function: makeLargeMapWithKeyLen (main.makeLargeMapWithKeyLen) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [749:752] injectible: [750-752]
-		Var: i: int (declared at line 751, available: [750-751], [752-752])
-		Arg: keyLen: int (declared at line 0, available: )
-		Var: m: map[string]int (declared at line 750, available: [750-752])
-		Arg: n: int (declared at line 0, available: )
-	Function: mapArg (main.mapArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [316:318] injectible: [316-318]
-		Arg: m: map[string]int (declared at line 316, available: [316-317])
-	Function: mapIndexBoolKey (main.mapIndexBoolKey) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [832:834] injectible: [832-834]
-		Arg: m: map[bool]int (declared at line 832, available: [832-833])
-	Function: mapIndexEmptyKey (main.mapIndexEmptyKey) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [811:813] injectible: [811-813]
-		Arg: m: map[string]int (declared at line 811, available: [811-812])
-	Function: mapIndexIntKey (main.mapIndexIntKey) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [711:713] injectible: [711-713]
-		Arg: m: map[int]string (declared at line 711, available: [711-712])
-	Function: mapIndexKeyLen16 (main.mapIndexKeyLen16) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [818:820] injectible: [818-820]
-		Arg: m: map[string]int (declared at line 818, available: [818-819])
-	Function: mapIndexKeyLen17 (main.mapIndexKeyLen17) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [825:827] injectible: [825-827]
-		Arg: m: map[string]int (declared at line 825, available: [825-826])
-	Function: mapIndexKeyLen200 (main.mapIndexKeyLen200) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [788:790] injectible: [788-790]
-		Arg: m: map[string]int (declared at line 788, available: [788-789])
-	Function: mapIndexKeyLen24 (main.mapIndexKeyLen24) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [767:769] injectible: [767-769]
-		Arg: m: map[string]int (declared at line 767, available: [767-768])
-	Function: mapIndexKeyLen48 (main.mapIndexKeyLen48) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [774:776] injectible: [774-776]
-		Arg: m: map[string]int (declared at line 774, available: [774-775])
-	Function: mapIndexKeyLen8 (main.mapIndexKeyLen8) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [760:762] injectible: [760-762]
-		Arg: m: map[string]int (declared at line 760, available: [760-761])
-	Function: mapIndexKeyLen96 (main.mapIndexKeyLen96) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [781:783] injectible: [781-783]
-		Arg: m: map[string]int (declared at line 781, available: [781-782])
-	Function: mapIndexLargeMap (main.mapIndexLargeMap) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [726:728] injectible: [726-728]
-		Arg: m: map[string]int (declared at line 726, available: [726-727])
-	Function: mapIndexLargeValue (main.mapIndexLargeValue) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [855:857] injectible: [855-857]
-		Arg: m: map[string]main.largeValueStruct (declared at line 855, available: [855-856])
-	Function: mapIndexMissing (main.mapIndexMissing) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [733:735] injectible: [733-735]
-		Arg: m: map[string]int (declared at line 733, available: [733-734])
-	Function: mapIndexNilPtrVal (main.mapIndexNilPtrVal) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [847:849] injectible: [847-849]
-		Arg: m: map[string]*main.indexMemberStruct (declared at line 847, available: [847-848])
-	Function: mapIndexPtrStructVal (main.mapIndexPtrStructVal) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [804:806] injectible: [804-806]
-		Arg: m: map[string]*main.indexMemberStruct (declared at line 804, available: [804-805])
-	Function: mapIndexStringKey (main.mapIndexStringKey) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [718:720] injectible: [718-720]
-		Arg: m: map[string]int (declared at line 718, available: [718-719])
-	Function: mapIndexStructVal (main.mapIndexStructVal) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [796:798] injectible: [796-798]
-		Arg: m: map[string]main.indexMemberStruct (declared at line 796, available: [796-797])
-	Function: mapIndexZeroValue (main.mapIndexZeroValue) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [839:841] injectible: [839-841]
-		Arg: m: map[string]int (declared at line 839, available: [839-840])
-	Function: methodValueSink (main.methodValueSink) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [885:887] injectible: [885-887]
-		Arg: f: func() int (declared at line 885, available: [885-886])
-	Function: noArgs (main.noArgs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [350:352] injectible: [350-352]
-	Function: ptrStructArrayArg (main.ptrStructArrayArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [696:698] injectible: [696-698]
-		Arg: s: [2]*main.indexMemberStruct (declared at line 696, available: [696-698])
-		Arg: tag: string (declared at line 696, available: [696-698])
-	Function: ptrStructSliceArg (main.ptrStructSliceArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [688:690] injectible: [688-690]
-		Arg: s: []*main.indexMemberStruct (declared at line 688, available: [688-689])
-		Arg: tag: string (declared at line 688, available: [688-690])
-	Function: sink (main.sink) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [526:526] injectible: [526-526]
-		Arg: args: []interface {} (declared at line 523, available: [526-526])
-	Function: stringArg (main.stringArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [278:280] injectible: [278-280]
-		Arg: s: string (declared at line 278, available: [278-279])
-	Function: stringArrayArg (main.stringArrayArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [298:300] injectible: [298-300]
-		Arg: s: [3]string (declared at line 298, available: [298-300])
-	Function: stringArrayArgFrameless (main.stringArrayArgFrameless) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [304:304] injectible: [304-304]
-		Arg: s: [3]string (declared at line 303, available: [304-304])
-	Function: stringSliceArg (main.stringSliceArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [293:295] injectible: [293-295]
-		Arg: s: []string (declared at line 293, available: [293-294])
-	Function: structArrayArg (main.structArrayArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [680:682] injectible: [680-682]
-		Arg: s: [2]main.indexMemberStruct (declared at line 680, available: [680-682])
-		Arg: tag: string (declared at line 680, available: [680-682])
-	Function: structSliceArg (main.structSliceArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [673:675] injectible: [673-675]
-		Arg: s: []main.indexMemberStruct (declared at line 673, available: [673-674])
-		Arg: tag: string (declared at line 673, available: [673-675])
-	Function: usesMapsOfMapsThatDoNotAppearAsArguments (main.usesMapsOfMapsThatDoNotAppearAsArguments) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [611:621] injectible: [611-611], [614-615], [617-618], [620-621]
-		Arg: ~r0: map[uint8]map[int]main.aStructNotUsedAsAnArgument (declared at line 611, available: )
-		Var: m: map[string]map[int]main.aStructNotUsedAsAnArgument (declared at line 614, available: )
+	Function: PointerChainArg (main.PointerChainArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [412:413] injectible: [413-413]
+		Arg: ptr: *****int (declared at line 0, available: [413-413])
+	Function: PointerSmallChainArg (main.PointerSmallChainArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [416:417] injectible: [417-417]
+		Arg: ptr: **int (declared at line 0, available: [417-417])
+	Function: bigArrayArg (main.bigArrayArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [773:775] injectible: [773-775]
+		Arg: s: [131072]int64 (declared at line 773, available: [773-775])
+	Function: bigArrayStructArg (main.bigArrayStructArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [780:782] injectible: [780-782]
+		Arg: s: *main.bigArrayStruct (declared at line 780, available: [780-782])
+	Function: bigMapArg (main.bigMapArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [404:410] injectible: [404-406], [409-410]
+		Arg: m: map[string]main.bigStruct (declared at line 404, available: [404-410])
+	Function: condBool (main.condBool) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [501:503] injectible: [501-503]
+		Arg: x: bool (declared at line 501, available: [501-502])
+		Arg: tag: string (declared at line 501, available: [501-502])
+	Function: condContainsMap (main.condContainsMap) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [652:655] injectible: [652-655]
+		Arg: m: map[string]int (declared at line 652, available: [652-655])
+		Arg: mi: map[int]int (declared at line 652, available: [652-655])
+		Arg: tag: string (declared at line 652, available: [652-655])
+	Function: condFloat32 (main.condFloat32) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [491:493] injectible: [491-493]
+		Arg: x: float32 (declared at line 491, available: [491-493])
+		Arg: tag: string (declared at line 491, available: [491-493])
+	Function: condFloat64 (main.condFloat64) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [496:498] injectible: [496-498]
+		Arg: x: float64 (declared at line 496, available: [496-498])
+		Arg: tag: string (declared at line 496, available: [496-498])
+	Function: condGuarded (main.condGuarded) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [543:549] injectible: [543-546], [548-549]
+		Arg: x: *main.condFields (declared at line 543, available: [543-549])
+		Arg: tag: string (declared at line 543, available: [543-549])
+		Arg: ~r0: int (declared at line 543, available: )
+	Function: condInt16 (main.condInt16) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [456:458] injectible: [456-458]
+		Arg: x: int16 (declared at line 456, available: [456-458])
+		Arg: tag: string (declared at line 456, available: [456-458])
+	Function: condInt32 (main.condInt32) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [461:463] injectible: [461-463]
+		Arg: x: int32 (declared at line 461, available: [461-463])
+		Arg: tag: string (declared at line 461, available: [461-463])
+	Function: condInt64 (main.condInt64) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [466:468] injectible: [466-468]
+		Arg: x: int64 (declared at line 466, available: [466-468])
+		Arg: tag: string (declared at line 466, available: [466-468])
+	Function: condInt8 (main.condInt8) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [451:453] injectible: [451-453]
+		Arg: x: int8 (declared at line 451, available: [451-452])
+		Arg: tag: string (declared at line 451, available: [451-452])
+	Function: condLine (main.condLine) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [578:583] injectible: [578-578], [581-583]
+		Arg: n: int (declared at line 578, available: [578-583])
+		Arg: tag: string (declared at line 578, available: [578-583])
+	Function: condMapArg (main.condMapArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [595:597] injectible: [595-597]
+		Arg: x: map[string]int (declared at line 595, available: [595-596])
+		Arg: tag: string (declared at line 595, available: [595-596])
+	Function: condMultiReturn (main.condMultiReturn) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [1031:1035] injectible: [1031-1031], [1034-1035]
+		Arg: tag: string (declared at line 1031, available: [1031-1035])
+		Arg: r0: int (declared at line 1031, available: )
+		Arg: r1: string (declared at line 1031, available: )
+	Function: condNilPtrStruct (main.condNilPtrStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [532:534] injectible: [532-534]
+		Arg: x: *main.condFields (declared at line 532, available: [532-533])
+		Arg: tag: string (declared at line 532, available: [532-533])
+	Function: condNullIface (main.condNullIface) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [634:637] injectible: [634-637]
+		Arg: i: error (declared at line 634, available: [634-637])
+		Arg: tag: string (declared at line 634, available: [634-637])
+	Function: condNullMap (main.condNullMap) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [626:629] injectible: [626-629]
+		Arg: m: map[string]int (declared at line 626, available: [626-629])
+		Arg: tag: string (declared at line 626, available: [626-629])
+	Function: condNullPtr (main.condNullPtr) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [610:613] injectible: [610-613]
+		Arg: p: *int (declared at line 610, available: [610-613])
+		Arg: tag: string (declared at line 610, available: [610-613])
+	Function: condNullSlice (main.condNullSlice) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [618:621] injectible: [618-621]
+		Arg: s: []int (declared at line 618, available: [618-621])
+		Arg: tag: string (declared at line 618, available: [618-621])
+	Function: condNullUnsafePtr (main.condNullUnsafePtr) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [642:645] injectible: [642-645]
+		Arg: p: unsafe.Pointer (declared at line 642, available: [642-645])
+		Arg: tag: string (declared at line 642, available: [642-645])
+	Function: condOnly (main.condOnly) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [569:571] injectible: [569-571]
+		Arg: x: int (declared at line 569, available: [569-571])
+		Arg: tag: string (declared at line 569, available: [569-571])
+	Function: condPtrStructArg (main.condPtrStructArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [522:524] injectible: [522-524]
+		Arg: x: *main.condFields (declared at line 522, available: [522-524])
+		Arg: tag: string (declared at line 522, available: [522-524])
+	Function: condReturnAndLocal (main.condReturnAndLocal) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [557:560] injectible: [557-560]
+		Arg: a: int (declared at line 557, available: [557-558])
+		Arg: b: int (declared at line 557, available: [557-559])
+		Arg: ~r0: int (declared at line 557, available: )
+		Var: sum: int (declared at line 558, available: [557-560])
+	Function: condReturnPtr (main.condReturnPtr) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [1045:1050] injectible: [1045-1048], [1050-1050]
+		Arg: tag: string (declared at line 1045, available: [1045-1050])
+		Arg: ~r0: *main.condFields (declared at line 1045, available: )
+	Function: condSliceArg (main.condSliceArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [588:590] injectible: [588-590]
+		Arg: x: []int (declared at line 588, available: [588-590])
+		Arg: tag: string (declared at line 588, available: [588-590])
+	Function: condString (main.condString) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [506:508] injectible: [506-508]
+		Arg: x: string (declared at line 506, available: [506-508])
+		Arg: tag: string (declared at line 506, available: [506-508])
+	Function: condStructArg (main.condStructArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [514:516] injectible: [514-516]
+		Arg: x: main.condFields (declared at line 514, available: [514-516])
+		Arg: tag: string (declared at line 514, available: [514-516])
+	Function: condStructDirect (main.condStructDirect) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [603:605] injectible: [603-605]
+		Arg: x: main.condFields (declared at line 603, available: [603-605])
+		Arg: tag: string (declared at line 603, available: [603-605])
+	Function: condUint16 (main.condUint16) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [476:478] injectible: [476-478]
+		Arg: x: uint16 (declared at line 476, available: [476-478])
+		Arg: tag: string (declared at line 476, available: [476-478])
+	Function: condUint32 (main.condUint32) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [481:483] injectible: [481-483]
+		Arg: x: uint32 (declared at line 481, available: [481-483])
+		Arg: tag: string (declared at line 481, available: [481-483])
+	Function: condUint64 (main.condUint64) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [486:488] injectible: [486-488]
+		Arg: x: uint64 (declared at line 486, available: [486-488])
+		Arg: tag: string (declared at line 486, available: [486-488])
+	Function: condUint8 (main.condUint8) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [471:473] injectible: [471-473]
+		Arg: x: uint8 (declared at line 471, available: [471-472])
+		Arg: tag: string (declared at line 471, available: [471-472])
+	Function: funcArg (main.funcArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [382:384] injectible: [382-384]
+		Arg: f: func(int) (declared at line 382, available: [382-383])
+	Function: genericIdentity[...] (main.genericIdentity[...]) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [1001:1003] injectible: [1001-1003]
+		Arg: x: <T> (declared at line 1001, available: [1001-1003])
+		Arg: ~r0: <T> (declared at line 1001, available: )
+	Function: indexMemberWrapperArg (main.indexMemberWrapperArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [841:843] injectible: [841-843]
+		Arg: s: *main.indexMemberWrapper (declared at line 841, available: [841-843])
+		Arg: tag: string (declared at line 841, available: [841-843])
+	Function: indexNilPtrSlice (main.indexNilPtrSlice) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [735:737] injectible: [735-737]
+		Arg: x: *main.lenFields (declared at line 735, available: [735-736])
+		Arg: tag: string (declared at line 735, available: [735-736])
+	Function: inlined (main.inlined) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [377:379] injectible: [378-378]
+		Arg: x: int (declared at line 0, available: [377-378])
+	Function: intArg (main.intArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [344:346] injectible: [344-346]
+		Arg: x: int (declared at line 344, available: [344-345])
+	Function: intArrayArg (main.intArrayArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [359:361] injectible: [359-361]
+		Arg: s: [3]int (declared at line 359, available: [359-361])
+	Function: intSliceArg (main.intSliceArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [354:356] injectible: [354-356]
+		Arg: s: []int (declared at line 354, available: [354-355])
+	Function: lenErrInt (main.lenErrInt) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [716:719] injectible: [716-719]
+		Arg: x: int (declared at line 716, available: [716-719])
+		Arg: tag: string (declared at line 716, available: [716-719])
+	Function: lenErrStruct (main.lenErrStruct) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [724:727] injectible: [724-727]
+		Arg: x: main.condFields (declared at line 724, available: [724-727])
+		Arg: tag: string (declared at line 724, available: [724-727])
+	Function: lenMap (main.lenMap) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [678:681] injectible: [678-681]
+		Arg: m: map[string]int (declared at line 678, available: [678-681])
+		Arg: tag: string (declared at line 678, available: [678-681])
+	Function: lenPtrString (main.lenPtrString) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [684:687] injectible: [684-687]
+		Arg: s: *string (declared at line 684, available: [684-687])
+		Arg: tag: string (declared at line 684, available: [684-687])
+	Function: lenPtrStructFields (main.lenPtrStructFields) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [708:711] injectible: [708-711]
+		Arg: x: *main.lenFields (declared at line 708, available: [708-711])
+		Arg: tag: string (declared at line 708, available: [708-711])
+	Function: lenSlice (main.lenSlice) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [672:675] injectible: [672-675]
+		Arg: s: []int (declared at line 672, available: [672-675])
+		Arg: tag: string (declared at line 672, available: [672-675])
+	Function: lenString (main.lenString) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [666:669] injectible: [666-669]
+		Arg: s: string (declared at line 666, available: [666-669])
+		Arg: tag: string (declared at line 666, available: [666-669])
+	Function: lenStructFields (main.lenStructFields) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [702:705] injectible: [702-705]
+		Arg: x: main.lenFields (declared at line 702, available: [702-705])
+		Arg: tag: string (declared at line 702, available: [702-705])
+	Function: main (main.main) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [17:341] injectible: [17-20], [22-29], [31-38], [40-43], [49-54], [61-79], [87-88], [92-92], [97-97], [104-107], [109-112], [116-117], [123-124], [127-128], [131-132], [137-138], [144-146], [151-162], [168-170], [173-175], [178-178], [181-183], [187-196], [199-203], [205-207], [211-213], [215-215], [217-217], [221-222], [227-231], [236-237], [240-242], [244-244], [251-253], [255-257], [262-266], [271-275], [277-278], [283-287], [290-292], [294-296], [298-298], [301-302], [305-305], [308-308], [311-313], [317-318], [326-327], [333-334], [339-341]
+		Var: &val: *int (declared at line 34, available: [17-341])
+		Var: &ptr1: **int (declared at line 35, available: [17-341])
+		Var: &ptr2: ***int (declared at line 36, available: [17-341])
+		Var: &ptr3: ****int (declared at line 37, available: [17-341])
+		Var: &ptr4: *****int (declared at line 38, available: [40-40])
+		Var: ptr5: *****int (declared at line 39, available: [40-40])
+		Var: &v: *int (declared at line 152, available: [153-154])
+		Var: mv: func() int (declared at line 333, available: )
+		Var: &u: *int (declared at line 161, available: [162-169])
+		Var: &str: *string (declared at line 193, available: [17-341])
+		Var: &emptyStr: *string (declared at line 195, available: [17-341])
+		Var: &sl: *[]int (declared at line 199, available: [17-341])
+		Var: mp: map[string]int (declared at line 200, available: [17-341])
+		Var: largeMap: map[string]int (declared at line 273, available: )
+		Var: err: error (declared at line 18, available: [19-20])
+		Var: bigArr: [131072]int64 (declared at line 227, available: [17-341])
+		Var: elem1: main.indexMemberStruct (declared at line 262, available: [17-341])
+		Var: elem2: main.indexMemberStruct (declared at line 263, available: [17-341])
+		Scope: 274-277
+			Var: i: int (declared at line 274, available: [274-274], [275-275], [277-277])
+	Type: main.aStructNotUsedAsAnArgument
+		Field: a: int
 	Type: main.bigArrayStruct
 		Field: tag: int
 		Field: data: [131072]int64
+	Type: main.bigStruct
+		Field: Field1: int
+		Field: Field2: int
+		Field: Field3: int
+		Field: Field4: int
+		Field: Field5: int
+		Field: Field6: int
+		Field: Field7: int
+		Field: data: [128]uint8
 	Type: main.condFields
 		Field: I8: int8
 		Field: I16: int16
@@ -241,6 +205,9 @@ Package: main
 		Field: Arr: *[2]main.indexMemberStruct
 		Field: PtrArr: *[2]*main.indexMemberStruct
 		Field: pad: [3]int16
+	Type: main.largeValueStruct
+		Field: Pad: [256]uint8
+		Field: Val: int
 	Type: main.lenFields
 		Field: S: string
 		Field: Items: []int
@@ -250,5 +217,84 @@ Package: main
 		Field: pad: [3]int16
 	Type: main.methodValueReceiver
 		Field: val: int
-		Function: inlinedMethod (main.(*methodValueReceiver).inlinedMethod) in  [880:0] injectible: 
+		Function: inlinedMethod (main.(*methodValueReceiver).inlinedMethod) in  [1017:0] injectible: 
 			Arg: m: *main.methodValueReceiver (declared at line 0, available: )
+	Function: makeKey (main.makeKey) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [878:883] injectible: [878-883]
+		Arg: length: int (declared at line 878, available: [878-879])
+		Arg: i: int (declared at line 878, available: [878-883])
+		Arg: ~r0: string (declared at line 878, available: )
+		Var: paddedDigits: int (declared at line 879, available: [878-883])
+		Var: extraPad: int (declared at line 880, available: [881-881])
+		Var: pad: string (declared at line 881, available: [878-883])
+		Var: format: string (declared at line 882, available: [878-879], [883-883])
+	Function: makeLargeMapWithKeyLen (main.makeLargeMapWithKeyLen) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [886:889] injectible: [887-889]
+		Var: i: int (declared at line 888, available: [887-888], [889-889])
+		Arg: keyLen: int (declared at line 0, available: )
+		Var: m: map[string]int (declared at line 887, available: [887-889])
+		Arg: n: int (declared at line 0, available: )
+	Function: mapArg (main.mapArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [387:389] injectible: [387-389]
+		Arg: m: map[string]int (declared at line 387, available: [387-388])
+	Function: mapIndexBoolKey (main.mapIndexBoolKey) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [969:971] injectible: [969-971]
+		Arg: m: map[bool]int (declared at line 969, available: [969-970])
+	Function: mapIndexEmptyKey (main.mapIndexEmptyKey) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [948:950] injectible: [948-950]
+		Arg: m: map[string]int (declared at line 948, available: [948-949])
+	Function: mapIndexIntKey (main.mapIndexIntKey) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [848:850] injectible: [848-850]
+		Arg: m: map[int]string (declared at line 848, available: [848-849])
+	Function: mapIndexKeyLen16 (main.mapIndexKeyLen16) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [955:957] injectible: [955-957]
+		Arg: m: map[string]int (declared at line 955, available: [955-956])
+	Function: mapIndexKeyLen17 (main.mapIndexKeyLen17) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [962:964] injectible: [962-964]
+		Arg: m: map[string]int (declared at line 962, available: [962-963])
+	Function: mapIndexKeyLen200 (main.mapIndexKeyLen200) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [925:927] injectible: [925-927]
+		Arg: m: map[string]int (declared at line 925, available: [925-926])
+	Function: mapIndexKeyLen24 (main.mapIndexKeyLen24) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [904:906] injectible: [904-906]
+		Arg: m: map[string]int (declared at line 904, available: [904-905])
+	Function: mapIndexKeyLen48 (main.mapIndexKeyLen48) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [911:913] injectible: [911-913]
+		Arg: m: map[string]int (declared at line 911, available: [911-912])
+	Function: mapIndexKeyLen8 (main.mapIndexKeyLen8) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [897:899] injectible: [897-899]
+		Arg: m: map[string]int (declared at line 897, available: [897-898])
+	Function: mapIndexKeyLen96 (main.mapIndexKeyLen96) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [918:920] injectible: [918-920]
+		Arg: m: map[string]int (declared at line 918, available: [918-919])
+	Function: mapIndexLargeMap (main.mapIndexLargeMap) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [863:865] injectible: [863-865]
+		Arg: m: map[string]int (declared at line 863, available: [863-864])
+	Function: mapIndexLargeValue (main.mapIndexLargeValue) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [992:994] injectible: [992-994]
+		Arg: m: map[string]main.largeValueStruct (declared at line 992, available: [992-993])
+	Function: mapIndexMissing (main.mapIndexMissing) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [870:872] injectible: [870-872]
+		Arg: m: map[string]int (declared at line 870, available: [870-871])
+	Function: mapIndexNilPtrVal (main.mapIndexNilPtrVal) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [984:986] injectible: [984-986]
+		Arg: m: map[string]*main.indexMemberStruct (declared at line 984, available: [984-985])
+	Function: mapIndexPtrStructVal (main.mapIndexPtrStructVal) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [941:943] injectible: [941-943]
+		Arg: m: map[string]*main.indexMemberStruct (declared at line 941, available: [941-942])
+	Function: mapIndexStringKey (main.mapIndexStringKey) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [855:857] injectible: [855-857]
+		Arg: m: map[string]int (declared at line 855, available: [855-856])
+	Function: mapIndexStructVal (main.mapIndexStructVal) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [933:935] injectible: [933-935]
+		Arg: m: map[string]main.indexMemberStruct (declared at line 933, available: [933-934])
+	Function: mapIndexZeroValue (main.mapIndexZeroValue) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [976:978] injectible: [976-978]
+		Arg: m: map[string]int (declared at line 976, available: [976-977])
+	Function: methodValueSink (main.methodValueSink) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [1022:1024] injectible: [1022-1024]
+		Arg: f: func() int (declared at line 1022, available: [1022-1023])
+	Function: noArgs (main.noArgs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [421:423] injectible: [421-423]
+	Function: ptrStructArrayArg (main.ptrStructArrayArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [833:835] injectible: [833-835]
+		Arg: s: [2]*main.indexMemberStruct (declared at line 833, available: [833-835])
+		Arg: tag: string (declared at line 833, available: [833-835])
+	Function: ptrStructSliceArg (main.ptrStructSliceArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [825:827] injectible: [825-827]
+		Arg: s: []*main.indexMemberStruct (declared at line 825, available: [825-826])
+		Arg: tag: string (declared at line 825, available: [825-827])
+	Function: sink (main.sink) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [663:663] injectible: [663-663]
+		Arg: args: []interface {} (declared at line 660, available: [663-663])
+	Function: stringArg (main.stringArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [349:351] injectible: [349-351]
+		Arg: s: string (declared at line 349, available: [349-350])
+	Function: stringArrayArg (main.stringArrayArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [369:371] injectible: [369-371]
+		Arg: s: [3]string (declared at line 369, available: [369-371])
+	Function: stringArrayArgFrameless (main.stringArrayArgFrameless) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [375:375] injectible: [375-375]
+		Arg: s: [3]string (declared at line 374, available: [375-375])
+	Function: stringSliceArg (main.stringSliceArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [364:366] injectible: [364-366]
+		Arg: s: []string (declared at line 364, available: [364-365])
+	Function: structArrayArg (main.structArrayArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [817:819] injectible: [817-819]
+		Arg: s: [2]main.indexMemberStruct (declared at line 817, available: [817-819])
+		Arg: tag: string (declared at line 817, available: [817-819])
+	Function: structSliceArg (main.structSliceArg) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [810:812] injectible: [810-812]
+		Arg: s: []main.indexMemberStruct (declared at line 810, available: [810-811])
+		Arg: tag: string (declared at line 810, available: [810-812])
+	Function: usesMapsOfMapsThatDoNotAppearAsArguments (main.usesMapsOfMapsThatDoNotAppearAsArguments) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go [748:758] injectible: [748-748], [751-752], [754-755], [757-758]
+		Arg: ~r0: map[uint8]map[int]main.aStructNotUsedAsAnArgument (declared at line 748, available: )
+		Var: m: map[string]map[int]main.aStructNotUsedAsAnArgument (declared at line 751, available: )

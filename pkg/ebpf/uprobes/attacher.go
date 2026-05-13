@@ -11,16 +11,17 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
-	"golang.org/x/exp/maps"
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -1089,7 +1090,7 @@ func (ua *UprobeAttacher) getLibrariesFromMapsFile(pid int) ([]string, error) {
 		}
 	}
 
-	return maps.Keys(libs), nil
+	return slices.Collect(maps.Keys(libs)), nil
 }
 
 func (ua *UprobeAttacher) attachToLibrariesOfPID(pid uint32) error {
@@ -1104,7 +1105,7 @@ func (ua *UprobeAttacher) attachToLibrariesOfPID(pid uint32) error {
 
 		if err == nil {
 			successfulMatches = append(successfulMatches, libpath)
-		} else if !errors.Is(err, ErrNoMatchingRule) {
+		} else if !errors.Is(err, ErrNoMatchingRule) && !errors.Is(err, utils.ErrPathIsAlreadyRegistered) {
 			registerErrors = append(registerErrors, err)
 		}
 	}

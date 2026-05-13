@@ -2,6 +2,125 @@
 Release Notes
 =============
 
+.. _Release Notes_7.78.3:
+
+7.78.3
+======
+
+.. _Release Notes_7.78.3_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-05-07
+
+- Please refer to the `7.78.3 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7783>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.78.3_Security Notes:
+
+Security Notes
+--------------
+
+- Upgrade ``go.opentelemetry.io/otel/sdk`` to ``v1.43.0`` to address
+  `CVE-2026-39883 <https://nvd.nist.gov/vuln/detail/CVE-2026-39883>`_,
+  a PATH-hijacking vulnerability in the OpenTelemetry Go SDK's host
+  detection on BSD and Solaris platforms (the SDK invoked the
+  ``kenv`` command without an absolute path). The Datadog Agent's
+  primary supported platforms (Linux, Windows, macOS) are not
+  affected at runtime, but the dependency is upgraded to keep the
+  shipped binary free of the vulnerable code.
+
+
+.. _Release Notes_7.78.2:
+
+7.78.2
+======
+
+.. _Release Notes_7.78.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-04-29
+
+- Please refer to the `7.78.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7782>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.78.2_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Adds ``datadog-agent otel`` command to install/remove DDOT from an OCI package.
+
+
+.. _Release Notes_7.78.2_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- The ``Install-Datadog.ps1`` PowerShell script is deprecated and will be removed in a future version. Please use ``datadog-installer.exe`` or the MSI installer instead.
+  Visit the `in-app installation guide <https://app.datadoghq.com/fleet/install-agent/latest?platform=windows>`_ for complete up-to-date installation instructions.
+
+
+.. _Release Notes_7.78.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- The signature check in ``Install-Datadog.ps1`` is now more accomodating to formatting variations in the CN field.
+  Refer to the `Agent Data Security <https://docs.datadoghq.com/data_security/agent/#windows-msi>`_ page for more information on validating signatures.
+
+- Fixes user-defined ``network_path.collector.filters`` being silently
+  dropped when ``infrastructure_mode`` is set to ``end_user_device``.
+  Custom filters are now correctly appended to the built-in EUDM defaults.
+
+
+.. _Release Notes_7.78.1:
+
+7.78.1
+======
+
+.. _Release Notes_7.78.1_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-04-23
+
+- Please refer to the `7.78.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7781>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.78.1_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- The Agent's embedded Python has been upgraded from 3.13.12 to 3.13.13
+
+- Agents are now built with Go ``1.25.9``.
+
+
+.. _Release Notes_7.78.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix missing signature on macOS Agent packages
+
+- Fix the system-probe SELinux policy module failing to load on RHEL 7
+  with ``policydb module version 21 does not match my version range 4-19``.
+  The module is now compiled against modular policy version 19, which is
+  the highest version supported by RHEL 7 and is backward-compatible with
+  newer RHEL releases.
+
+- Add logic to include integrations that do not have a manifest.json file in the Agent.
+
+- Adds the tasks/agent.py file to the list of files used to
+  compute the global omnibus cache.
+
+
 .. _Release Notes_7.78.0:
 
 7.78.0

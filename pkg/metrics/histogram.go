@@ -34,6 +34,7 @@ type Histogram struct {
 	samples     weightSamples
 	sum         float64
 	count       int64
+	unit        string // unit carried by samples (e.g. "millisecond" for timing metrics)
 }
 
 const (
@@ -108,6 +109,10 @@ func (h *Histogram) addSample(sample *MetricSample, _ float64) {
 	h.samples = append(h.samples, weightSample{sample.Value, int64(1 / rate)}) // add value and its weight
 	h.sum += sample.Value * (1 / rate)
 	h.count += int64(1 / rate)
+
+	if h.unit == "" && sample.Unit != "" {
+		h.unit = sample.Unit
+	}
 }
 
 func (h *Histogram) flush(timestamp float64) ([]*Serie, error) {
@@ -123,6 +128,8 @@ func (h *Histogram) flush(timestamp float64) ([]*Serie, error) {
 	for _, aggregate := range h.aggregates {
 		var value float64
 		mType := APIGaugeType
+		unit := h.unit
+
 		switch aggregate {
 		case maxAgg:
 			value = h.samples[len(h.samples)-1].value
@@ -145,6 +152,7 @@ func (h *Histogram) flush(timestamp float64) ([]*Serie, error) {
 		case countAgg:
 			value = float64(h.count) / float64(h.interval)
 			mType = APIRateType
+			unit = "" // counts are dimensionless
 		default:
 			log.Infof("Configured aggregate '%s' is not implemented, skipping", aggregate)
 			continue
@@ -154,6 +162,7 @@ func (h *Histogram) flush(timestamp float64) ([]*Serie, error) {
 			Points:     []Point{{Ts: timestamp, Value: value}},
 			MType:      mType,
 			NameSuffix: "." + aggregate,
+			Unit:       unit,
 		})
 	}
 
@@ -173,6 +182,7 @@ func (h *Histogram) flush(timestamp float64) ([]*Serie, error) {
 					Points:     []Point{{Ts: timestamp, Value: s.value}},
 					MType:      APIGaugeType,
 					NameSuffix: fmt.Sprintf(".%dpercentile", h.percentiles[idx]),
+					Unit:       h.unit,
 				})
 				idx++
 			}
@@ -186,6 +196,7 @@ func (h *Histogram) flush(timestamp float64) ([]*Serie, error) {
 	h.samples = weightSamples{}
 	h.sum = 0
 	h.count = 0
+	h.unit = ""
 
 	return series, nil
 }

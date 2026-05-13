@@ -21,6 +21,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// exprStatusIdxNone signals that a generated stack-machine op is not
+// associated with any per-expression status slot — it mirrors the
+// EXPR_STATUS_IDX_NONE sentinel in pkg/dyninst/ebpf/stack_machine.h.
+const exprStatusIdxNone uint32 = ^uint32(0)
+
 // Function represents stack machine function.
 type Function struct {
 	ID  FunctionID
@@ -79,21 +84,56 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 	}
 	throttlers := make([]Throttler, 0, len(program.Probes))
 	for probeIdx, probe := range program.Probes {
-		// Determine which event kind has a condition (if any) across all
-		// instances. All instances share the same probe config so conditions
-		// are uniform.
-		var conditionEventKind ir.EventKind
-		for _, inst := range probe.Instances {
-			for _, event := range inst.Events {
-				if event.Condition != nil {
-					conditionEventKind = event.Kind
-					break
+		// probe_id on call_depths_entry_t is uint16 (the rest of the
+		// 16-bit budget there carries condition_state for split-event-kind
+		// conditions). Only probes that participate in entry/return
+		// pairing read or write that field — line probes never touch
+		// in_progress_calls and can have arbitrary probe_id. Reject only
+		// when a probe with HasAssociatedReturn would have an index that
+		// can't fit. Real-world programs have tens to hundreds of probes;
+		// this guard exists for stress-test paths (e.g. symdb-generated
+		// all-methods probes) so they can co-exist with split conditions
+		// when the count happens to fit.
+		if probeIdx >= 1<<16 {
+			for _, inst := range probe.Instances {
+				for _, event := range inst.Events {
+					for _, injectionPoint := range event.InjectionPoints {
+						if injectionPoint.HasAssociatedReturn {
+							return Program{}, fmt.Errorf(
+								"too many probes (%d): probe_id must fit in uint16 "+
+									"for method probes that pair entry with return; "+
+									"got probe %d with HasAssociatedReturn",
+								len(program.Probes), probeIdx,
+							)
+						}
+					}
 				}
 			}
-			if conditionEventKind != 0 {
-				break
+		}
+		// Determine which event kind has a condition across all instances,
+		// and whether the condition is split (both entry and return events
+		// carry a condition; happens when the user's compound condition
+		// references variables from both kinds — see irgen's
+		// analyzedCondition.splitCondition).
+		var conditionEventKind ir.EventKind
+		var entryHasCond, returnHasCond bool
+		for _, inst := range probe.Instances {
+			for _, event := range inst.Events {
+				if event.Condition == nil {
+					continue
+				}
+				switch event.Kind {
+				case ir.EventKindEntry:
+					entryHasCond = true
+				case ir.EventKindReturn:
+					returnHasCond = true
+				}
+				if conditionEventKind == 0 {
+					conditionEventKind = event.Kind
+				}
 			}
 		}
+		splitCondition := entryHasCond && returnHasCond
 
 		// Track throttler indices per event kind so that all instances of
 		// the same event kind share a single throttler.
@@ -112,7 +152,7 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 						Budget:   throttleConfig.GetThrottleBudget(),
 					})
 				}
-				throttleMode := computeThrottleMode(event, conditionEventKind)
+				throttleMode := computeThrottleMode(event, conditionEventKind, splitCondition)
 				for _, injectionPoint := range event.InjectionPoints {
 					err := g.addEventHandler(
 						injectionPoint,
@@ -186,16 +226,35 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 // computeThrottleMode determines the throttle mode for an event based on
 // whether this event or its sibling has a condition.
 //
-// Note importantly at time of writing only one event can have a condition!
-func computeThrottleMode(event *ir.Event, conditionEventKind ir.EventKind) ThrottleMode {
+// For non-split conditions: at most one event per probe carries a
+// condition, and that event throttles after its check; the sibling skips
+// throttling so the condition decides.
+//
+// For split conditions (splitCondition == true): both events carry a
+// condition. The entry condition is the gate for whether the return
+// event will fire (entry's condition_failed=true → no in_progress_calls
+// insertion → return sees CALL_DEPTHS_ABSENT and is suppressed). To
+// avoid double-throttling the same logical probe firing, the entry
+// uses ThrottleNone and the return is the canonical decision point with
+// ThrottleAfterCondCheck.
+func computeThrottleMode(
+	event *ir.Event,
+	conditionEventKind ir.EventKind,
+	splitCondition bool,
+) ThrottleMode {
 	hasCond := event.Condition != nil
 	isReturn := event.Kind == ir.EventKindReturn
 
+	if splitCondition {
+		// Both events carry a condition. Throttle only the return so
+		// the user's per-second budget isn't halved.
+		if isReturn {
+			return ThrottleAfterCondCheck
+		}
+		return ThrottleNone
+	}
 	if hasCond {
 		// This event has a condition: throttle after condition check.
-		// Note: if we later support compound conditions where the entry and
-		// return both have conditions, we will need to adjust this to only
-		// throttle the return.
 		return ThrottleAfterCondCheck
 	}
 	if conditionEventKind != 0 && conditionEventKind != event.Kind {
@@ -231,6 +290,10 @@ func (g *generator) addEventHandler(
 		ThrottlerIdx:        throttlerIdx,
 		PointerChasingLimit: captureConfig.GetMaxReferenceDepth(),
 		CollectionSizeLimit: captureConfig.GetMaxCollectionSize(),
+		// StringSizeLimit is forwarded as configured. The BPF stack
+		// machine clamps to MAX_DATA_ITEM_SIZE before serialization
+		// so an oversized maxLength produces a truncated capture
+		// rather than a silent skip; see pkg/dyninst/ebpf/stack_machine.h.
 		StringSizeLimit:     captureConfig.GetMaxLength(),
 		Frameless:           injectionPoint.Frameless,
 		HasAssociatedReturn: injectionPoint.HasAssociatedReturn,
@@ -290,23 +353,103 @@ func (g *generator) addEventHandler(
 
 // Generates a function that evaluates a condition expression. If the condition
 // evaluates to false, the stack machine sets condition_failed and aborts.
+//
+// Split-event-kind conditions are signalled by condition.IsSplit (set by
+// irgen when building either the entry-side driver or the return-side AST
+// replay). In that case the implicit ConditionBeginOp prelude is skipped
+// — the per-leaf record/load ops manage condition_eval_error directly.
+// When the Expression has LeafBodies (the entry-side driver emits them;
+// the return-side replay does not), this also generates one
+// ProcessConditionLeaf sub-function per body before emitting the main
+// handler. The driver's IR ConditionLeafEvalOp then lowers to a CallOp +
+// ConditionLeafRecordOp pair pointing at the corresponding leaf function.
 func (g *generator) addConditionHandler(
 	injectionPC uint64,
 	rootType *ir.EventRootType,
 	condition *ir.Expression,
 ) (FunctionID, error) {
+	// Generate per-leaf sub-functions first so the driver's
+	// ConditionLeafEvalOp can call them.
+	leafFnIDs := make([]FunctionID, len(condition.LeafBodies))
+	for i, body := range condition.LeafBodies {
+		fnID, err := g.addConditionLeafHandler(injectionPC, rootType, uint8(i), body)
+		if err != nil {
+			return nil, err
+		}
+		leafFnIDs[i] = fnID
+	}
+
 	id := ProcessCondition{
 		EventRootType: rootType,
 		InjectionPC:   injectionPC,
 	}
 	ops := make([]Op, 0, 5+len(condition.Operations))
+	if !condition.IsSplit {
+		ops = append(ops, ConditionBeginOp{})
+	}
+	ops = append(ops, ExprPrepareOp{})
+	ops, err := g.appendConditionOps(injectionPC, condition.Operations, ops, leafFnIDs)
+	if err != nil {
+		return nil, err
+	}
+	ops = append(ops, ReturnOp{})
+	if err := g.addFunction(id, ops); err != nil {
+		return nil, err
+	}
+	return id, nil
+}
+
+// addConditionLeafHandler generates the SM sub-function for one entry-side
+// leaf of a split-event-kind condition.
+//
+// The leaf signals its outcome to the driver's ConditionLeafRecord op via
+// condition_eval_error:
+//   - On success: ConditionBeginOp arms condition_eval_error at the prelude;
+//     the leaf's body writes a boolean byte at sm->offset; the trailing
+//     ConditionLeafCompleteOp clears the flag, so the record op sees
+//     eval_error=false and reads the boolean.
+//   - On abort (nil deref / OOB / deref fail): the existing condition error
+//     paths call sm_return without clearing the flag, so the record op sees
+//     eval_error=true and encodes an error status from condition_nil_deref.
+func (g *generator) addConditionLeafHandler(
+	injectionPC uint64,
+	rootType *ir.EventRootType,
+	leafIdx uint8,
+	body *ir.Expression,
+) (FunctionID, error) {
+	id := ProcessConditionLeaf{
+		EventRootType: rootType,
+		InjectionPC:   injectionPC,
+		LeafIdx:       leafIdx,
+	}
+	ops := make([]Op, 0, 4+len(body.Operations))
 	ops = append(ops, ConditionBeginOp{})
 	ops = append(ops, ExprPrepareOp{})
+	ops, err := g.appendConditionOps(injectionPC, body.Operations, ops, nil /* no nested leaves */)
+	if err != nil {
+		return nil, err
+	}
+	ops = append(ops, ConditionLeafCompleteOp{})
+	ops = append(ops, ReturnOp{})
+	if err := g.addFunction(id, ops); err != nil {
+		return nil, err
+	}
+	return id, nil
+}
 
-	for _, op := range condition.Operations {
+// appendConditionOps lowers a slice of IR ExpressionOps into compiler Ops
+// and appends them to `ops`. Used by both the main condition driver and
+// per-leaf sub-functions so they share the same translation table.
+func (g *generator) appendConditionOps(
+	injectionPC uint64,
+	irOps []ir.ExpressionOp,
+	ops []Op,
+	leafFnIDs []FunctionID,
+) ([]Op, error) {
+	for _, op := range irOps {
 		switch op := op.(type) {
 		case *ir.LocationOp:
-			opsAfter, err := g.EncodeLocationOp(injectionPC, op, ops)
+			opsAfter, err := g.EncodeLocationOp(injectionPC, op, exprStatusIdxNone, ops)
 			if err != nil {
 				logLocationIssue(
 					"error encoding location op for condition: %v", err,
@@ -318,7 +461,8 @@ func (g *generator) addConditionHandler(
 			ops = append(ops, ExprDereferencePtrOp{
 				Bias:          op.Bias,
 				Len:           op.ByteSize,
-				ExprStatusIdx: ^uint32(0),
+				ExprStatusIdx: exprStatusIdxNone,
+				NullAsZero:    op.NullAsZero,
 			})
 		case *ir.ExprPushOffsetOp:
 			ops = append(ops, ExprPushOffsetOp{ByteSize: op.ByteSize})
@@ -326,29 +470,56 @@ func (g *generator) addConditionHandler(
 			ops = append(ops, ExprLoadLiteralOp{Data: op.Data})
 		case *ir.ExprReadStringOp:
 			ops = append(ops, ExprReadStringOp{MaxLen: op.MaxLen})
-		case *ir.ExprCmpEqBaseOp:
-			ops = append(ops, ExprCmpEqBaseOp{ByteSize: op.ByteSize})
-		case *ir.ExprCmpEqStringOp:
-			ops = append(ops, ExprCmpEqStringOp{})
+		case *ir.ExprCmpBaseOp:
+			ops = append(ops, ExprCmpBaseOp{
+				Op:       op.Op,
+				Kind:     op.Kind,
+				ByteSize: op.ByteSize,
+			})
+		case *ir.ExprCmpStringOp:
+			ops = append(ops, ExprCmpStringOp{Op: op.Op})
 		case *ir.SliceBoundsCheckOp:
 			ops = append(ops, ExprSliceBoundsCheckOp{
 				Index:         op.Index,
-				ExprStatusIdx: ^uint32(0), // conditions don't have per-expression status
+				ExprStatusIdx: exprStatusIdxNone,
 			})
 		case *ir.SwissMapLookupOp:
-			ops = append(ops, swissMapOps(op, ^uint32(0))...) // conditions don't have per-expression status
+			ops = append(ops, swissMapOps(op, exprStatusIdxNone)...)
 		case *ir.ConditionCheckOp:
 			ops = append(ops, ConditionCheckOp{})
+		case *ir.CondNotOp:
+			ops = append(ops, CondNotOp{})
+		case *ir.CondJumpOp:
+			ops = append(ops, CondJumpOp{Cond: op.Cond, Label: op.Target})
+		case *ir.CondLabelOp:
+			ops = append(ops, CondLabelOp{ID: op.ID})
+		case *ir.ExprPrepareOp:
+			ops = append(ops, ExprPrepareOp{})
+		case *ir.ConditionStateInitOp:
+			ops = append(ops, ConditionStateInitOp{})
+		case *ir.ConditionLeafEvalOp:
+			if int(op.LeafIdx) >= len(leafFnIDs) {
+				return nil, fmt.Errorf(
+					"internal: ConditionLeafEvalOp leaf index %d out of range (%d leaves)",
+					op.LeafIdx, len(leafFnIDs),
+				)
+			}
+			ops = append(ops,
+				CallOp{FunctionID: leafFnIDs[op.LeafIdx]},
+				ConditionLeafRecordOp{LeafIdx: op.LeafIdx},
+			)
+		case *ir.ConditionLeafLoadOp:
+			ops = append(ops, ConditionLeafLoadOp{
+				LeafIdx: op.LeafIdx,
+				Label:   op.ErrorTarget,
+			})
+		case *ir.ConditionCheckPreserveErrorOp:
+			ops = append(ops, ConditionCheckPreserveErrorOp{})
 		default:
 			panic(fmt.Sprintf("unexpected ir.Operation in condition: %#v", op))
 		}
 	}
-	ops = append(ops, ReturnOp{})
-	err := g.addFunction(id, ops)
-	if err != nil {
-		return nil, err
-	}
-	return id, nil
+	return ops, nil
 }
 
 // findDictEntry returns the DictEntry matching the given dictIndex, or nil.
@@ -394,7 +565,7 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 		switch op := op.(type) {
 		case *ir.LocationOp:
 			lastOpSize = op.ByteSize
-			opsAfter, err := g.EncodeLocationOp(injectionPC, op, ops)
+			opsAfter, err := g.EncodeLocationOp(injectionPC, op, exprIdx, ops)
 			// Treat an error as if the location op is not available.
 			if err != nil {
 				logLocationIssue(
@@ -415,6 +586,7 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 				Bias:          op.Bias,
 				Len:           op.ByteSize,
 				ExprStatusIdx: exprIdx,
+				NullAsZero:    op.NullAsZero,
 			})
 		case *ir.ExprPushOffsetOp:
 			ops = append(ops, ExprPushOffsetOp{ByteSize: op.ByteSize})
@@ -422,10 +594,14 @@ func (g *generator) addExpressionHandler(injectionPC uint64, rootType *ir.EventR
 			ops = append(ops, ExprLoadLiteralOp{Data: op.Data})
 		case *ir.ExprReadStringOp:
 			ops = append(ops, ExprReadStringOp{MaxLen: op.MaxLen})
-		case *ir.ExprCmpEqBaseOp:
-			ops = append(ops, ExprCmpEqBaseOp{ByteSize: op.ByteSize})
-		case *ir.ExprCmpEqStringOp:
-			ops = append(ops, ExprCmpEqStringOp{})
+		case *ir.ExprCmpBaseOp:
+			ops = append(ops, ExprCmpBaseOp{
+				Op:       op.Op,
+				Kind:     op.Kind,
+				ByteSize: op.ByteSize,
+			})
+		case *ir.ExprCmpStringOp:
+			ops = append(ops, ExprCmpStringOp{Op: op.Op})
 		case *ir.SliceBoundsCheckOp:
 			// After the bounds check, the scratch still starts with the
 			// data pointer (8 bytes). Update lastOpSize so the following
@@ -532,6 +708,10 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 	switch t := t.(type) {
 	case *ir.BaseType:
 		// Nothing to process.
+
+	case *ir.DurationType:
+		// Nothing to process; the ExprLoadDurationOp writes the value
+		// directly at the expression's result offset.
 
 	case *ir.GoHMapBucketType:
 		if err := structureTypeHandler(t.StructureType); err != nil {
@@ -793,7 +973,7 @@ func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 			}
 
 		// Base or pointer types.
-		case *ir.BaseType, *ir.GoChannelType, *ir.PointerType, *ir.VoidPointerType, *ir.GoMapType, *ir.GoSubroutineType:
+		case *ir.BaseType, *ir.DurationType, *ir.GoChannelType, *ir.PointerType, *ir.VoidPointerType, *ir.GoMapType, *ir.GoSubroutineType:
 			pieces = append(pieces, memoryLayoutPiece{
 				PaddedOffset: offset,
 				Size:         uint32(t.GetByteSize()),
@@ -872,7 +1052,25 @@ func hasDuplicateInterfacePieces(typ ir.Type, pieces []ir.Piece) bool {
 }
 
 // `ops` is used as an output buffer for the encoded instructions.
-func (g *generator) EncodeLocationOp(pc uint64, op *ir.LocationOp, ops []Op) ([]Op, error) {
+// exprStatusIdx identifies the expression for writing a status-absent
+// flag at runtime (used by expression lowering); conditions pass ^0 to
+// indicate none.
+func (g *generator) EncodeLocationOp(
+	pc uint64, op *ir.LocationOp, exprStatusIdx uint32, ops []Op,
+) ([]Op, error) {
+	// @duration is a synthetic variable without DWARF locations. Its IR
+	// LocationOp is always emitted with Offset=0 and ByteSize=8, and
+	// resolves at BPF eval time to (ktime_ns - entry_ktime_ns) via a
+	// dedicated opcode. The caller (condition or expression lowering)
+	// wraps this output in the same way it would for a base type, so
+	// the same ExprPushOffsetOp/ExprLoadLiteral/ExprCmpBase sequence
+	// works regardless of the LHS origin.
+	if op.Variable != nil && op.Variable.Role == ir.VariableRoleDuration {
+		ops = append(ops, ExprLoadDurationOp{
+			ExprStatusIdx: exprStatusIdx,
+		})
+		return ops, nil
+	}
 outer:
 	for _, loclist := range op.Variable.Locations {
 		if pc < loclist.Range[0] || pc >= loclist.Range[1] {
@@ -1010,6 +1208,7 @@ func swissMapOps(op *ir.SwissMapLookupOp, exprStatusIdx uint32) []Op {
 			GroupByteSize:            op.GroupByteSize,
 			HeaderByteSize:           op.HeaderByteSize,
 			ExprStatusIdx:            exprStatusIdx,
+			ExistenceOnly:            op.ExistenceOnly,
 		},
 		SwissMapAesencOp{},
 		SwissMapHashFinishOp{},
