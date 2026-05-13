@@ -26,10 +26,9 @@ const (
 	CheckName = "telemetry"
 	prefix    = "datadog.agent."
 
-	domainLabel        = "domain"
-	remoteAgentLabel   = "remote_agent"
-	pointSentName      = "point_sent"
-	pointDroppedName   = "point_dropped"
+	domainLabel      = "domain"
+	remoteAgentLabel = "remote_agent"
+
 	pointSentMetric    = "point__sent"
 	pointDroppedMetric = "point__dropped"
 )
@@ -50,7 +49,7 @@ func (c *checkImpl) Run() error {
 	if err != nil {
 		log.Warnf("failed to gather remote agent telemetry metrics for point telemetry merge: %v", err)
 	} else {
-		mergePointTelemetry(pointTelemetry, collectPointTelemetry(remoteMfs, true))
+		pointTelemetry.merge(collectPointTelemetry(remoteMfs, true))
 	}
 
 	sender, err := c.GetSender()
@@ -66,27 +65,24 @@ func (c *checkImpl) Run() error {
 	return nil
 }
 
-func normalizeMetricName(name string) string {
-	return strings.ReplaceAll(name, "__", "_")
+type pointTelemetryByDomain struct {
+	sent    map[string]float64
+	dropped map[string]float64
 }
 
-func isPointTelemetryMetric(name string) bool {
-	switch normalizeMetricName(name) {
-	case pointSentName, pointDroppedName:
-		return true
-	default:
-		return false
+func newPointTelemetryByDomain() pointTelemetryByDomain {
+	return pointTelemetryByDomain{
+		sent:    make(map[string]float64),
+		dropped: make(map[string]float64),
 	}
 }
 
-func pointTelemetryMetricName(name string) string {
-	switch normalizeMetricName(name) {
-	case pointSentName:
-		return pointSentMetric
-	case pointDroppedName:
-		return pointDroppedMetric
-	default:
-		return name
+func (p pointTelemetryByDomain) merge(other pointTelemetryByDomain) {
+	for domain, value := range other.sent {
+		p.sent[domain] += value
+	}
+	for domain, value := range other.dropped {
+		p.dropped[domain] += value
 	}
 }
 
@@ -99,21 +95,29 @@ func labelValue(labels []*dto.LabelPair, name string) (string, bool) {
 	return "", false
 }
 
-type pointTelemetryByDomain map[string]map[string]float64
-
 func collectPointTelemetry(mfs []*dto.MetricFamily, requireRemoteAgent bool) pointTelemetryByDomain {
-	points := make(pointTelemetryByDomain)
+	points := newPointTelemetryByDomain()
 
 	for _, mf := range mfs {
-		if mf == nil || mf.Name == nil || mf.Type == nil || !isPointTelemetryMetric(mf.GetName()) {
+		if mf == nil || mf.Name == nil || mf.Type == nil {
 			continue
 		}
+
+		var pointsByDomain map[string]float64
+		switch mf.GetName() {
+		case pointSentMetric:
+			pointsByDomain = points.sent
+		case pointDroppedMetric:
+			pointsByDomain = points.dropped
+		default:
+			continue
+		}
+
 		if mf.GetType() != dto.MetricType_GAUGE {
 			log.Warnf("dropping point telemetry metric %q with unsupported type %s", mf.GetName(), mf.GetType())
 			continue
 		}
 
-		metricName := pointTelemetryMetricName(mf.GetName())
 		for _, metric := range mf.Metric {
 			if metric == nil || metric.Gauge == nil {
 				continue
@@ -123,42 +127,20 @@ func collectPointTelemetry(mfs []*dto.MetricFamily, requireRemoteAgent bool) poi
 					continue
 				}
 			}
-			domain, ok := labelValue(metric.Label, domainLabel)
-			if !ok {
-				continue
-			}
-
-			byDomain := points[metricName]
-			if byDomain == nil {
-				byDomain = make(map[string]float64)
-				points[metricName] = byDomain
-			}
-			byDomain[domain] += metric.Gauge.GetValue()
+			domain, _ := labelValue(metric.Label, domainLabel)
+			pointsByDomain[domain] += metric.Gauge.GetValue()
 		}
 	}
 
 	return points
 }
 
-func mergePointTelemetry(dst, src pointTelemetryByDomain) {
-	for metricName, srcByDomain := range src {
-		dstByDomain := dst[metricName]
-		if dstByDomain == nil {
-			dstByDomain = make(map[string]float64)
-			dst[metricName] = dstByDomain
-		}
-		for domain, value := range srcByDomain {
-			dstByDomain[domain] += value
-		}
-	}
-}
-
 func (c *checkImpl) sendPointTelemetry(points pointTelemetryByDomain, sender sender.Sender) {
-	for metricName, byDomain := range points {
-		name := c.buildName(metricName)
-		for domain, value := range byDomain {
-			sender.Gauge(name, value, "", []string{fmt.Sprintf("%s:%s", domainLabel, domain)})
-		}
+	for domain, value := range points.sent {
+		sender.Gauge(c.buildName(pointSentMetric), value, "", []string{fmt.Sprintf("%s:%s", domainLabel, domain)})
+	}
+	for domain, value := range points.dropped {
+		sender.Gauge(c.buildName(pointDroppedMetric), value, "", []string{fmt.Sprintf("%s:%s", domainLabel, domain)})
 	}
 }
 
@@ -195,6 +177,10 @@ func (c *checkImpl) handleMetricFamilies(mfs []*dto.MetricFamily, sender sender.
 	}
 
 	sender.Commit()
+}
+
+func isPointTelemetryMetric(name string) bool {
+	return name == pointSentMetric || name == pointDroppedMetric
 }
 
 func (c *checkImpl) buildName(name string) string {

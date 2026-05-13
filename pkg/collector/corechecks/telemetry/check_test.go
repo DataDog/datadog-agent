@@ -47,6 +47,7 @@ func TestCollectAndMergePointTelemetry(t *testing.T) {
 		gaugeMetricFamily(
 			"point__sent",
 			gaugeMetric(map[string]string{domainLabel: "https://api.datadoghq.com"}, 10),
+			gaugeMetric(map[string]string{}, 1),
 		),
 		gaugeMetricFamily(
 			"point__dropped",
@@ -76,14 +77,15 @@ func TestCollectAndMergePointTelemetry(t *testing.T) {
 	}
 
 	points := collectPointTelemetry(defaultMfs, false)
-	mergePointTelemetry(points, collectPointTelemetry(remoteMfs, true))
+	points.merge(collectPointTelemetry(remoteMfs, true))
 
 	require.Equal(t, pointTelemetryByDomain{
-		pointSentMetric: {
+		sent: map[string]float64{
+			"":                          1,
 			"https://api.datadoghq.com": 22,
 			"https://api.datadoghq.eu":  5,
 		},
-		pointDroppedMetric: {
+		dropped: map[string]float64{
 			"https://api.datadoghq.com": 5,
 		},
 	}, points)
@@ -96,13 +98,15 @@ func TestSendPointTelemetry(t *testing.T) {
 
 	s := mocksender.NewMockSenderWithSenderManager(c.ID(), sm)
 	s.On("Gauge", "datadog.agent.point.sent", 22.0, "", []string{"domain:https://api.datadoghq.com"}).Return().Times(1)
+	s.On("Gauge", "datadog.agent.point.sent", 1.0, "", []string{"domain:"}).Return().Times(1)
 	s.On("Gauge", "datadog.agent.point.dropped", 5.0, "", []string{"domain:https://api.datadoghq.com"}).Return().Times(1)
 
 	c.sendPointTelemetry(pointTelemetryByDomain{
-		pointSentMetric: {
+		sent: map[string]float64{
+			"":                          1,
 			"https://api.datadoghq.com": 22,
 		},
-		pointDroppedMetric: {
+		dropped: map[string]float64{
 			"https://api.datadoghq.com": 5,
 		},
 	}, s)
