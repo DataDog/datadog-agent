@@ -91,16 +91,8 @@ func NewProbe(cfg *ddebpf.Config, modCfg Config) (*Probe, error) {
 		return nil, err
 	}
 
-	// Skip mgr.Start() and attach probes manually. Start() runs cleanupTraceFS
-	// which tries to remove ALL orphaned kprobe events on the host and fails
-	// fatally if any are pinned (common on dev machines where a previous agent
-	// left tail-called kprobes behind). This module only uses tracepoints, so
-	// we don't need the perf/ring reader startup that Start() also handles.
-	// Stop() requires state >= initialized, which InitWithOptions already set.
-	for _, probe := range p.mgr.Probes {
-		if err := probe.Attach(); err != nil {
-			return nil, fmt.Errorf("failed to attach probe %s: %w", probe.EBPFFuncName, err)
-		}
+	if err := p.mgr.Start(); err != nil {
+		return nil, err
 	}
 	ddebpf.AddNameMappings(p.mgr.Manager, "noisy_neighbor")
 	p.attachPMU(modCfg.PMUMetrics)
