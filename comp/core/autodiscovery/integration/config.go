@@ -126,6 +126,11 @@ type Config struct {
 	// instance is meant to discover its own config at runtime. A non-nil
 	// pointer means discovery is requested. (optional)
 	Discovery *DiscoveryConfig `json:"discovery,omitempty"` // (include in digest: true)
+
+	// TrialMode indicates the config was scheduled in discovery probe mode:
+	// the check should self-configure from the embedded service info and the
+	// runner should suppress integration-error reporting until promoted.
+	TrialMode bool `json:"trial_mode"` // (include in digest: true)
 }
 
 // DiscoveryConfig holds per-template configuration-discovery options.
@@ -478,6 +483,9 @@ func (c *Config) IntDigest() uint64 {
 	_, _ = h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags)))
 	if c.Discovery != nil {
 		_, _ = h.Write([]byte("discovery"))
+	}
+	if c.TrialMode {
+		_, _ = h.Write([]byte("trial_mode"))
 	}
 
 	return h.Sum64()

@@ -15,10 +15,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -735,4 +737,48 @@ func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
 
 	count, _ = hp.GetAllIssues()
 	assert.Equal(t, 0, count, "health issue should be cleared after successful resolution")
+}
+
+func TestResolveTemplateForService_DiscoveryBuildsTrialConfig(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	cm := newReconcilingConfigManager(&mockResolver, nil, nil).(*reconcilingConfigManager)
+
+	tpl := integration.Config{
+		Name:          "krakend",
+		ADIdentifiers: []string{"krakend"},
+		Discovery:     &integration.DiscoveryConfig{},
+		InitConfig:    integration.Data("{}"),
+		Instances:     []integration.Data{},
+	}
+	svc := &dummyService{
+		ID:            "docker://abc123",
+		ADIdentifiers: []string{"krakend"},
+		Hosts:         map[string]string{"bridge": "10.0.0.5"},
+		Ports: []workloadmeta.ContainerPort{
+			{Port: 9090, Name: "metrics"},
+			{Port: 8080, Name: "admin"},
+		},
+	}
+
+	resolved, ok := cm.resolveTemplateForService(tpl, svc)
+
+	require.True(t, ok, "discovery branch must produce a resolved config")
+	require.True(t, resolved.TrialMode, "resolved config must be in trial-mode")
+	require.Len(t, resolved.Instances, 1, "exactly one synthetic instance")
+
+	var inst map[interface{}]interface{}
+	require.NoError(t, yaml.Unmarshal(resolved.Instances[0], &inst))
+
+	rawSvcInfo, exists := inst["__discovery_service__"]
+	require.True(t, exists, "instance must contain __discovery_service__")
+
+	svcInfo, ok := rawSvcInfo.(map[interface{}]interface{})
+	require.True(t, ok, "__discovery_service__ must be a map")
+
+	assert.Equal(t, "docker://abc123", svcInfo["id"])
+	assert.Equal(t, "10.0.0.5", svcInfo["host"])
+
+	rawPorts, ok := svcInfo["ports"].([]interface{})
+	require.True(t, ok, "ports must be a list")
+	assert.Len(t, rawPorts, 2, "expected 2 ports")
 }

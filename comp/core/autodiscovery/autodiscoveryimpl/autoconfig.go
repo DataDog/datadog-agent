@@ -47,6 +47,7 @@ import (
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/worker"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -99,6 +100,7 @@ type AutoConfig struct {
 	telemetryStore           *acTelemetry.Store
 	healthPlatform           option.Option[healthplatformdef.Component]
 	staticConfigIndex        *listeners.StaticConfigIndex
+	trialRegistry            *trialRegistry
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
@@ -106,6 +108,9 @@ type AutoConfig struct {
 }
 
 const (
+	// trialFailureThreshold is the number of consecutive failures of a
+	// trial-mode (discovery) check that triggers unscheduling.
+	trialFailureThreshold = 5
 	// wmetaCheckInitialInterval is the initial interval to check if wmeta is ready
 	wmetaCheckInitialInterval = 20 * time.Millisecond
 	// wmetaCheckMaxInterval is the maximum interval to check if wmeta is ready
@@ -222,6 +227,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		serviceListenerFactories: make(map[string]listeners.ServiceListenerFactory),
 		providerCatalog:          make(map[string]providerTypes.ConfigProviderFactory),
 		wmeta:                    wmeta,
+		trialRegistry:            newTrialRegistry(trialFailureThreshold),
 		taggerComp:               taggerComp,
 		logs:                     logs,
 		filterStore:              filterStore,
@@ -246,6 +252,10 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		// secretResolver.Resolve() which attempts to acquire a lock already held during subscriber callback.
 		ac.refreshConfig <- origin
 	})
+
+	// Register the trial-result callback so that the check runner worker can
+	// report each trial-mode run outcome back to AutoConfig.
+	worker.RegisterTrialResultCallback(ac.RecordTrialResult)
 
 	return ac
 }
@@ -777,6 +787,29 @@ func (ac *AutoConfig) applyChanges(changes integration.ConfigChanges) {
 		}
 	}
 	ac.schedulerController.ApplyChanges(changes)
+}
+
+// RecordTrialResult is called by the runner after each trial-mode check run
+// with the run outcome. If consecutive failures reach the internal threshold,
+// the check is unscheduled.
+func (ac *AutoConfig) RecordTrialResult(id checkid.ID, ok bool) {
+	if !ac.trialRegistry.recordResult(id, ok) {
+		return
+	}
+	ac.trialRegistry.forget(id)
+	ac.unscheduleCheckByID(id)
+}
+
+// unscheduleCheckByID finds the scheduled config corresponding to id and
+// unschedules it via the normal ConfigChanges path.
+func (ac *AutoConfig) unscheduleCheckByID(id checkid.ID) {
+	cfg, ok := ac.cfgMgr.findConfigByCheckID(id)
+	if !ok {
+		log.Warnf("autodiscovery: trial check %s past failure threshold but no scheduled config found", id)
+		return
+	}
+	changes := integration.ConfigChanges{Unschedule: []integration.Config{cfg}}
+	ac.applyChanges(changes)
 }
 
 func (ac *AutoConfig) deleteMappingsOfCheckIDsWithSecrets(configs []integration.Config) {

@@ -10,6 +10,8 @@ import (
 	"maps"
 	"sync"
 
+	yaml "go.yaml.in/yaml/v2"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
@@ -54,6 +56,11 @@ type configManager interface {
 
 	// getActiveServices returns the currently active services
 	getActiveServices() map[string]listeners.Service
+
+	// findConfigByCheckID looks up a scheduled config whose computed check ID
+	// matches id. Returns the config and true if found, or an empty config and
+	// false otherwise.
+	findConfigByCheckID(id checkid.ID) (integration.Config, bool)
 }
 
 // serviceAndADIDs bundles a service and its associated AD identifiers.
@@ -432,6 +439,52 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 // returns false.
 func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, bool) {
 	digest := tpl.Digest()
+
+	if tpl.IsDiscovery() {
+		resolved := tpl
+		resolved.TrialMode = true
+
+		host := pickDiscoveryHost(svc)
+
+		type portPayload struct {
+			Number int    `yaml:"number"`
+			Name   string `yaml:"name,omitempty"`
+		}
+		type servicePayload struct {
+			ID    string        `yaml:"id"`
+			Host  string        `yaml:"host"`
+			Ports []portPayload `yaml:"ports"`
+		}
+
+		rawPorts, _ := svc.GetPorts()
+		pp := make([]portPayload, 0, len(rawPorts))
+		for _, p := range rawPorts {
+			pp = append(pp, portPayload{Number: p.Port, Name: p.Name})
+		}
+
+		instance := map[string]interface{}{
+			"__discovery_service__": servicePayload{
+				ID:    svc.GetServiceID(),
+				Host:  host,
+				Ports: pp,
+			},
+		}
+		instanceYAML, err := yaml.Marshal(instance)
+		if err != nil {
+			log.Errorf("autodiscovery: failed to marshal trial instance for %s/%s: %v", tpl.Name, svc.GetServiceID(), err)
+			return tpl, false
+		}
+		resolved.Instances = []integration.Data{integration.Data(instanceYAML)}
+
+		decrypted, err := decryptConfig(resolved, cm.secretResolver, tpl.Digest())
+		if err != nil {
+			log.Errorf("autodiscovery: failed to decrypt trial config for %s/%s: %v", tpl.Name, svc.GetServiceID(), err)
+			return resolved, false
+		}
+		return decrypted, true
+	}
+
+	// Non-discovery templates: existing template-resolution path.
 	config, err := configresolver.Resolve(tpl, svc)
 	if err != nil {
 		msg := fmt.Sprintf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
@@ -505,6 +558,42 @@ func (cm *reconcilingConfigManager) applyChanges(changes integration.ConfigChang
 	}
 
 	return changes
+}
+
+// pickDiscoveryHost returns the best host address for a discovery (trial-mode)
+// check from the service's host map.  It prefers the "bridge" network entry,
+// then falls back to any non-empty entry.  Returns "" if no usable host is found.
+func pickDiscoveryHost(svc listeners.Service) string {
+	hosts, err := svc.GetHosts()
+	if err != nil || len(hosts) == 0 {
+		return ""
+	}
+	if h, ok := hosts["bridge"]; ok && h != "" {
+		return h
+	}
+	for _, h := range hosts {
+		if h != "" {
+			return h
+		}
+	}
+	return ""
+}
+
+// findConfigByCheckID implements configManager#findConfigByCheckID.
+// It iterates over scheduledConfigs looking for a config that contains an
+// instance whose computed check ID matches id. Runs in O(n) — acceptable
+// because this path fires at most once per failed trial.
+func (cm *reconcilingConfigManager) findConfigByCheckID(id checkid.ID) (integration.Config, bool) {
+	cm.m.Lock()
+	defer cm.m.Unlock()
+	for _, cfg := range cm.scheduledConfigs {
+		for _, inst := range cfg.Instances {
+			if checkid.BuildID(cfg.Name, cfg.FastDigest(), inst, cfg.InitConfig) == id {
+				return cfg, true
+			}
+		}
+	}
+	return integration.Config{}, false
 }
 
 // changedCheckIDs returns a map with the config instance IDs that changed

@@ -204,6 +204,9 @@ func (suite *AutoConfigTestSuite) SetupTest() {
 
 func getAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logsComp log.Component, telemetryComp telemetry.Component, filterComp workloadfilter.Component) *AutoConfig {
 	ac := createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logsComp, telemetryComp, filterComp, option.None[healthplatformdef.Component]())
+	// The goroutines started here must mirror those started by ac.start().
+	// ac.stop() blocks on each goroutine's stop channel, so a missing
+	// goroutine here causes deadlock in TestStop and leaks in other tests.
 	go ac.serviceListening()
 	return ac
 }
@@ -931,6 +934,45 @@ func createDeps(t *testing.T) Deps {
 		workloadfilterfxmock.MockModule(),
 		fx.Provide(func() tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 	)
+}
+
+// TestRecordTrialResult_UnschedulesAfterThreshold verifies that RecordTrialResult
+// unschedules a trial-mode config after the threshold (5) consecutive failures.
+func TestRecordTrialResult_UnschedulesAfterThreshold(t *testing.T) {
+	sch, ac := getResolveTestConfig(t)
+
+	cfg := integration.Config{
+		Name:       "krakend",
+		TrialMode:  true,
+		InitConfig: integration.Data("{}"),
+		Instances:  []integration.Data{integration.Data("{}")},
+	}
+
+	// Schedule the config via the normal AD path.
+	changes := ac.processNewConfig(cfg)
+	require.Len(t, changes.Schedule, 1, "processNewConfig should return a schedule change")
+	ac.applyChanges(changes)
+
+	// Scheduling is async (via workqueue); wait for it to appear.
+	require.Eventually(t, func() bool {
+		return sch.scheduledSize() == 1
+	}, 5*time.Second, 10*time.Millisecond, "config should be scheduled initially")
+
+	id := checkid.BuildID(changes.Schedule[0].Name, changes.Schedule[0].FastDigest(), changes.Schedule[0].Instances[0], changes.Schedule[0].InitConfig)
+
+	// Four failures — below threshold; config should remain.
+	for i := 0; i < 4; i++ {
+		ac.RecordTrialResult(id, false)
+	}
+	_, found := ac.cfgMgr.findConfigByCheckID(id)
+	require.True(t, found, "config should still be tracked below failure threshold")
+	require.Equal(t, 1, sch.scheduledSize(), "scheduler should still have the config below threshold")
+
+	// Fifth failure — threshold reached; config must be unscheduled.
+	ac.RecordTrialResult(id, false)
+	require.Eventually(t, func() bool {
+		return sch.scheduledSize() == 0
+	}, 5*time.Second, 10*time.Millisecond, "config should be unscheduled after reaching failure threshold")
 }
 
 func TestAutoConfigTestSuite(t *testing.T) {

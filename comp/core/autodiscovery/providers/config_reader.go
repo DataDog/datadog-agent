@@ -445,9 +445,9 @@ func GetIntegrationConfigFromFile(name, fpath string) (integration.Config, Confi
 		return conf, ConfigFormatWrapper{}, err
 	}
 
-	// If no valid instances were found & this is neither a metrics file, nor a logs file
-	// this is not a valid configuration file
-	if cf.MetricConfig == nil && cf.LogsConfig == nil && len(cf.Instances) < 1 {
+	// If no valid instances were found & this is neither a metrics file, nor a
+	// logs file, nor a discovery template, this is not a valid configuration file
+	if cf.MetricConfig == nil && cf.LogsConfig == nil && cf.Discovery == nil && len(cf.Instances) < 1 {
 		return conf, ConfigFormatWrapper{}, errors.New("Configuration file contains no valid instances")
 	}
 
