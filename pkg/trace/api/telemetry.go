@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -158,12 +159,13 @@ type TelemetryForwarder struct {
 
 	containerIDProvider IDProvider
 	client              *config.ResetClient
+	compressor          compression.Component
 	statsd              statsd.ClientInterface
 	logger              *log.ThrottledLogger
 }
 
 // NewTelemetryForwarder creates a new TelemetryForwarder
-func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvider, statsd statsd.ClientInterface) *TelemetryForwarder {
+func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvider, statsd statsd.ClientInterface, compressor compression.Component) *TelemetryForwarder {
 	// extract and validate Hostnames from configured endpoints
 	var endpoints []*config.Endpoint
 	batchSizeThreshold := config.TelemetryDefaultBatchSizeThreshold
@@ -206,6 +208,7 @@ func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvi
 
 		containerIDProvider: containerIDProvider,
 		client:              conf.NewHTTPClient(),
+		compressor:          compressor,
 		statsd:              statsd,
 		logger:              log.NewThrottled(5, 10*time.Second),
 	}
@@ -353,6 +356,7 @@ func (f *TelemetryForwarder) setBatchRequestHeaders(req *http.Request) {
 	req.Header.Set("Dd-Agent-Env", f.conf.DefaultEnv)
 	req.Header.Set("Dd-Telemetry-Request-Type", "agent-batch")
 	req.Header.Set("Content-Type", "application/msgpack")
+	req.Header.Set("Content-Encoding", f.compressor.Encoding())
 
 	if f.conf.InstallSignature.Found {
 		req.Header.Set("Dd-Agent-Install-Id", f.conf.InstallSignature.InstallID)
@@ -445,11 +449,27 @@ func (f *TelemetryForwarder) serializeAndForward(batch flushedBatch) {
 func (f *TelemetryForwarder) forwardBatchToEndpoints(body []byte, totalBodySize int) {
 	defer f.inflightCount.Add(-int64(totalBodySize))
 
+	var compressed bytes.Buffer
+	writer, err := f.compressor.NewWriter(&compressed)
+	if err != nil {
+		f.logger.Error("Failed to initialize %s writer: %v", f.compressor.Encoding(), err)
+		return
+	}
+	if _, err := writer.Write(body); err != nil {
+		f.logger.Error("Failed to %s compress telemetry batch: %v", f.compressor.Encoding(), err)
+		return
+	}
+	if err := writer.Close(); err != nil {
+		f.logger.Error("Failed to close %s writer: %v", f.compressor.Encoding(), err)
+		return
+	}
+	compressedBody := compressed.Bytes()
+
 	for _, e := range f.endpoints {
 		tags := []string{"endpoint:" + e.Host}
 		start := time.Now()
 
-		req, err := http.NewRequestWithContext(f.cancelCtx, http.MethodPost, batchURLPath, bytes.NewReader(body))
+		req, err := http.NewRequestWithContext(f.cancelCtx, http.MethodPost, batchURLPath, bytes.NewReader(compressedBody))
 		if err != nil {
 			f.logger.Error("Failed to create batch request: %v", err)
 			continue
