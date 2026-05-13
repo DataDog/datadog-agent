@@ -44,7 +44,7 @@ func (m *checkFailureModule) IssueTemplate() issues.IssueTemplate {
 	return m.template
 }
 
-// BuiltInCheck returns nil - check failures are reported by external integrations
-func (m *checkFailureModule) BuiltInCheck() *issues.BuiltInCheck {
+// BuiltInHealthCheck returns nil - check failures are reported by external integrations
+func (m *checkFailureModule) BuiltInHealthCheck() *issues.BuiltInHealthCheck {
 	return nil
 }
