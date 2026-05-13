@@ -632,10 +632,16 @@ func enqueueProgramForProcess(sm *state, p *process) error {
 	}
 	if len(probes) == 0 {
 		// All configured probes have been circuit-broken on this
-		// process. There is nothing to instrument; release the process
-		// state. Subsequent processesUpdated arrivals (with new probes
-		// or the same probes after eviction) will re-create it.
-		sm.deleteProcess(p.processID)
+		// process. There is nothing to instrument right now, but we
+		// must keep the process record alive so circuitBrokenProbes is
+		// preserved -- otherwise a subsequent processesUpdated that
+		// adds an unrelated probe (while a broken probe remains
+		// configured) would silently re-enable the hot probe. Park
+		// the process in Failed; subsequent changes to the configured
+		// probe set re-enter enqueueProgramForProcess via the Failed
+		// case in handleProcessUpdate.
+		p.state = processStateFailed
+		p.currentProgram = 0
 		return nil
 	}
 	slices.SortFunc(probes, func(a, b ir.ProbeDefinition) int {
