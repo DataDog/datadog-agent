@@ -223,16 +223,13 @@ func (d *directSenderConsumer) collectProcesses() error {
 			}
 		}
 
-		cwd, _ := os.Readlink(filepath.Join(pidPath, "cwd"))
-
 		p := &process{
 			Pid:       uint32(pid),
 			PPid:      uint32(ppid),
 			Cmdline:   cmdline,
-			Cwd:       cwd,
 			EventType: model.ExecEventType,
 		}
-		d.process(p)
+		d.HandleEvent(p)
 	}
 
 	return nil
