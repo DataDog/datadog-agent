@@ -49,6 +49,11 @@ func TestBuildIssue_SchemaValidationHasMediumSeverity(t *testing.T) {
 	assert.Contains(t, issue.GetDescription(), "agent_ipc/port")
 	assert.Contains(t, issue.GetDescription(), "/tags")
 	assert.Contains(t, issue.GetDescription(), "; ", "description must use a visible delimiter between violations so the UI renders them legibly")
+
+	errorsBlob := issue.GetExtra().GetFields()[lite.ContextKeyErrors].GetStringValue()
+	assert.Contains(t, errorsBlob, "agent_ipc/port")
+	assert.Contains(t, errorsBlob, "/tags")
+	assert.Contains(t, errorsBlob, " • ", "extra.errors must use a visible delimiter so the UI renders multi-violation blobs legibly")
 }
 
 // Backend dedupe depends on both code paths emitting the same Issue ID.

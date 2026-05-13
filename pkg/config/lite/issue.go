@@ -162,6 +162,7 @@ func schemaValidationIssue(info IssueInfo) *healthplatform.Issue {
 			ContextKeyErrorKind:  string(ErrorKindSchemaValidation),
 			ContextKeyConfigPath: path,
 			ContextKeyErrorCount: info.ErrorCount,
+			ContextKeyErrors:     strings.ReplaceAll(info.Errors, "\n", " • "),
 			ContextKeyImpact:     "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
 		}),
 		Remediation: &healthplatform.Remediation{
