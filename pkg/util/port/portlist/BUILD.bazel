@@ -54,6 +54,7 @@ go_test(
         "poller_test.go",
     ],
     embed = [":portlist"],
+    env_inherit = ["PATH"],
     gotags = ["test"],
     deps = select({
         "@rules_go//go/platform:android": [
