@@ -48,11 +48,10 @@ type Requires struct {
 	// storage for windowed log-rate annotations.
 	Reporters []reporterdef.Reporter `group:"anomalydetection_reporters"`
 
-	// HFRunner is an optional component that manages high-frequency system and
-	// container check runners. When present, StartSystem/StartContainer are called
-	// during construction and the returned filter sources suppress the lower-frequency
-	// 15s pipeline from the "all-metrics" handle.
-	HFRunner option.Option[hfrunnerdef.Component]
+	// HFRunner runs system and container checks at 1s and routes them into the
+	// observer pipeline. The noop variant (hfrunner/fx-noop) is wired for the
+	// main agent build; the real implementation lands with the algorithm PRs.
+	HFRunner hfrunnerdef.Component
 }
 
 // Provides defines the output of the observer component.
@@ -164,9 +163,21 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 	return settings
 }
 
+// disabledObserver is the zero-overhead stub returned when anomaly_detection.enabled=false.
+// It allocates nothing and starts no goroutines.
+type disabledObserver struct{}
+
+func (*disabledObserver) GetHandle(_ string) observerdef.Handle { return &noopObserveHandle{} }
+func (*disabledObserver) DumpMetrics(_ string) error            { return nil }
+
 // NewComponent creates an observer.Component.
 func NewComponent(deps Requires) Provides {
 	cfg := deps.Config
+
+	if cfg == nil || !cfg.GetBool("anomaly_detection.enabled") {
+		return Provides{Comp: &disabledObserver{}}
+	}
+
 	catalog := defaultCatalog()
 	settings := settingsFromAgentConfig(catalog, cfg)
 	detectors, correlators, extractors, _ := catalog.Instantiate(settings)
@@ -217,12 +228,7 @@ func NewComponent(deps Requires) Provides {
 	// Set up handle function based on recording and analysis configuration.
 	// Recording (anomaly_detection.recording.enabled) enables parquet writers.
 	// Analysis (anomaly_detection.enabled) enables the anomaly detection pipeline.
-	analysisEnabled := cfg.GetBool("anomaly_detection.enabled")
-
-	obs.handleFunc = obs.noopHandle
-	if analysisEnabled {
-		obs.handleFunc = obs.innerHandle
-	}
+	obs.handleFunc = obs.innerHandle
 
 	if recorder, ok := deps.Recorder.Get(); ok {
 		obs.handleFunc = recorder.GetHandle(obs.handleFunc)
@@ -254,20 +260,14 @@ func NewComponent(deps Requires) Provides {
 
 	go obs.run()
 
-	// Start high-frequency runners if the hfrunner component is wired in.
-	// Each runner returns the MetricSource values it owns so the observer can
-	// suppress the lower-frequency 15s counterparts from the "all-metrics" handle.
-	if hfComp, ok := deps.HFRunner.Get(); ok {
-		if systemSources := hfComp.StartSystem(obs.GetHandle(hfrunnerdef.HFSource)); systemSources != nil {
-			for src := range systemSources {
-				obs.hfFilterSources[src] = struct{}{}
-			}
-		}
-		if containerSources := hfComp.StartContainer(obs.GetHandle(hfrunnerdef.HFContainerSource)); containerSources != nil {
-			for src := range containerSources {
-				obs.hfFilterSources[src] = struct{}{}
-			}
-		}
+	// Start high-frequency check runners. The hfrunner component handles
+	// config-based toggling and lifecycle internally; we only collect the
+	// MetricSource sets it wants suppressed from the "all-metrics" pipeline.
+	for src := range deps.HFRunner.StartSystem(obs.GetHandle(hfrunnerdef.HFSource)) {
+		obs.hfFilterSources[src] = struct{}{}
+	}
+	for src := range deps.HFRunner.StartContainer(obs.GetHandle(hfrunnerdef.HFContainerSource)) {
+		obs.hfFilterSources[src] = struct{}{}
 	}
 
 	// Start periodic metric dump if configured
