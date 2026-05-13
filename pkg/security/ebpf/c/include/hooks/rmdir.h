@@ -103,7 +103,15 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
 
         approve_syscall(syscall, rmdir_approvers);
 
-        is_cgroup_dentry = is_cgroup2fs(syscall->unlink.dentry) && S_ISDIR(syscall->unlink.file.metadata.mode) && !is_runtime_request();
+        // let the cgroup event being forwarded as it is used userspace side to track the cgroups
+        if (is_cgroup2fs(syscall->unlink.dentry) && S_ISDIR(syscall->unlink.file.metadata.mode) && !is_runtime_request() && syscall->state != ACCEPTED && syscall->state != APPROVED) {
+            syscall->state = INTERNAL;
+        }
+
+        // do not pop, we want to invalidate the inode even if the syscall is discarded
+        if (syscall->state == DISCARDED) {
+            return 0;
+        }
 
         break;
     default:
@@ -123,9 +131,10 @@ int hook_security_inode_rmdir(ctx_t *ctx) {
     if (dentry != NULL) {
         syscall->resolver.key = key;
         syscall->resolver.dentry = dentry;
+        syscall->resolver.event_type = syscall->type;
         // disable the dentry-resolver discarder for cgroupfs events: userspace needs them
         // to track cgroup lifecycle, and a discarder match here would drop them.
-        syscall->resolver.discarder_event_type = !is_cgroup_dentry ? dentry_resolver_discarder_event_type(syscall) : 0;
+        syscall->resolver.flags = get_resolver_flags(syscall, !is_cgroup_dentry);
         syscall->resolver.callback = DR_SECURITY_INODE_RMDIR_CALLBACK_KPROBE_KEY;
         syscall->resolver.iteration = 0;
         syscall->resolver.ret = 0;
@@ -144,11 +153,8 @@ TAIL_CALL_FNC(dr_security_inode_rmdir_callback, ctx_t *ctx) {
         return 0;
     }
 
-    if (syscall->resolver.ret == DENTRY_DISCARDED) {
-        monitor_discarded(syscall->type);
-        // do not pop, we want to invalidate the inode even if the syscall is discarded
-        syscall->state = DISCARDED;
-    }
+    apply_dentry_resolution_outcome(syscall, syscall->type);
+
     return 0;
 }
 

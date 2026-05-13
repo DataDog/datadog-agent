@@ -220,12 +220,16 @@ enum SYSCALL_STATE __attribute__((always_inline)) flag_approver (struct u64_flag
     return DISCARDED;
 }
 
+int __attribute__((always_inline)) is_basename_in_map(struct basename_t *basename, u64 event_type) {
+    struct event_mask_filter_t *filter = bpf_map_lookup_elem(&basename_approvers, basename);
+    return filter && filter->event_mask & (1 << (event_type - 1));
+}
+
 enum SYSCALL_STATE __attribute__((always_inline)) approve_by_basename(struct dentry *dentry, u64 event_type) {
     struct basename_t basename = {};
     get_dentry_name(dentry, &basename, sizeof(basename));
 
-    struct event_mask_filter_t *filter = bpf_map_lookup_elem(&basename_approvers, &basename);
-    if (filter && filter->event_mask & (1 << (event_type - 1))) {
+    if (is_basename_in_map(&basename, event_type)) {
         monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
         return APPROVED;
     }
@@ -245,7 +249,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_by_basename(struct den
     }
 
     wildcard.value[PATTERN_PREFIX_SIZE] = '*';
-    filter = bpf_map_lookup_elem(&basename_approvers, &wildcard);
+    struct event_mask_filter_t *filter = bpf_map_lookup_elem(&basename_approvers, &wildcard);
     if (filter && filter->event_mask & (1 << (event_type - 1))) {
         monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
         return APPROVED;
