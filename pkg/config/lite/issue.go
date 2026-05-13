@@ -140,7 +140,11 @@ func schemaValidationIssue(info IssueInfo) *healthplatform.Issue {
 	if path == "" {
 		path = "(unknown path)"
 	}
-	firstLine := strings.SplitN(info.Errors, "\n", 2)[0]
+	errList := splitErrors(info.Errors)
+	firstLine := ""
+	if len(errList) > 0 {
+		firstLine = errList[0]
+	}
 	n, s := info.ErrorCount, pluralS(info.ErrorCount)
 	desc := fmt.Sprintf("Found %d schema violation%s in %s.", n, s, path)
 	if firstLine != "" {
@@ -159,7 +163,7 @@ func schemaValidationIssue(info IssueInfo) *healthplatform.Issue {
 			ContextKeyErrorKind:  string(ErrorKindSchemaValidation),
 			ContextKeyConfigPath: path,
 			ContextKeyErrorCount: info.ErrorCount,
-			ContextKeyErrors:     info.Errors,
+			ContextKeyErrors:     toAnySlice(errList),
 			ContextKeyImpact:     "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
 		}),
 		Remediation: &healthplatform.Remediation{
@@ -208,6 +212,24 @@ func pluralS(n int) string {
 		return ""
 	}
 	return "s"
+}
+
+// splitErrors turns the newline-joined Errors blob back into a slice. Empty input yields nil.
+func splitErrors(joined string) []string {
+	if joined == "" {
+		return nil
+	}
+	return strings.Split(joined, "\n")
+}
+
+// toAnySlice converts []string to []any so structpb renders it as a JSON array
+// (one entry per violation) instead of a single concatenated string.
+func toAnySlice(ss []string) []any {
+	out := make([]any, len(ss))
+	for i, s := range ss {
+		out[i] = s
+	}
+	return out
 }
 
 // truncate clips s to at most n bytes at a rune boundary, appending an
