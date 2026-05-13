@@ -156,7 +156,7 @@ func schemaValidationIssue(info IssueInfo) *healthplatform.Issue {
 			ContextKeyErrorKind:  string(ErrorKindSchemaValidation),
 			ContextKeyConfigPath: path,
 			ContextKeyErrorCount: info.ErrorCount,
-			ContextKeyErrors:     toAnySlice(errList),
+			ContextKeyErrors:     formatErrorsBlob(errList),
 			ContextKeyImpact:     "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
 		}),
 		Remediation: &healthplatform.Remediation{
@@ -215,6 +215,15 @@ func splitErrors(joined string) []string {
 	return strings.Split(joined, "\n")
 }
 
+// formatErrorsBlob renders the full list as a bulleted blob. Newlines render as a vertical
+// list where the UI preserves them; collapsed renderings still get "• " between entries.
+func formatErrorsBlob(errs []string) string {
+	if len(errs) == 0 {
+		return ""
+	}
+	return "• " + strings.Join(errs, "\n• ")
+}
+
 // summarizeViolations joins up to max violations with "; " and appends "… and N more" if truncated.
 // Visible separator survives both CLI diagnose output and HTML rendering (newlines don't).
 func summarizeViolations(errs []string, max int) string {
@@ -228,16 +237,6 @@ func summarizeViolations(errs []string, max int) string {
 		suffix = fmt.Sprintf(" … and %d more", len(errs)-max)
 	}
 	return strings.Join(shown, "; ") + suffix
-}
-
-// toAnySlice converts []string to []any so structpb renders it as a JSON array
-// (one entry per violation) instead of a single concatenated string.
-func toAnySlice(ss []string) []any {
-	out := make([]any, len(ss))
-	for i, s := range ss {
-		out[i] = s
-	}
-	return out
 }
 
 // mustStruct converts a map to a structpb.Struct. Inputs are always strings/
