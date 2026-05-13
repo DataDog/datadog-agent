@@ -1,4 +1,4 @@
-"""Tests for tasks.libs.testing.utof.go_parser.failure_parser.
+"""Tests for tasks.libs.testing.utof.go.parser.failure_parser.
 
 Covers the review feedback from PR #47621:
 - Panic stacktrace frame regex must match tab-indented file:line after strip() fix
@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from tasks.libs.testing.result_json import ActionType, ResultJsonLine
-from tasks.libs.testing.utof.go_parser.failure_parser import (
+from tasks.libs.testing.utof.go.parser.failure_parser import (
     _drop_eventually_wrappers,
     _extract_failure_info,
     _extract_message_from_raw_output,
@@ -144,7 +144,7 @@ class TestShortLocation:
 
 class TestDropEventuallyWrappers:
     def test_removes_wrapper_when_real_blocks_exist(self):
-        from tasks.libs.testing.utof.go_parser.failure_parser import _AssertionBlock
+        from tasks.libs.testing.utof.go.parser.failure_parser import _AssertionBlock
 
         wrapper = _AssertionBlock(trace="wrapper.go:1", error_lines=["Condition never satisfied"])
         real = _AssertionBlock(trace="foo_test.go:42", error_lines=["Not equal"])
@@ -153,7 +153,7 @@ class TestDropEventuallyWrappers:
         assert result[0] is real
 
     def test_keeps_wrapper_when_only_block(self):
-        from tasks.libs.testing.utof.go_parser.failure_parser import _AssertionBlock
+        from tasks.libs.testing.utof.go.parser.failure_parser import _AssertionBlock
 
         wrapper = _AssertionBlock(trace="wrapper.go:1", error_lines=["Condition never satisfied"])
         result = _drop_eventually_wrappers([wrapper])

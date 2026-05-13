@@ -15,6 +15,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -28,83 +29,89 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// newTestLogger returns a logger that discards output, for use in tests.
 func newTestLogger(t *testing.T) log.Component {
 	l, err := utillog.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(io.Discard, utillog.WarnLvl)
 	require.NoError(t, err)
 	return l
 }
 
-// newTestPoller returns a poller backed by a server that always returns empty tests.
-// Used in tests that need a live poller but don't exercise on-demand behaviour.
-func newTestPoller(t *testing.T, logger log.Component) *onDemandPoller {
+// newStubPoller returns a poller backed by a server that always returns empty tests.
+// Used in tests that need a live poller but don't exercise polling behaviour.
+func newStubPoller(t *testing.T, logger log.Component) *testPoller {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"tests":[]}`))
 	}))
 	t.Cleanup(server.Close)
 
-	return &onDemandPoller{
+	return &testPoller{
 		httpClient:      server.Client(),
 		endpoint:        server.URL,
 		apiKey:          "test-key",
+		agentVersion:    "0.0.0-test",
 		hostNameService: &mockHostname{},
 		log:             logger,
 		timeNowFn:       time.Now,
 		TestsChan:       make(chan SyntheticsTestCtx, 100),
 		done:            make(chan struct{}),
+		healthy:         true,
 	}
 }
 
-func TestOnDemandPoller_FetchTests_ReturnsTests(t *testing.T) {
+func TestTestPoller_FetchTests_ReturnsTests(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "test-api-key", r.Header.Get("DD-API-KEY"))
 		assert.Equal(t, "test-hostname", r.URL.Query().Get("agent_hostname"))
+		assert.Equal(t, "7.99.0-test", r.URL.Query().Get("agent_version"))
 
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"tests":[{
-			"version":1,"type":"network","subtype":"TCP","org_id":99,"public_id":"od-1","result_id":"od-result-1",
+			"version":1,"type":"network","subtype":"TCP","org_id":99,"public_id":"t-1","result_id":"r-1",
 			"config":{"assertions":[],"request":{"host":"example.com","port":443,"tcp_method":"SYN"}}
 		}]}`))
 	}))
 	defer server.Close()
 
-	poller := &onDemandPoller{
+	poller := &testPoller{
 		httpClient:      server.Client(),
 		endpoint:        server.URL,
 		apiKey:          "test-api-key",
+		agentVersion:    "7.99.0-test",
 		hostNameService: &mockHostname{},
 		log:             newTestLogger(t),
 		timeNowFn:       time.Now,
 		TestsChan:       make(chan SyntheticsTestCtx, 100),
 		done:            make(chan struct{}),
+		healthy:         true,
 	}
 
 	tests, err := poller.fetchTests(context.Background())
 	require.NoError(t, err)
 	require.Len(t, tests, 1)
-	assert.Equal(t, "od-1", tests[0].PublicID)
+	assert.Equal(t, "t-1", tests[0].PublicID)
 	assert.Equal(t, 99, tests[0].OrgID)
-	assert.Equal(t, "od-result-1", tests[0].ResultID)
+	assert.Equal(t, "r-1", tests[0].ResultID)
 	assert.Equal(t, "example.com", tests[0].Config.Request.(common.TCPConfigRequest).Host)
 }
 
-func TestOnDemandPoller_FetchTests_EmptyResponse(t *testing.T) {
+func TestTestPoller_FetchTests_EmptyResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"tests":[]}`))
 	}))
 	defer server.Close()
 
-	poller := &onDemandPoller{
+	poller := &testPoller{
 		httpClient:      server.Client(),
 		endpoint:        server.URL,
 		apiKey:          "key",
+		agentVersion:    "0.0.0",
 		hostNameService: &mockHostname{},
 		log:             newTestLogger(t),
 		timeNowFn:       time.Now,
 		TestsChan:       make(chan SyntheticsTestCtx, 100),
 		done:            make(chan struct{}),
+		healthy:         true,
 	}
 
 	tests, err := poller.fetchTests(context.Background())
@@ -112,21 +119,23 @@ func TestOnDemandPoller_FetchTests_EmptyResponse(t *testing.T) {
 	assert.Empty(t, tests)
 }
 
-func TestOnDemandPoller_FetchTests_NonOKStatus(t *testing.T) {
+func TestTestPoller_FetchTests_NonOKStatus(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer server.Close()
 
-	poller := &onDemandPoller{
+	poller := &testPoller{
 		httpClient:      server.Client(),
 		endpoint:        server.URL,
 		apiKey:          "key",
+		agentVersion:    "0.0.0",
 		hostNameService: &mockHostname{},
 		log:             newTestLogger(t),
 		timeNowFn:       time.Now,
 		TestsChan:       make(chan SyntheticsTestCtx, 100),
 		done:            make(chan struct{}),
+		healthy:         true,
 	}
 
 	_, err := poller.fetchTests(context.Background())
@@ -134,54 +143,52 @@ func TestOnDemandPoller_FetchTests_NonOKStatus(t *testing.T) {
 	assert.Contains(t, err.Error(), "500")
 }
 
-func TestOnDemandPoller_FetchTests_InvalidJSON(t *testing.T) {
+func TestTestPoller_FetchTests_InvalidJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`not json`))
 	}))
 	defer server.Close()
 
-	poller := &onDemandPoller{
+	poller := &testPoller{
 		httpClient:      server.Client(),
 		endpoint:        server.URL,
 		apiKey:          "key",
+		agentVersion:    "0.0.0",
 		hostNameService: &mockHostname{},
 		log:             newTestLogger(t),
 		timeNowFn:       time.Now,
 		TestsChan:       make(chan SyntheticsTestCtx, 100),
 		done:            make(chan struct{}),
+		healthy:         true,
 	}
 
 	_, err := poller.fetchTests(context.Background())
 	require.Error(t, err)
 }
 
-func TestOnDemandPoller_PollLoop_EnqueuesTests(t *testing.T) {
-	serverCalled := make(chan struct{}, 1)
-
+func TestTestPoller_PollLoop_EnqueuesTests(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		select {
-		case serverCalled <- struct{}{}:
-		default:
-		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"tests":[{
-			"version":1,"type":"network","subtype":"TCP","public_id":"od-poll-1",
+			"version":1,"type":"network","subtype":"TCP","public_id":"poll-1",
 			"config":{"assertions":[],"request":{"host":"example.com","port":443,"tcp_method":"SYN"}}
 		}]}`))
 	}))
 	defer server.Close()
 
 	now := time.Now()
-	poller := &onDemandPoller{
+	poller := &testPoller{
 		httpClient:      server.Client(),
 		endpoint:        server.URL,
 		apiKey:          "key",
+		agentVersion:    "0.0.0",
 		hostNameService: &mockHostname{},
 		log:             newTestLogger(t),
 		timeNowFn:       func() time.Time { return now },
 		TestsChan:       make(chan SyntheticsTestCtx, 100),
 		done:            make(chan struct{}),
+		healthy:         true,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -189,7 +196,7 @@ func TestOnDemandPoller_PollLoop_EnqueuesTests(t *testing.T) {
 
 	select {
 	case testCtx := <-poller.TestsChan:
-		assert.Equal(t, "od-poll-1", testCtx.cfg.PublicID)
+		assert.Equal(t, "poll-1", testCtx.cfg.PublicID)
 		assert.Equal(t, now, testCtx.nextRun)
 	case <-time.After(5 * time.Second):
 		t.Fatal("timeout: no test enqueued by poll loop")
@@ -199,7 +206,80 @@ func TestOnDemandPoller_PollLoop_EnqueuesTests(t *testing.T) {
 	poller.stop()
 }
 
-func TestWorker_OnDemandPriority(t *testing.T) {
+func TestTestPoller_HealthFlipsAfterNErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	poller := &testPoller{
+		httpClient:      server.Client(),
+		endpoint:        server.URL,
+		apiKey:          "key",
+		agentVersion:    "0.0.0",
+		hostNameService: &mockHostname{},
+		log:             newTestLogger(t),
+		timeNowFn:       time.Now,
+		TestsChan:       make(chan SyntheticsTestCtx, 100),
+		done:            make(chan struct{}),
+		healthy:         true,
+	}
+
+	for i := 0; i < maxConsecutiveErrors-1; i++ {
+		_, err := poller.fetchTests(context.Background())
+		require.Error(t, err)
+		poller.markFailure()
+	}
+	assert.True(t, poller.isHealthy(), "still healthy below threshold")
+
+	_, err := poller.fetchTests(context.Background())
+	require.Error(t, err)
+	poller.markFailure()
+	assert.False(t, poller.isHealthy(), "should be unhealthy at threshold")
+}
+
+func TestTestPoller_RecoversAfterSuccess(t *testing.T) {
+	var failNext atomic.Bool
+	failNext.Store(true)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if failNext.Load() {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"tests":[]}`))
+	}))
+	defer server.Close()
+
+	poller := &testPoller{
+		httpClient:      server.Client(),
+		endpoint:        server.URL,
+		apiKey:          "key",
+		agentVersion:    "0.0.0",
+		hostNameService: &mockHostname{},
+		log:             newTestLogger(t),
+		timeNowFn:       time.Now,
+		TestsChan:       make(chan SyntheticsTestCtx, 100),
+		done:            make(chan struct{}),
+		healthy:         true,
+	}
+
+	for i := 0; i < maxConsecutiveErrors; i++ {
+		_, err := poller.fetchTests(context.Background())
+		require.Error(t, err)
+		poller.markFailure()
+	}
+	assert.False(t, poller.isHealthy())
+
+	failNext.Store(false)
+	_, err := poller.fetchTests(context.Background())
+	require.NoError(t, err)
+	poller.markSuccess()
+	assert.True(t, poller.isHealthy())
+}
+
+func TestWorker_PollerPriority(t *testing.T) {
 	var mu sync.Mutex
 	var processed []string
 
@@ -220,7 +300,7 @@ func TestWorker_OnDemandPriority(t *testing.T) {
 		}
 	}
 
-	poller := &onDemandPoller{
+	poller := &testPoller{
 		TestsChan: make(chan SyntheticsTestCtx, 10),
 		done:      make(chan struct{}),
 	}
@@ -229,11 +309,12 @@ func TestWorker_OnDemandPriority(t *testing.T) {
 
 	scheduler := &syntheticsTestScheduler{
 		syntheticsTestProcessingChan: make(chan SyntheticsTestCtx, 10),
-		onDemandPoller:               poller,
+		testPoller:                   poller,
 		timeNowFn:                    time.Now,
 		log:                          l,
 		hostNameService:              &mockHostname{},
 		statsdClient:                 &teststatsd.Client{},
+		state:                        runningState{tests: map[string]*runningTestState{}},
 		traceroute: &tracerouteRunner{fn: func(_ context.Context, _ config.Config) (payload.NetworkPath, error) {
 			return payload.NetworkPath{}, nil
 		}},
@@ -247,8 +328,8 @@ func TestWorker_OnDemandPriority(t *testing.T) {
 
 	const n = 3
 	for i := 0; i < n; i++ {
-		poller.TestsChan <- SyntheticsTestCtx{cfg: makeCfg(fmt.Sprintf("ondemand-%d", i))}
-		scheduler.syntheticsTestProcessingChan <- SyntheticsTestCtx{cfg: makeCfg(fmt.Sprintf("scheduled-%d", i))}
+		poller.TestsChan <- SyntheticsTestCtx{cfg: makeCfg(fmt.Sprintf("poller-%d", i))}
+		scheduler.syntheticsTestProcessingChan <- SyntheticsTestCtx{cfg: makeCfg(fmt.Sprintf("fallback-%d", i))}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -265,11 +346,66 @@ func TestWorker_OnDemandPriority(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	for i := 0; i < n; i++ {
-		assert.Truef(t, strings.HasPrefix(processed[i], "ondemand-"),
-			"expected on-demand test at position %d, got %s", i, processed[i])
+		assert.Truef(t, strings.HasPrefix(processed[i], "poller-"),
+			"expected poller-delivered test at position %d, got %s", i, processed[i])
 	}
 	for i := n; i < 2*n; i++ {
-		assert.Truef(t, strings.HasPrefix(processed[i], "scheduled-"),
-			"expected scheduled test at position %d, got %s", i, processed[i])
+		assert.Truef(t, strings.HasPrefix(processed[i], "fallback-"),
+			"expected fallback test at position %d, got %s", i, processed[i])
 	}
+}
+
+func TestWorker_ScheduledPollerTestRefreshesFallbackCache(t *testing.T) {
+	l := newTestLogger(t)
+
+	poller := &testPoller{
+		TestsChan: make(chan SyntheticsTestCtx, 10),
+		done:      make(chan struct{}),
+	}
+
+	now := time.Unix(1_700_000_000, 0).UTC()
+	scheduler := &syntheticsTestScheduler{
+		syntheticsTestProcessingChan: make(chan SyntheticsTestCtx, 10),
+		testPoller:                   poller,
+		timeNowFn:                    func() time.Time { return now },
+		log:                          l,
+		hostNameService:              &mockHostname{},
+		statsdClient:                 &teststatsd.Client{},
+		state:                        runningState{tests: map[string]*runningTestState{}},
+		traceroute: &tracerouteRunner{fn: func(_ context.Context, _ config.Config) (payload.NetworkPath, error) {
+			return payload.NetworkPath{}, nil
+		}},
+	}
+	scheduler.sendResult = func(_ *workerResult) (string, error) { return "passed", nil }
+
+	port := 443
+	cfg := common.SyntheticsTestConfig{
+		PublicID: "sched-1",
+		RunType:  common.RunTypeScheduled,
+		Interval: 30,
+		Config: struct {
+			Assertions []common.Assertion   `json:"assertions"`
+			Request    common.ConfigRequest `json:"request"`
+		}{
+			Request: common.TCPConfigRequest{Host: "example.com", Port: &port, TCPMethod: payload.TCPConfigSYN},
+		},
+	}
+	poller.TestsChan <- SyntheticsTestCtx{cfg: cfg}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go scheduler.runWorker(ctx, 0)
+
+	require.Eventually(t, func() bool {
+		scheduler.state.mu.RLock()
+		defer scheduler.state.mu.RUnlock()
+		_, ok := scheduler.state.tests["sched-1"]
+		return ok
+	}, 2*time.Second, 5*time.Millisecond)
+
+	scheduler.state.mu.RLock()
+	cached := scheduler.state.tests["sched-1"]
+	scheduler.state.mu.RUnlock()
+	assert.Equal(t, now.Add(30*time.Second), cached.nextRun)
+
+	cancel()
 }

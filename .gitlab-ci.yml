@@ -493,6 +493,12 @@ variables:
 #
 workflow:
   rules:
+    - <<: *if_scheduled_main
+      variables:
+        WINDOWS_SIGNING_CERT: "s3://windows-code-signing-certificates/certs/beta/kms-signed.crt"
+        WINDOWS_SIGNING_CONFIG: "s3://windows-code-signing-certificates/certs/beta/config.json"
+        BAZEL_CACHE_POLICY_SUFFIX: "-push"
+        GO_TEST_SKIP_FLAKE: "false"
     - <<: *if_triggered_pipeline
     - <<: *if_main_branch
       variables:

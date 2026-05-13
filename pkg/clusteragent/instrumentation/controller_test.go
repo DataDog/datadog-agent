@@ -23,7 +23,9 @@ import (
 
 // fakeLister creates a cache.GenericLister backed by the given CRs.
 func fakeLister(crs ...*datadoghq.DatadogInstrumentation) cache.GenericLister {
-	indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+	indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{
+		cache.NamespaceIndex: cache.MetaNamespaceIndexFunc,
+	})
 	for _, cr := range crs {
 		unstrObj := &unstructured.Unstructured{}
 		_ = UnstructuredFromDatadogInstrumentation(cr, unstrObj)
