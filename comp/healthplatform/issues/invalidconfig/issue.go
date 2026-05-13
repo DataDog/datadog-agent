@@ -14,7 +14,7 @@ import (
 // InvalidConfigIssue uses the payload that lives in pkg/config/lite
 type InvalidConfigIssue struct{}
 
-// BuildIssue decodes the IssueReport.Context bag and builds the Issue.
+// BuildIssue decodes the IssueReport.Context and builds the Issue.
 func (InvalidConfigIssue) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
 	return lite.BuildInvalidConfigIssue(lite.IssueInfoFromContext(context)), nil
 }

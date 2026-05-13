@@ -142,7 +142,9 @@ func schemaValidationIssue(info IssueInfo) *healthplatform.Issue {
 	errList := splitErrors(info.Errors)
 	n, s := info.ErrorCount, pluralS(info.ErrorCount)
 	desc := fmt.Sprintf("Found %d schema violation%s in %s.", n, s, path)
-	desc += " " + summarizeViolations(errList, 3)
+	if len(errList) > 0 {
+		desc += " " + strings.Join(errList, "; ")
+	}
 	return &healthplatform.Issue{
 		Id:          IssueID,
 		IssueName:   "invalid_config",
@@ -156,14 +158,13 @@ func schemaValidationIssue(info IssueInfo) *healthplatform.Issue {
 			ContextKeyErrorKind:  string(ErrorKindSchemaValidation),
 			ContextKeyConfigPath: path,
 			ContextKeyErrorCount: info.ErrorCount,
-			ContextKeyErrors:     formatErrorsBlob(errList),
 			ContextKeyImpact:     "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
 		}),
 		Remediation: &healthplatform.Remediation{
 			Summary: "Fix each schema violation in the configuration file and restart the agent.",
 			Steps: []*healthplatform.RemediationStep{
 				{Order: 1, Text: fmt.Sprintf("Open %s in an editor.", path)},
-				{Order: 2, Text: "Fix each violation listed in the description (full list available in Extra.errors)."},
+				{Order: 2, Text: "Fix each violation listed in the description."},
 				{Order: 3, Text: "Validate after fixing: datadog-agent experimental check-config -c " + path},
 				{Order: 4, Text: "Restart the agent."},
 			},
@@ -213,30 +214,6 @@ func splitErrors(joined string) []string {
 		return nil
 	}
 	return strings.Split(joined, "\n")
-}
-
-// formatErrorsBlob renders the full list as a bulleted blob. Newlines render as a vertical
-// list where the UI preserves them; collapsed renderings still get "• " between entries.
-func formatErrorsBlob(errs []string) string {
-	if len(errs) == 0 {
-		return ""
-	}
-	return "• " + strings.Join(errs, "\n• ")
-}
-
-// summarizeViolations joins up to max violations with "; " and appends "… and N more" if truncated.
-// Visible separator survives both CLI diagnose output and HTML rendering (newlines don't).
-func summarizeViolations(errs []string, max int) string {
-	if len(errs) == 0 {
-		return ""
-	}
-	shown := errs
-	suffix := ""
-	if len(errs) > max {
-		shown = errs[:max]
-		suffix = fmt.Sprintf(" … and %d more", len(errs)-max)
-	}
-	return strings.Join(shown, "; ") + suffix
 }
 
 // mustStruct converts a map to a structpb.Struct. Inputs are always strings/

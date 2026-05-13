@@ -46,10 +46,9 @@ func TestBuildIssue_SchemaValidationHasMediumSeverity(t *testing.T) {
 		issue.GetExtra().GetFields()[lite.ContextKeyErrorKind].GetStringValue())
 	assert.Equal(t, float64(3),
 		issue.GetExtra().GetFields()[lite.ContextKeyErrorCount].GetNumberValue())
-	errorsBlob := issue.GetExtra().GetFields()[lite.ContextKeyErrors].GetStringValue()
-	assert.Contains(t, errorsBlob, "agent_ipc/port")
-	assert.Contains(t, errorsBlob, "/tags")
-	assert.Contains(t, errorsBlob, "• ", "errors blob must use a visible bullet so each violation is delimited even if the UI collapses newlines")
+	assert.Contains(t, issue.GetDescription(), "agent_ipc/port")
+	assert.Contains(t, issue.GetDescription(), "/tags")
+	assert.Contains(t, issue.GetDescription(), "; ", "description must use a visible separator between violations")
 }
 
 // Backend dedupe depends on both code paths emitting the same Issue ID.
