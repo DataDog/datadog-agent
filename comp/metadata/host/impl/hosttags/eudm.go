@@ -74,15 +74,11 @@ func bytesToGB(b uint64) uint64 {
 	return (b + gib/2) / gib
 }
 
-// sanitizeEUDMTagValue normalises a free-form value for use as a tag value:
-// whitespace becomes underscores so a single token-style tag is produced.
+// eudmTagValueReplacer collapses whitespace in tag values to underscores so a
+// single token-style tag is produced.
+var eudmTagValueReplacer = strings.NewReplacer(" ", "_", "\t", "_", "\n", "_", "\r", "_")
+
+// sanitizeEUDMTagValue normalises a free-form value for use as a tag value.
 func sanitizeEUDMTagValue(v string) string {
-	v = strings.TrimSpace(v)
-	return strings.Map(func(r rune) rune {
-		switch r {
-		case ' ', '\t', '\n', '\r':
-			return '_'
-		}
-		return r
-	}, v)
+	return eudmTagValueReplacer.Replace(strings.TrimSpace(v))
 }
