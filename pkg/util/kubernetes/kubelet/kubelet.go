@@ -85,8 +85,8 @@ type KubeUtil struct {
 	nodeNameMutex sync.Mutex
 }
 
-func (ku *KubeUtil) initUsingHTTPS() error {
-	err := ku.init()
+func (ku *KubeUtil) initKubeletClientHTTPS() error {
+	err := ku.initKubeletClient()
 	if err != nil {
 		return err
 	}
@@ -96,10 +96,9 @@ func (ku *KubeUtil) initUsingHTTPS() error {
 	}
 
 	return nil
-
 }
 
-func (ku *KubeUtil) init() error {
+func (ku *KubeUtil) initKubeletClient() error {
 	var err error
 	ku.kubeletClient, err = getKubeletClient(context.Background())
 	if err != nil {
@@ -121,6 +120,25 @@ func (ku *KubeUtil) init() error {
 		}
 	}
 
+	if pkgconfigsetup.Datadog().GetBool("kubelet_use_api_server") {
+		ku.useAPIServer = true
+		ku.kubeletClient.config.nodeName, err = ku.GetNodename(context.Background())
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (ku *KubeUtil) init() error {
+	var err error
+
+	err = ku.initKubeletClient()
+	if err != nil {
+		return err
+	}
+
 	if env.IsFeaturePresent(env.PodResources) {
 		ku.podResourcesClient, err = NewPodResourcesClient(pkgconfigsetup.Datadog())
 		if err != nil {
@@ -132,14 +150,6 @@ func (ku *KubeUtil) init() error {
 		ku.devicePluginsClient, err = NewDevicePluginClient(pkgconfigsetup.Datadog())
 		if err != nil {
 			log.Warnf("Failed to create device plugins client, devices health will not be available: %s", err)
-		}
-	}
-
-	if pkgconfigsetup.Datadog().GetBool("kubelet_use_api_server") {
-		ku.useAPIServer = true
-		ku.kubeletClient.config.nodeName, err = ku.GetNodename(context.Background())
-		if err != nil {
-			return err
 		}
 	}
 
@@ -185,7 +195,7 @@ func GetKubeUtilWithRetrier() (KubeUtilInterface, *retry.Retrier) {
 		// prepare a retrier to switch from HTTP to HTTPS if available
 		globalKubeUtil.httpsRetry.SetupRetrier(&retry.Config{ //nolint:errcheck
 			Name:              "kubeutil with HTTPS",
-			AttemptMethod:     globalKubeUtil.initUsingHTTPS, // call init(), returns an error until it uses HTTPS
+			AttemptMethod:     globalKubeUtil.initKubeletClientHTTPS, // call init(), returns an error until it uses HTTPS
 			Strategy:          retry.Backoff,
 			InitialRetryDelay: 10 * time.Second,
 			MaxRetryDelay:     30 * time.Hour,
