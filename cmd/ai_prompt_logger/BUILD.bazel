@@ -78,7 +78,10 @@ pkg_files(
 
 pkg_install(
     name = "install",
-    srcs = [":native_host_files", ":ai_usage_config_example"] + select({
+    srcs = [
+        ":ai_usage_config_example",
+        ":native_host_files",
+    ] + select({
         "@platforms//os:macos": [":macos_launcher"],
         "@platforms//os:windows": [":windows_manifest"],
     }),
