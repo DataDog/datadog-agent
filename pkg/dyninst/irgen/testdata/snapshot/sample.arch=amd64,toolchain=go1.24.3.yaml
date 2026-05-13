@@ -35456,10 +35456,10 @@ Issues:
       issue:
         Kind: 7
         Message: return value selector (e.g., @return.r0) must be used for multi-value returns
-GoModuledataInfo: {FirstModuledataAddr: "0x18143a0", TypesOffset: 296}
+GoModuledataInfo: {FirstModuledataAddr: "0x18133a0", TypesOffset: 296}
 GoMapHashInfo:
-    UseAeshashAddr: "0x190396b"
-    AeskeyschedAddr: "0x1904ac0"
+    UseAeshashAddr: "0x190296b"
+    AeskeyschedAddr: "0x1903ac0"
 CommonTypes:
     G: 24 StructureType runtime.g
     M: 31 StructureType runtime.m

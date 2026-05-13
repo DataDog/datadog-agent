@@ -8887,10 +8887,10 @@ Types:
       GoKind: 5
 MaxTypeID: 954
 Issues: []
-GoModuledataInfo: {FirstModuledataAddr: "0x1804ac0", TypesOffset: 296}
+GoModuledataInfo: {FirstModuledataAddr: "0x1803ac0", TypesOffset: 296}
 GoMapHashInfo:
-    UseAeshashAddr: "0x18dfc16"
-    AeskeyschedAddr: "0x18e0da0"
+    UseAeshashAddr: "0x18dec16"
+    AeskeyschedAddr: "0x18dfda0"
 CommonTypes:
     G: 24 StructureType runtime.g
     M: 31 StructureType runtime.m
