@@ -36,6 +36,7 @@ const (
 	dataPlaneUnit   = "datadog-agent-data-plane.service"
 	dataPlaneUnitXP = "datadog-agent-data-plane-exp.service"
 	installerUnit   = "datadog-agent-installer.service"
+	procmgrUnit     = "datadog-agent-procmgr.service"
 )
 
 type packageAgentSuite struct {
