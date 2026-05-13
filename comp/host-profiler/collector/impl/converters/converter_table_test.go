@@ -244,9 +244,9 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/preserve-all-res-attrs/out.yaml",
 		},
 		{
-			name:     "preserve-res-attrs-no-system",
-			provided: "no_agent/preserve-res-attrs-no-system/in.yaml",
-			expected: "no_agent/preserve-res-attrs-no-system/out.yaml",
+			name:     "preserve-res-no-sys",
+			provided: "no_agent/preserve-res-no-sys/in.yaml",
+			expected: "no_agent/preserve-res-no-sys/out.yaml",
 		},
 		{
 			name:     "preserve-user-evp-headers",
