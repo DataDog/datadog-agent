@@ -802,7 +802,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
             } else {
                 u64 cgroup_id = get_current_cgroup_id();
                 if (cgroup_id) {
-                    pc.cgroup.cgroup_file.ino = cgroup_id;
+                    pc.cgroup.path_key.ino = cgroup_id;
                 }
             }
         }
