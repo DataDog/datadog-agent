@@ -107,34 +107,27 @@ func newTestSender(t *testing.T, cl client) *senderImpl {
 	}
 }
 
-// TestSlogLevelToLogLevel_ErrorAndAbove: the only contract the function
-// honors is "Level >= Error -> LogLevelError". The pkg/util/log
-// errortracking handler filters everything lower before dispatch, so
-// the mapping never sees Warn/Info/Debug in practice (review comment F5
-// on PR #50607).
-func TestSlogLevelToLogLevel_ErrorAndAbove(t *testing.T) {
-	cases := []struct {
-		in   slog.Level
-		want LogLevel
-	}{
-		{slog.LevelError, LogLevelError},
-		{slog.LevelError + 4, LogLevelError},
-	}
-	for _, c := range cases {
-		got := slogLevelToLogLevel(c.in)
-		assert.Equalf(t, c.want, got, "level %v -> %s", c.in, c.want)
-	}
-}
-
-// TestSlogLevelToLogLevel_BelowErrorPanics: lower levels are a contract
-// violation -- they cannot reach the wire mapping because the handler
-// filters them. Panic loudly so a future regression is caught in tests
-// instead of producing an invalid wire payload (review comment F5).
-func TestSlogLevelToLogLevel_BelowErrorPanics(t *testing.T) {
-	for _, lvl := range []slog.Level{slog.LevelWarn, slog.LevelInfo, slog.LevelDebug, slog.LevelDebug - 4} {
+// TestSlogLevelToLogLevel_Total: the wire schema only emits
+// LogLevelError. The mapping is therefore total — any slog.Level maps
+// to LogLevelError without panic. Previously sub-Error inputs panicked
+// (prior-round F5); the panic ran in the background flush goroutine
+// and would crash the agent on any direct SubmitErrorRecord caller
+// bypassing the handler filter. Addresses louis-cqrl's 🟠 thread and
+// pducolin's overlapping suggestion on PR #50607.
+func TestSlogLevelToLogLevel_Total(t *testing.T) {
+	for _, lvl := range []slog.Level{
+		slog.LevelError + 4,
+		slog.LevelError,
+		slog.LevelWarn,
+		slog.LevelInfo,
+		slog.LevelDebug,
+		slog.LevelDebug - 4,
+	} {
 		lvl := lvl
 		t.Run(lvl.String(), func(t *testing.T) {
-			require.Panics(t, func() { slogLevelToLogLevel(lvl) })
+			assert.NotPanics(t, func() {
+				assert.Equal(t, LogLevelError, slogLevelToLogLevel(lvl))
+			})
 		})
 	}
 }
