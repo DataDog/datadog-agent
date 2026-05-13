@@ -405,10 +405,8 @@ exports_files(glob(
 # gazelle:exclude pkg/config/autodiscovery
 # gazelle:exclude pkg/config/fetcher/sysprobe
 # gazelle:exclude pkg/config/legacy
-# gazelle:exclude pkg/config/settings
 # gazelle:exclude pkg/databasemonitoring
 # gazelle:exclude pkg/diagnose/connectivity
-# gazelle:exclude pkg/diagnose/ports
 # gazelle:exclude pkg/discovery/apm
 # gazelle:exclude pkg/discovery/language
 # gazelle:exclude pkg/discovery/module/rust/include
@@ -592,7 +590,6 @@ exports_files(glob(
 # gazelle:exclude pkg/process/util/containers
 # gazelle:exclude pkg/process/util/status
 # gazelle:exclude pkg/procmgr
-# gazelle:exclude pkg/remoteflags
 # gazelle:exclude pkg/sbom/collectors/docker
 # gazelle:exclude pkg/sbom/collectors/host
 # gazelle:exclude pkg/sbom/collectors/procfs
@@ -641,14 +638,12 @@ exports_files(glob(
 # gazelle:exclude pkg/serverless/trace/trace_test.go
 # gazelle:exclude pkg/serverless/trace/trace.go
 # gazelle:exclude pkg/snmp/devicededuper
-# gazelle:exclude pkg/snmp/gosnmplib
 # gazelle:exclude pkg/snmp/snmpparse
 # gazelle:exclude pkg/status/clusteragent
 # gazelle:exclude pkg/status/collector
 # gazelle:exclude pkg/system-probe/api/client/check_test.go
 # gazelle:exclude pkg/system-probe/api/module
 # gazelle:exclude pkg/system-probe/api/server/testutil
-# gazelle:exclude pkg/util/cloudproviders/gce
 # gazelle:exclude pkg/util/cloudproviders/kubernetes
 # gazelle:exclude pkg/util/cloudproviders/network
 # gazelle:exclude pkg/util/clusteragent
