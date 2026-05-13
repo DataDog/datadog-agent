@@ -616,8 +616,11 @@ func getSharedFxOption() fx.Option {
 // never reached because the submitter slot stays nil and the slog handler
 // under pkg/util/log/setup short-circuits.
 //
-// Lifecycle: OnStart installs the submitter; OnStop clears it so records
-// emitted during shutdown do not race agenttelemetry's own teardown.
+// Lifecycle: OnStart installs the submitter. The matching clear runs
+// synchronously inside agenttelemetry.stop() (not as a separate OnStop
+// hook here) so it executes before atel.cancel() — guaranteeing no
+// producer can enqueue after the flush goroutine begins its final drain.
+// See comp/core/agenttelemetry/impl/agenttelemetry.go.
 func installErrortrackingHandler(lc fx.Lifecycle, cfg config.Component, at agenttelemetry.Component) {
 	if !configUtils.IsAgentTelemetryEnabled(cfg) || !cfg.GetBool("agent_telemetry.errortracking.enabled") {
 		return
@@ -630,10 +633,6 @@ func installErrortrackingHandler(lc fx.Lifecycle, cfg config.Component, at agent
 	lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
 			pkglogsetup.RegisterErrortrackingSubmitter(submitter)
-			return nil
-		},
-		OnStop: func(_ context.Context) error {
-			pkglogsetup.RegisterErrortrackingSubmitter(nil)
 			return nil
 		},
 	})
