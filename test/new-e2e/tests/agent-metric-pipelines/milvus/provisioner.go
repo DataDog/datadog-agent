@@ -12,6 +12,7 @@ package milvus
 import (
 	_ "embed"
 	"encoding/base64"
+	"os"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
@@ -46,24 +47,35 @@ var trafficScript string
 func Provisioner(testID string) provisioners.TypedProvisioner[environments.DockerHost] {
 	trafficB64 := base64.StdEncoding.EncodeToString([]byte(trafficScript))
 
+	agentOpts := []dockeragentparams.Option{
+		dockeragentparams.WithExtraComposeManifest(
+			"milvus",
+			pulumi.String(milvusComposeContent),
+		),
+		dockeragentparams.WithEnvironmentVariables(pulumi.StringMap{
+			"DD_E2E_TEST_ID":        pulumi.String(testID),
+			"DD_MILVUS_TRAFFIC_B64": pulumi.String(trafficB64),
+		}),
+		dockeragentparams.WithTags([]string{
+			"env:e2e",
+			"e2e_scenario:milvus",
+			"e2e_test_id:" + testID,
+		}),
+	}
+
+	// If the caller (typically scripts/_lib.sh after dd-auth) selected a
+	// non-default Datadog site, pin it on the agent container so the agent
+	// ships to the same org that owns the API key.
+	if site := os.Getenv("MILVUS_DD_SITE"); site != "" {
+		agentOpts = append(agentOpts,
+			dockeragentparams.WithAgentServiceEnvVariable("DD_SITE", pulumi.String(site)),
+		)
+	}
+
 	return awsdocker.Provisioner(
 		awsdocker.WithRunOptions(
 			ec2docker.WithoutFakeIntake(),
-			ec2docker.WithAgentOptions(
-				dockeragentparams.WithExtraComposeManifest(
-					"milvus",
-					pulumi.String(milvusComposeContent),
-				),
-				dockeragentparams.WithEnvironmentVariables(pulumi.StringMap{
-					"DD_E2E_TEST_ID":        pulumi.String(testID),
-					"DD_MILVUS_TRAFFIC_B64": pulumi.String(trafficB64),
-				}),
-				dockeragentparams.WithTags([]string{
-					"env:e2e",
-					"e2e_scenario:milvus",
-					"e2e_test_id:" + testID,
-				}),
-			),
+			ec2docker.WithAgentOptions(agentOpts...),
 		),
 	)
 }

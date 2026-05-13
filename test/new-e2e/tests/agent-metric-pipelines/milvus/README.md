@@ -69,9 +69,19 @@ and uses `dd-auth` to populate the API key. From the milvus directory:
 ./scripts/down.sh      # destroy the stack
 ```
 
-Each script sources `scripts/_lib.sh`, which calls `dd-auth` to populate
-`DD_API_KEY` and forwards it as `E2E_API_KEY` (the name the e2e-framework
-runner reads).
+Each script sources `scripts/_lib.sh`, which runs `dd-auth --output`,
+exports `DD_API_KEY` / `DD_APP_KEY` / `DD_SITE`, and re-publishes them under
+the names the framework/provisioner read (`E2E_API_KEY`, `E2E_APP_KEY`,
+`MILVUS_DD_SITE`). To authenticate against a non-default org, set
+`DD_AUTH_DOMAIN` (native dd-auth env var) before calling the scripts:
+
+```bash
+DD_AUTH_DOMAIN=dddev.datadoghq.com ./scripts/up.sh
+```
+
+The provisioner sets `DD_SITE` on the agent container when
+`MILVUS_DD_SITE` is non-empty, so the agent ships to the same org that
+owns the key.
 
 Overrideable env vars:
 
