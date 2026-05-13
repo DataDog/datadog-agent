@@ -406,6 +406,16 @@ func makeOperationMarshaler(
 			toMarshal = newWithKind(op)
 		case *ir.CondLabelOp:
 			toMarshal = newWithKind(op)
+		case *ir.ExprPrepareOp:
+			toMarshal = newWithKind(op)
+		case *ir.ConditionStateInitOp:
+			toMarshal = newWithKind(op)
+		case *ir.ConditionLeafEvalOp:
+			toMarshal = newWithKind(op)
+		case *ir.ConditionLeafLoadOp:
+			toMarshal = newWithKind(op)
+		case *ir.ConditionCheckPreserveErrorOp:
+			toMarshal = newWithKind(op)
 		default:
 			return fmt.Errorf("unknown operation: %T", op)
 		}
