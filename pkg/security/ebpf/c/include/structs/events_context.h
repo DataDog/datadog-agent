@@ -61,7 +61,7 @@ struct file_t {
 };
 
 struct cgroup_context_t {
-    struct path_key_t cgroup_file;
+    struct path_key_t path_key;
 };
 
 #endif

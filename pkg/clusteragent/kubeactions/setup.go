@@ -20,7 +20,7 @@ import (
 
 // Setup initializes the kubeactions subsystem with all executors registered
 func Setup(ctx context.Context, clientset kubernetes.Interface, clusterName, clusterID string, isLeader func() bool, rcClient RcClient, epForwarderComp eventplatform.Component) (*ConfigRetriever, error) {
-	log.Infof("Setting up Kubernetes actions subsystem")
+	log.Infof("[KubeActions] Setting up Kubernetes actions subsystem")
 
 	// Create the executor registry
 	registry := NewExecutorRegistry(clientset)
@@ -32,21 +32,15 @@ func Setup(ctx context.Context, clientset kubernetes.Interface, clusterName, clu
 	store := NewActionStore(ctx)
 
 	// Get the event platform forwarder if available
-	log.Infof("[KubeActions] Attempting to get Event Platform forwarder from component...")
 	var epForwarder eventplatform.Forwarder
 	if forwarder, ok := epForwarderComp.Get(); ok {
 		epForwarder = forwarder
-		log.Infof("[KubeActions] SUCCESS: Event Platform forwarder available for kubeactions result reporting (forwarder=%p)", epForwarder)
 	} else {
-		log.Errorf("[KubeActions] CRITICAL: Event Platform forwarder not available, result reporting will be disabled")
+		log.Warnf("[KubeActions] Event Platform forwarder not available, result reporting will be disabled")
 	}
 
-	// Create the processor with in-memory store and event platform forwarder
-	log.Infof("[KubeActions] Creating ActionProcessor with epForwarder=%p", epForwarder)
 	processor := NewActionProcessor(ctx, registry, store, epForwarder, clusterName, clusterID)
-	log.Infof("[KubeActions] ActionProcessor created successfully")
 
-	// Create and return the config retriever
 	return NewConfigRetriever(processor, isLeader, rcClient), nil
 }
 
@@ -66,28 +60,9 @@ func (a *executorAdapter) Execute(ctx context.Context, action *kubeactions.KubeA
 
 // registerExecutors registers all available action executors
 func registerExecutors(registry *ExecutorRegistry, clientset kubernetes.Interface) {
-	// Register delete_pod executor
 	registry.Register("delete_pod", &executorAdapter{exec: executors.NewDeletePodExecutor(clientset)})
-	log.Infof("Registered executor for action type: delete_pod")
-
-	// Register restart_deployment executor
 	registry.Register("restart_deployment", &executorAdapter{exec: executors.NewRestartDeploymentExecutor(clientset)})
-	log.Infof("Registered executor for action type: restart_deployment")
-
-	// Register patch_deployment executor
 	registry.Register("patch_deployment", &executorAdapter{exec: executors.NewPatchDeploymentExecutor(clientset)})
-	log.Infof("Registered executor for action type: patch_deployment")
-
-	// Register rollback_deployment executor
 	registry.Register("rollback_deployment", &executorAdapter{exec: executors.NewRollbackDeploymentExecutor(clientset)})
-	log.Infof("Registered executor for action type: rollback_deployment")
-
-	// Register get_resource executor
 	registry.Register("get_resource", &executorAdapter{exec: executors.NewGetResourceExecutor(clientset)})
-	log.Infof("Registered executor for action type: get_resource")
-
-	// TODO: Add more executors here as they are implemented:
-	// registry.Register("drain_node", &executorAdapter{exec: executors.NewDrainNodeExecutor(clientset)})
-	// registry.Register("cordon_node", &executorAdapter{exec: executors.NewCordonNodeExecutor(clientset)})
-	// registry.Register("uncordon_node", &executorAdapter{exec: executors.NewUncordonNodeExecutor(clientset)})
 }

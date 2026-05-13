@@ -292,6 +292,8 @@ core,github.com/DataDog/rshell/builtins/break,Apache-2.0,"Copyright 2026-present
 core,github.com/DataDog/rshell/builtins/cat,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/continue,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/cut,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/df,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/du,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/echo,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/exit,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/false,Apache-2.0,"Copyright 2026-present Datadog, Inc"
@@ -299,6 +301,7 @@ core,github.com/DataDog/rshell/builtins/find,Apache-2.0,"Copyright 2026-present 
 core,github.com/DataDog/rshell/builtins/grep,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/head,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/help,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/diskstats,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/internal/loopctl,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/internal/procinfo,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/internal/procnetroute,Apache-2.0,"Copyright 2026-present Datadog, Inc"
@@ -306,11 +309,14 @@ core,github.com/DataDog/rshell/builtins/internal/procnetsocket,Apache-2.0,"Copyr
 core,github.com/DataDog/rshell/builtins/internal/procpath,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/internal/procsyskernel,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/internal/winnet,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/internal/winpoll,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/ip,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/ls,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/ping,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/printf,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/ps,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/pwd,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/read,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/sed,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/sort,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/ss,Apache-2.0,"Copyright 2026-present Datadog, Inc"
@@ -322,6 +328,7 @@ core,github.com/DataDog/rshell/builtins/true,Apache-2.0,"Copyright 2026-present 
 core,github.com/DataDog/rshell/builtins/uname,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/uniq,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/builtins/wc,Apache-2.0,"Copyright 2026-present Datadog, Inc"
+core,github.com/DataDog/rshell/builtins/xargs,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/internal/interpoption,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/internal/version,Apache-2.0,"Copyright 2026-present Datadog, Inc"
 core,github.com/DataDog/rshell/interp,Apache-2.0,"Copyright 2026-present Datadog, Inc"
@@ -1025,7 +1032,6 @@ core,github.com/docker/cli/cli/config/configfile,Apache-2.0,"Copyright 2012-2017
 core,github.com/docker/cli/cli/config/credentials,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/cli/cli/config/memorystore,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/cli/cli/config/types,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
-core,github.com/docker/distribution/registry/client/auth/challenge,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker-credential-helpers/client,MIT,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker-credential-helpers/credentials,MIT,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/go-connections/sockets,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
@@ -1369,6 +1375,7 @@ core,github.com/google/go-containerregistry/pkg/v1/match,Apache-2.0,Copyright 20
 core,github.com/google/go-containerregistry/pkg/v1/mutate,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1/partial,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1/remote,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
+core,github.com/google/go-containerregistry/pkg/v1/remote/internal/authchallenge,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1/remote/transport,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1/stream,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1/tarball,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
@@ -1651,8 +1658,8 @@ core,github.com/mattn/go-sqlite3,MIT,Copyright (c) 2014 Yasuhiro Matsumoto
 core,github.com/mattn/go-zglob,MIT,Copyright (c) 2017 Yasuhiro Matsumoto
 core,github.com/mattn/go-zglob/fastwalk,MIT,Copyright (c) 2017 Yasuhiro Matsumoto
 core,github.com/mdlayher/kobject,MIT,Copyright (C) 2017 Matt Layher
-core,github.com/mdlayher/netlink,MIT,Copyright (C) 2016-2022 Matt Layher
-core,github.com/mdlayher/netlink/nlenc,MIT,Copyright (C) 2016-2022 Matt Layher
+core,github.com/mdlayher/netlink,MIT,Copyright (C) 2016-2026 Matt Layher
+core,github.com/mdlayher/netlink/nlenc,MIT,Copyright (C) 2016-2026 Matt Layher
 core,github.com/mdlayher/socket,MIT,Copyright (C) 2021 Matt Layher
 core,github.com/mdlayher/vsock,MIT,Copyright (C) 2017-2022 Matt Layher
 core,github.com/miekg/dns,BSD-3-Clause,"Alex A. Skinner | Alex Sergeyev | Andrew Tunnell-Jones | Ask Bjørn Hansen | Copyright (c) 2009, The Go Authors. Extensions copyright (c) 2011, Miek Gieben | Copyright 2009 The Go Authors. All rights reserved. Use of this source code | Copyright 2011 Miek Gieben. All rights reserved. Use of this source code is | Copyright 2014 CloudFlare. All rights reserved. Use of this source code is | Dave Cheney | Dusty Wilson | James Hartig | Marek Majkowski | Miek Gieben <miek@miek.nl> | Omri Bahumi | Peter van Dijk | copyright (c) 2011 Miek Gieben"
@@ -1725,7 +1732,7 @@ core,github.com/netsampler/goflow2/transport,BSD-3-Clause,"Copyright (c) 2021, N
 core,github.com/netsampler/goflow2/utils,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/nexus-rpc/sdk-go/nexus,MIT,Copyright (c) 2023 Temporal Technologies Inc. All Rights Reserved
 core,github.com/oklog/ulid/v2,Apache-2.0,- Peter Bourgon (@peterbourgon) | - Tomás Senart (@tsenart)
-core,github.com/oliveagle/jsonpath,MIT,Copyright (c) 2015 oliver
+core,github.com/oliveagle/jsonpath,MIT,"Copyright (c) 2021, 2015; DoltHub Authors, oliver"
 core,github.com/open-policy-agent/opa/capabilities,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/bundle,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
 core,github.com/open-policy-agent/opa/internal/cidr/merge,Apache-2.0,Copyright 2016 The OPA Authors.  All rights reserved.
