@@ -59,6 +59,11 @@ type ErrorLog struct {
 	// Attrs is reserved for a future template-aware capture path; the
 	// PR #50607 PII pivot intentionally leaves it empty.
 	Attrs []slog.Attr
+
+	// Count is the number of same-PC sightings the Bouncer collapsed
+	// into this record (≥ 1; 1 means "first or only sighting in the
+	// current bouncer window"). Propagated to the wire Log.Count.
+	Count uint32
 }
 
 // Submitter is the registration target for sending an ErrorLog to a

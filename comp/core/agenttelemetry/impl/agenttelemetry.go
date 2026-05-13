@@ -837,15 +837,17 @@ func (a *atel) start() error {
 
 // stop is called by FX when the application stops.
 func (a *atel) stop() error {
-	// Clear the errortracking submitter slot before any other shutdown
-	// step so producers stop reaching SubmitErrorRecord. The slot is a
-	// package-global atomic.Pointer in pkg/util/log/setup; storing nil
-	// is idempotent and cheap, so the call is unconditional. After this
-	// point, errortracking.Handler.Enabled returns false and the parent
-	// multi-handler short-circuits — no further enqueues can race the
-	// final drain below. Addresses louis-cqrl's "records after final
-	// drain stranded" thread on PR #50607.
+	// Clear the errortracking submitter + bouncer slots before any
+	// other shutdown step so producers stop reaching SubmitErrorRecord.
+	// The slots are package-global atomic.Pointers in pkg/util/log/setup;
+	// storing nil is idempotent and cheap, so the calls are
+	// unconditional. After this point, errortracking.Handler.Enabled
+	// returns false and the parent multi-handler short-circuits — no
+	// further enqueues can race the final drain below. Addresses
+	// louis-cqrl's "records after final drain stranded" thread on
+	// PR #50607.
 	pkglogsetup.RegisterErrortrackingSubmitter(nil)
+	pkglogsetup.RegisterErrortrackingBouncer(nil)
 
 	if a.startupSpan != nil {
 		a.startupSpan.Finish(nil)

@@ -189,11 +189,14 @@ func buildSlogLogger(
 	asyncHandler := handlers.NewAsync(multiHandler)
 
 	// AGTHEAL-15: errortracking branch is a sibling of asyncHandler under the
-	// global level filter. The Handler atomic-loads the current Submitter on
-	// every record, so the chain is correctly wired whether or not the
-	// agenttelemetry component has registered yet; its Enabled returns false
-	// when no Submitter is registered, short-circuiting the multi-handler.
-	topHandler := handlers.NewMulti(asyncHandler, errortracking.NewHandler(loadErrortrackingSubmitter))
+	// global level filter. The Handler atomic-loads the current Submitter
+	// (and per-PC Bouncer) on every record, so the chain is correctly wired
+	// whether or not the agenttelemetry component has registered yet; its
+	// Enabled returns false when no Submitter is registered, short-circuiting
+	// the multi-handler.
+	errortrackingHandler := errortracking.NewHandler(loadErrortrackingSubmitter).
+		WithBouncerLoader(loadErrortrackingBouncer)
+	topHandler := handlers.NewMulti(asyncHandler, errortrackingHandler)
 
 	levelVar := new(stdslog.LevelVar)
 	levelVar.Set(types.ToSlogLevel(logLevel))
@@ -325,4 +328,27 @@ func loadErrortrackingSubmitter() errortracking.Submitter {
 		return nil
 	}
 	return *p
+}
+
+// errortrackingBouncerSlot mirrors errortrackingSubmitterSlot for the
+// per-PC dedup Bouncer. Late-bound for the same reason: SetupLogger
+// runs before the agenttelemetry component (which owns the config that
+// chooses the window) is constructed.
+var errortrackingBouncerSlot atomic.Pointer[errortracking.Bouncer]
+
+// RegisterErrortrackingBouncer installs b as the per-PC dedup
+// Bouncer for the errortracking branch of every slog chain built via
+// buildSlogLogger. Passing nil clears the registration so subsequent
+// records bypass dedup. The Fx graph in the run command's
+// installErrortrackingHandler registers the agenttelemetry component's
+// Bouncer here at startup, alongside the Submitter.
+func RegisterErrortrackingBouncer(b *errortracking.Bouncer) {
+	errortrackingBouncerSlot.Store(b)
+}
+
+// loadErrortrackingBouncer atomically loads the registered Bouncer
+// (or nil if none). Handed to the errortracking.Handler so it can
+// check dedup on every Error record without a slow-path mutex.
+func loadErrortrackingBouncer() *errortracking.Bouncer {
+	return errortrackingBouncerSlot.Load()
 }

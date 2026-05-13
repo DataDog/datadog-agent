@@ -181,6 +181,61 @@ func TestHandle_StackSkipBase(t *testing.T) {
 	}
 }
 
+// TestHandler_BouncerSuppressesDuplicates: when a Bouncer is attached
+// via WithBouncerLoader, the second sighting of a given PC inside the
+// window must NOT reach the Submitter. The Submitter sees the first
+// sighting with Count==1, and the count accumulates on subsequent
+// non-suppressed sightings.
+func TestHandler_BouncerSuppressesDuplicates(t *testing.T) {
+	rec := &recordingSubmitter{}
+	var slot atomic.Pointer[Submitter]
+	sub := Submitter(rec.submit)
+	slot.Store(&sub)
+
+	bouncer := NewBouncer(15*time.Minute, 0)
+	h := NewHandler(loaderFor(&slot)).WithBouncerLoader(func() *Bouncer { return bouncer })
+
+	// Same PC repeated four times — slog.NewRecord with explicit PC.
+	pc := uintptr(0xABCDEF)
+	for i := 0; i < 4; i++ {
+		r := slog.NewRecord(time.Now(), slog.LevelError, "same site", pc)
+		if err := h.Handle(context.Background(), r); err != nil {
+			t.Fatalf("Handle: %v", err)
+		}
+	}
+
+	got := rec.snapshot()
+	if len(got) != 1 {
+		t.Fatalf("Bouncer must suppress duplicates — got %d records, want 1", len(got))
+	}
+	if got[0].Count != 1 {
+		t.Fatalf("first sighting Count = %d, want 1", got[0].Count)
+	}
+}
+
+// TestHandler_BouncerNilLoaderIsPassThrough: a nil bouncer loader (or
+// a loader returning nil) MUST disable dedup. Every record reaches the
+// Submitter with Count=1.
+func TestHandler_BouncerNilLoaderIsPassThrough(t *testing.T) {
+	rec := &recordingSubmitter{}
+	var slot atomic.Pointer[Submitter]
+	sub := Submitter(rec.submit)
+	slot.Store(&sub)
+
+	h := NewHandler(loaderFor(&slot)).WithBouncerLoader(func() *Bouncer { return nil })
+
+	pc := uintptr(0xABCDEF)
+	for i := 0; i < 3; i++ {
+		r := slog.NewRecord(time.Now(), slog.LevelError, "same site", pc)
+		_ = h.Handle(context.Background(), r)
+	}
+
+	got := rec.snapshot()
+	if len(got) != 3 {
+		t.Fatalf("nil-bouncer loader must NOT dedup — got %d records, want 3", len(got))
+	}
+}
+
 // TestHandler_NeverBlocks_WhenNoSubmitter asserts that the steady-state
 // "no submitter registered" path is a fast no-op. The atomic-load fast
 // path must not allocate or contend even at high call rates - this is the
