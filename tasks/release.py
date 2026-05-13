@@ -82,7 +82,6 @@ from tasks.notify import post_message
 from tasks.pipeline import run
 from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
 
-BACKPORT_LABEL_COLOR = "5319e7"
 QUALIFICATION_TAG = "qualification"
 
 
