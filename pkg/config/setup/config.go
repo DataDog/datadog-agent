@@ -346,23 +346,12 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	initCommonConfigComponents(config)
 	// Settings just for the core-agent in general
 	initCoreAgentFull(config)
-	// AGTHEAL-15: experimental error log forwarding to COAT. Core-agent only.
-	errortracking(config)
 }
 
 func initCommonConfigComponents(config pkgconfigmodel.Setup) {
 	for _, f := range commonConfigComponents {
 		f(config)
 	}
-}
-
-// errortracking registers the single feature gate for the experimental
-// Cross-Org Agent Telemetry (COAT) error log forwarder (AGTHEAL-15).
-// Endpoint resolution, buffering, and flush scheduling are owned by the
-// agenttelemetry component and inherit from its agent_telemetry.* keys;
-// there are no errortracking-specific tuning knobs.
-func errortracking(config pkgconfigmodel.Setup) {
-	config.BindEnvAndSetDefault("errortracking.enabled", false)
 }
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables

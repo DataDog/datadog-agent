@@ -1526,6 +1526,17 @@ func telemetry(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("agent_telemetry.compression_level", 1)
 	config.BindEnvAndSetDefault("agent_telemetry.use_compression", true)
 	config.BindEnvAndSetDefault("agent_telemetry.startup_trace_sampling", 0)
+
+	// AGTHEAL-15: experimental error log forwarding to COAT. Use-sites must
+	// additionally gate on pkg/config/utils.IsAgentTelemetryEnabled so
+	// gov/FIPS exclusion is inherited from the parent agent_telemetry flag.
+	config.BindEnvAndSetDefault("agent_telemetry.errortracking.enabled", false)
+	config.BindEnvAndSetDefault("agent_telemetry.errortracking.bouncer_window_seconds", 900)
+	config.BindEnvAndSetDefault("agent_telemetry.errortracking.flush_interval_seconds", 60)
+	config.BindEnvAndSetDefault("agent_telemetry.errortracking.batch_size", 100)
+	config.BindEnvAndSetDefault("agent_telemetry.errortracking.buffer_size", 2048)
+	config.BindEnvAndSetDefault("agent_telemetry.errortracking.startup_jitter_seconds", 0)
+	config.BindEnvAndSetDefault("agent_telemetry.errortracking.shutdown_drain_timeout_seconds", 5)
 }
 
 func serializer(config pkgconfigmodel.Setup) {

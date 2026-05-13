@@ -289,12 +289,13 @@ func TestSubmitErrorRecord_AcceptsRecord_PCZero(t *testing.T) {
 }
 
 // TestSubmitErrorRecord_FeatureDisabled_NoChannel: when
-// errortracking.enabled is false (default), SubmitErrorRecord must be a
-// no-op and the underlying channel must not be allocated. This is the
-// F2 gating contract: deployments that don't opt in pay zero overhead
-// (no ~80KB buffer, no idle flush goroutine).
+// agent_telemetry.errortracking.enabled is false (default), or when
+// gov/FIPS exclusion blocks the parent agent_telemetry feature,
+// SubmitErrorRecord must be a no-op and the underlying channel must not
+// be allocated. This is the gating contract: deployments that don't opt
+// in pay zero overhead (no buffer, no idle flush goroutine).
 func TestSubmitErrorRecord_FeatureDisabled_NoChannel(t *testing.T) {
-	// Simulate the "createAtel saw errortracking.enabled=false" shape:
+	// Simulate the "createAtel saw errortracking gate=false" shape:
 	// enabled (agenttelemetry) is true, errortrackingEnabled is false,
 	// errLogsCh is left as the zero value (nil).
 	a := &atel{

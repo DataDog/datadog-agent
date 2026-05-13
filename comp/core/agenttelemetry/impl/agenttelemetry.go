@@ -57,15 +57,15 @@ type atel struct {
 	prevPromMetricHistogramValues map[string]uint64
 	prevPromMetricValuesMU        sync.Mutex
 
-	// Errortracking (v3): bounded channel + flush goroutine.
+	// Errortracking: bounded channel + flush goroutine.
 	// SubmitErrorRecord enqueues here non-blockingly; runErrorLogsFlush
 	// drains the channel on a ticker and on shutdown, dispatching via
-	// sender.sendLogsTypedBatch. The previous v2 Pipeline/Processor
-	// abstractions were removed per review comment C2 on PR #49946.
+	// sender.sendLogsTypedBatch.
 	//
 	// errortrackingEnabled gates allocation of errLogsCh and the spawn
-	// of runErrorLogsFlush on the errortracking.enabled feature flag, so
-	// deployments that don't opt in pay zero overhead (no ~80KB buffer,
+	// of runErrorLogsFlush on the composed gate
+	// (IsAgentTelemetryEnabled && agent_telemetry.errortracking.enabled),
+	// so deployments that don't opt in pay zero overhead (no buffer,
 	// no idle goroutine).
 	errortrackingEnabled bool
 	errLogsCh            chan errortracking.ErrorLog
@@ -160,9 +160,14 @@ func createAtel(
 	// Only allocate the errortracking channel (and later spawn the flush
 	// goroutine in start) when the errortracking feature is enabled.
 	// Otherwise leave errLogsCh nil; SubmitErrorRecord is then a no-op
-	// (see the errLogsCh==nil guard there) and we avoid the ~80KB buffer
-	// + idle goroutine for deployments that don't opt in.
-	errortrackingEnabled := cfgComp.GetBool("errortracking.enabled")
+	// (see the errLogsCh==nil guard there) and we avoid the buffer +
+	// idle goroutine for deployments that don't opt in.
+	//
+	// Gate composes with IsAgentTelemetryEnabled so gov/FIPS sites
+	// (parent agent_telemetry is excluded for them) automatically opt
+	// out without needing a separate exclusion list.
+	errortrackingEnabled := utils.IsAgentTelemetryEnabled(cfgComp) &&
+		cfgComp.GetBool("agent_telemetry.errortracking.enabled")
 	var errLogsCh chan errortracking.ErrorLog
 	if errortrackingEnabled {
 		errLogsCh = make(chan errortracking.ErrorLog, errLogsBufferSize)
