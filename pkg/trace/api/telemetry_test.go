@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	zstdimpl "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 
 	"github.com/stretchr/testify/assert"
@@ -76,11 +77,16 @@ func getTestConfig(endpointURL string) *config.AgentConfig {
 	return cfg
 }
 
-// decodeBatch decodes a MessagePack-encoded agent-batch payload.
+// decodeBatch decompresses and decodes a zstd+MessagePack-encoded agent-batch payload.
 func decodeBatch(t *testing.T, body []byte) agentBatch {
 	t.Helper()
+	reader, err := zstdimpl.NewComponent().NewReader(bytes.NewReader(body))
+	require.NoError(t, err)
+	defer reader.Close()
+	decompressed, err := io.ReadAll(reader)
+	require.NoError(t, err)
 	var batch agentBatch
-	err := msgpack.Unmarshal(body, &batch)
+	err = msgpack.Unmarshal(decompressed, &batch)
 	require.NoError(t, err)
 	return batch
 }
@@ -98,6 +104,7 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 		assert.Regexp(regexp.MustCompile("trace-agent.*"), req.Header.Get("Via"))
 		assert.Equal("agent-batch", req.Header.Get("DD-Telemetry-Request-Type"))
 		assert.Equal("application/msgpack", req.Header.Get("Content-Type"))
+		assert.Equal("zstd", req.Header.Get("Content-Encoding"))
 		assert.Equal("/api/v2/apmtelemetry", req.URL.Path)
 
 		// Decode batch and verify event contents
