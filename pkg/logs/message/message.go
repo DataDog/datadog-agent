@@ -458,6 +458,9 @@ func (m *MessageMetadata) GetLatency() int64 {
 
 // Tags returns all tags that this message is attached with.
 func (m *MessageMetadata) Tags() []string {
+	if m.Origin == nil {
+		return nil
+	}
 	return m.Origin.Tags()
 }
 

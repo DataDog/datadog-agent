@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -250,6 +252,24 @@ func TestPayloadAllowsMessageContentGC(t *testing.T) {
 	assert.Equal(t, int64(2), payload.MessageMetas[0].IngestionTimestamp)
 }
 
+func TestMessageTagsWithOrigin(t *testing.T) {
+	cfg := &config.LogsConfig{
+		Source:         "a",
+		SourceCategory: "b",
+		Tags:           []string{"c:d", "e"},
+	}
+	source := sources.NewLogSource("", cfg)
+	origin := NewOrigin(source)
+	origin.SetTags([]string{"foo:bar"})
+
+	msg := NewMessage([]byte("hello"), origin, "", 0)
+	assert.Equal(t, []string{"foo:bar", "sourcecategory:b", "c:d", "e"}, msg.Tags())
+}
+
+func TestMessageTagsNilOrigin(t *testing.T) {
+	msg := NewMessage([]byte("hello"), nil, "", 0)
+	assert.Nil(t, msg.Tags())
+}
 
 func TestSplitEscapedPath(t *testing.T) {
 	tests := []struct {
