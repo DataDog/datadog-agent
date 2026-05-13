@@ -63,7 +63,7 @@ func (p *Probe) OnNewRuleSetLoaded(_ *rules.RuleSet) {
 
 // ShouldEvaluateDiscarders returns whether discarder evaluation should proceed for the given event
 func (p *Probe) ShouldEvaluateDiscarders(_ *model.Event) bool {
-	return true
+	return false
 }
 
 // OnNewDiscarder is called when a new discarder is found. We currently don't generate discarders on Windows.
