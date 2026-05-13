@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
+	zstdimpl "github.com/DataDog/datadog-agent/comp/trace/compression/impl-zstd"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
@@ -65,7 +66,7 @@ func newTestReceiverFromConfig(conf *config.AgentConfig) *HTTPReceiver {
 
 	rawTraceChan := make(chan *Payload, 5000)
 	rawTraceChanV1 := make(chan *PayloadV1, 5000)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, zstdimpl.NewComponent())
 
 	return receiver
 }
@@ -162,7 +163,7 @@ func TestServerShutdown(t *testing.T) {
 
 	rawTraceChan := make(chan *Payload)
 	rawTraceChanV1 := make(chan *PayloadV1)
-	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, zstdimpl.NewComponent())
 	receiver.SetTCPListener(ln)
 
 	receiver.Start()
@@ -1535,7 +1536,7 @@ func TestHandleTraces(t *testing.T) {
 
 		rawTraceChan := make(chan *Payload)
 		rawTraceChanV1 := make(chan *PayloadV1)
-		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, zstdimpl.NewComponent())
 		receiver.recvsem = make(chan struct{}) // overwrite recvsem to ALWAYS block and ensure we look overwhelmed
 		// response recorder
 		handler := receiver.handleWithVersion(v04, receiver.handleTraces)
@@ -1561,7 +1562,7 @@ func TestHandleTraces(t *testing.T) {
 		dynConf := sampler.NewDynamicConfig()
 
 		rawTraceChan := make(chan *Payload)
-		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, nil, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, nil, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, zstdimpl.NewComponent())
 
 		// Block the recvsem to ensure the handler waits for the semaphore
 		receiver.recvsem = make(chan struct{})
@@ -1616,7 +1617,7 @@ func TestHandleTraces(t *testing.T) {
 
 		rawTraceChan := make(chan *Payload)
 		rawTraceChanV1 := make(chan *PayloadV1)
-		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+		receiver := NewHTTPReceiver(conf, dynConf, rawTraceChan, rawTraceChanV1, noopStatsProcessor{}, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, zstdimpl.NewComponent())
 
 		// Block the recvsem
 		receiver.recvsem = make(chan struct{})
@@ -2064,7 +2065,7 @@ func BenchmarkWatchdog(b *testing.B) {
 	now := time.Now()
 	conf := newTestReceiverConfig()
 	conf.Endpoints[0].APIKey = "apikey_2"
-	r := NewHTTPReceiver(conf, nil, nil, nil, nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+	r := NewHTTPReceiver(conf, nil, nil, nil, nil, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, zstdimpl.NewComponent())
 
 	b.ResetTimer()
 	b.ReportAllocs()

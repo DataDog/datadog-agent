@@ -30,6 +30,7 @@ import (
 	"github.com/tinylib/msgp/msgp"
 	"go.uber.org/atomic"
 
+	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
@@ -178,6 +179,7 @@ func NewHTTPReceiver(
 	telemetryCollector telemetry.TelemetryCollector,
 	statsd statsd.ClientInterface,
 	timing timing.Reporter,
+	compressor compression.Component,
 ) *HTTPReceiver {
 	rateLimiterResponse := http.StatusOK
 	if conf.HasFeature("429") {
@@ -192,7 +194,7 @@ func NewHTTPReceiver(
 	}
 	log.Infof("Receiver configured with %d decoders and a timeout of %dms", semcount, conf.DecoderTimeout)
 	containerIDProvider := NewContainerIDProviderFromConfig(conf)
-	telemetryForwarder := NewTelemetryForwarder(conf, containerIDProvider, statsd)
+	telemetryForwarder := NewTelemetryForwarder(conf, containerIDProvider, statsd, compressor)
 	return &HTTPReceiver{
 		Stats: info.NewReceiverStats(conf.SendAllInternalStats),
 
