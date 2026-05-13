@@ -1,0 +1,33 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    The Process Agent no longer emits one record per zombie (``Z`` state)
+    process. Instead, each parent process record carries two new fields,
+    ``zombie_children_count`` (number of zombie children observed in the
+    current poll) and ``zombie_net_rate`` ((new − reaped) zombies per second
+    since the previous poll), so the leaking parent — not the zombie itself —
+    is surfaced. Dashboards, monitors, or notebooks that filtered on
+    ``state:Z`` process records will no longer see those records and should
+    be updated to alert on the new per-parent fields on the parent process.
+deprecations:
+  - |
+    The ``process_config.ignore_zombie_processes`` configuration option (and
+    its ``DD_PROCESS_CONFIG_IGNORE_ZOMBIE_PROCESSES`` environment variable)
+    has been removed. Zombie processes are now always aggregated per parent
+    and never emitted as standalone process records, so the toggle no longer
+    has any meaning. Setting it has no effect; remove it from
+    ``datadog.yaml`` and any deployment manifests.
+enhancements:
+  - |
+    The Process Agent now reports per-parent zombie aggregation on each
+    parent process record via two new fields, ``zombie_children_count`` and
+    ``zombie_net_rate``. This dramatically reduces process-agent memory and
+    intake volume on hosts whose parents fail to reap children, while still
+    surfacing actionable signal about which parent is leaking.

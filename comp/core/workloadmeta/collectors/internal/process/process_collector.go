@@ -133,9 +133,7 @@ type dependencies struct {
 // Currently, this is only used on Linux when language detection and run in core agent are enabled.
 func NewProcessCollectorProvider(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	// process probe is not yet componentized, so we can't use fx injection for that
-	probe := procutil.NewProcessProbe(
-		procutil.WithIgnoreZombieProcesses(deps.Config.GetBool("process_config.ignore_zombie_processes")),
-	)
+	probe := procutil.NewProcessProbe()
 	collector := newProcessCollector(collectorID, workloadmeta.NodeAgent, clock.New(), probe, deps.Config, deps.Sysconfig)
 	return workloadmeta.CollectorProvider{
 		Collector: &collector,

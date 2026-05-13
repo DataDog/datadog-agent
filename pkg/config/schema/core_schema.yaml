@@ -4739,14 +4739,6 @@ properties:
         - DD_PROCESS_AGENT_GRPC_CONNECTION_TIMEOUT_SECS
         tags:
         - golang_type:int
-      ignore_zombie_processes:
-        node_type: setting
-        type: boolean
-        default: false
-        env_vars:
-        - DD_PROCESS_CONFIG_IGNORE_ZOMBIE_PROCESSES
-        - DD_PROCESS_AGENT_IGNORE_ZOMBIE_PROCESSES
-        tags: []
       internal_profiling:
         node_type: section
         type: object
