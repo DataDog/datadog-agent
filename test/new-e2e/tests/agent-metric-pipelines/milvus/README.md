@@ -1,73 +1,112 @@
-# Milvus E2E scenario
+# Milvus Pulumi scenario
 
-End-to-end scenario that exercises the [Milvus integration][milvus-integration]
-on a real Datadog backend (no fakeintake).
+Deployable e2e-framework scenario that stands up a Milvus stack with
+real traffic, a Datadog Agent reporting to a real Datadog org, and
+Autodiscovery-driven Milvus integration. Wrapped as a `go test` so it
+slots into the existing runner — but the test body is intentionally
+empty: this is a *deploy*, not a *check*.
 
-## What it provisions
+## What it deploys
 
-A single AWS EC2 VM (Amazon Linux ECS AMI, Docker pre-installed) running:
+Built on the stock `awsdocker.Provisioner` (`environments.DockerHost`):
+a single AWS EC2 VM running a Docker Compose project that contains:
 
-| Component | How it's deployed |
-|-----------|-------------------|
-| Milvus standalone (`milvusdb/milvus:v2.4.13`) | Docker Compose, with `etcd` and `MinIO` deps |
-| Traffic generator (`pymilvus` insert/search loop) | Docker Compose, mounts `testfixtures/traffic.py` |
-| Datadog Agent | `agent.NewHostAgent` on the host, configured with `milvus.d/conf.yaml` |
+| Service          | Image                                  | Role                                                       |
+|------------------|----------------------------------------|------------------------------------------------------------|
+| `datadog-agent`  | (framework default agent image)        | Runs the Milvus check via container-label Autodiscovery.   |
+| `milvus`         | `milvusdb/milvus:v2.4.13`              | Milvus standalone. Carries the Datadog AD labels.          |
+| `etcd`           | `coreos/etcd:v3.5.5`                   | Milvus metadata store.                                     |
+| `minio`          | `minio/minio:RELEASE.2023-03-20…`      | Milvus object store.                                       |
+| `milvus-traffic` | `python:3.11-slim`                     | Installs `pymilvus`, runs insert / search / query forever. |
 
-Layout:
+## Layout
 
 ```
 milvus/
-├── milvus_test.go                              # Suite + assertions
-├── provisioner.go                              # Custom typed Env (no FakeIntake)
+├── provisioner.go              # awsdocker.Provisioner(...) wiring
+├── milvus_test.go              # Empty test that drives `pulumi up`
 ├── testfixtures/
-│   ├── docker-compose.milvus.yaml              # Milvus + etcd + MinIO + traffic
-│   ├── milvus_integration.conf.yaml            # OpenMetrics endpoint + tags
-│   └── traffic.py                              # pymilvus traffic generator
+│   ├── docker-compose.milvus.yaml  # Milvus + etcd + MinIO + traffic + AD labels
+│   └── traffic.py                  # pymilvus traffic generator
 └── README.md
 ```
 
-## Real intake (not fakeintake)
+## Framework primitives used
 
-The custom `Env` in `provisioner.go` deliberately does **not** include a
-`FakeIntake` component and never calls `agentparams.WithFakeintake`. With
-those omitted, the Agent uses the runner-provided API key and the default
-intake (`datadoghq.com`). Metrics, logs, and events therefore land in a real
-Datadog org — by default the one whose API key is in
-`DD_AGENT_API_KEY` / your e2e profile.
+Per `test/e2e-framework/AGENTS.md`, the stock typed environment with
+`With*` options is preferred over a custom Pulumi program:
 
-You need both an **API key** and an **app key** configured in your runner
-profile (`~/.config/dda/.../config.yaml` or env: `E2E_API_KEY`,
-`E2E_APP_KEY`). The app key is required for the test to query the metrics
-backend.
+* `awsdocker.Provisioner` → `environments.DockerHost`.
+* `ec2docker.WithoutFakeIntake()` → Agent ships to the real intake.
+* `dockeragentparams.WithExtraComposeManifest("milvus", …)` → splices the
+  Milvus stack into the same compose project as the Agent so docker.sock
+  Autodiscovery picks it up.
+* `dockeragentparams.WithEnvironmentVariables(...)` → injects
+  `DD_E2E_TEST_ID` (interpolated into AD labels) and `DD_MILVUS_TRAFFIC_B64`
+  (the script, base64-encoded so the file is created inside the container
+  at boot).
+* `dockeragentparams.WithTags(...)` → host-level `DD_TAGS`.
 
-## Per-run tagging
+The Milvus integration is configured purely via Datadog Autodiscovery
+container labels on the milvus service — no `conf.d` file, no custom env.
 
-Each `TestMilvusE2E` invocation generates a random `testID` and:
+## Real intake
 
-* stamps `e2e_test_id:<testID>` into the integration config so the Milvus
-  metric series carry the tag,
-* also adds it as a global host tag via `agentparams.WithTags`,
-* uses it as the Pulumi stack name so concurrent runs don't collide.
+Because `WithoutFakeIntake()` is set and `WithFakeintake(...)` is never
+called, the Agent uses the default intake (`datadoghq.com`) with the API
+key from the runner profile. Configure with `E2E_API_KEY` (and
+`E2E_APP_KEY` if you want to query the backend from any future test).
 
-Assertions then query the Datadog metrics API with
-`avg:milvus.proxy.num_collections{e2e_test_id:<testID>}`, scoping the test
-to a single run.
+## Deploying
 
-## Running
+Keep the stack alive after `pulumi up`:
 
 ```bash
-dda inv new-e2e-tests.run --targets=./tests/agent-metric-pipelines/milvus/...
+E2E_DEV_MODE=true \
+E2E_STACK_NAME=milvus-dev \
+dda inv new-e2e-tests.run \
+  --targets=./tests/agent-metric-pipelines/milvus \
+  --run=^TestMilvusEnv$
 ```
 
-Add `-- -e2e.devMode` (or use `e2e.WithDevMode()` locally) to keep the VM
-alive for SSH inspection after a failure.
+Optional: pin a specific `e2e_test_id` for predictable querying in
+Datadog:
 
-## Reference
+```bash
+MILVUS_E2E_TEST_ID=foo123 E2E_DEV_MODE=true \
+  dda inv new-e2e-tests.run \
+  --targets=./tests/agent-metric-pipelines/milvus \
+  --run=^TestMilvusEnv$
+```
 
-* Custom-env pattern this is based on:
-  `test/new-e2e/examples/customenv_with_docker_app_test.go`
+After deploy, look in Datadog for metrics filtered by
+`e2e_test_id:<id>` (e.g. `milvus.proxy.num_collections`,
+`milvus.proxy.search_latency`, `milvus.proxy.req_count`).
+
+## Tearing down
+
+```bash
+dda inv new-e2e-tests.cleanup --stack=milvus-dev
+```
+
+(or `pulumi destroy -s organization/agent-e2e/milvus-dev` directly if
+you prefer driving Pulumi yourself).
+
+## Inspecting on the VM
+
+The runner prints the EC2 host once provisioning is done:
+
+```bash
+ssh <printed host>
+sudo docker ps                                # datadog-agent, milvus-*, etc.
+sudo docker logs -f milvus-traffic            # "iteration=N ok"
+sudo docker exec -it datadog-agent agent status | sed -n '/milvus/,/^$/p'
+sudo docker exec -it datadog-agent agent check milvus
+```
+
+## References
+
+* Pattern this is based on:
+  `test/new-e2e/examples/dockerenv_with_extra_compose_test.go`
 * Framework docs: `test/e2e-framework/AGENTS.md`
-* Integration config example:
-  <https://github.com/DataDog/integrations-core/tree/master/milvus>
-
-[milvus-integration]: https://docs.datadoghq.com/integrations/milvus/
+* Integration docs: <https://docs.datadoghq.com/integrations/milvus/>

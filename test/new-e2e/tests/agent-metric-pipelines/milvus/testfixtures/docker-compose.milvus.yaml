@@ -1,20 +1,25 @@
-version: '3.9'
-
-# Standalone Milvus stack with etcd + MinIO dependencies, plus a small
-# traffic-generator container that continuously inserts/searches vectors
-# so the Milvus instance produces non-zero metrics for the agent to scrape.
+# Milvus standalone stack + traffic generator, designed to be merged into
+# the e2e-framework Docker Agent compose via
+# dockeragentparams.WithExtraComposeManifest.
 #
-# Based on the official Milvus standalone docker-compose, trimmed for E2E.
+# The Datadog Milvus integration is configured on the milvus service via
+# Autodiscovery container labels — the host Agent (running in the same
+# compose project) picks it up through docker.sock. No conf.d file needed.
+#
+# Variables interpolated by docker compose at deploy time (provided by the
+# provisioner through dockeragentparams.WithEnvironmentVariables):
+#   - DD_E2E_TEST_ID:        per-run tag used for metric scoping
+#   - DD_MILVUS_TRAFFIC_B64: base64-encoded traffic.py
 
 services:
   etcd:
     container_name: milvus-etcd
     image: ${DD_REGISTRY:-quay.io}/coreos/etcd:v3.5.5
     environment:
-      - ETCD_AUTO_COMPACTION_MODE=revision
-      - ETCD_AUTO_COMPACTION_RETENTION=1000
-      - ETCD_QUOTA_BACKEND_BYTES=4294967296
-      - ETCD_SNAPSHOT_COUNT=50000
+      ETCD_AUTO_COMPACTION_MODE: revision
+      ETCD_AUTO_COMPACTION_RETENTION: "1000"
+      ETCD_QUOTA_BACKEND_BYTES: "4294967296"
+      ETCD_SNAPSHOT_COUNT: "50000"
     command: etcd -advertise-client-urls=http://etcd:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
     healthcheck:
       test: ["CMD", "etcdctl", "endpoint", "health"]
@@ -42,11 +47,6 @@ services:
     environment:
       ETCD_ENDPOINTS: etcd:2379
       MINIO_ADDRESS: minio:9000
-    # Expose the gRPC port so the traffic generator (and host tools) can reach it
-    # and the Prometheus metrics port so the host-side agent can scrape it.
-    ports:
-      - "19530:19530"
-      - "9091:9091"
     depends_on:
       - "etcd"
       - "minio"
@@ -56,11 +56,32 @@ services:
       start_period: 90s
       timeout: 20s
       retries: 5
+    # Datadog Autodiscovery: the host Agent (in the same compose project)
+    # uses docker.sock to discover this container and schedule the milvus
+    # OpenMetrics check against it.
+    labels:
+      com.datadoghq.ad.checks: |
+        {
+          "milvus": {
+            "init_config": {},
+            "instances": [
+              {
+                "openmetrics_endpoint": "http://%%host%%:9091/metrics",
+                "min_collection_interval": 15,
+                "tags": [
+                  "env:e2e",
+                  "e2e_scenario:milvus",
+                  "e2e_test_id:${DD_E2E_TEST_ID}"
+                ]
+              }
+            ]
+          }
+        }
 
-  # Continuously generate real Milvus traffic: create collection, insert and
-  # search vectors in a loop. This drives the metrics the Datadog integration
-  # reports (e.g. milvus.proxy.req_count, milvus.proxy.search_latency, ...).
-  traffic:
+  # Real traffic against Milvus: insert + search + query in a loop. The
+  # pymilvus script is injected as a base64-encoded env var by the
+  # provisioner so this compose stays self-contained on the VM.
+  milvus-traffic:
     container_name: milvus-traffic
     image: ${DD_REGISTRY:-docker.io}/library/python:3.11-slim
     depends_on:
@@ -68,21 +89,21 @@ services:
     environment:
       MILVUS_HOST: milvus
       MILVUS_PORT: "19530"
-    volumes:
-      - ${DD_MILVUS_TRAFFIC_SCRIPT}:/app/traffic.py:ro
+      DD_MILVUS_TRAFFIC_B64: ${DD_MILVUS_TRAFFIC_B64}
     command:
       - bash
       - -lc
       - |
         set -e
+        mkdir -p /app
+        echo "$$DD_MILVUS_TRAFFIC_B64" | base64 -d > /app/traffic.py
         pip install --no-cache-dir 'pymilvus==2.4.9' >/tmp/pip.log 2>&1
-        # Wait for Milvus to be ready before starting the workload.
+        # Wait for Milvus to accept connections before starting the workload.
         python - <<'PY'
-        import time, socket
-        host = "milvus"
+        import socket, time
         for _ in range(120):
             try:
-                with socket.create_connection((host, 19530), timeout=2):
+                with socket.create_connection(("milvus", 19530), timeout=2):
                     break
             except OSError:
                 time.sleep(2)
