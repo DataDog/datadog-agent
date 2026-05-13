@@ -43,7 +43,6 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -52,7 +51,6 @@ import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
@@ -63,7 +61,7 @@ import (
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
-	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/core/mock"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
@@ -145,7 +143,7 @@ type GlobalParams struct {
 }
 
 // MakeCommand returns a `check` command to be used by agent binaries.
-func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
+func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *cobra.Command {
 	cliParams := &cliParams{}
 	cmd := &cobra.Command{
 		Use:   "check <check_name>",
@@ -176,7 +174,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				hostnameimpl.Module(),
 
 				// workloadmeta setup
-				wmcatalog.GetCatalog(),
+				wmCatalog,
 				workloadmetafx.Module(defaults.DefaultParams()),
 				apiimpl.Module(),
 				grpcNonefx.Module(),
@@ -264,7 +262,6 @@ func run(
 	filterStore workloadfilter.Component,
 	tagger tagger.Component,
 	ac autodiscovery.Component,
-	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
 	statusComponent status.Component,
@@ -315,7 +312,7 @@ func run(
 	//  so the subcommand can't read the RC database if the agent is also running.
 	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil, traceroute)
 
-	common.LoadComponents(secretResolver, wmeta, tagger, filterStore, ac, pkgconfigsetup.Datadog().GetString("confd_path"))
+	common.LoadComponents(ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to

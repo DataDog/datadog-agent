@@ -9,6 +9,7 @@ import (
 	"expvar"
 	"time"
 
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
@@ -54,6 +55,10 @@ type noAggregationStreamWorker struct {
 	tagger          tagger.Component
 
 	logThrottling util.SimpleThrottler
+
+	// observerHandle is set when the observer component is wired in.
+	// Nil when the feature is disabled or the observer is not included in the binary.
+	observerHandle observer.Handle
 }
 
 // noAggWorkerStreamCheckFrequency is the frequency at which the no agg worker
@@ -201,6 +206,10 @@ func (w *noAggregationStreamWorker) run() {
 								}
 								countUnsupportedType++
 								continue
+							}
+
+							if w.observerHandle != nil {
+								w.observerHandle.ObserveMetric(&sample)
 							}
 
 							// enrich metric sample tags

@@ -52,6 +52,13 @@ func main() {
 	condInt16(7, "miss")
 	condInt32(42, "match")
 	condInt32(7, "miss")
+	// Negative value to exercise signed comparison: BPF cmp_kind_int
+	// XORs the sign bit of the most-significant byte before comparing,
+	// turning two's-complement compare into unsigned byte compare. A
+	// bug in that trick surfaces here as `x < 0` either firing on
+	// nothing (treats -5 as 0xfffffffb > 0) or firing on the wrong
+	// calls.
+	condInt32(-5, "neg")
 	condInt64(42, "match")
 	condInt64(7, "miss")
 	condUint8(42, "match")
@@ -70,6 +77,15 @@ func main() {
 	condBool(false, "miss")
 	condString("hello", "match")
 	condString("other", "miss")
+	// Long-LHS / max-length-literal regression coverage. The literal
+	// MaxStringLiteralLength (255) imposed by IR-gen used to be
+	// indistinguishable from a longer LHS sharing the same first 255
+	// bytes, because SM_OP_EXPR_READ_STRING capped the stored length at
+	// 255. condString_long_a_then_b is 300 bytes ('a'*255 + 'b'*45),
+	// condString_exact_a255 is 'a'*255 — both are compared against the
+	// 255-byte literal 'a'*255 in simple.yaml.
+	condString(strings.Repeat("a", 255)+strings.Repeat("b", 45), "long_a_then_b")
+	condString(strings.Repeat("a", 255), "exact_a255")
 
 	// Struct with typed fields: called twice with different field values so
 	// field-level conditions can distinguish the calls.
@@ -121,6 +137,14 @@ func main() {
 	condNilPtrStruct(&condFields{I32: 300}, "match")
 	condNilPtrStruct(nil, "nilptr")
 
+	// condGuarded for split-condition short-circuit tests. Calls cover
+	// match, no-match, and nil-pointer paths so probes can verify the
+	// guard `(x != nil && x.I32 == 1)` correctly short-circuits without
+	// nil-derefing.
+	condGuarded(&condFields{I32: 1}, "match")
+	condGuarded(&condFields{I32: 99}, "miss")
+	condGuarded(nil, "nilptr")
+
 	// `== null` condition targets: each called twice — once with nil (probe
 	// matches) and once with non-nil (probe does not match). Covers all four
 	// nullable Go types: pointer, slice, map, interface.
@@ -136,6 +160,22 @@ func main() {
 	condNullUnsafePtr(nil, "match")
 	u := 42
 	condNullUnsafePtr(unsafe.Pointer(&u), "miss")
+
+	// contains(map, key) condition targets. Called three times:
+	// "present" — key is in the map and contains(...) is true.
+	// "absent"  — key is not in the map; contains(...) is false.
+	// "nil"     — map is nil; contains(...) is false.
+	condContainsMap(
+		map[string]int{"existing_key": 1},
+		map[int]int{42: 1},
+		"present",
+	)
+	condContainsMap(
+		map[string]int{"other": 2},
+		map[int]int{7: 1},
+		"absent",
+	)
+	condContainsMap(nil, nil, "nil")
 
 	// Error case targets: called once each (conditions will fail at analysis).
 	condSliceArg([]int{1, 2, 3}, "err")
@@ -292,6 +332,12 @@ func main() {
 	// probe it.
 	mv := (&methodValueReceiver{val: 42}).inlinedMethod
 	methodValueSink(mv)
+
+	// condReturnPtr for split-condition return-side nil-deref tests:
+	// returns a pointer that is nil on the "nilret" tag. A return-side
+	// leaf like @return.I32 == 1 nil-derefs on the nil-returning call.
+	condReturnPtr("match")
+	condReturnPtr("nilret")
 }
 
 //go:noinline
@@ -487,6 +533,22 @@ func condNilPtrStruct(x *condFields, tag string) {
 	fmt.Println("condNilPtrStruct", x, tag)
 }
 
+// condGuarded mixes a pointer arg (may be nil) with a return value so a
+// split-event-kind condition can guard a potentially-nil-derefing entry
+// leaf with another entry leaf, e.g. (x != nil && x.I32 == 1) and pair
+// it with a return-side leaf like @return == 0. Used by tests that
+// verify the guard short-circuits correctly when x is nil.
+//
+//go:noinline
+func condGuarded(x *condFields, tag string) int {
+	if x == nil {
+		fmt.Println("condGuarded nil", tag)
+		return 0
+	}
+	fmt.Println("condGuarded", x.I32, tag)
+	return int(x.I32)
+}
+
 // condReturnAndLocal has parameters a and b, a local (sum), and a return
 // value so we can test condition event-kind assignment: parameter→entry,
 // local/return→return. Parameter b serves as the template variable.
@@ -580,6 +642,16 @@ func condNullIface(i error, tag string) {
 func condNullUnsafePtr(p unsafe.Pointer, tag string) {
 	sink(p, tag)
 	fmt.Println(p, tag)
+}
+
+// condContainsMap is a target for contains(m, key) conditions. Takes both a
+// string-keyed and int-keyed map so a single test function can exercise both
+// key-type flavors.
+//
+//go:noinline
+func condContainsMap(m map[string]int, mi map[int]int, tag string) {
+	sink(m, mi, tag)
+	fmt.Println(m, mi, tag)
 }
 
 // --- len/isEmpty test functions ---
@@ -961,4 +1033,19 @@ func condMultiReturn(tag string) (r0 int, r1 string) {
 	r1 = tag
 	fmt.Println("condMultiReturn", r0, r1)
 	return r0, r1
+}
+
+// condReturnPtr returns a *condFields that is nil on the "nilret" tag.
+// Used by split-condition probes that put the nil-deref leaf on the
+// return side, exercising the abort-path arming of condition_eval_error
+// when no ConditionBeginOp ran (return-side AST replay inlines its
+// return leaves).
+//
+//go:noinline
+func condReturnPtr(tag string) *condFields {
+	fmt.Println("condReturnPtr", tag)
+	if tag == "nilret" {
+		return nil
+	}
+	return &condFields{I32: 1}
 }

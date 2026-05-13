@@ -242,6 +242,7 @@
 /cmd/ai_prompt_logger/                  @DataDog/windows-products
 /cmd/cluster-agent/                     @DataDog/container-platform
 /cmd/cluster-agent/subcommands/autoscalerlist   @DataDog/container-autoscaling @DataDog/container-integrations
+/cmd/cluster-agent/subcommands/start/agent_task.go @DataDog/container-platform @DataDog/fleet
 /cmd/cluster-agent-cloudfoundry/        @DataDog/agent-integrations
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/agent-integrations
 /cmd/cws-instrumentation/               @DataDog/agent-security
@@ -361,11 +362,14 @@
 /comp/checks/winregistry @DataDog/windows-products
 /comp/core/autodiscovery @DataDog/container-platform
 /comp/core/config @DataDog/agent-configuration
-/comp/core/configstream @DataDog/agent-metric-pipelines @DataDog/agent-configuration
+/comp/core/configstream @DataDog/agent-configuration
+/comp/core/configstreamconsumer @DataDog/agent-configuration
 /comp/core/configsync @DataDog/agent-configuration
+/comp/core/diagnose @DataDog/agent-configuration
 /comp/core/flare @DataDog/agent-configuration
 /comp/core/gui @DataDog/agent-configuration
 /comp/core/profiler @DataDog/agent-configuration
+/comp/core/remoteflags @DataDog/agent-configuration
 /comp/core/secrets @DataDog/agent-configuration
 /comp/core/settings @DataDog/agent-configuration
 /comp/core/status @DataDog/agent-configuration
@@ -388,6 +392,11 @@
 /comp/trace-telemetry @DataDog/agent-runtimes
 /comp/updater/daemonchecker @DataDog/fleet
 /comp/updater/ssistatus @DataDog/fleet
+/comp/anomalydetection/hfrunner @DataDog/q-branch
+/comp/anomalydetection/logssource @DataDog/q-branch
+/comp/anomalydetection/observer @DataDog/q-branch
+/comp/anomalydetection/recorder @DataDog/q-branch
+/comp/anomalydetection/reporter @DataDog/q-branch
 /comp/autoscaling/datadogclient @DataDog/container-integrations
 /comp/connectivitychecker @DataDog/fleet
 /comp/dataobs/queryactions @DataDog/data-observability
@@ -397,7 +406,7 @@
 /comp/haagent @DataDog/network-device-monitoring-core
 /comp/languagedetection/client @DataDog/container-platform
 /comp/logonduration @DataDog/windows-products
-/comp/networkdeviceconfig @DataDog/ndm-integrations
+/comp/networkconfigmanagement @DataDog/ndm-integrations
 /comp/notableevents @DataDog/windows-products
 /comp/offlinereporter @DataDog/agent-metric-pipelines
 /comp/privateactionrunner @DataDog/action-platform
@@ -562,7 +571,7 @@
 /pkg/config/remote/                     @DataDog/remote-config
 /pkg/config/remote/meta/                @DataDog/remote-config
 /pkg/containerlifecycle/                @DataDog/container-integrations
-/pkg/diagnose/                          @DataDog/container-platform
+/pkg/diagnose/                          @DataDog/agent-configuration
 /pkg/diagnose/connectivity/             @DataDog/agent-configuration
 /pkg/diagnose/firewallscanner/          @DataDog/network-device-monitoring-core
 /pkg/diagnose/ports/                    @DataDog/agent-configuration
@@ -595,6 +604,7 @@
 /pkg/proto/datadog/trace                @DataDog/agent-apm
 /pkg/proto/datadog/workloadmeta         @DataDog/container-platform
 /pkg/remoteconfig/                      @DataDog/remote-config
+/pkg/remoteflags/                       @DataDog/agent-configuration
 /pkg/runtime/                           @DataDog/agent-runtimes
 /pkg/redact/                            @DataDog/kubernetes-experiences
 /pkg/system-probe/                      @DataDog/ebpf-platform
@@ -745,6 +755,7 @@
 /tasks/macos.py                         @DataDog/windows-products
 /tasks/msi.py                           @DataDog/windows-products
 /tasks/agent.py                         @DataDog/agent-runtimes
+/tasks/build_tags.py                    @DataDog/agent-devx @DataDog/agent-build
 /tasks/loader.py                        @DataDog/agent-runtimes
 /tasks/go_deps.py                       @DataDog/agent-runtimes
 /tasks/dogstatsd.py                     @DataDog/agent-metric-pipelines
@@ -768,6 +779,7 @@
 /tasks/kernel_matrix_testing/           @DataDog/ebpf-platform
 /tasks/ebpf_verifier/                   @DataDog/ebpf-platform
 /tasks/trace_agent.py                   @DataDog/agent-apm
+/tasks/protobuf.py                      @DataDog/agent-build
 /tasks/quality_gates.py                 @DataDog/agent-build
 /tasks/static_quality_gates/            @DataDog/agent-build
 /tasks/files_inventory.py               @DataDog/agent-build
@@ -878,6 +890,7 @@
 /test/new-e2e/tests/apm                       @DataDog/agent-apm
 /test/new-e2e/tests/remote-config             @DataDog/remote-config
 /test/new-e2e/tests/ssi                       @DataDog/injection-platform
+/test/new-e2e/tests/ssi-gradual-rollout       @DataDog/apm-release-platform
 /test/new-e2e/tests/fleet                     @DataDog/fleet @DataDog/windows-products
 /test/new-e2e/tests/installer                 @DataDog/fleet @DataDog/windows-products
 /test/new-e2e/tests/installer/script          @DataDog/fleet @DataDog/data-jobs-monitoring
@@ -933,3 +946,7 @@
 /pkg/util/scrubber/go.sum                @DataDog/agent-runtimes
 
 /q_branch/                               @DataDog/q-branch
+/comp/anomalydetection/                  @DataDog/q-branch # Useful for AGENTS.md files etc. at the root of all AD components
+
+# AI-related files
+/.claude/skills/explain-lading-config @DataDog/single-machine-performance

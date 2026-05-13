@@ -1,0 +1,9 @@
+type: ddflare
+display_name: Datadog Flare Extension
+
+status:
+  class: extension
+  stability:
+    beta: [extension]
+  codeowners:
+    active: [DataDog/opentelemetry]
