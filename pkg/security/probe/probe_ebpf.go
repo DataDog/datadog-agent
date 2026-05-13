@@ -2806,6 +2806,15 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Name:  "has_current_cgroup_id_helper",
 			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentCgroupID()),
 		},
+		// https://github.com/torvalds/linux/commit/96c0a6a72d181a330db6dc9848ff2e6584b1aa5b
+		manager.ConstantEditor{
+			Name:  "is_cgroup_id_u64",
+			Value: utils.BoolTouint64(p.kernelVersion.Code >= kernel.Kernel5_12),
+		},
+		manager.ConstantEditor{
+			Name:  "is_pure_cgroupv2_available",
+			Value: utils.BoolTouint64(utils.IsPureCGroupV2Available()),
+		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_open_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingOpenEnabled),

@@ -19,7 +19,13 @@ import (
 )
 
 func main() {
-	tracer.Start(tracer.WithService("sample-service"))
+	// Default to "sample-service" for dyninst tests, but let DD_SERVICE win so
+	// demo deployments can report under their own service name.
+	service := os.Getenv("DD_SERVICE")
+	if service == "" {
+		service = "sample-service"
+	}
+	tracer.Start(tracer.WithService(service))
 
 	if os.Getenv("DD_SAMPLE_LOOP") == "" {
 		// Wait for input before executing functions to allow time for uprobe attachment

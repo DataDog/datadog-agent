@@ -118,11 +118,11 @@ require (
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
-	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
+	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
-	github.com/mattn/go-runewidth v0.0.19 // indirect
+	github.com/mattn/go-runewidth v0.0.23 // indirect
 	github.com/mitchellh/go-ps v1.0.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/moby/spdystream v0.5.1 // indirect
@@ -278,11 +278,11 @@ require (
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/go-libddwaf/v4 v4.9.0 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20260217080614-b0f4edc38a6d // indirect
-	github.com/DataDog/go-sqllexer v0.2.2 // indirect
+	github.com/DataDog/go-sqllexer v0.2.1 // indirect
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
 	github.com/DataDog/viper v1.15.1 // indirect
-	github.com/Masterminds/semver/v3 v3.4.0 // indirect
+	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/alessio/shellescape v1.4.2 // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ecr v1.45.1 // indirect
@@ -291,14 +291,14 @@ require (
 	github.com/blakesmith/ar v0.0.0-20190502131153-809d4375e1fb // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/charmbracelet/colorprofile v0.3.1 // indirect
-	github.com/charmbracelet/x/ansi v0.10.1 // indirect
-	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect
-	github.com/charmbracelet/x/term v0.2.1 // indirect
+	github.com/charmbracelet/colorprofile v0.4.3 // indirect
+	github.com/charmbracelet/x/ansi v0.11.7 // indirect
+	github.com/charmbracelet/x/cellbuf v0.0.15 // indirect
+	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/cheggaaa/pb v1.0.29 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
-	github.com/clipperhouse/stringish v0.1.1 // indirect
-	github.com/clipperhouse/uax29/v2 v2.3.0 // indirect
+	github.com/clipperhouse/displaywidth v0.11.0 // indirect
+	github.com/clipperhouse/uax29/v2 v2.7.0 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.18.2 // indirect
@@ -324,7 +324,7 @@ require (
 	github.com/linkdata/deadlock v0.5.5 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260216142805-b3301c5f2a88 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
-	github.com/mdlayher/socket v0.5.1 // indirect
+	github.com/mdlayher/socket v0.6.0 // indirect
 	github.com/mdlayher/vsock v1.2.1 // indirect
 	github.com/minio/highwayhash v1.0.3 // indirect
 	github.com/minio/simdjson-go v0.4.5 // indirect
@@ -359,7 +359,7 @@ require (
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
-	github.com/secure-systems-lab/go-securesystemslib v0.10.0 // indirect
+	github.com/secure-systems-lab/go-securesystemslib v0.11.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.4 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
@@ -396,6 +396,8 @@ require (
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 
 replace (
+	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def => ../../comp/anomalydetection/observer/def
+	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def => ../../comp/anomalydetection/recorder/def
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def => ../../comp/core/agenttelemetry/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../comp/core/agenttelemetry/fx
