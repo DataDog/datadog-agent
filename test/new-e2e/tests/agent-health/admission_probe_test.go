@@ -84,8 +84,12 @@ func (suite *admissionProbeSuite) TestAdmissionProbeIssueLifecycle() {
 			var status map[string]interface{}
 			assert.NoError(ct, json.Unmarshal([]byte(stdout), &status))
 
-			probeSection, ok := status["admissionWebhookProbeStatus"].(map[string]interface{})
-			if !assert.True(ct, ok, "admissionWebhookProbeStatus section not found in status") {
+			webhook, ok := status["admissionWebhook"].(map[string]interface{})
+			if !assert.True(ct, ok, "admissionWebhook section not found in status") {
+				return
+			}
+			probeSection, ok := webhook["Probe"].(map[string]interface{})
+			if !assert.True(ct, ok, "Probe section not found in admissionWebhook status") {
 				return
 			}
 			assert.Equal(ct, true, probeSection["LastExecutionSuccess"])
