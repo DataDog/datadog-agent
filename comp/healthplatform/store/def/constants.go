@@ -13,4 +13,13 @@ const (
 	// ADMisconfigurationSource is the Source value reported when the
 	// autodiscovery component detects a misconfiguration.
 	ADMisconfigurationSource = "autodiscovery"
+
+	// InvalidConfigIssueID is shared across all "invalid-config" detection paths
+	InvalidConfigIssueID = "invalid-config"
+
+	// InvalidConfigCheckID is the identifier for the schema-validation check
+	InvalidConfigCheckID = "invalid-config-check"
+
+	// InvalidConfigCheckName is the human-readable name
+	InvalidConfigCheckName = "Datadog Agent Configuration Validation"
 )

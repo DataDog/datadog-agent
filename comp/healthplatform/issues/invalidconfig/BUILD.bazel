@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "invalidconfig",
+    srcs = [
+        "check.go",
+        "issue.go",
+        "module.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/healthplatform/issues",
+        "//comp/healthplatform/store/def",
+        "//pkg/config/lite",
+        "//pkg/config/schema",
+        "//pkg/util/log",
+        "//pkg/util/scrubber",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)
+
+go_test(
+    name = "invalidconfig_test",
+    srcs = ["invalidconfig_test.go"],
+    embed = [":invalidconfig"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/config",
+        "//comp/healthplatform/store/def",
+        "//pkg/config/lite",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
