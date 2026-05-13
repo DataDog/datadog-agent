@@ -43,16 +43,21 @@ const (
 	batchPayloadType  = "message-batch"
 	logsPayloadType   = "logs"
 
-	// Errortracking flush configuration. Hardcoded for v3 — the
-	// configurable v2 `errortracking.buffer_size` / `batch_size` /
-	// `flush_interval_seconds` keys were dropped per review comment C8
-	// on PR #49946. Re-plumb through atelCfg if tuning is ever needed.
-	errLogsBufferSize    = 1024
-	errLogsBatchSize     = 50
-	errLogsFlushInterval = 10 * time.Second
-
 	httpClientResetInterval = 5 * time.Minute
 	httpClientTimeout       = 10 * time.Second
+)
+
+// Errortracking operational parameter defaults. Used by createAtel when
+// the corresponding agent_telemetry.errortracking.* config key is unset
+// or non-positive; also referenced by tests that construct atel without
+// a full config tree. Picked per the PR #50607 §A19 analysis: slower
+// than APM tracer spans (5s) since errortracking is not on an alerting
+// path, faster than agent_telemetry metrics (900s) for incident
+// visibility — empirically the "tracer-telemetry-logs" cadence class.
+const (
+	defaultErrLogsBufferSize    = 2048
+	defaultErrLogsBatchSize     = 100
+	defaultErrLogsFlushInterval = 60 * time.Second
 )
 
 // ---------------

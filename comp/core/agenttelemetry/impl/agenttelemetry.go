@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math/rand"
 	"net/http"
 	"slices"
 	"strconv"
@@ -72,6 +73,9 @@ type atel struct {
 	errLogsCh            chan errortracking.ErrorLog
 	errLogsDropped       atomic.Uint64
 	errLogsFlushWG       sync.WaitGroup
+	errLogsBatchSize     int
+	errLogsFlushInterval time.Duration
+	errLogsStartupJitter time.Duration
 	shutdownDrainTimeout time.Duration
 }
 
@@ -170,14 +174,20 @@ func createAtel(
 	// out without needing a separate exclusion list.
 	errortrackingEnabled := utils.IsAgentTelemetryEnabled(cfgComp) &&
 		cfgComp.GetBool("agent_telemetry.errortracking.enabled")
+
+	bufferSize := positiveOrDefault(cfgComp.GetInt("agent_telemetry.errortracking.buffer_size"), defaultErrLogsBufferSize)
+	batchSize := positiveOrDefault(cfgComp.GetInt("agent_telemetry.errortracking.batch_size"), defaultErrLogsBatchSize)
+	flushInterval := positiveDurationOrDefault(cfgComp.GetInt("agent_telemetry.errortracking.flush_interval_seconds"), defaultErrLogsFlushInterval)
+	startupJitter := nonNegativeDuration(cfgComp.GetInt("agent_telemetry.errortracking.startup_jitter_seconds"))
+
 	var errLogsCh chan errortracking.ErrorLog
 	if errortrackingEnabled {
-		errLogsCh = make(chan errortracking.ErrorLog, errLogsBufferSize)
+		errLogsCh = make(chan errortracking.ErrorLog, bufferSize)
 	}
 
 	// Final-drain context budget — bounded so a hung intake cannot
 	// block agent shutdown. See runErrorLogsFlush for usage.
-	shutdownDrainTimeout := time.Duration(cfgComp.GetInt("agent_telemetry.errortracking.shutdown_drain_timeout_seconds")) * time.Second
+	shutdownDrainTimeout := positiveDurationOrDefault(cfgComp.GetInt("agent_telemetry.errortracking.shutdown_drain_timeout_seconds"), 5*time.Second)
 
 	return &atel{
 		enabled: true,
@@ -200,8 +210,39 @@ func createAtel(
 
 		errortrackingEnabled: errortrackingEnabled,
 		errLogsCh:            errLogsCh,
+		errLogsBatchSize:     batchSize,
+		errLogsFlushInterval: flushInterval,
+		errLogsStartupJitter: startupJitter,
 		shutdownDrainTimeout: shutdownDrainTimeout,
 	}
+}
+
+// positiveOrDefault returns v when v > 0; otherwise the supplied
+// default. Used by createAtel to make non-positive config values fall
+// back to the package-level defaults defined in sender.go.
+func positiveOrDefault(v, fallback int) int {
+	if v > 0 {
+		return v
+	}
+	return fallback
+}
+
+// positiveDurationOrDefault treats the int as seconds. v > 0 returns
+// v seconds; v <= 0 returns fallback.
+func positiveDurationOrDefault(v int, fallback time.Duration) time.Duration {
+	if v > 0 {
+		return time.Duration(v) * time.Second
+	}
+	return fallback
+}
+
+// nonNegativeDuration treats the int as seconds and clamps at 0. v < 0
+// returns 0 (intent: "disabled"); v >= 0 returns v seconds.
+func nonNegativeDuration(v int) time.Duration {
+	if v <= 0 {
+		return 0
+	}
+	return time.Duration(v) * time.Second
 }
 
 // NewComponent creates a new agent telemetry component.
@@ -726,10 +767,30 @@ func (a *atel) SubmitErrorRecord(log errortracking.ErrorLog) {
 func (a *atel) runErrorLogsFlush() {
 	defer a.errLogsFlushWG.Done()
 
-	ticker := time.NewTicker(errLogsFlushInterval)
+	// Optional startup jitter (default 0 — off): a random delay before
+	// the first tick to break coordinated-restart thundering herd at
+	// the intake. With jitter == 0 we go straight to the ticker, which
+	// matches all other agent flush goroutines and keeps the default
+	// behavior identical to the no-jitter path.
+	if a.errLogsStartupJitter > 0 {
+		jitter := time.Duration(rand.Int63n(int64(a.errLogsStartupJitter)))
+		timer := time.NewTimer(jitter)
+		select {
+		case <-a.cancelCtx.Done():
+			timer.Stop()
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), a.shutdownDrainTimeout)
+			batch := make([]errortracking.ErrorLog, 0, a.errLogsBatchSize)
+			a.drainAndSend(shutdownCtx, &batch)
+			cancel()
+			return
+		case <-timer.C:
+		}
+	}
+
+	ticker := time.NewTicker(a.errLogsFlushInterval)
 	defer ticker.Stop()
 
-	batch := make([]errortracking.ErrorLog, 0, errLogsBatchSize)
+	batch := make([]errortracking.ErrorLog, 0, a.errLogsBatchSize)
 	for {
 		select {
 		case <-a.cancelCtx.Done():
@@ -752,7 +813,7 @@ func (a *atel) drainAndSend(ctx context.Context, batch *[]errortracking.ErrorLog
 		select {
 		case r := <-a.errLogsCh:
 			*batch = append(*batch, r)
-			if len(*batch) >= errLogsBatchSize {
+			if len(*batch) >= a.errLogsBatchSize {
 				a.sendErrorLogsBatch(ctx, *batch)
 				*batch = (*batch)[:0]
 			}
