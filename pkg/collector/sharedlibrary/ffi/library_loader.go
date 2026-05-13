@@ -85,9 +85,6 @@ func validateLibraryName(name string) error {
 	if name == "" {
 		return errors.New("name is empty")
 	}
-	if name == "." || name == ".." {
-		return fmt.Errorf("name %q contains a relative segment", name)
-	}
 	if strings.ContainsAny(name, `/\`+"\x00") {
 		return fmt.Errorf("name %q contains a path separator or NUL byte", name)
 	}

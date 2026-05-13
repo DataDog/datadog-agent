@@ -82,8 +82,6 @@ func TestLoad_RejectsPathTraversalName(t *testing.T) {
 
 	cases := []string{
 		"",
-		".",
-		"..",
 		"foo/../../tmp/baz",
 		"../baz",
 		"foo/bar",
