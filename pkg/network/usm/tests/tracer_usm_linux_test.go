@@ -1950,7 +1950,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			w.WriteHeader(200)
 			w.Write([]byte("test"))
 		}),
-		Protocols: new(http.Protocols),
+		Protocols: new(nethttp.Protocols),
 	}
 	http2Server.Protocols.SetHTTP1(true)
 	http2Server.Protocols.SetUnencryptedHTTP2(true)
