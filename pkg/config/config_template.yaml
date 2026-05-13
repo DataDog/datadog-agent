@@ -1165,8 +1165,8 @@ api_key:
 #
 #   use_container_timestamp: false
 
-#   # @param logs_dd_url - string - optional
-#   # @env DD_LOGS_CONFIG_LOGS_DD_URL - string - optional
+#   # @param logs_dd_url - string - optional - default: ""
+#   # @env DD_LOGS_CONFIG_LOGS_DD_URL - string - optional - default: ""
 #   # Define the endpoint and port to hit when using a proxy for logs.
 #   # As of agent version 7.70.0, proxy paths are supported. To forward logs to a
 #   # specific proxy path, the URL scheme must be specified: https://proxy.example.com:443/logs
