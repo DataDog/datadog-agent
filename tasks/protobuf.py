@@ -10,9 +10,7 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_unstaged_files, get_untracked_files
 
 PROTO_PKGS = {
-    'api/v1': False,
     'trace': True,
-    'remoteagent': False,
 }
 
 # maybe put this in a separate function

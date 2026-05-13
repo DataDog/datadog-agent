@@ -22,7 +22,10 @@ go_proto_compiler(
         plugin = "@com_github_planetscale_vtprotobuf//cmd/protoc-gen-go-vtproto",
         suffix = "_vtproto.pb.go",
         visibility = ["//visibility:public"],
-        deps = ["@com_github_planetscale_vtprotobuf//protohelpers"],
+        deps = [
+            "@com_github_planetscale_vtprotobuf//protohelpers",
+            "@com_github_planetscale_vtprotobuf//types/known/timestamppb",
+        ],
     )
     for name, options in {
         "go_vtproto_full": [],  # default: "If no features are given, all the codegen steps will be performed"
