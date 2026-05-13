@@ -26,8 +26,15 @@ type Component interface {
 	// pkg/util/log slog handler and enqueues it for asynchronous flush
 	// to the Cross-Org Agent Telemetry (COAT) intake. Implementations
 	// MUST be non-blocking on the hot path: enqueue to a bounded buffer
-	// and drop silently on overflow. Records emitted from inside the
-	// agenttelemetry component (recursion guard) MUST be dropped.
+	// and drop silently on overflow.
+	//
+	// Recursion prevention: the flush path
+	// (sendLogsTypedBatch → sendSerializedPayload) MUST NOT log at
+	// Error or above. A flush-path Errorf would re-enter the slog
+	// handler and feed records back into this same channel. This
+	// invariant is enforced by convention — there is no runtime
+	// caller-identity guard. See
+	// comp/core/agenttelemetry/impl/errortracking_sender.go.
 	//
 	// This method receives the foundational ErrorLog DTO defined at
 	// pkg/util/log/errortracking; the component never sees raw slog
