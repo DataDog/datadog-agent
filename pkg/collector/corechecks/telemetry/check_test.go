@@ -9,12 +9,106 @@ import (
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
+
+func stringPtr(value string) *string {
+	return &value
+}
+
+func float64Ptr(value float64) *float64 {
+	return &value
+}
+
+func gaugeMetric(labels map[string]string, value float64) *dto.Metric {
+	metric := &dto.Metric{Gauge: &dto.Gauge{Value: float64Ptr(value)}}
+	for name, value := range labels {
+		metric.Label = append(metric.Label, &dto.LabelPair{Name: stringPtr(name), Value: stringPtr(value)})
+	}
+	return metric
+}
+
+func gaugeMetricFamily(name string, metrics ...*dto.Metric) *dto.MetricFamily {
+	metricType := dto.MetricType_GAUGE
+	return &dto.MetricFamily{
+		Name:   stringPtr(name),
+		Type:   &metricType,
+		Metric: metrics,
+	}
+}
+
+func TestCollectAndMergePointTelemetry(t *testing.T) {
+	defaultMfs := []*dto.MetricFamily{
+		gaugeMetricFamily(
+			"point__sent",
+			gaugeMetric(map[string]string{domainLabel: "https://api.datadoghq.com"}, 10),
+		),
+		gaugeMetricFamily(
+			"point__dropped",
+			gaugeMetric(map[string]string{domainLabel: "https://api.datadoghq.com"}, 2),
+		),
+	}
+	remoteMfs := []*dto.MetricFamily{
+		gaugeMetricFamily(
+			"point__sent",
+			gaugeMetric(map[string]string{
+				domainLabel:      "https://api.datadoghq.com",
+				remoteAgentLabel: "agent-data-plane",
+			}, 12),
+			gaugeMetric(map[string]string{
+				domainLabel:      "https://api.datadoghq.eu",
+				remoteAgentLabel: "other-remote-agent",
+			}, 5),
+			gaugeMetric(map[string]string{domainLabel: "https://api.datadoghq.com"}, 100),
+		),
+		gaugeMetricFamily(
+			"point__dropped",
+			gaugeMetric(map[string]string{
+				domainLabel:      "https://api.datadoghq.com",
+				remoteAgentLabel: "agent-data-plane",
+			}, 3),
+		),
+	}
+
+	points := collectPointTelemetry(defaultMfs, false)
+	mergePointTelemetry(points, collectPointTelemetry(remoteMfs, true))
+
+	require.Equal(t, pointTelemetryByDomain{
+		pointSentMetric: {
+			"https://api.datadoghq.com": 22,
+			"https://api.datadoghq.eu":  5,
+		},
+		pointDroppedMetric: {
+			"https://api.datadoghq.com": 5,
+		},
+	}, points)
+}
+
+func TestSendPointTelemetry(t *testing.T) {
+	sm := mocksender.CreateDefaultDemultiplexer()
+	c := &checkImpl{CheckBase: corechecks.NewCheckBase(CheckName)}
+	c.Configure(sm, integration.FakeConfigHash, nil, nil, "test", "provider")
+
+	s := mocksender.NewMockSenderWithSenderManager(c.ID(), sm)
+	s.On("Gauge", "datadog.agent.point.sent", 22.0, "", []string{"domain:https://api.datadoghq.com"}).Return().Times(1)
+	s.On("Gauge", "datadog.agent.point.dropped", 5.0, "", []string{"domain:https://api.datadoghq.com"}).Return().Times(1)
+
+	c.sendPointTelemetry(pointTelemetryByDomain{
+		pointSentMetric: {
+			"https://api.datadoghq.com": 22,
+		},
+		pointDroppedMetric: {
+			"https://api.datadoghq.com": 5,
+		},
+	}, s)
+
+	s.AssertExpectations(t)
+}
 
 func TestCheck(t *testing.T) {
 	reg := prometheus.NewRegistry()
