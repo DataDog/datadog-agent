@@ -88,6 +88,6 @@ type agentLogView struct {
 
 func (v *agentLogView) GetContent() []byte           { return v.content }
 func (v *agentLogView) GetStatus() string            { return v.status }
-func (v *agentLogView) GetTags() []string            { return v.tags }
+func (v *agentLogView) Tags() []string               { return v.tags }
 func (v *agentLogView) GetHostname() string          { return v.hostname }
 func (v *agentLogView) GetTimestampUnixMilli() int64 { return v.timestampMs }

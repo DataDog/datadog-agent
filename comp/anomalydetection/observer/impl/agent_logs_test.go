@@ -23,8 +23,8 @@ type captureHandle struct {
 func (h *captureHandle) ObserveMetric(_ observerdef.MetricView) {}
 func (h *captureHandle) ObserveLog(msg observerdef.LogView) {
 	// Copy tags so the captured view remains valid after the callback returns.
-	tags := make([]string, len(msg.GetTags()))
-	copy(tags, msg.GetTags())
+	tags := make([]string, len(msg.Tags()))
+	copy(tags, msg.Tags())
 	content := make([]byte, len(msg.GetContent()))
 	copy(content, msg.GetContent())
 	h.logs = append(h.logs, &agentLogView{
@@ -54,8 +54,8 @@ func TestInstallAgentLogTap(t *testing.T) {
 	var payload map[string]any
 	require.NoError(t, json.Unmarshal(msg.GetContent(), &payload))
 	assert.Equal(t, "test info message", payload["msg"])
-	assert.True(t, containsTag(msg.GetTags(), "source:datadog-agent"))
-	assert.True(t, containsTag(msg.GetTags(), "level:info"))
+	assert.True(t, containsTag(msg.Tags(), "source:datadog-agent"))
+	assert.True(t, containsTag(msg.Tags(), "level:info"))
 
 	// Verify warn log
 	assert.Equal(t, "warn", h.logs[1].GetStatus())
