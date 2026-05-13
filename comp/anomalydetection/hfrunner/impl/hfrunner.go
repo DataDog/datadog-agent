@@ -3,6 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package hfrunnerimpl implements the hfrunner component. It runs system and
+// container checks at 1-second intervals and routes their output directly into
+// the observer pipeline, bypassing the normal aggregator/forwarder chain.
 package hfrunnerimpl
 
 import (

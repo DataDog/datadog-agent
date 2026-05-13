@@ -5,11 +5,6 @@
 
 //go:build python
 
-// Package hfrunnerimpl implements the hfrunner component. It provides a
-// high-frequency system check runner that runs checks at 1-second intervals and
-// routes their output directly into the observer pipeline, bypassing the normal
-// aggregator/forwarder chain. Metrics collected here are never forwarded to
-// Datadog intake.
 package hfrunnerimpl
 
 import (
