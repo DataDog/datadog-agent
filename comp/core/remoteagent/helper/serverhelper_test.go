@@ -61,9 +61,8 @@ func TestNoSessionIDReturnsError(t *testing.T) {
 	// Register a test service
 	pbcore.RegisterStatusProviderServer(server.GetGRPCServer(), &mockStatusProvider{})
 
-	// Start the server
-	err = lc.Start(context.Background())
-	require.NoError(t, err)
+	// Start the server (impls call this explicitly after registering services).
+	server.Start()
 	defer lc.Stop(context.Background())
 
 	// Create a client to the remote agent server
@@ -118,9 +117,8 @@ func TestAuthTokenIsChecked(t *testing.T) {
 	// Register a test service
 	pbcore.RegisterStatusProviderServer(server.GetGRPCServer(), &mockStatusProvider{})
 
-	// Start the server
-	err = lc.Start(context.Background())
-	require.NoError(t, err)
+	// Start the server (impls call this explicitly after registering services).
+	server.Start()
 	defer lc.Stop(context.Background())
 
 	tests := []struct {
@@ -206,12 +204,11 @@ func TestServerLifecycle(t *testing.T) {
 	// Register a test service
 	pbcore.RegisterStatusProviderServer(server.GetGRPCServer(), &mockStatusProvider{})
 
-	// Verify lifecycle hooks were registered
+	// Verify lifecycle hooks were registered (OnStop only; Start is called explicitly).
 	lc.AssertHooksNumber(1)
 
-	// Start the server
-	err = lc.Start(context.Background())
-	require.NoError(t, err)
+	// Start the server (impls call this explicitly after registering services).
+	server.Start()
 
 	// Verify the server is running by checking if we can connect
 	conn, err := grpc.NewClient(
@@ -274,9 +271,8 @@ func TestRegisteredServicesReported(t *testing.T) {
 	pbcore.RegisterFlareProviderServer(server.GetGRPCServer(), &mockFlareProvider{})
 	pbcore.RegisterTelemetryProviderServer(server.GetGRPCServer(), &mockTelemetryProvider{})
 
-	// Start the server
-	err = lc.Start(context.Background())
-	require.NoError(t, err)
+	// Start the server (impls call this explicitly after registering services).
+	server.Start()
 	defer lc.Stop(context.Background())
 
 	// Wait for registration to complete
@@ -336,7 +332,7 @@ func TestRegistrationRefreshContention(t *testing.T) {
 	defer mockCoreAgent.stop()
 
 	// Create the remote agent server
-	_, err := NewUnimplementedRemoteAgentServer(
+	server, err := NewUnimplementedRemoteAgentServer(
 		ipcComp,
 		logComp,
 		configComp,
@@ -347,9 +343,8 @@ func TestRegistrationRefreshContention(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Start the server
-	err = lc.Start(context.Background())
-	require.NoError(t, err)
+	// Start the server (impls call this explicitly after registering services).
+	server.Start()
 	defer lc.Stop(context.Background())
 
 	// Wait for multiple registration attempts
@@ -408,9 +403,8 @@ func TestSessionIDInResponseMetadata(t *testing.T) {
 	// Register a test service
 	pbcore.RegisterStatusProviderServer(server.GetGRPCServer(), &mockStatusProvider{})
 
-	// Start the server
-	err = lc.Start(context.Background())
-	require.NoError(t, err)
+	// Start the server (impls call this explicitly after registering services).
+	server.Start()
 	defer lc.Stop(context.Background())
 
 	// Create a client and make a request
