@@ -9,7 +9,9 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // IsCheckAllowed returns true if the check is allowed.
@@ -41,4 +43,31 @@ func IsCheckAllowed(checkName string, cfg pkgconfigmodel.Reader) bool {
 
 	// Check additional list
 	return slices.Contains(cfg.GetStringSlice("integration.additional"), checkName)
+}
+
+func applyAdditionalTags(configs []integration.Config, cfg pkgconfigmodel.Reader) {
+	for i, config := range configs {
+		if !IsCheckTagged(config.Name, cfg) {
+			continue
+		}
+		tag := "ccm_mode:" + cfg.GetString("ccm_mode")
+		for j := range config.Instances {
+			if err := configs[i].Instances[j].MergeAdditionalTags([]string{tag}); err != nil {
+				log.Warnf("Unable to merge tags for %s instance: %v", config.Name, err)
+			}
+		}
+	}
+}
+
+func IsCheckTagged(checkName string, cfg pkgconfigmodel.Reader) bool {
+	ccmMode := cfg.GetString("ccm_mode")
+	if ccmMode == "" {
+		return false
+	}
+
+	taggedChecks := cfg.GetStringSlice("integration.ccm_" + ccmMode + ".tagged")
+	if len(taggedChecks) == 0 {
+		return true
+	}
+	return slices.Contains(taggedChecks, checkName)
 }
