@@ -228,5 +228,5 @@ pkg_deb(
     name = "debian_dbg",
     data = ":dbg_tar",
     package_file_name = "datadog-installer-dbg_{version}-1_{arch_deb}.deb",
-    ...
+    # ...
 )
