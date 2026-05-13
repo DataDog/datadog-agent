@@ -187,11 +187,18 @@ func (sp *sourceProvider) suppressIdentifier(containerID string) {
 	}
 }
 
-// unsuppressIdentifier releases the suppression for containerID.
-// After this call a future workloadmeta Set event may re-create the generic source.
+// unsuppressIdentifier releases the suppression for containerID and immediately
+// re-creates the generic source if the container is still running in workloadmeta.
+// The workloadmeta Set event that originally triggered the generic source was
+// consumed before the AD source suppressed it; without the re-add here the
+// container would go untailed until a future state change fires a new Set event.
 // Must be called after removing the AD source from LogSources.
 func (sp *sourceProvider) unsuppressIdentifier(containerID string) {
 	sp.mu.Lock()
-	defer sp.mu.Unlock()
 	delete(sp.suppressedIDs, containerID)
+	sp.mu.Unlock()
+
+	if container, err := sp.wmeta.GetContainer(containerID); err == nil {
+		sp.handleSet(container)
+	}
 }

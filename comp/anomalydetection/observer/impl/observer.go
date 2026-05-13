@@ -224,7 +224,8 @@ func NewComponent(deps Requires) Provides {
 		obs.handleFunc = obs.innerHandle
 	}
 
-	if recorder, ok := deps.Recorder.Get(); ok {
+	recorder, recorderEnabled := deps.Recorder.Get()
+	if recorderEnabled {
 		obs.handleFunc = recorder.GetHandle(obs.handleFunc)
 
 		// Record detect digests and advance log alongside parquet for parity debugging.
@@ -270,7 +271,7 @@ func NewComponent(deps Requires) Provides {
 	// defaults to true when unset (explicit false disables it).
 	logsEnabled := !cfg.IsConfigured("anomaly_detection.logs.enabled") || cfg.GetBool("anomaly_detection.logs.enabled")
 	agentLogsEnabled := !cfg.IsConfigured("anomaly_detection.agent_logs.enabled") || cfg.GetBool("anomaly_detection.agent_logs.enabled")
-	if analysisEnabled && logsEnabled && agentLogsEnabled {
+	if (analysisEnabled || recorderEnabled) && logsEnabled && agentLogsEnabled {
 		sampleInfo := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_info")
 		sampleDebug := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_debug")
 		sampleTrace := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_trace")
