@@ -206,8 +206,7 @@ func (d *directSenderConsumer) collectProcesses() error {
 				// start fields after process name
 				for field := range bytes.FieldsSeq(stat[processNameEndIndex+1:]) {
 					fieldNum++
-					switch fieldNum {
-					case 2:
+					if fieldNum == 2 {
 						ppid, _ = strconv.ParseInt(string(field), 10, 32)
 						break
 					}
