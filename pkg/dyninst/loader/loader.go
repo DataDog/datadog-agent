@@ -546,6 +546,11 @@ func (l *Loader) loadData(
 	); err != nil {
 		return nil, fmt.Errorf("failed to set num_go_runtime_types: %w", err)
 	}
+	if err := setVariable(
+		spec, "trace_context_type_id", uint32(serialized.traceContextTypeID),
+	); err != nil {
+		return nil, fmt.Errorf("failed to set trace_context_type_id: %w", err)
+	}
 	// Allow a program to avoid setting common constants if it doesn't have
 	// any. This is something of a hack to allow for the rcscrape program to
 	// avoid needing constants, and corresponds to similar flexibility in the
