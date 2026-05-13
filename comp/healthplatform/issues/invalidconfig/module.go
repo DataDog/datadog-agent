@@ -32,9 +32,7 @@ func (m *invalidConfigModule) IssueTemplate() issues.IssueTemplate {
 	return InvalidConfigIssue{}
 }
 
-// BuiltInHealthCheck runs the schema validation once at agent startup. The
-// agent does not hot-reload datadog.yaml, so the verdict can't change at
-// runtime — Once: true tells the platform to skip periodic re-invocation.
+// BuiltInHealthCheck runs the schema validation once at agent startup
 func (m *invalidConfigModule) BuiltInHealthCheck() *issues.BuiltInHealthCheck {
 	return &issues.BuiltInHealthCheck{
 		ID:      healthplatformdef.InvalidConfigCheckID,
