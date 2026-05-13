@@ -9,6 +9,7 @@ package schedulerimpl
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -19,20 +20,31 @@ import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
-// mockReporter is a simple mock for testing check runner registration/validation
+// mockReporter is a simple mock for testing health check scheduling/validation.
 type mockReporter struct {
-	reportCount int32
+	reportCount  int32
+	resolveCount int32
+	mu           sync.Mutex
+	lastReport   storedef.IssueReport
 }
 
 func newMockReporter() *mockReporter {
 	return &mockReporter{}
 }
 
-func (m *mockReporter) ReportIssue(_ string, _ string, _ *healthplatformpayload.IssueReport) error {
+func (m *mockReporter) ReportIssue(r storedef.IssueReport) error {
+	m.mu.Lock()
+	m.lastReport = r
+	m.mu.Unlock()
 	atomic.AddInt32(&m.reportCount, 1)
 	return nil
+}
+
+func (m *mockReporter) ResolveIssue(_ string) {
+	atomic.AddInt32(&m.resolveCount, 1)
 }
 
 // newTestRunner creates a checkRunner with reporter wired for testing
@@ -129,9 +141,9 @@ func TestCheckRunnerRunsChecks(t *testing.T) {
 	runner.start(context.Background())      //nolint:errcheck
 	defer runner.stop(context.Background()) //nolint:errcheck
 
-	// Wait for at least 2 executions
+	// The check returns nil so ResolveIssue (not ReportIssue) is called each tick.
 	assert.Eventually(t, func() bool {
-		return atomic.LoadInt32(&callCount) >= 2 && atomic.LoadInt32(&reporter.reportCount) >= 2
+		return atomic.LoadInt32(&callCount) >= 2 && atomic.LoadInt32(&reporter.resolveCount) >= 2
 	}, 500*time.Millisecond, 10*time.Millisecond)
 }
 
@@ -149,9 +161,9 @@ func TestCheckRunnerStartStop(t *testing.T) {
 	// Start and stop should complete gracefully
 	runner.start(context.Background()) //nolint:errcheck
 
-	// Wait for at least one execution
+	// Check returns nil, so ResolveIssue is called each tick (not ReportIssue).
 	assert.Eventually(t, func() bool {
-		return atomic.LoadInt32(&reporter.reportCount) >= 1
+		return atomic.LoadInt32(&reporter.resolveCount) >= 1
 	}, 100*time.Millisecond, 5*time.Millisecond)
 
 	runner.stop(context.Background()) //nolint:errcheck // Stop blocks until all goroutines finish
@@ -160,4 +172,34 @@ func TestCheckRunnerStartStop(t *testing.T) {
 	runner.checkMux.RLock()
 	assert.False(t, runner.started)
 	runner.checkMux.RUnlock()
+}
+
+// TestExecuteCheckDoesNotOverrideSource verifies that the scheduler never sets Source
+// in the IssueReport forwarded to the reporter. Issue templates own the Source field;
+// setting it from checkName would shadow the template's value (e.g. "logs" becomes
+// "Docker Socket Permissions").
+func TestExecuteCheckDoesNotOverrideSource(t *testing.T) {
+	runner, reporter := newTestRunner(t)
+
+	checkFn := func() (*healthplatformpayload.IssueReport, error) {
+		return &healthplatformpayload.IssueReport{
+			IssueId: "some-issue-type",
+		}, nil
+	}
+
+	runner.executeCheck(&registeredCheck{
+		checkID:   "my-check-id",
+		checkName: "My Check Display Name",
+		checkFn:   checkFn,
+		stopCh:    make(chan struct{}),
+	})
+
+	require.Equal(t, int32(1), atomic.LoadInt32(&reporter.reportCount))
+	reporter.mu.Lock()
+	got := reporter.lastReport
+	reporter.mu.Unlock()
+
+	assert.Empty(t, got.Source, "scheduler must not set Source; issue template owns that field")
+	assert.Equal(t, "my-check-id", got.IssueID)
+	assert.Equal(t, "some-issue-type", got.IssueType)
 }

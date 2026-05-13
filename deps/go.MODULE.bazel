@@ -49,6 +49,10 @@ go_deps.gazelle_override(
     build_extra_args = ["-build_tags=grpcnotrace"],
     path = "google.golang.org/grpc",
 )
+go_deps.gazelle_override(
+    build_extra_args = ["-build_tags=requirefips"],
+    path = "go.opentelemetry.io/collector/config/configtls",
+)
 use_repo(
     go_deps,
     "cat_dario_mergo",

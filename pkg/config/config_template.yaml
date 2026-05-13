@@ -549,6 +549,40 @@ api_key:
 #
 # collect_gpu_tags: false
 
+## @param gpu - custom object - optional
+## GPU monitoring configuration.
+#
+# gpu:
+
+#   # @param nccl - custom object - optional
+#   # NCCL collective communication metrics. When enabled, the Agent listens on a
+#   # Unix domain socket for events emitted by the NCCL profiler plugin in
+#   # training pods and emits per-collective performance metrics.
+#   # Pair with admission_controller.nccl_profiler to inject the plugin into
+#   # training pods, or mount the plugin into containers manually.
+#
+#   nccl:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_GPU_NCCL_ENABLED - boolean - optional - default: false
+#     # Enable the NCCL collective performance check.
+#
+#     enabled: false
+
+#     # @param host_socket_path - string - optional - default: "/var/run/datadog"
+#     # @env DD_GPU_NCCL_HOST_SOCKET_PATH - string - optional - default: "/var/run/datadog"
+#     # Host directory containing the Agent's NCCL socket. Must match the
+#     # hostPath volume mounted into training pods.
+#
+#     host_socket_path: "/var/run/datadog"
+
+#     # @param socket_path - string - optional - default: "/var/run/datadog/nccl.socket"
+#     # @env DD_GPU_NCCL_SOCKET_PATH - string - optional - default: "/var/run/datadog/nccl.socket"
+#     # Full path to the Unix domain socket the Agent listens on for NCCL events.
+#     # Must be under host_socket_path.
+#
+#     socket_path: "/var/run/datadog/nccl.socket"
+
 ## @param azure_metadata_timeout - integer - optional - default: 300
 ## @env DD_AZURE_METADATA_TIMEOUT - integer - optional - default: 300
 ## Timeout in milliseconds on calls to the Azure metadata endpoints.
@@ -2966,6 +3000,17 @@ api_key:
 #
 # ad_config_poll_interval: 10
 
+## @param ad_tag_completeness_max_wait - integer - optional - default: 0
+## @env DD_AD_TAG_COMPLETENESS_MAX_WAIT - integer - optional - default: 0
+## Maximum time in seconds that autodiscovery waits for an entity's tags to be
+## complete before scheduling checks for it. This avoids checks running briefly
+## with incomplete tags. This can happen when some sources (kubelet, container
+## runtime, etc.) have reported information for the entity, but others have not
+## yet. 0 disables waiting and checks are scheduled as soon as the entity is
+## discovered.
+#
+# ad_tag_completeness_max_wait: 0
+
 ## @param ad_allowed_env_vars - list of strings - optional - default: []
 ## @env DD_AD_ALLOWED_ENV_VARS - space-separated list of strings - optional - default: []
 ## The list of environment variables that are allowed to be resolved in check
@@ -3414,6 +3459,55 @@ api_key:
 #     # Env var example: DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_INIT_SECURITY_CONTEXT='{"privileged": false}'
 #
 #     init_security_context: '{"privileged": false}'
+
+#   # @param nccl_profiler - custom object - optional
+#   # NCCL profiler injection. When enabled, the admission controller injects
+#   # an init container into pods labelled `admission.datadoghq.com/nccl-profiler.enabled: "true"`
+#   # to mount the NCCL profiler plugin and configure NCCL env vars so the
+#   # Agent's NCCL check can collect collective performance events over a UDS.
+#
+#   nccl_profiler:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_ADMISSION_CONTROLLER_NCCL_PROFILER_ENABLED - boolean - optional - default: false
+#     # Enable the NCCL profiler injection webhook.
+#
+#     enabled: false
+
+#     # @param injector_image - string - optional - default: ""
+#     # @env DD_ADMISSION_CONTROLLER_NCCL_PROFILER_INJECTOR_IMAGE - string - optional - default: ""
+#     # Fully-qualified image reference for the NCCL profiler injector. The
+#     # webhook self-disables if this is empty when enabled is true.
+#
+#     injector_image: ""
+
+#     # @param mutate_unlabelled - boolean - optional - default: false
+#     # @env DD_ADMISSION_CONTROLLER_NCCL_PROFILER_MUTATE_UNLABELLED - boolean - optional - default: false
+#     # When true, the webhook injects into every pod that does not carry the
+#     # `admission.datadoghq.com/nccl-profiler.enabled: "false"` label, instead
+#     # of requiring `"true"` to opt in. Useful in clusters dedicated to ML
+#     # training. Either this or admission_controller.mutate_unlabelled enables
+#     # blanket mode. Note: when enabled, every pod's admission depends on the
+#     # injector image being reachable from the kubelet.
+#
+#     mutate_unlabelled: false
+
+#     # @param init_resources - custom object - optional
+#     # CPU and memory resources applied to the injected init container.
+#
+#     init_resources:
+
+#       # @param cpu - string - optional - default: ""
+#       # @env DD_ADMISSION_CONTROLLER_NCCL_PROFILER_INIT_RESOURCES_CPU - string - optional - default: ""
+#       # CPU request and limit for the init container.
+#
+#       cpu: ""
+
+#       # @param memory - string - optional - default: ""
+#       # @env DD_ADMISSION_CONTROLLER_NCCL_PROFILER_INIT_RESOURCES_MEMORY - string - optional - default: ""
+#       # Memory request and limit for the init container.
+#
+#       memory: ""
 
 {{- end -}}
 {{- if .DockerTagging }}
