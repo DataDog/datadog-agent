@@ -46,7 +46,6 @@ jobs:
           if [ "$base_directive" != "$current_directive" ]; then
             echo "::warning::Root go.mod 'go' directive changed from '$base_directive' to '$current_directive'. Auto-closing this PR — a dependency requires a newer Go version than the repo."
             gh pr comment "$PR_NUMBER" --body "Auto-closing: this update bumps the root \`go.mod\` \`go\` directive from \`$base_directive\` to \`$current_directive\`. Hold this dependency update until we bump the repository's Go version."
-            gh pr edit "$PR_NUMBER" --add-label "stop-updating"
             gh pr close "$PR_NUMBER"
             exit 1
           fi
