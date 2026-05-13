@@ -37,18 +37,18 @@ comp/anomalydetection/
     impl/
     impl-testbench/
     mock/
-  recorder/     ← parquet recorder for scenario capture
+  recorder/     ← parquet recorder for live scenario capture
     def/
-    fx/         ← full implementation (parquet, heavy deps)
-    fx-noop/    ← stub wired in the main agent build
+    fx/         ← fx.go (//go:build python) + fx_noop.go (//go:build !python)
     impl/
-    impl-noop/
 ```
 
-The **production agent** wires `reporter/fx-noop` and `recorder/fx-noop` to
-keep those heavy dependencies out of the agent binary. The
-**testbench** (`internal/qbranch/anomalydetection-testbench/`) wires the full
-`fx` + `impl` variants.
+The recorder is gated on the `python` build tag, used as a proxy for "full
+agent, not IoT agent" — same pattern as `observer/fx`. Full agent and
+docker agent flavors compile `recorder/fx/fx.go` and link `apache/arrow-go`;
+IoT, dogstatsd-only, cluster-agent, and serverless flavors compile
+`recorder/fx/fx_noop.go` and ship no parquet dependencies. The reporter
+component still uses a separate `reporter/fx-noop` package for now.
 
 ## Architecture
 

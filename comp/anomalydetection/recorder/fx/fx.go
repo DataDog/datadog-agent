@@ -3,9 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// The `python` build tag is used here as a proxy for "full agent, not IoT agent".
+// See comp/anomalydetection/recorder/fx/fx_noop.go for the stub used in IoT agent
+// and other size-sensitive builds, which avoids linking apache/arrow-go.
+
+//go:build python
+
 // Package fx provides the fx module for the recorder component.
-// Wire this module when full parquet recording is needed (e.g. in the testbench).
-// For the main agent build, use recorder/fx-noop instead.
 package fx
 
 import (
