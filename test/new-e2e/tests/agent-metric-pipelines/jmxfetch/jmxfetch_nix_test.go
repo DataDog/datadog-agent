@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-pipelines/common"
 
 	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/secretsmanager"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -73,6 +74,7 @@ func testJMXFetchNix(t *testing.T, mtls bool, fips bool) {
 					dockeragentparams.WithJMX(),
 					choice(fips, dockeragentparams.WithFIPS(), none),
 					dockeragentparams.WithExtraComposeInlineManifest(extraManifests...),
+					common.WithADPEnabledDocker(),
 				),
 				choice(mtls, ec2docker.WithPreAgentInstallHook(fetchCertificates), none),
 			),
@@ -103,6 +105,8 @@ func TestJMXFetchNixMtlsFIPS(t *testing.T) {
 }
 
 func (j *jmxfetchNixTest) Test_FakeIntakeReceivesJMXFetchMetrics() {
+	common.AssertADPRunningDocker(j.T(), j.Env().RemoteHost)
+
 	metricNames := []string{
 		"test.e2e.jmxfetch.counter_100",
 		"test.e2e.jmxfetch.gauge_200",
@@ -140,6 +144,8 @@ func (j *jmxfetchNixTest) Test_FakeIntakeReceivesJMXFetchMetrics() {
 }
 
 func (j *jmxfetchNixTest) TestJMXListCollectedWithRateMetrics() {
+	common.AssertADPRunningDocker(j.T(), j.Env().RemoteHost)
+
 	status, err := j.Env().Agent.Client.JMX(agentclient.WithArgs([]string{"list", "collected", "with-rate-metrics"}))
 	require.NoError(j.T(), err)
 	assert.NotEmpty(j.T(), status.Content)

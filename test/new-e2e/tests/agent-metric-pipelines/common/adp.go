@@ -12,6 +12,8 @@
 package common
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/dockeragentparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 )
 
@@ -35,6 +38,68 @@ func WithADPEnabled() func(*agentparams.Params) error {
 			pulumi.String("data_plane.dogstatsd.enabled: true"),
 		)
 		return nil
+	}
+}
+
+// WithADPEnabledDocker is the equivalent of WithADPEnabled for the
+// containerized Agent. dockeragentparams doesn't expose AgentConfig directly;
+// ADP is enabled via environment variables instead.
+//
+// JMXFetch's default reporter is DogStatsD — it scrapes JMX MBeans from the
+// target JVM and refeeds the metrics into the local DSD port (8125), which
+// ADP intercepts when enabled. So jmxfetch tests under ADP exercise ADP's
+// real data path, not just a smoke test.
+func WithADPEnabledDocker() func(*dockeragentparams.Params) error {
+	return dockeragentparams.WithEnvironmentVariables(pulumi.StringMap{
+		"DD_DATA_PLANE_ENABLED":           pulumi.String("true"),
+		"DD_DATA_PLANE_DOGSTATSD_ENABLED": pulumi.String("true"),
+	})
+}
+
+// AssertADPRunningDocker is the Docker equivalent of AssertADPRunning. It
+// shells out from the test host to docker, finds the agent container, and
+// checks that the agent-data-plane process is running inside it.
+//
+// Discovers the container by image-name match ("datadog/agent") to be robust
+// to container-name changes across provisioners. Checks process existence via
+// pgrep against the truncated comm form ("agent-data-plan", 15 chars — see
+// AssertADPRunning for the kernel-quirk context).
+func AssertADPRunningDocker(t *testing.T, host *components.RemoteHost) {
+	t.Helper()
+	ok := assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		// Find the running agent container by image name.
+		containerID, err := host.Execute(
+			`sudo docker ps --format '{{.ID}} {{.Image}}' | grep -i 'datadog/agent' | awk '{print $1}' | head -1`)
+		if !assert.NoError(c, err) {
+			return
+		}
+		containerID = strings.TrimSpace(containerID)
+		if !assert.NotEmpty(c, containerID, "agent container not found via 'docker ps'") {
+			return
+		}
+
+		// pgrep returns non-zero exit when no match — host.Execute treats that
+		// as an error. Match on the truncated process name (TASK_COMM_LEN = 16).
+		out, err := host.Execute(fmt.Sprintf("sudo docker exec %s pgrep -af agent-data-plan", containerID))
+		if !assert.NoError(c, err, "agent-data-plane process not found in agent container") {
+			return
+		}
+		assert.Contains(c, out, "agent-data-plan",
+			"expected agent-data-plane in pgrep output; got: %s", out)
+	}, 2*time.Minute, 5*time.Second,
+		"timed out waiting for agent-data-plane to run in the agent container")
+
+	if !ok {
+		// Best-effort: pull container logs for the agent to help diagnose what happened.
+		containerID, _ := host.Execute(
+			`sudo docker ps --format '{{.ID}} {{.Image}}' | grep -i 'datadog/agent' | awk '{print $1}' | head -1`)
+		containerID = strings.TrimSpace(containerID)
+		var logs string
+		if containerID != "" {
+			logs, _ = host.Execute(fmt.Sprintf("sudo docker logs --tail 200 %s 2>&1", containerID))
+		}
+		require.FailNowf(t, "agent-data-plane not running in agent container",
+			"agent container logs tail:\n%s", logs)
 	}
 }
 
