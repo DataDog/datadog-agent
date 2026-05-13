@@ -35,19 +35,25 @@ def generate_unified_output(
         from tasks.libs.common.utils import gitlab_section
         from tasks.libs.testing.result_json import ResultJson
         from tasks.libs.testing.utof import format_report
+        from tasks.libs.testing.utof.go.converter import convert_go_test_results
         from tasks.libs.testing.utof.metadata import generate_metadata
 
         result_json = ResultJson.from_file(result_json_path)
         metadata = generate_metadata(ctx, test_system=test_system, flavor=flavor_name)
 
         if test_system == "e2e":
-            from tasks.libs.testing.utof.go.e2e import convert_e2e_test_results
+            from tasks.libs.testing.utof.go.e2e.extractors import pulumi_extractor
 
-            utof = convert_e2e_test_results(ctx, result_json, test_washer=tw, metadata=metadata)
+            utof = convert_go_test_results(
+                ctx,
+                result_json,
+                test_type="e2e",
+                test_washer=tw,
+                metadata=metadata,
+                custom_extractors=[pulumi_extractor],
+            )
         else:
-            from tasks.libs.testing.utof.go.unit import convert_unit_test_results
-
-            utof = convert_unit_test_results(ctx, result_json, test_washer=tw, metadata=metadata)
+            utof = convert_go_test_results(ctx, result_json, test_type="unit", test_washer=tw, metadata=metadata)
 
         utof_path = result_json_path.replace('.json', '_unified.json')
         utof.write_json(utof_path)

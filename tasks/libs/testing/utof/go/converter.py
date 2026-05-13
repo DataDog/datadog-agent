@@ -1,13 +1,12 @@
 """Generic Go test → UTOFDocument converter.
 
 Format-specific converters (``go.unit``, ``go.e2e``, …) call
-``convert_go_test_results`` with their own ``test_type``, ``suite_fn`` and
-``custom_extractors``. The defaults match Go unit test conventions.
+``convert_go_test_results`` with their own ``test_type`` and
+``custom_extractors``.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from tasks.libs.testing.result_json import ResultJson
@@ -24,6 +23,7 @@ from tasks.libs.testing.utof.go.parser.run_parser import (
     determine_status,
     generate_test_id,
     leaf_name,
+    suite_name,
 )
 from tasks.libs.testing.utof.metadata import generate_metadata
 from tasks.libs.testing.utof.models import UTOFDocument, UTOFMetadata, UTOFTestResult
@@ -40,7 +40,6 @@ def convert_go_test_results(
     test_type: str,
     test_washer: TestWasher | None = None,
     metadata: UTOFMetadata | None = None,
-    suite_fn: Callable[[str], str] = lambda _: "",
     custom_extractors: list[FailureExtractor] | None = None,
 ) -> UTOFDocument:
     """Convert Go test2json results into a UTOFDocument.
@@ -51,8 +50,6 @@ def convert_go_test_results(
             test_system metadata field (e.g. ``"unit"`` or ``"e2e"``).
         test_washer: Optional TestWasher instance for flaky test analysis.
         metadata: Optional pre-built metadata. If None, a default is generated.
-        suite_fn: Maps a hierarchical test name to its suite. Unit tests leave
-            ``suite`` empty; e2e derives the top-level test function name.
         custom_extractors: Format-specific failure extractors forwarded to
             ``build_attempts`` (e.g. Pulumi for e2e infra errors).
 
@@ -86,7 +83,7 @@ def convert_go_test_results(
                     name=leaf_name(test_name),
                     full_name=test_name,
                     package=package,
-                    suite=suite_fn(test_name),
+                    suite=suite_name(test_name),
                     type=test_type,
                     status=status,
                     duration_seconds=round(duration, 6),
@@ -101,7 +98,7 @@ def convert_go_test_results(
         by_package.setdefault(t.package, []).append(t)
     rooted = []
     for pkg_tests in by_package.values():
-        rooted.extend(build_test_tree(pkg_tests, suite_fn=suite_fn))
+        rooted.extend(build_test_tree(pkg_tests))
 
     return UTOFDocument(
         version="1.0.0",
