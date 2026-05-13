@@ -35,6 +35,7 @@ go_test(
         "//comp/core/log/def",
         "//comp/core/log/mock",
         "//comp/core/telemetry/mock",
+        "//comp/healthplatform/scheduler/def",
         "//comp/healthplatform/store/def",
         "//pkg/util/fxutil",
         "@com_github_datadog_agent_payload_v5//healthplatform",

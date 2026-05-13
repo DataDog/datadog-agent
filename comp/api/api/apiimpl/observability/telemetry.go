@@ -48,7 +48,7 @@ func (th *telemetryMiddlewareFactory) Middleware(serverName string) func(http.Ha
 
 			// Plant a route capture in the context so that WrapWithRouteTemplate (called at
 			// handler registration) can fill it with the matched route template. This avoids
-			// high-cardinality metric tags from path variables such as /{component}/status.
+			// high-cardinality metric tags from path variables such as /status/section/{component}.
 			r, capture := withRouteCapture(r)
 			next.ServeHTTP(w, r)
 
