@@ -234,8 +234,6 @@ func testDyninst(
 		t, assertProbesInstalled, 180*time.Second, 100*time.Millisecond,
 		"diagnostics should indicate that the probes are installed",
 	)
-	time.Sleep(10 * time.Second)
-	t.Logf("slept for 10 seconds")
 
 	// Trigger the function calls, receive the events, and wait for the process
 	// to exit.
