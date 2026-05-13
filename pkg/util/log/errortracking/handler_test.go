@@ -10,6 +10,8 @@ package errortracking
 import (
 	"context"
 	"log/slog"
+	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -142,6 +144,40 @@ func TestHandler_CallsSubmitter_BuildsErrorLog(t *testing.T) {
 	}
 	if len(e.Attrs) != 0 {
 		t.Errorf("Attrs must be empty post-PII-pivot, got %v", e.Attrs)
+	}
+}
+
+// TestHandle_StackSkipBase locks the stackSkipBase constant: a real
+// logger.Error(...) call routed through the slog chain must produce a
+// captured stack whose first frame is in the test source file (the user
+// call site), not in slog plumbing. If a future slog version changes
+// the number of internal frames between user code and Handler.Handle,
+// this test fails and the constant must be re-calibrated.
+func TestHandle_StackSkipBase(t *testing.T) {
+	rec := &recordingSubmitter{}
+	var slot atomic.Pointer[Submitter]
+	sub := Submitter(rec.submit)
+	slot.Store(&sub)
+
+	h := NewHandler(loaderFor(&slot))
+	logger := slog.New(h)
+	logger.Error("calibration-marker") // <- user call site we expect at PCs[0]
+
+	got := rec.snapshot()
+	if len(got) != 1 {
+		t.Fatalf("want 1 ErrorLog, got %d", len(got))
+	}
+	e := got[0]
+	if e.PCsLen == 0 {
+		t.Fatalf("handler must populate PCs")
+	}
+	frame, _ := runtime.CallersFrames(e.PCs[:1]).Next()
+	if frame.File == "" {
+		t.Fatalf("frame symbol resolution failed for PCs[0]")
+	}
+	if !strings.HasSuffix(frame.File, "handler_test.go") {
+		t.Fatalf("PCs[0] must point at the user call site, got %s (skipBase=%d miscalibrated)",
+			frame.File, stackSkipBase)
 	}
 }
 
