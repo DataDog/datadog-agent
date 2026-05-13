@@ -5,9 +5,12 @@
 
 //go:build test
 
+// Package settings provides mock-specific types for the settings component.
 package settings
+
+import settingsdef "github.com/DataDog/datadog-agent/comp/core/settings/def"
 
 // Mock implements mock-specific methods.
 type Mock interface {
-	Component
+	settingsdef.Component
 }

@@ -18,14 +18,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
+	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type runtimeTestSetting struct {
@@ -388,30 +385,28 @@ func TestRuntimeSettings(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			deps := fxutil.Test[dependencies](t, fx.Options(
-				fx.Provide(func() log.Component { return logmock.New(t) }),
-				fx.Supply(
-					settings.Params{
-						Config: config.NewMock(t),
-						Settings: map[string]settings.RuntimeSetting{
-							"foo": &runtimeTestSetting{
-								hidden:      false,
-								description: "foo settings",
-							},
-							"hidden setting": &runtimeTestSetting{
-								hidden:      true,
-								description: "hidden setting",
-							},
-							"bar": &runtimeTestSetting{
-								hidden:      false,
-								description: "bar settings",
-							},
+			deps := Requires{
+				Log: logmock.New(t),
+				Params: settings.Params{
+					Config: config.NewMock(t),
+					Settings: map[string]settings.RuntimeSetting{
+						"foo": &runtimeTestSetting{
+							hidden:      false,
+							description: "foo settings",
+						},
+						"hidden setting": &runtimeTestSetting{
+							hidden:      true,
+							description: "hidden setting",
+						},
+						"bar": &runtimeTestSetting{
+							hidden:      false,
+							description: "bar settings",
 						},
 					},
-				),
-			))
+				},
+			}
 
-			provides := newSettings(deps)
+			provides := NewComponent(deps)
 			settingsComponent := provides.Comp
 
 			testCase.assertFunc(t, settingsComponent)

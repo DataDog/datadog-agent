@@ -18,8 +18,8 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	settingsdef "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	settingsdef "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
