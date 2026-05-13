@@ -100,13 +100,22 @@ func (s *baseAgentMSISuite) AfterTest(suiteName, testName string) {
 
 	vm := s.Env().RemoteHost
 
-	// Look for and download crash dumps
+	// Look for and download crash dumps. Dumps from processes in
+	// DefaultIgnoredCrashDumpImages are still downloaded as artifacts but do
+	// not fail the test.
 	dumps, err := windowsCommon.DownloadAllWERDumps(vm, s.dumpFolder, s.SessionOutputDir())
 	s.Assert().NoError(err, "should download crash dumps")
-	if !s.Assert().Empty(dumps, "should not have crash dumps") {
-		s.T().Logf("Found crash dumps:")
-		for _, dump := range dumps {
-			s.T().Logf("  %s", dump)
+	failing, ignored := windowsCommon.PartitionDownloadedWERDumps(dumps, windowsCommon.DefaultIgnoredCrashDumpImages)
+	if len(ignored) > 0 {
+		s.T().Logf("Ignoring %d crash dumps from known-noisy processes:", len(ignored))
+		for _, dump := range ignored {
+			s.T().Logf("  %s -> %s", dump.Source.FileName, dump.LocalPath)
+		}
+	}
+	if !s.Assert().Empty(failing, "should not have crash dumps") {
+		s.T().Logf("Found unexpected crash dumps:")
+		for _, dump := range failing {
+			s.T().Logf("  %s -> %s", dump.Source.FileName, dump.LocalPath)
 		}
 	}
 
