@@ -8,11 +8,14 @@
 package decode
 
 import (
+	"encoding/binary"
 	"testing"
 	"time"
 	"unsafe"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
 // timeAsBytes extracts the in-memory representation of a time.Time as the
@@ -93,6 +96,69 @@ func TestDecodeGoTime(t *testing.T) {
 	t.Run("short_buffer_treated_as_zero", func(t *testing.T) {
 		_, _, isZero := decodeGoTime(make([]byte, 8), wallOff, extOff)
 		require.True(t, isZero)
+	})
+}
+
+// makeTimeBuf builds a synthetic 24-byte time.Time capture buffer the way
+// BPF would after running SM_OP_PROCESS_GO_TIME: wall and ext as Go's
+// runtime would lay them out, and the high 8 bytes set to the resolved
+// offset (or the unresolved sentinel).
+func makeTimeBuf(t time.Time, offsetSlot int64) []byte {
+	buf := timeAsBytes(t)
+	binary.NativeEndian.PutUint64(buf[16:24], uint64(offsetSlot))
+	return buf
+}
+
+func TestGoTimeTypeFormat(t *testing.T) {
+	timeType := &goTimeType{GoTimeType: &ir.GoTimeType{
+		WallFieldOffset: 0,
+		ExtFieldOffset:  8,
+		LocFieldOffset:  16,
+	}}
+
+	t.Run("utc_sentinel_renders_Z", func(t *testing.T) {
+		buf := makeTimeBuf(
+			time.Unix(1700000000, 123456789),
+			ir.GoTimeUnresolvedOffset,
+		)
+		got, isZero := timeType.format(buf)
+		require.False(t, isZero)
+		require.Equal(t, "2023-11-14T22:13:20.123456789Z", got)
+	})
+
+	t.Run("positive_offset_renders_with_sign", func(t *testing.T) {
+		buf := makeTimeBuf(
+			time.Unix(1700000000, 0),
+			3600, // +01:00
+		)
+		got, isZero := timeType.format(buf)
+		require.False(t, isZero)
+		require.Equal(t, "2023-11-14T23:13:20+01:00", got)
+	})
+
+	t.Run("negative_offset_renders_with_sign", func(t *testing.T) {
+		buf := makeTimeBuf(
+			time.Unix(1700000000, 0),
+			-5*3600, // -05:00 (EST)
+		)
+		got, isZero := timeType.format(buf)
+		require.False(t, isZero)
+		require.Equal(t, "2023-11-14T17:13:20-05:00", got)
+	})
+
+	t.Run("zero_time_returns_isZero", func(t *testing.T) {
+		buf := makeTimeBuf(time.Time{}, ir.GoTimeUnresolvedOffset)
+		_, isZero := timeType.format(buf)
+		require.True(t, isZero)
+	})
+
+	t.Run("short_buffer_falls_back_to_utc", func(t *testing.T) {
+		// 16-byte buffer (no loc slot) — decoder must not panic and
+		// must default to UTC rendering.
+		buf := timeAsBytes(time.Unix(1700000000, 0))[:16]
+		got, isZero := timeType.format(buf)
+		require.False(t, isZero)
+		require.Equal(t, "2023-11-14T22:13:20Z", got)
 	})
 }
 

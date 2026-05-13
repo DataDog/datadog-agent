@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testReturnsStructWithArray",
+      "method": "main.testTimeMonotonic",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,19 +16,19 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testReturnsStructWithArray",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 247
+            "function": "main.testTimeMonotonic",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/times.go",
+            "lineNumber": 35
           },
           {
-            "function": "main.executeReturns",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 428
+            "function": "main.executeTimeFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/times.go",
+            "lineNumber": 56
           },
           {
             "function": "main.runAll",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 83
+            "lineNumber": 76
           },
           {
             "function": "main.main",
@@ -47,34 +47,20 @@
           }
         ],
         "probe": {
-          "id": "testReturnsStructWithArray",
+          "id": "testTimeMonotonic",
           "location": {
-            "method": "main.testReturnsStructWithArray"
+            "method": "main.testTimeMonotonic"
           }
         },
         "captures": {
-          "return": {
-            "locals": {
-              "@return": {
-                "type": "main.structWithArray",
+          "entry": {
+            "arguments": {
+              "c": {
+                "type": "main.timeCapture",
                 "fields": {
-                  "arr": {
-                    "type": "[2]int",
-                    "size": "2",
-                    "elements": [
-                      {
-                        "type": "int",
-                        "value": "1"
-                      },
-                      {
-                        "type": "int",
-                        "value": "2"
-                      }
-                    ]
-                  },
-                  "x": {
-                    "type": "int",
-                    "value": "3"
+                  "monotonicNow": {
+                    "type": "time.Time",
+                    "value": "[monotonic-time]"
                   }
                 }
               }
@@ -85,8 +71,7 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "duration": "[duration]",
-    "message": "testReturnsStructWithArray",
+    "message": "{monotonicNow: [monotonic-time]}",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]
