@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -248,4 +250,95 @@ func TestPayloadAllowsMessageContentGC(t *testing.T) {
 	// Verify payload metadata still intact
 	assert.Equal(t, 1, len(payload.MessageMetas))
 	assert.Equal(t, int64(2), payload.MessageMetas[0].IngestionTimestamp)
+}
+
+func TestMessageTagsIncludesOriginAndProcessingTags(t *testing.T) {
+	cfg := &config.LogsConfig{
+		Source:         "a",
+		SourceCategory: "b",
+		Tags:           []string{"c:d", "e"},
+	}
+	source := sources.NewLogSource("", cfg)
+	origin := NewOrigin(source)
+	origin.SetTags([]string{"foo:bar"})
+
+	msg := NewMessage([]byte("hello"), origin, "", 0)
+	msg.ProcessingTags = []string{"processing:tag"}
+
+	assert.Equal(t, []string{"foo:bar", "sourcecategory:b", "c:d", "e", "processing:tag"}, msg.Tags())
+}
+
+func TestMessageTagsNilOrigin(t *testing.T) {
+	msg := NewMessage([]byte("hello"), nil, "", 0)
+	msg.ProcessingTags = []string{"processing:tag"}
+
+	assert.Equal(t, []string{"processing:tag"}, msg.Tags())
+}
+
+func TestSplitEscapedPath(t *testing.T) {
+	tests := []struct {
+		input string
+		want  []string
+	}{
+		{"syslog.hostname", []string{"syslog", "hostname"}},
+		{`syslog.structured_data.my\.org@99999.status`, []string{"syslog", "structured_data", "my.org@99999", "status"}},
+		{`a\\b.c`, []string{`a\b`, "c"}},
+		{`trailing\`, []string{`trailing\`}},
+		{`a\\.b`, []string{`a\`, "b"}},
+		{`no_dots`, []string{"no_dots"}},
+		{"", []string{""}},
+		{`\.`, []string{"."}},
+		{`\\`, []string{`\`}},
+		{`a.b.c.d`, []string{"a", "b", "c", "d"}},
+		{`a\.b\.c.d`, []string{"a.b.c", "d"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			got := splitEscapedPath(tc.input)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestGetStructuredAttribute_EscapedDotInKey(t *testing.T) {
+	t.Run("dotted map key reachable with escape", func(t *testing.T) {
+		sc := &BasicStructuredContent{Data: map[string]interface{}{
+			"syslog": map[string]interface{}{
+				"structured_data": map[string]interface{}{
+					"my.org@99999": map[string]interface{}{
+						"status": "ok",
+					},
+				},
+			},
+		}}
+		msg := NewStructuredMessage(sc, nil, "", 0)
+		val, ok := msg.GetStructuredAttribute(`syslog.structured_data.my\.org@99999.status`)
+		assert.True(t, ok)
+		assert.Equal(t, "ok", val)
+	})
+
+	t.Run("unescaped dot in dotted key fails", func(t *testing.T) {
+		sc := &BasicStructuredContent{Data: map[string]interface{}{
+			"syslog": map[string]interface{}{
+				"structured_data": map[string]interface{}{
+					"my.org@99999": map[string]interface{}{
+						"status": "ok",
+					},
+				},
+			},
+		}}
+		msg := NewStructuredMessage(sc, nil, "", 0)
+		_, ok := msg.GetStructuredAttribute("syslog.structured_data.my.org@99999.status")
+		assert.False(t, ok)
+	})
+
+	t.Run("escaped backslash in path", func(t *testing.T) {
+		sc := &BasicStructuredContent{Data: map[string]interface{}{
+			`back\slash`: "found",
+		}}
+		msg := NewStructuredMessage(sc, nil, "", 0)
+		val, ok := msg.GetStructuredAttribute(`back\\slash`)
+		assert.True(t, ok)
+		assert.Equal(t, "found", val)
+	})
 }

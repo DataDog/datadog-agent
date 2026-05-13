@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -169,7 +168,7 @@ func (m *MessageContent) GetStructuredAttribute(path string) (string, bool) {
 		return "", false
 	}
 
-	parts := strings.Split(path, ".")
+	parts := splitEscapedPath(path)
 	var current interface{} = bsc.Data
 	for _, key := range parts {
 		obj, ok := current.(map[string]interface{})
@@ -194,6 +193,36 @@ func (m *MessageContent) GetStructuredAttribute(path string) (string, bool) {
 	default:
 		return "", false
 	}
+}
+
+// splitEscapedPath splits a dot-delimited attribute path while respecting
+// backslash escapes: \. represents a literal dot, \\ represents a literal
+// backslash. Segments are unescaped after splitting.
+func splitEscapedPath(s string) []string {
+	var parts []string
+	var seg []byte
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) {
+			switch s[i+1] {
+			case '.':
+				seg = append(seg, '.')
+			case '\\':
+				seg = append(seg, '\\')
+			default:
+				seg = append(seg, '\\', s[i+1])
+			}
+			i++
+			continue
+		}
+		if s[i] == '.' {
+			parts = append(parts, string(seg))
+			seg = seg[:0]
+			continue
+		}
+		seg = append(seg, s[i])
+	}
+	parts = append(parts, string(seg))
+	return parts
 }
 
 // GetContent returns the bytes array containing only the message content
@@ -365,19 +394,6 @@ func (m *Message) Render() ([]byte, error) {
 
 // Methods implementing observer.LogView for read-only observation.
 
-// GetStatus returns the message status.
-func (m *Message) GetStatus() string {
-	return m.MessageMetadata.GetStatus()
-}
-
-// GetTags returns the message processing tags.
-func (m *Message) GetTags() []string {
-	if m.Origin == nil {
-		return m.ProcessingTags
-	}
-	return m.Origin.Tags(m.ProcessingTags)
-}
-
 // GetHostname returns the message hostname.
 func (m *Message) GetHostname() string {
 	return m.Hostname
@@ -444,6 +460,9 @@ func (m *MessageMetadata) GetLatency() int64 {
 
 // Tags returns all tags that this message is attached with.
 func (m *MessageMetadata) Tags() []string {
+	if m.Origin == nil {
+		return m.ProcessingTags
+	}
 	return m.Origin.Tags(m.ProcessingTags)
 }
 

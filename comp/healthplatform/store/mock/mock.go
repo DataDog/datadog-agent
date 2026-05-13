@@ -8,7 +8,6 @@ package mock
 
 import (
 	"testing"
-	"time"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"google.golang.org/protobuf/proto"
@@ -27,40 +26,18 @@ func Mock(_ *testing.T) healthplatform.Component {
 	}
 }
 
-// ReportIssue reports an issue with minimal information
-// The mock implementation just creates and stores a basic issue
-// If report is nil, it clears the issue (resolution)
-func (m *mockHealthPlatform) ReportIssue(checkID string, checkName string, report *healthplatformpayload.IssueReport) error {
-	if checkID == "" {
-		return nil // Mock doesn't validate
-	}
-
-	// If report is nil, clear the issue
-	if report == nil {
-		delete(m.issues, checkID)
+// ReportIssue stores a minimal proto Issue keyed by report.IssueID for testing.
+func (m *mockHealthPlatform) ReportIssue(report healthplatform.IssueReport) error {
+	if report.IssueID == "" {
 		return nil
 	}
-
-	// Create a basic issue from the report for testing purposes
-	issue := &healthplatformpayload.Issue{
-		Id:          report.IssueId,
-		Title:       checkName,
-		Description: "Mock issue",
-		Category:    "test",
-		Location:    "test",
-		Severity:    "low",
-		Source:      "test",
-		Tags:        report.Tags,
+	m.issues[report.IssueID] = &healthplatformpayload.Issue{
+		Id:       report.IssueID,
+		Title:    report.IssueType,
+		Source:   report.Source,
+		Tags:     report.Tags,
+		Severity: "low",
 	}
-
-	// Store the issue
-	m.issues[checkID] = issue
-
-	return nil
-}
-
-// RegisterCheck does nothing in the mock implementation
-func (m *mockHealthPlatform) RegisterCheck(_ string, _ string, _ healthplatform.HealthCheckFunc, _ time.Duration) error {
 	return nil
 }
 
@@ -79,8 +56,8 @@ func (m *mockHealthPlatform) GetAllIssues() (int, map[string]*healthplatformpayl
 	return count, result
 }
 
-// GetIssueForCheck returns the issue for a specific check
-func (m *mockHealthPlatform) GetIssueForCheck(checkID string) *healthplatformpayload.Issue {
+// GetIssue returns the issue for a specific check
+func (m *mockHealthPlatform) GetIssue(checkID string) *healthplatformpayload.Issue {
 	issue := m.issues[checkID]
 	if issue == nil {
 		return nil
@@ -88,12 +65,12 @@ func (m *mockHealthPlatform) GetIssueForCheck(checkID string) *healthplatformpay
 	return proto.Clone(issue).(*healthplatformpayload.Issue)
 }
 
-// ClearIssuesForCheck clears issues for a specific check
-func (m *mockHealthPlatform) ClearIssuesForCheck(checkID string) {
+// ResolveIssue clears issues for a specific check
+func (m *mockHealthPlatform) ResolveIssue(checkID string) {
 	delete(m.issues, checkID)
 }
 
-// ClearAllIssues clears all issues
-func (m *mockHealthPlatform) ClearAllIssues() {
+// ResolveAllIssues clears all issues
+func (m *mockHealthPlatform) ResolveAllIssues() {
 	m.issues = make(map[string]*healthplatformpayload.Issue)
 }

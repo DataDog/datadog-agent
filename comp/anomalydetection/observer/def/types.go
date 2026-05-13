@@ -49,9 +49,11 @@ type MetricView interface {
 type LogView interface {
 	GetContent() []byte
 	GetStatus() string
-	GetTags() []string
+	Tags() []string
 	GetHostname() string
-	// GetTimestampUnixMilli returns the log timestamp in Unix milliseconds.
+	// GetTimestampUnixMilli returns the agent ingestion timestamp in Unix milliseconds.
+	// This is not the log's own timestamp — it reflects when the agent received the log,
+	// and is used for internal pipeline latency tracking.
 	GetTimestampUnixMilli() int64
 }
 

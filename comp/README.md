@@ -136,6 +136,8 @@ Package configsync implements synchronizing the configuration using the core age
 
 ### [comp/core/diagnose](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/diagnose)
 
+*Datadog Team*: agent-configuration
+
 Package diagnose provides the diagnose suite for the agent.
 
 ### [comp/core/flare](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/flare)
@@ -343,9 +345,9 @@ Package scheduler defines the interface for the health platform scheduler
 ### [comp/healthplatform/store](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/store)
 
 Package store provides the interface for the health platform store component.
-The store collects and reports health information from the host system,
-sending it to the Datadog backend with hostname, host ID, organization ID,
-and a list of issues.
+The store is the central state owner: it receives issue reports, owns the
+in-memory issue map, persists state to disk, and exposes the local
+/health-platform/issues HTTP endpoint.
 
 ## [comp/host-profiler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/host-profiler) (Component Bundle)
 
@@ -872,11 +874,11 @@ Package client implements a component to send process metadata to the Cluster-Ag
 
 Package logonduration provides a component that monitors the duration of a user logon after boot and forwards them to the Datadog Event Management v2 API.
 
-### [comp/networkdeviceconfig](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkdeviceconfig)
+### [comp/networkconfigmanagement](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkconfigmanagement)
 
 *Datadog Team*: ndm-integrations
 
-Package networkdeviceconfig provides the component for retrieving network device configurations.
+Package networkconfigmanagement provides the component for retrieving network device configurations.
 
 ### [comp/notableevents](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/notableevents)
 
