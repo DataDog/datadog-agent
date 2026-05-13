@@ -17,7 +17,7 @@
         RELEASE_TAG_COMPRESSION_SUFFIX: "-zstd-nydus"
   script:
     # Constant variables
-    - export RELEASE_STAGING="true"
+    - export RELEASE_STAGING=""
     - export DYNAMIC_BUILD_RENDER_RULES="agent-build-only"
     - export IMAGES_GIT_REF="master"
     # Job specific variables
@@ -39,10 +39,8 @@
     - if [ "$BUCKET_BRANCH" = "dev" ]; then RELEASE_TAG="dev-${BASE_RELEASE_TAG}-${CI_COMMIT_SHORT_SHA}${RELEASE_TAG_SUFFIX}${RELEASE_TAG_COMPRESSION_SUFFIX}"; fi
     - |
       # TODO: Remove this workaround once JIT replication is reliable for these
-      # images, or once DataDog/images@master can dynamically configure the
-      # replication target per triggered pipeline.
+      # images.
       if [ -z "$CI_COMMIT_TAG" ]; then
-        export IMAGES_GIT_REF="datadog-agent-staging-replication"
         export RELEASE_STAGING="true"
         export RELEASE_PROD=""
       fi

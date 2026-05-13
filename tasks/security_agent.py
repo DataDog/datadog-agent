@@ -56,7 +56,6 @@ def build(
     rebuild=False,
     install_path=None,
     go_mod="readonly",
-    skip_assets=False,
     static=False,
     fips_mode=False,
 ):
@@ -582,6 +581,13 @@ def generate_syscall_table(ctx):
         "pkg/security/secl/model/syscalls_linux_arm64.go",
         "pkg/security/secl/model/syscalls_string_linux_arm64.go",
     )
+
+
+@task
+def generate_utils_syscall_table(ctx):
+    # The kernel files are fetched as `http_file` repos pinned in MODULE.bazel;
+    # bumping the kernel version means updating those URLs and sha256 entries.
+    bazel(ctx, "run", "//pkg/security/utils:utils_syscall_table")
 
 
 DEFAULT_BTFHUB_CONSTANTS_PATH = "./pkg/security/probe/constantfetch/btfhub/constants.json"
