@@ -91,8 +91,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/autodiscovery/common/utils
 # gazelle:exclude comp/core/autodiscovery/configresolver
 # gazelle:exclude comp/core/autodiscovery/listeners
-# gazelle:exclude comp/core/autodiscovery/providers/datastreams
-# gazelle:exclude comp/core/autodiscovery/stream
 # gazelle:exclude comp/core/bundle.go
 # gazelle:exclude comp/core/bundle_mock.go
 # gazelle:exclude comp/core/bundle_params.go
@@ -151,7 +149,6 @@ exports_files(glob(
 # gazelle:exclude comp/core/workloadmeta/proto
 # gazelle:exclude comp/core/workloadmeta/server
 # gazelle:exclude comp/dataobs/queryactions/fx
-# gazelle:exclude comp/dataobs/queryactions/impl
 # gazelle:exclude comp/dogstatsd/http/fx
 # gazelle:exclude comp/dogstatsd/http/impl
 # gazelle:exclude comp/dogstatsd/replay/fx
@@ -269,7 +266,6 @@ exports_files(glob(
 # gazelle:exclude comp/snmpscan
 # gazelle:exclude comp/snmpscanmanager/fx
 # gazelle:exclude comp/snmpscanmanager/impl
-# gazelle:exclude comp/snmptraps/config
 # gazelle:exclude comp/snmptraps/formatter/fx
 # gazelle:exclude comp/snmptraps/formatter/impl
 # gazelle:exclude comp/snmptraps/forwarder/fx
@@ -371,7 +367,6 @@ exports_files(glob(
 # gazelle:exclude pkg/collector/corechecks/snmp/internal/report
 # gazelle:exclude pkg/collector/corechecks/snmp/internal/session
 # gazelle:exclude pkg/collector/corechecks/snmp/internal/test
-# gazelle:exclude pkg/collector/corechecks/snmp/internal/valuestore
 # gazelle:exclude pkg/collector/corechecks/snmp/status
 # gazelle:exclude pkg/collector/corechecks/system/battery
 # gazelle:exclude pkg/collector/corechecks/system/cpu
