@@ -130,7 +130,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
         return 0;
     }
 
-    new_entry.cgroup.cgroup_file = resolver->key;
+    new_entry.cgroup.path_key = resolver->key;
 
 #ifdef DEBUG_CGROUP
     bpf_printk("container id: %s\n", container_qstr.name);

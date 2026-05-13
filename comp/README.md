@@ -345,9 +345,9 @@ Package scheduler defines the interface for the health platform scheduler
 ### [comp/healthplatform/store](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/store)
 
 Package store provides the interface for the health platform store component.
-The store collects and reports health information from the host system,
-sending it to the Datadog backend with hostname, host ID, organization ID,
-and a list of issues.
+The store is the central state owner: it receives issue reports, owns the
+in-memory issue map, persists state to disk, and exposes the local
+/health-platform/issues HTTP endpoint.
 
 ## [comp/host-profiler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/host-profiler) (Component Bundle)
 
@@ -784,6 +784,13 @@ Package telemetry provides the installer telemetry component.
 
 Package updater is the updater component.
 
+### [comp/anomalydetection/hfrunner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/hfrunner)
+
+*Datadog Team*: q-branch
+
+Package hfrunner provides a component that runs system and container checks at
+1-second intervals and routes their output directly into the observer pipeline.
+
 ### [comp/anomalydetection/logssource](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/logssource)
 
 *Datadog Team*: q-branch
@@ -796,6 +803,19 @@ observer without requiring the logs agent to be enabled.
 *Datadog Team*: q-branch
 
 Package observer provides a component for observing data flowing through the agent.
+
+### [comp/anomalydetection/recorder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/recorder)
+
+*Datadog Team*: q-branch
+
+Package recorder provides a middleware component for recording and replaying observer data.
+
+### [comp/anomalydetection/reporter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/reporter)
+
+*Datadog Team*: q-branch
+
+Package reporter defines the reporter component contracts.
+Concrete reporters are provided through the `anomalydetection_reporters` Fx group.
 
 ### [comp/autoscaling/datadogclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient)
 
