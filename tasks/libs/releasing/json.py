@@ -283,17 +283,6 @@ def _get_release_json_value(key):
     return release_json
 
 
-def set_new_release_branch(branch):
-    rj = load_release_json()
-
-    rj["base_branch"] = branch
-
-    for field in RELEASE_JSON_FIELDS_TO_UPDATE:
-        rj[RELEASE_JSON_DEPENDENCIES][field] = f"{branch}"
-
-    _save_release_json(rj)
-
-
 def set_current_milestone(milestone):
     rj = load_release_json()
     rj["current_milestone"] = milestone
