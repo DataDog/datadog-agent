@@ -56,7 +56,6 @@ from tasks.libs.releasing.documentation import (
 from tasks.libs.releasing.json import (
     DEFAULT_BRANCHES,
     DEFAULT_BRANCHES_AGENT6,
-    UNFREEZE_REPOS,
     _get_release_json_value,
     _save_release_json,
     generate_repo_data,
