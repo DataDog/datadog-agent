@@ -257,10 +257,24 @@ surface RegexAggregation {
         -- reaches or exceeds line_limit bytes, the buffer is
         -- flushed mid-stream: the truncation marker is appended
         -- to the content, is_buffer_truncated is set, the
-        -- emission proceeds, and should_truncate is set so the
-        -- NEXT process call prepends the continuation marker.
+        -- emission proceeds, and should_truncate is set as a
+        -- continuation-marker carry for a subsequent process
+        -- call.
+        --
         -- The flush happens within the same process call that
         -- caused the overflow.
+        --
+        -- The continuation-marker carry is consumed by the NEXT
+        -- post-match non-matching process call — the only call
+        -- shape that does not trigger an opening sendBuffer.
+        -- Pattern-matching calls (which begin a fresh aggregate)
+        -- and pre-match calls (which flush before buffering) both
+        -- invoke sendBuffer at the top, whose state reset clears
+        -- should_truncate before the carry is read. In other
+        -- words: the continuation marker prepends to the next
+        -- line that would have joined the truncated aggregate
+        -- under normal aggregation rules — not to a line that
+        -- starts a new aggregate or runs during pre-match.
 
     @guarantee MultiLineTagging
         -- When an emission combined two or more input lines
