@@ -180,7 +180,7 @@ func TestSendPayloadBody_NetworkError(t *testing.T) {
 }
 
 // =============================================================================
-// v3 tests (atel-owned buffered channel + flush + recursion guard, errorLogToLog)
+// atel-level errortracking tests (buffered channel + flush + errorLogToLog)
 // =============================================================================
 
 // TestErrorLogToLog_PIIPivot locks the PR #50607 PII pivot: the wire

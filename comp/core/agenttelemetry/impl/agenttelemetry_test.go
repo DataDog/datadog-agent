@@ -55,7 +55,7 @@ func newClientMock() client {
 type senderMock struct {
 	sentMetrics []*agentmetric
 
-	// Captures from the v3 errortracking flush path. Protected by mu
+	// Captures from the errortracking flush path. Protected by mu
 	// because the flush goroutine runs concurrently with test setup
 	// and assertions; readers MUST take the lock or wait on a sync
 	// barrier (e.g. errLogsFlushWG.Wait) that establishes
