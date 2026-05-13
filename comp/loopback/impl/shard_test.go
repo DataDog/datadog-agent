@@ -15,19 +15,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestShard(t *testing.T) (*shard, *contextRegistry) {
+func newTestShard(t *testing.T) *shard {
 	t.Helper()
-	reg := newContextRegistry()
-	reg.registerWithKey(1, "m1", []string{"env:test"})
 	dir := t.TempDir()
-	s, err := newShard(dir, 1000, 64*1024, reg)
+	s, err := newShard(dir, 1000, 64*1024)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = s.stop() })
-	return s, reg
+	return s
 }
 
 func TestShardWriteRotateRead(t *testing.T) {
-	s, _ := newTestShard(t)
+	s := newTestShard(t)
 
 	const n = 100
 	s.mu.Lock()
@@ -53,10 +51,8 @@ func TestShardWriteRotateRead(t *testing.T) {
 }
 
 func TestShardBufferFlushOnFull(t *testing.T) {
-	reg := newContextRegistry()
 	dir := t.TempDir()
-	// Buffer fits exactly 3 records.
-	s, err := newShard(dir, 1000, recordSize*3, reg)
+	s, err := newShard(dir, 1000, recordSize*3)
 	require.NoError(t, err)
 	defer s.stop()
 
@@ -68,14 +64,12 @@ func TestShardBufferFlushOnFull(t *testing.T) {
 
 	info, err := os.Stat(filepath.Join(dir, "1000.wal"))
 	require.NoError(t, err)
-	// At least 3 records have been flushed to disk.
 	assert.GreaterOrEqual(t, info.Size(), int64(3*recordSize))
 }
 
 func TestShardConcurrentWriteRotate(t *testing.T) {
-	reg := newContextRegistry()
 	dir := t.TempDir()
-	s, err := newShard(dir, 1000, 64*1024, reg)
+	s, err := newShard(dir, 1000, 64*1024)
 	require.NoError(t, err)
 	defer s.stop()
 
@@ -95,7 +89,6 @@ func TestShardConcurrentWriteRotate(t *testing.T) {
 		}(i)
 	}
 
-	// Trigger a rotation mid-flight.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -103,7 +96,6 @@ func TestShardConcurrentWriteRotate(t *testing.T) {
 	}()
 	wg.Wait()
 
-	// Final rotation to seal the second window.
 	require.NoError(t, s.rotate(3000))
 
 	files, err := s.sealedFiles()
@@ -125,28 +117,4 @@ func TestParseWALFilename(t *testing.T) {
 
 	_, err = parseWALFilename("not-a-number.wal")
 	assert.Error(t, err)
-}
-
-func TestShardCatalogPersistReload(t *testing.T) {
-	reg := newContextRegistry()
-	dir := t.TempDir()
-	s, err := newShard(dir, 1000, 64*1024, reg)
-	require.NoError(t, err)
-
-	// Register a context key via write path.
-	s.mu.Lock()
-	require.NoError(t, s.maybeRegisterKey(42, "mymetric", []string{"env:prod"}))
-	s.mu.Unlock()
-	require.NoError(t, s.stop())
-
-	// Simulate restart: new registry, reopen shard.
-	reg2 := newContextRegistry()
-	s2, err := newShard(dir, 1000, 64*1024, reg2)
-	require.NoError(t, err)
-	defer s2.stop()
-
-	// The registry should have been restored from the catalog file.
-	keys := reg2.lookupKeys("mymetric", nil)
-	require.Len(t, keys, 1)
-	assert.Equal(t, uint64(42), keys[0])
 }

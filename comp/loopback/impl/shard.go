@@ -6,9 +6,7 @@
 package loopbackimpl
 
 import (
-	"encoding/binary"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -18,9 +16,7 @@ import (
 )
 
 const (
-	walExtension     = ".wal"
-	catalogFilename  = "catalog.cat"
-	catalogTmpSuffix = ".tmp"
+	walExtension = ".wal"
 )
 
 // walFile represents a sealed WAL file on disk.
@@ -30,8 +26,8 @@ type walFile struct {
 	size        int64
 }
 
-// shard manages one WAL shard: a directory containing timestamped .wal files,
-// a write buffer, and a context catalog file.
+// shard manages one WAL shard: a directory containing timestamped .wal files
+// and a write buffer. Context metadata is owned by the shared contextFile.
 type shard struct {
 	mu          sync.Mutex
 	dir         string
@@ -39,11 +35,9 @@ type shard struct {
 	maxBufSize  int
 	activeF     *os.File // currently open WAL file (append-only)
 	windowStart int64    // Unix second: start of the active window
-	catalogF    *os.File // append-only context catalog
-	reg         *contextRegistry
 }
 
-func newShard(dir string, windowStartSec int64, maxBufSize int, reg *contextRegistry) (*shard, error) {
+func newShard(dir string, windowStartSec int64, maxBufSize int) (*shard, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("loopback shard %s: mkdir: %w", dir, err)
 	}
@@ -51,33 +45,11 @@ func newShard(dir string, windowStartSec int64, maxBufSize int, reg *contextRegi
 		dir:         dir,
 		maxBufSize:  maxBufSize,
 		windowStart: windowStartSec,
-		reg:         reg,
-	}
-	if err := s.loadCatalog(); err != nil {
-		return nil, err
 	}
 	if err := s.openActiveFile(); err != nil {
 		return nil, err
 	}
 	return s, nil
-}
-
-// loadCatalog reads the catalog file to restore the in-memory registry.
-func (s *shard) loadCatalog() error {
-	path := filepath.Join(s.dir, catalogFilename)
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o644)
-	if err != nil {
-		return fmt.Errorf("loopback catalog open %s: %w", path, err)
-	}
-	s.catalogF = f
-
-	// Read existing entries and populate registry.
-	s.reg.mu.Lock()
-	defer s.reg.mu.Unlock()
-	if err := readCatalog(f, s.reg); err != nil {
-		return fmt.Errorf("loopback catalog read %s: %w", path, err)
-	}
-	return nil
 }
 
 // openActiveFile opens (or creates) the WAL file for the current window.
@@ -115,95 +87,28 @@ func (s *shard) flushLocked() error {
 	return nil
 }
 
-// maybeRegisterKey checks if the context key is new and appends it to the
-// catalog if so. Must be called with s.mu held.
-func (s *shard) maybeRegisterKey(key uint64, name string, tags []string) error {
-	_, _, exists := s.reg.getEntry(key)
-	if exists {
-		return nil
-	}
-	// Register in memory.
-	s.reg.registerWithKey(key, name, tags)
-	// Append to catalog file.
-	return appendCatalogEntry(s.catalogF, key, name, tags)
-}
-
 // rotate seals the active file and starts a new one for newWindowStartSec.
-// The entire sequence is atomic under s.mu: no record can land on a closed file.
+// The entire sequence is atomic under s.mu.
 func (s *shard) rotate(newWindowStartSec int64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// 1. Flush remaining buffer.
 	if err := s.flushLocked(); err != nil {
 		return err
 	}
-	// 2. fdatasync.
 	if err := s.activeF.Sync(); err != nil {
 		return fmt.Errorf("loopback WAL sync: %w", err)
 	}
-	// 3. Close.
 	if err := s.activeF.Close(); err != nil {
 		return fmt.Errorf("loopback WAL close: %w", err)
 	}
 	s.activeF = nil
 
-	// 4. Compact catalog (atomic rewrite).
-	if err := s.compactCatalogLocked(); err != nil {
-		// Non-fatal: log but proceed.
-		_ = err
-	}
-
-	// 5. Open new file.
 	s.windowStart = newWindowStartSec
-	if err := s.openActiveFile(); err != nil {
-		return err
-	}
-	return nil
+	return s.openActiveFile()
 }
 
-// compactCatalogLocked rewrites the catalog file with only currently-known
-// context keys, preventing unbounded growth. Must be called with s.mu held.
-func (s *shard) compactCatalogLocked() error {
-	entries := s.reg.allEntries()
-	tmpPath := filepath.Join(s.dir, catalogFilename+catalogTmpSuffix)
-
-	tmp, err := os.Create(tmpPath)
-	if err != nil {
-		return err
-	}
-	for key, e := range entries {
-		if err := appendCatalogEntry(tmp, key, e.name, e.tags); err != nil {
-			tmp.Close()
-			os.Remove(tmpPath)
-			return err
-		}
-	}
-	if err := tmp.Sync(); err != nil {
-		tmp.Close()
-		os.Remove(tmpPath)
-		return err
-	}
-	tmp.Close()
-
-	catPath := filepath.Join(s.dir, catalogFilename)
-	if err := os.Rename(tmpPath, catPath); err != nil {
-		os.Remove(tmpPath)
-		return err
-	}
-	// Reopen the catalog for further appends.
-	if s.catalogF != nil {
-		s.catalogF.Close()
-	}
-	f, err := os.OpenFile(catPath, os.O_RDWR|os.O_APPEND, 0o644)
-	if err != nil {
-		return err
-	}
-	s.catalogF = f
-	return nil
-}
-
-// stop flushes and syncs the active file, then closes all file handles.
+// stop flushes and syncs the active file, then closes it.
 func (s *shard) stop() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -218,10 +123,6 @@ func (s *shard) stop() error {
 			return err
 		}
 		s.activeF = nil
-	}
-	if s.catalogF != nil {
-		_ = s.catalogF.Close()
-		s.catalogF = nil
 	}
 	return nil
 }
@@ -246,7 +147,7 @@ func (s *shard) sealedFiles() ([]walFile, error) {
 		active := s.windowStart
 		s.mu.Unlock()
 		if ws == active {
-			continue // skip active window
+			continue
 		}
 		info, err := e.Info()
 		if err != nil {
@@ -258,7 +159,6 @@ func (s *shard) sealedFiles() ([]walFile, error) {
 			size:        info.Size(),
 		})
 	}
-	// Sort ascending by windowStart.
 	for i := 1; i < len(files); i++ {
 		for j := i; j > 0 && files[j].windowStart < files[j-1].windowStart; j-- {
 			files[j], files[j-1] = files[j-1], files[j]
@@ -292,92 +192,11 @@ func parseWALFilename(name string) (int64, error) {
 	return v, nil
 }
 
-// --- Catalog binary format ---
-//
-// Each entry:
-//   key       uint64  (8 bytes)
-//   nameLen   uint16  (2 bytes)
-//   name      []byte  (nameLen bytes)
-//   tagsCount uint16  (2 bytes)
-//   for each tag:
-//     tagLen  uint16  (2 bytes)
-//     tag     []byte  (tagLen bytes)
-
-func appendCatalogEntry(w io.Writer, key uint64, name string, tags []string) error {
-	var hdr [8 + 2]byte
-	binary.BigEndian.PutUint64(hdr[0:8], key)
-	binary.BigEndian.PutUint16(hdr[8:10], uint16(len(name)))
-	if _, err := w.Write(hdr[:]); err != nil {
-		return err
-	}
-	if _, err := io.WriteString(w, name); err != nil {
-		return err
-	}
-	var cnt [2]byte
-	binary.BigEndian.PutUint16(cnt[:], uint16(len(tags)))
-	if _, err := w.Write(cnt[:]); err != nil {
-		return err
-	}
-	for _, tag := range tags {
-		var tl [2]byte
-		binary.BigEndian.PutUint16(tl[:], uint16(len(tag)))
-		if _, err := w.Write(tl[:]); err != nil {
-			return err
-		}
-		if _, err := io.WriteString(w, tag); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// readCatalog parses all catalog entries from r and registers them in reg.
-// reg.mu must be held by the caller for writing.
-func readCatalog(r io.Reader, reg *contextRegistry) error {
-	for {
-		var hdr [10]byte
-		_, err := io.ReadFull(r, hdr[:])
-		if err == io.EOF || err == io.ErrUnexpectedEOF {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		key := binary.BigEndian.Uint64(hdr[0:8])
-		nameLen := binary.BigEndian.Uint16(hdr[8:10])
-
-		nameBuf := make([]byte, nameLen)
-		if _, err := io.ReadFull(r, nameBuf); err != nil {
-			return err
-		}
-		var cntBuf [2]byte
-		if _, err := io.ReadFull(r, cntBuf[:]); err != nil {
-			return err
-		}
-		tagsCount := binary.BigEndian.Uint16(cntBuf[:])
-		tags := make([]string, tagsCount)
-		for i := range tags {
-			var tl [2]byte
-			if _, err := io.ReadFull(r, tl[:]); err != nil {
-				return err
-			}
-			tagBuf := make([]byte, binary.BigEndian.Uint16(tl[:]))
-			if _, err := io.ReadFull(r, tagBuf); err != nil {
-				return err
-			}
-			tags[i] = string(tagBuf)
-		}
-		reg.registerEntryLocked(key, string(nameBuf), tags)
-	}
-}
-
 // filesInRange returns sealed WAL files whose window overlaps [startNs, stopNs).
-// windowDurationSec is the rotation interval in seconds.
 func filesInRange(files []walFile, startNs, stopNs int64, windowDurationSec int64) []walFile {
 	var out []walFile
 	for _, f := range files {
-		windowEndSec := f.windowStart + windowDurationSec
-		windowEndNs := windowEndSec * int64(time.Second)
+		windowEndNs := (f.windowStart + windowDurationSec) * int64(time.Second)
 		windowStartNs := f.windowStart * int64(time.Second)
 		if windowStartNs < stopNs && windowEndNs > startNs {
 			out = append(out, f)

@@ -3,10 +3,11 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "impl",
     srcs = [
+        "context_file.go",
+        "context_set.go",
         "flush.go",
         "loopback.go",
         "record.go",
-        "registry.go",
         "shard.go",
         "store.go",
     ],
@@ -27,10 +28,10 @@ go_library(
 go_test(
     name = "impl_test",
     srcs = [
+        "context_file_test.go",
         "flush_test.go",
         "loopback_test.go",
         "record_test.go",
-        "registry_test.go",
         "shard_test.go",
     ],
     embed = [":impl"],

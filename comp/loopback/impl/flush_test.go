@@ -97,15 +97,19 @@ func TestAggregateRecordsEmpty(t *testing.T) {
 }
 
 func TestAggregateRecordsContextKey0Path(t *testing.T) {
-	reg := newContextRegistry()
-	synKey := reg.register("synthetic", []string{"env:test"})
+	synKey := syntheticKey("synthetic", sortedTagsCopy([]string{"env:test"}))
+	entries := map[uint64]contextEntry{synKey: {name: "synthetic", tags: []string{"env:test"}}}
+	resolveEntries := func(k uint64) (string, []string, bool) {
+		e, ok := entries[k]
+		return e.name, e.tags, ok
+	}
 
 	recs := []record{
 		{contextKey: synKey, tsNs: ns(100), value: 7.0},
 		{contextKey: synKey, tsNs: ns(100) + 1, value: 3.0},
 	}
 	ks := map[uint64]struct{}{synKey: {}}
-	buckets := aggregateRecords(recs, ks, ns(100), ns(101), int64(time.Second), reg.getEntry)
+	buckets := aggregateRecords(recs, ks, ns(100), ns(101), int64(time.Second), resolveEntries)
 	require.Len(t, buckets, 1)
 	assert.Equal(t, "synthetic", buckets[0].Name)
 	assert.Equal(t, int64(2), buckets[0].Count)
@@ -121,19 +125,18 @@ func TestAggregateRecordsDefaultInterval(t *testing.T) {
 	assert.Equal(t, ns(5), buckets[0].Ts)
 }
 
-// Test that the registry getEntry wrapper has the right signature for aggregateRecords.
 func TestGetEntryAsResolver(t *testing.T) {
-	reg := newContextRegistry()
-	reg.registerWithKey(99, "foo", []string{"a:b"})
-	name, _, ok := reg.getEntry(99)
-	assert.True(t, ok)
-	assert.Equal(t, "foo", name)
+	entries := map[uint64]contextEntry{99: {name: "foo", tags: []string{"a:b"}}}
+	resolveEntries := func(k uint64) (string, []string, bool) {
+		e, ok := entries[k]
+		return e.name, e.tags, ok
+	}
 
 	buckets := aggregateRecords(
 		[]record{{contextKey: 99, tsNs: ns(1), value: 42}},
 		map[uint64]struct{}{99: {}},
 		ns(1), ns(2), int64(time.Second),
-		func(k uint64) (string, []string, bool) { return reg.getEntry(k) },
+		resolveEntries,
 	)
 	require.Len(t, buckets, 1)
 	assert.Equal(t, "foo", buckets[0].Name)

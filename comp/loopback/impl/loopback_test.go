@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -16,17 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// buildTestStore creates a shardedStore backed by a temp directory.
-func buildTestStore(t *testing.T, cfg storeConfig) (*shardedStore, *contextRegistry) {
-	t.Helper()
-	reg := newContextRegistry()
-	store, err := newShardedStore(cfg, reg, nil)
-	require.NoError(t, err)
-	store.startRotationTimer()
-	t.Cleanup(func() { _ = store.stop(context.Background()) })
-	return store, reg
-}
 
 func defaultTestCfg(t *testing.T) storeConfig {
 	return storeConfig{
@@ -39,6 +29,22 @@ func defaultTestCfg(t *testing.T) storeConfig {
 	}
 }
 
+// buildTestComponent creates a component backed by a temp directory.
+func buildTestComponent(t *testing.T, cfg storeConfig) *component {
+	t.Helper()
+	ctxFile, err := newContextFile(filepath.Join(cfg.baseDir, "contexts.bin"))
+	require.NoError(t, err)
+	store, err := newShardedStore(cfg, nil)
+	require.NoError(t, err)
+	store.startRotationTimer()
+	comp := &component{store: store, ctxFile: ctxFile}
+	t.Cleanup(func() {
+		_ = store.stop(context.Background())
+		_ = ctxFile.close()
+	})
+	return comp
+}
+
 func TestNoopComponentReturnsErrDisabled(t *testing.T) {
 	n := &noopComponent{}
 	_, err := n.Flush(context.Background(), "m", nil, 0, 1, time.Second)
@@ -47,26 +53,23 @@ func TestNoopComponentReturnsErrDisabled(t *testing.T) {
 
 func TestEndToEndWriteRotateFlush(t *testing.T) {
 	cfg := defaultTestCfg(t)
-	store, reg := buildTestStore(t, cfg)
+	comp := buildTestComponent(t, cfg)
 
 	const metricName = "latency.p99"
 	tags := []string{"env:prod"}
-	ck := reg.register(metricName, tags)
+	ck := syntheticKey(metricName, sortedTagsCopy(tags))
 
-	// Timestamps must fall within the current WAL window (opened at ~now).
-	// Write 5 samples starting at now+1s so they are clearly within [now, now+windowDuration).
+	require.NoError(t, comp.ctxFile.maybeWrite(ck, metricName, tags))
+
+	// Timestamps must fall within the current WAL window.
 	baseNs := time.Now().Add(1 * time.Second).UnixNano()
-
 	for i := range 5 {
-		store.writeWithName(ck, baseNs+int64(i)*int64(time.Second), float64(i+1), metricName, tags)
+		comp.store.write(ck, baseNs+int64(i)*int64(time.Second), float64(i+1))
 	}
 
-	// Seal the current window by rotating forward past windowDuration.
 	newWindow := time.Now().Unix() + int64(cfg.windowDuration.Seconds()) + 1
-	require.NoError(t, store.rotateAll(newWindow))
+	require.NoError(t, comp.store.rotateAll(newWindow))
 
-	comp := &component{store: store, reg: reg}
-	// Query from now (before baseNs) to cover all 5 records.
 	start := time.Now().UnixNano()
 	stop := baseNs + 5*int64(time.Second) + int64(time.Second)
 	buckets, err := comp.Flush(context.Background(), metricName, tags, start, stop, time.Second)
@@ -82,17 +85,20 @@ func TestEndToEndWriteRotateFlush(t *testing.T) {
 
 func TestFlushNilTagsMatchesAll(t *testing.T) {
 	cfg := defaultTestCfg(t)
-	store, reg := buildTestStore(t, cfg)
+	comp := buildTestComponent(t, cfg)
 
 	baseNs := time.Now().Add(1 * time.Second).UnixNano()
-	ck1 := reg.register("counter", []string{"env:prod"})
-	ck2 := reg.register("counter", []string{"env:staging"})
-	store.writeWithName(ck1, baseNs, 1.0, "counter", []string{"env:prod"})
-	store.writeWithName(ck2, baseNs, 2.0, "counter", []string{"env:staging"})
+	ck1 := syntheticKey("counter", sortedTagsCopy([]string{"env:prod"}))
+	ck2 := syntheticKey("counter", sortedTagsCopy([]string{"env:staging"}))
 
-	require.NoError(t, store.rotateAll(time.Now().Unix()+int64(cfg.windowDuration.Seconds())+1))
+	require.NoError(t, comp.ctxFile.maybeWrite(ck1, "counter", []string{"env:prod"}))
+	require.NoError(t, comp.ctxFile.maybeWrite(ck2, "counter", []string{"env:staging"}))
 
-	comp := &component{store: store, reg: reg}
+	comp.store.write(ck1, baseNs, 1.0)
+	comp.store.write(ck2, baseNs, 2.0)
+
+	require.NoError(t, comp.store.rotateAll(time.Now().Unix()+int64(cfg.windowDuration.Seconds())+1))
+
 	start := time.Now().UnixNano()
 	stop := baseNs + int64(time.Second)*2
 	buckets, err := comp.Flush(context.Background(), "counter", nil, start, stop, time.Second)
@@ -102,10 +108,10 @@ func TestFlushNilTagsMatchesAll(t *testing.T) {
 
 func TestFlushErrNoDataWhenNoFiles(t *testing.T) {
 	cfg := defaultTestCfg(t)
-	store, reg := buildTestStore(t, cfg)
-	reg.registerWithKey(99, "ghost", nil)
+	comp := buildTestComponent(t, cfg)
 
-	comp := &component{store: store, reg: reg}
+	require.NoError(t, comp.ctxFile.maybeWrite(99, "ghost", nil))
+
 	_, err := comp.Flush(context.Background(), "ghost", nil, 0, int64(time.Second), time.Second)
 	assert.True(t, errors.Is(err, loopback.ErrNoData))
 }
@@ -114,22 +120,16 @@ func TestRetentionAgeEnforcement(t *testing.T) {
 	cfg := defaultTestCfg(t)
 	cfg.maxAge = 60 * time.Second
 
-	// Build store without starting the rotation timer so we control rotation manually.
-	reg := newContextRegistry()
-	store, err := newShardedStore(cfg, reg, nil)
+	store, err := newShardedStore(cfg, nil)
 	require.NoError(t, err)
 	defer store.stop(context.Background())
 
-	// For each shard: discard the current (empty) active file, create an old-timestamped
-	// active file, write a record, then rotate to the current time so the old file is sealed.
 	pastWindow := int64(1) // 1970 — far older than maxAge=60s
 	for _, s := range store.shards {
 		s.mu.Lock()
-		// Close and remove the just-opened (empty) active file.
 		_ = s.activeF.Close()
 		_ = os.Remove(s.activeF.Name())
 
-		// Open an active file at pastWindow.
 		s.windowStart = pastWindow
 		require.NoError(t, s.openActiveFile())
 		require.NoError(t, s.writeRecord(record{contextKey: 1, tsNs: 1_000_000_000, value: 1.0}))
@@ -137,25 +137,22 @@ func TestRetentionAgeEnforcement(t *testing.T) {
 		require.NoError(t, s.activeF.Sync())
 		require.NoError(t, s.activeF.Close())
 
-		// Switch to a current active file; the old one is now sealed.
 		s.windowStart = time.Now().Unix()
 		require.NoError(t, s.openActiveFile())
 		s.mu.Unlock()
 	}
 
-	// Confirm old sealed files are visible before retention.
 	for _, s := range store.shards {
 		files, err := s.sealedFiles()
 		require.NoError(t, err)
-		require.NotEmpty(t, files, "expected old sealed files before retention")
+		require.NotEmpty(t, files)
 	}
 
 	require.NoError(t, store.enforceRetention())
 
-	// All old files should now be gone.
 	for _, s := range store.shards {
 		files, err := s.sealedFiles()
 		require.NoError(t, err)
-		assert.Empty(t, files, "old sealed files should be deleted after retention enforcement")
+		assert.Empty(t, files)
 	}
 }

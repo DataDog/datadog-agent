@@ -27,12 +27,11 @@ type storeConfig struct {
 	maxBufSize     int
 }
 
-// shardedStore manages N WAL shards, a background rotation goroutine,
-// and the global context registry.
+// shardedStore manages N WAL shards and a background rotation goroutine.
+// Context metadata is handled externally by contextFile.
 type shardedStore struct {
 	cfg    storeConfig
 	shards []*shard
-	reg    *contextRegistry
 	log    log.Component
 
 	ctx    context.Context
@@ -40,7 +39,7 @@ type shardedStore struct {
 	wg     sync.WaitGroup
 }
 
-func newShardedStore(cfg storeConfig, reg *contextRegistry, l log.Component) (*shardedStore, error) {
+func newShardedStore(cfg storeConfig, l log.Component) (*shardedStore, error) {
 	if err := os.MkdirAll(cfg.baseDir, 0o755); err != nil {
 		return nil, fmt.Errorf("loopback store: mkdir %s: %w", cfg.baseDir, err)
 	}
@@ -48,9 +47,8 @@ func newShardedStore(cfg storeConfig, reg *contextRegistry, l log.Component) (*s
 	shards := make([]*shard, cfg.numShards)
 	for i := range cfg.numShards {
 		dir := filepath.Join(cfg.baseDir, fmt.Sprintf("shard-%03d", i))
-		s, err := newShard(dir, now, cfg.maxBufSize, reg)
+		s, err := newShard(dir, now, cfg.maxBufSize)
 		if err != nil {
-			// Best-effort cleanup of already-opened shards.
 			for j := range i {
 				_ = shards[j].stop()
 			}
@@ -62,15 +60,13 @@ func newShardedStore(cfg storeConfig, reg *contextRegistry, l log.Component) (*s
 	return &shardedStore{
 		cfg:    cfg,
 		shards: shards,
-		reg:    reg,
 		log:    l,
 		ctx:    ctx,
 		cancel: cancel,
 	}, nil
 }
 
-// write fans out a single sample to the appropriate shard.
-// Goroutine-safe: acquires the target shard's mutex internally.
+// write fans out a single WAL record to the appropriate shard.
 func (ss *shardedStore) write(contextKey uint64, tsNs int64, value float64) {
 	idx := int(contextKey % uint64(ss.cfg.numShards))
 	s := ss.shards[idx]
@@ -79,19 +75,7 @@ func (ss *shardedStore) write(contextKey uint64, tsNs int64, value float64) {
 	s.mu.Unlock()
 }
 
-// writeWithName is like write but also registers the context key / name / tags
-// in the catalog if not already known.
-func (ss *shardedStore) writeWithName(contextKey uint64, tsNs int64, value float64, name string, tags []string) {
-	idx := int(contextKey % uint64(ss.cfg.numShards))
-	s := ss.shards[idx]
-	s.mu.Lock()
-	_ = s.maybeRegisterKey(contextKey, name, tags)
-	_ = s.writeRecord(record{contextKey: contextKey, tsNs: tsNs, value: value})
-	s.mu.Unlock()
-}
-
-// startRotationTimer spawns the background goroutine that periodically rotates
-// all shards and enforces retention.
+// startRotationTimer spawns the background rotation goroutine.
 func (ss *shardedStore) startRotationTimer() {
 	ss.wg.Add(1)
 	go ss.rotationLoop()
@@ -149,7 +133,6 @@ func (ss *shardedStore) enforceRetention() error {
 		}
 	}
 
-	// Sort surviving oldest first.
 	for i := 1; i < len(surviving); i++ {
 		for j := i; j > 0 && surviving[j].f.windowStart < surviving[j-1].f.windowStart; j-- {
 			surviving[j], surviving[j-1] = surviving[j-1], surviving[j]
@@ -169,7 +152,15 @@ func (ss *shardedStore) enforceRetention() error {
 
 // flush reads sealed WAL files for the given context keys and time range,
 // then aggregates the records into Buckets.
-func (ss *shardedStore) flush(ctx context.Context, keys []uint64, start, stop int64, intervalNs int64) ([]loopback.Bucket, error) {
+// resolve maps a context key to (name, tags, ok) — supplied by the caller
+// from contextFile.scan so the store has no knowledge of context metadata.
+func (ss *shardedStore) flush(
+	ctx context.Context,
+	keys []uint64,
+	start, stop int64,
+	intervalNs int64,
+	resolve func(uint64) (string, []string, bool),
+) ([]loopback.Bucket, error) {
 	keySet := make(map[uint64]struct{}, len(keys))
 	for _, k := range keys {
 		keySet[k] = struct{}{}
@@ -199,14 +190,10 @@ func (ss *shardedStore) flush(ctx context.Context, keys []uint64, start, stop in
 		}
 	}
 
-	buckets := aggregateRecords(allRecs, keySet, start, stop, intervalNs, func(k uint64) (string, []string, bool) {
-		return ss.reg.getEntry(k)
-	})
-	return buckets, nil
+	return aggregateRecords(allRecs, keySet, start, stop, intervalNs, resolve), nil
 }
 
-// stop cancels the rotation goroutine, waits for it to exit, then flushes
-// and closes all shard file handles.
+// stop cancels the rotation goroutine, waits for it, then flushes all shards.
 func (ss *shardedStore) stop(_ context.Context) error {
 	ss.cancel()
 	ss.wg.Wait()

@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -67,17 +68,22 @@ func NewComponent(reqs Requires) (Provides, error) {
 	reqs.Log.Infof("loopback: initializing store at %s (shards=%d, window=%s, maxAge=%s, maxDisk=%dMB)",
 		cfg.baseDir, cfg.numShards, cfg.windowDuration, cfg.maxAge, cfg.maxDiskBytes/1024/1024)
 
-	reg := newContextRegistry()
-	store, err := newShardedStore(cfg, reg, reqs.Log)
+	ctxFile, err := newContextFile(filepath.Join(cfg.baseDir, "contexts.bin"))
 	if err != nil {
+		return Provides{}, fmt.Errorf("loopback: init context file: %w", err)
+	}
+
+	store, err := newShardedStore(cfg, reqs.Log)
+	if err != nil {
+		_ = ctxFile.close()
 		return Provides{}, fmt.Errorf("loopback: init store: %w", err)
 	}
 
-	comp := &component{store: store, reg: reg, log: reqs.Log}
+	comp := &component{store: store, ctxFile: ctxFile, log: reqs.Log}
 
 	var (
 		unsubs []func()
-		mu     sync.Mutex // guards unsubs
+		mu     sync.Mutex
 	)
 
 	reqs.Lc.Append(fx.Hook{
@@ -112,7 +118,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 			for _, u := range us {
 				u()
 			}
-			return store.stop(ctx)
+			if err := store.stop(ctx); err != nil {
+				return err
+			}
+			return ctxFile.close()
 		},
 	})
 
@@ -124,30 +133,46 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 // component is the enabled implementation of loopback.Component.
 type component struct {
-	store *shardedStore
-	reg   *contextRegistry
-	log   log.Component
+	store   *shardedStore
+	ctxFile *contextFile
+	log     log.Component
 }
 
 func (c *component) onSamples(samples []hook.MetricSampleSnapshot) {
 	for i := range samples {
 		s := &samples[i]
 		ck := s.ContextKey
-		tsNs := int64(s.Timestamp * 1e9)
 		if ck == 0 {
-			ck = c.reg.register(s.Name, s.RawTags)
+			// Check/no-aggr pipelines don't set ContextKey; compute a stable
+			// synthetic key from name+tags without pre-registering in memory,
+			// so ctxFile.maybeWrite owns both memory (bloom) and disk atomically.
+			ck = syntheticKey(s.Name, sortedTagsCopy(s.RawTags))
 		}
-		c.store.writeWithName(ck, tsNs, s.Value, s.Name, s.RawTags)
+		_ = c.ctxFile.maybeWrite(ck, s.Name, s.RawTags)
+		c.store.write(ck, int64(s.Timestamp*1e9), s.Value)
 	}
 }
 
 func (c *component) Flush(ctx context.Context, name string, tags []string, start, stop int64, interval time.Duration) ([]loopback.Bucket, error) {
-	keys := c.reg.lookupKeys(name, tags)
-	if len(keys) == 0 {
+	entries, err := c.ctxFile.scan(name, tags)
+	if err != nil {
+		return nil, fmt.Errorf("loopback: context scan: %w", err)
+	}
+	if len(entries) == 0 {
 		return nil, loopback.ErrNoData
 	}
+
+	keys := make([]uint64, 0, len(entries))
+	for k := range entries {
+		keys = append(keys, k)
+	}
+	resolve := func(k uint64) (string, []string, bool) {
+		e, ok := entries[k]
+		return e.name, e.tags, ok
+	}
+
 	intervalNs := int64(interval)
-	buckets, err := c.store.flush(ctx, keys, start, stop, intervalNs)
+	buckets, err := c.store.flush(ctx, keys, start, stop, intervalNs, resolve)
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +217,6 @@ func (n *noopComponent) handleFlush(w http.ResponseWriter, _ *http.Request) {
 	http.Error(w, loopback.ErrDisabled.Error(), http.StatusServiceUnavailable)
 }
 
-// parseAndFlush parses the request query params and calls Flush on the component.
 func parseAndFlush(r *http.Request, comp loopback.Component) ([]loopback.Bucket, error) {
 	q := r.URL.Query()
 
