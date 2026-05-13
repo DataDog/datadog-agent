@@ -256,10 +256,11 @@ func errorLog(msg string, attrs ...slog.Attr) errortracking.ErrorLog {
 func newTestAtelMinimal(t *testing.T, sndr sender, bufSize int) *atel {
 	t.Helper()
 	a := &atel{
-		enabled:   true,
-		logComp:   logmock.New(t),
-		sender:    sndr,
-		errLogsCh: make(chan errortracking.ErrorLog, bufSize),
+		enabled:              true,
+		logComp:              logmock.New(t),
+		sender:               sndr,
+		errLogsCh:            make(chan errortracking.ErrorLog, bufSize),
+		shutdownDrainTimeout: 5 * time.Second,
 	}
 	a.cancelCtx, a.cancel = context.WithCancel(context.Background())
 	return a
@@ -350,7 +351,7 @@ func TestDrainAndSend_BatchesAndDispatches(t *testing.T) {
 	}
 
 	batch := make([]errortracking.ErrorLog, 0, errLogsBatchSize)
-	a.drainAndSend(&batch)
+	a.drainAndSend(context.Background(), &batch)
 
 	got := sm.capturedLogs()
 	require.Len(t, got, total, "every enqueued record must be dispatched in one drain pass")
@@ -383,4 +384,56 @@ func TestFlushJob_DrainsOnStop(t *testing.T) {
 	assert.Equal(t, "pending-1", got[0].Message)
 	assert.Equal(t, "pending-2", got[1].Message)
 	assert.Equal(t, "pending-3", got[2].Message)
+}
+
+// ctxObservingSender records the cancellation state of the context it
+// receives, so a test can assert the shutdown drain was given a live
+// context (not the already-canceled lifecycle context).
+type ctxObservingSender struct {
+	senderMock
+	mu             sync.Mutex
+	ctxCanceledOn  []bool
+	ctxDeadlineOn  []bool
+}
+
+func (s *ctxObservingSender) sendLogsTypedBatch(ctx context.Context, logs []Log) error {
+	s.mu.Lock()
+	canceled := false
+	select {
+	case <-ctx.Done():
+		canceled = true
+	default:
+	}
+	_, hasDeadline := ctx.Deadline()
+	s.ctxCanceledOn = append(s.ctxCanceledOn, canceled)
+	s.ctxDeadlineOn = append(s.ctxDeadlineOn, hasDeadline)
+	s.mu.Unlock()
+	return s.senderMock.sendLogsTypedBatch(ctx, logs)
+}
+
+// TestFlushJob_ShutdownDrainUsesFreshContext: the cancel-branch drain
+// must dispatch with a fresh background-derived context that has a
+// timeout — not the already-canceled a.cancelCtx — so HTTP POSTs in the
+// final drain are not pre-canceled. Regression for louis-cqrl's
+// "shutdown drain sends with an already-canceled context" thread on
+// PR #50607.
+func TestFlushJob_ShutdownDrainUsesFreshContext(t *testing.T) {
+	sm := &ctxObservingSender{}
+	a := newTestAtelMinimal(t, sm, 16)
+
+	a.errLogsFlushWG.Add(1)
+	go a.runErrorLogsFlush()
+
+	a.SubmitErrorRecord(errorLog("pre-stop"))
+
+	a.cancel()
+	a.errLogsFlushWG.Wait()
+
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	require.Len(t, sm.ctxCanceledOn, 1, "shutdown drain must dispatch exactly one batch")
+	assert.False(t, sm.ctxCanceledOn[0],
+		"shutdown-drain ctx must NOT be canceled at dispatch time")
+	assert.True(t, sm.ctxDeadlineOn[0],
+		"shutdown-drain ctx must carry the bounded timeout deadline")
 }

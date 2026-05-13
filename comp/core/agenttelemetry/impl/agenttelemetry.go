@@ -72,6 +72,7 @@ type atel struct {
 	errLogsCh            chan errortracking.ErrorLog
 	errLogsDropped       atomic.Uint64
 	errLogsFlushWG       sync.WaitGroup
+	shutdownDrainTimeout time.Duration
 }
 
 // Requires defines the dependencies for the agenttelemetry component
@@ -174,6 +175,10 @@ func createAtel(
 		errLogsCh = make(chan errortracking.ErrorLog, errLogsBufferSize)
 	}
 
+	// Final-drain context budget — bounded so a hung intake cannot
+	// block agent shutdown. See runErrorLogsFlush for usage.
+	shutdownDrainTimeout := time.Duration(cfgComp.GetInt("agent_telemetry.errortracking.shutdown_drain_timeout_seconds")) * time.Second
+
 	return &atel{
 		enabled: true,
 		cfgComp: cfgComp,
@@ -195,6 +200,7 @@ func createAtel(
 
 		errortrackingEnabled: errortrackingEnabled,
 		errLogsCh:            errLogsCh,
+		shutdownDrainTimeout: shutdownDrainTimeout,
 	}
 }
 
@@ -697,19 +703,26 @@ func (a *atel) SubmitErrorRecord(log errortracking.ErrorLog) {
 	}
 }
 
-// runErrorLogsFlush is the v3 flush goroutine for errortracking
-// records. Started by atel.start, stopped by atel.stop (via cancelCtx).
-// On each tick it drains the buffered channel — in batches of up to
+// runErrorLogsFlush is the flush goroutine for errortracking records.
+// Started by atel.start, stopped by atel.stop (via cancelCtx). On each
+// tick it drains the buffered channel — in batches of up to
 // errLogsBatchSize — and dispatches via sender.sendLogsTypedBatch. On
 // shutdown it performs one final drain so records buffered just before
 // stop are not lost.
 //
+// Context handling: ticker-branch drains use a.cancelCtx so an in-flight
+// HTTP POST cancels promptly on shutdown. The cancel-branch drain uses
+// a fresh background-derived context with a small timeout
+// (a.shutdownDrainTimeout) so the final POSTs do NOT inherit the
+// already-canceled lifecycle context — without this the shutdown drain
+// would silently drop every buffered record (HTTP returns context
+// canceled immediately). Addresses louis-cqrl's "shutdown drain sends
+// with an already-canceled context" thread on PR #50607.
+//
 // Behavioral note: send failures (5xx, network) are logged at Debug and
 // the batch is dropped. The pkg/util/log/errortracking handler is a
-// producer with no retry expectation; the v2 Pipeline's retry-once-
-// then-drop policy is collapsed into "log and move on" here because
-// retrying at flush time would block subsequent ticks and require
-// additional buffering complexity.
+// producer with no retry expectation; retrying at flush time would
+// block subsequent ticks and require additional buffering complexity.
 func (a *atel) runErrorLogsFlush() {
 	defer a.errLogsFlushWG.Done()
 
@@ -720,30 +733,32 @@ func (a *atel) runErrorLogsFlush() {
 	for {
 		select {
 		case <-a.cancelCtx.Done():
-			a.drainAndSend(&batch)
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), a.shutdownDrainTimeout)
+			a.drainAndSend(shutdownCtx, &batch)
+			cancel()
 			return
 		case <-ticker.C:
-			a.drainAndSend(&batch)
+			a.drainAndSend(a.cancelCtx, &batch)
 		}
 	}
 }
 
 // drainAndSend non-blockingly drains errLogsCh into batches of up to
-// errLogsBatchSize, dispatching each batch via sendErrorLogsBatch.
-// Keeps going while the channel has records; returns when the channel
-// is empty (after flushing any partial batch).
-func (a *atel) drainAndSend(batch *[]errortracking.ErrorLog) {
+// errLogsBatchSize, dispatching each batch via sendErrorLogsBatch. The
+// caller-provided ctx is threaded to sender.sendLogsTypedBatch and
+// determines the HTTP cancellation budget for each batch.
+func (a *atel) drainAndSend(ctx context.Context, batch *[]errortracking.ErrorLog) {
 	for {
 		select {
 		case r := <-a.errLogsCh:
 			*batch = append(*batch, r)
 			if len(*batch) >= errLogsBatchSize {
-				a.sendErrorLogsBatch(*batch)
+				a.sendErrorLogsBatch(ctx, *batch)
 				*batch = (*batch)[:0]
 			}
 		default:
 			if len(*batch) > 0 {
-				a.sendErrorLogsBatch(*batch)
+				a.sendErrorLogsBatch(ctx, *batch)
 				*batch = (*batch)[:0]
 			}
 			return
@@ -754,7 +769,7 @@ func (a *atel) drainAndSend(batch *[]errortracking.ErrorLog) {
 // sendErrorLogsBatch converts a slice of ErrorLog into wire Log structs
 // and dispatches via the shared typed sender path. Failures are logged
 // at Debug; this is a fire-and-forget telemetry path.
-func (a *atel) sendErrorLogsBatch(records []errortracking.ErrorLog) {
+func (a *atel) sendErrorLogsBatch(ctx context.Context, records []errortracking.ErrorLog) {
 	if len(records) == 0 {
 		return
 	}
@@ -762,7 +777,7 @@ func (a *atel) sendErrorLogsBatch(records []errortracking.ErrorLog) {
 	for i, r := range records {
 		logs[i] = errorLogToLog(r)
 	}
-	if err := a.sender.sendLogsTypedBatch(a.cancelCtx, logs); err != nil {
+	if err := a.sender.sendLogsTypedBatch(ctx, logs); err != nil {
 		a.logComp.Debugf("errortracking flush failed (%d records): %v", len(records), err)
 	}
 }
