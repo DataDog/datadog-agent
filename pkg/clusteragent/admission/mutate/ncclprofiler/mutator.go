@@ -23,6 +23,33 @@ const (
 	// soDestPath is the full in-container path to the Inspector .so after injection.
 	// NCCL_PROFILER_PLUGIN points here; NCCL dlopens this and the patched Inspector
 	// emits events directly to the agent's Unix socket (no wrapper layer).
+	//
+	// Why a full path (and not a basename + LD_LIBRARY_PATH):
+	// - This matches NVIDIA's documented K8s deployment pattern for NCCL
+	//   Inspector. Sending a full path lets NCCL's loader dlopen it directly
+	//   without consulting LD_LIBRARY_PATH, which means we never override
+	//   image-defined LD_LIBRARY_PATH (e.g. nvidia/cuda's /usr/local/nvidia/lib).
+	// - Works on every NCCL version with a profiler API (2.23+) EXCEPT NCCL
+	//   2.27.3, which has an upstream loader bug (NVIDIA/nccl#1732) that
+	//   rejects path-style values. NCCL 2.27.3 ships only with torch 2.8.x;
+	//   fixed in NCCL 2.27.5 (torch 2.9.0+).
+	//
+	// Customer workarounds for torch 2.8.x (NCCL 2.27.3):
+	//   A. (recommended) Upgrade just NCCL: `pip install nvidia-nccl-cu12==2.27.5`.
+	//      Torch dlopens NCCL at runtime, so the wheel upgrade is transparent.
+	//   B. Upgrade to torch 2.9.0+ (bundles NCCL 2.27.5+).
+	//   C. Override the env vars in the PodSpec. NCCL_PROFILER_PLUGIN must be
+	//      the basename, and LD_LIBRARY_PATH must include /datadog-nccl plus
+	//      every directory the image's Dockerfile sets (read out of the
+	//      image with: `docker run --rm <image> sh -c 'echo $LD_LIBRARY_PATH'`):
+	//        env:
+	//        - name: NCCL_PROFILER_PLUGIN
+	//          value: "libnccl-profiler-inspector.so"
+	//        - name: LD_LIBRARY_PATH
+	//          value: "/datadog-nccl:/usr/local/nvidia/lib:/usr/local/nvidia/lib64"
+	//      Setting only "/datadog-nccl" here would drop the image's CUDA / NVIDIA
+	//      lib directories — Kubernetes PodSpec env overrides image env and
+	//      $LD_LIBRARY_PATH is not expanded against image vars.
 	soDestPath = "/datadog-nccl/libnccl-profiler-inspector.so"
 
 	// soSourcePathInspector is where the Inspector .so lives inside the injector image.
@@ -73,6 +100,21 @@ func mutatePod(pod *corev1.Pod, injectorImage, hostSocketPath, socketPath string
 	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_DD_SOCKET_PATH", Value: socketPath}) || envAdded
 	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_DD_INSPECTOR_PATH", Value: soMountPath + "/libnccl-profiler-inspector.so"}) || envAdded
 	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_INSPECTOR_ENABLE", Value: "1"}) || envAdded
+
+	// Point NVIDIA Inspector's file-dump at /tmp — writable in virtually
+	// every customer training container. Without this, Inspector's dump
+	// thread tries the default location, and if THAT isn't writable, the
+	// thread breaks before calling our patched inspectorCommInfoDump →
+	// socket delivery silently emits nothing. Customer can override.
+	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_INSPECTOR_DUMP_DIR", Value: "/tmp/nccl-inspector"}) || envAdded
+
+	// Inspector's dump thread sets the needs_writing flag that gates the
+	// .so's socket-delivery hook. Default interval is 0 (thread sits
+	// idle), so without an explicit value the .so emits nothing. Default
+	// to 100 ms; consumers can override (InjectEnv is a no-op if already
+	// set). The Inspector .so also setenv-defaults this at init time as a
+	// belt-and-suspenders for pods loading the .so outside the webhook.
+	envAdded = mutatecommon.InjectEnv(pod, corev1.EnvVar{Name: "NCCL_INSPECTOR_DUMP_THREAD_INTERVAL_MICROSECONDS", Value: "100000"}) || envAdded
 
 	// Prepend init container that copies the Inspector .so from the injector image.
 	// SecurityContext drops all capabilities + disallows privilege escalation so

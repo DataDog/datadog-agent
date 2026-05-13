@@ -300,6 +300,46 @@ func (i jumpInstruction) encode(t codeTracker, out CodeSerializer) error {
 	return si.encode(t, out)
 }
 
+// leafLoadInstruction encodes ConditionLeafLoadOp: opcode + u8 leaf_idx +
+// u32 error-target PC. The label is scoped to the enclosing function;
+// the layout pass resolves it to an absolute PC in the same scratch as
+// jumpInstruction.
+type leafLoadInstruction struct {
+	noopLayout
+	functionID FunctionID
+	leafIdx    uint8
+	label      ir.LabelID
+}
+
+func (i leafLoadInstruction) codeByteLen() uint32 {
+	return 1 + 1 + 4
+}
+
+func (i leafLoadInstruction) encode(t codeTracker, out CodeSerializer) error {
+	key := functionLabel{function: i.functionID, label: i.label}
+	target, ok := t.labelLoc[key]
+	if !ok {
+		return fmt.Errorf(
+			"internal: leafLoadInstruction references unresolved label %d in %s",
+			i.label, i.functionID,
+		)
+	}
+	bytes := []byte{i.leafIdx}
+	bytes = binary.LittleEndian.AppendUint32(bytes, target)
+	si := staticInstruction{
+		opcode:  OpcodeConditionLeafLoad,
+		bytes:   bytes,
+		comment: fmt.Sprintf("leaf=%d L%d", i.leafIdx, i.label),
+	}
+	if i.codeByteLen() != si.codeByteLen() {
+		return fmt.Errorf(
+			"internal: leafLoadInstruction codeByteLen mismatch: %d != %d",
+			i.codeByteLen(), si.codeByteLen(),
+		)
+	}
+	return si.encode(t, out)
+}
+
 // labelMarker is a zero-byte fragment that records its PC in
 // codeTracker.labelLoc during the layout pass. It emits no bytes. The
 // label is scoped to the enclosing function so label IDs may safely
