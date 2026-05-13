@@ -205,6 +205,66 @@ func TestCombiningAggregator_LabelDriven(t *testing.T) {
 	})
 }
 
+// TestCombiningAggregator_AutoMultilineReasonViaCarry anchors:
+//
+//	surface CombiningAggregation (combining_aggregator.allium)
+//	    @guarantee TruncationTagging — "auto_multiline" reason
+//	                                    fires on combined flushes
+//	                                    (lines > 1) that have ANY
+//	                                    truncation applied,
+//	                                    including via the
+//	                                    prepended carry from a
+//	                                    prior single-line oversize
+//	                                    emission.
+//
+// Sequence:
+//
+//  1. Oversize start_group flushes immediately with append marker
+//     and sets should_truncate = true.
+//  2. Smaller start_group buffers (no flush).
+//  3. Aggregate that fits is added to the bucket (now 2 lines).
+//  4. External flush emits the combined message with the
+//     PREPEND marker (inherited carry) and the "auto_multiline"
+//     truncation-reason tag — even though the combined content
+//     itself is well under line_limit.
+//
+// This exercises the dispatch-reachable "auto_multiline" reason
+// path (carry-driven) — distinct from the structurally-present
+// but dispatch-unreachable append-on-combined-overflow path
+// noted in the spec.
+func TestCombiningAggregator_AutoMultilineReasonViaCarry(t *testing.T) {
+	ag := NewCombiningAggregator(10, true, false, status.NewInfoRegistry())
+
+	// Phase 1: oversize start_group sets the carry.
+	first := processMsg(ag, newMessage("1234567890"), startGroup)
+	require.Len(t, first, 1)
+	require.True(t, first[0].ParsingExtra.IsTruncated)
+	require.Equal(t, []string{message.TruncatedReasonTag("single_line")}, first[0].ParsingExtra.Tags,
+		"phase-1 emission must be tagged single_line (lineCount=1)")
+
+	// Phase 2: build a 2-line bucket with content well under line_limit.
+	require.Empty(t, processMsg(ag, newMessage("ab"), startGroup))
+	require.Empty(t, processMsg(ag, newMessage("cd"), aggregate))
+
+	// Phase 3: external flush emits the combined message — carry
+	// drives the prepend marker, lineCount=2 selects auto_multiline.
+	flushed := flushMsgs(ag)
+	require.Len(t, flushed, 1)
+	assert.True(t, flushed[0].ParsingExtra.IsTruncated, "combined flush following carry must have is_truncated set")
+	assert.True(t, flushed[0].ParsingExtra.IsMultiLine, "combined flush with 2+ lines is multi-line")
+	assert.Contains(t, flushed[0].ParsingExtra.Tags, message.TruncatedReasonTag("auto_multiline"),
+		"combined flush carrying truncation must use auto_multiline reason (not single_line)")
+	assert.NotContains(t, flushed[0].ParsingExtra.Tags, message.TruncatedReasonTag("single_line"),
+		"combined flush must NOT receive the single_line reason — auto_multiline overrides")
+
+	// Sanity: the combined content has the prepend marker (carry)
+	// but NOT an appended marker (combined content fits in
+	// line_limit, per OverflowExplosion).
+	emitted := string(flushed[0].GetContent())
+	assert.Equal(t, string(message.TruncatedFlag)+"ab\\ncd", emitted,
+		"combined emission has prepend marker (from carry) but not append (would_overflow_bucket prevented it)")
+}
+
 // TestCombiningAggregator_FlushIdempotentOnEmpty anchors:
 //
 //	surface CombiningAggregation (combining_aggregator.allium)
