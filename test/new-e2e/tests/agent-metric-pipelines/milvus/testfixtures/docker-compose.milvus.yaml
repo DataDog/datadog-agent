@@ -1,0 +1,91 @@
+version: '3.9'
+
+# Standalone Milvus stack with etcd + MinIO dependencies, plus a small
+# traffic-generator container that continuously inserts/searches vectors
+# so the Milvus instance produces non-zero metrics for the agent to scrape.
+#
+# Based on the official Milvus standalone docker-compose, trimmed for E2E.
+
+services:
+  etcd:
+    container_name: milvus-etcd
+    image: ${DD_REGISTRY:-quay.io}/coreos/etcd:v3.5.5
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    command: etcd -advertise-client-urls=http://etcd:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  minio:
+    container_name: milvus-minio
+    image: ${DD_REGISTRY:-docker.io}/minio/minio:RELEASE.2023-03-20T20-16-18Z
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    command: minio server /minio_data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  milvus:
+    container_name: milvus-standalone
+    image: ${DD_REGISTRY:-docker.io}/milvusdb/milvus:v2.4.13
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    # Expose the gRPC port so the traffic generator (and host tools) can reach it
+    # and the Prometheus metrics port so the host-side agent can scrape it.
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    depends_on:
+      - "etcd"
+      - "minio"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 5
+
+  # Continuously generate real Milvus traffic: create collection, insert and
+  # search vectors in a loop. This drives the metrics the Datadog integration
+  # reports (e.g. milvus.proxy.req_count, milvus.proxy.search_latency, ...).
+  traffic:
+    container_name: milvus-traffic
+    image: ${DD_REGISTRY:-docker.io}/library/python:3.11-slim
+    depends_on:
+      - "milvus"
+    environment:
+      MILVUS_HOST: milvus
+      MILVUS_PORT: "19530"
+    volumes:
+      - ${DD_MILVUS_TRAFFIC_SCRIPT}:/app/traffic.py:ro
+    command:
+      - bash
+      - -lc
+      - |
+        set -e
+        pip install --no-cache-dir 'pymilvus==2.4.9' >/tmp/pip.log 2>&1
+        # Wait for Milvus to be ready before starting the workload.
+        python - <<'PY'
+        import time, socket
+        host = "milvus"
+        for _ in range(120):
+            try:
+                with socket.create_connection((host, 19530), timeout=2):
+                    break
+            except OSError:
+                time.sleep(2)
+        PY
+        exec python /app/traffic.py
+    restart: unless-stopped

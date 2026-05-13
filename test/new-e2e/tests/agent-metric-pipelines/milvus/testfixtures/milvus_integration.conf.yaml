@@ -1,0 +1,17 @@
+## Datadog Milvus integration config used by the E2E scenario.
+##
+## The Milvus standalone container in docker-compose.milvus.yaml publishes
+## its Prometheus metrics on port 9091. The Agent runs on the host and
+## scrapes it through the published port mapping.
+##
+## The ``E2E_TEST_ID`` tag is templated by the provisioner so the test can
+## query the real Datadog backend for metrics belonging to a specific run.
+init_config:
+
+instances:
+  - openmetrics_endpoint: http://localhost:9091/metrics
+    min_collection_interval: 15
+    tags:
+      - "env:e2e"
+      - "e2e_scenario:milvus"
+      - "e2e_test_id:E2E_TEST_ID_PLACEHOLDER"
