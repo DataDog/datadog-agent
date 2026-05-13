@@ -1,1 +1,24 @@
-# gazelle:ignore
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "settings_mock.go",
+        "settingsimpl.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/settings/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/def",
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/settings/def",
+        "//comp/def",
+        "//pkg/config/model",
+        "//pkg/util/scrubber",
+        "@com_github_gorilla_mux//:mux",
+        "@com_github_json_iterator_go//:go",
+        "@com_github_mohae_deepcopy//:deepcopy",
+        "@in_yaml_go_yaml_v2//:yaml",
+    ],
+)

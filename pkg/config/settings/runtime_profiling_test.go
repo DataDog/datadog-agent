@@ -44,7 +44,7 @@ func (m *mockClient) GetWithSources(_ string) (map[string]interface{}, error) {
 	return nil, nil
 }
 
-func (m *mockClient) List() (map[string]compsettings.RuntimeSettingResponse, error) {
+func (m *mockClient) List() (map[string]settings.RuntimeSettingResponse, error) {
 	return nil, nil
 }
 
