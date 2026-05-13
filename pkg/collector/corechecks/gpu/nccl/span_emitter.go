@@ -11,12 +11,14 @@ import (
 	"bytes"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -43,6 +45,7 @@ func (se *spanEmitter) emitTraces(traces pb.Traces) error {
 	if err != nil {
 		return fmt.Errorf("marshal traces: %w", err)
 	}
+	log.Debugf("NCCL span emitter: posting %d traces (%d bytes) to %s", len(traces), len(payload), se.url)
 	req, err := http.NewRequest(http.MethodPost, se.url, bytes.NewReader(payload))
 	if err != nil {
 		return err
@@ -53,7 +56,12 @@ func (se *spanEmitter) emitTraces(traces pb.Traces) error {
 	if err != nil {
 		return fmt.Errorf("POST %s: %w", se.url, err)
 	}
-	resp.Body.Close()
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	log.Debugf("NCCL span emitter: response HTTP %d: %s", resp.StatusCode, body)
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("POST %s: HTTP %d: %s", se.url, resp.StatusCode, body)
+	}
 	return nil
 }
 
