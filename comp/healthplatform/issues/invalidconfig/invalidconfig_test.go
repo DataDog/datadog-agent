@@ -46,9 +46,10 @@ func TestBuildIssue_SchemaValidationHasMediumSeverity(t *testing.T) {
 		issue.GetExtra().GetFields()[lite.ContextKeyErrorKind].GetStringValue())
 	assert.Equal(t, float64(3),
 		issue.GetExtra().GetFields()[lite.ContextKeyErrorCount].GetNumberValue())
-	assert.Contains(t,
-		issue.GetExtra().GetFields()[lite.ContextKeyErrors].GetStringValue(),
-		"agent_ipc/port")
+	errsList := issue.GetExtra().GetFields()[lite.ContextKeyErrors].GetListValue().GetValues()
+	require.Len(t, errsList, 2)
+	assert.Contains(t, errsList[0].GetStringValue(), "agent_ipc/port")
+	assert.Contains(t, errsList[1].GetStringValue(), "/tags")
 }
 
 // Backend dedupe depends on both code paths emitting the same Issue ID.
