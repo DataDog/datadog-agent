@@ -1926,6 +1926,20 @@ properties:
         example: 'false'
         tags:
         - template_section:LogsAgent
+      use_container_timestamp:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Use the `time` field from container log files (when available) as the log timestamp
+          instead of ingestion time.
+
+          This affects logs collected from container runtimes that provide per-log-line
+          timestamps (for example Docker JSON logs).
+        example: 'false'
+        tags:
+        - template_section:LogsAgent
       logs_dd_url:
         node_type: setting
         visibility: public
