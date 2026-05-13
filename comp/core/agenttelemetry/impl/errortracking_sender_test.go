@@ -286,6 +286,8 @@ func newTestAtelMinimal(t *testing.T, sndr sender, bufSize int) *atel {
 		logComp:              logmock.New(t),
 		sender:               sndr,
 		errLogsCh:            make(chan errortracking.ErrorLog, bufSize),
+		errLogsBatchSize:     defaultErrLogsBatchSize,
+		errLogsFlushInterval: defaultErrLogsFlushInterval,
 		shutdownDrainTimeout: 5 * time.Second,
 	}
 	a.cancelCtx, a.cancel = context.WithCancel(context.Background())
@@ -363,20 +365,20 @@ func TestSubmitErrorRecord_NonBlocking_DropsOnOverflow(t *testing.T) {
 }
 
 // TestDrainAndSend_BatchesAndDispatches: drainAndSend, called once,
-// must drain the channel in batches of errLogsBatchSize and dispatch
+// must drain the channel in batches of defaultErrLogsBatchSize and dispatch
 // each via sender.sendLogsTypedBatch.
 func TestDrainAndSend_BatchesAndDispatches(t *testing.T) {
 	sm := &senderMock{}
-	a := newTestAtelMinimal(t, sm, errLogsBatchSize*3)
+	a := newTestAtelMinimal(t, sm, defaultErrLogsBatchSize*3)
 	defer a.cancel()
 
 	// Enqueue 2.5 batches' worth of records.
-	total := errLogsBatchSize*2 + errLogsBatchSize/2
+	total := defaultErrLogsBatchSize*2 + defaultErrLogsBatchSize/2
 	for i := 0; i < total; i++ {
 		a.SubmitErrorRecord(errorLog(fmt.Sprintf("r-%d", i)))
 	}
 
-	batch := make([]errortracking.ErrorLog, 0, errLogsBatchSize)
+	batch := make([]errortracking.ErrorLog, 0, defaultErrLogsBatchSize)
 	a.drainAndSend(context.Background(), &batch)
 
 	got := sm.capturedLogs()
