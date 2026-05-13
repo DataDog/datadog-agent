@@ -88,6 +88,20 @@ go_deps.gazelle_override(
     build_extra_args = ["-build_tags=requirefips"],
     path = "go.opentelemetry.io/collector/config/configtls",
 )
+
+# Link go-sqlite3 against the shared libsqlite3 from //deps:sqlite3 rather than
+# compiling the bundled amalgamation. The libsqlite3 build tag is enabled
+# globally in .bazelrc. The map_kind directive redirects Gazelle to emit our
+# go_sqlite3_library wrapper, which sets cgo = True and injects the
+# @sqlite3//:libsqlite3_dynamic cdep so the binding's #include <sqlite3.h> and
+# -lsqlite3 directives resolve.
+go_deps.gazelle_override(
+    build_extra_args = ["-build_tags=libsqlite3"],
+    directives = [
+        "gazelle:map_kind go_library go_sqlite3_library @@//bazel/rules/go_sqlite3:go_sqlite3_library.bzl",
+    ],
+    path = "github.com/mattn/go-sqlite3",
+)
 use_repo(
     go_deps,
     "cat_dario_mergo",
