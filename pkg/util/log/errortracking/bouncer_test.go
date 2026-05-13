@@ -113,7 +113,10 @@ func TestBouncer_RaceFree_ConcurrentObserve(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	// Survived without -race detecting anything.
+	// Survived without -race detecting anything; this is the
+	// observable for the test (the race detector flags concurrent
+	// map access or counter races at the failure site, not here).
+	t.Log("concurrent observe completed without race violation")
 }
 
 func TestBouncer_PrunesNearCap(t *testing.T) {
