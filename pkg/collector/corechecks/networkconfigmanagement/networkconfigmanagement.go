@@ -56,7 +56,7 @@ type Check struct {
 // saveConfig saves the config if store is non-nil, and returns an error about manual check mode otherwise.
 func saveConfig(store store.ConfigStore, deviceID string, cType types.ConfigType, rawConfig []byte) (string, error) {
 	if store == nil {
-		return "", errors.New("local config store is unavailable in manual check mode")
+		return "", errors.New("local config store unavailable - will not save configs for rollback")
 	}
 	return store.StoreConfig(deviceID, cType, string(rawConfig))
 }
@@ -228,9 +228,9 @@ func (c *Check) Interval() time.Duration {
 }
 
 // Factory creates a new check factory
-func Factory(agentConfig config.Component, ncmComp networkconfigmanagement.Component) option.Option[func() check.Check] {
+func Factory(agentConfig config.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
-		return newCheck(agentConfig, ncmComp)
+		return newCheck(agentConfig, nil)
 	})
 }
 

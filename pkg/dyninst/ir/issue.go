@@ -44,6 +44,11 @@ const (
 	// encountered when the condition expression's type chain could not be
 	// fully resolved (e.g., unresolved pointee types, missing struct fields).
 	IssueKindConditionExpressionUnresolvable
+	// IssueKindConditionCarryTooLarge is an issue that was encountered
+	// when a split-event-kind condition has more entry-side leaves than
+	// fit in the per-call carry byte (8 bits). The probe is rejected
+	// rather than silently truncated.
+	IssueKindConditionCarryTooLarge
 )
 
 // Issue is an issue that was encountered while processing a probe.

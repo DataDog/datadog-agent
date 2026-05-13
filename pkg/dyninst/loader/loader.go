@@ -69,6 +69,16 @@ func WithAdditionalSerializer(serializer compiler.CodeSerializer) Option {
 	return additionalSerializerOption{serializer}
 }
 
+// WithForceMultiAttach forces the loader to use uprobe_multi attachment,
+// bypassing the kernel-version gate in canUseMultiAttach. Intended for use
+// in tests on kernels that support BPF_LINK_TYPE_UPROBE_MULTI but are
+// excluded by the conservative 6.10 floor (e.g. Ubuntu 24.04's 6.8 kernel).
+// The caller is responsible for ensuring the workload is unaffected by the
+// pre-6.10 multi-uprobe PID-filter bug — see canUseMultiAttach for details.
+func WithForceMultiAttach() Option {
+	return forceMultiAttachOption{}
+}
+
 // NewLoader creates a new Loader.
 func NewLoader(opts ...Option) (*Loader, error) {
 	l := &Loader{}
@@ -108,7 +118,7 @@ func (l *Loader) Load(program compiler.Program) (*Program, error) {
 	}
 	ringbufMapSpec.MaxEntries = uint32(l.config.ringBufSize)
 
-	useMultiAttach := canUseMultiAttach()
+	useMultiAttach := l.config.forceMultiAttach || canUseMultiAttach()
 	if useMultiAttach {
 		progSpec, ok := spec.Programs["probe_run_with_cookie"]
 		if !ok {
@@ -310,6 +320,8 @@ type config struct {
 	dyninstDebugLevel   uint8
 	dyninstDebugEnabled bool
 
+	forceMultiAttach bool
+
 	additionalSerializer compiler.CodeSerializer
 }
 
@@ -343,6 +355,12 @@ type additionalSerializerOption struct {
 
 func (o additionalSerializerOption) apply(c *config) {
 	c.additionalSerializer = o
+}
+
+type forceMultiAttachOption struct{}
+
+func (forceMultiAttachOption) apply(c *config) {
+	c.forceMultiAttach = true
 }
 
 func (l *Loader) init(opts ...Option) error {

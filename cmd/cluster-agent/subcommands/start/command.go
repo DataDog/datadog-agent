@@ -55,7 +55,7 @@ import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-clusteragent"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
@@ -68,6 +68,7 @@ import (
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroutefx "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
@@ -287,6 +288,7 @@ func start(log log.Component,
 	_ metadatarunner.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
+	healthPlatform option.Option[healthplatformdef.Component],
 ) error {
 	stopCh := make(chan struct{})
 	validatingStopCh := make(chan struct{})
@@ -387,6 +389,7 @@ func start(log log.Component,
 		InformerFactory:             apiCl.InformerFactory,
 		APIExentionsInformerFactory: apiCl.APIExentionsInformerFactory,
 		DynamicClient:               apiCl.DynamicInformerCl,
+		DynamicUpdateClient:         apiCl.DynamicCl,
 		DynamicInformerFactory:      apiCl.DynamicInformerFactory,
 		Client:                      apiCl.InformerCl,
 		IsLeaderFunc:                le.IsLeader,
@@ -651,7 +654,7 @@ func start(log log.Component,
 			FilterStore:                  filterStore,
 		}
 
-		webhooks, err := admissionpkg.StartControllers(admissionCtx, datadogConfig, wmeta, pp, sh)
+		webhooks, err := admissionpkg.StartControllers(admissionCtx, datadogConfig, wmeta, pp, sh, healthPlatform)
 		// Ignore the error if it's related to the validatingwebhookconfigurations.
 		var syncInformerError *apiserver.SyncInformersError
 		if err != nil && !(errors.As(err, &syncInformerError) && syncInformerError.Name == apiserver.ValidatingWebhooksInformer) {

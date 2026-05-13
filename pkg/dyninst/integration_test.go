@@ -133,6 +133,12 @@ func testDyninst(
 	if debug {
 		loaderOpts = append(loaderOpts, loader.WithDebugLevel(100))
 	}
+	// In short mode (which never runs in CI), force uprobe_multi attachment
+	// to speed up integration tests on hosts whose kernel supports the
+	// feature but is excluded by canUseMultiAttach's 6.10 floor.
+	if testing.Short() {
+		loaderOpts = append(loaderOpts, loader.WithForceMultiAttach())
+	}
 	cfg.TestingKnobs.LoaderOptions = loaderOpts
 	cfg.DiskCacheConfig.DirPath = filepath.Join(tempDir, "disk-cache")
 	cfg.LogUploaderURL = testServer.getLogsURL()
@@ -234,8 +240,6 @@ func testDyninst(
 		t, assertProbesInstalled, 180*time.Second, 100*time.Millisecond,
 		"diagnostics should indicate that the probes are installed",
 	)
-	time.Sleep(10 * time.Second)
-	t.Logf("slept for 10 seconds")
 
 	// Trigger the function calls, receive the events, and wait for the process
 	// to exit.

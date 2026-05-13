@@ -14,6 +14,8 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -402,6 +404,76 @@ func TestProcessServiceEqual(t *testing.T) {
 
 	t.Run("different type", func(t *testing.T) {
 		assert.False(t, svc1.Equal(&WorkloadService{}))
+	})
+}
+
+func TestProcessServiceFilterTemplates_DedupesStaticConfigs(t *testing.T) {
+	process := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "1234"},
+		Pid:      1234,
+		Service:  &workloadmeta.Service{GeneratedName: "redis"},
+	}
+
+	mkSvc := func(idx *StaticConfigIndex) *ProcessService {
+		return &ProcessService{
+			process:           process,
+			pid:               1234,
+			ready:             true,
+			staticConfigIndex: idx,
+		}
+	}
+
+	mkConfigs := func() map[string]integration.Config {
+		// Both templates carry the process AD identifier so the AD-identifier
+		// matching filter would keep them; the static-config filter is the
+		// only thing that should drop one of them.
+		return map[string]integration.Config{
+			"redis-digest": {
+				Name:          "redis",
+				ADIdentifiers: []string{string(adtypes.CelProcessIdentifier)},
+			},
+			"nginx-digest": {
+				Name:          "nginx",
+				ADIdentifiers: []string{string(adtypes.CelProcessIdentifier)},
+			},
+		}
+	}
+
+	t.Run("nil index keeps all templates", func(t *testing.T) {
+		configs := mkConfigs()
+		mkSvc(nil).FilterTemplates(configs)
+		assert.Contains(t, configs, "redis-digest")
+		assert.Contains(t, configs, "nginx-digest")
+	})
+
+	t.Run("empty index keeps all templates", func(t *testing.T) {
+		configs := mkConfigs()
+		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
+		assert.Contains(t, configs, "redis-digest")
+		assert.Contains(t, configs, "nginx-digest")
+	})
+
+	t.Run("template is dropped when a static config of the same name exists", func(t *testing.T) {
+		idx := NewStaticConfigIndex()
+		idx.Add("redis")
+
+		configs := mkConfigs()
+		mkSvc(idx).FilterTemplates(configs)
+
+		assert.NotContains(t, configs, "redis-digest", "redis template should be deduplicated")
+		assert.Contains(t, configs, "nginx-digest", "nginx template should be preserved")
+	})
+
+	t.Run("template returns once the static config is removed", func(t *testing.T) {
+		idx := NewStaticConfigIndex()
+		idx.Add("redis")
+		idx.Remove("redis")
+
+		configs := mkConfigs()
+		mkSvc(idx).FilterTemplates(configs)
+
+		assert.Contains(t, configs, "redis-digest")
+		assert.Contains(t, configs, "nginx-digest")
 	})
 }
 
