@@ -20,7 +20,9 @@ type NCMPayload struct {
 	CollectTimestamp int64                 `json:"collect_timestamp"`
 }
 
-// NetworkDeviceConfig contains network device configuration for a single device
+// NetworkDeviceConfig contains network device configuration for a single device.
+// ConfigUUID and ConfigHash are populated when the agent was able to persist the
+// config in the local store; both are omitted from the payload otherwise.
 type NetworkDeviceConfig struct {
 	DeviceID     string             `json:"device_id"`
 	DeviceIP     string             `json:"device_ip"`
@@ -29,6 +31,8 @@ type NetworkDeviceConfig struct {
 	Timestamp    int64              `json:"timestamp"`
 	Tags         []string           `json:"tags"`
 	Content      string             `json:"content"`
+	ConfigUUID   string             `json:"config_uuid,omitempty"`
+	ConfigHash   string             `json:"config_hash,omitempty"`
 }
 
 // ToNCMPayload converts the given parameters into a NCMPayload (sent to event platform / backend).
@@ -47,7 +51,8 @@ func ToNCMPayload(namespace string, configs []NetworkDeviceConfig, timestamp int
 }
 
 // ToNetworkDeviceConfig converts the given parameters into a NetworkDeviceConfig, representing a single device's configuration in a point in time.
-func ToNetworkDeviceConfig(deviceID, deviceIP string, configType types.ConfigType, extractedMetadata *profile.ExtractedMetadata, tags []string, content []byte) NetworkDeviceConfig {
+// configUUID and configHash are optional — pass empty strings when the config could not be persisted in the local store.
+func ToNetworkDeviceConfig(deviceID, deviceIP string, configType types.ConfigType, extractedMetadata *profile.ExtractedMetadata, tags []string, content []byte, configUUID, configHash string) NetworkDeviceConfig {
 	var ts int64
 	if extractedMetadata != nil && extractedMetadata.Timestamp != 0 {
 		ts = extractedMetadata.Timestamp
@@ -62,5 +67,7 @@ func ToNetworkDeviceConfig(deviceID, deviceIP string, configType types.ConfigTyp
 		Timestamp:    ts,
 		Tags:         tags,
 		Content:      string(content),
+		ConfigUUID:   configUUID,
+		ConfigHash:   configHash,
 	}
 }

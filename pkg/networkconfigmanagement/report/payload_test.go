@@ -33,7 +33,10 @@ func TestNetworkDeviceConfig_Creation(t *testing.T) {
 	tags := []string{"device_type:router", "vendor:cisco"}
 	content := []byte("version 15.1\nhostname Router1")
 
-	config := ToNetworkDeviceConfig(deviceID, deviceIP, configType, metadata, tags, content)
+	configUUID := "11111111-2222-3333-4444-555555555555"
+	configHash := "deadbeef"
+
+	config := ToNetworkDeviceConfig(deviceID, deviceIP, configType, metadata, tags, content, configUUID, configHash)
 
 	assert.Equal(t, deviceID, config.DeviceID)
 	assert.Equal(t, deviceIP, config.DeviceIP)
@@ -42,6 +45,21 @@ func TestNetworkDeviceConfig_Creation(t *testing.T) {
 	assert.Equal(t, now, config.Timestamp)
 	assert.Equal(t, tags, config.Tags)
 	assert.Equal(t, string(content), config.Content)
+	assert.Equal(t, configUUID, config.ConfigUUID)
+	assert.Equal(t, configHash, config.ConfigHash)
+}
+
+func TestNetworkDeviceConfig_OmitsEmptyStoreFields(t *testing.T) {
+	metadata := &profile.ExtractedMetadata{Timestamp: time.Now().Unix()}
+	config := ToNetworkDeviceConfig("default:10.0.0.1", "10.0.0.1", types.RUNNING, metadata, nil, []byte("content"), "", "")
+
+	assert.Empty(t, config.ConfigUUID)
+	assert.Empty(t, config.ConfigHash)
+
+	jsonData, err := json.Marshal(config)
+	require.NoError(t, err)
+	assert.NotContains(t, string(jsonData), "config_uuid")
+	assert.NotContains(t, string(jsonData), "config_hash")
 }
 
 func TestNetworkDeviceConfig_ConfigTypes(t *testing.T) {
@@ -70,7 +88,7 @@ func TestNetworkDeviceConfig_ConfigTypes(t *testing.T) {
 			Timestamp: 0,
 		}
 		t.Run(tt.name, func(t *testing.T) {
-			config := ToNetworkDeviceConfig("default:10.0.0.1", "10.0.0.1", tt.configType, metadata, nil, []byte(""))
+			config := ToNetworkDeviceConfig("default:10.0.0.1", "10.0.0.1", tt.configType, metadata, nil, []byte(""), "", "")
 			assert.Equal(t, tt.expected, config.ConfigType)
 		})
 	}

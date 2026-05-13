@@ -112,8 +112,10 @@ func (cs *configStore) update(fn func(tx *bbolt.Tx) error) error {
 // NCM-specific transaction functions
 
 // StoreConfig is responsible for checking if the config for the device is new,
-// if so, it will create a new entry in each bucket (for the config, metadata, and secrets)
-func (cs *configStore) StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (string, error) {
+// if so, it will create a new entry in each bucket (for the config, metadata, and secrets).
+// Returns the config UUID and the SHA-256 hash of the raw config. If the config is a
+// duplicate of the latest stored config for the device+type, the existing UUID is returned.
+func (cs *configStore) StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (string, string, error) {
 	// Setup + marshal everything first (does not require DB lock)
 	configUUID := uuid.New().String()
 	now := time.Now().Unix()
@@ -122,11 +124,11 @@ func (cs *configStore) StoreConfig(deviceID string, configType types.ConfigType,
 	// Raw text
 	rawConfigJSON, err := json.Marshal(rawConfig)
 	if err != nil {
-		return "", fmt.Errorf("marshal raw config error: %w", err)
+		return "", "", fmt.Errorf("marshal raw config error: %w", err)
 	}
 	compressedRawConfigJSON, err := cs.compressor.Compress((rawConfigJSON))
 	if err != nil {
-		return "", fmt.Errorf("compress raw config error: %w", err)
+		return "", "", fmt.Errorf("compress raw config error: %w", err)
 	}
 	// Metadata
 	metadata := types.ConfigMetadata{
@@ -140,7 +142,7 @@ func (cs *configStore) StoreConfig(deviceID string, configType types.ConfigType,
 	}
 	metadataJSON, err := json.Marshal(metadata)
 	if err != nil {
-		return "", fmt.Errorf("marshal config metadata error: %w", err)
+		return "", "", fmt.Errorf("marshal config metadata error: %w", err)
 	}
 
 	var existingConfigID string
@@ -168,12 +170,12 @@ func (cs *configStore) StoreConfig(deviceID string, configType types.ConfigType,
 		return nil
 	})
 	if err != nil {
-		return "", fmt.Errorf("error storing config in bbolt: %w", err)
+		return "", "", fmt.Errorf("error storing config in bbolt: %w", err)
 	}
 	if existingConfigID != "" {
-		return existingConfigID, nil
+		return existingConfigID, rawHash, nil
 	}
-	return configUUID, nil
+	return configUUID, rawHash, nil
 }
 
 // checkDuplicateInTx contains the inner logic for iterating through the metadata bucket (currently keyed by UUID)

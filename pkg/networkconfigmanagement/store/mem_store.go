@@ -41,7 +41,8 @@ func (m *memConfigStore) Close(_ context.Context) error {
 }
 
 // StoreConfig stores a device configuration, deduplicating against the latest stored config for the same device+type.
-func (m *memConfigStore) StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (string, error) {
+// Returns the config UUID and the SHA-256 hash of the raw config.
+func (m *memConfigStore) StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (string, string, error) {
 	rawHash := hashConfig(rawConfig)
 	now := time.Now().Unix()
 
@@ -49,7 +50,7 @@ func (m *memConfigStore) StoreConfig(deviceID string, configType types.ConfigTyp
 	defer m.lock.Unlock()
 
 	if existingID := m.findLatestMatch(deviceID, configType, rawHash); existingID != "" {
-		return existingID, nil
+		return existingID, rawHash, nil
 	}
 
 	configUUID := uuid.New().String()
@@ -65,7 +66,7 @@ func (m *memConfigStore) StoreConfig(deviceID string, configType types.ConfigTyp
 		AgentVersion:   version.AgentVersion,
 	}
 
-	return configUUID, nil
+	return configUUID, rawHash, nil
 }
 
 // findLatestMatch returns the UUID of the latest stored config for the given device+type if its hash matches.
