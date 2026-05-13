@@ -8,16 +8,22 @@ package loopbackimpl
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"go.uber.org/fx"
 
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	loopback "github.com/DataDog/datadog-agent/comp/loopback/def"
 	"github.com/DataDog/datadog-agent/pkg/hook"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 // Requires defines the dependencies for the loopback component.
@@ -34,14 +40,19 @@ type Requires struct {
 type Provides struct {
 	fx.Out
 
-	Comp loopback.Component
+	Comp     loopback.Component
+	Endpoint api.AgentEndpointProvider
 }
 
 // NewComponent creates the loopback ring buffer component.
 // When loopback.enabled is false a lightweight no-op implementation is returned.
 func NewComponent(reqs Requires) (Provides, error) {
 	if !reqs.Config.GetBool("loopback.enabled") {
-		return Provides{Comp: &noopComponent{}}, nil
+		noop := &noopComponent{}
+		return Provides{
+			Comp:     noop,
+			Endpoint: api.NewAgentEndpointProvider(noop.handleFlush, "/loopback-flush", "GET"),
+		}, nil
 	}
 
 	cfg := storeConfig{
@@ -105,7 +116,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 		},
 	})
 
-	return Provides{Comp: comp}, nil
+	return Provides{
+		Comp:     comp,
+		Endpoint: api.NewAgentEndpointProvider(comp.handleFlush, "/loopback-flush", "GET"),
+	}, nil
 }
 
 // component is the enabled implementation of loopback.Component.
@@ -143,9 +157,75 @@ func (c *component) Flush(ctx context.Context, name string, tags []string, start
 	return buckets, nil
 }
 
+// handleFlush serves GET /loopback-flush
+//
+// Query parameters:
+//
+//	name     — metric name (required)
+//	tags     — comma-separated tag filter, e.g. env:prod,region:us (optional)
+//	start    — range start, Unix nanoseconds (required)
+//	stop     — range stop,  Unix nanoseconds (required)
+//	interval — aggregation bucket width, e.g. 1s, 5s (optional, default 1s)
+func (c *component) handleFlush(w http.ResponseWriter, r *http.Request) {
+	buckets, err := parseAndFlush(r, c)
+	if err != nil {
+		httputils.SetJSONError(w, c.log.Errorf("loopback flush: %v", err), http.StatusBadRequest)
+		return
+	}
+	out, err := json.Marshal(buckets)
+	if err != nil {
+		httputils.SetJSONError(w, c.log.Errorf("loopback flush marshal: %v", err), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(out) //nolint:errcheck
+}
+
 // noopComponent is returned when loopback.enabled = false.
 type noopComponent struct{}
 
 func (n *noopComponent) Flush(_ context.Context, _ string, _ []string, _, _ int64, _ time.Duration) ([]loopback.Bucket, error) {
 	return nil, loopback.ErrDisabled
+}
+
+func (n *noopComponent) handleFlush(w http.ResponseWriter, _ *http.Request) {
+	http.Error(w, loopback.ErrDisabled.Error(), http.StatusServiceUnavailable)
+}
+
+// parseAndFlush parses the request query params and calls Flush on the component.
+func parseAndFlush(r *http.Request, comp loopback.Component) ([]loopback.Bucket, error) {
+	q := r.URL.Query()
+
+	name := q.Get("name")
+	if name == "" {
+		return nil, fmt.Errorf("missing required query parameter: name")
+	}
+
+	var tags []string
+	if raw := q.Get("tags"); raw != "" {
+		for _, t := range strings.Split(raw, ",") {
+			if t = strings.TrimSpace(t); t != "" {
+				tags = append(tags, t)
+			}
+		}
+	}
+
+	startNs, err := strconv.ParseInt(q.Get("start"), 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid start (want Unix nanoseconds): %w", err)
+	}
+	stopNs, err := strconv.ParseInt(q.Get("stop"), 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid stop (want Unix nanoseconds): %w", err)
+	}
+
+	var interval time.Duration
+	if raw := q.Get("interval"); raw != "" {
+		interval, err = time.ParseDuration(raw)
+		if err != nil {
+			return nil, fmt.Errorf("invalid interval (want Go duration, e.g. 1s): %w", err)
+		}
+	}
+
+	return comp.Flush(r.Context(), name, tags, startNs, stopNs, interval)
 }

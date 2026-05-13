@@ -13,9 +13,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/loopback/impl",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/api/api/def",
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/loopback/def",
+        "//pkg/util/http",
         "@com_github_datadog_datadog_agent_pkg_hook//:hook",
         "@com_github_twmb_murmur3//:murmur3",
         "@org_uber_go_fx//:fx",
