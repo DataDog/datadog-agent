@@ -605,18 +605,21 @@ func getSharedFxOption() fx.Option {
 // installErrortrackingHandler is the AGTHEAL-15 Fx invoke that wires the
 // pkg/util/log/setup errortracking submitter slot to the agenttelemetry
 // component's SubmitErrorRecord. agenttelemetry owns the bounded buffer,
-// flush scheduling, and recursion guard; this function is a single-line
-// wire from the foundational logger subtree to the comp/core consumer.
+// flush scheduling, and recursion-prevention convention; this function is a
+// single-line wire from the foundational logger subtree to the comp/core
+// consumer.
 //
-// The Invoke is a no-op when errortracking.enabled is false. agenttelemetry
-// is constructed regardless (it has other responsibilities), but its
-// SubmitErrorRecord is never reached because the submitter slot stays nil
-// and the slog handler under pkg/util/log/setup short-circuits.
+// The Invoke is a no-op when agent_telemetry.errortracking.enabled is
+// false, or when the parent agent_telemetry feature is excluded by gov/FIPS
+// (configUtils.IsAgentTelemetryEnabled). agenttelemetry is constructed
+// regardless (it has other responsibilities), but its SubmitErrorRecord is
+// never reached because the submitter slot stays nil and the slog handler
+// under pkg/util/log/setup short-circuits.
 //
 // Lifecycle: OnStart installs the submitter; OnStop clears it so records
 // emitted during shutdown do not race agenttelemetry's own teardown.
 func installErrortrackingHandler(lc fx.Lifecycle, cfg config.Component, at agenttelemetry.Component) {
-	if !cfg.GetBool("errortracking.enabled") {
+	if !configUtils.IsAgentTelemetryEnabled(cfg) || !cfg.GetBool("agent_telemetry.errortracking.enabled") {
 		return
 	}
 
