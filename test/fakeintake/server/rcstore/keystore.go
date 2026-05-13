@@ -61,14 +61,3 @@ func LoadOrCreateSigningKey(path string) (ed25519.PrivateKey, bool, error) {
 	}
 	return priv, true, nil
 }
-
-// EphemeralSigningKey generates a fresh in-memory key. Used when the caller
-// explicitly opts out of persistence (e.g. CI containers without a writable
-// home dir).
-func EphemeralSigningKey() (ed25519.PrivateKey, error) {
-	_, priv, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		return nil, fmt.Errorf("generate ephemeral signing key: %w", err)
-	}
-	return priv, nil
-}

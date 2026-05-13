@@ -35,7 +35,6 @@ type rcServerState struct {
 
 	enabled  bool
 	orgUUID  string
-	apiKey   string // optional; empty = skip auth check
 	configs  map[string]rcstore.Config
 	version  uint64
 	polls    uint64
@@ -114,7 +113,7 @@ func (s *rcServerState) recordPoll(now time.Time) {
 // orgUUID and apiKey are advisory: orgUUID is returned by /api/v0.1/org;
 // apiKey is logged on mismatch but never enforced.
 // Pass empty strings for defaults ("42" / "test-api-key").
-func WithRemoteConfig(orgUUID, apiKey string) Option {
+func WithRemoteConfig(orgUUID string) Option {
 	return func(fi *Server) {
 		if fi.IsRunning() {
 			log.Println("Fake intake is already running. Stop it and try again to enable Remote Config.")
@@ -123,13 +122,9 @@ func WithRemoteConfig(orgUUID, apiKey string) Option {
 		if orgUUID == "" {
 			orgUUID = "42"
 		}
-		if apiKey == "" {
-			apiKey = "test-api-key"
-		}
 		fi.rc = &rcServerState{
 			enabled: true,
 			orgUUID: orgUUID,
-			apiKey:  apiKey,
 			configs: make(map[string]rcstore.Config),
 			version: 1,
 		}
@@ -257,7 +252,6 @@ func (fi *Server) handleRCConfigurations(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "remote config not enabled", http.StatusNotFound)
 		return
 	}
-	fi.checkRCAPIKey(r)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "read body: "+err.Error(), http.StatusBadRequest)
@@ -270,10 +264,7 @@ func (fi *Server) handleRCConfigurations(w http.ResponseWriter, r *http.Request)
 	}
 	rc.recordPoll(fi.clock.Now().UTC())
 
-	products := req.GetProducts()
-	if len(products) == 0 {
-		products = []string{"METRIC_CONTROL"}
-	}
+	products := append(req.GetProducts(), req.GetNewProducts()...)
 	cfgs := rc.configsForProducts(products)
 	if len(cfgs) == 0 {
 		log.Printf("Remote Config: no configs for products %v", products)
@@ -329,7 +320,6 @@ func (fi *Server) handleRCOrg(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "remote config not enabled", http.StatusNotFound)
 		return
 	}
-	fi.checkRCAPIKey(r)
 	out, err := proto.Marshal(&core.OrgDataResponse{Uuid: fi.rc.orgUUID})
 	if err != nil {
 		http.Error(w, "encode: "+err.Error(), http.StatusInternalServerError)
@@ -348,7 +338,6 @@ func (fi *Server) handleRCStatus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "remote config not enabled", http.StatusNotFound)
 		return
 	}
-	fi.checkRCAPIKey(r)
 	out, err := proto.Marshal(&core.OrgStatusResponse{Enabled: true, Authorized: true})
 	if err != nil {
 		http.Error(w, "encode: "+err.Error(), http.StatusInternalServerError)
@@ -356,16 +345,6 @@ func (fi *Server) handleRCStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/x-protobuf")
 	_, _ = w.Write(out)
-}
-
-func (fi *Server) checkRCAPIKey(r *http.Request) {
-	if fi.rc == nil || fi.rc.apiKey == "" {
-		return
-	}
-	got := r.Header.Get("DD-Api-Key")
-	if got != fi.rc.apiKey {
-		log.Printf("Remote Config: api key mismatch (got %q)", got)
-	}
 }
 
 // --- Control handlers (called by tests / fakeintakectl) ---

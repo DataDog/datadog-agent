@@ -28,7 +28,7 @@ func newRCTestServer(t *testing.T) (*httptest.Server, *Server) {
 	ready := make(chan bool, 1)
 	fi := NewServer(
 		WithReadyChannel(ready),
-		WithRemoteConfig("42", "test-api-key"),
+		WithRemoteConfig("42"),
 		WithRemoteConfigKeyPath(keyPath),
 	)
 	if fi.rc == nil {
