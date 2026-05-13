@@ -59,21 +59,33 @@ key from the runner profile. Configure with `E2E_API_KEY` (and
 
 ## Deploying
 
-Keep the stack alive after `pulumi up`:
+The `scripts/` directory wraps the framework runner with sensible defaults
+and uses `dd-auth` to populate the API key. From the milvus directory:
 
 ```bash
-E2E_DEV_MODE=true \
-E2E_STACK_NAME=milvus-dev \
-dda inv new-e2e-tests.run \
-  --targets=./tests/agent-metric-pipelines/milvus \
-  --run=^TestMilvusEnv$
+./scripts/up.sh        # provision the stack (keeps it alive)
+./scripts/check.sh     # smoke-test the deployment (containers + agent + traffic)
+./scripts/test.sh      # up.sh -> wait -> check.sh   (use --teardown to also destroy)
+./scripts/down.sh      # destroy the stack
 ```
 
-Optional: pin a specific `e2e_test_id` for predictable querying in
-Datadog:
+Each script sources `scripts/_lib.sh`, which calls `dd-auth` to populate
+`DD_API_KEY` and forwards it as `E2E_API_KEY` (the name the e2e-framework
+runner reads).
+
+Overrideable env vars:
+
+| Var                  | Default      | Effect                                                |
+|----------------------|--------------|-------------------------------------------------------|
+| `MILVUS_STACK_NAME`  | `milvus-dev` | Pulumi stack name; shared by all four scripts.        |
+| `MILVUS_E2E_TEST_ID` | stack name   | Stamped into AD labels, `DD_TAGS`, host tags.         |
+| `MILVUS_WAIT_SECS`   | `180`        | How long `test.sh` waits after `up.sh` before checking. |
+| `DDA`                | `dda`        | Path to the `dda` binary (use for non-PATH installs). |
+
+Underlying command (what `up.sh` runs):
 
 ```bash
-MILVUS_E2E_TEST_ID=foo123 E2E_DEV_MODE=true \
+E2E_DEV_MODE=true E2E_STACK_NAME=milvus-dev MILVUS_E2E_TEST_ID=milvus-dev \
   dda inv new-e2e-tests.run \
   --targets=./tests/agent-metric-pipelines/milvus \
   --run=^TestMilvusEnv$
@@ -82,15 +94,6 @@ MILVUS_E2E_TEST_ID=foo123 E2E_DEV_MODE=true \
 After deploy, look in Datadog for metrics filtered by
 `e2e_test_id:<id>` (e.g. `milvus.proxy.num_collections`,
 `milvus.proxy.search_latency`, `milvus.proxy.req_count`).
-
-## Tearing down
-
-```bash
-dda inv new-e2e-tests.cleanup --stack=milvus-dev
-```
-
-(or `pulumi destroy -s organization/agent-e2e/milvus-dev` directly if
-you prefer driving Pulumi yourself).
 
 ## Inspecting on the VM
 
