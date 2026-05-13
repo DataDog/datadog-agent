@@ -33,8 +33,10 @@ go_test(
     embed = [":integration"],
     gotags = ["test"],
     deps = [
+        "//comp/core/autodiscovery/common/types",
         "//comp/core/workloadfilter/def",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@in_yaml_go_yaml_v2//:yaml",
     ],
 )

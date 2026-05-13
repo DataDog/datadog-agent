@@ -63,7 +63,7 @@ bazel_dep(name = "rules_m4", version = "0.3.bcr.1")
 bazel_dep(name = "rules_multitool", version = "1.11.1")
 bazel_dep(name = "rules_pkg", version = "1.2.0")
 bazel_dep(name = "rules_proto", version = "7.1.0")
-bazel_dep(name = "rules_python", version = "2.0.0")
+bazel_dep(name = "rules_python", version = "2.0.1")
 bazel_dep(name = "rules_rs", version = "0.0.27")
 bazel_dep(name = "rules_rust", version = "0.69.0")
 bazel_dep(name = "rules_rust_prost", version = "0.69.0")
@@ -320,7 +320,7 @@ pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
 pip.parse(
     hub_name = "py_dev_requirements",
     python_version = PYTHON_VERSION,
-    requirements_lock = "//deps:py_dev_requirements.txt",
+    requirements_lock = "//deps:py_dev_requirements_lock.txt",
 )
 use_repo(pip, "py_dev_requirements")
 

@@ -34,6 +34,7 @@ AGENT_CORECHECKS = [
     "cisco_sdwan",
     "network_path",
     "gpu",
+    "nccl",
     "wlan",
     "discovery",
     "versa",

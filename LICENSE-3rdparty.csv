@@ -860,7 +860,6 @@ core,github.com/circonus-labs/circonusllhist,BSD-3-Clause,"Copyright (c) 2016 Ci
 core,github.com/clbanning/mxj,MIT,Copyright (c) 2012-2016 Charles Banning <clbanning@gmail.com>.  All rights reserved | Copyright 2009 The Go Authors. All rights reserved
 core,github.com/clipperhouse/stringish,MIT,Copyright (c) 2025 Matt Sherman
 core,github.com/clipperhouse/uax29/v2/graphemes,MIT,Copyright (c) 2020 Matt Sherman
-core,github.com/clipperhouse/uax29/v2/internal/iterators,MIT,Copyright (c) 2020 Matt Sherman
 core,github.com/cloudflare/cbpfc,BSD-3-Clause,"Copyright (c) 2019, Cloudflare. All rights reserved"
 core,github.com/cloudflare/circl/dh/x25519,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
 core,github.com/cloudflare/circl/dh/x448,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved | Copyright (c) 2019 Cloudflare. All rights reserved
@@ -1025,7 +1024,6 @@ core,github.com/docker/cli/cli/config/configfile,Apache-2.0,"Copyright 2012-2017
 core,github.com/docker/cli/cli/config/credentials,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/cli/cli/config/memorystore,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/cli/cli/config/types,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
-core,github.com/docker/distribution/registry/client/auth/challenge,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker-credential-helpers/client,MIT,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/docker-credential-helpers/credentials,MIT,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/go-connections/sockets,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
@@ -1369,6 +1367,7 @@ core,github.com/google/go-containerregistry/pkg/v1/match,Apache-2.0,Copyright 20
 core,github.com/google/go-containerregistry/pkg/v1/mutate,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1/partial,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1/remote,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
+core,github.com/google/go-containerregistry/pkg/v1/remote/internal/authchallenge,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1/remote/transport,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1/stream,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
 core,github.com/google/go-containerregistry/pkg/v1/tarball,Apache-2.0,Copyright 2018 Google LLC All Rights Reserved. | Copyright 2019 Google LLC All Rights Reserved. | Copyright 2020 Google LLC All Rights Reserved. | Copyright 2021 Google LLC All Rights Reserved. | Copyright 2022 Google LLC All Rights Reserved.
@@ -1651,8 +1650,8 @@ core,github.com/mattn/go-sqlite3,MIT,Copyright (c) 2014 Yasuhiro Matsumoto
 core,github.com/mattn/go-zglob,MIT,Copyright (c) 2017 Yasuhiro Matsumoto
 core,github.com/mattn/go-zglob/fastwalk,MIT,Copyright (c) 2017 Yasuhiro Matsumoto
 core,github.com/mdlayher/kobject,MIT,Copyright (C) 2017 Matt Layher
-core,github.com/mdlayher/netlink,MIT,Copyright (C) 2016-2022 Matt Layher
-core,github.com/mdlayher/netlink/nlenc,MIT,Copyright (C) 2016-2022 Matt Layher
+core,github.com/mdlayher/netlink,MIT,Copyright (C) 2016-2026 Matt Layher
+core,github.com/mdlayher/netlink/nlenc,MIT,Copyright (C) 2016-2026 Matt Layher
 core,github.com/mdlayher/socket,MIT,Copyright (C) 2021 Matt Layher
 core,github.com/mdlayher/vsock,MIT,Copyright (C) 2017-2022 Matt Layher
 core,github.com/miekg/dns,BSD-3-Clause,"Alex A. Skinner | Alex Sergeyev | Andrew Tunnell-Jones | Ask Bjørn Hansen | Copyright (c) 2009, The Go Authors. Extensions copyright (c) 2011, Miek Gieben | Copyright 2009 The Go Authors. All rights reserved. Use of this source code | Copyright 2011 Miek Gieben. All rights reserved. Use of this source code is | Copyright 2014 CloudFlare. All rights reserved. Use of this source code is | Dave Cheney | Dusty Wilson | James Hartig | Marek Majkowski | Miek Gieben <miek@miek.nl> | Omri Bahumi | Peter van Dijk | copyright (c) 2011 Miek Gieben"
