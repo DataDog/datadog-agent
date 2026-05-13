@@ -247,6 +247,13 @@ func TestDigest(t *testing.T) {
 	assert.NotEqual(t, simpleConfig.Digest(), simpleIngoreADTagsConfig.Digest())
 }
 
+func TestIsDiscovery(t *testing.T) {
+	config := &Config{}
+	assert.False(t, config.IsDiscovery())
+	config.Discovery = &DiscoveryConfig{}
+	assert.True(t, config.IsDiscovery())
+}
+
 func TestGetNameForInstance(t *testing.T) {
 	config := &Config{}
 
