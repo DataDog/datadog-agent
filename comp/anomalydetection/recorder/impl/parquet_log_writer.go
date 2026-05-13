@@ -71,7 +71,8 @@ func newLogParquetWriter(outputDir string, flushInterval, retentionDuration time
 	return lw, nil
 }
 
-// WriteLog writes log data to the parquet batch.
+// WriteLog writes log data to the parquet batch. Drops the sample if the writer
+// has been closed; same rationale as metricParquetWriter.WriteMetric.
 func (lw *logParquetWriter) WriteLog(
 	source string,
 	content []byte,
@@ -82,6 +83,9 @@ func (lw *logParquetWriter) WriteLog(
 	lw.mu.Lock()
 	defer lw.mu.Unlock()
 
+	if lw.closed {
+		return
+	}
 	lw.typedBuilder.add(source, timestampMs, content, status, hostname, tags)
 }
 

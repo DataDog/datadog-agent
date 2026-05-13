@@ -52,7 +52,9 @@ func (b *parquetWriter) start() {
 
 // writeRecord creates a timestamped parquet file, writes the record, and closes it atomically.
 // Only called when there is data; no file is created for empty batches.
-// Must be called with b.mu held.
+// Safe to call without holding b.mu: touches only immutable fields (outputDir, filePrefix,
+// schema, writerProps) plus the already-detached record argument. Keeping it lock-free
+// means hot-path writers don't stall behind disk I/O during a flush.
 func (b *parquetWriter) writeRecord(record arrow.Record) error {
 	timestamp := time.Now().UTC().Format("20060102-150405")
 	filename := fmt.Sprintf("%s-%sZ.parquet", b.filePrefix, timestamp)
@@ -88,15 +90,17 @@ func (b *parquetWriter) writeRecord(record arrow.Record) error {
 
 // flush writes accumulated data to a new file if there is data to write.
 // If no data has been collected since the last flush, no file is created.
+// The mutex is released before writeRecord so that concurrent WriteMetric/WriteLog
+// callers on the hot path don't stall behind disk I/O.
 func (b *parquetWriter) flush() {
 	b.mu.Lock()
-	defer b.mu.Unlock()
-
 	if b.closed {
+		b.mu.Unlock()
 		return
 	}
-
 	record := b.builder.build()
+	b.mu.Unlock()
+
 	if record == nil {
 		return
 	}
@@ -174,19 +178,20 @@ func (b *parquetWriter) cleanup() {
 	}
 }
 
-// Close flushes remaining data and stops background goroutines.
+// Close flushes remaining data and stops background goroutines. Safe to call multiple
+// times. After Close returns, WriteMetric/WriteLog become no-ops (they see closed=true
+// and drop the sample) — they will not panic and will not append to the released builder.
 func (b *parquetWriter) Close() error {
 	b.mu.Lock()
-	defer b.mu.Unlock()
-
 	if b.closed {
+		b.mu.Unlock()
 		return nil
 	}
 	b.closed = true
-
 	close(b.stopCh)
-
 	record := b.builder.build()
+	b.mu.Unlock()
+
 	if record == nil {
 		return nil
 	}

@@ -7,6 +7,7 @@
 package recorderimpl
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -14,12 +15,14 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Requires defines the dependencies for the recorder component
 type Requires struct {
-	Config config.Component
+	Lifecycle compdef.Lifecycle
+	Config    config.Component
 }
 
 // Provides defines the output of the recorder component
@@ -27,19 +30,24 @@ type Provides struct {
 	Comp recorderdef.Component
 }
 
-// NewComponent creates a new recorder component
-func NewComponent(req Requires) (Provides, error) {
+// NewComponent creates a new recorder component. The returned component is always
+// safe to use: misconfiguration is logged and silently disables recording rather
+// than failing agent startup, since the recorder is an opt-in observability
+// feature that should not bring down the agent it ships in.
+func NewComponent(req Requires) Provides {
 	r := &recorderImpl{}
 
 	if !req.Config.GetBool("anomaly_detection.recording.enabled") {
 		pkglog.Debug("Recorder disabled (anomaly_detection.recording.enabled=false)")
 		r.recordingDisabled = true
-		return Provides{Comp: r}, nil
+		return Provides{Comp: r}
 	}
 
 	parquetDir := req.Config.GetString("anomaly_detection.recording.output_dir")
 	if parquetDir == "" {
-		return Provides{Comp: r}, errors.New("anomaly_detection.recording.output_dir not set")
+		pkglog.Warn("Recorder enabled but anomaly_detection.recording.output_dir is empty; disabling recorder")
+		r.recordingDisabled = true
+		return Provides{Comp: r}
 	}
 
 	flushInterval := req.Config.GetDuration("anomaly_detection.recording.flush_interval")
@@ -52,21 +60,44 @@ func NewComponent(req Requires) (Provides, error) {
 		retentionDuration = 24 * time.Hour
 	}
 
-	writer, err := newMetricParquetWriter(parquetDir, flushInterval, retentionDuration)
+	metricWriter, err := newMetricParquetWriter(parquetDir, flushInterval, retentionDuration)
 	if err != nil {
-		return Provides{Comp: r}, pkglog.Errorf("Failed to create metrics parquet writer: %v", err)
+		pkglog.Warnf("Failed to create metrics parquet writer, disabling recorder: %v", err)
+		r.recordingDisabled = true
+		return Provides{Comp: r}
 	}
-	r.metricParquetWriter = writer
-	pkglog.Infof("Recorder metrics writer started: dir=%s", parquetDir)
 
 	logWriter, err := newLogParquetWriter(parquetDir, flushInterval, retentionDuration)
 	if err != nil {
-		return Provides{Comp: r}, pkglog.Errorf("Failed to create log parquet writer: %v", err)
+		// Tear down the metric writer goroutines we just started so they don't leak.
+		if closeErr := metricWriter.Close(); closeErr != nil {
+			pkglog.Warnf("Failed to close metric writer during recorder init rollback: %v", closeErr)
+		}
+		pkglog.Warnf("Failed to create log parquet writer, disabling recorder: %v", err)
+		r.recordingDisabled = true
+		return Provides{Comp: r}
 	}
-	r.logParquetWriter = logWriter
-	pkglog.Infof("Recorder log writer started: dir=%s", parquetDir)
 
-	return Provides{Comp: r}, nil
+	r.metricParquetWriter = metricWriter
+	r.logParquetWriter = logWriter
+	pkglog.Infof("Recorder started: dir=%s flush=%v retention=%v", parquetDir, flushInterval, retentionDuration)
+
+	// Register a shutdown hook so the writer goroutines stop and any pending
+	// in-memory batch (up to flushInterval of observations) is flushed to disk.
+	// Without this, every graceful agent shutdown leaks four goroutines and
+	// loses the unflushed batch.
+	if req.Lifecycle != nil {
+		req.Lifecycle.Append(compdef.Hook{
+			OnStop: func(_ context.Context) error {
+				return errors.Join(
+					r.metricParquetWriter.Close(),
+					r.logParquetWriter.Close(),
+				)
+			},
+		})
+	}
+
+	return Provides{Comp: r}
 }
 
 // recorderImpl implements the recorder component
@@ -127,16 +158,13 @@ func (r *recorderImpl) ReadAllMetrics(inputDir string) ([]recorderdef.MetricData
 			}
 		}
 
-		// Time is stored in milliseconds, convert to seconds
-		timestamp := metric.Time / 1000
-
 		metrics = append(metrics, recorderdef.MetricData{
-			Source:    metric.RunID,
-			Name:      metric.MetricName,
-			Value:     value,
-			Timestamp: timestamp,
-			Tags:      tags,
-			Dropped:   metric.Dropped,
+			Source:      metric.RunID,
+			Name:        metric.MetricName,
+			Value:       value,
+			TimestampMs: metric.Time, // parquet schema stores milliseconds
+			Tags:        tags,
+			Dropped:     metric.Dropped,
 		})
 	}
 

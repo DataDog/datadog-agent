@@ -83,10 +83,15 @@ func newMetricParquetWriter(outputDir string, flushInterval, retentionDuration t
 }
 
 // WriteMetric adds a metric to the batch (will be flushed on interval).
+// Drops the sample if the writer has been closed; this prevents writes-after-close
+// from appending to a builder whose record has already been released.
 func (pw *metricParquetWriter) WriteMetric(source, name string, value float64, tags []string, timestamp int64, dropped bool) {
 	pw.mu.Lock()
 	defer pw.mu.Unlock()
 
+	if pw.closed {
+		return
+	}
 	pw.typedBuilder.add(source, name, value, tags, timestamp, dropped)
 }
 

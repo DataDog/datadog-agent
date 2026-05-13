@@ -37,13 +37,16 @@ type Component interface {
 
 // MetricData represents a single metric read from parquet files.
 // Used by ReadAllMetrics for batch loading scenarios.
+//
+// Timestamps are exposed in milliseconds for consistency with LogData.TimestampMs,
+// so consumers can join metric and log streams on time without unit conversion.
 type MetricData struct {
-	Source    string   // Source/namespace (RunID in parquet)
-	Name      string   // Metric name
-	Value     float64  // Metric value
-	Timestamp int64    // Unix timestamp in seconds
-	Tags      []string // Tags in "key:value" format
-	Dropped   bool     // True if the live observer's channel dropped this observation
+	Source      string   // Source/namespace (RunID in parquet)
+	Name        string   // Metric name
+	Value       float64  // Metric value
+	TimestampMs int64    // Unix timestamp in milliseconds since epoch
+	Tags        []string // Tags in "key:value" format
+	Dropped     bool     // True if the live observer's channel dropped this observation
 }
 
 // LogData represents a log entry read from parquet files.
