@@ -622,16 +622,17 @@ use_sudo: true
 
 func TestRunCommand(t *testing.T) {
 	tests := []struct {
-		cmd            string
+		binary         string
+		args           []string
 		expectedOutput string
 	}{
-		{cmd: "echo hello", expectedOutput: "hello\n"},
-		{cmd: "printf '%s' hello", expectedOutput: "hello"},
+		{binary: "echo", args: []string{"hello"}, expectedOutput: "hello\n"},
+		{binary: "printf", args: []string{"%s", "hello"}, expectedOutput: "hello"},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.cmd, func(t *testing.T) {
-			out, err := runCommand(context.Background(), tt.cmd, false)
+		t.Run(tt.binary, func(t *testing.T) {
+			out, err := runCommand(context.Background(), tt.binary, tt.args, false)
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedOutput, string(out))
 		})

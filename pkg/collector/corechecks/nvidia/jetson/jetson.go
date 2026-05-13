@@ -144,26 +144,24 @@ func (c *JetsonCheck) processTegraStatsOutput(tegraStatsOuptut string) error {
 }
 
 // runCommand executes the tegrastats command, optionally with sudo.
-func runCommand(ctx context.Context, cmdStr string, useSudo bool) ([]byte, error) {
+func runCommand(ctx context.Context, binary string, args []string, useSudo bool) ([]byte, error) {
 	var cmd *exec.Cmd
 	if useSudo {
 		// -n, non-interactive mode, no prompts are used
-		cmd = exec.CommandContext(ctx, "sudo", "-n", "sh", "-c", cmdStr)
+		cmd = exec.CommandContext(ctx, "sudo", binary, sudoArgs...)
 	} else {
-		cmd = exec.CommandContext(ctx, "sh", "-c", cmdStr)
+		cmd = exec.CommandContext(ctx, binary, args...)
 	}
 	return cmd.Output()
 }
 
 // Run executes the check
 func (c *JetsonCheck) Run() error {
-	tegraStatsCmd := fmt.Sprintf("%s %s", c.tegraStatsPath, strings.Join(c.commandOpts, " "))
-
 	// Kill tegrastats if it runs for twice as long as the interval we specified, to avoid blocking
 	// the check forever
 	ctx, cancel := context.WithTimeout(context.Background(), 2*tegraStatsInterval)
 	defer cancel()
-	tegrastatsOutput, err := runCommand(ctx, tegraStatsCmd, c.useSudo)
+	tegrastatsOutput, err := runCommand(ctx, c.tegraStatsPath, c.commandOpts, c.useSudo)
 	if err != nil {
 		switch err := err.(type) {
 		case *exec.ExitError:
