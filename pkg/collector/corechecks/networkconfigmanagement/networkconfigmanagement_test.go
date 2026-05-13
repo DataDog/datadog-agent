@@ -33,9 +33,20 @@ import (
 	ncmcomp "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
 	ncmsender "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/sender"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
+
+// mockAgentHostname forces hostname.Get() to return the given value during the
+// test by injecting it into the mock config and flushing the hostname cache.
+func mockAgentHostname(t *testing.T, hostname string) {
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("hostname", hostname)
+	cache.Cache.Delete(cache.BuildAgentKey("hostname"))
+	t.Cleanup(func() { cache.Cache.Delete(cache.BuildAgentKey("hostname")) })
+}
 
 // Test fixtures and mocks
 
@@ -245,6 +256,7 @@ func TestCheck_Configure_InvalidConfig(t *testing.T) {
 
 func TestCheck_Run_Success(t *testing.T) {
 	check := createTestCheck(t)
+	mockAgentHostname(t, "test-agent-host")
 
 	id := checkid.BuildID(CheckName, integration.FakeConfigHash, validConfig, baseInitConfig)
 	senderManager := mocksender.CreateDefaultDemultiplexer()
@@ -253,6 +265,7 @@ func TestCheck_Run_Success(t *testing.T) {
 	// Set up mock sender expectations
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Times(3)
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	mockSender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
 	// Configure the check
@@ -264,7 +277,6 @@ func TestCheck_Run_Success(t *testing.T) {
 	mockClock := clock.NewMock()
 	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
 	check.clock = mockClock
-	check.agentHostname = "test-agent-host"
 	check.sender = ncmsender.NewNCMSender(mockSender, check.checkContext.Namespace, mockClock, check.agentHostname)
 
 	// Swap the ncm component for one backed by a memstore configured with the
@@ -363,6 +375,7 @@ func TestCheck_Run_Success(t *testing.T) {
 	mockSender.AssertEventPlatformEvent(t, expectedDeviceMetadata, eventplatform.EventTypeNetworkDevicesMetadata)
 	mockSender.AssertEventPlatformEvent(t, expectedInventoryEvent, eventplatform.EventTypeNetworkConfigManagement)
 	mockSender.AssertMetricTaggedWith(t, "Gauge", "datadog.ncm.check_duration", expectedTags)
+	mockSender.AssertMetric(t, "Count", "datadog.ncm.inventory.entries_sent", 2, "test-agent-host", []string{"agent_host:test-agent-host"})
 	mockSender.AssertExpectations(t)
 }
 
