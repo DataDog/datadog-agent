@@ -82,6 +82,8 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestSetSockOpt",
 			"~TestSetrlimitEvent",
 			"TestPrCtl",
+			"TestCGroupVariables",
+			"TestTimestampVariable",
 		}
 
 		exclude := []string{
@@ -119,6 +121,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"TestActionKillContainerWithSignature",
 			"TestActionKillContainerWithSignatureBroadRule",
 			"TestActionKillWithSignature",
+			"TestCGroupVariablesReleased",
 		}
 
 		if disableSeccomp {
