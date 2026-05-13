@@ -231,7 +231,7 @@ func TestAsyncEnrichment_CompleteWithoutKubeTagsDoesNotBuffer(t *testing.T) {
 
 	pending := ctb.AsyncEnrichment("container-complete", callback, 100)
 
-	assert.False(t, pending, "complete tagsets should not be buffered while waiting for kube_ tags")
+	assert.False(t, pending, "complete tagsets should not be buffered while waiting for kube_tags")
 	assert.True(t, called)
 	assert.Zero(t, ctb.memoryUsage.Load())
 }
