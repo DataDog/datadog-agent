@@ -140,14 +140,15 @@ func schemaValidationIssue(info IssueInfo) *healthplatform.Issue {
 		path = "(unknown path)"
 	}
 	firstLine := strings.SplitN(info.Errors, "\n", 2)[0]
-	desc := fmt.Sprintf("Found %d schema violation(s) in %s.", info.ErrorCount, path)
+	n, s := info.ErrorCount, pluralS(info.ErrorCount)
+	desc := fmt.Sprintf("Found %d schema violation%s in %s.", n, s, path)
 	if firstLine != "" {
 		desc += " First: " + truncate(firstLine, 240)
 	}
 	return &healthplatform.Issue{
 		Id:          IssueID,
 		IssueName:   "invalid_config",
-		Title:       fmt.Sprintf("Datadog Agent configuration has %d schema violation(s)", info.ErrorCount),
+		Title:       fmt.Sprintf("Datadog Agent configuration has %d schema violation%s", n, s),
 		Description: desc,
 		Category:    "config",
 		Location:    "config",
@@ -181,7 +182,7 @@ func startupFailureIssue(info IssueInfo) *healthplatform.Issue {
 		Category:    "config",
 		Location:    "agent",
 		Severity:    "high",
-		Source:      "agent",
+		Source:      "config",
 		Extra: mustStruct(map[string]any{
 			ContextKeyErrorKind:    string(ErrorKindStartupFailure),
 			ContextKeyConfigPath:   info.ConfigPath,
@@ -198,6 +199,14 @@ func startupFailureIssue(info IssueInfo) *healthplatform.Issue {
 			},
 		},
 	}
+}
+
+// pluralS returns "" for n == 1 and "s" otherwise
+func pluralS(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
 }
 
 // truncate clips s to at most n bytes at a rune boundary, appending an

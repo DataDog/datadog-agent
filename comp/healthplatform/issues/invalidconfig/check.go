@@ -62,10 +62,14 @@ func (c *checker) validate() *healthplatform.IssueReport {
 		Errors:     strings.Join(errs, "\n"),
 		ErrorCount: len(errs),
 	}
+	tags := info.Tags()
+	if env := c.cfg.GetString("env"); env != "" {
+		tags = append(tags, "env:"+env)
+	}
 	return &healthplatform.IssueReport{
 		IssueId: healthplatformdef.InvalidConfigIssueID,
 		Context: info.ToContext(),
-		Tags:    info.Tags(),
+		Tags:    tags,
 	}
 }
 

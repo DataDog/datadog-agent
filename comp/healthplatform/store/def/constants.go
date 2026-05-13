@@ -17,8 +17,9 @@ const (
 	// InvalidConfigIssueID is shared across all "invalid-config" detection paths
 	InvalidConfigIssueID = "invalid-config"
 
-	// InvalidConfigCheckID is the identifier for the schema-validation check
-	InvalidConfigCheckID = "invalid-config-check"
+	// InvalidConfigCheckID matches InvalidConfigIssueID so every detection path
+	// produces the same HealthReport.issues map key for de-duplication
+	InvalidConfigCheckID = "invalid-config"
 
 	// InvalidConfigCheckName is the human-readable name
 	InvalidConfigCheckName = "Datadog Agent Configuration Validation"

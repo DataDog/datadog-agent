@@ -41,7 +41,7 @@ func TestBuildIssue_SchemaValidationHasMediumSeverity(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "medium", issue.GetSeverity())
-	assert.Contains(t, issue.GetTitle(), "3 schema violation(s)")
+	assert.Contains(t, issue.GetTitle(), "3 schema violations")
 	assert.Equal(t, string(lite.ErrorKindSchemaValidation),
 		issue.GetExtra().GetFields()[lite.ContextKeyErrorKind].GetStringValue())
 	assert.Equal(t, float64(3),
