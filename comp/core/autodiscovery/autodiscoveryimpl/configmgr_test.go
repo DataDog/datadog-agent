@@ -16,11 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
@@ -668,10 +667,12 @@ func TestResolveTemplateForService_ReportsToHealthPlatform(t *testing.T) {
 
 	count, issues := hp.GetAllIssues()
 	assert.Equal(t, 1, count, "expected 1 health issue to be reported")
-	expectedCheckID := "ad-template:postgres:docker://abc123:" + tpl.Digest()
-	issue := issues[expectedCheckID]
-	require.NotNil(t, issue, "expected health issue at checkID %s", expectedCheckID)
-	assert.Equal(t, "ad-misconfiguration", issue.Id)
+	expectedIssueID := "ad-template:postgres:docker://abc123:" + tpl.Digest()
+	issue := issues[expectedIssueID]
+	require.NotNil(t, issue, "expected health issue at issue id %s", expectedIssueID)
+	// In the new model, issue.Id is the unique instance id and issue.Title is the template type.
+	assert.Equal(t, expectedIssueID, issue.Id)
+	assert.Equal(t, storedef.ADMisconfigurationIssueType, issue.Title)
 }
 
 func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
@@ -692,10 +693,12 @@ func TestResolveTemplateForService_ClearsHealthPlatformOnSuccess(t *testing.T) {
 		Hosts:         map[string]string{"main": "myhost"},
 	}
 
-	// Pre-populate a health issue using the same checkID format the code uses
-	hp.ReportIssue("ad-template:redis:docker://def456:"+tpl.Digest(), "redis", &healthplatformpayload.IssueReport{
-		IssueId: "ad-misconfiguration",
-		Context: map[string]string{"entityName": "redis"},
+	// Pre-populate a health issue using the same IssueId format the code uses.
+	hp.ReportIssue(storedef.IssueReport{
+		IssueID:   "ad-template:redis:docker://def456:" + tpl.Digest(),
+		IssueType: storedef.ADMisconfigurationIssueType,
+		Source:    storedef.ADMisconfigurationSource,
+		Context:   map[string]string{"entityName": "redis"},
 	})
 	count, _ := hp.GetAllIssues()
 	require.Equal(t, 1, count)

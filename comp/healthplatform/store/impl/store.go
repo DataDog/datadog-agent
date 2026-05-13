@@ -101,6 +101,10 @@ const (
 
 	// resolvedIssueTTL is the time after which resolved issues are pruned from the persistence file.
 	resolvedIssueTTL = 24 * time.Hour
+
+	// persistedStateVersion is the on-disk schema version written by this binary.
+	// loadFromDisk refuses to load files with a different version (no migration).
+	persistedStateVersion = 2
 )
 
 var issueStateToString = map[IssueState]string{
@@ -137,11 +141,9 @@ func pruneOldResolvedIssues(issues map[string]*PersistedIssue) {
 }
 
 // PersistedIssue tracks issue state for disk persistence.
-// IssueID is the issue id as defined by Module.IssueID(), used to look up the
-// template in the registry on reload. Custom JSON marshaling keeps the on-disk
-// state field as a string.
+// Custom JSON marshaling keeps the on-disk state field as a string.
 type PersistedIssue struct {
-	IssueID    string     `json:"issue_id"`
+	IssueType  string     `json:"issue_type"`
 	State      IssueState `json:"state"`
 	FirstSeen  string     `json:"first_seen"`
 	LastSeen   string     `json:"last_seen"`
@@ -190,8 +192,11 @@ func persistedIssueToProto(p *PersistedIssue) *healthplatform.PersistedIssue {
 	return pi
 }
 
-// PersistedState is the full state written to disk
+// PersistedState is the full state written to disk.
+// Version must equal persistedStateVersion; files with a different version
+// are logged and ignored on load (no migration).
 type PersistedState struct {
+	Version   int                        `json:"version"`
 	UpdatedAt string                     `json:"updated_at"`
 	Issues    map[string]*PersistedIssue `json:"issues"`
 }
@@ -317,11 +322,11 @@ func (h *healthPlatformImpl) start(_ context.Context) error {
 	// Register periodic built-in checks now that the reporter is wired.
 	// Registering here (rather than in New) ensures checkrunner's goroutines
 	// start only after SetReporter, so the first immediate execution is not skipped.
-	for _, check := range h.issueRegistry.GetBuiltInChecks() {
+	for _, check := range h.issueRegistry.GetBuiltInHealthChecks() {
 		if check.Once {
 			continue
 		}
-		if err := h.ScheduleHealthCheck(check.ID, check.Name, check.CheckFn, check.Interval); err != nil {
+		if err := h.scheduleHealthCheck(check.ID, check.Name, check.CheckFn, check.Interval); err != nil {
 			h.log.Warn("Failed to register health check " + check.ID + ": " + err.Error())
 		}
 	}
@@ -341,64 +346,50 @@ func (h *healthPlatformImpl) stop(_ context.Context) error {
 // Core Public API
 // ============================================================================
 
-// ReportIssue reports an issue with context, and the health platform fills in all metadata and remediation
-// This is the preferred way for integrations to report issues as it keeps all issue knowledge
-// centralized in the health platform registry
-// If report is nil, it clears any existing issue (issue resolution)
-func (h *healthPlatformImpl) ReportIssue(checkID string, checkName string, report *healthplatform.IssueReport) error {
-	if checkID == "" {
-		return errors.New("check ID cannot be empty")
+// ReportIssue records a new or ongoing issue. The issue is keyed by
+// report.IssueID (unique instance id). The template is looked up by
+// report.IssueType in the issue registry; report.Source and report.Tags
+// are applied to the resulting proto Issue.
+func (h *healthPlatformImpl) ReportIssue(report healthplatformdef.IssueReport) error {
+	if report.IssueID == "" {
+		return errors.New("issue id cannot be empty")
+	}
+	if report.IssueType == "" {
+		return errors.New("issue type cannot be empty")
 	}
 
-	// Get previous issue for state change detection
+	// Build the proto Issue from the registry template, then override Id with the
+	// unique instance key. Templates set issue.Id to the template type, but callers
+	// expect issue.Id to identify the specific instance.
+	issue, err := h.issueRegistry.BuildIssue(report.IssueType, report.Context)
+	if err != nil {
+		return fmt.Errorf("failed to build issue %s: %w", report.IssueType, err)
+	}
+	issue.Id = report.IssueID
+	if report.Source != "" {
+		issue.Source = report.Source
+	}
+	if len(report.Tags) > 0 {
+		issue.Tags = append(issue.Tags, report.Tags...)
+	}
+
 	h.issuesMux.RLock()
-	previousIssue := h.issues[checkID]
+	previousIssue := h.issues[report.IssueID]
 	h.issuesMux.RUnlock()
 
-	// Build the new issue (or nil if resolved)
-	var newIssue *healthplatform.Issue
-	if report != nil {
-		if report.IssueId == "" {
-			return errors.New("issue ID cannot be empty")
-		}
-
-		// Build complete issue from the registry using the issue ID and context
-		issue, err := h.issueRegistry.BuildIssue(report.IssueId, report.Context)
-		if err != nil {
-			return fmt.Errorf("failed to build issue %s: %w", report.IssueId, err)
-		}
-
-		// Append any additional tags from the report
-		if len(report.Tags) > 0 {
-			issue.Tags = append(issue.Tags, report.Tags...)
-		}
-
-		newIssue = issue
-	}
-
-	// Handle state change and logging (handles both new issues and resolution)
-	h.handleIssueStateChange(checkName, previousIssue, newIssue)
-
-	// Store the new issue (or clear if nil)
-	if newIssue != nil {
-		h.storeIssue(checkID, newIssue)
-	} else {
-		h.ResolveIssue(checkID)
-	}
-
+	h.handleIssueStateChange(report.Source, previousIssue, issue)
+	h.storeIssue(report.IssueType, issue)
 	return nil
 }
 
-// ScheduleHealthCheck registers a periodic health check function
-// The check function will be called at the specified interval
-// If interval is 0 or negative, uses default of 15 minutes
-func (h *healthPlatformImpl) ScheduleHealthCheck(checkID string, checkName string, checkFn healthplatformdef.HealthCheckFunc, interval time.Duration) error {
-	return h.checkRunner.ScheduleHealthCheck(checkID, checkName, checkrunnerdef.HealthCheckFunc(checkFn), interval)
+// scheduleHealthCheck is an internal helper used from the lifecycle start hook.
+func (h *healthPlatformImpl) scheduleHealthCheck(checkID string, checkName string, checkFn checkrunnerdef.HealthCheckFunc, interval time.Duration) error {
+	return h.checkRunner.ScheduleHealthCheck(checkID, checkName, checkFn, interval)
 }
 
-// RunHealthCheck runs a single health check immediately
-func (h *healthPlatformImpl) RunHealthCheck(checkID, checkName string, checkFn healthplatformdef.HealthCheckFunc) error {
-	return h.checkRunner.RunHealthCheck(checkID, checkName, checkrunnerdef.HealthCheckFunc(checkFn))
+// runHealthCheck is an internal helper used for Once-style startup checks.
+func (h *healthPlatformImpl) runHealthCheck(checkID, checkName string, checkFn checkrunnerdef.HealthCheckFunc) error {
+	return h.checkRunner.RunHealthCheck(checkID, checkName, checkFn)
 }
 
 // ============================================================================
@@ -443,19 +434,19 @@ func (h *healthPlatformImpl) GetIssue(checkID string) *healthplatform.Issue {
 // ============================================================================
 
 // ResolveIssue clears the issue for a specific check (useful when issue is resolved)
-func (h *healthPlatformImpl) ResolveIssue(checkID string) {
+func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 	h.issuesMux.Lock()
 
 	// Only log and update persistence if there was actually an issue to clear
 	existed := false
-	if _, ok := h.issues[checkID]; ok {
+	if _, ok := h.issues[issueID]; ok {
 		existed = true
-		h.log.Info("Cleared issue for check: " + checkID)
+		h.log.Info("Cleared issue: " + issueID)
 	}
-	delete(h.issues, checkID)
+	delete(h.issues, issueID)
 
 	// Update persisted issue status to resolved
-	if persisted := h.persistedIssues[checkID]; persisted != nil {
+	if persisted := h.persistedIssues[issueID]; persisted != nil {
 		persisted.State = IssueStateResolved
 		persisted.ResolvedAt = time.Now().Format(time.RFC3339)
 	}
@@ -499,95 +490,74 @@ func (h *healthPlatformImpl) ResolveAllIssues() {
 // Internal Helper Methods
 // ============================================================================
 
-// handleIssueStateChange detects state changes and logs appropriately
-func (h *healthPlatformImpl) handleIssueStateChange(checkName string, oldIssue, newIssue *healthplatform.Issue) {
-	// If both are nil, no change
+// handleIssueStateChange detects state changes and logs appropriately.
+// source is the reporting integration/component name, used for log context.
+func (h *healthPlatformImpl) handleIssueStateChange(source string, oldIssue, newIssue *healthplatform.Issue) {
 	if oldIssue == nil && newIssue == nil {
 		return
 	}
 
-	// New issue detected
 	if newIssue != nil && oldIssue == nil {
-		h.log.Info("Health check found NEW issue: " + checkName)
-		h.log.Info("Issue: " + newIssue.Title + " (" + newIssue.Severity + ")")
+		h.log.Info("Health platform: NEW issue from " + source + ": " + newIssue.Title + " (" + newIssue.Severity + ")")
 		return
 	}
 
-	// Issue resolved
 	if newIssue == nil && oldIssue != nil {
-		h.log.Info("Health check issue RESOLVED: " + checkName)
+		h.log.Info("Health platform: issue RESOLVED from " + source)
 		return
 	}
 
-	// Both exist, check if details changed
-	if oldIssue.Id != newIssue.Id ||
-		oldIssue.Title != newIssue.Title ||
+	if oldIssue.Title != newIssue.Title ||
 		oldIssue.Severity != newIssue.Severity ||
 		oldIssue.Description != newIssue.Description {
-		h.log.Info("Health check issue CHANGED: " + checkName)
-		h.log.Info("Issue: " + newIssue.Title + " (" + newIssue.Severity + ")")
+		h.log.Info("Health platform: issue CHANGED from " + source + ": " + newIssue.Title + " (" + newIssue.Severity + ")")
 	}
 }
 
-// storeIssue stores an issue for a specific check and persists to disk
-func (h *healthPlatformImpl) storeIssue(checkID string, issue *healthplatform.Issue) {
+// storeIssue stores an issue keyed by issue.Id (the unique instance key set by ReportIssue).
+// issueType is the template identifier, used for telemetry tagging and persistence.
+func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.Issue) {
 	h.issuesMux.Lock()
 
+	issueID := issue.Id
 	now := time.Now().Format(time.RFC3339)
+	issue.DetectedAt = now
+	h.metrics.issuesCounter.Add(1, issueType)
 
-	// Add timestamp to issue if present
-	if issue != nil {
-		issue.DetectedAt = now
-		// Update telemetry, tagged by issue template id (matches the
-		// `issue_type` label declared on the counter).
-		h.metrics.issuesCounter.Add(1, issue.Id)
-	}
+	h.issues[issueID] = issue
 
-	h.issues[checkID] = issue
-
-	// Update persisted issue with state tracking.
-	// IssueID is the issue id as registered in the registry (Module.IssueID()).
-	existing := h.persistedIssues[checkID]
+	existing := h.persistedIssues[issueID]
 	if existing == nil {
-		// No previous record - new issue
-		h.persistedIssues[checkID] = &PersistedIssue{
-			IssueID:   issue.Id,
+		h.persistedIssues[issueID] = &PersistedIssue{
+			IssueType: issueType,
 			State:     IssueStateNew,
 			FirstSeen: now,
 			LastSeen:  now,
 		}
 	} else if existing.State == IssueStateResolved {
-		// Previously resolved - treat as a new occurrence
-		existing.IssueID = issue.Id
+		existing.IssueType = issueType
 		existing.State = IssueStateNew
 		existing.FirstSeen = now
 		existing.LastSeen = now
 		existing.ResolvedAt = ""
-	} else if existing.IssueID != issue.Id {
-		// The check is reporting a different issue id than what was previously stored.
-		// This is an internal agent bug: a given check should always report the same issue id.
-		_ = h.log.Errorf("health platform: check %s changed issue id from %q to %q; this is an agent bug",
-			checkID, existing.IssueID, issue.Id)
-		existing.IssueID = issue.Id
+	} else if existing.IssueType != issueType {
+		h.log.Warnf("health platform: issue %s changed type from %s to %s; resetting to new", issueID, existing.IssueType, issueType)
+		existing.IssueType = issueType
 		existing.State = IssueStateNew
 		existing.FirstSeen = now
 		existing.LastSeen = now
 		existing.ResolvedAt = ""
 	} else {
-		// Same issue still active - update to ongoing
 		existing.State = IssueStateOngoing
 		existing.LastSeen = now
 	}
 
-	// Populate the proto PersistedIssue on the issue for the health report payload
-	persisted := h.persistedIssues[checkID]
-	if persisted != nil {
+	if persisted := h.persistedIssues[issueID]; persisted != nil {
 		issue.PersistedIssue = persistedIssueToProto(persisted)
 	}
 
 	h.issuesMux.Unlock()
 
-	// Persist to disk (outside lock to avoid blocking)
 	if err := h.saveToDisk(); err != nil {
 		h.log.Warn("Failed to persist issues to disk: " + err.Error())
 	}
@@ -597,7 +567,8 @@ func (h *healthPlatformImpl) storeIssue(checkID string, issue *healthplatform.Is
 // Persistence Methods
 // ============================================================================
 
-// loadFromDisk loads persisted issues via the persistence layer
+// loadFromDisk loads persisted issues via the persistence layer.
+// Files whose version field differs from persistedStateVersion are ignored.
 func (h *healthPlatformImpl) loadFromDisk() error {
 	state, err := h.persistence.load()
 	if err != nil {
@@ -607,26 +578,31 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 		return nil
 	}
 
+	if state.Version != persistedStateVersion {
+		h.log.Warnf("Incompatible health-platform persistence file (version %d, expected %d); ignoring and starting fresh",
+			state.Version, persistedStateVersion)
+		return nil
+	}
+
 	h.issuesMux.Lock()
 	defer h.issuesMux.Unlock()
 
-	// Restore persisted issues and prune any resolved issues older than the TTL
 	h.persistedIssues = state.Issues
 	pruneOldResolvedIssues(h.persistedIssues)
 	activeCount := 0
-	for checkID, persisted := range state.Issues {
-		// Only restore active issues (not resolved ones)
-		if persisted.State != IssueStateResolved && persisted.IssueID != "" {
-			// Rebuild issue from registry using the issue ID
-			issue, err := h.issueRegistry.BuildIssue(persisted.IssueID, nil)
-			if err != nil {
-				h.log.Warn(fmt.Sprintf("Failed to rebuild issue %s for check %s: %v", persisted.IssueID, checkID, err))
-				continue
-			}
-			issue.PersistedIssue = persistedIssueToProto(persisted)
-			h.issues[checkID] = issue
-			activeCount++
+	for issueID, persisted := range state.Issues {
+		if persisted.State == IssueStateResolved || persisted.IssueType == "" {
+			continue
 		}
+		issue, err := h.issueRegistry.BuildIssue(persisted.IssueType, nil)
+		if err != nil {
+			h.log.Warn(fmt.Sprintf("Failed to rebuild issue %s for %s: %v", persisted.IssueType, issueID, err))
+			continue
+		}
+		issue.Id = issueID
+		issue.PersistedIssue = persistedIssueToProto(persisted)
+		h.issues[issueID] = issue
+		activeCount++
 	}
 
 	h.log.Info(fmt.Sprintf("Loaded %d persisted issues (%d active)", len(state.Issues), activeCount))
@@ -650,6 +626,7 @@ func (h *healthPlatformImpl) saveToDisk() error {
 	pruneOldResolvedIssues(issuesCopy)
 
 	state := PersistedState{
+		Version:   persistedStateVersion,
 		UpdatedAt: time.Now().Format(time.RFC3339),
 		Issues:    issuesCopy,
 	}
@@ -724,14 +701,14 @@ func (h *healthPlatformImpl) fillFlare(_ context.Context, fb flaretypes.FlareBui
 }
 
 func (h *healthPlatformImpl) startupChecks() {
-	checks := h.issueRegistry.GetBuiltInChecks()
+	checks := h.issueRegistry.GetBuiltInHealthChecks()
 	for _, check := range checks {
 		// Only one time checks should be run at startup
 		if !check.Once {
 			continue
 		}
 
-		err := h.RunHealthCheck(check.ID, check.Name, check.CheckFn)
+		err := h.runHealthCheck(check.ID, check.Name, check.CheckFn)
 		if err != nil {
 			h.log.Warnf("Failed to run startup check %s: %v", check.Name, err)
 		}
