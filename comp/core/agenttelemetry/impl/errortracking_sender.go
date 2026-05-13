@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
@@ -78,14 +79,45 @@ func errorLogToLog(e errortracking.ErrorLog) Log {
 		IsCrash:    false,
 	}
 
+	out.StackTrace = symbolizeStack(e)
+
+	return out
+}
+
+// symbolizeStack walks the PCs captured at log time and produces the
+// multi-line "file:line\tfunc" string the dd-go intake schema expects.
+// Falls back to the single-PC path when the handler did not populate
+// PCs (older callers, synthetic tests).
+//
+// Symbolization is deferred from handler-side to flush-time on purpose:
+// runtime.CallersFrames performs symbol table lookups and is relatively
+// expensive; doing it here keeps the producer's hot path zero-alloc
+// beyond the runtime.Callers fixed-array fill.
+func symbolizeStack(e errortracking.ErrorLog) string {
+	if e.PCsLen > 0 {
+		var b strings.Builder
+		frames := runtime.CallersFrames(e.PCs[:e.PCsLen])
+		for {
+			frame, more := frames.Next()
+			if frame.File != "" {
+				if b.Len() > 0 {
+					b.WriteByte('\n')
+				}
+				fmt.Fprintf(&b, "%s:%d\t%s", frame.File, frame.Line, frame.Function)
+			}
+			if !more {
+				break
+			}
+		}
+		return b.String()
+	}
 	if e.PC != 0 {
 		frame, _ := runtime.CallersFrames([]uintptr{e.PC}).Next()
 		if frame.File != "" {
-			out.StackTrace = fmt.Sprintf("%s:%d", frame.File, frame.Line)
+			return fmt.Sprintf("%s:%d\t%s", frame.File, frame.Line, frame.Function)
 		}
 	}
-
-	return out
+	return ""
 }
 
 // slogLevelToLogLevel maps the slog level on an ErrorLog to the

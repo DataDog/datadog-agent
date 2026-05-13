@@ -10,6 +10,13 @@ import (
 	"time"
 )
 
+// MaxStackFrames is the upper bound on captured stack PCs per record.
+// 16 is empirically deep enough to reach user code from any agent
+// error site (the slog plumbing eats ~5 frames, see Handler.Handle's
+// stackSkipBase) and shallow enough that the resulting StackTrace
+// string stays well under typical intake-side per-record limits.
+const MaxStackFrames = 16
+
 // ErrorLog is a value-typed snapshot of an error log record. It is the
 // DTO that crosses the pkg/util/log -> comp/core boundary, keeping the
 // foundational logger subtree free of comp/core dependencies and the
@@ -29,19 +36,28 @@ type ErrorLog struct {
 	// by the current handler.
 	Level slog.Level
 
-	// Message is the formatted message string (post-Sprintf). The Agent's
-	// current handler chain does not have access to the unexpanded
-	// template; if template capture lands later it goes in a new field.
+	// Message is the formatted message string (post-Sprintf). Currently
+	// emitted empty on the wire (PII pivot — PR #50607); kept on the DTO
+	// so a future template-aware capture path can populate it without
+	// re-plumbing the producer.
 	Message string
 
-	// PC is the program counter of the call site that emitted the record.
-	// Resolved into "file:line" for stack_trace on the wire; also used by
-	// the consumer's recursion guard to drop records that originated from
-	// inside the consumer's own package.
+	// PC is the program counter of the call site that emitted the
+	// record. PCs[0] is the same value when the handler captured a full
+	// stack; PC is retained as a convenience for consumers that only
+	// need the immediate caller (e.g. the Bouncer key).
 	PC uintptr
 
-	// Attrs are the structured attributes attached to the record (after
-	// any WithAttrs/WithGroup chain on the handler has been replayed).
+	// PCs is a bounded stack capture starting at the immediate caller
+	// and walking up. PCsLen records the number of valid entries (may
+	// be less than len(PCs) when the stack is shallow). Captured at
+	// log-time by the handler with a calibrated skip offset so slog
+	// plumbing frames are excluded — see Handler.Handle.
+	PCs    [MaxStackFrames]uintptr
+	PCsLen int
+
+	// Attrs is reserved for a future template-aware capture path; the
+	// PR #50607 PII pivot intentionally leaves it empty.
 	Attrs []slog.Attr
 }
 

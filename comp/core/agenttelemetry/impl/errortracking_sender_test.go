@@ -235,6 +235,35 @@ func TestErrorLogToLog_NoPC_EmptyStackTrace(t *testing.T) {
 	assert.Empty(t, out.StackTrace, "PC=0 must produce empty stack_trace")
 }
 
+// TestErrorLogToLog_MultiFramePCs locks the multi-frame stack format
+// (PR #50607 C7 / iglendd's "stack offset + frame limit" + pducolin's
+// "add function's name" threads): file:line\tfunc per line, newline
+// separated, function-named, bounded by the PCs array size.
+func TestErrorLogToLog_MultiFramePCs(t *testing.T) {
+	in := errortracking.ErrorLog{
+		Time:  time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC),
+		Level: slog.LevelError,
+	}
+	in.PCsLen = runtime.Callers(1, in.PCs[:])
+	require.GreaterOrEqual(t, in.PCsLen, 2,
+		"this test must capture at least 2 frames (test func + testing harness)")
+
+	out := errorLogToLog(in)
+
+	require.NotEmpty(t, out.StackTrace, "multi-frame PCs must produce non-empty stack_trace")
+	lines := strings.Split(out.StackTrace, "\n")
+	assert.GreaterOrEqual(t, len(lines), 2,
+		"multi-frame stack_trace must be newline-separated, one frame per line")
+	for _, line := range lines {
+		parts := strings.SplitN(line, "\t", 2)
+		require.Len(t, parts, 2, "each frame must be file:line\\tfunc, got %q", line)
+		assert.Contains(t, parts[0], ":", "frame file part must be file:line, got %q", parts[0])
+		assert.NotEmpty(t, parts[1], "frame func part must be non-empty, got %q", line)
+	}
+	// First frame should be in this test file (we captured at depth 1).
+	assert.Contains(t, lines[0], "errortracking_sender_test.go")
+}
+
 // errorLog is a convenience for the atel-level tests below.
 func errorLog(msg string, attrs ...slog.Attr) errortracking.ErrorLog {
 	return errortracking.ErrorLog{

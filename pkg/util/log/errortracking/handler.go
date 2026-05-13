@@ -8,7 +8,23 @@ package errortracking
 import (
 	"context"
 	"log/slog"
+	"runtime"
 )
+
+// stackSkipBase is the runtime.Callers skip parameter that drops the
+// slog plumbing frames between the user's logger.Error(...) call site
+// and our Handle. The value is locked by TestHandle_StackSkipBase in
+// handler_test.go; do NOT change without re-running that test.
+//
+// Frame layout under runtime.Callers' semantics (skip=N starts at depth N):
+//   0. runtime.Callers
+//   1. Handler.Handle (this method)
+//   2. (*slog.Logger).log
+//   3. (*slog.Logger).Error / .Log
+//   4. user code (the logger.Error(...) call site)
+//
+// skip=4 makes PCs[0] the user call site.
+const stackSkipBase = 4
 
 var _ slog.Handler = (*Handler)(nil)
 
@@ -71,12 +87,20 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 		return nil
 	}
 
-	submit(ErrorLog{
+	out := ErrorLog{
 		Time:    r.Time,
 		Level:   r.Level,
 		Message: r.Message,
 		PC:      r.PC,
-	})
+	}
+	// Capture a bounded multi-frame stack while the calling goroutine
+	// is still on-stack — by the time the agenttelemetry flush
+	// goroutine wakes up, the call chain that produced this record
+	// would be gone. runtime.Callers is cheap (just walks the
+	// stack-frame linked list and copies PC values); symbolization is
+	// deferred to the sender.
+	out.PCsLen = runtime.Callers(stackSkipBase, out.PCs[:])
+	submit(out)
 	return nil
 }
 
