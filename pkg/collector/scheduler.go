@@ -84,6 +84,8 @@ func InitCheckScheduler(collector option.Option[collectorcomp.Component], sender
 // Schedule schedules configs to checks
 func (s *CheckScheduler) Schedule(configs []integration.Config) {
 	if coll, ok := s.collector.Get(); ok {
+		applyAdditionalTags(configs, setup.Datadog())
+
 		checks := s.GetChecksFromConfigs(configs, true)
 		for _, c := range checks {
 			// Check if this check is allowed in infra basic mode

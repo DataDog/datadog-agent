@@ -1264,6 +1264,13 @@ func agent(config pkgconfigmodel.Setup) {
 		"windows_registry",
 		"windows_service",
 	})
+	// ccm_mode: when set, enables CCM check tagging with the pattern ccm_mode:<value>.
+	config.BindEnvAndSetDefault("ccm_mode", "")
+	// integration.ccm_lightweight.tagged: checks to tag in CCM lightweight mode (empty means all checks)
+	config.BindEnvAndSetDefault("integration.ccm_lightweight.tagged", []string{
+		"cpu",
+	})
+
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")
 
