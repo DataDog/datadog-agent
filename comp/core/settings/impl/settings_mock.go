@@ -10,32 +10,24 @@ package settingsimpl
 import (
 	"net/http"
 
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/comp/core/settings"
+	settingsdef "github.com/DataDog/datadog-agent/comp/core/settings/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMock),
-	)
-}
-
-// MockProvides is the mock component output
+// MockProvides is the mock component output.
 type MockProvides struct {
-	fx.Out
+	compdef.Out
 
-	Comp settings.Component
+	Comp settingsdef.Component
 }
 
 type mock struct {
 	rtSettings map[string]interface{}
 }
 
-func newMock() MockProvides {
+// NewMockComponent creates a mock settings component.
+func NewMockComponent() MockProvides {
 	m := mock{
 		rtSettings: map[string]interface{}{},
 	}
@@ -45,8 +37,8 @@ func newMock() MockProvides {
 }
 
 // RuntimeSettings returns all runtime configurable settings
-func (m mock) RuntimeSettings() map[string]settings.RuntimeSetting {
-	return map[string]settings.RuntimeSetting{}
+func (m mock) RuntimeSettings() map[string]settingsdef.RuntimeSetting {
+	return map[string]settingsdef.RuntimeSetting{}
 }
 
 // GetRuntimeSetting returns the value of a runtime configurable setting
