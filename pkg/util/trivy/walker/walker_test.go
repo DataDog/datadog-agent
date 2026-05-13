@@ -81,6 +81,24 @@ func TestFS_Walk(t *testing.T) {
 			},
 			wantErr: "failed to analyze file",
 		},
+		{
+			name:    "single file root",
+			rootDir: "testdata/fs/bar",
+			analyzeFn: func(_ context.Context, filePath string, _ os.FileInfo, opener analyzer.Opener) error {
+				assert.Equal(t, ".", filePath)
+				got, err := opener()
+				require.NoError(t, err)
+				b, err := io.ReadAll(got)
+				require.NoError(t, err)
+				assert.Equal(t, "bar\n", string(b))
+				return nil
+			},
+		},
+		{
+			name:      "missing root",
+			rootDir:   "testdata/fs/does-not-exist",
+			analyzeFn: func(context.Context, string, os.FileInfo, analyzer.Opener) error { return nil },
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

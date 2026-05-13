@@ -285,7 +285,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/alessio/shellescape v1.4.2 // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.45.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.53.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.10 // indirect
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492 // indirect
 	github.com/blakesmith/ar v0.0.0-20190502131153-809d4375e1fb // indirect
