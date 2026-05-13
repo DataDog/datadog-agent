@@ -129,12 +129,10 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 
 	remoteAgentServer.grpcServer = grpc.NewServer(serverOpts...)
 
-	// Setup lifecycle
+	// Each impl must call Start() after registering its gRPC services so the
+	// service list reported to the core agent is complete and the gRPC server
+	// is not accepting RPCs before they are wired.
 	lc.Append(compdef.Hook{
-		OnStart: func(_ context.Context) error {
-			remoteAgentServer.start()
-			return nil
-		},
 		OnStop: func(_ context.Context) error {
 			remoteAgentServer.stop()
 			return nil
@@ -144,8 +142,9 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 	return remoteAgentServer, nil
 }
 
-// Start the unimplemented remote agent server
-func (s *UnimplementedRemoteAgentServer) start() {
+// Start begins serving gRPC and starts the RAR registration loop. Impls must
+// call this after registering services on GetGRPCServer().
+func (s *UnimplementedRemoteAgentServer) Start() {
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 
 	// Get the services from the gRPC server

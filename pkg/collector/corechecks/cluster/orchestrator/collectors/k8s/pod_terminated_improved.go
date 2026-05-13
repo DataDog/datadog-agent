@@ -39,7 +39,7 @@ func NewImprovedTerminatedPodCollector(cfg config.Component, store workloadmeta.
 	return &ImprovedTerminatedPodCollector{
 		metadata: &collectors.CollectorMetadata{
 			IsDefaultVersion:                     true,
-			IsStable:                             pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.terminated_pods_improved.enabled"),
+			IsStable:                             pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.terminated_pods.enabled"),
 			IsMetadataProducer:                   true,
 			IsManifestProducer:                   true,
 			SupportsManifestBuffering:            true,

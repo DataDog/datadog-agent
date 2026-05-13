@@ -357,7 +357,7 @@ func ChunkMetadata(ctx ProcessorContext, p *Processor, resourceMetadataModels, r
 
 func insertDeletionTimestampIfPossible(obj interface{}, ts time.Time) interface{} {
 	v := reflect.ValueOf(obj)
-	if v.Kind() != reflect.Ptr || v.IsNil() {
+	if v.Kind() != reflect.Pointer || v.IsNil() {
 		log.Debugf("object is not a pointer to a nil pointer, got type: %T", obj)
 		return obj
 	}
