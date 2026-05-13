@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -193,43 +192,26 @@ func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
 	s.RunInstallScript()
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
 
 	agentPackageURL := "oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID")
 	s.host.Run("sudo datadog-agent otel install --url " + agentPackageURL)
 
-	s.waitForUnitStableRunning(ddotUnit)
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
+	procmgrtest.WaitForDDOTRunning(s.T(), s, procmgrtest.DDOTOtelAgentExtensionBinary)
 
 	state := s.host.State()
 	s.assertCoreUnits(state, true)
-	s.assertDDOTUnits(state, true)
+	s.assertDDOTUnitsProcmgr(state, true, true)
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0640, "dd-agent", "dd-agent")
-	s.host.Run("sudo grep -q 'otelcollector:' /etc/datadog-agent/datadog.yaml")
+	s.host.Run("sudo grep -A 30 '^otelcollector:' /etc/datadog-agent/datadog.yaml | grep -qE '^[[:space:]]*enabled:[[:space:]]*true[[:space:]]*$'")
 
 	s.host.Run("sudo datadog-agent otel remove")
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
 	state = s.host.State()
 	state.AssertUnitsDead(ddotUnit)
 	s.assertCoreUnits(state, true)
-}
-
-// waitForUnitStableRunning waits until SubState=running has held for minUnitStableDuration.
-func (s *packageDDOTSuite) waitForUnitStableRunning(units ...string) {
-	const minUnitStableDuration = 15 * time.Second
-	for _, unit := range units {
-		require.Eventually(s.T(), func() bool {
-			cmd := fmt.Sprintf(
-				`state=$(systemctl show -p SubState %[1]s | cut -d= -f2) && `+
-					`enter=$(systemctl show -p ActiveEnterTimestampMonotonic %[1]s | cut -d= -f2) && `+
-					`now=$(awk '{printf "%%d", $1 * 1000000}' /proc/uptime) && `+
-					`[ "$state" = "running" ] && [ $((now - enter)) -gt %[2]d ]`,
-				unit, int64(minUnitStableDuration/time.Microsecond))
-			_, err := s.Env().RemoteHost.Execute(cmd)
-			return err == nil
-		}, 3*time.Minute, 3*time.Second,
-			"unit %s did not stabilize in running state for %s", unit, minUnitStableDuration)
-	}
 }
 
 // systemdUnitFragmentDir maps oldUnits to the directory used for FragmentPath (deb/rpm agent layout).
@@ -278,14 +260,4 @@ func (s *packageDDOTSuite) assertDDOTUnitsProcmgr(state host.State, procmgrOldUn
 	ddotPath := s.systemdUnitFragmentDir(ddotOldUnits)
 	s.host.AssertUnitProperty(procmgrUnit, "FragmentPath", filepath.Join(procmgrPath, procmgrUnit))
 	s.host.AssertUnitProperty(ddotUnit, "FragmentPath", filepath.Join(ddotPath, ddotUnit))
-}
-
-// assertDDOTUnits: systemd-managed DDOT (tests not on procmgr path yet).
-func (s *packageDDOTSuite) assertDDOTUnits(state host.State, oldUnits bool) {
-	state.AssertUnitsLoaded(ddotUnit)
-	state.AssertUnitsRunning(ddotUnit)
-
-	systemdPath := s.systemdUnitFragmentDir(oldUnits)
-
-	s.host.AssertUnitProperty(ddotUnit, "FragmentPath", filepath.Join(systemdPath, ddotUnit))
 }
