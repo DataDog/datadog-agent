@@ -100,7 +100,7 @@ func (s snmpScannerImpl) ScanDeviceAndSendData(ctx context.Context, connParams *
 
 // comparisonModeEnabled enables running both scan methods for comparison testing.
 // Set to true for testing, false for production.
-const comparisonModeEnabled = true
+const comparisonModeEnabled = false
 
 func (s snmpScannerImpl) runDeviceScan(
 	ctx context.Context,
