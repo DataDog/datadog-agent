@@ -141,9 +141,11 @@ func schemaValidationIssue(info IssueInfo) *healthplatform.Issue {
 	}
 	errList := splitErrors(info.Errors)
 	n, s := info.ErrorCount, pluralS(info.ErrorCount)
-	desc := fmt.Sprintf("Found %d schema violation%s in %s.", n, s, path)
+	desc := fmt.Sprintf("Found %d schema violation%s in %s", n, s, path)
 	if len(errList) > 0 {
-		desc += " " + strings.Join(errList, "; ")
+		desc += ":\n• " + strings.Join(errList, "\n• ")
+	} else {
+		desc += "."
 	}
 	return &healthplatform.Issue{
 		Id:          IssueID,
