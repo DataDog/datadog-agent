@@ -290,6 +290,26 @@ func (t *tlsHandshakeErrorWriter) Write(p []byte) (n int, err error) {
 	return t.writer.Write(p)
 }
 
+// --- Late-binding handlers ---------------------------------------------
+//
+// A "late-binding handler" is a slog.Handler whose downstream consumer
+// is constructed AFTER the slog chain itself is built. SetupLogger
+// runs very early — before the Fx graph has had a chance to create
+// any comp/core component. pkg/util/log/* must not import comp/*
+// (layering + cycle), so the producer cannot hold a typed pointer to
+// the consumer; instead, the producer reads from a package-global
+// atomic.Pointer slot, and the consumer publishes itself into the slot
+// during its Fx OnStart hook.
+//
+// The errortracking handler uses this pattern via two slots: a
+// Submitter for the per-record callback, and an optional Bouncer for
+// per-PC dedup. Both are atomically loaded on every Handle call so the
+// hot path remains lock-free, and both slots default to nil so the
+// handler short-circuits via Enabled() == false until startup wiring
+// completes. The same shape can be reused for any future handler with
+// the same lifecycle gap (flare upload, remote config, etc.) — copy
+// the slot + setter + loader trio below.
+//
 // errortrackingSubmitterSlot is the package-global atomic pointer that
 // backs every errortracking.Handler returned by buildSlogLogger. The Fx
 // wiring at cmd/agent/subcommands/run/ registers the agenttelemetry
