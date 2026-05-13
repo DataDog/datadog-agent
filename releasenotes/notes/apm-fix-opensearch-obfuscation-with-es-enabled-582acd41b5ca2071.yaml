@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    APM : Fixed trace span obfuscation for OpenSearch request bodies when
+    Elasticsearch JSON obfuscation is also enabled. Spans that only included
+    the ``opensearch.body`` tag (and not ``elasticsearch.body``) were previously
+    left unobfuscated in that configuration.

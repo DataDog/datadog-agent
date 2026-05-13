@@ -124,13 +124,6 @@ func testDyninst(
 	t.Cleanup(testServer.s.Close)
 	cfg, err := module.NewConfig(nil)
 	require.NoError(t, err)
-	// In short mode (which never runs in CI), use uprobe_multi attachment to
-	// speed up integration tests on hosts that support it. Kernel feature
-	// detection is unreliable, so we opt in explicitly rather than
-	// auto-detecting in the loader.
-	if testing.Short() {
-		cfg.UseMultiAttach = true
-	}
 	loaderOpts := []loader.Option{
 		loader.WithAdditionalSerializer(&compiler.DebugSerializer{
 			Out: codeDump,
@@ -295,8 +288,8 @@ func testDyninst(
 			t.Logf("Output: %v\n", string(log.body))
 			t.Logf("Sorted and redacted: %v\n", string(redacted))
 		}
-		expIdx := len(retMap[log.id])
 		id := resultNames[log.id]
+		expIdx := len(retMap[id])
 		retMap[id] = append(retMap[id], redacted)
 		if !rewriteEnabled {
 			expOut, ok := expOut[id]

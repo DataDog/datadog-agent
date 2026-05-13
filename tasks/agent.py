@@ -164,7 +164,10 @@ def build(
 
     flavor_cmd = "iot-agent" if flavor.is_iot() else "agent"
 
-    schema_compress(ctx)
+    # AIX build hosts do not have bazel; the compressed schema files are
+    # committed to the repo and do not need regeneration there.
+    if sys.platform != "aix":
+        schema_compress(ctx)
 
     with gitlab_section("Build agent", collapsed=True):
         go_build(
@@ -587,7 +590,7 @@ RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embe
 
 FROM golang:latest AS dlv
 
-RUN go install github.com/go-delve/delve/cmd/dlv@latest
+RUN go install github.com/go-delve/delve/cmd/dlv@v1.26.0
 
 FROM {base_image} AS bash_completion
 
