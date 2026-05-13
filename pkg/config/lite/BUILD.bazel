@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "lite",
@@ -8,5 +8,15 @@ go_library(
     deps = [
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@org_golang_google_protobuf//types/known/structpb",
+    ],
+)
+
+go_test(
+    name = "lite_test",
+    srcs = ["issue_test.go"],
+    embed = [":lite"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

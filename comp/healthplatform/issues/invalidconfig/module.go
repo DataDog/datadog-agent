@@ -19,7 +19,7 @@ type invalidConfigModule struct {
 	checker *checker
 }
 
-// NewModule captures the config so the periodic check can read ConfigFileUsed at run time.
+// NewModule captures the config so the once-only startup check can read it.
 func NewModule(cfg config.Component) issues.Module {
 	return &invalidConfigModule{checker: newChecker(cfg)}
 }
