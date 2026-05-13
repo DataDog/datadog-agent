@@ -326,7 +326,7 @@ func testStrippingOriginTagsSameKey(t *testing.T, store *tags.Store) {
 		mtype      metrics.MetricType
 	}{
 		{"distribution.metric", metrics.DistributionType},
-		{"count.metric", metrics.CountType},
+		{"count.metric", metrics.CounterType},
 	}
 	for _, tc := range cases {
 		t.Run(tc.mtype.String(), func(t *testing.T) {
@@ -375,7 +375,7 @@ func testStrippingOriginTagsDiffersKey(t *testing.T, store *tags.Store) {
 		mtype      metrics.MetricType
 	}{
 		{"distribution.metric", metrics.DistributionType},
-		{"count.metric", metrics.CountType},
+		{"count.metric", metrics.CounterType},
 	}
 	for _, tc := range cases {
 		t.Run(tc.mtype.String(), func(t *testing.T) {
@@ -470,7 +470,6 @@ func testStrippingMetricTagsSameKey(t *testing.T, store *tags.Store) {
 		metricName string
 		mtype      metrics.MetricType
 	}{
-		{"count.metric", metrics.CountType},
 		{"counter.metric", metrics.CounterType},
 		{"distribution.metric", metrics.DistributionType},
 	}
@@ -524,7 +523,6 @@ func testStrippingMetricTagsDiffersKey(t *testing.T, store *tags.Store) {
 	}{
 		{"distribution.metric", metrics.DistributionType},
 		{"count.metric", metrics.CounterType},
-		{"count.metric", metrics.CountType},
 	}
 	for _, tc := range cases {
 		t.Run(tc.mtype.String(), func(t *testing.T) {
@@ -626,14 +624,14 @@ func testTrackContextCountUnconfiguredTagsUnstripped(t *testing.T, store *tags.S
 
 	count1 := &metrics.MetricSample{
 		Name:       "count.metric",
-		Mtype:      metrics.CountType,
+		Mtype:      metrics.CounterType,
 		Value:      1,
 		Tags:       []string{"env:prod"},
 		SampleRate: 1,
 	}
 	count2 := &metrics.MetricSample{
 		Name:       "count.metric",
-		Mtype:      metrics.CountType,
+		Mtype:      metrics.CounterType,
 		Value:      1,
 		Tags:       []string{"env:dev"},
 		SampleRate: 1,
@@ -644,7 +642,7 @@ func testTrackContextCountUnconfiguredTagsUnstripped(t *testing.T, store *tags.S
 
 	assert.NotEqual(t, key1, key2,
 		"counts with no matching filterlist rule must keep distinct context keys")
-	assert.Equal(t, uint64(2), contextResolver.countsByMtype[metrics.CountType])
+	assert.Equal(t, uint64(2), contextResolver.countsByMtype[metrics.CounterType])
 }
 
 func TestTrackContextCountUnconfiguredTagsUnstripped(t *testing.T) {
@@ -656,13 +654,12 @@ func TestTrackContextCountUnconfiguredTagsUnstripped(t *testing.T) {
 // so the table is exhaustive.
 //
 // CounterType is included because that's what DogStatsD `|c` lines parse as
-// (comp/dogstatsd/server/enrich.go); CountType covers internally-emitted
-// counts (Sender.Count() in core checks); DistributionType covers `|d`.
+// (comp/dogstatsd/server/enrich.go); DistributionType covers `|d`.
 func TestShouldAggregateTags(t *testing.T) {
 	cases := map[metrics.MetricType]bool{
 		metrics.GaugeType:              false,
 		metrics.RateType:               false,
-		metrics.CountType:              true,
+		metrics.CountType:              false,
 		metrics.MonotonicCountType:     false,
 		metrics.CounterType:            true,
 		metrics.HistogramType:          false,

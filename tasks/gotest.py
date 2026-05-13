@@ -456,34 +456,19 @@ def _generate_unified_output(
     Returns a TestStats with go test counts extracted from the UTOF summary,
     or None if the unified output could not be generated.
     """
-    if not test_result.result_json_path or not os.path.exists(test_result.result_json_path):
+    from tasks.libs.testing.utof.go.generate import generate_unified_output
+
+    utof = generate_unified_output(ctx, test_result.result_json_path, test_system, flavor.name, tw=tw)
+    if utof is None:
         return None
-
-    try:
-        from tasks.libs.testing.utof import format_report
-        from tasks.libs.testing.utof.go_unit import convert_unit_test_results, generate_metadata
-
-        result_json = ResultJson.from_file(test_result.result_json_path)
-        metadata = generate_metadata(ctx, test_system=test_system, flavor=flavor.name)
-        utof = convert_unit_test_results(ctx, result_json, test_washer=tw, metadata=metadata)
-        utof_path = test_result.result_json_path.replace('.json', '_unified.json')
-        utof.write_json(utof_path)
-        print(f"Unified test output written to {utof_path}")
-        with gitlab_section("Unified test report", collapsed=False):
-            print(format_report(utof))
-        s = utof.summary
-        return TestStats(
-            total=s.total,
-            passed=s.passed,
-            failed=s.failed,
-            skipped=getattr(s, 'skipped', 0),
-            duration_s=getattr(utof.metadata, 'duration_seconds', 0.0) or 0.0,
-        )
-    except Exception:
-        import traceback
-
-        print(f"Warning: Failed to generate unified test output:\n{traceback.format_exc()}")
-        return None
+    s = utof.summary
+    return TestStats(
+        total=s.total,
+        passed=s.passed,
+        failed=s.failed,
+        skipped=getattr(s, 'skipped', 0),
+        duration_s=getattr(utof.metadata, 'duration_seconds', 0.0) or 0.0,
+    )
 
 
 def process_test_result(
