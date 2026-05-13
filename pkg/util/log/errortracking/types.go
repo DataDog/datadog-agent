@@ -70,10 +70,26 @@ type ErrorLog struct {
 // consumer. The slog handler under pkg/util/log calls the currently
 // installed Submitter (atomically loaded) on each error record.
 //
+// Why a function-pointer slot rather than a constructor-injected
+// dependency: the slog handler chain is built at logger setup time —
+// very early in agent startup, before the Fx graph has constructed any
+// component. The eventual consumer (the agenttelemetry component) does
+// not exist yet at that point, and pkg/util/log/* cannot import
+// comp/* (layering rule + import cycle). The atomic-pointer indirection
+// is the only shape that satisfies (a) the layering constraint, (b) the
+// "consumer is built later than the producer" lifecycle gap, and (c)
+// the lock-free hot path requirement.
+//
 // Implementations MUST be non-blocking on the hot path — the consumer is
 // expected to enqueue into a bounded buffer and flush asynchronously.
 // Implementations MUST be safe for concurrent calls.
 //
 // A nil Submitter means "errortracking is not yet configured"; callers
-// must guard against this and drop the record silently.
+// must guard against this and drop the record silently. This is also
+// the gate the agenttelemetry component uses to enable/disable the
+// feature: when
+// agent_telemetry.errortracking.enabled=false (or gov/FIPS excludes
+// the parent agent_telemetry feature), the component never calls
+// pkg/util/log/setup.RegisterErrortrackingSubmitter and the slot
+// stays nil — the handler short-circuits via Enabled() == false.
 type Submitter func(ErrorLog)

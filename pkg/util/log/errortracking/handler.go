@@ -78,6 +78,13 @@ func (h *Handler) WithBouncerLoader(loadBouncer func() *Bouncer) *Handler {
 // level. It returns true only when level >= slog.LevelError AND a Submitter
 // is currently registered; an unregistered handler short-circuits the
 // parent multi-handler so non-error formatting work is not wasted.
+//
+// The "is a Submitter currently registered?" check is also the runtime
+// gate for the agent_telemetry.errortracking.enabled config knob.
+// installErrortrackingHandler (cmd/agent/subcommands/run) only calls
+// pkg/util/log/setup.RegisterErrortrackingSubmitter when the gate is
+// true — when the feature is off, the slot stays nil and Enabled
+// returns false here, taking the steady-state path with no allocation.
 func (h *Handler) Enabled(_ context.Context, level slog.Level) bool {
 	if level < slog.LevelError {
 		return false
@@ -154,10 +161,16 @@ func (h *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	return &Handler{load: h.load, attrs: merged, loadBouncer: h.loadBouncer}
 }
 
-// WithGroup is a no-op. The wire payload does not distinguish nested
-// groups from flat attrs, so preserving group structure here would only add
-// complexity and allocation; subsequent WithAttrs calls accumulate at the
-// top level.
+// WithGroup returns a new Handler instance with the same Submitter
+// loader, Bouncer loader, and accumulated attrs. The group name is
+// intentionally discarded — the wire payload is flat and does not
+// distinguish nested groups from top-level attrs, and the PII pivot
+// (PR #50607) means we don't ship attrs to the wire anyway. Returning
+// a NEW instance (rather than the receiver) matches the canonical
+// shape of pkg/util/log/slog/handlers/multi.go::WithGroup and async.go::
+// WithGroup; a no-op-receiver pattern can subtly break parent
+// multi-handlers that expect each child to materialize a fresh
+// instance per group context.
 func (h *Handler) WithGroup(_ string) slog.Handler {
-	return h
+	return &Handler{load: h.load, attrs: h.attrs, loadBouncer: h.loadBouncer}
 }
