@@ -8,16 +8,20 @@
 --   matching a pattern are emitted while the bucket has credit,
 --   dropped otherwise. New patterns are discovered and added to a
 --   bounded table; when the table is full, the least-frequently-
---   matched pattern is evicted. Used by log sources that opt into
---   adaptive sampling to bound per-pattern throughput while
---   preserving signal from low-frequency patterns.
+--   matched pattern is evicted. When the protect_important_logs
+--   option is enabled, messages whose token sequence contains a
+--   critical-severity keyword bypass rate limiting entirely.
+--   Used by log sources that opt into adaptive sampling to bound
+--   per-pattern throughput while preserving signal from low-
+--   frequency patterns and from severity-critical events.
 -- Includes: The PatternMatching sub-contract (specific to
 --   pattern-based samplers; not lifted to a shared module yet),
 --   the AdaptiveSampler entity, the PatternEntry per-pattern
---   state entity, config, the 4 rules driving the emit/drop/
---   register/evict per-message lifecycle, the 5 expression
---   invariants on PatternEntries state, fulfilment of the Sampler
---   contract at the AdaptiveSampling surface.
+--   state entity, config, the 5 rules driving the
+--   important-bypass / emit / drop / register / evict per-message
+--   lifecycle, the 5 expression invariants on PatternEntries
+--   state, fulfilment of the Sampler contract at the
+--   AdaptiveSampling surface.
 -- Excludes:
 --   - The Sampler contract itself. It lives in sampler.allium and
 --     is imported here to declare fulfilment.
@@ -122,11 +126,49 @@ config {
     -- Maximum bytes of the log message's first line to tokenize.
     -- Bytes beyond this offset are ignored by the tokenizer.
     tokenizer_max_input_bytes: Integer = 2048
+
+    -- When true, messages whose token sequence contains a
+    -- critical-severity keyword (FATAL, ERROR, PANIC, etc.)
+    -- bypass rate limiting entirely. See is_important in the
+    -- AdaptiveSampling surface's @guidance for the predicate's
+    -- scope. When false, severity has no effect on sampling
+    -- decisions and the standard 4 rules apply uniformly.
+    protect_important_logs: Boolean = false
 }
 
 ------------------------------------------------------------
 -- Rules
 ------------------------------------------------------------
+
+-- A critical-severity log bypasses the entire sampler when
+-- protect_important_logs is enabled. The message is emitted
+-- unconditionally; no pattern entry is created, no entry's state
+-- is updated, no credits are consumed. Pattern discovery and rate
+-- limiting do not apply to important logs.
+
+rule ImportantLogBypass {
+    when: ProcessLog(message, incoming)
+    requires: config.protect_important_logs
+    requires: is_important(incoming)
+
+    ensures: LogEmitted(message, sampled_count: 0)
+
+    @guidance
+        -- The is_important predicate is treated as an opaque pure
+        -- function of the input token sequence. The implementation
+        -- checks for critical-severity keyword tokens (FATAL,
+        -- ERROR, PANIC, ALERT, SEVERE, CRITICAL, EMERGENCY, WARN,
+        -- EXCEPTION, CRASH, FAILURE, DEADLOCK, TIMEOUT) — see
+        -- isImportant in sampler.go.
+        --
+        -- The bypass takes precedence over all four pattern-table
+        -- rules below (their requires clauses exclude this case
+        -- explicitly). Pattern table state is wholly untouched —
+        -- an important log with no matching pattern does not
+        -- register a new entry, and a matching pattern's
+        -- match_count, credits, last_seen and sampled_count are
+        -- left as they were.
+}
 
 -- A log matches an existing pattern and has sufficient credits
 -- to be emitted. If logs were suppressed since the last emit for
@@ -134,6 +176,7 @@ config {
 
 rule EmitMatchingLog {
     when: ProcessLog(message, incoming)
+    requires: not (config.protect_important_logs and is_important(incoming))
 
     let matches = filter(PatternEntries, e => is_match(e.signature, incoming, config.match_threshold))
     requires: matches.count > 0
@@ -174,6 +217,7 @@ rule EmitMatchingLog {
 
 rule DropMatchingLog {
     when: ProcessLog(message, incoming)
+    requires: not (config.protect_important_logs and is_important(incoming))
 
     let matches = filter(PatternEntries, e => is_match(e.signature, incoming, config.match_threshold))
     requires: matches.count > 0
@@ -205,6 +249,7 @@ rule DropMatchingLog {
 
 rule RegisterNewPattern {
     when: ProcessLog(message, incoming)
+    requires: not (config.protect_important_logs and is_important(incoming))
     requires: not PatternEntries.any(e => is_match(e.signature, incoming, config.match_threshold))
     requires: PatternEntries.count < config.max_patterns
 
@@ -230,6 +275,7 @@ rule RegisterNewPattern {
 
 rule EvictAndRegisterPattern {
     when: ProcessLog(message, incoming)
+    requires: not (config.protect_important_logs and is_important(incoming))
     requires: not PatternEntries.any(e => is_match(e.signature, incoming, config.match_threshold))
     requires: PatternEntries.count >= config.max_patterns
 
@@ -318,25 +364,32 @@ surface AdaptiveSampling {
 
     @guarantee Determinism
         -- The Sampler contract's Determinism invariant holds:
-        -- process is rule-driven, and the 4 rules
-        -- (EmitMatchingLog, DropMatchingLog, RegisterNewPattern,
-        -- EvictAndRegisterPattern) partition the (incoming, state)
-        -- input space via mutually-exclusive requires clauses.
-        -- Each rule's ensures clauses are deterministic functions
-        -- of pre-state and inputs. The seconds_elapsed,
-        -- is_match, max_by and min_by primitives are pure.
+        -- process is rule-driven, and the 5 rules
+        -- (ImportantLogBypass, EmitMatchingLog, DropMatchingLog,
+        -- RegisterNewPattern, EvictAndRegisterPattern) partition
+        -- the (incoming, state, config) input space via mutually-
+        -- exclusive requires clauses. Each rule's ensures clauses
+        -- are deterministic functions of pre-state and inputs.
+        -- The seconds_elapsed, is_match, is_important, max_by
+        -- and min_by primitives are pure.
 
     @guarantee Totality
         -- The Sampler contract's Totality invariant holds: every
-        -- (incoming, state) input matches the preconditions of
-        -- exactly one rule, so process always terminates with a
+        -- (incoming, state, config) input matches the preconditions
+        -- of exactly one rule, so process always terminates with a
         -- defined verdict — either LogEmitted (returning the
         -- input message, possibly tagged) or LogDropped
-        -- (returning null). The 4 rules cover the cases:
+        -- (returning null). The 5 rules cover the cases:
+        --   (protect_important_logs AND is_important)           → ImportantLogBypass
         --   (matches existing pattern AND credits sufficient)   → EmitMatchingLog
         --   (matches existing pattern AND credits insufficient) → DropMatchingLog
         --   (no match AND table has capacity)                   → RegisterNewPattern
         --   (no match AND table full)                           → EvictAndRegisterPattern
+        --
+        -- The four pattern-table rules each carry a
+        -- `not (config.protect_important_logs and is_important(incoming))`
+        -- guard, making them mutually exclusive with
+        -- ImportantLogBypass.
 
     @guarantee ContentBytePassthrough
         -- The Sampler contract's ContentBytePassthrough invariant
@@ -387,11 +440,38 @@ surface AdaptiveSampling {
         -- the steady-state replenishment. Equivalently, in
         -- steady state after the initial burst, a pattern emits
         -- at most config.rate_limit logs per second.
+        --
+        -- This bound applies only to messages that go through
+        -- the pattern-table rules. Messages flowing through
+        -- ImportantLogBypass are not counted against any
+        -- pattern's rate limit — see ImportantLogProtection.
+
+    @guarantee ImportantLogProtection
+        -- When config.protect_important_logs is true, a message
+        -- whose token sequence satisfies the is_important
+        -- predicate is ALWAYS emitted, regardless of pattern
+        -- table state and regardless of any pattern's credit
+        -- balance. Guaranteed by the ImportantLogBypass rule's
+        -- unconditional `ensures: LogEmitted(...)`.
+        --
+        -- The bypass is non-disruptive: pattern table state is
+        -- entirely unaffected (no entry is created, no entry's
+        -- credits / match_count / sampled_count / last_seen is
+        -- updated). Important logs do not contribute to pattern
+        -- discovery; a critical-severity event observed under
+        -- bypass does not register a new pattern. (This means a
+        -- pattern matching the same shape may still be
+        -- discovered later via a non-important message of the
+        -- same shape.)
+        --
+        -- When config.protect_important_logs is false, the
+        -- predicate has no effect — the four pattern-table rules
+        -- apply uniformly regardless of severity.
 
     @guarantee FlushNoop
         -- flush always returns null. AdaptiveSampler does not
         -- buffer messages — every input is decided immediately
-        -- by one of the 4 rules. The Sampler contract's flush
+        -- by one of the 5 rules. The Sampler contract's flush
         -- observable is provided here as a structural
         -- requirement, not a behavioural one.
 
@@ -400,9 +480,9 @@ surface AdaptiveSampling {
         -- contract operations:
         --
         -- process(msg, tokens) corresponds to firing exactly one
-        -- of the 4 rules in this module — EmitMatchingLog,
-        -- DropMatchingLog, RegisterNewPattern, or
-        -- EvictAndRegisterPattern — chosen by the mutually
+        -- of the 5 rules in this module — ImportantLogBypass,
+        -- EmitMatchingLog, DropMatchingLog, RegisterNewPattern,
+        -- or EvictAndRegisterPattern — chosen by the mutually
         -- exclusive requires clauses. Each rule's
         -- `ensures: LogEmitted(message, ...)` corresponds to
         -- returning the input message from process (with the
@@ -410,6 +490,15 @@ surface AdaptiveSampling {
         -- prior_sampled_count > 0). `ensures: LogDropped(message)`
         -- corresponds to returning null. The `incoming` parameter
         -- of ProcessLog is the tokens argument to process.
+        --
+        -- The is_important predicate referenced in
+        -- ImportantLogBypass is an opaque pure function over the
+        -- input token sequence; semantically it returns true iff
+        -- the sequence contains a critical-severity keyword
+        -- token. The implementation enumerates the keywords in
+        -- isImportant (sampler.go); the spec treats the predicate
+        -- as a black box because severity-keyword tokenization is
+        -- a tokenizer concern, not a sampler concern.
         --
         -- flush corresponds to a no-op in this implementation —
         -- there is no buffer to drain, so the surface observable
