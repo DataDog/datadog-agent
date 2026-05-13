@@ -808,6 +808,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("synthetics.collector.enabled", false)
 	config.BindEnvAndSetDefault("synthetics.collector.workers", 4)
 	config.BindEnvAndSetDefault("synthetics.collector.flush_interval", "10s")
+	config.BindEnvAndSetDefault("synthetics.collector.test_poller.max_consecutive_errors", 5)
 	bindEnvAndSetLogsConfigKeys(config, "synthetics.forwarder.")
 
 	config.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-agent"))

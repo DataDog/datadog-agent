@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const defaultSite = "datadoghq.com"
@@ -29,21 +30,30 @@ func newSchedulerConfigs(agentConfig config.Component) *schedulerConfigs {
 	}
 }
 
-type onDemandPollerConfig struct {
-	site          string
-	apiKey        string
-	httpTransport *http.Transport
+type testPollerConfig struct {
+	site                 string
+	apiKey               string
+	agentVersion         string
+	maxConsecutiveErrors int
+	httpTransport        *http.Transport
 }
 
-func newOnDemandPollerConfig(agentConfig config.Component) *onDemandPollerConfig {
+func newTestPollerConfig(agentConfig config.Component) *testPollerConfig {
 	site := agentConfig.GetString("site")
 	if site == "" {
 		site = defaultSite
 	}
 
-	return &onDemandPollerConfig{
-		site:          site,
-		apiKey:        agentConfig.GetString("api_key"),
-		httpTransport: httputils.CreateHTTPTransport(agentConfig),
+	maxErrs := agentConfig.GetInt("synthetics.collector.test_poller.max_consecutive_errors")
+	if maxErrs <= 0 {
+		maxErrs = 5
+	}
+
+	return &testPollerConfig{
+		site:                 site,
+		apiKey:               agentConfig.GetString("api_key"),
+		agentVersion:         version.AgentVersion,
+		maxConsecutiveErrors: maxErrs,
+		httpTransport:        httputils.CreateHTTPTransport(agentConfig),
 	}
 }
