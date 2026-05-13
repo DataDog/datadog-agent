@@ -156,7 +156,7 @@ require (
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b // indirect
 	github.com/antchfx/xmlquery v1.5.1 // indirect
 	github.com/antchfx/xpath v1.3.6 // indirect
-	github.com/apache/thrift v0.23.0 // indirect
+	github.com/apache/thrift v0.22.0 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.41.6 // indirect
@@ -558,6 +558,7 @@ replace github.com/openshift/api => github.com/openshift/api v0.0.0-202307261628
 
 replace (
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def => ../../../../comp/anomalydetection/observer/def
+	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def => ../../../../comp/anomalydetection/recorder/def
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def => ../../../../comp/core/agenttelemetry/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../../../comp/core/agenttelemetry/fx

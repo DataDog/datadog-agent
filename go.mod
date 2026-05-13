@@ -38,6 +38,7 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/DataDog/agent-payload/v5 v5.0.195
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/api/api/def v0.76.0-rc.4
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def v0.0.0
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx v0.0.0-20251027120702-0e91eee9852f
@@ -170,7 +171,7 @@ require (
 	github.com/DataDog/dd-trace-go/v2 v2.7.4
 	github.com/DataDog/ebpf-manager v0.7.18
 	github.com/DataDog/go-acl v1.0.1
-	github.com/DataDog/go-sqllexer v0.2.2
+	github.com/DataDog/go-sqllexer v0.2.1
 	github.com/DataDog/sketches-go v1.4.8
 	github.com/DataDog/viper v1.15.1
 	// TODO: pin to a WPA released version once there is a release that includes the apis module
@@ -184,7 +185,7 @@ require (
 	github.com/ProtonMail/go-crypto v1.3.0
 	github.com/acobaugh/osrelease v0.1.0
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
-	github.com/aquasecurity/trivy v0.70.0
+	github.com/aquasecurity/trivy v0.63.0
 	github.com/aquasecurity/trivy-db v0.0.0-20250604074528-8a8d6e3cc002
 	github.com/avast/retry-go/v4 v4.7.0
 	github.com/aws/aws-sdk-go-v2 v1.41.6
@@ -262,7 +263,7 @@ require (
 	github.com/imdario/mergo v0.3.16
 	github.com/invopop/jsonschema v0.12.0
 	github.com/itchyny/gojq v0.12.19 // indirect
-	github.com/jackc/pgx/v5 v5.9.2
+	github.com/jackc/pgx/v5 v5.8.0
 	github.com/jellydator/ttlcache/v3 v3.4.0
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/json-iterator/go v1.1.12
@@ -284,8 +285,8 @@ require (
 	github.com/moby/sys/mountinfo v0.7.2
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826
 	github.com/netsampler/goflow2 v1.3.8-0.20260412031118-ad727784ae6f
-	github.com/oliveagle/jsonpath v0.1.4
-	github.com/open-policy-agent/opa v1.16.1
+	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852
+	github.com/open-policy-agent/opa v1.7.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.151.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.1
@@ -324,7 +325,7 @@ require (
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/tinylib/msgp v1.6.4
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
-	github.com/twmb/franz-go v1.21.1
+	github.com/twmb/franz-go v1.21.0
 	github.com/twmb/franz-go/pkg/kadm v1.18.0
 	github.com/twmb/franz-go/pkg/kmsg v1.13.1
 	github.com/twmb/murmur3 v1.1.8
@@ -496,7 +497,7 @@ require (
 	github.com/antchfx/xmlquery v1.5.1 // indirect
 	github.com/antchfx/xpath v1.3.6 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
-	github.com/apache/thrift v0.23.0 // indirect
+	github.com/apache/thrift v0.22.0 // indirect
 	github.com/aquasecurity/go-gem-version v0.0.0-20201115065557-8eed6fe000ce // indirect
 	github.com/aquasecurity/go-npm-version v0.0.1 // indirect
 	github.com/aquasecurity/go-pep440-version v0.0.1 // indirect
@@ -962,7 +963,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/hostport v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace v0.77.0-devel.0.20260211235139-a5361978c2b6
 	github.com/DataDog/ddtrivy v0.0.0-20260115083325-07614fb0b8d5
-	github.com/DataDog/rshell v0.0.15
+	github.com/DataDog/rshell v0.0.14
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.6
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.68.5
 	github.com/aymerick/raymond v2.0.2+incompatible
@@ -982,7 +983,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
 	github.com/moby/moby/api v1.54.2
 	github.com/moby/moby/client v0.4.1
-	github.com/modelcontextprotocol/go-sdk v1.6.0
+	github.com/modelcontextprotocol/go-sdk v1.4.1
 	github.com/qri-io/jsonpointer v0.1.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	gitlab.com/gitlab-org/api/client-go v1.46.0
@@ -1006,7 +1007,7 @@ require (
 	github.com/go-openapi/swag/stringutils v0.25.5 // indirect
 	github.com/go-openapi/swag/typeutils v0.25.5 // indirect
 	github.com/go-openapi/swag/yamlutils v0.25.5 // indirect
-	github.com/google/jsonschema-go v0.4.3 // indirect
+	github.com/google/jsonschema-go v0.4.2 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.opentelemetry.io/collector/internal/componentalias v0.151.0 // indirect
 )
@@ -1282,6 +1283,7 @@ replace github.com/open-policy-agent/opa => github.com/DataDog/opa v0.0.0-202511
 
 replace (
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def => ./comp/anomalydetection/observer/def
+	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def => ./comp/anomalydetection/recorder/def
 	github.com/DataDog/datadog-agent/comp/api/api/def => ./comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def => ./comp/core/agenttelemetry/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ./comp/core/agenttelemetry/fx
