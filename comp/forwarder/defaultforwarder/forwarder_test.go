@@ -44,20 +44,20 @@ var (
 	testDomain           = "http://app.datadoghq.com"
 	testVersionDomain, _ = configUtils.AddAgentVersionToDomain(testDomain, "app")
 	monoKeysDomains      = map[string][]configUtils.APIKeys{
-		testVersionDomain: {configUtils.NewAPIKeys("path", "monokey")},
+		testVersionDomain: {configUtils.NewAPIKeys("path", testVersionDomain, "monokey")},
 	}
 	keysPerDomains = map[string][]configUtils.APIKeys{
 		testDomain: {
-			configUtils.NewAPIKeys("path", "api-key-1", "api-key-2"),
+			configUtils.NewAPIKeys("path", testDomain, "api-key-1", "api-key-2"),
 		},
 		"datadog.bar": nil,
 	}
 	keysWithMultipleDomains = map[string][]configUtils.APIKeys{
 		testDomain: {
-			configUtils.NewAPIKeys("path", "api-key-1"),
-			configUtils.NewAPIKeys("path", "api-key-2"),
+			configUtils.NewAPIKeys("path", testDomain, "api-key-1"),
+			configUtils.NewAPIKeys("path", testDomain, "api-key-2"),
 		},
-		"datadog.bar": {configUtils.NewAPIKeys("path", "api-key-3")},
+		"datadog.bar": {configUtils.NewAPIKeys("path", "datadog.bar", "api-key-3")},
 	}
 	validKeys = []string{"api-key-1", "api-key-2"}
 )
@@ -294,7 +294,7 @@ func TestCreateHTTPTransactionsWithMultipleDomains(t *testing.T) {
 func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
 	resolvers, err := resolver.NewSingleDomainResolvers(keysWithMultipleDomains)
 	require.NoError(t, err)
-	additionalResolver, err := resolver.NewMultiDomainResolver("datadog.vector", []configUtils.APIKeys{configUtils.NewAPIKeys("path", "api-key-4")})
+	additionalResolver, err := resolver.NewMultiDomainResolver("datadog.vector", []configUtils.APIKeys{configUtils.NewAPIKeys("path", "datadog.vector", "api-key-4")})
 	require.NoError(t, err)
 	additionalResolver.RegisterAlternateDestination("diversion.domain", "diverted_name", resolver.Vector)
 	resolvers["datadog.vector"] = additionalResolver
@@ -344,7 +344,7 @@ func TestCreateHTTPTransactionsWithDifferentResolvers(t *testing.T) {
 
 func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
 	resolvers := make(map[string]resolver.DomainResolver)
-	r, err := resolver.NewMultiDomainResolver(testDomain, []configUtils.APIKeys{configUtils.NewAPIKeys("path", "api-key-1")})
+	r, err := resolver.NewMultiDomainResolver(testDomain, []configUtils.APIKeys{configUtils.NewAPIKeys("path", testDomain, "api-key-1")})
 	require.NoError(t, err)
 	r.RegisterAlternateDestination("observability_pipelines_worker.tld", "diverted", resolver.Vector)
 	resolvers[testDomain] = r
@@ -474,7 +474,7 @@ func TestForwarderEndtoEnd(t *testing.T) {
 	mockConfig.SetWithoutSource("dd_url", ts.URL)
 
 	log := logmock.New(t)
-	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", "api_key1", "api_key2")}, "invalid": {}, "invalid2": nil})
+	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", ts.URL, "api_key1", "api_key2")}, "invalid": {}, "invalid2": nil})
 	require.NoError(t, err)
 	secrets := secretsmock.New(t)
 	options := NewOptionsWithResolvers(mockConfig, log, r)
@@ -551,7 +551,7 @@ func TestTransactionEventHandlers(t *testing.T) {
 	mockConfig.SetWithoutSource("dd_url", ts.URL)
 
 	log := logmock.New(t)
-	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", "api_key1")}})
+	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", ts.URL, "api_key1")}})
 	require.NoError(t, err)
 	secrets := secretsmock.New(t)
 	options := NewOptionsWithResolvers(mockConfig, log, r)
@@ -606,7 +606,7 @@ func syncTestTransactionEventHandlersOnRetry(t *testing.T) {
 
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
-	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{"http://test.invalid": {configUtils.NewAPIKeys("path", "api_key1")}})
+	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{"http://test.invalid": {configUtils.NewAPIKeys("path", "http://test.invalid", "api_key1")}})
 	require.NoError(t, err)
 	secrets := secretsmock.New(t)
 	options := NewOptionsWithResolvers(mockConfig, log, r)
@@ -664,7 +664,7 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	mockConfig.SetWithoutSource("dd_url", ts.URL)
 
 	log := logmock.New(t)
-	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", "api_key1")}})
+	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{ts.URL: {configUtils.NewAPIKeys("path", ts.URL, "api_key1")}})
 	require.NoError(t, err)
 	secrets := secretsmock.New(t)
 	options := NewOptionsWithResolvers(mockConfig, log, r)
@@ -714,7 +714,7 @@ func syncTestProcessLikePayloadResponseTimeout(t *testing.T) {
 	mockConfig.SetWithoutSource("forwarder_num_workers", 0) // Set the number of workers to 0 so the txn goes nowhere
 
 	log := logmock.New(t)
-	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{"http://test.invalid": {configUtils.NewAPIKeys("path", "api_key1")}})
+	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{"http://test.invalid": {configUtils.NewAPIKeys("path", "http://test.invalid", "api_key1")}})
 	require.NoError(t, err)
 	secrets := secretsmock.New(t)
 	options := NewOptionsWithResolvers(mockConfig, log, r)
@@ -775,7 +775,7 @@ func syncTestHighPriorityTransactionTendency(t *testing.T) {
 	mockConfig.SetWithoutSource("forwarder_max_concurrent_requests", 10)
 
 	log := logmock.New(t)
-	r, _ := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{"http://test.invalid": {configUtils.NewAPIKeys("path", "api_key1")}})
+	r, _ := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{"http://test.invalid": {configUtils.NewAPIKeys("path", "http://test.invalid", "api_key1")}})
 	secrets := secretsmock.New(t)
 	options := NewOptionsWithResolvers(mockConfig, log, r)
 	options.DisableAPIKeyChecking = true // Disable API key checking so no health check goroutine is started
@@ -849,7 +849,7 @@ func syncTestHighPriorityTransaction(t *testing.T) {
 	mockConfig.SetWithoutSource("forwarder_max_concurrent_requests", 1)
 
 	log := logmock.New(t)
-	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{"http://test.invalid": {configUtils.NewAPIKeys("path", "api_key1")}})
+	r, err := resolver.NewSingleDomainResolvers(map[string][]configUtils.APIKeys{"http://test.invalid": {configUtils.NewAPIKeys("path", "http://test.invalid", "api_key1")}})
 	require.NoError(t, err)
 
 	secrets := secretsmock.New(t)

@@ -29,10 +29,7 @@ func KeysPerDomains(endpoints []Endpoint) map[string][]utils.APIKeys {
 
 	for _, ep := range endpoints {
 		domain := removePathIfPresent(ep.Endpoint)
-		keysPerDomains[domain] = append(keysPerDomains[domain], utils.APIKeys{
-			ConfigSettingPath: ep.ConfigSettingPath,
-			Keys:              []string{ep.APIKey},
-		})
+		keysPerDomains[domain] = append(keysPerDomains[domain], utils.NewAPIKeys(ep.ConfigSettingPath, domain, ep.APIKey))
 	}
 
 	return keysPerDomains

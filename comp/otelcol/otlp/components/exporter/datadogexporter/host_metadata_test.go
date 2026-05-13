@@ -140,6 +140,7 @@ func createTestServer(t *testing.T, c chan payload.HostMetadata) *httptest.Serve
 func createTestFactory(t *testing.T, serverAddr string) exporter.Factory {
 	params := exportertest.NewNopSettings(Type)
 	scfg := &serializerexporter.ExporterConfig{}
+	scfg.API.Key = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	scfg.API.Site = serverAddr
 	scfg.Metrics.Metrics.TCPAddrConfig.Endpoint = serverAddr
 	srlz, fwd, err := serializerexporter.InitSerializer(params.Logger, scfg, &sourceProvider)

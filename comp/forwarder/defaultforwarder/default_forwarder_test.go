@@ -36,11 +36,11 @@ func TestDefaultForwarderUpdateAPIKey(t *testing.T) {
 	// starting API Keys, before the update
 	keysPerDomains := map[string][]utils.APIKeys{
 		"example1.com": {
-			utils.NewAPIKeys("api_key", "api_key1"),
-			utils.NewAPIKeys("additional_endpoints", "api_key2"),
+			utils.NewAPIKeys("api_key", "example1.com", "api_key1"),
+			utils.NewAPIKeys("additional_endpoints", "example1.com", "api_key2"),
 		},
 		"example2.com": {
-			utils.NewAPIKeys("additional_endpoints", "api_key3"),
+			utils.NewAPIKeys("additional_endpoints", "example2.com", "api_key3"),
 		},
 	}
 	forwarderOptions, err := NewOptions(mockConfig, log, keysPerDomains)
@@ -76,11 +76,11 @@ func TestDefaultForwarderUpdateAdditionalEndpointAPIKey(t *testing.T) {
 	// main api_key is a duplicate of the additional_endpoints one
 	keysPerDomains := map[string][]utils.APIKeys{
 		"example1.com": {
-			utils.NewAPIKeys("api_key", "api_key1"),
-			utils.NewAPIKeys("additional_endpoints", "api_key1"),
+			utils.NewAPIKeys("api_key", "example1.com", "api_key1"),
+			utils.NewAPIKeys("additional_endpoints", "example1.com", "api_key1"),
 		},
 		"example2.com": {
-			utils.NewAPIKeys("additional_endpoints", "api_key3"),
+			utils.NewAPIKeys("additional_endpoints", "example2.com", "api_key3"),
 		},
 	}
 	forwarderOptions, err := NewOptions(mockConfig, log, keysPerDomains)

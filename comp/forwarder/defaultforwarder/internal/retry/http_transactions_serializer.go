@@ -439,8 +439,8 @@ func createReplacers(apiKeys []utils.APIKeys, currentAPIKeyPlaceholder []*string
 	for path := range apiKeys {
 		for _, key := range apiKeys[path].Keys {
 			placeholder := fmt.Sprintf(placeHolderFormat, index)
-			apiKeyPlaceholder = append(apiKeyPlaceholder, key, placeholder)
-			placeholderToAPIKey = append(placeholderToAPIKey, placeholder, key)
+			apiKeyPlaceholder = append(apiKeyPlaceholder, key.Key, placeholder)
+			placeholderToAPIKey = append(placeholderToAPIKey, placeholder, key.Key)
 			index++
 		}
 	}

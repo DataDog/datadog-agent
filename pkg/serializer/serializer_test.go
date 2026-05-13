@@ -369,7 +369,7 @@ func TestSendV1Series(t *testing.T) {
 
 func setupMockForwarder(t *testing.T) *forwarder.MockedForwarder {
 	r, err := resolver.NewSingleDomainResolver("https://localhost", []configutils.APIKeys{
-		configutils.NewAPIKeys("api_key", "foobar"),
+		configutils.NewAPIKeys("api_key", "https://localhost", "foobar"),
 	})
 	require.NoError(t, err)
 

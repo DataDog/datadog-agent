@@ -46,7 +46,7 @@ func TestKeysPerDomain(t *testing.T) {
 				{APIKey: "key1", Endpoint: getEndpoint(t, "http://foo.com"), ConfigSettingPath: "path"},
 			},
 			expected: map[string][]utils.APIKeys{
-				"http://foo.com": {utils.NewAPIKeys("path", "key1")},
+				"http://foo.com": {utils.NewAPIKeys("path", "http://foo.com", "key1")},
 			},
 		},
 		{
@@ -56,8 +56,8 @@ func TestKeysPerDomain(t *testing.T) {
 			},
 			expected: map[string][]utils.APIKeys{
 				"http://foo.com": {
-					utils.NewAPIKeys("path1", "key1"),
-					utils.NewAPIKeys("path2", "key2"),
+					utils.NewAPIKeys("path1", "http://foo.com", "key1"),
+					utils.NewAPIKeys("path2", "http://foo.com", "key2"),
 				},
 			},
 		},
@@ -67,8 +67,8 @@ func TestKeysPerDomain(t *testing.T) {
 				{APIKey: "key2", Endpoint: getEndpoint(t, "http://bar.com"), ConfigSettingPath: "path2"},
 			},
 			expected: map[string][]utils.APIKeys{
-				"http://foo.com": {utils.NewAPIKeys("path1", "key1")},
-				"http://bar.com": {utils.NewAPIKeys("path2", "key2")},
+				"http://foo.com": {utils.NewAPIKeys("path1", "http://foo.com", "key1")},
+				"http://bar.com": {utils.NewAPIKeys("path2", "http://bar.com", "key2")},
 			},
 		},
 		{
@@ -79,10 +79,10 @@ func TestKeysPerDomain(t *testing.T) {
 			},
 			expected: map[string][]utils.APIKeys{
 				"http://foo.com": {
-					utils.NewAPIKeys("path1", "key1"),
-					utils.NewAPIKeys("path3", "key3"),
+					utils.NewAPIKeys("path1", "http://foo.com", "key1"),
+					utils.NewAPIKeys("path3", "http://foo.com", "key3"),
 				},
-				"http://bar.com": {utils.NewAPIKeys("path2", "key2")},
+				"http://bar.com": {utils.NewAPIKeys("path2", "http://bar.com", "key2")},
 			},
 		},
 	} {

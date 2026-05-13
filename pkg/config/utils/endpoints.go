@@ -9,10 +9,12 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"golang.org/x/net/idna"
 
+	secretutils "github.com/DataDog/datadog-agent/comp/core/secrets/utils"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,12 +33,23 @@ const (
 	MRFInfraPrefix = "mrf."
 )
 
-func getResolvedDDUrl(c pkgconfigmodel.Reader, urlKey string) string {
-	resolvedDDURL := c.GetString(urlKey)
-	if c.IsSet("site") {
-		log.Debugf("'site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", urlKey, urlKey, c.GetString(urlKey))
+// getResolvedURL returns the URL stored at urlKey, logging a notice when
+// siteKey is also set so users see that the explicit URL is taking precedence.
+func getResolvedURL(c pkgconfigmodel.Reader, urlKey, siteKey string) string {
+	resolved := c.GetString(urlKey)
+	if c.IsSet(siteKey) {
+		log.Debugf("'%s' and '%s' are both set in config: setting main endpoint to '%s': %q", siteKey, urlKey, urlKey, resolved)
 	}
-	return resolvedDDURL
+	return resolved
+}
+
+// APIKey contains one API key value and its stable, non-secret identity.
+type APIKey struct {
+	// Key is the API key material to use for this endpoint.
+	Key string
+
+	// Name is the stable, non-secret identity for Key.
+	Name string
 }
 
 // APIKeys contains a list of API keys together with the path within the config that this API key were configured.
@@ -45,83 +58,235 @@ type APIKeys struct {
 	// the config.
 	ConfigSettingPath string
 
-	// the apiKey to use for this endpoint
-	Keys []string
+	// Keys contains the API keys to use for this endpoint.
+	Keys []APIKey
 }
 
-// NewAPIKeys creates an endpoint
-func NewAPIKeys(path string, keys ...string) APIKeys {
+// NewAPIKeys creates an APIKeys for the given config setting path and endpoint.
+// Each returned APIKey gets a stable name derived from endpoint and its
+// position in keys (see apiKeyNameForIndex), with ENC[...]
+// handles preserved when present. Empty/whitespace-only keys are dropped, and
+// indexes in the remaining names reflect the original list positions so adding
+// or removing empty entries does not renumber the survivors.
+func NewAPIKeys(path, endpoint string, keys ...string) APIKeys {
 	return APIKeys{
 		ConfigSettingPath: path,
-		Keys:              keys,
+		Keys:              makeNamedAPIKeys(endpoint, path, keys, nil),
 	}
 }
 
-func newAPIKeyset(path string, keys ...string) []APIKeys {
-	return []APIKeys{NewAPIKeys(path, keys...)}
+// makeNamedAPIKeys builds the APIKey list for one endpoint at a single config
+// setting path. rawKeys is the unresolved (pre-secret-resolution) form of
+// keys; pass nil when not available. Secret-backed entries (ENC[handle])
+// receive enc_<endpoint>_<path>_<handle> names so rotation preserves identity;
+// plain entries receive idx_<endpoint>_<path>_<position>. Duplicate key values
+// within keys are collapsed to a single entry, keeping the first occurrence's
+// name.
+func makeNamedAPIKeys(endpoint, path string, keys, rawKeys []string) []APIKey {
+	result := make([]APIKey, 0, len(keys))
+	seen := make(map[string]bool, len(keys))
+	for index, key := range keys {
+		trimmed := strings.TrimSpace(key)
+		if trimmed == "" || seen[trimmed] {
+			continue
+		}
+		seen[trimmed] = true
+		result = append(result, APIKey{
+			Key:  trimmed,
+			Name: additionalEndpointAPIKeyName(endpoint, path, index, key, rawKeys),
+		})
+	}
+	return result
+}
+
+const (
+	plainAPIKeyNamePrefix  = "idx"
+	secretAPIKeyNamePrefix = "enc"
+	apiKeyNameSeparator    = "_"
+)
+
+// apiKeyNameForIndex returns the stable name for a plain API key at original
+// list position index, scoped by endpoint and config setting path. The
+// endpoint is canonicalized so equivalent spellings produce the same
+// identifier; the agent-version prefix is intentionally not applied so the
+// name stays stable across upgrades. Including path disambiguates names when
+// two APIKeys sets (e.g. api_key and additional_endpoints) target the same
+// endpoint.
+func apiKeyNameForIndex(endpoint, path string, index int) string {
+	return strings.Join([]string{
+		plainAPIKeyNamePrefix,
+		canonicalEndpoint(endpoint),
+		path,
+		strconv.Itoa(index),
+	}, apiKeyNameSeparator)
+}
+
+// apiKeyNameForSecret returns the stable name for an API key backed by the
+// given ENC[handle], scoped by endpoint and config setting path.
+func apiKeyNameForSecret(endpoint, path, handle string) string {
+	return strings.Join([]string{
+		secretAPIKeyNamePrefix,
+		canonicalEndpoint(endpoint),
+		path,
+		handle,
+	}, apiKeyNameSeparator)
+}
+
+// canonicalEndpoint normalizes a user-configured endpoint so that equivalent
+// spellings (with/without scheme, trailing slash, scheme/host case) share the
+// same identifier. The agent-version prefix added by AddAgentVersionToDomain
+// is a request-time concern and is intentionally not applied here.
+func canonicalEndpoint(endpoint string) string {
+	trimmed := strings.TrimSpace(endpoint)
+	if trimmed == "" {
+		return ""
+	}
+	raw := trimmed
+	if !strings.Contains(raw, "://") {
+		raw = "https://" + raw
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return trimmed
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if scheme == "" {
+		scheme = "https"
+	}
+	host := strings.ToLower(u.Host)
+	path := strings.TrimRight(u.Path, "/")
+	return scheme + "://" + host + path
 }
 
 // GetMainEndpointBackwardCompatible implements the logic to extract the DD URL from a config, based on `site`,ddURLKey and a backward compatible key
 func GetMainEndpointBackwardCompatible(c pkgconfigmodel.Reader, prefix string, ddURLKey string, backwardKey string) string {
 	if c.IsSet(ddURLKey) && c.GetString(ddURLKey) != "" {
 		// value under ddURLKey takes precedence over backwardKey and 'site'
-		return getResolvedDDUrl(c, ddURLKey)
+		return getResolvedURL(c, ddURLKey, "site")
 	} else if c.IsSet(backwardKey) && c.GetString(backwardKey) != "" {
 		// value under backwardKey takes precedence over 'site'
-		return getResolvedDDUrl(c, backwardKey)
+		return getResolvedURL(c, backwardKey, "site")
 	} else if c.GetString("site") != "" {
 		return prefix + strings.TrimSpace(c.GetString("site"))
 	}
 	return prefix + pkgconfigsetup.DefaultSite
 }
 
-// MakeEndpoints takes a map of domain to apikeys and a config path root and converts this to
-// a map of domain to Endpoint structs.
-func MakeEndpoints(endpoints map[string][]string, root string) map[string][]APIKeys {
+// MakeNamedEndpoints takes a map of domain to apikeys and a config path root
+// and produces one APIKeys per non-empty domain. rawEndpoints can carry the
+// original unresolved config values so secret-backed names keep their ENC[...]
+// handle across rotation; pass nil when not available. Endpoints with only
+// empty/whitespace keys are dropped with a log line.
+func MakeNamedEndpoints(endpoints map[string][]string, rawEndpoints map[string][]string, root string) map[string][]APIKeys {
 	result := map[string][]APIKeys{}
 	for url, keys := range endpoints {
-		// Remove any empty API keys.
-		// We don't need to hold on to an endpoint with an empty API key to track if a
-		// secret has been updated since secrets can never be empty in the first place.
-		trimmed := []string{}
-		for _, key := range keys {
-			trimmedAPIKey := strings.TrimSpace(key)
-			if trimmedAPIKey != "" {
-				trimmed = append(trimmed, trimmedAPIKey)
-			}
-		}
-
-		if len(trimmed) > 0 {
-			result[url] = []APIKeys{{
-				ConfigSettingPath: root,
-				Keys:              trimmed,
-			}}
-		} else {
+		named := makeNamedAPIKeys(url, root, keys, rawEndpoints[url])
+		if len(named) == 0 {
 			log.Infof("No API key provided for domain %q, removing domain from endpoints", url)
+			continue
 		}
+		result[url] = []APIKeys{{ConfigSettingPath: root, Keys: named}}
 	}
-
 	return result
 }
 
-// DedupAPIKeys takes a single array of endpoints and returns an array of unique
-// api keys that they contain.
-// This needs to be a separate process to loading because we need to keep track
-// of the endpoints with the API config location to know when they have been
-// refreshed.
-func DedupAPIKeys(endpoints []APIKeys) []string {
-	dedupedAPIKeys := make([]string, 0)
-	seen := make(map[string]bool)
-	for _, endpoint := range endpoints {
-		for _, apiKey := range endpoint.Keys {
-			if _, ok := seen[apiKey]; !ok {
-				seen[apiKey] = true
-				dedupedAPIKeys = append(dedupedAPIKeys, apiKey)
+// additionalEndpointAPIKeyName returns the stable name for the API key at
+// list position index on endpoint+path. It prefers the raw config value (which
+// still contains ENC[handle] before secret resolution), and falls back to the
+// resolved value when no raw config is available. This keeps secret-backed
+// names stable across rotation.
+func additionalEndpointAPIKeyName(endpoint, path string, index int, resolvedKey string, rawKeys []string) string {
+	source := resolvedKey
+	if index < len(rawKeys) {
+		source = rawKeys[index]
+	}
+	if ok, handle := secretutils.IsEnc(source); ok {
+		return apiKeyNameForSecret(endpoint, path, handle)
+	}
+	return apiKeyNameForIndex(endpoint, path, index)
+}
+
+// AdditionalEndpointsWithNames returns configstream's serialized shape for
+// additional_endpoints: endpoint -> [{"name": stableName, "key": resolvedKey}].
+func AdditionalEndpointsWithNames(c pkgconfigmodel.Reader, setting string, value interface{}) map[string][]map[string]string {
+	resolved := getStringMapStringSlice(value)
+	if resolved == nil {
+		resolved = c.GetStringMapStringSlice(setting)
+	}
+	named := MakeNamedEndpoints(resolved, RawStringMapStringSlice(c, setting), setting)
+
+	result := make(map[string][]map[string]string, len(named))
+	for endpoint, apiKeys := range named {
+		for _, set := range apiKeys {
+			for _, k := range set.Keys {
+				result[endpoint] = append(result[endpoint], map[string]string{
+					"name": k.Name,
+					"key":  k.Key,
+				})
 			}
 		}
 	}
+	return result
+}
 
-	return dedupedAPIKeys
+// RawStringMapStringSlice returns the user-configured value of setting with
+// the secret layer excluded, so callers can see ENC[handle] entries as the
+// user wrote them instead of the resolved key material.
+func RawStringMapStringSlice(c pkgconfigmodel.Reader, setting string) map[string][]string {
+	return getStringMapStringSlice(c.AllSettingsWithoutSecrets()[setting])
+}
+
+// getStringMapStringSlice normalizes a setting value to map[string][]string.
+// Both viper and nodetreemodel normalize YAML's map[interface{}]interface{}
+// to map[string]interface{} at parse time, and env-var JSON parsing produces
+// the same shape natively, so a single case covers both sources.
+func getStringMapStringSlice(value interface{}) map[string][]string {
+	raw, ok := value.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	result := make(map[string][]string, len(raw))
+	for endpoint, rawKeys := range raw {
+		keys, ok := interfaceToStringSlice(rawKeys)
+		if !ok {
+			continue
+		}
+		result[endpoint] = keys
+	}
+	return result
+}
+
+func interfaceToStringSlice(value interface{}) ([]string, bool) {
+	raw, ok := value.([]interface{})
+	if !ok {
+		return nil, false
+	}
+	keys := make([]string, 0, len(raw))
+	for _, rawKey := range raw {
+		key, ok := rawKey.(string)
+		if !ok {
+			return nil, false
+		}
+		keys = append(keys, key)
+	}
+	return keys, true
+}
+
+// DedupAPIKeys returns the unique APIKey entries across all endpoints,
+// preserving the first occurrence of each key value. Names ride along on the
+// APIKey struct so callers don't manage parallel slices.
+func DedupAPIKeys(endpoints []APIKeys) []APIKey {
+	result := make([]APIKey, 0)
+	seen := make(map[string]bool)
+	for _, endpoint := range endpoints {
+		for _, apiKey := range endpoint.Keys {
+			if !seen[apiKey.Key] {
+				seen[apiKey.Key] = true
+				result = append(result, apiKey)
+			}
+		}
+	}
+	return result
 }
 
 // EndpointDescriptor holds configuration about a single endpoint (aka domain) for infra pipelines.
@@ -131,13 +296,6 @@ type EndpointDescriptor struct {
 	IsMRF     bool
 }
 
-func newEndpointDescriptor(baseURL string, apiKeySet []APIKeys) EndpointDescriptor {
-	return EndpointDescriptor{
-		BaseURL:   baseURL,
-		APIKeySet: apiKeySet,
-	}
-}
-
 // EndpointDescriptorSet is a collection of all endpoints for infra pipelines keyed by base URL.
 type EndpointDescriptorSet = map[string]EndpointDescriptor
 
@@ -145,7 +303,7 @@ type EndpointDescriptorSet = map[string]EndpointDescriptor
 func EndpointDescriptorSetFromKeysPerDomain(keysPerDomain map[string][]APIKeys) EndpointDescriptorSet {
 	eds := EndpointDescriptorSet{}
 	for domain, keyset := range keysPerDomain {
-		eds[domain] = newEndpointDescriptor(domain, keyset)
+		eds[domain] = EndpointDescriptor{BaseURL: domain, APIKeySet: keyset}
 	}
 
 	return eds
@@ -160,10 +318,14 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 	}
 
 	keysPerDomain := map[string][]APIKeys{
-		ddURL: newAPIKeyset("api_key", c.GetString("api_key")),
+		ddURL: {NewAPIKeys("api_key", ddURL, c.GetString("api_key"))},
 	}
 
-	additionalEndpoints := MakeEndpoints(c.GetStringMapStringSlice("additional_endpoints"), "additional_endpoints")
+	additionalEndpoints := MakeNamedEndpoints(
+		c.GetStringMapStringSlice("additional_endpoints"),
+		RawStringMapStringSlice(c, "additional_endpoints"),
+		"additional_endpoints",
+	)
 
 	for domain, apiKeys := range additionalEndpoints {
 		// Validating domain
@@ -187,11 +349,11 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 		if err != nil {
 			return nil, fmt.Errorf("could not parse MRF endpoint: %s", err)
 		}
-		ed := newEndpointDescriptor(
-			haURL,
-			newAPIKeyset("multi_region_failover.api_key", c.GetString("multi_region_failover.api_key")))
-		ed.IsMRF = true
-		eds[haURL] = ed
+		eds[haURL] = EndpointDescriptor{
+			BaseURL:   haURL,
+			APIKeySet: []APIKeys{NewAPIKeys("multi_region_failover.api_key", haURL, c.GetString("multi_region_failover.api_key"))},
+			IsMRF:     true,
+		}
 	}
 
 	return eds, nil
@@ -260,7 +422,7 @@ func BuildURLWithPrefix(prefix, site string) string {
 func GetMainEndpoint(c pkgconfigmodel.Reader, prefix string, ddURLKey string) string {
 	// value under ddURLKey takes precedence over 'site'
 	if c.IsSet(ddURLKey) && c.GetString(ddURLKey) != "" {
-		return getResolvedDDUrl(c, ddURLKey)
+		return getResolvedURL(c, ddURLKey, "site")
 	} else if c.GetString("site") != "" {
 		return BuildURLWithPrefix(prefix, c.GetString("site"))
 	}
@@ -274,7 +436,7 @@ func GetMainEndpoint(c pkgconfigmodel.Reader, prefix string, ddURLKey string) st
 // precedence over `multi_region_failover.site`.
 func GetMRFEndpoint(c pkgconfigmodel.Reader, prefix, ddMRFURLKey string) (string, error) {
 	if c.IsConfigured(ddMRFURLKey) && c.GetString(ddMRFURLKey) != "" {
-		return getResolvedMRFDDURL(c, ddMRFURLKey), nil
+		return getResolvedURL(c, ddMRFURLKey, "multi_region_failover.site"), nil
 	} else if c.GetString("multi_region_failover.site") != "" {
 		return BuildURLWithPrefix(prefix, c.GetString("multi_region_failover.site")), nil
 	}
@@ -296,14 +458,6 @@ func GetMRFLogsEndpoint(c pkgconfigmodel.Reader, prefix string) (string, error) 
 	}
 
 	return GetMRFEndpoint(c, logsSpecificPrefix, "multi_region_failover.dd_url")
-}
-
-func getResolvedMRFDDURL(c pkgconfigmodel.Reader, mrfURLKey string) string {
-	resolvedMRFDDURL := c.GetString(mrfURLKey)
-	if c.IsConfigured("multi_region_failover.site") {
-		log.Infof("'multi_region_failover.site' and '%s' are both set in config: setting main endpoint to '%s': \"%s\"", mrfURLKey, mrfURLKey, resolvedMRFDDURL)
-	}
-	return resolvedMRFDDURL
 }
 
 // GetInfraEndpoint returns the main DD Infra URL defined in config, based on the value of `site` and `dd_url`

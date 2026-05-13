@@ -191,6 +191,7 @@ func TestBuildPipelinesWithMRFActive(t *testing.T) {
 	config.SetWithoutSource("multi_region_failover.enabled", true)
 	config.SetWithoutSource("multi_region_failover.failover_metrics", true)
 	config.SetWithoutSource("multi_region_failover.dd_url", "http://mrf.example.test")
+	config.SetWithoutSource("multi_region_failover.api_key", "mrf_test_key")
 
 	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
@@ -228,6 +229,7 @@ func TestBuildPipelinesWithMRFActiveFilter(t *testing.T) {
 	config.SetWithoutSource("multi_region_failover.failover_metrics", true)
 	config.SetWithoutSource("multi_region_failover.metric_allowlist", []string{"datadog.agent.running"})
 	config.SetWithoutSource("multi_region_failover.dd_url", "http://mrf.example.test")
+	config.SetWithoutSource("multi_region_failover.api_key", "mrf_test_key")
 
 	f, err := defaultforwarder.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)

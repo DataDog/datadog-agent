@@ -32,14 +32,14 @@ func TestPipelineSendValidate(t *testing.T) {
 	res1, err := resolver.NewSingleDomainResolver2(utils.EndpointDescriptor{
 		BaseURL: "http://example.test",
 		APIKeySet: []utils.APIKeys{
-			utils.NewAPIKeys("api_key", "1"),
+			utils.NewAPIKeys("api_key", "http://example.test", "1"),
 		},
 	})
 	require.NoError(t, err)
 	res2, err := resolver.NewSingleDomainResolver2(utils.EndpointDescriptor{
 		BaseURL: "http://another.test",
 		APIKeySet: []utils.APIKeys{
-			utils.NewAPIKeys("api_key", "2"),
+			utils.NewAPIKeys("api_key", "http://another.test", "2"),
 		},
 	})
 	require.NoError(t, err)

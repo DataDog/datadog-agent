@@ -39,11 +39,11 @@ func TestCheckValidAPIKey(t *testing.T) {
 
 	keysPerDomains := map[string][]utils.APIKeys{
 		ts1.URL: {
-			utils.NewAPIKeys("path", "api_key1"),
-			utils.NewAPIKeys("path", "api_key2"),
+			utils.NewAPIKeys("path", ts1.URL, "api_key1"),
+			utils.NewAPIKeys("path", ts1.URL, "api_key2"),
 		},
 		ts2.URL: {
-			utils.NewAPIKeys("path", "key3"),
+			utils.NewAPIKeys("path", ts2.URL, "key3"),
 		},
 	}
 	log := logmock.New(t)
@@ -62,20 +62,20 @@ func TestCheckValidAPIKey(t *testing.T) {
 
 func TestComputeDomainsURL(t *testing.T) {
 	keysPerDomains := map[string][]utils.APIKeys{
-		"https://app.datadoghq.com":              {utils.NewAPIKeys("path", "api_key1")},
-		"https://custom.datadoghq.com":           {utils.NewAPIKeys("path", "api_key2")},
-		"https://custom.agent.datadoghq.com":     {utils.NewAPIKeys("path", "api_key3")},
-		"https://app.datadoghq.eu":               {utils.NewAPIKeys("path", "api_key4")},
-		"https://app.us2.datadoghq.com":          {utils.NewAPIKeys("path", "api_key5")},
-		"https://app.xx9.datadoghq.com":          {utils.NewAPIKeys("path", "api_key5")},
-		"https://app.xxxx99.datadoghq.com":       {utils.NewAPIKeys("path", "api_key5")},
-		"https://custom.agent.us2.datadoghq.com": {utils.NewAPIKeys("path", "api_key6")},
+		"https://app.datadoghq.com":              {utils.NewAPIKeys("path", "https://app.datadoghq.com", "api_key1")},
+		"https://custom.datadoghq.com":           {utils.NewAPIKeys("path", "https://custom.datadoghq.com", "api_key2")},
+		"https://custom.agent.datadoghq.com":     {utils.NewAPIKeys("path", "https://custom.agent.datadoghq.com", "api_key3")},
+		"https://app.datadoghq.eu":               {utils.NewAPIKeys("path", "https://app.datadoghq.eu", "api_key4")},
+		"https://app.us2.datadoghq.com":          {utils.NewAPIKeys("path", "https://app.us2.datadoghq.com", "api_key5")},
+		"https://app.xx9.datadoghq.com":          {utils.NewAPIKeys("path", "https://app.xx9.datadoghq.com", "api_key5")},
+		"https://app.xxxx99.datadoghq.com":       {utils.NewAPIKeys("path", "https://app.xxxx99.datadoghq.com", "api_key5")},
+		"https://custom.agent.us2.datadoghq.com": {utils.NewAPIKeys("path", "https://custom.agent.us2.datadoghq.com", "api_key6")},
 		// debatable whether the next one should be changed to `api.`, preserve pre-existing behavior for now
-		"https://app.datadoghq.internal":  {utils.NewAPIKeys("path", "api_key7")},
-		"https://app.myproxy.com":         {utils.NewAPIKeys("path", "api_key8")},
-		"https://app.ddog-gov.com":        {utils.NewAPIKeys("path", "api_key9")},
-		"https://custom.ddog-gov.com":     {utils.NewAPIKeys("path", "api_key10")},
-		"https://app.xxxx99.ddog-gov.com": {utils.NewAPIKeys("path", "api_key11")},
+		"https://app.datadoghq.internal":  {utils.NewAPIKeys("path", "https://app.datadoghq.internal", "api_key7")},
+		"https://app.myproxy.com":         {utils.NewAPIKeys("path", "https://app.myproxy.com", "api_key8")},
+		"https://app.ddog-gov.com":        {utils.NewAPIKeys("path", "https://app.ddog-gov.com", "api_key9")},
+		"https://custom.ddog-gov.com":     {utils.NewAPIKeys("path", "https://custom.ddog-gov.com", "api_key10")},
+		"https://app.xxxx99.ddog-gov.com": {utils.NewAPIKeys("path", "https://app.xxxx99.ddog-gov.com", "api_key11")},
 	}
 
 	expectedMap := map[string][]string{
@@ -181,8 +181,8 @@ func TestUpdateAPIKey(t *testing.T) {
 
 	// starting API Keys, before the update
 	keysPerDomains := map[string][]utils.APIKeys{
-		ts1.URL: {utils.NewAPIKeys("path1", "api_key1"), utils.NewAPIKeys("path2", "api_key2")},
-		ts2.URL: {utils.NewAPIKeys("path", "api_key3")},
+		ts1.URL: {utils.NewAPIKeys("path1", ts1.URL, "api_key1"), utils.NewAPIKeys("path2", ts1.URL, "api_key2")},
+		ts2.URL: {utils.NewAPIKeys("path", ts2.URL, "api_key3")},
 	}
 
 	log := logmock.New(t)
@@ -201,7 +201,7 @@ func TestUpdateAPIKey(t *testing.T) {
 	assert.Equal(t, expect, string(data))
 
 	// update the resolver first since the health checker will load the new keys from the resolver
-	r[ts1.URL].UpdateAPIKeys("path1", []utils.APIKeys{utils.NewAPIKeys("path1", "api_key4")})
+	r[ts1.URL].UpdateAPIKeys("path1", []utils.APIKeys{utils.NewAPIKeys("path1", ts1.URL, "api_key4")})
 	// update the API Key
 	fh.UpdateAPIKeys(ts1.URL, []string{"api_key1"}, []string{"api_key4"})
 
@@ -252,10 +252,10 @@ func runUpdateAPIKeysTest(t *testing.T, description string, keysBefore, keysAfte
 
 	// starting API Keys, before the update
 	keysPerDomains := map[string][]utils.APIKeys{
-		ts1.URL: {utils.NewAPIKeys("api_key", "api_key1")},
+		ts1.URL: {utils.NewAPIKeys("api_key", ts1.URL, "api_key1")},
 		ts2.URL: {
-			utils.NewAPIKeys("process.additional_endpoints", "api_key1", "api_key2"),
-			utils.NewAPIKeys("additional_endpoints", keysBefore...),
+			utils.NewAPIKeys("process.additional_endpoints", ts2.URL, "api_key1", "api_key2"),
+			utils.NewAPIKeys("additional_endpoints", ts2.URL, keysBefore...),
 		},
 	}
 
@@ -399,9 +399,9 @@ func TestOneEndpointNoAPIKeys(t *testing.T) {
 	// additional endpoints has no API keys, but endpoint should still
 	// be valid because the main endpoint does.
 	keysPerDomains := map[string][]utils.APIKeys{
-		ts1.URL: {utils.NewAPIKeys("api_key", "api_key1")},
+		ts1.URL: {utils.NewAPIKeys("api_key", ts1.URL, "api_key1")},
 		ts2.URL: {
-			utils.NewAPIKeys("additional_endpoints"),
+			utils.NewAPIKeys("additional_endpoints", ts2.URL),
 		},
 	}
 
@@ -434,9 +434,9 @@ func TestOneEndpointInvalid(t *testing.T) {
 	// additional endpoints has no API keys, but endpoint should still
 	// be valid because the main endpoint does.
 	keysPerDomains := map[string][]utils.APIKeys{
-		ts1.URL: {utils.NewAPIKeys("api_key", "api_key1")},
+		ts1.URL: {utils.NewAPIKeys("api_key", ts1.URL, "api_key1")},
 		ts2.URL: {
-			utils.NewAPIKeys("additional_endpoints", "api_key2"),
+			utils.NewAPIKeys("additional_endpoints", ts2.URL, "api_key2"),
 		},
 	}
 
@@ -491,7 +491,7 @@ func TestUpdateAPIKeyAfterSetBaseDomain(t *testing.T) {
 	originalDomain := "https://app.datadoghq.com."
 
 	keysPerDomains := map[string][]utils.APIKeys{
-		originalDomain: {utils.NewAPIKeys("api_key", "old_key")},
+		originalDomain: {utils.NewAPIKeys("api_key", originalDomain, "old_key")},
 	}
 	resolvers, err := resolver.NewSingleDomainResolvers(keysPerDomains)
 	require.NoError(t, err)

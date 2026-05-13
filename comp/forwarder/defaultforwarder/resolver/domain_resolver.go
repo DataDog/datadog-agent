@@ -53,7 +53,7 @@ type domainResolver struct {
 	domain          string
 	apiKeys         []utils.APIKeys
 	keyVersion      int
-	dedupedAPIKeys  []string
+	dedupedKeys     []utils.APIKey
 	mu              sync.Mutex
 	healthChecker   ForwarderHealth
 	destinationType DestinationType
@@ -122,8 +122,15 @@ func OnUpdateConfig(resolver DomainResolver, log log.Component, config config.Co
 // will not know exactly which api key has been updated so we reload the whole list from the config and insert this
 // into our list before deduping.
 func updateAdditionalEndpoints(resolver DomainResolver, setting string, config config.Component, log log.Component) {
-	additionalEndpoints := utils.MakeEndpoints(config.GetStringMapStringSlice(setting), setting)
+	additionalEndpoints := utils.MakeNamedEndpoints(
+		config.GetStringMapStringSlice(setting),
+		utils.RawStringMapStringSlice(config, setting),
+		setting,
+	)
 	endpoints, ok := additionalEndpoints[resolver.GetBaseDomain()]
+	if !ok {
+		endpoints, ok = additionalEndpoints[resolver.GetConfigName()]
+	}
 	if !ok {
 		log.Errorf("error: the domain in additional_endpoints changed at runtime for '%s', discarding update.", resolver.GetBaseDomain())
 		return
@@ -165,16 +172,14 @@ func NewSingleDomainResolver2(descriptor utils.EndpointDescriptor) (DomainResolv
 		}
 	}
 
-	deduped := utils.DedupAPIKeys(descriptor.APIKeySet)
-
 	return &domainResolver{
-		configName:     descriptor.BaseURL,
-		domain:         descriptor.BaseURL,
-		apiKeys:        descriptor.APIKeySet,
-		keyVersion:     0,
-		dedupedAPIKeys: deduped,
-		mu:             sync.Mutex{},
-		isMRF:          descriptor.IsMRF,
+		configName:  descriptor.BaseURL,
+		domain:      descriptor.BaseURL,
+		apiKeys:     descriptor.APIKeySet,
+		keyVersion:  0,
+		dedupedKeys: utils.DedupAPIKeys(descriptor.APIKeySet),
+		mu:          sync.Mutex{},
+		isMRF:       descriptor.IsMRF,
 	}, nil
 }
 
@@ -201,11 +206,61 @@ func (r *domainResolver) GetBaseDomain() string {
 	return r.domain
 }
 
-// GetAPIKeys returns the slice of API keys associated with this SingleDomainResolver
+// GetAPIKeys returns the deduplicated API key values associated with this resolver.
 func (r *domainResolver) GetAPIKeys() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.dedupedAPIKeys
+	keys := make([]string, len(r.dedupedKeys))
+	for i, k := range r.dedupedKeys {
+		keys[i] = k.Key
+	}
+	return keys
+}
+
+// GetAPIKeyNames returns the stable API key names associated with this resolver.
+func (r *domainResolver) GetAPIKeyNames() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	names := make([]string, len(r.dedupedKeys))
+	for i, k := range r.dedupedKeys {
+		names[i] = k.Name
+	}
+	return names
+}
+
+// GetAPIKeyName returns the stable name for the given legacy API key index.
+func (r *domainResolver) GetAPIKeyName(apiKeyIdx uint) (string, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.IsLocal() {
+		if apiKeyIdx == 0 {
+			return localAPIKeyName, true
+		}
+		return "", false
+	}
+	if apiKeyIdx >= uint(len(r.dedupedKeys)) {
+		return "", false
+	}
+	name := r.dedupedKeys[apiKeyIdx].Name
+	return name, name != ""
+}
+
+// GetAPIKeyIndex returns the current legacy API key index for a stable key name.
+func (r *domainResolver) GetAPIKeyIndex(apiKeyName string) (uint, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.IsLocal() {
+		if apiKeyName == localAPIKeyName {
+			return 0, true
+		}
+		return 0, false
+	}
+	for idx, k := range r.dedupedKeys {
+		if k.Name == apiKeyName {
+			return uint(idx), true
+		}
+	}
+	return 0, false
 }
 
 // GetAPIKeyVersion get the version of the keys.
@@ -246,12 +301,19 @@ func (r *domainResolver) GetAPIKeysInfo() ([]utils.APIKeys, int) {
 	return r.apiKeys, r.keyVersion
 }
 
-// SetBaseDomain sets the only destination available for a SingleDomainResolver
+// SetBaseDomain sets the only destination available for a SingleDomainResolver.
+// API key names are not regenerated: identity is decoupled from the routing
+// domain so that endpoint changes do not invalidate retry-queue identifiers.
 func (r *domainResolver) SetBaseDomain(domain string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.domain = domain
 }
 
-// UpdateAPIKeys updates the api keys at the given config path and sets the deduped keys to the new list.
+// UpdateAPIKeys updates the api keys at the given config path and sets the
+// deduped keys to the new list. New keys without a name are named against the
+// resolver's original config URL so identifiers stay stable even after
+// SetBaseDomain has rerouted the resolver to a different host.
 func (r *domainResolver) UpdateAPIKeys(configPath string, newKeys []utils.APIKeys) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -263,31 +325,31 @@ func (r *domainResolver) UpdateAPIKeys(configPath string, newKeys []utils.APIKey
 	}
 
 	r.apiKeys = append(newAPIKeys, newKeys...)
-	r.dedupedAPIKeys = utils.DedupAPIKeys(r.apiKeys)
+	r.dedupedKeys = utils.DedupAPIKeys(r.apiKeys)
 	r.keyVersion++
 }
 
-// UpdateAPIKey replaces instances of the oldKey with the newKey
+// UpdateAPIKey replaces instances of the oldKey with the newKey. Names are
+// preserved across rotation: only the key material changes.
 func (r *domainResolver) UpdateAPIKey(configPath, oldKey, newKey string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	for idx := range r.apiKeys {
 		if r.apiKeys[idx].ConfigSettingPath == configPath {
-			replace := make([]string, 0, len(r.apiKeys[idx].Keys))
+			replace := make([]utils.APIKey, 0, len(r.apiKeys[idx].Keys))
 			for _, key := range r.apiKeys[idx].Keys {
-				if key == oldKey {
-					replace = append(replace, newKey)
-				} else {
-					replace = append(replace, key)
+				if key.Key == oldKey {
+					key.Key = newKey
 				}
+				replace = append(replace, key)
 			}
 
 			r.apiKeys[idx].Keys = replace
 		}
 	}
 
-	r.dedupedAPIKeys = utils.DedupAPIKeys(r.apiKeys)
+	r.dedupedKeys = utils.DedupAPIKeys(r.apiKeys)
 	r.keyVersion++
 }
 
@@ -323,14 +385,12 @@ func NewMultiDomainResolver(domain string, apiKeys []utils.APIKeys) (DomainResol
 		}
 	}
 
-	deduped := utils.DedupAPIKeys(apiKeys)
-
 	return &domainResolver{
 		configName:          domain,
 		domain:              domain,
 		apiKeys:             apiKeys,
 		keyVersion:          0,
-		dedupedAPIKeys:      deduped,
+		dedupedKeys:         utils.DedupAPIKeys(apiKeys),
 		overrides:           make(map[string]destination),
 		alternateDomainList: []string{},
 		mu:                  sync.Mutex{},
@@ -392,7 +452,7 @@ func NewLocalDomainResolver(domain string, authToken string) DomainResolver {
 
 // IsUsable returns true if the resolver has valid configuration.
 func (r *domainResolver) IsUsable() bool {
-	return r.IsLocal() || len(r.dedupedAPIKeys) > 0
+	return r.IsLocal() || len(r.dedupedKeys) > 0
 }
 
 // IsLocal returns true if the domain corresponds to another agent.
@@ -408,6 +468,8 @@ func (r *domainResolver) IsMRF() bool {
 type authHeader struct {
 	key, value string
 }
+
+const localAPIKeyName = "local"
 
 // Authorize sets the auth header on the provided headers map.
 func (ah authHeader) Authorize(headers http.Header) {
@@ -440,6 +502,16 @@ func (r *domainResolver) Authorize(apiKeyIdx uint, headers http.Header, log log.
 	} else {
 		authorizers[apiKeyIdx].Authorize(headers)
 	}
+}
+
+// AuthorizeByName sets the auth header for the provided stable API key name.
+func (r *domainResolver) AuthorizeByName(apiKeyName string, headers http.Header, log log.Component) {
+	apiKeyIdx, ok := r.GetAPIKeyIndex(apiKeyName)
+	if !ok {
+		log.Errorf("API key name %q is not available for domain %q", apiKeyName, r.GetBaseDomain())
+		return
+	}
+	r.Authorize(apiKeyIdx, headers, log)
 }
 
 // GetConfigName returns the base url as it was originally written in the config.

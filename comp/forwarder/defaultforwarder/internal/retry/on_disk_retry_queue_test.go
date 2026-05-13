@@ -51,7 +51,7 @@ func TestOnDiskRetryQueueMaxSize(t *testing.T) {
 	a := assert.New(t)
 	path := t.TempDir()
 
-	maxSizeInBytes := int64(100)
+	maxSizeInBytes := int64(200)
 	pointDropped := fileStoragePointDroppedCountTelemetry.expvar.Value()
 	q := newTestOnDiskRetryQueue(t, a, path, maxSizeInBytes)
 
@@ -135,7 +135,7 @@ func newTestOnDiskRetryQueue(t *testing.T, a *assert.Assertions, path string, ma
 		}}
 	diskUsageLimit := NewDiskUsageLimit("", disk, maxSizeInBytes, 1)
 	log := logmock.New(t)
-	r, _ := resolver.NewSingleDomainResolver(domainName, []utils.APIKeys{utils.NewAPIKeys("path", "api-key-1")})
+	r, _ := resolver.NewSingleDomainResolver(domainName, []utils.APIKeys{utils.NewAPIKeys("path", domainName, "api-key-1")})
 	storage, err := newOnDiskRetryQueue(log, NewHTTPTransactionsSerializer(log, r), path, diskUsageLimit, telemetry, NewPointCountTelemetryMock())
 	a.NoError(err)
 	return storage

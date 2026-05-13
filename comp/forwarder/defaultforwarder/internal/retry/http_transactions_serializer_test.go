@@ -39,12 +39,12 @@ const domain = "domain"
 const vectorDomain = "vectorDomain"
 
 func TestHTTPSerializeDeserialize(t *testing.T) {
-	r, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", apiKey1, apiKey2)})
+	r, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", domain, apiKey1, apiKey2)})
 	require.NoError(t, err)
 	runTestHTTPSerializeDeserializeWithResolver(t, domain, r)
 }
 func TestHTTPSerializeDeserializeWithResolverOverride(t *testing.T) {
-	r, err := resolver.NewMultiDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", apiKey1, apiKey2)})
+	r, err := resolver.NewMultiDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", domain, apiKey1, apiKey2)})
 	require.NoError(t, err)
 	r.RegisterAlternateDestination(vectorDomain, "name", resolver.Vector)
 	runTestHTTPSerializeDeserializeWithResolver(t, vectorDomain, r)
@@ -107,7 +107,7 @@ func TestPartialDeserialize(t *testing.T) {
 func TestHTTPTransactionSerializerMissingAPIKey(t *testing.T) {
 	r := require.New(t)
 	log := logmock.New(t)
-	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", apiKey1, apiKey2)})
+	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", domain, apiKey1, apiKey2)})
 	require.NoError(t, err)
 	serializer := NewHTTPTransactionsSerializer(log, res)
 
@@ -125,7 +125,7 @@ func TestHTTPTransactionSerializerMissingAPIKey(t *testing.T) {
 
 	// Deserializing with a resolver that only has apiKey1: the transaction is dropped
 	// because APIKeyIndex 1 is out of range for a single-key resolver.
-	res2, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", apiKey1)})
+	res2, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", domain, apiKey1)})
 	require.NoError(t, err)
 	serializerSmaller := NewHTTPTransactionsSerializer(log, res2)
 	txns2, errorCount, err := serializerSmaller.Deserialize(bytes)
@@ -140,7 +140,7 @@ func TestHTTPTransactionSerializerMissingAPIKey(t *testing.T) {
 func TestHTTPTransactionSerializerUpdateAPIKey(t *testing.T) {
 	r := require.New(t)
 	log := logmock.New(t)
-	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", apiKey1, apiKey2)})
+	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", domain, apiKey1, apiKey2)})
 	r.NoError(err)
 
 	serializer := NewHTTPTransactionsSerializer(log, res)
@@ -153,7 +153,7 @@ func TestHTTPTransactionSerializerUpdateAPIKey(t *testing.T) {
 	r.NotContains(string(bytes), apiKey1, "Serialized data should not contain %s", apiKey1)
 
 	// Update the API keys so index 1 now resolves to apiKey2 (unchanged).
-	res.UpdateAPIKeys("additional_endpoints", []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", apiKey4, apiKey2, apiKey3)})
+	res.UpdateAPIKeys("additional_endpoints", []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", domain, apiKey4, apiKey2, apiKey3)})
 
 	tr2 := createHTTPTransactionTests(domain)
 	tr2.APIKeyIndex = 2 // apiKey3
@@ -175,8 +175,8 @@ func TestHTTPTransactionSerializerUpdateDedupedAPIKey(t *testing.T) {
 
 	// apiKey1 is duplicated across two config paths.
 	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{
-		utils.NewAPIKeys("api_key", apiKey1),
-		utils.NewAPIKeys("additional_endpoints", apiKey1, apiKey2),
+		utils.NewAPIKeys("api_key", domain, apiKey1),
+		utils.NewAPIKeys("additional_endpoints", domain, apiKey1, apiKey2),
 	})
 	r.NoError(err)
 
@@ -190,8 +190,8 @@ func TestHTTPTransactionSerializerUpdateDedupedAPIKey(t *testing.T) {
 	r.NotContains(string(bytes), apiKey1, "Serialized data should not contain %s", apiKey1)
 
 	// Rotate keys so there are no longer any duplicates.
-	res.UpdateAPIKeys("api_key", []utils.APIKeys{utils.NewAPIKeys("api_key", apiKey3)})
-	res.UpdateAPIKeys("additional_endpoints", []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", apiKey4, apiKey5)})
+	res.UpdateAPIKeys("api_key", []utils.APIKeys{utils.NewAPIKeys("api_key", domain, apiKey3)})
+	res.UpdateAPIKeys("additional_endpoints", []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", domain, apiKey4, apiKey5)})
 
 	// The stored index (0) is preserved; the actual key resolved at send time may differ.
 	transactions, _, err := serializer.Deserialize(bytes)
@@ -205,7 +205,7 @@ func TestHTTPTransactionSerializerUpdateDedupedAPIKey(t *testing.T) {
 func TestHTTPTransactionSerializerUpdateAPIKeyBeforeSerializing(t *testing.T) {
 	r := require.New(t)
 	log := logmock.New(t)
-	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", apiKey1, apiKey2)})
+	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", domain, apiKey1, apiKey2)})
 	r.NoError(err)
 
 	serializer := NewHTTPTransactionsSerializer(log, res)
@@ -214,7 +214,7 @@ func TestHTTPTransactionSerializerUpdateAPIKeyBeforeSerializing(t *testing.T) {
 	txn.APIKeyIndex = 0 // originally points to apiKey1
 
 	// Rotate keys before calling Add (apiKey4 replaces apiKey1 at index 0).
-	res.UpdateAPIKeys("additional_endpoints", []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", apiKey4, apiKey2)})
+	res.UpdateAPIKeys("additional_endpoints", []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", domain, apiKey4, apiKey2)})
 
 	r.NoError(serializer.Add(txn))
 	bytes, err := serializer.GetBytesAndReset()
@@ -276,7 +276,7 @@ func assertTransactionEqual(a *assert.Assertions, tr1 *transaction.HTTPTransacti
 // so Authorize() can be called without panicking.
 func TestDeserializedTransactionHasResolver(t *testing.T) {
 	log := logmock.New(t)
-	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", apiKey1, apiKey2)})
+	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", domain, apiKey1, apiKey2)})
 	require.NoError(t, err)
 	serializer := NewHTTPTransactionsSerializer(log, res)
 
@@ -298,7 +298,7 @@ func TestDeserializedTransactionHasResolver(t *testing.T) {
 // serialization is correctly restored so the transaction uses the same API key after restart.
 func TestDeserializedTransactionAPIKeyIndexPreserved(t *testing.T) {
 	log := logmock.New(t)
-	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", apiKey1, apiKey2, apiKey3)})
+	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", domain, apiKey1, apiKey2, apiKey3)})
 	require.NoError(t, err)
 	serializer := NewHTTPTransactionsSerializer(log, res)
 
@@ -325,7 +325,7 @@ func TestDeserializedTransactionAPIKeyIndexPreserved(t *testing.T) {
 // transaction correctly sets the DD-Api-Key header based on the stored APIKeyIndex.
 func TestDeserializedTransactionAuthorize(t *testing.T) {
 	log := logmock.New(t)
-	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", apiKey1, apiKey2)})
+	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", domain, apiKey1, apiKey2)})
 	require.NoError(t, err)
 	serializer := NewHTTPTransactionsSerializer(log, res)
 
@@ -353,7 +353,7 @@ func TestDeserializedTransactionAuthorize(t *testing.T) {
 // with different APIKeyIndex values each gets the correct key after deserialization.
 func TestDeserializedTransactionAuthorizeMultipleKeys(t *testing.T) {
 	log := logmock.New(t)
-	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", apiKey1, apiKey2, apiKey3)})
+	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", domain, apiKey1, apiKey2, apiKey3)})
 	require.NoError(t, err)
 	serializer := NewHTTPTransactionsSerializer(log, res)
 
@@ -393,7 +393,7 @@ func TestDeserializedTransactionAuthorizeMultipleKeys(t *testing.T) {
 func TestDeserializeV2BackwardCompat(t *testing.T) {
 	r := require.New(t)
 	log := logmock.New(t)
-	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", apiKey1, apiKey2)})
+	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", domain, apiKey1, apiKey2)})
 	r.NoError(err)
 	serializer := NewHTTPTransactionsSerializer(log, res)
 
@@ -450,7 +450,7 @@ func TestDeserializeV2MissingAPIKey(t *testing.T) {
 	}
 
 	// Two-key resolver: the blob is valid (index 1 → apiKey2).
-	res2, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", apiKey1, apiKey2)})
+	res2, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", domain, apiKey1, apiKey2)})
 	r.NoError(err)
 	serializerFull := NewHTTPTransactionsSerializer(log, res2)
 	txns, errorCount, err := serializerFull.Deserialize(v2Bytes)
@@ -459,7 +459,7 @@ func TestDeserializeV2MissingAPIKey(t *testing.T) {
 	r.Len(txns, 1)
 
 	// One-key resolver: index 1 is out of range — transaction must be dropped.
-	res1, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", apiKey1)})
+	res1, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", domain, apiKey1)})
 	r.NoError(err)
 	serializerSmaller := NewHTTPTransactionsSerializer(log, res1)
 	txns, errorCount, err = serializerSmaller.Deserialize(v2Bytes)
@@ -494,7 +494,7 @@ func TestExtractPlaceholderIndex(t *testing.T) {
 // APIKeyIndex derived from the embedded placeholder rather than a restored key value.
 func TestV2IndexExtraction(t *testing.T) {
 	log := logmock.New(t)
-	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", apiKey1, apiKey2, apiKey3)})
+	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", domain, apiKey1, apiKey2, apiKey3)})
 	require.NoError(t, err)
 	serializer := NewHTTPTransactionsSerializer(log, res)
 
@@ -525,7 +525,7 @@ func TestV1IndexExtraction(t *testing.T) {
 	// Config order (deduped): [apiKey3, apiKey1, apiKey2]
 	// Sorted order:           [apiKey1, apiKey2, apiKey3]
 	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{
-		utils.NewAPIKeys("path", apiKey3, apiKey1, apiKey2),
+		utils.NewAPIKeys("path", domain, apiKey3, apiKey1, apiKey2),
 	})
 	require.NoError(t, err)
 
@@ -580,7 +580,7 @@ func TestV1IndexExtraction(t *testing.T) {
 // header value does, the index is still extracted correctly (V2 format).
 func TestV2IndexFromHeaderPlaceholder(t *testing.T) {
 	log := logmock.New(t)
-	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", apiKey1, apiKey2)})
+	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("path", domain, apiKey1, apiKey2)})
 	require.NoError(t, err)
 
 	serializer := NewHTTPTransactionsSerializer(log, res)
@@ -621,7 +621,7 @@ func TestV2IndexFromHeaderPlaceholder(t *testing.T) {
 func TestDeserializeV2(t *testing.T) {
 	r := require.New(t)
 	log := logmock.New(t)
-	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", apiKey1, apiKey2)})
+	res, err := resolver.NewSingleDomainResolver(domain, []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", domain, apiKey1, apiKey2)})
 	r.NoError(err)
 	serializer := NewHTTPTransactionsSerializer(log, res)
 
