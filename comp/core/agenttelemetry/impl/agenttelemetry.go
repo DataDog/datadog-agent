@@ -718,7 +718,7 @@ func (a *atel) SendEvent(eventType string, eventPayload []byte) error {
 	return nil
 }
 
-// SubmitErrorRecord is the v3 per-record entry point. Non-blocking:
+// SubmitErrorRecord is the per-record entry point. Non-blocking:
 // enqueues into the bounded errLogsCh buffer; on overflow, drops
 // silently and increments errLogsDropped (the calling goroutine — the
 // slog handler hot path — MUST NOT block on a misbehaving backend).
@@ -884,7 +884,7 @@ func (a *atel) start() error {
 		})
 	}
 
-	// Start the v3 errortracking flush goroutine only when the
+	// Start the errortracking flush goroutine only when the
 	// errortracking feature is enabled. Lifecycle is bound to
 	// a.cancelCtx; stop() waits on errLogsFlushWG for the final drain
 	// to complete (a no-op WaitGroup.Wait when this branch was skipped).

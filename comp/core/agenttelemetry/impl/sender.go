@@ -69,7 +69,7 @@ type sender interface {
 	sendAgentMetricPayloads(ss *senderSession, metrics []*agentmetric)
 	sendEventPayload(ss *senderSession, eventInfo *Event, eventPayload map[string]interface{})
 
-	// sendLogsTypedBatch is the v3 entry point used by atel's
+	// sendLogsTypedBatch is the entry point used by atel's
 	// errortracking flush goroutine. It takes already-converted wire
 	// Log structs and POSTs them as a single LogsPayload via the
 	// shared sendPayloadBody helper.
