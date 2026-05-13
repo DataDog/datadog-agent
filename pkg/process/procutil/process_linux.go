@@ -104,15 +104,6 @@ func WithPermission(elevatedPermissions bool) Option {
 	}
 }
 
-// WithIgnoreZombieProcesses configures if process collection should ignore zombie processes or not
-func WithIgnoreZombieProcesses(ignoreZombieProcesses bool) Option {
-	return func(p Probe) {
-		if linuxProbe, ok := p.(*probe); ok {
-			linuxProbe.ignoreZombieProcesses = ignoreZombieProcesses
-		}
-	}
-}
-
 // WithBootTimeRefreshInterval configures the boot time refresh interval
 func WithBootTimeRefreshInterval(bootTimeRefreshInterval time.Duration) Option {
 	return func(p Probe) {
@@ -136,7 +127,6 @@ type probe struct {
 	elevatedPermissions     bool
 	returnZeroPermStats     bool
 	bootTimeRefreshInterval time.Duration
-	ignoreZombieProcesses   bool
 }
 
 // NewProcessProbe initializes a new Probe object
@@ -258,8 +248,6 @@ func (p *probe) processFromPID(pid int32, collectStats bool, now time.Time) (*Pr
 			// NOTE: The agent's process check currently skips all processes that are kernel threads which have
 			//       no cmdline and they have the PF_KTHREAD flag set in /proc/<pid>/stat
 			//       Moving this check down the stack saves us from a number of needless follow-up system calls.
-			return nil, nil
-		} else if p.ignoreZombieProcesses {
 			return nil, nil
 		}
 		log.Debugf("process with empty cmdline not skipped pid:%d", pid)

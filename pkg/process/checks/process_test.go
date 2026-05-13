@@ -578,7 +578,7 @@ func TestProcessWithNoCommandline(t *testing.T) {
 	useImprovedAlgorithm := false
 	serviceExtractor := parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm)
 	taggerMock := fxutil.Test[taggermock.Mock](t, core.MockBundle(), hostnameimpl.MockModule(), taggerfxmock.MockModule(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
-	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, false, serviceExtractor, nil, taggerMock, now)
+	procs := fmtProcesses(procutil.NewDefaultDataScrubber(), disallowList, procMap, procMap, nil, syst2, syst1, lastRun, nil, nil, serviceExtractor, nil, taggerMock, now)
 	assert.Len(t, procs, 1)
 
 	require.Len(t, procs[""], 1)
@@ -608,97 +608,6 @@ func BenchmarkProcessCheck(b *testing.B) {
 		_, err := processCheck.run(0, false)
 		require.NoError(b, err)
 	}
-}
-
-func TestProcessCheckZombieToggleFalse(t *testing.T) {
-	processCheck, probe, wmeta := processCheckWithMocks(t)
-	cfg := configmock.New(t)
-	processCheck.config = cfg
-	cfg.SetInTest("process_config.ignore_zombie_processes", false)
-	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
-
-	now := time.Now().Unix()
-	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
-	proc2 := makeProcessWithCreateTime(2, "foo -bar -bim", now+1)
-	proc3 := makeProcessWithCreateTime(3, "datadog-process-agent --cfgpath datadog.conf", now+2)
-	proc2.Stats.Status = "Z"
-	proc3.Stats.Status = "Z"
-	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3}
-	expectedModel2 := makeProcessModel(t, proc2, []string{"process_context:foo"})
-	expectedModel2.State = 7
-	expectedModel3 := makeProcessModel(t, proc3, []string{"process_context:datadog-process-agent"})
-	expectedModel3.State = 7
-
-	statsByPid := map[int32]*procutil.Stats{1: proc1.Stats, 2: proc2.Stats, 3: proc3.Stats}
-
-	mockProcesses(processCheck.WLMProcessCollectionEnabled(), probe, wmeta, processesByPid, statsByPid)
-
-	// The first run returns nothing because processes must be observed on two consecutive runs
-	first, err := processCheck.run(0, false)
-	require.NoError(t, err)
-	assert.Equal(t, CombinedRunResult{}, first)
-
-	expected := []model.MessageBody{
-		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc1, []string{"process_context:git"})},
-			GroupSize: int32(len(processesByPid)),
-			Info:      processCheck.hostInfo.SystemInfo,
-			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
-		},
-		&model.CollectorProc{
-			Processes: []*model.Process{expectedModel2},
-			GroupSize: int32(len(processesByPid)),
-			Info:      processCheck.hostInfo.SystemInfo,
-			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
-		},
-		&model.CollectorProc{
-			Processes: []*model.Process{expectedModel3},
-			GroupSize: int32(len(processesByPid)),
-			Info:      processCheck.hostInfo.SystemInfo,
-			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
-		},
-	}
-	actual, err := processCheck.run(0, false)
-	require.NoError(t, err)
-	assert.ElementsMatch(t, expected, actual.Payloads())
-}
-
-func TestProcessCheckZombieToggleTrue(t *testing.T) {
-	processCheck, probe, wmeta := processCheckWithMocks(t)
-	cfg := configmock.New(t)
-	processCheck.config = cfg
-	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
-
-	now := time.Now().Unix()
-	proc1 := makeProcessWithCreateTime(1, "git clone google.com", now)
-	proc2 := makeProcessWithCreateTime(2, "foo -bar -bim", now+1)
-	proc3 := makeProcessWithCreateTime(3, "datadog-process-agent --cfgpath datadog.conf", now+2)
-	proc2.Stats.Status = "Z"
-	proc3.Stats.Status = "Z"
-	processesByPid := map[int32]*procutil.Process{1: proc1, 2: proc2, 3: proc3}
-	statsByPid := map[int32]*procutil.Stats{1: proc1.Stats, 2: proc2.Stats, 3: proc3.Stats}
-
-	mockProcesses(processCheck.WLMProcessCollectionEnabled(), probe, wmeta, processesByPid, statsByPid)
-
-	// The first run returns nothing because processes must be observed on two consecutive runs
-	first, err := processCheck.run(0, false)
-	require.NoError(t, err)
-	assert.Equal(t, CombinedRunResult{}, first)
-
-	cfg.SetInTest("process_config.ignore_zombie_processes", true)
-	processCheck.ignoreZombieProcesses = processCheck.config.GetBool(configIgnoreZombies)
-	expected := []model.MessageBody{
-		&model.CollectorProc{
-			Processes: []*model.Process{makeProcessModel(t, proc1, []string{"process_context:git"})},
-			GroupSize: int32(1),
-			Info:      processCheck.hostInfo.SystemInfo,
-			Hints:     &model.CollectorProc_HintMask{HintMask: 0b1},
-		},
-	}
-
-	actual, err := processCheck.run(0, false)
-	require.NoError(t, err)
-	assert.ElementsMatch(t, expected, actual.Payloads()) // ordering is not guaranteed
 }
 
 func TestProcessContextCollection(t *testing.T) {
@@ -770,7 +679,7 @@ func TestProcessTaggerIntegration(t *testing.T) {
 		syst1,
 		lastRun,
 		nil,   // no lookup probe
-		false, // don't ignore zombies
+		nil,   // no zombie aggregates
 		serviceExtractor,
 		nil, // no GPU tags
 		taggerMock,

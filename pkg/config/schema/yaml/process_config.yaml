@@ -337,13 +337,6 @@ properties:
     env_vars:
     - DD_PROCESS_CONFIG_GRPC_CONNECTION_TIMEOUT_SECS
     - DD_PROCESS_AGENT_GRPC_CONNECTION_TIMEOUT_SECS
-  ignore_zombie_processes:
-    node_type: setting
-    type: boolean
-    default: false
-    env_vars:
-    - DD_PROCESS_CONFIG_IGNORE_ZOMBIE_PROCESSES
-    - DD_PROCESS_AGENT_IGNORE_ZOMBIE_PROCESSES
   internal_profiling:
     node_type: section
     type: object
