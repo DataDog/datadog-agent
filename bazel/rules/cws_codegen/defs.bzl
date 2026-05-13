@@ -56,9 +56,6 @@ def _event_deep_copy_impl(name, tags, model, types_file, package_path, output, s
         visibility = visibility,
     )
 
-    # The output file is already exported package-wide by this BUILD's glob
-    # exports_files (for the seclwin sync), so we deliberately skip a per-output
-    # exports_files call here to avoid the "declared twice" error.
     write_source_file(
         name = name,
         in_file = ":{}".format(gen),
