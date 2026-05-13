@@ -63,6 +63,17 @@ func flushMsgs(ag Aggregator) []*message.Message {
 // aggregator's internal buffer and is only valid until the next Process/Flush call.
 // Tests must assert results before making the next call.
 
+// TestNoAggregate anchors:
+//
+//	surface CombiningAggregation (combining_aggregator.allium)
+//	    @guarantee NoAggregateFlushes — A process call with the
+//	                                     no_aggregate label flushes
+//	                                     any buffered bucket then
+//	                                     emits the current line.
+//
+// The simplest path: with an empty bucket, each no_aggregate call
+// flushes nothing (bucket was empty) and emits the current line
+// as single-line. Single-emission per call shape verified.
 func TestNoAggregate(t *testing.T) {
 	ag := NewCombiningAggregator(100, false, false, status.NewInfoRegistry())
 
@@ -79,6 +90,21 @@ func TestNoAggregate(t *testing.T) {
 	assertMessageContent(t, msgs[0], "3")
 }
 
+// TestNoAggregateEndsGroup anchors:
+//
+//	surface CombiningAggregation (combining_aggregator.allium)
+//	    @guarantee NoAggregateFlushes — produces 1 or 2 emissions
+//	                                     per call: (bucket-flush
+//	                                     if non-empty) followed
+//	                                     by (current line).
+//	    @guarantee StartGroupBoundary — start_group flushes the
+//	                                     prior bucket and begins
+//	                                     a new one.
+//
+// Verifies both boundary-flushing labels: start_group flushes the
+// previously buffered start_group as combined (1 emission, since
+// buffer holds 1 line), then no_aggregate flushes the next
+// start_group AND emits its own line (2 emissions).
 func TestNoAggregateEndsGroup(t *testing.T) {
 	ag := NewCombiningAggregator(100, false, false, status.NewInfoRegistry())
 
@@ -94,6 +120,20 @@ func TestNoAggregateEndsGroup(t *testing.T) {
 	assertMessageContent(t, msgs[1], "3")
 }
 
+// TestAggregateGroups anchors:
+//
+//	surface CombiningAggregation (combining_aggregator.allium)
+//	    @guarantee StartGroupBoundary — start_group flushes prior
+//	                                     bucket as combined.
+//	    @guarantee ByteConservation (refined) — combined emission
+//	                                             is concat with
+//	                                             escaped-line-feed
+//	                                             separator.
+//
+// Three lines aggregate into one bucket: startGroup + aggregate +
+// aggregate. The next startGroup flushes them as one combined
+// "1\\n2\\n3" message. Then a no_aggregate flushes "4" (single)
+// and emits "5".
 func TestAggregateGroups(t *testing.T) {
 	ag := NewCombiningAggregator(100, false, false, status.NewInfoRegistry())
 
@@ -114,6 +154,16 @@ func TestAggregateGroups(t *testing.T) {
 	assertMessageContent(t, msgs[1], "5")
 }
 
+// TestAggregateDoesntStartGroup anchors:
+//
+//	surface CombiningAggregation (combining_aggregator.allium)
+//	    @guidance step 3 — If label = aggregate AND bucket_empty:
+//	                       add msg to the bucket, flush_bucket
+//	                       immediately. Emits as single-line.
+//
+// An aggregate label on an empty bucket does NOT start a new group
+// — it emits the line as a single-line message immediately, same
+// shape as no_aggregate (modulo the carry-reset semantic).
 func TestAggregateDoesntStartGroup(t *testing.T) {
 	ag := NewCombiningAggregator(100, false, false, status.NewInfoRegistry())
 
@@ -175,6 +225,16 @@ func TestSingleLineKeepsOwnTimestamp(t *testing.T) {
 	assert.Equal(t, ts1, msgs[0].ParsingExtra.Timestamp)
 }
 
+// TestForceFlush anchors:
+//
+//	surface CombiningAggregation (combining_aggregator.allium)
+//	    @guarantee FlushDrainsBuffer — external Flush() emits the
+//	                                    buffered bucket as combined.
+//
+// A bucket containing startGroup + 2 aggregates is drained by an
+// external Flush() call into one combined emission. Tests that
+// flush is a valid externally-triggered emission path (not just
+// the per-label dispatch).
 func TestForceFlush(t *testing.T) {
 	ag := NewCombiningAggregator(100, false, false, status.NewInfoRegistry())
 
@@ -187,6 +247,24 @@ func TestForceFlush(t *testing.T) {
 	assertMessageContent(t, msgs[0], "1\\n2\\n3")
 }
 
+// TestTagTruncatedLogs anchors:
+//
+//	surface CombiningAggregation (combining_aggregator.allium)
+//	    @guarantee TruncationTagging — truncated emissions get
+//	                                    "single_line" reason tag
+//	                                    when tag_truncated_logs.
+//	    @guarantee OverflowExplosion — aggregate continuation that
+//	                                    would overflow explodes
+//	                                    the bucket.
+//	    @guarantee NoAggregateResetsCarry — no_aggregate resets
+//	                                         should_truncate to
+//	                                         false before processing.
+//
+// Comprehensive truncation scenario test: oversized start_group is
+// flushed and tagged single_line; following aggregate inherits the
+// carry; an aggregate-on-empty path; then overflow explosion
+// emits buffered lines individually; finally no_aggregate clears
+// the carry — "00" emerges untruncated.
 func TestTagTruncatedLogs(t *testing.T) {
 	ag := NewCombiningAggregator(10, true, false, status.NewInfoRegistry())
 
@@ -240,6 +318,18 @@ func TestTagTruncatedLogs(t *testing.T) {
 	assertMessageContent(t, msgs[0], "00")
 }
 
+// TestSingleGroupOverflowStopsAggregation anchors:
+//
+//	surface CombiningAggregation (combining_aggregator.allium)
+//	    @guarantee OverflowExplosion — buffered lines are emitted
+//	                                    INDIVIDUALLY (not combined+
+//	                                    truncated) when aggregate
+//	                                    continuation would overflow.
+//
+// The defining test for OverflowExplosion: line_limit=8,
+// "123" + "456" would combine to "123\\n456" = 8 bytes ≥ 8.
+// Verifies that BOTH lines come out intact and untagged — the
+// combined message is NEVER produced.
 func TestSingleGroupOverflowStopsAggregation(t *testing.T) {
 	ag := NewCombiningAggregator(8, true, false, status.NewInfoRegistry())
 
@@ -259,6 +349,18 @@ func TestSingleGroupOverflowStopsAggregation(t *testing.T) {
 	assertMessageContent(t, msgs[1], "456")
 }
 
+// TestOverflowedGroupEmitsOriginalTokens anchors:
+//
+//	surface CombiningAggregation (combining_aggregator.allium)
+//	    @guarantee TokensFromAggregateLeader — exploded emissions
+//	                                            carry their own
+//	                                            line's tokens (not
+//	                                            a leader's).
+//
+// In the explosion path, each emission's tokens are those passed
+// in the call that buffered that line. The first emission has the
+// start_group's tokens, the second has the aggregate continuation's
+// tokens — they don't all share the leader's.
 func TestOverflowedGroupEmitsOriginalTokens(t *testing.T) {
 	ag := NewCombiningAggregator(8, false, false, status.NewInfoRegistry())
 
@@ -273,6 +375,19 @@ func TestOverflowedGroupEmitsOriginalTokens(t *testing.T) {
 	assert.Equal(t, secondTokens, completed[1].Tokens)
 }
 
+// TestSingleLineTruncatedLogIsTaggedSingleLine anchors:
+//
+//	surface CombiningAggregation (combining_aggregator.allium)
+//	    @guarantee TruncationTagging — single-line emissions get
+//	                                    "single_line" reason tag.
+//	    @guidance step 4c — start_group whose RawDataLen >=
+//	                        line_limit triggers immediate
+//	                        single-line flush.
+//
+// A startGroup with content exactly at line_limit triggers the
+// immediate-flush path. Verifies it's tagged "single_line"
+// (not "auto_multiline" — even though it went through a
+// multi-line-capable aggregator).
 func TestSingleLineTruncatedLogIsTaggedSingleLine(t *testing.T) {
 	ag := NewCombiningAggregator(5, true, false, status.NewInfoRegistry())
 
@@ -290,6 +405,19 @@ func TestSingleLineTruncatedLogIsTaggedSingleLine(t *testing.T) {
 	assertMessageContent(t, msgs[0], "...TRUNCATED...456")
 }
 
+// TestTagMultiLineLogs anchors:
+//
+//	surface CombiningAggregation (combining_aggregator.allium)
+//	    @guarantee OverflowExplosion — emission of overflowed
+//	                                    group does NOT receive
+//	                                    multi-line tag (each
+//	                                    exploded line is single).
+//
+// Counter-test for MultiLineTagging: even with
+// tag_multi_line_logs=true, the explosion path produces
+// individually emitted lines, none of which are flagged
+// is_multi_line or tagged "auto_multiline". The multi-line
+// signal requires an actual combined emission.
 func TestTagMultiLineLogs(t *testing.T) {
 	ag := NewCombiningAggregator(12, false, true, status.NewInfoRegistry())
 
@@ -322,6 +450,25 @@ func TestTagMultiLineLogs(t *testing.T) {
 	assertMessageContent(t, msgs[0], "2")
 }
 
+// TestSingleLineTooLongTruncation anchors:
+//
+//	surface CombiningAggregation (combining_aggregator.allium)
+//	    @guarantee NoAggregateResetsCarry — no_aggregate resets
+//	                                         should_truncate
+//	                                         before processing
+//	                                         (the JSON-protection
+//	                                         semantic).
+//	    @guarantee TruncationTagging (rolling carry behaviour)
+//
+// Three phases of single-line truncation cases:
+//  1. Aggregation overflow leaves no carry (exploded lines aren't
+//     marked truncated by the explosion itself).
+//  2. Consecutive oversized single-line emissions chain via the
+//     should_truncate carry, producing prepended-and-appended
+//     markers in the middle.
+//  3. A no_aggregate clears the carry — even with carry set from
+//     prior emission, the no_aggregate line emerges with no
+//     prepended marker. This is the JSON-protection guarantee.
 func TestSingleLineTooLongTruncation(t *testing.T) {
 	ag := NewCombiningAggregator(5, false, true, status.NewInfoRegistry())
 
@@ -892,8 +1039,19 @@ func TestDetectingAggregator_TrimSpaceMatchesOtherAggregators(t *testing.T) {
 	}
 }
 
-// Verify that PassThroughAggregator and CombiningAggregator already handle trailing
-// whitespace correctly (they call bytes.TrimSpace), serving as the baseline.
+// TestPassThroughAndCombiningAggregator_TrimSpaceBaseline anchors:
+//
+//	surface CombiningAggregation (combining_aggregator.allium)
+//	    @guidance flush_bucket / emit_single — trim-space the
+//	                                            combined / single
+//	                                            content.
+//	(plus the analogous step in PassThroughAggregation —
+//	anchored from this same test for the PassThrough side.)
+//
+// Verifies that both PassThroughAggregator and CombiningAggregator
+// trim trailing whitespace (notably \r from windows-style framing).
+// The aggregators' shared use of bytes.TrimSpace before emission
+// ensures the JSON-pattern regex matches.
 func TestPassThroughAndCombiningAggregator_TrimSpaceBaseline(t *testing.T) {
 	jsonPattern := regexp.MustCompile(`^\{.*\}$`)
 	contentWithCR := `{"key":"val"}` + "\r"
