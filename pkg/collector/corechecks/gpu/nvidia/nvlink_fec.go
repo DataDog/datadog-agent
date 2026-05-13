@@ -19,7 +19,6 @@ import (
 )
 
 const nvlinkFECHistoryMetricName = "nvlink.errors.fec"
-const nvlinkFECTotalHistoryMetricName = "nvlink.errors.fec.total"
 
 var nvlinkFECHistoryFieldIDs = []uint32{
 	nvml.FI_DEV_NVLINK_COUNT_FEC_HISTORY_0,
@@ -119,27 +118,19 @@ func (c *nvlinkFECCollector) getPortMetrics(port int) ([]*Metric, error) {
 		}
 
 		histBounds := [2]float64{float64(bucket), float64(bucket + 1)}
-		totalMetric := &Metric{
-			Name:     nvlinkFECTotalHistoryMetricName,
+		metric := &Metric{
+			Name:     nvlinkFECHistoryMetricName,
 			Type:     metrics.HistogramType,
 			Value:    float64(count),
 			Priority: Medium,
 			Tags:     []string{nvlinkPortTag(port)},
 			HistogramBucket: &Bucket{
 				Bounds:    histBounds,
-				Monotonic: false,
+				Monotonic: true,
 			},
 		}
 
-		// Duplicate the total, create a rate metric
-		rateMetric := *totalMetric
-		rateMetric.Name = nvlinkFECHistoryMetricName
-		rateMetric.HistogramBucket = &Bucket{
-			Bounds:    histBounds,
-			Monotonic: true,
-		}
-
-		fecMetrics = append(fecMetrics, totalMetric, &rateMetric)
+		fecMetrics = append(fecMetrics, metric)
 	}
 
 	return fecMetrics, multiErr

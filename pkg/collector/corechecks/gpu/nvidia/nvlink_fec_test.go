@@ -59,26 +59,21 @@ func TestNVLinkFECCollectorScopesAndBuckets(t *testing.T) {
 	requests = nil
 	collectedMetrics, err := collector.Collect()
 	require.NoError(t, err)
-	require.Len(t, collectedMetrics, len(nvlinkFECHistoryFieldIDs)*2)
+	require.Len(t, collectedMetrics, len(nvlinkFECHistoryFieldIDs))
 	require.Len(t, requests, len(nvlinkFECHistoryFieldIDs))
 
 	for bucket := range nvlinkFECHistoryFieldIDs {
-		totalMetric := collectedMetrics[bucket*2]
-		rateMetric := collectedMetrics[bucket*2+1]
+		metric := collectedMetrics[bucket]
 
-		require.Equal(t, nvlinkFECTotalHistoryMetricName, totalMetric.Name)
-		require.Equal(t, nvlinkFECHistoryMetricName, rateMetric.Name)
-		require.False(t, totalMetric.HistogramBucket.Monotonic)
-		require.True(t, rateMetric.HistogramBucket.Monotonic)
-		for _, metric := range []*Metric{totalMetric, rateMetric} {
-			require.Equal(t, metrics.HistogramType, metric.Type)
-			require.Equal(t, float64(100+bucket), metric.Value)
-			require.Equal(t, Medium, metric.Priority)
-			require.Contains(t, metric.Tags, "nvlink_port:1")
-			require.NotNil(t, metric.HistogramBucket)
-			require.Equal(t, [2]float64{float64(bucket), float64(bucket + 1)}, metric.HistogramBucket.Bounds)
-			require.False(t, metric.HistogramBucket.FlushFirstValue)
-		}
+		require.Equal(t, nvlinkFECHistoryMetricName, metric.Name)
+		require.Equal(t, metrics.HistogramType, metric.Type)
+		require.Equal(t, float64(100+bucket), metric.Value)
+		require.Equal(t, Medium, metric.Priority)
+		require.Contains(t, metric.Tags, "nvlink_port:1")
+		require.NotNil(t, metric.HistogramBucket)
+		require.Equal(t, [2]float64{float64(bucket), float64(bucket + 1)}, metric.HistogramBucket.Bounds)
+		require.True(t, metric.HistogramBucket.Monotonic)
+		require.False(t, metric.HistogramBucket.FlushFirstValue)
 	}
 }
 
@@ -117,7 +112,7 @@ func TestNVLinkFECCollectorPartialFieldFailure(t *testing.T) {
 	require.Error(t, err)
 	require.ErrorContains(t, err, "field 238 returned ERROR_NOT_SUPPORTED for scope 0")
 	require.ErrorContains(t, err, "convert FEC history field 242 for scope 0")
-	require.Len(t, collectedMetrics, (len(nvlinkFECHistoryFieldIDs)-2)*2)
+	require.Len(t, collectedMetrics, len(nvlinkFECHistoryFieldIDs)-2)
 }
 
 func TestNVLinkFECCollectorAllFieldsFail(t *testing.T) {
@@ -159,15 +154,11 @@ func TestNVLinkFECMetricSpecEntries(t *testing.T) {
 	spec, err := gpuspec.LoadMetricsSpec()
 	require.NoError(t, err)
 
-	for _, metricName := range []string{nvlinkFECHistoryMetricName, nvlinkFECTotalHistoryMetricName} {
-		t.Run(metricName, func(t *testing.T) {
-			metricSpec, ok := spec.Metrics[metricName]
-			require.True(t, ok, "metric %s missing from spec", metricName)
-			require.Equal(t, "histogram", metricSpec.Metadata.MetricType)
-			require.Contains(t, metricSpec.CustomTags, "nvlink_port")
-			require.True(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModePhysical))
-			require.False(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModeMIG))
-			require.False(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModeVGPU))
-		})
-	}
+	metricSpec, ok := spec.Metrics[nvlinkFECHistoryMetricName]
+	require.True(t, ok, "metric %s missing from spec", nvlinkFECHistoryMetricName)
+	require.Equal(t, "histogram", metricSpec.Metadata.MetricType)
+	require.Contains(t, metricSpec.CustomTags, "nvlink_port")
+	require.True(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModePhysical))
+	require.False(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModeMIG))
+	require.False(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModeVGPU))
 }
