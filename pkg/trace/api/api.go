@@ -412,11 +412,17 @@ func (r *HTTPReceiver) Start() {
 		pipepath := `\\.\pipe\` + path
 		bufferSize := r.conf.PipeBufferSize
 		secdec := r.conf.PipeSecurityDescriptor
+		log.Infof("[aas-repro] bind_attempt pipe=%q pid=%d", pipepath, os.Getpid())
+		if probeExistingPipe(pipepath) {
+			log.Warnf("[aas-repro] orphan_detected pipe=%q pid=%d — a listener is already bound; this process will lose the bind race", pipepath, os.Getpid())
+		}
 		ln, err := listenPipe(pipepath, secdec, bufferSize, r.conf.MaxConnections, r.statsd)
 		if err != nil {
+			log.Errorf("[aas-repro] bind_collision pipe=%q pid=%d err=%v", pipepath, os.Getpid(), err)
 			r.telemetryCollector.SendStartupError(telemetry.CantStartWindowsPipeServer, err)
 			killProcess("Error creating %q named pipe: %v", pipepath, err)
 		}
+		log.Infof("[aas-repro] bind_success pipe=%q pid=%d", pipepath, os.Getpid())
 		go func() {
 			defer watchdog.LogOnPanic(r.statsd)
 			if err := r.server.Serve(ln); err != nil && err != http.ErrServerClosed {
