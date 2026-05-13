@@ -148,7 +148,7 @@ func runCommand(ctx context.Context, binary string, args []string, useSudo bool)
 	var cmd *exec.Cmd
 	if useSudo {
 		// -n, non-interactive mode, no prompts are used
-		cmd = exec.CommandContext(ctx, "sudo", binary, args...)
+		cmd = exec.CommandContext(ctx, "sudo", append([]string{binary}, args...)...)
 	} else {
 		cmd = exec.CommandContext(ctx, binary, args...)
 	}
