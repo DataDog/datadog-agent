@@ -216,6 +216,12 @@ func makeInstruction(functionID FunctionID, op Op) codeFragment {
 			bytes:  binary.LittleEndian.AppendUint32(nil, op.ByteSize),
 		}
 
+	case ExprLoadDurationOp:
+		return staticInstruction{
+			opcode: OpcodeExprLoadDuration,
+			bytes:  binary.LittleEndian.AppendUint32(nil, op.ExprStatusIdx),
+		}
+
 	case ExprLoadLiteralOp:
 		bytes := make([]byte, 0, 2+len(op.Data))
 		bytes = binary.LittleEndian.AppendUint16(bytes, uint16(len(op.Data)))
@@ -331,6 +337,40 @@ func makeInstruction(functionID FunctionID, op Op) codeFragment {
 
 	case CondLabelOp:
 		return labelMarker{functionID: functionID, id: op.ID}
+
+	case ConditionStateInitOp:
+		return staticInstruction{
+			opcode: OpcodeConditionStateInit,
+			bytes:  []byte{},
+		}
+
+	case ConditionLeafRecordOp:
+		return staticInstruction{
+			opcode: OpcodeConditionLeafRecord,
+			bytes:  []byte{op.LeafIdx},
+		}
+
+	case ConditionLeafLoadOp:
+		// Encoded as: opcode + uint8 leaf_idx + uint32 error_target.
+		// We compose it using leafLoadInstruction below so the layout
+		// pass can resolve the label PC.
+		return leafLoadInstruction{
+			functionID: functionID,
+			leafIdx:    op.LeafIdx,
+			label:      op.Label,
+		}
+
+	case ConditionCheckPreserveErrorOp:
+		return staticInstruction{
+			opcode: OpcodeConditionCheckPreserveError,
+			bytes:  []byte{},
+		}
+
+	case ConditionLeafCompleteOp:
+		return staticInstruction{
+			opcode: OpcodeConditionLeafComplete,
+			bytes:  []byte{},
+		}
 
 	default:
 		panic(fmt.Sprintf("unsupported op: %T", op))

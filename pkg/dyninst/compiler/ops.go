@@ -207,6 +207,20 @@ type ExprPushOffsetOp struct {
 	ByteSize uint32
 }
 
+// ExprLoadDurationOp writes 8 bytes of (return_ktime_ns - entry_ktime_ns)
+// at the current scratch offset. On non-return probes, where those
+// timestamps are equal, it marks the enclosing expression's status as
+// absent and aborts expression evaluation. It does not advance the
+// offset or push onto the data stack — callers that use it as a
+// comparison operand should follow with ExprPushOffsetOp{ByteSize: 8}.
+type ExprLoadDurationOp struct {
+	baseOp
+	// ExprStatusIdx is the expression index for writing status-absent
+	// on non-return probes; ^0 = none (used by conditions, which report
+	// evaluation errors via a different channel).
+	ExprStatusIdx uint32
+}
+
 type ExprLoadLiteralOp struct {
 	baseOp
 	Data []byte
@@ -306,6 +320,55 @@ type CondJumpOp struct {
 type CondLabelOp struct {
 	baseOp
 	ID ir.LabelID
+}
+
+// ConditionStateInitOp clears the per-SM condition_state to zero at the
+// start of a split-event-kind entry-side condition driver.
+type ConditionStateInitOp struct {
+	baseOp
+}
+
+// ConditionLeafRecordOp captures the outcome of an entry-side leaf
+// (called via SM_OP_CALL just before this op) into a 2-bit slot at
+// position LeafIdx of the per-SM condition_state. Reads
+// condition_eval_error / condition_nil_deref to detect and classify
+// errors; on success reads the boolean byte at sm->offset. Clears both
+// error flags so the next leaf's record sees fresh state.
+type ConditionLeafRecordOp struct {
+	baseOp
+	LeafIdx uint8
+}
+
+// ConditionLeafLoadOp reads the 2-bit status for entry leaf LeafIdx from
+// condition_state and dispatches:
+//   - LEAF_FALSE → write 0 at sm->offset.
+//   - LEAF_TRUE  → write 1 at sm->offset.
+//   - LEAF_EVAL_ERROR / LEAF_NIL_DEREF → set condition_eval_error (and
+//     nil_deref for the latter), write 1 at sm->offset, jump to Label.
+//     The jump bypasses surrounding short-circuit and Not ops so the
+//     eval-error flag survives to event.c's header surfacing.
+type ConditionLeafLoadOp struct {
+	baseOp
+	LeafIdx uint8
+	Label   ir.LabelID
+}
+
+// ConditionCheckPreserveErrorOp behaves like ConditionCheckOp (sets
+// condition_failed when the byte at sm->offset is 0) but does NOT clear
+// condition_eval_error. Used at the tail of split-event-kind condition
+// drivers so an eval-error surfaced by ConditionLeafLoadOp during AST
+// replay survives to event.c's header surfacing.
+type ConditionCheckPreserveErrorOp struct {
+	baseOp
+}
+
+// ConditionLeafCompleteOp clears condition_eval_error. Emitted at the
+// tail of a per-leaf SM sub-function on the success path so the driver's
+// ConditionLeafRecordOp can tell completion from abort. Abort paths in
+// the leaf bypass this op via sm_return, leaving condition_eval_error
+// armed by the leaf's prelude ConditionBeginOp.
+type ConditionLeafCompleteOp struct {
+	baseOp
 }
 
 //revive:enable:exported

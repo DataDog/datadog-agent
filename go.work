@@ -7,6 +7,8 @@ godebug tlsmlkem=0
 
 use (
 	.
+	comp/anomalydetection/observer/def
+	comp/anomalydetection/recorder/def
 	comp/api/api/def
 	comp/core/agenttelemetry/def
 	comp/core/agenttelemetry/fx
@@ -111,7 +113,6 @@ use (
 	pkg/logs/client
 	pkg/logs/diagnostic
 	pkg/logs/message
-	pkg/logs/metrics
 	pkg/logs/sources
 	pkg/logs/status/statusinterface
 	pkg/logs/status/utils

@@ -17,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/remoteagent/helper"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/pkg/compliance/statusregistry"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
@@ -68,6 +68,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 	pbcore.RegisterTelemetryProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
 	pbcore.RegisterStatusProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
 
+	remoteAgentServer.Start()
+
 	provides := Provides{
 		Comp: remoteagentImpl,
 	}
@@ -102,6 +104,12 @@ func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatu
 			},
 		},
 	}, nil
+}
+
+// WaitSessionID blocks until the remote agent is registered and a session ID is available.
+// This allows components that need the session ID (e.g. config stream consumer) to wait for RAR registration.
+func (r *remoteagentImpl) WaitSessionID(ctx context.Context) (string, error) {
+	return r.remoteAgentServer.WaitSessionID(ctx)
 }
 
 func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetryRequest) (*pbcore.GetTelemetryResponse, error) {

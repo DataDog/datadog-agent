@@ -2286,9 +2286,21 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       // NULL pointer: write nil-deref status.
       if (expr_status_idx != EXPR_STATUS_IDX_NONE) {
         expr_status_write(buf, sm->expr_results_offset, expr_status_idx, EXPR_STATUS_NIL_DEREF);
+      } else {
+        // Condition expression (no status slot): arm the eval-error
+        // channel directly. The flag is set here (not just by
+        // ConditionBeginOp at the condition's prelude) so that
+        // split-event-kind return-side AST-replay drivers — which
+        // inline their return leaves and skip ConditionBeginOp — still
+        // surface the error. For single-event conditions, ConditionBeginOp
+        // already armed it; setting it again is a no-op.
+        sm->condition_eval_error = true;
+        sm->condition_nil_deref = true;
       }
-      sm->condition_nil_deref = true;
-      // Abort expression evaluation.
+      // Abort expression evaluation. For split-event-kind conditions the
+      // entry-side driver invokes each leaf as its own SM function, so
+      // sm_return here lands back in the driver, which captures the
+      // error flavor via SM_OP_CONDITION_LEAF_RECORD.
       scratch_buf_set_len(buf, sm->expr_results_end_offset);
       if (!sm_return(sm)) {
         return 1;
@@ -2297,7 +2309,12 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     }
     addr += bias;
     if (!scratch_buf_dereference(buf, sm->offset, byte_len, addr)) {
-      // Dereference failed: abort expression evaluation.
+      // Dereference failed: abort expression evaluation. Arm the
+      // eval-error channel when this is a condition leaf (no status
+      // slot to write to).
+      if (expr_status_idx == EXPR_STATUS_IDX_NONE) {
+        sm->condition_eval_error = true;
+      }
       scratch_buf_set_len(buf, sm->expr_results_end_offset);
       if (!sm_return(sm)) {
         return 1;
@@ -2326,6 +2343,8 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       LOG(3, "EXPR_SLICE_BOUNDS_CHECK: index %u >= len %lld, aborting", index, slice_len);
       if (expr_status_idx != EXPR_STATUS_IDX_NONE) {
         expr_status_write(buf, sm->expr_results_offset, expr_status_idx, EXPR_STATUS_OOB);
+      } else {
+        sm->condition_eval_error = true;
       }
       scratch_buf_set_len(buf, sm->expr_results_end_offset);
       if (!sm_return(sm)) {
@@ -2915,6 +2934,37 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     sm->offset += byte_size;
   } break;
 
+  case SM_OP_EXPR_LOAD_DURATION: {
+    uint32_t expr_status_idx = sm_read_program_uint32(sm);
+    // On probes that do not have a return event (entry/line probes with
+    // no paired entry), the entry timestamp stored on stack_machine
+    // equals start_ns, so the duration is zero. Irgen rejects using
+    // @duration in conditions or templates on such probes, but
+    // captureExpressions are still registered so we can surface an
+    // absent-status evaluation error at decode time.
+    if (sm->start_ns == sm->entry_ktime_ns) {
+      if (expr_status_idx != EXPR_STATUS_IDX_NONE) {
+        expr_status_write(buf, sm->expr_results_offset, expr_status_idx,
+                          EXPR_STATUS_ABSENT);
+      } else {
+        sm->condition_eval_error = true;
+      }
+      // Abort expression evaluation so the caller (condition check /
+      // ExprSave) does not read uninitialized bytes.
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      if (!sm_return(sm)) {
+        return 1;
+      }
+      return 0;
+    }
+    if (!scratch_buf_bounds_check(&sm->offset, 8)) {
+      return 1;
+    }
+    int64_t duration_ns =
+        (int64_t)(sm->start_ns) - (int64_t)(sm->entry_ktime_ns);
+    *(int64_t*)(&(*buf)[sm->offset]) = duration_ns;
+  } break;
+
   case SM_OP_EXPR_LOAD_LITERAL: {
     uint16_t byte_size = sm_read_program_uint16(sm);
     // Max payload size is 4 (u32 string-length prefix) + 255 (max
@@ -3112,9 +3162,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
 
   case SM_OP_CONDITION_BEGIN: {
     // Arm the eval-error flag. See the lifecycle comment on
-    // condition_eval_error in context.h: this is one of three ops that
-    // touch the flag (BEGIN arms, JUMP_IF_* leave untouched, CHECK
-    // clears on success).
+    // condition_eval_error in context.h.
     sm->condition_eval_error = true;
   } break;
 
@@ -3162,6 +3210,103 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     }
   } break;
 
+  // --- Split-event-kind condition ops (per-leaf 2-bit status + AST replay) ---
+
+  // CONDITION_STATE_INIT: clears condition_state at the start of the
+  // entry-side driver. stack_machine_ctx_load already zeroes
+  // condition_state on every probe entry, but this op makes the driver
+  // self-contained against future changes.
+  case SM_OP_CONDITION_STATE_INIT: {
+    sm->condition_state = 0;
+  } break;
+
+  // CONDITION_LEAF_RECORD: captures the outcome of an entry-side leaf
+  // (called via SM_OP_CALL just before this op) into the 2-bit slot for
+  // leaf Index in condition_state. Reads condition_eval_error /
+  // condition_nil_deref to derive the error flavor; if neither is set,
+  // reads the boolean byte at sm->offset to derive false/true. Clears
+  // both error flags so the next leaf starts clean. Index is 0..7.
+  case SM_OP_CONDITION_LEAF_RECORD: {
+    uint8_t leaf_idx = sm_read_program_uint8(sm) & CONDITION_LEAF_IDX_MASK;
+    uint16_t status;
+    if (sm->condition_eval_error) {
+      status = sm->condition_nil_deref ? LEAF_STATUS_NIL_DEREF
+                                       : LEAF_STATUS_EVAL_ERROR;
+    } else {
+      if (!scratch_buf_bounds_check(&sm->offset, 1)) {
+        return 1;
+      }
+      status = (*buf)[sm->offset] & 1; // FALSE=0, TRUE=1
+    }
+    uint16_t mask = (uint16_t)(3u << (2u * leaf_idx));
+    sm->condition_state =
+        (uint16_t)((sm->condition_state & ~mask)
+                   | (uint16_t)(status << (2u * leaf_idx)));
+    // Clear per-leaf error flags so the next leaf's record sees fresh
+    // state.
+    sm->condition_eval_error = false;
+    sm->condition_nil_deref = false;
+  } break;
+
+  // CONDITION_LEAF_LOAD: read leaf Index's 2-bit status and dispatch.
+  // FALSE/TRUE writes 0/1 at sm->offset and continues. EVAL_ERROR /
+  // NIL_DEREF set condition_eval_error (and nil_deref for the latter),
+  // write 1 at sm->offset (so the surrounding ConditionCheck passes),
+  // and jump to ErrorTarget — bypassing surrounding short-circuit and
+  // Not ops so the error flag survives to event.c surfacing.
+  case SM_OP_CONDITION_LEAF_LOAD: {
+    uint8_t leaf_idx = sm_read_program_uint8(sm) & CONDITION_LEAF_IDX_MASK;
+    uint32_t error_target = sm_read_program_uint32(sm);
+    uint16_t status =
+        (uint16_t)((sm->condition_state >> (2u * leaf_idx)) & 3u);
+    if (!scratch_buf_bounds_check(&sm->offset, 1)) {
+      return 1;
+    }
+    if (status == LEAF_STATUS_FALSE) {
+      (*buf)[sm->offset] = 0;
+    } else if (status == LEAF_STATUS_TRUE) {
+      (*buf)[sm->offset] = 1;
+    } else {
+      // EVAL_ERROR or NIL_DEREF: surface as fail-open and short-circuit
+      // to the tail.
+      sm->condition_eval_error = true;
+      if (status == LEAF_STATUS_NIL_DEREF) {
+        sm->condition_nil_deref = true;
+      }
+      (*buf)[sm->offset] = 1;
+      sm->pc = error_target;
+    }
+  } break;
+
+  // CONDITION_CHECK_PRESERVE_ERROR: like SM_OP_CONDITION_CHECK but does
+  // NOT clear condition_eval_error. Used at the tail of split-event-kind
+  // condition drivers so that an eval-error surfaced by
+  // SM_OP_CONDITION_LEAF_LOAD during AST replay survives to event.c's
+  // header surfacing.
+  case SM_OP_CONDITION_CHECK_PRESERVE_ERROR: {
+    if (!scratch_buf_bounds_check(&sm->offset, 1)) {
+      return 1;
+    }
+    uint8_t val = (*buf)[sm->offset];
+    if (val == 0) {
+      sm->condition_failed = true;
+      LOG(1, "condition check failed");
+      return 1; // Abort stack machine.
+    }
+  } break;
+
+  // CONDITION_LEAF_COMPLETE: emitted at the tail of a per-leaf SM
+  // sub-function on the success path. Clears condition_eval_error so
+  // the driver's CONDITION_LEAF_RECORD can distinguish success
+  // (eval_error == false → read boolean byte at sm->offset) from abort
+  // (eval_error == true → encode error flavor from condition_nil_deref).
+  // Abort paths inside the leaf bypass this op via sm_return, leaving
+  // condition_eval_error armed by SM_OP_CONDITION_BEGIN at the leaf's
+  // prelude.
+  case SM_OP_CONDITION_LEAF_COMPLETE: {
+    sm->condition_eval_error = false;
+  } break;
+
   // ---------------------------------------------------------------------------
   // Swiss map lookup opcodes. The compiler emits these 5 in sequence:
   //   SETUP [params] → AESENC → HASH_FINISH → PROBE → CHECK_SLOT
@@ -3179,7 +3324,11 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       break;
     }
     if (rc <= 0) {
-      // nil map (0) or error (-1). OOB already written.
+      // nil map (0) or error (-1). OOB already written by the setup
+      // helper for capture expressions; arm eval_error for conditions.
+      if (sm->swiss_map_state.expr_status_idx == EXPR_STATUS_IDX_NONE) {
+        sm->condition_eval_error = true;
+      }
       if (!sm_return(sm)) return 1;
       break;
     }
@@ -3195,6 +3344,9 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       barrier_var(kdl);
       if (!sm_copy_from_code(buf, sm->swiss_map_state.key_data_off,
                              sm->pc - kdl, kdl)) {
+        if (sm->swiss_map_state.expr_status_idx == EXPR_STATUS_IDX_NONE) {
+          sm->condition_eval_error = true;
+        }
         if (!sm_return(sm)) return 1;
         break;
       }
@@ -3230,10 +3382,17 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     } else if (hf_rc == 0) {
       // Hash done, probe state set. Fall through to PROBE.
     } else if (hf_rc == -2) {
-      // Key not found (null table). OOB already written.
+      // Key not found (null table). OOB already written for capture
+      // expressions; arm eval_error for conditions.
+      if (sm->swiss_map_state.expr_status_idx == EXPR_STATUS_IDX_NONE) {
+        sm->condition_eval_error = true;
+      }
       if (!sm_return(sm)) return 1;
     } else {
       // Error.
+      if (sm->swiss_map_state.expr_status_idx == EXPR_STATUS_IDX_NONE) {
+        sm->condition_eval_error = true;
+      }
       if (!sm_return(sm)) return 1;
     }
   } break;
@@ -3249,6 +3408,9 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
                              (void*)(sm->swiss_map_state.group_addr +
                                      sm->swiss_map_state.ctrl_offset)) != 0) {
       LOG(3, "swiss_map_probe: failed to read ctrl");
+      if (sm->swiss_map_state.expr_status_idx == EXPR_STATUS_IDX_NONE) {
+        sm->condition_eval_error = true;
+      }
       scratch_buf_set_len(buf, sm->expr_results_end_offset);
       if (!sm_return(sm)) return 1;
       break;
@@ -3281,6 +3443,8 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       if (sm->swiss_map_state.expr_status_idx != EXPR_STATUS_IDX_NONE) {
         expr_status_write(buf, sm->expr_results_offset,
                           sm->swiss_map_state.expr_status_idx, EXPR_STATUS_OOB);
+      } else {
+        sm->condition_eval_error = true;
       }
       scratch_buf_set_len(buf, sm->expr_results_end_offset);
       if (!sm_return(sm)) return 1;
@@ -3339,6 +3503,9 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     if (result < 0) {
       // Genuine read error — fault in both modes.
       LOG(3, "swiss_map_check_slot: error");
+      if (sm->swiss_map_state.expr_status_idx == EXPR_STATUS_IDX_NONE) {
+        sm->condition_eval_error = true;
+      }
       scratch_buf_set_len(buf, sm->expr_results_end_offset);
       if (!sm_return(sm)) return 1;
       break;
@@ -3358,6 +3525,8 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       if (sm->swiss_map_state.expr_status_idx != EXPR_STATUS_IDX_NONE) {
         expr_status_write(buf, sm->expr_results_offset,
                           sm->swiss_map_state.expr_status_idx, EXPR_STATUS_OOB);
+      } else {
+        sm->condition_eval_error = true;
       }
       scratch_buf_set_len(buf, sm->expr_results_end_offset);
       if (!sm_return(sm)) return 1;

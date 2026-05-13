@@ -40,6 +40,18 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 		}
 	}
 	marshalVariable := func(enc *jsontext.Encoder, v *ir.Variable) error {
+		// Synthetic variables (e.g. @duration) are not bound to any
+		// subprogram — emit just their role and name so snapshots
+		// remain deterministic.
+		if v.Role == ir.VariableRoleDuration {
+			return json.MarshalEncode(enc, struct {
+				Name string          `json:"name"`
+				Role ir.VariableRole `json:"role"`
+			}{
+				Name: v.Name,
+				Role: v.Role,
+			})
+		}
 		subprogram, ok := variablesToSubprograms[v]
 		if !ok {
 			return fmt.Errorf("variable %s not found in any subprogram", v.Name)
@@ -102,9 +114,6 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.VariableRole) error {
 			return enc.WriteToken(jsontext.String(v.String()))
-		}),
-		json.MarshalToFunc(func(enc *jsontext.Encoder, _ *ir.DurationSegment) error {
-			return enc.WriteToken(jsontext.String("@duration"))
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v ir.CmpOp) error {
 			return enc.WriteToken(jsontext.String(v.String()))
@@ -312,6 +321,7 @@ func newTypeMarshaler(typ reflect.Type) *typeMarshaler {
 var allTypes = []reflect.Type{
 	reflect.TypeOf((*ir.ArrayType)(nil)),
 	reflect.TypeOf((*ir.BaseType)(nil)),
+	reflect.TypeOf((*ir.DurationType)(nil)),
 	reflect.TypeOf((*ir.EventRootType)(nil)),
 	reflect.TypeOf((*ir.GoChannelType)(nil)),
 	reflect.TypeOf((*ir.GoEmptyInterfaceType)(nil)),
@@ -395,6 +405,16 @@ func makeOperationMarshaler(
 		case *ir.CondJumpOp:
 			toMarshal = newWithKind(op)
 		case *ir.CondLabelOp:
+			toMarshal = newWithKind(op)
+		case *ir.ExprPrepareOp:
+			toMarshal = newWithKind(op)
+		case *ir.ConditionStateInitOp:
+			toMarshal = newWithKind(op)
+		case *ir.ConditionLeafEvalOp:
+			toMarshal = newWithKind(op)
+		case *ir.ConditionLeafLoadOp:
+			toMarshal = newWithKind(op)
+		case *ir.ConditionCheckPreserveErrorOp:
 			toMarshal = newWithKind(op)
 		default:
 			return fmt.Errorf("unknown operation: %T", op)
