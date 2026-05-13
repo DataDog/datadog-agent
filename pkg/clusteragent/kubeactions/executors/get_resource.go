@@ -70,8 +70,6 @@ func (e *GetResourceExecutor) Execute(ctx context.Context, action *kubeactions.K
 		}
 	}
 
-	log.Infof("Getting resource %s/%s of type %s", namespace, name, resource.Kind)
-
 	// build the raw REST request to get the resource as unstructured JSON
 	var path string
 
@@ -96,7 +94,6 @@ func (e *GetResourceExecutor) Execute(ctx context.Context, action *kubeactions.K
 	ctx, cancel := context.WithTimeout(ctx, defaultExecutorTimeout)
 	defer cancel()
 
-	log.Debugf("get_resource using path '%s'", path)
 	data, err := e.clientset.CoreV1().RESTClient().Get().AbsPath(path).Do(ctx).Raw()
 	if err != nil {
 		return ExecutionResult{

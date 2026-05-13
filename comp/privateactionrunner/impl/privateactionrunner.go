@@ -339,8 +339,8 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 	cfg.OrgId = urnParts.OrgID
 	cfg.RunnerId = urnParts.RunnerID
 
-	// Auto-create connections only when using app-key enrollment mode.
-	if !apiKeyOnlyEnrollment {
+	// Auto-create connections when using app-key enrollment mode and skip_connection_creation is false.
+	if !apiKeyOnlyEnrollment && !p.coreConfig.GetBool(privateactionrunner.PARSkipConnectionCreation) {
 		var actionsAllowlist = make([]string, 0, len(cfg.ActionsAllowlist))
 		for fqnPrefix := range cfg.ActionsAllowlist {
 			actionsAllowlist = append(actionsAllowlist, fqnPrefix)

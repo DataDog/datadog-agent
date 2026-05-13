@@ -15,5 +15,6 @@ go_test(
     name = "externalhost_test",
     srcs = ["externalhost_test.go"],
     embed = [":externalhost"],
+    gotags = ["test"],
     deps = ["@com_github_stretchr_testify//assert"],
 )

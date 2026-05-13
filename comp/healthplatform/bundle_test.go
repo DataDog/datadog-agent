@@ -27,7 +27,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
+	schedulerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -47,7 +48,7 @@ func TestBundleDependencies(t *testing.T) {
 // via the core component must (a) actually fire, (b) reach the in-memory store
 // (proves the reporter is wired before the first tick), and (c) be POSTed to the
 // intake (proves the provider is wired before the forwarder ticks). If a future
-// refactor flips SetReporter / SetProvider with RegisterCheck — or moves built-in
+// refactor flips SetReporter / SetProvider with ScheduleHealthCheck — or moves built-in
 // check registration back into New — the first tick is silently dropped and this
 // test fails.
 func TestBundleStartLifecycle(t *testing.T) {
@@ -78,7 +79,8 @@ func TestBundleStartLifecycle(t *testing.T) {
 
 	type appDeps struct {
 		fx.In
-		HP healthplatformdef.Component
+		HP        healthplatformdef.Component
+		Scheduler schedulerdef.Component
 	}
 
 	// Intervals well below the test timeout so the lifecycle work completes quickly.
@@ -112,7 +114,7 @@ func TestBundleStartLifecycle(t *testing.T) {
 		// so the registry's BuildIssue lookup succeeds.
 		testIssueID = "docker-file-tailing-disabled"
 	)
-	require.NoError(t, deps.HP.RegisterCheck(testCheckID, testCheckName, func() (*healthplatformpayload.IssueReport, error) {
+	require.NoError(t, deps.Scheduler.ScheduleHealthCheck(testCheckID, testCheckName, func() (*healthplatformpayload.IssueReport, error) {
 		checkRunCount.Add(1)
 		return &healthplatformpayload.IssueReport{
 			IssueId: testIssueID,
@@ -128,7 +130,7 @@ func TestBundleStartLifecycle(t *testing.T) {
 		"check function never fired — checkrunner did not spawn its goroutine")
 
 	require.Eventually(t, func() bool {
-		return deps.HP.GetIssueForCheck(testCheckID) != nil
+		return deps.HP.GetIssue(testCheckID) != nil
 	}, 2*time.Second, 10*time.Millisecond,
 		"core never recorded the issue — reporter not wired before first check fired")
 

@@ -13,7 +13,6 @@ var DefaultFlareFiles = []string{
 	"docker_ps.log",
 	"envvars.log",
 	"go-routine-dump.log",
-	"health.yaml",
 	"install_info.log",
 	"permissions.log",
 	"process_agent_runtime_config_dump.yaml",
@@ -38,6 +37,7 @@ var NonLocalMetadataFlareFiles = []string{
 
 // NonLocalFlareFiles contains files only available in non-local flare mode
 var NonLocalFlareFiles = []string{
+	"health.yaml",
 	"tagger-list.json",
 	"workload-list.log",
 	"agent_open_files.txt",

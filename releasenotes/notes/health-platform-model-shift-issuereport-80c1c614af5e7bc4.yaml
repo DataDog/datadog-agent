@@ -1,0 +1,23 @@
+---
+upgrade:
+  - |
+    Health Platform: the ``ReportIssue`` method now takes a single
+    ``IssueReport`` argument instead of ``(checkID, checkName string,
+    report *IssueReport)``. The ``IssueReport`` struct carries three new
+    fields — ``IssueID`` (unique instance id), ``IssueType`` (template id),
+    and ``Source`` (reporting integration name) — replacing the separate
+    ``checkID`` and ``checkName`` arguments.
+
+    The health platform persistence file format has been bumped to version 2.
+    Existing persistence files (``<run_path>/health-platform/issues.json``)
+    written by a previous agent version will be detected, logged as
+    incompatible, and discarded on startup; the agent starts with a fresh
+    issue state. No data migration is performed.
+
+    For integrations calling ``ReportIssue``: construct an ``IssueReport``
+    with ``IssueID`` set to a unique instance key (e.g.
+    ``"check-execution-failure:<check-id>"``), ``IssueType`` set to the
+    template identifier that was previously passed as the ``IssueId`` field
+    of the proto ``IssueReport``, and ``Source`` set to the integration name.
+    To resolve an issue, call ``ResolveIssue(issueID)`` instead of passing
+    ``nil`` to ``ReportIssue``.
