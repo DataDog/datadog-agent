@@ -37,7 +37,6 @@ type Scheduler struct {
 
 var _ schedulers.Scheduler = &Scheduler{}
 
-// New creates a new scheduler.
 // New creates a new scheduler with the default name ("logs-agent AD scheduler").
 // Use NewNamed to create a scheduler with a custom name.
 func New(ac autodiscovery.Component) schedulers.Scheduler {
