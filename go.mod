@@ -20,7 +20,7 @@ replace (
 	// Use a patched version of go-cmp to avoid disabling dead code elimination
 	// Commit from https://github.com/DataDog/go-cmp/tree/dce-patch/v0.7.0
 	github.com/google/go-cmp => github.com/DataDog/go-cmp v0.0.0-20250605161605-8f326bf2ab9d
-	//test k8s
+	//test k8s to remove and not merge
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/k8sattributesprocessor => github.com/wehzzz/opentelemetry-collector-contrib/processor/k8sattributesprocessor v0.0.0-20260513073045-dc0bbfe59572
 	github.com/spf13/cast => github.com/DataDog/cast v1.8.0
 	// spf13/viper v1.21.0 requires cast v1.10.0 functions (ToUintSlice, ToFloat64Slice) that
