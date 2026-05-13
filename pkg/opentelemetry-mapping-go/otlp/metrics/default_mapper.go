@@ -380,7 +380,6 @@ func (m *defaultMapper) getSketchBuckets(
 	var minBoundSet bool
 	for j := 0; j < bucketCounts.Len(); j++ {
 		lowerBound, upperBound := getBounds(explicitBounds, j)
-		originalLowerBound, originalUpperBound := lowerBound, upperBound
 
 		// Compute temporary bucketTags to have unique keys in the m.prevPts cache for each bucket
 		// The bucketTags are computed from the bounds before the InsertInterpolate fix is done,
@@ -391,12 +390,22 @@ func (m *defaultMapper) getSketchBuckets(
 			"upper_bound:"+formatFloat(upperBound),
 		)
 
-		// InsertInterpolate doesn't work with an infinite bound; insert in to the bucket that contains the non-infinite bound
+		// InsertInterpolate's first deposit lands at the lower bound, so a degenerate lower bound leaks count into the
+		// sketch's zero bin and collapses percentiles. There are three degenerate shapes: (-Inf, B], (A, +Inf), and
+		// (0, B] — the last because the OTel spec defines explicit-bucket intervals as (lowerBound, upperBound] (open
+		// at the lower bound), so a (0, B] bucket cannot contain value 0. Collapse to the non-degenerate bound in each
+		// case. Order matters: handle the infinite-bound cases before the zero-bound cases so (-Inf, 0] is not caught
+		// by the zero branch.
 		// https://github.com/DataDog/datadog-agent/blob/7.31.0/pkg/aggregator/check_sampler.go#L107-L111
-		if math.IsInf(upperBound, 1) {
+		switch {
+		case math.IsInf(upperBound, 1):
 			upperBound = lowerBound
-		} else if math.IsInf(lowerBound, -1) {
+		case math.IsInf(lowerBound, -1):
 			lowerBound = upperBound
+		case lowerBound == 0 && upperBound > 0:
+			lowerBound = upperBound
+		case upperBound == 0 && lowerBound < 0:
+			upperBound = lowerBound
 		}
 
 		count := bucketCounts.At(j)
@@ -416,11 +425,15 @@ func (m *defaultMapper) getSketchBuckets(
 		}
 
 		if nonZeroBucket {
+			// Use the clamped bounds (not the originals): for a degenerate
+			// bucket like (0, B] the original lower bound is 0 and would,
+			// via Sketch.Quantile's vLow=Basic.Min substitution for the first
+			// bin, drag percentiles back down to 0 even after the clamp.
 			if !minBoundSet {
-				minBound = originalLowerBound
+				minBound = lowerBound
 				minBoundSet = true
 			}
-			maxBound = originalUpperBound
+			maxBound = upperBound
 		}
 	}
 

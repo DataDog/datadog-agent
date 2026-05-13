@@ -2275,6 +2275,146 @@ func TestMalformedHistogramNoPanic(t *testing.T) {
 	}
 }
 
+// rawSketchConsumer captures the full *quantile.Sketch (not just Basic stats)
+// so tests can assert on quantile values.
+type rawSketchConsumer struct {
+	mockTimeSeriesConsumer
+	sketches []*quantile.Sketch
+}
+
+func (c *rawSketchConsumer) ConsumeSketch(_ context.Context, _ *Dimensions, _ uint64, _ int64, sk *quantile.Sketch) {
+	c.sketches = append(c.sketches, sk)
+}
+
+// TestSketchBucketsZeroLowerBoundDoesNotCollapsePercentiles is a regression
+// test for OTAGENT-1067. InsertInterpolate anchors its first deposit at the
+// lower bound, so an explicit-bucket histogram whose first non-empty bucket is
+// (0, B] used to park count in the sketch's zero bin (key 0, value 0). The
+// OTel explicit-bucket spec defines intervals as (lowerBound, upperBound], so
+// observations in this bucket are strictly positive and must not land at 0.
+// With high-cardinality tags and short delta intervals, per-bucket counts of
+// 1 or 2 made the leak dominate, collapsing all percentiles to 0.
+func TestSketchBucketsZeroLowerBoundDoesNotCollapsePercentiles(t *testing.T) {
+	ctx := context.Background()
+	tr := newTranslator(t, zap.NewNop())
+	mapper := tr.getMapper().(*defaultMapper)
+	dims := &Dimensions{name: "test.histogram"}
+	cfg := quantile.Default()
+
+	tests := []struct {
+		name         string
+		bucketCounts []uint64
+		bounds       []float64
+		// minQuantile asserts that every quantile in {p50, p90, p99} is at
+		// least this value. The fix collapses each (0, B] bucket to its upper
+		// bound, so percentiles must reflect the non-zero side of the bucket.
+		minQuantile float64
+	}{
+		{
+			// Catastrophic case before the fix: a single observation in (0, 5]
+			// deposited the full count at value 0, giving p* = 0.
+			name:         "single observation in (0, 5]",
+			bucketCounts: []uint64{0, 1, 0},
+			bounds:       []float64{0, 5},
+			minQuantile:  5,
+		},
+		{
+			// Worst-case for the customer's reported MockLab scenario: many
+			// observations all in (0, 5ms]. Before the fix, a non-trivial
+			// fraction landed at value 0; after, percentiles stay in the
+			// (0, 5] bucket.
+			name:         "100 observations across (0, 5]",
+			bucketCounts: []uint64{0, 100, 0},
+			bounds:       []float64{0, 5},
+			minQuantile:  5,
+		},
+		{
+			// Default OTel boundary set, mass concentrated in the first
+			// positive bucket — the realistic shape for sub-5ms latencies.
+			name:         "default OTel bounds, small counts in (0, 5]",
+			bucketCounts: []uint64{0, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			bounds:       []float64{0, 5, 10, 25, 50, 75, 100, 250, 500, 750, 1000, 2500, 5000, 7500, 10000},
+			minQuantile:  5,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			p := pmetric.NewHistogramDataPoint()
+			p.BucketCounts().FromRaw(tc.bucketCounts)
+			p.ExplicitBounds().FromRaw(tc.bounds)
+			p.SetTimestamp(seconds(0))
+
+			consumer := &rawSketchConsumer{}
+			err := mapper.getSketchBuckets(ctx, consumer, dims, p, histogramInfo{ok: false}, true)
+			require.NoError(t, err)
+			require.Len(t, consumer.sketches, 1)
+
+			sk := consumer.sketches[0]
+			for _, q := range []float64{0.5, 0.9, 0.99} {
+				v := sk.Quantile(cfg, q)
+				assert.GreaterOrEqualf(t, v, tc.minQuantile,
+					"p%.0f should be at least %g (got %g) — count should not leak into zero bin",
+					q*100, tc.minQuantile, v)
+			}
+
+			var totalIn uint64
+			for _, c := range tc.bucketCounts {
+				totalIn += c
+			}
+			assert.EqualValues(t, totalIn, sk.Basic.Cnt)
+		})
+	}
+}
+
+// TestSketchBucketsNegativeBucketAtZero is the symmetric case: a (-X, 0]
+// bucket must not deposit count into the zero bin either.
+func TestSketchBucketsNegativeBucketAtZero(t *testing.T) {
+	ctx := context.Background()
+	tr := newTranslator(t, zap.NewNop())
+	mapper := tr.getMapper().(*defaultMapper)
+	dims := &Dimensions{name: "test.histogram.neg"}
+	cfg := quantile.Default()
+
+	p := pmetric.NewHistogramDataPoint()
+	p.BucketCounts().FromRaw([]uint64{0, 1, 0})
+	p.ExplicitBounds().FromRaw([]float64{-5, 0})
+	p.SetTimestamp(seconds(0))
+
+	consumer := &rawSketchConsumer{}
+	err := mapper.getSketchBuckets(ctx, consumer, dims, p, histogramInfo{ok: false}, true)
+	require.NoError(t, err)
+	require.Len(t, consumer.sketches, 1)
+
+	sk := consumer.sketches[0]
+	for _, q := range []float64{0.5, 0.9, 0.99} {
+		v := sk.Quantile(cfg, q)
+		assert.LessOrEqualf(t, v, -5.0,
+			"p%.0f for (-5, 0] bucket should be ≤ -5, got %g", q*100, v)
+	}
+}
+
+// TestSketchBucketsInfiniteBoundsStillWork guards the existing ±Inf workaround
+// from regressing alongside the zero-bound fix: a histogram with implicit
+// (-Inf, 10] and (100, +Inf) buckets must still produce a sketch.
+func TestSketchBucketsInfiniteBoundsStillWork(t *testing.T) {
+	ctx := context.Background()
+	tr := newTranslator(t, zap.NewNop())
+	mapper := tr.getMapper().(*defaultMapper)
+	dims := &Dimensions{name: "test.histogram.inf"}
+
+	p := pmetric.NewHistogramDataPoint()
+	p.BucketCounts().FromRaw([]uint64{1, 0, 1})
+	p.ExplicitBounds().FromRaw([]float64{10, 100})
+	p.SetTimestamp(seconds(0))
+
+	consumer := &rawSketchConsumer{}
+	err := mapper.getSketchBuckets(ctx, consumer, dims, p, histogramInfo{ok: false}, true)
+	require.NoError(t, err)
+	require.Len(t, consumer.sketches, 1)
+	assert.EqualValues(t, 2, consumer.sketches[0].Basic.Cnt)
+}
+
 func TestFormatFloat(t *testing.T) {
 	tests := []struct {
 		f float64
