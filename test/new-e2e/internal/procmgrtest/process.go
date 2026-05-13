@@ -207,12 +207,12 @@ func resolveCommandExeFromDescribe(
 	cmd := fieldValue(describeOut, "Command")
 	cmdExe, err := executor.ExecuteCommand(fmt.Sprintf("sudo readlink -f %q", cmd))
 	if err != nil {
-		t.Logf("resolveCommandExeFromDescribe: readlink -f %q (Command field from prior dd-procmgr describe) err=%v\n%s", cmd, err, cmdExe)
+		t.Logf("resolveCommandExeFromDescribe: describe cmd=%q readlink -f %q (Command from describe) err=%v\n%s", describeCmd, cmd, err, cmdExe)
 		return "", "", false
 	}
 	cmdExe = strings.TrimSpace(cmdExe)
 	if cmdExe == "" {
-		t.Logf("resolveCommandExeFromDescribe: readlink -f %q returned empty path (Command field from prior dd-procmgr describe)", cmd)
+		t.Logf("resolveCommandExeFromDescribe: describe cmd=%q readlink -f %q returned empty path (Command from describe)", describeCmd, cmd)
 		return "", "", false
 	}
 	return cmd, cmdExe, true
