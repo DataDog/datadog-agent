@@ -10,7 +10,6 @@ package noisyneighbor
 
 import (
 	"fmt"
-	"runtime"
 	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -119,7 +118,24 @@ const itlbLoadMissesConfig = uint64(unix.PERF_COUNT_HW_CACHE_ITLB) |
 // skipped — no perf fds are opened, the eBPF read returns -ENOENT, and
 // deltas for that event are dropped. See attachPMUEvent for per-event
 // semantics and failure modes.
+//
+// The CPU list comes from kernel.OnlineCPUs() rather than runtime.NumCPU().
+// runtime.NumCPU() returns the size of the caller's sched_getaffinity mask,
+// so on a cpuset-restricted system-probe (e.g. a Guaranteed-QoS pod under
+// the kubelet static CPU manager) it can be smaller than the host CPU id
+// range. Tracepoints fire on every online CPU regardless of the loader's
+// affinity, so any host CPU missing from the perf-event-array reads -ENOENT
+// on the BPF side and silently undercounts.
+//
+// CPU hotplug is not handled: the online set is snapshotted once here. A
+// CPU brought online after init will have an empty map slot and its PMU
+// samples will be dropped until the probe is reloaded.
 func (p *Probe) attachPMU(pmuEnabled map[string]bool) {
+	cpus, err := kernel.OnlineCPUs()
+	if err != nil {
+		log.Warnf("noisy_neighbor: cannot enumerate online CPUs (%v); PMU counters disabled", err)
+		return
+	}
 	events := []pmuEvent{
 		{mapName: "cycles_pmu", humanLabel: "cycles", perfType: unix.PERF_TYPE_HARDWARE, perfConfig: unix.PERF_COUNT_HW_CPU_CYCLES},
 		{mapName: "instructions_pmu", humanLabel: "instructions", perfType: unix.PERF_TYPE_HARDWARE, perfConfig: unix.PERF_COUNT_HW_INSTRUCTIONS},
@@ -134,23 +150,23 @@ func (p *Probe) attachPMU(pmuEnabled map[string]bool) {
 		// flat for memory-bound workloads already at floor miss rate.
 		{mapName: "cache_references_pmu", humanLabel: "cache references", perfType: unix.PERF_TYPE_HARDWARE, perfConfig: unix.PERF_COUNT_HW_CACHE_REFERENCES},
 	}
-	numCPU := runtime.NumCPU()
 	for _, ev := range events {
 		if !pmuEnabled[ev.mapName] {
 			log.Debugf("noisy_neighbor: %s PMU event disabled by config, skipping", ev.humanLabel)
 			continue
 		}
-		p.attachPMUEvent(ev, numCPU)
+		p.attachPMUEvent(ev, cpus)
 	}
 }
 
-// attachPMUEvent opens one perf event per CPU and inserts the fds into the
-// associated BPF perf-event-array map. On hosts where the event isn't
+// attachPMUEvent opens one perf event per online CPU and inserts the fds
+// into the associated BPF perf-event-array map at the host CPU id (matching
+// BPF_F_CURRENT_CPU on the reader side). On hosts where the event isn't
 // supported (virtualized envs, restrictive perf_event_paranoid, missing
 // CAP_PERF_MON, or µarch lacking the event) opens fail and we log once per
 // event type. Other events still attach independently, and the eBPF program
 // checks each read-value return code and skips just that counter's deltas.
-func (p *Probe) attachPMUEvent(ev pmuEvent, numCPU int) {
+func (p *Probe) attachPMUEvent(ev pmuEvent, cpus []uint) {
 	m, _, err := p.mgr.GetMap(ev.mapName)
 	if err != nil {
 		log.Warnf("noisy_neighbor: %s map (%s) lookup failed: %v", ev.humanLabel, ev.mapName, err)
@@ -161,11 +177,11 @@ func (p *Probe) attachPMUEvent(ev pmuEvent, numCPU int) {
 		return
 	}
 	var logged bool
-	for cpu := 0; cpu < numCPU; cpu++ {
-		fd, err := openHardwarePerfEvent(ev.perfType, ev.perfConfig, cpu)
+	for _, cpu := range cpus {
+		fd, err := openHardwarePerfEvent(ev.perfType, ev.perfConfig, int(cpu))
 		if err != nil {
 			if !logged {
-				log.Warnf("noisy_neighbor: %s PMU event unavailable, metric will be zero: %v", ev.humanLabel, err)
+				log.Warnf("noisy_neighbor: %s PMU event unavailable on cpu %d, metric will be zero for that CPU: %v", ev.humanLabel, cpu, err)
 				logged = true
 			}
 			continue
