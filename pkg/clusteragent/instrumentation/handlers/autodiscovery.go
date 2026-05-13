@@ -83,12 +83,22 @@ func (h *AutodiscoveryHandler) Validate(cr *datadoghq.DatadogInstrumentation) []
 				HandlerName: h.Name(),
 			})
 		}
-		if len(check.Instances) == 0 {
+		if len(check.Instances) == 0 && len(check.Logs) == 0 {
 			errs = append(errs, instrumentation.ValidationError{
 				Type:        checksReadyConditionType,
 				Reason:      "InvalidInstances",
-				Message:     "at least one instance is required",
+				Message:     "at least one instance or log config is required",
 				Field:       fmt.Sprintf("spec.config.checks[%d].instances", i),
+				HandlerName: h.Name(),
+			})
+		}
+
+		if len(check.ContainerImage) == 0 {
+			errs = append(errs, instrumentation.ValidationError{
+				Type:        checksReadyConditionType,
+				Reason:      "InvalidContainerImage",
+				Message:     "at least one container image is required",
+				Field:       fmt.Sprintf("spec.config.checks[%d].containerImage", i),
 				HandlerName: h.Name(),
 			})
 		}

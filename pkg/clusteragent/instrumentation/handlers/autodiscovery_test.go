@@ -114,87 +114,115 @@ func TestSupportsTarget(t *testing.T) {
 
 func TestValidate(t *testing.T) {
 	tests := []struct {
-		name        string
-		cr          *datadoghq.DatadogInstrumentation
-		expectCount int
-		expectField string
+		name           string
+		cr             *datadoghq.DatadogInstrumentation
+		expectErrCount int
+		expectField    string
 	}{
 		{
-			name:        "nil CR returns nil",
-			cr:          nil,
-			expectCount: 0,
+			name:           "nil CR returns nil",
+			cr:             nil,
+			expectErrCount: 0,
 		},
 		{
 			name: "valid check",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
-					Integration: "redisdb",
-					Instances:   []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
+					Integration:    "redisdb",
+					ContainerImage: []string{"redis"},
+					Instances:      []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
 				},
 			}),
-			expectCount: 0,
+			expectErrCount: 0,
 		},
 		{
 			name: "empty integration name",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
-					Integration: "",
-					Instances:   []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
+					Integration:    "",
+					ContainerImage: []string{"redis"},
+					Instances:      []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
 				},
 			}),
-			expectCount: 1,
-			expectField: "spec.config.checks[0].integration",
+			expectErrCount: 1,
+			expectField:    "spec.config.checks[0].integration",
 		},
 		{
 			name: "whitespace-only integration name",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
-					Integration: "   ",
-					Instances:   []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
+					Integration:    "   ",
+					ContainerImage: []string{"redis"},
+					Instances:      []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
 				},
 			}),
-			expectCount: 1,
-			expectField: "spec.config.checks[0].integration",
+			expectErrCount: 1,
+			expectField:    "spec.config.checks[0].integration",
 		},
 		{
-			name: "no instances",
+			name: "no instances or logs",
+			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
+				{
+					Integration:    "redisdb",
+					ContainerImage: []string{"redis"},
+					Instances:      nil,
+				},
+			}),
+			expectErrCount: 1,
+			expectField:    "spec.config.checks[0].instances",
+		},
+		{
+			name: "logs only is valid",
+			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
+				{
+					Integration:    "custom",
+					ContainerImage: []string{"app"},
+					Logs:           []datadoghq.DatadogInstrumentationLogConfig{{Type: "tcp"}},
+				},
+			}),
+			expectErrCount: 0,
+		},
+		{
+			name: "no container image",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
 					Integration: "redisdb",
-					Instances:   nil,
+					Instances:   []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
 				},
 			}),
-			expectCount: 1,
-			expectField: "spec.config.checks[0].instances",
+			expectErrCount: 1,
+			expectField:    "spec.config.checks[0].containerImage",
 		},
 		{
-			name: "empty integration and no instances",
+			name: "all validations fail",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{Integration: "", Instances: nil},
 			}),
-			expectCount: 2,
+			expectErrCount: 3,
 		},
 		{
 			name: "multiple checks with mixed errors",
 			cr: newCR("test", "default", "Deployment", "app", []datadoghq.DatadogInstrumentationCheckConfig{
 				{
-					Integration: "redisdb",
-					Instances:   []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
+					Integration:    "redisdb",
+					ContainerImage: []string{"redis"},
+					Instances:      []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
 				},
 				{
-					Integration: "",
-					Instances:   []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
+					Integration:    "",
+					ContainerImage: []string{"app"},
+					Instances:      []runtime.RawExtension{rawJSON(t, map[string]string{"host": "localhost"})},
 				},
 			}),
-			expectCount: 1,
-			expectField: "spec.config.checks[1].integration",
+			expectErrCount: 1,
+			expectField:    "spec.config.checks[1].integration",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newHandler()
 			errs := h.Validate(tt.cr)
-			assert.Len(t, errs, tt.expectCount)
+			assert.Len(t, errs, tt.expectErrCount)
 			if tt.expectField != "" && len(errs) > 0 {
 				assert.Equal(t, tt.expectField, errs[0].Field)
 			}
