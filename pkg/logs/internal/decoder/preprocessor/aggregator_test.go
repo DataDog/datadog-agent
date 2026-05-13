@@ -389,6 +389,22 @@ func TestSingleLineTooLongTruncation(t *testing.T) {
 
 // Tests for RegexAggregator
 
+// TestRegexAggregatorNoMatchSendsLinesIndividually anchors:
+//
+//	surface RegexAggregation (regex_aggregator.allium)
+//	    @guarantee PreMatchSinglePass — Before pattern_matched_once
+//	                                     becomes true, each call's
+//	                                     input is the sole occupant
+//	                                     of the buffer … each
+//	                                     pre-match emission contains
+//	                                     exactly one input line
+//
+// The delayed-emission shape is intrinsic to the guarantee: a
+// pre-match line is buffered on the call that receives it and
+// emitted on the next call (or flush). The assertion that the
+// first call returns empty AND the second call emits "first line"
+// (not "first line\\nsecond line") is what pins "no multi-line
+// combination during pre-match."
 func TestRegexAggregatorNoMatchSendsLinesIndividually(t *testing.T) {
 	re := regexp.MustCompile(`^NEVER_MATCHES_ANYTHING$`)
 	ag := NewRegexAggregator(re, 1000, false, status.NewInfoRegistry(), "multi_line")
@@ -409,6 +425,19 @@ func TestRegexAggregatorNoMatchSendsLinesIndividually(t *testing.T) {
 	assert.Equal(t, "third line", string(msgs[0].GetContent()))
 }
 
+// TestRegexAggregatorNoMatchThenMatchSwitchesToMultiLine anchors:
+//
+//	surface RegexAggregation (regex_aggregator.allium)
+//	    @guarantee PreMatchSinglePass (sticky bit transition)
+//	    @guarantee PatternBoundary — After pattern_matched_once is
+//	                                  true, an incoming line whose
+//	                                  content satisfies regex_matches
+//	                                  is a flush boundary
+//
+// Exercises the transition out of pre-match: the first line that
+// matches the pattern flips pattern_matched_once permanently. From
+// that point on, non-matching lines aggregate into the current
+// buffer and the next pattern match flushes the combined group.
 func TestRegexAggregatorNoMatchThenMatchSwitchesToMultiLine(t *testing.T) {
 	re := regexp.MustCompile(`^START`)
 	ag := NewRegexAggregator(re, 1000, false, status.NewInfoRegistry(), "multi_line")
@@ -438,6 +467,23 @@ func TestRegexAggregatorNoMatchThenMatchSwitchesToMultiLine(t *testing.T) {
 	assert.Equal(t, "START of second group", string(msgs[0].GetContent()))
 }
 
+// TestRegexAggregatorFirstLineMatchesWorksNormally anchors:
+//
+//	surface RegexAggregation (regex_aggregator.allium)
+//	    @guarantee PatternBoundary — A line matching the pattern
+//	                                  flushes the buffer and starts
+//	                                  a new aggregate; non-matching
+//	                                  lines are appended.
+//	    @guarantee ByteConservation (refined) — Combined emission
+//	                                  is the trim-spaced
+//	                                  concatenation of contributing
+//	                                  lines, joined by the
+//	                                  escaped-line-feed separator.
+//
+// The simplest path: the first line already matches the pattern,
+// so pattern_matched_once is set on call 1. Continuation line
+// aggregates. Next match flushes the combined "first group" with
+// the escaped-line-feed separator between contributing lines.
 func TestRegexAggregatorFirstLineMatchesWorksNormally(t *testing.T) {
 	re := regexp.MustCompile(`^START`)
 	ag := NewRegexAggregator(re, 1000, false, status.NewInfoRegistry(), "multi_line")
