@@ -53,6 +53,15 @@ func (h *Handler) Enabled(_ context.Context, level slog.Level) bool {
 // not). If no Submitter is registered the record is dropped silently.
 // Handle always returns nil - errortracking must never break the rest of
 // the logger chain.
+//
+// Attrs (both WithAttrs-accumulated and record-level) and Message are
+// captured on the DTO but emptied at the sender boundary
+// (comp/core/agenttelemetry/impl/errortracking_sender.go::errorLogToLog).
+// Every formatted message and every slog.Attr value is potentially
+// user-controlled and therefore PII-suspect until template-aware capture
+// lands; this PR ships PC-only telemetry. Keeping the fields on the DTO
+// means template extraction can re-enable them in one place without
+// re-plumbing the producer.
 func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 	if r.Level < slog.LevelError {
 		return nil
@@ -62,19 +71,11 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 		return nil
 	}
 
-	attrs := make([]slog.Attr, 0, len(h.attrs)+r.NumAttrs())
-	attrs = append(attrs, h.attrs...)
-	r.Attrs(func(a slog.Attr) bool {
-		attrs = append(attrs, a)
-		return true
-	})
-
 	submit(ErrorLog{
 		Time:    r.Time,
 		Level:   r.Level,
 		Message: r.Message,
 		PC:      r.PC,
-		Attrs:   attrs,
 	})
 	return nil
 }

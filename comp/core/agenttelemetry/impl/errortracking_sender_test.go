@@ -183,11 +183,14 @@ func TestSendPayloadBody_NetworkError(t *testing.T) {
 // v3 tests (atel-owned buffered channel + flush + recursion guard, errorLogToLog)
 // =============================================================================
 
-// TestErrorLogToLog_FieldMapping exercises the DTO -> wire conversion:
-// reserved trace_id / span_id extraction, alphabetically-ordered CSV
-// tags, file:line stack_trace from PC, and the v3 defaults
-// (count=1, is_crash=false, uppercase level).
-func TestErrorLogToLog_FieldMapping(t *testing.T) {
+// TestErrorLogToLog_PIIPivot locks the PR #50607 PII pivot: the wire
+// payload must carry only PC-derived data (StackTrace) + Level +
+// TracerTime + defaults. Every potentially user-controlled input
+// (Message, Tags / Attrs, TraceID, SpanID populated from attrs) is
+// dropped at the sender boundary until template-aware static-message
+// capture lands as a follow-up. The schema fields stay on Log so the
+// dd-go intake sees the canonical shape — they just emit empty.
+func TestErrorLogToLog_PIIPivot(t *testing.T) {
 	var pcs [1]uintptr
 	n := runtime.Callers(1, pcs[:])
 	require.Equal(t, 1, n)
@@ -196,7 +199,7 @@ func TestErrorLogToLog_FieldMapping(t *testing.T) {
 	in := errortracking.ErrorLog{
 		Time:    time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC),
 		Level:   slog.LevelError,
-		Message: "boom",
+		Message: "boom — potentially-PII formatted message",
 		PC:      pc,
 		Attrs: []slog.Attr{
 			slog.String("c", "3"),
@@ -208,27 +211,28 @@ func TestErrorLogToLog_FieldMapping(t *testing.T) {
 	}
 	out := errorLogToLog(in)
 
-	assert.Equal(t, "boom", out.Message)
+	// PC-derived + defaults: present on the wire.
 	assert.Equal(t, LogLevelError, out.Level)
 	assert.Equal(t, in.Time.Unix(), out.TracerTime)
 	assert.Equal(t, 1, out.Count)
 	assert.False(t, out.IsCrash)
-	assert.Equal(t, "abc-trace", out.TraceID)
-	assert.Equal(t, "abc-span", out.SpanID)
-	assert.Equal(t, "a:1,b:2,c:3", out.Tags,
-		"reserved attrs trace_id/span_id MUST be extracted; remaining attrs alphabetical CSV")
 	assert.NotEmpty(t, out.StackTrace, "non-zero PC must produce file:line stack_trace")
+
+	// PII-suspect: emitted empty regardless of input.
+	assert.Empty(t, out.Message, "Message must NOT be copied to the wire (PII pivot)")
+	assert.Empty(t, out.Tags, "Tags must NOT be populated from attrs (PII pivot)")
+	assert.Empty(t, out.TraceID, "TraceID must NOT be extracted from attrs (PII pivot)")
+	assert.Empty(t, out.SpanID, "SpanID must NOT be extracted from attrs (PII pivot)")
 }
 
 func TestErrorLogToLog_NoPC_EmptyStackTrace(t *testing.T) {
 	in := errortracking.ErrorLog{
-		Time:    time.Now(),
-		Level:   slog.LevelError,
-		Message: "no pc",
-		PC:      0,
+		Time:  time.Now(),
+		Level: slog.LevelError,
+		PC:    0,
 	}
 	out := errorLogToLog(in)
-	assert.Equal(t, "", out.StackTrace, "PC=0 must produce empty stack_trace")
+	assert.Empty(t, out.StackTrace, "PC=0 must produce empty stack_trace")
 }
 
 // errorLog is a convenience for the atel-level tests below.
@@ -348,8 +352,10 @@ func TestDrainAndSend_BatchesAndDispatches(t *testing.T) {
 
 	got := sm.capturedLogs()
 	require.Len(t, got, total, "every enqueued record must be dispatched in one drain pass")
-	for i, log := range got {
-		assert.Equal(t, fmt.Sprintf("r-%d", i), log.Message)
+	for _, log := range got {
+		// Per-record identification by Message was removed with the PR
+		// #50607 PII pivot — Message is always empty on the wire.
+		assert.Empty(t, log.Message)
 		assert.Equal(t, LogLevelError, log.Level)
 	}
 }
@@ -374,9 +380,13 @@ func TestFlushJob_DrainsOnStop(t *testing.T) {
 
 	got := sm.capturedLogs()
 	require.Len(t, got, 3, "all pending records must be flushed on stop")
-	assert.Equal(t, "pending-1", got[0].Message)
-	assert.Equal(t, "pending-2", got[1].Message)
-	assert.Equal(t, "pending-3", got[2].Message)
+	// Per-record identification by Message was removed with the PR
+	// #50607 PII pivot. Count-and-level is the strongest assertion
+	// available; the order check is implicit in the channel FIFO.
+	for _, log := range got {
+		assert.Empty(t, log.Message)
+		assert.Equal(t, LogLevelError, log.Level)
+	}
 }
 
 // ctxObservingSender records the cancellation state of the context it
