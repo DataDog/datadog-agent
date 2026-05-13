@@ -180,11 +180,13 @@ func (s *packageDDOTSuite) TestInstallDDOTWithoutDatadogYAML() {
 	// Step 8: restart the agent so it picks up the updated configuration.
 	s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent.service")
 
-	// Step 9: verify the agent and ddot are both running.
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, ddotUnit)
+	// Step 9: with datadog.yaml restored, DDOT runs under dd-procmgr (ddot systemd unit stays inactive).
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
+	// Apt reinstall uses the extension under /opt/datadog-agent, not fleet stable ext under datadog-packages.
+	procmgrtest.WaitForDDOTRunning(s.T(), s, procmgrtest.DDOTOtelAgentExtensionBinary)
 	state = s.host.State()
 	s.assertCoreUnits(state, true)
-	s.assertDDOTUnits(state, true)
+	s.assertDDOTUnitsProcmgr(state, true, true)
 }
 
 func (s *packageDDOTSuite) TestInstallDDOTSubcommand() {
