@@ -124,6 +124,36 @@ func (s *baseAgentMSISuite) AfterTest(suiteName, testName string) {
 				s.T().Logf("Errors and warnings from %s event log:\n%s", logName, out)
 			}
 		}
+		// collect agent logs
+		s.collectAgentLogs(vm)
+	}
+}
+
+// collectAgentLogs downloads the agent log folder from the remote host into the session output dir.
+// Best-effort: missing logs (e.g. on a failed install) are surfaced as assertion failures but do
+// not abort the test cleanup.
+func (s *baseAgentMSISuite) collectAgentLogs(vm *components.RemoteHost) {
+	s.T().Logf("Collecting agent logs")
+	logsFolder, err := vm.GetLogsFolder()
+	if !s.Assert().NoError(err, "should get logs folder") {
+		return
+	}
+	entries, err := vm.ReadDir(logsFolder)
+	if !s.Assert().NoError(err, "should read log folder") {
+		return
+	}
+	for _, entry := range entries {
+		sourcePath := filepath.Join(logsFolder, entry.Name())
+		destPath := filepath.Join(s.SessionOutputDir(), entry.Name())
+
+		if entry.IsDir() {
+			s.T().Logf("Found log directory: %s", entry.Name())
+			err = vm.GetFolder(sourcePath, destPath)
+		} else {
+			s.T().Logf("Found log file: %s", entry.Name())
+			err = vm.GetFile(sourcePath, destPath)
+		}
+		s.Assert().NoError(err, "should download %s", entry.Name())
 	}
 }
 
