@@ -9,14 +9,15 @@ import (
 	"expvar"
 	"time"
 
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -54,6 +55,10 @@ type noAggregationStreamWorker struct {
 	tagger          tagger.Component
 
 	logThrottling util.SimpleThrottler
+
+	// observerHandle is set when the observer component is wired in.
+	// Nil when the feature is disabled or the observer is not included in the binary.
+	observerHandle observer.Handle
 }
 
 // noAggWorkerStreamCheckFrequency is the frequency at which the no agg worker
@@ -68,11 +73,11 @@ var (
 	expvarNoAggSamplesProcessedUnsupportedType = expvar.Int{}
 	expvarNoAggFlush                           = expvar.Int{}
 
-	tlmNoAggSamplesProcessed                = telemetry.NewCounter("no_aggregation", "processed", []string{"state"}, "Count the number of samples processed by the no-aggregation pipeline worker")
+	tlmNoAggSamplesProcessed                = telemetryimpl.GetCompatComponent().NewCounter("no_aggregation", "processed", []string{"state"}, "Count the number of samples processed by the no-aggregation pipeline worker")
 	tlmNoAggSamplesProcessedOk              = tlmNoAggSamplesProcessed.WithValues("ok")
 	tlmNoAggSamplesProcessedUnsupportedType = tlmNoAggSamplesProcessed.WithValues("unsupported_type")
 
-	tlmNoAggFlush = telemetry.NewSimpleCounter("no_aggregation", "flush", "Count the number of flushes done by the no-aggregation pipeline worker")
+	tlmNoAggFlush = telemetryimpl.GetCompatComponent().NewSimpleCounter("no_aggregation", "flush", "Count the number of flushes done by the no-aggregation pipeline worker")
 )
 
 func init() {
@@ -166,7 +171,7 @@ func (w *noAggregationStreamWorker) run() {
 		metrics.Serialize(
 			w.seriesSink,
 			w.sketchesSink,
-			func(_ metrics.SerieSink, _ metrics.SketchesSink) {
+			func(seriesSink metrics.SerieSink, _ metrics.SketchesSink) {
 			mainloop:
 				for {
 					select {
@@ -203,6 +208,10 @@ func (w *noAggregationStreamWorker) run() {
 								continue
 							}
 
+							if w.observerHandle != nil {
+								w.observerHandle.ObserveMetric(&sample)
+							}
+
 							// enrich metric sample tags
 							sample.GetTags(w.taggerBuffer, w.metricBuffer, w.tagger)
 							w.metricBuffer.AppendHashlessAccumulator(w.taggerBuffer)
@@ -220,7 +229,7 @@ func (w *noAggregationStreamWorker) run() {
 							serie.Host = sample.Host
 							serie.MType = mtype
 							serie.Interval = bucketSize
-							w.seriesSink.Append(&serie)
+							seriesSink.Append(&serie)
 
 							w.taggerBuffer.Reset()
 							w.metricBuffer.Reset()

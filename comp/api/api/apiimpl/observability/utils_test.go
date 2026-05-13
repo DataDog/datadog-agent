@@ -41,6 +41,63 @@ func TestExtractPath(t *testing.T) {
 	})
 }
 
+func TestWrapWithRouteTemplate(t *testing.T) {
+	testCases := []struct {
+		prefix   string
+		template string
+		expected string
+	}{
+		{"", "/test", "/test"},
+		{"", "/test/", "/test/"},
+		{"", "/test/{id}", "/test/{id}"},
+		{"/agent", "/status/section/{component}", "/agent/status/section/{component}"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.expected, func(t *testing.T) {
+			var capturedTemplate string
+			handler := WrapWithRouteTemplate(tc.prefix, tc.template, http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+				if capture, ok := r.Context().Value(routeCaptureKey{}).(*routeCapture); ok {
+					capturedTemplate = capture.template
+				}
+			}))
+
+			r, capture := withRouteCapture(httptest.NewRequest("GET", "http://agent.host/test", nil))
+			handler.ServeHTTP(httptest.NewRecorder(), r)
+
+			assert.Equal(t, tc.expected, capture.template)
+			assert.Equal(t, tc.expected, capturedTemplate)
+		})
+	}
+
+	t.Run("no capture in context is a no-op", func(t *testing.T) {
+		called := false
+		handler := WrapWithRouteTemplate("", "/test", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			called = true
+			w.WriteHeader(http.StatusOK)
+		}))
+		req := httptest.NewRequest("GET", "http://agent.host/test", nil)
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		assert.True(t, called)
+		assert.Equal(t, http.StatusOK, rr.Code)
+	})
+}
+
+func TestSetRouteTemplate(t *testing.T) {
+	t.Run("fills capture when present", func(t *testing.T) {
+		r, capture := withRouteCapture(httptest.NewRequest("GET", "/", nil))
+		SetRouteTemplate(r, "/foo/{id}")
+		assert.Equal(t, "/foo/{id}", capture.template)
+	})
+
+	t.Run("no-op when no capture in context", func(_ *testing.T) {
+		r := httptest.NewRequest("GET", "/", nil)
+		// must not panic
+		SetRouteTemplate(r, "/foo/{id}")
+	})
+}
+
 func TestExtractStatusHandler(t *testing.T) {
 	// can't test with status code 1xx since they are not final responses
 	testCases := []int{

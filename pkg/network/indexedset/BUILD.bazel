@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "indexedset",
+    srcs = ["indexed_set.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/indexedset",
+    visibility = ["//visibility:public"],
+)

@@ -40,6 +40,8 @@ type ProcessorContext interface {
 	GetKind() string
 	GetAPIVersion() string
 	IsTerminatedResources() bool
+	GetCollectorGroup() string
+	GetCollectorName() string
 	GetCollectorTags() []string
 	GetAgentVersion() *model.AgentVersion
 	GetClock() clock.Clock
@@ -54,6 +56,8 @@ type BaseProcessorContext struct {
 	ManifestProducer    bool
 	Kind                string
 	APIVersion          string
+	CollectorGroup      string
+	CollectorName       string
 	CollectorTags       []string
 	TerminatedResources bool
 	AgentVersion        *model.AgentVersion
@@ -95,6 +99,16 @@ func (c *BaseProcessorContext) GetAPIVersion() string {
 	return c.APIVersion
 }
 
+// GetCollectorGroup returns the collector group
+func (c *BaseProcessorContext) GetCollectorGroup() string {
+	return c.CollectorGroup
+}
+
+// GetCollectorName returns the collector name
+func (c *BaseProcessorContext) GetCollectorName() string {
+	return c.CollectorName
+}
+
 // GetCollectorTags returns the CollectorTags
 func (c *BaseProcessorContext) GetCollectorTags() []string {
 	return c.CollectorTags
@@ -118,13 +132,10 @@ func (c *BaseProcessorContext) GetClock() clock.Clock {
 // K8sProcessorContext holds k8s resource processing attributes
 type K8sProcessorContext struct {
 	BaseProcessorContext
-	APIClient         *apiserver.APIClient
-	HostName          string
-	SystemInfo        *model.SystemInfo
-	ResourceType      string
-	LabelsAsTags      map[string]string
-	AnnotationsAsTags map[string]string
-	NodeName          string
+	APIClient  *apiserver.APIClient
+	HostName   string
+	SystemInfo *model.SystemInfo
+	NodeName   string
 }
 
 // ECSProcessorContext holds ECS resource processing attributes
@@ -346,7 +357,7 @@ func ChunkMetadata(ctx ProcessorContext, p *Processor, resourceMetadataModels, r
 
 func insertDeletionTimestampIfPossible(obj interface{}, ts time.Time) interface{} {
 	v := reflect.ValueOf(obj)
-	if v.Kind() != reflect.Ptr || v.IsNil() {
+	if v.Kind() != reflect.Pointer || v.IsNil() {
 		log.Debugf("object is not a pointer to a nil pointer, got type: %T", obj)
 		return obj
 	}

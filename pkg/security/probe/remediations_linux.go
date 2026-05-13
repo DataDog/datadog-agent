@@ -52,6 +52,10 @@ type Remediation struct {
 	isolationNew       bool
 	isolationPerformed bool
 	ruleTags           RuleTags
+	createdAt          time.Time
+	detectedAt         time.Time
+	killedAt           time.Time
+	exitedAt           time.Time
 }
 
 const (
@@ -96,6 +100,11 @@ type RemediationEvent struct {
 	Status      string                      `json:"status"`
 	Timestamp   int64                       `json:"timestamp"`
 	RuleTags    RuleTags                    `json:"rule_tags,omitempty"`
+	CreatedAt   *utils.EasyjsonTime         `json:"created_at,omitempty"`
+	DetectedAt  *utils.EasyjsonTime         `json:"detected_at,omitempty"`
+	KilledAt    *utils.EasyjsonTime         `json:"killed_at,omitempty"`
+	ExitedAt    *utils.EasyjsonTime         `json:"exited_at,omitempty"`
+	TTR         string                      `json:"ttr,omitempty"`
 }
 
 // ToJSON marshals the remediation event to JSON
@@ -170,7 +179,7 @@ func NewRemediationEvent(p *EBPFProbe, remediation *Remediation, status string, 
 		Version:       version.AgentVersion,
 	}
 
-	return &RemediationEvent{
+	re := &RemediationEvent{
 		Date:        now.Format(time.RFC3339Nano),
 		Container:   remediation.containerContext,
 		Process:     remediation.processContext,
@@ -183,6 +192,16 @@ func NewRemediationEvent(p *EBPFProbe, remediation *Remediation, status string, 
 		Remediation: remediationType,
 		RuleTags:    remediation.ruleTags,
 	}
+
+	re.CreatedAt = utils.NewEasyjsonTimeIfNotZero(remediation.createdAt)
+	re.DetectedAt = utils.NewEasyjsonTimeIfNotZero(remediation.detectedAt)
+	re.KilledAt = utils.NewEasyjsonTimeIfNotZero(remediation.killedAt)
+	re.ExitedAt = utils.NewEasyjsonTimeIfNotZero(remediation.exitedAt)
+	if !remediation.exitedAt.IsZero() {
+		re.TTR = remediation.exitedAt.Sub(remediation.createdAt).String()
+	}
+
+	return re
 }
 
 func getTagsFromRule(rule *rules.Rule) RuleTags {
@@ -287,10 +306,7 @@ func (p *EBPFProbe) SendCustomEventKillAction(report model.ActionReport, tags []
 	status := string(killReport.Status)
 	scope := killReport.Scope
 	pid := killReport.Pid
-	killReport.RUnlock()
-
 	containerContext := killReport.GetRemediationContainerContext()
-
 	remediation := &Remediation{
 		actionType:       RemediationTypeKill,
 		triggered:        true,
@@ -298,7 +314,13 @@ func (p *EBPFProbe) SendCustomEventKillAction(report model.ActionReport, tags []
 		containerContext: containerContext,
 		processContext:   RemediationProcessContext{PID: pid},
 		ruleTags:         tagsToRuleTags(tags),
+		createdAt:        killReport.CreatedAt,
+		detectedAt:       killReport.DetectedAt,
+		killedAt:         killReport.KilledAt,
+		exitedAt:         killReport.ExitedAt,
 	}
+	killReport.RUnlock()
+
 	re := NewRemediationEvent(p, remediation, status, RemediationTypeKillStr)
 	p.SendRemediationEvent(re)
 }

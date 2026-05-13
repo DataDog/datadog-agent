@@ -137,6 +137,10 @@ func Test_loadYamlProfiles_invalidExtendProfile(t *testing.T) {
 	logs.AssertPresent(t, "failed to expand profile \"f5-big-ip\"")
 	assert.Equal(t, ProfileConfigMap{}, defaultProfiles)
 	assert.False(t, haveLegacyProfile)
+
+	expVarEntry := profileExpVar.Get("f5-big-ip")
+	require.NotNil(t, expVarEntry, "expected f5-big-ip error in snmpProfileErrors expvar")
+	assert.Contains(t, expVarEntry.String(), "extend does not exist")
 }
 
 func Test_loadYamlProfiles_userAndDefaultProfileFolderDoesNotExist(t *testing.T) {
@@ -180,6 +184,10 @@ func Test_loadYamlProfiles_validAndInvalidProfiles(t *testing.T) {
 	assert.Contains(t, defaultProfiles, "f5-big-ip")
 	assert.NotContains(t, defaultProfiles, "f5-invalid")
 	assert.True(t, haveLegacyProfile)
+
+	expVarEntry := profileExpVar.Get("f5-invalid")
+	require.NotNil(t, expVarEntry, "expected f5-invalid error in snmpProfileErrors expvar")
+	assert.Contains(t, expVarEntry.String(), "parse error")
 }
 
 func Test_getProfileDefinitions_legacyProfiles(t *testing.T) {

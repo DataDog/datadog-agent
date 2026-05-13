@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package process
 
 import (
@@ -30,18 +32,19 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	statsdimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
+	npcollectorfx "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/fx"
+	npcollectormock "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/mock"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
-	"github.com/DataDog/datadog-agent/comp/process/runner"
-	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
+	runner "github.com/DataDog/datadog-agent/comp/process/runner/def"
+	statusimpl "github.com/DataDog/datadog-agent/comp/process/status/fx"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
@@ -71,8 +74,8 @@ func TestBundleDependencies(t *testing.T) {
 		),
 		fx.Provide(func() context.Context { return context.TODO() }),
 		rdnsquerier.MockModule(),
-		npcollectorimpl.MockModule(),
-		statsd.MockModule(),
+		npcollectormock.MockModule(),
+		statsdimpl.MockModule(),
 		fx.Provide(func() ddgostatsd.ClientInterface {
 			return &ddgostatsd.NoOpClient{}
 		}),
@@ -117,8 +120,8 @@ func TestBundleOneShot(t *testing.T) {
 		eventplatformimpl.Module(eventplatformimpl.NewDefaultParams()),
 		rdnsquerier.MockModule(),
 		remotetraceroute.Module(),
-		npcollectorimpl.Module(),
-		statsd.MockModule(),
+		npcollectorfx.Module(),
+		statsdimpl.MockModule(),
 		fx.Provide(func() ddgostatsd.ClientInterface {
 			return &ddgostatsd.NoOpClient{}
 		}),
@@ -130,7 +133,7 @@ func TestBundleOneShot(t *testing.T) {
 		fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component) {
 			proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)
 		}),
-		telemetryimpl.MockModule(),
+		mocktelemetry.Module(),
 		hostnameimpl.MockModule(),
 		fx.Provide(func() delegatedauth.Component { return delegatedauthmock.New(t) }),
 		Bundle(),

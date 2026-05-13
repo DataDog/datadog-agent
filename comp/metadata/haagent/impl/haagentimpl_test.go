@@ -7,11 +7,12 @@ package haagentimpl
 
 import (
 	"bytes"
+	"maps"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -103,7 +104,7 @@ func TestStatusHeaderProvider(t *testing.T) {
 			stats := make(map[string]interface{})
 			headerStatusProvider.JSON(false, stats)
 
-			keys := maps.Keys(stats)
+			keys := slices.Collect(maps.Keys(stats))
 
 			assert.Contains(t, keys, "ha_agent_metadata")
 		}},
@@ -130,4 +131,30 @@ func TestStatusHeaderProvider(t *testing.T) {
 			test.assertFunc(t)
 		})
 	}
+}
+
+func TestStatusHeaderProviderEnabled(t *testing.T) {
+	overrides := map[string]any{}
+	io := getTestInventoryPayload(t, overrides)
+	haAgentMock := io.haAgent.(haagentmock.Component)
+	haAgentMock.SetEnabled(true)
+	io.refreshMetadata()
+
+	t.Run("Text", func(t *testing.T) {
+		b := new(bytes.Buffer)
+		err := io.Text(false, b)
+
+		assert.NoError(t, err)
+		assert.Contains(t, b.String(), "enabled: true")
+		assert.Contains(t, b.String(), "state: standby")
+	})
+
+	t.Run("HTML", func(t *testing.T) {
+		b := new(bytes.Buffer)
+		err := io.HTML(false, b)
+
+		assert.NoError(t, err)
+		assert.Contains(t, b.String(), "enabled: true")
+		assert.Contains(t, b.String(), "state: standby")
+	})
 }

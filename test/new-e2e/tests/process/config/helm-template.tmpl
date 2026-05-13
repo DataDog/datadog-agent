@@ -8,3 +8,6 @@ datadog:
   envDict:
     DD_CEL_WORKLOAD_EXCLUDE: |-
       [{"products":["metrics"],"rules":{"containers":["container.name.matches('nginx')"]}}]
+{{- if .ProcessDiscoveryCollection}}
+    DD_DISCOVERY_ENABLED: "false"
+{{- end}}

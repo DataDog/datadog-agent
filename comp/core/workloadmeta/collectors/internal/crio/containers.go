@@ -27,7 +27,7 @@ func (c *collector) convertContainerToEvent(ctx context.Context, ctr *v1.Contain
 	containerStatus, info := getContainerStatus(ctx, c.client, ctr.GetId())
 	pid, hostname, cgroupsPath := parseContainerInfo(info)
 	cpuLimit, memLimit := getResourceLimits(containerStatus, info)
-	image := getContainerImage(containerStatus)
+	image := getContainerImage(containerStatus, c.sbomCollectionIsEnabled())
 	ports := parsePortsFromAnnotations(ctr.GetAnnotations())
 
 	return workloadmeta.CollectorEvent{
@@ -44,12 +44,13 @@ func (c *collector) convertContainerToEvent(ctx context.Context, ctr *v1.Contain
 				Labels:      ctr.GetLabels(),
 				Annotations: ctr.GetAnnotations(),
 			},
-			Hostname: hostname,
-			Image:    image,
-			PID:      pid,
-			Ports:    ports,
-			Runtime:  workloadmeta.ContainerRuntimeCRIO,
-			State:    getContainerState(containerStatus),
+			Hostname:  hostname,
+			Image:     image,
+			PID:       pid,
+			Ports:     ports,
+			Runtime:   workloadmeta.ContainerRuntimeCRIO,
+			SandboxID: ctr.GetPodSandboxId(),
+			State:     getContainerState(containerStatus),
 			Resources: workloadmeta.ContainerResources{
 				CPULimit:    cpuLimit,
 				MemoryLimit: memLimit,
@@ -90,7 +91,7 @@ func getContainerStatus(ctx context.Context, client crio.Client, containerID str
 }
 
 // getContainerImage retrieves and converts a container image to workloadmeta format.
-func getContainerImage(ctrStatus *v1.ContainerStatus) workloadmeta.ContainerImage {
+func getContainerImage(ctrStatus *v1.ContainerStatus, sbomEnabled bool) workloadmeta.ContainerImage {
 	if ctrStatus == nil {
 		log.Warn("container status is nil, cannot fetch image")
 		return workloadmeta.ContainerImage{}
@@ -113,7 +114,7 @@ func getContainerImage(ctrStatus *v1.ContainerStatus) workloadmeta.ContainerImag
 		log.Debugf("Failed to create image: %v", err)
 		return workloadmeta.ContainerImage{}
 	}
-	if digestErr != nil && sbomCollectionIsEnabled() {
+	if digestErr != nil && sbomEnabled {
 		// Don't log if the container image could not be created
 		log.Warnf("Failed to parse digest for image with ID %s: %v. As a result, SBOM vulnerabilities may not be properly linked to this image.", imgID, digestErr)
 	}

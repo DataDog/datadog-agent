@@ -26,7 +26,6 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api/internal/header"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
-	traceutilotel "github.com/DataDog/datadog-agent/pkg/trace/otel/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
@@ -1414,8 +1413,8 @@ var (
 
 func TestOTLPHelpers(t *testing.T) {
 	t.Run("byteArrayToUint64", func(t *testing.T) {
-		assert.Equal(t, uint64(0x240031ead750e5f3), traceutilotel.OTelTraceIDToUint64([16]byte(otlpTestTraceID)))
-		assert.Equal(t, uint64(0x240031ead750e5f3), traceutilotel.OTelSpanIDToUint64([8]byte(otlpTestSpanID)))
+		assert.Equal(t, uint64(0x240031ead750e5f3), transform.OTelTraceIDToUint64([16]byte(otlpTestTraceID)))
+		assert.Equal(t, uint64(0x240031ead750e5f3), transform.OTelSpanIDToUint64([8]byte(otlpTestSpanID)))
 	})
 
 	t.Run("spanKindNames", func(t *testing.T) {
@@ -1428,7 +1427,7 @@ func TestOTLPHelpers(t *testing.T) {
 			ptrace.SpanKindConsumer:    "consumer",
 			99:                         "unspecified",
 		} {
-			assert.Equal(t, out, traceutilotel.OTelSpanKindName(in))
+			assert.Equal(t, out, transform.OTelSpanKindName(in))
 		}
 	})
 
@@ -2353,10 +2352,11 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 					"otelcol.component.id":   "otlp",
 					"otelcol.component.kind": "Receiver",
 
-					"net.sock.peer.addr": "127.0.0.1",
-					"rpc.method":         "Export",
-					"rpc.service":        "opentelemetry.proto.collector.trace.v1.TraceService",
-					"rpc.system":         "grpc",
+					"net.sock.peer.addr":   "127.0.0.1",
+					"rpc.method":           "Export",
+					"rpc.service":          "opentelemetry.proto.collector.trace.v1.TraceService",
+					"rpc.system":           "grpc",
+					"rpc.grpc.status_code": "0",
 
 					"span.kind":        "server",
 					"otel.status_code": "Unset",

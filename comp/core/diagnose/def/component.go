@@ -14,7 +14,7 @@ import (
 	"github.com/fatih/color"
 )
 
-// team: agent-runtimes
+// team: agent-configuration
 
 type metadataAvailDiagnoseCatalog map[string]func() error
 
@@ -180,6 +180,8 @@ type Diagnosis struct {
 
 	// static-time (meta typically)
 	Category string `json:"category,omitempty"`
+	// static-time (owning check identity, set by aggregator)
+	CheckName string `json:"check_name,omitempty"`
 	// static-time (meta typically, description of what being tested)
 	Description string `json:"description,omitempty"`
 	// run-time (what can be done or what docs need to be consulted to address the issue)

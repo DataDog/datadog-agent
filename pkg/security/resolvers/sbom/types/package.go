@@ -6,15 +6,20 @@
 // Package types holds types related to sbom
 package types
 
+import "time"
+
 // Package describes a system package
 type Package struct {
-	Name       string
-	Version    string
-	Epoch      int
-	Release    string
-	SrcVersion string
-	SrcEpoch   int
-	SrcRelease string
+	Name           string
+	Version        string
+	Epoch          int
+	Release        string
+	SrcVersion     string
+	SrcEpoch       int
+	SrcRelease     string
+	LastAccess     time.Time
+	AccessedByRoot bool
+	SuidBit        bool
 }
 
 // PackageWithInstalledFiles describes a system package with its installed files

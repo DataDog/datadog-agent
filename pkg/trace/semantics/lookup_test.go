@@ -6,6 +6,7 @@
 package semantics
 
 import (
+	"math"
 	"strconv"
 	"testing"
 
@@ -98,6 +99,95 @@ func TestLookup(t *testing.T) {
 	})
 }
 
+// TestGRPCStatusCodeConditionalFallback exercises the production rpc.grpc.status_code
+// mapping — rpc.response.status_code is only accepted when rpc.system.name=grpc, or as
+// a legacy fallback when rpc.system=grpc and rpc.system.name is absent. The legacy
+// row's two-condition AND also gives ANDing implicit coverage.
+func TestGRPCStatusCodeConditionalFallback(t *testing.T) {
+	r, err := NewEmbeddedRegistry()
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name  string
+		attrs map[string]any
+		want  string
+	}{
+		{
+			name: "explicit rpc.grpc.status_code wins regardless of system",
+			attrs: map[string]any{
+				"rpc.grpc.status_code":     "3",
+				"rpc.response.status_code": "4",
+				"rpc.system.name":          "jsonrpc",
+			},
+			want: "3",
+		},
+		{
+			name: "rpc.response.status_code accepted when rpc.system.name=grpc",
+			attrs: map[string]any{
+				"rpc.response.status_code": "DEADLINE_EXCEEDED",
+				"rpc.system.name":          "grpc",
+			},
+			want: "DEADLINE_EXCEEDED",
+		},
+		{
+			name: "rpc.response.status_code accepted via legacy rpc.system=grpc",
+			attrs: map[string]any{
+				"rpc.response.status_code": "DEADLINE_EXCEEDED",
+				"rpc.system":               "grpc",
+			},
+			want: "DEADLINE_EXCEEDED",
+		},
+		{
+			name: "rpc.system.name=grpc still accepted when legacy rpc.system disagrees",
+			attrs: map[string]any{
+				"rpc.response.status_code": "OK",
+				"rpc.system.name":          "grpc",
+				"rpc.system":               "jsonrpc",
+			},
+			want: "OK",
+		},
+		{
+			name: "non-gRPC rpc.system.name rejects rpc.response.status_code",
+			attrs: map[string]any{
+				"rpc.response.status_code": "-32602",
+				"rpc.system.name":          "jsonrpc",
+			},
+		},
+		{
+			// New rpc.system.name takes precedence over legacy rpc.system: if the
+			// SDK set rpc.system.name explicitly, ignore a stale rpc.system=grpc.
+			name: "explicit non-grpc rpc.system.name overrides legacy rpc.system=grpc",
+			attrs: map[string]any{
+				"rpc.response.status_code": "-32602",
+				"rpc.system.name":          "jsonrpc",
+				"rpc.system":               "grpc",
+			},
+		},
+		{
+			name: "int64 rpc.response.status_code is formatted as string",
+			attrs: map[string]any{
+				"rpc.response.status_code": int64(7),
+				"rpc.system.name":          "grpc",
+			},
+			want: "7",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, LookupString(r, newTestAccessor(tt.attrs), ConceptGRPCStatusCode))
+		})
+	}
+
+	t.Run("LookupInt64 returns typed value through conditional fallback", func(t *testing.T) {
+		accessor := newTestAccessor(map[string]any{
+			"rpc.response.status_code": int64(7),
+			"rpc.system.name":          "grpc",
+		})
+		v, ok := LookupInt64(r, accessor, ConceptGRPCStatusCode)
+		assert.True(t, ok)
+		assert.Equal(t, int64(7), v)
+	})
+}
+
 func TestStringMapAccessor(t *testing.T) {
 	t.Run("returns value for key", func(t *testing.T) {
 		accessor := NewStringMapAccessor(map[string]string{"key": "value", "empty": ""})
@@ -132,6 +222,63 @@ func TestStringMapAccessor(t *testing.T) {
 
 		s := LookupString(r, accessor, ConceptHTTPStatusCode)
 		assert.Equal(t, "404", s)
+	})
+}
+
+func TestMetricsMapAccessor(t *testing.T) {
+	t.Run("GetString always returns empty", func(t *testing.T) {
+		a := NewMetricsMapAccessor(map[string]float64{"key": 200})
+		assert.Equal(t, "", a.GetString("key"))
+	})
+
+	t.Run("GetFloat64 returns value directly", func(t *testing.T) {
+		a := NewMetricsMapAccessor(map[string]float64{"x": 1.5})
+		v, ok := a.GetFloat64("x")
+		assert.True(t, ok)
+		assert.Equal(t, 1.5, v)
+	})
+
+	t.Run("GetFloat64 returns false for missing key", func(t *testing.T) {
+		a := NewMetricsMapAccessor(map[string]float64{})
+		_, ok := a.GetFloat64("missing")
+		assert.False(t, ok)
+	})
+
+	t.Run("GetFloat64 returns false for nil map", func(t *testing.T) {
+		a := NewMetricsMapAccessor(nil)
+		_, ok := a.GetFloat64("key")
+		assert.False(t, ok)
+	})
+
+	t.Run("GetInt64 returns exact integer", func(t *testing.T) {
+		a := NewMetricsMapAccessor(map[string]float64{"status": 404})
+		v, ok := a.GetInt64("status")
+		assert.True(t, ok)
+		assert.Equal(t, int64(404), v)
+	})
+
+	t.Run("GetInt64 rejects fractional float", func(t *testing.T) {
+		a := NewMetricsMapAccessor(map[string]float64{"x": 1.5})
+		_, ok := a.GetInt64("x")
+		assert.False(t, ok)
+	})
+
+	t.Run("GetInt64 rejects NaN", func(t *testing.T) {
+		a := NewMetricsMapAccessor(map[string]float64{"x": math.NaN()})
+		_, ok := a.GetInt64("x")
+		assert.False(t, ok)
+	})
+
+	t.Run("GetInt64 rejects Inf", func(t *testing.T) {
+		a := NewMetricsMapAccessor(map[string]float64{"x": math.Inf(1)})
+		_, ok := a.GetInt64("x")
+		assert.False(t, ok)
+	})
+
+	t.Run("GetInt64 returns false for missing key", func(t *testing.T) {
+		a := NewMetricsMapAccessor(map[string]float64{})
+		_, ok := a.GetInt64("missing")
+		assert.False(t, ok)
 	})
 }
 

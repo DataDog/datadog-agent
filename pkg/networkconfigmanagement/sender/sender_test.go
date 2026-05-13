@@ -13,15 +13,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
+	"github.com/DataDog/datadog-agent/pkg/version"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
-	"github.com/stretchr/testify/assert"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
 func TestNCMSender_SendNCMConfig_Success(t *testing.T) {
@@ -37,8 +41,8 @@ func TestNCMSender_SendNCMConfig_Success(t *testing.T) {
 		{
 			DeviceID:     "default:10.0.0.1",
 			DeviceIP:     "10.0.0.1",
-			ConfigType:   string(ncmreport.RUNNING),
-			ConfigSource: string(ncmreport.CLI),
+			ConfigType:   types.RUNNING,
+			ConfigSource: types.CLI,
 			Timestamp:    mockClock.Now().Unix(),
 			Tags:         []string{"device_ip:10.0.0.1"},
 			Content:      "version 15.1\nhostname Router1",
@@ -155,7 +159,7 @@ func TestNCMSender_SendMetricsFromExtractedMetadata(t *testing.T) {
 	tests := []struct {
 		name              string
 		extractedMetadata profile.ExtractedMetadata
-		configType        ncmreport.ConfigType
+		configType        types.ConfigType
 		tags              []string
 		expectedMetrics   []expectedMetric
 	}{
@@ -193,4 +197,47 @@ func TestNCMSender_SendMetricsFromExtractedMetadata(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNCMSender_SendDeviceMetadata(t *testing.T) {
+	mockSender := &mocksender.MockSender{}
+	namespace := "test-namespace"
+	deviceID := "test-namespace:10.0.0.1"
+	deviceIP := "10.0.0.1"
+	mockClock := clock.NewMock()
+	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
+
+	ncmSender := NewNCMSender(mockSender, namespace, mockClock)
+
+	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
+
+	err := ncmSender.SendDeviceMetadata(deviceID, deviceIP)
+	assert.NoError(t, err)
+
+	var expectedEvent = []byte(`
+{
+  "namespace": "test-namespace",
+  "integration": "network-configuration-management",
+  "devices": [
+    {
+      "id": "test-namespace:10.0.0.1",
+      "id_tags": null,
+      "tags": null,
+      "ip_address": "10.0.0.1",
+      "status": 1
+    }
+  ],
+  "collect_timestamp": 1754043600
+}
+`)
+
+	compactEvent := new(bytes.Buffer)
+	err = json.Compact(compactEvent, expectedEvent)
+	assert.NoError(t, err)
+	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
+	mockSender.AssertEventPlatformEvent(t, compactEvent.Bytes(), eventplatform.EventTypeNetworkDevicesMetadata)
+	mockSender.AssertExpectations(t)
+
+	// Verify the integration constant value
+	assert.Equal(t, integrations.Integration("network-configuration-management"), integrations.NetworkConfigManagement)
 }

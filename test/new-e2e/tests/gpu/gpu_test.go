@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 
@@ -27,6 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
@@ -51,8 +54,15 @@ const (
 	defaultGpuSystem             systemName = gpuSystemUbuntu2204
 	defaultCudaVersion           string     = "12.4.1"
 	oldCudaVersion               string     = "10.2"
-	dockerRegistry               string     = "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub"
 )
+
+var dockerRegistry = func() string {
+	reg, _ := runner.GetProfile().ParamStore().GetWithDefault(parameters.ImagePullRegistry, "")
+	if reg != "" {
+		return strings.SplitN(reg, ",", 2)[0] + "/dockerhub"
+	}
+	return "docker.io"
+}()
 
 var (
 	cuda12DockerImage    = fmt.Sprintf("%s/nvidia/cuda:%s-base-ubuntu22.04", dockerRegistry, defaultCudaVersion)
@@ -296,23 +306,25 @@ func (v *gpuBaseSuite[Env]) TestGPUCheckIsEnabled() {
 
 	// Note that the GPU check should be enabled by autodiscovery, so it can take some time to be enabled
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		statusOutput := v.caps.Agent().Status(agentclient.WithArgs([]string{"collector", "--json"}))
+		statusOutput, err := v.caps.Agent().StatusWithError(agentclient.WithArgs([]string{"collector", "--json"}))
+		require.NoError(c, err, "failed to get agent collector status")
 
 		// Keep only the second-to-last line of the output, which is the JSON status. The rest is standard error
 		// TODO: Make the status command return stdout/stderr separately
 		statusLines := strings.Split(statusOutput.Content, "\n")
-		assert.Greater(c, len(statusLines), 1, "status output should have at least 2 lines")
+		require.Greater(c, len(statusLines), 1, "status output should have at least 2 lines")
 		jsonStatus := statusLines[len(statusLines)-2]
 
 		var status collectorStatus
-		err := json.Unmarshal([]byte(jsonStatus), &status)
+		err = json.Unmarshal([]byte(jsonStatus), &status)
+		require.NoError(c, err, "failed to unmarshal agent status")
+		require.Contains(c, status.RunnerStats.Checks, "gpu", "gpu check should be enabled")
 
-		assert.NoError(c, err, "failed to unmarshal agent status")
-		assert.Contains(c, status.RunnerStats.Checks, "gpu")
+		v.T().Logf("gpu check status: %+v", status.RunnerStats.Checks["gpu"])
 
 		gpuCheckStatus := status.RunnerStats.Checks["gpu"]
-		assert.Equal(c, gpuCheckStatus.LastError, "")
-	}, 2*time.Minute, 10*time.Second)
+		require.Equal(c, gpuCheckStatus.LastError, "")
+	}, 5*time.Minute, 10*time.Second)
 }
 
 func (v *gpuBaseSuite[Env]) TestGPUSysprobeEndpointIsResponding() {

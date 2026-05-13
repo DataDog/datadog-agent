@@ -22,7 +22,7 @@ int raw_packet_tail_calls(struct __sk_buff *skb) {
     };
     baloum_memcpy(evt->data, data, sizeof(data));
 
-    bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_FILTER);
+    tail_call_raw_packet_router(skb, RAW_PACKET_FILTER);
 
     return 1;
 }
@@ -31,7 +31,7 @@ SEC("test/raw_packet_drop_action")
 int raw_packet_drop_action(struct __sk_buff *skb) {
     struct raw_packet_event_t *evt = get_raw_packet_event();
     evt->process.pid = 123;
-    evt->cgroup.cgroup_file.ino = 456;
+    evt->cgroup.path_key.ino = 456;
 
     // assert_not_null(evt, "unable to get raw packet event")
     assert_not_null(evt, "unable to get raw packet event")
@@ -49,7 +49,7 @@ int raw_packet_drop_action(struct __sk_buff *skb) {
     };
     baloum_memcpy(evt->data, data, sizeof(data));
 
-    bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_DROP_ACTION);
+    tail_call_raw_packet_router(skb, RAW_PACKET_DROP_ACTION);
 
     return 1;
 }
@@ -72,7 +72,7 @@ int raw_packet_bpfdoor_magic_number(struct __sk_buff *skb) {
     };
     baloum_memcpy(evt->data, data, sizeof(data));
 
-    bpf_tail_call_compat(skb, &raw_packet_classifier_router, RAW_PACKET_FILTER);
+    tail_call_raw_packet_router(skb, RAW_PACKET_FILTER);
 
     return 1;
 }

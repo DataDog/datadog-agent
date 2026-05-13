@@ -46,6 +46,7 @@ func ExtractConnectionDetails(connInfo *privateactionspb.ConnectionInfo) ([]*pri
 		Body:          getHttpBody(group[http.BodyGroupName]),
 		BaseURL:       getBaseURL(group[http.BaseUrlTokenName]),
 		UrlParameters: getHttpUrlParams(group[http.UrlParametersGroupName]),
+		Testing:       getHttpDetailsTesting(group[http.TestingName]),
 	}
 	return tokens, details
 }
@@ -83,6 +84,25 @@ func getHttpBody(tokens []*privateactionspb.ConnectionToken) HttpDetailsBody {
 		}
 	}
 	return body
+}
+
+func getHttpDetailsTesting(tokens []*privateactionspb.ConnectionToken) *HttpDetailsTesting {
+	if len(tokens) == 0 {
+		return nil
+	}
+	testing := &HttpDetailsTesting{}
+	for _, token := range tokens {
+		switch connlib.GetName(token) {
+		case http.TestingPathName:
+			testing.Path = token.GetPlainText().GetValue()
+		case http.TestingVerbName:
+			testing.Verb = token.GetPlainText().GetValue()
+		}
+	}
+	if testing.Path == "" && testing.Verb == "" {
+		return nil
+	}
+	return testing
 }
 
 func getBaseURL(tokens []*privateactionspb.ConnectionToken) string {

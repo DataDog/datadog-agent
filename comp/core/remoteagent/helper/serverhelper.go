@@ -129,12 +129,10 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 
 	remoteAgentServer.grpcServer = grpc.NewServer(serverOpts...)
 
-	// Setup lifecycle
+	// Each impl must call Start() after registering its gRPC services so the
+	// service list reported to the core agent is complete and the gRPC server
+	// is not accepting RPCs before they are wired.
 	lc.Append(compdef.Hook{
-		OnStart: func(_ context.Context) error {
-			remoteAgentServer.start()
-			return nil
-		},
 		OnStop: func(_ context.Context) error {
 			remoteAgentServer.stop()
 			return nil
@@ -144,8 +142,9 @@ func NewUnimplementedRemoteAgentServer(ipcComp ipc.Component, log log.Component,
 	return remoteAgentServer, nil
 }
 
-// Start the unimplemented remote agent server
-func (s *UnimplementedRemoteAgentServer) start() {
+// Start begins serving gRPC and starts the RAR registration loop. Impls must
+// call this after registering services on GetGRPCServer().
+func (s *UnimplementedRemoteAgentServer) Start() {
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 
 	// Get the services from the gRPC server
@@ -253,13 +252,13 @@ func newAgentSecureClient(ipcComp ipc.Component, agentIpcAddress string, cfg con
 			return nil, err
 		}
 
-		cmdPort, parseErr := strconv.Atoi(sPort)
+		cmdPort, parseErr := strconv.ParseUint(sPort, 10, 16)
 		if parseErr != nil {
 			return nil, fmt.Errorf("invalid vsock socket path '%s'", agentIpcAddress)
 		}
 
-		if cmdPort <= 0 {
-			return nil, fmt.Errorf("invalid port '%d' for vsock", cmdPort)
+		if cmdPort == 0 {
+			return nil, errors.New("invalid port '0' for vsock")
 		}
 
 		opts = append(opts, grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
@@ -296,8 +295,8 @@ func (s *UnimplementedRemoteAgentServer) registerWithAgent() (string, time.Durat
 		return "", 0, err
 	}
 
-	// Store the session ID for use in the session ID interceptor
-	s.log.Infof("Registered with Core Agent. Recommended refresh interval of %d seconds.", resp.RecommendedRefreshIntervalSecs)
+	// Store the session ID for use in the session ID interceptor and config streaming
+	s.log.Infof("Registered with Remote Agent Registry for config streaming (session_id=%s). Recommended refresh interval: %d seconds.", resp.SessionId, resp.RecommendedRefreshIntervalSecs)
 
 	// Check that refresh rate is greater than 0 seconds
 	var refreshInterval time.Duration
@@ -328,4 +327,24 @@ func (s *UnimplementedRemoteAgentServer) refreshRegistration() error {
 // GetGRPCServer returns the gRPC server
 func (s *UnimplementedRemoteAgentServer) GetGRPCServer() *grpc.Server {
 	return s.grpcServer
+}
+
+// WaitSessionID blocks until the remote agent is registered and a session ID is available, or ctx is done.
+// It returns the session ID or an error if the context is cancelled before registration completes.
+func (s *UnimplementedRemoteAgentServer) WaitSessionID(ctx context.Context) (string, error) {
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		s.sessionIDMutex.RLock()
+		sid := s.sessionID
+		s.sessionIDMutex.RUnlock()
+		if sid != "" {
+			return sid, nil
+		}
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-ticker.C:
+		}
+	}
 }

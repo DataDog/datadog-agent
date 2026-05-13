@@ -56,6 +56,12 @@ func addSystemProbePlatformSpecificEntries(fb flaretypes.FlareBuilder) {
 		if pkgconfigsetup.SystemProbe().GetBool("discovery.enabled") {
 			_ = fb.AddFileFromFunc(filepath.Join("system-probe", "discovery.log"), getSystemProbeDiscoveryState)
 		}
+
+		// Copy the dynamic instrumentation tombstone file if it exists.
+		// This file persists probe definitions across restarts and is
+		// valuable for debugging even when system-probe is not running.
+		dyninstTombstonePath := filepath.Join(os.TempDir(), "datadog-agent", "system-probe", "dynamic-instrumentation", "debugger-probes-tombstone.json")
+		fb.CopyFileTo(dyninstTombstonePath, filepath.Join("system-probe", "dyninst_tombstone.json")) //nolint:errcheck
 	}
 }
 

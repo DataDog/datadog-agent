@@ -356,7 +356,11 @@ func CreatePackageSourceIfLocal(host *components.RemoteHost, pkg TestPackageConf
 	return pkg, nil
 }
 
-// NewPackageConfig is a struct that regroups the fields necessary to install a package from an OCI Registry
+// NewPackageConfig creates a TestPackageConfig with the provided options.
+//
+// After all options are applied, Resolve() is called to fill in derived fields
+// (e.g. Registry from Version). Options that set the registry or URL directly
+// make Resolve() a no-op for that field.
 func NewPackageConfig(opts ...PackageOption) (TestPackageConfig, error) {
 	c := TestPackageConfig{}
 	for _, opt := range opts {
@@ -377,7 +381,29 @@ func NewPackageConfig(opts ...PackageOption) (TestPackageConfig, error) {
 			return c, err
 		}
 	}
+	if err := c.Resolve(); err != nil {
+		return c, err
+	}
 	return c, nil
+}
+
+// Resolve fills in derived fields after all options have been applied.
+//
+// Resolution priority:
+//  1. urloverride set -- no-op
+//  2. Registry already set -- no-op
+//  3. Version set -- infers Registry (stable vs beta) from version string
+func (c *TestPackageConfig) Resolve() error {
+	if c.urloverride != "" || c.Registry != "" {
+		return nil
+	}
+	if c.Version != "" {
+		c.Registry = consts.StableS3OCIRegistry
+		if strings.Contains(strings.ToLower(c.Version), `-rc.`) {
+			c.Registry = consts.BetaS3OCIRegistry
+		}
+	}
+	return nil
 }
 
 // TestPackageConfig is a struct that regroups the fields necessary to install a package from an OCI Registry
@@ -485,60 +511,94 @@ func WithPackage(pkg TestPackageConfig) PackageOption {
 	}
 }
 
-// WithDevEnvOverrides applies overrides to the package config based on environment variables.
+// applyOCIEnvOverrides reads environment variables with the given prefix and applies
+// them to the TestPackageConfig struct. This is the shared implementation used by both
+// [WithArtifactOverrides] and [WithDevEnvOverrides].
+func applyOCIEnvOverrides(prefix string, params *TestPackageConfig) error {
+	// Resolution: _SOURCE_VERSION and _PIPELINE are mutually exclusive
+	_, hasSourceVersion := os.LookupEnv(prefix + "_SOURCE_VERSION")
+	_, hasPipeline := os.LookupEnv(prefix + "_PIPELINE")
+	if hasSourceVersion && hasPipeline {
+		return fmt.Errorf("%s_SOURCE_VERSION and %s_PIPELINE are mutually exclusive", prefix, prefix)
+	}
+	if hasSourceVersion {
+		params.Version = os.Getenv(prefix + "_SOURCE_VERSION")
+		params.Registry = ""
+	}
+	if hasPipeline {
+		params.Version = "pipeline-" + os.Getenv(prefix+"_PIPELINE")
+		params.Registry = consts.PipelineOCIRegistry
+	}
+
+	// OCI-specific overrides (highest priority)
+	if url, ok := os.LookupEnv(prefix + "_OCI_URL"); ok {
+		params.urloverride = url
+	}
+	if pipelineID, ok := os.LookupEnv(prefix + "_OCI_PIPELINE"); ok {
+		params.Version = "pipeline-" + pipelineID
+		params.Registry = consts.PipelineOCIRegistry
+	}
+	if version, ok := os.LookupEnv(prefix + "_OCI_VERSION"); ok {
+		params.Version = version
+	}
+	if registry, ok := os.LookupEnv(prefix + "_OCI_REGISTRY"); ok {
+		params.Registry = registry
+	}
+	if auth, ok := os.LookupEnv(prefix + "_OCI_AUTH"); ok {
+		params.Auth = auth
+	}
+
+	return nil
+}
+
+// WithArtifactOverrides applies environment variable overrides to the TestPackageConfig.
+// Overrides are always applied, regardless of whether the code is running in CI.
 //
-// Example: local OCI package file
+// Use this for default/CI flows where the pipeline controls the version, e.g.
+// createCurrentAgent and the default createStableAgent in base_suite.go.
 //
+// This is a pure field-setter: it reads environment variables and sets struct fields,
+// but does not perform any I/O. Registry inference is deferred to [TestPackageConfig.Resolve],
+// which is called automatically at the end of [NewPackageConfig].
+//
+// # Resolution variables (mutually exclusive)
+//
+//	{PREFIX}_SOURCE_VERSION - Package version (e.g. "7.75.0-1"), used as OCI tag, clears registry for fresh inference
+//	{PREFIX}_PIPELINE       - Pipeline ID, sets version to "pipeline-{id}" and registry to pipeline registry
+//
+// # OCI-specific overrides (take priority over resolution vars)
+//
+//	{PREFIX}_OCI_URL      - Direct OCI URL (skips Resolve)
+//	{PREFIX}_OCI_PIPELINE - Pipeline ID (overrides _PIPELINE)
+//	{PREFIX}_OCI_VERSION  - OCI version tag
+//	{PREFIX}_OCI_REGISTRY - OCI registry URL (skips Resolve registry inference)
+//	{PREFIX}_OCI_AUTH     - Authentication method
+//
+// Examples:
+//
+//	export STABLE_AGENT_SOURCE_VERSION="7.75.0-1"
+//	export STABLE_AGENT_PIPELINE="123456"
 //	export CURRENT_AGENT_OCI_URL="file:///path/to/oci/package.tar"
+func WithArtifactOverrides(prefix string) PackageOption {
+	return func(params *TestPackageConfig) error {
+		return applyOCIEnvOverrides(prefix, params)
+	}
+}
+
+// WithDevEnvOverrides applies environment variable overrides to the TestPackageConfig,
+// but only when not running in CI (i.e. when the CI environment variable is unset).
 //
-// Example: from a different pipeline
+// Use this for tests that pin a specific version and only want local-dev overrides.
+// In CI, the test's hardcoded version is always used; locally, the developer can
+// override anything via environment variables.
 //
-//	export CURRENT_AGENT_OCI_PIPELINE="123456"
-//
-// Example: from a different pipeline
-// (assumes that the package being overridden is already from a pipeline)
-//
-//	export CURRENT_AGENT_OCI_VERSION="pipeline-123456"
-//
-// Example: custom URL
-//
-//	export CURRENT_AGENT_OCI_URL="oci://installtesting.datad0g.com/agent-package:pipeline-123456"
+// The supported environment variables are the same as [WithArtifactOverrides].
 func WithDevEnvOverrides(prefix string) PackageOption {
 	return func(params *TestPackageConfig) error {
-		// env vars for convenience
-		if url, ok := os.LookupEnv(prefix + "_OCI_URL"); ok {
-			err := WithURLOverride(url)(params)
-			if err != nil {
-				return err
-			}
+		if os.Getenv("CI") != "" {
+			return nil
 		}
-		if pipeline, ok := os.LookupEnv(prefix + "_OCI_PIPELINE"); ok {
-			err := WithPipeline(pipeline)(params)
-			if err != nil {
-				return err
-			}
-		}
-
-		// env vars for specific fields
-		if version, ok := os.LookupEnv(prefix + "_OCI_VERSION"); ok {
-			err := WithVersion(version)(params)
-			if err != nil {
-				return err
-			}
-		}
-		if registry, ok := os.LookupEnv(prefix + "_OCI_REGISTRY"); ok {
-			err := WithRegistry(registry)(params)
-			if err != nil {
-				return err
-			}
-		}
-		if auth, ok := os.LookupEnv(prefix + "_OCI_AUTH"); ok {
-			err := WithAuthentication(auth)(params)
-			if err != nil {
-				return err
-			}
-		}
-		return nil
+		return applyOCIEnvOverrides(prefix, params)
 	}
 }
 

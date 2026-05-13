@@ -30,6 +30,21 @@ type ScalingValues struct {
 	Error error `json:"-"`
 }
 
+// IsEmpty returns true if the scaling values are empty
+func (s ScalingValues) IsEmpty() bool {
+	return !s.HasHorizontalValues() && !s.HasVerticalValues() && s.Error == nil
+}
+
+// HasHorizontalValues returns true if the scaling values have horizontal values
+func (s ScalingValues) HasHorizontalValues() bool {
+	return s.Horizontal != nil || s.HorizontalError != nil
+}
+
+// HasVerticalValues returns true if the scaling values have vertical values
+func (s ScalingValues) HasVerticalValues() bool {
+	return s.Vertical != nil || s.VerticalError != nil
+}
+
 // HorizontalScalingValues holds the horizontal scaling values for a target
 type HorizontalScalingValues struct {
 	// Source is the source of the value

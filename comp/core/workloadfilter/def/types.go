@@ -284,6 +284,7 @@ const (
 	ContainerLegacySBOM            ContainerFilter = "container-legacy-sbom"
 	ContainerLegacyRuntimeSecurity ContainerFilter = "container-legacy-runtime-security"
 	ContainerLegacyCompliance      ContainerFilter = "container-legacy-compliance"
+	ContainerLegacyCWSAdmission    ContainerFilter = "container-legacy-cws-admission"
 	ContainerADAnnotationsMetrics  ContainerFilter = "container-ad-annotations-metrics"
 	ContainerADAnnotationsLogs     ContainerFilter = "container-ad-annotations-logs"
 	ContainerADAnnotations         ContainerFilter = "container-ad-annotations"

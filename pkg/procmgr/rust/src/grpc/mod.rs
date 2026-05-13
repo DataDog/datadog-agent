@@ -6,10 +6,6 @@
 pub mod server;
 pub mod service;
 
-/// Placeholder URI for tonic Endpoint when connecting over UDS.
-/// The actual address is irrelevant because `connect_with_connector` bypasses it.
-pub const UDS_DUMMY_ENDPOINT: &str = "http://[::]:50051";
-
 #[cfg(not(bazel))]
 pub mod proto {
     tonic::include_proto!("datadog.procmgr");
@@ -25,7 +21,7 @@ pub mod proto {
         process_manager_proto::datadog::procmgr::FILE_DESCRIPTOR_SET;
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::proto;
     use super::proto::process_manager_client::ProcessManagerClient;
@@ -40,6 +36,8 @@ mod tests {
     use tokio_stream::wrappers::UnixListenerStream;
     use tonic::transport::{Channel, Endpoint};
     use tower::service_fn;
+
+    use crate::test_helpers;
 
     async fn start_test_server(
         defs: Vec<ProcessDefinition>,
@@ -124,7 +122,7 @@ mod tests {
             }
         });
 
-        let channel = Endpoint::from_static(super::UDS_DUMMY_ENDPOINT)
+        let channel = Endpoint::from_static(crate::transport::DUMMY_ENDPOINT)
             .connect_with_connector(service_fn(move |_| {
                 let path = sock_path.clone();
                 async move {
@@ -328,6 +326,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_config_reflects_runtime_creates() {
+        let (cmd, args) = test_helpers::true_cmd();
         let (mut client, _shutdown) = start_test_server(vec![ProcessDefinition {
             name: "svc-a".to_string(),
             config: ProcessConfig {
@@ -348,7 +347,8 @@ mod tests {
         client
             .create(proto::CreateRequest {
                 name: "dynamic-svc".to_string(),
-                command: "/bin/echo".to_string(),
+                command: cmd.to_string(),
+                args,
                 ..Default::default()
             })
             .await
@@ -445,43 +445,48 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_status_mixed_states() {
+        let (sleep_cmd, sleep_args) = test_helpers::sleep_cmd(60);
+        let (fail_cmd, fail_args) = test_helpers::exit_cmd(1);
+        let (exit_cmd, exit_args) = test_helpers::exit_cmd(0);
+        let (true_cmd, true_args) = test_helpers::true_cmd();
         let defs = vec![
             ProcessDefinition {
                 name: "running-svc".to_string(),
                 config: ProcessConfig {
-                    command: "/bin/sleep".to_string(),
-                    args: vec!["60".to_string()],
+                    command: sleep_cmd.to_string(),
+                    args: sleep_args.clone(),
                     ..Default::default()
                 },
             },
             ProcessDefinition {
                 name: "failed-svc".to_string(),
                 config: ProcessConfig {
-                    command: "/bin/sh".to_string(),
-                    args: vec!["-c".to_string(), "exit 1".to_string()],
+                    command: fail_cmd.to_string(),
+                    args: fail_args,
                     ..Default::default()
                 },
             },
             ProcessDefinition {
                 name: "stopped-svc".to_string(),
                 config: ProcessConfig {
-                    command: "/bin/sleep".to_string(),
-                    args: vec!["60".to_string()],
+                    command: sleep_cmd.to_string(),
+                    args: sleep_args,
                     ..Default::default()
                 },
             },
             ProcessDefinition {
                 name: "exited-svc".to_string(),
                 config: ProcessConfig {
-                    command: "/bin/sh".to_string(),
-                    args: vec!["-c".to_string(), "exit 0".to_string()],
+                    command: exit_cmd.to_string(),
+                    args: exit_args,
                     ..Default::default()
                 },
             },
             ProcessDefinition {
                 name: "created-svc".to_string(),
                 config: ProcessConfig {
-                    command: "/bin/true".to_string(),
+                    command: true_cmd.to_string(),
+                    args: true_args,
                     ..Default::default()
                 },
             },
@@ -549,21 +554,18 @@ mod tests {
             .unwrap()
             .into_inner();
         if let Some(p) = list.processes.iter().find(|p| p.name == "running-svc") {
-            nix::sys::signal::kill(
-                nix::unistd::Pid::from_raw(p.pid as i32),
-                nix::sys::signal::Signal::SIGKILL,
-            )
-            .ok();
+            test_helpers::cleanup_process(p.pid);
         }
     }
 
     #[tokio::test]
     async fn test_list_shows_running_pid() {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         let (mut client, _shutdown) = start_test_server(vec![ProcessDefinition {
             name: "live-proc".to_string(),
             config: ProcessConfig {
-                command: "/bin/sleep".to_string(),
-                args: vec!["60".to_string()],
+                command: cmd.to_string(),
+                args,
                 ..Default::default()
             },
         }])
@@ -590,22 +592,19 @@ mod tests {
             "running process should report a non-zero pid"
         );
 
-        nix::sys::signal::kill(
-            nix::unistd::Pid::from_raw(resp.processes[0].pid as i32),
-            nix::sys::signal::Signal::SIGKILL,
-        )
-        .ok();
+        test_helpers::cleanup_process(resp.processes[0].pid);
     }
 
     // -- Write RPC tests --
 
     #[tokio::test]
     async fn test_start_rpc_success() {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         let (mut client, _shutdown) = start_test_server(vec![ProcessDefinition {
             name: "sleeper".to_string(),
             config: ProcessConfig {
-                command: "/bin/sleep".to_string(),
-                args: vec!["60".to_string()],
+                command: cmd.to_string(),
+                args,
                 ..Default::default()
             },
         }])
@@ -640,11 +639,7 @@ mod tests {
         assert_eq!(resp.processes[0].pid, start_resp.pid);
 
         // Clean up
-        nix::sys::signal::kill(
-            nix::unistd::Pid::from_raw(start_resp.pid as i32),
-            nix::sys::signal::Signal::SIGKILL,
-        )
-        .ok();
+        test_helpers::cleanup_process(start_resp.pid);
     }
 
     #[tokio::test]
@@ -662,11 +657,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_rpc_already_running() {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         let (mut client, _shutdown) = start_test_server(vec![ProcessDefinition {
             name: "running".to_string(),
             config: ProcessConfig {
-                command: "/bin/sleep".to_string(),
-                args: vec!["60".to_string()],
+                command: cmd.to_string(),
+                args,
                 ..Default::default()
             },
         }])
@@ -687,27 +683,22 @@ mod tests {
             .unwrap_err();
         assert_eq!(err.code(), tonic::Code::FailedPrecondition);
 
-        nix::sys::signal::kill(
-            nix::unistd::Pid::from_raw({
-                let resp = client
-                    .list(proto::ListRequest {})
-                    .await
-                    .unwrap()
-                    .into_inner();
-                resp.processes[0].pid as i32
-            }),
-            nix::sys::signal::Signal::SIGKILL,
-        )
-        .ok();
+        let resp = client
+            .list(proto::ListRequest {})
+            .await
+            .unwrap()
+            .into_inner();
+        test_helpers::cleanup_process(resp.processes[0].pid);
     }
 
     #[tokio::test]
     async fn test_stop_rpc_success() {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         let (mut client, _shutdown) = start_test_server(vec![ProcessDefinition {
             name: "to-stop".to_string(),
             config: ProcessConfig {
-                command: "/bin/sleep".to_string(),
-                args: vec!["60".to_string()],
+                command: cmd.to_string(),
+                args,
                 ..Default::default()
             },
         }])
@@ -790,11 +781,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_then_stop_round_trip() {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         let (mut client, _shutdown) = start_test_server(vec![ProcessDefinition {
             name: "lifecycle".to_string(),
             config: ProcessConfig {
-                command: "/bin/sleep".to_string(),
-                args: vec!["60".to_string()],
+                command: cmd.to_string(),
+                args,
                 ..Default::default()
             },
         }])
@@ -838,13 +830,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_then_start() {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         let (mut client, _shutdown) = start_test_server(vec![]).await;
 
         client
             .create(proto::CreateRequest {
                 name: "new-svc".to_string(),
-                command: "/bin/sleep".to_string(),
-                args: vec!["60".to_string()],
+                command: cmd.to_string(),
+                args,
                 auto_start: Some(false),
                 ..Default::default()
             })
@@ -874,22 +867,19 @@ mod tests {
         assert_eq!(resp.processes[0].state, proto::ProcessState::Running as i32);
         assert!(resp.processes[0].pid > 0);
 
-        nix::sys::signal::kill(
-            nix::unistd::Pid::from_raw(resp.processes[0].pid as i32),
-            nix::sys::signal::Signal::SIGKILL,
-        )
-        .ok();
+        test_helpers::cleanup_process(resp.processes[0].pid);
     }
 
     #[tokio::test]
     async fn test_create_auto_start() {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         let (mut client, _shutdown) = start_test_server(vec![]).await;
 
         client
             .create(proto::CreateRequest {
                 name: "auto-svc".to_string(),
-                command: "/bin/sleep".to_string(),
-                args: vec!["60".to_string()],
+                command: cmd.to_string(),
+                args,
                 auto_start: Some(true),
                 ..Default::default()
             })
@@ -910,11 +900,7 @@ mod tests {
             "auto-started process should have a PID"
         );
 
-        nix::sys::signal::kill(
-            nix::unistd::Pid::from_raw(resp.processes[0].pid as i32),
-            nix::sys::signal::Signal::SIGKILL,
-        )
-        .ok();
+        test_helpers::cleanup_process(resp.processes[0].pid);
     }
 
     #[tokio::test]
@@ -1012,12 +998,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_defaults_applied() {
+        let (cmd, args) = test_helpers::true_cmd();
         let (mut client, _shutdown) = start_test_server(vec![]).await;
 
         client
             .create(proto::CreateRequest {
                 name: "defaults-svc".to_string(),
-                command: "/bin/echo".to_string(),
+                command: cmd.to_string(),
+                args: args.clone(),
                 ..Default::default()
             })
             .await
@@ -1032,12 +1020,12 @@ mod tests {
             .into_inner();
 
         let detail = resp.detail.unwrap();
-        assert_eq!(detail.command, "/bin/echo");
+        assert_eq!(detail.command, cmd);
         assert!(detail.auto_start, "auto_start should default to true");
         assert_eq!(detail.stdout, "inherit");
         assert_eq!(detail.stderr, "inherit");
         assert_eq!(detail.restart_policy, "never");
-        assert!(detail.args.is_empty());
+        assert_eq!(detail.args, args);
         assert!(detail.env.is_empty());
     }
 
@@ -1118,11 +1106,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_stop_by_uuid_prefix() {
+        let (cmd, args) = test_helpers::sleep_cmd(60);
         let defs = vec![ProcessDefinition {
             name: "svc-b".to_string(),
             config: ProcessConfig {
-                command: "/bin/sleep".to_string(),
-                args: vec!["60".to_string()],
+                command: cmd.to_string(),
+                args,
                 ..Default::default()
             },
         }];

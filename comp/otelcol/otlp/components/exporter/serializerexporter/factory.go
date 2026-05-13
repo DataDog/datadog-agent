@@ -21,7 +21,7 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
@@ -107,6 +107,10 @@ func newFactoryForAgentWithType(
 		options = append(options, otlpmetrics.WithOTelPrefix())
 	}
 
+	if featuregates.InferIntervalDeltaFeatureGate.IsEnabled() {
+		options = append(options, otlpmetrics.WithInferDeltaInterval())
+	}
+
 	f := &factory{
 		s:            s,
 		hostProvider: hostGetter,
@@ -141,6 +145,8 @@ func newFactoryForAgentWithType(
 }
 
 // NewFactoryForOSSExporter creates a new serializer exporter factory for the OSS Datadog exporter.
+// This function is part of the public API consumed by opentelemetry-collector-contrib's datadogexporter.
+// Do not remove or change its signature without coordinating with the upstream repository.
 func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Factory {
 	var options []otlpmetrics.TranslatorOption
 	switch {
@@ -150,6 +156,10 @@ func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Facto
 		// old gate, no action needed
 	default:
 		options = append(options, otlpmetrics.WithRemapping())
+	}
+
+	if featuregates.InferIntervalDeltaFeatureGate.IsEnabled() {
+		options = append(options, otlpmetrics.WithInferDeltaInterval())
 	}
 
 	f := &factory{
@@ -175,11 +185,6 @@ func NewFactoryForOSSExporter(typ component.Type, statsIn chan []byte) exp.Facto
 		newDefaultConfig,
 		exp.WithMetrics(f.createMetricExporter, stability),
 	)
-}
-
-// NewFactory implements the required func to be used in OCB. This interface does not work with APM stats. Do not change the func signature or OCB will fail.
-func NewFactory() exp.Factory {
-	return NewFactoryForOSSExporter(component.MustNewType(TypeStr), nil)
 }
 
 // Reporter builds and returns an *inframetadata.Reporter.

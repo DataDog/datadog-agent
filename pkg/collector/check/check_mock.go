@@ -17,6 +17,7 @@ type MockInfo struct {
 	LoaderName   string
 	CheckID      checkid.ID
 	Source       string
+	Provider     string
 	InitConf     string
 	InstanceConf string
 }
@@ -35,6 +36,9 @@ func (m MockInfo) Version() string { return "" }
 
 // ConfigSource returns the source of the check
 func (m MockInfo) ConfigSource() string { return m.Source }
+
+// ConfigProvider returns the provider of the check
+func (m MockInfo) ConfigProvider() string { return m.Provider }
 
 // Loader returns the name of the check loader
 func (m MockInfo) Loader() string { return m.LoaderName }

@@ -41,23 +41,24 @@ import (
 	wmcatalogremote "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
-	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
+	compstatsdFx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/impl/utils"
 	"github.com/DataDog/datadog-agent/comp/networkpath"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
 	"github.com/DataDog/datadog-agent/comp/process"
-	"github.com/DataDog/datadog-agent/comp/process/agent"
+	agent "github.com/DataDog/datadog-agent/comp/process/agent/def"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
-	"github.com/DataDog/datadog-agent/comp/process/expvars"
-	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
+	expvars "github.com/DataDog/datadog-agent/comp/process/expvars/def"
+	"github.com/DataDog/datadog-agent/comp/process/hostinfo/def"
 	profiler "github.com/DataDog/datadog-agent/comp/process/profiler/def"
-	"github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
+	processstatusfx "github.com/DataDog/datadog-agent/comp/process/status/fx"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	rdnsquerierfx "github.com/DataDog/datadog-agent/comp/rdnsquerier/fx"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -150,11 +151,11 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		remoteconfig.Bundle(),
 
 		// Provide status modules
-		statusimpl.Module(),
+		processstatusfx.Module(),
 		coreStatusImpl.Module(),
 
 		// Provide statsd client module
-		compstatsd.Module(),
+		compstatsdFx.Module(),
 		fx.Provide(func(config config.Component, statsd compstatsd.Component) (ddgostatsd.ClientInterface, error) {
 			return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 		}),

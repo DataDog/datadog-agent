@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "usersession",
+    srcs = ["user_session.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession",
+    visibility = ["//visibility:public"],
+)

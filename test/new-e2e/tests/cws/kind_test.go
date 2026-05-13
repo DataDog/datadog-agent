@@ -98,6 +98,10 @@ func (s *kindSuite) Hostname() string {
 	return s.ddHostname
 }
 
+func (s *kindSuite) InstanceID() string {
+	return ""
+}
+
 func (s *kindSuite) Client() *api.Client {
 	return s.apiClient
 }

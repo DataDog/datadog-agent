@@ -75,7 +75,7 @@ def lint_flavor(
     targets = []
     for module in modules:
         # FIXME: Linters also use the `should_test()` condition. Is this expected?
-        if not module.should_test():
+        if not module.should_test(platform=goos):
             continue
         for target in module.lint_targets:
             target_path = os.path.join(module.path, target)

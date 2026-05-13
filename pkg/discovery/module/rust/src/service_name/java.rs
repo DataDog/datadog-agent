@@ -10,7 +10,9 @@ use std::path::Path;
 const JAR_EXTENSION: &str = ".jar";
 const WAR_EXTENSION: &str = ".war";
 const APACHE_PREFIX: &str = "org.apache.";
+#[cfg(feature = "spring")]
 const SPRING_BOOT_LAUNCHER: &str = "org.springframework.boot.loader.launch.JarLauncher";
+#[cfg(feature = "spring")]
 const SPRING_BOOT_OLD_LAUNCHER: &str = "org.springframework.boot.loader.JarLauncher";
 
 /// Checks if an argument is a Java name flag (-jar, -m, or --module)
@@ -45,6 +47,7 @@ pub fn extract_name(
     cmdline: &crate::procfs::Cmdline,
     ctx: &mut DetectionContext,
 ) -> Option<ServiceNameMetadata> {
+    _ = &ctx; // ctx is only used when spring/jee features are enabled
     // First pass: Look for -Ddd.service= system property (highest priority)
     let mut args_iter = cmdline.args();
     args_iter.next()?; // Skip the java executable
@@ -83,7 +86,13 @@ pub fn extract_name(
 
             if arg.starts_with(|c: char| c.is_alphabetic()) {
                 // Do JEE detection to see if we can extract additional service names from context roots
+                #[cfg(feature = "jee")]
                 let (vendor_source, additional_names) = super::jee::extract_names(cmdline, ctx);
+                #[cfg(not(feature = "jee"))]
+                let (vendor_source, additional_names): (
+                    Option<ServiceNameSource>,
+                    Vec<String>,
+                ) = (None, vec![]);
 
                 // The name gets joined to the AdditionalNames, so a part of
                 // the name still comes from the command line, but report
@@ -98,6 +107,7 @@ pub fn extract_name(
                 // Check for JAR or WAR files
                 if arg.ends_with(JAR_EXTENSION) || arg.ends_with(WAR_EXTENSION) {
                     // Try to see if the application is a Spring Boot archive and extract its application name
+                    #[cfg(feature = "spring")]
                     if additional_names.is_empty()
                         && let Some(spring_app_name) =
                             super::spring::get_spring_boot_app_name(a, ctx, cmdline)
@@ -129,6 +139,7 @@ pub fn extract_name(
                 }
 
                 // Check for Spring Boot launcher classes
+                #[cfg(feature = "spring")]
                 if (arg == SPRING_BOOT_LAUNCHER || arg == SPRING_BOOT_OLD_LAUNCHER)
                     && let Some(spring_app_name) =
                         super::spring::get_spring_boot_launcher_app_name(ctx, cmdline)
@@ -160,6 +171,7 @@ mod tests {
     use crate::cmdline;
     use crate::fs::SubDirFs;
     use crate::procfs::Cmdline;
+    #[cfg(feature = "java-archives")]
     use crate::test_utils::TestDataFs;
     use std::collections::HashMap;
 
@@ -433,6 +445,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "spring")]
     fn test_spring_boot_unpacked_jar_with_new_launcher() {
         let fs = TestDataFs::new("spring");
         let mut envs = HashMap::new();
@@ -449,6 +462,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "spring")]
     fn test_spring_boot_unpacked_jar_with_classpath() {
         let fs = TestDataFs::new("spring");
         let envs = HashMap::new();
@@ -464,6 +478,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "spring")]
     fn test_spring_boot_unpacked_jar_with_old_launcher() {
         let fs = TestDataFs::new("spring");
         let mut envs = HashMap::new();
@@ -480,6 +495,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "spring")]
     fn test_spring_boot_default_options() {
         use std::io::Write;
         use tempfile::TempDir;
@@ -528,9 +544,11 @@ mod tests {
     }
 
     // JEE Integration Tests
+    #[cfg(feature = "jee")]
     const JBOSS_TEST_APP_ROOT: &str = "../sub";
 
     #[test]
+    #[cfg(feature = "jee")]
     fn test_wildfly_18_standalone() {
         let fs = TestDataFs::new("jee/jboss");
         let mut envs = HashMap::new();
@@ -588,6 +606,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "jee")]
     fn test_wildfly_18_domain() {
         let fs = TestDataFs::new("jee/jboss");
         let mut envs = HashMap::new();
@@ -656,6 +675,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "jee")]
     fn test_weblogic_12() {
         let fs = TestDataFs::new("jee/weblogic");
         let mut envs = HashMap::new();
@@ -691,6 +711,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "jee")]
     fn test_tomcat_10() {
         let fs = TestDataFs::new("jee");
         let envs = HashMap::new();

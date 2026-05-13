@@ -12,7 +12,12 @@ import (
 	"fmt"
 )
 
-func makeInstruction(op Op) codeFragment {
+// makeInstruction builds a codeFragment for op. functionID identifies the
+// enclosing function body and is only used by fragments that need
+// function-scoped references (jumps and labels); it may be nil for ops
+// that never appear inside a function (e.g. the leading/trailing
+// IllegalOp guards).
+func makeInstruction(functionID FunctionID, op Op) codeFragment {
 	switch op := op.(type) {
 	case CallOp:
 		return callInstruction{target: op.FunctionID}
@@ -47,7 +52,7 @@ func makeInstruction(op Op) codeFragment {
 		e := op.EventRootType.Expressions[op.ExprIdx]
 		bytes = binary.LittleEndian.AppendUint32(bytes, e.Offset)
 		bytes = binary.LittleEndian.AppendUint32(bytes, e.Expression.Type.GetByteSize())
-		// Presence bit index.
+		// Expression index into the ExprStatusArray.
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.ExprIdx)
 		return staticInstruction{
 			opcode: OpcodeExprSave,
@@ -74,9 +79,15 @@ func makeInstruction(op Op) codeFragment {
 		}
 
 	case ExprDereferencePtrOp:
-		bytes := make([]byte, 0, 8)
+		bytes := make([]byte, 0, 13)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.Bias)
 		bytes = binary.LittleEndian.AppendUint32(bytes, op.Len)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.ExprStatusIdx)
+		nullAsZero := uint8(0)
+		if op.NullAsZero {
+			nullAsZero = 1
+		}
+		bytes = append(bytes, nullAsZero)
 		return staticInstruction{
 			opcode: OpcodeExprDereferencePtr,
 			bytes:  bytes,
@@ -133,6 +144,34 @@ func makeInstruction(op Op) codeFragment {
 			bytes:  []byte{},
 		}
 
+	case GoContextChainInitOp:
+		return staticInstruction{
+			opcode: OpcodeGoContextChainInit,
+			bytes:  binary.LittleEndian.AppendUint32(nil, uint32(op.ImplTypeID)),
+		}
+
+	case GoContextChainHopOp:
+		return staticInstruction{
+			opcode: OpcodeGoContextChainHop,
+			bytes:  []byte{},
+		}
+
+	case ProcessGoDictTypeOp:
+		bytes := make([]byte, 0, 9)
+		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.DictIndex))
+		bytes = append(bytes, op.DictRegister)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.OutputOffset)
+		return staticInstruction{
+			opcode: OpcodeProcessGoDictType,
+			bytes:  bytes,
+		}
+
+	case CallDictResolvedOp:
+		return callDictResolvedInstruction{
+			outputOffset: op.OutputOffset,
+			fallback:     op.FallbackFunc,
+		}
+
 	case ProcessGoHmapOp:
 		bytes := make([]byte, 0, 12)
 		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.BucketsType.GetID()))
@@ -181,6 +220,168 @@ func makeInstruction(op Op) codeFragment {
 		return staticInstruction{
 			opcode: OpcodePrepareEventRoot,
 			bytes:  bytes,
+		}
+
+	case ExprPushOffsetOp:
+		return staticInstruction{
+			opcode: OpcodeExprPushOffset,
+			bytes:  binary.LittleEndian.AppendUint32(nil, op.ByteSize),
+		}
+
+	case ExprLoadDurationOp:
+		return staticInstruction{
+			opcode: OpcodeExprLoadDuration,
+			bytes:  binary.LittleEndian.AppendUint32(nil, op.ExprStatusIdx),
+		}
+
+	case ExprLoadLiteralOp:
+		bytes := make([]byte, 0, 2+len(op.Data))
+		bytes = binary.LittleEndian.AppendUint16(bytes, uint16(len(op.Data)))
+		bytes = append(bytes, op.Data...)
+		return staticInstruction{
+			opcode: OpcodeExprLoadLiteral,
+			bytes:  bytes,
+		}
+
+	case ExprReadStringOp:
+		return staticInstruction{
+			opcode: OpcodeExprReadString,
+			bytes:  binary.LittleEndian.AppendUint16(nil, op.MaxLen),
+		}
+
+	case ExprCmpBaseOp:
+		return staticInstruction{
+			opcode: OpcodeExprCmpBase,
+			bytes:  []byte{op.ByteSize, uint8(op.Op), uint8(op.Kind)},
+		}
+
+	case ExprCmpStringOp:
+		return staticInstruction{
+			opcode: OpcodeExprCmpString,
+			bytes:  []byte{uint8(op.Op)},
+		}
+
+	case ExprSliceBoundsCheckOp:
+		bytes := make([]byte, 0, 8)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.Index)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.ExprStatusIdx)
+		return staticInstruction{
+			opcode: OpcodeExprSliceBoundsCheck,
+			bytes:  bytes,
+		}
+
+	case SwissMapSetupOp:
+		isStr := uint8(0)
+		if op.IsStringKey {
+			isStr = 1
+		}
+		bytes := make([]byte, 0, 32+len(op.KeyData))
+		bytes = append(bytes, isStr)
+		bytes = append(bytes, op.KeyByteSize)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.ValByteSize)
+		bytes = append(bytes, op.SeedOffset)
+		bytes = append(bytes, op.DirPtrOffset)
+		bytes = append(bytes, op.DirLenOffset)
+		bytes = append(bytes, op.GlobalShiftOffset)
+		bytes = append(bytes, op.CtrlOffset)
+		bytes = append(bytes, op.SlotsOffset)
+		bytes = binary.LittleEndian.AppendUint16(bytes, op.SlotSize)
+		bytes = append(bytes, op.KeyInSlotOffset)
+		bytes = binary.LittleEndian.AppendUint16(bytes, op.ValInSlotOffset)
+		bytes = append(bytes, op.TableGroupsFieldOffset)
+		bytes = append(bytes, op.GroupsDataFieldOffset)
+		bytes = append(bytes, op.GroupsLenMaskFieldOffset)
+		bytes = binary.LittleEndian.AppendUint16(bytes, op.GroupByteSize)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.HeaderByteSize)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.ExprStatusIdx)
+		existenceOnly := uint8(0)
+		if op.ExistenceOnly {
+			existenceOnly = 1
+		}
+		bytes = append(bytes, existenceOnly)
+		bytes = binary.LittleEndian.AppendUint16(bytes, uint16(len(op.KeyData)))
+		bytes = append(bytes, op.KeyData...)
+		return staticInstruction{
+			opcode: OpcodeSwissMapSetup,
+			bytes:  bytes,
+		}
+
+	case SwissMapAesencOp:
+		return staticInstruction{opcode: OpcodeSwissMapAesenc}
+
+	case SwissMapHashFinishOp:
+		return staticInstruction{opcode: OpcodeSwissMapHashFinish}
+
+	case SwissMapProbeOp:
+		return staticInstruction{opcode: OpcodeSwissMapProbe}
+
+	case SwissMapCheckSlotOp:
+		return staticInstruction{opcode: OpcodeSwissMapCheckSlot}
+
+	case ConditionBeginOp:
+		return staticInstruction{
+			opcode: OpcodeConditionBegin,
+			bytes:  []byte{},
+		}
+
+	case ConditionCheckOp:
+		return staticInstruction{
+			opcode: OpcodeConditionCheck,
+			bytes:  []byte{},
+		}
+
+	case CondNotOp:
+		return staticInstruction{
+			opcode: OpcodeCondNot,
+			bytes:  []byte{},
+		}
+
+	case CondJumpOp:
+		opcode := OpcodeCondJumpIfFalse
+		if op.Cond {
+			opcode = OpcodeCondJumpIfTrue
+		}
+		return jumpInstruction{
+			opcode:     opcode,
+			functionID: functionID,
+			label:      op.Label,
+		}
+
+	case CondLabelOp:
+		return labelMarker{functionID: functionID, id: op.ID}
+
+	case ConditionStateInitOp:
+		return staticInstruction{
+			opcode: OpcodeConditionStateInit,
+			bytes:  []byte{},
+		}
+
+	case ConditionLeafRecordOp:
+		return staticInstruction{
+			opcode: OpcodeConditionLeafRecord,
+			bytes:  []byte{op.LeafIdx},
+		}
+
+	case ConditionLeafLoadOp:
+		// Encoded as: opcode + uint8 leaf_idx + uint32 error_target.
+		// We compose it using leafLoadInstruction below so the layout
+		// pass can resolve the label PC.
+		return leafLoadInstruction{
+			functionID: functionID,
+			leafIdx:    op.LeafIdx,
+			label:      op.Label,
+		}
+
+	case ConditionCheckPreserveErrorOp:
+		return staticInstruction{
+			opcode: OpcodeConditionCheckPreserveError,
+			bytes:  []byte{},
+		}
+
+	case ConditionLeafCompleteOp:
+		return staticInstruction{
+			opcode: OpcodeConditionLeafComplete,
+			bytes:  []byte{},
 		}
 
 	default:

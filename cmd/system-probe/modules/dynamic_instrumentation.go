@@ -28,8 +28,7 @@ func init() { registerModule(DynamicInstrumentation) }
 // DynamicInstrumentation is a system probe module which allows you to add instrumentation into
 // running Go services without restarts.
 var DynamicInstrumentation = &module.Factory{
-	Name:             config.DynamicInstrumentationModule,
-	ConfigNamespaces: []string{"dynamic_instrumentation"},
+	Name: config.DynamicInstrumentationModule,
 	Fn: func(agentConfiguration *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 		config, err := dimod.NewConfig(agentConfiguration)
 		if err != nil {

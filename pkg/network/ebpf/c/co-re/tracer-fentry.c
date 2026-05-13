@@ -249,13 +249,6 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     return 0;
 }
 
-SEC("fexit/tcp_close")
-int BPF_PROG(tcp_close_exit, struct sock *sk, long timeout) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_close");
-    flush_conn_close_if_full(ctx);
-    return 0;
-}
-
 static __always_inline int handle_udp_send(struct sock *sk, int sent) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     conn_tuple_t * t = bpf_map_lookup_elem(&udp_send_skb_args, &pid_tgid);
@@ -578,20 +571,6 @@ int BPF_PROG(udpv6_destroy_sock, struct sock *sk) {
     return handle_udp_destroy_sock(ctx, sk);
 }
 
-SEC("fexit/udp_destroy_sock")
-int BPF_PROG(udp_destroy_sock_exit, struct sock *sk) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udp_destroy_sock");
-    flush_conn_close_if_full(ctx);
-    return 0;
-}
-
-SEC("fexit/udpv6_destroy_sock")
-int BPF_PROG(udpv6_destroy_sock_exit, struct sock *sk) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/udpv6_destroy_sock");
-    flush_conn_close_if_full(ctx);
-    return 0;
-}
-
 SEC("fentry/inet_bind")
 int BPF_PROG(inet_bind_enter, struct socket *sock, struct sockaddr *uaddr, int addr_len) {
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fentry/inet_bind");
@@ -618,6 +597,28 @@ int BPF_PROG(inet6_bind_exit, struct socket *sock, struct sockaddr *uaddr, int a
     RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/inet6_bind");
     log_debug("fexit/inet6_bind: rc=%d", rc);
     return sys_exit_bind(rc);
+}
+
+// tcp_enter_loss, tcp_enter_recovery, and tcp_send_probe0 are static kernel
+// functions (not exported via BTF), so they must use kprobes even in the
+// fentry tracer. They fire from kernel timer/softirq context. The shared
+// helpers in tracer/stats.h handle the map lookup and atomic increment.
+SEC("kprobe/tcp_enter_loss")
+int BPF_BYPASSABLE_KPROBE(kprobe__tcp_enter_loss, struct sock *sk) {
+    handle_tcp_enter_loss(sk);
+    return 0;
+}
+
+SEC("kprobe/tcp_enter_recovery")
+int BPF_BYPASSABLE_KPROBE(kprobe__tcp_enter_recovery, struct sock *sk) {
+    handle_tcp_enter_recovery(sk);
+    return 0;
+}
+
+SEC("kprobe/tcp_send_probe0")
+int BPF_BYPASSABLE_KPROBE(kprobe__tcp_send_probe0, struct sock *sk) {
+    handle_tcp_send_probe0(sk);
+    return 0;
 }
 
 char _license[] SEC("license") = "GPL";

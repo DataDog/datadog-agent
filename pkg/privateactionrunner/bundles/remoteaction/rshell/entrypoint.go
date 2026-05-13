@@ -5,7 +5,10 @@
 
 package com_datadoghq_remoteaction_rshell
 
-import "github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+import (
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+)
 
 // RshellBundle implements types.Bundle for the com.datadoghq.remoteaction.rshell bundle.
 type RshellBundle struct {
@@ -13,11 +16,14 @@ type RshellBundle struct {
 }
 
 // NewRshellBundle creates the rshell bundle with its registered actions.
-func NewRshellBundle() types.Bundle {
+// It reads the operator-configured allowlists (paths and commands) from the config.
+func NewRshellBundle(cfg *config.Config) types.Bundle {
 	return &RshellBundle{
 		actions: map[string]types.Action{
-			"runCommand":     NewRunCommandHandler(),
-			"testConnection": NewTestConnectionHandler(),
+			"runCommand": NewRunCommandHandler(
+				cfg.RShellAllowedPaths,
+				cfg.RShellAllowedCommands,
+			),
 		},
 	}
 }

@@ -14,14 +14,15 @@ import (
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
-	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
+	cloudfoundrycontainer "github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer/def"
 	expvarserver "github.com/DataDog/datadog-agent/comp/agent/expvarserver/def"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
+	etwfx "github.com/DataDog/datadog-agent/comp/etw/fx"
+	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
-	"github.com/DataDog/datadog-agent/comp/trace/etwtracer"
-	"github.com/DataDog/datadog-agent/comp/trace/etwtracer/etwtracerimpl"
+	etwtracer "github.com/DataDog/datadog-agent/comp/trace/etwtracer/def"
+	etwtracerimpl "github.com/DataDog/datadog-agent/comp/trace/etwtracer/fx"
 
 	winregistry "github.com/DataDog/datadog-agent/comp/checks/winregistry/def"
 	winregistryfx "github.com/DataDog/datadog-agent/comp/checks/winregistry/fx"
@@ -38,7 +39,7 @@ import (
 	windowseventlog "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/def"
 	windowseventlogfx "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/fx"
 	notableeventsfx "github.com/DataDog/datadog-agent/comp/notableevents/fx"
-	trapserver "github.com/DataDog/datadog-agent/comp/snmptraps/server"
+	trapserver "github.com/DataDog/datadog-agent/comp/snmptraps/server/def"
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	traceconfigfx "github.com/DataDog/datadog-agent/comp/trace/config/fx"
 
@@ -59,27 +60,27 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	haagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
-	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner"
-	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
+	host "github.com/DataDog/datadog-agent/comp/metadata/host/def"
+	inventoryagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
+	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
+	inventoryhost "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/def"
+	packagesigning "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/def"
+	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
+	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server/def"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
-	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
+	processAgent "github.com/DataDog/datadog-agent/comp/process/agent/def"
 	publishermetadatacachefx "github.com/DataDog/datadog-agent/comp/publishermetadatacache/fx"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	softwareinventoryfx "github.com/DataDog/datadog-agent/comp/softwareinventory/fx"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -147,7 +148,9 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			ipc ipc.Component,
 			snmpScanManager snmpscanmanager.Component,
 			traceroute traceroute.Component,
-			healthplatformComp healthplatform.Component,
+			healthplatformComp healthplatformdef.Component,
+			ncmComp option.Option[networkconfigmanagement.Component],
+
 		) error {
 			defer StopAgentWithDefaults(config, sysprobeConf)
 
@@ -175,6 +178,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				snmpScanManager,
 				traceroute,
 				healthplatformComp,
+				ncmComp,
 			)
 			if err != nil {
 				return err
@@ -246,10 +250,10 @@ func reRegisterCtrlHandler(log log.Component, _ collector.Component) {
 func getPlatformModules() fx.Option {
 	return fx.Options(
 		agentcrashdetectfx.Module(),
-		etwtracerimpl.Module,
+		etwtracerimpl.Module(),
 		windowseventlogfx.Module(),
 		winregistryfx.Module(),
-		etwimpl.Module,
+		etwfx.Module(),
 		traceconfigfx.Module(),
 		softwareinventoryfx.Module(),
 		publishermetadatacachefx.Module(),

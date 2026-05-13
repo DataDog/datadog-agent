@@ -11,7 +11,7 @@ import (
 	"bytes"
 	"context"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
-	"github.com/DataDog/datadog-agent/comp/netflow/config"
+	"github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/additionalfields"
 	"github.com/netsampler/goflow2/utils"
 	"sync"

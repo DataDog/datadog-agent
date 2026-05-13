@@ -13,12 +13,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
+	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
-	"github.com/benbjohnson/clock"
 )
 
 const (
@@ -69,12 +73,12 @@ func (s *NCMSender) SendNCMCheckMetrics(startTime time.Time, lastCheckTime time.
 }
 
 // SendMetricsFromExtractedMetadata sends metrics from data extracted from the device config after processing
-func (s *NCMSender) SendMetricsFromExtractedMetadata(metadata profile.ExtractedMetadata, configType ncmreport.ConfigType) {
+func (s *NCMSender) SendMetricsFromExtractedMetadata(metadata profile.ExtractedMetadata, configType types.ConfigType) {
 	tags := append(s.getDeviceTags(), utils.GetCommonAgentTags()...)
 	switch configType {
-	case ncmreport.RUNNING:
+	case types.RUNNING:
 		tags = append(s.getDeviceTags(), ncmRunningConfigTypeTag)
-	case ncmreport.STARTUP:
+	case types.STARTUP:
 		tags = append(s.getDeviceTags(), ncmStartupConfigTypeTag)
 	}
 	// if config size was extracted, submit the metric
@@ -92,6 +96,29 @@ func (s *NCMSender) SendNCMConfig(payload ncmreport.NCMPayload) error {
 	}
 	s.Sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkConfigManagement)
 	// TODO: send metrics about the config retrieval?
+	return nil
+}
+
+// SendDeviceMetadata sends device metadata to NDM intake
+func (s *NCMSender) SendDeviceMetadata(deviceID string, deviceIP string) error {
+	payload := devicemetadata.NetworkDevicesMetadata{
+		Namespace:   s.namespace,
+		Integration: integrations.NetworkConfigManagement,
+		Devices: []devicemetadata.DeviceMetadata{
+			{
+				ID:        deviceID,
+				IPAddress: deviceIP,
+				Status:    devicemetadata.DeviceStatusReachable,
+			},
+		},
+		CollectTimestamp: s.clock.Now().Unix(),
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("error marshalling device metadata: %w", err)
+	}
+	s.Sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkDevicesMetadata)
 	return nil
 }
 

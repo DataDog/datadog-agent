@@ -42,14 +42,22 @@ func (l *StaticConfigListener) Stop() {
 }
 
 func (l *StaticConfigListener) createServices() {
-	for _, staticCheck := range []string{
-		"container_image",
-		"container_lifecycle",
-		"sbom",
-		"gpu",
+	// Each entry maps a config key (which controls enablement) to an autodiscovery
+	// identifier (which routes to a check via ad_identifiers). Nested config keys
+	// like gpu.nccl require an explicit AD identifier because dots are not
+	// conventional in AD names.
+	for _, entry := range []struct {
+		configKey    string
+		adIdentifier string
+	}{
+		{"container_image.enabled", "_container_image"},
+		{"container_lifecycle.enabled", "_container_lifecycle"},
+		{"sbom.enabled", "_sbom"},
+		{"gpu.enabled", "_gpu"},
+		{"gpu.nccl.enabled", "_gpu_nccl"},
 	} {
-		if enabled := pkgconfigsetup.Datadog().GetBool(staticCheck + ".enabled"); enabled {
-			l.newService <- &StaticConfigService{adIdentifier: "_" + staticCheck}
+		if enabled := pkgconfigsetup.Datadog().GetBool(entry.configKey); enabled {
+			l.newService <- &StaticConfigService{adIdentifier: entry.adIdentifier}
 		}
 	}
 

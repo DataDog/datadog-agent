@@ -151,6 +151,15 @@ type encodingContext struct {
 	dataItems            map[typeAndAddr]output.DataItem
 	typeResolver         TypeNameResolver
 	missingTypeCollector MissingTypeCollector
+	// traceContextTypeID is the IR type id of the synthetic
+	// ir.TraceContextType. When rendering an interface field's pointee,
+	// the decoder looks up dataItems[(ifaceTypeID, addr)] first and falls
+	// back to dataItems[(traceContextTypeID, addr)] on miss; if the
+	// fallback hits, the field is rendered as a synthetic trace context
+	// (replacing the normal interface chase). 0 if the program does not
+	// allocate a TraceContextType (synthetic types are always present in
+	// programs built via irgen, but tests may construct minimal contexts).
+	traceContextTypeID ir.TypeID
 }
 
 // ResolveTypeName implements encodingContext.
@@ -191,6 +200,8 @@ func (e *encodingContext) recordPointer(addr uint64, typeID ir.TypeID) (release 
 
 // Type equivalent definitions
 type baseType ir.BaseType
+type durationType ir.DurationType
+type traceContextType ir.TraceContextType
 type pointerType ir.PointerType
 type structureType ir.StructureType
 type arrayType ir.ArrayType
@@ -295,6 +306,7 @@ var (
 	_ decoderType = (*goSubroutineType)(nil)
 	_ decoderType = (*eventRootType)(nil)
 	_ decoderType = (*unresolvedPointeeType)(nil)
+	_ decoderType = (*traceContextType)(nil)
 )
 
 func newDecoderType(
@@ -414,8 +426,16 @@ func newDecoderType(
 		}, nil
 	case *ir.BaseType:
 		return (*baseType)(s), nil
+	case *ir.DurationType:
+		return (*durationType)(s), nil
+	case *ir.TraceContextType:
+		return (*traceContextType)(s), nil
 	case *ir.StructureType:
 		return (*structureType)(s), nil
+	case *ir.GoContextImplementationType:
+		return (*structureType)(s.StructureType), nil
+	case *ir.DDTraceSpanType:
+		return (*structureType)(s.StructureType), nil
 	case *ir.ArrayType:
 		return (*arrayType)(s), nil
 	case *ir.GoSliceHeaderType:
@@ -660,6 +680,101 @@ func (b *baseType) formatValueFields(
 		return nil
 	}
 	writeBoundedString(buf, limits, output)
+	return nil
+}
+
+func (d *durationType) irType() ir.Type { return (*ir.DurationType)(d) }
+
+// encodeValueFields renders the duration as a millisecond float string for
+// captureExpression snapshots. Input is 8 bytes of signed int64 nanoseconds.
+func (d *durationType) encodeValueFields(
+	_ *encodingContext,
+	enc *jsontext.Encoder,
+	data []byte,
+) error {
+	if err := writeTokens(enc, jsontext.String("value")); err != nil {
+		return err
+	}
+	if len(data) != 8 {
+		return errors.New("passed data not long enough for duration")
+	}
+	ns := int64(binary.NativeEndian.Uint64(data))
+	ms := float64(ns) / 1e6
+	return writeTokens(enc, jsontext.String(strconv.FormatFloat(ms, 'f', -1, 64)))
+}
+
+// formatValueFields renders the duration as a millisecond float for template
+// segments.
+func (d *durationType) formatValueFields(
+	_ *encodingContext,
+	buf *bytes.Buffer,
+	data []byte,
+	limits *formatLimits,
+) error {
+	if len(data) != 8 {
+		writeBoundedFallback(buf, limits, "invalid duration data")
+		return nil
+	}
+	ns := int64(binary.NativeEndian.Uint64(data))
+	ms := float64(ns) / 1e6
+	writeBoundedString(buf, limits, strconv.FormatFloat(ms, 'f', 6, 64))
+	return nil
+}
+
+func (t *traceContextType) irType() ir.Type { return (*ir.TraceContextType)(t) }
+
+// encodeValueFields is invoked when a synthetic trace_context data item is
+// encountered as the pointee of an interface chase. The interface field's
+// rendering site (encodeInterface) routes here when the address-keyed
+// fallback hits a TraceContextType-typed item. We render the trace context
+// as a `value` object with hex/decimal id strings.
+func (t *traceContextType) encodeValueFields(
+	_ *encodingContext,
+	enc *jsontext.Encoder,
+	data []byte,
+) error {
+	if err := writeTokens(enc, jsontext.String("value"), jsontext.BeginObject); err != nil {
+		return err
+	}
+	if uint32(len(data)) >= ir.TraceContextByteSize && data[32] != 0 {
+		traceIDLower := binary.LittleEndian.Uint64(data[0:8])
+		traceIDUpper := binary.LittleEndian.Uint64(data[8:16])
+		spanID := binary.LittleEndian.Uint64(data[16:24])
+		parentID := binary.LittleEndian.Uint64(data[24:32])
+		if err := writeTokens(enc,
+			jsontext.String("trace_id"),
+			jsontext.String(fmt.Sprintf("%016x%016x", traceIDUpper, traceIDLower)),
+			jsontext.String("span_id"),
+			jsontext.String(strconv.FormatUint(spanID, 10)),
+		); err != nil {
+			return err
+		}
+		if parentID != 0 {
+			if err := writeTokens(enc,
+				jsontext.String("parent_id"),
+				jsontext.String(strconv.FormatUint(parentID, 10)),
+			); err != nil {
+				return err
+			}
+		}
+	}
+	return writeTokens(enc, jsontext.EndObject)
+}
+
+func (t *traceContextType) formatValueFields(
+	_ *encodingContext,
+	buf *bytes.Buffer,
+	data []byte,
+	_ *formatLimits,
+) error {
+	if uint32(len(data)) >= ir.TraceContextByteSize && data[32] != 0 {
+		traceIDLower := binary.LittleEndian.Uint64(data[0:8])
+		traceIDUpper := binary.LittleEndian.Uint64(data[8:16])
+		spanID := binary.LittleEndian.Uint64(data[16:24])
+		fmt.Fprintf(buf, "trace_id=%016x%016x span_id=%d", traceIDUpper, traceIDLower, spanID)
+	} else {
+		buf.WriteString("trace_context=absent")
+	}
 	return nil
 }
 
@@ -1959,6 +2074,47 @@ func encodeInterface(
 		return err
 	}
 
+	ptrData := data[goInterfaceDataOffset : goInterfaceDataOffset+8]
+
+	// Synthetic trace-context branch. When the BPF chain walker chases a
+	// concrete context.Context implementation, SM_OP_GO_CONTEXT_CHAIN_INIT
+	// rewrites the freshly-serialized data item's header so its type id is
+	// TraceContextType. The lookup key here is (TraceContextType, addr) —
+	// not just addr — so we only fire when BPF actually published a
+	// trace-context payload at this address for this event. A pointer hit
+	// against an unrelated value at the same address would miss this map.
+	//
+	// We do not additionally gate on the interface's resolved runtime_type:
+	// dd-trace context impls (cancelCtx, valueCtx, …) sometimes resolve to
+	// "missing type information" when their pointer-typed runtime types
+	// aren't registered, but the (TraceContextType, addr) pair is the
+	// authoritative signal that BPF identified this pointee as a context
+	// and walked its chain.
+	if c.traceContextTypeID != 0 && len(ptrData) >= 8 {
+		addr := binary.NativeEndian.Uint64(ptrData)
+		if addr != 0 {
+			if tcItem, ok := c.dataItems[typeAndAddr{
+				irType: uint32(c.traceContextTypeID),
+				addr:   addr,
+			}]; ok {
+				if err := writeTokens(enc,
+					jsontext.String("type"),
+					jsontext.String("context.Context"),
+				); err != nil {
+					return err
+				}
+				if tcData, ok := tcItem.Data(); ok {
+					if dt, dtOK := c.getType(c.traceContextTypeID); dtOK {
+						if err := dt.encodeValueFields(c, enc, tcData); err != nil {
+							return err
+						}
+					}
+				}
+				return writeTokens(enc, jsontext.EndObject, jsontext.EndObject)
+			}
+		}
+	}
+
 	typeID, ok := c.getTypeIDByGoRuntimeType(uint32(runtimeType))
 	if !ok {
 		name, err := c.ResolveTypeName(gotype.TypeID(runtimeType))
@@ -1987,12 +2143,12 @@ func encodeInterface(
 		return fmt.Errorf("no type found for type ID: %d", typeID)
 	}
 	tt := t.irType()
+
 	if err := writeTokens(
 		enc, jsontext.String("type"), jsontext.String(tt.GetName()),
 	); err != nil {
 		return err
 	}
-	ptrData := data[goInterfaceDataOffset : goInterfaceDataOffset+8]
 	var err error
 	if pt, ok := tt.(*ir.PointerType); ok {
 		err = (*pointerType)(pt).encodeValueFields(c, enc, ptrData)

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package metrics
 
 import (
@@ -21,7 +23,7 @@ import (
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -48,7 +50,7 @@ func TestStartDoesNotBlock(t *testing.T) {
 		Tagger:               nooptagger.NewComponent(),
 	}
 	defer metricAgent.Stop()
-	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{}, false, nil)
+	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{}, false, nil, nil, nil)
 }
 
 type InvalidMetricConfigMocked struct{}
@@ -63,7 +65,7 @@ func TestStartInvalidConfig(t *testing.T) {
 		Tagger:               nooptagger.NewComponent(),
 	}
 	defer metricAgent.Stop()
-	metricAgent.Start(1*time.Second, &InvalidMetricConfigMocked{}, &MetricDogStatsD{}, false, nil)
+	metricAgent.Start(1*time.Second, &InvalidMetricConfigMocked{}, &MetricDogStatsD{}, false, nil, nil, nil)
 	assert.False(t, metricAgent.IsReady())
 }
 
@@ -81,7 +83,7 @@ func TestStartInvalidDogStatsD(t *testing.T) {
 		Tagger:               nooptagger.NewComponent(),
 	}
 	defer metricAgent.Stop()
-	metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{}, false, nil)
+	metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{}, false, nil, nil, nil)
 	assert.False(t, metricAgent.IsReady())
 }
 

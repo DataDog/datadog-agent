@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/discovery/language"
 	"github.com/DataDog/datadog-agent/pkg/discovery/model"
 	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	tracermetadatamodel "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/discovery/usm"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/privileged"
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -64,6 +65,8 @@ type discovery struct {
 // NewDiscoveryModule creates a new discovery system probe module.
 func NewDiscoveryModule(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 	cfg := core.NewConfig()
+
+	InitDiscoveryLogger()
 
 	d := &discovery{
 		core: core.Discovery{
@@ -320,6 +323,46 @@ func newParsingContext() parsingContext {
 	}
 }
 
+// getNewestTracerMetadata reads tracer metadata from memfd file descriptors
+// and returns only the newest one (by file modification time). When there is
+// only one memfd, it skips the stat call. When mtimes are equal, runtime_id
+// is used as a tie-breaker so that both Go and Rust implementations select
+// the same metadata regardless of /proc/pid/fd iteration order.
+func getNewestTracerMetadata(pid int32, memfdFds []string) *tracermetadatamodel.TracerMetadata {
+	if len(memfdFds) == 0 {
+		return nil
+	}
+
+	if len(memfdFds) == 1 {
+		fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", memfdFds[0])
+		tm, err := tracermetadata.GetTracerMetadataFromPath(fdPath)
+		if err != nil {
+			return nil
+		}
+		return &tm
+	}
+
+	var newest *tracermetadatamodel.TracerMetadata
+	var newestTime int64
+	for _, fd := range memfdFds {
+		fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", fd)
+		info, err := os.Stat(fdPath)
+		if err != nil {
+			continue
+		}
+		tm, err := tracermetadata.GetTracerMetadataFromPath(fdPath)
+		if err != nil {
+			continue
+		}
+		modTime := info.ModTime().UnixNano()
+		if newest == nil || modTime > newestTime || (modTime == newestTime && tm.RuntimeID >= newest.RuntimeID) {
+			newest = &tm
+			newestTime = modTime
+		}
+	}
+	return newest
+}
+
 // getServiceInfo gets the service information for a process using the
 // servicedetector module.
 func (s *discovery) getServiceInfo(pid int32, openFiles openFilesInfo) (*model.Service, error) {
@@ -337,21 +380,10 @@ func (s *discovery) getServiceInfo(pid int32, openFiles openFilesInfo) (*model.S
 		return nil, err
 	}
 
-	var tracerMetadataArr []tracermetadata.TracerMetadata
-	var firstMetadata *tracermetadata.TracerMetadata
-
-	if openFiles.tracerMemfdFd != "" {
-		fdPath := kernel.HostProc(strconv.Itoa(int(pid)), "fd", openFiles.tracerMemfdFd)
-		tracerMetadata, err := tracermetadata.GetTracerMetadataFromPath(fdPath)
-		if err == nil {
-			// Currently we only get the first tracer metadata
-			tracerMetadataArr = append(tracerMetadataArr, tracerMetadata)
-			firstMetadata = &tracerMetadata
-		}
-	}
+	tracerMetadata := getNewestTracerMetadata(pid, openFiles.tracerMemfdFds)
 
 	root := kernel.HostProc(strconv.Itoa(int(proc.Pid)), "root")
-	lang := language.Detect(exe, cmdline, proc.Pid, s.privilegedDetector, firstMetadata)
+	lang := language.Detect(exe, cmdline, proc.Pid, s.privilegedDetector, tracerMetadata)
 	env, err := GetTargetEnvs(proc)
 	if err != nil {
 		return nil, err
@@ -366,14 +398,19 @@ func (s *discovery) getServiceInfo(pid int32, openFiles openFilesInfo) (*model.S
 	ctx.ContextMap = contextMap
 
 	nameMeta, _ := usm.ExtractServiceMetadata(lang, ctx)
-	apmInstrumentation := apm.Detect(lang, ctx, firstMetadata)
+	apmInstrumentation := apm.Detect(lang, ctx, tracerMetadata)
+
+	var tracerMetadataSlice []tracermetadatamodel.TracerMetadata
+	if tracerMetadata != nil {
+		tracerMetadataSlice = []tracermetadatamodel.TracerMetadata{*tracerMetadata}
+	}
 
 	return &model.Service{
 		PID:                      int(pid),
 		GeneratedName:            nameMeta.Name,
 		GeneratedNameSource:      string(nameMeta.Source),
 		AdditionalGeneratedNames: nameMeta.AdditionalNames,
-		TracerMetadata:           tracerMetadataArr,
+		TracerMetadata:           tracerMetadataSlice,
 		UST: model.UST{
 			Service: env.GetDefault("DD_SERVICE", ""),
 			Env:     env.GetDefault("DD_ENV", ""),
@@ -402,7 +439,7 @@ func (s *discovery) getHeartbeatServiceInfo(context parsingContext, pid int32) *
 	}
 
 	totalPorts := len(tcpPorts) + len(udpPorts)
-	hasTracerMetadata := openFileInfo.tracerMemfdFd != ""
+	hasTracerMetadata := len(openFileInfo.tracerMemfdFds) > 0
 	hasLogs := len(openFileInfo.logs) > 0
 	if totalPorts == 0 && !hasTracerMetadata && !hasLogs {
 		return nil
@@ -499,6 +536,11 @@ func (s *discovery) getPorts(context parsingContext, pid int32, sockets []uint64
 func (s *discovery) getServices(params core.Params) (*model.ServicesResponse, error) {
 	s.mux.Lock()
 	defer s.mux.Unlock()
+
+	if s.config.UseRustLibrary {
+		return rustGetServices(params)
+	}
+
 	response := &model.ServicesResponse{
 		Services: make([]model.Service, 0),
 	}
@@ -549,7 +591,7 @@ func (s *discovery) getServiceWithoutRetry(context parsingContext, pid int32) *m
 	}
 
 	totalPorts := len(tcpPorts) + len(udpPorts)
-	hasTracerMetadata := openFileInfo.tracerMemfdFd != ""
+	hasTracerMetadata := len(openFileInfo.tracerMemfdFds) > 0
 	hasLogs := len(openFileInfo.logs) > 0
 	if totalPorts == 0 && !hasTracerMetadata && !hasLogs {
 		return nil

@@ -15,19 +15,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
-	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
+	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
+	ncmcomp "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	ncmremote "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote"
+	ncmsender "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/sender"
 )
 
 // Test fixtures and mocks
@@ -136,7 +142,8 @@ func (m *MockRemoteSession) Close() error {
 
 func createTestCheck(t *testing.T) *Check {
 	cfg := agentconfig.NewMock(t)
-	return newCheck(cfg).(*Check)
+	comp := ncmcomp.Mock(t)
+	return newCheck(cfg, comp).(*Check)
 }
 
 // Configuration test data
@@ -175,7 +182,7 @@ func TestCheck_Configure_ValidConfig(t *testing.T) {
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 
 	profile.SetConfdPathAndCleanProfiles()
-	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test")
+	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test", "provider")
 
 	require.NoError(t, err)
 	assert.NotNil(t, check.checkContext)
@@ -213,7 +220,7 @@ func TestCheck_Configure_InvalidConfig(t *testing.T) {
 			check := createTestCheck(t)
 			senderManager := mocksender.CreateDefaultDemultiplexer()
 
-			err := check.Configure(senderManager, integration.FakeConfigHash, tt.config, baseInitConfig, "test")
+			err := check.Configure(senderManager, integration.FakeConfigHash, tt.config, baseInitConfig, "test", "provider")
 
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), tt.expectedError)
@@ -229,19 +236,20 @@ func TestCheck_Run_Success(t *testing.T) {
 	mockSender := mocksender.NewMockSenderWithSenderManager(id, senderManager)
 
 	// Set up mock sender expectations
-	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
+	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Twice()
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
 
 	// Configure the check
 	profile.SetConfdPathAndCleanProfiles()
-	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test")
+	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test", "provider")
 	require.NoError(t, err)
 
-	// mock the time
+	// Mock the time and recreate sender with mock clock (Configure creates sender with real clock)
 	mockClock := clock.NewMock()
 	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
 	check.clock = mockClock
+	check.sender = ncmsender.NewNCMSender(mockSender, check.checkContext.Namespace, mockClock)
 
 	// Set up mock remote client
 	mockClient := newMockRemoteClient()
@@ -285,8 +293,26 @@ func TestCheck_Run_Success(t *testing.T) {
 	}
 	expectedEvent, err := json.Marshal(expectedPayload)
 	assert.NoError(t, err)
-	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
-	mockSender.AssertEventPlatformEvent(t, expectedEvent, "ndmconfig")
+
+	// Build expected device metadata payload
+	expectedDeviceMetadataPayload := devicemetadata.NetworkDevicesMetadata{
+		Namespace:   "default",
+		Integration: integrations.NetworkConfigManagement,
+		Devices: []devicemetadata.DeviceMetadata{
+			{
+				ID:        "default:10.0.0.1",
+				IPAddress: "10.0.0.1",
+				Status:    devicemetadata.DeviceStatusReachable,
+			},
+		},
+		CollectTimestamp: 1754043600,
+	}
+	expectedDeviceMetadata, err := json.Marshal(expectedDeviceMetadataPayload)
+	assert.NoError(t, err)
+
+	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 2)
+	mockSender.AssertEventPlatformEvent(t, expectedEvent, eventplatform.EventTypeNetworkConfigManagement)
+	mockSender.AssertEventPlatformEvent(t, expectedDeviceMetadata, eventplatform.EventTypeNetworkDevicesMetadata)
 	mockSender.AssertMetricTaggedWith(t, "Gauge", "datadog.ncm.check_duration", expectedTags)
 	mockSender.AssertExpectations(t)
 }
@@ -297,16 +323,17 @@ func TestCheck_Run_ConnectionFailure(t *testing.T) {
 
 	// Configure the check
 	profile.SetConfdPathAndCleanProfiles()
-	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test")
+	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test", "provider")
 	require.NoError(t, err)
 
 	// Set up mock remote client factory that fails to connect
 	connectionError := errors.New("connection refused")
 	client := newMockRemoteClient()
 	client.ConnectionError = connectionError
+	check.remoteClient = client
 
 	// Run the check
-	err = client.Connect()
+	err = check.Run()
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "connection refused")
@@ -319,8 +346,12 @@ func TestCheck_Run_ConfigRetrievalFailure_NoProfileMatch(t *testing.T) {
 	// Configure the check
 	profile.SetConfdPathAndCleanProfiles()
 	t.Cleanup(profile.ResetProfilesPath)
-	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test")
+	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test", "provider")
 	require.NoError(t, err)
+
+	// Clear the profile so FindMatchingProfile is exercised
+	check.checkContext.ProfileCache.ProfileName = ""
+	check.checkContext.ProfileCache.Profile = nil
 
 	// Set up a mock remote client that fails config retrieval
 	mockClient := &MockRemoteClient{
@@ -342,7 +373,7 @@ func TestCheck_FindMatchingProfile(t *testing.T) {
 
 	// Configure the check
 	profile.SetConfdPathAndCleanProfiles()
-	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test")
+	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test", "provider")
 	require.NoError(t, err)
 
 	// mock the time
@@ -412,7 +443,7 @@ func TestCheck_FindMatchingProfile_Error(t *testing.T) {
 
 	// Configure the check
 	profile.SetConfdPathAndCleanProfiles()
-	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test")
+	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test", "provider")
 	require.NoError(t, err)
 
 	// mock the time

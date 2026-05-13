@@ -9,7 +9,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
+	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
 )
 
 // checkContext holds a list of reference to different components used by Go and Python checks.

@@ -1,0 +1,22 @@
+{
+  "type": "not",
+  "operation": "",
+  "left": {
+    "type": "eq",
+    "operation": "",
+    "left": {
+      "type": "ref",
+      "ref": "x",
+      "operation": "",
+      "error": ""
+    },
+    "right": {
+      "type": "literal",
+      "operation": "",
+      "value": 42,
+      "error": ""
+    },
+    "error": ""
+  },
+  "error": ""
+}
