@@ -27,13 +27,10 @@ func (s *processNameExtractor) process(event *process) {
 	if event.EventType != model.ExecEventType && event.EventType != model.ForkEventType {
 		return
 	}
-	if len(event.Cmdline) == 0 {
-		return
-	}
-
 	s.ExtractSingle(&procutil.Process{
 		Pid:  int32(event.Pid),
-		Comm: event.Cmdline[0],
+		Comm: event.Comm,
+		Exe:  event.Exe,
 	})
 }
 

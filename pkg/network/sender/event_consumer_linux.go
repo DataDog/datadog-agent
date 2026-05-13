@@ -8,6 +8,7 @@
 package sender
 
 import (
+	"bytes"
 	"os"
 	"strconv"
 	"sync"
@@ -86,6 +87,8 @@ type process struct {
 	PPid      uint32
 	Cmdline   []string
 	Cwd       string
+	Comm      string
+	Exe       string
 	EventType model.EventType
 }
 
@@ -127,13 +130,30 @@ func (d *directSenderConsumer) HandleEvent(ev any) {
 	}
 	eventConsumerTelemetry.eventsReceived.Inc(p.EventType.String())
 	if p.EventType == model.ExecEventType || p.EventType == model.ForkEventType {
-		cwd, err := os.Readlink(kernel.HostProc(strconv.Itoa(int(p.Pid)), "cwd"))
+		pidStr := strconv.Itoa(int(p.Pid))
+		cwd, err := os.Readlink(kernel.HostProc(pidStr, "cwd"))
 		if err != nil && !os.IsNotExist(err) {
 			if cwdLogLimiter.ShouldLog() {
 				d.log.Warnf("error reading working directory for pid %d: %s", p.Pid, err)
 			}
 		}
 		p.Cwd = cwd
+
+		comm, err := os.ReadFile(kernel.HostProc(pidStr, "comm"))
+		if err != nil && !os.IsNotExist(err) {
+			if cwdLogLimiter.ShouldLog() {
+				d.log.Warnf("error reading comm for pid %d: %s", p.Pid, err)
+			}
+		}
+		p.Comm = string(bytes.TrimSpace(comm))
+
+		exe, err := os.Readlink(kernel.HostProc(pidStr, "exe"))
+		if err != nil && !os.IsNotExist(err) {
+			if cwdLogLimiter.ShouldLog() {
+				d.log.Warnf("error reading exe for pid %d: %s", p.Pid, err)
+			}
+		}
+		p.Exe = exe
 	}
 	d.process(p)
 	d.proxyFilter.process(p)
