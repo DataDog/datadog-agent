@@ -274,6 +274,8 @@ Types:
                   Variable: {subprogram: 1, index: 0, name: s1}
                   Offset: 0
                   ByteSize: 16
+            LeafBodies: []
+            IsSplit: false
           DictIndex: -1
         - Name: s2
           Offset: 17
@@ -285,6 +287,8 @@ Types:
                   Variable: {subprogram: 1, index: 1, name: s2}
                   Offset: 0
                   ByteSize: 16
+            LeafBodies: []
+            IsSplit: false
           DictIndex: -1
         - Name: i
           Offset: 33
@@ -296,6 +300,8 @@ Types:
                   Variable: {subprogram: 1, index: 2, name: i}
                   Offset: 0
                   ByteSize: 8
+            LeafBodies: []
+            IsSplit: false
           DictIndex: -1
     - __kind: EventRootType
       ID: 112

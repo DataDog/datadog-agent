@@ -117,10 +117,16 @@ Package: main
 		Var: err: error (declared at line 47, available: [48-49])
 		Var: shutdownCtx: context.Context (declared at line 72, available: [73-74])
 		Var: .autotmp_27: context.backgroundCtx (declared at line 216, available: [42-75])
+	Type: main.Node
+		Field: Value: [64]uint8
+		Field: Next: *main.Node
 	Function: main.Println.func3 (main.main.Println.func3) in log/log.go [405:406] injectible: [405-406]
 		Arg: b: []uint8 (declared at line 405, available: [405-406])
 		Arg: ~r0: []uint8 (declared at line 405, available: )
 		Var: v: []interface {} (declared at line 406, available: [406-406])
+	Type: main.StringNode
+		Field: Value: string
+		Field: Next: *main.StringNode
 	Function: main.deferwrap1.Println.1 (main.main.deferwrap1.Println.1) in log/log.go [405:406] injectible: [405-406]
 		Arg: b: []uint8 (declared at line 405, available: [405-406])
 		Arg: ~r0: []uint8 (declared at line 405, available: )
@@ -139,9 +145,3 @@ Package: main
 		Var: n: int (declared at line 82, available: [83-84])
 		Var: v: string (declared at line 78, available: [79-83])
 		Var: err: error (declared at line 82, available: [80-86])
-	Type: main.Node
-		Field: Value: [64]uint8
-		Field: Next: *main.Node
-	Type: main.StringNode
-		Field: Value: string
-		Field: Next: *main.StringNode

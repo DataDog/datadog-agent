@@ -15,13 +15,14 @@ const (
 	PARLogFile = "private_action_runner.log_file"
 
 	// Identity / enrollment configuration
-	PARSelfEnroll           = "private_action_runner.self_enroll"
-	PARApiKeyOnlyEnrollment = "private_action_runner.api_key_only_enrollment"
-	PARIdentityFilePath     = "private_action_runner.identity_file_path"
-	PARIdentityUseK8sSecret = "private_action_runner.identity_use_k8s_secret"
-	PARIdentitySecretName   = "private_action_runner.identity_secret_name"
-	PARPrivateKey           = "private_action_runner.private_key"
-	PARUrn                  = "private_action_runner.urn"
+	PARSelfEnroll             = "private_action_runner.self_enroll"
+	PARApiKeyOnlyEnrollment   = "private_action_runner.api_key_only_enrollment"
+	PARIdentityFilePath       = "private_action_runner.identity_file_path"
+	PARIdentityUseK8sSecret   = "private_action_runner.identity_use_k8s_secret"
+	PARIdentitySecretName     = "private_action_runner.identity_secret_name"
+	PARPrivateKey             = "private_action_runner.private_key"
+	PARUrn                    = "private_action_runner.urn"
+	PARSkipConnectionCreation = "private_action_runner.skip_connection_creation"
 
 	// General config
 	PARTaskConcurrency       = "private_action_runner.task_concurrency"
@@ -63,6 +64,7 @@ func setupPrivateActionRunner(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault(PARIdentitySecretName, "private-action-runner-identity")
 	config.BindEnvAndSetDefault(PARPrivateKey, "")
 	config.BindEnvAndSetDefault(PARUrn, "")
+	config.BindEnvAndSetDefault(PARSkipConnectionCreation, false)
 
 	// General config
 	config.BindEnvAndSetDefault(PARTaskConcurrency, 5)

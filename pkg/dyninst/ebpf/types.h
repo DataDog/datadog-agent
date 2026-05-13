@@ -124,6 +124,22 @@ typedef enum sm_opcode {
   // advance sm->offset. Callers that use the value as a comparison
   // operand follow with EXPR_PUSH_OFFSET{8} to advance/push.
   SM_OP_EXPR_LOAD_DURATION = 41,
+  // Split-event-kind condition ops. Used when a probe's condition
+  // expression has leaves that resolve to variables on both the entry
+  // and return events. Each entry leaf is compiled to its own SM
+  // sub-function so leaf-internal aborts (nil deref / OOB) return to
+  // the entry-side driver rather than the event handler. The driver
+  // captures each leaf's outcome as a 2-bit status in sm->condition_state
+  // and runs an AST replay that lazily reads statuses, preserving the
+  // user's short-circuit semantics. See pkg/dyninst/ir/expression.go.
+  SM_OP_CONDITION_STATE_INIT = 42,
+  SM_OP_CONDITION_LEAF_RECORD = 43,
+  SM_OP_CONDITION_LEAF_LOAD = 44,
+  SM_OP_CONDITION_CHECK_PRESERVE_ERROR = 45,
+  // Emitted at the tail of a per-leaf SM sub-function on the success
+  // path. Clears condition_eval_error so the driver's
+  // CONDITION_LEAF_RECORD can distinguish success from abort.
+  SM_OP_CONDITION_LEAF_COMPLETE = 46,
 } sm_opcode_t;
 
 // cmp_op_t identifies which comparison SM_OP_EXPR_CMP_BASE /
@@ -234,6 +250,16 @@ static const char* op_code_name(sm_opcode_t op_code) {
     return "COND_JUMP_IF_TRUE";
   case SM_OP_EXPR_LOAD_DURATION:
     return "EXPR_LOAD_DURATION";
+  case SM_OP_CONDITION_STATE_INIT:
+    return "CONDITION_STATE_INIT";
+  case SM_OP_CONDITION_LEAF_RECORD:
+    return "CONDITION_LEAF_RECORD";
+  case SM_OP_CONDITION_LEAF_LOAD:
+    return "CONDITION_LEAF_LOAD";
+  case SM_OP_CONDITION_CHECK_PRESERVE_ERROR:
+    return "CONDITION_CHECK_PRESERVE_ERROR";
+  case SM_OP_CONDITION_LEAF_COMPLETE:
+    return "CONDITION_LEAF_COMPLETE";
   default:
     break;
   }
