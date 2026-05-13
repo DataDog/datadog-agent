@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -67,6 +68,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	reqs.Log.Infof("loopback: initializing store at %s (shards=%d, window=%s, maxAge=%s, maxDisk=%dMB)",
 		cfg.baseDir, cfg.numShards, cfg.windowDuration, cfg.maxAge, cfg.maxDiskBytes/1024/1024)
+
+	if err := os.MkdirAll(cfg.baseDir, 0o755); err != nil {
+		return Provides{}, fmt.Errorf("loopback: mkdir %s: %w", cfg.baseDir, err)
+	}
 
 	ctxFile, err := newContextFile(filepath.Join(cfg.baseDir, "contexts.bin"))
 	if err != nil {
