@@ -10,7 +10,7 @@ typedef struct {
     __u64 pid_count;
     __u64 sum_cycles;
     __u64 sum_instructions;
-    __u64 sum_llc_misses;
+    __u64 sum_cache_misses;
     __u64 sum_itlb_misses;
     __u64 sum_softirq_ns;
     __u64 block_io_requests;
@@ -36,7 +36,7 @@ typedef struct {
 typedef struct {
     pmu_event_stamp_t cycles;
     pmu_event_stamp_t instructions;
-    pmu_event_stamp_t llc_misses;
+    pmu_event_stamp_t cache_misses;
     pmu_event_stamp_t itlb_misses;
     pmu_event_stamp_t branch_misses;
     pmu_event_stamp_t cpu_migrations;

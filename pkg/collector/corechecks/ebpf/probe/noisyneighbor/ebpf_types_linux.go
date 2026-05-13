@@ -10,7 +10,7 @@ type ebpfCgroupAggStats struct {
 	Pid_count            uint64
 	Sum_cycles           uint64
 	Sum_instructions     uint64
-	Sum_llc_misses       uint64
+	Sum_cache_misses     uint64
 	Sum_itlb_misses      uint64
 	Sum_softirq_ns       uint64
 	Block_io_requests    uint64

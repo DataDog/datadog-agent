@@ -21,7 +21,7 @@ BPF_PERCPU_HASH_MAP(cgroup_agg_stats, __u64, cgroup_agg_stats_t, MAX_TASK_ENTRIE
 // and the corresponding deltas are skipped.
 BPF_PERF_EVENT_ARRAY_MAP(cycles_pmu, u32)
 BPF_PERF_EVENT_ARRAY_MAP(instructions_pmu, u32)
-BPF_PERF_EVENT_ARRAY_MAP(llc_misses_pmu, u32)
+BPF_PERF_EVENT_ARRAY_MAP(cache_misses_pmu, u32)
 BPF_PERF_EVENT_ARRAY_MAP(itlb_misses_pmu, u32)
 BPF_PERF_EVENT_ARRAY_MAP(branch_misses_pmu, u32)
 BPF_PERF_EVENT_ARRAY_MAP(cpu_migrations_pmu, u32)
@@ -117,14 +117,14 @@ static __always_inline u64 scaled_pmu_delta(struct bpf_perf_event_value *val, pm
 typedef struct {
     struct bpf_perf_event_value cycles;
     struct bpf_perf_event_value instructions;
-    struct bpf_perf_event_value llc_misses;
+    struct bpf_perf_event_value cache_misses;
     struct bpf_perf_event_value itlb_misses;
     struct bpf_perf_event_value branch_misses;
     struct bpf_perf_event_value cpu_migrations;
     struct bpf_perf_event_value cache_references;
     bool cycles_ok;
     bool instructions_ok;
-    bool llc_ok;
+    bool cache_misses_ok;
     bool itlb_ok;
     bool branch_misses_ok;
     bool cpu_migrations_ok;
@@ -134,7 +134,7 @@ typedef struct {
 static __always_inline void pmu_sample_all(pmu_sample_t *s) {
     s->cycles_ok = bpf_perf_event_read_value(&cycles_pmu, BPF_F_CURRENT_CPU, &s->cycles, sizeof(s->cycles)) == 0;
     s->instructions_ok = bpf_perf_event_read_value(&instructions_pmu, BPF_F_CURRENT_CPU, &s->instructions, sizeof(s->instructions)) == 0;
-    s->llc_ok = bpf_perf_event_read_value(&llc_misses_pmu, BPF_F_CURRENT_CPU, &s->llc_misses, sizeof(s->llc_misses)) == 0;
+    s->cache_misses_ok = bpf_perf_event_read_value(&cache_misses_pmu, BPF_F_CURRENT_CPU, &s->cache_misses, sizeof(s->cache_misses)) == 0;
     s->itlb_ok = bpf_perf_event_read_value(&itlb_misses_pmu, BPF_F_CURRENT_CPU, &s->itlb_misses, sizeof(s->itlb_misses)) == 0;
     s->branch_misses_ok = bpf_perf_event_read_value(&branch_misses_pmu, BPF_F_CURRENT_CPU, &s->branch_misses, sizeof(s->branch_misses)) == 0;
     s->cpu_migrations_ok = bpf_perf_event_read_value(&cpu_migrations_pmu, BPF_F_CURRENT_CPU, &s->cpu_migrations, sizeof(s->cpu_migrations)) == 0;
@@ -142,7 +142,7 @@ static __always_inline void pmu_sample_all(pmu_sample_t *s) {
 }
 
 static __always_inline bool pmu_any_ok(pmu_sample_t *s) {
-    return s->cycles_ok || s->instructions_ok || s->llc_ok || s->itlb_ok ||
+    return s->cycles_ok || s->instructions_ok || s->cache_misses_ok || s->itlb_ok ||
            s->branch_misses_ok || s->cpu_migrations_ok || s->cache_references_ok;
 }
 
@@ -159,8 +159,8 @@ static __always_inline void pmu_stamp_from_sample(task_pmu_stamp_t *stamp, pmu_s
     if (s->instructions_ok) {
         pmu_stamp_event(&stamp->instructions, &s->instructions);
     }
-    if (s->llc_ok) {
-        pmu_stamp_event(&stamp->llc_misses, &s->llc_misses);
+    if (s->cache_misses_ok) {
+        pmu_stamp_event(&stamp->cache_misses, &s->cache_misses);
     }
     if (s->itlb_ok) {
         pmu_stamp_event(&stamp->itlb_misses, &s->itlb_misses);
@@ -183,8 +183,8 @@ static __always_inline void pmu_accum_to_stats(cgroup_agg_stats_t *stats, task_p
     if (s->instructions_ok) {
         stats->sum_instructions += scaled_pmu_delta(&s->instructions, &stamp->instructions);
     }
-    if (s->llc_ok) {
-        stats->sum_llc_misses += scaled_pmu_delta(&s->llc_misses, &stamp->llc_misses);
+    if (s->cache_misses_ok) {
+        stats->sum_cache_misses += scaled_pmu_delta(&s->cache_misses, &stamp->cache_misses);
     }
     if (s->itlb_ok) {
         stats->sum_itlb_misses += scaled_pmu_delta(&s->itlb_misses, &stamp->itlb_misses);

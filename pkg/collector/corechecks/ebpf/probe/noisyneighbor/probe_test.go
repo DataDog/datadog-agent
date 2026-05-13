@@ -62,7 +62,7 @@ func allPMUMetricsEnabled() map[string]bool {
 	return map[string]bool{
 		"cycles_pmu":           true,
 		"instructions_pmu":     true,
-		"llc_misses_pmu":       true,
+		"cache_misses_pmu":     true,
 		"cache_references_pmu": true,
 		"itlb_misses_pmu":      true,
 		"branch_misses_pmu":    true,

@@ -30,7 +30,7 @@ import (
 var pmuMetricConfigKeys = map[string]string{
 	"cycles_pmu":           "noisy_neighbor.pmu_metrics.cycles",
 	"instructions_pmu":     "noisy_neighbor.pmu_metrics.instructions",
-	"llc_misses_pmu":       "noisy_neighbor.pmu_metrics.llc_misses",
+	"cache_misses_pmu":     "noisy_neighbor.pmu_metrics.cache_misses",
 	"cache_references_pmu": "noisy_neighbor.pmu_metrics.cache_references",
 	"itlb_misses_pmu":      "noisy_neighbor.pmu_metrics.itlb_misses",
 	"branch_misses_pmu":    "noisy_neighbor.pmu_metrics.branch_misses",

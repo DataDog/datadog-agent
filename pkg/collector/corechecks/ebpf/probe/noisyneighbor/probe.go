@@ -75,7 +75,7 @@ func NewProbe(cfg *ddebpf.Config, modCfg Config) (*Probe, error) {
 			{Name: "cgroup_agg_stats"},
 			{Name: "cycles_pmu"},
 			{Name: "instructions_pmu"},
-			{Name: "llc_misses_pmu"},
+			{Name: "cache_misses_pmu"},
 			{Name: "itlb_misses_pmu"},
 			{Name: "branch_misses_pmu"},
 			{Name: "cpu_migrations_pmu"},
@@ -123,13 +123,13 @@ func (p *Probe) attachPMU(pmuEnabled map[string]bool) {
 	events := []pmuEvent{
 		{mapName: "cycles_pmu", humanLabel: "cycles", perfType: unix.PERF_TYPE_HARDWARE, perfConfig: unix.PERF_COUNT_HW_CPU_CYCLES},
 		{mapName: "instructions_pmu", humanLabel: "instructions", perfType: unix.PERF_TYPE_HARDWARE, perfConfig: unix.PERF_COUNT_HW_INSTRUCTIONS},
-		{mapName: "llc_misses_pmu", humanLabel: "LLC misses", perfType: unix.PERF_TYPE_HARDWARE, perfConfig: unix.PERF_COUNT_HW_CACHE_MISSES},
+		{mapName: "cache_misses_pmu", humanLabel: "cache misses", perfType: unix.PERF_TYPE_HARDWARE, perfConfig: unix.PERF_COUNT_HW_CACHE_MISSES},
 		{mapName: "itlb_misses_pmu", humanLabel: "iTLB misses", perfType: unix.PERF_TYPE_HW_CACHE, perfConfig: itlbLoadMissesConfig},
 		{mapName: "branch_misses_pmu", humanLabel: "branch misses", perfType: unix.PERF_TYPE_HARDWARE, perfConfig: unix.PERF_COUNT_HW_BRANCH_MISSES},
 		// CPU migrations is a software counter — doesn't compete for hardware
 		// PMU counters and is always available regardless of µarch.
 		{mapName: "cpu_migrations_pmu", humanLabel: "CPU migrations", perfType: unix.PERF_TYPE_SOFTWARE, perfConfig: unix.PERF_COUNT_SW_CPU_MIGRATIONS},
-		// Cache references pairs with llc_misses to give LLC hit-rate: under
+		// Cache references pairs with cache_misses to give cache hit-rate: under
 		// cache thrashing the rate moves even when absolute miss count stays
 		// flat for memory-bound workloads already at floor miss rate.
 		{mapName: "cache_references_pmu", humanLabel: "cache references", perfType: unix.PERF_TYPE_HARDWARE, perfConfig: unix.PERF_COUNT_HW_CACHE_REFERENCES},
@@ -242,7 +242,7 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 			stat.PreemptionCount += cpuStat.Preemption_count
 			stat.SumCycles += cpuStat.Sum_cycles
 			stat.SumInstructions += cpuStat.Sum_instructions
-			stat.SumLLCMisses += cpuStat.Sum_llc_misses
+			stat.SumCacheMisses += cpuStat.Sum_cache_misses
 			stat.SumITLBMisses += cpuStat.Sum_itlb_misses
 			stat.SumSoftirqNs += cpuStat.Sum_softirq_ns
 			stat.BlockIORequests += cpuStat.Block_io_requests
@@ -263,7 +263,7 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 		// start and gets switched out exactly once (PMU stamp delta accrued,
 		// no schedule-on event) isn't silently flushed.
 		if stat.EventCount == 0 && stat.SumSoftirqNs == 0 && stat.BlockIORequests == 0 && stat.WakeupCount == 0 &&
-			stat.SumCycles == 0 && stat.SumInstructions == 0 && stat.SumLLCMisses == 0 && stat.SumCacheReferences == 0 &&
+			stat.SumCycles == 0 && stat.SumInstructions == 0 && stat.SumCacheMisses == 0 && stat.SumCacheReferences == 0 &&
 			stat.SumITLBMisses == 0 && stat.SumBranchMisses == 0 && stat.SumCPUMigrations == 0 {
 			continue
 		}

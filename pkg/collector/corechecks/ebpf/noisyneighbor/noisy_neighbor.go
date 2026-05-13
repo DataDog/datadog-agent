@@ -51,7 +51,7 @@ type NoisyNeighborCheck struct {
 }
 
 var pmuMetricConfigKeys = []string{
-	"cycles", "instructions", "llc_misses", "cache_references",
+	"cycles", "instructions", "cache_misses", "cache_references",
 	"itlb_misses", "branch_misses", "cpu_migrations",
 }
 
@@ -178,8 +178,8 @@ func (n *NoisyNeighborCheck) submitRawCounters(sender sender.Sender, stat model.
 	if n.pmuMetricsEnabled["instructions"] {
 		sender.Count("noisy_neighbor.instructions", float64(stat.SumInstructions), "", tags)
 	}
-	if n.pmuMetricsEnabled["llc_misses"] {
-		sender.Count("noisy_neighbor.llc_misses", float64(stat.SumLLCMisses), "", tags)
+	if n.pmuMetricsEnabled["cache_misses"] {
+		sender.Count("noisy_neighbor.cache_misses", float64(stat.SumCacheMisses), "", tags)
 	}
 	if n.pmuMetricsEnabled["cache_references"] {
 		sender.Count("noisy_neighbor.cache_references", float64(stat.SumCacheReferences), "", tags)
