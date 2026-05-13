@@ -272,7 +272,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// adds non-trivial overhead.
 	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.cycles", false)
 	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.instructions", false)
-	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.llc_misses", false)
+	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.cache_misses", false)
 	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.cache_references", false)
 	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.itlb_misses", false)
 	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.branch_misses", false)
