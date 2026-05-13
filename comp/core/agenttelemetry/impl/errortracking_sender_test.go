@@ -433,9 +433,9 @@ func TestFlushJob_DrainsOnStop(t *testing.T) {
 // context (not the already-canceled lifecycle context).
 type ctxObservingSender struct {
 	senderMock
-	mu             sync.Mutex
-	ctxCanceledOn  []bool
-	ctxDeadlineOn  []bool
+	mu            sync.Mutex
+	ctxCanceledOn []bool
+	ctxDeadlineOn []bool
 }
 
 func (s *ctxObservingSender) sendLogsTypedBatch(ctx context.Context, logs []Log) error {

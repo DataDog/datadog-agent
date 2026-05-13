@@ -17,11 +17,11 @@ import (
 // handler_test.go; do NOT change without re-running that test.
 //
 // Frame layout under runtime.Callers' semantics (skip=N starts at depth N):
-//   0. runtime.Callers
-//   1. Handler.Handle (this method)
-//   2. (*slog.Logger).log
-//   3. (*slog.Logger).Error / .Log
-//   4. user code (the logger.Error(...) call site)
+//  0. runtime.Callers
+//  1. Handler.Handle (this method)
+//  2. (*slog.Logger).log
+//  3. (*slog.Logger).Error / .Log
+//  4. user code (the logger.Error(...) call site)
 //
 // skip=4 makes PCs[0] the user call site.
 const stackSkipBase = 4
