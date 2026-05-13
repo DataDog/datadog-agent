@@ -37,20 +37,41 @@ var _ slog.Handler = (*Handler)(nil)
 // this is the steady state before the agenttelemetry component registers
 // its Submitter during Fx startup, and again during test cleanup.
 //
+// The handler optionally also late-binds a per-PC Bouncer (see
+// bouncer.go) via loadBouncer; when the closure returns non-nil and
+// it suppresses the current PC, Handle returns without invoking the
+// Submitter. The running count of suppressed dupes ships on the next
+// non-suppressed sighting via ErrorLog.Count. Late-binding mirrors
+// the Submitter pattern so the Bouncer's lifecycle (Fx start/stop) can
+// be managed by the agenttelemetry component without restructuring
+// the foundational logger build.
+//
 // The Submitter contract requires non-blocking submission (the consumer
 // owns a bounded channel and flushes asynchronously), so Handle is
 // non-blocking by construction. The handler is safe for concurrent use.
 type Handler struct {
-	load  func() Submitter
-	attrs []slog.Attr
+	load        func() Submitter
+	loadBouncer func() *Bouncer
+	attrs       []slog.Attr
 }
 
 // NewHandler returns a Handler whose Handle method atomically loads the
 // current Submitter via load on every record. load MUST be safe for
 // concurrent use and MUST return nil to indicate "no submitter registered";
 // nil records are dropped silently rather than panicking the logger chain.
+//
+// The returned Handler has no Bouncer late-binder attached (every record
+// is dispatched). Use WithBouncerLoader to enable per-PC dedup.
 func NewHandler(load func() Submitter) *Handler {
 	return &Handler{load: load}
+}
+
+// WithBouncerLoader returns a Handler that consults loadBouncer on
+// every Handle to decide whether to suppress the current PC. loadBouncer
+// MAY return nil at any time to disable dedup; the closure MUST be safe
+// for concurrent use. Passing nil clears the late-binder.
+func (h *Handler) WithBouncerLoader(loadBouncer func() *Bouncer) *Handler {
+	return &Handler{load: h.load, attrs: h.attrs, loadBouncer: loadBouncer}
 }
 
 // Enabled reports whether the Handler will forward records at the given
@@ -92,6 +113,21 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 		Level:   r.Level,
 		Message: r.Message,
 		PC:      r.PC,
+		Count:   1,
+	}
+	// Bouncer check (when a loader is registered AND returns non-nil):
+	// suppress duplicate PCs inside the window. The bouncer count rides
+	// on the next non-suppressed sighting via ErrorLog.Count, so
+	// operators can see the suppressed-duplicate count on the wire
+	// without us shipping every occurrence.
+	if h.loadBouncer != nil {
+		if b := h.loadBouncer(); b != nil {
+			suppressed, count, _ := b.Observe(r.PC, r.Time)
+			if suppressed {
+				return nil
+			}
+			out.Count = count
+		}
 	}
 	// Capture a bounded multi-frame stack while the calling goroutine
 	// is still on-stack — by the time the agenttelemetry flush
@@ -115,7 +151,7 @@ func (h *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	merged := make([]slog.Attr, 0, len(h.attrs)+len(attrs))
 	merged = append(merged, h.attrs...)
 	merged = append(merged, attrs...)
-	return &Handler{load: h.load, attrs: merged}
+	return &Handler{load: h.load, attrs: merged, loadBouncer: h.loadBouncer}
 }
 
 // WithGroup is a no-op. The wire payload does not distinguish nested

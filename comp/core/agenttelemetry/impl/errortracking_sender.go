@@ -72,10 +72,17 @@ func (s *senderImpl) sendLogsTypedBatch(ctx context.Context, logs []Log) error {
 //   - Message, Tags, TraceID, SpanID -> "" (PII or unpopulated)
 //   - IsCrash -> false (this path does not emit crash logs)
 func errorLogToLog(e errortracking.ErrorLog) Log {
+	count := int(e.Count)
+	if count < 1 {
+		// Defensive: producers that didn't go through the Bouncer
+		// (synthetic tests, direct SubmitErrorRecord callers) won't
+		// populate Count. Default to 1 so the wire field stays valid.
+		count = 1
+	}
 	out := Log{
 		Level:      slogLevelToLogLevel(e.Level),
 		TracerTime: e.Time.Unix(),
-		Count:      1,
+		Count:      count,
 		IsCrash:    false,
 	}
 

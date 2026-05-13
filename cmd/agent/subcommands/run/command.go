@@ -630,9 +630,13 @@ func installErrortrackingHandler(lc fx.Lifecycle, cfg config.Component, at agent
 		at.SubmitErrorRecord(elog)
 	}
 
+	bouncerWindow := time.Duration(cfg.GetInt("agent_telemetry.errortracking.bouncer_window_seconds")) * time.Second
+	bouncer := errortrackingpkg.NewBouncer(bouncerWindow, 0)
+
 	lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
 			pkglogsetup.RegisterErrortrackingSubmitter(submitter)
+			pkglogsetup.RegisterErrortrackingBouncer(bouncer)
 			return nil
 		},
 	})
