@@ -60,14 +60,14 @@ func NewComponent(reqs Requires) (Provides, error) {
 	cfg := storeConfig{
 		baseDir:        reqs.Config.GetString("loopback.dir"),
 		numShards:      reqs.Config.GetInt("loopback.num_shards"),
-		windowDuration: reqs.Config.GetDuration("loopback.window_duration"),
+		rotationInterval: reqs.Config.GetDuration("loopback.rotation_interval"),
 		maxAge:         reqs.Config.GetDuration("loopback.max_age"),
 		maxDiskBytes:   reqs.Config.GetInt64("loopback.max_disk_bytes"),
 		maxBufSize:     reqs.Config.GetInt("loopback.write_buffer_size"),
 	}
 
 	reqs.Log.Infof("loopback: initializing store at %s (shards=%d, window=%s, maxAge=%s, maxDisk=%dMB)",
-		cfg.baseDir, cfg.numShards, cfg.windowDuration, cfg.maxAge, cfg.maxDiskBytes/1024/1024)
+		cfg.baseDir, cfg.numShards, cfg.rotationInterval, cfg.maxAge, cfg.maxDiskBytes/1024/1024)
 
 	if err := os.MkdirAll(cfg.baseDir, 0o755); err != nil {
 		return Provides{}, fmt.Errorf("loopback: mkdir %s: %w", cfg.baseDir, err)

@@ -22,7 +22,7 @@ func defaultTestCfg(t *testing.T) storeConfig {
 	return storeConfig{
 		baseDir:        t.TempDir(),
 		numShards:      4,
-		windowDuration: 10 * time.Second,
+		rotationInterval: 10 * time.Second,
 		maxAge:         24 * time.Hour,
 		maxDiskBytes:   100 * 1024 * 1024,
 		maxBufSize:     64 * 1024,
@@ -67,7 +67,7 @@ func TestEndToEndWriteRotateFlush(t *testing.T) {
 		comp.store.write(ck, baseNs+int64(i)*int64(time.Second), float64(i+1))
 	}
 
-	newWindow := time.Now().Unix() + int64(cfg.windowDuration.Seconds()) + 1
+	newWindow := time.Now().Unix() + int64(cfg.rotationInterval.Seconds()) + 1
 	require.NoError(t, comp.store.rotateAll(newWindow))
 
 	start := time.Now().UnixNano()
@@ -97,7 +97,7 @@ func TestFlushNilTagsMatchesAll(t *testing.T) {
 	comp.store.write(ck1, baseNs, 1.0)
 	comp.store.write(ck2, baseNs, 2.0)
 
-	require.NoError(t, comp.store.rotateAll(time.Now().Unix()+int64(cfg.windowDuration.Seconds())+1))
+	require.NoError(t, comp.store.rotateAll(time.Now().Unix()+int64(cfg.rotationInterval.Seconds())+1))
 
 	start := time.Now().UnixNano()
 	stop := baseNs + int64(time.Second)*2

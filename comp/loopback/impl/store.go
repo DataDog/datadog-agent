@@ -21,7 +21,7 @@ import (
 type storeConfig struct {
 	baseDir        string
 	numShards      int
-	windowDuration time.Duration
+	rotationInterval time.Duration
 	maxAge         time.Duration
 	maxDiskBytes   int64
 	maxBufSize     int
@@ -83,7 +83,7 @@ func (ss *shardedStore) startRotationTimer() {
 
 func (ss *shardedStore) rotationLoop() {
 	defer ss.wg.Done()
-	ticker := time.NewTicker(ss.cfg.windowDuration)
+	ticker := time.NewTicker(ss.cfg.rotationInterval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -166,7 +166,7 @@ func (ss *shardedStore) flush(
 		keySet[k] = struct{}{}
 	}
 
-	windowSec := int64(ss.cfg.windowDuration.Seconds())
+	windowSec := int64(ss.cfg.rotationInterval.Seconds())
 	var allRecs []record
 
 	for _, s := range ss.shards {
