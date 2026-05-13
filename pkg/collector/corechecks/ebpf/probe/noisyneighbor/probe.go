@@ -258,7 +258,13 @@ func (p *Probe) GetAndFlush() []model.NoisyNeighborStats {
 
 		cgroupsToDelete = append(cgroupsToDelete, cgroupID)
 
-		if stat.EventCount == 0 && stat.SumSoftirqNs == 0 && stat.BlockIORequests == 0 && stat.WakeupCount == 0 {
+		// Drop only when there is no observable activity from any source.
+		// PMU sums are included so a task that was already on-CPU at window
+		// start and gets switched out exactly once (PMU stamp delta accrued,
+		// no schedule-on event) isn't silently flushed.
+		if stat.EventCount == 0 && stat.SumSoftirqNs == 0 && stat.BlockIORequests == 0 && stat.WakeupCount == 0 &&
+			stat.SumCycles == 0 && stat.SumInstructions == 0 && stat.SumLLCMisses == 0 && stat.SumCacheReferences == 0 &&
+			stat.SumITLBMisses == 0 && stat.SumBranchMisses == 0 && stat.SumCPUMigrations == 0 {
 			continue
 		}
 
