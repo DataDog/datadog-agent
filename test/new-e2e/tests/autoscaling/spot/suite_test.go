@@ -93,6 +93,9 @@ clusterAgent:
 # node-agent DaemonSet collects cluster-agent logs via the annotation above
 agents:
   enabled: true
+  # tolerate all taints so the DaemonSet runs on all nodes
+  tolerations:
+    - operator: Exists
 # cluster check runners not needed for spot scheduling
 clusterChecksRunner:
   enabled: false
@@ -137,6 +140,7 @@ type spotSchedulingSuite struct {
 	spotNode      string
 	onDemandNode  string
 	testNamespace string // namespace for the current test, set by SetupTest
+	waitForLogs   bool   // wait for node-agent readiness before running tests to get cluster-agent logs.
 }
 
 // TestSpotSchedulingKind runs spot scheduling integration tests on a local kind cluster.
@@ -168,7 +172,7 @@ func TestSpotSchedulingKindCI(t *testing.T) {
 	if os.Getenv("E2E_PIPELINE_ID") == "" {
 		t.Skip("E2E_PIPELINE_ID not set; this test is for CI use only")
 	}
-	e2e.Run(t, new(spotSchedulingSuite), e2e.WithProvisioner(awskindvm.Provisioner(
+	e2e.Run(t, &spotSchedulingSuite{waitForLogs: true}, e2e.WithProvisioner(awskindvm.Provisioner(
 		awskindvm.WithRunOptions(
 			kindvmscen.WithName(kindClusterName),
 			kindvmscen.WithKindWorkerNodes(workerNodes...),
@@ -188,6 +192,9 @@ func (s *spotSchedulingSuite) SetupSuite() {
 	s.kubeClient = s.Env().KubernetesCluster.Client()
 	s.identifyNodes()
 	s.waitForWebhook()
+	if s.waitForLogs {
+		s.waitForNodeAgent()
+	}
 }
 
 func (s *spotSchedulingSuite) SetupTest() {
@@ -284,6 +291,34 @@ func (s *spotSchedulingSuite) waitForWebhook() {
 		}
 		return false
 	}, 5*time.Minute, 5*time.Second, "spot scheduling webhook not registered; is the cluster-agent running?")
+}
+
+// waitForNodeAgent waits until all node-agent DaemonSet pods are Running and Ready.
+func (s *spotSchedulingSuite) waitForNodeAgent() {
+	s.T().Helper()
+
+	nodeAgentApp := s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]
+	s.Require().NotEmpty(nodeAgentApp, "LinuxNodeAgent label selector not set")
+
+	s.Require().Eventually(func() bool {
+		pods, err := s.kubeClient.CoreV1().Pods(s.Env().Agent.LinuxNodeAgent.Namespace).List(s.T().Context(), metav1.ListOptions{
+			LabelSelector: "app=" + nodeAgentApp,
+		})
+		if err != nil || len(pods.Items) == 0 {
+			return false
+		}
+		for _, pod := range pods.Items {
+			if pod.Status.Phase != corev1.PodRunning {
+				return false
+			}
+			for _, cs := range pod.Status.ContainerStatuses {
+				if !cs.Ready {
+					return false
+				}
+			}
+		}
+		return true
+	}, 5*time.Minute, 5*time.Second, "node-agent pods not ready; cluster-agent logs won't be collected")
 }
 
 func (s *spotSchedulingSuite) createTestNamespace() {
