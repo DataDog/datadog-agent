@@ -80,6 +80,82 @@ require_dda() {
         || fail "$(dda_bin) not found in PATH (see docs/public/how-to/test/e2e.md)"
 }
 
+# AWS resource overrides for the `agent-integrations-dev` account.
+#
+# These IDs were discovered with `aws ec2 describe-*` against account
+# 030537971304 on 2026-05-13 (account-admin role). They are intentionally
+# hard-coded here rather than a real first-class `agentIntegrationsDev`
+# entry in test/e2e-framework/resources/aws/environmentDefaults.go — that
+# upstream change is option B in the design discussion; this is option A.
+#
+# Network layout:
+#   VPC 'agent-integrations-dev' (10.11.208.112/28 + secondary /22)
+#     ├─ public  10.11.220.x/26  → IGW (MapPublicIpOnLaunch=False)
+#     ├─ private 10.11.221-223.x/24 → NAT for egress, TGW for VPN inbound
+#     └─ transit 10.11.208.x/28  → Appgate VPN
+# We place the EC2 in a private subnet so:
+#   * inbound SSH works over Datadog VPN (TGW route 10.0.0.0/8)
+#   * outbound (pulumi up plumbing, docker pulls, agent → intake) goes
+#     through the NAT gateway.
+#
+# The 'common' SG (sg-03d583f7425a802f7) allows:
+#   * all traffic from CIDRs 10.11.{192,193,194}.0/24 (corp VPN networks)
+#   * all traffic from itself (intra-VPC)
+#   * unrestricted egress
+INTEGRATIONS_DEV_VPC=vpc-07e6913338cbe8fea
+INTEGRATIONS_DEV_SUBNETS_JSON='[{"id":"subnet-0acb59fda8504f5bb","macos_compatible":false},{"id":"subnet-0d7bb3d71e68abcc2","macos_compatible":false},{"id":"subnet-0658d161c778e6168","macos_compatible":false}]'
+INTEGRATIONS_DEV_SGS_JSON='["sg-03d583f7425a802f7"]'
+INTEGRATIONS_DEV_AWS_PROFILE=exec-sso-agent-integrations-dev-account-admin
+
+# State produced by ./scripts/bootstrap-integrations-dev.sh.
+INTEGRATIONS_DEV_KEY_NAME="e2e-agent-integrations-dev-${USER}"
+INTEGRATIONS_DEV_KEY_PRIVATE="${HOME}/.ssh/id_rsa_e2e_agent_integrations_dev_${USER}.pem"
+INTEGRATIONS_DEV_KEY_PUBLIC="${INTEGRATIONS_DEV_KEY_PRIVATE%.pem}.pub"
+INTEGRATIONS_DEV_PASSPHRASE_FILE="${HOME}/.config/dd-agent-milvus-lab/pulumi.passphrase"
+
+# Make the test runner target agent-integrations-dev. Sources its keypair +
+# pulumi passphrase from the bootstrap state and pushes Pulumi config
+# overrides via E2E_STACK_PARAMS. No framework/dda patch required.
+ensure_aws_setup_integrations_dev() {
+    for f in "${INTEGRATIONS_DEV_KEY_PRIVATE}" "${INTEGRATIONS_DEV_KEY_PUBLIC}" "${INTEGRATIONS_DEV_PASSPHRASE_FILE}"; do
+        [[ -f "${f}" ]] || fail "missing ${f} — run ./scripts/bootstrap-integrations-dev.sh first"
+    done
+
+    export E2E_KEY_PAIR_NAME="${INTEGRATIONS_DEV_KEY_NAME}"
+    export E2E_AWS_PRIVATE_KEY_PATH="${INTEGRATIONS_DEV_KEY_PRIVATE}"
+    export E2E_AWS_PUBLIC_KEY_PATH="${INTEGRATIONS_DEV_KEY_PUBLIC}"
+    export E2E_PULUMI_PASSWORD="$(<"${INTEGRATIONS_DEV_PASSPHRASE_FILE}")"
+
+    # E2E_STACK_PARAMS is forwarded verbatim to `pulumi config set` by
+    # tasks/new_e2e_tests.py, overriding the agentSandboxDefault() values
+    # baked into environmentDefaults.go.  Values that are themselves JSON
+    # (subnets, security groups) must be embedded as JSON strings, so we
+    # let python do the encoding to avoid quoting headaches.
+    E2E_STACK_PARAMS=$(
+        AWS_PROFILE="${INTEGRATIONS_DEV_AWS_PROFILE}" \
+        VPC_ID="${INTEGRATIONS_DEV_VPC}" \
+        SUBNETS_JSON="${INTEGRATIONS_DEV_SUBNETS_JSON}" \
+        SGS_JSON="${INTEGRATIONS_DEV_SGS_JSON}" \
+        python3 - <<'PY'
+import json, os
+print(json.dumps({
+    "aws/profile":                        os.environ["AWS_PROFILE"],
+    "aws/defaultVPCID":                   os.environ["VPC_ID"],
+    "aws/defaultSubnets":                 os.environ["SUBNETS_JSON"],
+    "aws/defaultSecurityGroups":          os.environ["SGS_JSON"],
+    # No 'ec2InstanceRole' instance profile exists in this account.
+    "aws/defaultInstanceProfile":         "",
+    # No internal ECR mirror in this account; compose images pull from
+    # public quay.io / docker.io.
+    "aws/defaultInternalRegistry":        "",
+    "aws/defaultInternalDockerhubMirror": "",
+}))
+PY
+    )
+    export E2E_STACK_PARAMS
+    log "agent-integrations-dev overrides ready (profile=${INTEGRATIONS_DEV_AWS_PROFILE})"
+}
+
 # Retrieve a single Pulumi stack output value (e.g. host address). Returns
 # empty string if the stack doesn't exist yet.
 stack_output() {

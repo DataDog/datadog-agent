@@ -13,6 +13,8 @@
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/_lib.sh"
 ensure_dd_auth   # not strictly required, but keeps env consistent
+ensure_aws_setup_integrations_dev
+export PULUMI_CONFIG_PASSPHRASE="${E2E_PULUMI_PASSWORD}"
 
 # --- 1. stack exists -------------------------------------------------------
 

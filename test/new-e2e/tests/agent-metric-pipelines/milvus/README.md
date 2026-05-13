@@ -63,11 +63,53 @@ The `scripts/` directory wraps the framework runner with sensible defaults
 and uses `dd-auth` to populate the API key. From the milvus directory:
 
 ```bash
-./scripts/up.sh        # provision the stack (keeps it alive)
-./scripts/check.sh     # smoke-test the deployment (containers + agent + traffic)
-./scripts/test.sh      # up.sh -> wait -> check.sh   (use --teardown to also destroy)
-./scripts/down.sh      # destroy the stack
+./scripts/bootstrap-integrations-dev.sh   # one-time: keypair + pulumi passphrase
+./scripts/up.sh                            # provision the stack (keeps it alive)
+./scripts/check.sh                         # smoke-test (containers + agent + traffic)
+./scripts/test.sh                          # up.sh -> wait -> check.sh   (--teardown to destroy)
+./scripts/down.sh                          # destroy the stack
 ```
+
+### Targeting `agent-integrations-dev` (Option A, no framework patch)
+
+The scenario targets the **agent-integrations-dev** AWS account
+(`030537971304`) by pushing Pulumi config overrides through
+`E2E_STACK_PARAMS` instead of relying on the framework's hard-coded
+`agent-sandbox` defaults in
+`test/e2e-framework/resources/aws/environmentDefaults.go`. `_lib.sh` ships
+with the relevant resource IDs baked in (discovered via `aws ec2 describe-*`
+on 2026-05-13):
+
+| Pulumi key | Value |
+|---|---|
+| `aws/profile` | `exec-sso-agent-integrations-dev-account-admin` |
+| `aws/defaultVPCID` | `vpc-07e6913338cbe8fea` (“agent-integrations-dev”) |
+| `aws/defaultSubnets` | the three private subnets (`10.11.22{1,2,3}.0/24`) |
+| `aws/defaultSecurityGroups` | `["sg-03d583f7425a802f7"]` (“common”) |
+| `aws/defaultInstanceProfile` | _empty_ (no `ec2InstanceRole` exists here) |
+| `aws/defaultInternal{Registry,DockerhubMirror}` | _empty_ (compose pulls public images) |
+
+The EC2 lands in a private subnet — outbound goes through the NAT gateway,
+and inbound SSH works over the Datadog VPN through the VPC’s Transit
+Gateway routes (10.0.0.0/8). You must be on the corporate VPN for
+`check.sh`/`ssh` to reach the VM.
+
+### One-time bootstrap
+
+```bash
+aws-vault login sso-agent-integrations-dev-account-admin
+./scripts/bootstrap-integrations-dev.sh
+```
+
+The bootstrap script is idempotent. It creates (or imports) an EC2 keypair
+named `e2e-agent-integrations-dev-$USER`, stores it under `~/.ssh/`, and
+generates a Pulumi passphrase under `~/.config/dd-agent-milvus-lab/`. The
+remaining `up.sh` / `check.sh` / `down.sh` calls read those artifacts.
+
+> Note: `dda inv e2e.setup` is **not** run for this flow. That task is
+> hard-coded for `agent-sandbox` (see `tasks/e2e_framework/setup/aws.py`,
+> `AVAILABLE_AWS_ACCOUNTS`). The bootstrap script replaces it for our
+> account.
 
 Each script sources `scripts/_lib.sh`, which runs `dd-auth --output`,
 exports `DD_API_KEY` / `DD_APP_KEY` / `DD_SITE`, and re-publishes them under

@@ -5,10 +5,14 @@
 
 source "$(dirname -- "${BASH_SOURCE[0]}")/_lib.sh"
 ensure_dd_auth   # pulumi destroy still hits AWS; keep credentials wired up
+ensure_aws_setup_integrations_dev
 
 log "destroying stack=${STACK_NAME}"
 
 cd "${REPO_ROOT}/test/new-e2e"
+
+# Pulumi reads the passphrase from this env var; it was set above.
+export PULUMI_CONFIG_PASSPHRASE="${E2E_PULUMI_PASSWORD}"
 
 # Use pulumi directly so this works even if the test binary isn't around.
 # `--yes` skips the confirmation prompt; `--non-interactive` is safe to use

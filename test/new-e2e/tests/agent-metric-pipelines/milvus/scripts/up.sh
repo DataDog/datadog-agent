@@ -11,6 +11,7 @@
 source "$(dirname -- "${BASH_SOURCE[0]}")/_lib.sh"
 require_dda
 ensure_dd_auth
+ensure_aws_setup_integrations_dev
 
 log "deploying stack=${STACK_NAME} test_id=${TEST_ID}"
 
