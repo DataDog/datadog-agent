@@ -556,6 +556,51 @@ func TestGoStackTrace_NewStartMarkerResolvesOld(t *testing.T) {
 	assertAbandoned(t, out, 1)
 }
 
+func TestGoStackTrace_AdjacentPanicsProduceSeparateMessages(t *testing.T) {
+	agg := NewStackTraceAggregator(NewGoStackTraceParser(), testMaxContentSize)
+
+	// Two complete panics back-to-back with no intervening normal lines.
+	// The second "panic:" must NOT be absorbed as a function name.
+	input := "panic: first\n" +
+		"\n" +
+		"goroutine 1 [running]:\n" +
+		"main.foo()\n" +
+		"\t/src/main.go:42 +0x20\n" +
+		"created by main.init\n" +
+		"\t/src/main.go:10 +0x30\n" +
+		"panic: second\n" +
+		"\n" +
+		"goroutine 2 [running]:\n" +
+		"main.bar()\n" +
+		"\t/src/main.go:99 +0x40\n" +
+		"done"
+
+	msgs := feedLines(agg, input)
+	msgs = append(msgs, agg.Flush()...)
+
+	// Expect: combined(first) + combined(second) + standalone("done")
+	var combined, standalone int
+	for _, m := range msgs {
+		if m.ParsingExtra.IsMultiLine {
+			combined++
+		} else {
+			standalone++
+		}
+	}
+	assert.Equal(t, 2, combined, "each panic should produce its own combined message")
+	assert.Equal(t, 1, standalone, "trailing 'done' line should be standalone")
+
+	// Verify first combined starts with "panic: first"
+	assert.True(t, msgs[0].ParsingExtra.IsMultiLine)
+	assert.Contains(t, string(msgs[0].GetContent()), "panic: first")
+	assert.NotContains(t, string(msgs[0].GetContent()), "panic: second")
+
+	// Verify second combined starts with "panic: second"
+	assert.True(t, msgs[1].ParsingExtra.IsMultiLine)
+	assert.Contains(t, string(msgs[1].GetContent()), "panic: second")
+	assert.NotContains(t, string(msgs[1].GetContent()), "panic: first")
+}
+
 // ---------------------------------------------------------------------------
 // Noop variant tests
 // ---------------------------------------------------------------------------

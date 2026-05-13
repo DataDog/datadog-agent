@@ -79,6 +79,12 @@ func (g *GoStackTraceParser) AcceptLine(line []byte) bool {
 		}
 	}
 
+	// Once past the header, a new start marker always signals a separate
+	// trace — never a continuation of the current goroutine stack.
+	if g.st != goStateInHeader && g.IsStart(line) {
+		return false
+	}
+
 	switch g.st {
 	case goStateInHeader:
 		if goValidHeaderContinuation(line) {
