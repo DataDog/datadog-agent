@@ -2601,8 +2601,8 @@ github.com/DataDog/rshell v0.0.14 h1:1BJxm8FQ0uZ6amxItyKmlG4e2y2CPTNvjxtY/Nx1Pg0
 github.com/DataDog/rshell v0.0.14/go.mod h1:r2pK0NQpE1SL+ESYjlfhigWDEELPY5LacwLbisR9nxI=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
 github.com/DataDog/sketches-go v1.4.8/go.mod h1:a/wjRUqzqtGS8qRHRPDCs4EAQfmvPDZGDlMIF5mxXOE=
-github.com/DataDog/trivy v0.0.0-20260407220859-6cf8ddc1826c h1:oiwmRrkRVblZBI3SFVEnrwxkQ28W7nmwwI/VHgex0ZU=
-github.com/DataDog/trivy v0.0.0-20260407220859-6cf8ddc1826c/go.mod h1:Kb3o3UpLuPGtY1IDeNSi5Br2npMaFkqrYkvzk/7tLFE=
+github.com/DataDog/trivy v0.0.0-20260513170708-3c7f1f6b38e8 h1:SGspm+q7GP1LWZvvhx2NbkRjYWRowvTXvI/QXAbkrrg=
+github.com/DataDog/trivy v0.0.0-20260513170708-3c7f1f6b38e8/go.mod h1:Kb3o3UpLuPGtY1IDeNSi5Br2npMaFkqrYkvzk/7tLFE=
 github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101 h1:aatle7zFb175XJ6iJvyr9a7Ipr1Dvpw4oy4MqL9v4GA=
 github.com/DataDog/vault/api/auth/aws v0.0.0-20250716193101-44fb30472101/go.mod h1:GRki58GuFuDh0GFVg280DZt3oCYxZG02ldDPtQ5FBoo=
 github.com/DataDog/viper v1.15.1 h1:kcdFE+qPndlWkhU4iEf/WpWQMCyVYHTv5HqvVf+SYJs=

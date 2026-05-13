@@ -119,7 +119,7 @@ func (l *logObs) GetStatus() string {
 	return l.status
 }
 
-func (l *logObs) GetTags() []string {
+func (l *logObs) Tags() []string {
 	return l.tags
 }
 
@@ -707,7 +707,7 @@ func (o *observerImpl) IngestLogSync(source string, msg observerdef.LogView) {
 	lo := &logObs{
 		content:     copyBytes(msg.GetContent()),
 		status:      msg.GetStatus(),
-		tags:        copyTags(msg.GetTags()),
+		tags:        copyTags(msg.Tags()),
 		hostname:    msg.GetHostname(),
 		timestampMs: timestampMs,
 	}
@@ -812,7 +812,7 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 		log: &logObs{
 			content:     copyBytes(msg.GetContent()),
 			status:      msg.GetStatus(),
-			tags:        copyTags(msg.GetTags()),
+			tags:        copyTags(msg.Tags()),
 			hostname:    msg.GetHostname(),
 			timestampMs: timestampMs,
 		},
@@ -836,7 +836,7 @@ type logView struct {
 
 func (v *logView) GetContent() []byte           { return v.obs.content }
 func (v *logView) GetStatus() string            { return v.obs.status }
-func (v *logView) GetTags() []string            { return v.obs.tags }
+func (v *logView) Tags() []string               { return v.obs.tags }
 func (v *logView) GetHostname() string          { return v.obs.hostname }
 func (v *logView) GetTimestampUnixMilli() int64 { return v.obs.timestampMs }
 

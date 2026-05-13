@@ -457,6 +457,7 @@ exports_files(glob(
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/arrays.go
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/basics.go
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/complex.go
+# gazelle:exclude pkg/dyninst/testprogs/progs/sample/context.go
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/continuation.go
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/continuation_strings.go
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/esoteric.go

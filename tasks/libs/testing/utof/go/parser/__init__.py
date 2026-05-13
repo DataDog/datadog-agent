@@ -1,7 +1,7 @@
 """Shared Go test2json output parsing — used by all Go-based UTOF converters."""
 
-from tasks.libs.testing.utof.go_parser.failure_parser import FailureExtractor
-from tasks.libs.testing.utof.go_parser.run_parser import (
+from tasks.libs.testing.utof.go.parser.failure_parser import FailureExtractor
+from tasks.libs.testing.utof.go.parser.run_parser import (
     build_attempts,
     build_summary,
     build_test_tree,
