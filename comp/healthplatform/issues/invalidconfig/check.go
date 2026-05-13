@@ -62,7 +62,8 @@ func (c *checker) validate() *healthplatform.IssueReport {
 		Errors:     strings.Join(errs, "\n"),
 		ErrorCount: len(errs),
 	}
-	tags := info.Tags()
+	// Context-specific tags only; kind-based tags come from the lite template.
+	var tags []string
 	if env := c.cfg.GetString("env"); env != "" {
 		tags = append(tags, "env:"+env)
 	}

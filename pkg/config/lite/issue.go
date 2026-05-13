@@ -51,7 +51,8 @@ type IssueInfo struct {
 	ErrorCount   int    // schema_validation: total violation count
 }
 
-// BuildInvalidConfigIssue produces the healthplatform.Issue for an invalid datadog.yaml
+// BuildInvalidConfigIssue produces the healthplatform.Issue for an invalid datadog.yaml.
+// Sets kind-based tags; producers add context-specific ones (env, host) on top.
 func BuildInvalidConfigIssue(info IssueInfo) *healthplatform.Issue {
 	var issue *healthplatform.Issue
 	switch info.Kind {
