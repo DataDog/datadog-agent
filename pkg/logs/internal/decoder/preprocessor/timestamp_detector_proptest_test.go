@@ -267,25 +267,50 @@ func TestTimestampDetector_TerminationSemantics_Property(t *testing.T) {
 //	    @guarantee LabelDomain — claim emits start_group
 //
 // Directed property test: for every format in the static
-// knownTimestampFormats corpus that backs the token-shape model,
-// the detector — with the default match_threshold — claims and
-// emits start_group. This is the inverse of LabelDomain_Property:
-// instead of "if claimed, label is start_group", we verify "for
-// known-good inputs, the detector DOES claim and the claim is
-// start_group." Catches detector misconfiguration (threshold
-// raised too high, corpus drift, tokenizer mismatch) that would
-// silently degrade accuracy.
+// knownTimestampFormats corpus that tokenizes to at least
+// minimumTokenLength tokens, the detector — with the default
+// match_threshold — claims and emits start_group. This is the
+// inverse of LabelDomain_Property: instead of "if claimed, label
+// is start_group", we verify "for known-good inputs, the detector
+// DOES claim and the claim is start_group." Catches detector
+// misconfiguration (threshold raised too high, corpus drift,
+// tokenizer mismatch) that would silently degrade accuracy.
 //
-// The corpus is rapid-sampled, which prints the failing input on
-// shrink — useful when adding new formats to identify which
-// addition breaks the calibration.
+// The minimumTokenLength filter is load-bearing: the corpus is
+// used to *build* the TokenGraph, not as a self-match dataset.
+// Some short formats (e.g. "11:42:35.173") deliberately
+// contribute tokens to the graph without themselves clearing the
+// minimum-length gate. Excluding those from the directed test
+// reflects the design: the property is "long enough formats
+// match", not "every entry in the corpus matches."
+//
+// The filtered corpus is rapid-sampled, which prints the failing
+// input on shrink — useful when adding new formats to identify
+// which addition breaks the calibration.
 func TestTimestampDetector_KnownFormatsClaim_Property(t *testing.T) {
 	mockConfig := configmock.New(t)
 	tok := NewTokenizer(mockConfig.GetInt("logs_config.auto_multi_line.tokenizer_max_input_bytes"))
 	detector := NewTimestampDetector(mockConfig.GetFloat64("logs_config.auto_multi_line.timestamp_detector_match_threshold"))
 
+	// Pre-filter to formats whose tokenization clears the
+	// minimum-length gate. Formats below the gate produce
+	// probability 0 from MatchProbability by construction —
+	// excluding them isolates the actual matching-accuracy
+	// property from the engine's well-defined "too short to
+	// evaluate" lower bound.
+	var matchableFormats []string
+	for _, format := range knownTimestampFormats {
+		tokens, _ := tok.Tokenize([]byte(format))
+		if len(tokens) >= minimumTokenLength {
+			matchableFormats = append(matchableFormats, format)
+		}
+	}
+	if len(matchableFormats) == 0 {
+		t.Fatal("no formats in knownTimestampFormats tokenize to at least minimumTokenLength — calibration is wholly broken")
+	}
+
 	rapid.Check(t, func(t *rapid.T) {
-		format := rapid.SampledFrom(knownTimestampFormats).Draw(t, "format")
+		format := rapid.SampledFrom(matchableFormats).Draw(t, "format")
 		content := []byte(format)
 		tokens, indices := tok.Tokenize(content)
 		ctx := &messageContext{
@@ -297,7 +322,8 @@ func TestTimestampDetector_KnownFormatsClaim_Property(t *testing.T) {
 		}
 		detector.ProcessAndContinue(ctx)
 		if ctx.label != startGroup {
-			t.Fatalf("known timestamp format %q failed to claim: label is %v (expected start_group)", format, ctx.label)
+			t.Fatalf("known timestamp format %q (tokens=%d, >= minimumTokenLength=%d) failed to claim: label is %v (expected start_group)",
+				format, len(tokens), minimumTokenLength, ctx.label)
 		}
 	})
 }
