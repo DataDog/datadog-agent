@@ -321,6 +321,7 @@ exports_files(glob(
 # gazelle:exclude pkg/clusteragent/metricsstore
 # gazelle:exclude pkg/clusteragent/orchestrator
 # gazelle:exclude pkg/collector/aggregator
+# gazelle:exclude pkg/collector/ccmtags
 # gazelle:exclude pkg/collector/corechecks/agentprofiling
 # gazelle:exclude pkg/collector/corechecks/cloud
 # gazelle:exclude pkg/collector/corechecks/cluster
