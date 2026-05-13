@@ -427,3 +427,10 @@ func (cfs *CGroupFS) detectCurrentCgroupPath(currentPid, currentNSPid uint32) {
 func (cfs *CGroupFS) GetRootCGroupPath() string {
 	return cfs.rootCGroupPath
 }
+
+// IsPureCGroupV2Available returns whether the host is running on a pure
+// (non-hybrid) cgroup v2 hierarchy.
+func IsPureCGroupV2Available() bool {
+	_, err := os.Stat(kernel.HostSys("/fs/cgroup/cgroup.controllers"))
+	return err == nil
+}

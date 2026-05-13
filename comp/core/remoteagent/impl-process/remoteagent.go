@@ -61,6 +61,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 	// Add your gRPC services implementations here:
 	pbcore.RegisterTelemetryProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
 
+	remoteAgentServer.Start()
+
 	provides := Provides{
 		Comp: remoteagentImpl,
 	}
