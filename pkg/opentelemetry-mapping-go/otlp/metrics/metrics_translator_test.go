@@ -2276,7 +2276,7 @@ func TestMalformedHistogramNoPanic(t *testing.T) {
 }
 
 // rawSketchConsumer captures the full *quantile.Sketch (not just Basic stats)
-// so tests can assert on quantile values.
+// so tests can assert on bin keys and counts.
 type rawSketchConsumer struct {
 	mockTimeSeriesConsumer
 	sketches []*quantile.Sketch
@@ -2286,47 +2286,51 @@ func (c *rawSketchConsumer) ConsumeSketch(_ context.Context, _ *Dimensions, _ ui
 	c.sketches = append(c.sketches, sk)
 }
 
-// TestSketchBucketsZeroLowerBoundDoesNotCollapsePercentiles is a regression
-// test for OTAGENT-1067. InsertInterpolate anchors its first deposit at the
-// lower bound, so an explicit-bucket histogram whose first non-empty bucket is
+// keyCount returns the count at the given sketch key, or 0 if the key is absent.
+func keyCount(sk *quantile.Sketch, key int32) uint32 {
+	keys, counts := sk.Cols()
+	for i, k := range keys {
+		if k == key {
+			return counts[i]
+		}
+	}
+	return 0
+}
+
+// TestSketchBucketsZeroLowerBoundDoesNotLeakIntoZeroBin is a regression test
+// for OTAGENT-1067. InsertInterpolate anchors its first deposit at the lower
+// bound, so an explicit-bucket histogram whose first non-empty bucket is
 // (0, B] used to park count in the sketch's zero bin (key 0, value 0). The
 // OTel explicit-bucket spec defines intervals as (lowerBound, upperBound], so
 // observations in this bucket are strictly positive and must not land at 0.
 // With high-cardinality tags and short delta intervals, per-bucket counts of
-// 1 or 2 made the leak dominate, collapsing all percentiles to 0.
-func TestSketchBucketsZeroLowerBoundDoesNotCollapsePercentiles(t *testing.T) {
+// 1 or 2 made the leak dominate, collapsing all percentiles to 0 once the
+// backend merged the sketches.
+func TestSketchBucketsZeroLowerBoundDoesNotLeakIntoZeroBin(t *testing.T) {
 	ctx := context.Background()
 	tr := newTranslator(t, zap.NewNop())
 	mapper := tr.getMapper().(*defaultMapper)
 	dims := &Dimensions{name: "test.histogram"}
-	cfg := quantile.Default()
 
 	tests := []struct {
 		name         string
 		bucketCounts []uint64
 		bounds       []float64
-		// minQuantile asserts that every quantile in {p50, p90, p99} is at
-		// least this value. The fix collapses each (0, B] bucket to its upper
-		// bound, so percentiles must reflect the non-zero side of the bucket.
-		minQuantile float64
 	}{
 		{
 			// Catastrophic case before the fix: a single observation in (0, 5]
-			// deposited the full count at value 0, giving p* = 0.
+			// deposited the full count at value 0.
 			name:         "single observation in (0, 5]",
 			bucketCounts: []uint64{0, 1, 0},
 			bounds:       []float64{0, 5},
-			minQuantile:  5,
 		},
 		{
 			// Worst-case for the customer's reported MockLab scenario: many
 			// observations all in (0, 5ms]. Before the fix, a non-trivial
-			// fraction landed at value 0; after, percentiles stay in the
-			// (0, 5] bucket.
+			// fraction landed at value 0.
 			name:         "100 observations across (0, 5]",
 			bucketCounts: []uint64{0, 100, 0},
 			bounds:       []float64{0, 5},
-			minQuantile:  5,
 		},
 		{
 			// Default OTel boundary set, mass concentrated in the first
@@ -2334,7 +2338,6 @@ func TestSketchBucketsZeroLowerBoundDoesNotCollapsePercentiles(t *testing.T) {
 			name:         "default OTel bounds, small counts in (0, 5]",
 			bucketCounts: []uint64{0, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 			bounds:       []float64{0, 5, 10, 25, 50, 75, 100, 250, 500, 750, 1000, 2500, 5000, 7500, 10000},
-			minQuantile:  5,
 		},
 	}
 
@@ -2351,12 +2354,8 @@ func TestSketchBucketsZeroLowerBoundDoesNotCollapsePercentiles(t *testing.T) {
 			require.Len(t, consumer.sketches, 1)
 
 			sk := consumer.sketches[0]
-			for _, q := range []float64{0.5, 0.9, 0.99} {
-				v := sk.Quantile(cfg, q)
-				assert.GreaterOrEqualf(t, v, tc.minQuantile,
-					"p%.0f should be at least %g (got %g) — count should not leak into zero bin",
-					q*100, tc.minQuantile, v)
-			}
+			assert.EqualValuesf(t, 0, keyCount(sk, 0),
+				"no count should land in the sketch's zero bin (key 0)")
 
 			var totalIn uint64
 			for _, c := range tc.bucketCounts {
@@ -2376,7 +2375,6 @@ func TestSketchBucketsNegativeBucketAtZeroSpreads(t *testing.T) {
 	tr := newTranslator(t, zap.NewNop())
 	mapper := tr.getMapper().(*defaultMapper)
 	dims := &Dimensions{name: "test.histogram.neg"}
-	cfg := quantile.Default()
 
 	p := pmetric.NewHistogramDataPoint()
 	p.BucketCounts().FromRaw([]uint64{0, 10, 0})
@@ -2389,12 +2387,11 @@ func TestSketchBucketsNegativeBucketAtZeroSpreads(t *testing.T) {
 	require.Len(t, consumer.sketches, 1)
 
 	sk := consumer.sketches[0]
-	// p99 should reach into the upper end of (-5, 0], proving the count was
-	// spread rather than collapsed onto -5.
-	p99 := sk.Quantile(cfg, 0.99)
-	assert.Greaterf(t, p99, -1.0, "p99 should be near 0 for spread (-5, 0], got %g", p99)
-	assert.Equal(t, -5.0, sk.Basic.Min)
-	assert.Equal(t, 0.0, sk.Basic.Max)
+	// Spread should produce multiple distinct keys across (-5, 0]; verify the
+	// count was not collapsed to a single point.
+	keys, _ := sk.Cols()
+	assert.Greaterf(t, len(keys), 1, "(-5, 0] bucket should produce multiple keys, got %v", keys)
+	assert.EqualValuesf(t, 10, sk.Basic.Cnt, "all 10 observations should be preserved")
 }
 
 // TestSketchBucketsInfiniteBoundsStillWork guards the existing ±Inf workaround

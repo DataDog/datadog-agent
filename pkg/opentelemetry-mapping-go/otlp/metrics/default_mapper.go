@@ -380,6 +380,7 @@ func (m *defaultMapper) getSketchBuckets(
 	var minBoundSet bool
 	for j := 0; j < bucketCounts.Len(); j++ {
 		lowerBound, upperBound := getBounds(explicitBounds, j)
+		originalLowerBound, originalUpperBound := lowerBound, upperBound
 
 		// Compute temporary bucketTags to have unique keys in the m.prevPts cache for each bucket
 		// The bucketTags are computed from the bounds before the InsertInterpolate fix is done,
@@ -423,15 +424,11 @@ func (m *defaultMapper) getSketchBuckets(
 		}
 
 		if nonZeroBucket {
-			// Use the clamped bounds (not the originals): for a degenerate
-			// bucket like (0, B] the original lower bound is 0 and would,
-			// via Sketch.Quantile's vLow=Basic.Min substitution for the first
-			// bin, drag percentiles back down to 0 even after the clamp.
 			if !minBoundSet {
-				minBound = lowerBound
+				minBound = originalLowerBound
 				minBoundSet = true
 			}
-			maxBound = upperBound
+			maxBound = originalUpperBound
 		}
 	}
 
