@@ -274,6 +274,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	}
 
 	c.version = wheelVersion
+	c.trialMode = config.TrialMode
 	C.rtloader_decref(rtloader, checkClass)
 	C.rtloader_decref(rtloader, checkModule)
 
