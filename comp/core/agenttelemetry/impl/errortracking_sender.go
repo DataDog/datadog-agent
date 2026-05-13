@@ -90,14 +90,20 @@ func errorLogToLog(e errortracking.ErrorLog) Log {
 
 // slogLevelToLogLevel maps the slog level on an ErrorLog to the
 // UPPERCASE wire LogLevel constant accepted by dd-go's logs intake.
-// The pkg/util/log/errortracking handler filters Level < Error before
-// dispatch, so only LevelError ever reaches this function in practice.
-// Lower levels are a contract violation and panic loudly so a future
-// regression is caught in tests instead of silently producing an
-// invalid wire payload.
-func slogLevelToLogLevel(l slog.Level) LogLevel {
-	if l < slog.LevelError {
-		panic(fmt.Sprintf("slogLevelToLogLevel: handler must filter Level < Error; got %v", l))
-	}
+//
+// The wire schema in this PR only emits LogLevelError — non-error
+// levels are filtered at handler.Enabled (pkg/util/log/errortracking)
+// and not part of the flush-path contract. The function is therefore
+// total: any input maps to LogLevelError. This intentionally reverses
+// the prior-round F5 design (which panicked on sub-Error inputs):
+// the panic ran on a background flush goroutine and would crash the
+// agent on any direct SubmitErrorRecord caller that bypassed the
+// handler filter. Addresses louis-cqrl's 🟠 thread on PR #50607 and
+// pducolin's overlapping suggestion.
+//
+// When we later widen the wire schema to non-error levels, this
+// function gains a real mapping (and a real error contract) — for
+// now, totality is the right contract.
+func slogLevelToLogLevel(_ slog.Level) LogLevel {
 	return LogLevelError
 }
