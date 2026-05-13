@@ -229,8 +229,8 @@ func (e *engine) registerHandle(h *handle) {
 //   - "logs"                 (comp/observer/logssource/impl/component.go)
 //   - "agent-internal-logs"  (comp/observer/impl/observer.go)
 //   - "profile-agent"        (comp/observer/impl/observer.go)
-//   - hfrunner.HFSource      (comp/observer/impl/observer.go)
-//   - hfrunner.HFContainerSource (comp/observer/impl/observer.go)
+//   - hfrunnerdef.HFSource          (comp/anomalydetection/hfrunner/def/component.go)
+//   - hfrunnerdef.HFContainerSource (comp/anomalydetection/hfrunner/def/component.go)
 //
 // If a future caller ever passes a user-controlled or per-container source
 // string, the COW map becomes unbounded and this memoisation strategy is
