@@ -801,7 +801,10 @@ func (ac *AutoConfig) RecordTrialResult(id checkid.ID, ok bool) {
 }
 
 // unscheduleCheckByID finds the scheduled config corresponding to id and
-// unschedules it via the normal ConfigChanges path.
+// signals the scheduler to stop it. The config remains in cfgMgr.scheduledConfigs
+// and in cfgMgr.serviceResolutions; it will be cleaned up if and when the
+// originating service is deleted (via processDelService). A future improvement
+// could remove the resolution eagerly so re-reconciliation retries discovery.
 func (ac *AutoConfig) unscheduleCheckByID(id checkid.ID) {
 	cfg, ok := ac.cfgMgr.findConfigByCheckID(id)
 	if !ok {

@@ -456,7 +456,10 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 			Ports []portPayload `yaml:"ports"`
 		}
 
-		rawPorts, _ := svc.GetPorts()
+		rawPorts, err := svc.GetPorts()
+		if err != nil {
+			log.Debugf("autodiscovery: GetPorts failed for service %s (discovery template %s): %v; proceeding with empty port list", svc.GetServiceID(), tpl.Name, err)
+		}
 		pp := make([]portPayload, 0, len(rawPorts))
 		for _, p := range rawPorts {
 			pp = append(pp, portPayload{Number: p.Port, Name: p.Name})
