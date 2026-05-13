@@ -119,7 +119,7 @@ func defaultCatalog() *componentCatalog {
 				kind:           componentExtractor,
 				defaultConfig:  DefaultConnectionErrorExtractorConfig(),
 				factory:        func(any) any { return &ConnectionErrorExtractor{} },
-				defaultEnabled: true,
+				defaultEnabled: false,
 			},
 			{
 				name:           "log_pattern_extractor",
