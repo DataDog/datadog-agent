@@ -129,6 +129,16 @@ func (s *checkSender) SetCheckCustomTags(tags []string) {
 	s.checkTags = tags
 }
 
+// AppendCheckCustomTags appends tags to the check-level custom tags without replacing existing ones.
+func (s *checkSender) AppendCheckCustomTags(tags []string) {
+	if len(tags) == 0 {
+		return
+	}
+	tagsCopy := make([]string, len(tags))
+	copy(tagsCopy, tags)
+	s.checkTags = append(s.checkTags, tagsCopy...)
+}
+
 // SetCheckService appends the service as a tag for metrics, events, and service checks
 // This may be called any number of times, though the only the last call will have an effect
 func (s *checkSender) SetCheckService(service string) {

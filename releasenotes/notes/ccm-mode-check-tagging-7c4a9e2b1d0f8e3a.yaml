@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that it
+# does not depend on any information only available in another section.
+# This may mean repeating some details, but each section must be
+# readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    When ``ccm_mode`` is set in ``datadog.yaml``, the Agent adds a ``ccm_mode:<value>`` tag to
+    metrics from selected integrations so you can identify lightweight or other CCM deployment
+    modes in Datadog. Use ``integration.ccm_<mode>.tagged`` to list which checks receive the tag;
+    when the list is empty, all checks are tagged for that mode.

@@ -131,6 +131,7 @@ func (m *MockSender) SetupAcceptAll() {
 	m.On("GetSenderStats", mock.AnythingOfType("stats.SenderStats")).Return()
 	m.On("DisableDefaultHostname", mock.AnythingOfType("bool")).Return()
 	m.On("SetCheckCustomTags", mock.AnythingOfType("[]string")).Return()
+	m.On("AppendCheckCustomTags", mock.AnythingOfType("[]string")).Return()
 	m.On("SetCheckService", mock.AnythingOfType("string")).Return()
 	m.On("FinalizeCheckServiceTag").Return()
 	m.On("SetNoIndex", mock.AnythingOfType("bool")).Return()

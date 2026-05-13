@@ -116,6 +116,14 @@ func (m *MockSender) SetCheckCustomTags(tags []string) {
 	m.Called(tags)
 }
 
+// AppendCheckCustomTags appends to stored check tags (mirrors checkSender.AppendCheckCustomTags).
+func (m *MockSender) AppendCheckCustomTags(tags []string) {
+	if len(tags) > 0 {
+		m.checkTags = append(m.checkTags, tags...)
+	}
+	m.Called(tags)
+}
+
 // SetCheckService enables the setting of check service mock call.
 func (m *MockSender) SetCheckService(service string) {
 	m.Called(service)

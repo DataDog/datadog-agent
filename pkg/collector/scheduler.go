@@ -23,6 +23,7 @@ import (
 	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/collector/ccmtags"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
@@ -84,8 +85,6 @@ func InitCheckScheduler(collector option.Option[collectorcomp.Component], sender
 // Schedule schedules configs to checks
 func (s *CheckScheduler) Schedule(configs []integration.Config) {
 	if coll, ok := s.collector.Get(); ok {
-		applyAdditionalTags(configs, setup.Datadog())
-
 		checks := s.GetChecksFromConfigs(configs, true)
 		for _, c := range checks {
 			// Check if this check is allowed in infra basic mode
@@ -211,6 +210,7 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			c, err := loader.Load(s.senderManager, config, instance, instanceIndex)
 			if err == nil {
 				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
+				ccmtags.ApplySenderTags(s.senderManager, c.ID(), config.Name, setup.Datadog())
 				checks = append(checks, c)
 				break
 			}

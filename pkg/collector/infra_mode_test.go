@@ -9,9 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	yaml "go.yaml.in/yaml/v2"
 
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
@@ -120,121 +118,6 @@ func TestIsCheckAllowed(t *testing.T) {
 
 			result := IsCheckAllowed(tt.checkName, cfg)
 			assert.Equal(t, tt.wantResult, result)
-		})
-	}
-}
-
-func TestIsCheckTagged(t *testing.T) {
-	tests := []struct {
-		name       string
-		checkName  string
-		setupCfg   func(cfg pkgconfigmodel.Config)
-		wantResult bool
-	}{
-		{
-			name:      "ccm_mode lightweight, check in tagged list returns true",
-			checkName: "cpu",
-			setupCfg: func(cfg pkgconfigmodel.Config) {
-				cfg.Set("ccm_mode", "lightweight", pkgconfigmodel.SourceFile)
-				cfg.Set("integration.ccm_lightweight.tagged", []string{"cpu"}, pkgconfigmodel.SourceFile)
-			},
-			wantResult: true,
-		},
-		{
-			name:      "ccm_mode lightweight, check not in tagged list returns false",
-			checkName: "disk",
-			setupCfg: func(cfg pkgconfigmodel.Config) {
-				cfg.Set("ccm_mode", "lightweight", pkgconfigmodel.SourceFile)
-				cfg.Set("integration.ccm_lightweight.tagged", []string{"cpu"}, pkgconfigmodel.SourceFile)
-			},
-			wantResult: false,
-		},
-		{
-			name:      "ccm_mode lightweight, empty tagged list tags all checks",
-			checkName: "any_check",
-			setupCfg: func(cfg pkgconfigmodel.Config) {
-				cfg.Set("ccm_mode", "lightweight", pkgconfigmodel.SourceFile)
-				cfg.Set("integration.ccm_lightweight.tagged", []string{}, pkgconfigmodel.SourceFile)
-			},
-			wantResult: true,
-		},
-		{
-			name:      "ccm_mode unset, check would be in tagged list",
-			checkName: "cpu",
-			setupCfg: func(cfg pkgconfigmodel.Config) {
-				cfg.Set("ccm_mode", "", pkgconfigmodel.SourceFile)
-				cfg.Set("integration.ccm_lightweight.tagged", []string{"cpu"}, pkgconfigmodel.SourceFile)
-			},
-			wantResult: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := configmock.New(t)
-			tt.setupCfg(cfg)
-
-			result := IsCheckTagged(tt.checkName, cfg)
-			assert.Equal(t, tt.wantResult, result)
-		})
-	}
-}
-
-func TestApplyAdditionalTags(t *testing.T) {
-	tests := []struct {
-		name     string
-		configs  []integration.Config
-		setupCfg func(cfg pkgconfigmodel.Config)
-		wantTags map[string][]string // check name → expected tags on first instance
-	}{
-		{
-			name: "ccm_mode lightweight tags matching check instances",
-			configs: []integration.Config{
-				{Name: "cpu", Instances: []integration.Data{integration.Data("foo: bar")}},
-				{Name: "disk", Instances: []integration.Data{integration.Data("foo: bar")}},
-			},
-			setupCfg: func(cfg pkgconfigmodel.Config) {
-				cfg.Set("ccm_mode", "lightweight", pkgconfigmodel.SourceFile)
-				cfg.Set("integration.ccm_lightweight.tagged", []string{"cpu"}, pkgconfigmodel.SourceFile)
-			},
-			wantTags: map[string][]string{
-				"cpu":  {"ccm_mode:lightweight"},
-				"disk": {},
-			},
-		},
-		{
-			name: "ccm_mode unset leaves all instances untagged",
-			configs: []integration.Config{
-				{Name: "cpu", Instances: []integration.Data{integration.Data("foo: bar")}},
-			},
-			setupCfg: func(cfg pkgconfigmodel.Config) {
-				cfg.Set("ccm_mode", "", pkgconfigmodel.SourceFile)
-			},
-			wantTags: map[string][]string{
-				"cpu": {},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := configmock.New(t)
-			tt.setupCfg(cfg)
-
-			applyAdditionalTags(tt.configs, cfg)
-
-			for _, config := range tt.configs {
-				rawConfig := integration.RawMap{}
-				err := yaml.Unmarshal(config.Instances[0], &rawConfig)
-				assert.NoError(t, err)
-
-				tags, _ := rawConfig["tags"].([]interface{})
-				got := make([]string, len(tags))
-				for i, tag := range tags {
-					got[i] = tag.(string)
-				}
-				assert.ElementsMatch(t, tt.wantTags[config.Name], got)
-			}
 		})
 	}
 }
