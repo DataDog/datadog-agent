@@ -586,10 +586,19 @@ new-e2e-amp-adp:
   extends: .new_e2e_template
   needs:
     - !reference [.needs_new_e2e_template]
-    - agent_deb-x64-a7
-    - qa_agent_linux
-    - qa_agent_linux_jmx
-    - qa_dca
+    # Upstream qa_* and agent_deb-* jobs are gated by their own rules and may
+    # not exist in every pipeline. This job is .manual-only (always created),
+    # so we mark these as optional to keep the config valid. If you trigger
+    # this job in a pipeline where upstream artifacts weren't built, it will
+    # fail at runtime — verify the upstream jobs are green before clicking.
+    - job: agent_deb-x64-a7
+      optional: true
+    - job: qa_agent_linux
+      optional: true
+    - job: qa_agent_linux_jmx
+      optional: true
+    - job: qa_dca
+      optional: true
   rules:
     - !reference [.manual]
   variables:
