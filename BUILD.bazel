@@ -347,7 +347,6 @@ exports_files(glob(
 # gazelle:exclude pkg/collector/corechecks/net
 # gazelle:exclude pkg/collector/corechecks/network-devices/cisco-sdwan/sdwan_test.go
 # gazelle:exclude pkg/collector/corechecks/network-devices/cisco-sdwan/sdwan.go
-# gazelle:exclude pkg/collector/corechecks/network-devices/cisco-sdwan/payload
 # gazelle:exclude pkg/collector/corechecks/network-devices/cisco-sdwan/report
 # gazelle:exclude pkg/collector/corechecks/network-devices/versa
 # gazelle:exclude pkg/collector/corechecks/networkconfigmanagement
@@ -362,7 +361,6 @@ exports_files(glob(
 # gazelle:exclude pkg/collector/corechecks/snmp/internal/devicecheck
 # gazelle:exclude pkg/collector/corechecks/snmp/internal/discovery
 # gazelle:exclude pkg/collector/corechecks/snmp/internal/fetch
-# gazelle:exclude pkg/collector/corechecks/snmp/internal/metadata
 # gazelle:exclude pkg/collector/corechecks/snmp/internal/profile
 # gazelle:exclude pkg/collector/corechecks/snmp/internal/report
 # gazelle:exclude pkg/collector/corechecks/snmp/internal/session
@@ -661,7 +659,6 @@ exports_files(glob(
 # gazelle:exclude pkg/util/kubernetes/hostinfo
 # gazelle:exclude pkg/util/kubernetes/kubelet
 # gazelle:exclude pkg/util/tags
-# gazelle:exclude pkg/windowsdriver/ddinjector
 # gazelle:exclude tasks/unit_tests
 # gazelle:exclude test/benchmarks
 # gazelle:exclude test/e2e-framework/common/utils
