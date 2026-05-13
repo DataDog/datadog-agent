@@ -19,7 +19,6 @@ go_library(
         "//comp/def",
         "//comp/healthplatform/forwarder/def",
         "//comp/healthplatform/issues",
-        "//comp/healthplatform/scheduler/def",
         "//comp/healthplatform/store/def",
         "//comp/healthplatform/store/noop-impl",
         "//pkg/config/env",

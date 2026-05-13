@@ -30,8 +30,7 @@ func NewModule(config.Component) issues.Module {
 	}
 }
 
-// IssueID returns the unique identifier for this issue type
-func (m *adMisconfigurationModule) IssueID() string {
+func (m *adMisconfigurationModule) IssueType() string {
 	return healthplatform.ADMisconfigurationIssueType
 }
 
@@ -40,7 +39,12 @@ func (m *adMisconfigurationModule) IssueTemplate() issues.IssueTemplate {
 	return m.template
 }
 
-// BuiltInHealthCheck returns nil - annotation errors are reported by the container config provider
-func (m *adMisconfigurationModule) BuiltInHealthCheck() *issues.BuiltInHealthCheck {
+// BuiltInPeriodicHealthCheck returns nil - annotation errors are reported by the container config provider
+func (m *adMisconfigurationModule) BuiltInPeriodicHealthCheck() *issues.BuiltInPeriodicHealthCheck {
+	return nil
+}
+
+// BuiltInStartupHealthCheck returns nil - no startup-time check for this module
+func (m *adMisconfigurationModule) BuiltInStartupHealthCheck() *issues.BuiltInStartupHealthCheck {
 	return nil
 }

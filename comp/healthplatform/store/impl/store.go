@@ -28,7 +28,6 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	forwarderdef "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/def"
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
-	checkrunnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	noopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
 	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
@@ -38,13 +37,12 @@ import (
 
 // Requires defines the dependencies for the health-platform component
 type Requires struct {
-	Lifecycle   compdef.Lifecycle
-	Config      config.Component
-	Log         log.Component
-	Telemetry   telemetry.Component
-	Hostname    hostnameinterface.Component
-	CheckRunner checkrunnerdef.Component
-	Forwarder   forwarderdef.Component
+	Lifecycle compdef.Lifecycle
+	Config    config.Component
+	Log       log.Component
+	Telemetry telemetry.Component
+	Hostname  hostnameinterface.Component
+	Forwarder forwarderdef.Component
 }
 
 // Provides defines the output of the health-platform component
@@ -79,9 +77,6 @@ type healthPlatformImpl struct {
 
 	// Forwarder for sending reports to Datadog intake
 	forwarder forwarderdef.Component
-
-	// Check runner for periodic health checks
-	checkRunner checkrunnerdef.Component
 
 	// Metrics
 	metrics telemetryMetrics // Telemetry metrics for health platform
@@ -256,8 +251,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		agentFlavor:      flavor.GetFlavor(),
 
 		// Sub-components injected by fx
-		checkRunner: reqs.CheckRunner,
-		forwarder:   reqs.Forwarder,
+		forwarder: reqs.Forwarder,
 
 		// Issue module registry
 		issueRegistry: issueRegistry,
@@ -312,26 +306,7 @@ func (h *healthPlatformImpl) start(_ context.Context) error {
 		h.log.Warn("Failed to load persisted issues: " + err.Error())
 	}
 
-	// Wire the reporter/provider first so that checks started below have a valid
-	// reporter from their first execution. checkrunner and forwarder already have
-	// their goroutine lifecycle registered via fx, but periodic checks are registered
-	// here (after SetReporter) so they start their goroutines with reporter set.
-	h.checkRunner.SetReporter(h)
 	h.forwarder.SetProvider(h)
-
-	// Register periodic built-in checks now that the reporter is wired.
-	// Registering here (rather than in New) ensures checkrunner's goroutines
-	// start only after SetReporter, so the first immediate execution is not skipped.
-	for _, check := range h.issueRegistry.GetBuiltInHealthChecks() {
-		if check.Once {
-			continue
-		}
-		if err := h.scheduleHealthCheck(check.ID, check.Name, check.CheckFn, check.Interval); err != nil {
-			h.log.Warn("Failed to register health check " + check.ID + ": " + err.Error())
-		}
-	}
-
-	h.startupChecks()
 
 	return nil
 }
@@ -380,16 +355,6 @@ func (h *healthPlatformImpl) ReportIssue(report healthplatformdef.IssueReport) e
 	h.handleIssueStateChange(report.Source, previousIssue, issue)
 	h.storeIssue(report.IssueType, issue)
 	return nil
-}
-
-// scheduleHealthCheck is an internal helper used from the lifecycle start hook.
-func (h *healthPlatformImpl) scheduleHealthCheck(checkID string, checkName string, checkFn checkrunnerdef.HealthCheckFunc, interval time.Duration) error {
-	return h.checkRunner.ScheduleHealthCheck(checkID, checkName, checkFn, interval)
-}
-
-// runHealthCheck is an internal helper used for Once-style startup checks.
-func (h *healthPlatformImpl) runHealthCheck(checkID, checkName string, checkFn checkrunnerdef.HealthCheckFunc) error {
-	return h.checkRunner.RunHealthCheck(checkID, checkName, checkFn)
 }
 
 // ============================================================================
@@ -698,19 +663,4 @@ func (h *healthPlatformImpl) fillFlare(_ context.Context, fb flaretypes.FlareBui
 	}
 
 	return fb.AddFile("health-platform-issues.json", data)
-}
-
-func (h *healthPlatformImpl) startupChecks() {
-	checks := h.issueRegistry.GetBuiltInHealthChecks()
-	for _, check := range checks {
-		// Only one time checks should be run at startup
-		if !check.Once {
-			continue
-		}
-
-		err := h.runHealthCheck(check.ID, check.Name, check.CheckFn)
-		if err != nil {
-			h.log.Warnf("Failed to run startup check %s: %v", check.Name, err)
-		}
-	}
 }
