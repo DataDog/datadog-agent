@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 
+	msgpack "github.com/vmihailenco/msgpack/v4"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -39,41 +40,121 @@ const (
 	aws                           cloudProvider     = "AWS"
 	gcp                           cloudProvider     = "GCP"
 	azure                         cloudProvider     = "Azure"
-	cloudProviderHeader           string            = "dd-cloud-provider"
-	cloudResourceTypeHeader       string            = "dd-cloud-resource-type"
-	cloudResourceIdentifierHeader string            = "dd-cloud-resource-identifier"
+	cloudProviderHeader           string            = "Dd-Cloud-Provider"
+	cloudResourceTypeHeader       string            = "Dd-Cloud-Resource-Type"
+	cloudResourceIdentifierHeader string            = "Dd-Cloud-Resource-Identifier"
 )
 
-// This number was chosen because requests on the EVP are accepted with sizes up to 5Mb, so we
-// want to be able to buffer at least a few max size requests before exerting backpressure.
-//
-// And using 25Mb at most per host seems not too unreasonnable.
-//
-// Looking at payload size distribution, the max requests we get is about than 1Mb anyway,
-// the biggest p99 per language is around 350Kb for nodejs and p95 is around 13Kb.
-// So it should provide enough in normal cases before we start dropping requests.
-const maxInflightBytes = 25 * 1000 * 1000
+const (
+	// Maximum number of concurrent forwarder goroutines. Each goroutine
+	// handles serialization and forwarding to intake endpoints.
+	maxConcurrentRequests = 4
 
-const maxConcurrentRequests = 20
+	// batchMaxAge is the maximum time the oldest event can sit in the buffer before triggering a flush.
+	batchMaxAge = 30 * time.Second
 
-const maxInflightRequests = 100
+	// batchCheckInterval is how often the flusher goroutine checks for age-based flushes.
+	batchCheckInterval = 100 * time.Millisecond
 
-// TelemetryForwarder sends HTTP requests to multiple targets.
-// The handler returns immediately and the forwarding is done in the background.
-//
-// To provide somne backpressure, we limit the number of concurrent forwarded requests
+	// batchURLPath is the upstream endpoint path for batched telemetry.
+	batchURLPath = "/api/v2/apmtelemetry"
+)
+
+// agentBatch is the top-level envelope for batched telemetry payloads, serialized as MessagePack.
+type agentBatch struct {
+	RequestType string             `msgpack:"request_type"`
+	Payload     rawTelemetryEvents `msgpack:"payload"`
+}
+
+type rawTelemetryEvents struct {
+	Events []rawTelemetryEvent `msgpack:"events"`
+}
+
+type rawTelemetryEvent struct {
+	Headers map[string]string `msgpack:"headers"`
+	Content []byte            `msgpack:"content"`
+}
+
+type flushedBatch struct {
+	events        []rawTelemetryEvent
+	totalBodySize int
+}
+
+type currentBatch struct {
+	mu                 sync.Mutex
+	bufferedEvents     []rawTelemetryEvent
+	bufferedSize       int
+	oldestEventTime    time.Time
+	batchSizeThreshold int
+	nowFn              func() time.Time // injectable for testing, defaults to time.Now
+}
+
+func (b *currentBatch) addEvent(ev rawTelemetryEvent) (batch flushedBatch, shouldFlush bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if len(b.bufferedEvents) == 0 {
+		b.oldestEventTime = b.nowFn()
+	}
+	b.bufferedSize += len(ev.Content)
+	b.bufferedEvents = append(b.bufferedEvents, ev)
+	shouldFlush = b.bufferedSize >= b.batchSizeThreshold
+	if shouldFlush {
+		batch = b.takeBatchLocked()
+	}
+	return batch, shouldFlush
+}
+
+func (b *currentBatch) checkFlushAge() (batch flushedBatch, shouldFlush bool) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	shouldFlush = len(b.bufferedEvents) > 0 &&
+		!b.oldestEventTime.IsZero() &&
+		b.nowFn().Sub(b.oldestEventTime) >= batchMaxAge
+
+	if shouldFlush {
+		batch = b.takeBatchLocked()
+	}
+	return batch, shouldFlush
+}
+
+// takeBatchLocked extracts all buffered events and resets the buffer.
+// Must be called while holding b.mu.
+func (b *currentBatch) takeBatchLocked() flushedBatch {
+	batch := flushedBatch{
+		events:        b.bufferedEvents,
+		totalBodySize: b.bufferedSize,
+	}
+	b.bufferedEvents = make([]rawTelemetryEvent, 0, len(batch.events))
+	b.bufferedSize = 0
+	b.oldestEventTime = time.Time{}
+	return batch
+}
+
+func (b *currentBatch) takeBatch() flushedBatch {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.takeBatchLocked()
+}
+
+// TelemetryForwarder batches incoming telemetry HTTP requests and forwards them
+// as MessagePack agent-batch payloads to configured intake endpoints.
 type TelemetryForwarder struct {
 	endpoints []*config.Endpoint
 	conf      *config.AgentConfig
 
-	forwardedReqChan chan forwardedRequest
+	batch currentBatch
+
+	// flushChan carries size-triggered batches from the HTTP handler to forwarder workers.
+	flushChan chan flushedBatch
+
 	inflightWaiter   sync.WaitGroup
 	inflightCount    atomic.Int64
 	maxInflightBytes int64
 
-	cancelCtx context.Context
-	cancelFn  context.CancelFunc
-	done      chan struct{}
+	cancelCtx        context.Context
+	cancelFn         context.CancelFunc
+	done             chan struct{}
+	batchCheckTicker *time.Ticker
 
 	containerIDProvider IDProvider
 	client              *config.ResetClient
@@ -85,6 +166,8 @@ type TelemetryForwarder struct {
 func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvider, statsd statsd.ClientInterface) *TelemetryForwarder {
 	// extract and validate Hostnames from configured endpoints
 	var endpoints []*config.Endpoint
+	batchSizeThreshold := config.TelemetryDefaultBatchSizeThreshold
+	maxInflight := config.TelemetryDefaultMaxInflightBytes
 	if conf.TelemetryConfig != nil {
 		for _, endpoint := range conf.TelemetryConfig.Endpoints {
 			u, err := url.Parse(endpoint.Host)
@@ -98,6 +181,8 @@ func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvi
 
 			endpoints = append(endpoints, endpoint)
 		}
+		batchSizeThreshold = conf.TelemetryConfig.BatchSizeThresholdBytes
+		maxInflight = conf.TelemetryConfig.MaxInflightMemoryBytes
 	}
 
 	cancelCtx, cancelFn := context.WithCancel(context.Background())
@@ -105,11 +190,15 @@ func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvi
 	forwarder := &TelemetryForwarder{
 		endpoints: endpoints,
 		conf:      conf,
-
-		forwardedReqChan: make(chan forwardedRequest, maxInflightRequests-maxConcurrentRequests),
+		batch: currentBatch{
+			bufferedEvents:     make([]rawTelemetryEvent, 0, 64),
+			batchSizeThreshold: batchSizeThreshold,
+			nowFn:              time.Now,
+		},
+		flushChan:        make(chan flushedBatch, 1),
 		inflightWaiter:   sync.WaitGroup{},
 		inflightCount:    atomic.Int64{},
-		maxInflightBytes: maxInflightBytes,
+		maxInflightBytes: int64(maxInflight),
 
 		cancelCtx: cancelCtx,
 		cancelFn:  cancelFn,
@@ -124,32 +213,22 @@ func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvi
 }
 
 func (f *TelemetryForwarder) start() {
+	if f.batchCheckTicker != nil {
+		f.batchCheckTicker.Reset(batchCheckInterval)
+	} else {
+		f.batchCheckTicker = time.NewTicker(batchCheckInterval)
+	}
 	for i := 0; i < maxConcurrentRequests; i++ {
 		f.inflightWaiter.Add(1)
-		go func() {
-			defer f.inflightWaiter.Done()
-			for {
-				select {
-				case <-f.done:
-					return
-				case req, ok := <-f.forwardedReqChan:
-					if !ok {
-						return
-					}
-					f.forwardTelemetry(req)
-				}
-			}
-		}()
+		go f.forwarder()
 	}
-}
-
-type forwardedRequest struct {
-	req  *http.Request
-	body []byte
 }
 
 // Stop waits for up to 1s to end all telemetry forwarded requests.
 func (f *TelemetryForwarder) Stop() {
+	if f.batchCheckTicker != nil {
+		f.batchCheckTicker.Stop()
+	}
 	close(f.done)
 	done := make(chan any)
 	go func() {
@@ -177,17 +256,8 @@ func (f *TelemetryForwarder) startRequest(size int64) (accepted bool) {
 	}
 }
 
-func (f *TelemetryForwarder) endRequest(req forwardedRequest) {
-	f.inflightCount.Add(-int64(len(req.body)))
-	req.body = nil
-}
-
-// telemetryForwarderHandler returns a new HTTP handler which will proxy requests to the configured intakes.
-// If the main intake URL can not be computed because of config, the returned handler will always
-// return http.StatusInternalServerError along with a clarification.
-//
-// This proxying will happen asynchronously and the handler will respond automatically. To still have backpressure
-// we will respond with StatusTooManyRequests if we have to many request being forwarded concurrently.
+// telemetryForwarderHandler returns a new HTTP handler which buffers incoming telemetry
+// requests and batches them for forwarding to the configured intakes.
 func (r *HTTPReceiver) telemetryForwarderHandler() http.Handler {
 	if len(r.telemetryForwarder.endpoints) == 0 {
 		log.Error("None of the configured apm_config.telemetry endpoints are valid. Telemetry proxy is off")
@@ -196,7 +266,6 @@ func (r *HTTPReceiver) telemetryForwarderHandler() http.Handler {
 
 	forwarder := r.telemetryForwarder
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 		// Read at most maxInflightBytes since we're going to throw out the result anyway if it's bigger
 		body, err := io.ReadAll(io.LimitReader(r.Body, forwarder.maxInflightBytes+1))
 		if err != nil {
@@ -209,20 +278,24 @@ func (r *HTTPReceiver) telemetryForwarderHandler() http.Handler {
 			return
 		}
 
-		newReq, err := http.NewRequestWithContext(forwarder.cancelCtx, r.Method, r.URL.String(), bytes.NewBuffer(body))
-		if err != nil {
-			writeEmptyJSON(w, http.StatusInternalServerError)
-			return
-		}
-		newReq.Header = r.Header.Clone()
-		select {
-		case forwarder.forwardedReqChan <- forwardedRequest{
-			req:  newReq,
-			body: body,
-		}:
+		eventHeaders := forwarder.buildEventHeaders(r)
+		batch, shouldFlush := forwarder.batch.addEvent(rawTelemetryEvent{
+			Headers: eventHeaders,
+			Content: body,
+		})
+
+		if shouldFlush {
+			select {
+			case forwarder.flushChan <- batch:
+				writeEmptyJSON(w, http.StatusOK)
+			default:
+				// This drops not only the current payload but also previously accumulated
+				// messages
+				forwarder.inflightCount.Add(-int64(batch.totalBodySize))
+				writeEmptyJSON(w, http.StatusTooManyRequests)
+			}
+		} else {
 			writeEmptyJSON(w, http.StatusOK)
-		default:
-			writeEmptyJSON(w, http.StatusTooManyRequests)
 		}
 	})
 }
@@ -232,7 +305,42 @@ func writeEmptyJSON(w http.ResponseWriter, statusCode int) {
 	w.Write([]byte("{}"))
 }
 
-func (f *TelemetryForwarder) setRequestHeader(req *http.Request) {
+// buildEventHeaders creates the per-event headers map from an incoming SDK request.
+// This includes all original request headers plus container-level enrichment.
+func (f *TelemetryForwarder) buildEventHeaders(req *http.Request) map[string]string {
+	headers := make(map[string]string, len(req.Header)+4)
+
+	// Flatten original SDK request headers
+	for key, values := range req.Header {
+		headers[key] = strings.Join(values, ", ")
+	}
+
+	// Container-level enrichment
+	containerID := f.containerIDProvider.GetContainerID(req.Context(), req.Header)
+	if containerID == "" {
+		_ = f.statsd.Count("datadog.trace_agent.telemetry_proxy.no_container_id_found", 1, []string{}, 1)
+	}
+	containerTags := getContainerTags(f.conf.ContainerTags, containerID)
+
+	if containerID != "" {
+		headers[header.ContainerID] = containerID
+	}
+	if containerTags != "" {
+		headers["X-Datadog-Container-Tags"] = normalizeHTTPHeader(containerTags)
+	}
+
+	// Fargate cloud provider headers (per-event, derived from container tags)
+	if taskArn, ok := extractFargateTask(containerTags); ok {
+		headers[cloudProviderHeader] = string(aws)
+		headers[cloudResourceTypeHeader] = string(awsFargate)
+		headers[cloudResourceIdentifierHeader] = taskArn
+	}
+
+	return headers
+}
+
+// setBatchRequestHeaders sets host-level headers on an outbound batch HTTP request.
+func (f *TelemetryForwarder) setBatchRequestHeaders(req *http.Request) {
 	req.Header.Set("Via", "trace-agent "+f.conf.AgentVersion)
 	if _, ok := req.Header["User-Agent"]; !ok {
 		// explicitly disable User-Agent so it's not set to the default value
@@ -241,32 +349,15 @@ func (f *TelemetryForwarder) setRequestHeader(req *http.Request) {
 		req.Header.Set("User-Agent", "")
 	}
 
-	containerID := f.containerIDProvider.GetContainerID(req.Context(), req.Header)
-	if containerID == "" {
-		_ = f.statsd.Count("datadog.trace_agent.telemetry_proxy.no_container_id_found", 1, []string{}, 1)
-	}
-	containerTags := getContainerTags(f.conf.ContainerTags, containerID)
+	req.Header.Set("Dd-Agent-Hostname", f.conf.Hostname)
+	req.Header.Set("Dd-Agent-Env", f.conf.DefaultEnv)
+	req.Header.Set("Dd-Telemetry-Request-Type", "agent-batch")
+	req.Header.Set("Content-Type", "application/msgpack")
 
-	req.Header.Set("DD-Agent-Hostname", f.conf.Hostname)
-	req.Header.Set("DD-Agent-Env", f.conf.DefaultEnv)
-	log.Debugf("Setting headers DD-Agent-Hostname=%s, DD-Agent-Env=%s for telemetry proxy", f.conf.Hostname, f.conf.DefaultEnv)
-	if containerID != "" {
-		req.Header.Set(header.ContainerID, containerID)
-	}
-	if containerTags != "" {
-		ctagsHeader := normalizeHTTPHeader(containerTags)
-		req.Header.Set("X-Datadog-Container-Tags", ctagsHeader)
-		log.Debugf("Setting header X-Datadog-Container-Tags=%s for telemetry proxy", ctagsHeader)
-	}
 	if f.conf.InstallSignature.Found {
-		req.Header.Set("DD-Agent-Install-Id", f.conf.InstallSignature.InstallID)
-		req.Header.Set("DD-Agent-Install-Type", f.conf.InstallSignature.InstallType)
-		req.Header.Set("DD-Agent-Install-Time", strconv.FormatInt(f.conf.InstallSignature.InstallTime, 10))
-	}
-	if taskArn, ok := extractFargateTask(containerTags); ok {
-		req.Header.Set(cloudProviderHeader, string(aws))
-		req.Header.Set(cloudResourceTypeHeader, string(awsFargate))
-		req.Header.Set(cloudResourceIdentifierHeader, taskArn)
+		req.Header.Set("Dd-Agent-Install-Id", f.conf.InstallSignature.InstallID)
+		req.Header.Set("Dd-Agent-Install-Type", f.conf.InstallSignature.InstallType)
+		req.Header.Set("Dd-Agent-Install-Time", strconv.FormatInt(f.conf.InstallSignature.InstallTime, 10))
 	}
 	if origin, ok := f.conf.GlobalTags[originTag]; ok {
 		switch origin {
@@ -298,57 +389,91 @@ func (f *TelemetryForwarder) setRequestHeader(req *http.Request) {
 	}
 }
 
-// forwardTelemetry sends request first to Endpoint[0], then sends a copy of main request to every configurged
-// additional endpoint.
-//
-// All requests will be sent irregardless of any errors
-// If any request fails, the error will be logged.
-func (f *TelemetryForwarder) forwardTelemetry(req forwardedRequest) {
-	defer f.endRequest(req)
+// forwarder runs in a goroutine. It receives batches from flushChan (size-triggered)
+// or from the buffer (age-triggered via the shared ticker), serializes them to
+// MessagePack, and forwards them to the configured intake endpoints.
+func (f *TelemetryForwarder) forwarder() {
+	defer f.inflightWaiter.Done()
 
-	f.setRequestHeader(req.req)
-
-	for i, e := range f.endpoints {
-		var newReq *http.Request
-		if i != len(f.endpoints)-1 {
-			newReq = req.req.Clone(req.req.Context())
-		} else {
-			// don't clone the request for the last endpoint since we can use the
-			// one provided in args.
-			newReq = req.req
-		}
-		newReq.Body = io.NopCloser(bytes.NewReader(req.body))
-
-		if resp, err := f.forwardTelemetryEndpoint(newReq, e); err == nil {
-			if !(200 <= resp.StatusCode && resp.StatusCode < 300) {
-				f.logger.Error("Received unexpected status code %v", resp.StatusCode)
+	for {
+		select {
+		case <-f.done:
+			// Drain any remaining size-triggered batches from flushChan
+			for {
+				select {
+				case batch := <-f.flushChan:
+					f.serializeAndForward(batch)
+				default:
+					goto drainDone
+				}
 			}
-			io.Copy(io.Discard, resp.Body) // nolint:errcheck
-			resp.Body.Close()
-		} else {
-			f.logger.Error("%v", err)
+		drainDone:
+			// Flush remaining events in the buffer
+			batch := f.batch.takeBatch()
+			if batch.totalBodySize > 0 {
+				f.serializeAndForward(batch)
+			}
+			return
+
+		case batch := <-f.flushChan:
+			f.serializeAndForward(batch)
+
+		case <-f.batchCheckTicker.C:
+			batch, shouldFlush := f.batch.checkFlushAge()
+			if shouldFlush {
+				f.serializeAndForward(batch)
+			}
 		}
 	}
 }
 
-func (f *TelemetryForwarder) forwardTelemetryEndpoint(req *http.Request, endpoint *config.Endpoint) (*http.Response, error) {
-	tags := []string{
-		"endpoint:" + endpoint.Host,
-	}
-	defer func(now time.Time) {
-		_ = f.statsd.Timing("datadog.trace_agent.telemetry_proxy.roundtrip_ms", time.Since(now), tags, 1)
-	}(time.Now())
-
-	req.Host = endpoint.Host
-	req.URL.Host = endpoint.Host
-	req.URL.Scheme = "https"
-	req.Header.Set("DD-API-KEY", endpoint.APIKey)
-
-	resp, err := f.client.Do(req)
+// serializeAndForward serializes a flushed batch to MessagePack and forwards it to all endpoints.
+func (f *TelemetryForwarder) serializeAndForward(batch flushedBatch) {
+	body, err := msgpack.Marshal(&agentBatch{
+		RequestType: "agent-batch",
+		Payload:     rawTelemetryEvents{Events: batch.events},
+	})
 	if err != nil {
-		_ = f.statsd.Count("datadog.trace_agent.telemetry_proxy.error", 1, tags, 1)
+		f.logger.Error("Failed to serialize telemetry batch: %v", err)
+		f.inflightCount.Add(-int64(batch.totalBodySize))
+		return
 	}
-	return resp, err
+	f.forwardBatchToEndpoints(body, batch.totalBodySize)
+}
+
+// forwardBatchToEndpoints sends a serialized batch to all configured endpoints.
+func (f *TelemetryForwarder) forwardBatchToEndpoints(body []byte, totalBodySize int) {
+	defer f.inflightCount.Add(-int64(totalBodySize))
+
+	for _, e := range f.endpoints {
+		tags := []string{"endpoint:" + e.Host}
+		start := time.Now()
+
+		req, err := http.NewRequestWithContext(f.cancelCtx, http.MethodPost, batchURLPath, bytes.NewReader(body))
+		if err != nil {
+			f.logger.Error("Failed to create batch request: %v", err)
+			continue
+		}
+		f.setBatchRequestHeaders(req)
+		req.Host = e.Host
+		req.URL.Host = e.Host
+		req.URL.Scheme = "https"
+		req.Header.Set("DD-API-KEY", e.APIKey)
+
+		resp, err := f.client.Do(req)
+		_ = f.statsd.Timing("datadog.trace_agent.telemetry_proxy.roundtrip_ms", time.Since(start), tags, 1)
+		if err != nil {
+			_ = f.statsd.Count("datadog.trace_agent.telemetry_proxy.error", 1, tags, 1)
+			f.logger.Error("%v", err)
+			continue
+		}
+		if !(200 <= resp.StatusCode && resp.StatusCode < 300) {
+			_ = f.statsd.Count("datadog.trace_agent.telemetry_proxy.error", 1, tags, 1)
+			f.logger.Error("Received unexpected status code %v", resp.StatusCode)
+		}
+		_, _ = io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+	}
 }
 
 func extractFargateTask(containerTags string) (string, bool) {
