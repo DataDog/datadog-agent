@@ -33,6 +33,21 @@ const (
 	pointDroppedMetric = "point__dropped"
 )
 
+// regularRegistryMergeMetric describes a gauge metric from the regular telemetry registry that should be folded into
+// the customer-facing default telemetry output. The metric is aggregated by groupByLabel so the emitted tag shape stays
+// compatible with the existing default metric.
+type regularRegistryMergeMetric struct {
+	name         string
+	groupByLabel string
+}
+
+// regularRegistryMergeMetrics is intentionally small and explicit: regular registry telemetry is internal by default,
+// and only metrics listed here are merged into customer-facing datadog.agent.* telemetry.
+var regularRegistryMergeMetrics = []regularRegistryMergeMetric{
+	{name: pointSentMetric, groupByLabel: domainLabel},
+	{name: pointDroppedMetric, groupByLabel: domainLabel},
+}
+
 type checkImpl struct {
 	corechecks.CheckBase
 	telemetry telemetry.Component
@@ -44,12 +59,15 @@ func (c *checkImpl) Run() error {
 		return err
 	}
 
-	pointTelemetry := collectPointTelemetry(mfs, false)
-	remoteMfs, err := c.telemetry.Gather(false)
+	mergedMetrics := collectMergeMetrics(mfs, false)
+
+	// Remote Agent Registry telemetry lives in the regular registry. Gather it on a best-effort basis so failures there
+	// do not prevent the default customer-facing telemetry check from reporting Core Agent values.
+	regularMfs, err := c.telemetry.Gather(false)
 	if err != nil {
-		log.Warnf("failed to gather remote agent telemetry metrics for point telemetry merge: %v", err)
+		log.Warnf("failed to gather regular telemetry metrics for default telemetry merge: %v", err)
 	} else {
-		pointTelemetry.merge(collectPointTelemetry(remoteMfs, true))
+		mergedMetrics.merge(collectMergeMetrics(regularMfs, true))
 	}
 
 	sender, err := c.GetSender()
@@ -59,30 +77,28 @@ func (c *checkImpl) Run() error {
 
 	sender.SetNoIndex(true)
 
-	c.sendPointTelemetry(pointTelemetry, sender)
+	c.sendMergedMetrics(mergedMetrics, sender)
 	c.handleMetricFamilies(mfs, sender)
 
 	return nil
 }
 
-type pointTelemetryByDomain struct {
-	sent    map[string]float64
-	dropped map[string]float64
+type mergeMetricValues map[string]map[string]float64
+
+func newMergeMetricValues() mergeMetricValues {
+	return make(mergeMetricValues)
 }
 
-func newPointTelemetryByDomain() pointTelemetryByDomain {
-	return pointTelemetryByDomain{
-		sent:    make(map[string]float64),
-		dropped: make(map[string]float64),
-	}
-}
-
-func (p pointTelemetryByDomain) merge(other pointTelemetryByDomain) {
-	for domain, value := range other.sent {
-		p.sent[domain] += value
-	}
-	for domain, value := range other.dropped {
-		p.dropped[domain] += value
+func (m mergeMetricValues) merge(other mergeMetricValues) {
+	for metricName, otherByGroup := range other {
+		byGroup := m[metricName]
+		if byGroup == nil {
+			byGroup = make(map[string]float64)
+			m[metricName] = byGroup
+		}
+		for groupValue, value := range otherByGroup {
+			byGroup[groupValue] += value
+		}
 	}
 }
 
@@ -95,26 +111,30 @@ func labelValue(labels []*dto.LabelPair, name string) (string, bool) {
 	return "", false
 }
 
-func collectPointTelemetry(mfs []*dto.MetricFamily, requireRemoteAgent bool) pointTelemetryByDomain {
-	points := newPointTelemetryByDomain()
+func mergeMetricConfig(name string) (regularRegistryMergeMetric, bool) {
+	for _, metric := range regularRegistryMergeMetrics {
+		if metric.name == name {
+			return metric, true
+		}
+	}
+	return regularRegistryMergeMetric{}, false
+}
+
+func collectMergeMetrics(mfs []*dto.MetricFamily, requireRemoteAgent bool) mergeMetricValues {
+	values := newMergeMetricValues()
 
 	for _, mf := range mfs {
 		if mf == nil || mf.Name == nil || mf.Type == nil {
 			continue
 		}
 
-		var pointsByDomain map[string]float64
-		switch mf.GetName() {
-		case pointSentMetric:
-			pointsByDomain = points.sent
-		case pointDroppedMetric:
-			pointsByDomain = points.dropped
-		default:
+		mergeMetric, ok := mergeMetricConfig(mf.GetName())
+		if !ok {
 			continue
 		}
 
 		if mf.GetType() != dto.MetricType_GAUGE {
-			log.Warnf("dropping point telemetry metric %q with unsupported type %s", mf.GetName(), mf.GetType())
+			log.Warnf("dropping telemetry merge metric %q with unsupported type %s", mf.GetName(), mf.GetType())
 			continue
 		}
 
@@ -127,26 +147,33 @@ func collectPointTelemetry(mfs []*dto.MetricFamily, requireRemoteAgent bool) poi
 					continue
 				}
 			}
-			domain, _ := labelValue(metric.Label, domainLabel)
-			pointsByDomain[domain] += metric.Gauge.GetValue()
+			groupValue, _ := labelValue(metric.Label, mergeMetric.groupByLabel)
+			byGroup := values[mergeMetric.name]
+			if byGroup == nil {
+				byGroup = make(map[string]float64)
+				values[mergeMetric.name] = byGroup
+			}
+			byGroup[groupValue] += metric.Gauge.GetValue()
 		}
 	}
 
-	return points
+	return values
 }
 
-func (c *checkImpl) sendPointTelemetry(points pointTelemetryByDomain, sender sender.Sender) {
-	for domain, value := range points.sent {
-		sender.Gauge(c.buildName(pointSentMetric), value, "", []string{fmt.Sprintf("%s:%s", domainLabel, domain)})
-	}
-	for domain, value := range points.dropped {
-		sender.Gauge(c.buildName(pointDroppedMetric), value, "", []string{fmt.Sprintf("%s:%s", domainLabel, domain)})
+func (c *checkImpl) sendMergedMetrics(values mergeMetricValues, sender sender.Sender) {
+	for _, mergeMetric := range regularRegistryMergeMetrics {
+		byGroup := values[mergeMetric.name]
+		for groupValue, value := range byGroup {
+			sender.Gauge(c.buildName(mergeMetric.name), value, "", []string{fmt.Sprintf("%s:%s", mergeMetric.groupByLabel, groupValue)})
+		}
 	}
 }
 
 func (c *checkImpl) handleMetricFamilies(mfs []*dto.MetricFamily, sender sender.Sender) {
 	for _, mf := range mfs {
-		if mf.Name == nil || mf.Type == nil || len(mf.Metric) == 0 || isPointTelemetryMetric(mf.GetName()) {
+		// Merged metrics are emitted explicitly by sendMergedMetrics so regular-registry values can be included without
+		// changing the customer-facing metric names or tags.
+		if mf == nil || mf.Name == nil || mf.Type == nil || len(mf.Metric) == 0 || isMergedMetric(mf.GetName()) {
 			continue
 		}
 
@@ -179,8 +206,9 @@ func (c *checkImpl) handleMetricFamilies(mfs []*dto.MetricFamily, sender sender.
 	sender.Commit()
 }
 
-func isPointTelemetryMetric(name string) bool {
-	return name == pointSentMetric || name == pointDroppedMetric
+func isMergedMetric(name string) bool {
+	_, ok := mergeMetricConfig(name)
+	return ok
 }
 
 func (c *checkImpl) buildName(name string) string {

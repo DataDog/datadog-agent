@@ -42,7 +42,7 @@ func gaugeMetricFamily(name string, metrics ...*dto.Metric) *dto.MetricFamily {
 	}
 }
 
-func TestCollectAndMergePointTelemetry(t *testing.T) {
+func TestCollectAndMergeRegularRegistryMetrics(t *testing.T) {
 	defaultMfs := []*dto.MetricFamily{
 		gaugeMetricFamily(
 			"point__sent",
@@ -76,22 +76,22 @@ func TestCollectAndMergePointTelemetry(t *testing.T) {
 		),
 	}
 
-	points := collectPointTelemetry(defaultMfs, false)
-	points.merge(collectPointTelemetry(remoteMfs, true))
+	values := collectMergeMetrics(defaultMfs, false)
+	values.merge(collectMergeMetrics(remoteMfs, true))
 
-	require.Equal(t, pointTelemetryByDomain{
-		sent: map[string]float64{
+	require.Equal(t, mergeMetricValues{
+		pointSentMetric: {
 			"":                          1,
 			"https://api.datadoghq.com": 22,
 			"https://api.datadoghq.eu":  5,
 		},
-		dropped: map[string]float64{
+		pointDroppedMetric: {
 			"https://api.datadoghq.com": 5,
 		},
-	}, points)
+	}, values)
 }
 
-func TestSendPointTelemetry(t *testing.T) {
+func TestSendMergedMetrics(t *testing.T) {
 	sm := mocksender.CreateDefaultDemultiplexer()
 	c := &checkImpl{CheckBase: corechecks.NewCheckBase(CheckName)}
 	c.Configure(sm, integration.FakeConfigHash, nil, nil, "test", "provider")
@@ -101,12 +101,12 @@ func TestSendPointTelemetry(t *testing.T) {
 	s.On("Gauge", "datadog.agent.point.sent", 1.0, "", []string{"domain:"}).Return().Times(1)
 	s.On("Gauge", "datadog.agent.point.dropped", 5.0, "", []string{"domain:https://api.datadoghq.com"}).Return().Times(1)
 
-	c.sendPointTelemetry(pointTelemetryByDomain{
-		sent: map[string]float64{
+	c.sendMergedMetrics(mergeMetricValues{
+		pointSentMetric: {
 			"":                          1,
 			"https://api.datadoghq.com": 22,
 		},
-		dropped: map[string]float64{
+		pointDroppedMetric: {
 			"https://api.datadoghq.com": 5,
 		},
 	}, s)
