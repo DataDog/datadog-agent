@@ -22,6 +22,10 @@ import (
 const (
 	pollingFrequency   = 2 * time.Second
 	httpRequestTimeout = 10 * time.Second
+	// maxConsecutiveErrors is the number of consecutive poll failures after
+	// which the poller is considered unhealthy and the in-memory fallback
+	// scheduler takes over.
+	maxConsecutiveErrors = 5
 )
 
 type testPollerResponse struct {
@@ -39,25 +43,23 @@ type testPoller struct {
 	TestsChan       chan SyntheticsTestCtx
 	done            chan struct{}
 
-	maxConsecutiveErrors int
-	mu                   sync.Mutex
-	consecutiveErrors    int
-	healthy              bool
+	mu                sync.Mutex
+	consecutiveErrors int
+	healthy           bool
 }
 
 func newTestPoller(config *testPollerConfig, hostNameService hostname.Component, logger log.Component, timeNowFn func() time.Time) *testPoller {
 	return &testPoller{
-		httpClient:           &http.Client{Transport: config.httpTransport, Timeout: httpRequestTimeout},
-		endpoint:             "https://intake.synthetics." + config.site + "/api/unstable/synthetics/agents/tests",
-		apiKey:               config.apiKey,
-		agentVersion:         config.agentVersion,
-		hostNameService:      hostNameService,
-		log:                  logger,
-		timeNowFn:            timeNowFn,
-		TestsChan:            make(chan SyntheticsTestCtx, 100),
-		done:                 make(chan struct{}),
-		maxConsecutiveErrors: config.maxConsecutiveErrors,
-		healthy:              true,
+		httpClient:      &http.Client{Transport: config.httpTransport, Timeout: httpRequestTimeout},
+		endpoint:        "https://intake.synthetics." + config.site + "/api/unstable/synthetics/agents/tests",
+		apiKey:          config.apiKey,
+		agentVersion:    config.agentVersion,
+		hostNameService: hostNameService,
+		log:             logger,
+		timeNowFn:       timeNowFn,
+		TestsChan:       make(chan SyntheticsTestCtx, 100),
+		done:            make(chan struct{}),
+		healthy:         true,
 	}
 }
 
@@ -88,7 +90,7 @@ func (p *testPoller) markFailure() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.consecutiveErrors++
-	if p.consecutiveErrors >= p.maxConsecutiveErrors {
+	if p.consecutiveErrors >= maxConsecutiveErrors {
 		p.healthy = false
 	}
 }

@@ -45,17 +45,16 @@ func newStubPoller(t *testing.T, logger log.Component) *testPoller {
 	t.Cleanup(server.Close)
 
 	return &testPoller{
-		httpClient:           server.Client(),
-		endpoint:             server.URL,
-		apiKey:               "test-key",
-		agentVersion:         "0.0.0-test",
-		hostNameService:      &mockHostname{},
-		log:                  logger,
-		timeNowFn:            time.Now,
-		TestsChan:            make(chan SyntheticsTestCtx, 100),
-		done:                 make(chan struct{}),
-		maxConsecutiveErrors: 5,
-		healthy:              true,
+		httpClient:      server.Client(),
+		endpoint:        server.URL,
+		apiKey:          "test-key",
+		agentVersion:    "0.0.0-test",
+		hostNameService: &mockHostname{},
+		log:             logger,
+		timeNowFn:       time.Now,
+		TestsChan:       make(chan SyntheticsTestCtx, 100),
+		done:            make(chan struct{}),
+		healthy:         true,
 	}
 }
 
@@ -74,17 +73,16 @@ func TestTestPoller_FetchTests_ReturnsTests(t *testing.T) {
 	defer server.Close()
 
 	poller := &testPoller{
-		httpClient:           server.Client(),
-		endpoint:             server.URL,
-		apiKey:               "test-api-key",
-		agentVersion:         "7.99.0-test",
-		hostNameService:      &mockHostname{},
-		log:                  newTestLogger(t),
-		timeNowFn:            time.Now,
-		TestsChan:            make(chan SyntheticsTestCtx, 100),
-		done:                 make(chan struct{}),
-		maxConsecutiveErrors: 5,
-		healthy:              true,
+		httpClient:      server.Client(),
+		endpoint:        server.URL,
+		apiKey:          "test-api-key",
+		agentVersion:    "7.99.0-test",
+		hostNameService: &mockHostname{},
+		log:             newTestLogger(t),
+		timeNowFn:       time.Now,
+		TestsChan:       make(chan SyntheticsTestCtx, 100),
+		done:            make(chan struct{}),
+		healthy:         true,
 	}
 
 	tests, err := poller.fetchTests(context.Background())
@@ -104,17 +102,16 @@ func TestTestPoller_FetchTests_EmptyResponse(t *testing.T) {
 	defer server.Close()
 
 	poller := &testPoller{
-		httpClient:           server.Client(),
-		endpoint:             server.URL,
-		apiKey:               "key",
-		agentVersion:         "0.0.0",
-		hostNameService:      &mockHostname{},
-		log:                  newTestLogger(t),
-		timeNowFn:            time.Now,
-		TestsChan:            make(chan SyntheticsTestCtx, 100),
-		done:                 make(chan struct{}),
-		maxConsecutiveErrors: 5,
-		healthy:              true,
+		httpClient:      server.Client(),
+		endpoint:        server.URL,
+		apiKey:          "key",
+		agentVersion:    "0.0.0",
+		hostNameService: &mockHostname{},
+		log:             newTestLogger(t),
+		timeNowFn:       time.Now,
+		TestsChan:       make(chan SyntheticsTestCtx, 100),
+		done:            make(chan struct{}),
+		healthy:         true,
 	}
 
 	tests, err := poller.fetchTests(context.Background())
@@ -129,17 +126,16 @@ func TestTestPoller_FetchTests_NonOKStatus(t *testing.T) {
 	defer server.Close()
 
 	poller := &testPoller{
-		httpClient:           server.Client(),
-		endpoint:             server.URL,
-		apiKey:               "key",
-		agentVersion:         "0.0.0",
-		hostNameService:      &mockHostname{},
-		log:                  newTestLogger(t),
-		timeNowFn:            time.Now,
-		TestsChan:            make(chan SyntheticsTestCtx, 100),
-		done:                 make(chan struct{}),
-		maxConsecutiveErrors: 5,
-		healthy:              true,
+		httpClient:      server.Client(),
+		endpoint:        server.URL,
+		apiKey:          "key",
+		agentVersion:    "0.0.0",
+		hostNameService: &mockHostname{},
+		log:             newTestLogger(t),
+		timeNowFn:       time.Now,
+		TestsChan:       make(chan SyntheticsTestCtx, 100),
+		done:            make(chan struct{}),
+		healthy:         true,
 	}
 
 	_, err := poller.fetchTests(context.Background())
@@ -155,17 +151,16 @@ func TestTestPoller_FetchTests_InvalidJSON(t *testing.T) {
 	defer server.Close()
 
 	poller := &testPoller{
-		httpClient:           server.Client(),
-		endpoint:             server.URL,
-		apiKey:               "key",
-		agentVersion:         "0.0.0",
-		hostNameService:      &mockHostname{},
-		log:                  newTestLogger(t),
-		timeNowFn:            time.Now,
-		TestsChan:            make(chan SyntheticsTestCtx, 100),
-		done:                 make(chan struct{}),
-		maxConsecutiveErrors: 5,
-		healthy:              true,
+		httpClient:      server.Client(),
+		endpoint:        server.URL,
+		apiKey:          "key",
+		agentVersion:    "0.0.0",
+		hostNameService: &mockHostname{},
+		log:             newTestLogger(t),
+		timeNowFn:       time.Now,
+		TestsChan:       make(chan SyntheticsTestCtx, 100),
+		done:            make(chan struct{}),
+		healthy:         true,
 	}
 
 	_, err := poller.fetchTests(context.Background())
@@ -184,17 +179,16 @@ func TestTestPoller_PollLoop_EnqueuesTests(t *testing.T) {
 
 	now := time.Now()
 	poller := &testPoller{
-		httpClient:           server.Client(),
-		endpoint:             server.URL,
-		apiKey:               "key",
-		agentVersion:         "0.0.0",
-		hostNameService:      &mockHostname{},
-		log:                  newTestLogger(t),
-		timeNowFn:            func() time.Time { return now },
-		TestsChan:            make(chan SyntheticsTestCtx, 100),
-		done:                 make(chan struct{}),
-		maxConsecutiveErrors: 5,
-		healthy:              true,
+		httpClient:      server.Client(),
+		endpoint:        server.URL,
+		apiKey:          "key",
+		agentVersion:    "0.0.0",
+		hostNameService: &mockHostname{},
+		log:             newTestLogger(t),
+		timeNowFn:       func() time.Time { return now },
+		TestsChan:       make(chan SyntheticsTestCtx, 100),
+		done:            make(chan struct{}),
+		healthy:         true,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -219,25 +213,24 @@ func TestTestPoller_HealthFlipsAfterNErrors(t *testing.T) {
 	defer server.Close()
 
 	poller := &testPoller{
-		httpClient:           server.Client(),
-		endpoint:             server.URL,
-		apiKey:               "key",
-		agentVersion:         "0.0.0",
-		hostNameService:      &mockHostname{},
-		log:                  newTestLogger(t),
-		timeNowFn:            time.Now,
-		TestsChan:            make(chan SyntheticsTestCtx, 100),
-		done:                 make(chan struct{}),
-		maxConsecutiveErrors: 3,
-		healthy:              true,
+		httpClient:      server.Client(),
+		endpoint:        server.URL,
+		apiKey:          "key",
+		agentVersion:    "0.0.0",
+		hostNameService: &mockHostname{},
+		log:             newTestLogger(t),
+		timeNowFn:       time.Now,
+		TestsChan:       make(chan SyntheticsTestCtx, 100),
+		done:            make(chan struct{}),
+		healthy:         true,
 	}
 
-	for i := 0; i < 2; i++ {
+	for i := 0; i < maxConsecutiveErrors-1; i++ {
 		_, err := poller.fetchTests(context.Background())
 		require.Error(t, err)
 		poller.markFailure()
 	}
-	assert.True(t, poller.isHealthy(), "still healthy after %d errors (threshold 3)", 2)
+	assert.True(t, poller.isHealthy(), "still healthy below threshold")
 
 	_, err := poller.fetchTests(context.Background())
 	require.Error(t, err)
@@ -260,20 +253,19 @@ func TestTestPoller_RecoversAfterSuccess(t *testing.T) {
 	defer server.Close()
 
 	poller := &testPoller{
-		httpClient:           server.Client(),
-		endpoint:             server.URL,
-		apiKey:               "key",
-		agentVersion:         "0.0.0",
-		hostNameService:      &mockHostname{},
-		log:                  newTestLogger(t),
-		timeNowFn:            time.Now,
-		TestsChan:            make(chan SyntheticsTestCtx, 100),
-		done:                 make(chan struct{}),
-		maxConsecutiveErrors: 2,
-		healthy:              true,
+		httpClient:      server.Client(),
+		endpoint:        server.URL,
+		apiKey:          "key",
+		agentVersion:    "0.0.0",
+		hostNameService: &mockHostname{},
+		log:             newTestLogger(t),
+		timeNowFn:       time.Now,
+		TestsChan:       make(chan SyntheticsTestCtx, 100),
+		done:            make(chan struct{}),
+		healthy:         true,
 	}
 
-	for i := 0; i < 2; i++ {
+	for i := 0; i < maxConsecutiveErrors; i++ {
 		_, err := poller.fetchTests(context.Background())
 		require.Error(t, err)
 		poller.markFailure()

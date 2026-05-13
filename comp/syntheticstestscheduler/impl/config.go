@@ -31,11 +31,10 @@ func newSchedulerConfigs(agentConfig config.Component) *schedulerConfigs {
 }
 
 type testPollerConfig struct {
-	site                 string
-	apiKey               string
-	agentVersion         string
-	maxConsecutiveErrors int
-	httpTransport        *http.Transport
+	site          string
+	apiKey        string
+	agentVersion  string
+	httpTransport *http.Transport
 }
 
 func newTestPollerConfig(agentConfig config.Component) *testPollerConfig {
@@ -44,16 +43,10 @@ func newTestPollerConfig(agentConfig config.Component) *testPollerConfig {
 		site = defaultSite
 	}
 
-	maxErrs := agentConfig.GetInt("synthetics.collector.test_poller.max_consecutive_errors")
-	if maxErrs <= 0 {
-		maxErrs = 5
-	}
-
 	return &testPollerConfig{
-		site:                 site,
-		apiKey:               agentConfig.GetString("api_key"),
-		agentVersion:         version.AgentVersion,
-		maxConsecutiveErrors: maxErrs,
-		httpTransport:        httputils.CreateHTTPTransport(agentConfig),
+		site:          site,
+		apiKey:        agentConfig.GetString("api_key"),
+		agentVersion:  version.AgentVersion,
+		httpTransport: httputils.CreateHTTPTransport(agentConfig),
 	}
 }

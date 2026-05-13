@@ -343,7 +343,7 @@ func TestFlush_NoOpWhenPollerHealthy(t *testing.T) {
 		},
 		flushInterval: 10 * time.Second,
 		log:           l,
-		testPoller:    &testPoller{healthy: true, maxConsecutiveErrors: 5},
+		testPoller:    &testPoller{healthy: true},
 	}
 
 	scheduler.flush(context.Background(), now)
