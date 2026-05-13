@@ -1,0 +1,15 @@
+---
+features:
+  - |
+    Autodiscovery now supports zero-configuration check scheduling for
+    integrations that ship an ``auto_conf_discovery.yaml`` template. When a
+    service container is discovered and its matching template contains a
+    top-level ``discovery: {}`` block, the Agent schedules the check in
+    *trial mode*: the check receives the container's network address and
+    exposed ports and probes them on its first run to determine the correct
+    endpoint. On success, the check continues running normally. If probing
+    fails for five consecutive runs, the check is unscheduled automatically.
+
+    Trial-mode failures are demoted from integration errors to debug-level
+    log entries and do not appear in the ``integration_errors`` expvar, so
+    they do not affect Agent health reporting while discovery is in progress.
