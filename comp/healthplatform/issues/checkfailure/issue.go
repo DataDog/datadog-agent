@@ -111,7 +111,6 @@ func (t *CheckFailureIssue) BuildIssue(context map[string]string) (*healthplatfo
 	}
 
 	return &healthplatform.Issue{
-		Id:          IssueID,
 		IssueName:   issueName,
 		Title:       string(title),
 		Description: string(desc),

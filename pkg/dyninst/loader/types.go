@@ -85,10 +85,10 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return C.SM_OP_EXPR_LOAD_LITERAL
 	case compiler.OpcodeExprReadString:
 		return C.SM_OP_EXPR_READ_STRING
-	case compiler.OpcodeExprCmpEqBase:
-		return C.SM_OP_EXPR_CMP_EQ_BASE
-	case compiler.OpcodeExprCmpEqString:
-		return C.SM_OP_EXPR_CMP_EQ_STRING
+	case compiler.OpcodeExprCmpBase:
+		return C.SM_OP_EXPR_CMP_BASE
+	case compiler.OpcodeExprCmpString:
+		return C.SM_OP_EXPR_CMP_STRING
 	case compiler.OpcodeConditionCheck:
 		return C.SM_OP_CONDITION_CHECK
 	case compiler.OpcodeConditionBegin:
@@ -113,6 +113,18 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return C.SM_OP_COND_JUMP_IF_FALSE
 	case compiler.OpcodeCondJumpIfTrue:
 		return C.SM_OP_COND_JUMP_IF_TRUE
+	case compiler.OpcodeExprLoadDuration:
+		return C.SM_OP_EXPR_LOAD_DURATION
+	case compiler.OpcodeConditionStateInit:
+		return C.SM_OP_CONDITION_STATE_INIT
+	case compiler.OpcodeConditionLeafRecord:
+		return C.SM_OP_CONDITION_LEAF_RECORD
+	case compiler.OpcodeConditionLeafLoad:
+		return C.SM_OP_CONDITION_LEAF_LOAD
+	case compiler.OpcodeConditionCheckPreserveError:
+		return C.SM_OP_CONDITION_CHECK_PRESERVE_ERROR
+	case compiler.OpcodeConditionLeafComplete:
+		return C.SM_OP_CONDITION_LEAF_COMPLETE
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
 	}
