@@ -1932,11 +1932,9 @@ properties:
         default: false
         visibility: public
         description: |-
-          Use the `time` field from container log files (when available) as the log timestamp
-          instead of ingestion time.
+          Use the `time` field from container log files (when available) as the log timestamp instead of ingestion time.
 
-          This affects logs collected from container runtimes that provide per-log-line
-          timestamps (for example Docker JSON logs).
+          This affects logs collected from container runtimes that provide per-log-line timestamps (for example Docker JSON logs).
         example: 'false'
         tags:
         - template_section:LogsAgent
