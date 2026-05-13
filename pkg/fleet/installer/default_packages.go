@@ -36,6 +36,9 @@ var PackagesList = []Package{
 	{Name: "datadog-apm-library-nginx", version: apmLanguageVersion, released: true, condition: apmLanguageEnabled},
 	{Name: "datadog-agent", version: agentVersion, released: false, releasedWithRemoteUpdates: true},
 	{Name: "datadog-ddot", version: agentVersion, released: false, releasedWithRemoteUpdates: true, condition: ddotEnabled},
+	{Name: "datadog-apm-library-iis", version: apmLanguageVersion, released: false, releasedWithRemoteUpdates: true, condition: apmLanguageExplicitlyEnabled},
+	{Name: "datadog-apm-library-iis-rum", version: apmLanguageVersion, released: false, releasedWithRemoteUpdates: true, condition: apmLanguageExplicitlyEnabled},
+	{Name: "datadog-apm-library-httpd", version: apmLanguageVersion, released: false, releasedWithRemoteUpdates: true, condition: apmLanguageExplicitlyEnabled},
 }
 
 // Default versions pinned for CentOS 6
@@ -113,6 +116,16 @@ func apmLanguageEnabled(p Package, e *env.Env) bool {
 		return true
 	}
 	return false
+}
+
+// apmLanguageExplicitlyEnabled returns true only when the package's language
+// is named in ApmLibraries. Unlike apmLanguageEnabled, it does not match the
+// "all" alias and does not fall back to the empty-libs install-everything
+// path. Use it for packages that should only be installed when explicitly
+// requested (e.g. pre-registered packages gated behind remote updates).
+func apmLanguageExplicitlyEnabled(p Package, e *env.Env) bool {
+	_, ok := e.ApmLibraries[packageToLanguage(p.Name)]
+	return ok
 }
 
 var fullSemverRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+`)

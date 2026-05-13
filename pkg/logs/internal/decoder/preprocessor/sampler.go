@@ -7,6 +7,7 @@
 package preprocessor
 
 import (
+	"regexp"
 	"strconv"
 	"time"
 
@@ -82,6 +83,22 @@ type AdaptiveSamplerConfig struct {
 	// ProtectImportantLogs bypasses rate limiting for logs containing critical severity
 	// keywords (FATAL, ERROR, PANIC, etc.). Protected logs are never dropped.
 	ProtectImportantLogs bool
+	// Include limits adaptive sampling to messages matching at least one filter.
+	// When empty, all messages are eligible unless excluded.
+	Include []AdaptiveSamplerFilter
+	// IncludeConfigured records whether Include was explicitly configured, so an
+	// invalid or empty include list does not accidentally sample every message.
+	IncludeConfigured bool
+	// Exclude makes matching messages bypass adaptive sampling. Exclude takes
+	// precedence over Include.
+	Exclude []AdaptiveSamplerFilter
+}
+
+// AdaptiveSamplerFilter matches messages by raw-content regex, structural sample,
+// or both.
+type AdaptiveSamplerFilter struct {
+	Regex        *regexp.Regexp
+	SampleTokens []Token
 }
 
 // samplerEntry tracks the credit-based rate limiting state for a single log pattern.
@@ -131,9 +148,49 @@ func isImportant(tokens []Token) bool {
 	return false
 }
 
+func (f AdaptiveSamplerFilter) matches(msg *message.Message, tokens []Token, matchThreshold float64) bool {
+	matched := false
+	if f.Regex != nil {
+		if !f.Regex.Match(msg.GetContent()) {
+			return false
+		}
+		matched = true
+	}
+	if len(f.SampleTokens) > 0 {
+		if !IsMatch(f.SampleTokens, tokens, matchThreshold) {
+			return false
+		}
+		matched = true
+	}
+	return matched
+}
+
+func matchesAnyFilter(filters []AdaptiveSamplerFilter, msg *message.Message, tokens []Token, matchThreshold float64) bool {
+	for _, filter := range filters {
+		if filter.matches(msg, tokens, matchThreshold) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *AdaptiveSampler) shouldSample(msg *message.Message, tokens []Token) bool {
+	if matchesAnyFilter(s.config.Exclude, msg, tokens, s.config.MatchThreshold) {
+		return false
+	}
+	if len(s.config.Include) == 0 && !s.config.IncludeConfigured {
+		return true
+	}
+	return matchesAnyFilter(s.config.Include, msg, tokens, s.config.MatchThreshold)
+}
+
 // Process applies credit-based rate limiting to the message.
 // Returns the message if allowed, nil if dropped.
 func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message.Message {
+	if !s.shouldSample(msg, tokens) {
+		tlmAdaptiveSamplerKept.Inc(s.source)
+		return msg
+	}
 	if s.config.ProtectImportantLogs && isImportant(tokens) {
 		tlmAdaptiveSamplerKept.Inc(s.source)
 		tlmAdaptiveSamplerProtected.Inc(s.source)

@@ -392,19 +392,6 @@ func (m *Message) Render() ([]byte, error) {
 
 // Methods implementing observer.LogView for read-only observation.
 
-// GetStatus returns the message status.
-func (m *Message) GetStatus() string {
-	return m.MessageMetadata.GetStatus()
-}
-
-// GetTags returns the message tags.
-func (m *Message) GetTags() []string {
-	if m.Origin == nil {
-		return nil
-	}
-	return m.Origin.Tags()
-}
-
 // GetHostname returns the message hostname.
 func (m *Message) GetHostname() string {
 	return m.Hostname

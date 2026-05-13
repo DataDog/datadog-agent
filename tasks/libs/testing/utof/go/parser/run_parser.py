@@ -2,17 +2,16 @@
 
 These functions are format-agnostic — they work on the raw test2json event stream
 and produce UTOFTestResult / UTOFAttempt objects.  Format-specific converters
-(go_unit, e2e, …) call these functions and add their own metadata and fields.
+(unit, e2e, …) call these functions and add their own metadata and fields.
 """
 
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from tasks.libs.testing.result_json import ActionType, ResultJson, run_is_failing
-from tasks.libs.testing.utof.go_parser.failure_parser import FailureExtractor, _extract_failure_info
+from tasks.libs.testing.utof.go.parser.failure_parser import FailureExtractor, _extract_failure_info
 from tasks.libs.testing.utof.models import UTOFAttempt, UTOFFlaky, UTOFSummary, UTOFTestResult
 
 if TYPE_CHECKING:
@@ -27,6 +26,16 @@ def leaf_name(full_test_name: str) -> str:
     """
     idx = full_test_name.rfind("/")
     return full_test_name[idx + 1 :] if idx >= 0 else full_test_name
+
+
+def suite_name(full_test_name: str) -> str:
+    """Return the suite name from a hierarchical test name.
+
+    E.g. "TestWindowsTestSuite/TestAPIKeyRefresh" → "TestWindowsTestSuite"
+         "TestWindowsTestSuite"                   → "TestWindowsTestSuite"
+    """
+    idx = full_test_name.find("/")
+    return full_test_name[:idx] if idx >= 0 else full_test_name
 
 
 def generate_test_id(package: str, test_name: str) -> str:
@@ -123,7 +132,6 @@ def determine_status(lines: list[ResultJsonLine]) -> str:
 
 def _get_or_create_test_node(
     by_full_name: dict[str, UTOFTestResult],
-    suite_fn: Callable[[str], str],
     full_name: str,
     ref_result: UTOFTestResult,
 ) -> UTOFTestResult:
@@ -136,7 +144,7 @@ def _get_or_create_test_node(
         name=leaf_name(full_name),
         full_name=full_name,
         package=ref_result.package,
-        suite=suite_fn(full_name),
+        suite=suite_name(full_name),
         type=ref_result.type,
         status="pass",
     )
@@ -144,16 +152,12 @@ def _get_or_create_test_node(
     return synthetic
 
 
-def build_test_tree(
-    flat_results: list[UTOFTestResult],
-    suite_fn: Callable[[str], str] = lambda _: "",
-) -> list[UTOFTestResult]:
+def build_test_tree(flat_results: list[UTOFTestResult]) -> list[UTOFTestResult]:
     """Organize flat test results into a tree based on '/' hierarchy.
 
     Returns only root-level tests; subtests are nested inside via the
     ``subtests`` field.  When a parent entry is missing from the results,
-    a synthetic node is created using ``suite_fn`` to derive its suite field.
-    Handles arbitrary nesting depth.
+    a synthetic node is created.  Handles arbitrary nesting depth.
     """
     by_full_name: dict[str, UTOFTestResult] = {r.full_name: r for r in flat_results}
     attached: set[str] = set()
@@ -169,7 +173,7 @@ def build_test_tree(
             if idx < 0:
                 continue  # root node
             parent_full = full[:idx]
-            parent = _get_or_create_test_node(by_full_name, suite_fn, parent_full, by_full_name[full])
+            parent = _get_or_create_test_node(by_full_name, parent_full, by_full_name[full])
             if parent.subtests is None:
                 parent.subtests = []
             child = by_full_name[full]
