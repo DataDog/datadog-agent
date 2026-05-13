@@ -313,6 +313,9 @@ func (d *directSender) collect() {
 	defer network.Reclaim(conns)
 
 	if dsc := directSenderConsumerInstance.Load(); dsc != nil {
+		if err := dsc.collectProcesses(); err != nil {
+			d.log.Warnf("error getting processes: %s", err)
+		}
 		dsc.proxyFilter.FilterProxies(conns)
 		defer dsc.cleanupProcesses()
 	}
