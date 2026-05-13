@@ -85,11 +85,12 @@ type WaitForProcessResult struct {
 
 // WaitForProcess polls dd-procmgr describe until State matches DesiredState and returns
 // a snapshot result. Restarts is always populated; PID is only populated for
-// ProcessStateRunning. For ProcessStateRunning it also validates Command,
-// readlink -f on Command vs /proc/<pid>/exe, and optional ExpectedBinary resolution.
-// For Running, success additionally requires State and PID to remain stable for
-// waitForProcessRunningStableWindow within the same Eventually attempt (so a brief
-// Running before exit 255 does not pass; Eventually retries until stability holds).
+// ProcessStateRunning. For ProcessStateRunning, when ExpectedBinary is set, describe
+// Command must equal it. The describe Command path is canonicalized with readlink -f and
+// must match readlink -f /proc/<pid>/exe (PID from describe).
+// For Running, success additionally requires State and PID to stay unchanged for
+// waitForProcessRunningStableWindow inside one Eventually callback (otherwise the callback
+// returns false and Eventually retries—e.g. a brief Running before a crash does not pass).
 func WaitForProcess(t *testing.T, executor CommandExecutor, args WaitForProcessArgs) WaitForProcessResult {
 	t.Helper()
 	require.NotEmpty(t, args.ProcmgrCLIBin, "WaitForProcessArgs.ProcmgrCLIBin must be set")
@@ -97,8 +98,6 @@ func WaitForProcess(t *testing.T, executor CommandExecutor, args WaitForProcessA
 
 	describeCmd := fmt.Sprintf(`sudo -u dd-agent -- %q describe %q`, args.ProcmgrCLIBin, args.ProcessName)
 	desiredState := args.DesiredState
-
-	wantExeFromHint, hintResolves := resolveExpectedBinaryHint(executor, desiredState, args.ExpectedBinary)
 
 	var result WaitForProcessResult
 	require.Eventually(t, func() bool {
@@ -111,9 +110,10 @@ func WaitForProcess(t *testing.T, executor CommandExecutor, args WaitForProcessA
 			t.Logf("WaitForProcess: dd-procmgr describe cmd=%q State=%q (want %s)\noutput:\n%s", describeCmd, st, desiredState, out)
 			return false
 		}
+		descCmd := fieldValue(out, "Command")
 		if args.ExpectedBinary != "" {
-			if cmd := fieldValue(out, "Command"); cmd != args.ExpectedBinary {
-				t.Logf("WaitForProcess: dd-procmgr describe cmd=%q unexpected Command field got=%q want=%q\noutput:\n%s", describeCmd, cmd, args.ExpectedBinary, out)
+			if descCmd != args.ExpectedBinary {
+				t.Logf("WaitForProcess: dd-procmgr describe cmd=%q unexpected Command field got=%q want=%q\noutput:\n%s", describeCmd, descCmd, args.ExpectedBinary, out)
 				return false
 			}
 		}
@@ -124,7 +124,7 @@ func WaitForProcess(t *testing.T, executor CommandExecutor, args WaitForProcessA
 			return true
 		}
 
-		r, ok := resolveRunningPIDFromDescribe(t, executor, describeCmd, out, hintResolves, wantExeFromHint, args.ExpectedBinary)
+		r, ok := resolveRunningPIDFromDescribe(t, executor, describeCmd, out)
 		if !ok {
 			return false
 		}
@@ -142,9 +142,9 @@ func WaitForProcess(t *testing.T, executor CommandExecutor, args WaitForProcessA
 // DDOTOtelAgentFleetPackageBinary for extension vs standalone ddot-package installs).
 func WaitForDDOTRunning(t *testing.T, executor CommandExecutor, expectedBinary string) WaitForProcessResult {
 	t.Helper()
-	require.NotEmpty(t, expectedBinary,
-		"expectedBinary is required (use DDOTOtelAgentExtensionBinary or DDOTOtelAgentFleetPackageBinary)")
 	cli := CLIBinForLinuxHost(t, executor)
+	require.NotEmpty(t, expectedBinary,
+		"expectedBinary must be set (use DDOTOtelAgentExtensionBinary, DDOTOtelAgentFleetStableExtensionBinary, DDOTOtelAgentFleetPackageBinary)")
 	return WaitForProcess(t, executor, WaitForProcessArgs{
 		ProcmgrCLIBin:  cli,
 		ProcessName:    DDOTProcessName,
@@ -178,33 +178,13 @@ func confirmStableRunningPID(t *testing.T, executor CommandExecutor, describeCmd
 	return true
 }
 
-func resolveExpectedBinaryHint(
-	executor CommandExecutor,
-	desiredState, expectedBinary string,
-) (string, bool) {
-	if desiredState != ProcessStateRunning || expectedBinary == "" {
-		return "", false
-	}
-	out, err := executor.ExecuteCommand(fmt.Sprintf("sudo readlink -f %q", expectedBinary))
-	if err != nil {
-		return "", false
-	}
-	trimmedOut := strings.TrimSpace(out)
-	if trimmedOut == "" {
-		return "", false
-	}
-	return trimmedOut, true
-}
-
 func resolveRunningPIDFromDescribe(
 	t *testing.T,
 	executor CommandExecutor,
 	describeCmd, describeOut string,
-	hintResolves bool,
-	wantExeFromHint, expectedBinaryForLog string,
 ) (WaitForProcessResult, bool) {
 	t.Helper()
-	cmd, cmdExe, ok := resolveCommandExeFromDescribe(t, executor, describeCmd, describeOut, hintResolves, wantExeFromHint, expectedBinaryForLog)
+	cmd, cmdExe, ok := resolveCommandExeFromDescribe(t, executor, describeCmd, describeOut)
 	if !ok {
 		return WaitForProcessResult{}, false
 	}
@@ -222,8 +202,6 @@ func resolveCommandExeFromDescribe(
 	t *testing.T,
 	executor CommandExecutor,
 	describeCmd, describeOut string,
-	hintResolves bool,
-	wantExeFromHint, expectedBinaryForLog string,
 ) (string, string, bool) {
 	t.Helper()
 	cmd := fieldValue(describeOut, "Command")
@@ -235,10 +213,6 @@ func resolveCommandExeFromDescribe(
 	cmdExe = strings.TrimSpace(cmdExe)
 	if cmdExe == "" {
 		t.Logf("resolveCommandExeFromDescribe: readlink -f %q returned empty path (Command field from prior dd-procmgr describe)", cmd)
-		return "", "", false
-	}
-	if hintResolves && cmdExe != wantExeFromHint {
-		t.Logf("resolveCommandExeFromDescribe: dd-procmgr describe cmd=%q resolved exe got=%q want=%q (hint from ExpectedBinary %q)\noutput:\n%s", describeCmd, cmdExe, wantExeFromHint, expectedBinaryForLog, describeOut)
 		return "", "", false
 	}
 	return cmd, cmdExe, true
