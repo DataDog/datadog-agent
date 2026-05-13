@@ -91,9 +91,7 @@ exports_files(glob(
 # gazelle:exclude comp/core/autodiscovery/common/utils
 # gazelle:exclude comp/core/autodiscovery/configresolver
 # gazelle:exclude comp/core/autodiscovery/listeners
-# gazelle:exclude comp/core/autodiscovery/noopimpl
 # gazelle:exclude comp/core/autodiscovery/providers/datastreams
-# gazelle:exclude comp/core/autodiscovery/status
 # gazelle:exclude comp/core/autodiscovery/stream
 # gazelle:exclude comp/core/bundle.go
 # gazelle:exclude comp/core/bundle_mock.go
@@ -390,7 +388,6 @@ exports_files(glob(
 # gazelle:exclude pkg/collector/loaders
 # gazelle:exclude pkg/collector/python
 # gazelle:exclude pkg/collector/runner
-# gazelle:exclude pkg/collector/scheduler
 # gazelle:exclude pkg/collector/sharedlibrary/ffi
 # gazelle:exclude pkg/collector/sharedlibrary/sharedlibraryimpl
 # gazelle:exclude pkg/collector/worker
@@ -402,7 +399,6 @@ exports_files(glob(
 # gazelle:exclude pkg/compliance/tools/k8s_schema_generator
 # gazelle:exclude pkg/compliance/utils
 # gazelle:exclude pkg/config/autodiscovery
-# gazelle:exclude pkg/config/fetcher/sysprobe
 # gazelle:exclude pkg/config/legacy
 # gazelle:exclude pkg/databasemonitoring
 # gazelle:exclude pkg/diagnose/connectivity
@@ -564,7 +560,6 @@ exports_files(glob(
 # gazelle:exclude pkg/network/usm/testutil/grpc
 # gazelle:exclude pkg/network/usm/utils
 # gazelle:exclude pkg/networkconfigmanagement
-# gazelle:exclude pkg/networkdevice/diagnoses
 # gazelle:exclude pkg/networkdevice/pinger
 # gazelle:exclude pkg/networkdevice/sender
 # gazelle:exclude pkg/networkdevice/utils
