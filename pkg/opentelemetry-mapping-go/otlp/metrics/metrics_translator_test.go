@@ -2367,9 +2367,11 @@ func TestSketchBucketsZeroLowerBoundDoesNotCollapsePercentiles(t *testing.T) {
 	}
 }
 
-// TestSketchBucketsNegativeBucketAtZero is the symmetric case: a (-X, 0]
-// bucket must not deposit count into the zero bin either.
-func TestSketchBucketsNegativeBucketAtZero(t *testing.T) {
+// TestSketchBucketsNegativeBucketAtZeroSpreads asserts the (A, 0] case is not
+// clamped: the OTel interval is closed at 0, so observations can legitimately
+// equal 0, and InsertInterpolate's first-deposit-at-lower-bound seeds at A
+// (not at the zero bin). Counts should spread across (A, 0] as usual.
+func TestSketchBucketsNegativeBucketAtZeroSpreads(t *testing.T) {
 	ctx := context.Background()
 	tr := newTranslator(t, zap.NewNop())
 	mapper := tr.getMapper().(*defaultMapper)
@@ -2377,7 +2379,7 @@ func TestSketchBucketsNegativeBucketAtZero(t *testing.T) {
 	cfg := quantile.Default()
 
 	p := pmetric.NewHistogramDataPoint()
-	p.BucketCounts().FromRaw([]uint64{0, 1, 0})
+	p.BucketCounts().FromRaw([]uint64{0, 10, 0})
 	p.ExplicitBounds().FromRaw([]float64{-5, 0})
 	p.SetTimestamp(seconds(0))
 
@@ -2387,11 +2389,12 @@ func TestSketchBucketsNegativeBucketAtZero(t *testing.T) {
 	require.Len(t, consumer.sketches, 1)
 
 	sk := consumer.sketches[0]
-	for _, q := range []float64{0.5, 0.9, 0.99} {
-		v := sk.Quantile(cfg, q)
-		assert.LessOrEqualf(t, v, -5.0,
-			"p%.0f for (-5, 0] bucket should be ≤ -5, got %g", q*100, v)
-	}
+	// p99 should reach into the upper end of (-5, 0], proving the count was
+	// spread rather than collapsed onto -5.
+	p99 := sk.Quantile(cfg, 0.99)
+	assert.Greaterf(t, p99, -1.0, "p99 should be near 0 for spread (-5, 0], got %g", p99)
+	assert.Equal(t, -5.0, sk.Basic.Min)
+	assert.Equal(t, 0.0, sk.Basic.Max)
 }
 
 // TestSketchBucketsInfiniteBoundsStillWork guards the existing ±Inf workaround

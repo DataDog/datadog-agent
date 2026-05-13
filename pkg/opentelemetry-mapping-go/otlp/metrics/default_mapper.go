@@ -391,11 +391,11 @@ func (m *defaultMapper) getSketchBuckets(
 		)
 
 		// InsertInterpolate's first deposit lands at the lower bound, so a degenerate lower bound leaks count into the
-		// sketch's zero bin and collapses percentiles. There are three degenerate shapes: (-Inf, B], (A, +Inf), and
-		// (0, B] — the last because the OTel spec defines explicit-bucket intervals as (lowerBound, upperBound] (open
-		// at the lower bound), so a (0, B] bucket cannot contain value 0. Collapse to the non-degenerate bound in each
-		// case. Order matters: handle the infinite-bound cases before the zero-bound cases so (-Inf, 0] is not caught
-		// by the zero branch.
+		// sketch's zero bin and collapses percentiles. Three lower-bound shapes are degenerate: -Inf, +Inf as upper
+		// (handled by collapsing toward the finite endpoint), and 0 when the bucket is (0, B] — the OTel spec defines
+		// explicit-bucket intervals as (lowerBound, upperBound], so a (0, B] bucket cannot contain value 0. Note the
+		// symmetric (A, 0] case is NOT degenerate: the interval is closed at 0, so observations can legitimately be 0,
+		// and the algorithm's first-deposit-at-lower-bound only seeds at A (not at 0).
 		// https://github.com/DataDog/datadog-agent/blob/7.31.0/pkg/aggregator/check_sampler.go#L107-L111
 		switch {
 		case math.IsInf(upperBound, 1):
@@ -404,8 +404,6 @@ func (m *defaultMapper) getSketchBuckets(
 			lowerBound = upperBound
 		case lowerBound == 0 && upperBound > 0:
 			lowerBound = upperBound
-		case upperBound == 0 && lowerBound < 0:
-			upperBound = lowerBound
 		}
 
 		count := bucketCounts.At(j)
