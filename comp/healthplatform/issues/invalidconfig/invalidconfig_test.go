@@ -48,7 +48,7 @@ func TestBuildIssue_SchemaValidationHasMediumSeverity(t *testing.T) {
 		issue.GetExtra().GetFields()[lite.ContextKeyErrorCount].GetNumberValue())
 	assert.Contains(t, issue.GetDescription(), "agent_ipc/port")
 	assert.Contains(t, issue.GetDescription(), "/tags")
-	assert.Contains(t, issue.GetDescription(), "• ", "description must bullet-prefix each violation so it survives UIs that collapse newlines")
+	assert.Contains(t, issue.GetDescription(), "; ", "description must use a visible delimiter between violations so the UI renders them legibly")
 }
 
 // Backend dedupe depends on both code paths emitting the same Issue ID.
