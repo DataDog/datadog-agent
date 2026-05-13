@@ -1,0 +1,9 @@
+# Indirection so go_sqlite3_library can reference libsqlite3_dynamic via a
+# main-module label. @sqlite3 isn't visible from inside the bzlmod context of
+# the gazelle-generated github.com/mattn/go-sqlite3 repo; @@//... always
+# resolves and insulates the macro from canonical-name churn.
+alias(
+    name = "libsqlite3_dynamic",
+    actual = "@sqlite3//:libsqlite3_dynamic",
+    visibility = ["//visibility:public"],
+)

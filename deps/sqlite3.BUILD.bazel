@@ -1,5 +1,5 @@
 load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
-load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
+load("@rules_cc//cc:defs.bzl", "cc_import", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 
 package(
@@ -26,10 +26,20 @@ cc_library(
     srcs = ["sqlite3.c"],
     hdrs = _SQLITE3_PUBLIC_HEADERS,
     includes = ["."],
+    # SQLITE_* defines mirror mattn/go-sqlite3's bundled-amalgamation build
+    # (sqlite3.go:13-23) so this shared library is feature-equivalent to the
+    # binding's default flavor.
     copts = [
         "-Wall",
+        "-DSQLITE_DEFAULT_WAL_SYNCHRONOUS=1",
+        "-DSQLITE_ENABLE_FTS3",
+        "-DSQLITE_ENABLE_FTS3_PARENTHESIS",
         "-DSQLITE_ENABLE_MATH_FUNCTIONS",
+        "-DSQLITE_ENABLE_RTREE",
+        "-DSQLITE_ENABLE_UPDATE_DELETE_LIMIT",
+        "-DSQLITE_OMIT_DEPRECATED",
         "-DSQLITE_THREADSAFE=1",
+        "-DSQLITE_TRACE_SIZE_LIMIT=15",
         "-O2",
     ],
     linkstatic = True,
@@ -40,6 +50,22 @@ cc_shared_library(
     name = "sqlite3",
     deps = [":libsqlite3"],
     visibility = ["//visibility:public"],
+)
+
+cc_import(
+    name = "_libsqlite3_shared",
+    shared_library = ":sqlite3",
+)
+
+# This target is meant to be used as a cdeps for go code that relies on sqlite3
+# More specifically, it's intended to avoid rebuilding the sqlite3 amalgamation
+# in github.com/mattn/go-sqlite3
+cc_library(
+    name = "libsqlite3_dynamic",
+    hdrs = _SQLITE3_PUBLIC_HEADERS,
+    includes = ["."],
+    visibility = ["//visibility:public"],
+    deps = [":_libsqlite3_shared"],
 )
 
 dd_cc_packaged(
