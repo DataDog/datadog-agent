@@ -115,7 +115,7 @@ func yamlParseIssue(info IssueInfo) *healthplatform.Issue {
 		Location:    "config",
 		Severity:    "high",
 		Source:      "config",
-		Extra: mustStruct(map[string]any{
+		Extra: asProtoStruct(map[string]any{
 			ContextKeyErrorKind:    string(ErrorKindYAMLParse),
 			ContextKeyConfigPath:   path,
 			ContextKeyErrorMessage: info.ErrorMessage,
@@ -139,24 +139,26 @@ func schemaValidationIssue(info IssueInfo) *healthplatform.Issue {
 	if path == "" {
 		path = "(unknown path)"
 	}
-	errList := splitErrors(info.Errors)
-	n, s := info.ErrorCount, pluralS(info.ErrorCount)
-	desc := fmt.Sprintf("Found %d schema violation%s in %s", n, s, path)
-	if len(errList) > 0 {
-		desc += ": " + strings.Join(errList, "; ")
+	suffix := ""
+	if info.ErrorCount != 1 {
+		suffix = "s"
+	}
+	desc := fmt.Sprintf("Found %d schema violation%s in %s", info.ErrorCount, suffix, path)
+	if info.Errors != "" {
+		desc += ": " + strings.ReplaceAll(info.Errors, "\n", "; ")
 	} else {
 		desc += "."
 	}
 	return &healthplatform.Issue{
 		Id:          IssueID,
 		IssueName:   "invalid_config",
-		Title:       fmt.Sprintf("Datadog Agent configuration has %d schema violation%s", n, s),
+		Title:       fmt.Sprintf("Datadog Agent configuration has %d schema violation%s", info.ErrorCount, suffix),
 		Description: desc,
 		Category:    "config",
 		Location:    "config",
 		Severity:    "medium",
 		Source:      "config",
-		Extra: mustStruct(map[string]any{
+		Extra: asProtoStruct(map[string]any{
 			ContextKeyErrorKind:  string(ErrorKindSchemaValidation),
 			ContextKeyConfigPath: path,
 			ContextKeyErrorCount: info.ErrorCount,
@@ -184,7 +186,7 @@ func startupFailureIssue(info IssueInfo) *healthplatform.Issue {
 		Location:    "agent",
 		Severity:    "high",
 		Source:      "config",
-		Extra: mustStruct(map[string]any{
+		Extra: asProtoStruct(map[string]any{
 			ContextKeyErrorKind:    string(ErrorKindStartupFailure),
 			ContextKeyConfigPath:   info.ConfigPath,
 			ContextKeyErrorMessage: info.ErrorMessage,
@@ -202,26 +204,8 @@ func startupFailureIssue(info IssueInfo) *healthplatform.Issue {
 	}
 }
 
-// pluralS returns "" for n == 1 and "s" otherwise
-func pluralS(n int) string {
-	if n == 1 {
-		return ""
-	}
-	return "s"
-}
-
-// splitErrors turns the newline-joined Errors blob back into a slice. Empty input yields nil.
-func splitErrors(joined string) []string {
-	if joined == "" {
-		return nil
-	}
-	return strings.Split(joined, "\n")
-}
-
-// mustStruct converts a map to a structpb.Struct. Inputs are always strings/
-// ints/bools so this never fails in practice; an empty struct is returned on
-// the unreachable error path rather than panicking.
-func mustStruct(m map[string]any) *structpb.Struct {
+// asStruct converts a map to a structpb.Struct
+func asProtoStruct(m map[string]any) *structpb.Struct {
 	s, err := structpb.NewStruct(m)
 	if err != nil {
 		return &structpb.Struct{}
