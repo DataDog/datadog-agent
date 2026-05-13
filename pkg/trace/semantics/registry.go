@@ -8,6 +8,7 @@ package semantics
 import (
 	_ "embed" //nolint:revive
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync/atomic"
 )
@@ -61,7 +62,7 @@ func NewRegistryFromJSON(data []byte) (Registry, error) {
 		return nil, err
 	}
 	if len(r.mappings) == 0 {
-		return nil, fmt.Errorf("registry JSON contains no concepts")
+		return nil, errors.New("registry JSON contains no concepts")
 	}
 	return r, nil
 }

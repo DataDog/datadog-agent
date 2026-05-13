@@ -46,7 +46,7 @@ func TestUpdateRegistry_AtomicSwap(t *testing.T) {
 	assert.Equal(t, "test-version", DefaultRegistry().Version())
 }
 
-func TestUpdateRegistry_ConcurrentReadWrite(t *testing.T) {
+func TestUpdateRegistry_ConcurrentReadWrite(_ *testing.T) {
 	const goroutines = 10
 	const iterations = 500
 
