@@ -290,17 +290,42 @@ surface CombiningAggregation {
         -- when tag_truncated_logs is true — a truncation-reason
         -- tag is appended. The reason value distinguishes
         -- single-line emissions ("single_line") from combined
-        -- multi-line emissions that triggered the rare
-        -- mid-combined-bucket truncation path ("auto_multiline").
+        -- multi-line emissions ("auto_multiline"): the bucket-
+        -- flush procedure selects the reason based purely on
+        -- bucket_lines_count at flush time.
         --
-        -- The "auto_multiline" reason fires only on combined
-        -- flushes (bucket_lines_count > 1 at flush time) whose
-        -- own combined content length already meets or exceeds
-        -- line_limit. The "single_line" reason fires on all
-        -- other truncated emissions including exploded lines,
-        -- no_aggregate emissions, aggregate-on-empty emissions,
-        -- single-line start_group flushes, and continuation
-        -- frames carried by should_truncate.
+        -- The "auto_multiline" reason fires on combined flushes
+        -- (bucket_lines_count > 1 at flush time) that have ANY
+        -- truncation applied — whether the truncation came from
+        -- a prepended continuation marker (carry from a prior
+        -- emission's overflow) or an appended overflow marker
+        -- on the combined content itself.
+        --
+        -- The "single_line" reason fires on all other truncated
+        -- emissions: exploded lines, no_aggregate emissions,
+        -- aggregate-on-empty emissions, single-line start_group
+        -- flushes, and continuation frames.
+        --
+        -- Note on dispatch-level reachability: in normal
+        -- per-call dispatch (@guidance), the appended overflow
+        -- branch of "auto_multiline" is unreachable — the
+        -- would_overflow_bucket guard ensures bucket_content_len
+        -- stays strictly below line_limit whenever the bucket
+        -- holds any line, so the bucket-flush procedure's
+        -- applyTruncation parameter shouldTruncate is always
+        -- false on combined emissions. The combined-emission
+        -- truncation path therefore activates only via the
+        -- inherited should_truncate carry from a preceding
+        -- single-line oversize emission: that carry causes the
+        -- combined flush to emit with a prepended marker, the
+        -- is_truncated flag set, and the "auto_multiline"
+        -- reason tag attached.
+        --
+        -- The append-marker branch on combined flushes is
+        -- preserved in the bucket-flush procedure because the
+        -- procedure is structurally callable in scenarios where
+        -- bucket_content_len could reach line_limit — they just
+        -- don't arise under the dispatch defined here.
 
     @guidance
         -- Per-call dispatch when process is invoked with
