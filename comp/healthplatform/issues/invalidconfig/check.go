@@ -45,7 +45,7 @@ func (c *checker) validate() *healthplatform.IssueReport {
 	}
 	errs, schemaErr := schema.ValidateCoreConfig(normalized)
 	if schemaErr != nil {
-		pkglog.Warnf("[AGENTLITECONFIG] invalidconfig: schema validator unavailable; skipping check")
+		pkglog.Warn("invalidconfig: schema validator unavailable; skipping check")
 		return nil
 	}
 	if len(errs) == 0 {
