@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
-	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -265,7 +264,8 @@ func TestCheck_Run_Success(t *testing.T) {
 	mockClock := clock.NewMock()
 	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
 	check.clock = mockClock
-	check.sender = ncmsender.NewNCMSender(mockSender, check.checkContext.Namespace, mockClock)
+	check.agentHostname = "test-agent-host"
+	check.sender = ncmsender.NewNCMSender(mockSender, check.checkContext.Namespace, mockClock, check.agentHostname)
 
 	// Swap the ncm component for one backed by a memstore configured with the
 	// mock clock and deterministic UUIDs, so inventory output is predictable.
@@ -342,18 +342,16 @@ func TestCheck_Run_Success(t *testing.T) {
 		ReportedAt: 1754043600,
 		Entries: []report.InventoryEntry{
 			{
-				RawConfigID: "87b2343a-56d9-43bc-a35a-4d842dec9586",
-				ConfigType:  types.RUNNING,
-				DeviceID:    "default:10.0.0.1",
-				CapturedAt:  1754043600,
-				RawHash:     "c2351724fbf7fd92fc7a3ec37db69b0e56192a452bbb26d98123fa551a95103a",
+				ConfigID:      "87b2343a-56d9-43bc-a35a-4d842dec9586",
+				DeviceID:      "default:10.0.0.1",
+				CapturedAt:    1754043600,
+				AgentHostname: "test-agent-host",
 			},
 			{
-				RawConfigID: "d348e53f-db31-47ed-8d50-11462d7a15e5",
-				ConfigType:  types.STARTUP,
-				DeviceID:    "default:10.0.0.1",
-				CapturedAt:  1754043600,
-				RawHash:     "3eac43e557060ec74a62633e16fb496ed14252771403993f2be9bfe87f48e5f4",
+				ConfigID:      "d348e53f-db31-47ed-8d50-11462d7a15e5",
+				DeviceID:      "default:10.0.0.1",
+				CapturedAt:    1754043600,
+				AgentHostname: "test-agent-host",
 			},
 		},
 	}

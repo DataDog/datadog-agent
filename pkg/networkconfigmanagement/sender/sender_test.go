@@ -34,7 +34,7 @@ func TestNCMSender_SendNCMConfig_Success(t *testing.T) {
 	mockClock := clock.NewMock()
 	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
 
-	ncmSender := NewNCMSender(mockSender, namespace, mockClock)
+	ncmSender := NewNCMSender(mockSender, namespace, mockClock, "test-agent-host")
 
 	// Create test payload
 	configs := []ncmreport.NetworkDeviceConfig{
@@ -143,13 +143,13 @@ func TestNCMSender_SendNCMCheckMetrics(t *testing.T) {
 			mockClock.Set(tt.startTime)
 			mockClock.Add(5 * time.Second)
 
-			sender := NewNCMSender(mockSender, "test-namespace", mockClock)
+			sender := NewNCMSender(mockSender, "test-namespace", mockClock, "test-agent-host")
 			sender.SetDeviceTags(tt.tags)
 
 			sender.SendNCMCheckMetrics(tt.startTime, tt.lastCheckTime)
 
 			for _, metric := range tt.expectedMetrics {
-				mockSender.AssertMetric(t, metric.submissionType, metric.name, metric.value, "", metric.tags)
+				mockSender.AssertMetric(t, metric.submissionType, metric.name, metric.value, "test-agent-host", metric.tags)
 			}
 		})
 	}
@@ -188,12 +188,12 @@ func TestNCMSender_SendMetricsFromExtractedMetadata(t *testing.T) {
 			mockSender := mocksender.NewMockSender("test")
 			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-			sender := NewNCMSender(mockSender, "test-namespace", clock.NewMock())
+			sender := NewNCMSender(mockSender, "test-namespace", clock.NewMock(), "test-agent-host")
 			sender.SetDeviceTags(tt.tags)
 			sender.SendMetricsFromExtractedMetadata(tt.extractedMetadata, tt.configType)
 
 			for _, metric := range tt.expectedMetrics {
-				mockSender.AssertMetric(t, metric.submissionType, metric.name, metric.value, "", tt.tags)
+				mockSender.AssertMetric(t, metric.submissionType, metric.name, metric.value, "test-agent-host", tt.tags)
 			}
 		})
 	}
@@ -207,7 +207,7 @@ func TestNCMSender_SendDeviceMetadata(t *testing.T) {
 	mockClock := clock.NewMock()
 	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
 
-	ncmSender := NewNCMSender(mockSender, namespace, mockClock)
+	ncmSender := NewNCMSender(mockSender, namespace, mockClock, "test-agent-host")
 
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
 
@@ -248,18 +248,17 @@ func TestNCMSender_SendNCMInventory_Success(t *testing.T) {
 	mockClock := clock.NewMock()
 	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
 
-	ncmSender := NewNCMSender(mockSender, namespace, mockClock)
+	ncmSender := NewNCMSender(mockSender, namespace, mockClock, "test-agent-host")
 
 	payload := ncmreport.NCMInventory{
 		Namespace:  namespace,
 		ReportedAt: mockClock.Now().Unix(),
 		Entries: []ncmreport.InventoryEntry{
 			{
-				RawConfigID: "abc-123",
-				ConfigType:  types.RUNNING,
-				DeviceID:    "default:10.0.0.1",
-				CapturedAt:  mockClock.Now().Unix(),
-				RawHash:     "teehee",
+				ConfigID:      "abc-123",
+				DeviceID:      "default:10.0.0.1",
+				CapturedAt:    mockClock.Now().Unix(),
+				AgentHostname: "test-agent-host",
 			},
 		},
 	}
@@ -275,11 +274,10 @@ func TestNCMSender_SendNCMInventory_Success(t *testing.T) {
   "reported_at": 1754043600,
   "entries": [
     {
-      "raw_config_id": "abc-123",
-      "config_type": "running",
+      "config_id": "abc-123",
       "device_id": "default:10.0.0.1",
       "captured_at": 1754043600,
-      "raw_hash": "teehee"
+      "agent_hostname": "test-agent-host"
     }
   ]
 }
@@ -301,7 +299,7 @@ func TestNCMSender_SendNCMInventory_EmptyEntries(t *testing.T) {
 	mockClock := clock.NewMock()
 	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
 
-	ncmSender := NewNCMSender(mockSender, "default", mockClock)
+	ncmSender := NewNCMSender(mockSender, "default", mockClock, "test-agent-host")
 
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
 

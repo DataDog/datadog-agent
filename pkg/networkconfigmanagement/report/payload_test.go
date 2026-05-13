@@ -129,11 +129,10 @@ func TestNCMInventory_JSONFields(t *testing.T) {
 		ReportedAt: 1754043600,
 		Entries: []InventoryEntry{
 			{
-				RawConfigID: "abc-123",
-				ConfigType:  types.RUNNING,
-				DeviceID:    "default:10.0.0.1",
-				CapturedAt:  1754043600,
-				RawHash:     "teehee",
+				ConfigID:      "abc-123",
+				DeviceID:      "default:10.0.0.1",
+				CapturedAt:    1754043600,
+				AgentHostname: "test-agent-host",
 			},
 		},
 	}
@@ -146,11 +145,10 @@ func TestNCMInventory_JSONFields(t *testing.T) {
 		`"namespace":"default"`,
 		`"reported_at":1754043600`,
 		`"entries":[`,
-		`"raw_config_id":"abc-123"`,
-		`"config_type":"running"`,
+		`"config_id":"abc-123"`,
 		`"device_id":"default:10.0.0.1"`,
 		`"captured_at":1754043600`,
-		`"raw_hash":"teehee"`,
+		`"agent_hostname":"test-agent-host"`,
 	} {
 		assert.Contains(t, jsonStr, key)
 	}

@@ -35,19 +35,20 @@ const (
 
 // NCMSender is a wrapper around the sender.Sender to send network device configuration data
 type NCMSender struct {
-	Sender     sender.Sender
-	namespace  string
-	hostname   string // TODO: get the hostname to use
-	deviceTags []string
-	clock      clock.Clock
+	Sender        sender.Sender
+	namespace     string
+	agentHostname string
+	deviceTags    []string
+	clock         clock.Clock
 }
 
 // NewNCMSender creates a new NCMSender
-func NewNCMSender(sender sender.Sender, namespace string, clock clock.Clock) *NCMSender {
+func NewNCMSender(sender sender.Sender, namespace string, clock clock.Clock, agentHostname string) *NCMSender {
 	return &NCMSender{
-		Sender:    sender,
-		namespace: namespace,
-		clock:     clock,
+		Sender:        sender,
+		namespace:     namespace,
+		clock:         clock,
+		agentHostname: agentHostname,
 	}
 }
 
@@ -64,11 +65,11 @@ func (s *NCMSender) getDeviceTags() []string {
 func (s *NCMSender) SendNCMCheckMetrics(startTime time.Time, lastCheckTime time.Time) {
 	tags := append(s.getDeviceTags(), utils.GetCommonAgentTags()...)
 	duration := s.clock.Since(startTime).Seconds()
-	s.Sender.Gauge(ncmCheckDurationMetric, duration, s.hostname, tags)
+	s.Sender.Gauge(ncmCheckDurationMetric, duration, s.agentHostname, tags)
 
 	if !lastCheckTime.IsZero() {
 		interval := startTime.Sub(lastCheckTime).Seconds()
-		s.Sender.Gauge(ncmCheckIntervalMetric, interval, s.hostname, tags)
+		s.Sender.Gauge(ncmCheckIntervalMetric, interval, s.agentHostname, tags)
 	}
 }
 
@@ -83,7 +84,7 @@ func (s *NCMSender) SendMetricsFromExtractedMetadata(metadata profile.ExtractedM
 	}
 	// if config size was extracted, submit the metric
 	if metadata.ConfigSize != 0 {
-		s.Sender.Gauge(ncmConfigSizeMetric, float64(metadata.ConfigSize), s.hostname, tags)
+		s.Sender.Gauge(ncmConfigSizeMetric, float64(metadata.ConfigSize), s.agentHostname, tags)
 	}
 }
 

@@ -9,6 +9,7 @@
 package networkconfigmanagement
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -30,6 +31,7 @@ import (
 	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
 	ncmsender "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/sender"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -48,6 +50,7 @@ type Check struct {
 	clock               clock.Clock
 	lastCheckTime       time.Time
 	inventoryRunCounter int
+	agentHostname       string
 }
 
 // saveConfig saves the config if store is non-nil, and returns an error about manual check mode otherwise.
@@ -151,11 +154,10 @@ func (c *Check) Run() error {
 		// convert meta to inventory entry
 		for _, metadata := range configMeta {
 			entry := ncmreport.InventoryEntry{
-				RawConfigID: metadata.ConfigUUID,
-				ConfigType:  metadata.ConfigType,
-				DeviceID:    metadata.DeviceID,
-				CapturedAt:  metadata.CapturedAt,
-				RawHash:     metadata.RawHash,
+				ConfigID:      metadata.ConfigUUID,
+				DeviceID:      metadata.DeviceID,
+				CapturedAt:    metadata.CapturedAt,
+				AgentHostname: c.agentHostname,
 			}
 			inventoryEntries = append(inventoryEntries, entry)
 		}
@@ -196,12 +198,19 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	// Initialize the clock
 	c.clock = clock.New()
 
+	// Get agent hostname (for enabling rollbacks, etc.)
+	agentHostname, err := hostname.Get(context.TODO())
+	if err != nil {
+		log.Warnf("Error getting the agent hostname: %v", err)
+	}
+	c.agentHostname = agentHostname
+
 	// Initialize the Sender
 	s, err := c.GetSender()
 	if err != nil {
 		return err
 	}
-	ncmSender := ncmsender.NewNCMSender(s, c.checkContext.Namespace, c.clock)
+	ncmSender := ncmsender.NewNCMSender(s, c.checkContext.Namespace, c.clock, agentHostname)
 	c.sender = ncmSender
 
 	// TODO: add check to see the device's credentials type (SSH/Telnet) and create appropriate client factory

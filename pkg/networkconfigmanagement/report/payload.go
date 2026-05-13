@@ -40,11 +40,10 @@ type NCMInventory struct {
 
 // InventoryEntry contains the metadata about the configs stored locally on the agent
 type InventoryEntry struct {
-	RawConfigID string           `json:"raw_config_id"`
-	ConfigType  types.ConfigType `json:"config_type"`
-	DeviceID    string           `json:"device_id"`
-	CapturedAt  int64            `json:"captured_at"`
-	RawHash     string           `json:"raw_hash"`
+	ConfigID      string `json:"config_id"`
+	DeviceID      string `json:"device_id"`
+	CapturedAt    int64  `json:"captured_at"`
+	AgentHostname string `json:"agent_hostname"`
 }
 
 // ToNCMPayload converts the given parameters into a NCMPayload (sent to event platform / backend).
