@@ -119,16 +119,16 @@ func yamlParseIssue(info IssueInfo) *healthplatform.Issue {
 			ContextKeyErrorKind:    string(ErrorKindYAMLParse),
 			ContextKeyConfigPath:   path,
 			ContextKeyErrorMessage: info.ErrorMessage,
-			ContextKeyImpact:       "The Datadog Agent cannot load its configuration and is running with defaults only. Telemetry will not be sent.",
+			ContextKeyImpact:       "The Datadog Agent cannot start until the configuration file is valid YAML",
 		}),
 		Remediation: &healthplatform.Remediation{
-			Summary: "Open the configuration file and fix the YAML syntax error, then restart the agent.",
+			Summary: "Fix the YAML syntax error in the configuration file, then restart the Datadog Agent.",
 			Steps: []*healthplatform.RemediationStep{
 				{Order: 1, Text: fmt.Sprintf("Open %s in an editor.", path)},
-				{Order: 2, Text: "Look at the location reported by the parser: " + info.ErrorMessage},
-				{Order: 3, Text: "Fix the YAML syntax (check indentation, quoting, brackets)."},
-				{Order: 4, Text: "Validate with: datadog-agent experimental check-config -c " + path},
-				{Order: 5, Text: "Restart the agent: sudo systemctl restart datadog-agent (or your platform's equivalent)."},
+				{Order: 2, Text: "Locate the syntax error reported by the parser: " + info.ErrorMessage},
+				{Order: 3, Text: "Fix the YAML (common causes: indentation, unquoted special characters, mismatched brackets or quotes)."},
+				{Order: 4, Text: "Restart the Datadog Agent."},
+				{Order: 5, Text: "Run `datadog-agent diagnose` to confirm the configuration is now valid."},
 			},
 		},
 	}
@@ -143,7 +143,7 @@ func schemaValidationIssue(info IssueInfo) *healthplatform.Issue {
 	n, s := info.ErrorCount, pluralS(info.ErrorCount)
 	desc := fmt.Sprintf("Found %d schema violation%s in %s", n, s, path)
 	if len(errList) > 0 {
-		desc += ":\n• " + strings.Join(errList, "\n• ")
+		desc += ": " + strings.Join(errList, "; ")
 	} else {
 		desc += "."
 	}
@@ -163,12 +163,12 @@ func schemaValidationIssue(info IssueInfo) *healthplatform.Issue {
 			ContextKeyImpact:     "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured.",
 		}),
 		Remediation: &healthplatform.Remediation{
-			Summary: "Fix each schema violation in the configuration file and restart the agent.",
+			Summary: "Fix each schema violation in the configuration file, then restart the Datadog Agent.",
 			Steps: []*healthplatform.RemediationStep{
 				{Order: 1, Text: fmt.Sprintf("Open %s in an editor.", path)},
 				{Order: 2, Text: "Fix each violation listed in the description."},
-				{Order: 3, Text: "Validate after fixing: datadog-agent experimental check-config -c " + path},
-				{Order: 4, Text: "Restart the agent."},
+				{Order: 3, Text: "Restart the Datadog Agent."},
+				{Order: 4, Text: "Run `datadog-agent diagnose` to confirm the configuration is now valid."},
 			},
 		},
 	}
@@ -191,12 +191,12 @@ func startupFailureIssue(info IssueInfo) *healthplatform.Issue {
 			ContextKeyImpact:       "The Datadog Agent process failed to start. No telemetry will be collected until the underlying problem is resolved.",
 		}),
 		Remediation: &healthplatform.Remediation{
-			Summary: "Inspect the agent logs for the underlying cause and address it before restarting.",
+			Summary: "Inspect the Datadog Agent logs for the underlying cause and address it before restarting.",
 			Steps: []*healthplatform.RemediationStep{
-				{Order: 1, Text: "Check the agent log file (default /var/log/datadog/agent.log)."},
+				{Order: 1, Text: "Open the Datadog Agent log file"},
 				{Order: 2, Text: "Look for the error message: " + info.ErrorMessage},
 				{Order: 3, Text: "Resolve the underlying issue (port conflicts, missing files, permissions, etc.)."},
-				{Order: 4, Text: "Restart the agent."},
+				{Order: 4, Text: "Restart the Datadog Agent."},
 			},
 		},
 	}
