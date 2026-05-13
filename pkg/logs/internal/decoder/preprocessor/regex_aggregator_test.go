@@ -208,36 +208,57 @@ func TestRegexAggregator_ByteConservation_SeparatorBetweenLines(t *testing.T) {
 //	                                         aggregate reaches or
 //	                                         exceeds line_limit
 //	                                         bytes, the buffer is
-//	                                         flushed mid-stream:
-//	                                         the truncation marker
-//	                                         is appended … the
-//	                                         emission proceeds, and
-//	                                         should_truncate is set
-//	                                         so the NEXT process
-//	                                         call prepends the
-//	                                         continuation marker.
+//	                                         flushed mid-stream …
+//	                                         and should_truncate
+//	                                         is set as a
+//	                                         continuation-marker
+//	                                         carry … consumed by
+//	                                         the NEXT post-match
+//	                                         non-matching process
+//	                                         call.
 //
-// A buffered aggregate that overflows line_limit emits the
-// truncated content within the same call, then the next call's
-// content gets the continuation marker prepended.
+// Three phases:
+//
+//  1. Buffered match line + overflowing continuation: the overflow
+//     flushes within the same call with the marker appended.
+//  2. Subsequent non-matching short line: the carry is consumed —
+//     marker prepended, buffered (does not overflow on its own).
+//  3. Flush drains the carry-marked buffer; emission has the
+//     prefix marker and is_truncated set.
+//
+// The "non-matching" qualifier is load-bearing — a
+// pattern-matching continuation would reset the carry via the
+// opening-flush's sendBuffer defer.
 func TestRegexAggregator_MidAggregateTruncation(t *testing.T) {
-	ag := newRegexAggregator(t, `^START`, 10)
+	// line_limit large enough that prepending the marker (15 bytes)
+	// plus a short content does not itself overflow — so phase (2)
+	// genuinely tests "buffered with prepend" rather than "overflow
+	// while prepending."
+	ag := newRegexAggregator(t, `^START`, 50)
 
-	// Establish pattern-matched-once with a short leader.
+	// Phase 1a: pattern match buffers a leader. No emission.
 	require.Empty(t, processMsg(ag, newMessage("START"), aggregate))
 
-	// Continuation that overflows: emission within the same call.
-	msgs := processMsg(ag, newMessage("a very long continuation line"), aggregate)
+	// Phase 1b: overflowing continuation emits within the same call.
+	msgs := processMsg(ag, newMessage("a very very long continuation that exceeds the buffer"), aggregate)
 	require.Len(t, msgs, 1, "overflow must flush within the same call")
 	assert.True(t, msgs[0].ParsingExtra.IsTruncated, "overflow emission must have is_truncated set")
 	assert.True(t, strings.HasSuffix(string(msgs[0].GetContent()), string(message.TruncatedFlag)),
 		"overflow emission must have the truncation marker appended; got %q", msgs[0].GetContent())
 
-	// Next call's content gets the continuation marker prepended.
-	msgs = processMsg(ag, newMessage("START next"), aggregate)
-	require.Len(t, msgs, 1, "the pattern-matching line should flush the carry-marked line")
-	assert.True(t, strings.HasPrefix(string(msgs[0].GetContent()), string(message.TruncatedFlag)),
-		"emission following an overflow must have the truncation marker prepended; got %q", msgs[0].GetContent())
+	// Phase 2: subsequent non-matching short line consumes the carry.
+	// Buffered, not emitted yet.
+	require.Empty(t, processMsg(ag, newMessage("short"), aggregate),
+		"short non-matching continuation must be buffered, not emitted in-call")
+
+	// Phase 3: flush drains. Emission has the prefix marker and is_truncated.
+	flushed := flushMsgs(ag)
+	require.Len(t, flushed, 1, "flush must drain the carry-marked buffer")
+	assert.True(t, flushed[0].ParsingExtra.IsTruncated,
+		"flushed emission carrying the continuation marker must have is_truncated set")
+	assert.True(t, strings.HasPrefix(string(flushed[0].GetContent()), string(message.TruncatedFlag)),
+		"emission following an overflow (with a non-matching continuation) must have the truncation marker prepended; got %q",
+		flushed[0].GetContent())
 }
 
 // TestRegexAggregator_TruncationTagging anchors:
