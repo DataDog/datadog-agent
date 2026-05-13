@@ -24,7 +24,9 @@ type ProcessNameExtractor struct {
 
 // NewProcessNameExtractor creates a new ProcessNameExtractor.
 func NewProcessNameExtractor() *ProcessNameExtractor {
-	return &ProcessNameExtractor{}
+	return &ProcessNameExtractor{
+		names: map[int32]string{},
+	}
 }
 
 // Extract populates the internal map with the executable name for each process.
