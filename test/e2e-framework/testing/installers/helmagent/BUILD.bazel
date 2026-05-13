@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "helmagent",
+    srcs = ["install.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/helmagent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_datadog_datadog_agent_test_e2e_framework//common/utils",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/datadog/kubernetesagentparams",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/components",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/environments",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/runner",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/runner/parameters",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//discovery",
+        "@io_k8s_client_go//discovery/cached/memory",
+        "@io_k8s_client_go//kubernetes",
+        "@io_k8s_client_go//rest",
+        "@io_k8s_client_go//restmapper",
+        "@io_k8s_client_go//tools/clientcmd",
+        "@io_k8s_sigs_yaml//:yaml",
+        "@sh_helm_helm_v3//pkg/action",
+        "@sh_helm_helm_v3//pkg/chart/loader",
+        "@sh_helm_helm_v3//pkg/cli",
+    ],
+)

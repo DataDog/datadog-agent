@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "hostagent",
+    srcs = ["install.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/hostagent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/datadog/agentparams",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/os",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/components",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/environments",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/runner",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/runner/parameters",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/utils/e2e/client/agentclientparams",
+        "@com_github_stretchr_testify//require",
+    ],
+)

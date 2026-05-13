@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "workloads",
+    srcs = ["workloads.go"],
+    embedsrcs = [
+        "argorollout/manifest.yaml",
+        "cpustress/manifest.yaml",
+        "dogstatsd/manifest.yaml",
+        "etcd/manifest.yaml",
+        "mutated/manifest.yaml",
+        "nginx/manifest.yaml",
+        "prometheus/manifest.yaml",
+        "redis/manifest.yaml",
+        "tracegen/manifest.yaml",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e-framework/testing/installers/workloads",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_datadog_datadog_agent_test_e2e_framework//components/datadog/apps",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/environments",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/runner",
+        "@com_github_datadog_datadog_agent_test_e2e_framework//testing/runner/parameters",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//apps/v1:apps",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/util/yaml",
+        "@io_k8s_client_go//discovery",
+        "@io_k8s_client_go//discovery/cached/memory",
+        "@io_k8s_client_go//dynamic",
+        "@io_k8s_client_go//kubernetes",
+        "@io_k8s_client_go//restmapper",
+        "@io_k8s_client_go//tools/clientcmd",
+    ],
+)
