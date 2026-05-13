@@ -9,8 +9,8 @@
         "OriginProduct": 10,
         "OriginSubProduct": 17,
         "OriginProductDetail": 0,
-        "Timestamp": 1755603980235511877,
         "Interval": 20,
+        "Timestamp": 1755603980235511877,
         "Summary": {
           "Min": -100,
           "Max": 100,
@@ -40,8 +40,8 @@
         "OriginSubProduct": 17,
         "OriginProductDetail": 0,
         "Type": "count",
-        "Timestamp": 1755603940234853944,
         "Interval": 20,
+        "Timestamp": 1755603940234853944,
         "Value": 8617
       },
       {
@@ -53,8 +53,8 @@
         "OriginSubProduct": 17,
         "OriginProductDetail": 0,
         "Type": "count",
-        "Timestamp": 1755603960236383064,
         "Interval": 20,
+        "Timestamp": 1755603960236383064,
         "Value": 9227
       },
       {
@@ -66,8 +66,8 @@
         "OriginSubProduct": 17,
         "OriginProductDetail": 0,
         "Type": "count",
-        "Timestamp": 1755603980235511877,
         "Interval": 20,
+        "Timestamp": 1755603980235511877,
         "Value": 9125
       }
     ]
