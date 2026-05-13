@@ -602,12 +602,6 @@ func (m *metricDropHandle) ObserveMetricAndReportDrop(_ observerdef.MetricView) 
 }
 func (m *metricDropHandle) ObserveLog(msg observerdef.LogView) { m.inner.ObserveLog(msg) }
 
-// noopHandle returns a handle that discards all observations.
-// Used when analysis is disabled so the analysis pipeline is not started.
-func (o *observerImpl) noopHandle(_ string) observerdef.Handle {
-	return &noopObserveHandle{}
-}
-
 // noopObserveHandle discards all observations.
 type noopObserveHandle struct{}
 
