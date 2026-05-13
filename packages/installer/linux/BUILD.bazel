@@ -87,9 +87,17 @@ pkg_filegroup(
     ],
 )
 
+dd_rpath_and_strip(
+    name = "stripped",
+    srcs = [
+        ":whole_distro",
+    ],
+    dbg_symbols = "symbols",
+)
+
 pkg_tar(
     name = "whole_distro_tar",
-    srcs = [":whole_distro"],
+    srcs = [":stripped"],
     compression_level = get_compression_level(),
     extension = "tar.xz",
     owner = "0.0",
@@ -206,4 +214,19 @@ pkg_files(
 pkg_install(
     name = "copy_out",
     srcs = [":all_packages"],
+)
+
+pkg_tar(
+    name = "dbg_tar",
+    srcs = [":symbols"],
+    compression_level = get_compression_level(),
+    extension = "tar.xz",
+    owner = "0.0",
+)
+
+pkg_deb(
+    name = "debian_dbg",
+    data = ":dbg_tar",
+    package_file_name = "datadog-installer-dbg_{version}-1_{arch_deb}.deb",
+    ...
 )
