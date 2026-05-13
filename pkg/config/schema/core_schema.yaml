@@ -2422,6 +2422,18 @@ properties:
             node_type: setting
             type: boolean
             default: false
+          exclude:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: object
+          include:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: object
           match_threshold:
             node_type: setting
             type: number

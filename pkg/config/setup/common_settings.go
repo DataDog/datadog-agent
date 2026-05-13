@@ -1894,6 +1894,10 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// When true, logs containing critical severity keywords (FATAL, ERROR, PANIC, etc.)
 	// bypass the adaptive sampler and are never dropped.
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.protect_important_logs", true)
+	// Include limits adaptive sampling to logs matching at least one rule when configured.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.include", []map[string]interface{}{})
+	// Exclude prevents adaptive sampling from applying to logs matching any rule when configured.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.exclude", []map[string]interface{}{})
 
 	// Enable the legacy auto multiline detection (v1)
 	config.BindEnvAndSetDefault("logs_config.force_auto_multi_line_detection_v1", false)
