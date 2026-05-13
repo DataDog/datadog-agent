@@ -116,6 +116,7 @@ func TestSetObserverNilIsNoop(t *testing.T) {
 
 // TestSetObserverConfigOff verifies that SetObserver does not wire the handle
 // when anomaly_detection.enabled or anomaly_detection.metrics.enabled is false.
+// Covers both the DogStatsD TimeSampler path and the BufferedAggregator/CheckSampler path.
 func TestSetObserverConfigOff(t *testing.T) {
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
@@ -127,8 +128,17 @@ func TestSetObserverConfigOff(t *testing.T) {
 	demux.SetObserver(comp)
 
 	for _, w := range demux.statsd.workers {
-		assert.Nil(t, w.sampler.observerHandle, "handle should not be wired when config is off")
+		assert.Nil(t, w.sampler.observerHandle, "DogStatsD worker handle should not be wired when config is off")
 	}
+	assert.Nil(t, demux.aggregator.observerHandle, "BufferedAggregator handle should not be wired when config is off")
+
+	// Verify that a CheckSampler registered after the (no-op) SetObserver call also has no handle.
+	demux.aggregator.handleRegisterSampler("check-config-off")
+	demux.aggregator.mu.Lock()
+	cs := demux.aggregator.checkSamplers["check-config-off"]
+	demux.aggregator.mu.Unlock()
+	require.NotNil(t, cs)
+	assert.Nil(t, cs.observerHandle, "CheckSampler handle should not be wired when config is off")
 }
 
 // TestCheckSamplerObserverHandle verifies that ObserveMetric is called for each
