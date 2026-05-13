@@ -279,9 +279,6 @@ build do
     command_on_repo_root "bazelisk run #{bazel_flags} -- //packages/macos/app:install --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
 
     command_on_repo_root "bazelisk run #{bazel_flags} -- //cmd/ai_prompt_logger:install --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
-    copy "cmd/ai_prompt_logger/ai_usage_native_host.yaml.example", "#{install_dir}/etc/ai_usage_native_host.yaml.example"
-    copy "cmd/ai_prompt_logger/run_ai_usage_native_host.sh", "#{install_dir}/embedded/bin/run_ai_usage_native_host.sh"
-    command "chmod 0755 #{install_dir}/embedded/bin/run_ai_usage_native_host.sh"
 
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
@@ -301,9 +298,6 @@ build do
     # Native Messaging Host manifest is staged under bin/agent/dist so the MSI owns the file
     # during rollback/uninstall. The MSI custom action rewrites it with the final installation path.
     command_on_repo_root "bazelisk run #{bazel_flags} -- //cmd/ai_prompt_logger:install --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
-    mkdir "#{install_dir}/bin/agent/dist"
-    copy "cmd/ai_prompt_logger/manifest.json", "#{install_dir}/bin/agent/dist/com.ai_prompt_logger.native_host.json"
-    copy "cmd/ai_prompt_logger/ai_usage_native_host.yaml.example", "#{install_dir}/etc/datadog-agent/ai_usage_native_host.yaml.example"
   end
 
   # APM Hands Off config file

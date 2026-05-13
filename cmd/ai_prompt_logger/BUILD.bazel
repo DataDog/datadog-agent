@@ -27,8 +27,36 @@ rust_binary(
 )
 
 pkg_files(
-    name = "native_host_files_macos",
+    name = "native_host_files",
     srcs = [":ai-prompt-logger-native-host"],
+    attributes = select({
+        "@platforms//os:windows": None,  # Windows doesn't use Unix permissions.
+        "//conditions:default": pkg_attributes(
+            mode = "0755",
+        ),
+    }),
+    prefix = select({
+        "@platforms//os:macos": "embedded/bin",
+        "@platforms//os:windows": "bin/agent",
+    }),
+    target_compatible_with = _MACOS_OR_WINDOWS,
+    visibility = ["//packages:__subpackages__"],
+)
+
+pkg_files(
+    name = "ai_usage_config_example",
+    srcs = ["ai_usage_native_host.yaml.example"],
+    prefix = select({
+        "@platforms//os:macos": "etc",
+        "@platforms//os:windows": "etc/datadog-agent",
+    }),
+    target_compatible_with = _MACOS_OR_WINDOWS,
+    visibility = ["//packages:__subpackages__"],
+)
+
+pkg_files(
+    name = "macos_launcher",
+    srcs = ["run_ai_usage_native_host.sh"],
     attributes = pkg_attributes(
         mode = "0755",
     ),
@@ -38,19 +66,21 @@ pkg_files(
 )
 
 pkg_files(
-    name = "native_host_files_windows",
-    srcs = [":ai-prompt-logger-native-host"],
-    prefix = "bin/agent",
+    name = "windows_manifest",
+    srcs = ["manifest.json"],
+    prefix = "bin/agent/dist",
+    renames = {
+        "manifest.json": "com.ai_prompt_logger.native_host.json",
+    },
     target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//packages:__subpackages__"],
 )
 
 pkg_install(
     name = "install",
-    srcs = select({
-        "@platforms//os:macos": [":native_host_files_macos"],
-        "@platforms//os:windows": [":native_host_files_windows"],
-        "//conditions:default": [],
+    srcs = [":native_host_files", ":ai_usage_config_example"] + select({
+        "@platforms//os:macos": [":macos_launcher"],
+        "@platforms//os:windows": [":windows_manifest"],
     }),
     target_compatible_with = _MACOS_OR_WINDOWS,
 )
