@@ -54,7 +54,7 @@ func runSuccessTests(t *testing.T, conv converter, tests []testCase) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Load input config
-			inputPath := filepath.Join("td", tc.provided)
+			inputPath := filepath.Join("testdata", tc.provided)
 			inputData, err := os.ReadFile(inputPath)
 			require.NoError(t, err, "failed to read input file: %s", tc.provided)
 
@@ -70,7 +70,7 @@ func runSuccessTests(t *testing.T, conv converter, tests []testCase) {
 
 			// Update golden files if -update flag is set
 			if *updateGolden {
-				expectedPath := filepath.Join("td", tc.expected)
+				expectedPath := filepath.Join("testdata", tc.expected)
 				actualYAML, err := yaml.Marshal(conf.ToStringMap())
 				require.NoError(t, err, "failed to marshal output to YAML: %s", tc.provided)
 				err = os.WriteFile(expectedPath, actualYAML, 0644)
@@ -80,7 +80,7 @@ func runSuccessTests(t *testing.T, conv converter, tests []testCase) {
 			}
 
 			// Load expected output
-			expectedPath := filepath.Join("td", tc.expected)
+			expectedPath := filepath.Join("testdata", tc.expected)
 			expectedData, err := os.ReadFile(expectedPath)
 			require.NoError(t, err, "failed to read expected file: %s", tc.expected)
 
@@ -102,7 +102,7 @@ func runErrorTests(t *testing.T, conv converter, tests []errorTestCase) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Load input config
-			inputPath := filepath.Join("td", tc.provided)
+			inputPath := filepath.Join("testdata", tc.provided)
 			inputData, err := os.ReadFile(inputPath)
 			require.NoError(t, err, "failed to read input file: %s", tc.provided)
 

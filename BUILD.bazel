@@ -168,7 +168,6 @@ exports_files(glob(
 # gazelle:exclude comp/haagent/impl
 # gazelle:exclude comp/host-profiler/collector/fx
 # gazelle:exclude comp/host-profiler/collector/impl/agentprovider
-# gazelle:exclude comp/host-profiler/collector/impl/converters
 # gazelle:exclude comp/host-profiler/collector/impl/processor
 # gazelle:exclude comp/host-profiler/collector/impl/receiver
 # gazelle:exclude comp/host-profiler/flare
@@ -240,7 +239,6 @@ exports_files(glob(
 # gazelle:exclude comp/otelcol/converter/examples
 # gazelle:exclude comp/otelcol/ddflareextension/fx
 # gazelle:exclude comp/otelcol/ddflareextension/image
-# gazelle:exclude comp/otelcol/ddprofilingextension/fx
 # gazelle:exclude comp/otelcol/dogtelextension/fx
 # gazelle:exclude comp/otelcol/logsagentpipeline
 # gazelle:exclude comp/otelcol/otlp/components/exporter
@@ -248,7 +246,6 @@ exports_files(glob(
 # gazelle:exclude comp/otelcol/otlp/internal
 # gazelle:exclude comp/privateactionrunner/fx
 # gazelle:exclude comp/privateactionrunner/impl
-# gazelle:exclude comp/privateactionrunner/status
 # gazelle:exclude comp/process/agent
 # gazelle:exclude comp/process/apiserver
 # gazelle:exclude comp/process/connectionscheck
@@ -299,7 +296,6 @@ exports_files(glob(
 # gazelle:exclude comp/trace/config/fx
 # gazelle:exclude comp/trace/config/impl
 # gazelle:exclude comp/trace/config/mock
-# gazelle:exclude comp/trace/payload-modifier/fx
 # gazelle:exclude internal/third_party/client-go
 # gazelle:exclude pkg/aggregator/mocksender
 # gazelle:exclude pkg/cli/standalone
