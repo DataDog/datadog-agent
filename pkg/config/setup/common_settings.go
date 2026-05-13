@@ -1116,6 +1116,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Remote Flags system
 	remoteflags(config)
+
+	// Anomaly detection recording (parquet capture for offline replay)
+	setupAnomalyDetectionRecording(config)
 }
 
 func agent(config pkgconfigmodel.Setup) {
@@ -2001,8 +2004,6 @@ func cloudfoundry(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("bosh_id", "")
 	config.BindEnvAndSetDefault("cf_os_hostname_aliasing", false)
 	config.BindEnvAndSetDefault("cloud_foundry_buildpack", false)
-
-	initAnomalyDetectionRecording(config)
 }
 
 func containerd(config pkgconfigmodel.Setup) {

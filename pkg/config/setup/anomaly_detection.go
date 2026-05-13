@@ -11,7 +11,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-func initAnomalyDetectionRecording(config pkgconfigmodel.Setup) {
+func setupAnomalyDetectionRecording(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.recording.enabled", false)
 	config.BindEnvAndSetDefault("anomaly_detection.recording.output_dir", "/var/run/datadog/anomaly_detection")
 	config.BindEnvAndSetDefault("anomaly_detection.recording.flush_interval", 60*time.Second)
