@@ -70,11 +70,12 @@ type Config interface {
 
 // ServiceListernerDeps are the service listerner dependencies
 type ServiceListernerDeps struct {
-	Config    Config
-	Telemetry *telemetry.Store
-	Tagger    tagger.Component
-	Filter    workloadfilter.Component
-	Wmeta     option.Option[workloadmeta.Component]
+	Config            Config
+	Telemetry         *telemetry.Store
+	Tagger            tagger.Component
+	Filter            workloadfilter.Component
+	Wmeta             option.Option[workloadmeta.Component]
+	StaticConfigIndex *StaticConfigIndex
 }
 
 // ServiceListenerFactory builds a service listener

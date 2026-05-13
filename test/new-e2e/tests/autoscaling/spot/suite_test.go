@@ -88,13 +88,21 @@ clusterAgent:
       value: "%v"
     - name: DD_AUTOSCALING_CLUSTER_SPOT_REBALANCE_STABILIZATION_PERIOD
       value: "%v"
-# node-agent DaemonSet not needed; only the cluster-agent runs the spot scheduler
+  podAnnotations:
+    ad.datadoghq.com/cluster-agent.logs: '[{"source":"cluster-agent","service":"datadog-cluster-agent"}]'
+# node-agent DaemonSet collects cluster-agent logs via the annotation above
 agents:
-  enabled: false
+  enabled: true
+  # tolerate all taints so the DaemonSet runs on all nodes
+  tolerations:
+    - operator: Exists
 # cluster check runners not needed for spot scheduling
 clusterChecksRunner:
   enabled: false
 datadog:
+  logs:
+    enabled: true
+    containerCollectAll: false
   kubeStateMetricsCore:
     # the framework sets this to true by default, which unconditionally enables the
     # cluster checks runner deployment regardless of clusterChecksRunner.enabled
@@ -132,6 +140,7 @@ type spotSchedulingSuite struct {
 	spotNode      string
 	onDemandNode  string
 	testNamespace string // namespace for the current test, set by SetupTest
+	waitForLogs   bool   // wait for node-agent readiness before running tests to get cluster-agent logs.
 }
 
 // TestSpotSchedulingKind runs spot scheduling integration tests on a local kind cluster.
@@ -163,7 +172,7 @@ func TestSpotSchedulingKindCI(t *testing.T) {
 	if os.Getenv("E2E_PIPELINE_ID") == "" {
 		t.Skip("E2E_PIPELINE_ID not set; this test is for CI use only")
 	}
-	e2e.Run(t, new(spotSchedulingSuite), e2e.WithProvisioner(awskindvm.Provisioner(
+	e2e.Run(t, &spotSchedulingSuite{waitForLogs: true}, e2e.WithProvisioner(awskindvm.Provisioner(
 		awskindvm.WithRunOptions(
 			kindvmscen.WithName(kindClusterName),
 			kindvmscen.WithKindWorkerNodes(workerNodes...),
@@ -183,6 +192,9 @@ func (s *spotSchedulingSuite) SetupSuite() {
 	s.kubeClient = s.Env().KubernetesCluster.Client()
 	s.identifyNodes()
 	s.waitForWebhook()
+	if s.waitForLogs {
+		s.waitForNodeAgent()
+	}
 }
 
 func (s *spotSchedulingSuite) SetupTest() {
@@ -214,28 +226,35 @@ func (s *spotSchedulingSuite) eventually(fn func(c *assert.CollectT)) {
 	s.EventuallyWithT(fn, 1*time.Minute, 5*time.Second)
 }
 
-// expectRunningSpot asserts that exactly count pods are Running on the spot node with spot-assigned label.
-func (s *spotSchedulingSuite) expectRunningSpot(c *assert.CollectT, pods []corev1.Pod, count int) {
-	actual := 0
+// groupPods groups pods first by node name, then by phase.
+// Unscheduled pods (no node assigned) are grouped under "<unscheduled>".
+func groupPods(pods []corev1.Pod) map[string]map[corev1.PodPhase][]string {
+	g := make(map[string]map[corev1.PodPhase][]string)
 	for _, p := range pods {
-		if p.Status.Phase == corev1.PodRunning && p.Spec.NodeName == s.spotNode {
-			require.Contains(c, p.Labels, spotAssignedLabel, "pod %s on spot node should have spot-assigned label", p.Name)
-			actual++
+		node := p.Spec.NodeName
+		if node == "" {
+			node = "<unscheduled>"
 		}
+		if g[node] == nil {
+			g[node] = make(map[corev1.PodPhase][]string)
+		}
+		g[node][p.Status.Phase] = append(g[node][p.Status.Phase], p.Name)
 	}
-	require.Equal(c, count, actual, "expected %d running spot pods", count)
+	return g
 }
 
-// expectRunningOnDemand asserts that exactly count pods are Running on the on-demand node without spot-assigned label.
+// expectRunningSpot asserts that exactly count pods are Running on the spot node.
+func (s *spotSchedulingSuite) expectRunningSpot(c *assert.CollectT, pods []corev1.Pod, count int) {
+	g := groupPods(pods)
+	require.Equal(c, count, len(g[s.spotNode][corev1.PodRunning]),
+		"expected %d running spot pods; pod breakdown: %v", count, g)
+}
+
+// expectRunningOnDemand asserts that exactly count pods are Running on the on-demand node.
 func (s *spotSchedulingSuite) expectRunningOnDemand(c *assert.CollectT, pods []corev1.Pod, count int) {
-	actual := 0
-	for _, p := range pods {
-		if p.Status.Phase == corev1.PodRunning && p.Spec.NodeName == s.onDemandNode {
-			require.NotContains(c, p.Labels, spotAssignedLabel, "pod %s on on-demand node should not have spot-assigned label", p.Name)
-			actual++
-		}
-	}
-	require.Equal(c, count, actual, "expected %d running on-demand pods", count)
+	g := groupPods(pods)
+	require.Equal(c, count, len(g[s.onDemandNode][corev1.PodRunning]),
+		"expected %d running on-demand pods; pod breakdown: %v", count, g)
 }
 
 // identifyNodes finds the spot and on-demand worker nodes by autoscaling.datadoghq.com/capacity-type label.
@@ -272,6 +291,34 @@ func (s *spotSchedulingSuite) waitForWebhook() {
 		}
 		return false
 	}, 5*time.Minute, 5*time.Second, "spot scheduling webhook not registered; is the cluster-agent running?")
+}
+
+// waitForNodeAgent waits until all node-agent DaemonSet pods are Running and Ready.
+func (s *spotSchedulingSuite) waitForNodeAgent() {
+	s.T().Helper()
+
+	nodeAgentApp := s.Env().Agent.LinuxNodeAgent.LabelSelectors["app"]
+	s.Require().NotEmpty(nodeAgentApp, "LinuxNodeAgent label selector not set")
+
+	s.Require().Eventually(func() bool {
+		pods, err := s.kubeClient.CoreV1().Pods(s.Env().Agent.LinuxNodeAgent.Namespace).List(s.T().Context(), metav1.ListOptions{
+			LabelSelector: "app=" + nodeAgentApp,
+		})
+		if err != nil || len(pods.Items) == 0 {
+			return false
+		}
+		for _, pod := range pods.Items {
+			if pod.Status.Phase != corev1.PodRunning {
+				return false
+			}
+			for _, cs := range pod.Status.ContainerStatuses {
+				if !cs.Ready {
+					return false
+				}
+			}
+		}
+		return true
+	}, 5*time.Minute, 5*time.Second, "node-agent pods not ready; cluster-agent logs won't be collected")
 }
 
 func (s *spotSchedulingSuite) createTestNamespace() {

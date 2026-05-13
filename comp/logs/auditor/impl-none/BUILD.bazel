@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl-none",
+    srcs = ["auditor_noop.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/logs/message",
+        "//pkg/logs/types",
+    ],
+)
