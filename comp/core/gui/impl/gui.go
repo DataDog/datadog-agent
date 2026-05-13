@@ -24,29 +24,21 @@ import (
 
 	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/gorilla/mux"
-	"go.uber.org/fx"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
-	guicomp "github.com/DataDog/datadog-agent/comp/core/gui"
+	guidef "github.com/DataDog/datadog-agent/comp/core/gui/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	template "github.com/DataDog/datadog-agent/pkg/template/html"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newGui),
-	)
-}
 
 type gui struct {
 	logger log.Component
@@ -73,31 +65,31 @@ type Payload struct {
 	CaseID string `json:"caseID"`
 }
 
-type dependencies struct {
-	fx.In
+// Requires defines the dependencies of the gui component.
+type Requires struct {
+	compdef.In
 
 	Log      log.Component
 	Config   config.Component
 	Flare    flare.Component
 	Status   status.Component
-	Lc       fx.Lifecycle
+	Lc       compdef.Lifecycle
 	Hostname hostnameinterface.Component
 }
 
-type provides struct {
-	fx.Out
+// Provides defines the output of the gui component.
+type Provides struct {
+	compdef.Out
 
-	Comp     option.Option[guicomp.Component]
+	Comp     option.Option[guidef.Component]
 	Endpoint api.AgentEndpointProvider
 }
 
-// GUI component implementation constructor
-// @param deps dependencies needed to construct the gui, bundled in a struct
-// @return an optional, depending of "GUI_port" configuration value
-func newGui(deps dependencies) provides {
+// NewComponent creates a new GUI component.
+func NewComponent(deps Requires) Provides {
 
-	p := provides{
-		Comp: option.None[guicomp.Component](),
+	p := Provides{
+		Comp: option.None[guidef.Component](),
 	}
 	guiPort := deps.Config.GetString("GUI_port")
 
@@ -150,11 +142,11 @@ func newGui(deps dependencies) provides {
 
 	g.router = publicRouter
 
-	deps.Lc.Append(fx.Hook{
+	deps.Lc.Append(compdef.Hook{
 		OnStart: g.start,
 		OnStop:  g.stop})
 
-	p.Comp = option.New[guicomp.Component](&g)
+	p.Comp = option.New[guidef.Component](&g)
 	p.Endpoint = api.NewAgentEndpointProvider(g.getIntentToken, "/gui/intent", "GET")
 
 	return p

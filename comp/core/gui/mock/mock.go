@@ -5,9 +5,16 @@
 
 //go:build test
 
-package gui
+// Package mock provides a mock for the gui component.
+package mock
 
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
+import (
+	"testing"
+
+	gui "github.com/DataDog/datadog-agent/comp/core/gui/def"
+)
+
+// Mock returns a mock for the gui component.
+func Mock(_ *testing.T) gui.Component {
+	return struct{}{}
 }
