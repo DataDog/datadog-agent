@@ -143,6 +143,17 @@ ensure_aws_setup_integrations_dev() {
     # baked into environmentDefaults.go.  Values that are themselves JSON
     # (subnets, security groups) must be embedded as JSON strings, so we
     # let python do the encoding to avoid quoting headaches.
+    #
+    # ddinfra:osDescriptor + ddinfra:osImageIDUseLatest force the framework
+    # to look up the AMI via *public* SSM Parameter Store at deploy time
+    # instead of using the hard-coded AMI IDs in
+    # test/e2e-framework/resources/aws/platforms.json — those IDs are
+    # private to the agent-sandbox / agent-qa accounts and would fail with
+    # 'Not authorized for images: […]' here. The empty version slot in the
+    # descriptor is required so resolveAmazonLinuxECSAMI() takes the
+    # SSM path (os_resolver.go:78). The SSM parameter
+    # /aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id is
+    # universally readable so this works in any account.
     E2E_STACK_PARAMS=$(
         AWS_PROFILE="${INTEGRATIONS_DEV_AWS_PROFILE}" \
         VPC_ID="${INTEGRATIONS_DEV_VPC}" \
@@ -161,6 +172,10 @@ print(json.dumps({
     # public quay.io / docker.io.
     "aws/defaultInternalRegistry":        "",
     "aws/defaultInternalDockerhubMirror": "",
+    # AMI resolution: force public SSM lookup for an Amazon-Linux-2 ECS
+    # image (the platforms.json AMIs are private to agent-sandbox).
+    "ddinfra:osDescriptor":                "amazon-linux-ecs::x86_64",
+    "ddinfra:osImageIDUseLatest":          "true",
 }))
 PY
     )
