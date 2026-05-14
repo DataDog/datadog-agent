@@ -53,7 +53,7 @@ func (m *memConfigStore) StoreConfig(deviceID string, configType types.ConfigTyp
 		return existingID, rawHash, nil
 	}
 
-	configUUID := uuid.New().String()
+	configUUID = uuid.New().String()
 	m.rawConfigs[configUUID] = rawConfig
 
 	m.metadata[configUUID] = types.ConfigMetadata{

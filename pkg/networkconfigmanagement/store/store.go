@@ -117,7 +117,7 @@ func (cs *configStore) update(fn func(tx *bbolt.Tx) error) error {
 // duplicate of the latest stored config for the device+type, the existing UUID is returned.
 func (cs *configStore) StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (configUUID string, hash string, err error) {
 	// Setup + marshal everything first (does not require DB lock)
-	configUUID := uuid.New().String()
+	configUUID = uuid.New().String()
 	now := time.Now().Unix()
 	rawHash := hashConfig(rawConfig)
 
