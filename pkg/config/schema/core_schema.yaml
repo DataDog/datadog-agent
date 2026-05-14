@@ -12156,10 +12156,6 @@ properties:
     node_type: section
     type: object
     properties:
-      api_listen_address:
-        node_type: setting
-        type: string
-        default: 0.0.0.0:5100
       dogstatsd:
         node_type: section
         type: object
@@ -12172,10 +12168,6 @@ properties:
         node_type: setting
         type: boolean
         default: false
-      log_file:
-        node_type: setting
-        type: string
-        default: ${log_path}/agent-data-plane.log
       otlp:
         node_type: section
         type: object
@@ -12192,22 +12184,6 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
-              logs:
-                node_type: section
-                type: object
-                properties:
-                  enabled:
-                    node_type: setting
-                    type: boolean
-                    default: true
-              metrics:
-                node_type: section
-                type: object
-                properties:
-                  enabled:
-                    node_type: setting
-                    type: boolean
-                    default: true
               receiver:
                 node_type: section
                 type: object
@@ -12224,34 +12200,6 @@ properties:
                             node_type: setting
                             type: string
                             default: 127.0.0.1:4319
-              traces:
-                node_type: section
-                type: object
-                properties:
-                  enabled:
-                    node_type: setting
-                    type: boolean
-                    default: true
-      remote_agent_enabled:
-        node_type: setting
-        type: boolean
-        default: true
-      secure_api_listen_address:
-        node_type: setting
-        type: string
-        default: 0.0.0.0:5101
-      telemetry_enabled:
-        node_type: setting
-        type: boolean
-        default: false
-      telemetry_listen_addr:
-        node_type: setting
-        type: string
-        default: 0.0.0.0:5102
-      use_new_config_stream_endpoint:
-        node_type: setting
-        type: boolean
-        default: true
   data_streams:
     node_type: section
     type: object
