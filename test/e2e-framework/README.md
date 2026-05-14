@@ -8,12 +8,8 @@ To run scripts and code in this repository, you will need:
 
 - [Go](https://golang.org/doc/install) 1.22 or later. You'll also need to set your `$GOPATH` and have `$GOPATH/bin` in your path.
 - Python 3.9+ along with development libraries for tooling.
-- `account-admin` role on AWS `agent-sandbox` account. Ensure it by running `aws-vault login sso-agent-sandbox-account-admin`
-- [dda](https://datadoghq.dev/datadog-agent/setup/#tooling) installed on your laptop
-
-  ```bash
-  aws-vault login sso-agent-sandbox-account-admin
-  ```
+- `account-admin` role on the AWS `agent-sandbox` account.
+- [dda](https://datadoghq.dev/datadog-agent/setup/#tooling), [Pulumi](https://www.pulumi.com/docs/iac/download-install/) and [aws-vault](https://github.com/99designs/aws-vault) installed on your laptop.
 
 This guide is tested on **MacOS**.
 
@@ -25,29 +21,33 @@ sudo apt install libnotify-bin
 
 ## Quick start guide
 
-1. Clone this repository
+1. Clone the repository.
 
 ```bash
 cd ~/dd && git clone git@github.com:DataDog/datadog-agent.git
 ```
 
-2. Install Python dependencies
+2. Install Python dependencies.
 
 ```bash
 cd ~/dd/datadog-agent/test/e2e-framework && dda -v self dep sync -f legacy-e2e -f legacy-github
 ```
 
-3. Add a PULUMI_CONFIG_PASSPHRASE to your Terminal rc file. Create a random password using 1Password and store it there
+3. Make sure you have the `sso-agent-sandbox-account-admin` profile in `~/.aws/config` and an active aws-vault session. AWS authentication is set up outside of `e2e.setup`.
 
 ```bash
-export PULUMI_CONFIG_PASSPHRASE=<random password stored in 1Password>
+aws-vault login sso-agent-sandbox-account-admin
 ```
 
-4. Run and follow the setup script
+4. Run the one-time setup task. AWS-only on the default path; pass `--with-azure`/`--with-gcp` if you also need those providers.
 
 ```bash
-dda inv setup
+dda inv e2e.setup
 ```
+
+This task creates an EC2 keypair (using your existing aws-vault session) and generates a random Pulumi passphrase (stored in `~/.test_infra_config.yaml`, `chmod 0600`). It asks at most one question — the GitHub team to tag your AWS resources with — and is idempotent (safe to re-run).
+
+After this, you can run E2E tests directly without `aws-vault exec` wrapping or an exported `PULUMI_CONFIG_PASSPHRASE` — the task runner reads the passphrase from your config and auto-wraps the test command with `aws-vault exec` for you.
 
 ### Create an environment for manual tests
 
@@ -67,11 +67,11 @@ The `aws.create-vm` task should allow you to spin up a MacOS instance using `-o 
 
 ### Environment and configuration
 
-The `setup.debug` invoke task will check for common mistakes such as key unavailable in configured AWS region, ssh-agent not running, invalid key format, and more.
+The `e2e.setup.debug` invoke task will check for common mistakes such as key unavailable in configured AWS region, ssh-agent not running, invalid key format, and more.
 
 ```
-aws-vault exec sso-agent-sandbox-account-admin -- dda inv setup.debug
-aws-vault exec sso-agent-sandbox-account-admin -- dda inv setup --debug --no-interactive
+aws-vault exec sso-agent-sandbox-account-admin -- dda inv e2e.setup.debug
+aws-vault exec sso-agent-sandbox-account-admin -- dda inv e2e.setup --debug --no-interactive
 ```
 
 

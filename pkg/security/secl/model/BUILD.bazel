@@ -1,5 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
-load("//bazel/rules/cws_codegen:defs.bzl", "bpf_maps_generator")
+load("//bazel/rules/cws_codegen:defs.bzl", "accessors", "bpf_maps_generator")
 load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
 
 exports_files(
@@ -32,6 +32,52 @@ bpf_maps_generator(
     header = "//pkg/security/ebpf/c/include:maps.h",
     output = "consts_map_names_linux.go",
 )
+
+# TODO(ABLD-420): plug these into the //bazel/rules/cws_codegen Gazelle
+# extension so the calls are emitted from the matching //go:generate directives
+# in model_unix.go / model_windows.go instead of being hand-wired.
+[
+    accessors(
+        name = "accessors_{}".format(variant["name"]),
+        srcs = variant["consts"],
+        doc_output = variant["doc"],
+        field_accessors_output = "field_accessors_{}.go".format(variant["suffix"]),
+        field_handlers = "field_handlers_{}.go".format(variant["suffix"]),
+        model = variant["model"],
+        output = "accessors_{}.go".format(variant["suffix"]),
+        package_path = "github.com/DataDog/datadog-agent/pkg/security/secl/model",
+        tags = variant["tags"],
+        types_file = "model.go",
+        visibility = ["//docs/cloud-workload-security:__pkg__"],
+    )
+    for variant in [
+        {
+            "name": "unix",
+            "tags": "unix",
+            "model": "model_unix.go",
+            "suffix": "unix",
+            "doc": "secl_linux.json",
+            "consts": [
+                "consts_common.go",
+                "consts_linux.go",
+                "consts_linux_amd64.go",
+                "consts_linux_arm.go",
+                "consts_linux_arm64.go",
+            ],
+        },
+        {
+            "name": "windows",
+            "tags": "windows",
+            "model": "model_windows.go",
+            "suffix": "windows",
+            "doc": "secl_windows.json",
+            "consts": [
+                "consts_common.go",
+                "consts_windows.go",
+            ],
+        },
+    ]
+]
 
 go_library(
     name = "model",

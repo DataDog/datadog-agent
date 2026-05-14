@@ -144,7 +144,7 @@ func TestWebhook_Properties(t *testing.T) {
 		name:       webhookName,
 		isEnabled:  true,
 		endpoint:   "/appsec-proxies",
-		resources:  map[string][]string{"": {"pods"}},
+		resources:  []admcommon.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"pods"}}},
 		operations: []admissionregistrationv1.OperationType{admissionregistrationv1.Create, admissionregistrationv1.Delete},
 		patterns:   []appsecconfig.SidecarInjectionPattern{pattern},
 	}
@@ -164,8 +164,10 @@ func TestWebhook_Properties(t *testing.T) {
 	t.Run("Resources", func(t *testing.T) {
 		resources := webhook.Resources()
 		require.NotNil(t, resources)
-		assert.Contains(t, resources, "")
-		assert.Contains(t, resources[""], "pods")
+		require.Len(t, resources, 1)
+		assert.Equal(t, "", resources[0].APIGroup)
+		assert.Equal(t, "v1", resources[0].APIVersion)
+		assert.Contains(t, resources[0].Resources, "pods")
 	})
 
 	t.Run("Operations", func(t *testing.T) {

@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "cidr.go",
         "context.go",
+        "context_functests.go",
         "context_regular.go",
         "dns_linux.go",
         "dns_others.go",

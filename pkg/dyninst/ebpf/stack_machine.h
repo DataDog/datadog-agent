@@ -607,6 +607,308 @@ sm_resolve_go_any_type(global_ctx_t* global_ctx, resolved_go_any_type_t* r) {
   return true;
 }
 
+static inline __attribute__((always_inline)) bool
+sm_resolve_go_empty_interface_at(target_ptr_t iface_addr,
+                                 resolved_go_interface_t* res) {
+  res->addr = 0;
+  res->go_runtime_type = 0;
+  if (iface_addr == 0) {
+    return true;
+  }
+  target_ptr_t type_addr = 0;
+  if (bpf_probe_read_user(&type_addr, sizeof(target_ptr_t),
+                          (void*)(iface_addr +
+                                  OFFSET_runtime_dot_eface___type))) {
+    return false;
+  }
+  if (bpf_probe_read_user(&res->addr, sizeof(target_ptr_t),
+                          (void*)(iface_addr +
+                                  OFFSET_runtime_dot_eface__data))) {
+    return false;
+  }
+  if (type_addr == 0) {
+    return true;
+  }
+  res->go_runtime_type = go_runtime_type_from_ptr(type_addr);
+  return true;
+}
+
+static inline __attribute__((always_inline)) bool
+sm_resolve_go_interface_at(target_ptr_t iface_addr,
+                           resolved_go_interface_t* res) {
+  res->addr = 0;
+  res->go_runtime_type = 0;
+  if (iface_addr == 0) {
+    return true;
+  }
+  target_ptr_t itab = 0;
+  if (bpf_probe_read_user(&itab, sizeof(target_ptr_t),
+                          (void*)(iface_addr +
+                                  OFFSET_runtime_dot_iface__tab))) {
+    return false;
+  }
+  if (bpf_probe_read_user(&res->addr, sizeof(target_ptr_t),
+                          (void*)(iface_addr +
+                                  OFFSET_runtime_dot_iface__data))) {
+    return false;
+  }
+  if (itab == 0) {
+    return true;
+  }
+  target_ptr_t type_addr = 0;
+  if (bpf_probe_read_user(&type_addr, sizeof(target_ptr_t),
+                          (void*)(itab +
+                                  OFFSET_runtime_dot_itab___type))) {
+    return false;
+  }
+  res->go_runtime_type = go_runtime_type_from_ptr(type_addr);
+  return true;
+}
+
+static inline __attribute__((always_inline)) uint64_t
+sm_read_be64(const uint8_t* data) {
+  return ((uint64_t)data[0] << 56) |
+         ((uint64_t)data[1] << 48) |
+         ((uint64_t)data[2] << 40) |
+         ((uint64_t)data[3] << 32) |
+         ((uint64_t)data[4] << 24) |
+         ((uint64_t)data[5] << 16) |
+         ((uint64_t)data[6] << 8) |
+         (uint64_t)data[7];
+}
+
+// sm_extract_ddtrace_span reads dd-trace span fields out of a span struct in
+// user memory and writes them into the caller-provided trace_context_t. The
+// destination lives in the synthetic data item's payload at
+// sm->go_context_walk.data_item_offset.
+//
+// Returns true iff a non-empty span was found (at least one of
+// trace_id_lower, trace_id_upper, span_id is non-zero) — which sets
+// *trace->valid = 1 as a side effect. parent_id is not part of the gate
+// because root spans legitimately have parent_id == 0.
+static inline __attribute__((always_inline)) bool
+sm_extract_ddtrace_span(target_ptr_t span_addr,
+                        const type_info_t* span_info,
+                        trace_context_t* trace) {
+  if (span_addr == 0 || span_info == NULL ||
+      span_info->ddtrace_span_kind == 0 || trace == NULL) {
+    return false;
+  }
+
+  uint64_t span_id = 0;
+  uint64_t parent_id = 0;
+  uint64_t trace_id_lower = 0;
+  uint64_t trace_id_upper = 0;
+
+  if (span_info->ddtrace_span_id_offset >= 0) {
+    bpf_probe_read_user(&span_id, sizeof(span_id),
+                        (void*)(span_addr +
+                                span_info->ddtrace_span_id_offset));
+  }
+  if (span_info->ddtrace_parent_id_offset >= 0) {
+    bpf_probe_read_user(&parent_id, sizeof(parent_id),
+                        (void*)(span_addr +
+                                span_info->ddtrace_parent_id_offset));
+  }
+  if (span_info->ddtrace_trace_id_offset >= 0) {
+    bpf_probe_read_user(&trace_id_lower, sizeof(trace_id_lower),
+                        (void*)(span_addr +
+                                span_info->ddtrace_trace_id_offset));
+  }
+
+  if (span_info->ddtrace_span_context_offset >= 0 &&
+      span_info->ddtrace_span_context_trace_id_offset >= 0) {
+    target_ptr_t span_context = 0;
+    if (!bpf_probe_read_user(&span_context, sizeof(span_context),
+                             (void*)(span_addr +
+                                     span_info->ddtrace_span_context_offset)) &&
+        span_context != 0) {
+      uint8_t trace_id[16] = {};
+      if (!bpf_probe_read_user(trace_id, sizeof(trace_id),
+                               (void*)(span_context +
+                                       span_info->ddtrace_span_context_trace_id_offset))) {
+        trace_id_upper = sm_read_be64(trace_id);
+        trace_id_lower = sm_read_be64(trace_id + 8);
+      }
+    }
+  }
+
+  if (span_id == 0 && trace_id_lower == 0 && trace_id_upper == 0) {
+    return false;
+  }
+  trace->trace_id_lower = trace_id_lower;
+  trace->trace_id_upper = trace_id_upper;
+  trace->span_id = span_id;
+  trace->parent_id = parent_id;
+  trace->valid = 1;
+  return true;
+}
+
+// sm_maybe_extract_ddtrace_span_from_value_ctx tests whether the given
+// context.valueCtx's key is the dd-trace active-span key; if so, it extracts
+// the span fields from the value and writes them into trace.
+static inline __attribute__((always_inline)) bool
+sm_maybe_extract_ddtrace_span_from_value_ctx(target_ptr_t value_ctx_addr,
+                                             const type_info_t* context_info,
+                                             trace_context_t* trace) {
+  if (context_info->go_context_key_offset < 0 ||
+      context_info->go_context_value_offset < 0) {
+    return false;
+  }
+
+  // Read the valueCtx's value (an `any`) directly. Historically we also
+  // checked the key's runtime type for a ddtrace_active_span_key marker
+  // here, but the dd-trace `internal.contextKey` struct is unexported and
+  // zero-byte; the Go compiler often elides its runtime type, so we can't
+  // detect the key reliably. Instead we rely on the value's IR type being
+  // a known dd-trace span (ddtrace_span_kind != 0), which
+  // sm_extract_ddtrace_span checks. Other valueCtxs that store
+  // non-span values just fail that check and we keep walking.
+  resolved_go_interface_t val = {};
+  if (!sm_resolve_go_empty_interface_at(
+          value_ctx_addr + context_info->go_context_value_offset, &val)) {
+    return false;
+  }
+  type_t val_type = lookup_go_interface(val.go_runtime_type);
+  if (val_type == 0) {
+    return false;
+  }
+  const type_info_t* val_info = NULL;
+  if (!get_type_info(val_type, &val_info)) {
+    return false;
+  }
+  return sm_extract_ddtrace_span(val.addr, val_info, trace);
+}
+
+// MAX_GO_CONTEXT_DEPTH bounds the number of links the chain walk traverses
+// before giving up. Mirrored as the depth_remaining seed in
+// SM_OP_GO_CONTEXT_CHAIN_INIT.
+#define MAX_GO_CONTEXT_DEPTH 32
+
+// sm_go_context_chain_init is the body of SM_OP_GO_CONTEXT_CHAIN_INIT,
+// factored into a noinline subprog so its stack frame is not added to
+// sm_loop's. Takes scratch_buf_t* and stack_machine_t* directly (rather
+// than global_ctx_t*) so the verifier doesn't conservatively assume the
+// callee may scribble on the caller's stack via the ctx pointer — that
+// pessimism breaks bpf_loop callers' map-value spills. Returns 1 on
+// failure (caller propagates), 0 on success.
+__attribute__((noinline)) int
+sm_go_context_chain_init(scratch_buf_t* buf, stack_machine_t* sm,
+                         uint32_t impl_ir_type) {
+  // Global-function args are typed as mem_or_null; null-check before
+  // dereferencing so the verifier accepts loads through them.
+  if (!buf || !sm) {
+    return 1;
+  }
+  buf_offset_t hdr_off = sm->offset - sizeof(di_data_item_header_t);
+  if (!scratch_buf_bounds_check(&hdr_off, sizeof(di_data_item_header_t))) {
+    return 1;
+  }
+  di_data_item_header_t* hdr =
+      (di_data_item_header_t*)&(*buf)[hdr_off];
+  // Both callsites (struct-typed enqueue from interface implementor walk,
+  // and pointer-typed enqueue from interface chase) stamp the data item's
+  // address field with the implementation struct's user-memory pointer,
+  // which is exactly what the chain walk's first hop needs. Use it
+  // directly. The decoder's address-keyed fallback (looking up
+  // dataItems[(traceContextTypeID, inline_data_ptr)]) finds this item by
+  // matching the inline interface header's data pointer to this address.
+  target_ptr_t impl_addr = sm->di_0.address;
+  hdr->type = trace_context_type_id;
+  if (!scratch_buf_bounds_check(&sm->offset, sizeof(trace_context_t))) {
+    return 1;
+  }
+  __builtin_memset(&(*buf)[sm->offset], 0, sizeof(trace_context_t));
+  sm->go_context_walk.current.addr = impl_addr;
+  sm->go_context_walk.current.go_runtime_type = 0;
+  sm->go_context_walk.current_ir_type = impl_ir_type;
+  sm->go_context_walk.depth_remaining = MAX_GO_CONTEXT_DEPTH;
+  sm->go_context_walk.data_item_offset = sm->offset;
+  sm->go_context_walk.done = 0;
+  return 0;
+}
+
+// sm_go_context_chain_hop is the body of SM_OP_GO_CONTEXT_CHAIN_HOP,
+// factored into a noinline subprog. Performs one chain step. On success,
+// rewinds sm->pc by 1 (so the dispatcher re-reads the HOP opcode on the
+// next sm_loop iteration). Sets done=1 on any termination path. Returns 1
+// on a bounds-check failure (caller propagates), 0 otherwise. Same
+// signature shape as sm_go_context_chain_init — see comment there.
+__attribute__((noinline)) int
+sm_go_context_chain_hop(scratch_buf_t* buf, stack_machine_t* sm) {
+  // Global-function args are typed as mem_or_null; null-check before
+  // dereferencing so the verifier accepts loads through them.
+  if (!buf || !sm) {
+    return 1;
+  }
+  if (sm->go_context_walk.done) {
+    return 0;
+  }
+  if (sm->go_context_walk.depth_remaining == 0) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  if (sm->go_context_walk.current.addr == 0) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  type_t ir_type;
+  if (sm->go_context_walk.current_ir_type != 0) {
+    ir_type = (type_t)sm->go_context_walk.current_ir_type;
+    sm->go_context_walk.current_ir_type = 0;
+  } else {
+    ir_type = lookup_go_interface(
+        sm->go_context_walk.current.go_runtime_type);
+  }
+  if (ir_type == 0) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  const type_info_t* info = NULL;
+  if (!get_type_info(ir_type, &info) ||
+      info->go_context_is_context == 0) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  buf_offset_t dst_off = sm->go_context_walk.data_item_offset;
+  if (!scratch_buf_bounds_check(&dst_off, sizeof(trace_context_t))) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  trace_context_t* dst = (trace_context_t*)&(*buf)[dst_off];
+  if (sm_maybe_extract_ddtrace_span_from_value_ctx(
+          sm->go_context_walk.current.addr, info, dst)) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  if (info->go_context_context_offset < 0) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  // Resolve directly into the walk state's `current` slot — no stack local.
+  // The validity check below distinguishes "successfully advanced" from
+  // "nil/invalid"; the in-place write is fine because either we keep
+  // walking with the new value or we set done=1.
+  target_ptr_t next_iface_addr =
+      sm->go_context_walk.current.addr + info->go_context_context_offset;
+  if (!sm_resolve_go_interface_at(next_iface_addr,
+                                  &sm->go_context_walk.current)) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  if (sm->go_context_walk.current.addr == 0 ||
+      sm->go_context_walk.current.go_runtime_type == 0 ||
+      sm->go_context_walk.current.go_runtime_type == (uint64_t)(-1)) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  sm->go_context_walk.depth_remaining--;
+  // Self-jump: rewind PC by one byte so the dispatcher re-reads this HOP
+  // opcode on the next sm_loop iteration. Must be done last.
+  sm->pc -= 1;
+  return 0;
+}
+
 // inline __attribute__((always_inline)) bool sm_record_go_context_value(
 //     global_ctx_t* ctx, const go_context_value_type_t* spec,
 //     const resolved_go_any_type_t* value, const type_t expected_type) {
@@ -2286,9 +2588,21 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       // NULL pointer: write nil-deref status.
       if (expr_status_idx != EXPR_STATUS_IDX_NONE) {
         expr_status_write(buf, sm->expr_results_offset, expr_status_idx, EXPR_STATUS_NIL_DEREF);
+      } else {
+        // Condition expression (no status slot): arm the eval-error
+        // channel directly. The flag is set here (not just by
+        // ConditionBeginOp at the condition's prelude) so that
+        // split-event-kind return-side AST-replay drivers — which
+        // inline their return leaves and skip ConditionBeginOp — still
+        // surface the error. For single-event conditions, ConditionBeginOp
+        // already armed it; setting it again is a no-op.
+        sm->condition_eval_error = true;
+        sm->condition_nil_deref = true;
       }
-      sm->condition_nil_deref = true;
-      // Abort expression evaluation.
+      // Abort expression evaluation. For split-event-kind conditions the
+      // entry-side driver invokes each leaf as its own SM function, so
+      // sm_return here lands back in the driver, which captures the
+      // error flavor via SM_OP_CONDITION_LEAF_RECORD.
       scratch_buf_set_len(buf, sm->expr_results_end_offset);
       if (!sm_return(sm)) {
         return 1;
@@ -2297,7 +2611,12 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     }
     addr += bias;
     if (!scratch_buf_dereference(buf, sm->offset, byte_len, addr)) {
-      // Dereference failed: abort expression evaluation.
+      // Dereference failed: abort expression evaluation. Arm the
+      // eval-error channel when this is a condition leaf (no status
+      // slot to write to).
+      if (expr_status_idx == EXPR_STATUS_IDX_NONE) {
+        sm->condition_eval_error = true;
+      }
       scratch_buf_set_len(buf, sm->expr_results_end_offset);
       if (!sm_return(sm)) {
         return 1;
@@ -2326,6 +2645,8 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       LOG(3, "EXPR_SLICE_BOUNDS_CHECK: index %u >= len %lld, aborting", index, slice_len);
       if (expr_status_idx != EXPR_STATUS_IDX_NONE) {
         expr_status_write(buf, sm->expr_results_offset, expr_status_idx, EXPR_STATUS_OOB);
+      } else {
+        sm->condition_eval_error = true;
       }
       scratch_buf_set_len(buf, sm->expr_results_end_offset);
       if (!sm_return(sm)) {
@@ -2537,6 +2858,40 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       LOG(3, "enqueue: failed interface chase");
     }
   } break;
+
+  // SM_OP_GO_CONTEXT_CHAIN_INIT runs at the head of the enqueue_pc subroutine
+  // for any concrete context.Context implementation IR type. The chase
+  // preamble has just serialized the impl bytes into the scratch buffer:
+  //   sm->offset      -> payload start
+  //   header at sm->offset - sizeof(di_data_item_header_t) has
+  //     {type=cancelCtx_IR_id, length=byte_len(>=40), address=ctx_addr}
+  // INIT rewrites the header type id to TraceContextType, zeros the first 40
+  // bytes of payload (so a no-span outcome leaves valid=0), and seeds the
+  // walk state. The byte_len floor of 40 is established by the loader for
+  // any IR type with go_context_is_context==1, so the reservation is always
+  // wide enough to hold the trace_context_t. INIT does not touch sm->offset
+  // or sm->di_0 — HOP runs next on top of the same SM state.
+  case SM_OP_GO_CONTEXT_CHAIN_INIT: {
+    uint32_t impl_ir_type = sm_read_program_uint32(sm);
+    if (sm_go_context_chain_init(buf, sm, impl_ir_type)) {
+      return 1;
+    }
+  } break;
+
+  // SM_OP_GO_CONTEXT_CHAIN_HOP performs one chain step per dispatch. If a
+  // span is found, it writes the populated trace_context_t into the data
+  // item's payload at sm->go_context_walk.data_item_offset, sets done=1,
+  // and lets the PC advance to the next bytecode (RETURN). Otherwise it
+  // advances `current` to the next link via the embedded Context interface
+  // header in user memory and self-jumps (sm->pc -= 1) so the next sm_loop
+  // iteration re-enters HOP. Every termination path sets done=1 so a
+  // subsequent dispatch (out of the bytecode's `[INIT, HOP, RETURN]` shape
+  // this never happens, but defensive) no-ops cleanly.
+  case SM_OP_GO_CONTEXT_CHAIN_HOP:
+    if (sm_go_context_chain_hop(buf, sm)) {
+      return 1;
+    }
+    break;
 
   case SM_OP_PROCESS_GO_DICT_TYPE: {
     // Resolve a generic shape type parameter to its concrete type by
@@ -2927,6 +3282,8 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       if (expr_status_idx != EXPR_STATUS_IDX_NONE) {
         expr_status_write(buf, sm->expr_results_offset, expr_status_idx,
                           EXPR_STATUS_ABSENT);
+      } else {
+        sm->condition_eval_error = true;
       }
       // Abort expression evaluation so the caller (condition check /
       // ExprSave) does not read uninitialized bytes.
@@ -3141,9 +3498,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
 
   case SM_OP_CONDITION_BEGIN: {
     // Arm the eval-error flag. See the lifecycle comment on
-    // condition_eval_error in context.h: this is one of three ops that
-    // touch the flag (BEGIN arms, JUMP_IF_* leave untouched, CHECK
-    // clears on success).
+    // condition_eval_error in context.h.
     sm->condition_eval_error = true;
   } break;
 
@@ -3191,6 +3546,103 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     }
   } break;
 
+  // --- Split-event-kind condition ops (per-leaf 2-bit status + AST replay) ---
+
+  // CONDITION_STATE_INIT: clears condition_state at the start of the
+  // entry-side driver. stack_machine_ctx_load already zeroes
+  // condition_state on every probe entry, but this op makes the driver
+  // self-contained against future changes.
+  case SM_OP_CONDITION_STATE_INIT: {
+    sm->condition_state = 0;
+  } break;
+
+  // CONDITION_LEAF_RECORD: captures the outcome of an entry-side leaf
+  // (called via SM_OP_CALL just before this op) into the 2-bit slot for
+  // leaf Index in condition_state. Reads condition_eval_error /
+  // condition_nil_deref to derive the error flavor; if neither is set,
+  // reads the boolean byte at sm->offset to derive false/true. Clears
+  // both error flags so the next leaf starts clean. Index is 0..7.
+  case SM_OP_CONDITION_LEAF_RECORD: {
+    uint8_t leaf_idx = sm_read_program_uint8(sm) & CONDITION_LEAF_IDX_MASK;
+    uint16_t status;
+    if (sm->condition_eval_error) {
+      status = sm->condition_nil_deref ? LEAF_STATUS_NIL_DEREF
+                                       : LEAF_STATUS_EVAL_ERROR;
+    } else {
+      if (!scratch_buf_bounds_check(&sm->offset, 1)) {
+        return 1;
+      }
+      status = (*buf)[sm->offset] & 1; // FALSE=0, TRUE=1
+    }
+    uint16_t mask = (uint16_t)(3u << (2u * leaf_idx));
+    sm->condition_state =
+        (uint16_t)((sm->condition_state & ~mask)
+                   | (uint16_t)(status << (2u * leaf_idx)));
+    // Clear per-leaf error flags so the next leaf's record sees fresh
+    // state.
+    sm->condition_eval_error = false;
+    sm->condition_nil_deref = false;
+  } break;
+
+  // CONDITION_LEAF_LOAD: read leaf Index's 2-bit status and dispatch.
+  // FALSE/TRUE writes 0/1 at sm->offset and continues. EVAL_ERROR /
+  // NIL_DEREF set condition_eval_error (and nil_deref for the latter),
+  // write 1 at sm->offset (so the surrounding ConditionCheck passes),
+  // and jump to ErrorTarget — bypassing surrounding short-circuit and
+  // Not ops so the error flag survives to event.c surfacing.
+  case SM_OP_CONDITION_LEAF_LOAD: {
+    uint8_t leaf_idx = sm_read_program_uint8(sm) & CONDITION_LEAF_IDX_MASK;
+    uint32_t error_target = sm_read_program_uint32(sm);
+    uint16_t status =
+        (uint16_t)((sm->condition_state >> (2u * leaf_idx)) & 3u);
+    if (!scratch_buf_bounds_check(&sm->offset, 1)) {
+      return 1;
+    }
+    if (status == LEAF_STATUS_FALSE) {
+      (*buf)[sm->offset] = 0;
+    } else if (status == LEAF_STATUS_TRUE) {
+      (*buf)[sm->offset] = 1;
+    } else {
+      // EVAL_ERROR or NIL_DEREF: surface as fail-open and short-circuit
+      // to the tail.
+      sm->condition_eval_error = true;
+      if (status == LEAF_STATUS_NIL_DEREF) {
+        sm->condition_nil_deref = true;
+      }
+      (*buf)[sm->offset] = 1;
+      sm->pc = error_target;
+    }
+  } break;
+
+  // CONDITION_CHECK_PRESERVE_ERROR: like SM_OP_CONDITION_CHECK but does
+  // NOT clear condition_eval_error. Used at the tail of split-event-kind
+  // condition drivers so that an eval-error surfaced by
+  // SM_OP_CONDITION_LEAF_LOAD during AST replay survives to event.c's
+  // header surfacing.
+  case SM_OP_CONDITION_CHECK_PRESERVE_ERROR: {
+    if (!scratch_buf_bounds_check(&sm->offset, 1)) {
+      return 1;
+    }
+    uint8_t val = (*buf)[sm->offset];
+    if (val == 0) {
+      sm->condition_failed = true;
+      LOG(1, "condition check failed");
+      return 1; // Abort stack machine.
+    }
+  } break;
+
+  // CONDITION_LEAF_COMPLETE: emitted at the tail of a per-leaf SM
+  // sub-function on the success path. Clears condition_eval_error so
+  // the driver's CONDITION_LEAF_RECORD can distinguish success
+  // (eval_error == false → read boolean byte at sm->offset) from abort
+  // (eval_error == true → encode error flavor from condition_nil_deref).
+  // Abort paths inside the leaf bypass this op via sm_return, leaving
+  // condition_eval_error armed by SM_OP_CONDITION_BEGIN at the leaf's
+  // prelude.
+  case SM_OP_CONDITION_LEAF_COMPLETE: {
+    sm->condition_eval_error = false;
+  } break;
+
   // ---------------------------------------------------------------------------
   // Swiss map lookup opcodes. The compiler emits these 5 in sequence:
   //   SETUP [params] → AESENC → HASH_FINISH → PROBE → CHECK_SLOT
@@ -3208,7 +3660,11 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       break;
     }
     if (rc <= 0) {
-      // nil map (0) or error (-1). OOB already written.
+      // nil map (0) or error (-1). OOB already written by the setup
+      // helper for capture expressions; arm eval_error for conditions.
+      if (sm->swiss_map_state.expr_status_idx == EXPR_STATUS_IDX_NONE) {
+        sm->condition_eval_error = true;
+      }
       if (!sm_return(sm)) return 1;
       break;
     }
@@ -3224,6 +3680,9 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       barrier_var(kdl);
       if (!sm_copy_from_code(buf, sm->swiss_map_state.key_data_off,
                              sm->pc - kdl, kdl)) {
+        if (sm->swiss_map_state.expr_status_idx == EXPR_STATUS_IDX_NONE) {
+          sm->condition_eval_error = true;
+        }
         if (!sm_return(sm)) return 1;
         break;
       }
@@ -3259,10 +3718,17 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     } else if (hf_rc == 0) {
       // Hash done, probe state set. Fall through to PROBE.
     } else if (hf_rc == -2) {
-      // Key not found (null table). OOB already written.
+      // Key not found (null table). OOB already written for capture
+      // expressions; arm eval_error for conditions.
+      if (sm->swiss_map_state.expr_status_idx == EXPR_STATUS_IDX_NONE) {
+        sm->condition_eval_error = true;
+      }
       if (!sm_return(sm)) return 1;
     } else {
       // Error.
+      if (sm->swiss_map_state.expr_status_idx == EXPR_STATUS_IDX_NONE) {
+        sm->condition_eval_error = true;
+      }
       if (!sm_return(sm)) return 1;
     }
   } break;
@@ -3278,6 +3744,9 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
                              (void*)(sm->swiss_map_state.group_addr +
                                      sm->swiss_map_state.ctrl_offset)) != 0) {
       LOG(3, "swiss_map_probe: failed to read ctrl");
+      if (sm->swiss_map_state.expr_status_idx == EXPR_STATUS_IDX_NONE) {
+        sm->condition_eval_error = true;
+      }
       scratch_buf_set_len(buf, sm->expr_results_end_offset);
       if (!sm_return(sm)) return 1;
       break;
@@ -3310,6 +3779,8 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       if (sm->swiss_map_state.expr_status_idx != EXPR_STATUS_IDX_NONE) {
         expr_status_write(buf, sm->expr_results_offset,
                           sm->swiss_map_state.expr_status_idx, EXPR_STATUS_OOB);
+      } else {
+        sm->condition_eval_error = true;
       }
       scratch_buf_set_len(buf, sm->expr_results_end_offset);
       if (!sm_return(sm)) return 1;
@@ -3368,6 +3839,9 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     if (result < 0) {
       // Genuine read error — fault in both modes.
       LOG(3, "swiss_map_check_slot: error");
+      if (sm->swiss_map_state.expr_status_idx == EXPR_STATUS_IDX_NONE) {
+        sm->condition_eval_error = true;
+      }
       scratch_buf_set_len(buf, sm->expr_results_end_offset);
       if (!sm_return(sm)) return 1;
       break;
@@ -3387,6 +3861,8 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       if (sm->swiss_map_state.expr_status_idx != EXPR_STATUS_IDX_NONE) {
         expr_status_write(buf, sm->expr_results_offset,
                           sm->swiss_map_state.expr_status_idx, EXPR_STATUS_OOB);
+      } else {
+        sm->condition_eval_error = true;
       }
       scratch_buf_set_len(buf, sm->expr_results_end_offset);
       if (!sm_return(sm)) return 1;

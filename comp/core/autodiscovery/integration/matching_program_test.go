@@ -11,11 +11,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 )
 
-func TestCreateMatchingProgram_EmptyRules(t *testing.T) {
+func TestCreateMatchingPrograms_EmptyRules(t *testing.T) {
 	tests := []struct {
 		name  string
 		rules workloadfilter.Rules
@@ -44,27 +46,36 @@ func TestCreateMatchingProgram_EmptyRules(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			program, celADID, compileErr, recErr := CreateMatchingProgram(tt.rules)
-			assert.Nil(t, program)
-			assert.Empty(t, celADID)
-			assert.NoError(t, compileErr)
-			assert.NoError(t, recErr)
+			programs, celADIDs, err := CreateMatchingPrograms(tt.rules, true)
+			assert.Nil(t, programs)
+			assert.Empty(t, celADIDs)
+			assert.NoError(t, err)
 		})
 	}
 }
 
-func TestCreateMatchingProgram_ValidRules(t *testing.T) {
+func TestCreateMatchingPrograms_SingleType(t *testing.T) {
 	tests := []struct {
 		name           string
 		rules          workloadfilter.Rules
 		expectedTarget workloadfilter.ResourceType
+		expectedADID   adtypes.CelIdentifier
 	}{
 		{
-			name: "single defined rule",
+			name: "container rules only",
 			rules: workloadfilter.Rules{
 				Containers: []string{`container.name == "nginx" && container.image.reference == "nginx:latest"`},
 			},
 			expectedTarget: workloadfilter.ContainerType,
+			expectedADID:   adtypes.CelContainerIdentifier,
+		},
+		{
+			name: "process rules only",
+			rules: workloadfilter.Rules{
+				Processes: []string{`process.cmdline.contains("redis-server")`},
+			},
+			expectedTarget: workloadfilter.ProcessType,
+			expectedADID:   adtypes.CelProcessIdentifier,
 		},
 		{
 			name: "service rules only",
@@ -72,6 +83,7 @@ func TestCreateMatchingProgram_ValidRules(t *testing.T) {
 				KubeServices: []string{`kube_service.name.matches("api-service") && kube_service.namespace == "default"`},
 			},
 			expectedTarget: workloadfilter.KubeServiceType,
+			expectedADID:   adtypes.CelServiceIdentifier,
 		},
 		{
 			name: "endpoint rules only",
@@ -79,6 +91,7 @@ func TestCreateMatchingProgram_ValidRules(t *testing.T) {
 				KubeEndpoints: []string{`kube_endpoint.name == "api-endpoint" && kube_endpoint.namespace == "default"`},
 			},
 			expectedTarget: workloadfilter.KubeEndpointType,
+			expectedADID:   adtypes.CelEndpointIdentifier,
 		},
 		{
 			name: "multiple valid container rules",
@@ -89,32 +102,69 @@ func TestCreateMatchingProgram_ValidRules(t *testing.T) {
 				},
 			},
 			expectedTarget: workloadfilter.ContainerType,
-		},
-		{
-			name: "complex valid rules",
-			rules: workloadfilter.Rules{
-				KubeServices: []string{
-					`kube_service.name.matches("api-.*") && kube_service.namespace == "production"`,
-					`kube_service.annotations["version"] == "v2"`,
-				},
-			},
-			expectedTarget: workloadfilter.KubeServiceType,
+			expectedADID:   adtypes.CelContainerIdentifier,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			program, celADID, compileErr, recErr := CreateMatchingProgram(tt.rules)
-			assert.NotNil(t, program)
-			assert.NotEmpty(t, celADID)
-			assert.NoError(t, compileErr)
-			assert.NoError(t, recErr)
-			assert.Equal(t, tt.expectedTarget, program.GetTargetType())
+			programs, celADIDs, err := CreateMatchingPrograms(tt.rules, true)
+			require.NoError(t, err)
+			require.Len(t, programs, 1)
+			require.Len(t, celADIDs, 1)
+			assert.Contains(t, programs, tt.expectedTarget)
+			assert.Equal(t, tt.expectedTarget, programs[tt.expectedTarget].GetTargetType())
+			assert.Equal(t, tt.expectedADID, celADIDs[0])
 		})
 	}
 }
 
-func TestCreateMatchingProgram_RecommendationErrors(t *testing.T) {
+func TestCreateMatchingPrograms_MultipleTypes(t *testing.T) {
+	tests := []struct {
+		name            string
+		rules           workloadfilter.Rules
+		expectedTargets []workloadfilter.ResourceType
+		expectedADIDs   []adtypes.CelIdentifier
+	}{
+		{
+			name: "container and process rules",
+			rules: workloadfilter.Rules{
+				Containers: []string{`container.name == "nginx" && container.image.reference == "nginx:latest"`},
+				Processes:  []string{`process.cmdline.contains("redis-server")`},
+			},
+			expectedTargets: []workloadfilter.ResourceType{workloadfilter.ContainerType, workloadfilter.ProcessType},
+			expectedADIDs:   []adtypes.CelIdentifier{adtypes.CelContainerIdentifier, adtypes.CelProcessIdentifier},
+		},
+		{
+			name: "container, service, and endpoint rules",
+			rules: workloadfilter.Rules{
+				Containers:    []string{`container.name == "nginx" && container.image.reference == "nginx:latest"`},
+				KubeServices:  []string{`kube_service.name == "api" && kube_service.namespace == "default"`},
+				KubeEndpoints: []string{`kube_endpoint.name == "api-endpoint" && kube_endpoint.namespace == "default"`},
+			},
+			expectedTargets: []workloadfilter.ResourceType{workloadfilter.ContainerType, workloadfilter.KubeServiceType, workloadfilter.KubeEndpointType},
+			expectedADIDs:   []adtypes.CelIdentifier{adtypes.CelContainerIdentifier, adtypes.CelServiceIdentifier, adtypes.CelEndpointIdentifier},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			programs, celADIDs, err := CreateMatchingPrograms(tt.rules, true)
+			require.NoError(t, err)
+			require.Len(t, programs, len(tt.expectedTargets))
+			require.Len(t, celADIDs, len(tt.expectedADIDs))
+			for _, target := range tt.expectedTargets {
+				assert.Contains(t, programs, target)
+				assert.Equal(t, target, programs[target].GetTargetType())
+			}
+			for _, adID := range tt.expectedADIDs {
+				assert.Contains(t, celADIDs, adID)
+			}
+		})
+	}
+}
+
+func TestCreateMatchingPrograms_RecommendationErrors(t *testing.T) {
 	tests := []struct {
 		name  string
 		rules workloadfilter.Rules
@@ -165,57 +215,26 @@ func TestCreateMatchingProgram_RecommendationErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			program, celADID, compileErr, recErr := CreateMatchingProgram(tt.rules)
+			programs, celADIDs, err := CreateMatchingPrograms(tt.rules, true)
 			// The function should return a program but with a recommendation error
-			assert.NotNil(t, program)
-			assert.NotEmpty(t, celADID)
-			assert.NoError(t, compileErr)
-			assert.Error(t, recErr)
+			assert.Error(t, err)
+			assert.Nil(t, programs)
+			assert.Empty(t, celADIDs)
 		})
 	}
 }
 
-func TestCreateMatchingProgram_PriorityOrder(t *testing.T) {
-	tests := []struct {
-		name           string
-		rules          workloadfilter.Rules
-		expectedTarget workloadfilter.ResourceType
-	}{
-		{
-			name: "containers have priority over services",
-			rules: workloadfilter.Rules{
-				Containers:   []string{`container.name == "nginx" && container.image.reference == "nginx:latest"`},
-				KubeServices: []string{`kube_service.name == "api" && kube_service.namespace == "default"`},
-			},
-			expectedTarget: workloadfilter.ContainerType,
-		},
-		{
-			name: "services have priority over endpoints",
-			rules: workloadfilter.Rules{
-				KubeServices:  []string{`kube_service.name == "api" && kube_service.namespace == "default"`},
-				KubeEndpoints: []string{`kube_endpoint.name == "api-endpoint" && kube_endpoint.namespace == "default"`},
-			},
-			expectedTarget: workloadfilter.KubeServiceType,
-		},
-		{
-			name: "all types present - containers win",
-			rules: workloadfilter.Rules{
-				Containers:    []string{`container.name == "nginx" && container.image.reference == "nginx:latest"`},
-				KubeServices:  []string{`kube_service.name == "api" && kube_service.namespace == "default"`},
-				KubeEndpoints: []string{`kube_endpoint.name == "api-endpoint" && kube_endpoint.namespace == "default"`},
-			},
-			expectedTarget: workloadfilter.ContainerType,
-		},
+func TestCreateMatchingPrograms_RecommendationErrorFailsAll(t *testing.T) {
+	// When one type has a recommendation error, the entire config fails.
+	rules := workloadfilter.Rules{
+		// container.name without container.image -> recommendation error
+		Containers: []string{`container.name == "nginx"`},
+		// valid process rule
+		Processes: []string{`process.cmdline.contains("redis-server")`},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			program, celADID, compileErr, recErr := CreateMatchingProgram(tt.rules)
-			assert.NotNil(t, program)
-			assert.NotEmpty(t, celADID)
-			assert.NoError(t, compileErr)
-			assert.NoError(t, recErr)
-			assert.Equal(t, tt.expectedTarget, program.GetTargetType())
-		})
-	}
+	programs, celADIDs, err := CreateMatchingPrograms(rules, true)
+	assert.Error(t, err)
+	assert.Nil(t, programs)
+	assert.Empty(t, celADIDs)
 }

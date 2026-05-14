@@ -743,7 +743,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "551"
+      - "581"
   when:
     dsl: "n == 7"
     json: {eq: [{ref: "n"}, 7]}
@@ -768,7 +768,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "551"
+      - "581"
   sampling:
     snapshotsPerSecond: 10
 
@@ -2712,11 +2712,13 @@ probes:
   sampling:
     snapshotsPerSecond: 10
 
-# Cross-event compound must fail: @return is a return-event variable while
-# parameter `a` resolves to the entry event. Compound conditions require
-# all leaves to share a single event kind, so this probe is rejected with
-# ConditionVariableUnavailable.
-- id: condCompound_return_and_param
+# Split-event-kind compound condition: @return is a return-event variable
+# while parameter `a` resolves to the entry event. The runtime stashes
+# the entry-leaf result in a per-call carry byte and the return-side
+# program reads it back to combine with @return. Calls:
+#   condReturnAndLocal(5, 3) → a=5, @return=8 → both leaves false
+#   condReturnAndLocal(1, 1) → a=1, @return=2 → both leaves true → fires
+- id: condCompound_split_return_and_param
   type: LOG_PROBE
   captureSnapshot: false
   where:
@@ -2727,13 +2729,495 @@ probes:
       and:
         - eq: [{ref: "@return"}, 2]
         - eq: [{ref: "a"}, 1]
-  template: "@return == 2 && a == 1"
+  template: "@return == 2 && a == 1 [a={a}, @return={@return}]"
   segments:
-    - str: "@return == 2 && a == 1"
+    - str: "@return == 2 && a == 1 [a="
+    - json: {ref: "a"}
+      dsl: "a"
+    - str: ", @return="
+    - json: {ref: "@return"}
+      dsl: "@return"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Split-event-kind compound with OR: fires when either entry leaf or
+# return leaf is true.
+#   condReturnAndLocal(5, 3) → a=5, @return=8: a > 4 is true → fires
+#   condReturnAndLocal(1, 1) → a=1, @return=2: @return < 5 is true → fires
+- id: condCompound_split_or
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condReturnAndLocal
+  when:
+    dsl: "a > 4 || @return < 5"
+    json:
+      or:
+        - gt: [{ref: "a"}, 4]
+        - lt: [{ref: "@return"}, 5]
+  template: "split_or [a={a}, @return={@return}]"
+  segments:
+    - str: "split_or [a="
+    - json: {ref: "a"}
+      dsl: "a"
+    - str: ", @return="
+    - json: {ref: "@return"}
+      dsl: "@return"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Split-event-kind condition with `not` wrapping a single-slice leaf.
+# !(a > 4) && @return == 2 — equivalent to a <= 4 && @return == 2.
+#   condReturnAndLocal(5, 3) → a=5, @return=8: a>4 is true → !true → false → no fire
+#   condReturnAndLocal(1, 1) → a=1, @return=2: a>4 is false → !false → true; @return==2 → fires
+- id: condCompound_split_not
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condReturnAndLocal
+  when:
+    dsl: "!(a > 4) && @return == 2"
+    json:
+      and:
+        - not:
+            gt: [{ref: "a"}, 4]
+        - eq: [{ref: "@return"}, 2]
+  template: "split_not [a={a}, @return={@return}]"
+  segments:
+    - str: "split_not [a="
+    - json: {ref: "a"}
+      dsl: "a"
+    - str: ", @return="
+    - json: {ref: "@return"}
+      dsl: "@return"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Split-event-kind condition with `not` wrapping a pure return-side
+# subtree, ANDed with an entry leaf. Critical soundness case: the
+# entry-side gate must NOT short-circuit when the entry leaf is true,
+# because the runtime truth depends on @return. The gate's polarity
+# tracking is what keeps this correct — naive pruning to "true" would
+# get NotOp-flipped to "false" and falsely suppress the return event.
+#   condReturnAndLocal(5, 3) → a=5, @return=8: a > 4 true && !(8==2) = true → fires
+#   condReturnAndLocal(1, 1) → a=1, @return=2: a > 4 false → no fire
+- id: condCompound_split_not_around_return
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condReturnAndLocal
+  when:
+    dsl: "a > 4 && !(@return == 2)"
+    json:
+      and:
+        - gt: [{ref: "a"}, 4]
+        - not:
+            eq: [{ref: "@return"}, 2]
+  template: "split_not_around_return [a={a}, @return={@return}]"
+  segments:
+    - str: "split_not_around_return [a="
+    - json: {ref: "a"}
+      dsl: "a"
+    - str: ", @return="
+    - json: {ref: "@return"}
+      dsl: "@return"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Same shape under OR: entry leaf || !(pure-return). When the entry
+# leaf is false, the runtime answer depends on @return — the gate must
+# NOT short-circuit to false. With polarity tracking, the pure-return
+# subtree under !-then-OR emits the constant that flips back to true at
+# the gate output. Calls:
+#   condReturnAndLocal(5, 3) → a=5, @return=8: a>4 true → fires
+#   condReturnAndLocal(1, 1) → a=1, @return=2: a>4 false; !(2==2)=false → no fire
+# Without the polarity fix, the second call would still produce a
+# snapshot (the gate would conservatively pass), so both cases fire.
+# With the fix, the second call's runtime evaluation correctly fails
+# the condition.
+- id: condCompound_split_not_around_return_or
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condReturnAndLocal
+  when:
+    dsl: "a > 4 || !(@return == 2)"
+    json:
+      or:
+        - gt: [{ref: "a"}, 4]
+        - not:
+            eq: [{ref: "@return"}, 2]
+  template: "split_not_around_return_or [a={a}, @return={@return}]"
+  segments:
+    - str: "split_not_around_return_or [a="
+    - json: {ref: "a"}
+      dsl: "a"
+    - str: ", @return="
+    - json: {ref: "@return"}
+      dsl: "@return"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Split-event-kind condition where entry slice forces the whole
+# expression to false — the entry-side gate evaluates false, so the
+# entry probe sets condition_failed=true *before* in_progress_calls
+# insertion; the return event then sees CALL_DEPTHS_ABSENT and is
+# suppressed.
+#   condReturnAndLocal(5, 3) → a=5, a > 100 is false → no slot, no return event
+#   condReturnAndLocal(1, 1) → a=1, a > 100 is false → no slot, no return event
+# This probe must NEVER fire (control: pairing alongside
+# condReturnAndLocal_nocond which fires unconditionally).
+- id: condCompound_split_entry_false
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condReturnAndLocal
+  when:
+    dsl: "a > 100 && @return == 2"
+    json:
+      and:
+        - gt: [{ref: "a"}, 100]
+        - eq: [{ref: "@return"}, 2]
+  template: "split_entry_false [a={a}, @return={@return}]"
+  segments:
+    - str: "split_entry_false [a="
+    - json: {ref: "a"}
+      dsl: "a"
+    - str: ", @return="
+    - json: {ref: "@return"}
+      dsl: "@return"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Split-event-kind condition pairing @duration with an entry-side leaf.
+# `condReturnAndLocal` runs trivially fast so @duration > 0 is reliably
+# true; the test asserts the @duration leaf composes with the entry-side
+# leaf via the carry machinery.
+#   condReturnAndLocal(5, 3) → a=5: a > 4 is true && @duration > 0 → fires
+#   condReturnAndLocal(1, 1) → a=1: a > 4 is false → no fire
+- id: condCompound_split_duration_param
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condReturnAndLocal
+  when:
+    dsl: "a > 4 && @duration > 0.0"
+    json:
+      and:
+        - gt: [{ref: "a"}, 4]
+        - gt: [{ref: "@duration"}, 0.0]
+  template: "split_duration [a={a}]"
+  segments:
+    - str: "split_duration [a="
+    - json: {ref: "a"}
+      dsl: "a"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Split-event-kind condition with the or(B, B) shape — two mixed-slice
+# AND subtrees OR'd together. Per-leaf carry handles this trivially
+# (each entry leaf gets its own bit). Calls:
+#   condReturnAndLocal(5, 3) → a=5, @return=8: (a>4 && @return>5) → true → fires
+#   condReturnAndLocal(1, 1) → a=1, @return=2: (a<3 && @return<5) → true → fires
+- id: condCompound_split_or_of_ands
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condReturnAndLocal
+  when:
+    dsl: "(a > 4 && @return > 5) || (a < 3 && @return < 5)"
+    json:
+      or:
+        - and:
+            - gt: [{ref: "a"}, 4]
+            - gt: [{ref: "@return"}, 5]
+        - and:
+            - lt: [{ref: "a"}, 3]
+            - lt: [{ref: "@return"}, 5]
+  template: "split_or_of_ands [a={a}, @return={@return}]"
+  segments:
+    - str: "split_or_of_ands [a="
+    - json: {ref: "a"}
+      dsl: "a"
+    - str: ", @return="
+    - json: {ref: "@return"}
+      dsl: "@return"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Split condition with entry-side nil-deref. condNilPtrStruct is called
+# with a non-nil pointer (tag="match") and nil (tag="nilptr"). The first
+# leaf dereferences x.I32 (nil-deref on the second call); the second leaf
+# checks tag (return-side via the legacy tag/return classification — but
+# `tag` is a parameter so it's also entry-side, making this a single-event
+# condition. To get a true split we use a return value too: condMultiReturn
+# returns r0 (int) at @return.r0 and r1 (string) at @return.r1.
+# Use condNilPtrStruct's parameter `x.I32 == 300` (entry leaf, may
+# nil-deref) compounded with @duration (return leaf).
+#   call 1: x = &{I32:300} → x.I32==300 true; @duration>0 true → fires
+#   call 2: x = nil       → x.I32==300 nil-derefs → entry-side errors;
+#                           return event still fires (condition treated
+#                           as passed) with condition_eval_error=2.
+- id: condCompound_split_entry_nilderef
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condNilPtrStruct
+  when:
+    dsl: "x.I32 == 300 && @duration > 0.0"
+    json:
+      and:
+        - eq: [{getmember: [{ref: "x"}, "I32"]}, 300]
+        - gt: [{ref: "@duration"}, 0.0]
+  template: "split_entry_nilderef [tag={tag}]"
+  segments:
+    - str: "split_entry_nilderef [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# 8-entry-leaf split condition: the maximum that fits in condition_state
+# (16 bits / 2 bits per leaf = 8 slots). Combines 8 entry-side leaves on
+# condStructArg's many fields with one return-side leaf via @duration.
+#   condStructArg called with i8=1,i16=2,...,b=true,f64=0.5,s="match"
+#   matches all 8 entry leaves; @duration>0 is true → fires.
+#   Other call with different fields → no fire.
+- id: condCompound_split_max_carry
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condStructArg
+  when:
+    dsl: "x.I8==1 && x.I16==2 && x.I32==3 && x.I64==4 && x.U8==5 && x.U16==6 && x.U32==7 && x.B==true && @duration>0.0"
+    json:
+      and:
+        - eq: [{getmember: [{ref: "x"}, "I8"]}, 1]
+        - and:
+            - eq: [{getmember: [{ref: "x"}, "I16"]}, 2]
+            - and:
+                - eq: [{getmember: [{ref: "x"}, "I32"]}, 3]
+                - and:
+                    - eq: [{getmember: [{ref: "x"}, "I64"]}, 4]
+                    - and:
+                        - eq: [{getmember: [{ref: "x"}, "U8"]}, 5]
+                        - and:
+                            - eq: [{getmember: [{ref: "x"}, "U16"]}, 6]
+                            - and:
+                                - eq: [{getmember: [{ref: "x"}, "U32"]}, 7]
+                                - and:
+                                    - eq: [{getmember: [{ref: "x"}, "B"]}, true]
+                                    - gt: [{ref: "@duration"}, 0.0]
+  template: "split_max_carry [tag={tag}]"
+  segments:
+    - str: "split_max_carry [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# 9-entry-leaf split condition: exceeds the 8-slot condition_state budget.
+# Must be rejected at irgen time with IssueKindConditionCarryTooLarge.
+- id: condCompound_split_carry_overflow
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condStructArg
+  when:
+    dsl: "x.I8==1 && x.I16==2 && x.I32==3 && x.I64==4 && x.U8==5 && x.U16==6 && x.U32==7 && x.U64==8 && x.B==true && @duration>0.0"
+    json:
+      and:
+        - eq: [{getmember: [{ref: "x"}, "I8"]}, 1]
+        - and:
+            - eq: [{getmember: [{ref: "x"}, "I16"]}, 2]
+            - and:
+                - eq: [{getmember: [{ref: "x"}, "I32"]}, 3]
+                - and:
+                    - eq: [{getmember: [{ref: "x"}, "I64"]}, 4]
+                    - and:
+                        - eq: [{getmember: [{ref: "x"}, "U8"]}, 5]
+                        - and:
+                            - eq: [{getmember: [{ref: "x"}, "U16"]}, 6]
+                            - and:
+                                - eq: [{getmember: [{ref: "x"}, "U32"]}, 7]
+                                - and:
+                                    - eq: [{getmember: [{ref: "x"}, "U64"]}, 8]
+                                    - and:
+                                        - eq: [{getmember: [{ref: "x"}, "B"]}, true]
+                                        - gt: [{ref: "@duration"}, 0.0]
+  template: "split_carry_overflow"
+  segments:
+    - str: "split_carry_overflow"
   sampling:
     snapshotsPerSecond: 10
   tags:
-    - "issue:ConditionVariableUnavailable"
+    - "issue:ConditionCarryTooLarge"
+
+# Guarded nil-deref under AND: the entry leaf `x != nil` short-circuits
+# `x.I32 == 1` when x is nil, so the nil-pointer call must NOT fire
+# (no eval-error, no snapshot). Calls:
+#   condGuarded(&{I32:1}, "match")  → x!=nil true,  x.I32==1 true,  @return==1 → fires
+#   condGuarded(&{I32:99}, "miss")  → x!=nil true,  x.I32==1 false → no fire
+#   condGuarded(nil, "nilptr")      → x!=nil false (short-circuit) → no fire
+# Verifies that an entry leaf which would nil-deref is not surfaced when
+# a preceding entry leaf in the same AND short-circuits the AST replay.
+- id: condCompound_split_guarded_nil_deref
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condGuarded
+  when:
+    dsl: "(x != nil && x.I32 == 1) && @return == 1"
+    json:
+      and:
+        - and:
+            - ne: [{ref: "x"}, null]
+            - eq: [{getmember: [{ref: "x"}, "I32"]}, 1]
+        - eq: [{ref: "@return"}, 1]
+  template: "split_guarded [tag={tag}, @return={@return}]"
+  segments:
+    - str: "split_guarded [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: ", @return="
+    - json: {ref: "@return"}
+      dsl: "@return"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Guarded nil-deref under OR: when x is nil the AND short-circuits to
+# false (no eval-error), then OR's right side must decide. Calls:
+#   condGuarded(&{I32:1}, "match")   → AND true → fires (no need to check OR right)
+#   condGuarded(&{I32:99}, "miss")   → AND false; @return==99 → fires via OR right
+#   condGuarded(nil, "nilptr")       → AND short-circuits to false (NO eval-error);
+#                                      @return==0 false → no fire
+- id: condCompound_split_guarded_or
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condGuarded
+  when:
+    dsl: "(x != nil && x.I32 == 1) || @return == 99"
+    json:
+      or:
+        - and:
+            - ne: [{ref: "x"}, null]
+            - eq: [{getmember: [{ref: "x"}, "I32"]}, 1]
+        - eq: [{ref: "@return"}, 99]
+  template: "split_guarded_or [tag={tag}, @return={@return}]"
+  segments:
+    - str: "split_guarded_or [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: ", @return="
+    - json: {ref: "@return"}
+      dsl: "@return"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Unguarded nil-deref: condGuarded with `x.I32 == 1` and no nil-check.
+# Must preserve today's "error → fail-open" semantics for the unguarded
+# case. Calls:
+#   condGuarded(&{I32:1}, "match")    → entry true, return depends on @return
+#   condGuarded(&{I32:99}, "miss")    → entry false, OR right (@return==99) decides
+#   condGuarded(nil, "nilptr")        → entry nil-deref, OR's right = false (return=0),
+#                                       so AST replay reads errored leaf → fires
+#                                       with condition_eval_error=2.
+- id: condCompound_split_unguarded_nil_deref
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condGuarded
+  when:
+    dsl: "x.I32 == 1 || @return == 99"
+    json:
+      or:
+        - eq: [{getmember: [{ref: "x"}, "I32"]}, 1]
+        - eq: [{ref: "@return"}, 99]
+  template: "split_unguarded [tag={tag}, @return={@return}]"
+  segments:
+    - str: "split_unguarded [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: ", @return="
+    - json: {ref: "@return"}
+      dsl: "@return"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# OR short-circuits past an errored entry leaf when the return-side leaf
+# is true: @return == 0 || x.I32 == 99 with x = nil. The OR's left
+# evaluates @return == 0 (true for the nilptr call where condGuarded
+# returns 0), so the AST replay short-circuits past the errored entry
+# leaf. Must fire with NO condition_eval_error. Calls:
+#   condGuarded(&{I32:1}, "match")    → @return=1, x.I32=1: left false, right false → no fire
+#   condGuarded(&{I32:99}, "miss")    → @return=99, x.I32=99: left false, right true → fires (no err)
+#   condGuarded(nil, "nilptr")        → @return=0, x errored: left true → short-circuit → fires (no err!)
+- id: condCompound_split_or_short_circuits_error
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condGuarded
+  when:
+    dsl: "@return == 0 || x.I32 == 99"
+    json:
+      or:
+        - eq: [{ref: "@return"}, 0]
+        - eq: [{getmember: [{ref: "x"}, "I32"]}, 99]
+  template: "split_or_sc [tag={tag}, @return={@return}]"
+  segments:
+    - str: "split_or_sc [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: ", @return="
+    - json: {ref: "@return"}
+      dsl: "@return"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Split condition with the nil-deref leaf on the RETURN side. Exercises
+# the abort-path arming of condition_eval_error: the return-side AST
+# replay inlines its return leaves and skips ConditionBeginOp, so the
+# leaf abort must arm the flag directly. The entry leaf is true on both
+# calls so the AND does not short-circuit past the return leaf. Calls:
+#   condReturnPtr("match")  → @return=&{I32:1}, tag="match":
+#                              entry true, return true → fires (no err)
+#   condReturnPtr("nilret") → @return=nil, tag="nilret":
+#                              entry true, return leaf nil-derefs →
+#                              fail-open fires with eval_error=2
+- id: condCompound_split_unguarded_return_nilderef
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.condReturnPtr
+  when:
+    dsl: "tag != \"skip\" && @return.I32 == 1"
+    json:
+      and:
+        - ne: [{ref: "tag"}, "skip"]
+        - eq: [{getmember: [{ref: "@return"}, "I32"]}, 1]
+  template: "split_ret_nilderef [tag={tag}]"
+  segments:
+    - str: "split_ret_nilderef [tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+    - str: "]"
+  sampling:
+    snapshotsPerSecond: 10
 
 # Static-error leaf in one branch. Today this must fail the whole probe
 # with issue:ConditionExpressionUnresolvable (matching single-leaf
@@ -2932,7 +3416,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "551"
+      - "581"
   when:
     dsl: "@duration == 0.0"
     json: {eq: [{ref: "@duration"}, 0.0]}
@@ -3040,7 +3524,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "551"
+      - "581"
   when:
     dsl: "n == 7 && tag == \"match\""
     json:

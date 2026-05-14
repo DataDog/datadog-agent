@@ -10,15 +10,7 @@ from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_unstaged_files, get_untracked_files
 
 PROTO_PKGS = {
-    'model/v1': False,
-    'remoteconfig': False,
-    'api/v1': False,
     'trace': True,
-    'workloadmeta': False,
-    'kubemetadata': False,
-    'remoteagent': False,
-    'autodiscovery': False,
-    'workloadfilter': False,
 }
 
 # maybe put this in a separate function
@@ -63,6 +55,7 @@ def generate(ctx, pre_commit=False):
     with ctx.cd(repo_root):
         # protobuf defs
         print(f"generating protobuf code from: {proto_root}")
+        bazel(ctx, "run", "//pkg/proto/pbgo/core:write_pb_go")
         bazel(ctx, "run", "//pkg/proto/pbgo/dogstatsdhttp:write_pb_go")
         bazel(ctx, "run", "//pkg/proto/pbgo/languagedetection:write_pb_go")
         bazel(ctx, "run", "//pkg/proto/pbgo/privateactionrunner/actionsclient:write_pb_go")

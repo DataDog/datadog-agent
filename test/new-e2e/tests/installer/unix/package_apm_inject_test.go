@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
 	"go.yaml.in/yaml/v3"
@@ -35,9 +34,6 @@ func testApmInjectAgent(os e2eos.Descriptor, arch e2eos.Architecture, method Ins
 }
 
 func (s *packageApmInjectSuite) SetupTest() {
-	if s.os == e2eos.Debian12 || s.os == e2eos.Ubuntu2404 {
-		flake.Mark(s.T())
-	}
 	// Purge() uses Execute (not MustExecute), so failures are silent.
 	// A stale packages.db entry causes Install() to skip PostInstall hooks
 	// (which create /etc/ld.so.preload and /etc/docker/daemon.json).

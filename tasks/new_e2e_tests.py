@@ -50,6 +50,67 @@ from tasks.tools.e2e_stacks import destroy_remote_stack_api, destroy_remote_stac
 DEFAULT_DYNTEST_BUCKET_URI = "s3://dd-ci-persistent-artefacts-build-stable/datadog-agent"
 
 
+def _load_e2e_local_config():
+    """
+    Load ~/.test_infra_config.yaml. Returns the Config or None if absent / invalid.
+    Imported lazily so we don't pay the pydantic cost on unrelated invoke tasks.
+    """
+    try:
+        from tasks.e2e_framework import config as e2e_config
+
+        return e2e_config.get_local_config()
+    except Exception:
+        return None
+
+
+def _check_e2e_local_config_or_exit(
+    profile: str | None = None,
+    with_azure: bool = False,
+    with_gcp: bool = False,
+):
+    """
+    Pre-flight check for `dda inv new-e2e-tests.run` on a developer machine.
+
+    Fails fast with a single actionable line if ~/.test_infra_config.yaml is missing
+    or doesn't contain the fields the runner relies on. Skipped in CI (where config
+    comes from AWS SSM via the CI profile).
+
+    Prints a warning when Azure or GCP are not configured, because the test target
+    is not known until the test actually runs. Pass --with-azure / --with-gcp to
+    turn those warnings into hard errors.
+    """
+    if running_in_ci() or os.environ.get("E2E_PROFILE") == "ci" or profile == "ci":
+        return
+    cfg = _load_e2e_local_config()
+    aws = cfg.get_aws() if cfg is not None else None
+    if cfg is None or aws is None or not aws.keyPairName:
+        raise Exit(
+            "Local E2E config is missing or incomplete. "
+            "Run `dda inv e2e.setup` once to configure (~30s, opens an SSO browser flow).",
+            1,
+        )
+    azure_missing = cfg is None or cfg.configParams.azure is None
+    gcp_missing = cfg is None or cfg.configParams.gcp is None
+    if azure_missing:
+        msg = (
+            "Azure is not configured in ~/.test_infra_config.yaml. "
+            "Tests targeting Azure will fail. "
+            "Run `dda inv e2e.setup --with-azure` to configure it."
+        )
+        if with_azure:
+            raise Exit(msg, 1)
+        print(color_message(f"Warning: {msg}", "yellow"))
+    if gcp_missing:
+        msg = (
+            "GCP is not configured in ~/.test_infra_config.yaml. "
+            "Tests targeting GCP will fail. "
+            "Run `dda inv e2e.setup --with-gcp` to configure it."
+        )
+        if with_gcp:
+            raise Exit(msg, 1)
+        print(color_message(f"Warning: {msg}", "yellow"))
+
+
 class TestState:
     """Describes the state of a test, if it has failed and if it is flaky."""
 
@@ -423,6 +484,9 @@ def run(
             1,
         )
 
+    _check_e2e_local_config_or_exit(profile)
+    local_e2e_cfg = _load_e2e_local_config()
+
     e2e_module = get_default_modules()[module_name]
 
     e2e_module.should_test_condition = "always"
@@ -453,6 +517,15 @@ def run(
     env_vars = {}
     if profile:
         env_vars["E2E_PROFILE"] = profile
+
+    # Export PULUMI_CONFIG_PASSPHRASE from local config when not already set in the
+    # environment. Lets developers run E2E without putting the passphrase in their rc.
+    if "PULUMI_CONFIG_PASSPHRASE" not in os.environ and local_e2e_cfg is not None:
+        from tasks.e2e_framework.config import get_pulumi_passphrase
+
+        passphrase = get_pulumi_passphrase(local_e2e_cfg)
+        if passphrase:
+            env_vars["PULUMI_CONFIG_PASSPHRASE"] = passphrase
 
     parsed_params = {}
 
@@ -586,6 +659,7 @@ def run(
         )
 
     cmd += f'{{junit_file_flag}} {{json_flag}} --packages="{{packages}}" {raw_command} -- -ldflags="-X {{REPO_PATH}}/test/new-e2e/tests/containers.GitCommit={{commit}}" {{verbose}} -mod={{go_mod}} -vet=off -timeout {{timeout}} -tags "{{go_build_tags}}" {{nocache}} {{run}} {{skip}} {{test_run_arg}} -args {{osdescriptors}} {{flavor}} {{cws_supported_osdescriptors}} {{src_agent_version}} {{dest_agent_version}} {{extra_flags}}'
+
     # Strinbuilt_binaries:gs can come with extra double-quotes which can break the command, remove them
     clean_run = []
     clean_skip = []
@@ -1748,3 +1822,20 @@ def setup_env(ctx, fmt="bash", build="pipeline", prefix=None, pkg=None, branch=N
     else:  # bash
         for key, value in env_vars.items():
             print(f'export {key}="{value}"')
+
+
+@task(
+    help={
+        "input": "Path to a test2json JSONL file produced by a Go e2e test run",
+    }
+)
+def print_utof_report(ctx, input):
+    """Print the UTOF report that would be generated from an e2e test output JSON file."""
+    from tasks.libs.testing.result_json import ResultJson
+    from tasks.libs.testing.utof import format_report
+    from tasks.libs.testing.utof.go.e2e import convert_e2e_test_results, generate_metadata
+
+    result_json = ResultJson.from_file(input)
+    metadata = generate_metadata(ctx, test_system="e2e")
+    doc = convert_e2e_test_results(ctx, result_json, metadata=metadata)
+    print(format_report(doc))
