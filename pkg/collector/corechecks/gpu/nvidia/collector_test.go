@@ -156,8 +156,10 @@ func TestAllCollectorsWork(t *testing.T) {
 
 	deps := &CollectorDependencies{
 		DeviceEventsGatherer: eventsGatherer,
+		PRMCache:             &PRMCache{},
 		Workloadmeta:         testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
 	}
+	seedPRMCacheForDevices(t, deps.PRMCache, devices)
 	collectors, err := BuildCollectors(devices, deps, nil)
 	require.NoError(t, err)
 	require.NotNil(t, collectors)
@@ -258,8 +260,10 @@ func TestDisabledCollectors(t *testing.T) {
 
 			deps := &CollectorDependencies{
 				DeviceEventsGatherer: eventsGatherer,
+				PRMCache:             &PRMCache{},
 				Workloadmeta:         testutil.GetWorkloadMetaMockWithDefaultGPUs(t),
 			}
+			seedPRMCacheForDevices(t, deps.PRMCache, devices)
 
 			// Build collectors with disabled list
 			collectors, err := BuildCollectors(devices, deps, tt.disabledCollectors)
@@ -336,6 +340,18 @@ func TestDisabledCollectorsWithSystemProbe(t *testing.T) {
 		}
 	}
 	require.True(t, foundEbpf, "ebpf collector should be created when not disabled")
+}
+
+func seedPRMCacheForDevices(t *testing.T, cache *PRMCache, devices []ddnvml.Device) {
+	t.Helper()
+
+	for _, device := range devices {
+		ports, err := getSupportedNvlinkPorts(device, portIsAlwaysSupported)
+		require.NoError(t, err)
+		for _, port := range ports {
+			cache.SetCountersForTest(device.GetDeviceInfo().UUID, port, makeCounters(uint64(port*100)))
+		}
+	}
 }
 
 func TestRemoveDuplicateMetrics(t *testing.T) {

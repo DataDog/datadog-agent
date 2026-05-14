@@ -51,6 +51,7 @@ type Check struct {
 	deviceTags         map[string][]string              // deviceTags is a map of device UUID to tags
 	deviceCache        ddnvml.DeviceCache               // deviceCache is a cache of GPU devices
 	spCache            *nvidia.SystemProbeCache         // spCache manages system-probe GPU stats and client (only initialized when gpu_monitoring is enabled in system-probe)
+	prmCache           *nvidia.PRMCache                 // prmCache manages privileged NVLink PRM metrics fetched from system-probe
 	deviceEvtGatherer  *nvidia.DeviceEventsGatherer     // deviceEvtGatherer asynchronously listens for device events and gathers them
 	workloadTagCache   *WorkloadTagCache                // workloadTagCache caches workload tags for GPU metrics
 	containerProvider  proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
@@ -158,8 +159,14 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer()
 
 	// Compute whether we should prefer system-probe process metrics
-	if pkgconfigsetup.SystemProbe().GetBool("gpu_monitoring.enabled") {
-		c.spCache = nvidia.NewSystemProbeCache()
+	systemProbeConfig := pkgconfigsetup.SystemProbe()
+	if systemProbeConfig.GetBool("gpu_monitoring.enabled") {
+		if systemProbeConfig.GetBool("gpu_monitoring.enable_ebpf_probes") {
+			c.spCache = nvidia.NewSystemProbeCache()
+		}
+		if systemProbeConfig.GetBool("gpu_monitoring.prm_endpoint_enabled") {
+			c.prmCache = nvidia.NewPRMCache()
+		}
 	}
 
 	return nil
@@ -203,6 +210,7 @@ func (c *Check) ensureInitCollectors() error {
 			&nvidia.CollectorDependencies{
 				DeviceEventsGatherer: c.deviceEvtGatherer,
 				SystemProbeCache:     c.spCache,
+				PRMCache:             c.prmCache,
 				Telemetry:            c.telemetry.collectorTelemetry,
 				Workloadmeta:         c.wmeta,
 			},
@@ -268,6 +276,12 @@ func (c *Check) Run() error {
 				log.Warnf("error refreshing system-probe cache: %v", err)
 			}
 			// Continue with NVML-only metrics, SP collectors will return empty metrics
+		}
+	}
+
+	if c.prmCache != nil {
+		if err := c.prmCache.Refresh(); err != nil && logLimitCheck.ShouldLog() {
+			log.Warnf("error refreshing PRM cache: %v", err)
 		}
 	}
 

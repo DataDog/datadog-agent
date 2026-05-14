@@ -1089,6 +1089,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("metric_filterlist_match_prefix", false)
 	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 	config.BindEnvAndSetDefault("metric_tag_filterlist", []interface{}{})
+	// When true (default), metric_tag_filterlist tag stripping is only applied when data_plane.enabled is true.
+	// Set to false to apply tag stripping regardless of whether ADP is running.
+	config.BindEnvAndSetDefault("metric_tag_filterlist_adp_only", true)
 
 	// Integration security
 
