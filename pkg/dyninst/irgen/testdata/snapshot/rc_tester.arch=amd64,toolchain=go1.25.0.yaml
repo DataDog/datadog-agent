@@ -9704,10 +9704,10 @@ Types:
       GoKind: 5
 MaxTypeID: 1035
 Issues: []
-GoModuledataInfo: {FirstModuledataAddr: "0x18bb880", TypesOffset: 296}
+GoModuledataInfo: {FirstModuledataAddr: "0x18ba880", TypesOffset: 296}
 GoMapHashInfo:
-    UseAeshashAddr: "0x19b0735"
-    AeskeyschedAddr: "0x19b1800"
+    UseAeshashAddr: "0x19af735"
+    AeskeyschedAddr: "0x19b0800"
 CommonTypes:
     G: 24 StructureType runtime.g
     M: 31 StructureType runtime.m
