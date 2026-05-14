@@ -85,6 +85,7 @@ func rlocationPathFromEnv(envvar string) string {
 
 func debugWindowsSetup(threeDirPath, pythonHomeStr string) {
 	dllPath := filepath.Join(threeDirPath, "libdatadog-agent-three.dll")
+	python313Path := filepath.Join(pythonHomeStr, "python313.dll")
 
 	if out, _ := exec.Command("whoami").CombinedOutput(); len(out) > 0 {
 		fmt.Fprintf(os.Stderr, "[rtloader debug] current user: %s", out)
@@ -93,15 +94,17 @@ func debugWindowsSetup(threeDirPath, pythonHomeStr string) {
 	fmt.Fprintf(os.Stderr, "[rtloader debug] THREE_PATH (resolved): %s\n", threeDirPath)
 	fmt.Fprintf(os.Stderr, "[rtloader debug] PYTHON_LIB (raw): %s\n", os.Getenv("PYTHON_LIB"))
 	fmt.Fprintf(os.Stderr, "[rtloader debug] python_home (passed to SetDllDirectory): %s\n", pythonHomeStr)
-	if info, err := os.Stat(dllPath); err != nil {
-		fmt.Fprintf(os.Stderr, "[rtloader debug] DLL stat error: %v\n", err)
-	} else {
-		fmt.Fprintf(os.Stderr, "[rtloader debug] DLL found (size=%d)\n", info.Size())
-	}
-	for _, path := range []string{dllPath, threeDirPath} {
+
+	for _, path := range []string{dllPath, python313Path} {
+		if info, err := os.Stat(path); err != nil {
+			fmt.Fprintf(os.Stderr, "[rtloader debug] stat %s: error: %v\n", path, err)
+		} else {
+			fmt.Fprintf(os.Stderr, "[rtloader debug] stat %s: size=%d\n", path, info.Size())
+		}
 		if out, _ := exec.Command("icacls", path).CombinedOutput(); len(out) > 0 {
 			fmt.Fprintf(os.Stderr, "[rtloader debug] icacls %s:\n%s", path, out)
 		}
 	}
-	tryLoadDLLByFullPath(dllPath)
+
+	tryLoadSequence(dllPath, pythonHomeStr)
 }

@@ -7,4 +7,4 @@
 
 package testcommon
 
-func tryLoadDLLByFullPath(_ string) {}
+func tryLoadSequence(_, _ string) {}
