@@ -40,7 +40,7 @@ func updateStatusConditions(ctx context.Context, client dynamic.Interface, cr *d
 	}
 
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		latestObj, err := client.Resource(gvrDatadogInstrumentation).Namespace(cr.Namespace).Get(ctx, cr.Name, metav1.GetOptions{})
+		latestObj, err := client.Resource(DatadogInstrumentationGVR).Namespace(cr.Namespace).Get(ctx, cr.Name, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return nil
 		}
@@ -74,7 +74,7 @@ func updateStatusConditions(ctx context.Context, client dynamic.Interface, cr *d
 		if err := UnstructuredFromDatadogInstrumentation(statusObj, unstructuredStatusObj); err != nil {
 			return err
 		}
-		_, err = client.Resource(gvrDatadogInstrumentation).Namespace(latest.Namespace).UpdateStatus(ctx, unstructuredStatusObj, metav1.UpdateOptions{})
+		_, err = client.Resource(DatadogInstrumentationGVR).Namespace(latest.Namespace).UpdateStatus(ctx, unstructuredStatusObj, metav1.UpdateOptions{})
 		return err
 	})
 }

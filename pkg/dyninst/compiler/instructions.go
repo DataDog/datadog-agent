@@ -144,6 +144,18 @@ func makeInstruction(functionID FunctionID, op Op) codeFragment {
 			bytes:  []byte{},
 		}
 
+	case GoContextChainInitOp:
+		return staticInstruction{
+			opcode: OpcodeGoContextChainInit,
+			bytes:  binary.LittleEndian.AppendUint32(nil, uint32(op.ImplTypeID)),
+		}
+
+	case GoContextChainHopOp:
+		return staticInstruction{
+			opcode: OpcodeGoContextChainHop,
+			bytes:  []byte{},
+		}
+
 	case ProcessGoDictTypeOp:
 		bytes := make([]byte, 0, 9)
 		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.DictIndex))

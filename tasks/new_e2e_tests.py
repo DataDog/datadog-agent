@@ -1822,3 +1822,20 @@ def setup_env(ctx, fmt="bash", build="pipeline", prefix=None, pkg=None, branch=N
     else:  # bash
         for key, value in env_vars.items():
             print(f'export {key}="{value}"')
+
+
+@task(
+    help={
+        "input": "Path to a test2json JSONL file produced by a Go e2e test run",
+    }
+)
+def print_utof_report(ctx, input):
+    """Print the UTOF report that would be generated from an e2e test output JSON file."""
+    from tasks.libs.testing.result_json import ResultJson
+    from tasks.libs.testing.utof import format_report
+    from tasks.libs.testing.utof.go.e2e import convert_e2e_test_results, generate_metadata
+
+    result_json = ResultJson.from_file(input)
+    metadata = generate_metadata(ctx, test_system="e2e")
+    doc = convert_e2e_test_results(ctx, result_json, metadata=metadata)
+    print(format_report(doc))
