@@ -471,7 +471,7 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 		})
 	}
 
-	if freed := e.storage.EvictToCapacity(storageMaxSeries, storageEvictionTarget); len(freed) > 0 {
+	if freed := e.storage.EvictDefault(); len(freed) > 0 {
 		e.fanOutSeriesRemoval(freed)
 	}
 

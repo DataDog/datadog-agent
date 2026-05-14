@@ -19,8 +19,37 @@ import (
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
+// storageConfig holds the tunable parameters for timeSeriesStorage.
+// All three values have defaults that match the package-level constants.
+type storageConfig struct {
+	// MaxSeries is the cap on live series; when exceeded on an Advance call,
+	// series are evicted until the count drops to the eviction target.
+	// 0 disables eviction.
+	MaxSeries int
+
+	// EvictionFloorRatio controls how far below MaxSeries eviction drains.
+	// The eviction target is MaxSeries*(1-EvictionFloorRatio).
+	// e.g. 0.1 → drain to 90% of the cap, creating a 10% hysteresis band.
+	EvictionFloorRatio float64
+
+	// PointRetentionSecs is how long data points are kept per series.
+	// Points older than (latest data timestamp - PointRetentionSecs) are
+	// trimmed on each Add. 0 disables trimming.
+	PointRetentionSecs int64
+}
+
+// defaultStorageConfig returns a storageConfig with the hard-coded defaults.
+func defaultStorageConfig() storageConfig {
+	return storageConfig{
+		MaxSeries:          storageMaxSeries,
+		EvictionFloorRatio: storageEvictionBandRatio,
+		PointRetentionSecs: storagePointRetentionSecs,
+	}
+}
+
 // timeSeriesStorage is an internal storage for time series data.
 type timeSeriesStorage struct {
+	cfg    storageConfig
 	mu     sync.RWMutex
 	series map[uint64]*seriesStats // keyed by seriesKeyHash; no string retained per entry
 
@@ -184,9 +213,15 @@ func searchAfter(timestamps []int64, value int64) int {
 	})
 }
 
-// newTimeSeriesStorage creates a new time series storage.
+// newTimeSeriesStorage creates a new time series storage with default config.
 func newTimeSeriesStorage() *timeSeriesStorage {
+	return newTimeSeriesStorageWith(defaultStorageConfig())
+}
+
+// newTimeSeriesStorageWith creates a new time series storage with explicit config.
+func newTimeSeriesStorageWith(cfg storageConfig) *timeSeriesStorage {
 	return &timeSeriesStorage{
+		cfg:                   cfg,
 		series:                make(map[uint64]*seriesStats),
 		observationTimestamps: make(map[int64]struct{}),
 		tagIntern:             make(map[uint64]*tagInternEntry),
@@ -294,10 +329,10 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	stats.mins = insertFloat64(stats.mins, idx, value)
 	stats.maxes = insertFloat64(stats.maxes, idx, value)
 
-	if storagePointRetentionSecs > 0 {
+	if s.cfg.PointRetentionSecs > 0 {
 		// searchAfter returns first index where ts > value; subtracting 1 makes
-		// the window inclusive: keep points where ts >= bucket-storagePointRetentionSecs.
-		if trim := searchAfter(stats.timestamps, bucket-storagePointRetentionSecs-1); trim > 0 {
+		// the window inclusive: keep points where ts >= bucket-PointRetentionSecs.
+		if trim := searchAfter(stats.timestamps, bucket-s.cfg.PointRetentionSecs-1); trim > 0 {
 			stats.timestamps = trimFront(stats.timestamps, trim)
 			stats.sums = trimFront(stats.sums, trim)
 			stats.counts = trimFront(stats.counts, trim)
@@ -702,8 +737,8 @@ const storageMaxSeries = 50_000
 // before the next eviction pass is needed. Larger = rarer but bigger passes.
 const storageEvictionBandRatio = 0.1
 
-// storageEvictionTarget is the count eviction drains to when the cap fires.
-// Derived from the two constants above so callers use a single value.
+// storageEvictionTarget is the default count eviction drains to when the cap fires.
+// Retained for reference; runtime code uses storageConfig.EvictionFloorRatio instead.
 const storageEvictionTarget = storageMaxSeries - int(storageMaxSeries*storageEvictionBandRatio)
 
 // storagePointRetentionSecs is how long data points are retained per series.
@@ -844,7 +879,8 @@ func (s *timeSeriesStorage) GetSeriesMeta(ref observer.SeriesRef) *observer.Seri
 // live series count exceeds cap, draining down to target. The band between the
 // two thresholds prevents a fan-out on every Advance when the count hovers
 // near the cap. Returns the freed SeriesRefs for detector state cleanup.
-// Pass storageMaxSeries and storageEvictionTarget for production use.
+// The engine calls EvictDefault() in production; this method is exposed for tests
+// that need to exercise eviction with explicit limits.
 func (s *timeSeriesStorage) EvictToCapacity(seriesLimit, target int) []observer.SeriesRef {
 	if seriesLimit <= 0 {
 		return nil
@@ -906,6 +942,16 @@ func (s *timeSeriesStorage) EvictToCapacity(seriesLimit, target int) []observer.
 		s.seriesGen++
 	}
 	return freed
+}
+
+// EvictDefault evicts to capacity using the storage's own config.
+// The eviction target is cfg.MaxSeries*(1-cfg.EvictionFloorRatio).
+func (s *timeSeriesStorage) EvictDefault() []observer.SeriesRef {
+	if s.cfg.MaxSeries <= 0 {
+		return nil
+	}
+	target := s.cfg.MaxSeries - int(float64(s.cfg.MaxSeries)*s.cfg.EvictionFloorRatio)
+	return s.EvictToCapacity(s.cfg.MaxSeries, target)
 }
 
 // SetContext attaches enrichment context to a series. Called by the engine

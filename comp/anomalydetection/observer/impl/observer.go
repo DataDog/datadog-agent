@@ -172,8 +172,13 @@ func NewComponent(deps Requires) Provides {
 	settings := settingsFromAgentConfig(catalog, cfg)
 	detectors, correlators, extractors, _ := catalog.Instantiate(settings)
 
+	storageCfg := storageConfig{
+		MaxSeries:          cfg.GetInt("observer.storage.max_series"),
+		EvictionFloorRatio: cfg.GetFloat64("observer.storage.eviction_floor_ratio"),
+		PointRetentionSecs: int64(cfg.GetInt("observer.storage.point_retention_secs")),
+	}
 	eng := newEngine(engineConfig{
-		storage:     newTimeSeriesStorage(),
+		storage:     newTimeSeriesStorageWith(storageCfg),
 		extractors:  extractors,
 		detectors:   detectors,
 		correlators: correlators,
