@@ -2422,6 +2422,18 @@ properties:
             node_type: setting
             type: boolean
             default: false
+          exclude:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: object
+          include:
+            node_type: setting
+            type: array
+            default: []
+            items:
+              type: object
           match_threshold:
             node_type: setting
             type: number
@@ -2597,11 +2609,11 @@ properties:
       tag_multi_line_logs:
         node_type: setting
         type: boolean
-        default: false
+        default: true
       tag_truncated_logs:
         node_type: setting
         type: boolean
-        default: false
+        default: true
       tagger_warmup_duration:
         node_type: setting
         type: number
@@ -14753,7 +14765,7 @@ properties:
           enabled:
             node_type: setting
             type: boolean
-            default: false
+            default: true
       terminated_resources:
         node_type: section
         type: object

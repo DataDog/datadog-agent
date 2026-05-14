@@ -22,6 +22,7 @@ import (
 	// The bundle is the correct place for side-effect imports; impl packages
 	// must not import other impl packages.
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admisconfig"
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/checkfailure"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dockerpermissions"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/rofspermissions"

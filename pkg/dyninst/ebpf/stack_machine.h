@@ -607,6 +607,308 @@ sm_resolve_go_any_type(global_ctx_t* global_ctx, resolved_go_any_type_t* r) {
   return true;
 }
 
+static inline __attribute__((always_inline)) bool
+sm_resolve_go_empty_interface_at(target_ptr_t iface_addr,
+                                 resolved_go_interface_t* res) {
+  res->addr = 0;
+  res->go_runtime_type = 0;
+  if (iface_addr == 0) {
+    return true;
+  }
+  target_ptr_t type_addr = 0;
+  if (bpf_probe_read_user(&type_addr, sizeof(target_ptr_t),
+                          (void*)(iface_addr +
+                                  OFFSET_runtime_dot_eface___type))) {
+    return false;
+  }
+  if (bpf_probe_read_user(&res->addr, sizeof(target_ptr_t),
+                          (void*)(iface_addr +
+                                  OFFSET_runtime_dot_eface__data))) {
+    return false;
+  }
+  if (type_addr == 0) {
+    return true;
+  }
+  res->go_runtime_type = go_runtime_type_from_ptr(type_addr);
+  return true;
+}
+
+static inline __attribute__((always_inline)) bool
+sm_resolve_go_interface_at(target_ptr_t iface_addr,
+                           resolved_go_interface_t* res) {
+  res->addr = 0;
+  res->go_runtime_type = 0;
+  if (iface_addr == 0) {
+    return true;
+  }
+  target_ptr_t itab = 0;
+  if (bpf_probe_read_user(&itab, sizeof(target_ptr_t),
+                          (void*)(iface_addr +
+                                  OFFSET_runtime_dot_iface__tab))) {
+    return false;
+  }
+  if (bpf_probe_read_user(&res->addr, sizeof(target_ptr_t),
+                          (void*)(iface_addr +
+                                  OFFSET_runtime_dot_iface__data))) {
+    return false;
+  }
+  if (itab == 0) {
+    return true;
+  }
+  target_ptr_t type_addr = 0;
+  if (bpf_probe_read_user(&type_addr, sizeof(target_ptr_t),
+                          (void*)(itab +
+                                  OFFSET_runtime_dot_itab___type))) {
+    return false;
+  }
+  res->go_runtime_type = go_runtime_type_from_ptr(type_addr);
+  return true;
+}
+
+static inline __attribute__((always_inline)) uint64_t
+sm_read_be64(const uint8_t* data) {
+  return ((uint64_t)data[0] << 56) |
+         ((uint64_t)data[1] << 48) |
+         ((uint64_t)data[2] << 40) |
+         ((uint64_t)data[3] << 32) |
+         ((uint64_t)data[4] << 24) |
+         ((uint64_t)data[5] << 16) |
+         ((uint64_t)data[6] << 8) |
+         (uint64_t)data[7];
+}
+
+// sm_extract_ddtrace_span reads dd-trace span fields out of a span struct in
+// user memory and writes them into the caller-provided trace_context_t. The
+// destination lives in the synthetic data item's payload at
+// sm->go_context_walk.data_item_offset.
+//
+// Returns true iff a non-empty span was found (at least one of
+// trace_id_lower, trace_id_upper, span_id is non-zero) — which sets
+// *trace->valid = 1 as a side effect. parent_id is not part of the gate
+// because root spans legitimately have parent_id == 0.
+static inline __attribute__((always_inline)) bool
+sm_extract_ddtrace_span(target_ptr_t span_addr,
+                        const type_info_t* span_info,
+                        trace_context_t* trace) {
+  if (span_addr == 0 || span_info == NULL ||
+      span_info->ddtrace_span_kind == 0 || trace == NULL) {
+    return false;
+  }
+
+  uint64_t span_id = 0;
+  uint64_t parent_id = 0;
+  uint64_t trace_id_lower = 0;
+  uint64_t trace_id_upper = 0;
+
+  if (span_info->ddtrace_span_id_offset >= 0) {
+    bpf_probe_read_user(&span_id, sizeof(span_id),
+                        (void*)(span_addr +
+                                span_info->ddtrace_span_id_offset));
+  }
+  if (span_info->ddtrace_parent_id_offset >= 0) {
+    bpf_probe_read_user(&parent_id, sizeof(parent_id),
+                        (void*)(span_addr +
+                                span_info->ddtrace_parent_id_offset));
+  }
+  if (span_info->ddtrace_trace_id_offset >= 0) {
+    bpf_probe_read_user(&trace_id_lower, sizeof(trace_id_lower),
+                        (void*)(span_addr +
+                                span_info->ddtrace_trace_id_offset));
+  }
+
+  if (span_info->ddtrace_span_context_offset >= 0 &&
+      span_info->ddtrace_span_context_trace_id_offset >= 0) {
+    target_ptr_t span_context = 0;
+    if (!bpf_probe_read_user(&span_context, sizeof(span_context),
+                             (void*)(span_addr +
+                                     span_info->ddtrace_span_context_offset)) &&
+        span_context != 0) {
+      uint8_t trace_id[16] = {};
+      if (!bpf_probe_read_user(trace_id, sizeof(trace_id),
+                               (void*)(span_context +
+                                       span_info->ddtrace_span_context_trace_id_offset))) {
+        trace_id_upper = sm_read_be64(trace_id);
+        trace_id_lower = sm_read_be64(trace_id + 8);
+      }
+    }
+  }
+
+  if (span_id == 0 && trace_id_lower == 0 && trace_id_upper == 0) {
+    return false;
+  }
+  trace->trace_id_lower = trace_id_lower;
+  trace->trace_id_upper = trace_id_upper;
+  trace->span_id = span_id;
+  trace->parent_id = parent_id;
+  trace->valid = 1;
+  return true;
+}
+
+// sm_maybe_extract_ddtrace_span_from_value_ctx tests whether the given
+// context.valueCtx's key is the dd-trace active-span key; if so, it extracts
+// the span fields from the value and writes them into trace.
+static inline __attribute__((always_inline)) bool
+sm_maybe_extract_ddtrace_span_from_value_ctx(target_ptr_t value_ctx_addr,
+                                             const type_info_t* context_info,
+                                             trace_context_t* trace) {
+  if (context_info->go_context_key_offset < 0 ||
+      context_info->go_context_value_offset < 0) {
+    return false;
+  }
+
+  // Read the valueCtx's value (an `any`) directly. Historically we also
+  // checked the key's runtime type for a ddtrace_active_span_key marker
+  // here, but the dd-trace `internal.contextKey` struct is unexported and
+  // zero-byte; the Go compiler often elides its runtime type, so we can't
+  // detect the key reliably. Instead we rely on the value's IR type being
+  // a known dd-trace span (ddtrace_span_kind != 0), which
+  // sm_extract_ddtrace_span checks. Other valueCtxs that store
+  // non-span values just fail that check and we keep walking.
+  resolved_go_interface_t val = {};
+  if (!sm_resolve_go_empty_interface_at(
+          value_ctx_addr + context_info->go_context_value_offset, &val)) {
+    return false;
+  }
+  type_t val_type = lookup_go_interface(val.go_runtime_type);
+  if (val_type == 0) {
+    return false;
+  }
+  const type_info_t* val_info = NULL;
+  if (!get_type_info(val_type, &val_info)) {
+    return false;
+  }
+  return sm_extract_ddtrace_span(val.addr, val_info, trace);
+}
+
+// MAX_GO_CONTEXT_DEPTH bounds the number of links the chain walk traverses
+// before giving up. Mirrored as the depth_remaining seed in
+// SM_OP_GO_CONTEXT_CHAIN_INIT.
+#define MAX_GO_CONTEXT_DEPTH 32
+
+// sm_go_context_chain_init is the body of SM_OP_GO_CONTEXT_CHAIN_INIT,
+// factored into a noinline subprog so its stack frame is not added to
+// sm_loop's. Takes scratch_buf_t* and stack_machine_t* directly (rather
+// than global_ctx_t*) so the verifier doesn't conservatively assume the
+// callee may scribble on the caller's stack via the ctx pointer — that
+// pessimism breaks bpf_loop callers' map-value spills. Returns 1 on
+// failure (caller propagates), 0 on success.
+__attribute__((noinline)) int
+sm_go_context_chain_init(scratch_buf_t* buf, stack_machine_t* sm,
+                         uint32_t impl_ir_type) {
+  // Global-function args are typed as mem_or_null; null-check before
+  // dereferencing so the verifier accepts loads through them.
+  if (!buf || !sm) {
+    return 1;
+  }
+  buf_offset_t hdr_off = sm->offset - sizeof(di_data_item_header_t);
+  if (!scratch_buf_bounds_check(&hdr_off, sizeof(di_data_item_header_t))) {
+    return 1;
+  }
+  di_data_item_header_t* hdr =
+      (di_data_item_header_t*)&(*buf)[hdr_off];
+  // Both callsites (struct-typed enqueue from interface implementor walk,
+  // and pointer-typed enqueue from interface chase) stamp the data item's
+  // address field with the implementation struct's user-memory pointer,
+  // which is exactly what the chain walk's first hop needs. Use it
+  // directly. The decoder's address-keyed fallback (looking up
+  // dataItems[(traceContextTypeID, inline_data_ptr)]) finds this item by
+  // matching the inline interface header's data pointer to this address.
+  target_ptr_t impl_addr = sm->di_0.address;
+  hdr->type = trace_context_type_id;
+  if (!scratch_buf_bounds_check(&sm->offset, sizeof(trace_context_t))) {
+    return 1;
+  }
+  __builtin_memset(&(*buf)[sm->offset], 0, sizeof(trace_context_t));
+  sm->go_context_walk.current.addr = impl_addr;
+  sm->go_context_walk.current.go_runtime_type = 0;
+  sm->go_context_walk.current_ir_type = impl_ir_type;
+  sm->go_context_walk.depth_remaining = MAX_GO_CONTEXT_DEPTH;
+  sm->go_context_walk.data_item_offset = sm->offset;
+  sm->go_context_walk.done = 0;
+  return 0;
+}
+
+// sm_go_context_chain_hop is the body of SM_OP_GO_CONTEXT_CHAIN_HOP,
+// factored into a noinline subprog. Performs one chain step. On success,
+// rewinds sm->pc by 1 (so the dispatcher re-reads the HOP opcode on the
+// next sm_loop iteration). Sets done=1 on any termination path. Returns 1
+// on a bounds-check failure (caller propagates), 0 otherwise. Same
+// signature shape as sm_go_context_chain_init — see comment there.
+__attribute__((noinline)) int
+sm_go_context_chain_hop(scratch_buf_t* buf, stack_machine_t* sm) {
+  // Global-function args are typed as mem_or_null; null-check before
+  // dereferencing so the verifier accepts loads through them.
+  if (!buf || !sm) {
+    return 1;
+  }
+  if (sm->go_context_walk.done) {
+    return 0;
+  }
+  if (sm->go_context_walk.depth_remaining == 0) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  if (sm->go_context_walk.current.addr == 0) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  type_t ir_type;
+  if (sm->go_context_walk.current_ir_type != 0) {
+    ir_type = (type_t)sm->go_context_walk.current_ir_type;
+    sm->go_context_walk.current_ir_type = 0;
+  } else {
+    ir_type = lookup_go_interface(
+        sm->go_context_walk.current.go_runtime_type);
+  }
+  if (ir_type == 0) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  const type_info_t* info = NULL;
+  if (!get_type_info(ir_type, &info) ||
+      info->go_context_is_context == 0) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  buf_offset_t dst_off = sm->go_context_walk.data_item_offset;
+  if (!scratch_buf_bounds_check(&dst_off, sizeof(trace_context_t))) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  trace_context_t* dst = (trace_context_t*)&(*buf)[dst_off];
+  if (sm_maybe_extract_ddtrace_span_from_value_ctx(
+          sm->go_context_walk.current.addr, info, dst)) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  if (info->go_context_context_offset < 0) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  // Resolve directly into the walk state's `current` slot — no stack local.
+  // The validity check below distinguishes "successfully advanced" from
+  // "nil/invalid"; the in-place write is fine because either we keep
+  // walking with the new value or we set done=1.
+  target_ptr_t next_iface_addr =
+      sm->go_context_walk.current.addr + info->go_context_context_offset;
+  if (!sm_resolve_go_interface_at(next_iface_addr,
+                                  &sm->go_context_walk.current)) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  if (sm->go_context_walk.current.addr == 0 ||
+      sm->go_context_walk.current.go_runtime_type == 0 ||
+      sm->go_context_walk.current.go_runtime_type == (uint64_t)(-1)) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  sm->go_context_walk.depth_remaining--;
+  // Self-jump: rewind PC by one byte so the dispatcher re-reads this HOP
+  // opcode on the next sm_loop iteration. Must be done last.
+  sm->pc -= 1;
+  return 0;
+}
+
 // inline __attribute__((always_inline)) bool sm_record_go_context_value(
 //     global_ctx_t* ctx, const go_context_value_type_t* spec,
 //     const resolved_go_any_type_t* value, const type_t expected_type) {
@@ -2556,6 +2858,40 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       LOG(3, "enqueue: failed interface chase");
     }
   } break;
+
+  // SM_OP_GO_CONTEXT_CHAIN_INIT runs at the head of the enqueue_pc subroutine
+  // for any concrete context.Context implementation IR type. The chase
+  // preamble has just serialized the impl bytes into the scratch buffer:
+  //   sm->offset      -> payload start
+  //   header at sm->offset - sizeof(di_data_item_header_t) has
+  //     {type=cancelCtx_IR_id, length=byte_len(>=40), address=ctx_addr}
+  // INIT rewrites the header type id to TraceContextType, zeros the first 40
+  // bytes of payload (so a no-span outcome leaves valid=0), and seeds the
+  // walk state. The byte_len floor of 40 is established by the loader for
+  // any IR type with go_context_is_context==1, so the reservation is always
+  // wide enough to hold the trace_context_t. INIT does not touch sm->offset
+  // or sm->di_0 — HOP runs next on top of the same SM state.
+  case SM_OP_GO_CONTEXT_CHAIN_INIT: {
+    uint32_t impl_ir_type = sm_read_program_uint32(sm);
+    if (sm_go_context_chain_init(buf, sm, impl_ir_type)) {
+      return 1;
+    }
+  } break;
+
+  // SM_OP_GO_CONTEXT_CHAIN_HOP performs one chain step per dispatch. If a
+  // span is found, it writes the populated trace_context_t into the data
+  // item's payload at sm->go_context_walk.data_item_offset, sets done=1,
+  // and lets the PC advance to the next bytecode (RETURN). Otherwise it
+  // advances `current` to the next link via the embedded Context interface
+  // header in user memory and self-jumps (sm->pc -= 1) so the next sm_loop
+  // iteration re-enters HOP. Every termination path sets done=1 so a
+  // subsequent dispatch (out of the bytecode's `[INIT, HOP, RETURN]` shape
+  // this never happens, but defensive) no-ops cleanly.
+  case SM_OP_GO_CONTEXT_CHAIN_HOP:
+    if (sm_go_context_chain_hop(buf, sm)) {
+      return 1;
+    }
+    break;
 
   case SM_OP_PROCESS_GO_DICT_TYPE: {
     // Resolve a generic shape type parameter to its concrete type by
