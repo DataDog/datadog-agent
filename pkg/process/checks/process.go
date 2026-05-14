@@ -304,7 +304,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	pidToGPUTags := p.gpuSubscriber.GetGPUTags()
 
 	now := time.Now()
-	zombiesByPPID := aggregateZombiesByParent(procs, p.lastProcs, now, p.lastRun)
+	zombiesByPPID := p.aggregateZombiesByParent(procs, now)
 	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIDProbe, zombiesByPPID, p.serviceExtractor, pidToGPUTags, p.tagger, now)
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
@@ -379,49 +379,53 @@ type zombieAggregate struct {
 }
 
 // aggregateZombiesByParent returns per-parent zombie aggregates keyed by PPID,
-// comparing the current poll's zombies against the previous poll. The result
-// is lazily allocated; a nil return is safe to index.
+// comparing the current poll's zombies against the previous poll (p.lastProcs,
+// p.lastRun). The result is lazily allocated; a nil return is safe to index.
 //
-// Re-parenting works naturally because the create credit uses the current
-// PPID and the reap debit uses the previous PPID.
-func aggregateZombiesByParent(procs, lastProcs map[int32]*procutil.Process, now, lastRun time.Time) map[int32]zombieAggregate {
-	var agg map[int32]zombieAggregate
+// Re-parenting works naturally because the created count uses the current
+// PPID and the reaped count uses the previous PPID.
+func (p *ProcessCheck) aggregateZombiesByParent(procs map[int32]*procutil.Process, now time.Time) map[int32]zombieAggregate {
+	var zombiesByPPID map[int32]zombieAggregate
 
 	var interval float64
-	if !lastRun.IsZero() && now.After(lastRun) {
-		interval = now.Sub(lastRun).Seconds()
+	if !p.lastRun.IsZero() && now.After(p.lastRun) {
+		interval = now.Sub(p.lastRun).Seconds()
 	}
 
+	// Pass 1 — current zombies: count under PPID; add +1/interval if newly created.
 	for pid, proc := range procs {
 		if !proc.IsZombie() {
 			continue
 		}
-		if agg == nil {
-			agg = make(map[int32]zombieAggregate)
+		if zombiesByPPID == nil {
+			zombiesByPPID = make(map[int32]zombieAggregate)
 		}
-		a := agg[proc.Ppid]
+		a := zombiesByPPID[proc.Ppid]
 		a.count++
-		if interval > 0 && !lastProcs[pid].IsZombie() {
+		if interval > 0 && !p.lastProcs[pid].IsZombie() {
 			a.netRate += 1.0 / interval
 		}
-		agg[proc.Ppid] = a
+		zombiesByPPID[proc.Ppid] = a
 	}
 
-	if interval > 0 {
-		for pid, proc := range lastProcs {
-			if !proc.IsZombie() || procs[pid].IsZombie() {
-				continue
-			}
-			if agg == nil {
-				agg = make(map[int32]zombieAggregate)
-			}
-			a := agg[proc.Ppid]
-			a.netRate -= 1.0 / interval
-			agg[proc.Ppid] = a
+	if interval <= 0 {
+		return zombiesByPPID
+	}
+
+	// Pass 2 — previous zombies no longer zombie in current: reaped, subtract 1/interval.
+	for pid, proc := range p.lastProcs {
+		if !proc.IsZombie() || procs[pid].IsZombie() {
+			continue
 		}
+		if zombiesByPPID == nil {
+			zombiesByPPID = make(map[int32]zombieAggregate)
+		}
+		a := zombiesByPPID[proc.Ppid]
+		a.netRate -= 1.0 / interval
+		zombiesByPPID[proc.Ppid] = a
 	}
 
-	return agg
+	return zombiesByPPID
 }
 
 // Run collects process data (regular metadata + stats) and/or realtime process data (stats only)
