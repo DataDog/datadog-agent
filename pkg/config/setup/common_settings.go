@@ -1909,9 +1909,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.48)
 
 	// Add a tag to logs that are multiline aggregated
-	config.BindEnvAndSetDefault("logs_config.tag_multi_line_logs", false)
+	config.BindEnvAndSetDefault("logs_config.tag_multi_line_logs", true)
 	// Add a tag to logs that are truncated by the agent
-	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", false)
+	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", true)
 	// Tag logs with their auto multiline detection label without aggregating them
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection_tagging", true)
 
