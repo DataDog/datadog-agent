@@ -178,7 +178,7 @@ func (n *NodePoolInternal) BuildReplicaNodePool(targetNp *karpenterv1.NodePool) 
 	if len(rc.Spec.Limits) > 0 {
 		merged.Spec.Limits = rc.Spec.Limits
 	}
-	if rc.Spec.Disruption.ConsolidationPolicy != "" {
+	if rc.Spec.Disruption.ConsolidationPolicy != "" || rc.Spec.Disruption.ConsolidateAfter.Duration != nil || len(rc.Spec.Disruption.Budgets) > 0 {
 		merged.Spec.Disruption = rc.Spec.Disruption
 	}
 
@@ -204,7 +204,7 @@ func (n *NodePoolInternal) BuildReplicaNodePool(targetNp *karpenterv1.NodePool) 
 	merged.Spec.Template.Spec.Taints = mergeSlices(rc.Spec.Template.Spec.Taints, merged.Spec.Template.Spec.Taints)
 	merged.Spec.Template.Spec.StartupTaints = mergeSlices(rc.Spec.Template.Spec.StartupTaints, merged.Spec.Template.Spec.StartupTaints)
 	merged.Spec.Template.Spec.TerminationGracePeriod = mergePtrs(rc.Spec.Template.Spec.TerminationGracePeriod, merged.Spec.Template.Spec.TerminationGracePeriod)
-	if rc.Spec.Template.Spec.ExpireAfter.Duration != nil || len(rc.Spec.Template.Spec.ExpireAfter.Raw) > 0 {
+	if rc.Spec.Template.Spec.ExpireAfter.Duration != nil {
 		merged.Spec.Template.Spec.ExpireAfter = rc.Spec.Template.Spec.ExpireAfter
 	}
 

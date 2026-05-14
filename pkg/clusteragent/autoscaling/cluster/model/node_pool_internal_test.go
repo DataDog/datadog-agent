@@ -517,6 +517,26 @@ func TestBuildReplicaNodePool_Disruption(t *testing.T) {
 			expected: rcDisruption,
 		},
 		{
+			name:   "RC sets only Budgets: overrides target",
+			target: targetNodePoolFixture(),
+			rcSpec: &karpenterv1.NodePoolSpec{Disruption: karpenterv1.Disruption{
+				Budgets: []karpenterv1.Budget{{Nodes: "10%"}},
+			}},
+			expected: karpenterv1.Disruption{
+				Budgets: []karpenterv1.Budget{{Nodes: "10%"}},
+			},
+		},
+		{
+			name:   "RC sets only ConsolidateAfter: overrides target",
+			target: targetNodePoolFixture(),
+			rcSpec: &karpenterv1.NodePoolSpec{Disruption: karpenterv1.Disruption{
+				ConsolidateAfter: karpenterv1.NillableDuration{Duration: &rcConsolidateAfter},
+			}},
+			expected: karpenterv1.Disruption{
+				ConsolidateAfter: karpenterv1.NillableDuration{Duration: &rcConsolidateAfter},
+			},
+		},
+		{
 			name:     "target unset, RC unset: zero value",
 			target:   bareTarget,
 			rcSpec:   &karpenterv1.NodePoolSpec{},
