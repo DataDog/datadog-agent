@@ -39,11 +39,6 @@ type Requires struct {
 	Log       log.Component
 	Telemetry telemetry.Component
 
-	// HFRunner runs system and container checks at 1s and routes them into the
-	// observer pipeline. The noop variant (hfrunner/fx-noop) is wired for the
-	// main agent build; the real implementation lands with the algorithm PRs.
-	HFRunner hfrunnerdef.Component
-
 	// Recorder is an optional component for transparent metric recording.
 	// If provided, all handles will be wrapped to record metrics to parquet files.
 	Recorder option.Option[recorderdef.Component]
@@ -53,6 +48,11 @@ type Requires struct {
 	// so it receives advance events independently. StorageConsumer reporters receive
 	// storage for windowed log-rate annotations.
 	Reporters []reporterdef.Reporter `group:"anomalydetection_reporters"`
+
+	// HFRunner runs system and container checks at 1s and routes them into the
+	// observer pipeline. The noop variant (hfrunner/fx-noop) is wired for the
+	// main agent build; the real implementation lands with the algorithm PRs.
+	HFRunner hfrunnerdef.Component
 }
 
 // Provides defines the output of the observer component.
@@ -164,9 +164,20 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 	return settings
 }
 
+// disabledObserver is the zero-overhead stub returned when config is absent.
+// It allocates nothing and starts no goroutines.
+type disabledObserver struct{}
+
+func (*disabledObserver) GetHandle(_ string) observerdef.Handle { return &noopObserveHandle{} }
+func (*disabledObserver) DumpMetrics(_ string) error            { return nil }
+
 // NewComponent creates an observer.Component.
 func NewComponent(deps Requires) Provides {
 	cfg := deps.Config
+	if cfg == nil {
+		return Provides{Comp: &disabledObserver{}}
+	}
+
 	catalog := defaultCatalog()
 	settings := settingsFromAgentConfig(catalog, cfg)
 	detectors, correlators, extractors, _ := catalog.Instantiate(settings)
