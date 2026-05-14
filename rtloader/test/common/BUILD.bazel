@@ -6,8 +6,6 @@ rtloader_test_go_library(
         "cgo_free.go",
         "cgo_free_three.go",
         "common_three.go",
-        "common_three_notwindows.go",
-        "common_three_windows.go",
     ],
     cgo = True,
     clinkopts = [],  # keep: ignore cgo directives
@@ -16,12 +14,7 @@ rtloader_test_go_library(
     deps = [
         "//rtloader/test/helpers",
         "@rules_go//go/runfiles",
-    ] + select({
-        "@rules_go//go/platform:windows": [
-            "@org_golang_x_sys//windows",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
 )
 
 rtloader_go_test(

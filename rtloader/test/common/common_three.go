@@ -12,7 +12,6 @@ import "C"
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"unsafe"
@@ -34,18 +33,12 @@ func GetRtLoader() *C.rtloader_t {
 		if runtime.GOOS == "windows" {
 			// Temporarily add the path to where the "three" dll is available to PATH
 			// so that it can be found by `LoadLibrary`
-			threeDirPath := rlocationPathFromEnv("THREE_PATH")
 			oldPath := os.Getenv("PATH")
 			defer os.Setenv("PATH", oldPath)
-			os.Setenv("PATH", threeDirPath+";"+os.Getenv("PATH"))
-			// On Windows, python_home is the directory produced by dir_with_python_home
-			// (copy_to_directory of @cpython//:python_win), placed under _main/ in the
-			// runfiles so it is reachable via the standard junction chain.
-			pythonHomeStr := rlocationPathFromEnv("PYTHON_HOME")
-			pythonHome = C.CString(pythonHomeStr)
+			os.Setenv("PATH", rlocationPathFromEnv("THREE_PATH")+";"+os.Getenv("PATH"))
+			// On Windows, the Python Home is passed directly (as it points to an entire copy of it)
+			pythonHome = C.CString(rlocationPathFromEnv("PYTHON_HOME"))
 			defer C.free(unsafe.Pointer(pythonHome))
-
-			debugWindowsSetup(threeDirPath, pythonHomeStr)
 		} else {
 			// Python Home is a level up from the path to the binary
 			pythonHome = C.CString(filepath.Dir(filepath.Dir(rlocationPathFromEnv("PYTHON_BIN"))))
@@ -83,30 +76,4 @@ func rlocationPathFromEnv(envvar string) string {
 		panic(fmt.Sprintf("error: failed to get location for `three` library: %s", err))
 	}
 	return resolved
-}
-
-func debugWindowsSetup(threeDirPath, pythonHomeStr string) {
-	dllPath := filepath.Join(threeDirPath, "libdatadog-agent-three.dll")
-	python313Path := filepath.Join(pythonHomeStr, "python313.dll")
-
-	if out, _ := exec.Command("whoami").CombinedOutput(); len(out) > 0 {
-		fmt.Fprintf(os.Stderr, "[rtloader debug] current user: %s", out)
-	}
-	fmt.Fprintf(os.Stderr, "[rtloader debug] THREE_PATH (raw): %s\n", os.Getenv("THREE_PATH"))
-	fmt.Fprintf(os.Stderr, "[rtloader debug] THREE_PATH (resolved): %s\n", threeDirPath)
-	fmt.Fprintf(os.Stderr, "[rtloader debug] PYTHON_HOME (raw): %s\n", os.Getenv("PYTHON_HOME"))
-	fmt.Fprintf(os.Stderr, "[rtloader debug] python_home (passed to SetDllDirectory): %s\n", pythonHomeStr)
-
-	for _, path := range []string{dllPath, python313Path} {
-		if info, err := os.Stat(path); err != nil {
-			fmt.Fprintf(os.Stderr, "[rtloader debug] stat %s: error: %v\n", path, err)
-		} else {
-			fmt.Fprintf(os.Stderr, "[rtloader debug] stat %s: size=%d\n", path, info.Size())
-		}
-		if out, _ := exec.Command("icacls", path).CombinedOutput(); len(out) > 0 {
-			fmt.Fprintf(os.Stderr, "[rtloader debug] icacls %s:\n%s", path, out)
-		}
-	}
-
-	tryLoadSequence(dllPath, pythonHomeStr)
 }

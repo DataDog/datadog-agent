@@ -22,7 +22,7 @@ copy_to_directory(
 )
 
 # Copies the full Python Windows installation (python_win outputs) into a single
-# _main/rtloader/test/python_home directory that is reachable via the runfiles tree.
+# directory that is reachable via the runfiles tree.
 # Without this, the @cpython//:python_win outputs live under +http_archive+cpython/build/
 # in the runfiles, but that path is unreachable because the +http_archive+cpython junction
 # points to the extracted source archive (which has no build/ subdirectory).
