@@ -87,7 +87,7 @@ def build(
     agent_bin=None,
     run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
     glibc=True,
-    enable_bazel=False,
+    enable_bazel=True,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,

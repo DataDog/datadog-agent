@@ -33,9 +33,13 @@ def run_make_command(ctx, command=""):
 
 
 @task
-def make(ctx, install_prefix=None, cmake_options=''):
+def make(ctx, install_prefix=None, cmake_options='', enable_bazel=True):
     dev_path = get_dev_path()
     prefix = install_prefix or dev_path
+
+    if enable_bazel:
+        bazel(ctx, "build", "//rtloader:all_files")
+        return
 
     if cmake_options.find("-G") == -1:
         cmake_options += " -G \"Unix Makefiles\""
@@ -90,8 +94,11 @@ def clean(_):
 
 
 @task
-def install(ctx):
+def install(ctx, enable_bazel=True):
     with gitlab_section("Install rtloader", collapsed=True):
+        if enable_bazel:
+            install_with_bazel(ctx)
+            return
         run_make_command(ctx, "install")
 
 
@@ -151,8 +158,11 @@ def install_with_bazel(ctx):
 
 
 @task
-def test(ctx):
+def test(ctx, enable_bazel=True):
     with gitlab_section("Run rtloader tests", collapsed=True):
+        if enable_bazel:
+            bazel(ctx, "test", "//rtloader/...")
+            return
         ctx.run(f"make -C {get_rtloader_build_path()}/test run", err_stream=sys.stdout)
 
 

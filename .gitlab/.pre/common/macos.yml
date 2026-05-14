@@ -91,8 +91,7 @@
     - !reference [.install_python_dependencies]
     # See there is no virtualization, we need to clean the environment regularly
     - !reference [.macos_runner_maintenance]
-    - dda inv -- -e rtloader.make
-    - dda inv -- -e rtloader.install
+    - bazel run -- //rtloader:install --destdir=dev
     - !reference [.retrieve_linux_go_deps]
     - !reference [.retrieve_linux_go_tools_deps]
     - dda inv -- -e install-tools --verbose
