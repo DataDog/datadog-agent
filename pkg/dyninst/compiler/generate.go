@@ -44,6 +44,7 @@ type Program struct {
 	Functions        []Function
 	Types            []ir.Type
 	Throttlers       []Throttler
+	NumProbes        uint32
 	GoModuledataInfo ir.GoModuledataInfo
 	GoMapHashInfo    ir.GoMapHashInfo
 	CommonTypes      ir.CommonTypes
@@ -216,6 +217,7 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 		Functions:        g.functions,
 		Types:            types,
 		Throttlers:       throttlers,
+		NumProbes:        uint32(len(program.Probes)),
 		GoModuledataInfo: program.GoModuledataInfo,
 		GoMapHashInfo:    program.GoMapHashInfo,
 		CommonTypes:      program.CommonTypes,
