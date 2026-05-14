@@ -55,14 +55,12 @@ from tasks.libs.releasing.documentation import (
 from tasks.libs.releasing.json import (
     DEFAULT_BRANCHES,
     DEFAULT_BRANCHES_AGENT6,
-    UNFREEZE_REPOS,
     _get_release_json_value,
     _save_release_json,
     generate_repo_data,
     get_current_milestone,
     load_release_json,
     set_current_milestone,
-    set_new_release_branch,
     update_release_json,
 )
 from tasks.libs.releasing.notes import _add_dca_prelude, _add_prelude
@@ -83,7 +81,6 @@ from tasks.notify import post_message
 from tasks.pipeline import run
 from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
 
-BACKPORT_LABEL_COLOR = "5319e7"
 QUALIFICATION_TAG = "qualification"
 
 
@@ -732,166 +729,6 @@ def get_release_json_value(ctx, key, release_branch=None, skip_checkout=False, w
         release_json = _get_release_json_value(key)
 
     print(release_json)
-
-
-def create_and_update_release_branch(
-    ctx, repo, release_branch, base_branch: str | None = None, base_directory="~/dd", upstream="origin"
-):
-    """Create and push a release branch to `repo`.
-
-    Args:
-        base_branch: Branch from which we create the release branch. Default branch if `None`.
-    """
-
-    def _main():
-        print(color_message(f"Branching out to {release_branch}", "bold"))
-        ctx.run(f"git checkout -b {release_branch}")
-
-        # Step 2 - Push newly created release branch to the remote repository
-
-        print(color_message("Pushing new branch to the upstream repository", "bold"))
-        set_gitconfig_in_ci(ctx)
-        res = ctx.run(f"git push --set-upstream {upstream} {release_branch}", warn=True)
-        if res.exited is None or res.exited > 0:
-            raise Exit(
-                color_message(
-                    f"Could not push branch {release_branch} to the upstream '{upstream}'. Please push it manually.",
-                    "red",
-                ),
-                code=1,
-            )
-
-    # Perform branch out in all required repositories
-    print(color_message(f"Working repository: {repo}", "bold"))
-    if repo == 'datadog-agent':
-        _main()
-    else:
-        with ctx.cd(f"{base_directory}/{repo}"):
-            # Step 1 - Create a local branch out from the default branch
-            main_branch = (
-                base_branch
-                or ctx.run(f"git remote show {upstream} | grep \"HEAD branch\" | sed 's/.*: //'").stdout.strip()
-            )
-            ctx.run(f"git checkout {main_branch}")
-            ctx.run("git pull", warn=True)
-
-            _main()
-
-
-@task(help={'upstream': "Remote repository name (default 'origin')"})
-def create_release_branches(
-    ctx, commit, base_directory="~/dd", major_version: int = 7, upstream="origin", check_state=True
-):
-    """Create and push release branches in Agent repositories and update them.
-
-    That includes:
-        - creates a release branch in datadog-agent, datadog-agent-macos, and omnibus-ruby repositories,
-        - updates release.json on new datadog-agent branch to point to newly created release branches
-        - updates entries in .gitlab-ci.yml and .gitlab/notify/notify.yml which depend on local branch name
-
-    Args:
-        commit: the commit on which the branch should be created (usually the one before the milestone bump)
-        base_directory: Path to the directory where dd repos are cloned, defaults to ~/dd, but can be overwritten.
-        use_worktree: If True, will go to datadog-agent-worktree instead of datadog-agent.
-
-    Notes:
-        This also requires that there are no local uncommitted changes, that the current branch is 'main' or the
-        release branch, and that no branch named 'release/<new rc version>' already exists locally or upstream.
-    """
-
-    github = GithubAPI(repository=GITHUB_REPO_NAME)
-
-    with agent_context(ctx, commit=commit):
-        current = current_version(ctx, major_version)
-        current.rc = False
-        current.devel = False
-
-        # Strings with proper branch/tag names
-        release_branch = current.branch()
-
-        # Step 0: checks
-        ctx.run("git fetch")
-
-        if check_state:
-            print(color_message("Checking repository state", "bold"))
-            check_clean_branch_state(ctx, github, release_branch)
-
-        if not yes_no_question(
-            f"This task will create new branches with the name '{release_branch}' in repositories: {', '.join(UNFREEZE_REPOS)}. Is this OK?",
-            color="orange",
-            default=False,
-        ):
-            raise Exit(color_message("Aborting.", "red"), code=1)
-
-        # Step 1 - Create release branches in all required repositories
-
-        for repo in UNFREEZE_REPOS:
-            base_branch = get_default_branch() if major_version == 6 else DEFAULT_BRANCHES[repo]
-            create_and_update_release_branch(
-                ctx, repo, release_branch, base_branch=base_branch, base_directory=base_directory, upstream=upstream
-            )
-
-        # create the backport label in the Agent repo
-        print(color_message("Creating backport label in the Agent repository", Color.BOLD))
-        github.create_label(
-            f'backport/{release_branch}',
-            BACKPORT_LABEL_COLOR,
-            f'Automatically create a backport PR to {release_branch}',
-            exist_ok=True,
-        )
-
-        # Step 2 - Create PRs with new settings in datadog-agent repository
-        # Step 2.0 - Update release.json
-        update_branch = f"{release_branch}-updates"
-
-        ctx.run(f"git checkout {release_branch}")
-        ctx.run(f"git checkout -b {update_branch}")
-
-        set_new_release_branch(release_branch)
-
-        # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml
-        with open(".gitlab-ci.yml") as f:
-            content = f.read()
-        with open(".gitlab-ci.yml", "w") as f:
-            updated_content = content.replace(
-                f'COMPARE_TO_BRANCH: {get_default_branch()}', f'COMPARE_TO_BRANCH: {release_branch}'
-            )
-            # Workaround for Gitlab not supporting the use of `COMPARE_TO_BRANCH` variable in `includes: rules` so we need to manually update the compare_to value
-            updated_content = updated_content.replace(
-                f'compare_to: {get_default_branch()}', f'compare_to: {release_branch}'
-            )
-            f.write(updated_content)
-
-        # Step 1.3 - Commit new changes
-        ctx.run("git add release.json .gitlab-ci.yml")
-        ok = try_git_command(ctx, f"git commit -m 'Update release.json, .gitlab-ci.yml with {release_branch}'")
-        if not ok:
-            raise Exit(
-                color_message(
-                    f"Could not create commit. Please commit manually and push the commit to the {release_branch} branch.",
-                    "red",
-                ),
-                code=1,
-            )
-
-        # Step 1.4 - Push branch and create PR
-        print(color_message("Pushing new branch to the upstream repository", "bold"))
-        res = ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
-        if res.exited is None or res.exited > 0:
-            raise Exit(
-                color_message(
-                    f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
-                    "red",
-                ),
-                code=1,
-            )
-
-        create_release_pr(
-            f"[release] Update release.json and .gitlab-ci.yml files for {release_branch} branch",
-            release_branch,
-            update_branch,
-            current,
-        )
 
 
 def _update_last_stable(_, version, major_version: int = 7):
