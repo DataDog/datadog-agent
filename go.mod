@@ -168,7 +168,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.8.3
 	github.com/DataDog/datadog-operator/api v0.0.0-20260505153817-d1d2b65124cc
 	github.com/DataDog/datadog-traceroute v1.0.15
-	github.com/DataDog/dd-trace-go/v2 v2.7.4
+	github.com/DataDog/dd-trace-go/v2 v2.8.1
 	github.com/DataDog/ebpf-manager v0.7.18
 	github.com/DataDog/go-acl v1.0.1
 	github.com/DataDog/go-sqllexer v0.2.1
@@ -482,7 +482,6 @@ require (
 	github.com/DataDog/datadog-api-client-go/v2 v2.59.0
 	github.com/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee // indirect
-	github.com/DataDog/gostackparse v0.7.0 // indirect
 	github.com/DataDog/jsonapi v0.12.0
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
