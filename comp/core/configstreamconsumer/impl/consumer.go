@@ -109,19 +109,25 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	c.initMetrics()
 
-	// Register lifecycle hooks
+	// Block FX construction on the first snapshot so any component constructed
+	// after this one (including providers that read config eagerly, e.g.
+	// comp/trace/config.NewComponent or pkg/security/agent.StartRuntimeSecurity)
+	// sees the streamed values. The remoteagent RAR loop runs concurrently
+	// because it is also started during construction; see helper.Start.
+	if err := c.start(context.Background()); err != nil {
+		return Provides{}, err
+	}
+
 	reqs.Lifecycle.Append(compdef.Hook{
-		OnStart: c.start,
-		OnStop:  c.stop,
+		OnStop: c.stop,
 	})
 
 	return Provides{Comp: c}, nil
 }
 
 // start initiates the config stream connection and blocks until the first config snapshot is
-// received. Blocking here ensures all components initialized after this one (and the binary's
-// run function) see a fully-populated config. Returns an error if the snapshot is not received
-// within ReadyTimeout (default 60s), which aborts FX startup.
+// received. Returns an error if the snapshot is not received within ReadyTimeout (default 60s),
+// which aborts FX startup.
 func (c *consumer) start(_ context.Context) error {
 	// Use context.Background() so the stream lifetime is not bounded by the
 	// Fx startup context, which expires after app.StartTimeout (~5 minutes).

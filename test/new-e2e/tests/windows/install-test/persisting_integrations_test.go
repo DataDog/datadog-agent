@@ -10,6 +10,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+
+	"github.com/cenkalti/backoff/v5"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -521,12 +524,21 @@ func (s *testPersistingIntegrationsDuringUninstall) TestPersistingIntegrationsDu
 }
 
 // install third party integration
+//
+// The agent integration install command can fail transiently when the
+// integrations-core release pipeline is mid-rotation: the TUF metadata.staged
+// snapshot returns 403 for a few minutes at a time. Wheels can be unavailable
+// for several minutes; their release pipeline runs at least once a day at
+// 5AM CET and can also run during working hours. Retry to absorb that window.
 func (s *baseAgentMSISuite) installThirdPartyIntegration(vm *components.RemoteHost, integration string) error {
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(s.Env().RemoteHost)
 	s.Require().NoError(err, "should get install path from registry")
 
 	cmd := fmt.Sprintf(`& "%s\bin\agent.exe" integration install -t %s`, installPath, integration)
-	_, err = vm.Execute(cmd)
+	_, err = backoff.Retry(s.T().Context(), func() (any, error) {
+		_, execErr := vm.Execute(cmd)
+		return nil, execErr
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(30))
 
 	if err != nil {
 		s.T().Logf("Error installing integration %s:\n%s", integration, err)
@@ -536,12 +548,19 @@ func (s *baseAgentMSISuite) installThirdPartyIntegration(vm *components.RemoteHo
 }
 
 // install pip package
+//
+// pip resolves wheels from the same integrations-core CDN that the agent
+// integration installer uses, so the same transient 403 window applies.
+// Retry to absorb it.
 func (s *baseAgentMSISuite) installPipPackage(vm *components.RemoteHost, packageToInstall string) error {
 	installPath, err := windowsAgent.GetInstallPathFromRegistry(s.Env().RemoteHost)
 	s.Require().NoError(err, "should get install path from registry")
 
 	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip install %s`, installPath, packageToInstall)
-	_, err = vm.Execute(cmd)
+	_, err = backoff.Retry(s.T().Context(), func() (any, error) {
+		_, execErr := vm.Execute(cmd)
+		return nil, execErr
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(30))
 
 	if err != nil {
 		s.T().Logf("Error installing pip package %s:\n%s", packageToInstall, err)

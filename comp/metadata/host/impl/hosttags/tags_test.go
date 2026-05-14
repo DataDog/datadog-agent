@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"runtime"
 	"testing"
 	"time"
 
@@ -100,6 +101,72 @@ func TestCombineExtraTags(t *testing.T) {
 	hostTags := Get(ctx, false, mockConfig)
 	assert.NotNil(t, hostTags.System)
 	assert.Equal(t, []string{"tag1:value1", "tag1:value2", "tag2", "tag3", "tag4"}, hostTags.System)
+}
+
+func TestGetWithoutEUDM(t *testing.T) {
+	mockConfig, ctx := setupTest(t)
+	mockConfig.SetWithoutSource("infrastructure_mode", "full")
+
+	hostTags := Get(ctx, false, mockConfig)
+	for _, tag := range hostTags.System {
+		assert.NotContains(t, tag, "infrastructure_mode:")
+		assert.NotContains(t, tag, "os_name:")
+		assert.NotContains(t, tag, "os_version:")
+		assert.NotContains(t, tag, "cpu_model:")
+		assert.NotContains(t, tag, "device_model:")
+		assert.NotContains(t, tag, "total_memory_gb:")
+	}
+}
+
+func TestGetWithEUDM(t *testing.T) {
+	mockConfig, ctx := setupTest(t)
+	mockConfig.SetWithoutSource("infrastructure_mode", "end_user_device")
+
+	original := collectEUDMTagsFunc
+	t.Cleanup(func() { collectEUDMTagsFunc = original })
+	collectEUDMTagsFunc = func() []string {
+		return []string{
+			"os_name:darwin",
+			"os_version:23.5.0",
+			"cpu_model:Apple_M1_Pro",
+			"total_memory_gb:16",
+			"device_model:MacBookPro18,3",
+		}
+	}
+
+	hostTags := Get(ctx, false, mockConfig)
+	assert.Contains(t, hostTags.System, "infrastructure_mode:end_user_device")
+	assert.Contains(t, hostTags.System, "os_name:darwin")
+	assert.Contains(t, hostTags.System, "os_version:23.5.0")
+	assert.Contains(t, hostTags.System, "cpu_model:Apple_M1_Pro")
+	assert.Contains(t, hostTags.System, "total_memory_gb:16")
+	assert.Contains(t, hostTags.System, "device_model:MacBookPro18,3")
+}
+
+func TestEUDMTagsOnUnsupportedOS(t *testing.T) {
+	// collectEUDMHardwareTags should return nil on non-darwin/windows so the
+	// only EUDM tag emitted on Linux is the infrastructure_mode marker.
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		t.Skip("test asserts behavior on non-darwin/non-windows hosts")
+	}
+	assert.Nil(t, collectEUDMHardwareTags())
+
+	tags := getEUDMTags()
+	assert.Equal(t, []string{"infrastructure_mode:end_user_device"}, tags)
+}
+
+func TestBytesToGB(t *testing.T) {
+	assert.Equal(t, uint64(16), bytesToGB(16*1024*1024*1024))
+	assert.Equal(t, uint64(0), bytesToGB(0))
+	assert.Equal(t, uint64(1), bytesToGB(1024*1024*1024))
+	// 15.9 GiB rounds to 16
+	assert.Equal(t, uint64(16), bytesToGB(15*1024*1024*1024+900*1024*1024))
+}
+
+func TestSanitizeEUDMTagValue(t *testing.T) {
+	assert.Equal(t, "Apple_M1_Pro", sanitizeEUDMTagValue("Apple M1 Pro"))
+	assert.Equal(t, "MacBookPro18,3", sanitizeEUDMTagValue("MacBookPro18,3"))
+	assert.Equal(t, "trim_me", sanitizeEUDMTagValue("  trim me  "))
 }
 
 func TestHostTagsCache(t *testing.T) {

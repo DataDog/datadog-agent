@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/google/go-containerregistry v0.21.5
-	github.com/klauspost/compress v1.18.5
+	github.com/klauspost/compress v1.18.6
 )
 
 require (

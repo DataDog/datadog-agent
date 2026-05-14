@@ -63,5 +63,12 @@ def rtloader_go_test(**kwargs):
                       "PYTHON_LIB": "$(rlocationpath @cpython//:python_win_lib)",
                   },
               }),
+        # TODO(agent-build): Windows tests are temporarily disabled due to LoadLibraryA returning
+        # ERROR_ACCESS_DENIED (5) for libdatadog-agent-three.dll in CI environments.
+        # #incident-54552
+        target_compatible_with = kwargs.pop("target_compatible_with", []) + select({
+            "@platforms//os:windows": ["@platforms//:incompatible"],
+            "//conditions:default": [],
+        }),
         **kwargs
     )

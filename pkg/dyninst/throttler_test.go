@@ -55,6 +55,12 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 		t, tempDir, busyloopPath, "busyloop", irgen.WithSkipReturnEvents(true),
 	)
 
+	// The busyloop probe set has multiple probes; the throttler test
+	// only exercises the hot one (id "a"). Reduce to that probe so
+	// the throttling assertions below are not contaminated by the
+	// other probe's hits.
+	keepProbeWithID(&irp.Probes, "a")
+
 	// Adjust throttling parameters.
 	// Practically infinite period, with specific event count.
 	require.Equal(t, 1, len(irp.Probes))
@@ -107,11 +113,11 @@ func enforcesBudget(t *testing.T, busyloopPath string) {
 	var stats loader.RuntimeStats
 	for {
 		stats = loader.RuntimeStats{}
-		perCoreStats := program.RuntimeStats()
-		for _, coreStats := range perCoreStats {
-			stats.HitCnt += coreStats.HitCnt
-			stats.ThrottledCnt += coreStats.ThrottledCnt
-			stats.CPU += coreStats.CPU
+		perProbeStats := program.RuntimeStats()
+		for _, probeStats := range perProbeStats {
+			stats.HitCnt += probeStats.HitCnt
+			stats.ThrottledCnt += probeStats.ThrottledCnt
+			stats.CPU += probeStats.CPU
 		}
 		if int(stats.ThrottledCnt) > 0 {
 			break
@@ -141,6 +147,7 @@ func refreshesBudget(t *testing.T, busyloopPath string) {
 
 	// Adjust throttling parameters.
 	// Small period, and budget.
+	keepProbeWithID(&irp.Probes, "a")
 	require.Equal(t, 1, len(irp.Probes))
 	irp.Probes[0].ProbeDefinition = &overriddenThrottle{
 		ProbeDefinition: irp.Probes[0].ProbeDefinition,
@@ -182,6 +189,19 @@ func refreshesBudget(t *testing.T, busyloopPath string) {
 		_, err := rd.Read()
 		require.NoError(t, err)
 	}
+}
+
+// keepProbeWithID filters the IR's probe list down to a single probe
+// matching id, panicking if not found. Used by tests that share the
+// busyloop probe set with multi-probe tests but only exercise one.
+func keepProbeWithID(probes *[]*ir.Probe, id string) {
+	out := (*probes)[:0]
+	for _, p := range *probes {
+		if p.ProbeDefinition.GetID() == id {
+			out = append(out, p)
+		}
+	}
+	*probes = out
 }
 
 type overriddenThrottle struct {

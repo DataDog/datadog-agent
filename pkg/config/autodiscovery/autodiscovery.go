@@ -51,8 +51,9 @@ func DiscoverComponentsFromConfig() ([]pkgconfigsetup.ConfigurationProviders, []
 	// 2) Auto-add file-based kube service and endpoints config providers based on check config files.
 	if flavor.GetFlavor() == flavor.ClusterAgent {
 
-		if pkgconfigsetup.Datadog().GetString("prometheus_http_sd.url") != "" {
-			log.Info("Prometheus HTTP SD URL is configured: Adding the prometheus_http_sd config provider")
+		cfg := pkgconfigsetup.Datadog()
+		if cfg.IsConfigured("prometheus_http_sd.url") || cfg.IsConfigured("prometheus_http_sd.configs") {
+			log.Info("Prometheus HTTP SD is configured: Adding the prometheus_http_sd config provider")
 			detectedProviders = append(detectedProviders, pkgconfigsetup.ConfigurationProviders{Name: "prometheus_http_sd", Polling: true})
 		}
 

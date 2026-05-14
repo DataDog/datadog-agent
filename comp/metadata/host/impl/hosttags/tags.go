@@ -151,6 +151,10 @@ func Get(ctx context.Context, cached bool, conf model.Reader) *Tags {
 		hostTags = appendToHostTags(hostTags, []string{tags.KubeDistribution + ":" + kubeDistro})
 	}
 
+	if conf.GetString("infrastructure_mode") == infrastructureModeEndUserDevice {
+		hostTags = appendToHostTags(hostTags, getEUDMTags())
+	}
+
 	gceTags := []string{}
 	providers := getProvidersDefinitionsFunc(conf)
 	for {

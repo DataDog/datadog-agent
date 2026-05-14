@@ -231,6 +231,13 @@ func installAPMPackages(s *common.Setup) {
 			s.Packages.Install(library, getLibraryVersion(s.Env, library))
 		}
 	}
+	// Explicit-only libraries: install only when named in ApmLibraries; never
+	// from "all" or the empty-libs fallback.
+	for _, library := range common.ExplicitOnlyApmLibraries {
+		if _, installLibrary := s.Env.ApmLibraries[packageToLanguage(library)]; installLibrary {
+			s.Packages.Install(library, getLibraryVersion(s.Env, library))
+		}
+	}
 }
 
 // packageToLanguage returns the language of an APM package

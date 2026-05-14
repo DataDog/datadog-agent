@@ -342,6 +342,19 @@ func (a *effects) attachToProcess(
 
 var detachLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 10)
 
+// reportProbeError surfaces a per-probe diagnostic without detaching
+// the program. Asynchronous fire-and-forget; the state machine
+// independently flags the program for recompile.
+func (a *effects) reportProbeError(
+	ap *attachedProgram, probe ir.ProbeDefinition, reason error,
+) {
+	a.wg.Add(1)
+	go func() {
+		defer a.wg.Done()
+		ap.attachedProgram.ReportProbeError(probe, reason)
+	}()
+}
+
 // detachFromProcess detaches a program from a process.
 func (a *effects) detachFromProcess(ap *attachedProgram, failure error) {
 	a.wg.Add(1)

@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Pre-register ``datadog-apm-library-iis``,
+    ``datadog-apm-library-iis-rum``, and ``datadog-apm-library-httpd``
+    in the fleet installer. The packages are gated behind remote
+    updates so they can be rolled out via remote configuration without
+    a new installer release.

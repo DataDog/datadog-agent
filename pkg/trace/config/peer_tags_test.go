@@ -33,8 +33,8 @@ func TestPreparePeerTags(t *testing.T) {
 			output: []string{"db.name", "db.instance", "peer.service", "some.other.tag", "zz_tag"},
 		},
 		{
-			input:  append([]string{"zz_tag"}, basePeerTags...),
-			output: append(basePeerTags, "zz_tag"),
+			input:  append([]string{"zz_tag"}, basePeerTags()...),
+			output: append(basePeerTags(), "zz_tag"),
 		},
 	} {
 		sort.Strings(tc.output)
@@ -43,8 +43,8 @@ func TestPreparePeerTags(t *testing.T) {
 }
 
 func TestDefaultPeerTags(t *testing.T) {
-	assert.Contains(t, basePeerTags, "db.name")
-	assert.Contains(t, basePeerTags, "_dd.base_service")
+	assert.Contains(t, basePeerTags(), "db.name")
+	assert.Contains(t, basePeerTags(), "_dd.base_service")
 }
 
 func TestPeerTagConceptsHaveMappings(t *testing.T) {
@@ -139,6 +139,6 @@ func TestBasePeerTagsMatchINISource(t *testing.T) {
 	}
 
 	for _, key := range expectedFromINI {
-		assert.Contains(t, basePeerTags, key, "basePeerTags is missing key %q that was present in peer_tags.ini", key)
+		assert.Contains(t, basePeerTags(), key, "basePeerTags is missing key %q that was present in peer_tags.ini", key)
 	}
 }

@@ -378,12 +378,18 @@ func TestCGroupVariables(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
-	if err != nil {
-		t.Fatalf("failed to start docker wrapper: %v", err)
+	var wrapper cmdWrapper
+	if ebpfLessEnabled {
+		wrapper = newStdCmdWrapper()
+	} else {
+		dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu", "")
+		if err != nil {
+			t.Fatalf("failed to start docker wrapper: %v", err)
+		}
+		wrapper = dockerWrapper
 	}
 
-	dockerWrapper.Run(t, "cgroup-variables", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
+	wrapper.Run(t, "cgroup-variables", func(t *testing.T, _ wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
 		test.WaitSignalFromRule(t, func() error {
 			cmd := cmdFunc("touch", []string{testFile}, nil)
 			return cmd.Run()

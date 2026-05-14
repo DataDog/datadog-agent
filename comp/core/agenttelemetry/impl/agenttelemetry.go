@@ -449,6 +449,38 @@ func (a *atel) transformMetricFamily(p *Profile, mfam *dto.MetricFamily) *agentm
 	}
 }
 
+// coalesceMetricFamilies merges compatible metric families with the same name.
+//
+// The regular and default telemetry registries are gathered separately. Coalescing lets profile aggregation see all
+// time series together instead of later payload writes overwriting earlier ones in the sender's metric map.
+func coalesceMetricFamilies(pms []*telemetry.MetricFamily) []*telemetry.MetricFamily {
+	mergedByName := make(map[string]*telemetry.MetricFamily, len(pms))
+	merged := make([]*telemetry.MetricFamily, 0, len(pms))
+
+	for _, pm := range pms {
+		if pm == nil || pm.Name == nil || pm.Type == nil {
+			merged = append(merged, pm)
+			continue
+		}
+
+		name := pm.GetName()
+		existing := mergedByName[name]
+		if existing == nil {
+			mergedByName[name] = pm
+			merged = append(merged, pm)
+			continue
+		}
+		if existing.GetType() != pm.GetType() {
+			merged = append(merged, pm)
+			continue
+		}
+
+		existing.Metric = append(existing.Metric, pm.Metric...)
+	}
+
+	return merged
+}
+
 func (a *atel) reportAgentMetrics(session *senderSession, pms []*telemetry.MetricFamily, p *Profile) {
 	// If no metrics are configured nothing to report
 	if len(p.metricsMap) == 0 {
@@ -494,6 +526,8 @@ func (a *atel) loadPayloads(profiles []*Profile) (*senderSession, error) {
 		// Not a fatal error, just log it
 		a.logComp.Errorf("failed to get filtered telemetry metrics: %v", err)
 	}
+
+	pms = coalesceMetricFamilies(pms)
 
 	// All metrics stored in the "pms" slice above must follow the format:
 	//    <subsystem>__<metric_name>

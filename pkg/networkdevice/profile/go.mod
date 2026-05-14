@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/networkdevice/profile
 go 1.25.0
 
 require (
-	github.com/invopop/jsonschema v0.12.0
+	github.com/invopop/jsonschema v0.13.0
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
@@ -30,6 +30,7 @@ require (
 
 replace (
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def => ../../../comp/anomalydetection/observer/def
+	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def => ../../../comp/anomalydetection/recorder/def
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def => ../../../comp/core/agenttelemetry/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../../comp/core/agenttelemetry/fx

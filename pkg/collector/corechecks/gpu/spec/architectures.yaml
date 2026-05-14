@@ -14,6 +14,22 @@ architectures:
       unsupported_fields_by_device_mode:
         - device_modes: [physical, mig, vgpu]
           fields:
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_0
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_1
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_2
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_3
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_4
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_5
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_6
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_7
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_8
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_9
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_10
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_11
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_12
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_13
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_14
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_15
             - FI_DEV_NVLINK_COUNT_XMIT_PACKETS
             - FI_DEV_NVLINK_COUNT_RCV_PACKETS
             - FI_DEV_NVLINK_COUNT_XMIT_DISCARDS
@@ -62,6 +78,22 @@ architectures:
       unsupported_fields_by_device_mode:
         - device_modes: [physical, mig, vgpu]
           fields:
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_0
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_1
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_2
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_3
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_4
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_5
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_6
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_7
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_8
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_9
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_10
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_11
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_12
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_13
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_14
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_15
             - FI_DEV_NVLINK_COUNT_XMIT_PACKETS
             - FI_DEV_NVLINK_COUNT_RCV_PACKETS
             - FI_DEV_NVLINK_COUNT_XMIT_DISCARDS
@@ -110,6 +142,22 @@ architectures:
       unsupported_fields_by_device_mode:
         - device_modes: [physical, mig, vgpu]
           fields:
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_0
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_1
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_2
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_3
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_4
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_5
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_6
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_7
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_8
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_9
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_10
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_11
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_12
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_13
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_14
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_15
             - FI_DEV_NVLINK_COUNT_XMIT_PACKETS
             - FI_DEV_NVLINK_COUNT_RCV_PACKETS
             - FI_DEV_NVLINK_COUNT_XMIT_DISCARDS
@@ -158,6 +206,22 @@ architectures:
       unsupported_fields_by_device_mode:
         - device_modes: [physical, mig, vgpu]
           fields:
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_0
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_1
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_2
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_3
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_4
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_5
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_6
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_7
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_8
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_9
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_10
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_11
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_12
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_13
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_14
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_15
             - FI_DEV_NVLINK_COUNT_XMIT_PACKETS
             - FI_DEV_NVLINK_COUNT_RCV_PACKETS
             - FI_DEV_NVLINK_COUNT_XMIT_DISCARDS
@@ -205,6 +269,22 @@ architectures:
       unsupported_fields_by_device_mode:
         - device_modes: [physical, mig, vgpu]
           fields:
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_0
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_1
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_2
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_3
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_4
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_5
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_6
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_7
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_8
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_9
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_10
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_11
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_12
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_13
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_14
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_15
             - FI_DEV_C2C_LINK_ERROR_INTR
             - FI_DEV_C2C_LINK_ERROR_REPLAY
             - FI_DEV_C2C_LINK_ERROR_REPLAY_B2B
@@ -250,6 +330,22 @@ architectures:
       unsupported_fields_by_device_mode:
         - device_modes: [physical, mig, vgpu]
           fields:
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_0
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_1
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_2
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_3
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_4
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_5
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_6
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_7
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_8
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_9
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_10
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_11
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_12
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_13
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_14
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_15
             - FI_DEV_NVLINK_SPEED_MBPS_COMMON
             - FI_DEV_NVLINK_GET_SPEED
             - FI_DEV_NVLINK_THROUGHPUT_DATA_RX
@@ -304,6 +400,22 @@ architectures:
             - FI_DEV_C2C_LINK_ERROR_REPLAY_B2B
         - device_modes: [vgpu, mig]
           fields:
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_0
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_1
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_2
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_3
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_4
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_5
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_6
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_7
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_8
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_9
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_10
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_11
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_12
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_13
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_14
+            - FI_DEV_NVLINK_COUNT_FEC_HISTORY_15
             - FI_DEV_MEMORY_TEMP
             - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
             - FI_DEV_PCIE_REPLAY_COUNTER

@@ -183,9 +183,14 @@ func (h *Handler) runDispatch(ctx context.Context) {
 	// Run dispatcher loop - blocking until context is cancelled
 	h.dispatcher.run(ctx)
 
+	// RemoveScheduler must be called before reset() to close a race window: if autodiscovery
+	// fires a Schedule call between reset() clearing ksmShardedConfigs and RemoveScheduler
+	// stopping new calls, ksmShardedConfigs gets repopulated. On the next leadership cycle,
+	// isAlreadySharded returns true and the KSM check is silently dropped.
+	h.autoconfig.RemoveScheduler(schedulerName)
+
 	// Reset the dispatcher
 	h.dispatcher.reset()
-	h.autoconfig.RemoveScheduler(schedulerName)
 }
 
 func (h *Handler) leaderWatch(ctx context.Context) {

@@ -9,9 +9,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -439,4 +441,21 @@ func TestIsRootSpan(t *testing.T) {
 		agg := NewAggregationFromSpan(statSpan, "", PayloadAggregationKey{})
 		assert.Equal(t, tt.isTraceRoot, agg.IsTraceRoot)
 	}
+}
+
+func TestGetStatusCodeUsesLiveRegistry(t *testing.T) {
+	// A registry where http.status_code only maps to "x.custom.status", not the standard key.
+	customJSON := `{"version":"test","concepts":{"http.status_code":{"canonical":"http.status_code","fallbacks":[{"name":"x.custom.status","provider":"datadog","type":"string"}]}}}`
+	custom, err := semantics.NewRegistryFromJSON([]byte(customJSON))
+	require.NoError(t, err)
+	original, err := semantics.NewEmbeddedRegistry()
+	require.NoError(t, err)
+	t.Cleanup(func() { semantics.UpdateRegistry(original) })
+
+	semantics.UpdateRegistry(custom)
+
+	// Standard key should not resolve — custom registry remapped the concept.
+	assert.Equal(t, uint32(0), getStatusCode(map[string]string{"http.status_code": "200"}, nil))
+	// Custom key should resolve.
+	assert.Equal(t, uint32(404), getStatusCode(map[string]string{"x.custom.status": "404"}, nil))
 }

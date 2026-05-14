@@ -34,11 +34,23 @@ type serializedProgram struct {
 	probeParams     []probeParams
 	bpfAttachPoints []BPFAttachPoint
 
+	// numProbes is the raw IR probe count and may be 0. It defines the
+	// size of the per-probe stats_buf map; the loader clamps stats_buf's
+	// MaxEntries to at least 1 to satisfy BPF_MAP_TYPE_ARRAY's
+	// nonzero-max-entries requirement.
+	numProbes uint32
+
 	goRuntimeTypeIDs goRuntimeTypeIDs
 	goModuledataInfo ir.GoModuledataInfo
 	goMapHashInfo    ir.GoMapHashInfo
 	commonTypes      ir.CommonTypes
 	isARM64          bool
+
+	// traceContextTypeID is the IR type id of the synthetic
+	// ir.TraceContextType. Set as the BPF volatile-const
+	// trace_context_type_id; SM_OP_GO_CONTEXT_CHAIN_INIT writes it into the
+	// rewritten data item header at chase time.
+	traceContextTypeID ir.TypeID
 }
 
 type goRuntimeTypeIDs struct {
@@ -111,6 +123,7 @@ func serializeProgram(
 		programID: program.ID,
 		code:      buf.Bytes(),
 		maxOpLen:  metadata.MaxOpLen,
+		numProbes: program.NumProbes,
 	}
 	var ok bool
 	serialized.chasePointersEntrypoint, ok = metadata.FunctionLoc[compiler.ChasePointers{}]
@@ -132,11 +145,16 @@ func serializeProgram(
 	for i, t := range program.Types {
 		typeID := uint64(t.GetID())
 		serialized.typeIDs[i] = typeID
-		serialized.typeInfos[i] = typeInfo{
+		if _, ok := t.(*ir.TraceContextType); ok {
+			serialized.traceContextTypeID = t.GetID()
+		}
+		info := typeInfo{
 			Dynamic_size_class: uint32(t.GetDynamicSizeClass()),
 			Byte_len:           t.GetByteSize(),
 			Enqueue_pc:         metadata.FunctionLoc[compiler.ProcessType{Type: t}],
 		}
+		fillSpecialTypeInfo(&info, t)
+		serialized.typeInfos[i] = info
 		if goRuntimeType, ok := t.GetGoRuntimeType(); ok {
 			grts.goRuntimeTypes = append(grts.goRuntimeTypes, uint64(goRuntimeType))
 			// directTypeIDs stores the actual type ID without any dereferencing.
@@ -200,4 +218,50 @@ func serializeProgram(
 	}
 
 	return serialized, nil
+}
+
+func fillSpecialTypeInfo(info *typeInfo, t ir.Type) {
+	info.Go_context_context_offset = -1
+	info.Go_context_key_offset = -1
+	info.Go_context_value_offset = -1
+	info.Ddtrace_trace_id_offset = -1
+	info.Ddtrace_span_id_offset = -1
+	info.Ddtrace_parent_id_offset = -1
+	info.Ddtrace_span_context_offset = -1
+	info.Ddtrace_span_context_trace_id_offset = -1
+
+	switch t := t.(type) {
+	case *ir.GoContextImplementationType:
+		info.Go_context_is_context = 1
+		info.Go_context_context_offset = t.ContextOffset
+		info.Go_context_key_offset = t.KeyOffset
+		info.Go_context_value_offset = t.ValueOffset
+		// Floor byte_len to ir.TraceContextByteSize so that the chase
+		// preamble reserves at least 40 bytes of payload. The
+		// SM_OP_GO_CONTEXT_CHAIN_INIT opcode rewrites the just-serialized
+		// data item to type=TraceContextType and zeros 40 bytes of payload;
+		// without this floor, tiny context impls (emptyCtx, backgroundCtx,
+		// todoCtx) would have a payload reservation smaller than 40 bytes
+		// and the zero would overrun into the next data item's header.
+		if info.Byte_len < ir.TraceContextByteSize {
+			info.Byte_len = ir.TraceContextByteSize
+		}
+	case *ir.DDTraceSpanType:
+		info.Ddtrace_span_kind = uint8(t.SpanKind)
+		info.Ddtrace_trace_id_offset = t.TraceIDOffset
+		info.Ddtrace_span_id_offset = t.SpanIDOffset
+		info.Ddtrace_parent_id_offset = t.ParentIDOffset
+		info.Ddtrace_span_context_offset = t.SpanContextOffset
+		info.Ddtrace_span_context_trace_id_offset = t.SpanContextTraceIDOffset
+	case *ir.PointerType:
+		// Pointer-to-context-impl types also use the chain-walk enqueue
+		// routine (compiler emits [INIT, HOP, RETURN] for
+		// *context.cancelCtx, etc.) — floor byte_len to 40 bytes for the
+		// same reason as struct impls.
+		if _, ok := t.Pointee.(*ir.GoContextImplementationType); ok {
+			if info.Byte_len < ir.TraceContextByteSize {
+				info.Byte_len = ir.TraceContextByteSize
+			}
+		}
+	}
 }

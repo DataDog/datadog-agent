@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "patterns",
+    srcs = [
+        "cluster.go",
+        "signature.go",
+        "token.go",
+        "tokenizer.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl/patterns",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "patterns_test",
+    srcs = [
+        "cluster_test.go",
+        "signature_test.go",
+        "tokenizer_bench_test.go",
+        "tokenizer_test.go",
+    ],
+    embed = [":patterns"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

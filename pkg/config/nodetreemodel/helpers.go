@@ -123,7 +123,7 @@ func mapToMapString(m reflect.Value) map[string]interface{} {
 
 // valid kinds to call IsNil on
 // duplicated from pkg/config/helper in order to avoid import cycle
-var nillableKinds = []reflect.Kind{reflect.Map, reflect.Ptr, reflect.Interface, reflect.Slice}
+var nillableKinds = []reflect.Kind{reflect.Map, reflect.Pointer, reflect.Interface, reflect.Slice}
 
 // isNilValue returns true if a is nil, or a is an interface with nil data
 // duplicated from pkg/config/helper in order to avoid import cycle

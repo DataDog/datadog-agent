@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "eventplatformreceiver",
+    srcs = [
+        "component.go",
+        "component_mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/logs/diagnostic",
+        "//pkg/logs/message",
+    ],
+)

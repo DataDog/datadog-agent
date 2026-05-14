@@ -68,6 +68,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 	pbcore.RegisterTelemetryProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
 	pbcore.RegisterStatusProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
 
+	remoteAgentServer.Start()
+
 	provides := Provides{
 		Comp: remoteagentImpl,
 	}

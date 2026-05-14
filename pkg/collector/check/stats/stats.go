@@ -13,8 +13,6 @@ import (
 
 	"github.com/go-viper/mapstructure/v2"
 
-	"github.com/DataDog/agent-payload/v5/healthplatform"
-
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
@@ -319,14 +317,15 @@ func (cs *Stats) reportToHealthPlatform(err error) {
 		"checkVersion": cs.CheckVersion,
 	}
 
-	// Report the issue to health platform
+	// Report the issue to health platform.
+	// IssueId = instance key; IssueType = template; Source = integration name.
 	reportErr := cs.healthPlatform.ReportIssue(
-		string(cs.CheckID),
-		cs.CheckName,
-		&healthplatform.IssueReport{
-			IssueId: "check-execution-failure",
-			Context: context,
-			Tags:    []string{cs.CheckName, cs.CheckLoader},
+		healthplatformdef.IssueReport{
+			IssueID:   "check-execution-failure:" + string(cs.CheckID),
+			IssueType: "check-execution-failure",
+			Source:    cs.CheckName,
+			Context:   context,
+			Tags:      []string{cs.CheckName, cs.CheckLoader},
 		},
 	)
 
@@ -343,18 +342,8 @@ func (cs *Stats) clearHealthPlatformIssue() {
 		return
 	}
 
-	// Report nil to clear the issue (issue resolution)
-	err := cs.healthPlatform.ReportIssue(
-		string(cs.CheckID),
-		cs.CheckName,
-		nil,
-	)
-
-	if err != nil {
-		log.Warnf("Failed to clear health platform issue for %s: %v", cs.CheckName, err)
-	} else {
-		log.Debugf("Cleared health platform issue for %s", cs.CheckName)
-	}
+	cs.healthPlatform.ResolveIssue("check-execution-failure:" + string(cs.CheckID))
+	log.Debugf("Cleared health platform issue for %s", cs.CheckName)
 }
 
 type aggStats struct {

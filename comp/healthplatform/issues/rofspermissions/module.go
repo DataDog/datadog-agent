@@ -54,8 +54,8 @@ func (r *rofsPermissionsModule) IssueTemplate() issues.IssueTemplate {
 	return r.template
 }
 
-func (r *rofsPermissionsModule) BuiltInCheck() *issues.BuiltInCheck {
-	return &issues.BuiltInCheck{
+func (r *rofsPermissionsModule) BuiltInHealthCheck() *issues.BuiltInHealthCheck {
+	return &issues.BuiltInHealthCheck{
 		ID:   CheckID,
 		Name: CheckName,
 		CheckFn: func() (*healthplatform.IssueReport, error) {

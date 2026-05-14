@@ -191,7 +191,7 @@ func TestMetricMetadataSpecUnmarshalYAMLRejectsInvalidMetricType(t *testing.T) {
 
 	err := yaml.Unmarshal([]byte(`
 metadata:
-  metric_type: histogram
+  metric_type: this-will-never-be-a-valid-metric-type
   unit: byte/second
   description: Example description
 tagsets:
@@ -205,7 +205,7 @@ support:
 `), &spec)
 
 	require.Error(t, err)
-	require.ErrorContains(t, err, `invalid metric_type "histogram": must be one of [gauge, counter]`)
+	require.ErrorContains(t, err, `invalid metric_type "this-will-never-be-a-valid-metric-type": must be one of [gauge, counter, histogram]`)
 }
 
 func TestLoadedMetricsIncludeMetadata(t *testing.T) {

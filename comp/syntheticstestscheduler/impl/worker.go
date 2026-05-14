@@ -61,9 +61,13 @@ func (s *syntheticsTestScheduler) flushLoop(ctx context.Context) {
 	}
 }
 
-// flush enqueues tests whose nextRun is due.
+// flush enqueues tests whose nextRun is due. It is a no-op while the test
+// poller is healthy — the backend drives execution in that mode.
 func (s *syntheticsTestScheduler) flush(ctx context.Context, flushTime time.Time) {
 	if !s.running {
+		return
+	}
+	if s.testPoller != nil && s.testPoller.isHealthy() {
 		return
 	}
 
@@ -109,24 +113,24 @@ func (s *syntheticsTestScheduler) flush(ctx context.Context, flushTime time.Time
 // runWorker is the main loop for a single worker.
 func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 	for {
-		// Non-blocking priority check: drain on-demand tests first, but respect cancellation
+		// Non-blocking priority check: drain live poller tests first, but respect cancellation
 		select {
 		case <-ctx.Done():
 			s.log.Debugf("worker %d stopping", workerID)
 			return
-		case testCtx := <-s.onDemandPoller.TestsChan:
-			s.executeTest(ctx, workerID, testCtx)
+		case testCtx := <-s.testPoller.TestsChan:
+			s.processPollerTest(ctx, workerID, testCtx)
 			continue
 		default:
 		}
 
-		// Blocking wait on all sources
+		// Blocking wait on both sources (poller-delivered + in-memory fallback)
 		select {
 		case <-ctx.Done():
 			s.log.Debugf("worker %d stopping", workerID)
 			return
-		case testCtx := <-s.onDemandPoller.TestsChan:
-			s.executeTest(ctx, workerID, testCtx)
+		case testCtx := <-s.testPoller.TestsChan:
+			s.processPollerTest(ctx, workerID, testCtx)
 		case syntheticsTestCtx, ok := <-s.syntheticsTestProcessingChan:
 			if !ok {
 				s.log.Debugf("worker %d stopping: processing channel closed", workerID)
@@ -135,6 +139,15 @@ func (s *syntheticsTestScheduler) runWorker(ctx context.Context, workerID int) {
 			s.executeTest(ctx, workerID, syntheticsTestCtx)
 		}
 	}
+}
+
+// processPollerTest runs a test delivered by the poller and, if it is a
+// scheduled test, refreshes the in-memory fallback cache entry for it.
+func (s *syntheticsTestScheduler) processPollerTest(ctx context.Context, workerID int, testCtx SyntheticsTestCtx) {
+	if testCtx.cfg.RunType == common.RunTypeScheduled {
+		s.upsertFallbackCache(testCtx.cfg)
+	}
+	s.executeTest(ctx, workerID, testCtx)
 }
 
 // executeTest runs a single test and sends its result.

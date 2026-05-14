@@ -11,30 +11,19 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
 func TestReportIssueReturnsNilError(t *testing.T) {
 	provides := NewComponent()
-	report := &healthplatformpayload.IssueReport{IssueId: "test-issue"}
-	err := provides.Comp.ReportIssue("check-1", "mycheck", report)
-	require.NoError(t, err)
-}
-
-func TestReportIssueWithNilReportReturnsNilError(t *testing.T) {
-	provides := NewComponent()
-	err := provides.Comp.ReportIssue("check-1", "mycheck", nil)
-	require.NoError(t, err)
-}
-
-func TestScheduleHealthCheckReturnsNilError(t *testing.T) {
-	provides := NewComponent()
-	checkFn := func() (*healthplatformpayload.IssueReport, error) {
-		return nil, nil
-	}
-	err := provides.Comp.ScheduleHealthCheck("check-1", "mycheck", checkFn, 0)
+	err := provides.Comp.ReportIssue(storedef.IssueReport{
+		IssueID:   "check-1:instance-1",
+		IssueType: "test-issue",
+		Source:    "mycheck",
+	})
 	require.NoError(t, err)
 }
 

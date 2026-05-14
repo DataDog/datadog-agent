@@ -49,13 +49,7 @@ func procFsRoot() string {
 	return "/proc"
 }
 
-// resetProcFSRoot resets any memoization of ProcFSRoot, useful for unit tests
-func resetProcFSRoot() {
-	ProcFSRoot = funcs.MemoizeNoError(procFsRoot)
-}
-
-// SysFSRoot retrieves the current sysfs dir we should use
-var SysFSRoot = funcs.MemoizeNoError(func() string {
+func sysFsRoot() string {
 	if v := os.Getenv("HOST_SYS"); v != "" {
 		return v
 	}
@@ -65,7 +59,10 @@ var SysFSRoot = funcs.MemoizeNoError(func() string {
 		}
 	}
 	return "/sys"
-})
+}
+
+// SysFSRoot retrieves the current sysfs dir we should use
+var SysFSRoot = funcs.MemoizeNoError(sysFsRoot)
 
 // BootRoot retrieves the current boot dir we should use
 var BootRoot = funcs.MemoizeNoError(func() string {

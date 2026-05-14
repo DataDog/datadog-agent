@@ -60,6 +60,10 @@ module Omnibus
         cmd = Array.new.tap do |arr|
           arr << "dd-wcs"
           arr << "sign"
+          if ENV['WINDOWS_SIGNING_CERT'] && ENV['WINDOWS_SIGNING_CONFIG']
+            arr << "--cert" << ENV['WINDOWS_SIGNING_CERT']
+            arr << "--config" << ENV['WINDOWS_SIGNING_CONFIG']
+          end
           arr << "\"#{file}\""
         end.join(" ")
 

@@ -56,7 +56,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
-	github.com/fsnotify/fsnotify v1.9.0 // indirect
+	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -94,6 +94,7 @@ require (
 
 replace (
 	github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def => ../../../../comp/anomalydetection/observer/def
+	github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def => ../../../../comp/anomalydetection/recorder/def
 	github.com/DataDog/datadog-agent/comp/api/api/def => ../../../../comp/api/api/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def => ../../../../comp/core/agenttelemetry/def
 	github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx => ../../../../comp/core/agenttelemetry/fx

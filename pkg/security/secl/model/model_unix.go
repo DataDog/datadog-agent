@@ -249,7 +249,7 @@ func (cg *CGroupContext) UnixCreatedAt() time.Time {
 
 // IsNull returns true if the cgroup context is null
 func (cg *CGroupContext) IsNull() bool {
-	return cg.CGroupPathKey.IsNull()
+	return cg.CGroupPathKey.IsNull() && cg.CGroupID == ""
 }
 
 // IsResolved returns true if the cgroup context is resolved & not null

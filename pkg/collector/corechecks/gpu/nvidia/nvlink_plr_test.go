@@ -8,76 +8,65 @@
 package nvidia
 
 import (
-	"encoding/binary"
+	"errors"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/NVIDIA/go-nvml/pkg/nvml/mock"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
+	"github.com/DataDog/datadog-agent/pkg/gpu/prm"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 )
 
-func TestCreatePPCNTTLVByteArray(t *testing.T) {
-	packet := createPPCNTTLVByteArray(ppcntGroupPLR, 3)
-	require.Len(t, packet, (opTLVLenDwords+regTLVHeaderLenDwords+endTLVLenDwords)*dwordSizeBytes+ppcntSizeBytes)
-
-	require.Equal(t, makeTLVHeader(tlvTypeOp, opTLVLenDwords), binary.BigEndian.Uint32(packet[0:4]))
-	require.Equal(t, makeOpMethodAndReg(ppcntRegID), binary.BigEndian.Uint32(packet[4:8]))
-	require.Equal(t, uint32(0), binary.BigEndian.Uint32(packet[8:12]))
-	require.Equal(t, uint32(0), binary.BigEndian.Uint32(packet[12:16]))
-
-	require.Equal(t, makeTLVHeader(tlvTypeReg, uint32(ppcntSizeBytes/dwordSizeBytes+regTLVHeaderLenDwords)), binary.BigEndian.Uint32(packet[16:20]))
-	require.Equal(t, uint32((ppcntGroupPLR&0x3F)|(3<<16)), binary.BigEndian.Uint32(packet[20:24]))
-	require.Equal(t, makeTLVHeader(tlvTypeEnd, endTLVLenDwords), binary.BigEndian.Uint32(packet[len(packet)-4:]))
+type fakePRMCache struct {
+	responses map[int]map[string]uint64
+	errors    map[int]error
+	requests  []model.PRMRequest
 }
 
-func TestUnpackTLV(t *testing.T) {
-	expected := make(map[string]uint64, len(plrCounterFields))
-	payload := make([]byte, ppcntSizeBytes)
-	binary.BigEndian.PutUint32(payload[0:4], ppcntGroupPLR)
+func (f *fakePRMCache) RegisterRequest(request model.PRMRequest) {
+	f.requests = append(f.requests, request)
+}
 
-	offset := 8
-	for i, field := range plrCounterFields {
-		value := uint64(i+1)<<32 | uint64(100+i)
-		expected[field] = value
-		binary.BigEndian.PutUint32(payload[offset:offset+4], uint32(value>>32))
-		offset += 4
-		binary.BigEndian.PutUint32(payload[offset:offset+4], uint32(value))
-		offset += 4
+func (f *fakePRMCache) GetCounters(_ string, port int) (map[string]uint64, error) {
+	if err := f.errors[port]; err != nil {
+		return nil, err
 	}
-
-	packet := packTLV(ppcntRegID, ppcntSizeBytes, payload)
-	metrics, err := unpackTLV(packet)
-	require.NoError(t, err)
-	require.Equal(t, expected, metrics)
+	counters, found := f.responses[port]
+	if !found {
+		return nil, errors.New("missing response")
+	}
+	return counters, nil
 }
 
-func TestNVLinkPLRCollector(t *testing.T) {
-	mockDevice := setupMockDeviceWithLibOpts(t, func(device *mock.Device) *mock.Device {
-		testutil.WithMockAllDeviceFunctions()(device)
+func TestNVLinkPLRCollectorWithPRMCache(t *testing.T) {
+	mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
 		device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
 			require.Len(t, values, 1)
 			values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
 			values[0].Value = [8]byte{2, 0, 0, 0, 0, 0, 0, 0}
 			return nvml.SUCCESS
 		}
-		device.ReadWritePRM_v1Func = func(buffer *nvml.PRMTLV_v1) nvml.Return {
-			port := int(binary.BigEndian.Uint32(buffer.InData[20:24]) >> 16)
-			response := makePLRResponseBytes(uint64(port * 100))
-			copy(buffer.InData[:], response)
-			return nvml.SUCCESS
-		}
 		return device
 	})
 
-	collector, err := newNVLinkPLRCollector(mockDevice, nil)
+	cache := &fakePRMCache{
+		responses: map[int]map[string]uint64{
+			1: makeCounters(100),
+			2: makeCounters(200),
+		},
+		errors: map[int]error{},
+	}
+
+	collector, err := newNVLinkCollectorWithCacheForTest(mockDevice, cache)
 	require.NoError(t, err)
 	metrics, err := collector.Collect()
 	require.NoError(t, err)
-	require.Len(t, metrics, len(plrCounterFields)*2)
+	require.Len(t, metrics, len(prm.PLRCounterFields)*2)
 
 	port1Count := 0
 	port2Count := 0
@@ -91,99 +80,57 @@ func TestNVLinkPLRCollector(t *testing.T) {
 			t.Fatalf("missing nvlink_port tag on metric %+v", metric)
 		}
 	}
-	require.Equal(t, len(plrCounterFields), port1Count)
-	require.Equal(t, len(plrCounterFields), port2Count)
+	require.Equal(t, len(prm.PLRCounterFields), port1Count)
+	require.Equal(t, len(prm.PLRCounterFields), port2Count)
+	require.Len(t, cache.requests, 2)
 }
 
-func TestNVLinkPLRCollectorPartialFailure(t *testing.T) {
-	mockDevice := setupMockDeviceWithLibOpts(t, func(device *mock.Device) *mock.Device {
-		testutil.WithMockAllDeviceFunctions()(device)
+func TestNVLinkPLRCollectorCachePartialError(t *testing.T) {
+	mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
 		device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
 			require.Len(t, values, 1)
 			values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
 			values[0].Value = [8]byte{2, 0, 0, 0, 0, 0, 0, 0}
 			return nvml.SUCCESS
 		}
-		device.ReadWritePRM_v1Func = func(buffer *nvml.PRMTLV_v1) nvml.Return {
-			port := int(binary.BigEndian.Uint32(buffer.InData[20:24]) >> 16)
-			if port == 2 {
-				return nvml.ERROR_NOT_SUPPORTED
-			}
-			response := makePLRResponseBytes(100)
-			copy(buffer.InData[:], response)
-			return nvml.SUCCESS
-		}
 		return device
 	})
 
-	collector, err := newNVLinkPLRCollector(mockDevice, nil)
+	cache := &fakePRMCache{
+		responses: map[int]map[string]uint64{
+			1: makeCounters(100),
+		},
+		errors: map[int]error{
+			2: errors.New("port unavailable"),
+		},
+	}
+
+	collector, err := newNVLinkCollectorWithCacheForTest(mockDevice, cache)
 	require.NoError(t, err)
 	metrics, err := collector.Collect()
-	require.NoError(t, err)
-	require.Len(t, metrics, len(plrCounterFields))
+	require.Error(t, err)
+	require.Len(t, metrics, len(prm.PLRCounterFields))
 	for _, metric := range metrics {
 		require.Contains(t, metric.Tags, "nvlink_port:1")
 	}
 }
 
-func TestNVLinkPLRCollectorKeepsPortOnTransientError(t *testing.T) {
-	callCountByPort := map[int]int{}
-	mockDevice := setupMockDeviceWithLibOpts(t, func(device *mock.Device) *mock.Device {
-		testutil.WithMockAllDeviceFunctions()(device)
+func TestNVLinkCollectorNilCacheReturnsUnsupported(t *testing.T) {
+	mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
 		device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
-			// Return two ports
 			require.Len(t, values, 1)
 			values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
 			values[0].Value = [8]byte{2, 0, 0, 0, 0, 0, 0, 0}
 			return nvml.SUCCESS
 		}
-		device.ReadWritePRM_v1Func = func(buffer *nvml.PRMTLV_v1) nvml.Return {
-			port := int(binary.BigEndian.Uint32(buffer.InData[20:24]) >> 16)
-			callCountByPort[port]++
-			if port == 2 && callCountByPort[port] == 2 { // first call is to check support, second call fails, third one works
-				return nvml.ERROR_UNKNOWN
-			}
-			response := makePLRResponseBytes(uint64(port * 100))
-			copy(buffer.InData[:], response)
-			return nvml.SUCCESS
-		}
 		return device
 	})
 
-	collector, err := newNVLinkPLRCollector(mockDevice, nil)
-	require.NoError(t, err)
-	nvlinkCollector, ok := collector.(*nvlinkPLRCollector)
-	require.True(t, ok)
-	assert.Len(t, nvlinkCollector.ports, 2)
-	assert.Equal(t, 1, callCountByPort[1], "port 1 should be called exactly once")
-	assert.Equal(t, 1, callCountByPort[2], "port 2 should be called exactly once")
+	_, err := newNVLinkPLRCollector(mockDevice, nil)
+	require.ErrorIs(t, err, errUnsupportedDevice)
 
-	// First call will fail on the second port, it will emit only port 1 metrics
-	metrics, err := collector.Collect()
-	require.Error(t, err) // Error gets propagated from readPortCounters
-	require.Len(t, metrics, len(plrCounterFields))
-	foundTags := map[string]bool{}
-	for _, metric := range metrics {
-		for _, tag := range metric.Tags {
-			foundTags[tag] = true
-		}
-	}
-	require.Len(t, foundTags, 1)
-	require.Contains(t, foundTags, "nvlink_port:1")
-
-	// Second call will succeed on all ports, it will emit port 1 and port 2 metrics
-	metrics, err = collector.Collect()
-	require.NoError(t, err)
-	require.Len(t, metrics, len(plrCounterFields)*2)
-	foundTags = map[string]bool{}
-	for _, metric := range metrics {
-		for _, tag := range metric.Tags {
-			foundTags[tag] = true
-		}
-	}
-	require.Len(t, foundTags, 2)
-	require.Contains(t, foundTags, "nvlink_port:1")
-	require.Contains(t, foundTags, "nvlink_port:2")
+	_, err = newNVLinkPLRCollector(mockDevice, &CollectorDependencies{})
+	require.ErrorIs(t, err, errUnsupportedDevice)
 }
 
 func TestNVLinkPLRCollectorUnsupportedDevice(t *testing.T) {
@@ -218,32 +165,42 @@ func TestNVLinkPLRCollectorUnsupportedDevice(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockDevice := setupMockDeviceWithLibOpts(t, tt.customize)
-			_, err := newNVLinkPLRCollector(mockDevice, nil)
+			mockDevice := setupMockDeviceWithLibOpts(t, func(device *mock.Device) *mock.Device {
+				device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
+					return nvml.DEVICE_ARCH_BLACKWELL, nvml.SUCCESS
+				}
+				return tt.customize(device)
+			})
+			_, err := newNVLinkPLRCollector(mockDevice, &CollectorDependencies{PRMCache: &PRMCache{}})
 			require.ErrorIs(t, err, errUnsupportedDevice)
 		})
 	}
 }
 
-func makePLRResponseBytes(seed uint64) []byte {
-	payload := make([]byte, ppcntSizeBytes)
-	binary.BigEndian.PutUint32(payload[0:4], ppcntGroupPLR)
-	offset := 8
-	for i := range plrCounterFields {
-		value := seed + uint64(i)
-		binary.BigEndian.PutUint32(payload[offset:offset+4], uint32(value>>32))
-		offset += 4
-		binary.BigEndian.PutUint32(payload[offset:offset+4], uint32(value))
-		offset += 4
-	}
-	return packTLV(ppcntRegID, ppcntSizeBytes, payload)
+func TestNVLinkPLRCollectorPreBlackwellUnsupported(t *testing.T) {
+	mockDevice := setupMockDevice(t, func(device *mock.Device) *mock.Device {
+		device.GetArchitectureFunc = func() (nvml.DeviceArchitecture, nvml.Return) {
+			return nvml.DEVICE_ARCH_HOPPER, nvml.SUCCESS
+		}
+		device.GetFieldValuesFunc = func(values []nvml.FieldValue) nvml.Return {
+			require.Len(t, values, 1)
+			values[0].ValueType = uint32(nvml.VALUE_TYPE_UNSIGNED_INT)
+			values[0].Value = [8]byte{2, 0, 0, 0, 0, 0, 0, 0}
+			return nvml.SUCCESS
+		}
+		return device
+	})
+
+	_, err := newNVLinkPLRCollector(mockDevice, &CollectorDependencies{PRMCache: &PRMCache{}})
+	require.ErrorIs(t, err, errUnsupportedDevice)
+	require.ErrorContains(t, err, "Blackwell or newer")
 }
 
 func TestPLRMetricSpecEntries(t *testing.T) {
 	spec, err := gpuspec.LoadMetricsSpec()
 	require.NoError(t, err)
 
-	for _, metricName := range plrCounterFields {
+	for _, metricName := range prm.PLRCounterFields {
 		t.Run(metricName, func(t *testing.T) {
 			metricSpec, ok := spec.Metrics[metricName]
 			require.True(t, ok, "metric %s missing from spec", metricName)
@@ -253,6 +210,35 @@ func TestPLRMetricSpecEntries(t *testing.T) {
 			require.False(t, metricSpec.SupportsDeviceMode(gpuspec.DeviceModeVGPU))
 		})
 	}
+}
+
+func newNVLinkCollectorWithCacheForTest(device ddnvml.Device, cache prmMetricsSource) (Collector, error) {
+	ports, err := getSupportedNvlinkPorts(device, portIsAlwaysSupported)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, port := range ports {
+		cache.RegisterRequest(model.PRMRequest{
+			DeviceUUID: device.GetDeviceInfo().UUID,
+			Port:       port,
+			Group:      prm.PPCNTGroupPLR,
+		})
+	}
+
+	return &nvlinkPLRCollector{
+		device:   device,
+		ports:    ports,
+		prmCache: cache,
+	}, nil
+}
+
+func makeCounters(seed uint64) map[string]uint64 {
+	counters := make(map[string]uint64, len(prm.PLRCounterFields))
+	for i, field := range prm.PLRCounterFields {
+		counters[field] = seed + uint64(i)
+	}
+	return counters
 }
 
 func hasTag(tags []string, expected string) bool {

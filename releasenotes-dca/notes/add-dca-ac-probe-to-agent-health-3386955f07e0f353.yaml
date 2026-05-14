@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    The Cluster Agent admission controller now reports connectivity probe
+    failures to the Datadog Health Platform. When the admission webhook
+    becomes unreachable, an ``admission-controller-connectivity-failure``
+    health issue is raised with severity ``high`` and category
+    ``availability``, including remediation steps. The issue is
+    automatically resolved when connectivity is restored.

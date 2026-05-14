@@ -82,6 +82,9 @@ var (
 	_ Type = (*GoSubroutineType)(nil)
 
 	_ Type = (*EventRootType)(nil)
+
+	_ Type = (*GoContextImplementationType)(nil)
+	_ Type = (*DDTraceSpanType)(nil)
 )
 
 // GetID returns the ID of the type.
@@ -132,6 +135,39 @@ type TypeCommon struct {
 	ByteSize uint32
 }
 
+// GoContextAttributes describes how a concrete context.Context implementation
+// links to its parent and, for context.valueCtx, where the key and value live.
+type GoContextAttributes struct {
+	ContextOffset int32
+	KeyOffset     int32
+	ValueOffset   int32
+}
+
+const (
+	// GoContextNoOffset means the type does not contain that context field.
+	GoContextNoOffset int32 = -1
+)
+
+// DDTraceSpanKind identifies the dd-trace-go span layout carried by a type.
+type DDTraceSpanKind uint8
+
+const (
+	DDTraceSpanNone DDTraceSpanKind = iota
+	DDTraceSpanV1
+	DDTraceSpanV2
+)
+
+// DDTraceAttributes describes a dd-trace-go span layout: where to find each
+// of its trace-id / span-id / parent-id / SpanContext fields.
+type DDTraceAttributes struct {
+	SpanKind                 DDTraceSpanKind
+	TraceIDOffset            int32
+	SpanIDOffset             int32
+	ParentIDOffset           int32
+	SpanContextOffset        int32
+	SpanContextTraceIDOffset int32
+}
+
 // BaseType is a basic type in the target program.
 type BaseType struct {
 	TypeCommon
@@ -158,6 +194,29 @@ func (t *DurationType) irType() {}
 // the BPF program reports an absent expression status at runtime) need
 // to produce the same text, so it lives here next to DurationType.
 const ErrDurationNotOnReturn = "@duration is only available at function return"
+
+// TraceContextByteSize is the serialized size of trace_context_t in
+// ebpf/types.h. It is the byte size of payload data items of
+// TraceContextType.
+const TraceContextByteSize uint32 = 40
+
+// TraceContextType is a synthetic 40-byte type used as the type of standalone
+// data items emitted by the BPF context-chain walk. The first 40 bytes of the
+// payload are interpreted as the trace_context_t layout from ebpf/types.h:
+// trace_id_lower, trace_id_upper, span_id, parent_id (8 bytes each),
+// followed by a single valid byte and 7 padding bytes. Data items of this
+// type are produced by SM_OP_GO_CONTEXT_CHAIN_INIT/HOP at chase time when a
+// concrete context.Context implementation is dequeued. The decoder uses them
+// (a) to populate the message's top-level dd.trace_id / dd.span_id /
+// dd.parent_id fields (first valid one wins) and (b) to render any captured
+// context.Context interface field whose data pointer matches the data item's
+// address.
+type TraceContextType struct {
+	TypeCommon
+	syntheticType
+}
+
+func (t *TraceContextType) irType() {}
 
 // VoidPointerType is a type that represents a pointer to a value of an unknown type.
 // unsafe.Pointer is such a type.
@@ -235,6 +294,32 @@ type Field struct {
 	// Type is the type of the field.
 	Type Type
 }
+
+// GoContextImplementationType wraps a StructureType that is a known concrete
+// implementation of context.Context (cancelCtx, valueCtx, timerCtx, …). It
+// carries the offsets the BPF chain walk needs to traverse a context chain
+// from this struct: the embedded parent Context interface, and (for
+// context.valueCtx) the key and value any-fields. The wrapper exists to
+// avoid bloating GoTypeAttributes for every IR type with metadata that's
+// only meaningful on a tiny number of struct types.
+type GoContextImplementationType struct {
+	*StructureType
+	GoContextAttributes
+}
+
+func (t *GoContextImplementationType) irType() {}
+
+// DDTraceSpanType wraps a StructureType that carries a dd-trace-go span
+// payload. The wrapper records the span's layout (where the trace ID,
+// span ID, parent ID and SpanContext fields sit), so the BPF chain walk
+// can extract them when it finds this struct as the value of a context's
+// active-span key.
+type DDTraceSpanType struct {
+	*StructureType
+	DDTraceAttributes
+}
+
+func (t *DDTraceSpanType) irType() {}
 
 // ArrayType is an array type in the target program.
 type ArrayType struct {

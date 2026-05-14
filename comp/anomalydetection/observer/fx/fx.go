@@ -12,6 +12,8 @@
 package fx
 
 import (
+	"go.uber.org/fx"
+
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -24,5 +26,6 @@ func Module() fxutil.Module {
 			observerimpl.NewComponent,
 		),
 		fxutil.ProvideOptional[observerdef.Component](),
+		fx.Invoke(func(_ observerdef.Component) {}),
 	)
 }

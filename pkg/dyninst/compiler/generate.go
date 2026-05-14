@@ -44,6 +44,7 @@ type Program struct {
 	Functions        []Function
 	Types            []ir.Type
 	Throttlers       []Throttler
+	NumProbes        uint32
 	GoModuledataInfo ir.GoModuledataInfo
 	GoMapHashInfo    ir.GoMapHashInfo
 	CommonTypes      ir.CommonTypes
@@ -216,6 +217,7 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 		Functions:        g.functions,
 		Types:            types,
 		Throttlers:       throttlers,
+		NumProbes:        uint32(len(program.Probes)),
 		GoModuledataInfo: program.GoModuledataInfo,
 		GoMapHashInfo:    program.GoMapHashInfo,
 		CommonTypes:      program.CommonTypes,
@@ -713,12 +715,41 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		// Nothing to process; the ExprLoadDurationOp writes the value
 		// directly at the expression's result offset.
 
+	case *ir.TraceContextType:
+		// Synthetic type. The enqueue subroutine is the chain-walk
+		// program emitted at the StructureType case below for any
+		// concrete context.Context implementation; this branch only
+		// exists for the IR-visitor to be exhaustive.
+
 	case *ir.GoHMapBucketType:
 		if err := structureTypeHandler(t.StructureType); err != nil {
 			return fid, needed, err
 		}
 	case *ir.StructureType:
 		if err := structureTypeHandler(t); err != nil {
+			return fid, needed, err
+		}
+	case *ir.GoContextImplementationType:
+		// Concrete context.Context implementations (cancelCtx, valueCtx,
+		// timerCtx, …) override the normal struct-descent program with a
+		// chain-walk subroutine. INIT rewrites the just-serialized data
+		// item header to TraceContextType and zeros the first 40 bytes
+		// of payload; HOP performs one chain step per dispatch and
+		// self-jumps until done. See pkg/dyninst/irgen/trace_context.md.
+		needed = true
+		offsetShift = 0
+		ops = []Op{
+			GoContextChainInitOp{ImplTypeID: t.GetID()},
+			GoContextChainHopOp{},
+			ReturnOp{},
+		}
+	case *ir.DDTraceSpanType:
+		// The wrapper carries trace-correlation metadata for the BPF
+		// chain walk; byte-level capture goes through the embedded
+		// *StructureType via the standard struct-descent program (we
+		// never directly chase this as anything other than a normal
+		// pointee struct).
+		if err := structureTypeHandler(t.StructureType); err != nil {
 			return fid, needed, err
 		}
 
@@ -773,6 +804,27 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		// Nothing to process.
 
 	case *ir.PointerType:
+		// Pointers to context.Context implementations (e.g. *cancelCtx,
+		// *valueCtx) are handled specially: enqueue_pc runs the chain-walk
+		// directly here, bypassing the normal ProcessPointerOp chain that
+		// would (a) cost a ttl decrement and (b) only land on the
+		// underlying struct's chase one step later. The chain walk needs
+		// the impl pointer (which is the value stored at the chase-
+		// preamble buffer slot for this pointer-typed item), not the
+		// address of the pointer itself, so SM_OP_GO_CONTEXT_CHAIN_INIT's
+		// behavior on a pointer-typed item is to read sm->di_0's payload
+		// (8 bytes containing the user-memory pointer) and use it as the
+		// chain start. See pkg/dyninst/irgen/trace_context.md.
+		if impl, isImpl := t.Pointee.(*ir.GoContextImplementationType); isImpl {
+			needed = true
+			offsetShift = 0
+			ops = []Op{
+				GoContextChainInitOp{ImplTypeID: impl.GetID()},
+				GoContextChainHopOp{},
+				ReturnOp{},
+			}
+			break
+		}
 		g.typeQueue = append(g.typeQueue, t.Pointee)
 		needed = true
 		offsetShift = 0

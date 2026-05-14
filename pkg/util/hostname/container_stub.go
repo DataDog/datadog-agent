@@ -9,9 +9,9 @@ package hostname
 
 import (
 	"context"
-	"fmt"
+	"errors"
 )
 
-func fromContainer(ctx context.Context, _ string) (string, error) {
-	return "", fmt.Errorf("container support is not compiled in")
+func fromContainer(_ context.Context, _ string) (string, error) {
+	return "", errors.New("container support is not compiled in")
 }

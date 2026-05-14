@@ -54,6 +54,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 		remoteAgentServer: remoteAgentServer,
 	}
 
+	remoteAgentServer.Start()
+
 	provides := Provides{
 		Comp: remoteagentImpl,
 	}

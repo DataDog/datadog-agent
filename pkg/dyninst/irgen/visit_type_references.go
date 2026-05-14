@@ -54,11 +54,22 @@ func visitTypeReferences(tc *typeCatalog, f func(t *ir.Type)) {
 				f(&t.RawFields[i].Type)
 			}
 
+		case *ir.GoContextImplementationType:
+			for i := range t.StructureType.RawFields {
+				f(&t.StructureType.RawFields[i].Type)
+			}
+
+		case *ir.DDTraceSpanType:
+			for i := range t.StructureType.RawFields {
+				f(&t.StructureType.RawFields[i].Type)
+			}
+
 		case *ir.GoSliceDataType:
 			f(&t.Element)
 
 		case *ir.BaseType:
 		case *ir.DurationType:
+		case *ir.TraceContextType:
 		case *ir.GoChannelType:
 		case *ir.GoEmptyInterfaceType:
 		case *ir.GoHMapHeaderType:

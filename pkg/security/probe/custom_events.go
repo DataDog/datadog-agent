@@ -96,6 +96,7 @@ type EBPFLessHelloMsgEvent struct {
 		ImageShortName string `json:"short_name,omitempty"`
 		ImageTag       string `json:"image_tag,omitempty"`
 	} `json:"workload_container,omitempty"`
+	CGroupID       string   `json:"cgroup_id,omitempty"`
 	EntrypointArgs []string `json:"args,omitempty"`
 }
 
@@ -112,7 +113,8 @@ func NewEBPFLessHelloMsgEvent(acc *events.AgentContainerContext, msg *ebpfless.H
 	}
 
 	evt := EBPFLessHelloMsgEvent{
-		NSID: msg.NSID,
+		NSID:     msg.NSID,
+		CGroupID: string(msg.CGroupID),
 	}
 	evt.Container.ID = string(msg.ContainerContext.ID)
 

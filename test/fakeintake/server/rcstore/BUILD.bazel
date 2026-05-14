@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "rcstore",
+    srcs = [
+        "keystore.go",
+        "tuf.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/fakeintake/server/rcstore",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "rcstore_test",
+    srcs = ["tuf_test.go"],
+    embed = [":rcstore"],
+    gotags = ["test"],
+)

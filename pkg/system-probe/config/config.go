@@ -128,8 +128,9 @@ func load() (*types.Config, error) {
 	gpuEnabled := cfg.GetBool(gpuNS("enabled"))
 	diEnabled := cfg.GetBool(diNS("enabled"))
 	swEnabled := coreCfg.GetBool(swNS("enabled"))
+	discoveryServiceMapEnabled := cfg.GetBool(discoveryNS("service_map", "enabled"))
 
-	if npmEnabled || usmEnabled || ccmEnabled || eudmEnabled || (csmEnabled && cfg.GetBool(secNS("network_monitoring.enabled"))) {
+	if npmEnabled || usmEnabled || ccmEnabled || eudmEnabled || discoveryServiceMapEnabled || (csmEnabled && cfg.GetBool(secNS("network_monitoring.enabled"))) {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
 	}
 	if cfg.GetBool(spNS("enable_tcp_queue_length")) {

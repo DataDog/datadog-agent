@@ -10,7 +10,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"time"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 
@@ -42,11 +41,7 @@ func NewComponent() Provides {
 	}
 }
 
-func (n *noopHealthPlatform) ReportIssue(_ string, _ string, _ *healthplatformpayload.IssueReport) error {
-	return nil
-}
-
-func (n *noopHealthPlatform) ScheduleHealthCheck(_ string, _ string, _ healthplatformdef.HealthCheckFunc, _ time.Duration) error {
+func (n *noopHealthPlatform) ReportIssue(_ healthplatformdef.IssueReport) error {
 	return nil
 }
 

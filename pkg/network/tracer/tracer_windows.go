@@ -283,6 +283,9 @@ func (t *Tracer) getConnTelemetry() map[network.ConnTelemetryType]int64 {
 func (t *Tracer) getStats() (map[string]interface{}, error) {
 	stats := map[string]interface{}{
 		"state": t.state.GetStats(),
+		"universal_service_monitoring": map[string]interface{}{
+			"discovery_service_map_enabled": t.config.DiscoveryServiceMapEnabled,
+		},
 	}
 	return stats, nil
 }
@@ -333,6 +336,11 @@ func (t *Tracer) DebugHostConntrackFull(_ context.Context) (*DebugConntrackTable
 // DebugDumpProcessCache is not implemented on this OS for Tracer
 func (t *Tracer) DebugDumpProcessCache(_ context.Context) (interface{}, error) {
 	return nil, ebpf.ErrNotImplemented
+}
+
+// GetProcessCacheTags returns a map of PID -> []string tags from the process cache.
+func (t *Tracer) GetProcessCacheTags() map[uint32][]string {
+	return t.processCache.GetAllPIDTags()
 }
 
 func newUSMMonitor(c *config.Config, dh driver.Handle) usm.Monitor {

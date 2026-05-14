@@ -27,6 +27,12 @@ type USMConfig struct {
 	// ServiceMonitoringEnabled is whether the service monitoring feature is enabled or not
 	ServiceMonitoringEnabled bool
 
+	// DiscoveryServiceMapEnabled indicates discovery service map mode is active.
+	// When true, the USM monitor runs in restricted mode (HTTP/IIS only, not billed).
+	// Mutually exclusive with ServiceMonitoringEnabled — if both are configured,
+	// discovery mode is silently disabled during config adjustment.
+	DiscoveryServiceMapEnabled bool
+
 	// MaxUSMConcurrentRequests represents the maximum number of requests (for a single protocol)
 	// that can happen concurrently at a given point in time. This parameter is used for sizing our eBPF maps.
 	MaxUSMConcurrentRequests uint32
@@ -186,6 +192,7 @@ func NewUSMConfig(cfg model.Config) *USMConfig {
 	usmConfig := &USMConfig{
 		// Global USM Configuration
 		ServiceMonitoringEnabled:              cfg.GetBool(sysconfig.FullKeyPath(smNS, "enabled")),
+		DiscoveryServiceMapEnabled:            cfg.GetBool(sysconfig.FullKeyPath(dscNS, "service_map", "enabled")),
 		MaxUSMConcurrentRequests:              uint32(cfg.GetInt(sysconfig.FullKeyPath(smNS, "max_concurrent_requests"))),
 		EnableUSMQuantization:                 cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_quantization")),
 		EnableUSMConnectionRollup:             cfg.GetBool(sysconfig.FullKeyPath(smNS, "enable_connection_rollup")),

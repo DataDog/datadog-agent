@@ -27,9 +27,23 @@ func deepCopyState(original *state) *state {
 		return nil
 	}
 
-	// Create new state with basic fields copied.
-	copied := newState(Config{DiscoveredTypesLimit: original.discoveredTypesLimit})
-
+	// Construct the state struct directly. We avoid calling newState
+	// because it invokes nowFunc(), which would advance the snapshot
+	// test's fake clock on every event and make heartbeat intervals
+	// nondeterministic.
+	copied := &state{
+		processes:            make(map[ProcessID]*process, len(original.processes)),
+		processesByService:   make(map[string]map[ProcessID]struct{}, len(original.processesByService)),
+		programs:             make(map[ir.ProgramID]*program, len(original.programs)),
+		discoveredTypes:      make(map[string][]string, len(original.discoveredTypes)),
+		discoveredTypesLimit: original.discoveredTypesLimit,
+		breakerCfg:           original.breakerCfg,
+		bufferEvictionCfg:    original.bufferEvictionCfg,
+		lastHeartbeat:        original.lastHeartbeat,
+		queuedLoading: makeQueue(func(p *program) ir.ProgramID {
+			return p.id
+		}),
+	}
 	copied.counters = original.counters
 	copied.programIDAlloc = original.programIDAlloc
 
@@ -121,13 +135,14 @@ func deepCopyProcess(original *process) *process {
 	}
 
 	copied := &process{
-		state:           original.state,
-		processID:       original.processID,
-		executable:      original.executable,
-		service:         original.service,
-		probes:          copiedProbes,
-		currentProgram:  original.currentProgram,
-		attachedProgram: original.attachedProgram,
+		state:               original.state,
+		processID:           original.processID,
+		executable:          original.executable,
+		service:             original.service,
+		probes:              copiedProbes,
+		circuitBrokenProbes: maps.Clone(original.circuitBrokenProbes),
+		currentProgram:      original.currentProgram,
+		attachedProgram:     original.attachedProgram,
 	}
 
 	return copied

@@ -32,6 +32,12 @@ const (
 	DatadogAPMLibraryPHPPackage string = "datadog-apm-library-php"
 	// DatadogAPMLibraryNginxPackage is the datadog apm library nginx package
 	DatadogAPMLibraryNginxPackage string = "datadog-apm-library-nginx"
+	// DatadogAPMLibraryIISPackage is the datadog apm library iis package
+	DatadogAPMLibraryIISPackage string = "datadog-apm-library-iis"
+	// DatadogAPMLibraryIISRumPackage is the datadog apm library iis rum package
+	DatadogAPMLibraryIISRumPackage string = "datadog-apm-library-iis-rum"
+	// DatadogAPMLibraryHttpdPackage is the datadog apm library httpd package
+	DatadogAPMLibraryHttpdPackage string = "datadog-apm-library-httpd"
 )
 
 var (
@@ -46,9 +52,14 @@ var (
 		DatadogAPMLibraryDotNetPackage,
 		DatadogAPMLibraryPHPPackage,
 		DatadogAPMLibraryNginxPackage,
+		DatadogAPMLibraryIISPackage,
+		DatadogAPMLibraryIISRumPackage,
+		DatadogAPMLibraryHttpdPackage,
 	}
 
-	// ApmLibraries is a list of all the apm libraries
+	// ApmLibraries is the list of apm libraries selectable via the setup
+	// default script (DD_APM_INSTRUMENTATION_LIBRARIES), including by the
+	// "all" / install-all-when-empty fallback.
 	ApmLibraries = []string{
 		DatadogAPMLibraryJavaPackage,
 		DatadogAPMLibraryPythonPackage,
@@ -57,6 +68,17 @@ var (
 		DatadogAPMLibraryDotNetPackage,
 		DatadogAPMLibraryPHPPackage,
 		DatadogAPMLibraryNginxPackage,
+	}
+
+	// ExplicitOnlyApmLibraries are apm libraries that must be named in
+	// DD_APM_INSTRUMENTATION_LIBRARIES to be installed via the setup default
+	// script. They are excluded from "all" and the empty-libraries fallback
+	// because the underlying packages are pre-registered and gated on remote
+	// updates.
+	ExplicitOnlyApmLibraries = []string{
+		DatadogAPMLibraryIISPackage,
+		DatadogAPMLibraryIISRumPackage,
+		DatadogAPMLibraryHttpdPackage,
 	}
 )
 

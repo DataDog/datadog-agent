@@ -11,16 +11,21 @@ import (
 	"time"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
 // team: agent-health
 
 // HealthCheckFunc is a function that performs a health check.
+// It returns the proto IssueReport from the agent-payload registry; the
+// scheduler converts it to a storedef.IssueReport before forwarding to the
+// IssueReporter. Returning (nil, nil) means no issue was detected.
 type HealthCheckFunc func() (*healthplatformpayload.IssueReport, error)
 
 // IssueReporter receives health-check results from the scheduler.
 type IssueReporter interface {
-	ReportIssue(checkID string, checkName string, report *healthplatformpayload.IssueReport) error
+	ReportIssue(report storedef.IssueReport) error
+	ResolveIssue(issueID string)
 }
 
 // Component is the health-platform scheduler component.

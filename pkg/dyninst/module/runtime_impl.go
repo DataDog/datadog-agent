@@ -289,6 +289,17 @@ func (l *loadedProgramImpl) RuntimeStats() []loader.RuntimeStats {
 	return l.loadedProgram.RuntimeStats()
 }
 
+func (l *loadedProgramImpl) NumProbes() int {
+	return len(l.ir.Probes)
+}
+
+func (l *loadedProgramImpl) ProbeDefinition(probeID uint32) ir.ProbeDefinition {
+	if int(probeID) >= len(l.ir.Probes) {
+		return nil
+	}
+	return l.ir.Probes[probeID].ProbeDefinition
+}
+
 func (l *loadedProgramImpl) DropNotifyLostAt() uint64 {
 	return l.loadedProgram.DropNotifyLostAt()
 }
@@ -299,8 +310,11 @@ func (l *loadedProgramImpl) EvictBufferOlderThan(cutoffKtimeNs uint64) {
 
 func (l *loadedProgramImpl) Close() error {
 	l.loadedProgram.Close()
-	l.runtime.dispatcher.UnregisterSink(l.programID)
+	// Detach before unregistering: UnregisterSink drains the sink, which
+	// emits buffered events and would otherwise re-report diagnostics for a
+	// runtimeID whose tracker entries were just cleared.
 	l.runtime.onProgramDetached(l.programID)
+	l.runtime.dispatcher.UnregisterSink(l.programID)
 	return nil
 }
 
@@ -313,7 +327,7 @@ type attachedProgramImpl struct {
 	runtimeID procRuntimeID
 	programID ir.ProgramID
 	probes    []ir.ProbeDefinition
-	inner     actuator.AttachedProgram
+	inner     InnerAttachedProgram
 }
 
 var detachLogLimiter = rate.NewLimiter(rate.Every(time.Minute), 10)
@@ -330,6 +344,12 @@ func (a *attachedProgramImpl) Detach(failure error) error {
 	}
 	a.runtime.onProgramDetached(a.programID)
 	return err
+}
+
+func (a *attachedProgramImpl) ReportProbeError(
+	probe ir.ProbeDefinition, reason error,
+) {
+	a.runtime.diagnostics.reportError(a.runtimeID, probe, reason, "ExecutionFailed")
 }
 
 func (rt *runtimeImpl) onProgramAttached(
@@ -383,7 +403,7 @@ func (defaultAttacher) Attach(
 	program *loader.Program,
 	executable actuator.Executable,
 	processID actuator.ProcessID,
-) (actuator.AttachedProgram, error) {
+) (InnerAttachedProgram, error) {
 	return uprobe.Attach(program, executable, processID)
 }
 

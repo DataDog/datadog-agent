@@ -376,6 +376,7 @@ type SyscallMsg struct {
 	Timestamp    uint64
 	Retval       int64
 	ContainerID  containerutils.ContainerID
+	CGroupID     containerutils.CGroupID
 	Exec         *ExecSyscallMsg         `json:",omitempty"`
 	Open         *OpenSyscallMsg         `json:",omitempty"`
 	Fork         *ForkSyscallMsg         `json:",omitempty"`
@@ -422,6 +423,7 @@ func (s SyscallMsg) String() string {
 type HelloMsg struct {
 	NSID             uint64
 	ContainerContext *ContainerContext
+	CGroupID         containerutils.CGroupID
 	EntrypointArgs   []string
 	Mode             Mode
 }

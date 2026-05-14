@@ -35,7 +35,7 @@ type Webhook struct {
 	name                    string
 	isEnabled               bool
 	endpoint                string
-	resources               map[string][]string
+	resources               []common.WebhookResourceRule
 	operations              []admissionregistrationv1.OperationType
 	matchConditions         []admissionregistrationv1.MatchCondition
 	demultiplexer           aggregator.Demultiplexer
@@ -50,11 +50,7 @@ func NewWebhook(datadogConfig config.Component, demultiplexer aggregator.Demulti
 		isEnabled: datadogConfig.GetBool("admission_controller.kubernetes_admission_events.enabled"),
 		endpoint:  "/kubernetes-admission-events",
 		// If we add more resources, we must rework the `kube_deployment` tag in the emitEvent() function.
-		resources: map[string][]string{
-			"apps": {
-				"deployments",
-			},
-		},
+		resources: []common.WebhookResourceRule{{APIGroup: "apps", APIVersion: "v1", Resources: []string{"deployments"}}},
 		operations: []admissionregistrationv1.OperationType{
 			admissionregistrationv1.OperationAll,
 		},
@@ -94,7 +90,7 @@ func (w *Webhook) Endpoint() string {
 
 // Resources returns the kubernetes resources for which the webhook should
 // be invoked
-func (w *Webhook) Resources() map[string][]string {
+func (w *Webhook) Resources() []common.WebhookResourceRule {
 	return w.resources
 }
 
