@@ -191,34 +191,48 @@ func TestDisabledCollectors(t *testing.T) {
 		{
 			name:                   "no collectors disabled",
 			disabledCollectors:     []string{},
-			expectedCollectorCount: 6, // stateless, sampling, fields, gpm, device_events, nvlink
-			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlinkPLR},
+			expectedCollectorCount: 7, // stateless, sampling, fields, gpm, device_events, nvlink_plr, nvlink_fec
+			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlinkPLR, nvlinkFEC},
 		},
 		{
 			name:                   "disable gpm collector",
 			disabledCollectors:     []string{"gpm"},
-			expectedCollectorCount: 5,
-			expectedCollectorNames: []CollectorName{stateless, sampling, field, deviceEvents, nvlinkPLR},
+			expectedCollectorCount: 6,
+			expectedCollectorNames: []CollectorName{stateless, sampling, field, deviceEvents, nvlinkPLR, nvlinkFEC},
 			unexpectedNames:        []CollectorName{gpm},
 		},
 		{
 			name:                   "disable multiple collectors",
 			disabledCollectors:     []string{"gpm", "fields"},
-			expectedCollectorCount: 4,
-			expectedCollectorNames: []CollectorName{stateless, sampling, deviceEvents, nvlinkPLR},
+			expectedCollectorCount: 5,
+			expectedCollectorNames: []CollectorName{stateless, sampling, deviceEvents, nvlinkPLR, nvlinkFEC},
 			unexpectedNames:        []CollectorName{gpm, field},
 		},
 		{
+			name:                   "disable nvlink PLR collector",
+			disabledCollectors:     []string{"nvlink_plr"},
+			expectedCollectorCount: 6,
+			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlinkFEC},
+			unexpectedNames:        []CollectorName{nvlinkPLR},
+		},
+		{
+			name:                   "disable nvlink FEC collector",
+			disabledCollectors:     []string{"nvlink_fec"},
+			expectedCollectorCount: 6,
+			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlinkPLR},
+			unexpectedNames:        []CollectorName{nvlinkFEC},
+		},
+		{
 			name:                   "disable all collectors",
-			disabledCollectors:     []string{"stateless", "sampling", "fields", "gpm", "device_events", "nvlink_plr"},
+			disabledCollectors:     []string{"stateless", "sampling", "fields", "gpm", "device_events", "nvlink_plr", "nvlink_fec"},
 			expectedCollectorCount: 0,
 			expectedCollectorNames: []CollectorName{},
 		},
 		{
 			name:                   "disable non-existent collector",
 			disabledCollectors:     []string{"non_existent"},
-			expectedCollectorCount: 6,
-			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlinkPLR},
+			expectedCollectorCount: 7,
+			expectedCollectorNames: []CollectorName{stateless, sampling, field, gpm, deviceEvents, nvlinkPLR, nvlinkFEC},
 		},
 	}
 
