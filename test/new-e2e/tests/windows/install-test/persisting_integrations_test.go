@@ -6,7 +6,6 @@
 package installtest
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -536,7 +535,7 @@ func (s *baseAgentMSISuite) installThirdPartyIntegration(vm *components.RemoteHo
 	s.Require().NoError(err, "should get install path from registry")
 
 	cmd := fmt.Sprintf(`& "%s\bin\agent.exe" integration install -t %s`, installPath, integration)
-	_, err = backoff.Retry(context.Background(), func() (any, error) {
+	_, err = backoff.Retry(s.T().Context(), func() (any, error) {
 		_, execErr := vm.Execute(cmd)
 		return nil, execErr
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(30))
@@ -558,7 +557,7 @@ func (s *baseAgentMSISuite) installPipPackage(vm *components.RemoteHost, package
 	s.Require().NoError(err, "should get install path from registry")
 
 	cmd := fmt.Sprintf(`& "%s\embedded3\python.exe" -m pip install %s`, installPath, packageToInstall)
-	_, err = backoff.Retry(context.Background(), func() (any, error) {
+	_, err = backoff.Retry(s.T().Context(), func() (any, error) {
 		_, execErr := vm.Execute(cmd)
 		return nil, execErr
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(30))

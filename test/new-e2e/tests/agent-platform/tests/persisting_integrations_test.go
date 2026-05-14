@@ -5,7 +5,6 @@
 package agentplatform
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"testing"
@@ -158,7 +157,7 @@ func (is *persistingIntegrationsSuite) SetupTestClient() *common.TestClient {
 // once a day at 5AM CET and can also run during working hours. Retry to
 // absorb that window. 30 tries × 30s = 15 min max wait.
 func (is *persistingIntegrationsSuite) retryRemoteCommand(VMclient *common.TestClient, cmd string) {
-	_, err := backoff.Retry(context.Background(), func() (any, error) {
+	_, err := backoff.Retry(is.T().Context(), func() (any, error) {
 		_, execErr := VMclient.Host.Execute(cmd)
 		return nil, execErr
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(30*time.Second)), backoff.WithMaxTries(30))
