@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.testReturnsNamedDeferLine",
+      "method": "main.testTimeUTC",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -16,19 +16,19 @@
         "language": "go",
         "stack": [
           {
-            "function": "main.testReturnsNamedDeferLine",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 121
+            "function": "main.testTimeUTC",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/times.go",
+            "lineNumber": 27
           },
           {
-            "function": "main.executeReturns",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/returns.go",
-            "lineNumber": 414
+            "function": "main.executeTimeFuncs",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/times.go",
+            "lineNumber": 42
           },
           {
             "function": "main.runAll",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 83
+            "lineNumber": 76
           },
           {
             "function": "main.main",
@@ -47,29 +47,17 @@
           }
         ],
         "probe": {
-          "id": "testReturnsNamedDeferLine",
+          "id": "testTimeUTC",
           "location": {
-            "method": "main.testReturnsNamedDeferLine",
-            "file": "returns.go",
-            "line": 121
+            "method": "main.testTimeUTC"
           }
         },
         "captures": {
-          "lines": {
-            "121": {
-              "locals": {
-                "i": {
-                  "type": "int",
-                  "value": "43"
-                },
-                "a": {
-                  "type": "string",
-                  "value": "a43"
-                },
-                "b": {
-                  "type": "string",
-                  "value": "b43"
-                }
+          "entry": {
+            "arguments": {
+              "x": {
+                "type": "time.Time",
+                "value": "2023-11-14T22:13:20.123456789Z"
               }
             }
           }
@@ -78,7 +66,7 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "43",
+    "message": "2023-11-14T22:13:20.123456789Z",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]
