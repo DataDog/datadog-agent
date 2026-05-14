@@ -30,10 +30,10 @@ const (
 type metricFilterListSuite struct {
 	e2e.BaseSuite[environments.Host]
 
-	adp bool
+	adpEnabled bool
 }
 
-func testMetricFilterList(t *testing.T, adp bool) {
+func testMetricFilterList(t *testing.T, adpEnabled bool) {
 	t.Parallel()
 
 	agentOptions := []agentparams.Option{
@@ -42,17 +42,25 @@ metric_filterlist:
   - "%s"
 `, blockedMetric)),
 	}
-	if adp {
+	if adpEnabled {
 		agentOptions = append(agentOptions, common.WithADPEnabled())
 	}
 
-	e2e.Run(t, &metricFilterListSuite{adp: adp}, e2e.WithProvisioner(
-		awshost.Provisioner(
-			awshost.WithRunOptions(
-				scenec2.WithAgentOptions(agentOptions...),
+	stackName := "metricfilterlist"
+	if adpEnabled {
+		stackName += "-adp"
+	}
+
+	e2e.Run(t, &metricFilterListSuite{adpEnabled: adpEnabled},
+		e2e.WithProvisioner(
+			awshost.Provisioner(
+				awshost.WithRunOptions(
+					scenec2.WithAgentOptions(agentOptions...),
+				),
 			),
 		),
-	))
+		e2e.WithStackName(stackName),
+	)
 }
 
 // TestMetricFilterList runs the metric_filterlist e2e test on Linux.
@@ -75,7 +83,7 @@ func (s *metricFilterListSuite) sendStatsdGauge(name string, value int) {
 //   - a metric listed in metric_filterlist is NOT forwarded to the intake
 //   - a metric NOT in metric_filterlist IS forwarded normally
 func (s *metricFilterListSuite) TestMetricFilterListBlocksMetric() {
-	if s.adp {
+	if s.adpEnabled {
 		common.AssertADPRunning(s.T(), s.Env().RemoteHost)
 	}
 

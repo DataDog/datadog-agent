@@ -598,13 +598,15 @@ new-e2e-amp-adp:
       optional: true
     - job: qa_agent_linux_jmx
       optional: true
+    - job: qa_agent_fips_linux_jmx
+      optional: true
     - job: qa_dca
       optional: true
   rules:
     - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-metric-pipelines
-    TEAM: agent-metric-pipelines
+    TEAM: agent-data-plane
     EXTRA_PARAMS: --run "ADP"
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]

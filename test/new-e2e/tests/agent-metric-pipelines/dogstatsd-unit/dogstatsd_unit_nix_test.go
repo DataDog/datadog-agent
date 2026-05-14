@@ -43,10 +43,10 @@ const (
 type dogstatsdUnitSuite struct {
 	e2e.BaseSuite[environments.Host]
 
-	adp bool
+	adpEnabled bool
 }
 
-func testDogstatsdMetricUnit(t *testing.T, adp bool) {
+func testDogstatsdMetricUnit(t *testing.T, adpEnabled bool) {
 	t.Parallel()
 
 	agentOptions := []agentparams.Option{
@@ -59,17 +59,25 @@ histogram_percentiles:
   - "0.95"
 `),
 	}
-	if adp {
+	if adpEnabled {
 		agentOptions = append(agentOptions, common.WithADPEnabled())
 	}
 
-	e2e.Run(t, &dogstatsdUnitSuite{adp: adp}, e2e.WithProvisioner(
-		awshost.Provisioner(
-			awshost.WithRunOptions(
-				scenec2.WithAgentOptions(agentOptions...),
+	stackName := "dogstatsdmetricunit"
+	if adpEnabled {
+		stackName += "-adp"
+	}
+
+	e2e.Run(t, &dogstatsdUnitSuite{adpEnabled: adpEnabled},
+		e2e.WithProvisioner(
+			awshost.Provisioner(
+				awshost.WithRunOptions(
+					scenec2.WithAgentOptions(agentOptions...),
+				),
 			),
 		),
-	))
+		e2e.WithStackName(stackName),
+	)
 }
 
 // TestDogstatsdMetricUnit runs the DogStatsD unit e2e test on Linux.
@@ -91,7 +99,7 @@ func (s *dogstatsdUnitSuite) sendMetric(name string, value float32, metricType s
 // TestDogstatsdUnitOnlyOnTimingMetrics sends a counter, a histogram, and a timing
 // metric in parallel and verifies that only the timing metric carries a unit.
 func (s *dogstatsdUnitSuite) TestDogstatsdUnitOnlyOnTimingMetrics() {
-	if s.adp {
+	if s.adpEnabled {
 		common.AssertADPRunning(s.T(), s.Env().RemoteHost)
 	}
 

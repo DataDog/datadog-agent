@@ -46,11 +46,11 @@ const testCertsARN = "arn:aws:secretsmanager:us-east-1:376334461865:secret:agent
 type jmxfetchNixTest struct {
 	e2e.BaseSuite[environments.DockerHost]
 
-	fips bool
-	adp  bool
+	fips       bool
+	adpEnabled bool
 }
 
-func testJMXFetchNix(t *testing.T, mtls bool, fips bool, adp bool) {
+func testJMXFetchNix(t *testing.T, mtls bool, fips bool, adpEnabled bool) {
 	adLabelsManifest, err := makeADLabelsManifest(mtls, fips)
 	require.NoError(t, err)
 
@@ -72,15 +72,15 @@ func testJMXFetchNix(t *testing.T, mtls bool, fips bool, adp bool) {
 		dockeragentparams.WithJMX(),
 		choice(fips, dockeragentparams.WithFIPS(), none),
 		// Fakeintake is HTTP, but FIPS ADP rejects this flag because it means disabling TLS cert validation.
-		choice(fips && adp, dockeragentparams.WithAgentServiceEnvVariable("DD_SKIP_SSL_VALIDATION", pulumi.String("false")), none),
+		choice(fips && adpEnabled, dockeragentparams.WithAgentServiceEnvVariable("DD_SKIP_SSL_VALIDATION", pulumi.String("false")), none),
 		dockeragentparams.WithExtraComposeInlineManifest(extraManifests...),
 	}
-	if adp {
+	if adpEnabled {
 		agentOptions = append(agentOptions, common.WithADPEnabledDocker())
 	}
 
 	stackName := fmt.Sprintf("jmxfetchnixtest-fips_%v-mtls_%v", fips, mtls)
-	if adp {
+	if adpEnabled {
 		stackName += "-adp"
 	}
 
@@ -95,7 +95,7 @@ func testJMXFetchNix(t *testing.T, mtls bool, fips bool, adp bool) {
 	}
 
 	e2e.Run(t,
-		&jmxfetchNixTest{fips: fips, adp: adp},
+		&jmxfetchNixTest{fips: fips, adpEnabled: adpEnabled},
 		suiteParams...,
 	)
 }
@@ -133,7 +133,7 @@ func TestJMXFetchNixMtlsFIPSADP(t *testing.T) {
 }
 
 func (j *jmxfetchNixTest) Test_FakeIntakeReceivesJMXFetchMetrics() {
-	if j.adp {
+	if j.adpEnabled {
 		common.AssertADPRunningDocker(j.T(), j.Env().RemoteHost, j.Env().Agent.ContainerName)
 	}
 
@@ -174,7 +174,7 @@ func (j *jmxfetchNixTest) Test_FakeIntakeReceivesJMXFetchMetrics() {
 }
 
 func (j *jmxfetchNixTest) TestJMXListCollectedWithRateMetrics() {
-	if j.adp {
+	if j.adpEnabled {
 		common.AssertADPRunningDocker(j.T(), j.Env().RemoteHost, j.Env().Agent.ContainerName)
 	}
 
@@ -223,7 +223,7 @@ func (j *jmxfetchNixTest) TestJMXFIPSMode() {
 	require.NoError(j.T(), err)
 	if j.fips {
 		assert.Contains(j.T(), env, "JAVA_TOOL_OPTIONS=--module-path")
-		if j.adp {
+		if j.adpEnabled {
 			assert.Contains(j.T(), env, "DD_SKIP_SSL_VALIDATION=false")
 		}
 	} else {
