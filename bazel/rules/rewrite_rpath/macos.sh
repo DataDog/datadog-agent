@@ -15,7 +15,11 @@ new_id="$PREFIX/$dylib_name"
 
 install_name_tool -id "$new_id" "$OUTPUT"
 
-# Update all dependency paths that point to sandbox locations
+# Dylibs built in the Bazel sandbox record their dependencies with absolute
+# sandbox paths as install names (e.g. bazel-out/.../libfoo.dylib). Those paths
+# vanish after the build, so rewrite them to $PREFIX/<basename> so the dynamic
+# linker can find them via the rpath we just added. Leave everything else
+# (system libraries, @rpath/... references) untouched.
 ${OTOOL} -L "$OUTPUT" | tail -n +2 | awk '{print $1}' | while read -r dep; do
     if [[ "$dep" == *"sandbox"* ]] || [[ "$dep" == *"bazel-out"* ]]; then
         dep_name=$(basename "$dep")

@@ -93,11 +93,21 @@ func goProtoLibraries(args language.GenerateArgs) map[string][]goProtoLibrary {
 		if pc := proto.GetProtoConfig(args.Config); pc != nil && !strings.HasPrefix(importPath, pc.GoPrefix) {
 			importPath = fmt.Sprintf("%s/%s", pc.GoPrefix, importPath)
 		}
-		protoLabel, err := label.Parse(r.AttrString("proto"))
-		if err != nil {
-			continue
+		protoLabels := r.AttrStrings("protos")   // plural: `gazelle:proto file`
+		if s := r.AttrString("proto"); s != "" { // singular: `gazelle:proto default|package`
+			protoLabels = append(protoLabels, s)
 		}
-		if protoInfos, ok := protoLibrarySrcs[protoLabel.Name]; ok {
+		var protoInfos []proto.FileInfo
+		for _, s := range protoLabels {
+			protoLabel, err := label.Parse(s)
+			if err != nil {
+				continue
+			}
+			if infos, ok := protoLibrarySrcs[protoLabel.Name]; ok {
+				protoInfos = append(protoInfos, infos...)
+			}
+		}
+		if len(protoInfos) > 0 {
 			result[importPath] = append(result[importPath], goProtoLibrary{
 				label:         label.New("", args.Rel, r.Name()),
 				generatedSrcs: generatedSrcs(r, protoInfos),

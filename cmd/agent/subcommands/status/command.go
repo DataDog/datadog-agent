@@ -200,7 +200,7 @@ func componentStatus(cliParams *cliParams, component string, client ipc.HTTPClie
 
 	v := setIpcURL(cliParams)
 
-	endpoint, err := client.NewIPCEndpoint(fmt.Sprintf("/agent/%s/status", component))
+	endpoint, err := client.NewIPCEndpoint("/agent/status/section/" + component)
 	if err != nil {
 		return err
 	}

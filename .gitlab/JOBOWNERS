@@ -235,7 +235,7 @@ new-e2e-fleet*                          @DataDog/fleet
 new-e2e-installer*                      @DataDog/fleet
 # --- Agent packaging (install scripts, step-by-step, package signing) ---
 new-e2e-agent-platform-*                @DataDog/fleet
-new-e2e-platform-integrations-*         @DataDog/agent-runtimes
+new-e2e-platform-integrations-*         @DataDog/agent-integrations
 new-e2e-package-signing-*               @DataDog/agent-delivery
 # --- GPU ---
 new-e2e-gpu*                            @DataDog/ebpf-platform

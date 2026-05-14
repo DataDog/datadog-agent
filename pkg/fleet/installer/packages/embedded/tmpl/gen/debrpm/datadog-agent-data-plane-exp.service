@@ -2,6 +2,7 @@
 Description=Datadog Agent Data Plane Experiment
 After=datadog-agent.service datadog-agent-exp.service
 BindsTo=datadog-agent-exp.service
+PartOf=datadog-agent-exp.service
 Conflicts=datadog-agent.service datadog-agent-data-plane.service
 
 [Service]
