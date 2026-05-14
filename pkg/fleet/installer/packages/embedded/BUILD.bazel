@@ -1,3 +1,4 @@
+# Hand-maintained BUILD: Gazelle cannot infer embedsrcs (generated tmpl + globs). See https://github.com/DataDog/datadog-agent/pull/50201
 # gazelle:ignore
 """Scripts and configuration embedded into the installer as data."""
 
