@@ -9,6 +9,7 @@ go_library(
         "hmaps.go",
         "marshal.go",
         "not_captured_reason.go",
+        "reason.go",
         "swiss_maps.go",
         "template.go",
         "types.go",
@@ -34,6 +35,7 @@ go_test(
     name = "decode_test",
     srcs = [
         "decoder_test.go",
+        "reason_test.go",
         "return_marshal_test.go",
         "template_test.go",
         "time_test.go",

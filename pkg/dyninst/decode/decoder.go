@@ -270,6 +270,25 @@ type Event struct {
 	// normal return-side decoding (no root type was generated for this
 	// path), and records an evaluation error noting the panic.
 	PanicUnwound bool
+	// SyntheticEvaluationErrors lets the sink inject pre-formatted
+	// evaluation errors that aren't tied to an IR expression. They
+	// describe event-level conditions the decoder cannot infer from
+	// its inputs — return event lost, in-progress-calls map full, the
+	// entry side was truncated by a fragment-budget overflow, etc. —
+	// and surface alongside expression-level errors through the same
+	// snapshot evaluationErrors array.
+	SyntheticEvaluationErrors []SyntheticEvaluationError
+}
+
+// SyntheticEvaluationError is a sink-provided evaluation error that
+// the decoder appends to the snapshot's evaluationErrors array
+// without consulting the IR. Used for event-level conditions where
+// there is no IR expression to attribute the loss to. Expression
+// values follow the "@" sentinel convention the live-debugger UI
+// already renders (@return, @entry, @duration).
+type SyntheticEvaluationError struct {
+	Expression string
+	Message    string
 }
 
 // firstFragment returns the first event from a FragmentedEvent. This is used
@@ -341,6 +360,15 @@ func (s *message) init(
 			Language:         "go",
 			EvaluationErrors: []evaluationError{},
 		},
+	}
+	// Sink-provided synthetic errors land in the same slice that
+	// ExprStatus-driven errors populate. Used for whole-side losses
+	// ("@return event lost", "@return in-progress-calls map full")
+	// that don't correspond to an IR expression.
+	for _, e := range event.SyntheticEvaluationErrors {
+		s.Debugger.Snapshot.EvaluationErrors = append(
+			s.Debugger.Snapshot.EvaluationErrors, evaluationError(e),
+		)
 	}
 	if event.EntryOrLine == nil {
 		return nil, errors.New("entry event is nil")

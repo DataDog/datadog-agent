@@ -157,15 +157,15 @@ typedef struct di_data_item_header {
 // nibble; 16 values, with 0 reserved for "no reason" and 15 reserved
 // for future expansion.
 //
-// L1 placeholder reasons (emitted with DATA_ITEM_FAILED_READ_MASK set
-// and length == 0):
+// Placeholder reasons (emitted with DATA_ITEM_FAILED_READ_MASK set
+// and length == 0; the item exists only to carry the cause):
 //   TOO_MANY_POINTERS_IN_FLIGHT — the in-flight pointers queue was full
 //   TOO_MANY_UNIQUE_POINTERS    — the dedup table of seen addresses was full
 //   TOO_MANY_SLICES_CAPTURED    — the captured-slices table was full
 //   CAPTURE_NESTING_TOO_DEEP    — the SM's recursion stack was full
 //
-// L1 real-item reasons (emitted alongside captured bytes on the real
-// data-item header):
+// Real-item reasons (emitted alongside captured bytes on the real
+// data-item header; the payload is present but clamped):
 //   VALUE_TOO_LARGE     — serialize_len was clamped to MAX_DATA_ITEM_SIZE
 //   STRING_SIZE         — the configured string MaxLength clamped the payload
 //   COLLECTION_SIZE     — the configured collection MaxCollectionSize

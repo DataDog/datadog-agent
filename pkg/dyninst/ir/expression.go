@@ -18,15 +18,16 @@ const (
 	ExprStatusNilDeref  ExprStatus = 2 // nil pointer dereference
 	ExprStatusOOB       ExprStatus = 3 // index out of bounds
 	ExprStatusTruncated ExprStatus = 4 // value present, but collection was truncated to the iteration cap (filter only, today)
-	// ExprStatusRecursionStackFull is set by SM_OP_CALL overflow at the
-	// root-expression level when the SM's PC stack is exhausted (S5 in
-	// the dyninst capture-reasons design). The site has no specific
-	// type+address for a placeholder data item, so the reason is
-	// propagated at the expression level instead.
+	// ExprStatusRecursionStackFull is set when the stack machine's
+	// internal PC or data stack overflows at a site that has no
+	// specific type+address to attribute the failure to (e.g.
+	// SM_OP_CALL). The whole expression's evaluation aborts; the
+	// decoder reports it as an evaluation error rather than as a
+	// per-field notCapturedReason.
 	ExprStatusRecursionStackFull ExprStatus = 5
-	// ExprStatusBufferFull is set when the SM aborted before emitting
-	// any data item for this expression (continuation_aborted before
-	// the first useful item reached scratch).
+	// ExprStatusBufferFull is set when the stack machine aborted before
+	// emitting any data item for this expression (continuation_aborted
+	// fired before the first useful item reached scratch).
 	ExprStatusBufferFull ExprStatus = 6
 	// 7..15 reserved for future use.
 )

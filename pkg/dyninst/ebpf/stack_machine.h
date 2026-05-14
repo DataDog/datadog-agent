@@ -482,12 +482,12 @@ sm_memoize_pointer(__maybe_unused global_ctx_t* ctx, type_t type,
   return false;
 }
 
-// sm_record_pointer_emit_placeholder emits a Carrier A placeholder
-// for an abandoned chase, gated by the peer-dedup flag. Idempotent
-// per peer scope: the first abandonment in a scope emits, subsequent
-// ones in the same scope return without writing. Reason NONE
-// (silent-skip cases like "already memoized" and TTL exhaustion)
-// never emits.
+// sm_record_pointer_emit_placeholder emits a failed-read placeholder
+// data-item header for an abandoned chase, gated by the peer-dedup
+// flag on stack_machine_t. Idempotent per peer scope: the first
+// abandonment in a scope emits, subsequent ones in the same scope
+// return without writing. Reason NONE (silent-skip cases like
+// "already memoized" and TTL exhaustion) never emits.
 static inline __attribute__((always_inline)) void
 sm_record_pointer_emit_placeholder(global_ctx_t* ctx, type_t type,
                                    target_ptr_t addr,
@@ -3645,9 +3645,10 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       // Loop as long as there are more pointers to chase.
       LOG(4, "chasing pointer @%llx", item->di.address);
       sm->pc--;
-      // Each dequeued chase opens a fresh peer scope for Carrier A
-      // placeholder dedup: any limit hit while walking the new
-      // pointee's fields produces at most one placeholder.
+      // Each dequeued chase opens a fresh peer scope for placeholder
+      // dedup: any limit hit while walking the new pointee's fields
+      // produces at most one placeholder data-item header for the
+      // whole sub-walk.
       sm->peer_scope_placeholder_emitted = false;
       sm_chase_pointer(ctx, *item);
 

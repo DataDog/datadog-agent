@@ -90,8 +90,9 @@ const (
 	// applying any limit.
 	DataItemReasonNone DataItemReason = 0
 
-	// L1 placeholder reasons (item has DataItemFailedReadMask set and
-	// Length == 0).
+	// Placeholder reasons (item has DataItemFailedReadMask set and
+	// Length == 0). These describe *why* a chased pointee was omitted
+	// from the capture entirely.
 
 	// DataItemReasonTooManyPointersInFlight: the in-flight pointers queue
 	// was full when this pointer needed to be followed.
@@ -102,11 +103,11 @@ const (
 	// DataItemReasonTooManySlicesCaptured: the per-event captured-slices
 	// table was full.
 	DataItemReasonTooManySlicesCaptured DataItemReason = 3
-	// DataItemReasonCaptureNestingTooDeep: the SM's recursion stack was
-	// full while capturing this value.
+	// DataItemReasonCaptureNestingTooDeep: the stack machine's recursion
+	// stack was full while capturing this value.
 	DataItemReasonCaptureNestingTooDeep DataItemReason = 4
 
-	// L1 real-item reasons (item carries actual bytes; reason describes
+	// Real-item reasons (item carries actual bytes; reason describes
 	// how the payload was clamped).
 
 	// DataItemReasonValueTooLarge: serialize length was clamped to

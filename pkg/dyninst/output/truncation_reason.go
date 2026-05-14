@@ -12,13 +12,13 @@ package output
 // DataItemReason (which describes *why* an individual value is
 // incomplete).
 //
-// TruncationReason is observed by userspace at two layers:
-//   - L2 partial-side: some fragments of this side reached userspace,
-//     but the rest were lost. Carried from eBPF via the drop
-//     notification side channel.
-//   - L2 sink-side: the eventbuf detected loss without a structured
-//     notification (drop-notify ringbuf overflowed → grace eviction)
-//     and stamps a reason on the affected side.
+// TruncationReason is observed by userspace in two situations:
+//   - Some fragments of a side reached userspace but the rest were
+//     lost. Carried from eBPF via the drop notification side channel
+//     (FragmentLimit -> EventTooLarge; RingBufferFull -> AgentOverloaded).
+//   - The eventbuf detected loss without a structured notification
+//     (drop-notify ringbuf overflowed and grace eviction fires); the
+//     sink stamps UnknownLoss on the affected side.
 //
 // Whole-side losses (the side reached userspace as zero fragments)
 // flow through the snapshot's evaluationErrors array with synthetic

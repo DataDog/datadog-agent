@@ -247,10 +247,10 @@ typedef struct stack_machine {
 
   // Records the cause of the most recent abandoned pointer chase
   // (sm_record_pointer returning false), as a data_item_reason_t value
-  // cast to uint8_t. Set at the abandonment site so the caller emitting
-  // a Carrier A placeholder can stamp the right reason. Overwritten on
-  // each abandonment; cleared to DATA_ITEM_REASON_NONE when a chase
-  // succeeds.
+  // cast to uint8_t. Set at the abandonment site so callers that emit
+  // a placeholder data-item header can stamp the right reason.
+  // Overwritten on each abandonment; cleared to DATA_ITEM_REASON_NONE
+  // when a chase succeeds.
   uint8_t last_chase_failure_cause;
 
   // Set true when SM_OP_CALL overflows the PC stack
@@ -261,14 +261,14 @@ typedef struct stack_machine {
   // sites because the SM doesn't track "current root expression".
   bool sm_recursion_overflow;
 
-  // Peer-dedup flag for Carrier A placeholder emission. Cleared each
-  // time the SM enters a new peer scope (slice/array element loop,
-  // map entry iteration, struct field walk). When a pointer chase is
-  // abandoned in the current scope, sm_record_pointer emits a
-  // placeholder data-item header *only* if this flag is unset, then
-  // sets it so subsequent siblings in the same scope abandon
-  // silently. Bounds Carrier A overhead to O(scopes-that-hit-a-limit)
-  // rather than O(missed-pointees).
+  // Peer-dedup flag for placeholder data-item emission. Cleared at
+  // each SM_OP_CHASE_POINTERS dequeue (the start of a new chase's
+  // sub-walk). When a pointer chase is abandoned in the current scope,
+  // sm_record_pointer emits a placeholder data-item header *only* if
+  // this flag is unset, then sets it so subsequent siblings in the
+  // same scope abandon silently. Bounds placeholder count to one per
+  // scope-that-hits-a-limit rather than one per missed pointee, which
+  // matters when a slice of many pointers all hit the same cap.
   bool peer_scope_placeholder_emitted;
   // Original probe invocation timestamp, shared across all continuation
   // fragments for correlation.
