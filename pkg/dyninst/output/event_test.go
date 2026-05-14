@@ -554,3 +554,120 @@ func buildEvent(
 
 	return b
 }
+
+func TestDataItemTypeFieldPacking(t *testing.T) {
+	const (
+		typeID = uint32(0x01234567) // 27-bit value: 0x01234567 < (1 << 27)
+	)
+	require.Less(t, typeID, uint32(1)<<27,
+		"test fixture typeID must fit in 27 bits")
+
+	cases := []struct {
+		name         string
+		rawType      uint32
+		wantType     uint32
+		wantReason   DataItemReason
+		wantFailRead bool
+	}{
+		{
+			name:         "plain type, no reason, real read",
+			rawType:      typeID,
+			wantType:     typeID,
+			wantReason:   DataItemReasonNone,
+			wantFailRead: false,
+		},
+		{
+			name:         "failed read placeholder, no reason",
+			rawType:      typeID | DataItemFailedReadMask,
+			wantType:     typeID,
+			wantReason:   DataItemReasonNone,
+			wantFailRead: true,
+		},
+		{
+			name: "failed read placeholder with reason",
+			rawType: typeID | DataItemFailedReadMask |
+				(uint32(DataItemReasonTooManyUniquePointers) << DataItemReasonShift),
+			wantType:     typeID,
+			wantReason:   DataItemReasonTooManyUniquePointers,
+			wantFailRead: true,
+		},
+		{
+			name: "real item with reason (e.g. valueTooLarge)",
+			rawType: typeID |
+				(uint32(DataItemReasonValueTooLarge) << DataItemReasonShift),
+			wantType:     typeID,
+			wantReason:   DataItemReasonValueTooLarge,
+			wantFailRead: false,
+		},
+		{
+			name: "extended reason sentinel",
+			rawType: typeID |
+				(uint32(DataItemReasonExtended) << DataItemReasonShift),
+			wantType:     typeID,
+			wantReason:   DataItemReasonExtended,
+			wantFailRead: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			item := DataItem{
+				header: &DataItemHeader{Type: tc.rawType},
+			}
+			require.Equal(t, tc.wantType, item.Type(),
+				"Type() should strip failed-read and reason bits")
+			require.Equal(t, tc.wantFailRead, item.IsFailedRead())
+			require.Equal(t, tc.wantReason, item.Reason())
+		})
+	}
+}
+
+func TestDataItemReasonBitsDoNotOverlapType(t *testing.T) {
+	// Sanity-check that the three masks tile the 32-bit Type field
+	// without overlap and cover all bits.
+	require.Equal(t, uint32(0),
+		DataItemFailedReadMask&DataItemReasonMask,
+		"failed-read and reason masks must not overlap")
+	require.Equal(t, uint32(0),
+		DataItemFailedReadMask&DataItemTypeMask,
+		"failed-read and type masks must not overlap")
+	require.Equal(t, uint32(0),
+		DataItemReasonMask&DataItemTypeMask,
+		"reason and type masks must not overlap")
+	require.Equal(t, ^uint32(0),
+		DataItemFailedReadMask|DataItemReasonMask|DataItemTypeMask,
+		"masks must cover all 32 bits")
+}
+
+func TestDataItemDataRespectsFailedRead(t *testing.T) {
+	// A real (non-failed-read) item with reason bits set must still
+	// expose its data: reason bits describe the payload's truncation,
+	// they do not imply absence.
+	clampedPayload := []byte{0xAA, 0xBB, 0xCC}
+	item := DataItem{
+		header: &DataItemHeader{
+			Type: 7 |
+				(uint32(DataItemReasonValueTooLarge) << DataItemReasonShift),
+			Length: uint32(len(clampedPayload)),
+		},
+		data: clampedPayload,
+	}
+	data, ok := item.Data()
+	require.True(t, ok, "real item with reason bits must expose Data()")
+	require.Equal(t, clampedPayload, data)
+
+	// A placeholder (failed-read) item must hide its data even when
+	// reason bits are set.
+	placeholder := DataItem{
+		header: &DataItemHeader{
+			Type: 7 | DataItemFailedReadMask |
+				(uint32(DataItemReasonTooManyPointersInFlight) << DataItemReasonShift),
+			Length: 0,
+		},
+	}
+	_, ok = placeholder.Data()
+	require.False(t, ok, "placeholder must hide Data() even with reason bits")
+	require.Equal(t,
+		DataItemReasonTooManyPointersInFlight,
+		placeholder.Reason())
+}
