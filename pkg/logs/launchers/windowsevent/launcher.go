@@ -33,6 +33,7 @@ type tailer interface {
 // Launcher is in charge of starting and stopping windows event logs tailers
 type Launcher struct {
 	sources                chan *sources.LogSource
+	sourcesDone            chan struct{}
 	pipelineProvider       pipeline.Provider
 	registry               auditor.Registry
 	tailers                map[string]tailer
@@ -45,6 +46,7 @@ func NewLauncher() *Launcher {
 	cache := publishermetadatacache.New(winevtapi.New())
 	return &Launcher{
 		tailers:                make(map[string]tailer),
+		sourcesDone:            make(chan struct{}),
 		stop:                   make(chan struct{}),
 		publisherMetadataCache: cache,
 	}
@@ -53,7 +55,7 @@ func NewLauncher() *Launcher {
 // Start starts the launcher by setting up Windows event log sources and beginning to tail them.
 func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, _ *tailers.TailerTracker) {
 	l.pipelineProvider = pipelineProvider
-	l.sources = sourceProvider.GetAddedForType(config.WindowsEventType)
+	l.sources = sourceProvider.GetAddedForType(config.WindowsEventType, l.sourcesDone)
 	l.registry = registry
 	availableChannels, err := EnumerateChannels()
 	if err != nil {
@@ -88,6 +90,7 @@ func (l *Launcher) run() {
 
 // Stop stops all active tailers
 func (l *Launcher) Stop() {
+	close(l.sourcesDone)
 	l.stop <- struct{}{}
 	stopper := startstop.NewParallelStopper()
 	for _, tailer := range l.tailers {

@@ -43,6 +43,8 @@ type Launcher struct {
 	addedSources        chan *sources.LogSource
 	removedSources      chan *sources.LogSource
 	activeSources       []*sources.LogSource
+	addedSourcesDone    chan struct{}
+	removedSourcesDone  chan struct{}
 	tailingLimit        int
 	fileProvider        *fileprovider.FileProvider
 	tailers             *tailers.TailerContainer[*tailer.Tailer]
@@ -103,6 +105,8 @@ func NewLauncher(
 	}
 
 	return &Launcher{
+		addedSourcesDone:       make(chan struct{}),
+		removedSourcesDone:     make(chan struct{}),
 		tailingLimit:           tailingLimit,
 		fileProvider:           fileprovider.NewFileProvider(tailingLimit, wildcardStrategy),
 		tailers:                tailers.NewTailerContainer[*tailer.Tailer](),
@@ -124,7 +128,7 @@ func NewLauncher(
 // Start starts the Launcher
 func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, registry auditor.Registry, tracker *tailers.TailerTracker) {
 	s.pipelineProvider = pipelineProvider
-	s.addedSources, s.removedSources = sourceProvider.SubscribeForType(config.FileType)
+	s.addedSources, s.removedSources = sourceProvider.SubscribeForType(config.FileType, s.addedSourcesDone, s.removedSourcesDone)
 	s.registry = registry
 	tracker.Add(s.tailers)
 	go s.run()
@@ -133,6 +137,10 @@ func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 // Stop stops the Scanner and its tailers in parallel,
 // this call returns only when all the tailers are stopped
 func (s *Launcher) Stop() {
+	// stop the launcher source subscriptions from blocking
+	close(s.addedSourcesDone)
+	close(s.removedSourcesDone)
+
 	s.stop <- struct{}{}
 	<-s.done
 }

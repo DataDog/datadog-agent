@@ -56,10 +56,10 @@ func TestGetAddedForType(t *testing.T) {
 	sources := NewLogSources()
 	source := NewLogSource("foo", &config.LogsConfig{Type: "foo"})
 
-	stream1 := sources.GetAddedForType("foo")
+	stream1 := sources.GetAddedForType("foo", make(chan struct{}))
 	assert.NotNil(t, stream1)
 
-	stream2 := sources.GetAddedForType("foo")
+	stream2 := sources.GetAddedForType("foo", make(chan struct{}))
 	assert.NotNil(t, stream2)
 
 	go func() { sources.AddSource(source) }()
@@ -82,7 +82,7 @@ func TestGetAddedForTypeExistingSources(t *testing.T) {
 		sources.AddSource(source1)
 	}()
 
-	streamA := sources.GetAddedForType("foo")
+	streamA := sources.GetAddedForType("foo", make(chan struct{}))
 	assert.NotNil(t, streamA)
 	sa1 := <-streamA
 	assert.Equal(t, sa1, source1)
@@ -94,7 +94,7 @@ func TestGetAddedForTypeExistingSources(t *testing.T) {
 	sa2 := <-streamA
 	assert.Equal(t, sa2, source2)
 
-	streamB := sources.GetAddedForType("foo")
+	streamB := sources.GetAddedForType("foo", make(chan struct{}))
 	assert.NotNil(t, streamB)
 	sb1 := <-streamB
 	sb2 := <-streamB
@@ -115,7 +115,7 @@ func TestSubscribeAll(t *testing.T) {
 
 	go func() { sources.AddSource(source1) }()
 
-	addA, removeA := sources.SubscribeAll()
+	addA, removeA := sources.SubscribeAll(make(chan struct{}), make(chan struct{}))
 	assert.NotNil(t, addA)
 	sa1 := <-addA
 	assert.Equal(t, sa1, source1)
@@ -127,7 +127,7 @@ func TestSubscribeAll(t *testing.T) {
 	assert.Equal(t, sa2, source2)
 	assert.Equal(t, 0, len(removeA))
 
-	addB, removeB := sources.SubscribeAll()
+	addB, removeB := sources.SubscribeAll(make(chan struct{}), make(chan struct{}))
 	assert.NotNil(t, addB)
 	sb1 := <-addB
 	sb2 := <-addB
@@ -165,7 +165,7 @@ func TestSubscribeForType(t *testing.T) {
 		sources.AddSource(source1)
 	}()
 
-	addA, removeA := sources.SubscribeForType("foo")
+	addA, removeA := sources.SubscribeForType("foo", make(chan struct{}), make(chan struct{}))
 	assert.NotNil(t, addA)
 	sa1 := <-addA
 	assert.Equal(t, sa1, source1)
@@ -179,7 +179,7 @@ func TestSubscribeForType(t *testing.T) {
 	sa2 := <-addA
 	assert.Equal(t, sa2, source2)
 
-	addB, removeB := sources.SubscribeForType("foo")
+	addB, removeB := sources.SubscribeForType("foo", make(chan struct{}), make(chan struct{}))
 	assert.NotNil(t, addB)
 	sb1 := <-addB
 	sb2 := <-addB

@@ -21,7 +21,9 @@ type Launcher struct {
 	pipelineProvider pipeline.Provider
 	frameSize        int
 	tcpSources       chan *sources.LogSource
+	tcpSourcesDone   chan struct{}
 	udpSources       chan *sources.LogSource
+	udpSourcesDone   chan struct{}
 	listeners        []startstop.StartStoppable
 	stop             chan struct{}
 }
@@ -29,16 +31,18 @@ type Launcher struct {
 // NewLauncher returns an initialized Launcher
 func NewLauncher(frameSize int) *Launcher {
 	return &Launcher{
-		frameSize: frameSize,
-		stop:      make(chan struct{}),
+		frameSize:      frameSize,
+		tcpSourcesDone: make(chan struct{}),
+		udpSourcesDone: make(chan struct{}),
+		stop:           make(chan struct{}),
 	}
 }
 
 // Start starts the listener.
 func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, _ auditor.Registry, _ *tailers.TailerTracker) {
 	l.pipelineProvider = pipelineProvider
-	l.tcpSources = sourceProvider.GetAddedForType(config.TCPType)
-	l.udpSources = sourceProvider.GetAddedForType(config.UDPType)
+	l.tcpSources = sourceProvider.GetAddedForType(config.TCPType, l.tcpSourcesDone)
+	l.udpSources = sourceProvider.GetAddedForType(config.UDPType, l.udpSourcesDone)
 	go l.run()
 }
 
@@ -72,6 +76,8 @@ func (l *Launcher) run() {
 
 // Stop stops all listeners
 func (l *Launcher) Stop() {
+	close(l.tcpSourcesDone)
+	close(l.udpSourcesDone)
 	l.stop <- struct{}{}
 	stopper := startstop.NewParallelStopper()
 	for _, l := range l.listeners {

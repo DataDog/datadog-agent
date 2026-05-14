@@ -23,6 +23,7 @@ import (
 type Launcher struct {
 	pipelineProvider pipeline.Provider
 	sources          chan *sources.LogSource
+	sourcesDone      chan struct{}
 	tailers          []*tailer.Tailer
 	stop             chan struct{}
 }
@@ -30,14 +31,15 @@ type Launcher struct {
 // NewLauncher returns an initialized Launcher
 func NewLauncher() *Launcher {
 	return &Launcher{
-		stop: make(chan struct{}),
+		sourcesDone: make(chan struct{}),
+		stop:        make(chan struct{}),
 	}
 }
 
 // Start starts the launcher.
 func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvider pipeline.Provider, _ auditor.Registry, _ *tailers.TailerTracker) {
 	l.pipelineProvider = pipelineProvider
-	l.sources = sourceProvider.GetAddedForType(config.StringChannelType)
+	l.sources = sourceProvider.GetAddedForType(config.StringChannelType, l.sourcesDone)
 	go l.run()
 }
 
@@ -65,5 +67,6 @@ func (l *Launcher) Stop() {
 	for _, tailer := range l.tailers {
 		tailer.WaitFlush()
 	}
+	close(l.sourcesDone)
 	l.stop <- struct{}{}
 }
