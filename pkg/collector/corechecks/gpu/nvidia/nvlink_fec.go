@@ -103,7 +103,7 @@ func (c *nvlinkFECCollector) getPortMetrics(port int) ([]*Metric, error) {
 	var multiErr error
 	for bucket, fieldValue := range fields {
 		if fieldValue.NvmlReturn != uint32(nvml.SUCCESS) {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("field %d returned %s for scope %d", fieldValue.FieldId, nvml.ErrorString(nvml.Return(fieldValue.NvmlReturn)), scopeID))
+			multiErr = multierror.Append(multiErr, ddnvml.NewNvmlAPIErrorOrNil(fmt.Sprintf("GetFieldValues(field=%d, scope=%d)", fieldValue.FieldId, scopeID), nvml.Return(fieldValue.NvmlReturn)))
 			continue
 		}
 
