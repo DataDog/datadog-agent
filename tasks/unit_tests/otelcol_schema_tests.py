@@ -988,5 +988,58 @@ class TestOtelcolSchemaInvokeTasks(unittest.TestCase):
         self.assertGreater(data["summary"]["total_components"], 0)
 
 
+class TestUpstreamShims(unittest.TestCase):
+    """Pin the upstream-shim mechanism: locally-shipped schemas override the
+    cached upstream module's lack of one. The shim is consulted by both
+    the manifest-component walk and the transitive `$ref` resolver.
+    """
+
+    def test_registered_shims_have_schema_files_on_disk(self):
+        """The UPSTREAM_SHIMS table is the source of truth — every entry
+        must point at a directory that actually contains a config.schema.yaml,
+        otherwise the bundler silently falls back to the cache and the
+        intent of the shim is lost."""
+        from pathlib import Path
+
+        from tasks.libs.otelcol_schema._refs import find_module_schema  # noqa: F401 — ensure module loads
+        from tasks.libs.otelcol_schema.bundle import REPO_ROOT, UPSTREAM_SHIMS
+
+        for go_path, rel in UPSTREAM_SHIMS.items():
+            schema = Path(REPO_ROOT) / rel / "config.schema.yaml"
+            self.assertTrue(
+                schema.is_file(),
+                f"shim for {go_path!r} declared at {rel!r} but no config.schema.yaml found",
+            )
+
+    def test_shim_lookup_overrides_cache(self):
+        """`_lookup_module_schema` returns the shim path when one is
+        registered, regardless of what's in the cache."""
+        from tasks.libs.otelcol_schema.bundle import REPO_ROOT, UPSTREAM_SHIMS, _lookup_module_schema
+
+        any_shim_go_path = next(iter(UPSTREAM_SHIMS))
+        result = _lookup_module_schema(
+            any_shim_go_path,
+            cache={},
+            cache_root=Path("/nonexistent"),  # forces fallthrough on the non-shim path
+            versions={},
+        )
+        self.assertIsNotNone(result)
+        assert result is not None  # type-checker
+        self.assertTrue(str(result).startswith(str(REPO_ROOT)))
+        self.assertEqual(result.name, "config.schema.yaml")
+
+    def test_shim_lookup_falls_through_for_unshimmed_paths(self):
+        """If no shim is registered, the cache lookup runs as before."""
+        from tasks.libs.otelcol_schema.bundle import _lookup_module_schema
+
+        result = _lookup_module_schema(
+            "example.com/not-a-real-module",
+            cache={},
+            cache_root=Path("/nonexistent"),
+            versions={},
+        )
+        self.assertIsNone(result)
+
+
 if __name__ == "__main__":
     unittest.main()

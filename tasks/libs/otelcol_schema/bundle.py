@@ -93,6 +93,40 @@ _NAMESPACE_LABEL_PREFIX = {
     "github.com/DataDog/datadog-agent": "local_",
 }
 
+# Upstream shims: schemas that we ship in-repo ahead of an upstream PR merge.
+# Each entry maps an upstream Go import path to a local directory (relative to
+# the repo root) that contains a `config.schema.yaml` and (for full components)
+# a `metadata.yaml`. The bundler treats the shim as if it lived in the cached
+# upstream module at that go_path, so refs into / out of the shim resolve
+# through the same namespace-relative + package-type machinery used for real
+# upstream schemas. Removed once upstream merges the corresponding schema.
+#
+# Sources of these shims:
+#   https://github.com/open-telemetry/opentelemetry-collector/pull/15300
+# See tasks/libs/otelcol_schema/upstream_shims/README.md for details.
+_UPSTREAM_SHIM_ROOT = "tasks/libs/otelcol_schema/upstream_shims"
+UPSTREAM_SHIMS: dict[str, str] = {
+    "go.opentelemetry.io/collector/exporter/debugexporter": f"{_UPSTREAM_SHIM_ROOT}/exporter_debugexporter",
+    "go.opentelemetry.io/collector/exporter/otlpexporter": f"{_UPSTREAM_SHIM_ROOT}/exporter_otlpexporter",
+    "go.opentelemetry.io/collector/exporter/otlphttpexporter": f"{_UPSTREAM_SHIM_ROOT}/exporter_otlphttpexporter",
+    "go.opentelemetry.io/collector/receiver/otlpreceiver": f"{_UPSTREAM_SHIM_ROOT}/receiver_otlpreceiver",
+    "go.opentelemetry.io/collector/processor/batchprocessor": f"{_UPSTREAM_SHIM_ROOT}/processor_batchprocessor",
+    "go.opentelemetry.io/collector/processor/memorylimiterprocessor": f"{_UPSTREAM_SHIM_ROOT}/processor_memorylimiterprocessor",
+    "go.opentelemetry.io/collector/extension/zpagesextension": f"{_UPSTREAM_SHIM_ROOT}/extension_zpagesextension",
+    "go.opentelemetry.io/collector/internal/memorylimiter": f"{_UPSTREAM_SHIM_ROOT}/internal_memorylimiter",
+}
+
+
+def _shim_schema_path(go_path: str) -> Path | None:
+    """Return the local shim's `config.schema.yaml` for an upstream go_path,
+    or None if no shim is registered (or the registered shim is missing
+    its schema file)."""
+    rel = UPSTREAM_SHIMS.get(go_path)
+    if rel is None:
+        return None
+    candidate = REPO_ROOT / rel / "config.schema.yaml"
+    return candidate if candidate.is_file() else None
+
 
 def _flatten(s: str) -> str:
     """Encode an arbitrary string as a snake_case identifier."""
@@ -214,13 +248,20 @@ def _lookup_module_schema(
     cache_root: Path,
     versions: Mapping[str, str],
 ) -> Path | None:
-    """Memoised wrapper around `find_module_schema`. Returns just the schema
-    path (callers needing the matched-module-dir distinction must call
-    `find_module_schema` directly)."""
-    if go_path not in cache:
-        schema, _ = find_module_schema(go_path, cache_root=cache_root, versions=versions)
-        cache[go_path] = schema
-    return cache[go_path]
+    """Memoised wrapper around `find_module_schema`. Consults UPSTREAM_SHIMS
+    first so locally-shipped schemas override the cached upstream module
+    (used to leverage in-flight upstream PRs ahead of merge). Returns just
+    the schema path (callers needing the matched-module-dir distinction
+    must call `find_module_schema` directly)."""
+    if go_path in cache:
+        return cache[go_path]
+    shim = _shim_schema_path(go_path)
+    if shim is not None:
+        cache[go_path] = shim
+        return shim
+    schema, _ = find_module_schema(go_path, cache_root=cache_root, versions=versions)
+    cache[go_path] = schema
+    return schema
 
 
 def _enqueue_refs(
@@ -291,18 +332,25 @@ def collect_schemas(
     sources: list[SchemaSource] = []
     missing: list[tuple[str, str, str]] = []
 
-    # Manifest components.
+    # Manifest components. Shims (in-repo schemas that pre-empt an in-flight
+    # upstream PR) take precedence over the cached module's schema, if any.
     for section, entries in manifest.items():
         cls = SECTION_TO_CLASS.get(section)
         for gomod, version in entries:
             if not (gomod and version):
                 continue
-            module_dir = module_cache_dir(cache_root, gomod, version)
-            schema_path = module_dir / "config.schema.yaml"
-            if not schema_path.is_file():
-                missing.append((cls or section, gomod, "no config.schema.yaml in module"))
-                continue
-            type_name, mclass = _read_metadata(module_dir)
+            shim = _shim_schema_path(gomod)
+            if shim is not None:
+                schema_path = shim
+                metadata_dir = shim.parent
+            else:
+                module_dir = module_cache_dir(cache_root, gomod, version)
+                schema_path = module_dir / "config.schema.yaml"
+                if not schema_path.is_file():
+                    missing.append((cls or section, gomod, "no config.schema.yaml in module"))
+                    continue
+                metadata_dir = module_dir
+            type_name, mclass = _read_metadata(metadata_dir)
             queue.append((schema_path, gomod, mclass or cls or "unknown", type_name))
 
     # Local components.

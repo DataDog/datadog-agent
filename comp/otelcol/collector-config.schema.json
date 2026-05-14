@@ -23,6 +23,9 @@
         "^k8s_objects(/.*)?$": {
           "$ref": "#/$defs/component__receiver__k8s_objects"
         },
+        "^otlp(/.*)?$": {
+          "$ref": "#/$defs/component__receiver__otlp"
+        },
         "^prometheus(/.*)?$": {
           "$ref": "#/$defs/component__receiver__prometheus"
         },
@@ -45,6 +48,9 @@
         "^attributes(/.*)?$": {
           "$ref": "#/$defs/component__processor__attributes"
         },
+        "^batch(/.*)?$": {
+          "$ref": "#/$defs/component__processor__batch"
+        },
         "^cumulativetodelta(/.*)?$": {
           "$ref": "#/$defs/component__processor__cumulativetodelta"
         },
@@ -60,6 +66,9 @@
         "^k8s_attributes(/.*)?$": {
           "$ref": "#/$defs/component__processor__k8s_attributes"
         },
+        "^memory_limiter(/.*)?$": {
+          "$ref": "#/$defs/component__processor__memory_limiter"
+        },
         "^probabilistic_sampler(/.*)?$": {
           "$ref": "#/$defs/component__processor__probabilistic_sampler"
         },
@@ -74,9 +83,6 @@
         },
         "^transform(/.*)?$": {
           "$ref": "#/$defs/component__processor__transform"
-        },
-        "^.*$": {
-          "$ref": "#/$defs/__component__permissive__"
         }
       },
       "additionalProperties": false
@@ -85,11 +91,20 @@
       "type": "object",
       "description": "Exporters send data out of the Collector.",
       "patternProperties": {
+        "^debug(/.*)?$": {
+          "$ref": "#/$defs/component__exporter__debug"
+        },
         "^loadbalancing(/.*)?$": {
           "$ref": "#/$defs/component__exporter__loadbalancing"
         },
         "^logsagent(/.*)?$": {
           "$ref": "#/$defs/component__exporter__logsagent"
+        },
+        "^otlp_grpc(/.*)?$": {
+          "$ref": "#/$defs/component__exporter__otlp_grpc"
+        },
+        "^otlp_http(/.*)?$": {
+          "$ref": "#/$defs/component__exporter__otlp_http"
         },
         "^serializer(/.*)?$": {
           "$ref": "#/$defs/component__exporter__serializer"
@@ -134,6 +149,9 @@
         },
         "^pprof(/.*)?$": {
           "$ref": "#/$defs/component__extension__pprof"
+        },
+        "^zpages(/.*)?$": {
+          "$ref": "#/$defs/component__extension__zpages"
         },
         "^.*$": {
           "$ref": "#/$defs/__component__permissive__"
@@ -202,6 +220,58 @@
     }
   },
   "$defs": {
+    "component__receiver__otlp": {
+      "description": "Config defines configuration for OTLP receiver.",
+      "type": "object",
+      "properties": {
+        "protocols": {
+          "description": "Protocols is the configuration for the supported protocols, currently gRPC and HTTP (Proto and JSON).",
+          "$ref": "#/$defs/component__receiver__otlp__protocols"
+        }
+      }
+    },
+    "component__receiver__otlp__http_config": {
+      "type": "object",
+      "properties": {
+        "logs_url_path": {
+          "description": "The URL path to receive logs on. If omitted \"/v1/logs\" will be used.",
+          "$ref": "#/$defs/component__receiver__otlp__sanitized_url_path"
+        },
+        "metrics_url_path": {
+          "description": "The URL path to receive metrics on. If omitted \"/v1/metrics\" will be used.",
+          "$ref": "#/$defs/component__receiver__otlp__sanitized_url_path"
+        },
+        "traces_url_path": {
+          "description": "The URL path to receive traces on. If omitted \"/v1/traces\" will be used.",
+          "$ref": "#/$defs/component__receiver__otlp__sanitized_url_path"
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/shared__core_config_confighttp__server_config"
+        }
+      ]
+    },
+    "component__receiver__otlp__protocols": {
+      "description": "Protocols is the configuration for the supported protocols. At least one of `grpc` or `http` must be set.",
+      "type": "object",
+      "properties": {
+        "grpc": {
+          "description": "Configuration for the OTLP gRPC server. Enable by setting this section (or its `endpoint`).",
+          "x-optional": true,
+          "$ref": "#/$defs/shared__core_config_configgrpc__server_config"
+        },
+        "http": {
+          "description": "Configuration for the OTLP HTTP server. Enable by setting this section (or its `endpoint`).",
+          "x-optional": true,
+          "$ref": "#/$defs/component__receiver__otlp__http_config"
+        }
+      }
+    },
+    "component__receiver__otlp__sanitized_url_path": {
+      "description": "A URL path. A leading slash is automatically prepended when missing.",
+      "type": "string"
+    },
     "component__receiver__file_log": {
       "description": "FileLogConfig defines configuration for the file_log receiver",
       "type": "object",
@@ -517,6 +587,49 @@
       "allOf": [
         {
           "$ref": "#/$defs/shared__core_config_confighttp__server_config"
+        }
+      ]
+    },
+    "component__processor__batch": {
+      "description": "Config defines configuration for batch processor. `timeout` must be non-negative; when `send_batch_max_size` is non-zero it must be greater than or equal to `send_batch_size`; entries in `metadata_keys` are deduplicated case-insensitively.\n",
+      "type": "object",
+      "properties": {
+        "metadata_cardinality_limit": {
+          "description": "MetadataCardinalityLimit indicates the maximum number of batcher instances that will be created through a distinct combination of MetadataKeys.",
+          "type": "integer",
+          "x-customType": "uint32"
+        },
+        "metadata_keys": {
+          "description": "MetadataKeys is a list of client.Metadata keys that will be used to form distinct batchers.  If this setting is empty, a single batcher instance will be used.  When this setting is not empty, one batcher will be used per distinct combination of values for the listed metadata keys. Empty value and unset metadata are treated as distinct cases. Entries are case-insensitive.  Duplicated entries will trigger a validation error.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "send_batch_max_size": {
+          "description": "SendBatchMaxSize is the maximum size of a batch. It must be larger than SendBatchSize. Larger batches are split into smaller units. Default value is 0, that means no maximum size.",
+          "type": "integer",
+          "x-customType": "uint32"
+        },
+        "send_batch_size": {
+          "description": "SendBatchSize is the size of a batch which after hit, will trigger it to be sent. When this is set to zero, the batch size is ignored and data will be sent immediately subject to only send_batch_max_size.",
+          "type": "integer",
+          "x-customType": "uint32"
+        },
+        "timeout": {
+          "description": "Timeout sets the time after which a batch will be sent regardless of size. When this is set to zero, batched data will be sent immediately.",
+          "type": "string",
+          "x-customType": "time.Duration",
+          "format": "duration"
+        }
+      }
+    },
+    "component__processor__memory_limiter": {
+      "description": "Config for the memory_limiter processor. Aliases the shared memorylimiter.Config. `check_interval` must be greater than zero; one of `limit_mib` or `limit_percentage` must be greater than zero; spike limits must be smaller than the corresponding hard limit; percentage values must not exceed 100.\n",
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "#/$defs/shared__core_internal_memorylimiter__config"
         }
       ]
     },
@@ -1902,6 +2015,40 @@
         }
       }
     },
+    "component__exporter__debug": {
+      "description": "Config defines configuration for debug exporter.",
+      "type": "object",
+      "properties": {
+        "output_paths": {
+          "description": "OutputPaths is a list of file paths to write logging output to. This option can only be used when use_internal_logger is false. Special strings \"stdout\" and \"stderr\" are interpreted as os.Stdout and os.Stderr respectively. All other values are treated as file paths. If not set, defaults to [\"stdout\"].",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sampling_initial": {
+          "description": "SamplingInitial defines how many samples are initially logged during each second.",
+          "type": "integer"
+        },
+        "sampling_thereafter": {
+          "description": "SamplingThereafter defines the sampling rate after the initial samples are logged.",
+          "type": "integer"
+        },
+        "sending_queue": {
+          "description": "Configuration for the optional in-memory sending queue. When unset the exporter sends synchronously.",
+          "x-optional": true,
+          "$ref": "#/$defs/shared__core_exporter_exporterhelper__queue_batch_config"
+        },
+        "use_internal_logger": {
+          "description": "UseInternalLogger defines whether the exporter sends the output to the collector's internal logger.",
+          "type": "boolean"
+        },
+        "verbosity": {
+          "description": "Verbosity defines the debug exporter verbosity.",
+          "$ref": "#/$defs/shared__core_config_configtelemetry__level"
+        }
+      }
+    },
     "component__exporter__loadbalancing": {
       "description": "Config defines configuration for the exporter.",
       "type": "object",
@@ -2012,7 +2159,7 @@
       "type": "object",
       "properties": {
         "otlp": {
-          "$ref": "#/$defs/__missing__go_opentelemetry_io_collector_exporter_otlpexporter_config__d30659b5"
+          "$ref": "#/$defs/component__exporter__otlp_grpc"
         }
       }
     },
@@ -2049,6 +2196,77 @@
           }
         }
       }
+    },
+    "component__exporter__otlp_grpc": {
+      "description": "Config defines configuration for OTLP exporter. A non-empty `endpoint` (from the squashed gRPC ClientConfig) is required.\n",
+      "type": "object",
+      "properties": {
+        "retry_on_failure": {
+          "description": "Retry/back-off settings applied to failed export requests.",
+          "$ref": "#/$defs/shared__core_config_configretry__back_off_config"
+        },
+        "sending_queue": {
+          "description": "Configuration for the optional in-memory sending queue. When unset the exporter sends synchronously.",
+          "x-optional": true,
+          "$ref": "#/$defs/shared__core_exporter_exporterhelper__queue_batch_config"
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/shared__core_exporter_exporterhelper__timeout_config"
+        },
+        {
+          "$ref": "#/$defs/shared__core_config_configgrpc__client_config"
+        }
+      ]
+    },
+    "component__exporter__otlp_http": {
+      "description": "Config defines configuration for OTLP/HTTP exporter. At least one of `endpoint` (from the squashed HTTP ClientConfig) or the per-signal `*_endpoint` fields must be specified.\n",
+      "type": "object",
+      "properties": {
+        "encoding": {
+          "description": "The encoding to export telemetry (default: \"proto\")",
+          "$ref": "#/$defs/component__exporter__otlp_http__encoding_type"
+        },
+        "logs_endpoint": {
+          "description": "The URL to send logs to. If omitted the Endpoint + \"/v1/logs\" will be used.",
+          "type": "string"
+        },
+        "metrics_endpoint": {
+          "description": "The URL to send metrics to. If omitted the Endpoint + \"/v1/metrics\" will be used.",
+          "type": "string"
+        },
+        "profiles_endpoint": {
+          "description": "The URL to send profiles to. If omitted the Endpoint + \"/v1development/profiles\" will be used.",
+          "type": "string"
+        },
+        "retry_on_failure": {
+          "description": "Retry/back-off settings applied to failed export requests.",
+          "$ref": "#/$defs/shared__core_config_configretry__back_off_config"
+        },
+        "sending_queue": {
+          "description": "Configuration for the optional in-memory sending queue. When unset the exporter sends synchronously.",
+          "x-optional": true,
+          "$ref": "#/$defs/shared__core_exporter_exporterhelper__queue_batch_config"
+        },
+        "traces_endpoint": {
+          "description": "The URL to send traces to. If omitted the Endpoint + \"/v1/traces\" will be used.",
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/shared__core_config_confighttp__client_config"
+        }
+      ]
+    },
+    "component__exporter__otlp_http__encoding_type": {
+      "description": "EncodingType defines the type for content encoding. Accepts \"proto\" or \"json\".",
+      "type": "string",
+      "enum": [
+        "proto",
+        "json"
+      ]
     },
     "component__connector__routing": {
       "description": "Config defines configuration for the Routing processor.",
@@ -2280,6 +2498,31 @@
         },
         "unit": {
           "$ref": "#/$defs/shared__connector_spanmetricsconnector_internal_metrics__unit"
+        }
+      }
+    },
+    "component__extension__zpages": {
+      "description": "Config has the configuration for the extension enabling the zPages extension. A non-empty `endpoint` (from the squashed HTTP ServerConfig) is required.\n",
+      "type": "object",
+      "properties": {
+        "expvar": {
+          "description": "Configuration for the optional expvar HTTP handler.",
+          "$ref": "#/$defs/component__extension__zpages__expvar_config"
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/shared__core_config_confighttp__server_config"
+        }
+      ]
+    },
+    "component__extension__zpages__expvar_config": {
+      "description": "ExpvarConfig has the configuration for the expvar service.",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "Enabled indicates whether to enable expvar service. (default = false)",
+          "type": "boolean"
         }
       }
     },
@@ -2562,62 +2805,6 @@
           "description": "Cardinality controls which tag cardinality is enriched onto the signal. Accepted values: 0 = low (host-level, default), 1 = orchestrator (per-pod/task), 2 = high (per-container/request).",
           "type": "integer",
           "x-customType": "github.com/DataDog/datadog-agent/comp/core/tagger/types.TagCardinality"
-        }
-      }
-    },
-    "shared__pkg_stanza_adapter__base_config": {
-      "description": "BaseConfig is the common configuration of a stanza-based receiver",
-      "type": "object",
-      "properties": {
-        "operators": {
-          "type": "array",
-          "items": {
-            "x-customType": "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator.Config"
-          }
-        },
-        "retry_on_failure": {
-          "$ref": "#/$defs/shared__internal_coreinternal_consumerretry__config"
-        },
-        "storage": {
-          "x-pointer": true,
-          "type": "string",
-          "x-customType": "go.opentelemetry.io/collector/component.ID"
-        }
-      }
-    },
-    "shared__pkg_stanza_operator_input_file__config": {
-      "description": "Config is the configuration of a file input operator",
-      "type": "object",
-      "allOf": [
-        {
-          "$ref": "#/$defs/shared__pkg_stanza_operator_helper__input_config"
-        },
-        {
-          "$ref": "#/$defs/shared__pkg_stanza_fileconsumer__config"
-        }
-      ]
-    },
-    "shared__core_scraper_scraperhelper__controller_config": {
-      "description": "ControllerConfig defines common settings for a scraper controller configuration. Scraper controller receivers can embed this struct, instead of receiver.Settings, and extend it with more fields if needed.",
-      "type": "object",
-      "properties": {
-        "collection_interval": {
-          "description": "CollectionInterval sets how frequently the scraper should be called and used as the context timeout to ensure that scrapers don't exceed the interval.",
-          "type": "string",
-          "x-customType": "time.Duration",
-          "format": "duration"
-        },
-        "initial_delay": {
-          "description": "InitialDelay sets the initial start delay for the scraper, any non positive value is assumed to be immediately.",
-          "type": "string",
-          "x-customType": "time.Duration",
-          "format": "duration"
-        },
-        "timeout": {
-          "description": "Timeout is an optional value used to set scraper's context deadline.",
-          "type": "string",
-          "x-customType": "time.Duration",
-          "format": "duration"
         }
       }
     },
@@ -3035,6 +3222,62 @@
         }
       }
     },
+    "shared__pkg_stanza_adapter__base_config": {
+      "description": "BaseConfig is the common configuration of a stanza-based receiver",
+      "type": "object",
+      "properties": {
+        "operators": {
+          "type": "array",
+          "items": {
+            "x-customType": "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator.Config"
+          }
+        },
+        "retry_on_failure": {
+          "$ref": "#/$defs/shared__internal_coreinternal_consumerretry__config"
+        },
+        "storage": {
+          "x-pointer": true,
+          "type": "string",
+          "x-customType": "go.opentelemetry.io/collector/component.ID"
+        }
+      }
+    },
+    "shared__pkg_stanza_operator_input_file__config": {
+      "description": "Config is the configuration of a file input operator",
+      "type": "object",
+      "allOf": [
+        {
+          "$ref": "#/$defs/shared__pkg_stanza_operator_helper__input_config"
+        },
+        {
+          "$ref": "#/$defs/shared__pkg_stanza_fileconsumer__config"
+        }
+      ]
+    },
+    "shared__core_scraper_scraperhelper__controller_config": {
+      "description": "ControllerConfig defines common settings for a scraper controller configuration. Scraper controller receivers can embed this struct, instead of receiver.Settings, and extend it with more fields if needed.",
+      "type": "object",
+      "properties": {
+        "collection_interval": {
+          "description": "CollectionInterval sets how frequently the scraper should be called and used as the context timeout to ensure that scrapers don't exceed the interval.",
+          "type": "string",
+          "x-customType": "time.Duration",
+          "format": "duration"
+        },
+        "initial_delay": {
+          "description": "InitialDelay sets the initial start delay for the scraper, any non positive value is assumed to be immediately.",
+          "type": "string",
+          "x-customType": "time.Duration",
+          "format": "duration"
+        },
+        "timeout": {
+          "description": "Timeout is an optional value used to set scraper's context deadline.",
+          "type": "string",
+          "x-customType": "time.Duration",
+          "format": "duration"
+        }
+      }
+    },
     "shared__internal_k8sconfig__api_config": {
       "description": "APIConfig contains options relevant to connecting to the K8s API",
       "type": "object",
@@ -3105,6 +3348,50 @@
     "shared__receiver_prometheusreceiver_internal_targetallocator__prom_httpsd_config": {
       "description": "PromHTTPSDConfig is a redeclaration of promHTTP.SDConfig because we need custom unmarshaling as prometheus \"config\" uses `yaml` tags.",
       "x-customType": "github.com/prometheus/prometheus/discovery/http.sd_config"
+    },
+    "shared__core_internal_memorylimiter__config": {
+      "description": "Config defines configuration for memory memoryLimiter processor.",
+      "type": "object",
+      "properties": {
+        "check_interval": {
+          "description": "CheckInterval is the time between measurements of memory usage for the purposes of avoiding going over the limits. Defaults to zero, so no checks will be performed.",
+          "type": "string",
+          "x-customType": "time.Duration",
+          "format": "duration"
+        },
+        "limit_mib": {
+          "description": "MemoryLimitMiB is the maximum amount of memory, in MiB, targeted to be allocated by the process.",
+          "type": "integer",
+          "x-customType": "uint32"
+        },
+        "limit_percentage": {
+          "description": "MemoryLimitPercentage is the maximum amount of memory, in %, targeted to be allocated by the process. The fixed memory settings MemoryLimitMiB has a higher precedence.",
+          "type": "integer",
+          "x-customType": "uint32"
+        },
+        "min_gc_interval_when_hard_limited": {
+          "description": "MinGCIntervalWhenHardLimited minimum interval between forced GC when in hard (=limit_mib) limited mode. Zero value means no minimum interval. GCs is a CPU-heavy operation and executing it too frequently may affect the recovery capabilities of the collector.",
+          "type": "string",
+          "x-customType": "time.Duration",
+          "format": "duration"
+        },
+        "min_gc_interval_when_soft_limited": {
+          "description": "MinGCIntervalWhenSoftLimited minimum interval between forced GC when in soft (=limit_mib - spike_limit_mib) limited mode. Zero value means no minimum interval. GCs is a CPU-heavy operation and executing it too frequently may affect the recovery capabilities of the collector.",
+          "type": "string",
+          "x-customType": "time.Duration",
+          "format": "duration"
+        },
+        "spike_limit_mib": {
+          "description": "MemorySpikeLimitMiB is the maximum, in MiB, spike expected between the measurements of memory usage.",
+          "type": "integer",
+          "x-customType": "uint32"
+        },
+        "spike_limit_percentage": {
+          "description": "MemorySpikePercentage is the maximum, in percents against the total memory, spike expected between the measurements of memory usage.",
+          "type": "integer",
+          "x-customType": "uint32"
+        }
+      }
     },
     "shared__internal_coreinternal_attraction__action": {
       "description": "Action is the enum to capture the four types of actions to perform on an attribute.",
@@ -3744,6 +4031,29 @@
         }
       }
     },
+    "shared__core_config_configtelemetry__level": {
+      "description": "Level is the level of internal telemetry (metrics, logs, traces about the component itself) that every component should generate.",
+      "type": "integer",
+      "x-customType": "int32"
+    },
+    "shared__core_exporter_exporterhelper__batch_config": {
+      "description": "BatchConfig defines a configuration for batching requests based on a timeout and a minimum number of items.",
+      "$ref": "#/$defs/shared__core_exporter_exporterhelper_internal_queuebatch__batch_config"
+    },
+    "shared__core_exporter_exporterhelper__option": {
+      "description": "Option apply changes to BaseExporter.",
+      "$ref": "#/$defs/__missing____internal_option__2bbb230d"
+    },
+    "shared__core_exporter_exporterhelper__queue_batch_config": {
+      "description": "QueueBatchConfig defines configuration for queueing and batching for the exporter.",
+      "$ref": "#/$defs/shared__core_exporter_exporterhelper_internal_queuebatch__config"
+    },
+    "shared__core_exporter_exporterhelper__request_sizer_type": {
+      "$ref": "#/$defs/__missing____internal_request_sizer_type__9895a8c8"
+    },
+    "shared__core_exporter_exporterhelper__timeout_config": {
+      "$ref": "#/$defs/shared__core_exporter_exporterhelper_internal__timeout_config"
+    },
     "shared__core_config_configretry__back_off_config": {
       "description": "BackOffConfig defines configuration for retrying batches in case of export failure. The current supported strategy is exponential backoff.",
       "type": "object",
@@ -3781,24 +4091,6 @@
           "x-customType": "float64"
         }
       }
-    },
-    "shared__core_exporter_exporterhelper__batch_config": {
-      "description": "BatchConfig defines a configuration for batching requests based on a timeout and a minimum number of items.",
-      "$ref": "#/$defs/shared__core_exporter_exporterhelper_internal_queuebatch__batch_config"
-    },
-    "shared__core_exporter_exporterhelper__option": {
-      "description": "Option apply changes to BaseExporter.",
-      "$ref": "#/$defs/__missing____internal_option__2bbb230d"
-    },
-    "shared__core_exporter_exporterhelper__queue_batch_config": {
-      "description": "QueueBatchConfig defines configuration for queueing and batching for the exporter.",
-      "$ref": "#/$defs/shared__core_exporter_exporterhelper_internal_queuebatch__config"
-    },
-    "shared__core_exporter_exporterhelper__request_sizer_type": {
-      "$ref": "#/$defs/__missing____internal_request_sizer_type__9895a8c8"
-    },
-    "shared__core_exporter_exporterhelper__timeout_config": {
-      "$ref": "#/$defs/shared__core_exporter_exporterhelper_internal__timeout_config"
     },
     "shared__connector_spanmetricsconnector_internal_metrics__key": {
       "type": "string"
@@ -4339,6 +4631,66 @@
         }
       }
     },
+    "shared__core_config_configauth__config": {
+      "description": "Config defines the auth settings for the receiver.",
+      "type": "object",
+      "properties": {
+        "authenticator": {
+          "description": "AuthenticatorID specifies the name of the extension to use in order to authenticate the incoming data point.",
+          "type": "string",
+          "x-customType": "go.opentelemetry.io/collector/component.ID"
+        }
+      }
+    },
+    "shared__core_config_configcompression__compression_params": {
+      "type": "object",
+      "properties": {
+        "level": {
+          "$ref": "#/$defs/shared__core_config_configcompression__level"
+        }
+      }
+    },
+    "shared__core_config_configcompression__level": {
+      "type": "integer"
+    },
+    "shared__core_config_configcompression__type": {
+      "description": "Type represents a compression method",
+      "type": "string"
+    },
+    "shared__core_config_configmiddleware__config": {
+      "description": "Middleware defines the extension ID for a middleware component.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "ID specifies the name of the extension to use.",
+          "type": "string",
+          "x-customType": "go.opentelemetry.io/collector/component.ID"
+        }
+      }
+    },
+    "shared__core_config_configopaque__map_list": {
+      "description": "MapList is a replacement for map[string]configopaque.String with a similar API, which can also be unmarshalled from (and is stored as) a list of name/value pairs. Pairs are assumed to have distinct names. This is checked during config validation.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/shared__core_config_configopaque__pair"
+      }
+    },
+    "shared__core_config_configopaque__pair": {
+      "description": "Pair is an element of a MapList, and consists of a name and an opaque value.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/shared__core_config_configopaque__string"
+        }
+      }
+    },
+    "shared__core_config_configopaque__string": {
+      "description": "String alias that is marshaled and printed in an opaque way. To recover the original value, cast it to a string.",
+      "type": "string"
+    },
     "shared__internal_coreinternal_consumerretry__config": {
       "description": "Config defines configuration for retrying batches in case of receiving a retryable error from a downstream consumer. If the retryable error doesn't provide a delay, exponential backoff is applied.",
       "type": "object",
@@ -4694,66 +5046,6 @@
           "$ref": "#/$defs/shared__pkg_stanza_operator_helper__basic_config"
         }
       ]
-    },
-    "shared__core_config_configauth__config": {
-      "description": "Config defines the auth settings for the receiver.",
-      "type": "object",
-      "properties": {
-        "authenticator": {
-          "description": "AuthenticatorID specifies the name of the extension to use in order to authenticate the incoming data point.",
-          "type": "string",
-          "x-customType": "go.opentelemetry.io/collector/component.ID"
-        }
-      }
-    },
-    "shared__core_config_configcompression__compression_params": {
-      "type": "object",
-      "properties": {
-        "level": {
-          "$ref": "#/$defs/shared__core_config_configcompression__level"
-        }
-      }
-    },
-    "shared__core_config_configcompression__level": {
-      "type": "integer"
-    },
-    "shared__core_config_configcompression__type": {
-      "description": "Type represents a compression method",
-      "type": "string"
-    },
-    "shared__core_config_configmiddleware__config": {
-      "description": "Middleware defines the extension ID for a middleware component.",
-      "type": "object",
-      "properties": {
-        "id": {
-          "description": "ID specifies the name of the extension to use.",
-          "type": "string",
-          "x-customType": "go.opentelemetry.io/collector/component.ID"
-        }
-      }
-    },
-    "shared__core_config_configopaque__map_list": {
-      "description": "MapList is a replacement for map[string]configopaque.String with a similar API, which can also be unmarshalled from (and is stored as) a list of name/value pairs. Pairs are assumed to have distinct names. This is checked during config validation.",
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/shared__core_config_configopaque__pair"
-      }
-    },
-    "shared__core_config_configopaque__pair": {
-      "description": "Pair is an element of a MapList, and consists of a name and an opaque value.",
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "value": {
-          "$ref": "#/$defs/shared__core_config_configopaque__string"
-        }
-      }
-    },
-    "shared__core_config_configopaque__string": {
-      "description": "String alias that is marshaled and printed in an opaque way. To recover the original value, cast it to a string.",
-      "type": "string"
     },
     "shared__core_pdata_plog__log_record_flags": {
       "description": "LogRecordFlags defines flags for the LogRecord. The 8 least significant bits are the trace flags as defined in W3C Trace Context specification. 24 most significant bits are reserved and must be set to 0.",
@@ -6887,10 +7179,6 @@
       "additionalProperties": true
     },
     "__missing____internal_tencent_cvm_config__eebdc5fd": {
-      "type": "object",
-      "additionalProperties": true
-    },
-    "__missing__go_opentelemetry_io_collector_exporter_otlpexporter_config__d30659b5": {
       "type": "object",
       "additionalProperties": true
     },
