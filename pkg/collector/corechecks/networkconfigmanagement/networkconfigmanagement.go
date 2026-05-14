@@ -51,7 +51,7 @@ type Check struct {
 
 // saveConfig saves the config if store is non-nil, returning the config UUID and SHA-256 hash
 // assigned by the store. If the store is unavailable both strings will be empty along with an error.
-func saveConfig(store store.ConfigStore, deviceID string, cType types.ConfigType, rawConfig []byte) (string, string, error) {
+func saveConfig(store store.ConfigStore, deviceID string, cType types.ConfigType, rawConfig []byte) (uuid string, hash string, error) {
 	if store == nil {
 		return "", "", errors.New("local config store unavailable - will not save configs for rollback")
 	}
@@ -111,11 +111,11 @@ func (c *Check) Run() error {
 		log.Warnf("unable to process rules for running config for device %s, using agent collection ts: %s", deviceID, checkErr)
 	} else {
 		// TODO: helper fn to take metadata that needs to be emitted as metrics + emit them
-		UUID, Hash, err := saveConfig(configStore, deviceID, types.RUNNING, runningConfig)
+		uuid, hash, err := saveConfig(configStore, deviceID, types.RUNNING, runningConfig)
 		if err != nil {
 			log.Warnf("unable to store running config: %v", err)
 		}
-		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, types.RUNNING, metadata, deviceTags, runningConfig, UUID, Hash))
+		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, types.RUNNING, metadata, deviceTags, runningConfig, uuid, hash))
 	}
 
 	rawStartupConfig, checkErr := c.remoteClient.RetrieveStartupConfig()
@@ -128,11 +128,11 @@ func (c *Check) Run() error {
 			log.Warnf("unable to process rules for startup config for device %s, using agent collection ts: %s", deviceID, checkErr)
 		} else {
 			// add the startup config to the payload if it was retrieved successfully
-			startupUUID, startupHash, err := saveConfig(configStore, deviceID, types.STARTUP, startupConfig)
+			uuid, hash, err := saveConfig(configStore, deviceID, types.STARTUP, startupConfig)
 			if err != nil {
 				log.Warnf("unable to store startup config: %v", err)
 			}
-			configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, types.STARTUP, metadata, deviceTags, startupConfig, startupUUID, startupHash))
+			configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, types.STARTUP, metadata, deviceTags, startupConfig, uuid, hash))
 		}
 	}
 

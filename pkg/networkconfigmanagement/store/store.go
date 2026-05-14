@@ -115,7 +115,7 @@ func (cs *configStore) update(fn func(tx *bbolt.Tx) error) error {
 // if so, it will create a new entry in each bucket (for the config, metadata, and secrets).
 // Returns the config UUID and the SHA-256 hash of the raw config. If the config is a
 // duplicate of the latest stored config for the device+type, the existing UUID is returned.
-func (cs *configStore) StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (string, string, error) {
+func (cs *configStore) StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (uuid string, hash string, error) {
 	// Setup + marshal everything first (does not require DB lock)
 	configUUID := uuid.New().String()
 	now := time.Now().Unix()

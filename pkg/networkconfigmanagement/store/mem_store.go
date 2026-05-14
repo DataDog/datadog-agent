@@ -42,7 +42,7 @@ func (m *memConfigStore) Close(_ context.Context) error {
 
 // StoreConfig stores a device configuration, deduplicating against the latest stored config for the same device+type.
 // Returns the config UUID and the SHA-256 hash of the raw config.
-func (m *memConfigStore) StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (string, string, error) {
+func (m *memConfigStore) StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (uuid string, hash string, error) {
 	rawHash := hashConfig(rawConfig)
 	now := time.Now().Unix()
 
