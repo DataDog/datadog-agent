@@ -316,10 +316,11 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	stats.maxes = insertFloat64(stats.maxes, idx, value)
 
 	if s.cfg.PointRetentionSecs > 0 {
-		// Trim points outside the retention window. searchAfter returns the first
-		// index where ts > (bucket-PointRetentionSecs-1), i.e. all points at or
-		// after (bucket-PointRetentionSecs) — everything before that is stale.
-		if trim := searchAfter(stats.timestamps, bucket-s.cfg.PointRetentionSecs-1); trim > 0 {
+		// Trim points outside the retention window. Use the series' latest
+		// timestamp (not the incoming bucket) so that backfilled/out-of-order
+		// points don't shift the cutoff backwards and over-retain stale data.
+		latestTS := stats.timestamps[len(stats.timestamps)-1]
+		if trim := searchAfter(stats.timestamps, latestTS-s.cfg.PointRetentionSecs-1); trim > 0 {
 			stats.timestamps = trimFront(stats.timestamps, trim)
 			stats.sums = trimFront(stats.sums, trim)
 			stats.counts = trimFront(stats.counts, trim)
@@ -839,7 +840,10 @@ func (s *timeSeriesStorage) DataTimestamps() []int64 {
 	defer s.mu.RUnlock()
 
 	seen := make(map[int64]struct{})
-	for _, stats := range s.series {
+	for _, stats := range s.seriesIDStats {
+		if stats == nil {
+			continue
+		}
 		for _, ts := range stats.timestamps {
 			seen[ts] = struct{}{}
 		}
@@ -1147,7 +1151,10 @@ func (s *timeSeriesStorage) TotalSampleCount(excludeNamespace string) int64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	total := int64(0)
-	for _, stats := range s.series {
+	for _, stats := range s.seriesIDStats {
+		if stats == nil {
+			continue
+		}
 		if excludeNamespace != "" && stats.Namespace == excludeNamespace {
 			continue
 		}
@@ -1162,7 +1169,10 @@ func (s *timeSeriesStorage) TotalSeriesCount(excludeNamespace string) int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	total := 0
-	for _, stats := range s.series {
+	for _, stats := range s.seriesIDStats {
+		if stats == nil {
+			continue
+		}
 		if excludeNamespace != "" && stats.Namespace == excludeNamespace {
 			continue
 		}
