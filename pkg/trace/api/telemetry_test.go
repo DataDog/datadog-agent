@@ -258,6 +258,7 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 
 	assert.Equal(200, recordedStatusCode(rec))
 	assert.Equal("{}", recordedResponse(t, rec))
+	assert.Equal("application/json", rec.Result().Header.Get("Content-Type")) //nolint:bodyclose
 
 	// because we use number 2,3 both endpoints must be called to produce 5
 	// just counting number of requests could give false results if first endpoint
