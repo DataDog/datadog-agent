@@ -371,6 +371,7 @@ func TestInfoHandler(t *testing.T) {
 	req := httptest.NewRequest("GET", "/info", nil)
 	req.Header.Add("Datadog-Container-ID", "id1")
 	h.ServeHTTP(rec, req)
+	assert.Equal(t, "application/json", rec.Header().Get("Content-Type"))
 	var m map[string]any
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&m))
 	assert.NoError(t, ensureKeys(expectedKeys, m, ""))
