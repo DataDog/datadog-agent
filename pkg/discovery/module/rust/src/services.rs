@@ -9,6 +9,7 @@ use serde::Serialize;
 
 use crate::apm;
 use crate::comm;
+use crate::configs;
 use crate::envs;
 use crate::fs::SubDirFs;
 use crate::language::Language;
@@ -51,6 +52,8 @@ pub struct Service {
 
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub log_files: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub config_files: Vec<String>,
     pub apm_instrumentation: bool,
     pub language: Option<Language>,
 }
@@ -171,6 +174,7 @@ fn get_service(
     // Open filesystem for the process at /proc/<pid>/root
     let proc_root = procfs::root_path().join(pid.to_string()).join("root");
     let fs = SubDirFs::new(&proc_root).ok()?;
+    let config_files = configs::get_config_files(&cmdline, &fs);
 
     // Create detection context for service name generation
     let mut ctx = service_name::DetectionContext::new(pid, envs.clone(), &fs);
@@ -193,12 +197,15 @@ fn get_service(
         tcp_ports,
         udp_ports,
         log_files,
+        config_files,
         apm_instrumentation,
         language,
     })
 }
 
 // GPU state is not re-detected on heartbeat; the caller preserves it from the initial detection.
+// Config files are also not re-discovered: they're derived from cmdline which is stable for the
+// lifetime of the process. Callers should retain config_files from the initial new_pids response.
 fn get_heartbeat_service(pid: i32, context: &mut ParsingContext) -> Option<Service> {
     let open_files_info = procfs::fd::get_open_files_info(pid).ok()?;
 

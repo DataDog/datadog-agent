@@ -93,6 +93,7 @@ pub struct dd_service {
     pub tcp_ports: dd_u16_slice,
     pub udp_ports: dd_u16_slice,
     pub log_files: dd_strs,
+    pub config_files: dd_strs,
     pub apm_instrumentation: bool,
     pub language: dd_str,
 }
@@ -252,6 +253,7 @@ impl From<Service> for dd_service {
             tcp_ports: vec_u16_to_slice(svc.tcp_ports),
             udp_ports: vec_u16_to_slice(svc.udp_ports),
             log_files: dd_strs::from(svc.log_files),
+            config_files: dd_strs::from(svc.config_files),
             apm_instrumentation: svc.apm_instrumentation,
             language: dd_str::from(svc.language),
         }
@@ -588,6 +590,7 @@ unsafe fn free_dd_service(service: &dd_service) {
         tcp_ports,
         udp_ports,
         log_files,
+        config_files,
         apm_instrumentation: _,
         language,
     } = service;
@@ -601,6 +604,7 @@ unsafe fn free_dd_service(service: &dd_service) {
         free_dd_u16_slice(tcp_ports);
         free_dd_u16_slice(udp_ports);
         free_dd_strs(log_files);
+        free_dd_strs(config_files);
         free_dd_str(language);
     }
 }
@@ -796,6 +800,7 @@ mod tests {
                 tcp_ports: Some(vec![8080, 8443]),
                 udp_ports: Some(vec![9000]),
                 log_files: vec!["/var/log/app.log".to_string()],
+                config_files: vec!["/etc/app/app.conf".to_string()],
                 apm_instrumentation: true,
                 language: Some(Language::Python),
             }],
@@ -890,6 +895,14 @@ mod tests {
             unsafe { std::slice::from_raw_parts(service.log_files.data, service.log_files.len) };
         assert_eq!(unsafe { dd_str_to_str(&logs[0]) }, "/var/log/app.log");
 
+        // Verify config_files
+        assert!(!service.config_files.data.is_null());
+        assert_eq!(service.config_files.len, 1);
+        let configs = unsafe {
+            std::slice::from_raw_parts(service.config_files.data, service.config_files.len)
+        };
+        assert_eq!(unsafe { dd_str_to_str(&configs[0]) }, "/etc/app/app.conf");
+
         // Verify injected_pids
         assert!(!result.injected_pids.is_null());
         assert_eq!(result.injected_pids_len, 2);
@@ -925,6 +938,7 @@ mod tests {
                 tcp_ports: None,
                 udp_ports: Some(vec![]),
                 log_files: vec![],
+                config_files: vec![],
                 apm_instrumentation: false,
                 language: None,
             }],
@@ -956,6 +970,8 @@ mod tests {
         assert_eq!(service.udp_ports.len, 0);
         assert!(service.log_files.data.is_null());
         assert_eq!(service.log_files.len, 0);
+        assert!(service.config_files.data.is_null());
+        assert_eq!(service.config_files.len, 0);
         assert_eq!(service.apm_instrumentation, false);
 
         assert!(result.injected_pids.is_null());

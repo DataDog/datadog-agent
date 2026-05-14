@@ -143,5 +143,12 @@ func convertRustService(svc *C.struct_dd_service) model.Service {
 		}
 	}
 
+	if configs := sliceFromC(svc.config_files.data, svc.config_files.len); len(configs) > 0 {
+		result.ConfigFiles = make([]string, len(configs))
+		for i, c := range configs {
+			result.ConfigFiles[i] = fromDDStr(c)
+		}
+	}
+
 	return result
 }
