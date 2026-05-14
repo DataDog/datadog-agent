@@ -80,10 +80,13 @@ struct {
   __type(value, stats_t);
 } stats_buf SEC(".maps");
 
-// zero_uint32 is the zero key used to address per-CPU array maps that
-// hold a single per-CPU value. Declared in the shared header so any
-// .c/.h file (event.c, stack_machine.h, ...) can address such maps
-// without a forward declaration.
+// zero_uint32 is a reusable zero key. Used to address PERCPU_ARRAY maps
+// that hold a single per-CPU value (in_progress_calls_buf, the per-CPU
+// events scratch buffer) and also to address slot 0 of the shared
+// stats_buf ARRAY — the runtime.recovery probe writes its process-wide
+// counters into slot 0 regardless of which probe_id the recovery
+// firing nominally belongs to. Declared in the shared header so any
+// .c/.h file can address such maps without a forward declaration.
 static const uint32_t zero_uint32 = 0;
 
 struct {

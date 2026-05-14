@@ -35,4 +35,6 @@ type DropNotification struct {
 	X__padding       [1]uint8
 	Last_seq         uint16
 	Entry_ktime_ns   uint64
+	Panic_lo_depth   uint32
+	Panic_hi_depth   uint32
 }

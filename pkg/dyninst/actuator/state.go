@@ -208,8 +208,11 @@ type Metrics struct {
 	NumPrograms uint64
 
 	// runtime.recovery probe activity, aggregated across all loaded
-	// programs and all CPU cores. See loader.RuntimeStats for the
-	// underlying per-CPU counter definitions.
+	// programs. See loader.RuntimeStats for the underlying counter
+	// definitions; BPF writes them with __sync atomics into the probe-0
+	// slot of the shared stats_buf ARRAY (they are process-wide, not
+	// per-probe), and the actuator reads probe-0's deltas at each
+	// heartbeat-driven RuntimeStats poll.
 	RecoveryFires          uint64
 	RecoveryEvictedFrames  uint64
 	RecoverySubmitFailures uint64
@@ -666,15 +669,18 @@ func enqueueProgramForProcess(sm *state, p *process) error {
 		probes = append(probes, probe)
 	}
 	if len(probes) == 0 {
-		// All configured probes have been circuit-broken on this
-		// process. There is nothing to instrument right now, but we
-		// must keep the process record alive so circuitBrokenProbes is
-		// preserved -- otherwise a subsequent processesUpdated that
-		// adds an unrelated probe (while a broken probe remains
-		// configured) would silently re-enable the hot probe. Park
-		// the process in Failed; subsequent changes to the configured
-		// probe set re-enter enqueueProgramForProcess via the Failed
-		// case in handleProcessUpdate.
+		// All configured user probes have been circuit-broken on this
+		// process. The recovery probe (irgen-synthesised, not in
+		// p.probes) is irrelevant without user probes to pair with, so
+		// we don't enqueue a recovery-only program. There is nothing
+		// to instrument right now, but we must keep the process record
+		// alive so circuitBrokenProbes is preserved -- otherwise a
+		// subsequent processesUpdated that adds an unrelated probe
+		// (while a broken probe remains configured) would silently
+		// re-enable the hot probe. Park the process in Failed;
+		// subsequent changes to the configured probe set re-enter
+		// enqueueProgramForProcess via the Failed case in
+		// handleProcessUpdate.
 		p.state = processStateFailed
 		p.currentProgram = 0
 		return nil
@@ -1152,11 +1158,21 @@ func maybeDequeueProgram(sm *state, effects effectHandler) error {
 	// Look up discovered types for the process's service at dequeue time,
 	// so we always use the latest set.
 	var additionalTypes []string
-	if proc, ok := sm.processes[p.processID]; ok && proc.service != "" {
-		additionalTypes = slices.Clone(sm.discoveredTypes[proc.service])
+	var skipRecoveryProbe bool
+	if proc, ok := sm.processes[p.processID]; ok {
+		if proc.service != "" {
+			additionalTypes = slices.Clone(sm.discoveredTypes[proc.service])
+		}
+		// The recovery probe is synthesised by irgen and is not in
+		// p.probes, so the standard enqueueProgramForProcess filter
+		// can't drop it. When the breaker trips it, suppress it at
+		// irgen time via LoadOptions instead.
+		recoveryKey := probeKey{id: ir.RuntimeRecoveryProbeID, version: 0}
+		_, skipRecoveryProbe = proc.circuitBrokenProbes[recoveryKey]
 	}
 	effects.loadProgram(p.id, p.executable, p.processID, p.config, LoadOptions{
-		AdditionalTypes: additionalTypes,
+		AdditionalTypes:          additionalTypes,
+		SkipRuntimeRecoveryProbe: skipRecoveryProbe,
 	})
 	return nil
 }

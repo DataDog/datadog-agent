@@ -2907,21 +2907,31 @@ sm_panic_unwind_prepare(uint64_t gp, scratch_buf_t* buf) {
   }
   stats_t* stats = bpf_map_lookup_elem(&stats_buf, &zero_uint32);
   if (stats) {
-    stats->recovery_fires++;
+    __sync_fetch_and_add(&stats->recovery_fires, 1);
   }
   if (OFFSET_runtime_dot_g___panic == 0) {
-    if (stats) stats->recovery_invalid_state++;
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
+    return false;
+  }
+  // Defense in depth: irgen drops the recovery probe when these offsets
+  // are absent from DWARF (see synthesizeRecoveryProbeEventRoot), so we
+  // should never see them as 0 here. Bail explicitly anyway rather than
+  // letting the (lo, hi] computation below silently degenerate to
+  // start_sp == sp == 0 → sp <= start_sp → return false.
+  if (OFFSET_runtime_dot__panic__startSP == 0 ||
+      OFFSET_runtime_dot__panic__sp == 0) {
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
     return false;
   }
   if (gp == 0) {
-    if (stats) stats->recovery_invalid_state++;
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
     return false;
   }
   di_event_header_t* hdr = (di_event_header_t*)buf;
   uint64_t goid = 0;
   if (bpf_probe_read_user(&goid, sizeof(goid),
                           (void*)(gp + OFFSET_runtime_dot_g__goid))) {
-    if (stats) stats->recovery_invalid_state++;
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
     return false;
   }
   if (goid == 0) {
@@ -2932,22 +2942,22 @@ sm_panic_unwind_prepare(uint64_t gp, scratch_buf_t* buf) {
                             (void*)(m_ptr + OFFSET_runtime_dot_m__curg)) ||
         bpf_probe_read_user(&goid, sizeof(goid),
                             (void*)(gp + OFFSET_runtime_dot_g__goid))) {
-      if (stats) stats->recovery_invalid_state++;
+      if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
       return false;
     }
   }
   if (!bpf_map_lookup_elem(&in_progress_calls, &goid)) {
-    if (stats) stats->recovery_no_open_calls++;
+    if (stats) __sync_fetch_and_add(&stats->recovery_no_open_calls, 1);
     return false;
   }
   uint64_t panic_ptr = 0;
   if (bpf_probe_read_user(&panic_ptr, sizeof(panic_ptr),
                           (void*)(gp + OFFSET_runtime_dot_g___panic))) {
-    if (stats) stats->recovery_invalid_state++;
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
     return false;
   }
   if (panic_ptr == 0) {
-    if (stats) stats->recovery_invalid_state++;
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
     return false;
   }
   if (OFFSET_runtime_dot__panic__recovered != 0) {
@@ -2956,7 +2966,7 @@ sm_panic_unwind_prepare(uint64_t gp, scratch_buf_t* buf) {
                             (void*)(panic_ptr +
                                     OFFSET_runtime_dot__panic__recovered)) ||
         recovered == 0) {
-      if (stats) stats->recovery_invalid_state++;
+      if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
       return false;
     }
   }
@@ -2965,11 +2975,11 @@ sm_panic_unwind_prepare(uint64_t gp, scratch_buf_t* buf) {
     if (bpf_probe_read_user(&goexit, sizeof(goexit),
                             (void*)(panic_ptr +
                                     OFFSET_runtime_dot__panic__goexit))) {
-      if (stats) stats->recovery_invalid_state++;
+      if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
       return false;
     }
     if (goexit != 0) {
-      if (stats) stats->recovery_filtered_goexit++;
+      if (stats) __sync_fetch_and_add(&stats->recovery_filtered_goexit, 1);
       return false;
     }
   }
@@ -2983,12 +2993,12 @@ sm_panic_unwind_prepare(uint64_t gp, scratch_buf_t* buf) {
       bpf_probe_read_user(&sp, sizeof(sp),
                           (void*)(panic_ptr +
                                   OFFSET_runtime_dot__panic__sp))) {
-    if (stats) stats->recovery_invalid_state++;
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
     return false;
   }
   if (start_sp == 0 || sp == 0 || start_sp >= stack_hi ||
       sp >= stack_hi || sp <= start_sp) {
-    if (stats) stats->recovery_invalid_state++;
+    if (stats) __sync_fetch_and_add(&stats->recovery_invalid_state, 1);
     return false;
   }
   hdr->panic_lo_depth = (uint32_t)(stack_hi - sp);
@@ -3040,7 +3050,7 @@ sm_panic_unwind_evict_slots(scratch_buf_t* buf) {
     depths->depths[s].dict_ptr = 0;
     depths->depths[s].entry_ktime_ns = 0;
     if (stats) {
-      stats->recovery_evicted_frames++;
+      __sync_fetch_and_add(&stats->recovery_evicted_frames, 1);
     }
   }
   if (remaining == 0) {

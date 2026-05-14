@@ -18,26 +18,29 @@ import (
 // recovery event out across N user-probe finalizations.
 //
 // Lifecycle:
-//   - Construct with NewSharedMessage(underlying).
-//   - For each fanout target, call Acquire() to get a refcounting handle
-//     that satisfies the Message interface.
-//   - Pass each handle into a buffer call (e.g. attached as a return-side
-//     fragment).
-//   - As the consumer drains each Ready, the handle's Release runs and
-//     decrements. When the last handle Releases, the underlying Message's
-//     Release is called once.
+//   - NewSharedMessage(underlying) returns a SharedMessage holding one
+//     base reference.
+//   - For each fanout target, Acquire() takes an additional reference and
+//     returns a handle that satisfies the Message interface.
+//   - ReleaseBase() drops the base reference. Call exactly once when no
+//     further Acquires will be made.
+//   - Each handle's Release() drops its reference.
 //
-// If no handles are ever Acquired, call ReleaseBase() to release the
-// underlying message immediately. Not safe to use a SharedMessage for new
-// Acquires after the refcount has reached zero.
+// The underlying Message is released when the last reference (base or
+// handle) is dropped. All Acquires must happen before ReleaseBase;
+// individual handle Releases may interleave freely with ReleaseBase
+// and with each other.
 type SharedMessage struct {
 	underlying Message
 	refs       atomic.Int32
 }
 
-// NewSharedMessage wraps underlying so it can be shared across many handles.
+// NewSharedMessage wraps underlying. The returned SharedMessage holds one
+// base reference that must be dropped via ReleaseBase exactly once.
 func NewSharedMessage(underlying Message) *SharedMessage {
-	return &SharedMessage{underlying: underlying}
+	s := &SharedMessage{underlying: underlying}
+	s.refs.Store(1)
+	return s
 }
 
 // Acquire returns a handle holding one reference on the underlying message.
@@ -48,11 +51,11 @@ func (s *SharedMessage) Acquire() Message {
 	return sharedMessageHandle{shared: s}
 }
 
-// ReleaseBase releases the underlying message when no Acquire has been
-// called. Safe to call exactly once; after this returns the SharedMessage
-// must not be used.
+// ReleaseBase drops the base reference taken by NewSharedMessage. Call
+// exactly once. The underlying Message is released by whichever caller
+// performs the final decrement (this one, or the last handle's Release).
 func (s *SharedMessage) ReleaseBase() {
-	s.underlying.Release()
+	s.release()
 }
 
 func (s *SharedMessage) release() {

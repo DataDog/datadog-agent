@@ -15,11 +15,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// runtimeRecoveryProbeID is the synthetic ID used for the internal probe
+// runtimeRecoveryProbeID is the synthetic ID for the internal probe
 // attached to runtime.recovery. The double-underscore prefix mirrors
 // reserved-name conventions and avoids any plausible collision with
 // user-provided probe IDs (which are derived from rcjson payload UUIDs).
-const runtimeRecoveryProbeID = "__runtime_recovery__"
+// The canonical declaration lives in the ir package so consumers
+// outside irgen (e.g. the actuator's circuit breaker) can recognise the
+// probe by ID without an irgen dependency.
+const runtimeRecoveryProbeID = ir.RuntimeRecoveryProbeID
 
 // runtimeRecoveryFunc is the target function in the Go runtime.
 //
@@ -209,6 +212,18 @@ func synthesizeRecoveryProbeEventRoot(
 	efaceType, ok := argField.Type.(*ir.GoEmptyInterfaceType)
 	if !ok {
 		return false
+	}
+	// The BPF SM_OP_PANIC_UNWIND_PREPARE handler reads startSP and sp to
+	// compute the unwound (lo, hi] depth range; without both, every
+	// recovery firing would read offset 0 from runtime._panic for each
+	// and silently bail out only because the values happen to compare
+	// equal. Drop the probe entirely rather than attach a no-op that
+	// relies on that coincidence. The recovered / goexit filters are
+	// gated by OFFSET != 0 in BPF so they may legitimately be absent.
+	for _, name := range []string{"startSP", "sp"} {
+		if _, ok := commonTypes.Panic.FieldByName(name); !ok {
+			return false
+		}
 	}
 
 	const ptrSize = 8

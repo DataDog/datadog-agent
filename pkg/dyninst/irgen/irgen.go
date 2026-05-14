@@ -141,8 +141,12 @@ func generateIR(
 	// pipeline. The probe attaches at runtime.recovery and lets BPF
 	// emit synthetic returns for probed frames being unwound by
 	// panic+recover (otherwise their in_progress_calls slot and the
-	// userspace bufferedEvent leak).
-	probeDefs = maybeAddRuntimeRecoveryProbe(probeDefs)
+	// userspace bufferedEvent leak). The caller can disable this via
+	// WithSkipRuntimeRecoveryProbe — used to honor a circuit-breaker
+	// trip on the recovery probe.
+	if !cfg.skipRuntimeRecoveryProbe {
+		probeDefs = maybeAddRuntimeRecoveryProbe(probeDefs)
+	}
 
 	// Ensure deterministic output.
 	slices.SortFunc(probeDefs, func(a, b ir.ProbeDefinition) int {

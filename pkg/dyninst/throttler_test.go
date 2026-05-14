@@ -203,7 +203,6 @@ func keepProbeWithID(probes *[]*ir.Probe, id string) {
 	*probes = out
 }
 
-
 type overriddenThrottle struct {
 	ir.ProbeDefinition
 	periodMs uint32

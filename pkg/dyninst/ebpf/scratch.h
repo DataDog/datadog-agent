@@ -46,10 +46,11 @@ typedef uint64_t buf_offset_t;
 // than this many fragments for a single invocation.
 #define MAX_CONTINUATION_FRAGMENTS 16
 
-// Side-channel for drop notifications. Notifications are 32 bytes each; at
-// 16 KiB the side channel holds ~500 notifications — far more than the
-// number of concurrently-buffered events userspace can hold, so the side
-// channel is very unlikely to fill even when out_ringbuf is saturated.
+// Side-channel for drop notifications. Notifications are 40 bytes each
+// (see di_drop_notification_t); at 16 KiB the side channel holds ~400
+// notifications — far more than the number of concurrently-buffered
+// events userspace can hold, so the side channel is very unlikely to
+// fill even when out_ringbuf is saturated.
 #define DROP_NOTIFY_RINGBUF_CAPACITY ((uint64_t)1 << 14) // 16KiB
 
 struct {
@@ -83,6 +84,9 @@ struct {
 // On failure (drop_notify_ringbuf full), stamps drop_notify_lost_at with
 // the current ktime so userspace can later reconcile the stuck eventbuf
 // entry.
+//
+// panic_lo_depth / panic_hi_depth are only meaningful for
+// DROP_REASON_PANIC_UNWOUND_LOST; pass 0 for other reasons.
 static inline void send_drop_notification(
     uint32_t prog_id,
     uint32_t probe_id,
@@ -90,7 +94,9 @@ static inline void send_drop_notification(
     uint32_t stack_byte_depth,
     uint16_t last_seq,
     uint64_t entry_ktime_ns,
-    uint8_t drop_reason) {
+    uint8_t drop_reason,
+    uint32_t panic_lo_depth,
+    uint32_t panic_hi_depth) {
   di_drop_notification_t notif = {
       .prog_id = prog_id,
       .probe_id = probe_id,
@@ -99,6 +105,8 @@ static inline void send_drop_notification(
       .drop_reason = drop_reason,
       .last_seq = last_seq,
       .entry_ktime_ns = entry_ktime_ns,
+      .panic_lo_depth = panic_lo_depth,
+      .panic_hi_depth = panic_hi_depth,
   };
   if (bpf_ringbuf_output(&drop_notify_ringbuf, &notif, sizeof(notif), 0) !=
       0) {

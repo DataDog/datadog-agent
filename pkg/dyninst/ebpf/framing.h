@@ -132,24 +132,33 @@ typedef struct di_data_item_header {
 // Reasons a drop notification is sent on the side channel. Describe what
 // userspace state a drop affected, not which BPF failure site caused it.
 //
-//  RETURN_LOST    — return-side submit failed with no fragments sent; the
-//                   matching entry sits in userspace's pairing store. Userspace
-//                   should emit the entry alone.
-//  PARTIAL_ENTRY  — entry submit succeeded for fragments [0..last_seq], then
-//                   subsequently failed. Userspace has or will receive exactly
-//                   last_seq+1 entry fragments; treat them as a truncated
-//                   complete entry.
-//  PARTIAL_RETURN — same as PARTIAL_ENTRY, but for the return side.
+//  RETURN_LOST        — return-side submit failed with no fragments sent;
+//                       the matching entry sits in userspace's pairing
+//                       store. Userspace should emit the entry alone.
+//  PARTIAL_ENTRY      — entry submit succeeded for fragments [0..last_seq],
+//                       then subsequently failed. Userspace has or will
+//                       receive exactly last_seq+1 entry fragments; treat
+//                       them as a truncated complete entry.
+//  PARTIAL_RETURN     — same as PARTIAL_ENTRY, but for the return side.
+//  PANIC_UNWOUND_LOST — the runtime.recovery synthetic event for the
+//                       range (panic_lo_depth, panic_hi_depth] on goid
+//                       failed to submit. BPF already evicted the matching
+//                       in_progress_calls slots; userspace should range-
+//                       scan its buffer and emit every matching invocation
+//                       as a truncated panic-unwound capture. probe_id,
+//                       stack_byte_depth, last_seq and entry_ktime_ns are
+//                       not meaningful for this reason.
 typedef enum drop_reason {
-  DROP_REASON_RETURN_LOST    = 1,
-  DROP_REASON_PARTIAL_ENTRY  = 2,
-  DROP_REASON_PARTIAL_RETURN = 3,
+  DROP_REASON_RETURN_LOST        = 1,
+  DROP_REASON_PARTIAL_ENTRY      = 2,
+  DROP_REASON_PARTIAL_RETURN     = 3,
+  DROP_REASON_PANIC_UNWOUND_LOST = 4,
 } drop_reason_t;
 
 // Side-channel message published to drop_notify_ringbuf to inform userspace
 // that a drop has affected buffered state for one invocation.
 //
-// Fixed 32-byte layout, kept in sync with ../output/drop_notification_linux.go.
+// Fixed 40-byte layout, kept in sync with ../output/framing_linux.go.
 typedef struct di_drop_notification {
   uint32_t prog_id;
   uint32_t probe_id;
@@ -159,13 +168,20 @@ typedef struct di_drop_notification {
   uint8_t drop_reason;
   uint8_t __padding[1];
   // continuation_seq of the last successfully submitted fragment. Ignored
-  // when drop_reason == DROP_REASON_RETURN_LOST (no fragments exist).
+  // when drop_reason == DROP_REASON_RETURN_LOST (no fragments exist) or
+  // DROP_REASON_PANIC_UNWOUND_LOST (range applies to many invocations).
   uint16_t last_seq;
   // Invocation ID. For return-side drops, the entry's start_ns (pulled from
   // in_progress_calls). For entry-side drops, the entry's own start_ns. This
   // matches the entry_ktime_ns field on the main-channel event header so
-  // userspace can correlate notifications with fragments by key.
+  // userspace can correlate notifications with fragments by key. Ignored
+  // when drop_reason == DROP_REASON_PANIC_UNWOUND_LOST.
   uint64_t entry_ktime_ns;
+  // Unwound stack depth range (panic_lo_depth, panic_hi_depth]. Only
+  // meaningful when drop_reason == DROP_REASON_PANIC_UNWOUND_LOST; zero
+  // for all other reasons.
+  uint32_t panic_lo_depth;
+  uint32_t panic_hi_depth;
 } __attribute__((aligned(8))) di_drop_notification_t;
 
 #endif // __FRAMING_H__

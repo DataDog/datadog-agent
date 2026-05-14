@@ -43,6 +43,13 @@ const (
 	maxProbeKind uint8 = iota
 )
 
+// RuntimeRecoveryProbeID is the well-known synthetic ID assigned to the
+// internal probe of kind ProbeKindRuntimeRecovery (see
+// irgen.maybeAddRuntimeRecoveryProbe). Exported here so the actuator
+// can recognise the probe's identity from a ProbeDefinition.GetID()
+// result without depending on irgen.
+const RuntimeRecoveryProbeID = "__runtime_recovery__"
+
 // IsValid returns true if the probe kind is valid.
 func (k ProbeKind) IsValid() bool {
 	return k > 0 && uint8(k) < maxProbeKind

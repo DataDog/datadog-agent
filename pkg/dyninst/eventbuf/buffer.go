@@ -215,6 +215,12 @@ type Buffer struct {
 	// so the caller (sink) can process them after the current mutation.
 	// Drained via TakePendingBudgetEvictions.
 	pendingBudgetEvictions []Ready
+
+	// chargeKeepSet is reusable scratch used by NotePanicUnwoundRange to
+	// pin its attaching matches against budget eviction. Lives on the
+	// Buffer rather than being allocated per call; safe because Buffer
+	// is not thread-safe (the sink mutex serializes all calls).
+	chargeKeepSet map[Key]struct{}
 }
 
 // NewBuffer returns an empty buffer that charges the given shared Budget
@@ -316,16 +322,22 @@ func (b *Buffer) AddFragment(
 // over-limit and log; the next AddFragment will then trigger further
 // eviction.
 func (b *Buffer) chargeForFragment(excludeKey Key, nbytes int) {
+	b.chargeExcluding(nbytes, func(k Key) bool { return k == excludeKey })
+}
+
+// chargeExcluding reserves nbytes in the shared budget, evicting this
+// buffer's oldest entries — skipping any entry whose key satisfies
+// keepKey — until the charge fits. Used by paths that must protect a
+// set of entries from budget eviction (e.g. all matches of a panic-
+// unwound fanout, which must all survive the per-match charges).
+func (b *Buffer) chargeExcluding(nbytes int, keepKey func(Key) bool) {
 	if b.budget.tryCharge(nbytes) {
 		return
 	}
-	// Evict oldest entries other than the one we're extending, until the
-	// charge fits.
 	for b.tree.Len() > 0 {
-		// Find the oldest entry (smallest touch) other than excludeKey.
 		var oldest *bufferedEvent
 		b.tree.Ascend(func(be *bufferedEvent) bool {
-			if be.key == excludeKey {
+			if keepKey(be.key) {
 				return true
 			}
 			if oldest == nil || be.touch < oldest.touch {
@@ -361,9 +373,9 @@ func (b *Buffer) chargeForFragment(excludeKey Key, nbytes int) {
 // shared must wrap the single synthetic message emitted by BPF's
 // SM_OP_PANIC_UNWIND_PREPARE pipeline. Each matched invocation acquires
 // a handle on shared, so a single payload fans out to N user-probe
-// finalizations. The caller is responsible for releasing the shared
-// message (via ReleaseBase) when no entries matched — i.e. when the
-// returned Readys slice is empty.
+// finalizations. The caller must call shared.ReleaseBase() exactly once
+// after this returns; SharedMessage's refcount releases the underlying
+// when the final reference (base or handle) is dropped.
 //
 // Returns the Readys for invocations that finalized as a result of the
 // range scan, in tree order.
@@ -385,7 +397,7 @@ func (b *Buffer) NotePanicUnwoundRange(
 		return true
 	})
 
-	var readys []Ready
+	attaching := make([]*bufferedEvent, 0, len(matches))
 	for _, be := range matches {
 		if be.returnList != nil {
 			// Invariant: a frame whose return uprobe fired cannot also
@@ -401,15 +413,89 @@ func (b *Buffer) NotePanicUnwoundRange(
 			)
 			continue
 		}
+		attaching = append(attaching, be)
+	}
+	if len(attaching) == 0 {
+		return nil
+	}
+
+	// Pin every attaching match against budget eviction for the duration
+	// of the per-match mutation loop below. The loop reads each
+	// *bufferedEvent after the charge runs; if the charge had evicted one
+	// of the matches, the iteration would mutate a dangling pointer.
+	nbytes := len(shared.underlying.Event())
+	if b.chargeKeepSet == nil {
+		b.chargeKeepSet = make(map[Key]struct{})
+	}
+	defer clear(b.chargeKeepSet)
+	for _, be := range attaching {
+		b.chargeKeepSet[be.key] = struct{}{}
+	}
+	b.chargeExcluding(nbytes*len(attaching), func(k Key) bool {
+		_, ok := b.chargeKeepSet[k]
+		return ok
+	})
+
+	readys := make([]Ready, 0, len(attaching))
+	for _, be := range attaching {
 		handle := shared.Acquire()
-		nbytes := len(handle.Event())
-		b.chargeForFragment(be.key, nbytes)
 		b.touch(be)
 		be.bytes += nbytes
 		b.bytes += nbytes
 		be.returnList = NewMessageList(handle)
 		be.returnFragments = 1
 		be.returnExpected = 1
+		be.expectReturn = true
+		be.panicUnwound = true
+		if ready, done := b.tryFinalize(be); done {
+			readys = append(readys, ready)
+		}
+	}
+	return readys
+}
+
+// NotePanicUnwoundRangeLost records a PANIC_UNWOUND_LOST drop notification:
+// the synthetic recovery event for the goroutine's unwound (lo, hi] range
+// could not reach userspace. BPF has already evicted the matching
+// in_progress_calls slots, so for every buffered invocation on goid whose
+// StackByteDepth ∈ (loDepth, hiDepth] the return uprobe will never fire.
+// Mark each such invocation as return-lost + panic-unwound and finalize
+// whatever can finalize now; the rest will surface as truncated when
+// their entry side completes or budget/time eviction fires.
+//
+// Returns the Readys for invocations that finalized as a result of the
+// range scan, in tree order.
+func (b *Buffer) NotePanicUnwoundRangeLost(
+	goid uint64, loDepth, hiDepth uint32,
+) []Ready {
+	// Collect matching entries first, then mutate; the btree iterator
+	// does not support mutation in-place.
+	var matches []*bufferedEvent
+	pivot := &bufferedEvent{key: Key{Goid: goid, StackByteDepth: loDepth + 1}}
+	b.tree.AscendGreaterOrEqual(pivot, func(be *bufferedEvent) bool {
+		if be.key.Goid != goid {
+			return false
+		}
+		if be.key.StackByteDepth > hiDepth {
+			return false
+		}
+		matches = append(matches, be)
+		return true
+	})
+
+	var readys []Ready
+	for _, be := range matches {
+		if be.returnList != nil {
+			// Same invariant as NotePanicUnwoundRange: a frame whose
+			// return uprobe fired cannot be in the unwound range.
+			log.Errorf(
+				"eventbuf: panic-unwound-lost range hit key %+v with %d return fragments already present; skipping",
+				be.key, be.returnFragments,
+			)
+			continue
+		}
+		b.touch(be)
+		be.returnLost = true
 		be.expectReturn = true
 		be.panicUnwound = true
 		if ready, done := b.tryFinalize(be); done {

@@ -278,8 +278,8 @@ type RuntimeStats struct {
 	// unwound region.
 	RecoveryEvictedFrames uint64
 	// RecoverySubmitFailures is the number of synthetic-event submits
-	// that failed (out_ringbuf full) and were converted to a RETURN_LOST
-	// drop notification on the side channel.
+	// that failed (out_ringbuf full) and were converted to a
+	// PANIC_UNWOUND_LOST drop notification on the side channel.
 	RecoverySubmitFailures uint64
 	// RecoveryNoOpenCalls counts recoveries on goroutines that had no
 	// probed-frame pairing state in flight. These are common (every

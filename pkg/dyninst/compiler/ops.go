@@ -529,5 +529,4 @@ type PanicUnwindEvictSlotsOp struct {
 	baseOp
 }
 
-
 //revive:enable:exported
