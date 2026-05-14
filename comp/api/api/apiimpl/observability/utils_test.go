@@ -50,7 +50,7 @@ func TestWrapWithRouteTemplate(t *testing.T) {
 		{"", "/test", "/test"},
 		{"", "/test/", "/test/"},
 		{"", "/test/{id}", "/test/{id}"},
-		{"/agent", "/{component}/status", "/agent/{component}/status"},
+		{"/agent", "/status/section/{component}", "/agent/status/section/{component}"},
 	}
 
 	for _, tc := range testCases {

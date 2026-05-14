@@ -305,12 +305,21 @@ func (s *BaseSuite) AfterTest(suiteName, testName string) {
 			}
 			time.Sleep(1 * time.Second)
 		}
+		// Dumps from processes in DefaultIgnoredCrashDumpImages are still
+		// downloaded as artifacts but do not fail the test.
 		dumps, err := windowscommon.DownloadAllWERDumps(s.Env().RemoteHost, s.dumpFolder, s.SessionOutputDir())
 		s.Assert().NoError(err, "should download crash dumps")
-		if !s.Assert().Empty(dumps, "should not have crash dumps") {
-			s.T().Logf("Found crash dumps:")
-			for _, dump := range dumps {
-				s.T().Logf("  %s", dump)
+		failing, ignored := windowscommon.PartitionDownloadedWERDumps(dumps, windowscommon.DefaultIgnoredCrashDumpImages)
+		if len(ignored) > 0 {
+			s.T().Logf("Ignoring %d crash dumps from known-noisy processes:", len(ignored))
+			for _, dump := range ignored {
+				s.T().Logf("  %s -> %s", dump.Source.FileName, dump.LocalPath)
+			}
+		}
+		if !s.Assert().Empty(failing, "should not have crash dumps") {
+			s.T().Logf("Found unexpected crash dumps:")
+			for _, dump := range failing {
+				s.T().Logf("  %s -> %s", dump.Source.FileName, dump.LocalPath)
 			}
 		}
 	}

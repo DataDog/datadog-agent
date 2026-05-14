@@ -115,6 +115,20 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return C.SM_OP_COND_JUMP_IF_TRUE
 	case compiler.OpcodeExprLoadDuration:
 		return C.SM_OP_EXPR_LOAD_DURATION
+	case compiler.OpcodeConditionStateInit:
+		return C.SM_OP_CONDITION_STATE_INIT
+	case compiler.OpcodeConditionLeafRecord:
+		return C.SM_OP_CONDITION_LEAF_RECORD
+	case compiler.OpcodeConditionLeafLoad:
+		return C.SM_OP_CONDITION_LEAF_LOAD
+	case compiler.OpcodeConditionCheckPreserveError:
+		return C.SM_OP_CONDITION_CHECK_PRESERVE_ERROR
+	case compiler.OpcodeConditionLeafComplete:
+		return C.SM_OP_CONDITION_LEAF_COMPLETE
+	case compiler.OpcodeGoContextChainInit:
+		return C.SM_OP_GO_CONTEXT_CHAIN_INIT
+	case compiler.OpcodeGoContextChainHop:
+		return C.SM_OP_GO_CONTEXT_CHAIN_HOP
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
 	}

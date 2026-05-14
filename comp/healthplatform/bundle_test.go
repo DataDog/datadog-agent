@@ -27,6 +27,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	schedulerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -78,7 +79,8 @@ func TestBundleStartLifecycle(t *testing.T) {
 
 	type appDeps struct {
 		fx.In
-		HP healthplatformdef.Component
+		HP        healthplatformdef.Component
+		Scheduler schedulerdef.Component
 	}
 
 	// Intervals well below the test timeout so the lifecycle work completes quickly.
@@ -112,7 +114,7 @@ func TestBundleStartLifecycle(t *testing.T) {
 		// so the registry's BuildIssue lookup succeeds.
 		testIssueID = "docker-file-tailing-disabled"
 	)
-	require.NoError(t, deps.HP.ScheduleHealthCheck(testCheckID, testCheckName, func() (*healthplatformpayload.IssueReport, error) {
+	require.NoError(t, deps.Scheduler.ScheduleHealthCheck(testCheckID, testCheckName, func() (*healthplatformpayload.IssueReport, error) {
 		checkRunCount.Add(1)
 		return &healthplatformpayload.IssueReport{
 			IssueId: testIssueID,
