@@ -489,7 +489,7 @@ func TestTCPPlaintextHasNoTLSTags(t *testing.T) {
 	fmt.Fprint(conn, "plaintext msg\n")
 	msg := <-msgChan
 	assert.Equal(t, "plaintext msg", string(msg.GetContent()))
-	for _, tag := range msg.Origin.Tags(nil) {
+	for _, tag := range msg.Origin.Tags() {
 		assert.False(t, strings.HasPrefix(tag, "tls_"), "plaintext message should not have TLS tags, got %q", tag)
 	}
 

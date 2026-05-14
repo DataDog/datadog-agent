@@ -71,6 +71,14 @@ func testAdaptiveSamplingOptions(enabled bool) *config.SourceAdaptiveSamplingOpt
 		MatchThreshold:         pointer.Ptr(0.75),
 		TokenizerMaxInputBytes: pointer.Ptr(512),
 		ProtectImportantLogs:   pointer.Ptr(false),
+		Include: []*config.AdaptiveSamplingRule{
+			{Regex: "foo.*bar"},
+			{Sample: "my 123 fun log sample"},
+		},
+		Exclude: []*config.AdaptiveSamplingRule{
+			{Regex: "baz.*qux"},
+			{Sample: "my 456 bad log sample"},
+		},
 	}
 }
 
@@ -631,7 +639,7 @@ func setNonZero(v reflect.Value, name string) {
 		v.SetFloat(0.42)
 	case reflect.Bool:
 		v.SetBool(true)
-	case reflect.Ptr:
+	case reflect.Pointer:
 		elem := reflect.New(v.Type().Elem())
 		setNonZero(elem.Elem(), name)
 		v.Set(elem)

@@ -8,7 +8,9 @@ package semantics
 import (
 	_ "embed" //nolint:revive
 	"encoding/json"
+	"errors"
 	"fmt"
+	"sync/atomic"
 )
 
 //go:embed mappings.json
@@ -25,9 +27,14 @@ type EmbeddedRegistry struct {
 	mappings map[Concept][]TagInfo
 }
 
-var globalRegistry = mustLoadRegistry()
+var globalRegistry atomic.Pointer[Registry]
 
-func mustLoadRegistry() *EmbeddedRegistry {
+func init() {
+	r := mustLoadRegistry()
+	globalRegistry.Store(&r)
+}
+
+func mustLoadRegistry() Registry {
 	r, err := NewEmbeddedRegistry()
 	if err != nil {
 		panic(fmt.Sprintf("failed to load semantic registry: %v", err))
@@ -35,9 +42,29 @@ func mustLoadRegistry() *EmbeddedRegistry {
 	return r
 }
 
-// DefaultRegistry returns the default semantic registry.
+// DefaultRegistry returns the live semantic registry.
 func DefaultRegistry() Registry {
-	return globalRegistry
+	return *globalRegistry.Load()
+}
+
+// UpdateRegistry atomically replaces the live registry.
+// Callers are responsible for refreshing any derived state (e.g. concentrator peer tag keys) after the swap.
+// Called by RemoteConfigHandler only after successful validation.
+func UpdateRegistry(r Registry) {
+	globalRegistry.Store(&r)
+}
+
+// NewRegistryFromJSON constructs a Registry from raw JSON without affecting the live registry.
+// Returns an error if the JSON is malformed or contains no concepts.
+func NewRegistryFromJSON(data []byte) (Registry, error) {
+	r := &EmbeddedRegistry{}
+	if err := r.loadFromJSON(data); err != nil {
+		return nil, err
+	}
+	if len(r.mappings) == 0 {
+		return nil, errors.New("registry JSON contains no concepts")
+	}
+	return r, nil
 }
 
 // NewEmbeddedRegistry creates a registry from embedded JSON mappings.

@@ -48,6 +48,7 @@ go_test(
         "//pkg/proto/pbgo/trace/idx",
         "//pkg/trace/config",
         "//pkg/trace/sampler",
+        "//pkg/trace/semantics",
         "//pkg/trace/traceutil",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_datadog_sketches_go//ddsketch",

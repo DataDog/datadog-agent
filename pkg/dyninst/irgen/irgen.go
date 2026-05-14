@@ -252,6 +252,9 @@ func generateIR(
 	for _, name := range cfg.additionalTypes {
 		additionalTypeSet[name] = struct{}{}
 	}
+	specialAdditionalTypeSet := make(map[string]struct{})
+	addDDTraceGoContextTypes(specialAdditionalTypeSet)
+	specialAdditionalTypeOffsets := make(map[string]dwarf.Offset, len(specialAdditionalTypeSet))
 
 	var additionalTypeRoots []explorationRoot
 	var methodBuf []gotype.Method
@@ -278,8 +281,37 @@ func generateIR(
 
 		// If this type was requested as an additional type, resolve it to
 		// a DWARF offset and add it to the type catalog for exploration.
+		// We match against the package-qualified full name (constructed
+		// from PkgPath + "." + lastSegmentOf(Name)) AND the short name —
+		// Go's runtime stores type names in short form
+		// ("<pkgLastSegment>.<typeName>"), while specialAdditionalTypeSet
+		// uses full paths to disambiguate between e.g. v1 and v2
+		// dd-trace-go.
+		name := goType.Name().UnsafeName()
+		fullName := name
+		if pkgPath := goType.PkgPath().UnsafeName(); pkgPath != "" {
+			star := ""
+			short := name
+			if strings.HasPrefix(short, "*") {
+				star = "*"
+				short = short[1:]
+			}
+			if dot := strings.IndexByte(short, '.'); dot >= 0 {
+				fullName = star + pkgPath + short[dot:]
+			}
+		}
+		var matchName string
+		if _, special := specialAdditionalTypeSet[fullName]; special {
+			matchName = fullName
+		} else if _, special := specialAdditionalTypeSet[name]; special {
+			matchName = name
+		}
+		if matchName != "" {
+			if dwarfOffset, ok := typeIndex.resolveDwarfOffset(tid); ok {
+				specialAdditionalTypeOffsets[matchName] = dwarfOffset
+			}
+		}
 		if len(additionalTypeSet) > 0 {
-			name := goType.Name().UnsafeName()
 			if _, requested := additionalTypeSet[name]; requested {
 				if dwarfOffset, ok := typeIndex.resolveDwarfOffset(tid); ok {
 					t, addErr := typeCatalog.addType(dwarfOffset)
@@ -289,9 +321,13 @@ func generateIR(
 							name, dwarfOffset, addErr,
 						)
 					} else {
+						budget := uint32(additionalTypeBudget)
+						if _, special := specialAdditionalTypeSet[name]; special {
+							budget = 1
+						}
 						additionalTypeRoots = append(additionalTypeRoots, explorationRoot{
 							typeID: t.GetID(),
-							budget: additionalTypeBudget,
+							budget: budget,
 						})
 					}
 				}
@@ -396,6 +432,50 @@ func generateIR(
 	// instance.
 	budgets := computeDepthBudgets(processed.pendingSubprograms)
 	analyzedProbes, explorationRoots := analyzeAllProbes(probes, budgets, typeCatalog)
+	needsGoContextSupport := analyzedProbesContainGoContext(analyzedProbes)
+	// Also enable context support if context.Context appears anywhere in
+	// the binary's go runtime types (via the special-additional-types
+	// gotype iteration). This catches the common case where a probe
+	// captures something whose type tree contains a context.Context
+	// field but the static walk above sees a placeholder for the
+	// transitively-reachable type.
+	if !needsGoContextSupport {
+		if _, ok := specialAdditionalTypeOffsets["context.Context"]; ok {
+			needsGoContextSupport = true
+		}
+	}
+	if needsGoContextSupport {
+		// Pull every dd-trace-go support type and the context.Context
+		// interface itself into the catalog now, so that the unified
+		// expansion below has them as roots. context.Context gets budget
+		// 2 (enough to dereference the interface to its impl pointer and
+		// then dereference that pointer to the impl struct, materializing
+		// the struct as a real StructureType rather than a placeholder).
+		// All other special types get budget 1 — they're either directly
+		// captured or reached via valueCtx's value field at runtime.
+		for _, name := range ddTraceGoContextTypes {
+			dwarfOffset, ok := specialAdditionalTypeOffsets[name]
+			if !ok {
+				continue
+			}
+			t, addErr := typeCatalog.addType(dwarfOffset)
+			if addErr != nil {
+				log.Debugf(
+					"failed to add context support type %q at offset %#x: %v",
+					name, dwarfOffset, addErr,
+				)
+				continue
+			}
+			budget := uint32(1)
+			if name == "context.Context" {
+				budget = 2
+			}
+			additionalTypeRoots = append(additionalTypeRoots, explorationRoot{
+				typeID: t.GetID(),
+				budget: budget,
+			})
+		}
+	}
 
 	// Resolve placeholder types by a unified, budgeted expansion from
 	// exploration roots. Container internals are zero-cost.
@@ -415,6 +495,13 @@ func generateIR(
 		}
 	}
 
+	// All expansion is complete. annotateSpecialGoTypes runs after this on
+	// `needsGoContextSupport`; it was set during the special-types
+	// resolution above (where we tried to add context.Context and friends
+	// as exploration roots). The chain walk's runtime metadata
+	// (GoContext.IsContext, DDTrace span layouts) is then attached to the
+	// concrete impls in the catalog.
+
 	// Validate that all expression types were properly explored during
 	// expandTypesWithBudgets. This marks invalid segments for expressions
 	// that fail to resolve (e.g., type mismatches, missing fields).
@@ -424,6 +511,7 @@ func generateIR(
 	if err := finalizeTypes(typeCatalog, materializedSubprograms); err != nil {
 		return nil, err
 	}
+	annotateSpecialGoTypes(typeCatalog, needsGoContextSupport)
 
 	// Populate event root expressions for every probe.
 	probes, eventIssues := populateProbeEventsExpressions(
@@ -1727,6 +1815,7 @@ func (p *typeQueueProcessor) drainQueue() error {
 		// Nothing to do for these types.
 		case *ir.BaseType,
 			*ir.DurationType,
+			*ir.TraceContextType,
 			*ir.EventRootType,
 			*ir.GoChannelType,
 			*ir.GoEmptyInterfaceType,
@@ -1747,6 +1836,14 @@ func (p *typeQueueProcessor) drainQueue() error {
 		case *ir.StructureType:
 			for i := range tt.RawFields {
 				p.push(tt.RawFields[i].Type, wi.remaining)
+			}
+		case *ir.GoContextImplementationType:
+			for i := range tt.StructureType.RawFields {
+				p.push(tt.StructureType.RawFields[i].Type, wi.remaining)
+			}
+		case *ir.DDTraceSpanType:
+			for i := range tt.StructureType.RawFields {
+				p.push(tt.StructureType.RawFields[i].Type, wi.remaining)
 			}
 		case *ir.GoSliceHeaderType:
 			p.push(tt.Data, wi.remaining)

@@ -188,8 +188,11 @@ func (c *Check) Interval() time.Duration {
 }
 
 // Factory creates a new check factory
-func Factory(agentConfig config.Component) option.Option[func() check.Check] {
+func Factory(agentConfig config.Component, ncmComp option.Option[networkconfigmanagement.Component]) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
+		if comp, ok := ncmComp.Get(); ok {
+			return newCheck(agentConfig, comp)
+		}
 		return newCheck(agentConfig, nil)
 	})
 }

@@ -203,6 +203,8 @@ package :msi do
   #end
   if ENV['SIGN_WINDOWS_DD_WCS']
     dd_wcssign true
+    dd_wcs_cert ENV['WINDOWS_SIGNING_CERT'] if ENV['WINDOWS_SIGNING_CERT']
+    dd_wcs_config ENV['WINDOWS_SIGNING_CONFIG'] if ENV['WINDOWS_SIGNING_CONFIG']
   end
 
   parameters({
