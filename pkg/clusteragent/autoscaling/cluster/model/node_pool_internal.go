@@ -146,30 +146,11 @@ func (n *NodePoolInternal) KarpenterNodePool() *karpenterv1.NodePool {
 	return n.karpenterNodePool
 }
 
-// mergePtrs returns rc if non-nil, otherwise target. Used in BuildReplicaNodePool
-// to apply "RC wins if set, else preserve target" semantics for pointer fields.
-func mergePtrs[T any](rc, target *T) *T {
-	if rc != nil {
-		return rc
-	}
-	return target
-}
-
-// mergeSlices returns rc if non-empty, otherwise target. Used in BuildReplicaNodePool
-// to apply "RC wins if set, else preserve target" semantics for slice fields.
-func mergeSlices[T any](rc, target []T) []T {
-	if len(rc) > 0 {
-		return rc
-	}
-	return target
-}
-
-// BuildReplicaNodePool produces a NodePool for a Datadog-managed replica of an existing target NodePool.
+// BuildReplicaNodePool produces a NodePool for a Datadog-managed replica of an existing target NodePool
 // The target is used as the base and RC values are applied on top:
-//   - Top-level labels/annotations and Spec.Template.Spec.Requirements are always replaced from RC, even if RC's values are empty.
-//   - Other fields are only overwritten if RC explicitly set them; otherwise the target's value is preserved.
-//   - Spec.Weight defaults to GetNodePoolWeight(targetNp) when RC omits it.
-//   - Template-level labels/annotations from RC are merged on top of the target's (RC keys win, target keys preserved).
+//   - Top-level labels/annotations are always replaced from RC
+//   - Other fields are only overwritten if RC explicitly set them; otherwise the target's value is preserved
+//   - Template-level labels/annotations from RC are merged on top of the target's
 func (n *NodePoolInternal) BuildReplicaNodePool(targetNp *karpenterv1.NodePool) *karpenterv1.NodePool {
 	if n.karpenterNodePool == nil || targetNp == nil {
 		return nil
@@ -180,20 +161,18 @@ func (n *NodePoolInternal) BuildReplicaNodePool(targetNp *karpenterv1.NodePool) 
 	merged.TypeMeta = rc.TypeMeta
 	merged.Status = karpenterv1.NodePoolStatus{}
 
-	// Top-level metadata: completely replace from RC. Constructing a fresh ObjectMeta
-	// drops server-set fields (ResourceVersion, UID, Generation, CreationTimestamp,
-	// ManagedFields, ...) that the target carries from the cluster.
+	// Construct top-level metadata from RC
 	merged.ObjectMeta = metav1.ObjectMeta{
 		Name:        rc.Name,
 		Labels:      maps.Clone(rc.Labels),
 		Annotations: maps.Clone(rc.Annotations),
 	}
 
-	// NodePoolSpec fields: RC wins if set, else target preserved.
+	// NodePoolSpec fields: use RC values if set, else fallback to target
 	if rc.Spec.Weight != nil {
 		merged.Spec.Weight = rc.Spec.Weight
 	} else {
-		merged.Spec.Weight = GetNodePoolWeight(targetNp)
+		merged.Spec.Weight = getNodePoolWeight(targetNp)
 	}
 	merged.Spec.Replicas = mergePtrs(rc.Spec.Replicas, merged.Spec.Replicas)
 	if len(rc.Spec.Limits) > 0 {
@@ -203,7 +182,7 @@ func (n *NodePoolInternal) BuildReplicaNodePool(targetNp *karpenterv1.NodePool) 
 		merged.Spec.Disruption = rc.Spec.Disruption
 	}
 
-	// Template ObjectMeta: RC keys merged on top of target's.
+	// Template ObjectMeta: RC keys merged on top of target's
 	for k, v := range rc.Spec.Template.ObjectMeta.Labels {
 		if merged.Spec.Template.ObjectMeta.Labels == nil {
 			merged.Spec.Template.ObjectMeta.Labels = map[string]string{}
@@ -217,8 +196,8 @@ func (n *NodePoolInternal) BuildReplicaNodePool(targetNp *karpenterv1.NodePool) 
 		merged.Spec.Template.ObjectMeta.Annotations[k] = v
 	}
 
-	// NodeClaimTemplateSpec fields: RC wins if set, else target preserved.
-	merged.Spec.Template.Spec.Requirements = rc.Spec.Template.Spec.Requirements
+	// NodeClaimTemplateSpec fields: use RC values if set, else fallback to target
+	merged.Spec.Template.Spec.Requirements = mergeSlices(rc.Spec.Template.Spec.Requirements, merged.Spec.Template.Spec.Requirements)
 	if rc.Spec.Template.Spec.NodeClassRef != nil {
 		merged.Spec.Template.Spec.NodeClassRef = rc.Spec.Template.Spec.NodeClassRef.DeepCopy()
 	}
@@ -232,7 +211,7 @@ func (n *NodePoolInternal) BuildReplicaNodePool(targetNp *karpenterv1.NodePool) 
 	return merged
 }
 
-func GetNodePoolWeight(replicaNp *karpenterv1.NodePool) *int32 {
+func getNodePoolWeight(replicaNp *karpenterv1.NodePool) *int32 {
 	weight := int32(1)
 	if replicaNp.Spec.Weight != nil {
 		if *replicaNp.Spec.Weight == 100 {
@@ -241,4 +220,20 @@ func GetNodePoolWeight(replicaNp *karpenterv1.NodePool) *int32 {
 		weight = min(*replicaNp.Spec.Weight+1, 100)
 	}
 	return &weight
+}
+
+// mergePtrs returns rc if non-nil, otherwise target
+func mergePtrs[T any](rc, target *T) *T {
+	if rc != nil {
+		return rc
+	}
+	return target
+}
+
+// mergeSlices returns rc if non-empty, otherwise target
+func mergeSlices[T any](rc, target []T) []T {
+	if len(rc) > 0 {
+		return rc
+	}
+	return target
 }

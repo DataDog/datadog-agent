@@ -207,13 +207,13 @@ func (c *Controller) createNodePool(ctx context.Context, targetNp *karpenterv1.N
 
 	var knp *karpenterv1.NodePool
 	if targetNp != nil {
-		// Replica path: use the target NodePool as the base and apply RC values on top.
+		// Replica path: use the target NodePool as the base and apply RC values on top
 		knp = npi.BuildReplicaNodePool(targetNp)
 		if knp == nil {
 			return fmt.Errorf("NodePool %s has no manifest, cannot create", npi.Name())
 		}
 	} else {
-		// Standalone path: build from the RC manifest only.
+		// Standalone path: build from the RC manifest only
 		knp = npi.KarpenterNodePool()
 		if knp == nil {
 			return fmt.Errorf("NodePool %s has no manifest, cannot create", npi.Name())
@@ -257,19 +257,19 @@ func (c *Controller) createNodePool(ctx context.Context, targetNp *karpenterv1.N
 func (c *Controller) updateNodePool(ctx context.Context, targetNp *karpenterv1.NodePool, datadogNp *karpenterv1.NodePool, npi model.NodePoolInternal) error {
 	var desired *karpenterv1.NodePool
 	if targetNp != nil {
-		// Replica path: use the target NodePool as the base and apply RC values on top.
+		// Replica path: use the target NodePool as the base and apply RC values on top
 		desired = npi.BuildReplicaNodePool(targetNp)
 		if desired == nil {
 			return fmt.Errorf("NodePool %s has no manifest, cannot update", npi.Name())
 		}
 	} else {
-		// Standalone path: build from the RC manifest only.
+		// Standalone path: build from the RC manifest only
 		desired = npi.KarpenterNodePool()
 		if desired == nil {
 			return fmt.Errorf("NodePool %s has no manifest, cannot update", npi.Name())
 		}
 		desired = desired.DeepCopy()
-		// Use the NodeClass in the live NodePool if the manifest omits it.
+		// Use the NodeClass in the live NodePool if the manifest omits it
 		if desired.Spec.Template.Spec.NodeClassRef == nil && datadogNp.Spec.Template.Spec.NodeClassRef != nil {
 			desired.Spec.Template.Spec.NodeClassRef = datadogNp.Spec.Template.Spec.NodeClassRef.DeepCopy()
 		}
