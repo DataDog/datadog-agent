@@ -448,6 +448,12 @@ func (c *PythonCheck) IsTrialMode() bool {
 	return c.trialMode
 }
 
+// ClearTrialMode promotes the check out of trial mode after its first
+// successful run, so subsequent failures are reported normally.
+func (c *PythonCheck) ClearTrialMode() {
+	c.trialMode = false
+}
+
 // pythonCheckFinalizer is a finalizer that decreases the reference count on the PyObject refs owned
 // by the PythonCheck.
 func pythonCheckFinalizer(c *PythonCheck) {

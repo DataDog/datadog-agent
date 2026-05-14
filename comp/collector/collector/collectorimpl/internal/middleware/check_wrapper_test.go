@@ -37,6 +37,7 @@ type mockTrialCheck struct {
 }
 
 func (m *mockTrialCheck) IsTrialMode() bool { return m.trialMode }
+func (m *mockTrialCheck) ClearTrialMode()   { m.trialMode = false }
 
 type mockTelemetry struct {
 	agenttelemetry.Component
@@ -93,4 +94,20 @@ func TestCheckWrapperForwardsIsTrialMode(t *testing.T) {
 	plain := &mockCheck{}
 	wrapper2 := NewCheckWrapper(plain, nil, option.None[agenttelemetry.Component]())
 	assert.False(t, wrapper2.IsTrialMode(), "wrapper should return false when inner check has no IsTrialMode")
+}
+
+func TestCheckWrapperClearTrialMode(t *testing.T) {
+	inner := &mockTrialCheck{trialMode: true}
+	wrapper := NewCheckWrapper(inner, nil, option.None[agenttelemetry.Component]())
+	require.True(t, wrapper.IsTrialMode())
+
+	wrapper.ClearTrialMode()
+
+	assert.False(t, wrapper.IsTrialMode(), "wrapper ClearTrialMode should promote inner check out of trial mode")
+	assert.False(t, inner.trialMode, "inner check trialMode should be cleared")
+
+	// Clearing on a non-trial-capable check should be a no-op.
+	plain := &mockCheck{}
+	wrapper2 := NewCheckWrapper(plain, nil, option.None[agenttelemetry.Component]())
+	wrapper2.ClearTrialMode() // must not panic
 }

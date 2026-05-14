@@ -229,6 +229,11 @@ func (w *Worker) Run(ctx context.Context) {
 				}
 				continue
 			}
+			// First successful run: promote out of trial mode so subsequent
+			// failures are reported normally and do not trigger unscheduling.
+			if tc, ok := check.(interface{ ClearTrialMode() }); ok {
+				tc.ClearTrialMode()
+			}
 		}
 
 		checkWarnings := check.GetWarnings()

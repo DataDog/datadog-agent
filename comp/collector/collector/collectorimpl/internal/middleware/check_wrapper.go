@@ -113,6 +113,14 @@ func (c *CheckWrapper) IsTrialMode() bool {
 	return false
 }
 
+// ClearTrialMode forwards to the inner check to promote it out of trial mode
+// after first successful discovery run.
+func (c *CheckWrapper) ClearTrialMode() {
+	if tc, ok := c.inner.(interface{ ClearTrialMode() }); ok {
+		tc.ClearTrialMode()
+	}
+}
+
 // GetWarnings implements Check#GetWarnings
 func (c *CheckWrapper) GetWarnings() []error {
 	return c.inner.GetWarnings()

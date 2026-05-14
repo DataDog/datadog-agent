@@ -953,12 +953,32 @@ func TestWorkerRecoverFromCheckPanic(t *testing.T) {
 	AssertAsyncWorkerCount(t, 0)
 }
 
-// trialCheck is a testCheck that reports itself as trial-mode.
+// trialCheck is a testCheck that starts in trial mode and supports promotion
+// via ClearTrialMode, matching the contract the worker expects.
 type trialCheck struct {
 	testCheck
+	trialModeMu sync.Mutex
+	trialMode   bool
 }
 
-func (c *trialCheck) IsTrialMode() bool { return true }
+func newTrialCheck(id string, t *testing.T) *trialCheck {
+	return &trialCheck{
+		testCheck: testCheck{id: id, t: t, runCount: atomic.NewUint64(0)},
+		trialMode: true,
+	}
+}
+
+func (c *trialCheck) IsTrialMode() bool {
+	c.trialModeMu.Lock()
+	defer c.trialModeMu.Unlock()
+	return c.trialMode
+}
+
+func (c *trialCheck) ClearTrialMode() {
+	c.trialModeMu.Lock()
+	defer c.trialModeMu.Unlock()
+	c.trialMode = false
+}
 
 func TestWorkerTrialModeErrorSuppression(t *testing.T) {
 	mockConfig := configmock.New(t)
@@ -980,14 +1000,8 @@ func TestWorkerTrialModeErrorSuppression(t *testing.T) {
 	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 	// A trial check that errors on every run.
-	tc := &trialCheck{
-		testCheck: testCheck{
-			doErr:    true,
-			id:       "trial_check:abc",
-			t:        t,
-			runCount: atomic.NewUint64(0),
-		},
-	}
+	tc := newTrialCheck("trial_check:abc", t)
+	tc.testCheck.doErr = true
 
 	pendingChecksChan <- tc
 	close(pendingChecksChan)
@@ -1014,6 +1028,64 @@ func TestWorkerTrialModeErrorSuppression(t *testing.T) {
 	// The trial callback must have been invoked with ok=false.
 	require.Len(t, callbackOKs, 1)
 	assert.False(t, callbackOKs[0], "callback should have been called with ok=false")
+
+	AssertAsyncWorkerCount(t, 0)
+}
+
+func TestWorkerTrialModePromotion(t *testing.T) {
+	// A trial check that succeeds on run 1 and errors on run 2.  After
+	// promotion (run 1 success) the run-2 error must be counted normally and
+	// must NOT fire the trial callback.
+	mockConfig := configmock.New(t)
+	expvars.Reset()
+	mockConfig.SetWithoutSource("hostname", "myhost")
+
+	resetTrialCallbacks(t)
+	t.Cleanup(func() { resetTrialCallbacks(t) })
+
+	var callbackOKs []bool
+	RegisterTrialResultCallback(func(_ checkid.ID, ok bool) {
+		callbackOKs = append(callbackOKs, ok)
+	})
+
+	var wg sync.WaitGroup
+	checksTracker := tracker.NewRunningChecksTracker()
+	pendingChecksChan := make(chan check.Check, 10)
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
+
+	// Single check object: succeeds on run 1 (runCount==0 before Inc),
+	// fails on run 2 (runCount==1 before Inc). ClearTrialMode is called by
+	// the worker after run 1 success, so run 2 is no longer trial-mode.
+	tc := newTrialCheck("trial_promote:abc", t)
+	tc.testCheck.runFunc = func(_ checkid.ID) {
+		if tc.testCheck.runCount.Load() >= 1 {
+			// Second run and beyond: make the check fail.
+			tc.testCheck.Lock()
+			tc.testCheck.doErr = true
+			tc.testCheck.Unlock()
+		}
+	}
+
+	pendingChecksChan <- tc // run 1: succeeds, promotes
+	pendingChecksChan <- tc // run 2: fails, no longer trial mode
+	close(pendingChecksChan)
+
+	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
+	require.Nil(t, err)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		worker.Run(context.Background())
+	}()
+	wg.Wait()
+
+	// Trial callback fires exactly once (run 1, success).
+	require.Len(t, callbackOKs, 1, "trial callback should fire only on the first (trial) run")
+	assert.True(t, callbackOKs[0], "run 1 was successful — callback must receive ok=true")
+
+	// Run 2 error must appear in the integration-error expvar (normal path).
+	assert.Equal(t, 1, int(expvars.GetErrorsCount()), "post-promotion error must be counted normally")
 
 	AssertAsyncWorkerCount(t, 0)
 }

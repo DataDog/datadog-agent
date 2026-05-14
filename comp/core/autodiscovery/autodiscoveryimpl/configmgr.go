@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
+	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -441,8 +442,29 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 	digest := tpl.Digest()
 
 	if tpl.IsDiscovery() {
+		// Apply the same pre-conditions as the normal resolver: skip not-ready
+		// services and metrics-excluded containers.
+		if !svc.IsReady() {
+			log.Debugf("autodiscovery: deferring discovery template %s for service %s: service not ready", tpl.Name, svc.GetServiceID())
+			return tpl, false
+		}
+		if svc.HasFilter(filter.MetricsFilter) {
+			log.Debugf("autodiscovery: skipping discovery template %s for service %s: metrics excluded by filter", tpl.Name, svc.GetServiceID())
+			return tpl, false
+		}
+
+
 		resolved := tpl
 		resolved.TrialMode = true
+		// Copy service-level metadata that the normal resolver sets so
+		// downstream consumers (scheduler, status) see consistent fields.
+		resolved.ServiceID = svc.GetServiceID()
+		resolved.MetricsExcluded = false // already checked above
+		resolved.LogsExcluded = svc.HasFilter(filter.LogsFilter)
+		resolved.ImageName = svc.GetImageName()
+		if ns, err := svc.GetExtraConfig("namespace"); err == nil {
+			resolved.PodNamespace = ns
+		}
 
 		host := pickDiscoveryHost(svc)
 
