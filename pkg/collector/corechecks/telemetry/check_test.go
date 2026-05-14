@@ -17,6 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 )
 
+const domainLabel = "domain"
+
 func stringPtr(value string) *string {
 	return &value
 }
@@ -39,6 +41,17 @@ func gaugeMetricFamily(name string, metrics ...*dto.Metric) *dto.MetricFamily {
 		Name:   stringPtr(name),
 		Type:   &metricType,
 		Metric: metrics,
+	}
+}
+
+func counterMetricFamily(name string, value float64) *dto.MetricFamily {
+	metricType := dto.MetricType_COUNTER
+	return &dto.MetricFamily{
+		Name: stringPtr(name),
+		Type: &metricType,
+		Metric: []*dto.Metric{{
+			Counter: &dto.Counter{Value: float64Ptr(value)},
+		}},
 	}
 }
 
@@ -94,6 +107,14 @@ func TestCollectAndMergeRegularRegistryMetrics(t *testing.T) {
 
 	droppedDefaultDomain := values[pointDroppedMetric][mergeKey([]string{"domain:https://api.datadoghq.com"})]
 	require.Equal(t, mergeMetricSample{tags: []string{"domain:https://api.datadoghq.com"}, value: 5}, droppedDefaultDomain)
+}
+
+func TestCollectMergeMetricsSkipsNonGaugeMetrics(t *testing.T) {
+	mfs := []*dto.MetricFamily{counterMetricFamily(pointSentMetric, 12)}
+
+	values := collectMergeMetrics(mfs, false, map[string][]string{pointSentMetric: {}})
+
+	require.Empty(t, values)
 }
 
 func TestDiscoverMergeLabelsFallsBackToRegularRegistry(t *testing.T) {

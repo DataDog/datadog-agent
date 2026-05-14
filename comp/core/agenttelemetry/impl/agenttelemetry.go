@@ -449,6 +449,10 @@ func (a *atel) transformMetricFamily(p *Profile, mfam *dto.MetricFamily) *agentm
 	}
 }
 
+// coalesceMetricFamilies merges compatible metric families with the same name.
+//
+// The regular and default telemetry registries are gathered separately. Coalescing lets profile aggregation see all
+// time series together instead of later payload writes overwriting earlier ones in the sender's metric map.
 func coalesceMetricFamilies(pms []*telemetry.MetricFamily) []*telemetry.MetricFamily {
 	mergedByName := make(map[string]*telemetry.MetricFamily)
 	merged := make([]*telemetry.MetricFamily, 0, len(pms))
@@ -471,9 +475,6 @@ func coalesceMetricFamilies(pms []*telemetry.MetricFamily) []*telemetry.MetricFa
 			continue
 		}
 
-		// The regular and default telemetry registries are gathered separately. Coalesce compatible metric families with
-		// the same name so profile aggregation sees all time series together instead of later payload writes overwriting
-		// earlier ones in the sender's metric map.
 		existing.Metric = append(existing.Metric, pm.Metric...)
 	}
 
