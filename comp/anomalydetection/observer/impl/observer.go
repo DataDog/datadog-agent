@@ -7,6 +7,7 @@
 package observerimpl
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -223,7 +224,8 @@ func NewComponent(deps Requires) Provides {
 		obs.handleFunc = obs.innerHandle
 	}
 
-	if recorder, ok := deps.Recorder.Get(); ok {
+	recorder, recorderEnabled := deps.Recorder.Get()
+	if recorderEnabled {
 		obs.handleFunc = recorder.GetHandle(obs.handleFunc)
 
 		// Record detect digests and advance log alongside parquet for parity debugging.
@@ -261,6 +263,26 @@ func NewComponent(deps Requires) Provides {
 	}
 	for src := range deps.HFRunner.StartContainer(obs.GetHandle(hfrunnerdef.HFContainerSource)) {
 		obs.hfFilterSources[src] = struct{}{}
+	}
+
+	// Wire agent-internal logs into the observer via the pkg/util/log tap.
+	// anomaly_detection.logs.enabled is the parent gate; without it,
+	// agent_logs are also disabled. anomaly_detection.agent_logs.enabled
+	// defaults to true when unset (explicit false disables it).
+	logsEnabled := !cfg.IsConfigured("anomaly_detection.logs.enabled") || cfg.GetBool("anomaly_detection.logs.enabled")
+	agentLogsEnabled := !cfg.IsConfigured("anomaly_detection.agent_logs.enabled") || cfg.GetBool("anomaly_detection.agent_logs.enabled")
+	if (analysisEnabled || recorderEnabled) && logsEnabled && agentLogsEnabled {
+		sampleInfo := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_info")
+		sampleDebug := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_debug")
+		sampleTrace := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_trace")
+		agentLogsHandle := obs.GetHandle("agent-internal-logs")
+		installAgentLogTap(agentLogsHandle, sampleInfo, sampleDebug, sampleTrace)
+		deps.Lifecycle.Append(compdef.Hook{
+			OnStop: func(_ context.Context) error {
+				pkglog.SetLogObserver(nil)
+				return nil
+			},
+		})
 	}
 
 	// Start periodic metric dump if configured
