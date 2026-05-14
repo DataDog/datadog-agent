@@ -81,6 +81,9 @@ type contextResolver struct {
 	// tagFilterCache maps a pre-filter contextKey to the post-filter (contextKey, taggerKey, metricKey).
 	// This avoids repeated RetainFunc calls for metrics we have already processed.
 	tagFilterCache *tagFilterCache
+	// tagFilterEnabled controls whether metric_tag_filterlist tag stripping is applied.
+	// True when data_plane.enabled is true, or metric_tag_filterlist_adp_only is false.
+	tagFilterEnabled bool
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
@@ -89,6 +92,9 @@ func (cr *contextResolver) generateContextKey(metricSampleContext metrics.Metric
 }
 
 func newContextResolver(tagger tagger.Component, cache *tags.Store, id string) *contextResolver {
+	cfg := pkgconfigsetup.Datadog()
+	adpEnabled := cfg.GetBool("data_plane.enabled")
+	adpOnly := cfg.GetBool("metric_tag_filterlist_adp_only")
 	return &contextResolver{
 		id:               id,
 		contextsByKey:    make(map[ckey.ContextKey]resolverEntry),
@@ -101,7 +107,8 @@ func newContextResolver(tagger tagger.Component, cache *tags.Store, id string) *
 		keyGenerator:     ckey.NewKeyGenerator(),
 		taggerBuffer:     tagset.NewHashingTagsAccumulator(),
 		metricBuffer:     tagset.NewHashingTagsAccumulator(),
-		tagFilterCache:   newTagFilterCache(pkgconfigsetup.Datadog().GetInt("aggregator_tag_filter_cache_capacity")),
+		tagFilterCache:   newTagFilterCache(cfg.GetInt("aggregator_tag_filter_cache_capacity")),
+		tagFilterEnabled: adpEnabled || !adpOnly,
 	}
 }
 
@@ -114,7 +121,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 
 	contextKey, taggerKey, metricKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
 
-	if filterList != nil && shouldAggregateTags(metricSampleContext) {
+	if filterList != nil && cr.tagFilterEnabled && shouldAggregateTags(metricSampleContext) {
 		if tagMatcher, filter := filterList.ShouldStripTags(metricSampleContext.GetName()); filter {
 			contextKey, taggerKey, metricKey = cr.filterTags(metricSampleContext, tagMatcher, contextKey)
 		}

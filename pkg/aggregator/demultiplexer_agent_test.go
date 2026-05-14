@@ -178,6 +178,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 	require := require.New(t)
 
 	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("metric_tag_filterlist_adp_only", false)
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
 	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)
@@ -287,6 +288,7 @@ func TestUpdateTagFilterListCheckSamplerCacheInvalidation(t *testing.T) {
 	require := require.New(t)
 
 	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("metric_tag_filterlist_adp_only", false)
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
 	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)

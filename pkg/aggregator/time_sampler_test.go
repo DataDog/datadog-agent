@@ -20,6 +20,7 @@ import (
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
@@ -680,6 +681,7 @@ func TestForcedFlush(t *testing.T) {
 // filterlist must collapse to a single context AND their values must
 // sum in the resulting Serie's Point.
 func testTimeSamplerStripCountAggregates(t *testing.T, store *tags.Store) {
+	configmock.New(t).SetWithoutSource("metric_tag_filterlist_adp_only", false)
 	sampler := testTimeSampler(store)
 	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
 		"count.metric": {
@@ -737,6 +739,7 @@ func TestTimeSamplerStripCountAggregates(t *testing.T) {
 //	sample2: 3 * (1/0.25) = 12
 //	total = 20  →  rate = 20/10 = 2.0
 func testTimeSamplerStripCounterAggregates(t *testing.T, store *tags.Store) {
+	configmock.New(t).SetWithoutSource("metric_tag_filterlist_adp_only", false)
 	sampler := testTimeSampler(store)
 	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
 		"counter.metric": {
