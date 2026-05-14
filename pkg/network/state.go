@@ -40,6 +40,7 @@ var stateTelemetry = struct {
 	postgresStatsDropped   *telemetryComponent.StatCounterWrapper
 	redisStatsDropped      *telemetryComponent.StatCounterWrapper
 	dnsPidCollisions       *telemetryComponent.StatCounterWrapper
+	windowsLingeringFlows  *telemetryComponent.StatCounterWrapper
 	incomingDirectionFixes telemetryComponent.Counter
 	outgoingDirectionFixes telemetryComponent.Counter
 }{
@@ -55,6 +56,7 @@ var stateTelemetry = struct {
 	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), stateModuleName, "postgres_stats_dropped", []string{}, "Counter measuring the number of postgres stats dropped"),
 	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), stateModuleName, "redis_stats_dropped", []string{}, "Counter measuring the number of redis stats dropped"),
 	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), stateModuleName, "dns_pid_collisions", []string{}, "Counter measuring the number of DNS PID collisions"),
+	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), stateModuleName, "windows_lingering_flows", []string{}, "Counter measuring flows that were already reported closed but are still being re-reported with failures by the Windows NPM driver (lingering openFlows bug)"),
 	telemetryimpl.GetCompatComponent().NewCounter(stateModuleName, "incoming_direction_fixes", []string{}, "Counter measuring the number of udp direction fixes for incoming connections"),
 	telemetryimpl.GetCompatComponent().NewCounter(stateModuleName, "outgoing_direction_fixes", []string{}, "Counter measuring the number of udp/tcp direction fixes for outgoing connections"),
 }
@@ -134,6 +136,7 @@ type lastStateTelemetry struct {
 	postgresStatsDropped  int64
 	redisStatsDropped     int64
 	dnsPidCollisions      int64
+	windowsLingeringFlows int64
 }
 
 const minClosedCapacity = 1024
@@ -446,10 +449,12 @@ func (ns *networkState) logTelemetry() {
 	postgresStatsDroppedDelta := stateTelemetry.postgresStatsDropped.Load() - ns.lastTelemetry.postgresStatsDropped
 	redisStatsDroppedDelta := stateTelemetry.redisStatsDropped.Load() - ns.lastTelemetry.redisStatsDropped
 	dnsPidCollisionsDelta := stateTelemetry.dnsPidCollisions.Load() - ns.lastTelemetry.dnsPidCollisions
+	windowsLingeringFlowsDelta := stateTelemetry.windowsLingeringFlows.Load() - ns.lastTelemetry.windowsLingeringFlows
 
 	// Flush log line if any metric is non-zero
 	if connDroppedDelta > 0 || closedConnDroppedDelta > 0 || dnsStatsDroppedDelta > 0 || httpStatsDroppedDelta > 0 ||
-		http2StatsDroppedDelta > 0 || kafkaStatsDroppedDelta > 0 || postgresStatsDroppedDelta > 0 || redisStatsDroppedDelta > 0 {
+		http2StatsDroppedDelta > 0 || kafkaStatsDroppedDelta > 0 || postgresStatsDroppedDelta > 0 || redisStatsDroppedDelta > 0 ||
+		windowsLingeringFlowsDelta > 0 {
 		s := "State telemetry: "
 		s += " [%d connections dropped due to stats]"
 		s += " [%d closed connections dropped]"
@@ -459,6 +464,7 @@ func (ns *networkState) logTelemetry() {
 		s += " [%d Kafka stats dropped]"
 		s += " [%d postgres stats dropped]"
 		s += " [%d redis stats dropped]"
+		s += " [%d Windows lingering flows suppressed]"
 		log.Warnf(s,
 			connDroppedDelta,
 			closedConnDroppedDelta,
@@ -468,6 +474,7 @@ func (ns *networkState) logTelemetry() {
 			kafkaStatsDroppedDelta,
 			postgresStatsDroppedDelta,
 			redisStatsDroppedDelta,
+			windowsLingeringFlowsDelta,
 		)
 	}
 
@@ -499,6 +506,7 @@ func (ns *networkState) logTelemetry() {
 	ns.lastTelemetry.postgresStatsDropped = stateTelemetry.postgresStatsDropped.Load()
 	ns.lastTelemetry.redisStatsDropped = stateTelemetry.redisStatsDropped.Load()
 	ns.lastTelemetry.dnsPidCollisions = stateTelemetry.dnsPidCollisions.Load()
+	ns.lastTelemetry.windowsLingeringFlows = stateTelemetry.windowsLingeringFlows.Load()
 }
 
 // RegisterClient registers a client before it first gets stream of data.
@@ -740,6 +748,29 @@ func (ns *networkState) updateConnWithStats(client *client, cookie StatCookie, c
 
 			c.Monotonic = c.Monotonic.Max(sts)
 			last, _ = c.Monotonic.Sub(sts)
+		}
+
+		// Detect and suppress Windows NPM lingering-flow re-reports.
+		//
+		// Root cause: the ddnpm driver moves a flow from openFlows to closedFlows
+		// via an InterlockedCompareExchange that checks refcount == 2. If a WFP
+		// transport callout increments the refcount concurrently (processing a data
+		// packet on a real NIC), the CAS fails and the flow stays in openFlows
+		// indefinitely. Each agent poll re-reports it with an additional TCPFailure
+		// but without FLOW_CLOSED_MASK set, so the agent sets TCPClosed=1 only on
+		// the first poll (PR #47005 fix). Subsequent polls add failures with zero
+		// closed delta, causing the backend rate to climb past 100%.
+		//
+		// Fix: once a connection has been reported as closed (sts.TCPClosed > 0),
+		// any re-report that lacks a new close event (last.TCPClosed == 0) is a
+		// lingering-flow duplicate. Zero out TCPFailures so the delta is empty and
+		// the connection is filtered from the payload entirely.
+		if sts.TCPClosed > 0 && last.TCPClosed == 0 && len(c.TCPFailures) > 0 {
+			stateTelemetry.windowsLingeringFlows.Inc()
+			log.WarnFunc(func() string {
+				return fmt.Sprintf("NPM: suppressing lingering Windows flow cookie:%d already-closed re-report (failures: %v)", cookie, c.TCPFailures)
+			})
+			c.TCPFailures = nil
 		}
 
 		c.Last = c.Last.Add(last)
