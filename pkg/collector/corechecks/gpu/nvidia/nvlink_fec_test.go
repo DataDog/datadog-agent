@@ -110,7 +110,7 @@ func TestNVLinkFECCollectorPartialFieldFailure(t *testing.T) {
 
 	collectedMetrics, err := collector.Collect()
 	require.Error(t, err)
-	require.ErrorContains(t, err, "field 238 returned ERROR_NOT_SUPPORTED for scope 0")
+	require.ErrorContains(t, err, "GetFieldValues(field=238, scope=0) is not supported by the GPU or driver")
 	require.ErrorContains(t, err, "convert FEC history field 242 for scope 0")
 	require.Len(t, collectedMetrics, len(nvlinkFECHistoryFieldIDs)-2)
 }
@@ -147,7 +147,7 @@ func TestNVLinkFECCollectorAllFieldsFail(t *testing.T) {
 	collectedMetrics, err := collector.Collect()
 	require.Error(t, err)
 	require.Nil(t, collectedMetrics)
-	require.ErrorContains(t, err, "field 235 returned ERROR_NOT_SUPPORTED for scope 0")
+	require.ErrorContains(t, err, "GetFieldValues(field=235, scope=0) is not supported by the GPU or driver")
 }
 
 func TestNVLinkFECMetricSpecEntries(t *testing.T) {
