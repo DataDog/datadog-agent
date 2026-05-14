@@ -42,16 +42,15 @@ const (
 
 type dogstatsdUnitSuite struct {
 	e2e.BaseSuite[environments.Host]
+
+	adp bool
 }
 
-// TestDogstatsdMetricUnit runs the DogStatsD unit e2e test on Linux.
-func TestDogstatsdMetricUnit(t *testing.T) {
+func testDogstatsdMetricUnit(t *testing.T, adp bool) {
 	t.Parallel()
-	e2e.Run(t, &dogstatsdUnitSuite{}, e2e.WithProvisioner(
-		awshost.Provisioner(
-			awshost.WithRunOptions(
-				scenec2.WithAgentOptions(
-					agentparams.WithAgentConfig(`
+
+	agentOptions := []agentparams.Option{
+		agentparams.WithAgentConfig(`
 histogram_aggregates:
   - max
   - avg
@@ -59,11 +58,28 @@ histogram_aggregates:
 histogram_percentiles:
   - "0.95"
 `),
-					common.WithADPEnabled(),
-				),
+	}
+	if adp {
+		agentOptions = append(agentOptions, common.WithADPEnabled())
+	}
+
+	e2e.Run(t, &dogstatsdUnitSuite{adp: adp}, e2e.WithProvisioner(
+		awshost.Provisioner(
+			awshost.WithRunOptions(
+				scenec2.WithAgentOptions(agentOptions...),
 			),
 		),
 	))
+}
+
+// TestDogstatsdMetricUnit runs the DogStatsD unit e2e test on Linux.
+func TestDogstatsdMetricUnit(t *testing.T) {
+	testDogstatsdMetricUnit(t, false)
+}
+
+// TestDogstatsdMetricUnitADP runs the DogStatsD unit e2e test with ADP serving DogStatsD traffic.
+func TestDogstatsdMetricUnitADP(t *testing.T) {
+	testDogstatsdMetricUnit(t, true)
 }
 
 // sendMetric sends a single DogStatsD metric over UDP to the local Agent.
@@ -75,7 +91,9 @@ func (s *dogstatsdUnitSuite) sendMetric(name string, value float32, metricType s
 // TestDogstatsdUnitOnlyOnTimingMetrics sends a counter, a histogram, and a timing
 // metric in parallel and verifies that only the timing metric carries a unit.
 func (s *dogstatsdUnitSuite) TestDogstatsdUnitOnlyOnTimingMetrics() {
-	common.AssertADPRunning(s.T(), s.Env().RemoteHost)
+	if s.adp {
+		common.AssertADPRunning(s.T(), s.Env().RemoteHost)
+	}
 
 	// Phase 1: keep sending all three metrics until at least one flushed serie for
 	// each has reached fakeintake.

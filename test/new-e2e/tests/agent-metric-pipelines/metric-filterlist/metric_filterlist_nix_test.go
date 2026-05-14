@@ -29,24 +29,40 @@ const (
 
 type metricFilterListSuite struct {
 	e2e.BaseSuite[environments.Host]
+
+	adp bool
+}
+
+func testMetricFilterList(t *testing.T, adp bool) {
+	t.Parallel()
+
+	agentOptions := []agentparams.Option{
+		agentparams.WithAgentConfig(fmt.Sprintf(`
+metric_filterlist:
+  - "%s"
+`, blockedMetric)),
+	}
+	if adp {
+		agentOptions = append(agentOptions, common.WithADPEnabled())
+	}
+
+	e2e.Run(t, &metricFilterListSuite{adp: adp}, e2e.WithProvisioner(
+		awshost.Provisioner(
+			awshost.WithRunOptions(
+				scenec2.WithAgentOptions(agentOptions...),
+			),
+		),
+	))
 }
 
 // TestMetricFilterList runs the metric_filterlist e2e test on Linux.
 func TestMetricFilterList(t *testing.T) {
-	t.Parallel()
-	e2e.Run(t, &metricFilterListSuite{}, e2e.WithProvisioner(
-		awshost.Provisioner(
-			awshost.WithRunOptions(
-				scenec2.WithAgentOptions(
-					agentparams.WithAgentConfig(fmt.Sprintf(`
-metric_filterlist:
-  - "%s"
-`, blockedMetric)),
-					common.WithADPEnabled(),
-				),
-			),
-		),
-	))
+	testMetricFilterList(t, false)
+}
+
+// TestMetricFilterListADP runs the metric_filterlist e2e test with ADP serving DogStatsD traffic.
+func TestMetricFilterListADP(t *testing.T) {
+	testMetricFilterList(t, true)
 }
 
 // sendStatsdGauge sends a DogStatsD gauge metric to the agent via UDP on the remote host.
@@ -59,7 +75,9 @@ func (s *metricFilterListSuite) sendStatsdGauge(name string, value int) {
 //   - a metric listed in metric_filterlist is NOT forwarded to the intake
 //   - a metric NOT in metric_filterlist IS forwarded normally
 func (s *metricFilterListSuite) TestMetricFilterListBlocksMetric() {
-	common.AssertADPRunning(s.T(), s.Env().RemoteHost)
+	if s.adp {
+		common.AssertADPRunning(s.T(), s.Env().RemoteHost)
+	}
 
 	// Send both metrics on each retry so metrics keep flowing until the pipeline confirms a flush.
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {

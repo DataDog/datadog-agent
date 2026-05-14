@@ -577,6 +577,7 @@ new-e2e-amp:
     TARGETS: ./tests/agent-metric-pipelines
     TEAM: agent-metric-pipelines
     ON_NIGHTLY_FIPS: "true"
+    EXTRA_PARAMS: --skip "ADP"
 
 # Exploratory variant of new-e2e-amp that runs the agent-metric-pipelines
 # suite with ADP enabled (see test/new-e2e/tests/agent-metric-pipelines/common/adp.go).
@@ -604,6 +605,7 @@ new-e2e-amp-adp:
   variables:
     TARGETS: ./tests/agent-metric-pipelines
     TEAM: agent-metric-pipelines
+    EXTRA_PARAMS: --run "ADP"
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
 

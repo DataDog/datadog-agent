@@ -47,9 +47,10 @@ type jmxfetchNixTest struct {
 	e2e.BaseSuite[environments.DockerHost]
 
 	fips bool
+	adp  bool
 }
 
-func testJMXFetchNix(t *testing.T, mtls bool, fips bool) {
+func testJMXFetchNix(t *testing.T, mtls bool, fips bool, adp bool) {
 	adLabelsManifest, err := makeADLabelsManifest(mtls, fips)
 	require.NoError(t, err)
 
@@ -66,48 +67,75 @@ func testJMXFetchNix(t *testing.T, mtls bool, fips bool) {
 
 	t.Parallel()
 
+	agentOptions := []dockeragentparams.Option{
+		dockeragentparams.WithLogs(),
+		dockeragentparams.WithJMX(),
+		choice(fips, dockeragentparams.WithFIPS(), none),
+		// Fakeintake is HTTP, but FIPS ADP rejects this flag because it means disabling TLS cert validation.
+		choice(fips && adp, dockeragentparams.WithAgentServiceEnvVariable("DD_SKIP_SSL_VALIDATION", pulumi.String("false")), none),
+		dockeragentparams.WithExtraComposeInlineManifest(extraManifests...),
+	}
+	if adp {
+		agentOptions = append(agentOptions, common.WithADPEnabledDocker())
+	}
+
+	stackName := fmt.Sprintf("jmxfetchnixtest-fips_%v-mtls_%v", fips, mtls)
+	if adp {
+		stackName += "-adp"
+	}
+
 	suiteParams := []e2e.SuiteOption{e2e.WithProvisioner(
 		awsdocker.Provisioner(
 			awsdocker.WithRunOptions(
-				ec2docker.WithAgentOptions(
-					dockeragentparams.WithLogs(),
-					dockeragentparams.WithJMX(),
-					choice(fips, dockeragentparams.WithFIPS(), none),
-					// Fakeintake is HTTP, but FIPS ADP rejects this flag because it means disabling TLS cert validation.
-					choice(fips, dockeragentparams.WithAgentServiceEnvVariable("DD_SKIP_SSL_VALIDATION", pulumi.String("false")), none),
-					dockeragentparams.WithExtraComposeInlineManifest(extraManifests...),
-					common.WithADPEnabledDocker(),
-				),
+				ec2docker.WithAgentOptions(agentOptions...),
 				choice(mtls, ec2docker.WithPreAgentInstallHook(fetchCertificates), none),
 			),
 		)),
-		e2e.WithStackName(fmt.Sprintf("jmxfetchnixtest-fips_%v-mtls_%v", fips, mtls)),
+		e2e.WithStackName(stackName),
 	}
 
 	e2e.Run(t,
-		&jmxfetchNixTest{fips: fips},
+		&jmxfetchNixTest{fips: fips, adp: adp},
 		suiteParams...,
 	)
 }
 
 func TestJMXFetchNix(t *testing.T) {
-	testJMXFetchNix(t, false, false)
+	testJMXFetchNix(t, false, false, false)
 }
 
 func TestJMXFetchNixFIPS(t *testing.T) {
-	testJMXFetchNix(t, false, true)
+	testJMXFetchNix(t, false, true, false)
 }
 
 func TestJMXFetchNixMtls(t *testing.T) {
-	testJMXFetchNix(t, true, false)
+	testJMXFetchNix(t, true, false, false)
 }
 
 func TestJMXFetchNixMtlsFIPS(t *testing.T) {
-	testJMXFetchNix(t, true, true)
+	testJMXFetchNix(t, true, true, false)
+}
+
+func TestJMXFetchNixADP(t *testing.T) {
+	testJMXFetchNix(t, false, false, true)
+}
+
+func TestJMXFetchNixFIPSADP(t *testing.T) {
+	testJMXFetchNix(t, false, true, true)
+}
+
+func TestJMXFetchNixMtlsADP(t *testing.T) {
+	testJMXFetchNix(t, true, false, true)
+}
+
+func TestJMXFetchNixMtlsFIPSADP(t *testing.T) {
+	testJMXFetchNix(t, true, true, true)
 }
 
 func (j *jmxfetchNixTest) Test_FakeIntakeReceivesJMXFetchMetrics() {
-	common.AssertADPRunningDocker(j.T(), j.Env().RemoteHost, j.Env().Agent.ContainerName)
+	if j.adp {
+		common.AssertADPRunningDocker(j.T(), j.Env().RemoteHost, j.Env().Agent.ContainerName)
+	}
 
 	metricNames := []string{
 		"test.e2e.jmxfetch.counter_100",
@@ -146,7 +174,9 @@ func (j *jmxfetchNixTest) Test_FakeIntakeReceivesJMXFetchMetrics() {
 }
 
 func (j *jmxfetchNixTest) TestJMXListCollectedWithRateMetrics() {
-	common.AssertADPRunningDocker(j.T(), j.Env().RemoteHost, j.Env().Agent.ContainerName)
+	if j.adp {
+		common.AssertADPRunningDocker(j.T(), j.Env().RemoteHost, j.Env().Agent.ContainerName)
+	}
 
 	status, err := j.Env().Agent.Client.JMX(agentclient.WithArgs([]string{"list", "collected", "with-rate-metrics"}))
 	require.NoError(j.T(), err)
@@ -193,7 +223,9 @@ func (j *jmxfetchNixTest) TestJMXFIPSMode() {
 	require.NoError(j.T(), err)
 	if j.fips {
 		assert.Contains(j.T(), env, "JAVA_TOOL_OPTIONS=--module-path")
-		assert.Contains(j.T(), env, "DD_SKIP_SSL_VALIDATION=false")
+		if j.adp {
+			assert.Contains(j.T(), env, "DD_SKIP_SSL_VALIDATION=false")
+		}
 	} else {
 		assert.Contains(j.T(), env, "JAVA_TOOL_OPTIONS=\n")
 	}
