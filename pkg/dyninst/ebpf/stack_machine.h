@@ -14,15 +14,19 @@
 #include "swiss_map_hash.h"
 
 // Expression status values. Each expression gets EXPR_STATUS_BITS bits in the
-// expression status array at the start of event root data. Must stay in
-// sync with ir.ExprStatusBits / the ExprStatus* constants in
-// pkg/dyninst/ir/expression.go.
+// expression status array at the start of event root data. Must stay in sync
+// with ir.ExprStatus and ir.ExprStatusBits in pkg/dyninst/ir/expression.go.
 #define EXPR_STATUS_BITS      4
 #define EXPR_STATUS_ABSENT    0  // evaluation failed (unknown reason)
 #define EXPR_STATUS_PRESENT   1  // evaluation succeeded
 #define EXPR_STATUS_NIL_DEREF 2  // nil pointer dereference
 #define EXPR_STATUS_OOB       3  // index out of bounds
 #define EXPR_STATUS_TRUNCATED 4  // value present, but collection truncated (filter)
+// SM_OP_CALL overflow at root: no type+address to attach to a data item.
+#define EXPR_STATUS_RECURSION_STACK_FULL 5
+// SM aborted before any data item for this expression reached scratch.
+#define EXPR_STATUS_BUFFER_FULL          6
+// 7..15 reserved.
 
 // Sentinel value for expr_status_idx indicating no status should be written
 // (used by condition expressions which report errors via condition_eval_error).
@@ -271,6 +275,7 @@ static inline __attribute__((always_inline)) bool
 sm_data_stack_push(stack_machine_t* sm, uint32_t value) {
   if (sm->data_stack_pointer >= ENQUEUE_STACK_DEPTH) {
     LOG(2, "enqueue: push on full data stack");
+    sm->sm_recursion_overflow = true;
     return false;
   }
   sm->data_stack[sm->data_stack_pointer] = value;
@@ -426,6 +431,7 @@ enqueue_pc_jump:
   }
   if (sm->pc_stack_pointer >= ENQUEUE_STACK_DEPTH) {
     LOG(2, "enqueue: call stack limit reached");
+    sm->sm_recursion_overflow = true;
     return false;
   }
   sm->pc_stack[sm->pc_stack_pointer] = sm->pc;
@@ -476,6 +482,28 @@ sm_memoize_pointer(__maybe_unused global_ctx_t* ctx, type_t type,
   return false;
 }
 
+// sm_record_pointer_emit_placeholder emits a Carrier A placeholder
+// for an abandoned chase, gated by the peer-dedup flag. Idempotent
+// per peer scope: the first abandonment in a scope emits, subsequent
+// ones in the same scope return without writing. Reason NONE
+// (silent-skip cases like "already memoized" and TTL exhaustion)
+// never emits.
+static inline __attribute__((always_inline)) void
+sm_record_pointer_emit_placeholder(global_ctx_t* ctx, type_t type,
+                                   target_ptr_t addr,
+                                   data_item_reason_t reason) {
+  stack_machine_t* sm = ctx->stack_machine;
+  if (reason == DATA_ITEM_REASON_NONE) {
+    return;
+  }
+  if (sm->peer_scope_placeholder_emitted) {
+    return;
+  }
+  if (scratch_buf_emit_placeholder(ctx->buf, type, reason, addr)) {
+    sm->peer_scope_placeholder_emitted = true;
+  }
+}
+
 static inline __attribute__((always_inline)) bool
 sm_record_pointer(global_ctx_t* ctx, type_t type, target_ptr_t addr,
                   bool decrease_ttl,
@@ -494,6 +522,8 @@ sm_record_pointer(global_ctx_t* ctx, type_t type, target_ptr_t addr,
   uint8_t memo_cause = DATA_ITEM_REASON_NONE;
   if (!sm_memoize_pointer(ctx, type, addr, maybe_len, &memo_cause)) {
     sm->last_chase_failure_cause = memo_cause;
+    sm_record_pointer_emit_placeholder(ctx, type, addr,
+                                       (data_item_reason_t)memo_cause);
     return true;
   }
   pointers_queue_item_t* item;
@@ -505,6 +535,8 @@ sm_record_pointer(global_ctx_t* ctx, type_t type, target_ptr_t addr,
   if (item == NULL) {
     LOG(3, "sm_record_pointer: pointers queue push failed");
     sm->last_chase_failure_cause = DATA_ITEM_REASON_TOO_MANY_POINTERS_IN_FLIGHT;
+    sm_record_pointer_emit_placeholder(
+        ctx, type, addr, DATA_ITEM_REASON_TOO_MANY_POINTERS_IN_FLIGHT);
     return false;
   }
   *item = (pointers_queue_item_t){
@@ -3179,6 +3211,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     uint32_t next_pc = sm_read_program_uint32(sm);
     if (sm->pc_stack_pointer >= ENQUEUE_STACK_DEPTH) {
       LOG(2, "enqueue: call stack limit reached");
+      sm->sm_recursion_overflow = true;
       return 1;
     }
     sm->pc_stack[sm->pc_stack_pointer] = sm->pc;
@@ -3612,6 +3645,10 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       // Loop as long as there are more pointers to chase.
       LOG(4, "chasing pointer @%llx", item->di.address);
       sm->pc--;
+      // Each dequeued chase opens a fresh peer scope for Carrier A
+      // placeholder dedup: any limit hit while walking the new
+      // pointee's fields produces at most one placeholder.
+      sm->peer_scope_placeholder_emitted = false;
       sm_chase_pointer(ctx, *item);
 
       if (sm->buffer_full) {
@@ -3855,6 +3892,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     // Call: push return address and jump.
     if (sm->pc_stack_pointer >= ENQUEUE_STACK_DEPTH) {
       LOG(2, "dict_call: call stack limit reached");
+      sm->sm_recursion_overflow = true;
       return 1;
     }
     sm->pc_stack[sm->pc_stack_pointer] = sm->pc;

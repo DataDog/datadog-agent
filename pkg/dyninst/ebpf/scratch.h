@@ -339,6 +339,36 @@ buf_offset_t scratch_buf_serialize_with_src_256(
   return scratch_buf_serialize_with_src_inner(scratch_buf, hdr, src_addr, 256);
 }
 
+// Write a 16-byte placeholder data-item header (no payload) into the
+// scratch buffer. Used by Carrier A peer-dedup emission: when a
+// pointer chase is abandoned because an internal capacity limit
+// fired, the SM emits a single placeholder at the type+address it
+// would have captured, with the failed-read mask set and reason bits
+// describing the cause. Length is 0; address is the would-be pointee
+// address. Returns true on success, false if the scratch buffer is
+// full (the placeholder is silently dropped in that case — the value
+// would have been missing anyway, and the L2 fragment-limit/ringbuf
+// reasons will cover whole-event truncation).
+static bool
+scratch_buf_emit_placeholder(scratch_buf_t* scratch_buf,
+                             uint32_t type_id,
+                             data_item_reason_t reason,
+                             target_ptr_t address) {
+  buf_offset_t offset = scratch_buf_len(scratch_buf);
+  if (!scratch_buf_bounds_check(&offset, sizeof(di_data_item_header_t))) {
+    return false;
+  }
+  di_data_item_header_t header = {
+      .type = (type_id & DATA_ITEM_TYPE_MASK) | DATA_ITEM_FAILED_READ_MASK |
+              (((uint32_t)reason) << DATA_ITEM_REASON_SHIFT),
+      .length = 0,
+      .address = address,
+  };
+  *(di_data_item_header_t*)(&(*scratch_buf)[offset]) = header;
+  scratch_buf_set_len(scratch_buf, offset + sizeof(di_data_item_header_t));
+  return true;
+}
+
 // Write the queue entry to the scratch buffer, and return the offset of the
 // data in the scratch buffer on success or 0 on failure.
 static buf_offset_t

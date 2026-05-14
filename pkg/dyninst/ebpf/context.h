@@ -252,6 +252,24 @@ typedef struct stack_machine {
   // each abandonment; cleared to DATA_ITEM_REASON_NONE when a chase
   // succeeds.
   uint8_t last_chase_failure_cause;
+
+  // Set true when SM_OP_CALL overflows the PC stack
+  // (ENQUEUE_STACK_DEPTH exhausted) or when a data-stack push fails.
+  // The SM aborts execution; the driver reads this flag and stamps a
+  // side-level reason (CAPTURE_NESTING_TOO_DEEP) on the event before
+  // emission. Per-expression attribution is not possible at these
+  // sites because the SM doesn't track "current root expression".
+  bool sm_recursion_overflow;
+
+  // Peer-dedup flag for Carrier A placeholder emission. Cleared each
+  // time the SM enters a new peer scope (slice/array element loop,
+  // map entry iteration, struct field walk). When a pointer chase is
+  // abandoned in the current scope, sm_record_pointer emits a
+  // placeholder data-item header *only* if this flag is unset, then
+  // sets it so subsequent siblings in the same scope abandon
+  // silently. Bounds Carrier A overhead to O(scopes-that-hit-a-limit)
+  // rather than O(missed-pointees).
+  bool peer_scope_placeholder_emitted;
   // Original probe invocation timestamp, shared across all continuation
   // fragments for correlation.
   uint64_t start_ns;
@@ -526,6 +544,8 @@ static stack_machine_t* stack_machine_ctx_load(const probe_params_t* probe_param
   stack_machine->pending_expr_status = 0;
   stack_machine->flush_failure_cause = 0;
   stack_machine->last_chase_failure_cause = 0; // DATA_ITEM_REASON_NONE
+  stack_machine->sm_recursion_overflow = false;
+  stack_machine->peer_scope_placeholder_emitted = false;
   // start_ns and entry_ktime_ns are set explicitly by probe_run before use.
   return stack_machine;
 }

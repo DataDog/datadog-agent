@@ -572,7 +572,7 @@
                   {
                     "type": "string",
                     "size": "512",
-                    "notCapturedReason": "depth"
+                    "notCapturedReason": "unavailable"
                   },
                   {
                     "type": "string",

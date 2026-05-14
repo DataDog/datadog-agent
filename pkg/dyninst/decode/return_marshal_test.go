@@ -65,14 +65,15 @@ func makeCaptureEvent(
 		Expressions:         expressions,
 	}
 
-	// Build root data: presence bitset (all present) + int values.
+	// Build root data: presence bitset (ExprStatusPresent for every
+	// expression) + int values.
 	rootData := make([]byte, offset)
 	// Set the low bit of each expression's status (ExprStatusPresent = 1).
 	for i := range nExprs {
-		bitOffset := i * ir.ExprStatusBits
+		bitOffset := ir.ExprStatusBits * i
 		byteIdx := bitOffset / 8
-		bitIdx := uint(bitOffset % 8)
-		rootData[byteIdx] |= 1 << bitIdx
+		shift := uint(bitOffset % 8)
+		rootData[byteIdx] |= uint8(ir.ExprStatusPresent) << shift
 	}
 	for i, val := range values {
 		binary.NativeEndian.PutUint64(
