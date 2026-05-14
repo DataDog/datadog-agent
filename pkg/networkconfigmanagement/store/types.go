@@ -21,5 +21,5 @@ type ConfigStore interface {
 	StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (string, error)
 	GetConfig(configUUID string) (string, *types.ConfigMetadata, error)
 	CheckDuplicate(deviceID string, configType types.ConfigType, rawHash string) (string, error)
-	GetAllConfigMetadata() ([]*types.ConfigMetadata, error)
+	GetAllConfigMetadata(deviceID string) ([]*types.ConfigMetadata, error)
 }

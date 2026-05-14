@@ -42,15 +42,15 @@ const CheckName = "network_config_management"
 // Check is the main struct for the network configuration management check
 type Check struct {
 	core.CheckBase
-	checkContext        *ncmconfig.NcmCheckContext
-	sender              *ncmsender.NCMSender
-	agentConfig         config.Component
-	ncmComp             networkconfigmanagement.Component
-	remoteClient        ncmremote.Client
-	clock               clock.Clock
-	lastCheckTime       time.Time
-	inventoryRunCounter int
-	agentHostname       string
+	checkContext             *ncmconfig.NcmCheckContext
+	sender                   *ncmsender.NCMSender
+	agentConfig              config.Component
+	ncmComp                  networkconfigmanagement.Component
+	remoteClient             ncmremote.Client
+	clock                    clock.Clock
+	lastCheckTime            time.Time
+	runsSinceInventoryReport int
+	agentHostname            string
 }
 
 // saveConfig saves the config if store is non-nil, and returns an error about manual check mode otherwise.
@@ -143,12 +143,13 @@ func (c *Check) Run() error {
 	}
 
 	// send inventory payload if within the interval to do so
-	c.inventoryRunCounter++
-	if configStore != nil && c.inventoryRunCounter >= int(c.checkContext.InventoryReportEveryN) {
-		c.inventoryRunCounter = 0
-		configMeta, err := configStore.GetAllConfigMetadata()
+	c.runsSinceInventoryReport++
+	if configStore != nil && c.runsSinceInventoryReport >= int(c.checkContext.InventoryReportEveryN) {
+		log.Debugf("NCM core check runs since last inventory report: %d, will emit new inventory report", c.runsSinceInventoryReport)
+		c.runsSinceInventoryReport = 0
+		configMeta, err := configStore.GetAllConfigMetadata(deviceID)
 		if err != nil {
-			return err
+			log.Errorf("error retrieving config metadata for device %s to emit inventory report, error: %v", deviceID, err)
 		}
 		var inventoryEntries []ncmreport.InventoryEntry
 		// convert meta to inventory entry
@@ -167,7 +168,7 @@ func (c *Check) Run() error {
 			Entries:    inventoryEntries,
 		})
 		if err != nil {
-			return err
+			log.Errorf("error sending inventory report for device: %s, error: %v", deviceID, err)
 		}
 	}
 

@@ -297,7 +297,7 @@ func TestCheckDuplicate(t *testing.T) {
 func TestGetAllConfigMetadata(t *testing.T) {
 	t.Run("empty store returns no entries", func(t *testing.T) {
 		cs := newTestConfigStore(t)
-		configMeta, err := cs.GetAllConfigMetadata()
+		configMeta, err := cs.GetAllConfigMetadata("test-device")
 		require.NoError(t, err)
 		assert.Empty(t, configMeta)
 	})
@@ -308,22 +308,23 @@ func TestGetAllConfigMetadata(t *testing.T) {
 		require.NoError(t, err)
 		uuid2, err := cs.StoreConfig("device:10.0.0.1", types.STARTUP, "startup-1")
 		require.NoError(t, err)
-		uuid3, err := cs.StoreConfig("device:10.0.0.2", types.RUNNING, "running-2")
+		// Stored on a different device — must be filtered out of the result.
+		_, err = cs.StoreConfig("device:10.0.0.2", types.RUNNING, "running-other-device")
 		require.NoError(t, err)
 
-		configMeta, err := cs.GetAllConfigMetadata()
+		configMeta, err := cs.GetAllConfigMetadata("device:10.0.0.1")
 		require.NoError(t, err)
-		require.Len(t, configMeta, 3)
+		require.Len(t, configMeta, 2)
 
-		configMetaUUIDs := []string{configMeta[0].ConfigUUID, configMeta[1].ConfigUUID, configMeta[2].ConfigUUID}
-		assert.ElementsMatch(t, []string{uuid1, uuid2, uuid3}, configMetaUUIDs)
+		configMetaUUIDs := []string{configMeta[0].ConfigUUID, configMeta[1].ConfigUUID}
+		assert.ElementsMatch(t, []string{uuid1, uuid2}, configMetaUUIDs)
 	})
 	t.Run("populates all metadata fields", func(t *testing.T) {
 		cs := newTestConfigStore(t)
 		uuid, err := cs.StoreConfig("device:10.0.0.1", types.RUNNING, testRawConfig)
 		require.NoError(t, err)
 
-		configMeta, err := cs.GetAllConfigMetadata()
+		configMeta, err := cs.GetAllConfigMetadata("device:10.0.0.1")
 		require.NoError(t, err)
 		require.Len(t, configMeta, 1)
 		assert.Equal(t, uuid, configMeta[0].ConfigUUID)
@@ -343,9 +344,11 @@ func TestGetAllConfigMetadata(t *testing.T) {
 
 		require.NoError(t, cs.DeleteConfig(uuid1))
 
-		configMeta, err := cs.GetAllConfigMetadata()
+		configMeta, err := cs.GetAllConfigMetadata("device:10.0.0.1")
 		require.NoError(t, err)
-		require.Len(t, configMeta, 1)
-		assert.Equal(t, uuid2, configMeta[0].ConfigUUID)
+		require.Len(t, configMeta, 0)
+		configMeta2, err := cs.GetAllConfigMetadata("device:10.0.0.2")
+		require.NoError(t, err)
+		assert.Equal(t, uuid2, configMeta2[0].ConfigUUID)
 	})
 }

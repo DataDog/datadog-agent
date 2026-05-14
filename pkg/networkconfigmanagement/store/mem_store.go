@@ -135,14 +135,16 @@ func (m *memConfigStore) GetConfig(configUUID string) (string, *types.ConfigMeta
 // GetAllConfigMetadata returns all config metadata sorted by ConfigUUID, mirroring
 // the bbolt implementation's key-ordered iteration so callers can rely on
 // deterministic ordering across both stores.
-func (m *memConfigStore) GetAllConfigMetadata() ([]*types.ConfigMetadata, error) {
+func (m *memConfigStore) GetAllConfigMetadata(deviceID string) ([]*types.ConfigMetadata, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 
 	configMeta := make([]*types.ConfigMetadata, 0, len(m.metadata))
 	for _, value := range m.metadata {
 		v := value
-		configMeta = append(configMeta, &v)
+		if v.DeviceID == deviceID {
+			configMeta = append(configMeta, &v)
+		}
 	}
 	sort.Slice(configMeta, func(i, j int) bool {
 		return configMeta[i].ConfigUUID < configMeta[j].ConfigUUID
