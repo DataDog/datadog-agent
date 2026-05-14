@@ -32,6 +32,22 @@ type fakeHandle struct {
 func (h *fakeHandle) ObserveMetric(_ observerdef.MetricView) { h.metricCalls++ }
 func (h *fakeHandle) ObserveLog(_ observerdef.LogView)       { h.logCalls++ }
 
+// fakeLogView is a minimal observer.LogView with caller-controlled fields,
+// used to assert that ObserveLog reads the message's own timestamp.
+type fakeLogView struct {
+	content     []byte
+	status      string
+	tags        []string
+	hostname    string
+	timestampMs int64
+}
+
+func (f *fakeLogView) GetContent() []byte           { return f.content }
+func (f *fakeLogView) GetStatus() string            { return f.status }
+func (f *fakeLogView) GetTags() []string            { return f.tags }
+func (f *fakeLogView) GetHostname() string          { return f.hostname }
+func (f *fakeLogView) GetTimestampUnixMilli() int64 { return f.timestampMs }
+
 // TestRecorderDisabledByDefault locks in the most important contract: when
 // anomaly_detection.recording.enabled is false (the default), GetHandle returns
 // the inner handle unwrapped and no writer goroutines are started. This is the
@@ -167,4 +183,66 @@ func TestMetricTimestampUnitConsistency(t *testing.T) {
 	require.Len(t, metrics, 1)
 	require.Equal(t, tsSec*1000, metrics[0].TimestampMs,
 		"MetricData.TimestampMs must be in milliseconds (same unit as LogData.TimestampMs); writer received %d seconds, expected %d ms on read", tsSec, tsSec*1000)
+}
+
+// TestRecorderNegativeFlushIntervalFallsBackToDefault locks in the Codex #1
+// fix: a negative anomaly_detection.recording.flush_interval must not be
+// passed through to time.NewTicker (which panics on non-positive durations).
+// The recorder should fall back to the 60s default instead.
+func TestRecorderNegativeFlushIntervalFallsBackToDefault(t *testing.T) {
+	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+		"anomaly_detection.recording.enabled":        true,
+		"anomaly_detection.recording.output_dir":     t.TempDir(),
+		"anomaly_detection.recording.flush_interval": -1 * time.Second,
+		"anomaly_detection.recording.retention":      time.Hour,
+	})
+	lc := compdef.NewTestLifecycle(t)
+
+	out := NewComponent(Requires{Lifecycle: lc, Config: cfg})
+	require.NotNil(t, out.Comp)
+
+	impl := out.Comp.(*recorderImpl)
+	require.NotNil(t, impl.metricParquetWriter, "writer should be constructed (recorder not disabled)")
+	require.Equal(t, 60*time.Second, impl.metricParquetWriter.flushInterval,
+		"negative flush_interval must fall back to 60s default")
+	require.NoError(t, lc.Stop(context.Background()))
+}
+
+// TestRecordingHandle_PreservesLogTimestamp locks in the Codex #3 fix:
+// ObserveLog must use the message's own GetTimestampUnixMilli() instead of
+// wall-clock time, so replayed/delayed/buffered logs are recorded with their
+// original event time.
+func TestRecordingHandle_PreservesLogTimestamp(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+		"anomaly_detection.recording.enabled":        true,
+		"anomaly_detection.recording.output_dir":     tmpDir,
+		"anomaly_detection.recording.flush_interval": time.Hour, // only flush on Stop
+		"anomaly_detection.recording.retention":      time.Hour,
+	})
+	lc := compdef.NewTestLifecycle(t)
+
+	out := NewComponent(Requires{Lifecycle: lc, Config: cfg})
+	require.NotNil(t, out.Comp)
+
+	inner := &fakeHandle{}
+	handle := out.Comp.GetHandle(func(_ string) observerdef.Handle { return inner })("test-source")
+
+	// Pick an event time that is unambiguously not "now".
+	const eventTimeMs = int64(1_700_000_000_000)
+	handle.ObserveLog(&fakeLogView{
+		content:     []byte("hello"),
+		status:      "info",
+		hostname:    "host-x",
+		tags:        []string{"env:test"},
+		timestampMs: eventTimeMs,
+	})
+
+	require.NoError(t, lc.Stop(context.Background()))
+
+	logs, err := out.Comp.ReadAllLogs(tmpDir)
+	require.NoError(t, err)
+	require.Len(t, logs, 1)
+	require.Equal(t, eventTimeMs, logs[0].TimestampMs,
+		"recorded log timestamp must come from LogView.GetTimestampUnixMilli, not wall clock")
 }

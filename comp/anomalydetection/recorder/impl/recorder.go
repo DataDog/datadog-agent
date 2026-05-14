@@ -51,7 +51,7 @@ func NewComponent(req Requires) Provides {
 	}
 
 	flushInterval := req.Config.GetDuration("anomaly_detection.recording.flush_interval")
-	if flushInterval == 0 {
+	if flushInterval <= 0 {
 		flushInterval = 60 * time.Second
 	}
 
@@ -224,6 +224,10 @@ func (h *recordingHandle) ObserveMetric(sample observer.MetricView) {
 }
 
 // ObserveLog forwards the log to the inner handle and records it.
+// Uses the LogView's own timestamp (event time) rather than wall-clock now
+// so that delayed, buffered, or replayed logs are recorded with their
+// original time. Wall-clock falls back only when the message reports no
+// timestamp (event time == 0), which would otherwise sort to the epoch.
 func (h *recordingHandle) ObserveLog(msg observer.LogView) {
 	h.inner.ObserveLog(msg)
 
@@ -231,12 +235,16 @@ func (h *recordingHandle) ObserveLog(msg observer.LogView) {
 	contentCopy := make([]byte, len(content))
 	copy(contentCopy, content)
 
+	timestampMs := msg.GetTimestampUnixMilli()
+	if timestampMs == 0 {
+		timestampMs = time.Now().UnixMilli()
+	}
 	h.recorder.logParquetWriter.WriteLog(
 		h.name,
 		contentCopy,
 		msg.GetStatus(),
 		msg.GetHostname(),
 		msg.GetTags(),
-		time.Now().UnixMilli(),
+		timestampMs,
 	)
 }
