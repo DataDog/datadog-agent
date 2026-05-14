@@ -23,7 +23,6 @@ pkg_filegroup(
     name = "all_files",
     srcs = [
         # TODO: dependency "python3"
-        # TODO: dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target?
         # TODO: dependencies:all_files belongs here, but that adding it will essentially
         # mean all builds build dependencies. That would break the repackage workflow, so
         # we'll do that in April.

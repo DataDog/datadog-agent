@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -21,45 +22,80 @@ import (
 const (
 	pollingFrequency   = 2 * time.Second
 	httpRequestTimeout = 10 * time.Second
+	// maxConsecutiveErrors is the number of consecutive poll failures after
+	// which the poller is considered unhealthy and the in-memory fallback
+	// scheduler takes over.
+	maxConsecutiveErrors = 5
 )
 
-type onDemandTestResponse struct {
+type testPollerResponse struct {
 	Tests []common.SyntheticsTestConfig `json:"tests"`
 }
 
-type onDemandPoller struct {
+type testPoller struct {
 	httpClient      *http.Client
 	endpoint        string
 	apiKey          string
+	agentVersion    string
 	hostNameService hostname.Component
 	log             log.Component
 	timeNowFn       func() time.Time
 	TestsChan       chan SyntheticsTestCtx
 	done            chan struct{}
+
+	mu                sync.Mutex
+	consecutiveErrors int
+	healthy           bool
 }
 
-func newOnDemandPoller(config *onDemandPollerConfig, hostNameService hostname.Component, logger log.Component, timeNowFn func() time.Time) *onDemandPoller {
-	return &onDemandPoller{
+func newTestPoller(config *testPollerConfig, hostNameService hostname.Component, logger log.Component, timeNowFn func() time.Time) *testPoller {
+	return &testPoller{
 		httpClient:      &http.Client{Transport: config.httpTransport, Timeout: httpRequestTimeout},
 		endpoint:        "https://intake.synthetics." + config.site + "/api/unstable/synthetics/agents/tests",
 		apiKey:          config.apiKey,
+		agentVersion:    config.agentVersion,
 		hostNameService: hostNameService,
 		log:             logger,
 		timeNowFn:       timeNowFn,
 		TestsChan:       make(chan SyntheticsTestCtx, 100),
 		done:            make(chan struct{}),
+		healthy:         true,
 	}
 }
 
-func (p *onDemandPoller) start(ctx context.Context) {
+func (p *testPoller) start(ctx context.Context) {
 	go p.pollLoop(ctx)
 }
 
-func (p *onDemandPoller) stop() {
+func (p *testPoller) stop() {
 	<-p.done
 }
 
-func (p *onDemandPoller) pollLoop(ctx context.Context) {
+// isHealthy reports whether the poller is currently considered healthy.
+// When it returns false, the scheduler's in-memory flush loop should take over.
+func (p *testPoller) isHealthy() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.healthy
+}
+
+func (p *testPoller) markSuccess() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.consecutiveErrors = 0
+	p.healthy = true
+}
+
+func (p *testPoller) markFailure() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.consecutiveErrors++
+	if p.consecutiveErrors >= maxConsecutiveErrors {
+		p.healthy = false
+	}
+}
+
+func (p *testPoller) pollLoop(ctx context.Context) {
 	defer close(p.done)
 
 	ticker := time.NewTicker(pollingFrequency)
@@ -72,9 +108,11 @@ func (p *onDemandPoller) pollLoop(ctx context.Context) {
 		case <-ticker.C:
 			tests, err := p.fetchTests(ctx)
 			if err != nil {
-				p.log.Debugf("error fetching on-demand tests: %s", err)
+				p.markFailure()
+				p.log.Debugf("error fetching tests: %s", err)
 				continue
 			}
+			p.markSuccess()
 			for _, test := range tests {
 				select {
 				case p.TestsChan <- SyntheticsTestCtx{
@@ -89,17 +127,20 @@ func (p *onDemandPoller) pollLoop(ctx context.Context) {
 	}
 }
 
-func (p *onDemandPoller) fetchTests(ctx context.Context) ([]common.SyntheticsTestConfig, error) {
+func (p *testPoller) fetchTests(ctx context.Context) ([]common.SyntheticsTestConfig, error) {
 	hostname, err := p.hostNameService.Get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error getting hostname: %w", err)
 	}
 
-	rawURL := p.endpoint + "?agent_hostname=" + url.QueryEscape(hostname)
-	u, err := url.Parse(rawURL)
+	u, err := url.Parse(p.endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("invalid endpoint URL: %w", err)
 	}
+	q := url.Values{}
+	q.Set("agent_hostname", hostname)
+	q.Set("agent_version", p.agentVersion)
+	u.RawQuery = q.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
@@ -117,7 +158,7 @@ func (p *onDemandPoller) fetchTests(ctx context.Context) ([]common.SyntheticsTes
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	var response onDemandTestResponse
+	var response testPollerResponse
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return nil, err
 	}
