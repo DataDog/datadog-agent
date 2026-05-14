@@ -639,6 +639,55 @@ func (s *timeSeriesStorage) ListAllSeriesCompact() []seriesCompact {
 	return result
 }
 
+// ---------------------------------------------------------------------------
+// Inline FNV-1a (64-bit) — zero alloc on the hot path.
+// Produces identical output to stdlib hash/fnv.New64a().
+// ---------------------------------------------------------------------------
+
+const (
+	fnvOffsetBasis64 = uint64(14695981039346656037)
+	fnvPrime64       = uint64(1099511628211)
+)
+
+// fnv64aString computes FNV-1a over a string without allocating a hasher or
+// converting to []byte.
+func fnv64aString(s string) uint64 {
+	h := fnvOffsetBasis64
+	for i := 0; i < len(s); i++ {
+		h ^= uint64(s[i])
+		h *= fnvPrime64
+	}
+	return h
+}
+
+// fnv64aMix folds an additional string into an existing FNV-1a hash, separated
+// by '|'. Useful for hashing multiple fields without concatenating them first.
+func fnv64aMix(h uint64, s string) uint64 {
+	h ^= uint64('|')
+	h *= fnvPrime64
+	for i := 0; i < len(s); i++ {
+		h ^= uint64(s[i])
+		h *= fnvPrime64
+	}
+	return h
+}
+
+// fnv64aMixUint64 folds a uint64 value into an existing FNV-1a hash
+// (little-endian byte order, matching encoding/binary.LittleEndian).
+func fnv64aMixUint64(h, v uint64) uint64 {
+	for i := 0; i < 8; i++ {
+		h ^= v & 0xFF
+		h *= fnvPrime64
+		v >>= 8
+	}
+	return h
+}
+
+// fnv64aMixInt64 folds an int64 value into an existing FNV-1a hash.
+func fnv64aMixInt64(h uint64, v int64) uint64 {
+	return fnv64aMixUint64(h, uint64(v))
+}
+
 // DumpToFile writes all series to a JSON file for debugging.
 func (s *timeSeriesStorage) DumpToFile(path string) error {
 	s.mu.RLock()

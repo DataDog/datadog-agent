@@ -7,8 +7,7 @@ package observerimpl
 
 import (
 	"encoding/json"
-	"fmt"
-	"hash/fnv"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -207,9 +206,7 @@ func metricContextKey(metricName string, tags []string) string {
 }
 
 func patternCountMetricName(signature string) string {
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(signature))
-	return fmt.Sprintf("log.pattern.%x.count", h.Sum64())
+	return "log.pattern." + strconv.FormatUint(fnv64aString(signature), 16) + ".count"
 }
 
 func sanitizeMetricFragment(s string) string {
