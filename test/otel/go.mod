@@ -89,7 +89,7 @@ require (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.195 // indirect
+	github.com/DataDog/agent-payload/v5 v5.0.196 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
@@ -146,7 +146,7 @@ require (
 	github.com/DataDog/datadog-api-client-go/v2 v2.59.0 // indirect
 	github.com/DataDog/datadog-go/v5 v5.8.3 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
-	github.com/DataDog/go-sqllexer v0.2.1 // indirect; indirectom/DataDog/go-tuf v1.1.1-0.5.2 // indirect
+	github.com/DataDog/go-sqllexer v0.2.2 // indirect; indirectom/DataDog/go-tuf v1.1.1-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.8 // indirect
 	github.com/DataDog/viper v1.15.1 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
