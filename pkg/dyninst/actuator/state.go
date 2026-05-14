@@ -1235,10 +1235,17 @@ func checkCosts(sm *state, interval time.Duration, effects effectHandler) {
 			costSPS := (execCost + interruptCost).Seconds() / interval.Seconds()
 
 			// Skip probes already circuit-broken. Their cost is
-			// transient (the recompile will remove them) so do not
-			// charge it against the host-wide AllProbesCPULimit, and
-			// do not count them as candidates for that limit's victim
-			// either.
+			// transient under normal operation (the queued recompile
+			// will remove them) so do not charge it against the
+			// host-wide AllProbesCPULimit, and do not count them as
+			// candidates for that limit's victim either. Charging
+			// the cost would mean a probe destined for removal could
+			// cause a healthy sibling to be picked as the all-probes
+			// victim. Note: if recompilation is rate-limited the
+			// removal is delayed, and if disabled
+			// (recompilationRateLimit < 0) the cost stays invisible
+			// to this budget -- but in that mode the breaker can't
+			// remediate anyway.
 			if def := prog.loaded.loaded.ProbeDefinition(uint32(probeID)); def != nil {
 				key := probeKey{id: def.GetID(), version: def.GetVersion()}
 				if _, broken := proc.circuitBrokenProbes[key]; broken {

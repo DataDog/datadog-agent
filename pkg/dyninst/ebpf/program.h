@@ -57,13 +57,6 @@ struct {
 } probe_params SEC(".maps");
 volatile const uint32_t num_probe_params = 0;
 
-// num_probes is the count of distinct IR probes (always >= 1, since
-// stats_buf is sized to it and BPF_MAP_TYPE_ARRAY requires nonzero
-// max_entries). Note that probe_params has one entry per
-// (probe x event-kind x injection PC), while stats_buf has one entry
-// per probe; multiple probe_params slots can share a probe_id.
-volatile const uint32_t num_probes = 0;
-
 struct {
   __uint(type, BPF_MAP_TYPE_ARRAY);
   __uint(max_entries, 0);

@@ -367,8 +367,8 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
 }
 
 // Cumulative per-probe stats. ARRAY (not PERCPU_ARRAY) so we can size
-// it to num_probes and key by probe_id; updates use __sync atomics to
-// remain race-free across CPUs. Resized to num_probes at load time.
+// it per IR probe count and key by probe_id; updates use __sync atomics
+// to remain race-free across CPUs. max_entries is set by the loader.
 struct {
   __uint(type, BPF_MAP_TYPE_ARRAY);
   __uint(max_entries, 0);
@@ -376,27 +376,12 @@ struct {
   __type(value, stats_t);
 } stats_buf SEC(".maps");
 
-// Cumulative counter for hits whose attach cookie does not resolve to a
-// valid probe_params slot (should never happen in practice; surfaces
-// cookie misconfigurations). PERCPU since it's the slow/error path
-// only.
-struct {
-  __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
-  __uint(max_entries, 1);
-  __type(key, uint32_t);
-  __type(value, stats_t);
-} orphan_stats SEC(".maps");
-
 SEC("uprobe")
 int probe_run_with_cookie(struct pt_regs* regs) {
   uint64_t start_ns = bpf_ktime_get_ns();
 
   const uint64_t cookie = bpf_get_attach_cookie(regs);
   if (cookie >= num_probe_params) {
-    stats_t* orphan = bpf_map_lookup_elem(&orphan_stats, &zero_uint32);
-    if (orphan) {
-      orphan->hit_cnt++;
-    }
     return 0;
   }
   const probe_params_t* params = bpf_map_lookup_elem(&probe_params, &cookie);

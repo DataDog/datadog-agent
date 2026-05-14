@@ -349,6 +349,28 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 			allIDs[id] = true
 		}
 
+		renderProc := func(p *process) string {
+			var s string
+			if p.currentProgram != 0 {
+				s = fmt.Sprintf(
+					"%s (prog %d)",
+					p.state.String(), p.currentProgram,
+				)
+			} else {
+				s = p.state.String()
+			}
+			if len(p.circuitBrokenProbes) > 0 {
+				keys := slices.SortedFunc(
+					maps.Keys(p.circuitBrokenProbes), probeKey.cmp,
+				)
+				ids := make([]string, len(keys))
+				for i, k := range keys {
+					ids[i] = k.id
+				}
+				s += fmt.Sprintf(" circuitBroken=[%s]", strings.Join(ids, ","))
+			}
+			return s
+		}
 		for id := range allIDs {
 			beforeProc := before[id]
 			afterProc := after[id]
@@ -356,24 +378,10 @@ func computeStateUpdate(before, after *state) *stateUpdate {
 
 			var beforeState, afterState any
 			if beforeProc != nil {
-				if beforeProc.currentProgram != 0 {
-					beforeState = fmt.Sprintf(
-						"%s (prog %d)",
-						beforeProc.state.String(), beforeProc.currentProgram,
-					)
-				} else {
-					beforeState = beforeProc.state.String()
-				}
+				beforeState = renderProc(beforeProc)
 			}
 			if afterProc != nil {
-				if afterProc.currentProgram != 0 {
-					afterState = fmt.Sprintf(
-						"%s (prog %d)",
-						afterProc.state.String(), afterProc.currentProgram,
-					)
-				} else {
-					afterState = afterProc.state.String()
-				}
+				afterState = renderProc(afterProc)
 			}
 			if update.Processes == nil {
 				update.Processes = make(map[any]string)

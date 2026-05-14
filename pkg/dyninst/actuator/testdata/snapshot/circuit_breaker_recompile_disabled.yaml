@@ -1,21 +1,28 @@
-# Tests circuit breaker behavior with runtime stat updates.
-# After the per-probe stats migration the runtime_stats list is keyed
-# by probe_id (not per-CPU); the test process has a single probe.
-- !config { discovered_types_limit: 0, per_probe_cpu_limit: 0.01, all_probes_cpu_limit: 1000 }
+# Tests circuit-breaker behavior when recompilation is disabled
+# (recompilation_rate_limit < 0). A per-probe trip records the probe
+# in circuitBrokenProbes and emits the ExecutionFailed diagnostic, but
+# no recompile is queued: the broken probe stays attached. This locks
+# in the documented degraded behavior described in the checkCosts
+# comment.
+- !config {
+    discovered_types_limit: 0,
+    per_probe_cpu_limit: 0.5,
+    all_probes_cpu_limit: 100,
+    recompilation_rate_limit: -1,
+  }
 - !processes-updated
   updated:
     - process_id: { pid: 1001 }
       executable: { path: /usr/bin/test }
       probes:
-        - {
-            type: LOG_PROBE,
-            id: probe1,
-            where: { methodName: main },
-            captureSnapshot: true,
-          }
+        - { type: LOG_PROBE, id: hot, where: { methodName: hot }, captureSnapshot: true }
+        - { type: LOG_PROBE, id: cold, where: { methodName: cold }, captureSnapshot: true }
 - !loaded
   program_id: 1
   runtime_stats:
+    - hit_cnt: 0
+      throttled_cnt: 0
+      cpu: 0s
     - hit_cnt: 0
       throttled_cnt: 0
       cpu: 0s
@@ -24,17 +31,27 @@
 - !runtime-stats
   program_id: 1
   runtime_stats:
-    - hit_cnt: 1200
+    - hit_cnt: 5
       throttled_cnt: 0
-      cpu: 3000ns
+      cpu: 100ns
+    - hit_cnt: 100000
+      throttled_cnt: 0
+      cpu: 5s
+# Trips hot. ExecutionFailed is reported, circuitBrokenProbes is set,
+# but no detach/recompile is scheduled.
 - !heartbeat-check
-# Second heartbeat check should trigger the circuit breaker.
+# A second heartbeat should not re-trip an already-broken probe (the
+# tripProbe idempotency check) -- even though stats still show hot
+# probe activity, no second ExecutionFailed should fire.
 - !runtime-stats
   program_id: 1
   runtime_stats:
-    - hit_cnt: 7000
+    - hit_cnt: 10
       throttled_cnt: 0
-      cpu: 1500s
+      cpu: 200ns
+    - hit_cnt: 200000
+      throttled_cnt: 0
+      cpu: 10s
 - !heartbeat-check
 ---
 event: !processes-updated
@@ -42,9 +59,10 @@ event: !processes-updated
     - process_id: {pid: 1001}
       executable: {path: /usr/bin/test}
       probes:
-        - {type: LOG_PROBE, id: probe1, where: {methodName: main}, captureSnapshot: true}
+        - {type: LOG_PROBE, id: hot, where: {methodName: hot}, captureSnapshot: true}
+        - {type: LOG_PROBE, id: cold, where: {methodName: cold}, captureSnapshot: true}
 effects:
-  - !spawn-bpf-loading {executable: /usr/bin/test@0.0m0.0, probes: [probe1], process_id: 1001, program_id: 1}
+  - !spawn-bpf-loading {executable: /usr/bin/test@0.0m0.0, probes: [cold, hot], process_id: 1001, program_id: 1}
 state:
   currently_loading: <nil> -> 1
   queued_programs: '[]'
@@ -60,6 +78,9 @@ state:
 event: !loaded
   program_id: 1
   runtime_stats:
+    - hit_cnt: 0
+      throttled_cnt: 0
+      cpu: 0s
     - hit_cnt: 0
       throttled_cnt: 0
       cpu: 0s
@@ -102,32 +123,12 @@ state:
 event: !runtime-stats
   program_id: 1
   runtime_stats:
-    - hit_cnt: 1200
+    - hit_cnt: 5
       throttled_cnt: 0
-      cpu: 3000ns
-state:
-  currently_loading: <nil>
-  queued_programs: '[]'
-  processes:
-    1001: Attached (prog 1)
-  programs:
-    1: Loaded (proc 1001)
----
-event: !heartbeat-check
-state:
-  currently_loading: <nil>
-  queued_programs: '[]'
-  processes:
-    1001: Attached (prog 1)
-  programs:
-    1: Loaded (proc 1001)
----
-event: !runtime-stats
-  program_id: 1
-  runtime_stats:
-    - hit_cnt: 7000
+      cpu: 100ns
+    - hit_cnt: 100000
       throttled_cnt: 0
-      cpu: 1500s
+      cpu: 5s
 state:
   currently_loading: <nil>
   queued_programs: '[]'
@@ -138,17 +139,38 @@ state:
 ---
 event: !heartbeat-check
 effects:
-  - !report-probe-error {probe_id: probe1, process_id: 1001, program_id: 1, reason: "yes"}
-  - !detach-from-process {failure: "no", process_id: 1001, program_id: 1}
+  - !report-probe-error {probe_id: hot, process_id: 1001, program_id: 1, reason: "yes"}
 state:
   currently_loading: <nil>
   queued_programs: '[]'
   processes:
-    1001: Attached (prog 1) -> Detaching (prog 1) circuitBroken=[probe1]
+    1001: Attached (prog 1) -> Attached (prog 1) circuitBroken=[hot]
   programs:
-    1: Loaded (proc 1001) -> Draining (proc 1001)
-  stats:
-    numAttached: 1 -> 0
-    numDetaching: 0 -> 1
-    typeRecompilationsTriggered: 0 -> 1
+    1: Loaded (proc 1001)
+---
+event: !runtime-stats
+  program_id: 1
+  runtime_stats:
+    - hit_cnt: 10
+      throttled_cnt: 0
+      cpu: 200ns
+    - hit_cnt: 200000
+      throttled_cnt: 0
+      cpu: 10s
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 1) circuitBroken=[hot]
+  programs:
+    1: Loaded (proc 1001)
+---
+event: !heartbeat-check
+state:
+  currently_loading: <nil>
+  queued_programs: '[]'
+  processes:
+    1001: Attached (prog 1) circuitBroken=[hot]
+  programs:
+    1: Loaded (proc 1001)
 ---

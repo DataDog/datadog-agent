@@ -34,10 +34,10 @@ type serializedProgram struct {
 	probeParams     []probeParams
 	bpfAttachPoints []BPFAttachPoint
 
-	// numProbes is the count of distinct IR probes. It defines the size
-	// of the per-probe stats_buf map and is always >= 1 in the serialized
-	// program (clamped at load time to satisfy BPF_MAP_TYPE_ARRAY's
-	// nonzero-max-entries requirement).
+	// numProbes is the raw IR probe count and may be 0. It defines the
+	// size of the per-probe stats_buf map; the loader clamps stats_buf's
+	// MaxEntries to at least 1 to satisfy BPF_MAP_TYPE_ARRAY's
+	// nonzero-max-entries requirement.
 	numProbes uint32
 
 	goRuntimeTypeIDs goRuntimeTypeIDs

@@ -173,7 +173,7 @@ state:
   currently_loading: <nil>
   queued_programs: '[]'
   processes:
-    1001: Attached (prog 1) -> Detaching (prog 1)
+    1001: Attached (prog 1) -> Detaching (prog 1) circuitBroken=[hot]
   programs:
     1: Loaded (proc 1001) -> Draining (proc 1001)
   stats:
@@ -188,7 +188,7 @@ state:
   currently_loading: <nil>
   queued_programs: '[]'
   processes:
-    1001: Detaching (prog 1)
+    1001: Detaching (prog 1) circuitBroken=[hot]
   programs:
     1: Draining (proc 1001) -> Unloading (proc 1001)
   stats:
@@ -201,7 +201,7 @@ state:
   currently_loading: <nil> -> 2
   queued_programs: '[]'
   processes:
-    1001: Detaching (prog 1) -> WaitingForProgram (prog 2)
+    1001: Detaching (prog 1) circuitBroken=[hot] -> WaitingForProgram (prog 2) circuitBroken=[hot]
   programs:
     1: Unloading (proc 1001) -> <nil>
     2: <nil> -> Loading (proc 1001)
@@ -222,7 +222,7 @@ state:
   currently_loading: 2 -> <nil>
   queued_programs: '[]'
   processes:
-    1001: WaitingForProgram (prog 2) -> Attaching (prog 2)
+    1001: WaitingForProgram (prog 2) circuitBroken=[hot] -> Attaching (prog 2) circuitBroken=[hot]
   programs:
     2: Loading (proc 1001) -> Loaded (proc 1001)
   stats:
@@ -235,7 +235,7 @@ state:
   currently_loading: <nil>
   queued_programs: '[]'
   processes:
-    1001: Attaching (prog 2) -> Attached (prog 2)
+    1001: Attaching (prog 2) circuitBroken=[hot] -> Attached (prog 2) circuitBroken=[hot]
   programs:
     2: Loaded (proc 1001)
   stats:
@@ -255,7 +255,7 @@ state:
   currently_loading: <nil>
   queued_programs: '[]'
   processes:
-    1001: Attached (prog 2) -> Detaching (prog 2)
+    1001: Attached (prog 2) circuitBroken=[hot] -> Detaching (prog 2)
   programs:
     2: Loaded (proc 1001) -> Draining (proc 1001)
   stats:

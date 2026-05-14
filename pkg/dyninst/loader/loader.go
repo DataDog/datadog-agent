@@ -642,9 +642,6 @@ func (l *Loader) loadData(
 		return nil, errors.New("stats_buf map not found in eBPF spec")
 	}
 	statsBufMapSpec.MaxEntries = statsBufSize
-	if err := setVariable(spec, "num_probes", serialized.numProbes); err != nil {
-		return nil, fmt.Errorf("failed to set num_probes: %w", err)
-	}
 
 	if l.config.dyninstDebugEnabled {
 		err = setVariable(spec, "debug_level", uint32(l.config.dyninstDebugLevel))
