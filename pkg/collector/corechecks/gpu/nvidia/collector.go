@@ -65,6 +65,8 @@ type CollectorDependencies struct {
 	DeviceEventsGatherer *DeviceEventsGatherer
 	// SystemProbeCache is a (optional) cache of the latest metrics obtained from system probe
 	SystemProbeCache *SystemProbeCache
+	// PRMCache is a cache of privileged PRM metrics obtained from system-probe
+	PRMCache *PRMCache
 	// Telemetry is the telemetry component to use for collecting metrics
 	Telemetry *CollectorTelemetry
 	// Workloadmeta is used for getting auxialiary metadata about containers and GPUs

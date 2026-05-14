@@ -37,6 +37,7 @@ import (
 	gpuspec "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/spec"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/gpu/prm"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	ddmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
@@ -72,6 +73,85 @@ func newConfiguredGPUCheck(
 	t.Cleanup(func() { check.Cancel() })
 
 	return check
+}
+
+func TestConfigurePRMCacheRequiresPRMEndpoint(t *testing.T) {
+	tests := []struct {
+		name               string
+		gpuMonitoring      bool
+		enableEBPFProbes   bool
+		prmEndpointEnabled bool
+		expectSPCache      bool
+		expectPRMCache     bool
+	}{
+		{
+			name:               "system probe and PRM endpoint enabled",
+			gpuMonitoring:      true,
+			enableEBPFProbes:   true,
+			prmEndpointEnabled: true,
+			expectSPCache:      true,
+			expectPRMCache:     true,
+		},
+		{
+			name:               "system probe enabled and PRM endpoint disabled",
+			gpuMonitoring:      true,
+			enableEBPFProbes:   true,
+			prmEndpointEnabled: false,
+			expectSPCache:      true,
+			expectPRMCache:     false,
+		},
+		{
+			name:               "system probe enabled, eBPF disabled, and PRM endpoint enabled",
+			gpuMonitoring:      true,
+			enableEBPFProbes:   false,
+			prmEndpointEnabled: true,
+			expectSPCache:      false,
+			expectPRMCache:     true,
+		},
+		{
+			name:               "system probe disabled",
+			gpuMonitoring:      false,
+			enableEBPFProbes:   true,
+			prmEndpointEnabled: true,
+			expectSPCache:      false,
+			expectPRMCache:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			senderManager := mocksender.CreateDefaultDemultiplexer()
+			checkGeneric := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMock(t))
+			check, ok := checkGeneric.(*Check)
+			require.True(t, ok)
+
+			WithGPUConfigEnabled(t)
+			pkgconfigsetup.SystemProbe().SetWithoutSource("gpu_monitoring.enabled", tt.gpuMonitoring)
+			pkgconfigsetup.SystemProbe().SetWithoutSource("gpu_monitoring.enable_ebpf_probes", tt.enableEBPFProbes)
+			pkgconfigsetup.SystemProbe().SetWithoutSource("gpu_monitoring.prm_endpoint_enabled", tt.prmEndpointEnabled)
+			t.Cleanup(func() {
+				pkgconfigsetup.SystemProbe().SetWithoutSource("gpu_monitoring.enabled", false)
+				pkgconfigsetup.SystemProbe().SetWithoutSource("gpu_monitoring.enable_ebpf_probes", true)
+				pkgconfigsetup.SystemProbe().SetWithoutSource("gpu_monitoring.prm_endpoint_enabled", true)
+			})
+
+			check.containerProvider = newMockContainerProvider(t, nil)
+			require.NoError(t, check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
+			t.Cleanup(func() { check.Cancel() })
+
+			if tt.expectSPCache {
+				require.NotNil(t, check.spCache)
+			} else {
+				require.Nil(t, check.spCache)
+			}
+
+			if tt.expectPRMCache {
+				require.NotNil(t, check.prmCache)
+			} else {
+				require.Nil(t, check.prmCache)
+			}
+		})
+	}
 }
 
 func TestEmitNvmlMetrics(t *testing.T) {
@@ -235,7 +315,7 @@ func TestRunDoesNotError(t *testing.T) {
 
 func TestCollectorsOnDeviceChanges(t *testing.T) {
 	// note: bump this when we'll add new collectors in nvidia.BuildCollectors
-	const numSupportedCollectorTypes = 6
+	const numSupportedCollectorTypes = 5
 
 	// mock up device count so that we can check when check collectors are created/destroyed
 	nvmlMock := testutil.GetBasicNvmlMockWithOptions(
@@ -987,6 +1067,15 @@ func setupMockCheckForMetricCollection(t *testing.T, config gpuspec.GPUConfig, a
 		DeviceMetrics:  deviceMetrics,
 	})
 	check.spCache = spCache
+	if config.Architecture == "blackwell" && config.DeviceMode == gpuspec.DeviceModePhysical {
+		prmCache := &nvidia.PRMCache{}
+		for _, uuid := range cacheDeviceUUIDs {
+			for port := 1; port <= 2; port++ {
+				prmCache.SetCountersForTest(uuid, port, testPRMCounters(uint64(port*100)))
+			}
+		}
+		check.prmCache = prmCache
+	}
 
 	runCollection := func() {
 		// Some metrics require a second run to be collected, so we run it twice.
@@ -1017,4 +1106,12 @@ func setupMockCheckForMetricCollection(t *testing.T, config gpuspec.GPUConfig, a
 		runCollection:  runCollection,
 		knownTagValues: knownTagValues,
 	}
+}
+
+func testPRMCounters(seed uint64) map[string]uint64 {
+	counters := make(map[string]uint64, len(prm.PLRCounterFields))
+	for i, field := range prm.PLRCounterFields {
+		counters[field] = seed + uint64(i)
+	}
+	return counters
 }
