@@ -128,6 +128,8 @@ func (h *Histogram) flush(timestamp float64) ([]*Serie, error) {
 	for _, aggregate := range h.aggregates {
 		var value float64
 		mType := APIGaugeType
+		unit := h.unit
+
 		switch aggregate {
 		case maxAgg:
 			value = h.samples[len(h.samples)-1].value
@@ -150,6 +152,7 @@ func (h *Histogram) flush(timestamp float64) ([]*Serie, error) {
 		case countAgg:
 			value = float64(h.count) / float64(h.interval)
 			mType = APIRateType
+			unit = "" // counts are dimensionless
 		default:
 			log.Infof("Configured aggregate '%s' is not implemented, skipping", aggregate)
 			continue
@@ -159,7 +162,7 @@ func (h *Histogram) flush(timestamp float64) ([]*Serie, error) {
 			Points:     []Point{{Ts: timestamp, Value: value}},
 			MType:      mType,
 			NameSuffix: "." + aggregate,
-			Unit:       h.unit,
+			Unit:       unit,
 		})
 	}
 

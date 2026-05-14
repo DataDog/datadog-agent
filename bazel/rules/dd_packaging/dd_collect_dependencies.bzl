@@ -51,12 +51,17 @@ def _dd_collect_dependencies_impl(ctx):
     pkg_dirs = []
     pkg_symlinks = []
 
-    for src in ctx.attr.srcs:
-        if _CollectedPackagingInfo in src:
-            for fg in src[_CollectedPackagingInfo].pkg_filegroups.to_list():
-                pkg_files.extend(fg.pkg_files)
-                pkg_dirs.extend(fg.pkg_dirs)
-                pkg_symlinks.extend(fg.pkg_symlinks)
+    # Merge per-src depsets before iterating so a PackageFilegroupInfo
+    # reachable through multiple srcs (diamond deps) appears only once.
+    combined = depset(transitive = [
+        src[_CollectedPackagingInfo].pkg_filegroups
+        for src in ctx.attr.srcs
+        if _CollectedPackagingInfo in src
+    ])
+    for fg in combined.to_list():
+        pkg_files.extend(fg.pkg_files)
+        pkg_dirs.extend(fg.pkg_dirs)
+        pkg_symlinks.extend(fg.pkg_symlinks)
 
     all_files = depset([
         f

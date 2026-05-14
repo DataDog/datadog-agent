@@ -24,21 +24,23 @@ import (
 )
 
 type mockResolver struct {
-	mu   sync.RWMutex
-	tags []string
-	err  error
+	mu       sync.RWMutex
+	tags     []string
+	complete bool
+	err      error
 }
 
-func (m *mockResolver) setTags(t []string) {
+func (m *mockResolver) setTags(t []string, complete bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.tags = t
+	m.complete = complete
 }
 
 func (m *mockResolver) Resolve(string) ([]string, bool, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.tags, true, m.err
+	return m.tags, m.complete, m.err
 }
 
 func TestBuffer_DelayedSuccess(t *testing.T) {
@@ -70,7 +72,7 @@ func TestBuffer_DelayedSuccess(t *testing.T) {
 		// it's blocked
 	}
 
-	mock.setTags([]string{"short_image:nginx", "kube_pod_name:app"})
+	mock.setTags([]string{"short_image:nginx", "kube_pod_name:app"}, true)
 
 	select {
 	case tags := <-resultCh:
@@ -117,7 +119,7 @@ func TestAsyncEnrichment_DeniedContainer(t *testing.T) {
 		MaxMemory:           1000,
 		ContainerTagsBuffer: true,
 		ContainerTagsWithCompleteness: func(string) ([]string, bool, error) {
-			return []string{"image:only"}, true, nil
+			return []string{"image:only"}, false, nil
 		},
 	}
 
@@ -175,7 +177,7 @@ func TestAsyncEnrichment_MemoryLimit(t *testing.T) {
 	assert.Equal(t, int64(10), ctb.memoryUsage.Load())
 
 	// 3. memory cleaned post resolution
-	mock.setTags([]string{"kube_t:a"})
+	mock.setTags([]string{"kube_t:a"}, true)
 	require.Eventually(t, func() bool {
 		return ctb.memoryUsage.Load() == 0
 	}, 3*time.Second, 10*time.Millisecond)
@@ -207,12 +209,39 @@ func TestAsyncEnrichment_ImmediateResolution(t *testing.T) {
 	wg.Wait()
 }
 
-func TestAsyncEnrichment_Buffered_Expiration(t *testing.T) {
+func TestAsyncEnrichment_CompleteWithoutKubeTagsDoesNotBuffer(t *testing.T) {
 	conf := &config.AgentConfig{
 		MaxMemory:           10000,
 		ContainerTagsBuffer: true,
 		ContainerTagsWithCompleteness: func(string) ([]string, bool, error) {
 			return []string{"image:only"}, true, nil
+		},
+	}
+	ctb := newContainerTagsBuffer(conf, &statsd.NoOpClient{})
+	ctb.Start()
+	defer ctb.Stop()
+
+	called := false
+	callback := func(tags []string, err error, debug *DebugInfo) {
+		called = true
+		assert.Equal(t, []string{"image:only"}, tags)
+		assert.NoError(t, err)
+		assert.Nil(t, debug)
+	}
+
+	pending := ctb.AsyncEnrichment("container-complete", callback, 100)
+
+	assert.False(t, pending, "complete tagsets should not be buffered while waiting for kube_tags")
+	assert.True(t, called)
+	assert.Zero(t, ctb.memoryUsage.Load())
+}
+
+func TestAsyncEnrichment_Buffered_Expiration(t *testing.T) {
+	conf := &config.AgentConfig{
+		MaxMemory:           10000,
+		ContainerTagsBuffer: true,
+		ContainerTagsWithCompleteness: func(string) ([]string, bool, error) {
+			return []string{"image:only"}, false, nil
 		},
 	}
 
@@ -250,7 +279,7 @@ func TestAsyncEnrichment_Buffered_HardLimit(t *testing.T) {
 		MaxMemory:           10000,
 		ContainerTagsBuffer: true,
 		ContainerTagsWithCompleteness: func(string) ([]string, bool, error) {
-			return []string{"image:only"}, true, nil
+			return []string{"image:only"}, false, nil
 		},
 	}
 
@@ -303,7 +332,7 @@ func syncTestAsyncEnrichmentConcurrentMixedScenarios(t *testing.T) {
 			if shouldResolveContainers.Load() {
 				return []string{"kube_image:" + cid}, true, nil
 			}
-			return []string{"tag:incomplete_tags"}, true, nil
+			return []string{"tag:incomplete_tags"}, false, nil
 		},
 	}
 

@@ -6,6 +6,7 @@ go_library(
         "encoder.go",
         "json.go",
         "json_serverless_init.go",
+        "passthrough.go",
         "processor.go",
         "proto.go",
         "raw.go",
