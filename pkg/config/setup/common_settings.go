@@ -781,7 +781,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.manifest_collection.buffer_flush_interval", 20*time.Second)
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_resources.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods.enabled", true)
-	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods_improved.enabled", false)
+	config.BindEnvAndSetDefault("orchestrator_explorer.terminated_pods_improved.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.enabled", true)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.gateway_api", false)
 	config.BindEnvAndSetDefault("orchestrator_explorer.custom_resources.ootb.service_mesh", false)
@@ -828,7 +828,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("sbom.container_image.check_disk_usage", true)
 	config.BindEnvAndSetDefault("sbom.container_image.min_available_disk", "1Gb")
 	config.BindEnvAndSetDefault("sbom.container_image.overlayfs_direct_scan", false)
-	config.BindEnvAndSetDefault("sbom.container_image.overlayfs_disable_cache", false)
+	config.BindEnvAndSetDefault("sbom.container_image.overlayfs_disable_cache", true)
 	config.BindEnvAndSetDefault("sbom.container_image.container_exclude", []string{})
 	config.BindEnvAndSetDefault("sbom.container_image.container_include", []string{})
 	config.BindEnvAndSetDefault("sbom.container_image.exclude_pause_container", true)
@@ -1894,6 +1894,10 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// When true, logs containing critical severity keywords (FATAL, ERROR, PANIC, etc.)
 	// bypass the adaptive sampler and are never dropped.
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.protect_important_logs", true)
+	// Include limits adaptive sampling to logs matching at least one rule when configured.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.include", []map[string]interface{}{})
+	// Exclude prevents adaptive sampling from applying to logs matching any rule when configured.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.exclude", []map[string]interface{}{})
 
 	// Enable the legacy auto multiline detection (v1)
 	config.BindEnvAndSetDefault("logs_config.force_auto_multi_line_detection_v1", false)
@@ -1905,9 +1909,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.48)
 
 	// Add a tag to logs that are multiline aggregated
-	config.BindEnvAndSetDefault("logs_config.tag_multi_line_logs", false)
+	config.BindEnvAndSetDefault("logs_config.tag_multi_line_logs", true)
 	// Add a tag to logs that are truncated by the agent
-	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", false)
+	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", true)
 	// Tag logs with their auto multiline detection label without aggregating them
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection_tagging", true)
 

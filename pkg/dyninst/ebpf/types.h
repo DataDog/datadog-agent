@@ -49,8 +49,33 @@ typedef struct type_info {
   dynamic_size_class_t dynamic_size_class;
   uint32_t byte_len;
   uint32_t enqueue_pc;
-  uint32_t __padding;
+  int32_t go_context_context_offset;
+  int32_t go_context_key_offset;
+  int32_t go_context_value_offset;
+  int32_t ddtrace_trace_id_offset;
+  int32_t ddtrace_span_id_offset;
+  int32_t ddtrace_parent_id_offset;
+  int32_t ddtrace_span_context_offset;
+  int32_t ddtrace_span_context_trace_id_offset;
+  uint8_t go_context_is_context;
+  uint8_t ddtrace_span_kind;
+  uint8_t __padding[2];
 } type_info_t;
+
+// trace_context_t is the 40-byte payload layout for synthetic data items of
+// IR type TraceContextType. Emitted by SM_OP_GO_CONTEXT_CHAIN_INIT/HOP at
+// chase time when a concrete context.Context implementation (cancelCtx,
+// valueCtx, …) is dequeued. INIT zeroes the first 40 bytes and rewrites the
+// data item header type id; HOP optionally fills in trace_id/span_id/
+// parent_id and sets valid=1 if a dd-trace span is found on the chain.
+typedef struct trace_context {
+  uint64_t trace_id_lower;
+  uint64_t trace_id_upper;
+  uint64_t span_id;
+  uint64_t parent_id;
+  uint8_t valid;
+  uint8_t __padding[7];
+} trace_context_t;
 
 // To be kept in sync with the ir/event_kind.go file.
 typedef enum event_kind {
@@ -140,6 +165,18 @@ typedef enum sm_opcode {
   // path. Clears condition_eval_error so the driver's
   // CONDITION_LEAF_RECORD can distinguish success from abort.
   SM_OP_CONDITION_LEAF_COMPLETE = 46,
+  // Go context.Context chain-walk opcodes. Together they form the enqueue_pc
+  // subroutine for any concrete context.Context implementation IR type:
+  //   [SM_OP_GO_CONTEXT_CHAIN_INIT, SM_OP_GO_CONTEXT_CHAIN_HOP, SM_OP_RETURN]
+  // INIT runs once after the chase preamble has serialized the
+  // implementation's bytes. It rewrites the just-written data item header's
+  // type to TraceContextType, zeros the first 40 payload bytes (establishing
+  // valid=0), and seeds sm->go_context_walk. HOP runs one chain step per
+  // dispatch; if not yet done it self-jumps (sm->pc -= 1) so the next
+  // sm_loop iteration re-enters HOP — up to MAX_GO_CONTEXT_DEPTH times.
+  // See pkg/dyninst/irgen/trace_context.md for design.
+  SM_OP_GO_CONTEXT_CHAIN_INIT = 47,
+  SM_OP_GO_CONTEXT_CHAIN_HOP = 48,
 } sm_opcode_t;
 
 // cmp_op_t identifies which comparison SM_OP_EXPR_CMP_BASE /
@@ -260,6 +297,10 @@ static const char* op_code_name(sm_opcode_t op_code) {
     return "CONDITION_CHECK_PRESERVE_ERROR";
   case SM_OP_CONDITION_LEAF_COMPLETE:
     return "CONDITION_LEAF_COMPLETE";
+  case SM_OP_GO_CONTEXT_CHAIN_INIT:
+    return "GO_CONTEXT_CHAIN_INIT";
+  case SM_OP_GO_CONTEXT_CHAIN_HOP:
+    return "GO_CONTEXT_CHAIN_HOP";
   default:
     break;
   }

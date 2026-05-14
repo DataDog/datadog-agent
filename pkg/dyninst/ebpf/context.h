@@ -112,6 +112,34 @@ typedef struct stack_machine {
   // Bitmask for remaining go context values to capture.
   uint64_t go_context_capture_bitmask;
 
+  // State for the Go context.Context chain walk run by
+  // SM_OP_GO_CONTEXT_CHAIN_INIT and SM_OP_GO_CONTEXT_CHAIN_HOP. Reset by
+  // every INIT invocation. See pkg/dyninst/irgen/trace_context.md.
+  struct {
+    // Current link being inspected: address of the implementation struct
+    // and (for hops 1+) its Go runtime type. Hop 0 reads from
+    // current_ir_type instead because INIT seeds it from sm->di_0.type
+    // (no go_runtime_type is available without re-resolving the parent
+    // interface header from user memory).
+    resolved_go_interface_t current;
+    // IR type id for hop 0; cleared to 0 after hop 0 consumes it. Hops 1+
+    // resolve the IR type via lookup_go_interface(current.go_runtime_type).
+    uint32_t current_ir_type;
+    // Number of hops the loop is still allowed to take. Starts at
+    // MAX_GO_CONTEXT_DEPTH; decremented per successful advance.
+    uint32_t depth_remaining;
+    // Byte offset in the scratch buffer where the trace_context_t payload
+    // sits (i.e. the start of the synthetic data item's payload). Captured
+    // by INIT from sm->offset; HOP writes the populated trace_context_t
+    // here when it finds a span.
+    buf_offset_t data_item_offset;
+    // 1 once a span has been extracted, the chain has been exhausted, or
+    // an early-termination guard fired. HOP no-ops on subsequent dispatches
+    // when set.
+    uint8_t done;
+    uint8_t __padding[7];
+  } go_context_walk;
+
   // Data about currently evaluated expression results set.
   buf_offset_t expr_results_offset;
   buf_offset_t expr_results_end_offset;

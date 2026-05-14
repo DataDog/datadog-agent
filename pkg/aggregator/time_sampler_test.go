@@ -692,14 +692,14 @@ func testTimeSamplerStripCountAggregates(t *testing.T, store *tags.Store) {
 	sampler.sample(&metrics.MetricSample{
 		Name:       "count.metric",
 		Value:      5,
-		Mtype:      metrics.CountType,
+		Mtype:      metrics.CounterType,
 		Tags:       []string{"env:prod", "instance:a"},
 		SampleRate: 1,
 	}, 1001, matcher)
 	sampler.sample(&metrics.MetricSample{
 		Name:       "count.metric",
 		Value:      7,
-		Mtype:      metrics.CountType,
+		Mtype:      metrics.CounterType,
 		Tags:       []string{"env:dev", "instance:a"},
 		SampleRate: 1,
 	}, 1005, matcher)
@@ -709,10 +709,10 @@ func testTimeSamplerStripCountAggregates(t *testing.T, store *tags.Store) {
 	require.Len(t, series, 1)
 	expected := &metrics.Serie{
 		Name:     "count.metric",
-		Points:   []metrics.Point{{Ts: 1000.0, Value: float64(12)}},
+		Points:   []metrics.Point{{Ts: 1000.0, Value: float64(1.2)}},
 		Tags:     tagset.CompositeTagsFromSlice([]string{"instance:a"}),
 		Host:     "",
-		MType:    metrics.APICountType,
+		MType:    metrics.APIRateType,
 		Interval: 10,
 	}
 	metrics.AssertSerieEqual(t, expected, series[0])
