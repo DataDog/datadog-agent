@@ -239,7 +239,7 @@ func getConnPointer(result *bininspect.Result, funcName string) (gotls.Location,
 		return gotls.Location{}, errors.New("expected at least one parameter")
 	}
 	readConnReceiver := result.Functions[funcName].Parameters[0]
-	return wordLocation(readConnReceiver, result.Arch, "pointer", reflect.Ptr)
+	return wordLocation(readConnReceiver, result.Arch, "pointer", reflect.Pointer)
 }
 
 func getReadBufferLocation(result *bininspect.Result) (gotls.SliceLocation, error) {

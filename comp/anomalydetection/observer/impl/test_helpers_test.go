@@ -22,7 +22,7 @@ type mockLogView struct {
 
 func (m *mockLogView) GetContent() []byte           { return m.content }
 func (m *mockLogView) GetStatus() string            { return m.status }
-func (m *mockLogView) GetTags() []string            { return m.tags }
+func (m *mockLogView) Tags() []string               { return m.tags }
 func (m *mockLogView) GetHostname() string          { return m.hostname }
 func (m *mockLogView) GetTimestampUnixMilli() int64 { return m.timestampMs }
 
@@ -80,7 +80,7 @@ type sharedTagsExtractor struct{}
 
 func (e *sharedTagsExtractor) Name() string { return "shared_tags_extractor" }
 func (e *sharedTagsExtractor) ProcessLog(log observerdef.LogView) observerdef.LogMetricsExtractorOutput {
-	tags := log.GetTags()
+	tags := log.Tags()
 	return observerdef.LogMetricsExtractorOutput{
 		Metrics: []observerdef.MetricOutput{
 			{Name: "metric.a", Value: 1, Tags: tags},

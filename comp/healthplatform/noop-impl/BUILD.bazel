@@ -20,7 +20,7 @@ go_test(
     embed = [":noop-impl"],
     gotags = ["test"],
     deps = [
-        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "//comp/healthplatform/store/def",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

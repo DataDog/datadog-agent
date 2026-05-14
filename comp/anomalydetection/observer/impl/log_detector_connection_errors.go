@@ -63,7 +63,7 @@ func (c *ConnectionErrorExtractor) GetContextByKey(key string) (observer.MetricC
 // Anomaly detection is handled by metrics detection on the count aggregation of the emitted metric.
 func (c *ConnectionErrorExtractor) ProcessLog(log observer.LogView) observer.LogMetricsExtractorOutput {
 	content := strings.ToLower(string(log.GetContent()))
-	tags := log.GetTags()
+	tags := log.Tags()
 
 	for _, pattern := range connectionErrorPatterns {
 		if strings.Contains(content, pattern) {

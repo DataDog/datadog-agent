@@ -84,7 +84,7 @@ func (a *LogMetricsExtractor) GetContextByKey(key string) (observer.MetricContex
 
 func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetricsExtractorOutput {
 	content := log.GetContent()
-	tags := log.GetTags()
+	tags := log.Tags()
 
 	// Always emit pattern frequency metric for all logs
 	patternSig := logSignature(content, a.config.MaxEvalBytes)

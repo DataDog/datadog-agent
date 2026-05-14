@@ -345,9 +345,9 @@ Package scheduler defines the interface for the health platform scheduler
 ### [comp/healthplatform/store](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/store)
 
 Package store provides the interface for the health platform store component.
-The store collects and reports health information from the host system,
-sending it to the Datadog backend with hostname, host ID, organization ID,
-and a list of issues.
+The store is the central state owner: it receives issue reports, owns the
+in-memory issue map, persists state to disk, and exposes the local
+/health-platform/issues HTTP endpoint.
 
 ## [comp/host-profiler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/host-profiler) (Component Bundle)
 

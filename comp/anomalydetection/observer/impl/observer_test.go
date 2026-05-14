@@ -8,8 +8,6 @@ package observerimpl
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
@@ -84,13 +82,3 @@ func (d *countingSeriesDetector) Detect(_ observerdef.Series) observerdef.Detect
 	}
 }
 
-func TestNewComponentDisabledReturnsStub(t *testing.T) {
-	// nil config → anomaly_detection.enabled defaults to false → disabledObserver
-	p := NewComponent(Requires{})
-	_, isStub := p.Comp.(*disabledObserver)
-	require.True(t, isStub, "expected *disabledObserver when anomaly_detection.enabled=false, got %T", p.Comp)
-
-	h := p.Comp.GetHandle("all-metrics")
-	_, isNoop := h.(*noopObserveHandle)
-	require.True(t, isNoop, "handle must be *noopObserveHandle when disabled, got %T", h)
-}

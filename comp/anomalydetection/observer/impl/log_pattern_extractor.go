@@ -278,7 +278,7 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 		return result
 	}
 	message := string(log.GetContent())
-	groupTags := tagsForPatternGrouping(log.GetTags(), log.GetHostname())
+	groupTags := tagsForPatternGrouping(log.Tags(), log.GetHostname())
 	groupHash, cluster, ok := e.taggedClusterer.Process(groupTags, message, logUnixSec)
 	// Drain LRU evictions — from per-group MaxClusters or whole-group MaxTagGroups
 	// caps. Treated identically to GC evictions: drop engine context, decrement
@@ -312,7 +312,7 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	}
 
 	metricName := "log." + e.Name() + "." + globalClusterHash(groupHash, cluster.ID) + ".count"
-	contextKey := metricContextKey(metricName, log.GetTags())
+	contextKey := metricContextKey(metricName, log.Tags())
 
 	e.ctx.put(groupHash, cluster.ID, contextKey, patternMetricContext{
 		keyInfo: PatternKeyInfo{ClusterID: cluster.ID, GroupHash: groupHash},
@@ -322,7 +322,7 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	result.Metrics = []observerdef.MetricOutput{{
 		Name:       metricName,
 		Value:      1,
-		Tags:       log.GetTags(),
+		Tags:       log.Tags(),
 		ContextKey: contextKey,
 	}}
 	result.Telemetry = telemetry

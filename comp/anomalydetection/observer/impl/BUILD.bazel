@@ -4,6 +4,7 @@ go_library(
     name = "impl",
     srcs = [
         "advance_log.go",
+        "agent_logs.go",
         "anomaly_correlator_passthrough.go",
         "anomaly_correlator_time_cluster.go",
         "anomaly_processor_correlator.go",
@@ -57,6 +58,7 @@ go_library(
 go_test(
     name = "impl_test",
     srcs = [
+        "agent_logs_test.go",
         "anomaly_correlator_passthrough_test.go",
         "anomaly_correlator_time_cluster_test.go",
         "anomaly_processor_correlator_test.go",
@@ -95,6 +97,7 @@ go_test(
         "//comp/anomalydetection/reporter/def",
         "//comp/core/telemetry/impl/noops",
         "//pkg/metrics",
+        "//pkg/util/log",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
