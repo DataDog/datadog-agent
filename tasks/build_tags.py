@@ -51,6 +51,7 @@ ALL_TAGS = {
     "kubeapiserver",
     "kubelet",
     "linux_bpf",
+    "ncm",
     "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
     "netgo",
     "npm",
@@ -96,6 +97,7 @@ AGENT_TAGS = {
     "jmx",
     "kubeapiserver",
     "kubelet",
+    "ncm",
     "netcgo",
     "nvml",
     "oracle",

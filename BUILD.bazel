@@ -821,6 +821,7 @@ _GAZELLE_BUILD_TAGS = [
     "kubeapiserver",
     "kubelet",
     "linux_bpf",
+    "ncm",
     "netcgo",
     "netgo",
     "no_dynamic_plugins",
