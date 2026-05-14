@@ -25,12 +25,3 @@ func (s PidSet) Add(pid int32) {
 func (s PidSet) Remove(pid int32) {
 	delete(s, pid)
 }
-
-// Discovery represents the core service discovery functionality.
-type Discovery struct {
-	Config *DiscoveryConfig
-}
-
-// Close cleans up resources used by the Discovery instance.
-func (c *Discovery) Close() {
-}
