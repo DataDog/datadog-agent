@@ -1813,6 +1813,8 @@ func newTemplate(td ir.TemplateDefinition) *ir.Template {
 				case *exprlang.LeExpr:
 				case *exprlang.GtExpr:
 				case *exprlang.GeExpr:
+				case *exprlang.AnyExpr:
+				case *exprlang.AllExpr:
 				case *exprlang.UnsupportedExpr:
 					msg := "unsupported operation: " + expr.Operation
 					addInvalid(segment, msg)
@@ -5280,11 +5282,42 @@ func resolveExpression(
 	case *exprlang.GeExpr:
 		return resolveComparisonExpression(ir.CmpGe, e.Left, e.Right, rootVar, tc)
 
+	case *exprlang.AnyExpr:
+		return resolveAnyAllExpression(e.Base, e.Pred, ir.QuantifierAny, rootVar, tc)
+	case *exprlang.AllExpr:
+		return resolveAnyAllExpression(e.Base, e.Pred, ir.QuantifierAll, rootVar, tc)
+
 	default:
 		return ir.Expression{}, fmt.Errorf(
 			"unsupported expression type: %T", expr,
 		)
 	}
+}
+
+// resolveAnyAllExpression lowers an AnyExpr or AllExpr in expression
+// (template-segment / capture-expression) position. It reuses the same
+// emitAnyAllLoop machinery as the condition path, so the resulting opcode
+// sequence is byte-identical to a condition-position any/all. The result
+// type is always bool: a single byte at sm->offset that ExprSaveOp records
+// as the expression's value.
+func resolveAnyAllExpression(
+	base, pred exprlang.Expr,
+	quantifier ir.Quantifier,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	if tc.boolType == 0 {
+		return ir.Expression{}, errors.New("bool type not found")
+	}
+	var la labelAllocator
+	ops, err := emitAnyAllLoop(base, pred, quantifier, rootVar, tc, &la)
+	if err != nil {
+		return ir.Expression{}, err
+	}
+	return ir.Expression{
+		Type:       tc.typesByID[tc.boolType],
+		Operations: ops,
+	}, nil
 }
 
 // checkContainsStringBase validates the key literal for a `contains` call
@@ -5311,15 +5344,15 @@ func checkContainsStringBase(litExpr *exprlang.LiteralExpr) error {
 	)
 }
 
-// resolveContainsExpression resolves contains(map, literalKey) into IR ops
-// that produce a single bool: 1 if the key is present, 0 otherwise (including
-// for nil maps). See ir.SwissMapLookupOp.ExistenceOnly for runtime semantics.
-//
-// For a slice or array base, contains is only valid in condition (when:)
-// position — the loop-based desugaring runs through emitContainsLeaf, not
-// this function. In expression / template / capture position this returns
-// an error. For a string base (substring containment) the call is rejected
-// with an *unsupportedFeatureError, regardless of position.
+// resolveContainsExpression resolves contains(coll, literalKey) into IR ops
+// that produce a single bool. For a map base this uses
+// ir.SwissMapLookupOp.ExistenceOnly. For a slice or array base it desugars
+// to any(coll, {@it == key}) and reuses emitAnyAllLoop — the generated
+// opcodes are byte-identical to a user-written any(...) form. For a string
+// base substring containment is recognised but not yet implemented; it
+// returns an *unsupportedFeatureError so the surrounding probe can surface
+// the right Issue kind in condition position (in template / capture
+// position the failure becomes an InvalidSegment / silent skip).
 func resolveContainsExpression(
 	e *exprlang.ContainsExpr,
 	rootVar *ir.Variable,
@@ -5331,16 +5364,18 @@ func resolveContainsExpression(
 	}
 	canonical := tc.typesByID[baseExpr.Type.GetID()]
 	switch canonical.(type) {
-	case *ir.GoSliceHeaderType:
-		return ir.Expression{}, fmt.Errorf(
-			"contains over a slice is only valid in when: clauses; use any() in expression context (got %s)",
-			baseExpr.Type.GetName(),
-		)
-	case *ir.ArrayType:
-		return ir.Expression{}, fmt.Errorf(
-			"contains over an array is only valid in when: clauses; use any() in expression context (got %s)",
-			baseExpr.Type.GetName(),
-		)
+	case *ir.GoSliceHeaderType, *ir.ArrayType:
+		litExpr, ok := e.Key.(*exprlang.LiteralExpr)
+		if !ok {
+			return ir.Expression{}, fmt.Errorf(
+				"contains: key must be a literal, got %T", e.Key,
+			)
+		}
+		pred := &exprlang.EqExpr{
+			Left:  &exprlang.RefExpr{Ref: "@it"},
+			Right: litExpr,
+		}
+		return resolveAnyAllExpression(e.Base, pred, ir.QuantifierAny, rootVar, tc)
 	case *ir.GoStringHeaderType:
 		litExpr, ok := e.Key.(*exprlang.LiteralExpr)
 		if !ok {
@@ -6997,6 +7032,11 @@ func emitSlicePredicateLoop(
 //   - Outer-scope references like `self.x` or function arguments.
 //   - Nested any/all. Each loop reuses fixed scratch slots (accumulator,
 //     @it), so a nested loop would overwrite the outer's state.
+//   - contains() over any collection. The slice/array form desugars to
+//     any(coll, {@it == key}) inside emitContainsLeaf, so allowing it here
+//     would create the same nested-loop hazard as a literal any/all; the
+//     map form is rejected for symmetry — it's never useful in a predicate
+//     body where the only legal RefExprs are @it / @key / @value.
 func checkPredicateBodyScope(pred exprlang.Expr, allowKeyValue bool) error {
 	for e := range exprlang.Children(pred) {
 		switch e := e.(type) {
@@ -7019,6 +7059,8 @@ func checkPredicateBodyScope(pred exprlang.Expr, allowKeyValue bool) error {
 			}
 		case *exprlang.AnyExpr, *exprlang.AllExpr:
 			return errors.New("nested any/all is not supported")
+		case *exprlang.ContainsExpr:
+			return errors.New("contains() is not supported inside an any/all predicate body")
 		}
 	}
 	return nil

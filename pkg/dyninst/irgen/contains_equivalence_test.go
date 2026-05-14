@@ -20,15 +20,23 @@ import (
 
 // TestContainsAnyOpcodeEquivalence asserts that `contains(coll, key)` and
 // `any(coll, {@it == key})` over slices and arrays produce the same IR
-// Operations sequence on the Entry event's Condition. This is the load-
-// bearing invariant of the desugaring in emitContainsLeaf.
+// Operations sequence in all three positions where the call can appear:
+// when: clause (Condition), template-segment expression, and capture-
+// expression entry. This is the load-bearing invariant of the desugaring
+// in emitContainsLeaf and resolveContainsExpression.
 func TestContainsAnyOpcodeEquivalence(t *testing.T) {
 	const testProg = "simple"
-	pairs := []struct{ anyID, containsID string }{
+	condPairs := []struct{ anyID, containsID string }{
 		{"anyIntSlice_eq42", "containsIntSlice_eq42"},
 		{"anyIntArray_eq42", "containsIntArray_eq42"},
 		{"anyStringSlice_match", "containsStringSlice_match"},
 		{"anyStringArray_match", "containsStringArray_match"},
+	}
+	templatePairs := []struct{ anyID, containsID string }{
+		{"templateAnyIntSlice_eq42", "templateContainsIntSlice_42"},
+	}
+	capturePairs := []struct{ anyID, containsID string }{
+		{"captureAnyIntSlice_eq42", "captureContainsIntSlice_42"},
 	}
 	for _, cfg := range testprogs.MustGetCommonConfigs(t) {
 		t.Run(cfg.String(), func(t *testing.T) {
@@ -46,30 +54,71 @@ func TestContainsAnyOpcodeEquivalence(t *testing.T) {
 				byID[pr.GetID()] = pr
 			}
 
-			entryCondOps := func(t *testing.T, id string) []ir.ExpressionOp {
+			entryEvent := func(t *testing.T, id string) *ir.Event {
 				t.Helper()
 				pr, ok := byID[id]
 				require.Truef(t, ok, "probe %q missing from generated IR", id)
 				require.Lenf(t, pr.Instances, 1, "probe %q: expected exactly one instance", id)
-				inst := pr.Instances[0]
-				for _, ev := range inst.Events {
+				for _, ev := range pr.Instances[0].Events {
 					if ev.Kind == ir.EventKindEntry {
-						require.NotNilf(t, ev.Condition, "probe %q: entry event has no Condition", id)
-						return ev.Condition.Operations
+						return ev
 					}
 				}
 				t.Fatalf("probe %q: no Entry event", id)
 				return nil
 			}
-
-			for _, pair := range pairs {
-				t.Run(pair.containsID, func(t *testing.T) {
-					anyOps := entryCondOps(t, pair.anyID)
-					containsOps := entryCondOps(t, pair.containsID)
-					require.Equalf(t, anyOps, containsOps,
-						"opcodes for %s and %s diverged", pair.anyID, pair.containsID)
-				})
+			entryCondOps := func(t *testing.T, id string) []ir.ExpressionOp {
+				t.Helper()
+				ev := entryEvent(t, id)
+				require.NotNilf(t, ev.Condition, "probe %q: entry event has no Condition", id)
+				return ev.Condition.Operations
 			}
+			entryRootOps := func(t *testing.T, id string, kind ir.RootExpressionKind) []ir.ExpressionOp {
+				t.Helper()
+				ev := entryEvent(t, id)
+				require.NotNilf(t, ev.Type, "probe %q: entry event has no Type", id)
+				for _, re := range ev.Type.Expressions {
+					if re.Kind == kind {
+						return re.Expression.Operations
+					}
+				}
+				t.Fatalf("probe %q: no %s expression on entry event", id, kind.String())
+				return nil
+			}
+
+			t.Run("condition", func(t *testing.T) {
+				for _, pair := range condPairs {
+					t.Run(pair.containsID, func(t *testing.T) {
+						anyOps := entryCondOps(t, pair.anyID)
+						containsOps := entryCondOps(t, pair.containsID)
+						require.Equalf(t, anyOps, containsOps,
+							"condition opcodes for %s and %s diverged",
+							pair.anyID, pair.containsID)
+					})
+				}
+			})
+			t.Run("template", func(t *testing.T) {
+				for _, pair := range templatePairs {
+					t.Run(pair.containsID, func(t *testing.T) {
+						anyOps := entryRootOps(t, pair.anyID, ir.RootExpressionKindTemplateSegment)
+						containsOps := entryRootOps(t, pair.containsID, ir.RootExpressionKindTemplateSegment)
+						require.Equalf(t, anyOps, containsOps,
+							"template-segment opcodes for %s and %s diverged",
+							pair.anyID, pair.containsID)
+					})
+				}
+			})
+			t.Run("capture", func(t *testing.T) {
+				for _, pair := range capturePairs {
+					t.Run(pair.containsID, func(t *testing.T) {
+						anyOps := entryRootOps(t, pair.anyID, ir.RootExpressionKindCaptureExpression)
+						containsOps := entryRootOps(t, pair.containsID, ir.RootExpressionKindCaptureExpression)
+						require.Equalf(t, anyOps, containsOps,
+							"capture-expression opcodes for %s and %s diverged",
+							pair.anyID, pair.containsID)
+					})
+				}
+			})
 		})
 	}
 }

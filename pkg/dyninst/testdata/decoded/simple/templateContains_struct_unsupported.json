@@ -4,7 +4,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.anyAllIntSlice",
+      "method": "main.anyAllStructSlice",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -15,16 +15,17 @@
         "timestamp": "[ts]",
         "language": "go",
         "probe": {
-          "id": "anyIntSlice_andOuter",
+          "id": "templateContains_struct_unsupported",
           "location": {
-            "method": "main.anyAllIntSlice"
+            "method": "main.anyAllStructSlice"
           }
         }
       },
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "any42_and_match tag=match",
+    "duration": "[duration]",
+    "message": "containsStruct={error: failed to resolve expression: Eq: unsupported LHS type *ir.StructureType for comparison} tag=match",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -32,7 +33,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.anyAllIntSlice",
+      "method": "main.anyAllStructSlice",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -43,16 +44,17 @@
         "timestamp": "[ts]",
         "language": "go",
         "probe": {
-          "id": "anyIntSlice_andOuter",
+          "id": "templateContains_struct_unsupported",
           "location": {
-            "method": "main.anyAllIntSlice"
+            "method": "main.anyAllStructSlice"
           }
         }
       },
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "any42_and_match tag=toolarge",
+    "duration": "[duration]",
+    "message": "containsStruct={error: failed to resolve expression: Eq: unsupported LHS type *ir.StructureType for comparison} tag=miss",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -60,7 +62,7 @@
     "ddsource": "dd_debugger",
     "logger": {
       "name": "",
-      "method": "main.anyAllIntSlice",
+      "method": "main.anyAllStructSlice",
       "version": 0,
       "thread_id": "[goid]",
       "thread_name": ""
@@ -71,16 +73,17 @@
         "timestamp": "[ts]",
         "language": "go",
         "probe": {
-          "id": "anyIntSlice_andOuter",
+          "id": "templateContains_struct_unsupported",
           "location": {
-            "method": "main.anyAllIntSlice"
+            "method": "main.anyAllStructSlice"
           }
         }
       },
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "any42_and_match tag=scall",
+    "duration": "[duration]",
+    "message": "containsStruct={error: failed to resolve expression: Eq: unsupported LHS type *ir.StructureType for comparison} tag=empty",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]
