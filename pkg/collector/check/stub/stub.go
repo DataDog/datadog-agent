@@ -78,3 +78,9 @@ func (c *StubCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) { return nil, n
 
 // IsHASupported returns false
 func (c *StubCheck) IsHASupported() bool { return false }
+
+// IsTrialMode returns false; checks are not in trial mode by default.
+func (c *StubCheck) IsTrialMode() bool { return false }
+
+// ClearTrialMode is a no-op for checks that are not in trial mode.
+func (c *StubCheck) ClearTrialMode() {}

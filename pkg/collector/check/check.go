@@ -58,6 +58,14 @@ type Check interface {
 	GetDiagnoses() ([]diagnose.Diagnosis, error)
 	// IsHASupported returns if the check is compatible with High Availability
 	IsHASupported() bool
+	// IsTrialMode returns true when the check was scheduled by autodiscovery
+	// in trial (discovery-probe) mode. Trial-mode failures are suppressed from
+	// integration_errors and do not contribute to the failure threshold until
+	// ClearTrialMode is called after the first successful run.
+	IsTrialMode() bool
+	// ClearTrialMode promotes the check out of trial mode after its first
+	// successful run so that subsequent failures are reported normally.
+	ClearTrialMode()
 }
 
 // Info is an interface to pull information from types capable to run checks. This is a subsection from the Check

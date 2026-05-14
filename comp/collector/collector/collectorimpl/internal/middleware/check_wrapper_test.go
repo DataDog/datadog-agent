@@ -27,9 +27,12 @@ func (m *mockCheck) Run() error {
 	return nil
 }
 
-func (m *mockCheck) String() string {
-	return "mock_check"
-}
+func (m *mockCheck) String() string { return "mock_check" }
+
+// IsTrialMode and ClearTrialMode satisfy the check.Check interface; the base
+// mock is never in trial mode.
+func (m *mockCheck) IsTrialMode() bool { return false }
+func (m *mockCheck) ClearTrialMode()   {}
 
 type mockTrialCheck struct {
 	mockCheck
@@ -90,10 +93,10 @@ func TestCheckWrapperForwardsIsTrialMode(t *testing.T) {
 	inner.trialMode = false
 	assert.False(t, wrapper.IsTrialMode(), "wrapper should forward IsTrialMode=false from inner check")
 
-	// Inner check that does NOT implement IsTrialMode: should return false.
+	// Inner check with IsTrialMode=false (default): wrapper returns false.
 	plain := &mockCheck{}
 	wrapper2 := NewCheckWrapper(plain, nil, option.None[agenttelemetry.Component]())
-	assert.False(t, wrapper2.IsTrialMode(), "wrapper should return false when inner check has no IsTrialMode")
+	assert.False(t, wrapper2.IsTrialMode(), "wrapper should return false for a non-trial-mode inner check")
 }
 
 func TestCheckWrapperClearTrialMode(t *testing.T) {
