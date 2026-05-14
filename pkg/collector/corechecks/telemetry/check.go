@@ -9,6 +9,7 @@ package telemetry
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	dto "github.com/prometheus/client_model/go"
@@ -33,20 +34,10 @@ const (
 	pointDroppedMetric = "point__dropped"
 )
 
-// regularRegistryMergeMetric describes a gauge metric from the regular telemetry registry that should be folded into
-// the customer-facing default telemetry output. The metric is aggregated by groupByLabel so the emitted tag shape stays
-// compatible with the existing default metric.
-type regularRegistryMergeMetric struct {
-	name         string
-	groupByLabel string
-}
-
-// regularRegistryMergeMetrics is intentionally small and explicit: regular registry telemetry is internal by default,
-// and only metrics listed here are merged into customer-facing datadog.agent.* telemetry.
-var regularRegistryMergeMetrics = []regularRegistryMergeMetric{
-	{name: pointSentMetric, groupByLabel: domainLabel},
-	{name: pointDroppedMetric, groupByLabel: domainLabel},
-}
+// regularRegistryMergeMetrics is intentionally small and explicit: regular registry telemetry is internal by default.
+// Some remote agents, such as ADP, emit telemetry that overlaps with Core Agent default telemetry; only metrics listed
+// here are folded into customer-facing datadog.agent.* telemetry.
+var regularRegistryMergeMetrics = []string{pointSentMetric, pointDroppedMetric}
 
 type checkImpl struct {
 	corechecks.CheckBase
@@ -59,16 +50,18 @@ func (c *checkImpl) Run() error {
 		return err
 	}
 
-	mergedMetrics := collectMergeMetrics(mfs, false)
-
 	// Remote Agent Registry telemetry lives in the regular registry. Gather it on a best-effort basis so failures there
-	// do not prevent the default customer-facing telemetry check from reporting Core Agent values.
-	regularMfs, err := c.telemetry.Gather(false)
-	if err != nil {
+	// do not prevent the customer-facing telemetry check from reporting Core Agent default telemetry values.
+	var regularMfs []*dto.MetricFamily
+	if gathered, err := c.telemetry.Gather(false); err != nil {
 		log.Warnf("failed to gather regular telemetry metrics for default telemetry merge: %v", err)
 	} else {
-		mergedMetrics.merge(collectMergeMetrics(regularMfs, true))
+		regularMfs = gathered
 	}
+
+	mergeLabelsByMetric := discoverMergeLabels(mfs, regularMfs)
+	mergedMetrics := collectMergeMetrics(mfs, false, mergeLabelsByMetric)
+	mergedMetrics.merge(collectMergeMetrics(regularMfs, true, mergeLabelsByMetric))
 
 	sender, err := c.GetSender()
 	if err != nil {
@@ -83,21 +76,41 @@ func (c *checkImpl) Run() error {
 	return nil
 }
 
-type mergeMetricValues map[string]map[string]float64
+type mergeMetricSample struct {
+	tags  []string
+	value float64
+}
+
+type mergeMetricValues map[string]map[string]mergeMetricSample
 
 func newMergeMetricValues() mergeMetricValues {
 	return make(mergeMetricValues)
 }
 
+func mergeKey(tags []string) string {
+	return strings.Join(tags, "\xff")
+}
+
+func (m mergeMetricValues) add(metricName string, tags []string, value float64) {
+	byKey := m[metricName]
+	if byKey == nil {
+		byKey = make(map[string]mergeMetricSample)
+		m[metricName] = byKey
+	}
+
+	key := mergeKey(tags)
+	sample := byKey[key]
+	if sample.tags == nil {
+		sample.tags = tags
+	}
+	sample.value += value
+	byKey[key] = sample
+}
+
 func (m mergeMetricValues) merge(other mergeMetricValues) {
-	for metricName, otherByGroup := range other {
-		byGroup := m[metricName]
-		if byGroup == nil {
-			byGroup = make(map[string]float64)
-			m[metricName] = byGroup
-		}
-		for groupValue, value := range otherByGroup {
-			byGroup[groupValue] += value
+	for metricName, otherByKey := range other {
+		for _, sample := range otherByKey {
+			m.add(metricName, sample.tags, sample.value)
 		}
 	}
 }
@@ -111,25 +124,66 @@ func labelValue(labels []*dto.LabelPair, name string) (string, bool) {
 	return "", false
 }
 
-func mergeMetricConfig(name string) (regularRegistryMergeMetric, bool) {
-	for _, metric := range regularRegistryMergeMetrics {
-		if metric.name == name {
-			return metric, true
-		}
-	}
-	return regularRegistryMergeMetric{}, false
+func isMergedMetric(name string) bool {
+	return slices.Contains(regularRegistryMergeMetrics, name)
 }
 
-func collectMergeMetrics(mfs []*dto.MetricFamily, requireRemoteAgent bool) mergeMetricValues {
+func mergeLabelNames(mfs []*dto.MetricFamily, metricName string) []string {
+	labelNames := make(map[string]struct{})
+	for _, mf := range mfs {
+		if mf == nil || mf.GetName() != metricName {
+			continue
+		}
+		for _, metric := range mf.Metric {
+			if metric == nil {
+				continue
+			}
+			for _, label := range metric.Label {
+				name := label.GetName()
+				if name == "" || name == remoteAgentLabel {
+					continue
+				}
+				labelNames[name] = struct{}{}
+			}
+		}
+	}
+
+	names := make([]string, 0, len(labelNames))
+	for name := range labelNames {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	return names
+}
+
+func discoverMergeLabels(defaultMfs, regularMfs []*dto.MetricFamily) map[string][]string {
+	labelsByMetric := make(map[string][]string, len(regularRegistryMergeMetrics))
+	for _, metricName := range regularRegistryMergeMetrics {
+		labels := mergeLabelNames(defaultMfs, metricName)
+		if len(labels) == 0 {
+			// Prefer the default registry's label shape for compatibility. If it has no samples yet, fall back to the
+			// regular registry while still dropping remote_agent so customer-facing tags do not include attribution.
+			labels = mergeLabelNames(regularMfs, metricName)
+		}
+		labelsByMetric[metricName] = labels
+	}
+	return labelsByMetric
+}
+
+func mergeTags(labels []*dto.LabelPair, labelNames []string) []string {
+	tags := make([]string, 0, len(labelNames))
+	for _, labelName := range labelNames {
+		value, _ := labelValue(labels, labelName)
+		tags = append(tags, fmt.Sprintf("%s:%s", labelName, value))
+	}
+	return tags
+}
+
+func collectMergeMetrics(mfs []*dto.MetricFamily, requireRemoteAgent bool, labelsByMetric map[string][]string) mergeMetricValues {
 	values := newMergeMetricValues()
 
 	for _, mf := range mfs {
-		if mf == nil || mf.Name == nil || mf.Type == nil {
-			continue
-		}
-
-		mergeMetric, ok := mergeMetricConfig(mf.GetName())
-		if !ok {
+		if mf == nil || mf.Name == nil || mf.Type == nil || !isMergedMetric(mf.GetName()) {
 			continue
 		}
 
@@ -147,13 +201,7 @@ func collectMergeMetrics(mfs []*dto.MetricFamily, requireRemoteAgent bool) merge
 					continue
 				}
 			}
-			groupValue, _ := labelValue(metric.Label, mergeMetric.groupByLabel)
-			byGroup := values[mergeMetric.name]
-			if byGroup == nil {
-				byGroup = make(map[string]float64)
-				values[mergeMetric.name] = byGroup
-			}
-			byGroup[groupValue] += metric.Gauge.GetValue()
+			values.add(mf.GetName(), mergeTags(metric.Label, labelsByMetric[mf.GetName()]), metric.Gauge.GetValue())
 		}
 	}
 
@@ -161,18 +209,17 @@ func collectMergeMetrics(mfs []*dto.MetricFamily, requireRemoteAgent bool) merge
 }
 
 func (c *checkImpl) sendMergedMetrics(values mergeMetricValues, sender sender.Sender) {
-	for _, mergeMetric := range regularRegistryMergeMetrics {
-		byGroup := values[mergeMetric.name]
-		for groupValue, value := range byGroup {
-			sender.Gauge(c.buildName(mergeMetric.name), value, "", []string{fmt.Sprintf("%s:%s", mergeMetric.groupByLabel, groupValue)})
+	for _, metricName := range regularRegistryMergeMetrics {
+		for _, sample := range values[metricName] {
+			sender.Gauge(c.buildName(metricName), sample.value, "", sample.tags)
 		}
 	}
 }
 
 func (c *checkImpl) handleMetricFamilies(mfs []*dto.MetricFamily, sender sender.Sender) {
 	for _, mf := range mfs {
-		// Merged metrics are emitted explicitly by sendMergedMetrics so regular-registry values can be included without
-		// changing the customer-facing metric names or tags.
+		// Merged metrics are emitted explicitly by sendMergedMetrics so overlapping regular-registry values can be included
+		// without changing customer-facing metric names or tags.
 		if mf == nil || mf.Name == nil || mf.Type == nil || len(mf.Metric) == 0 || isMergedMetric(mf.GetName()) {
 			continue
 		}
@@ -204,11 +251,6 @@ func (c *checkImpl) handleMetricFamilies(mfs []*dto.MetricFamily, sender sender.
 	}
 
 	sender.Commit()
-}
-
-func isMergedMetric(name string) bool {
-	_, ok := mergeMetricConfig(name)
-	return ok
 }
 
 func (c *checkImpl) buildName(name string) string {

@@ -76,19 +76,46 @@ func TestCollectAndMergeRegularRegistryMetrics(t *testing.T) {
 		),
 	}
 
-	values := collectMergeMetrics(defaultMfs, false)
-	values.merge(collectMergeMetrics(remoteMfs, true))
+	labelsByMetric := discoverMergeLabels(defaultMfs, remoteMfs)
+	values := collectMergeMetrics(defaultMfs, false, labelsByMetric)
+	values.merge(collectMergeMetrics(remoteMfs, true, labelsByMetric))
 
-	require.Equal(t, mergeMetricValues{
-		pointSentMetric: {
-			"":                          1,
-			"https://api.datadoghq.com": 22,
-			"https://api.datadoghq.eu":  5,
-		},
-		pointDroppedMetric: {
-			"https://api.datadoghq.com": 5,
-		},
-	}, values)
+	require.Equal(t, []string{domainLabel}, labelsByMetric[pointSentMetric])
+	require.Equal(t, []string{domainLabel}, labelsByMetric[pointDroppedMetric])
+
+	sentDefaultDomain := values[pointSentMetric][mergeKey([]string{"domain:https://api.datadoghq.com"})]
+	require.Equal(t, mergeMetricSample{tags: []string{"domain:https://api.datadoghq.com"}, value: 22}, sentDefaultDomain)
+
+	sentEmptyDomain := values[pointSentMetric][mergeKey([]string{"domain:"})]
+	require.Equal(t, mergeMetricSample{tags: []string{"domain:"}, value: 1}, sentEmptyDomain)
+
+	sentRemoteOnlyDomain := values[pointSentMetric][mergeKey([]string{"domain:https://api.datadoghq.eu"})]
+	require.Equal(t, mergeMetricSample{tags: []string{"domain:https://api.datadoghq.eu"}, value: 5}, sentRemoteOnlyDomain)
+
+	droppedDefaultDomain := values[pointDroppedMetric][mergeKey([]string{"domain:https://api.datadoghq.com"})]
+	require.Equal(t, mergeMetricSample{tags: []string{"domain:https://api.datadoghq.com"}, value: 5}, droppedDefaultDomain)
+}
+
+func TestDiscoverMergeLabelsFallsBackToRegularRegistry(t *testing.T) {
+	defaultMfs := []*dto.MetricFamily{}
+	regularMfs := []*dto.MetricFamily{
+		gaugeMetricFamily(
+			pointSentMetric,
+			gaugeMetric(map[string]string{
+				domainLabel:      "https://api.datadoghq.com",
+				remoteAgentLabel: "agent-data-plane",
+			}, 12),
+		),
+	}
+
+	labelsByMetric := discoverMergeLabels(defaultMfs, regularMfs)
+	values := collectMergeMetrics(regularMfs, true, labelsByMetric)
+
+	require.Equal(t, []string{domainLabel}, labelsByMetric[pointSentMetric])
+	require.Equal(t, mergeMetricSample{
+		tags:  []string{"domain:https://api.datadoghq.com"},
+		value: 12,
+	}, values[pointSentMetric][mergeKey([]string{"domain:https://api.datadoghq.com"})])
 }
 
 func TestSendMergedMetrics(t *testing.T) {
@@ -101,15 +128,12 @@ func TestSendMergedMetrics(t *testing.T) {
 	s.On("Gauge", "datadog.agent.point.sent", 1.0, "", []string{"domain:"}).Return().Times(1)
 	s.On("Gauge", "datadog.agent.point.dropped", 5.0, "", []string{"domain:https://api.datadoghq.com"}).Return().Times(1)
 
-	c.sendMergedMetrics(mergeMetricValues{
-		pointSentMetric: {
-			"":                          1,
-			"https://api.datadoghq.com": 22,
-		},
-		pointDroppedMetric: {
-			"https://api.datadoghq.com": 5,
-		},
-	}, s)
+	values := newMergeMetricValues()
+	values.add(pointSentMetric, []string{"domain:"}, 1)
+	values.add(pointSentMetric, []string{"domain:https://api.datadoghq.com"}, 22)
+	values.add(pointDroppedMetric, []string{"domain:https://api.datadoghq.com"}, 5)
+
+	c.sendMergedMetrics(values, s)
 
 	s.AssertExpectations(t)
 }
