@@ -784,22 +784,6 @@ func fnv64aMix(h uint64, s string) uint64 {
 	return h
 }
 
-// fnv64aMixUint64 folds a uint64 value into an existing FNV-1a hash
-// (little-endian byte order, matching encoding/binary.LittleEndian).
-func fnv64aMixUint64(h, v uint64) uint64 {
-	for i := 0; i < 8; i++ {
-		h ^= v & 0xFF
-		h *= fnvPrime64
-		v >>= 8
-	}
-	return h
-}
-
-// fnv64aMixInt64 folds an int64 value into an existing FNV-1a hash.
-func fnv64aMixInt64(h uint64, v int64) uint64 {
-	return fnv64aMixUint64(h, uint64(v))
-}
-
 // DumpToFile writes all series to a JSON file for debugging.
 func (s *timeSeriesStorage) DumpToFile(path string) error {
 	s.mu.RLock()

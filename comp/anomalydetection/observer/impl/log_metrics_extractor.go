@@ -162,10 +162,6 @@ func coerceNumber(v any) (float64, bool) {
 	}
 }
 
-func metricContextKey(metricName string, tags []string) string {
-	return seriesKey("", metricName, tags)
-}
-
 func patternCountMetricName(signature string) string {
 	return "log.pattern." + strconv.FormatUint(fnv64aString(signature), 16) + ".count"
 }

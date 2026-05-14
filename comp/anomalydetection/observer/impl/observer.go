@@ -890,13 +890,3 @@ func (v *logView) GetStatus() string            { return v.obs.status }
 func (v *logView) Tags() []string               { return v.obs.tags }
 func (v *logView) GetHostname() string          { return v.obs.hostname }
 func (v *logView) GetTimestampUnixMilli() int64 { return v.obs.timestampMs }
-
-// copyBytes creates a copy of a byte slice.
-func copyBytes(b []byte) []byte {
-	if b == nil {
-		return nil
-	}
-	result := make([]byte, len(b))
-	copy(result, b)
-	return result
-}
