@@ -3,7 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
+//go:build !jetson
+
 // Package invalidconfig reports datadog.yaml problems through the Agent Health Platform.
+// Excluded from the IoT Agent build
 package invalidconfig
 
 import (
