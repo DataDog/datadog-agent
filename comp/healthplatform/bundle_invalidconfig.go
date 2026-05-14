@@ -7,7 +7,6 @@
 
 package healthplatform
 
-// Side-effect import: registers the invalidconfig issue module via its init().
-// Lives in its own file so the !jetson tag can keep the schema validator
-// out of the IoT Agent binary.
-import _ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"
+// Side-effect import lives in its own file so the !jetson tag can keep the
+// schema validator out of IoT Agent builds.
+import _ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig" // registers the invalidconfig issue module via init()
