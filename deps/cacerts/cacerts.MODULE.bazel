@@ -10,7 +10,7 @@ http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_
 # https://app.datadoghq.com/synthetics/edit/pya-ptn-xnv?from_details=true
 version = "2026-05-14"
 
-sha = ""  # TODO: compute with: curl -sL https://curl.se/ca/cacert-2026-05-14.pem | sha256sum
+sha = "86a1f3366afac7c6f8ae9f3c779ac221129328c43f0ab2b8817eb2f362a5025c"
 
 # TODO(ABLD-169).  This is a mess. We pick up the file from curl.se, with a license from the upstream source.
 
