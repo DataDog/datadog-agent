@@ -51,7 +51,7 @@ type Check struct {
 
 // saveConfig saves the config if store is non-nil, returning the config UUID and SHA-256 hash
 // assigned by the store. If the store is unavailable both strings will be empty along with an error.
-func saveConfig(store store.ConfigStore, deviceID string, cType types.ConfigType, rawConfig []byte) (uuid string, hash string, error) {
+func saveConfig(store store.ConfigStore, deviceID string, cType types.ConfigType, rawConfig []byte) (uuid string, hash string, err error) {
 	if store == nil {
 		return "", "", errors.New("local config store unavailable - will not save configs for rollback")
 	}
