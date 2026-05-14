@@ -482,6 +482,11 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 
 	result := e.runDetectorsAndCorrelatorsSnapshot(upToSec, detectors, correlators)
 
+	// Evict series beyond the storage cap and fan freed refs to detectors.
+	if freed := e.storage.EvictDefault(); len(freed) > 0 {
+		e.fanOutSeriesRemoval(freed)
+	}
+
 	e.emit(engineEvent{
 		kind:      eventAdvanceCompleted,
 		timestamp: upToSec,

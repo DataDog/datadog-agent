@@ -2078,3 +2078,15 @@ func kubernetes(config pkgconfigmodel.Setup) {
 func podman(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("podman_db_path", "")
 }
+
+func anomalyDetectionStorage(config pkgconfigmodel.Setup) {
+	// Cap on the number of live time series in the anomaly detection storage.
+	// Eviction fires when exceeded, draining to max*(1-eviction_floor_ratio).
+	// 0 disables eviction.
+	config.BindEnvAndSetDefault("anomaly_detection.storage.max_series", 50000)
+	// Hysteresis band for eviction: drain to max*(1-eviction_floor_ratio).
+	config.BindEnvAndSetDefault("anomaly_detection.storage.eviction_floor_ratio", 0.1)
+	// How long (seconds) data points are retained per series.
+	// Points older than (latest_ts - retention) are trimmed on each Add. 0 disables.
+	config.BindEnvAndSetDefault("anomaly_detection.storage.point_retention_secs", 120)
+}

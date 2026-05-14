@@ -182,8 +182,20 @@ func NewComponent(deps Requires) Provides {
 	settings := settingsFromAgentConfig(catalog, cfg)
 	detectors, correlators, extractors, _ := catalog.Instantiate(settings)
 
+	storageCfg := defaultStorageConfig()
+	if cfg != nil {
+		if v := cfg.GetInt("anomaly_detection.storage.max_series"); v >= 0 {
+			storageCfg.MaxSeries = v
+		}
+		if v := cfg.GetFloat64("anomaly_detection.storage.eviction_floor_ratio"); v > 0 {
+			storageCfg.EvictionFloorRatio = v
+		}
+		if v := cfg.GetInt64("anomaly_detection.storage.point_retention_secs"); v >= 0 {
+			storageCfg.PointRetentionSecs = v
+		}
+	}
 	eng := newEngine(engineConfig{
-		storage:     newTimeSeriesStorage(),
+		storage:     newTimeSeriesStorageWith(storageCfg),
 		extractors:  extractors,
 		detectors:   detectors,
 		correlators: correlators,

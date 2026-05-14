@@ -19,7 +19,46 @@ import (
 )
 
 // timeSeriesStorage is an internal storage for time series data.
+// storageConfig holds tunable parameters for timeSeriesStorage.
+type storageConfig struct {
+	// MaxSeries caps live series; when exceeded on Advance, series are evicted
+	// until count drops to MaxSeries*(1-EvictionFloorRatio). 0 disables eviction.
+	MaxSeries int
+
+	// EvictionFloorRatio controls how far below MaxSeries eviction drains.
+	// e.g. 0.1 → drain to 90% of cap, creating a 10% hysteresis band.
+	EvictionFloorRatio float64
+
+	// PointRetentionSecs is how long data points are kept per series.
+	// Points older than (latest timestamp - PointRetentionSecs) are trimmed
+	// on each Add. 0 disables trimming.
+	PointRetentionSecs int64
+}
+
+// defaultStorageConfig returns the hard-coded production defaults.
+func defaultStorageConfig() storageConfig {
+	return storageConfig{
+		MaxSeries:          storageMaxSeries,
+		EvictionFloorRatio: storageEvictionBandRatio,
+		PointRetentionSecs: storagePointRetentionSecs,
+	}
+}
+
+const (
+	// storageMaxSeries is the default cap on live series in storage.
+	// Eviction fires when exceeded, draining down to storageEvictionTarget.
+	storageMaxSeries = 50_000
+
+	// storageEvictionBandRatio controls how far below the cap eviction drains.
+	storageEvictionBandRatio = 0.1
+
+	// storagePointRetentionSecs is the default point retention window.
+	// Points older than (latest_ts - 120s) are trimmed on each Add.
+	storagePointRetentionSecs = 120
+)
+
 type timeSeriesStorage struct {
+	cfg    storageConfig
 	mu     sync.RWMutex
 	series map[uint64]*seriesStats // keyed by seriesKeyHash; no string retained per entry
 
@@ -169,9 +208,15 @@ func searchAfter(timestamps []int64, value int64) int {
 	})
 }
 
-// newTimeSeriesStorage creates a new time series storage.
+// newTimeSeriesStorage creates a new time series storage with default config.
 func newTimeSeriesStorage() *timeSeriesStorage {
+	return newTimeSeriesStorageWith(defaultStorageConfig())
+}
+
+// newTimeSeriesStorageWith creates a new time series storage with explicit config.
+func newTimeSeriesStorageWith(cfg storageConfig) *timeSeriesStorage {
 	return &timeSeriesStorage{
+		cfg:                   cfg,
 		series:                make(map[uint64]*seriesStats),
 		observationTimestamps: make(map[int64]struct{}),
 		droppedByMetric:       make(map[string]int64),
@@ -269,7 +314,28 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	stats.counts = insertInt64(stats.counts, idx, 1)
 	stats.mins = insertFloat64(stats.mins, idx, value)
 	stats.maxes = insertFloat64(stats.maxes, idx, value)
+
+	if s.cfg.PointRetentionSecs > 0 {
+		// Trim points outside the retention window. searchAfter returns the first
+		// index where ts > (bucket-PointRetentionSecs-1), i.e. all points at or
+		// after (bucket-PointRetentionSecs) — everything before that is stale.
+		if trim := searchAfter(stats.timestamps, bucket-s.cfg.PointRetentionSecs-1); trim > 0 {
+			stats.timestamps = trimFront(stats.timestamps, trim)
+			stats.sums = trimFront(stats.sums, trim)
+			stats.counts = trimFront(stats.counts, trim)
+			stats.mins = trimFront(stats.mins, trim)
+			stats.maxes = trimFront(stats.maxes, trim)
+		}
+	}
 	return res
+}
+
+// trimFront removes the first n elements from s in-place, reusing the backing
+// array to avoid allocation. Used to enforce the point retention window.
+func trimFront[T any](s []T, n int) []T {
+	keep := len(s) - n
+	copy(s, s[n:])
+	return s[:keep]
 }
 
 // insertInt64 inserts v at position idx in s, maintaining order.
@@ -922,6 +988,82 @@ func (s *timeSeriesStorage) RemoveSeriesByMetricName(namespace, name string) []o
 		s.seriesGen++
 	}
 	return removed
+}
+
+// EvictToCapacity evicts the oldest series (by last written timestamp) when
+// the live series count exceeds seriesLimit, draining down to target. The band
+// between the two thresholds prevents a fan-out on every Advance when the
+// count hovers near the cap. Returns the freed SeriesRefs for detector cleanup.
+func (s *timeSeriesStorage) EvictToCapacity(seriesLimit, target int) []observer.SeriesRef {
+	if seriesLimit <= 0 {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Count first — common case is under the limit, skip allocation entirely.
+	count := 0
+	for _, st := range s.seriesIDStats {
+		if st != nil {
+			count++
+		}
+	}
+	if count <= seriesLimit {
+		return nil
+	}
+
+	type entry struct {
+		ref    observer.SeriesRef
+		lastTs int64
+	}
+	candidates := make([]entry, 0, count)
+	for _, st := range s.seriesIDStats {
+		if st == nil {
+			continue
+		}
+		lastTs := int64(0)
+		if n := len(st.timestamps); n > 0 {
+			lastTs = st.timestamps[n-1]
+		}
+		candidates = append(candidates, entry{ref: st.ref, lastTs: lastTs})
+	}
+
+	excess := count - target
+	if excess <= 0 {
+		return nil
+	}
+
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].lastTs < candidates[j].lastTs
+	})
+
+	var freed []observer.SeriesRef
+	for i := 0; i < excess; i++ {
+		st := s.resolveByID(candidates[i].ref)
+		if st == nil {
+			continue
+		}
+		h := seriesKeyHash(st.Namespace, st.Name, st.Tags)
+		if s.series[h] == st {
+			delete(s.series, h)
+		}
+		s.seriesIDStats[candidates[i].ref] = nil
+		freed = append(freed, candidates[i].ref)
+	}
+	if len(freed) > 0 {
+		s.seriesGen++
+	}
+	return freed
+}
+
+// EvictDefault evicts to capacity using the storage's own config.
+// The eviction target is MaxSeries*(1-EvictionFloorRatio).
+func (s *timeSeriesStorage) EvictDefault() []observer.SeriesRef {
+	if s.cfg.MaxSeries <= 0 {
+		return nil
+	}
+	target := s.cfg.MaxSeries - int(float64(s.cfg.MaxSeries)*s.cfg.EvictionFloorRatio)
+	return s.EvictToCapacity(s.cfg.MaxSeries, target)
 }
 
 // CompactSeriesID translates a full series key to its compact numeric ID string.
