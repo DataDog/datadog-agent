@@ -14857,10 +14857,6 @@ properties:
         node_type: setting
         type: string
         default: ''
-      configs:
-        node_type: setting
-        type: array
-        default: []
       url:
         node_type: setting
         type: string
