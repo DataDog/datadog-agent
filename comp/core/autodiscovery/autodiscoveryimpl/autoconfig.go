@@ -800,13 +800,11 @@ func (ac *AutoConfig) RecordTrialResult(id checkid.ID, ok bool) {
 	ac.unscheduleCheckByID(id)
 }
 
-// unscheduleCheckByID finds the scheduled config corresponding to id and
-// signals the scheduler to stop it. The config remains in cfgMgr.scheduledConfigs
-// and in cfgMgr.serviceResolutions; it will be cleaned up if and when the
-// originating service is deleted (via processDelService). A future improvement
-// could remove the resolution eagerly so re-reconciliation retries discovery.
+// unscheduleCheckByID removes the trial config from scheduledConfigs and
+// signals the scheduler to stop the check. Removing it eagerly keeps
+// GetAllConfigs consistent with the scheduler state.
 func (ac *AutoConfig) unscheduleCheckByID(id checkid.ID) {
-	cfg, ok := ac.cfgMgr.findConfigByCheckID(id)
+	cfg, ok := ac.cfgMgr.popTrialConfig(id)
 	if !ok {
 		log.Warnf("autodiscovery: trial check %s past failure threshold but no scheduled config found", id)
 		return

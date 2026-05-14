@@ -58,10 +58,12 @@ type configManager interface {
 	// getActiveServices returns the currently active services
 	getActiveServices() map[string]listeners.Service
 
-	// findConfigByCheckID looks up a scheduled config whose computed check ID
-	// matches id. Returns the config and true if found, or an empty config and
-	// false otherwise.
-	findConfigByCheckID(id checkid.ID) (integration.Config, bool)
+	// popTrialConfig looks up a scheduled config whose computed check ID matches
+	// id, removes it from scheduledConfigs, and returns it. Returns the config
+	// and true if found, or an empty config and false otherwise. Used by the
+	// trial-failure unschedule path so that GetAllConfigs no longer returns the
+	// stale entry after the check is stopped.
+	popTrialConfig(id checkid.ID) (integration.Config, bool)
 }
 
 // serviceAndADIDs bundles a service and its associated AD identifiers.
@@ -604,16 +606,17 @@ func pickDiscoveryHost(svc listeners.Service) string {
 	return ""
 }
 
-// findConfigByCheckID implements configManager#findConfigByCheckID.
-// It iterates over scheduledConfigs looking for a config that contains an
-// instance whose computed check ID matches id. Runs in O(n) — acceptable
-// because this path fires at most once per failed trial.
-func (cm *reconcilingConfigManager) findConfigByCheckID(id checkid.ID) (integration.Config, bool) {
+// popTrialConfig implements configManager#popTrialConfig.
+// It iterates over scheduledConfigs, removes the first config whose computed
+// check ID matches id, and returns it. O(n) — acceptable because this path
+// fires at most once per failed trial.
+func (cm *reconcilingConfigManager) popTrialConfig(id checkid.ID) (integration.Config, bool) {
 	cm.m.Lock()
 	defer cm.m.Unlock()
-	for _, cfg := range cm.scheduledConfigs {
+	for digest, cfg := range cm.scheduledConfigs {
 		for _, inst := range cfg.Instances {
 			if checkid.BuildID(cfg.Name, cfg.FastDigest(), inst, cfg.InitConfig) == id {
+				delete(cm.scheduledConfigs, digest)
 				return cfg, true
 			}
 		}
