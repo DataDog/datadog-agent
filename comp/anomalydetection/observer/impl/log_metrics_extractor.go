@@ -6,7 +6,6 @@
 package observerimpl
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
@@ -101,7 +100,7 @@ func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetri
 	}
 	a.patternContext[contextKey] = observer.MetricContext{
 		Pattern: patternSig,
-		Example: string(content),
+		Example: content,
 		Source:  "log_metrics_extractor",
 	}
 
@@ -114,22 +113,20 @@ func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetri
 
 	// For JSON logs, also extract numeric field metrics
 	if isJSONObject(content) {
-		metrics = append(metrics, a.extractJSONFieldMetrics(content, tags, string(content))...)
+		metrics = append(metrics, a.extractJSONFieldMetrics(content, tags)...)
 	}
 
 	return observer.LogMetricsExtractorOutput{Metrics: metrics}
 }
 
-func isJSONObject(b []byte) bool {
-	trimmed := bytes.TrimSpace(b)
-	return len(trimmed) > 1 && trimmed[0] == '{' && json.Valid(trimmed)
+func isJSONObject(s string) bool {
+	trimmed := strings.TrimSpace(s)
+	return len(trimmed) > 1 && trimmed[0] == '{' && json.Valid([]byte(trimmed))
 }
 
 // extractJSONFieldMetrics extracts numeric field metrics from JSON content.
-// example is the raw log line stored in context so enrichAnomaly can show a
-// representative log rather than a raw tag dump when an anomaly is detected.
-func (a *LogMetricsExtractor) extractJSONFieldMetrics(content []byte, tags []string, example string) []observer.MetricOutput {
-	dec := json.NewDecoder(bytes.NewReader(content))
+func (a *LogMetricsExtractor) extractJSONFieldMetrics(content string, tags []string) []observer.MetricOutput {
+	dec := json.NewDecoder(strings.NewReader(content))
 	dec.UseNumber()
 
 	var obj map[string]any
@@ -163,7 +160,7 @@ func (a *LogMetricsExtractor) extractJSONFieldMetrics(content []byte, tags []str
 		contextKey := metricContextKey(metricName, tags)
 		a.patternContext[contextKey] = observer.MetricContext{
 			Pattern: k,
-			Example: truncate(example, 160),
+			Example: truncate(content, 160),
 			Source:  "log_metrics_extractor",
 		}
 
@@ -310,8 +307,8 @@ const (
 	tokEnd
 )
 
-// logSignature returns a deterministic signature for the input bytes, capped to maxEvalBytes if > 0.
-func logSignature(input []byte, maxEvalBytes int) string {
+// logSignature returns a deterministic signature for the input string, capped to maxEvalBytes if > 0.
+func logSignature(input string, maxEvalBytes int) string {
 	if len(input) == 0 {
 		return ""
 	}
@@ -373,7 +370,8 @@ func logSignature(input []byte, maxEvalBytes int) string {
 		out.WriteString(sigTokenToString(lastToken))
 	}
 
-	for _, char := range input[1:] {
+	for i := 1; i < len(input); i++ {
+		char := input[i]
 		currentToken := getTokenType(char)
 		if currentToken != lastToken {
 			insertToken()

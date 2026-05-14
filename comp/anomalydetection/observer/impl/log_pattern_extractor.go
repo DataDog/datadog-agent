@@ -277,7 +277,7 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	if !logSeverityIsWarnPlus(log) {
 		return result
 	}
-	message := string(log.GetContent())
+	message := log.GetContent()
 	groupTags := tagsForPatternGrouping(log.Tags(), log.GetHostname())
 	groupHash, cluster, ok := e.taggedClusterer.Process(groupTags, message, logUnixSec)
 	// Drain LRU evictions — from per-group MaxClusters or whole-group MaxTagGroups

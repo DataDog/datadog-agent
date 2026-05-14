@@ -20,7 +20,7 @@ func TestLogPatternExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
 	e.config.MinClusterSizeBeforeEmit = 1
 
 	log := &mockLogView{
-		content: []byte("GET /users/123 returned 500"),
+		content: "GET /users/123 returned 500",
 		status:  "warn",
 		tags:    []string{"service:web", "env:prod"},
 	}
@@ -43,22 +43,22 @@ func TestLogPatternExtractor_DifferentTagGroupsProduceDifferentMetricNames(t *te
 
 	// 1 pattern per service (same pattern strings but different IDs)
 	logA := &mockLogView{
-		content: []byte("GET /users/123 returned 500"),
+		content: "GET /users/123 returned 500",
 		status:  "warn",
 		tags:    []string{"service:api"},
 	}
 	logB := &mockLogView{
-		content: []byte("GET /users/456 returned 500"),
+		content: "GET /users/456 returned 500",
 		status:  "warn",
 		tags:    []string{"service:worker"},
 	}
 	logC := &mockLogView{
-		content: []byte("GET /users/124 returned 500"),
+		content: "GET /users/124 returned 500",
 		status:  "warn",
 		tags:    []string{"service:api"},
 	}
 	logD := &mockLogView{
-		content: []byte("GET /users/457 returned 500"),
+		content: "GET /users/457 returned 500",
 		status:  "warn",
 		tags:    []string{"service:worker"},
 	}
@@ -89,7 +89,7 @@ func TestLogPatternExtractor_DifferentHostnamesProduceDifferentMetricNamesWhenNo
 	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	e.config.MinClusterSizeBeforeEmit = 1
 
-	msg := []byte("GET /users/123 returned 500")
+	msg := "GET /users/123 returned 500"
 	tags := []string{"service:api", "env:prod"}
 
 	logA := &mockLogView{
@@ -125,7 +125,7 @@ func TestLogPatternExtractor_ResetClearsContext(t *testing.T) {
 	e.config.MinClusterSizeBeforeEmit = 1
 
 	log := &mockLogView{
-		content: []byte("GET /users/123 returned 500"),
+		content: "GET /users/123 returned 500",
 		status:  "warn",
 		tags:    []string{"service:web"},
 	}
@@ -146,7 +146,7 @@ func TestLogPatternExtractor_SkipsBelowWarnSeverity(t *testing.T) {
 	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 
 	out := e.ProcessLog(&mockLogView{
-		content: []byte("INFO: routine request completed"),
+		content: "INFO: routine request completed",
 		status:  "info",
 		tags:    []string{"service:api"},
 	})
@@ -161,7 +161,7 @@ func TestLogPatternExtractor_DeferredEmitUntilMinPatterns(t *testing.T) {
 
 	for i := range 4 {
 		out := e.ProcessLog(&mockLogView{
-			content: []byte(fmt.Sprintf("WARN distinct pattern seed %d not mergeable xyz", i)),
+			content: fmt.Sprintf("WARN distinct pattern seed %d not mergeable xyz", i),
 			status:  status,
 			tags:    tags,
 		})
@@ -169,7 +169,7 @@ func TestLogPatternExtractor_DeferredEmitUntilMinPatterns(t *testing.T) {
 	}
 
 	out := e.ProcessLog(&mockLogView{
-		content: []byte("WARN distinct pattern seed 4 not mergeable xyz"),
+		content: "WARN distinct pattern seed 4 not mergeable xyz",
 		status:  status,
 		tags:    tags,
 	})
@@ -193,8 +193,8 @@ func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *test
 
 	tags := []string{"service:api"}
 	// Distinct messages so the second log does not refresh the first cluster's LastSeenUnix.
-	msg1 := []byte("WARN distinct pattern seed 700 not mergeable xyz")
-	msg2 := []byte("WARN distinct pattern seed 701 not mergeable xyz")
+	msg1 := "WARN distinct pattern seed 700 not mergeable xyz"
+	msg2 := "WARN distinct pattern seed 701 not mergeable xyz"
 
 	// t=1000: create cluster A, emit metric and pattern context.
 	const tsMs1 = 1_000_000 // unix sec = 1000
@@ -245,8 +245,8 @@ func TestLogPatternExtractor_DisableOptimizationsSkipsGarbageCollection(t *testi
 	tags := []string{"service:api"}
 	// Structurally different lines so the pattern clusterer keeps two clusters (unlike
 	// two strings that differ only by a numeric token, which often merge into one template).
-	msg1 := []byte(`10.143.180.25 - - [27/Aug/2020:00:27:02 +0000] "POST /api/v1/series HTTP/1.1" 202 16`)
-	msg2 := []byte(`2020-08-27 02:32:42 ERROR (connector.go:34) - Failed to connected to redis`)
+	msg1 := `10.143.180.25 - - [27/Aug/2020:00:27:02 +0000] "POST /api/v1/series HTTP/1.1" 202 16`
+	msg2 := `2020-08-27 02:32:42 ERROR (connector.go:34) - Failed to connected to redis`
 
 	const tsMs1 = 1_000_000 // unix sec = 1000
 	res1 := e.ProcessLog(&mockLogView{
@@ -295,7 +295,7 @@ func TestLogPatternExtractor_GCEvictedContextKeysTwoTagSetsOneCluster(t *testing
 	// on every ProcessLog call, evicting the cluster before both tags are ingested.
 	e.NextGarbageCollectionTime = 1 << 62
 
-	msg := []byte("WARN disk usage above threshold")
+	msg := "WARN disk usage above threshold"
 	const tsMs = int64(1_000_000) // unix sec = 1000
 
 	// Same pattern, same split-dimension tag group (service:api) → same sub-clusterer.
@@ -312,7 +312,7 @@ func TestLogPatternExtractor_GCEvictedContextKeysTwoTagSetsOneCluster(t *testing
 
 	// Trigger GC: cutoff = 1015-10 = 1005, cluster last seen at 1000 is stale.
 	res := e.ProcessLog(&mockLogView{
-		content:     []byte("WARN distinct pattern seed 999 not mergeable xyz"),
+		content:     "WARN distinct pattern seed 999 not mergeable xyz",
 		status:      "warn",
 		tags:        []string{"service:api"},
 		timestampMs: 1_015_000,
@@ -327,7 +327,7 @@ func TestLogPatternExtractor_NoGCBeforeInterval(t *testing.T) {
 	e.config.ClusterTimeToLiveSec = 10
 	e.config.GarbageCollectionIntervalSec = 3600 // far in the future
 
-	msg := []byte("WARN connection refused to db host *")
+	msg := "WARN connection refused to db host *"
 	res1 := e.ProcessLog(&mockLogView{content: msg, status: "warn", tags: nil, timestampMs: 1_000_000})
 	require.Len(t, res1.Metrics, 1)
 
@@ -357,7 +357,7 @@ func TestLogPatternExtractor_LRUCapEvictsAndDropsContext(t *testing.T) {
 	var ctxKeys []string
 	for i, m := range msgs {
 		res := e.ProcessLog(&mockLogView{
-			content:     []byte(m),
+			content:     m,
 			status:      "warn",
 			tags:        tags,
 			timestampMs: int64(1_000_000 + i*1_000), // 1s apart so LastSeenUnix differs
@@ -406,7 +406,7 @@ func TestLogPatternExtractor_TagGroupCapEvictsLRUGroup(t *testing.T) {
 
 	processAt := func(service string, msg string, tsMs int64) string {
 		res := e.ProcessLog(&mockLogView{
-			content:     []byte(msg),
+			content:     msg,
 			status:      "warn",
 			tags:        []string{"service:" + service},
 			timestampMs: tsMs,
@@ -424,7 +424,7 @@ func TestLogPatternExtractor_TagGroupCapEvictsLRUGroup(t *testing.T) {
 
 	// Adding a third group must evict B's lone cluster.
 	res := e.ProcessLog(&mockLogView{
-		content:     []byte("WARN gamma"),
+		content:     "WARN gamma",
 		status:      "warn",
 		tags:        []string{"service:c"},
 		timestampMs: 1_003_000,
@@ -465,7 +465,7 @@ func TestEngine_LogPatternLRUEvictionFreesStorage(t *testing.T) {
 
 	for i, m := range msgs {
 		e.IngestLog("src", &logObs{
-			content:     []byte(m),
+			content:     m,
 			status:      "warn",
 			tags:        tags,
 			timestampMs: int64(1_000_000 + i*1_000),
@@ -537,7 +537,7 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 	}
 	for i, m := range msgs {
 		e.IngestLog("src", &logObs{
-			content:     []byte(m),
+			content:     m,
 			status:      "warn",
 			tags:        tags,
 			timestampMs: int64(1_000_000 + i*1_000),
@@ -561,7 +561,7 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 	// oldest cluster out. After the fix, the engine fans the freed refs
 	// out to every detector and the per-series maps shrink accordingly.
 	e.IngestLog("src", &logObs{
-		content:     []byte("WARN x y z w"),
+		content:     "WARN x y z w",
 		status:      "warn",
 		tags:        tags,
 		timestampMs: 1_002_000,

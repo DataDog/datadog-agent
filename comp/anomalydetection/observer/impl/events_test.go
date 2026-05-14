@@ -326,20 +326,20 @@ func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing
 	})
 
 	_, _ = e.IngestLog("source-a", &logObs{
-		content:     []byte("GET /users/123 returned 500"),
+		content:     "GET /users/123 returned 500",
 		status:      "warn",
 		tags:        []string{"service:api"},
 		timestampMs: 1_000,
 	})
 	// Second log in the same sub-clusterer so patterns merge and produce a wildcard.
 	_, _ = e.IngestLog("source-a", &logObs{
-		content:     []byte("GET /users/456 returned 500"),
+		content:     "GET /users/456 returned 500",
 		status:      "warn",
 		tags:        []string{"service:api"},
 		timestampMs: 1_500,
 	})
 	_, _ = e.IngestLog("source-b", &logObs{
-		content:     []byte("GET /users/456 returned 500"),
+		content:     "GET /users/456 returned 500",
 		status:      "warn",
 		tags:        []string{"service:worker"},
 		timestampMs: 2_000,
@@ -379,7 +379,7 @@ func TestAdvance_LogMetricAnomalyIsEnrichedViaMatchingSeriesIdentity(t *testing.
 	})
 
 	e.IngestLog("source-a", &logObs{
-		content:     []byte("GET /users/123 returned 500"),
+		content:     "GET /users/123 returned 500",
 		tags:        []string{"service:api"},
 		timestampMs: 1_000,
 	})
@@ -399,7 +399,7 @@ func TestAdvance_LogMetricAnomalyIsEnrichedViaMatchingSeriesIdentity(t *testing.
 	require.NotNil(t, anomaly.Context)
 	assert.Equal(t, "log_metrics_extractor", anomaly.Context.Source)
 	assert.Equal(t, "GET /users/123 returned 500", anomaly.Context.Example)
-	assert.Equal(t, logSignature([]byte("GET /users/123 returned 500"), extractor.config.MaxEvalBytes), anomaly.Context.Pattern)
+	assert.Equal(t, logSignature("GET /users/123 returned 500", extractor.config.MaxEvalBytes), anomaly.Context.Pattern)
 }
 
 func containsTag(tags []string, want string) bool {
@@ -942,7 +942,7 @@ func TestFindingM12_LogOnlyTimestampsSkippedInReplay(t *testing.T) {
 
 	// Ingest log at 103 (no virtual metrics produced)
 	logRequests, _ := e.IngestLog("ns", &logObs{
-		content:     []byte("error happened"),
+		content:     "error happened",
 		status:      "error",
 		timestampMs: 103000, // 103 seconds in millis
 	})
@@ -1008,7 +1008,7 @@ func TestIngestLogCopiesMetricTagsBeforeInjectingObserverSource(t *testing.T) {
 	})
 
 	_, _ = e.IngestLog("source-a", &logObs{
-		content:     []byte("hello"),
+		content:     "hello",
 		tags:        []string{"env:test"},
 		timestampMs: 1000,
 	})
