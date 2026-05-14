@@ -12,6 +12,7 @@ import "C"
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"unsafe"
@@ -33,12 +34,15 @@ func GetRtLoader() *C.rtloader_t {
 		if runtime.GOOS == "windows" {
 			// Temporarily add the path to where the "three" dll is available to PATH
 			// so that it can be found by `LoadLibrary`
+			threeDirPath := rlocationPathFromEnv("THREE_PATH")
 			oldPath := os.Getenv("PATH")
 			defer os.Setenv("PATH", oldPath)
-			os.Setenv("PATH", rlocationPathFromEnv("THREE_PATH")+";"+os.Getenv("PATH"))
+			os.Setenv("PATH", threeDirPath+";"+os.Getenv("PATH"))
 			// On Windows, the python library file sits at the root of the Python Home
 			pythonHome = C.CString(filepath.Dir(rlocationPathFromEnv("PYTHON_LIB")))
 			defer C.free(unsafe.Pointer(pythonHome))
+
+			debugWindowsSetup(threeDirPath)
 		} else {
 			// Python Home is a level up from the path to the binary
 			pythonHome = C.CString(filepath.Dir(filepath.Dir(rlocationPathFromEnv("PYTHON_BIN"))))
@@ -76,4 +80,24 @@ func rlocationPathFromEnv(envvar string) string {
 		panic(fmt.Sprintf("error: failed to get location for `three` library: %s", err))
 	}
 	return resolved
+}
+
+func debugWindowsSetup(threeDirPath string) {
+	dllPath := filepath.Join(threeDirPath, "libdatadog-agent-three.dll")
+
+	if out, _ := exec.Command("whoami").CombinedOutput(); len(out) > 0 {
+		fmt.Fprintf(os.Stderr, "[rtloader debug] current user: %s", out)
+	}
+	fmt.Fprintf(os.Stderr, "[rtloader debug] THREE_PATH (raw): %s\n", os.Getenv("THREE_PATH"))
+	fmt.Fprintf(os.Stderr, "[rtloader debug] THREE_PATH (resolved): %s\n", threeDirPath)
+	if info, err := os.Stat(dllPath); err != nil {
+		fmt.Fprintf(os.Stderr, "[rtloader debug] DLL stat error: %v\n", err)
+	} else {
+		fmt.Fprintf(os.Stderr, "[rtloader debug] DLL found (size=%d)\n", info.Size())
+	}
+	for _, path := range []string{dllPath, threeDirPath} {
+		if out, _ := exec.Command("icacls", path).CombinedOutput(); len(out) > 0 {
+			fmt.Fprintf(os.Stderr, "[rtloader debug] icacls %s:\n%s", path, out)
+		}
+	}
 }
