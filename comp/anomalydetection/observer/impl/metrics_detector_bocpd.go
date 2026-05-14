@@ -20,11 +20,8 @@ type bocpdStateKey struct {
 
 // bocpdSeriesState holds per-series streaming BOCPD state.
 type bocpdSeriesState struct {
-
-	// Cursor: how many points we've processed so far (count-based for safety).
-	lastProcessedTime  int64
-	lastProcessedCount int
-	lastWriteGen       int64 // storage writeGeneration at last Detect
+	lastProcessedTime int64
+	lastWriteGen      int64 // storage writeGeneration at last Detect
 
 	// Warmup: Welford online mean/variance accumulation.
 	initialized  bool
@@ -128,10 +125,10 @@ type BOCPDDetector struct {
 	// per-(series, aggregation) state.
 	series map[bocpdStateKey]*bocpdSeriesState
 
-	// Cache the discovered series list across Detect calls. Refresh when storage
-	// reports that new series were added.
-	cachedSeries []observer.SeriesMeta
-	cachedGen    uint64
+	// Cache the discovered series refs across Detect calls. Refresh when storage
+	// reports that new series were added or removed.
+	cachedRefs []observer.SeriesRef
+	cachedGen  uint64
 }
 
 // NewBOCPDDetector creates a streaming BOCPD detector with the given config.
@@ -183,21 +180,24 @@ func (b *BOCPDDetector) Name() string {
 // Detect implements Detector. It discovers series, reads only newly visible
 // points, and updates per-series BOCPD posterior state incrementally.
 //
-// Correctness takes priority over positional cursoring: storage may insert
-// points into existing history, so this detector gates incremental work on
-// visible point counts rather than raw slice positions.
+// Uses writeGeneration as the sole skip guard: if nothing was written since
+// last Detect, skip. Otherwise process all points strictly after lastProcessedTime.
 func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
 	gen := storage.SeriesGeneration()
-	if b.cachedSeries == nil || gen != b.cachedGen {
-		b.cachedSeries = storage.ListSeries(observer.WorkloadSeriesFilter())
+	if b.cachedRefs == nil || gen != b.cachedGen {
+		metas := storage.ListSeries(observer.WorkloadSeriesFilter())
+		b.cachedRefs = make([]observer.SeriesRef, len(metas))
+		for i, m := range metas {
+			b.cachedRefs[i] = m.Ref
+		}
 		b.cachedGen = gen
 	}
 
 	var allAnomalies []observer.Anomaly
 
-	for _, meta := range b.cachedSeries {
+	for _, ref := range b.cachedRefs {
 		for _, agg := range b.config.Aggregations {
-			sk := bocpdStateKey{ref: meta.Ref, agg: agg}
+			sk := bocpdStateKey{ref: ref, agg: agg}
 
 			state, exists := b.series[sk]
 			if !exists {
@@ -205,25 +205,13 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 				b.series[sk] = state
 			}
 
-			visibleCount := storage.PointCountUpTo(meta.Ref, dataTime)
-			currentGen := storage.WriteGeneration(meta.Ref)
-			mergeOccurred := visibleCount == state.lastProcessedCount && currentGen != state.lastWriteGen
-			if visibleCount <= state.lastProcessedCount && !mergeOccurred {
+			currentGen := storage.WriteGeneration(ref)
+			if currentGen == state.lastWriteGen {
 				continue
 			}
 
-			startTime := state.lastProcessedTime
-			if mergeOccurred {
-				startTime = state.lastProcessedTime - 1
-				if startTime < 0 {
-					startTime = 0
-				}
-			}
-
-			pointsSeen := false
 			prevLen := len(allAnomalies)
-			storage.ForEachPoint(meta.Ref, startTime, dataTime, agg, func(series *observer.Series, p observer.Point) {
-				pointsSeen = true
+			storage.ForEachPoint(ref, state.lastProcessedTime, dataTime, agg, func(series *observer.Series, p observer.Point) {
 				anomaly := b.processPoint(state, p, series, agg)
 				if anomaly != nil {
 					allAnomalies = append(allAnomalies, *anomaly)
@@ -232,17 +220,9 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 			})
 			// Set SourceRef on any anomalies produced in this iteration.
 			for k := prevLen; k < len(allAnomalies); k++ {
-				allAnomalies[k].SourceRef = &observer.QueryHandle{Ref: meta.Ref, Aggregate: agg}
+				allAnomalies[k].SourceRef = &observer.QueryHandle{Ref: ref, Aggregate: agg}
 			}
-
-			if !pointsSeen && mergeOccurred {
-				state.lastWriteGen = currentGen
-				continue
-			}
-			if pointsSeen {
-				state.lastProcessedCount = visibleCount
-				state.lastWriteGen = currentGen
-			}
+			state.lastWriteGen = currentGen
 		}
 	}
 
@@ -252,7 +232,7 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 // Reset clears all per-series state for replay/reanalysis.
 func (b *BOCPDDetector) Reset() {
 	b.series = make(map[bocpdStateKey]*bocpdSeriesState)
-	b.cachedSeries = nil
+	b.cachedRefs = nil
 	b.cachedGen = 0
 }
 
@@ -273,7 +253,7 @@ func (b *BOCPDDetector) RemoveSeries(refs []observer.SeriesRef) {
 	}
 	// Drop the cached series snapshot so the next Detect re-lists from
 	// storage and we don't iterate over removed refs.
-	b.cachedSeries = nil
+	b.cachedRefs = nil
 	b.cachedGen = 0
 }
 

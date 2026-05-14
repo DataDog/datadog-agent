@@ -283,13 +283,9 @@ func (h *recordingHandle) ObserveMetric(sample observer.MetricView) {
 func (h *recordingHandle) ObserveLog(msg observer.LogView) {
 	h.inner.ObserveLog(msg)
 
-	content := msg.GetContent()
-	contentCopy := make([]byte, len(content))
-	copy(contentCopy, content)
-
 	h.recorder.logParquetWriter.WriteLog(
 		h.name,
-		contentCopy,
+		[]byte(msg.GetContent()),
 		msg.GetStatus(),
 		msg.GetHostname(),
 		msg.GetTags(),

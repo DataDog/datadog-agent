@@ -366,6 +366,17 @@ func InitConfig(config pkgconfigmodel.Setup) {
 	// the engine by LogMetricsExtractors continue to flow into storage,
 	// so log-only anomaly detection keeps working.
 	config.BindEnvAndSetDefault("observer.ingest_metrics.enabled", true)
+	// Storage tuning: cap on number of live time series before eviction fires.
+	// 0 disables eviction. See storageConfig in storage.go.
+	config.BindEnvAndSetDefault("observer.storage.max_series", 50000)
+	// Storage tuning: hysteresis band for eviction. When the cap is hit, series
+	// are removed until count ≤ max_series*(1-eviction_floor_ratio).
+	// 0.1 = drain to 90% of the cap before the next eviction pass is needed.
+	config.BindEnvAndSetDefault("observer.storage.eviction_floor_ratio", 0.1)
+	// Storage tuning: how long (in seconds) data points are retained per series.
+	// Points older than (latest data timestamp - point_retention_secs) are trimmed on each Add.
+	// 0 disables trimming.
+	config.BindEnvAndSetDefault("observer.storage.point_retention_secs", 120)
 	config.BindEnvAndSetDefault("observer.traces.fetch_interval", 5*time.Second)
 	config.BindEnvAndSetDefault("observer.traces.max_fetch_batch", 100)
 	config.BindEnvAndSetDefault("observer.profiles.fetch_interval", 10*time.Second)

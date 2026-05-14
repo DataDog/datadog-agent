@@ -6,7 +6,6 @@
 package observerimpl
 
 import (
-	"hash/fnv"
 	"testing"
 	"time"
 
@@ -46,11 +45,9 @@ func TestAgentInternalLogsFlowIntoObserver(t *testing.T) {
 	pkglog.Info(msg)
 
 	// Agent logs are forwarded as structured JSON: {"msg":"..."}.
-	payload := []byte(`{"msg":"agent internal hello"}`)
+	payload := `{"msg":"agent internal hello"}`
 	sig := logSignature(payload, 4096)
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(sig))
-	metricName := "log.pattern." + toHex64(h.Sum64()) + ".count"
+	metricName := patternCountMetricName(sig)
 	tags := []string{"component:core", "level:info", "observer_source:agent-internal-logs", "source:datadog-agent"}
 
 	// Poll briefly since observer processes asynchronously.
@@ -60,20 +57,4 @@ func TestAgentInternalLogsFlowIntoObserver(t *testing.T) {
 		require.NotNil(collect, s)
 		require.Greater(collect, len(s.Points), 0)
 	}, time.Second*5, time.Millisecond*10)
-}
-
-func toHex64(v uint64) string {
-	const hextable = "0123456789abcdef"
-	var out [16]byte
-	for i := 15; i >= 0; i-- {
-		out[i] = hextable[v&0xF]
-		v >>= 4
-	}
-	// Mirror fmt.Sprintf("%x", ...) (no leading zeros trimmed? actually %x trims; we keep full width here but it won't match)
-	// Trim leading zeros for parity with production metric naming (fmt %x).
-	i := 0
-	for i < 15 && out[i] == '0' {
-		i++
-	}
-	return string(out[i:])
 }

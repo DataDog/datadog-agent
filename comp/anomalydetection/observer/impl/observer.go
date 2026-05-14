@@ -103,7 +103,7 @@ func (m *metricObs) GetSampleRate() float64 {
 
 // logObs contains copied log data and implements observerdef.LogView.
 type logObs struct {
-	content     []byte
+	content     string
 	status      string
 	tags        []string
 	hostname    string
@@ -113,7 +113,7 @@ type logObs struct {
 // Ensure logObs implements observerdef.LogView
 var _ observerdef.LogView = (*logObs)(nil)
 
-func (l *logObs) GetContent() []byte {
+func (l *logObs) GetContent() string {
 	return l.content
 }
 
@@ -172,13 +172,17 @@ func NewComponent(deps Requires) Provides {
 	settings := settingsFromAgentConfig(catalog, cfg)
 	detectors, correlators, extractors, _ := catalog.Instantiate(settings)
 
+	storageCfg := storageConfig{
+		MaxSeries:          cfg.GetInt("observer.storage.max_series"),
+		EvictionFloorRatio: cfg.GetFloat64("observer.storage.eviction_floor_ratio"),
+		PointRetentionSecs: int64(cfg.GetInt("observer.storage.point_retention_secs")),
+	}
 	eng := newEngine(engineConfig{
-		storage:          newTimeSeriesStorage(),
-		extractors:       extractors,
-		detectors:        detectors,
-		correlators:      correlators,
-		contextProviders: collectContextProviders(extractors),
-		scheduler:        &currentBehaviorPolicy{},
+		storage:     newTimeSeriesStorageWith(storageCfg),
+		extractors:  extractors,
+		detectors:   detectors,
+		correlators: correlators,
+		scheduler:   &currentBehaviorPolicy{},
 	})
 
 	// Wire each injected reporter into its own reporterEventSink subscription.
@@ -202,6 +206,16 @@ func NewComponent(deps Requires) Provides {
 	th := newTelemetryHandler(telemetryComp)
 
 	hfFilterSources := make(map[metrics.MetricSource]struct{})
+
+	// Wire per-component processing time directly to the telemetry gauge,
+	// bypassing ObserverTelemetry object construction on the hot path.
+	processingTimeGauge, ok := th.telemetryGauges[telemetryDetectorProcessingTimeNs]
+	if !ok {
+		panic("observer: telemetry gauge not registered: " + telemetryDetectorProcessingTimeNs)
+	}
+	eng.onProcessingTime = func(detectorTag string, nanos float64) {
+		processingTimeGauge.Set(nanos, detectorTag)
+	}
 
 	obs := &observerImpl{
 		engine:               eng,
@@ -342,7 +356,7 @@ func NewComponent(deps Requires) Provides {
 				"msg": message,
 			})
 			handle.ObserveLog(&agentLogView{
-				content:     payload,
+				content:     string(payload),
 				status:      strings.ToLower(level.String()),
 				tags:        tags,
 				hostname:    "",
@@ -462,12 +476,11 @@ type seriesDetectorAdapter struct {
 	// bounding per-call cost to O(windowSec) instead of O(totalPoints).
 	windowSec int64
 
-	// cachedSeries / cachedGen mirror the pattern used by BOCPDDetector,
-	// ScanWelchDetector, and ScanMWDetector: storage.SeriesGeneration() only
-	// advances when a brand-new series key is created, so we can avoid the
-	// per-Detect full-map ListSeries scan on steady-state cardinality.
-	cachedSeries []observerdef.SeriesMeta
-	cachedGen    uint64
+	// cachedRefs / cachedGen: only holds SeriesRef values — avoids holding
+	// the full SeriesMeta (Name, Tags, Namespace) alive in the hot path.
+	// Refreshed only when SeriesGeneration changes.
+	cachedRefs []observerdef.SeriesRef
+	cachedGen  uint64
 
 	// lastVisibleCount is keyed by the storage's compact SeriesRef so we
 	// avoid rebuilding a string key per series per Detect call. SeriesRefs
@@ -492,7 +505,7 @@ func (a *seriesDetectorAdapter) Name() string {
 // Reset clears adapter-local caches and resets the wrapped detector when supported.
 func (a *seriesDetectorAdapter) Reset() {
 	a.lastVisibleCount = make(map[observerdef.SeriesRef]int)
-	a.cachedSeries = nil
+	a.cachedRefs = nil
 	a.cachedGen = 0
 	if resetter, ok := a.detector.(interface{ Reset() }); ok {
 		resetter.Reset()
@@ -507,7 +520,7 @@ func (a *seriesDetectorAdapter) Reset() {
 // Concurrency invariant: this method runs on the single observerImpl.run()
 // goroutine that drives every other adapter callback (Detect, Reset). The
 // engine's fanOutSeriesRemoval is the only caller. Mutating lastVisibleCount
-// and cachedSeries without a lock is safe under that invariant only.
+// and cachedRefs without a lock is safe under that invariant only.
 func (a *seriesDetectorAdapter) RemoveSeries(refs []observerdef.SeriesRef) {
 	if len(refs) == 0 {
 		return
@@ -517,7 +530,7 @@ func (a *seriesDetectorAdapter) RemoveSeries(refs []observerdef.SeriesRef) {
 			delete(a.lastVisibleCount, ref)
 		}
 	}
-	a.cachedSeries = nil
+	a.cachedRefs = nil
 	a.cachedGen = 0
 	if remover, ok := a.detector.(observerdef.SeriesRemover); ok {
 		remover.RemoveSeries(refs)
@@ -526,27 +539,31 @@ func (a *seriesDetectorAdapter) RemoveSeries(refs []observerdef.SeriesRef) {
 
 func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
 	gen := storage.SeriesGeneration()
-	if a.cachedSeries == nil || gen != a.cachedGen {
-		a.cachedSeries = storage.ListSeries(observerdef.WorkloadSeriesFilter())
+	if a.cachedRefs == nil || gen != a.cachedGen {
+		metas := storage.ListSeries(observerdef.WorkloadSeriesFilter())
+		a.cachedRefs = make([]observerdef.SeriesRef, len(metas))
+		for i, m := range metas {
+			a.cachedRefs[i] = m.Ref
+		}
 		a.cachedGen = gen
 	}
 
 	var allAnomalies []observerdef.Anomaly
 	var allTelemetry []observerdef.ObserverTelemetry
 
-	for _, meta := range a.cachedSeries {
-		visibleCount := storage.PointCountUpTo(meta.Ref, dataTime)
-		if prev, ok := a.lastVisibleCount[meta.Ref]; ok && prev == visibleCount {
+	for _, ref := range a.cachedRefs {
+		visibleCount := storage.PointCountUpTo(ref, dataTime)
+		if prev, ok := a.lastVisibleCount[ref]; ok && prev == visibleCount {
 			continue
 		}
-		a.lastVisibleCount[meta.Ref] = visibleCount
+		a.lastVisibleCount[ref] = visibleCount
 
 		for _, agg := range a.aggregations {
 			start := int64(0)
 			if a.windowSec > 0 {
 				start = dataTime - a.windowSec
 			}
-			series := storage.GetSeriesRange(meta.Ref, start, dataTime, agg)
+			series := storage.GetSeriesRange(ref, start, dataTime, agg)
 			if series == nil || len(series.Points) == 0 {
 				continue
 			}
@@ -565,7 +582,7 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 					Aggregate: agg,
 				}
 				result.Anomalies[j].SourceRef = &observerdef.QueryHandle{
-					Ref:       meta.Ref,
+					Ref:       ref,
 					Aggregate: agg,
 				}
 			}
@@ -767,8 +784,8 @@ func (o *observerImpl) AddTelemetry(name string, value float64, timestamp int64,
 // Implements DebugView.
 func (o *observerImpl) ReplayStoredData() {
 	// resetAnalysisState resets detectors/correlators and tracking state but
-	// preserves extractor state (contextRefs + provider pattern registry) so
-	// enrichAnomaly can still attach log pattern context during replay.
+	// preserves extractor state so enrichAnomaly can still attach log pattern
+	// context (stored on seriesStats) during replay.
 	o.engine.resetAnalysisState()
 	o.engine.ReplayStoredData()
 }
@@ -787,7 +804,7 @@ func (o *observerImpl) StorageReader() observerdef.StorageReader {
 func (o *observerImpl) IngestLogSync(source string, msg observerdef.LogView) {
 	timestampMs := msg.GetTimestampUnixMilli()
 	lo := &logObs{
-		content:     copyBytes(msg.GetContent()),
+		content:     msg.GetContent(),
 		status:      msg.GetStatus(),
 		tags:        copyTags(msg.GetTags()),
 		hostname:    msg.GetHostname(),
@@ -892,7 +909,7 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 	obs := observation{
 		source: h.source,
 		log: &logObs{
-			content:     copyBytes(msg.GetContent()),
+			content:     msg.GetContent(),
 			status:      msg.GetStatus(),
 			tags:        copyTags(msg.GetTags()),
 			hostname:    msg.GetHostname(),
@@ -916,7 +933,7 @@ type logView struct {
 	obs *logObs
 }
 
-func (v *logView) GetContent() []byte           { return v.obs.content }
+func (v *logView) GetContent() string           { return v.obs.content }
 func (v *logView) GetStatus() string            { return v.obs.status }
 func (v *logView) GetTags() []string            { return v.obs.tags }
 func (v *logView) GetHostname() string          { return v.obs.hostname }
@@ -925,25 +942,15 @@ func (v *logView) GetTimestampUnixMilli() int64 { return v.obs.timestampMs }
 // agentLogView is a minimal LogView implementation for agent-internal logs.
 // It is immediately copied by the observer handle, so it must not be retained.
 type agentLogView struct {
-	content     []byte
+	content     string
 	status      string
 	tags        []string
 	hostname    string
 	timestampMs int64
 }
 
-func (v *agentLogView) GetContent() []byte           { return v.content }
+func (v *agentLogView) GetContent() string           { return v.content }
 func (v *agentLogView) GetStatus() string            { return v.status }
 func (v *agentLogView) GetTags() []string            { return v.tags }
 func (v *agentLogView) GetHostname() string          { return v.hostname }
 func (v *agentLogView) GetTimestampUnixMilli() int64 { return v.timestampMs }
-
-// copyBytes creates a copy of a byte slice.
-func copyBytes(b []byte) []byte {
-	if b == nil {
-		return nil
-	}
-	result := make([]byte, len(b))
-	copy(result, b)
-	return result
-}

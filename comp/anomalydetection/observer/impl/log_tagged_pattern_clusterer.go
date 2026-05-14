@@ -7,9 +7,7 @@ package observerimpl
 
 import (
 	"container/heap"
-	"encoding/binary"
 	"fmt"
-	"hash/fnv"
 	"strconv"
 	"strings"
 
@@ -49,15 +47,11 @@ func (c TagGroupByKey) AsMap() map[string]string {
 
 // tagGroupByKeyHash computes a stable fnv64a hash for a TagGroupByKey.
 func tagGroupByKeyHash(c TagGroupByKey) uint64 {
-	h := fnv.New64a()
-	h.Write([]byte(c.Source))
-	h.Write([]byte{'|'})
-	h.Write([]byte(c.Service))
-	h.Write([]byte{'|'})
-	h.Write([]byte(c.Env))
-	h.Write([]byte{'|'})
-	h.Write([]byte(c.Host))
-	return h.Sum64()
+	h := fnv64aString(c.Source)
+	h = fnv64aMix(h, c.Service)
+	h = fnv64aMix(h, c.Env)
+	h = fnv64aMix(h, c.Host)
+	return h
 }
 
 // TagGroupByKeyRegistry is a bidirectional, append-only store between a uint64 hash
@@ -133,10 +127,9 @@ func tagsForPatternGrouping(tags []string, hostname string) []string {
 // clusterID) pair. It is used as the variable segment of the metric name so
 // that each (tag-group × pattern) combination gets a unique, stable name.
 func globalClusterHash(groupHash uint64, clusterID int64) string {
-	h := fnv.New64a()
-	_ = binary.Write(h, binary.LittleEndian, groupHash)
-	_ = binary.Write(h, binary.LittleEndian, clusterID)
-	return strconv.FormatUint(h.Sum64(), 16)
+	h := fnv64aMixUint64(fnvOffsetBasis64, groupHash)
+	h = fnv64aMixInt64(h, clusterID)
+	return strconv.FormatUint(h, 16)
 }
 
 // TaggedPatternClusterer wraps one *patterns.PatternClusterer per tag-group

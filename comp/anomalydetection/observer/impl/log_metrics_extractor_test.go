@@ -6,8 +6,6 @@
 package observerimpl
 
 import (
-	"fmt"
-	"hash/fnv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -25,7 +23,7 @@ func TestLogMetricsExtractor_JSONNumericExtraction(t *testing.T) {
 	})
 
 	log := &mockLogView{
-		content: []byte(`{"duration_ms":45,"status":200,"foo":"bar","pid":1234}`),
+		content: `{"duration_ms":45,"status":200,"foo":"bar","pid":1234}`,
 		tags:    []string{"service:api"},
 	}
 
@@ -39,10 +37,8 @@ func TestLogMetricsExtractor_JSONNumericExtraction(t *testing.T) {
 	}
 
 	// Pattern count is based on the full JSON payload.
-	sig := logSignature([]byte(`{"duration_ms":45,"status":200,"foo":"bar","pid":1234}`), 0)
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(sig))
-	expectedCountName := fmt.Sprintf("log.pattern.%x.count", h.Sum64())
+	sig := logSignature(`{"duration_ms":45,"status":200,"foo":"bar","pid":1234}`, 0)
+	expectedCountName := patternCountMetricName(sig)
 	if m, ok := got[expectedCountName]; assert.True(t, ok) {
 		assert.Equal(t, float64(1), m.Value)
 		assert.Equal(t, []string{"service:api"}, m.Tags)
@@ -62,7 +58,7 @@ func TestLogMetricsExtractor_UnstructuredPatternCount(t *testing.T) {
 	a := NewLogMetricsExtractor(LogMetricsExtractorConfig{})
 
 	log := &mockLogView{
-		content: []byte("Request completed in 45ms"),
+		content: "Request completed in 45ms",
 		tags:    []string{"service:web"},
 	}
 
@@ -72,10 +68,8 @@ func TestLogMetricsExtractor_UnstructuredPatternCount(t *testing.T) {
 	assert.Equal(t, []string{"service:web"}, res.Metrics[0].Tags)
 
 	// Compute expected metric name (hash of signature).
-	sig := logSignature([]byte("Request completed in 45ms"), 0)
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(sig))
-	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res.Metrics[0].Name)
+	sig := logSignature("Request completed in 45ms", 0)
+	assert.Equal(t, patternCountMetricName(sig), res.Metrics[0].Name)
 }
 
 func TestLogMetricsExtractor_JSONIncludeFields(t *testing.T) {
@@ -86,7 +80,7 @@ func TestLogMetricsExtractor_JSONIncludeFields(t *testing.T) {
 	})
 
 	log := &mockLogView{
-		content: []byte(`{"duration_ms":45,"status":200}`),
+		content: `{"duration_ms":45,"status":200}`,
 		tags:    []string{"service:api"},
 	}
 
@@ -102,10 +96,8 @@ func TestLogMetricsExtractor_JSONIncludeFields(t *testing.T) {
 		assert.Equal(t, float64(45), m.Value)
 	}
 
-	sig := logSignature([]byte(`{"duration_ms":45,"status":200}`), 0)
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(sig))
-	expectedCountName := fmt.Sprintf("log.pattern.%x.count", h.Sum64())
+	sig := logSignature(`{"duration_ms":45,"status":200}`, 0)
+	expectedCountName := patternCountMetricName(sig)
 	if m, ok := got[expectedCountName]; assert.True(t, ok) {
 		assert.Equal(t, float64(1), m.Value)
 	}
@@ -115,43 +107,38 @@ func TestLogMetricsExtractor_InvalidJSONFallsBackToUnstructured(t *testing.T) {
 	a := NewLogMetricsExtractor(LogMetricsExtractorConfig{})
 
 	// Looks like JSON but is invalid -> treated as unstructured (pattern frequency).
-	input := []byte(`{"duration_ms":45,`)
+	input := `{"duration_ms":45,`
 	log := &mockLogView{content: input, tags: []string{"service:api"}}
 
 	res := a.ProcessLog(log)
 	require.Len(t, res.Metrics, 1)
 
 	sig := logSignature(input, 0)
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(sig))
-	assert.Equal(t, fmt.Sprintf("log.pattern.%x.count", h.Sum64()), res.Metrics[0].Name)
+	assert.Equal(t, patternCountMetricName(sig), res.Metrics[0].Name)
 }
 
-func TestLogMetricsExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
+func TestLogMetricsExtractor_ProcessLogEmitsInlineContext(t *testing.T) {
 	a := &LogMetricsExtractor{}
 	log := &mockLogView{
-		content: []byte("Request completed in 45ms"),
+		content: "Request completed in 45ms",
 		tags:    []string{"service:web", "env:prod"},
 	}
 
 	res := a.ProcessLog(log)
 	require.Len(t, res.Metrics, 1)
-	require.NotEmpty(t, res.Metrics[0].ContextKey)
-
-	ctx, ok := a.GetContextByKey(res.Metrics[0].ContextKey)
-	require.True(t, ok)
-	assert.Equal(t, "log_metrics_extractor", ctx.Source)
-	assert.Equal(t, "Request completed in 45ms", ctx.Example)
+	require.NotNil(t, res.Metrics[0].Context)
+	assert.Equal(t, "log_metrics_extractor", res.Metrics[0].Context.Source)
+	assert.Equal(t, "Request completed in 45ms", res.Metrics[0].Context.Example)
 }
 
-func TestLogMetricsExtractor_ContextKeySeparatesSameMetricByTags(t *testing.T) {
+func TestLogMetricsExtractor_SamePatternDifferentTagsHaveDistinctContexts(t *testing.T) {
 	a := &LogMetricsExtractor{}
 	logA := &mockLogView{
-		content: []byte("Request completed in 45ms"),
+		content: "Request completed in 45ms",
 		tags:    []string{"service:api"},
 	}
 	logB := &mockLogView{
-		content: []byte("Request completed in 45ms"),
+		content: "Request completed in 45ms",
 		tags:    []string{"service:worker"},
 	}
 
@@ -160,14 +147,10 @@ func TestLogMetricsExtractor_ContextKeySeparatesSameMetricByTags(t *testing.T) {
 	require.Len(t, resA.Metrics, 1)
 	require.Len(t, resB.Metrics, 1)
 	require.Equal(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
-	require.NotEqual(t, resA.Metrics[0].ContextKey, resB.Metrics[0].ContextKey)
 
-	ctxA, ok := a.GetContextByKey(resA.Metrics[0].ContextKey)
-	require.True(t, ok)
-	ctxB, ok := a.GetContextByKey(resB.Metrics[0].ContextKey)
-	require.True(t, ok)
-
-	assert.Equal(t, "Request completed in 45ms", ctxA.Example)
-	assert.Equal(t, "Request completed in 45ms", ctxB.Example)
-	assert.Equal(t, ctxA.Pattern, ctxB.Pattern)
+	require.NotNil(t, resA.Metrics[0].Context)
+	require.NotNil(t, resB.Metrics[0].Context)
+	assert.Equal(t, "Request completed in 45ms", resA.Metrics[0].Context.Example)
+	assert.Equal(t, "Request completed in 45ms", resB.Metrics[0].Context.Example)
+	assert.Equal(t, resA.Metrics[0].Context.Pattern, resB.Metrics[0].Context.Pattern)
 }

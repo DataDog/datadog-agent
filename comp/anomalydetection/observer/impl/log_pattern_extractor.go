@@ -100,71 +100,17 @@ func tokenizerFromConfig(cfg LogPatternExtractorConfig) *patterns.Tokenizer {
 	return t
 }
 
-// PatternKeyInfo contains what can identify a pattern.
-type PatternKeyInfo struct {
-	ClusterID int64
-	GroupHash uint64
-}
-
 // LogPatternExtractor is a LogMetricsExtractor that clusters log messages into
 // patterns and emits a count metric per pattern.
 type LogPatternExtractor struct {
 	taggedClusterer           *TaggedPatternClusterer
 	registry                  *TagGroupByKeyRegistry
-	ctx                       logPatternExtractorContext
 	NextGarbageCollectionTime int64
 	// config is the resolved hyperparameters (MinClusterSizeBeforeEmit is never zero after init).
 	config LogPatternExtractorConfig
 }
 
 var _ observerdef.LogMetricsExtractor = (*LogPatternExtractor)(nil)
-var _ observerdef.ContextProvider = (*LogPatternExtractor)(nil)
-
-type patternMetricContext struct {
-	keyInfo PatternKeyInfo
-	example string
-}
-
-// logPatternExtractorContext holds per-metric context for GetContextByKey and
-// indexes keys by tagged cluster (globalClusterHash) for O(cluster) deletion on GC.
-// The tagged key encodes both groupHash and clusterID so that different sub-clusterers
-// with coincidentally equal cluster IDs don't collide.
-type logPatternExtractorContext struct {
-	byKey               map[string]patternMetricContext
-	keysByTaggedCluster map[string][]string // key: globalClusterHash(groupHash, clusterID)
-}
-
-func (c *logPatternExtractorContext) get(key string) (patternMetricContext, bool) {
-	if c.byKey == nil {
-		return patternMetricContext{}, false
-	}
-	v, ok := c.byKey[key]
-	return v, ok
-}
-
-func (c *logPatternExtractorContext) put(groupHash uint64, clusterID int64, contextKey string, entry patternMetricContext) {
-	taggedKey := globalClusterHash(groupHash, clusterID)
-	if c.byKey == nil {
-		c.byKey = make(map[string]patternMetricContext)
-	}
-	if _, exists := c.byKey[contextKey]; !exists {
-		if c.keysByTaggedCluster == nil {
-			c.keysByTaggedCluster = make(map[string][]string)
-		}
-		c.keysByTaggedCluster[taggedKey] = append(c.keysByTaggedCluster[taggedKey], contextKey)
-		c.byKey[contextKey] = entry
-	}
-}
-
-func (c *logPatternExtractorContext) removeTaggedCluster(taggedKey string) {
-	if c.byKey == nil {
-		return
-	}
-	for _, k := range c.keysByTaggedCluster[taggedKey] {
-		delete(c.byKey, k)
-	}
-	delete(c.keysByTaggedCluster, taggedKey)
-}
 
 // NewLogPatternExtractor creates a new LogPatternExtractor.
 // A zero-value cfg is accepted; zero fields fall back to DefaultLogPatternExtractorConfig values.
@@ -216,36 +162,12 @@ func (e *LogPatternExtractor) Name() string {
 	return "log_pattern_extractor"
 }
 
-// Reset clears clustering and cached per-series context so reanalysis starts
-// from the currently observed logs. The registry is kept so that previously
-// registered hashes remain resolvable.
+// Reset clears clustering state so reanalysis starts from the currently
+// observed logs. The registry is kept so that previously registered hashes
+// remain resolvable.
 func (e *LogPatternExtractor) Reset() {
 	e.taggedClusterer.Reset()
-	e.ctx = logPatternExtractorContext{}
 	e.NextGarbageCollectionTime = 0
-}
-
-// GetContextByKey implements observerdef.ContextProvider for pattern metrics
-// emitted by this extractor.
-func (e *LogPatternExtractor) GetContextByKey(key string) (observerdef.MetricContext, bool) {
-	entry, ok := e.ctx.get(key)
-	if !ok {
-		return observerdef.MetricContext{}, false
-	}
-
-	pattern := ""
-	cluster, err := e.taggedClusterer.GetCluster(entry.keyInfo.GroupHash, entry.keyInfo.ClusterID)
-	if err == nil && cluster != nil {
-		pattern = cluster.PatternString()
-	}
-
-	group, _ := e.registry.Lookup(entry.keyInfo.GroupHash)
-	return observerdef.MetricContext{
-		Pattern:   pattern,
-		Example:   entry.example,
-		Source:    e.Name(),
-		SplitTags: group.AsMap(),
-	}, true
 }
 
 // logSeverityIsWarnPlus returns true when the log should be clustered: warning
@@ -268,7 +190,7 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	gc := e.maybeGarbageCollect(logUnixSec)
 	telemetry := []observerdef.ObserverTelemetry{}
 	result := observerdef.LogMetricsExtractorOutput{
-		EvictedContextKeys: gc.contextKeys,
+		EvictedMetricNames: gc.metricNames,
 	}
 	if gc.clustersEvicted > 0 {
 		// We count active patterns so we remove them
@@ -277,7 +199,7 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	if !logSeverityIsWarnPlus(log) {
 		return result
 	}
-	message := string(log.GetContent())
+	message := log.GetContent()
 	groupTags := tagsForPatternGrouping(log.GetTags(), log.GetHostname())
 	groupHash, cluster, ok := e.taggedClusterer.Process(groupTags, message, logUnixSec)
 	// Drain LRU evictions — from per-group MaxClusters or whole-group MaxTagGroups
@@ -287,15 +209,9 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	// !ok (defensive; current Process only returns !ok for empty messages, after
 	// which no eviction can have occurred, but keep this path honest).
 	if evicted := e.taggedClusterer.DrainLRUEvictions(); len(evicted) > 0 {
-		var lruKeys []string
 		for _, ev := range evicted {
-			taggedKey := globalClusterHash(ev.GroupHash, ev.ClusterID)
-			if e.ctx.keysByTaggedCluster != nil {
-				lruKeys = append(lruKeys, e.ctx.keysByTaggedCluster[taggedKey]...)
-			}
-			e.ctx.removeTaggedCluster(taggedKey)
+			result.EvictedMetricNames = append(result.EvictedMetricNames, clusterMetricName(e.Name(), ev.GroupHash, ev.ClusterID))
 		}
-		result.EvictedContextKeys = append(result.EvictedContextKeys, lruKeys...)
 		telemetry = append(telemetry, newTelemetryCounter([]string{"detector:" + e.Name()}, telemetryLogPatternExtractorPatternCount, -float64(len(evicted)), logUnixSec))
 	}
 	if !ok {
@@ -311,19 +227,18 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 		return result
 	}
 
-	metricName := "log." + e.Name() + "." + globalClusterHash(groupHash, cluster.ID) + ".count"
-	contextKey := metricContextKey(metricName, log.GetTags())
-
-	e.ctx.put(groupHash, cluster.ID, contextKey, patternMetricContext{
-		keyInfo: PatternKeyInfo{ClusterID: cluster.ID, GroupHash: groupHash},
-		example: message,
-	})
-
+	metricName := clusterMetricName(e.Name(), groupHash, cluster.ID)
+	group, _ := e.registry.Lookup(groupHash)
 	result.Metrics = []observerdef.MetricOutput{{
-		Name:       metricName,
-		Value:      1,
-		Tags:       log.GetTags(),
-		ContextKey: contextKey,
+		Name:  metricName,
+		Value: 1,
+		Tags:  log.GetTags(),
+		Context: &observerdef.MetricContext{
+			Pattern:   cluster.PatternString(),
+			Example:   message,
+			Source:    e.Name(),
+			SplitTags: group.AsMap(),
+		},
 	}}
 	result.Telemetry = telemetry
 	return result
@@ -331,12 +246,12 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 
 // gcResult holds what was evicted during a garbage-collection pass.
 type gcResult struct {
-	contextKeys     []string
+	metricNames     []string
 	clustersEvicted int
 }
 
 // maybeGarbageCollect removes stale clusters from all sub-clusterers and
-// returns the context keys evicted so the engine can drop matching contextRefs.
+// returns the metric names evicted so the engine can remove matching series.
 func (e *LogPatternExtractor) maybeGarbageCollect(currentTime int64) gcResult {
 	if e.config.ClusterTimeToLiveSec == 0 || currentTime < e.NextGarbageCollectionTime {
 		return gcResult{}
@@ -350,12 +265,13 @@ func (e *LogPatternExtractor) maybeGarbageCollect(currentTime int64) gcResult {
 	}
 	var result gcResult
 	for _, ev := range evicted {
-		taggedKey := globalClusterHash(ev.GroupHash, ev.ClusterID)
-		if e.ctx.keysByTaggedCluster != nil {
-			result.contextKeys = append(result.contextKeys, e.ctx.keysByTaggedCluster[taggedKey]...)
-		}
-		e.ctx.removeTaggedCluster(taggedKey)
+		result.metricNames = append(result.metricNames, clusterMetricName(e.Name(), ev.GroupHash, ev.ClusterID))
 	}
 	result.clustersEvicted = len(evicted)
 	return result
+}
+
+// clusterMetricName returns the deterministic metric name for a pattern cluster.
+func clusterMetricName(extractorName string, groupHash uint64, clusterID int64) string {
+	return "log." + extractorName + "." + globalClusterHash(groupHash, clusterID) + ".count"
 }

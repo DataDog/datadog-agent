@@ -914,7 +914,7 @@ func (api *BenchAPI) handleLogs(w http.ResponseWriter, r *http.Request) {
 			result = append(result, logEntryResponse{
 				TimestampMs: ts,
 				Status:      l.GetStatus(),
-				Content:     string(l.GetContent()),
+				Content:     l.GetContent(),
 				Hostname:    l.GetHostname(),
 				Tags:        tags,
 			})

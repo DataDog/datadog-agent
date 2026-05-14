@@ -21,8 +21,7 @@ type scanwelchStateKey struct {
 // scanwelchSeriesState holds per-series streaming state for the ScanWelch detector.
 // Same pattern as scanmwSeriesState and BOCPD (metrics_detector_bocpd.go).
 type scanwelchSeriesState struct {
-	lastProcessedCount int
-	lastWriteGen       int64
+	lastWriteGen int64
 
 	// Segment tracking: only scan [segmentStartTime, dataTime].
 	segmentStartTime int64
@@ -66,9 +65,9 @@ type ScanWelchDetector struct {
 	// per-series state keyed by ref+agg
 	series map[scanwelchStateKey]*scanwelchSeriesState
 
-	// Cache the discovered series list across Detect calls.
-	cachedSeries []observer.SeriesMeta
-	cachedGen    uint64
+	// Cache the discovered series refs across Detect calls.
+	cachedRefs []observer.SeriesRef
+	cachedGen  uint64
 }
 
 // NewScanWelchDetector creates a ScanWelch detector with default settings.
@@ -96,7 +95,7 @@ func (d *ScanWelchDetector) Name() string {
 // Reset clears all per-series state for replay/reanalysis.
 func (d *ScanWelchDetector) Reset() {
 	d.series = make(map[scanwelchStateKey]*scanwelchSeriesState)
-	d.cachedSeries = nil
+	d.cachedRefs = nil
 	d.cachedGen = 0
 }
 
@@ -115,7 +114,7 @@ func (d *ScanWelchDetector) RemoveSeries(refs []observer.SeriesRef) {
 			delete(d.series, scanwelchStateKey{ref: ref, agg: agg})
 		}
 	}
-	d.cachedSeries = nil
+	d.cachedRefs = nil
 	d.cachedGen = 0
 }
 
@@ -125,26 +124,25 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 	d.ensureDefaults()
 
 	gen := storage.SeriesGeneration()
-	if d.cachedSeries == nil || gen != d.cachedGen {
-		d.cachedSeries = storage.ListSeries(observer.WorkloadSeriesFilter())
+	if d.cachedRefs == nil || gen != d.cachedGen {
+		metas := storage.ListSeries(observer.WorkloadSeriesFilter())
+		d.cachedRefs = make([]observer.SeriesRef, len(metas))
+		for i, m := range metas {
+			d.cachedRefs[i] = m.Ref
+		}
 		d.cachedGen = gen
 	}
 
 	// Bulk-fetch point counts and write generations in a single lock acquisition.
-	// This avoids 2×len(series) individual RLock/RUnlock calls per Detect() call.
-	refs := make([]observer.SeriesRef, len(d.cachedSeries))
-	for i, meta := range d.cachedSeries {
-		refs[i] = meta.Ref
-	}
-	bulkStatus := bulkSeriesStatus(storage, refs, dataTime)
+	bulkStatus := bulkSeriesStatus(storage, d.cachedRefs, dataTime)
 
 	var allAnomalies []observer.Anomaly
 
-	for i, meta := range d.cachedSeries {
+	for i, ref := range d.cachedRefs {
 		status := bulkStatus[i]
 
 		for _, agg := range d.Aggregations {
-			sk := scanwelchStateKey{ref: meta.Ref, agg: agg}
+			sk := scanwelchStateKey{ref: ref, agg: agg}
 
 			state, exists := d.series[sk]
 			if !exists {
@@ -152,13 +150,12 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 				d.series[sk] = state
 			}
 
-			// Replay optimization: skip unless MinSegment new points are visible.
-			// The scan needs MinSegment points per side to evaluate a split, so
-			// fewer new points can't create a new valid split boundary. This cuts
-			// per-series scans from O(timestamps) to O(timestamps/MinSegment).
-			// During live ingestion, writeGen changes on every write so this
-			// condition falls through to the gen check and behaves as before.
-			if status.pointCount < state.lastProcessedCount+d.MinSegment && status.writeGeneration == state.lastWriteGen {
+			// Skip if nothing has been written since last Detect.
+			// writeGeneration increments on every Add (including same-bucket merges),
+			// so this is the sole correct guard. A count-based skip is broken under
+			// time-based point retention because trim+add keeps pointCount stable
+			// while still changing writeGeneration.
+			if status.writeGeneration == state.lastWriteGen {
 				continue
 			}
 
@@ -167,7 +164,7 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 			// state.buf which grows once and is reused across scans.
 			state.buf = state.buf[:0]
 			var seriesMeta *observer.Series
-			storage.ForEachPoint(meta.Ref, state.segmentStartTime, dataTime, agg, func(s *observer.Series, p observer.Point) {
+			storage.ForEachPoint(ref, state.segmentStartTime, dataTime, agg, func(s *observer.Series, p observer.Point) {
 				if seriesMeta == nil {
 					// Capture series metadata on first point (valid during callback).
 					sCopy := *s
@@ -177,19 +174,17 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 			})
 
 			if seriesMeta == nil || len(state.buf) < d.MinPoints {
-				state.lastProcessedCount = status.pointCount
 				state.lastWriteGen = status.writeGeneration
 				continue
 			}
 
 			anomaly, changeIdx, found := d.scanWelch(state.buf, seriesMeta, agg)
 			if found {
-				anomaly.SourceRef = &observer.QueryHandle{Ref: meta.Ref, Aggregate: agg}
+				anomaly.SourceRef = &observer.QueryHandle{Ref: ref, Aggregate: agg}
 				allAnomalies = append(allAnomalies, anomaly)
 				state.segmentStartTime = state.buf[changeIdx].Timestamp - 1
 			}
 
-			state.lastProcessedCount = status.pointCount
 			state.lastWriteGen = status.writeGeneration
 		}
 	}
