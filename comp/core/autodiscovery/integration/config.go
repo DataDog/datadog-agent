@@ -125,7 +125,7 @@ type Config struct {
 	// template: the agent should not schedule it directly, and any matched
 	// instance is meant to discover its own config at runtime. A non-nil
 	// pointer means discovery is requested. (optional)
-	Discovery *DiscoveryConfig `json:"discovery,omitempty"` // (include in digest: false)
+	Discovery *DiscoveryConfig `json:"discovery,omitempty"` // (include in digest: true)
 }
 
 // DiscoveryConfig holds per-template configuration-discovery options.
@@ -476,6 +476,9 @@ func (c *Config) IntDigest() uint64 {
 	_, _ = h.Write([]byte(c.LogsConfig))
 	_, _ = h.Write([]byte(c.ServiceID))
 	_, _ = h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags)))
+	if c.Discovery != nil {
+		_, _ = h.Write([]byte("discovery"))
+	}
 
 	return h.Sum64()
 }
@@ -499,6 +502,9 @@ func (c *Config) FastDigest() uint64 {
 	_, _ = h.Write([]byte(c.LogsConfig))
 	_, _ = h.Write([]byte(c.ServiceID))
 	_, _ = h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags)))
+	if c.Discovery != nil {
+		_, _ = h.Write([]byte("discovery"))
+	}
 
 	return h.Sum64()
 }

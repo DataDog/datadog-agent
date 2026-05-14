@@ -254,6 +254,22 @@ func TestIsDiscovery(t *testing.T) {
 	assert.True(t, config.IsDiscovery())
 }
 
+func TestDigestIncludesDiscovery(t *testing.T) {
+	withoutDiscovery := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+	}
+	withDiscovery := &Config{
+		Name:       "foo",
+		InitConfig: Data(""),
+		Discovery:  &DiscoveryConfig{},
+	}
+	assert.NotEqual(t, withoutDiscovery.Digest(), withDiscovery.Digest(),
+		"Discovery field must change the config digest so a discovery template and its non-discovery counterpart are distinct")
+	assert.NotEqual(t, withoutDiscovery.FastDigest(), withDiscovery.FastDigest(),
+		"Discovery field must change FastDigest as well")
+}
+
 func TestGetNameForInstance(t *testing.T) {
 	config := &Config{}
 
