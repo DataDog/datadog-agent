@@ -105,7 +105,7 @@ func TestJMXFetchNixMtlsFIPS(t *testing.T) {
 }
 
 func (j *jmxfetchNixTest) Test_FakeIntakeReceivesJMXFetchMetrics() {
-	common.AssertADPRunningDocker(j.T(), j.Env().RemoteHost)
+	common.AssertADPRunningDocker(j.T(), j.Env().RemoteHost, j.Env().Agent.ContainerName)
 
 	metricNames := []string{
 		"test.e2e.jmxfetch.counter_100",
@@ -144,7 +144,7 @@ func (j *jmxfetchNixTest) Test_FakeIntakeReceivesJMXFetchMetrics() {
 }
 
 func (j *jmxfetchNixTest) TestJMXListCollectedWithRateMetrics() {
-	common.AssertADPRunningDocker(j.T(), j.Env().RemoteHost)
+	common.AssertADPRunningDocker(j.T(), j.Env().RemoteHost, j.Env().Agent.ContainerName)
 
 	status, err := j.Env().Agent.Client.JMX(agentclient.WithArgs([]string{"list", "collected", "with-rate-metrics"}))
 	require.NoError(j.T(), err)

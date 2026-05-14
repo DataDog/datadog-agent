@@ -43,44 +43,42 @@ func WithADPEnabled() func(*agentparams.Params) error {
 
 // WithADPEnabledDocker is the equivalent of WithADPEnabled for the
 // containerized Agent. dockeragentparams doesn't expose AgentConfig directly;
-// ADP is enabled via environment variables instead.
+// ADP is enabled via environment variables on the Agent service instead.
 //
 // JMXFetch's default reporter is DogStatsD — it scrapes JMX MBeans from the
 // target JVM and refeeds the metrics into the local DSD port (8125), which
 // ADP intercepts when enabled. So jmxfetch tests under ADP exercise ADP's
 // real data path, not just a smoke test.
 func WithADPEnabledDocker() func(*dockeragentparams.Params) error {
-	return dockeragentparams.WithEnvironmentVariables(pulumi.StringMap{
-		"DD_DATA_PLANE_ENABLED":           pulumi.String("true"),
-		"DD_DATA_PLANE_DOGSTATSD_ENABLED": pulumi.String("true"),
-	})
+	return func(p *dockeragentparams.Params) error {
+		p.AgentServiceEnvironment["DD_DATA_PLANE_ENABLED"] = pulumi.String("true")
+		p.AgentServiceEnvironment["DD_DATA_PLANE_DOGSTATSD_ENABLED"] = pulumi.String("true")
+		return nil
+	}
 }
 
 // AssertADPRunningDocker is the Docker equivalent of AssertADPRunning. It
-// shells out from the test host to docker, finds the agent container, and
-// checks that the agent-data-plane process is running inside it.
+// shells out from the test host to docker and checks that the agent-data-plane
+// process is running inside the Agent container.
 //
-// Discovers the container by image-name match ("datadog/agent") to be robust
-// to container-name changes across provisioners. Checks process existence via
-// pgrep against the truncated comm form ("agent-data-plan", 15 chars — see
-// AssertADPRunning for the kernel-quirk context).
-func AssertADPRunningDocker(t *testing.T, host *components.RemoteHost) {
+// The Agent container name comes from the e2e DockerAgent component. Checks
+// process existence via pgrep against the truncated comm form
+// ("agent-data-plan", 15 chars — see AssertADPRunning for the kernel-quirk
+// context).
+func AssertADPRunningDocker(t *testing.T, host *components.RemoteHost, agentContainerName string) {
 	t.Helper()
 	ok := assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		// Find the running agent container by image name.
-		containerID, err := host.Execute(
-			`sudo docker ps --format '{{.ID}} {{.Image}}' | grep -i 'datadog/agent' | awk '{print $1}' | head -1`)
-		if !assert.NoError(c, err) {
+		running, err := host.Execute(fmt.Sprintf("sudo docker inspect --format '{{.State.Running}}' %q", agentContainerName))
+		if !assert.NoError(c, err, "agent container %q not found", agentContainerName) {
 			return
 		}
-		containerID = strings.TrimSpace(containerID)
-		if !assert.NotEmpty(c, containerID, "agent container not found via 'docker ps'") {
+		if !assert.Equal(c, "true", strings.TrimSpace(running), "agent container %q is not running", agentContainerName) {
 			return
 		}
 
 		// pgrep returns non-zero exit when no match — host.Execute treats that
 		// as an error. Match on the truncated process name (TASK_COMM_LEN = 16).
-		out, err := host.Execute(fmt.Sprintf("sudo docker exec %s pgrep -af agent-data-plan", containerID))
+		out, err := host.Execute(fmt.Sprintf("sudo docker exec %q pgrep -af agent-data-plan", agentContainerName))
 		if !assert.NoError(c, err, "agent-data-plane process not found in agent container") {
 			return
 		}
@@ -91,15 +89,10 @@ func AssertADPRunningDocker(t *testing.T, host *components.RemoteHost) {
 
 	if !ok {
 		// Best-effort: pull container logs for the agent to help diagnose what happened.
-		containerID, _ := host.Execute(
-			`sudo docker ps --format '{{.ID}} {{.Image}}' | grep -i 'datadog/agent' | awk '{print $1}' | head -1`)
-		containerID = strings.TrimSpace(containerID)
-		var logs string
-		if containerID != "" {
-			logs, _ = host.Execute(fmt.Sprintf("sudo docker logs --tail 200 %s 2>&1", containerID))
-		}
+		logs, _ := host.Execute(fmt.Sprintf("sudo docker logs --tail 200 %q 2>&1", agentContainerName))
+		containers, _ := host.Execute("sudo docker ps -a --format '{{.Names}} {{.Image}} {{.Status}}'")
 		require.FailNowf(t, "agent-data-plane not running in agent container",
-			"agent container logs tail:\n%s", logs)
+			"agent container %q logs tail:\n%s\ncontainers:\n%s", agentContainerName, logs, containers)
 	}
 }
 
