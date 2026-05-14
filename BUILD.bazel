@@ -179,6 +179,7 @@ exports_files(glob(
 # gazelle:exclude comp/languagedetection/client/impl
 # gazelle:exclude comp/logonduration/fx
 # gazelle:exclude comp/logonduration/impl
+# gazelle:exclude comp/anomalydetection/logssource/impl
 # gazelle:exclude comp/logs-library/pipeline
 # gazelle:exclude comp/logs-library/sender
 # gazelle:exclude comp/logs/adscheduler/fx
@@ -413,7 +414,6 @@ exports_files(glob(
 # gazelle:exclude pkg/databasemonitoring
 # gazelle:exclude pkg/diagnose/connectivity
 # gazelle:exclude pkg/diagnose/ports
-# gazelle:exclude pkg/discovery/apm
 # gazelle:exclude pkg/discovery/language
 # gazelle:exclude pkg/discovery/module/rust/include
 # gazelle:exclude pkg/discovery/module/rust/src
@@ -457,6 +457,7 @@ exports_files(glob(
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/arrays.go
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/basics.go
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/complex.go
+# gazelle:exclude pkg/dyninst/testprogs/progs/sample/context.go
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/continuation.go
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/continuation_strings.go
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/esoteric.go
