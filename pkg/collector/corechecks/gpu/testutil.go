@@ -48,6 +48,8 @@ func GetEmittedGPUMetrics(mockSender *mocksender.MockSender) map[string][]gpuspe
 			metricType = "gauge"
 		case "CountWithTimestamp":
 			metricType = "counter"
+		case "HistogramBucket":
+			metricType = "histogram"
 		default:
 			continue
 		}
@@ -62,16 +64,31 @@ func GetEmittedGPUMetrics(mockSender *mocksender.MockSender) map[string][]gpuspe
 		}
 
 		specMetricName := strings.TrimPrefix(metricName, "gpu.")
-		tags := []string{}
-		if len(call.Arguments) > 3 {
-			if callTags, ok := call.Arguments.Get(3).([]string); ok {
-				tags = append([]string(nil), callTags...)
-			}
-		}
 		var value *float64
-		if len(call.Arguments) > 1 {
-			if metricValue, ok := call.Arguments.Get(1).(float64); ok {
-				value = &metricValue
+		tags := []string{}
+
+		if metricType == "histogram" {
+			if len(call.Arguments) > 1 {
+				if metricValue, ok := call.Arguments.Get(1).(int64); ok {
+					floatValue := float64(metricValue)
+					value = &floatValue
+				}
+			}
+			if len(call.Arguments) > 6 {
+				if callTags, ok := call.Arguments.Get(6).([]string); ok {
+					tags = append([]string(nil), callTags...)
+				}
+			}
+		} else {
+			if len(call.Arguments) > 1 {
+				if metricValue, ok := call.Arguments.Get(1).(float64); ok {
+					value = &metricValue
+				}
+			}
+			if len(call.Arguments) > 3 {
+				if callTags, ok := call.Arguments.Get(3).([]string); ok {
+					tags = append([]string(nil), callTags...)
+				}
 			}
 		}
 

@@ -54,8 +54,8 @@ func TestInstallAgentLogTap(t *testing.T) {
 	var payload map[string]any
 	require.NoError(t, json.Unmarshal(msg.GetContent(), &payload))
 	assert.Equal(t, "test info message", payload["msg"])
-	assert.True(t, containsTag(msg.Tags(), "source:datadog-agent"))
-	assert.True(t, containsTag(msg.Tags(), "level:info"))
+	assert.True(t, containsAgentLogTag(msg.Tags(), "source:datadog-agent"))
+	assert.True(t, containsAgentLogTag(msg.Tags(), "level:info"))
 
 	// Verify warn log
 	assert.Equal(t, "warn", h.logs[1].GetStatus())
@@ -134,7 +134,7 @@ func simulateLogEmit(level pkglog.LogLevel, message string) {
 	pkglog.SimulateLogEmit(level, message) //nolint:staticcheck
 }
 
-func containsTag(tags []string, tag string) bool {
+func containsAgentLogTag(tags []string, tag string) bool {
 	for _, t := range tags {
 		if strings.EqualFold(t, tag) {
 			return true

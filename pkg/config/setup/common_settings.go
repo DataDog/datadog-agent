@@ -1099,6 +1099,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("metric_filterlist_match_prefix", false)
 	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 	config.BindEnvAndSetDefault("metric_tag_filterlist", []interface{}{})
+	// When true (default), metric_tag_filterlist tag stripping is only applied when data_plane.enabled is true.
+	// Set to false to apply tag stripping regardless of whether ADP is running.
+	config.BindEnvAndSetDefault("metric_tag_filterlist_adp_only", true)
 
 	// Integration security
 
@@ -1777,6 +1780,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.fingerprint_strategy", DefaultFingerprintStrategy)
 	// specific logs-agent api-key
 	config.BindEnv("logs_config.api_key") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	// use the `time` field from container log files instead of ingestion time
+	config.BindEnvAndSetDefault("logs_config.use_container_timestamp", false)
 	// Delegated authentication for logs
 	bindDelegatedAuthConfig(config, "logs_config")
 

@@ -1926,6 +1926,18 @@ properties:
         example: 'false'
         tags:
         - template_section:LogsAgent
+      use_container_timestamp:
+        node_type: setting
+        type: boolean
+        default: false
+        visibility: public
+        description: |-
+          Use the `time` field from container log files (when available) as the log timestamp instead of ingestion time.
+
+          This affects logs collected from container runtimes that provide per-log-line timestamps (for example Docker JSON logs).
+        example: 'false'
+        tags:
+        - template_section:LogsAgent
       logs_dd_url:
         node_type: setting
         visibility: public
@@ -4825,8 +4837,8 @@ properties:
     visibility: public
     description: Network Path configuration
     tags:
-    - template_section:CoreAgent
     - platform_only:windows,linux
+    - template_section:CoreAgent
     properties:
       connections_monitoring:
         node_type: section
@@ -5646,8 +5658,8 @@ properties:
         visibility: public
         description: Configuration for scanning container images for software vulnerabilities.
         tags:
-        - template_section:CoreAgent
         - platform_only:linux
+        - template_section:CoreAgent
         properties:
           enabled:
             node_type: setting
@@ -5706,7 +5718,7 @@ properties:
           overlayfs_disable_cache:
             node_type: setting
             type: boolean
-            default: false
+            default: true
           scan_interval:
             node_type: setting
             type: number
@@ -6812,6 +6824,22 @@ properties:
     example: '10'
     tags:
     - golang_type:int64
+    - template_section:CoreAgent
+  ad_tag_completeness_max_wait:
+    node_type: setting
+    type: number
+    default: 0
+    visibility: public
+    description: |-
+      Maximum time in seconds that autodiscovery waits for an entity's tags to be
+      complete before scheduling checks for it. This avoids checks running briefly
+      with incomplete tags. This can happen when some sources (kubelet, container
+      runtime, etc.) have reported information for the entity, but others have not
+      yet. 0 disables waiting and checks are scheduled as soon as the entity is
+      discovered.
+    example: '0'
+    tags:
+    - golang_type:int
     - template_section:CoreAgent
   ad_allowed_env_vars:
     node_type: setting
@@ -8680,6 +8708,18 @@ properties:
     example: '60'
     tags:
     - golang_type:int
+    - template_section:KubeApiServer
+  kubernetes_metadata_streaming:
+    node_type: setting
+    type: boolean
+    default: true
+    visibility: public
+    description: |-
+      Stream Kubernetes metadata from the Cluster Agent instead of polling it every
+      `kubernetes_metadata_tag_update_freq` seconds. This propagates the associated
+      tags with less delay.
+    example: 'true'
+    tags:
     - template_section:KubeApiServer
   kubernetes_apiserver_client_timeout:
     node_type: setting
@@ -11093,12 +11133,6 @@ properties:
     node_type: setting
     type: string
     default: localhost
-  ad_tag_completeness_max_wait:
-    node_type: setting
-    type: number
-    default: 0
-    tags:
-    - golang_type:int
   additional_endpoints:
     node_type: setting
     type: object
@@ -14236,10 +14270,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-  kubernetes_metadata_streaming:
-    node_type: setting
-    type: boolean
-    default: false
   kubernetes_namespace_annotations_as_tags:
     node_type: setting
     type: object
@@ -14347,6 +14377,10 @@ properties:
     node_type: setting
     type: array
     default: []
+  metric_tag_filterlist_adp_only:
+    node_type: setting
+    type: boolean
+    default: true
   metrics_port:
     node_type: setting
     type: number
