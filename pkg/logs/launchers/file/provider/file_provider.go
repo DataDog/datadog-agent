@@ -308,12 +308,10 @@ func (p *FileProvider) filesMatchingSource(source *sources.LogSource) ([]*tailer
 		return nil, fmt.Errorf("malformed pattern, could not find any file: %s", pattern)
 	}
 	// Filter out directories that the glob matched. Opening a directory as a file
-	// produces misleading errors (e.g. "Access is denied" on Windows). The most
-	// common cause is a glob that is not deep enough (e.g. C:\Logs\* against a
-	// tree of subdirectories), and the user typically wants C:\Logs\*\* instead.
+	// produces misleading errors (e.g. "Access is denied" on Windows). Mixing
+	// files and subdirectories in the same parent is normal, so this is silent
+	// at the info level; trace level is available for debugging.
 	filteredPaths := paths[:0]
-	skippedDirCount := 0
-	var firstSkippedDir string
 	for _, path := range paths {
 		fi, statErr := opener.StatLogFile(path)
 		if statErr != nil {
@@ -322,25 +320,12 @@ func (p *FileProvider) filesMatchingSource(source *sources.LogSource) ([]*tailer
 			continue
 		}
 		if fi.IsDir() {
-			if skippedDirCount == 0 {
-				firstSkippedDir = path
-			}
-			skippedDirCount++
+			log.Tracef("Skipping directory %q matched by pattern %q", path, pattern)
 			continue
 		}
 		filteredPaths = append(filteredPaths, path)
 	}
 	paths = filteredPaths
-	dirsMessageKey := "directory-matches:" + pattern
-	if skippedDirCount > 0 {
-		if p.shouldLogErrors {
-			log.Warnf("Pattern %q matched %d director(ies) (e.g. %q); these were skipped because directories cannot be tailed. To tail files inside them, use a deeper glob such as %q.",
-				pattern, skippedDirCount, firstSkippedDir, filepath.Join(pattern, "*"))
-		}
-		source.Messages.AddMessage(dirsMessageKey, fmt.Sprintf("%d entries matching %s resolved to directories and were skipped; use a deeper glob to tail files inside them", skippedDirCount, pattern))
-	} else {
-		source.Messages.RemoveMessage(dirsMessageKey)
-	}
 	if len(paths) == 0 {
 		// no file was found, its parent directories might have wrong permissions or it just does not exist
 		return nil, fmt.Errorf("could not find any file matching pattern %s, check that all its subdirectories are executable", pattern)

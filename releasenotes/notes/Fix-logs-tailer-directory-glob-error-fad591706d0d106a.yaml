@@ -8,10 +8,10 @@
 ---
 fixes:
   - |
-    Logs file tailer: when a configured ``path`` glob matches directories
-    (for example ``E:\Logs\*`` against a tree of subdirectories on Windows),
-    the directory entries are now skipped instead of being opened as files.
-    Previously the tailer surfaced a bare ``Access is denied`` from the OS,
-    which misled troubleshooting toward permissions. The agent now logs a
-    clear warning explaining that the glob matched directories and suggesting
-    a deeper pattern (for example ``E:\Logs\*\*``).
+    Logs file tailer: directory entries returned by a configured ``path``
+    glob are now skipped instead of being opened as files. Previously the
+    tailer attempted to open the directory and surfaced a misleading
+    ``Access is denied`` error from the OS (on Windows in particular),
+    which sent troubleshooting toward permissions. A non-wildcard
+    ``path`` that resolves to a directory now returns a descriptive
+    error explaining that a file or glob is required.

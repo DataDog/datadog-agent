@@ -404,10 +404,9 @@ func TestCollectFiles(t *testing.T) {
 		files, err := fileProvider.CollectFiles(source)
 		assert.Empty(t, files)
 		assert.Error(t, err)
-		// Source should be annotated so the status page makes the situation obvious.
-		messages := source.Messages.GetMessages()
-		assert.Len(t, messages, 1)
-		assert.Contains(t, messages[0], "resolved to directories")
+		// Directories are filtered silently — a mix of files and subdirectories
+		// is a normal layout and shouldn't generate per-scan noise.
+		assert.Empty(t, source.Messages.GetMessages())
 	})
 
 	t.Run("WildcardSkipsDirectoriesAndKeepsFiles", func(t *testing.T) {
@@ -426,9 +425,7 @@ func TestCollectFiles(t *testing.T) {
 		assert.Contains(t, paths, fs.path("b.log"))
 		assert.NotContains(t, paths, fs.path("subdir"))
 
-		messages := source.Messages.GetMessages()
-		assert.Len(t, messages, 1)
-		assert.Contains(t, messages[0], "resolved to directories")
+		assert.Empty(t, source.Messages.GetMessages())
 	})
 }
 
