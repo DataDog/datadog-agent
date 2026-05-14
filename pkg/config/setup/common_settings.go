@@ -1894,6 +1894,10 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// When true, logs containing critical severity keywords (FATAL, ERROR, PANIC, etc.)
 	// bypass the adaptive sampler and are never dropped.
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.protect_important_logs", true)
+	// Include limits adaptive sampling to logs matching at least one rule when configured.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.include", []map[string]interface{}{})
+	// Exclude prevents adaptive sampling from applying to logs matching any rule when configured.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.exclude", []map[string]interface{}{})
 
 	// Enable the legacy auto multiline detection (v1)
 	config.BindEnvAndSetDefault("logs_config.force_auto_multi_line_detection_v1", false)
@@ -1905,9 +1909,9 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_default_match_threshold", 0.48)
 
 	// Add a tag to logs that are multiline aggregated
-	config.BindEnvAndSetDefault("logs_config.tag_multi_line_logs", false)
+	config.BindEnvAndSetDefault("logs_config.tag_multi_line_logs", true)
 	// Add a tag to logs that are truncated by the agent
-	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", false)
+	config.BindEnvAndSetDefault("logs_config.tag_truncated_logs", true)
 	// Tag logs with their auto multiline detection label without aggregating them
 	config.BindEnvAndSetDefault("logs_config.auto_multi_line_detection_tagging", true)
 

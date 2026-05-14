@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "client.go",
         "par.go",
+        "rc.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/fakeintake/client",
     visibility = ["//visibility:public"],
