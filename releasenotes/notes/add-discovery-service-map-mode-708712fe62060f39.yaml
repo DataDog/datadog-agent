@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    Adds a new ``discovery.service_map.enabled`` system-probe configuration
+    option that boots the universal service monitoring (USM) eBPF monitor in
+    a restricted mode, capturing only the data needed to render a service
+    dependency map (HTTP and HTTPS via TLS uprobes). Hosts running in this
+    mode are not billed as USM customers, are not surfaced in USM
+    dashboards, and do not produce ``universal.http.*`` metrics. Intended
+    for non-APM customers as a free preview of application observability.

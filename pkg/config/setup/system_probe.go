@@ -268,6 +268,15 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("ebpf_check.kernel_bpf_stats", false)
 	// noisy neighbor module
 	cfg.BindEnvAndSetDefault("noisy_neighbor.enabled", false)
+	// Per-PMU-event toggles. Default false because each enabled event
+	// adds non-trivial overhead.
+	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.cycles", false)
+	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.instructions", false)
+	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.cache_misses", false)
+	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.cache_references", false)
+	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.itlb_misses", false)
+	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.branch_misses", false)
+	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.cpu_migrations", false)
 
 	// settings for the entry count of the ebpfcheck
 	// control the size of the buffers used for the batch lookups of the ebpf maps
@@ -352,9 +361,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// Discovery config
 	cfg.BindEnvAndSetDefault("discovery.enabled", runtime.GOOS == "linux")
 	cfg.BindEnvAndSetDefault("discovery.use_system_probe_lite", runtime.GOOS == "linux")
-	cfg.BindEnvAndSetDefault("discovery.use_rust_library", false)
 	cfg.BindEnvAndSetDefault("discovery.cpu_usage_update_delay", "60s")
 	cfg.BindEnvAndSetDefault("discovery.service_collection_interval", "60s")
+	cfg.BindEnvAndSetDefault("discovery.service_map.enabled", false)
 
 	// Privileged Logs config
 	cfg.BindEnvAndSetDefault("privileged_logs.enabled", false)
@@ -367,10 +376,12 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// GPU monitoring
 	cfg.BindEnvAndSetDefault("gpu_monitoring.enabled", false)
+	cfg.BindEnvAndSetDefault("gpu_monitoring.enable_ebpf_probes", true)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.nvml_lib_path", "")
 	cfg.BindEnvAndSetDefault("gpu_monitoring.process_scan_interval_seconds", 5)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.initial_process_sync", true)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.configure_cgroup_perms", false)
+	cfg.BindEnvAndSetDefault("gpu_monitoring.prm_endpoint_enabled", true)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.enable_fatbin_parsing", false)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.fatbin_request_queue_size", 100)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.ring_buffer_pages_per_device", 32) // 32 pages = 128KB by default per device

@@ -6,6 +6,8 @@
 package observerimpl
 
 import (
+	"encoding/json"
+
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
@@ -38,7 +40,13 @@ type componentEntry struct {
 	// populated config struct. Only components that need agent-config
 	// tuning set this; others leave it nil.
 	readConfig func(ConfigReader, string) any
-	// parseJSON is added by algorithm PRs that support per-component JSON config tuning.
+
+	// parseJSON optionally parses component hyperparameters from a JSON object
+	// (the component's sub-object from a --config params file, with "enabled"
+	// already stripped). It starts from the provided defaults and overlays JSON
+	// values, so unspecified fields keep their default. Returns the populated
+	// typed config. Nil means the component has no tunable hyperparameters.
+	parseJSON func(defaults any, raw []byte) (any, error)
 }
 
 // componentInstance tracks a component entry paired with its runtime instance and enabled state.
@@ -89,22 +97,146 @@ type componentCatalog struct {
 	entries []componentEntry
 }
 
-// registeredEntries holds all component entries registered via RegisterEntry.
-// Populated by init() calls in algorithm files (metrics_detector_bocpd.go, etc.).
-var registeredEntries []componentEntry
-
-// RegisterEntry registers a pipeline component with the catalog.
-// Algorithm files call this from init() so that detector/extractor/correlator
-// entries are added without hardcoding them in defaultCatalog.
-func RegisterEntry(e componentEntry) {
-	registeredEntries = append(registeredEntries, e)
-}
-
-// defaultCatalog returns the component catalog populated from all registered
-// entries. This is the single starting point for both the live observer and the
-// testbench — they diverge only in what ComponentSettings they pass to Instantiate.
+// defaultCatalog returns the component catalog with all known components and
+// their default configs. This is the single starting point for both the live
+// observer and the testbench — they diverge only in what ComponentSettings
+// they pass to Instantiate.
 func defaultCatalog() *componentCatalog {
-	return &componentCatalog{entries: append([]componentEntry(nil), registeredEntries...)}
+	return &componentCatalog{
+		entries: []componentEntry{
+			// ---- Extractors ----
+			{
+				name:           "log_metrics_extractor",
+				displayName:    "Log Metrics Extractor",
+				kind:           componentExtractor,
+				defaultConfig:  DefaultLogMetricsExtractorConfig(),
+				factory:        func(cfg any) any { return NewLogMetricsExtractor(cfg.(LogMetricsExtractorConfig)) },
+				defaultEnabled: true,
+			},
+			{
+				name:           "connection_error_extractor",
+				displayName:    "Connection Error Extractor",
+				kind:           componentExtractor,
+				defaultConfig:  DefaultConnectionErrorExtractorConfig(),
+				factory:        func(any) any { return &ConnectionErrorExtractor{} },
+				defaultEnabled: false,
+			},
+			{
+				name:           "log_pattern_extractor",
+				displayName:    "Log Pattern Extractor",
+				kind:           componentExtractor,
+				defaultConfig:  DefaultLogPatternExtractorConfig(),
+				factory:        func(cfg any) any { return NewLogPatternExtractor(cfg.(LogPatternExtractorConfig)) },
+				defaultEnabled: true,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(LogPatternExtractorConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, err
+					}
+					return cfg, nil
+				},
+			},
+			// ---- Detectors ----
+			{
+				name:           "cusum",
+				displayName:    "CUSUM",
+				kind:           componentDetector,
+				defaultConfig:  DefaultCUSUMConfig(),
+				factory:        func(cfg any) any { return NewCUSUMDetector(cfg.(CUSUMConfig)) },
+				defaultEnabled: false,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(CUSUMConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, err
+					}
+					return cfg, nil
+				},
+			},
+			{
+				name:           "bocpd",
+				displayName:    "BOCPD",
+				kind:           componentDetector,
+				defaultConfig:  DefaultBOCPDConfig(),
+				factory:        func(cfg any) any { return NewBOCPDDetector(cfg.(BOCPDConfig)) },
+				defaultEnabled: true,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(BOCPDConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, err
+					}
+					return cfg, nil
+				},
+			},
+			{
+				name:           "rrcf",
+				displayName:    "RRCF",
+				kind:           componentDetector,
+				defaultConfig:  DefaultRRCFConfig(),
+				factory:        func(cfg any) any { return NewRRCFDetector(cfg.(RRCFConfig)) },
+				defaultEnabled: true,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(RRCFConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, err
+					}
+					return cfg, nil
+				},
+			},
+			{
+				name:           "scanmw",
+				displayName:    "ScanMW",
+				kind:           componentDetector,
+				factory:        func(any) any { return NewScanMWDetector() },
+				defaultEnabled: false,
+			},
+			{
+				name:           "scanwelch",
+				displayName:    "ScanWelch",
+				kind:           componentDetector,
+				factory:        func(any) any { return NewScanWelchDetector() },
+				defaultEnabled: false,
+			},
+			// ---- Correlators ----
+			{
+				name:           "cross_signal",
+				displayName:    "CrossSignal",
+				kind:           componentCorrelator,
+				defaultConfig:  DefaultCorrelatorConfig(),
+				factory:        func(cfg any) any { return NewCorrelator(cfg.(CorrelatorConfig)) },
+				defaultEnabled: false,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(CorrelatorConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, err
+					}
+					return cfg, nil
+				},
+			},
+			{
+				name:           "time_cluster",
+				displayName:    "TimeCluster",
+				kind:           componentCorrelator,
+				defaultConfig:  DefaultTimeClusterConfig(),
+				factory:        func(cfg any) any { return NewTimeClusterCorrelator(cfg.(TimeClusterConfig)) },
+				defaultEnabled: true,
+				readConfig:     readTimeClusterConfig,
+				parseJSON: func(defaults any, raw []byte) (any, error) {
+					cfg := defaults.(TimeClusterConfig)
+					if err := json.Unmarshal(raw, &cfg); err != nil {
+						return nil, err
+					}
+					return cfg, nil
+				},
+			},
+			{
+				name:           "passthrough",
+				displayName:    "Passthrough",
+				kind:           componentCorrelator,
+				factory:        func(any) any { return NewDetectorPassthroughCorrelator() },
+				defaultEnabled: false,
+			},
+		},
+	}
 }
 
 // Instantiate creates component instances. Settings provides per-component
