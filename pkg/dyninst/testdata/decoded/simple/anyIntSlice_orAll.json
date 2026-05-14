@@ -164,13 +164,7 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "any(xs, {@it == 42}) || all(xs, {@it > 0})",
-            "message": "error evaluating condition"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },
@@ -228,13 +222,7 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "any(xs, {@it == 42}) || all(xs, {@it > 0})",
-            "message": "error evaluating condition"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },

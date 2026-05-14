@@ -743,7 +743,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "740"
+      - "754"
   when:
     dsl: "n == 7"
     json: {eq: [{ref: "n"}, 7]}
@@ -768,7 +768,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "740"
+      - "754"
   sampling:
     snapshotsPerSecond: 10
 
@@ -3416,7 +3416,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "740"
+      - "754"
   when:
     dsl: "@duration == 0.0"
     json: {eq: [{ref: "@duration"}, 0.0]}
@@ -3524,7 +3524,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "740"
+      - "754"
   when:
     dsl: "n == 7 && tag == \"match\""
     json:
@@ -3835,33 +3835,6 @@ probes:
   tags:
     - "issue:ConditionExpressionUnresolvable"
 
-# Negative: contains applied to a slice operand — must fail at irgen.
-- id: condContains_on_slice
-  type: LOG_PROBE
-  captureSnapshot: true
-  where:
-    methodName: main.condSliceArg
-  when:
-    dsl: "contains(x, 1)"
-    json: {contains: [{ref: "x"}, 1]}
-  sampling:
-    snapshotsPerSecond: 10
-  tags:
-    - "issue:ConditionExpressionUnresolvable"
-
-# Negative: contains applied to an array operand — must fail at irgen.
-- id: condContains_on_array
-  type: LOG_PROBE
-  captureSnapshot: true
-  where:
-    methodName: main.intArrayArg
-  when:
-    dsl: "contains(s, 1)"
-    json: {contains: [{ref: "s"}, 1]}
-  sampling:
-    snapshotsPerSecond: 10
-  tags:
-    - "issue:ConditionExpressionUnresolvable"
 
 # Negative: contains with a non-literal key — must fail at irgen with
 # ConditionExpressionUnresolvable.
@@ -5058,6 +5031,183 @@ probes:
     methodName: main.anyAllOversizedSlice
   when:
     json: { any: [{ref: "xs"}, {eq: [{getmember: [{ref: "@it"}, "I32"]}, 1]}] }
+  template: "should be rejected"
+  segments:
+    - str: "should be rejected"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# ---------------------------------------------------------------------------
+# contains(slice/array, key) probes. These are paired with the corresponding
+# any(slice/array, {@it == key}) probes above — `contains` desugars to that
+# any form in irgen, so the generated opcodes must be identical.
+# ---------------------------------------------------------------------------
+
+# Positive: contains over an []int.
+- id: containsIntSlice_eq42
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  when:
+    dsl: "contains(xs, 42)"
+    json: { contains: [{ref: "xs"}, 42] }
+  template: "containsInt42 tag={tag}"
+  segments:
+    - str: "containsInt42 tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Positive: contains over a [5]int array.
+- id: containsIntArray_eq42
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntArray
+  when:
+    dsl: "contains(xs, 42)"
+    json: { contains: [{ref: "xs"}, 42] }
+  template: "containsIntArr42 tag={tag}"
+  segments:
+    - str: "containsIntArr42 tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Reference any-form probe over []string, paired with containsStringSlice_match
+# so the decoded snapshots can be compared opcode-equivalence-wise.
+- id: anyStringSlice_match
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllStringSlice
+  when:
+    dsl: 'any(xs, {@it == "match"})'
+    json: { any: [{ref: "xs"}, {eq: [{ref: "@it"}, "match"]}] }
+  template: "anyStrMatch tag={tag}"
+  segments:
+    - str: "anyStrMatch tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Positive: contains over a []string.
+- id: containsStringSlice_match
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllStringSlice
+  when:
+    dsl: 'contains(xs, "match")'
+    json: { contains: [{ref: "xs"}, "match"] }
+  template: "containsStrMatch tag={tag}"
+  segments:
+    - str: "containsStrMatch tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Reference any-form probe over a [3]string array, paired with
+# containsStringArray_match.
+- id: anyStringArray_match
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllStringArray
+  when:
+    dsl: 'any(xs, {@it == "match"})'
+    json: { any: [{ref: "xs"}, {eq: [{ref: "@it"}, "match"]}] }
+  template: "anyStrArrMatch tag={tag}"
+  segments:
+    - str: "anyStrArrMatch tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Positive: contains over a [3]string array.
+- id: containsStringArray_match
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllStringArray
+  when:
+    dsl: 'contains(xs, "match")'
+    json: { contains: [{ref: "xs"}, "match"] }
+  template: "containsStrArrMatch tag={tag}"
+  segments:
+    - str: "containsStrArrMatch tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Negative: contains over a slice of structs. The body desugars to
+# `@it == 42`, which the comparison-leaf machinery rejects because @it is
+# a struct, not a comparable base type.
+- id: containsStructSlice_unsupported
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllStructSlice
+  when:
+    json: { contains: [{ref: "xs"}, 42] }
+  template: "should be rejected"
+  segments:
+    - str: "should be rejected"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Negative: contains over a slice of pointers. @it is *int (a pointer),
+# not a comparable base type.
+- id: containsPtrIntSlice_unsupported
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllPtrIntSlice
+  when:
+    json: { contains: [{ref: "xs"}, 0] }
+  template: "should be rejected"
+  segments:
+    - str: "should be rejected"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Negative: contains over a slice whose element is itself a slice.
+- id: containsSliceOfSlice_unsupported
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSliceOfSlice
+  when:
+    json: { contains: [{ref: "xs"}, 0] }
+  template: "should be rejected"
+  segments:
+    - str: "should be rejected"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Negative: contains over a slice whose element is a map.
+- id: containsSliceOfMap_unsupported
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSliceOfMap
+  when:
+    json: { contains: [{ref: "xs"}, 0] }
   template: "should be rejected"
   segments:
     - str: "should be rejected"
