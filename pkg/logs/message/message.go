@@ -79,7 +79,7 @@ type MessageMetadata struct {
 	Hostname           string
 	Origin             *Origin
 	Status             string
-	IngestionTimestamp int64
+	IngestionTimestamp int64 // In nanoseconds
 	// RawDataLen tracks the original size of the message content before any trimming/transformation.
 	// This is used when calculating the tailer offset - so this will NOT always be equal to `len(Content)`
 	// This is also used to track the original content size before the message is processed and encoded later
@@ -363,7 +363,7 @@ func (m *Message) Render() ([]byte, error) {
 	}
 }
 
-// Methods used by the observer pipeline's messageLogView adapter for read-only observation.
+// Methods implementing observer.LogView for read-only observation.
 
 // GetStatus returns the message status.
 func (m *Message) GetStatus() string {
