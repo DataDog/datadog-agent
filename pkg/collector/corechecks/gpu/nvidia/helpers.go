@@ -237,6 +237,11 @@ func nvlinkPortTag(port int) string {
 	return fmt.Sprintf("nvlink_port:%d", port)
 }
 
+// portIsAlwaysSupported is a placeholder that can be used in getSupportedNvlinkPorts to indicate that a port is always supported.
+func portIsAlwaysSupported(_ int) ([]*Metric, error) {
+	return []*Metric{{Name: "always_supported"}}, nil
+}
+
 func getSupportedNvlinkPorts(device ddnvml.Device, metricCollector func(int) ([]*Metric, error)) ([]int, error) {
 	totalPorts, err := getNVLinkCount(device)
 	if err != nil {

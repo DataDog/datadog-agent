@@ -49,6 +49,9 @@ func TestDefaults(t *testing.T) {
 		"hint_frequency": 60,
 		"interval":       4 * time.Hour,
 	}, config.GetStringMap("process_config.process_discovery"))
+
+	assert.True(t, config.GetBool("logs_config.tag_multi_line_logs"))
+	assert.True(t, config.GetBool("logs_config.tag_truncated_logs"))
 }
 
 func TestUnexpectedUnicode(t *testing.T) {
@@ -850,6 +853,21 @@ data_plane:
 		assert.True(t, cfg.GetBool("data_plane.enabled"),
 			"data_plane.enabled must not be touched by the suppression override")
 	})
+}
+
+func TestDataPlaneDefaults(t *testing.T) {
+	config := newTestConf(t)
+
+	assert.True(t, config.GetBool("data_plane.use_new_config_stream_endpoint"))
+	assert.True(t, config.GetBool("data_plane.remote_agent_enabled"))
+	assert.Equal(t, "0.0.0.0:5100", config.GetString("data_plane.api_listen_address"))
+	assert.Equal(t, "0.0.0.0:5101", config.GetString("data_plane.secure_api_listen_address"))
+	assert.False(t, config.GetBool("data_plane.telemetry_enabled"))
+	assert.Equal(t, "0.0.0.0:5102", config.GetString("data_plane.telemetry_listen_addr"))
+	assert.NotEmpty(t, config.GetString("data_plane.log_file"))
+	assert.True(t, config.GetBool("data_plane.otlp.proxy.traces.enabled"))
+	assert.True(t, config.GetBool("data_plane.otlp.proxy.metrics.enabled"))
+	assert.True(t, config.GetBool("data_plane.otlp.proxy.logs.enabled"))
 }
 
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {

@@ -15,18 +15,37 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/stretchr/testify/require"
 )
+
+// resetProcFSRoot resets any memoization of ProcFSRoot, useful for unit tests
+func resetProcFSRoot() {
+	ProcFSRoot = funcs.MemoizeNoError(procFsRoot)
+}
+
+// resetSysFSRoot resets any memoization of SysFSRoot, useful for unit tests
+func resetSysFSRoot() {
+	SysFSRoot = funcs.MemoizeNoError(sysFsRoot)
+}
+
+// ResetProcSysRootCachesForTest clears memoized ProcFSRoot and SysFSRoot after HOST_PROC / HOST_SYS
+// changes. Tests should call it after Setenv and register t.Cleanup(ResetProcSysRootCachesForTest)
+// so caches refresh once env vars are restored.
+func ResetProcSysRootCachesForTest() {
+	resetProcFSRoot()
+	resetSysFSRoot()
+}
 
 // WithFakeProcFS sets the procfs root to the given path for the duration of the
 // test. procRoot should be a path to a directory that contains the /proc
 // filesystem. CreateFakeProcFS can be used to create a fake /proc filesystem.
 // in a structured manner
 func WithFakeProcFS(tb testing.TB, procRoot string) {
-	resetProcFSRoot()
+	ResetProcSysRootCachesForTest()
 	tb.Setenv("HOST_PROC", procRoot)
 	tb.Cleanup(func() {
-		resetProcFSRoot()
+		ResetProcSysRootCachesForTest()
 	})
 }
 

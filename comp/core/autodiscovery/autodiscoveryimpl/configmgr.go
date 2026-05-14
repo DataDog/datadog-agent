@@ -10,8 +10,6 @@ import (
 	"maps"
 	"sync"
 
-	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/configresolver"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
@@ -456,16 +454,18 @@ func (cm *reconcilingConfigManager) reportTemplateResolutionFailure(tpl integrat
 	if cm.healthPlatform == nil {
 		return
 	}
-	checkID := "ad-template:" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
-	report := &healthplatformpayload.IssueReport{
-		IssueId: healthplatformdef.ADMisconfigurationIssueID,
+	issueID := "ad-template:" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
+	report := healthplatformdef.IssueReport{
+		IssueID:   issueID,
+		IssueType: healthplatformdef.ADMisconfigurationIssueType,
+		Source:    healthplatformdef.ADMisconfigurationSource,
 		Context: map[string]string{
 			"entityName":   tpl.Name + " (" + svc.GetServiceID() + ")",
 			"errorMessage": err.Error(),
 			"errorSource":  string(types.TemplateResolutionSource),
 		},
 	}
-	if reportErr := cm.healthPlatform.ReportIssue(checkID, healthplatformdef.ADMisconfigurationCheckName, report); reportErr != nil {
+	if reportErr := cm.healthPlatform.ReportIssue(report); reportErr != nil {
 		log.Debugf("Failed to report template resolution issue: %v", reportErr)
 	}
 }
@@ -475,10 +475,8 @@ func (cm *reconcilingConfigManager) clearTemplateResolutionFailure(tpl integrati
 	if cm.healthPlatform == nil {
 		return
 	}
-	checkID := "ad-template:" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
-	if err := cm.healthPlatform.ReportIssue(checkID, healthplatformdef.ADMisconfigurationCheckName, nil); err != nil {
-		log.Debugf("Failed to clear template resolution issue %s: %v", checkID, err)
-	}
+	issueID := "ad-template:" + tpl.Name + ":" + svc.GetServiceID() + ":" + tpl.Digest()
+	cm.healthPlatform.ResolveIssue(issueID)
 }
 
 // clearTemplateResolutionFailureByID clears a health issue using string identifiers.
@@ -487,10 +485,8 @@ func (cm *reconcilingConfigManager) clearTemplateResolutionFailureByID(tplName, 
 	if cm.healthPlatform == nil {
 		return
 	}
-	checkID := "ad-template:" + tplName + ":" + svcID + ":" + tplDigest
-	if err := cm.healthPlatform.ReportIssue(checkID, healthplatformdef.ADMisconfigurationCheckName, nil); err != nil {
-		log.Debugf("Failed to clear template resolution issue %s: %v", checkID, err)
-	}
+	issueID := "ad-template:" + tplName + ":" + svcID + ":" + tplDigest
+	cm.healthPlatform.ResolveIssue(issueID)
 }
 
 // applyChanges applies the given changes to cm.scheduledConfigs
