@@ -152,11 +152,13 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 }
 
 // shouldAggregateTags returns true if the tag for the given metric should be considered
-// for aggregation. Distribution, Count (core checks counts), and Counter (dogstatsd counts).
+// for aggregation. Distribution, and Counter (dogstatsd counts).
+// We don't support Count metrics from checks, it would be complicated to enable this for
+// MonotonicCounts - which is commonly used in checks, so to avoid confusion we don't
+// support counts in checks at all for now.
 func shouldAggregateTags(metricSampleContext metrics.MetricSampleContext) bool {
 	mtype := metricSampleContext.GetMetricType()
 	return mtype == metrics.DistributionType ||
-		mtype == metrics.CountType ||
 		mtype == metrics.CounterType
 }
 

@@ -19,7 +19,18 @@ import (
 )
 
 func main() {
-	tracer.Start(tracer.WithService("sample-service"))
+	// Disable 128-bit trace id generation so the upper bits of the trace id
+	// are zero rather than time-based — keeps the testTakeContext snapshot
+	// trace_id deterministic across runs (lower 64 bits come from
+	// tracer.WithSpanID in executeContextFuncs).
+	os.Setenv("DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "false")
+	// Default to "sample-service" for dyninst tests, but let DD_SERVICE win so
+	// demo deployments can report under their own service name.
+	service := os.Getenv("DD_SERVICE")
+	if service == "" {
+		service = "sample-service"
+	}
+	tracer.Start(tracer.WithService(service))
 
 	if os.Getenv("DD_SAMPLE_LOOP") == "" {
 		// Wait for input before executing functions to allow time for uprobe attachment
@@ -69,5 +80,6 @@ func runAll() {
 	executeMapFuncs()
 	executeInterfaceFuncs()
 	executeReturns()
+	executeContextFuncs()
 	go returnGoroutineId()
 }
