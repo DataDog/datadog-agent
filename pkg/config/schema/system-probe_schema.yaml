@@ -2711,10 +2711,14 @@ properties:
         node_type: setting
         type: string
         default: 60s
-      use_rust_library:
-        node_type: setting
-        type: boolean
-        default: false
+      service_map:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
       use_system_probe_lite:
         node_type: setting
         type: boolean
@@ -2910,6 +2914,10 @@ properties:
         format: duration
         tags:
         - golang_type:duration
+      enable_ebpf_probes:
+        node_type: setting
+        type: boolean
+        default: true
       enable_fatbin_parsing:
         node_type: setting
         type: boolean
@@ -2932,6 +2940,10 @@ properties:
         node_type: setting
         type: string
         default: ''
+      prm_endpoint_enabled:
+        node_type: setting
+        type: boolean
+        default: true
       process_scan_interval_seconds:
         node_type: setting
         type: number
