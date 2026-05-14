@@ -73,6 +73,8 @@ func testJMXFetchNix(t *testing.T, mtls bool, fips bool) {
 					dockeragentparams.WithLogs(),
 					dockeragentparams.WithJMX(),
 					choice(fips, dockeragentparams.WithFIPS(), none),
+					// Fakeintake is HTTP, but FIPS ADP rejects this flag because it means disabling TLS cert validation.
+					choice(fips, dockeragentparams.WithAgentServiceEnvVariable("DD_SKIP_SSL_VALIDATION", pulumi.String("false")), none),
 					dockeragentparams.WithExtraComposeInlineManifest(extraManifests...),
 					common.WithADPEnabledDocker(),
 				),
@@ -191,6 +193,7 @@ func (j *jmxfetchNixTest) TestJMXFIPSMode() {
 	require.NoError(j.T(), err)
 	if j.fips {
 		assert.Contains(j.T(), env, "JAVA_TOOL_OPTIONS=--module-path")
+		assert.Contains(j.T(), env, "DD_SKIP_SSL_VALIDATION=false")
 	} else {
 		assert.Contains(j.T(), env, "JAVA_TOOL_OPTIONS=\n")
 	}
