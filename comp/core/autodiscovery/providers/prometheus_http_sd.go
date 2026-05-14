@@ -209,6 +209,7 @@ func (h *PrometheusHTTPSDConfigProvider) Collect(_ context.Context) ([]integrati
 	h.configErrorsMu.Unlock()
 
 	var configs []integration.Config
+	var entryErrors []string
 	successes := 0
 	for _, entry := range h.entries {
 		entryConfigs, err := entry.collect()
@@ -217,10 +218,15 @@ func (h *PrometheusHTTPSDConfigProvider) Collect(_ context.Context) ([]integrati
 			h.configErrorsMu.Lock()
 			h.configErrors["fetch:"+entry.url] = types.ErrorMsgSet{err.Error(): struct{}{}}
 			h.configErrorsMu.Unlock()
+			entryErrors = append(entryErrors, fmt.Sprintf("%s: %v", entry.url, err))
 			continue
 		}
 		configs = append(configs, entryConfigs...)
 		successes++
+	}
+
+	if successes == 0 && len(h.entries) > 0 {
+		return nil, fmt.Errorf("prometheus_http_sd: all %d endpoint(s) failed: %s", len(h.entries), strings.Join(entryErrors, "; "))
 	}
 
 	log.Infof("http_sd: collected %d configs from %d/%d endpoint(s)", len(configs), successes, len(h.entries))
