@@ -133,6 +133,12 @@ func testDyninst(
 	if debug {
 		loaderOpts = append(loaderOpts, loader.WithDebugLevel(100))
 	}
+	// In short mode (which never runs in CI), force uprobe_multi attachment
+	// to speed up integration tests on hosts whose kernel supports the
+	// feature but is excluded by canUseMultiAttach's 6.10 floor.
+	if testing.Short() {
+		loaderOpts = append(loaderOpts, loader.WithForceMultiAttach())
+	}
 	cfg.TestingKnobs.LoaderOptions = loaderOpts
 	cfg.DiskCacheConfig.DirPath = filepath.Join(tempDir, "disk-cache")
 	cfg.LogUploaderURL = testServer.getLogsURL()

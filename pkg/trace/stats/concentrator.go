@@ -211,7 +211,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, tags infraTags) {
 		ImageTag:        pt.ImageTag,
 		Lang:            pt.Lang,
 		ProcessTagsHash: tags.processTagsHash,
-		BaseService:     semantics.LookupString(ddRegistry, semantics.NewDDSpanAccessor(pt.Root.Meta, pt.Root.Metrics), semantics.ConceptDDBaseService),
+		BaseService:     semantics.LookupString(semantics.DefaultRegistry(), semantics.NewDDSpanAccessor(pt.Root.Meta, pt.Root.Metrics), semantics.ConceptDDBaseService),
 	}
 	for _, s := range pt.TraceChunk.Spans {
 		statSpan, ok := c.spanConcentrator.NewStatSpanFromPB(s, c.peerTagKeys, c.additionalMetricTagKeys)
@@ -238,7 +238,7 @@ func (c *Concentrator) addNowV1(pt *traceutil.ProcessedTraceV1, tags infraTags) 
 		env = c.agentEnv
 	}
 	weight := weightV1(pt.Root)
-	baseService := semantics.LookupString(ddRegistry, semantics.NewDDSpanAccessorV1(pt.Root), semantics.ConceptDDBaseService)
+	baseService := semantics.LookupString(semantics.DefaultRegistry(), semantics.NewDDSpanAccessorV1(pt.Root), semantics.ConceptDDBaseService)
 	aggKey := PayloadAggregationKey{
 		Env:             env,
 		Hostname:        hostname,
