@@ -3,6 +3,7 @@
 
 #include "constants/syscall_macro.h"
 #include "constants/offsets/filesystem.h"
+#include "helpers/cgroup.h"
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 #include "helpers/network/stats.h"
@@ -799,10 +800,9 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
             if ((fork_entry->fork_flags & CLONE_INTO_CGROUP) == 0) {
                 fill_cgroup_context(parent_pc, &pc.cgroup);
             } else {
-                u64 has_current_cgroup_id_helper = 0;
-                LOAD_CONSTANT("has_current_cgroup_id_helper", has_current_cgroup_id_helper);
-                if (has_current_cgroup_id_helper) {
-                    pc.cgroup.cgroup_file.ino = bpf_get_current_cgroup_id();
+                u64 cgroup_id = get_current_cgroup_id();
+                if (cgroup_id) {
+                    pc.cgroup.path_key.ino = cgroup_id;
                 }
             }
         }

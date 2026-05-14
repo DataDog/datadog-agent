@@ -4,6 +4,10 @@ load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
 write_pb_go(
     name = "write_pb_go",
     srcs = {
+        "//pkg/proto/datadog/api/v1:v1_go_proto": [
+            "api.pb.go",
+            "api_grpc.pb.go",
+        ],
         "//pkg/proto/datadog/autodiscovery:autodiscovery_go_proto": [
             "autodiscovery.pb.go",
         ],
@@ -12,6 +16,15 @@ write_pb_go(
         ],
         "//pkg/proto/datadog/model/v1:v1_go_proto": [
             "model.pb.go",
+        ],
+        "//pkg/proto/datadog/remoteagent:core_go_proto": [
+            "flare.pb.go",
+            "flare_grpc.pb.go",
+            "remoteagent.pb.go",
+            "status.pb.go",
+            "status_grpc.pb.go",
+            "telemetry.pb.go",
+            "telemetry_grpc.pb.go",
         ],
         "//pkg/proto/datadog/remoteconfig:config_go_proto": [
             "echo.pb.go",

@@ -285,6 +285,19 @@ func TestEncoderToValidUTF8(t *testing.T) {
 	assert.Equal(t, "世界����z 世界", toValidUtf8([]byte("世界\xf0\x8f\xbf\xbfz 世界")))
 }
 
+func TestPassthroughEncoder(t *testing.T) {
+	logsConfig := &config.LogsConfig{}
+	source := sources.NewLogSource("", logsConfig)
+
+	content := []byte("hello world")
+	msg := newMessage(content, source, message.StatusInfo)
+	msg.State = message.StateRendered
+
+	err := PassthroughEncoder.Encode(msg, "any-host")
+	assert.Nil(t, err)
+	assert.Equal(t, "hello world", string(msg.GetContent()))
+}
+
 func BenchmarkJSONEncoder_Encode(b *testing.B) {
 	logsConfig := &config.LogsConfig{
 		Service:        "Service",

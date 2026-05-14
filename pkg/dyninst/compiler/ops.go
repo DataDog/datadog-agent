@@ -130,6 +130,34 @@ type ProcessGoInterfaceOp struct {
 	baseOp
 }
 
+// GoContextChainInitOp is emitted at the head of the enqueue_pc subroutine
+// for any concrete context.Context implementation IR type (and for pointer
+// types whose Pointee is one). It rewrites the just-serialized data item
+// header (written by the chase preamble) to use TraceContextType as its
+// type, zeroes the first 40 bytes of payload, and initializes the SM's
+// go_context_walk state. ImplTypeID is the IR type id of the
+// context-impl struct (e.g. context.cancelCtx) — the chain walk's first
+// hop uses this directly rather than re-resolving via go_runtime_type,
+// because the impl's runtime type isn't always registered in the binary.
+// See pkg/dyninst/irgen/trace_context.md.
+type GoContextChainInitOp struct {
+	baseOp
+	ImplTypeID ir.TypeID
+}
+
+// GoContextChainHopOp is emitted after GoContextChainInitOp. It executes one
+// step of the context-chain walk per dispatch: looks up the current link's
+// IR type (using the IR type stashed by INIT for hop 0, otherwise resolving
+// via go_runtime_type), tries to extract a dd-trace span via the value-key
+// lookup, and either (a) writes the populated trace_context_t and terminates,
+// (b) advances to the next link by reading the embedded Context field's
+// interface header and self-jumps (sm->pc -= 1), or (c) terminates with
+// valid=0 if the chain ends or a depth/error guard fires. Self-jumps up to
+// MAX_GO_CONTEXT_DEPTH (32) times.
+type GoContextChainHopOp struct {
+	baseOp
+}
+
 // ProcessGoDictTypeOp resolves a generic shape type parameter to its concrete
 // type by reading the runtime dictionary at probe time. The eBPF stack machine:
 // 1. Reads the dict pointer from the register specified by DictRegister
@@ -320,6 +348,55 @@ type CondJumpOp struct {
 type CondLabelOp struct {
 	baseOp
 	ID ir.LabelID
+}
+
+// ConditionStateInitOp clears the per-SM condition_state to zero at the
+// start of a split-event-kind entry-side condition driver.
+type ConditionStateInitOp struct {
+	baseOp
+}
+
+// ConditionLeafRecordOp captures the outcome of an entry-side leaf
+// (called via SM_OP_CALL just before this op) into a 2-bit slot at
+// position LeafIdx of the per-SM condition_state. Reads
+// condition_eval_error / condition_nil_deref to detect and classify
+// errors; on success reads the boolean byte at sm->offset. Clears both
+// error flags so the next leaf's record sees fresh state.
+type ConditionLeafRecordOp struct {
+	baseOp
+	LeafIdx uint8
+}
+
+// ConditionLeafLoadOp reads the 2-bit status for entry leaf LeafIdx from
+// condition_state and dispatches:
+//   - LEAF_FALSE → write 0 at sm->offset.
+//   - LEAF_TRUE  → write 1 at sm->offset.
+//   - LEAF_EVAL_ERROR / LEAF_NIL_DEREF → set condition_eval_error (and
+//     nil_deref for the latter), write 1 at sm->offset, jump to Label.
+//     The jump bypasses surrounding short-circuit and Not ops so the
+//     eval-error flag survives to event.c's header surfacing.
+type ConditionLeafLoadOp struct {
+	baseOp
+	LeafIdx uint8
+	Label   ir.LabelID
+}
+
+// ConditionCheckPreserveErrorOp behaves like ConditionCheckOp (sets
+// condition_failed when the byte at sm->offset is 0) but does NOT clear
+// condition_eval_error. Used at the tail of split-event-kind condition
+// drivers so an eval-error surfaced by ConditionLeafLoadOp during AST
+// replay survives to event.c's header surfacing.
+type ConditionCheckPreserveErrorOp struct {
+	baseOp
+}
+
+// ConditionLeafCompleteOp clears condition_eval_error. Emitted at the
+// tail of a per-leaf SM sub-function on the success path so the driver's
+// ConditionLeafRecordOp can tell completion from abort. Abort paths in
+// the leaf bypass this op via sm_return, leaving condition_eval_error
+// armed by the leaf's prelude ConditionBeginOp.
+type ConditionLeafCompleteOp struct {
+	baseOp
 }
 
 //revive:enable:exported

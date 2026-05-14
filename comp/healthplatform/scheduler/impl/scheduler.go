@@ -13,10 +13,10 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	checkrunnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
-
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
 const (
@@ -187,25 +187,39 @@ func (r *checkRunner) runAndScheduleCheck(check *registeredCheck) {
 	}
 }
 
-// executeCheck runs a single health check and reports the result
+// executeCheck runs a single health check and reports the result.
+// The proto IssueReport returned by HealthCheckFunc is converted to a
+// storedef.IssueReport; checkID is used as the unique instance id for
+// single-instance built-in checks.
 func (r *checkRunner) executeCheck(check *registeredCheck) {
 	r.reporterMu.RLock()
 	reporter := r.reporter
 	r.reporterMu.RUnlock()
 
 	if reporter == nil {
-		r.log.Warn("Health check runner has no reporter set, skipping check: " + check.checkName)
+		r.log.Warn("Health check scheduler has no reporter set, skipping: " + check.checkName)
 		return
 	}
 
-	report, err := check.checkFn()
+	protoReport, err := check.checkFn()
 	if err != nil {
 		r.log.Warn(fmt.Sprintf("Health check %s failed: %v", check.checkName, err))
 		return
 	}
 
-	// Report the result (nil report clears any existing issue)
-	if err := reporter.ReportIssue(check.checkID, check.checkName, report); err != nil {
+	if protoReport == nil {
+		// No issue detected; resolve any previously active issue for this check.
+		reporter.ResolveIssue(check.checkID)
+		return
+	}
+
+	report := storedef.IssueReport{
+		IssueID:   check.checkID,
+		IssueType: protoReport.IssueId,
+		Context:   protoReport.Context,
+		Tags:      protoReport.Tags,
+	}
+	if err := reporter.ReportIssue(report); err != nil {
 		r.log.Warn(fmt.Sprintf("Failed to report issue for check %s: %v", check.checkName, err))
 	}
 }

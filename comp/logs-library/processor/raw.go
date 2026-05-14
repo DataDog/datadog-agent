@@ -58,7 +58,7 @@ func (r *rawEncoder) Encode(msg *message.Message, hostname string) error {
 		extraContent = append(extraContent, []byte(" - - ")...)
 
 		// Tags
-		tagsPayload := msg.Origin.TagsPayload(msg.ProcessingTags)
+		tagsPayload := msg.Origin.TagsPayload(nil)
 		if len(tagsPayload) > 0 {
 			extraContent = append(extraContent, tagsPayload...)
 		} else {

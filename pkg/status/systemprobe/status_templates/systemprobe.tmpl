@@ -25,6 +25,14 @@
     Blocked Processes: {{ formatJSON .network_tracer.universal_service_monitoring.blocked_processes 4 }}
   {{- end }}
 
+  Discovery Service Map
+  =====================
+  {{- if .network_tracer.universal_service_monitoring.discovery_service_map_enabled }}
+    Status: Running
+  {{- else }}
+    Status: Not running
+  {{- end }}
+
   NPM
   ===
   {{- if .network_tracer.Error }}
