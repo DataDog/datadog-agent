@@ -6,16 +6,6 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-upgrade:
-  - |
-    The Process Agent no longer emits one record per zombie (``Z`` state)
-    process. Instead, each parent process record carries two new fields,
-    ``zombie_children_count`` (number of zombie children observed in the
-    current poll) and ``zombie_net_rate`` ((new − reaped) zombies per second
-    since the previous poll), so the leaking parent — not the zombie itself —
-    is surfaced. Dashboards, monitors, or notebooks that filtered on
-    ``state:Z`` process records will no longer see those records and should
-    be updated to alert on the new per-parent fields on the parent process.
 deprecations:
   - |
     The ``process_config.ignore_zombie_processes`` configuration option (and
