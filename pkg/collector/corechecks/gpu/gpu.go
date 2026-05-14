@@ -161,7 +161,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	// Compute whether we should prefer system-probe process metrics
 	systemProbeConfig := pkgconfigsetup.SystemProbe()
 	if systemProbeConfig.GetBool("gpu_monitoring.enabled") {
-		c.spCache = nvidia.NewSystemProbeCache()
+		if systemProbeConfig.GetBool("gpu_monitoring.enable_ebpf_probes") {
+			c.spCache = nvidia.NewSystemProbeCache()
+		}
 		if systemProbeConfig.GetBool("gpu_monitoring.prm_endpoint_enabled") {
 			c.prmCache = nvidia.NewPRMCache()
 		}

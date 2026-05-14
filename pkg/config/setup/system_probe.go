@@ -364,6 +364,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// GPU monitoring
 	cfg.BindEnvAndSetDefault("gpu_monitoring.enabled", false)
+	cfg.BindEnvAndSetDefault("gpu_monitoring.enable_ebpf_probes", true)
 	cfg.BindEnv("gpu_monitoring.nvml_lib_path") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 	cfg.BindEnvAndSetDefault("gpu_monitoring.process_scan_interval_seconds", 5)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.initial_process_sync", true)

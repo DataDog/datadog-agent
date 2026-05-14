@@ -79,6 +79,7 @@ func TestConfigurePRMCacheRequiresPRMEndpoint(t *testing.T) {
 	tests := []struct {
 		name               string
 		gpuMonitoring      bool
+		enableEBPFProbes   bool
 		prmEndpointEnabled bool
 		expectSPCache      bool
 		expectPRMCache     bool
@@ -86,6 +87,7 @@ func TestConfigurePRMCacheRequiresPRMEndpoint(t *testing.T) {
 		{
 			name:               "system probe and PRM endpoint enabled",
 			gpuMonitoring:      true,
+			enableEBPFProbes:   true,
 			prmEndpointEnabled: true,
 			expectSPCache:      true,
 			expectPRMCache:     true,
@@ -93,13 +95,23 @@ func TestConfigurePRMCacheRequiresPRMEndpoint(t *testing.T) {
 		{
 			name:               "system probe enabled and PRM endpoint disabled",
 			gpuMonitoring:      true,
+			enableEBPFProbes:   true,
 			prmEndpointEnabled: false,
 			expectSPCache:      true,
 			expectPRMCache:     false,
 		},
 		{
+			name:               "system probe enabled, eBPF disabled, and PRM endpoint enabled",
+			gpuMonitoring:      true,
+			enableEBPFProbes:   false,
+			prmEndpointEnabled: true,
+			expectSPCache:      false,
+			expectPRMCache:     true,
+		},
+		{
 			name:               "system probe disabled",
 			gpuMonitoring:      false,
+			enableEBPFProbes:   true,
 			prmEndpointEnabled: true,
 			expectSPCache:      false,
 			expectPRMCache:     false,
@@ -115,9 +127,11 @@ func TestConfigurePRMCacheRequiresPRMEndpoint(t *testing.T) {
 
 			WithGPUConfigEnabled(t)
 			pkgconfigsetup.SystemProbe().SetWithoutSource("gpu_monitoring.enabled", tt.gpuMonitoring)
+			pkgconfigsetup.SystemProbe().SetWithoutSource("gpu_monitoring.enable_ebpf_probes", tt.enableEBPFProbes)
 			pkgconfigsetup.SystemProbe().SetWithoutSource("gpu_monitoring.prm_endpoint_enabled", tt.prmEndpointEnabled)
 			t.Cleanup(func() {
 				pkgconfigsetup.SystemProbe().SetWithoutSource("gpu_monitoring.enabled", false)
+				pkgconfigsetup.SystemProbe().SetWithoutSource("gpu_monitoring.enable_ebpf_probes", true)
 				pkgconfigsetup.SystemProbe().SetWithoutSource("gpu_monitoring.prm_endpoint_enabled", true)
 			})
 
