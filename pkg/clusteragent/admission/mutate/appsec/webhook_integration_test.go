@@ -24,6 +24,7 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 )
 
@@ -127,7 +128,7 @@ func newTestWebhook(patterns []appsecconfig.SidecarInjectionPattern) *Webhook {
 		name:          webhookName,
 		isEnabled:     len(patterns) > 0,
 		endpoint:      "/appsec-proxies",
-		resources:     map[string][]string{"": {"pods"}},
+		resources:     []common.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"pods"}}},
 		operations:    []admissionregistrationv1.OperationType{admissionregistrationv1.Create, admissionregistrationv1.Delete},
 		patterns:      patterns,
 		configMutator: &noopMutator{},

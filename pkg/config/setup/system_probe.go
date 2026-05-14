@@ -268,6 +268,15 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	cfg.BindEnvAndSetDefault("ebpf_check.kernel_bpf_stats", false)
 	// noisy neighbor module
 	cfg.BindEnvAndSetDefault("noisy_neighbor.enabled", false)
+	// Per-PMU-event toggles. Default false because each enabled event
+	// adds non-trivial overhead.
+	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.cycles", false)
+	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.instructions", false)
+	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.cache_misses", false)
+	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.cache_references", false)
+	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.itlb_misses", false)
+	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.branch_misses", false)
+	cfg.BindEnvAndSetDefault("noisy_neighbor.pmu_metrics.cpu_migrations", false)
 
 	// settings for the entry count of the ebpfcheck
 	// control the size of the buffers used for the batch lookups of the ebpf maps
@@ -352,9 +361,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// Discovery config
 	cfg.BindEnvAndSetDefault("discovery.enabled", runtime.GOOS == "linux")
 	cfg.BindEnvAndSetDefault("discovery.use_system_probe_lite", runtime.GOOS == "linux")
-	cfg.BindEnvAndSetDefault("discovery.use_rust_library", false)
 	cfg.BindEnvAndSetDefault("discovery.cpu_usage_update_delay", "60s")
 	cfg.BindEnvAndSetDefault("discovery.service_collection_interval", "60s")
+	cfg.BindEnvAndSetDefault("discovery.service_map.enabled", false)
 
 	// Privileged Logs config
 	cfg.BindEnvAndSetDefault("privileged_logs.enabled", false)
