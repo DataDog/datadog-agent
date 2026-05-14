@@ -44,17 +44,8 @@ const LogMetricsExtractorName = "log_metrics_extractor"
 // - Unstructured logs: pattern frequency -> Sum aggregation
 //
 // This is intentionally minimal; cardinality controls live in the observer storage (Step 5).
-//
-// LogMetricsExtractor also implements observer.ContextProvider, tracking the
-// pattern signature and a recent example log line for each pattern metric it
-// emits. Detectors can query this via StorageReader.GetContext to produce
-// richer anomaly descriptions.
 type LogMetricsExtractor struct {
 	config LogMetricsExtractorConfig
-
-	// patternContext tracks the signature and a recent example for each context
-	// key emitted by this extractor.
-	patternContext map[string]observer.MetricContext
 }
 
 // NewLogMetricsExtractor creates a LogMetricsExtractor with the given config.
@@ -63,22 +54,6 @@ func NewLogMetricsExtractor(config LogMetricsExtractorConfig) *LogMetricsExtract
 }
 
 func (a *LogMetricsExtractor) Name() string { return LogMetricsExtractorName }
-
-// Reset clears cached per-series context so replay/reanalysis starts from the
-// currently observed data instead of reusing stale examples.
-func (a *LogMetricsExtractor) Reset() {
-	a.patternContext = nil
-}
-
-// GetContextByKey implements observer.ContextProvider. It returns the pattern
-// signature and a recent example log line for a previously emitted context key.
-func (a *LogMetricsExtractor) GetContextByKey(key string) (observer.MetricContext, bool) {
-	if a.patternContext == nil {
-		return observer.MetricContext{}, false
-	}
-	ctx, ok := a.patternContext[key]
-	return ctx, ok
-}
 
 func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetricsExtractorOutput {
 	content := log.GetContent()
@@ -91,23 +66,16 @@ func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetri
 	}
 
 	metricName := patternCountMetricName(patternSig)
-	contextKey := metricContextKey(metricName, tags)
-
-	// Track context for this pattern metric so detectors can enrich anomalies.
-	if a.patternContext == nil {
-		a.patternContext = make(map[string]observer.MetricContext)
-	}
-	a.patternContext[contextKey] = observer.MetricContext{
-		Pattern: patternSig,
-		Example: content,
-		Source:  "log_metrics_extractor",
-	}
 
 	metrics := []observer.MetricOutput{{
-		Name:       metricName,
-		Value:      1,
-		Tags:       tags,
-		ContextKey: contextKey,
+		Name:  metricName,
+		Value: 1,
+		Tags:  tags,
+		Context: &observer.MetricContext{
+			Pattern: patternSig,
+			Example: content,
+			Source:  "log_metrics_extractor",
+		},
 	}}
 
 	// For JSON logs, also extract numeric field metrics
@@ -133,10 +101,7 @@ func (a *LogMetricsExtractor) extractJSONFieldMetrics(content string, tags []str
 		return nil
 	}
 
-	if a.patternContext == nil {
-		a.patternContext = make(map[string]observer.MetricContext)
-	}
-
+	example := truncate(content, 160)
 	var out []observer.MetricOutput
 	for k, v := range obj {
 		if a.config.ExcludeFields != nil {
@@ -155,19 +120,15 @@ func (a *LogMetricsExtractor) extractJSONFieldMetrics(content string, tags []str
 			continue
 		}
 
-		metricName := "log.field." + sanitizeMetricFragment(k)
-		contextKey := metricContextKey(metricName, tags)
-		a.patternContext[contextKey] = observer.MetricContext{
-			Pattern: k,
-			Example: truncate(content, 160),
-			Source:  "log_metrics_extractor",
-		}
-
 		out = append(out, observer.MetricOutput{
-			Name:       metricName,
-			Value:      f,
-			Tags:       tags,
-			ContextKey: contextKey,
+			Name:  "log.field." + sanitizeMetricFragment(k),
+			Value: f,
+			Tags:  tags,
+			Context: &observer.MetricContext{
+				Pattern: k,
+				Example: example,
+				Source:  "log_metrics_extractor",
+			},
 		})
 	}
 

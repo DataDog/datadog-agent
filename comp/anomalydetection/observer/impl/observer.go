@@ -183,12 +183,11 @@ func NewComponent(deps Requires) Provides {
 	detectors, correlators, extractors, _ := catalog.Instantiate(settings)
 
 	eng := newEngine(engineConfig{
-		storage:          newTimeSeriesStorage(),
-		extractors:       extractors,
-		detectors:        detectors,
-		correlators:      correlators,
-		contextProviders: collectContextProviders(extractors),
-		scheduler:        &currentBehaviorPolicy{},
+		storage:     newTimeSeriesStorage(),
+		extractors:  extractors,
+		detectors:   detectors,
+		correlators: correlators,
+		scheduler:   &currentBehaviorPolicy{},
 	})
 
 	// Wire each injected reporter into its own reporterEventSink subscription.

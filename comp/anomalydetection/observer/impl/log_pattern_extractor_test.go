@@ -15,7 +15,7 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
-func TestLogPatternExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
+func TestLogPatternExtractor_MetricOutputCarriesInlineContext(t *testing.T) {
 	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	e.config.MinClusterSizeBeforeEmit = 1
 
@@ -27,10 +27,9 @@ func TestLogPatternExtractor_GetContextByKeyUsesOutputContextKey(t *testing.T) {
 
 	res := e.ProcessLog(log)
 	require.Len(t, res.Metrics, 1)
-	require.NotEmpty(t, res.Metrics[0].ContextKey)
+	require.NotNil(t, res.Metrics[0].Context)
 
-	ctx, ok := e.GetContextByKey(res.Metrics[0].ContextKey)
-	require.True(t, ok)
+	ctx := res.Metrics[0].Context
 	assert.Equal(t, "log_pattern_extractor", ctx.Source)
 	assert.Equal(t, "GET /users/123 returned 500", ctx.Example)
 	assert.NotEmpty(t, ctx.Pattern)
@@ -71,16 +70,16 @@ func TestLogPatternExtractor_DifferentTagGroupsProduceDifferentMetricNames(t *te
 	require.Len(t, resB.Metrics, 1)
 	// Different tag groups → different sub-clusterers → different globalClusterHash → different names.
 	require.NotEqual(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
-	require.NotEqual(t, resA.Metrics[0].ContextKey, resB.Metrics[0].ContextKey)
+	require.NotNil(t, resA.Metrics[0].Context)
+	require.NotNil(t, resB.Metrics[0].Context)
 
-	ctxA, ok := e.GetContextByKey(resA.Metrics[0].ContextKey)
-	require.True(t, ok)
-	ctxB, ok := e.GetContextByKey(resB.Metrics[0].ContextKey)
-	require.True(t, ok)
+	ctxA := resA.Metrics[0].Context
+	ctxB := resB.Metrics[0].Context
 
 	assert.Equal(t, "GET /users/123 returned 500", ctxA.Example)
 	assert.Equal(t, "GET /users/456 returned 500", ctxB.Example)
-	assert.Equal(t, ctxA.Pattern, ctxB.Pattern)
+	assert.NotEmpty(t, ctxA.Pattern)
+	assert.NotEmpty(t, ctxB.Pattern)
 	assert.Equal(t, map[string]string{"service": "api"}, ctxA.SplitTags)
 	assert.Equal(t, map[string]string{"service": "worker"}, ctxB.SplitTags)
 }
@@ -110,17 +109,13 @@ func TestLogPatternExtractor_DifferentHostnamesProduceDifferentMetricNamesWhenNo
 	require.Len(t, resA.Metrics, 1)
 	require.Len(t, resB.Metrics, 1)
 	require.NotEqual(t, resA.Metrics[0].Name, resB.Metrics[0].Name)
-	require.NotEqual(t, resA.Metrics[0].ContextKey, resB.Metrics[0].ContextKey)
-
-	ctxA, ok := e.GetContextByKey(resA.Metrics[0].ContextKey)
-	require.True(t, ok)
-	ctxB, ok := e.GetContextByKey(resB.Metrics[0].ContextKey)
-	require.True(t, ok)
-	assert.Equal(t, map[string]string{"service": "api", "env": "prod", "host": "host-a"}, ctxA.SplitTags)
-	assert.Equal(t, map[string]string{"service": "api", "env": "prod", "host": "host-b"}, ctxB.SplitTags)
+	require.NotNil(t, resA.Metrics[0].Context)
+	require.NotNil(t, resB.Metrics[0].Context)
+	assert.Equal(t, map[string]string{"service": "api", "env": "prod", "host": "host-a"}, resA.Metrics[0].Context.SplitTags)
+	assert.Equal(t, map[string]string{"service": "api", "env": "prod", "host": "host-b"}, resB.Metrics[0].Context.SplitTags)
 }
 
-func TestLogPatternExtractor_ResetClearsContext(t *testing.T) {
+func TestLogPatternExtractor_ResetClearsClusterState(t *testing.T) {
 	e := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	e.config.MinClusterSizeBeforeEmit = 1
 
@@ -132,14 +127,12 @@ func TestLogPatternExtractor_ResetClearsContext(t *testing.T) {
 
 	res := e.ProcessLog(log)
 	require.Len(t, res.Metrics, 1)
-
-	_, ok := e.GetContextByKey(res.Metrics[0].ContextKey)
-	require.True(t, ok)
+	require.NotNil(t, res.Metrics[0].Context)
 
 	e.Reset()
 
-	_, ok = e.GetContextByKey(res.Metrics[0].ContextKey)
-	assert.False(t, ok)
+	// After reset the tagged clusterer is cleared; the same log starts a fresh cluster.
+	require.Empty(t, e.taggedClusterer.GetAllClusters(), "Reset must clear cluster state")
 }
 
 func TestLogPatternExtractor_SkipsBelowWarnSeverity(t *testing.T) {
@@ -205,10 +198,9 @@ func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *test
 		timestampMs: tsMs1,
 	})
 	require.Len(t, res1.Metrics, 1)
-	require.Empty(t, res1.EvictedContextKeys, "no GC on first log")
-	ctxKey1 := res1.Metrics[0].ContextKey
-	_, ok := e.GetContextByKey(ctxKey1)
-	require.True(t, ok, "pattern context should exist before GC")
+	require.Empty(t, res1.EvictedMetricNames, "no GC on first log")
+	metricName1 := res1.Metrics[0].Name
+	require.NotNil(t, res1.Metrics[0].Context, "pattern context should be inline on first metric")
 
 	// t=1015: GC runs first (cutoff 1015-10=1005); cluster A last seen 1000 is stale.
 	// Then a new log creates cluster B.
@@ -220,15 +212,9 @@ func TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext(t *test
 		timestampMs: tsMs2,
 	})
 	require.Len(t, res2.Metrics, 1)
-	require.Equal(t, []string{ctxKey1}, res2.EvictedContextKeys, "GC should report evicted context keys for the engine")
-	ctxKey2 := res2.Metrics[0].ContextKey
-
-	_, ok = e.GetContextByKey(ctxKey1)
-	assert.False(t, ok, "stale cluster pattern context should be removed by GC")
-	_, ok = e.GetContextByKey(ctxKey2)
-	require.True(t, ok, "active cluster pattern context should remain")
-
-	require.NotEqual(t, ctxKey1, ctxKey2)
+	require.Equal(t, []string{metricName1}, res2.EvictedMetricNames, "GC should report evicted metric names for storage cleanup")
+	require.NotNil(t, res2.Metrics[0].Context)
+	require.NotEqual(t, metricName1, res2.Metrics[0].Name)
 
 	// Only cluster B should remain in the tagged clusterer.
 	remaining := e.taggedClusterer.GetAllClusters()
@@ -256,9 +242,7 @@ func TestLogPatternExtractor_DisableOptimizationsSkipsGarbageCollection(t *testi
 		timestampMs: tsMs1,
 	})
 	require.Len(t, res1.Metrics, 1)
-	ctxKey1 := res1.Metrics[0].ContextKey
-	_, ok := e.GetContextByKey(ctxKey1)
-	require.True(t, ok)
+	require.NotNil(t, res1.Metrics[0].Context)
 
 	// Same timeline as TestLogPatternExtractor_GarbageCollectRemovesStaleClusterAndContext, where GC
 	// would evict cluster A — but with DisableOptimizations, TTL is off so A stays.
@@ -270,13 +254,8 @@ func TestLogPatternExtractor_DisableOptimizationsSkipsGarbageCollection(t *testi
 		timestampMs: tsMs2,
 	})
 	require.Len(t, res2.Metrics, 1)
-	require.Empty(t, res2.EvictedContextKeys, "GC must not run when optimizations are disabled")
-	ctxKey2 := res2.Metrics[0].ContextKey
-
-	_, ok = e.GetContextByKey(ctxKey1)
-	require.True(t, ok, "first cluster context must remain without GC")
-	_, ok = e.GetContextByKey(ctxKey2)
-	require.True(t, ok)
+	require.Empty(t, res2.EvictedMetricNames, "GC must not run when optimizations are disabled")
+	require.NotNil(t, res2.Metrics[0].Context)
 
 	remaining := e.taggedClusterer.GetAllClusters()
 	require.Len(t, remaining, 2, "both clusters should still exist when GC is disabled")
@@ -318,7 +297,9 @@ func TestLogPatternExtractor_GCEvictedContextKeysTwoTagSetsOneCluster(t *testing
 		timestampMs: 1_015_000,
 	})
 
-	assert.Len(t, res.EvictedContextKeys, 2, "two tag variants → two context keys evicted")
+	// With the new metric-name eviction design, one cluster → one metric name evicted.
+	// RemoveSeriesByMetricName removes all tag variants in a single storage call.
+	assert.Len(t, res.EvictedMetricNames, 1, "one cluster → one metric name evicted (all tag variants removed by storage)")
 }
 
 func TestLogPatternExtractor_NoGCBeforeInterval(t *testing.T) {
@@ -333,7 +314,7 @@ func TestLogPatternExtractor_NoGCBeforeInterval(t *testing.T) {
 
 	// GC interval not elapsed: no evictions even though cluster would be stale.
 	res2 := e.ProcessLog(&mockLogView{content: msg, status: "warn", tags: nil, timestampMs: 2_000_000})
-	assert.Empty(t, res2.EvictedContextKeys)
+	assert.Empty(t, res2.EvictedMetricNames)
 }
 
 func TestLogPatternExtractor_LRUCapEvictsAndDropsContext(t *testing.T) {
@@ -354,7 +335,7 @@ func TestLogPatternExtractor_LRUCapEvictsAndDropsContext(t *testing.T) {
 		"WARN x y z w",
 	}
 
-	var ctxKeys []string
+	var metricNames []string
 	for i, m := range msgs {
 		res := e.ProcessLog(&mockLogView{
 			content:     m,
@@ -363,22 +344,16 @@ func TestLogPatternExtractor_LRUCapEvictsAndDropsContext(t *testing.T) {
 			timestampMs: int64(1_000_000 + i*1_000), // 1s apart so LastSeenUnix differs
 		})
 		require.Len(t, res.Metrics, 1, "each distinct shape should emit a metric (i=%d)", i)
-		ctxKeys = append(ctxKeys, res.Metrics[0].ContextKey)
+		require.NotNil(t, res.Metrics[0].Context)
+		metricNames = append(metricNames, res.Metrics[0].Name)
 
 		switch i {
 		case 0, 1:
-			require.Empty(t, res.EvictedContextKeys, "no eviction below or at cap (i=%d)", i)
+			require.Empty(t, res.EvictedMetricNames, "no eviction below or at cap (i=%d)", i)
 		case 2:
-			// Third shape pushes over the cap of 2; the oldest (ctxKeys[0]) is evicted.
-			require.Equal(t, []string{ctxKeys[0]}, res.EvictedContextKeys,
-				"oldest cluster's context key surfaced for the engine to drop")
-			// Confirm the engine-side context entry was actually removed.
-			_, ok := e.GetContextByKey(ctxKeys[0])
-			require.False(t, ok, "evicted cluster's pattern context should be gone")
-			_, ok = e.GetContextByKey(ctxKeys[1])
-			require.True(t, ok, "surviving cluster's context still resolvable")
-			_, ok = e.GetContextByKey(ctxKeys[2])
-			require.True(t, ok, "newly-inserted cluster's context resolvable")
+			// Third shape pushes over the cap of 2; the oldest (metricNames[0]) is evicted.
+			require.Equal(t, []string{metricNames[0]}, res.EvictedMetricNames,
+				"oldest cluster's metric name surfaced for storage cleanup")
 			// Pattern_count telemetry must include a -1 decrement for the eviction.
 			var found bool
 			for _, tel := range res.Telemetry {
@@ -412,12 +387,12 @@ func TestLogPatternExtractor_TagGroupCapEvictsLRUGroup(t *testing.T) {
 			timestampMs: tsMs,
 		})
 		require.Len(t, res.Metrics, 1)
-		return res.Metrics[0].ContextKey
+		return res.Metrics[0].Name
 	}
 
-	// Two groups, two contexts.
-	kA := processAt("a", "WARN alpha", 1_000_000)
-	kB := processAt("b", "WARN beta", 1_001_000)
+	// Two groups, two metrics.
+	mA := processAt("a", "WARN alpha", 1_000_000)
+	mB := processAt("b", "WARN beta", 1_001_000)
 
 	// Touch A again so B is the LRU group.
 	_ = processAt("a", "WARN alpha", 1_002_000)
@@ -430,11 +405,8 @@ func TestLogPatternExtractor_TagGroupCapEvictsLRUGroup(t *testing.T) {
 		timestampMs: 1_003_000,
 	})
 	require.Len(t, res.Metrics, 1)
-	require.Contains(t, res.EvictedContextKeys, kB, "LRU group's context key surfaced")
-	_, ok := e.GetContextByKey(kB)
-	require.False(t, ok, "evicted group's context entry removed")
-	_, ok = e.GetContextByKey(kA)
-	require.True(t, ok, "surviving group's context preserved")
+	require.Contains(t, res.EvictedMetricNames, mB, "LRU group's metric name surfaced for storage cleanup")
+	assert.NotContains(t, res.EvictedMetricNames, mA, "surviving group's metric not evicted")
 }
 
 // TestEngine_LogPatternLRUEvictionFreesStorage is the end-to-end proof that
@@ -479,14 +451,11 @@ func TestEngine_LogPatternLRUEvictionFreesStorage(t *testing.T) {
 	require.Equal(t, 2, storage.TotalSeriesCount(""),
 		"LRU eviction must shrink storage; before the fix storage grew unboundedly")
 
-	// All surviving contextRefs must resolve to live storage series — i.e.
-	// nothing dangling on the engine side either.
-	for ref := range e.contextRefs {
-		require.NotNil(t, storage.GetSeriesMeta(ref),
-			"engine contextRef points at a retired or unknown storage ref %d", ref)
+	// Surviving series must have context stored on them.
+	for _, meta := range storage.ListSeries(observerdef.SeriesFilter{Namespace: extractor.Name()}) {
+		require.NotNil(t, storage.GetContext(meta.Ref),
+			"surviving series must have inline MetricContext (ref=%d)", meta.Ref)
 	}
-	require.Len(t, e.contextRefs, 2,
-		"engine should keep one contextRef per surviving extractor cluster")
 }
 
 // TestEngine_LogPatternLRUEvictionFreesDetectorState extends

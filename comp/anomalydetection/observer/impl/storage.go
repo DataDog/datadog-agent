@@ -49,7 +49,8 @@ type seriesStats struct {
 	Namespace string
 	Name      string
 	Tags      []string
-	ref       observer.SeriesRef // compact numeric ID assigned on creation
+	ref       observer.SeriesRef      // compact numeric ID assigned on creation
+	context   *observer.MetricContext // optional; set by extractors for anomaly enrichment
 
 	// writeGeneration is per-series and increments on every Add, including
 	// same-bucket merges into an existing point.
@@ -867,6 +868,55 @@ func (s *timeSeriesStorage) RemoveSeriesByRefs(refs []observer.SeriesRef) []obse
 		delete(s.series, h)
 		s.seriesIDStats[ref] = nil
 		removed = append(removed, ref)
+	}
+	if len(removed) > 0 {
+		s.seriesGen++
+	}
+	return removed
+}
+
+// SetContext stores a MetricContext on the series identified by ref.
+// No-op when ref is out of range or the series has been removed.
+func (s *timeSeriesStorage) SetContext(ref observer.SeriesRef, ctx *observer.MetricContext) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if stats := s.resolveByID(ref); stats != nil {
+		stats.context = ctx
+	}
+}
+
+// GetContext returns the MetricContext stored on the series identified by ref.
+// Returns nil when ref is out of range, the series has been removed, or no
+// context was set.
+func (s *timeSeriesStorage) GetContext(ref observer.SeriesRef) *observer.MetricContext {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if stats := s.resolveByID(ref); stats != nil {
+		return stats.context
+	}
+	return nil
+}
+
+// RemoveSeriesByMetricName removes all series in the given namespace whose Name
+// matches name. Used when an extractor GC/LRU evicts a pattern cluster — the
+// cluster identity (namespace + metric name) is deterministic, so we can clean
+// up all tag variants without needing to track individual SeriesRefs.
+// Returns the freed refs for fan-out to detectors.
+func (s *timeSeriesStorage) RemoveSeriesByMetricName(namespace, name string) []observer.SeriesRef {
+	if name == "" {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var removed []observer.SeriesRef
+	for _, stats := range s.seriesIDStats {
+		if stats == nil || stats.Namespace != namespace || stats.Name != name {
+			continue
+		}
+		h := seriesKeyHash(stats.Namespace, stats.Name, stats.Tags)
+		delete(s.series, h)
+		s.seriesIDStats[stats.ref] = nil
+		removed = append(removed, stats.ref)
 	}
 	if len(removed) > 0 {
 		s.seriesGen++
