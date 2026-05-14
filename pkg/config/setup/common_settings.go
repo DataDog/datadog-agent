@@ -1119,6 +1119,8 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Remote Flags system
 	remoteflags(config)
+
+	anomalyDetectionStorage(config)
 }
 
 func agent(config pkgconfigmodel.Setup) {
