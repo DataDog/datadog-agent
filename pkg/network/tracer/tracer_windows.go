@@ -283,6 +283,9 @@ func (t *Tracer) getConnTelemetry() map[network.ConnTelemetryType]int64 {
 func (t *Tracer) getStats() (map[string]interface{}, error) {
 	stats := map[string]interface{}{
 		"state": t.state.GetStats(),
+		"universal_service_monitoring": map[string]interface{}{
+			"discovery_service_map_enabled": t.config.DiscoveryServiceMapEnabled,
+		},
 	}
 	return stats, nil
 }
