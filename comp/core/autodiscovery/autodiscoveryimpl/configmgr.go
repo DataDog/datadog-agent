@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	filter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -444,71 +443,7 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 	digest := tpl.Digest()
 
 	if tpl.IsDiscovery() {
-		// Apply the same pre-conditions as the normal resolver: skip not-ready
-		// services and metrics-excluded containers.
-		if !svc.IsReady() {
-			log.Debugf("autodiscovery: deferring discovery template %s for service %s: service not ready", tpl.Name, svc.GetServiceID())
-			return tpl, false
-		}
-		if svc.HasFilter(filter.MetricsFilter) {
-			log.Debugf("autodiscovery: skipping discovery template %s for service %s: metrics excluded by filter", tpl.Name, svc.GetServiceID())
-			return tpl, false
-		}
-
-
-		resolved := tpl
-		resolved.TrialMode = true
-		// Copy service-level metadata that the normal resolver sets so
-		// downstream consumers (scheduler, status) see consistent fields.
-		resolved.ServiceID = svc.GetServiceID()
-		resolved.MetricsExcluded = false // already checked above
-		resolved.LogsExcluded = svc.HasFilter(filter.LogsFilter)
-		resolved.ImageName = svc.GetImageName()
-		if ns, err := svc.GetExtraConfig("namespace"); err == nil {
-			resolved.PodNamespace = ns
-		}
-
-		host := pickDiscoveryHost(svc)
-
-		type portPayload struct {
-			Number int    `yaml:"number"`
-			Name   string `yaml:"name,omitempty"`
-		}
-		type servicePayload struct {
-			ID    string        `yaml:"id"`
-			Host  string        `yaml:"host"`
-			Ports []portPayload `yaml:"ports"`
-		}
-
-		rawPorts, err := svc.GetPorts()
-		if err != nil {
-			log.Debugf("autodiscovery: GetPorts failed for service %s (discovery template %s): %v; proceeding with empty port list", svc.GetServiceID(), tpl.Name, err)
-		}
-		pp := make([]portPayload, 0, len(rawPorts))
-		for _, p := range rawPorts {
-			pp = append(pp, portPayload{Number: p.Port, Name: p.Name})
-		}
-
-		instance := map[string]interface{}{
-			"__discovery_service__": servicePayload{
-				ID:    svc.GetServiceID(),
-				Host:  host,
-				Ports: pp,
-			},
-		}
-		instanceYAML, err := yaml.Marshal(instance)
-		if err != nil {
-			log.Errorf("autodiscovery: failed to marshal trial instance for %s/%s: %v", tpl.Name, svc.GetServiceID(), err)
-			return tpl, false
-		}
-		resolved.Instances = []integration.Data{integration.Data(instanceYAML)}
-
-		decrypted, err := decryptConfig(resolved, cm.secretResolver, tpl.Digest())
-		if err != nil {
-			log.Errorf("autodiscovery: failed to decrypt trial config for %s/%s: %v", tpl.Name, svc.GetServiceID(), err)
-			return resolved, false
-		}
-		return decrypted, true
+		return resolveDiscoveryTemplate(tpl, svc)
 	}
 
 	// Non-discovery templates: existing template-resolution path.
@@ -622,6 +557,76 @@ func (cm *reconcilingConfigManager) popTrialConfig(id checkid.ID) (integration.C
 		}
 	}
 	return integration.Config{}, false
+}
+
+// resolveDiscoveryTemplate builds a trial-mode config for a discovery template.
+//
+// Metadata (ServiceID, MetricsExcluded, LogsExcluded, ImageName, PodNamespace,
+// tags) is obtained by delegating to configresolver.Resolve with the empty-
+// instance template. This ensures the discovery path stays in sync with the
+// real resolver: any future metadata fields added there are picked up here
+// automatically.
+//
+// Discovery templates have no secret references in their generated instances,
+// so decryptConfig is intentionally omitted.
+func resolveDiscoveryTemplate(tpl integration.Config, svc listeners.Service) (integration.Config, bool) {
+	// configresolver.Resolve only checks IsReady when IsCheckConfig() is true
+	// (i.e. len(Instances) > 0). Discovery templates start with empty instances,
+	// so we guard readiness explicitly.
+	if !svc.IsReady() {
+		log.Debugf("autodiscovery: deferring discovery template %s for service %s: service not ready", tpl.Name, svc.GetServiceID())
+		return tpl, false
+	}
+
+	// Delegate to the real resolver for all metadata: ServiceID, filter flags,
+	// ImageName, PodNamespace, tags, etc.
+	base, err := configresolver.Resolve(tpl, svc)
+	if err != nil {
+		log.Debugf("autodiscovery: deferring discovery template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
+		return tpl, false
+	}
+	if base.MetricsExcluded {
+		log.Debugf("autodiscovery: skipping discovery template %s for service %s: metrics excluded by filter", tpl.Name, svc.GetServiceID())
+		return tpl, false
+	}
+
+	base.TrialMode = true
+
+	host := pickDiscoveryHost(svc)
+
+	type portPayload struct {
+		Number int    `yaml:"number"`
+		Name   string `yaml:"name,omitempty"`
+	}
+	type servicePayload struct {
+		ID    string        `yaml:"id"`
+		Host  string        `yaml:"host"`
+		Ports []portPayload `yaml:"ports"`
+	}
+
+	rawPorts, err := svc.GetPorts()
+	if err != nil {
+		log.Debugf("autodiscovery: GetPorts failed for service %s (discovery template %s): %v; proceeding with empty port list", svc.GetServiceID(), tpl.Name, err)
+	}
+	pp := make([]portPayload, 0, len(rawPorts))
+	for _, p := range rawPorts {
+		pp = append(pp, portPayload{Number: p.Port, Name: p.Name})
+	}
+
+	instance := map[string]interface{}{
+		"__discovery_service__": servicePayload{
+			ID:    svc.GetServiceID(),
+			Host:  host,
+			Ports: pp,
+		},
+	}
+	instanceYAML, err := yaml.Marshal(instance)
+	if err != nil {
+		log.Errorf("autodiscovery: failed to marshal trial instance for %s/%s: %v", tpl.Name, svc.GetServiceID(), err)
+		return tpl, false
+	}
+	base.Instances = []integration.Data{integration.Data(instanceYAML)}
+	return base, true
 }
 
 // changedCheckIDs returns a map with the config instance IDs that changed
