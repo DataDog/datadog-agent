@@ -576,8 +576,8 @@ func resolveDiscoveryTemplate(tpl integration.Config, svc listeners.Service) (in
 
 	host, err := tmplvar.GetHost("", svc)
 	if err != nil {
-		log.Debugf("autodiscovery: could not resolve host for discovery template %s / service %s: %v; proceeding with empty host", tpl.Name, svc.GetServiceID(), err)
-		host = ""
+		log.Debugf("autodiscovery: deferring discovery template %s for service %s: cannot resolve host: %v", tpl.Name, svc.GetServiceID(), err)
+		return tpl, false
 	}
 
 	type portPayload struct {
