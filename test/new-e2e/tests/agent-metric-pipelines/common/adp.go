@@ -58,13 +58,12 @@ func WithADPEnabledDocker() func(*dockeragentparams.Params) error {
 }
 
 // AssertADPRunningDocker is the Docker equivalent of AssertADPRunning. It
-// shells out from the test host to docker and checks that the agent-data-plane
-// process is running inside the Agent container.
+// shells out from the test host to docker and checks that UDP port 8125 is
+// bound by the agent-data-plane process inside the Agent container.
 //
 // The Agent container name comes from the e2e DockerAgent component. Checks
-// process existence via pgrep against the truncated comm form
-// ("agent-data-plan", 15 chars — see AssertADPRunning for the kernel-quirk
-// context).
+// socket ownership against the truncated comm form ("agent-data-plan", 15
+// chars — see AssertADPRunning for the kernel-quirk context).
 func AssertADPRunningDocker(t *testing.T, host *components.RemoteHost, agentContainerName string) {
 	t.Helper()
 	ok := assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -76,23 +75,24 @@ func AssertADPRunningDocker(t *testing.T, host *components.RemoteHost, agentCont
 			return
 		}
 
-		// pgrep returns non-zero exit when no match — host.Execute treats that
-		// as an error. Match on the truncated process name (TASK_COMM_LEN = 16).
-		out, err := host.Execute(fmt.Sprintf("sudo docker exec %q pgrep -af agent-data-plan", agentContainerName))
-		if !assert.NoError(c, err, "agent-data-plane process not found in agent container") {
+		// ss shows the process name as "agent-data-plan" for the same
+		// TASK_COMM_LEN reason as AssertADPRunning.
+		out, err := host.Execute(fmt.Sprintf("sudo docker exec %q ss -lnup 'sport = :8125'", agentContainerName))
+		if !assert.NoError(c, err, "failed checking UDP/8125 ownership in agent container") {
 			return
 		}
 		assert.Contains(c, out, "agent-data-plan",
-			"expected agent-data-plane in pgrep output; got: %s", out)
+			"UDP/8125 should be bound by agent-data-plane inside the agent container (shown as truncated 'agent-data-plan' by ss); got: %s", out)
 	}, 2*time.Minute, 5*time.Second,
-		"timed out waiting for agent-data-plane to run in the agent container")
+		"timed out waiting for agent-data-plane to bind UDP/8125 in the agent container")
 
 	if !ok {
 		// Best-effort: pull container logs for the agent to help diagnose what happened.
 		logs, _ := host.Execute(fmt.Sprintf("sudo docker logs --tail 200 %q 2>&1", agentContainerName))
+		socketInfo, _ := host.Execute(fmt.Sprintf("sudo docker exec %q ss -lnup 'sport = :8125' 2>&1", agentContainerName))
 		containers, _ := host.Execute("sudo docker ps -a --format '{{.Names}} {{.Image}} {{.Status}}'")
-		require.FailNowf(t, "agent-data-plane not running in agent container",
-			"agent container %q logs tail:\n%s\ncontainers:\n%s", agentContainerName, logs, containers)
+		require.FailNowf(t, "agent-data-plane did not bind UDP/8125 in agent container",
+			"agent container %q UDP/8125 sockets:\n%s\nlogs tail:\n%s\ncontainers:\n%s", agentContainerName, socketInfo, logs, containers)
 	}
 }
 
