@@ -270,9 +270,12 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 // with ordering defined by 'wildcardOrder'
 func (p *FileProvider) CollectFiles(source *sources.LogSource) ([]*tailer.File, error) {
 	path := source.Config.Path
-	_, err := opener.StatLogFile(path)
+	fi, err := opener.StatLogFile(path)
 	switch {
 	case err == nil:
+		if fi.IsDir() {
+			return nil, fmt.Errorf("path %s is a directory, not a file; specify a file path or a glob (e.g. %s) to tail files inside it", path, filepath.Join(path, "*"))
+		}
 		return []*tailer.File{
 			tailer.NewFile(path, source, false),
 		}, nil
@@ -303,6 +306,40 @@ func (p *FileProvider) filesMatchingSource(source *sources.LogSource) ([]*tailer
 	}
 	if err != nil {
 		return nil, fmt.Errorf("malformed pattern, could not find any file: %s", pattern)
+	}
+	// Filter out directories that the glob matched. Opening a directory as a file
+	// produces misleading errors (e.g. "Access is denied" on Windows). The most
+	// common cause is a glob that is not deep enough (e.g. C:\Logs\* against a
+	// tree of subdirectories), and the user typically wants C:\Logs\*\* instead.
+	filteredPaths := paths[:0]
+	skippedDirCount := 0
+	var firstSkippedDir string
+	for _, path := range paths {
+		fi, statErr := opener.StatLogFile(path)
+		if statErr != nil {
+			// can't stat; let downstream logic surface a clear error
+			filteredPaths = append(filteredPaths, path)
+			continue
+		}
+		if fi.IsDir() {
+			if skippedDirCount == 0 {
+				firstSkippedDir = path
+			}
+			skippedDirCount++
+			continue
+		}
+		filteredPaths = append(filteredPaths, path)
+	}
+	paths = filteredPaths
+	dirsMessageKey := "directory-matches:" + pattern
+	if skippedDirCount > 0 {
+		if p.shouldLogErrors {
+			log.Warnf("Pattern %q matched %d director(ies) (e.g. %q); these were skipped because directories cannot be tailed. To tail files inside them, use a deeper glob such as %q.",
+				pattern, skippedDirCount, firstSkippedDir, filepath.Join(pattern, "*"))
+		}
+		source.Messages.AddMessage(dirsMessageKey, fmt.Sprintf("%d entries matching %s resolved to directories and were skipped; use a deeper glob to tail files inside them", skippedDirCount, pattern))
+	} else {
+		source.Messages.RemoveMessage(dirsMessageKey)
 	}
 	if len(paths) == 0 {
 		// no file was found, its parent directories might have wrong permissions or it just does not exist

@@ -381,6 +381,55 @@ func TestCollectFiles(t *testing.T) {
 		assert.Equal(t, fs.path("t.log"), files[2].Path)
 		assert.Equal(t, fs.path("z.log"), files[3].Path)
 	})
+
+	t.Run("LiteralPathToDirectoryReturnsError", func(t *testing.T) {
+		fs := newTempFs(t)
+		fs.mkDir("logsdir")
+
+		fileProvider := NewFileProvider(2, WildcardUseFileName)
+		source := sources.NewLogSource("dir", &config.LogsConfig{Type: config.FileType, Path: fs.path("logsdir")})
+		files, err := fileProvider.CollectFiles(source)
+		assert.Empty(t, files)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "is a directory")
+	})
+
+	t.Run("WildcardMatchingOnlyDirectoriesReturnsError", func(t *testing.T) {
+		fs := newTempFs(t)
+		fs.mkDir("alpha")
+		fs.mkDir("beta")
+
+		fileProvider := NewFileProvider(2, WildcardUseFileName)
+		source := sources.NewLogSource("dir-only", &config.LogsConfig{Type: config.FileType, Path: fs.path("*")})
+		files, err := fileProvider.CollectFiles(source)
+		assert.Empty(t, files)
+		assert.Error(t, err)
+		// Source should be annotated so the status page makes the situation obvious.
+		messages := source.Messages.GetMessages()
+		assert.Len(t, messages, 1)
+		assert.Contains(t, messages[0], "resolved to directories")
+	})
+
+	t.Run("WildcardSkipsDirectoriesAndKeepsFiles", func(t *testing.T) {
+		fs := newTempFs(t)
+		fs.mkDir("subdir")     // glob match that must be skipped
+		fs.createFile("a.log") // real file
+		fs.createFile("b.log") // real file
+
+		fileProvider := NewFileProvider(5, WildcardUseFileName)
+		source := sources.NewLogSource("mixed", &config.LogsConfig{Type: config.FileType, Path: fs.path("*")})
+		files, err := fileProvider.CollectFiles(source)
+		assert.NoError(t, err)
+		assert.Len(t, files, 2)
+		paths := []string{files[0].Path, files[1].Path}
+		assert.Contains(t, paths, fs.path("a.log"))
+		assert.Contains(t, paths, fs.path("b.log"))
+		assert.NotContains(t, paths, fs.path("subdir"))
+
+		messages := source.Messages.GetMessages()
+		assert.Len(t, messages, 1)
+		assert.Contains(t, messages[0], "resolved to directories")
+	})
 }
 
 func TestFilesToTail(t *testing.T) {
