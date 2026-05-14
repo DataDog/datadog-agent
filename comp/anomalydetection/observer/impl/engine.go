@@ -49,7 +49,7 @@ type engine struct {
 	detectors        []observerdef.Detector
 	correlators      []observerdef.Correlator
 	contextProviders map[string]observerdef.ContextProvider // namespace → provider
-	contextRefs      map[string]seriesContextRef
+	contextRefs      map[observerdef.SeriesRef]seriesContextRef
 
 	// scheduler decides when the engine should advance analysis.
 	scheduler schedulerPolicy
@@ -151,7 +151,7 @@ func newEngine(cfg engineConfig) *engine {
 		detectors:        cfg.detectors,
 		correlators:      cfg.correlators,
 		contextProviders: cfg.contextProviders,
-		contextRefs:      make(map[string]seriesContextRef),
+		contextRefs:      make(map[observerdef.SeriesRef]seriesContextRef),
 		scheduler:        sched,
 
 		rawAnomalyWindow: cfg.rawAnomalyWindow,
@@ -339,14 +339,8 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 				tags = append(newTags, sourceTag)
 			}
 			res := e.storage.Add(extractor.Name(), m.Name, m.Value, l.timestampMs/1000, tags)
-			if m.ContextKey != "" && res.StorageKey != "" {
-				// Reuse the storage key computed inside storage.Add instead of
-				// recomputing seriesKey here. seriesKey is hot enough that this
-				// duplicate accounted for ~14.5 MiB heap-live in the
-				// quality_gate_container_logs SMP profile (now renamed to
-				// observer_logs_anomaly_stress; the 'quality_gate_*' prefix is
-				// reserved for SMP quality-gate cases).
-				e.contextRefs[res.StorageKey] = seriesContextRef{
+			if m.ContextKey != "" && res.Ref >= 0 {
+				e.contextRefs[res.Ref] = seriesContextRef{
 					namespace:  extractor.Name(),
 					contextKey: m.ContextKey,
 				}
@@ -384,7 +378,6 @@ func sliceContains(items []string, want string) bool {
 // patterns leak their tags + columnar arrays indefinitely (the contextRefs
 // map is just metadata; the heavy data lives in storage.series).
 func (e *engine) removeContextRefsForEvictedKeys(namespace string, evictedKeys []string) {
-	// No garbage collection done
 	if len(evictedKeys) == 0 {
 		return
 	}
@@ -397,19 +390,19 @@ func (e *engine) removeContextRefsForEvictedKeys(namespace string, evictedKeys [
 	if len(want) == 0 {
 		return
 	}
-	var storageKeys []string
-	for seriesID, ref := range e.contextRefs {
-		if ref.namespace != namespace {
+	var freedRefs []observerdef.SeriesRef
+	for ref, contextRef := range e.contextRefs {
+		if contextRef.namespace != namespace {
 			continue
 		}
-		if _, ok := want[ref.contextKey]; ok {
-			delete(e.contextRefs, seriesID)
-			storageKeys = append(storageKeys, seriesID)
+		if _, ok := want[contextRef.contextKey]; ok {
+			delete(e.contextRefs, ref)
+			freedRefs = append(freedRefs, ref)
 		}
 	}
-	if len(storageKeys) > 0 {
-		freedRefs := e.storage.RemoveSeriesByKeys(storageKeys)
-		e.fanOutSeriesRemoval(freedRefs)
+	if len(freedRefs) > 0 {
+		freed := e.storage.RemoveSeriesByRefs(freedRefs)
+		e.fanOutSeriesRemoval(freed)
 	}
 }
 
@@ -632,15 +625,13 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 // enrichAnomaly decorates an anomaly with context from the originating
 // extractor, if available. This runs automatically on every anomaly so
 // detectors don't need to be aware of context providers.
-// Lookup builds the storage key from Source fields (namespace, name, tags)
-// and maps that to a provider namespace and context key.
+// Lookup uses the anomaly's SourceRef (set by all detectors that write to storage)
+// for an O(1) contextRefs lookup — no seriesKey recomputation needed.
 func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
-	if a.Source.Name == "" {
+	if a.SourceRef == nil {
 		return
 	}
-	fullKey := seriesKey(a.Source.Namespace, a.Source.Name, a.Source.Tags)
-
-	ref, ok := e.contextRefs[fullKey]
+	ref, ok := e.contextRefs[a.SourceRef.Ref]
 	if !ok {
 		return
 	}
@@ -850,7 +841,7 @@ func (e *engine) SetExtractors(extractors []observerdef.LogMetricsExtractor) {
 	validateUniqueExtractorNames(extractors)
 	e.extractors = extractors
 	e.contextProviders = collectContextProviders(extractors)
-	e.contextRefs = make(map[string]seriesContextRef)
+	e.contextRefs = make(map[observerdef.SeriesRef]seriesContextRef)
 	e.rebuildDetectorTags()
 }
 
@@ -879,7 +870,7 @@ func (e *engine) Reset() {
 		}
 	}
 
-	e.contextRefs = make(map[string]seriesContextRef)
+	e.contextRefs = make(map[observerdef.SeriesRef]seriesContextRef)
 }
 
 // resetRawAnomalies clears the raw anomaly tracking state.

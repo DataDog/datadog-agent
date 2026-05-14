@@ -7,7 +7,6 @@ package observerimpl
 
 import (
 	"encoding/json"
-	"fmt"
 	"math"
 	"os"
 	"sort"
@@ -22,16 +21,15 @@ import (
 // timeSeriesStorage is an internal storage for time series data.
 type timeSeriesStorage struct {
 	mu     sync.RWMutex
-	series map[string]*seriesStats
+	series map[uint64]*seriesStats // keyed by seriesKeyHash; no string retained per entry
 
 	// observationTimestamps tracks all timestamps where observations occurred,
 	// even if no metric series was written for that timestamp.
 	observationTimestamps map[int64]struct{}
 
 	// Compact numeric IDs for O(1) lookups and API responses.
-	seriesIDs     map[string]observer.SeriesRef // internal key → numeric ref
-	seriesIDKeys  []string                      // numeric ID → internal key (index = ID)
-	seriesIDStats []*seriesStats                // numeric ID → *seriesStats (index = ID)
+	// seriesIDStats[ref] is the live *seriesStats (nil when the slot is retired).
+	seriesIDStats []*seriesStats // numeric ID → *seriesStats (index = ID)
 
 	// Global generation for the series catalog; increments only when a new
 	// series key is created, not on every write to an existing series.
@@ -48,10 +46,10 @@ type timeSeriesStorage struct {
 // Data is stored in columnar layout: parallel arrays indexed by point position.
 // Timestamps are stored in sorted order, enabling binary search for range queries.
 type seriesStats struct {
-	Namespace   string
-	Name        string
-	Tags        []string
-	internalKey string // cached map key to avoid recomputation
+	Namespace string
+	Name      string
+	Tags      []string
+	ref       observer.SeriesRef // compact numeric ID assigned on creation
 
 	// writeGeneration is per-series and increments on every Add, including
 	// same-bucket merges into an existing point.
@@ -173,29 +171,20 @@ func searchAfter(timestamps []int64, value int64) int {
 // newTimeSeriesStorage creates a new time series storage.
 func newTimeSeriesStorage() *timeSeriesStorage {
 	return &timeSeriesStorage{
-		series:                make(map[string]*seriesStats),
+		series:                make(map[uint64]*seriesStats),
 		observationTimestamps: make(map[int64]struct{}),
-		seriesIDs:             make(map[string]observer.SeriesRef),
 		droppedByMetric:       make(map[string]int64),
 		sampledDrops:          make(map[string]int),
 	}
 }
 
-// Add records a data point for a named metric in a namespace.
-// AddResult bundles the outputs of timeSeriesStorage.Add. Wrapping these
-// in a named struct keeps call sites self-documenting (`res.IsNew` /
-// `res.StorageKey` rather than two anonymous booleans/strings) and gives
-// us a single point to extend if future callers need additional metadata
-// (e.g. ID, eviction signal) without breaking every existing caller.
+// AddResult bundles the outputs of timeSeriesStorage.Add.
 type AddResult struct {
 	// IsNew is true if this Add created a brand-new series (cardinality +1).
 	IsNew bool
-	// StorageKey is the canonical seriesKey for this point. Callers that
-	// need to index further state by the same key (e.g. engine.contextRefs)
-	// can reuse this value instead of recomputing seriesKey(...) themselves.
-	// Empty string is returned when the point is dropped pre-key-compute
-	// (non-finite or sentinel values).
-	StorageKey string
+	// Ref is the SeriesRef assigned to this point's series.
+	// -1 when the point is dropped (non-finite or sentinel values).
+	Ref observer.SeriesRef
 }
 
 // Add inserts a (namespace, name, value, timestamp, tags) point into storage.
@@ -208,33 +197,49 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 
 	if math.IsInf(value, 0) || math.IsNaN(value) {
 		s.recordDroppedValue("non_finite", namespace, name, value, timestamp, tags)
-		return AddResult{}
+		return AddResult{Ref: -1}
 	}
 	// Guard against known finite sentinel values (MaxFloat64 used as "unlimited")
 	// that overflow downstream aggregation math when summed.
 	if value == math.MaxFloat64 || value == -math.MaxFloat64 {
 		s.recordDroppedValue("extreme", namespace, name, value, timestamp, tags)
-		return AddResult{}
+		return AddResult{Ref: -1}
 	}
-	key := seriesKey(namespace, name, tags)
+	h := seriesKeyHash(namespace, name, tags)
+	canonTags := canonicalizeTags(tags)
 
-	stats, exists := s.series[key]
-	if !exists {
-		stats = &seriesStats{
-			Namespace:   namespace,
-			Name:        name,
-			Tags:        canonicalizeTags(tags),
-			internalKey: key,
+	stats, exists := s.series[h]
+	// Collision guard: verify full identity (namespace + name + sorted tags).
+	if exists && (stats.Namespace != namespace || stats.Name != name || !tagsEqual(stats.Tags, canonTags)) {
+		// Hash collision — extremely rare with FNV-64a (~10^-14 at 1000 series).
+		pkglog.Warnf("[observer] seriesKeyHash collision h=%d: incumbent={%s,%s} new={%s,%s}",
+			h, stats.Namespace, stats.Name, namespace, name)
+		exists = false
+		for _, st := range s.seriesIDStats {
+			if st != nil && st.Namespace == namespace && st.Name == name && tagsEqual(st.Tags, canonTags) {
+				stats = st
+				exists = true
+				break
+			}
 		}
-		s.series[key] = stats
-		// Assign a compact numeric ID.
-		id := observer.SeriesRef(len(s.seriesIDKeys))
-		s.seriesIDs[key] = id
-		s.seriesIDKeys = append(s.seriesIDKeys, key)
+	}
+	if !exists {
+		id := observer.SeriesRef(len(s.seriesIDStats))
+		stats = &seriesStats{
+			Namespace: namespace,
+			Name:      name,
+			Tags:      canonTags,
+			ref:       id,
+		}
+		// Only claim the hash slot when empty to avoid displacing an existing
+		// collision-displaced series.
+		if _, occupied := s.series[h]; !occupied {
+			s.series[h] = stats
+		}
 		s.seriesIDStats = append(s.seriesIDStats, stats)
 		s.seriesGen++
 	}
-	res := AddResult{IsNew: !exists, StorageKey: key}
+	res := AddResult{IsNew: !exists, Ref: stats.ref}
 	stats.writeGeneration++
 
 	// Bucket by second.
@@ -318,20 +323,18 @@ func (s *timeSeriesStorage) GetSeries(namespace, name string, tags []string, agg
 	defer s.mu.RUnlock()
 
 	if tags != nil {
-		// Exact match with tags
-		key := seriesKey(namespace, name, tags)
-		stats := s.series[key]
-		if stats == nil {
+		// Exact match with tags.
+		stats := s.series[seriesKeyHash(namespace, name, tags)]
+		if stats == nil || stats.Namespace != namespace || stats.Name != name {
 			return nil
 		}
 		series := stats.toSeries(agg)
 		return &series
 	}
 
-	// tags is nil: find first matching series by namespace and name
-	prefix := namespace + "|" + name + "|"
-	for key, stats := range s.series {
-		if len(key) >= len(prefix) && key[:len(prefix)] == prefix {
+	// tags is nil: find first series matching namespace and name (ignoring tags).
+	for _, stats := range s.seriesIDStats {
+		if stats != nil && stats.Namespace == namespace && stats.Name == name {
 			series := stats.toSeries(agg)
 			return &series
 		}
@@ -345,9 +348,8 @@ func (s *timeSeriesStorage) GetSeriesSince(namespace, name string, tags []string
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	key := seriesKey(namespace, name, tags)
-	stats := s.series[key]
-	if stats == nil {
+	stats := s.series[seriesKeyHash(namespace, name, tags)]
+	if stats == nil || stats.Namespace != namespace || stats.Name != name {
 		return nil
 	}
 
@@ -383,8 +385,10 @@ func (s *timeSeriesStorage) Namespaces() []string {
 	defer s.mu.RUnlock()
 
 	seen := make(map[string]struct{})
-	for _, stats := range s.series {
-		seen[stats.Namespace] = struct{}{}
+	for _, stats := range s.seriesIDStats {
+		if stats != nil {
+			seen[stats.Namespace] = struct{}{}
+		}
 	}
 	result := make([]string, 0, len(seen))
 	for ns := range seen {
@@ -400,8 +404,8 @@ func (s *timeSeriesStorage) AllSeries(namespace string, agg Aggregate) []observe
 	defer s.mu.RUnlock()
 
 	var result []observer.Series
-	for _, stats := range s.series {
-		if stats.Namespace == namespace {
+	for _, stats := range s.seriesIDStats {
+		if stats != nil && stats.Namespace == namespace {
 			result = append(result, stats.toSeries(agg))
 		}
 	}
@@ -417,7 +421,10 @@ func (s *timeSeriesStorage) TimeBounds() (minTs int64, maxTs int64, ok bool) {
 	var max int64
 	found := false
 
-	for _, stats := range s.series {
+	for _, stats := range s.seriesIDStats {
+		if stats == nil {
+			continue
+		}
 		n := stats.pointCount()
 		if n == 0 {
 			continue
@@ -453,7 +460,10 @@ func (s *timeSeriesStorage) MaxTimestamp() int64 {
 	defer s.mu.RUnlock()
 
 	var max int64
-	for _, stats := range s.series {
+	for _, stats := range s.seriesIDStats {
+		if stats == nil {
+			continue
+		}
 		if n := stats.pointCount(); n > 0 {
 			if t := stats.timestamps[n-1]; t > max {
 				max = t
@@ -539,6 +549,42 @@ func tagsSorted(tags []string) bool {
 	return true
 }
 
+// tagsEqual reports whether two sorted tag slices are identical.
+func tagsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// seriesKeyHash computes FNV-1a over namespace|name|tag1,tag2,... without
+// allocating a string. Produces the same value as fnv64aString(seriesKey(...)).
+func seriesKeyHash(namespace, name string, tags []string) uint64 {
+	if len(tags) > 1 && !tagsSorted(tags) {
+		tags = canonicalizeTags(tags)
+	}
+	h := fnv64aString(namespace)
+	h = fnv64aMix(h, name)
+	h ^= uint64('|')
+	h *= fnvPrime64
+	for i, t := range tags {
+		if i > 0 {
+			h ^= uint64(',')
+			h *= fnvPrime64
+		}
+		for j := 0; j < len(t); j++ {
+			h ^= uint64(t[j])
+			h *= fnvPrime64
+		}
+	}
+	return h
+}
+
 // resolveByID returns the seriesStats for a numeric series ID.
 // Returns nil for out-of-range IDs. Caller must hold s.mu (read or write).
 func (s *timeSeriesStorage) resolveByID(ref observer.SeriesRef) *seriesStats {
@@ -582,10 +628,10 @@ func (s *timeSeriesStorage) ListSeriesMetadata(namespace string) []seriesMeta {
 	defer s.mu.RUnlock()
 
 	var result []seriesMeta
-	for key, stats := range s.series {
-		if stats.Namespace == namespace {
+	for _, stats := range s.seriesIDStats {
+		if stats != nil && stats.Namespace == namespace {
 			result = append(result, seriesMeta{
-				Ref:        s.seriesIDs[key],
+				Ref:        stats.ref,
 				Namespace:  stats.Namespace,
 				Name:       stats.Name,
 				Tags:       copyTags(stats.Tags),
@@ -611,11 +657,7 @@ func (s *timeSeriesStorage) GetSeriesByNumericID(ref observer.SeriesRef, agg Agg
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if ref < 0 || int(ref) >= len(s.seriesIDKeys) {
-		return nil
-	}
-	key := s.seriesIDKeys[ref]
-	stats := s.series[key]
+	stats := s.resolveByID(ref)
 	if stats == nil {
 		return nil
 	}
@@ -628,8 +670,11 @@ func (s *timeSeriesStorage) ListAllSeriesCompact() []seriesCompact {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	result := make([]seriesCompact, 0, len(s.series))
-	for _, st := range s.series {
+	result := make([]seriesCompact, 0, len(s.seriesIDStats))
+	for _, st := range s.seriesIDStats {
+		if st == nil {
+			continue
+		}
 		result = append(result, seriesCompact{
 			Namespace: st.Namespace,
 			Name:      st.Name,
@@ -708,7 +753,10 @@ func (s *timeSeriesStorage) DumpToFile(path string) error {
 	}
 
 	var out []dumpSeries
-	for _, st := range s.series {
+	for _, st := range s.seriesIDStats {
+		if st == nil {
+			continue
+		}
 		ds := dumpSeries{
 			Namespace: st.Namespace,
 			Name:      st.Name,
@@ -791,30 +839,34 @@ func (s *timeSeriesStorage) SeriesGeneration() uint64 {
 // for which extractor context key, so when an extractor evicts a context the
 // engine can pass the corresponding storage keys here to free their tags +
 // columnar arrays. Without this path, evicted patterns leak indefinitely.
-func (s *timeSeriesStorage) RemoveSeriesByKeys(keys []string) []observer.SeriesRef {
-	if len(keys) == 0 {
+// RemoveSeriesByRefs deletes series by their compact numeric refs. Each removed
+// series has its seriesIDStats slot set to nil (ref is never reused) and its
+// hash slot deleted from s.series. Returns the refs actually freed; out-of-range
+// or already-nil refs are silently skipped. seriesGen is bumped iff at least
+// one series was removed so cached ListSeries results are invalidated.
+//
+// Callers use the returned refs to fan out per-series teardown to detector
+// state keyed by SeriesRef (BOCPD posteriors, ScanMW/ScanWelch segment buffers,
+// seriesDetectorAdapter visible-count maps, etc.).
+func (s *timeSeriesStorage) RemoveSeriesByRefs(refs []observer.SeriesRef) []observer.SeriesRef {
+	if len(refs) == 0 {
 		return nil
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var removed []observer.SeriesRef
-	for _, key := range keys {
-		if _, exists := s.series[key]; !exists {
+	for _, ref := range refs {
+		if ref < 0 || int(ref) >= len(s.seriesIDStats) {
 			continue
 		}
-		delete(s.series, key)
-		if id, ok := s.seriesIDs[key]; ok {
-			if int(id) < len(s.seriesIDStats) {
-				s.seriesIDStats[id] = nil
-			}
-			if int(id) < len(s.seriesIDKeys) {
-				// Free the key string so it can be GC'd; keep the slot so
-				// seriesIDKeys remains addressable for stale-ref reads.
-				s.seriesIDKeys[id] = ""
-			}
-			delete(s.seriesIDs, key)
-			removed = append(removed, id)
+		stats := s.seriesIDStats[ref]
+		if stats == nil {
+			continue
 		}
+		h := seriesKeyHash(stats.Namespace, stats.Name, stats.Tags)
+		delete(s.series, h)
+		s.seriesIDStats[ref] = nil
+		removed = append(removed, ref)
 	}
 	if len(removed) > 0 {
 		s.seriesGen++
@@ -844,17 +896,16 @@ func (s *timeSeriesStorage) CompactSeriesID(fullKey string) string {
 		aggStr = nameWithAgg[idx+1:]
 	}
 
-	// Look up the storage key (without agg suffix).
-	storageKey := seriesKey(namespace, baseName, tags)
-	numID, found := s.seriesIDs[storageKey]
-	if !found {
+	// Look up by hash; verify identity to guard against hash collisions.
+	stats := s.series[seriesKeyHash(namespace, baseName, tags)]
+	if stats == nil || stats.Namespace != namespace || stats.Name != baseName {
 		return fullKey
 	}
 
 	if aggStr != "" {
-		return fmt.Sprintf("%d:%s", numID, aggStr)
+		return strconv.Itoa(int(stats.ref)) + ":" + aggStr
 	}
-	return strconv.Itoa(int(numID))
+	return strconv.Itoa(int(stats.ref))
 }
 
 // StorageReader interface implementation
@@ -869,9 +920,12 @@ func (s *timeSeriesStorage) ListSeries(filter observer.SeriesFilter) []observer.
 	// most series. Detectors and the adapter call this on every advance, so
 	// even after the cache-by-gen optimisations the worst-case cost matters
 	// when seriesGen does churn (e.g. cardinality blow-ups in extractors).
-	result := make([]observer.SeriesMeta, 0, len(s.series))
+	result := make([]observer.SeriesMeta, 0, len(s.seriesIDStats))
 listSeriesLoop:
-	for key, stats := range s.series {
+	for _, stats := range s.seriesIDStats {
+		if stats == nil {
+			continue
+		}
 		if filter.Namespace != "" {
 			if stats.Namespace != filter.Namespace {
 				continue
@@ -890,7 +944,7 @@ listSeriesLoop:
 			continue
 		}
 		result = append(result, observer.SeriesMeta{
-			Ref:       s.seriesIDs[key],
+			Ref:       stats.ref,
 			Namespace: stats.Namespace,
 			Name:      stats.Name,
 			Tags:      stats.Tags,

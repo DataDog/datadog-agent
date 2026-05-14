@@ -255,8 +255,9 @@ func TestAdvanceEnrichesAnomalyContextWithoutOverwritingDescription(t *testing.T
 	}}
 
 	storage := newTimeSeriesStorage()
-	// Add a series so that the storage key matches Source fields.
-	storage.Add("log_metrics_extractor", "log.pattern.abc.count", 1.0, 1, []string{"observer_source:source-a", "service:api"})
+	// Add a series and capture its ref so we can wire SourceRef + contextRefs.
+	addRes := storage.Add("log_metrics_extractor", "log.pattern.abc.count", 1.0, 1, []string{"observer_source:source-a", "service:api"})
+	anomalies[0].SourceRef = &observerdef.QueryHandle{Ref: addRes.Ref, Aggregate: observerdef.AggregateCount}
 	e := newEngine(engineConfig{
 		storage: storage,
 		detectors: []observerdef.Detector{
@@ -266,7 +267,7 @@ func TestAdvanceEnrichesAnomalyContextWithoutOverwritingDescription(t *testing.T
 			"log_metrics_extractor": provider,
 		},
 	})
-	e.contextRefs["log_metrics_extractor|log.pattern.abc.count|observer_source:source-a,service:api"] = seriesContextRef{
+	e.contextRefs[addRes.Ref] = seriesContextRef{
 		namespace:  "log_metrics_extractor",
 		contextKey: "ctx-1",
 	}
@@ -293,20 +294,22 @@ func TestSetExtractorsRefreshesContextProviders(t *testing.T) {
 		"ctx-2": {Pattern: "p2", Example: "e2", Source: "second"},
 	}}
 	storage := newTimeSeriesStorage()
-	// Add a series so that the storage key matches Source fields.
-	storage.Add("second", "metric", 1.0, 1, []string{"service:api"})
+	// Add a series and capture its ref to wire SourceRef + contextRefs.
+	addRes := storage.Add("second", "metric", 1.0, 1, []string{"service:api"})
+	anomaly := observerdef.Anomaly{
+		Source:    observerdef.SeriesDescriptor{Namespace: "second", Name: "metric", Tags: []string{"service:api"}},
+		SourceRef: &observerdef.QueryHandle{Ref: addRes.Ref, Aggregate: observerdef.AggregateAverage},
+		Timestamp: 1,
+	}
 	e := newEngine(engineConfig{
 		storage:          storage,
 		extractors:       []observerdef.LogMetricsExtractor{first},
 		contextProviders: collectContextProviders([]observerdef.LogMetricsExtractor{first}),
-		detectors: []observerdef.Detector{&anomalyDetector{name: "test", anomalies: []observerdef.Anomaly{{
-			Source:    observerdef.SeriesDescriptor{Namespace: "second", Name: "metric", Tags: []string{"service:api"}},
-			Timestamp: 1,
-		}}}},
+		detectors:        []observerdef.Detector{&anomalyDetector{name: "test", anomalies: []observerdef.Anomaly{anomaly}}},
 	})
 
 	e.SetExtractors([]observerdef.LogMetricsExtractor{second})
-	e.contextRefs["second|metric|service:api"] = seriesContextRef{
+	e.contextRefs[addRes.Ref] = seriesContextRef{
 		namespace:  "second",
 		contextKey: "ctx-2",
 	}
@@ -354,6 +357,7 @@ func TestEnrichAnomalyWithRealLogPatternExtractorUsesStoredSeriesTags(t *testing
 					Name:      meta.Name,
 					Tags:      meta.Tags,
 				},
+				SourceRef: &observerdef.QueryHandle{Ref: meta.Ref, Aggregate: observerdef.AggregateCount},
 			}
 			break
 		}
