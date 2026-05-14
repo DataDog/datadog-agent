@@ -6,7 +6,6 @@
 package telemetry
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 
@@ -36,7 +35,7 @@ type mergeMetricSample struct {
 type mergeMetricValues map[string]map[string]mergeMetricSample
 
 func newMergeMetricValues() mergeMetricValues {
-	return make(mergeMetricValues)
+	return make(mergeMetricValues, len(regularRegistryMergeMetrics))
 }
 
 // mergeKey builds a stable key for a customer-facing tag set.
@@ -134,7 +133,7 @@ func mergeTags(labels []*dto.LabelPair, labelNames []string) []string {
 	tags := make([]string, 0, len(labelNames))
 	for _, labelName := range labelNames {
 		value, _ := labelValue(labels, labelName)
-		tags = append(tags, fmt.Sprintf("%s:%s", labelName, value))
+		tags = append(tags, labelName+":"+value)
 	}
 	return tags
 }
