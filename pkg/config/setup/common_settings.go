@@ -2080,9 +2080,36 @@ func podman(config pkgconfigmodel.Setup) {
 }
 
 func anomalyDetectionStorage(config pkgconfigmodel.Setup) {
-	// Cap on the number of live time series in the anomaly detection storage.
-	// Eviction fires when exceeded, draining to max*(1-eviction_floor_ratio).
-	// 0 disables eviction.
+	// Top-level analysis gate. When false the observer is a no-op (metrics/logs
+	// are still ingested if recording is enabled, but no detection runs).
+	config.BindEnvAndSetDefault("anomaly_detection.enabled", false)
+	// When false, externally-ingested metrics (DogStatsD, check samplers) are
+	// dropped at the handle factory. Log-derived virtual metrics are unaffected.
+	config.BindEnvAndSetDefault("anomaly_detection.metrics.enabled", true)
+
+	// Agent-internal log sampling — Warn+ are never sampled; these apply to
+	// Info/Debug/Trace only.
+	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.sample_rate_info", 0.2)
+	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.sample_rate_debug", 0.05)
+	config.BindEnvAndSetDefault("anomaly_detection.agent_logs.sample_rate_trace", 0.0)
+
+	// Component toggles — defaults match componentCatalog.defaultEnabled.
+	// Keys must be registered here so cfg.IsKnown() returns true in
+	// settingsFromAgentConfig, enabling config-file overrides.
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.log_metrics_extractor.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.connection_error_extractor.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.log_pattern_extractor.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.cusum.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.bocpd.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.rrcf.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.scanmw.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.scanwelch.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.cross_signal.enabled", false)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.time_cluster.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.passthrough.enabled", false)
+
+	// Storage tuning: cap on the number of live time series before eviction fires.
+	// 0 disables eviction. See storageConfig in storage.go.
 	config.BindEnvAndSetDefault("anomaly_detection.storage.max_series", 50000)
 	// Hysteresis band for eviction: drain to max*(1-eviction_floor_ratio).
 	config.BindEnvAndSetDefault("anomaly_detection.storage.eviction_floor_ratio", 0.1)
