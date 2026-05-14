@@ -75,6 +75,71 @@ func newConfiguredGPUCheck(
 	return check
 }
 
+func TestConfigurePRMCacheRequiresPRMEndpoint(t *testing.T) {
+	tests := []struct {
+		name               string
+		gpuMonitoring      bool
+		prmEndpointEnabled bool
+		expectSPCache      bool
+		expectPRMCache     bool
+	}{
+		{
+			name:               "system probe and PRM endpoint enabled",
+			gpuMonitoring:      true,
+			prmEndpointEnabled: true,
+			expectSPCache:      true,
+			expectPRMCache:     true,
+		},
+		{
+			name:               "system probe enabled and PRM endpoint disabled",
+			gpuMonitoring:      true,
+			prmEndpointEnabled: false,
+			expectSPCache:      true,
+			expectPRMCache:     false,
+		},
+		{
+			name:               "system probe disabled",
+			gpuMonitoring:      false,
+			prmEndpointEnabled: true,
+			expectSPCache:      false,
+			expectPRMCache:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			senderManager := mocksender.CreateDefaultDemultiplexer()
+			checkGeneric := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMock(t))
+			check, ok := checkGeneric.(*Check)
+			require.True(t, ok)
+
+			WithGPUConfigEnabled(t)
+			pkgconfigsetup.SystemProbe().SetWithoutSource("gpu_monitoring.enabled", tt.gpuMonitoring)
+			pkgconfigsetup.SystemProbe().SetWithoutSource("gpu_monitoring.prm_endpoint_enabled", tt.prmEndpointEnabled)
+			t.Cleanup(func() {
+				pkgconfigsetup.SystemProbe().SetWithoutSource("gpu_monitoring.enabled", false)
+				pkgconfigsetup.SystemProbe().SetWithoutSource("gpu_monitoring.prm_endpoint_enabled", true)
+			})
+
+			check.containerProvider = newMockContainerProvider(t, nil)
+			require.NoError(t, check.Configure(senderManager, integration.FakeConfigHash, []byte{}, []byte{}, "test", "provider"))
+			t.Cleanup(func() { check.Cancel() })
+
+			if tt.expectSPCache {
+				require.NotNil(t, check.spCache)
+			} else {
+				require.Nil(t, check.spCache)
+			}
+
+			if tt.expectPRMCache {
+				require.NotNil(t, check.prmCache)
+			} else {
+				require.Nil(t, check.prmCache)
+			}
+		})
+	}
+}
+
 func TestEmitNvmlMetrics(t *testing.T) {
 	// Create a mock sender
 	mockSender := mocksender.NewMockSender("gpu")

@@ -159,9 +159,12 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer()
 
 	// Compute whether we should prefer system-probe process metrics
-	if pkgconfigsetup.SystemProbe().GetBool("gpu_monitoring.enabled") {
+	systemProbeConfig := pkgconfigsetup.SystemProbe()
+	if systemProbeConfig.GetBool("gpu_monitoring.enabled") {
 		c.spCache = nvidia.NewSystemProbeCache()
-		c.prmCache = nvidia.NewPRMCache()
+		if systemProbeConfig.GetBool("gpu_monitoring.prm_endpoint_enabled") {
+			c.prmCache = nvidia.NewPRMCache()
+		}
 	}
 
 	return nil
