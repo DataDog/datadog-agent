@@ -74,9 +74,6 @@ type StateView interface {
 	ListDetectors() []ComponentStateInfo
 	ListCorrelators() []ComponentStateInfo
 
-	// Telemetry
-	Telemetry() []observerdef.ObserverTelemetry
-
 	// Timing
 	LastAnalyzedTime() int64
 	LatestDataTime() int64

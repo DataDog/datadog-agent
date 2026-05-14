@@ -211,6 +211,13 @@ func NewComponent(deps Requires) Provides {
 
 	th := newTelemetryHandler(telemetryComp)
 
+	// Wire direct gauge.Set for processing-time telemetry to avoid per-log
+	// ObserverTelemetry struct allocations on the hot path.
+	processingTimeGauge := th.telemetryGauges[telemetryDetectorProcessingTimeNs]
+	eng.onProcessingTime = func(detectorTag string, nanos float64) {
+		processingTimeGauge.Set(nanos, detectorTag)
+	}
+
 	obs := &observerImpl{
 		engine:               eng,
 		catalog:              catalog,
