@@ -81,4 +81,3 @@ func (d *countingSeriesDetector) Detect(_ observerdef.Series) observerdef.Detect
 		Telemetry: append([]observerdef.ObserverTelemetry(nil), d.telemetry...),
 	}
 }
-
