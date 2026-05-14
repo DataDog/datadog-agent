@@ -38,8 +38,10 @@ func GetRtLoader() *C.rtloader_t {
 			oldPath := os.Getenv("PATH")
 			defer os.Setenv("PATH", oldPath)
 			os.Setenv("PATH", threeDirPath+";"+os.Getenv("PATH"))
-			// On Windows, the python library file sits at the root of the Python Home
-			pythonHomeStr := filepath.Dir(rlocationPathFromEnv("PYTHON_LIB"))
+			// On Windows, python_home is the directory produced by dir_with_python_home
+			// (copy_to_directory of @cpython//:python_win), placed under _main/ in the
+			// runfiles so it is reachable via the standard junction chain.
+			pythonHomeStr := rlocationPathFromEnv("PYTHON_HOME")
 			pythonHome = C.CString(pythonHomeStr)
 			defer C.free(unsafe.Pointer(pythonHome))
 
@@ -92,7 +94,7 @@ func debugWindowsSetup(threeDirPath, pythonHomeStr string) {
 	}
 	fmt.Fprintf(os.Stderr, "[rtloader debug] THREE_PATH (raw): %s\n", os.Getenv("THREE_PATH"))
 	fmt.Fprintf(os.Stderr, "[rtloader debug] THREE_PATH (resolved): %s\n", threeDirPath)
-	fmt.Fprintf(os.Stderr, "[rtloader debug] PYTHON_LIB (raw): %s\n", os.Getenv("PYTHON_LIB"))
+	fmt.Fprintf(os.Stderr, "[rtloader debug] PYTHON_HOME (raw): %s\n", os.Getenv("PYTHON_HOME"))
 	fmt.Fprintf(os.Stderr, "[rtloader debug] python_home (passed to SetDllDirectory): %s\n", pythonHomeStr)
 
 	for _, path := range []string{dllPath, python313Path} {
