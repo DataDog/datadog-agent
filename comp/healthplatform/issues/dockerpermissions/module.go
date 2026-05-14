@@ -49,10 +49,10 @@ func (m *dockerPermissionsModule) IssueTemplate() issues.IssueTemplate {
 	return m.template
 }
 
-// BuiltInCheck returns the built-in health check configuration
+// BuiltInHealthCheck returns the built-in health check configuration
 // Interval is 0 to use the default (15 minutes)
-func (m *dockerPermissionsModule) BuiltInCheck() *issues.BuiltInCheck {
-	return &issues.BuiltInCheck{
+func (m *dockerPermissionsModule) BuiltInHealthCheck() *issues.BuiltInHealthCheck {
+	return &issues.BuiltInHealthCheck{
 		ID:      CheckID,
 		Name:    CheckName,
 		CheckFn: Check,

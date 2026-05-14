@@ -19,8 +19,6 @@ import (
 	"google.golang.org/genproto/googleapis/rpc/code"
 )
 
-var ddRegistry = semantics.DefaultRegistry()
-
 const (
 	tagSynthetics    = "synthetics"
 	tagServiceSource = "_dd.svc_src"
@@ -72,7 +70,7 @@ func toStatusCode(v int64) (uint32, bool) {
 
 func getStatusCode(meta map[string]string, metrics map[string]float64) uint32 {
 	a := semantics.NewDDSpanAccessor(meta, metrics)
-	v, ok := semantics.LookupInt64(ddRegistry, a, semantics.ConceptHTTPStatusCode)
+	v, ok := semantics.LookupInt64(semantics.DefaultRegistry(), a, semantics.ConceptHTTPStatusCode)
 	if !ok {
 		return 0
 	}
@@ -85,7 +83,7 @@ func getStatusCode(meta map[string]string, metrics map[string]float64) uint32 {
 
 func getStatusCodeV1(s *idx.InternalSpan) uint32 {
 	a := semantics.NewDDSpanAccessorV1(s)
-	v, ok := semantics.LookupInt64(ddRegistry, a, semantics.ConceptHTTPStatusCode)
+	v, ok := semantics.LookupInt64(semantics.DefaultRegistry(), a, semantics.ConceptHTTPStatusCode)
 	if !ok {
 		return 0
 	}
@@ -212,7 +210,7 @@ func parseGRPCStatusString(strC string) string {
 
 func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) string {
 	a := semantics.NewDDSpanAccessor(meta, metrics)
-	strC := semantics.LookupString(ddRegistry, a, semantics.ConceptGRPCStatusCode)
+	strC := semantics.LookupString(semantics.DefaultRegistry(), a, semantics.ConceptGRPCStatusCode)
 	if strC == "" {
 		return ""
 	}
@@ -221,7 +219,7 @@ func getGRPCStatusCode(meta map[string]string, metrics map[string]float64) strin
 
 func getGRPCStatusCodeV1(s *idx.InternalSpan) string {
 	a := semantics.NewDDSpanAccessorV1(s)
-	strC := semantics.LookupString(ddRegistry, a, semantics.ConceptGRPCStatusCode)
+	strC := semantics.LookupString(semantics.DefaultRegistry(), a, semantics.ConceptGRPCStatusCode)
 	if strC == "" {
 		return ""
 	}

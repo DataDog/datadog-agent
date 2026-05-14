@@ -7,6 +7,7 @@
 package observerimpl
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -119,7 +120,7 @@ func (l *logObs) GetStatus() string {
 	return l.status
 }
 
-func (l *logObs) GetTags() []string {
+func (l *logObs) Tags() []string {
 	return l.tags
 }
 
@@ -223,7 +224,8 @@ func NewComponent(deps Requires) Provides {
 		obs.handleFunc = obs.innerHandle
 	}
 
-	if recorder, ok := deps.Recorder.Get(); ok {
+	recorder, recorderEnabled := deps.Recorder.Get()
+	if recorderEnabled {
 		obs.handleFunc = recorder.GetHandle(obs.handleFunc)
 
 		// Record detect digests and advance log alongside parquet for parity debugging.
@@ -261,6 +263,26 @@ func NewComponent(deps Requires) Provides {
 	}
 	for src := range deps.HFRunner.StartContainer(obs.GetHandle(hfrunnerdef.HFContainerSource)) {
 		obs.hfFilterSources[src] = struct{}{}
+	}
+
+	// Wire agent-internal logs into the observer via the pkg/util/log tap.
+	// anomaly_detection.logs.enabled is the parent gate; without it,
+	// agent_logs are also disabled. anomaly_detection.agent_logs.enabled
+	// defaults to true when unset (explicit false disables it).
+	logsEnabled := !cfg.IsConfigured("anomaly_detection.logs.enabled") || cfg.GetBool("anomaly_detection.logs.enabled")
+	agentLogsEnabled := !cfg.IsConfigured("anomaly_detection.agent_logs.enabled") || cfg.GetBool("anomaly_detection.agent_logs.enabled")
+	if (analysisEnabled || recorderEnabled) && logsEnabled && agentLogsEnabled {
+		sampleInfo := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_info")
+		sampleDebug := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_debug")
+		sampleTrace := cfg.GetFloat64("anomaly_detection.agent_logs.sample_rate_trace")
+		agentLogsHandle := obs.GetHandle("agent-internal-logs")
+		installAgentLogTap(agentLogsHandle, sampleInfo, sampleDebug, sampleTrace)
+		deps.Lifecycle.Append(compdef.Hook{
+			OnStop: func(_ context.Context) error {
+				pkglog.SetLogObserver(nil)
+				return nil
+			},
+		})
 	}
 
 	// Start periodic metric dump if configured
@@ -707,7 +729,7 @@ func (o *observerImpl) IngestLogSync(source string, msg observerdef.LogView) {
 	lo := &logObs{
 		content:     copyBytes(msg.GetContent()),
 		status:      msg.GetStatus(),
-		tags:        copyTags(msg.GetTags()),
+		tags:        copyTags(msg.Tags()),
 		hostname:    msg.GetHostname(),
 		timestampMs: timestampMs,
 	}
@@ -812,7 +834,7 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 		log: &logObs{
 			content:     copyBytes(msg.GetContent()),
 			status:      msg.GetStatus(),
-			tags:        copyTags(msg.GetTags()),
+			tags:        copyTags(msg.Tags()),
 			hostname:    msg.GetHostname(),
 			timestampMs: timestampMs,
 		},
@@ -836,7 +858,7 @@ type logView struct {
 
 func (v *logView) GetContent() []byte           { return v.obs.content }
 func (v *logView) GetStatus() string            { return v.obs.status }
-func (v *logView) GetTags() []string            { return v.obs.tags }
+func (v *logView) Tags() []string               { return v.obs.tags }
 func (v *logView) GetHostname() string          { return v.obs.hostname }
 func (v *logView) GetTimestampUnixMilli() int64 { return v.obs.timestampMs }
 

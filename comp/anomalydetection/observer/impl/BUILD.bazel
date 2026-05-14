@@ -4,6 +4,7 @@ go_library(
     name = "impl",
     srcs = [
         "advance_log.go",
+        "agent_logs.go",
         "component_catalog.go",
         "context_provider.go",
         "debug.go",
@@ -41,6 +42,7 @@ go_library(
 go_test(
     name = "impl_test",
     srcs = [
+        "agent_logs_test.go",
         "bench_detection_test.go",
         "bench_ingestion_test.go",
         "bench_log_ingestion_test.go",
@@ -60,6 +62,7 @@ go_test(
         "//comp/anomalydetection/observer/def",
         "//comp/core/telemetry/impl/noops",
         "//pkg/metrics",
+        "//pkg/util/log",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
