@@ -21,6 +21,7 @@ import (
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 )
 
 // configManager implements the logic of handling additions and removals of
@@ -522,25 +523,6 @@ func (cm *reconcilingConfigManager) applyChanges(changes integration.ConfigChang
 	return changes
 }
 
-// pickDiscoveryHost returns the best host address for a discovery (trial-mode)
-// check from the service's host map.  It prefers the "bridge" network entry,
-// then falls back to any non-empty entry.  Returns "" if no usable host is found.
-func pickDiscoveryHost(svc listeners.Service) string {
-	hosts, err := svc.GetHosts()
-	if err != nil || len(hosts) == 0 {
-		return ""
-	}
-	if h, ok := hosts["bridge"]; ok && h != "" {
-		return h
-	}
-	for _, h := range hosts {
-		if h != "" {
-			return h
-		}
-	}
-	return ""
-}
-
 // popTrialConfig implements configManager#popTrialConfig.
 // It iterates over scheduledConfigs, removes the first config whose computed
 // check ID matches id, and returns it. O(n) — acceptable because this path
@@ -592,7 +574,11 @@ func resolveDiscoveryTemplate(tpl integration.Config, svc listeners.Service) (in
 
 	base.TrialMode = true
 
-	host := pickDiscoveryHost(svc)
+	host, err := tmplvar.GetHost("", svc)
+	if err != nil {
+		log.Debugf("autodiscovery: could not resolve host for discovery template %s / service %s: %v; proceeding with empty host", tpl.Name, svc.GetServiceID(), err)
+		host = ""
+	}
 
 	type portPayload struct {
 		Number int    `yaml:"number"`
