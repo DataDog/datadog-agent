@@ -541,6 +541,23 @@ func TestProcessServiceFilterTemplates_DropsDiscovery(t *testing.T) {
 		assert.Contains(t, configs, discoveryTpl.Digest(), "discovery template should be kept")
 		assert.Contains(t, configs, unrelatedTpl.Digest(), "unrelated template should be kept")
 	})
+
+	t.Run("discovery kept when sibling template has only logs config", func(t *testing.T) {
+		logsOnlySibling := integration.Config{
+			Name:          "redis",
+			ADIdentifiers: []string{string(adtypes.CelProcessIdentifier)},
+			LogsConfig:    []byte(`{"source":"redis"}`),
+		}
+		configs := map[string]integration.Config{
+			discoveryTpl.Digest():    discoveryTpl,
+			logsOnlySibling.Digest(): logsOnlySibling,
+		}
+		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
+		assert.Contains(t, configs, discoveryTpl.Digest(),
+			"discovery template should be kept when the sibling is logs-only")
+		assert.Contains(t, configs, logsOnlySibling.Digest(),
+			"logs-only sibling should be kept")
+	})
 }
 
 func newProcessListener(t *testing.T, tagger tagger.Component) (*ProcessListener, *testWorkloadmetaListener) {

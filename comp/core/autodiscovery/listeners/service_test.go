@@ -189,6 +189,25 @@ func TestServiceFilterTemplatesDiscovery(t *testing.T) {
 		mkSvc(idx).FilterTemplates(configs)
 		assert.Contains(t, configs, discoveryTpl.Digest(), "discovery template should be kept when only an unrelated static config exists")
 	})
+
+	t.Run("discovery kept when sibling template has only logs config", func(t *testing.T) {
+		logsOnlySibling := integration.Config{
+			Name:          "redis",
+			Provider:      names.File,
+			ADIdentifiers: []string{"redis"},
+			LogsConfig:    []byte(`{"source":"redis"}`),
+			Source:        "file:redis/auto_conf.yaml",
+		}
+		configs := map[string]integration.Config{
+			discoveryTpl.Digest():    discoveryTpl,
+			logsOnlySibling.Digest(): logsOnlySibling,
+		}
+		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
+		assert.Contains(t, configs, discoveryTpl.Digest(),
+			"discovery template should be kept when the sibling is logs-only")
+		assert.Contains(t, configs, logsOnlySibling.Digest(),
+			"logs-only sibling should be kept")
+	})
 }
 
 func TestServiceFilterTemplatesCCA(t *testing.T) {

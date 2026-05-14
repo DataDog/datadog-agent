@@ -31,15 +31,21 @@ func filterTemplatesMatched(svc FilterableService, configs map[string]integratio
 
 // filterTemplatesDiscovery drops configuration-discovery templates that are
 // redundant with another config source for the same integration. Dropped when:
-//  1. another template for the same integration Name has matched this same service (present in configs), or
-//  2. a scheduled non-template (static) config exists for the same Name (tracked in staticIdx).
+//  1. another check template (Instances > 0) for the same integration Name has
+//     matched this same service (present in configs), or
+//  2. a scheduled non-template (static) config exists for the same Name
+//     (tracked in staticIdx).
+//
+// Logs-only sibling templates (no Instances) are ignored — discovery covers
+// metric-check configuration and shouldn't be suppressed by an integration's
+// log forwarding setup.
 func filterTemplatesDiscovery(staticIdx *StaticConfigIndex, configs map[string]integration.Config) {
 	if len(configs) == 0 {
 		return
 	}
 	nonDiscoveryNames := map[string]struct{}{}
 	for _, cfg := range configs {
-		if !cfg.IsDiscovery() {
+		if !cfg.IsDiscovery() && len(cfg.Instances) > 0 {
 			nonDiscoveryNames[cfg.Name] = struct{}{}
 		}
 	}
