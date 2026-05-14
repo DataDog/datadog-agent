@@ -855,7 +855,6 @@ data_plane:
 func TestDataPlaneDefaults(t *testing.T) {
 	config := newTestConf(t)
 
-	assert.False(t, config.GetBool("data_plane.standalone_mode"))
 	assert.True(t, config.GetBool("data_plane.use_new_config_stream_endpoint"))
 	assert.True(t, config.GetBool("data_plane.remote_agent_enabled"))
 	assert.Equal(t, "0.0.0.0:5100", config.GetString("data_plane.api_listen_address"))

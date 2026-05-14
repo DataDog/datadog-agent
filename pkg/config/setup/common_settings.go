@@ -1062,7 +1062,6 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Data Plane
 	config.BindEnvAndSetDefault("data_plane.enabled", false)
-	config.BindEnvAndSetDefault("data_plane.standalone_mode", false)
 	config.BindEnvAndSetDefault("data_plane.use_new_config_stream_endpoint", true)
 	config.BindEnvAndSetDefault("data_plane.remote_agent_enabled", true)
 	config.BindEnvAndSetDefault("data_plane.api_listen_address", "0.0.0.0:5100")

@@ -1883,8 +1883,8 @@ properties:
     visibility: public
     description: This section configures the Datadog Agent Manager System Tray
     tags:
-    - template_section:Agent
     - platform_only:windows
+    - template_section:Agent
     properties:
       log_file:
         node_type: setting
@@ -4825,8 +4825,8 @@ properties:
     visibility: public
     description: Network Path configuration
     tags:
-    - platform_only:windows,linux
     - template_section:CoreAgent
+    - platform_only:windows,linux
     properties:
       connections_monitoring:
         node_type: section
@@ -5646,8 +5646,8 @@ properties:
         visibility: public
         description: Configuration for scanning container images for software vulnerabilities.
         tags:
-        - platform_only:linux
         - template_section:CoreAgent
+        - platform_only:linux
         properties:
           enabled:
             node_type: setting
@@ -5706,7 +5706,7 @@ properties:
           overlayfs_disable_cache:
             node_type: setting
             type: boolean
-            default: true
+            default: false
           scan_interval:
             node_type: setting
             type: number
@@ -6812,22 +6812,6 @@ properties:
     example: '10'
     tags:
     - golang_type:int64
-    - template_section:CoreAgent
-  ad_tag_completeness_max_wait:
-    node_type: setting
-    type: number
-    default: 0
-    visibility: public
-    description: |-
-      Maximum time in seconds that autodiscovery waits for an entity's tags to be
-      complete before scheduling checks for it. This avoids checks running briefly
-      with incomplete tags. This can happen when some sources (kubelet, container
-      runtime, etc.) have reported information for the entity, but others have not
-      yet. 0 disables waiting and checks are scheduled as soon as the entity is
-      discovered.
-    example: '0'
-    tags:
-    - golang_type:int
     - template_section:CoreAgent
   ad_allowed_env_vars:
     node_type: setting
@@ -8696,18 +8680,6 @@ properties:
     example: '60'
     tags:
     - golang_type:int
-    - template_section:KubeApiServer
-  kubernetes_metadata_streaming:
-    node_type: setting
-    type: boolean
-    default: true
-    visibility: public
-    description: |-
-      Stream Kubernetes metadata from the Cluster Agent instead of polling it every
-      `kubernetes_metadata_tag_update_freq` seconds. This propagates the associated
-      tags with less delay.
-    example: 'true'
-    tags:
     - template_section:KubeApiServer
   kubernetes_apiserver_client_timeout:
     node_type: setting
@@ -11121,6 +11093,12 @@ properties:
     node_type: setting
     type: string
     default: localhost
+  ad_tag_completeness_max_wait:
+    node_type: setting
+    type: number
+    default: 0
+    tags:
+    - golang_type:int
   additional_endpoints:
     node_type: setting
     type: object
@@ -12163,7 +12141,7 @@ properties:
       log_file:
         node_type: setting
         type: string
-        default: /opt/datadog-agent/logs/agent-data-plane.log
+        default: ${log_path}/agent-data-plane.log
       otlp:
         node_type: section
         type: object
@@ -12228,10 +12206,6 @@ properties:
         node_type: setting
         type: string
         default: 0.0.0.0:5101
-      standalone_mode:
-        node_type: setting
-        type: boolean
-        default: false
       telemetry_enabled:
         node_type: setting
         type: boolean
@@ -14259,6 +14233,10 @@ properties:
       windows: \\.\pipe\kubelet-pod-resources
       other: /var/lib/kubelet/pod-resources/kubelet.sock
   kubernetes_map_services_on_ip:
+    node_type: setting
+    type: boolean
+    default: false
+  kubernetes_metadata_streaming:
     node_type: setting
     type: boolean
     default: false
