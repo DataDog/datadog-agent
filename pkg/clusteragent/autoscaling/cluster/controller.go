@@ -167,10 +167,9 @@ func (c *Controller) syncNodePool(ctx context.Context, name string, datadogNp *k
 				return autoscaling.Requeue
 			}
 
-			// Only create or update if the TargetHash has not changed
+			// Log if the TargetHash has changed since recommendation was generated
 			if npi.TargetHash() != targetNp.GetAnnotations()[model.KarpenterNodePoolHashAnnotationKey] {
-				log.Infof("NodePool: %s TargetHash (%s) has changed since recommendation was generated; no action will be applied.", npi.Name(), npi.TargetHash())
-				return autoscaling.NoRequeue
+				log.Infof("NodePool: %s TargetHash (%s) has changed since recommendation was generated.", npi.Name(), npi.TargetHash())
 			}
 		}
 
