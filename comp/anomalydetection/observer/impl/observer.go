@@ -151,7 +151,7 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 	settings.Enabled = make(map[string]bool, len(catalog.entries))
 	for _, entry := range catalog.Entries() {
 		prefix := "anomaly_detection.detectors." + entry.name + "."
-		if cfg.IsKnown(prefix + "enabled") {
+		if cfg.IsConfigured(prefix + "enabled") {
 			settings.Enabled[entry.name] = cfg.GetBool(prefix + "enabled")
 		}
 		if entry.readConfig != nil {
@@ -184,14 +184,14 @@ func NewComponent(deps Requires) Provides {
 
 	storageCfg := defaultStorageConfig()
 	if cfg != nil {
-		if v := cfg.GetInt("anomaly_detection.storage.max_series"); v >= 0 {
-			storageCfg.MaxSeries = v
+		if cfg.IsConfigured("anomaly_detection.storage.max_series") {
+			storageCfg.MaxSeries = cfg.GetInt("anomaly_detection.storage.max_series")
 		}
-		if v := cfg.GetFloat64("anomaly_detection.storage.eviction_floor_ratio"); v > 0 {
-			storageCfg.EvictionFloorRatio = v
+		if cfg.IsConfigured("anomaly_detection.storage.eviction_floor_ratio") {
+			storageCfg.EvictionFloorRatio = cfg.GetFloat64("anomaly_detection.storage.eviction_floor_ratio")
 		}
-		if v := cfg.GetInt64("anomaly_detection.storage.point_retention_secs"); v >= 0 {
-			storageCfg.PointRetentionSecs = v
+		if cfg.IsConfigured("anomaly_detection.storage.point_retention_secs") {
+			storageCfg.PointRetentionSecs = cfg.GetInt64("anomaly_detection.storage.point_retention_secs")
 		}
 	}
 	eng := newEngine(engineConfig{
@@ -236,7 +236,7 @@ func NewComponent(deps Requires) Provides {
 		telemetryHandler:     th,
 		dropCounter:          th.telemetryCounters[telemetryObsChannelDropped],
 		hfFilterSources:      make(map[metrics.MetricSource]struct{}),
-		ingestMetricsEnabled: cfg.GetBool("anomaly_detection.metrics.enabled"),
+		ingestMetricsEnabled: !cfg.IsConfigured("anomaly_detection.metrics.enabled") || cfg.GetBool("anomaly_detection.metrics.enabled"),
 	}
 
 	if !obs.ingestMetricsEnabled {
