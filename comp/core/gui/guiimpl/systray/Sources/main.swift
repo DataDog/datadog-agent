@@ -11,7 +11,7 @@ Logger.configure(useFileLogging: useFileLogging)
 if headlessMode {
     Logger.info("Starting in headless mode (no menu bar icon)", context: "GUI")
 } else {
-    Logger.info("Starting in GUI mode (menu bar icon visible)", context: "GUI")
+    Logger.info("Starting in GUI mode (menu bar and dock icon visible)", context: "GUI")
 }
 
 // Check if another instance is already running (exclude self)
