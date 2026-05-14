@@ -3556,14 +3556,17 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
         sm->buffer_full = false;
         // Scratch buffer is full. Flush it as a continuation fragment
         // and retry this item in the fresh buffer.
-        if (!scratch_buf_flush_and_continue(
-                ctx->buf, &sm->continuation_seq,
-                &sm->last_submitted_seq, sm->start_ns,
-                sm->entry_ktime_ns)) {
-          // Ringbuf is full during a mid-chase flush. probe_run will send
-          // a PARTIAL_ENTRY/PARTIAL_RETURN notification and skip the final
-          // submit so userspace can emit the fragments already in flight.
+        flush_result_t fr = scratch_buf_flush_and_continue(
+            ctx->buf, &sm->continuation_seq,
+            &sm->last_submitted_seq, sm->start_ns,
+            sm->entry_ktime_ns);
+        if (fr != FLUSH_OK) {
+          // Mid-chase flush failed. probe_run sends a drop notification
+          // and skips the final submit so userspace can emit the
+          // fragments already in flight as a truncated event. Stash the
+          // cause so the driver picks the right DropReason.
           sm->continuation_aborted = true;
+          sm->flush_failure_cause = (uint8_t)fr;
           return 1;
         }
         sm_chase_pointer(ctx, *item);

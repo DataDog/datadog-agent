@@ -841,18 +841,19 @@ collect:
 			i, d.Drop_reason, d.Last_seq, d.Probe_id, d.Goid, d.Entry_ktime_ns)
 	}
 
-	// Filter to notifications matching the cap signature: PARTIAL_ENTRY
-	// with last_seq = MAX_CONTINUATION_FRAGMENTS - 1.
+	// Filter to notifications matching the cap signature: FragmentLimit
+	// on the entry side with last_seq = MAX_CONTINUATION_FRAGMENTS - 1.
 	const expectLastSeq = uint16(15) // MAX_CONTINUATION_FRAGMENTS - 1
 	var capDrops []output.DropNotification
 	for _, d := range observedDrops {
-		if output.DropReason(d.Drop_reason) == output.DropReasonPartialEntry &&
+		if output.DropReason(d.Drop_reason) == output.DropReasonFragmentLimit &&
+			output.DropSide(d.Side) == output.DropSideEntry &&
 			d.Last_seq == expectLastSeq {
 			capDrops = append(capDrops, d)
 		}
 	}
 	require.Len(t, capDrops, 1,
-		"expected exactly one PARTIAL_ENTRY(last_seq=%d) from the trigger; "+
+		"expected exactly one FragmentLimit(entry, last_seq=%d) from the trigger; "+
 			"observed %d total notifications, %d matching",
 		expectLastSeq, len(observedDrops), len(capDrops))
 

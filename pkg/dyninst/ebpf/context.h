@@ -234,10 +234,16 @@ typedef struct stack_machine {
   uint16_t last_submitted_seq;
   // Set true when a mid-chase flush failed: some fragments reached
   // userspace but a later fragment couldn't be written. probe_run checks
-  // this flag after chasing completes and, if set, sends a PARTIAL_*
+  // this flag after chasing completes and, if set, sends a drop
   // notification and skips the final submit rather than emit a fragment
   // with a gap.
   bool continuation_aborted;
+  // When continuation_aborted is true, this holds the flush_result_t
+  // (cast to uint8_t for compactness) describing *why* the flush failed:
+  // FLUSH_FRAGMENT_CAP or FLUSH_RING_BUFFER_FULL. The driver maps this
+  // (plus side) into the appropriate DropReason on the side-channel
+  // notification. Undefined when continuation_aborted is false.
+  uint8_t flush_failure_cause;
   // Original probe invocation timestamp, shared across all continuation
   // fragments for correlation.
   uint64_t start_ns;

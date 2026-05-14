@@ -240,13 +240,32 @@ func (s *sink) HandleDropNotification(n output.DropNotification) {
 	}
 	var ready eventbuf.Ready
 	var done bool
+	side := output.DropSide(n.Side)
 	switch output.DropReason(n.Drop_reason) {
-	case output.DropReasonReturnLost:
+	case output.DropReasonFirstFlushFailed:
+		// No fragments reached userspace. Today eBPF only sends this for
+		// the return side (entry-side first-flush failure has no buffered
+		// userspace state to clean up). Treat any other side as a bug.
+		if side != output.DropSideReturn {
+			log.Errorf("unexpected FirstFlushFailed with side %d", n.Side)
+			return
+		}
 		ready, done = s.buffer.NoteReturnLost(key)
-	case output.DropReasonPartialEntry:
-		ready, done = s.buffer.NotePartial(key, eventbuf.Entry, n.Last_seq)
-	case output.DropReasonPartialReturn:
-		ready, done = s.buffer.NotePartial(key, eventbuf.Return, n.Last_seq)
+	case output.DropReasonFragmentLimit, output.DropReasonRingBufferFull:
+		// Partial-side truncation: fragments [0..Last_seq] reached
+		// userspace before the failure. Finalize the affected side.
+		// The reason itself (eventTooLarge vs agentOverloaded) is not
+		// yet plumbed into the snapshot output; that wiring comes with
+		// the decoder-side notCapturedReason work.
+		switch side {
+		case output.DropSideEntry:
+			ready, done = s.buffer.NotePartial(key, eventbuf.Entry, n.Last_seq)
+		case output.DropSideReturn:
+			ready, done = s.buffer.NotePartial(key, eventbuf.Return, n.Last_seq)
+		default:
+			log.Errorf("unknown drop side %d for reason %d", n.Side, n.Drop_reason)
+			return
+		}
 	default:
 		log.Errorf("unknown drop reason %d", n.Drop_reason)
 		return

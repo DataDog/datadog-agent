@@ -183,41 +183,48 @@ typedef enum data_item_reason {
   DATA_ITEM_REASON_EXTENDED                    = 15,
 } data_item_reason_t;
 
-// Reasons a drop notification is sent on the side channel. Describe what
-// userspace state a drop affected, not which BPF failure site caused it.
+// drop_reason_t classifies *why* a drop happened at the BPF emission
+// site. Pair with drop_side_t (which side of the entry/return pair was
+// affected) and last_seq (how many fragments reached userspace) to
+// derive the full picture in userspace.
 //
-//  RETURN_LOST        — return-side submit failed with no fragments sent;
-//                       the matching entry sits in userspace's pairing
-//                       store. Userspace should emit the entry alone.
-//  PARTIAL_ENTRY      — entry submit succeeded for fragments [0..last_seq],
-//                       then subsequently failed. Userspace has or will
-//                       receive exactly last_seq+1 entry fragments; treat
-//                       them as a truncated complete entry.
-//  PARTIAL_RETURN     — same as PARTIAL_ENTRY, but for the return side.
-//  PANIC_UNWOUND_LOST — the runtime.recovery synthetic event for the
-//                       range (panic_lo_depth, panic_hi_depth] on goid
-//                       failed to submit. BPF already evicted the matching
-//                       in_progress_calls slots; userspace should range-
-//                       scan its buffer and emit every matching invocation
-//                       as a truncated panic-unwound capture. probe_id,
-//                       stack_byte_depth, last_seq and entry_ktime_ns are
-//                       not meaningful for this reason.
+// Invariants enforced at the eBPF emission sites in event.c:
 //
-// A follow-up will replace these values with cause-explicit codes
-// (FIRST_FLUSH_FAILED, FRAGMENT_LIMIT, RING_BUFFER_FULL) paired with
-// the new drop_side_t.
+//   FIRST_FLUSH_FAILED   No fragments reached userspace. Used for both
+//                        first-flush scratch failures and ringbuf
+//                        rejection on fragment 0. last_seq is unused
+//                        (set to 0 by convention).
+//
+//   FRAGMENT_LIMIT       Hit MAX_CONTINUATION_FRAGMENTS. Always
+//                        partial: fragments [0..last_seq] reached
+//                        userspace before the cap fired.
+//
+//   RING_BUFFER_FULL     bpf_ringbuf_output rejected a fragment
+//                        mid-stream. Always partial: fragments
+//                        [0..last_seq] reached userspace. Ringbuf
+//                        rejection of the first flush maps to
+//                        FIRST_FLUSH_FAILED, not RING_BUFFER_FULL.
+//
+//   PANIC_UNWOUND_LOST   The runtime.recovery synthetic event for the
+//                        range (panic_lo_depth, panic_hi_depth] on goid
+//                        failed to submit. BPF already evicted the
+//                        matching in_progress_calls slots; userspace
+//                        should range-scan its buffer and emit every
+//                        matching invocation as a truncated
+//                        panic-unwound capture. probe_id,
+//                        stack_byte_depth, last_seq and entry_ktime_ns
+//                        are not meaningful for this reason.
 typedef enum drop_reason {
-  DROP_REASON_RETURN_LOST        = 1,
-  DROP_REASON_PARTIAL_ENTRY      = 2,
-  DROP_REASON_PARTIAL_RETURN     = 3,
+  DROP_REASON_FIRST_FLUSH_FAILED = 1,
+  DROP_REASON_FRAGMENT_LIMIT     = 2,
+  DROP_REASON_RING_BUFFER_FULL   = 3,
   DROP_REASON_PANIC_UNWOUND_LOST = 4,
 } drop_reason_t;
 
-// drop_side_t indicates which side of the entry/return pair a future
-// cause-explicit drop notification affected. The eBPF side will start
-// populating the new `side` field on di_drop_notification_t in the
-// follow-up that switches drop_reason_t to cause-explicit codes; until
-// then the field reads as zero from eBPF.
+// drop_side_t indicates which side of the entry/return pair the drop
+// affected. Required because the same drop_reason can apply to either
+// side; userspace needs to know which buffered fragment(s) to finalize
+// or evict.
 typedef enum drop_side {
   DROP_SIDE_ENTRY  = 1,
   DROP_SIDE_RETURN = 2,
