@@ -318,9 +318,11 @@ func TestCheck_Run_Success(t *testing.T) {
 	// payload, capture the UUIDs, and assert the rest of the payload matches.
 	actualNCMPayload := findEventPlatformEventPayload(t, mockSender, eventplatform.EventTypeNetworkConfigManagement)
 	require.Len(t, actualNCMPayload.Configs, len(expectedPayload.Configs))
+	// validate the UUID field
 	uuidRe := regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 	for i := range actualNCMPayload.Configs {
 		assert.Regexp(t, uuidRe, actualNCMPayload.Configs[i].ConfigUUID, "config[%d] should have a valid UUID", i)
+		// set the UUID field so can compare the payload as a whole
 		expectedPayload.Configs[i].ConfigUUID = actualNCMPayload.Configs[i].ConfigUUID
 	}
 	assert.Equal(t, expectedPayload, actualNCMPayload)
