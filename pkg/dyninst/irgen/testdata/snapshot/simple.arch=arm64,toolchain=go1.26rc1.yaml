@@ -27740,11 +27740,45 @@ Issues:
         Kind: 8
         Message: 'failed to resolve condition: contains: key must be a literal, got *exprlang.RefExpr'
     - probe_definition:
-        id: condContains_on_string
+        id: condContains_string_int_key
         version: 0
         type: LOG_PROBE
         where: {methodName: main.condContainsMap}
         tags: ['issue:ConditionExpressionUnresolvable']
+        when:
+            dsl: contains(tag, 42)
+            json: {contains: [{ref: tag}, 42]}
+        capture: {maxReferenceDepth: 1}
+        sampling: {snapshotsPerSecond: 10}
+        template: ""
+        segments: []
+        captureSnapshot: true
+      issue:
+        Kind: 8
+        Message: 'failed to resolve condition: contains: substring search expects a string literal; got int64 (value 42)'
+    - probe_definition:
+        id: condContains_string_null_key
+        version: 0
+        type: LOG_PROBE
+        where: {methodName: main.condContainsMap}
+        tags: ['issue:ConditionExpressionUnresolvable']
+        when:
+            dsl: contains(tag, null)
+            json: {contains: [{ref: tag}, null]}
+        capture: {maxReferenceDepth: 1}
+        sampling: {snapshotsPerSecond: 10}
+        template: ""
+        segments: []
+        captureSnapshot: true
+      issue:
+        Kind: 8
+        Message: 'failed to resolve condition: contains: substring search expects a string literal; got null'
+    - probe_definition:
+        id: condContains_string_substring
+        version: 0
+        type: LOG_PROBE
+        where: {methodName: main.condContainsMap}
+        tags: ['issue:UnsupportedFeature']
         when:
             dsl: contains(tag, "x")
             json: {contains: [{ref: tag}, x]}
@@ -27754,8 +27788,8 @@ Issues:
         segments: []
         captureSnapshot: true
       issue:
-        Kind: 8
-        Message: 'failed to resolve condition: contains: operand must be a map, slice, or array, got string'
+        Kind: 3
+        Message: 'contains: substring containment on a string base is not yet supported'
     - probe_definition:
         id: condDuration_on_line
         version: 0

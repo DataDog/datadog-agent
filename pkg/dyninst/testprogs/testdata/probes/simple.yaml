@@ -3820,9 +3820,11 @@ probes:
   sampling:
     snapshotsPerSecond: 10
 
-# Negative: contains applied to a non-map operand (string) — must fail at
-# irgen with ConditionExpressionUnresolvable.
-- id: condContains_on_string
+# Negative: contains(string, string) is substring containment, which is a
+# recognised future feature but not implemented today. Surfaces
+# IssueKindUnsupportedFeature with a forward-looking message rather than a
+# generic resolve failure.
+- id: condContains_string_substring
   type: LOG_PROBE
   captureSnapshot: true
   where:
@@ -3830,6 +3832,36 @@ probes:
   when:
     dsl: "contains(tag, \"x\")"
     json: {contains: [{ref: "tag"}, "x"]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:UnsupportedFeature"
+
+# Negative: contains(string, null). null is not a string literal, so this is
+# a type mismatch — IssueKindConditionExpressionUnresolvable.
+- id: condContains_string_null_key
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condContainsMap
+  when:
+    dsl: "contains(tag, null)"
+    json: {contains: [{ref: "tag"}, null]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Negative: contains(string, intLiteral). Type mismatch — substring search
+# expects a string key — IssueKindConditionExpressionUnresolvable.
+- id: condContains_string_int_key
+  type: LOG_PROBE
+  captureSnapshot: true
+  where:
+    methodName: main.condContainsMap
+  when:
+    dsl: "contains(tag, 42)"
+    json: {contains: [{ref: "tag"}, 42]}
   sampling:
     snapshotsPerSecond: 10
   tags:
