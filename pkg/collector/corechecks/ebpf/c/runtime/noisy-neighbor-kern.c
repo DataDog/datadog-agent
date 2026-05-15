@@ -31,6 +31,17 @@ BPF_PERF_EVENT_ARRAY_MAP(cache_references_pmu, u32)
 // non-preemptible context so per-CPU storage is sufficient.
 BPF_PERCPU_ARRAY_MAP(softirq_start_ns, __u64, 1)
 
+// pmu_any_enabled is rewritten by userspace at load time to a non-zero value
+// when at least one PMU event is configured. Used to short-circuit the
+// per-sched-switch PMU sampling fast path so the disabled-by-default case
+// pays only a single immediate compare instead of seven bpf_perf_event_read
+// helper calls per context switch.
+static __always_inline __u64 pmu_any_enabled(void) {
+    __u64 val = 0;
+    LOAD_CONSTANT("pmu_any_enabled", val);
+    return val;
+}
+
 void bpf_rcu_read_lock(void) __ksym;
 void bpf_rcu_read_unlock(void) __ksym;
 extern void *bpf_rdonly_cast(const void *obj, __u32 btf_id) __ksym __weak;
@@ -265,10 +276,16 @@ int tp_sched_switch(u64 *ctx) {
     u32 next_pid = next->pid;
 
     // Sample PMU counters once. Each read is independent — if iTLB events
-    // aren't supported but cycles are, only iTLB deltas are skipped.
+    // aren't supported but cycles are, only iTLB deltas are skipped. Skip
+    // the sampling entirely when no PMU toggle is enabled: every read would
+    // return -ENOENT and the helper-call cost is the dominant overhead
+    // here.
     pmu_sample_t pmu = {};
-    pmu_sample_all(&pmu);
-    bool pmu_ok = pmu_any_ok(&pmu);
+    bool pmu_ok = false;
+    if (pmu_any_enabled()) {
+        pmu_sample_all(&pmu);
+        pmu_ok = pmu_any_ok(&pmu);
+    }
 
     if (pmu_ok && prev_pid) {
         task_pmu_stamp_t *stamp = bpf_task_storage_get(&task_oncpu_pmu, prev, NULL, 0);

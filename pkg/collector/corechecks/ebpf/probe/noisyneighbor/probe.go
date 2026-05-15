@@ -53,6 +53,19 @@ func NewProbe(cfg *ddebpf.Config, modCfg Config) (*Probe, error) {
 
 	p := &Probe{}
 
+	// Summarise the per-event toggles into a single bit. The BPF program
+	// reads this through LOAD_CONSTANT and skips the seven bpf_perf_event_read
+	// helper calls per sched_switch when every counter is off. Per-counter
+	// gating (which events get perf-event-array fds) is still driven by
+	// attachPMU below; this is only the hot-path summary.
+	var pmuAnyEnabled uint64
+	for _, on := range modCfg.PMUMetrics {
+		if on {
+			pmuAnyEnabled = 1
+			break
+		}
+	}
+
 	filename := "noisy-neighbor.o"
 	if cfg.BPFDebug {
 		filename = "noisy-neighbor-debug.o"
@@ -81,6 +94,17 @@ func NewProbe(cfg *ddebpf.Config, modCfg Config) (*Probe, error) {
 			{Name: "cache_references_pmu"},
 			{Name: "softirq_start_ns"},
 		}
+		opts.ConstantEditors = append(opts.ConstantEditors, manager.ConstantEditor{
+			Name:          "pmu_any_enabled",
+			Value:         pmuAnyEnabled,
+			FailOnMissing: true,
+			// Only tp_sched_switch reads this constant; restricting the
+			// editor avoids "unreferenced symbol" errors against the other
+			// programs in the manager.
+			ProbeIdentificationPairs: []manager.ProbeIdentificationPair{
+				{EBPFFuncName: "tp_sched_switch", UID: uid},
+			},
+		})
 		if err := p.mgr.InitWithOptions(buf, &opts); err != nil {
 			return fmt.Errorf("failed to init ebpf manager: %w", err)
 		}
