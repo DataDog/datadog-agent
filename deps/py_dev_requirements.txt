@@ -1,2 +1,2 @@
-invoke==2.2.1
+invoke==3.0.3
 pyyaml==6.0.3
