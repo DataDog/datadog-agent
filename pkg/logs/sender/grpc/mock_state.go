@@ -38,7 +38,7 @@ type batchEntry struct {
 	msg               *message.Message
 	content           string // preprocessed content (JSON extracted message, or raw string)
 	messageKey        string // JSON key the message was extracted from (e.g. "msg", "message")
-	jsonContextSchema string // comma-separated sorted keys (e.g. "level,service,timestamp")
+	jsonContextKeys   []string
 	jsonContextValues []interface{}
 	isRawJSON         bool // true when patterns.json_as_raw=true — skip tokenization, send as RawLog
 }
@@ -92,6 +92,13 @@ type tagCacheEntry struct {
 	tagStr         string
 }
 
+type jsonSchemaState struct {
+	schemaID     uint64
+	schemaKey    string
+	messageKeyID uint64
+	keyIDs       []uint64
+}
+
 // MessageTranslator handles translation of message.Message to message.StatefulMessage
 // It manages pattern extraction, clustering, and stateful message creation
 type MessageTranslator struct {
@@ -102,6 +109,8 @@ type MessageTranslator struct {
 	tokenizer              token.Tokenizer
 	jsonLogsAsRaw          bool // when true, JSON logs bypass stateful encoding and are sent as RawLog
 	jsonSchemaToID         map[string]uint64
+	jsonSchemaByID         map[uint64]*jsonSchemaState
+	jsonSchemaIDsByDictID  map[uint64]map[uint64]struct{}
 	nextJSONSchemaID       uint64
 
 	pipelineName   string
@@ -155,6 +164,8 @@ func NewMessageTranslator(pipelineName string, tokenizer token.Tokenizer, opts .
 		tokenizer:              tokenizer,
 		jsonLogsAsRaw:          pkgconfigsetup.Datadog().GetBool("logs_config.patterns.json_as_raw"),
 		jsonSchemaToID:         make(map[string]uint64),
+		jsonSchemaByID:         make(map[uint64]*jsonSchemaState),
+		jsonSchemaIDsByDictID:  make(map[uint64]map[uint64]struct{}),
 		nextJSONSchemaID:       flatLogEmptyDictIndex,
 		pipelineName:           pipelineName,
 		lastStaleSweep:         time.Now(),
@@ -215,7 +226,7 @@ func (mt *MessageTranslator) Start(inputChan chan *message.Message, bufferSize i
 			} else if results := processor.PreprocessJSON(content); results.Message != "" {
 				entry.content = results.Message
 				entry.messageKey = results.MessageKey
-				entry.jsonContextSchema = results.JSONContextSchema
+				entry.jsonContextKeys = results.JSONContextKeys
 				entry.jsonContextValues = results.JSONContextValues
 			} else {
 				entry.content = string(content)
@@ -315,7 +326,7 @@ func (mt *MessageTranslator) processBatch(batch []batchEntry, outputChan chan *m
 			log.Warnf("Failed to tokenize log message: %v", tokenResults[i].Err)
 			continue
 		}
-		mt.processPreTokenized(entry.msg, tokenResults[i].TokenList, entry.messageKey, entry.jsonContextSchema, entry.jsonContextValues, outputChan)
+		mt.processPreTokenized(entry.msg, tokenResults[i].TokenList, entry.messageKey, entry.jsonContextKeys, entry.jsonContextValues, outputChan)
 	}
 }
 
@@ -344,12 +355,13 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 		return
 	}
 	contentStr := string(content)
-	var messageKey, jsonContextSchema string
+	var messageKey string
+	var jsonContextKeys []string
 	var jsonContextValues []interface{}
 	if results := processor.PreprocessJSON(content); results.Message != "" {
 		contentStr = results.Message
 		messageKey = results.MessageKey
-		jsonContextSchema = results.JSONContextSchema
+		jsonContextKeys = results.JSONContextKeys
 		jsonContextValues = results.JSONContextValues
 	}
 	tokenList, err := mt.tokenizer.Tokenize(contentStr)
@@ -357,12 +369,12 @@ func (mt *MessageTranslator) processMessage(msg *message.Message, outputChan cha
 		log.Warnf("Failed to tokenize log message: %v", err)
 		return
 	}
-	mt.processPreTokenized(msg, tokenList, messageKey, jsonContextSchema, jsonContextValues, outputChan)
+	mt.processPreTokenized(msg, tokenList, messageKey, jsonContextKeys, jsonContextValues, outputChan)
 }
 
 // processPreTokenized handles post-tokenization: clustering, eviction, datum construction, and sending.
 // Called by both processBatch (batch pipeline) and processMessage (single-message path).
-func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList *token.TokenList, messageKey string, jsonContextSchema string, jsonContextValues []interface{}, outputChan chan *message.StatefulMessage) {
+func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList *token.TokenList, messageKey string, jsonContextKeys []string, jsonContextValues []interface{}, outputChan chan *message.StatefulMessage) {
 	var patternDefineSent bool
 	var patternDefineParamCount uint32
 
@@ -409,13 +421,12 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 	}
 
 	// Check if tag dictionary eviction is needed using high watermark threshold
+	mt.touchJsonSchemaReferencesForKeys(messageKey, jsonContextKeys)
 	tagCount := mt.tagManager.Count()
 	tagMemoryBytes := mt.tagManager.EstimatedMemoryBytes()
 	tagCountOverLimit, tagBytesOverLimit := mt.tagEvictionManager.ShouldEvict(tagCount, tagMemoryBytes)
 	if tagCountOverLimit || tagBytesOverLimit {
-		for _, evictedID := range mt.tagEvictionManager.Evict(mt.tagManager, tagCount, tagMemoryBytes, tagCountOverLimit, tagBytesOverLimit) {
-			mt.sendDictEntryDelete(outputChan, msg, evictedID)
-		}
+		mt.sendDictEntryDeletes(outputChan, msg, mt.tagEvictionManager.Evict(mt.tagManager, tagCount, tagMemoryBytes, tagCountOverLimit, tagBytesOverLimit))
 	}
 
 	// Periodic TTL sweep: remove entries not accessed within the configured TTL.
@@ -426,9 +437,7 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 		for _, evictedPattern := range mt.clusterManager.EvictStalePatterns(mt.staleTTL) {
 			mt.sendPatternDelete(evictedPattern.PatternID, msg, outputChan)
 		}
-		for _, evictedID := range mt.tagManager.EvictStaleEntries(mt.staleTTL) {
-			mt.sendDictEntryDelete(outputChan, msg, evictedID)
-		}
+		mt.sendDictEntryDeletes(outputChan, msg, mt.tagManager.EvictStaleEntries(mt.staleTTL))
 	}
 
 	// Send PatternDefine for new or updated patterns
@@ -462,8 +471,8 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 	var messageKeyDV *statefulpb.DynamicValue
 	var jsonContextSchemaID uint64
 	var jsonContextValuesDV []*statefulpb.DynamicValue
-	if jsonContextSchema != "" {
-		messageKeyDV, jsonContextSchemaID = mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, messageKey, jsonContextSchema)
+	if len(jsonContextKeys) > 0 {
+		messageKeyDV, jsonContextSchemaID = mt.sendJsonSchemaDefineIfNeeded(outputChan, msg, messageKey, jsonContextKeys)
 
 		jsonContextDVBacking := make([]statefulpb.DynamicValue, len(jsonContextValues))
 		jsonContextTypeBacking := make([]dvTypeBackings, len(jsonContextValues))
@@ -616,7 +625,7 @@ func (mt *MessageTranslator) buildStatusField(msg *message.Message) (uint64, str
 	return dictID, status, isNew
 }
 
-func (mt *MessageTranslator) sendJsonSchemaDefineIfNeeded(outputChan chan *message.StatefulMessage, msg *message.Message, messageKey string, jsonContextSchema string) (*statefulpb.DynamicValue, uint64) {
+func (mt *MessageTranslator) sendJsonSchemaDefineIfNeeded(outputChan chan *message.StatefulMessage, msg *message.Message, messageKey string, keys []string) (*statefulpb.DynamicValue, uint64) {
 	if messageKey == "" {
 		messageKey = "message"
 	}
@@ -625,7 +634,6 @@ func (mt *MessageTranslator) sendJsonSchemaDefineIfNeeded(outputChan chan *messa
 		mt.sendDictEntryDefine(outputChan, msg, messageKeyID, messageKey)
 	}
 
-	keys := strings.Split(jsonContextSchema, ",")
 	keyIDs := make([]uint64, 0, len(keys))
 	for _, key := range keys {
 		if key == "" {
@@ -638,12 +646,13 @@ func (mt *MessageTranslator) sendJsonSchemaDefineIfNeeded(outputChan chan *messa
 		keyIDs = append(keyIDs, keyID)
 	}
 
-	schemaKey := messageKey + "\x00" + jsonContextSchema
+	schemaKey := buildJsonSchemaKey(messageKey, keys)
 	schemaID, ok := mt.jsonSchemaToID[schemaKey]
 	if !ok {
 		mt.nextJSONSchemaID++
 		schemaID = mt.nextJSONSchemaID
 		mt.jsonSchemaToID[schemaKey] = schemaID
+		mt.trackJsonSchema(schemaID, schemaKey, messageKeyID, keyIDs)
 		mt.sendJsonSchemaDefine(outputChan, msg, schemaID, keyIDs, messageKeyID)
 	}
 
@@ -652,6 +661,106 @@ func (mt *MessageTranslator) sendJsonSchemaDefineIfNeeded(outputChan chan *messa
 			DictIndex: messageKeyID,
 		},
 	}, schemaID
+}
+
+func buildJsonSchemaKey(messageKey string, keys []string) string {
+	schemaKeyBuilder := strings.Builder{}
+	schemaKeyBuilder.WriteString(messageKey)
+	for _, key := range keys {
+		if key == "" {
+			continue
+		}
+		schemaKeyBuilder.WriteByte('\x00')
+		schemaKeyBuilder.WriteString(key)
+	}
+	return schemaKeyBuilder.String()
+}
+
+func (mt *MessageTranslator) trackJsonSchema(schemaID uint64, schemaKey string, messageKeyID uint64, keyIDs []uint64) {
+	state := &jsonSchemaState{
+		schemaID:     schemaID,
+		schemaKey:    schemaKey,
+		messageKeyID: messageKeyID,
+		keyIDs:       append([]uint64(nil), keyIDs...),
+	}
+	mt.jsonSchemaByID[schemaID] = state
+	mt.addJsonSchemaDictReference(messageKeyID, schemaID)
+	for _, keyID := range keyIDs {
+		mt.addJsonSchemaDictReference(keyID, schemaID)
+	}
+}
+
+func (mt *MessageTranslator) addJsonSchemaDictReference(dictID uint64, schemaID uint64) {
+	schemaIDs := mt.jsonSchemaIDsByDictID[dictID]
+	if schemaIDs == nil {
+		schemaIDs = make(map[uint64]struct{})
+		mt.jsonSchemaIDsByDictID[dictID] = schemaIDs
+	}
+	schemaIDs[schemaID] = struct{}{}
+}
+
+func (mt *MessageTranslator) touchJsonSchemaReferences(schemaID uint64) {
+	state := mt.jsonSchemaByID[schemaID]
+	if state == nil {
+		return
+	}
+	mt.tagManager.TouchDictID(state.messageKeyID)
+	for _, keyID := range state.keyIDs {
+		mt.tagManager.TouchDictID(keyID)
+	}
+}
+
+func (mt *MessageTranslator) touchJsonSchemaReferencesForKeys(messageKey string, keys []string) {
+	if len(keys) == 0 {
+		return
+	}
+	if messageKey == "" {
+		messageKey = "message"
+	}
+	schemaKey := buildJsonSchemaKey(messageKey, keys)
+	schemaID, ok := mt.jsonSchemaToID[schemaKey]
+	if !ok {
+		return
+	}
+	mt.touchJsonSchemaReferences(schemaID)
+}
+
+func (mt *MessageTranslator) sendDictEntryDeletes(outputChan chan *message.StatefulMessage, msg *message.Message, evictedIDs []uint64) {
+	for _, evictedID := range evictedIDs {
+		mt.sendJsonSchemaDeletesForDictID(outputChan, msg, evictedID)
+		mt.sendDictEntryDelete(outputChan, msg, evictedID)
+	}
+}
+
+func (mt *MessageTranslator) sendJsonSchemaDeletesForDictID(outputChan chan *message.StatefulMessage, msg *message.Message, dictID uint64) {
+	for schemaID := range mt.jsonSchemaIDsByDictID[dictID] {
+		mt.sendJsonSchemaDelete(outputChan, msg, schemaID)
+		mt.untrackJsonSchema(schemaID)
+	}
+}
+
+func (mt *MessageTranslator) untrackJsonSchema(schemaID uint64) {
+	state := mt.jsonSchemaByID[schemaID]
+	if state == nil {
+		return
+	}
+	delete(mt.jsonSchemaByID, schemaID)
+	delete(mt.jsonSchemaToID, state.schemaKey)
+	mt.removeJsonSchemaDictReference(state.messageKeyID, schemaID)
+	for _, keyID := range state.keyIDs {
+		mt.removeJsonSchemaDictReference(keyID, schemaID)
+	}
+}
+
+func (mt *MessageTranslator) removeJsonSchemaDictReference(dictID uint64, schemaID uint64) {
+	schemaIDs := mt.jsonSchemaIDsByDictID[dictID]
+	if schemaIDs == nil {
+		return
+	}
+	delete(schemaIDs, schemaID)
+	if len(schemaIDs) == 0 {
+		delete(mt.jsonSchemaIDsByDictID, dictID)
+	}
 }
 
 // getMessageTimestamp returns the timestamp for the message, preferring the HTTP
@@ -723,6 +832,18 @@ func (mt *MessageTranslator) sendDictEntryDelete(outputChan chan *message.Statef
 			},
 		},
 	}
+
+	bytesRemoved := float64(proto.Size(deleteDatum))
+	tlmPipelineStateSize.Sub(bytesRemoved, mt.pipelineName)
+
+	outputChan <- &message.StatefulMessage{
+		Datum:    deleteDatum,
+		Metadata: &msg.MessageMetadata,
+	}
+}
+
+func (mt *MessageTranslator) sendJsonSchemaDelete(outputChan chan *message.StatefulMessage, msg *message.Message, schemaID uint64) {
+	deleteDatum := buildJsonSchemaDelete(schemaID)
 
 	bytesRemoved := float64(proto.Size(deleteDatum))
 	tlmPipelineStateSize.Sub(bytesRemoved, mt.pipelineName)
@@ -822,6 +943,16 @@ func buildJsonSchemaDefine(schemaID uint64, keyIDs []uint64, messageKeyID uint64
 				SchemaId:     schemaID,
 				Keys:         keyIDs,
 				MessageKeyId: messageKeyID,
+			},
+		},
+	}
+}
+
+func buildJsonSchemaDelete(schemaID uint64) *statefulpb.Datum {
+	return &statefulpb.Datum{
+		Data: &statefulpb.Datum_JsonSchemaDelete{
+			JsonSchemaDelete: &statefulpb.JsonSchemaDelete{
+				SchemaId: schemaID,
 			},
 		},
 	}

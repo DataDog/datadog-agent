@@ -635,10 +635,12 @@ func (*Log_Structured) isLog_Content() {}
 func (*Log_Raw) isLog_Content() {}
 
 type JsonSchemaDefine struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	SchemaId      uint64                 `protobuf:"varint,1,opt,name=schema_id,json=schemaId,proto3" json:"schema_id,omitempty"`
-	Keys          []uint64               `protobuf:"varint,2,rep,packed,name=keys,proto3" json:"keys,omitempty"`
-	MessageKeyId  uint64                 `protobuf:"varint,3,opt,name=message_key_id,json=messageKeyId,proto3" json:"message_key_id,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	SchemaId uint64                 `protobuf:"varint,1,opt,name=schema_id,json=schemaId,proto3" json:"schema_id,omitempty"`
+	// Dictionary IDs for escaped JSON paths. Dots separate nested fields; literal dots
+	// and backslashes inside field names are backslash-escaped.
+	Keys          []uint64 `protobuf:"varint,2,rep,packed,name=keys,proto3" json:"keys,omitempty"`
+	MessageKeyId  uint64   `protobuf:"varint,3,opt,name=message_key_id,json=messageKeyId,proto3" json:"message_key_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
