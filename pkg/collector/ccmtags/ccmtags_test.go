@@ -24,38 +24,38 @@ func TestIsTagged(t *testing.T) {
 		wantResult bool
 	}{
 		{
-			name:      "ccm_mode lightweight, check in tagged list returns true",
+			name:      "infrastructure_mode cloud_cost_only, check in tagged list returns true",
 			checkName: "cpu",
 			setupCfg: func(cfg pkgconfigmodel.Config) {
-				cfg.Set("ccm_mode", "lightweight", pkgconfigmodel.SourceFile)
-				cfg.Set("integration.ccm_lightweight.tagged", []string{"cpu"}, pkgconfigmodel.SourceFile)
+				cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
+				cfg.Set("integration.cloud_cost_only.tagged", []string{"cpu"}, pkgconfigmodel.SourceFile)
 			},
 			wantResult: true,
 		},
 		{
-			name:      "ccm_mode lightweight, check not in tagged list returns false",
+			name:      "infrastructure_mode cloud_cost_only, check not in tagged list returns false",
 			checkName: "disk",
 			setupCfg: func(cfg pkgconfigmodel.Config) {
-				cfg.Set("ccm_mode", "lightweight", pkgconfigmodel.SourceFile)
-				cfg.Set("integration.ccm_lightweight.tagged", []string{"cpu"}, pkgconfigmodel.SourceFile)
+				cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
+				cfg.Set("integration.cloud_cost_only.tagged", []string{"cpu"}, pkgconfigmodel.SourceFile)
 			},
 			wantResult: false,
 		},
 		{
-			name:      "ccm_mode lightweight, empty tagged list tags all checks",
+			name:      "infrastructure_mode cloud_cost_only, empty tagged list tags all checks",
 			checkName: "any_check",
 			setupCfg: func(cfg pkgconfigmodel.Config) {
-				cfg.Set("ccm_mode", "lightweight", pkgconfigmodel.SourceFile)
-				cfg.Set("integration.ccm_lightweight.tagged", []string{}, pkgconfigmodel.SourceFile)
+				cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
+				cfg.Set("integration.cloud_cost_only.tagged", []string{}, pkgconfigmodel.SourceFile)
 			},
 			wantResult: true,
 		},
 		{
-			name:      "ccm_mode unset, check would be in tagged list",
+			name:      "infrastructure_mode full, check would be in tagged list",
 			checkName: "cpu",
 			setupCfg: func(cfg pkgconfigmodel.Config) {
-				cfg.Set("ccm_mode", "", pkgconfigmodel.SourceFile)
-				cfg.Set("integration.ccm_lightweight.tagged", []string{"cpu"}, pkgconfigmodel.SourceFile)
+				cfg.Set("infrastructure_mode", "full", pkgconfigmodel.SourceFile)
+				cfg.Set("integration.cloud_cost_only.tagged", []string{"cpu"}, pkgconfigmodel.SourceFile)
 			},
 			wantResult: false,
 		},
@@ -81,32 +81,32 @@ func TestApplySenderTags(t *testing.T) {
 		wantInfraTags []string // nil means AppendInfraTags should not be called
 	}{
 		{
-			name:        "eligible integration appends ccm_mode to sender infra tags",
+			name:        "eligible integration appends infra_mode to sender infra tags",
 			integration: "cpu",
 			id:          checkid.ID("cpu:abc"),
 			setupCfg: func(cfg pkgconfigmodel.Config) {
-				cfg.Set("ccm_mode", "lightweight", pkgconfigmodel.SourceFile)
-				cfg.Set("integration.ccm_lightweight.tagged", []string{"cpu"}, pkgconfigmodel.SourceFile)
+				cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
+				cfg.Set("integration.cloud_cost_only.tagged", []string{"cpu"}, pkgconfigmodel.SourceFile)
 			},
-			wantInfraTags: []string{"ccm_mode:lightweight"},
+			wantInfraTags: []string{"infra_mode:cloud_cost_only"},
 		},
 		{
 			name:        "integration not in tagged list leaves infra tags unchanged",
 			integration: "disk",
 			id:          checkid.ID("disk:def"),
 			setupCfg: func(cfg pkgconfigmodel.Config) {
-				cfg.Set("ccm_mode", "lightweight", pkgconfigmodel.SourceFile)
-				cfg.Set("integration.ccm_lightweight.tagged", []string{"cpu"}, pkgconfigmodel.SourceFile)
+				cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
+				cfg.Set("integration.cloud_cost_only.tagged", []string{"cpu"}, pkgconfigmodel.SourceFile)
 			},
 			wantInfraTags: nil,
 		},
 		{
-			name:        "ccm_mode unset does not append infra tags",
+			name:        "infrastructure_mode not cloud_cost_only does not append infra tags",
 			integration: "cpu",
 			id:          checkid.ID("cpu:ghi"),
 			setupCfg: func(cfg pkgconfigmodel.Config) {
-				cfg.Set("ccm_mode", "", pkgconfigmodel.SourceFile)
-				cfg.Set("integration.ccm_lightweight.tagged", []string{"cpu"}, pkgconfigmodel.SourceFile)
+				cfg.Set("infrastructure_mode", "full", pkgconfigmodel.SourceFile)
+				cfg.Set("integration.cloud_cost_only.tagged", []string{"cpu"}, pkgconfigmodel.SourceFile)
 			},
 			wantInfraTags: nil,
 		},

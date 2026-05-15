@@ -1264,10 +1264,8 @@ func agent(config pkgconfigmodel.Setup) {
 		"windows_registry",
 		"windows_service",
 	})
-	// ccm_mode: when set, enables CCM check tagging with the pattern ccm_mode:<value>.
-	config.BindEnvAndSetDefault("ccm_mode", "")
-	// integration.ccm_lightweight.tagged: checks to tag in CCM lightweight mode (empty means all checks)
-	config.BindEnvAndSetDefault("integration.ccm_lightweight.tagged", []string{
+	// integration.cloud_cost_only.tagged: checks to tag when infrastructure_mode=cloud_cost_only (empty means all checks)
+	config.BindEnvAndSetDefault("integration.cloud_cost_only.tagged", []string{
 		"cpu",
 	})
 
