@@ -40,11 +40,13 @@ pub fn sleep_cmd(secs: u32) -> (&'static str, Vec<String>) {
 }
 
 /// Command + args for sleeping `secs` seconds.
+/// Uses `ping -n` instead of `timeout` because `timeout.exe` is absent in
+/// minimal Windows CI containers.
 #[cfg(windows)]
 pub fn sleep_cmd(secs: u32) -> (&'static str, Vec<String>) {
     (
-        "cmd.exe",
-        vec!["/C".into(), format!("timeout /t {secs} /nobreak >nul")],
+        "ping.exe",
+        vec!["-n".into(), (secs + 1).to_string(), "127.0.0.1".into()],
     )
 }
 
@@ -77,9 +79,11 @@ pub fn sleep_config_yaml() -> &'static str {
 }
 
 /// YAML config snippet for a process that sleeps for a long time.
+/// Uses `ping -n` instead of `timeout` because `timeout.exe` is absent in
+/// minimal Windows CI containers.
 #[cfg(windows)]
 pub fn sleep_config_yaml() -> &'static str {
-    "command: cmd.exe\nargs:\n  - '/C'\n  - 'timeout /t 300 /nobreak >nul'\n"
+    "command: ping.exe\nargs:\n  - '-n'\n  - '301'\n  - '127.0.0.1'\n"
 }
 
 /// YAML for a process that exits successfully and never restarts.

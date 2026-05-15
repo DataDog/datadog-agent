@@ -5,7 +5,7 @@ exporters:
         compression: zstd
         headers:
             dd-api-key: test_api_key_123
-            dd-evp-origin: host-profiler
+            dd-evp-origin: host-profiler-bundled
             dd-evp-origin-version: 7.0.0-test
         metrics_endpoint: https://otlp.datadoghq.com/v1/metrics
         profiles_endpoint: https://intake.profile.datadoghq.com/v1development/profiles
@@ -29,7 +29,7 @@ processors:
         attributes:
             - action: upsert
               key: profiler_name
-              value: host-profiler
+              value: host-profiler-bundled
             - action: upsert
               key: profiler_version
               value: 7.0.0-test

@@ -8,9 +8,9 @@
 package dogstatsd
 
 import (
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
+	pidmapfx "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/fx"
 	replayfx "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	servermock "github.com/DataDog/datadog-agent/comp/dogstatsd/server/mock"
 	serverdebugmock "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/mock"
 	statsdimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -20,9 +20,9 @@ import (
 func MockBundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
 		serverdebugmock.MockModule(),
-		server.MockModule(),
+		servermock.MockModule(),
 		replayfx.Module(),
-		pidmapimpl.Module())
+		pidmapfx.Module())
 }
 
 // MockClientBundle defines the mock fx options for this bundle.

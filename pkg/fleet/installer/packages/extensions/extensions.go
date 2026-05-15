@@ -254,7 +254,7 @@ func installSingle(ctx context.Context, pkg *oci.DownloadedPackage, extension st
 		}
 	}()
 
-	err = os.Rename(tmpDir, extensionPath)
+	err = paths.Rename(ctx, tmpDir, extensionPath)
 	if err != nil {
 		return fmt.Errorf("could not move %s to final location: %w", extension, err)
 	}

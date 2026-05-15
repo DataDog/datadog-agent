@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -65,12 +64,11 @@ func TestTelemetryMiddleware(t *testing.T) {
 				w.WriteHeader(tc.code)
 			}
 
-			// Use a gorilla/mux router with CaptureRouteTemplateMiddleware so the telemetry
-			// middleware can resolve route templates instead of raw user-provided paths.
-			router := mux.NewRouter()
-			router.Use(CaptureRouteTemplateMiddleware)
-			router.Handle(tc.path, tcHandler).Methods(tc.method)
-			server := httptest.NewServer(telemetryHandler(router))
+			// Use WrapWithRouteTemplate so the telemetry middleware resolves the route
+			// template instead of the raw request path for the metric tag.
+			mux := http.NewServeMux()
+			mux.Handle(tc.method+" "+tc.path, WrapWithRouteTemplate("", tc.path, tcHandler))
+			server := httptest.NewServer(telemetryHandler(mux))
 			defer server.Close()
 
 			url := url.URL{
@@ -113,10 +111,9 @@ func TestTelemetryMiddlewareUnmatchedRouteUsesUnknown(t *testing.T) {
 	tm := newTelemetryMiddlewareFactory(telemetry, clock.NewMock(), NoopAuthTagGetter)
 	telemetryHandler := tm.Middleware("test")
 
-	// No routes registered — any request will not match the capture middleware.
-	router := mux.NewRouter()
-	router.Use(CaptureRouteTemplateMiddleware)
-	server := httptest.NewServer(telemetryHandler(router))
+	// No routes registered — no WrapWithRouteTemplate wrapping, so template stays empty.
+	mux := http.NewServeMux()
+	server := httptest.NewServer(telemetryHandler(mux))
 	defer server.Close()
 
 	resp, err := server.Client().Get(server.URL + "/arbitrary/user/input")

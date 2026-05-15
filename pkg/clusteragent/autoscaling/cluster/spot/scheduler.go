@@ -220,16 +220,6 @@ func (s *scheduler) spotEligibleFilter(entity workloadmeta.Entity) bool {
 	return ok
 }
 
-// Spot node label and taint.
-// The node label is Karpenter-specific; the taint uses our own namespace so we
-// control it independently of the cluster autoscaler.
-const (
-	spotNodeLabelKey   = "karpenter.sh/capacity-type"
-	spotNodeLabelValue = "spot"
-	spotNodeTaintKey   = "autoscaling.datadoghq.com/capacity-type"
-	spotNodeTaintValue = "interruptible"
-)
-
 func assignToSpot(pod *corev1.Pod) {
 	if pod.Spec.NodeSelector == nil {
 		pod.Spec.NodeSelector = map[string]string{}

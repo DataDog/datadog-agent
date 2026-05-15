@@ -108,7 +108,6 @@ log "Building agent binary via inv agent.build"
 cd /opt/datadog-agent
 rm -f "$STAGING/opt/datadog-agent/bin/agent/agent"
 python3.12 -m invoke agent.build \
-    --skip-assets \
     --exclude-rtloader \
     --rtloader-root=/opt/datadog-agent/rtloader \
     --embedded-path="$EMBEDDED_DESTDIR" \
@@ -123,7 +122,7 @@ log "agent binary build complete: $STAGING/opt/datadog-agent/bin/agent/agent"
 
 log "Building trace-agent binary via inv trace-agent.build"
 cd /opt/datadog-agent
-python3.12 -m invoke trace-agent.build --rebuild
+python3.12 -m invoke trace-agent.build
 mkdir -p "$STAGING/opt/datadog-agent/embedded/bin"
 rm -f "$STAGING/opt/datadog-agent/embedded/bin/trace-agent"
 cp /opt/datadog-agent/bin/trace-agent/trace-agent "$STAGING/opt/datadog-agent/embedded/bin/trace-agent"

@@ -824,3 +824,92 @@ func TestMetricRemapping(t *testing.T) {
 		})
 	}
 }
+
+func TestDeltaSumAsRateAttribute(t *testing.T) {
+	tests := []struct {
+		name          string
+		genMetrics    func() pmetric.Metrics
+		wantType      metrics.APIMetricType
+		wantName      string
+		checkHasAsTag bool
+	}{
+		{
+			name: "delta sum with as_type=rate becomes rate",
+			genMetrics: func() pmetric.Metrics {
+				md := pmetric.NewMetrics()
+				rm := md.ResourceMetrics().AppendEmpty()
+				ilm := rm.ScopeMetrics().AppendEmpty()
+				met := ilm.Metrics().AppendEmpty()
+				met.SetName("test.delta.sum")
+				met.SetEmptySum()
+				met.Sum().SetIsMonotonic(false)
+				met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+				dp := met.Sum().DataPoints().AppendEmpty()
+				dp.SetIntValue(100)
+				dp.Attributes().PutStr("datadog.metric.as_type", "rate")
+				dp.Attributes().PutStr("env", "test")
+				return md
+			},
+			wantType:      metrics.APIRateType,
+			wantName:      "test.delta.sum",
+			checkHasAsTag: true,
+		},
+		{
+			name: "delta sum without attribute stays count",
+			genMetrics: func() pmetric.Metrics {
+				md := pmetric.NewMetrics()
+				rm := md.ResourceMetrics().AppendEmpty()
+				ilm := rm.ScopeMetrics().AppendEmpty()
+				met := ilm.Metrics().AppendEmpty()
+				met.SetName("test.delta.sum")
+				met.SetEmptySum()
+				met.Sum().SetIsMonotonic(false)
+				met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+				dp := met.Sum().DataPoints().AppendEmpty()
+				dp.SetIntValue(100)
+				return md
+			},
+			wantType: metrics.APICountType,
+			wantName: "test.delta.sum",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := &metricRecorder{}
+			f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
+				return "", nil
+			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+			cfg := f.CreateDefaultConfig().(*ExporterConfig)
+			exp, err := f.CreateMetrics(
+				t.Context(),
+				exportertest.NewNopSettings(component.MustNewType("datadog")),
+				cfg,
+			)
+			require.NoError(t, err)
+			require.NoError(t, exp.Start(t.Context(), componenttest.NewNopHost()))
+			require.NoError(t, exp.ConsumeMetrics(t.Context(), tt.genMetrics()))
+			require.NoError(t, exp.Shutdown(t.Context()))
+
+			found := false
+			for _, s := range rec.series {
+				if s.Name == tt.wantName {
+					found = true
+					assert.Equal(t, tt.wantType, s.MType, "metric type mismatch for %s", s.Name)
+					if tt.checkHasAsTag {
+						hasAsTag := false
+						s.Tags.ForEach(func(tag string) {
+							if tag == "datadog.metric.as_type:rate" {
+								hasAsTag = true
+							}
+						})
+						assert.True(t, hasAsTag,
+							"control attribute should be present as a tag for debugging")
+					}
+					break
+				}
+			}
+			assert.True(t, found, "metric %s not found in recorded series", tt.wantName)
+		})
+	}
+}

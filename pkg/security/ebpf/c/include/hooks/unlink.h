@@ -126,12 +126,12 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
         return 0;
     }
 
-    u64 enabled_events = get_enabled_events();
-    if (syscall->state != DISCARDED && (mask_has_event(enabled_events, EVENT_UNLINK) || mask_has_event(enabled_events, EVENT_RMDIR))) {
+    if (syscall->state != DISCARDED) {
         if (syscall->unlink.flags & AT_REMOVEDIR) {
             struct rmdir_event_t event = {
                 .syscall.retval = retval,
-                .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
+                .event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
+                               (syscall->state == INTERNAL ? EVENT_FLAGS_INTERNAL : 0),
                 .file = syscall->unlink.file,
             };
 
@@ -144,7 +144,8 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
             struct unlink_event_t event = {
                 .syscall.retval = retval,
                 .syscall_ctx.id = syscall->ctx_id,
-                .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
+                .event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
+                               (syscall->state == INTERNAL ? EVENT_FLAGS_INTERNAL : 0),
                 .file = syscall->unlink.file,
                 .flags = syscall->unlink.flags,
             };
@@ -156,7 +157,7 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
             send_event(ctx, EVENT_UNLINK, event);
         }
     } else {
-        if (mask_has_event(enabled_events, EVENT_RMDIR)) {
+        if (syscall->unlink.flags & AT_REMOVEDIR) {
             monitor_discarded(EVENT_RMDIR);
         } else {
             monitor_discarded(EVENT_UNLINK);

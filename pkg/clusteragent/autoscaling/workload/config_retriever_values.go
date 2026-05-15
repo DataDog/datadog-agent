@@ -167,8 +167,10 @@ func (p *autoscalingValuesProcessor) reconcile(isLeader bool) {
 					return podAutoscaler, false
 				}
 
-				log.Infof("Autoscaling not present from remote values, removing values for PodAutoscaler %s, before: %+v", podAutoscaler.ID(), podAutoscaler.MainScalingValues())
-				podAutoscaler.RemoveMainValues()
+				removed, previousMainScalingValues := podAutoscaler.RemoveMainValues()
+				if removed {
+					log.Infof("Autoscaling values not present from remote values, removed for PodAutoscaler %s, before: %+v", podAutoscaler.ID(), previousMainScalingValues)
+				}
 				return podAutoscaler, true
 			}
 

@@ -109,7 +109,7 @@ func (c *fakeCluster) AddOnDemandNode(name string) {
 	})
 }
 
-// AddSpotNode adds a spot node with the Karpenter capacity-type label and NoSchedule taint.
+// AddSpotNode adds a spot node with the capacity-type node selector label and NoSchedule taint.
 func (c *fakeCluster) AddSpotNode(name string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

@@ -13,7 +13,6 @@ go_library(
         "//comp/core/telemetry/def",
         "//pkg/util/log",
         "@com_github_benbjohnson_clock//:clock",
-        "@com_github_gorilla_mux//:mux",
         "@com_github_urfave_negroni//:negroni",
     ],
 )
@@ -32,7 +31,6 @@ go_test(
         "//comp/core/telemetry/mock",
         "//pkg/util/fxutil",
         "@com_github_benbjohnson_clock//:clock",
-        "@com_github_gorilla_mux//:mux",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

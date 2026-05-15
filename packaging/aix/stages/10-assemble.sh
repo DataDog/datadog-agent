@@ -7,7 +7,6 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/../lib/env.sh"
 
 STAGE_NAME="10-assemble"
-SENTINEL="$BUILD_DIR/.done/$STAGE_NAME"
 LOG="$BUILD_DIR/logs/$STAGE_NAME.log"
 
 # Redirect all output to log file (follow with: tail -f "$LOG")
@@ -15,12 +14,6 @@ mkdir -p "$BUILD_DIR/logs"
 exec > "$LOG" 2>&1
 
 log "=== Stage: $STAGE_NAME ==="
-
-# --- Idempotency check ---
-if [ -f "$SENTINEL" ]; then
-    log "Already complete (sentinel: $SENTINEL) — skipping."
-    exit 0
-fi
 
 # --- Input validation ---
 : "${AGENT_VERSION:?AGENT_VERSION must be set}"
@@ -75,21 +68,19 @@ log "Config example written to $STAGING/etc/datadog-agent/datadog.yaml.example"
 # Python, so including its default config would produce a permanent loading
 # error in agent status.
 
-log "Installing default check configs"
-DIST_CONFD=/opt/datadog-agent/cmd/agent/dist/conf.d
+log "Installing check configs"
+# inv agent.build (stage 04) populates bin/agent/dist/conf.d/ with the check
+# configs for AIX_CORECHECKS (defined in tasks/core_checks.py).  Copy that
+# output directly — no list to maintain here.
+DIST_CONFD=/opt/datadog-agent/bin/agent/dist/conf.d
 STAGING_CONFD="$STAGING/etc/datadog-agent/conf.d"
+if [ ! -d "$DIST_CONFD" ]; then
+    log "ERROR: $DIST_CONFD not found — did Stage 04 complete successfully?"
+    exit 1
+fi
 mkdir -p "$STAGING_CONFD"
-for check in cpu disk io load memory ntp uptime; do
-    src="$DIST_CONFD/${check}.d/conf.yaml.default"
-    if [ -f "$src" ]; then
-        mkdir -p "$STAGING_CONFD/${check}.d"
-        cp "$src" "$STAGING_CONFD/${check}.d/conf.yaml.default"
-        log "  $check.d/conf.yaml.default"
-    else
-        log "  WARNING: $src not found — skipping $check"
-    fi
-done
-log "Default check configs installed"
+cp -r "$DIST_CONFD/." "$STAGING_CONFD/"
+log "Check configs installed from $DIST_CONFD"
 
 # ─── Step 2c: Install sitecustomize.py ────────────────────────────────────────
 #
@@ -133,6 +124,7 @@ mkdir -p "$STAGING/var/run/datadog"
 mkdir -p "$STAGING/opt/datadog-agent/run"
 mkdir -p "$STAGING/opt/datadog-agent/checks.d"
 mkdir -p "$STAGING/opt/datadog-agent/conf.d"
+mkdir -p "$STAGING/etc/datadog-agent/checks.d"
 log "Runtime directories created"
 
 # ─── Step 4: Copy package lifecycle scripts into the staging tree ──────────────
@@ -202,7 +194,4 @@ du -s \
     "$STAGING/opt/datadog-agent/embedded/lib" \
     "$STAGING/opt/datadog-agent/rtloader" 2>/dev/null || true
 
-# --- Mark complete ---
-mkdir -p "$(dirname "$SENTINEL")"
-touch "$SENTINEL"
 log "=== $STAGE_NAME complete ==="

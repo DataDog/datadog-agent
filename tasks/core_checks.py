@@ -34,12 +34,25 @@ AGENT_CORECHECKS = [
     "cisco_sdwan",
     "network_path",
     "gpu",
+    "nccl",
     "wlan",
     "discovery",
     "versa",
     "network_config_management",
     "battery",
     "cloud_hostinfo",
+]
+
+AIX_CORECHECKS = [
+    "cpu",
+    "disk",
+    "io",
+    "load",
+    "memory",
+    "network",
+    "ntp",
+    "oracle",
+    "uptime",
 ]
 
 WINDOWS_CORECHECKS = [

@@ -96,9 +96,13 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 	}
 
 	if scanOptions.OverlayFsScan && fanalImage.inspect.GraphDriver.Name == "overlay2" {
+		// LowerDir is top-down without the topmost layer; UpperDir is the topmost.
 		var layers []string
 		if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["LowerDir"]; ok {
-			layers = append(layers, strings.Split(layerDirs, ":")...)
+			parts := strings.Split(layerDirs, ":")
+			for i := len(parts) - 1; i >= 0; i-- {
+				layers = append(layers, parts[i])
+			}
 		}
 
 		if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["UpperDir"]; ok {
@@ -111,13 +115,13 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 			}
 		}
 
+		fc, err := newFakeContainer(layers, imgMeta, fanalImage.inspect.RootFS.Layers)
+		if err != nil {
+			return nil, "overlayfs", err
+		}
 		fakeContainer := &fakeDockerContainer{
-			image: fanalImage,
-			fakeContainer: &fakeContainer{
-				layerIDs:   fanalImage.inspect.RootFS.Layers,
-				layerPaths: layers,
-				imgMeta:    imgMeta,
-			},
+			image:         fanalImage,
+			fakeContainer: fc,
 		}
 
 		report, err := c.scanOverlayFS(ctx, layers, fakeContainer, imgMeta, scanOptions)

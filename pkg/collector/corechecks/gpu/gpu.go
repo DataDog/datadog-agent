@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -51,9 +51,11 @@ type Check struct {
 	deviceTags         map[string][]string              // deviceTags is a map of device UUID to tags
 	deviceCache        ddnvml.DeviceCache               // deviceCache is a cache of GPU devices
 	spCache            *nvidia.SystemProbeCache         // spCache manages system-probe GPU stats and client (only initialized when gpu_monitoring is enabled in system-probe)
+	prmCache           *nvidia.PRMCache                 // prmCache manages privileged NVLink PRM metrics fetched from system-probe
 	deviceEvtGatherer  *nvidia.DeviceEventsGatherer     // deviceEvtGatherer asynchronously listens for device events and gathers them
 	workloadTagCache   *WorkloadTagCache                // workloadTagCache caches workload tags for GPU metrics
 	containerProvider  proccontainers.ContainerProvider // containerProvider is used as a fallback to get a PID -> CID mapping when workloadmeta does not have the process data
+	rateCalculator     *nvidia.RateCalculator           // rateCalculator calculates the rate of metrics
 }
 
 type checkTelemetry struct {
@@ -80,12 +82,13 @@ func Factory(tagger tagger.Component, telemetry telemetry.Component, wmeta workl
 
 func newCheck(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) check.Check {
 	return &Check{
-		CheckBase:   core.NewCheckBase(CheckName),
-		tagger:      tagger,
-		telemetry:   newCheckTelemetry(telemetry),
-		wmeta:       wmeta,
-		deviceTags:  make(map[string][]string),
-		deviceCache: ddnvml.NewDeviceCache(),
+		CheckBase:      core.NewCheckBase(CheckName),
+		tagger:         tagger,
+		telemetry:      newCheckTelemetry(telemetry),
+		wmeta:          wmeta,
+		deviceTags:     make(map[string][]string),
+		deviceCache:    ddnvml.NewDeviceCache(),
+		rateCalculator: nvidia.NewRateCalculator(),
 	}
 }
 
@@ -156,8 +159,14 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	c.deviceEvtGatherer = nvidia.NewDeviceEventsGatherer()
 
 	// Compute whether we should prefer system-probe process metrics
-	if pkgconfigsetup.SystemProbe().GetBool("gpu_monitoring.enabled") {
-		c.spCache = nvidia.NewSystemProbeCache()
+	systemProbeConfig := pkgconfigsetup.SystemProbe()
+	if systemProbeConfig.GetBool("gpu_monitoring.enabled") {
+		if systemProbeConfig.GetBool("gpu_monitoring.enable_ebpf_probes") {
+			c.spCache = nvidia.NewSystemProbeCache()
+		}
+		if systemProbeConfig.GetBool("gpu_monitoring.prm_endpoint_enabled") {
+			c.prmCache = nvidia.NewPRMCache()
+		}
 	}
 
 	return nil
@@ -201,6 +210,7 @@ func (c *Check) ensureInitCollectors() error {
 			&nvidia.CollectorDependencies{
 				DeviceEventsGatherer: c.deviceEvtGatherer,
 				SystemProbeCache:     c.spCache,
+				PRMCache:             c.prmCache,
 				Telemetry:            c.telemetry.collectorTelemetry,
 				Workloadmeta:         c.wmeta,
 			},
@@ -269,6 +279,12 @@ func (c *Check) Run() error {
 		}
 	}
 
+	if c.prmCache != nil {
+		if err := c.prmCache.Refresh(); err != nil && logLimitCheck.ShouldLog() {
+			log.Warnf("error refreshing PRM cache: %v", err)
+		}
+	}
+
 	// start device event gatherer if we have not already
 	if !c.deviceEvtGatherer.Started() {
 		if err := c.deviceEvtGatherer.Start(); err != nil {
@@ -330,8 +346,8 @@ func (c *Check) getGPUToContainersMap() map[string][]*workloadmeta.Container {
 }
 
 type deviceMetricsCollection struct {
-	collectorMetrics map[nvidia.CollectorName][]nvidia.Metric // collector name -> metrics
-	totalCount       int                                      // total number of metrics across all collectors
+	collectorMetrics map[nvidia.CollectorName][]*nvidia.Metric // collector name -> metrics
+	totalCount       int                                       // total number of metrics across all collectors
 }
 
 func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*workloadmeta.Container, currentExecutionTime time.Time) error {
@@ -359,7 +375,7 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 			deviceUUID := collector.DeviceUUID()
 			if perDeviceMetrics[deviceUUID] == nil {
 				perDeviceMetrics[deviceUUID] = &deviceMetricsCollection{
-					collectorMetrics: make(map[nvidia.CollectorName][]nvidia.Metric),
+					collectorMetrics: make(map[nvidia.CollectorName][]*nvidia.Metric),
 				}
 			}
 			perDeviceMetrics[deviceUUID].collectorMetrics[collector.Name()] = metrics
@@ -377,9 +393,11 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 		deviceContainers := gpuToContainersMap[deviceUUID]
 		deviceTags := c.deviceTags[deviceUUID]
 
+		deduplicatedMetrics = c.rateCalculator.ProcessMetrics(deduplicatedMetrics, currentExecutionTime, deviceUUID)
+
 		// iterate through filtered metrics and emit them with the tags
 		for _, metric := range deduplicatedMetrics {
-			if err := c.emitSingleMetric(&metric, snd, currentExecutionTime, deviceContainers, deviceTags); err != nil {
+			if err := c.emitSingleMetric(metric, snd, currentExecutionTime, deviceContainers, deviceTags); err != nil {
 				multiErr = multierror.Append(multiErr, fmt.Errorf("error emitting metric %s: %w", metric.Name, err))
 			}
 		}
@@ -418,6 +436,15 @@ func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, curre
 	allTags = append(allTags, deviceTags...)
 	allTags = append(allTags, metricTags...)
 	allTags = append(allTags, metric.Tags...)
+
+	if metric.Type == ddmetrics.HistogramType {
+		if metric.HistogramBucket == nil {
+			return fmt.Errorf("metric %s has histogram type but no histogram bucket data", metric.Name)
+		}
+
+		snd.HistogramBucket(metricName, int64(metric.Value), metric.HistogramBucket.Bounds[0], metric.HistogramBucket.Bounds[1], metric.HistogramBucket.Monotonic, "", allTags, metric.HistogramBucket.FlushFirstValue)
+		return nil
+	}
 
 	// Use the current execution time as the timestamp for the metrics, that way we can ensure that the metrics are aligned with the check interval.
 	// We need this to ensure weighted metrics are calibrated correctly.

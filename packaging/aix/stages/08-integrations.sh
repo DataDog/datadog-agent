@@ -7,7 +7,6 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/../lib/env.sh"
 
 STAGE_NAME="08-integrations"
-SENTINEL="$BUILD_DIR/.done/$STAGE_NAME"
 LOG="$BUILD_DIR/logs/$STAGE_NAME.log"
 
 # Redirect all output to log file (follow with: tail -f "$LOG")
@@ -15,12 +14,6 @@ mkdir -p "$BUILD_DIR/logs"
 exec > "$LOG" 2>&1
 
 log "=== Stage: $STAGE_NAME ==="
-
-# --- Idempotency check ---
-if [ -f "$SENTINEL" ]; then
-    log "Already complete (sentinel: $SENTINEL) — skipping."
-    exit 0
-fi
 
 # --- Input validation ---
 : "${STAGING:?STAGING must be set}"
@@ -48,8 +41,6 @@ fi
 cleanup() {
     if [ $? -ne 0 ]; then
         log "ERROR: $STAGE_NAME failed."
-        log "       Re-run after fixing the error by deleting the sentinel:"
-        log "       rm $SENTINEL"
         log "       Common causes:"
         log "         - Stage 07 constraints.txt missing: ensure Stage 07 completed"
         log "         - integrations-core check not found: verify INTEGRATIONS_CORE=$INTEGRATIONS_CORE"
@@ -91,7 +82,7 @@ log "Built-in check configs copied"
 # ImportError at runtime if the missing native extension is not present on the
 # target system.
 
-PYTHON_CHECKS="openmetrics ibm_mq ibm_ace ibm_db2 ibm_i ibm_was ibm_spectrum_lsf"
+PYTHON_CHECKS="lparstats openmetrics ibm_mq ibm_ace ibm_db2 ibm_i ibm_was ibm_spectrum_lsf"
 
 log "Installing Python checks: $PYTHON_CHECKS"
 
@@ -118,7 +109,4 @@ done
 
 log "All Python checks processed"
 
-# --- Mark complete ---
-mkdir -p "$(dirname "$SENTINEL")"
-touch "$SENTINEL"
 log "=== $STAGE_NAME complete ==="

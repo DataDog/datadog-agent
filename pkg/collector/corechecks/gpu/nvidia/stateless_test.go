@@ -618,7 +618,7 @@ func TestProcessMemoryMetricValues(t *testing.T) {
 			}
 
 			// Deduplicate across the two API handlers, just like the real collector pipeline does
-			deduped := RemoveDuplicateMetrics(map[CollectorName][]Metric{
+			deduped := RemoveDuplicateMetrics(map[CollectorName][]*Metric{
 				collector.Name(): allMetrics,
 			})
 

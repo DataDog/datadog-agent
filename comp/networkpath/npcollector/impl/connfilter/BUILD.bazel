@@ -8,7 +8,7 @@ go_library(
         "defaultconnfilters.go",
         "utils.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/connfilter",
+    importpath = "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/impl/connfilter",
     visibility = ["//visibility:public"],
 )
 
@@ -19,6 +19,7 @@ go_test(
         "testutils_test.go",
     ],
     embed = [":connfilter"],
+    gotags = ["test"],
     deps = [
         "//comp/core/config",
         "//pkg/config/structure",

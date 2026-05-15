@@ -22,6 +22,7 @@ const (
 	netNS = "network_config"
 	smNS  = "service_monitoring_config"
 	evNS  = "event_monitoring_config"
+	dscNS = "discovery"
 
 	defaultUDPTimeoutSeconds       = 30
 	defaultUDPStreamTimeoutSeconds = 120
@@ -221,6 +222,9 @@ type Config struct {
 	// DirectSend controls whether we send payloads directly from system-probe or they are queried from process-agent.
 	// Not supported on Windows
 	DirectSend bool
+
+	// EnableSKTracer enables to experimental sk tracer
+	EnableSKTracer bool
 }
 
 // New creates a config for the network tracer
@@ -300,6 +304,7 @@ func New() *Config {
 		EnableCORETracer: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_co_re")),
 		EnableEbpfless:   cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ebpfless")),
 		EnableFentry:     cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_fentry")),
+		EnableSKTracer:   cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_sk_tracer")),
 
 		ExpectedTagsDuration: cfg.GetDuration(sysconfig.FullKeyPath(spNS, "expected_tags_duration")),
 

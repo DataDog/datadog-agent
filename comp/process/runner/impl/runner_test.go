@@ -18,7 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -29,7 +30,6 @@ import (
 	runner "github.com/DataDog/datadog-agent/comp/process/runner/def"
 	submittermock "github.com/DataDog/datadog-agent/comp/process/submitter/mock"
 	"github.com/DataDog/datadog-agent/comp/process/types"
-	processchecks "github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
@@ -119,19 +119,15 @@ func createDeps(t *testing.T, confOverrides map[string]interface{}, options ...f
 		hostinfomock.MockModule(),
 
 		// Checks
-		fx.Provide(func(t testing.TB) types.ProvidesCheck {
-			return processcheckimpl.NewMock(t, types.MockCheckParams[*processchecks.ProcessCheck]{})
-		}),
-		fx.Provide(func(t testing.TB) types.ProvidesCheck {
-			return containercheckimpl.NewMock(t, types.MockCheckParams[*processchecks.ContainerCheck]{})
-		}),
+		fx.Provide(processcheckimpl.NewMock),
+		fx.Provide(containercheckimpl.NewMock),
 
 		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
 		fx.Provide(func(t testing.TB) config.Component { return config.NewMockWithOverrides(t, confOverrides) }),
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
 		fx.Options(options...),
-		sysprobeconfigimpl.MockModule(),
+		fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
 	))
 }
 

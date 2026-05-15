@@ -208,7 +208,7 @@ var defaultProfiles = `
         - name: pymem.inuse
         - name: health_platform.issues_detected
           aggregate_tags:
-            - health_check_id
+            - issue_type
     schedule:
       start_after: 30
       iterations: 0
@@ -219,7 +219,11 @@ var defaultProfiles = `
         zero_metric: true
       metrics:
         - name: dogstatsd.udp_packets_bytes
+          aggregate_tags:
+            - remote_agent
         - name: dogstatsd.uds_packets_bytes
+          aggregate_tags:
+            - remote_agent
         - name: logs.bytes_missed
         - name: logs.bytes_sent
           aggregate_tags:
@@ -256,8 +260,17 @@ var defaultProfiles = `
         - name: logs.auto_multi_line_default_would_truncate
         - name: logs_destination.destination_workers
         - name: point.sent
+          aggregate_tags:
+            - domain
+            - remote_agent
         - name: point.dropped
+          aggregate_tags:
+            - domain
+            - remote_agent
         - name: transactions.input_count
+        - name: transactions.input_bytes
+          aggregate_tags:
+            - endpoint
         - name: transactions.requeued
         - name: transactions.retries
         - name: transactions.http_errors
