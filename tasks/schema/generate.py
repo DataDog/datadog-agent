@@ -3,18 +3,23 @@ Schema generation tasks
 """
 
 import os
+import json
+import tempfile
 
 import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.build.bazel import bazel
+from tasks.schema.add_comments import add_comments
 from tasks.schema.fixes import fix_schema
 from tasks.schema.template_parser import parse_template
+from tasks.schema.settings_source_analyzer import extract_imperative_code_hints
 
 SCHEMA_DIR = os.path.join("pkg", "config", "schema")
 CORE_TEMPLATE = os.path.join("pkg", "config", "config_template.yaml")
 SYSPROBE_TEMPLATE = os.path.join("pkg", "config", "system-probe_template.yaml")
+COMMENT_INFO = os.path.join(SCHEMA_DIR, "comments_info.json")
 
 _SCRIPTS_DIR = os.path.dirname(__file__)
 
@@ -77,6 +82,11 @@ def generate(ctx, agent_bin, output_dir=SCHEMA_DIR):
     print("Applying OS-specific fixes...")
     core_schema, sysprobe_schema = fix_schema(core_schema, sysprobe_schema)
 
+    if os.path.isfile(COMMENT_INFO):
+        with open(COMMENT_INFO, "r") as f:
+            comments_info = json.loads(f.read())
+        add_comments(core_schema, comments_info)
+
     # adding header
     core_schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
     sysprobe_schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
@@ -97,3 +107,31 @@ def generate(ctx, agent_bin, output_dir=SCHEMA_DIR):
     print("Schema generation complete. Output files:")
     print(f"  {core}")
     print(f"  {sysprobe}")
+
+
+@task
+def hints(ctx):
+    # Extract hints, dump them to a temporary directory for debugging purposes
+    hints = extract_imperative_code_hints()
+    hints_tmp_file = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, delete_on_close=False)
+    hints_tmp_file.file.write(json.dumps(hints))
+    print('hints file = %s' % (hints_tmp_file.name,))
+
+
+@task
+def extract_comments(ctx):
+    # Extract hints object
+    hints = extract_imperative_code_hints()
+
+    # Collect comments per setting
+    comment_assoc_map = {}
+
+    for setting_group in hints:
+        for setting in setting_group['settings']:
+            (setting_name, _unused, comment) = setting
+            comment_assoc_map[setting_name] = comment
+
+    # Write to disk
+    with open(COMMENT_INFO, "w") as f:
+        f.write(json.dumps(comment_assoc_map))
+    print('comments extracted to "%s"' % (COMMENT_INFO,))
