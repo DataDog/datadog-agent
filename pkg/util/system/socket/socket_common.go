@@ -7,7 +7,7 @@ package socket
 
 import "strings"
 
-// GetFamilyAddress retur1-ns the address famility to use for a given address
+// GetFamilyAddress returns the address family to use for a given address
 func GetFamilyAddress(path string) string {
 	if strings.HasPrefix(path, "/") {
 		return "unix"
@@ -15,7 +15,7 @@ func GetFamilyAddress(path string) string {
 	return "tcp"
 }
 
-// GetSocketAddress returns the address famility to use for a given address
+// GetSocketAddress returns the address family and the resolved address for a given path. Supports unix, vsock, and tcp.
 func GetSocketAddress(path string) (string, string) {
 	if strings.HasPrefix(path, "/") {
 		return "unix", path
