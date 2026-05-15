@@ -450,7 +450,7 @@ func (mt *MessageTranslator) processPreTokenized(msg *message.Message, tokenList
 	}
 
 	// Check if tag dictionary eviction is needed using high watermark threshold
-	mt.touchJsonSchemaReferencesForKeys(messageKey, jsonContextKeys)
+	mt.touchCurrentMessageDictReferences(msg, messageKey, jsonContextKeys)
 	tagCount := mt.tagManager.Count()
 	tagMemoryBytes := mt.tagManager.EstimatedMemoryBytes()
 	tagCountOverLimit, tagBytesOverLimit := mt.tagEvictionManager.ShouldEvict(tagCount, tagMemoryBytes)
@@ -618,6 +618,50 @@ func (mt *MessageTranslator) invalidateTagCache(dictID uint64) {
 	mt.tagCache.tagStr = ""
 }
 
+func (mt *MessageTranslator) touchCurrentMessageDictReferences(msg *message.Message, messageKey string, jsonContextKeys []string) {
+	mt.touchJsonSchemaReferencesForKeys(messageKey, jsonContextKeys)
+	mt.touchCurrentService(msg)
+	mt.touchCurrentStatus(msg)
+	mt.touchCurrentTagSet(msg)
+}
+
+func (mt *MessageTranslator) touchCurrentService(msg *message.Message) {
+	if msg.Origin == nil {
+		return
+	}
+	service := msg.Origin.Service()
+	if service == "" {
+		return
+	}
+	if id, ok := mt.tagManager.GetStringID(service); ok {
+		mt.tagManager.TouchDictID(id)
+	}
+}
+
+func (mt *MessageTranslator) touchCurrentStatus(msg *message.Message) {
+	status := msg.MessageMetadata.GetStatus()
+	if status == "" {
+		return
+	}
+	if id, ok := mt.tagManager.GetStringID(status); ok {
+		mt.tagManager.TouchDictID(id)
+	}
+}
+
+func (mt *MessageTranslator) touchCurrentTagSet(msg *message.Message) {
+	if mt.tagCache.tagSet == nil || msg.Origin == nil {
+		return
+	}
+	currentProcessingTags := strings.Join(msg.MessageMetadata.ProcessingTags, ",")
+	if mt.tagCache.origin != msg.Origin ||
+		mt.tagCache.hostname != msg.MessageMetadata.Hostname ||
+		mt.tagCache.source != msg.Origin.Source() ||
+		mt.tagCache.processingTags != currentProcessingTags {
+		return
+	}
+	mt.tagManager.TouchDictID(mt.tagCache.dictID)
+}
+
 func (mt *MessageTranslator) buildServiceField(msg *message.Message) (*statefulpb.DynamicValue, uint64, bool) {
 	if msg.Origin == nil {
 		return nil, 0, false
@@ -654,9 +698,6 @@ func (mt *MessageTranslator) sendJsonSchemaDefineIfNeeded(outputChan chan *messa
 
 	keyIDs := make([]uint64, 0, len(keys))
 	for _, key := range keys {
-		if key == "" {
-			continue
-		}
 		keyID, keyIsNew := mt.tagManager.AddString(key)
 		if keyIsNew {
 			mt.sendDictEntryDefine(outputChan, msg, keyID, key)
@@ -666,6 +707,11 @@ func (mt *MessageTranslator) sendJsonSchemaDefineIfNeeded(outputChan chan *messa
 
 	schemaKey := buildJsonSchemaKey(messageKey, keys)
 	schemaID, ok := mt.jsonSchemaToID[schemaKey]
+	if ok && !mt.jsonSchemaMatchesDictIDs(schemaID, messageKeyID, keyIDs) {
+		mt.sendJsonSchemaDelete(outputChan, msg, schemaID)
+		mt.untrackJsonSchema(schemaID)
+		ok = false
+	}
 	if !ok {
 		mt.nextJSONSchemaID++
 		schemaID = mt.nextJSONSchemaID
@@ -681,13 +727,23 @@ func (mt *MessageTranslator) sendJsonSchemaDefineIfNeeded(outputChan chan *messa
 	}, schemaID
 }
 
+func (mt *MessageTranslator) jsonSchemaMatchesDictIDs(schemaID uint64, messageKeyID uint64, keyIDs []uint64) bool {
+	state := mt.jsonSchemaByID[schemaID]
+	if state == nil || state.messageKeyID != messageKeyID || len(state.keyIDs) != len(keyIDs) {
+		return false
+	}
+	for i, keyID := range keyIDs {
+		if state.keyIDs[i] != keyID {
+			return false
+		}
+	}
+	return true
+}
+
 func buildJsonSchemaKey(messageKey string, keys []string) string {
 	schemaKeyBuilder := strings.Builder{}
 	schemaKeyBuilder.WriteString(messageKey)
 	for _, key := range keys {
-		if key == "" {
-			continue
-		}
 		schemaKeyBuilder.WriteByte('\x00')
 		schemaKeyBuilder.WriteString(key)
 	}
