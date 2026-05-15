@@ -1,0 +1,8 @@
+# Discovered fuzz corpus — ephemeral, per-machine. Promote interesting inputs
+# to permanent fixtures if you want to keep them.
+testdata/fuzz/
+
+# Mutation-test regression dumps. Per-run, per-machine triage artifacts.
+# A representative repro for any *real* bug should live with the bug tracker,
+# not in this directory.
+testdata/regressions/

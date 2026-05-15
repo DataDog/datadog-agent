@@ -22,6 +22,7 @@ emits a single JSON line on stdout of the form:
 The caller (the Go test) owns the HTTP server, so both Go and Python scrapers
 see byte-identical payloads. Throwaway debugging tool — not wired into CI.
 """
+
 import json
 import sys
 import traceback
@@ -49,13 +50,16 @@ def _format_name(self, name: str, raw: bool) -> str:
 
 def _mk(kind: str):
     def fn(self, name, value=None, tags=None, hostname=None, raw=False, **kw):
-        _captured.append({
-            "kind": kind,
-            "name": _format_name(self, name, raw),
-            "value": value,
-            "tags": sorted(tags or []),
-            "hostname": hostname or "",
-        })
+        _captured.append(
+            {
+                "kind": kind,
+                "name": _format_name(self, name, raw),
+                "value": value,
+                "tags": sorted(tags or []),
+                "hostname": hostname or "",
+            }
+        )
+
     return fn
 
 
@@ -64,14 +68,16 @@ for _kind in ("gauge", "count", "rate", "monotonic_count", "histogram", "histora
 
 
 def _service_check(self, name, status, tags=None, hostname=None, message=None, raw=False, **kw):
-    _captured.append({
-        "kind": "service_check",
-        "name": _format_name(self, name, raw),
-        "value": status,
-        "tags": sorted(tags or []),
-        "hostname": hostname or "",
-        "message": message or "",
-    })
+    _captured.append(
+        {
+            "kind": "service_check",
+            "name": _format_name(self, name, raw),
+            "value": status,
+            "tags": sorted(tags or []),
+            "hostname": hostname or "",
+            "message": message or "",
+        }
+    )
 
 
 OpenMetricsBaseCheckV2.service_check = _service_check
