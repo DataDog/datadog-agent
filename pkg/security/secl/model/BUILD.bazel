@@ -5,20 +5,23 @@ load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
 exports_files(
     glob(
         ["*.go"],
+        # All generator-managed .go files are exported by their own macro
+        # (bazel/rules/cws_codegen:defs.bzl, bazel/rules/go_stringer:defs.bzl)
+        # with the right per-output visibility — don't re-export them here.
         exclude = [
+            "accessors_unix.go",
+            "accessors_windows.go",
             "consts_map_names_linux.go",
+            "event_deep_copy_unix.go",
+            "event_deep_copy_windows.go",
+            "field_accessors_unix.go",
+            "field_accessors_windows.go",
+            "field_handlers_unix.go",
+            "field_handlers_windows.go",
             "model_string.go",
         ],
     ),
-    visibility = [
-        # Visible to the cws_codegen symbolic macros (event_deep_copy,
-        # accessors, ...) so the auto-generated _diff_test targets can
-        # reference the committed sources via $(execpath ...). Symbolic-macro
-        # target visibility is scoped to the .bzl file's package, not the
-        # caller's.
-        "//bazel/rules/cws_codegen:__pkg__",
-        "//pkg/security/seclwin/model:__pkg__",
-    ],
+    visibility = ["//pkg/security/seclwin/model:__pkg__"],
 )
 
 go_stringer(
@@ -145,7 +148,7 @@ EVENT_DEEP_COPY_PKG_SRCS_WINDOWS = glob(
         package_path = "github.com/DataDog/datadog-agent/pkg/security/secl/model",
         tags = variant["tags"],
         types_file = "model.go",
-        visibility = ["//docs/cloud-workload-security:__pkg__"],
+        visibility = variant["visibility"],
     )
     for variant in [
         {
@@ -161,6 +164,7 @@ EVENT_DEEP_COPY_PKG_SRCS_WINDOWS = glob(
                 "consts_linux_arm.go",
                 "consts_linux_arm64.go",
             ],
+            "visibility": ["//docs/cloud-workload-security:__pkg__"],
         },
         {
             "name": "windows",
@@ -171,6 +175,12 @@ EVENT_DEEP_COPY_PKG_SRCS_WINDOWS = glob(
             "consts": [
                 "consts_common.go",
                 "consts_windows.go",
+            ],
+            # seclwin consumes accessors_windows.go and field_handlers_windows.go;
+            # docs/cloud-workload-security consumes secl_windows.json.
+            "visibility": [
+                "//docs/cloud-workload-security:__pkg__",
+                "//pkg/security/seclwin/model:__pkg__",
             ],
         },
     ]

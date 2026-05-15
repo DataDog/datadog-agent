@@ -55,7 +55,7 @@ def _event_deep_copy_impl(name, tags, model, types_file, package_path, output, s
         tool = "//pkg/security/generators/event_deep_copy",
         visibility = visibility,
     )
-
+    native.exports_files([output], visibility)
     write_source_file(
         name = name,
         in_file = ":{}".format(gen),
@@ -139,6 +139,10 @@ def accessors(name, tags, model, types_file, output, field_handlers, field_acces
         ],
         tool = "//pkg/security/generators/accessors",
         visibility = visibility,
+    )
+    native.exports_files(
+        [output, field_handlers, field_accessors_output, doc_output],
+        visibility,
     )
 
     # Single umbrella target so `bazel run //...:<name>` refreshes all three
