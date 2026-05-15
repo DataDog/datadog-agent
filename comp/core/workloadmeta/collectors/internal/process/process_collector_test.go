@@ -883,7 +883,7 @@ func TestContainerIDRaceCondition(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Wait for cycle 1 to complete: process exists but without container ID
-	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
+	require.EventuallyWithT(t, func(cT *assert.CollectT) {
 		actualProc, err := c.mockStore.GetProcess(pid1)
 		require.NoError(cT, err)
 		assert.Empty(cT, actualProc.ContainerID)
