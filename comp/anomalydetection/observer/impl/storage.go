@@ -1071,6 +1071,7 @@ func (s *timeSeriesStorage) RemoveSeriesByMetricName(namespace, name string) []o
 		if stats == nil || stats.Namespace != namespace || stats.Name != name {
 			continue
 		}
+		s.releaseTagIntern(stats.tagsHash)
 		h := seriesKeyHash(stats.Namespace, stats.Name, stats.Tags)
 		delete(s.series, h)
 		s.seriesIDStats[stats.ref] = nil
@@ -1136,6 +1137,7 @@ func (s *timeSeriesStorage) EvictToCapacity(seriesLimit, target int) []observer.
 			continue
 		}
 		h := seriesKeyHash(st.Namespace, st.Name, st.Tags)
+		s.releaseTagIntern(st.tagsHash)
 		if s.series[h] == st {
 			delete(s.series, h)
 		}
