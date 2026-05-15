@@ -2391,6 +2391,14 @@ properties:
         - DD_EVENT_MONITORING_CONFIG_ENABLE_APPROVERS
         - DD_RUNTIME_SECURITY_CONFIG_ENABLE_APPROVERS
         tags: []
+      basename_approvers_size:
+        node_type: setting
+        type: number
+        default: 4096
+        env_vars:
+        - DD_EVENT_MONITORING_CONFIG_BASENAME_APPROVERS_SIZE
+        - DD_RUNTIME_SECURITY_CONFIG_BASENAME_APPROVERS_SIZE
+        tags: []
       enable_discarders:
         node_type: setting
         type: boolean
@@ -2706,19 +2714,23 @@ properties:
       enabled:
         node_type: setting
         type: boolean
-        default: true
+        default: false
       service_collection_interval:
         node_type: setting
         type: string
         default: 60s
-      use_rust_library:
-        node_type: setting
-        type: boolean
-        default: false
+      service_map:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
       use_system_probe_lite:
         node_type: setting
         type: boolean
-        default: true
+        default: false
   dogstatsd_port:
     node_type: setting
     type: number
@@ -2910,6 +2922,10 @@ properties:
         format: duration
         tags:
         - golang_type:duration
+      enable_ebpf_probes:
+        node_type: setting
+        type: boolean
+        default: true
       enable_fatbin_parsing:
         node_type: setting
         type: boolean
@@ -2932,6 +2948,10 @@ properties:
         node_type: setting
         type: string
         default: ''
+      prm_endpoint_enabled:
+        node_type: setting
+        type: boolean
+        default: true
       process_scan_interval_seconds:
         node_type: setting
         type: number
@@ -3059,6 +3079,38 @@ properties:
         node_type: setting
         type: boolean
         default: false
+      pmu_metrics:
+        node_type: section
+        type: object
+        properties:
+          branch_misses:
+            node_type: setting
+            type: boolean
+            default: false
+          cache_misses:
+            node_type: setting
+            type: boolean
+            default: false
+          cache_references:
+            node_type: setting
+            type: boolean
+            default: false
+          cpu_migrations:
+            node_type: setting
+            type: boolean
+            default: false
+          cycles:
+            node_type: setting
+            type: boolean
+            default: false
+          instructions:
+            node_type: setting
+            type: boolean
+            default: false
+          itlb_misses:
+            node_type: setting
+            type: boolean
+            default: false
   privileged_logs:
     node_type: section
     type: object

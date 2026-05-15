@@ -105,7 +105,6 @@
 /.gitlab/.pre/maintenance_jobs/*                          @DataDog/agent-devx
 /.gitlab/.post/notify/*                                    @DataDog/agent-devx
 /.gitlab/build/pkg_metrics/*                               @DataDog/agent-devx
-/.gitlab/.post/post_rc_build/*                             @DataDog/agent-delivery
 /.gitlab/.pre/setup/*                                     @DataDog/agent-devx
 /.gitlab/deploy/trigger_distribution.yml                      @DataDog/agent-delivery
 /.gitlab/distribute/trigger_release/*                           @DataDog/agent-devx @DataDog/agent-delivery
@@ -315,9 +314,8 @@
 /omnibus/package-scripts/installer-deb/ @DataDog/agent-build @DataDog/fleet
 /omnibus/package-scripts/installer-rpm/ @DataDog/agent-build @DataDog/fleet
 /omnibus/python-scripts/                @DataDog/agent-integrations @DataDog/windows-products
-/deps/openscap/patches                  @DataDog/agent-cspm @DataDog/agent-security
+/deps/openscap/                         @DataDog/agent-build @DataDog/agent-cspm @DataDog/agent-security
 /omnibus/config/software/datadog-agent-integrations-*.rb  @DataDog/agent-integrations
-/omnibus/config/software/openscap.rb                      @DataDog/agent-build @DataDog/agent-cspm @DataDog/agent-security
 /omnibus/resources/*/msi/                                 @DataDog/windows-products
 
 /packages/                              @DataDog/agent-build
@@ -929,11 +927,6 @@
 /internal/third_party/kubernetes        @DataDog/container-integrations
 /internal/third_party/golang/           @DataDog/container-integrations
 
-# Temporary during Bazel migration
-# This needs to go after all other rules that may include BUILD.bazel files, it otherwise gets overridden
-/**/BUILD.bazel                         @DataDog/agent-build
-/**/*.bzl                               @DataDog/agent-build
-
 # With the introduction of go.work, dependencies bump modify go.mod and go.sum in a lot of file.
 # Which bring a lot of team in the review each time. To make it smoother we no longer consider go.mod and go.sum owned by teams.
 # Each team can individually decide to update CODEOWNERS to be requested for a review on each modification of their go.mod/sum
@@ -950,3 +943,8 @@
 
 # AI-related files
 /.claude/skills/explain-lading-config @DataDog/single-machine-performance
+
+# Temporary during Bazel migration
+# This needs to go after all other rules that may include BUILD.bazel files, it otherwise gets overridden
+/**/BUILD.bazel                         @DataDog/agent-build
+/**/*.bzl                               @DataDog/agent-build
