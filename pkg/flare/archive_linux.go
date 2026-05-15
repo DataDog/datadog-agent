@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/ebpf-manager/tracefs"
+
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare/priviledged"
@@ -63,6 +65,24 @@ func addSystemProbePlatformSpecificEntries(fb flaretypes.FlareBuilder) {
 		dyninstTombstonePath := filepath.Join(os.TempDir(), "datadog-agent", "system-probe", "dynamic-instrumentation", "debugger-probes-tombstone.json")
 		fb.CopyFileTo(dyninstTombstonePath, filepath.Join("system-probe", "dyninst_tombstone.json")) //nolint:errcheck
 	}
+
+	// Kernel symbols and tracing artifacts used by CWS (runtime-security) to
+	// diagnose eBPF probe attachment. Previously collected by `security-agent flare`.
+	if pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enabled") {
+		_ = linuxKernelSymbols(fb)
+		_ = fb.CopyFileTo("/proc/1/mountinfo", filepath.Join("system-probe", "pid1_mountinfo"))
+		if traceFSPath, err := tracefs.Root(); err == nil {
+			_ = fb.CopyFileTo(filepath.Join(traceFSPath, "kprobe_events"), filepath.Join("system-probe", "kprobe_events"))
+			_ = fb.CopyFileTo(filepath.Join(traceFSPath, "available_events"), filepath.Join("system-probe", "available_events"))
+			_ = fb.CopyFileTo(filepath.Join(traceFSPath, "available_filter_functions"), filepath.Join("system-probe", "available_filter_functions"))
+		}
+	}
+}
+
+// linuxKernelSymbols is overridable in tests because scrubbing /proc/kallsyms
+// can take a long time.
+var linuxKernelSymbols = func(fb flaretypes.FlareBuilder) error {
+	return fb.CopyFileTo("/proc/kallsyms", filepath.Join("system-probe", "kallsyms"))
 }
 
 func getSystemProbeConntrackCached() ([]byte, error) {

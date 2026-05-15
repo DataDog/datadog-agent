@@ -8,6 +8,7 @@ package flare
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -41,8 +42,44 @@ import (
 	processapiserver "github.com/DataDog/datadog-agent/comp/process/apiserver"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	model "github.com/DataDog/datadog-agent/pkg/config/model"
+	secagentapi "github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+// fakeRuntimeSecurityCmdClient is a stub implementation of runtimeSecurityCmdClient for tests.
+type fakeRuntimeSecurityCmdClient struct {
+	policies         string
+	policiesErrField string
+	getErr           error
+	closed           bool
+	includeBundled   bool
+}
+
+func (f *fakeRuntimeSecurityCmdClient) GetLoadedPolicies(includeBundled bool) (*secagentapi.GetLoadedPoliciesMessage, error) {
+	f.includeBundled = includeBundled
+	if f.getErr != nil {
+		return nil, f.getErr
+	}
+	return &secagentapi.GetLoadedPoliciesMessage{
+		Policies: f.policies,
+		Error:    f.policiesErrField,
+	}, nil
+}
+
+func (f *fakeRuntimeSecurityCmdClient) Close() { f.closed = true }
+
+// withFakeRuntimeSecurityClient temporarily replaces newRuntimeSecurityCmdClient with a stub.
+func withFakeRuntimeSecurityClient(t *testing.T, fake *fakeRuntimeSecurityCmdClient, factoryErr error) {
+	t.Helper()
+	original := newRuntimeSecurityCmdClient
+	newRuntimeSecurityCmdClient = func() (runtimeSecurityCmdClient, error) {
+		if factoryErr != nil {
+			return nil, factoryErr
+		}
+		return fake, nil
+	}
+	t.Cleanup(func() { newRuntimeSecurityCmdClient = original })
+}
 
 func TestGoRoutines(t *testing.T) {
 	expected := "No Goroutines for you, my friend!"
@@ -307,5 +344,119 @@ func TestProcessAgentChecks(t *testing.T) {
 
 		// if auth is not set, "no session token provided" would appear instead
 		mock.AssertFileContent("error collecting data for 'process_discovery_check_output.json': status code: 404, body: process_discovery check is not running or has not been scheduled yet", "process_discovery_check_output.json")
+	})
+}
+
+func TestComplianceFiles(t *testing.T) {
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "cis-docker.yaml"), []byte("docker compliance rule"), os.ModePerm))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "cis-k8s.yaml"), []byte("k8s compliance rule"), os.ModePerm))
+	// A symlink that should be skipped to avoid leaking sensitive linked content into the flare.
+	require.NoError(t, os.Symlink("/etc/passwd", filepath.Join(srcDir, "leaky.yaml")))
+
+	cfg := configmock.New(t)
+	cfg.SetWithoutSource("compliance_config.dir", srcDir)
+
+	mock := flarehelpers.NewFlareBuilderMock(t, false)
+	require.NoError(t, getComplianceFiles(mock))
+
+	mock.AssertFileContent("docker compliance rule", "compliance.d", "cis-docker.yaml")
+	mock.AssertFileContent("k8s compliance rule", "compliance.d", "cis-k8s.yaml")
+	mock.AssertNoFileExists("compliance.d", "leaky.yaml")
+}
+
+func TestRuntimeSecurityLoadedPolicies(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		fake := &fakeRuntimeSecurityCmdClient{policies: `{"policies":[{"name":"default","rules":[]}]}`}
+		withFakeRuntimeSecurityClient(t, fake, nil)
+
+		content, err := getRuntimeSecurityLoadedPolicies()
+		require.NoError(t, err)
+		assert.Equal(t, fake.policies, string(content))
+		assert.True(t, fake.includeBundled, "bundled policies must be included in the flare")
+		assert.True(t, fake.closed, "client connection must be closed after use")
+	})
+
+	t.Run("system-probe unreachable", func(t *testing.T) {
+		withFakeRuntimeSecurityClient(t, nil, errors.New("dial unix /var/run/system-probe.sock: connection refused"))
+
+		_, err := getRuntimeSecurityLoadedPolicies()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unable to create runtime security client")
+	})
+
+	t.Run("gRPC call fails", func(t *testing.T) {
+		fake := &fakeRuntimeSecurityCmdClient{getErr: errors.New("rpc error: code = Unavailable")}
+		withFakeRuntimeSecurityClient(t, fake, nil)
+
+		_, err := getRuntimeSecurityLoadedPolicies()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "is system-probe running?")
+		assert.True(t, fake.closed)
+	})
+
+	t.Run("response carries error field", func(t *testing.T) {
+		fake := &fakeRuntimeSecurityCmdClient{policiesErrField: "ruleset not ready"}
+		withFakeRuntimeSecurityClient(t, fake, nil)
+
+		_, err := getRuntimeSecurityLoadedPolicies()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "ruleset not ready")
+	})
+}
+
+func TestProvideSecurityAgent_FeatureGating(t *testing.T) {
+	// Build a compliance dir we can detect in the flare.
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "rule.yaml"), []byte("compliance"), os.ModePerm))
+
+	t.Run("both features disabled", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.SetWithoutSource("compliance_config.dir", srcDir)
+		cfg.SetWithoutSource("compliance_config.enabled", false)
+		sysprobe := configmock.NewSystemProbe(t)
+		sysprobe.SetWithoutSource("runtime_security_config.enabled", false)
+
+		// If a client is created when CWS is off, the test fails.
+		withFakeRuntimeSecurityClient(t, &fakeRuntimeSecurityCmdClient{}, errors.New("client must not be created"))
+
+		mock := flarehelpers.NewFlareBuilderMock(t, false)
+		require.NoError(t, provideSecurityAgent(context.Background(), mock))
+
+		mock.AssertNoFileExists("compliance.d", "rule.yaml")
+		mock.AssertNoFileExists("runtime-security-policies.json")
+	})
+
+	t.Run("compliance only", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.SetWithoutSource("compliance_config.dir", srcDir)
+		cfg.SetWithoutSource("compliance_config.enabled", true)
+		sysprobe := configmock.NewSystemProbe(t)
+		sysprobe.SetWithoutSource("runtime_security_config.enabled", false)
+
+		withFakeRuntimeSecurityClient(t, &fakeRuntimeSecurityCmdClient{}, errors.New("client must not be created"))
+
+		mock := flarehelpers.NewFlareBuilderMock(t, false)
+		require.NoError(t, provideSecurityAgent(context.Background(), mock))
+
+		mock.AssertFileContent("compliance", "compliance.d", "rule.yaml")
+		mock.AssertNoFileExists("runtime-security-policies.json")
+	})
+
+	t.Run("runtime-security only", func(t *testing.T) {
+		cfg := configmock.New(t)
+		cfg.SetWithoutSource("compliance_config.dir", srcDir)
+		cfg.SetWithoutSource("compliance_config.enabled", false)
+		sysprobe := configmock.NewSystemProbe(t)
+		sysprobe.SetWithoutSource("runtime_security_config.enabled", true)
+
+		fake := &fakeRuntimeSecurityCmdClient{policies: `{"policies":["rc-rule","local-rule"]}`}
+		withFakeRuntimeSecurityClient(t, fake, nil)
+
+		mock := flarehelpers.NewFlareBuilderMock(t, false)
+		require.NoError(t, provideSecurityAgent(context.Background(), mock))
+
+		mock.AssertNoFileExists("compliance.d", "rule.yaml")
+		mock.AssertFileContent(fake.policies, "runtime-security-policies.json")
 	})
 }
