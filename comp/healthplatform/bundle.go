@@ -47,14 +47,14 @@ func Bundle() fxutil.BundleOptions {
 		schedulerfx.Module(),
 		forwarderfx.Module(),
 		corefx.Module(),
-		fx.Invoke(bootstrapBuiltInPeriodicHealthChecks),
+		fx.Invoke(bootstrapBuiltInHealthChecks),
 	)
 }
 
-// bootstrapBuiltInPeriodicHealthChecks registers all built-in health checks at startup.
+// bootstrapBuiltInHealthChecks registers all built-in health checks at startup.
 // Once checks run in background goroutines so they do not block OnStart;
 // periodic checks are registered with the scheduler.
-func bootstrapBuiltInPeriodicHealthChecks(
+func bootstrapBuiltInHealthChecks(
 	cfg config.Component,
 	logger log.Component,
 	runner runnerdef.Component,
@@ -69,7 +69,6 @@ func bootstrapBuiltInPeriodicHealthChecks(
 	lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
 			for _, once := range registry.GetBuiltInStartupHealthChecks() {
-				once := once // capture loop variable
 				go func() {
 					newIDs, err := runner.Run(once.Source, once.Fn)
 					if err != nil {

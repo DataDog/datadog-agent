@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -138,12 +139,26 @@ func pruneOldResolvedIssues(issues map[string]*PersistedIssue) {
 
 // PersistedIssue tracks issue state for disk persistence.
 // Custom JSON marshaling keeps the on-disk state field as a string.
+// The proto fields (Title through Remediation) are populated on every write so
+// that issues can be fully restored on restart without re-running the template.
 type PersistedIssue struct {
 	IssueType  string     `json:"issue_type"`
 	State      IssueState `json:"state"`
 	FirstSeen  string     `json:"first_seen"`
 	LastSeen   string     `json:"last_seen"`
 	ResolvedAt string     `json:"resolved_at,omitempty"`
+
+	// Proto fields — mirror of healthplatform.Issue, written on every ReportIssue.
+	IssueName   string          `json:"issue_name,omitempty"`
+	Title       string          `json:"title,omitempty"`
+	Description string          `json:"description,omitempty"`
+	Category    string          `json:"category,omitempty"`
+	Location    string          `json:"location,omitempty"`
+	Severity    string          `json:"severity,omitempty"`
+	Source      string          `json:"source,omitempty"`
+	Tags        []string        `json:"tags,omitempty"`
+	Extra       json.RawMessage `json:"extra,omitempty"`
+	Remediation json.RawMessage `json:"remediation,omitempty"`
 }
 
 // MarshalJSON converts the proto IssueState enum to its string representation for disk.
@@ -324,9 +339,9 @@ func (h *healthPlatformImpl) stop(_ context.Context) error {
 // ============================================================================
 
 // ReportIssue records a new or ongoing issue. The issue is keyed by
-// report.IssueID (unique instance id). The template is looked up by
-// report.IssueType in the issue registry; report.Tags are appended to the
-// template's tags. The template's user-facing Source field is preserved.
+// report.IssueID (unique instance id). If a template is registered for
+// report.IssueType it enriches the proto (title, severity, remediation, etc.);
+// otherwise a minimal proto is built from the report fields.
 func (h *healthPlatformImpl) ReportIssue(report healthplatformdef.IssueReport) error {
 	if report.IssueID == "" {
 		return errors.New("issue id cannot be empty")
@@ -335,16 +350,9 @@ func (h *healthPlatformImpl) ReportIssue(report healthplatformdef.IssueReport) e
 		return errors.New("issue type cannot be empty")
 	}
 
-	// Build the proto Issue from the registry template, then override Id with the
-	// unique instance key. Templates set issue.Id to the template type, but callers
-	// expect issue.Id to identify the specific instance.
-	issue, err := h.issueRegistry.BuildIssue(report.IssueType, report.Context)
+	issue, err := h.toProto(report)
 	if err != nil {
-		return fmt.Errorf("failed to build issue %s: %w", report.IssueType, err)
-	}
-	issue.Id = report.IssueID
-	if len(report.Tags) > 0 {
-		issue.Tags = append(issue.Tags, report.Tags...)
+		return err
 	}
 
 	h.issuesMux.RLock()
@@ -354,6 +362,30 @@ func (h *healthPlatformImpl) ReportIssue(report healthplatformdef.IssueReport) e
 	h.handleIssueStateChange(issue.Source, previousIssue, issue)
 	h.storeIssue(report.IssueType, issue)
 	return nil
+}
+
+// toProto converts an IssueReport to a proto Issue. If a template is registered
+// for the issue type it enriches the proto with the template's metadata; the
+// template's Source field takes precedence. If no template is registered a
+// minimal proto is built from the report fields directly.
+func (h *healthPlatformImpl) toProto(report healthplatformdef.IssueReport) (*healthplatform.Issue, error) {
+	if template, exists := h.issueRegistry.GetTemplate(report.IssueType); exists {
+		issue, err := template.BuildIssue(report.Context)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build issue %s: %w", report.IssueType, err)
+		}
+		issue.Id = report.IssueID
+		if len(report.Tags) > 0 {
+			issue.Tags = append(issue.Tags, report.Tags...)
+		}
+		return issue, nil
+	}
+	return &healthplatform.Issue{
+		Id:        report.IssueID,
+		IssueName: report.IssueType,
+		Source:    report.Source,
+		Tags:      report.Tags,
+	}, nil
 }
 
 // ============================================================================
@@ -542,6 +574,28 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 
 	if persisted := h.persistedIssues[issueID]; persisted != nil {
 		issue.PersistedIssue = persistedIssueToProto(persisted)
+		persisted.IssueName = issue.IssueName
+		persisted.Title = issue.Title
+		persisted.Description = issue.Description
+		persisted.Category = issue.Category
+		persisted.Location = issue.Location
+		persisted.Severity = issue.Severity
+		persisted.Source = issue.Source
+		persisted.Tags = issue.Tags
+		if issue.Extra != nil {
+			if raw, err := json.Marshal(issue.Extra); err == nil {
+				persisted.Extra = raw
+			} else {
+				h.log.Warnf("health platform: failed to serialize Extra for issue %s: %v", issueID, err)
+			}
+		}
+		if issue.Remediation != nil {
+			if raw, err := json.Marshal(issue.Remediation); err == nil {
+				persisted.Remediation = raw
+			} else {
+				h.log.Warnf("health platform: failed to serialize Remediation for issue %s: %v", issueID, err)
+			}
+		}
 	}
 
 	h.issuesMux.Unlock()
@@ -582,10 +636,40 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 		if persisted.State == IssueStateResolved || persisted.IssueType == "" {
 			continue
 		}
-		issue, err := h.issueRegistry.BuildIssue(persisted.IssueType, nil)
-		if err != nil {
-			h.log.Warn(fmt.Sprintf("Failed to rebuild issue %s for %s: %v", persisted.IssueType, issueID, err))
-			continue
+		var issue *healthplatform.Issue
+		if persisted.Title != "" || persisted.Source != "" {
+			issue = &healthplatform.Issue{
+				Id:          issueID,
+				IssueName:   persisted.IssueName,
+				Title:       persisted.Title,
+				Description: persisted.Description,
+				Category:    persisted.Category,
+				Location:    persisted.Location,
+				Severity:    persisted.Severity,
+				Source:      persisted.Source,
+				Tags:        persisted.Tags,
+			}
+			if len(persisted.Extra) > 0 {
+				issue.Extra = &structpb.Struct{}
+				if err := json.Unmarshal(persisted.Extra, issue.Extra); err != nil {
+					h.log.Warnf("health platform: failed to restore Extra for issue %s: %v", issueID, err)
+					issue.Extra = nil
+				}
+			}
+			if len(persisted.Remediation) > 0 {
+				issue.Remediation = &healthplatform.Remediation{}
+				if err := json.Unmarshal(persisted.Remediation, issue.Remediation); err != nil {
+					h.log.Warnf("health platform: failed to restore Remediation for issue %s: %v", issueID, err)
+					issue.Remediation = nil
+				}
+			}
+		} else {
+			var err error
+			issue, err = h.issueRegistry.BuildIssue(persisted.IssueType, nil)
+			if err != nil {
+				h.log.Warn(fmt.Sprintf("Failed to rebuild issue %s for %s: %v", persisted.IssueType, issueID, err))
+				continue
+			}
 		}
 		issue.Id = issueID
 		issue.PersistedIssue = persistedIssueToProto(persisted)

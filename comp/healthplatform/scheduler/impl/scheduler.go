@@ -170,13 +170,18 @@ func (s *scheduler) tick(check *registeredHealthCheck) {
 		newSet[id] = struct{}{}
 	}
 
-	// Resolve any issue ids that disappeared from this run.
+	// Collect IDs to resolve before releasing the lock to avoid holding checkMux
+	// while calling into the store (which acquires its own lock).
 	s.checkMux.Lock()
+	var toResolve []string
 	for id := range check.lastIssueIDs {
 		if _, still := newSet[id]; !still {
-			s.store.ResolveIssue(id)
+			toResolve = append(toResolve, id)
 		}
 	}
 	check.lastIssueIDs = newSet
 	s.checkMux.Unlock()
+	for _, id := range toResolve {
+		s.store.ResolveIssue(id)
+	}
 }
