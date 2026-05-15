@@ -8,10 +8,9 @@ package jmxlogger
 
 // team: agent-metric-pipelines
 
-import (
-	jmxloggerdef "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/def"
-)
-
 // Component is the component type.
-// Deprecated: use comp/agent/jmxlogger/def instead.
-type Component = jmxloggerdef.Component
+type Component interface {
+	JMXInfo(v ...interface{})
+	JMXError(v ...interface{}) error
+	Flush()
+}

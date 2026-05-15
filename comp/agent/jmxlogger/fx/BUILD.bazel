@@ -1,12 +1,9 @@
 load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
-    name = "jmxloggerimpl",
-    srcs = [
-        "jmxlogger.go",
-        "params.go",
-    ],
-    importpath = "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl",
+    name = "fx",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/fx",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/agent/jmxlogger/impl",

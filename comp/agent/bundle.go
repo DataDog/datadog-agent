@@ -10,7 +10,8 @@ import (
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	cloudfoundrycontainerfx "github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer/fx"
 	expvarserverfx "github.com/DataDog/datadog-agent/comp/agent/expvarserver/fx"
-	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
+	jmxloggerfx "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/fx"
+	jmxloggerimpl "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -20,7 +21,7 @@ import (
 func Bundle(params jmxloggerimpl.Params) fxutil.BundleOptions {
 	return fxutil.Bundle(
 		autoexitfx.Module(),
-		jmxloggerimpl.Module(params),
+		jmxloggerfx.Module(params),
 		expvarserverfx.Module(),
 		cloudfoundrycontainerfx.Module(),
 	)
