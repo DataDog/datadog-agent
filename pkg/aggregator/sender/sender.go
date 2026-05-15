@@ -45,8 +45,8 @@ type Sender interface {
 	GetSenderStats() stats.SenderStats
 	DisableDefaultHostname(disable bool)
 	SetCheckCustomTags(tags []string)
-	// AppendCheckCustomTags appends tags to those already set on the sender (e.g. from check Configure).
-	AppendCheckCustomTags(tags []string)
+	// AppendInfraTags appends tags to the infrastructure-level tags without replacing existing ones.
+	AppendInfraTags(tags []string)
 	SetCheckService(service string)
 	SetNoIndex(noIndex bool)
 	FinalizeCheckServiceTag()

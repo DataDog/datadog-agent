@@ -32,7 +32,7 @@ func IsTagged(checkName string, cfg pkgconfigmodel.Reader) bool {
 	return slices.Contains(taggedChecks, checkName)
 }
 
-// ApplySenderTags appends ccm_mode:<value> to the check sender's custom tags when the
+// ApplySenderTags appends ccm_mode:<value> to the check sender's infra tags when the
 // integration is eligible for CCM tagging.
 func ApplySenderTags(senderManager sender.SenderManager, id checkid.ID, integrationName string, cfg pkgconfigmodel.Reader) {
 	if !IsTagged(integrationName, cfg) {
@@ -44,5 +44,5 @@ func ApplySenderTags(senderManager sender.SenderManager, id checkid.ID, integrat
 		return
 	}
 	ccmTag := "ccm_mode:" + cfg.GetString("ccm_mode")
-	s.AppendCheckCustomTags([]string{ccmTag})
+	s.AppendInfraTags([]string{ccmTag})
 }

@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -79,58 +78,52 @@ func TestApplySenderTags(t *testing.T) {
 		integration   string
 		id            checkid.ID
 		setupCfg      func(cfg pkgconfigmodel.Config)
-		preTags       []string
-		wantGaugeTags []string
+		wantInfraTags []string // nil means AppendInfraTags should not be called
 	}{
 		{
-			name:        "eligible integration appends ccm_mode to sender check tags",
+			name:        "eligible integration appends ccm_mode to sender infra tags",
 			integration: "cpu",
 			id:          checkid.ID("cpu:abc"),
 			setupCfg: func(cfg pkgconfigmodel.Config) {
 				cfg.Set("ccm_mode", "lightweight", pkgconfigmodel.SourceFile)
 				cfg.Set("integration.ccm_lightweight.tagged", []string{"cpu"}, pkgconfigmodel.SourceFile)
 			},
-			preTags:       []string{"env:prod"},
-			wantGaugeTags: []string{"k:v", "env:prod", "ccm_mode:lightweight"},
+			wantInfraTags: []string{"ccm_mode:lightweight"},
 		},
 		{
-			name:        "integration not in tagged list leaves tags unchanged",
+			name:        "integration not in tagged list leaves infra tags unchanged",
 			integration: "disk",
 			id:          checkid.ID("disk:def"),
 			setupCfg: func(cfg pkgconfigmodel.Config) {
 				cfg.Set("ccm_mode", "lightweight", pkgconfigmodel.SourceFile)
 				cfg.Set("integration.ccm_lightweight.tagged", []string{"cpu"}, pkgconfigmodel.SourceFile)
 			},
-			preTags:       []string{"role:storage"},
-			wantGaugeTags: []string{"k:v", "role:storage"},
+			wantInfraTags: nil,
 		},
 		{
-			name:        "ccm_mode unset does not append",
+			name:        "ccm_mode unset does not append infra tags",
 			integration: "cpu",
 			id:          checkid.ID("cpu:ghi"),
 			setupCfg: func(cfg pkgconfigmodel.Config) {
 				cfg.Set("ccm_mode", "", pkgconfigmodel.SourceFile)
 				cfg.Set("integration.ccm_lightweight.tagged", []string{"cpu"}, pkgconfigmodel.SourceFile)
 			},
-			preTags:       []string{"only:tag"},
-			wantGaugeTags: []string{"k:v", "only:tag"},
+			wantInfraTags: nil,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockS := mocksender.NewMockSender(tt.id)
-			mockS.On("SetCheckCustomTags", mock.Anything).Return().Once()
-			mockS.SetCheckCustomTags(tt.preTags)
-			mockS.On("AppendCheckCustomTags", mock.Anything).Return().Maybe()
-			mockS.On("Gauge", "m", float64(1), "", tt.wantGaugeTags).Return().Once()
+			if tt.wantInfraTags != nil {
+				mockS.On("AppendInfraTags", tt.wantInfraTags).Return().Once()
+			}
 
 			cfg := configmock.New(t)
 			tt.setupCfg(cfg)
 
 			ApplySenderTags(mockS.GetSenderManager(), tt.id, tt.integration, cfg)
 
-			mockS.Gauge("m", 1, "", []string{"k:v"})
 			mockS.AssertExpectations(t)
 		})
 	}

@@ -116,10 +116,10 @@ func (m *MockSender) SetCheckCustomTags(tags []string) {
 	m.Called(tags)
 }
 
-// AppendCheckCustomTags appends to stored check tags (mirrors checkSender.AppendCheckCustomTags).
-func (m *MockSender) AppendCheckCustomTags(tags []string) {
+// AppendInfraTags appends to stored infrastructure tags (mirrors checkSender.AppendInfraTags).
+func (m *MockSender) AppendInfraTags(tags []string) {
 	if len(tags) > 0 {
-		m.checkTags = append(m.checkTags, tags...)
+		m.infraTags = append(m.infraTags, tags...)
 	}
 	m.Called(tags)
 }

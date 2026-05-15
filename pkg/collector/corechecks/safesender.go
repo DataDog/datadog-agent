@@ -99,7 +99,7 @@ func (ss *safeSender) SetCheckCustomTags(tags []string) {
 	ss.Sender.SetCheckCustomTags(cloneTags(tags))
 }
 
-// AppendCheckCustomTags implements sender.Sender#AppendCheckCustomTags.
-func (ss *safeSender) AppendCheckCustomTags(tags []string) {
-	ss.Sender.AppendCheckCustomTags(cloneTags(tags))
+// AppendInfraTags delegates to AppendInfraTags on the underlying sender.
+func (ss *safeSender) AppendInfraTags(tags []string) {
+	ss.Sender.AppendInfraTags(cloneTags(tags))
 }

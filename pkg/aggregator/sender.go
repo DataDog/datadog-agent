@@ -42,6 +42,7 @@ type checkSender struct {
 	orchestratorManifestOut chan<- senderOrchestratorManifest
 	eventPlatformOut        chan<- senderEventPlatformEvent
 	checkTags               []string
+	infraTags               []string
 	service                 string
 	noIndex                 bool
 }
@@ -129,14 +130,14 @@ func (s *checkSender) SetCheckCustomTags(tags []string) {
 	s.checkTags = tags
 }
 
-// AppendCheckCustomTags appends tags to the check-level custom tags without replacing existing ones.
-func (s *checkSender) AppendCheckCustomTags(tags []string) {
+// AppendInfraTags appends tags to the infrastructure-level tags without replacing existing ones.
+func (s *checkSender) AppendInfraTags(tags []string) {
 	if len(tags) == 0 {
 		return
 	}
 	tagsCopy := make([]string, len(tags))
 	copy(tagsCopy, tags)
-	s.checkTags = append(s.checkTags, tagsCopy...)
+	s.infraTags = append(s.infraTags, tagsCopy...)
 }
 
 // SetCheckService appends the service as a tag for metrics, events, and service checks
@@ -194,6 +195,9 @@ func (s *checkSender) sendMetricSample(
 	timestamp float64,
 ) {
 	tags = append(tags, s.checkTags...)
+
+	// add infra tags for only metrics
+	tags = append(tags, s.infraTags...)
 
 	if log.ShouldLog(log.TraceLvl) {
 		log.Trace(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
