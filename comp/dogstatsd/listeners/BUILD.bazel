@@ -25,6 +25,8 @@ go_library(
         "//comp/dogstatsd/packets",
         "//comp/dogstatsd/pidmap/def",
         "//comp/dogstatsd/replay/def",
+        "//comp/healthplatform/issues/dogstatsd-udp-drops",
+        "//comp/healthplatform/store/def",
         "//pkg/config/model",
         "//pkg/config/utils",
         "//pkg/util/log",

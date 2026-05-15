@@ -26,7 +26,7 @@ import (
 	server "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/def"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -60,7 +60,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 		}),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 		filterlist.MockModule(),
-		fx.Provide(func() option.Option[healthplatformdef.Component] { return option.None[healthplatformdef.Component]() }),
+		fx.Provide(func() option.Option[storedef.Component] { return option.None[storedef.Component]() }),
 	))
 
 	s := DsdStatsRuntimeSetting{
