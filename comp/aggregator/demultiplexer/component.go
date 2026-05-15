@@ -4,27 +4,17 @@
 // Copyright 2023-present Datadog, Inc.
 
 // Package demultiplexer defines the aggregator demultiplexer
+//
+// Deprecated: use comp/aggregator/demultiplexer/def instead.
 package demultiplexer
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 )
 
 // team: agent-metric-pipelines
 
 // Component is the component type.
-type Component interface {
-	sender.SenderManager
-
-	// TODO: (components) remove this method once the serializer is a component
-	Serializer() serializer.MetricSerializer
-
-	aggregator.DemultiplexerWithAggregator
-
-	// AddAgentStartupTelemetry adds a startup event and count (in a DSD time sampler)
-	// to be sent on the next flush, and stages the matching shutdown event for the
-	// final Stop(true) flush.
-	AddAgentStartupTelemetry(agentVersion string)
-}
+//
+// Deprecated: use comp/aggregator/demultiplexer/def.Component instead.
+type Component = demultiplexer.Component

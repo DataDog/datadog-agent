@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "mock",
+    srcs = ["mock.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/mock",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/aggregator/demultiplexer/def",
+        "//comp/aggregator/demultiplexer/impl",
+        "//pkg/aggregator",
+        "//pkg/aggregator/sender",
+        "//pkg/metrics",
+        "//pkg/util/fxutil",
+    ],
+)
