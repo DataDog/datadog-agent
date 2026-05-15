@@ -31,6 +31,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/checkfailure"      // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dockerpermissions" // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"     // registers templates via init()
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/k8srbac"           // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/rofspermissions"   // registers templates via init()
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	runnerfx "github.com/DataDog/datadog-agent/comp/healthplatform/runner/fx"
