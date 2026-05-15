@@ -15,10 +15,12 @@ Three entry points, increasing in coverage:
 
 1. `TestOpenMetricsDifferential` — fixed corpus, two real captured payloads.
 2. `TestOpenMetricsMutation` — N random mutations of each corpus payload.
-3. `FuzzOpenMetricsDifferential` — `testing.F` fuzz target seeded by the
+3. `TestOpenMetricsAdversarial` — hand-crafted spec-corner cases, each
+   targeting a specific behavior class so failures triage by subtest name.
+4. `FuzzOpenMetricsDifferential` — `testing.F` fuzz target seeded by the
    corpus, coverage-guided once run under `-fuzz`.
 
-All three share the same Python sidecar, payload server, and diff machinery.
+All four share the same Python sidecar, payload server, and diff machinery.
 
 ## Prereqs
 
@@ -57,6 +59,25 @@ On any divergence the mutated payload is dumped to
 `testdata/regressions/<sha>.prom` with a `.meta` sidecar that captures the
 verdict, error strings, and submission counts. That directory is gitignored —
 these are session-local triage artifacts, not durable test fixtures.
+
+### Adversarial (hand-crafted spec corners, ~half second)
+
+```bash
+go test -tags openmetrics_differential -v -run TestOpenMetricsAdversarial \
+    ./pkg/collector/corechecks/openmetrics/differential/
+```
+
+Each case in `adversarial.go` becomes a named subtest — e.g.
+`TestOpenMetricsAdversarial/format/openmetrics_exemplar`. Use `-run` to
+focus, e.g. `-run 'TestOpenMetricsAdversarial/histogram'`.
+
+Adding a case is cheap: append a literal to one of the `*Cases()` functions.
+Categories currently covered: histogram corners (non-monotonic, missing
++Inf, NaN sum...), summary corners (out-of-range quantile, duplicate
+quantile...), label corners (duplicate name, very long value, raw
+newline...), metric-name conflicts (conflicting TYPE, `_total` collision),
+format mixing (OpenMetrics exemplars/UNIT/EOF in Prometheus payloads),
+value rendering (hex floats, float64 overflow, explicit `+` sign).
 
 ### Fuzz mode (long-running, coverage-guided)
 
@@ -138,23 +159,49 @@ output for identical (seed, input, n). When a fuzz finds a failure, the
 
 ## Findings so far
 
-Findings discovered by running mutation diff with default budget (also useful
-for anyone reading this in the future to know what's known):
+Findings discovered by running the harness against captured payloads,
+mutated payloads, and hand-crafted adversarial cases:
 
-1. **OpenMetrics TYPE keywords (`stateset`, `gaugehistogram`, `info`) abort
-   the entire Go scrape.** Python degrades gracefully and emits all other
-   samples. Repro: change any `# TYPE foo gauge` line in `ksm.txt.gz` to
-   `# TYPE foo stateset`. Likely the same code path as the Prometheus-vs-
-   OpenMetrics text format distinction — the Go scraper appears to be
-   strict-Prometheus only.
-2. **UTF-8 label values: Go decodes, Python preserves raw bytes.** A label
-   value `"\xc3\xa9\xc3\xa1"` (UTF-8 for `éá`) lands in Go tags as `éá` and
-   in Python tags as `Ã©Ã¡` (the UTF-8 bytes interpreted as Latin-1).
+### Real Go bugs (production-relevant)
+
+1. **OpenMetrics-only TYPE keywords (`stateset`, `gaugehistogram`, `info`)
+   abort the entire Go scrape.** Python degrades gracefully and emits all
+   other samples. Repro: change any `# TYPE foo gauge` line in `ksm.txt.gz`
+   to `# TYPE foo stateset`. Likely the same code path as the
+   Prometheus-vs-OpenMetrics text format distinction — the Go scraper
+   appears to be strict-Prometheus only.
+2. **OpenMetrics exemplar trailers abort the entire Go scrape.** Any
+   sample line ending in `# {trace_id="..."} 0.0 1620000000.0` is
+   rejected with `expected timestamp or new record, got "#"`. Python
+   handles it. Modern OpenMetrics-compliant endpoints emit exemplars for
+   trace correlation; this is a high-impact production bug. Adversarial
+   case: `format/openmetrics_exemplar`.
+3. **Float overflow (`1e400`) aborts the entire Go scrape** with
+   `strconv.ParseFloat: value out of range`. Python clamps to `+Inf` and
+   submits. A single runaway metric (counter wraparound, memory leak,
+   exporter bug) takes the whole scrape down on the Go side. Adversarial
+   case: `values/over_max_float64`.
+4. **Conflicting TYPE for the same metric name diverges silently.** Go
+   honors the first `# TYPE` declaration, Python honors the last. A buggy
+   exporter that emits `# TYPE m gauge` then `# TYPE m counter` produces
+   different submission types on the two impls (gauge vs monotonic_count
+   with `.count` suffix). Adversarial case: `name/conflicting_type`.
+
+### Spec-strictness divergences (defensible either way)
+
+5. **UTF-8 label values: Go decodes, Python preserves raw bytes** (mojibake).
    Go is correct per modern OpenMetrics; `prometheus_client` predates the
    UTF-8 mandate. Not actionable for Go.
-3. **`__`-prefixed label names:** Python rejects the entire sample
-   (`Reserved label metric name`) and crashes the scrape; Go accepts. Both
-   behaviors defensible. Not high-priority.
+6. **`__`-prefixed label names**: Python rejects the entire sample
+   (`Reserved label metric name`), Go accepts. Both behaviors defensible.
+7. **Duplicate label name within a sample** (`{foo="a",foo="b"}`): Python
+   rejects, Go accepts (last value wins). Both defensible.
+8. **Non-numeric quantile** (`{quantile="median"}` on a summary): Python
+   rejects, Go accepts. Both defensible.
+9. **Raw newline inside a label value**: Python parser desyncs and
+   rejects subsequent samples; Go accepts. Both implementations are
+   technically wrong; Go is more permissive.
+
 
 ## Out of scope
 
