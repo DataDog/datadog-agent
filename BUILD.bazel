@@ -80,7 +80,8 @@ exports_files(glob(
 # gazelle:exclude comp/checks/agentcrashdetect/fx
 # gazelle:exclude comp/checks/agentcrashdetect/impl
 # gazelle:exclude comp/checks/windowseventlog/fx
-# gazelle:exclude comp/checks/windowseventlog/impl
+# gazelle:exclude comp/checks/windowseventlog/impl/*.go
+# gazelle:exclude comp/checks/windowseventlog/impl/check/*.go
 # gazelle:exclude comp/checks/winregistry/fx
 # gazelle:exclude comp/checks/winregistry/impl
 # gazelle:exclude comp/collector
@@ -205,9 +206,13 @@ exports_files(glob(
 # gazelle:exclude comp/metadata/securityagent/impl
 # gazelle:exclude comp/metadata/systemprobe/fx
 # gazelle:exclude comp/metadata/systemprobe/impl
-# gazelle:exclude comp/ndmtmp
+# gazelle:exclude comp/ndmtmp/*.go
+# gazelle:exclude comp/ndmtmp/forwarder/fx
+# gazelle:exclude comp/ndmtmp/forwarder/impl
+# gazelle:exclude comp/ndmtmp/forwarder/mock
 # gazelle:exclude comp/netflow/flowaggregator
-# gazelle:exclude comp/netflow/goflowlib
+# gazelle:exclude comp/netflow/goflowlib/*.go
+# gazelle:exclude comp/netflow/goflowlib/netflowstate
 # gazelle:exclude comp/netflow/server/fx
 # gazelle:exclude comp/netflow/server/impl
 # gazelle:exclude comp/netflow/testutil
@@ -239,7 +244,9 @@ exports_files(glob(
 # gazelle:exclude comp/otelcol/otlp/internal
 # gazelle:exclude comp/privateactionrunner/fx
 # gazelle:exclude comp/privateactionrunner/impl
-# gazelle:exclude comp/process/agent
+# gazelle:exclude comp/process/agent/*.go
+# gazelle:exclude comp/process/agent/fx
+# gazelle:exclude comp/process/agent/impl
 # gazelle:exclude comp/process/apiserver
 # gazelle:exclude comp/process/connectionscheck
 # gazelle:exclude comp/process/containercheck
@@ -257,7 +264,6 @@ exports_files(glob(
 # gazelle:exclude comp/process/status/impl
 # gazelle:exclude comp/process/submitter
 # gazelle:exclude comp/process/types
-# gazelle:exclude comp/rdnsquerier/fx-mock
 # gazelle:exclude comp/remote-config/rcservice/fx
 # gazelle:exclude comp/remote-config/rcservice/impl
 # gazelle:exclude comp/remote-config/rcservicemrf/fx
@@ -338,7 +344,8 @@ exports_files(glob(
 # gazelle:exclude pkg/collector/corechecks/ebpf/noisyneighbor
 # gazelle:exclude pkg/collector/corechecks/ebpf/oomkill
 # gazelle:exclude pkg/collector/corechecks/ebpf/tcpqueuelength
-# gazelle:exclude pkg/collector/corechecks/embed
+# gazelle:exclude pkg/collector/corechecks/embed/apm
+# gazelle:exclude pkg/collector/corechecks/embed/process
 # gazelle:exclude pkg/collector/corechecks/gpu/integrationtests
 # gazelle:exclude pkg/collector/corechecks/gpu/nvidia
 # gazelle:exclude pkg/collector/corechecks/gpu/spec
@@ -350,7 +357,11 @@ exports_files(glob(
 # gazelle:exclude pkg/collector/corechecks/networkconfigmanagement
 # gazelle:exclude pkg/collector/corechecks/networkpath
 # gazelle:exclude pkg/collector/corechecks/nvidia
-# gazelle:exclude pkg/collector/corechecks/oracle
+# gazelle:exclude pkg/collector/corechecks/oracle/*.go
+# gazelle:exclude pkg/collector/corechecks/oracle/compose
+# gazelle:exclude pkg/collector/corechecks/oracle/config
+# gazelle:exclude pkg/collector/corechecks/oracle/sql
+# gazelle:exclude pkg/collector/corechecks/oracle/test-utils
 # gazelle:exclude pkg/collector/corechecks/orchestrator/ecs
 # gazelle:exclude pkg/collector/corechecks/orchestrator/kubeletconfig
 # gazelle:exclude pkg/collector/corechecks/orchestrator/pod
@@ -483,7 +494,7 @@ exports_files(glob(
 # gazelle:exclude pkg/hosttags
 # gazelle:exclude pkg/jmxfetch
 # gazelle:exclude pkg/kubestatemetrics
-# gazelle:exclude pkg/languagedetection/internal
+# gazelle:exclude pkg/languagedetection/internal/detectors/privileged
 # gazelle:exclude pkg/languagedetection/privileged
 # gazelle:exclude pkg/languagedetection/util
 # gazelle:exclude pkg/logs/client/http
