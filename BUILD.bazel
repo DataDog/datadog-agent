@@ -610,7 +610,6 @@ exports_files(glob(
 # gazelle:exclude pkg/security/rules
 # gazelle:exclude pkg/security/security_profile
 # gazelle:exclude pkg/security/serializers
-# gazelle:exclude pkg/serializer/internal
 # gazelle:exclude pkg/serverless/logs
 # gazelle:exclude pkg/serverless/metrics
 # gazelle:exclude pkg/serverless/otlp
