@@ -33,6 +33,8 @@ import (
 	server "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
+	dogstatsdtaglimit "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dogstatsd-tag-limit"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	offlinereporter "github.com/DataDog/datadog-agent/comp/offlinereporter/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -88,6 +90,7 @@ type dependencies struct {
 	Hostname        hostnameinterface.Component
 	FilterList      filterlist.Component
 	OfflineReporter offlinereporter.Component
+	HealthPlatform  option.Option[storedef.Component]
 }
 
 // Provides defines the output of the dogstatsd server component.
@@ -172,6 +175,8 @@ type dsdServer struct {
 
 	wmeta           option.Option[workloadmeta.Component]
 	offlineReporter offlinereporter.Component
+	healthPlatform  option.Option[storedef.Component]
+	maxTagsCount    int
 
 	// telemetry
 	telemetry               telemetry.Component
@@ -207,6 +212,7 @@ func initTelemetry() {
 func NewComponent(deps dependencies) Provides {
 	s := newServerCompat(deps.Config, deps.Log, deps.Hostname, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry, deps.FilterList)
 	s.offlineReporter = deps.OfflineReporter
+	s.healthPlatform = deps.HealthPlatform
 
 	dsdConfig := dsdconfig.NewConfig(s.config)
 	if dsdConfig.EnabledInternal() {
@@ -320,6 +326,7 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 			serverlessMode:            serverless,
 		},
 		wmeta:                   wmeta,
+		maxTagsCount:            cfg.GetInt("dogstatsd_max_tags_count"),
 		telemetry:               telemetrycomp,
 		filterList:              filterList,
 		tlmProcessed:            dogstatsdTelemetryCount,
@@ -851,6 +858,12 @@ func (s *dsdServer) parseMetricMessage(metricSamples []metrics.MetricSample, par
 			metricSamples[idx].Tags = metricSamples[0].Tags
 		}
 
+		// Enforce tag count limit if configured
+		if s.maxTagsCount > 0 && len(metricSamples[idx].Tags) > s.maxTagsCount {
+			s.reportTagLimitExceeded(metricSamples[idx].Name, len(metricSamples[idx].Tags))
+			metricSamples[idx].Tags = metricSamples[idx].Tags[:s.maxTagsCount]
+		}
+
 		// If we're receiving runtime metrics, we need to convert the default source to the runtime source
 		if s.enrichConfig.serverlessMode && strings.HasPrefix(metricSamples[idx].Name, "runtime.") {
 			metricSamples[idx].Source = serverlessSourceCustomToRuntime(metricSamples[idx].Source)
@@ -860,6 +873,25 @@ func (s *dsdServer) parseMetricMessage(metricSamples []metrics.MetricSample, par
 		okCnt.Inc()
 	}
 	return metricSamples, nil
+}
+
+// reportTagLimitExceeded reports a tag-limit issue to the health platform if configured.
+func (s *dsdServer) reportTagLimitExceeded(metricName string, tagCount int) {
+	hp, ok := s.healthPlatform.Get()
+	if !ok {
+		return
+	}
+	_ = hp.ReportIssue(storedef.IssueReport{
+		IssueID:   dogstatsdtaglimit.IssueID,
+		IssueType: dogstatsdtaglimit.IssueID,
+		Source:    "dogstatsd",
+		Context: map[string]string{
+			"metricName":   metricName,
+			"tagCount":     strconv.Itoa(tagCount),
+			"maxTagsCount": strconv.Itoa(s.maxTagsCount),
+		},
+		Tags: []string{"dogstatsd", "tag-limit"},
+	})
 }
 
 func (s *dsdServer) parseEventMessage(parser *parser, message []byte, origin string, processID uint32) (*event.Event, error) {
