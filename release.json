@@ -1,6 +1,6 @@
 {
     "base_branch": "main",
-    "current_milestone": "7.80.0",
+    "current_milestone": "7.81.0",
     "dependencies": {
         "AGENT_DATA_PLANE_HASH_FIPS_LINUX_AMD64": "8388c157e562feb9d13ad04f45111e98cd7ca792ad2a85ab3d14b8af5647b493",
         "AGENT_DATA_PLANE_HASH_FIPS_LINUX_ARM64": "40d702e4ebeb0d9d3f28230cbce532dc5ec5449a81e8250bafb45f0e98913e07",
