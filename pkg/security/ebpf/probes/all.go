@@ -214,6 +214,7 @@ type MapSpecEditorOpts struct {
 	EventSamplingConnectEnabled   bool
 	EventSamplingBindEnabled      bool
 	EventSamplingDNSEnabled       bool
+	BasenameApproversSize         int
 }
 
 // AllMapSpecEditors returns the list of map editors
@@ -258,10 +259,6 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		},
 		"pid_rate_limiters": {
 			MaxEntries: superReducedProcPidCacheSize,
-			EditorFlag: manager.EditMaxEntries,
-		},
-		"active_flows": {
-			MaxEntries: activeFlowsMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
 		},
 		"active_flows_spin_locks": {
@@ -406,6 +403,11 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			Flags:      unix.BPF_ANY,
 			EditorFlag: manager.EditMaxEntries | manager.EditFlags,
 		}
+		editors["basename_approvers"] = manager.MapSpecEditor{
+			MaxEntries: uint32(opts.BasenameApproversSize),
+			Flags:      unix.BPF_ANY,
+			EditorFlag: manager.EditMaxEntries,
+		}
 	} else {
 		editors["active_flows"] = manager.MapSpecEditor{
 			MaxEntries: activeFlowsMaxEntries,
@@ -413,6 +415,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		}
 		editors["inet_bind_args"] = manager.MapSpecEditor{
 			MaxEntries: superReducedProcPidCacheSize,
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["basename_approvers"] = manager.MapSpecEditor{
+			MaxEntries: uint32(opts.BasenameApproversSize),
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
