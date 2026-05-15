@@ -23,16 +23,14 @@ import (
 	egressfx "github.com/DataDog/datadog-agent/comp/healthplatform/egress/fx"
 	forwarderfx "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/fx"
 
-	// Import issue modules to trigger their init() registration.
-	// The bundle is the correct place for side-effect imports; impl packages
-	// must not import other impl packages.
-	// invalidconfig is registered conditionally in bundle_invalidconfig.go (excluded from IoT).
+	// Issue modules register themselves via init(); imported here for side effects.
 	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
 	registryfx "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/fx"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admisconfig"       // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe"    // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/checkfailure"      // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dockerpermissions" // registers templates via init()
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig"     // registers templates via init()
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/rofspermissions"   // registers templates via init()
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	runnerfx "github.com/DataDog/datadog-agent/comp/healthplatform/runner/fx"
