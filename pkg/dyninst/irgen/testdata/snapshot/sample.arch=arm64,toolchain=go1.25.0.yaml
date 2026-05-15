@@ -6105,6 +6105,7 @@ Subprograms:
               Pieces: [{Size: 2, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 2
       Name: main.testRuneArray
@@ -6118,6 +6119,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 3
       Name: main.testStringArray
@@ -6131,6 +6133,7 @@ Subprograms:
               Pieces: [{Size: 32, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 4
       Name: main.testBoolArray
@@ -6144,6 +6147,7 @@ Subprograms:
               Pieces: [{Size: 2, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 5
       Name: main.testIntArray
@@ -6157,6 +6161,7 @@ Subprograms:
               Pieces: [{Size: 16, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 6
       Name: main.testInt8Array
@@ -6170,6 +6175,7 @@ Subprograms:
               Pieces: [{Size: 2, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 7
       Name: main.testInt16Array
@@ -6183,6 +6189,7 @@ Subprograms:
               Pieces: [{Size: 4, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 8
       Name: main.testInt32Array
@@ -6196,6 +6203,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 9
       Name: main.testInt64Array
@@ -6209,6 +6217,7 @@ Subprograms:
               Pieces: [{Size: 16, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 10
       Name: main.testUintArray
@@ -6222,6 +6231,7 @@ Subprograms:
               Pieces: [{Size: 16, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 11
       Name: main.testUint8Array
@@ -6235,6 +6245,7 @@ Subprograms:
               Pieces: [{Size: 2, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 12
       Name: main.testUint16Array
@@ -6248,6 +6259,7 @@ Subprograms:
               Pieces: [{Size: 4, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 13
       Name: main.testUint32Array
@@ -6261,6 +6273,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 14
       Name: main.testUint64Array
@@ -6274,6 +6287,7 @@ Subprograms:
               Pieces: [{Size: 16, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 15
       Name: main.testArrayOfArrays
@@ -6287,6 +6301,7 @@ Subprograms:
               Pieces: [{Size: 32, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 16
       Name: main.testArrayOfStrings
@@ -6300,6 +6315,7 @@ Subprograms:
               Pieces: [{Size: 32, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 17
       Name: main.testArrayOfArraysOfArrays
@@ -6313,6 +6329,7 @@ Subprograms:
               Pieces: [{Size: 64, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 18
       Name: main.testArrayOfStructs
@@ -6326,6 +6343,7 @@ Subprograms:
               Pieces: [{Size: 48, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 19
       Name: main.testArrayEmptyStructs
@@ -6339,6 +6357,7 @@ Subprograms:
               Pieces: [{Size: 0, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 20
       Name: main.testVeryLargeArray
@@ -6352,6 +6371,7 @@ Subprograms:
               Pieces: [{Size: 800, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 21
       Name: main.testSingleByte
@@ -6365,6 +6385,7 @@ Subprograms:
               Pieces: [{Size: 1, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 22
       Name: main.testSingleRune
@@ -6378,6 +6399,7 @@ Subprograms:
               Pieces: [{Size: 4, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 23
       Name: main.testSingleBool
@@ -6391,6 +6413,7 @@ Subprograms:
               Pieces: [{Size: 1, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 24
       Name: main.testSingleInt
@@ -6404,6 +6427,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 25
       Name: main.testSingleInt8
@@ -6417,6 +6441,7 @@ Subprograms:
               Pieces: [{Size: 1, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 26
       Name: main.testSingleInt16
@@ -6430,6 +6455,7 @@ Subprograms:
               Pieces: [{Size: 2, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 27
       Name: main.testSingleInt32
@@ -6443,6 +6469,7 @@ Subprograms:
               Pieces: [{Size: 4, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 28
       Name: main.testSingleInt64
@@ -6456,6 +6483,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 29
       Name: main.testSingleUint
@@ -6469,6 +6497,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 30
       Name: main.testSingleUint8
@@ -6482,6 +6511,7 @@ Subprograms:
               Pieces: [{Size: 1, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 31
       Name: main.testSingleUint16
@@ -6495,6 +6525,7 @@ Subprograms:
               Pieces: [{Size: 2, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 32
       Name: main.testSingleUint32
@@ -6508,6 +6539,7 @@ Subprograms:
               Pieces: [{Size: 4, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 33
       Name: main.testSingleUint64
@@ -6521,6 +6553,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 34
       Name: main.testSingleFloat32
@@ -6534,6 +6567,7 @@ Subprograms:
               Pieces: [{Size: 4, Op: {RegNo: 64, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 35
       Name: main.testSingleFloat64
@@ -6547,6 +6581,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 64, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 36
       Name: main.testTypeAlias
@@ -6560,6 +6595,7 @@ Subprograms:
               Pieces: [{Size: 2, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 37
       Name: main.testBigStruct
@@ -6585,6 +6621,7 @@ Subprograms:
                   Op: {RegNo: 5, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 38
       Name: main.testErrorAtLine
@@ -6598,16 +6635,19 @@ Subprograms:
               Pieces: [{Size: 1, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 9 BaseType int
           Locations: [{Range: 0x808330..0x808430, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: x
           Type: 9 BaseType int
           Locations: [{Range: 0x808330..0x808430, Pieces: []}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: err
           Type: 16 GoInterfaceType error
           Locations:
@@ -6635,6 +6675,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: -64}}, {Size: 8, Op: null}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 39
       Name: main.testDeepPtr1
@@ -6648,6 +6689,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 40
       Name: main.testDeepPtr7
@@ -6661,6 +6703,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 41
       Name: main.testDeepSlice1
@@ -6680,6 +6723,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 42
       Name: main.testDeepSlice7
@@ -6693,6 +6737,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 43
       Name: main.testDeepMap1
@@ -6706,6 +6751,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 44
       Name: main.testDeepMap7
@@ -6719,6 +6765,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 45
       Name: main.testStringType1
@@ -6732,6 +6779,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 46
       Name: main.testStringType2
@@ -6745,6 +6793,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 47
       Name: main.testLongFunctionWithChangingState
@@ -6760,6 +6809,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: aPerArch
           Type: 9 BaseType int
           Locations:
@@ -6775,6 +6825,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: -168}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: b
           Type: 9 BaseType int
           Locations:
@@ -6796,6 +6847,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: -184}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 48
       Name: main.testTakeContext
@@ -6813,6 +6865,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 49
       Name: main.testManyPointers
@@ -6826,6 +6879,7 @@ Subprograms:
               Pieces: [{Size: 560, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 50
       Name: main.testManyStrings
@@ -6845,6 +6899,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 51
       Name: main.testEsotericStack
@@ -6916,6 +6971,7 @@ Subprograms:
                   Op: {RegNo: 8, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 52
       Name: main.testEsotericHeap
@@ -6929,6 +6985,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 53
       Name: main.testInlinedBA
@@ -6942,6 +6999,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 54
       Name: main.testInlinedBB
@@ -6955,6 +7013,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: "y"
           Type: 9 BaseType int
           Locations:
@@ -6962,6 +7021,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: z
           Type: 9 BaseType int
           Locations:
@@ -6971,6 +7031,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: -48}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 55
       Name: main.testInlinedBBA
@@ -6984,6 +7045,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 56
       Name: main.testInlinedBC
@@ -6999,6 +7061,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: i
           Type: 9 BaseType int
           Locations:
@@ -7008,6 +7071,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 57
       Name: main.testFrameless
@@ -7021,6 +7085,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 9 BaseType int
           Locations:
@@ -7032,6 +7097,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 58
       Name: main.testFramelessArray
@@ -7045,6 +7111,7 @@ Subprograms:
               Pieces: [{Size: 40, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 9 BaseType int
           Locations:
@@ -7056,6 +7123,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 59
       Name: main.testInterface
@@ -7073,6 +7141,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 60
       Name: main.testAny
@@ -7096,6 +7165,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 11 GoStringHeaderType string
           Locations:
@@ -7111,6 +7181,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 61
       Name: main.testError
@@ -7128,6 +7199,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 62
       Name: main.testAnyPtr
@@ -7141,6 +7213,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 11 GoStringHeaderType string
           Locations:
@@ -7156,6 +7229,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 63
       Name: main.testStructWithAny
@@ -7173,6 +7247,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 64
       Name: main.testStructWithMap
@@ -7186,6 +7261,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 65
       Name: main.testMapStringToStruct
@@ -7199,6 +7275,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 66
       Name: main.testMapStringToInt
@@ -7212,6 +7289,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 67
       Name: main.testMapStringToSlice
@@ -7225,6 +7303,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 68
       Name: main.testMapArrayToArray
@@ -7238,6 +7317,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 69
       Name: main.testSmallMap
@@ -7251,6 +7331,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 70
       Name: main.testArrayOfMaps
@@ -7264,6 +7345,7 @@ Subprograms:
               Pieces: [{Size: 16, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 71
       Name: main.testPointerToMap
@@ -7277,6 +7359,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 72
       Name: main.testMapIntToInt
@@ -7290,6 +7373,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 73
       Name: main.testMapMassive
@@ -7303,6 +7387,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 74
       Name: main.testMapEmbeddedMaps
@@ -7316,6 +7401,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 75
       Name: main.testMapWithLinkedList
@@ -7329,6 +7415,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 76
       Name: main.testMapWithSmallValue
@@ -7342,6 +7429,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 77
       Name: main.testMapWithSmallValueMassive
@@ -7355,6 +7443,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 78
       Name: main.testMapWithSmallKeyAndValue
@@ -7368,6 +7457,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 79
       Name: main.testMapWithSmallKeyAndValueMassive
@@ -7381,6 +7471,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 80
       Name: main.testMapSmallKeySmallValue
@@ -7394,6 +7485,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 81
       Name: main.testMapSmallKeyLargeValue
@@ -7407,6 +7499,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 82
       Name: main.testMapLargeKeySmallValue
@@ -7420,6 +7513,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 83
       Name: main.testMapLargeKeyLargeValue
@@ -7433,6 +7527,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 84
       Name: main.testMapEmptyKey
@@ -7446,6 +7541,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 85
       Name: main.testMapEmptyValue
@@ -7459,6 +7555,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 86
       Name: main.testMapEmptyKeyAndValue
@@ -7472,6 +7569,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 87
       Name: main.testCombinedByte
@@ -7485,6 +7583,7 @@ Subprograms:
               Pieces: [{Size: 1, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: x
           Type: 5 BaseType uint8
           Locations:
@@ -7492,6 +7591,7 @@ Subprograms:
               Pieces: [{Size: 1, Op: {RegNo: 1, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: "y"
           Type: 20 BaseType float32
           Locations:
@@ -7499,6 +7599,7 @@ Subprograms:
               Pieces: [{Size: 4, Op: {RegNo: 64, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 88
       Name: main.testCombinedString
@@ -7512,6 +7613,7 @@ Subprograms:
               Pieces: [{Size: 1, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: x
           Type: 11 GoStringHeaderType string
           Locations:
@@ -7523,6 +7625,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: "y"
           Type: 20 BaseType float32
           Locations:
@@ -7530,6 +7633,7 @@ Subprograms:
               Pieces: [{Size: 4, Op: {RegNo: 64, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 89
       Name: main.testMultipleSimpleParams
@@ -7543,6 +7647,7 @@ Subprograms:
               Pieces: [{Size: 1, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: b
           Type: 5 BaseType uint8
           Locations:
@@ -7550,6 +7655,7 @@ Subprograms:
               Pieces: [{Size: 1, Op: {RegNo: 1, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: c
           Type: 14 BaseType int32
           Locations:
@@ -7557,6 +7663,7 @@ Subprograms:
               Pieces: [{Size: 4, Op: {RegNo: 2, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: d
           Type: 12 BaseType uint
           Locations:
@@ -7564,6 +7671,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 3, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: e
           Type: 11 GoStringHeaderType string
           Locations:
@@ -7575,6 +7683,7 @@ Subprograms:
                   Op: {RegNo: 5, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 90
       Name: main.testAtomicAdd
@@ -7588,6 +7697,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 10 BaseType uint64
           Locations:
@@ -7599,6 +7709,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 91
       Name: main.testChannel
@@ -7612,6 +7723,7 @@ Subprograms:
               Pieces: [{Size: 0, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 92
       Name: main.testPointerToSimpleStruct
@@ -7625,6 +7737,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 93
       Name: main.testLinkedList
@@ -7642,6 +7755,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 94
       Name: main.testPointerLoop
@@ -7655,6 +7769,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 95
       Name: main.testUnsafePointer
@@ -7668,6 +7783,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 96
       Name: main.testUintPointer
@@ -7681,6 +7797,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 97
       Name: main.testStringPointer
@@ -7694,6 +7811,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 98
       Name: main.testNilPointer
@@ -7707,6 +7825,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: a
           Type: 12 BaseType uint
           Locations:
@@ -7714,6 +7833,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 99
       Name: main.testCycle
@@ -7727,6 +7847,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 100
       Name: main.testReturnsInt
@@ -7740,6 +7861,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 9 BaseType int
           Locations:
@@ -7751,6 +7873,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: result
           Type: 9 BaseType int
           Locations:
@@ -7760,6 +7883,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: -32}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 101
       Name: main.testReturnsIntPointer
@@ -7775,6 +7899,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 102 PointerType *int
           Locations:
@@ -7786,6 +7911,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: '&result'
           Type: 102 PointerType *int
           Locations:
@@ -7795,6 +7921,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: -16}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 102
       Name: main.testReturnsIntAndFloat
@@ -7808,6 +7935,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 9 BaseType int
           Locations:
@@ -7819,11 +7947,13 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r1
           Type: 18 BaseType float64
           Locations: [{Range: 0x80e750..0x80e820, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: resultInt
           Type: 9 BaseType int
           Locations:
@@ -7833,6 +7963,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: -72}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: resultFloat
           Type: 18 BaseType float64
           Locations:
@@ -7842,6 +7973,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: -64}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 103
       Name: main.testReturnsError
@@ -7855,6 +7987,7 @@ Subprograms:
               Pieces: [{Size: 1, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 16 GoInterfaceType error
           Locations:
@@ -7878,6 +8011,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 104
       Name: main.testReturnsAnyAndError
@@ -7913,6 +8047,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: failed
           Type: 6 BaseType bool
           Locations:
@@ -7920,6 +8055,7 @@ Subprograms:
               Pieces: [{Size: 1, Op: {RegNo: 2, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 164 GoEmptyInterfaceType interface {}
           Locations:
@@ -7959,6 +8095,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r1
           Type: 16 GoInterfaceType error
           Locations:
@@ -7998,6 +8135,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: val
           Type: 9 BaseType int
           Locations:
@@ -8005,6 +8143,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 105
       Name: main.testReturnsAny
@@ -8034,6 +8173,7 @@ Subprograms:
                   Op: {CfaOffset: 16}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 164 GoEmptyInterfaceType interface {}
           Locations:
@@ -8073,6 +8213,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: val
           Type: 9 BaseType int
           Locations:
@@ -8080,6 +8221,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: '&result'
           Type: 102 PointerType *int
           Locations:
@@ -8087,6 +8229,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 106
       Name: main.testReturnsInterface
@@ -8122,6 +8265,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: null}, {Size: 8, Op: {CfaOffset: 16}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 169 GoInterfaceType main.behavior
           Locations:
@@ -8145,6 +8289,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: b
           Type: 169 GoInterfaceType main.behavior
           Locations:
@@ -8184,6 +8329,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: null}, {Size: 8, Op: {CfaOffset: 16}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 107
       Name: main.testNamedReturn
@@ -8197,6 +8343,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: result
           Type: 9 BaseType int
           Locations:
@@ -8208,6 +8355,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 108
       Name: main.testMultipleNamedReturn
@@ -8221,6 +8369,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: result
           Type: 9 BaseType int
           Locations:
@@ -8232,6 +8381,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: result2
           Type: 9 BaseType int
           Locations:
@@ -8243,6 +8393,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 109
       Name: main.testSomeNamedReturn
@@ -8258,6 +8409,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 9 BaseType int
           Locations:
@@ -8269,6 +8421,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: result2
           Type: 9 BaseType int
           Locations:
@@ -8280,6 +8433,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r2
           Type: 9 BaseType int
           Locations:
@@ -8291,6 +8445,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 110
       Name: main.testConflictingReturn
@@ -8306,6 +8461,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 9 BaseType int
           Locations:
@@ -8317,6 +8473,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: r0
           Type: 11 GoStringHeaderType string
           Locations:
@@ -8332,6 +8489,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 111
       Name: main.testReturnsNamedDeferLine
@@ -8347,6 +8505,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: a
           Type: 11 GoStringHeaderType string
           Locations:
@@ -8354,6 +8513,7 @@ Subprograms:
               Pieces: [{Size: 16, Op: {CfaOffset: -120}}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: b
           Type: 11 GoStringHeaderType string
           Locations:
@@ -8361,6 +8521,7 @@ Subprograms:
               Pieces: [{Size: 16, Op: {CfaOffset: -136}}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 112
       Name: main.testReturnsPrimitives
@@ -8378,6 +8539,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r1
           Type: 98 BaseType int16
           Locations:
@@ -8389,6 +8551,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r2
           Type: 14 BaseType int32
           Locations:
@@ -8400,6 +8563,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r3
           Type: 15 BaseType int64
           Locations:
@@ -8411,6 +8575,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r4
           Type: 5 BaseType uint8
           Locations:
@@ -8422,6 +8587,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r5
           Type: 8 BaseType uint16
           Locations:
@@ -8433,6 +8599,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r6
           Type: 4 BaseType uint32
           Locations:
@@ -8444,6 +8611,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r7
           Type: 10 BaseType uint64
           Locations:
@@ -8455,6 +8623,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 113
       Name: main.testReturnsManyFloats
@@ -8466,81 +8635,97 @@ Subprograms:
           Locations: [{Range: 0x80f330..0x80f3e0, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r1
           Type: 18 BaseType float64
           Locations: [{Range: 0x80f330..0x80f3e0, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r2
           Type: 18 BaseType float64
           Locations: [{Range: 0x80f330..0x80f3e0, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r3
           Type: 18 BaseType float64
           Locations: [{Range: 0x80f330..0x80f3e0, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r4
           Type: 18 BaseType float64
           Locations: [{Range: 0x80f330..0x80f3e0, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r5
           Type: 18 BaseType float64
           Locations: [{Range: 0x80f330..0x80f3e0, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r6
           Type: 18 BaseType float64
           Locations: [{Range: 0x80f330..0x80f3e0, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r7
           Type: 18 BaseType float64
           Locations: [{Range: 0x80f330..0x80f3e0, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r8
           Type: 18 BaseType float64
           Locations: [{Range: 0x80f330..0x80f3e0, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r9
           Type: 18 BaseType float64
           Locations: [{Range: 0x80f330..0x80f3e0, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r10
           Type: 18 BaseType float64
           Locations: [{Range: 0x80f330..0x80f3e0, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r11
           Type: 18 BaseType float64
           Locations: [{Range: 0x80f330..0x80f3e0, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r12
           Type: 18 BaseType float64
           Locations: [{Range: 0x80f330..0x80f3e0, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r13
           Type: 18 BaseType float64
           Locations: [{Range: 0x80f330..0x80f3e0, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r14
           Type: 18 BaseType float64
           Locations: [{Range: 0x80f330..0x80f3e0, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: onlyOnAmd64_16
           Type: 18 BaseType float64
           Locations: [{Range: 0x80f330..0x80f3e0, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: bothArmAndAmd64
           Type: 18 BaseType float64
           Locations:
@@ -8552,6 +8737,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 114
       Name: main.testReturnsComplex
@@ -8563,11 +8749,13 @@ Subprograms:
           Locations: [{Range: 0x80f3e0..0x80f460, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r1
           Type: 100 BaseType complex128
           Locations: [{Range: 0x80f3e0..0x80f460, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 115
       Name: main.testReturnsLargeStruct
@@ -8605,6 +8793,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 116
       Name: main.testReturnsArray
@@ -8622,6 +8811,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 117
       Name: main.testReturnsArrayOne
@@ -8639,6 +8829,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 118
       Name: main.testReturnsArrayZero
@@ -8656,6 +8847,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 119
       Name: main.testReturnsMixedStruct
@@ -8667,6 +8859,7 @@ Subprograms:
           Locations: [{Range: 0x80f680..0x80f700, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 120
       Name: main.testReturnsBacktrackInt
@@ -8684,6 +8877,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r1
           Type: 9 BaseType int
           Locations:
@@ -8695,6 +8889,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r2
           Type: 9 BaseType int
           Locations:
@@ -8706,6 +8901,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r3
           Type: 9 BaseType int
           Locations:
@@ -8717,6 +8913,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r4
           Type: 9 BaseType int
           Locations:
@@ -8728,6 +8925,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r5
           Type: 9 BaseType int
           Locations:
@@ -8739,6 +8937,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r6
           Type: 9 BaseType int
           Locations:
@@ -8750,6 +8949,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r7
           Type: 9 BaseType int
           Locations:
@@ -8761,6 +8961,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r8
           Type: 11 GoStringHeaderType string
           Locations:
@@ -8776,6 +8977,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 121
       Name: main.testReturnsWideStruct
@@ -8815,6 +9017,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 122
       Name: main.testReturnsMixed
@@ -8832,11 +9035,13 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r1
           Type: 18 BaseType float64
           Locations: [{Range: 0x80f860..0x80f8f0, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r2
           Type: 9 BaseType int
           Locations:
@@ -8848,11 +9053,13 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r3
           Type: 18 BaseType float64
           Locations: [{Range: 0x80f860..0x80f8f0, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r4
           Type: 11 GoStringHeaderType string
           Locations:
@@ -8868,6 +9075,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 123
       Name: main.testReturnsStructWithArray
@@ -8885,6 +9093,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 124
       Name: main.testReturnsOnlyFloat
@@ -8896,6 +9105,7 @@ Subprograms:
           Locations: [{Range: 0x80f970..0x80f9e0, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 125
       Name: main.testReturnsMultipleFloats
@@ -8907,11 +9117,13 @@ Subprograms:
           Locations: [{Range: 0x80f9e0..0x80fa50, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r1
           Type: 18 BaseType float64
           Locations: [{Range: 0x80f9e0..0x80fa50, Pieces: []}]
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 126
       Name: main.testReturnsBoolAndUintptr
@@ -8929,6 +9141,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r1
           Type: 3 BaseType uintptr
           Locations:
@@ -8940,6 +9153,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 127
       Name: main.testLargeArgAndReturn
@@ -9039,6 +9253,7 @@ Subprograms:
                   Op: {RegNo: 9, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 257 StructureType main.largeStruct
           Locations:
@@ -9070,6 +9285,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 128
       Name: main.testArrayArgAndReturn
@@ -9083,6 +9299,7 @@ Subprograms:
               Pieces: [{Size: 24, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 258 ArrayType [3]int
           Locations:
@@ -9094,6 +9311,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 129
       Name: main.testMultipleLargeArgs
@@ -9193,6 +9411,7 @@ Subprograms:
                   Op: {RegNo: 9, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: s2
           Type: 257 StructureType main.largeStruct
           Locations:
@@ -9200,6 +9419,7 @@ Subprograms:
               Pieces: [{Size: 80, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 257 StructureType main.largeStruct
           Locations:
@@ -9231,6 +9451,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 130
       Name: main.testManyArgsArrayReturn
@@ -9246,6 +9467,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 24}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: b
           Type: 9 BaseType int
           Locations:
@@ -9255,6 +9477,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 32}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: c
           Type: 9 BaseType int
           Locations:
@@ -9264,6 +9487,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 40}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: d
           Type: 9 BaseType int
           Locations:
@@ -9273,6 +9497,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 48}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: e
           Type: 9 BaseType int
           Locations:
@@ -9282,6 +9507,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 56}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: f
           Type: 9 BaseType int
           Locations:
@@ -9291,6 +9517,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 64}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: g
           Type: 9 BaseType int
           Locations:
@@ -9300,6 +9527,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 72}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: h
           Type: 9 BaseType int
           Locations:
@@ -9309,6 +9537,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 80}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: i
           Type: 9 BaseType int
           Locations:
@@ -9318,6 +9547,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 88}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 115 ArrayType [2]int
           Locations:
@@ -9329,6 +9559,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 131
       Name: main.testMixedArgsStackReturn
@@ -9344,6 +9575,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: b
           Type: 9 BaseType int
           Locations:
@@ -9353,6 +9585,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 16}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: c
           Type: 9 BaseType int
           Locations:
@@ -9362,6 +9595,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 24}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: d
           Type: 9 BaseType int
           Locations:
@@ -9371,6 +9605,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 32}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: e
           Type: 9 BaseType int
           Locations:
@@ -9380,6 +9615,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 40}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: f
           Type: 9 BaseType int
           Locations:
@@ -9389,6 +9625,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 48}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: g
           Type: 9 BaseType int
           Locations:
@@ -9398,6 +9635,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 56}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: h
           Type: 9 BaseType int
           Locations:
@@ -9407,6 +9645,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 64}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: s
           Type: 11 GoStringHeaderType string
           Locations:
@@ -9424,6 +9663,7 @@ Subprograms:
                   Op: {CfaOffset: 80}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 257 StructureType main.largeStruct
           Locations:
@@ -9455,6 +9695,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 132
       Name: main.testStackArgRegReturns
@@ -9468,6 +9709,7 @@ Subprograms:
               Pieces: [{Size: 40, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 9 BaseType int
           Locations:
@@ -9479,6 +9721,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r1
           Type: 9 BaseType int
           Locations:
@@ -9490,6 +9733,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r2
           Type: 9 BaseType int
           Locations:
@@ -9501,6 +9745,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 133
       Name: main.testMultipleArrayArgs
@@ -9514,6 +9759,7 @@ Subprograms:
               Pieces: [{Size: 16, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: b
           Type: 258 ArrayType [3]int
           Locations:
@@ -9521,6 +9767,7 @@ Subprograms:
               Pieces: [{Size: 24, Op: {CfaOffset: 24}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 9 BaseType int
           Locations:
@@ -9532,6 +9779,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r1
           Type: 115 ArrayType [2]int
           Locations:
@@ -9543,6 +9791,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 134
       Name: main.testStructWithArrayArg
@@ -9556,6 +9805,7 @@ Subprograms:
               Pieces: [{Size: 24, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 9 BaseType int
           Locations:
@@ -9567,6 +9817,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r1
           Type: 263 StructureType main.structWithArray
           Locations:
@@ -9578,6 +9829,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: x
           Type: 9 BaseType int
           Locations:
@@ -9585,6 +9837,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 135
       Name: main.testZeroSizeArgAndReturn
@@ -9596,6 +9849,7 @@ Subprograms:
           Locations: [{Range: 0x8104d0..0x810570, Pieces: []}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: b
           Type: 9 BaseType int
           Locations:
@@ -9609,6 +9863,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: -48}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 9 BaseType int
           Locations:
@@ -9620,6 +9875,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r1
           Type: 260 ArrayType [0]int
           Locations:
@@ -9631,6 +9887,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 136
       Name: main.testUintSlice
@@ -9650,6 +9907,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 137
       Name: main.testEmptySlice
@@ -9669,6 +9927,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 138
       Name: main.testSliceOfSlices
@@ -9688,6 +9947,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 139
       Name: main.testStructSlice
@@ -9707,6 +9967,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: a
           Type: 9 BaseType int
           Locations:
@@ -9714,6 +9975,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 3, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 140
       Name: main.testEmptySliceOfStructs
@@ -9733,6 +9995,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: a
           Type: 9 BaseType int
           Locations:
@@ -9740,6 +10003,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 3, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 141
       Name: main.testNilSliceOfStructs
@@ -9759,6 +10023,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: a
           Type: 9 BaseType int
           Locations:
@@ -9766,6 +10031,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 3, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 142
       Name: main.testStringSlice
@@ -9785,6 +10051,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 143
       Name: main.testNilSliceWithOtherParams
@@ -9798,6 +10065,7 @@ Subprograms:
               Pieces: [{Size: 1, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: s
           Type: 270 GoSliceHeaderType []bool
           Locations:
@@ -9811,6 +10079,7 @@ Subprograms:
                   Op: {RegNo: 3, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: x
           Type: 12 BaseType uint
           Locations:
@@ -9818,6 +10087,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 4, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 144
       Name: main.testNilSlice
@@ -9837,6 +10107,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 145
       Name: main.testVeryLargeSlice
@@ -9856,6 +10127,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 146
       Name: main.testSliceEmptyStructs
@@ -9875,6 +10147,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 147
       Name: main.testSubslices
@@ -9894,6 +10167,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: bs
           Type: 264 GoSliceHeaderType []uint
           Locations:
@@ -9907,6 +10181,7 @@ Subprograms:
                   Op: {RegNo: 5, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: cs
           Type: 264 GoSliceHeaderType []uint
           Locations:
@@ -9920,6 +10195,7 @@ Subprograms:
                   Op: {RegNo: 8, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 148
       Name: main.stackC
@@ -9941,6 +10217,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 149
       Name: main.testSingleString
@@ -9958,6 +10235,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 150
       Name: main.testThreeStrings
@@ -9975,6 +10253,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: "y"
           Type: 11 GoStringHeaderType string
           Locations:
@@ -9986,6 +10265,7 @@ Subprograms:
                   Op: {RegNo: 3, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: z
           Type: 11 GoStringHeaderType string
           Locations:
@@ -9997,6 +10277,7 @@ Subprograms:
                   Op: {RegNo: 5, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 151
       Name: main.testThreeStringsInStruct
@@ -10022,6 +10303,7 @@ Subprograms:
                   Op: {RegNo: 5, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 152
       Name: main.testThreeStringsInStructPointer
@@ -10035,6 +10317,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 153
       Name: main.testOneStringInStructPointer
@@ -10048,6 +10331,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 154
       Name: main.testMassiveString
@@ -10065,6 +10349,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 155
       Name: main.testUnitializedString
@@ -10082,6 +10367,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 156
       Name: main.testEmptyString
@@ -10099,6 +10385,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 157
       Name: main.testSubstrings
@@ -10116,6 +10403,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: b
           Type: 11 GoStringHeaderType string
           Locations:
@@ -10127,6 +10415,7 @@ Subprograms:
                   Op: {RegNo: 3, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: c
           Type: 11 GoStringHeaderType string
           Locations:
@@ -10138,6 +10427,7 @@ Subprograms:
                   Op: {RegNo: 5, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 158
       Name: main.testStructWithCyclicSlices
@@ -10151,6 +10441,7 @@ Subprograms:
               Pieces: [{Size: 144, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 159
       Name: main.testStructWithCyclicMaps
@@ -10176,6 +10467,7 @@ Subprograms:
                   Op: {RegNo: 5, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 160
       Name: main.testStruct
@@ -10203,6 +10495,7 @@ Subprograms:
                   Op: {RegNo: 6, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 161
       Name: main.testNestedPointer
@@ -10216,6 +10509,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 162
       Name: main.testTenStrings
@@ -10229,6 +10523,7 @@ Subprograms:
               Pieces: [{Size: 160, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 163
       Name: main.testEmptyStruct
@@ -10240,6 +10535,7 @@ Subprograms:
           Locations: [{Range: 0x8113f0..0x811400, Pieces: []}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 164
       Name: main.testEmptyStructPointer
@@ -10253,6 +10549,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 165
       Name: main.testTimeUTC
@@ -10272,6 +10569,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 166
       Name: main.testTimeFixedZone
@@ -10291,6 +10589,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 167
       Name: main.testTimeMonotonic
@@ -10310,6 +10609,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 168
       Name: main.wrapBox[go.shape.int]
@@ -10323,6 +10623,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
           Role: Parameter
           DictIndex: 0
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 333 StructureType github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Box[go.shape.int]
           Locations:
@@ -10334,6 +10635,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: 1
+          LoopBaseOffset: 0
       DictRegister: 0
     - ID: 169
       Name: main.wrapBox[go.shape.string]
@@ -10357,6 +10659,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
           DictIndex: 0
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 335 StructureType github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Box[go.shape.string]
           Locations:
@@ -10372,6 +10675,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: 1
+          LoopBaseOffset: 0
       DictRegister: 0
     - ID: 170
       Name: main.nestedGeneric[go.shape.int]
@@ -10385,6 +10689,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
           Role: Parameter
           DictIndex: 0
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 332 BaseType go.shape.int
           Locations:
@@ -10396,6 +10701,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: 1
+          LoopBaseOffset: 0
       DictRegister: 0
     - ID: 171
       Name: main.nestedGeneric[go.shape.string]
@@ -10419,6 +10725,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
           DictIndex: 0
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 334 GoStringHeaderType go.shape.string
           Locations:
@@ -10434,6 +10741,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: 1
+          LoopBaseOffset: 0
       DictRegister: 0
     - ID: 172
       Name: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.int]
@@ -10469,6 +10777,7 @@ Subprograms:
                   Op: null
           Role: Parameter
           DictIndex: 0
+          LoopBaseOffset: 0
         - Name: pred
           Type: 338 GoSubroutineType func(go.shape.int) bool
           Locations:
@@ -10478,6 +10787,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 40}}]
           Role: Parameter
           DictIndex: 1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 336 GoSliceHeaderType []go.shape.int
           Locations:
@@ -10495,6 +10805,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: 2
+          LoopBaseOffset: 0
         - Name: result
           Type: 336 GoSliceHeaderType []go.shape.int
           Locations:
@@ -10564,6 +10875,7 @@ Subprograms:
                   Op: {RegNo: 5, Shift: 0}
           Role: Local
           DictIndex: 3
+          LoopBaseOffset: 0
         - Name: item
           Type: 332 BaseType go.shape.int
           Locations:
@@ -10573,6 +10885,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: -32}}]
           Role: Local
           DictIndex: 4
+          LoopBaseOffset: 0
       DictRegister: 0
     - ID: 173
       Name: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Map[go.shape.int,go.shape.string]
@@ -10586,6 +10899,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
           Role: Parameter
           DictIndex: 0
+          LoopBaseOffset: 0
         - Name: f
           Type: 339 GoSubroutineType func(go.shape.int) go.shape.string
           Locations:
@@ -10593,6 +10907,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
           Role: Parameter
           DictIndex: 1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 335 StructureType github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Box[go.shape.string]
           Locations:
@@ -10608,6 +10923,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: 2
+          LoopBaseOffset: 0
       DictRegister: 0
     - ID: 174
       Name: main.genericPtrIdentity[go.shape.int]
@@ -10621,6 +10937,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
           Role: Parameter
           DictIndex: 0
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 337 PointerType *go.shape.int
           Locations:
@@ -10632,6 +10949,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: 1
+          LoopBaseOffset: 0
       DictRegister: 0
     - ID: 175
       Name: main.genericPtrIdentity[go.shape.struct { Name string }]
@@ -10645,6 +10963,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
           Role: Parameter
           DictIndex: 0
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 340 PointerType *go.shape.struct { Name string }
           Locations:
@@ -10656,6 +10975,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: 1
+          LoopBaseOffset: 0
       DictRegister: 0
     - ID: 176
       Name: main.genericPtrIdentity[go.shape.struct { X int; Y int }]
@@ -10669,6 +10989,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
           Role: Parameter
           DictIndex: 0
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 342 PointerType *go.shape.struct { X int; Y int }
           Locations:
@@ -10680,6 +11001,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: 1
+          LoopBaseOffset: 0
       DictRegister: 0
     - ID: 177
       Name: main.largeGenericType[go.shape.string].LargeGet
@@ -10693,6 +11015,7 @@ Subprograms:
               Pieces: [{Size: 144, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: 0
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 334 GoStringHeaderType go.shape.string
           Locations:
@@ -10708,6 +11031,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: 1
+          LoopBaseOffset: 0
       DictRegister: 0
     - ID: 178
       Name: main.largeGenericType[go.shape.int].LargeGet
@@ -10721,6 +11045,7 @@ Subprograms:
               Pieces: [{Size: 136, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: 0
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 332 BaseType go.shape.int
           Locations:
@@ -10732,6 +11057,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: 1
+          LoopBaseOffset: 0
       DictRegister: 0
     - ID: 179
       Name: main.(*Pair[go.shape.int,go.shape.bool]).SetValue
@@ -10745,6 +11071,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: 0
+          LoopBaseOffset: 0
         - Name: k
           Type: 332 BaseType go.shape.int
           Locations:
@@ -10752,6 +11079,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
           Role: Parameter
           DictIndex: 1
+          LoopBaseOffset: 0
         - Name: v
           Type: 349 BaseType go.shape.bool
           Locations:
@@ -10759,6 +11087,7 @@ Subprograms:
               Pieces: [{Size: 1, Op: {RegNo: 3, Shift: 0}}]
           Role: Parameter
           DictIndex: 2
+          LoopBaseOffset: 0
       DictRegister: 1
     - ID: 180
       Name: main.(*Pair[go.shape.string,go.shape.int]).SetValue
@@ -10772,6 +11101,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: 0
+          LoopBaseOffset: 0
         - Name: k
           Type: 334 GoStringHeaderType go.shape.string
           Locations:
@@ -10783,6 +11113,7 @@ Subprograms:
                   Op: {RegNo: 3, Shift: 0}
           Role: Parameter
           DictIndex: 1
+          LoopBaseOffset: 0
         - Name: v
           Type: 332 BaseType go.shape.int
           Locations:
@@ -10790,6 +11121,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 4, Shift: 0}}]
           Role: Parameter
           DictIndex: 2
+          LoopBaseOffset: 0
       DictRegister: 1
     - ID: 181
       Name: main.genericSwap[go.shape.string,go.shape.bool]
@@ -10807,6 +11139,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
           DictIndex: 0
+          LoopBaseOffset: 0
         - Name: b
           Type: 349 BaseType go.shape.bool
           Locations:
@@ -10814,6 +11147,7 @@ Subprograms:
               Pieces: [{Size: 1, Op: {RegNo: 3, Shift: 0}}]
           Role: Parameter
           DictIndex: 1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 349 BaseType go.shape.bool
           Locations:
@@ -10825,6 +11159,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: 1
+          LoopBaseOffset: 0
         - Name: ~r1
           Type: 334 GoStringHeaderType go.shape.string
           Locations:
@@ -10840,6 +11175,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: 0
+          LoopBaseOffset: 0
       DictRegister: 0
     - ID: 182
       Name: main.genericSwap[go.shape.int,go.shape.string]
@@ -10853,6 +11189,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
           Role: Parameter
           DictIndex: 0
+          LoopBaseOffset: 0
         - Name: b
           Type: 334 GoStringHeaderType go.shape.string
           Locations:
@@ -10870,6 +11207,7 @@ Subprograms:
                   Op: {RegNo: 3, Shift: 0}
           Role: Parameter
           DictIndex: 1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 334 GoStringHeaderType go.shape.string
           Locations:
@@ -10885,6 +11223,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: 1
+          LoopBaseOffset: 0
         - Name: ~r1
           Type: 332 BaseType go.shape.int
           Locations:
@@ -10896,6 +11235,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: 0
+          LoopBaseOffset: 0
       DictRegister: 0
     - ID: 183
       Name: main.genericDo[go.shape.struct { main.i int }]
@@ -10909,6 +11249,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
           Role: Parameter
           DictIndex: 1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 11 GoStringHeaderType string
           Locations:
@@ -10924,6 +11265,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: 0
     - ID: 184
       Name: main.genericDo[go.shape.struct { main.s string }]
@@ -10947,6 +11289,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
           DictIndex: 1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 11 GoStringHeaderType string
           Locations:
@@ -10962,6 +11305,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: 0
     - ID: 185
       Name: main.genericDeref[go.shape.string]
@@ -10975,6 +11319,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
           Role: Parameter
           DictIndex: 0
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 334 GoStringHeaderType go.shape.string
           Locations:
@@ -10990,6 +11335,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: 1
+          LoopBaseOffset: 0
       DictRegister: 0
     - ID: 186
       Name: main.genericDeref[go.shape.struct { main.x []*string; main.z int; main.writer io.Writer }]
@@ -11003,6 +11349,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
           Role: Parameter
           DictIndex: 0
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 356 StructureType go.shape.struct { main.x []*string; main.z int; main.writer io.Writer }
           Locations:
@@ -11026,6 +11373,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: 1
+          LoopBaseOffset: 0
       DictRegister: 0
     - ID: 187
       Name: main.genericContains[go.shape.int]
@@ -11053,6 +11401,7 @@ Subprograms:
                   Op: null
           Role: Parameter
           DictIndex: 0
+          LoopBaseOffset: 0
         - Name: needle
           Type: 332 BaseType go.shape.int
           Locations:
@@ -11060,6 +11409,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 4, Shift: 0}}]
           Role: Parameter
           DictIndex: 1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 6 BaseType bool
           Locations:
@@ -11075,6 +11425,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: v
           Type: 332 BaseType go.shape.int
           Locations:
@@ -11082,6 +11433,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 3, Shift: 0}}]
           Role: Local
           DictIndex: 1
+          LoopBaseOffset: 0
       DictRegister: 0
     - ID: 188
       Name: main.genericContains[go.shape.string]
@@ -11109,6 +11461,7 @@ Subprograms:
                   Op: {RegNo: 3, Shift: 0}
           Role: Parameter
           DictIndex: 0
+          LoopBaseOffset: 0
         - Name: needle
           Type: 334 GoStringHeaderType go.shape.string
           Locations:
@@ -11126,6 +11479,7 @@ Subprograms:
                   Op: {CfaOffset: 48}
           Role: Parameter
           DictIndex: 1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 6 BaseType bool
           Locations:
@@ -11141,6 +11495,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: v
           Type: 334 GoStringHeaderType go.shape.string
           Locations:
@@ -11152,6 +11507,7 @@ Subprograms:
                   Op: {RegNo: 3, Shift: 0}
           Role: Local
           DictIndex: 1
+          LoopBaseOffset: 0
       DictRegister: 0
     - ID: 189
       Name: main.typeWithGenerics[go.shape.int].Guess
@@ -11165,6 +11521,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: 0
+          LoopBaseOffset: 0
         - Name: value
           Type: 332 BaseType go.shape.int
           Locations:
@@ -11172,6 +11529,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
           Role: Parameter
           DictIndex: 1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 6 BaseType bool
           Locations:
@@ -11183,6 +11541,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: 1
     - ID: 190
       Name: main.typeWithGenerics[go.shape.string].Guess
@@ -11212,6 +11571,7 @@ Subprograms:
                   Op: null
           Role: Parameter
           DictIndex: 0
+          LoopBaseOffset: 0
         - Name: value
           Type: 334 GoStringHeaderType go.shape.string
           Locations:
@@ -11223,6 +11583,7 @@ Subprograms:
                   Op: {RegNo: 4, Shift: 0}
           Role: Parameter
           DictIndex: 1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 6 BaseType bool
           Locations:
@@ -11234,6 +11595,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: 2
     - ID: 191
       Name: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.Filter[go.shape.float64]
@@ -11269,6 +11631,7 @@ Subprograms:
                   Op: null
           Role: Parameter
           DictIndex: 0
+          LoopBaseOffset: 0
         - Name: pred
           Type: 363 GoSubroutineType func(go.shape.float64) bool
           Locations:
@@ -11278,6 +11641,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 40}}]
           Role: Parameter
           DictIndex: 1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 360 GoSliceHeaderType []go.shape.float64
           Locations:
@@ -11295,6 +11659,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: 2
+          LoopBaseOffset: 0
         - Name: result
           Type: 360 GoSliceHeaderType []go.shape.float64
           Locations:
@@ -11364,6 +11729,7 @@ Subprograms:
                   Op: {RegNo: 5, Shift: 0}
           Role: Local
           DictIndex: 3
+          LoopBaseOffset: 0
         - Name: item
           Type: 362 BaseType go.shape.float64
           Locations:
@@ -11373,6 +11739,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: -32}}]
           Role: Local
           DictIndex: 4
+          LoopBaseOffset: 0
       DictRegister: 0
     - ID: 192
       Name: main.testInlinedPrint
@@ -11404,6 +11771,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 193
       Name: main.testInlinedBBB
@@ -11443,6 +11811,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 197
       Name: main.testInlinedSumArray
@@ -11462,6 +11831,7 @@ Subprograms:
               Pieces: [{Size: 40, Op: {CfaOffset: -120}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 198
       Name: main.firstBehavior.DoSomething
@@ -11481,6 +11851,7 @@ Subprograms:
                   Op: {RegNo: 1, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 11 GoStringHeaderType string
           Locations:
@@ -11496,6 +11867,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 199
       Name: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.InlinedFunc

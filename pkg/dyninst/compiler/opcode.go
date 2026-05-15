@@ -75,6 +75,15 @@ const (
 	OpcodeGoContextChainHop
 	// Time decoding.
 	OpcodeProcessGoTime
+	// Collection-predicate (any/all) opcodes.
+	OpcodeExprLoadAddress
+	OpcodeArrayLoopBegin
+	OpcodeArrayLoopEnd
+	OpcodeSliceLoopBegin
+	OpcodeSliceLoopEnd
+	OpcodeSwissMapLoopBegin
+	OpcodeSwissMapLoopEnd
+	OpcodeExprAdvanceOffset
 )
 
 //revive:enable:exported
