@@ -365,6 +365,20 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 - No backend payload or `agent dogstatsd-stats` output changes except where intentionally documented.
 - CPU/allocation impact is neutral or better when the new code is wired but not yet reused broadly.
 
+**Initial proof artifacts**
+
+- Identity contract model:
+  - `comp/dogstatsd/internal/identity/identity.go`.
+- Contract tests:
+  - `comp/dogstatsd/internal/identity/identity_test.go`;
+  - `comp/dogstatsd/server/impl/identity_contract_test.go`;
+  - `comp/dogstatsd/serverDebug/impl/identity_contract_test.go`.
+- Baseline benchmark:
+  - `BenchmarkMilestone1Builder`.
+- Suggested verification commands:
+  - `dda inv test --targets=./comp/dogstatsd/internal/identity,./comp/dogstatsd/server/impl,./comp/dogstatsd/serverDebug/impl --test-run-name='Milestone1'`;
+  - `dda inv test --targets=./comp/dogstatsd/internal/identity --test-run-name='^$' --extra-args='-bench=BenchmarkMilestone1 -benchmem -count=1'`.
+
 **Stop-safe state**
 
 - If work stops here, future contributors have a clear identity vocabulary and tested helper functions.
