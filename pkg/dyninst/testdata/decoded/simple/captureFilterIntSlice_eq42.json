@@ -45,6 +45,16 @@
         "captures": {
           "entry": {
             "captureExpressions": {
+              "matches": {
+                "type": "[]int",
+                "size": "1",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "42"
+                  }
+                ]
+              },
               "tag": {
                 "type": "string",
                 "value": "match"
@@ -104,6 +114,11 @@
         "captures": {
           "entry": {
             "captureExpressions": {
+              "matches": {
+                "type": "[]int",
+                "size": "0",
+                "elements": []
+              },
               "tag": {
                 "type": "string",
                 "value": "anymiss_allmatch"
@@ -163,6 +178,11 @@
         "captures": {
           "entry": {
             "captureExpressions": {
+              "matches": {
+                "type": "[]int",
+                "size": "0",
+                "elements": []
+              },
               "tag": {
                 "type": "string",
                 "value": "allmiss"
@@ -222,6 +242,10 @@
         "captures": {
           "entry": {
             "captureExpressions": {
+              "matches": {
+                "type": "[]int",
+                "isNull": true
+              },
               "tag": {
                 "type": "string",
                 "value": "empty"
@@ -281,6 +305,16 @@
         "captures": {
           "entry": {
             "captureExpressions": {
+              "matches": {
+                "type": "[]int",
+                "size": "1",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "42"
+                  }
+                ]
+              },
               "tag": {
                 "type": "string",
                 "value": "cap"
@@ -340,6 +374,17 @@
         "captures": {
           "entry": {
             "captureExpressions": {
+              "matches": {
+                "type": "[]int",
+                "size": "1",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "42"
+                  }
+                ],
+                "notCapturedReason": "collectionSize"
+              },
               "tag": {
                 "type": "string",
                 "value": "capplus"
@@ -399,6 +444,12 @@
         "captures": {
           "entry": {
             "captureExpressions": {
+              "matches": {
+                "type": "[]int",
+                "size": "0",
+                "elements": [],
+                "notCapturedReason": "collectionSize"
+              },
               "tag": {
                 "type": "string",
                 "value": "toolarge"
@@ -458,6 +509,17 @@
         "captures": {
           "entry": {
             "captureExpressions": {
+              "matches": {
+                "type": "[]int",
+                "size": "1",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "42"
+                  }
+                ],
+                "notCapturedReason": "collectionSize"
+              },
               "tag": {
                 "type": "string",
                 "value": "scany"
@@ -517,6 +579,12 @@
         "captures": {
           "entry": {
             "captureExpressions": {
+              "matches": {
+                "type": "[]int",
+                "size": "0",
+                "elements": [],
+                "notCapturedReason": "collectionSize"
+              },
               "tag": {
                 "type": "string",
                 "value": "scall"

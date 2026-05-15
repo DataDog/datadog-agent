@@ -61,7 +61,7 @@
               },
               "s": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "hello"
               }
             }
           },

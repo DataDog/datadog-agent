@@ -73,7 +73,7 @@
               },
               "tag": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "match"
               }
             }
           }
@@ -137,7 +137,7 @@
               },
               "tag": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "miss"
               }
             }
           }

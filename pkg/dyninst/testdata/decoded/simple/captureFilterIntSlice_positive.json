@@ -41,6 +41,26 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "gt41": {
+                "type": "[]int",
+                "size": "2",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "42"
+                  },
+                  {
+                    "type": "int",
+                    "value": "99"
+                  }
+                ]
+              }
+            }
+          }
         }
       }
     },
@@ -89,6 +109,17 @@
           "id": "captureFilterIntSlice_positive",
           "location": {
             "method": "main.anyAllIntSlice"
+          }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "gt41": {
+                "type": "[]int",
+                "size": "0",
+                "elements": []
+              }
+            }
           }
         }
       }
@@ -139,6 +170,17 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "gt41": {
+                "type": "[]int",
+                "size": "0",
+                "elements": []
+              }
+            }
+          }
         }
       }
     },
@@ -187,6 +229,16 @@
           "id": "captureFilterIntSlice_positive",
           "location": {
             "method": "main.anyAllIntSlice"
+          }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "gt41": {
+                "type": "[]int",
+                "isNull": true
+              }
+            }
           }
         }
       }
@@ -237,6 +289,22 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "gt41": {
+                "type": "[]int",
+                "size": "1",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "42"
+                  }
+                ]
+              }
+            }
+          }
         }
       }
     },
@@ -285,6 +353,23 @@
           "id": "captureFilterIntSlice_positive",
           "location": {
             "method": "main.anyAllIntSlice"
+          }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "gt41": {
+                "type": "[]int",
+                "size": "1",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "42"
+                  }
+                ],
+                "notCapturedReason": "collectionSize"
+              }
+            }
           }
         }
       }
@@ -335,6 +420,18 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "gt41": {
+                "type": "[]int",
+                "size": "0",
+                "elements": [],
+                "notCapturedReason": "collectionSize"
+              }
+            }
+          }
         }
       }
     },
@@ -384,6 +481,23 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "gt41": {
+                "type": "[]int",
+                "size": "1",
+                "elements": [
+                  {
+                    "type": "int",
+                    "value": "42"
+                  }
+                ],
+                "notCapturedReason": "collectionSize"
+              }
+            }
+          }
         }
       }
     },
@@ -432,6 +546,18 @@
           "id": "captureFilterIntSlice_positive",
           "location": {
             "method": "main.anyAllIntSlice"
+          }
+        },
+        "captures": {
+          "entry": {
+            "captureExpressions": {
+              "gt41": {
+                "type": "[]int",
+                "size": "0",
+                "elements": [],
+                "notCapturedReason": "collectionSize"
+              }
+            }
           }
         }
       }

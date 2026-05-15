@@ -51,7 +51,7 @@
               },
               "b": {
                 "type": "int",
-                "notCapturedReason": "unavailable"
+                "value": "3"
               }
             }
           },
@@ -123,7 +123,7 @@
               },
               "b": {
                 "type": "int",
-                "notCapturedReason": "unavailable"
+                "value": "1"
               }
             }
           },

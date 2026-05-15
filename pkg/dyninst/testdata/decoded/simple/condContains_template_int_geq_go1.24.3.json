@@ -25,7 +25,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "has=true [tag={unavailable}]",
+    "message": "has=true [tag=present]",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -54,7 +54,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "has=false [tag={unavailable}]",
+    "message": "has=false [tag=absent]",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -83,7 +83,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "has=false [tag={unavailable}]",
+    "message": "has=false [tag=nil]",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

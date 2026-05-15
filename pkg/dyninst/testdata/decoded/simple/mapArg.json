@@ -47,7 +47,19 @@
             "arguments": {
               "m": {
                 "type": "map[string]int",
-                "notCapturedReason": "unavailable"
+                "size": "1",
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "a"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ]
+                ]
               }
             }
           }

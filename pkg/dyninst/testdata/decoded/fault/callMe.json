@@ -47,11 +47,11 @@
             "arguments": {
               "s1": {
                 "type": "string",
-                "size": "1",
-                "notCapturedReason": "depth"
+                "value": "a"
               },
               "s2": {
                 "type": "string",
+                "size": "4",
                 "notCapturedReason": "unavailable"
               },
               "i": {

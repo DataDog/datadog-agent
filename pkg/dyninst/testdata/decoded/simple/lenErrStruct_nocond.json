@@ -118,7 +118,7 @@
               },
               "tag": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "err"
               }
             }
           }

@@ -25,7 +25,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "x == 42 || x == 100 [x=42, tag={unavailable}]",
+    "message": "x == 42 || x == 100 [x=42, tag=match]",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

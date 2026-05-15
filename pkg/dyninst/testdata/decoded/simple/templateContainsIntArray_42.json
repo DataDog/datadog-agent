@@ -25,7 +25,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "containsIntArr42=true tag={unavailable}",
+    "message": "containsIntArr42=true tag=match",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -54,7 +54,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "containsIntArr42=false tag={unavailable}",
+    "message": "containsIntArr42=false tag=miss",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

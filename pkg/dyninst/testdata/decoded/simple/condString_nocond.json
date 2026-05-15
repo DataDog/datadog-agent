@@ -51,7 +51,7 @@
               },
               "tag": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "match"
               }
             }
           }
@@ -115,7 +115,7 @@
               },
               "tag": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "miss"
               }
             }
           }
@@ -179,7 +179,7 @@
               },
               "tag": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "long_a_then_b"
               }
             }
           }
@@ -243,7 +243,7 @@
               },
               "tag": {
                 "type": "string",
-                "notCapturedReason": "unavailable"
+                "value": "exact_a255"
               }
             }
           }

@@ -26,7 +26,7 @@
       "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "n == 7 && tag == \"match\" [n=7, tag={unavailable}]",
+    "message": "n == 7 && tag == \"match\" [n=7, tag=match]",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

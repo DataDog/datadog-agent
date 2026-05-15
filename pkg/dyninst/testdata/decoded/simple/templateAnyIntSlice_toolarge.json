@@ -25,7 +25,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "anyTooLarge=false tag={unavailable}",
+    "message": "anyTooLarge=false tag=match",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -54,7 +54,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "anyTooLarge=false tag={unavailable}",
+    "message": "anyTooLarge=false tag=anymiss_allmatch",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -83,7 +83,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "anyTooLarge=true tag={unavailable}",
+    "message": "anyTooLarge=true tag=allmiss",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -112,7 +112,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "anyTooLarge=false tag={unavailable}",
+    "message": "anyTooLarge=false tag=empty",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -141,7 +141,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "anyTooLarge=false tag={unavailable}",
+    "message": "anyTooLarge=false tag=cap",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -170,7 +170,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "anyTooLarge={unavailable} tag={unavailable}",
+    "message": "anyTooLarge={unavailable} tag=capplus",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -199,7 +199,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "anyTooLarge={unavailable} tag={unavailable}",
+    "message": "anyTooLarge={unavailable} tag=toolarge",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -228,7 +228,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "anyTooLarge={unavailable} tag={unavailable}",
+    "message": "anyTooLarge={unavailable} tag=scany",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
@@ -257,7 +257,7 @@
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "anyTooLarge=true tag={unavailable}",
+    "message": "anyTooLarge=true tag=scall",
     "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

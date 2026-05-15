@@ -45,6 +45,16 @@
         "captures": {
           "entry": {
             "captureExpressions": {
+              "matches": {
+                "type": "[]string",
+                "size": "1",
+                "elements": [
+                  {
+                    "type": "string",
+                    "value": "alpha"
+                  }
+                ]
+              },
               "tag": {
                 "type": "string",
                 "value": "match"
@@ -104,6 +114,16 @@
         "captures": {
           "entry": {
             "captureExpressions": {
+              "matches": {
+                "type": "[]string",
+                "size": "1",
+                "elements": [
+                  {
+                    "type": "string",
+                    "value": "alpha"
+                  }
+                ]
+              },
               "tag": {
                 "type": "string",
                 "value": "miss"
@@ -163,6 +183,10 @@
         "captures": {
           "entry": {
             "captureExpressions": {
+              "matches": {
+                "type": "[]string",
+                "isNull": true
+              },
               "tag": {
                 "type": "string",
                 "value": "empty"

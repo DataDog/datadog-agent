@@ -45,6 +45,42 @@
         "captures": {
           "entry": {
             "captureExpressions": {
+              "matches": {
+                "type": "map[string]int",
+                "size": "3",
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "a"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "b"
+                    },
+                    {
+                      "type": "int",
+                      "value": "42"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "c"
+                    },
+                    {
+                      "type": "int",
+                      "value": "3"
+                    }
+                  ]
+                ]
+              },
               "tag": {
                 "type": "string",
                 "value": "match"
@@ -104,6 +140,42 @@
         "captures": {
           "entry": {
             "captureExpressions": {
+              "matches": {
+                "type": "map[string]int",
+                "size": "3",
+                "entries": [
+                  [
+                    {
+                      "type": "string",
+                      "value": "a"
+                    },
+                    {
+                      "type": "int",
+                      "value": "1"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "b"
+                    },
+                    {
+                      "type": "int",
+                      "value": "2"
+                    }
+                  ],
+                  [
+                    {
+                      "type": "string",
+                      "value": "c"
+                    },
+                    {
+                      "type": "int",
+                      "value": "3"
+                    }
+                  ]
+                ]
+              },
               "tag": {
                 "type": "string",
                 "value": "miss"
@@ -163,127 +235,13 @@
         "captures": {
           "entry": {
             "captureExpressions": {
+              "matches": {
+                "type": "map[string]int",
+                "isNull": true
+              },
               "tag": {
                 "type": "string",
                 "value": "empty"
-              }
-            }
-          }
-        }
-      }
-    },
-    "timestamp": "[ts]",
-    "duration": "[duration]",
-    "process_tags": "entrypoint.name:sample,svc.user:sample"
-  },
-  {
-    "service": "simple",
-    "ddsource": "dd_debugger",
-    "logger": {
-      "name": "",
-      "method": "main.anyAllIntMap",
-      "version": 0,
-      "thread_id": "[goid]",
-      "thread_name": ""
-    },
-    "debugger": {
-      "snapshot": {
-        "id": "[id]",
-        "timestamp": "[ts]",
-        "language": "go",
-        "stack": [
-          {
-            "function": "main.anyAllIntMap",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 1304
-          },
-          {
-            "function": "main.main",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 400
-          },
-          {
-            "function": "runtime.main",
-            "fileName": "runtime/proc.go",
-            "lineNumber": "[lineNumber]"
-          },
-          {
-            "function": "runtime.goexit",
-            "fileName": "runtime/asm_[arch].s",
-            "lineNumber": "[lineNumber]"
-          }
-        ],
-        "probe": {
-          "id": "captureFilterIntMap_valueGt0",
-          "location": {
-            "method": "main.anyAllIntMap"
-          }
-        },
-        "captures": {
-          "entry": {
-            "captureExpressions": {
-              "tag": {
-                "type": "string",
-                "value": "toolarge"
-              }
-            }
-          }
-        }
-      }
-    },
-    "timestamp": "[ts]",
-    "duration": "[duration]",
-    "process_tags": "entrypoint.name:sample,svc.user:sample"
-  },
-  {
-    "service": "simple",
-    "ddsource": "dd_debugger",
-    "logger": {
-      "name": "",
-      "method": "main.anyAllIntMap",
-      "version": 0,
-      "thread_id": "[goid]",
-      "thread_name": ""
-    },
-    "debugger": {
-      "snapshot": {
-        "id": "[id]",
-        "timestamp": "[ts]",
-        "language": "go",
-        "stack": [
-          {
-            "function": "main.anyAllIntMap",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 1304
-          },
-          {
-            "function": "main.main",
-            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/simple/main.go",
-            "lineNumber": 409
-          },
-          {
-            "function": "runtime.main",
-            "fileName": "runtime/proc.go",
-            "lineNumber": "[lineNumber]"
-          },
-          {
-            "function": "runtime.goexit",
-            "fileName": "runtime/asm_[arch].s",
-            "lineNumber": "[lineNumber]"
-          }
-        ],
-        "probe": {
-          "id": "captureFilterIntMap_valueGt0",
-          "location": {
-            "method": "main.anyAllIntMap"
-          }
-        },
-        "captures": {
-          "entry": {
-            "captureExpressions": {
-              "tag": {
-                "type": "string",
-                "value": "sc100"
               }
             }
           }
