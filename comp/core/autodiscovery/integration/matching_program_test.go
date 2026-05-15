@@ -238,3 +238,50 @@ func TestCreateMatchingPrograms_RecommendationErrorFailsAll(t *testing.T) {
 	assert.Nil(t, programs)
 	assert.Empty(t, celADIDs)
 }
+
+// TestCELMatchingProgram_LazyCompile verifies the cel.Program is built on the
+// first IsMatched call, not at CreateMatchingPrograms time, and is reused on
+// subsequent calls.
+func TestCELMatchingProgram_LazyCompile(t *testing.T) {
+	rules := workloadfilter.Rules{
+		Containers: []string{`container.name == "nginx" && container.image.reference == "nginx:latest"`},
+	}
+
+	programs, _, err := CreateMatchingPrograms(rules, false)
+	require.NoError(t, err)
+	require.Contains(t, programs, workloadfilter.ContainerType)
+
+	celProg, ok := programs[workloadfilter.ContainerType].(*CELMatchingProgram)
+	require.True(t, ok, "expected *CELMatchingProgram, got %T", programs[workloadfilter.ContainerType])
+	assert.Nil(t, celProg.program, "cel.Program should not be compiled until first IsMatched call")
+
+	matching := workloadfilter.CreateContainer("id", "nginx", "nginx:latest", nil)
+	assert.True(t, celProg.IsMatched(matching))
+	assert.NotNil(t, celProg.program, "cel.Program should be cached after first IsMatched call")
+
+	cached := celProg.program
+
+	nonMatching := workloadfilter.CreateContainer("id", "redis", "redis:7", nil)
+	assert.False(t, celProg.IsMatched(nonMatching))
+	assert.Same(t, cached, celProg.program, "cel.Program should be reused, not recompiled")
+}
+
+// TestCELMatchingProgram_InvalidRuleLazyFailure verifies that a malformed CEL
+// rule does not error out of CreateMatchingPrograms (compile is lazy) and that
+// IsMatched returns false once compilation fails.
+func TestCELMatchingProgram_InvalidRuleLazyFailure(t *testing.T) {
+	rules := workloadfilter.Rules{
+		// syntactically invalid CEL
+		Containers: []string{`container.name ==`},
+	}
+
+	programs, _, err := CreateMatchingPrograms(rules, false)
+	require.NoError(t, err, "CreateMatchingPrograms must not surface CEL compile errors")
+	require.Contains(t, programs, workloadfilter.ContainerType)
+
+	obj := workloadfilter.CreateContainer("id", "nginx", "nginx:latest", nil)
+	assert.False(t, programs[workloadfilter.ContainerType].IsMatched(obj))
+
+	// A second call must not panic (sync.Once already fired) and still report false.
+	assert.False(t, programs[workloadfilter.ContainerType].IsMatched(obj))
+}

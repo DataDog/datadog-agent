@@ -10,12 +10,14 @@ package integration
 import (
 	"errors"
 	"strings"
+	"sync"
 
 	"github.com/google/cel-go/cel"
 
 	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/celprogram"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -27,15 +29,33 @@ const (
 	endpointNamespaceField = string(workloadfilter.KubeEndpointType) + ".namespace"
 )
 
-// CELMatchingProgram wraps a CEL program to implement the MatchingProgram interface
+// CELMatchingProgram wraps a CEL program to implement the MatchingProgram interface.
+// The underlying cel.Program is compiled lazily on the first IsMatched call so that
+// configs whose rules are never evaluated do not pay the cel.NewEnv / Compile memory cost.
 type CELMatchingProgram struct {
+	target workloadfilter.ResourceType
+	rules  string
+
+	once    sync.Once
 	program cel.Program
-	target  workloadfilter.ResourceType
 }
 
-// IsMatched evaluates the CEL program against the given object
+// IsMatched evaluates the CEL program against the given object.
+// Compiles the program on first call; compile failures are logged once and
+// cause subsequent matches to return false.
 func (m *CELMatchingProgram) IsMatched(obj workloadfilter.Filterable) bool {
-	if m == nil || m.program == nil {
+	if m == nil {
+		return false
+	}
+	m.once.Do(func() {
+		prg, err := celprogram.CreateCELProgram(m.rules, m.target)
+		if err != nil {
+			log.Errorf("Autodiscovery CEL compile failed for %s: %v", m.target, err)
+			return
+		}
+		m.program = prg
+	})
+	if m.program == nil {
 		return false
 	}
 	out, _, err := m.program.Eval(map[string]any{
@@ -124,11 +144,6 @@ func CreateMatchingPrograms(rules workloadfilter.Rules, checkRecommendations boo
 	for _, meta := range allMeta {
 		combinedRule := strings.Join(meta.ruleList, " || ")
 
-		celprg, err := celprogram.CreateCELProgram(combinedRule, meta.objectType)
-		if err != nil {
-			return nil, nil, err
-		}
-
 		if checkRecommendations {
 			if err := checkRuleRecommendations(combinedRule, meta.celADID); err != nil {
 				return nil, nil, err
@@ -136,8 +151,8 @@ func CreateMatchingPrograms(rules workloadfilter.Rules, checkRecommendations boo
 		}
 
 		programs[meta.objectType] = &CELMatchingProgram{
-			program: celprg,
-			target:  meta.objectType,
+			target: meta.objectType,
+			rules:  combinedRule,
 		}
 		celADIDs = append(celADIDs, meta.celADID)
 	}
