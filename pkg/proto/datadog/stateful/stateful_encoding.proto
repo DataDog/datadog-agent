@@ -47,6 +47,36 @@ message Tag {
   DynamicValue value = 2;
 }
 
+message FlatLog {
+  // Delta encoded timestamp: add this to previous timestamp (or DeltaEncodingSync.timestamp) to get the absolute timestamp.
+  sint64 timestamp = 1;
+  // Delta encoded status: when 0 use last status.
+  // Use 1 to indicate no status.
+  uint64 status = 2;
+  // Delta encoded service: when 0 use last service. Otherwise use service in this dict entry.
+  // Use 1 to indicate no status.
+  uint64 service = 3;
+  // Delta encoded tags: when 0 use last tags. Otherwise use tags in this dict entry.
+  uint64 tags = 4;
+
+
+  // Delta encoded pattern_id: when 0 use last pattern_id. Otherwise use pattern_id in this dict entry.
+  uint64 pattern_id = 5;
+  // Values for the pattern.
+  repeated DynamicValue dynamic_values = 6;
+  // Optional - used instead of pattern_id and dynamic_values for e.g. larger logs.
+  string raw_log = 7;
+
+  // Delta encoded json_schema_id: when 0 use last json_schema_id. Otherwise use json_schema_id in this dict entry.
+  // Use 1 to indicate no json_schema_id.
+  uint64 json_schema_id = 8;
+  // Values for the json schema.
+  repeated DynamicValue json_context_values = 9;
+
+  // Optional UUID used to track logs when dual-sent via HTTP and gRPC.
+  optional string uuid = 100;
+}
+
 message Log {
   sint64 timestamp = 1;
   oneof content {
@@ -68,6 +98,17 @@ message Log {
   // Service is sent separately because sometimes it is a top-level JSON field and also in ddtags,
   // and sometimes it only exists as a top-level field.
   DynamicValue service = 7;
+}
+
+
+message JsonSchemaDefine {
+  uint64 schema_id = 1;
+  repeated uint64 keys = 2;
+  uint64 message_key_id = 3;
+}
+
+message JsonSchemaDelete {
+  uint64 schema_id = 1;
 }
 
 message StructuredLog {
@@ -115,15 +156,16 @@ message DynamicValue {
   bool render_as_string = 5;
 }
 
-// We could choose to delta encode at batch level or at stream level.
-// If at stream level, then we need to send the delta encoding related state
-// to resync the Intake on stream restart
-// Currently we are doing it at batch level. This message below is not used,
-// we declare it here for future use.
+// Restores delta encoding state before replayed datums, for example when the
+// agent prepends lazy snapshot definitions ahead of already-encoded payload data.
 message DeltaEncodingSync {
   uint64 timestamp = 1;
   uint64 pattern_id = 2;
   TagSet tags = 3;
+  uint64 status = 4;
+  uint64 service = 5;
+  uint64 flat_log_tags = 6;
+  uint64 json_schema_id = 7;
 }
 
 // ---------------------------------------------------------------------------
@@ -138,6 +180,9 @@ message Datum {
     DictEntryDelete dict_entry_delete = 4;
     DeltaEncodingSync delta_encoding_sync = 5;
     Log logs = 6;
+    FlatLog flat_log = 7;
+    JsonSchemaDefine json_schema_define = 8;
+    JsonSchemaDelete json_schema_delete = 9;
   }
 }
 

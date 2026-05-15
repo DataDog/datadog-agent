@@ -44,7 +44,8 @@ type StatefulExtra struct {
 func isStateDatum(datum *statefulpb.Datum) bool {
 	switch datum.Data.(type) {
 	case *statefulpb.Datum_PatternDefine, *statefulpb.Datum_PatternDelete,
-		*statefulpb.Datum_DictEntryDefine, *statefulpb.Datum_DictEntryDelete:
+		*statefulpb.Datum_DictEntryDefine, *statefulpb.Datum_DictEntryDelete,
+		*statefulpb.Datum_JsonSchemaDefine, *statefulpb.Datum_JsonSchemaDelete:
 		return true
 	default:
 		return false
@@ -72,10 +73,12 @@ type batchStrategy struct {
 	marshalBuf []byte
 
 	// Delta encoding state - tracks previous values within current batch
-	lastTimestamp     int64  // milliseconds since epoch
-	lastPatternID     uint64 // pattern identifier
-	lastTagsDictIndex uint64 // dictionary index of tag string
-	lastServiceDictID uint64 // dictionary index of the service field
+	lastTimestamp      int64  // milliseconds since epoch
+	lastPatternID      uint64 // pattern identifier
+	lastTagsDictIndex  uint64 // dictionary index of tag string
+	lastServiceDictID  uint64 // dictionary index of the service field
+	lastStatusDictID   uint64 // dictionary index of the status field
+	lastJSONSchemaDict uint64 // dictionary index of the JSON schema field
 
 	// Telemetry
 	pipelineMonitor metrics.PipelineMonitor
@@ -187,9 +190,24 @@ func (s *batchStrategy) addMessage(m *message.StatefulMessage) bool {
 	if logDatum := m.Datum.GetLogs(); logDatum != nil {
 		s.applyDeltaEncoding(logDatum)
 	}
+	if flatLogDatum := m.Datum.GetFlatLog(); flatLogDatum != nil {
+		s.applyFlatLogDeltaEncoding(flatLogDatum)
+	}
 
 	s.grpcDatums = append(s.grpcDatums, m.Datum)
 	return true
+}
+
+func (s *batchStrategy) applyTimestampDeltaEncoding(timestamp *int64) {
+	currentTimestamp := *timestamp
+	if s.lastTimestamp == 0 {
+		s.lastTimestamp = currentTimestamp
+		return
+	}
+
+	delta := currentTimestamp - s.lastTimestamp
+	s.lastTimestamp = currentTimestamp
+	*timestamp = delta // Note that when delta is 0, proto3 omits the timestamp field.
 }
 
 // applyDeltaEncoding applies delta encoding to a Log datum within the current batch.
@@ -198,18 +216,7 @@ func (s *batchStrategy) applyDeltaEncoding(logDatum *statefulpb.Log) {
 		return
 	}
 	// Timestamp delta encoding
-	currentTimestamp := logDatum.Timestamp
-
-	// First message in batch: send absolute timestamp
-	if s.lastTimestamp == 0 {
-		s.lastTimestamp = currentTimestamp
-		// Keep absolute value in logDatum.Timestamp
-	} else {
-		// Normal case: compute and send delta
-		delta := currentTimestamp - s.lastTimestamp
-		s.lastTimestamp = currentTimestamp
-		logDatum.Timestamp = delta // Note that when delta is 0, proto3 omits the timestamp field
-	}
+	s.applyTimestampDeltaEncoding(&logDatum.Timestamp)
 
 	// Pattern ID delta encoding (for structured logs only)
 	if structured := logDatum.GetStructured(); structured != nil {
@@ -243,6 +250,39 @@ func (s *batchStrategy) applyDeltaEncoding(logDatum *statefulpb.Log) {
 			}
 		}
 	}
+}
+
+// applyFlatLogDeltaEncoding applies delta encoding to a FlatLog datum within the current batch.
+func (s *batchStrategy) applyFlatLogDeltaEncoding(logDatum *statefulpb.FlatLog) {
+	if !enableDeltaEncoding {
+		return
+	}
+
+	s.applyTimestampDeltaEncoding(&logDatum.Timestamp)
+
+	logDatum.Status = s.deltaFlatLogDictIndex(logDatum.Status, &s.lastStatusDictID)
+	logDatum.Service = s.deltaFlatLogDictIndex(logDatum.Service, &s.lastServiceDictID)
+	logDatum.Tags = s.deltaFlatLogDictIndex(logDatum.Tags, &s.lastTagsDictIndex)
+	logDatum.JsonSchemaId = s.deltaFlatLogDictIndex(logDatum.JsonSchemaId, &s.lastJSONSchemaDict)
+
+	if logDatum.RawLog == "" {
+		if logDatum.PatternId == s.lastPatternID {
+			logDatum.PatternId = 0
+		} else {
+			s.lastPatternID = logDatum.PatternId
+		}
+	}
+}
+
+func (s *batchStrategy) deltaFlatLogDictIndex(current uint64, last *uint64) uint64 {
+	if current == 0 {
+		current = flatLogEmptyDictIndex
+	}
+	if current == *last {
+		return 0
+	}
+	*last = current
+	return current
 }
 
 // Mostly copy/pasted from batch.go
@@ -288,13 +328,15 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	s.lastPatternID = 0
 	s.lastTagsDictIndex = 0
 	s.lastServiceDictID = 0
+	s.lastStatusDictID = 0
+	s.lastJSONSchemaDict = 0
 
 	s.sendMessagesWithDatums(messagesMetadata, grpcDatums, outputChan)
 }
 
 func isWireStateDatum(datum *statefulpb.Datum) bool {
 	switch datum.Data.(type) {
-	case *statefulpb.Datum_PatternDelete, *statefulpb.Datum_DictEntryDelete:
+	case *statefulpb.Datum_PatternDelete, *statefulpb.Datum_DictEntryDelete, *statefulpb.Datum_JsonSchemaDelete:
 		return false
 	default:
 		return true
@@ -332,12 +374,18 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 			datumType = "pattern_delete"
 		case *statefulpb.Datum_Logs:
 			datumType = "logs"
+		case *statefulpb.Datum_FlatLog:
+			datumType = "logs"
 		case *statefulpb.Datum_DictEntryDefine:
 			datumType = "dict_entry_define"
 		case *statefulpb.Datum_DictEntryDelete:
 			datumType = "dict_entry_delete"
 		case *statefulpb.Datum_DeltaEncodingSync:
 			datumType = "delta_encoding_sync"
+		case *statefulpb.Datum_JsonSchemaDefine:
+			datumType = "json_schema_define"
+		case *statefulpb.Datum_JsonSchemaDelete:
+			datumType = "json_schema_delete"
 		default:
 			datumType = "unknown"
 		}

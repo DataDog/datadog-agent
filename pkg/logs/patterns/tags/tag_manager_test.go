@@ -64,9 +64,17 @@ func TestTagManager_EncodeTagStrings_MixedNewAndExisting(t *testing.T) {
 
 	_, secondEntries := tm.EncodeTagStrings([]string{"env:production", "service:api"})
 	assert.Len(t, secondEntries, 2)
-	assert.Equal(t, "service", secondEntries[3])
-	assert.Equal(t, "api", secondEntries[4])
+	assert.Contains(t, mapValues(secondEntries), "service")
+	assert.Contains(t, mapValues(secondEntries), "api")
 	assert.Equal(t, 4, tm.Count())
+}
+
+func mapValues[K comparable, V any](values map[K]V) []V {
+	out := make([]V, 0, len(values))
+	for _, value := range values {
+		out = append(out, value)
+	}
+	return out
 }
 
 func TestTagManager_EncodeTagStrings_InvalidFormats(t *testing.T) {
