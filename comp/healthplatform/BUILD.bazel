@@ -14,6 +14,7 @@ go_library(
         "//comp/healthplatform/issues/admisconfig",
         "//comp/healthplatform/issues/admissionprobe",
         "//comp/healthplatform/issues/checkfailure",
+        "//comp/healthplatform/issues/docker-logs-rotation",
         "//comp/healthplatform/issues/dockerpermissions",
         "//comp/healthplatform/issues/rofspermissions",
         "//comp/healthplatform/scheduler/fx",

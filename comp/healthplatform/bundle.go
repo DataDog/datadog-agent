@@ -24,6 +24,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admisconfig"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/checkfailure"
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/docker-logs-rotation"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dockerpermissions"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/rofspermissions"
 )

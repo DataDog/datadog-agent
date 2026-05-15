@@ -36,6 +36,7 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -87,6 +88,7 @@ type dependencies struct {
 	Tagger             tagger.Component
 	Compression        logscompression.Component
 	Secrets            secrets.Component
+	HealthPlatform     option.Option[storedef.Component]
 }
 
 type provides struct {
@@ -125,6 +127,7 @@ type logAgent struct {
 	schedulerProviders        []schedulers.Scheduler
 	integrationsLogs          integrations.Component
 	compression               logscompression.Component
+	healthPlatform            option.Option[storedef.Component]
 
 	// make sure this is done only once, when we're ready
 	prepareSchedulers sync.Once
@@ -166,6 +169,7 @@ func newLogsAgent(deps dependencies) provides {
 			tagger:             deps.Tagger,
 			compression:        deps.Compression,
 			secrets:            deps.Secrets,
+			healthPlatform:     deps.HealthPlatform,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,

@@ -13,6 +13,7 @@ import (
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
@@ -59,16 +60,18 @@ type Launcher struct {
 
 	wmeta option.Option[workloadmeta.Component]
 
-	tagger tagger.Component
+	tagger         tagger.Component
+	healthPlatform option.Option[storedef.Component]
 }
 
 // NewLauncher returns a new launcher
-func NewLauncher(sources *sourcesPkg.LogSources, wmeta option.Option[workloadmeta.Component], tagger tagger.Component) *Launcher {
+func NewLauncher(sources *sourcesPkg.LogSources, wmeta option.Option[workloadmeta.Component], tagger tagger.Component, hp option.Option[storedef.Component]) *Launcher {
 	launcher := &Launcher{
-		sources: sources,
-		tailers: make(map[*sourcesPkg.LogSource]tailerfactory.Tailer),
-		wmeta:   wmeta,
-		tagger:  tagger,
+		sources:        sources,
+		tailers:        make(map[*sourcesPkg.LogSource]tailerfactory.Tailer),
+		wmeta:          wmeta,
+		tagger:         tagger,
+		healthPlatform: hp,
 	}
 	return launcher
 }
@@ -80,7 +83,7 @@ func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 	l.cancel = cancel
 	l.stopped = make(chan struct{})
 
-	l.tailerFactory = tailerfactory.New(l.sources, pipelineProvider, registry, l.wmeta, l.tagger)
+	l.tailerFactory = tailerfactory.New(l.sources, pipelineProvider, registry, l.wmeta, l.tagger, l.healthPlatform)
 	go l.run(ctx, sourceProvider)
 }
 

@@ -11,6 +11,7 @@ package container
 import (
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
@@ -25,7 +26,7 @@ import (
 type Launcher struct{}
 
 // NewLauncher returns a new launcher
-func NewLauncher(_ *sourcesPkg.LogSources, _ option.Option[workloadmeta.Component], _ tagger.Component) *Launcher {
+func NewLauncher(_ *sourcesPkg.LogSources, _ option.Option[workloadmeta.Component], _ tagger.Component, _ option.Option[storedef.Component]) *Launcher {
 	return &Launcher{}
 }
 
