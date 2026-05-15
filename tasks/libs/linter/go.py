@@ -78,7 +78,7 @@ def lint_flavor(
         if not module.should_test(platform=goos):
             continue
         for target in module.lint_targets:
-            target_path = os.path.join(module.path, target)
+            target_path = os.path.normpath(os.path.join(module.path, target))
             if not target_path.startswith('./'):
                 target_path = f"./{target_path}"
             targets.append(target_path)
