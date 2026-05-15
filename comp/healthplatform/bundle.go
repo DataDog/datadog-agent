@@ -23,6 +23,7 @@ import (
 	// must not import other impl packages.
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admisconfig"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe"
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/apm-cgroup-v2-container-tags"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/checkfailure"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dockerpermissions"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/rofspermissions"
