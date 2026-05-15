@@ -8,7 +8,9 @@
 // Package handlers provide product-specific handlers for the Datadog Instrumentation CRD controller.
 package handlers
 
-import "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
+import (
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
+)
 
 // Deps contains dependencies used to construct DatadogInstrumentation product handlers.
 // Product-specific services that are shared with other integration surfaces, such as
@@ -17,10 +19,13 @@ import "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 type Deps struct {
 	// IsLeader should be used if the handler should only perform actions when the cluster agent is the leader.
 	IsLeader func() bool
+
+	// CheckStore is used as a shared store for check configurations between the AD handler and cluster agent API.
+	CheckStore *CheckStore
 }
 
 // DefaultHandlers returns the product handlers registered for the shared controller.
-func DefaultHandlers(deps Deps) []instrumentation.Handler {
+func DefaultHandlers(deps *Deps) []instrumentation.Handler {
 	return []instrumentation.Handler{
 		NewAutodiscoveryHandler(deps),
 	}

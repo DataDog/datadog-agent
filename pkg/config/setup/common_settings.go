@@ -177,8 +177,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("prometheus_scrape.version", 1)               // Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
 
 	// Prometheus HTTP Service Discovery
-	config.BindEnvAndSetDefault("prometheus_http_sd.url", "")            // URL of the Prometheus HTTP SD endpoint
-	config.BindEnvAndSetDefault("prometheus_http_sd.check_template", "") // JSON check template applied to each discovered target (e.g. '{"name":"openmetrics","init_config":{},"instances":[{"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics"}]}')
+	config.BindEnvAndSetDefault("prometheus_http_sd.configs", []map[string]interface{}{}) // List of HTTP SD endpoints to poll. Each entry must specify url and check_template.
+	config.ParseEnvJSON("prometheus_http_sd.configs", []map[string]interface{}{})         // DD_PROMETHEUS_HTTP_SD_CONFIGS is a JSON-encoded list-of-objects.
+	config.BindEnvAndSetDefault("prometheus_http_sd.url", "")                             // [DEPRECATED] URL of the Prometheus HTTP SD endpoint. Use prometheus_http_sd.configs instead.
+	config.BindEnvAndSetDefault("prometheus_http_sd.check_template", "")                  // [DEPRECATED] JSON check template applied to each discovered target. Use prometheus_http_sd.configs instead.
 
 	// Network Devices Monitoring
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
@@ -476,6 +478,11 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// to mount /var/run/datadog into the agent pod. For DSD/APM-enabled deployments
 	// the directory is already mounted; this setting matters for NCCL-only setups.
 	config.BindEnvAndSetDefault("gpu.nccl.host_socket_path", "/var/run/datadog")
+	// In-container directory at which the agent's NCCL socket is mounted in
+	// injected workload pods. Composed with filepath.Base(gpu.nccl.socket_path)
+	// to build the mount destination and NCCL_DD_SOCKET_PATH. Same shape as
+	// admission_controller.inject_config.socket_path used by APM/DSD injection.
+	config.BindEnvAndSetDefault("admission_controller.nccl_profiler.socket_dir", "/var/run/datadog")
 
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
@@ -1089,6 +1096,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("metric_filterlist_match_prefix", false)
 	config.BindEnvAndSetDefault("statsd_metric_blocklist_match_prefix", false)
 	config.BindEnvAndSetDefault("metric_tag_filterlist", []interface{}{})
+	// When true (default), metric_tag_filterlist tag stripping is only applied when data_plane.enabled is true.
+	// Set to false to apply tag stripping regardless of whether ADP is running.
+	config.BindEnvAndSetDefault("metric_tag_filterlist_adp_only", true)
 
 	// Integration security
 
@@ -1767,6 +1777,8 @@ func logsagent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("logs_config.fingerprint_config.fingerprint_strategy", DefaultFingerprintStrategy)
 	// specific logs-agent api-key
 	config.BindEnv("logs_config.api_key") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	// use the `time` field from container log files instead of ingestion time
+	config.BindEnvAndSetDefault("logs_config.use_container_timestamp", false)
 	// Delegated authentication for logs
 	bindDelegatedAuthConfig(config, "logs_config")
 

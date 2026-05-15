@@ -73,6 +73,8 @@ const (
 	// the next sm_loop iteration re-enters HOP. See pkg/dyninst/irgen/trace_context.md.
 	OpcodeGoContextChainInit
 	OpcodeGoContextChainHop
+	// Time decoding.
+	OpcodeProcessGoTime
 )
 
 //revive:enable:exported

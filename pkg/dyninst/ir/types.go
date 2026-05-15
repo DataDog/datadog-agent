@@ -76,6 +76,7 @@ var (
 	_ Type = (*GoHMapBucketType)(nil)
 	_ Type = (*GoSwissMapHeaderType)(nil)
 	_ Type = (*GoSwissMapGroupsType)(nil)
+	_ Type = (*GoTimeType)(nil)
 	_ Type = (*GoChannelType)(nil)
 	_ Type = (*GoEmptyInterfaceType)(nil)
 	_ Type = (*GoInterfaceType)(nil)
@@ -464,6 +465,68 @@ type GoSwissMapGroupsType struct {
 }
 
 func (GoSwissMapGroupsType) irType() {}
+
+// GoTimeType is a specialized wrapper for the standard library's time.Time
+// structure. Decoding time.Time as a generic struct would either leak the
+// private wall/ext bit layout or render an opaque blob. By recognizing the
+// type during IR generation, the decoder can emit a real RFC3339 timestamp
+// and BPF can resolve the *Location pointer to a UTC offset via the
+// Location.cacheZone fast path, avoiding any further pointer chasing.
+//
+// We deliberately only consult the one-element cache (not the full
+// tx/zone tables or the extend POSIX string), which covers the common
+// case where the program has recently formatted or compared the instant
+// in that location; values whose Location has never been exercised
+// (e.g. a freshly LoadLocation'd zone, or time.Local before initLocal
+// runs) render in UTC instead of their true offset.
+//
+// All offset/size fields are byte offsets resolved from DWARF. When
+// CacheResolved is false the BPF runtime skips the cache lookup and the
+// decoder formats in UTC; the remaining cache offset fields are unset in
+// that case.
+type GoTimeType struct {
+	*StructureType
+
+	// WallFieldOffset and ExtFieldOffset are the offsets of the wall and
+	// ext fields within the time.Time structure.
+	WallFieldOffset uint32
+	ExtFieldOffset  uint32
+	// LocFieldOffset is the offset of the loc pointer field within the
+	// time.Time structure. At runtime BPF overwrites the 8 bytes at this
+	// offset with the resolved zone offset (in seconds east of UTC) or
+	// the sentinel value GoTimeUnresolvedOffset.
+	LocFieldOffset uint32
+
+	// CacheResolved is true when irgen successfully resolved the
+	// time.Location field offsets needed for the BPF cache lookup. When
+	// false, the BPF runtime writes the unresolved sentinel and the
+	// decoder renders in UTC.
+	CacheResolved bool
+	// CacheStartOffset, CacheEndOffset, CacheZoneOffset are byte offsets
+	// within time.Location for the cacheStart, cacheEnd, cacheZone fields.
+	CacheStartOffset uint32
+	CacheEndOffset   uint32
+	CacheZoneOffset  uint32
+	// ZoneOffsetFieldOffset is the byte offset of the offset field within
+	// the time.zone structure (pointed to by cacheZone).
+	ZoneOffsetFieldOffset uint32
+	// ZoneOffsetFieldSize is the byte size of the offset field. Go's int
+	// is 8 bytes on amd64/arm64 but we record the DWARF size to avoid
+	// assumptions.
+	ZoneOffsetFieldSize uint32
+}
+
+func (GoTimeType) irType() {}
+
+// GoTimeUnresolvedOffset is the sentinel value the BPF runtime writes into
+// the loc-pointer slot of a captured time.Time when the timezone offset
+// could not be resolved (loc was nil, the Location cache was uninitialized,
+// the captured instant fell outside the cache window, or the runtime
+// failed to read the cache fields). The decoder maps this value to UTC.
+//
+// The sentinel is INT64_MIN. Real UTC offsets are bounded by ±14 hours
+// (50,400 seconds), so collisions are impossible.
+const GoTimeUnresolvedOffset = int64(-1) << 63
 
 // GoSubroutineType is a type that represents a function type in the target
 // program.

@@ -51,7 +51,7 @@ func installAgentLogTap(handle observerdef.Handle, sampleInfo, sampleDebug, samp
 			"msg": message,
 		})
 		handle.ObserveLog(&agentLogView{
-			content:     payload,
+			content:     string(payload),
 			status:      strings.ToLower(level.String()),
 			tags:        tags,
 			hostname:    "",
@@ -79,14 +79,14 @@ func samplePass(rate float64, n uint64) bool {
 
 // agentLogView is a minimal observerdef.LogView implementation for agent-internal logs.
 type agentLogView struct {
-	content     []byte
+	content     string
 	status      string
 	tags        []string
 	hostname    string
 	timestampMs int64
 }
 
-func (v *agentLogView) GetContent() []byte           { return v.content }
+func (v *agentLogView) GetContent() string           { return v.content }
 func (v *agentLogView) GetStatus() string            { return v.status }
 func (v *agentLogView) Tags() []string               { return v.tags }
 func (v *agentLogView) GetHostname() string          { return v.hostname }
