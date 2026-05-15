@@ -171,32 +171,28 @@ func (s *batchStrategy) addMessage(m *message.StatefulMessage) bool {
 		return false
 	}
 
-	// Update delta state when PatternDefine passes through (only when delta encoding is active)
+	if !s.buffer.AddMessageWithSize(m.Metadata, m.Metadata.RawDataLen) {
+		// Buffer full (not an error)
+		return false
+	}
+
+	// Only mutate delta-encoded fields after the message is accepted into this
+	// batch. If AddMessageWithSize fails, processMessage flushes and retries the
+	// same datum in a new batch, where it must still contain absolute values.
 	if enableDeltaEncoding {
 		if patternDefine := m.Datum.GetPatternDefine(); patternDefine != nil {
 			s.lastPatternID = patternDefine.PatternId
 		}
 	}
-
-	// Apply delta encoding to Log datums before adding to batch
 	if logDatum := m.Datum.GetLogs(); logDatum != nil {
 		s.applyDeltaEncoding(logDatum)
 	}
 
-	// Try to add to buffer
-	if s.buffer.AddMessageWithSize(m.Metadata, m.Metadata.RawDataLen) {
-		s.grpcDatums = append(s.grpcDatums, m.Datum)
-		return true
-	}
-
-	// Buffer full (not an error)
-	return false
+	s.grpcDatums = append(s.grpcDatums, m.Datum)
+	return true
 }
 
 // applyDeltaEncoding applies delta encoding to a Log datum within the current batch.
-// Currently gated behind enableDeltaEncoding=false: the server does not implement delta
-// reconstruction for any field (patternId, tags, timestamp), so this is a no-op until
-// server-side support is added and protocol-version-negotiated.
 func (s *batchStrategy) applyDeltaEncoding(logDatum *statefulpb.Log) {
 	if !enableDeltaEncoding {
 		return
@@ -218,7 +214,7 @@ func (s *batchStrategy) applyDeltaEncoding(logDatum *statefulpb.Log) {
 	// Pattern ID delta encoding (for structured logs only)
 	if structured := logDatum.GetStructured(); structured != nil {
 		if structured.PatternId == s.lastPatternID {
-			structured.PatternId = 0 // proto3 omits zero values
+			structured.PatternId = 0
 		} else {
 			s.lastPatternID = structured.PatternId
 		}
