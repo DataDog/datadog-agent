@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 )
 
 func TestJsonDetector(t *testing.T) {
@@ -48,6 +50,26 @@ func TestJsonDetector(t *testing.T) {
 			assert.Equal(t, tc.expectedLabel, messageContext.label)
 		})
 	}
+}
+
+func TestJSONLogsProcessedTelemetry(t *testing.T) {
+	jsonDetector := NewJSONDetector()
+	initial := metrics.TlmJSONLogsProcessed.WithValues().Get()
+
+	// JSON message increments the counter
+	ctx := &messageContext{rawMessage: []byte(`{"key":"value"}`), label: aggregate, labelAssignedBy: defaultLabelSource}
+	jsonDetector.ProcessAndContinue(ctx)
+	assert.Equal(t, initial+1, metrics.TlmJSONLogsProcessed.WithValues().Get())
+
+	// Plain text does not increment
+	ctx = &messageContext{rawMessage: []byte(`Not JSON`), label: aggregate, labelAssignedBy: defaultLabelSource}
+	jsonDetector.ProcessAndContinue(ctx)
+	assert.Equal(t, initial+1, metrics.TlmJSONLogsProcessed.WithValues().Get())
+
+	// Already-labeled message does not increment (even if JSON)
+	ctx = &messageContext{rawMessage: []byte(`{"key":"value"}`), label: aggregate, labelAssignedBy: "user_sample"}
+	jsonDetector.ProcessAndContinue(ctx)
+	assert.Equal(t, initial+1, metrics.TlmJSONLogsProcessed.WithValues().Get())
 }
 
 func TestJsonDetectorDoesntOverrideAssignedLabel(t *testing.T) {

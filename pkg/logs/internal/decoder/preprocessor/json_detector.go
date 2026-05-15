@@ -6,7 +6,11 @@
 // Package preprocessor contains auto multiline detection and aggregation logic.
 package preprocessor
 
-import "regexp"
+import (
+	"regexp"
+
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+)
 
 var jsonRegexp = regexp.MustCompile(`^\s*\{\s*["}]`)
 
@@ -24,6 +28,7 @@ func (j *JSONDetector) ProcessAndContinue(context *messageContext) bool {
 	if context.labelAssignedBy == defaultLabelSource && jsonRegexp.Match(context.rawMessage) {
 		context.label = noAggregate
 		context.labelAssignedBy = "JSON_detector"
+		metrics.TlmJSONLogsProcessed.Inc()
 		return false
 	}
 	return true

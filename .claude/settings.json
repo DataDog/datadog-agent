@@ -1,4 +1,12 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(cp -r /Users/yoon.nguyen/dd/smp-playground/experiments/regression/agent/cases/adaptive_sampling_baseline_off /Users/yoon.nguyen/dd/smp-playground/experiments/regression/agent/cases/adaptive_sampling_throughput_off)",
+      "Bash(cp -r /Users/yoon.nguyen/dd/smp-playground/experiments/regression/agent/cases/adaptive_sampling_baseline_off /Users/yoon.nguyen/dd/smp-playground/experiments/regression/agent/cases/adaptive_sampling_throughput_on)",
+      "Bash(cp /tmp/input-unique-v2.input experiments/regression/agent/cases/impact_worst_case_maxpat_10/lading/input-unique.input)",
+      "Bash(cp /tmp/input-unique-v2.input experiments/regression/agent/cases/impact_worst_case_maxpat_1000/lading/input-unique.input)"
+    ]
+  },
   "enabledPlugins": {
     "datadog-agent-gopls@datadog-agent-local": true
   },
