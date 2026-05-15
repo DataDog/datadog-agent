@@ -24,9 +24,7 @@ type scanmwStateKey struct {
 // (metrics_detector_bocpd.go). If more scan-based detectors are added,
 // consider extracting a shared scanSeriesState base.
 type scanmwSeriesState struct {
-	// Cursor (same pattern as BOCPD: metrics_detector_bocpd.go:16-22)
-	lastProcessedCount int
-	lastWriteGen       int64
+	lastWriteGen int64
 
 	// Segment tracking: only scan [segmentStartTime, dataTime].
 	// 0 initially (scan full history), advances to changepoint timestamp on fire.
@@ -75,8 +73,8 @@ type ScanMWDetector struct {
 	series map[scanmwStateKey]*scanmwSeriesState
 
 	// Cache the discovered series list across Detect calls.
-	cachedSeries []observer.SeriesMeta
-	cachedGen    uint64
+	cachedRefs []observer.SeriesRef
+	cachedGen  uint64
 }
 
 // NewScanMWDetector creates a ScanMW detector with default settings.
@@ -103,7 +101,7 @@ func (d *ScanMWDetector) Name() string {
 // Reset clears all per-series state for replay/reanalysis.
 func (d *ScanMWDetector) Reset() {
 	d.series = make(map[scanmwStateKey]*scanmwSeriesState)
-	d.cachedSeries = nil
+	d.cachedRefs = nil
 	d.cachedGen = 0
 }
 
@@ -122,7 +120,7 @@ func (d *ScanMWDetector) RemoveSeries(refs []observer.SeriesRef) {
 			delete(d.series, scanmwStateKey{ref: ref, agg: agg})
 		}
 	}
-	d.cachedSeries = nil
+	d.cachedRefs = nil
 	d.cachedGen = 0
 }
 
@@ -136,25 +134,25 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 	d.ensureDefaults()
 
 	gen := storage.SeriesGeneration()
-	if d.cachedSeries == nil || gen != d.cachedGen {
-		d.cachedSeries = storage.ListSeries(observer.WorkloadSeriesFilter())
+	if d.cachedRefs == nil || gen != d.cachedGen {
+		metas := storage.ListSeries(observer.WorkloadSeriesFilter())
+		d.cachedRefs = make([]observer.SeriesRef, len(metas))
+		for i, m := range metas {
+			d.cachedRefs[i] = m.Ref
+		}
 		d.cachedGen = gen
 	}
 
-	// Bulk-fetch point counts and write generations in a single lock acquisition.
-	refs := make([]observer.SeriesRef, len(d.cachedSeries))
-	for i, meta := range d.cachedSeries {
-		refs[i] = meta.Ref
-	}
-	bulkStatus := bulkSeriesStatus(storage, refs, dataTime)
+	// Bulk-fetch write generations in a single lock acquisition.
+	bulkStatus := bulkSeriesStatus(storage, d.cachedRefs, dataTime)
 
 	var allAnomalies []observer.Anomaly
 
-	for i, meta := range d.cachedSeries {
+	for i, ref := range d.cachedRefs {
 		status := bulkStatus[i]
 
 		for _, agg := range d.Aggregations {
-			sk := scanmwStateKey{ref: meta.Ref, agg: agg}
+			sk := scanmwStateKey{ref: ref, agg: agg}
 
 			state, exists := d.series[sk]
 			if !exists {
@@ -162,20 +160,15 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 				d.series[sk] = state
 			}
 
-			// Replay optimization: skip unless MinSegment new points are visible.
-			// The scan needs MinSegment points per side to evaluate a split, so
-			// fewer new points can't create a new valid split boundary. This cuts
-			// per-series scans from O(timestamps) to O(timestamps/MinSegment).
-			// During live ingestion, writeGen changes on every write so this
-			// condition falls through to the gen check and behaves as before.
-			if status.pointCount < state.lastProcessedCount+d.MinSegment && status.writeGeneration == state.lastWriteGen {
+			// Skip if nothing was written since last Detect.
+			if status.writeGeneration == state.lastWriteGen {
 				continue
 			}
 
 			// Collect points into reusable buffer to avoid per-call allocation.
 			state.buf = state.buf[:0]
 			var seriesMeta *observer.Series
-			storage.ForEachPoint(meta.Ref, state.segmentStartTime, dataTime, agg, func(s *observer.Series, p observer.Point) {
+			storage.ForEachPoint(ref, state.segmentStartTime, dataTime, agg, func(s *observer.Series, p observer.Point) {
 				if seriesMeta == nil {
 					sCopy := *s
 					seriesMeta = &sCopy
@@ -184,19 +177,17 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 			})
 
 			if seriesMeta == nil || len(state.buf) < d.MinPoints {
-				state.lastProcessedCount = status.pointCount
 				state.lastWriteGen = status.writeGeneration
 				continue
 			}
 
 			anomaly, changeIdx, found := d.scanMW(state.buf, seriesMeta, agg)
 			if found {
-				anomaly.SourceRef = &observer.QueryHandle{Ref: meta.Ref, Aggregate: agg}
+				anomaly.SourceRef = &observer.QueryHandle{Ref: ref, Aggregate: agg}
 				allAnomalies = append(allAnomalies, anomaly)
 				state.segmentStartTime = state.buf[changeIdx].Timestamp - 1
 			}
 
-			state.lastProcessedCount = status.pointCount
 			state.lastWriteGen = status.writeGeneration
 		}
 	}

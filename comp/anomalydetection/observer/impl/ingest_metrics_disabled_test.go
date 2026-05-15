@@ -73,7 +73,7 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 	})
 
 	drop.ObserveLog(&logObs{
-		content:     []byte("Request completed in 45ms"),
+		content:     "Request completed in 45ms",
 		status:      "info",
 		tags:        []string{"service:web"},
 		timestampMs: 1_000_000,
@@ -104,7 +104,7 @@ func TestMetricDropHandle(t *testing.T) {
 	assert.True(t, wrap.ObserveMetricAndReportDrop(&sampleNoSource{name: "any.metric"}),
 		"ObserveMetricAndReportDrop reports true (config drop) so recordingHandle writes Dropped=true")
 
-	wrap.ObserveLog(&logObs{content: []byte("hi"), timestampMs: 1})
+	wrap.ObserveLog(&logObs{content: "hi", timestampMs: 1})
 	assert.Equal(t, 1, inner.logReceived,
 		"metricDropHandle: inner.logReceived = %d, want 1 (ObserveLog must forward to inner)", inner.logReceived)
 }
