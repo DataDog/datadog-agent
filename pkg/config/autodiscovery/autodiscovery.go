@@ -39,7 +39,7 @@ func DiscoverComponentsFromConfig() ([]pkgconfigsetup.ConfigurationProviders, []
 
 	// Add instrumentation checks provider if `instrumentation_crd_controller.enabled` is true
 	if pkgconfigsetup.Datadog().GetBool("instrumentation_crd_controller.enabled") && flavor.GetFlavor() == flavor.DefaultAgent {
-		instrumentationChecksProvider := pkgconfigsetup.ConfigurationProviders{Name: "instrumentation_checks", Polling: true, PollInterval: "30s"}
+		instrumentationChecksProvider := pkgconfigsetup.ConfigurationProviders{Name: "instrumentation_checks", Polling: true}
 		log.Info("Instrumentation controller is enabled: Adding the instrumentation checks config provider")
 		detectedProviders = append(detectedProviders, instrumentationChecksProvider)
 	}

@@ -15,6 +15,12 @@ const (
 	dcaInstrumentationConfigsPath = "api/v1/instrumentation/configs"
 )
 
+// InstrumentationCheckClient is the interface used by the instrumentation
+// checks config provider to retrieve AD configurations from the cluster agent.
+type InstrumentationCheckClient interface {
+	GetInstrumentationConfigs(ctx context.Context) (types.ConfigResponse, error)
+}
+
 // GetInstrumentationConfigs is called by the instrumentation checks config provider
 // to retrieve AD configurations derived from DatadogInstrumentation CRs.
 func (c *DCAClient) GetInstrumentationConfigs(ctx context.Context) (types.ConfigResponse, error) {

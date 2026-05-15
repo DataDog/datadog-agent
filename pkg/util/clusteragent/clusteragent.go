@@ -86,7 +86,6 @@ type DCAClientInterface interface {
 	PostClusterCheckStatus(ctx context.Context, nodeName string, status types.NodeStatus) (types.StatusResponse, error)
 	GetClusterCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error)
 	GetEndpointsCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error)
-	GetInstrumentationConfigs(ctx context.Context) (types.ConfigResponse, error)
 	GetKubernetesClusterID() (string, error)
 
 	PostLanguageMetadata(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) error
@@ -114,7 +113,7 @@ func resetGlobalClusterAgentClient() {
 }
 
 // GetClusterAgentClient returns or init the DCAClient
-func GetClusterAgentClient() (DCAClientInterface, error) {
+func GetClusterAgentClient() (*DCAClient, error) {
 	if globalClusterAgentClient == nil {
 		globalClusterAgentClient = &DCAClient{}
 		globalClusterAgentClient.initRetry.SetupRetrier(&retry.Config{ //nolint:errcheck

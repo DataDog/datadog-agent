@@ -213,10 +213,6 @@ func (f *FakeDCAClient) GetEndpointsCheckConfigs(_ context.Context, _ string) (t
 	panic("implement me")
 }
 
-func (f *FakeDCAClient) GetInstrumentationConfigs(_ context.Context) (types.ConfigResponse, error) {
-	panic("implement me")
-}
-
 func (f *FakeDCAClient) GetKubernetesClusterID() (string, error) {
 	panic("implement me")
 }

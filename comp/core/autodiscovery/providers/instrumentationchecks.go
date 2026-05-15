@@ -25,7 +25,7 @@ import (
 // for the instrumentation checks feature. It pulls AD configurations derived
 // from DatadogInstrumentation CRs from the cluster agent.
 type InstrumentationChecksConfigProvider struct {
-	dcaClient        clusteragent.DCAClientInterface
+	dcaClient        clusteragent.InstrumentationCheckClient
 	degradedDuration time.Duration
 	heartbeat        time.Time
 	flushedConfigs   bool
@@ -76,6 +76,8 @@ func (c *InstrumentationChecksConfigProvider) Collect(ctx context.Context) ([]in
 			return nil, err
 		}
 
+		// Return nil configs once to signal the scheduler to unschedule
+		// checks that may be based on stale configuration.
 		if !c.flushedConfigs {
 			c.flushedConfigs = true
 			return nil, nil
@@ -85,10 +87,12 @@ func (c *InstrumentationChecksConfigProvider) Collect(ctx context.Context) ([]in
 	}
 
 	log.Debugf("Received %d instrumentation check configurations from the cluster-agent", len(reply.Configs))
-	for _, config := range reply.Configs {
-		config.Provider = names.InstrumentationChecks
+	for i := range reply.Configs {
+		reply.Configs[i].Provider = names.InstrumentationChecks
 	}
 
+	// Reset flush state and update heartbeat so the degraded mode window
+	// restarts from this successful response.
 	c.flushedConfigs = false
 	c.heartbeat = time.Now()
 
