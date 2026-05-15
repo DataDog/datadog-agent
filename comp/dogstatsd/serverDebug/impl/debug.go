@@ -24,10 +24,8 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/internal/identity"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
@@ -63,19 +61,20 @@ type metricStat struct {
 }
 
 type serverDebugImpl struct {
-	sync.Mutex
-	log     log.Component
-	enabled *atomic.Bool
-	Stats   map[ckey.ContextKey]metricStat `json:"stats"`
-	// counting number of metrics processed last X seconds
+	stateLock sync.Mutex
+	log       log.Component
+	enabled   *atomic.Bool
+
+	view          *debugStatsView
 	metricsCounts metricsCountBuckets
-	// keyGen is used to generate hashes of the metrics received by dogstatsd
-	keyGen *ckey.KeyGenerator
 
 	// clock is used to keep a consistent time state within the debug server whether
 	// we use a real clock in production code or a mock clock for unit testing
-	clock           clock.Clock
-	tagsAccumulator *tagset.HashingTagsAccumulator
+	clock clock.Clock
+
+	identityBuilders sync.Pool
+	debugLoopStop    chan struct{}
+
 	// dogstatsdDebugLogger is an instance of the logger config that can be used to create new logger for dogstatsd-stats metrics
 	dogstatsdDebugLogger pkglog.LoggerInterface
 }
@@ -87,30 +86,18 @@ func NewServerlessServerDebug(cfg model.Reader) serverdebug.Component {
 
 func newServerDebugCompat(l log.Component, cfg model.Reader) serverdebug.Component {
 	sd := &serverDebugImpl{
-		log:     l,
-		enabled: atomic.NewBool(false),
-		Stats:   make(map[ckey.ContextKey]metricStat),
-		metricsCounts: metricsCountBuckets{
-			counts:     [5]uint64{0, 0, 0, 0, 0},
-			metricChan: make(chan struct{}),
-			closeChan:  make(chan struct{}),
+		log:           l,
+		enabled:       atomic.NewBool(false),
+		view:          newDefaultDebugStatsView(),
+		metricsCounts: newMetricsCountBuckets(defaultDebugStatsShardCount),
+		clock:         clock.New(),
+		identityBuilders: sync.Pool{
+			New: func() interface{} { return identity.NewBuilder() },
 		},
-		keyGen: ckey.NewKeyGenerator(),
-		clock:  clock.New(),
 	}
 	sd.dogstatsdDebugLogger = sd.getDogstatsdDebug(cfg)
 
 	return sd
-}
-
-// metricsCountBuckets is counting the amount of metrics received for the last 5 seconds.
-// It is used to detect spikes.
-type metricsCountBuckets struct {
-	counts     [5]uint64
-	bucketIdx  int
-	currentSec time.Time
-	metricChan chan struct{}
-	closeChan  chan struct{}
 }
 
 // FormatDebugStats returns a printable version of debug stats.
@@ -159,33 +146,16 @@ func (d *serverDebugImpl) StoreMetricStats(sample metrics.MetricSample) {
 		return
 	}
 
-	now := d.clock.Now()
-	d.Lock()
-	defer d.Unlock()
+	builder := d.identityBuilders.Get().(*identity.Builder)
+	debugViewKey := builder.DebugView(sample)
+	d.identityBuilders.Put(builder)
 
 	if !d.enabled.Load() {
 		// the debug server might have been disabled since the previous check
 		return
 	}
 
-	if d.tagsAccumulator == nil {
-		d.tagsAccumulator = tagset.NewHashingTagsAccumulator()
-	}
-
-	// key
-	defer d.tagsAccumulator.Reset()
-	d.tagsAccumulator.Append(sample.Tags...)
-	key := d.keyGen.Generate(sample.Name, "", d.tagsAccumulator)
-	debugViewKey := identity.DebugViewKey{
-		Client: identity.ClientSeriesIdentity{
-			Name: sample.Name,
-			Tags: sample.Tags,
-		},
-		Key:         key,
-		DisplayTags: strings.Join(d.tagsAccumulator.Get(), " "), // we don't want/need to share the underlying array
-	}
-
-	d.storeMetricStatsWithDebugViewKeyLocked(now, debugViewKey)
+	d.storeMetricStatsWithDebugViewKey(d.clock.Now(), debugViewKey)
 }
 
 // StoreMetricStatsWithDebugViewKey stores stats using the serverDebug view key
@@ -196,38 +166,28 @@ func (d *serverDebugImpl) StoreMetricStatsWithDebugViewKey(_ metrics.MetricSampl
 	}
 
 	now := d.clock.Now()
-	d.Lock()
-	defer d.Unlock()
-
 	if !d.enabled.Load() {
 		// the debug server might have been disabled since the previous check
 		return
 	}
 
-	d.storeMetricStatsWithDebugViewKeyLocked(now, debugViewKey)
+	d.storeMetricStatsWithDebugViewKey(now, debugViewKey)
 }
 
-func (d *serverDebugImpl) storeMetricStatsWithDebugViewKeyLocked(now time.Time, debugViewKey identity.DebugViewKey) {
-	// store
-	ms := d.Stats[debugViewKey.Key]
-	ms.Count++
-	ms.LastSeen = now
-	ms.Name = debugViewKey.Client.Name
-	ms.Tags = debugViewKey.DisplayTags
-	d.Stats[debugViewKey.Key] = ms
+func (d *serverDebugImpl) storeMetricStatsWithDebugViewKey(now time.Time, debugViewKey identity.DebugViewKey) {
+	stat := d.view.store(now, debugViewKey)
+	d.metricsCounts.record(debugViewKey.Key, now)
 
 	if d.dogstatsdDebugLogger != nil {
 		logMessage := "Metric Name: %v | Tags: {%v} | Count: %v | Last Seen: %v "
-		d.dogstatsdDebugLogger.Infof(logMessage, ms.Name, ms.Tags, ms.Count, ms.LastSeen)
+		d.dogstatsdDebugLogger.Infof(logMessage, stat.Name, stat.Tags, stat.Count, stat.LastSeen)
 	}
-
-	d.metricsCounts.metricChan <- struct{}{}
 }
 
 // SetMetricStatsEnabled enables or disables metric stats
 func (d *serverDebugImpl) SetMetricStatsEnabled(enable bool) {
-	d.Lock()
-	defer d.Unlock()
+	d.stateLock.Lock()
+	defer d.stateLock.Unlock()
 
 	if enable {
 		d.enableMetricsStats()
@@ -245,58 +205,43 @@ func (d *serverDebugImpl) enableMetricsStats() {
 	}
 
 	d.enabled.Store(true)
-	go func() {
-		ticker := d.clock.Ticker(time.Millisecond * 100)
-		d.log.Debug("Starting the DogStatsD debug loop.")
-		defer func() {
-			d.log.Debug("Stopping the DogStatsD debug loop.")
-			ticker.Stop()
-		}()
-		for {
-			select {
-			case <-ticker.C:
-				sec := d.clock.Now().Truncate(time.Second)
-				if sec.After(d.metricsCounts.currentSec) {
-					d.metricsCounts.currentSec = sec
-					if d.hasSpike() {
-						d.log.Warnf("A burst of metrics has been detected by DogStatSd: here is the last 5 seconds count of metrics: %v", d.metricsCounts.counts)
-					}
+	stop := make(chan struct{})
+	d.debugLoopStop = stop
+	go d.runDebugLoop(stop)
+}
 
-					d.metricsCounts.bucketIdx++
-
-					if d.metricsCounts.bucketIdx >= len(d.metricsCounts.counts) {
-						d.metricsCounts.bucketIdx = 0
-					}
-
-					d.metricsCounts.counts[d.metricsCounts.bucketIdx] = 0
-				}
-			case <-d.metricsCounts.metricChan:
-				d.metricsCounts.counts[d.metricsCounts.bucketIdx]++
-			case <-d.metricsCounts.closeChan:
-				return
-			}
-		}
+func (d *serverDebugImpl) runDebugLoop(stop <-chan struct{}) {
+	ticker := d.clock.Ticker(time.Millisecond * 100)
+	d.log.Debug("Starting the DogStatsD debug loop.")
+	defer func() {
+		d.log.Debug("Stopping the DogStatsD debug loop.")
+		ticker.Stop()
 	}()
+
+	var lastSpikeCheck time.Time
+	for {
+		select {
+		case <-ticker.C:
+			sec := d.clock.Now().Truncate(time.Second).Add(-time.Second)
+			if sec.After(lastSpikeCheck) {
+				lastSpikeCheck = sec
+				if d.metricsCounts.hasSpikeAt(sec) {
+					d.log.Warnf("A burst of metrics has been detected by DogStatSd: here is the last 5 seconds count of metrics: %v", d.metricsCounts.countsEndingAt(sec))
+				}
+			}
+		case <-stop:
+			return
+		}
+	}
 }
 
 func (d *serverDebugImpl) hasSpike() bool {
-	// compare this one to the sum of all others
-	// if the difference is higher than all others sum, consider this
-	// as an anomaly.
-	var sum uint64
-	for _, v := range d.metricsCounts.counts {
-		sum += v
-	}
-	sum -= d.metricsCounts.counts[d.metricsCounts.bucketIdx]
-
-	return d.metricsCounts.counts[d.metricsCounts.bucketIdx] > sum
+	return d.metricsCounts.hasSpikeAt(d.clock.Now())
 }
 
 // GetJSONDebugStats returns jsonified debug statistics.
 func (d *serverDebugImpl) GetJSONDebugStats() ([]byte, error) {
-	d.Lock()
-	defer d.Unlock()
-	return json.Marshal(d.Stats)
+	return json.Marshal(d.view.snapshot(d.clock.Now()))
 }
 
 func (d *serverDebugImpl) IsDebugEnabled() bool {
@@ -305,11 +250,13 @@ func (d *serverDebugImpl) IsDebugEnabled() bool {
 
 // disableMetricsStats disables the debug mode of the DogStatsD server and
 // stops the debug mainloop.
-
 func (d *serverDebugImpl) disableMetricsStats() {
 	if d.enabled.Load() {
 		d.enabled.Store(false)
-		d.metricsCounts.closeChan <- struct{}{}
+		if d.debugLoopStop != nil {
+			close(d.debugLoopStop)
+			d.debugLoopStop = nil
+		}
 	}
 
 	d.log.Info("Disabling DogStatsD debug metrics stats.")

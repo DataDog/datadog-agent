@@ -457,6 +457,26 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 - `agent dogstatsd-stats` output remains compatible or documented as intentionally changed.
 - Snapshot reads do not block hot-path sample ingestion on a global lock.
 
+**Initial proof artifacts**
+
+- `serverDebug` now stores stats in `debugStatsView`, a 32-shard materialized view instead of one globally locked map.
+- The view enforces bounded retention with a default 65,536-context budget and a 10-minute TTL. Under budget pressure, the oldest row in the target shard is evicted; stale rows are pruned on insert/snapshot.
+- Spike detection uses sharded time buckets instead of a per-sample unbuffered channel.
+- `GetJSONDebugStats()` marshals a merged snapshot and only locks one shard at a time.
+- Compatibility is preserved for normal `dogstatsd-stats` output shape and grouping. The intentional bounded-view behavior change is that very old or over-budget rows may be absent instead of retained forever.
+- Contract tests:
+  - `TestMilestone3DebugStatsViewEvictsOldestWhenBudgetExceeded`;
+  - `TestMilestone3DebugStatsViewExpiresStaleContexts`;
+  - `TestMilestone3DebugStatsViewResetsExpiredContextCount`;
+  - `TestMilestone3DebugStatsViewUsesShardLocalLocks`;
+  - `TestMilestone3SpikeCountersUseTimeBucketsWithoutMetricChannel`.
+- Benchmark:
+  - `BenchmarkMilestone3StoreMetricStatsWithDebugViewKey`.
+- Suggested verification commands:
+  - `dda inv test --targets=./comp/dogstatsd/serverDebug/impl`;
+  - `dda inv test --targets=./comp/dogstatsd/serverDebug/impl --test-run-name='Milestone3' --extra-args='-race'`;
+  - `dda inv test --targets=./comp/dogstatsd/serverDebug/impl --test-run-name='^$' --extra-args='-bench=BenchmarkMilestone3 -benchmem -count=1'`.
+
 **Stop-safe state**
 
 - If work stops here, users get a safer DogStatsD stats feature and operators can enable it with more confidence.
