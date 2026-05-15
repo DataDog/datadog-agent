@@ -225,7 +225,19 @@ modules:
     used_by_otel: true
   pkg/logs/message:
     used_by_otel: true
-  pkg/logs/sender/grpc:
+  pkg/logs/patterns/clustering:
+    used_by_otel: true
+  pkg/logs/patterns/clustering/merging:
+    used_by_otel: true
+  pkg/logs/patterns/eviction:
+    used_by_otel: true
+  pkg/logs/patterns/processor:
+    used_by_otel: true
+  pkg/logs/patterns/tags:
+    used_by_otel: true
+  pkg/logs/patterns/token:
+    used_by_otel: true
+  pkg/logs/patterns/tokenizer/rust:
     used_by_otel: true
   pkg/logs/sender/grpc:
     used_by_otel: true

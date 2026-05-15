@@ -20,6 +20,7 @@ go_test(
         "score_test.go",
     ],
     embed = [":eviction"],
+    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
