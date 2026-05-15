@@ -10,6 +10,7 @@ package container
 
 import (
 	"context"
+	"sync"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -64,7 +65,8 @@ type Launcher struct {
 
 	wmeta option.Option[workloadmeta.Component]
 
-	tagger tagger.Component
+	tagger   tagger.Component
+	stopOnce sync.Once
 }
 
 // NewLauncher returns a new launcher
@@ -93,14 +95,16 @@ func (l *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 
 // Stop stops the Launcher. This call returns when the launcher has stopped.
 func (l *Launcher) Stop() {
-	if l.cancel != nil {
-		close(l.addedSourcesDone)
-		close(l.removedSourcesDone)
-		l.cancel()
-		l.cancel = nil
-		<-l.stopped
-		l.stopped = nil
-	}
+	l.stopOnce.Do(func() {
+		if l.cancel != nil {
+			close(l.addedSourcesDone)
+			close(l.removedSourcesDone)
+			l.cancel()
+			l.cancel = nil
+			<-l.stopped
+			l.stopped = nil
+		}
+	})
 }
 
 // run is the main loop for this launcher.  It monitors for sources added or

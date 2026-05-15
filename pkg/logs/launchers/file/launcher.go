@@ -10,6 +10,7 @@ import (
 	"context"
 	"regexp"
 	"slices"
+	"sync"
 	"time"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -66,6 +67,7 @@ type Launcher struct {
 	oldInfoMap    map[string]*oldTailerInfo
 	fileOpener    opener.FileOpener
 	fingerprinter tailer.Fingerprinter
+	stopOnce      sync.Once
 }
 
 const (
@@ -137,12 +139,14 @@ func (s *Launcher) Start(sourceProvider launchers.SourceProvider, pipelineProvid
 // Stop stops the Scanner and its tailers in parallel,
 // this call returns only when all the tailers are stopped
 func (s *Launcher) Stop() {
-	// stop the launcher source subscriptions from blocking
-	close(s.addedSourcesDone)
-	close(s.removedSourcesDone)
+	s.stopOnce.Do(func() {
+		// stop the launcher source subscriptions from blocking
+		close(s.addedSourcesDone)
+		close(s.removedSourcesDone)
 
-	s.stop <- struct{}{}
-	<-s.done
+		s.stop <- struct{}{}
+		<-s.done
+	})
 }
 
 // run checks periodically if there are new files to tail and the state of its tailers until stop

@@ -9,6 +9,8 @@
 package windowsevent
 
 import (
+	"sync"
+
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	winevtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
 
@@ -39,6 +41,7 @@ type Launcher struct {
 	tailers                map[string]tailer
 	stop                   chan struct{}
 	publisherMetadataCache publishermetadatacachedef.Component
+	stopOnce               sync.Once
 }
 
 // NewLauncher returns a new Launcher.
@@ -90,15 +93,17 @@ func (l *Launcher) run() {
 
 // Stop stops all active tailers
 func (l *Launcher) Stop() {
-	close(l.sourcesDone)
-	l.stop <- struct{}{}
-	stopper := startstop.NewParallelStopper()
-	for _, tailer := range l.tailers {
-		stopper.Add(tailer)
-		delete(l.tailers, tailer.Identifier())
-	}
-	stopper.Stop()
-	l.publisherMetadataCache.Flush()
+	l.stopOnce.Do(func() {
+		close(l.sourcesDone)
+		l.stop <- struct{}{}
+		stopper := startstop.NewParallelStopper()
+		for _, tailer := range l.tailers {
+			stopper.Add(tailer)
+			delete(l.tailers, tailer.Identifier())
+		}
+		stopper.Stop()
+		l.publisherMetadataCache.Flush()
+	})
 }
 
 // sanitizedConfig sets default values for the config

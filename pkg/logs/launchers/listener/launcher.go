@@ -6,6 +6,8 @@
 package listener
 
 import (
+	"sync"
+
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
@@ -26,6 +28,7 @@ type Launcher struct {
 	udpSourcesDone   chan struct{}
 	listeners        []startstop.StartStoppable
 	stop             chan struct{}
+	stopOnce         sync.Once
 }
 
 // NewLauncher returns an initialized Launcher
@@ -76,12 +79,14 @@ func (l *Launcher) run() {
 
 // Stop stops all listeners
 func (l *Launcher) Stop() {
-	close(l.tcpSourcesDone)
-	close(l.udpSourcesDone)
-	l.stop <- struct{}{}
-	stopper := startstop.NewParallelStopper()
-	for _, l := range l.listeners {
-		stopper.Add(l)
-	}
-	stopper.Stop()
+	l.stopOnce.Do(func() {
+		close(l.tcpSourcesDone)
+		close(l.udpSourcesDone)
+		l.stop <- struct{}{}
+		stopper := startstop.NewParallelStopper()
+		for _, l := range l.listeners {
+			stopper.Add(l)
+		}
+		stopper.Stop()
+	})
 }

@@ -7,6 +7,8 @@
 package channel
 
 import (
+	"sync"
+
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
@@ -26,6 +28,7 @@ type Launcher struct {
 	sourcesDone      chan struct{}
 	tailers          []*tailer.Tailer
 	stop             chan struct{}
+	stopOnce         sync.Once
 }
 
 // NewLauncher returns an initialized Launcher
@@ -64,9 +67,11 @@ func (l *Launcher) run() {
 
 // Stop waits for any running tailer to be flushed.
 func (l *Launcher) Stop() {
-	for _, tailer := range l.tailers {
-		tailer.WaitFlush()
-	}
-	close(l.sourcesDone)
-	l.stop <- struct{}{}
+	l.stopOnce.Do(func() {
+		for _, tailer := range l.tailers {
+			tailer.WaitFlush()
+		}
+		close(l.sourcesDone)
+		l.stop <- struct{}{}
+	})
 }

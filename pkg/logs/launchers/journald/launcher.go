@@ -10,6 +10,7 @@ package journald
 
 import (
 	"os"
+	"sync"
 
 	"github.com/coreos/go-systemd/v22/sdjournal"
 
@@ -50,6 +51,7 @@ type Launcher struct {
 	journalFactory   tailer.JournalFactory
 	fc               *flareController.FlareController
 	tagger           tagger.Component
+	stopOnce         sync.Once
 }
 
 // NewLauncher returns a new Launcher.
@@ -118,14 +120,16 @@ func (l *Launcher) run() {
 
 // Stop stops all active tailers
 func (l *Launcher) Stop() {
-	close(l.sourcesDone)
-	l.stop <- struct{}{}
-	stopper := startstop.NewParallelStopper()
-	for identifier, tailer := range l.tailers {
-		stopper.Add(tailer)
-		delete(l.tailers, identifier)
-	}
-	stopper.Stop()
+	l.stopOnce.Do(func() {
+		close(l.sourcesDone)
+		l.stop <- struct{}{}
+		stopper := startstop.NewParallelStopper()
+		for identifier, tailer := range l.tailers {
+			stopper.Add(tailer)
+			delete(l.tailers, identifier)
+		}
+		stopper.Stop()
+	})
 }
 
 // setupTailer configures and starts a new tailer,
