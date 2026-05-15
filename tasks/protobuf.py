@@ -125,6 +125,9 @@ def generate(ctx, pre_commit=False):
     # file itself; pass it on the command line instead.
     msgp_file_directives = {
         ('trace', 'stats.pb.go'): '-d "limit arrays:500000 maps:500000"',
+        ('trace', 'span.pb.go'): '-d "limit arrays:500000 maps:500000"',
+        ('trace', 'tracer_payload.pb.go'): '-d "limit arrays:500000 maps:500000"',
+        ('trace', 'agent_payload.pb.go'): '-d "limit arrays:500000 maps:500000"',
     }
     for pkg, files in msgp_targets.items():
         for src, io_gen in files:

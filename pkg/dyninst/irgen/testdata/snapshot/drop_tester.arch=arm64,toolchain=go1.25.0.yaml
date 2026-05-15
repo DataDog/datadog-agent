@@ -189,6 +189,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: tag
           Type: 11 GoStringHeaderType string
           Locations:
@@ -200,6 +201,7 @@ Subprograms:
                   Op: {RegNo: 4, Shift: 0}
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 2
       Name: main.CaptureBytesReturn
@@ -243,6 +245,7 @@ Subprograms:
                   Op: null
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: tag
           Type: 11 GoStringHeaderType string
           Locations:
@@ -256,6 +259,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: null}, {Size: 8, Op: {CfaOffset: 40}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 40 GoSliceHeaderType []uint8
           Locations:
@@ -273,6 +277,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r1
           Type: 16 GoInterfaceType error
           Locations:
@@ -288,6 +293,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: result
           Type: 40 GoSliceHeaderType []uint8
           Locations:
@@ -309,6 +315,7 @@ Subprograms:
                   Op: {RegNo: 2, Shift: 0}
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: i
           Type: 9 BaseType int
           Locations:
@@ -316,6 +323,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 3
       Name: main.CaptureSleep
@@ -331,6 +339,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 8}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 4
       Name: main.CaptureChain
@@ -344,6 +353,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: "n"
           Type: 9 BaseType int
           Locations:
@@ -351,6 +361,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: cur
           Type: 109 PointerType *main.Node
           Locations:
@@ -358,6 +369,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 5
       Name: main.CaptureStringChain
@@ -371,6 +383,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: "n"
           Type: 9 BaseType int
           Locations:
@@ -378,6 +391,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: totalLen
           Type: 9 BaseType int
           Locations:
@@ -385,6 +399,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: cur
           Type: 111 PointerType *main.StringNode
           Locations:
@@ -392,6 +407,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
     - ID: 6
       Name: main.CaptureChainReturn
@@ -409,6 +425,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: returnLen
           Type: 9 BaseType int
           Locations:
@@ -420,6 +437,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {CfaOffset: 16}}]
           Role: Parameter
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r0
           Type: 109 PointerType *main.Node
           Locations:
@@ -431,6 +449,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: ~r1
           Type: 16 GoInterfaceType error
           Locations:
@@ -446,6 +465,7 @@ Subprograms:
               Pieces: []
           Role: Return
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: result
           Type: 109 PointerType *main.Node
           Locations:
@@ -453,6 +473,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: "n"
           Type: 9 BaseType int
           Locations:
@@ -462,6 +483,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 2, Shift: 0}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
         - Name: cur
           Type: 109 PointerType *main.Node
           Locations:
@@ -473,6 +495,7 @@ Subprograms:
               Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
           Role: Local
           DictIndex: -1
+          LoopBaseOffset: 0
       DictRegister: null
 Types:
     - __kind: PointerType
