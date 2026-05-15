@@ -41,7 +41,7 @@ func Check(cfg config.Component) (*healthplatform.IssueReport, error) {
 	// Also check dd_url if explicitly configured
 	ddURL := cfg.GetString("dd_url")
 	if ddURL != "" {
-		urlEndpoint := fmt.Sprintf("%s:443", ddURL)
+		urlEndpoint := ddURL + ":443"
 		if err := dialEndpoint(urlEndpoint); err != nil {
 			return &healthplatform.IssueReport{
 				IssueId: IssueID,
