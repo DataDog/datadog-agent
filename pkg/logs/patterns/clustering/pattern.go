@@ -121,9 +121,7 @@ func (p *Pattern) GetPatternString() string {
 		if tok.Wildcard == token.IsWildcard {
 			continue
 		}
-		if sanitizeForTemplateInto(&builder, tok.Value) == 0 {
-			continue
-		}
+		sanitizeForTemplateInto(&builder, tok.Value)
 	}
 
 	return builder.String()
@@ -158,11 +156,11 @@ func (p *Pattern) GetWildcardCharPositions() []int {
 			charPositions = append(charPositions, currentPos)
 			// Wildcard tokens are NOT in the template, so don't advance currentPos
 		} else {
-			cleanedLen := sanitizeForTemplateLen(tok.Value)
-			if cleanedLen > 0 {
-				// Add the length of the cleaned token value
-				currentPos += cleanedLen
-			}
+			// Use rune count (not byte count) so positions match Java String indices.
+			// Java String.length() returns UTF-16 code units; for BMP characters
+			// (U+0000–U+FFFF, which covers all common log content including →, ≥, etc.)
+			// this equals Unicode codepoint count.
+			currentPos += sanitizeForTemplateRuneLen(tok.Value)
 		}
 	}
 
@@ -199,18 +197,38 @@ func sanitizeForTemplate(s string) string {
 	return builder.String()
 }
 
-// sanitizeForTemplateLen returns the length of the sanitized string without allocating.
+// sanitizeForTemplateLen returns the byte length of the sanitized string without allocating.
+// Used for memory estimation (EstimatedBytes). For wire-protocol positions use sanitizeForTemplateRuneLen.
 func sanitizeForTemplateLen(s string) int {
 	return sanitizeForTemplateInto(nil, s)
 }
 
+// sanitizeForTemplateRuneLen returns the Unicode codepoint count of the sanitized string.
+// Used in GetWildcardCharPositions so positions match Java String.length() (UTF-16 code units).
+// For BMP characters (U+0000–U+FFFF, the vast majority of log content) codepoint count
+// equals UTF-16 code unit count. Supplementary-plane characters (emoji etc.) are uncommon
+// in log templates and would still be off by the surrogate count — an acceptable tradeoff.
+func sanitizeForTemplateRuneLen(s string) int {
+	count := 0
+	for _, r := range s {
+		if (r >= ' ' && r != 0x7F) || r == '\t' || r == '\n' || r == '\r' {
+			if r != utf8.RuneError && r < 0xFFFD {
+				count++
+			}
+		}
+	}
+	return count
+}
+
 // sanitizeForTemplateInto appends the sanitized string into builder when non-nil.
 // Uses an ASCII fast path: bytes < 0x80 are checked directly without rune decoding.
+// Preserved: printable ASCII (0x20–0x7E), horizontal tab (0x09), newline (0x0A), carriage return (0x0D).
+// Stripped:  other control characters (0x00–0x08, 0x0B–0x0C, 0x0E–0x1F), DEL (0x7F).
 func sanitizeForTemplateInto(builder *strings.Builder, s string) int {
 	for i := 0; i < len(s); i++ {
 		b := s[i]
 		if b < utf8.RuneSelf {
-			if b >= ' ' && b != 0x7F {
+			if (b >= ' ' && b != 0x7F) || b == '\t' || b == '\n' || b == '\r' {
 				continue
 			}
 			// ASCII control character found — flush clean prefix then filter the rest
@@ -222,7 +240,7 @@ func sanitizeForTemplateInto(builder *strings.Builder, s string) int {
 			for i < len(s) {
 				b = s[i]
 				if b < utf8.RuneSelf {
-					if b >= ' ' && b != 0x7F {
+					if (b >= ' ' && b != 0x7F) || b == '\t' || b == '\n' || b == '\r' {
 						if builder != nil {
 							builder.WriteByte(b)
 						}
@@ -253,7 +271,7 @@ func sanitizeForTemplateInto(builder *strings.Builder, s string) int {
 			for i < len(s) {
 				b = s[i]
 				if b < utf8.RuneSelf {
-					if b >= ' ' && b != 0x7F {
+					if (b >= ' ' && b != 0x7F) || b == '\t' || b == '\n' || b == '\r' {
 						if builder != nil {
 							builder.WriteByte(b)
 						}
