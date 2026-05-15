@@ -66,7 +66,6 @@ from tasks.libs.releasing.json import (
 from tasks.libs.releasing.notes import _add_dca_prelude, _add_prelude
 from tasks.libs.releasing.version import (
     FINAL_VERSION_RE,
-    MINOR_RC_VERSION_RE,
     RC_VERSION_RE,
     RELEASE_JSON_DEPENDENCIES,
     VERSION_RE,

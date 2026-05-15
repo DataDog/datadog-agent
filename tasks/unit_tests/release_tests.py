@@ -324,7 +324,6 @@ class TestReleaseJsonInfo(unittest.TestCase):
         self.assertEqual(ddprocmon_shasum, 'nightly-ddprocmon-sha')
 
 
-
 class TestFindPreviousTags(unittest.TestCase):
     keys = ["HARRY_POTTER_VERSION", "HERMIONE_GRANGER_VERSION", "WEASLEY_VERSION"]
 
