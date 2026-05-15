@@ -419,6 +419,11 @@ func (r *HTTPReceiver) Start() {
 		ln, err := listenPipe(pipepath, secdec, bufferSize, r.conf.MaxConnections, r.statsd)
 		if err != nil {
 			log.Errorf("[aas-repro] bind_collision pipe=%q pid=%d err=%v", pipepath, os.Getpid(), err)
+			reason := "other"
+			if strings.Contains(strings.ToLower(err.Error()), "access is denied") {
+				reason = "access_denied"
+			}
+			log.Errorf("[aas-repro] pipe_bind_failed pipe=%q pid=%d reason=%s err=%v", pipepath, os.Getpid(), reason, err)
 			r.telemetryCollector.SendStartupError(telemetry.CantStartWindowsPipeServer, err)
 			killProcess("Error creating %q named pipe: %v", pipepath, err)
 		}
@@ -457,18 +462,25 @@ func (r *HTTPReceiver) Stop() error {
 	if !r.conf.ReceiverEnabled || (r.conf.ReceiverPort == 0 && r.conf.ReceiverSocket == "" && r.conf.WindowsPipeName == "") {
 		return nil
 	}
+	shutdownStart := time.Now()
+	log.Infof("[aas-repro] shutdown_pipe_listener_closing pid=%d", os.Getpid())
 	r.exit <- struct{}{}
 	<-r.exit
+	log.Infof("[aas-repro] shutdown_pipe_listener_closed pid=%d elapsed_ms=%d", os.Getpid(), time.Since(shutdownStart).Milliseconds())
 
 	expiry := time.Now().Add(5 * time.Second) // give it 5 seconds
 	ctx, cancel := context.WithDeadline(context.Background(), expiry)
 	defer cancel()
 	if err := r.server.Shutdown(ctx); err != nil {
 		log.Warnf("Error shutting down HTTPReceiver: %v", err)
+		log.Infof("[aas-repro] shutdown_http_server_error pid=%d elapsed_ms=%d err=%v", os.Getpid(), time.Since(shutdownStart).Milliseconds(), err)
 		return err
 	}
+	log.Infof("[aas-repro] shutdown_http_server_closed pid=%d elapsed_ms=%d", os.Getpid(), time.Since(shutdownStart).Milliseconds())
 	r.wg.Wait()
+	log.Infof("[aas-repro] shutdown_buffer_flush_complete pid=%d elapsed_ms=%d", os.Getpid(), time.Since(shutdownStart).Milliseconds())
 	r.telemetryForwarder.Stop()
+	log.Infof("[aas-repro] shutdown_telemetry_forwarder_stopped pid=%d elapsed_total_ms=%d", os.Getpid(), time.Since(shutdownStart).Milliseconds())
 	return nil
 }
 
