@@ -14,7 +14,7 @@ import (
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 )
 

@@ -24,8 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -41,7 +41,7 @@ import (
 type collectorTest struct {
 	collector             *collector
 	probe                 *mocks.Probe
-	mockSystemProbeConfig sysprobeconfig.Mock
+	mockSystemProbeConfig sysprobeconfig.Component
 	mockClock             *clock.Mock
 	mockStore             workloadmetamock.Mock
 	mockContainerProvider *proccontainers.MockContainerProvider
@@ -915,10 +915,10 @@ func setUpCollectorTest(t *testing.T, cfg config.Component, sysProbeConfigOverri
 	mockProbe := mocks.NewProbe(t)
 
 	// mock language detection system probe config
-	mockSystemProbeConfig := fxutil.Test[sysprobeconfig.Component](t, fx.Options(
-		sysprobeconfigimpl.MockModule(),
-		fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysProbeConfigOverrides}),
-	))
+	mockSystemProbeConfig := sysprobeconfigmock.NewMock(t)
+	for k, v := range sysProbeConfigOverrides {
+		mockSystemProbeConfig.SetWithoutSource(k, v)
+	}
 	processCollector := newProcessCollector(collectorID, workloadmeta.NodeAgent, mockClock, mockProbe, cfg, mockSystemProbeConfig)
 	processCollector.containerProvider = mockContainerProvider
 

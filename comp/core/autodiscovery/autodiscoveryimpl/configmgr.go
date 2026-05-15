@@ -251,13 +251,15 @@ func (cm *reconcilingConfigManager) processNewConfig(config integration.Config) 
 
 		// Publish to the cross-listener index so that subsequently
 		// reconciled services (e.g. ProcessService) can deduplicate
-		// templates against this static config.
+		// templates against this static config (must have instances).
 		//
 		// TODO: re-reconcile already-resolved services whose templates of
 		// this name would now be deduplicated. Without this, a static
 		// config that arrives after a dynamic process discovery leaves the
 		// duplicate scheduled until something else perturbs the service.
-		cm.staticConfigIndex.Add(config.Name)
+		if len(decryptedConfig.Instances) > 0 {
+			cm.staticConfigIndex.Add(config.Name)
+		}
 	}
 
 	//  4. update scheduledConfigs
@@ -310,10 +312,10 @@ func (cm *reconcilingConfigManager) processDelConfigs(configs []integration.Conf
 
 			changes.UnscheduleConfig(config)
 
-			// Update the cross-listener index. See processNewConfig for the
-			// TODO on runtime re-reconciliation of services whose templates
-			// of this name may now be (re)schedulable.
-			cm.staticConfigIndex.Remove(config.Name)
+			// Update the cross-listener index.
+			if len(config.Instances) > 0 {
+				cm.staticConfigIndex.Remove(config.Name)
+			}
 		}
 
 		//  4. update scheduledConfigs

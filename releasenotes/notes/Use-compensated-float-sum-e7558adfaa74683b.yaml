@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Use compensated floating point summation to accurately calculate the sum
+    and average aggregates of histograms for inputs where magnitudes
+    significantly vary.
+  - |
+    Scale ``.sum``, ``.avg``, and ``.count`` aggregates by the exact
+    ``1/SampleRate`` to avoid undercount of these aggregates for sample rates
+    whose reciprocal is not an integer (e.g. ``@0.21``).

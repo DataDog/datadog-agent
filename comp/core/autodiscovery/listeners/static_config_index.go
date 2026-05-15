@@ -8,11 +8,13 @@ package listeners
 import "sync"
 
 // StaticConfigIndex is a refcounted set of integration names that currently
-// have at least one scheduled non-template (static) config. It is shared
-// between the autodiscovery config manager (writer) and listeners that need
-// to deduplicate against static configs (reader). Reads are safe to perform
-// while the writer holds its own mutex; the index has its own RWMutex and
-// must not be locked by any caller.
+// have at least one scheduled non-template (static) *check* config — a config
+// with Instances. Logs-only static configs are intentionally excluded since
+// they do not configure a check and must not suppress dynamic check templates
+// of the same integration. It is shared between the autodiscovery config
+// manager (writer) and listeners that need to deduplicate against static
+// configs (reader). Reads are safe to perform while the writer holds its own
+// mutex; the index has its own RWMutex and must not be locked by any caller.
 //
 // A nil pointer is safe to use: Has always returns false, and Add/Remove are
 // no-ops.

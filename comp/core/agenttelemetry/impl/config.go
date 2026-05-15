@@ -268,6 +268,9 @@ var defaultProfiles = `
             - domain
             - remote_agent
         - name: transactions.input_count
+        - name: transactions.input_bytes
+          aggregate_tags:
+            - endpoint
         - name: transactions.requeued
         - name: transactions.retries
         - name: transactions.http_errors

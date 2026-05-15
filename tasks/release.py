@@ -12,7 +12,7 @@ import sys
 import tempfile
 import time
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import datetime
 from time import sleep
 
 from gitlab import GitlabError
@@ -50,7 +50,6 @@ from tasks.libs.pipeline.notifications import (
     warn_new_tags,
 )
 from tasks.libs.releasing.documentation import (
-    create_release_page,
     list_not_closed_qa_cards,
 )
 from tasks.libs.releasing.json import (
@@ -67,12 +66,10 @@ from tasks.libs.releasing.json import (
 from tasks.libs.releasing.notes import _add_dca_prelude, _add_prelude
 from tasks.libs.releasing.version import (
     FINAL_VERSION_RE,
-    MINOR_RC_VERSION_RE,
     RC_VERSION_RE,
     RELEASE_JSON_DEPENDENCIES,
     VERSION_RE,
     _create_version_from_match,
-    current_version,
     deduce_version,
     get_version_major,
     next_final_version,
@@ -834,91 +831,6 @@ def check_omnibus_branches(ctx, release_branch=None, worktree=True):
 
 
 @task
-def update_build_links(_, new_version, patch_version=False):
-    """Updates Agent release candidates build links on https://datadoghq.atlassian.net/wiki/spaces/agent/pages/2889876360/Build+links
-
-    Args:
-        new_version: Should be given as an Agent 7 RC version, ie. '7.50.0-rc.1' format. Does not support patch version unless patch_version is set to True.
-        patch_version: If set to True, then task can be used for patch releases (3 digits), ie. '7.50.1-rc.1' format. Otherwise patch release number will be considered as invalid.
-
-    Notes:
-        Attlasian credentials are required to be available as ATLASSIAN_USERNAME and ATLASSIAN_PASSWORD as environment variables.
-        ATLASSIAN_USERNAME is typically an email address.
-        ATLASSIAN_PASSWORD is a token. See: https://id.atlassian.com/manage-profile/security/api-tokens
-    """
-
-    from atlassian import Confluence
-    from atlassian.confluence import ApiError
-
-    BUILD_LINKS_PAGE_ID = 2889876360
-
-    match = RC_VERSION_RE.match(new_version) if patch_version else MINOR_RC_VERSION_RE.match(new_version)
-    if not match:
-        raise Exit(
-            color_message(
-                f"{new_version} is not a valid {'patch' if patch_version else 'minor'} Agent RC version number/tag.\nCorrect example: 7.50{'.1' if patch_version else '.0'}-rc.1",
-                "red",
-            ),
-            code=1,
-        )
-
-    username = os.getenv("ATLASSIAN_USERNAME")
-    password = os.getenv("ATLASSIAN_PASSWORD")
-
-    if username is None or password is None:
-        raise Exit(
-            color_message(
-                "No Atlassian credentials provided. Run dda inv --help update-build-links for more details.",
-                "red",
-            ),
-            code=1,
-        )
-
-    confluence = Confluence(url="https://datadoghq.atlassian.net/", username=username, password=password)
-
-    content = confluence.get_page_by_id(page_id=BUILD_LINKS_PAGE_ID, expand="body.storage")
-
-    title = content["title"]
-    current_version = title.split()[-1].strip()
-    body = content["body"]["storage"]["value"]
-
-    title = title.replace(current_version, new_version)
-
-    patterns = _create_build_links_patterns(current_version, new_version)
-
-    for key in patterns:
-        body = body.replace(key, patterns[key])
-
-    print(color_message(f"Updating QA Build links page with {new_version}", "bold"))
-
-    try:
-        confluence.update_page(BUILD_LINKS_PAGE_ID, title, body=body)
-    except ApiError as e:
-        raise Exit(
-            color_message(
-                f"Failed to update confluence page. Reason: {e.reason}",
-                "red",
-            ),
-            code=1,
-        ) from e
-    print(color_message("Build links page updated", "green"))
-
-
-def _create_build_links_patterns(current_version, new_version):
-    patterns = {}
-
-    current_minor_version = current_version[1:]
-    new_minor_version = new_version[1:]
-
-    patterns[current_minor_version] = new_minor_version
-    patterns[current_minor_version.replace("rc.", "rc-")] = new_minor_version.replace("rc.", "rc-")
-    patterns[current_minor_version.replace("-rc", "~rc")] = new_minor_version.replace("-rc", "~rc")
-    patterns[current_minor_version[1:].replace("-rc", "~rc")] = new_minor_version[1:].replace("-rc", "~rc")
-
-    return patterns
-
-
-@task
 def get_active_release_branch(ctx, release_branch):
     """Determine what is the current active release branch for the Agent within the release worktree.
 
@@ -990,21 +902,6 @@ def generate_release_metrics(ctx, milestone, cutoff_date, release_date):
     print("Code changes")
     print("------------")
     print(code_stats)
-
-
-@task
-def create_schedule(_, version, cutoff_date):
-    """Create confluence pages for the release schedule.
-
-    Args:
-        cutoff_date: Date when the code cut-off happened. Expected format YYYY-MM-DD, like '2022-02-01'
-    """
-
-    required_environment_variables = ["ATLASSIAN_USERNAME", "ATLASSIAN_PASSWORD"]
-    if not all(key in os.environ for key in required_environment_variables):
-        raise Exit(f"You must set {required_environment_variables} environment variables to use this task.", code=1)
-    release_page = create_release_page(version, date.fromisoformat(cutoff_date))
-    print(f"Release schedule pages {release_page['url']} {color_message('successfully created', 'green')}")
 
 
 @task
@@ -1135,56 +1032,6 @@ def create_github_release(ctx, release_branch, draft=True):
         )
 
         print(f"Link to the release note: {release.html_url}")
-
-
-@task
-def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
-    """
-    Create a PR to bump the current_milestone in the release.json file
-    """
-
-    gh = GithubAPI()
-
-    current = current_version(ctx, major_version)
-    next = current.next_version(bump_minor=True)
-    next.devel = False
-
-    print(f"Creating the {next} milestone...")
-    gh.create_milestone(str(next), exist_ok=True)
-
-    with agent_context(ctx, get_default_branch(major=major_version)):
-        milestone_branch = f"release_milestone-{int(time.time())}"
-        ctx.run(f"git switch -c {milestone_branch}")
-        set_current_milestone(str(next))
-        # Commit release.json
-        ctx.run("git add release.json")
-        ok = try_git_command(ctx, f"git commit -m 'Update release.json with current milestone to {next}'")
-
-        if not ok:
-            raise Exit(
-                color_message(
-                    f"Could not create commit. Please commit manually and push the commit to the {milestone_branch} branch.",
-                    Color.RED,
-                ),
-                code=1,
-            )
-
-        res = ctx.run(f"git push --set-upstream {upstream} {milestone_branch}", warn=True)
-        if res.exited is None or res.exited > 0:
-            raise Exit(
-                color_message(
-                    f"Could not push branch {milestone_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against main.",
-                    Color.RED,
-                ),
-                code=1,
-            )
-
-        create_release_pr(
-            f"[release] Update current milestone to {next}",
-            get_default_branch(),
-            milestone_branch,
-            next,
-        )
 
 
 @task

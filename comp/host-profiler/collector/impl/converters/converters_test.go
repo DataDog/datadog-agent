@@ -24,7 +24,7 @@ import (
 
 func loadTestData(t *testing.T, filename string) confMap {
 	t.Helper()
-	path := filepath.Join("td", filename)
+	path := filepath.Join("testdata", filename)
 	data, err := os.ReadFile(path)
 	require.NoError(t, err, "failed to read test data file: %s", filename)
 

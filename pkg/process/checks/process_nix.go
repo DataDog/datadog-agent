@@ -24,7 +24,7 @@ var (
 	hostCPUCount = system.HostCPUCount
 )
 
-func formatUser(fp *procutil.Process, uidProbe *LookupIdProbe) *model.ProcessUser {
+func formatUser(fp *procutil.Process, uidProbe *LookupIDProbe) *model.ProcessUser {
 	var username string
 	var uid, gid int32
 	if len(fp.Uids) > 0 {
@@ -33,10 +33,10 @@ func formatUser(fp *procutil.Process, uidProbe *LookupIdProbe) *model.ProcessUse
 			err error
 		)
 		if uidProbe == nil {
-			// If the probe is nil, skip it and just call `LookupId` directly
+			// If the probe is nil, skip it and just call `user.LookupId` directly
 			u, err = user.LookupId(strconv.Itoa(int(fp.Uids[0])))
 		} else {
-			u, err = uidProbe.LookupId(strconv.Itoa(int(fp.Uids[0])))
+			u, err = uidProbe.LookupID(strconv.Itoa(int(fp.Uids[0])))
 		}
 		if err == nil {
 			username = u.Username

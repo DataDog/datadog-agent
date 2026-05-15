@@ -312,6 +312,79 @@ typedef struct stack_machine {
     // in sm_loop's CHECK_SLOT case (reduces combined stack usage).
     swiss_map_slot_params_t slot_params;
   } swiss_map_state;
+
+  // Slice-loop iteration state for any/all over a slice or array. Only one
+  // such loop can be active at a time (irgen rejects nested any/all), so a
+  // single set of fields suffices.
+  //
+  // `capped` is set true when the collection's length exceeded the
+  // iteration cap and we truncated `remaining` to the cap; if the loop
+  // exhausts the capped count without short-circuiting, the end op trips
+  // eval_error to signal "result inconclusive due to cap".
+  struct {
+    target_ptr_t data_ptr;
+    // Raw 64-bit length read from the collection header. The executable
+    // iteration count below is capped before it is stored in remaining.
+    uint64_t initial_len;
+    uint32_t remaining;
+    buf_offset_t accumulator_off;
+    uint32_t elem_size;
+    uint8_t quantifier;
+    bool capped;
+  } slice_loop_state;
+
+  // Swiss-map any/all iteration state. Holds the streaming-walk position
+  // (dir_idx, group_idx, slot_idx) plus cached layout parameters and the
+  // synthetic @it scratch slot location.
+  struct {
+    target_ptr_t dir_ptr;
+    target_ptr_t prev_table_ptr;     // dedup consecutive aliased table pointers
+    target_ptr_t groups_data;
+    target_ptr_t length_mask;
+    uint64_t ctrl;                    // cached ctrl bytes for current group
+    target_ptr_t tmp_table_ptr;       // scratch for step_advance, avoids stack local
+    uint32_t dir_len;
+    uint32_t table_idx;
+    uint32_t group_idx;
+    uint8_t slot_idx;
+    uint8_t loaded_table;             // 1 if (groups_data, length_mask) populated
+    // phase encodes whether the next entry to the Begin/End SM_OP handler
+    // is a "first entry" (needs init / body-result check) or a back-edge
+    // retry from a previous step that returned "keep stepping" (r==2). The
+    // SM_OP handlers use `sm->pc -=` to retry themselves while the cursor
+    // walks empty slots, so phase distinguishes the two paths without
+    // requiring a separate Advance opcode.
+    //   0 = fresh entry (Begin: needs init; End: needs short-circuit check)
+    //   1 = back-edge retry (skip init / short-circuit, just step again)
+    uint8_t phase;
+    uint32_t iterations;             // successful body invocations so far
+    uint32_t scan_steps;             // cumulative single-step calls; eval_error guard
+    buf_offset_t accumulator_off;
+    uint32_t end_label_pc;           // jump target on exhaustion / nil-map / short-circuit
+    uint32_t body_label_pc;          // jump target on the next found slot (End handler)
+    uint32_t key_byte_size;
+    uint32_t val_byte_size;
+    uint8_t quantifier;
+
+    // Cached layout (re-read on each Begin from the op params).
+    uint8_t dir_ptr_offset;
+    uint8_t dir_len_offset;
+    uint8_t ctrl_offset;
+    uint8_t slots_offset;
+    uint8_t key_in_slot_offset;
+    uint16_t val_in_slot_offset;
+    uint16_t slot_size;
+    uint16_t group_byte_size;
+    uint8_t table_groups_field_offset;
+    uint8_t groups_data_field_offset;
+    uint8_t groups_len_mask_field_offset;
+  } swissmap_loop_state;
+
+  // Scratch offset where the active any/all loop placed its @it bytes.
+  // Set by the loop's Begin op and consumed by ExprAdvanceOffsetOp so a
+  // body sub-expression can re-anchor sm->offset on @it regardless of
+  // where the previous body op left it.
+  buf_offset_t cur_loop_it_start;
 } stack_machine_t;
 
 struct {

@@ -35,7 +35,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	systemprobeloggerfx "github.com/DataDog/datadog-agent/comp/core/log/fx-systemprobe"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	sysprobeconfigfx "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/fx"
+	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	telemetryfx "github.com/DataDog/datadog-agent/comp/core/telemetry/fx"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -143,7 +144,7 @@ system_probe_config:
 		config.Module(),
 		delegatedauthnoopfx.Module(),
 		secretsnoopfx.Module(),
-		sysprobeconfigimpl.Module(),
+		sysprobeconfigfx.Module(),
 		fx.Supply(log.ForDaemon("SP", "log_file", "")),
 		systemprobeloggerfx.Module(),
 		telemetryfx.Module(),

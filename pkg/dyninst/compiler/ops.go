@@ -420,4 +420,98 @@ type ConditionLeafCompleteOp struct {
 	baseOp
 }
 
+// ExprAdvanceOffsetOp shifts sm->offset by Offset bytes. Used by the
+// LocationOp lowering for `@it` (any/all loop iterator) to position
+// sm->offset at a specific field within the @it scratch slot before the
+// body's ExprPushOffsetOp/ExprCmpBaseOp sequence reads it.
+type ExprAdvanceOffsetOp struct {
+	baseOp
+	Offset uint32
+}
+
+// ExprLoadAddressOp writes an 8-byte address at sm->offset.
+//
+// When LocationKind == ExprAddressFromCfa, the bytecode params carry CFA-base
+// information for the variable; the BPF handler emits cfa + Offset.
+//
+// When LocationKind == ExprAddressInPlace, the bytecode is parameterless;
+// the BPF handler expects an 8-byte pointer already at sm->offset and adds
+// PointerBias to it in place.
+type ExprLoadAddressOp struct {
+	baseOp
+	LocationKind ExprAddressLocationKind
+	// CfaOffset is used when LocationKind == ExprAddressFromCfa. It is the
+	// final byte offset (already including any DWARF location offset).
+	CfaOffset uint32
+	// PointerBias is added to the produced pointer regardless of kind.
+	PointerBias uint32
+}
+
+// ExprAddressLocationKind selects how ExprLoadAddressOp computes the address.
+type ExprAddressLocationKind uint8
+
+const (
+	// ExprAddressInPlace adds PointerBias to a pointer already at sm->offset.
+	ExprAddressInPlace ExprAddressLocationKind = 1
+	// ExprAddressFromCfa computes cfa + CfaOffset + PointerBias.
+	ExprAddressFromCfa ExprAddressLocationKind = 2
+)
+
+// ArrayLoopBeginOp begins iteration over a Go array; see ir.ArrayLoopBeginOp.
+type ArrayLoopBeginOp struct {
+	baseOp
+	Quantifier     ir.Quantifier
+	ElemByteSize   uint32
+	CompileTimeLen uint32
+	EndLabel       ir.LabelID
+}
+
+// ArrayLoopEndOp closes an array loop body; see ir.ArrayLoopEndOp.
+type ArrayLoopEndOp struct {
+	baseOp
+	BodyLabel ir.LabelID
+}
+
+// SliceLoopBeginOp begins iteration over a Go slice; see ir.SliceLoopBeginOp.
+type SliceLoopBeginOp struct {
+	baseOp
+	Quantifier   ir.Quantifier
+	ElemByteSize uint32
+	EndLabel     ir.LabelID
+}
+
+// SliceLoopEndOp closes a slice loop body; see ir.SliceLoopEndOp.
+type SliceLoopEndOp struct {
+	baseOp
+	BodyLabel ir.LabelID
+}
+
+// SwissMapLoopBeginOp begins iteration over a Go swiss-table map; see
+// ir.SwissMapLoopBeginOp.
+type SwissMapLoopBeginOp struct {
+	baseOp
+	Quantifier  ir.Quantifier
+	KeyByteSize uint32
+	ValByteSize uint32
+	EndLabel    ir.LabelID
+
+	DirPtrOffset             uint8
+	DirLenOffset             uint8
+	CtrlOffset               uint8
+	SlotsOffset              uint8
+	KeyInSlotOffset          uint8
+	ValInSlotOffset          uint16
+	SlotSize                 uint16
+	GroupByteSize            uint16
+	TableGroupsFieldOffset   uint8
+	GroupsDataFieldOffset    uint8
+	GroupsLenMaskFieldOffset uint8
+}
+
+// SwissMapLoopEndOp closes a swiss-map loop body; see ir.SwissMapLoopEndOp.
+type SwissMapLoopEndOp struct {
+	baseOp
+	BodyLabel ir.LabelID
+}
+
 //revive:enable:exported

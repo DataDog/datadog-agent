@@ -49,8 +49,7 @@ def rtloader_go_test(**kwargs):
                    "@platforms//os:macos": unix_data,
                    "@platforms//os:windows": [
                        "//rtloader/test:dir_with_three",
-                       "@cpython//:python_win",
-                       "@cpython//:python_win_lib",
+                       "//rtloader/test:dir_with_python_home",
                    ],
                }),
         env = kwargs.pop("env", {}) |
@@ -60,15 +59,8 @@ def rtloader_go_test(**kwargs):
                   "@platforms//os:macos": unix_env,
                   "@platforms//os:windows": {
                       "THREE_PATH": "$(rlocationpath //rtloader/test:dir_with_three)",
-                      "PYTHON_LIB": "$(rlocationpath @cpython//:python_win_lib)",
+                      "PYTHON_HOME": "$(rlocationpath //rtloader/test:dir_with_python_home)",
                   },
               }),
-        # TODO(agent-build): Windows tests are temporarily disabled due to LoadLibraryA returning
-        # ERROR_ACCESS_DENIED (5) for libdatadog-agent-three.dll in CI environments.
-        # #incident-54552
-        target_compatible_with = kwargs.pop("target_compatible_with", []) + select({
-            "@platforms//os:windows": ["@platforms//:incompatible"],
-            "//conditions:default": [],
-        }),
         **kwargs
     )

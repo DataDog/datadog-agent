@@ -181,6 +181,19 @@ typedef enum sm_opcode {
   // seconds, written in place of the loc pointer. See
   // pkg/dyninst/compiler/ops.go: ProcessGoTimeOp.
   SM_OP_PROCESS_GO_TIME = 49,
+  // Collection-predicate (any/all) opcodes. See ir.ExprLoadAddressOp,
+  // ir.{Array,Slice,SwissMap}Loop{Begin,End}Op.
+  SM_OP_EXPR_LOAD_ADDRESS = 50,
+  SM_OP_ARRAY_LOOP_BEGIN = 51,
+  SM_OP_ARRAY_LOOP_END = 52,
+  SM_OP_SLICE_LOOP_BEGIN = 53,
+  SM_OP_SLICE_LOOP_END = 54,
+  SM_OP_SWISS_MAP_LOOP_BEGIN = 55,
+  SM_OP_SWISS_MAP_LOOP_END = 56,
+  // Shifts sm->offset by a compile-time immediate. Used by LocationOp
+  // lowering for @it to position sm->offset at a field within the loop's
+  // @it scratch slot before the body's PushOffset/CmpBase sequence.
+  SM_OP_EXPR_ADVANCE_OFFSET = 57,
 } sm_opcode_t;
 
 // cmp_op_t identifies which comparison SM_OP_EXPR_CMP_BASE /

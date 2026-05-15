@@ -8,24 +8,14 @@
 package sysprobeconfigimpl
 
 import (
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysprobeconfigdef "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newConfig),
-		fxutil.ProvideOptional[sysprobeconfig.Component](),
-	)
-}
 
 // cfg implements the Component.
 type cfg struct {
@@ -39,19 +29,36 @@ type cfg struct {
 	warnings *model.Warnings
 }
 
-type dependencies struct {
-	fx.In
+// Requires defines the dependencies of the sysprobeconfig component.
+type Requires struct {
+	compdef.In
 
 	Params Params
 	// Enforce loading order between core agent config and system-probe config
 	CoreConfig config.Component
 }
 
+// Provides defines the outputs of the sysprobeconfig component.
+type Provides struct {
+	compdef.Out
+
+	Comp sysprobeconfigdef.Component
+}
+
+// NewComponent creates a new sysprobeconfig component.
+func NewComponent(deps Requires) (Provides, error) {
+	c, err := newConfig(deps)
+	if err != nil {
+		return Provides{}, err
+	}
+	return Provides{Comp: c}, nil
+}
+
 func setupConfig(sysProbeConfFilePath string, fleetPoliciesDirPath string) (*sysconfigtypes.Config, error) {
 	return sysconfig.New(sysProbeConfFilePath, fleetPoliciesDirPath)
 }
 
-func newConfig(deps dependencies) (sysprobeconfig.Component, error) {
+func newConfig(deps Requires) (sysprobeconfigdef.Component, error) {
 	syscfg, err := setupConfig(deps.Params.sysProbeConfFilePath, deps.Params.fleetPoliciesDirPath)
 	if err != nil {
 		return nil, err

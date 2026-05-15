@@ -577,6 +577,39 @@ new-e2e-amp:
     TARGETS: ./tests/agent-metric-pipelines
     TEAM: agent-metric-pipelines
     ON_NIGHTLY_FIPS: "true"
+    EXTRA_PARAMS: --skip "ADP"
+
+# Exploratory variant of new-e2e-amp that runs the agent-metric-pipelines
+# suite with ADP enabled (see test/new-e2e/tests/agent-metric-pipelines/common/adp.go).
+# Manual-only — does not run automatically on PRs to avoid doubling CI cost.
+# Used to surface ADP/Core Agent DogStatsD compatibility gaps. See DADP-72.
+new-e2e-amp-adp:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    # Upstream qa_* and agent_deb-* jobs are gated by their own rules and may
+    # not exist in every pipeline. This job is .manual-only (always created),
+    # so we mark these as optional to keep the config valid. If you trigger
+    # this job in a pipeline where upstream artifacts weren't built, it will
+    # fail at runtime — verify the upstream jobs are green before clicking.
+    - job: agent_deb-x64-a7
+      optional: true
+    - job: qa_agent_linux
+      optional: true
+    - job: qa_agent_linux_jmx
+      optional: true
+    - job: qa_agent_fips_linux_jmx
+      optional: true
+    - job: qa_dca
+      optional: true
+  rules:
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-metric-pipelines
+    TEAM: agent-data-plane
+    EXTRA_PARAMS: --run "ADP"
+  allow_failure: true
+  retry: !reference [.retry_only_infra_failure, retry]
 
 new-e2e-alp:
   extends: .new_e2e_template

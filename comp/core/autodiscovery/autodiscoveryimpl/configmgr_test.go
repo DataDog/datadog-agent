@@ -594,7 +594,10 @@ func TestStaticConfigIndexDedupOnReconcile(t *testing.T) {
 		LogsConfig:    []byte("source: %%host%%"),
 		ADIdentifiers: []string{"proc-redis"},
 	}
-	staticRedis := integration.Config{Name: "redis"}
+	staticRedis := integration.Config{
+		Name:      "redis",
+		Instances: []integration.Data{integration.Data("port: 6379")},
+	}
 
 	// Startup ordering: static config arrives first, then the template,
 	// then the matching service.
@@ -624,7 +627,7 @@ func TestStaticConfigIndexRefcountThroughConfigMgr(t *testing.T) {
 
 	cm := newReconcilingConfigManager(&mockResolver, nil, idx)
 
-	staticRedis1 := integration.Config{Name: "redis"}
+	staticRedis1 := integration.Config{Name: "redis", Instances: []integration.Data{integration.Data("port: 6379")}}
 	staticRedis2 := integration.Config{Name: "redis", Instances: []integration.Data{integration.Data("port: 6380")}}
 
 	cm.processNewConfig(staticRedis1)
@@ -637,6 +640,30 @@ func TestStaticConfigIndexRefcountThroughConfigMgr(t *testing.T) {
 	assert.True(t, idx.Has("redis"))
 
 	cm.processDelConfigs([]integration.Config{staticRedis2})
+	assert.False(t, idx.Has("redis"))
+}
+
+// Logs-only static configs (no Instances) are not added to the
+// StaticConfigIndex. The index tracks integrations covered by a scheduled
+// non-template *check* config so that dynamic templates of the same name can
+// be deduplicated. A logs-only conf.d entry forwards logs but doesn't
+// configure a check, so it must not suppress dynamic check templates.
+func TestStaticConfigIndex_SkipsLogsOnlyConfigs(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	idx := listeners.NewStaticConfigIndex()
+
+	cm := newReconcilingConfigManager(&mockResolver, nil, idx)
+
+	logsOnly := integration.Config{
+		Name:       "redis",
+		LogsConfig: []byte(`{"source":"redis"}`),
+	}
+	cm.processNewConfig(logsOnly)
+	assert.False(t, idx.Has("redis"),
+		"logs-only static configs must not populate the static config index")
+
+	// Removing the same config should be a no-op for the index.
+	cm.processDelConfigs([]integration.Config{logsOnly})
 	assert.False(t, idx.Has("redis"))
 }
 

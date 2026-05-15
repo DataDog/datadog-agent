@@ -29,10 +29,11 @@ import (
 // to the workloadmeta store.
 type KubeletListener struct {
 	workloadmetaListener
-	globalFilter  workloadfilter.FilterBundle
-	metricsFilter workloadfilter.FilterBundle
-	logsFilter    workloadfilter.FilterBundle
-	tagger        tagger.Component
+	globalFilter      workloadfilter.FilterBundle
+	metricsFilter     workloadfilter.FilterBundle
+	logsFilter        workloadfilter.FilterBundle
+	tagger            tagger.Component
+	staticConfigIndex *StaticConfigIndex
 }
 
 // NewKubeletListener returns a new KubeletListener.
@@ -40,10 +41,11 @@ func NewKubeletListener(options ServiceListernerDeps) (ServiceListener, error) {
 	const name = "ad-kubeletlistener"
 
 	l := &KubeletListener{
-		globalFilter:  options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter),
-		metricsFilter: options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
-		logsFilter:    options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
-		tagger:        options.Tagger,
+		globalFilter:      options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.GlobalFilter),
+		metricsFilter:     options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.MetricsFilter),
+		logsFilter:        options.Filter.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter),
+		tagger:            options.Tagger,
+		staticConfigIndex: options.StaticConfigIndex,
 	}
 	wmetaFilter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceAll).
@@ -114,14 +116,15 @@ func (l *KubeletListener) createPodService(
 	entity := kubelet.PodUIDToEntityName(pod.ID)
 	taggerEntityID := common.BuildTaggerEntityID(pod.GetID())
 	svc := &WorkloadService{
-		entity:        pod,
-		tagsHash:      l.tagger.GetEntityHash(taggerEntityID, types.ChecksConfigCardinality),
-		adIdentifiers: []string{entity},
-		hosts:         map[string]string{"pod": pod.IP},
-		ports:         ports,
-		ready:         true,
-		tagger:        l.tagger,
-		wmeta:         l.Store(),
+		entity:            pod,
+		tagsHash:          l.tagger.GetEntityHash(taggerEntityID, types.ChecksConfigCardinality),
+		adIdentifiers:     []string{entity},
+		hosts:             map[string]string{"pod": pod.IP},
+		ports:             ports,
+		ready:             true,
+		tagger:            l.tagger,
+		wmeta:             l.Store(),
+		staticConfigIndex: l.staticConfigIndex,
 	}
 
 	svcID := buildSvcID(pod.GetID())
@@ -187,11 +190,12 @@ func (l *KubeletListener) createContainerService(
 
 		// Exclude non-running containers (including init containers)
 		// from metrics collection but keep them for collecting logs.
-		metricsExcluded: l.metricsFilter.IsExcluded(filterableContainer) || !container.State.Running,
-		logsExcluded:    l.logsFilter.IsExcluded(filterableContainer),
-		tagger:          l.tagger,
-		imageName:       containerImg.ShortName,
-		wmeta:           l.Store(),
+		metricsExcluded:   l.metricsFilter.IsExcluded(filterableContainer) || !container.State.Running,
+		logsExcluded:      l.logsFilter.IsExcluded(filterableContainer),
+		tagger:            l.tagger,
+		imageName:         containerImg.ShortName,
+		wmeta:             l.Store(),
+		staticConfigIndex: l.staticConfigIndex,
 	}
 
 	adIdentifier := containerName

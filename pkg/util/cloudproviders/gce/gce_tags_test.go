@@ -56,7 +56,7 @@ var (
 )
 
 func mockMetadataRequest(t *testing.T) *httptest.Server {
-	content, err := os.ReadFile("test/gce_metadata.json")
+	content, err := os.ReadFile("testdata/gce_metadata.json")
 	if err != nil {
 		assert.Fail(t, fmt.Sprintf("Error getting test data: %v", err))
 	}

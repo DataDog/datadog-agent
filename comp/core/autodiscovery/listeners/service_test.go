@@ -107,6 +107,109 @@ func TestServiceFilterTemplatesOverriddenChecks(t *testing.T) {
 	})
 }
 
+func TestServiceFilterTemplatesDiscovery(t *testing.T) {
+	entity := &workloadmeta.Container{EntityID: workloadmeta.EntityID{Kind: "container", ID: "redis-1"}}
+
+	mkSvc := func(idx *StaticConfigIndex) *WorkloadService {
+		return &WorkloadService{entity: entity, staticConfigIndex: idx}
+	}
+
+	discoveryTpl := integration.Config{
+		Name:          "redis",
+		Provider:      names.File,
+		ADIdentifiers: []string{"redis"},
+		Discovery:     &integration.DiscoveryConfig{},
+		Source:        "file:redis/auto_conf.yaml",
+	}
+	siblingTpl := integration.Config{
+		Name:          "redis",
+		Provider:      names.File,
+		ADIdentifiers: []string{"redis"},
+		Instances:     []integration.Data{[]byte("port: 6379")},
+		Source:        "file:redis/auto_conf.yaml",
+	}
+	unrelatedTpl := integration.Config{
+		Name:          "nginx",
+		Provider:      names.File,
+		ADIdentifiers: []string{"nginx"},
+		Instances:     []integration.Data{[]byte("port: 80")},
+		Source:        "file:nginx/auto_conf.yaml",
+	}
+
+	containsDigests := func(configs map[string]integration.Config, want ...integration.Config) []string {
+		t.Helper()
+		got := []string{}
+		for _, c := range want {
+			if _, found := configs[c.Digest()]; found {
+				got = append(got, c.Name)
+			}
+		}
+		return got
+	}
+
+	t.Run("discovery dropped when sibling template matches same service", func(t *testing.T) {
+		configs := map[string]integration.Config{
+			discoveryTpl.Digest(): discoveryTpl,
+			siblingTpl.Digest():   siblingTpl,
+		}
+		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
+		assert.NotContains(t, configs, discoveryTpl.Digest(), "discovery template should be dropped")
+		assert.Contains(t, configs, siblingTpl.Digest(), "non-discovery sibling should be kept")
+	})
+
+	t.Run("discovery dropped when static config of same name exists", func(t *testing.T) {
+		idx := NewStaticConfigIndex()
+		idx.Add("redis")
+
+		configs := map[string]integration.Config{
+			discoveryTpl.Digest(): discoveryTpl,
+			unrelatedTpl.Digest(): unrelatedTpl,
+		}
+		mkSvc(idx).FilterTemplates(configs)
+		assert.NotContains(t, configs, discoveryTpl.Digest(), "discovery template should be dropped")
+		assert.Contains(t, configs, unrelatedTpl.Digest(), "unrelated template should be kept")
+	})
+
+	t.Run("discovery kept when no sibling and no static config", func(t *testing.T) {
+		configs := map[string]integration.Config{
+			discoveryTpl.Digest(): discoveryTpl,
+			unrelatedTpl.Digest(): unrelatedTpl,
+		}
+		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
+		assert.Equal(t, []string{"redis", "nginx"}, containsDigests(configs, discoveryTpl, unrelatedTpl))
+	})
+
+	t.Run("discovery kept when static config is for a different integration", func(t *testing.T) {
+		idx := NewStaticConfigIndex()
+		idx.Add("postgres")
+
+		configs := map[string]integration.Config{
+			discoveryTpl.Digest(): discoveryTpl,
+		}
+		mkSvc(idx).FilterTemplates(configs)
+		assert.Contains(t, configs, discoveryTpl.Digest(), "discovery template should be kept when only an unrelated static config exists")
+	})
+
+	t.Run("discovery kept when sibling template has only logs config", func(t *testing.T) {
+		logsOnlySibling := integration.Config{
+			Name:          "redis",
+			Provider:      names.File,
+			ADIdentifiers: []string{"redis"},
+			LogsConfig:    []byte(`{"source":"redis"}`),
+			Source:        "file:redis/auto_conf.yaml",
+		}
+		configs := map[string]integration.Config{
+			discoveryTpl.Digest():    discoveryTpl,
+			logsOnlySibling.Digest(): logsOnlySibling,
+		}
+		mkSvc(NewStaticConfigIndex()).FilterTemplates(configs)
+		assert.Contains(t, configs, discoveryTpl.Digest(),
+			"discovery template should be kept when the sibling is logs-only")
+		assert.Contains(t, configs, logsOnlySibling.Digest(),
+			"logs-only sibling should be kept")
+	})
+}
+
 func TestServiceFilterTemplatesCCA(t *testing.T) {
 	filterDrops := func(svc *WorkloadService, configs ...integration.Config) (dropped []integration.Config) {
 		return filterConfigsDropped(svc.filterTemplatesContainerCollectAll, configs...)

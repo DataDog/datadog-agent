@@ -16,7 +16,7 @@ jira_issue_type = "Task"
 jira_statuses = ["To Do", "In Progress", "Done"]
 github_team = "agent-metric-pipelines"
 github_labels = ["team/agent-metric-pipelines"]
-exclude_members = [""]
+exclude_members = ["olivielpeau"]
 
 [teams."Agent Data Plane"]
 jira_project = "DADP"

@@ -245,13 +245,23 @@ func (s *ProcessService) HasFilter(_ workloadfilter.Scope) bool {
 // process services: users configure single-instance process integrations via
 // conf.d, and we don't want the dynamic process listener to schedule a second
 // instance behind their back.
+//
+// Discovery templates are then dropped if any other config source has matched
+// this service for the same integration: a sibling non-discovery template, or
+// a scheduled static config.
 func (s *ProcessService) FilterTemplates(configs map[string]integration.Config) {
+	// Step 1: CEL Matching
 	filterTemplatesMatched(s, configs)
+
+	// Step 2: Static Config Deduplication
 	for digest, cfg := range configs {
 		if s.staticConfigIndex.Has(cfg.Name) {
 			delete(configs, digest)
 		}
 	}
+
+	// Step 3: Discovery Template Deduplication
+	filterTemplatesDiscovery(s.staticConfigIndex, configs)
 }
 
 // GetExtraConfig returns extra configuration associated with the service.

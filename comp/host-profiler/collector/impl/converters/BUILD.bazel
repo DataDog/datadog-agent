@@ -23,7 +23,7 @@ go_test(
         "converter_table_test.go",
         "converters_test.go",
     ],
-    data = glob(["td/**"]),
+    data = glob(["testdata/**"]),
     embed = [":converters"],
     gotags = ["test"],
     deps = [

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    APM : Prevent incoming msgpack payloads from over-allocating maps and lists.

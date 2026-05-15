@@ -26,7 +26,7 @@ struct event_sample_stats_t {
 };
 
 struct basename_t {
-    char value[BASENAME_FILTER_SIZE];
+    char value[BASENAME_FILTER_SIZE]; // including \0
 };
 
 struct event_mask_filter_t {

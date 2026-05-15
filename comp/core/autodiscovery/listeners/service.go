@@ -27,21 +27,22 @@ import (
 // WorkloadService implements the Service interface and stores data collected from
 // workloadmeta.Store. Covers containers and kubernetes pods.
 type WorkloadService struct {
-	entity          workloadmeta.Entity
-	tagsHash        string
-	adIdentifiers   []string
-	hosts           map[string]string
-	ports           []workloadmeta.ContainerPort
-	pid             int
-	hostname        string
-	ready           bool
-	checkNames      []string
-	extraConfig     map[string]string
-	metricsExcluded bool
-	logsExcluded    bool
-	tagger          tagger.Component
-	wmeta           workloadmeta.Component
-	imageName       string
+	entity            workloadmeta.Entity
+	tagsHash          string
+	adIdentifiers     []string
+	hosts             map[string]string
+	ports             []workloadmeta.ContainerPort
+	pid               int
+	hostname          string
+	ready             bool
+	checkNames        []string
+	extraConfig       map[string]string
+	metricsExcluded   bool
+	logsExcluded      bool
+	tagger            tagger.Component
+	wmeta             workloadmeta.Component
+	imageName         string
+	staticConfigIndex *StaticConfigIndex
 }
 
 var _ Service = &WorkloadService{}
@@ -148,6 +149,11 @@ func (s *WorkloadService) FilterTemplates(configs map[string]integration.Config)
 	s.filterTemplatesEmptyOverrides(configs)
 	s.filterTemplatesOverriddenChecks(configs)
 	filterTemplatesMatched(s, configs)
+
+	// Drop discovery templates when another config source already covers
+	// the same integration for this service. Runs after AD-identifier and
+	// CEL matching so we only consider templates actually bound to this service.
+	filterTemplatesDiscovery(s.staticConfigIndex, configs)
 
 	// Container Collect All filtering should always be last
 	s.filterTemplatesContainerCollectAll(configs)
