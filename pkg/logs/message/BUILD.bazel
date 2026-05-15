@@ -13,6 +13,7 @@ go_library(
         "//pkg/logs/sources",
         "//pkg/logs/types",
         "//pkg/util/log",
+        "@com_github_datadog_agent_payload_v5//statefulpb",
     ],
 )
 
