@@ -376,7 +376,7 @@ exports_files(glob(
 # gazelle:exclude pkg/collector/corechecks/telemetry
 # gazelle:exclude pkg/collector/loaders
 # gazelle:exclude pkg/collector/python
-# gazelle:exclude pkg/collector/runner
+# gazelle:exclude pkg/collector/runner/*.go
 # gazelle:exclude pkg/collector/sharedlibrary/ffi
 # gazelle:exclude pkg/collector/sharedlibrary/sharedlibraryimpl
 # gazelle:exclude pkg/collector/worker
