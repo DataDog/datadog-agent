@@ -132,6 +132,64 @@ func TestTagManager_GetStringID(t *testing.T) {
 	assert.Equal(t, uint64(0), id)
 }
 
+func TestTagManager_ObserveDynamicStringAddsAfterRepeatedUse(t *testing.T) {
+	tm := NewTagManager()
+
+	dictID, isNew, shouldEncode := tm.ObserveDynamicString("INFO")
+	assert.Zero(t, dictID)
+	assert.False(t, isNew)
+	assert.False(t, shouldEncode)
+	assert.Equal(t, 0, tm.Count())
+
+	dictID, isNew, shouldEncode = tm.ObserveDynamicString("INFO")
+	assert.NotZero(t, dictID)
+	assert.True(t, isNew)
+	assert.True(t, shouldEncode)
+	assert.Equal(t, 1, tm.Count())
+
+	dictIDAgain, isNew, shouldEncode := tm.ObserveDynamicString("INFO")
+	assert.Equal(t, dictID, dictIDAgain)
+	assert.False(t, isNew)
+	assert.True(t, shouldEncode)
+	assert.Equal(t, 1, tm.Count())
+}
+
+func TestTagManager_ObserveDynamicStringUsesExistingEntry(t *testing.T) {
+	tm := NewTagManager()
+	existingID, added := tm.AddString("INFO")
+	require.True(t, added)
+
+	dictID, isNew, shouldEncode := tm.ObserveDynamicString("INFO")
+	assert.Equal(t, existingID, dictID)
+	assert.False(t, isNew)
+	assert.True(t, shouldEncode)
+	assert.Equal(t, 1, tm.Count())
+}
+
+func TestTagManager_ObserveDynamicStringSkipsHighCardinalityShapes(t *testing.T) {
+	tm := NewTagManager()
+
+	values := []string{
+		"a",
+		"550e8400-e29b-41d4-a716-446655440000",
+		"550e8400e29b41d4a716446655440000",
+		"2026-04-28",
+		"2026-04-28T12:34:56Z",
+	}
+
+	for _, value := range values {
+		t.Run(value, func(t *testing.T) {
+			for i := 0; i < 3; i++ {
+				dictID, isNew, shouldEncode := tm.ObserveDynamicString(value)
+				assert.Zero(t, dictID)
+				assert.False(t, isNew)
+				assert.False(t, shouldEncode)
+			}
+		})
+	}
+	assert.Equal(t, 0, tm.Count())
+}
+
 func TestTagManager_Concurrency(t *testing.T) {
 	tm := NewTagManager()
 

@@ -17,12 +17,20 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	dynamicStringDictionaryThreshold = 2
+	maxPendingDynamicStrings         = 1_000_000
+	minDynamicStringLength           = 2
+	maxDynamicStringLength           = 128
+)
+
 // TagManager manages a dictionary of unique tag strings (keys and values) to dictionary IDs.
 // It provides thread-safe operations for retrieving/creating IDs and building Tag proto messages
 // that reference those IDs.
 type TagManager struct {
 	stringToEntry     map[string]*tagEntry
 	idToEntry         map[uint64]*tagEntry
+	pendingDynamic    map[string]uint16
 	nextID            atomic.Uint64
 	cachedMemoryBytes atomic.Int64
 	mu                sync.RWMutex
@@ -31,8 +39,9 @@ type TagManager struct {
 // NewTagManager creates a new TagManager instance
 func NewTagManager() *TagManager {
 	tm := &TagManager{
-		stringToEntry: make(map[string]*tagEntry),
-		idToEntry:     make(map[uint64]*tagEntry),
+		stringToEntry:  make(map[string]*tagEntry),
+		idToEntry:      make(map[uint64]*tagEntry),
+		pendingDynamic: make(map[string]uint16),
 	}
 	return tm
 }
@@ -72,8 +81,56 @@ func (tm *TagManager) AddString(s string) (dictID uint64, isNew bool) {
 	}
 	tm.stringToEntry[s] = entry
 	tm.idToEntry[id] = entry
+	delete(tm.pendingDynamic, s)
 	tm.cachedMemoryBytes.Add(entry.EstimatedBytes())
 	return id, true
+}
+
+// ObserveDynamicString records a dynamic string value and returns a dictionary ID only
+// after the string has repeated enough times to justify defining it. This lets dynamic
+// values such as log levels reuse the dictionary while keeping one-off high-cardinality
+// tokens inline.
+func (tm *TagManager) ObserveDynamicString(s string) (dictID uint64, isNew bool, shouldEncode bool) {
+	now := time.Now()
+
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+
+	if entry, exists := tm.stringToEntry[s]; exists {
+		entry.usageCount++
+		entry.lastAccessAt = now
+		return entry.id, false, true
+	}
+
+	if !isDynamicStringDictionaryCandidate(s) {
+		return 0, false, false
+	}
+
+	count, tracked := tm.pendingDynamic[s]
+	if !tracked && len(tm.pendingDynamic) >= maxPendingDynamicStrings {
+		return 0, false, false
+	}
+	if count < dynamicStringDictionaryThreshold {
+		count++
+	}
+	if count < dynamicStringDictionaryThreshold {
+		tm.pendingDynamic[s] = count
+		return 0, false, false
+	}
+
+	id := tm.nextID.Add(1)
+	entry := &tagEntry{
+		id:           id,
+		str:          s,
+		usageCount:   int64(count),
+		createdAt:    now,
+		lastAccessAt: now,
+	}
+	tm.stringToEntry[s] = entry
+	tm.idToEntry[id] = entry
+	delete(tm.pendingDynamic, s)
+	tm.cachedMemoryBytes.Add(entry.EstimatedBytes())
+	return id, true, true
 }
 
 // EncodeTagStrings converts a slice of "key:value" tag strings into Tag proto messages
@@ -210,4 +267,71 @@ func dictIndexValue(id uint64) *statefulpb.DynamicValue {
 			DictIndex: id,
 		},
 	}
+}
+
+func isDynamicStringDictionaryCandidate(s string) bool {
+	if len(s) < minDynamicStringLength || len(s) > maxDynamicStringLength {
+		return false
+	}
+	if looksLikeUUID(s) || looksLikeTimestamp(s) {
+		return false
+	}
+	return true
+}
+
+func looksLikeUUID(s string) bool {
+	if len(s) == 36 {
+		for i := 0; i < len(s); i++ {
+			switch i {
+			case 8, 13, 18, 23:
+				if s[i] != '-' {
+					return false
+				}
+			default:
+				if !isHex(s[i]) {
+					return false
+				}
+			}
+		}
+		return true
+	}
+	if len(s) == 32 {
+		for i := 0; i < len(s); i++ {
+			if !isHex(s[i]) {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
+func looksLikeTimestamp(s string) bool {
+	if len(s) < len("2006-01-02") {
+		return false
+	}
+	if !isDigit(s[0]) || !isDigit(s[1]) || !isDigit(s[2]) || !isDigit(s[3]) ||
+		s[4] != '-' ||
+		!isDigit(s[5]) || !isDigit(s[6]) ||
+		s[7] != '-' ||
+		!isDigit(s[8]) || !isDigit(s[9]) {
+		return false
+	}
+	if len(s) == len("2006-01-02") {
+		return true
+	}
+	switch s[10] {
+	case 'T', ' ', '_':
+		return true
+	default:
+		return false
+	}
+}
+
+func isHex(c byte) bool {
+	return isDigit(c) || ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F')
+}
+
+func isDigit(c byte) bool {
+	return '0' <= c && c <= '9'
 }
