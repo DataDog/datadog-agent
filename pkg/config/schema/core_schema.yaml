@@ -14325,6 +14325,10 @@ properties:
     node_type: setting
     type: array
     default: []
+  metric_tag_filterlist_adp_only:
+    node_type: setting
+    type: boolean
+    default: true
   metrics_port:
     node_type: setting
     type: number

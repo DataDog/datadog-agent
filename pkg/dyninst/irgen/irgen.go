@@ -1821,6 +1821,7 @@ func (p *typeQueueProcessor) drainQueue() error {
 			*ir.GoEmptyInterfaceType,
 			*ir.GoStringDataType,
 			*ir.GoSubroutineType,
+			*ir.GoTimeType,
 			*ir.UnresolvedPointeeType,
 			*ir.VoidPointerType:
 
@@ -3729,7 +3730,11 @@ func completeGoTypes(tc *typeCatalog, minID, maxID ir.TypeID) error {
 					return err
 				}
 			case reflect.Struct:
-				// Nothing to do.
+				if t.Name == "time.Time" {
+					if err := completeGoTimeType(tc, t); err != nil {
+						return err
+					}
+				}
 			default:
 				return fmt.Errorf(
 					"unexpected Go kind for structure type %q: %v",
@@ -3797,6 +3802,103 @@ func completeGoMapType(tc *typeCatalog, t *ir.GoMapType) error {
 			t.Name, t.HeaderType.GetName(), t.HeaderType,
 		)
 	}
+}
+
+// completeGoTimeType converts a time.Time StructureType into a GoTimeType
+// and, when possible, resolves the time.Location cache fields so the BPF
+// program can write the captured instant's UTC offset in place of the loc
+// pointer. The function is best-effort: if any expected field is missing
+// (e.g. a future Go version reshuffles internals) the type is left as a
+// plain StructureType and the decoder falls back to UTC-only rendering.
+func completeGoTimeType(tc *typeCatalog, st *ir.StructureType) error {
+	wall, err := field(tc, st, "wall")
+	if err != nil {
+		return nil
+	}
+	ext, err := field(tc, st, "ext")
+	if err != nil {
+		return nil
+	}
+	loc, err := field(tc, st, "loc")
+	if err != nil {
+		return nil
+	}
+
+	timeType := &ir.GoTimeType{
+		StructureType:   st,
+		WallFieldOffset: wall.Offset,
+		ExtFieldOffset:  ext.Offset,
+		LocFieldOffset:  loc.Offset,
+	}
+
+	// Try to resolve the time.Location pointee so the BPF runtime can
+	// chase the cache fast path. Failure is non-fatal: the decoder
+	// renders in UTC when CacheResolved is false.
+	if loc, ok := tryResolveTimeLocation(tc, loc.Type); ok {
+		timeType.CacheResolved = true
+		timeType.CacheStartOffset = loc.cacheStartOffset
+		timeType.CacheEndOffset = loc.cacheEndOffset
+		timeType.CacheZoneOffset = loc.cacheZoneOffset
+		timeType.ZoneOffsetFieldOffset = loc.zoneOffsetFieldOffset
+		timeType.ZoneOffsetFieldSize = loc.zoneOffsetFieldSize
+	}
+
+	tc.typesByID[st.ID] = timeType
+	return nil
+}
+
+type resolvedTimeLocation struct {
+	cacheStartOffset      uint32
+	cacheEndOffset        uint32
+	cacheZoneOffset       uint32
+	zoneOffsetFieldOffset uint32
+	zoneOffsetFieldSize   uint32
+}
+
+func tryResolveTimeLocation(
+	tc *typeCatalog, locFieldType ir.Type,
+) (resolvedTimeLocation, bool) {
+	loc, err := resolvePointeeType[*ir.StructureType](tc, locFieldType)
+	if err != nil {
+		return resolvedTimeLocation{}, false
+	}
+	cacheStart, err := field(tc, loc, "cacheStart")
+	if err != nil {
+		return resolvedTimeLocation{}, false
+	}
+	cacheEnd, err := field(tc, loc, "cacheEnd")
+	if err != nil {
+		return resolvedTimeLocation{}, false
+	}
+	cacheZone, err := field(tc, loc, "cacheZone")
+	if err != nil {
+		return resolvedTimeLocation{}, false
+	}
+	zone, err := resolvePointeeType[*ir.StructureType](tc, cacheZone.Type)
+	if err != nil {
+		return resolvedTimeLocation{}, false
+	}
+	zoneOffset, err := field(tc, zone, "offset")
+	if err != nil {
+		return resolvedTimeLocation{}, false
+	}
+	// The BPF opcode encoding packs cache_end/cache_zone/zone_offset
+	// offsets into 16-bit fields to fit within BPF's argument-register
+	// budget. time.Location and time.zone are tiny so this is generous,
+	// but bail out (degrading to UTC rendering) if a future Go layout
+	// outgrows it.
+	if cacheEnd.Offset > 0xFFFF ||
+		cacheZone.Offset > 0xFFFF ||
+		zoneOffset.Offset > 0xFFFF {
+		return resolvedTimeLocation{}, false
+	}
+	return resolvedTimeLocation{
+		cacheStartOffset:      cacheStart.Offset,
+		cacheEndOffset:        cacheEnd.Offset,
+		cacheZoneOffset:       cacheZone.Offset,
+		zoneOffsetFieldOffset: zoneOffset.Offset,
+		zoneOffsetFieldSize:   zoneOffset.Type.GetByteSize(),
+	}, true
 }
 
 func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {

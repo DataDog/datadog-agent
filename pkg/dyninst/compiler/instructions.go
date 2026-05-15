@@ -207,6 +207,30 @@ func makeInstruction(functionID FunctionID, op Op) codeFragment {
 			bytes:  bytes,
 		}
 
+	case ProcessGoTimeOp:
+		// Layout: wall_off (u32), ext_off (u32), loc_off (u32),
+		// cache_resolved (u8), cache_start_off (u32), cache_end_off (u32),
+		// cache_zone_off (u32), zone_offset_field_off (u32),
+		// zone_offset_field_size (u32).
+		bytes := make([]byte, 0, 33)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.WallFieldOffset)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.ExtFieldOffset)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.LocFieldOffset)
+		var resolved uint8
+		if op.CacheResolved {
+			resolved = 1
+		}
+		bytes = append(bytes, resolved)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.CacheStartOffset)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.CacheEndOffset)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.CacheZoneOffset)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.ZoneOffsetFieldOffset)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.ZoneOffsetFieldSize)
+		return staticInstruction{
+			opcode: OpcodeProcessGoTime,
+			bytes:  bytes,
+		}
+
 	case ChasePointersOp:
 		return staticInstruction{
 			opcode: OpcodeChasePointers,
