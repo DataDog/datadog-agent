@@ -24,6 +24,7 @@ import (
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/internal/identity"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
 	pidmapfx "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/fx"
@@ -167,9 +168,19 @@ func (b *batcherMock) appendLateSample(sample metrics.MetricSample) {
 	b.lateSamples = append(b.lateSamples, sample)
 }
 
+func (b *batcherMock) appendLateSampleWithContext(sample metrics.MetricSample, _ identity.HotPathContext) {
+	b.appendLateSample(sample)
+}
+
 func (b *batcherMock) appendSample(sample metrics.MetricSample) {
 	b.samples = append(b.samples, sample)
 }
+
+func (b *batcherMock) appendSampleWithContext(sample metrics.MetricSample, _ identity.HotPathContext) {
+	b.appendSample(sample)
+}
+
+func (b *batcherMock) needsSampleContext() bool { return false }
 
 func (b *batcherMock) flush() {}
 

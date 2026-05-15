@@ -41,10 +41,10 @@ func TestMilestone1SampleIdentityContracts(t *testing.T) {
 	ids := builder.Resolve(sample)
 
 	assert.Equal(t, ClientSeriesIdentity{Name: sample.Name, Tags: sample.Tags}, ids.Client)
-	assert.Equal(t, ids.Client, ids.Debug.Client)
+	assert.Equal(t, ids.Client, ids.DebugView.Client)
 	assert.Equal(t, ids.Client, ids.Shard.Client)
 	assert.Equal(t, "host-a", ids.Shard.Host)
-	assert.ElementsMatch(t, []string{"env:prod", "service:web"}, strings.Fields(ids.Debug.DisplayTags), "debug display tags are deduplicated for display")
+	assert.ElementsMatch(t, []string{"env:prod", "service:web"}, strings.Fields(ids.DebugView.DisplayTags), "debug-view display tags are deduplicated for display")
 	assert.Equal(t, EffectiveBackendIdentitySeed{
 		Name:       sample.Name,
 		Host:       sample.Host,
@@ -89,18 +89,18 @@ func TestMilestone1IdentityBoundaries(t *testing.T) {
 	changedLineageIDs := builder.Resolve(changedLineage)
 	changedTagsIDs := builder.Resolve(changedTags)
 
-	assert.Equal(t, baseIDs.Debug.Key, reorderedIDs.Debug.Key, "debug identity deduplicates and order-normalizes client tags")
+	assert.Equal(t, baseIDs.DebugView.Key, reorderedIDs.DebugView.Key, "debug view key deduplicates and order-normalizes client tags")
 	assert.Equal(t, baseIDs.Shard.ContextKey, reorderedIDs.Shard.ContextKey, "shard identity deduplicates and order-normalizes client tags")
 
-	assert.Equal(t, baseIDs.Debug.Key, changedHostIDs.Debug.Key, "debug identity intentionally ignores host")
+	assert.Equal(t, baseIDs.DebugView.Key, changedHostIDs.DebugView.Key, "debug view compatibility key intentionally ignores host")
 	assert.NotEqual(t, baseIDs.Shard.ContextKey, changedHostIDs.Shard.ContextKey, "shard identity includes host")
 
-	assert.Equal(t, baseIDs.Debug.Key, changedLineageIDs.Debug.Key, "debug identity intentionally ignores lineage and type")
+	assert.Equal(t, baseIDs.DebugView.Key, changedLineageIDs.DebugView.Key, "debug view compatibility key intentionally ignores lineage and type")
 	assert.Equal(t, baseIDs.Shard.ContextKey, changedLineageIDs.Shard.ContextKey, "shard identity intentionally ignores lineage and type")
 	assert.NotEqual(t, baseIDs.BackendSeed.MetricType, changedLineageIDs.BackendSeed.MetricType, "backend seed records type for later aggregator identity resolution")
 	assert.NotEqual(t, baseIDs.Lineage, changedLineageIDs.Lineage, "lineage identity keeps origin/listener changes visible")
 
-	assert.NotEqual(t, baseIDs.Debug.Key, changedTagsIDs.Debug.Key, "debug identity includes client tags")
+	assert.NotEqual(t, baseIDs.DebugView.Key, changedTagsIDs.DebugView.Key, "debug view key includes client tags")
 	assert.NotEqual(t, baseIDs.Shard.ContextKey, changedTagsIDs.Shard.ContextKey, "shard identity includes client tags")
 }
 
@@ -128,7 +128,7 @@ func BenchmarkMilestone1Builder(b *testing.B) {
 		b.ReportAllocs()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_ = builder.Debug(samples[i%len(samples)])
+			_ = builder.DebugView(samples[i%len(samples)])
 		}
 	})
 
@@ -147,6 +147,47 @@ func BenchmarkMilestone1Builder(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			_ = builder.Resolve(samples[i%len(samples)])
+		}
+	})
+}
+
+func BenchmarkMilestone2ResolvedContextReuse(b *testing.B) {
+	samples := make([]metrics.MetricSample, 8192)
+	for i := range samples {
+		samples[i] = metrics.MetricSample{
+			Name: "identity.metric",
+			Host: "host-" + strconv.Itoa(i%64),
+			Tags: []string{
+				"env:prod",
+				"service:dogstatsd",
+				"instance:" + strconv.Itoa(i),
+				"region:us-east-" + strconv.Itoa(i%3),
+			},
+			Mtype:      metrics.DistributionType,
+			Source:     metrics.MetricSourceDogstatsd,
+			OriginInfo: taggertypes.OriginInfo{ContainerIDFromSocket: "container-" + strconv.Itoa(i%128)},
+			ListenerID: "udp-127.0.0.1:8125",
+		}
+	}
+
+	b.Run("separate_debug_and_shard", func(b *testing.B) {
+		debugBuilder := NewBuilder()
+		shardBuilder := NewBuilder()
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			sample := samples[i%len(samples)]
+			_ = debugBuilder.DebugView(sample)
+			_ = shardBuilder.Shard(sample)
+		}
+	})
+
+	b.Run("resolved_hot_path_once", func(b *testing.B) {
+		builder := NewBuilder()
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_ = builder.ResolveHotPath(samples[i%len(samples)])
 		}
 	})
 }

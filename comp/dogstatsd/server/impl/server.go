@@ -25,6 +25,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	dsdconfig "github.com/DataDog/datadog-agent/comp/dogstatsd/config"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/internal/identity"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -685,8 +686,16 @@ func (s *dsdServer) errLog(format string, params ...interface{}) {
 	}
 }
 
+type precomputedDebugStatsStore interface {
+	StoreMetricStatsWithDebugViewKey(sample metrics.MetricSample, debugViewKey identity.DebugViewKey)
+}
+
 // workers are running this function in their goroutine
-func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, packets []*packets.Packet, samples metrics.MetricSampleBatch, filterList *utilstrings.Matcher) metrics.MetricSampleBatch {
+func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, identityBuilder *identity.Builder, packets []*packets.Packet, samples metrics.MetricSampleBatch, filterList *utilstrings.Matcher) metrics.MetricSampleBatch {
+	if identityBuilder == nil {
+		identityBuilder = identity.NewBuilder()
+	}
+
 	for _, packet := range packets {
 		s.log.Tracef("Dogstatsd receive: %q", packet.Contents)
 		for {
@@ -728,11 +737,32 @@ func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, packe
 					continue
 				}
 
+				batcherNeedsContext := batcher.needsSampleContext()
 				for idx := range samples {
-					s.Debug.StoreMetricStats(samples[idx])
+					debugEnabled := s.Debug.IsDebugEnabled()
+					needsContext := debugEnabled || batcherNeedsContext
+					var sampleContext identity.HotPathContext
+					if needsContext {
+						sampleContext = identityBuilder.ResolveHotPath(samples[idx])
+					}
+
+					if debugEnabled {
+						s.storeMetricStats(samples[idx], sampleContext)
+					} else {
+						// Preserve the legacy runtime-setting race behavior: if debug is
+						// enabled after the cheap IsDebugEnabled check, StoreMetricStats
+						// can still record this sample using its legacy local key path.
+						s.Debug.StoreMetricStats(samples[idx])
+					}
 
 					if samples[idx].Timestamp > 0.0 {
-						batcher.appendLateSample(samples[idx])
+						if needsContext {
+							batcher.appendLateSampleWithContext(samples[idx], sampleContext)
+						} else {
+							batcher.appendLateSample(samples[idx])
+						}
+					} else if needsContext {
+						batcher.appendSampleWithContext(samples[idx], sampleContext)
 					} else {
 						batcher.appendSample(samples[idx])
 					}
@@ -741,7 +771,12 @@ func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, packe
 						distSample := samples[idx].Copy()
 						distSample.Name = s.histToDistPrefix + distSample.Name
 						distSample.Mtype = metrics.DistributionType
-						batcher.appendSample(*distSample)
+						if batcherNeedsContext {
+							distContext := identityBuilder.ResolveHotPath(*distSample)
+							batcher.appendSampleWithContext(*distSample, distContext)
+						} else {
+							batcher.appendSample(*distSample)
+						}
 					}
 				}
 			}
@@ -750,6 +785,14 @@ func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, packe
 	}
 	batcher.flush()
 	return samples
+}
+
+func (s *dsdServer) storeMetricStats(sample metrics.MetricSample, sampleContext identity.HotPathContext) {
+	if debugStore, ok := s.Debug.(precomputedDebugStatsStore); ok {
+		debugStore.StoreMetricStatsWithDebugViewKey(sample, sampleContext.DebugView)
+		return
+	}
+	s.Debug.StoreMetricStats(sample)
 }
 
 // getOriginCounter returns a telemetry counter for processed metrics using the given origin as a tag.

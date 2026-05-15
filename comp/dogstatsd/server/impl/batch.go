@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/internal/identity"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -25,9 +26,12 @@ import (
 // interface requiring all functions expected by the dogstatsd server
 type dogstatsdBatcher interface {
 	appendSample(sample metrics.MetricSample)
+	appendSampleWithContext(sample metrics.MetricSample, context identity.HotPathContext)
 	appendEvent(event *event.Event)
 	appendServiceCheck(serviceCheck *servicecheck.ServiceCheck)
 	appendLateSample(sample metrics.MetricSample)
+	appendLateSampleWithContext(sample metrics.MetricSample, context identity.HotPathContext)
+	needsSampleContext() bool
 	flush()
 }
 
@@ -99,7 +103,7 @@ func (s *shardKeyGenerator) Generate(sample metrics.MetricSample, shards int) ui
 // for such purpose.
 func fastrange(key ckey.ContextKey, pipelineCount int) uint32 {
 	// return uint32(uint64(key) % uint64(pipelineCount))
-	return uint32((uint64(key>>32) * uint64(pipelineCount)) >> 32)
+	return identity.ShardIndex(key, pipelineCount)
 }
 
 func newBatcher(demux aggregator.DemultiplexerWithAggregator, tlmChannel telemetry.Histogram) *batcher {
@@ -185,7 +189,18 @@ func (b *batcher) appendSample(sample metrics.MetricSample) {
 	if b.pipelineCount > 1 {
 		shardKey = b.shardGenerator.Generate(sample, b.pipelineCount)
 	}
+	b.appendSampleToShard(sample, shardKey)
+}
 
+func (b *batcher) appendSampleWithContext(sample metrics.MetricSample, context identity.HotPathContext) {
+	var shardKey uint32
+	if b.pipelineCount > 1 {
+		shardKey = identity.ShardIndex(context.Shard.ContextKey, b.pipelineCount)
+	}
+	b.appendSampleToShard(sample, shardKey)
+}
+
+func (b *batcher) appendSampleToShard(sample metrics.MetricSample, shardKey uint32) {
 	if b.samplesCount[shardKey] >= len(b.samples[shardKey]) {
 		b.flushSamples(shardKey)
 	}
@@ -210,12 +225,31 @@ func (b *batcher) appendLateSample(sample metrics.MetricSample) {
 		return
 	}
 
+	b.appendLateSampleWithoutAggregation(sample)
+}
+
+func (b *batcher) appendLateSampleWithContext(sample metrics.MetricSample, context identity.HotPathContext) {
+	// if the no aggregation pipeline is not enabled, we fallback on the
+	// main pipeline eventually distributing the samples on multiple samplers.
+	if !b.noAggPipelineEnabled {
+		b.appendSampleWithContext(sample, context)
+		return
+	}
+
+	b.appendLateSampleWithoutAggregation(sample)
+}
+
+func (b *batcher) appendLateSampleWithoutAggregation(sample metrics.MetricSample) {
 	if b.samplesWithTsCount == len(b.samplesWithTs) {
 		b.flushSamplesWithTs()
 	}
 
 	b.samplesWithTs[b.samplesWithTsCount] = sample
 	b.samplesWithTsCount++
+}
+
+func (b *batcher) needsSampleContext() bool {
+	return b.pipelineCount > 1
 }
 
 // Flushing

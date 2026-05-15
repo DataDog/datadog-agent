@@ -7,6 +7,7 @@ package serverimpl
 
 import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/internal/identity"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -26,8 +27,9 @@ type worker struct {
 	// the batcher will be responsible of batching a few samples / events / service
 	// checks and it will automatically forward them to the aggregator, meaning that
 	// the flushing logic to the aggregator is actually in the batcher.
-	batcher *batcher
-	parser  *parser
+	batcher         *batcher
+	parser          *parser
+	identityBuilder *identity.Builder
 
 	// we allocate it once per worker instead of once per packet. This will
 	// be used to store the samples out a of packets. Allocating it every
@@ -52,6 +54,7 @@ func newWorker(s *dsdServer, workerNum int, wmeta option.Option[workloadmeta.Com
 		server:           s,
 		batcher:          batcher,
 		parser:           newParser(s.config, s.sharedFloat64List, workerNum, wmeta, stringInternerTelemetry),
+		identityBuilder:  identity.NewBuilder(),
 		samples:          make(metrics.MetricSampleBatch, 0, defaultSampleSize),
 		packetsTelemetry: packetsTelemetry,
 		FilterListUpdate: make(chan utilstrings.Matcher),
@@ -74,7 +77,7 @@ func (w *worker) run() {
 			w.samples = w.samples[0:0]
 			// we return the samples in case the slice was extended
 			// when parsing the packets
-			w.samples = w.server.parsePackets(w.batcher, w.parser, ps, w.samples, &w.filterList)
+			w.samples = w.server.parsePackets(w.batcher, w.parser, w.identityBuilder, ps, w.samples, &w.filterList)
 		}
 
 	}

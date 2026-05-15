@@ -20,7 +20,7 @@ import (
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 )
 
-func TestMilestone1DebugIdentityMatchesCurrentServerDebugStats(t *testing.T) {
+func TestMilestone1DebugViewKeyMatchesCurrentServerDebugStats(t *testing.T) {
 	debug := fulfillDeps(t, map[string]interface{}{"dogstatsd_logging_enabled": false})
 	d := debug.(*serverDebugImpl)
 	d.SetMetricStatsEnabled(true)
@@ -48,8 +48,8 @@ func TestMilestone1DebugIdentityMatchesCurrentServerDebugStats(t *testing.T) {
 	differentTags.Tags = []string{"env:prod", "service:api"}
 
 	builder := identity.NewBuilder()
-	baseDebug := builder.Debug(base)
-	differentTagsDebug := builder.Debug(differentTags)
+	baseDebugView := builder.DebugView(base)
+	differentTagsDebugView := builder.DebugView(differentTags)
 
 	d.StoreMetricStats(base)
 	d.StoreMetricStats(reordered)
@@ -62,14 +62,14 @@ func TestMilestone1DebugIdentityMatchesCurrentServerDebugStats(t *testing.T) {
 	require.NoError(t, json.Unmarshal(payload, &stats))
 	require.Len(t, stats, 2)
 
-	baseStat, ok := stats[baseDebug.Key]
-	require.True(t, ok, "new debug identity helper must point at the current serverDebug map entry")
+	baseStat, ok := stats[baseDebugView.Key]
+	require.True(t, ok, "new debug view key helper must point at the current serverDebug map entry")
 	assert.Equal(t, uint64(3), baseStat.Count, "helper preserves current host/origin/type ignoring semantics")
-	assert.Equal(t, baseDebug.Client.Name, baseStat.Name)
-	assert.Equal(t, baseDebug.DisplayTags, baseStat.Tags)
+	assert.Equal(t, baseDebugView.Client.Name, baseStat.Name)
+	assert.Equal(t, baseDebugView.DisplayTags, baseStat.Tags)
 
-	differentTagsStat, ok := stats[differentTagsDebug.Key]
+	differentTagsStat, ok := stats[differentTagsDebugView.Key]
 	require.True(t, ok)
 	assert.Equal(t, uint64(1), differentTagsStat.Count)
-	assert.Equal(t, differentTagsDebug.DisplayTags, differentTagsStat.Tags)
+	assert.Equal(t, differentTagsDebugView.DisplayTags, differentTagsStat.Tags)
 }

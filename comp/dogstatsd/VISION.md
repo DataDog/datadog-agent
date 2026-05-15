@@ -353,7 +353,7 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 
 - Introduce an internal DogStatsD identity/descriptor model near the point where `MetricSample` is ready for batching.
 - Name identities explicitly, for example:
-  - client/debug identity: what the client submitted before tagger enrichment;
+  - client series and debug-view grouping key: what the client submitted before tagger enrichment, with the current stats view preserving its host-excluding projection;
   - shard identity: what currently selects the aggregation pipeline;
   - effective backend identity: what eventually determines backend aggregation;
   - lineage identity: listener/process/origin/capture metadata.
@@ -387,7 +387,7 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 
 - Gives a single place to remove duplicate hashing/tag handling from batcher, debug, and eventually aggregator code.
 
-### Milestone 2: Compute hot-path client/shard/debug identity once
+### Milestone 2: Compute hot-path series, shard, and debug-view keys once
 
 **Value delivered**
 
@@ -396,16 +396,36 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 
 **Scope**
 
-- Carry a `ResolvedSampleContext` or equivalent alongside each parsed sample through DogStatsD batching.
+- Carry a hot-path context alongside each parsed sample through DogStatsD batching.
 - Make batch shard selection consume the precomputed shard identity.
-- Make `serverDebug` consume the precomputed debug/client identity and tag display string.
+- Make `serverDebug` consume the precomputed debug-view key and tag display string, preserving the current host-excluding stats grouping as a compatibility projection rather than treating it as a separate series identity.
 - Keep aggregator context resolution unchanged initially.
 
 **Proof / acceptance criteria**
 
 - Benchmarks show reduced or neutral CPU/allocation cost in DogStatsD parse/batch/debug paths.
-- Golden tests prove shard selection and debug keys are unchanged.
+- Golden tests prove shard selection and debug-view grouping keys are unchanged.
 - Race tests pass with multiple workers.
+
+**Initial proof artifacts**
+
+- Hot-path context wiring:
+  - `identity.Builder.ResolveHotPath`;
+  - `batcher.appendSampleWithContext` / `appendLateSampleWithContext`;
+  - `serverDebug.StoreMetricStatsWithDebugViewKey`;
+  - worker-local identity builder passed through `parsePackets`.
+- Contract tests:
+  - `TestMilestone2BatcherUsesPrecomputedShardIdentity`;
+  - `TestMilestone2ParsePacketsCarriesResolvedSampleContext`;
+  - `TestMilestone2StoreMetricStatsWithDebugViewKeyMatchesLegacyKey`;
+  - `TestMilestone2StoreMetricStatsWithDebugViewKeyConcurrent`.
+- Benchmarks:
+  - `BenchmarkMilestone2ResolvedContextReuse`;
+  - `BenchmarkMilestone2StoreMetricStatsWithDebugViewKey`.
+- Suggested verification commands:
+  - `dda inv test --targets=./comp/dogstatsd/internal/identity,./comp/dogstatsd/server/impl,./comp/dogstatsd/serverDebug/impl --test-run-name='Milestone2'`;
+  - `dda inv test --targets=./comp/dogstatsd/serverDebug/impl --test-run-name='Milestone2StoreMetricStatsWithDebugViewKeyConcurrent' --extra-args='-race'`;
+  - `dda inv test --targets=./comp/dogstatsd/internal/identity,./comp/dogstatsd/serverDebug/impl --test-run-name='^$' --extra-args='-bench=BenchmarkMilestone2 -benchmem -count=1'`.
 
 **Stop-safe state**
 
@@ -516,7 +536,7 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 - Add per-shard micro-bucket rings, initially for simple count/rate views.
 - Support fixed query shapes first:
   - top series over last N seconds;
-  - rate/count by metric name or client/debug identity;
+  - rate/count by metric name or debug-view grouping key;
   - group by listener/origin where available;
   - exemplar lookup into the raw ingress ring when enabled.
 - Keep local query windows independent from backend flush interval.

@@ -10,6 +10,7 @@ go_library(
         "//comp/core/log/def",
         "//comp/core/log/impl",
         "//comp/def",
+        "//comp/dogstatsd/internal/identity",
         "//comp/dogstatsd/serverDebug/def",
         "//pkg/aggregator/ckey",
         "//pkg/config/model",
@@ -25,13 +26,19 @@ go_library(
 
 go_test(
     name = "impl_test",
-    srcs = ["debug_test.go"],
+    srcs = [
+        "debug_baseline_test.go",
+        "debug_test.go",
+        "identity_contract_test.go",
+        "resolved_context_test.go",
+    ],
     embed = [":impl"],
     gotags = ["test"],
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/log/mock",
+        "//comp/dogstatsd/internal/identity",
         "//comp/dogstatsd/serverDebug/def",
         "//pkg/aggregator/ckey",
         "//pkg/metrics",

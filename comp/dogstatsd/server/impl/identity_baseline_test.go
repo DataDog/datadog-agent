@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/internal/identity"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -118,7 +119,7 @@ func TestMilestone0TimestampAndHistToDistRoutingBaseline(t *testing.T) {
 	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 	var b batcherMock
 
-	s.parsePackets(&b, parser, genTestPackets([]byte("timed.metric:1|g|#env:prod|T1658328888\nhist.metric:2|h|#env:prod")), metrics.MetricSampleBatch{}, nil)
+	s.parsePackets(&b, parser, nil, genTestPackets([]byte("timed.metric:1|g|#env:prod|T1658328888\nhist.metric:2|h|#env:prod")), metrics.MetricSampleBatch{}, nil)
 
 	require.Len(t, b.lateSamples, 1, "timestamped samples route to the no-aggregation/late-sample path")
 	assert.Equal(t, "timed.metric", b.lateSamples[0].Name)
@@ -228,7 +229,7 @@ func benchmarkMilestone0ParsePackets(b *testing.B, overrides map[string]interfac
 		packet.Contents = rawPacket
 		packet.Origin = packets.NoOrigin
 		packetSet[0] = packet
-		samples = s.parsePackets(&batcher, parser, packetSet, samples, nil)
+		samples = s.parsePackets(&batcher, parser, nil, packetSet, samples, nil)
 	}
 }
 
@@ -239,8 +240,15 @@ type countingBatcher struct {
 	checks      int
 }
 
-func (b *countingBatcher) appendSample(metrics.MetricSample)             { b.samples++ }
-func (b *countingBatcher) appendLateSample(metrics.MetricSample)         { b.lateSamples++ }
+func (b *countingBatcher) appendSample(metrics.MetricSample) { b.samples++ }
+func (b *countingBatcher) appendSampleWithContext(metrics.MetricSample, identity.HotPathContext) {
+	b.samples++
+}
+func (b *countingBatcher) appendLateSample(metrics.MetricSample) { b.lateSamples++ }
+func (b *countingBatcher) appendLateSampleWithContext(metrics.MetricSample, identity.HotPathContext) {
+	b.lateSamples++
+}
 func (b *countingBatcher) appendEvent(*event.Event)                      { b.events++ }
 func (b *countingBatcher) appendServiceCheck(*servicecheck.ServiceCheck) { b.checks++ }
+func (b *countingBatcher) needsSampleContext() bool                      { return false }
 func (b *countingBatcher) flush()                                        {}

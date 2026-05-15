@@ -125,7 +125,7 @@ func runTestMetrics(t *testing.T, deps serverDeps, input []byte, expTests []*tMe
 
 	var b batcherMock
 	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
-	s.parsePackets(&b, parser, genTestPackets(input), metrics.MetricSampleBatch{}, nil)
+	s.parsePackets(&b, parser, nil, genTestPackets(input), metrics.MetricSampleBatch{}, nil)
 
 	samples := b.samples
 	timedSamples := b.lateSamples
@@ -165,7 +165,7 @@ func TestEvents(t *testing.T) {
 		SourceTypeName: "source investigation",
 	}
 
-	s.parsePackets(&b, parser, genTestPackets(input1, input2), metrics.MetricSampleBatch{}, nil)
+	s.parsePackets(&b, parser, nil, genTestPackets(input1, input2), metrics.MetricSampleBatch{}, nil)
 
 	assert.Equal(t, 2, len(b.events))
 
@@ -179,7 +179,7 @@ func TestEvents(t *testing.T) {
 		"_e{-5,2}:abc\n",
 	)
 
-	s.parsePackets(&b, parser, genTestPackets(input), metrics.MetricSampleBatch{}, nil)
+	s.parsePackets(&b, parser, nil, genTestPackets(input), metrics.MetricSampleBatch{}, nil)
 	assert.Equal(t, 1, len(b.events))
 	defaultEvent().testEvent(t, b.events[0])
 }
@@ -193,7 +193,7 @@ func TestServiceChecks(t *testing.T) {
 	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 	var b batcherMock
 
-	s.parsePackets(&b, parser, genTestPackets(defaultServiceInput), metrics.MetricSampleBatch{}, nil)
+	s.parsePackets(&b, parser, nil, genTestPackets(defaultServiceInput), metrics.MetricSampleBatch{}, nil)
 
 	assert.Equal(t, 1, len(b.serviceChecks))
 	defaultServiceCheck().testService(t, b.serviceChecks[0])
@@ -202,7 +202,7 @@ func TestServiceChecks(t *testing.T) {
 
 	// Test incomplete Service Check
 	input := append([]byte("_sc|agen.down\n"), defaultServiceInput...)
-	s.parsePackets(&b, parser, genTestPackets(input), metrics.MetricSampleBatch{}, nil)
+	s.parsePackets(&b, parser, nil, genTestPackets(input), metrics.MetricSampleBatch{}, nil)
 
 	assert.Equal(t, 1, len(b.serviceChecks))
 	defaultServiceCheck().testService(t, b.serviceChecks[0])
@@ -365,7 +365,7 @@ dogstatsd_mapper_profiles:
 
 			parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
 			var b batcherMock
-			s.parsePackets(&b, parser, genTestPackets(scenario.packets...), metrics.MetricSampleBatch{}, nil)
+			s.parsePackets(&b, parser, nil, genTestPackets(scenario.packets...), metrics.MetricSampleBatch{}, nil)
 
 			for idx, sample := range b.samples {
 				scenario.expectedSamples[idx].testMetric(t, sample)

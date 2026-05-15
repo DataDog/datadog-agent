@@ -71,7 +71,7 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 		samples := make([]metrics.MetricSample, 0, 512)
 		for pb.Next() {
 			packet.Contents = rawPacket
-			samples = s.parsePackets(batcher, parser, packets, samples, nil)
+			samples = s.parsePackets(batcher, parser, nil, packets, samples, nil)
 		}
 	})
 }
@@ -176,7 +176,7 @@ func benchmarkMapperControl(b *testing.B, yaml string) {
 			Origin:   packets.NoOrigin,
 		}
 		packets := packets.Packets{&packet}
-		samples = s.parsePackets(batcher, parser, packets, samples, nil)
+		samples = s.parsePackets(batcher, parser, nil, packets, samples, nil)
 	}
 
 	b.ReportAllocs()

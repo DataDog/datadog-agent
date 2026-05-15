@@ -22,6 +22,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logComponentImpl "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/internal/identity"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -175,14 +176,45 @@ func (d *serverDebugImpl) StoreMetricStats(sample metrics.MetricSample) {
 	defer d.tagsAccumulator.Reset()
 	d.tagsAccumulator.Append(sample.Tags...)
 	key := d.keyGen.Generate(sample.Name, "", d.tagsAccumulator)
+	debugViewKey := identity.DebugViewKey{
+		Client: identity.ClientSeriesIdentity{
+			Name: sample.Name,
+			Tags: sample.Tags,
+		},
+		Key:         key,
+		DisplayTags: strings.Join(d.tagsAccumulator.Get(), " "), // we don't want/need to share the underlying array
+	}
 
+	d.storeMetricStatsWithDebugViewKeyLocked(now, debugViewKey)
+}
+
+// StoreMetricStatsWithDebugViewKey stores stats using the serverDebug view key
+// already computed by the worker hot path.
+func (d *serverDebugImpl) StoreMetricStatsWithDebugViewKey(_ metrics.MetricSample, debugViewKey identity.DebugViewKey) {
+	if !d.enabled.Load() {
+		return
+	}
+
+	now := d.clock.Now()
+	d.Lock()
+	defer d.Unlock()
+
+	if !d.enabled.Load() {
+		// the debug server might have been disabled since the previous check
+		return
+	}
+
+	d.storeMetricStatsWithDebugViewKeyLocked(now, debugViewKey)
+}
+
+func (d *serverDebugImpl) storeMetricStatsWithDebugViewKeyLocked(now time.Time, debugViewKey identity.DebugViewKey) {
 	// store
-	ms := d.Stats[key]
+	ms := d.Stats[debugViewKey.Key]
 	ms.Count++
 	ms.LastSeen = now
-	ms.Name = sample.Name
-	ms.Tags = strings.Join(d.tagsAccumulator.Get(), " ") // we don't want/need to share the underlying array
-	d.Stats[key] = ms
+	ms.Name = debugViewKey.Client.Name
+	ms.Tags = debugViewKey.DisplayTags
+	d.Stats[debugViewKey.Key] = ms
 
 	if d.dogstatsdDebugLogger != nil {
 		logMessage := "Metric Name: %v | Tags: {%v} | Count: %v | Last Seen: %v "

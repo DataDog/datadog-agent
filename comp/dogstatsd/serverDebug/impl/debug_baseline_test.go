@@ -20,7 +20,7 @@ import (
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 )
 
-func TestMilestone0DebugIdentityBaseline(t *testing.T) {
+func TestMilestone0DebugViewKeyBaseline(t *testing.T) {
 	debug := fulfillDeps(t, map[string]interface{}{"dogstatsd_logging_enabled": false})
 	d := debug.(*serverDebugImpl)
 	d.SetMetricStatsEnabled(true)
@@ -56,7 +56,7 @@ func TestMilestone0DebugIdentityBaseline(t *testing.T) {
 	require.NoError(t, err)
 	var stats map[ckey.ContextKey]metricStat
 	require.NoError(t, json.Unmarshal(payload, &stats))
-	require.Len(t, stats, 2, "debug identity currently keys by metric name and client tags only")
+	require.Len(t, stats, 2, "debug view currently groups by metric name and client tags only")
 
 	var counts []uint64
 	for _, stat := range stats {
