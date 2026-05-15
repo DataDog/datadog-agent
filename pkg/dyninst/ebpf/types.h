@@ -177,6 +177,10 @@ typedef enum sm_opcode {
   // See pkg/dyninst/irgen/trace_context.md for design.
   SM_OP_GO_CONTEXT_CHAIN_INIT = 47,
   SM_OP_GO_CONTEXT_CHAIN_HOP = 48,
+  // Resolve the captured time.Time's loc pointer to a UTC offset in
+  // seconds, written in place of the loc pointer. See
+  // pkg/dyninst/compiler/ops.go: ProcessGoTimeOp.
+  SM_OP_PROCESS_GO_TIME = 49,
 } sm_opcode_t;
 
 // cmp_op_t identifies which comparison SM_OP_EXPR_CMP_BASE /

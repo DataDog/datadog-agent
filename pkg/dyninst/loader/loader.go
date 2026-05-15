@@ -252,7 +252,7 @@ func (p *Program) Close() {
 	}
 }
 
-// RuntimeStats are cumulative stats aggregated throughout program lifetime.
+// RuntimeStats are cumulative stats aggregated throughout probe lifetime.
 type RuntimeStats struct {
 	// Aggregated cpu time spent in probe execution (excluding interrupt overhead).
 	CPU time.Duration
@@ -262,22 +262,37 @@ type RuntimeStats struct {
 	ThrottledCnt uint64
 }
 
-// RuntimeStats returns the per-core runtime stats for the program.
+// RuntimeStats returns the per-probe runtime stats for the program,
+// indexed by the IR probe_id (the same value used as stats_buf key in
+// eBPF). The returned slice has length equal to the program's probe
+// count.
 func (p *Program) RuntimeStats() []RuntimeStats {
 	statsMap, ok := p.Collection.Maps["stats_buf"]
 	if !ok {
 		return nil
 	}
+	n := int(statsMap.MaxEntries())
+	out := make([]RuntimeStats, n)
+	if n == 0 {
+		return out
+	}
+	// stats and RuntimeStats have the same layout — see
+	// TestRuntimeStatsHasSameLayoutAsStats. Read directly into the
+	// output slice as []stats.
+	view := unsafe.Slice(
+		(*stats)(unsafe.Pointer(unsafe.SliceData(out))),
+		n,
+	)
 	entries := statsMap.Iterate()
 	var key uint32
-	var stats []stats
-	_ = entries.Next(&key, &stats)
-	// This is safe because these two structs have the same layout.
-	// See TestRuntimeStatsHasSameLayoutAsStats for more details.
-	return unsafe.Slice(
-		(*RuntimeStats)(unsafe.Pointer(unsafe.SliceData(stats))),
-		len(stats),
-	)
+	var value stats
+	for entries.Next(&key, &value) {
+		if int(key) >= n {
+			continue
+		}
+		view[key] = value
+	}
+	return out
 }
 
 const defaultRingbufSize = 1 << 20 // 1 MiB
@@ -435,6 +450,7 @@ func (l *Loader) loadData(
 	const throttlerMapName = "throttler_params"
 	const throttlerStateMapName = "throttler_buf"
 	const probeParamsMapName = "probe_params"
+	const statsBufMapName = "stats_buf"
 	const goRuntimeTypeIDsMapName = "go_runtime_type_ids"
 	const goRuntimeTypesMapName = "go_runtime_types"
 
@@ -613,6 +629,19 @@ func (l *Loader) loadData(
 	if err != nil {
 		return nil, fmt.Errorf("failed to set num_probe_params: %w", err)
 	}
+
+	// Size stats_buf to one entry per IR probe. BPF_MAP_TYPE_ARRAY
+	// requires max_entries >= 1, so clamp degenerate zero-probe
+	// programs (the verifier still requires the map to exist).
+	statsBufSize := serialized.numProbes
+	if statsBufSize == 0 {
+		statsBufSize = 1
+	}
+	statsBufMapSpec, ok := spec.Maps[statsBufMapName]
+	if !ok {
+		return nil, errors.New("stats_buf map not found in eBPF spec")
+	}
+	statsBufMapSpec.MaxEntries = statsBufSize
 
 	if l.config.dyninstDebugEnabled {
 		err = setVariable(spec, "debug_level", uint32(l.config.dyninstDebugLevel))
