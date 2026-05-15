@@ -254,3 +254,6 @@ AUTO_JIRA.md
 .python-nix-home
 .venv-nix
 flake.lock
+
+# Phoenix worktrees
+.phoenix/
