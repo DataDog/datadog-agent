@@ -743,7 +743,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "581"
+      - "740"
   when:
     dsl: "n == 7"
     json: {eq: [{ref: "n"}, 7]}
@@ -768,7 +768,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "581"
+      - "740"
   sampling:
     snapshotsPerSecond: 10
 
@@ -3416,7 +3416,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "581"
+      - "740"
   when:
     dsl: "@duration == 0.0"
     json: {eq: [{ref: "@duration"}, 0.0]}
@@ -3524,7 +3524,7 @@ probes:
     methodName: main.condLine
     sourceFile: main.go
     lines:
-      - "581"
+      - "740"
   when:
     dsl: "n == 7 && tag == \"match\""
     json:
@@ -4418,6 +4418,649 @@ probes:
   when:
     dsl: "x.F64 < 1.0"
     json: {lt: [{getmember: [{ref: "x"}, "F64"]}, 1.0]}
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# ---------------------------------------------------------------------------
+# any / all predicate probes. Targets in main.go: anyAllIntSlice,
+# anyAllStructSlice, anyAllPtrSlice, anyAllIntArray, anyAllIntMap,
+# anyAllPtrMap. Each tag value in those calls corresponds to assertions in
+# the decoded snapshots.
+# ---------------------------------------------------------------------------
+
+# any(xs, @it == 42): fires only on "match".
+- id: anyIntSlice_eq42
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  when:
+    dsl: "any(xs, {@it == 42})"
+    json: { any: [{ref: "xs"}, {eq: [{ref: "@it"}, 42]}] }
+  template: "any42 tag={tag}"
+  segments:
+    - str: "any42 tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# all(xs, @it > 0): fires on "match" and "anymiss_allmatch"; vacuous-true
+# on "empty"; fires on "toolarge" only if the limit isn't hit (it is, so
+# the probe surfaces an evaluation error instead).
+- id: allIntSlice_positive
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  when:
+    dsl: "all(xs, {@it > 0})"
+    json: { all: [{ref: "xs"}, {gt: [{ref: "@it"}, 0]}] }
+  template: "allpos tag={tag}"
+  segments:
+    - str: "allpos tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Predicate body over @it.field for slice-of-struct.
+# any(xs, @it.I32 == 300): fires only on "match".
+- id: anyStructSlice_I32eq300
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllStructSlice
+  when:
+    dsl: "any(xs, {@it.I32 == 300})"
+    json: { any: [{ref: "xs"}, {eq: [{getmember: [{ref: "@it"}, "I32"]}, 300]}] }
+  template: "anystruct tag={tag}"
+  segments:
+    - str: "anystruct tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Compound predicate body: any(xs, @it.I32 > 50 && @it.I32 < 200).
+# match (xs has I32=100, 300): elem I32=100 satisfies both arms → fires.
+# miss (xs has I32=1, 2): neither satisfies (both <= 50) → no fire.
+- id: anyStructSlice_I32inRange
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllStructSlice
+  when:
+    dsl: "any(xs, {@it.I32 > 50 && @it.I32 < 200})"
+    json:
+      any:
+        - { ref: "xs" }
+        - and:
+            - { gt: [{getmember: [{ref: "@it"}, "I32"]}, 50] }
+            - { lt: [{getmember: [{ref: "@it"}, "I32"]}, 200] }
+  template: "anyrange tag={tag}"
+  segments:
+    - str: "anyrange tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Compound predicate: all(xs, @it.I32 > 50 || @it.I32 < 0).
+# match (I32 in {100, 300}, both > 50) → fires.
+# miss (I32 in {1, 2}, neither > 50 nor < 0) → no fire.
+- id: allStructSlice_I32rangeOr
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllStructSlice
+  when:
+    dsl: "all(xs, {@it.I32 > 50 || @it.I32 < 0})"
+    json:
+      all:
+        - { ref: "xs" }
+        - or:
+            - { gt: [{getmember: [{ref: "@it"}, "I32"]}, 50] }
+            - { lt: [{getmember: [{ref: "@it"}, "I32"]}, 0] }
+  template: "allrangeor tag={tag}"
+  segments:
+    - str: "allrangeor tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# all(xs, @it.I32 > 0): fires on match (100, 300 both > 0) and miss
+# (1, 2 both > 0); vacuous-true on empty.
+- id: allStructSlice_I32positive
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllStructSlice
+  when:
+    dsl: "all(xs, {@it.I32 > 0})"
+    json: { all: [{ref: "xs"}, {gt: [{getmember: [{ref: "@it"}, "I32"]}, 0]}] }
+  template: "allstructpos tag={tag}"
+  segments:
+    - str: "allstructpos tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# any/all over a Go array (compile-time length).
+- id: anyIntArray_eq42
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntArray
+  when:
+    dsl: "any(xs, {@it == 42})"
+    json: { any: [{ref: "xs"}, {eq: [{ref: "@it"}, 42]}] }
+  template: "anyarr42 tag={tag}"
+  segments:
+    - str: "anyarr42 tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+- id: allIntArray_positive
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntArray
+  when:
+    dsl: "all(xs, {@it > 0})"
+    json: { all: [{ref: "xs"}, {gt: [{ref: "@it"}, 0]}] }
+  template: "allarrpos tag={tag}"
+  segments:
+    - str: "allarrpos tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# any/all over a Go swiss-table map. `@value` references the value half of
+# the current entry. (`@it` is the key; `@key` is its accepted synonym.)
+- id: anyIntMap_valueEq42
+  type: LOG_PROBE
+  captureSnapshot: false
+  tags:
+    # Old-style hmap (Go 1.23) is not supported for any/all; only swiss maps (Go 1.24+).
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  where:
+    methodName: main.anyAllIntMap
+  when:
+    dsl: "any(m, {@value == 42})"
+    json: { any: [{ref: "m"}, {eq: [{ref: "@value"}, 42]}] }
+  template: "anymap42 tag={tag}"
+  segments:
+    - str: "anymap42 tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# all(m, @value > 0): fires on match and miss (both have positive values);
+# vacuous-true on empty (nil map).
+- id: allIntMap_valuePositive
+  type: LOG_PROBE
+  captureSnapshot: false
+  tags:
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  where:
+    methodName: main.anyAllIntMap
+  when:
+    dsl: "all(m, {@value > 0})"
+    json: { all: [{ref: "m"}, {gt: [{ref: "@value"}, 0]}] }
+  template: "allmappos tag={tag}"
+  segments:
+    - str: "allmappos tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Slice of *condFields — guarded body. The && short-circuits past the
+# nil deref, so nil-containing inputs evaluate cleanly.
+- id: anyPtrSlice_guarded
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllPtrSlice
+  when:
+    dsl: 'any(xs, {@it != null && @it.S == "x"})'
+    json:
+      any:
+        - { ref: "xs" }
+        - and:
+            - { ne: [{ref: "@it"}, null] }
+            - { eq: [{getmember: [{ref: "@it"}, "S"]}, "x"] }
+  template: "anyptr_guarded tag={tag}"
+  segments:
+    - str: "anyptr_guarded tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Slice of *condFields — guarded all body using || nil short-circuit.
+- id: allPtrSlice_guarded
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllPtrSlice
+  when:
+    dsl: 'all(xs, {@it == null || @it.I32 > 0})'
+    json:
+      all:
+        - { ref: "xs" }
+        - or:
+            - { eq: [{ref: "@it"}, null] }
+            - { gt: [{getmember: [{ref: "@it"}, "I32"]}, 0] }
+  template: "allptr_guarded tag={tag}"
+  segments:
+    - str: "allptr_guarded tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Slice of *condFields — unguarded body. Dereferencing a nil element
+# faults; the surrounding condition reports condition_eval_error.
+- id: anyPtrSlice_unguarded
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllPtrSlice
+  when:
+    dsl: 'any(xs, {@it.S == "x"})'
+    json: { any: [{ref: "xs"}, {eq: [{getmember: [{ref: "@it"}, "S"]}, "x"]}] }
+  template: "anyptr_unguarded tag={tag}"
+  segments:
+    - str: "anyptr_unguarded tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Map of string -> *condFields — guarded body using @value != null.
+- id: anyPtrMap_guarded
+  type: LOG_PROBE
+  captureSnapshot: false
+  tags:
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  where:
+    methodName: main.anyAllPtrMap
+  when:
+    dsl: 'any(m, {@value != null && @value.I32 > 100})'
+    json:
+      any:
+        - { ref: "m" }
+        - and:
+            - { ne: [{ref: "@value"}, null] }
+            - { gt: [{getmember: [{ref: "@value"}, "I32"]}, 100] }
+  template: "anyptrmap_guarded tag={tag}"
+  segments:
+    - str: "anyptrmap_guarded tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Slice of *string — null comparison on the bare iterator pointer.
+# Verifies that for a base-type pointee, `@it != null` correctly compares
+# the pointer (no auto-deref). Fires when at least one element is non-nil.
+- id: anyPtrStrSlice_nonNull
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllPtrStrSlice
+  when:
+    dsl: 'any(xs, {@it != null})'
+    json: { any: [{ref: "xs"}, {ne: [{ref: "@it"}, null]}] }
+  template: "anyptrstr_nonnull tag={tag}"
+  segments:
+    - str: "anyptrstr_nonnull tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Slice of *int — null comparison. Fires when every element is non-nil.
+- id: allPtrIntSlice_nonNull
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllPtrIntSlice
+  when:
+    dsl: 'all(xs, {@it != null})'
+    json: { all: [{ref: "xs"}, {ne: [{ref: "@it"}, null]}] }
+  template: "allptrint_nonnull tag={tag}"
+  segments:
+    - str: "allptrint_nonnull tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Map keyed by a struct (condFields). Iteration walks every entry and
+# accesses @key.I32 — the synthetic entry's `key` field is the struct
+# value, and getmember resolves to the I32 sub-field.
+- id: anyStructKeyMap_keyI32eq2
+  type: LOG_PROBE
+  captureSnapshot: false
+  tags:
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  where:
+    methodName: main.anyAllStructKeyMap
+  when:
+    dsl: "any(m, {@key.I32 == 2})"
+    json: { any: [{ref: "m"}, {eq: [{getmember: [{ref: "@key"}, "I32"]}, 2]}] }
+  template: "anystructkey tag={tag}"
+  segments:
+    - str: "anystructkey tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Map keyed by *condFields. @key is a struct pointer; @key.I32 auto-derefs.
+- id: anyPtrStructKeyMap_keyI32eq2
+  type: LOG_PROBE
+  captureSnapshot: false
+  tags:
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  where:
+    methodName: main.anyAllPtrStructKeyMap
+  when:
+    dsl: "any(m, {@key.I32 == 2})"
+    json: { any: [{ref: "m"}, {eq: [{getmember: [{ref: "@key"}, "I32"]}, 2]}] }
+  template: "anyptrstructkey tag={tag}"
+  segments:
+    - str: "anyptrstructkey tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Map[string]bigStruct — value is large enough to be stored out-of-line.
+# Body reads @value.Field1; auto-deref should make this transparent.
+- id: anyBigValMap_valueField1eq42
+  type: LOG_PROBE
+  captureSnapshot: false
+  tags:
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  where:
+    methodName: main.anyAllBigValMap
+  when:
+    dsl: "any(m, {@value.Field1 == 42})"
+    json: { any: [{ref: "m"}, {eq: [{getmember: [{ref: "@value"}, "Field1"]}, 42]}] }
+  template: "anybigval tag={tag}"
+  segments:
+    - str: "anybigval tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Map[string]int — `@key` is the bare key reference (string). Fires when
+# at least one key equals "match".
+- id: anyIntMap_keyEqMatch
+  type: LOG_PROBE
+  captureSnapshot: false
+  tags:
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  where:
+    methodName: main.anyAllIntMap
+  when:
+    dsl: 'any(m, {@key == "match"})'
+    json: { any: [{ref: "m"}, {eq: [{ref: "@key"}, "match"]}] }
+  template: "anymapkey tag={tag}"
+  segments:
+    - str: "anymapkey tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Map[string]int — `@it` over a map resolves to the key (same as `@key`).
+# Fires only when at least one key equals "match".
+- id: anyIntMap_itEqMatch
+  type: LOG_PROBE
+  captureSnapshot: false
+  tags:
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  where:
+    methodName: main.anyAllIntMap
+  when:
+    dsl: 'any(m, {@it == "match"})'
+    json: { any: [{ref: "m"}, {eq: [{ref: "@it"}, "match"]}] }
+  template: "anymapit tag={tag}"
+  segments:
+    - str: "anymapit tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Combined predicate using `@key` AND `@value` in one body.
+- id: anyIntMap_keyValueAnd
+  type: LOG_PROBE
+  captureSnapshot: false
+  tags:
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  where:
+    methodName: main.anyAllIntMap
+  when:
+    dsl: 'any(m, {@key == "match" && @value == 42})'
+    json:
+      any:
+        - { ref: "m" }
+        - and:
+            - { eq: [{ref: "@key"}, "match"] }
+            - { eq: [{ref: "@value"}, 42] }
+  template: "anymapkv tag={tag}"
+  segments:
+    - str: "anymapkv tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Map[bigStruct]int — key is large enough to be stored out-of-line.
+# Body reads @key.Field1.
+- id: anyBigKeyMap_keyField1eq42
+  type: LOG_PROBE
+  captureSnapshot: false
+  tags:
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  where:
+    methodName: main.anyAllBigKeyMap
+  when:
+    dsl: "any(m, {@key.Field1 == 42})"
+    json: { any: [{ref: "m"}, {eq: [{getmember: [{ref: "@key"}, "Field1"]}, 42]}] }
+  template: "anybigkey tag={tag}"
+  segments:
+    - str: "anybigkey tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Composition: not(any(...)). Fires when no element matches.
+- id: anyIntSlice_notAny
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  when:
+    dsl: "not(any(xs, {@it == 42}))"
+    json: { not: { any: [{ref: "xs"}, {eq: [{ref: "@it"}, 42]}] } }
+  template: "not_any42 tag={tag}"
+  segments:
+    - str: "not_any42 tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Composition: any(...) && outer condition. Both arms must succeed.
+- id: anyIntSlice_andOuter
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  when:
+    dsl: 'any(xs, {@it == 42}) && tag == "match"'
+    json:
+      and:
+        - { any: [{ref: "xs"}, {eq: [{ref: "@it"}, 42]}] }
+        - { eq: [{ref: "tag"}, "match"] }
+  template: "any42_and_match tag={tag}"
+  segments:
+    - str: "any42_and_match tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Composition: any(...) || all(...). Either-or composition of two loops.
+- id: anyIntSlice_orAll
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  when:
+    dsl: "any(xs, {@it == 42}) || all(xs, {@it > 0})"
+    json:
+      or:
+        - { any: [{ref: "xs"}, {eq: [{ref: "@it"}, 42]}] }
+        - { all: [{ref: "xs"}, {gt: [{ref: "@it"}, 0]}] }
+  template: "any42_or_allpos tag={tag}"
+  segments:
+    - str: "any42_or_allpos tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Composition (map): any(map, ...) && all(map, ...) at the top level.
+- id: anyAllIntMap_compound
+  type: LOG_PROBE
+  captureSnapshot: false
+  tags:
+    - "issue:ConditionExpressionUnresolvable@arch=amd64,toolchain=go1.23.11"
+    - "issue:ConditionExpressionUnresolvable@arch=arm64,toolchain=go1.23.11"
+  where:
+    methodName: main.anyAllIntMap
+  when:
+    dsl: "any(m, {@value == 42}) && all(m, {@value > 0})"
+    json:
+      and:
+        - { any: [{ref: "m"}, {eq: [{ref: "@value"}, 42]}] }
+        - { all: [{ref: "m"}, {gt: [{ref: "@value"}, 0]}] }
+  template: "anymap42_and_allpos tag={tag}"
+  segments:
+    - str: "anymap42_and_allpos tag="
+    - json: {ref: "tag"}
+      dsl: "tag"
+  sampling:
+    snapshotsPerSecond: 10
+
+# Negative — predicate body references outer scope. Irgen rejects this
+# with an Issue (predicate scope is closed to @it).
+- id: anyIntSlice_outerScope_err
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  when:
+    json: { any: [{ref: "xs"}, {eq: [{ref: "tag"}, "match"]}] }
+  template: "should be rejected"
+  segments:
+    - str: "should be rejected"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Negative — nested any/all in predicate body. Irgen rejects.
+- id: anyIntSlice_nested_err
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  when:
+    json:
+      any:
+        - { ref: "xs" }
+        - { any: [{ref: "@it"}, {eq: [{ref: "@it"}, 1]}] }
+  template: "should be rejected"
+  segments:
+    - str: "should be rejected"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Negative — @key in a slice body (only valid for maps). Irgen rejects.
+- id: anyIntSlice_atKey_err
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntSlice
+  when:
+    json: { any: [{ref: "xs"}, {eq: [{ref: "@key"}, 1]}] }
+  template: "should be rejected"
+  segments:
+    - str: "should be rejected"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Negative — @value in an array body (only valid for maps). Irgen rejects.
+- id: anyIntArray_atValue_err
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllIntArray
+  when:
+    json: { any: [{ref: "xs"}, {eq: [{ref: "@value"}, 1]}] }
+  template: "should be rejected"
+  segments:
+    - str: "should be rejected"
+  sampling:
+    snapshotsPerSecond: 10
+  tags:
+    - "issue:ConditionExpressionUnresolvable"
+
+# Negative — slice element size exceeds the per-iteration scratch budget.
+# Irgen rejects upfront so the probe never reaches the runtime.
+- id: anyOversizedSlice_err
+  type: LOG_PROBE
+  captureSnapshot: false
+  where:
+    methodName: main.anyAllOversizedSlice
+  when:
+    json: { any: [{ref: "xs"}, {eq: [{getmember: [{ref: "@it"}, "I32"]}, 1]}] }
+  template: "should be rejected"
+  segments:
+    - str: "should be rejected"
   sampling:
     snapshotsPerSecond: 10
   tags:
