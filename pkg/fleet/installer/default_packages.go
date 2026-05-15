@@ -39,6 +39,7 @@ var PackagesList = []Package{
 	{Name: "datadog-apm-library-iis", version: apmLanguageVersion, released: false, releasedWithRemoteUpdates: true, condition: apmLanguageExplicitlyEnabled},
 	{Name: "datadog-apm-library-iis-rum", version: apmLanguageVersion, released: false, releasedWithRemoteUpdates: true, condition: apmLanguageExplicitlyEnabled},
 	{Name: "datadog-apm-library-httpd", version: apmLanguageVersion, released: false, releasedWithRemoteUpdates: true, condition: apmLanguageExplicitlyEnabled},
+	{Name: "datadog-apm-library-c", version: apmLanguageVersion, released: false, releasedWithRemoteUpdates: true, condition: apmLanguageExplicitlyEnabled},
 }
 
 // Default versions pinned for CentOS 6
