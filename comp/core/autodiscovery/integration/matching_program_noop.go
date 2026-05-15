@@ -13,6 +13,6 @@ import (
 )
 
 // CreateMatchingPrograms is a no-op when CEL is not enabled
-func CreateMatchingPrograms(_ workloadfilter.Rules, _ bool) (map[workloadfilter.ResourceType]MatchingProgram, []adtypes.CelIdentifier, error) {
+func CreateMatchingPrograms(_ workloadfilter.Rules, _ bool, _ func(error)) (map[workloadfilter.ResourceType]MatchingProgram, []adtypes.CelIdentifier, error) {
 	return nil, nil, nil
 }

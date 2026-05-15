@@ -46,7 +46,7 @@ func TestCreateMatchingPrograms_EmptyRules(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			programs, celADIDs, err := CreateMatchingPrograms(tt.rules, true)
+			programs, celADIDs, err := CreateMatchingPrograms(tt.rules, true, nil)
 			assert.Nil(t, programs)
 			assert.Empty(t, celADIDs)
 			assert.NoError(t, err)
@@ -108,7 +108,7 @@ func TestCreateMatchingPrograms_SingleType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			programs, celADIDs, err := CreateMatchingPrograms(tt.rules, true)
+			programs, celADIDs, err := CreateMatchingPrograms(tt.rules, true, nil)
 			require.NoError(t, err)
 			require.Len(t, programs, 1)
 			require.Len(t, celADIDs, 1)
@@ -149,7 +149,7 @@ func TestCreateMatchingPrograms_MultipleTypes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			programs, celADIDs, err := CreateMatchingPrograms(tt.rules, true)
+			programs, celADIDs, err := CreateMatchingPrograms(tt.rules, true, nil)
 			require.NoError(t, err)
 			require.Len(t, programs, len(tt.expectedTargets))
 			require.Len(t, celADIDs, len(tt.expectedADIDs))
@@ -215,7 +215,7 @@ func TestCreateMatchingPrograms_RecommendationErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			programs, celADIDs, err := CreateMatchingPrograms(tt.rules, true)
+			programs, celADIDs, err := CreateMatchingPrograms(tt.rules, true, nil)
 			// The function should return a program but with a recommendation error
 			assert.Error(t, err)
 			assert.Nil(t, programs)
@@ -233,7 +233,7 @@ func TestCreateMatchingPrograms_RecommendationErrorFailsAll(t *testing.T) {
 		Processes: []string{`process.cmdline.contains("redis-server")`},
 	}
 
-	programs, celADIDs, err := CreateMatchingPrograms(rules, true)
+	programs, celADIDs, err := CreateMatchingPrograms(rules, true, nil)
 	assert.Error(t, err)
 	assert.Nil(t, programs)
 	assert.Empty(t, celADIDs)
@@ -247,7 +247,7 @@ func TestCELMatchingProgram_LazyCompile(t *testing.T) {
 		Containers: []string{`container.name == "nginx" && container.image.reference == "nginx:latest"`},
 	}
 
-	programs, _, err := CreateMatchingPrograms(rules, false)
+	programs, _, err := CreateMatchingPrograms(rules, false, nil)
 	require.NoError(t, err)
 	require.Contains(t, programs, workloadfilter.ContainerType)
 
@@ -267,21 +267,30 @@ func TestCELMatchingProgram_LazyCompile(t *testing.T) {
 }
 
 // TestCELMatchingProgram_InvalidRuleLazyFailure verifies that a malformed CEL
-// rule does not error out of CreateMatchingPrograms (compile is lazy) and that
-// IsMatched returns false once compilation fails.
+// rule does not error out of CreateMatchingPrograms (compile is lazy), that
+// IsMatched returns false once compilation fails, and that the onCompileError
+// callback fires exactly once on the first IsMatched call.
 func TestCELMatchingProgram_InvalidRuleLazyFailure(t *testing.T) {
 	rules := workloadfilter.Rules{
 		// syntactically invalid CEL
 		Containers: []string{`container.name ==`},
 	}
 
-	programs, _, err := CreateMatchingPrograms(rules, false)
+	var callbackErrs []error
+	programs, _, err := CreateMatchingPrograms(rules, false, func(compileErr error) {
+		callbackErrs = append(callbackErrs, compileErr)
+	})
 	require.NoError(t, err, "CreateMatchingPrograms must not surface CEL compile errors")
 	require.Contains(t, programs, workloadfilter.ContainerType)
+	require.Empty(t, callbackErrs, "callback must not fire before first IsMatched call")
 
 	obj := workloadfilter.CreateContainer("id", "nginx", "nginx:latest", nil)
 	assert.False(t, programs[workloadfilter.ContainerType].IsMatched(obj))
+	require.Len(t, callbackErrs, 1, "callback must fire on first compile failure")
+	require.Error(t, callbackErrs[0])
 
-	// A second call must not panic (sync.Once already fired) and still report false.
+	// A second call must not panic (sync.Once already fired), still report false,
+	// and must not re-invoke the callback.
 	assert.False(t, programs[workloadfilter.ContainerType].IsMatched(obj))
+	assert.Len(t, callbackErrs, 1, "callback must not fire again on subsequent calls")
 }

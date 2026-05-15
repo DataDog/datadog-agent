@@ -196,6 +196,17 @@ func (p *KubeEndpointsFileConfigProvider) deleteHandler(obj interface{}) {
 	p.store.deleteEp(ep)
 }
 
+// recordTemplateError records a per-template error in the provider's
+// configErrors map. Safe for concurrent use.
+func (p *KubeEndpointsFileConfigProvider) recordTemplateError(name string, err error) {
+	if err == nil {
+		return
+	}
+	p.Lock()
+	defer p.Unlock()
+	p.configErrors[name] = types.ErrorMsgSet{err.Error(): struct{}{}}
+}
+
 // buildConfigStore initializes the config templates store.
 func (p *KubeEndpointsFileConfigProvider) buildConfigStore(templates []integration.Config) {
 	p.store = newStore()
@@ -217,7 +228,14 @@ func (p *KubeEndpointsFileConfigProvider) buildConfigStore(templates []integrati
 		// Configuration defined using only CEL selectors
 		if len(tpl.AdvancedADIdentifiers) == 0 && len(tpl.CELSelector.KubeEndpoints) > 0 {
 			// Create matching programs from CEL rules
-			programs, celADIDs, err := integration.CreateMatchingPrograms(tpl.CELSelector, true)
+			programs, celADIDs, err := integration.CreateMatchingPrograms(
+				tpl.CELSelector,
+				true,
+				// CEL compilation is lazy; route compile failures into configErrors
+				func(compileErr error) {
+					p.recordTemplateError(tpl.Name, compileErr)
+				},
+			)
 			if !slices.Contains(celADIDs, adtypes.CelEndpointIdentifier) {
 				errMsg := fmt.Sprintf("CEL selector for template %s is not targeting endpoints", tpl.Name)
 				log.Error(errMsg)

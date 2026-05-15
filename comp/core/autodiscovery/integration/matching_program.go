@@ -33,16 +33,16 @@ const (
 // The underlying cel.Program is compiled lazily on the first IsMatched call so that
 // configs whose rules are never evaluated do not pay the cel.NewEnv / Compile memory cost.
 type CELMatchingProgram struct {
-	target workloadfilter.ResourceType
-	rules  string
+	target         workloadfilter.ResourceType
+	rules          string
+	onCompileError func(error)
 
 	once    sync.Once
 	program cel.Program
 }
 
 // IsMatched evaluates the CEL program against the given object.
-// Compiles the program on first call; compile failures are logged once and
-// cause subsequent matches to return false.
+// If the CEL program fails to compile, returns false and invokes onCompileError callback.
 func (m *CELMatchingProgram) IsMatched(obj workloadfilter.Filterable) bool {
 	if m == nil {
 		return false
@@ -50,7 +50,10 @@ func (m *CELMatchingProgram) IsMatched(obj workloadfilter.Filterable) bool {
 	m.once.Do(func() {
 		prg, err := celprogram.CreateCELProgram(m.rules, m.target)
 		if err != nil {
-			log.Errorf("Autodiscovery CEL compile failed for %s: %v", m.target, err)
+			log.Warnf("Autodiscovery CEL compile failed for %s: %v", m.target, err)
+			if m.onCompileError != nil {
+				m.onCompileError(err)
+			}
 			return
 		}
 		m.program = prg
@@ -132,7 +135,10 @@ func checkRuleRecommendations(rules string, celADID adtypes.CelIdentifier) error
 // CreateMatchingPrograms creates MatchingPrograms for all resource types that have rules defined.
 // It returns a map of programs keyed by resource type and the list of CEL AD identifiers.
 // If checkRecommendations is true and any type fails recommendation checks, the call fails.
-func CreateMatchingPrograms(rules workloadfilter.Rules, checkRecommendations bool) (map[workloadfilter.ResourceType]MatchingProgram, []adtypes.CelIdentifier, error) {
+//
+// onCompileError is called when its CEL rule fails to lazily compile.
+// It is the caller's hook to surface compile failures in agent status / errorStats.
+func CreateMatchingPrograms(rules workloadfilter.Rules, checkRecommendations bool, onCompileError func(error)) (map[workloadfilter.ResourceType]MatchingProgram, []adtypes.CelIdentifier, error) {
 	allMeta := extractAllRuleMetadata(rules)
 	if len(allMeta) == 0 {
 		return nil, nil, nil
@@ -151,8 +157,9 @@ func CreateMatchingPrograms(rules workloadfilter.Rules, checkRecommendations boo
 		}
 
 		programs[meta.objectType] = &CELMatchingProgram{
-			target: meta.objectType,
-			rules:  combinedRule,
+			target:         meta.objectType,
+			rules:          combinedRule,
+			onCompileError: onCompileError,
 		}
 		celADIDs = append(celADIDs, meta.celADID)
 	}

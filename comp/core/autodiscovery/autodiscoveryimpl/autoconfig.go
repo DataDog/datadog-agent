@@ -497,7 +497,14 @@ func (ac *AutoConfig) initializeConfiguration(config *integration.Config) error 
 
 	// Only enforce recommendation checks when no explicit ad_identifiers are
 	// defined. When ADIDs are present, CEL rules act as secondary filters.
-	programs, celADIDs, err := integration.CreateMatchingPrograms(config.CELSelector, !hasExplicitADIDs)
+	// CEL compilation is lazy; report failures into errorStats when they surface.
+	programs, celADIDs, err := integration.CreateMatchingPrograms(
+		config.CELSelector,
+		!hasExplicitADIDs,
+		func(compileErr error) {
+			errorStats.setConfigError(config.Name, compileErr.Error())
+		},
+	)
 	if err != nil {
 		return err
 	}

@@ -34,7 +34,7 @@ var tplCelSlice = integration.Config{
 
 // Initialize the shared dummy CEL template with matching programs
 func init() {
-	programs, celADIDs, err := integration.CreateMatchingPrograms(tplCelSlice.CELSelector, true)
+	programs, celADIDs, err := integration.CreateMatchingPrograms(tplCelSlice.CELSelector, true, nil)
 	if err != nil {
 		panic("failed to create CEL matching program: " + err.Error())
 	}

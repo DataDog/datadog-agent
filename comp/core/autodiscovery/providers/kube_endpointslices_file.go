@@ -14,6 +14,8 @@ import (
 	"slices"
 	"sync"
 
+	"k8s.io/apimachinery/pkg/api/equality"
+
 	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
@@ -23,7 +25,6 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"k8s.io/apimachinery/pkg/api/equality"
 
 	discv1 "k8s.io/api/discovery/v1"
 	"k8s.io/client-go/tools/cache"
@@ -203,6 +204,17 @@ func (p *KubeEndpointSlicesFileConfigProvider) deleteHandler(obj interface{}) {
 	p.store.deleteSlice(slice)
 }
 
+// recordTemplateError records a per-template error in the provider's
+// configErrors map. Safe for concurrent use.
+func (p *KubeEndpointSlicesFileConfigProvider) recordTemplateError(name string, err error) {
+	if err == nil {
+		return
+	}
+	p.Lock()
+	defer p.Unlock()
+	p.configErrors[name] = types.ErrorMsgSet{err.Error(): struct{}{}}
+}
+
 // buildConfigStore initializes the config templates store.
 func (p *KubeEndpointSlicesFileConfigProvider) buildConfigStore(templates []integration.Config) {
 	p.store = newEndpointSliceStore()
@@ -224,7 +236,14 @@ func (p *KubeEndpointSlicesFileConfigProvider) buildConfigStore(templates []inte
 		// Configuration defined using only CEL selectors
 		if len(tpl.AdvancedADIdentifiers) == 0 && len(tpl.CELSelector.KubeEndpoints) > 0 {
 			// Create matching programs from CEL rules
-			programs, celADIDs, err := integration.CreateMatchingPrograms(tpl.CELSelector, true)
+			programs, celADIDs, err := integration.CreateMatchingPrograms(
+				tpl.CELSelector,
+				true,
+				// CEL compilation is lazy; route compile failures into configErrors
+				func(compileErr error) {
+					p.recordTemplateError(tpl.Name, compileErr)
+				},
+			)
 			if !slices.Contains(celADIDs, adtypes.CelEndpointIdentifier) {
 				errMsg := fmt.Sprintf("CEL selector for template %s is not targeting endpoints", tpl.Name)
 				log.Error(errMsg)

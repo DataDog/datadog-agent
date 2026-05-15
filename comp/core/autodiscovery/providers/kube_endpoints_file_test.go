@@ -32,7 +32,7 @@ var tplCel = integration.Config{
 
 // Initialize the shared dummy CEL template with matching programs
 func init() {
-	programs, celADIDs, err := integration.CreateMatchingPrograms(tplCel.CELSelector, true)
+	programs, celADIDs, err := integration.CreateMatchingPrograms(tplCel.CELSelector, true, nil)
 	if err != nil {
 		panic("failed to create CEL matching program: " + err.Error())
 	}
