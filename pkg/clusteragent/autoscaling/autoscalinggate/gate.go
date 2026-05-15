@@ -15,8 +15,8 @@
 // memory in large clusters.
 //
 // To achieve the goal, we use this gate to only start the autoscaling stack
-// when there's at least one DatadogPodAutoscaler or
-// DatadogPodAutoscalerClusterProfile object deployed.
+// when there's at least one DatadogPodAutoscaler or a workload or namespace
+// with an autoscaling label.
 package autoscalinggate
 
 import (
@@ -41,8 +41,8 @@ func New() *Gate {
 }
 
 // Enable marks autoscaling as enabled. To be called when there's a
-// DatadogPodAutoscaler or DatadogPodAutoscalerClusterProfile deployed. Only the
-// first call has any effect.
+// DatadogPodAutoscaler or a workload or namespace with autoscaling labels. Only
+// the first call has any effect.
 func (g *Gate) Enable() {
 	g.enableOnce.Do(func() { close(g.enableCh) })
 }

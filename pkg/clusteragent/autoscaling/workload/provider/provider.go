@@ -39,6 +39,8 @@ import (
 	"k8s.io/client-go/discovery"
 )
 
+var argoRolloutsGVR = schema.GroupVersionResource{Group: "argoproj.io", Version: "v1alpha1", Resource: "rollouts"}
+
 // StartWorkloadAutoscaling starts the workload autoscaling controller
 func StartWorkloadAutoscaling(
 	ctx context.Context,
@@ -108,16 +110,12 @@ func StartWorkloadAutoscaling(
 		return nil, fmt.Errorf("Unable to start profile controller: %w", err)
 	}
 
-	workloadResources := []profile.GroupVersionKindResource{
-		{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}, Kind: "Deployment"},
-		{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}, Kind: "StatefulSet"},
-	}
-	if isArgoRolloutsAvailable(apiCl.Cl.Discovery()) {
-		workloadResources = append(workloadResources, profile.GroupVersionKindResource{
-			GroupVersionResource: schema.GroupVersionResource{Group: "argoproj.io", Version: "v1alpha1", Resource: "rollouts"},
-			Kind:                 kubernetes.RolloutKind,
-		})
-		log.Info("Argo Rollouts CRD detected, enabling rollout support for autoscaling profiles")
+	workloadResources := SupportedWorkloadResources(apiCl.Cl.Discovery())
+	for _, workloadResource := range workloadResources {
+		if workloadResource.GroupVersionResource == argoRolloutsGVR {
+			log.Info("Argo Rollouts CRD detected, enabling rollout support for autoscaling profiles")
+			break
+		}
 	}
 
 	workloadWatcher := profile.NewWorkloadWatcher(
@@ -158,6 +156,24 @@ func StartWorkloadAutoscaling(
 	go externalRecommender.Run(ctx)
 
 	return podPatcher, nil
+}
+
+// SupportedWorkloadResources returns the list of workload resources that
+// autoscaling profiles can target.
+func SupportedWorkloadResources(discoveryClient discovery.DiscoveryInterface) []profile.GroupVersionKindResource {
+	resources := []profile.GroupVersionKindResource{
+		{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}, Kind: "Deployment"},
+		{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}, Kind: "StatefulSet"},
+	}
+
+	if isArgoRolloutsAvailable(discoveryClient) {
+		resources = append(resources, profile.GroupVersionKindResource{
+			GroupVersionResource: argoRolloutsGVR,
+			Kind:                 kubernetes.RolloutKind,
+		})
+	}
+
+	return resources
 }
 
 func isArgoRolloutsAvailable(discoveryClient discovery.DiscoveryInterface) bool {

@@ -256,16 +256,14 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 	return nil
 }
 
-// startPodStoreOnGate blocks until either the gate is enabled (signalling that
-// at least one DatadogPodAutoscaler or DatadogPodAutoscalerClusterProfile has
-// been deployed) or the context is cancelled. On gate enable, it starts the pod
-// reflector.
+// startPodStoreOnGate blocks until the autoscaling gate is enabled or the
+// context is cancelled. On gate enable, it starts the pod reflector.
 func (c *collector) startPodStoreOnGate(ctx context.Context, wlmetaStore workloadmeta.Component, client kubernetes.Interface, newStore storeGenerator) {
 	if !c.autoscalingGate.WaitForEnable(ctx) {
 		return
 	}
 
-	log.Debug("First DatadogPodAutoscaler or DatadogPodAutoscalerClusterProfile observed. Starting workloadmeta pod reflector lazily")
+	log.Debug("Autoscaling gate enabled, starting workloadmeta pod reflector lazily")
 	reflector, store := newStore(ctx, wlmetaStore, c.config, client)
 	go reflector.Run(ctx.Done())
 

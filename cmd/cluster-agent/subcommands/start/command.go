@@ -562,9 +562,10 @@ func start(log log.Component,
 		}
 
 		// Register the gate handlers that allow the lazy startup of the
-		// autoscaling stack. It stays off until a DatadogPodAutoscaler or
-		// DatadogPodAutoscalerClusterProfile resource is observed.
-		if err := provider.RegisterAutoscalingGateHandlers(apiCl.DynamicInformerFactory, autoscalingGate); err != nil {
+		// autoscaling stack. It stays off until a DatadogPodAutoscaler or a
+		// workload/namespace with the autoscaling profile label is observed.
+		workloadResources := provider.SupportedWorkloadResources(apiCl.Cl.Discovery())
+		if err := provider.RegisterAutoscalingGateHandlers(mainCtx, apiCl.DynamicInformerFactory, apiCl.MetadataInformerCl, workloadResources, autoscalingGate); err != nil {
 			return fmt.Errorf("Error while registering autoscaling gate handlers: %w", err)
 		}
 		apiCl.DynamicInformerFactory.Start(mainCtx.Done())
