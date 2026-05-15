@@ -115,6 +115,21 @@ bpf_maps_generator = macro(
 # bpf_maps_generator) stay symbolic — only this multi-output case requires the
 # legacy form. See ABLD-420.
 def accessors(name, tags, model, types_file, output, field_handlers, field_accessors_output, doc_output, package_path, srcs = [], visibility = None):
+    """Generate accessors for a model file.
+
+    Args:
+        name: Name of the target.
+        tags: Build tags to use.
+        model: Model file to use.
+        types_file: Types file to use.
+        output: Output file to use.
+        field_handlers: Field handlers output file to use.
+        field_accessors_output: Field accessors output file to use.
+        doc_output: Documentation output file to use.
+        package_path: Package path to use.
+        srcs: Additional source files to use.
+        visibility: Visibility to use.
+    """
     gen = "{}_gen".format(name)
     out_dir = name
     run_binary(
