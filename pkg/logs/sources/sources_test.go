@@ -7,6 +7,7 @@ package sources
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -202,4 +203,44 @@ func TestSubscribeForType(t *testing.T) {
 	sb1 = <-removeB
 	assert.Equal(t, sa1, source1)
 	assert.Equal(t, sb1, source1)
+}
+
+// TestPartialRestart verifies that AddSource does not block after a launcher
+// stops (closes its done channel) while a new launcher is subscribed.
+//
+// This covers the partial pipeline restart scenario: LogSources is reused
+// across restarts, so dead subscriptions from the old launcher must not
+// block sends to new subscribers.
+func TestPartialRestart(t *testing.T) {
+	logSources := NewLogSources()
+	source := NewLogSource("foo", &config.LogsConfig{Type: "foo"})
+
+	// Simulate old launcher: subscribe but never consume, then stop.
+	oldDone := make(chan struct{})
+	_ = logSources.GetAddedForType("foo", oldDone)
+	close(oldDone) // old launcher stopped; its channel is now dead
+
+	// Simulate new launcher: subscribe and consume.
+	newDone := make(chan struct{})
+	newStream := logSources.GetAddedForType("foo", newDone)
+
+	addSourceDone := make(chan struct{})
+	go func() {
+		logSources.AddSource(source)
+		close(addSourceDone)
+	}()
+
+	select {
+	case received := <-newStream:
+		assert.Equal(t, source, received)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for new subscriber to receive source")
+	}
+
+	select {
+	case <-addSourceDone:
+		// AddSource completed without blocking on the dead subscription
+	case <-time.After(time.Second):
+		t.Fatal("AddSource blocked on dead subscription")
+	}
 }

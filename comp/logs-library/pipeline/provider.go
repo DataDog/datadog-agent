@@ -75,6 +75,7 @@ type provider struct {
 	routerChannels     []chan *message.Message
 	currentRouterIndex *atomic.Uint32
 	forwarderWaitGroup sync.WaitGroup
+	stopOnce           sync.Once
 }
 
 // NewProvider returns a new Provider.
@@ -280,23 +281,26 @@ func (p *provider) Start() {
 // Stop stops all pipelines in parallel. This call blocks until all pipelines are stopped.
 // If failover is enabled, closes all router channels and waits for forwarder goroutines
 // to finish draining before stopping pipelines.
+// Stop is idempotent; subsequent calls are no-ops.
 func (p *provider) Stop() {
-	stopper := startstop.NewParallelStopper()
+	p.stopOnce.Do(func() {
+		stopper := startstop.NewParallelStopper()
 
-	for _, ch := range p.routerChannels {
-		close(ch)
-	}
-	p.forwarderWaitGroup.Wait()
+		for _, ch := range p.routerChannels {
+			close(ch)
+		}
+		p.forwarderWaitGroup.Wait()
 
-	// close the pipelines
-	for _, pipeline := range p.pipelines {
-		stopper.Add(pipeline)
-	}
+		// close the pipelines
+		for _, pipeline := range p.pipelines {
+			stopper.Add(pipeline)
+		}
 
-	stopper.Stop()
-	p.sender.Stop()
-	p.pipelines = p.pipelines[:0]
-	p.routerChannels = nil
+		stopper.Stop()
+		p.sender.Stop()
+		p.pipelines = p.pipelines[:0]
+		p.routerChannels = nil
+	})
 }
 
 // NextPipelineChan returns a channel for sending log messages to the pipeline.
