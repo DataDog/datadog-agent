@@ -586,6 +586,9 @@ func TestBatchStrategyDeltaEncodesPatternIDFromPatternDefine(t *testing.T) {
 	require.NotNil(t, datumSeq.Data[0].GetPatternDefine())
 	require.NotNil(t, datumSeq.Data[1].GetLogs().GetStructured())
 	assert.EqualValues(t, 0, datumSeq.Data[1].GetLogs().GetStructured().PatternId)
+	extra, ok := payload.StatefulExtra.(*StatefulExtra)
+	require.True(t, ok)
+	assert.EqualValues(t, 12, extra.WireDatums[1].GetLogs().GetStructured().PatternId)
 
 	strategy.Stop()
 }

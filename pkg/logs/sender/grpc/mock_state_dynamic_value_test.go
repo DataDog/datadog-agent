@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/patterns/token"
 	rtokenizer "github.com/DataDog/datadog-agent/pkg/logs/patterns/tokenizer/rust"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/statefulpb"
 )
@@ -420,6 +421,44 @@ func TestJsonSchemaDefineKeepsEmptyKeysAlignedWithCompactValues(t *testing.T) {
 
 	compact, _ := mt.compactJSONContextValues([]interface{}{"empty-key-value", "INFO"})
 	assert.Len(t, compact.kinds, len(schema.keyIDs))
+}
+
+func TestMessageOnlyJSONSendsZeroKeySchema(t *testing.T) {
+	mt := NewMessageTranslator("test-pipeline", rtokenizer.NewRustTokenizer())
+	outputChan := make(chan *message.StatefulMessage, 10)
+	msg := message.NewMessage([]byte(`{"msg":"hello"}`), nil, "", 0)
+	tokenList := token.NewTokenListWithTokens([]token.Token{
+		token.NewToken(token.TokenWord, "hello", token.PotentialWildcard),
+	})
+
+	mt.processPreTokenized(msg, tokenList, "msg", nil, nil, outputChan)
+
+	var msgKeyID uint64
+	var sawMsgKey bool
+	var schemaID uint64
+	var flatLog *statefulpb.FlatLog
+	for len(outputChan) > 0 {
+		datum := (<-outputChan).Datum
+		if define := datum.GetDictEntryDefine(); define != nil && define.Value == "msg" {
+			msgKeyID = define.Id
+			sawMsgKey = true
+		}
+		if schema := datum.GetJsonSchemaDefine(); schema != nil {
+			schemaID = schema.SchemaId
+			assert.Empty(t, schema.Keys)
+			assert.Equal(t, msgKeyID, schema.MessageKeyId)
+		}
+		if log := datum.GetFlatLog(); log != nil {
+			flatLog = log
+		}
+	}
+
+	require.True(t, sawMsgKey)
+	require.NotZero(t, schemaID)
+	require.NotNil(t, flatLog)
+	assert.Equal(t, flatLogDictIndex(schemaID), flatLog.JsonSchemaId)
+	assert.Empty(t, flatLog.JsonContextValueKinds)
+	assert.Empty(t, flatLog.JsonContextValues)
 }
 
 func ptrInt64(v int64) *int64       { return &v }
