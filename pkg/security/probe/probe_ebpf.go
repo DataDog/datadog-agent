@@ -1948,13 +1948,22 @@ func (p *EBPFProbe) GetEventTags(containerID containerutils.ContainerID) []strin
 	return p.Resolvers.TagsResolver.Resolve(containerID)
 }
 
+// ShouldEvaluateDiscarders returns whether discarder evaluation should proceed for the given event
+func (p *EBPFProbe) ShouldEvaluateDiscarders(ev *model.Event) bool {
+	if !p.config.Probe.EnableDiscarders {
+		return false
+	}
+	if p.isRuntimeDiscarded {
+		fakeTime := time.Unix(0, int64(ev.TimestampRaw))
+		if p.discarderRateLimiter.TokensAt(fakeTime) < 1 {
+			return false
+		}
+	}
+	return true
+}
+
 // OnNewDiscarder handles new discarders
 func (p *EBPFProbe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Field, eventType eval.EventType) {
-	// discarders disabled
-	if !p.config.Probe.EnableDiscarders {
-		return
-	}
-
 	if p.isRuntimeDiscarded {
 		fakeTime := time.Unix(0, int64(ev.TimestampRaw))
 		if !p.discarderRateLimiter.AllowN(fakeTime, 1) {
