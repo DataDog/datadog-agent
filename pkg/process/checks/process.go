@@ -288,7 +288,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 	if p.lastProcs == nil {
 		p.lastProcs = procs
 		p.lastCPUTime = cpuTimes[0]
-		p.lastRun = time.Now()
+		p.lastRun = start
 
 		if collectRealTime {
 			p.realtimeLastCPUTime = p.lastCPUTime
@@ -303,16 +303,15 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 	pidToGPUTags := p.gpuSubscriber.GetGPUTags()
 
-	now := time.Now()
-	zombiesByPPID := p.aggregateZombiesByParent(procs, now)
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIDProbe, zombiesByPPID, p.serviceExtractor, pidToGPUTags, p.tagger, now)
+	zombiesByPPID := p.aggregateZombiesByParent(procs, start)
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIDProbe, zombiesByPPID, p.serviceExtractor, pidToGPUTags, p.tagger, start)
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
 	// Note: not storing the filtered in case there are new processes that haven't had a chance to show up twice.
 	p.lastProcs = procs
 	p.lastCPUTime = cpuTimes[0]
-	p.lastRun = time.Now()
+	p.lastRun = start
 
 	result := &CombinedRunResult{
 		Standard: messages,
