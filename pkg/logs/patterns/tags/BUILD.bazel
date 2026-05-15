@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tags",
+    srcs = [
+        "tag.go",
+        "tag_eviction.go",
+        "tag_eviction_manager.go",
+        "tag_manager.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/patterns/tags",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/logs/patterns/eviction",
+        "//pkg/proto/pbgo/statefulpb",
+        "//pkg/util/log",
+        "@com_github_datadog_datadog_agent_pkg_config_setup//:setup",
+    ],
+)
+
+go_test(
+    name = "tags_test",
+    srcs = [
+        "tag_eviction_manager_test.go",
+        "tag_manager_test.go",
+    ],
+    embed = [":tags"],
+    deps = [
+        "//pkg/logs/patterns/eviction",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
