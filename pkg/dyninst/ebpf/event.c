@@ -258,7 +258,22 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
     process_steps = stack_machine_process_frame(&global_ctx, &frame_data,
                                                 params->stack_machine_pc);
   }
-  header->condition_eval_error = global_ctx.stack_machine->condition_eval_error ? (global_ctx.stack_machine->condition_nil_deref ? 2 : 1) : 0;
+  // Pack the SM's condition-error state into a single byte:
+  //   0  no condition error
+  //   1  generic eval error (kernel read failure, OOB, etc.)
+  //   2  nil pointer dereference during condition evaluation
+  //   3  any/all iteration limit exceeded
+  // Cap-exhausted is checked first because it's a specific subcase of
+  // "an eval error happened"; the SM sets condition_eval_error
+  // alongside iteration_cap_exhausted at the loop-end sites.
+  if (global_ctx.stack_machine->iteration_cap_exhausted) {
+    header->condition_eval_error = 3;
+  } else if (global_ctx.stack_machine->condition_eval_error) {
+    header->condition_eval_error =
+        global_ctx.stack_machine->condition_nil_deref ? 2 : 1;
+  } else {
+    header->condition_eval_error = 0;
+  }
   if (global_ctx.stack_machine->condition_failed) {
     LOG(4, "probe_run: condition failed, skipping event");
     if (params->kind == EVENT_KIND_RETURN) {

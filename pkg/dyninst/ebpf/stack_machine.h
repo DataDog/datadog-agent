@@ -2732,9 +2732,12 @@ sm_slice_loop_end(scratch_buf_t* buf, stack_machine_t* sm) {
     // If we exhausted the capped iteration budget without a short-circuit
     // result, the answer is inconclusive: trip eval_error and tell the
     // dispatcher to sm_return so the surrounding ConditionCheck doesn't
-    // clear the flag.
+    // clear the flag. iteration_cap_exhausted distinguishes this case
+    // from other generic eval errors so userspace can render a specific
+    // message.
     if (!exit_loop && sm->slice_loop_state.capped) {
       sm->condition_eval_error = true;
+      sm->iteration_cap_exhausted = true;
       return 3;
     }
     return 1;
@@ -5009,6 +5012,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       if (sm->swissmap_loop_state.iterations > COLLECTION_PREDICATE_MAX_ITERATIONS) {
         sm->swissmap_loop_state.phase = 0;
         sm->condition_eval_error = true;
+        sm->iteration_cap_exhausted = true;
         sm->offset = sm->swissmap_loop_state.accumulator_off;
         scratch_buf_set_len(buf, sm->expr_results_end_offset);
         if (!sm_return(sm)) return 1;
@@ -5082,6 +5086,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       if (sm->swissmap_loop_state.iterations > COLLECTION_PREDICATE_MAX_ITERATIONS) {
         sm->swissmap_loop_state.phase = 0;
         sm->condition_eval_error = true;
+        sm->iteration_cap_exhausted = true;
         sm->offset = sm->swissmap_loop_state.accumulator_off;
         scratch_buf_set_len(buf, sm->expr_results_end_offset);
         if (!sm_return(sm)) return 1;

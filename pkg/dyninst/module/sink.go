@@ -131,13 +131,15 @@ func (s *sink) HandleEvent(msg dispatcher.Message) error {
 	// snapshots are sampled, throttled, or pruned away.
 	//
 	// Encoding: 1 = generic eval error (OOB, kernel read fail);
-	// 2 = nil pointer dereference. See condition_eval_error in
-	// ../ebpf/event.c.
+	// 2 = nil pointer dereference; 3 = any/all iteration cap
+	// exhausted. See condition_eval_error in ../ebpf/event.c.
 	switch h.Condition_eval_error {
 	case 1:
 		s.runtime.stats.conditionEvalErrorOther.Add(1)
 	case 2:
 		s.runtime.stats.conditionEvalErrorNilDeref.Add(1)
+	case 3:
+		s.runtime.stats.conditionIterationCapExhausted.Add(1)
 	}
 
 	switch expectation {

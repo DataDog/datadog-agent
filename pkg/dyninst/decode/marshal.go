@@ -518,6 +518,25 @@ var errNilPointerEvaluating = errors.New("nil pointer dereference")
 var errIndexOutOfBounds = errors.New("index out of bounds")
 var errRecursionStackFull = errors.New("capture nesting too deep")
 var errBufferFull = errors.New("event too large")
+var errIterationCapExhausted = errors.New(
+	"any/all iteration limit exceeded (4096 elements)")
+
+// conditionEvalErrorMessage maps the packed Condition_eval_error byte
+// from the event header to a human-readable evaluationErrors message.
+// Codes are defined in pkg/dyninst/ebpf/event.c (see the header-pack
+// block there): 0 = no error (callers gate on != 0 before calling),
+// 1 = generic, 2 = nil pointer dereference, 3 = any/all iteration
+// cap exhausted. Unknown codes fall back to the generic message so a
+// future BPF-side addition doesn't break older decoders.
+func conditionEvalErrorMessage(code uint8) string {
+	switch code {
+	case 2:
+		return errNilPointerEvaluating.Error()
+	case 3:
+		return errIterationCapExhausted.Error()
+	}
+	return "error evaluating condition"
+}
 
 // processExpression processes a single expression from the root type expressions
 func (ce *captureEvent) processExpression(

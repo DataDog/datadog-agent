@@ -164,7 +164,13 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@when",
+            "message": "any/all iteration limit exceeded (4096 elements)"
+          }
+        ]
       },
       "type": "snapshot"
     },
@@ -193,7 +199,13 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@when",
+            "message": "any/all iteration limit exceeded (4096 elements)"
+          }
+        ]
       },
       "type": "snapshot"
     },
@@ -222,7 +234,13 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@when",
+            "message": "any/all iteration limit exceeded (4096 elements)"
+          }
+        ]
       },
       "type": "snapshot"
     },

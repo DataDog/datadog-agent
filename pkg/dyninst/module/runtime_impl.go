@@ -82,6 +82,13 @@ type runtimeStats struct {
 	// hit a non-nil-deref evaluation error (out-of-bounds index,
 	// kernel read failure, etc.). Same fail-open behavior.
 	conditionEvalErrorOther atomic.Uint64
+	// conditionIterationCapExhausted counts events whose @when
+	// condition included an any/all over a collection that ran past
+	// the 4096-element per-call iteration cap without a short-circuit
+	// result. Same fail-open behavior; the operator can adjust the
+	// predicate to short-circuit sooner or accept that very large
+	// collections can't be evaluated condition-side.
+	conditionIterationCapExhausted atomic.Uint64
 }
 
 func (s *runtimeStats) asStats() map[string]any {
@@ -92,6 +99,7 @@ func (s *runtimeStats) asStats() map[string]any {
 		"event_pairing_condition_failed":    s.eventPairingConditionFailed.Load(),
 		"condition_eval_error_nil_deref":    s.conditionEvalErrorNilDeref.Load(),
 		"condition_eval_error_other":        s.conditionEvalErrorOther.Load(),
+		"condition_iteration_cap_exhausted": s.conditionIterationCapExhausted.Load(),
 	}
 }
 

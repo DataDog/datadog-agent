@@ -19,7 +19,13 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@return",
+            "message": "per-goroutine call count exceeded"
+          }
+        ]
       },
       "type": "snapshot"
     },
@@ -47,7 +53,13 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@return",
+            "message": "per-goroutine call count exceeded"
+          }
+        ]
       },
       "type": "snapshot"
     },
@@ -75,7 +87,13 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@return",
+            "message": "per-goroutine call count exceeded"
+          }
+        ]
       },
       "type": "snapshot"
     },
@@ -103,7 +121,17 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@return",
+            "message": "per-goroutine call count exceeded"
+          },
+          {
+            "expr": "any(xs, {@it == 42})",
+            "message": "any/all iteration limit exceeded (4096 elements)"
+          }
+        ]
       },
       "type": "snapshot"
     },
@@ -131,7 +159,13 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@return",
+            "message": "per-goroutine call count exceeded"
+          }
+        ]
       },
       "type": "snapshot"
     },
@@ -159,7 +193,17 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "@return",
+            "message": "per-goroutine call count exceeded"
+          },
+          {
+            "expr": "any(xs, {@it == 42})",
+            "message": "any/all iteration limit exceeded (4096 elements)"
+          }
+        ]
       },
       "type": "snapshot"
     },

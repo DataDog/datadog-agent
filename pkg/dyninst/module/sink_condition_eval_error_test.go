@@ -25,10 +25,11 @@ import (
 func TestSinkConditionEvalErrorCounters(t *testing.T) {
 	s, _ := newTestSink()
 
-	// Submit a mix of events spanning the three condition_eval_error
-	// states: 0 = pass, 1 = generic error, 2 = nil pointer deref.
-	// Each event is a single-fragment standalone (no return paired),
-	// so the buffer immediately produces a Ready and emit runs.
+	// Submit a mix of events spanning the four condition_eval_error
+	// states: 0 = pass, 1 = generic error, 2 = nil pointer deref,
+	// 3 = any/all iteration cap exhausted. Each event is a
+	// single-fragment standalone (no return paired), so the buffer
+	// immediately produces a Ready and emit runs.
 	send := func(condErr uint8) {
 		hdr := output.EventHeader{
 			Prog_id:                   1,
@@ -44,9 +45,10 @@ func TestSinkConditionEvalErrorCounters(t *testing.T) {
 	}
 
 	const (
-		nPass     = 3
-		nOther    = 2
-		nNilDeref = 4
+		nPass       = 3
+		nOther      = 2
+		nNilDeref   = 4
+		nIterCapExh = 5
 	)
 	for range nPass {
 		send(0)
@@ -57,15 +59,21 @@ func TestSinkConditionEvalErrorCounters(t *testing.T) {
 	for range nNilDeref {
 		send(2)
 	}
+	for range nIterCapExh {
+		send(3)
+	}
 
 	stats := s.runtime.stats.asStats()
 	require.EqualValues(t, nOther, stats["condition_eval_error_other"],
 		"generic condition-eval errors should accumulate")
 	require.EqualValues(t, nNilDeref, stats["condition_eval_error_nil_deref"],
 		"nil-deref condition-eval errors should accumulate")
-	// The "pass" events must not touch either counter.
-	require.EqualValues(t, nOther+nNilDeref,
+	require.EqualValues(t, nIterCapExh, stats["condition_iteration_cap_exhausted"],
+		"iteration-cap-exhausted condition-eval errors should accumulate")
+	// The "pass" events must not touch any of the three counters.
+	require.EqualValues(t, nOther+nNilDeref+nIterCapExh,
 		stats["condition_eval_error_other"].(uint64)+
-			stats["condition_eval_error_nil_deref"].(uint64),
+			stats["condition_eval_error_nil_deref"].(uint64)+
+			stats["condition_iteration_cap_exhausted"].(uint64),
 		"pass events (condition_eval_error=0) must not increment counters")
 }

@@ -192,6 +192,14 @@ typedef struct stack_machine {
   // condition evaluation to abort. Used together with condition_eval_error
   // to distinguish nil-caused failures from other evaluation errors.
   bool condition_nil_deref;
+  // Set to true when an any/all iteration over a collection runs through
+  // COLLECTION_PREDICATE_MAX_ITERATIONS elements without a short-circuit
+  // result. The slice / swiss-map loop-end sites set this alongside
+  // condition_eval_error so event.c can pack a distinct
+  // header->condition_eval_error code (3) and userspace can render a
+  // specific message ("any/all iteration limit exceeded") instead of
+  // the generic "error evaluating condition".
+  bool iteration_cap_exhausted;
   // condition_state packs up to 8 per-leaf 2-bit statuses for a split-
   // event-kind condition. Bits [2*i, 2*i+1] hold leaf i's status (one of
   // the LEAF_STATUS_* values). Reset to 0 by SM_OP_CONDITION_STATE_INIT
@@ -525,6 +533,7 @@ static stack_machine_t* stack_machine_ctx_load(const probe_params_t* probe_param
   stack_machine->condition_failed = false;
   stack_machine->condition_eval_error = false;
   stack_machine->condition_nil_deref = false;
+  stack_machine->iteration_cap_exhausted = false;
   stack_machine->condition_state = 0;
   chased_pointers_trie_init(&stack_machine->chased);
   chased_slices_init(&stack_machine->chased_slices);

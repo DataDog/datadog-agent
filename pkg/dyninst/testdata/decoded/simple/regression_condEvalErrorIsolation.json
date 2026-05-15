@@ -19,7 +19,13 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "tag == \"toolarge\"",
+            "message": "any/all iteration limit exceeded (4096 elements)"
+          }
+        ]
       },
       "type": "snapshot"
     },
