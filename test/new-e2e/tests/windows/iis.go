@@ -83,9 +83,11 @@ func CreateIISSite(host *components.RemoteHost, site []IISSiteDefinition) error 
 			}
 
 		}
-		script := `
-		if ((get-iissite -name %s).State -ne "Started") {
-			New-IISSite -ErrorAction SilentlyContinue -Name %s -BindingInformation '%s' -PhysicalPath %s
+		// IISAdministration is Windows PowerShell 5.1 only, invoke via powershell.exe.
+		script := `powershell.exe -NoProfile -Command {
+			if ((get-iissite -name %s).State -ne "Started") {
+				New-IISSite -ErrorAction SilentlyContinue -Name %s -BindingInformation '%s' -PhysicalPath %s
+			}
 		}`
 		wintgtpath := strings.ReplaceAll(tgtpath, "/", "\\")
 		cmd := fmt.Sprintf(script, s.Name, s.Name, s.BindingPort, wintgtpath)
@@ -95,10 +97,12 @@ func CreateIISSite(host *components.RemoteHost, site []IISSiteDefinition) error 
 		}
 		for _, app := range s.Applications {
 			// create the application
-			script := `
-			$res = Get-WebApplication -Name '%s'
-			if ($res -eq $null) {
-				New-WebApplication -Site '%s' -Name '%s' -PhysicalPath '%s'
+			// WebAdministration is Windows PowerShell 5.1 only, invoke via powershell.exe.
+			script := `powershell.exe -NoProfile -Command {
+				$res = Get-WebApplication -Name '%s'
+				if ($res -eq $null) {
+					New-WebApplication -Site '%s' -Name '%s' -PhysicalPath '%s'
+				}
 			}`
 			physpath := strings.ReplaceAll(app.PhysicalPath, "/", "\\")
 

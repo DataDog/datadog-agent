@@ -138,7 +138,8 @@ if ($result.RestartNeeded -eq "Yes") {
 				}
 
 				_, err = host.OS.Runner().Command(comp.namer.ResourceName("create-iis-site", site.Name), &command.Args{
-					Create: pulumi.Sprintf(`New-IISSite -Name '%s' -BindingInformation '%s' -PhysicalPath '%s'`, site.Name, site.BindingPort, site.TargetAssetsDir),
+					// IISAdministration is Windows PowerShell 5.1 only, invoke via powershell.exe.
+					Create: pulumi.Sprintf(`powershell.exe -NoProfile -Command { New-IISSite -Name '%s' -BindingInformation '%s' -PhysicalPath '%s' }`, site.Name, site.BindingPort, site.TargetAssetsDir),
 				}, dependencies...)
 				if err != nil {
 					return err

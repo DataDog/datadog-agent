@@ -59,7 +59,8 @@ func (h *IISHelper) StartIISApp(webConfigFile, aspxFile []byte) {
 	h.suite.Require().NoError(err, "failed to write web.config file")
 	_, err = host.WriteFile("C:\\inetpub\\wwwroot\\DummyApp\\index.aspx", aspxFile)
 	h.suite.Require().NoError(err, "failed to write index.aspx file")
-	script := `
+	// WebAdministration is Windows PowerShell 5.1 only, invoke via powershell.exe.
+	script := `powershell.exe -NoProfile -Command {
 $SitePath = "C:\inetpub\wwwroot\DummyApp"
 New-WebSite -Name DummyApp -PhysicalPath $SitePath -Port 8080 -ApplicationPool "DefaultAppPool" -Force
 Stop-WebSite -Name "DummyApp"
@@ -70,14 +71,15 @@ if ($state -eq "Stopped") {
 }
 Restart-WebAppPool -Name "DefaultAppPool"
 Invoke-WebRequest -Uri "http://localhost:8080/index.aspx" -UseBasicParsing
-	`
+}`
 	output, err := host.Execute(script)
 	h.suite.Require().NoErrorf(err, "failed to start site: %s", output)
 }
 
 // StopIISApp stops the IIS application and waits for the app pool to stop.
 func (h *IISHelper) StopIISApp() {
-	script := `
+	// WebAdministration is Windows PowerShell 5.1 only, invoke via powershell.exe.
+	script := `powershell.exe -NoProfile -Command {
 Stop-WebSite -Name "DummyApp"
 $state = (Get-WebAppPoolState -Name "DefaultAppPool").Value
 if ($state -ne "Stopped") {
@@ -92,7 +94,7 @@ if ($state -ne "Stopped") {
 		exit -1
 	}
 }
-	`
+}`
 	host := h.suite.Env().RemoteHost
 	output, err := host.Execute(script)
 	h.suite.Require().NoErrorf(err, "failed to stop site: %s", output)
