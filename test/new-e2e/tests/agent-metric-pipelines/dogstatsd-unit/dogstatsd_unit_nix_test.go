@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-pipelines/common"
 )
 
 const (
@@ -41,16 +42,15 @@ const (
 
 type dogstatsdUnitSuite struct {
 	e2e.BaseSuite[environments.Host]
+
+	adpEnabled bool
 }
 
-// TestDogstatsdMetricUnit runs the DogStatsD unit e2e test on Linux.
-func TestDogstatsdMetricUnit(t *testing.T) {
+func testDogstatsdMetricUnit(t *testing.T, adpEnabled bool) {
 	t.Parallel()
-	e2e.Run(t, &dogstatsdUnitSuite{}, e2e.WithProvisioner(
-		awshost.Provisioner(
-			awshost.WithRunOptions(
-				scenec2.WithAgentOptions(
-					agentparams.WithAgentConfig(`
+
+	agentOptions := []agentparams.Option{
+		agentparams.WithAgentConfig(`
 histogram_aggregates:
   - max
   - avg
@@ -58,10 +58,36 @@ histogram_aggregates:
 histogram_percentiles:
   - "0.95"
 `),
+	}
+	if adpEnabled {
+		agentOptions = append(agentOptions, common.WithADPEnabled())
+	}
+
+	stackName := "dogstatsdmetricunit"
+	if adpEnabled {
+		stackName += "-adp"
+	}
+
+	e2e.Run(t, &dogstatsdUnitSuite{adpEnabled: adpEnabled},
+		e2e.WithProvisioner(
+			awshost.Provisioner(
+				awshost.WithRunOptions(
+					scenec2.WithAgentOptions(agentOptions...),
 				),
 			),
 		),
-	))
+		e2e.WithStackName(stackName),
+	)
+}
+
+// TestDogstatsdMetricUnit runs the DogStatsD unit e2e test on Linux.
+func TestDogstatsdMetricUnit(t *testing.T) {
+	testDogstatsdMetricUnit(t, false)
+}
+
+// TestDogstatsdMetricUnitADP runs the DogStatsD unit e2e test with ADP serving DogStatsD traffic.
+func TestDogstatsdMetricUnitADP(t *testing.T) {
+	testDogstatsdMetricUnit(t, true)
 }
 
 // sendMetric sends a single DogStatsD metric over UDP to the local Agent.
@@ -73,6 +99,10 @@ func (s *dogstatsdUnitSuite) sendMetric(name string, value float32, metricType s
 // TestDogstatsdUnitOnlyOnTimingMetrics sends a counter, a histogram, and a timing
 // metric in parallel and verifies that only the timing metric carries a unit.
 func (s *dogstatsdUnitSuite) TestDogstatsdUnitOnlyOnTimingMetrics() {
+	if s.adpEnabled {
+		common.AssertADPRunning(s.T(), s.Env().RemoteHost)
+	}
+
 	// Phase 1: keep sending all three metrics until at least one flushed serie for
 	// each has reached fakeintake.
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
