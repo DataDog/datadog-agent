@@ -357,11 +357,6 @@ func sliceContains(items []string, want string) bool {
 	return false
 }
 
-// removeContextRefsForEvictedKeys drops engine contextRefs whose extractor
-// namespace and context key match an eviction from extractor GC, and frees
-// the corresponding storage series. Without the storage cleanup, evicted
-// patterns leak their tags + columnar arrays indefinitely (the contextRefs
-// map is just metadata; the heavy data lives in storage.series).
 // removeEvictedMetricSeries removes all storage series for the given metric
 // names in namespace. Called when an extractor GC/LRU evicts a pattern cluster.
 func (e *engine) removeEvictedMetricSeries(namespace string, evictedNames []string) {
@@ -856,13 +851,10 @@ func (e *engine) resetFull() {
 }
 
 // resetAnalysisState resets detector and correlator state, anomaly tracking,
-// telemetry, and correlations — but does NOT reset extractors and does NOT
-// clear contextRefs. Used before batch replay so that:
-//   - enrichAnomaly can still call provider.GetContextByKey (extractor context intact)
-//   - contextRefs still maps series storage keys to their context keys
-//
-// Detectors and correlators ARE reset so they start from a clean slate and
-// produce correct anomaly/correlation results during the replay.
+// telemetry, and correlations — but does NOT reset extractors. Used before
+// batch replay so that enrichAnomaly can still attach context (stored on
+// seriesStats) during replay. Detectors and correlators ARE reset so they
+// start from a clean slate and produce correct results.
 func (e *engine) resetAnalysisState() {
 	e.mu.Lock()
 	e.lastAnalyzedDataTime = 0
@@ -877,8 +869,8 @@ func (e *engine) resetAnalysisState() {
 	for _, correlator := range e.correlators {
 		correlator.Reset()
 	}
-	// Extractors and contextRefs are intentionally NOT reset: their state was
-	// built during log ingestion and is needed by enrichAnomaly during replay.
+	// Extractors are intentionally NOT reset: their state was built during
+	// log ingestion and is needed by enrichAnomaly during replay.
 
 	e.resetRawAnomalies()
 	e.resetCorrelations()
