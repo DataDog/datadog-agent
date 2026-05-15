@@ -149,7 +149,9 @@ exports_files(glob(
 # gazelle:exclude comp/dogstatsd/http/impl
 # gazelle:exclude comp/dogstatsd/replay/fx
 # gazelle:exclude comp/dogstatsd/replay/impl
-# gazelle:exclude comp/dogstatsd/server
+# gazelle:exclude comp/dogstatsd/server/fx
+# gazelle:exclude comp/dogstatsd/server/impl
+# gazelle:exclude comp/dogstatsd/server/mock
 # gazelle:exclude comp/dogstatsd/status/fx
 # gazelle:exclude comp/dogstatsd/status/impl
 # gazelle:exclude comp/forwarder/eventplatform/eventplatformimpl
