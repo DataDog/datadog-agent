@@ -35,7 +35,32 @@ import (
 
 const (
 	gpuMetricsNs = "gpu."
+
+	// Source per-process gauges that feed the container-level autoscaling
+	// distributions emitted in emitSingleMetric.
+	processCoreUsageMetric   = "process.core.usage"
+	processMemoryUsageMetric = "process.memory.usage"
+
+	// Container-level distribution metric names, following the
+	// container.<dim>.usage.dist naming used by Workload Autoscaling for CPU
+	// and memory.
+	containerGPUCoreUsageDist   = "container.gpu.core.usage.dist"
+	containerGPUMemoryUsageDist = "container.gpu.memory.usage.dist"
 )
+
+// containerGPUDistributionName returns the container-level autoscaling
+// distribution metric name derived from the given per-process source metric,
+// and reports whether one is defined. Returning false means no distribution
+// should be emitted for the source metric.
+func containerGPUDistributionName(sourceMetric string) (string, bool) {
+	switch sourceMetric {
+	case processCoreUsageMetric:
+		return containerGPUCoreUsageDist, true
+	case processMemoryUsageMetric:
+		return containerGPUMemoryUsageDist, true
+	}
+	return "", false
+}
 
 // logLimitCheck is used to limit the number of times we log messages about streams and cuda events, as that can be very verbose
 var logLimitCheck = log.NewLogLimit(20, 10*time.Minute)
@@ -438,6 +463,26 @@ func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, curre
 
 	if err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("error sending metric: %w", err))
+	}
+
+	// Emit the container-level autoscaling distribution for the per-process
+	// usage gauges. Each workload's sketch is keyed by its container's
+	// low-cardinality tags only — no pid/nspid, no pod_name, no device tags —
+	// matching container.cpu.usage.dist shape consumed by Workload Autoscaling.
+	// The metric name does NOT use the gpu. namespace prefix; it follows the
+	// container.<dim>.usage.dist family.
+	if distName, ok := containerGPUDistributionName(metric.Name); ok {
+		for _, workloadID := range metricWorkloads {
+			distTags, derr := c.workloadTagCache.GetLowCardContainerTags(workloadID)
+			if derr != nil && !agenterrors.IsNotFound(derr) {
+				multiErr = multierror.Append(multiErr, fmt.Errorf("error resolving low-card tags for workload %s: %w", workloadID.ID, derr))
+				continue
+			}
+			if len(distTags) == 0 {
+				continue
+			}
+			snd.Distribution(distName, metric.Value, "", distTags)
+		}
 	}
 
 	return multiErr

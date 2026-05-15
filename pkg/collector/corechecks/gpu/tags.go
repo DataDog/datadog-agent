@@ -321,6 +321,54 @@ func (c *WorkloadTagCache) onLRUEvicted(workloadID workloadmeta.EntityID, _ *wor
 	c.telemetry.cacheEvictions.Inc(string(workloadID.Kind))
 }
 
+// GetLowCardContainerTags returns the low-cardinality container tags for the
+// given workload. For a container workload, the tags are looked up directly.
+// For a process workload, the process is first resolved to its owning
+// container, then the container's tags are looked up. Returns nil with no
+// error if no owning container can be resolved.
+//
+// Unlike GetOrCreateWorkloadTags, this method strips per-process tags
+// (pid, nspid) and orchestrator-cardinality tags (pod_name, …) so callers can
+// emit metrics at the container series without inflating cardinality.
+func (c *WorkloadTagCache) GetLowCardContainerTags(workloadID workloadmeta.EntityID) ([]string, error) {
+	containerID, err := c.resolveContainerID(workloadID)
+	if err != nil {
+		return nil, err
+	}
+	if containerID == "" {
+		return nil, nil
+	}
+	entityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
+	return c.tagger.Tag(entityID, taggertypes.LowCardinality)
+}
+
+// resolveContainerID returns the owning container ID for the given workload,
+// or empty string if none is known. Returns an error only for unsupported
+// workload kinds or unrecoverable lookup failures.
+func (c *WorkloadTagCache) resolveContainerID(workloadID workloadmeta.EntityID) (string, error) {
+	switch workloadID.Kind {
+	case workloadmeta.KindContainer:
+		return workloadID.ID, nil
+	case workloadmeta.KindProcess:
+		pidInt, err := strconv.ParseInt(workloadID.ID, 10, 32)
+		if err != nil {
+			return "", fmt.Errorf("error converting process ID to int: %w", err)
+		}
+		pid := int32(pidInt)
+		if process, perr := c.wmeta.GetProcess(pid); perr == nil {
+			if process.Owner != nil && process.Owner.Kind == workloadmeta.KindContainer {
+				return process.Owner.ID, nil
+			}
+		}
+		containerID, gerr := c.getContainerID(pid)
+		if gerr != nil && !agenterrors.IsNotFound(gerr) {
+			return "", gerr
+		}
+		return containerID, nil
+	}
+	return "", fmt.Errorf("unsupported workload kind: %s", workloadID.Kind)
+}
+
 // NewWorkloadTagCacheWithSubsystem creates a WorkloadTagCache that registers
 // its telemetry counters under "<subsystemPrefix>__workload_tag_cache". The
 // prefix must be unique per cache instance in the agent process.
