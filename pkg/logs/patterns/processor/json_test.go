@@ -54,7 +54,7 @@ func TestPreprocessJSON_TopLevelMessage(t *testing.T) {
 		expectedMsg    string
 		expectedKey    string
 		expectedSchema string
-		expectedValues []string
+		expectedValues []interface{}
 	}{
 		{
 			name:           "message field",
@@ -62,7 +62,7 @@ func TestPreprocessJSON_TopLevelMessage(t *testing.T) {
 			expectedMsg:    "Processing order",
 			expectedKey:    "message",
 			expectedSchema: "level,service",
-			expectedValues: []string{"info", "api"},
+			expectedValues: []interface{}{"info", "api"},
 		},
 		{
 			name:           "msg field",
@@ -70,7 +70,7 @@ func TestPreprocessJSON_TopLevelMessage(t *testing.T) {
 			expectedMsg:    "User login",
 			expectedKey:    "msg",
 			expectedSchema: "timestamp",
-			expectedValues: []string{"1234567890"},
+			expectedValues: []interface{}{json.Number("1234567890")},
 		},
 		{
 			name:           "log field",
@@ -78,7 +78,7 @@ func TestPreprocessJSON_TopLevelMessage(t *testing.T) {
 			expectedMsg:    "Container started",
 			expectedKey:    "log",
 			expectedSchema: "container_id",
-			expectedValues: []string{"abc123"},
+			expectedValues: []interface{}{"abc123"},
 		},
 		{
 			name:           "text field",
@@ -86,7 +86,7 @@ func TestPreprocessJSON_TopLevelMessage(t *testing.T) {
 			expectedMsg:    "System event",
 			expectedKey:    "text",
 			expectedSchema: "severity",
-			expectedValues: []string{"warning"},
+			expectedValues: []interface{}{"warning"},
 		},
 	}
 
@@ -215,7 +215,7 @@ func TestPreprocessJSON_OrderedJSONContext(t *testing.T) {
 	require.True(t, result.IsJSON)
 
 	assert.Equal(t, "apple,banana,zebra", result.JSONContextSchema)
-	assert.Equal(t, []string{"a", "b", "z"}, result.JSONContextValues)
+	assert.Equal(t, []interface{}{"a", "b", "z"}, result.JSONContextValues)
 }
 
 func TestPreprocessJSON_NestedObjectsAsValues(t *testing.T) {
@@ -233,8 +233,8 @@ func TestPreprocessJSON_NestedObjectsAsValues(t *testing.T) {
 
 	assert.Equal(t, "array,nested", result.JSONContextSchema)
 	require.Len(t, result.JSONContextValues, 2)
-	assert.Equal(t, "[1,2,3]", result.JSONContextValues[0])
-	assert.Equal(t, `{"apple":"a","zebra":"z"}`, result.JSONContextValues[1])
+	assert.Equal(t, []interface{}{json.Number("1"), json.Number("2"), json.Number("3")}, result.JSONContextValues[0])
+	assert.Equal(t, map[string]interface{}{"apple": "a", "zebra": "z"}, result.JSONContextValues[1])
 }
 
 func TestPreprocessJSON_EmptyContextAfterExtraction(t *testing.T) {
@@ -266,12 +266,33 @@ func TestPreprocessJSON_ComplexRealWorld(t *testing.T) {
 
 	assert.Equal(t, "amount,currency,level,service,timestamp,user_id", result.JSONContextSchema)
 	require.Len(t, result.JSONContextValues, 6)
-	assert.Equal(t, "99.99", result.JSONContextValues[0])                // amount
+	assert.Equal(t, json.Number("99.99"), result.JSONContextValues[0])   // amount
 	assert.Equal(t, "USD", result.JSONContextValues[1])                  // currency
 	assert.Equal(t, "info", result.JSONContextValues[2])                 // level
 	assert.Equal(t, "payment-api", result.JSONContextValues[3])          // service
 	assert.Equal(t, "2024-01-01T12:00:00Z", result.JSONContextValues[4]) // timestamp
 	assert.Equal(t, "user123", result.JSONContextValues[5])              // user_id
+}
+
+func TestPreprocessJSON_PreservesBoolAndNullTypes(t *testing.T) {
+	input := `{"message":"test","enabled":true,"disabled":false,"missing":null}`
+
+	result := PreprocessJSON([]byte(input))
+	require.True(t, result.IsJSON)
+	assert.Equal(t, "disabled,enabled,missing", result.JSONContextSchema)
+	assert.Equal(t, []interface{}{false, true, nil}, result.JSONContextValues)
+}
+
+func TestPreprocessJSON_PreservesLargeIntegerAsJSONNumber(t *testing.T) {
+	input := `{"message":"test","dd.span_id":2323969980879066318}`
+
+	result := PreprocessJSON([]byte(input))
+	require.True(t, result.IsJSON)
+	require.Len(t, result.JSONContextValues, 1)
+
+	number, ok := result.JSONContextValues[0].(json.Number)
+	require.True(t, ok)
+	assert.Equal(t, "2323969980879066318", number.String())
 }
 
 func TestGetValueByPath(t *testing.T) {
@@ -356,7 +377,7 @@ func TestExtractSchemaAndValues(t *testing.T) {
 
 	schema, values := extractSchemaAndValues(data)
 	assert.Equal(t, "a,m,z", schema)
-	assert.Equal(t, []string{"first", "middle", "last"}, values)
+	assert.Equal(t, []interface{}{"first", "middle", "last"}, values)
 }
 
 func TestExtractSchemaAndValues_MixedTypes(t *testing.T) {
@@ -370,34 +391,38 @@ func TestExtractSchemaAndValues_MixedTypes(t *testing.T) {
 
 	schema, values := extractSchemaAndValues(data)
 	assert.Equal(t, "count,empty,flag,name,nested", schema)
-	assert.Equal(t, []string{"42", "", "true", "test", `{"key":"val"}`}, values)
+	assert.Equal(
+		t,
+		[]interface{}{json.Number("42"), nil, true, "test", map[string]interface{}{"key": "val"}},
+		values,
+	)
 }
 
 func TestPreprocessJSON_LargeIntegerPrecision(t *testing.T) {
 	tests := []struct {
 		name           string
 		input          string
-		expectedValues []string
+		expectedValues []interface{}
 	}{
 		{
 			name:           "64-bit trace ID preserved exactly",
 			input:          `{"msg":"request","trace_id":9999999999999999}`,
-			expectedValues: []string{"9999999999999999"},
+			expectedValues: []interface{}{json.Number("9999999999999999")},
 		},
 		{
 			name:           "64-bit span ID preserved exactly",
 			input:          `{"msg":"request","span_id":18446744073709551615}`,
-			expectedValues: []string{"18446744073709551615"},
+			expectedValues: []interface{}{json.Number("18446744073709551615")},
 		},
 		{
 			name:           "normal float preserved",
 			input:          `{"msg":"payment","amount":159.6}`,
-			expectedValues: []string{"159.6"},
+			expectedValues: []interface{}{json.Number("159.6")},
 		},
 		{
 			name:           "integer zero",
 			input:          `{"msg":"test","count":0}`,
-			expectedValues: []string{"0"},
+			expectedValues: []interface{}{json.Number("0")},
 		},
 	}
 
