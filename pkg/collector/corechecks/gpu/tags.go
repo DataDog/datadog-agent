@@ -210,6 +210,11 @@ func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) 
 		nspid = process.NsPid
 		if process.Owner != nil && process.Owner.Kind == workloadmeta.KindContainer {
 			containerID = process.Owner.ID
+		} else if process.ContainerID != "" {
+			// Owner is populated by the new process collector; the old collector
+			// only fills ContainerID. Fall back to it when Owner is unset so we
+			// still attach kube_namespace/pod_name to per-process GPU metrics.
+			containerID = process.ContainerID
 		}
 	}
 
@@ -358,6 +363,9 @@ func (c *WorkloadTagCache) resolveContainerID(workloadID workloadmeta.EntityID) 
 		if process, perr := c.wmeta.GetProcess(pid); perr == nil {
 			if process.Owner != nil && process.Owner.Kind == workloadmeta.KindContainer {
 				return process.Owner.ID, nil
+			}
+			if process.ContainerID != "" {
+				return process.ContainerID, nil
 			}
 		}
 		containerID, gerr := c.getContainerID(pid)
