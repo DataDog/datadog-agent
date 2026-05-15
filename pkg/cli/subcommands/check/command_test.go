@@ -27,6 +27,7 @@ import (
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -43,7 +44,7 @@ func TestCommand(t *testing.T) {
 			return GlobalParams{
 				ConfFilePath: config,
 			}
-		}),
+		}, wmcatalog.GetCatalog()),
 	}
 
 	fxutil.TestOneShotSubcommand(t,
@@ -115,7 +116,7 @@ func TestCommandWithInstanceID(t *testing.T) {
 			return GlobalParams{
 				ConfFilePath: config,
 			}
-		}),
+		}, wmcatalog.GetCatalog()),
 	}
 
 	fxutil.TestOneShotSubcommand(t,

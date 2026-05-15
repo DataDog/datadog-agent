@@ -334,11 +334,11 @@ func TestGetTerminatedPodCollector(t *testing.T) {
 			expected:                      k8s.NewTerminatedPodCollector(nil, nil, nil),
 		},
 		{
-			name:                          "Terminated pods improved collector enabled",
+			name:                          "Terminated pods improved collector disabled by parent flag",
 			terminatedPodsEnabled:         false,
 			terminatedPodsImprovedEnabled: true,
 			unassignedPod:                 true,
-			expected:                      k8s.NewImprovedTerminatedPodCollector(nil, nil, nil),
+			expected:                      nil,
 		},
 		{
 			name:                          "Terminated pods improved collector takes precedence",
@@ -363,7 +363,7 @@ func TestGetTerminatedPodCollector(t *testing.T) {
 		},
 		{
 			name:                          "Terminated pods improved collector enabled without unassigned pod collector",
-			terminatedPodsEnabled:         false,
+			terminatedPodsEnabled:         true,
 			terminatedPodsImprovedEnabled: true,
 			unassignedPod:                 false,
 			expected:                      nil,

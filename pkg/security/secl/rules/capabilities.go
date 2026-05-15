@@ -46,9 +46,7 @@ func (fc FieldCapability) Validate(filterValue FilterValue) bool {
 	}
 
 	if fc.ValidateFnc != nil {
-		if !fc.ValidateFnc(filterValue) {
-			return false
-		}
+		return fc.ValidateFnc(filterValue)
 	}
 
 	return true

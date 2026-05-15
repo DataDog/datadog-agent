@@ -40,6 +40,11 @@ import (
 	ssistatusfx "github.com/DataDog/datadog-agent/comp/updater/ssistatus/fx"
 	workloadselectionfx "github.com/DataDog/datadog-agent/comp/workloadselection/fx"
 
+	hfrunnernoopfx "github.com/DataDog/datadog-agent/comp/anomalydetection/hfrunner/fx-noop"
+	logssourcefx "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/fx"
+	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
+	recordernoopfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx-noop"
+	reporterfx "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx"
 	doqueryactionsfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
@@ -114,7 +119,7 @@ import (
 	dogstatsdhttp "github.com/DataDog/datadog-agent/comp/dogstatsd/http/def"
 	dogstatsdhttpfx "github.com/DataDog/datadog-agent/comp/dogstatsd/http/fx"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/def"
 	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	statsdFx "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/fx"
@@ -126,7 +131,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 
 	hostProfilerFlareFx "github.com/DataDog/datadog-agent/comp/host-profiler/flare/fx"
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client/def"
@@ -137,10 +142,10 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	haagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/haagent/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	host "github.com/DataDog/datadog-agent/comp/metadata/host/def"
+	inventoryagent "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
+	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
+	inventoryhost "github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/def"
 	packagesigning "github.com/DataDog/datadog-agent/comp/metadata/packagesigning/def"
 	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	securityagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/securityagent/def"
@@ -314,7 +319,7 @@ func run(log log.Component,
 	ipc ipc.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
-	ncmComp networkconfigmanagement.Component,
+	ncmComp option.Option[networkconfigmanagement.Component],
 ) error {
 	defer func() {
 		stopAgent(cfg, sysprobeConf)
@@ -508,6 +513,11 @@ func getSharedFxOption() fx.Option {
 			})
 		}),
 		logs.Bundle(),
+		observerfx.Module(),
+		logssourcefx.Module(),
+		hfrunnernoopfx.Module(),
+		recordernoopfx.Module(),
+		reporterfx.Module(),
 		langDetectionClimpl.Module(),
 		metadata.Bundle(),
 		orchestratorForwarderImpl.Module(orchestratorForwarderImpl.NewDefaultParams()),
@@ -611,7 +621,7 @@ func startAgent(
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
 	healthplatformComp healthplatformdef.Component,
-	ncmComp networkconfigmanagement.Component,
+	ncmComp option.Option[networkconfigmanagement.Component],
 ) error {
 	var err error
 

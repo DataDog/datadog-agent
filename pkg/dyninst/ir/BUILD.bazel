@@ -5,6 +5,10 @@ load("//bazel/rules/go_stringer:defs.bzl", "go_stringer")
 go_library(
     name = "ir",
     srcs = [
+        "cmp_kind.go",
+        "cmp_kind_string.go",
+        "cmp_op.go",
+        "cmp_op_string.go",
         "doc.go",
         "event_kind.go",
         "event_kind_string.go",
@@ -40,4 +44,20 @@ go_stringer(
     linecomment = True,
     output = "probe_kind_string.go",
     types = ["ProbeKind"],
+)
+
+go_stringer(
+    name = "cmp_kind_string",
+    src = "cmp_kind.go",
+    output = "cmp_kind_string.go",
+    trimprefix = "CmpKind",
+    types = ["CmpKind"],
+)
+
+go_stringer(
+    name = "cmp_op_string",
+    src = "cmp_op.go",
+    output = "cmp_op_string.go",
+    trimprefix = "Cmp",
+    types = ["CmpOp"],
 )

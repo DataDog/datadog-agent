@@ -120,7 +120,7 @@
       <Version>4.18.1</Version>
     </PackageReference>
     <PackageReference Include="Fare">
-      <Version>2.2.1</Version>
+      <Version>2.2.2</Version>
     </PackageReference>
     <PackageReference Include="FluentAssertions">
       <Version>6.12.2</Version>

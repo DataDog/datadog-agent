@@ -11,6 +11,7 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	stdmaps "maps"
@@ -90,8 +91,13 @@ type secretResolver struct {
 	// old values are retained for IsValueFromSecret lookups.
 	resolvedSecretValues map[string]struct{}
 
+	// secretBackendMethod is set by Configure to the active secret method
+	// ("secret_backend_command", "secret_backend_type", or "multi_secret_backends").
+	// Empty means no backend is configured; Resolve exits early in that case.
+	secretBackendMethod             string
 	backendType                     string
 	backendConfig                   map[string]interface{}
+	multiBackends                   map[string]secrets.SecretBackendConfig
 	backendCommand                  string
 	backendArguments                []string
 	backendTimeout                  int
@@ -149,6 +155,7 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 		clk:                     newClock(),
 		unresolvedSecrets:       make(map[string]struct{}),
 		refreshTrigger:          make(chan struct{}, 1),
+		secretBackendMethod:     "secret_backend_command",
 	}
 }
 
@@ -282,12 +289,45 @@ func (r *secretResolver) Configure(params secrets.ConfigParams) {
 	r.backendType = params.Type
 	r.backendConfig = params.Config
 	r.backendCommand = params.Command
-	r.embeddedBackendPermissiveRights = false
-	if r.backendCommand != "" && r.backendType != "" {
-		log.Warnf("Both secret_backend_command and secret_backend_type are set. secret_backend_command takes precedence; secret_backend_type is ignored. To use native backend (aws.secrets, hashicorp.vault, etc.), remove secret_backend_command from datadog.yaml. Docs: %s", secretsManagementDocsURL)
+	if len(params.MultiBackends) > 0 {
+		r.multiBackends = make(map[string]secrets.SecretBackendConfig, len(params.MultiBackends))
+		for k, v := range params.MultiBackends {
+			r.multiBackends[strings.ToLower(k)] = v
+		}
+	} else {
+		r.multiBackends = params.MultiBackends
 	}
-	// only use the backend type option if the backend command is not set
-	if r.backendType != "" && r.backendCommand == "" {
+
+	r.embeddedBackendPermissiveRights = false
+
+	var activeMethod string
+	var ignoredMethods []string
+	r.secretBackendMethod = ""
+	if r.backendCommand != "" {
+		activeMethod = "secret_backend_command"
+		if r.backendType != "" {
+			ignoredMethods = append(ignoredMethods, "secret_backend_type")
+		}
+		if len(r.multiBackends) > 0 {
+			ignoredMethods = append(ignoredMethods, "multi_secret_backends")
+		}
+		r.backendType = ""
+		r.multiBackends = nil
+	} else if r.backendType != "" {
+		activeMethod = "secret_backend_type"
+		if len(r.multiBackends) > 0 {
+			ignoredMethods = append(ignoredMethods, "multi_secret_backends")
+		}
+		r.multiBackends = nil
+	} else if len(r.multiBackends) > 0 {
+		activeMethod = "multi_secret_backends"
+	}
+	r.secretBackendMethod = activeMethod
+	if len(ignoredMethods) > 0 {
+		log.Warnf("%s takes precedence over %s. Remove %s from datadog.yaml to switch. Docs: %s", activeMethod, strings.Join(ignoredMethods, " and "), activeMethod, secretsManagementDocsURL)
+	}
+	// use the embedded connector if a native backend is configured and no explicit command is set
+	if activeMethod != "" && activeMethod != "secret_backend_command" {
 		if runtime.GOOS == "windows" {
 			r.backendCommand = filepath.Join(
 				defaultpaths.GetEmbeddedBinPath(),
@@ -426,14 +466,27 @@ func (r *secretResolver) SubscribeToChanges(cb secrets.SecretChangeCallback) {
 func (r *secretResolver) shouldResolvedSecret(handle string, origin string, imageName string, kubeNamespace string) bool {
 	var secretNamespace string
 
+	// When multi_secret_backends is in use and the backend for this handle is
+	// k8s.secrets, strip the "backendID;" prefix before parsing the Kubernetes
+	// namespace so "prodk8s;ns/secret;key" extracts "ns", not "prodk8s;ns/secret".
+	// For other backend types (yaml, json, …) the prefix is left intact so the
+	// k8s-format patterns below do not match erroneously.
+	secretKey := handle
+	if r.multiBackends != nil {
+		backendID, key := splitSecretHandle(handle)
+		if backend, ok := r.multiBackends[backendID]; ok && backend.Type == "k8s.secrets" {
+			secretKey = key
+		}
+	}
+
 	// format: k8s_secret@namespace/secret-name/key
-	if secretName, found := strings.CutPrefix(handle, "k8s_secret@"); found && kubeNamespace != "" {
+	if secretName, found := strings.CutPrefix(secretKey, "k8s_secret@"); found && kubeNamespace != "" {
 		secretNamespace = strings.Split(secretName, "/")[0]
 	}
 
 	// format: namespace/secret-name;key
 	if secretNamespace == "" && kubeNamespace != "" {
-		if parts := strings.SplitN(handle, ";", 2); len(parts) == 2 {
+		if parts := strings.SplitN(secretKey, ";", 2); len(parts) == 2 {
 			secretNamespace = strings.SplitN(parts[0], "/", 2)[0]
 		}
 	}
@@ -476,7 +529,7 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	if data == nil || r.backendCommand == "" {
+	if data == nil || r.secretBackendMethod == "" {
 		return data, nil
 	}
 
@@ -532,20 +585,27 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 	}
 
 	// check if any new secrets need to be fetch
+	var resolveErr error
 	if len(newHandles) != 0 {
 		var secretResponse map[string]string
-		var err error
+		var fetchErr error
 		if r.fetchHookFunc != nil {
-			// hook used only for tests
-			secretResponse, err = r.fetchHookFunc(newHandles)
+			secretResponse, fetchErr = r.fetchHookFunc(newHandles)
 		} else {
-			secretResponse, err = r.fetchSecret(newHandles)
+			secretResponse, fetchErr = r.fetchSecret(newHandles)
 		}
-		if err != nil {
-			for _, handle := range newHandles {
-				r.unresolvedSecrets[fmt.Sprintf("'%s' from %s: %s", handle, origin, err)] = struct{}{}
+		if fetchErr != nil {
+			// Unwrap per-handle errors from errors.Join so each appears as its own
+			// bullet in the 'agent secret' status output.
+			type multiErr interface{ Unwrap() []error }
+			if joined, ok := fetchErr.(multiErr); ok {
+				for _, e := range joined.Unwrap() {
+					r.unresolvedSecrets[fmt.Sprintf("'%s' %s", origin, e)] = struct{}{}
+				}
+			} else {
+				r.unresolvedSecrets[fmt.Sprintf("from %s: %s", origin, fetchErr)] = struct{}{}
 			}
-			return nil, err
+			resolveErr = errors.New("could not resolve secret handle(s), see 'agent secret' for details")
 		}
 
 		w.Resolver = func(path []string, value string) (string, error) {
@@ -561,9 +621,9 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 					return secretValue, nil
 				}
 
-				// This should never happen since fetchSecret will return an error if not every handle have
-				// been fetched.
-				return "", fmt.Errorf("unknown secret '%s'", handle)
+				// Handle failed to resolve — leave the ENC[] value as-is so that
+				// successfully resolved handles in the same config are still substituted.
+				return value, nil
 			}
 			return value, nil
 		}
@@ -581,7 +641,7 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 	if err != nil {
 		return nil, fmt.Errorf("could not Marshal config after replacing encrypted secrets: %s", err)
 	}
-	return finalConfig, nil
+	return finalConfig, resolveErr
 }
 
 // Secret Refresh Notifications
@@ -764,15 +824,17 @@ func (r *secretResolver) performRefresh() (string, error) {
 	log.Infof("Refreshing secrets for %d handles", len(newHandles))
 
 	var secretResponse map[string]string
-	var err error
+	var refreshErr error
 	if r.fetchHookFunc != nil {
-		// hook used only for tests
+		// hook used only for tests (old signature: single error applied to all handles)
+		var err error
 		secretResponse, err = r.fetchHookFunc(newHandles)
+		if err != nil {
+			return "", err
+		}
 	} else {
-		secretResponse, err = r.fetchSecret(newHandles)
-	}
-	if err != nil {
-		return "", err
+		// Don't return early on error — apply successfully fetched secrets before reporting it.
+		secretResponse, refreshErr = r.fetchSecret(newHandles)
 	}
 
 	var auditRecordErr error
@@ -788,7 +850,7 @@ func (r *secretResolver) performRefresh() (string, error) {
 
 	// render a report
 	t := template.New("secret_refresh")
-	t, err = t.Parse(secretRefreshTmpl)
+	t, err := t.Parse(secretRefreshTmpl)
 	if err != nil {
 		return "", err
 	}
@@ -798,7 +860,10 @@ func (r *secretResolver) performRefresh() (string, error) {
 	}
 	result := b.String()
 
-	return result, auditRecordErr
+	if auditRecordErr != nil {
+		return result, auditRecordErr
+	}
+	return result, refreshErr
 }
 
 type auditRecord struct {
@@ -881,13 +946,20 @@ func (r *secretResolver) getDebugInfo(stats map[string]interface{}, includeVersi
 	stats["backendCommandSet"] = true
 	stats["executable"] = r.backendCommand
 	stats["backendType"] = r.backendType
+	stats["embeddedSecretBackend"] = r.embeddedBackendPermissiveRights
+	if r.multiBackends != nil {
+		names := make([]string, 0, len(r.multiBackends))
+		for name := range r.multiBackends {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		stats["multiBackendNames"] = strings.Join(names, ", ")
+	}
 
-	// Add backend secret version information
+	// executableVersion: optional --version probe for status/flare.
 	if includeVersion {
 		if version, err := r.fetchSecretBackendVersion(); err == nil {
 			stats["executableVersion"] = strings.TrimSpace(version)
-		} else {
-			stats["executableVersion"] = "version info not found"
 		}
 	}
 
@@ -914,15 +986,17 @@ func (r *secretResolver) getDebugInfo(stats map[string]interface{}, includeVersi
 		stats["executablePermissionsError"] = permissionsError
 	}
 
-	// Get detailed permissions
-	details, err := r.getExecutablePermissions()
-	if err != nil {
-		stats["executablePermissionsDetailsError"] = err.Error()
-	} else {
-		jsonDetails, _ := json.Marshal(details)
-		var mapDetails map[string]interface{}
-		_ = json.Unmarshal(jsonDetails, &mapDetails)
-		stats["executablePermissionsDetails"] = mapDetails
+	// Skip permission details for embedded secret-generic-connector (templates hide that block too).
+	if !r.embeddedBackendPermissiveRights {
+		details, err := r.getExecutablePermissions()
+		if err != nil {
+			stats["executablePermissionsDetailsError"] = err.Error()
+		} else {
+			jsonDetails, _ := json.Marshal(details)
+			var mapDetails map[string]interface{}
+			_ = json.Unmarshal(jsonDetails, &mapDetails)
+			stats["executablePermissionsDetails"] = mapDetails
+		}
 	}
 
 	// Handle secrets handles

@@ -9,28 +9,16 @@
 package networkconfigmanagementimpl
 
 import (
-	"net/http"
-
-	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
-// Requires defines the dependencies for the networkconfigmanagement component
-type Requires struct{}
-
-// Provides defines the output of the networkconfigmanagement component
-type Provides struct {
-	Comp     networkconfigmanagement.Component
-	Endpoint api.EndpointProvider `group:"agent_endpoint"`
-}
-
 // NewComponent creates a stub networkconfigmanagement component
-func NewComponent(_ Requires) (Provides, error) {
+func NewComponent(_ compdef.In) (Provides, error) {
 	provides := Provides{
-		Comp: nil,
-		Endpoint: api.NewAgentEndpointProvider(func(w http.ResponseWriter, _ *http.Request) {
-			http.Error(w, `{"error": "ncm not enabled for agent"}`, http.StatusBadRequest)
-		}, "/ncm/config", "GET").Provider,
+		Comp:              option.None[networkconfigmanagement.Component](),
+		GetConfigEndpoint: nilEndpoint(),
 	}
 	return provides, nil
 }

@@ -8,6 +8,7 @@ go_library(
         "bucket.go",
         "capabilities.go",
         "collected_events.go",
+        "collected_events_functests.go",
         "collected_events_regular.go",
         "errors.go",
         "filter_values.go",

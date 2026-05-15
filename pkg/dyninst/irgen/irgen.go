@@ -252,6 +252,9 @@ func generateIR(
 	for _, name := range cfg.additionalTypes {
 		additionalTypeSet[name] = struct{}{}
 	}
+	specialAdditionalTypeSet := make(map[string]struct{})
+	addDDTraceGoContextTypes(specialAdditionalTypeSet)
+	specialAdditionalTypeOffsets := make(map[string]dwarf.Offset, len(specialAdditionalTypeSet))
 
 	var additionalTypeRoots []explorationRoot
 	var methodBuf []gotype.Method
@@ -278,8 +281,37 @@ func generateIR(
 
 		// If this type was requested as an additional type, resolve it to
 		// a DWARF offset and add it to the type catalog for exploration.
+		// We match against the package-qualified full name (constructed
+		// from PkgPath + "." + lastSegmentOf(Name)) AND the short name —
+		// Go's runtime stores type names in short form
+		// ("<pkgLastSegment>.<typeName>"), while specialAdditionalTypeSet
+		// uses full paths to disambiguate between e.g. v1 and v2
+		// dd-trace-go.
+		name := goType.Name().UnsafeName()
+		fullName := name
+		if pkgPath := goType.PkgPath().UnsafeName(); pkgPath != "" {
+			star := ""
+			short := name
+			if strings.HasPrefix(short, "*") {
+				star = "*"
+				short = short[1:]
+			}
+			if dot := strings.IndexByte(short, '.'); dot >= 0 {
+				fullName = star + pkgPath + short[dot:]
+			}
+		}
+		var matchName string
+		if _, special := specialAdditionalTypeSet[fullName]; special {
+			matchName = fullName
+		} else if _, special := specialAdditionalTypeSet[name]; special {
+			matchName = name
+		}
+		if matchName != "" {
+			if dwarfOffset, ok := typeIndex.resolveDwarfOffset(tid); ok {
+				specialAdditionalTypeOffsets[matchName] = dwarfOffset
+			}
+		}
 		if len(additionalTypeSet) > 0 {
-			name := goType.Name().UnsafeName()
 			if _, requested := additionalTypeSet[name]; requested {
 				if dwarfOffset, ok := typeIndex.resolveDwarfOffset(tid); ok {
 					t, addErr := typeCatalog.addType(dwarfOffset)
@@ -289,9 +321,13 @@ func generateIR(
 							name, dwarfOffset, addErr,
 						)
 					} else {
+						budget := uint32(additionalTypeBudget)
+						if _, special := specialAdditionalTypeSet[name]; special {
+							budget = 1
+						}
 						additionalTypeRoots = append(additionalTypeRoots, explorationRoot{
 							typeID: t.GetID(),
-							budget: additionalTypeBudget,
+							budget: budget,
 						})
 					}
 				}
@@ -395,7 +431,51 @@ func generateIR(
 	// roots. Must happen before type expansion. Returns one analyzedProbe per
 	// instance.
 	budgets := computeDepthBudgets(processed.pendingSubprograms)
-	analyzedProbes, explorationRoots := analyzeAllProbes(probes, budgets)
+	analyzedProbes, explorationRoots := analyzeAllProbes(probes, budgets, typeCatalog)
+	needsGoContextSupport := analyzedProbesContainGoContext(analyzedProbes)
+	// Also enable context support if context.Context appears anywhere in
+	// the binary's go runtime types (via the special-additional-types
+	// gotype iteration). This catches the common case where a probe
+	// captures something whose type tree contains a context.Context
+	// field but the static walk above sees a placeholder for the
+	// transitively-reachable type.
+	if !needsGoContextSupport {
+		if _, ok := specialAdditionalTypeOffsets["context.Context"]; ok {
+			needsGoContextSupport = true
+		}
+	}
+	if needsGoContextSupport {
+		// Pull every dd-trace-go support type and the context.Context
+		// interface itself into the catalog now, so that the unified
+		// expansion below has them as roots. context.Context gets budget
+		// 2 (enough to dereference the interface to its impl pointer and
+		// then dereference that pointer to the impl struct, materializing
+		// the struct as a real StructureType rather than a placeholder).
+		// All other special types get budget 1 — they're either directly
+		// captured or reached via valueCtx's value field at runtime.
+		for _, name := range ddTraceGoContextTypes {
+			dwarfOffset, ok := specialAdditionalTypeOffsets[name]
+			if !ok {
+				continue
+			}
+			t, addErr := typeCatalog.addType(dwarfOffset)
+			if addErr != nil {
+				log.Debugf(
+					"failed to add context support type %q at offset %#x: %v",
+					name, dwarfOffset, addErr,
+				)
+				continue
+			}
+			budget := uint32(1)
+			if name == "context.Context" {
+				budget = 2
+			}
+			additionalTypeRoots = append(additionalTypeRoots, explorationRoot{
+				typeID: t.GetID(),
+				budget: budget,
+			})
+		}
+	}
 
 	// Resolve placeholder types by a unified, budgeted expansion from
 	// exploration roots. Container internals are zero-cost.
@@ -415,6 +495,13 @@ func generateIR(
 		}
 	}
 
+	// All expansion is complete. annotateSpecialGoTypes runs after this on
+	// `needsGoContextSupport`; it was set during the special-types
+	// resolution above (where we tried to add context.Context and friends
+	// as exploration roots). The chain walk's runtime metadata
+	// (GoContext.IsContext, DDTrace span layouts) is then attached to the
+	// concrete impls in the catalog.
+
 	// Validate that all expression types were properly explored during
 	// expandTypesWithBudgets. This marks invalid segments for expressions
 	// that fail to resolve (e.g., type mismatches, missing fields).
@@ -424,6 +511,7 @@ func generateIR(
 	if err := finalizeTypes(typeCatalog, materializedSubprograms); err != nil {
 		return nil, err
 	}
+	annotateSpecialGoTypes(typeCatalog, needsGoContextSupport)
 
 	// Populate event root expressions for every probe.
 	probes, eventIssues := populateProbeEventsExpressions(
@@ -486,8 +574,10 @@ type analyzedExpression struct {
 
 // analyzedCondition represents a parsed and resolved condition tree. The
 // tree may be a single leaf (eq / isEmpty) or a compound of and/or/not
-// over leaves. All leaves must reference variables available at the same
-// event kind; that single kind is stored here.
+// over leaves. Leaves may reference variables at one event kind ("single"
+// — eventKind is set, splitCondition is false) or at both entry and
+// return ("split" — eventKind is zero, splitCondition is true,
+// leafEventKind / entryLeafSlotIndex describe the split).
 //
 // Only analyzeCondition should construct values of this type: leafRoots
 // is keyed by pointer identity of the leaves reachable from expr, and
@@ -500,9 +590,32 @@ type analyzedCondition struct {
 	// leafRoots maps each condition leaf (EqExpr / IsEmptyExpr) reachable
 	// from expr to the variable feeding its LHS.
 	leafRoots map[exprlang.Expr]*ir.Variable
-	// eventKind is the single event kind shared by every leaf's root.
+	// eventKind is the single event kind shared by every leaf's root in
+	// the non-split case. Zero in the split case (use leafEventKind).
 	eventKind ir.EventKind
+	// splitCondition is true when leaves resolve to both entry and return
+	// event kinds. In that case each entry-side leaf is compiled to its
+	// own SM sub-function and its outcome is captured as a 2-bit status
+	// in a per-call condition_state (uint16); the return-side condition
+	// program reads the slots back via ConditionLeafLoadOp. See
+	// pkg/dyninst/ir/expression.go for the full set of carry ops.
+	splitCondition bool
+	// leafEventKind maps each leaf to the event kind of its root variable.
+	// Populated for both single and split conditions.
+	leafEventKind map[exprlang.Expr]ir.EventKind
+	// entryLeafSlotIndex maps each entry-side leaf to its 2-bit slot index
+	// in the per-call condition_state. Only populated for split
+	// conditions; nil for single-event conditions.
+	entryLeafSlotIndex map[exprlang.Expr]uint8
 }
+
+// maxConditionEntryLeaves is the maximum number of entry-side leaves
+// allowed in a split-event-kind condition. The runtime stores each
+// leaf's outcome as a 2-bit status in condition_state (uint16; see
+// call_depths_entry_t.condition_state in pkg/dyninst/ebpf/context.h).
+// Keep in sync with MAX_CONDITION_ENTRY_LEAVES in
+// pkg/dyninst/ebpf/context.h.
+const maxConditionEntryLeaves = 8
 
 // analyzedProbe holds all analyzed expressions for a single probe instance.
 // There is one analyzedProbe per ProbeInstance (i.e. per (probe, subprogram)
@@ -681,11 +794,15 @@ func analyzeCondition(
 		}
 	}
 
-	// Resolve each leaf's root variable and event kind, and check that
-	// every leaf lands on the same event.
+	// Resolve each leaf's root variable and event kind. Compound conditions
+	// that span entry and return are allowed: each entry-side leaf is
+	// assigned a 2-bit slot in condition_state and the return-side
+	// condition program reads them back via ConditionLeafLoadOp.
+	// Conditions whose leaves all share the same event kind take the
+	// non-split path.
 	leafRoots := make(map[exprlang.Expr]*ir.Variable, len(leaves))
-	var evKind ir.EventKind
-	var evKindSet bool
+	leafEventKindMap := make(map[exprlang.Expr]ir.EventKind, len(leaves))
+	var sawEntry, sawReturn, sawLine bool
 	for _, leaf := range leaves {
 		sub, _ := conditionLeafSubExpr(leaf)
 		rootVarName, ok := extractRootVariableName(sub)
@@ -697,6 +814,12 @@ func analyzeCondition(
 		}
 		rootVar := varByName[rootVarName]
 		if rootVar == nil {
+			if rootVarName == "@duration" {
+				return nil, ir.Issue{
+					Kind:    ir.IssueKindConditionVariableUnavailable,
+					Message: ir.ErrDurationNotOnReturn,
+				}
+			}
 			return nil, ir.Issue{
 				Kind:    ir.IssueKindConditionVariableUnavailable,
 				Message: fmt.Sprintf("condition variable %q not found", rootVarName),
@@ -709,25 +832,73 @@ func analyzeCondition(
 				Message: fmt.Sprintf("condition variable %q not available at any event", rootVarName),
 			}
 		}
-		if evKindSet && leafEvKind != evKind {
-			return nil, ir.Issue{
-				Kind: ir.IssueKindConditionVariableUnavailable,
-				Message: fmt.Sprintf(
-					"compound condition references variables from multiple event kinds (%v and %v)",
-					evKind, leafEvKind,
-				),
-			}
+		switch leafEvKind {
+		case ir.EventKindEntry:
+			sawEntry = true
+		case ir.EventKindReturn:
+			sawReturn = true
+		case ir.EventKindLine:
+			sawLine = true
 		}
-		evKind = leafEvKind
-		evKindSet = true
 		leafRoots[leaf] = rootVar
+		leafEventKindMap[leaf] = leafEvKind
 		addRoot(rootVar.Type.GetID(), budget)
+	}
+	// Line probes only have a single event so a leaf classified as
+	// EventKindLine cannot legitimately mix with anything else; a probe
+	// targeting a line cannot also have entry / return events. Reject any
+	// such mix as the language does not express it.
+	if sawLine && (sawEntry || sawReturn) {
+		return nil, ir.Issue{
+			Kind:    ir.IssueKindConditionVariableUnavailable,
+			Message: "condition references both line and entry/return variables",
+		}
+	}
+	splitCondition := sawEntry && sawReturn
+	var evKind ir.EventKind
+	var entryLeafSlotIndex map[exprlang.Expr]uint8
+	if !splitCondition {
+		// Single-event condition. Pick the lone event kind.
+		switch {
+		case sawEntry:
+			evKind = ir.EventKindEntry
+		case sawReturn:
+			evKind = ir.EventKindReturn
+		case sawLine:
+			evKind = ir.EventKindLine
+		}
+	} else {
+		// Split condition: assign condition_state slot indices to entry-side
+		// leaves in iteration order. Reject if the count exceeds the slot
+		// budget (16-bit condition_state / 2 bits per slot = 8 slots).
+		entryLeafSlotIndex = make(map[exprlang.Expr]uint8, len(leaves))
+		var nextIdx uint8
+		for _, leaf := range leaves {
+			if leafEventKindMap[leaf] != ir.EventKindEntry {
+				continue
+			}
+			if int(nextIdx) >= maxConditionEntryLeaves {
+				return nil, ir.Issue{
+					Kind: ir.IssueKindConditionCarryTooLarge,
+					Message: fmt.Sprintf(
+						"split condition has more than %d entry-side leaves; "+
+							"condition_state cannot represent more",
+						maxConditionEntryLeaves,
+					),
+				}
+			}
+			entryLeafSlotIndex[leaf] = nextIdx
+			nextIdx++
+		}
 	}
 
 	return &analyzedCondition{
-		expr:      condExpr,
-		leafRoots: leafRoots,
-		eventKind: evKind,
+		expr:               condExpr,
+		leafRoots:          leafRoots,
+		eventKind:          evKind,
+		splitCondition:     splitCondition,
+		leafEventKind:      leafEventKindMap,
+		entryLeafSlotIndex: entryLeafSlotIndex,
 	}, ir.Issue{}
 }
 
@@ -752,7 +923,11 @@ func checkConditionLHS(expr exprlang.Expr) error {
 		return checkConditionLHS(e.Operand)
 	case *exprlang.IsEmptyExpr:
 		return checkConditionLHS(e.Operand)
-	case *exprlang.EqExpr, *exprlang.AndExpr, *exprlang.OrExpr, *exprlang.NotExpr, *exprlang.ContainsExpr:
+	case *exprlang.EqExpr, *exprlang.NeExpr,
+		*exprlang.LtExpr, *exprlang.LeExpr,
+		*exprlang.GtExpr, *exprlang.GeExpr,
+		*exprlang.AndExpr, *exprlang.OrExpr, *exprlang.NotExpr,
+		*exprlang.ContainsExpr:
 		return fmt.Errorf(
 			"condition leaf LHS may not be a boolean expression (%T); "+
 				"use the inner expression directly",
@@ -791,15 +966,31 @@ func conditionLeafExprs(expr exprlang.Expr) []exprlang.Expr {
 
 // conditionLeafSubExpr returns the sub-expression a leaf's LHS descends
 // through (the part passed to resolveExpression in resolveCondition). For
-// EqExpr it's the Left side; for IsEmptyExpr it's the Operand. Any other
-// expression type is a malformed leaf (caller should have rejected earlier).
+// the comparison nodes (EqExpr / NeExpr / LtExpr / LeExpr / GtExpr /
+// GeExpr) it's the Left side; for IsEmptyExpr it's the Operand. Any other
+// expression type is a malformed leaf (caller should have rejected
+// earlier).
 func conditionLeafSubExpr(leaf exprlang.Expr) (exprlang.Expr, bool) {
 	switch l := leaf.(type) {
 	case *exprlang.EqExpr:
 		return l.Left, true
+	case *exprlang.NeExpr:
+		return l.Left, true
+	case *exprlang.LtExpr:
+		return l.Left, true
+	case *exprlang.LeExpr:
+		return l.Left, true
+	case *exprlang.GtExpr:
+		return l.Left, true
+	case *exprlang.GeExpr:
+		return l.Left, true
 	case *exprlang.IsEmptyExpr:
 		return l.Operand, true
 	case *exprlang.ContainsExpr:
+		return l.Base, true
+	case *exprlang.AnyExpr:
+		return l.Base, true
+	case *exprlang.AllExpr:
 		return l.Base, true
 	default:
 		return nil, false
@@ -898,7 +1089,21 @@ func extractRootVariableName(expr exprlang.Expr) (string, bool) {
 			expr = e.Base
 		case *exprlang.ContainsExpr:
 			expr = e.Base
+		case *exprlang.AnyExpr:
+			expr = e.Base
+		case *exprlang.AllExpr:
+			expr = e.Base
 		case *exprlang.EqExpr:
+			expr = e.Left
+		case *exprlang.NeExpr:
+			expr = e.Left
+		case *exprlang.LtExpr:
+			expr = e.Left
+		case *exprlang.LeExpr:
+			expr = e.Left
+		case *exprlang.GtExpr:
+			expr = e.Left
+		case *exprlang.GeExpr:
 			expr = e.Left
 		default:
 			return "", false
@@ -915,6 +1120,7 @@ func extractRootVariableName(expr exprlang.Expr) (string, bool) {
 func analyzeAllProbes(
 	probes []*ir.Probe,
 	budgets map[ir.SubprogramID]uint32,
+	tc *typeCatalog,
 ) ([]analyzedProbe, []explorationRoot) {
 	var analyzed []analyzedProbe
 
@@ -924,6 +1130,18 @@ func analyzeAllProbes(
 		if existing, ok := rootBudgets[typeID]; !ok || budget > existing {
 			rootBudgets[typeID] = budget
 		}
+	}
+
+	// durationVar is a single synthetic variable reused across all probes
+	// that support @duration. Its role signals to the compiler that its
+	// LocationOp should emit an ExprLoadDurationOp rather than reading
+	// from DWARF locations.
+	durationType := tc.typesByID[tc.durationType]
+	durationVar := &ir.Variable{
+		Name:      "@duration",
+		Type:      durationType,
+		Role:      ir.VariableRoleDuration,
+		DictIndex: -1,
 	}
 
 	for _, probe := range probes {
@@ -943,7 +1161,7 @@ func analyzeAllProbes(
 			}
 
 			// Build variable lookup for this instance's subprogram.
-			varByName := make(map[string]*ir.Variable, len(inst.Subprogram.Variables))
+			varByName := make(map[string]*ir.Variable, len(inst.Subprogram.Variables)+1)
 			for _, v := range inst.Subprogram.Variables {
 				varByName[v.Name] = v
 			}
@@ -959,6 +1177,14 @@ func analyzeAllProbes(
 			}
 			haveEntry := slices.ContainsFunc(inst.Events, isKind(ir.EventKindEntry))
 			haveReturn := slices.ContainsFunc(inst.Events, isKind(ir.EventKindReturn))
+
+			// @duration is a synthetic variable available only on probes
+			// with a return event. Expose it under varByName so refs in
+			// conditions, template segments, and capture expressions
+			// resolve through the normal variable-matching paths.
+			if haveReturn {
+				varByName["@duration"] = durationVar
+			}
 
 			// isFloatType returns true if the variable has a float32 or float64 type.
 			isFloatType := func(v *ir.Variable) bool {
@@ -1156,6 +1382,42 @@ func analyzeAllProbes(
 				delete(segmentRefs, v.Name)
 			}
 
+			// Handle @duration references in template segments. Only
+			// plain {ref: "@duration"} is supported — member access or
+			// indexing on @duration produces an InvalidSegment. On
+			// probes without a return event we mark the segment
+			// invalid; at runtime on return probes the BPF program
+			// computes the duration from the entry/return timestamps.
+			if segs, ok := segmentRefs["@duration"]; ok {
+				for _, seg := range segs {
+					if !haveReturn {
+						ap.template.Segments[seg.index] = ir.InvalidSegment{
+							Error: ir.ErrDurationNotOnReturn,
+							DSL:   seg.segment.DSL,
+						}
+						continue
+					}
+					if _, plainRef := seg.segment.JSON.(*exprlang.RefExpr); !plainRef {
+						ap.template.Segments[seg.index] = ir.InvalidSegment{
+							Error: "@duration does not support member access or indexing",
+							DSL:   seg.segment.DSL,
+						}
+						continue
+					}
+					ap.expressions = append(ap.expressions, analyzedExpression{
+						expr:         seg.segment.JSON,
+						dsl:          seg.segment.DSL,
+						rootVariable: durationVar,
+						eventKind:    ir.EventKindReturn,
+						exprKind:     ir.RootExpressionKindTemplateSegment,
+						segment:      seg.segment,
+						segmentIdx:   seg.index,
+					})
+					addRoot(durationType.GetID(), budget)
+				}
+				delete(segmentRefs, "@duration")
+			}
+
 			// Handle @return references in template segments. @return is
 			// a return-point concept and only resolves at probes with a
 			// Return event.
@@ -1204,11 +1466,35 @@ func analyzeAllProbes(
 				} else {
 					rootVar = varByName[rootVarName]
 				}
+				// @duration is a capturable expression even on probes
+				// without a return event: we bind it to whatever event
+				// the probe does have so that at runtime the BPF
+				// program writes ExprStatusAbsent and the decoder
+				// surfaces a clear "@duration is only available at
+				// function return" evaluation error on the snapshot.
+				if rootVar == nil && rootVarName == "@duration" {
+					rootVar = durationVar
+				}
 				if rootVar == nil {
 					continue
 				}
 				var evKind ir.EventKind
 				switch {
+				case rootVar.Role == ir.VariableRoleDuration:
+					// Prefer the return event when available. Otherwise
+					// fall back to the entry event or the sole line
+					// event, so the expression still runs and can
+					// report its absent status.
+					switch {
+					case haveReturn:
+						evKind = ir.EventKindReturn
+					case haveEntry:
+						evKind = ir.EventKindEntry
+					case len(inst.Events) == 1 && inst.Events[0].Kind == ir.EventKindLine:
+						evKind = ir.EventKindLine
+					default:
+						continue
+					}
 				case haveEntry && rootVar.Role == ir.VariableRoleParameter:
 					if isFloatType(rootVar) && floatIsRegisterOnly(entryIPs, rootVar) {
 						continue
@@ -1248,6 +1534,11 @@ func analyzeAllProbes(
 			) (ir.EventKind, bool) {
 				events := inst.Events
 				switch {
+				case rootVar.Role == ir.VariableRoleDuration:
+					// durationVar is only registered in varByName when
+					// haveReturn is true, so this arm always resolves to
+					// the return event.
+					return ir.EventKindReturn, true
 				case haveEntry && rootVar.Role == ir.VariableRoleParameter:
 					if isFloatType(rootVar) && floatIsRegisterOnly(entryIPs, rootVar) {
 						return 0, false
@@ -1344,16 +1635,17 @@ func newTemplate(td ir.TemplateDefinition) *ir.Template {
 			} else {
 				switch expr := expr.(type) {
 				case *exprlang.RefExpr:
-					if expr.Ref == "@duration" {
-						addSegment(&ir.DurationSegment{})
-						continue
-					}
 				case *exprlang.GetMemberExpr:
 				case *exprlang.IndexExpr:
 				case *exprlang.LenExpr:
 				case *exprlang.IsEmptyExpr:
 				case *exprlang.ContainsExpr:
 				case *exprlang.EqExpr:
+				case *exprlang.NeExpr:
+				case *exprlang.LtExpr:
+				case *exprlang.LeExpr:
+				case *exprlang.GtExpr:
+				case *exprlang.GeExpr:
 				case *exprlang.UnsupportedExpr:
 					msg := "unsupported operation: " + expr.Operation
 					addInvalid(segment, msg)
@@ -1530,11 +1822,14 @@ func (p *typeQueueProcessor) drainQueue() error {
 
 		// Nothing to do for these types.
 		case *ir.BaseType,
+			*ir.DurationType,
+			*ir.TraceContextType,
 			*ir.EventRootType,
 			*ir.GoChannelType,
 			*ir.GoEmptyInterfaceType,
 			*ir.GoStringDataType,
 			*ir.GoSubroutineType,
+			*ir.GoTimeType,
 			*ir.UnresolvedPointeeType,
 			*ir.VoidPointerType:
 
@@ -1550,6 +1845,14 @@ func (p *typeQueueProcessor) drainQueue() error {
 		case *ir.StructureType:
 			for i := range tt.RawFields {
 				p.push(tt.RawFields[i].Type, wi.remaining)
+			}
+		case *ir.GoContextImplementationType:
+			for i := range tt.StructureType.RawFields {
+				p.push(tt.StructureType.RawFields[i].Type, wi.remaining)
+			}
+		case *ir.DDTraceSpanType:
+			for i := range tt.StructureType.RawFields {
+				p.push(tt.StructureType.RawFields[i].Type, wi.remaining)
 			}
 		case *ir.GoSliceHeaderType:
 			p.push(tt.Data, wi.remaining)
@@ -3435,7 +3738,11 @@ func completeGoTypes(tc *typeCatalog, minID, maxID ir.TypeID) error {
 					return err
 				}
 			case reflect.Struct:
-				// Nothing to do.
+				if t.Name == "time.Time" {
+					if err := completeGoTimeType(tc, t); err != nil {
+						return err
+					}
+				}
 			default:
 				return fmt.Errorf(
 					"unexpected Go kind for structure type %q: %v",
@@ -3503,6 +3810,103 @@ func completeGoMapType(tc *typeCatalog, t *ir.GoMapType) error {
 			t.Name, t.HeaderType.GetName(), t.HeaderType,
 		)
 	}
+}
+
+// completeGoTimeType converts a time.Time StructureType into a GoTimeType
+// and, when possible, resolves the time.Location cache fields so the BPF
+// program can write the captured instant's UTC offset in place of the loc
+// pointer. The function is best-effort: if any expected field is missing
+// (e.g. a future Go version reshuffles internals) the type is left as a
+// plain StructureType and the decoder falls back to UTC-only rendering.
+func completeGoTimeType(tc *typeCatalog, st *ir.StructureType) error {
+	wall, err := field(tc, st, "wall")
+	if err != nil {
+		return nil
+	}
+	ext, err := field(tc, st, "ext")
+	if err != nil {
+		return nil
+	}
+	loc, err := field(tc, st, "loc")
+	if err != nil {
+		return nil
+	}
+
+	timeType := &ir.GoTimeType{
+		StructureType:   st,
+		WallFieldOffset: wall.Offset,
+		ExtFieldOffset:  ext.Offset,
+		LocFieldOffset:  loc.Offset,
+	}
+
+	// Try to resolve the time.Location pointee so the BPF runtime can
+	// chase the cache fast path. Failure is non-fatal: the decoder
+	// renders in UTC when CacheResolved is false.
+	if loc, ok := tryResolveTimeLocation(tc, loc.Type); ok {
+		timeType.CacheResolved = true
+		timeType.CacheStartOffset = loc.cacheStartOffset
+		timeType.CacheEndOffset = loc.cacheEndOffset
+		timeType.CacheZoneOffset = loc.cacheZoneOffset
+		timeType.ZoneOffsetFieldOffset = loc.zoneOffsetFieldOffset
+		timeType.ZoneOffsetFieldSize = loc.zoneOffsetFieldSize
+	}
+
+	tc.typesByID[st.ID] = timeType
+	return nil
+}
+
+type resolvedTimeLocation struct {
+	cacheStartOffset      uint32
+	cacheEndOffset        uint32
+	cacheZoneOffset       uint32
+	zoneOffsetFieldOffset uint32
+	zoneOffsetFieldSize   uint32
+}
+
+func tryResolveTimeLocation(
+	tc *typeCatalog, locFieldType ir.Type,
+) (resolvedTimeLocation, bool) {
+	loc, err := resolvePointeeType[*ir.StructureType](tc, locFieldType)
+	if err != nil {
+		return resolvedTimeLocation{}, false
+	}
+	cacheStart, err := field(tc, loc, "cacheStart")
+	if err != nil {
+		return resolvedTimeLocation{}, false
+	}
+	cacheEnd, err := field(tc, loc, "cacheEnd")
+	if err != nil {
+		return resolvedTimeLocation{}, false
+	}
+	cacheZone, err := field(tc, loc, "cacheZone")
+	if err != nil {
+		return resolvedTimeLocation{}, false
+	}
+	zone, err := resolvePointeeType[*ir.StructureType](tc, cacheZone.Type)
+	if err != nil {
+		return resolvedTimeLocation{}, false
+	}
+	zoneOffset, err := field(tc, zone, "offset")
+	if err != nil {
+		return resolvedTimeLocation{}, false
+	}
+	// The BPF opcode encoding packs cache_end/cache_zone/zone_offset
+	// offsets into 16-bit fields to fit within BPF's argument-register
+	// budget. time.Location and time.zone are tiny so this is generous,
+	// but bail out (degrading to UTC rendering) if a future Go layout
+	// outgrows it.
+	if cacheEnd.Offset > 0xFFFF ||
+		cacheZone.Offset > 0xFFFF ||
+		zoneOffset.Offset > 0xFFFF {
+		return resolvedTimeLocation{}, false
+	}
+	return resolvedTimeLocation{
+		cacheStartOffset:      cacheStart.Offset,
+		cacheEndOffset:        cacheEnd.Offset,
+		cacheZoneOffset:       cacheZone.Offset,
+		zoneOffsetFieldOffset: zoneOffset.Offset,
+		zoneOffsetFieldSize:   zoneOffset.Type.GetByteSize(),
+	}, true
 }
 
 func completeSwissMapHeaderType(tc *typeCatalog, st *ir.StructureType) error {
@@ -4000,21 +4404,26 @@ func exploreExpressionTypes(
 		return exploreLenExprTypes(e.Operand, currentType, tc, exprPath)
 
 	case *exprlang.EqExpr:
-		// Resolve the left and right expressions.
-		_, err := exploreExpressionTypes(e.Left, currentType, tc, exprPath)
-		if err != nil {
-			return nil, err
-		}
-		if _, ok := e.Right.(*exprlang.LiteralExpr); !ok {
-			return nil, fmt.Errorf("right expression is not a literal: %T", e.Right)
-		}
-		if tc.boolType == 0 {
-			return nil, errors.New("bool type not found")
-		}
-		return tc.typesByID[tc.boolType], nil
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
+	case *exprlang.NeExpr:
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
+	case *exprlang.LtExpr:
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
+	case *exprlang.LeExpr:
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
+	case *exprlang.GtExpr:
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
+	case *exprlang.GeExpr:
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
 
 	case *exprlang.IndexExpr:
 		return exploreIndexExprTypes(e, currentType, tc, exprPath)
+
+	case *exprlang.AnyExpr:
+		return exploreAnyAllTypes(e.Base, e.Pred, currentType, tc, exprPath)
+
+	case *exprlang.AllExpr:
+		return exploreAnyAllTypes(e.Base, e.Pred, currentType, tc, exprPath)
 
 	case *exprlang.ContainsExpr:
 		// Resolve the map base and validate the literal key. The result
@@ -4061,6 +4470,105 @@ func exploreExpressionTypes(
 		// Unknown expression type - nothing to explore.
 		return currentType, nil
 	}
+}
+
+// exploreAnyAllTypes validates an any/all expression's base resolves to a
+// supported collection type (slice, array, or swiss-table map) and explores
+// the predicate body's types under the iteration variable's type. Returns
+// bool — every any/all expression produces a bool regardless of element type.
+func exploreAnyAllTypes(
+	base, pred exprlang.Expr,
+	currentType ir.Type,
+	tc *typeCatalog,
+	exprPath string,
+) (ir.Type, error) {
+	baseType, err := exploreExpressionTypes(base, currentType, tc, exprPath)
+	if err != nil {
+		return nil, err
+	}
+	canonical := tc.typesByID[baseType.GetID()]
+	// Map each in-scope ref name (`@it`, `@key`, `@value`) to the type
+	// its bytes carry. For slice/array there's only `@it`; for maps,
+	// `@it` and `@key` are the key type and `@value` is the value type.
+	refTypes := map[string]ir.Type{}
+	switch t := canonical.(type) {
+	case *ir.GoSliceHeaderType:
+		refTypes["@it"] = t.Data.Element
+	case *ir.ArrayType:
+		refTypes["@it"] = t.Element
+	case *ir.GoMapType:
+		headerType := tc.typesByID[t.HeaderType.GetID()]
+		swissHeader, ok := headerType.(*ir.GoSwissMapHeaderType)
+		if !ok {
+			return nil, fmt.Errorf(
+				"any/all over map: unsupported header type %T", headerType,
+			)
+		}
+		keyType, valType, err := swissMapKeyValueTypes(swissHeader, tc)
+		if err != nil {
+			return nil, err
+		}
+		refTypes["@it"] = keyType
+		refTypes["@key"] = keyType
+		refTypes["@value"] = valType
+	default:
+		return nil, fmt.Errorf(
+			"any/all base must be a slice, array, or map; got %s (%T)",
+			canonical.GetName(), canonical,
+		)
+	}
+	// Explore each leaf of the predicate body using the type of its
+	// rooted ref. This catches mismatches like `any(intSlice, @it == "x")`
+	// or `any(map[K]V, @value == bogus)` early.
+	for _, leaf := range conditionLeafExprs(pred) {
+		sub, ok := conditionLeafSubExpr(leaf)
+		if !ok {
+			return nil, fmt.Errorf(
+				"any/all predicate leaf: cannot derive sub-expression from %T", leaf,
+			)
+		}
+		rootName, ok := extractRootVariableName(sub)
+		if !ok {
+			return nil, fmt.Errorf(
+				"any/all predicate leaf: cannot derive root variable from %T", sub,
+			)
+		}
+		rootType, ok := refTypes[rootName]
+		if !ok {
+			return nil, fmt.Errorf(
+				"any/all predicate leaf references %q, which is not in scope", rootName,
+			)
+		}
+		if _, err := exploreExpressionTypes(sub, rootType, tc, rootName); err != nil {
+			return nil, err
+		}
+	}
+	if tc.boolType == 0 {
+		return nil, errors.New("bool type not found")
+	}
+	return tc.typesByID[tc.boolType], nil
+}
+
+// exploreComparisonExprTypes resolves the LHS of a comparison node
+// (Eq / Ne / Lt / Le / Gt / Ge), validates the RHS is a literal, and
+// returns the bool result type. Shared across all six comparison nodes
+// because they have identical type-exploration semantics.
+func exploreComparisonExprTypes(
+	left, right exprlang.Expr,
+	currentType ir.Type,
+	tc *typeCatalog,
+	exprPath string,
+) (ir.Type, error) {
+	if _, err := exploreExpressionTypes(left, currentType, tc, exprPath); err != nil {
+		return nil, err
+	}
+	if _, ok := right.(*exprlang.LiteralExpr); !ok {
+		return nil, fmt.Errorf("right expression is not a literal: %T", right)
+	}
+	if tc.boolType == 0 {
+		return nil, errors.New("bool type not found")
+	}
+	return tc.typesByID[tc.boolType], nil
 }
 
 // exploreIndexExprTypes explores types for an index expression, resolving
@@ -4330,6 +4838,175 @@ func unwrapMapType(typ ir.Type, tc *typeCatalog) ir.Type {
 	return typ
 }
 
+// resolveGetMemberChain resolves a GetMemberExpr chain (e.g. a.b.c) to an IR
+// expression *without* applying the final auto-deref. If the chain ends at a
+// pointer-typed field, the returned Expression's Type is the pointer; the
+// caller chooses whether to deref via applyFinalPointerDeref.
+//
+// trailingBias is an accumulated field offset that the caller must apply to
+// any subsequent op it appends (typically 0; non-zero only in defensive
+// fallback paths where field-access didn't fold into an existing op).
+func resolveGetMemberChain(
+	e *exprlang.GetMemberExpr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (expr ir.Expression, trailingBias uint32, _ error) {
+	// Collect all members in the chain (e.g., a.b.c becomes [c, b, a]).
+	var members []string
+	var base exprlang.Expr = e
+	for {
+		if gm, ok := base.(*exprlang.GetMemberExpr); ok {
+			members = append(members, gm.Member)
+			base = gm.Base
+		} else {
+			break
+		}
+	}
+	// Reverse to get correct order (a.b.c).
+	slices.Reverse(members)
+
+	// Resolve base expression (RefExpr or other).
+	baseExpr, err := resolveExpression(base, rootVar, tc)
+	if err != nil {
+		return ir.Expression{}, 0, fmt.Errorf(
+			"failed to resolve base expression: %w", err,
+		)
+	}
+
+	currentType := baseExpr.Type
+	operations := baseExpr.Operations
+	bias := uint32(0)
+	hasDereferenced := false
+	// Track the index of the last DereferenceOp we added, so we can update
+	// the correct one when we encounter field accesses after dereferences.
+	lastDerefOpIdx := -1
+
+	// Detect if the base expression already ends with a DereferenceOp or
+	// SwissMapLookupOp (e.g., from slice index or map index resolution).
+	// If so, initialize state so the member loop updates the correct op.
+	if len(operations) > 0 {
+		switch operations[len(operations)-1].(type) {
+		case *ir.DereferenceOp, *ir.SwissMapLookupOp:
+			hasDereferenced = true
+			lastDerefOpIdx = len(operations) - 1
+		}
+	}
+
+	for _, memberName := range members {
+		// Handle pointer dereference if needed.
+		if ptrType, ok := currentType.(*ir.PointerType); ok {
+			if _, isVoid := ptrType.Pointee.(*ir.VoidPointerType); isVoid {
+				return ir.Expression{}, 0, errors.New("cannot dereference void pointer")
+			}
+			if _, isUnresolved := ptrType.Pointee.(*ir.UnresolvedPointeeType); isUnresolved {
+				return ir.Expression{}, 0, fmt.Errorf(
+					"cannot resolve expression: pointee type %q not explored",
+					ptrType.Pointee.GetName(),
+				)
+			}
+			pointee, err := resolvePointeeType[ir.Type](tc, currentType)
+			if err != nil {
+				return ir.Expression{}, 0, fmt.Errorf(
+					"failed to resolve pointee type: %w", err,
+				)
+			}
+			operations = append(operations, &ir.DereferenceOp{
+				Bias:     bias,
+				ByteSize: pointee.GetByteSize(),
+			})
+			lastDerefOpIdx = len(operations) - 1
+			currentType = pointee
+			bias = 0
+			hasDereferenced = true
+		}
+
+		structType, ok := currentType.(*ir.StructureType)
+		if !ok {
+			return ir.Expression{}, 0, fmt.Errorf(
+				"cannot access member %q on type %T (%q)",
+				memberName, currentType, currentType.GetName(),
+			)
+		}
+		field, err := field(tc, structType, memberName)
+		if err != nil {
+			return ir.Expression{}, 0, fmt.Errorf(
+				"field %q not found in type %q",
+				memberName, structType.Name,
+			)
+		}
+
+		if !hasDereferenced {
+			// Direct struct access: update LocationOp offset directly.
+			if len(operations) == 1 {
+				if locOp, ok := operations[0].(*ir.LocationOp); ok {
+					locOp.Offset += field.Offset
+					locOp.ByteSize = field.Type.GetByteSize()
+				}
+			}
+		} else if lastDerefOpIdx >= 0 && lastDerefOpIdx < len(operations) {
+			// After dereference or map lookup: update the operation that
+			// corresponds to the current data read (tracked by lastDerefOpIdx).
+			switch op := operations[lastDerefOpIdx].(type) {
+			case *ir.DereferenceOp:
+				op.Bias += field.Offset
+				op.ByteSize = field.Type.GetByteSize()
+			case *ir.SwissMapLookupOp:
+				op.ValInSlotOffset += uint16(field.Offset)
+				op.ValByteSize = field.Type.GetByteSize()
+			default:
+				bias += field.Offset
+			}
+		} else {
+			bias += field.Offset
+		}
+
+		currentType = field.Type
+	}
+
+	return ir.Expression{Type: currentType, Operations: operations}, bias, nil
+}
+
+// applyFinalPointerDeref appends a DereferenceOp that follows the pointer at
+// the end of expr through to its pointee. expr.Type must be *ir.PointerType.
+// trailingBias is applied as the deref bias (typically 0; non-zero only when
+// the GetMemberExpr chain accumulated an offset that didn't fold into an
+// existing op).
+//
+// Used by resolveExpression's GetMemberExpr branch to give capture semantics
+// (the pointed-to value, not the raw pointer).
+func applyFinalPointerDeref(
+	expr ir.Expression,
+	trailingBias uint32,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	ptrType, ok := expr.Type.(*ir.PointerType)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf(
+			"applyFinalPointerDeref: type is not a pointer: %T", expr.Type,
+		)
+	}
+	if _, isVoid := ptrType.Pointee.(*ir.VoidPointerType); isVoid {
+		return ir.Expression{}, errors.New("cannot dereference void pointer")
+	}
+	if _, isUnresolved := ptrType.Pointee.(*ir.UnresolvedPointeeType); isUnresolved {
+		return ir.Expression{}, fmt.Errorf(
+			"cannot resolve expression: pointee type %q not explored",
+			ptrType.Pointee.GetName(),
+		)
+	}
+	pointee, err := resolvePointeeType[ir.Type](tc, expr.Type)
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf(
+			"failed to resolve final pointee type: %w", err,
+		)
+	}
+	ops := append(expr.Operations, &ir.DereferenceOp{
+		Bias:     trailingBias,
+		ByteSize: pointee.GetByteSize(),
+	})
+	return ir.Expression{Type: pointee, Operations: ops}, nil
+}
+
 // resolveExpression resolves an expression AST to an IR Expression.
 func resolveExpression(
 	expr exprlang.Expr,
@@ -4351,180 +5028,19 @@ func resolveExpression(
 		}, nil
 
 	case *exprlang.GetMemberExpr:
-		// Collect all members in the chain (e.g., a.b.c becomes [c, b, a]).
-		var members []string
-		var base exprlang.Expr = e
-		for {
-			if gm, ok := base.(*exprlang.GetMemberExpr); ok {
-				members = append(members, gm.Member)
-				base = gm.Base
-			} else {
-				break
-			}
-		}
-		// Reverse to get correct order (a.b.c).
-		slices.Reverse(members)
-
-		// Resolve base expression (RefExpr or other).
-		baseExpr, err := resolveExpression(base, rootVar, tc)
+		expr, bias, err := resolveGetMemberChain(e, rootVar, tc)
 		if err != nil {
-			return ir.Expression{}, fmt.Errorf(
-				"failed to resolve base expression: %w", err,
-			)
+			return ir.Expression{}, err
 		}
-
-		currentType := baseExpr.Type
-		operations := baseExpr.Operations
-		bias := uint32(0)
-		hasDereferenced := false
-		// Track the index of the last DereferenceOp we added, so we can update
-		// the correct one when we encounter field accesses after dereferences.
-		lastDerefOpIdx := -1
-
-		// Detect if the base expression already ends with a DereferenceOp
-		// or SwissMapLookupOp (e.g., from slice index or map index
-		// resolution). If so, initialize state so the member loop updates
-		// the correct op.
-		if len(operations) > 0 {
-			switch operations[len(operations)-1].(type) {
-			case *ir.DereferenceOp, *ir.SwissMapLookupOp:
-				hasDereferenced = true
-				lastDerefOpIdx = len(operations) - 1
-			}
+		// Final dereference if result is a pointer. This is the "auto-deref"
+		// affordance: a member-access chain ending at a pointer-typed field
+		// resolves to the *pointed-to* value, matching capture semantics.
+		// Callers that need the pointer itself (e.g. null comparison) call
+		// resolveGetMemberChain directly.
+		if _, ok := expr.Type.(*ir.PointerType); ok {
+			return applyFinalPointerDeref(expr, bias, tc)
 		}
-
-		// Process each member in the chain.
-		for _, memberName := range members {
-			// Handle pointer dereference if needed.
-			if ptrType, ok := currentType.(*ir.PointerType); ok {
-				// Check for void pointer.
-				if _, isVoid := ptrType.Pointee.(*ir.VoidPointerType); isVoid {
-					return ir.Expression{}, errors.New(
-						"cannot dereference void pointer",
-					)
-				}
-
-				// Check for unresolved pointee.
-				// TODO: Is this possible? It shouldn't be if we explored the
-				// expression correctly.
-				if _, isUnresolved := ptrType.Pointee.(*ir.UnresolvedPointeeType); isUnresolved {
-					return ir.Expression{}, fmt.Errorf(
-						"cannot resolve expression: pointee type %q not explored",
-						ptrType.Pointee.GetName(),
-					)
-				}
-
-				// Resolve pointee type (handles placeholders lazily).
-				pointee, err := resolvePointeeType[ir.Type](tc, currentType)
-				if err != nil {
-					return ir.Expression{}, fmt.Errorf(
-						"failed to resolve pointee type: %w", err,
-					)
-				}
-
-				pointeeSize := pointee.GetByteSize()
-				operations = append(operations, &ir.DereferenceOp{
-					Bias:     bias,
-					ByteSize: pointeeSize,
-				})
-				lastDerefOpIdx = len(operations) - 1
-
-				currentType = pointee
-				bias = 0 // Reset bias after dereference.
-				hasDereferenced = true
-			}
-
-			// Handle structure field access.
-			structType, ok := currentType.(*ir.StructureType)
-			if !ok {
-				return ir.Expression{}, fmt.Errorf(
-					"cannot access member %q on type %T (%q)",
-					memberName, currentType, currentType.GetName(),
-				)
-			}
-
-			// Find field.
-			field, err := field(tc, structType, memberName)
-			if err != nil {
-				return ir.Expression{}, fmt.Errorf(
-					"field %q not found in type %q",
-					memberName, structType.Name,
-				)
-			}
-
-			if !hasDereferenced {
-				// Direct struct access: update LocationOp offset directly.
-				if len(operations) == 1 {
-					if locOp, ok := operations[0].(*ir.LocationOp); ok {
-						// Update the LocationOp offset to point to the field.
-						locOp.Offset += field.Offset
-						// Update the byte size to match the field size.
-						locOp.ByteSize = field.Type.GetByteSize()
-					}
-				}
-			} else {
-				// After dereference or map lookup: update the operation that
-				// corresponds to the current data read (tracked by lastDerefOpIdx).
-				if lastDerefOpIdx >= 0 && lastDerefOpIdx < len(operations) {
-					switch op := operations[lastDerefOpIdx].(type) {
-					case *ir.DereferenceOp:
-						op.Bias += field.Offset
-						op.ByteSize = field.Type.GetByteSize()
-					case *ir.SwissMapLookupOp:
-						op.ValInSlotOffset += uint16(field.Offset)
-						op.ValByteSize = field.Type.GetByteSize()
-					default:
-						// Should not happen, but accumulate bias for safety.
-						bias += field.Offset
-					}
-				} else {
-					// Fallback: accumulate bias if we can't find the deref op.
-					bias += field.Offset
-				}
-			}
-
-			currentType = field.Type
-		}
-
-		// Final dereference if result is a pointer.
-		// TODO: should this deal with multiple levels of pointers like ***int?
-		if ptrType, ok := currentType.(*ir.PointerType); ok {
-			// Check for void pointer.
-			if _, isVoid := ptrType.Pointee.(*ir.VoidPointerType); isVoid {
-				return ir.Expression{}, errors.New(
-					"cannot dereference void pointer",
-				)
-			}
-
-			// Check for unresolved pointee.
-			if _, isUnresolved := ptrType.Pointee.(*ir.UnresolvedPointeeType); isUnresolved {
-				return ir.Expression{}, fmt.Errorf(
-					"cannot resolve expression: pointee type %q not explored",
-					ptrType.Pointee.GetName(),
-				)
-			}
-
-			// Final dereference.
-			pointee, err := resolvePointeeType[ir.Type](tc, currentType)
-			if err != nil {
-				return ir.Expression{}, fmt.Errorf(
-					"failed to resolve final pointee type: %w", err,
-				)
-			}
-
-			pointeeSize := pointee.GetByteSize()
-			operations = append(operations, &ir.DereferenceOp{
-				Bias:     bias,
-				ByteSize: pointeeSize,
-			})
-
-			currentType = pointee
-		}
-
-		return ir.Expression{
-			Type:       currentType,
-			Operations: operations,
-		}, nil
+		return expr, nil
 
 	case *exprlang.IndexExpr:
 		return resolveIndexExpression(e, rootVar, tc)
@@ -4539,18 +5055,17 @@ func resolveExpression(
 		return resolveContainsExpression(e, rootVar, tc)
 
 	case *exprlang.EqExpr:
-		lhsExpr, err := resolveExpression(e.Left, rootVar, tc)
-		if err != nil {
-			return ir.Expression{}, fmt.Errorf("failed to resolve eq LHS: %w", err)
-		}
-		litExpr, ok := e.Right.(*exprlang.LiteralExpr)
-		if !ok {
-			return ir.Expression{}, fmt.Errorf(
-				"unsupported eq RHS type: %T (only literals are supported)",
-				e.Right,
-			)
-		}
-		return resolveEqComparison(lhsExpr, litExpr, tc)
+		return resolveComparisonExpression(ir.CmpEq, e.Left, e.Right, rootVar, tc)
+	case *exprlang.NeExpr:
+		return resolveComparisonExpression(ir.CmpNe, e.Left, e.Right, rootVar, tc)
+	case *exprlang.LtExpr:
+		return resolveComparisonExpression(ir.CmpLt, e.Left, e.Right, rootVar, tc)
+	case *exprlang.LeExpr:
+		return resolveComparisonExpression(ir.CmpLe, e.Left, e.Right, rootVar, tc)
+	case *exprlang.GtExpr:
+		return resolveComparisonExpression(ir.CmpGt, e.Left, e.Right, rootVar, tc)
+	case *exprlang.GeExpr:
+		return resolveComparisonExpression(ir.CmpGe, e.Left, e.Right, rootVar, tc)
 
 	default:
 		return ir.Expression{}, fmt.Errorf(
@@ -4591,6 +5106,65 @@ func resolveContainsExpression(
 		return ir.Expression{}, err
 	}
 	return ir.Expression{Type: resultType, Operations: ops}, nil
+}
+
+// resolveComparisonExpression lowers a comparison node (Eq / Ne / Lt / Le
+// / Gt / Ge) by resolving the LHS expression and dispatching to
+// resolveComparison with a literal RHS. Shared across all six comparison
+// shapes — only the CmpOp differs.
+func resolveComparisonExpression(
+	op ir.CmpOp,
+	left, right exprlang.Expr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	litExpr, ok := right.(*exprlang.LiteralExpr)
+	if !ok {
+		return ir.Expression{}, fmt.Errorf(
+			"unsupported %s RHS type: %T (only literals are supported)",
+			op, right,
+		)
+	}
+	lhsExpr, err := resolveComparisonLHS(left, litExpr, rootVar, tc)
+	if err != nil {
+		return ir.Expression{}, fmt.Errorf("failed to resolve %s LHS: %w", op, err)
+	}
+	return resolveComparison(op, lhsExpr, litExpr, tc)
+}
+
+// resolveComparisonLHS resolves the LHS of a comparison. For comparisons
+// against null on a member-access chain (e.g. `m.ptrField != null`), it
+// skips the auto-deref so the LHS keeps its pointer type. The general
+// resolveExpression path always auto-derefs trailing pointers to provide
+// capture semantics, which would strip exactly the byte the null comparison
+// needs.
+func resolveComparisonLHS(
+	left exprlang.Expr,
+	rhsLit *exprlang.LiteralExpr,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+) (ir.Expression, error) {
+	if rhsLit.Value == nil {
+		if gmExpr, ok := left.(*exprlang.GetMemberExpr); ok {
+			expr, bias, err := resolveGetMemberChain(gmExpr, rootVar, tc)
+			if err != nil {
+				return ir.Expression{}, err
+			}
+			if _, isPtr := expr.Type.(*ir.PointerType); isPtr {
+				// Defensive: a non-zero trailing bias here means the chain
+				// hit one of the fallback paths in resolveGetMemberChain.
+				// Apply it as an offset on the trailing op so the pointer
+				// bytes land at sm->offset.
+				if bias != 0 {
+					if locOp, ok := expr.Operations[len(expr.Operations)-1].(*ir.LocationOp); ok {
+						locOp.Offset += bias
+					}
+				}
+				return expr, nil
+			}
+		}
+	}
+	return resolveExpression(left, rootVar, tc)
 }
 
 // indexElementType returns the element type for an indexable collection type
@@ -5251,6 +5825,28 @@ func coerceLiteral(value any, targetKind reflect.Kind, byteSize uint32) ([]byte,
 	return litData, nil
 }
 
+// coerceDurationLiteral encodes a user-provided millisecond literal
+// (float64 or integer) into an 8-byte little-endian int64 nanoseconds
+// value, matching what the BPF program writes for @duration.
+func coerceDurationLiteral(value any) ([]byte, error) {
+	var ns int64
+	switch v := value.(type) {
+	case float64:
+		ns = int64(math.Round(v * 1e6))
+	case int64:
+		// Treat an integer literal as whole milliseconds.
+		ns = v * 1_000_000
+	default:
+		return nil, fmt.Errorf(
+			"@duration can only be compared to a numeric millisecond "+
+				"literal (got %T)", value,
+		)
+	}
+	out := make([]byte, 8)
+	binary.LittleEndian.PutUint64(out, uint64(ns))
+	return out, nil
+}
+
 // isNilComparable reports whether t can be compared against a null literal.
 // All supported types have a pointer at the start of their in-memory
 // representation whose zero value coincides with Go's `== nil` semantics:
@@ -5277,9 +5873,22 @@ func isNilComparable(t ir.Type) bool {
 	return false
 }
 
-// resolveEqComparison builds comparison ops for an equality check.
+// isOrderingOp reports whether op is a strict ordering (lt/le/gt/ge) as
+// opposed to equality (eq/ne). Ordering ops are rejected for null,
+// boolean, and floating-point comparisons.
+func isOrderingOp(op ir.CmpOp) bool {
+	switch op {
+	case ir.CmpLt, ir.CmpLe, ir.CmpGt, ir.CmpGe:
+		return true
+	}
+	return false
+}
+
+// resolveComparison builds comparison ops for op (eq / ne / lt / le / gt
+// / ge) between an already-resolved LHS expression and a literal RHS.
 // Returns a bool-typed Expression without ConditionCheckOp.
-func resolveEqComparison(
+func resolveComparison(
+	op ir.CmpOp,
 	lhsExpr ir.Expression,
 	litExpr *exprlang.LiteralExpr,
 	tc *typeCatalog,
@@ -5287,19 +5896,30 @@ func resolveEqComparison(
 	lhsType := lhsExpr.Type
 	ops := lhsExpr.Operations
 
-	// Null-literal comparison: supported for pointers, maps, slices, and
-	// interfaces. For all four we compare the first 8 bytes of the value
-	// against zero — see isNilComparable for the layout details.
+	// Null-literal comparison: only eq/ne are meaningful. Supported for
+	// pointers, maps, slices, and interfaces — for all four we compare
+	// the first 8 bytes of the value against zero (see isNilComparable
+	// for the layout details).
 	if litExpr.Value == nil {
+		if isOrderingOp(op) {
+			return ir.Expression{}, fmt.Errorf(
+				"%s: ordering against null is not supported",
+				op,
+			)
+		}
 		if !isNilComparable(lhsType) {
 			return ir.Expression{}, fmt.Errorf(
-				"eq: type %s cannot be compared to null",
-				lhsType.GetName(),
+				"%s: type %s cannot be compared to null",
+				op, lhsType.GetName(),
 			)
 		}
 		ops = append(ops, &ir.ExprPushOffsetOp{ByteSize: 8})
 		ops = append(ops, &ir.ExprLoadLiteralOp{Data: make([]byte, 8)})
-		ops = append(ops, &ir.ExprCmpEqBaseOp{ByteSize: 8})
+		ops = append(ops, &ir.ExprCmpBaseOp{
+			Op:       op,
+			Kind:     ir.CmpKindUint,
+			ByteSize: 8,
+		})
 		boolType := tc.typesByID[tc.boolType]
 		return ir.Expression{Type: boolType, Operations: ops}, nil
 	}
@@ -5307,25 +5927,26 @@ func resolveEqComparison(
 	// Non-null literal against a nullable-only type: reject up front.
 	if isNilComparable(lhsType) {
 		return ir.Expression{}, fmt.Errorf(
-			"eq: type %s can only be compared to null",
-			lhsType.GetName(),
+			"%s: type %s can only be compared to null",
+			op, lhsType.GetName(),
 		)
 	}
 
 	// Check if LHS is a string type.
 	if _, isString := lhsType.(*ir.GoStringHeaderType); isString {
-		// String equality comparison.
+		// String comparison (eq/ne use byte equality; ordering uses
+		// lexicographic byte order — see ir.ExprCmpStringOp).
 		litStr, ok := litExpr.Value.(string)
 		if !ok {
 			return ir.Expression{}, fmt.Errorf(
-				"eq: string variable compared with non-string literal %T",
-				litExpr.Value,
+				"%s: string variable compared with non-string literal %T",
+				op, litExpr.Value,
 			)
 		}
 		if len(litStr) > ir.MaxStringLiteralLength {
 			return ir.Expression{}, fmt.Errorf(
-				"eq: string literal too long (%d bytes, max %d)",
-				len(litStr), ir.MaxStringLiteralLength,
+				"%s: string literal too long (%d bytes, max %d)",
+				op, len(litStr), ir.MaxStringLiteralLength,
 			)
 		}
 
@@ -5339,25 +5960,30 @@ func resolveEqComparison(
 		ops = append(ops, &ir.ExprLoadLiteralOp{Data: litData})
 
 		// Compare strings.
-		ops = append(ops, &ir.ExprCmpEqStringOp{})
+		ops = append(ops, &ir.ExprCmpStringOp{Op: op})
 	} else if baseType, isBase := lhsType.(*ir.BaseType); isBase {
-		// Base type equality comparison.
+		// Base type comparison.
 		byteSize := baseType.GetByteSize()
 		if byteSize > 8 {
 			return ir.Expression{}, fmt.Errorf(
-				"eq: base type too large for comparison (%d bytes)",
-				byteSize,
+				"%s: base type too large for comparison (%d bytes)",
+				op, byteSize,
 			)
 		}
 
-		// Push LHS offset and advance.
-		ops = append(ops, &ir.ExprPushOffsetOp{ByteSize: uint32(byteSize)})
-
-		// Determine target kind for coercion.
+		// Determine the target Go kind for literal coercion and to
+		// pick the ir.CmpKind that ExprCmpBaseOp uses for ordering.
 		targetKind := reflect.Invalid
 		if goKind, ok := baseType.GetGoKind(); ok {
 			targetKind = goKind
 		}
+		cmpKind, err := cmpKindForGoKind(targetKind, op)
+		if err != nil {
+			return ir.Expression{}, err
+		}
+
+		// Push LHS offset and advance.
+		ops = append(ops, &ir.ExprPushOffsetOp{ByteSize: uint32(byteSize)})
 
 		// Encode the literal value with type coercion.
 		litData, err := coerceLiteral(litExpr.Value, targetKind, byteSize)
@@ -5367,16 +5993,79 @@ func resolveEqComparison(
 		ops = append(ops, &ir.ExprLoadLiteralOp{Data: litData})
 
 		// Compare base values.
-		ops = append(ops, &ir.ExprCmpEqBaseOp{ByteSize: uint8(byteSize)})
+		ops = append(ops, &ir.ExprCmpBaseOp{
+			Op:       op,
+			Kind:     cmpKind,
+			ByteSize: uint8(byteSize),
+		})
+	} else if _, isDuration := lhsType.(*ir.DurationType); isDuration {
+		// @duration has user-facing millisecond semantics but is stored
+		// as int64 nanoseconds at BPF eval time. Convert the literal
+		// from milliseconds into nanoseconds and emit an 8-byte signed
+		// comparison against the value the BPF program wrote for
+		// @duration.
+		litData, err := coerceDurationLiteral(litExpr.Value)
+		if err != nil {
+			return ir.Expression{}, err
+		}
+		ops = append(ops, &ir.ExprPushOffsetOp{ByteSize: 8})
+		ops = append(ops, &ir.ExprLoadLiteralOp{Data: litData})
+		ops = append(ops, &ir.ExprCmpBaseOp{
+			Op:       op,
+			Kind:     ir.CmpKindInt,
+			ByteSize: 8,
+		})
 	} else {
 		return ir.Expression{}, fmt.Errorf(
-			"eq: unsupported LHS type %T for equality comparison",
-			lhsType,
+			"%s: unsupported LHS type %T for comparison",
+			op, lhsType,
 		)
 	}
 
 	boolType := tc.typesByID[tc.boolType]
 	return ir.Expression{Type: boolType, Operations: ops}, nil
+}
+
+// cmpKindForGoKind picks the ir.CmpKind that ExprCmpBaseOp will use for
+// the given Go base-type kind, and rejects ordering ops on bool/float
+// where signed-integer ordering doesn't apply. Floats are restricted to
+// eq/ne (bitwise) for now — IEEE-754 ordering with NaN/signed-zero
+// semantics is deferred. Bool ordering is similarly nonsensical.
+func cmpKindForGoKind(k reflect.Kind, op ir.CmpOp) (ir.CmpKind, error) {
+	switch k {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return ir.CmpKindInt, nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return ir.CmpKindUint, nil
+	case reflect.Bool:
+		if isOrderingOp(op) {
+			return 0, fmt.Errorf(
+				"%s: ordering on bool is not supported",
+				op,
+			)
+		}
+		return ir.CmpKindUint, nil
+	case reflect.Float32, reflect.Float64:
+		if isOrderingOp(op) {
+			return 0, fmt.Errorf(
+				"%s: ordering on float types is not supported",
+				op,
+			)
+		}
+		return ir.CmpKindUint, nil
+	default:
+		// Unknown / unspecified kind. eq/ne fall back to bitwise unsigned
+		// compare (matches the previous Eq behaviour); reject ordering
+		// since the byte-by-byte ordering would not map to anything
+		// meaningful at the source language level.
+		if isOrderingOp(op) {
+			return 0, fmt.Errorf(
+				"%s: ordering not supported for base type kind %v",
+				op, k,
+			)
+		}
+		return ir.CmpKindUint, nil
+	}
 }
 
 // resolveIsEmptyComparison resolves isEmpty(x) as len(x) == 0, returning a
@@ -5391,7 +6080,7 @@ func resolveIsEmptyComparison(
 		return ir.Expression{}, fmt.Errorf("failed to resolve isEmpty operand: %w", err)
 	}
 	zeroLit := &exprlang.LiteralExpr{Value: int64(0)}
-	return resolveEqComparison(lenExpr, zeroLit, tc)
+	return resolveComparison(ir.CmpEq, lenExpr, zeroLit, tc)
 }
 
 // resolveCondition lowers an analyzed condition tree into an IR Expression
@@ -5411,6 +6100,347 @@ func resolveCondition(
 	ops = append(ops, &ir.ConditionCheckOp{})
 	boolType := tc.typesByID[tc.boolType]
 	return &ir.Expression{Type: boolType, Operations: ops}, nil
+}
+
+// resolveSplitConditionEntry builds the entry-side IR Expression for a
+// split-event-kind condition. The returned program is the entry-side
+// driver:
+//
+//  1. ConditionStateInit clears condition_state.
+//  2. For each entry leaf in iteration order, ConditionLeafEval triggers
+//     a Call to the per-leaf SM sub-function followed by a record op
+//     that captures the leaf's outcome (false / true / eval-error /
+//     nil-deref) into condition_state[i]. Leaf-internal aborts return
+//     to the driver via sm_return — they do not abort the driver.
+//  3. ExprPrepare resets the scratch frame for the AST replay.
+//  4. emitGate walks the AST: entry leaves lower to ConditionLeafLoad
+//     (reads condition_state[i] and short-circuits surrounding ops on
+//     error); pure-return subtrees prune to a polarity-correct
+//     constant via ExprLoadLiteral.
+//  5. Tail label, then ConditionCheckPreserveError. On false →
+//     condition_failed = true, event.c skips the entry event AND
+//     bypasses in_progress_calls insertion (the return event then
+//     sees CALL_DEPTHS_ABSENT and is suppressed). On true with the
+//     eval_error flag set by a ConditionLeafLoad → the entry event
+//     fires with condition_eval_error surfaced on the header.
+//
+// The function also populates condition.LeafBodies — one *ir.Expression
+// per entry leaf — so the compiler can emit each leaf as its own
+// SM sub-function.
+func resolveSplitConditionEntry(
+	condExpr exprlang.Expr,
+	leafRoots map[exprlang.Expr]*ir.Variable,
+	leafEventKind map[exprlang.Expr]ir.EventKind,
+	entryLeafSlotIndex map[exprlang.Expr]uint8,
+	tc *typeCatalog,
+) (*ir.Expression, error) {
+	var la labelAllocator
+	tail := la.newLabel()
+	leafBodies, err := buildLeafBodies(condExpr, leafRoots, leafEventKind, entryLeafSlotIndex, tc)
+	if err != nil {
+		return nil, err
+	}
+	ops := []ir.ExpressionOp{&ir.ConditionStateInitOp{}}
+	// Issue per-leaf evaluation calls in iteration order matching the
+	// indices assigned by entryLeafSlotIndex. Each ConditionLeafEvalOp
+	// lowers to (CallOp leafFn, ConditionLeafRecordOp) at compile time.
+	leaves := conditionLeafExprs(condExpr)
+	for _, leaf := range leaves {
+		if leafEventKind[leaf] != ir.EventKindEntry {
+			continue
+		}
+		ops = append(ops, &ir.ConditionLeafEvalOp{
+			LeafIdx: entryLeafSlotIndex[leaf],
+		})
+	}
+	// Reset scratch for the AST replay: per-leaf eval can leave the
+	// scratch frame in arbitrary state on abort, and even on success
+	// we want a clean slate before the gate writes its boolean.
+	ops = append(ops, &ir.ExprPrepareOp{})
+	gateOps, err := emitGate(condExpr, leafEventKind, entryLeafSlotIndex, &la, false, tail)
+	if err != nil {
+		return nil, err
+	}
+	ops = append(ops, gateOps...)
+	ops = append(ops, &ir.CondLabelOp{ID: tail})
+	ops = append(ops, &ir.ConditionCheckPreserveErrorOp{})
+	boolType := tc.typesByID[tc.boolType]
+	return &ir.Expression{
+		Type:       boolType,
+		Operations: ops,
+		LeafBodies: leafBodies,
+		IsSplit:    true,
+	}, nil
+}
+
+// resolveSplitConditionReturn builds the return-side IR Expression for a
+// split-event-kind condition. The returned program runs entirely as an
+// AST replay over condition_state (populated at entry time and propagated
+// through call_depths_delete onto the return-side SM):
+//
+//  1. emitReturnSplit walks the AST: entry leaves lower to
+//     ConditionLeafLoad (which surfaces eval errors only when the
+//     surrounding short-circuit actually reaches the leaf); return
+//     leaves use the existing emitCondition machinery. The compiler
+//     prepends an implicit ExprPrepareOp before this body.
+//  2. Tail label, then ConditionCheckPreserveError. The check sets
+//     condition_failed when the AST evaluates to false; preserves
+//     condition_eval_error if any leaf surfaced an error.
+//
+// LeafBodies is left nil here — the entry-side driver owns leaf-body
+// generation; the return-side only consumes condition_state.
+func resolveSplitConditionReturn(
+	condExpr exprlang.Expr,
+	leafRoots map[exprlang.Expr]*ir.Variable,
+	leafEventKind map[exprlang.Expr]ir.EventKind,
+	entryLeafSlotIndex map[exprlang.Expr]uint8,
+	tc *typeCatalog,
+) (*ir.Expression, error) {
+	var la labelAllocator
+	tail := la.newLabel()
+	ops, err := emitReturnSplit(condExpr, leafRoots, leafEventKind, entryLeafSlotIndex, tc, &la, tail)
+	if err != nil {
+		return nil, err
+	}
+	ops = append(ops, &ir.CondLabelOp{ID: tail})
+	ops = append(ops, &ir.ConditionCheckPreserveErrorOp{})
+	boolType := tc.typesByID[tc.boolType]
+	return &ir.Expression{Type: boolType, Operations: ops, IsSplit: true}, nil
+}
+
+// buildLeafBodies compiles each entry-side leaf of a split-event-kind
+// condition into its own *ir.Expression. The compiler turns each into a
+// ProcessConditionLeaf SM sub-function. Each body's Operations leaves a
+// boolean byte at sm->offset on success; on abort (nil deref / OOB) the
+// existing condition error paths handle the abort and propagate
+// condition_eval_error / condition_nil_deref to the driver via
+// sm_return.
+//
+// The returned slice is indexed by leaf index (matching
+// entryLeafSlotIndex values), with nil entries left for leaves that are
+// not entry-side.
+func buildLeafBodies(
+	condExpr exprlang.Expr,
+	leafRoots map[exprlang.Expr]*ir.Variable,
+	leafEventKind map[exprlang.Expr]ir.EventKind,
+	entryLeafSlotIndex map[exprlang.Expr]uint8,
+	tc *typeCatalog,
+) ([]*ir.Expression, error) {
+	leaves := conditionLeafExprs(condExpr)
+	// Determine the highest assigned leaf index so the slice is sized
+	// right. Indexes are dense (0..N-1) but we don't rely on that here.
+	maxIdx := -1
+	for _, leaf := range leaves {
+		if leafEventKind[leaf] != ir.EventKindEntry {
+			continue
+		}
+		if int(entryLeafSlotIndex[leaf]) > maxIdx {
+			maxIdx = int(entryLeafSlotIndex[leaf])
+		}
+	}
+	if maxIdx < 0 {
+		return nil, nil
+	}
+	bodies := make([]*ir.Expression, maxIdx+1)
+	for _, leaf := range leaves {
+		if leafEventKind[leaf] != ir.EventKindEntry {
+			continue
+		}
+		var la labelAllocator
+		leafOps, err := emitCondition(leaf, leafRoots, tc, &la)
+		if err != nil {
+			return nil, err
+		}
+		boolType := tc.typesByID[tc.boolType]
+		bodies[entryLeafSlotIndex[leaf]] = &ir.Expression{
+			Type:       boolType,
+			Operations: leafOps,
+		}
+	}
+	return bodies, nil
+}
+
+// emitGate lowers a condition tree to an entry-side gate program. Used
+// by the entry-side driver after per-leaf evaluation has populated
+// condition_state; the gate decides whether to short-circuit the entire
+// probe firing (return event included) when the entry-only slice of the
+// tree is already false.
+//
+// An entry-side leaf compiles to ConditionLeafLoadOp{i, ErrorTarget=tail}.
+// On boolean status (false/true) it writes the bit at sm->offset and
+// continues; on error status it sets condition_eval_error, writes 1 at
+// sm->offset, and jumps to tail — bypassing surrounding short-circuit
+// and Not ops so the eval-error flag survives to event.c surfacing.
+//
+// A pure-return subtree is "pruned" to a constant ExprLoadLiteralOp.
+// `negated` tracks polarity through NotOps so the pruned constant flips
+// back to `true` (the safe value: it cannot prove the gate false) after
+// any wrapping NotOps. Without polarity tracking, !(@return == X) under
+// an AND with an entry leaf would prune to true → NotOp-flip to false,
+// falsely proving the gate false and incorrectly suppressing the return
+// event.
+func emitGate(
+	e exprlang.Expr,
+	leafEventKind map[exprlang.Expr]ir.EventKind,
+	entryLeafSlotIndex map[exprlang.Expr]uint8,
+	la *labelAllocator,
+	negated bool,
+	tail ir.LabelID,
+) ([]ir.ExpressionOp, error) {
+	if !subtreeHasEntryLeaf(e, leafEventKind) {
+		// Conservative answer for an unknown-at-entry subtree.
+		var data byte = 1
+		if negated {
+			data = 0
+		}
+		return []ir.ExpressionOp{
+			&ir.ExprLoadLiteralOp{Data: []byte{data}},
+		}, nil
+	}
+	switch n := e.(type) {
+	case *exprlang.NotExpr:
+		inner, err := emitGate(
+			n.Operand, leafEventKind, entryLeafSlotIndex, la, !negated, tail,
+		)
+		if err != nil {
+			return nil, err
+		}
+		return append(inner, &ir.CondNotOp{}), nil
+	case *exprlang.AndExpr:
+		end := la.newLabel()
+		left, err := emitGate(
+			n.Left, leafEventKind, entryLeafSlotIndex, la, negated, tail,
+		)
+		if err != nil {
+			return nil, err
+		}
+		right, err := emitGate(
+			n.Right, leafEventKind, entryLeafSlotIndex, la, negated, tail,
+		)
+		if err != nil {
+			return nil, err
+		}
+		out := left
+		out = append(out, &ir.CondJumpOp{Cond: false, Target: end})
+		out = append(out, right...)
+		out = append(out, &ir.CondLabelOp{ID: end})
+		return out, nil
+	case *exprlang.OrExpr:
+		end := la.newLabel()
+		left, err := emitGate(
+			n.Left, leafEventKind, entryLeafSlotIndex, la, negated, tail,
+		)
+		if err != nil {
+			return nil, err
+		}
+		right, err := emitGate(
+			n.Right, leafEventKind, entryLeafSlotIndex, la, negated, tail,
+		)
+		if err != nil {
+			return nil, err
+		}
+		out := left
+		out = append(out, &ir.CondJumpOp{Cond: true, Target: end})
+		out = append(out, right...)
+		out = append(out, &ir.CondLabelOp{ID: end})
+		return out, nil
+	default:
+		// Entry-side leaf (subtreeHasEntryLeaf is true and this node is
+		// a leaf). Read condition_state[i] and either write the bit or
+		// short-circuit to tail on error.
+		return []ir.ExpressionOp{
+			&ir.ConditionLeafLoadOp{
+				LeafIdx:     entryLeafSlotIndex[e],
+				ErrorTarget: tail,
+			},
+		}, nil
+	}
+}
+
+// subtreeHasEntryLeaf returns true when at least one leaf reachable from e
+// is an entry-side leaf in leafEventKind.
+func subtreeHasEntryLeaf(
+	e exprlang.Expr,
+	leafEventKind map[exprlang.Expr]ir.EventKind,
+) bool {
+	switch n := e.(type) {
+	case *exprlang.NotExpr:
+		return subtreeHasEntryLeaf(n.Operand, leafEventKind)
+	case *exprlang.AndExpr:
+		return subtreeHasEntryLeaf(n.Left, leafEventKind) ||
+			subtreeHasEntryLeaf(n.Right, leafEventKind)
+	case *exprlang.OrExpr:
+		return subtreeHasEntryLeaf(n.Left, leafEventKind) ||
+			subtreeHasEntryLeaf(n.Right, leafEventKind)
+	default:
+		return leafEventKind[e] == ir.EventKindEntry
+	}
+}
+
+// emitReturnSplit emits the body of a split-event-kind return-side
+// condition program. Entry-side leaves lower to ConditionLeafLoadOp
+// (reads the leaf's status from condition_state and short-circuits to
+// `tail` on error); return-side leaves fall through to the existing
+// emitCondition machinery (evaluated at runtime as today).
+func emitReturnSplit(
+	e exprlang.Expr,
+	leafRoots map[exprlang.Expr]*ir.Variable,
+	leafEventKind map[exprlang.Expr]ir.EventKind,
+	entryLeafSlotIndex map[exprlang.Expr]uint8,
+	tc *typeCatalog,
+	la *labelAllocator,
+	tail ir.LabelID,
+) ([]ir.ExpressionOp, error) {
+	switch n := e.(type) {
+	case *exprlang.NotExpr:
+		inner, err := emitReturnSplit(n.Operand, leafRoots, leafEventKind, entryLeafSlotIndex, tc, la, tail)
+		if err != nil {
+			return nil, err
+		}
+		return append(inner, &ir.CondNotOp{}), nil
+	case *exprlang.AndExpr:
+		end := la.newLabel()
+		left, err := emitReturnSplit(n.Left, leafRoots, leafEventKind, entryLeafSlotIndex, tc, la, tail)
+		if err != nil {
+			return nil, err
+		}
+		right, err := emitReturnSplit(n.Right, leafRoots, leafEventKind, entryLeafSlotIndex, tc, la, tail)
+		if err != nil {
+			return nil, err
+		}
+		out := left
+		out = append(out, &ir.CondJumpOp{Cond: false, Target: end})
+		out = append(out, right...)
+		out = append(out, &ir.CondLabelOp{ID: end})
+		return out, nil
+	case *exprlang.OrExpr:
+		end := la.newLabel()
+		left, err := emitReturnSplit(n.Left, leafRoots, leafEventKind, entryLeafSlotIndex, tc, la, tail)
+		if err != nil {
+			return nil, err
+		}
+		right, err := emitReturnSplit(n.Right, leafRoots, leafEventKind, entryLeafSlotIndex, tc, la, tail)
+		if err != nil {
+			return nil, err
+		}
+		out := left
+		out = append(out, &ir.CondJumpOp{Cond: true, Target: end})
+		out = append(out, right...)
+		out = append(out, &ir.CondLabelOp{ID: end})
+		return out, nil
+	default:
+		// Leaf. Entry-side → ConditionLeafLoadOp; return-side → existing
+		// emitCondition path.
+		if kind, ok := leafEventKind[e]; ok && kind == ir.EventKindEntry {
+			return []ir.ExpressionOp{
+				&ir.ConditionLeafLoadOp{
+					LeafIdx:     entryLeafSlotIndex[e],
+					ErrorTarget: tail,
+				},
+			}, nil
+		}
+		return emitCondition(e, leafRoots, tc, la)
+	}
 }
 
 // labelAllocator hands out LabelIDs unique within a single condition handler.
@@ -5433,11 +6463,25 @@ func emitCondition(
 ) ([]ir.ExpressionOp, error) {
 	switch e := e.(type) {
 	case *exprlang.EqExpr:
-		return emitEqLeaf(e, leafRoots[e], tc)
+		return emitComparisonLeaf(ir.CmpEq, e.Left, e.Right, leafRoots[e], tc)
+	case *exprlang.NeExpr:
+		return emitComparisonLeaf(ir.CmpNe, e.Left, e.Right, leafRoots[e], tc)
+	case *exprlang.LtExpr:
+		return emitComparisonLeaf(ir.CmpLt, e.Left, e.Right, leafRoots[e], tc)
+	case *exprlang.LeExpr:
+		return emitComparisonLeaf(ir.CmpLe, e.Left, e.Right, leafRoots[e], tc)
+	case *exprlang.GtExpr:
+		return emitComparisonLeaf(ir.CmpGt, e.Left, e.Right, leafRoots[e], tc)
+	case *exprlang.GeExpr:
+		return emitComparisonLeaf(ir.CmpGe, e.Left, e.Right, leafRoots[e], tc)
 	case *exprlang.IsEmptyExpr:
 		return emitIsEmptyLeaf(e, leafRoots[e], tc)
 	case *exprlang.ContainsExpr:
 		return emitContainsLeaf(e, leafRoots[e], tc)
+	case *exprlang.AnyExpr:
+		return emitAnyAllLoop(e.Base, e.Pred, ir.QuantifierAny, leafRoots[e], tc, la)
+	case *exprlang.AllExpr:
+		return emitAnyAllLoop(e.Base, e.Pred, ir.QuantifierAll, leafRoots[e], tc, la)
 	case *exprlang.NotExpr:
 		inner, err := emitCondition(e.Operand, leafRoots, tc, la)
 		if err != nil {
@@ -5478,28 +6522,30 @@ func emitShortCircuit(
 	return out, nil
 }
 
-// emitEqLeaf lowers an EqExpr leaf into comparison ops that write a single
-// boolean byte at sm->offset.
-func emitEqLeaf(
-	eqExpr *exprlang.EqExpr,
+// emitComparisonLeaf lowers a comparison condition leaf (Eq / Ne / Lt /
+// Le / Gt / Ge) into IR ops that write a single boolean byte at
+// sm->offset.
+func emitComparisonLeaf(
+	op ir.CmpOp,
+	left, right exprlang.Expr,
 	rootVar *ir.Variable,
 	tc *typeCatalog,
 ) ([]ir.ExpressionOp, error) {
 	if rootVar == nil {
 		return nil, errors.New("condition leaf has no resolved root variable")
 	}
-	lhsExpr, err := resolveExpression(eqExpr.Left, rootVar, tc)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve condition LHS: %w", err)
-	}
-	litExpr, ok := eqExpr.Right.(*exprlang.LiteralExpr)
+	litExpr, ok := right.(*exprlang.LiteralExpr)
 	if !ok {
 		return nil, fmt.Errorf(
 			"unsupported condition RHS type: %T (only literals are supported)",
-			eqExpr.Right,
+			right,
 		)
 	}
-	expr, err := resolveEqComparison(lhsExpr, litExpr, tc)
+	lhsExpr, err := resolveComparisonLHS(left, litExpr, rootVar, tc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve condition LHS: %w", err)
+	}
+	expr, err := resolveComparison(op, lhsExpr, litExpr, tc)
 	if err != nil {
 		return nil, err
 	}
@@ -5540,6 +6586,524 @@ func emitContainsLeaf(
 		return nil, err
 	}
 	return expr.Operations, nil
+}
+
+// emitAnyAllLoop lowers an AnyExpr or AllExpr leaf into ops that leave a
+// single boolean byte at sm->offset. Supported collection kinds are slices,
+// arrays, and Go swiss-table maps; others surface an Issue. The predicate
+// body may only reference @it (and @key / @value for maps) and literals.
+func emitAnyAllLoop(
+	base, pred exprlang.Expr,
+	quantifier ir.Quantifier,
+	rootVar *ir.Variable,
+	tc *typeCatalog,
+	la *labelAllocator,
+) ([]ir.ExpressionOp, error) {
+	if rootVar == nil {
+		return nil, errors.New("any/all leaf has no resolved root variable")
+	}
+
+	// Resolve the base expression. Its trailing op produces the collection
+	// descriptor at sm->offset (slice header / map header / array region).
+	baseExpr, err := resolveExpression(base, rootVar, tc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve any/all base: %w", err)
+	}
+
+	// Canonicalize the resolved base type and dispatch by collection kind.
+	canonical := tc.typesByID[baseExpr.Type.GetID()]
+	switch t := canonical.(type) {
+	case *ir.GoSliceHeaderType:
+		return emitSlicePredicateLoop(baseExpr, t, pred, quantifier, tc, la)
+	case *ir.ArrayType:
+		return emitArrayPredicateLoop(baseExpr, t, pred, quantifier, tc, la)
+	case *ir.GoMapType:
+		return emitSwissMapPredicateLoop(baseExpr, t, pred, quantifier, tc, la)
+	default:
+		return nil, fmt.Errorf(
+			"any/all base must be a slice, array, or map; got %T (%q)",
+			canonical, canonical.GetName(),
+		)
+	}
+}
+
+// emitSlicePredicateLoop emits the IR ops for any/all over a slice.
+//
+// The base expression's final op already produces the 24-byte slice header
+// at sm->offset (this is the same contract resolveSliceIndex etc. use).
+// We then synthesize an @it variable whose type is the slice's element
+// type, route the predicate body through emitCondition with @it standing in
+// as the "root variable" (via a leafRoots remap), and wrap with the
+// SliceLoopBeginOp/SliceLoopEndOp pair.
+func emitSlicePredicateLoop(
+	baseExpr ir.Expression,
+	sliceType *ir.GoSliceHeaderType,
+	pred exprlang.Expr,
+	quantifier ir.Quantifier,
+	tc *typeCatalog,
+	la *labelAllocator,
+) ([]ir.ExpressionOp, error) {
+	elemType := tc.typesByID[sliceType.Data.Element.GetID()]
+	elemSize := elemType.GetByteSize()
+	if elemSize == 0 {
+		return nil, errors.New("any/all over a slice with zero-sized elements is not supported")
+	}
+	if elemSize > ir.CollectionPredicateMaxElemBytes {
+		return nil, fmt.Errorf(
+			"any/all over a slice with element size %d exceeds the %d-byte per-iteration scratch budget",
+			elemSize, ir.CollectionPredicateMaxElemBytes,
+		)
+	}
+
+	// Validate the predicate body only references @it and literals.
+	// @key / @value are not valid over a slice — only over maps.
+	if err := checkPredicateBodyScope(pred, false); err != nil {
+		return nil, err
+	}
+
+	// Synthesize an @it variable whose Type is the element type. The
+	// SliceLoopBeginOp reads the current element into a scratch slot
+	// before each body invocation; the synthetic variable has
+	// VariableRoleLoopIt which the compiler's EncodeLocationOp recognises
+	// as "bytes are at sm->offset; emit an ExprAdvanceOffsetOp if Offset>0
+	// and let the rest of the body proceed normally."
+	itVar := &ir.Variable{
+		Name: "@it",
+		Type: elemType,
+		Role: ir.VariableRoleLoopIt,
+	}
+	bodyOps, err := emitPredicateBody(pred, map[string]*ir.Variable{"@it": itVar}, tc, la)
+	if err != nil {
+		return nil, err
+	}
+
+	endLabel := la.newLabel()
+	bodyLabel := la.newLabel()
+
+	ops := make([]ir.ExpressionOp, 0, len(baseExpr.Operations)+5+len(bodyOps))
+	ops = append(ops, baseExpr.Operations...)
+	ops = append(ops, &ir.SliceLoopBeginOp{
+		Quantifier:   quantifier,
+		ElemByteSize: elemSize,
+		EndLabel:     endLabel,
+	})
+	ops = append(ops, &ir.CondLabelOp{ID: bodyLabel})
+	ops = append(ops, bodyOps...)
+	ops = append(ops, &ir.SliceLoopEndOp{
+		BodyLabel: bodyLabel,
+	})
+	ops = append(ops, &ir.CondLabelOp{ID: endLabel})
+	return ops, nil
+}
+
+// checkPredicateBodyScope walks an any/all predicate body and rejects:
+//   - References to anything other than @it. @key / @value are additionally
+//     allowed when allowKeyValue is true (i.e. the collection is a map);
+//     they are rejected for slice / array bases.
+//   - Outer-scope references like `self.x` or function arguments.
+//   - Nested any/all. Each loop reuses fixed scratch slots (accumulator,
+//     @it), so a nested loop would overwrite the outer's state.
+func checkPredicateBodyScope(pred exprlang.Expr, allowKeyValue bool) error {
+	for e := range exprlang.Children(pred) {
+		switch e := e.(type) {
+		case *exprlang.RefExpr:
+			switch e.Ref {
+			case "@it":
+				// always allowed
+			case "@key", "@value":
+				if !allowKeyValue {
+					return fmt.Errorf(
+						"any/all predicate body: %s is only valid for map collections",
+						e.Ref,
+					)
+				}
+			default:
+				return fmt.Errorf(
+					"any/all predicate body may only reference @it (and @key/@value for maps), got %q",
+					e.Ref,
+				)
+			}
+		case *exprlang.AnyExpr, *exprlang.AllExpr:
+			return errors.New("nested any/all is not supported")
+		}
+	}
+	return nil
+}
+
+// canonicalizeMapPredRefs rewrites `@key` to `@it` everywhere in pred.
+// `@key` is an accepted synonym for `@it` over map collections; the rest of
+// irgen routes on the canonical name.
+func canonicalizeMapPredRefs(pred exprlang.Expr) exprlang.Expr {
+	return exprlang.Rewrite(pred, func(e exprlang.Expr) exprlang.Expr {
+		ref, ok := e.(*exprlang.RefExpr)
+		if !ok {
+			return nil
+		}
+		if ref.Ref == "@key" {
+			return &exprlang.RefExpr{Ref: "@it"}
+		}
+		return nil
+	})
+}
+
+// emitSwissMapPredicateLoop emits the IR ops for any/all over a swiss-table
+// map. The base expression yields a *Map (8-byte pointer). We deref it to
+// load the map header into scratch; the SwissMapLoopBeginOp then walks
+// dir → table → group → slot, materialising each (key, value) entry into
+// the loop's per-iteration scratch slot before evaluating the predicate body.
+//
+// Inside the body, `@it` refers to the current key (`@key` is an accepted
+// synonym), and `@value` refers to the current value. The two share the
+// same scratch slot: the key lives at offset 0, the value at the next
+// 8-byte-aligned offset after the key.
+func emitSwissMapPredicateLoop(
+	baseExpr ir.Expression,
+	mapType *ir.GoMapType,
+	pred exprlang.Expr,
+	quantifier ir.Quantifier,
+	tc *typeCatalog,
+	la *labelAllocator,
+) ([]ir.ExpressionOp, error) {
+	headerType := tc.typesByID[mapType.HeaderType.GetID()]
+	swissHeader, ok := headerType.(*ir.GoSwissMapHeaderType)
+	if !ok {
+		if _, isHMap := headerType.(*ir.GoHMapHeaderType); isHMap {
+			return nil, errors.New(
+				"any/all over old-style hmap not supported; only swiss maps (Go 1.24+)",
+			)
+		}
+		return nil, fmt.Errorf(
+			"any/all over map: unsupported header type %T", headerType,
+		)
+	}
+
+	if err := checkPredicateBodyScope(pred, true); err != nil {
+		return nil, err
+	}
+	// `@key` is a synonym for `@it` (the current key). Normalise to `@it`
+	// before passing to emitCondition so leaf-root extraction sees a single
+	// canonical name.
+	pred = canonicalizeMapPredRefs(pred)
+
+	keyType, valType, err := swissMapKeyValueTypes(swissHeader, tc)
+	if err != nil {
+		return nil, err
+	}
+	keyType = tc.typesByID[keyType.GetID()]
+	valType = tc.typesByID[valType.GetID()]
+	keySize := keyType.GetByteSize()
+	valSize := valType.GetByteSize()
+	if keySize == 0 || valSize == 0 {
+		return nil, errors.New("any/all over map: zero-sized key or value not supported")
+	}
+	// The scratch slot holds key + 8-byte-aligned value. Reject if the
+	// combined layout would exceed the per-iteration scratch budget.
+	// Note: large keys/values are stored out-of-line by Go's runtime
+	// (>128 bytes), so the slot's key/value field type is *K / *V (8
+	// bytes). The size check fires only for in-slot data that's still
+	// inexplicably large.
+	valOffsetInSlot := (keySize + 7) &^ 7
+	itTotal := valOffsetInSlot + valSize
+	if itTotal > ir.CollectionPredicateMaxElemBytes {
+		return nil, fmt.Errorf(
+			"any/all over map[%s]%s: per-iteration scratch size %d exceeds the %d-byte budget",
+			keyType.GetName(), valType.GetName(),
+			itTotal, ir.CollectionPredicateMaxElemBytes,
+		)
+	}
+
+	// Lay out the base ops: read the map header into scratch via
+	// DereferenceOp (same pattern resolveSwissMapIndex uses). The
+	// SwissMapLoopBeginOp then reads the header at sm->offset and walks
+	// the dir.
+	headerSize := swissHeader.StructureType.GetByteSize()
+	ops := make([]ir.ExpressionOp, 0, len(baseExpr.Operations)+5)
+	ops = append(ops, baseExpr.Operations...)
+	ops = append(ops, &ir.DereferenceOp{
+		Bias:       0,
+		ByteSize:   headerSize,
+		NullAsZero: true, // nil map → header is all zeros → loop short-circuits to empty.
+	})
+
+	// Field offsets — same as resolveSwissMapIndex.
+	dirPtrField, err := field(tc, swissHeader.StructureType, "dirPtr")
+	if err != nil {
+		return nil, fmt.Errorf("map header missing dirPtr field: %w", err)
+	}
+	dirLenField, err := field(tc, swissHeader.StructureType, "dirLen")
+	if err != nil {
+		return nil, fmt.Errorf("map header missing dirLen field: %w", err)
+	}
+	ctrlField, err := field(tc, swissHeader.GroupType, "ctrl")
+	if err != nil {
+		return nil, fmt.Errorf("group type missing ctrl field: %w", err)
+	}
+	slotsField, err := field(tc, swissHeader.GroupType, "slots")
+	if err != nil {
+		return nil, fmt.Errorf("group type missing slots field: %w", err)
+	}
+	slotsFieldType := tc.typesByID[slotsField.Type.GetID()]
+	entryArray, ok := slotsFieldType.(*ir.ArrayType)
+	if !ok {
+		return nil, fmt.Errorf("slots field is not an array: %T", slotsFieldType)
+	}
+	slotStruct, ok := entryArray.Element.(*ir.StructureType)
+	if !ok {
+		return nil, fmt.Errorf("slot element is not a struct: %T", entryArray.Element)
+	}
+	keyField, err := field(tc, slotStruct, "key")
+	if err != nil {
+		return nil, fmt.Errorf("slot struct missing key field: %w", err)
+	}
+	elemField, err := field(tc, slotStruct, "elem")
+	if err != nil {
+		return nil, fmt.Errorf("slot struct missing elem field: %w", err)
+	}
+	tablePtrType, ok := swissHeader.TablePtrSliceType.Element.(*ir.PointerType)
+	if !ok {
+		return nil, fmt.Errorf("table ptr slice element is not a pointer: %T", swissHeader.TablePtrSliceType.Element)
+	}
+	tableType, ok := tc.typesByID[tablePtrType.Pointee.GetID()].(*ir.StructureType)
+	if !ok {
+		return nil, fmt.Errorf("table pointee is not a struct: %T", tc.typesByID[tablePtrType.Pointee.GetID()])
+	}
+	groupsField, err := field(tc, tableType, "groups")
+	if err != nil {
+		return nil, fmt.Errorf("table type missing groups field: %w", err)
+	}
+	groupsType, ok := groupsField.Type.(*ir.GoSwissMapGroupsType)
+	if !ok {
+		return nil, fmt.Errorf("groups field is not GoSwissMapGroupsType: %T", groupsField.Type)
+	}
+	dataField, err := field(tc, groupsType.StructureType, "data")
+	if err != nil {
+		return nil, fmt.Errorf("groupsReference missing data field: %w", err)
+	}
+	lengthMaskField, err := field(tc, groupsType.StructureType, "lengthMask")
+	if err != nil {
+		return nil, fmt.Errorf("groupsReference missing lengthMask field: %w", err)
+	}
+
+	itVar := &ir.Variable{
+		Name:           "@it",
+		Type:           keyType,
+		Role:           ir.VariableRoleLoopIt,
+		LoopBaseOffset: 0,
+	}
+	valueVar := &ir.Variable{
+		Name:           "@value",
+		Type:           valType,
+		Role:           ir.VariableRoleLoopIt,
+		LoopBaseOffset: valOffsetInSlot,
+	}
+	bodyOps, err := emitPredicateBody(pred, map[string]*ir.Variable{
+		"@it":    itVar,
+		"@value": valueVar,
+	}, tc, la)
+	if err != nil {
+		return nil, err
+	}
+
+	endLabel := la.newLabel()
+	bodyLabel := la.newLabel()
+
+	ops = append(ops, &ir.SwissMapLoopBeginOp{
+		Quantifier:  quantifier,
+		KeyByteSize: keySize,
+		ValByteSize: valSize,
+		EndLabel:    endLabel,
+
+		DirPtrOffset:             uint8(dirPtrField.Offset),
+		DirLenOffset:             uint8(dirLenField.Offset),
+		CtrlOffset:               uint8(ctrlField.Offset),
+		SlotsOffset:              uint8(slotsField.Offset),
+		KeyInSlotOffset:          uint8(keyField.Offset),
+		ValInSlotOffset:          uint16(elemField.Offset),
+		SlotSize:                 uint16(slotStruct.GetByteSize()),
+		GroupByteSize:            uint16(swissHeader.GroupType.GetByteSize()),
+		TableGroupsFieldOffset:   uint8(groupsField.Offset),
+		GroupsDataFieldOffset:    uint8(dataField.Offset),
+		GroupsLenMaskFieldOffset: uint8(lengthMaskField.Offset),
+	})
+	ops = append(ops, &ir.CondLabelOp{ID: bodyLabel})
+	ops = append(ops, bodyOps...)
+	ops = append(ops, &ir.SwissMapLoopEndOp{
+		BodyLabel: bodyLabel,
+	})
+	ops = append(ops, &ir.CondLabelOp{ID: endLabel})
+	return ops, nil
+}
+
+// emitArrayPredicateLoop emits the IR ops for any/all over an array.
+//
+// The base expression's chain normally reads the full array contents into
+// scratch; we need just the array's base pointer so the BPF loop can
+// stream elements one at a time. We achieve this by replacing the trailing
+// LocationOp/DereferenceOp's "read contents" with an ExprLoadAddressOp that
+// produces an 8-byte pointer at sm->offset. The ArrayLoopBeginOp then
+// reads that pointer and iterates via bpf_probe_read_user.
+func emitArrayPredicateLoop(
+	baseExpr ir.Expression,
+	arrType *ir.ArrayType,
+	pred exprlang.Expr,
+	quantifier ir.Quantifier,
+	tc *typeCatalog,
+	la *labelAllocator,
+) ([]ir.ExpressionOp, error) {
+	elemType := tc.typesByID[arrType.Element.GetID()]
+	elemSize := elemType.GetByteSize()
+	if elemSize == 0 {
+		return nil, errors.New("any/all over an array with zero-sized elements is not supported")
+	}
+	if elemSize > ir.CollectionPredicateMaxElemBytes {
+		return nil, fmt.Errorf(
+			"any/all over an array with element size %d exceeds the %d-byte per-iteration scratch budget",
+			elemSize, ir.CollectionPredicateMaxElemBytes,
+		)
+	}
+	if arrType.Count > ir.CollectionPredicateMaxIterations {
+		return nil, fmt.Errorf(
+			"any/all over array of length %d not supported (max %d)",
+			arrType.Count, ir.CollectionPredicateMaxIterations,
+		)
+	}
+
+	// @key / @value are not valid over an array — only over maps.
+	if err := checkPredicateBodyScope(pred, false); err != nil {
+		return nil, err
+	}
+
+	// Replace the trailing op of the base chain with an ExprLoadAddressOp
+	// so the array's *address* (8 bytes) lands at sm->offset, not its
+	// contents.
+	if len(baseExpr.Operations) == 0 {
+		return nil, errors.New("any/all over array: base expression produced no operations")
+	}
+	ops := make([]ir.ExpressionOp, 0, len(baseExpr.Operations)+5)
+	tail := baseExpr.Operations[len(baseExpr.Operations)-1]
+	ops = append(ops, baseExpr.Operations[:len(baseExpr.Operations)-1]...)
+	switch op := tail.(type) {
+	case *ir.LocationOp:
+		ops = append(ops, &ir.ExprLoadAddressOp{
+			Variable: op.Variable,
+			Offset:   op.Offset,
+		})
+	case *ir.DereferenceOp:
+		// The base produced a pointer to the array via DereferenceOp's
+		// inner pointer; we need that pointer (or rather its target
+		// address, which is the array's base) at sm->offset. We model
+		// this as an in-place pointer load (the preceding op left the
+		// pointer in scratch; we add op.Bias to it).
+		//
+		// In-place mode is load-bearing: ExprLoadAddressOp{Variable:nil}
+		// requires an 8-byte pointer already at sm->offset. Verify the
+		// upstream op produces exactly 8 bytes there so a future chain
+		// shape we haven't thought of can't silently corrupt scratch.
+		if len(ops) == 0 {
+			return nil, errors.New(
+				"any/all over array: DereferenceOp tail with no preceding op",
+			)
+		}
+		prev := ops[len(ops)-1]
+		var prevSize uint32
+		switch p := prev.(type) {
+		case *ir.LocationOp:
+			prevSize = p.ByteSize
+		case *ir.DereferenceOp:
+			prevSize = p.ByteSize
+		default:
+			return nil, fmt.Errorf(
+				"any/all over array: DereferenceOp tail preceded by unsupported op %T",
+				prev,
+			)
+		}
+		if prevSize != 8 {
+			return nil, fmt.Errorf(
+				"any/all over array: DereferenceOp tail preceded by op producing %d bytes (need 8)",
+				prevSize,
+			)
+		}
+		ops = append(ops, &ir.ExprLoadAddressOp{
+			Variable:    nil,
+			PointerBias: op.Bias,
+		})
+	default:
+		return nil, fmt.Errorf(
+			"any/all over array: unsupported trailing op %T", tail,
+		)
+	}
+
+	itVar := &ir.Variable{
+		Name: "@it",
+		Type: elemType,
+		Role: ir.VariableRoleLoopIt,
+	}
+	bodyOps, err := emitPredicateBody(pred, map[string]*ir.Variable{"@it": itVar}, tc, la)
+	if err != nil {
+		return nil, err
+	}
+
+	endLabel := la.newLabel()
+	bodyLabel := la.newLabel()
+
+	ops = append(ops, &ir.ArrayLoopBeginOp{
+		Quantifier:     quantifier,
+		ElemByteSize:   elemSize,
+		CompileTimeLen: arrType.Count,
+		EndLabel:       endLabel,
+	})
+	ops = append(ops, &ir.CondLabelOp{ID: bodyLabel})
+	ops = append(ops, bodyOps...)
+	ops = append(ops, &ir.ArrayLoopEndOp{
+		BodyLabel: bodyLabel,
+	})
+	ops = append(ops, &ir.CondLabelOp{ID: endLabel})
+	return ops, nil
+}
+
+// emitPredicateBody lowers an any/all predicate body to ops that leave a
+// bool byte at sm->offset.
+//
+// The body is routed through emitCondition with each in-scope loop variable
+// stood up as a real ir.Variable of role VariableRoleLoopIt. The compiler
+// recognizes that role and treats LocationOps against it as no-ops (the
+// bytes are at sm->offset already) or as an ExprAdvanceOffsetOp shift when
+// Offset>0 (for @it.field) — also adding the variable's LoopBaseOffset so
+// the map @value variable resolves to its slot within the scratch.
+//
+// vars maps a reference name (`@it`, `@value`) to the variable carrying
+// that role for this loop. Slices/arrays pass a single-entry map keyed
+// `@it`; maps pass two entries.
+func emitPredicateBody(
+	pred exprlang.Expr,
+	vars map[string]*ir.Variable,
+	tc *typeCatalog,
+	la *labelAllocator,
+) ([]ir.ExpressionOp, error) {
+	leaves := conditionLeafExprs(pred)
+	leafRoots := make(map[exprlang.Expr]*ir.Variable, len(leaves))
+	for _, leaf := range leaves {
+		sub, ok := conditionLeafSubExpr(leaf)
+		if !ok {
+			return nil, fmt.Errorf(
+				"any/all predicate leaf: cannot derive sub-expression from %T", leaf,
+			)
+		}
+		rootName, ok := extractRootVariableName(sub)
+		if !ok {
+			return nil, fmt.Errorf(
+				"any/all predicate leaf: cannot derive root variable from %T", sub,
+			)
+		}
+		root, ok := vars[rootName]
+		if !ok {
+			return nil, fmt.Errorf(
+				"any/all predicate leaf references %q, which is not in scope", rootName,
+			)
+		}
+		leafRoots[leaf] = root
+	}
+	return emitCondition(pred, leafRoots, tc, la)
 }
 
 // populateProbeEventsExpressions resolves expressions for every analyzed
@@ -5588,16 +7152,48 @@ func populateInstanceExpressions(
 	}
 
 	for _, event := range inst.Events {
-		// Resolve condition for the matching event only.
-		if cond := ap.condition; cond != nil && cond.eventKind == event.Kind {
-			resolved, err := resolveCondition(cond.expr, cond.leafRoots, typeCatalog)
-			if err != nil {
-				return ir.Issue{
-					Kind:    ir.IssueKindConditionExpressionUnresolvable,
-					Message: fmt.Sprintf("failed to resolve condition: %v", err),
+		// Resolve condition. Single-event conditions go on the matching
+		// event only. Split-event conditions emit two distinct programs:
+		// the entry-side gate on the entry event and the return-side
+		// combination on the return event.
+		if cond := ap.condition; cond != nil {
+			if cond.splitCondition {
+				switch event.Kind {
+				case ir.EventKindEntry:
+					resolved, err := resolveSplitConditionEntry(
+						cond.expr, cond.leafRoots, cond.leafEventKind,
+						cond.entryLeafSlotIndex, typeCatalog,
+					)
+					if err != nil {
+						return ir.Issue{
+							Kind:    ir.IssueKindConditionExpressionUnresolvable,
+							Message: fmt.Sprintf("failed to resolve entry-side condition: %v", err),
+						}
+					}
+					event.Condition = resolved
+				case ir.EventKindReturn:
+					resolved, err := resolveSplitConditionReturn(
+						cond.expr, cond.leafRoots, cond.leafEventKind,
+						cond.entryLeafSlotIndex, typeCatalog,
+					)
+					if err != nil {
+						return ir.Issue{
+							Kind:    ir.IssueKindConditionExpressionUnresolvable,
+							Message: fmt.Sprintf("failed to resolve return-side condition: %v", err),
+						}
+					}
+					event.Condition = resolved
 				}
+			} else if cond.eventKind == event.Kind {
+				resolved, err := resolveCondition(cond.expr, cond.leafRoots, typeCatalog)
+				if err != nil {
+					return ir.Issue{
+						Kind:    ir.IssueKindConditionExpressionUnresolvable,
+						Message: fmt.Sprintf("failed to resolve condition: %v", err),
+					}
+				}
+				event.Condition = resolved
 			}
-			event.Condition = resolved
 		}
 
 		issue := populateEventExpressions(inst, event, ap, typeCatalog)
