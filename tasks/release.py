@@ -72,7 +72,6 @@ from tasks.libs.releasing.version import (
     RELEASE_JSON_DEPENDENCIES,
     VERSION_RE,
     _create_version_from_match,
-    current_version,
     deduce_version,
     get_version_major,
     next_final_version,
