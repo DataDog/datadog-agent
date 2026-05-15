@@ -725,6 +725,29 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		if err := structureTypeHandler(t.StructureType); err != nil {
 			return fid, needed, err
 		}
+	case *ir.GoTimeType:
+		// time.Time is special-cased: the runtime resolves the *Location
+		// pointer to a UTC offset and overwrites the captured pointer
+		// slot in place. We deliberately do not invoke
+		// structureTypeHandler here, which would chase the loc pointer
+		// (potentially recursing through Location → []zone → strings).
+		needed = true
+		offsetShift = 0
+		ops = []Op{
+			ProcessGoTimeOp{
+				WallFieldOffset:       t.WallFieldOffset,
+				ExtFieldOffset:        t.ExtFieldOffset,
+				LocFieldOffset:        t.LocFieldOffset,
+				CacheResolved:         t.CacheResolved,
+				CacheStartOffset:      t.CacheStartOffset,
+				CacheEndOffset:        t.CacheEndOffset,
+				CacheZoneOffset:       t.CacheZoneOffset,
+				ZoneOffsetFieldOffset: t.ZoneOffsetFieldOffset,
+				ZoneOffsetFieldSize:   t.ZoneOffsetFieldSize,
+			},
+			ReturnOp{},
+		}
+
 	case *ir.StructureType:
 		if err := structureTypeHandler(t); err != nil {
 			return fid, needed, err
@@ -1043,6 +1066,8 @@ func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 		case *ir.GoSliceHeaderType:
 			err = collectPieces(t.StructureType, offset)
 		case *ir.GoStringHeaderType:
+			err = collectPieces(t.StructureType, offset)
+		case *ir.GoTimeType:
 			err = collectPieces(t.StructureType, offset)
 
 		// Types that should never be stored in registers nor stack.

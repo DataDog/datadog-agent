@@ -254,7 +254,7 @@ func (s *Serializer) getFailoverAllowlist() metricsserializer.Filter {
 	}
 
 	var allowlist map[string]struct{}
-	if s.config.IsSet("multi_region_failover.metric_allowlist") {
+	if s.config.IsConfigured("multi_region_failover.metric_allowlist") {
 		rawList := s.config.GetStringSlice("multi_region_failover.metric_allowlist")
 		allowlist = make(map[string]struct{}, len(rawList))
 		for _, allowed := range rawList {
