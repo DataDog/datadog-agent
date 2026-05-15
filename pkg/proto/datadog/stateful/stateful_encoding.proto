@@ -53,17 +53,49 @@ message Log {
     StructuredLog structured = 2;
     string raw = 3;
   }
-  // TODO: right now we are assuming logs are attached per tag - in the future we may have common tags in the stream
-  // state and auto-populate them downstream.
-  // Required tags: `service`, `hostname`,
-  // Other tags on agent payload: `status`, `source`
-  // All tags are joined together sent as a single tagset
+  // Tags identifying the log source (hostname, service, ddsource, container tags).
+  // Excludes status which varies per log because status is sent separately to improve delta encoding.
+  // All tags are joined together and sent as a single tagset.
   TagSet tags = 4;
+
+  // Optional UUID used to track logs when dual-sent via HTTP and gRPC.
+  optional string uuid = 5;
+
+  // Log severity level (e.g. "info", "warn", "error"). Sent separately from tags because
+  // status changes per log while other tags remain stable, which would defeat delta encoding.
+  DynamicValue status = 6;
+
+  // Service is sent separately because sometimes it is a top-level JSON field and also in ddtags,
+  // and sometimes it only exists as a top-level field.
+  DynamicValue service = 7;
 }
 
 message StructuredLog {
   uint64 pattern_id = 1;
   repeated DynamicValue dynamic_values = 2;
+  // JSON structured log fields. Example:
+  // Input log: {"msg":"Evicted user tags","agent":"core","time":"2026-03-31","level":"INFO"}
+  // With schema-based encoding, converts to:
+  //     json_context_schema 44 (points to "agent,level,time" in dictionary)
+  //     json_context_values ["core", "INFO", "2026-03-31"]
+  //     json_message_key "msg"
+  //     pattern_id 123 (points to "Evicted {} tags")
+  //     dynamic_values ["user"]
+
+  // The key of the JSON object to put the message back into (e.g. "msg", "message", "log").
+  DynamicValue json_message_key = 4;
+
+  // Schema-based JSON context encoding separates repeating key structure from per-log values.
+  // json_context_schema_id references a DictEntryDefine whose value is a comma-separated sorted
+  // list of JSON keys (e.g. "level,service,timestamp"). Delta-encoded across batches.
+  uint64 json_context_schema_id = 5;
+
+  // json_context_values contains the leaf values in the same order as the schema keys.
+  // Each value is encoded as a DynamicValue (int64 for numbers, dict_index for repeated strings).
+  // Nested objects and arrays are serialized as JSON strings.
+  repeated DynamicValue json_context_values = 6;
+
+  // Deprecated: use json_context_schema_id and json_context_values instead.
   bytes json_context = 3;
 }
 
@@ -97,8 +129,6 @@ message Datum {
     PatternDelete pattern_delete = 2;
     DictEntryDefine dict_entry_define = 3;
     DictEntryDelete dict_entry_delete = 4;
-    // Defined for future use; only sent when enableDeltaEncoding=true in batch_strategy.go,
-    // which requires the intake to implement delta reconstruction first.
     DeltaEncodingSync delta_encoding_sync = 5;
     Log logs = 6;
   }
