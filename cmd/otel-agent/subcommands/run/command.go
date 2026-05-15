@@ -49,7 +49,7 @@ import (
 	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	statsdotel "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/otel"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
+	orchestratorinterface "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface/def"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	hostfx "github.com/DataDog/datadog-agent/comp/metadata/host/fx"
 	inventoryagentfx "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/fx"

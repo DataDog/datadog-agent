@@ -6,7 +6,7 @@
 // Package orchestrator implements the orchestrator forwarder component.
 package orchestrator
 
-import "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
+import orchestratorinterface "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface/def"
 
 // team: kubernetes-experiences
 
