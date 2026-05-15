@@ -184,9 +184,15 @@ func NewComponent(deps Requires) Provides {
 
 	storageCfg := defaultStorageConfig()
 	if cfg != nil {
-		storageCfg.MaxSeries = cfg.GetInt("anomaly_detection.storage.max_series")
-		storageCfg.EvictionFloorRatio = cfg.GetFloat64("anomaly_detection.storage.eviction_floor_ratio")
-		storageCfg.PointRetentionSecs = cfg.GetInt64("anomaly_detection.storage.point_retention_secs")
+		if cfg.IsConfigured("anomaly_detection.storage.max_series") {
+			storageCfg.MaxSeries = cfg.GetInt("anomaly_detection.storage.max_series")
+		}
+		if cfg.IsConfigured("anomaly_detection.storage.eviction_floor_ratio") {
+			storageCfg.EvictionFloorRatio = cfg.GetFloat64("anomaly_detection.storage.eviction_floor_ratio")
+		}
+		if cfg.IsConfigured("anomaly_detection.storage.point_retention_secs") {
+			storageCfg.PointRetentionSecs = cfg.GetInt64("anomaly_detection.storage.point_retention_secs")
+		}
 	}
 	eng := newEngine(engineConfig{
 		storage:     newTimeSeriesStorageWith(storageCfg),
