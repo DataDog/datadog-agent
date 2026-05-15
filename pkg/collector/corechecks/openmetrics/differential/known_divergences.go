@@ -86,15 +86,45 @@ var knownDivergences = []KnownDivergence{
 		Description: "Python rejects scrape on non-numeric quantile / value string; Go accepts or rejects with a different error",
 		PyErrSub:    "could not convert string to float",
 	},
+	// The architectural-difference class: Go aborts the scrape on essentially
+	// any parse error, while Python skips the offending line. Each entry
+	// below is a specific instance of this single underlying bug. Lumping
+	// them under one broad regex would prevent the fuzz from finding *new*
+	// classes — keep them individually narrow.
 	{
-		Name:        "go_parse_error_nul_byte",
-		Description: "Go rejects scrape on NUL byte in metric name; Python skips the line",
-		GoErrRe:     regexp.MustCompile(`expected (value|timestamp|new record).*got "\\x00"`),
+		Name:        "go_parse_error_invalid_utf8",
+		Description: "Go rejects scrape on invalid UTF-8 in label value; Python tolerates raw bytes",
+		GoErrRe:     regexp.MustCompile(`invalid UTF-8 label value`),
+	},
+	{
+		Name:        "go_parse_error_expected_value",
+		Description: "Go rejects scrape on missing/unparseable value (NUL, control char, malformed numeric); Python skips the line",
+		GoErrRe:     regexp.MustCompile(`expected (value|name) (after|but)`),
+	},
+	{
+		Name:        "go_parse_error_expected_timestamp_or_record",
+		Description: "Go rejects scrape on unexpected token between value and timestamp; Python skips the line",
+		GoErrRe:     regexp.MustCompile(`expected timestamp or new record, got "[^#]`),
 	},
 	{
 		Name:        "go_parse_error_unsupported_char",
-		Description: "Go rejects scrape on unsupported character (e.g. hex float syntax); Python may also reject",
-		GoErrRe:     regexp.MustCompile(`unsupported character in float`),
+		Description: "Go rejects scrape on unsupported character (hex float, form feed, etc.); Python may also reject",
+		GoErrRe:     regexp.MustCompile(`unsupported character`),
+	},
+	{
+		Name:        "go_parse_error_unterminated_label",
+		Description: "Go rejects scrape on truncated label set or unterminated string in label value",
+		GoErrRe:     regexp.MustCompile(`(unterminated|unexpected EOF|unterminated label)`),
+	},
+	{
+		Name:        "go_parse_error_invalid_metric_or_label_name",
+		Description: "Go rejects scrape on metric/label name starting with digit or containing forbidden chars",
+		GoErrRe:     regexp.MustCompile(`(invalid metric name|invalid label name|name must|not a valid)`),
+	},
+	{
+		Name:        "go_parse_error_malformed_help_or_type",
+		Description: "Go rejects scrape on malformed/truncated `# HELP` or `# TYPE` meta-line",
+		GoErrRe:     regexp.MustCompile(`(malformed|truncated|expected metric name).*\b(HELP|TYPE)\b`),
 	},
 }
 

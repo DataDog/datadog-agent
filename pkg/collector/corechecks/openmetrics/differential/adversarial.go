@@ -435,6 +435,41 @@ func formatMixingCases() []AdversarialCase {
 		Payload:     []byte("# TYPE m gauge\nm 1\r\nm 2\n"),
 	})
 
+	// --- Fuzz-discovered tiny cases (each minimized to <40 bytes by the
+	// engine). Promoted from /tmp/fuzz-findings to permanent regression seeds
+	// because they're minimal repros for the architectural-divergence bug
+	// class and will quickly verify any fix.
+
+	// Bare "# TYPE" with no metric/type fields. Go's parser likely errors
+	// on the truncated line; Python likely skips it.
+	cases = append(cases, AdversarialCase{
+		Name:        "format/bare_type_keyword",
+		Description: "`# TYPE` line with no metric name or type field (fuzz-minimized)",
+		Payload:     []byte("# TYPE"),
+	})
+
+	// Bare "# HELP" with trailing space.
+	cases = append(cases, AdversarialCase{
+		Name:        "format/bare_help_keyword",
+		Description: "`# HELP ` line with no metric name (fuzz-minimized)",
+		Payload:     []byte("# HELP "),
+	})
+
+	// Form-feed (0x0c) at top level: control char outside string context.
+	cases = append(cases, AdversarialCase{
+		Name:        "format/leading_form_feed",
+		Description: "payload starts with space + form-feed (\\x0c) (fuzz-minimized)",
+		Payload:     []byte(" \f"),
+	})
+
+	// Numeric metric name with empty braces. Per spec, metric names must
+	// start with letter or underscore; `0` should be rejected.
+	cases = append(cases, AdversarialCase{
+		Name:        "name/numeric_metric_name",
+		Description: "`0{}0` — metric name is a digit, illegal per spec (fuzz-minimized)",
+		Payload:     []byte("0{}0"),
+	})
+
 	return cases
 }
 
