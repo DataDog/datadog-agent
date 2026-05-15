@@ -223,6 +223,13 @@ func TestBuildTagSet_CacheHitRefreshesDictAccess(t *testing.T) {
 	assert.True(t, mt.tagManager.HasDictID(dictID1), "refreshed cached tagset should remain live")
 }
 
+func TestMessageTranslatorStaleTTLConfigurable(t *testing.T) {
+	tok := rtokenizer.NewRustTokenizer()
+	mt := NewMessageTranslator("test-pipeline", tok, WithMessageTranslatorStaleTTL(42*time.Millisecond))
+
+	assert.Equal(t, 42*time.Millisecond, mt.staleTTL)
+}
+
 // --- toValidUTF8 tests ---
 
 func TestToValidUTF8_ValidString(t *testing.T) {
