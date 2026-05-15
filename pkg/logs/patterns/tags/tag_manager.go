@@ -153,6 +153,21 @@ func (tm *TagManager) Get(tag string) (uint64, bool) {
 	return tm.GetStringID(tag)
 }
 
+// TouchDictID updates the access metadata for an existing dictionary ID.
+// It returns false if the ID was already evicted.
+func (tm *TagManager) TouchDictID(id uint64) bool {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+
+	entry, exists := tm.idToEntry[id]
+	if !exists {
+		return false
+	}
+	entry.usageCount++
+	entry.lastAccessAt = time.Now()
+	return true
+}
+
 // EvictStaleEntries removes all entries that haven't been accessed within the given TTL.
 // Returns the IDs of evicted entries so callers can send DictEntryDelete messages.
 func (tm *TagManager) EvictStaleEntries(ttl time.Duration) []uint64 {

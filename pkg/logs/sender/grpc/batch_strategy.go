@@ -293,6 +293,15 @@ func (s *batchStrategy) flushBuffer(outputChan chan *message.Payload) {
 	s.sendMessagesWithDatums(messagesMetadata, grpcDatums, outputChan)
 }
 
+func isWireStateDatum(datum *statefulpb.Datum) bool {
+	switch datum.Data.(type) {
+	case *statefulpb.Datum_PatternDelete, *statefulpb.Datum_DictEntryDelete:
+		return false
+	default:
+		return true
+	}
+}
+
 func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.MessageMetadata, grpcDatums []*statefulpb.Datum, outputChan chan *message.Payload) {
 	defer s.utilization.Stop()
 
@@ -301,11 +310,16 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 		unencodedSize += msgMeta.RawDataLen
 	}
 
-	// Extract all state changes from this batch for snapshot management
+	// Extract all state changes from this batch for snapshot management, and build
+	// the filtered set of datums that will actually be sent over the wire.
 	var stateChanges []*statefulpb.Datum
+	wireDatums := make([]*statefulpb.Datum, 0, len(grpcDatums))
 	for _, datum := range grpcDatums {
 		if isStateDatum(datum) {
 			stateChanges = append(stateChanges, datum)
+		}
+		if isWireStateDatum(datum) {
+			wireDatums = append(wireDatums, datum)
 		}
 	}
 
@@ -334,7 +348,7 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 
 	// Create DatumSequence and marshal to bytes
 	datumSeq := &statefulpb.DatumSequence{
-		Data: grpcDatums,
+		Data: wireDatums,
 	}
 
 	var err error
