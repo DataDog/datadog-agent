@@ -122,18 +122,6 @@ function Install-PowerShell7 {
     Write-Host "PowerShell 7 already installed at $ExpectedPath"
     return
   }
-  $msi = "$env:TEMP\PowerShell-7-win-x64.msi"
-  $sw = [System.Diagnostics.Stopwatch]::StartNew()
-  $wc = New-Object System.Net.WebClient
-  try {
-    $wc.DownloadFile($Url, $msi)
-  } finally {
-    $wc.Dispose()
-  }
-  $sw.Stop()
-  $sizeMB = (Get-Item $msi).Length / 1MB
-  Write-Host ("Downloaded PowerShell 7 MSI ({0:N1} MB) in {1:N1} s" -f $sizeMB, $sw.Elapsed.TotalSeconds)
-
   # MSI properties:
   #   USE_MU=0 / ENABLE_MU=0          : do not enrol pwsh into Microsoft Update
   #   DISABLE_TELEMETRY=1             : set POWERSHELL_TELEMETRY_OPTOUT for all users
@@ -143,7 +131,7 @@ function Install-PowerShell7 {
   #   ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1
   $sw = [System.Diagnostics.Stopwatch]::StartNew()
   $msiArgs = @(
-    '/i', "`"$msi`"", '/quiet', '/norestart',
+    '/i', $Url, '/quiet', '/norestart',
     'USE_MU=0', 'ENABLE_MU=0', 'DISABLE_TELEMETRY=1', 'ADD_PATH=1',
     'ENABLE_PSREMOTING=0',
     'ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1',
@@ -155,7 +143,6 @@ function Install-PowerShell7 {
     throw "PowerShell 7 MSI install failed: exit code $($proc.ExitCode)"
   }
   Write-Host ("PowerShell 7 MSI installed in {0:N1} s" -f $sw.Elapsed.TotalSeconds)
-  Remove-Item $msi -Force -ErrorAction SilentlyContinue
 
   if (-not (Test-Path $ExpectedPath)) {
     throw "PowerShell 7 install succeeded but $ExpectedPath is missing"
