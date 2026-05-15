@@ -255,7 +255,7 @@ func (m *MessageContent) GetContent() []byte {
 	case StateStructured:
 		return m.structuredContent.GetContent()
 	default:
-		log.Error("Unknown state for message on call to SetContent:", m.State)
+		log.Error("Unknown state for message on call to GetContent:", m.State)
 		return m.content
 	}
 }
