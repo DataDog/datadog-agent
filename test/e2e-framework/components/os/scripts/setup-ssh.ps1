@@ -1,3 +1,14 @@
+# Start a transcript so the full output of this script lands at C:\e2e-setup.log on the VM. 
+try {
+  $null = Start-Transcript -Path 'C:\e2e-setup.log' -Append -ErrorAction SilentlyContinue
+} catch {
+  # If transcript can't start (e.g., already running), proceed without it.
+}
+
+# Wrap the rest of the script in try/finally so the transcript is always closed,
+# even if a 'throw' inside this script aborts execution early.
+try {
+
 # function to test if the OS is Windows Server 2025
 function Is-WindowsServer2025 {
   $osInfo = Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object Caption, Version, BuildNumber
@@ -74,7 +85,90 @@ function Set-SshFirewallConfiguration {
   }
 }
 
+# Install PowerShell 7 and switch OpenSSH's default shell to it. The stock AWS Windows
+# AMI's `powershell.exe` (5.1) pays a multi-second JIT tax on every cold start because
+# its assemblies are not pre-NGen'd, which under load pins CPU and can cause flaky
+# issues from resource contention. PowerShell 7 (pwsh.exe) is AOT-compiled and starts
+# in ~500 ms cold with a tight spread, so we side-step the issue entirely instead of
+# trying to warm the .NET Framework native image cache.
+#
+# We still disable the .NET Framework NGEN scheduled tasks so the OS-driven NGen
+# update doesn't kick in mid-test and steal CPU/IO at an inopportune moment.
+# Ref: ACIX-1057
+$pwshUrl = 'https://github.com/PowerShell/PowerShell/releases/download/v7.6.1/PowerShell-7.6.1-win-x64.msi'
+$pwshPath = 'C:\Program Files\PowerShell\7\pwsh.exe'
+
+function Disable-NgenTasks {
+  # Disable all .NET Framework NGEN scheduled tasks. Discover by pattern rather than
+  # hardcoding names — task names include the .NET Framework version and that changes
+  # between Windows releases. Skip already-disabled tasks (e.g. *Critical) since
+  # Disable-ScheduledTask on an already-disabled task succeeds but the no-op log line
+  # is noise.
+  $ngenTasks = Get-ScheduledTask -TaskPath '\Microsoft\Windows\.NET Framework\' -ErrorAction SilentlyContinue |
+               Where-Object { $_.TaskName -like '*NGEN*' -and $_.State -ne 'Disabled' }
+  foreach ($task in $ngenTasks) {
+    try {
+      Disable-ScheduledTask -TaskPath '\Microsoft\Windows\.NET Framework\' -TaskName $task.TaskName -ErrorAction Stop | Out-Null
+      Write-Host "Disabled scheduled task: $($task.TaskName)"
+    } catch {
+      Write-Warning "Failed to disable scheduled task '$($task.TaskName)': $($_.Exception.Message)"
+    }
+  }
+}
+
+function Install-PowerShell7 {
+  param([string]$Url, [string]$ExpectedPath)
+  if (Test-Path $ExpectedPath) {
+    Write-Host "PowerShell 7 already installed at $ExpectedPath"
+    return
+  }
+  $msi = "$env:TEMP\PowerShell-7-win-x64.msi"
+  $sw = [System.Diagnostics.Stopwatch]::StartNew()
+  $wc = New-Object System.Net.WebClient
+  try {
+    $wc.DownloadFile($Url, $msi)
+  } finally {
+    $wc.Dispose()
+  }
+  $sw.Stop()
+  $sizeMB = (Get-Item $msi).Length / 1MB
+  Write-Host ("Downloaded PowerShell 7 MSI ({0:N1} MB) in {1:N1} s" -f $sizeMB, $sw.Elapsed.TotalSeconds)
+
+  # MSI properties:
+  #   USE_MU=0 / ENABLE_MU=0          : do not enrol pwsh into Microsoft Update
+  #   DISABLE_TELEMETRY=1             : set POWERSHELL_TELEMETRY_OPTOUT for all users
+  #   ADD_PATH=1                      : prepend the install dir to system PATH
+  #   ENABLE_PSREMOTING=0             : don't register the WinRM endpoint for pwsh
+  #   ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1
+  #   ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1
+  $sw = [System.Diagnostics.Stopwatch]::StartNew()
+  $msiArgs = @(
+    '/i', "`"$msi`"", '/quiet', '/norestart',
+    'USE_MU=0', 'ENABLE_MU=0', 'DISABLE_TELEMETRY=1', 'ADD_PATH=1',
+    'ENABLE_PSREMOTING=0',
+    'ADD_FILE_CONTEXT_MENU_RUNPOWERSHELL=1',
+    'ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1'
+  )
+  $proc = Start-Process -FilePath 'msiexec.exe' -ArgumentList $msiArgs -Wait -PassThru
+  $sw.Stop()
+  if ($proc.ExitCode -ne 0) {
+    throw "PowerShell 7 MSI install failed: exit code $($proc.ExitCode)"
+  }
+  Write-Host ("PowerShell 7 MSI installed in {0:N1} s" -f $sw.Elapsed.TotalSeconds)
+  Remove-Item $msi -Force -ErrorAction SilentlyContinue
+
+  if (-not (Test-Path $ExpectedPath)) {
+    throw "PowerShell 7 install succeeded but $ExpectedPath is missing"
+  }
+}
+
 # Main script execution
+
+# Install pwsh BEFORE OpenSSH so the OpenSSH MSI's DefaultShell registration below can
+# point straight at pwsh.exe and we never have to flip it from powershell.exe later.
+Disable-NgenTasks
+Install-PowerShell7 -Url $pwshUrl -ExpectedPath $pwshPath
+
 if (Test-SshInstallationNeeded) {
   Write-Host "sshd service not found or needs replacement, installing OpenSSH Server"
   # Add-WindowsCapability does NOT install a consistent version across Windows versions, this lead to
@@ -99,10 +193,10 @@ if (Test-SshInstallationNeeded) {
     $retries++
   } 
   Write-Output "Firewall rule 'OpenSSH-Server-In-TCP' created."
-  $powershellPath = "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
+  # Point OpenSSH at pwsh.exe (installed earlier) instead of the stock powershell.exe.
   $retries = 0
   $res = Get-ItemProperty "HKLM:\SOFTWARE\OpenSSH"
-  while ((Get-ItemProperty "HKLM:\SOFTWARE\OpenSSH").DefaultShell -ne $powershellPath) {
+  while ((Get-ItemProperty "HKLM:\SOFTWARE\OpenSSH").DefaultShell -ne $pwshPath) {
     if ($retries -ge 10) {
       throw "Failed to set powershell as default shell for sshd after 10 retries"
     }
@@ -110,7 +204,7 @@ if (Test-SshInstallationNeeded) {
       Start-Sleep -Seconds 5
     }
     Write-Host "Set powershell as default shell for sshd"
-    New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell -Value $powershellPath -PropertyType String -Force 
+    New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell -Value $pwshPath -PropertyType String -Force 
     $retries++
   }
   $retries = 0
@@ -188,5 +282,11 @@ while ((Get-Service -Name sshd -ErrorAction SilentlyContinue).Status -ne "Runnin
   Write-Host "Starting sshd service"
   Start-Service sshd
   $retries++
+}
+
+} finally {
+  # Always close the transcript so the log file is fully flushed even if an earlier
+  # throw aborted the script.
+  try { Stop-Transcript -ErrorAction SilentlyContinue | Out-Null } catch { }
 }
 
