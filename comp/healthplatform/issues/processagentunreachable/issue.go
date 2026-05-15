@@ -7,6 +7,7 @@ package processagentunreachable
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -24,7 +25,7 @@ func NewProcessAgentUnreachableIssue() *ProcessAgentUnreachableIssue {
 func (t *ProcessAgentUnreachableIssue) BuildIssue(context map[string]string) (*healthplatform.Issue, error) {
 	port := context["port"]
 	if port == "" {
-		port = fmt.Sprintf("%d", defaultCmdPort)
+		port = strconv.Itoa(defaultCmdPort)
 	}
 
 	extra, err := structpb.NewStruct(map[string]any{

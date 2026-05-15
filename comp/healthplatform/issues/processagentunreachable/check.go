@@ -8,6 +8,7 @@ package processagentunreachable
 import (
 	"fmt"
 	"net"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
@@ -42,7 +43,7 @@ func Check(cfg config.Component) (*healthplatform.IssueReport, error) {
 	return &healthplatform.IssueReport{
 		IssueId: IssueID,
 		Context: map[string]string{
-			"port":    fmt.Sprintf("%d", port),
+			"port":    strconv.Itoa(port),
 			"enabled": "true",
 		},
 	}, nil
