@@ -152,7 +152,7 @@ def install_with_bazel(ctx):
 @task
 def test(ctx):
     with gitlab_section("Run rtloader tests", collapsed=True):
-        ctx.run(f"make -C {get_rtloader_build_path()}/test run", err_stream=sys.stdout)
+        bazel("test", "//rtloader/...")
 
 
 @task
