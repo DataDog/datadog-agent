@@ -15,7 +15,7 @@ import (
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	orchestratorimpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
