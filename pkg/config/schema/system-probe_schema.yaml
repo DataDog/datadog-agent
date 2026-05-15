@@ -2325,6 +2325,15 @@ properties:
                 - DD_RUNTIME_SECURITY_CONFIG_NETWORK_RAW_PACKET_LIMITER_RATE
                 tags:
                 - golang_type:int
+      basename_approvers_size:
+        node_type: setting
+        type: number
+        default: 4096
+        env_vars:
+        - DD_EVENT_MONITORING_CONFIG_BASENAME_APPROVERS_SIZE
+        - DD_RUNTIME_SECURITY_CONFIG_BASENAME_APPROVERS_SIZE
+        tags:
+        - golang_type:int
       capabilities_monitoring:
         node_type: section
         type: object
@@ -2390,14 +2399,6 @@ properties:
         env_vars:
         - DD_EVENT_MONITORING_CONFIG_ENABLE_APPROVERS
         - DD_RUNTIME_SECURITY_CONFIG_ENABLE_APPROVERS
-        tags: []
-      basename_approvers_size:
-        node_type: setting
-        type: number
-        default: 4096
-        env_vars:
-        - DD_EVENT_MONITORING_CONFIG_BASENAME_APPROVERS_SIZE
-        - DD_RUNTIME_SECURITY_CONFIG_BASENAME_APPROVERS_SIZE
         tags: []
       enable_discarders:
         node_type: setting

@@ -7956,6 +7956,10 @@ properties:
                 example: '""'
                 tags:
                 - template_section:AdmissionController
+          socket_dir:
+            node_type: setting
+            type: string
+            default: /var/run/datadog
       agent_sidecar:
         node_type: section
         type: object
@@ -14341,14 +14345,12 @@ properties:
     properties:
       api_key:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       dd_url:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
       enabled:
         node_type: setting
         type: boolean
@@ -14367,14 +14369,16 @@ properties:
         default: false
       logs_service_allowlist:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: array
+        default: []
+        items:
+          type: string
       metric_allowlist:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: array
+        default: []
+        items:
+          type: string
       remote_configuration:
         node_type: section
         type: object
@@ -14398,19 +14402,16 @@ properties:
                 - golang_type:duration
           config_root:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           director_root:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           key:
             node_type: setting
-            tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            type: string
+            default: ''
           max_backoff_interval:
             node_type: setting
             type: number
@@ -14420,9 +14421,11 @@ properties:
             - golang_type:duration
           max_backoff_time:
             node_type: setting
+            type: number
+            default: 0s
+            format: duration
             tags:
-            - TODO:fix-no-default
-            - TODO:fix-missing-type
+            - golang_type:duration
           org_status_refresh_interval:
             node_type: setting
             type: number
@@ -14437,9 +14440,8 @@ properties:
             - TODO:fix-missing-type
       site:
         node_type: setting
-        tags:
-        - TODO:fix-no-default
-        - TODO:fix-missing-type
+        type: string
+        default: ''
   network:
     node_type: section
     type: object
@@ -14903,6 +14905,13 @@ properties:
         node_type: setting
         type: string
         default: ''
+      configs:
+        node_type: setting
+        type: array
+        default: []
+        env_parser: json
+        items:
+          type: object
       url:
         node_type: setting
         type: string
