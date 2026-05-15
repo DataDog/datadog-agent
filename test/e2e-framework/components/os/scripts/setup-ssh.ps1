@@ -147,6 +147,14 @@ function Install-PowerShell7 {
   if (-not (Test-Path $ExpectedPath)) {
     throw "PowerShell 7 install succeeded but $ExpectedPath is missing"
   }
+
+  # pwsh defaults to ANSI-colored output even over SSH, which corrupts test
+  # framework parsers that expect plain text — output gets prefixed with ESC
+  # escape sequences. Set NO_COLOR=1 at Machine scope so new SSH sessions inherit
+  # it and pwsh switches $PSStyle.OutputRendering to PlainText.
+  # https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_ansi_terminals?view=powershell-7.4#disabling-ansi-output
+  [Environment]::SetEnvironmentVariable('NO_COLOR', '1', 'Machine')
+  Write-Host "Set NO_COLOR=1 (Machine) so pwsh emits plain text over SSH"
 }
 
 # Main script execution
