@@ -6,9 +6,13 @@
 //go:build test
 
 // Package collector defines the collector component.
+//
+// Deprecated: use comp/collector/collector/mock instead.
 package collector
 
 // Mock implements mock-specific methods.
+//
+// Deprecated: use comp/collector/collector/mock instead.
 type Mock interface {
 	Component
 }

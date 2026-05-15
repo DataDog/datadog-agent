@@ -70,8 +70,9 @@ import (
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	commonendpoints "github.com/DataDog/datadog-agent/comp/api/commonendpoints/fx"
 	grpcAgentfx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-agent"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
+	collectordiagnose "github.com/DataDog/datadog-agent/comp/collector/collector"
+	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
+	collectorimpl "github.com/DataDog/datadog-agent/comp/collector/collector/impl"
 	connectivitycheckerfx "github.com/DataDog/datadog-agent/comp/connectivitychecker/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -723,7 +724,7 @@ func startAgent(
 	diagnosecatalog := diagnose.GetCatalog()
 
 	diagnosecatalog.Register(diagnose.CheckDatadog, func(_ diagnose.Config) []diagnose.Diagnosis {
-		return collector.Diagnose(collectorComponent, log)
+		return collectordiagnose.Diagnose(collectorComponent, log)
 	})
 
 	diagnosecatalog.Register(diagnose.PortConflict, func(_ diagnose.Config) []diagnose.Diagnosis {

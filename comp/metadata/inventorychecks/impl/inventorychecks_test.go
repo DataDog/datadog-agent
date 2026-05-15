@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
+	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
+	collectorimpl "github.com/DataDog/datadog-agent/comp/collector/collector/impl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"

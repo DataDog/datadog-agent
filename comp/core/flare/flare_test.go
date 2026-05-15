@@ -21,7 +21,7 @@ import (
 	"go.uber.org/fx"
 
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"

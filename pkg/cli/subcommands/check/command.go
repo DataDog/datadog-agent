@@ -32,7 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	grpcNonefx "github.com/DataDog/datadog-agent/comp/api/grpcserver/fx-none"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
