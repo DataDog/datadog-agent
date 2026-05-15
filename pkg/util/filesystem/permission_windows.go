@@ -96,4 +96,3 @@ func (p *Permission) checkOwner(path string) error {
 
 	return nil
 }
-

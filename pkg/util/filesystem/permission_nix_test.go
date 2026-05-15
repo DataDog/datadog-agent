@@ -62,7 +62,6 @@ func TestGetDatadogUserUID(t *testing.T) {
 	}
 }
 
-
 func TestCheckOwner_Root(t *testing.T) {
 	p, err := NewPermission()
 	require.NoError(t, err)
@@ -127,7 +126,6 @@ func TestIsAllowedOwner_Root(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, p.isRootOrAgentUID(0))
 }
-
 
 func TestIsAllowedOwner_DDAgent(t *testing.T) {
 	p, err := NewPermission()
