@@ -195,3 +195,80 @@ system_probe_config:
 		}
 	})
 }
+
+// TestConfigComponentSkipsDiskWhenConfigstreamEnabled verifies that with
+// WithConfigstreamEnabled(true), config values come from the snapshot and
+// datadog.yaml is never read.
+func TestConfigComponentSkipsDiskWhenConfigstreamEnabled(t *testing.T) {
+	ipcComp := ipcmock.New(t)
+	serverAddr, events, cleanup := setupMockConfigStreamServer(t, ipcComp)
+	defer cleanup()
+
+	host, port, err := net.SplitHostPort(serverAddr)
+	require.NoError(t, err)
+
+	tmpDir := t.TempDir()
+	datadogPath := filepath.Join(tmpDir, "datadog.yaml")
+	sysprobePath := filepath.Join(tmpDir, "system_probe.yaml")
+
+	// Poison datadog.yaml: if the config component reads this, the test fails.
+	datadogYaml := fmt.Sprintf(`
+cmd_host: %s
+cmd_port: %s
+site: from-disk
+remote_agent:
+  configstream:
+    consumer:
+      enabled: true
+`, host, port)
+	require.NoError(t, os.WriteFile(datadogPath, []byte(datadogYaml), 0600))
+	require.NoError(t, os.WriteFile(sysprobePath, []byte("system_probe_config:\n  enabled: false\n"), 0600))
+
+	events <- &pb.ConfigEvent{
+		Event: &pb.ConfigEvent_Snapshot{
+			Snapshot: &pb.ConfigSnapshot{
+				SequenceId: 1,
+				Settings: []*pb.ConfigSetting{
+					{Key: "site", Value: mustNewValue(t, "from-stream"), Source: string(model.SourceFile)},
+				},
+			},
+		},
+	}
+
+	opts := fx.Options(
+		// The flag under test: skip disk load, rely on the stream.
+		fx.Supply(config.NewAgentParams(datadogPath, config.WithConfigstreamEnabled(true))),
+		fx.Supply(sysprobeconfigimpl.NewParams(
+			sysprobeconfigimpl.WithSysProbeConfFilePath(sysprobePath),
+			sysprobeconfigimpl.WithFleetPoliciesDirPath(""),
+		)),
+		config.Module(),
+		delegatedauthnoopfx.Module(),
+		secretsnoopfx.Module(),
+		sysprobeconfigimpl.Module(),
+		fx.Supply(log.ForDaemon("SP", "log_file", "")),
+		systemprobeloggerfx.Module(),
+		telemetryfx.Module(),
+		fx.Provide(func() ipc.Component { return ipcComp }),
+		fx.Provide(func(c config.Component) model.Writer { return c }),
+		fx.Supply(configstreamconsumer.Params{
+			ClientName:        "system-probe",
+			CoreAgentAddress:  serverAddr,
+			SessionIDProvider: &mockRAR{},
+			ReadyTimeout:      10 * time.Second,
+		}),
+		configstreamconsumerfx.Module(),
+	)
+
+	verify := func(_ configstreamconsumer.Component, cfg config.Component) error {
+		if used := cfg.ConfigFileUsed(); used != "" {
+			return fmt.Errorf("ConfigFileUsed = %q; want empty (disk should not have been read)", used)
+		}
+		if got := cfg.GetString("site"); got != "from-stream" {
+			return fmt.Errorf("site = %q; want %q (streamed value)", got, "from-stream")
+		}
+		return nil
+	}
+
+	require.NoError(t, fxutil.OneShot(verify, opts))
+}

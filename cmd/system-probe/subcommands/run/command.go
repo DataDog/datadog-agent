@@ -125,16 +125,21 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Run the System Probe",
 		Long:  `Runs the system-probe in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
+			configstreamEnabled := isConfigstreamEnabled(globalParams.DatadogConfFilePath())
+			var configOpts []func(*config.Params)
+			if configstreamEnabled {
+				configOpts = append(configOpts, config.WithConfigstreamEnabled(true))
+			}
 			opts := []fx.Option{
 				fx.Invoke(func(_ log.Component) {
 					ddruntime.SetMaxProcs()
 				}),
-				fx.Supply(config.NewAgentParams(globalParams.DatadogConfFilePath())),
+				fx.Supply(config.NewAgentParams(globalParams.DatadogConfFilePath(), configOpts...)),
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))),
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 				getSharedFxOption(),
 			}
-			if isConfigstreamEnabled(globalParams.DatadogConfFilePath()) {
+			if configstreamEnabled {
 				opts = append(opts, configstreamFxOptions())
 			}
 			return fxutil.OneShot(run, opts...)

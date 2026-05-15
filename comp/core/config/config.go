@@ -81,6 +81,11 @@ func newConfig(deps dependencies) (*cfg, error) {
 	config := pkgconfigsetup.GlobalConfigBuilder()
 	warnings := &pkgconfigmodel.Warnings{}
 
+	if deps.Params.isConfigstreamEnabled {
+		// configstreamconsumer is the sole source of configuration.
+		return &cfg{Config: config, warnings: warnings}, nil
+	}
+
 	err := setupConfig(config, deps.Secret, deps.DelegatedAuth, deps.Params)
 	returnErrFct := func(e error) (*cfg, error) {
 		if e != nil && deps.Params.ignoreErrors {

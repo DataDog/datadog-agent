@@ -47,6 +47,9 @@ type Params struct {
 	// cliOverride is a list of setting overrides from the CLI given to the configuration. The map associate
 	// settings name like "logs_config.enabled" to its value.
 	cliOverride map[string]interface{}
+
+	// isConfigstreamEnabled skips loading datadog.yaml; the configstreamconsumer populates config instead.
+	isConfigstreamEnabled bool
 }
 
 // NewParams creates a new instance of Params
@@ -144,5 +147,12 @@ func WithFleetPoliciesDirPath(fleetPoliciesDirPath string) func(*Params) {
 func WithCLIOverride(setting string, value interface{}) func(*Params) {
 	return func(b *Params) {
 		b.cliOverride[setting] = value
+	}
+}
+
+// WithConfigstreamEnabled tells the config component not to read datadog.yaml.
+func WithConfigstreamEnabled(v bool) func(*Params) {
+	return func(b *Params) {
+		b.isConfigstreamEnabled = v
 	}
 }
