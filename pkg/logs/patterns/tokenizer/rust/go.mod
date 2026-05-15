@@ -213,7 +213,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/tagset => ../../../../../pkg/tagset
 	github.com/DataDog/datadog-agent/pkg/template => ../../../../../pkg/template
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../../../pkg/trace
-	github.com/DataDog/datadog-agent/pkg/trace/log => ../../../../trace/log
+	github.com/DataDog/datadog-agent/pkg/trace/log => ../../../../../pkg/trace/log
 	github.com/DataDog/datadog-agent/pkg/trace/otel => ../../../../../pkg/trace/otel
 	github.com/DataDog/datadog-agent/pkg/trace/stats => ../../../../../pkg/trace/stats
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil => ../../../../../pkg/trace/traceutil

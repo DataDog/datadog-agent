@@ -67,6 +67,10 @@ func (h *headerCredentials) GetRequestMetadata(_ context.Context, _ ...string) (
 		headers["dd-content-encoding"] = "identity"
 	}
 
+	for k, v := range h.endpoint.ExtraHTTPHeaders {
+		headers[k] = v
+	}
+
 	return headers, nil
 }
 
@@ -186,17 +190,12 @@ func NewSender(
 	return sender
 }
 
-// createConnection establishes the shared gRPC connection
-func (s *Sender) createConnection() error {
-	log.Infof("Creating gRPC connection to %s:%d", s.endpoint.Host, s.endpoint.Port)
-
-	// Build connection options
+func newGRPCClient(endpoint config.Endpoint) (*grpc.ClientConn, statefulpb.StatefulLogsServiceClient, error) {
 	var opts []grpc.DialOption
 
-	// Configure TLS
-	if s.endpoint.UseSSL() {
+	if endpoint.UseSSL() {
 		tlsConfig := &tls.Config{
-			ServerName: s.endpoint.Host,
+			ServerName: endpoint.Host,
 		}
 		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	} else {
@@ -216,7 +215,7 @@ func (s *Sender) createConnection() error {
 	opts = append(opts, grpc.WithUserAgent(userAgent))
 
 	// Add headers via per-RPC credentials
-	headerCreds := &headerCredentials{endpoint: s.endpoint}
+	headerCreds := &headerCredentials{endpoint: endpoint}
 	opts = append(opts, grpc.WithPerRPCCredentials(headerCreds))
 
 	// Add load balancing configuration, to utilize all available LB IPs
@@ -225,16 +224,28 @@ func (s *Sender) createConnection() error {
 	))
 
 	// Create connection, lazy connection establishment, does not block
-	address := fmt.Sprintf("%s:%d", s.endpoint.Host, s.endpoint.Port)
+	address := fmt.Sprintf("%s:%d", endpoint.Host, endpoint.Port)
 	conn, err := grpc.NewClient(address, opts...)
 	if err != nil {
-		return fmt.Errorf("failed to create gRPC connection: %w", err)
+		return nil, nil, fmt.Errorf("failed to create gRPC connection: %w", err)
+	}
+
+	return conn, statefulpb.NewStatefulLogsServiceClient(conn), nil
+}
+
+// createConnection establishes the shared gRPC connection
+func (s *Sender) createConnection() error {
+	log.Infof("Creating gRPC connection to %s:%d", s.endpoint.Host, s.endpoint.Port)
+
+	conn, client, err := newGRPCClient(s.endpoint)
+	if err != nil {
+		return err
 	}
 
 	s.conn = conn
-	s.client = statefulpb.NewStatefulLogsServiceClient(conn)
+	s.client = client
 
-	log.Infof("Successfully created gRPC connection to %s", address)
+	log.Infof("Successfully created gRPC connection to %s:%d", s.endpoint.Host, s.endpoint.Port)
 	return nil
 }
 
