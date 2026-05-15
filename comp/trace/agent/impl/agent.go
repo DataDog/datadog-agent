@@ -72,7 +72,7 @@ type dependencies struct {
 	Compressor            compression.Component
 	IPC                   ipc.Component
 	TracerPayloadModifier pkgagent.TracerPayloadModifier
-	HealthPlatform        option.Option[storedef.Component]
+	HealthPlatform        option.Option[storedef.Component] `optional:"true"`
 }
 
 var _ traceagent.Component = (*component)(nil)
