@@ -160,7 +160,21 @@ output for identical (seed, input, n). When a fuzz finds a failure, the
 ## Findings so far
 
 Findings discovered by running the harness against captured payloads,
-mutated payloads, and hand-crafted adversarial cases:
+mutated payloads, and hand-crafted adversarial cases.
+
+### Meta-finding: architectural difference in error recovery
+
+**The Go scraper aborts the entire scrape on any parse error; Python skips
+the offending line and continues.** This is the root cause of nearly every
+Go-rejects-Python-accepts divergence we've found. Each specific entry below
+is really an instance of this one architectural divergence — a stray byte,
+an unknown TYPE keyword, an OpenMetrics exemplar trailer, or a value
+outside float64 range will *each* zero out a Go-side scrape that Python
+would have handled gracefully.
+
+Fix shape: the Go scraper's line-level error handling should match Python's
+"log + skip + continue". Until that lands, the bugs below are eight
+specific symptoms of the same architectural problem.
 
 ### Real Go bugs (production-relevant)
 
@@ -186,22 +200,44 @@ mutated payloads, and hand-crafted adversarial cases:
    exporter that emits `# TYPE m gauge` then `# TYPE m counter` produces
    different submission types on the two impls (gauge vs monotonic_count
    with `.count` suffix). Adversarial case: `name/conflicting_type`.
+5. **NUL byte (or any unparseable character) in a metric name aborts the
+   entire Go scrape.** Discovered by `FuzzOpenMetricsDifferential`.
+   Production unlikely to emit NUL specifically, but the same fail-fast
+   error path applies to every parse-time character violation.
 
 ### Spec-strictness divergences (defensible either way)
 
-5. **UTF-8 label values: Go decodes, Python preserves raw bytes** (mojibake).
+6. **UTF-8 label values: Go decodes, Python preserves raw bytes** (mojibake).
    Go is correct per modern OpenMetrics; `prometheus_client` predates the
    UTF-8 mandate. Not actionable for Go.
-6. **`__`-prefixed label names**: Python rejects the entire sample
+7. **`__`-prefixed label names**: Python rejects the entire sample
    (`Reserved label metric name`), Go accepts. Both behaviors defensible.
-7. **Duplicate label name within a sample** (`{foo="a",foo="b"}`): Python
+8. **Duplicate label name within a sample** (`{foo="a",foo="b"}`): Python
    rejects, Go accepts (last value wins). Both defensible.
-8. **Non-numeric quantile** (`{quantile="median"}` on a summary): Python
+9. **Non-numeric quantile** (`{quantile="median"}` on a summary): Python
    rejects, Go accepts. Both defensible.
-9. **Raw newline inside a label value**: Python parser desyncs and
-   rejects subsequent samples; Go accepts. Both implementations are
-   technically wrong; Go is more permissive.
+10. **Raw newline inside a label value**: Python parser desyncs and
+    rejects subsequent samples; Go accepts. Both implementations are
+    technically wrong; Go is more permissive.
 
+
+## Known-divergence suppression (fuzz-only)
+
+`known_divergences.go` enumerates documented divergence classes. The fuzz
+target consults this list and `t.Skip()`s inputs whose only finding matches
+a known class — otherwise the coverage-guided engine spends all its budget
+minimizing inputs for divergences we already understand.
+
+The mutation and adversarial tests **intentionally do not** consult this
+list. They exist to document divergences, so when an entry can be removed
+(because the underlying Go bug was fixed) those tests will start passing
+again and signal the win.
+
+To widen suppression: add a new `KnownDivergence` entry with a regex
+matching `iterationOutcome.GoErr` or a substring matching
+`iterationOutcome.PyErr`. Be specific — a regex like `^scrape: ` would
+silence all parse errors including newly-discovered ones, defeating the
+purpose.
 
 ## Out of scope
 
