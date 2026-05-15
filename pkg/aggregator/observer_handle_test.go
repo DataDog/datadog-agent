@@ -116,6 +116,7 @@ func TestSetObserverNilIsNoop(t *testing.T) {
 
 // TestSetObserverConfigOff verifies that SetObserver does not wire the handle
 // when anomaly_detection.enabled or anomaly_detection.metrics.enabled is false.
+// Covers both the DogStatsD TimeSampler path and the BufferedAggregator/CheckSampler path.
 func TestSetObserverConfigOff(t *testing.T) {
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
@@ -127,6 +128,76 @@ func TestSetObserverConfigOff(t *testing.T) {
 	demux.SetObserver(comp)
 
 	for _, w := range demux.statsd.workers {
-		assert.Nil(t, w.sampler.observerHandle, "handle should not be wired when config is off")
+		assert.Nil(t, w.sampler.observerHandle, "DogStatsD worker handle should not be wired when config is off")
 	}
+	assert.Nil(t, demux.aggregator.observerHandle, "BufferedAggregator handle should not be wired when config is off")
+
+	// Verify that a CheckSampler registered after the (no-op) SetObserver call also has no handle.
+	demux.aggregator.handleRegisterSampler("check-config-off")
+	demux.aggregator.mu.Lock()
+	cs := demux.aggregator.checkSamplers["check-config-off"]
+	demux.aggregator.mu.Unlock()
+	require.NotNil(t, cs)
+	assert.Nil(t, cs.observerHandle, "CheckSampler handle should not be wired when config is off")
+}
+
+// TestCheckSamplerObserverHandle verifies that ObserveMetric is called for each
+// sample fed to CheckSampler.addSample when an observerHandle is wired.
+func TestCheckSamplerObserverHandle(t *testing.T) {
+	store := tags.NewStore(false, "test")
+	cs := newCheckSampler(10, false, false, 0, false, store, "test-check", nooptagger.NewComponent())
+	handle := &recordingHandle{}
+	cs.SetObserverHandle(handle)
+
+	matcher := filterlist.NewNoopTagMatcher()
+
+	samples := []metrics.MetricSample{
+		{Name: "system.cpu.user", Value: 42.0, Mtype: metrics.GaugeType, Tags: []string{"host:myhost"}, SampleRate: 1, Timestamp: 1000},
+		{Name: "system.mem.used", Value: 8192.0, Mtype: metrics.GaugeType, Tags: []string{}, SampleRate: 1, Timestamp: 2000},
+	}
+
+	for i := range samples {
+		cs.addSample(&samples[i], matcher)
+	}
+
+	require.Len(t, handle.calls, 2)
+	assert.Equal(t, "system.cpu.user", handle.calls[0].name)
+	assert.Equal(t, 42.0, handle.calls[0].value)
+	assert.Equal(t, []string{"host:myhost"}, handle.calls[0].tags)
+	assert.Equal(t, int64(1000), handle.calls[0].timestamp)
+
+	assert.Equal(t, "system.mem.used", handle.calls[1].name)
+	assert.Equal(t, 8192.0, handle.calls[1].value)
+}
+
+// TestCheckSamplerObserverHandleNil verifies no panic when observerHandle is nil.
+func TestCheckSamplerObserverHandleNil(t *testing.T) {
+	store := tags.NewStore(false, "test")
+	cs := newCheckSampler(10, false, false, 0, false, store, "test-check", nooptagger.NewComponent())
+	// observerHandle is nil by default
+
+	matcher := filterlist.NewNoopTagMatcher()
+	s := metrics.MetricSample{Name: "m", Value: 1, Mtype: metrics.GaugeType, SampleRate: 1}
+	assert.NotPanics(t, func() { cs.addSample(&s, matcher) })
+}
+
+// TestBufferedAggregatorObserverHandlePropagation verifies that SetObserverHandle
+// on BufferedAggregator is propagated to CheckSamplers created afterwards.
+func TestBufferedAggregatorObserverHandlePropagation(t *testing.T) {
+	opts := demuxTestOptions()
+	deps := createDemultiplexerAgentTestDeps(t)
+	demux := initAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, opts, deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, deps.FilterList, "")
+
+	handle := &recordingHandle{}
+	demux.aggregator.SetObserverHandle(handle)
+
+	// Simulate a check registering its sampler
+	demux.aggregator.handleRegisterSampler("test-check-id")
+
+	demux.aggregator.mu.Lock()
+	cs, ok := demux.aggregator.checkSamplers["test-check-id"]
+	demux.aggregator.mu.Unlock()
+
+	require.True(t, ok, "sampler should have been created")
+	assert.Equal(t, handle, cs.observerHandle, "observer handle should have been propagated to CheckSampler")
 }

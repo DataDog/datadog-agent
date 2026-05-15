@@ -176,7 +176,7 @@ def fix_tags(core_schema, sysprobe_schema):
             for k in key.split("."):
                 node = node["properties"][k]
 
-            node["tags"] = list(set(node.get("tags", []) + tags))
+            node["tags"] = sorted(set(node.get("tags", []) + tags))
     return core_schema, sysprobe_schema
 
 

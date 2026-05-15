@@ -475,6 +475,7 @@ exports_files(glob(
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/stacktraces.go
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/strings.go
 # gazelle:exclude pkg/dyninst/testprogs/progs/sample/structs.go
+# gazelle:exclude pkg/dyninst/testprogs/progs/sample/times.go
 # gazelle:exclude pkg/dyninst/testprogs/test_progs.go
 # gazelle:exclude pkg/dyninst/testprogs/test_progs_test.go
 # gazelle:exclude pkg/dyninst/uploader

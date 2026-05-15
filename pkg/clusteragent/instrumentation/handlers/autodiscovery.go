@@ -27,22 +27,32 @@ import (
 const (
 	checksReadyConditionType = "ChecksReady"
 
-	// autodiscoveryProvider is the integration.Config Provider value used for configs
+	// autodiscoveryProvider is the integration.Config Source value used for configs
 	// translated from a DatadogInstrumentation CR by the Autodiscovery handler.
 	autodiscoveryProvider = "datadoginstrumentation"
 )
 
-// AutodiscoveryHandler translates DatadogInstrumentation check sections into
-// integration.Config entries and stores them in memory for delivery to node agents.
-type AutodiscoveryHandler struct {
+type CheckStore struct {
 	mu      sync.RWMutex
 	configs map[string][]integration.Config
 }
 
-// NewAutodiscoveryHandler returns the Autodiscovery DatadogInstrumentation handler.
-func NewAutodiscoveryHandler(_ Deps) *AutodiscoveryHandler {
-	return &AutodiscoveryHandler{
+func NewCheckStore() *CheckStore {
+	return &CheckStore{
 		configs: make(map[string][]integration.Config),
+	}
+}
+
+// AutodiscoveryHandler translates DatadogInstrumentation check sections into
+// integration.Config entries and stores them in memory for delivery to node agents.
+type AutodiscoveryHandler struct {
+	checkStore *CheckStore
+}
+
+// NewAutodiscoveryHandler returns the Autodiscovery DatadogInstrumentation handler.
+func NewAutodiscoveryHandler(dep *Deps) *AutodiscoveryHandler {
+	return &AutodiscoveryHandler{
+		checkStore: dep.CheckStore,
 	}
 }
 
@@ -121,7 +131,7 @@ func (h *AutodiscoveryHandler) Handle(_ context.Context, event instrumentation.E
 	key := cr.Namespace + "/" + cr.Name
 
 	if event == instrumentation.EventDelete {
-		h.deleteConfigs(key)
+		h.checkStore.deleteConfigs(key)
 		return instrumentation.HandlerStatus{
 			Type:    checksReadyConditionType,
 			Status:  metav1.ConditionTrue,
@@ -144,7 +154,7 @@ func (h *AutodiscoveryHandler) Handle(_ context.Context, event instrumentation.E
 		configs = append(configs, cfg)
 	}
 
-	h.setConfigs(key, configs)
+	h.checkStore.setConfigs(key, configs)
 
 	return instrumentation.HandlerStatus{
 		Type:    checksReadyConditionType,
@@ -157,29 +167,33 @@ func (h *AutodiscoveryHandler) Handle(_ context.Context, event instrumentation.E
 // ListConfigs returns a snapshot of all stored integration.Config entries
 // across all DatadogInstrumentation CRs handled by this instance.
 func (h *AutodiscoveryHandler) ListConfigs() []integration.Config {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
+	return h.checkStore.ListConfigs()
+}
+
+func (c *CheckStore) ListConfigs() []integration.Config {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	out := make([]integration.Config, 0)
-	for _, cfgs := range h.configs {
+	for _, cfgs := range c.configs {
 		out = append(out, cfgs...)
 	}
 	return out
 }
 
-func (h *AutodiscoveryHandler) setConfigs(key string, configs []integration.Config) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
+func (c *CheckStore) setConfigs(key string, configs []integration.Config) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if len(configs) == 0 {
-		delete(h.configs, key)
+		delete(c.configs, key)
 		return
 	}
-	h.configs[key] = configs
+	c.configs[key] = configs
 }
 
-func (h *AutodiscoveryHandler) deleteConfigs(key string) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	delete(h.configs, key)
+func (c *CheckStore) deleteConfigs(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.configs, key)
 }
 
 func translateCheck(cr *datadoghq.DatadogInstrumentation, check datadoghq.DatadogInstrumentationCheckConfig) (integration.Config, error) {
