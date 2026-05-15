@@ -399,12 +399,12 @@ func (p *ProcessCheck) aggregateZombiesByParent(procs map[int32]*procutil.Proces
 		if zombiesByPPID == nil {
 			zombiesByPPID = make(map[int32]zombieAggregate)
 		}
-		a := zombiesByPPID[proc.Ppid]
-		a.count++
+		parentAgg := zombiesByPPID[proc.Ppid]
+		parentAgg.count++
 		if interval > 0 && !p.lastProcs[pid].IsZombie() {
-			a.netRate += 1.0 / interval
+			parentAgg.netRate += 1.0 / interval
 		}
-		zombiesByPPID[proc.Ppid] = a
+		zombiesByPPID[proc.Ppid] = parentAgg
 	}
 
 	if interval <= 0 {
@@ -419,9 +419,9 @@ func (p *ProcessCheck) aggregateZombiesByParent(procs map[int32]*procutil.Proces
 		if zombiesByPPID == nil {
 			zombiesByPPID = make(map[int32]zombieAggregate)
 		}
-		a := zombiesByPPID[proc.Ppid]
-		a.netRate -= 1.0 / interval
-		zombiesByPPID[proc.Ppid] = a
+		parentAgg := zombiesByPPID[proc.Ppid]
+		parentAgg.netRate -= 1.0 / interval
+		zombiesByPPID[proc.Ppid] = parentAgg
 	}
 
 	return zombiesByPPID

@@ -719,13 +719,17 @@ func TestAggregateZombiesByParent(t *testing.T) {
 
 	cases := []struct {
 		name      string
-		procs     map[int32]*procutil.Process
 		lastProcs map[int32]*procutil.Process
+		procs     map[int32]*procutil.Process
 		lastRun   time.Time
 		want      map[int32]zombieAggregate
 	}{
 		{
 			name: "active leak: 4 new zombies, none reaped",
+			lastProcs: map[int32]*procutil.Process{
+				100: liveProc(100, 1),
+				200: zombieProc(200, 100),
+			},
 			procs: map[int32]*procutil.Process{
 				100: liveProc(100, 1),
 				200: zombieProc(200, 100),
@@ -733,10 +737,6 @@ func TestAggregateZombiesByParent(t *testing.T) {
 				202: zombieProc(202, 100),
 				203: zombieProc(203, 100),
 				204: zombieProc(204, 100),
-			},
-			lastProcs: map[int32]*procutil.Process{
-				100: liveProc(100, 1),
-				200: zombieProc(200, 100),
 			},
 			lastRun: lastRun,
 			want: map[int32]zombieAggregate{
@@ -745,10 +745,6 @@ func TestAggregateZombiesByParent(t *testing.T) {
 		},
 		{
 			name: "draining: 4 zombies reaped, none new",
-			procs: map[int32]*procutil.Process{
-				100: liveProc(100, 1),
-				200: zombieProc(200, 100),
-			},
 			lastProcs: map[int32]*procutil.Process{
 				100: liveProc(100, 1),
 				200: zombieProc(200, 100),
@@ -757,6 +753,10 @@ func TestAggregateZombiesByParent(t *testing.T) {
 				203: zombieProc(203, 100),
 				204: zombieProc(204, 100),
 			},
+			procs: map[int32]*procutil.Process{
+				100: liveProc(100, 1),
+				200: zombieProc(200, 100),
+			},
 			lastRun: lastRun,
 			want: map[int32]zombieAggregate{
 				100: {count: 1, netRate: -4.0 / intervalSec},
@@ -764,17 +764,17 @@ func TestAggregateZombiesByParent(t *testing.T) {
 		},
 		{
 			name: "stable busy: full churn nets zero rate",
-			procs: map[int32]*procutil.Process{
-				100: liveProc(100, 1),
-				300: zombieProc(300, 100),
-				301: zombieProc(301, 100),
-				302: zombieProc(302, 100),
-			},
 			lastProcs: map[int32]*procutil.Process{
 				100: liveProc(100, 1),
 				200: zombieProc(200, 100),
 				201: zombieProc(201, 100),
 				202: zombieProc(202, 100),
+			},
+			procs: map[int32]*procutil.Process{
+				100: liveProc(100, 1),
+				300: zombieProc(300, 100),
+				301: zombieProc(301, 100),
+				302: zombieProc(302, 100),
 			},
 			lastRun: lastRun,
 			want: map[int32]zombieAggregate{
@@ -783,11 +783,11 @@ func TestAggregateZombiesByParent(t *testing.T) {
 		},
 		{
 			name: "stable dormant: no zombies returns nil map",
-			procs: map[int32]*procutil.Process{
+			lastProcs: map[int32]*procutil.Process{
 				100: liveProc(100, 1),
 				101: liveProc(101, 1),
 			},
-			lastProcs: map[int32]*procutil.Process{
+			procs: map[int32]*procutil.Process{
 				100: liveProc(100, 1),
 				101: liveProc(101, 1),
 			},
@@ -795,46 +795,29 @@ func TestAggregateZombiesByParent(t *testing.T) {
 			want:    nil,
 		},
 		{
-			name: "first poll clamps rate to zero",
+			name:      "first poll clamps rate to zero",
+			lastProcs: nil,
 			procs: map[int32]*procutil.Process{
 				100: liveProc(100, 1),
 				200: zombieProc(200, 100),
 				201: zombieProc(201, 100),
 				202: zombieProc(202, 100),
 			},
-			lastProcs: nil,
-			lastRun:   time.Time{},
+			lastRun: time.Time{},
 			want: map[int32]zombieAggregate{
 				100: {count: 3, netRate: 0},
 			},
 		},
 		{
-			name: "reparented live zombie counts under new parent only",
-			procs: map[int32]*procutil.Process{
-				100: liveProc(100, 1),
-				101: liveProc(101, 1),
-				200: zombieProc(200, 101),
-			},
-			lastProcs: map[int32]*procutil.Process{
-				100: liveProc(100, 1),
-				101: liveProc(101, 1),
-				200: zombieProc(200, 100),
-			},
-			lastRun: lastRun,
-			want: map[int32]zombieAggregate{
-				101: {count: 1, netRate: 0},
-			},
-		},
-		{
 			name: "reaped zombie debits previous parent",
-			procs: map[int32]*procutil.Process{
-				100: liveProc(100, 1),
-				101: liveProc(101, 1),
-			},
 			lastProcs: map[int32]*procutil.Process{
 				100: liveProc(100, 1),
 				101: liveProc(101, 1),
 				200: zombieProc(200, 100),
+			},
+			procs: map[int32]*procutil.Process{
+				100: liveProc(100, 1),
+				101: liveProc(101, 1),
 			},
 			lastRun: lastRun,
 			want: map[int32]zombieAggregate{
@@ -843,15 +826,15 @@ func TestAggregateZombiesByParent(t *testing.T) {
 		},
 		{
 			name: "reparented persistent zombie: count only, no rate movement",
-			procs: map[int32]*procutil.Process{
-				100: liveProc(100, 1),
-				101: liveProc(101, 1),
-				200: zombieProc(200, 101),
-			},
 			lastProcs: map[int32]*procutil.Process{
 				100: liveProc(100, 1),
 				101: liveProc(101, 1),
 				200: zombieProc(200, 100),
+			},
+			procs: map[int32]*procutil.Process{
+				100: liveProc(100, 1),
+				101: liveProc(101, 1),
+				200: zombieProc(200, 101),
 			},
 			lastRun: lastRun,
 			want: map[int32]zombieAggregate{
@@ -861,7 +844,6 @@ func TestAggregateZombiesByParent(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			p := &ProcessCheck{lastProcs: tc.lastProcs, lastRun: tc.lastRun}
 			got := p.aggregateZombiesByParent(tc.procs, now)
