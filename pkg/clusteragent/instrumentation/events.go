@@ -31,7 +31,9 @@ func classifySectionEvent(handler Handler, oldObj, newObj *datadoghq.DatadogInst
 	}
 }
 
-func datadogInstrumentationFromObject(obj interface{}) (*datadoghq.DatadogInstrumentation, error) {
+// DatadogInstrumentationFromObject converts a runtime object (typed, unstructured, or tombstone)
+// into a DatadogInstrumentation. Returns a deep copy.
+func DatadogInstrumentationFromObject(obj interface{}) (*datadoghq.DatadogInstrumentation, error) {
 	if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 		obj = tombstone.Obj
 	}

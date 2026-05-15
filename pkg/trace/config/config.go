@@ -826,7 +826,7 @@ func (c *AgentConfig) ConfiguredPeerTags() []string {
 	if !c.PeerTagsAggregation {
 		return nil
 	}
-	return preparePeerTags(append(basePeerTags, c.PeerTags...))
+	return preparePeerTags(append(basePeerTags(), c.PeerTags...))
 }
 
 // ConfiguredSpanDerivedPrimaryTagKeys returns the configured span-derived primary

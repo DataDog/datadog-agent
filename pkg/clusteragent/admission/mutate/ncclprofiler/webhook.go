@@ -37,7 +37,7 @@ const (
 )
 
 var (
-	webhookResources  = map[string][]string{"": {"pods"}}
+	webhookResources  = []common.WebhookResourceRule{{APIGroup: "", APIVersion: "v1", Resources: []string{"pods"}}}
 	webhookOperations = []admissionregistrationv1.OperationType{admissionregistrationv1.Create}
 )
 
@@ -167,7 +167,7 @@ func (w *Webhook) IsEnabled() bool { return w.isEnabled }
 func (w *Webhook) Endpoint() string { return webhookEndpoint }
 
 // Resources returns the Kubernetes resources for which the webhook is invoked.
-func (w *Webhook) Resources() map[string][]string { return webhookResources }
+func (w *Webhook) Resources() []common.WebhookResourceRule { return webhookResources }
 
 // Operations returns the operations for which the webhook is invoked.
 func (w *Webhook) Operations() []admissionregistrationv1.OperationType { return webhookOperations }

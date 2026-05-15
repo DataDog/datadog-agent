@@ -15,8 +15,6 @@ import (
 	"strings"
 	"sync"
 
-	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
@@ -321,9 +319,11 @@ func (k *ContainerConfigProvider) reportConfigurationError(entityName string, er
 	sort.Strings(errMsgs)
 	errorMsg := strings.Join(errMsgs, ", ")
 
-	checkID := "ad-annotation:" + entityName
-	report := &healthplatformpayload.IssueReport{
-		IssueId: healthplatformdef.ADMisconfigurationIssueID,
+	issueID := "ad-annotation:" + entityName
+	report := healthplatformdef.IssueReport{
+		IssueID:   issueID,
+		IssueType: healthplatformdef.ADMisconfigurationIssueType,
+		Source:    healthplatformdef.ADMisconfigurationSource,
 		Context: map[string]string{
 			"entityName":   entityName,
 			"errorMessage": errorMsg,
@@ -331,7 +331,7 @@ func (k *ContainerConfigProvider) reportConfigurationError(entityName string, er
 		},
 	}
 
-	if err := k.healthPlatform.ReportIssue(checkID, healthplatformdef.ADMisconfigurationCheckName, report); err != nil {
+	if err := k.healthPlatform.ReportIssue(report); err != nil {
 		log.Debugf("Failed to report AD annotation issue for %s: %v", entityName, err)
 	}
 }
@@ -341,12 +341,7 @@ func (k *ContainerConfigProvider) clearConfigurationErrors(entityName string) {
 	if k.healthPlatform == nil {
 		return
 	}
-
-	checkID := "ad-annotation:" + entityName
-	// Passing nil report clears the issue
-	if err := k.healthPlatform.ReportIssue(checkID, healthplatformdef.ADMisconfigurationCheckName, nil); err != nil {
-		log.Debugf("Failed to clear AD annotation issue %s: %v", checkID, err)
-	}
+	k.healthPlatform.ResolveIssue("ad-annotation:" + entityName)
 }
 
 // buildEntityName is also used as display key in `agent status` "Configuration Errors" display.
