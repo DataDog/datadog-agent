@@ -25,6 +25,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/admissionprobe"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/checkfailure"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dockerpermissions"
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/logs-multiline-journald"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/rofspermissions"
 )
 

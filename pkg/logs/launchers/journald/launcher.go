@@ -14,6 +14,7 @@ import (
 	"github.com/coreos/go-systemd/v22/sdjournal"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	tailer "github.com/DataDog/datadog-agent/pkg/logs/tailers/journald"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
@@ -49,21 +51,23 @@ type Launcher struct {
 	journalFactory   tailer.JournalFactory
 	fc               *flareController.FlareController
 	tagger           tagger.Component
+	healthPlatform   option.Option[storedef.Component]
 }
 
 // NewLauncher returns a new Launcher.
-func NewLauncher(fc *flareController.FlareController, tagger tagger.Component) *Launcher {
-	return NewLauncherWithFactory(&SDJournalFactory{}, fc, tagger)
+func NewLauncher(fc *flareController.FlareController, tagger tagger.Component, hp option.Option[storedef.Component]) *Launcher {
+	return NewLauncherWithFactory(&SDJournalFactory{}, fc, tagger, hp)
 }
 
 // NewLauncherWithFactory returns a new Launcher.
-func NewLauncherWithFactory(journalFactory tailer.JournalFactory, fc *flareController.FlareController, tagger tagger.Component) *Launcher {
+func NewLauncherWithFactory(journalFactory tailer.JournalFactory, fc *flareController.FlareController, tagger tagger.Component, hp option.Option[storedef.Component]) *Launcher {
 	return &Launcher{
 		tailers:        make(map[string]*tailer.Tailer),
 		stop:           make(chan struct{}),
 		journalFactory: journalFactory,
 		fc:             fc,
 		tagger:         tagger,
+		healthPlatform: hp,
 	}
 }
 
@@ -97,6 +101,16 @@ func (l *Launcher) run() {
 					allJournalSources = append(allJournalSources, "/var/log/journal")
 				} else if _, err := os.Stat("/run/log/journal"); err == nil {
 					allJournalSources = append(allJournalSources, "/run/log/journal")
+				}
+			}
+
+			// Detect multi_line rules on journald sources — silently ignored since
+			// journald entries are pre-framed; report to health platform if configured.
+			for _, rule := range source.Config.ProcessingRules {
+				if rule.Type == config.MultiLine {
+					log.Warnf("multi_line aggregation is not supported for journald log sources (source: %s) — rules will be ignored", identifier)
+					l.reportMultiLineIssue(identifier)
+					break
 				}
 			}
 
@@ -150,3 +164,24 @@ func (l *Launcher) setupTailer(source *sources.LogSource) (*tailer.Tailer, error
 	}
 	return tailer, nil
 }
+
+// reportMultiLineIssue reports a multi_line-on-journald misconfiguration to the health platform.
+func (l *Launcher) reportMultiLineIssue(sourceName string) {
+	store, ok := l.healthPlatform.Get()
+	if !ok {
+		return
+	}
+	if err := store.ReportIssue(storedef.IssueReport{
+		IssueID:   multiLineJournaldIssueID,
+		IssueType: multiLineJournaldIssueID,
+		Source:    "logs",
+		Context:   map[string]string{"source": sourceName, "sourceType": "journald"},
+		Tags:      []string{"logs", "journald", "multiline"},
+	}); err != nil {
+		log.Warnf("Failed to report multiline-journald issue to health platform: %v", err)
+	}
+}
+
+// multiLineJournaldIssueID mirrors the constant from the logs-multiline-journald
+// issue package, inlined here to avoid an import cycle.
+const multiLineJournaldIssueID = "logs-multiline-journald-unsupported"
