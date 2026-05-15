@@ -286,7 +286,7 @@ build do
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
     mkdir "#{app_temp_dir}/MacOS"
-    systray_build_dir = "#{project_dir}/comp/core/gui/guiimpl/systray"
+    systray_build_dir = "#{project_dir}/comp/core/gui/impl/systray"
     # Add @executable_path/../Frameworks to rpath to find the swift libs in the Frameworks folder.
     target = "#{arm_target? ? 'arm64' : 'x86_64'}-apple-macos12.0" # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
     command "swiftc -O -swift-version \"5\" -target \"#{target}\" -Xlinker '-rpath' -Xlinker '@executable_path/../Frameworks' Sources/*.swift -o gui", cwd: systray_build_dir

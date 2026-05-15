@@ -1384,7 +1384,7 @@ workflow:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
   - changes:
       paths:
-        - comp/core/gui/guiimpl/systray/**/*
+        - comp/core/gui/impl/systray/**/*
         - "**/*.m"
       compare_to: $COMPARE_TO_BRANCH
 
