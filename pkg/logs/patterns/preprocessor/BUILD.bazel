@@ -12,6 +12,7 @@ go_test(
     name = "preprocessor_test",
     srcs = ["json_test.go"],
     embed = [":preprocessor"],
+    gotags = ["test"],
     deps = [
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

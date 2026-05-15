@@ -14,10 +14,12 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/agent-payload/v5/pb"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -197,13 +199,14 @@ func TestJsonEncoder(t *testing.T) {
 	source := sources.NewLogSource("", logsConfig)
 
 	type payload struct {
-		Message   string `json:"message"`
-		Status    string `json:"status"`
-		Timestamp int64  `json:"timestamp"`
-		Hostname  string `json:"hostname"`
-		Service   string `json:"service"`
-		Source    string `json:"ddsource"`
-		Tags      string `json:"ddtags"`
+		Message      string `json:"message"`
+		Status       string `json:"status"`
+		Timestamp    int64  `json:"timestamp"`
+		Hostname     string `json:"hostname"`
+		Service      string `json:"service"`
+		Source       string `json:"ddsource"`
+		Tags         string `json:"ddtags"`
+		DualSendUUID string `json:"dual-send-uuid,omitempty"`
 	}
 
 	t.Run("valid", func(t *testing.T) {
@@ -235,6 +238,8 @@ func TestJsonEncoder(t *testing.T) {
 
 		assert.Equal(t, message.StatusError, log.Status)
 		assert.NotEmpty(t, log.Timestamp)
+		assert.NotEmpty(t, log.DualSendUUID)
+		assert.Equal(t, log.DualSendUUID, msg.MessageMetadata.DualSendUUID)
 	})
 
 	t.Run("invalid", func(t *testing.T) {
@@ -266,6 +271,43 @@ func TestJsonEncoder(t *testing.T) {
 
 		assert.Equal(t, message.StatusError, log.Status)
 		assert.NotEmpty(t, log.Timestamp)
+	})
+}
+
+func TestJsonEncoderDualSendUUIDConfig(t *testing.T) {
+	logsConfig := &config.LogsConfig{}
+	source := sources.NewLogSource("", logsConfig)
+	cfg := pkgconfigsetup.Datadog()
+	previous := cfg.GetBool("logs_config.grpc.dual_send_uuids_enabled")
+	t.Cleanup(func() {
+		cfg.SetWithoutSource("logs_config.grpc.dual_send_uuids_enabled", previous)
+	})
+
+	t.Run("enabled by default", func(t *testing.T) {
+		msg := newMessage([]byte("message"), source, message.StatusInfo)
+		msg.State = message.StateRendered
+
+		require.NoError(t, JSONEncoder.Encode(msg, "unknown"))
+
+		var payload map[string]interface{}
+		require.NoError(t, json.Unmarshal(msg.GetContent(), &payload))
+		uuidValue, ok := payload["dual-send-uuid"].(string)
+		require.True(t, ok)
+		assert.NotEmpty(t, uuidValue)
+		assert.Equal(t, uuidValue, msg.MessageMetadata.DualSendUUID)
+	})
+
+	t.Run("disabled", func(t *testing.T) {
+		cfg.SetWithoutSource("logs_config.grpc.dual_send_uuids_enabled", false)
+		msg := newMessage([]byte("message"), source, message.StatusInfo)
+		msg.State = message.StateRendered
+
+		require.NoError(t, JSONEncoder.Encode(msg, "unknown"))
+
+		var payload map[string]interface{}
+		require.NoError(t, json.Unmarshal(msg.GetContent(), &payload))
+		assert.NotContains(t, payload, "dual-send-uuid")
+		assert.Empty(t, msg.MessageMetadata.DualSendUUID)
 	})
 }
 

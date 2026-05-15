@@ -87,7 +87,6 @@ type dependencies struct {
 	Tagger             tagger.Component
 	Secrets            secrets.Component
 	Compression        logscompression.Component
-	Secrets            secrets.Component
 }
 
 type provides struct {
@@ -167,7 +166,6 @@ func newLogsAgent(deps dependencies) provides {
 			tagger:             deps.Tagger,
 			secrets:            deps.Secrets,
 			compression:        deps.Compression,
-			secrets:            deps.Secrets,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,

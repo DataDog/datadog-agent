@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/google/uuid"
 )
@@ -35,7 +36,7 @@ type jsonPayload struct {
 	Service      string         `json:"service"`
 	Source       string         `json:"ddsource"`
 	Tags         string         `json:"ddtags"`
-	DualSendUUID string         `json:"dual-send-uuid"`
+	DualSendUUID string         `json:"dual-send-uuid,omitempty"`
 }
 
 // Encode encodes a message into a JSON byte array.
@@ -46,7 +47,10 @@ func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
 
 	msg.PreEncodedContent = msg.GetContent()
 	msg.MessageMetadata.Hostname = hostname
-	msg.MessageMetadata.DualSendUUID = uuid.NewString()
+	msg.MessageMetadata.DualSendUUID = ""
+	if pkgconfigsetup.Datadog().GetBool("logs_config.grpc.dual_send_uuids_enabled") {
+		msg.MessageMetadata.DualSendUUID = uuid.NewString()
+	}
 
 	ts := time.Now().UTC()
 	if !msg.ServerlessExtra.Timestamp.IsZero() {

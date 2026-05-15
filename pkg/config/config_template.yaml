@@ -1219,6 +1219,17 @@ api_key:
 #
 #   http_timeout: 10
 
+#   # @param grpc - custom object - optional
+#   # Configuration for the logs gRPC transport.
+#
+#   grpc:
+#
+#     # @param dual_send_uuids_enabled - boolean - optional - default: true
+#     # @env DD_LOGS_CONFIG_GRPC_DUAL_SEND_UUIDS_ENABLED - boolean - optional - default: true
+#     # Enable adding correlation UUIDs to the HTTP and gRPC copies of logs when dual-sending.
+#
+#     dual_send_uuids_enabled: true
+
 #   # @param force_use_tcp - boolean - optional - default: false
 #   # @env DD_LOGS_CONFIG_FORCE_USE_TCP - boolean - optional - default: false
 #   # By default, logs are sent via HTTP protocol if possible, set this parameter
