@@ -50,7 +50,7 @@ const (
 	storageMaxSeries = 50_000
 
 	// storageEvictionBandRatio controls how far below the cap eviction drains.
-	storageEvictionBandRatio = 0.1
+	storageEvictionBandRatio = 0.5
 
 	// storagePointRetentionSecs is the default point retention window.
 	// Points older than (latest_ts - 120s) are trimmed on each Add.
