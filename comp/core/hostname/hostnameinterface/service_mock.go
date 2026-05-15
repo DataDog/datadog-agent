@@ -5,59 +5,27 @@
 
 //go:build test
 
+// Deprecated: use github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock instead.
 package hostnameinterface
 
 import (
-	"context"
-
+	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-	"go.uber.org/fx"
 )
 
-// MockModule defines the fx options for the mock component.
-// Injecting MockModule will provide the hostname 'my-hostname';
-// override this with fx.Replace(hostname.MockHostname("whatever")).
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(
-			NewMock,
-		),
-		fx.Supply(MockHostname("my-hostname")))
-}
-
-type mockService struct {
-	name string
-}
-
-var _ Mock = (*mockService)(nil)
-
-func (m *mockService) Get(_ context.Context) (string, error) {
-	return m.name, nil
-}
-
-func (m *mockService) GetSafe(_ context.Context) string {
-	return m.name
-}
-
-func (m *mockService) Set(name string) {
-	m.name = name
-}
-
-// GetWithProvider returns the hostname for the Agent and the provider that was use to retrieve it.
-func (m *mockService) GetWithProvider(_ context.Context) (Data, error) {
-	return Data{
-		Hostname: m.name,
-		Provider: "mockService",
-	}, nil
-}
-
 // MockHostname is an alias for injecting a mock hostname.
-// Usage: fx.Replace(hostname.MockHostname("whatever"))
-type MockHostname string
+//
+// Deprecated: use github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock.MockHostname instead.
+type MockHostname = hostnamemock.MockHostname
 
-// NewMock returns a new instance of the mock for the component hostname
-func NewMock(name MockHostname) (Component, Mock) {
-	mock := &mockService{string(name)}
-	return mock, mock
+// MockModule defines the fx options for the mock component.
+//
+// Deprecated: use github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock.MockModule instead.
+func MockModule() fxutil.Module {
+	return hostnamemock.MockModule()
 }
+
+// NewMock returns a new instance of the mock for the component hostname.
+//
+// Deprecated: use github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock.NewMock instead.
+var NewMock = hostnamemock.NewMock

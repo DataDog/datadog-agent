@@ -5,14 +5,5 @@
 
 //go:build serverless
 
+// Deprecated: use github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def instead.
 package hostnameinterface
-
-// IsConfigurationProvider returns false for serverless
-func (h Data) FromConfiguration() bool {
-	return false
-}
-
-// fromFargate returns true if the hostname was found through Fargate
-func (h Data) FromFargate() bool {
-	return false
-}

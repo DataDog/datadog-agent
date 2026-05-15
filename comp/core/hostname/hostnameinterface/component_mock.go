@@ -5,10 +5,12 @@
 
 //go:build test
 
+// Deprecated: use github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock instead.
 package hostnameinterface
 
+import hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+
 // Mock implements mock-specific methods.
-type Mock interface {
-	// Component methods are included in Mock.
-	Component
-}
+//
+// Deprecated: use github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock.Mock instead.
+type Mock = hostnamemock.Mock

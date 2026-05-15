@@ -5,22 +5,19 @@
 
 //go:build !serverless
 
+// Deprecated: use github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def instead.
 package hostnameinterface
+
+import hostnameinterfacedef "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 
 const (
 	// ConfigProvider is the default provider value from the configuration file
-	ConfigProvider = "configuration"
+	//
+	// Deprecated: use github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def.ConfigProvider instead.
+	ConfigProvider = hostnameinterfacedef.ConfigProvider
 
 	// FargateProvider is the default provider value from Fargate
-	FargateProvider = "fargate"
+	//
+	// Deprecated: use github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def.FargateProvider instead.
+	FargateProvider = hostnameinterfacedef.FargateProvider
 )
-
-// FromConfiguration returns true if the hostname was found through the configuration file
-func (h Data) FromConfiguration() bool {
-	return h.Provider == ConfigProvider
-}
-
-// FromFargate returns true if the hostname was found through Fargate
-func (h Data) FromFargate() bool {
-	return h.Provider == FargateProvider
-}

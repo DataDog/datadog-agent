@@ -12,8 +12,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/hostname/hostnameinterface/mock",
         "//pkg/util/fxutil",
-        "@org_uber_go_fx//:fx",
     ],
 )
 

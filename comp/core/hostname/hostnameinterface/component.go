@@ -4,26 +4,22 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package hostnameinterface describes the interface for hostname methods
+//
+// Deprecated: use github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def instead.
 package hostnameinterface
 
 import (
-	"context"
+	hostnameinterfacedef "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 )
 
 // team: agent-runtimes
 
 // Data contains hostname and the hostname provider
-type Data struct {
-	Hostname string
-	Provider string
-}
+//
+// Deprecated: use github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def.Data instead.
+type Data = hostnameinterfacedef.Data
 
 // Component is the type for hostname methods.
-type Component interface {
-	// Get returns the host name for the agent.
-	Get(context.Context) (string, error)
-	// GetWithProvider returns the hostname for the Agent and the provider that was use to retrieve it.
-	GetWithProvider(ctx context.Context) (Data, error)
-	// GetSafe is Get(), but it returns 'unknown host' if anything goes wrong.
-	GetSafe(context.Context) string
-}
+//
+// Deprecated: use github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def.Component instead.
+type Component = hostnameinterfacedef.Component
