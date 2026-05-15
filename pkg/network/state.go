@@ -750,7 +750,7 @@ func (ns *networkState) updateConnWithStats(client *client, cookie StatCookie, c
 			last, _ = c.Monotonic.Sub(sts)
 		}
 
-		maybeSuppressWindowsLingeringFlow(c, sts, last)
+		dropStaleFlowFailures(c, sts, last)
 
 		c.Last = c.Last.Add(last)
 		client.stats[cookie] = c.Monotonic
