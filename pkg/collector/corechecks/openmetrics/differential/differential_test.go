@@ -10,13 +10,10 @@ package differential
 import (
 	"bufio"
 	"bytes"
-	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -25,10 +22,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	yaml "go.yaml.in/yaml/v2"
-
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/openmetrics"
 )
 
 // fixtureCase is one differential-testing input.
@@ -57,11 +50,12 @@ var fixtureCases = []fixtureCase{
 	},
 }
 
-// TestOpenMetricsDifferential serves each fixture from a single httptest.Server,
+// TestOpenMetricsDifferential serves each fixture from a shared httptest.Server,
 // runs the Go scraper against it, runs the Python check against the same URL
 // via the sidecar, and asserts the two emit equivalent submission sets.
 //
-// Run with:  go test -tags openmetrics_differential -v ./pkg/collector/corechecks/openmetrics/differential/
+// Run with:  go test -tags openmetrics_differential -v -run TestOpenMetricsDifferential \
+//                    ./pkg/collector/corechecks/openmetrics/differential/
 func TestOpenMetricsDifferential(t *testing.T) {
 	t.Parallel()
 
@@ -71,53 +65,34 @@ func TestOpenMetricsDifferential(t *testing.T) {
 	}
 	t.Cleanup(sidecar.Close)
 
+	ps := newPayloadServer()
+	t.Cleanup(ps.Close)
+
 	for _, tc := range fixtureCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			runOneCase(t, sidecar, tc)
+			runOneCase(t, ps, sidecar, tc)
 		})
 	}
 }
 
-func runOneCase(t *testing.T, sidecar *pythonSidecar, tc fixtureCase) {
+func runOneCase(t *testing.T, ps *payloadServer, sidecar *pythonSidecar, tc fixtureCase) {
 	payload, err := loadGzipped(tc.payloadPath)
 	if err != nil {
 		t.Fatalf("load payload: %v", err)
 	}
 	t.Logf("payload bytes: %d", len(payload))
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
-		w.WriteHeader(http.StatusOK)
-		w.Write(payload)
-	}))
-	defer srv.Close()
-
-	endpoint := srv.URL + "/metrics"
-
-	instance := map[string]interface{}{}
-	for k, v := range tc.instance {
-		instance[k] = v
+	out := runIteration(ps, sidecar, payload, tc.instance)
+	if out.GoErr != nil {
+		t.Fatalf("go scrape: %v", out.GoErr)
 	}
-	instance["openmetrics_endpoint"] = endpoint
-
-	goSubs, err := runGoScrape(instance)
-	if err != nil {
-		t.Fatalf("go scrape: %v", err)
+	if out.PyErr != "" {
+		t.Logf("python sidecar reported error: %s", out.PyErr)
 	}
-	t.Logf("go submissions: %d", len(goSubs))
+	t.Logf("go submissions: %d  py submissions: %d", len(out.GoSubs), len(out.PySubs))
 
-	pyResp, err := sidecar.run(endpoint, tc.instance)
-	if err != nil {
-		t.Fatalf("python sidecar run: %v", err)
-	}
-	if pyResp.Error != "" {
-		t.Logf("python sidecar reported error: %s", pyResp.Error)
-	}
-	t.Logf("py submissions: %d", len(pyResp.Submissions))
-
-	diffs := CompareSubmissions(goSubs, pyResp.Submissions)
-	if len(diffs) == 0 {
+	if len(out.Diffs) == 0 {
 		t.Logf("no divergences \u2713")
 		return
 	}
@@ -125,51 +100,20 @@ func runOneCase(t *testing.T, sidecar *pythonSidecar, tc fixtureCase) {
 	// Bucket by kind so a single payload-wide systemic difference doesn't
 	// produce 10k log lines.
 	byKind := map[string]int{}
-	for _, d := range diffs {
+	for _, d := range out.Diffs {
 		byKind[d.Kind]++
 	}
-	t.Logf("%d divergences (%s)", len(diffs), summarizeKinds(byKind))
+	t.Logf("%d divergences (%s)", len(out.Diffs), summarizeKinds(byKind))
 
 	const sample = 40
-	for i, d := range diffs {
+	for i, d := range out.Diffs {
 		if i >= sample {
-			t.Logf("... (%d more)", len(diffs)-sample)
+			t.Logf("... (%d more)", len(out.Diffs)-sample)
 			break
 		}
 		t.Log(FormatDiff(d))
 	}
 	t.Fail()
-}
-
-func runGoScrape(instance map[string]interface{}) ([]Submission, error) {
-	raw, err := yaml.Marshal(instance)
-	if err != nil {
-		return nil, fmt.Errorf("marshal instance: %w", err)
-	}
-	scraper, err := openmetrics.NewScraperFromYAML(raw, "differential-test")
-	if err != nil {
-		return nil, fmt.Errorf("NewScraperFromYAML: %w", err)
-	}
-	rec := &RecordingSender{}
-	if err := scraper.Scrape(rec); err != nil {
-		return nil, fmt.Errorf("scrape: %w", err)
-	}
-	return rec.Submissions, nil
-}
-
-func loadGzipped(path string) ([]byte, error) {
-	abs, _ := filepath.Abs(path)
-	f, err := os.Open(abs)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	gz, err := gzip.NewReader(f)
-	if err != nil {
-		return nil, err
-	}
-	defer gz.Close()
-	return io.ReadAll(gz)
 }
 
 func summarizeKinds(m map[string]int) string {
@@ -232,7 +176,8 @@ func startPythonSidecar(t *testing.T) (*pythonSidecar, error) {
 	}
 
 	scanner := bufio.NewScanner(stdout)
-	// uv-cached environments are small; 1 MiB buffer is overkill for one JSON line.
+	// Some Prometheus payloads serialize as fairly long JSON-line responses.
+	// 16 MiB upper bound is overkill but cheap.
 	scanner.Buffer(make([]byte, 0, 64*1024), 1<<24)
 
 	// Wait for the readiness handshake, with a generous timeout for first-run
