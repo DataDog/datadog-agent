@@ -520,6 +520,7 @@ var errRecursionStackFull = errors.New("capture nesting too deep")
 var errBufferFull = errors.New("event too large")
 var errIterationCapExhausted = errors.New(
 	"any/all iteration limit exceeded (4096 elements)")
+var errConditionEval = errors.New("error evaluating condition")
 
 // conditionEvalErrorMessage maps the packed Condition_eval_error byte
 // from the event header to a human-readable evaluationErrors message.
@@ -535,7 +536,7 @@ func conditionEvalErrorMessage(code uint8) string {
 	case 3:
 		return errIterationCapExhausted.Error()
 	}
-	return "error evaluating condition"
+	return errConditionEval.Error()
 }
 
 // processExpression processes a single expression from the root type expressions

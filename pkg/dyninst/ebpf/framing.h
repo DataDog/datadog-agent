@@ -244,8 +244,9 @@ typedef struct di_drop_notification {
   // drop_side_t value; stored as uint8_t for compactness.
   uint8_t side;
   // continuation_seq of the last successfully submitted fragment. Ignored
-  // when drop_reason == DROP_REASON_RETURN_LOST (no fragments exist) or
-  // DROP_REASON_PANIC_UNWOUND_LOST (range applies to many invocations).
+  // when drop_reason == DROP_REASON_FIRST_FLUSH_FAILED (no fragments
+  // exist) or DROP_REASON_PANIC_UNWOUND_LOST (range applies to many
+  // invocations).
   uint16_t last_seq;
   // Invocation ID. For return-side drops, the entry's start_ns (pulled from
   // in_progress_calls). For entry-side drops, the entry's own start_ns. This

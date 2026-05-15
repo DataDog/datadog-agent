@@ -23,7 +23,6 @@ var (
 	// This is used when we're missing the type information for a value
 	// underneath an interface.
 	tokenNotCapturedReasonMissingTypeInfo = jsontext.String("missing type information")
-	// tokenNotCapturedReasonFieldCount      = jsontext.String("fieldCount")
 
 	// Per-value reasons stamped by the eBPF side on the data-item
 	// header (either on a real captured item that got clamped, or on

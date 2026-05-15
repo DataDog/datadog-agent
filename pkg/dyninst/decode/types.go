@@ -1042,9 +1042,14 @@ func encodeMapEntries(
 		return err
 	}
 	if uint64(encodedItems) < count {
+		// The block has captured peers in `entries`; the schema invariant
+		// is that notCapturedReason never appears in the same object as
+		// `entries` (or `elements`). The (size, truncated: true) pair
+		// plus the entries array already tells the consumer the original
+		// count and what was kept.
 		if err := writeTokens(enc,
-			tokenNotCapturedReason,
-			tokenNotCapturedReasonPruned,
+			tokenTruncated,
+			jsontext.Bool(true),
 		); err != nil {
 			return err
 		}
@@ -1660,9 +1665,11 @@ func (a *arrayType) encodeValueFields(
 		return err
 	}
 	if notCaptured {
+		// See encodeMapEntries for the schema rule: no notCapturedReason
+		// in the same object as a captured `elements` array.
 		return writeTokens(enc,
-			tokenNotCapturedReason,
-			tokenNotCapturedReasonPruned,
+			tokenTruncated,
+			jsontext.Bool(true),
 		)
 	}
 	return nil
@@ -1829,9 +1836,13 @@ func (s *goSliceHeaderType) encodeValueFields(
 		return err
 	}
 	if length > uint64(displayLen) {
+		// See encodeMapEntries for the schema rule: no notCapturedReason
+		// in the same object as a captured `elements` array. `size`
+		// already carries the original length; truncated says some
+		// elements are missing.
 		return writeTokens(enc,
-			tokenNotCapturedReason,
-			tokenNotCapturedReasonCollectionSize,
+			tokenTruncated,
+			jsontext.Bool(true),
 		)
 	}
 	return nil

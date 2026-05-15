@@ -59,7 +59,7 @@
                 "type": "map[int]uint8",
                 "size": "10000",
                 "entries": "[redacted-entries]",
-                "notCapturedReason": "pruned"
+                "truncated": true
               }
             }
           }

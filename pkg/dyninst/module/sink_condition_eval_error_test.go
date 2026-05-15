@@ -17,11 +17,17 @@ import (
 )
 
 // TestSinkConditionEvalErrorCounters verifies that the sink increments
-// the per-probe condition-evaluation error counters based on the
+// the per-runtime condition-evaluation error counters based on the
 // Condition_eval_error byte in each event header. The BPF program
 // fails open on these errors, so each affected event still arrives
 // through HandleEvent; the counters give operators fleet-level
 // visibility across snapshots that may be sampled or pruned away.
+//
+// This test only exercises counter accounting (decoder is stubbed).
+// End-to-end coverage of the rendered evaluationErrors messages lives
+// in pkg/dyninst/decode/testdata/notcapturedreason_e2e.md, which
+// drives each condition-error class through a local agent and asserts
+// on the emitted snapshot JSON.
 func TestSinkConditionEvalErrorCounters(t *testing.T) {
 	s, _ := newTestSink()
 

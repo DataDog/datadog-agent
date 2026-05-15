@@ -188,6 +188,8 @@ func (d *Decoder) Decode(
 	missingTypes MissingTypeCollector,
 	buf []byte,
 ) (_ []byte, probe ir.ProbeDefinition, err error) {
+	// Defers run LIFO: the recover below runs first (catches panics from
+	// the encode loop), then resetForNextMessage clears per-message state.
 	defer d.resetForNextMessage()
 	if missingTypes == nil {
 		missingTypes = noopMissingTypeCollector{}
@@ -448,22 +450,22 @@ func (s *message) init(
 		if err := decoder._return.init(
 			event.Return, decoder.program.Types, &s.Debugger.Snapshot.EvaluationErrors,
 		); err != nil {
-			return nil, fmt.Errorf("error initializing return event: %w", err)
+			return probe, fmt.Errorf("error initializing return event: %w", err)
 		}
 		if trace := decoder._return.traceContext; !s.hasTraceContext() && trace.valid {
 			s.setTraceContext(trace)
 		}
 		returnProbeEvent := decoder.probeEvents[decoder._return.rootType.ID]
 		if returnProbeEvent.instance != instance {
-			return nil, errors.New("return probe event has different instance than entry probe")
+			return probe, errors.New("return probe event has different instance than entry probe")
 		}
 		returnFirstFragment = firstFragment(event.Return)
 		if returnFirstFragment == nil {
-			return nil, errors.New("return event first fragment is nil")
+			return probe, errors.New("return event first fragment is nil")
 		}
 		returnHeader, err = returnFirstFragment.Header()
 		if err != nil {
-			return nil, fmt.Errorf("error getting return header %w", err)
+			return probe, fmt.Errorf("error getting return header %w", err)
 		}
 		if returnHeader.Condition_eval_error != 0 {
 			whenDSL := probe.GetWhenDSL()

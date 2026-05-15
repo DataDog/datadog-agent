@@ -606,7 +606,16 @@ buf_offset_t scratch_buf_serialize(scratch_buf_t* scratch_buf,
   offset &= ~FAILED_READ_OFFSET_BIT;
   offset -= sizeof(di_data_item_header_t);
   if (scratch_buf_bounds_check(&offset, sizeof(di_data_item_header_t))) {
-    ((di_data_item_header_t*)(&(*scratch_buf)[offset]))->type |= (1 << 31);
+    // The kernel read failed, so the item now stands in as a placeholder.
+    // Clear any real-item reason bits the SM stamped on the header
+    // (e.g. STRING_SIZE / VALUE_TOO_LARGE) — those describe a clamped
+    // payload, and there is no payload here. Leaving them set would
+    // violate the framing invariant that codes 5..7 only appear on
+    // items with FAILED_READ=0. Userspace then falls through to the
+    // scope-cause or shape-inferred fallback.
+    di_data_item_header_t* hdr =
+        (di_data_item_header_t*)(&(*scratch_buf)[offset]);
+    hdr->type = (hdr->type & DATA_ITEM_TYPE_MASK) | DATA_ITEM_FAILED_READ_MASK;
   }
   return 0;
 }
