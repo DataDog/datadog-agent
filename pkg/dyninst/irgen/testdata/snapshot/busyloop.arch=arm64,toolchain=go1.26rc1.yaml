@@ -11,8 +11,26 @@ Probes:
         - subprogram: {subprogram: 1}
           events:
             - Kind: Entry
-              Type: 123 EventRootType Probe[main.noop]
+              Type: 126 EventRootType Probe[main.noop]
               InjectionPoints: [{PC: "0xc8080", Frameless: true}]
+              Condition: null
+    - id: b
+      version: 0
+      type: LOG_PROBE
+      where: {methodName: main.busyloop}
+      template: ""
+      segments: []
+      captureSnapshot: true
+      instances:
+        - subprogram: {subprogram: 2}
+          events:
+            - Kind: Entry
+              Type: 127 EventRootType Probe[main.busyloop]
+              InjectionPoints: [{PC: "0xc80a8", Frameless: false}]
+              Condition: null
+            - Kind: Return
+              Type: 128 EventRootType Probe[main.busyloop]Return
+              InjectionPoints: [{PC: "0xc822c", Frameless: false}]
               Condition: null
 Subprograms:
     - ID: 1
@@ -20,6 +38,93 @@ Subprograms:
       OutOfLinePCRanges: [0xc8080..0xc8090]
       InlinePCRanges: []
       Variables: []
+      DictRegister: null
+    - ID: 2
+      Name: main.busyloop
+      OutOfLinePCRanges: [0xc8090..0xc8250]
+      InlinePCRanges: []
+      Variables:
+        - Name: concurrency
+          Type: 9 BaseType int
+          Locations:
+            - Range: 0xc8090..0xc80b8
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0xc80b8..0xc8250
+              Pieces: [{Size: 8, Op: {CfaOffset: 8}}]
+          Role: Parameter
+          DictIndex: -1
+        - Name: duration
+          Type: 114 BaseType time.Duration
+          Locations:
+            - Range: 0xc8090..0xc80bc
+              Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
+            - Range: 0xc80bc..0xc8250
+              Pieces: [{Size: 8, Op: {CfaOffset: 16}}]
+          Role: Parameter
+          DictIndex: -1
+        - Name: ~r0
+          Type: 16 BaseType float64
+          Locations: [{Range: 0xc8090..0xc8250, Pieces: []}]
+          Role: Return
+          DictIndex: -1
+        - Name: ready
+          Type: 115 GoChannelType chan struct {}
+          Locations:
+            - Range: 0xc80c0..0xc80cc
+              Pieces: [{Size: 0, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0xc80cc..0xc8250
+              Pieces: [{Size: 0, Op: {CfaOffset: -24}}]
+          Role: Local
+          DictIndex: -1
+        - Name: start
+          Type: 115 GoChannelType chan struct {}
+          Locations:
+            - Range: 0xc80d4..0xc80e0
+              Pieces: [{Size: 0, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0xc80e0..0xc8250
+              Pieces: [{Size: 0, Op: {CfaOffset: -32}}]
+          Role: Local
+          DictIndex: -1
+        - Name: stop
+          Type: 115 GoChannelType chan struct {}
+          Locations:
+            - Range: 0xc80e8..0xc80f4
+              Pieces: [{Size: 0, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0xc80f4..0xc8250
+              Pieces: [{Size: 0, Op: {CfaOffset: -40}}]
+          Role: Local
+          DictIndex: -1
+        - Name: counts
+          Type: 116 GoChannelType chan int
+          Locations:
+            - Range: 0xc80fc..0xc8108
+              Pieces: [{Size: 0, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0xc8108..0xc8114
+              Pieces: [{Size: 0, Op: {CfaOffset: -16}}]
+            - Range: 0xc8114..0xc8250
+              Pieces: [{Size: 0, Op: {CfaOffset: -16}}]
+          Role: Local
+          DictIndex: -1
+        - Name: total
+          Type: 9 BaseType int
+          Locations:
+            - Range: 0xc80b8..0xc8190
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+            - Range: 0xc81e4..0xc81f0
+              Pieces: [{Size: 8, Op: {CfaOffset: -80}}]
+            - Range: 0xc81f0..0xc8208
+              Pieces: [{Size: 8, Op: {CfaOffset: -80}}]
+            - Range: 0xc8208..0xc8250
+              Pieces: [{Size: 8, Op: {RegNo: 1, Shift: 0}}]
+          Role: Local
+          DictIndex: -1
+        - Name: i
+          Type: 9 BaseType int
+          Locations:
+            - Range: 0xc80b8..0xc8190
+              Pieces: [{Size: 8, Op: {RegNo: 0, Shift: 0}}]
+          Role: Local
+          DictIndex: -1
       DictRegister: null
 Types:
     - __kind: PointerType
@@ -29,10 +134,10 @@ Types:
       GoKind: 22
       Pointee: 70 PointerType *runtime.p
     - __kind: PointerType
-      ID: 122
+      ID: 125
       Name: '*[]*runtime.p.array'
       ByteSize: 8
-      Pointee: 121 GoSliceDataType []*runtime.p.array
+      Pointee: 124 GoSliceDataType []*runtime.p.array
     - __kind: PointerType
       ID: 42
       Name: '*[]runtime.ancestorInfo'
@@ -41,15 +146,15 @@ Types:
       GoKind: 22
       Pointee: 43 UnresolvedPointeeType []runtime.ancestorInfo
     - __kind: PointerType
-      ID: 117
+      ID: 120
       Name: '*[]uint8.array'
       ByteSize: 8
-      Pointee: 116 GoSliceDataType []uint8.array
+      Pointee: 119 GoSliceDataType []uint8.array
     - __kind: PointerType
-      ID: 119
+      ID: 122
       Name: '*[]uintptr.array'
       ByteSize: 8
-      Pointee: 118 GoSliceDataType []uintptr.array
+      Pointee: 121 GoSliceDataType []uintptr.array
     - __kind: PointerType
       ID: 12
       Name: '*bool'
@@ -154,7 +259,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 70176
       GoKind: 22
-      Pointee: 120 UnresolvedPointeeType runtime.p
+      Pointee: 123 UnresolvedPointeeType runtime.p
     - __kind: PointerType
       ID: 44
       Name: '*runtime.sudog'
@@ -198,10 +303,10 @@ Types:
       GoKind: 22
       Pointee: 11 GoStringHeaderType string
     - __kind: PointerType
-      ID: 115
+      ID: 118
       Name: '*string.str'
       ByteSize: 8
-      Pointee: 114 GoStringDataType string.str
+      Pointee: 117 GoStringDataType string.str
     - __kind: PointerType
       ID: 112
       Name: '*uint'
@@ -253,7 +358,58 @@ Types:
       Name: '@trace_context'
       ByteSize: 40
     - __kind: EventRootType
-      ID: 123
+      ID: 127
+      Name: Probe[main.busyloop]
+      ByteSize: 17
+      ExprStatusArraySize: 1
+      Expressions:
+        - Name: concurrency
+          Offset: 1
+          Kind: argument
+          Expression:
+            Type: 9 BaseType int
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 2, index: 0, name: concurrency}
+                  Offset: 0
+                  ByteSize: 8
+            LeafBodies: []
+            IsSplit: false
+          DictIndex: -1
+        - Name: duration
+          Offset: 9
+          Kind: argument
+          Expression:
+            Type: 114 BaseType time.Duration
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 2, index: 1, name: duration}
+                  Offset: 0
+                  ByteSize: 8
+            LeafBodies: []
+            IsSplit: false
+          DictIndex: -1
+    - __kind: EventRootType
+      ID: 128
+      Name: Probe[main.busyloop]Return
+      ByteSize: 9
+      ExprStatusArraySize: 1
+      Expressions:
+        - Name: '@return'
+          Offset: 1
+          Kind: return
+          Expression:
+            Type: 16 BaseType float64
+            Operations:
+                - __kind: LocationOp
+                  Variable: {subprogram: 2, index: 2, name: ~r0}
+                  Offset: 0
+                  ByteSize: 8
+            LeafBodies: []
+            IsSplit: false
+          DictIndex: -1
+    - __kind: EventRootType
+      ID: 126
       Name: Probe[main.noop]
     - __kind: ArrayType
       ID: 97
@@ -370,9 +526,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 121 GoSliceDataType []*runtime.p.array
+      Data: 124 GoSliceDataType []*runtime.p.array
     - __kind: GoSliceDataType
-      ID: 121
+      ID: 124
       Name: '[]*runtime.p.array'
       DynamicSizeClass: slice
       ByteSize: 8
@@ -397,9 +553,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 116 GoSliceDataType []uint8.array
+      Data: 119 GoSliceDataType []uint8.array
     - __kind: GoSliceDataType
-      ID: 116
+      ID: 119
       Name: '[]uint8.array'
       DynamicSizeClass: slice
       ByteSize: 1
@@ -420,9 +576,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 9 BaseType int
-      Data: 118 GoSliceDataType []uintptr.array
+      Data: 121 GoSliceDataType []uintptr.array
     - __kind: GoSliceDataType
-      ID: 118
+      ID: 121
       Name: '[]uintptr.array'
       DynamicSizeClass: slice
       ByteSize: 8
@@ -433,6 +589,16 @@ Types:
       ByteSize: 1
       GoRuntimeType: 45440
       GoKind: 1
+    - __kind: GoChannelType
+      ID: 116
+      Name: chan int
+      GoRuntimeType: 46592
+      GoKind: 18
+    - __kind: GoChannelType
+      ID: 115
+      Name: chan struct {}
+      GoRuntimeType: 46656
+      GoKind: 18
     - __kind: BaseType
       ID: 20
       Name: complex128
@@ -1269,7 +1435,7 @@ Types:
       GoKind: 25
       RawFields: [{Name: key, Offset: 0, Type: 3 BaseType uintptr}]
     - __kind: UnresolvedPointeeType
-      ID: 120
+      ID: 123
       Name: runtime.p
       ByteSize: 8
     - __kind: StructureType
@@ -1408,16 +1574,21 @@ Types:
       RawFields:
         - Name: str
           Offset: 0
-          Type: 115 PointerType *string.str
+          Type: 118 PointerType *string.str
         - Name: len
           Offset: 8
           Type: 9 BaseType int
-      Data: 114 GoStringDataType string.str
+      Data: 117 GoStringDataType string.str
     - __kind: GoStringDataType
-      ID: 114
+      ID: 117
       Name: string.str
       DynamicSizeClass: string
       ByteSize: 1
+    - __kind: BaseType
+      ID: 114
+      Name: time.Duration
+      ByteSize: 8
+      GoKind: 6
     - __kind: BaseType
       ID: 13
       Name: uint
@@ -1460,7 +1631,7 @@ Types:
       ByteSize: 8
       GoRuntimeType: 45504
       GoKind: 26
-MaxTypeID: 123
+MaxTypeID: 128
 Issues: []
 GoModuledataInfo: {FirstModuledataAddr: "0x1c0320", TypesOffset: 296}
 GoMapHashInfo: {UseAeshashAddr: "0x1f38e9", AeskeyschedAddr: "0x1f3fa0"}
