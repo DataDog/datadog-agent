@@ -479,10 +479,10 @@ func TestGetPatternString_TrailingWhitespacePreserved(t *testing.T) {
 }
 
 func TestGetWildcardCharPositions_UnicodeArrow(t *testing.T) {
-	// "→" is 3 UTF-8 bytes but 1 rune/Java char. Positions after it must use rune count.
+	// "→" is 3 UTF-8 bytes. Positions use UTF-8 byte offsets on the wire.
 	// Template: "state: " [wild1] " → " [wild2]
-	// "state: " = 7 runes → wild1 at 7
-	// " → " = 3 runes (space + arrow + space) → wild2 at 10
+	// "state: " = 7 bytes → wild1 at 7
+	// " → " = 5 bytes (space + arrow + space) → wild2 at 12
 	tl := token.NewTokenList()
 	tl.Add(token.NewToken(token.TokenWord, "state:", token.NotWildcard))
 	tl.Add(token.NewToken(token.TokenWhitespace, " ", token.NotWildcard))
@@ -493,7 +493,33 @@ func TestGetWildcardCharPositions_UnicodeArrow(t *testing.T) {
 	p.Template = tl
 	p.Positions = []int{2, 4}
 	positions := p.GetWildcardCharPositions()
-	assert.Equal(t, []int{7, 10}, positions)
+	assert.Equal(t, []int{7, 12}, positions)
+}
+
+func TestGetWildcardCharPositions_ProductionPatternShape(t *testing.T) {
+	// Production failure shape:
+	// template="Worker dual-0:  stream  (state:  → )"
+	// positions should never end past the rendered template length.
+	tl := token.NewTokenList()
+	tl.Add(token.NewToken(token.TokenWord, "Worker", token.NotWildcard))
+	tl.Add(token.NewToken(token.TokenWhitespace, " ", token.NotWildcard))
+	tl.Add(token.NewToken(token.TokenWord, "dual-0", token.NotWildcard))
+	tl.Add(token.NewToken(token.TokenSpecialChar, ": ", token.NotWildcard))
+	tl.Add(token.NewToken(token.TokenWord, "source", token.IsWildcard))
+	tl.Add(token.NewToken(token.TokenWhitespace, " stream ", token.NotWildcard))
+	tl.Add(token.NewToken(token.TokenWord, "state_name", token.IsWildcard))
+	tl.Add(token.NewToken(token.TokenWhitespace, " (state: ", token.NotWildcard))
+	tl.Add(token.NewToken(token.TokenWord, "from", token.IsWildcard))
+	tl.Add(token.NewToken(token.TokenWhitespace, " → ", token.NotWildcard))
+	tl.Add(token.NewToken(token.TokenWord, "to", token.IsWildcard))
+	tl.Add(token.NewToken(token.TokenSpecialChar, ")", token.NotWildcard))
+	p := newPattern(tl, 1)
+	p.Template = tl
+	p.Positions = []int{4, 6, 8, 10}
+
+	assert.Equal(t, "Worker dual-0:  stream  (state:  → )", p.GetPatternString())
+	assert.Equal(t, 38, sanitizeForTemplateLen(p.GetPatternString()))
+	assert.Equal(t, []int{15, 23, 32, 37}, p.GetWildcardCharPositions())
 }
 
 func TestGetPatternString_MultipleSpacesPreserved(t *testing.T) {
