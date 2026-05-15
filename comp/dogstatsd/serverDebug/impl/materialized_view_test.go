@@ -7,7 +7,9 @@
 package serverdebugimpl
 
 import (
+	"encoding/json"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -108,6 +110,66 @@ func TestMilestone3SpikeCountersUseTimeBucketsWithoutMetricChannel(t *testing.T)
 	assert.Equal(t, uint64(10), counts[2])
 }
 
+func TestMilestone3bServerDebugComponentEnforcesContextBudget(t *testing.T) {
+	debug := fulfillDeps(t, map[string]interface{}{"dogstatsd_logging_enabled": false})
+	d := debug.(*serverDebugImpl)
+	d.view = newDebugStatsViewWithTelemetry(1, 8, time.Hour, nil)
+	d.metricsCounts = newMetricsCountBuckets(1)
+	d.SetMetricStatsEnabled(true)
+	defer d.SetMetricStatsEnabled(false)
+
+	builder := identity.NewBuilder()
+	for i := 0; i < 32; i++ {
+		sample := metrics.MetricSample{
+			Name: "bounded.metric",
+			Tags: []string{"instance:" + strconv.Itoa(i)},
+		}
+		context := builder.ResolveHotPath(sample)
+		d.StoreMetricStatsWithDebugViewKey(sample, context.DebugView)
+	}
+
+	payload, err := d.GetJSONDebugStats()
+	require.NoError(t, err)
+	var stats map[ckey.ContextKey]metricStat
+	require.NoError(t, json.Unmarshal(payload, &stats))
+	assert.LessOrEqual(t, len(stats), 8)
+	assert.LessOrEqual(t, d.view.len(), 8)
+}
+
+func TestMilestone3bDebugStatsViewTelemetryReportsBounds(t *testing.T) {
+	telemetry := &recordingDebugStatsTelemetry{}
+	view := newDebugStatsViewWithTelemetry(1, 2, time.Hour, telemetry)
+	now := time.Unix(100, 0)
+
+	view.store(now, testDebugViewKey(1, "first"))
+	view.store(now.Add(time.Nanosecond), testDebugViewKey(2, "second"))
+	view.store(now.Add(2*time.Nanosecond), testDebugViewKey(3, "third"))
+
+	telemetry.assert(t, recordingDebugStatsTelemetry{
+		storedContexts:  2,
+		budgetEvictions: 1,
+	})
+
+	snapshot := view.snapshot(now.Add(2 * time.Nanosecond))
+	require.Len(t, snapshot, 2)
+	telemetry.assert(t, recordingDebugStatsTelemetry{
+		storedContexts:   2,
+		budgetEvictions:  1,
+		snapshots:        1,
+		snapshotContexts: 2,
+	})
+
+	snapshot = view.snapshot(now.Add(time.Hour + 3*time.Nanosecond))
+	require.Empty(t, snapshot)
+	telemetry.assert(t, recordingDebugStatsTelemetry{
+		storedContexts:   0,
+		budgetEvictions:  1,
+		ttlPrunes:        2,
+		snapshots:        2,
+		snapshotContexts: 0,
+	})
+}
+
 func BenchmarkMilestone3StoreMetricStatsWithDebugViewKey(b *testing.B) {
 	contexts := make([]identity.HotPathContext, 8192)
 	builder := identity.NewBuilder()
@@ -147,6 +209,49 @@ func BenchmarkMilestone3StoreMetricStatsWithDebugViewKey(b *testing.B) {
 	})
 }
 
+func BenchmarkMilestone3bDebugStatsContention(b *testing.B) {
+	contexts := make([]identity.HotPathContext, 8192)
+	builder := identity.NewBuilder()
+	for i := range contexts {
+		sample := metrics.MetricSample{
+			Name: "identity.metric",
+			Tags: []string{"env:prod", "service:web", "instance:" + strconv.Itoa(i)},
+		}
+		contexts[i] = builder.ResolveHotPath(sample)
+	}
+	now := time.Unix(100, 0)
+
+	b.Run("legacy_global_lock_unbuffered_spike_channel", func(b *testing.B) {
+		legacy := newLegacyDebugStatsStore()
+		defer legacy.stop()
+
+		b.ReportAllocs()
+		b.RunParallel(func(pb *testing.PB) {
+			i := 0
+			for pb.Next() {
+				legacy.store(now, contexts[i%len(contexts)].DebugView)
+				i++
+			}
+		})
+	})
+
+	b.Run("bounded_sharded_materialized_view", func(b *testing.B) {
+		view := newDebugStatsViewWithTelemetry(32, defaultDebugStatsMaxContexts, time.Hour, nil)
+		buckets := newMetricsCountBuckets(32)
+
+		b.ReportAllocs()
+		b.RunParallel(func(pb *testing.PB) {
+			i := 0
+			for pb.Next() {
+				debugViewKey := contexts[i%len(contexts)].DebugView
+				view.store(now, debugViewKey)
+				buckets.record(debugViewKey.Key, now)
+				i++
+			}
+		})
+	})
+}
+
 func testDebugViewKey(key ckey.ContextKey, name string) identity.DebugViewKey {
 	return identity.DebugViewKey{
 		Client: identity.ClientSeriesIdentity{
@@ -156,4 +261,102 @@ func testDebugViewKey(key ckey.ContextKey, name string) identity.DebugViewKey {
 		Key:         key,
 		DisplayTags: "env:test",
 	}
+}
+
+type recordingDebugStatsTelemetry struct {
+	sync.Mutex
+	storedContexts   int
+	budgetEvictions  int
+	ttlPrunes        int
+	snapshots        int
+	snapshotContexts int
+}
+
+func (t *recordingDebugStatsTelemetry) setStoredContexts(count int) {
+	t.Lock()
+	defer t.Unlock()
+	t.storedContexts = count
+}
+
+func (t *recordingDebugStatsTelemetry) incBudgetEvictions() {
+	t.Lock()
+	defer t.Unlock()
+	t.budgetEvictions++
+}
+
+func (t *recordingDebugStatsTelemetry) addTTLPrunes(count int) {
+	t.Lock()
+	defer t.Unlock()
+	t.ttlPrunes += count
+}
+
+func (t *recordingDebugStatsTelemetry) incSnapshots() {
+	t.Lock()
+	defer t.Unlock()
+	t.snapshots++
+}
+
+func (t *recordingDebugStatsTelemetry) setSnapshotContexts(count int) {
+	t.Lock()
+	defer t.Unlock()
+	t.snapshotContexts = count
+}
+
+func (t *recordingDebugStatsTelemetry) assert(tb testing.TB, expected recordingDebugStatsTelemetry) {
+	tb.Helper()
+	t.Lock()
+	defer t.Unlock()
+	assert.Equal(tb, expected.storedContexts, t.storedContexts, "stored contexts gauge")
+	assert.Equal(tb, expected.budgetEvictions, t.budgetEvictions, "budget eviction counter")
+	assert.Equal(tb, expected.ttlPrunes, t.ttlPrunes, "TTL prune counter")
+	assert.Equal(tb, expected.snapshots, t.snapshots, "snapshot counter")
+	assert.Equal(tb, expected.snapshotContexts, t.snapshotContexts, "snapshot contexts gauge")
+}
+
+type legacyDebugStatsStore struct {
+	sync.Mutex
+	stats      map[ckey.ContextKey]metricStat
+	metricChan chan struct{}
+	stopChan   chan struct{}
+	done       chan struct{}
+}
+
+func newLegacyDebugStatsStore() *legacyDebugStatsStore {
+	store := &legacyDebugStatsStore{
+		stats:      make(map[ckey.ContextKey]metricStat),
+		metricChan: make(chan struct{}),
+		stopChan:   make(chan struct{}),
+		done:       make(chan struct{}),
+	}
+	go store.runMetricsCountLoop()
+	return store
+}
+
+func (s *legacyDebugStatsStore) store(now time.Time, debugViewKey identity.DebugViewKey) {
+	s.Lock()
+	stat := s.stats[debugViewKey.Key]
+	stat.Count++
+	stat.LastSeen = now
+	stat.Name = debugViewKey.Client.Name
+	stat.Tags = debugViewKey.DisplayTags
+	s.stats[debugViewKey.Key] = stat
+	s.Unlock()
+
+	s.metricChan <- struct{}{}
+}
+
+func (s *legacyDebugStatsStore) runMetricsCountLoop() {
+	defer close(s.done)
+	for {
+		select {
+		case <-s.metricChan:
+		case <-s.stopChan:
+			return
+		}
+	}
+}
+
+func (s *legacyDebugStatsStore) stop() {
+	close(s.stopChan)
+	<-s.done
 }

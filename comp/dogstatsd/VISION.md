@@ -485,6 +485,56 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 
 - Deletes the old `serverDebug` map/channel architecture rather than layering another debug system beside it.
 
+### Milestone 3b: Proof hardening and operability for bounded `serverDebug`
+
+**Value delivered**
+
+- Makes Milestone 3 defensible to reviewers and operators with direct contention, boundedness, and observability evidence.
+- Turns "safer to leave enabled" from an implementation claim into a measurable property.
+
+**Scope**
+
+- Add a test-only legacy contention benchmark that contrasts the old global-lock/unbuffered-channel shape with the bounded sharded view.
+- Add a component-level high-cardinality budget test through `StoreMetricStatsWithDebugViewKey` and `GetJSONDebugStats`, not only the internal view type.
+- Add operational telemetry for retained contexts, budget evictions, TTL prunes, snapshots, and snapshot size.
+- Keep runtime setting, endpoint, command output, and normal grouping compatibility unchanged.
+
+**Proof / acceptance criteria**
+
+- Parallel benchmark shows the bounded sharded view materially reduces contention versus the legacy shape.
+- Component-level test proves high-cardinality traffic cannot grow debug stats beyond the configured view budget.
+- Telemetry tests prove budget eviction, TTL pruning, snapshot count, and snapshot size are observable.
+- Full targeted DogStatsD/serverDebug regression and race tests pass.
+
+**Initial proof artifacts**
+
+- Operational telemetry:
+  - `dogstatsd.debug_stats_contexts`;
+  - `dogstatsd.debug_stats_evictions_total`;
+  - `dogstatsd.debug_stats_ttl_prunes_total`;
+  - `dogstatsd.debug_stats_snapshots_total`;
+  - `dogstatsd.debug_stats_snapshot_contexts`.
+- Contract tests:
+  - `TestMilestone3bServerDebugComponentEnforcesContextBudget`;
+  - `TestMilestone3bDebugStatsViewTelemetryReportsBounds`.
+- Benchmark:
+  - `BenchmarkMilestone3bDebugStatsContention`.
+- Example local benchmark output from the initial implementation:
+  - legacy global lock + unbuffered spike channel: `~527 ns/op`;
+  - bounded sharded materialized view: `~92 ns/op`.
+- Suggested verification commands:
+  - `dda inv test --targets=./comp/dogstatsd/serverDebug/impl --test-run-name='Milestone3b'`;
+  - `dda inv test --targets=./comp/dogstatsd/serverDebug/impl --test-run-name='Milestone3b' --extra-args='-race'`;
+  - `dda inv test --targets=./comp/dogstatsd/serverDebug/impl --test-run-name='^$' --extra-args='-bench=BenchmarkMilestone3b -benchmem -count=1'`.
+
+**Stop-safe state**
+
+- If work stops here, maintainers can review and operate the bounded debug view with concrete performance and safety evidence.
+
+**End-state cleanup enabled**
+
+- Establishes the proof pattern expected for later always-on views: benchmark against the path being replaced, enforce budgets at component boundaries, and expose budget telemetry before broadening scope.
+
 ### Milestone 4: Shard-local `SeriesStatsStore`
 
 **Value delivered**

@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/internal/identity"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 )
@@ -24,6 +26,8 @@ type debugStatsView struct {
 	shards              []debugStatsShard
 	maxContextsPerShard int
 	ttl                 time.Duration
+	storedContexts      *atomic.Int64
+	telemetry           debugStatsViewTelemetry
 }
 
 type debugStatsShard struct {
@@ -36,6 +40,10 @@ func newDefaultDebugStatsView() *debugStatsView {
 }
 
 func newDebugStatsView(shardCount, maxContexts int, ttl time.Duration) *debugStatsView {
+	return newDebugStatsViewWithTelemetry(shardCount, maxContexts, ttl, defaultDebugStatsViewTelemetry)
+}
+
+func newDebugStatsViewWithTelemetry(shardCount, maxContexts int, ttl time.Duration, telemetry debugStatsViewTelemetry) *debugStatsView {
 	if shardCount <= 0 {
 		shardCount = 1
 	}
@@ -52,10 +60,13 @@ func newDebugStatsView(shardCount, maxContexts int, ttl time.Duration) *debugSta
 		shards:              make([]debugStatsShard, shardCount),
 		maxContextsPerShard: maxContextsPerShard,
 		ttl:                 ttl,
+		storedContexts:      atomic.NewInt64(0),
+		telemetry:           telemetry,
 	}
 	for i := range view.shards {
 		view.shards[i].stats = make(map[ckey.ContextKey]metricStat)
 	}
+	view.setStoredContextsTelemetry()
 	return view
 }
 
@@ -70,9 +81,12 @@ func (v *debugStatsView) store(now time.Time, debugViewKey identity.DebugViewKey
 	}
 
 	if !exists && len(shard.stats) >= v.maxContextsPerShard {
-		shard.pruneExpiredLocked(now, v.ttl)
-		if len(shard.stats) >= v.maxContextsPerShard {
-			shard.evictOldestLocked()
+		v.recordTTLPrunes(shard.pruneExpiredLocked(now, v.ttl))
+		if len(shard.stats) >= v.maxContextsPerShard && shard.evictOldestLocked() {
+			v.storedContexts.Dec()
+			if v.telemetry != nil {
+				v.telemetry.incBudgetEvictions()
+			}
 		}
 	}
 
@@ -81,6 +95,10 @@ func (v *debugStatsView) store(now time.Time, debugViewKey identity.DebugViewKey
 	stat.Name = debugViewKey.Client.Name
 	stat.Tags = debugViewKey.DisplayTags
 	shard.stats[debugViewKey.Key] = stat
+	if !exists {
+		v.storedContexts.Inc()
+		v.setStoredContextsTelemetry()
+	}
 	return stat
 }
 
@@ -89,12 +107,17 @@ func (v *debugStatsView) snapshot(now time.Time) map[ckey.ContextKey]metricStat 
 	for i := range v.shards {
 		shard := &v.shards[i]
 		shard.Lock()
-		shard.pruneExpiredLocked(now, v.ttl)
+		v.recordTTLPrunes(shard.pruneExpiredLocked(now, v.ttl))
 		for key, stat := range shard.stats {
 			snapshot[key] = stat
 		}
 		shard.Unlock()
 	}
+	if v.telemetry != nil {
+		v.telemetry.incSnapshots()
+		v.telemetry.setSnapshotContexts(len(snapshot))
+	}
+	v.setStoredContextsTelemetry()
 	return snapshot
 }
 
@@ -117,18 +140,37 @@ func (v *debugStatsView) isExpired(now time.Time, stat metricStat) bool {
 	return v.ttl > 0 && now.Sub(stat.LastSeen) > v.ttl
 }
 
-func (s *debugStatsShard) pruneExpiredLocked(now time.Time, ttl time.Duration) {
-	if ttl <= 0 {
+func (v *debugStatsView) recordTTLPrunes(count int) {
+	if count <= 0 {
 		return
 	}
-	for key, stat := range s.stats {
-		if now.Sub(stat.LastSeen) > ttl {
-			delete(s.stats, key)
-		}
+	v.storedContexts.Sub(int64(count))
+	if v.telemetry != nil {
+		v.telemetry.addTTLPrunes(count)
 	}
 }
 
-func (s *debugStatsShard) evictOldestLocked() {
+func (v *debugStatsView) setStoredContextsTelemetry() {
+	if v.telemetry != nil {
+		v.telemetry.setStoredContexts(int(v.storedContexts.Load()))
+	}
+}
+
+func (s *debugStatsShard) pruneExpiredLocked(now time.Time, ttl time.Duration) int {
+	if ttl <= 0 {
+		return 0
+	}
+	var pruned int
+	for key, stat := range s.stats {
+		if now.Sub(stat.LastSeen) > ttl {
+			delete(s.stats, key)
+			pruned++
+		}
+	}
+	return pruned
+}
+
+func (s *debugStatsShard) evictOldestLocked() bool {
 	var oldestKey ckey.ContextKey
 	var oldestSeen time.Time
 	first := true
@@ -139,9 +181,11 @@ func (s *debugStatsShard) evictOldestLocked() {
 			first = false
 		}
 	}
-	if !first {
-		delete(s.stats, oldestKey)
+	if first {
+		return false
 	}
+	delete(s.stats, oldestKey)
+	return true
 }
 
 type metricsCountBuckets struct {
