@@ -214,19 +214,12 @@ Go build tags control feature inclusion, some examples are:
 - `python` - Python check support
 - and MANY more, refer to ./tasks/build_tags.py for a full reference.
 
-## Important Files
+## Key configuration files
 
-### Configuration
 - `datadog.yaml` - Main agent configuration
 - `modules.yml` - Go module definitions
 - `release.json` - Release version information
 - `.gitlab-ci.yml` - CI/CD pipeline configuration
-
-### Documentation
-- `/docs/` - Internal documentation
-- `/docs/dev/` - Developer guides
-- `README.md` - Project overview
-- `CONTRIBUTING.md` - Contribution guidelines
 
 ## CI/CD Pipeline
 
@@ -239,6 +232,21 @@ Go build tags control feature inclusion, some examples are:
 - Secondary CI for specific workflows
 - Tests about the pull-request settings or repository configuration
 - Release automation workflows
+
+### Accessing CI results from the command line
+
+Beyond the GitLab/GitHub UIs, two entry points are useful for reasoning
+about CI from a workstation or AI agent — both authenticate against your
+normal `dddev` org credentials and return structured output:
+
+- **`pup cicd`** — the Pup CLI's CI/CD subtree (`pup cicd pipelines`,
+  `pup cicd tests`, `pup cicd events`, `pup cicd dora`, `pup cicd
+  flaky-tests`). JSON by default; pipes well into `jq`. Useful for
+  pulling pipeline status, drilling into individual test events, or
+  checking flaky-test state without leaving the terminal.
+- **Datadog MCP server** (`mcp__datadog-mcp__*` tools) — wraps the same
+  CI Visibility APIs as MCP tools so AI agents can fetch pipeline runs,
+  test results and related notebooks/dashboards without shelling out.
 
 ### Contributing
 PRs should follow `.github/PULL_REQUEST_TEMPLATE.md` and the guidelines in
@@ -259,8 +267,10 @@ See the marketplace README for installation instructions.
 ## Security Considerations
 
 ### Sensitive Data
-- Never commit API keys or secrets
-- Use secret backend for credentials
+- Never commit API keys or secrets. The dev config at `dev/dist/datadog.yaml`
+  is fine to populate with a personal testing key locally, but the file is
+  `.gitignore`d for a reason — don't add it back, and don't paste real keys
+  into committed test fixtures, release notes or PR descriptions.
 
 ## Module System
 The project uses Go modules with multiple sub-modules.
@@ -331,11 +341,6 @@ should have tests exercising startup and graceful shutdown.
 Components initialize in stages — some dependencies may not be ready when others
 start. Functions exposed to UIs or APIs should return safe defaults when a
 dependency is unavailable, not propagate errors or panic.
-
-### Stale documentation
-If a PR changes behavior but doesn't update the corresponding docs, comments,
-or doc strings, flag it. Stale docs lead to bugs: contributors build on
-incorrect assumptions.
 
 ## Keeping AI context accurate
 
