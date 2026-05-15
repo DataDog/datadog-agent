@@ -233,7 +233,7 @@ func TestNoFilters(t *testing.T) {
 // exit rather than calling the formatter with a zero-value (nil-msg)
 // messagePair. Regression test for AGNTLOG-323.
 func TestFilterStopWhileStreaming(t *testing.T) {
-	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"), getTestConfig(t))
 	b.SetEnabled(true)
 
 	done := make(chan struct{})
