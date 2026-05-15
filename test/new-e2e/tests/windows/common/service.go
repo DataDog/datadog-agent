@@ -208,14 +208,14 @@ func GetEmptyServiceConfigMap(services []string) ServiceConfigMap {
 
 // GetServiceAccountName returns the account name that the service runs as
 func GetServiceAccountName(host *components.RemoteHost, service string) (string, error) {
-	cmd := fmt.Sprintf("(Get-WmiObject Win32_Service -Filter \"Name=`'%s`'\").StartName", service)
+	cmd := fmt.Sprintf("(Get-CimInstance Win32_Service -Filter \"Name=`'%s`'\").StartName", service)
 	out, err := host.Execute(cmd)
 	return strings.TrimSpace(out), err
 }
 
 // GetServicePID returns the PID of the service
 func GetServicePID(host *components.RemoteHost, service string) (int, error) {
-	cmd := fmt.Sprintf("(Get-WmiObject Win32_Service -Filter \"Name=`'%s`'\").ProcessId", service)
+	cmd := fmt.Sprintf("(Get-CimInstance Win32_Service -Filter \"Name=`'%s`'\").ProcessId", service)
 	out, err := host.Execute(cmd)
 	if err != nil {
 		return 0, err
