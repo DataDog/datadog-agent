@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "rust",
+    srcs = ["tokenizer_stub.go"],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/patterns/tokenizer/rust",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/logs/patterns/token",
+        "//pkg/util/log",
+    ],
+)
