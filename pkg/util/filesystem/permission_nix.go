@@ -104,43 +104,28 @@ func getDatadogUserUID() (uint32, error) {
 	return 0, errors.New("user 'dd-agent' not found")
 }
 
-func (p *Permission) isAllowedOwner(uid uint32) bool {
-	// check if its 'root'
+// isRootOrAgentUID reports whether uid is root (0) or the dd-agent service account.
+func (p *Permission) isRootOrAgentUID(uid uint32) bool {
 	if uid == 0 {
 		return true
 	}
-
-	// check if it's the current user
-	if uid == uint32(os.Getuid()) {
-		return true
-	}
-
-	// check if it's the dd user if it exists
 	if p.ddUserUID != 0 && uid == p.ddUserUID {
 		return true
 	}
 	return false
 }
 
-// checkOwner verifies that the file/directory is owned by either 'root', 'dd-agent' or current user
+// checkOwner verifies that path is owned by root or dd-agent.
 func (p *Permission) checkOwner(path string) error {
 	var stat syscall.Stat_t
 	if err := syscall.Stat(path, &stat); err != nil {
 		return err
 	}
 
-	if !p.isAllowedOwner(stat.Uid) {
-		return errors.New("file owner is neither `root`, `dd-agent` or current user")
+	if !p.isRootOrAgentUID(stat.Uid) {
+		return errors.New("file owner is neither `root` nor `dd-agent`")
 	}
 
 	return nil
 }
 
-// CheckOwnerAndPermissions verifies that the owner and permissions of a file/directory correspond to the expected restrictions
-func (p *Permission) CheckOwnerAndPermissions(path string) error {
-	if err := p.checkOwner(path); err != nil {
-		return err
-	}
-
-	return CheckRights(path, true)
-}

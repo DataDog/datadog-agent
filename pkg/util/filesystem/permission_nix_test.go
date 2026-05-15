@@ -62,20 +62,6 @@ func TestGetDatadogUserUID(t *testing.T) {
 	}
 }
 
-func TestCheckOwner_CurrentUser(t *testing.T) {
-	p, err := NewPermission()
-	require.NoError(t, err)
-
-	root := t.TempDir()
-	testFile := filepath.Join(root, "file")
-
-	err = os.WriteFile(testFile, []byte("test"), 0644)
-	require.NoError(t, err)
-
-	// File created by current user should pass ownership check
-	err = p.checkOwner(testFile)
-	assert.NoError(t, err)
-}
 
 func TestCheckOwner_Root(t *testing.T) {
 	p, err := NewPermission()
@@ -139,15 +125,9 @@ func TestCheckOwner_NonExistentFile(t *testing.T) {
 func TestIsAllowedOwner_Root(t *testing.T) {
 	p, err := NewPermission()
 	require.NoError(t, err)
-	assert.True(t, p.isAllowedOwner(0))
+	assert.True(t, p.isRootOrAgentUID(0))
 }
 
-func TestIsAllowedOwner_CurrentUser(t *testing.T) {
-	p, err := NewPermission()
-	require.NoError(t, err)
-	currentUID := uint32(os.Getuid())
-	assert.True(t, p.isAllowedOwner(currentUID))
-}
 
 func TestIsAllowedOwner_DDAgent(t *testing.T) {
 	p, err := NewPermission()
@@ -157,12 +137,12 @@ func TestIsAllowedOwner_DDAgent(t *testing.T) {
 		// dd-agent doesn't exist, skip this part
 		t.Skip("dd-agent user not found on this system")
 	}
-	assert.True(t, p.isAllowedOwner(ddAgentUID))
+	assert.True(t, p.isRootOrAgentUID(ddAgentUID))
 }
 
 func TestIsAllowedOwner_UnknownUser(t *testing.T) {
 	p, err := NewPermission()
 	require.NoError(t, err)
 	unknownUID := uint32(99999)
-	assert.False(t, p.isAllowedOwner(unknownUID))
+	assert.False(t, p.isRootOrAgentUID(unknownUID))
 }

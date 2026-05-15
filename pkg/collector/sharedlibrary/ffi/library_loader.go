@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"path/filepath"
 	"runtime"
 	"unsafe"
 
@@ -85,7 +86,16 @@ type SharedLibraryLoader struct {
 
 // Open looks for a shared library with the corresponding name and check if it has the required symbols
 func (l *SharedLibraryLoader) Open(path string) (*Library, error) {
-	if err := l.permission.CheckOwnerAndPermissions(path); err != nil {
+	// Check the containing directory first: if it is owned by a trusted user and not
+	// world-writable, an attacker cannot stage a replacement library between our
+	// permission check and the actual dlopen call (TOCTOU mitigation).
+	if err := l.permission.CheckOwnerIsTrusted(filepath.Dir(path)); err != nil {
+		return nil, fmt.Errorf("shared library directory owner check failed: %w", err)
+	}
+
+	// Note: there is an inherent TOCTOU race between this check and dlopen below.
+	// It is mitigated by the library directory being owned by a trusted user (above).
+	if err := l.permission.CheckOwnerAndPermissionsAreRestricted(path); err != nil {
 		return nil, err
 	}
 

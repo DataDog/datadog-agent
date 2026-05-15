@@ -69,13 +69,15 @@ func (p *Permission) RemoveAccessToOtherUsers(path string) error {
 	return p.RestrictAccessToUser(path)
 }
 
-func (p *Permission) isAllowedOwner(sid *windows.SID) bool {
+// isSystemOrAgentSID reports whether sid is the Administrators group, the SYSTEM account,
+// or the dd-agent service account.
+func (p *Permission) isSystemOrAgentSID(sid *windows.SID) bool {
 	return windows.EqualSid(sid, p.administratorSid) ||
 		windows.EqualSid(sid, p.ddUserSid) ||
 		windows.EqualSid(sid, p.systemSid)
 }
 
-// checkOwner verifies that the file/directory is owned by either 'Administrator', system or dd user
+// checkOwner verifies that path is owned by a trusted user (Administrators, SYSTEM, or dd-agent).
 func (p *Permission) checkOwner(path string) error {
 	var ownerSid *windows.SID
 	err := winutil.GetNamedSecurityInfo(path,
@@ -88,18 +90,10 @@ func (p *Permission) checkOwner(path string) error {
 		return err
 	}
 
-	if !p.isAllowedOwner(ownerSid) {
+	if !p.isSystemOrAgentSID(ownerSid) {
 		return errors.New("file owner is neither `Administrator`, system or dd user")
 	}
 
 	return nil
 }
 
-// CheckOwnerAndPermissions verifies that the owner and permissions of a file/directory correspond to the expected restrictions
-func (p *Permission) CheckOwnerAndPermissions(path string) error {
-	if err := p.checkOwner(path); err != nil {
-		return err
-	}
-
-	return CheckRights(path, false)
-}

@@ -184,19 +184,19 @@ func TestCheckOwner_NonExistentFile(t *testing.T) {
 func TestIsAllowedOwner_Administrator(t *testing.T) {
 	p, err := NewPermission()
 	require.NoError(t, err)
-	assert.True(t, p.isAllowedOwner(p.administratorSid))
+	assert.True(t, p.isSystemOrAgentSID(p.administratorSid))
 }
 
 func TestIsAllowedOwner_System(t *testing.T) {
 	p, err := NewPermission()
 	require.NoError(t, err)
-	assert.True(t, p.isAllowedOwner(p.systemSid))
+	assert.True(t, p.isSystemOrAgentSID(p.systemSid))
 }
 
 func TestIsAllowedOwner_DDAgent(t *testing.T) {
 	p, err := NewPermission()
 	require.NoError(t, err)
-	assert.True(t, p.isAllowedOwner(p.ddUserSid))
+	assert.True(t, p.isSystemOrAgentSID(p.ddUserSid))
 }
 
 func TestIsAllowedOwner_UnknownUser(t *testing.T) {
@@ -206,5 +206,5 @@ func TestIsAllowedOwner_UnknownUser(t *testing.T) {
 	// user other than Administrator, SYSTEM, dd user
 	usersSid, err := windows.StringToSid("S-1-5-32-545")
 	require.NoError(t, err)
-	assert.False(t, p.isAllowedOwner(usersSid))
+	assert.False(t, p.isSystemOrAgentSID(usersSid))
 }
