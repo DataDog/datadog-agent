@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "logs-host-tags-missing",
+    srcs = [
+        "issue.go",
+        "module.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/logs-host-tags-missing",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/healthplatform/issues",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+    ],
+)

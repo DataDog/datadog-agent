@@ -54,7 +54,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
@@ -514,6 +516,7 @@ func (suite *AgentTestSuite) createDeps() dependencies {
 		}),
 		auditorfx.Module(),
 		fx.Provide(kubehealthmock.NewProvides),
+		fx.Provide(func() option.Option[storedef.Component] { return option.None[storedef.Component]() }),
 	))
 }
 

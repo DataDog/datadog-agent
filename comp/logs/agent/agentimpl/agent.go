@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -36,6 +37,7 @@ import (
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	integrationsimpl "github.com/DataDog/datadog-agent/comp/logs/integrations/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/def"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -87,6 +89,7 @@ type dependencies struct {
 	Tagger             tagger.Component
 	Compression        logscompression.Component
 	Secrets            secrets.Component
+	HealthPlatform     option.Option[storedef.Component]
 }
 
 type provides struct {
@@ -125,6 +128,7 @@ type logAgent struct {
 	schedulerProviders        []schedulers.Scheduler
 	integrationsLogs          integrations.Component
 	compression               logscompression.Component
+	healthPlatform            option.Option[storedef.Component]
 
 	// make sure this is done only once, when we're ready
 	prepareSchedulers sync.Once
@@ -166,6 +170,7 @@ func newLogsAgent(deps dependencies) provides {
 			tagger:             deps.Tagger,
 			compression:        deps.Compression,
 			secrets:            deps.Secrets,
+			healthPlatform:     deps.HealthPlatform,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
@@ -217,6 +222,7 @@ func (a *logAgent) start(context.Context) error {
 	}
 
 	a.startPipeline()
+	a.detectMissingHostTags()
 
 	// If we're currently sending over TCP, attempt restart over HTTP
 	if !endpoints.UseHTTP {
@@ -304,6 +310,50 @@ func (a *logAgent) startSchedulers() {
 		a.started.Store(status.StatusRunning)
 	})
 }
+
+// detectMissingHostTags checks whether the agent is in logs-only mode without
+// any host-level tags configured, and reports (or resolves) the issue.
+//
+// The issue is reported when:
+//  1. Metric payloads (series and events) are both disabled — logs-only mode.
+//  2. No host-level tags are configured via the "tags" config key or DD_TAGS env var.
+func (a *logAgent) detectMissingHostTags() {
+	store, ok := a.healthPlatform.Get()
+	if !ok {
+		return
+	}
+
+	// Logs-only mode: both series and events payloads disabled.
+	seriesEnabled := a.config.GetBool("enable_payloads.series")
+	eventsEnabled := a.config.GetBool("enable_payloads.events")
+	if seriesEnabled || eventsEnabled {
+		store.ResolveIssue(logshosttagsmissingIssueID)
+		return
+	}
+
+	// Check for host tags via config or env.
+	tags := a.config.GetStringSlice("tags")
+	ddTags := os.Getenv("DD_TAGS")
+
+	if len(tags) == 0 && ddTags == "" {
+		_ = store.ReportIssue(storedef.IssueReport{
+			IssueID:   logshosttagsmissingIssueID,
+			IssueType: logshosttagsmissingIssueID,
+			Source:    "logs",
+			Context: map[string]string{
+				"logsEnabled":    "true",
+				"tagsConfigured": "false",
+			},
+			Tags: []string{"logs", "tags", "configuration", "logs-only", "host-tags"},
+		})
+	} else {
+		store.ResolveIssue(logshosttagsmissingIssueID)
+	}
+}
+
+// logshosttagsmissingIssueID mirrors the constant from the logs-host-tags-missing
+// issue package, inlined here to avoid an import cycle.
+const logshosttagsmissingIssueID = "logs-host-tags-missing"
 
 func (a *logAgent) stop(context.Context) error {
 	a.restartMutex.Lock()
