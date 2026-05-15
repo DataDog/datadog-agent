@@ -29,6 +29,8 @@ go_test(
     ],
     embed = [":expvars"],
     gotags = ["test"],
+    # TODO: https://datadoghq.atlassian.net/browse/ABLD-481
+    target_compatible_with = ["@platforms//os:linux"],
     deps = [
         "//comp/haagent/mock",
         "//comp/healthplatform/store/mock",
