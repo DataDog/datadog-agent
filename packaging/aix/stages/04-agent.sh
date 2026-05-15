@@ -67,7 +67,7 @@ mkdir -p "$STAGING/opt/datadog-agent/bin/agent"
 # tree; the staging copies are for the final package only.
 
 log "Setting rtloader CGO flags"
-export CGO_CFLAGS="$CGO_CFLAGS -I/opt/datadog-agent/rtloader/include"
+export CGO_CFLAGS="$CGO_CFLAGS -I$AGENT_SRC/rtloader/include"
 #
 # -lpython3 (via libpython3.a symlink) causes libpython3.a(shr_64.o) to appear in the agent binary's
 # XCOFF startup-load chain. This is necessary but not sufficient: the binary
@@ -88,8 +88,8 @@ if [ ! -f "$PYTHON_EXP" ]; then
 fi
 log "Using Python export file: $PYTHON_EXP"
 export CGO_LDFLAGS="$CGO_LDFLAGS \
-  -L/opt/datadog-agent/rtloader/build/rtloader \
-  -L/opt/datadog-agent/rtloader/build/three \
+  -L$AGENT_SRC/rtloader/build/rtloader \
+  -L$AGENT_SRC/rtloader/build/three \
   -L$EMBEDDED_DESTDIR/lib \
   -lpython3 \
   -Wl,-bE:$PYTHON_EXP \
@@ -97,7 +97,7 @@ export CGO_LDFLAGS="$CGO_LDFLAGS \
 
 # ─── Step 3: Get commit hash ──────────────────────────────────────────────────
 
-COMMIT=$(git -C /opt/datadog-agent rev-parse --short HEAD)
+COMMIT=$(git -C "$AGENT_SRC" rev-parse --short HEAD)
 log "Building agent version $AGENT_VERSION at commit $COMMIT"
 
 # ─── Step 4: Build the agent binary ───────────────────────────────────────────
@@ -105,7 +105,7 @@ log "Building agent version $AGENT_VERSION at commit $COMMIT"
 # Build tags and ldflags are determined by inv agent.build (tasks/build_tags.py).
 
 log "Building agent binary via inv agent.build"
-cd /opt/datadog-agent
+cd "$AGENT_SRC"
 rm -f "$STAGING/opt/datadog-agent/bin/agent/agent-bin"
 # OBJECT_MODE must be unset before Go's external linker runs. When both
 # OBJECT_MODE=64 and AIX_OBJECT_MODE=64 are exported, the linker picks up
@@ -115,7 +115,7 @@ rm -f "$STAGING/opt/datadog-agent/bin/agent/agent-bin"
 unset OBJECT_MODE
 python3.12 -m invoke agent.build \
     --exclude-rtloader \
-    --rtloader-root=/opt/datadog-agent/rtloader \
+    --rtloader-root="$AGENT_SRC/rtloader" \
     --embedded-path="$EMBEDDED_DESTDIR" \
     --agent-bin="$STAGING/opt/datadog-agent/bin/agent/agent-bin"
 
@@ -134,11 +134,11 @@ log "agent wrapper installed at $STAGING/opt/datadog-agent/bin/agent/agent"
 # Build tags are determined by inv trace-agent.build (tasks/build_tags.py).
 
 log "Building trace-agent binary via inv trace-agent.build"
-cd /opt/datadog-agent
+cd "$AGENT_SRC"
 python3.12 -m invoke trace-agent.build
 mkdir -p "$STAGING/opt/datadog-agent/embedded/bin"
 rm -f "$STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin"
-cp /opt/datadog-agent/bin/trace-agent/trace-agent "$STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin"
+cp "$AGENT_SRC/bin/trace-agent/trace-agent" "$STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin"
 strip -X64 "$STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin"
 log "trace-agent binary build complete: $STAGING/opt/datadog-agent/embedded/bin/trace-agent-bin"
 

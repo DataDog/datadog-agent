@@ -20,7 +20,7 @@
 # AGENT_VERSION is stripped by env.sh.
 # Package filename: datadog-agent-<AGENT_VERSION>-<AGENT_BUILD>.aix.ppc64.bff
 #
-# The agent source with full .git history must be at /opt/datadog-agent.
+# The agent source with full .git history must be at $AGENT_SRC (default: /opt/datadog-agent).
 # All intermediate artifacts go under /opt/dd-build/.
 
 set -eu
@@ -28,20 +28,26 @@ set -eu
 PATH=/opt/go/bin:/opt/freeware/bin:/usr/sbin:/usr/bin:/bin:$PATH
 export PATH
 
+# AGENT_SRC must be defined before env.sh is sourced so the .git check and
+# version auto-detection below can use it.
+AGENT_SRC=${AGENT_SRC:-/opt/datadog-agent}
+export AGENT_SRC
+
 if [ -z "${AGENT_BUILD:-}" ]; then
     printf 'ERROR: AGENT_BUILD must be set (e.g. AGENT_BUILD=1)\n' >&2
     printf '       This is the installp build counter and must increase with each release.\n' >&2
     exit 1
 fi
 
-if [ ! -d /opt/datadog-agent/.git ]; then
-    printf 'ERROR: /opt/datadog-agent/.git not found\n' >&2
+if [ ! -d "$AGENT_SRC/.git" ]; then
+    printf 'ERROR: %s/.git not found\n' "$AGENT_SRC" >&2
     printf '       The source tree must include full git history.\n' >&2
+    printf '       Set AGENT_SRC to the agent source directory (default: /opt/datadog-agent).\n' >&2
     exit 1
 fi
 
 if [ -z "${AGENT_VERSION:-}" ]; then
-    AGENT_VERSION=$(cd /opt/datadog-agent && \
+    AGENT_VERSION=$(cd "$AGENT_SRC" && \
         python3.12 -m invoke agent.version --url-safe --include-git 2>&1)
     if [ -z "$AGENT_VERSION" ]; then
         printf 'ERROR: invoke agent.version returned empty output.\n' >&2

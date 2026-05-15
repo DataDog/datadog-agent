@@ -24,6 +24,15 @@ export RUST_VERSION
 BUILD_DIR=/opt/dd-build
 STAGING=$BUILD_DIR/staging
 
+# ── Agent source tree ─────────────────────────────────────────────────────────
+# AGENT_SRC is the directory containing the checked-out agent source code.
+# Defaults to /opt/datadog-agent but can be overridden:
+#   AGENT_SRC=/dd/datadog-agent AGENT_BUILD=1 ./build.sh
+# Distinct from EMBEDDED (/opt/datadog-agent/embedded), which is the final
+# install path baked into all binaries at configure time and must not change.
+AGENT_SRC=${AGENT_SRC:-/opt/datadog-agent}
+export AGENT_SRC
+
 # DESTDIR approach (critical — read before modifying):
 #   EMBEDDED     = final install path baked into all binaries at configure time
 #                  (sys.prefix, _sysconfigdata, XCOFF loader sections)

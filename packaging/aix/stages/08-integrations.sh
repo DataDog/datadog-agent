@@ -58,7 +58,7 @@ trap cleanup EXIT
 # in the agent repo). Stage 10 copies agent-repo configs afterward, so
 # agent-repo files take precedence when both repos provide the same filename.
 
-AGENT_DIST_CONFD="${EMBEDDED%/embedded}/bin/agent/dist/conf.d"
+AGENT_DIST_CONFD="$AGENT_SRC/bin/agent/dist/conf.d"
 if [ -d "$AGENT_DIST_CONFD" ]; then
     for check_dir in "$AGENT_DIST_CONFD"/*.d; do
         [ -d "$check_dir" ] || continue
