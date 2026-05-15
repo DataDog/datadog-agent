@@ -177,8 +177,10 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("prometheus_scrape.version", 1)               // Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
 
 	// Prometheus HTTP Service Discovery
-	config.BindEnvAndSetDefault("prometheus_http_sd.url", "")            // URL of the Prometheus HTTP SD endpoint
-	config.BindEnvAndSetDefault("prometheus_http_sd.check_template", "") // JSON check template applied to each discovered target (e.g. '{"name":"openmetrics","init_config":{},"instances":[{"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics"}]}')
+	config.BindEnvAndSetDefault("prometheus_http_sd.configs", []map[string]interface{}{}) // List of HTTP SD endpoints to poll. Each entry must specify url and check_template.
+	config.ParseEnvJSON("prometheus_http_sd.configs", []map[string]interface{}{})         // DD_PROMETHEUS_HTTP_SD_CONFIGS is a JSON-encoded list-of-objects.
+	config.BindEnvAndSetDefault("prometheus_http_sd.url", "")                             // [DEPRECATED] URL of the Prometheus HTTP SD endpoint. Use prometheus_http_sd.configs instead.
+	config.BindEnvAndSetDefault("prometheus_http_sd.check_template", "")                  // [DEPRECATED] JSON check template applied to each discovered target. Use prometheus_http_sd.configs instead.
 
 	// Network Devices Monitoring
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
@@ -1062,9 +1064,19 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Data Plane
 	config.BindEnvAndSetDefault("data_plane.enabled", false)
+	config.BindEnvAndSetDefault("data_plane.use_new_config_stream_endpoint", true)
+	config.BindEnvAndSetDefault("data_plane.remote_agent_enabled", true)
+	config.BindEnvAndSetDefault("data_plane.api_listen_address", "0.0.0.0:5100")
+	config.BindEnvAndSetDefault("data_plane.secure_api_listen_address", "0.0.0.0:5101")
+	config.BindEnvAndSetDefault("data_plane.telemetry_enabled", false)
+	config.BindEnvAndSetDefault("data_plane.telemetry_listen_addr", "0.0.0.0:5102")
+	config.BindEnvAndSetDefault("data_plane.log_file", DefaultDataPlaneLogFile)
 	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", true)
 	config.BindEnvAndSetDefault("data_plane.otlp.enabled", false)
 	config.BindEnvAndSetDefault("data_plane.otlp.proxy.enabled", false)
+	config.BindEnvAndSetDefault("data_plane.otlp.proxy.traces.enabled", true)
+	config.BindEnvAndSetDefault("data_plane.otlp.proxy.metrics.enabled", true)
+	config.BindEnvAndSetDefault("data_plane.otlp.proxy.logs.enabled", true)
 	// When the ADP OTLP proxy is enabled, ADP owns the gRPC endpoint configured for the receiver (default :4317) and the core agent uses the endpoint below
 	config.BindEnvAndSetDefault("data_plane.otlp.proxy.receiver.protocols.grpc.endpoint", "127.0.0.1:4319")
 

@@ -105,6 +105,9 @@ func (d *directSender) addTags(builder *model.ConnectionBuilder, nc network.Conn
 		var serviceTags []string
 		if dsc := directSenderConsumerInstance.Load(); dsc != nil {
 			serviceTags = dsc.extractor.GetServiceContext(int32(nc.Pid))
+			if processName := dsc.processNameExtractor.GetProcessName(int32(nc.Pid)); processName != "" {
+				tagsStr = append(tagsStr, "process_name:"+processName)
+			}
 		}
 		tagsStr = append(tagsStr, serviceTags...)
 		processEntityID := types.NewEntityID(types.Process, strconv.Itoa(int(nc.Pid)))

@@ -34,6 +34,12 @@ type serializedProgram struct {
 	probeParams     []probeParams
 	bpfAttachPoints []BPFAttachPoint
 
+	// numProbes is the raw IR probe count and may be 0. It defines the
+	// size of the per-probe stats_buf map; the loader clamps stats_buf's
+	// MaxEntries to at least 1 to satisfy BPF_MAP_TYPE_ARRAY's
+	// nonzero-max-entries requirement.
+	numProbes uint32
+
 	goRuntimeTypeIDs goRuntimeTypeIDs
 	goModuledataInfo ir.GoModuledataInfo
 	goMapHashInfo    ir.GoMapHashInfo
@@ -117,6 +123,7 @@ func serializeProgram(
 		programID: program.ID,
 		code:      buf.Bytes(),
 		maxOpLen:  metadata.MaxOpLen,
+		numProbes: program.NumProbes,
 	}
 	var ok bool
 	serialized.chasePointersEntrypoint, ok = metadata.FunctionLoc[compiler.ChasePointers{}]
