@@ -15,6 +15,7 @@ import (
 	"math"
 	"reflect"
 	"strconv"
+	"time"
 	"unsafe"
 
 	"github.com/dustin/go-humanize"
@@ -217,6 +218,9 @@ type goStringHeaderType struct {
 }
 type goStringDataType ir.GoStringDataType
 type goMapType ir.GoMapType
+type goTimeType struct {
+	*ir.GoTimeType
+}
 type goHMapHeaderType struct {
 	*ir.GoHMapHeaderType
 
@@ -296,6 +300,7 @@ var (
 	_ decoderType = (*goSliceDataType)(nil)
 	_ decoderType = (*goStringHeaderType)(nil)
 	_ decoderType = (*goStringDataType)(nil)
+	_ decoderType = (*goTimeType)(nil)
 	_ decoderType = (*goMapType)(nil)
 	_ decoderType = (*goHMapHeaderType)(nil)
 	_ decoderType = (*goHMapBucketType)(nil)
@@ -430,6 +435,8 @@ func newDecoderType(
 		return (*durationType)(s), nil
 	case *ir.TraceContextType:
 		return (*traceContextType)(s), nil
+	case *ir.GoTimeType:
+		return &goTimeType{GoTimeType: s}, nil
 	case *ir.StructureType:
 		return (*structureType)(s), nil
 	case *ir.GoContextImplementationType:
@@ -1989,6 +1996,101 @@ func (s *goStringDataType) formatValueFields(
 	*encodingContext, *bytes.Buffer, []byte, *formatLimits,
 ) error {
 	return errors.New("string data is not formatted")
+}
+
+func (t *goTimeType) irType() ir.Type { return t.GoTimeType }
+func (t *goTimeType) encodeValueFields(
+	_ *encodingContext,
+	enc *jsontext.Encoder,
+	data []byte,
+) error {
+	formatted, isZero := t.format(data)
+	if isZero {
+		return writeTokens(enc,
+			jsontext.String("value"),
+			jsontext.Null,
+		)
+	}
+	return writeTokens(enc,
+		jsontext.String("value"),
+		jsontext.String(formatted),
+	)
+}
+
+func (t *goTimeType) formatValueFields(
+	_ *encodingContext,
+	buf *bytes.Buffer,
+	data []byte,
+	limits *formatLimits,
+) error {
+	formatted, isZero := t.format(data)
+	if isZero {
+		writeBoundedString(buf, limits, formatNil)
+		return nil
+	}
+	writeBoundedString(buf, limits, formatted)
+	return nil
+}
+
+// format renders the captured time.Time as an RFC3339Nano timestamp. The
+// 8 bytes at LocFieldOffset hold either ir.GoTimeUnresolvedOffset (UTC
+// fallback) or a UTC offset in seconds written by SM_OP_PROCESS_GO_TIME.
+func (t *goTimeType) format(data []byte) (formatted string, isZero bool) {
+	unixSec, nsec, isZero := decodeGoTime(data, t.WallFieldOffset, t.ExtFieldOffset)
+	if isZero {
+		return "", true
+	}
+	loc := time.UTC
+	if len(data) >= int(t.LocFieldOffset)+8 {
+		off := int64(binary.NativeEndian.Uint64(
+			data[t.LocFieldOffset : t.LocFieldOffset+8],
+		))
+		if off != ir.GoTimeUnresolvedOffset {
+			loc = time.FixedZone("", int(off))
+		}
+	}
+	return time.Unix(unixSec, int64(nsec)).In(loc).Format(time.RFC3339Nano), false
+}
+
+// decodeGoTime extracts Unix seconds and wall-clock nanoseconds from a Go
+// time.Time captured into the buffer at the given field offsets. It returns
+// isZero=true for the Go zero value (wall == 0 && ext == 0) and for buffers
+// too short to read either field.
+func decodeGoTime(
+	data []byte, wallOffset, extOffset uint32,
+) (unixSec int64, nsec uint32, isZero bool) {
+	if len(data) < int(wallOffset)+8 || len(data) < int(extOffset)+8 {
+		return 0, 0, true
+	}
+
+	wall := binary.NativeEndian.Uint64(data[wallOffset : wallOffset+8])
+	ext := int64(binary.NativeEndian.Uint64(data[extOffset : extOffset+8]))
+
+	if wall == 0 && ext == 0 {
+		return 0, 0, true
+	}
+
+	// Constants and arithmetic mirror time.Time.sec()/nsec() in the Go
+	// runtime (src/time/time.go).
+	const (
+		secondsPerDay  = 24 * 60 * 60
+		unixToInternal = (1969*365 + 1969/4 - 1969/100 + 1969/400) * secondsPerDay
+		internalToUnix = -unixToInternal
+		wallToInternal = (1884*365 + 1884/4 - 1884/100 + 1884/400) * secondsPerDay
+
+		hasMonotonic = uint64(1) << 63
+		nsecMask     = (uint64(1) << 30) - 1
+		nsecShift    = 30
+	)
+
+	var sec int64
+	if wall&hasMonotonic != 0 {
+		// 33-bit wall seconds since 1885, packed in bits 62..30.
+		sec = wallToInternal + int64((wall<<1)>>(nsecShift+1))
+	} else {
+		sec = ext
+	}
+	return sec + internalToUnix, uint32(wall & nsecMask), false
 }
 
 func (c *goChannelType) irType() ir.Type { return (*ir.GoChannelType)(c) }

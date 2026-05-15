@@ -167,18 +167,6 @@ func (sv *stateView) CorrelationHistory() []observerdef.ActiveCorrelation {
 	return accumulated
 }
 
-// --- Telemetry ---
-
-// Telemetry returns accumulated telemetry from detection runs.
-func (sv *stateView) Telemetry() []observerdef.ObserverTelemetry {
-	sv.engine.telemetryMu.RLock()
-	defer sv.engine.telemetryMu.RUnlock()
-
-	result := make([]observerdef.ObserverTelemetry, len(sv.engine.accumulatedTelemetry))
-	copy(result, sv.engine.accumulatedTelemetry)
-	return result
-}
-
 // --- Scheduling state ---
 
 // LastAnalyzedTime returns the data timestamp up to which detection has run.

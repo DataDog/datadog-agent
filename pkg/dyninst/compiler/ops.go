@@ -191,6 +191,27 @@ type CallDictResolvedOp struct {
 	FallbackFunc FunctionID // shape type's ProcessType function ID
 }
 
+// ProcessGoTimeOp adjusts a captured time.Time in place. It reads the loc
+// pointer at LocFieldOffset and, when CacheResolved is true, performs one
+// userspace probe-read on the *time.Location cache fields followed by a
+// second read on cacheZone.offset. The 8 bytes at LocFieldOffset are then
+// overwritten with either the resolved offset (in seconds east of UTC,
+// sign-extended to int64) or the sentinel ir.GoTimeUnresolvedOffset
+// (INT64_MIN) when the cache miss path is taken. The op does not enqueue
+// the loc pointer for chasing.
+type ProcessGoTimeOp struct {
+	baseOp
+	WallFieldOffset       uint32
+	ExtFieldOffset        uint32
+	LocFieldOffset        uint32
+	CacheResolved         bool
+	CacheStartOffset      uint32
+	CacheEndOffset        uint32
+	CacheZoneOffset       uint32
+	ZoneOffsetFieldOffset uint32
+	ZoneOffsetFieldSize   uint32
+}
+
 type ProcessGoHmapOp struct {
 	baseOp
 	BucketsType      *ir.GoSliceDataType

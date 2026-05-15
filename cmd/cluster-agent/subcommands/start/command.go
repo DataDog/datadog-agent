@@ -385,7 +385,15 @@ func start(log log.Component,
 	eventBroadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
 
-	instrHandlers := instrumentationhandlers.DefaultHandlers(instrumentationhandlers.Deps{IsLeader: le.IsLeader})
+	checkStore := instrumentationhandlers.NewCheckStore()
+	instrHandlers := instrumentationhandlers.DefaultHandlers(&instrumentationhandlers.Deps{
+		IsLeader:   le.IsLeader,
+		CheckStore: checkStore,
+	})
+
+	api.ModifyAPIRouter(func(r *mux.Router) {
+		dcav1.InstallInstrumentationChecksEndpoints(r, checkStore)
+	})
 
 	ctx := controllers.ControllerContext{
 		InformerFactory:             apiCl.InformerFactory,
@@ -515,7 +523,6 @@ func start(log log.Component,
 			api.ModifyAPIRouter(func(r *mux.Router) {
 				dcav1.InstallChecksEndpoints(r, clusteragent.ServerContext{ClusterCheckHandler: clusterCheckHandler})
 			})
-
 			// Set cluster checks handler in clusterchecks component
 			clusterChecksMetadataComp.SetClusterHandler(clusterCheckHandler)
 		} else {

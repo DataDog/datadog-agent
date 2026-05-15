@@ -73,6 +73,7 @@ func runAll() {
 
 	executeContinuationFuncs()
 	executeContinuationStringFuncs()
+	executeTimeFuncs()
 
 	// unsupported for MVP, should not cause failures
 	executeEsoteric()

@@ -66,7 +66,7 @@ type ConfigReader interface {
 	GetInt(key string) int
 	GetFloat64(key string) float64
 	GetString(key string) string
-	IsKnown(key string) bool
+	IsConfigured(key string) bool
 }
 
 // ComponentSettings holds per-component configuration provided by the consumer.

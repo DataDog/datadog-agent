@@ -31,8 +31,6 @@ var (
 	DefaultHostProfilerLogFile = "C:\\ProgramData\\Datadog\\logs\\host-profiler.log"
 	// DefaultPrivateActionRunnerLogFile is the default private-action-runner log file
 	DefaultPrivateActionRunnerLogFile = "C:\\ProgramData\\Datadog\\logs\\private-action-runner.log"
-	// DefaultDataPlaneLogFile is the default log file used by the data-plane agent if not configured
-	DefaultDataPlaneLogFile = "C:\\ProgramData\\Datadog\\logs\\agent-data-plane.log"
 	// DefaultSystemProbeAddress is the default address to be used for connecting to the system probe
 	DefaultSystemProbeAddress = `\\.\pipe\dd_system_probe`
 	// defaultSystemProbeLogFilePath is the default system probe log file
@@ -63,7 +61,6 @@ func osinit() {
 		DefaultOTelAgentLogFile = filepath.Join(pd, "logs", "otel-agent.log")
 		DefaultHostProfilerLogFile = filepath.Join(pd, "logs", "host-profiler.log")
 		DefaultPrivateActionRunnerLogFile = filepath.Join(pd, "logs", "private-action-runner.log")
-		DefaultDataPlaneLogFile = filepath.Join(pd, "logs", "agent-data-plane.log")
 	}
 
 	// The install path is configurable on Windows, so fetch the path from the registry

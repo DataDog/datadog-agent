@@ -666,10 +666,10 @@ Types:
       ByteSize: 8
       Pointee: 726 GoSliceDataType []net/http.segment.array
     - __kind: PointerType
-      ID: 153
+      ID: 159
       Name: '*[]os.Signal.array'
       ByteSize: 8
-      Pointee: 152 GoSliceDataType []os.Signal.array
+      Pointee: 158 GoSliceDataType []os.Signal.array
     - __kind: PointerType
       ID: 41
       Name: '*[]runtime.ancestorInfo'
@@ -695,15 +695,15 @@ Types:
       ByteSize: 8
       Pointee: 476 GoSliceDataType []syscall.Iovec.array
     - __kind: PointerType
-      ID: 162
+      ID: 161
       Name: '*[]time.zone.array'
       ByteSize: 8
-      Pointee: 161 GoSliceDataType []time.zone.array
+      Pointee: 160 GoSliceDataType []time.zone.array
     - __kind: PointerType
-      ID: 164
+      ID: 163
       Name: '*[]time.zoneTrans.array'
       ByteSize: 8
-      Pointee: 163 GoSliceDataType []time.zoneTrans.array
+      Pointee: 162 GoSliceDataType []time.zoneTrans.array
     - __kind: PointerType
       ID: 1036
       Name: '*[]uint16.array'
@@ -2866,19 +2866,19 @@ Types:
       ByteSize: 8
       Pointee: 185 GoStringDataType time.fileSizeError.str
     - __kind: PointerType
-      ID: 156
+      ID: 153
       Name: '*time.zone'
       ByteSize: 8
       GoRuntimeType: 83008
       GoKind: 22
-      Pointee: 157 StructureType time.zone
+      Pointee: 154 StructureType time.zone
     - __kind: PointerType
-      ID: 159
+      ID: 156
       Name: '*time.zoneTrans'
       ByteSize: 8
       GoRuntimeType: 83072
       GoKind: 22
-      Pointee: 160 StructureType time.zoneTrans
+      Pointee: 157 StructureType time.zoneTrans
     - __kind: PointerType
       ID: 101
       Name: '*uint'
@@ -2997,7 +2997,7 @@ Types:
       GoRuntimeType: 118592
       GoKind: 18
     - __kind: GoChannelType
-      ID: 154
+      ID: 164
       Name: <-chan time.Time
       GoRuntimeType: 120704
       GoKind: 18
@@ -4394,9 +4394,9 @@ Types:
         - Name: cap
           Offset: 16
           Type: 11 BaseType int
-      Data: 152 GoSliceDataType []os.Signal.array
+      Data: 158 GoSliceDataType []os.Signal.array
     - __kind: GoSliceDataType
-      ID: 152
+      ID: 158
       Name: '[]os.Signal.array'
       DynamicSizeClass: slice
       ByteSize: 16
@@ -4452,7 +4452,7 @@ Types:
       ByteSize: 16
       Element: 475 StructureType syscall.Iovec
     - __kind: GoSliceHeaderType
-      ID: 155
+      ID: 152
       Name: '[]time.zone'
       ByteSize: 24
       GoRuntimeType: 103680
@@ -4460,22 +4460,22 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 156 PointerType *time.zone
+          Type: 153 PointerType *time.zone
         - Name: len
           Offset: 8
           Type: 11 BaseType int
         - Name: cap
           Offset: 16
           Type: 11 BaseType int
-      Data: 161 GoSliceDataType []time.zone.array
+      Data: 160 GoSliceDataType []time.zone.array
     - __kind: GoSliceDataType
-      ID: 161
+      ID: 160
       Name: '[]time.zone.array'
       DynamicSizeClass: slice
       ByteSize: 32
-      Element: 157 StructureType time.zone
+      Element: 154 StructureType time.zone
     - __kind: GoSliceHeaderType
-      ID: 158
+      ID: 155
       Name: '[]time.zoneTrans'
       ByteSize: 24
       GoRuntimeType: 103744
@@ -4483,20 +4483,20 @@ Types:
       RawFields:
         - Name: array
           Offset: 0
-          Type: 159 PointerType *time.zoneTrans
+          Type: 156 PointerType *time.zoneTrans
         - Name: len
           Offset: 8
           Type: 11 BaseType int
         - Name: cap
           Offset: 16
           Type: 11 BaseType int
-      Data: 163 GoSliceDataType []time.zoneTrans.array
+      Data: 162 GoSliceDataType []time.zoneTrans.array
     - __kind: GoSliceDataType
-      ID: 163
+      ID: 162
       Name: '[]time.zoneTrans.array'
       DynamicSizeClass: slice
       ByteSize: 16
-      Element: 160 StructureType time.zoneTrans
+      Element: 157 StructureType time.zoneTrans
     - __kind: GoSliceHeaderType
       ID: 536
       Name: '[]uint16'
@@ -5292,7 +5292,7 @@ Types:
           Type: 130 PointerType *time.Timer
         - Name: deadline
           Offset: 88
-          Type: 132 StructureType time.Time
+          Type: 132 GoTimeType time.Time
       KeyOffset: -1
       ValueOffset: -1
     - __kind: GoContextImplementationType
@@ -6170,7 +6170,7 @@ Types:
           Type: 506 ArrayType [16]uint8
         - Name: created
           Offset: 32
-          Type: 132 StructureType time.Time
+          Type: 132 GoTimeType time.Time
     - __kind: StructureType
       ID: 534
       Name: crypto/x509.CertPool
@@ -6238,10 +6238,10 @@ Types:
           Type: 395 StructureType crypto/x509/pkix.Name
         - Name: NotBefore
           Offset: 688
-          Type: 132 StructureType time.Time
+          Type: 132 GoTimeType time.Time
         - Name: NotAfter
           Offset: 712
-          Type: 132 StructureType time.Time
+          Type: 132 GoTimeType time.Time
         - Name: KeyUsage
           Offset: 736
           Type: 400 BaseType crypto/x509.KeyUsage
@@ -12643,10 +12643,10 @@ Types:
           Type: 12 GoStringHeaderType string
         - Name: zone
           Offset: 16
-          Type: 155 GoSliceHeaderType []time.zone
+          Type: 152 GoSliceHeaderType []time.zone
         - Name: tx
           Offset: 40
-          Type: 158 GoSliceHeaderType []time.zoneTrans
+          Type: 155 GoSliceHeaderType []time.zoneTrans
         - Name: extend
           Offset: 64
           Type: 12 GoStringHeaderType string
@@ -12658,7 +12658,7 @@ Types:
           Type: 16 BaseType int64
         - Name: cacheZone
           Offset: 96
-          Type: 156 PointerType *time.zone
+          Type: 153 PointerType *time.zone
     - __kind: StructureType
       ID: 224
       Name: time.ParseError
@@ -12681,7 +12681,7 @@ Types:
         - Name: Message
           Offset: 64
           Type: 12 GoStringHeaderType string
-    - __kind: StructureType
+    - __kind: GoTimeType
       ID: 132
       Name: time.Time
       ByteSize: 24
@@ -12697,6 +12697,14 @@ Types:
         - Name: loc
           Offset: 16
           Type: 133 PointerType *time.Location
+      ExtFieldOffset: 8
+      LocFieldOffset: 16
+      CacheResolved: true
+      CacheStartOffset: 80
+      CacheEndOffset: 88
+      CacheZoneOffset: 96
+      ZoneOffsetFieldOffset: 16
+      ZoneOffsetFieldSize: 8
     - __kind: StructureType
       ID: 131
       Name: time.Timer
@@ -12706,7 +12714,7 @@ Types:
       RawFields:
         - Name: C
           Offset: 0
-          Type: 154 GoChannelType <-chan time.Time
+          Type: 164 GoChannelType <-chan time.Time
         - Name: initTimer
           Offset: 8
           Type: 6 BaseType bool
@@ -12730,7 +12738,7 @@ Types:
       DynamicSizeClass: string
       ByteSize: 1
     - __kind: StructureType
-      ID: 157
+      ID: 154
       Name: time.zone
       ByteSize: 32
       GoRuntimeType: 296480
@@ -12746,7 +12754,7 @@ Types:
           Offset: 24
           Type: 6 BaseType bool
     - __kind: StructureType
-      ID: 160
+      ID: 157
       Name: time.zoneTrans
       ByteSize: 16
       GoRuntimeType: 341408

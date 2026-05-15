@@ -76,11 +76,14 @@ func (s *reporterEventSink) onEngineEvent(evt engineEvent) {
 			NewAnomalies:  ac.anomalies,
 		}
 		if s.state != nil {
-			// Use CorrelationHistory (accumulated) rather than ActiveCorrelations
-			// (post-eviction) so that batch detector clusters are visible to
-			// reporters even when their changepoint timestamps are old enough
-			// to be evicted.
-			output.ActiveCorrelations = s.state.CorrelationHistory()
+			// ActiveCorrelations is the live sliding-window set; reporters
+			// use it to detect when a pattern has gone inactive (so it can
+			// fire again on recurrence). CorrelationHistory is the accumulated
+			// set including batch-detector clusters whose changepoint
+			// timestamps may already be evicted from the sliding window;
+			// reporters drive one-shot emission from this set.
+			output.ActiveCorrelations = s.state.ActiveCorrelations()
+			output.CorrelationHistory = s.state.CorrelationHistory()
 		}
 		for _, r := range s.reporters {
 			r.Report(output)

@@ -34,8 +34,17 @@ type ReportOutput struct {
 	AdvancedToSec int64
 	// NewAnomalies are anomalies detected in this advance cycle.
 	NewAnomalies []observerdef.Anomaly
-	// ActiveCorrelations are the current correlation patterns across all correlators.
+	// ActiveCorrelations are the patterns currently held in each correlator's
+	// sliding window. A pattern leaves this set when it goes inactive
+	// (eviction, timeout) and rejoins if it recurs.
 	ActiveCorrelations []observerdef.ActiveCorrelation
+	// CorrelationHistory is the accumulated set of every correlation pattern
+	// the engine has detected during the current run, including ones whose
+	// changepoint timestamps are already old enough to be evicted from
+	// ActiveCorrelations (e.g. batch detector clusters). Reporters that want
+	// to emit exactly once per pattern should drive emission from this set
+	// and use ActiveCorrelations to decide when a pattern has gone inactive.
+	CorrelationHistory []observerdef.ActiveCorrelation
 }
 
 // StorageConsumer is an optional interface for reporters that need access to
@@ -44,10 +53,4 @@ type ReportOutput struct {
 // the first Report call.
 type StorageConsumer interface {
 	SetStorage(storage observerdef.StorageReader)
-}
-
-// CorrelationSender sends Datadog events for detected anomaly correlations.
-// Obtain one via reporterimpl.NewLiveCorrelationSender.
-type CorrelationSender interface {
-	Send(c observerdef.ActiveCorrelation) error
 }

@@ -13,14 +13,14 @@ import (
 
 // mockLogView implements observer.LogView for testing.
 type mockLogView struct {
-	content     []byte
+	content     string
 	status      string
 	tags        []string
 	hostname    string
 	timestampMs int64
 }
 
-func (m *mockLogView) GetContent() []byte           { return m.content }
+func (m *mockLogView) GetContent() string           { return m.content }
 func (m *mockLogView) GetStatus() string            { return m.status }
 func (m *mockLogView) Tags() []string               { return m.tags }
 func (m *mockLogView) GetHostname() string          { return m.hostname }

@@ -42,7 +42,7 @@ func DefaultTimeClusterConfig() TimeClusterConfig {
 // readTimeClusterConfig reads TimeCluster settings from the agent config.
 func readTimeClusterConfig(reader ConfigReader, prefix string) any {
 	cfg := DefaultTimeClusterConfig()
-	if key := prefix + "min_cluster_size"; reader.IsKnown(key) {
+	if key := prefix + "min_cluster_size"; reader.IsConfigured(key) {
 		cfg.MinClusterSize = reader.GetInt(key)
 	}
 	return cfg

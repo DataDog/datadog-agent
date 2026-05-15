@@ -18,7 +18,9 @@ import (
 
 const (
 	testInjectorImage  = "registry.example/nccl-profiler-injector:latest"
-	testHostSocketPath = "/var/run/datadog"
+	testHostSocketDir  = "/var/run/datadog"
+	testClientDir      = "/var/run/datadog"
+	testSocketFilename = "nccl.socket"
 	testSocketPath     = "/var/run/datadog/nccl.socket"
 )
 
@@ -40,7 +42,7 @@ func newTestPod() *corev1.Pod {
 func TestMutatePod_HappyPath(t *testing.T) {
 	pod := newTestPod()
 
-	mutated, err := mutatePod(pod, testInjectorImage, testHostSocketPath, testSocketPath, nil)
+	mutated, err := mutatePod(pod, testInjectorImage, testHostSocketDir, testClientDir, testSocketFilename, nil)
 
 	require.NoError(t, err)
 	assert.True(t, mutated, "mutatePod should report it mutated the pod")
@@ -61,7 +63,10 @@ func TestMutatePod_HappyPath(t *testing.T) {
 			sawSoVol = true
 		case socketVolumeName:
 			require.NotNil(t, v.HostPath, "socket volume should be hostPath")
-			assert.Equal(t, testHostSocketPath, v.HostPath.Path)
+			assert.Equal(t, testSocketPath, v.HostPath.Path,
+				"with default config, host file == hostSocketPath+/+filepath.Base(socketPath)")
+			require.NotNil(t, v.HostPath.Type)
+			assert.Equal(t, corev1.HostPathSocket, *v.HostPath.Type)
 			sawSocketVol = true
 		}
 	}
@@ -71,12 +76,14 @@ func TestMutatePod_HappyPath(t *testing.T) {
 	// Trainer container has both volume mounts and 4 NCCL env vars.
 	require.Len(t, pod.Spec.Containers, 1)
 	trainer := pod.Spec.Containers[0]
-	mountNames := map[string]bool{}
+	mounts := map[string]string{}
 	for _, m := range trainer.VolumeMounts {
-		mountNames[m.Name] = true
+		mounts[m.Name] = m.MountPath
 	}
-	assert.True(t, mountNames[soVolumeName])
-	assert.True(t, mountNames[socketVolumeName])
+	assert.Contains(t, mounts, soVolumeName)
+	assert.Contains(t, mounts, socketVolumeName)
+	assert.Equal(t, testSocketPath, mounts[socketVolumeName],
+		"socket mount destination must equal socketPath (file mount)")
 
 	envs := map[string]string{}
 	for _, e := range trainer.Env {
@@ -86,4 +93,45 @@ func TestMutatePod_HappyPath(t *testing.T) {
 	assert.Equal(t, testSocketPath, envs["NCCL_DD_SOCKET_PATH"])
 	assert.Equal(t, soMountPath+"/libnccl-profiler-inspector.so", envs["NCCL_DD_INSPECTOR_PATH"])
 	assert.Equal(t, "1", envs["NCCL_INSPECTOR_ENABLE"])
+}
+
+// TestMutatePod_DecoupledHostAndContainerPaths: host and in-container
+// directories can differ. Host file = hostDir+/+filename, in-workload
+// file = clientDir+/+filename, NCCL_DD_SOCKET_PATH = in-workload file.
+func TestMutatePod_DecoupledHostAndContainerPaths(t *testing.T) {
+	pod := newTestPod()
+	hostDir := "/var/run/datadog-agent"
+	clientDir := "/var/run/datadog"
+	filename := "nccl.socket"
+
+	mutated, err := mutatePod(pod, testInjectorImage, hostDir, clientDir, filename, nil)
+	require.NoError(t, err)
+	assert.True(t, mutated)
+
+	var socketVol *corev1.Volume
+	for i := range pod.Spec.Volumes {
+		if pod.Spec.Volumes[i].Name == socketVolumeName {
+			socketVol = &pod.Spec.Volumes[i]
+		}
+	}
+	require.NotNil(t, socketVol)
+	require.NotNil(t, socketVol.HostPath)
+	assert.Equal(t, "/var/run/datadog-agent/nccl.socket", socketVol.HostPath.Path)
+	require.NotNil(t, socketVol.HostPath.Type)
+	assert.Equal(t, corev1.HostPathSocket, *socketVol.HostPath.Type)
+
+	trainer := pod.Spec.Containers[0]
+	var mountPath string
+	for _, m := range trainer.VolumeMounts {
+		if m.Name == socketVolumeName {
+			mountPath = m.MountPath
+		}
+	}
+	assert.Equal(t, "/var/run/datadog/nccl.socket", mountPath)
+
+	for _, e := range trainer.Env {
+		if e.Name == "NCCL_DD_SOCKET_PATH" {
+			assert.Equal(t, "/var/run/datadog/nccl.socket", e.Value)
+		}
+	}
 }

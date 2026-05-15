@@ -23,7 +23,9 @@ import (
 )
 
 func newHandler() *AutodiscoveryHandler {
-	return NewAutodiscoveryHandler(Deps{})
+	return NewAutodiscoveryHandler(&Deps{
+		CheckStore: NewCheckStore(),
+	})
 }
 
 func newCR(name, namespace string, targetKind, targetName string, checks []datadoghq.DatadogInstrumentationCheckConfig) *datadoghq.DatadogInstrumentation {
@@ -251,7 +253,7 @@ func TestHandle_Delete(t *testing.T) {
 		},
 	})
 
-	// First create configs
+	// First create checkStore
 	_, err := h.Handle(context.Background(), instrumentation.EventCreate, cr)
 	require.NoError(t, err)
 	assert.Len(t, h.ListConfigs(), 1)

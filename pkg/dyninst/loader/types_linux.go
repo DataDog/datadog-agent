@@ -150,6 +150,8 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return 0x2f
 	case compiler.OpcodeGoContextChainHop:
 		return 0x30
+	case compiler.OpcodeProcessGoTime:
+		return 0x31
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
 	}

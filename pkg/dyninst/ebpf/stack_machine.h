@@ -2365,6 +2365,107 @@ sm_swiss_map_aese(stack_machine_t* sm) {
   return 0;
 }
 
+// SM_OP_PROCESS_GO_TIME: read (wall, ext, loc) from the captured
+// time.Time at base_offset, then chase the *time.Location cache fast
+// path to resolve a UTC offset. Marked noinline so its stack frame is
+// isolated from sm_loop (BPF verifier's combined-call stack budget is
+// ~512 B). Two pairs of u32 params are packed into u64s to fit within
+// BPF's 5-argument-register limit; the kernel/verifier expose this as
+// a normal call once frames are accounted separately.
+//
+// Returns the resolved offset in seconds east of UTC, or INT64_MIN as
+// the sentinel for "could not resolve" (cache disabled, nil loc, miss,
+// or probe_read failure).
+__attribute__((noinline)) int64_t
+sm_resolve_time_offset(scratch_buf_t* buf, buf_offset_t base_offset,
+                       uint64_t wall_ext_loc_off,
+                       uint64_t cache_starts_off,
+                       uint64_t zone_off_and_size_and_flag) {
+  const int64_t sentinel = (int64_t)((uint64_t)1 << 63);
+  if (!buf) return sentinel;
+  uint8_t cache_resolved = (uint8_t)(zone_off_and_size_and_flag >> 56);
+  if (!cache_resolved) return sentinel;
+
+  uint32_t wall_off = (uint32_t)wall_ext_loc_off;
+  uint32_t ext_off = (uint32_t)(wall_ext_loc_off >> 32);
+  uint32_t loc_off = (uint32_t)cache_starts_off;
+  uint32_t cache_start_off = (uint32_t)(cache_starts_off >> 32);
+
+  buf_offset_t s = base_offset + wall_off;
+  if (!scratch_buf_bounds_check(&s, sizeof(uint64_t))) return sentinel;
+  uint64_t wall = *(uint64_t*)&((*buf)[s]);
+  s = base_offset + ext_off;
+  if (!scratch_buf_bounds_check(&s, sizeof(int64_t))) return sentinel;
+  int64_t ext = *(int64_t*)&((*buf)[s]);
+  s = base_offset + loc_off;
+  if (!scratch_buf_bounds_check(&s, sizeof(target_ptr_t))) return sentinel;
+  target_ptr_t loc_ptr = *(target_ptr_t*)&((*buf)[s]);
+  if (loc_ptr == 0) return sentinel;
+
+  // Recover Unix seconds via the same arithmetic as time.Time.sec() /
+  // time.Time.unixSec() in src/time/time.go.
+  const int64_t WALL_TO_INTERNAL = 59453308800LL;   // 1884 → year 1
+  const int64_t INTERNAL_TO_UNIX = -62135596800LL;  // year 1 → 1970
+  int64_t sec = ((wall & ((uint64_t)1 << 63)) != 0)
+      ? WALL_TO_INTERNAL + (int64_t)((wall << 1) >> 31)
+      : ext;
+  int64_t unix_sec = sec + INTERNAL_TO_UNIX;
+
+  int64_t window = 0;
+  if (bpf_probe_read_user(&window, sizeof(window),
+                          (void*)(loc_ptr + cache_start_off)) != 0) {
+    return sentinel;
+  }
+  if (unix_sec < window) return sentinel;
+
+  // The remaining params are packed in zone_off_and_size_and_flag:
+  //   bits  0..15: cache_end_off (uint16 — offsets within a Go struct
+  //                fit comfortably in 16 bits)
+  //   bits 16..31: cache_zone_off
+  //   bits 32..47: zone_offset_field_off
+  //   bits 48..55: zone_offset_field_size (1, 4, or 8)
+  //   bits 56..63: cache_resolved (1 bit, in the high byte)
+  // The irgen-side encoder asserts each value fits in its allotted
+  // width; if a future Go layout ever needs a wider offset we'll
+  // promote the encoding.
+  uint32_t cache_end_off = (uint32_t)(zone_off_and_size_and_flag & 0xFFFF);
+  uint32_t cache_zone_off = (uint32_t)((zone_off_and_size_and_flag >> 16) & 0xFFFF);
+  uint32_t zone_offset_field_off =
+      (uint32_t)((zone_off_and_size_and_flag >> 32) & 0xFFFF);
+  uint8_t zone_offset_field_size =
+      (uint8_t)((zone_off_and_size_and_flag >> 48) & 0xFF);
+
+  if (bpf_probe_read_user(&window, sizeof(window),
+                          (void*)(loc_ptr + cache_end_off)) != 0) {
+    return sentinel;
+  }
+  if (unix_sec >= window) return sentinel;
+
+  target_ptr_t cache_zone = 0;
+  if (bpf_probe_read_user(&cache_zone, sizeof(cache_zone),
+                          (void*)(loc_ptr + cache_zone_off)) != 0) {
+    return sentinel;
+  }
+  if (cache_zone == 0) return sentinel;
+
+  int64_t resolved = sentinel;
+  if (zone_offset_field_size == 8) {
+    if (bpf_probe_read_user(&resolved, 8,
+                            (void*)(cache_zone +
+                                    zone_offset_field_off)) != 0) {
+      resolved = sentinel;
+    }
+  } else if (zone_offset_field_size == 4) {
+    int32_t v = 0;
+    if (bpf_probe_read_user(&v, 4,
+                            (void*)(cache_zone +
+                                    zone_offset_field_off)) == 0) {
+      resolved = (int64_t)v;
+    }
+  }
+  return resolved;
+}
+
 static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   global_ctx_t* ctx = (global_ctx_t*)_ctx;
   scratch_buf_t* buf = ctx->buf;
@@ -2730,6 +2831,45 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     }
     // Jump back to a call instruction that directly preceedes this one.
     sm->pc -= 5 + 5;
+  } break;
+
+  case SM_OP_PROCESS_GO_TIME: {
+    // Decode params and pack into three u64s that fit BPF's argument
+    // registers. See sm_resolve_time_offset for the packing layout.
+    uint32_t wall_off = sm_read_program_uint32(sm);
+    uint32_t ext_off = sm_read_program_uint32(sm);
+    uint32_t loc_off = sm_read_program_uint32(sm);
+    uint8_t cache_resolved = sm_read_program_uint8(sm);
+    uint32_t cache_start_off = sm_read_program_uint32(sm);
+    uint32_t cache_end_off = sm_read_program_uint32(sm);
+    uint32_t cache_zone_off = sm_read_program_uint32(sm);
+    uint32_t zone_offset_field_off = sm_read_program_uint32(sm);
+    uint32_t zone_offset_field_size = sm_read_program_uint32(sm);
+
+    uint64_t wall_ext_loc_off =
+        (uint64_t)wall_off | ((uint64_t)ext_off << 32);
+    uint64_t cache_starts_off =
+        (uint64_t)loc_off | ((uint64_t)cache_start_off << 32);
+    uint64_t zone_packed =
+        ((uint64_t)(cache_end_off & 0xFFFF)) |
+        ((uint64_t)(cache_zone_off & 0xFFFF) << 16) |
+        ((uint64_t)(zone_offset_field_off & 0xFFFF) << 32) |
+        ((uint64_t)(zone_offset_field_size & 0xFF) << 48) |
+        ((uint64_t)(cache_resolved & 0xFF) << 56);
+
+    int64_t resolved_offset = sm_resolve_time_offset(
+        buf, sm->offset, wall_ext_loc_off, cache_starts_off, zone_packed);
+
+    // Re-bounds-check immediately before the write. The volatile read
+    // inside scratch_buf_bounds_check is what tells the verifier this
+    // offset is bounded at the point of use.
+    buf_offset_t write_slot = sm->offset + loc_off;
+    if (!scratch_buf_bounds_check(&write_slot, sizeof(int64_t))) {
+      break;
+    }
+    *(int64_t*)&((*buf)[write_slot]) = resolved_offset;
+    LOG(4, "process_go_time: loc_off=%u resolved_offset=%lld",
+        loc_off, (long long)resolved_offset);
   } break;
 
   case SM_OP_PROCESS_STRING: {

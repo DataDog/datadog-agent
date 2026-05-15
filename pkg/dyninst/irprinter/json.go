@@ -337,6 +337,7 @@ var allTypes = []reflect.Type{
 	reflect.TypeOf((*ir.GoSubroutineType)(nil)),
 	reflect.TypeOf((*ir.GoSwissMapGroupsType)(nil)),
 	reflect.TypeOf((*ir.GoSwissMapHeaderType)(nil)),
+	reflect.TypeOf((*ir.GoTimeType)(nil)),
 	reflect.TypeOf((*ir.PointerType)(nil)),
 	reflect.TypeOf((*ir.StructureType)(nil)),
 	reflect.TypeOf((*ir.GoContextImplementationType)(nil)),

@@ -478,6 +478,11 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// to mount /var/run/datadog into the agent pod. For DSD/APM-enabled deployments
 	// the directory is already mounted; this setting matters for NCCL-only setups.
 	config.BindEnvAndSetDefault("gpu.nccl.host_socket_path", "/var/run/datadog")
+	// In-container directory at which the agent's NCCL socket is mounted in
+	// injected workload pods. Composed with filepath.Base(gpu.nccl.socket_path)
+	// to build the mount destination and NCCL_DD_SOCKET_PATH. Same shape as
+	// admission_controller.inject_config.socket_path used by APM/DSD injection.
+	config.BindEnvAndSetDefault("admission_controller.nccl_profiler.socket_dir", "/var/run/datadog")
 
 	// Cloud Foundry BBS
 	config.BindEnvAndSetDefault("cloud_foundry_bbs.url", "https://bbs.service.cf.internal:8889")
@@ -1064,19 +1069,9 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Data Plane
 	config.BindEnvAndSetDefault("data_plane.enabled", false)
-	config.BindEnvAndSetDefault("data_plane.use_new_config_stream_endpoint", true)
-	config.BindEnvAndSetDefault("data_plane.remote_agent_enabled", true)
-	config.BindEnvAndSetDefault("data_plane.api_listen_address", "0.0.0.0:5100")
-	config.BindEnvAndSetDefault("data_plane.secure_api_listen_address", "0.0.0.0:5101")
-	config.BindEnvAndSetDefault("data_plane.telemetry_enabled", false)
-	config.BindEnvAndSetDefault("data_plane.telemetry_listen_addr", "0.0.0.0:5102")
-	config.BindEnvAndSetDefault("data_plane.log_file", DefaultDataPlaneLogFile)
 	config.BindEnvAndSetDefault("data_plane.dogstatsd.enabled", true)
 	config.BindEnvAndSetDefault("data_plane.otlp.enabled", false)
 	config.BindEnvAndSetDefault("data_plane.otlp.proxy.enabled", false)
-	config.BindEnvAndSetDefault("data_plane.otlp.proxy.traces.enabled", true)
-	config.BindEnvAndSetDefault("data_plane.otlp.proxy.metrics.enabled", true)
-	config.BindEnvAndSetDefault("data_plane.otlp.proxy.logs.enabled", true)
 	// When the ADP OTLP proxy is enabled, ADP owns the gRPC endpoint configured for the receiver (default :4317) and the core agent uses the endpoint below
 	config.BindEnvAndSetDefault("data_plane.otlp.proxy.receiver.protocols.grpc.endpoint", "127.0.0.1:4319")
 

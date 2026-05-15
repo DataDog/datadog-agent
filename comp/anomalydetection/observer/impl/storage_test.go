@@ -6,9 +6,11 @@
 package observerimpl
 
 import (
+	"fmt"
 	"math"
 	"sync"
 	"testing"
+	"unsafe"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/stretchr/testify/assert"
@@ -578,63 +580,49 @@ func TestTimeSeriesStorage_ListSeries_ExcludeNamespaces(t *testing.T) {
 	assert.Equal(t, observer.TelemetryNamespace, onlyTel[0].Namespace)
 }
 
-func TestTimeSeriesStorage_RemoveSeriesByKeys(t *testing.T) {
+func TestTimeSeriesStorage_RemoveSeriesByRefs(t *testing.T) {
 	s := newTimeSeriesStorage()
 
-	s.Add("ns", "a", 1.0, 1000, []string{"k:1"})
-	s.Add("ns", "b", 2.0, 1000, []string{"k:2"})
-	s.Add("ns", "c", 3.0, 1000, []string{"k:3"})
+	resA := s.Add("ns", "a", 1.0, 1000, []string{"k:1"})
+	resB := s.Add("ns", "b", 2.0, 1000, []string{"k:2"})
+	resC := s.Add("ns", "c", 3.0, 1000, []string{"k:3"})
 	require.Equal(t, 3, s.TotalSeriesCount(""))
 	genBefore := s.SeriesGeneration()
 
-	keyB := seriesKey("ns", "b", []string{"k:2"})
-	keyC := seriesKey("ns", "c", []string{"k:3"})
-	refB := s.seriesIDs[keyB]
-	refC := s.seriesIDs[keyC]
+	refA, refB, refC := resA.Ref, resB.Ref, resC.Ref
 
-	removed := s.RemoveSeriesByKeys([]string{keyB, keyC, "nonexistent"})
-	require.Len(t, removed, 2, "unknown keys are silently ignored")
+	// Remove b and c; pass a bogus ref (-1) that should be silently ignored.
+	removed := s.RemoveSeriesByRefs([]observer.SeriesRef{refB, refC, -1})
+	require.Len(t, removed, 2, "out-of-range refs are silently ignored")
 	require.ElementsMatch(t, []observer.SeriesRef{refB, refC}, removed, "freed refs are returned for fan-out to detectors")
 	require.Equal(t, 1, s.TotalSeriesCount(""), "only series 'a' should remain")
 	require.Greater(t, s.SeriesGeneration(), genBefore, "seriesGen bumps on removal")
 
 	require.Nil(t, s.GetSeriesMeta(refB), "removed ref resolves to nil")
 	require.Nil(t, s.GetSeriesMeta(refC), "removed ref resolves to nil")
-
-	refA := s.seriesIDs[seriesKey("ns", "a", []string{"k:1"})]
 	require.NotNil(t, s.GetSeriesMeta(refA), "surviving series still resolvable")
 
-	// Evicted slots in seriesIDKeys are cleared to "" so the original key
-	// string can be GC'd. Slot is kept in place (slice length unchanged) so
-	// subsequent stale-ref index lookups stay bounds-safe.
-	require.Equal(t, "", s.seriesIDKeys[refB], "evicted seriesIDKeys slot must be empty so the key string can be GC'd")
-	require.Equal(t, "", s.seriesIDKeys[refC], "evicted seriesIDKeys slot must be empty so the key string can be GC'd")
-	require.NotEqual(t, "", s.seriesIDKeys[refA], "surviving seriesIDKeys slot must be intact")
-
-	// A subsequent Add for the same key creates a fresh series with a new ref.
-	s.Add("ns", "b", 99.0, 1100, []string{"k:2"})
+	// A subsequent Add for the same series creates a fresh series with a new ref.
+	res2B := s.Add("ns", "b", 99.0, 1100, []string{"k:2"})
 	require.Equal(t, 2, s.TotalSeriesCount(""), "re-add re-creates the series")
-	newRefB := s.seriesIDs[keyB]
-	require.NotEqual(t, refB, newRefB, "new ref minted; old ref id is retired")
+	require.NotEqual(t, refB, res2B.Ref, "new ref minted; old ref is retired")
 	require.Nil(t, s.GetSeriesMeta(refB), "old ref still resolves to nil after re-add")
 }
 
-func TestTimeSeriesStorage_RemoveSeriesByKeysEmptyOrUnknown(t *testing.T) {
+func TestTimeSeriesStorage_RemoveSeriesByRefsEmptyOrUnknown(t *testing.T) {
 	s := newTimeSeriesStorage()
 	s.Add("ns", "a", 1.0, 1000, nil)
 	genBefore := s.SeriesGeneration()
 
-	require.Empty(t, s.RemoveSeriesByKeys(nil))
-	require.Empty(t, s.RemoveSeriesByKeys([]string{}))
-	require.Empty(t, s.RemoveSeriesByKeys([]string{"unknown1", "unknown2"}))
+	require.Empty(t, s.RemoveSeriesByRefs(nil))
+	require.Empty(t, s.RemoveSeriesByRefs([]observer.SeriesRef{}))
+	// Out-of-range refs (-1, 999) are silently skipped.
+	require.Empty(t, s.RemoveSeriesByRefs([]observer.SeriesRef{-1, 999}))
 	require.Equal(t, genBefore, s.SeriesGeneration(), "no removal → no gen bump")
 }
-func TestTimeSeriesStorage_AddReturnsCanonicalKey(t *testing.T) {
-	// Add returns the same string seriesKey would compute from the same
-	// inputs, including under tag canonicalization. Callers (e.g. the engine
-	// populating contextRefs) rely on this so they can skip a second
-	// seriesKey call. If this contract drifts, the optimisation silently
-	// produces wrong-keyed entries.
+func TestTimeSeriesStorage_AddReturnsRef(t *testing.T) {
+	// Add returns a valid Ref (>= 0) for accepted points, and the same Ref
+	// on subsequent writes. Each distinct series gets a unique Ref.
 	s := newTimeSeriesStorage()
 
 	cases := []struct {
@@ -650,36 +638,138 @@ func TestTimeSeriesStorage_AddReturnsCanonicalKey(t *testing.T) {
 		{"empty_namespace", "", "m5", []string{"env:prod"}},
 	}
 
+	seen := make(map[observer.SeriesRef]bool)
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			res := s.Add(tc.namespace, tc.metric, 1.0, 1000, tc.tags)
 			assert.True(t, res.IsNew, "first write should report IsNew=true")
-			wantKey := seriesKey(tc.namespace, tc.metric, tc.tags)
-			assert.Equal(t, wantKey, res.StorageKey, "Add must return seriesKey-equivalent storage key")
+			assert.GreaterOrEqual(t, int(res.Ref), 0, "valid Ref must be >= 0")
+			assert.False(t, seen[res.Ref], "each series must get a unique Ref")
+			seen[res.Ref] = true
 
-			// Second write of the same series returns the same key and IsNew=false.
+			// Second write returns same Ref and IsNew=false.
 			res2 := s.Add(tc.namespace, tc.metric, 2.0, 1001, tc.tags)
 			assert.False(t, res2.IsNew, "second write should report IsNew=false")
-			assert.Equal(t, wantKey, res2.StorageKey, "Add must return the same key on subsequent writes")
+			assert.Equal(t, res.Ref, res2.Ref, "subsequent writes must return the same Ref")
 		})
 	}
 }
 
-func TestTimeSeriesStorage_AddDroppedReturnsEmptyKey(t *testing.T) {
-	// Pre-key-compute drops (non-finite, sentinel values) return empty key.
-	// Callers must check StorageKey != "" before reusing it for downstream
-	// state (e.g. contextRefs).
+func TestTimeSeriesStorage_AddDroppedReturnsNegativeRef(t *testing.T) {
+	// Drops (non-finite, sentinel values) return Ref=-1.
+	// Callers check res.Ref >= 0 before using Ref for downstream state.
 	s := newTimeSeriesStorage()
 
 	res := s.Add("ns", "m", math.NaN(), 1000, nil)
 	assert.False(t, res.IsNew)
-	assert.Empty(t, res.StorageKey, "NaN drop must return empty key")
+	assert.Equal(t, observer.SeriesRef(-1), res.Ref, "NaN drop must return Ref=-1")
 
 	res = s.Add("ns", "m", math.Inf(1), 1000, nil)
 	assert.False(t, res.IsNew)
-	assert.Empty(t, res.StorageKey, "+Inf drop must return empty key")
+	assert.Equal(t, observer.SeriesRef(-1), res.Ref, "+Inf drop must return Ref=-1")
 
 	res = s.Add("ns", "m", math.MaxFloat64, 1000, nil)
 	assert.False(t, res.IsNew)
-	assert.Empty(t, res.StorageKey, "MaxFloat64 sentinel drop must return empty key")
+	assert.Equal(t, observer.SeriesRef(-1), res.Ref, "MaxFloat64 sentinel drop must return Ref=-1")
+}
+
+func TestTimeSeriesStorage_TagIntern_PoolGrows(t *testing.T) {
+	s := newTimeSeriesStorage()
+	assert.Equal(t, 0, s.TagInternedCount())
+
+	s.Add("ns", "m1", 1.0, 1000, []string{"env:prod", "host:a"})
+	assert.Equal(t, 1, s.TagInternedCount(), "one combination interned")
+
+	s.Add("ns", "m2", 1.0, 1000, []string{"env:prod", "host:b"})
+	assert.Equal(t, 2, s.TagInternedCount(), "second distinct combination interned")
+
+	// Same combination as m1 — pool must not grow.
+	s.Add("ns2", "m1", 1.0, 1000, []string{"env:prod", "host:a"})
+	assert.Equal(t, 2, s.TagInternedCount(), "repeated combination must not grow pool")
+}
+
+func TestTimeSeriesStorage_TagIntern_SharedSlice(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	// Build tags at runtime to defeat Go's compile-time string interning.
+	tags := []string{"env:" + string([]byte{'p', 'r', 'o', 'd'}), "host:a"}
+
+	res1 := s.Add("ns", "m1", 1.0, 1000, tags)
+	res2 := s.Add("ns", "m2", 1.0, 1000, tags)
+
+	s.mu.RLock()
+	stats1 := s.resolveByID(res1.Ref)
+	stats2 := s.resolveByID(res2.Ref)
+	s.mu.RUnlock()
+
+	require.NotNil(t, stats1)
+	require.NotNil(t, stats2)
+
+	ptr1 := uintptr(unsafe.Pointer(unsafe.SliceData(stats1.Tags)))
+	ptr2 := uintptr(unsafe.Pointer(unsafe.SliceData(stats2.Tags)))
+	assert.Equal(t, ptr1, ptr2, "series with identical tag sets must share the same []string backing array")
+	assert.Equal(t, 1, s.TagInternedCount())
+}
+
+func TestTimeSeriesStorage_TagIntern_Eviction(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	tags := []string{"env:prod", "host:a"}
+	res1 := s.Add("ns", "m1", 1.0, 1000, tags)
+	res2 := s.Add("ns", "m2", 1.0, 1000, tags)
+	assert.Equal(t, 1, s.TagInternedCount(), "one pool entry for the shared combination")
+
+	s.RemoveSeriesByRefs([]observer.SeriesRef{res1.Ref})
+	assert.Equal(t, 1, s.TagInternedCount(), "pool entry must survive while m2 still references it")
+
+	s.RemoveSeriesByRefs([]observer.SeriesRef{res2.Ref})
+	assert.Equal(t, 0, s.TagInternedCount(), "pool entry must be freed when last referencing series is evicted")
+}
+
+func TestTimeSeriesStorage_TagIntern_NilAndEmptyTags(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	res1 := s.Add("ns", "nil_tags", 1.0, 1000, nil)
+	assert.Equal(t, 0, s.TagInternedCount(), "nil tags must not create an intern entry")
+
+	res2 := s.Add("ns", "empty_tags", 1.0, 1000, []string{})
+	assert.Equal(t, 0, s.TagInternedCount(), "empty tags must not create an intern entry")
+
+	s.RemoveSeriesByRefs([]observer.SeriesRef{res1.Ref, res2.Ref})
+	assert.Equal(t, 0, s.TagInternedCount(), "removal of uninterned series must leave pool empty")
+}
+
+func TestTimeSeriesStorage_TagIntern_UnsortedTagsShareEntry(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	tags1 := []string{"host:a", "env:prod"} // unsorted
+	tags2 := []string{"env:prod", "host:a"} // sorted
+
+	res1 := s.Add("ns", "m1", 1.0, 1000, tags1)
+	res2 := s.Add("ns", "m2", 1.0, 1000, tags2)
+	assert.Equal(t, 1, s.TagInternedCount(), "same tags in different order must share one pool entry")
+
+	s.mu.RLock()
+	stats1 := s.resolveByID(res1.Ref)
+	stats2 := s.resolveByID(res2.Ref)
+	s.mu.RUnlock()
+
+	ptr1 := uintptr(unsafe.Pointer(unsafe.SliceData(stats1.Tags)))
+	ptr2 := uintptr(unsafe.Pointer(unsafe.SliceData(stats2.Tags)))
+	assert.Equal(t, ptr1, ptr2, "unsorted and sorted variants must share the same backing array")
+}
+
+func TestTimeSeriesStorage_TagIntern_Cap(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	for i := 0; i < tagInternMaxSize; i++ {
+		s.Add("ns", fmt.Sprintf("m%d", i), 1.0, 1000, []string{fmt.Sprintf("unique:tag%d", i)})
+	}
+	assert.Equal(t, tagInternMaxSize, s.TagInternedCount(), "pool should be at cap")
+
+	s.Add("ns", "overflow", 1.0, 1000, []string{"unique:overflow"})
+	assert.Equal(t, tagInternMaxSize, s.TagInternedCount(), "pool must not exceed cap")
+
+	s.Add("ns2", "m0", 1.0, 1000, []string{"unique:tag0"})
+	assert.Equal(t, tagInternMaxSize, s.TagInternedCount(), "hit on existing entry must not grow pool")
 }

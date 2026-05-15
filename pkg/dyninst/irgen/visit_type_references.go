@@ -80,6 +80,7 @@ func visitTypeReferences(tc *typeCatalog, f func(t *ir.Type)) {
 		case *ir.GoSubroutineType:
 		case *ir.GoSwissMapGroupsType:
 		case *ir.GoSwissMapHeaderType:
+		case *ir.GoTimeType:
 		case *ir.VoidPointerType:
 		case *ir.UnresolvedPointeeType:
 		default:

@@ -6,7 +6,15 @@
 // Package clusteragent contains the functionality of the Cluster Agent.
 package clusteragent
 
-import "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+import (
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+)
+
+// ConfigLister exposes integration.Configs derived from DatadogInstrumentation CRs.
+type ConfigLister interface {
+	ListConfigs() []integration.Config
+}
 
 // ServerContext holds business logic classes required to setup API endpoints
 type ServerContext struct {
