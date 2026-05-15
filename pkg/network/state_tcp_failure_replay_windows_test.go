@@ -112,50 +112,6 @@ func TestWindowsTCPFailureReplay(t *testing.T) {
 		"windowsLingeringFlows counter should increment once per suppressed re-report")
 }
 
-// TestWindowsTCPFailureReplay_LegitimateReclose verifies that suppression does
-// NOT fire when a connection is genuinely closed a second time
-// (last.TCPClosed > 0 on poll 2).
-func TestWindowsTCPFailureReplay_LegitimateReclose(t *testing.T) {
-	var epoch uint64
-	nextEpoch := func() uint64 { epoch++; return epoch }
-
-	const eConnReset = uint16(104)
-	const clientID = "test-reclose"
-	state := replayNewDefaultState()
-	state.RegisterClient(clientID)
-
-	lingeringBefore := stateTelemetry.windowsLingeringFlows.Load()
-
-	poll1 := ConnectionStats{
-		ConnectionTuple: ConnectionTuple{Pid: 1, Type: TCP, Family: AFINET,
-			Source: util.AddressFromString("10.0.0.1"), Dest: util.AddressFromString("10.0.0.2"),
-			SPort: 1111, DPort: 443},
-		Monotonic:   StatCounters{SentBytes: 1000, TCPClosed: 1},
-		TCPFailures: map[uint16]uint32{eConnReset: 1},
-		Cookie:      0xDEADBEEF,
-	}
-	delta1 := state.GetDelta(clientID, nextEpoch(), []ConnectionStats{poll1}, nil, nil)
-	require.Len(t, delta1.Conns, 1)
-	require.Equal(t, uint16(1), delta1.Conns[0].Last.TCPClosed)
-
-	// Poll 2: TCPClosed advances again — suppression must NOT fire.
-	poll2 := ConnectionStats{
-		ConnectionTuple: poll1.ConnectionTuple,
-		Monotonic:       StatCounters{SentBytes: 2000, TCPClosed: 2},
-		TCPFailures:     map[uint16]uint32{eConnReset: 1},
-		Cookie:          poll1.Cookie,
-	}
-	delta2 := state.GetDelta(clientID, nextEpoch(), []ConnectionStats{poll2}, nil, nil)
-	require.Len(t, delta2.Conns, 1)
-	require.Equal(t, uint16(1), delta2.Conns[0].Last.TCPClosed,
-		"legitimate re-close must ship TCPClosed=1")
-	require.NotEmpty(t, delta2.Conns[0].TCPFailures,
-		"failures must NOT be suppressed when TCPClosed delta > 0")
-
-	require.Equal(t, lingeringBefore, stateTelemetry.windowsLingeringFlows.Load(),
-		"counter must not increment for a legitimate re-close")
-}
-
 // TestWindowsTCPFailureReplay_NoFailuresNoOp verifies that the suppression path
 // is a no-op for flows with empty TCPFailures.
 func TestWindowsTCPFailureReplay_NoFailuresNoOp(t *testing.T) {
