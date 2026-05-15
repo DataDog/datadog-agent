@@ -125,8 +125,9 @@ linters:
             - "!**/comp/core/status/statusimpl/common_header_provider_test.go"
             - "!**/comp/core/status/statusimpl/status_api_endpoints_test.go"
             - "!**/comp/core/status/statusimpl/status_test.go"
-            - "!**/comp/core/sysprobeconfig/sysprobeconfigimpl/config.go"
-            - "!**/comp/core/sysprobeconfig/sysprobeconfigimpl/config_mock.go"
+            - "!**/comp/core/sysprobeconfig/impl/config.go"
+            - "!**/comp/core/sysprobeconfig/mock/mock.go"
+
             - "!**/comp/core/tagger/taglist/taglist.go"
             - "!**/comp/core/workloadfilter/baseimpl/filter_utils.go"
             - "!**/comp/core/workloadfilter/catalog/filter_config.go"
