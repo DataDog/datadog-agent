@@ -21,5 +21,10 @@ type Component interface {
 	// maintains per-registration state: after each tick it resolves any
 	// IssueIds that disappeared from the previous run. If interval is zero
 	// or negative, the scheduler's default interval is used.
-	Schedule(source string, fn runnerdef.HealthCheckFunc, interval time.Duration) error
+	//
+	// initialIssueIDs pre-populates the per-check lastIssueIDs set; pass the
+	// IDs of any issues that were active in the store before this call so that
+	// they are resolved on the first tick if the check no longer reports them.
+	// Callers should obtain these IDs via store.GetActiveIssueIDsByIssueType.
+	Schedule(source string, fn runnerdef.HealthCheckFunc, interval time.Duration, initialIssueIDs []string) error
 }

@@ -93,7 +93,7 @@ func (s *scheduler) stop(_ context.Context) error {
 }
 
 // Schedule registers fn to run at the given interval.
-func (s *scheduler) Schedule(source string, fn runnerdef.HealthCheckFunc, interval time.Duration) error {
+func (s *scheduler) Schedule(source string, fn runnerdef.HealthCheckFunc, interval time.Duration, initialIssueIDs []string) error {
 	if source == "" {
 		return errors.New("source cannot be empty")
 	}
@@ -111,11 +111,15 @@ func (s *scheduler) Schedule(source string, fn runnerdef.HealthCheckFunc, interv
 		return fmt.Errorf("health check for source %q is already registered", source)
 	}
 
+	lastIssueIDs := make(map[string]struct{}, len(initialIssueIDs))
+	for _, id := range initialIssueIDs {
+		lastIssueIDs[id] = struct{}{}
+	}
 	check := &registeredHealthCheck{
 		source:       source,
 		fn:           fn,
 		interval:     interval,
-		lastIssueIDs: make(map[string]struct{}),
+		lastIssueIDs: lastIssueIDs,
 		stopCh:       make(chan struct{}),
 	}
 	s.checks[source] = check

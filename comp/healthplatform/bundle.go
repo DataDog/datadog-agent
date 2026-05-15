@@ -33,6 +33,7 @@ import (
 	runnerfx "github.com/DataDog/datadog-agent/comp/healthplatform/runner/fx"
 	schedulerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
 	schedulerfx "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/fx"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	corefx "github.com/DataDog/datadog-agent/comp/healthplatform/store/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -58,21 +59,44 @@ func bootstrapBuiltInPeriodicHealthChecks(
 	logger log.Component,
 	runner runnerdef.Component,
 	scheduler schedulerdef.Component,
+	store storedef.Component,
 	lc fx.Lifecycle,
 ) {
+	if !cfg.GetBool("health_platform.enabled") {
+		return
+	}
 	registry := buildRegistry(cfg)
 	lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
 			for _, once := range registry.GetBuiltInStartupHealthChecks() {
 				once := once // capture loop variable
 				go func() {
-					if _, err := runner.Run(once.Source, once.Fn); err != nil {
+					newIDs, err := runner.Run(once.Source, once.Fn)
+					if err != nil {
 						logger.Warnf("built-in once-check %q failed at startup: %v", once.Source, err)
+						return
+					}
+					// Resolve any issues from this source that were active
+					// (e.g. persisted from a prior run) but are no longer reported.
+					newSet := make(map[string]struct{}, len(newIDs))
+					for _, id := range newIDs {
+						newSet[id] = struct{}{}
+					}
+					for _, t := range once.IssueTypes {
+						for _, id := range store.GetActiveIssueIDsByIssueType(t) {
+							if _, still := newSet[id]; !still {
+								store.ResolveIssue(id)
+							}
+						}
 					}
 				}()
 			}
 			for _, check := range registry.GetBuiltInPeriodicHealthChecks() {
-				if err := scheduler.Schedule(check.Source, check.Fn, check.Interval); err != nil {
+				var initialIDs []string
+				for _, t := range check.IssueTypes {
+					initialIDs = append(initialIDs, store.GetActiveIssueIDsByIssueType(t)...)
+				}
+				if err := scheduler.Schedule(check.Source, check.Fn, check.Interval, initialIDs); err != nil {
 					logger.Warnf("failed to schedule built-in health check %q: %v", check.Source, err)
 				}
 			}

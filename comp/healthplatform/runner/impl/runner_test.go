@@ -45,6 +45,7 @@ func (m *mockStore) ResolveIssue(_ string)                                      
 func (m *mockStore) ResolveAllIssues()                                            {}
 func (m *mockStore) GetIssue(_ string) *healthplatformpayload.Issue               { return nil }
 func (m *mockStore) GetAllIssues() (int, map[string]*healthplatformpayload.Issue) { return 0, nil }
+func (m *mockStore) GetActiveIssueIDsByIssueType(_ string) []string               { return nil }
 
 func newTestRunner(t *testing.T) (*runner, *mockStore) {
 	t.Helper()

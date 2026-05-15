@@ -18,7 +18,7 @@ import (
 
 type mockScheduler struct{}
 
-func (m *mockScheduler) Schedule(_ string, _ runnerdef.HealthCheckFunc, _ time.Duration) error {
+func (m *mockScheduler) Schedule(_ string, _ runnerdef.HealthCheckFunc, _ time.Duration, _ []string) error {
 	return nil
 }
 

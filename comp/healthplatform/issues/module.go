@@ -62,18 +62,24 @@ type IssueTemplate interface {
 // BuiltInPeriodicHealthCheck represents configuration for a periodic built-in health check.
 // Source is the reporting component label passed to scheduler.Schedule.
 // Fn returns zero or more IssueReports; returning nil/empty means no issue detected.
+// IssueTypes is populated automatically by Registry.RegisterModule from module.IssueType();
+// module authors must not set it. bundle.go uses it to query the store for persisted
+// issues from a prior run so the scheduler can resolve them after restart.
 type BuiltInPeriodicHealthCheck struct {
-	Source   string
-	Fn       runnerdef.HealthCheckFunc
-	Interval time.Duration
+	Source     string
+	Fn         runnerdef.HealthCheckFunc
+	Interval   time.Duration
+	IssueTypes []string
 }
 
 // BuiltInStartupHealthCheck represents a check that runs exactly once at agent startup via
 // runner.Run. Use this for startup-time diagnostics (e.g. filesystem permissions)
 // where a periodic poll makes no sense.
+// IssueTypes is populated automatically by Registry.RegisterModule; see BuiltInPeriodicHealthCheck.
 type BuiltInStartupHealthCheck struct {
-	Source string
-	Fn     runnerdef.HealthCheckFunc
+	Source     string
+	Fn         runnerdef.HealthCheckFunc
+	IssueTypes []string
 }
 
 // Module represents a complete issue feature module.

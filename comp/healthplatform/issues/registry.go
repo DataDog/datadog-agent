@@ -39,9 +39,11 @@ func (r *Registry) RegisterModule(module Module) {
 	r.templates[module.IssueType()] = module.IssueTemplate()
 
 	if check := module.BuiltInPeriodicHealthCheck(); check != nil {
+		check.IssueTypes = append(check.IssueTypes, module.IssueType())
 		r.periodicChecks = append(r.periodicChecks, check)
 	}
 	if once := module.BuiltInStartupHealthCheck(); once != nil {
+		once.IssueTypes = append(once.IssueTypes, module.IssueType())
 		r.startupChecks = append(r.startupChecks, once)
 	}
 }

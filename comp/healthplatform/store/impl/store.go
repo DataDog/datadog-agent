@@ -65,8 +65,9 @@ type healthPlatformImpl struct {
 	agentFlavor      string                      // Agent flavor captured at construction time
 
 	// Issue tracking
-	issues    map[string]*healthplatform.Issue // Issue detected by check ID (nil if no issue)
-	issuesMux sync.RWMutex                     // Mutex for thread-safe access to issues
+	issues       map[string]*healthplatform.Issue // IssueID → active Issue
+	issuesByType map[string]map[string]struct{}   // IssueType → set of active IssueIDs
+	issuesMux    sync.RWMutex                     // Mutex for thread-safe access to issues
 
 	// Persistence
 	persistedIssues map[string]*PersistedIssue // Persisted issues with status tracking
@@ -257,8 +258,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 		issueRegistry: issueRegistry,
 
 		// Issue tracking
-		issues:    make(map[string]*healthplatform.Issue), // Initialize issues map
-		issuesMux: sync.RWMutex{},                         // Initialize issues mutex
+		issues:       make(map[string]*healthplatform.Issue),
+		issuesByType: make(map[string]map[string]struct{}),
+		issuesMux:    sync.RWMutex{},
 
 		// Persistence
 		persistedIssues: make(map[string]*PersistedIssue),
@@ -323,8 +325,8 @@ func (h *healthPlatformImpl) stop(_ context.Context) error {
 
 // ReportIssue records a new or ongoing issue. The issue is keyed by
 // report.IssueID (unique instance id). The template is looked up by
-// report.IssueType in the issue registry; report.Source and report.Tags
-// are applied to the resulting proto Issue.
+// report.IssueType in the issue registry; report.Tags are appended to the
+// template's tags. The template's user-facing Source field is preserved.
 func (h *healthPlatformImpl) ReportIssue(report healthplatformdef.IssueReport) error {
 	if report.IssueID == "" {
 		return errors.New("issue id cannot be empty")
@@ -341,9 +343,6 @@ func (h *healthPlatformImpl) ReportIssue(report healthplatformdef.IssueReport) e
 		return fmt.Errorf("failed to build issue %s: %w", report.IssueType, err)
 	}
 	issue.Id = report.IssueID
-	if report.Source != "" {
-		issue.Source = report.Source
-	}
 	if len(report.Tags) > 0 {
 		issue.Tags = append(issue.Tags, report.Tags...)
 	}
@@ -352,7 +351,7 @@ func (h *healthPlatformImpl) ReportIssue(report healthplatformdef.IssueReport) e
 	previousIssue := h.issues[report.IssueID]
 	h.issuesMux.RUnlock()
 
-	h.handleIssueStateChange(report.Source, previousIssue, issue)
+	h.handleIssueStateChange(issue.Source, previousIssue, issue)
 	h.storeIssue(report.IssueType, issue)
 	return nil
 }
@@ -410,6 +409,11 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 	}
 	delete(h.issues, issueID)
 
+	// Remove from type index
+	if persisted := h.persistedIssues[issueID]; persisted != nil {
+		delete(h.issuesByType[persisted.IssueType], issueID)
+	}
+
 	// Update persisted issue status to resolved
 	if persisted := h.persistedIssues[issueID]; persisted != nil {
 		persisted.State = IssueStateResolved
@@ -441,6 +445,7 @@ func (h *healthPlatformImpl) ResolveAllIssues() {
 	}
 
 	h.issues = make(map[string]*healthplatform.Issue)
+	h.issuesByType = make(map[string]map[string]struct{})
 	h.log.Info("Cleared all issues")
 
 	h.issuesMux.Unlock()
@@ -449,6 +454,20 @@ func (h *healthPlatformImpl) ResolveAllIssues() {
 	if err := h.saveToDisk(); err != nil {
 		h.log.Warn("Failed to persist issues to disk: " + err.Error())
 	}
+}
+
+// GetActiveIssueIDsByIssueType returns the IDs of all currently active issues
+// of the given template type. Used by bundle.go to compute the initial set of
+// issue IDs for the scheduler after an agent restart.
+func (h *healthPlatformImpl) GetActiveIssueIDsByIssueType(issueType string) []string {
+	h.issuesMux.RLock()
+	defer h.issuesMux.RUnlock()
+	ids := h.issuesByType[issueType]
+	result := make([]string, 0, len(ids))
+	for id := range ids {
+		result = append(result, id)
+	}
+	return result
 }
 
 // ============================================================================
@@ -490,6 +509,10 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 	h.metrics.issuesCounter.Add(1, issueType)
 
 	h.issues[issueID] = issue
+	if h.issuesByType[issueType] == nil {
+		h.issuesByType[issueType] = make(map[string]struct{})
+	}
+	h.issuesByType[issueType][issueID] = struct{}{}
 
 	existing := h.persistedIssues[issueID]
 	if existing == nil {
@@ -567,6 +590,10 @@ func (h *healthPlatformImpl) loadFromDisk() error {
 		issue.Id = issueID
 		issue.PersistedIssue = persistedIssueToProto(persisted)
 		h.issues[issueID] = issue
+		if h.issuesByType[persisted.IssueType] == nil {
+			h.issuesByType[persisted.IssueType] = make(map[string]struct{})
+		}
+		h.issuesByType[persisted.IssueType][issueID] = struct{}{}
 		activeCount++
 	}
 

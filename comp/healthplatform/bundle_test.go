@@ -115,7 +115,7 @@ func TestBundleStartLifecycle(t *testing.T) {
 				},
 			},
 		}, nil
-	}, tickInterval))
+	}, tickInterval, nil))
 
 	require.Eventually(t, func() bool { return checkRunCount.Load() > 0 },
 		2*time.Second, 10*time.Millisecond,
