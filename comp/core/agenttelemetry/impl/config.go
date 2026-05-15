@@ -258,8 +258,17 @@ var defaultProfiles = `
         - name: logs.auto_multi_line_default_would_truncate
         - name: logs_destination.destination_workers
         - name: point.sent
+          aggregate_tags:
+            - domain
+            - remote_agent
         - name: point.dropped
+          aggregate_tags:
+            - domain
+            - remote_agent
         - name: transactions.input_count
+        - name: transactions.input_bytes
+          aggregate_tags:
+            - endpoint
         - name: transactions.requeued
         - name: transactions.retries
         - name: transactions.http_errors

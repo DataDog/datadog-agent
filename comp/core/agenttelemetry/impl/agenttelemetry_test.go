@@ -2148,6 +2148,48 @@ func TestUsingPayloadCompressionInAgentTelemetrySender(t *testing.T) {
 	assert.True(t, float64(nonCompressBodyLen)/float64(compressBodyLen) > 1.5)
 }
 
+func TestCoalescesDefaultAndNoDefaultMetricFamiliesBeforeAggregation(t *testing.T) {
+	var c = `
+    agent_telemetry:
+      enabled: true
+      profiles:
+        - name: points
+          metric:
+            metrics:
+              - name: point.sent
+                aggregate_tags:
+                  - domain
+                  - remote_agent
+    `
+
+	// setup and initiate atel
+	tel := makeTelMock(t)
+	s := makeSenderImpl(t, nil, c)
+	r := newRunnerMock()
+	a := getTestAtel(t, tel, c, s, nil, r)
+	require.True(t, a.enabled)
+
+	corePointSent := tel.NewGaugeWithOpts("point", "sent", []string{"domain"}, "", telemetry.Options{DefaultMetric: true})
+	adpPointSent := tel.NewGaugeWithOpts("point", "sent", []string{"domain", "remote_agent"}, "", telemetry.Options{DefaultMetric: false})
+	corePointSent.Set(5, "https://api.datadoghq.com")
+	adpPointSent.Set(400, "https://api.datadoghq.com", "agent-data-plane")
+
+	metrics, ok := getPayloadFilteredMetricList(a, "point.sent")
+	require.True(t, ok)
+	require.Len(t, metrics, 2)
+
+	coreMetric, ok := getPayloadMetricByTagValues(metrics, map[string]interface{}{"domain": "https://api.datadoghq.com"})
+	require.True(t, ok)
+	assert.Equal(t, 5.0, coreMetric.Value)
+
+	adpMetric, ok := getPayloadMetricByTagValues(metrics, map[string]interface{}{
+		"domain":       "https://api.datadoghq.com",
+		"remote_agent": "agent-data-plane",
+	})
+	require.True(t, ok)
+	assert.Equal(t, 400.0, adpMetric.Value)
+}
+
 func TestDefaultAndNoDefaultPromRegistries(t *testing.T) {
 	var c = `
     agent_telemetry:

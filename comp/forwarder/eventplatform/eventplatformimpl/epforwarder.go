@@ -24,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client"
+	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	httpsender "github.com/DataDog/datadog-agent/comp/logs-library/sender/http"
@@ -32,8 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	compressioncommon "github.com/DataDog/datadog-agent/pkg/util/compression"
 	ecsmeta "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata"
@@ -52,13 +52,14 @@ func Module(params Params) fxutil.Module {
 }
 
 const (
-	eventTypeDBMSamples         = "dbm-samples"
-	eventTypeDBMMetrics         = "dbm-metrics"
-	eventTypeDBMActivity        = "dbm-activity"
-	eventTypeDBMMetadata        = "dbm-metadata"
-	eventTypeDBMHealth          = "dbm-health"
-	eventTypeDataStreamsMessage = "data-streams-message"
-	eventTypeDoQueryResults     = "do-query-results"
+	eventTypeDBMSamples          = "dbm-samples"
+	eventTypeDBMMetrics          = "dbm-metrics"
+	eventTypeDBMActivity         = "dbm-activity"
+	eventTypeDBMMetadata         = "dbm-metadata"
+	eventTypeDBMHealth           = "dbm-health"
+	eventTypeDBMColumnStatistics = "dbm-column-statistics"
+	eventTypeDataStreamsMessage  = "data-streams-message"
+	eventTypeDoQueryResults      = "do-query-results"
 )
 
 func getPassthroughPipelines() []passthroughPipelineDesc {
@@ -136,7 +137,23 @@ func getPassthroughPipelines() []passthroughPipelineDesc {
 			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
 			// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
 			defaultInputChanSize: 500,
-		}, {
+		},
+		{
+			eventType:   eventTypeDBMColumnStatistics,
+			contentType: logshttp.JSONContentType,
+			// set the endpoint config to "metrics" since column statistics will hit the same endpoint
+			// as metrics, so there is no need to add an extra config endpoint.
+			endpointsConfigPrefix:  "database_monitoring.metrics.",
+			hostnameEndpointPrefix: "dbm-metrics-intake.",
+			intakeTrackType:        "dbmcolumnstatistics",
+			// raise the default batch_max_concurrent_send from 0 to 10 to ensure this pipeline is able to handle 4k events/s
+			defaultBatchMaxConcurrentSend: 10,
+			defaultBatchMaxContentSize:    20e6,
+			defaultBatchMaxSize:           pkgconfigsetup.DefaultBatchMaxSize,
+			// High input chan size is needed to handle high number of DBM events being flushed by DBM integrations
+			defaultInputChanSize: 500,
+		},
+		{
 			eventType:                     eventplatform.EventTypeNetworkDevicesMetadata,
 			category:                      "NDM",
 			contentType:                   logshttp.JSONContentType,
