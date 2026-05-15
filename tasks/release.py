@@ -72,7 +72,6 @@ from tasks.libs.releasing.version import (
     RELEASE_JSON_DEPENDENCIES,
     VERSION_RE,
     _create_version_from_match,
-    current_version,
     deduce_version,
     get_version_major,
     next_final_version,
@@ -1135,56 +1134,6 @@ def create_github_release(ctx, release_branch, draft=True):
         )
 
         print(f"Link to the release note: {release.html_url}")
-
-
-@task
-def update_current_milestone(ctx, major_version: int = 7, upstream="origin"):
-    """
-    Create a PR to bump the current_milestone in the release.json file
-    """
-
-    gh = GithubAPI()
-
-    current = current_version(ctx, major_version)
-    next = current.next_version(bump_minor=True)
-    next.devel = False
-
-    print(f"Creating the {next} milestone...")
-    gh.create_milestone(str(next), exist_ok=True)
-
-    with agent_context(ctx, get_default_branch(major=major_version)):
-        milestone_branch = f"release_milestone-{int(time.time())}"
-        ctx.run(f"git switch -c {milestone_branch}")
-        set_current_milestone(str(next))
-        # Commit release.json
-        ctx.run("git add release.json")
-        ok = try_git_command(ctx, f"git commit -m 'Update release.json with current milestone to {next}'")
-
-        if not ok:
-            raise Exit(
-                color_message(
-                    f"Could not create commit. Please commit manually and push the commit to the {milestone_branch} branch.",
-                    Color.RED,
-                ),
-                code=1,
-            )
-
-        res = ctx.run(f"git push --set-upstream {upstream} {milestone_branch}", warn=True)
-        if res.exited is None or res.exited > 0:
-            raise Exit(
-                color_message(
-                    f"Could not push branch {milestone_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against main.",
-                    Color.RED,
-                ),
-                code=1,
-            )
-
-        create_release_pr(
-            f"[release] Update current milestone to {next}",
-            get_default_branch(),
-            milestone_branch,
-            next,
-        )
 
 
 @task
