@@ -32,7 +32,10 @@ const enableDeltaEncoding = true
 // StatefulExtra holds state changes (non-Log datums) from a batch
 // Used by inflight tracker to maintain snapshot state for stream rotation
 type StatefulExtra struct {
-	StateChanges        []*statefulpb.Datum
+	StateChanges []*statefulpb.Datum
+	// WireDatums are the datums in the encoded payload. Inflight uses them to
+	// find state references and rebuild replay batches with lazy snapshot state.
+	WireDatums          []*statefulpb.Datum
 	PreCompressionBytes int
 }
 
@@ -377,6 +380,7 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 		Encoding:      s.compression.ContentEncoding(),
 		UnencodedSize: unencodedSize,
 		StatefulExtra: &StatefulExtra{
+			WireDatums:          wireDatums,
 			PreCompressionBytes: preCompressionBytes,
 		},
 	}

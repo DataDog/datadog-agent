@@ -551,6 +551,7 @@ func (s *streamWorker) finishStreamRotation(streamInfo *streamInfo) {
 		compressed, err := s.compression.Compress(serialized)
 		if err != nil {
 			log.Errorf("Worker %s: Failed to compress snapshot: %v", s.workerID, err)
+			s.inflight.resetStreamSent()
 		} else {
 			// Send compressed snapshot to sender goroutine via channel
 			// This call won't block because it's buffered channel's first write
@@ -766,7 +767,13 @@ func (s *streamWorker) handleIrrecoverableError(reason string, streamInfo *strea
 // getNextBatch crafts a StatefulBatch with the next batch to send from the
 // inflight tracker. It doesn't change inflight tracker state
 func (s *streamWorker) getNextBatch() *statefulpb.StatefulBatch {
-	return createBatch(s.inflight.nextToSend().Encoded, s.inflight.nextBatchID())
+	payload := s.inflight.nextToSend()
+	data, err := s.inflight.nextToSendEncoded(s.compression)
+	if err != nil {
+		log.Errorf("Worker %s: failed to prepend lazy snapshot state: %v", s.workerID, err)
+		data = payload.Encoded
+	}
+	return createBatch(data, s.inflight.nextBatchID())
 }
 
 // createBatch creates a StatefulBatch from serialized data and batch ID
