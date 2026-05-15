@@ -750,28 +750,7 @@ func (ns *networkState) updateConnWithStats(client *client, cookie StatCookie, c
 			last, _ = c.Monotonic.Sub(sts)
 		}
 
-		// Detect and suppress Windows NPM lingering-flow re-reports.
-		//
-		// Root cause: the ddnpm driver moves a flow from openFlows to closedFlows
-		// via an InterlockedCompareExchange that checks refcount == 2. If a WFP
-		// transport callout increments the refcount concurrently (processing a data
-		// packet on a real NIC), the CAS fails and the flow stays in openFlows
-		// indefinitely. Each agent poll re-reports it with an additional TCPFailure
-		// but without FLOW_CLOSED_MASK set, so the agent sets TCPClosed=1 only on
-		// the first poll (PR #47005 fix). Subsequent polls add failures with zero
-		// closed delta, causing the backend rate to climb past 100%.
-		//
-		// Fix: once a connection has been reported as closed (sts.TCPClosed > 0),
-		// any re-report that lacks a new close event (last.TCPClosed == 0) is a
-		// lingering-flow duplicate. Zero out TCPFailures so the delta is empty and
-		// the connection is filtered from the payload entirely.
-		if sts.TCPClosed > 0 && last.TCPClosed == 0 && len(c.TCPFailures) > 0 {
-			stateTelemetry.windowsLingeringFlows.Inc()
-			log.WarnFunc(func() string {
-				return fmt.Sprintf("NPM: suppressing lingering Windows flow cookie:%d already-closed re-report (failures: %v)", cookie, c.TCPFailures)
-			})
-			c.TCPFailures = nil
-		}
+		maybeSuppressWindowsLingeringFlow(c, sts, last)
 
 		c.Last = c.Last.Add(last)
 		client.stats[cookie] = c.Monotonic
