@@ -58,5 +58,6 @@ func (m *awsIMDSModule) BuiltInHealthCheck() *issues.BuiltInHealthCheck {
 		ID:      CheckID,
 		Name:    CheckName,
 		CheckFn: Check,
+		Once:    true,
 	}
 }
