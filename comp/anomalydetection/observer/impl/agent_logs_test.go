@@ -25,10 +25,8 @@ func (h *captureHandle) ObserveLog(msg observerdef.LogView) {
 	// Copy tags so the captured view remains valid after the callback returns.
 	tags := make([]string, len(msg.Tags()))
 	copy(tags, msg.Tags())
-	content := make([]byte, len(msg.GetContent()))
-	copy(content, msg.GetContent())
 	h.logs = append(h.logs, &agentLogView{
-		content:     content,
+		content:     msg.GetContent(),
 		status:      msg.GetStatus(),
 		tags:        tags,
 		hostname:    msg.GetHostname(),
@@ -52,10 +50,10 @@ func TestInstallAgentLogTap(t *testing.T) {
 	msg := h.logs[0]
 	assert.Equal(t, "info", msg.GetStatus())
 	var payload map[string]any
-	require.NoError(t, json.Unmarshal(msg.GetContent(), &payload))
+	require.NoError(t, json.Unmarshal([]byte(msg.GetContent()), &payload))
 	assert.Equal(t, "test info message", payload["msg"])
-	assert.True(t, containsTag(msg.Tags(), "source:datadog-agent"))
-	assert.True(t, containsTag(msg.Tags(), "level:info"))
+	assert.True(t, containsAgentLogTag(msg.Tags(), "source:datadog-agent"))
+	assert.True(t, containsAgentLogTag(msg.Tags(), "level:info"))
 
 	// Verify warn log
 	assert.Equal(t, "warn", h.logs[1].GetStatus())
@@ -134,7 +132,7 @@ func simulateLogEmit(level pkglog.LogLevel, message string) {
 	pkglog.SimulateLogEmit(level, message) //nolint:staticcheck
 }
 
-func containsTag(tags []string, tag string) bool {
+func containsAgentLogTag(tags []string, tag string) bool {
 	for _, t := range tags {
 		if strings.EqualFold(t, tag) {
 			return true

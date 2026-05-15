@@ -66,7 +66,7 @@ func (p *observerPipeline) start() {
 	go func() {
 		defer close(p.drainDone)
 		for msg := range p.outputChan {
-			p.observerHandle.ObserveLog(msg)
+			p.observerHandle.ObserveLog(&messageLogView{msg: msg})
 		}
 	}()
 	p.proc.Start()
@@ -97,3 +97,16 @@ func (p *observerPipeline) Stop() {}
 func (p *observerPipeline) Flush(ctx context.Context) {
 	p.proc.Flush(ctx)
 }
+
+// messageLogView adapts *message.Message to observer.LogView.
+// GetContent performs the single []byte→string conversion at the pipeline
+// boundary; downstream extractors receive an immutable string with zero copies.
+type messageLogView struct {
+	msg *message.Message
+}
+
+func (v *messageLogView) GetContent() string           { return string(v.msg.GetContent()) }
+func (v *messageLogView) GetStatus() string            { return v.msg.GetStatus() }
+func (v *messageLogView) Tags() []string               { return v.msg.Tags() }
+func (v *messageLogView) GetHostname() string          { return v.msg.GetHostname() }
+func (v *messageLogView) GetTimestampUnixMilli() int64 { return v.msg.GetTimestampUnixMilli() }

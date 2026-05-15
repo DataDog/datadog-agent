@@ -26,11 +26,6 @@ type anomalyDedupKey struct {
 	title        string
 }
 
-type seriesContextRef struct {
-	namespace  string
-	contextKey string
-}
-
 // engine is the shared orchestration core for the observer pipeline.
 // It encapsulates storage, log extraction, detection, and correlation,
 // providing a single execution path used by both the live observer and testbench.
@@ -44,12 +39,10 @@ type engine struct {
 	// take a write lock; readers (stateView methods) take a read lock.
 	mu sync.RWMutex
 
-	storage          *timeSeriesStorage
-	extractors       []observerdef.LogMetricsExtractor
-	detectors        []observerdef.Detector
-	correlators      []observerdef.Correlator
-	contextProviders map[string]observerdef.ContextProvider // namespace → provider
-	contextRefs      map[string]seriesContextRef
+	storage     *timeSeriesStorage
+	extractors  []observerdef.LogMetricsExtractor
+	detectors   []observerdef.Detector
+	correlators []observerdef.Correlator
 
 	// scheduler decides when the engine should advance analysis.
 	scheduler schedulerPolicy
@@ -82,9 +75,14 @@ type engine struct {
 	accumulatedCorrelations map[string]observerdef.ActiveCorrelation
 	correlationMu           sync.RWMutex
 
-	// Accumulated telemetry from detection runs (for StateView access).
-	accumulatedTelemetry []observerdef.ObserverTelemetry
-	telemetryMu          sync.RWMutex
+	// onProcessingTime is an optional callback for reporting per-component
+	// processing time directly (gauge.Set) instead of constructing ObserverTelemetry
+	// objects. Live mode sets this; nil means skip timing telemetry entirely.
+	onProcessingTime func(detectorTag string, nanos float64)
+
+	// detectorTags caches "detector:<name>" strings for each extractor,
+	// detector, logObserver, and correlator to avoid per-log concatenation.
+	detectorTags map[string]string
 
 	// Event subscription management.
 	sinks   []eventSink
@@ -119,12 +117,10 @@ type engine struct {
 
 // engineConfig holds the parameters for constructing an engine.
 type engineConfig struct {
-	storage          *timeSeriesStorage
-	extractors       []observerdef.LogMetricsExtractor
-	detectors        []observerdef.Detector
-	correlators      []observerdef.Correlator
-	contextProviders map[string]observerdef.ContextProvider // namespace → provider
-
+	storage     *timeSeriesStorage
+	extractors  []observerdef.LogMetricsExtractor
+	detectors   []observerdef.Detector
+	correlators []observerdef.Correlator
 	// scheduler is the scheduling policy. If nil, defaults to currentBehaviorPolicy.
 	scheduler schedulerPolicy
 
@@ -141,13 +137,11 @@ func newEngine(cfg engineConfig) *engine {
 	validateUniqueExtractorNames(cfg.extractors)
 
 	e := &engine{
-		storage:          cfg.storage,
-		extractors:       cfg.extractors,
-		detectors:        cfg.detectors,
-		correlators:      cfg.correlators,
-		contextProviders: cfg.contextProviders,
-		contextRefs:      make(map[string]seriesContextRef),
-		scheduler:        sched,
+		storage:     cfg.storage,
+		extractors:  cfg.extractors,
+		detectors:   cfg.detectors,
+		correlators: cfg.correlators,
+		scheduler:   sched,
 
 		rawAnomalyWindow: cfg.rawAnomalyWindow,
 		maxRawAnomalies:  cfg.maxRawAnomalies,
@@ -161,7 +155,37 @@ func newEngine(cfg engineConfig) *engine {
 		}
 	}
 
+	e.rebuildDetectorTags()
 	return e
+}
+
+// rebuildDetectorTags rebuilds the cached "detector:<name>" tag strings from
+// the current extractors, detectors, logObservers, and correlators.
+// Called on construction and whenever the component sets change.
+func (e *engine) rebuildDetectorTags() {
+	tags := make(map[string]string)
+	for _, ext := range e.extractors {
+		tags[ext.Name()] = "detector:" + ext.Name()
+	}
+	for _, d := range e.detectors {
+		tags[d.Name()] = "detector:" + d.Name()
+	}
+	for _, lo := range e.logObservers {
+		tags[lo.Name()] = "detector:" + lo.Name()
+	}
+	for _, c := range e.correlators {
+		tags[c.Name()] = "detector:" + c.Name()
+	}
+	e.detectorTags = tags
+}
+
+// detectorTag returns the cached "detector:<name>" tag string. Falls back to
+// concatenation if the name is not cached (should not happen in practice).
+func (e *engine) detectorTag(name string) string {
+	if tag, ok := e.detectorTags[name]; ok {
+		return tag
+	}
+	return "detector:" + name
 }
 
 // enableDetectDigestRecording sets a callback invoked after each Detect() call
@@ -229,8 +253,8 @@ func (e *engine) registerHandle(h *handle) {
 //   - "logs"                 (comp/observer/logssource/impl/component.go)
 //   - "agent-internal-logs"  (comp/observer/impl/observer.go)
 //   - "profile-agent"        (comp/observer/impl/observer.go)
-//   - hfrunner.HFSource      (comp/observer/impl/observer.go)
-//   - hfrunner.HFContainerSource (comp/observer/impl/observer.go)
+//   - hfrunnerdef.HFSource          (comp/anomalydetection/hfrunner/def/component.go)
+//   - hfrunnerdef.HFContainerSource (comp/anomalydetection/hfrunner/def/component.go)
 //
 // If a future caller ever passes a user-controlled or per-container source
 // string, the COW map becomes unbounded and this memoisation strategy is
@@ -283,19 +307,19 @@ func (e *engine) IngestMetric(source string, m *metricObs) []advanceRequest {
 func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observerdef.ObserverTelemetry) {
 	sourceTag := e.sourceTagForIngest(source)
 	view := &logView{obs: l}
-	var logTelemetry = []observerdef.ObserverTelemetry{}
+	var logTelemetry []observerdef.ObserverTelemetry
 	for _, extractor := range e.extractors {
 		processingStartTime := time.Now()
 		out := extractor.ProcessLog(view)
-		e.removeContextRefsForEvictedKeys(extractor.Name(), out.EvictedContextKeys)
-		processingTime := time.Since(processingStartTime)
-		logTelemetry = append(logTelemetry, newTelemetryGauge([]string{"detector:" + extractor.Name()}, telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), l.timestampMs/1000))
+		e.removeEvictedMetricSeries(extractor.Name(), out.EvictedMetricNames)
+		if e.onProcessingTime != nil {
+			e.onProcessingTime(e.detectorTag(extractor.Name()), float64(time.Since(processingStartTime).Nanoseconds()))
+		}
 		for _, m := range out.Metrics {
 			// Avoid copying m.Tags when sourceTag is already present: storage.Add
 			// performs its own deep copy on first-write of a series via
-			// canonicalizeTags, and seriesKey sorts a copy internally — neither
-			// mutates the input. The copy is only required when we need to
-			// append sourceTag without disturbing the extractor's slice.
+			// canonicalizeTags — it doesn't mutate the input. The copy is only
+			// needed when we append sourceTag.
 			tags := m.Tags
 			if !sliceContains(tags, sourceTag) {
 				newTags := make([]string, len(tags), len(tags)+1)
@@ -303,17 +327,8 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 				tags = append(newTags, sourceTag)
 			}
 			res := e.storage.Add(extractor.Name(), m.Name, m.Value, l.timestampMs/1000, tags)
-			if m.ContextKey != "" && res.StorageKey != "" {
-				// Reuse the storage key computed inside storage.Add instead of
-				// recomputing seriesKey here. seriesKey is hot enough that this
-				// duplicate accounted for ~14.5 MiB heap-live in the
-				// quality_gate_container_logs SMP profile (now renamed to
-				// observer_logs_anomaly_stress; the 'quality_gate_*' prefix is
-				// reserved for SMP quality-gate cases).
-				e.contextRefs[res.StorageKey] = seriesContextRef{
-					namespace:  extractor.Name(),
-					contextKey: m.ContextKey,
-				}
+			if m.Context != nil && res.Ref >= 0 {
+				e.storage.SetContext(res.Ref, m.Context)
 			}
 		}
 		if len(out.Telemetry) > 0 {
@@ -323,13 +338,9 @@ func (e *engine) IngestLog(source string, l *logObs) ([]advanceRequest, []observ
 	for _, lo := range e.logObservers {
 		processingStartTime := time.Now()
 		lo.ProcessLog(view)
-		processingTime := time.Since(processingStartTime)
-		logTelemetry = append(logTelemetry, newTelemetryGauge([]string{"detector:" + lo.Name()}, telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), l.timestampMs/1000))
-	}
-	if len(logTelemetry) > 0 {
-		e.telemetryMu.Lock()
-		e.accumulatedTelemetry = append(e.accumulatedTelemetry, logTelemetry...)
-		e.telemetryMu.Unlock()
+		if e.onProcessingTime != nil {
+			e.onProcessingTime(e.detectorTag(lo.Name()), float64(time.Since(processingStartTime).Nanoseconds()))
+		}
 	}
 	dataTimeSec := l.timestampMs / 1000
 	e.storage.RecordObservationTime(dataTimeSec)
@@ -346,38 +357,15 @@ func sliceContains(items []string, want string) bool {
 	return false
 }
 
-// removeContextRefsForEvictedKeys drops engine contextRefs whose extractor
-// namespace and context key match an eviction from extractor GC, and frees
-// the corresponding storage series. Without the storage cleanup, evicted
-// patterns leak their tags + columnar arrays indefinitely (the contextRefs
-// map is just metadata; the heavy data lives in storage.series).
-func (e *engine) removeContextRefsForEvictedKeys(namespace string, evictedKeys []string) {
-	// No garbage collection done
-	if len(evictedKeys) == 0 {
-		return
-	}
-	want := make(map[string]struct{}, len(evictedKeys))
-	for _, k := range evictedKeys {
-		if k != "" {
-			want[k] = struct{}{}
-		}
-	}
-	if len(want) == 0 {
-		return
-	}
-	var storageKeys []string
-	for seriesID, ref := range e.contextRefs {
-		if ref.namespace != namespace {
+// removeEvictedMetricSeries removes all storage series for the given metric
+// names in namespace. Called when an extractor GC/LRU evicts a pattern cluster.
+func (e *engine) removeEvictedMetricSeries(namespace string, evictedNames []string) {
+	for _, name := range evictedNames {
+		if name == "" {
 			continue
 		}
-		if _, ok := want[ref.contextKey]; ok {
-			delete(e.contextRefs, seriesID)
-			storageKeys = append(storageKeys, seriesID)
-		}
-	}
-	if len(storageKeys) > 0 {
-		freedRefs := e.storage.RemoveSeriesByKeys(storageKeys)
-		e.fanOutSeriesRemoval(freedRefs)
+		freed := e.storage.RemoveSeriesByMetricName(namespace, name)
+		e.fanOutSeriesRemoval(freed)
 	}
 }
 
@@ -489,6 +477,11 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 
 	result := e.runDetectorsAndCorrelatorsSnapshot(upToSec, detectors, correlators)
 
+	// Evict series beyond the storage cap and fan freed refs to detectors.
+	if freed := e.storage.EvictDefault(); len(freed) > 0 {
+		e.fanOutSeriesRemoval(freed)
+	}
+
 	e.emit(engineEvent{
 		kind:      eventAdvanceCompleted,
 		timestamp: upToSec,
@@ -529,8 +522,9 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 
 		processingStartTime := time.Now()
 		result := detector.Detect(storageForDetect, upTo)
-		processingTime := time.Since(processingStartTime)
-		allTelemetry = append(allTelemetry, newTelemetryGauge([]string{"detector:" + detector.Name()}, telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), upTo))
+		if e.onProcessingTime != nil {
+			e.onProcessingTime(e.detectorTag(detector.Name()), float64(time.Since(processingStartTime).Nanoseconds()))
+		}
 
 		// Emit detect digest (captures raw result BEFORE dedup).
 		if e.onDetectDigest != nil {
@@ -559,9 +553,8 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 			if !e.captureRawAnomaly(anomaly) {
 				continue // duplicate
 			}
-			correlatorTelemetry := e.processAnomaly(anomaly)
+			e.processAnomaly(anomaly)
 			allAnomalies = append(allAnomalies, anomaly)
-			allTelemetry = append(allTelemetry, correlatorTelemetry...)
 			e.emit(engineEvent{
 				kind:      eventAnomalyCreated,
 				timestamp: anomaly.Timestamp,
@@ -579,7 +572,9 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		e.accumulateCorrelations(correlator.ActiveCorrelations())
 		advanceStart := time.Now()
 		correlator.Advance(upTo)
-		allTelemetry = append(allTelemetry, newTelemetryGauge([]string{"detector:" + correlator.Name()}, telemetryDetectorProcessingTimeNs, float64(time.Since(advanceStart).Nanoseconds()), upTo))
+		if e.onProcessingTime != nil {
+			e.onProcessingTime(e.detectorTag(correlator.Name()), float64(time.Since(advanceStart).Nanoseconds()))
+		}
 		e.emit(engineEvent{
 			kind:      eventCorrelationUpdated,
 			timestamp: upTo,
@@ -589,61 +584,35 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 		})
 	}
 
-	// Accumulate telemetry so StateView can expose it.
-	if len(allTelemetry) > 0 {
-		e.telemetryMu.Lock()
-		e.accumulatedTelemetry = append(e.accumulatedTelemetry, allTelemetry...)
-		e.telemetryMu.Unlock()
-	}
-
 	return advanceResult{
 		anomalies: allAnomalies,
 		telemetry: allTelemetry,
 	}
 }
 
-// enrichAnomaly decorates an anomaly with context from the originating
-// extractor, if available. This runs automatically on every anomaly so
-// detectors don't need to be aware of context providers.
-// Lookup builds the storage key from Source fields (namespace, name, tags)
-// and maps that to a provider namespace and context key.
+// enrichAnomaly decorates an anomaly with context stored on the source series.
+// Context is written at ingest time via storage.SetContext when an extractor
+// emits a MetricOutput.Context; here we read it back in O(1).
 func (e *engine) enrichAnomaly(a *observerdef.Anomaly) {
-	if a.Source.Name == "" {
+	if a.SourceRef == nil {
 		return
 	}
-	fullKey := seriesKey(a.Source.Namespace, a.Source.Name, a.Source.Tags)
-
-	ref, ok := e.contextRefs[fullKey]
-	if !ok {
+	ctx := e.storage.GetContext(a.SourceRef.Ref)
+	if ctx == nil {
 		return
 	}
-	provider, ok := e.contextProviders[ref.namespace]
-	if !ok {
-		return
-	}
-	ctx, ok := provider.GetContextByKey(ref.contextKey)
-	if !ok {
-		return
-	}
-	a.Context = &observerdef.MetricContext{
-		Pattern:   ctx.Pattern,
-		Example:   truncate(ctx.Example, 160),
-		Source:    ctx.Source,
-		SplitTags: ctx.SplitTags,
-	}
+	a.Context = ctx
 }
 
 // processAnomaly sends an anomaly to all registered correlators.
-func (e *engine) processAnomaly(anomaly observerdef.Anomaly) []observerdef.ObserverTelemetry {
-	var allTelemetry []observerdef.ObserverTelemetry
+func (e *engine) processAnomaly(anomaly observerdef.Anomaly) {
 	for _, correlator := range e.correlators {
 		processingStartTime := time.Now()
 		correlator.ProcessAnomaly(anomaly)
-		processingTime := time.Since(processingStartTime)
-		allTelemetry = append(allTelemetry, newTelemetryGauge([]string{"detector:" + correlator.Name()}, telemetryDetectorProcessingTimeNs, float64(processingTime.Nanoseconds()), anomaly.Timestamp))
+		if e.onProcessingTime != nil {
+			e.onProcessingTime(e.detectorTag(correlator.Name()), float64(time.Since(processingStartTime).Nanoseconds()))
+		}
 	}
-
-	return allTelemetry
 }
 
 // captureRawAnomaly stores a raw anomaly for telemetry and testbench display.
@@ -803,6 +772,7 @@ func (e *engine) SetDetectors(detectors []observerdef.Detector) {
 			e.logObservers = append(e.logObservers, lo)
 		}
 	}
+	e.rebuildDetectorTags()
 }
 
 // SetCorrelators replaces the engine's correlators.
@@ -811,6 +781,7 @@ func (e *engine) SetCorrelators(correlators []observerdef.Correlator) {
 	defer e.mu.Unlock()
 
 	e.correlators = correlators
+	e.rebuildDetectorTags()
 }
 
 // SetExtractors replaces the engine's log-metrics extractors. Used when
@@ -822,8 +793,7 @@ func (e *engine) SetExtractors(extractors []observerdef.LogMetricsExtractor) {
 
 	validateUniqueExtractorNames(extractors)
 	e.extractors = extractors
-	e.contextProviders = collectContextProviders(extractors)
-	e.contextRefs = make(map[string]seriesContextRef)
+	e.rebuildDetectorTags()
 }
 
 // Reset clears analysis state so detectors will re-analyze from scratch.
@@ -851,7 +821,6 @@ func (e *engine) Reset() {
 		}
 	}
 
-	e.contextRefs = make(map[string]seriesContextRef)
 }
 
 // resetRawAnomalies clears the raw anomaly tracking state.
@@ -866,13 +835,6 @@ func (e *engine) resetRawAnomalies() {
 	e.currentDataTime = 0
 }
 
-// resetTelemetry clears accumulated telemetry.
-func (e *engine) resetTelemetry() {
-	e.telemetryMu.Lock()
-	defer e.telemetryMu.Unlock()
-	e.accumulatedTelemetry = nil
-}
-
 // resetCorrelations clears accumulated correlation history.
 func (e *engine) resetCorrelations() {
 	e.correlationMu.Lock()
@@ -880,23 +842,19 @@ func (e *engine) resetCorrelations() {
 	e.accumulatedCorrelations = nil
 }
 
-// resetFull resets all engine state: analysis progress, raw anomalies, telemetry, and correlations.
+// resetFull resets all engine state: analysis progress, raw anomalies, and correlations.
 // Storage is NOT cleared — the caller manages storage lifecycle.
 func (e *engine) resetFull() {
 	e.Reset()
 	e.resetRawAnomalies()
-	e.resetTelemetry()
 	e.resetCorrelations()
 }
 
 // resetAnalysisState resets detector and correlator state, anomaly tracking,
-// telemetry, and correlations — but does NOT reset extractors and does NOT
-// clear contextRefs. Used before batch replay so that:
-//   - enrichAnomaly can still call provider.GetContextByKey (extractor context intact)
-//   - contextRefs still maps series storage keys to their context keys
-//
-// Detectors and correlators ARE reset so they start from a clean slate and
-// produce correct anomaly/correlation results during the replay.
+// telemetry, and correlations — but does NOT reset extractors. Used before
+// batch replay so that enrichAnomaly can still attach context (stored on
+// seriesStats) during replay. Detectors and correlators ARE reset so they
+// start from a clean slate and produce correct results.
 func (e *engine) resetAnalysisState() {
 	e.mu.Lock()
 	e.lastAnalyzedDataTime = 0
@@ -911,11 +869,10 @@ func (e *engine) resetAnalysisState() {
 	for _, correlator := range e.correlators {
 		correlator.Reset()
 	}
-	// Extractors and contextRefs are intentionally NOT reset: their state was
-	// built during log ingestion and is needed by enrichAnomaly during replay.
+	// Extractors are intentionally NOT reset: their state was built during
+	// log ingestion and is needed by enrichAnomaly during replay.
 
 	e.resetRawAnomalies()
-	e.resetTelemetry()
 	e.resetCorrelations()
 }
 
