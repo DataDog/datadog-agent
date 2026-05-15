@@ -9,6 +9,8 @@ package networkconfigmanagementimpl
 import (
 	"path/filepath"
 
+	"net/http"
+
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -17,6 +19,14 @@ import (
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
+
+// Provides defines the output of the networkconfigmanagement component
+type Provides struct {
+	compdef.Out
+
+	Comp              option.Option[networkconfigmanagement.Component]
+	GetConfigEndpoint api.EndpointProvider `group:"agent_endpoint"`
+}
 
 // Requires defines the dependencies for the networkconfigmanagement component
 type Requires struct {
@@ -36,18 +46,12 @@ type networkDeviceConfigImpl struct {
 func NewComponent(reqs Requires) (Provides, error) {
 	enabled := reqs.Config.GetBool("network_config_management.rollback.enabled")
 	if !enabled {
-		return Provides{
-			Comp:              option.None[networkconfigmanagement.Component](),
-			GetConfigEndpoint: nilEndpoint(),
-		}, nil
+		return NewNoopComponent()
 	}
 	comp, err := newComponent(reqs)
 	if err != nil {
 		reqs.Logger.Errorf("NCM config store service could not be initialized: %s", err)
-		return Provides{
-			Comp:              option.None[networkconfigmanagement.Component](),
-			GetConfigEndpoint: nilEndpoint(),
-		}, nil
+		return NewNoopComponent()
 	}
 	return Provides{
 		Comp:              option.New(comp),
@@ -55,6 +59,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}, nil
 
 }
+
 func newComponent(reqs Requires) (networkconfigmanagement.Component, error) {
 	runPath := reqs.Config.GetString("run_path")
 	dbPath := filepath.Join(runPath, "ncm_config.db")
@@ -74,4 +79,16 @@ func newComponent(reqs Requires) (networkconfigmanagement.Component, error) {
 
 func (n *networkDeviceConfigImpl) GetConfigStore() ncmstore.ConfigStore {
 	return n.store
+}
+
+// NewComponent creates a stub networkconfigmanagement component
+func NewNoopComponent() (Provides, error) {
+	endpoint := api.NewAgentEndpointProvider(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, `{"error": "ncm not enabled for agent"}`, http.StatusBadRequest)
+	}, "/ncm/config", "GET")
+	provides := Provides{
+		Comp:              option.None[networkconfigmanagement.Component](),
+		GetConfigEndpoint: endpoint.Provider,
+	}
+	return provides, nil
 }
