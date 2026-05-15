@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/security/seclwin
 
-go 1.25.7
+go 1.25.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model v0.79.0-rc.7
