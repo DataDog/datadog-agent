@@ -6,9 +6,11 @@
 package observerimpl
 
 import (
+	"fmt"
 	"math"
 	"sync"
 	"testing"
+	"unsafe"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/stretchr/testify/assert"
@@ -669,4 +671,105 @@ func TestTimeSeriesStorage_AddDroppedReturnsNegativeRef(t *testing.T) {
 	res = s.Add("ns", "m", math.MaxFloat64, 1000, nil)
 	assert.False(t, res.IsNew)
 	assert.Equal(t, observer.SeriesRef(-1), res.Ref, "MaxFloat64 sentinel drop must return Ref=-1")
+}
+
+func TestTimeSeriesStorage_TagIntern_PoolGrows(t *testing.T) {
+	s := newTimeSeriesStorage()
+	assert.Equal(t, 0, s.TagInternedCount())
+
+	s.Add("ns", "m1", 1.0, 1000, []string{"env:prod", "host:a"})
+	assert.Equal(t, 1, s.TagInternedCount(), "one combination interned")
+
+	s.Add("ns", "m2", 1.0, 1000, []string{"env:prod", "host:b"})
+	assert.Equal(t, 2, s.TagInternedCount(), "second distinct combination interned")
+
+	// Same combination as m1 — pool must not grow.
+	s.Add("ns2", "m1", 1.0, 1000, []string{"env:prod", "host:a"})
+	assert.Equal(t, 2, s.TagInternedCount(), "repeated combination must not grow pool")
+}
+
+func TestTimeSeriesStorage_TagIntern_SharedSlice(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	// Build tags at runtime to defeat Go's compile-time string interning.
+	tags := []string{"env:" + string([]byte{'p', 'r', 'o', 'd'}), "host:a"}
+
+	res1 := s.Add("ns", "m1", 1.0, 1000, tags)
+	res2 := s.Add("ns", "m2", 1.0, 1000, tags)
+
+	s.mu.RLock()
+	stats1 := s.resolveByID(res1.Ref)
+	stats2 := s.resolveByID(res2.Ref)
+	s.mu.RUnlock()
+
+	require.NotNil(t, stats1)
+	require.NotNil(t, stats2)
+
+	ptr1 := uintptr(unsafe.Pointer(unsafe.SliceData(stats1.Tags)))
+	ptr2 := uintptr(unsafe.Pointer(unsafe.SliceData(stats2.Tags)))
+	assert.Equal(t, ptr1, ptr2, "series with identical tag sets must share the same []string backing array")
+	assert.Equal(t, 1, s.TagInternedCount())
+}
+
+func TestTimeSeriesStorage_TagIntern_Eviction(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	tags := []string{"env:prod", "host:a"}
+	res1 := s.Add("ns", "m1", 1.0, 1000, tags)
+	res2 := s.Add("ns", "m2", 1.0, 1000, tags)
+	assert.Equal(t, 1, s.TagInternedCount(), "one pool entry for the shared combination")
+
+	s.RemoveSeriesByRefs([]observer.SeriesRef{res1.Ref})
+	assert.Equal(t, 1, s.TagInternedCount(), "pool entry must survive while m2 still references it")
+
+	s.RemoveSeriesByRefs([]observer.SeriesRef{res2.Ref})
+	assert.Equal(t, 0, s.TagInternedCount(), "pool entry must be freed when last referencing series is evicted")
+}
+
+func TestTimeSeriesStorage_TagIntern_NilAndEmptyTags(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	res1 := s.Add("ns", "nil_tags", 1.0, 1000, nil)
+	assert.Equal(t, 0, s.TagInternedCount(), "nil tags must not create an intern entry")
+
+	res2 := s.Add("ns", "empty_tags", 1.0, 1000, []string{})
+	assert.Equal(t, 0, s.TagInternedCount(), "empty tags must not create an intern entry")
+
+	s.RemoveSeriesByRefs([]observer.SeriesRef{res1.Ref, res2.Ref})
+	assert.Equal(t, 0, s.TagInternedCount(), "removal of uninterned series must leave pool empty")
+}
+
+func TestTimeSeriesStorage_TagIntern_UnsortedTagsShareEntry(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	tags1 := []string{"host:a", "env:prod"} // unsorted
+	tags2 := []string{"env:prod", "host:a"} // sorted
+
+	res1 := s.Add("ns", "m1", 1.0, 1000, tags1)
+	res2 := s.Add("ns", "m2", 1.0, 1000, tags2)
+	assert.Equal(t, 1, s.TagInternedCount(), "same tags in different order must share one pool entry")
+
+	s.mu.RLock()
+	stats1 := s.resolveByID(res1.Ref)
+	stats2 := s.resolveByID(res2.Ref)
+	s.mu.RUnlock()
+
+	ptr1 := uintptr(unsafe.Pointer(unsafe.SliceData(stats1.Tags)))
+	ptr2 := uintptr(unsafe.Pointer(unsafe.SliceData(stats2.Tags)))
+	assert.Equal(t, ptr1, ptr2, "unsorted and sorted variants must share the same backing array")
+}
+
+func TestTimeSeriesStorage_TagIntern_Cap(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	for i := 0; i < tagInternMaxSize; i++ {
+		s.Add("ns", fmt.Sprintf("m%d", i), 1.0, 1000, []string{fmt.Sprintf("unique:tag%d", i)})
+	}
+	assert.Equal(t, tagInternMaxSize, s.TagInternedCount(), "pool should be at cap")
+
+	s.Add("ns", "overflow", 1.0, 1000, []string{"unique:overflow"})
+	assert.Equal(t, tagInternMaxSize, s.TagInternedCount(), "pool must not exceed cap")
+
+	s.Add("ns2", "m0", 1.0, 1000, []string{"unique:tag0"})
+	assert.Equal(t, tagInternMaxSize, s.TagInternedCount(), "hit on existing entry must not grow pool")
 }
