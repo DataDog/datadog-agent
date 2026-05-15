@@ -12,7 +12,7 @@ import sys
 import tempfile
 import time
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import datetime
 from time import sleep
 
 from gitlab import GitlabError
@@ -50,7 +50,6 @@ from tasks.libs.pipeline.notifications import (
     warn_new_tags,
 )
 from tasks.libs.releasing.documentation import (
-    create_release_page,
     list_not_closed_qa_cards,
 )
 from tasks.libs.releasing.json import (
@@ -989,21 +988,6 @@ def generate_release_metrics(ctx, milestone, cutoff_date, release_date):
     print("Code changes")
     print("------------")
     print(code_stats)
-
-
-@task
-def create_schedule(_, version, cutoff_date):
-    """Create confluence pages for the release schedule.
-
-    Args:
-        cutoff_date: Date when the code cut-off happened. Expected format YYYY-MM-DD, like '2022-02-01'
-    """
-
-    required_environment_variables = ["ATLASSIAN_USERNAME", "ATLASSIAN_PASSWORD"]
-    if not all(key in os.environ for key in required_environment_variables):
-        raise Exit(f"You must set {required_environment_variables} environment variables to use this task.", code=1)
-    release_page = create_release_page(version, date.fromisoformat(cutoff_date))
-    print(f"Release schedule pages {release_page['url']} {color_message('successfully created', 'green')}")
 
 
 @task
