@@ -102,7 +102,7 @@ func (m *metricObs) GetSampleRate() float64 {
 
 // logObs contains copied log data and implements observerdef.LogView.
 type logObs struct {
-	content     []byte
+	content     string
 	status      string
 	tags        []string
 	hostname    string
@@ -112,7 +112,7 @@ type logObs struct {
 // Ensure logObs implements observerdef.LogView
 var _ observerdef.LogView = (*logObs)(nil)
 
-func (l *logObs) GetContent() []byte {
+func (l *logObs) GetContent() string {
 	return l.content
 }
 
@@ -151,7 +151,7 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 	settings.Enabled = make(map[string]bool, len(catalog.entries))
 	for _, entry := range catalog.Entries() {
 		prefix := "anomaly_detection.detectors." + entry.name + "."
-		if cfg.IsKnown(prefix + "enabled") {
+		if cfg.IsConfigured(prefix + "enabled") {
 			settings.Enabled[entry.name] = cfg.GetBool(prefix + "enabled")
 		}
 		if entry.readConfig != nil {
@@ -182,13 +182,24 @@ func NewComponent(deps Requires) Provides {
 	settings := settingsFromAgentConfig(catalog, cfg)
 	detectors, correlators, extractors, _ := catalog.Instantiate(settings)
 
+	storageCfg := defaultStorageConfig()
+	if cfg != nil {
+		if cfg.IsConfigured("anomaly_detection.storage.max_series") {
+			storageCfg.MaxSeries = cfg.GetInt("anomaly_detection.storage.max_series")
+		}
+		if cfg.IsConfigured("anomaly_detection.storage.eviction_floor_ratio") {
+			storageCfg.EvictionFloorRatio = cfg.GetFloat64("anomaly_detection.storage.eviction_floor_ratio")
+		}
+		if cfg.IsConfigured("anomaly_detection.storage.point_retention_secs") {
+			storageCfg.PointRetentionSecs = cfg.GetInt64("anomaly_detection.storage.point_retention_secs")
+		}
+	}
 	eng := newEngine(engineConfig{
-		storage:          newTimeSeriesStorage(),
-		extractors:       extractors,
-		detectors:        detectors,
-		correlators:      correlators,
-		contextProviders: collectContextProviders(extractors),
-		scheduler:        &currentBehaviorPolicy{},
+		storage:     newTimeSeriesStorageWith(storageCfg),
+		extractors:  extractors,
+		detectors:   detectors,
+		correlators: correlators,
+		scheduler:   &currentBehaviorPolicy{},
 	})
 
 	// Wire each injected reporter into its own reporterEventSink subscription.
@@ -211,6 +222,13 @@ func NewComponent(deps Requires) Provides {
 
 	th := newTelemetryHandler(telemetryComp)
 
+	// Wire direct gauge.Set for processing-time telemetry to avoid per-log
+	// ObserverTelemetry struct allocations on the hot path.
+	processingTimeGauge := th.telemetryGauges[telemetryDetectorProcessingTimeNs]
+	eng.onProcessingTime = func(detectorTag string, nanos float64) {
+		processingTimeGauge.Set(nanos, detectorTag)
+	}
+
 	obs := &observerImpl{
 		engine:               eng,
 		catalog:              catalog,
@@ -218,7 +236,7 @@ func NewComponent(deps Requires) Provides {
 		telemetryHandler:     th,
 		dropCounter:          th.telemetryCounters[telemetryObsChannelDropped],
 		hfFilterSources:      make(map[metrics.MetricSource]struct{}),
-		ingestMetricsEnabled: cfg.GetBool("anomaly_detection.metrics.enabled"),
+		ingestMetricsEnabled: !cfg.IsConfigured("anomaly_detection.metrics.enabled") || cfg.GetBool("anomaly_detection.metrics.enabled"),
 	}
 
 	if !obs.ingestMetricsEnabled {
@@ -716,8 +734,8 @@ func (o *observerImpl) AddTelemetry(name string, value float64, timestamp int64,
 // Implements DebugView.
 func (o *observerImpl) ReplayStoredData() {
 	// resetAnalysisState resets detectors/correlators and tracking state but
-	// preserves extractor state (contextRefs + provider pattern registry) so
-	// enrichAnomaly can still attach log pattern context during replay.
+	// preserves extractor state so enrichAnomaly can still attach log pattern
+	// context (stored on seriesStats) during replay.
 	o.replayMu.Lock()
 	o.engine.resetAnalysisState()
 	o.engine.ReplayStoredData()
@@ -738,7 +756,7 @@ func (o *observerImpl) StorageReader() observerdef.StorageReader {
 func (o *observerImpl) IngestLogSync(source string, msg observerdef.LogView) {
 	timestampMs := msg.GetTimestampUnixMilli()
 	lo := &logObs{
-		content:     copyBytes(msg.GetContent()),
+		content:     msg.GetContent(),
 		status:      msg.GetStatus(),
 		tags:        copyTags(msg.Tags()),
 		hostname:    msg.GetHostname(),
@@ -843,7 +861,7 @@ func (h *handle) ObserveLog(msg observerdef.LogView) {
 	obs := observation{
 		source: h.source,
 		log: &logObs{
-			content:     copyBytes(msg.GetContent()),
+			content:     msg.GetContent(),
 			status:      msg.GetStatus(),
 			tags:        copyTags(msg.Tags()),
 			hostname:    msg.GetHostname(),
@@ -867,18 +885,8 @@ type logView struct {
 	obs *logObs
 }
 
-func (v *logView) GetContent() []byte           { return v.obs.content }
+func (v *logView) GetContent() string           { return v.obs.content }
 func (v *logView) GetStatus() string            { return v.obs.status }
 func (v *logView) Tags() []string               { return v.obs.tags }
 func (v *logView) GetHostname() string          { return v.obs.hostname }
 func (v *logView) GetTimestampUnixMilli() int64 { return v.obs.timestampMs }
-
-// copyBytes creates a copy of a byte slice.
-func copyBytes(b []byte) []byte {
-	if b == nil {
-		return nil
-	}
-	result := make([]byte, len(b))
-	copy(result, b)
-	return result
-}

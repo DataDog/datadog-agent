@@ -11,7 +11,7 @@
 package ncclprofiler
 
 import (
-	"path/filepath"
+	"path"
 	"strings"
 
 	admiv1 "k8s.io/api/admission/v1"
@@ -46,37 +46,39 @@ type Webhook struct {
 	isEnabled        bool
 	mutateUnlabelled bool
 	injectorImage    string
-	hostSocketPath   string
-	socketPath       string
+	hostSocketDir    string
+	socketFilename   string
+	clientSocketDir  string
 	initResources    *corev1.ResourceRequirements
 }
 
 // NewWebhook creates a new NCCL profiler webhook from agent config.
 // The injector_image config is required when enabled; if empty the webhook
 // is disabled with a warning so pods are not mutated with a broken image ref.
-// hostSocketPath and socketPath default to the agent's gpu.nccl config so the
-// injected pod's NCCL_DD_SOCKET_PATH matches where the agent listens.
-// Self-disables if socketPath does not live under hostSocketPath, since that
-// mismatch silently breaks delivery (mounted dir doesn't contain the socket).
+// Mirrors `mutate/config` (APM/DSD): hostSocketDir + socketFilename describe
+// the host bind-mount source, clientSocketDir + socketFilename describe the
+// workload's in-container view. Self-disables on pathological inputs.
 func NewWebhook(datadogConfig config.Component) *Webhook {
 	enabled := datadogConfig.GetBool("admission_controller.nccl_profiler.enabled")
 	image := datadogConfig.GetString("admission_controller.nccl_profiler.injector_image")
-	hostSocketPath := datadogConfig.GetString("gpu.nccl.host_socket_path")
+	hostSocketDir := datadogConfig.GetString("gpu.nccl.host_socket_path")
 	socketPath := datadogConfig.GetString("gpu.nccl.socket_path")
+	clientSocketDir := datadogConfig.GetString("admission_controller.nccl_profiler.socket_dir")
 	if enabled && image == "" {
 		log.Errorf("NCCL profiler webhook is enabled but admission_controller.nccl_profiler.injector_image is not set; disabling webhook")
 		enabled = false
 	}
-	if enabled && !socketPathUnderHost(socketPath, hostSocketPath) {
-		log.Errorf("NCCL profiler webhook: gpu.nccl.socket_path=%q is not under gpu.nccl.host_socket_path=%q; injected pods would write to a location not mounted from the host. Disabling webhook.", socketPath, hostSocketPath)
+	if enabled && !validSocketConfig(hostSocketDir, clientSocketDir, socketPath) {
+		log.Errorf("NCCL profiler webhook: invalid gpu.nccl.host_socket_path=%q, admission_controller.nccl_profiler.socket_dir=%q, or gpu.nccl.socket_path=%q; both directories must be absolute and non-root, and socket_path must be an absolute file path with a non-empty basename (no trailing separator). Disabling webhook.", hostSocketDir, clientSocketDir, socketPath)
 		enabled = false
 	}
 	return &Webhook{
 		isEnabled:        enabled,
 		mutateUnlabelled: mutateUnlabelledEnabled(datadogConfig),
 		injectorImage:    image,
-		hostSocketPath:   hostSocketPath,
-		socketPath:       socketPath,
+		hostSocketDir:    hostSocketDir,
+		socketFilename:   path.Base(socketPath),
+		clientSocketDir:  clientSocketDir,
 		initResources:    parseInitResources(datadogConfig),
 	}
 }
@@ -139,19 +141,35 @@ func objectSelector(mutateUnlabelled bool) *metav1.LabelSelector {
 	return &metav1.LabelSelector{MatchLabels: map[string]string{EnabledLabel: "true"}}
 }
 
-// socketPathUnderHost returns true if socketPath is the same as or a
-// descendant of hostSocketPath. Both inputs are cleaned before comparison
-// to handle trailing slashes and `.` segments.
-func socketPathUnderHost(socketPath, hostSocketPath string) bool {
-	if socketPath == "" || hostSocketPath == "" {
+// validSocketConfig rejects empty/relative paths, root dirs, and
+// socket_path values that don't resolve to a real file basename
+// (e.g. relative names or trailing-separator directory paths).
+//
+// Uses path (POSIX) rather than path/filepath because injected pod paths
+// are always POSIX even when the cluster-agent runs on Windows.
+func validSocketConfig(hostDir, clientDir, socketPath string) bool {
+	if socketPath == "" || !path.IsAbs(socketPath) {
 		return false
 	}
-	host := filepath.Clean(hostSocketPath)
-	sock := filepath.Clean(socketPath)
-	if !strings.HasSuffix(host, string(filepath.Separator)) {
-		host += string(filepath.Separator)
+	// Trailing separator => the configured value is a directory, not a
+	// file. path.Clean strips the slash, so check the raw input.
+	if strings.HasSuffix(socketPath, "/") {
+		return false
 	}
-	return strings.HasPrefix(sock, host)
+	base := path.Base(path.Clean(socketPath))
+	if base == "." || base == "/" {
+		return false
+	}
+	for _, d := range []string{hostDir, clientDir} {
+		if d == "" {
+			return false
+		}
+		c := path.Clean(d)
+		if !path.IsAbs(c) || c == "/" {
+			return false
+		}
+	}
+	return true
 }
 
 // Name returns the name of the webhook.
@@ -219,7 +237,7 @@ func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 			w.Name(),
 			func(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
 				log.Debugf("Injecting NCCL profiler plugin into pod %s", mutatecommon.PodString(pod))
-				return mutatePod(pod, w.injectorImage, w.hostSocketPath, w.socketPath, w.initResources)
+				return mutatePod(pod, w.injectorImage, w.hostSocketDir, w.clientSocketDir, w.socketFilename, w.initResources)
 			},
 			request.DynamicClient,
 		))
