@@ -4,12 +4,5 @@
 // Copyright 2023-present Datadog, Inc.
 
 // Package orchestratorinterface defines the interface for the orchestrator forwarder component.
+// Deprecated: use comp/forwarder/orchestrator/orchestratorinterface/def instead.
 package orchestratorinterface
-
-import orchestratorinterfacedef "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface/def"
-
-// team: agent-metric-pipelines
-
-// Component is the component type.
-// Deprecated: use github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface/def instead.
-type Component = orchestratorinterfacedef.Component
