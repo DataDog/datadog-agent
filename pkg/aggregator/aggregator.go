@@ -281,6 +281,11 @@ type BufferedAggregator struct {
 	// observerHandle is set at startup and copied into newly created CheckSamplers.
 	observerHandle observer.Handle
 
+	// checkAggregator wraps the consumer of getSeriesAndSketches to provide
+	// wall-clock window aggregation across CheckSampler commits. See
+	// pkg/aggregator/check_aggregator.go.
+	checkAggregator *CheckAggregator
+
 	// use this chan to trigger a filterList reconfiguration
 	filterListChan  chan utilstrings.Matcher
 	flushFilterList utilstrings.Matcher
@@ -364,6 +369,11 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		tagFilterListChan: make(chan filterlist.TagMatcher),
 		tagFilterList:     filterList.GetTagFilterList(),
 	}
+
+	aggregator.checkAggregator = newCheckAggregator(
+		pkgconfigsetup.Datadog().GetDuration("check_aggregator.window_duration"),
+		pkgconfigsetup.Datadog().GetInt("check_aggregator.max_series_per_window"),
+	)
 
 	return aggregator
 }
@@ -542,22 +552,32 @@ func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.S
 // getSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
+//
+// Series from CheckSamplers are routed through agg.checkAggregator (the
+// wall-clock windowing layer) before reaching seriesSink. CheckSampler's
+// observable behaviour is unchanged — the wrapper consumes flush() output
+// and emits per-window aggregates downstream. See pkg/aggregator/check_aggregator.go.
 func (agg *BufferedAggregator) getSeriesAndSketches(
-	_ time.Time,
+	before time.Time,
 	seriesSink metrics.SerieSink,
 	sketchesSink metrics.SketchesSink,
 ) {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 
+	now := timeToSeconds(before)
+
 	//nolint:revive // TODO(AML) Fix revive linter
 	for checkId, checkSampler := range agg.checkSamplers {
 		checkSeries, sketches := checkSampler.flush()
 		for _, s := range checkSeries {
-			seriesSink.Append(s)
+			// CheckAggregator routes through windowing; passes through to
+			// seriesSink for singleton/expired windows.
+			agg.checkAggregator.Submit(checkId, s, now, seriesSink)
 		}
 
 		for _, sk := range sketches {
+			// Sketches are not windowed by this layer (Phase 1 scope).
 			sketchesSink.Append(sk)
 		}
 
@@ -566,6 +586,20 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 			delete(agg.checkSamplers, checkId)
 		}
 	}
+
+	// After every CheckSampler has flushed, sweep windows whose deadlines
+	// have passed and emit them. Windows still within their deadline
+	// remain open for accumulation in subsequent flush cycles.
+	agg.checkAggregator.FlushExpired(now, seriesSink)
+}
+
+// timeToSeconds converts a time.Time to seconds-since-epoch as a float,
+// matching the format CheckSampler uses for commit timestamps.
+func timeToSeconds(t time.Time) float64 {
+	if t.IsZero() {
+		t = time.Now()
+	}
+	return float64(t.UnixNano()) / 1e9
 }
 
 func updateSerieTelemetry(start time.Time, serieCount uint64, err error) {
