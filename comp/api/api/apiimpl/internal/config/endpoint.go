@@ -134,7 +134,7 @@ func getConfigEndpoint(cfg model.Reader, authorizedConfigPaths api.AuthorizedSet
 	}
 
 	configEndpointMux := http.NewServeMux()
-	observability.WrapWithRouteTemplate(configEndpointMux, "GET", "/", http.HandlerFunc(configEndpoint.getAllConfigValuesHandler))
+	observability.WrapWithRouteTemplate(configEndpointMux, "GET", "/{$}", http.HandlerFunc(configEndpoint.getAllConfigValuesHandler))
 	observability.WrapWithRouteTemplate(configEndpointMux, "GET", "/{path}", http.HandlerFunc(configEndpoint.getConfigValueHandler))
 
 	return configEndpointMux, configEndpoint
