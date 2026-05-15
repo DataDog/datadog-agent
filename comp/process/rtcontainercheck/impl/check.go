@@ -10,7 +10,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	rtcontainercheck "github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/def"
 	"github.com/DataDog/datadog-agent/comp/process/types"

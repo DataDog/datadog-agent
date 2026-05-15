@@ -25,7 +25,7 @@ import (
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	sysprobeconfigfx "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/fx"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
+	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	telemetryfx "github.com/DataDog/datadog-agent/comp/core/telemetry/fx"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
