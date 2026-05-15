@@ -40,6 +40,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -140,6 +141,69 @@ func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 
 	require.False(t, demux.Options().EnableNoAggregationPipeline, "the no aggregation pipeline should be disabled by default")
 	demux.Stop(false)
+}
+
+func TestAddAgentShutdownTelemetryFlushesEventOnStop(t *testing.T) {
+	demux, s := newShutdownTelemetryTestDemux(t, "hostname")
+	s.On("SendEvents", mock.MatchedBy(func(events event.Events) bool {
+		require.Len(t, events, 1)
+		require.Equal(t, "ordinary event", events[0].Text)
+		return true
+	})).Return(nil).Once()
+	s.On("SendAgentShutdownEvent", mock.Anything, mock.MatchedBy(func(e *event.Event) bool {
+		require.Equal(t, "Version 7.0.0", e.Text)
+		require.Equal(t, "System", e.SourceTypeName)
+		require.Equal(t, "hostname", e.Host)
+		require.Equal(t, "Agent Shutdown", e.EventType)
+		return true
+	})).Return(nil).Once()
+
+	demux.AddAgentShutdownTelemetry("7.0.0")
+	demux.ForceFlushToSerializer(time.Now(), true)
+	s.AssertNotCalled(t, "SendEvents", mock.Anything)
+	s.AssertNotCalled(t, "SendAgentShutdownEvent", mock.Anything, mock.Anything)
+
+	demux.aggregator.addEvent(event.Event{Text: "ordinary event"})
+	demux.Stop(true)
+
+	s.AssertExpectations(t)
+}
+
+func TestAgentShutdownTelemetryRequiresFinalFlush(t *testing.T) {
+	demux, s := newShutdownTelemetryTestDemux(t, "hostname")
+
+	demux.AddAgentShutdownTelemetry("7.0.0")
+	demux.Stop(false)
+
+	s.AssertNotCalled(t, "SendAgentShutdownEvent", mock.Anything, mock.Anything)
+}
+
+func newShutdownTelemetryTestDemux(t *testing.T, hostname string) (*AgentDemultiplexer, *MockSerializerIterableSerie) {
+	t.Helper()
+
+	deps := createDemultiplexerAgentTestDeps(t)
+	demux := InitAndStartAgentDemultiplexer(
+		deps.Log,
+		NewForwarderTest(deps.Log),
+		deps.OrchestratorFwd,
+		demuxTestOptions(),
+		deps.EventPlatform,
+		deps.HaAgent,
+		deps.Compressor,
+		deps.Tagger,
+		deps.FilterList,
+		hostname,
+	)
+
+	s := &MockSerializerIterableSerie{}
+	s.On("AreSeriesEnabled").Return(true).Maybe()
+	s.On("AreSketchesEnabled").Return(true).Maybe()
+	s.On("SendServiceChecks", mock.Anything).Return(nil).Maybe()
+
+	demux.aggregator.serializer = s
+	demux.sharedSerializer = s
+
+	return demux, s
 }
 
 func TestMetricSampleTypeConversion(t *testing.T) {

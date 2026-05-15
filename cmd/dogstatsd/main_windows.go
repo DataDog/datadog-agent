@@ -19,6 +19,7 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/messagestrings"
@@ -100,6 +101,7 @@ func (s *service) Run(ctx context.Context) error {
 			<-ctx.Done()
 
 			log.Infof("Initiating service shutdown")
+			demultiplexer.AddAgentShutdownTelemetry(version.AgentVersion)
 			return nil
 		})
 }

@@ -87,6 +87,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	// runtime init routines
 )
 
@@ -186,13 +187,18 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			ctx := <-ctxChan
 
 			// Wait for stop signal
+			sendShutdownTelemetry := true
 			select {
 			case <-signals.Stopper:
 				log.Info("Received stop command, shutting down...")
 			case <-signals.ErrorStopper:
 				_ = log.Critical("The Agent has encountered an error, shutting down...")
+				sendShutdownTelemetry = false
 			case <-ctx.Done():
 				log.Info("Received stop from service manager, shutting down...")
+			}
+			if sendShutdownTelemetry {
+				demultiplexer.AddAgentShutdownTelemetry(version.AgentVersion)
 			}
 
 			return nil

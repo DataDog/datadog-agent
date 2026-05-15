@@ -5,6 +5,8 @@
 package mocks
 
 import (
+	context "context"
+
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -226,6 +228,63 @@ func (_c *MetricSerializer_SendEvents_Call) Return(err error) *MetricSerializer_
 }
 
 func (_c *MetricSerializer_SendEvents_Call) RunAndReturn(run func(e event.Events) error) *MetricSerializer_SendEvents_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SendAgentShutdownEvent provides a mock function for the type MetricSerializer
+func (_mock *MetricSerializer) SendAgentShutdownEvent(ctx context.Context, e *event.Event) error {
+	ret := _mock.Called(ctx, e)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SendAgentShutdownEvent")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *event.Event) error); ok {
+		r0 = returnFunc(ctx, e)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MetricSerializer_SendAgentShutdownEvent_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SendAgentShutdownEvent'
+type MetricSerializer_SendAgentShutdownEvent_Call struct {
+	*mock.Call
+}
+
+// SendAgentShutdownEvent is a helper method to define mock.On call
+//   - ctx context.Context
+//   - e *event.Event
+func (_e *MetricSerializer_Expecter) SendAgentShutdownEvent(ctx interface{}, e interface{}) *MetricSerializer_SendAgentShutdownEvent_Call {
+	return &MetricSerializer_SendAgentShutdownEvent_Call{Call: _e.mock.On("SendAgentShutdownEvent", ctx, e)}
+}
+
+func (_c *MetricSerializer_SendAgentShutdownEvent_Call) Run(run func(ctx context.Context, e *event.Event)) *MetricSerializer_SendAgentShutdownEvent_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *event.Event
+		if args[1] != nil {
+			arg1 = args[1].(*event.Event)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MetricSerializer_SendAgentShutdownEvent_Call) Return(err error) *MetricSerializer_SendAgentShutdownEvent_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MetricSerializer_SendAgentShutdownEvent_Call) RunAndReturn(run func(ctx context.Context, e *event.Event) error) *MetricSerializer_SendAgentShutdownEvent_Call {
 	_c.Call.Return(run)
 	return _c
 }

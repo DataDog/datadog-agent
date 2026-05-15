@@ -402,7 +402,11 @@ func run(log log.Component,
 	agentStarted.Inc()
 	agentRunning.Set(1)
 
-	return <-stopCh
+	err := <-stopCh
+	if err == nil {
+		demultiplexer.AddAgentShutdownTelemetry(version.AgentVersion)
+	}
+	return err
 }
 
 func getSharedFxOption() fx.Option {

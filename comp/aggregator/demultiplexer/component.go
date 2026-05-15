@@ -26,4 +26,7 @@ type Component interface {
 	// AddAgentStartupTelemetry adds a startup event and count (in a DSD time sampler)
 	// to be sent on the next flush.
 	AddAgentStartupTelemetry(agentVersion string)
+
+	// AddAgentShutdownTelemetry adds a shutdown event to be sent on the final Stop(true) flush.
+	AddAgentShutdownTelemetry(agentVersion string)
 }
