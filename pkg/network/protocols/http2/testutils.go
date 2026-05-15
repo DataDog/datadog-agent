@@ -40,6 +40,9 @@ func StartH2CServer(t *testing.T, address string, isTLS bool) func() {
 	}
 	srv.Protocols.SetHTTP1(true)
 	srv.Protocols.SetUnencryptedHTTP2(true)
+	if isTLS {
+		srv.Protocols.SetHTTP2(true)
+	}
 
 	require.NoError(t, http2.ConfigureServer(srv, nil), "could not configure server")
 
