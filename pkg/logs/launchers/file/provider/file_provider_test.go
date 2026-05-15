@@ -427,6 +427,31 @@ func TestCollectFiles(t *testing.T) {
 
 		assert.Empty(t, source.Messages.GetMessages())
 	})
+
+	t.Run("RecursiveGlobSkipsDirectoriesAndKeepsFiles", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest("logs_config.enable_recursive_glob", true)
+
+		fs := newTempFs(t)
+		fs.mkDir("alpha")
+		fs.createFile("alpha/a.log")
+		fs.mkDir("alpha/beta")
+		fs.createFile("alpha/beta/b.log")
+
+		fileProvider := NewFileProvider(5, WildcardUseFileName)
+		source := sources.NewLogSource("recursive", &config.LogsConfig{Type: config.FileType, Path: fs.path("**")})
+		files, err := fileProvider.CollectFiles(source)
+		assert.NoError(t, err)
+
+		paths := make([]string, 0, len(files))
+		for _, f := range files {
+			paths = append(paths, f.Path)
+		}
+		assert.Contains(t, paths, fs.path("alpha/a.log"))
+		assert.Contains(t, paths, fs.path("alpha/beta/b.log"))
+		assert.NotContains(t, paths, fs.path("alpha"))
+		assert.NotContains(t, paths, fs.path("alpha/beta"))
+	})
 }
 
 func TestFilesToTail(t *testing.T) {
