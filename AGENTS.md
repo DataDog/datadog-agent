@@ -273,9 +273,45 @@ See the marketplace README for installation instructions.
   into committed test fixtures, release notes or PR descriptions.
 
 ## Module System
-The project uses Go modules with multiple sub-modules.
-TODO: Describe specific strategies for managing modules, including any invoke
-tasks.
+
+The repo is a Go workspace with ~190 modules listed in `modules.yml` and
+stitched together via `replace` directives in each `go.mod`. Most are
+thin wrappers around `comp/<area>/<name>/{def,fx,impl}` and `pkg/...`
+subdirectories so that subsets of the agent can be imported by other
+Datadog Go projects without pulling in the whole binary.
+
+**When you need to touch the module graph:**
+
+- **Creating a new module** — use the `/create-go-module` skill
+  (`.claude/skills/create-go-module/SKILL.md`). It walks through the
+  `go.mod` + `doc.go` + `modules.yml` registration and updates the
+  inter-module `replace` directives in dependents. The underlying
+  manual procedure is documented in
+  [`docs/public/how-to/go/modules.md`](docs/public/how-to/go/modules.md).
+- **Adding a `replace` directive** — read
+  [`docs/dev/gomodreplace.md`](docs/dev/gomodreplace.md) first. The
+  default answer is "don't"; prefer requiring a fork directly or
+  excluding a bad version. When you do add one, the comment-above-it
+  rule is enforced by `modules.check-all-replace`.
+- **`replace` rules out of sync after editing `go.mod`** —
+  `dda inv modules.add-all-replace` propagates the canonical replace
+  set to every module; `dda inv modules.check-all-replace` is the CI
+  check that fails if they drift.
+- **Running something across every module** —
+  `dda inv modules.for-each -- '<cmd>'` (e.g. `go mod tidy`, `go vet`).
+- **Inspecting the module config** — `dda inv modules.show <path>` for
+  one module, `dda inv modules.show-all` for the full list, and
+  `dda inv modules.validate` to lint `modules.yml` itself.
+- **OTel-imported subset** — modules tagged `used_by_otel` in
+  `modules.yml` are consumed by
+  [opentelemetry-collector-contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib).
+  `dda inv modules.validate-used-by-otel` checks the tag is transitive
+  across local dependencies. Don't add new transitive deps to those
+  modules without understanding the OTel-side impact.
+
+The authoritative source for what's in the workspace is `modules.yml`
+(parsed by `tasks/libs/common/gomodules.py`) — not `go.work`, which is
+regenerated from `modules.yml` by `dda inv modules.go-work`.
 
 ## Platform Support
 - **Linux**: Full support (amd64, arm64)
