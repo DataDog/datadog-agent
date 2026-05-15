@@ -1,0 +1,21 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    The check runner's dynamic worker scaling (up to 25 workers) is now
+    re-enabled when ``check_runners`` is left unconfigured. Previously,
+    ``check_runners`` was registered with a default value of 4, which caused
+    the runner to treat the default as an explicit configuration and pin
+    the worker pool at 4 — leaving the documented dynamic scaling code path
+    effectively unreachable in default installations. The worker pool now
+    grows automatically with the number of scheduled checks when
+    ``check_runners`` is not explicitly configured by the operator.
+    Explicitly setting ``check_runners`` continues to pin the pool at the
+    configured size; the legacy ``check_runners: 0`` sentinel for opting
+    in to dynamic scaling is preserved.

@@ -64,7 +64,28 @@ type Runner struct {
 
 // NewRunner takes the number of desired goroutines processing incoming checks.
 func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component, healthPlatform healthplatform.Component) *Runner {
-	numWorkers := pkgconfigsetup.Datadog().GetInt("check_runners")
+	cfg := pkgconfigsetup.Datadog()
+	numWorkers := cfg.GetInt("check_runners")
+
+	// Determine whether the worker pool should be fixed at the configured size
+	// ("static") or allowed to scale with the number of scheduled checks
+	// ("dynamic", up to MaxNumWorkers via UpdateNumWorkers).
+	//
+	// The previous behaviour (`isStaticWorkerCount = numWorkers != 0`) relied
+	// on the absence of a default value for `check_runners` to trigger dynamic
+	// scaling. Because `check_runners` is registered with `BindEnvAndSetDefault(
+	// "check_runners", int64(4))`, GetInt returns 4 even when the operator
+	// hasn't configured anything, so `numWorkers != 0` was unconditionally
+	// true and dynamic scaling was effectively dead code in default installs.
+	// This was particularly visible on cluster-checks runners with large
+	// numbers of cluster checks (e.g. Prometheus HTTP service discovery), where
+	// the runner stayed pinned at 4 workers regardless of load.
+	//
+	// IsConfigured returns true only when the value was set by the user
+	// (config file, env var, runtime Set, etc.) and false when only the default
+	// is in effect. The legacy `check_runners: 0` sentinel for opting in to
+	// dynamic scaling is preserved for backwards compatibility.
+	isStaticWorkerCount := cfg.IsConfigured("check_runners") && numWorkers != 0
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -75,11 +96,11 @@ func NewRunner(senderManager sender.SenderManager, haAgent haagent.Component, he
 		id:                  int(runnerIDGenerator.Inc()),
 		isRunning:           atomic.NewBool(true),
 		workers:             make(map[int]*worker.Worker),
-		isStaticWorkerCount: numWorkers != 0,
+		isStaticWorkerCount: isStaticWorkerCount,
 		pendingChecksChan:   make(chan check.Check),
 		checksTracker:       tracker.NewRunningChecksTracker(),
-		utilizationMonitor:  worker.NewUtilizationMonitor(pkgconfigsetup.Datadog().GetFloat64("check_runner_utilization_threshold")),
-		utilizationLogLimit: log.NewLogLimit(1, pkgconfigsetup.Datadog().GetDuration("check_runner_utilization_warning_cooldown")),
+		utilizationMonitor:  worker.NewUtilizationMonitor(cfg.GetFloat64("check_runner_utilization_threshold")),
+		utilizationLogLimit: log.NewLogLimit(1, cfg.GetDuration("check_runner_utilization_warning_cooldown")),
 		ctx:                 ctx,
 		cancel:              cancel,
 	}
