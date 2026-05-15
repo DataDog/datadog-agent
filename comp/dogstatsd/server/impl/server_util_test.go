@@ -125,7 +125,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 
 // Returns a server that is not started along with associated dependencies
 // Be careful when using this functionality, as server start instantiates many internal components to non-nil values
-func fulfillDepsWithInactiveServer(t *testing.T, cfg map[string]interface{}) (depsWithoutServer, *dsdServer) {
+func fulfillDepsWithInactiveServer(t testing.TB, cfg map[string]interface{}) (depsWithoutServer, *dsdServer) {
 	deps := fxutil.Test[depsWithoutServer](t, fx.Options(
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() configComponent.Component { return configComponent.NewMockWithOverrides(t, cfg) }),

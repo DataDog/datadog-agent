@@ -300,7 +300,7 @@ func TestOriginTelemetry(t *testing.T) {
 	}})
 }
 
-func setupTagger(t *testing.T) tagger.Component {
+func setupTagger(t testing.TB) tagger.Component {
 	// Setup a fake tagger with tags for different containers
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 
