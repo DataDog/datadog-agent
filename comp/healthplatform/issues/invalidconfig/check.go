@@ -10,6 +10,7 @@
 package invalidconfig
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
@@ -33,26 +34,26 @@ func newChecker(cfg config.Component) *checker {
 }
 
 func (c *checker) Run() (*healthplatform.IssueReport, error) {
-	return c.validate(), nil
+	return c.validate()
 }
 
-func (c *checker) validate() *healthplatform.IssueReport {
+func (c *checker) validate() (*healthplatform.IssueReport, error) {
 	// AllSettingsWithoutDefaultOrSecrets returns only values the customer actually set
 	raw := c.cfg.AllSettingsWithoutDefaultOrSecrets()
 	if len(raw) == 0 {
-		return nil
+		return nil, nil
 	}
 	normalized, err := normalizeForSchema(raw)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("invalidconfig: normalize config: %w", err)
 	}
 	errs, schemaErr := schema.ValidateCoreConfig(normalized)
 	if schemaErr != nil {
-		pkglog.Warn("invalidconfig: schema validator unavailable; skipping check")
-		return nil
+		pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check: %v", schemaErr)
+		return nil, schemaErr
 	}
 	if len(errs) == 0 {
-		return nil
+		return nil, nil
 	}
 	info := lite.IssueInfo{
 		Kind:       lite.ErrorKindSchemaValidation,
@@ -69,7 +70,7 @@ func (c *checker) validate() *healthplatform.IssueReport {
 		IssueId: healthplatformdef.InvalidConfigIssueID,
 		Context: info.ToContext(),
 		Tags:    tags,
-	}
+	}, nil
 }
 
 // normalizeForSchema coerces a Go-native config map into JSON-native types
