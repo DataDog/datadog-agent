@@ -11,7 +11,6 @@
 package schema
 
 import (
-	"embed"
 	"errors"
 	"fmt"
 	"sync"
@@ -21,8 +20,7 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
-//go:embed all:compressed
-var schemas embed.FS
+var getSchema = getSchemaFromEmbed
 
 var (
 	coreOnce         = new(sync.Once)
@@ -33,7 +31,7 @@ var (
 	systemProbeError error
 )
 
-func getSchema(name string) ([]byte, error) {
+func getSchemaFromEmbed(name string) ([]byte, error) {
 	data, err := schemas.ReadFile("compressed/" + name + ".yaml.zstd")
 	if err != nil {
 		return nil, fmt.Errorf("no embedded schema for %s", name)

@@ -58,13 +58,27 @@ func initTestSchema(t *testing.T) {
 	sysprobeSchemaGetter = func() (*jsonschema.Schema, error) { return testSchema, nil }
 }
 
+func initGetSchema(t *testing.T, expectedName string) {
+	orig := getSchema
+	t.Cleanup(func() {
+		getSchema = orig
+	})
+
+	getSchema = func(name string) ([]byte, error) {
+		assert.Equal(t, expectedName, name)
+		return []byte("test: 1234"), nil
+	}
+}
+
 func TestGetCoreSchema(t *testing.T) {
+	initGetSchema(t, "core_schema")
 	data, err := GetCoreSchema()
 	assert.NoError(t, err)
 	assert.NoError(t, yaml.Unmarshal(data, new(interface{})))
 }
 
 func TestGetSystemProbeSchema(t *testing.T) {
+	initGetSchema(t, "system-probe_schema")
 	data, err := GetSystemProbeSchema()
 	assert.NoError(t, err)
 	assert.NoError(t, yaml.Unmarshal(data, new(interface{})))

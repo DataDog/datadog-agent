@@ -64,6 +64,8 @@ Dockerfiles/cluster-agent/datadog-cluster.yaml
 Dockerfiles/cluster-agent/dist
 Dockerfiles/cluster-agent/security-agent-policies
 pkg/status/template.go
+pkg/config/schema/compressed/core_schema.yaml.zstd
+pkg/config/schema/compressed/system-probe_schema.yaml.zstd
 
 # JetBrains IDE project files: GoLand, IntelliJ IDEA, PyCharm, etc.
 /*.iml
