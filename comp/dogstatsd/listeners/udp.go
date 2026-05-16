@@ -51,7 +51,7 @@ type UDPListener struct {
 	packetsBuffer   *packets.Buffer
 	packetAssembler *packets.Assembler
 	buffer          []byte
-	trafficCapture  replay.Component // Currently ignored
+	trafficCapture  replay.Component
 	listenWg        sync.WaitGroup
 	telemetryStore  *TelemetryStore
 }
@@ -127,7 +127,7 @@ func (l *UDPListener) listen() {
 	var t1, t2 time.Time
 	log.Infof("dogstatsd-udp: starting to listen on %s", l.conn.LocalAddr())
 	for {
-		n, _, err := l.conn.ReadFrom(l.buffer)
+		n, remoteAddr, err := l.conn.ReadFrom(l.buffer)
 		t1 = time.Now()
 		udpPackets.Add(1)
 
@@ -145,6 +145,17 @@ func (l *UDPListener) listen() {
 
 			udpBytes.Add(int64(n))
 			l.telemetryStore.tlmUDPPacketsBytes.Add(float64(n), "agent")
+
+			if l.trafficCapture != nil {
+				l.trafficCapture.CaptureIngress(replay.IngressEnvelope{
+					Timestamp:  t1,
+					Source:     packets.UDP,
+					ListenerID: "udp",
+					Payload:    l.buffer[:n],
+					RemoteAddr: remoteAddr.String(),
+					LocalAddr:  l.conn.LocalAddr().String(),
+				})
+			}
 
 			// packetAssembler merges multiple packets together and sends them when its buffer is full
 			l.packetAssembler.AddMessage(l.buffer[:n])

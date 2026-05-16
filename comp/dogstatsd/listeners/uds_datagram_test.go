@@ -36,6 +36,46 @@ func TestStartStopUDSDatagramListener(t *testing.T) {
 	testStartStopUDSListener(t, udsDatagramListenerFactory, "unixgram")
 }
 
+func TestMilestone5UDSDatagramListenerCapturesIngressEnvelope(t *testing.T) {
+	socketPath := testSocketPath(t)
+
+	mockConfig := map[string]interface{}{}
+	mockConfig[socketPathConfKey("unixgram")] = socketPath
+	mockConfig["dogstatsd_origin_detection"] = false
+
+	contents := []byte("daemon:1|c")
+	packetsChannel := make(chan packets.Packets)
+	capture := newRecordingCapture()
+
+	deps := fulfillDepsWithConfig(t, mockConfig)
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
+	s, err := NewUDSDatagramListener(packetsChannel, newPacketPoolManagerUDS(deps.Config, packetsTelemetryStore), nil, deps.Config, capture, option.None[workloadmeta.Component](), deps.PidMap, telemetryStore, packetsTelemetryStore, deps.Telemetry)
+	require.NoError(t, err)
+	require.NotNil(t, s)
+	defer s.Stop()
+
+	mConn := defaultMUnixConn(s.conn.LocalAddr(), false)
+	mConn.Write(contents)
+
+	go s.handleConnection(mConn, func(c netUnixConn) error { return c.Close() })
+	select {
+	case <-packetsChannel:
+	case <-time.After(2 * time.Second):
+		assert.FailNow(t, "Timeout on receive channel")
+	}
+
+	select {
+	case envelope := <-capture.envelopes:
+		assert.Equal(t, contents, envelope.Payload)
+		assert.Equal(t, packets.UDS, envelope.Source)
+		assert.NotEmpty(t, envelope.ListenerID)
+		assert.Equal(t, s.conn.LocalAddr().String(), envelope.LocalAddr)
+	case <-time.After(2 * time.Second):
+		assert.FailNow(t, "Timeout on capture envelope")
+	}
+}
+
 func TestUDSDatagramReceive(t *testing.T) {
 	socketPath := testSocketPath(t)
 

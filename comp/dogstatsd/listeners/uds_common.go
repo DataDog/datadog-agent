@@ -237,17 +237,6 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 		packet := l.sharedPacketPoolManager.Get()
 		udsPackets.Add(1)
 
-		var capBuff *replay.CaptureBuffer
-		if l.trafficCapture != nil && l.trafficCapture.IsOngoing() {
-			capBuff = new(replay.CaptureBuffer)
-			capBuff.Pb.Ancillary = nil
-			capBuff.Pb.Payload = nil
-			capBuff.Pb.Pid = 0
-			capBuff.Pb.AncillarySize = int32(0)
-			capBuff.Pb.PayloadSize = int32(0)
-			capBuff.ContainerID = ""
-		}
-
 		if l.OriginDetection {
 			// Read datagram + credentials in ancillary data
 			oob = l.oobPoolManager.Get()
@@ -334,29 +323,31 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 			} else {
 				packet.ProcessID = uint32(pid)
 				packet.Origin = container
-				if capBuff != nil {
-					capBuff.ContainerID = container
-				}
 			}
-			if capBuff != nil {
-				capBuff.Oob = oob
-				capBuff.Pid = int32(pid)
-				capBuff.Pb.Pid = int32(pid)
-				capBuff.Pb.AncillarySize = int32(oobn)
-				capBuff.Pb.Ancillary = oobS[:oobn]
+
+			if l.trafficCapture != nil {
+				l.trafficCapture.CaptureIngress(replay.IngressEnvelope{
+					Timestamp:  time.Now(),
+					Source:     packets.UDS,
+					ListenerID: listenerID,
+					Payload:    packet.Buffer[:n],
+					ProcessID:  int32(pid),
+					Origin:     packet.Origin,
+					Ancillary:  oobS[:oobn],
+					LocalAddr:  conn.LocalAddr().String(),
+				})
 			}
 
 			// Return the buffer back to the pool for reuse
 			l.oobPoolManager.Put(oob)
-		}
-
-		if capBuff != nil {
-			capBuff.Buff = packet
-			capBuff.Pb.Timestamp = time.Now().UnixNano()
-			capBuff.Pb.PayloadSize = int32(n)
-			capBuff.Pb.Payload = packet.Buffer[:n]
-
-			l.trafficCapture.Enqueue(capBuff)
+		} else if l.trafficCapture != nil {
+			l.trafficCapture.CaptureIngress(replay.IngressEnvelope{
+				Timestamp:  time.Now(),
+				Source:     packets.UDS,
+				ListenerID: listenerID,
+				Payload:    packet.Buffer[:n],
+				LocalAddr:  conn.LocalAddr().String(),
+			})
 		}
 
 		if err != nil {

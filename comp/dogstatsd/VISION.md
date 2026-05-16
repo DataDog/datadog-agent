@@ -610,6 +610,30 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 - Benchmarks show capture disabled has negligible overhead and capture enabled has bounded cost.
 - Existing capture/replay workflows keep working.
 
+**Initial proof artifacts**
+
+- Added `replay.IngressEnvelope` as the raw ingress unit with timestamp, source, listener ID, payload, process/origin metadata, ancillary bytes, and local/remote addresses where available.
+- Added a bounded raw ingress ring behind the replay component, configured by `dogstatsd_capture_raw_ring_size` and disabled by default until retrospective capture is exposed as an operator command.
+- Wired UDP, UDS, and Windows named-pipe listeners through `CaptureIngress`, while preserving the existing capture file protobuf shape for active captures. Local listener fidelity tests cover UDP and UDS; Windows named-pipe coverage relies on platform CI.
+- Design adjustment: active capture now copies from the ingress envelope instead of retaining pooled packet/OOB buffers, so capture no longer needs to put the shared packet pool into non-passthrough mode. The legacy `Enqueue` API remains for compatibility, but listener code uses the envelope path.
+- The raw ring is count-bounded; overwrites increment dropped counters returned by `IngressStats`. Follow-up user-facing telemetry/export should expose these counters before enabling the ring by default.
+- Contract tests:
+  - `TestMilestone5IngressRingKeepsNewestBoundedCopies`;
+  - `TestMilestone5TrafficCaptureRecordsRecentIngressWhenCaptureStopped`;
+  - `TestMilestone5TrafficCaptureIngressUsesExistingCaptureMessageShape`;
+  - `TestMilestone5UDPListenerCapturesIngressEnvelope`;
+  - `TestMilestone5UDSDatagramListenerCapturesIngressEnvelope`.
+- Benchmark:
+  - `BenchmarkMilestone5CaptureIngress`.
+- Example local benchmark output from the initial implementation:
+  - capture disabled / raw ring disabled: `~27 ns/op`, `0 allocs/op`;
+  - raw ring enabled: `~65 ns/op`, `1 alloc/op` for payload copy.
+- Suggested verification commands:
+  - `dda inv test --targets=./comp/dogstatsd/replay/impl --test-run-name='Milestone5'`;
+  - `dda inv test --targets=./comp/dogstatsd/replay/impl --test-run-name='Milestone5' --extra-args='-race'`;
+  - `dda inv test --targets=./comp/dogstatsd/replay/impl,./comp/dogstatsd/replay/impl-noop,./comp/dogstatsd/listeners,./comp/dogstatsd/server/impl`;
+  - `dda inv test --targets=./comp/dogstatsd/replay/impl --test-run-name='^$' --extra-args='-bench=BenchmarkMilestone5 -benchmem -count=1'`.
+
 **Stop-safe state**
 
 - If work stops here, users get better capture coverage and retrospective capture potential.

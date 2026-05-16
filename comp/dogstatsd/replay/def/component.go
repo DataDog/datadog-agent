@@ -37,8 +37,42 @@ type Component interface {
 	// Enqueue enqueues a capture buffer so it's written to file.
 	Enqueue(msg *CaptureBuffer) bool
 
+	// CaptureIngress records a transport-faithful ingress envelope and, when a
+	// capture is ongoing, writes it through the existing capture file path.
+	CaptureIngress(envelope IngressEnvelope) bool
+
+	// RecentIngress returns up to max recent ingress envelopes from the bounded
+	// raw ingress ring, ordered oldest to newest. A non-positive max returns all
+	// retained envelopes.
+	RecentIngress(max int) []IngressEnvelope
+
+	// IngressStats returns bounded raw ingress ring counters.
+	IngressStats() IngressStats
+
 	// GetStartUpError returns an error if TrafficCapture failed to start up
 	GetStartUpError() error
+}
+
+// IngressEnvelope is the transport-faithful unit for raw DogStatsD ingress.
+// Payload and Ancillary are owned by the caller until CaptureIngress returns;
+// implementations that retain the envelope must copy them.
+type IngressEnvelope struct {
+	Timestamp  time.Time
+	Source     packets.SourceType
+	ListenerID string
+	Payload    []byte
+	ProcessID  int32
+	Origin     string
+	Ancillary  []byte
+	RemoteAddr string
+	LocalAddr  string
+}
+
+// IngressStats exposes bounded raw ingress ring counters.
+type IngressStats struct {
+	Capacity int
+	Retained int
+	Dropped  uint64
 }
 
 // UnixDogstatsdMsg mirrors the exported fields of pkg/proto/pbgo/core/model.pb.go 'UnixDogstatsdMsg

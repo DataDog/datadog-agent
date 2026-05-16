@@ -1721,6 +1721,9 @@ func dogstatsd(config pkgconfigmodel.Setup) {
 	// Depth of the channel the capture writer reads before persisting to disk.
 	// Default is 0 - blocking channel
 	config.BindEnvAndSetDefault("dogstatsd_capture_depth", 0)
+	// Number of raw ingress envelopes kept in the bounded DogStatsD capture ring.
+	// Default is 0 - disabled until retrospective capture is exposed.
+	config.BindEnvAndSetDefault("dogstatsd_capture_raw_ring_size", 0)
 	// Enable the no-aggregation pipeline.
 	config.BindEnvAndSetDefault("dogstatsd_no_aggregation_pipeline", true)
 	// How many metrics maximum in payloads sent by the no-aggregation pipeline to the intake.
