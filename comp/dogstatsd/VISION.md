@@ -762,6 +762,24 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 - Tests cover changed tagger state to prove deterministic replay does not accidentally depend on current enrichment.
 - Raw replay remains available for listener/parser/origin-detection investigations.
 
+**Initial proof artifacts**
+
+- Added `comp/dogstatsd/internal/semantic`, a canonical semantic `Record`/`Corpus` model and replay loop that feeds reusable `SeriesStatsStore` and recent lookback projections without reparsing or re-enriching raw traffic.
+- Added an explicit `RawMetric` + `Enricher` boundary in tests to distinguish raw replay, which reuses current enrichment, from semantic replay, which reuses captured descriptors.
+- Design adjustment: this milestone proves deterministic semantic projection in-memory. Persisted semantic capture files and CLI replay-mode selection remain follow-up work before operator use.
+- Contract tests:
+  - `TestMilestone8SemanticReplayReproducesDebugAndLookbackViews`;
+  - `TestMilestone8SemanticReplayIgnoresChangedEnrichmentState`;
+  - `TestMilestone8RawReplayStillBuildsRecordsFromCurrentEnrichment`.
+- Benchmark:
+  - `BenchmarkMilestone8SemanticReplayProjection`.
+- Example local benchmark output from the initial implementation:
+  - replay 1024 records into fresh projections: `~510 µs/op`, `~656 KB/op`, `~3.0k allocs/op`.
+- Suggested verification commands:
+  - `dda inv test --targets=./comp/dogstatsd/internal/semantic --test-run-name='Milestone8'`;
+  - `dda inv test --targets=./comp/dogstatsd/internal/semantic --test-run-name='Milestone8' --extra-args='-race'`;
+  - `dda inv test --targets=./comp/dogstatsd/internal/semantic --test-run-name='^$' --extra-args='-bench=BenchmarkMilestone8 -benchmem -count=1'`.
+
 **Stop-safe state**
 
 - If work stops here, replay becomes more useful for performance and correctness investigations.
