@@ -34,7 +34,8 @@ const (
 	otelConfigPath        = "/etc/datadog-agent/otel-config.yaml"
 	otelConfigExamplePath = "/etc/datadog-agent/otel-config.yaml.example"
 
-	ddotProcmgrYAMLStable = "datadog-agent-ddot.yaml"
+	// ddotProcmgrYAMLName is the processes.d config basename (same file in stable and experiment trees).
+	ddotProcmgrYAMLName = "datadog-agent-ddot.yaml"
 )
 
 var (
@@ -310,22 +311,21 @@ func applyDDOTProcmgrProcessesYAML(ctx HookContext, stable, standalone bool) (ow
 		return false, nil
 	}
 	dir := ddotProcmgrProcessesDir(ctx, stable)
-	yamlName := ddotProcmgrYAMLStable
 	ownsDDOT = procmgrOwnsDDOT(ctx, stable)
 	if !ownsDDOT {
-		procmgr.RemoveConfig(dir, yamlName)
+		procmgr.RemoveConfig(dir, ddotProcmgrYAMLName)
 		return false, nil
 	}
-	ambiantCapabilitiesSupported, aerr := isAmbiantCapabilitiesSupported()
+	ambientCapabilitiesSupported, aerr := isAmbiantCapabilitiesSupported()
 	if aerr != nil {
-		log.Errorf("failed to check if ambiant capabilities are supported: %v", aerr)
-		ambiantCapabilitiesSupported = true // Assume true if we can't check
+		log.Errorf("failed to check if ambient capabilities are supported: %v", aerr)
+		ambientCapabilitiesSupported = false
 	}
-	raw, err := embedded.GetDDOTProcessConfig(ddotEmbeddedUnitType(ctx), stable, ambiantCapabilitiesSupported, standalone)
+	raw, err := embedded.GetDDOTProcessConfig(ddotEmbeddedUnitType(ctx), stable, ambientCapabilitiesSupported, standalone)
 	if err != nil {
 		return true, fmt.Errorf("ddot procmgr yaml: %w", err)
 	}
-	if err := procmgr.WriteConfig(dir, yamlName, string(raw)); err != nil {
+	if err := procmgr.WriteConfig(dir, ddotProcmgrYAMLName, string(raw)); err != nil {
 		return true, err
 	}
 	return true, nil
@@ -354,8 +354,7 @@ func syncDDOTProcmgrStop(ctx HookContext, stable bool) error {
 		return nil
 	}
 	dir := ddotProcmgrProcessesDir(ctx, stable)
-	yamlName := ddotProcmgrYAMLStable
-	procmgr.RemoveConfig(dir, yamlName)
+	procmgr.RemoveConfig(dir, ddotProcmgrYAMLName)
 	if !procmgrBinaryExists(ctx, stable) {
 		return nil
 	}
@@ -414,7 +413,7 @@ func ociUseStandaloneDDOTLayoutAfterAgentPromote() bool {
 	}
 	foundYAML := false
 	for _, dir := range dirs {
-		data, err := os.ReadFile(filepath.Join(dir, ddotProcmgrYAMLStable))
+		data, err := os.ReadFile(filepath.Join(dir, ddotProcmgrYAMLName))
 		if err != nil {
 			continue
 		}
