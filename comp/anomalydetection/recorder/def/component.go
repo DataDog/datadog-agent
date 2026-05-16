@@ -31,6 +31,12 @@ type Component interface {
 	// is not needed and direct access to all metrics at once is more efficient.
 	ReadAllMetrics(inputDir string) ([]MetricData, error)
 
+	// StreamMetrics reads metrics from parquet files and calls fn for each one.
+	// Unlike ReadAllMetrics, this does not accumulate all metrics in memory.
+	// The callback receives metrics in per-file order (not globally sorted).
+	// Returns the total number of metrics streamed and any error encountered.
+	StreamMetrics(inputDir string, fn func(MetricData)) (int, error)
+
 	// ReadAllTraces reads all traces from parquet files and returns them as a slice.
 	// Traces are stored as denormalized spans (one row per span) for efficient querying.
 	ReadAllTraces(inputDir string) ([]TraceData, error)

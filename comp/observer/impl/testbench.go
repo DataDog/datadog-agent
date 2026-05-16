@@ -199,12 +199,24 @@ func NewTestBench(config TestBenchConfig) (*TestBench, error) {
 	catalog := defaultCatalog()
 	detectors, correlators, extractors, components := catalog.Instantiate(config.ComponentSettings)
 
+	ctxProviders := collectContextProviders(extractors)
+	if ci, ok := components["scrappy_collector"]; ok && ci.enabled {
+		if sc, ok := ci.instance.(*ScrappyCollector); ok {
+			sc.SetContextProviders(ctxProviders)
+		}
+	}
+	if ci, ok := components["scrappy_detector"]; ok && ci.enabled {
+		if sd, ok := ci.instance.(*ScrappyDetector); ok {
+			sd.SetContextProviders(ctxProviders)
+		}
+	}
+
 	eng := newEngine(engineConfig{
 		storage:          newTimeSeriesStorage(),
 		extractors:       extractors,
 		detectors:        detectors,
 		correlators:      correlators,
-		contextProviders: collectContextProviders(extractors),
+		contextProviders: ctxProviders,
 		scheduler:        &currentBehaviorPolicy{},
 	})
 
@@ -485,39 +497,36 @@ func (tb *TestBench) loadParquetDir(dir string) error {
 	if tb.config.LogsOnly {
 		fmt.Printf("  Logs-only mode: skipping parquet metrics and trace stats\n")
 	} else {
-		// Use batch loading - get all metrics at once
-		metrics, err := tb.config.Recorder.ReadAllMetrics(dir)
-		if err != nil {
-			return fmt.Errorf("reading parquet metrics: %w", err)
-		}
-
-		fmt.Printf("  Loading %d samples from parquet files\n", len(metrics))
-
+		// Stream metrics directly into storage — no intermediate slice.
 		byTimestampCounter := make(map[int64]int64)
 		byTimestampCardinality := make(map[int64]int64)
-
-		// Batch add all metrics to storage, skipping dropped observations.
 		var droppedCount int
-		for _, m := range metrics {
-			metricName := m.Name
+		var loadedCount int
 
+		total, err := tb.config.Recorder.StreamMetrics(dir, func(m recorderdef.MetricData) {
 			// filter internal Datadog Agent telemetry
-			if strings.HasPrefix(metricName, "datadog.") {
-				continue
+			if strings.HasPrefix(m.Name, "datadog.") {
+				return
 			}
 
 			// Skip observations that were dropped by the live observer's channel.
 			if tb.config.SkipDroppedMetrics && m.Dropped {
 				droppedCount++
-				continue
+				return
 			}
 
+			loadedCount++
 			byTimestampCounter[m.Timestamp]++
 
-			if storage.Add("parquet", metricName, m.Value, m.Timestamp, m.Tags) {
+			if storage.Add("parquet", m.Name, m.Value, m.Timestamp, m.Tags) {
 				byTimestampCardinality[m.Timestamp]++
 			}
+		})
+		if err != nil {
+			return fmt.Errorf("streaming parquet metrics: %w", err)
 		}
+
+		fmt.Printf("  Streamed %d samples from parquet files (%d loaded)\n", total, loadedCount)
 		if droppedCount > 0 {
 			fmt.Printf("  Skipped %d dropped observations from parquet\n", droppedCount)
 		}

@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 
+	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/apache/arrow-go/v18/arrow/array"
 	"github.com/apache/arrow-go/v18/arrow/memory"
@@ -344,6 +345,208 @@ func extractMetricsFromRecord(record arrow.Record) ([]FGMMetric, error) {
 	}
 
 	return metrics, nil
+}
+
+// streamParquetFile reads a single parquet file and calls fn for each metric,
+// converting directly from arrow records to MetricData without intermediate allocation.
+func streamParquetFile(filePath string, fn func(recorderdef.MetricData)) (int, error) {
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return 0, fmt.Errorf("statting file: %w", err)
+	}
+	if info.Size() < minParquetFileSize {
+		return 0, nil
+	}
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		return 0, fmt.Errorf("opening file: %w", err)
+	}
+	defer f.Close()
+
+	parquetReader, err := file.NewParquetReader(f)
+	if err != nil {
+		return 0, fmt.Errorf("creating parquet reader: %w", err)
+	}
+	defer parquetReader.Close()
+
+	arrowReadProps := pqarrow.ArrowReadProperties{BatchSize: 1024}
+	arrowReader, err := pqarrow.NewFileReader(parquetReader, arrowReadProps, memory.DefaultAllocator)
+	if err != nil {
+		return 0, fmt.Errorf("creating arrow reader: %w", err)
+	}
+
+	ctx := context.Background()
+	recordReader, err := arrowReader.GetRecordReader(ctx, nil, nil)
+	if err != nil {
+		return 0, fmt.Errorf("getting record reader: %w", err)
+	}
+	defer recordReader.Release()
+
+	total := 0
+	for recordReader.Next() {
+		record := recordReader.Record()
+		n, err := streamMetricsFromRecord(record, fn)
+		if err != nil {
+			return total, fmt.Errorf("extracting metrics: %w", err)
+		}
+		total += n
+	}
+
+	if err := recordReader.Err(); err != nil && err.Error() != "EOF" {
+		return total, fmt.Errorf("reading records: %w", err)
+	}
+
+	return total, nil
+}
+
+// streamMetricsFromRecord converts arrow record rows directly to MetricData
+// and calls fn for each, avoiding the intermediate FGMMetric representation.
+func streamMetricsFromRecord(record arrow.Record, fn func(recorderdef.MetricData)) (int, error) {
+	numRows := int(record.NumRows())
+	if numRows == 0 {
+		return 0, nil
+	}
+
+	schema := record.Schema()
+
+	runIDIdx := findColumnIndexInSchema(schema, "runid")
+	timeIdx := findColumnIndexInSchema(schema, "time")
+	metricNameIdx := findColumnIndexInSchema(schema, "metricname")
+	valueFloatIdx := findColumnIndexInSchema(schema, "valuefloat")
+	tagsIdx := findColumnIndexInSchema(schema, "tags")
+	droppedIdx := findColumnIndexInSchema(schema, "dropped")
+
+	readTimeValue := func(col arrow.Array, i int) int64 {
+		if col.IsNull(i) {
+			return 0
+		}
+		switch c := col.(type) {
+		case *array.Int64:
+			return c.Value(i)
+		case *array.Timestamp:
+			return int64(c.Value(i))
+		default:
+			return 0
+		}
+	}
+
+	var runIDCol *array.String
+	var metricNameCol *array.String
+	var valueFloatCol *array.Float64
+	var tagsCol *array.List
+	var droppedCol *array.Boolean
+	var timeColRaw arrow.Array
+
+	if runIDIdx >= 0 {
+		if c, ok := record.Column(runIDIdx).(*array.String); ok {
+			runIDCol = c
+		}
+	}
+	if timeIdx >= 0 {
+		timeColRaw = record.Column(timeIdx)
+	}
+	if metricNameIdx >= 0 {
+		if c, ok := record.Column(metricNameIdx).(*array.String); ok {
+			metricNameCol = c
+		}
+	}
+	if valueFloatIdx >= 0 {
+		if c, ok := record.Column(valueFloatIdx).(*array.Float64); ok {
+			valueFloatCol = c
+		}
+	}
+	if tagsIdx >= 0 {
+		if c, ok := record.Column(tagsIdx).(*array.List); ok {
+			tagsCol = c
+		}
+	}
+	if droppedIdx >= 0 {
+		if c, ok := record.Column(droppedIdx).(*array.Boolean); ok {
+			droppedCol = c
+		}
+	}
+
+	type labelCol struct {
+		key string
+		col *array.String
+	}
+	var labelCols []labelCol
+	for i, field := range schema.Fields() {
+		if strings.HasPrefix(field.Name, "l_") {
+			if c, ok := record.Column(i).(*array.String); ok {
+				labelCols = append(labelCols, labelCol{
+					key: strings.TrimPrefix(field.Name, "l_"),
+					col: c,
+				})
+			}
+		}
+	}
+
+	for i := 0; i < numRows; i++ {
+		var source, name string
+		var timestamp int64
+		var value float64
+		var dropped bool
+
+		if runIDCol != nil && !runIDCol.IsNull(i) {
+			source = runIDCol.Value(i)
+		}
+		if timeColRaw != nil {
+			timestamp = readTimeValue(timeColRaw, i) / 1000 // ms → s
+		}
+		if metricNameCol != nil && !metricNameCol.IsNull(i) {
+			name = metricNameCol.Value(i)
+		}
+		if valueFloatCol != nil && !valueFloatCol.IsNull(i) {
+			value = valueFloatCol.Value(i)
+		}
+		if droppedCol != nil && !droppedCol.IsNull(i) {
+			dropped = droppedCol.Value(i)
+		}
+
+		// Build tags slice directly (skip FGMMetric's map[string]string)
+		var tags []string
+		if tagsCol != nil && !tagsCol.IsNull(i) {
+			start, end := tagsCol.ValueOffsets(i)
+			tagsValues := tagsCol.ListValues().(*array.String)
+			tags = make([]string, 0, int(end-start)+len(labelCols))
+			for j := start; j < end; j++ {
+				if !tagsValues.IsNull(int(j)) {
+					tag := tagsValues.Value(int(j))
+					if tag != "" {
+						tags = append(tags, tag)
+					}
+				}
+			}
+		} else if len(labelCols) > 0 {
+			tags = make([]string, 0, len(labelCols))
+		}
+
+		for _, lc := range labelCols {
+			if !lc.col.IsNull(i) {
+				if v := lc.col.Value(i); v != "" {
+					tags = append(tags, lc.key+":"+v)
+				}
+			}
+		}
+
+		// Pre-sort tags so storage.Add skips canonicalizeTags allocation.
+		if len(tags) > 1 {
+			sort.Strings(tags)
+		}
+
+		fn(recorderdef.MetricData{
+			Source:    source,
+			Name:      name,
+			Value:     value,
+			Timestamp: timestamp,
+			Tags:      tags,
+			Dropped:   dropped,
+		})
+	}
+
+	return numRows, nil
 }
 
 // normalizeColumnName lowercases and strips underscores for flexible matching.

@@ -179,6 +179,31 @@ func (r *recorderImpl) ReadAllMetrics(inputDir string) ([]recorderdef.MetricData
 	return metrics, nil
 }
 
+// StreamMetrics reads metrics from parquet files and calls fn for each one,
+// without accumulating them in memory. Returns the total count streamed.
+func (r *recorderImpl) StreamMetrics(inputDir string, fn func(recorderdef.MetricData)) (int, error) {
+	parquetFiles, err := findParquetFiles(inputDir)
+	if err != nil {
+		return 0, fmt.Errorf("finding parquet files: %w", err)
+	}
+	if len(parquetFiles) == 0 {
+		return 0, fmt.Errorf("no parquet files found in %s", inputDir)
+	}
+
+	total := 0
+	for _, filePath := range parquetFiles {
+		n, err := streamParquetFile(filePath, fn)
+		if err != nil {
+			pkglog.Warnf("StreamMetrics: skipping %s: %v", filePath, err)
+			continue
+		}
+		total += n
+	}
+
+	pkglog.Infof("StreamMetrics: streamed %d metrics from %d files", total, len(parquetFiles))
+	return total, nil
+}
+
 // ReadAllTraces reads all traces from parquet files and returns them as a slice.
 // Traces are reconstructed from denormalized span rows grouped by trace ID.
 func (r *recorderImpl) ReadAllTraces(inputDir string) ([]recorderdef.TraceData, error) {

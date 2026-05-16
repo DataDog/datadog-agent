@@ -247,6 +247,10 @@ func (s *timeSeriesStorage) Add(namespace, name string, value float64, timestamp
 	stats.counts = insertInt64(stats.counts, idx, 1)
 	stats.mins = insertFloat64(stats.mins, idx, value)
 	stats.maxes = insertFloat64(stats.maxes, idx, value)
+
+	// Track this timestamp for DataTimestamps() so it doesn't need to scan all series.
+	s.observationTimestamps[bucket] = struct{}{}
+
 	return isNew
 }
 
@@ -660,19 +664,10 @@ func (s *timeSeriesStorage) DataTimestamps() []int64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	seen := make(map[int64]struct{})
-	for _, stats := range s.series {
-		for _, ts := range stats.timestamps {
-			seen[ts] = struct{}{}
-		}
-	}
-	// Include observation timestamps (e.g., from logs that produced no virtual metrics).
+	// observationTimestamps is maintained incrementally by Add and
+	// RecordObservationTime, so no full series scan is needed.
+	timestamps := make([]int64, 0, len(s.observationTimestamps))
 	for ts := range s.observationTimestamps {
-		seen[ts] = struct{}{}
-	}
-
-	timestamps := make([]int64, 0, len(seen))
-	for ts := range seen {
 		timestamps = append(timestamps, ts)
 	}
 	sort.Slice(timestamps, func(i, j int) bool { return timestamps[i] < timestamps[j] })
