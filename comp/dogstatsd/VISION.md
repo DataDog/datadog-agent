@@ -666,6 +666,28 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 - Hot-path update overhead is measured with lookback disabled and enabled.
 - Query APIs return bounded results and safe errors for unsupported shapes.
 
+**Initial proof artifacts**
+
+- Added `comp/dogstatsd/internal/lookback`, a bounded shard-local micro-bucket ring for recent DogStatsD count/rate queries.
+- Supports fixed query shapes for top series, count/rate by metric name, debug-view key, listener ID, and origin.
+- Enforces memory/query bounds with `MaxContextsPerBucket`, `MaxResults`, fixed bucket count, and dropped-point counters.
+- Query scans lock one shard at a time and returns deterministic top-N ordering for fixed inputs.
+- Design adjustment: this milestone lands the bounded query substrate and tests first. A user-facing command/API and raw-ring exemplar lookup should be added before advertising the operator feature broadly.
+- Contract tests:
+  - `TestMilestone6LookbackTopSeriesMatchesOfflineReference`;
+  - `TestMilestone6LookbackCountByFixedShapes`;
+  - `TestMilestone6LookbackEnforcesBucketBudget`;
+  - `TestMilestone6LookbackQueriesAreBoundedAndSafe`;
+  - `TestMilestone6LookbackUsesShardLocalLocks`.
+- Benchmark:
+  - `BenchmarkMilestone6LookbackObserve`.
+- Example local benchmark output from the initial implementation:
+  - lookback observe: `~104 ns/op`, `0 allocs/op`.
+- Suggested verification commands:
+  - `dda inv test --targets=./comp/dogstatsd/internal/lookback --test-run-name='Milestone6'`;
+  - `dda inv test --targets=./comp/dogstatsd/internal/lookback --test-run-name='Milestone6' --extra-args='-race'`;
+  - `dda inv test --targets=./comp/dogstatsd/internal/lookback --test-run-name='^$' --extra-args='-bench=BenchmarkMilestone6 -benchmem -count=1'`.
+
 **Stop-safe state**
 
 - If work stops here, DogStatsD has a useful local observability feature backed by bounded data structures.
