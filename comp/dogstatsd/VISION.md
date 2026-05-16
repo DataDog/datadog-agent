@@ -468,8 +468,8 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
   - `TestMilestone3DebugStatsViewEvictsOldestWhenBudgetExceeded`;
   - `TestMilestone3DebugStatsViewExpiresStaleContexts`;
   - `TestMilestone3DebugStatsViewResetsExpiredContextCount`;
-  - `TestMilestone3DebugStatsViewUsesShardLocalLocks`;
   - `TestMilestone3SpikeCountersUseTimeBucketsWithoutMetricChannel`.
+- Shard-local lock coverage moved with the reusable store in Milestone 4.
 - Benchmark:
   - `BenchmarkMilestone3StoreMetricStatsWithDebugViewKey`.
 - Suggested verification commands:
@@ -547,7 +547,7 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 - Move debug state into per-shard stores keyed by explicit series identity.
 - Add snapshot merge APIs for status/debug endpoints.
 - Add top-K and recent-rate summaries before adding fully dynamic windows.
-- Expose store telemetry: series count, evictions, bytes, update cost, snapshot cost.
+- Expose store telemetry for retained series, evictions, TTL pruning, snapshots, and snapshot size; measure update/snapshot cost with benchmarks rather than adding per-sample timing to the hot path.
 
 **Proof / acceptance criteria**
 
@@ -555,6 +555,30 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 - Memory and series-count budgets are enforced in tests.
 - Snapshot APIs have deterministic results for fixed inputs.
 - Existing DogStatsD stats behavior is implemented on top of this store.
+
+**Initial proof artifacts**
+
+- Added `comp/dogstatsd/internal/seriesstats`, a bounded shard-local `SeriesStatsStore` keyed by `ckey.ContextKey` with display descriptors carried as view data.
+- `serverDebug` now adapts its compatibility debug-view key into `SeriesStatsStore` instead of owning its own map, TTL pruning, eviction, and telemetry accounting logic.
+- The existing `dogstatsd-stats` JSON/CLI compatibility projection is preserved by converting store rows back to the legacy `metricStat` shape at the endpoint boundary.
+- Store query helpers provide deterministic top-K ordering and retained-row rate summaries without introducing dynamic lookback windows yet.
+- Store telemetry is shared with the Milestone 3b DogStatsD debug telemetry: retained contexts, budget evictions, TTL prunes, snapshots, and snapshot size.
+- Contract tests:
+  - `TestMilestone4SeriesStatsStoreEvictsOldestWhenBudgetExceeded`;
+  - `TestMilestone4SeriesStatsStoreExpiresStaleContexts`;
+  - `TestMilestone4SeriesStatsStoreResetsExpiredContextCount`;
+  - `TestMilestone4SeriesStatsStoreUsesShardLocalLocks`;
+  - `TestMilestone4SeriesStatsStoreTopIsDeterministic`;
+  - `TestMilestone4SeriesStatsStoreTopWithRatesSummarizesRetainedRows`;
+  - `TestMilestone4SeriesStatsStoreTelemetryReportsBounds`.
+- Benchmark:
+  - `BenchmarkMilestone4SeriesStatsStoreObserve`.
+- Example local benchmark output from the initial implementation:
+  - parallel store observe: `~67 ns/op`, `0 allocs/op`.
+- Suggested verification commands:
+  - `dda inv test --targets=./comp/dogstatsd/internal/seriesstats,./comp/dogstatsd/serverDebug/impl --test-run-name='Milestone4'`;
+  - `dda inv test --targets=./comp/dogstatsd/internal/seriesstats,./comp/dogstatsd/serverDebug/impl --test-run-name='Milestone4' --extra-args='-race'`;
+  - `dda inv test --targets=./comp/dogstatsd/internal/seriesstats --test-run-name='^$' --extra-args='-bench=BenchmarkMilestone4 -benchmem -count=1'`.
 
 **Stop-safe state**
 

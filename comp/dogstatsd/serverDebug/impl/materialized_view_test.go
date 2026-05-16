@@ -65,28 +65,6 @@ func TestMilestone3DebugStatsViewResetsExpiredContextCount(t *testing.T) {
 	assert.Equal(t, uint64(1), snapshot[key.Key].Count, "a sample after the TTL starts a fresh materialized-view row")
 }
 
-func TestMilestone3DebugStatsViewUsesShardLocalLocks(t *testing.T) {
-	view := newDebugStatsView(2, 10, time.Hour)
-	blockedShardKey := ckey.ContextKey(0)
-	unblockedShardKey := ckey.ContextKey(1)
-
-	blockedShard := view.shardForKey(blockedShardKey)
-	blockedShard.Lock()
-	defer blockedShard.Unlock()
-
-	done := make(chan struct{})
-	go func() {
-		view.store(time.Unix(100, 0), testDebugViewKey(unblockedShardKey, "unblocked"))
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		require.Fail(t, "storing into another shard should not wait on the blocked shard")
-	}
-}
-
 func TestMilestone3SpikeCountersUseTimeBucketsWithoutMetricChannel(t *testing.T) {
 	buckets := newMetricsCountBuckets(2)
 	start := time.Unix(100, 0)
@@ -272,31 +250,31 @@ type recordingDebugStatsTelemetry struct {
 	snapshotContexts int
 }
 
-func (t *recordingDebugStatsTelemetry) setStoredContexts(count int) {
+func (t *recordingDebugStatsTelemetry) SetStoredContexts(count int) {
 	t.Lock()
 	defer t.Unlock()
 	t.storedContexts = count
 }
 
-func (t *recordingDebugStatsTelemetry) incBudgetEvictions() {
+func (t *recordingDebugStatsTelemetry) IncBudgetEvictions() {
 	t.Lock()
 	defer t.Unlock()
 	t.budgetEvictions++
 }
 
-func (t *recordingDebugStatsTelemetry) addTTLPrunes(count int) {
+func (t *recordingDebugStatsTelemetry) AddTTLPrunes(count int) {
 	t.Lock()
 	defer t.Unlock()
 	t.ttlPrunes += count
 }
 
-func (t *recordingDebugStatsTelemetry) incSnapshots() {
+func (t *recordingDebugStatsTelemetry) IncSnapshots() {
 	t.Lock()
 	defer t.Unlock()
 	t.snapshots++
 }
 
-func (t *recordingDebugStatsTelemetry) setSnapshotContexts(count int) {
+func (t *recordingDebugStatsTelemetry) SetSnapshotContexts(count int) {
 	t.Lock()
 	defer t.Unlock()
 	t.snapshotContexts = count

@@ -17,6 +17,7 @@ go_library(
         "//comp/core/telemetry/impl",
         "//comp/def",
         "//comp/dogstatsd/internal/identity",
+        "//comp/dogstatsd/internal/seriesstats",
         "//comp/dogstatsd/serverDebug/def",
         "//pkg/aggregator/ckey",
         "//pkg/config/model",

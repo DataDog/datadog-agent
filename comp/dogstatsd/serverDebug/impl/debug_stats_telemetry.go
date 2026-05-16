@@ -8,17 +8,10 @@ package serverdebugimpl
 import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/internal/seriesstats"
 )
 
 var defaultDebugStatsViewTelemetry = newDebugStatsViewTelemetry(telemetryimpl.GetCompatComponent())
-
-type debugStatsViewTelemetry interface {
-	setStoredContexts(count int)
-	incBudgetEvictions()
-	addTTLPrunes(count int)
-	incSnapshots()
-	setSnapshotContexts(count int)
-}
 
 type telemetryDebugStatsView struct {
 	storedContexts   telemetry.Gauge
@@ -28,7 +21,7 @@ type telemetryDebugStatsView struct {
 	snapshotContexts telemetry.Gauge
 }
 
-func newDebugStatsViewTelemetry(comp telemetry.Component) debugStatsViewTelemetry {
+func newDebugStatsViewTelemetry(comp telemetry.Component) seriesstats.Telemetry {
 	return &telemetryDebugStatsView{
 		storedContexts: comp.NewGauge(
 			"dogstatsd",
@@ -58,24 +51,24 @@ func newDebugStatsViewTelemetry(comp telemetry.Component) debugStatsViewTelemetr
 	}
 }
 
-func (t *telemetryDebugStatsView) setStoredContexts(count int) {
+func (t *telemetryDebugStatsView) SetStoredContexts(count int) {
 	t.storedContexts.Set(float64(count))
 }
 
-func (t *telemetryDebugStatsView) incBudgetEvictions() {
+func (t *telemetryDebugStatsView) IncBudgetEvictions() {
 	t.budgetEvictions.Inc()
 }
 
-func (t *telemetryDebugStatsView) addTTLPrunes(count int) {
+func (t *telemetryDebugStatsView) AddTTLPrunes(count int) {
 	if count > 0 {
 		t.ttlPrunes.Add(float64(count))
 	}
 }
 
-func (t *telemetryDebugStatsView) incSnapshots() {
+func (t *telemetryDebugStatsView) IncSnapshots() {
 	t.snapshots.Inc()
 }
 
-func (t *telemetryDebugStatsView) setSnapshotContexts(count int) {
+func (t *telemetryDebugStatsView) SetSnapshotContexts(count int) {
 	t.snapshotContexts.Set(float64(count))
 }
