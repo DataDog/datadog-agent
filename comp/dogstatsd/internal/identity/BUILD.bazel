@@ -6,6 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/internal/identity",
     visibility = ["//comp/dogstatsd:__subpackages__"],
     deps = [
+        "//comp/core/tagger/def",
         "//pkg/aggregator/ckey",
         "//pkg/metrics",
         "//pkg/tagger/types",
@@ -19,9 +20,12 @@ go_test(
     embed = [":identity"],
     gotags = ["test"],
     deps = [
+        "//comp/core/tagger/impl-noop",
         "//comp/core/tagger/origindetection",
+        "//pkg/aggregator/ckey",
         "//pkg/metrics",
         "//pkg/tagger/types",
+        "//pkg/tagset",
         "@com_github_stretchr_testify//assert",
     ],
 )

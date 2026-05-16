@@ -15,6 +15,7 @@ package identity
 import (
 	"strings"
 
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
@@ -94,6 +95,29 @@ type EffectiveBackendIdentitySeed struct {
 	Source     metrics.MetricSource
 	OriginInfo taggertypes.OriginInfo
 }
+
+// GetName implements metrics.MetricSampleContext.
+func (s *EffectiveBackendIdentitySeed) GetName() string { return s.Name }
+
+// GetHost implements metrics.MetricSampleContext.
+func (s *EffectiveBackendIdentitySeed) GetHost() string { return s.Host }
+
+// GetTags implements metrics.MetricSampleContext.
+func (s *EffectiveBackendIdentitySeed) GetTags(taggerBuffer, metricBuffer tagset.TagsAccumulator, tagger tagger.Component) {
+	metricBuffer.Append(s.MetricTags...)
+	tagger.EnrichTags(taggerBuffer, s.OriginInfo)
+}
+
+// GetMetricType implements metrics.MetricSampleContext.
+func (s *EffectiveBackendIdentitySeed) GetMetricType() metrics.MetricType { return s.MetricType }
+
+// IsNoIndex implements metrics.MetricSampleContext.
+func (s *EffectiveBackendIdentitySeed) IsNoIndex() bool { return s.NoIndex }
+
+// GetSource implements metrics.MetricSampleContext.
+func (s *EffectiveBackendIdentitySeed) GetSource() metrics.MetricSource { return s.Source }
+
+var _ metrics.MetricSampleContext = (*EffectiveBackendIdentitySeed)(nil)
 
 // LineageIdentity records transport/origin fields that explain where a sample
 // came from, but that are not part of current debug or shard identities.

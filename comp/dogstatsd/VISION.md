@@ -809,6 +809,26 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 - Old code paths, feature flags, and temporary adapters are deleted or have explicit removal tickets.
 - Architecture docs show one canonical dataflow and name the remaining intentional identity distinctions.
 
+**Initial proof artifacts**
+
+- `identity.EffectiveBackendIdentitySeed` now implements `metrics.MetricSampleContext`, so the DogStatsD backend identity descriptor can be consumed through the same contract as the original parsed `MetricSample`.
+- This removes a conceptual duplicate path: backend identity is no longer only documentation fields waiting for aggregator resolution; it is an executable descriptor with the aggregator-facing methods (`GetName`, `GetHost`, `GetTags`, `GetMetricType`, `IsNoIndex`, `GetSource`).
+- Design adjustment: the aggregator hot path is not switched to pre-resolved descriptors yet. Tag filtering, origin enrichment, and backend series equivalence need a macro compatibility/performance harness before replacing the live `MetricSample` path.
+- Deletion/simplification already completed by the milestone stack:
+  - duplicate `serverDebug` map/channel architecture was deleted in favor of `SeriesStatsStore`;
+  - listener-specific active capture code now routes through `IngressEnvelope` and no longer requires packet-pool passthrough toggling;
+  - debug-view key remains a compatibility projection, not a separate semantic identity.
+- Contract test:
+  - `TestMilestone9BackendSeedMatchesMetricSampleContextKeys`.
+- Benchmark:
+  - `BenchmarkMilestone9BackendSeedContextKey`.
+- Example local benchmark output from the initial implementation:
+  - original `MetricSample` context key generation: `~51 ns/op`, `0 allocs/op`;
+  - backend-seed context key generation: `~51 ns/op`, `0 allocs/op`.
+- Suggested verification commands:
+  - `dda inv test --targets=./comp/dogstatsd/internal/identity --test-run-name='Milestone9'`;
+  - `dda inv test --targets=./comp/dogstatsd/internal/identity --test-run-name='^$' --extra-args='-bench=BenchmarkMilestone9 -benchmem -count=1'`.
+
 **Stop-safe state**
 
 - This is the point where the system should become simpler than today, not just more capable.

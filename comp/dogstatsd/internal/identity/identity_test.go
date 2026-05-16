@@ -13,9 +13,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 func TestMilestone1SampleIdentityContracts(t *testing.T) {
@@ -102,6 +105,72 @@ func TestMilestone1IdentityBoundaries(t *testing.T) {
 
 	assert.NotEqual(t, baseIDs.DebugView.Key, changedTagsIDs.DebugView.Key, "debug view key includes client tags")
 	assert.NotEqual(t, baseIDs.Shard.ContextKey, changedTagsIDs.Shard.ContextKey, "shard identity includes client tags")
+}
+
+func TestMilestone9BackendSeedMatchesMetricSampleContextKeys(t *testing.T) {
+	sample := metrics.MetricSample{
+		Name:       "backend.metric",
+		Host:       "host-a",
+		Tags:       []string{"env:prod", "service:dogstatsd", "env:prod"},
+		Mtype:      metrics.CounterType,
+		NoIndex:    true,
+		Source:     metrics.MetricSourceDogstatsd,
+		OriginInfo: taggertypes.OriginInfo{ContainerIDFromSocket: "container-a", Cardinality: "high"},
+	}
+	seed := BackendSeed(sample)
+
+	sampleKey, sampleTaggerKey, sampleMetricKey := metricContextKeys(&sample)
+	seedKey, seedTaggerKey, seedMetricKey := metricContextKeys(&seed)
+
+	assert.Equal(t, sampleKey, seedKey, "backend seed should be consumable through the same MetricSampleContext contract as the original sample")
+	assert.Equal(t, sampleTaggerKey, seedTaggerKey)
+	assert.Equal(t, sampleMetricKey, seedMetricKey)
+	assert.Equal(t, sample.GetName(), seed.GetName())
+	assert.Equal(t, sample.GetHost(), seed.GetHost())
+	assert.Equal(t, sample.GetMetricType(), seed.GetMetricType())
+	assert.Equal(t, sample.IsNoIndex(), seed.IsNoIndex())
+	assert.Equal(t, sample.GetSource(), seed.GetSource())
+}
+
+func metricContextKeys(ctx metrics.MetricSampleContext) (ckey.ContextKey, ckey.TagsKey, ckey.TagsKey) {
+	taggerBuffer := tagset.NewHashingTagsAccumulator()
+	metricBuffer := tagset.NewHashingTagsAccumulator()
+	ctx.GetTags(taggerBuffer, metricBuffer, nooptagger.NewComponent())
+	return ckey.NewKeyGenerator().GenerateWithTags2(ctx.GetName(), ctx.GetHost(), taggerBuffer, metricBuffer)
+}
+
+func BenchmarkMilestone9BackendSeedContextKey(b *testing.B) {
+	sample := metrics.MetricSample{
+		Name:   "backend.metric",
+		Host:   "host-a",
+		Tags:   []string{"env:prod", "service:dogstatsd", "region:us-east-1"},
+		Mtype:  metrics.CounterType,
+		Source: metrics.MetricSourceDogstatsd,
+	}
+	seed := BackendSeed(sample)
+
+	b.Run("metric_sample_context", func(b *testing.B) {
+		benchmarkContextKey(b, &sample)
+	})
+	b.Run("backend_seed_context", func(b *testing.B) {
+		benchmarkContextKey(b, &seed)
+	})
+}
+
+func benchmarkContextKey(b *testing.B, ctx metrics.MetricSampleContext) {
+	taggerComponent := nooptagger.NewComponent()
+	keyGenerator := ckey.NewKeyGenerator()
+	taggerBuffer := tagset.NewHashingTagsAccumulator()
+	metricBuffer := tagset.NewHashingTagsAccumulator()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ctx.GetTags(taggerBuffer, metricBuffer, taggerComponent)
+		_, _, _ = keyGenerator.GenerateWithTags2(ctx.GetName(), ctx.GetHost(), taggerBuffer, metricBuffer)
+		taggerBuffer.Reset()
+		metricBuffer.Reset()
+	}
 }
 
 func BenchmarkMilestone1Builder(b *testing.B) {
