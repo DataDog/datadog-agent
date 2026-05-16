@@ -716,6 +716,25 @@ Shared proof artifacts should include targeted benchmarks, CPU/heap profiles for
 - Compressed payload size does not regress beyond an agreed threshold.
 - If results are poor, the prototype can be removed without affecting prior milestones.
 
+**Initial proof artifacts**
+
+- Added `comp/dogstatsd/internal/segments`, a sealed metric-row segment prototype with payload-aligned dictionaries for names, tag strings/tagsets, resources, source types, origins, and units.
+- Segment rows store payload-local dictionary references and reconstruct semantic rows losslessly for gauges/counts and common metadata.
+- Design adjustment: this milestone proves payload-aligned internal shape and dictionary semantics, but does not yet generate exact metrics v3 wire payloads. Wire equivalence, compressed-size comparison, and serializer replacement remain required before adoption beyond the prototype.
+- Contract tests:
+  - `TestMilestone7SegmentRowsRoundTripSemantically`;
+  - `TestMilestone7SegmentInternsPayloadAlignedDictionaries`;
+  - `TestMilestone7SegmentUsesPayloadLocalDictionaryRefs`;
+  - `TestMilestone7SegmentEnforcesRowBudget`.
+- Benchmark:
+  - `BenchmarkMilestone7SegmentBuildSeal`.
+- Example local benchmark output from the initial implementation:
+  - build/seal 1024 rows: `~564 µs/op`, `~336 KB/op`, `~5.5k allocs/op`.
+- Suggested verification commands:
+  - `dda inv test --targets=./comp/dogstatsd/internal/segments --test-run-name='Milestone7'`;
+  - `dda inv test --targets=./comp/dogstatsd/internal/segments --test-run-name='Milestone7' --extra-args='-race'`;
+  - `dda inv test --targets=./comp/dogstatsd/internal/segments --test-run-name='^$' --extra-args='-bench=BenchmarkMilestone7 -benchmem -count=1'`.
+
 **Stop-safe state**
 
 - If work stops here, we either have evidence-backed adoption of columnar segments or a clean decision not to carry the complexity.
