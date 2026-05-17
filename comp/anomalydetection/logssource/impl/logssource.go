@@ -20,6 +20,7 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
@@ -138,7 +139,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	launchersMgr := launchers.NewLaunchers(logSources, pipeline, deps.Auditor, tracker)
 	launchersMgr.AddLauncher(fileLauncher)
 	launchersMgr.AddLauncher(launcher)
-	launchersMgr.AddLauncher(journaldlauncher.NewLauncher(flare.NewFlareController(), deps.Tagger))
+	launchersMgr.AddLauncher(journaldlauncher.NewLauncher(flare.NewFlareController(), deps.Tagger, option.None[storedef.Component]()))
 
 	registerKubeletJournaldSource(logSources, deps.Log)
 
