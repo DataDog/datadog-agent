@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	usmstate "github.com/DataDog/datadog-agent/pkg/network/usm/state"
 	iistestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	tracetestutil "github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
@@ -88,6 +89,54 @@ func makeIISTagValidator(expectedTags map[string]struct{}) func(*testing.T, *htt
 		t.Logf("Successfully captured IIS HTTP traffic: %d requests with IIS tags verified", stat.Count)
 		return true
 	}
+}
+
+// TestUSMStateLifecycle verifies that the Windows USM monitor drives the
+// global usmstate atomic through the same Running/Restricted/Stopped
+// transitions that the Linux monitor does. The agent status template at
+// pkg/status/systemprobe/status_templates/systemprobe.tmpl reads this state;
+// without these transitions it would render as `<no value>`.
+func TestUSMStateLifecycle(t *testing.T) {
+	t.Run("running on construction", func(t *testing.T) {
+		usmstate.Set(usmstate.Disabled)
+		_ = setupWindowsMonitor(t, getHTTPCfg())
+		require.Equal(t, usmstate.Running, usmstate.Get())
+	})
+
+	t.Run("restricted when discovery service map is enabled", func(t *testing.T) {
+		usmstate.Set(usmstate.Disabled)
+		cfg := getHTTPCfg()
+		cfg.DiscoveryServiceMapEnabled = true
+		_ = setupWindowsMonitor(t, cfg)
+		require.Equal(t, usmstate.Restricted, usmstate.Get())
+	})
+
+	t.Run("stopped after explicit Stop", func(t *testing.T) {
+		usmstate.Set(usmstate.Disabled)
+
+		if err := driver.Init(); err != nil {
+			t.Skipf("driver initialization failed (may require admin privileges): %v", err)
+		}
+		if err := driver.Start(); err != nil {
+			t.Skipf("driver start failed: %v", err)
+		}
+		t.Cleanup(func() { _ = driver.Stop() })
+
+		cfg := getHTTPCfg()
+		di, err := network.NewDriverInterface(cfg, driver.NewHandle, nil)
+		if err != nil {
+			t.Skipf("driver interface creation failed: %v", err)
+		}
+		t.Cleanup(func() { _ = di.Close() })
+
+		monitor, err := NewWindowsMonitor(cfg, di.GetHandle())
+		require.NoError(t, err)
+		require.NotNil(t, monitor)
+		monitor.Start()
+
+		require.NoError(t, monitor.Stop())
+		require.Equal(t, usmstate.Stopped, usmstate.Get())
+	})
 }
 
 // TestHTTPStatsWithIIS tests HTTP monitoring with a real IIS server.
