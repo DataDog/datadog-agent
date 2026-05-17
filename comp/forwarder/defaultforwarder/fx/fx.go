@@ -4,31 +4,35 @@
 // Copyright 2023-present Datadog, Inc.
 
 // Package fx provides the fx module for the defaultforwarder component.
-//
-// # V2 migration status: WIP
-//
-// This package is a placeholder for the V2 fx wiring of
-// comp/forwarder/defaultforwarder. Once the implementation migration is
-// complete (see comp/forwarder/defaultforwarder/impl), this package will
-// provide the canonical Module() function using fxutil.ProvideComponentConstructor.
-//
-// Until then, callers should use the root-package Module() / NoopModule() /
-// MockModule() functions.
 package fx
 
 import (
+	"go.uber.org/fx"
+
 	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Module defines the fx options for this component.
-//
-// TODO(migration): switch to fxutil.ProvideComponentConstructor once
-// defaultforwarderimpl.NewComponent is fully implemented.
-func Module() fxutil.Module {
+func Module(params defaultforwarderimpl.Params) fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(
-			defaultforwarderimpl.NewComponent,
-		),
+		fx.Provide(defaultforwarderimpl.NewForwarderFromDeps),
+		fx.Supply(params),
+	)
+}
+
+// ModuleWithOptionTMP defines the fx options with a temporary option.
+// Deprecated: will be removed once configsync cleanup is done.
+func ModuleWithOptionTMP(option fx.Option) fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(defaultforwarderimpl.NewForwarderFromDeps),
+		option,
+	)
+}
+
+// NoopModule provides a no-op forwarder component.
+func NoopModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(defaultforwarderimpl.NewNoopForwarder),
 	)
 }

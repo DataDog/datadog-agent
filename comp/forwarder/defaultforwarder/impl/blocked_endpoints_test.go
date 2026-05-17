@@ -9,7 +9,7 @@
 // and
 // forwarder_backoff_base * 2 ^ num_errors
 
-package defaultforwarder
+package defaultforwarderimpl
 
 import (
 	"testing"

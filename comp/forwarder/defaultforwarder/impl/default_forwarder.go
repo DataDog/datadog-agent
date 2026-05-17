@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package defaultforwarder
+package defaultforwarderimpl
 
 import (
 	"context"
@@ -26,6 +26,7 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	defaultforwarderdef "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	pkgresolver "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -57,57 +58,46 @@ const (
 // This is a var so that it can be changed for testing
 var defaultResponseTimeout = 30 * time.Second
 
-// Response contains the response details of a successfully posted transaction
-type Response struct {
-	Domain     string
-	Body       []byte
-	StatusCode int
-	Err        error
-}
+// Features is a bitmask to enable specific forwarder features.
+// This is a type alias for defaultforwarderdef.Features.
+type Features = defaultforwarderdef.Features
 
-// Forwarder interface allows packages to send payload to the backend
-type Forwarder interface {
-	SubmitV1Series(payload transaction.BytesPayloads, extra http.Header) error
-	SubmitV1Intake(payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error
-	SubmitV1IntakeDirect(ctx context.Context, payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error
-	SubmitV1CheckRuns(payload transaction.BytesPayloads, extra http.Header) error
-	SubmitHostMetadata(payload transaction.BytesPayloads, extra http.Header) error
-	SubmitAgentChecksMetadata(payload transaction.BytesPayloads, extra http.Header) error
-	SubmitMetadata(payload transaction.BytesPayloads, extra http.Header) error
-	SubmitProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
-	SubmitProcessDiscoveryChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
-	SubmitRTProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
-	SubmitContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
-	SubmitRTContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
-	SubmitConnectionChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error)
-	SubmitOrchestratorChecks(payload transaction.BytesPayloads, extra http.Header, payloadType int) error
-	SubmitOrchestratorManifests(payload transaction.BytesPayloads, extra http.Header) error
+// Forwarder interface allows packages to send payload to the backend.
+// This is a type alias for defaultforwarderdef.Forwarder.
+type Forwarder = defaultforwarderdef.Forwarder
 
-	ForwarderV2
-}
-
-// ForwarderV2 is a minimalist forwarder interface that is product agnostic.
-type ForwarderV2 interface {
-	GetDomainResolvers() []pkgresolver.DomainResolver
-	SubmitTransaction(*transaction.HTTPTransaction) error
-}
-
-// Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
-var _ Forwarder = &DefaultForwarder{}
-
-// Features is a bitmask to enable specific forwarder features
-type Features uint8
+// Response contains the response details of a successfully posted transaction.
+// This is a type alias for defaultforwarderdef.Response.
+type Response = defaultforwarderdef.Response
 
 const (
 	// CoreFeatures bitmask to enable specific core features
-	CoreFeatures Features = 1 << iota
+	CoreFeatures = defaultforwarderdef.CoreFeatures
 	// TraceFeatures bitmask to enable specific trace features
-	TraceFeatures
+	TraceFeatures = defaultforwarderdef.TraceFeatures
 	// ProcessFeatures bitmask to enable specific process features
-	ProcessFeatures
+	ProcessFeatures = defaultforwarderdef.ProcessFeatures
 	// SysProbeFeatures bitmask to enable specific system-probe features
-	SysProbeFeatures
+	SysProbeFeatures = defaultforwarderdef.SysProbeFeatures
 )
+
+// SetFeature sets forwarder features in a feature set
+func SetFeature(features, flag Features) Features {
+	return defaultforwarderdef.SetFeature(features, flag)
+}
+
+// ClearFeature clears forwarder features from a feature set
+func ClearFeature(features, flag Features) Features {
+	return defaultforwarderdef.ClearFeature(features, flag)
+}
+
+// ToggleFeature toggles forwarder features in a feature set
+func ToggleFeature(features, flag Features) Features {
+	return defaultforwarderdef.ToggleFeature(features, flag)
+}
+
+// HasFeature lets you know if a specific feature flag is set in a feature set
+func HasFeature(features, flag Features) bool { return defaultforwarderdef.HasFeature(features, flag) }
 
 // Options contain the configuration options for the DefaultForwarder
 type Options struct {
@@ -122,17 +112,8 @@ type Options struct {
 	transport                      http.RoundTripper // for testing
 }
 
-// SetFeature sets forwarder features in a feature set
-func SetFeature(features, flag Features) Features { return features | flag }
-
-// ClearFeature clears forwarder features from a feature set
-func ClearFeature(features, flag Features) Features { return features &^ flag }
-
-// ToggleFeature toggles forwarder features in a feature set
-func ToggleFeature(features, flag Features) Features { return features ^ flag }
-
-// HasFeature lets you know if a specific feature flag is set in a feature set
-func HasFeature(features, flag Features) bool { return features&flag != 0 }
+// Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
+var _ Forwarder = &DefaultForwarder{}
 
 // getObsPipelineURL returns the URL under the 'observability_pipelines_worker.' prefix for the given datatype
 func getObsPipelineURL(log log.Component, datatype string, config pkgconfigmodel.Reader) (string, error) {
@@ -275,7 +256,7 @@ func (o *Options) SetEnabledFeatures(features []Features) {
 	}
 }
 
-// DefaultForwarder is the default implementation of the Forwarder.
+// DefaultForwarder is the default implementation of the defaultforwarderdef.Forwarder.
 type DefaultForwarder struct {
 	config config.Component
 	log    log.Component
@@ -733,32 +714,32 @@ func (f *DefaultForwarder) submitV1IntakeWithTransactionsFactory(
 }
 
 // SubmitProcessChecks sends process checks
-func (f *DefaultForwarder) SubmitProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
+func (f *DefaultForwarder) SubmitProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan defaultforwarderdef.Response, error) {
 	return f.submitProcessLikePayload(endpoints.ProcessesEndpoint, payload, extra, true)
 }
 
 // SubmitProcessDiscoveryChecks sends process discovery checks
-func (f *DefaultForwarder) SubmitProcessDiscoveryChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
+func (f *DefaultForwarder) SubmitProcessDiscoveryChecks(payload transaction.BytesPayloads, extra http.Header) (chan defaultforwarderdef.Response, error) {
 	return f.submitProcessLikePayload(endpoints.ProcessDiscoveryEndpoint, payload, extra, true)
 }
 
 // SubmitRTProcessChecks sends real time process checks
-func (f *DefaultForwarder) SubmitRTProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
+func (f *DefaultForwarder) SubmitRTProcessChecks(payload transaction.BytesPayloads, extra http.Header) (chan defaultforwarderdef.Response, error) {
 	return f.submitProcessLikePayload(endpoints.RtProcessesEndpoint, payload, extra, false)
 }
 
 // SubmitContainerChecks sends container checks
-func (f *DefaultForwarder) SubmitContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
+func (f *DefaultForwarder) SubmitContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan defaultforwarderdef.Response, error) {
 	return f.submitProcessLikePayload(endpoints.ContainerEndpoint, payload, extra, true)
 }
 
 // SubmitRTContainerChecks sends real time container checks
-func (f *DefaultForwarder) SubmitRTContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
+func (f *DefaultForwarder) SubmitRTContainerChecks(payload transaction.BytesPayloads, extra http.Header) (chan defaultforwarderdef.Response, error) {
 	return f.submitProcessLikePayload(endpoints.RtContainerEndpoint, payload, extra, false)
 }
 
 // SubmitConnectionChecks sends connection checks
-func (f *DefaultForwarder) SubmitConnectionChecks(payload transaction.BytesPayloads, extra http.Header) (chan Response, error) {
+func (f *DefaultForwarder) SubmitConnectionChecks(payload transaction.BytesPayloads, extra http.Header) (chan defaultforwarderdef.Response, error) {
 	return f.submitProcessLikePayload(endpoints.ConnectionsEndpoint, payload, extra, true)
 }
 
@@ -781,10 +762,10 @@ func (f *DefaultForwarder) SubmitOrchestratorManifests(payload transaction.Bytes
 	return f.sendHTTPTransactions(transactions)
 }
 
-func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, payload transaction.BytesPayloads, extra http.Header, retryable bool) (chan Response, error) {
+func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, payload transaction.BytesPayloads, extra http.Header, retryable bool) (chan defaultforwarderdef.Response, error) {
 	transactions := f.createHTTPTransactions(ep, payload, transaction.Process, extra)
-	results := make(chan Response, len(transactions))
-	internalResults := make(chan Response, len(transactions))
+	results := make(chan defaultforwarderdef.Response, len(transactions))
+	internalResults := make(chan defaultforwarderdef.Response, len(transactions))
 	expectedResponses := len(transactions)
 
 	for _, txn := range transactions {
@@ -799,7 +780,7 @@ func (f *DefaultForwarder) submitProcessLikePayload(ep transaction.Endpoint, pay
 		}
 
 		txn.CompletionHandler = func(transaction *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
-			internalResults <- Response{
+			internalResults <- defaultforwarderdef.Response{
 				Domain:     transaction.Domain,
 				Body:       body,
 				StatusCode: statusCode,

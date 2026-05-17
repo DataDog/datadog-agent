@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package defaultforwarder
+package defaultforwarderimpl
 
 import (
 	"context"
@@ -17,6 +17,8 @@ import (
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	defaultforwarderdef "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -34,7 +36,7 @@ type dependencies struct {
 type provides struct {
 	fx.Out
 
-	Comp           Component
+	Comp           defaultforwarderdef.Component
 	StatusProvider status.InformationProvider
 }
 
@@ -116,4 +118,21 @@ func newMockForwarder(config config.Component, log log.Component, secrets secret
 	return provides{
 		Comp: NewDefaultForwarder(config, log, options),
 	}
+}
+
+// NewForwarderFromDeps is an exported wrapper around newForwarder for use with fx.
+func NewForwarderFromDeps(dep dependencies) (provides, error) {
+	return newForwarder(dep)
+}
+
+// NewNoopForwarder provides a no-op forwarder component for use with fx.
+func NewNoopForwarder() provides {
+	return provides{
+		Comp: NoopForwarder{},
+	}
+}
+
+// NewMockForwarder provides a mock forwarder component for use with fx.
+func NewMockForwarder(config config.Component, log log.Component, secrets secrets.Component) provides {
+	return newMockForwarder(config, log, secrets)
 }
