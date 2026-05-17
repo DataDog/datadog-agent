@@ -18,11 +18,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners/ratelimit"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
+	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -282,7 +282,12 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 			}
 			expectedPacketLength = binary.LittleEndian.Uint32(b)
 			if expectedPacketLength > uint32(len(packet.Buffer)) {
-				log.Info("dogstatsd-uds: packet length too large, dropping connection")
+				if l.config.GetBool("dogstatsd_stream_log_too_big") {
+					n, _, _ := conn.ReadFromUnix(packet.Buffer[:])
+					log.Infof("dogstatsd-uds: dropping connection, packet length %d is too large. packet starts with: %q", expectedPacketLength, string(packet.Buffer[:n]))
+				} else {
+					log.Infof("dogstatsd-uds: dropping connection, packet length %d is too large.", expectedPacketLength)
+				}
 				return nil
 			}
 			maxPacketLength = expectedPacketLength
@@ -368,7 +373,7 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 		l.telemetryStore.tlmUDSPackets.Inc(tlmListenerID, l.transport, "ok")
 
 		udsBytes.Add(int64(n))
-		l.telemetryStore.tlmUDSPacketsBytes.Add(float64(n), tlmListenerID, l.transport)
+		l.telemetryStore.tlmUDSPacketsBytes.Add(float64(n), "agent", tlmListenerID, l.transport)
 		packet.Contents = packet.Buffer[:n]
 		packet.Source = packets.UDS
 		packet.ListenerID = listenerID
@@ -416,5 +421,5 @@ func (l *UDSListener) clearTelemetry(id string) {
 	l.telemetryStore.tlmUDSConnections.Delete(id, l.transport)
 	l.telemetryStore.tlmUDSPackets.Delete(id, l.transport, "error")
 	l.telemetryStore.tlmUDSPackets.Delete(id, l.transport, "ok")
-	l.telemetryStore.tlmUDSPacketsBytes.Delete(id, l.transport)
+	l.telemetryStore.tlmUDSPacketsBytes.Delete("agent", id, l.transport)
 }

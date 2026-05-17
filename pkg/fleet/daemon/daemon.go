@@ -27,7 +27,6 @@ import (
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/bootstrap"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
@@ -84,8 +83,7 @@ type Daemon interface {
 }
 
 type daemonImpl struct {
-	m        sync.Mutex
-	stopChan chan struct{}
+	m sync.Mutex
 
 	env             *env.Env
 	installer       func(*env.Env) installer.Installer
@@ -100,6 +98,8 @@ type daemonImpl struct {
 	clientID        string
 	refreshInterval time.Duration
 	gcInterval      time.Duration
+	ctx             context.Context
+	cancel          context.CancelFunc
 
 	secretsPubKey, secretsPrivKey *[32]byte
 }
@@ -167,6 +167,7 @@ func NewDaemon(hostname string, rcFetcher client.ConfigFetcher, config agentconf
 }
 
 func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installer, env *env.Env, taskDB *taskDB, refreshInterval time.Duration, gcInterval time.Duration, secretsPubKey, secretsPrivKey *[32]byte) *daemonImpl {
+	ctx, cancel := context.WithCancel(context.Background())
 	i := &daemonImpl{
 		env:             env,
 		clientID:        rc.client.GetClientID(),
@@ -177,14 +178,14 @@ func newDaemon(rc *remoteConfig, installer func(env *env.Env) installer.Installe
 		catalogOverride: catalog{},
 		configs:         make(map[string]installerConfig),
 		configsOverride: make(map[string]installerConfig),
-		stopChan:        make(chan struct{}),
 		taskDB:          taskDB,
 		refreshInterval: refreshInterval,
 		gcInterval:      gcInterval,
 		secretsPubKey:   secretsPubKey,
 		secretsPrivKey:  secretsPrivKey,
+		ctx:             ctx,
+		cancel:          cancel,
 	}
-	i.refreshState(context.Background())
 	return i
 }
 
@@ -343,22 +344,13 @@ func (d *daemonImpl) SetConfigCatalog(configs map[string]installerConfig) {
 
 // Start starts remote config and the garbage collector.
 func (d *daemonImpl) Start(_ context.Context) error {
+	d.refreshState(d.ctx)
+
 	d.m.Lock()
 	defer d.m.Unlock()
 
 	if !d.env.RemoteUpdates {
 		// If remote updates are disabled, we don't need to start the daemon
-		return nil
-	}
-
-	// If FIPS is enabled, don't start the daemon
-	fipsEnabled, err := fips.Enabled()
-	if err != nil {
-		log.Warnf("Could not determine FIPS status, exiting: %v", err)
-		return nil
-	}
-	if fipsEnabled {
-		log.Info("FIPS mode is enabled, fleet daemon will not start")
 		return nil
 	}
 
@@ -369,19 +361,19 @@ func (d *daemonImpl) Start(_ context.Context) error {
 		defer refreshStateTicker.Stop()
 		for {
 			select {
+			case <-d.ctx.Done():
+				return
 			case <-gcTicker.C:
 				d.m.Lock()
-				err := d.installer(d.env).GarbageCollect(context.Background())
+				err := d.installer(d.env).GarbageCollect(d.ctx)
 				d.m.Unlock()
 				if err != nil {
 					log.Errorf("Daemon: could not run GC: %v", err)
 				}
 			case <-refreshStateTicker.C:
 				d.m.Lock()
-				d.refreshState(context.Background())
+				d.refreshState(d.ctx)
 				d.m.Unlock()
-			case <-d.stopChan:
-				return
 			case request := <-d.requests:
 				err := d.handleRemoteAPIRequest(request)
 				if err != nil {
@@ -396,6 +388,7 @@ func (d *daemonImpl) Start(_ context.Context) error {
 
 // Stop stops the garbage collector.
 func (d *daemonImpl) Stop(_ context.Context) error {
+	d.cancel()
 	d.m.Lock()
 	defer d.m.Unlock()
 
@@ -407,17 +400,6 @@ func (d *daemonImpl) Stop(_ context.Context) error {
 		return d.taskDB.Close()
 	}
 
-	// Same, if FIPS is enabled, the updater daemon background goroutine was never started, we return early
-	fipsEnabled, err := fips.Enabled()
-	if err != nil {
-		log.Warnf("Could not determine FIPS status: %v", err)
-	}
-	if fipsEnabled {
-		return d.taskDB.Close()
-	}
-
-	// Stop the background goroutine
-	close(d.stopChan)
 	d.requestsWG.Wait()
 	return d.taskDB.Close()
 }

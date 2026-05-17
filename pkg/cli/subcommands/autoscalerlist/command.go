@@ -11,6 +11,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"strconv"
 
 	"go.uber.org/fx"
 
@@ -23,7 +25,6 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	autoscalingWorkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	localautoscalingworkload "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/loadstore"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -69,7 +70,6 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					),
 					LogParams: log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
-				secretsnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -103,7 +103,8 @@ func getAutoscalerURL(config config.Component) (string, error) {
 
 	var urlstr string
 	if flavor.GetFlavor() == flavor.ClusterAgent {
-		urlstr = fmt.Sprintf("https://%v:%v/autoscaler-list", ipcAddress, config.GetInt("cluster_agent.cmd_port"))
+		addr := net.JoinHostPort(ipcAddress, strconv.Itoa(config.GetInt("cluster_agent.cmd_port")))
+		urlstr = fmt.Sprintf("https://%s/autoscaler-list", addr)
 	} else {
 		return "", errors.New("running autoscaler-list is only supported on the cluster agent")
 	}
@@ -139,7 +140,8 @@ func getLocalAutoscalingWorkloadCheck(w io.Writer, config config.Component, c ip
 	if err != nil {
 		return err
 	}
-	urlstr := fmt.Sprintf("https://%v:%v/local-autoscaling-check", ipcAddress, config.GetInt("cluster_agent.cmd_port"))
+	addr := net.JoinHostPort(ipcAddress, strconv.Itoa(config.GetInt("cluster_agent.cmd_port")))
+	urlstr := fmt.Sprintf("https://%s/local-autoscaling-check", addr)
 
 	r, err := c.Get(urlstr, ipchttp.WithLeaveConnectionOpen)
 	if err != nil {

@@ -229,6 +229,6 @@ func TestThingFunctionality(t *testing.T) {
 
 ## Logging
 
-Logging utilizes the [`github.com/cihub/seelog`](https://github.com/cihub/seelog) package as its underlying framework.
+Logging utilizes the [`log/slog`](https://pkg.go.dev/log/slog) package as its underlying framework.
 You can access logging through `pkg/util/log` and the `comp/core/log` component wrappers.
 Using the component wrapper is recommended, as it adheres to [component best practices](https://datadoghq.dev/datadog-agent/components/overview/).

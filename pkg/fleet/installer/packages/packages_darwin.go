@@ -34,3 +34,18 @@ func InstrumentAPMInjector(_ context.Context, _ string) (err error) {
 func UninstrumentAPMInjector(_ context.Context, _ string) (err error) {
 	return nil
 }
+
+// InstrumentAPMInjectorStart is a no-op on darwin
+func InstrumentAPMInjectorStart(_ context.Context) error {
+	return nil
+}
+
+// UninstrumentAPMInjectorStop is a no-op on darwin
+func UninstrumentAPMInjectorStop(_ context.Context) error {
+	return nil
+}
+
+// RestartDatadogAgent restarts the Datadog Agent (no-op on darwin)
+func RestartDatadogAgent(_ context.Context) error {
+	return nil
+}

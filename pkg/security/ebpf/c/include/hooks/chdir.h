@@ -6,9 +6,10 @@
 #include "helpers/discarders.h"
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
+#include "helpers/discarders.h"
 
 long __attribute__((always_inline)) trace__sys_chdir(const char *path) {
-    if (is_discarded_by_pid()) {
+    if (is_discarded_by_pid() || is_auid_discarder(EVENT_CHDIR)) {
         return 0;
     }
 
@@ -73,7 +74,7 @@ int __attribute__((always_inline)) sys_chdir_ret(void *ctx, int retval, enum TAI
         return 0;
     }
 
-    set_file_inode(syscall->chdir.dentry, &syscall->chdir.file, 0);
+    set_file_inode(syscall->chdir.dentry, &syscall->chdir.file, PATH_ID_INVALIDATE_TYPE_NONE);
 
     syscall->retval = retval;
 

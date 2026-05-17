@@ -10,6 +10,7 @@
 package controllers
 
 import (
+	"context"
 	"errors"
 	"sync"
 
@@ -25,6 +26,7 @@ import (
 
 	datadogclient "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -61,11 +63,21 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 		func() bool { return pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") },
 		registerEndpointsInformer,
 	},
+	endpointSlicesControllerName: {
+		func() bool {
+			return pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") && apiserver.UseEndpointSlices()
+		},
+		registerEndpointSlicesInformer,
+	},
 	crdControllerName: {
 		func() bool {
 			return pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") && pkgconfigsetup.Datadog().GetBool("cluster_checks.crd_collection")
 		},
 		registerCRDInformer,
+	},
+	instrumentationControllerName: {
+		func() bool { return pkgconfigsetup.Datadog().GetBool("instrumentation_crd_controller.enabled") },
+		startDatadogInstrumentationController,
 	},
 }
 
@@ -76,9 +88,11 @@ type ControllerContext struct {
 	InformerFactory             informers.SharedInformerFactory
 	APIExentionsInformerFactory apiextentionsinformer.SharedInformerFactory
 	DynamicClient               dynamic.Interface
+	DynamicUpdateClient         dynamic.Interface
 	DynamicInformerFactory      dynamicinformer.DynamicSharedInformerFactory
 	Client                      kubernetes.Interface
 	IsLeaderFunc                func() bool
+	InstrumentationHandlers     []instrumentation.Handler
 	EventRecorder               record.EventRecorder
 	WorkloadMeta                workloadmeta.Component
 	DatadogClient               option.Option[datadogclient.Component]
@@ -93,20 +107,21 @@ func StartControllers(ctx *ControllerContext) k8serrors.Aggregate {
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(controllerCatalog))
 	for name, cntrlFuncs := range controllerCatalog {
-		if !cntrlFuncs.enabled() {
-			log.Infof("%q is disabled", name)
-			continue
-		}
-
 		// controllers should be started in parallel as their start functions are
 		// blocking until the informers are synced or the sync period timed-out.
 		// for error propagation we rely on a buffered channel to gather errors
 		// from the spawned goroutines.
 		wg.Add(1)
-		go func(f startFunc) {
+		go func(cntrl controllerFuncs) {
 			defer wg.Done()
-			f(ctx, errChan)
-		}(cntrlFuncs.start)
+			// Enabled checks could be blocking, so we do them here and return early,
+			// if the controller is disabled.
+			if !cntrl.enabled() {
+				log.Infof("%q is disabled", name)
+				return
+			}
+			cntrl.start(ctx, errChan)
+		}(cntrlFuncs)
 	}
 
 	wg.Wait()
@@ -140,7 +155,7 @@ func StartControllers(ctx *ControllerContext) k8serrors.Aggregate {
 // startMetadataController starts the informers needed for metadata collection.
 // The synchronization of the informers is handled by the controller.
 func startMetadataController(ctx *ControllerContext, _ chan error) {
-	useEndpointSlices := pkgconfigsetup.Datadog().GetBool("kubernetes_use_endpoint_slices")
+	useEndpointSlices := apiserver.UseEndpointSlices()
 	metaController := newMetadataController(
 		ctx.InformerFactory,
 		ctx.WorkloadMeta,
@@ -179,6 +194,29 @@ func startAutoscalersController(ctx *ControllerContext, c chan error) {
 	autoscalersController.runControllerLoop(ctx.StopCh)
 }
 
+// startDatadogInstrumentationController starts the shared DatadogInstrumentation reconciliation controller.
+func startDatadogInstrumentationController(ctx *ControllerContext, c chan error) {
+	controller, err := instrumentation.NewController(
+		ctx.DynamicUpdateClient,
+		ctx.DynamicInformerFactory,
+		ctx.InstrumentationHandlers,
+		ctx.IsLeaderFunc,
+	)
+	if err != nil {
+		c <- err
+		return
+	}
+
+	controllerCtx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-ctx.StopCh
+		cancel()
+	}()
+
+	go controller.Run(controllerCtx)
+	ctx.DynamicInformerFactory.Start(ctx.StopCh)
+}
+
 // registerServicesInformer registers the services informer.
 func registerServicesInformer(ctx *ControllerContext, _ chan error) {
 	informer := ctx.InformerFactory.Core().V1().Services().Informer()
@@ -194,6 +232,15 @@ func registerEndpointsInformer(ctx *ControllerContext, _ chan error) {
 
 	ctx.informersMutex.Lock()
 	ctx.informers[endpointsInformer] = informer
+	ctx.informersMutex.Unlock()
+}
+
+// registerEndpointSlicesInformer registers the EndpointSlices informer.
+func registerEndpointSlicesInformer(ctx *ControllerContext, _ chan error) {
+	informer := ctx.InformerFactory.Discovery().V1().EndpointSlices().Informer()
+
+	ctx.informersMutex.Lock()
+	ctx.informers[endpointSlicesInformer] = informer
 	ctx.informersMutex.Unlock()
 }
 

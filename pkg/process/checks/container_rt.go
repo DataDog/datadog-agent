@@ -13,6 +13,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
@@ -23,10 +24,11 @@ const (
 )
 
 // NewRTContainerCheck returns an instance of the RTContainerCheck.
-func NewRTContainerCheck(config pkgconfigmodel.Reader, wmeta workloadmeta.Component) *RTContainerCheck {
+func NewRTContainerCheck(config pkgconfigmodel.Reader, sysConfig pkgconfigmodel.Reader, wmeta workloadmeta.Component) *RTContainerCheck {
 	return &RTContainerCheck{
-		config: config,
-		wmeta:  wmeta,
+		config:    config,
+		sysConfig: sysConfig,
+		wmeta:     wmeta,
 	}
 }
 
@@ -37,6 +39,7 @@ type RTContainerCheck struct {
 	containerProvider proccontainers.ContainerProvider
 	lastRates         map[string]*proccontainers.ContainerRateMetrics
 	config            pkgconfigmodel.Reader
+	sysConfig         pkgconfigmodel.Reader
 	wmeta             workloadmeta.Component
 }
 
@@ -54,12 +57,12 @@ func (r *RTContainerCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo, _ bool) e
 
 // IsEnabled returns true if the check is enabled by configuration
 func (r *RTContainerCheck) IsEnabled() bool {
-	if r.config.GetBool("process_config.run_in_core_agent.enabled") && flavor.GetFlavor() == flavor.ProcessAgent {
+	if coreagent.ProcessChecksRunInCoreAgent() && flavor.GetFlavor() == flavor.ProcessAgent {
 		return false
 	}
 
 	rtChecksEnabled := !r.config.GetBool("process_config.disable_realtime_checks")
-	return canEnableContainerChecks(r.config, false) && rtChecksEnabled
+	return canEnableContainerChecks(r.config, r.sysConfig, false) && rtChecksEnabled
 }
 
 // SupportsRunOptions returns true if the check supports RunOptions

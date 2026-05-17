@@ -331,6 +331,96 @@ func TestFormatMsiInstaller1034Payload(t *testing.T) {
 	}
 }
 
+func TestFormatUnexpectedRebootPayload(t *testing.T) {
+	tests := []struct {
+		name              string
+		eventXML          string
+		defaultEventType  string
+		defaultTitle      string
+		defaultMessage    string
+		expectedEventType string
+		expectedTitle     string
+		expectedMessage   string
+	}{
+		{
+			name: "regular unexpected reboot (BugcheckCode=0) keeps defaults",
+			eventXML: `<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+				<System>
+					<Provider Name="Microsoft-Windows-Kernel-Power"/>
+					<EventID>41</EventID>
+				</System>
+				<EventData>
+					<Data Name="BugcheckCode">0</Data>
+					<Data Name="BugcheckParameter1">0x0</Data>
+					<Data Name="BugcheckParameter2">0x0</Data>
+					<Data Name="BugcheckParameter3">0x0</Data>
+					<Data Name="BugcheckParameter4">0x0</Data>
+				</EventData>
+			</Event>`,
+			defaultEventType:  "Unexpected reboot",
+			defaultTitle:      "Unexpected reboot",
+			defaultMessage:    "The system has rebooted without cleanly shutting down first",
+			expectedEventType: "Unexpected reboot",
+			expectedTitle:     "Unexpected reboot",
+			expectedMessage:   "The system has rebooted without cleanly shutting down first",
+		},
+		{
+			name: "bugcheck-caused reboot (BugcheckCode=59) changes to Bugcheck event type",
+			eventXML: `<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+				<System>
+					<Provider Name="Microsoft-Windows-Kernel-Power"/>
+					<EventID>41</EventID>
+				</System>
+				<EventData>
+					<Data Name="BugcheckCode">59</Data>
+					<Data Name="BugcheckParameter1">0xc0000005</Data>
+					<Data Name="BugcheckParameter2">0xfffff8077a86e808</Data>
+					<Data Name="BugcheckParameter3">0xfffff609cfac5f00</Data>
+					<Data Name="BugcheckParameter4">0x0</Data>
+				</EventData>
+			</Event>`,
+			defaultEventType:  "Unexpected reboot",
+			defaultTitle:      "Unexpected reboot",
+			defaultMessage:    "The system has rebooted without cleanly shutting down first",
+			expectedEventType: "System crash",
+			expectedTitle:     "System crash (bugcheck code:0x3B)",
+			expectedMessage:   "The system crashed with bugcheck code 0x3B",
+		},
+		{
+			name: "empty EventData keeps defaults",
+			eventXML: `<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+				<System>
+					<Provider Name="Microsoft-Windows-Kernel-Power"/>
+					<EventID>41</EventID>
+				</System>
+				<EventData></EventData>
+			</Event>`,
+			defaultEventType:  "Unexpected reboot",
+			defaultTitle:      "Unexpected reboot",
+			defaultMessage:    "The system has rebooted without cleanly shutting down first",
+			expectedEventType: "Unexpected reboot",
+			expectedTitle:     "Unexpected reboot",
+			expectedMessage:   "The system has rebooted without cleanly shutting down first",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			eventMap, err := parseEventXML([]byte(tt.eventXML))
+			require.NoError(t, err)
+
+			payload := &eventPayload{
+				EventType: tt.defaultEventType,
+				Title:     tt.defaultTitle,
+				Message:   tt.defaultMessage,
+			}
+			formatUnexpectedRebootPayload(payload, eventMap.Map)
+			assert.Equal(t, tt.expectedEventType, payload.EventType)
+			assert.Equal(t, tt.expectedTitle, payload.Title)
+			assert.Equal(t, tt.expectedMessage, payload.Message)
+		})
+	}
+}
+
 // TestFormatMsiExitCode is a sanity check to ensure we can get the human readable error from the MSI exit codes.
 func TestFormatMsiExitCode(t *testing.T) {
 	tests := []struct {

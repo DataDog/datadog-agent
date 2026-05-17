@@ -9,7 +9,6 @@
 package activitytree
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -366,11 +365,11 @@ func (at *ActivityTree) prepareNetworkDeviceNode(n *NetworkDeviceNode, data *uti
 
 func (at *ActivityTree) prepareNetworkFlowNode(n *FlowNode, data *utils.SubGraph, deviceID utils.GraphID) {
 	label := tableHeader
-	label += "<TR><TD>Source</TD><TD>" + fmt.Sprintf("%s:%d", n.Flow.Source.IPNet.String(), n.Flow.Source.Port) + "</TD></TR>"
+	label += "<TR><TD>Source</TD><TD>" + n.Flow.Source.IPNet.String() + ":" + strconv.FormatUint(uint64(n.Flow.Source.Port), 10) + "</TD></TR>"
 	if n.Flow.Source.IsPublicResolved {
 		label += "<TR><TD>Is src public ?</TD><TD>" + strconv.FormatBool(n.Flow.Source.IsPublic) + "</TD></TR>"
 	}
-	label += "<TR><TD>Destination</TD><TD>" + fmt.Sprintf("%s:%d", n.Flow.Destination.IPNet.String(), n.Flow.Destination.Port) + "</TD></TR>"
+	label += "<TR><TD>Destination</TD><TD>" + n.Flow.Destination.IPNet.String() + ":" + strconv.FormatUint(uint64(n.Flow.Destination.Port), 10) + "</TD></TR>"
 	if n.Flow.Destination.IsPublicResolved {
 		label += "<TR><TD>Is dst public ?</TD><TD>" + strconv.FormatBool(n.Flow.Destination.IsPublic) + "</TD></TR>"
 	}
@@ -427,7 +426,7 @@ func (at *ActivityTree) prepareSocketNode(n *SocketNode, data *utils.Graph, proc
 	for i, node := range n.Bind {
 		bindNode := &utils.Node{
 			ID:    processID.Derive(utils.NewNodeIDFromPtr(n), utils.NewNodeID(uint64(i+1))),
-			Label: fmt.Sprintf("[%s]:%d", node.IP, node.Port),
+			Label: "[" + node.IP + "]:" + strconv.FormatUint(uint64(node.Port), 10),
 			Size:  smallText,
 			Color: networkColor,
 			Shape: networkShape,

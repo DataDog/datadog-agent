@@ -88,7 +88,7 @@ collect_bgp_neighbor_states: true
 
 	sender.On("Commit").Return()
 
-	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	require.NoError(t, err)
 
 	assert.Equal(t, 3*time.Minute, chk.Interval())
@@ -246,7 +246,8 @@ collect_bgp_neighbor_states: true
       "index": 3,
       "name": "system",
       "admin_status": 1,
-      "oper_status": 1
+      "oper_status": 1,
+      "is_physical": false
     },
     {
       "device_id": "test:10.10.1.17",
@@ -257,7 +258,9 @@ collect_bgp_neighbor_states: true
       "name": "GigabitEthernet4",
       "mac_address": "52:54:00:0b:6e:90",
       "admin_status": 1,
-      "oper_status": 1
+      "oper_status": 1,
+      "type": 6,
+      "is_physical": true
     }
   ],
   "ip_addresses": [
@@ -310,7 +313,7 @@ namespace: test
 
 	sender.On("Commit").Return()
 
-	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	require.NoError(t, err)
 
 	err = chk.Run()
@@ -371,7 +374,7 @@ collect_cloud_applications_metrics: false
 
 	sender.On("Commit").Return()
 
-	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	require.NoError(t, err)
 
 	err = chk.Run()

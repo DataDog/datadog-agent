@@ -10,10 +10,12 @@ package securityprofile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -25,6 +27,7 @@ import (
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -42,7 +45,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/storage/backend"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 const (
@@ -110,7 +112,7 @@ type Manager struct {
 	activeDumps      []*dump.ActivityDump
 	snapshotQueue    chan *dump.ActivityDump
 	contextTags      []string
-	containerFilters *containers.Filter
+	containerFilters workloadfilter.FilterBundle
 
 	hostname            string
 	lastStoppedDumpTime time.Time
@@ -152,7 +154,7 @@ type Manager struct {
 }
 
 // NewManager returns a new instance of the security profile manager
-func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, newEvent func() *model.Event, dumpHandler backend.ActivityDumpHandler, hostname string) (*Manager, error) {
+func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, newEvent func() *model.Event, dumpHandler backend.ActivityDumpHandler, hostname string, filterStore workloadfilter.Component) (*Manager, error) {
 	tracedPIDs, err := managerhelper.Map(ebpf, "traced_pids")
 	if err != nil {
 		return nil, err
@@ -259,9 +261,12 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 		contextTags = append(contextTags, "source:"+ActivityDumpSource)
 	}
 
-	containerFilters, err := utils.NewContainerFilter()
-	if err != nil {
-		return nil, err
+	var containerFilters workloadfilter.FilterBundle
+	if filterStore != nil {
+		containerFilters = filterStore.GetContainerRuntimeSecurityFilters()
+		if errs := containerFilters.GetErrors(); len(errs) > 0 {
+			return nil, errors.Join(errs...)
+		}
 	}
 
 	profileCache, err := simplelru.NewLRU[cgroupModel.WorkloadSelector, *profile.Profile](cfg.RuntimeSecurity.SecurityProfileCacheSize, nil)
@@ -270,9 +275,6 @@ func NewManager(cfg *config.Config, statsdClient statsd.ClientInterface, ebpf *e
 	}
 
 	var secProfEventTypes []model.EventType
-	if cfg.RuntimeSecurity.SecurityProfileAutoSuppressionEnabled {
-		secProfEventTypes = append(secProfEventTypes, cfg.RuntimeSecurity.SecurityProfileAutoSuppressionEventTypes...)
-	}
 	if cfg.RuntimeSecurity.AnomalyDetectionEnabled {
 		secProfEventTypes = append(secProfEventTypes, cfg.RuntimeSecurity.AnomalyDetectionEventTypes...)
 	}
@@ -513,7 +515,7 @@ func (m *Manager) SendStats() error {
 		}
 
 		t := []string{
-			fmt.Sprintf("in_kernel:%v", profilesLoadedInKernel),
+			"in_kernel:" + strconv.FormatInt(int64(profilesLoadedInKernel), 10),
 		}
 		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileProfiles, float64(len(m.profiles)), t, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricSecurityProfileProfiles: %w", err)
@@ -538,7 +540,7 @@ func (m *Manager) SendStats() error {
 		}
 
 		for entry, count := range m.eventFiltering {
-			t := []string{fmt.Sprintf("event_type:%s", entry.eventType), entry.state.ToTag(), entry.result.toTag()}
+			t := []string{"event_type:" + entry.eventType.String(), entry.state.ToTag(), entry.result.toTag()}
 			if value := count.Swap(0); value > 0 {
 				if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), t, 1.0); err != nil {
 					return fmt.Errorf("couldn't send MetricSecurityProfileEventFiltering metric: %w", err)
@@ -628,7 +630,11 @@ func (m *Manager) persist(p *profile.Profile, formatsRequests map[config.Storage
 			if err := storage.Persist(request, p, data); err != nil {
 				seclog.Errorf("couldn't persist [%s] to %s storage: %v", p.GetSelectorStr(), request.Type, err)
 			} else {
-				tags := []string{"format:" + request.Format.String(), "storage_type:" + request.Type.String(), fmt.Sprintf("compression:%v", request.Compression)}
+				tags := []string{
+					"format:" + request.Format.String(),
+					"storage_type:" + request.Type.String(),
+					"compression:" + strconv.FormatBool(request.Compression),
+				}
 				if err := m.statsdClient.Count(metrics.MetricActivityDumpSizeInBytes, int64(data.Len()), tags, 1.0); err != nil {
 					seclog.Warnf("couldn't send %s metric: %v", metrics.MetricActivityDumpSizeInBytes, err)
 				}
@@ -699,7 +705,7 @@ func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]boo
 		imageTag  string
 	}
 
-	pids := make(map[imageTagKey][]uint32)
+	pidToImageTag := make(map[uint32]imageTagKey)
 
 	result := make(map[activity_tree.ImageProcessKey]bool)
 
@@ -729,35 +735,24 @@ func (m *Manager) GetNodesInProcessCache() map[activity_tree.ImageProcessKey]boo
 			imageTag = "latest"
 		}
 
-		imageTagKey := imageTagKey{
-			imageName: imageName,
-			imageTag:  imageTag,
+		k := imageTagKey{imageName: imageName, imageTag: imageTag}
+		for _, pid := range cgce.GetPIDs() {
+			pidToImageTag[pid] = k
 		}
-		pids[imageTagKey] = append(pids[imageTagKey], cgce.GetPIDs()...)
 
 		return false
 	})
 
 	// we do the resolution of filepaths here so that we can release the cgroup resolver lock before acquiring the process resolver lock
-	for k, pids := range pids {
-
-		key := activity_tree.ImageProcessKey{
-			ImageName: k.imageName,
-			ImageTag:  k.imageTag,
-			Filepath:  "",
+	pr.Walk(func(pce *model.ProcessCacheEntry) {
+		if k, ok := pidToImageTag[pce.Pid]; ok {
+			result[activity_tree.ImageProcessKey{
+				ImageName: k.imageName,
+				ImageTag:  k.imageTag,
+				Filepath:  pce.FileEvent.PathnameStr,
+			}] = true
 		}
-
-		for _, pid := range pids {
-			pce := pr.Resolve(pid, pid, 0, true, nil)
-			if pce == nil {
-				seclog.Warnf("couldn't resolve process cache entry for pid %d, this process may have exited", pid)
-				continue
-			}
-
-			key.Filepath = pce.FileEvent.PathnameStr
-			result[key] = true
-		}
-	}
+	})
 
 	return result
 }

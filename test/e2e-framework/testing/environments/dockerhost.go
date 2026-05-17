@@ -12,6 +12,11 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/docker"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
@@ -19,6 +24,7 @@ import (
 
 // DockerHost is an environment that contains a Docker VM, FakeIntake and Agent configured to talk to each other.
 type DockerHost struct {
+	CoverageBase
 	// Components
 	RemoteHost *components.RemoteHost
 	FakeIntake *components.FakeIntake
@@ -26,11 +32,56 @@ type DockerHost struct {
 	Docker     *components.RemoteHostDocker
 }
 
+// Ensure DockerHost implements the DockerHostOutputs interface
+var _ outputs.DockerHostOutputs = (*DockerHost)(nil)
+
 var _ common.Initializable = &DockerHost{}
 
 // Init initializes the environment
 func (e *DockerHost) Init(_ common.Context) error {
 	return nil
+}
+
+// RemoteHostOutput implements outputs.DockerHostOutputs
+func (e *DockerHost) RemoteHostOutput() *remote.HostOutput {
+	if e.RemoteHost == nil {
+		e.RemoteHost = &components.RemoteHost{}
+	}
+	return &e.RemoteHost.HostOutput
+}
+
+// FakeIntakeOutput implements outputs.DockerHostOutputs
+func (e *DockerHost) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
+	if e.FakeIntake == nil {
+		e.FakeIntake = &components.FakeIntake{}
+	}
+	return &e.FakeIntake.FakeintakeOutput
+}
+
+// DockerAgentOutput implements outputs.DockerHostOutputs
+func (e *DockerHost) DockerAgentOutput() *agent.DockerAgentOutput {
+	if e.Agent == nil {
+		e.Agent = &components.DockerAgent{}
+	}
+	return &e.Agent.DockerAgentOutput
+}
+
+// DockerOutput implements outputs.DockerHostOutputs
+func (e *DockerHost) DockerOutput() *docker.ManagerOutput {
+	if e.Docker == nil {
+		e.Docker = &components.RemoteHostDocker{}
+	}
+	return &e.Docker.ManagerOutput
+}
+
+// DisableFakeIntake implements outputs.DockerHostOutputs
+func (e *DockerHost) DisableFakeIntake() {
+	e.FakeIntake = nil
+}
+
+// DisableAgent implements outputs.DockerHostOutputs
+func (e *DockerHost) DisableAgent() {
+	e.Agent = nil
 }
 
 var _ common.Diagnosable = (*DockerHost)(nil)
@@ -80,7 +131,7 @@ func (e *DockerHost) Coverage(outputDir string) (string, error) {
 
 // getAgentCoverageCommands returns the coverage commands for each agent component
 func (e *DockerHost) getAgentCoverageCommands() []CoverageTargetSpec {
-	return []CoverageTargetSpec{
+	targets := []CoverageTargetSpec{
 		{
 			AgentName:       "agent",
 			CoverageCommand: []string{"agent", "coverage", "generate"},
@@ -107,6 +158,8 @@ func (e *DockerHost) getAgentCoverageCommands() []CoverageTargetSpec {
 			Required:        false,
 		},
 	}
+	e.applyCoverageOverrides(targets)
+	return targets
 }
 
 func (e *DockerHost) generateAndDownloadCoverageForContainer(outputDir string) (string, error) {

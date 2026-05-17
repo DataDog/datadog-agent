@@ -14,13 +14,34 @@ import (
 	"syscall"
 	"time"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	procinfo "github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 )
+
+// eventConfig is a pseudo-event used in snapshot tests to configure state
+// machine parameters (e.g. discoveredTypesLimit) before processing real events.
+type eventConfig struct {
+	baseEvent
+	discoveredTypesLimit   int
+	recompilationRateLimit float64
+	recompilationRateBurst int
+	// Circuit-breaker thresholds. Zero values mean "use the production
+	// defaults"; tests that need to exercise a trip must set these.
+	perProbeCPULimit  float64
+	allProbesCPULimit float64
+}
+
+func (e eventConfig) String() string {
+	return fmt.Sprintf(
+		"eventConfig{discoveredTypesLimit: %d, recompilationRateLimit: %g, recompilationRateBurst: %d, perProbeCPULimit: %g, allProbesCPULimit: %g}",
+		e.discoveredTypesLimit, e.recompilationRateLimit, e.recompilationRateBurst,
+		e.perProbeCPULimit, e.allProbesCPULimit,
+	)
+}
 
 // yamlEvent represents an event that can be marshaled to and unmarshaled from
 // YAML.
@@ -69,6 +90,7 @@ func (ye yamlEvent) MarshalYAML() (rv any, err error) {
 				PID int `yaml:"pid"`
 			} `yaml:"process_id"`
 			Executable Executable       `yaml:"executable"`
+			Service    string           `yaml:"service,omitempty"`
 			Probes     []map[string]any `yaml:"probes"`
 		}
 
@@ -97,6 +119,7 @@ func (ye yamlEvent) MarshalYAML() (rv any, err error) {
 					PID int `yaml:"pid"`
 				}{PID: int(proc.ProcessID.PID)},
 				Executable: proc.Executable,
+				Service:    proc.Info.Service,
 				Probes:     probes,
 			})
 		}
@@ -150,8 +173,32 @@ func (ye yamlEvent) MarshalYAML() (rv any, err error) {
 			"runtime_stats": runtimeStatsToYAML(ev.runtimeStats),
 		})
 
+	case eventMissingTypesReported:
+		return encodeNodeTag("!missing-types-reported", map[string]any{
+			"process_id": int(ev.processID.PID),
+			"type_names": ev.typeNames,
+		})
+
 	case eventShutdown:
 		return encodeNodeTag("!shutdown", map[string]any{})
+
+	case eventConfig:
+		data := map[string]any{
+			"discovered_types_limit": ev.discoveredTypesLimit,
+		}
+		if ev.recompilationRateLimit != 0 {
+			data["recompilation_rate_limit"] = ev.recompilationRateLimit
+		}
+		if ev.recompilationRateBurst != 0 {
+			data["recompilation_rate_burst"] = ev.recompilationRateBurst
+		}
+		if ev.perProbeCPULimit != 0 {
+			data["per_probe_cpu_limit"] = ev.perProbeCPULimit
+		}
+		if ev.allProbesCPULimit != 0 {
+			data["all_probes_cpu_limit"] = ev.allProbesCPULimit
+		}
+		return encodeNodeTag("!config", data)
 
 	default:
 		return nil, fmt.Errorf("unknown event type: %T", ev)
@@ -182,7 +229,8 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 					} `yaml:"file_cookie"`
 				} `yaml:"key"`
 			} `yaml:"executable"`
-			Probes []map[string]any `yaml:"probes"`
+			Service string           `yaml:"service,omitempty"`
+			Probes  []map[string]any `yaml:"probes"`
 		}
 
 		var eventData struct {
@@ -212,6 +260,7 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 			updated = append(updated, ProcessUpdate{
 				Info: procinfo.Info{
 					ProcessID: ProcessID{PID: int32(proc.ProcessID.PID)},
+					Service:   proc.Service,
 					Executable: Executable{
 						Path: proc.Executable.Path,
 						Key: procinfo.FileKey{
@@ -347,8 +396,40 @@ func (ye *yamlEvent) UnmarshalYAML(node *yaml.Node) error {
 			),
 		}
 
+	case "missing-types-reported":
+		var eventData struct {
+			ProcessID int      `yaml:"process_id"`
+			TypeNames []string `yaml:"type_names"`
+		}
+		if err := node.Decode(&eventData); err != nil {
+			return fmt.Errorf("failed to decode missing-types-reported event: %w", err)
+		}
+		ye.event = eventMissingTypesReported{
+			processID: ProcessID{PID: int32(eventData.ProcessID)},
+			typeNames: eventData.TypeNames,
+		}
+
 	case "shutdown":
 		ye.event = eventShutdown{}
+
+	case "config":
+		var eventData struct {
+			DiscoveredTypesLimit   int     `yaml:"discovered_types_limit"`
+			RecompilationRateLimit float64 `yaml:"recompilation_rate_limit"`
+			RecompilationRateBurst int     `yaml:"recompilation_rate_burst"`
+			PerProbeCPULimit       float64 `yaml:"per_probe_cpu_limit"`
+			AllProbesCPULimit      float64 `yaml:"all_probes_cpu_limit"`
+		}
+		if err := node.Decode(&eventData); err != nil {
+			return fmt.Errorf("failed to decode config event: %w", err)
+		}
+		ye.event = eventConfig{
+			discoveredTypesLimit:   eventData.DiscoveredTypesLimit,
+			recompilationRateLimit: eventData.RecompilationRateLimit,
+			recompilationRateBurst: eventData.RecompilationRateBurst,
+			perProbeCPULimit:       eventData.PerProbeCPULimit,
+			allProbesCPULimit:      eventData.AllProbesCPULimit,
+		}
 
 	default:
 		return fmt.Errorf("unknown event type: %s", eventType)
@@ -364,6 +445,7 @@ type runtimeStatsYAML struct {
 }
 
 type fakeLoadedProgram struct {
+	probes       []ir.ProbeDefinition
 	runtimeStats []loader.RuntimeStats
 }
 
@@ -384,9 +466,24 @@ func (p *fakeLoadedProgram) RuntimeStats() []loader.RuntimeStats {
 	}
 }
 
+func (p *fakeLoadedProgram) NumProbes() int {
+	return len(p.probes)
+}
+
+func (p *fakeLoadedProgram) ProbeDefinition(probeID uint32) ir.ProbeDefinition {
+	if int(probeID) >= len(p.probes) {
+		return nil
+	}
+	return p.probes[probeID]
+}
+
 func (p *fakeLoadedProgram) setRuntimeStats(stats []loader.RuntimeStats) {
 	p.runtimeStats = append([]loader.RuntimeStats(nil), stats...)
 }
+
+func (*fakeLoadedProgram) DropNotifyLostAt() uint64 { return 0 }
+
+func (*fakeLoadedProgram) EvictBufferOlderThan(uint64) {}
 
 func (*fakeLoadedProgram) Close() error {
 	return nil

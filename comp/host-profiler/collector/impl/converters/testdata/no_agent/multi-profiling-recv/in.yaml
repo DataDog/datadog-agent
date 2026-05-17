@@ -1,0 +1,26 @@
+receivers:
+  profiling:
+    symbol_uploader:
+      enabled: true
+      symbol_endpoints:
+      - api_key: 11111
+        app_key: 22222
+  profiling/custom:
+    symbol_uploader:
+      enabled: true
+      symbol_endpoints:
+      - api_key: 33333
+        app_key: string-app
+service:
+  pipelines:
+    profiles:
+      processors: []
+      receivers:
+      - profiling
+      - profiling/custom
+      exporters:
+      - otlphttp
+exporters:
+  otlphttp:
+    headers:
+      dd-api-key: test-api-key

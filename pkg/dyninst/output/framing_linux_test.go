@@ -15,3 +15,7 @@ func TestCgoAlignment_EventHeader(t *testing.T) {
 func TestCgoAlignment_DataItemHeader(t *testing.T) {
 	ebpftest.TestCgoAlignment[DataItemHeader](t)
 }
+
+func TestCgoAlignment_DropNotification(t *testing.T) {
+	ebpftest.TestCgoAlignment[DropNotification](t)
+}

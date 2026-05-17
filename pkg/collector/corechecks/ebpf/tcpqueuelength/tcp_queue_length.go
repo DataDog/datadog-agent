@@ -9,7 +9,7 @@
 package tcpqueuelength
 
 import (
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -68,8 +68,8 @@ func (t *TCPQueueLengthConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (t *TCPQueueLengthCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
-	err := t.CommonConfigure(senderManager, initConfig, config, source)
+func (t *TCPQueueLengthCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string, provider string) error {
+	err := t.CommonConfigure(senderManager, initConfig, config, source, provider)
 	if err != nil {
 		return err
 	}

@@ -20,13 +20,47 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+func (ctx *CWSPtracerCtx) resolveProcessContext(process *Process) {
+	if process == nil || process.containerContextResolved {
+		return
+	}
+	process.containerContextResolved = true
+
+	containerID, cgroupID, err := getProcContainerContext(process.Pid)
+	if err != nil {
+		if process.CGroupID == "" {
+			process.CGroupID = ctx.cgroupID
+		}
+		if process.ContainerID == "" {
+			process.ContainerID = ctx.containerID
+		}
+		return
+	}
+	if process.CGroupID == "" {
+		if cgroupID != "" {
+			process.CGroupID = cgroupID
+		} else {
+			process.CGroupID = ctx.cgroupID
+		}
+	}
+	if process.ContainerID == "" {
+		if containerID != "" {
+			process.ContainerID = containerID
+		} else {
+			process.ContainerID = ctx.containerID
+		}
+	}
+}
+
 func (ctx *CWSPtracerCtx) sendSyscallMsg(process *Process, msg *ebpfless.SyscallMsg) {
 	if msg == nil {
 		return
 	}
+	ctx.resolveProcessContext(process)
 	msg.PID = uint32(process.Tgid)
 	msg.Timestamp = uint64(time.Now().UnixNano())
-	msg.ContainerID = ctx.containerID
+	msg.ContainerID = process.ContainerID
+	msg.CGroupID = process.CGroupID
 	_ = ctx.sendMsg(&ebpfless.Message{
 		Type:    ebpfless.MessageTypeSyscall,
 		Syscall: msg,
@@ -58,7 +92,10 @@ func (ctx *CWSPtracerCtx) handlePreHooks(nr int, pid int, regs syscall.PtraceReg
 	case ExecveNr:
 		// Top level pids, add ctx.opts.Creds. For the other PIDs the creds will be propagated at the probe side
 		for _, pid := range ctx.PIDs {
-			if process.Pid == pid {
+			if process.Pid == pid && !slices.Contains(ctx.traceesReported, pid) {
+				// report the creds for the first time
+				ctx.traceesReported = append(ctx.traceesReported, pid)
+
 				var uid, gid uint32
 
 				if ctx.opts.Creds.UID != nil {

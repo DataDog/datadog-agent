@@ -1,0 +1,27 @@
+#!/bin/sh
+# Unconfiguration Script — the only lifecycle script reliably stored in
+# liblpp.a and run by installp during deinstallation (installp -u).
+# It also runs during upgrades, but preinst recreates any removed state.
+stopsrc -s datadog-agent 2>/dev/null || true
+stopsrc -s datadog-trace-agent 2>/dev/null || true
+# Wait up to 30 s for dd-agent processes to fully exit before cleanup.
+i=0
+while [ $i -lt 30 ]; do
+    ps -fu dd-agent 2>/dev/null | awk 'NR>1{f=1}END{exit !f}' || break
+    sleep 1; i=$((i+1))
+done
+odmdelete -o SRCsubsys -q "subsysname='datadog-agent'" > /dev/null 2>&1 || true
+odmdelete -o SRCsubsys -q "subsysname='datadog-trace-agent'" > /dev/null 2>&1 || true
+rmssys -s datadog-agent 2>/dev/null || true
+rmssys -s datadog-trace-agent 2>/dev/null || true
+rmuser dd-agent 2>/dev/null || true
+rmgroup dd-agent 2>/dev/null || true
+rm -rf /var/run/datadog 2>/dev/null || true
+# Remove files written at runtime or by preinst that are not in the package
+# file list and would otherwise prevent installp from removing the directories.
+rm -f /opt/datadog-agent/bin/agent-svc \
+      /opt/datadog-agent/bin/trace-agent-svc \
+      /opt/datadog-agent/.profile 2>/dev/null || true
+# Python stdlib __pycache__ .pyc files created at runtime (not in package).
+find /opt/datadog-agent -name "*.pyc" -type f -exec rm -f {} \; 2>/dev/null || true
+rm -rf /opt/datadog-agent/run 2>/dev/null || true

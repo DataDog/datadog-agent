@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,17 +41,17 @@ func isWERDumpCollectionEnabled() bool {
 
 // BaseSuite the base suite for all installer tests on Windows (install script, MSI, exe etc...).
 // To run the test suites locally, pick a pipeline and define the following environment variables:
-// E2E_PIPELINE_ID: the ID of the pipeline
-// CURRENT_AGENT_VERSION: pull it from one of the jobs that builds the Agent
-// STABLE_AGENT_VERSION_PACKAGE: use `crane ls public.ecr.aws/datadog/agent-package | sort | tail -n 2 | head -n 1`
-// or pick any other version from that registry.
+// E2E_PIPELINE_ID: the ID of the pipeline (for infra provisioning)
+// CURRENT_AGENT_ASSERT_VERSION: agent display version for assertions
+// CURRENT_AGENT_ASSERT_PACKAGE_VERSION: url-safe package version for assertions
+// CURRENT_AGENT_PIPELINE: pipeline ID for package resolution (or CURRENT_AGENT_SOURCE_VERSION for released versions)
 //
 // For example:
 //
-//	CI_COMMIT_SHA=ac2acaffab7b039f8c2524df8ae82f9f5fd04d5d;
 //	E2E_PIPELINE_ID=40537701;
-//	CURRENT_AGENT_VERSION=7.57.0-devel+git.370.d429ae3;
-//	STABLE_AGENT_VERSION_PACKAGE=7.55.2-1
+//	CURRENT_AGENT_ASSERT_VERSION=7.57.0-devel+git.370.d429ae3;
+//	CURRENT_AGENT_ASSERT_PACKAGE_VERSION=7.57.0-devel.git.370.d429ae3.pipeline.40537701-1;
+//	CURRENT_AGENT_PIPELINE=40537701;
 type BaseSuite struct {
 	e2e.BaseSuite[environments.WindowsHost]
 	installer          DatadogInstallerRunner
@@ -158,14 +159,14 @@ func (s *BaseSuite) createCurrentAgent() {
 	currentOCI, err := NewPackageConfig(
 		WithName(consts.AgentPackage),
 		WithPipeline(s.Env().Environment.PipelineID()),
-		WithDevEnvOverrides("CURRENT_AGENT"),
+		WithArtifactOverrides("CURRENT_AGENT"),
 	)
 	s.Require().NoError(err, "failed to lookup OCI package for current agent version")
 
 	// Get current version MSI package
 	currentMSI, err := windowsagent.NewPackage(
-		windowsagent.WithURLFromPipeline(s.Env().Environment.PipelineID()),
-		windowsagent.WithDevEnvOverrides("CURRENT_AGENT"),
+		windowsagent.WithPipelineID(s.Env().Environment.PipelineID()),
+		windowsagent.WithArtifactOverrides("CURRENT_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup MSI for current agent version")
 	s.Require().NotEmpty(currentMSI.URL, "Agent MSI URL is required but not set, set E2E_PIPELINE_ID or CURRENT_AGENT devenv overrides")
@@ -196,16 +197,13 @@ func (s *BaseSuite) createStableAgent() {
 		return
 	}
 	// else, use the defaults (last stable release)
-
-	agentVersion := "7.75.0"
-	agentVersionPackage := "7.75.0-1"
-	agentRegistry := consts.StableS3OCIRegistry
-	agentMSIURL := "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-7.75.0.msi"
-	// Allow override of version and version package via environment variables
-	if val := os.Getenv("STABLE_AGENT_VERSION"); val != "" {
+	agentVersion := "7.77.0"
+	agentVersionPackage := "7.77.0-1"
+	// Allow override of assertion values via environment variables
+	if val := os.Getenv("STABLE_AGENT_ASSERT_VERSION"); val != "" {
 		agentVersion = val
 	}
-	if val := os.Getenv("STABLE_AGENT_VERSION_PACKAGE"); val != "" {
+	if val := os.Getenv("STABLE_AGENT_ASSERT_PACKAGE_VERSION"); val != "" {
 		agentVersionPackage = val
 	}
 
@@ -213,16 +211,14 @@ func (s *BaseSuite) createStableAgent() {
 	previousOCI, err := NewPackageConfig(
 		WithName(consts.AgentPackage),
 		WithVersion(agentVersionPackage),
-		WithRegistry(agentRegistry),
-		WithDevEnvOverrides("STABLE_AGENT"),
+		WithArtifactOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup OCI package for previous agent version")
 
 	// Get previous version MSI package
 	previousMSI, err := windowsagent.NewPackage(
 		windowsagent.WithVersion(agentVersionPackage),
-		windowsagent.WithURL(agentMSIURL),
-		windowsagent.WithDevEnvOverrides("STABLE_AGENT"),
+		windowsagent.WithArtifactOverrides("STABLE_AGENT"),
 	)
 	s.Require().NoError(err, "Failed to lookup MSI for previous agent version")
 
@@ -238,16 +234,16 @@ func (s *BaseSuite) createStableAgent() {
 
 // getAgentVersionVars retrieves the agent version and package version from environment variables
 //
-// example: CURRENT_AGENT_VERSION and CURRENT_AGENT_VERSION_PACKAGE
+// example: CURRENT_AGENT_ASSERT_VERSION and CURRENT_AGENT_ASSERT_PACKAGE_VERSION
 //
 // see doc.go for more information
 func (s *BaseSuite) getAgentVersionVars(prefix string) (string, string) {
-	versionVar := prefix + "_VERSION"
-	versionPackageVar := prefix + "_VERSION_PACKAGE"
+	versionVar := prefix + "_ASSERT_VERSION"
+	versionPackageVar := prefix + "_ASSERT_PACKAGE_VERSION"
 
 	// Agent version
 	version := os.Getenv(versionVar)
-	s.Require().NotEmpty(versionVar, "%s is required but not set", versionVar)
+	s.Require().NotEmpty(version, "%s is required but not set", versionVar)
 
 	// Package version
 	versionPackage := os.Getenv(versionPackageVar)
@@ -309,12 +305,21 @@ func (s *BaseSuite) AfterTest(suiteName, testName string) {
 			}
 			time.Sleep(1 * time.Second)
 		}
+		// Dumps from processes in DefaultIgnoredCrashDumpImages are still
+		// downloaded as artifacts but do not fail the test.
 		dumps, err := windowscommon.DownloadAllWERDumps(s.Env().RemoteHost, s.dumpFolder, s.SessionOutputDir())
 		s.Assert().NoError(err, "should download crash dumps")
-		if !s.Assert().Empty(dumps, "should not have crash dumps") {
-			s.T().Logf("Found crash dumps:")
-			for _, dump := range dumps {
-				s.T().Logf("  %s", dump)
+		failing, ignored := windowscommon.PartitionDownloadedWERDumps(dumps, windowscommon.DefaultIgnoredCrashDumpImages)
+		if len(ignored) > 0 {
+			s.T().Logf("Ignoring %d crash dumps from known-noisy processes:", len(ignored))
+			for _, dump := range ignored {
+				s.T().Logf("  %s -> %s", dump.Source.FileName, dump.LocalPath)
+			}
+		}
+		if !s.Assert().Empty(failing, "should not have crash dumps") {
+			s.T().Logf("Found unexpected crash dumps:")
+			for _, dump := range failing {
+				s.T().Logf("  %s -> %s", dump.Source.FileName, dump.LocalPath)
 			}
 		}
 	}
@@ -525,6 +530,62 @@ func (s *BaseSuite) collectxperf() {
 	}
 }
 
+// startProcdump sets up procdump and starts it in the background.
+func (s *BaseSuite) startProcdump() *windowscommon.ProcdumpSession {
+	host := s.Env().RemoteHost
+
+	// Setup procdump on remote host
+	s.T().Log("Setting up procdump on remote host")
+	err := windowscommon.SetupProcdump(host)
+	s.Require().NoError(err, "should setup procdump")
+
+	// Start procdump
+	ps, err := windowscommon.StartProcdump(host, "agent.exe")
+	s.Require().NoError(err, "should start procdump")
+
+	return ps
+}
+
+// collectProcdumps stops procdump and downloads any captured dumps if the test failed.
+func (s *BaseSuite) collectProcdumps(ps *windowscommon.ProcdumpSession) {
+	// Only collect dumps if the test failed
+	if !s.T().Failed() {
+		ps.Close()
+		return
+	}
+
+	host := s.Env().RemoteHost
+
+	// Wait for procdump to finish writing dump files BEFORE closing the session.
+	// Procdump is configured to capture 5 dumps, so wait until all 5 are created.
+	expectedDumpCount := 5
+	s.T().Logf("Waiting for procdump to create %d dump files...", expectedDumpCount)
+	deadline := time.Now().Add(120 * time.Second)
+	for time.Now().Before(deadline) {
+		output, err := host.Execute(fmt.Sprintf(`(Get-ChildItem -Path '%s' -Filter '*.dmp' -ErrorAction SilentlyContinue | Measure-Object).Count`, windowscommon.ProcdumpsPath))
+		if err == nil {
+			countStr := strings.TrimSpace(output)
+			count, parseErr := strconv.Atoi(countStr)
+			if parseErr == nil && count >= expectedDumpCount {
+				s.T().Logf("All %d dump files ready", count)
+				break
+			}
+			s.T().Logf("Found %s dump files, waiting for %d...", countStr, expectedDumpCount)
+		}
+		time.Sleep(5 * time.Second)
+	}
+
+	ps.Close()
+
+	// Download all dump files
+	outDir := s.SessionOutputDir()
+	if err := host.GetFolder(windowscommon.ProcdumpsPath, outDir); err != nil {
+		s.T().Logf("Warning: failed to download dump %s: %v", windowscommon.ProcdumpsPath, err)
+	} else {
+		s.T().Logf("Downloaded procdumps to: %s", outDir)
+	}
+}
+
 // InstallWithXperf installs the MSI with xperf tracing to diagnose service startup issues.
 // This wraps the MSI installation with performance tracing and service status checking.
 //
@@ -550,6 +611,34 @@ func (s *BaseSuite) InstallWithXperf(opts ...MsiOption) {
 	err = s.WaitForAgentService("Running")
 	s.Require().NoError(err, "Agent service status check failed")
 
+	s.T().Log("MSI installation and service startup completed successfully")
+}
+
+// InstallWithDiagnostics installs the MSI with comprehensive diagnostics collection:
+// - xperf tracing for system-wide performance analysis
+// - procdump collection to capture agent memory dump if it crashes during startup
+func (s *BaseSuite) InstallWithDiagnostics(opts ...MsiOption) {
+	s.T().Helper()
+
+	// Start xperf tracing
+	s.T().Log("Starting xperf tracing")
+	s.startxperf()
+	defer s.collectxperf()
+
+	// Start procdump in background to capture crash dumps
+	s.T().Log("Starting procdump")
+	ps := s.startProcdump()
+	defer s.collectProcdumps(ps)
+
+	// Proceed with installation
+	s.T().Log("Installing MSI")
+	err := s.Installer().Install(opts...)
+	s.Require().NoError(err, "MSI installation failed")
+
+	// Wait for service to be running
+	s.T().Log("Checking agent service status after MSI installation")
+	err = s.WaitForAgentService("Running")
+	s.Require().NoError(err, "Agent service status check failed")
 	s.T().Log("MSI installation and service startup completed successfully")
 }
 

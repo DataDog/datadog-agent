@@ -63,6 +63,7 @@ type StructField struct {
 	ReturnType       string
 	IsArray          bool
 	IsLength         bool
+	IsRootDomain     bool
 	Event            string
 	Handler          string
 	Helper           bool // specify the handler as just a helper and not a real resolver. It means that this handler won't be called by the ResolveFields function
@@ -92,22 +93,22 @@ func (sf *StructField) GetEvaluatorType() string {
 		evaluatorType = "eval.IntEvaluator"
 	} else if sf.ReturnType == "int" {
 		evaluatorType = "eval.IntEvaluator"
-		if sf.Iterator != nil || sf.IsArray {
+		if sf.Iterator != nil || (sf.IsArray && !sf.IsLength) {
 			evaluatorType = "eval.IntArrayEvaluator"
 		}
 	} else if sf.ReturnType == "bool" {
 		evaluatorType = "eval.BoolEvaluator"
-		if sf.Iterator != nil || sf.IsArray {
+		if sf.Iterator != nil || (sf.IsArray && !sf.IsLength) {
 			evaluatorType = "eval.BoolArrayEvaluator"
 		}
 	} else if sf.ReturnType == "net.IPNet" {
 		evaluatorType = "eval.CIDREvaluator"
-		if sf.Iterator != nil || sf.IsArray {
+		if sf.Iterator != nil || (sf.IsArray && !sf.IsLength) {
 			evaluatorType = "eval.CIDRArrayEvaluator"
 		}
 	} else {
 		evaluatorType = "eval.StringEvaluator"
-		if sf.Iterator != nil || sf.IsArray {
+		if sf.Iterator != nil || (sf.IsArray && !sf.IsLength) {
 			evaluatorType = "eval.StringArrayEvaluator"
 		}
 	}

@@ -17,7 +17,8 @@ const maxRedisNbCommands = 3
 
 // Redis commands consisting in 2 words
 var redisCompoundCommandSet = map[string]bool{
-	"CLIENT": true, "CLUSTER": true, "COMMAND": true, "CONFIG": true, "DEBUG": true, "SCRIPT": true}
+	"CLIENT": true, "CLUSTER": true, "COMMAND": true, "CONFIG": true, "DEBUG": true, "SCRIPT": true,
+}
 
 // QuantizeRedisString returns a quantized version of a Redis query.
 //
@@ -123,12 +124,26 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 	out.WriteByte(' ')
 
 	switch strings.ToUpper(cmd) {
-	case "AUTH":
+	case "AUTH", "MIGRATE", "HELLO":
 		// Obfuscate everything after command
 		// • AUTH password
+		// • MIGRATE host port key|"" destination-db timeout [COPY] [REPLACE] [AUTH password] [AUTH2 username password] [KEYS key [key ...]]
+		// • HELLO [protover [AUTH username password] [SETNAME clientname]]
 		if len(args) > 0 {
 			args[0] = "?"
 			args = args[:1]
+		}
+
+	case "ACL":
+		// Obfuscate all arguments after the subcommand
+		// • ACL SETUSER username on >password ~keys &channels +commands
+		// • ACL GETUSER username
+		// • ACL DELUSER username [username ...]
+		// • ACL LIST
+		// • ACL WHOAMI
+		if len(args) > 1 {
+			args[1] = "?"
+			args = args[:2]
 		}
 
 	case "APPEND", "GETSET", "LPUSHX", "GEORADIUSBYMEMBER", "RPUSHX",

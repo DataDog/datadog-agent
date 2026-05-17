@@ -9,7 +9,7 @@
 package securityprofile
 
 import (
-	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -51,71 +51,23 @@ func (m *Manager) getDefaultLoadConfig() *model.ActivityDumpLoadConfig {
 	return m.activityDumpLoadConfig
 }
 
-func (m *Manager) sendLoadControllerTriggeredMetric(tags []string) error {
-	if err := m.statsdClient.Count(metrics.MetricActivityDumpLoadControllerTriggered, 1, tags, 1.0); err != nil {
-		return fmt.Errorf("couldn't send %s metric: %v", metrics.MetricActivityDumpLoadControllerTriggered, err)
-	}
-	return nil
-}
-
 func (m *Manager) nextPartialDump(prev *dump.ActivityDump) *dump.ActivityDump {
 	previousLoadConfig := prev.LoadConfig.Load()
-	timeToThreshold := time.Since(prev.Profile.Metadata.Start)
-
-	newRate := previousLoadConfig.Rate
-	if timeToThreshold < m.minDumpTimeout {
-		newRate = previousLoadConfig.Rate * 3 / 4 // reduce by 25%
-		if err := m.sendLoadControllerTriggeredMetric([]string{"reduction:rate"}); err != nil {
-			seclog.Errorf("%v", err)
-		}
-	}
-
-	newTimeout := previousLoadConfig.Timeout
-	if timeToThreshold < m.minDumpTimeout/2 && previousLoadConfig.Timeout > m.minDumpTimeout {
-		newTimeout = previousLoadConfig.Timeout * 3 / 4 // reduce by 25%
-		if newTimeout < m.minDumpTimeout {
-			newTimeout = m.minDumpTimeout
-		}
-		if err := m.sendLoadControllerTriggeredMetric([]string{"reduction:dump_timeout"}); err != nil {
-			seclog.Errorf("%v", err)
-		}
-	}
-
-	newEvents := make([]model.EventType, len(previousLoadConfig.TracedEventTypes))
-	copy(newEvents, previousLoadConfig.TracedEventTypes)
-	if timeToThreshold < m.minDumpTimeout/4 {
-		var evtToRemove model.EventType
-		newEvents = newEvents[:0]
-	reductionOrder:
-		for _, evt := range TracedEventTypesReductionOrder {
-			for _, tracedEvt := range previousLoadConfig.TracedEventTypes {
-				if evt == tracedEvt {
-					evtToRemove = evt
-					break reductionOrder
-				}
-			}
-		}
-		for _, evt := range previousLoadConfig.TracedEventTypes {
-			if evt != evtToRemove {
-				newEvents = append(newEvents, evt)
-			}
-		}
-
-		if evtToRemove != model.UnknownEventType {
-			if err := m.sendLoadControllerTriggeredMetric([]string{"reduction:traced_event_types", "event_type:" + evtToRemove.String()}); err != nil {
-				seclog.Errorf("%v", err)
-			}
-		}
-	}
 
 	now := time.Now()
-	newLoadConfig := m.newActivityDumpLoadConfig(newEvents, newTimeout, m.config.RuntimeSecurity.ActivityDumpCgroupWaitListTimeout, newRate, now)
+	newLoadConfig := m.newActivityDumpLoadConfig(
+		previousLoadConfig.TracedEventTypes,
+		previousLoadConfig.Timeout,
+		m.config.RuntimeSecurity.ActivityDumpCgroupWaitListTimeout,
+		previousLoadConfig.Rate,
+		now,
+	)
 	newDump := dump.NewActivityDump(m.pathsReducer, prev.Profile.Metadata.DifferentiateArgs, 0, m.config.RuntimeSecurity.ActivityDumpTracedEventTypes, m.updateTracedPid, newLoadConfig, func(ad *dump.ActivityDump) {
 		ad.Profile.Header = prev.Profile.Header
 		ad.Profile.Metadata = prev.Profile.Metadata
 		ad.Profile.Metadata.Name = "activity-dump-" + utils.RandString(10)
 		ad.Profile.Metadata.Start = now
-		ad.Profile.Metadata.End = now.Add(newTimeout)
+		ad.Profile.Metadata.End = now.Add(previousLoadConfig.Timeout)
 		ad.Profile.AddTags(prev.Profile.GetTags())
 	})
 
@@ -132,7 +84,7 @@ func (m *Manager) getOverweightDumps() []*dump.ActivityDump {
 		dumpSize := ad.Profile.ComputeInMemorySize()
 
 		// send dump size in memory metric
-		if err := m.statsdClient.Gauge(metrics.MetricActivityDumpActiveDumpSizeInMemory, float64(dumpSize), []string{fmt.Sprintf("dump_index:%d", i)}, 1); err != nil {
+		if err := m.statsdClient.Gauge(metrics.MetricActivityDumpActiveDumpSizeInMemory, float64(dumpSize), []string{"dump_index:" + strconv.Itoa(i)}, 1); err != nil {
 			seclog.Errorf("couldn't send %s metric: %v", metrics.MetricActivityDumpActiveDumpSizeInMemory, err)
 		}
 

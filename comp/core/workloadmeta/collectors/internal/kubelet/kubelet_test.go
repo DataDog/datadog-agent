@@ -16,11 +16,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -29,6 +34,7 @@ import (
 func TestPodParser(t *testing.T) {
 	creationTimestamp := time.Date(2025, time.January, 1, 12, 0, 0, 0, time.UTC)
 	startTime := creationTimestamp.Add(time.Minute)
+	conditionTransitionTime := creationTimestamp.Add(30 * time.Second)
 
 	referencePod := []*kubelet.Pod{
 		{
@@ -124,8 +130,9 @@ func TestPodParser(t *testing.T) {
 				Reason:    "SomeReason",
 				Conditions: []kubelet.Conditions{
 					{
-						Type:   string(corev1.PodReady),
-						Status: string(corev1.ConditionTrue),
+						Type:               string(corev1.PodReady),
+						Status:             string(corev1.ConditionTrue),
+						LastTransitionTime: conditionTransitionTime,
 					},
 				},
 				PodIP:    "127.0.0.1",
@@ -162,7 +169,12 @@ func TestPodParser(t *testing.T) {
 		},
 	}
 
-	events := util.ParseKubeletPods(referencePod, true)
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	events := util.ParseKubeletPods(referencePod, true, mockStore)
 	parsedEntities := make([]workloadmeta.Entity, 0, len(events))
 	for _, event := range events {
 		parsedEntities = append(parsedEntities, event.Entity)
@@ -378,8 +390,9 @@ func TestPodParser(t *testing.T) {
 		},
 		Conditions: []workloadmeta.KubernetesPodCondition{
 			{
-				Type:   "Ready",
-				Status: "True",
+				Type:               "Ready",
+				Status:             "True",
+				LastTransitionTime: conditionTransitionTime,
 			},
 		},
 		Volumes: []workloadmeta.KubernetesPodVolume{

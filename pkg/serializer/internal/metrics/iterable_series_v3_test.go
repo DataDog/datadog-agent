@@ -8,6 +8,7 @@
 package metrics
 
 import (
+	"fmt"
 	"slices"
 	"testing"
 
@@ -73,6 +74,12 @@ func TestPayloadsBuilderV3(t *testing.T) {
 		err := pb.writeSerie(s)
 		r.NoError(err)
 	}
+
+	r.Equal(uint64(1), pb.stats.valuesZero)
+	r.Equal(uint64(2), pb.stats.valuesSint64)
+	r.Equal(uint64(0), pb.stats.valuesFloat32)
+	r.Equal(uint64(1), pb.stats.valuesFloat64)
+
 	pb.finishPayload()
 	ps := pipelineContext.payloads
 	r.Len(ps, 1)
@@ -133,6 +140,99 @@ func TestPayloadsBuilderV3(t *testing.T) {
 		19<<3 | 2, 1, 8, 0x1f, 0x85, 0xeb, 0x51, 0xb8, 0x1e, 0x9, 0x40,
 		23<<3 | 2, 1, 4, 0, 0, 2, 0,
 		24<<3 | 2, 1, 4, 2, 0, 2, 2,
+	}, ps[0].GetContent())
+}
+
+func TestPayloadsBuilderV3_Unit(t *testing.T) {
+	r := assert.New(t)
+	const ts = 1756737057.1
+	series := metrics.Series{
+		&metrics.Serie{
+			Name:     "lat",
+			Unit:     "millisecond",
+			Points:   []metrics.Point{{Ts: ts, Value: 1}},
+			Interval: 10,
+		},
+		&metrics.Serie{
+			Name:     "count",
+			Points:   []metrics.Point{{Ts: ts, Value: 2}},
+			Interval: 10,
+		},
+		&metrics.Serie{
+			Name:     "lat2",
+			Unit:     "millisecond",
+			Points:   []metrics.Point{{Ts: ts, Value: 3}},
+			Interval: 10,
+		},
+	}
+
+	pipelineConfig := PipelineConfig{
+		Filter: AllowAllFilter{},
+		V3:     true,
+	}
+	pipelineContext := &PipelineContext{}
+
+	pb, err := newPayloadsBuilderV3(1000, 10000, 1000_0000, noopimpl.New(), pipelineConfig, pipelineContext)
+	require.NoError(t, err)
+
+	for _, s := range series {
+		r.NoError(pb.writeSerie(s))
+	}
+	r.NoError(pb.finishPayload())
+
+	ps := pipelineContext.payloads
+	r.Len(ps, 1)
+
+	r.Equal([]byte{
+		// metricData
+		3<<3 | 2, 0x66,
+
+		// dictNameStr
+		1<<3 | 2, 15,
+		/* 1 */ 3, 0x6c, 0x61, 0x74, // "lat"
+		/* 2 */ 5, 0x63, 0x6f, 0x75, 0x6e, 0x74, // "count"
+		/* 3 */ 4, 0x6c, 0x61, 0x74, 0x32, // "lat2"
+
+		// dictOrigin (single (product=10, 0, 0) interned -- product=10 is the default agent product
+		// returned by metricSourceToOriginProduct for an unset Source)
+		9<<3 | 2, 3, 10, 0, 0,
+
+		// type: gauge|sint64|flagHasUnit, gauge|sint64, gauge|sint64|flagHasUnit
+		10<<3 | 2, 5, 0x93, 0x04, 0x13, 0x93, 0x04,
+
+		// nameRef (delta-encoded sint64, sequence 1,2,3 -> deltas 1,1,1 -> zigzag 2,2,2)
+		11<<3 | 2, 3, 2, 2, 2,
+
+		// tagsRef (all zero, no tags)
+		12<<3 | 2, 3, 0, 0, 0,
+
+		// resourcesRef (all zero, no resources)
+		13<<3 | 2, 3, 0, 0, 0,
+
+		// interval (int64 varint, all 10)
+		14<<3 | 2, 3, 10, 10, 10,
+
+		// numPoints (int64 varint, all 1)
+		15<<3 | 2, 3, 1, 1, 1,
+
+		// timestamp (delta-encoded sint64; first ts = 1756737057, then deltas of 0)
+		16<<3 | 2, 1, 7, 0xc2, 0xb8, 0xad, 0x8b, 0xd, 0, 0,
+
+		// valueSint64 (1,2,3 -> zigzag 2,4,6)
+		17<<3 | 2, 1, 3, 2, 4, 6,
+
+		// sourceTypeNameRef (all 0)
+		23<<3 | 2, 1, 3, 0, 0, 0,
+
+		// originRef (interned id 1 for all, deltas 1,0,0 -> zigzag 2,0,0)
+		24<<3 | 2, 1, 3, 2, 0, 0,
+
+		// dictUnitStr (single entry "millisecond" interned)
+		25<<3 | 2, 1, 12, 11,
+		0x6d, 0x69, 0x6c, 0x6c, 0x69, 0x73, 0x65, 0x63, 0x6f, 0x6e, 0x64,
+
+		// unitRef (sparse: entries for series 1 and 3 only; both unit id 1, deltas 1,0 -> zigzag 2,0)
+		26<<3 | 2, 1, 2, 2, 0,
 	}, ps[0].GetContent())
 }
 
@@ -205,7 +305,7 @@ func TestPayloadBuildersV3_Split(t *testing.T) {
 		V3:     true,
 	}
 	pipelineContext := &PipelineContext{}
-	pb, err := newPayloadsBuilderV3(180, 10000, 1000_0000, noopimpl.New(), pipelineConfig, pipelineContext)
+	pb, err := newPayloadsBuilderV3(188, 10000, 1000_0000, noopimpl.New(), pipelineConfig, pipelineContext)
 	require.NoError(t, err)
 
 	r.NoError(pb.writeSerie(series[0]))
@@ -217,7 +317,7 @@ func TestPayloadBuildersV3_Split(t *testing.T) {
 	r.Len(payloads, 3)
 
 	r.Equal(2, payloads[0].GetPointCount())
-	r.Less(len(payloads[1].GetContent()), 180)
+	r.Less(len(payloads[1].GetContent()), 188)
 	r.Equal(1, payloads[1].GetPointCount())
 	r.Equal(1, payloads[2].GetPointCount())
 	r.NotContains("foo", payloads[1].GetContent())
@@ -399,6 +499,11 @@ func TestPayloadsBuilderV3_Sketch(t *testing.T) {
 	for _, sk := range sketches {
 		r.NoError(pb.writeSketch(sk))
 	}
+	r.Equal(uint64(3), pb.stats.valuesZero)
+	r.Equal(uint64(7), pb.stats.valuesSint64)
+	r.Equal(uint64(3), pb.stats.valuesFloat32)
+	r.Equal(uint64(3), pb.stats.valuesFloat64)
+
 	r.NoError(pb.finishPayload())
 	r.NotEmpty(pipelineContext.payloads)
 
@@ -493,4 +598,50 @@ func pointsOf(ts int64, v ...float64) []metrics.SketchPoint {
 	s := &quantile.Sketch{}
 	s.InsertMany(quantile.Default(), v)
 	return []metrics.SketchPoint{{Ts: ts, Sketch: s}}
+}
+
+func TestValueEncoding(t *testing.T) {
+	values := []float64{
+		// cases for zero
+		0,
+		-0,
+		// cases for int24
+		-1,
+		1,
+		float64(-1 << 24),
+		float64(1 << 24),
+		// cases for int48
+		float64(-1<<24 - 1),
+		float64(1<<24 + 1),
+		float64(-1 << 48),
+		float64(1<<48 - 1),
+		// cases for float32
+		-0.5,
+		0.5,
+		// cases for float64
+		float64(-1<<48 - 1),
+		float64(1 << 48),
+		-3.14,
+		3.14,
+	}
+
+	for _, value1 := range values {
+		for _, value2 := range values {
+			ty := pointKindZero.unionOf(value1).unionOf(value2).toValueType()
+			fmt.Printf("v1=%v, v2=%v, type=%x\n", value1, value2, ty)
+			switch ty {
+			case valueZero:
+				require.Equal(t, value1, 0.0)
+				require.Equal(t, value2, 0.0)
+			case valueSint64:
+				require.Equal(t, value1, float64(int64(value1)))
+				require.Equal(t, value2, float64(int64(value2)))
+			case valueFloat32:
+				require.Equal(t, value1, float64(float32(value1)))
+				require.Equal(t, value2, float64(float32(value2)))
+			case valueFloat64:
+				// no conversion
+			}
+		}
+	}
 }

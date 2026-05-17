@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"runtime"
@@ -124,7 +125,7 @@ func NewK8sSecretsBackend(bc map[string]interface{}) (*SecretsBackend, error) {
 		if host == "" || port == "" {
 			return nil, errors.New("K8s port and/or host configuration missing")
 		}
-		apiServer = fmt.Sprintf("https://%s:%s", host, port)
+		apiServer = "https://" + net.JoinHostPort(host, port)
 	}
 
 	k8sConfig := &k8sConfig{

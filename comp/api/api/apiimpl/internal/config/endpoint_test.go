@@ -100,8 +100,8 @@ func TestConfigEndpoint(t *testing.T) {
 			}
 			cfg, server, configEndpoint := getConfigServer(t, authorizedConfigPaths)
 			if testCase.existing {
+				cfg.SetDefault(configName, "")
 				cfg.SetWithoutSource(configName, "some_value")
-				cfg.SetKnown(configName) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 			}
 			testConfigValue(t, configEndpoint, server, configName, testCase.expectedStatus)
 		})
@@ -109,10 +109,9 @@ func TestConfigEndpoint(t *testing.T) {
 
 	t.Run("authorized_not_marshallable", func(t *testing.T) {
 		configName := "my.config.value"
-		cfg, server, configEndpoint := getConfigServer(t, api.AuthorizedSet{configName: {}})
-		cfg.SetWithoutSource(configName, make(chan int))
-		cfg.SetKnown(configName) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
-		testConfigValue(t, configEndpoint, server, configName, http.StatusInternalServerError)
+		cfg, _, _ := getConfigServer(t, api.AuthorizedSet{configName: {}})
+		// calling SetWithoutSource with an invalid type of data will panic
+		assert.Panics(t, func() { cfg.SetWithoutSource(configName, make(chan int)) })
 	})
 
 	parentConfigName := "root.parent"
@@ -126,10 +125,10 @@ func TestConfigEndpoint(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			cfg, server, configEndpoint := getConfigServer(t, api.AuthorizedSet{parentConfigName: struct{}{}})
 
+			cfg.SetDefault(childConfigNameOne, "")
 			cfg.SetWithoutSource(childConfigNameOne, "child1_value")
-			cfg.SetKnown(childConfigNameOne) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+			cfg.SetDefault(childConfigNameTwo, "")
 			cfg.SetWithoutSource(childConfigNameTwo, "child2_value")
-			cfg.SetKnown(childConfigNameTwo) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 			testConfigValue(t, configEndpoint, server, testCase.configName, testCase.expectedStatus)
 		})
@@ -141,8 +140,8 @@ func TestConfigEndpoint(t *testing.T) {
 
 		cfg, server, configEndpoint := getConfigServer(t, api.AuthorizedSet{childConfigName: struct{}{}})
 
+		cfg.SetDefault(childConfigName, "")
 		cfg.SetWithoutSource(childConfigName, "child_value")
-		cfg.SetKnown(childConfigName) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 		testConfigValue(t, configEndpoint, server, childConfigName, http.StatusOK)
 		testConfigValue(t, configEndpoint, server, parentConfigName, http.StatusForbidden)
@@ -182,12 +181,31 @@ func TestConfigListEndpoint(t *testing.T) {
 		},
 	}
 
+	// a key with only a default value must be excluded from the response so that IsConfigured() remains false on the receiving sub agent
+	t.Run("defaults_not_sent", func(t *testing.T) {
+		cfg, server, _ := getConfigServer(t, api.AuthorizedSet{"my.config.value": {}})
+
+		cfg.SetDefault("my.config.value", "default_value")
+
+		resp, err := server.Client().Get(server.URL + "/")
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		data, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+
+		var configValues map[string]interface{}
+		require.NoError(t, json.Unmarshal(data, &configValues))
+		assert.NotContains(t, configValues, "my.config.value", "default-only values must not be sent via config sync")
+	})
+
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
 			cfg, server, _ := getConfigServer(t, test.authorizedConfigs)
 			for key, value := range test.configValues {
+				cfg.SetDefault(key, "")
 				cfg.SetWithoutSource(key, value)
-				cfg.SetKnown(key) //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 			}
 
 			// test with and without trailing slash
@@ -206,7 +224,10 @@ func TestConfigListEndpoint(t *testing.T) {
 
 				expectedValues := make(map[string]interface{})
 				for key := range test.authorizedConfigs {
-					expectedValues[key] = cfg.Get(key)
+					// Only configured (non-default) values are included in the response
+					if cfg.IsConfigured(key) {
+						expectedValues[key] = cfg.Get(key)
+					}
 				}
 
 				assert.Equal(t, expectedValues, configValues)
@@ -220,10 +241,10 @@ func TestConfigEndpointJSONError(t *testing.T) {
 	// using github.com/json-iterator/go rather than encoding/json
 
 	cfg, server, _ := getConfigServer(t, api.AuthorizedSet{"my.config": {}})
+	cfg.SetDefault("my.config.value", []string{})
 	cfg.SetWithoutSource("my.config.value", []interface{}{
 		map[interface{}]interface{}{"a": "b", "c": "d"},
 	})
-	cfg.SetKnown("my.config.value") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
 
 	for _, endpoint := range []string{"/", "/my.config"} {
 		resp, err := server.Client().Get(server.URL + endpoint)
@@ -258,7 +279,7 @@ func checkExpvars(t *testing.T, beforeVars, afterVars expvals, configName string
 	require.EqualValues(t, beforeVars, afterVars)
 }
 
-func getConfigServer(t *testing.T, authorizedConfigPaths map[string]struct{}) (model.Config, *httptest.Server, *configEndpoint) {
+func getConfigServer(t *testing.T, authorizedConfigPaths map[string]struct{}) (model.BuildableConfig, *httptest.Server, *configEndpoint) {
 	t.Helper()
 
 	cfg := configmock.New(t)

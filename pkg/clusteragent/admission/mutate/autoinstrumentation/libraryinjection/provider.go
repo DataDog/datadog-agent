@@ -13,6 +13,7 @@ package libraryinjection
 import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/version"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
@@ -90,6 +91,10 @@ type LibraryInjectionConfig struct {
 	// Used to resolve security context based on namespace labels.
 	Wmeta workloadmeta.Component
 
+	// KubeServerVersion is the Kubernetes API server version.
+	// Used for gating features that depend on cluster version support (e.g. image volumes).
+	KubeServerVersion *version.Info
+
 	// Debug enables debug mode for the APM libraries.
 	// When true, additional debug environment variables are injected.
 	Debug bool
@@ -105,6 +110,11 @@ type LibraryInjectionConfig struct {
 
 	// InjectionType identifies the type of injection, e.g. "single step" or "lib injection" (for metrics).
 	InjectionType string
+
+	// RegistryAllowList is an optional list of allowed container registries for library injection.
+	// When non-empty, only libraries from these registries will be injected.
+	// An empty list allows all registries (default).
+	RegistryAllowList []string
 }
 
 // LibraryInjectionProvider defines the strategy for injecting APM libraries into pods.

@@ -82,6 +82,15 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			shouldShutdown: true,
 		},
 		{
+			name: "private-action-runner",
+			configKeys: map[string]model.Reader{
+				"private_action_runner.enabled": coreConf,
+			},
+			serviceName:    "datadog-agent-action",
+			serviceInit:    parInit,
+			shouldShutdown: true,
+		},
+		{
 			name: "otel",
 			configKeys: map[string]model.Reader{
 				"otelcollector.enabled": coreConf,
@@ -89,6 +98,15 @@ func subservices(coreConf model.Reader, sysprobeConf model.Reader) []Servicedef 
 			serviceName:    "datadog-otel-agent",
 			serviceInit:    otelInit,
 			shouldShutdown: true, // NOTE: not really ncessary with SCM dependency in place
+		},
+		{
+			name: "procmgr",
+			configKeys: map[string]model.Reader{
+				"process_manager.enabled": coreConf,
+			},
+			serviceName:    "dd-procmgr-service",
+			serviceInit:    procmgrInit,
+			shouldShutdown: true,
 		},
 	}
 }
@@ -114,6 +132,14 @@ func installerInit() error {
 }
 
 func otelInit() error {
+	return nil
+}
+
+func parInit() error {
+	return nil
+}
+
+func procmgrInit() error {
 	return nil
 }
 

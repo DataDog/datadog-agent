@@ -26,9 +26,14 @@
             "lineNumber": 88
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 82
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -63,18 +68,20 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "string",
                 "value": "{foo}"
               }
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "{interface: unknown type main.otherFirstBehavior}"
+    "message": "{interface: unknown type main.otherFirstBehavior}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -103,9 +110,14 @@
             "lineNumber": 89
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 82
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -140,18 +152,20 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "string",
                 "value": "&{foo}"
               }
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "{interface: unknown type *main.otherFirstBehavior}"
+    "message": "{interface: unknown type *main.otherFirstBehavior}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -180,9 +194,14 @@
             "lineNumber": 90
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 82
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -217,18 +236,20 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "string",
                 "value": "{42}"
               }
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "{interface: unknown type main.otherSecondBehavior}"
+    "message": "{interface: unknown type main.otherSecondBehavior}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -257,9 +278,14 @@
             "lineNumber": 91
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 82
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -294,18 +320,20 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "string",
                 "value": "&{42}"
               }
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "{interface: unknown type *main.otherSecondBehavior}"
+    "message": "{interface: unknown type *main.otherSecondBehavior}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -334,9 +362,14 @@
             "lineNumber": 92
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 82
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -371,18 +404,20 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "string",
                 "value": "{}"
               }
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "{interface: unknown type lib_v2.V2Type}"
+    "message": "{interface: unknown type lib_v2.V2Type}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -411,9 +446,14 @@
             "lineNumber": 93
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 82
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -448,18 +488,20 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "string",
                 "value": "&{}"
               }
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "{interface: unknown type *lib_v2.V2Type}"
+    "message": "{interface: unknown type *lib_v2.V2Type}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -488,9 +530,14 @@
             "lineNumber": 94
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 82
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -520,18 +567,20 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "string",
                 "value": "<nil>"
               }
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "nil"
+    "message": "nil",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -560,9 +609,14 @@
             "lineNumber": 96
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 82
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -597,18 +651,20 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "string",
                 "value": "1"
               }
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "1"
+    "message": "1",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -637,9 +693,14 @@
             "lineNumber": 97
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 82
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -675,18 +736,20 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "string",
                 "value": "0x[addr]"
               }
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "1"
+    "message": "1",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   },
   {
     "service": "sample",
@@ -715,9 +778,14 @@
             "lineNumber": 99
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 82
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 49
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -752,17 +820,19 @@
           },
           "return": {
             "locals": {
-              "~r0": {
+              "@return": {
                 "type": "string",
                 "value": "foo"
               }
             }
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "foo"
+    "message": "foo",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

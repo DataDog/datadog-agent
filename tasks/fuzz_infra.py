@@ -155,6 +155,10 @@ def search_fuzz_tests(directory):
     for file in os.listdir(directory):
         path = os.path.join(directory, file)
         if os.path.isdir(path):
+            # Skip hidden directories (.cache, .git, etc.) to avoid picking up
+            # files from the bazel cache or other non-source directories.
+            if file.startswith('.'):
+                continue
             yield from search_fuzz_tests(path)
         else:
             if not file.endswith('_test.go'):

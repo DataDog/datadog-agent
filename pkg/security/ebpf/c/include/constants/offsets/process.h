@@ -21,6 +21,18 @@ u64 __attribute__((always_inline)) get_sizeof_upid() {
     return sizeof_upid;
 }
 
+u64 __attribute__((always_inline)) get_task_struct_real_parent_offset() {
+    u64 offset;
+    LOAD_CONSTANT("task_struct_real_parent_offset", offset);
+    return offset;
+}
+
+u64 __attribute__((always_inline)) get_task_struct_tgid_offset() {
+    u64 offset;
+    LOAD_CONSTANT("task_struct_tgid_offset", offset);
+    return offset;
+}
+
 u64 __attribute__((always_inline)) get_task_struct_pid_offset() {
     u64 kernel_has_pid_link_struct;
     LOAD_CONSTANT("kernel_has_pid_link_struct", kernel_has_pid_link_struct);

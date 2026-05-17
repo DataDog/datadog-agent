@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Datadog.CustomActions.Interfaces;
-using Microsoft.Deployment.WindowsInstaller;
+using WixToolset.Dtf.WindowsInstaller;
 
 namespace Datadog.CustomActions.Extensions
 {
@@ -73,8 +73,10 @@ namespace Datadog.CustomActions.Extensions
             return new List<string>
             {
                 Path.Combine(configRoot, "auth_token"),
+                Path.Combine(configRoot, "auth_token.lock"),
                 Path.Combine(configRoot, "python-cache"),
                 Path.Combine(configRoot, "ipc_cert.pem"),
+                Path.Combine(configRoot, "ipc_cert.pem.lock"),
             };
         }
 
@@ -96,6 +98,7 @@ namespace Datadog.CustomActions.Extensions
                 Path.Combine(configRoot, "checks.d"),
                 Path.Combine(configRoot, "run"),
                 Path.Combine(configRoot, "logs"),
+                Path.Combine(configRoot, "logonduration"),
                 Path.Combine(configRoot, "datadog.yaml"),
                 Path.Combine(configRoot, "system-probe.yaml"),
                 Path.Combine(configRoot, "install_info"),

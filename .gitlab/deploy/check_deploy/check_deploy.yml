@@ -6,7 +6,7 @@
 
 # Check that the current version hasn't already been deployed (we don't want to
 # overwrite a public package). To update an erroneous package, first remove it
-# from our S3 bucket.
+# from our S3 bucket. See https://datadoghq.atlassian.net/wiki/spaces/BARX/pages/6144000357/Rollback+a+final+build+pipeline
 check_already_deployed_version_7:
   rules: !reference [.on_deploy]
   stage: check_deploy

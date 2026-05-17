@@ -31,11 +31,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	secretfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualTaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-dual"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
@@ -45,6 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
@@ -117,16 +117,17 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		return fxutil.OneShot(callback,
 			fx.Supply(cliParams),
 			fx.Supply(params),
-			core.Bundle(),
-			secretfx.Module(),
+			core.Bundle(core.WithSecrets()),
 			// workloadmeta setup
 			wmcatalog.GetCatalog(),
 			workloadmetafx.Module(defaults.DefaultParams()),
 			apiimpl.Module(),
 			grpcNonefx.Module(),
 			workloadfilterfx.Module(),
+			hostnameimpl.Module(),
 			dualTaggerfx.Module(common.DualTaggerParams()),
 			autodiscoveryimpl.Module(),
+			healthplatform.Bundle(),
 			agent.Bundle(jmxloggerimpl.NewCliParams(cliParams.logFile)),
 			// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 			// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
@@ -270,13 +271,9 @@ func disableCmdPort() {
 // with the Console reporter
 func runJmxCommandConsole(config config.Component,
 	cliParams *cliParams,
-	wmeta workloadmeta.Component,
 	ac autodiscovery.Component,
-	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
 	jmxLogger jmxlogger.Component,
-	tagger tagger.Component,
-	filterStore workloadfilter.Component,
 	ipc ipc.Component) (err error) {
 	// This prevents log-spam from "comp/core/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.
@@ -285,7 +282,7 @@ func runJmxCommandConsole(config config.Component,
 
 	// The Autoconfig instance setup happens in the workloadmeta start hook
 	// create and setup the Collector and others.
-	common.LoadComponents(secretResolver, wmeta, tagger, filterStore, ac, config.GetString("confd_path"))
+	common.LoadComponents(ac, config.GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// if cliSelectedChecks is empty, then we want to fetch all check configs;

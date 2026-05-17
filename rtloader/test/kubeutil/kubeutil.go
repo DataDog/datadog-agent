@@ -6,13 +6,13 @@
 package testkubeutil
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"runtime"
 
 	common "github.com/DataDog/datadog-agent/rtloader/test/common"
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
-	yaml "gopkg.in/yaml.v2"
 )
 
 /*
@@ -52,9 +52,6 @@ func setUp() error {
 	if err != nil {
 		return err
 	}
-
-	// Updates sys.path so testing Check can be found
-	C.add_python_path(rtloader, C.CString("../python"))
 
 	if ok := C.init(rtloader); ok != 1 {
 		return fmt.Errorf("`init` failed: %s", C.GoString(C.get_error(rtloader)))
@@ -108,7 +105,7 @@ func getConnectionInfo(in **C.char) {
 		"FooKey": "FooValue",
 		"BarKey": "BarValue",
 	}
-	retval, _ := yaml.Marshal(h)
+	retval, _ := json.Marshal(h)
 
 	*in = (*C.char)(helpers.TrackedCString(string(retval)))
 }

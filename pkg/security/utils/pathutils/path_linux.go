@@ -257,7 +257,7 @@ func replacePatterns(paths []string) []string {
 	var result []string
 	for _, pattern := range paths {
 		strippedPattern := strings.Trim(pattern, `~" `)
-		initalLength := len(result)
+		initialLength := len(result)
 
 		for _, path := range paths {
 			strippedPath := strings.Trim(path, `~" `)
@@ -273,7 +273,7 @@ func replacePatterns(paths []string) []string {
 				result = append(result, finalPath)
 			}
 		}
-		if len(result) == initalLength {
+		if len(result) == initialLength {
 			result = append(result, strings.Trim(pattern, ` `))
 		}
 	}

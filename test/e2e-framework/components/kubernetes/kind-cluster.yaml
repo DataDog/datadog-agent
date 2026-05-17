@@ -5,10 +5,51 @@ nodes:
   extraMounts:
   - hostPath: /proc
     containerPath: /host/proc
+{{- if .NewContainerdRegistryConfig }}
+  - hostPath: ./certs.d
+    containerPath: /etc/containerd/certs.d
+{{- end }}
+{{- range .WorkerNodes }}
+- role: worker
+  extraMounts:
+  - hostPath: /proc
+    containerPath: /host/proc
+{{- if $.NewContainerdRegistryConfig }}
+  - hostPath: ./certs.d
+    containerPath: /etc/containerd/certs.d
+{{- end }}
+{{- if or .Labels .Taints }}
+  kubeadmConfigPatches:
+    - |
+      kind: JoinConfiguration
+      nodeRegistration:
+{{- if .Labels }}
+        kubeletExtraArgs:
+          node-labels: "{{range $i, $l := .Labels}}{{if $i}},{{end}}{{$l.Key}}={{$l.Value}}{{end}}"
+{{- end }}
+{{- if .Taints }}
+        taints:
+{{- range .Taints }}
+          - key: "{{.Key}}"
+            value: "{{.Value}}"
+            effect: "{{.Effect}}"
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }} {{- /* end of range .WorkerNodes */}}
 containerdConfigPatches:
   - |-
+{{- if .NewContainerdRegistryConfig }}
+    [plugins."io.containerd.grpc.v1.cri".registry]
+      config_path = "/etc/containerd/certs.d"
+{{- else }}
     [plugins."io.containerd.grpc.v1.cri".registry.mirrors."docker.io"]
       endpoint = ["https://mirror.gcr.io", "https://registry-1.docker.io"]
+{{- end }}
 networking:
   apiServerAddress: "0.0.0.0"
   apiServerPort: 8443
+{{- if .KubeProxyReplacement }}
+  disableDefaultCNI: true
+  kubeProxyMode: "none"
+{{- end }}

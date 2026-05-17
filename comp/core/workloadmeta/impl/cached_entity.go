@@ -8,6 +8,7 @@ package workloadmetaimpl
 import (
 	"maps"
 	"reflect"
+	"slices"
 	"sort"
 
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -102,11 +103,17 @@ func (e *cachedEntity) computeCache() {
 func (e *cachedEntity) copy() *cachedEntity {
 	newEntity := newCachedEntity()
 
-	newEntity.cached = e.cached.DeepCopy()
+	if e.cached != nil {
+		newEntity.cached = e.cached.DeepCopy()
+	}
 
-	copy(newEntity.sortedSources, e.sortedSources)
+	newEntity.sortedSources = append(newEntity.sortedSources, e.sortedSources...)
 
 	maps.Copy(newEntity.sources, e.sources)
 
 	return newEntity
+}
+
+func (e *cachedEntity) reportedSources() []wmdef.Source {
+	return slices.Collect(maps.Keys(e.sources))
 }

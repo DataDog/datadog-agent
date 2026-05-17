@@ -20,11 +20,11 @@ import (
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
+	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
+	logstcp "github.com/DataDog/datadog-agent/comp/logs-library/client/tcp"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
-	logstcp "github.com/DataDog/datadog-agent/pkg/logs/client/tcp"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -35,29 +35,20 @@ func getLogsEndpoints(useTCP bool) (*logsConfig.Endpoints, error) {
 	datadogConfig := pkgconfigsetup.Datadog()
 	logsConfigKey := logsConfig.NewLogsConfigKeys("logs_config.", datadogConfig)
 
-	var endpoints *logsConfig.Endpoints
-	var err error
-
+	protocol := logsConfig.DiagnosticHTTP
 	if useTCP {
-		endpoints, err = logsConfig.BuildEndpointsWithConfig(
-			datadogConfig,
-			logsConfigKey,
-			"agent-http-intake.logs.",
-			false,
-			"logs",
-			logsConfig.AgentJSONIntakeProtocol,
-			logsConfig.DefaultIntakeOrigin)
-	} else {
-		endpoints, err = logsConfig.BuildHTTPEndpointsWithConfig(
-			datadogConfig,
-			logsConfigKey,
-			"agent-http-intake.logs.",
-			"logs",
-			logsConfig.AgentJSONIntakeProtocol,
-			logsConfig.DefaultIntakeOrigin)
+		protocol = logsConfig.DiagnosticTCP
 	}
 
-	return endpoints, err
+	return logsConfig.BuildEndpointsForDiagnostic(
+		datadogConfig,
+		logsConfigKey,
+		logsConfig.DefaultDiagnosticPrefix,
+		protocol,
+		"logs",
+		logsConfig.AgentJSONIntakeProtocol,
+		logsConfig.DefaultIntakeOrigin,
+	)
 }
 
 // getLogsUseTCP returns true if the agent should use TCP to transport logs

@@ -85,6 +85,26 @@ func (s *MockSession) GetVersion() gosnmp.SnmpVersion {
 	return s.Version
 }
 
+// IsUnconnectedUDP returns whether the session uses unconnected UDP socket mode
+func (s *MockSession) IsUnconnectedUDP() bool {
+	// If no mock expectation is set, return false by default
+	defer func() {
+		// Swallow panics from unexpected calls
+		_ = recover()
+	}()
+
+	// Check if there's an expectation set
+	for _, call := range s.ExpectedCalls {
+		if call.Method == "IsUnconnectedUDP" {
+			args := s.Mock.Called()
+			return args.Bool(0)
+		}
+	}
+
+	// No expectation set, return false by default
+	return false
+}
+
 // CreateMockSession creates a mock session
 func CreateMockSession() *MockSession {
 	session := &MockSession{

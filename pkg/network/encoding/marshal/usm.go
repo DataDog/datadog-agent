@@ -24,8 +24,6 @@ type USMEncoder interface {
 	Close()
 	// EncodeConnection encodes USM data for a given connection into the given builder. Returns static tags and dynamic tags.
 	EncodeConnection(network.ConnectionStats, *model.ConnectionBuilder) (uint64, map[string]struct{})
-	// EncodeConnectionDirect encodes USM data for a given connection directly onto the model.Connection object. Returns static tags and dynamic tags.
-	EncodeConnectionDirect(network.ConnectionStats, *model.Connection) (uint64, map[string]struct{})
 }
 
 // USMConnectionIndex provides a generic container for USM data pre-aggregated by connection
@@ -89,7 +87,7 @@ func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGe
 		connectionData, ok := byConnection.data[connectionKey]
 		if !ok {
 			connectionData = new(USMConnectionData[K, V])
-			connectionData.Data = make([]USMKeyValue[K, V], 0, entriesSizeMap[keyGen(key)])
+			connectionData.Data = make([]USMKeyValue[K, V], 0, entriesSizeMap[connectionKey])
 			byConnection.data[connectionKey] = connectionData
 		}
 

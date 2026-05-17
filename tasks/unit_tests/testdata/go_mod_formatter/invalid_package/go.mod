@@ -8,7 +8,6 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../aggregator/ckey/
 	github.com/DataDog/datadog-agent/pkg/config/model => ../config/model/
 	github.com/DataDog/datadog-agent/pkg/tagset => ../tagset/
-	github.com/DataDog/datadog-agent/pkg/telemetry => ../telemetry/
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../util/buf/
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../util/fxutil/
 	github.com/DataDog/datadog-agent/pkg/util/log => ../util/log/
@@ -19,7 +18,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/config/model v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/tagset v0.51.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.51.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/log v0.51.0-rc.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.29.0
@@ -73,6 +71,6 @@ require (
 	golang.org/x/sys v0.14.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
+	go.yaml.in/yaml/v2 v2.4.3
+	go.yaml.in/yaml/v3 v3.0.4
 )

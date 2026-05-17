@@ -28,3 +28,11 @@ var WindowsDescriptorsDefault = map[Flavor]Descriptor{
 	WindowsServer: WindowsServerDefault,
 	WindowsClient: WindowsClientDefault,
 }
+
+// WindowsServerVersionsForE2E is the set of Windows Server versions used for e2e random selection (CI coverage across 2016–2025).
+var WindowsServerVersionsForE2E = []Descriptor{
+	WindowsServer2016,
+	WindowsServer2019,
+	WindowsServer2022,
+	WindowsServer2025,
+}

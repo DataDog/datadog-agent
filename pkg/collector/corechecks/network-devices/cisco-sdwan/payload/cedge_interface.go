@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client"
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
@@ -35,6 +36,14 @@ var cEdgeAdminStatusMap = map[string]devicemetadata.IfAdminStatus{
 	"if-state-up":      devicemetadata.AdminStatusUp,
 	"if-state-down":    devicemetadata.AdminStatusDown,
 	"if-state-test":    devicemetadata.AdminStatusTesting,
+}
+
+// https://github.com/YangModels/yang/blob/9442dda17a9a5f1f0db548512446e3d9ca37a955/vendor/cisco/xe/17131/Cisco-IOS-XE-interfaces-oper.yang#L339
+var cEdgeInterfaceTypeMap = map[string]int32{
+	"iana-iftype-other":           1,
+	"iana-iftype-ethernet-csmacd": 6,
+	"iana-iftype-sw-loopback":     24,
+	"iana-iftype-tunnel":          131,
 }
 
 // CEdgeInterface is an implementation of CiscoInterface for cEdge devices
@@ -92,6 +101,8 @@ func (itf *CEdgeInterface) Metadata(namespace string) (devicemetadata.InterfaceM
 		MacAddress:  itf.Hwaddr,
 		OperStatus:  convertOperStatus(cEdgeOperStatusMap, itf.IfOperStatus),
 		AdminStatus: convertAdminStatus(cEdgeAdminStatusMap, itf.IfAdminStatus),
+		Type:        convertInterfaceType(itf.InterfaceType),
+		IsPhysical:  isPhysicalCEdgeInterface(itf.InterfaceType),
 	}, nil
 }
 
@@ -150,6 +161,16 @@ func isEmptyCEdgeIP(ip string) bool {
 }
 
 func parseCEdgeIP(ip string) (string, error) {
+	// Some vManage API versions return the IP as "address:interfaceName"
+	// (e.g. "23.18.2.1:GigabitEthernet0/1/7"). Strip the suffix for IPv4:
+	// the candidate before the first ":" is safe to try because valid IPv4
+	// addresses contain no colons. For IPv6, the candidate won't parse as a
+	// valid IP so we fall through to the original string unchanged.
+	if i := strings.Index(ip, ":"); i != -1 {
+		if candidate := ip[:i]; net.ParseIP(candidate) != nil {
+			ip = candidate
+		}
+	}
 	ipAddr := net.ParseIP(ip)
 	if ipAddr == nil || ipAddr.IsUnspecified() {
 		return "", errors.New("invalid ip address")
@@ -165,4 +186,13 @@ func parseMask(mask string) (int32, error) {
 	parsedMask := net.IPMask(ipMask.To4())
 	prefixLen, _ := parsedMask.Size()
 	return int32(prefixLen), nil
+}
+
+func convertInterfaceType(ifType string) int32 {
+	return cEdgeInterfaceTypeMap[ifType]
+}
+
+func isPhysicalCEdgeInterface(ifType string) *bool {
+	isPhysical := ifType == "iana-iftype-ethernet-csmacd"
+	return &isPhysical
 }

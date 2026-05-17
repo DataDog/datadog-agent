@@ -9,6 +9,8 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
+	"strconv"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -19,7 +21,6 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -55,7 +56,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(showRuntimeConfiguration,
 				fx.Supply(globalParams, command.GetCoreBundleParamsForOneShot(globalParams)),
 				core.Bundle(),
-				secretsnoopfx.Module(),
 				process.Bundle(),
 				fx.Supply(params),
 				ipcfx.ModuleReadOnly(),
@@ -73,7 +73,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return fxutil.OneShot(listRuntimeConfigurableValue,
 					fx.Supply(globalParams, command.GetCoreBundleParamsForOneShot(globalParams)),
 					core.Bundle(),
-					secretsnoopfx.Module(),
 					process.Bundle(),
 					ipcfx.ModuleReadOnly(),
 				)
@@ -90,7 +89,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return fxutil.OneShot(setConfigValue,
 					fx.Supply(globalParams, args, command.GetCoreBundleParamsForOneShot(globalParams)),
 					core.Bundle(),
-					secretsnoopfx.Module(),
 					process.Bundle(),
 					ipcfx.ModuleReadOnly(),
 				)
@@ -106,7 +104,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				return fxutil.OneShot(getConfigValue,
 					fx.Supply(globalParams, args, command.GetCoreBundleParamsForOneShot(globalParams)),
 					core.Bundle(),
-					secretsnoopfx.Module(),
 					process.Bundle(),
 					ipcfx.ModuleReadOnly(),
 				)
@@ -200,7 +197,7 @@ func getClient(deps dependencies) (settings.Client, error) {
 		return nil, fmt.Errorf("invalid process_config.cmd_port -- %d", port)
 	}
 
-	ipcAddressWithPort := fmt.Sprintf("https://%s:%d/config", ipcAddress, port)
+	ipcAddressWithPort := fmt.Sprintf("https://%s/config", net.JoinHostPort(ipcAddress, strconv.Itoa(port)))
 	if err != nil {
 		return nil, err
 	}

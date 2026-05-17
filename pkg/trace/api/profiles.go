@@ -20,6 +20,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/api/apiutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -138,7 +139,7 @@ func isRetryableBodyReadError(err error) bool {
 // The tags will be added as a header to all proxied requests.
 // For more details please see multiTransport.
 func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string, tags string, statsd statsd.ClientInterface) *httputil.ReverseProxy {
-	cidProvider := NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo)
+	cidProvider := NewContainerIDProviderFromConfig(conf)
 	director := func(req *http.Request) {
 		req.Header.Set("Via", "trace-agent "+conf.AgentVersion)
 		if _, ok := req.Header["User-Agent"]; !ok {
@@ -171,7 +172,7 @@ func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string
 	return &httputil.ReverseProxy{
 		Director:     director,
 		ErrorLog:     stdlog.New(logger, "profiling.Proxy: ", 0),
-		Transport:    &multiTransport{ptransport, targets, keys},
+		Transport:    &multiTransport{rt: ptransport, targets: targets, keys: keys, maxRequestBytes: conf.ProfilingProxy.MaxRequestBytes},
 		ErrorHandler: handleProxyError,
 	}
 }
@@ -240,9 +241,10 @@ func handleProxyError(w http.ResponseWriter, r *http.Request, err error) {
 // response is discarded. There is no de-duplication done between endpoint
 // hosts or api keys.
 type multiTransport struct {
-	rt      http.RoundTripper
-	targets []*url.URL
-	keys    []string
+	rt              http.RoundTripper
+	targets         []*url.URL
+	keys            []string
+	maxRequestBytes int64
 }
 
 func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
@@ -270,6 +272,7 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 		}
 		return rresp, rerr
 	}
+	req.Body = apiutil.NewLimitedReader(req.Body, m.maxRequestBytes)
 	slurp, err := io.ReadAll(req.Body)
 	if err != nil {
 		return nil, err

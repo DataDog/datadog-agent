@@ -19,7 +19,6 @@ import (
 	"github.com/go-json-experiment/json"
 	"github.com/go-json-experiment/json/jsontext"
 	"github.com/google/uuid"
-	pkgerrors "github.com/pkg/errors"
 	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
@@ -34,14 +33,23 @@ import (
 var symbolicateErrorLogLimiter = rate.NewLimiter(rate.Every(1*time.Minute), 10)
 
 type probeEvent struct {
-	event *ir.Event
-	probe *ir.Probe
+	event    *ir.Event
+	probe    *ir.Probe
+	instance *ir.ProbeInstance
 }
 
 // TypeNameResolver resolves type names from type IDs as communicated by the
 // probe regarding types in interfaces.
 type TypeNameResolver interface {
 	ResolveTypeName(typeID gotype.TypeID) (string, error)
+}
+
+// MissingTypeCollector receives notifications about types that were
+// encountered at runtime in interfaces but were not included in the IR
+// program's type registry. Implementations must be safe for use from a
+// single goroutine (the decoder is not thread-safe).
+type MissingTypeCollector interface {
+	RecordMissingType(typeName string)
 }
 
 // GoTypeNameResolver is a TypeNameResolver that uses a gotype.Table to resolve
@@ -66,6 +74,12 @@ func (r *GoTypeNameResolver) ResolveTypeName(typeID gotype.TypeID) (string, erro
 	return t.Name().Name(), nil
 }
 
+// noopMissingTypeCollector is a no-op implementation of MissingTypeCollector
+// used when no collector is provided.
+type noopMissingTypeCollector struct{}
+
+func (noopMissingTypeCollector) RecordMissingType(string) {}
+
 // Decoder decodes the output of the BPF program into a JSON format.
 // It is not guaranteed to be thread-safe.
 type Decoder struct {
@@ -83,6 +97,7 @@ type Decoder struct {
 	entryOrLine captureEvent
 	_return     captureEvent
 	line        lineCaptureData
+	messageData messageData
 }
 
 // ReportStackPCs reports the program counters of the stack trace for a
@@ -111,13 +126,18 @@ func NewDecoder(
 		message: message{},
 	}
 	for _, probe := range program.Probes {
-		for _, event := range probe.Events {
-			decoder.probeEvents[event.Type.ID] = probeEvent{
-				event: event,
-				probe: probe,
+		for i := range probe.Instances {
+			inst := &probe.Instances[i]
+			for _, event := range inst.Events {
+				decoder.probeEvents[event.Type.ID] = probeEvent{
+					event:    event,
+					probe:    probe,
+					instance: inst,
+				}
 			}
 		}
 	}
+	var traceContextTypeID ir.TypeID
 	for _, t := range program.Types {
 		decoderType, err := newDecoderType(t, program.Types)
 		if err != nil {
@@ -128,6 +148,9 @@ func NewDecoder(
 		if goRuntimeType, ok := t.GetGoRuntimeType(); ok {
 			decoder.typesByGoRuntimeType[goRuntimeType] = id
 		}
+		if _, ok := t.(*ir.TraceContextType); ok {
+			traceContextTypeID = id
+		}
 	}
 	decoder.entryOrLine.encodingContext = encodingContext{
 		typesByID:            decoder.decoderTypes,
@@ -135,6 +158,7 @@ func NewDecoder(
 		typeResolver:         typeNameResolver,
 		dataItems:            make(map[typeAndAddr]output.DataItem),
 		currentlyEncoding:    make(map[typeAndAddr]struct{}),
+		traceContextTypeID:   traceContextTypeID,
 	}
 	decoder._return.encodingContext = encodingContext{
 		typesByID:            decoder.decoderTypes,
@@ -142,6 +166,7 @@ func NewDecoder(
 		typeResolver:         typeNameResolver,
 		dataItems:            make(map[typeAndAddr]output.DataItem),
 		currentlyEncoding:    make(map[typeAndAddr]struct{}),
+		traceContextTypeID:   traceContextTypeID,
 	}
 	return decoder, nil
 }
@@ -155,21 +180,28 @@ type typeAndAddr struct {
 
 // Decode decodes the output Event from the BPF program into a JSON format
 // the `output` parameter is appended to and returned as the final output.
-// It is not thread-safe.
+// It is not thread-safe. If missingTypes is nil, missing types are silently
+// ignored.
 func (d *Decoder) Decode(
 	event Event,
 	symbolicator symbol.Symbolicator,
+	missingTypes MissingTypeCollector,
 	buf []byte,
 ) (_ []byte, probe ir.ProbeDefinition, err error) {
 	defer d.resetForNextMessage()
+	if missingTypes == nil {
+		missingTypes = noopMissingTypeCollector{}
+	}
+	d.entryOrLine.missingTypeCollector = missingTypes
+	d._return.missingTypeCollector = missingTypes
 	defer func() {
 		r := recover()
 		switch r := r.(type) {
 		case nil:
 		case error:
-			err = pkgerrors.Wrap(r, "Decode: panic")
+			err = fmt.Errorf("Decode: panic: %w", r)
 		default:
-			err = pkgerrors.Errorf("Decode: panic: %v\n%s", r, debug.Stack())
+			err = fmt.Errorf("Decode: panic: %v\n%s", r, debug.Stack())
 		}
 	}()
 	probe, err = d.message.init(d, event, symbolicator)
@@ -198,7 +230,7 @@ func (d *Decoder) Decode(
 			enc.Reset(b)
 			continue
 		} else if err != nil {
-			return buf, probe, pkgerrors.Wrap(err, "error marshaling snapshot message")
+			return buf, probe, fmt.Errorf("error marshaling snapshot message: %w", err)
 		}
 		break
 	}
@@ -208,28 +240,53 @@ func (d *Decoder) Decode(
 func (d *Decoder) resetForNextMessage() {
 	clear(d.entryOrLine.dataItems)
 	d.entryOrLine.clear()
+	d.entryOrLine.missingTypeCollector = nil
 	d.line.clear()
 	d._return.clear()
+	d._return.missingTypeCollector = nil
+	d.messageData = messageData{}
 	d.message = message{}
 }
 
 // Event wraps the output Event from the BPF program. It also adds fields
-// that are not present in the BPF program.
+// that are not present in the BPF program. EntryOrLine and Return are
+// FragmentedEvent values that may represent one or more ringbuf fragments
+// for a single logical event.
 type Event struct {
-	Probe       *ir.Probe
-	EntryOrLine output.Event
-	Return      output.Event
+	EntryOrLine output.FragmentedEvent
+	Return      output.FragmentedEvent
 	ServiceName string
+	ProcessTags string
+	// Truncated is true when the event is known to be incomplete: some
+	// fragments were dropped before reaching userspace. The decoder is still
+	// expected to emit whatever data is available; the sink surfaces the
+	// flag in the emitted snapshot JSON so users know the capture is not
+	// full.
+	Truncated bool
+}
+
+// firstFragment returns the first event from a FragmentedEvent. This is used
+// to access the event header and stack trace which are only present in the
+// first fragment.
+func firstFragment(fe output.FragmentedEvent) output.Event {
+	for ev := range fe.Fragments() {
+		return ev
+	}
+	return nil
 }
 
 type message struct {
-	Service   string           `json:"service"`
-	DDSource  ddDebuggerSource `json:"ddsource"`
-	Logger    logger           `json:"logger"`
-	Debugger  debuggerData     `json:"debugger"`
-	Timestamp int              `json:"timestamp"`
-	Duration  uint64           `json:"duration,omitzero"`
-	Message   messageData      `json:"message,omitempty"`
+	Service     string           `json:"service"`
+	DDTraceID   string           `json:"dd.trace_id,omitempty"`
+	DDSpanID    string           `json:"dd.span_id,omitempty"`
+	DDParentID  string           `json:"dd.parent_id,omitempty"`
+	DDSource    ddDebuggerSource `json:"ddsource"`
+	Logger      logger           `json:"logger"`
+	Debugger    debuggerData     `json:"debugger"`
+	Timestamp   int              `json:"timestamp"`
+	Duration    uint64           `json:"duration,omitzero"`
+	Message     *messageData     `json:"message,omitempty"`
+	ProcessTags string           `json:"process_tags,omitempty"`
 }
 
 // populateStackPCsIfMissing populates the decoder's stackPCs map with stack PCs
@@ -270,26 +327,57 @@ func (s *message) init(
 	symbolicator symbol.Symbolicator,
 ) (ir.ProbeDefinition, error) {
 	s.Service = event.ServiceName
+	s.ProcessTags = event.ProcessTags
 	s.Debugger = debuggerData{
 		Snapshot: snapshotData{
-			ID:       uuid.New(),
-			Language: "go",
+			ID:               uuid.New(),
+			Language:         "go",
+			EvaluationErrors: []evaluationError{},
 		},
-		EvaluationErrors: []evaluationError{},
 	}
 	if event.EntryOrLine == nil {
 		return nil, errors.New("entry event is nil")
 	}
 	if err := decoder.entryOrLine.init(
-		event.EntryOrLine, decoder.program.Types, &s.Debugger.EvaluationErrors,
+		event.EntryOrLine, decoder.program.Types, &s.Debugger.Snapshot.EvaluationErrors,
 	); err != nil {
 		return nil, err
 	}
+	if trace := decoder.entryOrLine.traceContext; trace.valid {
+		s.setTraceContext(trace)
+	}
 	probeEvent := decoder.probeEvents[decoder.entryOrLine.rootType.ID]
 	probe := probeEvent.probe
-	header, err := event.EntryOrLine.Header()
+	instance := probeEvent.instance
+
+	if probe.GetKind() == ir.ProbeKindSnapshot || probe.GetKind() == ir.ProbeKindLog {
+		s.Debugger.Type = payloadTypeSnapshot
+	}
+
+	eventOrLineFirstFragment := firstFragment(event.EntryOrLine)
+	if eventOrLineFirstFragment == nil {
+		return probe, errors.New("entry event first fragment is nil")
+	}
+	header, err := eventOrLineFirstFragment.Header()
 	if err != nil {
 		return probe, fmt.Errorf("error getting header %w", err)
+	}
+	if header.Condition_eval_error != 0 {
+		whenDSL := probe.GetWhenDSL()
+		if whenDSL == "" {
+			whenDSL = "@when"
+		}
+		msg := "error evaluating condition"
+		if header.Condition_eval_error == 2 {
+			msg = errNilPointerEvaluating.Error()
+		}
+		s.Debugger.Snapshot.EvaluationErrors = append(
+			s.Debugger.Snapshot.EvaluationErrors,
+			evaluationError{
+				Expression: whenDSL,
+				Message:    msg,
+			},
+		)
 	}
 	switch probeEvent.event.Kind {
 	case ir.EventKindEntry:
@@ -299,61 +387,75 @@ func (s *message) init(
 		decoder.line.capture = &decoder.entryOrLine
 		s.Debugger.Snapshot.captures.Lines = &decoder.line
 	}
+	var returnFirstFragment output.Event
 	var returnHeader *output.EventHeader
-	var durationMissingReason *string
+	var returnMissingReason string
 	if event.Return != nil {
 		if err := decoder._return.init(
-			event.Return, decoder.program.Types, &s.Debugger.EvaluationErrors,
+			event.Return, decoder.program.Types, &s.Debugger.Snapshot.EvaluationErrors,
 		); err != nil {
 			return nil, fmt.Errorf("error initializing return event: %w", err)
 		}
-		returnProbeEvent := decoder.probeEvents[decoder._return.rootType.ID]
-		if returnProbeEvent.probe != probe {
-			return nil, errors.New("return probe event has different probe than entry probe")
+		if trace := decoder._return.traceContext; !s.hasTraceContext() && trace.valid {
+			s.setTraceContext(trace)
 		}
-		returnHeader, err = event.Return.Header()
+		returnProbeEvent := decoder.probeEvents[decoder._return.rootType.ID]
+		if returnProbeEvent.instance != instance {
+			return nil, errors.New("return probe event has different instance than entry probe")
+		}
+		returnFirstFragment = firstFragment(event.Return)
+		if returnFirstFragment == nil {
+			return nil, errors.New("return event first fragment is nil")
+		}
+		returnHeader, err = returnFirstFragment.Header()
 		if err != nil {
 			return nil, fmt.Errorf("error getting return header %w", err)
+		}
+		if returnHeader.Condition_eval_error != 0 {
+			whenDSL := probe.GetWhenDSL()
+			if whenDSL == "" {
+				whenDSL = "@when"
+			}
+			msg := "error evaluating condition"
+			if returnHeader.Condition_eval_error == 2 {
+				msg = errNilPointerEvaluating.Error()
+			}
+			s.Debugger.Snapshot.EvaluationErrors = append(
+				s.Debugger.Snapshot.EvaluationErrors,
+				evaluationError{
+					Expression: whenDSL,
+					Message:    msg,
+				},
+			)
 		}
 		s.Duration = uint64(returnHeader.Ktime_ns - header.Ktime_ns)
 		s.Debugger.Snapshot.captures.Return = &decoder._return
 	} else {
-		// Check if we expected a return event but didn't get one.
+		// Check if we expected a return event but didn't get one. The
+		// reason is used to enrich rendering for @duration template
+		// segments (if any) — it is intentionally not emitted as a
+		// standalone EvaluationError, since callers that reference
+		// @duration already see a descriptive message in the template or
+		// via the captureExpression's absent-status path.
 		pairingExpectation := output.EventPairingExpectation(
 			header.Event_pairing_expectation,
 		)
-		var reason string
 		switch pairingExpectation {
 		case output.EventPairingExpectationReturnPairingExpected:
-			reason = "return event not received"
+			returnMissingReason = "return event not received"
 		case output.EventPairingExpectationBufferFull:
-			reason = "userspace buffer capacity exceeded"
+			returnMissingReason = "userspace buffer capacity exceeded"
 		case output.EventPairingExpectationCallMapFull:
-			reason = "call map capacity exceeded"
+			returnMissingReason = "call map capacity exceeded"
 		case output.EventPairingExpectationCallCountExceeded:
-			reason = "maximum call count exceeded"
+			returnMissingReason = "maximum call count exceeded"
 		case output.EventPairingExpectationNoneInlined:
-			reason = "function was inlined"
+			returnMissingReason = "function was inlined"
 		case output.EventPairingExpectationNoneNoBody:
-			reason = "function has no body"
+			returnMissingReason = "function has no body"
 		}
-		log.Tracef("no return reason: %v pairing expectation: %v", reason, pairingExpectation)
-		// The choice to use @duration here is somewhat arbitrary; we want to
-		// choose something that definitely can't collide with a real variable
-		// and is evocative of the thing that is missing. Indeed we know in this
-		// situation we will never @duration, so it seems like a good choice.
-		const missingReturnReasonExpression = "@duration"
-		if reason != "" {
-			message := "not available: " + reason
-			s.Debugger.EvaluationErrors = append(
-				s.Debugger.EvaluationErrors,
-				evaluationError{
-					Expression: missingReturnReasonExpression,
-					Message:    message,
-				},
-			)
-			durationMissingReason = &message
-		}
+		log.Tracef("no return reason: %v pairing expectation: %v",
+			returnMissingReason, pairingExpectation)
 	}
 
 	s.Debugger.Snapshot.Timestamp = int(decoder.approximateBootTime.Add(
@@ -363,22 +465,22 @@ func (s *message) init(
 
 	// Unconditionally populate stackPCs map for any event with stack PCs.
 	populateStackPCsIfMissing(
-		probe, decoder, header.Stack_hash, event.EntryOrLine, "entry",
+		probe, decoder, header.Stack_hash, eventOrLineFirstFragment, "entry",
 	)
 	if returnHeader != nil {
 		populateStackPCsIfMissing(
-			probe, decoder, returnHeader.Stack_hash, event.Return, "return",
+			probe, decoder, returnHeader.Stack_hash, returnFirstFragment, "return",
 		)
 	}
 
-	if probe.GetKind() == ir.ProbeKindSnapshot {
+	if probe.GetKind() == ir.ProbeKindSnapshot || probe.GetKind() == ir.ProbeKindCaptureExpression {
 		stackHeader := header
 		if returnHeader != nil {
 			stackHeader = returnHeader
 		}
 		stackPCs, ok := decoder.stackPCs[stackHeader.Stack_hash]
 		if !ok {
-			s.Debugger.EvaluationErrors = append(s.Debugger.EvaluationErrors,
+			s.Debugger.Snapshot.EvaluationErrors = append(s.Debugger.Snapshot.EvaluationErrors,
 				evaluationError{
 					Expression: "Stacktrace",
 					Message:    "no stack pcs found",
@@ -393,7 +495,7 @@ func (s *message) init(
 				} else {
 					log.Tracef("error symbolicating stack for probe %s: %v", probe.GetID(), err)
 				}
-				s.Debugger.EvaluationErrors = append(s.Debugger.EvaluationErrors,
+				s.Debugger.Snapshot.EvaluationErrors = append(s.Debugger.Snapshot.EvaluationErrors,
 					evaluationError{
 						Expression: "Stacktrace",
 						Message:    err.Error(),
@@ -432,18 +534,27 @@ func (s *message) init(
 	s.Logger.ThreadID = int(header.Goid)
 	s.Debugger.Snapshot.Probe.ID = probe.GetID()
 
-	if probe.Template != nil {
-		s.Message = messageData{
-			entryOrLine: &decoder.entryOrLine,
-			_return:     &decoder._return,
-			template:    probe.Template,
+	if instance.Template != nil {
+		decoder.messageData = messageData{
+			entryOrLine:         &decoder.entryOrLine,
+			_return:             &decoder._return,
+			template:            instance.Template,
+			returnMissingReason: returnMissingReason,
 		}
-		if s.Duration != 0 {
-			s.Message.duration = &s.Duration
-		} else if durationMissingReason != nil {
-			s.Message.durationMissingReason = durationMissingReason
-		}
+		s.Message = &decoder.messageData
 	}
 
 	return probe, nil
+}
+
+func (s *message) hasTraceContext() bool {
+	return s.DDTraceID != "" || s.DDSpanID != ""
+}
+
+func (s *message) setTraceContext(trace traceContext) {
+	s.DDTraceID = fmt.Sprintf("%016x%016x", trace.traceIDUpper, trace.traceIDLower)
+	s.DDSpanID = strconv.FormatUint(trace.spanID, 10)
+	if trace.parentID != 0 {
+		s.DDParentID = strconv.FormatUint(trace.parentID, 10)
+	}
 }

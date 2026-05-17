@@ -43,7 +43,7 @@
 
     # Extract report prefix from gate name (e.g. static_quality_gate_agent_rpm_amd64 -> agent_rpm_amd64)
     REPORT_PREFIX="${STATIC_QUALITY_GATE_NAME#static_quality_gate_}"
-    REPORT_FILENAME="${REPORT_PREFIX}_size_report_${CI_COMMIT_SHA:0:8}.yml"
+    REPORT_FILENAME="${REPORT_PREFIX}_size_report_${CI_COMMIT_SHORT_SHA}.yml"
 
     for package_file in $PACKAGE_PATTERN; do
       if [[ -f "$package_file" ]]; then
@@ -58,6 +58,13 @@
           --debug || { echo "⚠️  Package measurement failed for $package_file"; exit 1; }
 
         echo "✅ Package measurement completed"
+
+        # Ensure we don't corrupt our `main` measurements with a child pipeline.
+        # The report would override the one generated post-merge
+        if [[ "$CI_PIPELINE_SOURCE" != "push" ]]; then
+          echo "This pipeline wasn't created by a push event, skipping report upload"
+          continue
+        fi
 
         # Upload the report to S3
         BUCKET_BASE_PATH="s3://dd-ci-artefacts-build-stable/datadog-agent/static_quality_gates/GATE_REPORTS/${CI_COMMIT_SHA}"

@@ -13,11 +13,13 @@ import (
 	"github.com/spf13/afero"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client"
+	"github.com/DataDog/datadog-agent/comp/logs-library/client/http"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/client"
-	"github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container"
@@ -26,8 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/windowsevent"
-	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
@@ -73,9 +73,19 @@ func buildEndpoints(coreConfig model.Reader) (*config.Endpoints, error) {
 	return config.BuildEndpointsWithVectorOverride(coreConfig, httpConnectivity, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
 }
 
-// buildHTTPEndpointsForConnectivityCheck builds HTTP endpoints for connectivity testing only
+// buildHTTPEndpointsForConnectivityCheck builds HTTP endpoints for connectivity testing only.
+// Uses BuildEndpointsForDiagnostic to avoid registering config update callbacks since these
+// endpoints are transient and will be discarded after the connectivity check.
 func buildHTTPEndpointsForConnectivityCheck(coreConfig model.Reader) (*config.Endpoints, error) {
-	return config.BuildHTTPEndpointsWithVectorOverride(coreConfig, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+	return config.BuildEndpointsForDiagnostic(
+		coreConfig,
+		config.DefaultLogsConfigKeysWithVectorOverride(coreConfig),
+		config.DefaultDiagnosticPrefix,
+		config.DiagnosticHTTP,
+		intakeTrackType,
+		config.AgentJSONIntakeProtocol,
+		config.DefaultIntakeOrigin,
+	)
 }
 
 // checkHTTPConnectivityStatus performs an HTTP connectivity check and returns the status
@@ -105,6 +115,7 @@ func buildPipelineProvider(a *logAgent, processingRules []*config.ProcessingRule
 		a.compression,
 		a.config.GetBool("logs_config.disable_distributed_senders"), // legacy
 		false, // serverless
+		a.secrets,
 	)
 	return pipelineProvider
 }
@@ -152,7 +163,7 @@ func (a *logAgent) addLauncherInstances(lnchrs *launchers.Launchers, wmeta optio
 	lnchrs.AddLauncher(listener.NewLauncher(a.config.GetInt("logs_config.frame_size")))
 	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller, a.tagger))
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
-	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta, a.tagger, a.healthPlatform))
+	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta, a.tagger))
 	lnchrs.AddLauncher(integrationLauncher.NewLauncher(
 		afero.NewOsFs(),
 		a.sources, integrationsLogs))

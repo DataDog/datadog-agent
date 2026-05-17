@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
@@ -35,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -91,10 +91,11 @@ func (c *Check) Configure(
 	data integration.Data,
 	initConfig integration.Data,
 	source string,
+	provider string,
 ) error {
 	c.BuildID(integrationConfigDigest, data, initConfig)
 
-	err := c.CommonConfigure(senderManager, initConfig, data, source)
+	err := c.CommonConfigure(senderManager, initConfig, data, source, provider)
 	if err != nil {
 		return err
 	}
@@ -153,6 +154,11 @@ func (c *Check) Run() error {
 	if c.clusterID == "" {
 		clusterID, err := clustername.GetClusterID()
 		if err != nil {
+			// Check if this is a temporary retry error from cluster agent client
+			if retry.IsErrWillRetry(err) {
+				log.Warnf("Cluster Agent not ready yet, skipping orchestrator_pod check run: %s", err)
+				return nil
+			}
 			return err
 		}
 		c.clusterID = clusterID
@@ -169,10 +175,6 @@ func (c *Check) Run() error {
 	}
 
 	groupID := nextGroupID()
-	metadataAsTags := utils.GetMetadataAsTags(c.cfg)
-	resourceType := utilTypes.GetResourceType(utilTypes.PodName, utilTypes.PodVersion)
-	labelsAsTags := metadataAsTags.GetResourcesLabelsAsTags()[resourceType]
-	annotationsAsTags := metadataAsTags.GetResourcesAnnotationsAsTags()[resourceType]
 	ctx := &processors.K8sProcessorContext{
 		BaseProcessorContext: processors.BaseProcessorContext{
 			Cfg:              c.config,
@@ -182,14 +184,14 @@ func (c *Check) Run() error {
 			ClusterID:        c.clusterID,
 			ManifestProducer: true,
 			Kind:             kubernetes.PodKind,
-			APIVersion:       "v1",
-			CollectorTags:    []string{"kube_api_version:v1"},
+			APIVersion:       utilTypes.PodVersion,
+			CollectorGroup:   utilTypes.PodGroup,
+			CollectorName:    utilTypes.PodName,
+			CollectorTags:    []string{"kube_api_version:" + utilTypes.PodVersion},
 			AgentVersion:     c.agentVersion,
 		},
-		HostName:          c.hostName,
-		SystemInfo:        c.systemInfo,
-		LabelsAsTags:      labelsAsTags,
-		AnnotationsAsTags: annotationsAsTags,
+		HostName:   c.hostName,
+		SystemInfo: c.systemInfo,
 	}
 
 	processResult, listed, processed := c.processor.Process(ctx, podList)

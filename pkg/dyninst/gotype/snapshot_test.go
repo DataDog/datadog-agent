@@ -100,6 +100,6 @@ func runGoTypeSnapshot(t *testing.T, cfg testprogs.Config, prog string) {
 		outputFile := path.Join(snapshotDir, prog+"."+cfg.String()+".yaml")
 		expected, err := os.ReadFile(outputFile)
 		require.NoError(t, err)
-		require.Equal(t, string(expected), string(marshaled))
+		require.YAMLEq(t, string(expected), string(marshaled))
 	}
 }

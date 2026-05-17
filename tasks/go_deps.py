@@ -23,7 +23,7 @@ METRIC_GO_DEPS_EXTERNAL_NAME = "datadog.agent.go_dependencies.external"
 BINARIES: dict[str, dict] = {
     "agent": {
         "entrypoint": "cmd/agent",
-        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
+        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64", "aix/ppc64"],
     },
     "iot-agent": {
         "build": "agent",
@@ -71,7 +71,7 @@ BINARIES: dict[str, dict] = {
     },
     "trace-agent": {
         "entrypoint": "cmd/trace-agent",
-        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
+        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64", "aix/ppc64"],
     },
     "heroku-trace-agent": {
         "build": "trace-agent",
@@ -83,7 +83,7 @@ BINARIES: dict[str, dict] = {
         "entrypoint": "cmd/otel-agent",
         "platforms": ["linux/x64", "linux/arm64"],
     },
-    "full-host-profiler": {
+    "host-profiler": {
         "entrypoint": "cmd/host-profiler",
         "platforms": ["linux/x64", "linux/arm64"],
     },
@@ -97,6 +97,10 @@ BINARIES: dict[str, dict] = {
     },
     "privateactionrunner": {
         "entrypoint": "cmd/privateactionrunner",
+        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
+    },
+    "secret-generic-connector": {
+        "entrypoint": "cmd/secret-generic-connector",
         "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
     },
 }
@@ -141,7 +145,7 @@ def diff(
         baseline_ref = get_common_ancestor(ctx, commit_sha, base_branch)
 
     diffs = {}
-    dep_cmd = "go list -f '{{ range .Deps }}{{ printf \"%s\\n\" . }}{{end}}'"
+    dep_cmd = "go list -buildvcs=false -f '{{ range .Deps }}{{ printf \"%s\\n\" . }}{{end}}'"
 
     with tempfile.TemporaryDirectory() as tmpdir:
         try:
@@ -307,7 +311,7 @@ def compute_count_metric(
 
     # need to explicitly enable CGO to also include CGO-only deps when checking different platforms
     env = {"GOOS": goos, "GOARCH": goarch, "CGO_ENABLED": "1"}
-    cmd = "go list -f '{{ join .Deps \"\\n\"}}'"
+    cmd = "go list -buildvcs=false -f '{{ join .Deps \"\\n\"}}'"
     with ctx.cd(entrypoint):
         res = ctx.run(
             f"{cmd} -tags \"{','.join(build_tags)}\"",
@@ -372,7 +376,7 @@ def compute_binary_dependencies_list(
     build_tags = get_default_build_tags(build=build, flavor=flavor, platform=platform)
 
     env = {"GOOS": goos, "GOARCH": goarch, "CGO_ENABLED": "1"}
-    cmd = "go list -f '{{ join .Deps \"\\n\"}}'"
+    cmd = "go list -buildvcs=false -f '{{ join .Deps \"\\n\"}}'"
 
     res = ctx.run(
         f"{cmd} -tags \"{','.join(build_tags)}\"",

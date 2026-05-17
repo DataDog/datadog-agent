@@ -83,8 +83,10 @@ func TestEnableDiscovery(t *testing.T) {
 
 	t.Run("default", func(t *testing.T) {
 		cfg := mock.NewSystemProbe(t)
-		assert.False(t, cfg.GetBool(discoveryNS("enabled")))
+		assert.Equal(t, runtime.GOOS == "linux", cfg.GetBool(discoveryNS("enabled")))
 	})
+
+	discoveryDefaultEnabled := runtime.GOOS == "linux"
 
 	t.Run("default enabled with USM", func(t *testing.T) {
 		// Reset global config to avoid test interference
@@ -94,7 +96,7 @@ func TestEnableDiscovery(t *testing.T) {
 
 		cfg, err := New("", "")
 		require.NoError(t, err)
-		assert.True(t, cfg.ModuleIsEnabled(DiscoveryModule))
+		assert.Equal(t, discoveryDefaultEnabled, cfg.ModuleIsEnabled(DiscoveryModule))
 	})
 
 	t.Run("default enabled with NPM", func(t *testing.T) {
@@ -105,7 +107,17 @@ func TestEnableDiscovery(t *testing.T) {
 
 		cfg, err := New("", "")
 		require.NoError(t, err)
-		assert.True(t, cfg.ModuleIsEnabled(DiscoveryModule))
+		assert.Equal(t, discoveryDefaultEnabled, cfg.ModuleIsEnabled(DiscoveryModule))
+	})
+
+	t.Run("default enabled standalone on linux", func(t *testing.T) {
+		// Reset global config to avoid test interference
+		_ = mock.NewSystemProbe(t)
+
+		// No other modules enabled — discovery should still auto-enable on Linux
+		cfg, err := New("", "")
+		require.NoError(t, err)
+		assert.Equal(t, discoveryDefaultEnabled, cfg.ModuleIsEnabled(DiscoveryModule))
 	})
 
 	t.Run("force disabled with USM via env var", func(t *testing.T) {

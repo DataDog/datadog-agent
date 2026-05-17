@@ -29,16 +29,18 @@ import (
 // as services (i.e., processes with a non-nil Service property).
 type ProcessListener struct {
 	workloadmetaListener
-	tagger         tagger.Component
-	processFilters workloadfilter.FilterBundle
+	tagger            tagger.Component
+	processFilters    workloadfilter.FilterBundle
+	staticConfigIndex *StaticConfigIndex
 }
 
 // NewProcessListener returns a new ProcessListener.
 func NewProcessListener(options ServiceListernerDeps) (ServiceListener, error) {
 	const name = "ad-processlistener"
 	l := &ProcessListener{
-		tagger:         options.Tagger,
-		processFilters: options.Filter.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELGlobal}}),
+		tagger:            options.Tagger,
+		processFilters:    options.Filter.GetProcessFilters([][]workloadfilter.ProcessFilter{{workloadfilter.ProcessCELGlobal}}),
+		staticConfigIndex: options.StaticConfigIndex,
 	}
 	filter := workloadmeta.NewFilterBuilder().
 		SetSource(workloadmeta.SourceAll).
@@ -57,6 +59,38 @@ func NewProcessListener(options ServiceListernerDeps) (ServiceListener, error) {
 	return l, nil
 }
 
+func isMainProcessForService(process *workloadmeta.Process, wmeta workloadmeta.Component) bool {
+	// If no parent or parent is the init process, then this process is the main
+	// process.
+	if process.Ppid == 0 || process.Ppid == 1 {
+		return true
+	}
+
+	parent, err := wmeta.GetProcess(process.Ppid)
+	if err != nil {
+		// The parent doesn't exist in WLM, so we assume that we are the main
+		// process. Note that if the parent and the child process have been
+		// collected at the same time, the event for the child process could be
+		// received before the event for the parent process. However, since WLM
+		// calls the events after creating all the entities in WLM (see
+		// store.go:handleEvents()), the GetProcess call should return the
+		// parent process in that case too.
+		return true
+	}
+
+	// If the parent process has no service data, then we assume that we are the
+	// main process.
+	if parent.Service == nil {
+		return true
+	}
+
+	// If the parent has the same GeneratedName, then we assume that we are not
+	// the main process (the parent is). We use GeneratedName rather than Comm
+	// to avoid false matches between unrelated services that share the same
+	// interpreter (eg supervisord and flask both have Comm="python").
+	return parent.Service.GeneratedName != process.Service.GeneratedName
+}
+
 func (l *ProcessListener) createProcessService(entity workloadmeta.Entity) {
 	process := entity.(*workloadmeta.Process)
 
@@ -71,6 +105,11 @@ func (l *ProcessListener) createProcessService(entity workloadmeta.Entity) {
 	// Container-bound processes are already handled by the container listener
 	if process.ContainerID != "" {
 		log.Debugf("process %d (%s) is container-bound (container: %s), skipping", process.Pid, process.Comm, process.ContainerID)
+		return
+	}
+
+	if !isMainProcessForService(process, l.Store()) {
+		log.Tracef("process %d (%s) is not the main process of the service, skipping", process.Pid, process.Comm)
 		return
 	}
 
@@ -100,10 +139,11 @@ func (l *ProcessListener) createProcessService(entity workloadmeta.Entity) {
 		ports:    ports,
 		pid:      int(process.Pid),
 		// Host processes are accessible at localhost
-		hosts:  map[string]string{"host": "127.0.0.1"},
-		ready:  true,
-		tagger: l.tagger,
-		wmeta:  l.Store(),
+		hosts:             map[string]string{"host": "127.0.0.1"},
+		ready:             true,
+		tagger:            l.tagger,
+		wmeta:             l.Store(),
+		staticConfigIndex: l.staticConfigIndex,
 	}
 
 	svcID := buildSvcID(process.GetID())
@@ -112,14 +152,15 @@ func (l *ProcessListener) createProcessService(entity workloadmeta.Entity) {
 
 // ProcessService implements the Service interface for process entities.
 type ProcessService struct {
-	process  *workloadmeta.Process
-	tagsHash string
-	hosts    map[string]string
-	ports    []workloadmeta.ContainerPort
-	pid      int
-	ready    bool
-	tagger   tagger.Component
-	wmeta    workloadmeta.Component
+	process           *workloadmeta.Process
+	tagsHash          string
+	hosts             map[string]string
+	ports             []workloadmeta.ContainerPort
+	pid               int
+	ready             bool
+	tagger            tagger.Component
+	wmeta             workloadmeta.Component
+	staticConfigIndex *StaticConfigIndex
 }
 
 var _ Service = &ProcessService{}
@@ -197,8 +238,30 @@ func (s *ProcessService) HasFilter(_ workloadfilter.Scope) bool {
 }
 
 // FilterTemplates implements Service#FilterTemplates.
+//
+// In addition to the default AD-identifier matching filter, templates whose
+// integration name already has a scheduled non-template (static) config are
+// dropped so the static config wins. This dedup is intentionally scoped to
+// process services: users configure single-instance process integrations via
+// conf.d, and we don't want the dynamic process listener to schedule a second
+// instance behind their back.
+//
+// Discovery templates are then dropped if any other config source has matched
+// this service for the same integration: a sibling non-discovery template, or
+// a scheduled static config.
 func (s *ProcessService) FilterTemplates(configs map[string]integration.Config) {
+	// Step 1: CEL Matching
 	filterTemplatesMatched(s, configs)
+
+	// Step 2: Static Config Deduplication
+	for digest, cfg := range configs {
+		if s.staticConfigIndex.Has(cfg.Name) {
+			delete(configs, digest)
+		}
+	}
+
+	// Step 3: Discovery Template Deduplication
+	filterTemplatesDiscovery(s.staticConfigIndex, configs)
 }
 
 // GetExtraConfig returns extra configuration associated with the service.

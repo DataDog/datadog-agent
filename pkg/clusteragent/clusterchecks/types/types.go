@@ -77,8 +77,17 @@ type StateResponse struct {
 
 // StateNodeResponse is a chunk of StateResponse
 type StateNodeResponse struct {
-	Name    string               `json:"name"`
-	Configs []integration.Config `json:"configs"`
+	Name    string                  `json:"name"`
+	Configs []ConfigWithInstanceIDs `json:"configs"`
+	Stats   CLCRunnersStats         `json:"stats,omitempty"`
+}
+
+// ConfigWithInstanceIDs pairs a config with its precomputed instance IDs.
+// Instance IDs are computed from unscrubbed configs at dispatch time
+// so they match the runner's check IDs regardless of config scrubbing.
+type ConfigWithInstanceIDs struct {
+	InstanceIDs []string           `json:"instance_ids"`
+	Config      integration.Config `json:"config"`
 }
 
 // Stats holds statistics for the agent status command
@@ -107,12 +116,21 @@ type CLCRunnersStats map[string]CLCRunnerStats
 
 // CLCRunnerStats is used to unmarshall the stats of each CLC Runner
 type CLCRunnerStats struct {
-	AverageExecutionTime int  `json:"AverageExecutionTime"`
-	MetricSamples        int  `json:"MetricSamples"`
-	HistogramBuckets     int  `json:"HistogramBuckets"`
-	Events               int  `json:"Events"`
-	IsClusterCheck       bool `json:"IsClusterCheck"`
-	LastExecFailed       bool `json:"LastExecFailed"`
+	AverageExecutionTime int    `json:"AverageExecutionTime"`
+	MetricSamples        int    `json:"MetricSamples"`
+	HistogramBuckets     int    `json:"HistogramBuckets"`
+	Events               int    `json:"Events"`
+	ServiceChecks        int    `json:"ServiceChecks"`
+	IsClusterCheck       bool   `json:"IsClusterCheck"`
+	LastExecFailed       bool   `json:"LastExecFailed"`
+	LastError            string `json:"LastError"`
+	TotalRuns            uint64 `json:"TotalRuns"`
+	TotalErrors          uint64 `json:"TotalErrors"`
+	TotalMetricSamples   uint64 `json:"TotalMetricSamples"`
+	TotalEvents          uint64 `json:"TotalEvents"`
+	TotalServiceChecks   uint64 `json:"TotalServiceChecks"`
+	LastSuccessDate      int64  `json:"LastSuccessDate"`
+	LastExecutionDate    int64  `json:"LastExecutionDate"`
 }
 
 // Workers is used to unmarshal the workers info of each CLC Runner

@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "model",
+    srcs = [
+        "tracer_metadata.go",
+        "tracer_metadata_gen.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_tinylib_msgp//msgp"],
+)
+
+go_test(
+    name = "model_test",
+    srcs = [
+        "tracer_metadata_gen_test.go",
+        "tracer_metadata_test.go",
+    ],
+    embed = [":model"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_tinylib_msgp//msgp",
+    ],
+)

@@ -10,22 +10,36 @@ import (
 	"net/http"
 	"time"
 
+	gorilla "github.com/gorilla/mux"
+
 	configendpoint "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/config"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/listener"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 const ipcServerName string = "IPC API Server"
 const ipcServerShortName string = "IPC"
 
 func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.TelemetryMiddlewareFactory) (err error) {
-	server.ipcListener, err = listener.GetListener(ipcServerAddr)
+	ipcListener, err := listener.GetListener(ipcServerAddr)
 	if err != nil {
 		return err
 	}
+	server.ipcAddr = ipcListener.Addr()
 
 	configEndpointMux := configendpoint.GetConfigEndpointMuxCore(server.cfg)
+	// Fill route template captures for the telemetry middleware (reduces metric cardinality).
+	// Prepend "/config/v1" since configEndpointMux is mounted via http.StripPrefix("/config/v1", ...).
+	configEndpointMux.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if route := gorilla.CurrentRoute(r); route != nil {
+				if template, err := route.GetPathTemplate(); err == nil {
+					observability.SetRouteTemplate(r, "/config/v1"+template)
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	})
 
 	ipcMux := http.NewServeMux()
 	ipcMux.Handle(
@@ -41,11 +55,12 @@ func (server *apiServer) startIPCServer(ipcServerAddr string, tmf observability.
 
 	ipcServer := &http.Server{
 		Addr:      ipcServerAddr,
-		Handler:   http.TimeoutHandler(ipcMuxHandler, time.Duration(pkgconfigsetup.Datadog().GetInt64("server_timeout"))*time.Second, "timeout"),
+		Handler:   http.TimeoutHandler(ipcMuxHandler, time.Duration(server.cfg.GetInt64("server_timeout"))*time.Second, "timeout"),
 		TLSConfig: serverTLSConfig,
 	}
 
-	startServer(server.ipcListener, ipcServer, ipcServerName)
+	server.ipcServer = ipcServer
+	startServer(ipcListener, ipcServer, ipcServerName)
 
 	return nil
 }

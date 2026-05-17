@@ -53,9 +53,11 @@ func (v *k8sCCAOffSuite) TestADAnnotations() {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:    "annotations-job",
-							Image:   "ubuntu",
-							Command: []string{"echo", testLogMessage},
+							Name:  "annotations-job",
+							Image: "ubuntu",
+							// Sleep is added here so k8s doesn't kill the container before
+							// the agent container can detect it.
+							Command: []string{"sh", "-c", "echo '" + testLogMessage + "' && sleep 10"},
 						},
 					},
 					RestartPolicy: corev1.RestartPolicyNever,
@@ -75,7 +77,7 @@ func (v *k8sCCAOffSuite) TestADAnnotations() {
 		if assert.Contains(c, logsServiceNames, "ubuntu", "Ubuntu service not found") {
 			filteredLogs, err := v.Env().FakeIntake.Client().FilterLogs("ubuntu")
 			assert.NoError(c, err, "Error filtering logs")
-			if assert.NotEmpty(v.T(), filteredLogs, "Fake Intake returned no logs even though log service name exists") {
+			if assert.NotEmpty(c, filteredLogs, "Fake Intake returned no logs even though log service name exists") {
 				assert.Equal(c, testLogMessage, filteredLogs[0].Message, "Test log doesn't match")
 			}
 		}
@@ -98,9 +100,11 @@ func (v *k8sCCAOffSuite) TestCCAOff() {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:    "cca-off-job",
-							Image:   "ubuntu",
-							Command: []string{"echo", testLogMessage},
+							Name:  "cca-off-job",
+							Image: "ubuntu",
+							// Sleep is added here so k8s doesn't kill the container before
+							// the agent container can detect it.
+							Command: []string{"sh", "-c", "echo '" + testLogMessage + "' && sleep 10"},
 						},
 					},
 					RestartPolicy: corev1.RestartPolicyNever,

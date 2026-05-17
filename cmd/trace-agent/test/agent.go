@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package test
 
 import (
@@ -25,7 +27,7 @@ import (
 	"time"
 
 	"github.com/DataDog/viper"
-	yaml "gopkg.in/yaml.v2"
+	yaml "go.yaml.in/yaml/v2"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"

@@ -20,8 +20,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,10 +29,7 @@ import (
 )
 
 const (
-	podAnnotationPrefix              = "ad.datadoghq.com/"
-	podContainerTagsAnnotationFormat = podAnnotationPrefix + "%s.tags"
-	podTagsAnnotation                = podAnnotationPrefix + "tags"
-	podStandardLabelPrefix           = "tags.datadoghq.com/"
+	podStandardLabelPrefix = "tags.datadoghq.com/"
 
 	// Standard tag - Environment variables
 	envVarEnv     = "DD_ENV"
@@ -208,10 +205,12 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.TagInfo {
 	container := ev.Entity.(*workloadmeta.Container)
 
+	c.entityCompleteness[container.EntityID] = ev.IsComplete
+
 	// Garden containers tagging is specific as we don't have any information locally
 	// Metadata are not available and tags are retrieved as-is from Cluster Agent
 	if container.Runtime == workloadmeta.ContainerRuntimeGarden {
-		return c.handleGardenContainer(container)
+		return c.handleGardenContainer(container, ev.IsComplete)
 	}
 
 	tagList := taglist.NewTagList()
@@ -279,6 +278,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
 			StandardTags:         standard,
+			IsComplete:           c.containerCompleteness(container.ID, ev.IsComplete),
 		},
 	}
 }
@@ -320,7 +320,7 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.Ta
 			continue
 		}
 
-		c.extractGPUTags(gpu, tagList)
+		ExtractGPUTags(gpu, tagList)
 	}
 
 	low, orch, high, standard := tagList.Compute()
@@ -336,6 +336,7 @@ func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.Ta
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
 			StandardTags:         standard,
+			IsComplete:           ev.IsComplete,
 		},
 	}
 }
@@ -386,6 +387,7 @@ func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*t
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
 			StandardTags:         standard,
+			IsComplete:           ev.IsComplete,
 		},
 	}
 }
@@ -412,7 +414,7 @@ func (c *WorkloadMetaCollector) labelsToTags(labels map[string]string, tags *tag
 	}
 }
 
-func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) *types.TagInfo {
+func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList, isComplete bool) *types.TagInfo {
 	tagList.AddOrchestrator(tags.KubePod, pod.Name)
 	tagList.AddLow(tags.KubeNamespace, pod.Namespace)
 	tagList.AddLow(tags.PodPhase, strings.ToLower(pod.Phase))
@@ -452,7 +454,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 		tagList.AddLow(tags.KubeAutoscalerKind, "datadogpodautoscaler")
 	}
 
-	kubeServiceDisabled := slices.Contains(pkgconfigsetup.Datadog().GetStringSlice("kubernetes_ad_tags_disabled"), "kube_service")
+	kubeServiceDisabled := slices.Contains(c.cfg.GetStringSlice("kubernetes_ad_tags_disabled"), "kube_service")
 	if slices.Contains(strings.Split(pod.Annotations["tags.datadoghq.com/disable"], ","), "kube_service") {
 		kubeServiceDisabled = true
 	}
@@ -463,7 +465,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 	}
 
 	podAdapter := newResolvableAdapter(pod, nil)
-	c.extractTagsFromJSONWithResolution(podTagsAnnotation, pod.Annotations, tagList, podAdapter)
+	c.extractTagsFromJSONWithResolution(kubernetes.ADTagsAnnotation, pod.Annotations, tagList, podAdapter)
 
 	// OpenShift pod annotations
 	if dcName, found := pod.Annotations["openshift.io/deployment-config.name"]; found {
@@ -503,6 +505,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 		OrchestratorCardTags: orch,
 		LowCardTags:          low,
 		StandardTags:         standard,
+		IsComplete:           isComplete,
 	}
 
 	return tagInfo
@@ -510,13 +513,16 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 
 func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.TagInfo {
 	pod := ev.Entity.(*workloadmeta.KubernetesPod)
+
+	c.entityCompleteness[pod.EntityID] = ev.IsComplete
+
 	tagList := taglist.NewTagList()
-	tagInfos := []*types.TagInfo{c.extractTagsFromPodEntity(pod, tagList)}
+	tagInfos := []*types.TagInfo{c.extractTagsFromPodEntity(pod, tagList, ev.IsComplete)}
 
 	c.extractTagsFromPodLabels(pod, tagList)
 
 	for _, podContainer := range pod.GetAllContainers() {
-		cTagInfo, err := c.extractTagsFromPodContainer(pod, podContainer, tagList.Copy())
+		cTagInfo, err := c.extractTagsFromPodContainer(pod, podContainer, tagList.Copy(), ev.IsComplete)
 		if err != nil {
 			log.Debugf("cannot extract tags from pod container: %s", err)
 			continue
@@ -531,6 +537,15 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.TagInfo {
 	task := ev.Entity.(*workloadmeta.ECSTask)
 
+	// ECS tasks are reported by a single collector (ECS). So they are always
+	// marked as complete by workloadmeta. However, the ECS collector can report
+	// incomplete data. It seems that this happens when the v4 metadata endpoint
+	// is not yet available when a task is created. This is infrequent, but when
+	// it happens, the ECS collector doesn't set a cluster name, so tags are
+	// incomplete.
+	ecsTaskIsComplete := ev.IsComplete && task.ClusterName != ""
+	c.entityCompleteness[task.EntityID] = ecsTaskIsComplete
+
 	taskTags := taglist.NewTagList()
 
 	// as of Agent 7.33, tasks have a name internally, but before that
@@ -542,13 +557,14 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	taskTags.AddLow(tags.AwsAccount, task.AWSAccountID)
 	taskTags.AddLow(tags.Region, task.Region)
 	taskTags.AddLow(tags.EcsServiceARN, task.ServiceARN)
+	taskTags.AddLow(tags.EcsDaemonARN, task.DaemonARN)
 	taskTags.AddOrchestrator(tags.TaskARN, task.ID)
 	taskTags.AddOrchestrator(tags.TaskDefinitionARN, task.TaskDefinitionARN)
 
 	clusterTags := taglist.NewTagList()
 	if task.ClusterName != "" {
 		// only add cluster_name to the task level tags, not global
-		if !pkgconfigsetup.Datadog().GetBool("disable_cluster_name_tag_key") {
+		if !c.cfg.GetBool("disable_cluster_name_tag_key") {
 			taskTags.AddLow(tags.ClusterName, task.ClusterName)
 		}
 		clusterTags.AddLow(tags.EcsClusterName, task.ClusterName)
@@ -560,12 +576,16 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 		taskTags.AddLow(tags.AvailabilityZoneDeprecated, task.AvailabilityZone) // Deprecated
 		taskTags.AddLow(tags.AvailabilityZone, task.AvailabilityZone)
 	} else if c.collectEC2ResourceTags {
-		addResourceTags(taskTags, task.ContainerInstanceTags)
-		addResourceTags(taskTags, task.Tags)
+		addResourceTags(c.cfg, taskTags, task.ContainerInstanceTags)
+		addResourceTags(c.cfg, taskTags, task.Tags)
 	}
 
 	if task.ServiceName != "" {
 		taskTags.AddLow(tags.EcsServiceName, strings.ToLower(task.ServiceName))
+	}
+
+	if task.DaemonName != "" {
+		taskTags.AddLow(tags.EcsDaemonName, strings.ToLower(task.DaemonName))
 	}
 
 	tagInfos := make([]*types.TagInfo, 0, len(task.Containers))
@@ -583,6 +603,8 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 
 		tagList.AddLow(tags.EcsContainerName, taskContainer.Name)
 
+		containerComplete := c.entityCompleteness[container.EntityID]
+
 		low, orch, high, standard := tagList.Compute()
 		tagInfos = append(tagInfos, &types.TagInfo{
 			// taskSource here is not a mistake. the source is
@@ -593,6 +615,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 			OrchestratorCardTags: orch,
 			LowCardTags:          append(low, clusterLow...),
 			StandardTags:         standard,
+			IsComplete:           ecsTaskIsComplete && containerComplete,
 		})
 	}
 
@@ -609,6 +632,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 			OrchestratorCardTags: orch,
 			LowCardTags:          append(low, clusterLow...),
 			StandardTags:         standard,
+			IsComplete:           ecsTaskIsComplete,
 		})
 	}
 
@@ -626,18 +650,20 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 				OrchestratorCardTags: clusterOrch,
 				LowCardTags:          clusterLow,
 				StandardTags:         clusterStandard,
+				IsComplete:           ecsTaskIsComplete,
 			})
 		}
 	}
 	return tagInfos
 }
 
-func (c *WorkloadMetaCollector) handleGardenContainer(container *workloadmeta.Container) []*types.TagInfo {
+func (c *WorkloadMetaCollector) handleGardenContainer(container *workloadmeta.Container, isComplete bool) []*types.TagInfo {
 	return []*types.TagInfo{
 		{
 			Source:       containerSource,
 			EntityID:     common.BuildTaggerEntityID(container.EntityID),
 			HighCardTags: container.CollectorTags,
+			IsComplete:   isComplete,
 		},
 	}
 }
@@ -681,6 +707,7 @@ func (c *WorkloadMetaCollector) handleKubeDeployment(ev workloadmeta.Event) []*t
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
 			StandardTags:         standard,
+			IsComplete:           ev.IsComplete,
 		},
 	}
 
@@ -723,6 +750,7 @@ func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*typ
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
 			StandardTags:         standard,
+			IsComplete:           ev.IsComplete,
 		},
 	}
 
@@ -733,7 +761,7 @@ func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInf
 	gpu := ev.Entity.(*workloadmeta.GPU)
 
 	tagList := taglist.NewTagList()
-	c.extractGPUTags(gpu, tagList)
+	ExtractGPUTags(gpu, tagList)
 
 	low, orch, high, standard := tagList.Compute()
 
@@ -749,14 +777,15 @@ func (c *WorkloadMetaCollector) handleGPU(ev workloadmeta.Event) []*types.TagInf
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
 			StandardTags:         standard,
+			IsComplete:           ev.IsComplete,
 		},
 	}
 
 	return tagInfos
 }
 
-// extractGPUTags extracts GPU tags from a GPU entity and adds them to the provided tagList
-func (c *WorkloadMetaCollector) extractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
+// ExtractGPUTags extracts GPU tags from a GPU entity and adds them to the provided tagList
+func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	gpuUUID := strings.ToLower(gpu.ID)
 	tagList.AddLow(tags.KubeGPUVendor, strings.ToLower(gpu.Vendor))
 	tagList.AddLow(tags.KubeGPUDevice, strings.ToLower(strings.ReplaceAll(gpu.Device, " ", "_")))
@@ -797,6 +826,7 @@ func (c *WorkloadMetaCollector) handleCRD(ev workloadmeta.Event) []*types.TagInf
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
 			StandardTags:         standard,
+			IsComplete:           ev.IsComplete,
 		},
 	}
 
@@ -819,6 +849,7 @@ func (c *WorkloadMetaCollector) handleKubeCapabilities(ev workloadmeta.Event) []
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
 			StandardTags:         standard,
+			IsComplete:           ev.IsComplete,
 		},
 	}
 
@@ -895,7 +926,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 	}
 }
 
-func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.KubernetesPod, podContainer workloadmeta.OrchestratorContainer, tagList *taglist.TagList) (*types.TagInfo, error) {
+func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.KubernetesPod, podContainer workloadmeta.OrchestratorContainer, tagList *taglist.TagList, podComplete bool) (*types.TagInfo, error) {
 	container, err := c.store.GetContainer(podContainer.ID)
 	if err != nil {
 		return nil, fmt.Errorf("pod %q has reference to non-existing container %q", pod.Name, podContainer.ID)
@@ -934,9 +965,11 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 	c.addOpenTelemetryStandardTags(container, tagList)
 
 	// container-specific tags provided through pod annotation
-	annotation := fmt.Sprintf(podContainerTagsAnnotationFormat, containerName)
+	annotation := fmt.Sprintf(kubernetes.ADContainerTagsAnnotationFormat, containerName)
 	containerAdapter := newResolvableAdapter(pod, container)
 	c.extractTagsFromJSONWithResolution(annotation, pod.Annotations, tagList, containerAdapter)
+
+	containerComplete := c.entityCompleteness[container.EntityID]
 
 	low, orch, high, standard := tagList.Compute()
 	return &types.TagInfo{
@@ -948,6 +981,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 		OrchestratorCardTags: orch,
 		LowCardTags:          low,
 		StandardTags:         standard,
+		IsComplete:           containerComplete && podComplete,
 	}, nil
 }
 
@@ -980,8 +1014,65 @@ func (c *WorkloadMetaCollector) handleDelete(ev workloadmeta.Event) []*types.Tag
 	tagInfos = append(tagInfos, c.handleDeleteChildren(source, children)...)
 
 	delete(c.children, taggerEntityID)
+	delete(c.entityCompleteness, entityID)
 
 	return tagInfos
+}
+
+// containerCompleteness computes the effective completeness for a container.
+// Container tags depend on data from a parent entity (pod in Kubernetes, ECS
+// task in ECS), so completeness requires both the container and its parent to
+// be complete.
+func (c *WorkloadMetaCollector) containerCompleteness(containerID string, containerComplete bool) bool {
+	if env.IsFeaturePresent(env.Kubernetes) {
+		return c.containerCompletenessKubernetes(containerID, containerComplete)
+	}
+
+	if env.IsFeaturePresent(env.ECSEC2) || env.IsFeaturePresent(env.ECSManagedInstances) {
+		return c.containerCompletenessECS(containerID, containerComplete)
+	}
+
+	return containerComplete
+}
+
+func (c *WorkloadMetaCollector) containerCompletenessKubernetes(containerID string, containerComplete bool) bool {
+	if !containerComplete {
+		return false
+	}
+
+	pod, err := c.store.GetKubernetesPodForContainer(containerID)
+	if err != nil {
+		return false
+	}
+
+	podComplete, ok := c.entityCompleteness[pod.EntityID]
+	if !ok {
+		return false
+	}
+
+	return podComplete
+}
+
+func (c *WorkloadMetaCollector) containerCompletenessECS(containerID string, containerComplete bool) bool {
+	if !containerComplete {
+		return false
+	}
+
+	container, err := c.store.GetContainer(containerID)
+	if err != nil {
+		return false
+	}
+
+	if container.Owner == nil || container.Owner.Kind != workloadmeta.KindECSTask {
+		return false
+	}
+
+	taskComplete, ok := c.entityCompleteness[*container.Owner]
+	if !ok {
+		return false
+	}
+
+	return taskComplete
 }
 
 func (c *WorkloadMetaCollector) handleDeleteChildren(source string, children map[types.EntityID]struct{}) []*types.TagInfo {

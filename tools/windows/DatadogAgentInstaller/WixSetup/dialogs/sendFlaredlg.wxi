@@ -1,4 +1,4 @@
-<Include>
+<Include xmlns="http://wixtoolset.org/schemas/v4/wxs">
 	<Dialog Id="SendFlareDlg" Width="370" Height="270" Title="!(loc.SendFlareDialog_Title)">
 		<Control Id="KeyFromDefault" Type="Edit" Height="15" Width="320" X="25" Y="150"
 				 Property="EMAIL" />
@@ -12,7 +12,8 @@
 		</Control>
 		<Control Id="Finish" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes"
 				 Text="Exit">
-			<Publish Event="EndDialog" Value="Exit">1</Publish>
+			<!-- WiX 5: Condition moved to attribute -->
+			<Publish Event="EndDialog" Value="Exit" Condition="1" />
 		</Control>
 
 		<Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.LicenseAgreementDlgBannerBitmap)" />

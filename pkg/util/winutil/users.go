@@ -89,7 +89,7 @@ func GetServiceUserSID(service string) (*windows.SID, error) {
 	// get config for datadogagent service
 	user, err := GetServiceUser(service)
 	if err != nil {
-		return nil, fmt.Errorf("could not get datadogagent service user: %s", err)
+		return nil, fmt.Errorf("could not get datadogagent service user: %w", err)
 	}
 
 	username, err := getUserFromServiceUser(user)

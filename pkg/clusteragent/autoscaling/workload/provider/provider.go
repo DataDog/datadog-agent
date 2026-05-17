@@ -13,12 +13,15 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/scheme"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/clock"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
@@ -26,8 +29,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/external"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/local"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/profile"
+	workloadpatcher "github.com/DataDog/datadog-agent/pkg/clusteragent/patcher"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"k8s.io/client-go/discovery"
 )
 
 // StartWorkloadAutoscaling starts the workload autoscaling controller
@@ -39,6 +48,7 @@ func StartWorkloadAutoscaling(
 	apiCl *apiserver.APIClient,
 	rcClient workload.RcClient,
 	wlm workloadmeta.Component,
+	taggerComp tagger.Component,
 	senderManager sender.SenderManager,
 ) (workload.PodPatcher, error) {
 	if apiCl == nil {
@@ -52,7 +62,8 @@ func StartWorkloadAutoscaling(
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
 	workload.InitDumper(store)
 
-	podPatcher := workload.NewPodPatcher(store, isLeaderFunc, apiCl.DynamicCl, eventRecorder)
+	patcher := workloadpatcher.NewPatcher(apiCl.DynamicCl, isLeaderFunc)
+	podPatcher := workload.NewPodPatcher(store, patcher, eventRecorder)
 	podWatcher := workload.NewPodWatcher(wlm, podPatcher)
 
 	clock := clock.RealClock{}
@@ -63,26 +74,75 @@ func StartWorkloadAutoscaling(
 
 	// We could consider the sender to be optional, but it's actually required for backend information
 	sender, err := senderManager.GetSender("workload_autoscaling")
-	sender.DisableDefaultHostname(true)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start local telemetry for autoscaling: %w", err)
 	}
+	sender.DisableDefaultHostname(true)
+
+	globalTagsFunc := func() []string {
+		tags, err := taggerComp.GlobalTags(types.LowCardinality)
+		if err != nil {
+			log.Warnf("Unable to get global tags from tagger for workload autoscaling metrics: %v", err)
+			return nil
+		}
+		return tags
+	}
 
 	maxDatadogPodAutoscalerObjects := pkgconfigsetup.Datadog().GetInt("autoscaling.workload.limit")
-	limitHeap := autoscaling.NewHashHeap(maxDatadogPodAutoscalerObjects, store)
+	limitHeap := autoscaling.NewHashHeap(maxDatadogPodAutoscalerObjects, store, (*model.PodAutoscalerInternal).CreationTimestamp)
 
-	controller, err := workload.NewController(clock, clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, podWatcher, sender, limitHeap)
+	controller, err := workload.NewController(clock, clusterID, eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.Cl, apiCl.DynamicCl, apiCl.DynamicInformerFactory, isLeaderFunc, store, podWatcher, sender, limitHeap, globalTagsFunc)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start workload autoscaling controller: %w", err)
 	}
+
+	profileStore := autoscaling.NewStore[model.PodAutoscalerProfileInternal]()
+	profileController, err := profile.NewController(
+		clock,
+		apiCl.DynamicCl,
+		apiCl.DynamicInformerFactory,
+		isLeaderFunc,
+		profileStore,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("Unable to start profile controller: %w", err)
+	}
+
+	workloadResources := []profile.GroupVersionKindResource{
+		{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}, Kind: "Deployment"},
+		{GroupVersionResource: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}, Kind: "StatefulSet"},
+	}
+	if isArgoRolloutsAvailable(apiCl.Cl.Discovery()) {
+		workloadResources = append(workloadResources, profile.GroupVersionKindResource{
+			GroupVersionResource: schema.GroupVersionResource{Group: "argoproj.io", Version: "v1alpha1", Resource: "rollouts"},
+			Kind:                 kubernetes.RolloutKind,
+		})
+		log.Info("Argo Rollouts CRD detected, enabling rollout support for autoscaling profiles")
+	}
+
+	workloadWatcher := profile.NewWorkloadWatcher(
+		profileStore,
+		isLeaderFunc,
+		apiCl.MetadataInformerCl,
+		workloadResources,
+		profileController.InitialSyncDone,
+	)
+
+	autoscalerSyncer := profile.NewAutoscalerSyncer(profileStore, store, isLeaderFunc, profileController.InitialSyncDone, workloadWatcher.HasSynced)
+	builtinManager := profile.NewBuiltinProfileManager(apiCl.DynamicInformerCl, isLeaderFunc)
 
 	// Start informers & controllers (informers can be started multiple times)
 	apiCl.DynamicInformerFactory.Start(ctx.Done())
 	apiCl.InformerFactory.Start(ctx.Done())
 
+	dpaNumWorkers := pkgconfigsetup.Datadog().GetInt("autoscaling.workload.num_workers")
 	// TODO: Wait POD Watcher sync before running the controller
+	go builtinManager.Run(ctx)
+	go profileController.Run(ctx, 1)
+	go workloadWatcher.Run(ctx)
+	go autoscalerSyncer.Run(ctx)
 	go podWatcher.Run(ctx)
-	go controller.Run(ctx)
+	go controller.Run(ctx, dpaNumWorkers)
 
 	// Only start the local recommender if failover metrics collection is enabled
 	if pkgconfigsetup.Datadog().GetBool("autoscaling.failover.enabled") {
@@ -98,6 +158,19 @@ func StartWorkloadAutoscaling(
 	go externalRecommender.Run(ctx)
 
 	return podPatcher, nil
+}
+
+func isArgoRolloutsAvailable(discoveryClient discovery.DiscoveryInterface) bool {
+	resources, err := discoveryClient.ServerResourcesForGroupVersion(kubernetes.RolloutAPIVersion)
+	if err != nil {
+		return false
+	}
+	for _, r := range resources.APIResources {
+		if r.Name == "rollouts" {
+			return true
+		}
+	}
+	return false
 }
 
 func buildExternalRecommenderTLSConfig(cfg config.Component) *external.TLSFilesConfig {

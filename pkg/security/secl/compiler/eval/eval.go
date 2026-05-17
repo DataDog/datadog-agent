@@ -341,43 +341,50 @@ func isFieldReferenceName(str string) (string, bool) {
 	return "", false
 }
 
+func evaluatorFromLengthHanlder(fieldname string, pos lexer.Position, state *State) (interface{}, lexer.Position, error) {
+	evaluator, err := state.model.GetEvaluator(fieldname, "", 0)
+	if err != nil {
+		return nil, pos, NewError(pos, "field '%s' doesn't exist", fieldname)
+	}
+
+	// Return length evaluator based on field type
+	switch fieldEval := evaluator.(type) {
+	case *StringArrayEvaluator:
+		return &IntEvaluator{
+			EvalFnc: func(ctx *Context) int {
+				v := fieldEval.Eval(ctx)
+				return len(v.([]string))
+			},
+		}, pos, nil
+	case *StringEvaluator:
+		return &IntEvaluator{
+			EvalFnc: func(ctx *Context) int {
+				v := fieldEval.Eval(ctx)
+				return len(v.(string))
+			},
+		}, pos, nil
+	case *IntArrayEvaluator:
+		return &IntEvaluator{
+			EvalFnc: func(ctx *Context) int {
+				v := fieldEval.Eval(ctx)
+				return len(v.([]int))
+			},
+		}, pos, nil
+	default:
+		return nil, pos, NewError(pos, "'length' cannot be used on field '%s'", fieldname)
+	}
+}
+
 // evaluatorFromFieldReference resolves a field reference (%{field})
 // This ONLY checks fields, never variables - providing explicit field access syntax
 func evaluatorFromFieldReference(fieldname string, pos lexer.Position, state *State) (interface{}, lexer.Position, error) {
 	// Handle .length suffix for fields
 	if before, ok := strings.CutSuffix(fieldname, ".length"); ok {
-		baseFieldName := before
-		evaluator, err := state.model.GetEvaluator(baseFieldName, "", 0)
-		if err != nil {
-			return nil, pos, NewError(pos, "field '%s' doesn't exist", baseFieldName)
-		}
+		return evaluatorFromLengthHanlder(before, pos, state)
+	}
 
-		// Return length evaluator based on field type
-		switch fieldEval := evaluator.(type) {
-		case *StringArrayEvaluator:
-			return &IntEvaluator{
-				EvalFnc: func(ctx *Context) int {
-					v := fieldEval.Eval(ctx)
-					return len(v.([]string))
-				},
-			}, pos, nil
-		case *StringEvaluator:
-			return &IntEvaluator{
-				EvalFnc: func(ctx *Context) int {
-					v := fieldEval.Eval(ctx)
-					return len(v.(string))
-				},
-			}, pos, nil
-		case *IntArrayEvaluator:
-			return &IntEvaluator{
-				EvalFnc: func(ctx *Context) int {
-					v := fieldEval.Eval(ctx)
-					return len(v.([]int))
-				},
-			}, pos, nil
-		default:
-			return nil, pos, NewError(pos, "'length' cannot be used on field '%s'", baseFieldName)
-		}
+	if before, ok := strings.CutSuffix(fieldname, ".root_domain"); ok {
+		return evaluatorFromRootDomainHandler(before, pos, state)
 	}
 
 	// Only try to resolve as a field (no variable lookup)
@@ -957,13 +964,18 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 					if err != nil {
 						return nil, pos, err
 					}
-					if *obj.ArrayComparison.Op == "notin" {
-						return Not(boolEvaluator, state), obj.Pos, nil
+				case *StringArrayEvaluator:
+					boolEvaluator, err = StringArrayMatchesStringArray(unary, nextStringArray, state)
+					if err != nil {
+						return nil, pos, err
 					}
-					return boolEvaluator, obj.Pos, nil
 				default:
 					return nil, pos, NewArrayTypeError(pos, reflect.Array, reflect.String)
 				}
+				if *obj.ArrayComparison.Op == "notin" {
+					return Not(boolEvaluator, state), obj.Pos, nil
+				}
+				return boolEvaluator, obj.Pos, nil
 			case *IntEvaluator:
 				switch nextInt := next.(type) {
 				case *IntArrayEvaluator:

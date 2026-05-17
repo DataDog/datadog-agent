@@ -150,8 +150,8 @@ func GetTLSConfigFromCert(ipccert, ipckey []byte) (*tls.Config, *tls.Config, err
 
 	serverTLSConfig := &tls.Config{
 		Certificates: []tls.Certificate{tlsCert},
-		// The server parses the client certificate but does not make any verification, this is useful for telemetry
-		ClientAuth: tls.RequestClientCert,
+		// The server verify client certificate if given, this is useful to enable mTLS for a subsection of the API
+		ClientAuth: tls.VerifyClientCertIfGiven,
 		// The server will accept any client certificate signed by the IPC CA
 		ClientCAs: certPool,
 	}

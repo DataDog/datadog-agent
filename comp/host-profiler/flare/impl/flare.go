@@ -7,13 +7,15 @@
 package flareimpl
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Can be overridden for tests
@@ -27,27 +29,30 @@ type Provides struct {
 // Requires defines the dependencies for the flareimpl component
 type Requires struct {
 	Client ipc.HTTPClient
+	Config config.Component
 }
 
 type flareImpl struct {
 	client ipc.HTTPClient
+	port   int
 }
 
 // NewComponent creates a new Component for this module and returns any errors on failure.
 func NewComponent(reqs Requires) (Provides, error) {
 	flare := flareImpl{
 		client: reqs.Client,
+		port:   hpflareextension.EffectivePort(reqs.Config.GetInt("hostprofiler.hpflare.port")),
 	}
 	return Provides{
 		FlareProvider: flaretypes.NewProvider(flare.fillFlare),
 	}, nil
 }
 
-func (c *flareImpl) fillFlare(fb flaretypes.FlareBuilder) error {
+func (c *flareImpl) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
 	responseBytes, err := c.requestOtelConfigInfo()
 	if err != nil {
 		msg := fmt.Sprintf("did not get host-profiler configuration: %v", err)
-		log.Error(msg)
+		slog.Error(msg)
 		fb.AddFile("host-profiler/host-profiler.log", []byte(msg))
 
 		return nil
@@ -56,7 +61,7 @@ func (c *flareImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 	var responseInfo hpflareextension.Response
 	if err := json.Unmarshal(responseBytes, &responseInfo); err != nil {
 		msg := fmt.Sprintf("could not read sources from host-profiler response: %s, error: %v", responseBytes, err)
-		log.Error(msg)
+		slog.Error(msg)
 		fb.AddFile("host-profiler/host-profiler.log", []byte(msg))
 		return nil
 	}
@@ -74,11 +79,9 @@ func toJSON(it interface{}) string {
 }
 
 func (c *flareImpl) requestOtelConfigInfo() ([]byte, error) {
-	// Value to return for tests
 	if overrideConfigResponse != "" {
 		return []byte(overrideConfigResponse), nil
 	}
 
-	// todo(mackjmr): Make port configurable once we have agreement on hostprofiler config.
-	return c.client.Get("https://localhost:7778")
+	return c.client.Get(fmt.Sprintf("https://localhost:%d", c.port))
 }

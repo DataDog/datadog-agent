@@ -9,14 +9,14 @@ package networkpath
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
-	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
+	npcollectorfx "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/fx"
 )
 
-// team: cloud-network-monitoring network-path
+// team: network-path
 
 // Bundle defines the fx options for this bundle.
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
-		npcollectorimpl.Module(),
+		npcollectorfx.Module(),
 	)
 }

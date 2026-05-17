@@ -10,6 +10,7 @@ package providers
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 
 	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
@@ -59,9 +60,10 @@ func newEpConfig() *epConfig {
 // KubeEndpointsFileConfigProvider generates endpoints checks from check configurations defined in files.
 type KubeEndpointsFileConfigProvider struct {
 	sync.RWMutex
-	epLister listersv1.EndpointsLister
-	upToDate bool
-	store    *store
+	epLister     listersv1.EndpointsLister
+	upToDate     bool
+	store        *store
+	configErrors map[string]types.ErrorMsgSet
 }
 
 // NewKubeEndpointsFileConfigProvider returns a new KubeEndpointsFileConfigProvider
@@ -121,9 +123,17 @@ func (p *KubeEndpointsFileConfigProvider) String() string {
 	return names.KubeEndpointsFile
 }
 
-// GetConfigErrors is not implemented for the KubeEndpointsFileConfigProvider.
+// GetConfigErrors returns a map of errors that occurred when building the config store,
+// indexed by the integration name that generated the error.
 func (p *KubeEndpointsFileConfigProvider) GetConfigErrors() map[string]types.ErrorMsgSet {
-	return make(map[string]types.ErrorMsgSet)
+	p.RLock()
+	defer p.RUnlock()
+
+	errors := make(map[string]types.ErrorMsgSet, len(p.configErrors))
+	for k, v := range p.configErrors {
+		errors[k] = v
+	}
+	return errors
 }
 
 func (p *KubeEndpointsFileConfigProvider) setUpToDate(v bool) {
@@ -189,6 +199,7 @@ func (p *KubeEndpointsFileConfigProvider) deleteHandler(obj interface{}) {
 // buildConfigStore initializes the config templates store.
 func (p *KubeEndpointsFileConfigProvider) buildConfigStore(templates []integration.Config) {
 	p.store = newStore()
+	p.configErrors = make(map[string]types.ErrorMsgSet)
 	for _, tpl := range templates {
 		for _, advancedAD := range tpl.AdvancedADIdentifiers {
 			if advancedAD.KubeEndpoints.IsEmpty() {
@@ -205,21 +216,21 @@ func (p *KubeEndpointsFileConfigProvider) buildConfigStore(templates []integrati
 
 		// Configuration defined using only CEL selectors
 		if len(tpl.AdvancedADIdentifiers) == 0 && len(tpl.CELSelector.KubeEndpoints) > 0 {
-			// Create matching program from CEL rules
-			matchingProg, celADID, compileErr, recError := integration.CreateMatchingProgram(tpl.CELSelector)
-			if celADID != adtypes.CelEndpointIdentifier {
-				log.Errorf("CEL selector for template %s is not targeting endpoints", tpl.Name)
+			// Create matching programs from CEL rules
+			programs, celADIDs, err := integration.CreateMatchingPrograms(tpl.CELSelector, true)
+			if !slices.Contains(celADIDs, adtypes.CelEndpointIdentifier) {
+				errMsg := fmt.Sprintf("CEL selector for template %s is not targeting endpoints", tpl.Name)
+				log.Error(errMsg)
+				p.configErrors[tpl.Name] = types.ErrorMsgSet{errMsg: struct{}{}}
 				continue
 			}
-			if compileErr != nil {
-				log.Errorf("Failed to compile CEL selector for template %s: %v", tpl.Name, compileErr)
+			if err != nil {
+				errMsg := fmt.Sprintf("Failed to create CEL matching program for template %s: %v", tpl.Name, err)
+				log.Error(errMsg)
+				p.configErrors[tpl.Name] = types.ErrorMsgSet{errMsg: struct{}{}}
 				continue
 			}
-			if recError != nil {
-				log.Errorf("Failed to check rule recommendations for CEL selector for template %s: %v", tpl.Name, recError)
-				continue
-			}
-			tpl.SetMatchingProgram(matchingProg)
+			tpl.SetMatchingPrograms(programs)
 
 			p.store.insertTemplate(celEndpointID, tpl, kubeEndpointResolveAuto)
 		}
@@ -274,28 +285,27 @@ func (s *store) insertEp(ep *v1.Endpoints) bool {
 	defer s.Unlock()
 
 	// Configuration defined using Advanced AD identifiers (exact namespace/name match)
-	epConfig, found := s.epConfigs[epID(ep.Namespace, ep.Name)]
-	if found {
+	epConfig, adFound := s.epConfigs[epID(ep.Namespace, ep.Name)]
+	if adFound {
 		if epConfig.eps == nil {
 			epConfig.eps = make(map[*v1.Endpoints]struct{})
 		}
 		epConfig.eps[ep] = struct{}{}
 		epConfig.shouldCollect = true
-		return true
 	}
 
 	// Endpoint matches any CEL template (CEL Selector based match)
-	if s.matchesAnyCELTemplate(ep) {
+	celFound := s.matchesAnyCELTemplate(ep)
+	if celFound {
 		celEpConfig := s.epConfigs[celEndpointID]
 		if celEpConfig.eps == nil {
 			celEpConfig.eps = make(map[*v1.Endpoints]struct{})
 		}
 		celEpConfig.eps[ep] = struct{}{}
 		celEpConfig.shouldCollect = true
-		return true
 	}
 
-	return false
+	return adFound || celFound
 }
 
 // deleteEp handles endpoint objects deletion.

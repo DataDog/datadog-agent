@@ -110,10 +110,17 @@ var denseStorePool = sync.Pool{
 	},
 }
 
-func getDenseStore() store.Store {
+// denseStoreGetFn and denseStorePutFn are indirections so tests can intercept
+// every borrow/return without relying on sync.Pool scheduling guarantees.
+var denseStoreGetFn = func() store.Store {
 	return denseStorePool.Get().(store.Store)
 }
 
-func putDenseStore(s store.Store) {
+var denseStorePutFn = func(s store.Store) {
+	s.Clear()
 	denseStorePool.Put(s)
 }
+
+func getDenseStore() store.Store { return denseStoreGetFn() }
+
+func putDenseStore(s store.Store) { denseStorePutFn(s) }

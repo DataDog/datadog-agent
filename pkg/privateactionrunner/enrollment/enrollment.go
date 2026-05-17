@@ -8,46 +8,104 @@ package enrollment
 import (
 	"context"
 	"crypto/ecdsa"
-	"encoding/base64"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
+	"time"
 
-	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/regions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
 
 const defaultIdentityFileName = "privateactionrunner_private_identity.json"
 
 // Result contains the result of a successful enrollment
 type Result struct {
-	PrivateKey *ecdsa.PrivateKey
-	URN        string
+	PrivateKey    *ecdsa.PrivateKey
+	URN           string
+	Hostname      string
+	RunnerName    string
+	OrchClusterID string
+}
+
+type AgentIdentifier struct {
+	Hostname      string
+	OrchClusterID string
 }
 
 type PersistedIdentity struct {
-	PrivateKey string `json:"private_key"`
-	URN        string `json:"urn"`
+	PrivateKey    string `json:"private_key"`
+	URN           string `json:"urn"`
+	Hostname      string `json:"hostname,omitempty"`
+	OrchClusterID string `json:"orch_cluster_id,omitempty"`
+}
+
+// GetAgentIdentifier returns the identifier for the current agent.
+// Hostname is always populated. For the cluster agent, OrchClusterID is also populated (required).
+func GetAgentIdentifier(ctx context.Context, hostnameGetter hostnameinterface.Component) (*AgentIdentifier, error) {
+	hostname, err := hostnameGetter.Get(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get hostname: %w", err)
+	}
+	agentIdentifier := &AgentIdentifier{Hostname: hostname}
+	if flavor.GetFlavor() == flavor.ClusterAgent {
+		orchClusterID, err := clustername.GetClusterID()
+		if err != nil || orchClusterID == "" {
+			return nil, fmt.Errorf("failed to get orchestrator cluster ID for cluster agent: %w", err)
+		}
+		agentIdentifier.OrchClusterID = orchClusterID
+	}
+	return agentIdentifier, nil
+}
+
+// ShouldReenroll checks whether the persisted identity needs refreshing.
+// Re-enrollment is only supported for the node agent.
+func ShouldReenroll(agentIdentifier *AgentIdentifier, identity *PersistedIdentity) bool {
+	if identity == nil || flavor.GetFlavor() == flavor.ClusterAgent {
+		return false
+	}
+	if identity.Hostname != "" && identity.Hostname != agentIdentifier.Hostname {
+		log.Infof("Saved identity hostname does not match current hostname, re-enrolling")
+		return true
+	}
+	return false
 }
 
 // SelfEnroll performs self-registration of a private action runner using API credentials
-func SelfEnroll(ddSite, runnerName, apiKey, appKey string) (*Result, error) {
+func SelfEnroll(
+	ctx context.Context,
+	ddSite,
+	runnerNamePrefix,
+	apiKey,
+	appKey string,
+	agentIdentifier *AgentIdentifier,
+	extraHeaders map[string]string,
+) (*Result, error) {
+	agentFlavor := flavor.GetFlavor()
+
+	now := time.Now().UTC()
+	formattedTime := now.Format("20060102150405")
+	runnerName := runnerNamePrefix + "-" + formattedTime
+
 	privateJwk, publicJwk, err := util.GenerateKeys()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate key pair: %w", err)
 	}
 
 	ddBaseURL := "https://api." + ddSite
-	publicClient := opms.NewPublicClient(ddBaseURL)
+	publicClient := opms.NewPublicClient(ddBaseURL, extraHeaders)
 
-	ctx := context.Background()
 	runnerModes := []modes.Mode{modes.ModePull}
+
+	// The cluster agent is a deployment not tied to a specific host, so hostname is not sent.
+	enrollmentHostname := agentIdentifier.Hostname
+	if agentFlavor == flavor.ClusterAgent {
+		enrollmentHostname = ""
+	}
 
 	createRunnerResponse, err := publicClient.EnrollWithApiKey(
 		ctx,
@@ -56,6 +114,9 @@ func SelfEnroll(ddSite, runnerName, apiKey, appKey string) (*Result, error) {
 		runnerName,
 		runnerModes,
 		publicJwk,
+		enrollmentHostname,
+		agentIdentifier.OrchClusterID,
+		agentFlavor,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("enrollment API call failed: %w", err)
@@ -65,77 +126,10 @@ func SelfEnroll(ddSite, runnerName, apiKey, appKey string) (*Result, error) {
 	urn := util.MakeRunnerURN(region, createRunnerResponse.OrgID, createRunnerResponse.RunnerID)
 
 	return &Result{
-		PrivateKey: privateJwk.Key.(*ecdsa.PrivateKey),
-		URN:        urn,
+		PrivateKey:    privateJwk.Key.(*ecdsa.PrivateKey),
+		URN:           urn,
+		Hostname:      enrollmentHostname,
+		RunnerName:    runnerName,
+		OrchClusterID: agentIdentifier.OrchClusterID,
 	}, nil
-}
-
-// GetIdentityFromPreviousEnrollment returns the identity of the private action runner from the identity file. Returns nil if the identity file does not exist
-func GetIdentityFromPreviousEnrollment(cfg configModel.Reader) (*PersistedIdentity, error) {
-	filePath := getIdentityFilePath(cfg)
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		return nil, nil
-	}
-
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read identity file: %w", err)
-	}
-
-	var identityContent PersistedIdentity
-	if err := json.Unmarshal(data, &identityContent); err != nil {
-		return nil, fmt.Errorf("failed to parse identity file JSON: %w", err)
-	}
-
-	if identityContent.URN == "" {
-		return nil, errors.New("URN is empty in identity file")
-	}
-	if identityContent.PrivateKey == "" {
-		return nil, errors.New("private key is empty in identity file")
-	}
-
-	return &identityContent, nil
-}
-
-// getIdentityFilePath returns the path to the file which contains the identity of the private action runner when doing self-enrollment
-func getIdentityFilePath(cfg configModel.Reader) string {
-	if configPath := cfg.GetString("privateactionrunner.identity_file_path"); configPath != "" {
-		return configPath
-	}
-	// similarly to pkg/api/security/cert/cert_getter.go we also check if auth_token_file_path as a fallback since customers would probably want these files to be next to each other
-	if cfg.GetString("auth_token_file_path") != "" {
-		dest := filepath.Join(filepath.Dir(cfg.GetString("auth_token_file_path")), defaultIdentityFileName)
-		log.Warnf("IPC cert/key created or retrieved next to auth_token_file_path location: %v", dest)
-		return dest
-	}
-	return filepath.Join(filepath.Dir(cfg.ConfigFileUsed()), defaultIdentityFileName)
-}
-
-// PersistIdentity saves the enrollment result to the identity file
-func PersistIdentity(cfg configModel.Reader, result *Result) error {
-	filePath := getIdentityFilePath(cfg)
-
-	privateKeyJWK, err := util.EcdsaToJWK(result.PrivateKey)
-	if err != nil {
-		return fmt.Errorf("failed to convert private key to JWK: %w", err)
-	}
-	marshalledPrivateKey, err := privateKeyJWK.MarshalJSON()
-	if err != nil {
-		return fmt.Errorf("failed to marshal private key to JSON: %w", err)
-	}
-
-	jsonData, err := json.Marshal(PersistedIdentity{
-		PrivateKey: base64.RawURLEncoding.EncodeToString(marshalledPrivateKey),
-		URN:        result.URN,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to marshal identity content to JSON: %w", err)
-	}
-
-	if err := os.WriteFile(filePath, jsonData, 0600); err != nil {
-		return fmt.Errorf("failed to write temporary identity file: %w", err)
-	}
-
-	log.Infof("Private Runner identity successfully persisted to %s", filePath)
-	return nil
 }

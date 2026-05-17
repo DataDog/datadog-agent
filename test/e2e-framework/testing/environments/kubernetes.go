@@ -17,19 +17,61 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 )
 
 // Kubernetes is an environment that contains a Kubernetes cluster, the Agent and a FakeIntake.
 type Kubernetes struct {
+	CoverageBase
 	// Components
 	KubernetesCluster *components.KubernetesCluster
 	FakeIntake        *components.FakeIntake
 	Agent             *components.KubernetesAgent
 }
 
+// Ensure Kubernetes implements the KubernetesOutputs interface
+var _ outputs.KubernetesOutputs = (*Kubernetes)(nil)
+
 var _ common.Diagnosable = (*Kubernetes)(nil)
+
+// KubernetesClusterOutput implements eks.KubernetesOutputs
+func (e *Kubernetes) KubernetesClusterOutput() *kubernetes.ClusterOutput {
+	if e.KubernetesCluster == nil {
+		e.KubernetesCluster = &components.KubernetesCluster{}
+	}
+	return &e.KubernetesCluster.ClusterOutput
+}
+
+// FakeIntakeOutput implements eks.KubernetesOutputs
+func (e *Kubernetes) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
+	if e.FakeIntake == nil {
+		e.FakeIntake = &components.FakeIntake{}
+	}
+	return &e.FakeIntake.FakeintakeOutput
+}
+
+// KubernetesAgentOutput implements eks.KubernetesOutputs
+func (e *Kubernetes) KubernetesAgentOutput() *agent.KubernetesAgentOutput {
+	if e.Agent == nil {
+		e.Agent = &components.KubernetesAgent{}
+	}
+	return &e.Agent.KubernetesAgentOutput
+}
+
+// DisableFakeIntake implements eks.KubernetesOutputs
+func (e *Kubernetes) DisableFakeIntake() {
+	e.FakeIntake = nil
+}
+
+// DisableAgent implements eks.KubernetesOutputs
+func (e *Kubernetes) DisableAgent() {
+	e.Agent = nil
+}
 
 // Diagnose generates a diagnose for the Kubernetes environment, creating a flare for each agent and cluster-agent pod.
 func (e *Kubernetes) Diagnose(outputDir string) (string, error) {
@@ -147,8 +189,10 @@ const (
 
 // Should return the coverage commands for each pod and each container
 func (e *Kubernetes) getAgentCoverageCommands(podType podType) []CoverageTargetSpec {
-	if podType == podTypeWindows {
-		return []CoverageTargetSpec{
+	var targets []CoverageTargetSpec
+	switch podType {
+	case podTypeWindows:
+		targets = []CoverageTargetSpec{
 			{
 				AgentName:       "agent",
 				CoverageCommand: []string{"agent.exe", "coverage", "generate"},
@@ -174,43 +218,56 @@ func (e *Kubernetes) getAgentCoverageCommands(podType podType) []CoverageTargetS
 				CoverageCommand: []string{"system-probe.exe", "coverage", "generate"},
 				Required:        false,
 			},
+			{
+				AgentName:       "otel-agent",
+				CoverageCommand: []string{"otel-agent.exe", "coverage"},
+				Required:        false,
+			},
 		}
-	} else if podType == podTypeClusterAgent {
-		return []CoverageTargetSpec{
+	case podTypeClusterAgent:
+		targets = []CoverageTargetSpec{
 			{
 				AgentName:       "cluster-agent",
 				CoverageCommand: []string{"datadog-cluster-agent", "coverage", "generate"},
 				Required:        true,
 			},
 		}
+	default:
+		targets = []CoverageTargetSpec{
+			{
+				AgentName:       "agent",
+				CoverageCommand: []string{"agent", "coverage", "generate"},
+				Required:        true,
+			},
+			{
+				AgentName:       "trace-agent",
+				CoverageCommand: []string{"trace-agent", "coverage", "generate", "-c", "/etc/datadog-agent/datadog.yaml"},
+				Required:        false,
+			},
+			{
+				AgentName:       "process-agent",
+				CoverageCommand: []string{"process-agent", "coverage", "generate"},
+				Required:        false,
+			},
+			{
+				AgentName:       "security-agent",
+				CoverageCommand: []string{"security-agent", "coverage", "generate"},
+				Required:        false,
+			},
+			{
+				AgentName:       "system-probe",
+				CoverageCommand: []string{"system-probe", "coverage", "generate"},
+				Required:        false,
+			},
+			{
+				AgentName:       "otel-agent",
+				CoverageCommand: []string{"otel-agent", "coverage"},
+				Required:        false,
+			},
+		}
 	}
-	return []CoverageTargetSpec{
-		{
-			AgentName:       "agent",
-			CoverageCommand: []string{"agent", "coverage", "generate"},
-			Required:        true,
-		},
-		{
-			AgentName:       "trace-agent",
-			CoverageCommand: []string{"trace-agent", "coverage", "generate", "-c", "/etc/datadog-agent/datadog.yaml"},
-			Required:        false,
-		},
-		{
-			AgentName:       "process-agent",
-			CoverageCommand: []string{"process-agent", "coverage", "generate"},
-			Required:        false,
-		},
-		{
-			AgentName:       "security-agent",
-			CoverageCommand: []string{"security-agent", "coverage", "generate"},
-			Required:        false,
-		},
-		{
-			AgentName:       "system-probe",
-			CoverageCommand: []string{"system-probe", "coverage", "generate"},
-			Required:        false,
-		},
-	}
+	e.applyCoverageOverrides(targets)
+	return targets
 }
 
 // Coverage generates a coverage report for each pod and container

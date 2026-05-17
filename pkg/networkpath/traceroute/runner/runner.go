@@ -20,13 +20,14 @@ import (
 	"github.com/DataDog/datadog-traceroute/result"
 	"github.com/DataDog/datadog-traceroute/traceroute"
 
-	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+
 	cloudprovidersnetwork "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/network"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -50,11 +51,11 @@ const (
 
 // Telemetry
 var tracerouteRunnerTelemetry = struct {
-	runs       *telemetry.StatCounterWrapper
-	failedRuns *telemetry.StatCounterWrapper
+	runs       *telemetryComponent.StatCounterWrapper
+	failedRuns *telemetryComponent.StatCounterWrapper
 }{
-	telemetry.NewStatCounterWrapper(tracerouteRunnerModuleName, "runs", []string{}, "Counter measuring the number of traceroutes run"),
-	telemetry.NewStatCounterWrapper(tracerouteRunnerModuleName, "failed_runs", []string{}, "Counter measuring the number of traceroute run failures"),
+	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), tracerouteRunnerModuleName, "runs", []string{}, "Counter measuring the number of traceroutes run"),
+	telemetryComponent.NewStatCounterWrapper(telemetryimpl.GetCompatComponent(), tracerouteRunnerModuleName, "failed_runs", []string{}, "Counter measuring the number of traceroute run failures"),
 }
 
 func init() {
@@ -93,7 +94,7 @@ func New(telemetryComp telemetryComponent.Component) (*Runner, error) {
 		networkID: funcs.MemoizeNoError(func() string {
 			nid, err := retryGetNetworkID()
 			if err != nil {
-				log.Errorf("failed to get network ID: %s", err.Error())
+				log.Warnf("failed to get network ID: %s", err.Error())
 			}
 			return nid
 		}),
@@ -131,7 +132,7 @@ func (r *Runner) Run(ctx context.Context, cfg config.Config) (payload.NetworkPat
 		Port:                  int(cfg.DestPort),
 		Protocol:              strings.ToLower(string(cfg.Protocol)),
 		MinTTL:                trcommon.DefaultMinTTL,
-		MaxTTL:                int(cfg.MaxTTL),
+		MaxTTL:                int(maxTTL),
 		Delay:                 DefaultDelay,
 		Timeout:               timeout,
 		TCPMethod:             traceroute.TCPMethod(cfg.TCPMethod),
@@ -165,7 +166,7 @@ func (r *Runner) processResults(res *result.Results, protocol payload.Protocol, 
 
 	traceroutePath := payload.NetworkPath{
 		AgentVersion: version.AgentVersion,
-		PathtraceID:  payload.NewPathtraceID(),
+		TestRunID:    res.TestRunID,
 		Protocol:     protocol,
 		Timestamp:    time.Now().UnixMilli(),
 		Source: payload.NetworkPathSource{

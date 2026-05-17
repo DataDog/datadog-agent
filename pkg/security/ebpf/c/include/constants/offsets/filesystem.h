@@ -86,6 +86,18 @@ u32 __attribute__((always_inline)) get_mount_offset_of_nscommon_inum(void) {
     return offset; // offsetof(struct ns_common, inum)
 }
 
+u32 __attribute__((always_inline)) get_mount_offset_of_parent(void) {
+    u64 offset;
+    LOAD_CONSTANT("mount_parent_offset", offset);
+    return offset; // offsetof(struct mount, mnt_parent)
+}
+
+u32 __attribute__((always_inline)) get_mount_offset_of_mountpoint(void) {
+    u64 offset;
+    LOAD_CONSTANT("mount_mountpoint_offset", offset);
+    return offset; // offsetof(struct mount, mnt_mp)
+}
+
 u32 __attribute__((always_inline)) get_mnt_namespace_ns(void) {
     u64 offset;
     LOAD_CONSTANT("mnt_namespace_ns", offset);
@@ -163,6 +175,20 @@ u32 __attribute__((always_inline)) get_mount_mount_ns_inum(void *mnt) {
 
     bpf_probe_read(&inum, sizeof(inum), mnt_ns + get_mnt_namespace_ns() + get_mount_offset_of_nscommon_inum());
     return inum;
+}
+
+struct mount * __attribute__((always_inline)) get_mount_parent(void *mnt) {
+    struct mount *mnt_parent = NULL;
+
+    bpf_probe_read(&mnt_parent, sizeof(mnt_parent), mnt + get_mount_offset_of_parent());
+    return mnt_parent;
+}
+
+struct mountpoint * __attribute__((always_inline)) get_mount_mountpoint(void *mnt) {
+    struct mountpoint *mnt_mp = NULL;
+
+    bpf_probe_read(&mnt_mp, sizeof(mnt_mp), mnt + get_mount_offset_of_mountpoint());
+    return mnt_mp;
 }
 
 static struct vfsmount *__attribute__((always_inline)) get_mount_vfsmount(void *mnt) {
@@ -323,6 +349,31 @@ static __attribute__((always_inline)) int is_tmpfs(struct dentry *dentry) {
 static __attribute__((always_inline)) int is_overlayfs(struct dentry *dentry) {
     struct super_block *sb = get_dentry_sb(dentry);
     return get_sb_magic(sb) == OVERLAYFS_SUPER_MAGIC;
+}
+
+static __attribute__((always_inline)) int is_procfs(struct dentry *dentry) {
+    struct super_block *sb = get_dentry_sb(dentry);
+    return get_sb_magic(sb) == PROC_SUPER_MAGIC;
+}
+
+static __attribute__((always_inline)) int is_sysfs(struct dentry *dentry) {
+    struct super_block *sb = get_dentry_sb(dentry);
+    return get_sb_magic(sb) == SYSFS_MAGIC;
+}
+
+static __attribute__((always_inline)) int is_cgroupfs(struct dentry *dentry) {
+    struct super_block *sb = get_dentry_sb(dentry);
+    return get_sb_magic(sb) == CGROUP_SUPER_MAGIC;
+}
+
+static __attribute__((always_inline)) int is_cgroup2fs(struct dentry *dentry) {
+    struct super_block *sb = get_dentry_sb(dentry);
+    return get_sb_magic(sb) == CGROUP2_SUPER_MAGIC;
+}
+
+static __attribute__((always_inline)) int is_devpts(struct dentry *dentry) {
+    struct super_block *sb = get_dentry_sb(dentry);
+    return get_sb_magic(sb) == DEVPTS_SUPER_MAGIC;
 }
 
 static struct inode * __attribute__((always_inline)) get_ovl_lower_inode_direct(struct dentry *dentry) {

@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strconv"
 	"syscall"
 	"testing"
 
@@ -59,7 +60,7 @@ func TestAWSIMDSv1Request(t *testing.T) {
 	}()
 
 	// create fake IMDS server
-	imdsServerAddr := fmt.Sprintf("%s:%v", testutils.IMDSTestServerIP, testutils.IMDSTestServerPort)
+	imdsServerAddr := testutils.IMDSTestServerIP + ":" + strconv.Itoa(testutils.IMDSTestServerPort)
 	imdsServer := testutils.CreateIMDSServer(imdsServerAddr)
 	defer func() {
 		if err = testutils.StopIMDSserver(imdsServer); err != nil {
@@ -134,7 +135,7 @@ func TestAWSIMDSv1Response(t *testing.T) {
 	}()
 
 	// create fake IMDS server
-	imdsServerAddr := fmt.Sprintf("%s:%v", testutils.IMDSTestServerIP, testutils.IMDSTestServerPort)
+	imdsServerAddr := testutils.IMDSTestServerIP + ":" + strconv.Itoa(testutils.IMDSTestServerPort)
 	imdsServer := testutils.CreateIMDSServer(imdsServerAddr)
 	defer func() {
 		if err = testutils.StopIMDSserver(imdsServer); err != nil {
@@ -212,7 +213,7 @@ func TestAWSIMDSv2Request(t *testing.T) {
 	}()
 
 	// create fake IMDS server
-	imdsServerAddr := fmt.Sprintf("%s:%v", testutils.IMDSTestServerIP, testutils.IMDSTestServerPort)
+	imdsServerAddr := testutils.IMDSTestServerIP + ":" + strconv.Itoa(testutils.IMDSTestServerPort)
 	imdsServer := testutils.CreateIMDSServer(imdsServerAddr)
 	defer func() {
 		if err = testutils.StopIMDSserver(imdsServer); err != nil {
@@ -287,7 +288,7 @@ func TestGCPIMDS(t *testing.T) {
 	}()
 
 	// create fake IMDS server
-	imdsServerAddr := fmt.Sprintf("%s:%v", testutils.IMDSTestServerIP, testutils.IMDSTestServerPort)
+	imdsServerAddr := testutils.IMDSTestServerIP + ":" + strconv.Itoa(testutils.IMDSTestServerPort)
 	imdsServer := testutils.CreateIMDSServer(imdsServerAddr)
 	defer func() {
 		if err = testutils.StopIMDSserver(imdsServer); err != nil {
@@ -362,7 +363,7 @@ func TestAzureIMDS(t *testing.T) {
 	}()
 
 	// create fake IMDS server
-	imdsServerAddr := fmt.Sprintf("%s:%v", testutils.IMDSTestServerIP, testutils.IMDSTestServerPort)
+	imdsServerAddr := testutils.IMDSTestServerIP + ":" + strconv.Itoa(testutils.IMDSTestServerPort)
 	imdsServer := testutils.CreateIMDSServer(imdsServerAddr)
 	defer func() {
 		if err = testutils.StopIMDSserver(imdsServer); err != nil {
@@ -437,7 +438,7 @@ func TestIBMIMDS(t *testing.T) {
 	}()
 
 	// create fake IMDS server
-	imdsServerAddr := fmt.Sprintf("%s:%v", testutils.IMDSTestServerIP, testutils.IMDSTestServerPort)
+	imdsServerAddr := testutils.IMDSTestServerIP + ":" + strconv.Itoa(testutils.IMDSTestServerPort)
 	imdsServer := testutils.CreateIMDSServer(imdsServerAddr)
 	defer func() {
 		if err = testutils.StopIMDSserver(imdsServer); err != nil {
@@ -512,7 +513,7 @@ func TestOracleIMDS(t *testing.T) {
 	}()
 
 	// create fake IMDS server
-	imdsServerAddr := fmt.Sprintf("%s:%v", testutils.IMDSTestServerIP, testutils.IMDSTestServerPort)
+	imdsServerAddr := testutils.IMDSTestServerIP + ":" + strconv.Itoa(testutils.IMDSTestServerPort)
 	imdsServer := testutils.CreateIMDSServer(imdsServerAddr)
 	defer func() {
 		if err = testutils.StopIMDSserver(imdsServer); err != nil {
@@ -592,7 +593,7 @@ func TestIMDSProcessContext(t *testing.T) {
 	}()
 
 	// create fake IMDS server
-	imdsServerAddr := fmt.Sprintf("%s:%v", testutils.IMDSTestServerIP, testutils.IMDSTestServerPort)
+	imdsServerAddr := testutils.IMDSTestServerIP + ":" + strconv.Itoa(testutils.IMDSTestServerPort)
 	imdsServer := testutils.CreateIMDSServer(imdsServerAddr)
 	defer func() {
 		if err = testutils.StopIMDSserver(imdsServer); err != nil {

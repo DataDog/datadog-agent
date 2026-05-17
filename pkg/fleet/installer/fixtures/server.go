@@ -9,7 +9,9 @@ package fixtures
 import (
 	"embed"
 	"fmt"
+	"io"
 	"io/fs"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -18,12 +20,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/tar"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/registry"
 	"github.com/google/go-containerregistry/pkg/v1/layout"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/tar"
 )
 
 // Fixture represents a package fixture.
@@ -34,6 +37,7 @@ type Fixture struct {
 	contentPath string
 	configPath  string
 	indexDigest string
+	extensions  []string
 }
 
 var (
@@ -44,6 +48,13 @@ var (
 		layoutPath:  "oci-layout-simple-v1.tar",
 		contentPath: "simple-v1",
 		configPath:  "simple-v1-config",
+	}
+	// FixtureSimpleV1WithExtension is a simple package fixture with version v1 and an extension.
+	FixtureSimpleV1WithExtension = Fixture{
+		Package:    "simple",
+		Version:    "v1",
+		layoutPath: "oci-layout-simple-v1-with-extension.tar",
+		extensions: []string{"simple-v1-extension"},
 	}
 	// FixtureSimpleV2 is a simple package fixture with version v2.
 	FixtureSimpleV2 = Fixture{
@@ -60,13 +71,19 @@ var (
 		layoutPath:  "oci-layout-simple-v1-linux2-amd128.tar",
 		contentPath: "simple-v1",
 	}
-	ociFixtures = []*Fixture{&FixtureSimpleV1, &FixtureSimpleV2, &FixtureSimpleV1Linux2Amd128}
+	ociFixtures = []*Fixture{&FixtureSimpleV1, &FixtureSimpleV1WithExtension, &FixtureSimpleV2, &FixtureSimpleV1Linux2Amd128}
 )
 
 //go:embed *
 var fixturesFS embed.FS
 
 func extractLayoutsAndBuildRegistry(t *testing.T, layoutsDir string) *httptest.Server {
+	// Suppress registry logs during fixture extraction
+	originalLogOutput := log.Writer()
+	log.SetOutput(io.Discard)
+	defer log.SetOutput(originalLogOutput)
+
+	// Create a registry server
 	s := httptest.NewServer(registry.New())
 	for _, f := range ociFixtures {
 		layoutDir := path.Join(layoutsDir, f.layoutPath)
@@ -132,6 +149,19 @@ func (s *Server) PackageFS(f Fixture) fs.FS {
 		panic(err)
 	}
 	return fs
+}
+
+// ExtensionsFS returns the extensions FS for the given fixture.
+func (s *Server) ExtensionsFS(f Fixture) map[string]fs.FS {
+	extensionsFS := make(map[string]fs.FS)
+	for _, extension := range f.extensions {
+		fs, err := fs.Sub(fixturesFS, extension)
+		if err != nil {
+			panic(err)
+		}
+		extensionsFS[extension] = fs
+	}
+	return extensionsFS
 }
 
 // ConfigFS returns the config FS for the given fixture.

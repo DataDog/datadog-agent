@@ -16,9 +16,10 @@ import (
 	"github.com/benbjohnson/clock"
 	"go4.org/intern"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	procutil "github.com/DataDog/datadog-agent/pkg/process/util"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,8 +31,8 @@ var resolverTelemetry = struct {
 	cacheSize  telemetry.Gauge
 	cacheDrops telemetry.Counter
 }{
-	telemetry.NewGauge("net_local_resolver", "cache_size", []string{"cache"}, "Gauge for cache sizes"),
-	telemetry.NewCounter("net_local_resolver", "cache_drops", []string{"cache"}, "Gauge for cache drops"),
+	telemetryimpl.GetCompatComponent().NewGauge("net_local_resolver", "cache_size", []string{"cache"}, "Gauge for cache sizes"),
+	telemetryimpl.GetCompatComponent().NewCounter("net_local_resolver", "cache_drops", []string{"cache"}, "Gauge for cache drops"),
 }
 
 type containerIDEntry struct {
@@ -209,7 +210,7 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 		cid := conn.Laddr.ContainerId
 		if cid == "" {
 			if v, ok := l.ctrForPid[int(conn.Pid)]; ok {
-				cid = v.cid.Get().(string)
+				cid, _ = v.cid.Get().(string)
 			}
 		}
 
@@ -291,7 +292,7 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 			Port:     int32(raddr.Port()),
 			Protocol: conn.Type,
 		}]; ok {
-			conn.Raddr.ContainerId = v.cid.Get().(string)
+			conn.Raddr.ContainerId, _ = v.cid.Get().(string)
 		} else {
 			log.Tracef("could not resolve raddr %v", conn.Raddr)
 		}

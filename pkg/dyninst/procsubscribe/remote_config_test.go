@@ -26,7 +26,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata"
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe"
@@ -565,6 +565,11 @@ func TestContainerAndGitInfoParsing(t *testing.T) {
 	require.Equal(t, process.ContainerInfo{
 		ContainerID: "container-42",
 	}, update.Updates[0].Container)
+	require.Equal(t, []string{
+		"process_tag:1234567890",
+		"git.repository_url:https://github.com/org/repo",
+		"git.commit.sha:deadbeef",
+	}, update.Updates[0].ProcessTags)
 
 	subscriber.Close()
 }

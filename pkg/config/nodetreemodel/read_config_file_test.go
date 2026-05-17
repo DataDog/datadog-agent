@@ -197,7 +197,7 @@ c:
 	cfg := NewNodeTreeConfig("test", "TEST", nil)
 
 	cfg.SetDefault("a", "apple")
-	cfg.SetDefault("c.d", true)
+	cfg.SetDefault("c.d", 0)
 
 	cfg.BuildSchema()
 

@@ -82,6 +82,7 @@ nav:
   - Documentation: guidelines/docs.md
   - Languages:
     - Go: guidelines/languages/go.md
+    - Rust: guidelines/languages/RUST.md
   - Testing:
     - Test categories: guidelines/testing/test-categories.md
   - Conventions:
@@ -106,6 +107,11 @@ nav:
   # - Fx overview: components/fx.md
   # - JMXFetch overview: components/jmxfetch.md
   # - FAQ: components/faq.md
+- Agent Schema:
+  - Introduction: agent-schema/index.md
+  - Keyword Reference: agent-schema/keywords.md
+  - Examples: agent-schema/examples.md
+  - FAQ: agent-schema/faq.md
 - Architecture:
   - DogStatsD:
     - Internals: architecture/dogstatsd/internals.md

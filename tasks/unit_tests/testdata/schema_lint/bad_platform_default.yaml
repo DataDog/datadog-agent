@@ -1,0 +1,25 @@
+properties:
+  missing_windows:
+    node_type: setting
+    type: number
+    platform_default:
+      linux: -1
+      darwin: 5002
+  unknown_key:
+    node_type: setting
+    type: number
+    platform_default:
+      other: 0
+      extra_key: 99
+  valid_with_other:
+    node_type: setting
+    type: number
+    platform_default:
+      other: 0
+  valid_all_platforms:
+    node_type: setting
+    type: number
+    platform_default:
+      linux: 1
+      darwin: 2
+      windows: 3

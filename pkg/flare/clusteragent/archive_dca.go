@@ -9,14 +9,15 @@ package clusteragent
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"path/filepath"
-
-	"gopkg.in/yaml.v2"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
@@ -55,6 +56,7 @@ func CreateDCAArchive(local bool, distPath, logFilePath string, pdata ProfileDat
 }
 
 func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]string, logFilePath string, pdata ProfileData, statusComponent status.Component, diagnose diagnose.Component, ipc ipc.Component) {
+	ctx := context.Background()
 	// If the request against the API does not go through we don't collect the status log.
 	if fb.IsLocal() {
 		fb.AddFile("local", nil) //nolint:errcheck
@@ -84,30 +86,30 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 	flarecommon.GetLogFiles(fb, logFilePath)
 	flarecommon.GetConfigFiles(fb, confSearchPaths)
 	getClusterAgentConfigCheck(fb, client) //nolint:errcheck
-	flarecommon.GetExpVar(fb)              //nolint:errcheck
-	getMetadataMap(fb)                     //nolint:errcheck
+	flarecommon.GetExpVar(ctx, fb)         //nolint:errcheck
+	getMetadataMap(ctx, fb)                //nolint:errcheck
 	if err := getClusterChecksMetadata(fb, client); err != nil {
 		log.Debugf("Could not collect cluster checks metadata for flare: %v", err)
 	}
 	getClusterAgentClusterChecks(fb, client) //nolint:errcheck
 
-	fb.AddFileFromFunc("agent-daemonset.yaml", getAgentDaemonSet)                                                                          //nolint:errcheck
-	fb.AddFileFromFunc("cluster-agent-deployment.yaml", getClusterAgentDeployment)                                                         //nolint:errcheck
-	fb.AddFileFromFunc("helm-values.yaml", getHelmValues)                                                                                  //nolint:errcheck
-	fb.AddFileFromFunc("datadog-agent-cr.yaml", getDatadogAgentManifest)                                                                   //nolint:errcheck
-	fb.AddFileFromFunc("envvars.log", flarecommon.GetEnvVars)                                                                              //nolint:errcheck
-	fb.AddFileFromFunc("telemetry.log", QueryDCAMetrics)                                                                                   //nolint:errcheck
-	fb.AddFileFromFunc("autoscaler-list.json", func() ([]byte, error) { return getDCAAutoscalerList(remote) })                             //nolint:errcheck
-	fb.AddFileFromFunc("local-autoscaling-check.json", func() ([]byte, error) { return getDCALocalAutoscalingWorkloadList(remote) })       //nolint:errcheck
-	fb.AddFileFromFunc("tagger-list.json", func() ([]byte, error) { return getDCATaggerList(remote) })                                     //nolint:errcheck
-	fb.AddFileFromFunc("workload-list.log", func() ([]byte, error) { return getDCAWorkloadList(remote) })                                  //nolint:errcheck
-	fb.AddFileFromFunc("cluster-agent-metadata.json", func() ([]byte, error) { return getClusterAgentMetadataPayload(client) })            //nolint:errcheck
-	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(pkgconfigsetup.Datadog().AllSettings()) }) //nolint:errcheck
+	fb.AddFileFromFunc("agent-daemonset.yaml", getAgentDaemonSet)                                                                       //nolint:errcheck
+	fb.AddFileFromFunc("cluster-agent-deployment.yaml", getClusterAgentDeployment)                                                      //nolint:errcheck
+	fb.AddFileFromFunc("helm-values.yaml", getHelmValues)                                                                               //nolint:errcheck
+	fb.AddFileFromFunc("datadog-agent-cr.yaml", getDatadogAgentManifest)                                                                //nolint:errcheck
+	fb.AddFileFromFunc("envvars.log", flarecommon.GetEnvVars)                                                                           //nolint:errcheck
+	fb.AddFileFromFunc("telemetry.log", QueryDCAMetrics)                                                                                //nolint:errcheck
+	fb.AddFileFromFunc("autoscaler-list.json", func() ([]byte, error) { return getDCAAutoscalerList(remote) })                          //nolint:errcheck
+	fb.AddFileFromFunc("local-autoscaling-check.json", func() ([]byte, error) { return getDCALocalAutoscalingWorkloadList(remote) })    //nolint:errcheck
+	fb.AddFileFromFunc("tagger-list.json", func() ([]byte, error) { return getDCATaggerList(remote) })                                  //nolint:errcheck
+	fb.AddFileFromFunc("workload-list.log", func() ([]byte, error) { return getDCAWorkloadList(remote) })                               //nolint:errcheck
+	fb.AddFileFromFunc("cluster-agent-metadata.json", func() ([]byte, error) { return getClusterAgentMetadataPayload(client) })         //nolint:errcheck
+	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return flarecommon.MarshalDatadogRuntimeConfigDumpYAML() }) //nolint:errcheck
 	fb.AddFileFromFunc("go-routine-dump.log", func() ([]byte, error) { return remote.GetGoRoutineDump() })
 	getPerformanceProfileDCA(fb, pdata)
 
 	if pkgconfigsetup.Datadog().GetBool("external_metrics_provider.enabled") {
-		getHPAStatus(fb) //nolint:errcheck
+		getHPAStatus(ctx, fb) //nolint:errcheck
 	}
 }
 
@@ -121,7 +123,7 @@ func QueryDCAMetrics() ([]byte, error) {
 	return io.ReadAll(r.Body)
 }
 
-func getMetadataMap(fb flaretypes.FlareBuilder) error {
+func getMetadataMap(_ context.Context, fb flaretypes.FlareBuilder) error {
 	metaList := apiv1.NewMetadataResponse()
 	cl, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -178,7 +180,7 @@ func getClusterAgentClusterChecks(fb flaretypes.FlareBuilder, client ipc.HTTPCli
 	return fb.AddFile("clusterchecks.log", b.Bytes())
 }
 
-func getHPAStatus(fb flaretypes.FlareBuilder) error {
+func getHPAStatus(_ context.Context, fb flaretypes.FlareBuilder) error {
 	stats := make(map[string]interface{})
 	apiCl, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -254,13 +256,23 @@ func getLocalClusterAgentDiagnose(fb flaretypes.FlareBuilder, diagnose diagnose.
 	return fb.AddFile("diagnose.log", bytes)
 }
 
-func getDCAAutoscalerList(remote *flare.RemoteFlareProvider) ([]byte, error) {
+// dcaIPCHostPort returns `host:port` for the local cluster agent IPC
+// endpoint, with IPv6 hosts properly bracketed.
+func dcaIPCHostPort() (string, error) {
 	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	if err != nil {
+		return "", err
+	}
+	return net.JoinHostPort(ipcAddress, strconv.Itoa(pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))), nil
+}
+
+func getDCAAutoscalerList(remote *flare.RemoteFlareProvider) ([]byte, error) {
+	addr, err := dcaIPCHostPort()
 	if err != nil {
 		return nil, err
 	}
 
-	autoscalerListURL := fmt.Sprintf("https://%v:%v/autoscaler-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
+	autoscalerListURL := fmt.Sprintf("https://%s/autoscaler-list", addr)
 
 	r, err := remote.IPC.GetClient().Get(autoscalerListURL, ipchttp.WithCloseConnection)
 	if err != nil {
@@ -279,11 +291,11 @@ func getDCAAutoscalerList(remote *flare.RemoteFlareProvider) ([]byte, error) {
 }
 
 func getDCALocalAutoscalingWorkloadList(remote *flare.RemoteFlareProvider) ([]byte, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	addr, err := dcaIPCHostPort()
 	if err != nil {
 		return nil, err
 	}
-	localAutoscalingWorkloadListURL := fmt.Sprintf("https://%v:%v/local-autoscaling-check", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
+	localAutoscalingWorkloadListURL := fmt.Sprintf("https://%s/local-autoscaling-check", addr)
 	r, err := remote.IPC.GetClient().Get(localAutoscalingWorkloadListURL, ipchttp.WithCloseConnection)
 	if err != nil {
 		return nil, err
@@ -301,23 +313,23 @@ func getDCALocalAutoscalingWorkloadList(remote *flare.RemoteFlareProvider) ([]by
 }
 
 func getDCATaggerList(remote *flare.RemoteFlareProvider) ([]byte, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	addr, err := dcaIPCHostPort()
 	if err != nil {
 		return nil, err
 	}
 
-	taggerListURL := fmt.Sprintf("https://%v:%v/tagger-list", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"))
+	taggerListURL := fmt.Sprintf("https://%s/tagger-list", addr)
 
 	return remote.GetTaggerList(taggerListURL)
 }
 
 func getDCAWorkloadList(remote *flare.RemoteFlareProvider) ([]byte, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	addr, err := dcaIPCHostPort()
 	if err != nil {
 		return nil, err
 	}
 
-	return remote.GetWorkloadList(fmt.Sprintf("https://%v:%v/workload-list?verbose=true", ipcAddress, pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port")))
+	return remote.GetWorkloadList(fmt.Sprintf("https://%s/workload-list?verbose=true", addr))
 }
 
 func getClusterAgentMetadataPayload(client ipc.HTTPClient) ([]byte, error) {

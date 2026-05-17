@@ -9,6 +9,7 @@ package remoteagentregistryimpl
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -64,7 +65,7 @@ func (ra *remoteAgentRegistry) GetRegisteredAgentStatuses() []remoteagentregistr
 	return callAgentsForService(ra, StatusServiceName, client, processor)
 }
 
-func (ra *remoteAgentRegistry) fillFlare(builder flarebuilder.FlareBuilder) error {
+func (ra *remoteAgentRegistry) fillFlare(_ context.Context, builder flarebuilder.FlareBuilder) error {
 	client := func(ctx context.Context, remoteAgent *remoteAgentClient, opts ...grpc.CallOption) (*pb.GetFlareFilesResponse, error) {
 		return remoteAgent.GetFlareFiles(ctx, &pb.GetFlareFilesRequest{}, opts...)
 	}
@@ -157,10 +158,20 @@ func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAge
 				continue
 			}
 
+			// Check if the metric already has a remote_agent label.
+			// With explicit agent identity, metrics should already have the correct value.
+			// We only add the label if it's missing (for backward compatibility).
+			hasRemoteAgentLabel := slices.ContainsFunc(metric.Label, func(label *dto.LabelPair) bool {
+				return *label.Name == remoteAgentMetricTagName
+			})
+
 			labelNames := make([]string, 0, len(metric.Label)+1)
 			labelValues := make([]string, 0, len(metric.Label)+1)
-			labelNames = append(labelNames, remoteAgentMetricTagName)
-			labelValues = append(labelValues, remoteAgentName)
+			// Only add remote_agent label if the metric doesn't already have one
+			if !hasRemoteAgentLabel {
+				labelNames = append(labelNames, remoteAgentMetricTagName)
+				labelValues = append(labelValues, remoteAgentName)
+			}
 			for _, label := range metric.Label {
 				labelNames = append(labelNames, *label.Name)
 				labelValues = append(labelValues, *label.Value)

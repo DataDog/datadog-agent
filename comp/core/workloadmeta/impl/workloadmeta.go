@@ -7,7 +7,6 @@ package workloadmetaimpl
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"sync"
 	"time"
@@ -22,6 +21,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
+
+// pullInfo holds per-collector pull state.
+type pullInfo struct {
+	ongoingSince  time.Time // zero if not in progress
+	lastPullStart time.Time
+	interval      time.Duration
+}
 
 // store is a central storage of metadata about workloads. A workload is any
 // unit of work being done by a piece of software, like a process, a container,
@@ -42,10 +48,16 @@ type workloadmeta struct {
 	collectors            map[string]wmdef.Collector
 	collectorsInitialized wmdef.CollectorStatus
 
+	// firstCollectorReady is closed when at least one collector has been started.
+	firstCollectorReady     chan struct{}
+	firstCollectorReadyOnce sync.Once
+
 	eventCh chan []wmdef.CollectorEvent
 
-	ongoingPullsMut sync.Mutex
-	ongoingPulls    map[string]time.Time // collector ID => time when last pull started
+	pullsMut sync.Mutex
+	pulls    map[string]*pullInfo
+
+	completeness *completenessTracker
 }
 
 // Dependencies defines the dependencies of the workloadmeta component.
@@ -83,8 +95,9 @@ func NewWorkloadMeta(deps Dependencies) Provider {
 		candidates:            candidates,
 		collectors:            make(map[string]wmdef.Collector),
 		eventCh:               make(chan []wmdef.CollectorEvent, eventChBufferSize),
-		ongoingPulls:          make(map[string]time.Time),
+		pulls:                 make(map[string]*pullInfo),
 		collectorsInitialized: wmdef.CollectorsNotStarted,
+		completeness:          newCompletenessTracker(deps.Params.AgentType, deps.Config),
 	}
 
 	deps.Lc.Append(compdef.Hook{OnStart: func(_ context.Context) error {
@@ -112,26 +125,25 @@ func NewWorkloadMeta(deps Dependencies) Provider {
 
 	return Provider{
 		Comp:          wm,
-		FlareProvider: flaretypes.NewProvider(wm.sbomFlareProvider),
+		FlareProvider: flaretypes.NewProvider(wm.fillFlare),
 		Endpoint:      api.NewAgentEndpointProvider(wm.writeResponse, "/workload-list", "GET"),
 	}
 }
 
 func (w *workloadmeta) writeResponse(writer http.ResponseWriter, r *http.Request) {
-	verbose := false
 	params := r.URL.Query()
-	if v, ok := params["verbose"]; ok {
-		if len(v) >= 1 && v[0] == "true" {
-			verbose = true
-		}
-	}
 
-	response := w.Dump(verbose)
-	jsonDump, err := json.Marshal(response)
+	jsonDump, err := wmdef.BuildWorkloadResponse(
+		w,
+		params.Get("verbose") == "true",
+		params.Get("search"),
+		params.Get("format") == "json",
+	)
 	if err != nil {
-		httputils.SetJSONError(writer, w.log.Errorf("Unable to marshal workload list response: %v", err), 500)
+		httputils.SetJSONError(writer, w.log.Errorf("Unable to build workload list response: %v", err), 500)
 		return
 	}
 
+	writer.Header().Set("Content-Type", "application/json")
 	writer.Write(jsonDump)
 }

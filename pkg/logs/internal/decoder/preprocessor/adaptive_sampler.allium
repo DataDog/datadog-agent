@@ -1,0 +1,421 @@
+-- allium: 3
+-- adaptive_sampler.allium
+
+-- Scope: Adaptive sampling behaviour for one log source in the
+--   Datadog Agent's logs preprocessor pipeline.
+-- Includes: Tokenization (byte-to-token classification, run-length
+--   encoding, special token promotion), pattern matching contract,
+--   credit-based rate limiting, pattern table management (creation,
+--   eviction, ordering), sampled-count metadata tagging.
+-- Excludes:
+--   - Preprocessor pipeline orchestration (JSON aggregation, multiline
+--     labeling and combining, aggregation strategies upstream of sampling)
+--   - Decoder configuration resolution and per-source sampler instantiation
+--   - Message framing, parsing, and raw content handling
+--   - Telemetry counter emissions (dropped, kept, new_patterns, evictions)
+--   - NoopSampler (trivial pass-through when sampling is disabled)
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+-- A Token is a single byte classifying a run of input characters.
+-- Tokens fall into five categories:
+--
+--   Space: whitespace (space, tab, newline, carriage return).
+--     Each whitespace run produces one Space token regardless of length.
+--
+--   Punctuation: each ASCII punctuation character is a distinct token:
+--     : ; - _ / \ . , ' " ` ~ * + = ( ) { } [ ] & ! @ # $ % ^
+--     Consecutive identical punctuation characters collapse into one
+--     token (run length discarded). Different punctuation characters
+--     are distinct tokens and do not form runs with each other.
+--
+--   Digit runs: consecutive digits [0-9] produce a single token
+--     encoding the run length: D1 (1 digit) through D10 (10+ digits).
+--     Runs longer than 10 are capped at D10.
+--
+--   Character runs: consecutive letters [a-zA-Z] and any byte not
+--     classified above produce a single token encoding the run length:
+--     C1 (1 char) through C10 (10+ chars). Capped at C10.
+--     Before emitting, short runs (1-4 chars) are checked for special
+--     token promotion (see Tokenization contract).
+--
+--   Special: character runs of 1-4 chars that match known patterns
+--     are promoted to one of: Month, Day, Zone, Apm, T.
+--     The regular C1-C4 token is replaced by the special token.
+
+value TokenSequence {
+    -- Ordered sequence of tokens produced by the tokenizer from
+    -- the first line of a log message.
+    length: Integer
+}
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+contract PatternMatching {
+    is_match: (a: TokenSequence, b: TokenSequence, threshold: Decimal) -> Boolean
+
+    @invariant Symmetry
+        -- is_match(a, b, t) = is_match(b, a, t) for all a, b, t.
+
+    @invariant EmptySemantics
+        -- Two empty sequences match: is_match([], [], t) = true.
+        -- An empty and a non-empty sequence never match.
+
+    @invariant ThresholdComparison
+        -- Comparison length = min(a.length, b.length).
+        -- Required matches = round(threshold * comparison_length).
+        -- Tokens at each position i in [0, comparison_length) are
+        -- compared for equality. The sequences match iff
+        -- positional_matches >= required_matches.
+
+    @invariant MonotonicThreshold
+        -- For fixed a and b, if is_match(a, b, t1) and t2 <= t1,
+        -- then is_match(a, b, t2). Lowering the threshold cannot
+        -- cause a previously passing match to fail.
+
+    @guidance
+        -- Pattern matching is the sampler's hot path. The
+        -- implementation terminates comparison early when the
+        -- remaining positions cannot reach the required match count.
+        -- This affects performance, not results.
+}
+
+contract Tokenization {
+    tokenize: (input: ByteArray, max_bytes: Integer) -> TokenSequence
+
+    @invariant ByteClassification
+        -- Each input byte maps to exactly one base category via a
+        -- 256-entry lookup table:
+        --   Digits [0-9] → digit
+        --   Letters [a-zA-Z] → character
+        --   Whitespace (0x20 space, 0x09 tab, 0x0A newline, 0x0D CR) → space
+        --   Specific ASCII punctuation → one distinct token each:
+        --     : ; - _ / \ . , ' " ` ~ * + = ( ) { } [ ] & ! @ # $ % ^
+        --   All other byte values (non-ASCII, control chars) → character
+
+    @invariant RunLengthEncoding
+        -- Consecutive bytes of the same base token form a run.
+        -- When a different base token is encountered, the accumulated
+        -- run is emitted as a single token:
+        --   Digit runs → D1 through D10 (run length preserved)
+        --   Character runs → C1 through C10 (run length preserved,
+        --     subject to special token promotion)
+        --   Space runs → one Space token (run length discarded)
+        --   Punctuation runs → one token (run length discarded;
+        --     "!!!" produces one Exclamation, same as "!")
+        -- Runs of digits or characters longer than 10 are capped:
+        -- 15 consecutive digits produce D10, identical to 10 digits.
+
+    @invariant SpecialTokenPromotion
+        -- Before emitting a character run of length 1-4, the run's
+        -- bytes are uppercased and checked against a fixed table.
+        -- If matched, the special token replaces the regular C1-C4:
+        --   Length 1: T → time_separator, Z → zone
+        --   Length 2: AM, PM → apm
+        --   Length 3:
+        --     JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC → month
+        --     MON TUE WED THU FRI SAT SUN → day
+        --     UTC GMT EST EDT CST CDT MST MDT PST PDT JST KST
+        --       IST MSK CET BST HST HDT NST NDT → zone
+        --   Length 4:
+        --     CEST NZST NZDT ACST ACDT AEST AEDT AWST AWDT
+        --       AKST AKDT CHST CHDT → zone
+        -- Character runs of length 5+ are never promoted. Runs of
+        -- length 1-4 that match no pattern emit the regular token.
+        -- Matching is case-insensitive: "jan", "JAN", "Jan" all
+        -- match month.
+
+    @invariant InputTruncation
+        -- Only the first max_bytes of the input are tokenized.
+        -- Bytes beyond this offset are ignored. Two messages that
+        -- differ only after max_bytes produce identical token
+        -- sequences.
+
+    @invariant EmptyInput
+        -- An empty input produces an empty token sequence (length 0).
+
+    @invariant Determinism
+        -- tokenize is a pure function: the same input and max_bytes
+        -- always produce the same token sequence.
+
+    @invariant StructuralCollapsing
+        -- Two log lines produce identical token sequences if, at
+        -- every run boundary, the replacement preserves the base
+        -- token category and the run length. Specifically:
+        --   Digits may be substituted with other digits.
+        --   Letters may be substituted with other letters of the
+        --     same case (or any case — case does not affect
+        --     classification or run boundaries).
+        --   A special-token-matching string (e.g. "Jan") may be
+        --     replaced with another that matches the same special
+        --     token (e.g. "Dec"), but NOT with an arbitrary 3-letter
+        --     string (e.g. "Foo"), which would produce C3 instead
+        --     of Month.
+        -- This is the mechanism by which the sampler groups
+        -- structurally similar logs into one pattern.
+        -- Example: "2024-01-15 10:30:45 Jan request" and
+        -- "2025-12-31 23:59:59 Dec startup" both produce:
+        --   D4 Dash D2 Dash D2 Space D2 Colon D2 Colon D2
+        --   Space Month Space C7
+
+    @guidance
+        -- The default classification maps all unrecognised bytes to
+        -- the character category. Non-ASCII bytes, UTF-8 multibyte
+        -- sequences, and control characters all produce character
+        -- run tokens. This means binary content in log lines is
+        -- treated as character runs.
+        --
+        -- The special token table is non-exhaustive and can be
+        -- expanded. Adding new recognised patterns changes which
+        -- log lines are considered structurally equivalent.
+}
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+entity PatternEntry {
+    -- A structural class of log messages tracked in the sampler's
+    -- pattern table. Each entry represents one known pattern
+    -- identified by token-sequence similarity and carries the
+    -- per-pattern rate-limiting state.
+    signature: TokenSequence
+    credits: Decimal
+    last_seen: Timestamp
+    match_count: Integer
+    sampled_count: Integer
+
+    -- Derived
+    is_exhausted: credits < 1.0
+}
+
+------------------------------------------------------------
+-- Config
+------------------------------------------------------------
+
+config {
+    -- Maximum distinct patterns tracked simultaneously.
+    -- When full, the least-frequently-matched pattern is evicted.
+    max_patterns: Integer = 1000
+
+    -- Steady-state credits replenished per second per pattern.
+    rate_limit: Decimal = 1.0
+
+    -- Maximum credits a pattern can accumulate, and the initial
+    -- allowance for newly discovered patterns (minus one for the
+    -- first emitted log).
+    burst_size: Decimal = 1000.0
+
+    -- Fraction of tokens (positionally) that must match for two
+    -- token sequences to be considered the same pattern. Range (0, 1].
+    match_threshold: Decimal = 0.9
+
+    -- Maximum bytes of the log message's first line to tokenize.
+    -- Bytes beyond this offset are ignored by the tokenizer.
+    tokenizer_max_input_bytes: Integer = 2048
+}
+
+------------------------------------------------------------
+-- Rules
+------------------------------------------------------------
+
+-- A log matches an existing pattern and has sufficient credits
+-- to be emitted. If logs were suppressed since the last emit for
+-- this pattern, the emitted message is tagged with the count.
+
+rule EmitMatchingLog {
+    when: ProcessLog(message, incoming)
+
+    let matches = filter(PatternEntries, e => is_match(e.signature, incoming, config.match_threshold))
+    requires: matches.count > 0
+
+    let entry = max_by(matches, e => e.match_count)
+
+    let elapsed_seconds = seconds_elapsed(entry.last_seen, now)
+    let refill = elapsed_seconds * config.rate_limit
+    let capped_credits =
+        if entry.credits + refill > config.burst_size: config.burst_size
+        else: entry.credits + refill
+
+    requires: capped_credits >= 1.0
+
+    -- Capture pre-rule sampled_count: trigger emission parameters
+    -- read resulting state, but we need the count before the reset.
+    let prior_sampled_count = entry.sampled_count
+
+    ensures: entry.credits = capped_credits - 1.0
+    ensures: entry.last_seen = now
+    ensures: entry.match_count = entry.match_count + 1
+    ensures: entry.sampled_count = 0
+    ensures: LogEmitted(message, sampled_count: prior_sampled_count)
+
+    @guidance
+        -- If prior_sampled_count > 0 the emitted message is tagged
+        -- adaptive_sampler_sampled_count:<n>. If 0 no tag is added.
+        --
+        -- After updating, the entry is bubbled toward the front of
+        -- the sorted table to maintain descending match_count order.
+        -- The implementation achieves this via a swap chain (bubble
+        -- sort step), not a full sort. All entry mutations complete
+        -- before bubbling to avoid pointer aliasing.
+}
+
+-- A log matches an existing pattern but credits are insufficient.
+-- The message is dropped and the suppressed count increments.
+
+rule DropMatchingLog {
+    when: ProcessLog(message, incoming)
+
+    let matches = filter(PatternEntries, e => is_match(e.signature, incoming, config.match_threshold))
+    requires: matches.count > 0
+
+    let entry = max_by(matches, e => e.match_count)
+
+    let elapsed_seconds = seconds_elapsed(entry.last_seen, now)
+    let refill = elapsed_seconds * config.rate_limit
+    let capped_credits =
+        if entry.credits + refill > config.burst_size: config.burst_size
+        else: entry.credits + refill
+
+    requires: capped_credits < 1.0
+
+    ensures: entry.credits = capped_credits
+    ensures: entry.last_seen = now
+    ensures: entry.match_count = entry.match_count + 1
+    ensures: entry.sampled_count = entry.sampled_count + 1
+    ensures: LogDropped(message)
+
+    @guidance
+        -- After updating, the entry is bubbled toward the front of
+        -- the sorted table (same as EmitMatchingLog).
+}
+
+-- No existing pattern matches the incoming tokens and the table
+-- has capacity. A new entry is created and the message is emitted
+-- unconditionally.
+
+rule RegisterNewPattern {
+    when: ProcessLog(message, incoming)
+    requires: not PatternEntries.any(e => is_match(e.signature, incoming, config.match_threshold))
+    requires: PatternEntries.count < config.max_patterns
+
+    ensures: PatternEntry.created(
+        signature: incoming,
+        credits: config.burst_size - 1.0,
+        last_seen: now,
+        match_count: 1,
+        sampled_count: 0
+    )
+    ensures: LogEmitted(message, sampled_count: 0)
+
+    @guidance
+        -- New entries start with burst_size - 1 credits because the
+        -- first message consumes one credit implicitly. The entry is
+        -- appended at the tail of the sorted table (match_count = 1
+        -- is the minimum possible value).
+}
+
+-- No existing pattern matches and the table is full. The
+-- least-frequently-matched entry is evicted, then a new entry
+-- is created and the message is emitted unconditionally.
+
+rule EvictAndRegisterPattern {
+    when: ProcessLog(message, incoming)
+    requires: not PatternEntries.any(e => is_match(e.signature, incoming, config.match_threshold))
+    requires: PatternEntries.count >= config.max_patterns
+
+    let victim = min_by(PatternEntries, e => e.match_count)
+
+    ensures: not exists victim
+    ensures: PatternEntry.created(
+        signature: incoming,
+        credits: config.burst_size - 1.0,
+        last_seen: now,
+        match_count: 1,
+        sampled_count: 0
+    )
+    ensures: LogEmitted(message, sampled_count: 0)
+
+    @guidance
+        -- When multiple entries share the minimum match_count, the
+        -- implementation evicts the last entry in sorted order. Among
+        -- equally-cold patterns this is the most recently inserted one,
+        -- since new entries append to the tail and only bubble forward
+        -- when their match_count exceeds a predecessor's.
+        --
+        -- Eviction discards all state for the victim, including its
+        -- sampled_count. Suppressed log counts for that pattern
+        -- are permanently lost.
+}
+
+-- Flush: the adaptive sampler does not buffer messages.
+-- ProcessLog makes an immediate emit-or-drop decision; there is
+-- no pending state to drain. Flush always returns nil.
+
+------------------------------------------------------------
+-- Invariants
+------------------------------------------------------------
+
+-- State predicates that hold after every rule execution.
+
+invariant TableBounded {
+    PatternEntries.count <= config.max_patterns
+}
+
+invariant CreditsCapped {
+    for entry in PatternEntries:
+        entry.credits <= config.burst_size
+}
+
+invariant CreditsNonNegative {
+    -- credits start at burst_size - 1 >= 0 (burst_size validated >= 1).
+    -- Refill only adds; decrement floors at capped_credits - 1 >= 0.
+    for entry in PatternEntries:
+        entry.credits >= 0.0
+}
+
+invariant MatchCountPositive {
+    -- Every entry was matched at least once (at creation).
+    for entry in PatternEntries:
+        entry.match_count >= 1
+}
+
+invariant SampledCountNonNegative {
+    for entry in PatternEntries:
+        entry.sampled_count >= 0
+}
+
+-- Behavioural properties not expressible as state predicates
+-- but guaranteed by the rules above:
+--
+-- NewPatternsAlwaysEmitted: the first log of a never-before-seen
+--   pattern is always emitted. Guaranteed by RegisterNewPattern and
+--   EvictAndRegisterPattern which emit unconditionally. Follows from
+--   burst_size >= 1 (validated at construction).
+--
+-- MessageContentIntegrity: the sampler never modifies log content
+--   bytes. Emitted messages are byte-identical to their input.
+--   Only metadata (adaptive_sampler_sampled_count tag) may be added.
+--
+-- SteadyStateRateBound: after burst exhaustion, a pattern emits
+--   at most rate_limit logs per second. Over interval T seconds,
+--   at most burst_size + rate_limit * T logs of one pattern are
+--   emitted (burst_size for the initial allowance, then rate_limit
+--   per second in steady state).
+
+------------------------------------------------------------
+-- Deferred Specifications
+------------------------------------------------------------
+
+deferred "ValidateMatchThreshold"
+    -- The adaptive sampler must reject match_threshold values
+    -- outside (0, 1] at construction time. A threshold of 0 would
+    -- match everything regardless of token content, defeating
+    -- pattern discrimination. The UserSamples path already enforces
+    -- this range (user_samples.go); the same validation needs to be
+    -- added when match_threshold is wired up as user-configurable
+    -- for the adaptive sampler.

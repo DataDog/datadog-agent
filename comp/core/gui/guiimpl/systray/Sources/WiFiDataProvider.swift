@@ -35,45 +35,28 @@ struct WiFiData: Codable {
     }
 }
 
-/// WiFiDataProvider handles CoreLocation permissions and WiFi data collection
+/// WiFiDataProvider handles CoreLocation permissions and WiFi data collection.
+/// When authorization is `.notDetermined`, the system location prompt is requested via
+/// `requestWhenInUseAuthorization()` (gated by the WLAN check flag on each IPC request).
 class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
     // Note: LaunchAgent-launched apps cannot trigger location permission prompts
     // on macOS (prompts are auto-denied by the system). Permission must be granted
     // manually via System Settings -> Privacy & Security -> Location Services.
-    // During the launch time of thhis GUI app, we will attempt to prompt for permission
+    // During the launch time of this GUI app, we will attempt to prompt for permission
     // based on the availability of the GUI environment.
     private let locationManager: CLLocationManager
-    private var permissionPromptProcess: Process? = nil
-    private var sessionPromptAttempted: Bool = false
-    private var firstWiFiRequestMade: Bool = false
+    private let initializationTime: Date = Date()  // Track when WiFiDataProvider was initialized
 
     override init() {
         self.locationManager = CLLocationManager()
         super.init()
         // Keep delegate to monitor permission status changes
         self.locationManager.delegate = self
-        
-        let status = getAuthorizationStatus()
-        Logger.info("Initialized with authorization status: \(authorizationStatusString())", context: "WiFiDataProvider")
-        
-        // Log messages if permission not granted
-        if status != .authorizedAlways {
-            Logger.info("Location permission not granted - SSID/BSSID will be unavailable", context: "WiFiDataProvider")
-            Logger.info("To enable: System Settings → Privacy & Security → Location Services → Datadog Agent", context: "WiFiDataProvider")
-            
-            // Only attempt prompt if GUI environment is available (preserves retry opportunities in headless mode)
-            if isGUIAvailable() {
-                Logger.info("GUI environment detected, attempting permission prompt...", context: "WiFiDataProvider")
-                attemptPermissionPrompt()
-            } else {
-                Logger.info("Headless environment detected, skipping permission prompt (will retry when GUI available)", context: "WiFiDataProvider")
-            }
-        }
     }
 
     /// Check if GUI environment is available (can display dialogs)
     /// Returns true if running in an Aqua (GUI) session, false for Background/SSH/daemon sessions
-    /// Uses launchctl to avoid automation permission prompts triggered by commands like osascript
+    /// Uses launchctl to detect an Aqua (interactive GUI) session.
     private func isGUIAvailable() -> Bool {
         let task = Process()
         task.launchPath = "/bin/launchctl"
@@ -95,8 +78,6 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
-            Logger.info("Session manager type: \(output)", context: "WiFiDataProvider")
-
             // Only "Aqua" indicates a GUI session where dialogs can be displayed
             // Other values: "Background" (SSH/daemon), "LoginWindow" (login screen)
             return output == "Aqua"
@@ -107,85 +88,45 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         }
     }
 
-    /// Attempt to prompt for location permission via detached process
-    /// Background: LaunchAgent-launched apps cannot normally trigger prompts
-    private func attemptPermissionPrompt() {
-        let authStatus = getAuthorizationStatus()
-        
-        // Only attempt if permission not granted
-        guard authStatus != .authorizedAlways else {
+    /// Request the system location authorization prompt when status is `.notDetermined`.
+    /// TCC updates authorization after the user responds; until then the status stays `.notDetermined`.
+    private func attemptPermissionPrompt(authStatus: CLAuthorizationStatus) {
+        if authStatus == .restricted {
+            Logger.info("Location permission restricted by policy; cannot prompt", context: "WiFiDataProvider")
             return
         }
 
-        // Only show once per session (prevents repeated prompts after dismissal)
-        guard !sessionPromptAttempted else {
-            Logger.debug("Permission prompt already attempted this session, skipping", context: "WiFiDataProvider")
+        guard authStatus == .notDetermined else {
             return
         }
 
-        // Don't spawn duplicate if dialog process is currently running
-        if let process = permissionPromptProcess, process.isRunning {
-            Logger.debug("Permission dialog process still running, skipping duplicate", context: "WiFiDataProvider")
-            return
-        }
-
-        Logger.info("Attempting to prompt for location permission via detached process...", context: "WiFiDataProvider")
-
-        // Spawn detached osascript process to show dialog and open System Settings
-        let script = """
-        do shell script "open 'x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices'" & ¬
-        " > /dev/null 2>&1 &"
-        
-        display dialog "Datadog Agent requires Location permission to collect WiFi network information (SSID/BSSID).
-        
-        Please:
-        1. In the System Settings window that just opened, scroll to 'Datadog Agent'
-        2. Enable the toggle switch next to 'Datadog Agent'
-        3. Click OK below when done
-        
-        Note: This prompt may auto-close if the system denies permission requests from background apps." ¬
-        buttons {"OK"} ¬
-        default button "OK" ¬
-        with title "Enable Location Permission" ¬
-        with icon caution
-        """
-        
-        // Run osascript in background (detached from current process)
-        let task = Process()
-        task.launchPath = "/usr/bin/osascript"
-        task.arguments = ["-e", script]
-        task.standardOutput = nil
-        task.standardError = nil
-        
-        do {
-            try task.run()
-            // Don't wait for completion - let it run detached
-            permissionPromptProcess = task
-            sessionPromptAttempted = true  // Only set on successful spawn
-            Logger.info("Permission prompt process spawned (PID: \(task.processIdentifier))", context: "WiFiDataProvider")
-        } catch {
-            Logger.error("Failed to spawn permission prompt: \(error)", context: "WiFiDataProvider")
-            permissionPromptProcess = nil
-            // sessionPromptAttempted stays false - can retry later
+        // Core Location expects authorization requests on the main thread; getWiFiInfo is invoked from
+        // WiFiIPCServer.handleClient on DispatchQueue.global(qos: .background) when the agent asks for WiFi data.
+        DispatchQueue.main.async { [weak self] in
+            // If the provider was deallocated before this runs, skip (weak avoids retaining self via the async closure).
+            guard let self = self else { return }
+            if #available(macOS 10.15, *) {
+                self.locationManager.requestWhenInUseAuthorization()
+            }
         }
     }
 
-    /// Get current WiFi information for the system
-    func getWiFiInfo() -> WiFiData {
+    /// Get current WiFi information for the system. requestLocationPermission
+    /// comes from the caller (the WLAN check, via IPC) so we never need to
+    /// query the agent ourselves.
+    func getWiFiInfo(requestLocationPermission: Bool) -> WiFiData {
         // Check current authorization status (read-only, no prompt attempt)
         let authStatus = getAuthorizationStatus()
         let isAuthorized = (authStatus == .authorizedAlways)
 
-        // One more time, on first WiFi request with no permission, try prompting
-        // for location permission (if GUI available)
-        if !isAuthorized && !firstWiFiRequestMade {
-            if isGUIAvailable() {
-                Logger.info("First WiFi data request without permission, attempting prompt...", context: "WiFiDataProvider")
-                attemptPermissionPrompt()
-            } else {
-                Logger.info("First WiFi data request without permission, but headless environment - skipping prompt", context: "WiFiDataProvider")
+        // Permission detection during WLAN data collection
+        // Check permission at least 10 seconds after initialization to avoid TCC loading race condition.
+        // Only `.notDetermined` triggers the native prompt; after Allow/Deny, authorization status reflects TCC and this block stops running.
+        let timeSinceInit = Date().timeIntervalSince(initializationTime)
+        if authStatus == .notDetermined && timeSinceInit >= 10.0 {
+            if requestLocationPermission && isGUIAvailable() {
+                attemptPermissionPrompt(authStatus: authStatus)
             }
-            firstWiFiRequestMade = true
         }
 
         // Get WiFi interface (this works regardless of location permission)
@@ -224,11 +165,6 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
         let bssid = interface.bssid() ?? ""
         let macAddress = interface.hardwareAddress() ?? ""
 
-        // Log if SSID/BSSID are empty (might indicate permission issue)
-        if !isAuthorized && (ssid.isEmpty || bssid.isEmpty) {
-            Logger.info("WARN: SSID/BSSID empty - location permission not granted", context: "WiFiDataProvider")
-        }
-
         let wifiData = WiFiData(
             rssi: interface.rssiValue(),
             ssid: ssid,
@@ -245,7 +181,7 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
             error: nil
         )
 
-        Logger.debug("Collected WiFi data: SSID=\(ssid.isEmpty ? "<empty>" : ssid), RSSI=\(wifiData.rssi), authorized=\(isAuthorized)", context: "WiFiDataProvider")
+        Logger.debug("Collected WiFi data: SSID=\(ssid.isEmpty ? "<empty>" : ssid), RSSI=\(wifiData.rssi), locationAuthorized=\(isAuthorized)", context: "WiFiDataProvider")
         return wifiData
     }
 
@@ -255,35 +191,17 @@ class WiFiDataProvider: NSObject, CLLocationManagerDelegate {
     // not from programmatic permission requests (which don't work for LaunchAgent apps).
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = getAuthorizationStatus()
-        Logger.info("Location authorization changed to: \(authorizationStatusString())", context: "WiFiDataProvider")
-        
-        // Reset flags when authorization status changes
-        // This allows showing the prompt again if permission is revoked or status changes
-        sessionPromptAttempted = false
-        permissionPromptProcess = nil
-        firstWiFiRequestMade = false
-
         switch status {
-        case .authorizedAlways:
-            Logger.info("Location permission GRANTED - WiFi SSID/BSSID will be available", context: "WiFiDataProvider")
-        case .denied:
-            Logger.info("Location permission DENIED - WiFi SSID/BSSID will be unavailable", context: "WiFiDataProvider")
-        case .restricted:
-            Logger.info("Location permission RESTRICTED", context: "WiFiDataProvider")
-        case .notDetermined:
-            Logger.info("Location permission NOT DETERMINED", context: "WiFiDataProvider")
+        case .authorizedAlways, .denied, .restricted, .notDetermined:
+            Logger.info("Location authorization: \(authorizationStatusString())", context: "WiFiDataProvider")
         @unknown default:
-            Logger.error("Unknown authorization status: \(status.rawValue)", context: "WiFiDataProvider")
+            Logger.error("Unknown location authorization status: \(status.rawValue)", context: "WiFiDataProvider")
         }
     }
 
     // Authorization Status Helper
     private func getAuthorizationStatus() -> CLAuthorizationStatus {
-        if #available(macOS 11.0, *) {
-            return locationManager.authorizationStatus
-        } else {
-            return CLLocationManager.authorizationStatus()
-        }
+        return locationManager.authorizationStatus
     }
 
     // Helper Methods

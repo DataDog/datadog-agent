@@ -27,6 +27,7 @@ type windowsImpl struct {
 type famPort struct {
 	proto string
 	port  uint16
+	ip    string
 	pid   uint32
 }
 
@@ -41,7 +42,6 @@ func newWindowsImpl(includeLocalhost bool) osImpl {
 		includeLocalhost: includeLocalhost,
 	}
 }
-func (*windowsImpl) Close() error { return nil }
 
 func (im *windowsImpl) AppendListeningPorts(base []Port) ([]Port, error) {
 	tab, err := GetConnTable()
@@ -64,6 +64,7 @@ func (im *windowsImpl) AppendListeningPorts(base []Port) ([]Port, error) {
 		fp := famPort{
 			proto: "tcp",
 			port:  e.Local.Port(),
+			ip:    e.Local.Addr().Unmap().String(),
 			pid:   uint32(e.Pid),
 		}
 		pm, ok := im.known[fp]
@@ -82,6 +83,7 @@ func (im *windowsImpl) AppendListeningPorts(base []Port) ([]Port, error) {
 			port: Port{
 				Proto:   "tcp",
 				Port:    e.Local.Port(),
+				IP:      e.Local.Addr().Unmap().String(),
 				Process: process,
 				Pid:     e.Pid,
 			},

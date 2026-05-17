@@ -67,7 +67,7 @@ impl Cmdline {
         Cmdline { cmdline, separator }
     }
 
-    pub fn get(pid: u32) -> Result<Self, std::io::Error> {
+    pub fn get(pid: i32) -> Result<Self, std::io::Error> {
         let path = root_path().join(pid.to_string()).join("cmdline");
         Ok(Self::new(fs::read_to_string(path)?))
     }
@@ -136,12 +136,12 @@ macro_rules! cmdline {
 pub struct Exe(pub PathBuf);
 
 impl Exe {
-    pub fn get(pid: u32) -> Result<Self, std::io::Error> {
+    pub fn get(pid: i32) -> Result<Self, std::io::Error> {
         let path = root_path().join(pid.to_string()).join("exe");
         Ok(Exe(fs::read_link(path)?))
     }
 
-    pub fn stat(pid: u32) -> Result<Metadata, std::io::Error> {
+    pub fn stat(pid: i32) -> Result<Metadata, std::io::Error> {
         let path = root_path().join(pid.to_string()).join("exe");
         fs::metadata(path)
     }

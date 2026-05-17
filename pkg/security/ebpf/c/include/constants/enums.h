@@ -74,6 +74,8 @@ enum event_type
     FAILED_DNS,
     EVENT_TRACER_MEMFD_CREATE,
     EVENT_TRACER_MEMFD_SEAL,
+    EVENT_PIVOT_ROOT,
+    EVENT_SETSID,
     EVENT_NOP,
     EVENT_MAX, // has to be the last one
 
@@ -87,6 +89,7 @@ enum
     EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE = 1 << 2, // event is a AD sample
     // EventFlagsSecurityProfileInProfile = 1<<3 isn't used in kernel space
     EVENT_FLAGS_ANOMALY_DETECTION_EVENT = 1 << 4, // event is an anomaly detection event
+    EVENT_FLAGS_INTERNAL = 1 << 5, // event used to keep track of internal caches & resources
 };
 
 enum file_flags
@@ -128,6 +131,8 @@ enum SYSCALL_STATE
     ACCEPTED = 0,    // approved and can't be discarded later
     APPROVED,        // approved but can be discarded later
     DISCARDED,       // discarded
+    SAMPLED,         // sampled
+    INTERNAL,        // internal event
 };
 
 enum MONITOR_KEYS
@@ -135,7 +140,8 @@ enum MONITOR_KEYS
     ERPC_MONITOR_KEY = 1,
     DISCARDER_MONITOR_KEY,
     APPROVER_MONITOR_KEY,
-    DNS_FILTERED_KEY
+    DNS_FILTERED_KEY,
+    EVENT_SAMPLE_MONITOR_KEY
 };
 
 enum tls_format
@@ -226,6 +232,7 @@ enum erpc_op
     GET_RINGBUF_USAGE,
     USER_SESSION_CONTEXT_OP,
     PRCTL_DISCARDER,
+    AUID_DISCARDER,
     NOP_EVENT_OP,
 };
 
@@ -258,6 +265,7 @@ enum mount_source_t
     SOURCE_FSMOUNT,
     SOURCE_OPEN_TREE,
     SOURCE_MOVE_MOUNT,
+    SOURCE_PIVOT_ROOT,
 };
 
 #endif

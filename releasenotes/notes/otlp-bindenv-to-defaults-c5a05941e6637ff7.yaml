@@ -1,0 +1,32 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    OTLP ingest configuration keys now register explicit default values matching
+    the upstream OpenTelemetry Collector defaults. Previously these keys were
+    bound without defaults, which caused ``agent config`` and similar introspection
+    commands to omit them. Runtime behavior is unchanged: only user-configured
+    values are forwarded to the OTel Collector pipeline, so unconfigured settings
+    continue to use the Collector's own built-in defaults.
+
+    Notable default changes in pkg/config/config_template.yaml:
+
+    * **Receiver endpoints** — ``localhost:4317`` (gRPC) and ``localhost:4318``
+      (HTTP) instead of the former ``0.0.0.0`` bind address
+      (see `7.56.0 Upgrade Notes <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#upgrade-notes-25>`_).
+      Source: `otlpreceiver/factory.go <https://github.com/open-telemetry/opentelemetry-collector/blob/receiver/otlpreceiver/v0.147.0/receiver/otlpreceiver/factory.go>`_.
+    * **max_recv_msg_size_mib** — ``0`` instead of ``4``.
+      `configgrpc.NewDefaultServerConfig
+      <https://github.com/open-telemetry/opentelemetry-collector/blob/config/configgrpc/v0.147.0/config/configgrpc/configgrpc.go>`_.
+      does not set this field (Go zero value ``0``), so ``grpc.MaxRecvMsgSize``
+      is not applied and grpc-go falls back to its own
+      `defaultServerMaxReceiveMessageSize <https://github.com/grpc/grpc-go/blob/v1.79.3/server.go>`_ of 4 MiB.
+    * **Debug verbosity** — ``basic`` instead of ``normal``.
+      Source: `debugexporter/factory.go <https://github.com/open-telemetry/opentelemetry-collector/blob/exporter/debugexporter/v0.147.0/exporter/debugexporter/factory.go>`_
+      (``Verbosity: configtelemetry.LevelBasic``).

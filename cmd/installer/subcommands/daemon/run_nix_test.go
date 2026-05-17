@@ -12,15 +12,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/spf13/cobra"
 )
 
 func TestRunCommand(t *testing.T) {
-	cmd := runCommand(&command.GlobalParams{})
-	cmd.GroupID = ""
-	fxutil.TestOneShotSubcommand(t,
-		[]*cobra.Command{cmd},
-		[]string{"run"},
-		run,
-		func() {})
+	fxutil.TestRun(t, func() error {
+		return runFxWrapper(&command.GlobalParams{})
+	})
 }

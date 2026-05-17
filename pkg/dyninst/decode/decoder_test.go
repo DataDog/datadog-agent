@@ -61,9 +61,9 @@ func FuzzDecoder(f *testing.F) {
 		decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
 		require.NoError(t, err)
 		_, _, _ = decoder.Decode(Event{
-			EntryOrLine: output.Event(item),
+			EntryOrLine: output.SingleEvent(item),
 			ServiceName: "foo",
-		}, &noopSymbolicator{}, []byte{})
+		}, &noopSymbolicator{}, nil, []byte{})
 		require.Empty(t, decoder.entryOrLine.dataItems)
 		require.Empty(t, decoder.entryOrLine.currentlyEncoding)
 		require.Empty(t, decoder._return.dataItems)
@@ -72,16 +72,20 @@ func FuzzDecoder(f *testing.F) {
 
 type (
 	captures struct{ Entry struct{ Arguments any } }
-	debugger struct {
-		Snapshot         struct{ Captures captures }
+	snapshot struct {
+		Captures         captures
 		EvaluationErrors []struct {
 			Expression string `json:"expr"`
 			Message    string `json:"message"`
 		} `json:"evaluationErrors,omitempty"`
 	}
+	debugger struct {
+		Snapshot snapshot
+	}
 	eventCaptures struct {
-		Debugger debugger
-		Message  string `json:"message,omitempty"`
+		Debugger    debugger
+		Message     string `json:"message,omitempty"`
+		ProcessTags string `json:"process_tags,omitempty"`
 	}
 )
 
@@ -97,9 +101,9 @@ func TestDecoderManually(t *testing.T) {
 			decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
 			require.NoError(t, err)
 			buf, probe, err := decoder.Decode(Event{
-				EntryOrLine: output.Event(item),
+				EntryOrLine: output.SingleEvent(item),
 				ServiceName: "foo",
-			}, &noopSymbolicator{}, []byte{})
+			}, &noopSymbolicator{}, nil, []byte{})
 			require.NoError(t, err)
 			require.Equal(t, c.probeName, probe.GetID())
 			var e eventCaptures
@@ -118,6 +122,37 @@ func TestDecoderManually(t *testing.T) {
 	}
 }
 
+func TestDecoderProcessTags(t *testing.T) {
+	c := cases[0]
+	irProg := generateIrForProbes(t, "simple", c.goVersion, c.probeName)
+	item := c.eventConstructor(t, irProg)
+
+	t.Run("present", func(t *testing.T) {
+		decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+		require.NoError(t, err)
+		buf, _, err := decoder.Decode(Event{
+			EntryOrLine: output.SingleEvent(item),
+			ServiceName: "foo",
+			ProcessTags: "entrypoint.name:myapp,svc.user:my-service",
+		}, &noopSymbolicator{}, nil, []byte{})
+		require.NoError(t, err)
+		var e eventCaptures
+		require.NoError(t, json.Unmarshal(buf, &e))
+		require.Equal(t, "entrypoint.name:myapp,svc.user:my-service", e.ProcessTags)
+	})
+
+	t.Run("empty_omitted", func(t *testing.T) {
+		decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+		require.NoError(t, err)
+		buf, _, err := decoder.Decode(Event{
+			EntryOrLine: output.SingleEvent(item),
+			ServiceName: "foo",
+		}, &noopSymbolicator{}, nil, []byte{})
+		require.NoError(t, err)
+		require.NotContains(t, string(buf), "process_tags")
+	})
+}
+
 func BenchmarkDecoder(b *testing.B) {
 	for _, c := range cases {
 		b.Run(fmt.Sprintf("%s-%s", c.probeName, c.goVersion), func(b *testing.B) {
@@ -126,12 +161,12 @@ func BenchmarkDecoder(b *testing.B) {
 			require.NoError(b, err)
 			symbolicator := &noopSymbolicator{}
 			event := Event{
-				EntryOrLine: output.Event(c.eventConstructor(b, irProg)),
+				EntryOrLine: output.SingleEvent(c.eventConstructor(b, irProg)),
 				ServiceName: "foo",
 			}
 			b.ResetTimer()
 			for b.Loop() {
-				_, _, err := decoder.Decode(event, symbolicator, []byte{})
+				_, _, err := decoder.Decode(event, symbolicator, nil, []byte{})
 				require.NoError(b, err)
 			}
 		})
@@ -226,7 +261,7 @@ func simpleStringArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "stringArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.GreaterOrEqual(t, len(events), 1)
 	eventType := events[0].Type
 	var stringType *ir.GoStringHeaderType
@@ -269,11 +304,11 @@ func simpleStringArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	item = append(item, unsafe.Slice(
 		(*byte)(unsafe.Pointer(&dataItem0)), unsafe.Sizeof(dataItem0))...,
 	)
-	item = append(item, 3) // bitset: bit 0 (argument) and bit 1 (template_segment) set
-	// First expression (argument) at offset 1
+	item = append(item, 0x05) // bitset: present (1) at expr 0 bits [0..1] and expr 1 bits [2..3]
+	// First expression (template_segment) at offset 1
 	item = binary.NativeEndian.AppendUint64(item, 0xdeadbeef)
 	item = binary.NativeEndian.AppendUint64(item, 16)
-	// Second expression (template_segment) at offset 17
+	// Second expression (argument) at offset 17
 	item = binary.NativeEndian.AppendUint64(item, 0xdeadbeef)
 	item = binary.NativeEndian.AppendUint64(item, 16)
 	item = append(item, 0, 0, 0, 0, 0, 0, 0) // padding
@@ -302,7 +337,7 @@ func simpleMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "mapArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.GreaterOrEqual(t, len(events), 1)
 	eventType := events[0].Type
 
@@ -314,7 +349,7 @@ func simpleMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	)
 
 	require.NotNil(t, eventType)
-	// Expect two expressions: argument and template_segment
+	// Expect two expressions: template_segment and argument
 	require.GreaterOrEqual(t, len(eventType.Expressions), 2)
 	paramType := eventType.Expressions[0].Expression.Type
 	var ok bool
@@ -359,16 +394,16 @@ func simpleMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		strAddr     = uint64(0x300000003)
 	)
 
-	// Build root data item (presence bitset + pointers to header)
+	// Build root data item (expression status array + pointers to header)
 	rootData := make([]byte, rootLen)
-	// Set presence bits for both expressions (bit 0 for argument, bit 1 for template_segment)
-	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 3 // bits 0 and 1 set
+	// Set expression status to present for both expressions.
+	if eventType.ExprStatusArraySize > 0 {
+		rootData[0] = 0x05 // expr status: present (1) for expr 0 at bits [0:1], present (1) for expr 1 at bits [2:3]
 	}
-	// First expression (argument) at offset 1
+	// First expression (template_segment) at offset 1
 	ptrOff := int(eventType.Expressions[0].Offset)
 	binary.NativeEndian.PutUint64(rootData[ptrOff:ptrOff+8], headerAddr)
-	// Second expression (template_segment) at offset 9
+	// Second expression (argument) at offset 9
 	templatePtrOff := int(eventType.Expressions[1].Offset)
 	binary.NativeEndian.PutUint64(rootData[templatePtrOff:templatePtrOff+8], headerAddr)
 
@@ -483,7 +518,7 @@ func simpleSwissMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "mapArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.GreaterOrEqual(t, len(events), 1)
 	eventType := events[0].Type
 
@@ -555,8 +590,8 @@ func simpleSwissMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 
 	// Build root data item
 	rootData := make([]byte, rootLen)
-	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 3 // bits 0 and 1 set
+	if eventType.ExprStatusArraySize > 0 {
+		rootData[0] = 0x05 // expr status: present (1) for expr 0 at bits [0:1], present (1) for expr 1 at bits [2:3]
 	}
 	ptrOff := int(eventType.Expressions[0].Offset)
 	binary.NativeEndian.PutUint64(rootData[ptrOff:ptrOff+8], headerAddr)
@@ -668,7 +703,7 @@ func simpleSwissMapTablesArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "mapArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.GreaterOrEqual(t, len(events), 1)
 	eventType := events[0].Type
 
@@ -774,8 +809,8 @@ func simpleSwissMapTablesArgEvent(t testing.TB, irProg *ir.Program) []byte {
 
 	// Build root data item
 	rootData := make([]byte, rootLen)
-	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 3 // bits 0 and 1 set
+	if eventType.ExprStatusArraySize > 0 {
+		rootData[0] = 0x05 // expr status: present (1) for expr 0 at bits [0:1], present (1) for expr 1 at bits [2:3]
 	}
 	ptrOff := int(eventType.Expressions[0].Offset)
 	binary.NativeEndian.PutUint64(rootData[ptrOff:ptrOff+8], headerAddr)
@@ -955,7 +990,7 @@ func simpleBigMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "bigMapArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.GreaterOrEqual(t, len(events), 1)
 	eventType := events[0].Type
 
@@ -1007,14 +1042,14 @@ func simpleBigMapArgEvent(t testing.TB, irProg *ir.Program) []byte {
 	)
 
 	rootData := make([]byte, rootLen)
-	// Set presence bits for both expressions (bit 0 for argument, bit 1 for template_segment)
-	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 3 // bits 0 and 1 set
+	// Set expression status to present for both expressions.
+	if eventType.ExprStatusArraySize > 0 {
+		rootData[0] = 0x05 // expr status: present (1) for expr 0 at bits [0:1], present (1) for expr 1 at bits [2:3]
 	}
-	// First expression (argument) at offset 1
+	// First expression (template_segment) at offset 1
 	ptrOff := int(eventType.Expressions[0].Offset)
 	binary.NativeEndian.PutUint64(rootData[ptrOff:ptrOff+8], headerAddr)
-	// Second expression (template_segment) at offset 9
+	// Second expression (argument) at offset 9
 	templatePtrOff := int(eventType.Expressions[1].Offset)
 	binary.NativeEndian.PutUint64(rootData[templatePtrOff:templatePtrOff+8], headerAddr)
 
@@ -1124,14 +1159,14 @@ func simplePointerChainArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		return p.GetID() == "PointerChainArg"
 	})
 	require.NotEqual(t, -1, probe)
-	events := irProg.Probes[probe].Events
+	events := irProg.Probes[probe].Instances[0].Events
 	require.Len(t, events, 1)
 	eventType := events[0].Type
 	rootLen := int(eventType.GetByteSize())
 	rootData := make([]byte, rootLen)
-	// Set presence bits for both expressions (bit 0 for argument, bit 1 for template_segment)
-	if eventType.PresenceBitsetSize > 0 {
-		rootData[0] = 3 // bits 0 and 1 set
+	// Set expression status to present for both expressions.
+	if eventType.ExprStatusArraySize > 0 {
+		rootData[0] = 0x05 // expr status: present (1) for expr 0 at bits [0:1], present (1) for expr 1 at bits [2:3]
 	}
 	// Build a fully captured pointer chain *****int → int(17)
 	argType := eventType.Expressions[0].Expression.Type
@@ -1155,10 +1190,10 @@ func simplePointerChainArgEvent(t testing.TB, irProg *ir.Program) []byte {
 		addr4 = uint64(0xa0000004)
 		addr5 = uint64(0xa0000005)
 	)
-	// First expression (argument) at offset 1: address of first pointer
+	// First expression (template_segment) at offset 1: address of first pointer
 	off := int(eventType.Expressions[0].Offset)
 	binary.NativeEndian.PutUint64(rootData[off:off+8], addr1)
-	// Second expression (template_segment) at offset 9: same address
+	// Second expression (argument) at offset 9: same address
 	templateOff := int(eventType.Expressions[1].Offset)
 	binary.NativeEndian.PutUint64(rootData[templateOff:templateOff+8], addr1)
 
@@ -1316,9 +1351,10 @@ func TestDecoderPanics(t *testing.T) {
 	stringID := stringType.GetID()
 	decoder.decoderTypes[stringID] = &panicDecoderType{decoder.decoderTypes[stringID]}
 	_, _, err = decoder.Decode(Event{
-		EntryOrLine: output.Event(input),
+		EntryOrLine: output.SingleEvent(input),
 		ServiceName: "foo"},
 		&noopSymbolicator{},
+		nil,
 		[]byte{},
 	)
 	require.Error(t, err)
@@ -1345,9 +1381,10 @@ func TestDecoderFailsOnEvaluationError(t *testing.T) {
 	stringID := stringType.GetID()
 	delete(decoder.decoderTypes, stringID)
 	out, _, err := decoder.Decode(Event{
-		EntryOrLine: output.Event(input),
+		EntryOrLine: output.SingleEvent(input),
 		ServiceName: "foo"},
 		&noopSymbolicator{},
+		nil,
 		[]byte{},
 	)
 	require.NoError(t, err)
@@ -1384,9 +1421,9 @@ func TestDecoderIsRobustToDataItemDecodingErrors(t *testing.T) {
 	require.Regexp(t, "not enough bytes to read data item", itemErr)
 
 	buf, probe, err := decoder.Decode(Event{
-		EntryOrLine: event,
+		EntryOrLine: output.SingleEvent(event),
 		ServiceName: "foo",
-	}, &noopSymbolicator{}, []byte{})
+	}, &noopSymbolicator{}, nil, []byte{})
 	require.NoError(t, err)
 	require.Equal(t, c.probeName, probe.GetID())
 	var e eventCaptures
@@ -1425,9 +1462,10 @@ func TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer(t *testing.T) {
 	// by each iteration of the loop. It's expected/possible that consumers
 	// of the decoder API will call Decode every time with the same buffer.
 	out, _, err := decoder.Decode(Event{
-		EntryOrLine: output.Event(input),
+		EntryOrLine: output.SingleEvent(input),
 		ServiceName: "foo"},
 		&noopSymbolicator{},
+		nil,
 		buf,
 	)
 	require.NoError(t, err)
@@ -1437,59 +1475,43 @@ func TestDecoderFailsOnEvaluationErrorAndRetainsPassedBuffer(t *testing.T) {
 }
 
 func TestDecoderMissingReturnEventEvaluationError(t *testing.T) {
+	// The stringArg probe does not reference @duration, so an unpaired
+	// return no longer produces a synthetic @duration evaluation error.
+	// When the probe actually references @duration (via template or
+	// captureExpression) the missing-return case is surfaced through the
+	// template rendering / expression-status-absent paths instead — see
+	// TestDecoderMissingDurationReference below.
 	tests := []struct {
-		name                    string
-		pairingExpectation      output.EventPairingExpectation
-		expectedErrorExpression string
-		expectedErrorMessage    string
-		shouldHaveError         bool
+		name               string
+		pairingExpectation output.EventPairingExpectation
 	}{
 		{
-			name:                    "return pairing expected",
-			pairingExpectation:      output.EventPairingExpectationReturnPairingExpected,
-			expectedErrorExpression: "@duration",
-			expectedErrorMessage:    "not available: return event not received",
-			shouldHaveError:         true,
+			name:               "return pairing expected",
+			pairingExpectation: output.EventPairingExpectationReturnPairingExpected,
 		},
 		{
-			name:                    "buffer full",
-			pairingExpectation:      output.EventPairingExpectationBufferFull,
-			expectedErrorExpression: "@duration",
-			expectedErrorMessage:    "not available: userspace buffer capacity exceeded",
-			shouldHaveError:         true,
+			name:               "buffer full",
+			pairingExpectation: output.EventPairingExpectationBufferFull,
 		},
 		{
-			name:                    "call map full",
-			pairingExpectation:      output.EventPairingExpectationCallMapFull,
-			expectedErrorExpression: "@duration",
-			expectedErrorMessage:    "not available: call map capacity exceeded",
-			shouldHaveError:         true,
+			name:               "call map full",
+			pairingExpectation: output.EventPairingExpectationCallMapFull,
 		},
 		{
-			name:                    "call count exceeded",
-			pairingExpectation:      output.EventPairingExpectationCallCountExceeded,
-			expectedErrorExpression: "@duration",
-			expectedErrorMessage:    "not available: maximum call count exceeded",
-			shouldHaveError:         true,
+			name:               "call count exceeded",
+			pairingExpectation: output.EventPairingExpectationCallCountExceeded,
 		},
 		{
-			name:                    "inlined",
-			pairingExpectation:      output.EventPairingExpectationNoneInlined,
-			expectedErrorExpression: "@duration",
-			expectedErrorMessage:    "not available: function was inlined",
-			shouldHaveError:         true,
+			name:               "inlined",
+			pairingExpectation: output.EventPairingExpectationNoneInlined,
 		},
 		{
-			name:                    "no body",
-			pairingExpectation:      output.EventPairingExpectationNoneNoBody,
-			expectedErrorExpression: "@duration",
-			expectedErrorMessage:    "not available: function has no body",
-			shouldHaveError:         true,
+			name:               "no body",
+			pairingExpectation: output.EventPairingExpectationNoneNoBody,
 		},
 		{
 			name:               "no pairing expected",
 			pairingExpectation: output.EventPairingExpectationNone,
-			shouldHaveError:    false,
 		},
 	}
 
@@ -1512,35 +1534,92 @@ func TestDecoderMissingReturnEventEvaluationError(t *testing.T) {
 			header.Event_pairing_expectation = uint8(tt.pairingExpectation)
 
 			buf, probe, err := decoder.Decode(Event{
-				EntryOrLine: newEvent,
+				EntryOrLine: output.SingleEvent(newEvent),
 				Return:      nil, // Explicitly no return event
 				ServiceName: "foo",
-			}, &noopSymbolicator{}, []byte{})
+			}, &noopSymbolicator{}, nil, []byte{})
 			require.NoError(t, err)
 			require.Equal(t, "stringArg", probe.GetID())
 
 			var e eventCaptures
 			require.NoError(t, json.Unmarshal(buf, &e))
 
-			if tt.shouldHaveError {
-				require.NotEmpty(t, e.Debugger.EvaluationErrors,
-					"expected evaluation error but none found")
-				found := false
-				for _, evalErr := range e.Debugger.EvaluationErrors {
-					if evalErr.Expression == tt.expectedErrorExpression &&
-						evalErr.Message == tt.expectedErrorMessage {
-						found = true
-						break
-					}
-				}
-				require.True(t, found,
-					"expected evaluation error with expression %q and message %q, got errors: %+v",
-					tt.expectedErrorExpression, tt.expectedErrorMessage,
-					e.Debugger.EvaluationErrors)
-			} else {
-				// Check that there's no return-related error
-				require.Empty(t, e.Debugger.EvaluationErrors)
-			}
+			// The stringArg probe does not reference @duration, so no
+			// evaluation error should be emitted for any pairing
+			// expectation.
+			require.Empty(t, e.Debugger.Snapshot.EvaluationErrors)
 		})
 	}
+}
+
+// TestDecoderNilPointerCaptureExpression tests that a nil pointer dereference
+// during expression evaluation is reported as an evaluation error for captures.
+func TestDecoderNilPointerCaptureExpression(t *testing.T) {
+	irProg := generateIrForProbes(t, "simple", goVersionHmap, "stringArg")
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+	require.NoError(t, err)
+	input := simpleStringArgEvent(t, irProg)
+
+	// Flip bitset so expression 1 (the argument capture) has nil-deref (2)
+	// instead of present (1). With 2 bits per status:
+	// expr 0 = present (1) at bits [0:1]
+	// expr 1 = nil-deref (2) at bits [2:3]
+	// Result: (1 << 0) | (2 << 2) = 0x09
+	bitsetOffset := int(unsafe.Sizeof(output.EventHeader{}) + unsafe.Sizeof(output.DataItemHeader{}))
+	input[bitsetOffset] = 0x09
+
+	buf, probe, err := decoder.Decode(Event{
+		EntryOrLine: output.SingleEvent(input),
+		ServiceName: "foo",
+	}, &noopSymbolicator{}, nil, []byte{})
+	require.NoError(t, err)
+	require.Equal(t, "stringArg", probe.GetID())
+
+	var e eventCaptures
+	require.NoError(t, json.Unmarshal(buf, &e))
+
+	// The argument should not appear in captures (it was skipped).
+	require.Nil(t, e.Debugger.Snapshot.Captures.Entry.Arguments)
+
+	// An evaluation error should be reported for the nil pointer.
+	require.NotEmpty(t, e.Debugger.Snapshot.EvaluationErrors)
+	found := false
+	for _, evalErr := range e.Debugger.Snapshot.EvaluationErrors {
+		if evalErr.Message == "nil pointer dereference" {
+			found = true
+			break
+		}
+	}
+	require.True(t, found, "expected nil pointer evaluation error, got: %+v", e.Debugger.Snapshot.EvaluationErrors)
+}
+
+// TestDecoderNilPointerTemplateExpression tests that a nil pointer dereference
+// during template expression evaluation is formatted as an error in the message.
+func TestDecoderNilPointerTemplateExpression(t *testing.T) {
+	irProg := generateIrForProbes(t, "simple", goVersionHmap, "stringArg")
+	decoder, err := NewDecoder(irProg, &noopTypeNameResolver{}, time.Now())
+	require.NoError(t, err)
+	input := simpleStringArgEvent(t, irProg)
+
+	// Flip bitset so expression 0 (the template segment) has nil-deref (2).
+	// With 2 bits per status:
+	// expr 0 = nil-deref (2) at bits [0:1]
+	// expr 1 = present (1) at bits [2:3]
+	// Result: (2 << 0) | (1 << 2) = 0x06
+	bitsetOffset := int(unsafe.Sizeof(output.EventHeader{}) + unsafe.Sizeof(output.DataItemHeader{}))
+	input[bitsetOffset] = 0x06
+
+	buf, probe, err := decoder.Decode(Event{
+		EntryOrLine: output.SingleEvent(input),
+		ServiceName: "foo",
+	}, &noopSymbolicator{}, nil, []byte{})
+	require.NoError(t, err)
+	require.Equal(t, "stringArg", probe.GetID())
+
+	var e eventCaptures
+	require.NoError(t, json.Unmarshal(buf, &e))
+
+	// The template message should contain the error, not {nil}.
+	require.Contains(t, e.Message, "nil pointer dereference")
+	require.NotContains(t, e.Message, "{nil}")
 }

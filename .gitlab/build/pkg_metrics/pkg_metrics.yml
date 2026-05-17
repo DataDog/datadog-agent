@@ -103,5 +103,4 @@ check_pkg_size:
     - agent_rpm-arm64-a7
     - iot_agent_rpm-arm64
   script:
-    - !reference [.setup_agent_github_app]
     - dda inv -- package.check-size

@@ -15,7 +15,7 @@ import (
 	"strings"
 
 	"github.com/twmb/murmur3"
-	yaml "gopkg.in/yaml.v2"
+	yaml "go.yaml.in/yaml/v2"
 
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -76,8 +76,9 @@ type Config struct {
 	// CELSelector is the list of CEL-based selectors for this integration. (optional)
 	CELSelector workloadfilter.Rules `json:"cel_selector"` // (include in digest: false)
 
-	// Internal field to Autodiscovery, not serialized
-	matchingProgram MatchingProgram // (include in digest: false)
+	// Internal field to Autodiscovery, not serialized.
+	// Maps resource type to the compiled CEL matching program for that type.
+	matchingPrograms map[workloadfilter.ResourceType]MatchingProgram // (include in digest: false)
 
 	// Provider is the name of the config provider that issued the config.  If
 	// this is "", then the config is a service config, representing a service
@@ -119,7 +120,16 @@ type Config struct {
 
 	// ImageName is the container image name if any
 	ImageName string `json:"image_name"` // (include in digest: false)
+
+	// Discovery indicates that this config is a configuration-discovery
+	// template: the agent should not schedule it directly, and any matched
+	// instance is meant to discover its own config at runtime. A non-nil
+	// pointer means discovery is requested. (optional)
+	Discovery *DiscoveryConfig `json:"discovery,omitempty"` // (include in digest: true)
 }
+
+// DiscoveryConfig holds per-template configuration-discovery options.
+type DiscoveryConfig struct{}
 
 // MatchingProgram is an interface for matching objects against filter rules.
 type MatchingProgram interface {
@@ -150,6 +160,7 @@ type CommonGlobalConfig struct {
 type AdvancedADIdentifier struct {
 	KubeService   KubeNamespacedName      `yaml:"kube_service,omitempty"`
 	KubeEndpoints KubeEndpointsIdentifier `yaml:"kube_endpoints,omitempty"`
+	Crd           CrdIdentifier           `yaml:"crd,omitempty"`
 }
 
 // KubeEndpointsIdentifier identifies a kubernetes endpoints object
@@ -168,6 +179,15 @@ type KubeNamespacedName struct {
 // IsEmpty returns true if the KubeNamespacedName is empty
 func (k KubeNamespacedName) IsEmpty() bool {
 	return k.Name == "" && k.Namespace == ""
+}
+
+type CrdIdentifier struct {
+	Gvr string `yaml:"gvr"`
+}
+
+// IsEmpty returns true if the CrdsIdentifier is empty
+func (c CrdIdentifier) IsEmpty() bool {
+	return c.Gvr == ""
 }
 
 // Equal determines whether the passed config is the same
@@ -219,19 +239,29 @@ func (c *Config) IsTemplate() bool {
 	return len(c.ADIdentifiers) > 0 || len(c.AdvancedADIdentifiers) > 0
 }
 
+// IsDiscovery returns true if this config is a configuration-discovery
+// template (a non-nil Discovery field).
+func (c *Config) IsDiscovery() bool {
+	return c.Discovery != nil
+}
+
 // IsMatched returns true if the given object matches the filtering program of the config.
 // Note: this method should only be used within the autodiscovery component.
 func (c *Config) IsMatched(obj workloadfilter.Filterable) bool {
-	// If there's no matching program, then the config already matches w/ AD identifiers
-	if c.matchingProgram == nil {
+	if len(c.matchingPrograms) == 0 {
 		return true
 	}
-	return c.matchingProgram.IsMatched(obj)
+	prg, found := c.matchingPrograms[obj.Type()]
+	if !found {
+		// No CEL program for this resource type — the match was via AD identifiers
+		return true
+	}
+	return prg.IsMatched(obj)
 }
 
-// SetMatchingProgram sets the matching program for the config.
-func (c *Config) SetMatchingProgram(p MatchingProgram) {
-	c.matchingProgram = p
+// SetMatchingPrograms sets the matching programs for the config, keyed by resource type.
+func (c *Config) SetMatchingPrograms(programs map[workloadfilter.ResourceType]MatchingProgram) {
+	c.matchingPrograms = programs
 }
 
 // IsCheckConfig returns true if the config is a node-agent check configuration,
@@ -446,6 +476,9 @@ func (c *Config) IntDigest() uint64 {
 	_, _ = h.Write([]byte(c.LogsConfig))
 	_, _ = h.Write([]byte(c.ServiceID))
 	_, _ = h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags)))
+	if c.Discovery != nil {
+		_, _ = h.Write([]byte("discovery"))
+	}
 
 	return h.Sum64()
 }
@@ -469,6 +502,9 @@ func (c *Config) FastDigest() uint64 {
 	_, _ = h.Write([]byte(c.LogsConfig))
 	_, _ = h.Write([]byte(c.ServiceID))
 	_, _ = h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags)))
+	if c.Discovery != nil {
+		_, _ = h.Write([]byte("discovery"))
+	}
 
 	return h.Sum64()
 }

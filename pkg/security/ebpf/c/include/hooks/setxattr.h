@@ -91,7 +91,7 @@ int __attribute__((always_inline)) trace__vfs_setxattr(ctx_t *ctx, u64 event_typ
         }
     }
 
-    set_file_inode(syscall->xattr.dentry, &syscall->xattr.file, 0);
+    set_file_inode(syscall->xattr.dentry, &syscall->xattr.file, PATH_ID_INVALIDATE_TYPE_NONE);
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     syscall->resolver.dentry = syscall->xattr.dentry;

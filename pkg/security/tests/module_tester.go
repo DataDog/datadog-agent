@@ -28,8 +28,9 @@ import (
 	"time"
 	"unsafe"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
+	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -86,10 +87,11 @@ func (s *stringSlice) Set(value string) error {
 
 func (tm *testModule) HandleEvent(event *model.Event) {
 	tm.eventHandlers.RLock()
-	defer tm.eventHandlers.RUnlock()
+	onProbeEvent := tm.eventHandlers.onProbeEvent
+	tm.eventHandlers.RUnlock()
 
-	if tm.eventHandlers.onProbeEvent != nil {
-		tm.eventHandlers.onProbeEvent(event)
+	if onProbeEvent != nil {
+		onProbeEvent(event)
 	}
 }
 
@@ -97,7 +99,9 @@ func (tm *testModule) HandleCustomEvent(_ *rules.Rule, _ *events.CustomEvent) {}
 
 func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, extTagsCb func() ([]string, bool), service string) {
 	tm.eventHandlers.RLock()
-	defer tm.eventHandlers.RUnlock()
+	onCustom := tm.eventHandlers.onCustomSendEvent
+	onSendEvent := tm.eventHandlers.onSendEvent
+	tm.eventHandlers.RUnlock()
 
 	// forward to the API server
 	if tm.cws != nil {
@@ -106,12 +110,12 @@ func (tm *testModule) SendEvent(rule *rules.Rule, event events.Event, extTagsCb 
 
 	switch ev := event.(type) {
 	case *events.CustomEvent:
-		if tm.eventHandlers.onCustomSendEvent != nil {
-			tm.eventHandlers.onCustomSendEvent(rule, ev)
+		if onCustom != nil {
+			onCustom(rule, ev)
 		}
 	case *model.Event:
-		if tm.eventHandlers.onSendEvent != nil {
-			tm.eventHandlers.onSendEvent(rule, ev)
+		if onSendEvent != nil {
+			onSendEvent(rule, ev)
 		}
 	}
 }
@@ -802,12 +806,9 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"ActivityDumpRateLimiter":                    opts.activityDumpRateLimiter,
 		"ActivityDumpTagRules":                       opts.activityDumpTagRules,
 		"ActivityDumpDuration":                       opts.activityDumpDuration,
-		"ActivityDumpLoadControllerPeriod":           opts.activityDumpLoadControllerPeriod,
-		"ActivityDumpLoadControllerTimeout":          opts.activityDumpLoadControllerTimeout,
 		"ActivityDumpCleanupPeriod":                  opts.activityDumpCleanupPeriod,
 		"ActivityDumpTracedCgroupsCount":             opts.activityDumpTracedCgroupsCount,
 		"ActivityDumpCgroupDifferentiateArgs":        opts.activityDumpCgroupDifferentiateArgs,
-		"ActivityDumpAutoSuppressionEnabled":         opts.activityDumpAutoSuppressionEnabled,
 		"TraceSystemdCgroups":                        opts.traceSystemdCgroups,
 		"ActivityDumpTracedEventTypes":               opts.activityDumpTracedEventTypes,
 		"ActivityDumpLocalStorageDirectory":          opts.activityDumpLocalStorageDirectory,
@@ -819,8 +820,6 @@ func genTestConfigs(t testing.TB, cfgDir string, opts testOpts) (*emconfig.Confi
 		"SecurityProfileDir":                         opts.securityProfileDir,
 		"SecurityProfileWatchDir":                    opts.securityProfileWatchDir,
 		"SecurityProfileNodeEvictionTimeout":         opts.securityProfileNodeEvictionTimeout,
-		"EnableAutoSuppression":                      opts.enableAutoSuppression,
-		"AutoSuppressionEventTypes":                  opts.autoSuppressionEventTypes,
 		"EnableAnomalyDetection":                     opts.enableAnomalyDetection,
 		"AnomalyDetectionEventTypes":                 opts.anomalyDetectionEventTypes,
 		"AnomalyDetectionDefaultMinimumStablePeriod": opts.anomalyDetectionDefaultMinimumStablePeriod,
@@ -910,7 +909,7 @@ func setupOptionalDatadogConfigWithDir(t testing.TB, configDir, configFile strin
 		cfg.SetConfigFile(configFile)
 	}
 	// load the configuration
-	err := pkgconfigsetup.LoadDatadog(cfg, secretsmock.New(t), pkgconfigsetup.SystemProbe().GetEnvVars())
+	err := pkgconfigsetup.LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), pkgconfigsetup.SystemProbe().GetEnvVars())
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	if err != nil && !errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) {
 		// special-case permission-denied with a clearer error message

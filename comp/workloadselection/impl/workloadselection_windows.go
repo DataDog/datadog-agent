@@ -60,11 +60,14 @@ func setFileReadableByEveryone(path string) error {
 		return fmt.Errorf("failed to get DACL: %w", err)
 	}
 
-	// Only set the DACL, don't touch owner or group
+	// Set the explicit DACL and allow inheritance from the parent directory.
+	// Not using PROTECTED_DACL_SECURITY_INFORMATION so that the file inherits
+	// ACEs from the parent (SYSTEM:F, Admins:F, ddagentuser:F via CREATOR OWNER),
+	// ensuring the agent retains write access for subsequent config updates.
 	return windows.SetNamedSecurityInfo(
 		path,
 		windows.SE_FILE_OBJECT,
-		windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION,
+		windows.DACL_SECURITY_INFORMATION,
 		nil,  // owner - leave unchanged
 		nil,  // group - leave unchanged
 		dacl, // DACL - set this
@@ -79,7 +82,16 @@ func (c *workloadselectionComponent) compileAndWriteConfig(rawConfig []byte) err
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
-	cmd := exec.Command(getCompilePolicyBinaryPath(), "--input-string", string(rawConfig), "--output-file", configPath)
+
+	tmpFile, err := os.CreateTemp(filepath.Dir(configPath), "workload-policy-*.tmp")
+	if err != nil {
+		return fmt.Errorf("failed to create temporary file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	tmpFile.Close()
+	defer os.Remove(tmpPath)
+
+	cmd := exec.Command(getCompilePolicyBinaryPath(), "--input-string", string(rawConfig), "--output-file", tmpPath)
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
@@ -88,8 +100,12 @@ func (c *workloadselectionComponent) compileAndWriteConfig(rawConfig []byte) err
 	}
 	// Set permissions on the file to allow Everyone read+execute access
 	// We keep the current owner (ddagentuser) and only modify the DACL
-	if err := setFileReadableByEveryone(configPath); err != nil {
-		return fmt.Errorf("failed to set permissions on file %s: %w", configPath, err)
+	if err := setFileReadableByEveryone(tmpPath); err != nil {
+		return fmt.Errorf("failed to set permissions on file %s: %w", tmpPath, err)
+	}
+
+	if err := os.Rename(tmpPath, configPath); err != nil {
+		return fmt.Errorf("failed to atomically replace policy file: %w", err)
 	}
 	return nil
 }

@@ -18,6 +18,7 @@ func NewGitlabUsers() types.Bundle {
 		actions: map[string]types.Action{
 			// Manual actions
 			"createServiceAccountUser": NewCreateServiceAccountUserHandler(),
+			"testConnection":           NewTestConnectionHandler(),
 			// Auto-generated actions
 			"activateUser":              NewActivateUserHandler(),
 			"addEmail":                  NewAddEmailHandler(),

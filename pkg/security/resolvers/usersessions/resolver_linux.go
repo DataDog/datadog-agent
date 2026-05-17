@@ -13,8 +13,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -26,11 +29,15 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
+
+const logDir = "var/log"
 
 // UserSessionKey describes the key to a user session
 type UserSessionKey struct {
@@ -73,8 +80,9 @@ type incrementalFileReader struct {
 
 // SSHSessionKey describes the key to a ssh session in the LRU
 type SSHSessionKey struct {
-	IP   string // net.IP.String()
-	Port string
+	SSHDPid string
+	IP      string // GetIpStringFromIPNet is used
+	Port    string
 }
 
 // SSHSessionValue describes the value to a ssh session in the LRU
@@ -201,8 +209,8 @@ func (ifr *incrementalFileReader) Init(f *os.File) error {
 		seclog.Warnf("Fail to stat log file: %v", err)
 		return err
 	}
-
-	ifr.offset = st.Size()
+	// Start from the beginning
+	ifr.offset = 0
 
 	ifr.f = f
 	ifr.ino = inodeOf(st)
@@ -246,6 +254,7 @@ func parseSSHLogLine(line string, sshSessionParsed *lru.Cache[SSHSessionKey, SSH
 		Date      string
 		Hostname  string
 		Service   string
+		SSHDPid   string
 		Remaining string
 	}
 	type SSHParsedLine struct {
@@ -282,6 +291,14 @@ func parseSSHLogLine(line string, sshSessionParsed *lru.Cache[SSHSessionKey, SSH
 	default:
 		return
 	}
+	startPid := strings.Index(sshLogLine.Service, "[")
+	endPid := strings.Index(sshLogLine.Service, "]")
+	if startPid == -1 || endPid == -1 {
+		seclog.Debugf("Pid not found for sshd line %q", line)
+		return
+	}
+	sshLogLine.SSHDPid = sshLogLine.Service[startPid+1 : endPid]
+
 	// if the service is "sshd" and the line starts with "Accepted" it's the beginning of an ssh session
 	if strings.HasPrefix(sshLogLine.Service, "sshd") && strings.HasPrefix(sshLogLine.Remaining, "Accepted") {
 		// One example of line is: "Accepted publickey for lima from 192.168.5.2 port 38835 ssh2: ED25519 SHA256:J3I5W45pnQtan5u0m27HWzyqAMZfTbG+nRet/pzzylU"
@@ -322,8 +339,9 @@ func parseSSHLogLine(line string, sshSessionParsed *lru.Cache[SSHSessionKey, SSH
 			authType = usersession.SSHAuthMethodUnknown
 		}
 		key := SSHSessionKey{
-			IP:   parsedIP.String(),
-			Port: sshParsedLine.Port,
+			SSHDPid: sshLogLine.SSHDPid,
+			IP:      utils.GetIPStringFromIPNet(net.IPNet{IP: parsedIP}),
+			Port:    sshParsedLine.Port,
 		}
 		value := SSHSessionValue{
 			AuthenticationMethod: int(authType),
@@ -427,6 +445,28 @@ func (ifr *incrementalFileReader) reloadIfRotated() error {
 	return nil
 }
 
+func sshAuthLogPathCandidates() []string {
+	names := []string{
+		"auth.log", // Debian/Ubuntu
+		"secure",   // RHEL/CentOS/Fedora
+		"messages", // openSUSE/others
+	}
+	var hostRoots []string
+	if hr := os.Getenv("HOST_ROOT"); hr != "" && env.IsContainerized() {
+		hostRoots = append(hostRoots, hr)
+	}
+	out := make([]string, 0, len(names)*(1+len(hostRoots)))
+	for _, root := range hostRoots {
+		for _, name := range names {
+			out = append(out, filepath.Join(root, logDir, name))
+		}
+	}
+	for _, name := range names {
+		out = append(out, filepath.Join("/", logDir, name))
+	}
+	return out
+}
+
 // StartSSHUserSessionResolver initializes the ssh log reader by looking for the available file, opening it and setting up the initial offset
 // Lock must be held
 func (r *Resolver) StartSSHUserSessionResolver() error {
@@ -439,14 +479,10 @@ func (r *Resolver) StartSSHUserSessionResolver() error {
 		return err
 	}
 
-	// Try to find the ssh log file
-	possibleLogPaths := []string{
-		"/var/log/auth.log", // Debian/Ubuntu
-		"/var/log/secure",   // RHEL/CentOS/Fedora
-		"/var/log/messages", // openSUSE/autres
-	}
+	// Try to find the ssh log file (container: also under HOST_ROOT or /host/var/log)
+	// We stop on the first file found
 	path := ""
-	for _, possiblePath := range possibleLogPaths {
+	for _, possiblePath := range sshAuthLogPathCandidates() {
 		_, err = os.Stat(possiblePath)
 		if err == nil {
 			path = possiblePath
@@ -496,4 +532,86 @@ func (r *Resolver) Close() {
 		defer r.sshLogReader.mu.Unlock()
 		_ = r.sshLogReader.close(true)
 	}
+}
+
+// getEnvVar extracts a specific environment variable from a list of environment variables.
+// Each environment variable is in the format "KEY=VALUE".
+func getEnvVar(envp []string, key string) string {
+	prefix := key + "="
+	for _, env := range envp {
+		if after, ok := strings.CutPrefix(env, prefix); ok {
+			return after
+		}
+	}
+	return ""
+}
+func getIPfromEnv(ipStr string) net.IPNet {
+	ip := net.ParseIP(ipStr)
+	if ip != nil {
+		if ip.To4() != nil {
+			return net.IPNet{
+				IP:   ip,
+				Mask: net.CIDRMask(32, 32),
+			}
+		} else if ip.To16() != nil {
+			return net.IPNet{
+				IP:   ip,
+				Mask: net.CIDRMask(128, 128),
+			}
+		}
+	}
+	return net.IPNet{}
+}
+
+// HandleSSHUserSessionFromProcFS handles the ssh user session from snapshot using resolvers
+func (r *Resolver) HandleSSHUserSessionFromPCE(pce *model.ProcessCacheEntry) {
+	if r.sshEnabled {
+		HandleSSHUserSession(&pce.ProcessContext, pce.EnvsEntry.Values)
+	}
+}
+
+// HandleSSHUserSession handles the ssh user session
+// This function is triggered only if ssh is enabled
+func HandleSSHUserSession(pc *model.ProcessContext, envp []string) {
+	// First, we check if this event is link to an existing ssh session from his parent
+	parent := pc.Parent
+
+	// If the parent is a sshd process, we consider it's a new ssh session
+	// A sshd process will always be sshd, except on Ubuntu 25 where they introduced sshd-session
+	if parent != nil && strings.HasPrefix(parent.Comm, "sshd") && !strings.HasPrefix(pc.Comm, "sshd") {
+		sshSessionID := rand.Uint64()
+		pc.UserSession.SSHSessionID = sshSessionID
+		// Try to extract the SSH client IP and port
+		sshClientVar := getEnvVar(envp, "SSH_CLIENT")
+		parts := strings.Fields(sshClientVar)
+		if len(parts) >= 2 {
+			pc.UserSession.SSHClientIP = getIPfromEnv(parts[0])
+			if port, err := strconv.Atoi(parts[1]); err != nil {
+				seclog.Warnf("failed to parse SSH_CLIENT port from %q: %v", sshClientVar, err)
+			} else {
+				pc.UserSession.SSHClientPort = port
+				pc.UserSession.SSHDPid = getSSHDPid(pc)
+			}
+		} else {
+			seclog.Tracef("SSH_CLIENT is not in the expected format: %q", sshClientVar)
+		}
+	}
+}
+
+func getSSHDPid(pc *model.ProcessContext) uint32 {
+	numberOfSSHD := 0
+	currentPid := pc.Pid
+	// Get first parent to handle only pce after
+	pce := pc.Ancestor
+	if pce != nil && strings.HasPrefix(pce.Comm, "sshd") && pce.Pid != currentPid {
+		numberOfSSHD++
+	}
+	for pce.Ancestor != nil && numberOfSSHD < 2 {
+		parent := pce.Ancestor
+		if strings.HasPrefix(parent.Comm, "sshd") && parent.ProcessContext.Pid != currentPid {
+			numberOfSSHD++
+		}
+		pce = pce.Ancestor
+	}
+	return pce.Pid
 }

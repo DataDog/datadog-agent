@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "gitlab",
+    srcs = [
+        "client.go",
+        "gitlab_id.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/gitlab",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "@com_github_hashicorp_go_retryablehttp//:go-retryablehttp",
+        "@com_gitlab_gitlab_org_api_client_go//:client-go",
+    ],
+)

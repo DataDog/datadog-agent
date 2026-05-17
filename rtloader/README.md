@@ -25,8 +25,7 @@ that must be implemented by any supported backend, see `include/rtloader.h` for 
 
 ### Common
 
-The `common` folder contains C/C++ modules that are compiled into both
-`libdatadog-agent-three` and `libdatadog-agent-two` to avoid code duplication.
+The `common` folder contains C/C++ modules that are compiled into `libdatadog-agent-three`.
 Most of the code used to extend the embedded interpreter is there.
 
 ## Requirements
@@ -58,36 +57,6 @@ Then just run `make` to build the project.
 ## Examples
 
 - [Exposing Go functionality to Python](https://github.com/DataDog/datadog-agent/pull/4234)
-
-## Demo
-
-Examples about how to use RtLoader are provided in form of a C application under `demo`. The application expects to find a
-few things installed in the Python env. To easy development, a virtualenv can be used: the base check
-and the Directory check have to be installed before running the demo, if you have a local clone of `integrations-core`
-that should be a matter of `pip install /path_to_integrations_core/datadog_checks_base` and
-`pip install /path_to_integrations_core/directory`. Then depending on which Python version your virtualenv provides, run:
-
-OSX:
-```
-DYLD_LIBRARY_PATH=./three:./two ./demo/demo 2 $VIRTUAL_ENV
-```
-
-Unix
-```
-LD_LIBRARY_PATH=./three:./two ./demo/demo 2 $VIRTUAL_ENV
-```
-
-or
-
-OSX
-```
-DYLD_LIBRARY_PATH=./three:./two ./demo/demo 3 $VIRTUAL_ENV
-```
-
-Unix
-```
-LD_LIBRARY_PATH=./three:./two ./demo/demo 3 $VIRTUAL_ENV
-```
 
 ## Test
 

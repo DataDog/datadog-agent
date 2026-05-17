@@ -76,6 +76,10 @@ func (*fakev3or4EcsClient) GetContainerStats(_ context.Context, _ string) (*v3or
 	return nil, errors.New("unimplemented")
 }
 
+func (*fakev3or4EcsClient) GetTasks(_ context.Context) ([]v3or4.Task, error) {
+	return nil, errors.New("unimplemented")
+}
+
 // TestPull tests the Pull method
 func TestPull(t *testing.T) {
 	store := &fakeWorkloadmetaStore{}
@@ -135,7 +139,7 @@ func TestGetID(t *testing.T) {
 
 // TestGetTargetCatalog tests the GetTargetCatalog method
 func TestGetTargetCatalog(t *testing.T) {
-	catalog := workloadmeta.NodeAgent | workloadmeta.ProcessAgent
+	catalog := workloadmeta.NodeAgent
 	collector := &collector{
 		catalog: catalog,
 	}

@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "injectcmd",
+    srcs = ["inject.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands/injectcmd",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//cmd/cws-instrumentation/flags",
+            "//pkg/security/probe/erpc",
+            "//pkg/security/secl/model/usersession",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//cmd/cws-instrumentation/flags",
+            "//pkg/security/probe/erpc",
+            "//pkg/security/secl/model/usersession",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "//conditions:default": [],
+    }),
+)

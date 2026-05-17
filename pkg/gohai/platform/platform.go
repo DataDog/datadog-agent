@@ -40,7 +40,7 @@ type Info struct {
 	KernelVersion utils.Value[string] `json:"kernel_version"`
 	// Processor is the processor type, Unix only (ex "x86_64", "arm", ...)
 	Processor utils.Value[string] `json:"processor"`
-	// HardwarePlatform is the hardware name, Linux only (ex "x86_64")
+	// HardwarePlatform is the hardware name, Linux and Darwin (ex "x86_64", "arm64")
 	HardwarePlatform utils.Value[string] `json:"hardware_platform"`
 }
 

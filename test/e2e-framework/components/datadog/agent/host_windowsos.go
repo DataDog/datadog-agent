@@ -16,7 +16,7 @@ import (
 	"sort"
 	"strings"
 
-	"golang.org/x/exp/slices"
+	"slices"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
@@ -66,6 +66,7 @@ Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Lsa\FipsAlgorithm
 	cmd += fmt.Sprintf(`
 $ProgressPreference = 'SilentlyContinue';
 $ErrorActionPreference = 'Stop';
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
 for ($i=0; $i -lt 3; $i++) {
 	try {
 		(New-Object Net.WebClient).DownloadFile('%s','%s')

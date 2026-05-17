@@ -1,50 +1,13 @@
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup")
-load("//compliance:package_licenses.bzl", "package_licenses")
 
 package(default_visibility = ["//packages:__subpackages__"])
 
 pkg_filegroup(
     name = "embedded",
     srcs = [
-        "//deps/gstatus:bin_files",
-        # have to include this explicitly because it is not hooked up with package_metadata
-        "//deps/gstatus:license_file",
-    ] + select({
-        "//packages/agent:linux_default": [
-            "//deps/compile_policy:bin_files",
-            # have to include this explicitly because it is not hooked up with package_metadata
-            "//deps/compile_policy:license_file",
-        ],
-        "//packages/agent:linux_heroku": [],
-        "//conditions:default": [],
-    }),
-)
-
-# This is a placeholder for an eventual group containg (the future) top level binaries
-# such as //cmd/agent:agent
-filegroup(
-    name = "all_deps",
-    srcs = [
-        "//deps:all_deps",
-    ] + select({
-        "//packages/agent:linux_heroku": [],
-        "//packages/agent:linux_default": [
-            "//deps/nfsiostat:all_files",
-            "//deps/openscap:all_deps",
-            "@freetds//:all_files",
-        ],
-        "//conditions:default": [
-            # This will become "//deps/openscap:all_deps" in the future
-            "@popt",
-        ],
-    }),
-)
-
-# Walk the graph of all depths to collect license info.
-package_licenses(
-    name = "license_files",
-    src = ":all_deps",
+        "//packages/install_dir/embedded:all_files",
+    ],
 )
 
 # All the things that belong in /etc
@@ -57,7 +20,7 @@ package_licenses(
 pkg_filegroup(
     name = "etc",
     srcs = [
-        "//deps/snmp_traps:all_files",
+        "//pkg/privateactionrunner/autoconnections/conf:all_files",
     ],
 )
 
@@ -67,7 +30,6 @@ pkg_install(
     srcs = [
         ":embedded",
         ":etc",
-        ":license_files",
     ],
     destdir_flag = "//:install_dir",
 )

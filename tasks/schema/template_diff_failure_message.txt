@@ -1,0 +1,10 @@
+You PR seems to have broken the schema and template generation.
+
+Check:
+ - Your change in pkg/config/config_template.yaml or pkg/config/system-probe_template.yaml are using the correct format and the same default used to register the settings (ie: BindEnvAndSetDefault).
+ - Check that any new block added to those template is followed by a line break.
+ - Any use of go templating should not output multiple empty line in a row. See other example in the file (ie: use of '{{-' or '-}}').
+ - If your change has different default based on the OS: make sure the template output the right default and that the temporary file 'tasks/schema/fixes.py' is updated with the default.
+ - If your setting uses relative path make sure the temporary file 'tasks/schema/fixes.py' is updated accordingly (ie: use of '${run_path}', '${conf_path}', ..). A "relative path" is a path relative to the OS default install path, conf path, log path, ...
+
+If you have any questions reach out to #agent-configuration. Thanks for your help while we migrate the configuration to use a schema.

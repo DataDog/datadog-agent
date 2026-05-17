@@ -8,31 +8,44 @@
 package server
 
 import (
+	"context"
+	"fmt"
 	"time"
+
+	goproto "google.golang.org/protobuf/proto"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/proto"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/util/grpc"
+	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	workloadmetaStreamSendTimeout = 1 * time.Minute
+	streamSendTimeout             = 1 * time.Minute
 	workloadmetaKeepAliveInterval = 9 * time.Minute
+	sendQueueSize                 = 50
+	sendQueueTimeout              = 30 * time.Second
 )
 
 // NewServer returns a new server with a workloadmeta instance
-func NewServer(store workloadmeta.Component) *Server {
+func NewServer(store workloadmeta.Component, maxEventSize int) *Server {
 	return &Server{
-		wmeta: store,
+		wmeta:             store,
+		maxEventSize:      maxEventSize,
+		streamSendTimeout: streamSendTimeout,
+		sendQueueTimeout:  sendQueueTimeout,
 	}
 }
 
 // Server is a grpc server that streams workloadmeta entities
 type Server struct {
-	wmeta workloadmeta.Component
+	wmeta             workloadmeta.Component
+	maxEventSize      int
+	streamSendTimeout time.Duration
+	sendQueueTimeout  time.Duration
+	sendQueueSize     int
 }
 
 // StreamEntities streams entities from the workloadmeta store applying the given filter
@@ -45,12 +58,48 @@ func (s *Server) StreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSe
 	workloadmetaEventsChannel := s.wmeta.Subscribe("stream-client", workloadmeta.NormalPriority, filter)
 	defer s.wmeta.Unsubscribe(workloadmetaEventsChannel)
 
-	ticker := time.NewTicker(workloadmetaKeepAliveInterval)
-	defer ticker.Stop()
+	ctx, cancel := context.WithCancel(out.Context())
+	defer cancel()
 
+	queueSize := sendQueueSize
+	if s.sendQueueSize > 0 {
+		queueSize = s.sendQueueSize
+	}
+	sendQueue := make(chan []*pb.WorkloadmetaEvent, queueSize)
+
+	// Receiver goroutine: drains the workloadmeta subscription channel quickly
+	// (to avoid blocking other workloadmeta subscribers) and enqueues protobuf
+	// events into the send queue.
+	workloadmetaReceiverErrCh := make(chan error, 1)
+	go func() {
+		defer close(sendQueue)
+		recvErr := s.receiveEvents(ctx, workloadmetaEventsChannel, sendQueue)
+		if recvErr != nil {
+			cancel() // stop sendEvents to unsubscribe promptly
+		}
+		workloadmetaReceiverErrCh <- recvErr
+	}()
+
+	sendErr := s.sendEvents(ctx, out, sendQueue)
+	cancel() // sending finished; stop the workloadmeta receiver
+
+	// Wait for the workloadmeta receiver to finish
+	recvErr := <-workloadmetaReceiverErrCh
+
+	if sendErr != nil {
+		return sendErr
+	}
+	return recvErr
+}
+
+// receiveEvents drains events from the workloadmeta subscription, converts them
+// to protobuf, and enqueues them into sendQueue.
+func (s *Server) receiveEvents(ctx context.Context, eventsCh chan workloadmeta.EventBundle, sendQueue chan<- []*pb.WorkloadmetaEvent) error {
 	for {
 		select {
-		case eventBundle, ok := <-workloadmetaEventsChannel:
+		case <-ctx.Done():
+			return nil
+		case eventBundle, ok := <-eventsCh:
 			if !ok {
 				return nil
 			}
@@ -71,22 +120,83 @@ func (s *Server) StreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSe
 				}
 			}
 
-			if len(protobufEvents) > 0 {
-				err := grpc.DoWithTimeout(func() error {
-					return out.Send(&pb.WorkloadmetaStreamResponse{
-						Events: protobufEvents,
-					})
-				}, workloadmetaStreamSendTimeout)
+			if len(protobufEvents) == 0 {
+				continue
+			}
 
+			select {
+			case sendQueue <- protobufEvents:
+			case <-time.After(s.sendQueueTimeout):
+				return fmt.Errorf("send queue full for %s, disconnecting client", s.sendQueueTimeout)
+			case <-ctx.Done():
+				return nil
+			}
+		}
+	}
+}
+
+// sendEvents reads protobuf responses from sendQueue and sends them over gRPC.
+// It also sends periodic keep-alive messages.
+func (s *Server) sendEvents(ctx context.Context, out pb.AgentSecure_WorkloadmetaStreamEntitiesServer, sendQueue <-chan []*pb.WorkloadmetaEvent) error {
+	ticker := time.NewTicker(workloadmetaKeepAliveInterval)
+	defer ticker.Stop()
+
+	// The first batch from the subscription is always the full-state snapshot.
+	// We need to signal the client when the last chunk of that snapshot is sent
+	// so it can apply the resync atomically.
+	initialSnapshot := true
+
+	for {
+		select {
+		case events, ok := <-sendQueue:
+			if !ok {
+				return nil
+			}
+
+			isSnapshot := initialSnapshot
+			initialSnapshot = false
+
+			// Track how many chunks we'll send so we can mark the last one.
+			chunkIdx := 0
+			totalChunks := grpcutil.CountChunks(events, s.maxEventSize, computeWorkloadmetaEventSize)
+
+			sendFunc := func(chunk []*pb.WorkloadmetaEvent) error {
+				chunkIdx++
+				resp := &pb.WorkloadmetaStreamResponse{
+					Events: chunk,
+				}
+				if isSnapshot && chunkIdx == totalChunks {
+					resp.InitialSnapshotComplete = true
+				}
+				return grpcutil.DoWithTimeout(func() error {
+					return out.Send(resp)
+				}, s.streamSendTimeout)
+			}
+
+			if err := grpcutil.ProcessChunksInPlace(events, s.maxEventSize, computeWorkloadmetaEventSize, sendFunc); err != nil {
+				log.Warnf("error sending workloadmeta event: %s", err)
+				telemetry.RemoteServerErrors.Inc()
+				return err
+			}
+
+			// If the initial snapshot is empty, ProcessChunksInPlace won't call
+			// sendFunc, so we need to send the snapshot-complete signal explicitly.
+			if isSnapshot && totalChunks == 0 {
+				err := grpcutil.DoWithTimeout(func() error {
+					return out.Send(&pb.WorkloadmetaStreamResponse{
+						InitialSnapshotComplete: true,
+					})
+				}, s.streamSendTimeout)
 				if err != nil {
-					log.Warnf("error sending workloadmeta event: %s", err)
+					log.Warnf("error sending workloadmeta initial snapshot complete: %s", err)
 					telemetry.RemoteServerErrors.Inc()
 					return err
 				}
-
-				ticker.Reset(workloadmetaKeepAliveInterval)
 			}
-		case <-out.Context().Done():
+
+			ticker.Reset(workloadmetaKeepAliveInterval)
+
+		case <-ctx.Done():
 			return nil
 
 		// The remote workloadmeta client has a timeout that closes the
@@ -96,11 +206,11 @@ func (s *Server) StreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSe
 		// goal is only to keep the connection alive without losing the
 		// protection against “half” closed connections brought by the timeout.
 		case <-ticker.C:
-			err = grpc.DoWithTimeout(func() error {
+			err := grpcutil.DoWithTimeout(func() error {
 				return out.Send(&pb.WorkloadmetaStreamResponse{
 					Events: []*pb.WorkloadmetaEvent{},
 				})
-			}, workloadmetaStreamSendTimeout)
+			}, s.streamSendTimeout)
 
 			if err != nil {
 				log.Warnf("error sending workloadmeta keep-alive: %s", err)
@@ -109,4 +219,9 @@ func (s *Server) StreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSe
 			}
 		}
 	}
+}
+
+// computeWorkloadmetaEventSize returns the serialized size of an event in bytes.
+func computeWorkloadmetaEventSize(event *pb.WorkloadmetaEvent) int {
+	return goproto.Size(event)
 }

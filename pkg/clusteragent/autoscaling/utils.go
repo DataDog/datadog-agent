@@ -36,10 +36,10 @@ var Semantic = conversion.EqualitiesOrDie(
 		return a.Cmp(b) == 0
 	},
 	func(a, b metav1.MicroTime) bool {
-		return a.Truncate(time.Second).UTC() == b.Truncate(time.Second).UTC()
+		return a.Truncate(time.Second).Equal(b.Truncate(time.Second))
 	},
 	func(a, b metav1.Time) bool {
-		return a.Truncate(time.Second).UTC() == b.Truncate(time.Second).UTC()
+		return a.Truncate(time.Second).Equal(b.Truncate(time.Second))
 	},
 	func(a, b labels.Selector) bool {
 		return a.String() == b.String()
@@ -81,7 +81,7 @@ func ToUnstructured(structIn any) (*unstructured.Unstructured, error) {
 }
 
 // ObjectHash returns a hash of the object
-func ObjectHash(obj interface{}) (string, error) {
+func ObjectHash(obj any) (string, error) {
 	hasher := murmur3.New64()
 	_, err := hasher.Write([]byte(dump.ForHash(obj)))
 	if err != nil {

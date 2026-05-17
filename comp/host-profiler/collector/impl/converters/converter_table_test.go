@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux && test
+//go:build test
 
 package converters
 
@@ -14,12 +14,21 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
-	"gopkg.in/yaml.v3"
+	"go.uber.org/zap"
+	"go.yaml.in/yaml/v3"
 )
 
 var updateGolden = flag.Bool("update", false, "update golden test files")
+
+const testVersion = "7.0.0-test"
+
+func init() {
+	// Override version for tests to ensure golden files are version-independent
+	version.ProfilerVersion = testVersion
+}
 
 // converter is an interface that both converterWithAgent and converterWithoutAgent implement
 type converter interface {
@@ -45,7 +54,7 @@ func runSuccessTests(t *testing.T, conv converter, tests []testCase) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Load input config
-			inputPath := filepath.Join("td", tc.provided)
+			inputPath := filepath.Join("testdata", tc.provided)
 			inputData, err := os.ReadFile(inputPath)
 			require.NoError(t, err, "failed to read input file: %s", tc.provided)
 
@@ -61,7 +70,7 @@ func runSuccessTests(t *testing.T, conv converter, tests []testCase) {
 
 			// Update golden files if -update flag is set
 			if *updateGolden {
-				expectedPath := filepath.Join("td", tc.expected)
+				expectedPath := filepath.Join("testdata", tc.expected)
 				actualYAML, err := yaml.Marshal(conf.ToStringMap())
 				require.NoError(t, err, "failed to marshal output to YAML: %s", tc.provided)
 				err = os.WriteFile(expectedPath, actualYAML, 0644)
@@ -71,7 +80,7 @@ func runSuccessTests(t *testing.T, conv converter, tests []testCase) {
 			}
 
 			// Load expected output
-			expectedPath := filepath.Join("td", tc.expected)
+			expectedPath := filepath.Join("testdata", tc.expected)
 			expectedData, err := os.ReadFile(expectedPath)
 			require.NoError(t, err, "failed to read expected file: %s", tc.expected)
 
@@ -93,7 +102,7 @@ func runErrorTests(t *testing.T, conv converter, tests []errorTestCase) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Load input config
-			inputPath := filepath.Join("td", tc.provided)
+			inputPath := filepath.Join("testdata", tc.provided)
 			inputData, err := os.ReadFile(inputPath)
 			require.NoError(t, err, "failed to read input file: %s", tc.provided)
 
@@ -112,185 +121,6 @@ func runErrorTests(t *testing.T, conv converter, tests []errorTestCase) {
 	}
 }
 
-func TestConverterWithAgent(t *testing.T) {
-	tests := []testCase{
-		{
-			name:     "adds-default-when-no-infraattributes",
-			provided: "agent/add-default-no-infra/in.yaml",
-			expected: "agent/add-default-no-infra/out.yaml",
-		},
-		{
-			name:     "ensures-infraattributes-config",
-			provided: "agent/ensure-infraattr-cfg/in.yaml",
-			expected: "agent/ensure-infraattr-cfg/out.yaml",
-		},
-		{
-			name:     "removes-resourcedetection",
-			provided: "agent/rm-resdetect/in.yaml",
-			expected: "agent/rm-resdetect/out.yaml",
-		},
-		{
-			name:     "removes-resourcedetection-custom-name",
-			provided: "agent/rm-resdetect-custom/in.yaml",
-			expected: "agent/rm-resdetect-custom/out.yaml",
-		},
-		{
-			name:     "handles-infraattributes-custom-name",
-			provided: "agent/infraattr-custom/in.yaml",
-			expected: "agent/infraattr-custom/out.yaml",
-		},
-		{
-			name:     "adds-hostprofiler-when-missing",
-			provided: "agent/add-prof-missing/in.yaml",
-			expected: "agent/add-prof-missing/out.yaml",
-		},
-		{
-			name:     "preserves-otlp-protocols",
-			provided: "agent/preserve-otlp-proto/in.yaml",
-			expected: "agent/preserve-otlp-proto/out.yaml",
-		},
-		{
-			name:     "creates-default-hostprofiler",
-			provided: "agent/create-default-prof/in.yaml",
-			expected: "agent/create-default-prof/out.yaml",
-		},
-		{
-			name:     "symbol-uploader-disabled",
-			provided: "agent/symbol-up-disabled/in.yaml",
-			expected: "agent/symbol-up-disabled/out.yaml",
-		},
-		{
-			name:     "symbol-uploader-with-string-keys",
-			provided: "agent/symbol-up-str-keys/in.yaml",
-			expected: "agent/symbol-up-str-keys/out.yaml",
-		},
-		{
-			name:     "converts-non-string-api-key",
-			provided: "agent/conv-nonstr-apikey/in.yaml",
-			expected: "agent/conv-nonstr-apikey/out.yaml",
-		},
-		{
-			name:     "converts-non-string-app-key",
-			provided: "agent/conv-nonstr-appkey/in.yaml",
-			expected: "agent/conv-nonstr-appkey/out.yaml",
-		},
-		{
-			name:     "adds-hostprofiler-to-pipeline",
-			provided: "agent/add-prof-to-pipe/in.yaml",
-			expected: "agent/add-prof-to-pipe/out.yaml",
-		},
-		{
-			name:     "multiple-symbol-endpoints",
-			provided: "agent/multi-symbol-ep/in.yaml",
-			expected: "agent/multi-symbol-ep/out.yaml",
-		},
-		{
-			name:     "multiple-hostprofiler-receivers",
-			provided: "agent/multi-hostprof-recv/in.yaml",
-			expected: "agent/multi-hostprof-recv/out.yaml",
-		},
-		{
-			name:     "ensures-headers",
-			provided: "agent/ensures-headers/in.yaml",
-			expected: "agent/ensures-headers/out.yaml",
-		},
-		{
-			name:     "otlphttp-with-string-api-key",
-			provided: "agent/otlp-str-apikey/in.yaml",
-			expected: "agent/otlp-str-apikey/out.yaml",
-		},
-		{
-			name:     "otlphttp-converts-non-string-api-key",
-			provided: "agent/otlp-conv-nonstr-key/in.yaml",
-			expected: "agent/otlp-conv-nonstr-key/out.yaml",
-		},
-		{
-			name:     "multiple-otlphttp-exporters",
-			provided: "agent/multi-otlp-exp/in.yaml",
-			expected: "agent/multi-otlp-exp/out.yaml",
-		},
-		{
-			name:     "ignores-non-otlphttp",
-			provided: "agent/ignore-non-otlp/in.yaml",
-			expected: "agent/ignore-non-otlp/out.yaml",
-		},
-		{
-			name:     "overrides-hostname-override-true",
-			provided: "agent/override-hostname/in.yaml",
-			expected: "agent/override-hostname/out.yaml",
-		},
-		{
-			name:     "default-and-custom-infraattrs",
-			provided: "agent/default-custom-infra/in.yaml",
-			expected: "agent/default-custom-infra/out.yaml",
-		},
-		{
-			name:     "multiple-resourcedetection-processors",
-			provided: "agent/multi-resdetect-proc/in.yaml",
-			expected: "agent/multi-resdetect-proc/out.yaml",
-		},
-		{
-			name:     "headers-exist-but-wrong-type",
-			provided: "agent/headers-wrong-type/in.yaml",
-			expected: "agent/headers-wrong-type/out.yaml",
-		},
-		{
-			name:     "empty-string-processor-name",
-			provided: "agent/empty-proc-name/in.yaml",
-			expected: "agent/empty-proc-name/out.yaml",
-		},
-		{
-			name:     "processor-name-similar-not-exact",
-			provided: "agent/proc-name-similar/in.yaml",
-			expected: "agent/proc-name-similar/out.yaml",
-		},
-		{
-			name:     "global-processors-section-is-not-map",
-			provided: "agent/global-procs-notmap/in.yaml",
-			expected: "agent/global-procs-notmap/out.yaml",
-		},
-	}
-
-	runSuccessTests(t, &converterWithAgent{}, tests)
-}
-
-func TestConverterWithAgentErrors(t *testing.T) {
-	tests := []errorTestCase{
-		{
-			name:          "non-string-receiver-name-in-pipeline",
-			provided:      "agent/nonstr-recv-pipeline/in.yaml",
-			expectedError: "receiver name must be a string",
-		},
-		{
-			name:          "symbol-endpoints-wrong-type",
-			provided:      "agent/symbol-ep-wrongtype/in.yaml",
-			expectedError: "symbol_endpoints must be a list",
-		},
-		{
-			name:          "errors-when-no-otlphttp",
-			provided:      "agent/error-no-otlp/in.yaml",
-			expectedError: "no otlphttp exporter configured",
-		},
-		{
-			name:          "symbol-uploader-empty-endpoints",
-			provided:      "agent/symbol-up-empty-ep/in.yaml",
-			expectedError: "symbol_endpoints cannot be empty",
-		},
-		{
-			name:          "empty-pipeline",
-			provided:      "agent/empty-pipeline/in.yaml",
-			expectedError: "no otlphttp exporter configured",
-		},
-		{
-			name:          "non-string-processor-name-in-pipeline",
-			provided:      "agent/nonstr-proc-pipeline/in.yaml",
-			expectedError: "processor name must be a string",
-		},
-	}
-
-	runErrorTests(t, &converterWithAgent{}, tests)
-}
-
 func TestConverterWithoutAgent(t *testing.T) {
 	tests := []testCase{
 		{
@@ -304,7 +134,7 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/rm-infraattr-metrics/out.yaml",
 		},
 		{
-			name:     "adds-hostprofiler-when-missing",
+			name:     "adds-profiling-when-missing",
 			provided: "no_agent/add-prof-missing/in.yaml",
 			expected: "no_agent/add-prof-missing/out.yaml",
 		},
@@ -314,7 +144,7 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/preserve-otlp-proto/out.yaml",
 		},
 		{
-			name:     "creates-default-hostprofiler",
+			name:     "creates-default-profiling",
 			provided: "no_agent/create-default-prof/in.yaml",
 			expected: "no_agent/create-default-prof/out.yaml",
 		},
@@ -339,7 +169,7 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/conv-nonstr-appkey/out.yaml",
 		},
 		{
-			name:     "adds-hostprofiler-to-pipeline",
+			name:     "adds-profiling-to-pipeline",
 			provided: "no_agent/add-prof-to-pipe/in.yaml",
 			expected: "no_agent/add-prof-to-pipe/out.yaml",
 		},
@@ -349,9 +179,9 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/multi-symbol-ep/out.yaml",
 		},
 		{
-			name:     "multiple-hostprofiler-receivers",
-			provided: "no_agent/multi-hostprof-recv/in.yaml",
-			expected: "no_agent/multi-hostprof-recv/out.yaml",
+			name:     "multiple-profiling-receivers",
+			provided: "no_agent/multi-profiling-recv/in.yaml",
+			expected: "no_agent/multi-profiling-recv/out.yaml",
 		},
 		{
 			name:     "ensures-headers",
@@ -393,9 +223,59 @@ func TestConverterWithoutAgent(t *testing.T) {
 			provided: "no_agent/headers-wrong-type/in.yaml",
 			expected: "no_agent/headers-wrong-type/out.yaml",
 		},
+		{
+			name:     "preserve-host-arch",
+			provided: "no_agent/preserve-host-arch/in.yaml",
+			expected: "no_agent/preserve-host-arch/out.yaml",
+		},
+		{
+			name:     "preserve-host-name",
+			provided: "no_agent/preserve-host-name/in.yaml",
+			expected: "no_agent/preserve-host-name/out.yaml",
+		},
+		{
+			name:     "preserve-os-type",
+			provided: "no_agent/preserve-os-type/in.yaml",
+			expected: "no_agent/preserve-os-type/out.yaml",
+		},
+		{
+			name:     "preserve-all-res-attrs",
+			provided: "no_agent/preserve-all-res-attrs/in.yaml",
+			expected: "no_agent/preserve-all-res-attrs/out.yaml",
+		},
+		{
+			name:     "preserve-res-no-sys",
+			provided: "no_agent/preserve-res-no-sys/in.yaml",
+			expected: "no_agent/preserve-res-no-sys/out.yaml",
+		},
+		{
+			name:     "preserve-user-evp-headers",
+			provided: "no_agent/preserve-evp-headers/in.yaml",
+			expected: "no_agent/preserve-evp-headers/out.yaml",
+		},
+		{
+			name:     "internal-metrics-creates-pipeline-with-inferred-endpoint",
+			provided: "no_agent/int-metrics-infer-ep/in.yaml",
+			expected: "no_agent/int-metrics-infer-ep/out.yaml",
+		},
+		{
+			name:     "internal-metrics-preserves-user-metrics-endpoint",
+			provided: "no_agent/int-metrics-existing-ep/in.yaml",
+			expected: "no_agent/int-metrics-existing-ep/out.yaml",
+		},
+		{
+			name:     "internal-metrics-skipped-when-telemetry-level-none",
+			provided: "no_agent/int-metrics-level-none/in.yaml",
+			expected: "no_agent/int-metrics-level-none/out.yaml",
+		},
+		{
+			name:     "internal-metrics-only-includes-exporters-with-profiles-endpoint",
+			provided: "no_agent/int-metrics-mixed/in.yaml",
+			expected: "no_agent/int-metrics-mixed/out.yaml",
+		},
 	}
 
-	runSuccessTests(t, &converterWithoutAgent{}, tests)
+	runSuccessTests(t, newConverterWithoutAgent(confmap.ConverterSettings{Logger: zap.NewNop()}), tests)
 }
 
 func TestConverterWithoutAgentErrors(t *testing.T) {
@@ -435,7 +315,22 @@ func TestConverterWithoutAgentErrors(t *testing.T) {
 			provided:      "no_agent/conv-err-from-ensure/in.yaml",
 			expectedError: "path element \"pipelines\" is not a map",
 		},
+		{
+			name:          "reserved-processor-already-exists",
+			provided:      "no_agent/reserved-proc-exists/in.yaml",
+			expectedError: "reserved resource processor name",
+		},
+		{
+			name:          "reserved-processor-in-pipeline-not-defined",
+			provided:      "no_agent/reserved-proc-in-pipeline/in.yaml",
+			expectedError: "reserved resource processor name",
+		},
+		{
+			name:          "reserved-processor-empty",
+			provided:      "no_agent/reserved-proc-empty/in.yaml",
+			expectedError: "reserved resource processor name",
+		},
 	}
 
-	runErrorTests(t, &converterWithoutAgent{}, tests)
+	runErrorTests(t, newConverterWithoutAgent(confmap.ConverterSettings{Logger: zap.NewNop()}), tests)
 }

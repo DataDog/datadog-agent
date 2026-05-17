@@ -10,7 +10,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
@@ -18,7 +21,7 @@ import (
 	"github.com/cenkalti/backoff/v5"
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	"github.com/DataDog/datadog-agent/comp/etw"
+	etw "github.com/DataDog/datadog-agent/comp/etw/def"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -916,6 +919,17 @@ func (p *WindowsProbe) Start() error {
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				buf := make([]byte, 1<<20)
+				n := runtime.Stack(buf, true)
+				log.Criticalf("panic in event processing goroutine: %v\n%s", r, buf[:n])
+
+				time.Sleep(20 * time.Second)
+
+				os.Exit(2)
+			}
+		}()
 
 		for {
 			ev := p.zeroEvent()
@@ -1301,7 +1315,7 @@ func (p *WindowsProbe) SendStats() error {
 
 func (p *WindowsProbe) sendMapStats(m *map[uint16]uint64, metric string) error {
 	for k, v := range *m {
-		if err := p.statsdClient.Gauge(metric, float64(v), []string{fmt.Sprintf("event_id:%d", k)}, 1); err != nil {
+		if err := p.statsdClient.Gauge(metric, float64(v), []string{"event_id:" + strconv.FormatUint(uint64(k), 10)}, 1); err != nil {
 			return err
 		}
 	}
@@ -1489,6 +1503,11 @@ func (p *WindowsProbe) FlushDiscarders() error {
 	return nil
 }
 
+// ShouldEvaluateDiscarders returns whether discarder evaluation should proceed for the given event
+func (p *WindowsProbe) ShouldEvaluateDiscarders(_ *model.Event) bool {
+	return p.config.Probe.EnableDiscarders
+}
+
 // OnNewDiscarder handles discarders
 func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field eval.Field, evalType eval.EventType) {
 	if !p.config.Probe.EnableDiscarders {
@@ -1560,8 +1579,8 @@ func (p *WindowsProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 			if ev.Error != nil {
 				return
 			}
-
-			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev) {
+			tryToKill, _ := p.processKiller.KillAndReport(action.Def.Kill, rule, ev)
+			if tryToKill {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		}
@@ -1591,6 +1610,9 @@ func (p *Probe) Origin() string {
 func (p *WindowsProbe) EnableEnforcement(state bool) {
 	p.processKiller.SetState(state)
 }
+
+// SendCustomEventKillAction is a no-op on Windows (remediation custom events are Linux-only).
+func (p *WindowsProbe) SendCustomEventKillAction(_ model.ActionReport, _ []string) {}
 
 // NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config, hostname string, opts Opts) (*Probe, error) {

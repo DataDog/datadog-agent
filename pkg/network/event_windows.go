@@ -117,6 +117,7 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 	cs.Direction = connDirection(flow.Flags)
 	cs.SPortIsEphemeral = IsPortInEphemeralRange(cs.Family, cs.Type, cs.SPort)
 	cs.Cookie = flow.FlowCookie
+	cs.InterfaceIndex = flow.InterfaceIndex
 
 	// cipher suite not yet supported on windows.
 	cs.TLSTags = tls.Tags{
@@ -150,7 +151,7 @@ func FlowToConnStat(cs *ConnectionStats, flow *driver.PerFlowData, enableMonoton
 		if isTCPFlowEstablished(flow) {
 			cs.Monotonic.TCPEstablished = 1
 		}
-		if isFlowClosed(flow.Flags) {
+		if isFlowClosed(flow.Flags) || len(cs.TCPFailures) > 0 {
 			cs.Monotonic.TCPClosed = 1
 		}
 		if flow.ClassificationStatus == driver.ClassificationClassified {

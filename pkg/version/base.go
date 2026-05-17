@@ -10,6 +10,10 @@ package version
 // It is populated at build time using build flags, see get_version_ldflags in tasks/utils.py
 var AgentVersion string
 
+// AgentVersionURLSafe contains the version of the Agent in a URL-safe format.
+// It is populated at build time using build flags, see get_version_ldflags in tasks/utils.py
+var AgentVersionURLSafe string
+
 // AgentPackageVersion contains the version of the datadog-agent package when installed by the updater.
 // It has more info than AgentVersion and
 // it is populated at build time using build flags, see get_version_ldflags in tasks/utils.py

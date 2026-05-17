@@ -10,6 +10,7 @@ package check
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/check"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
@@ -32,7 +33,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			ConfigName:   command.ConfigName,
 			LoggerName:   command.LoggerName,
 		}
-	})
+	}, wmcatalog.GetCatalog())
 
 	return []*cobra.Command{cmd}
 }

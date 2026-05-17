@@ -6,9 +6,10 @@
 #include "helpers/discarders.h"
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
+#include "helpers/discarders.h"
 
 long __attribute__((always_inline)) trace__sys_mkdir(u8 async, const char *filename, umode_t mode) {
-    if (is_discarded_by_pid()) {
+    if (is_discarded_by_pid() || is_auid_discarder(EVENT_MKDIR)) {
         return 0;
     }
 
@@ -99,7 +100,7 @@ int __attribute__((always_inline)) sys_mkdir_ret(void *ctx, int retval, enum TAI
     }
 
     // the inode of the dentry was not properly set when kprobe/security_path_mkdir was called, make sure we grab it now
-    set_file_inode(syscall->mkdir.dentry, &syscall->mkdir.file, 0);
+    set_file_inode(syscall->mkdir.dentry, &syscall->mkdir.file, PATH_ID_INVALIDATE_TYPE_NONE);
 
     if (retval && !syscall->mkdir.file.path_key.ino) {
         syscall->mkdir.file.path_key.mount_id = 0; // do not try resolving the path

@@ -1,1 +1,8 @@
+# ignore_directories() in REPO.bazel does not yet reliably prevent Bazel from traversing symlinks:
+# https://github.com/bazelbuild/bazel/pull/24203#issuecomment-3499025997
+# Keep the symlink-prone entries here as well until that is resolved.
 .cache/
+# bazel convenience symlinks suddenly caused issues
+# inside of arm64 Linux containers.
+bazel-datadog-agent/
+bazel-testlogs/

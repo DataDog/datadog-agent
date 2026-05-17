@@ -12,7 +12,9 @@ import (
 	"io"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/sketches-go/ddsketch"
 
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
@@ -21,6 +23,8 @@ import (
 type httpEncoder struct {
 	httpAggregationsBuilder *model.HTTPAggregationsBuilder
 	byConnection            *USMConnectionIndex[http.Key, *http.RequestStats]
+	sketchBuilder           *ddsketch.DDSketchCollectionBuilder
+	discoveryMode           bool
 }
 
 func newHTTPEncoder(httpPayloads map[http.Key]*http.RequestStats) *httpEncoder {
@@ -30,17 +34,12 @@ func newHTTPEncoder(httpPayloads map[http.Key]*http.RequestStats) *httpEncoder {
 
 	return &httpEncoder{
 		httpAggregationsBuilder: model.NewHTTPAggregationsBuilder(nil),
+		sketchBuilder:           ddsketch.NewDDSketchCollectionBuilder(nil),
+		discoveryMode:           pkgconfigsetup.SystemProbe().GetBool("discovery.service_map.enabled"),
 		byConnection: GroupByConnection("http", httpPayloads, func(key http.Key) types.ConnectionKey {
 			return key.ConnectionKey
 		}),
 	}
-}
-
-func (e *httpEncoder) EncodeConnectionDirect(c network.ConnectionStats, conn *model.Connection) (staticTags uint64, dynamicTags map[string]struct{}) {
-	var buf bytes.Buffer
-	staticTags, dynamicTags = e.encodeData(c, &buf)
-	conn.HttpAggregations = buf.Bytes()
-	return
 }
 
 func (e *httpEncoder) EncodeConnection(c network.ConnectionStats, builder *model.ConnectionBuilder) (staticTags uint64, dynamicTags map[string]struct{}) {
@@ -69,19 +68,23 @@ func (e *httpEncoder) encodeData(c network.ConnectionStats, w io.Writer) (uint64
 			key := kvPair.Key
 			stats := kvPair.Value
 
-			httpStatsBuilder.SetPath(key.Path.Content.Get())
-			httpStatsBuilder.SetFullPath(key.Path.FullPath)
-			httpStatsBuilder.SetMethod(uint64(model.HTTPMethod(key.Method)))
+			if !e.discoveryMode {
+				httpStatsBuilder.SetPath(key.Path.Content.Get())
+				httpStatsBuilder.SetFullPath(key.Path.FullPath)
+				httpStatsBuilder.SetMethod(uint64(model.HTTPMethod(key.Method)))
+			}
 
 			for code, stats := range stats.Data {
 				httpStatsBuilder.AddStatsByStatusCode(func(w *model.HTTPStats_StatsByStatusCodeEntryBuilder) {
 					w.SetKey(int32(code))
 					w.SetValue(func(w *model.HTTPStats_DataBuilder) {
 						w.SetCount(uint32(stats.Count))
-						if latencies := stats.Latencies; latencies != nil {
-
+						if e.discoveryMode {
+							w.SetLatencySum(stats.LatencySum)
+						} else if latencies := stats.Latencies; latencies != nil {
 							w.SetLatencies(func(b *bytes.Buffer) {
-								latencies.EncodeProto(b)
+								e.sketchBuilder.Reset(b)
+								e.sketchBuilder.AddSketch(latencies)
 							})
 						} else {
 							w.SetFirstLatencySample(stats.FirstLatencySample)

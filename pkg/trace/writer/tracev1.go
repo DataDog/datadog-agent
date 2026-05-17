@@ -78,7 +78,8 @@ func NewTraceWriterV1(
 	telemetryCollector telemetry.TelemetryCollector,
 	statsd statsd.ClientInterface,
 	timing timing.Reporter,
-	compressor compression.Component) *TraceWriterV1 {
+	compressor compression.Component,
+) *TraceWriterV1 {
 	tw := &TraceWriterV1{
 		prioritySampler:    prioritySampler,
 		errorsSampler:      errorsSampler,
@@ -126,9 +127,9 @@ func NewTraceWriterV1(
 // UpdateAPIKey updates the API Key, if needed, on Trace Writer senders.
 func (w *TraceWriterV1) UpdateAPIKey(oldKey, newKey string) {
 	for _, s := range w.senders {
-		if oldKey == s.cfg.apiKey {
+		if oldKey == s.apiKeyManager.Get() {
+			s.apiKeyManager.Update(newKey)
 			log.Debugf("API Key updated for traces endpoint=%s", s.cfg.url)
-			s.cfg.apiKey = newKey
 		}
 	}
 }

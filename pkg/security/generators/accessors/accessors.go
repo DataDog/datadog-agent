@@ -13,9 +13,11 @@ import (
 	"flag"
 	"fmt"
 	"go/ast"
+	"go/format"
+	"go/parser"
+	"go/token"
 	"log"
 	"os"
-	"os/exec"
 	"path"
 	"reflect"
 	"slices"
@@ -29,7 +31,6 @@ import (
 	"github.com/fatih/structtag"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	"golang.org/x/tools/go/packages"
 
 	"github.com/DataDog/datadog-agent/pkg/security/generators/accessors/common"
 	"github.com/DataDog/datadog-agent/pkg/security/generators/accessors/doc"
@@ -49,6 +50,7 @@ var (
 	fieldHandlersOutput  string
 	fieldAccessorsOutput string
 	buildTags            string
+	moduleNameOverride   string
 )
 
 // AstFiles defines ast files
@@ -184,14 +186,16 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 	if _, ok := module.EventTypes[event]; !ok {
 		module.EventTypes[event] = common.NewEventTypeMetada()
 	}
+	module.EventTypes[event].Fields = append(module.EventTypes[event].Fields, alias)
+
+	aliasPrefix = alias
 
 	if field.lengthField {
-		name = name + ".length"
-		aliasPrefix = alias
-		alias = alias + ".length"
+		lengthName := name + ".length"
+		lengthAlias := alias + ".length"
 
 		newStructField := &common.StructField{
-			Name:         name,
+			Name:         lengthName,
 			BasicType:    "int",
 			ReturnType:   "int",
 			OrigType:     "int",
@@ -202,20 +206,42 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 			CommentText:  doc.SECLDocForLength,
 			OpOverrides:  opOverrides,
 			Struct:       "string",
-			Alias:        alias,
+			Alias:        lengthAlias,
 			AliasPrefix:  aliasPrefix,
 			GettersOnly:  field.gettersOnly,
 			Ref:          field.ref,
 			RestrictedTo: restrictedTo,
 		}
 
-		module.Fields[alias] = newStructField
+		module.Fields[lengthAlias] = newStructField
+		module.EventTypes[event].Fields = append(module.EventTypes[event].Fields, lengthAlias)
 	}
 
-	if _, ok := module.EventTypes[event]; !ok {
-		module.EventTypes[event] = common.NewEventTypeMetada(alias)
-	} else {
-		module.EventTypes[event].Fields = append(module.EventTypes[event].Fields, alias)
+	if field.rootDomainField {
+		rootDomainName := name + ".root_domain"
+		rootDomainAlias := alias + ".root_domain"
+
+		newStructField := &common.StructField{
+			Name:         rootDomainName,
+			BasicType:    "string",
+			ReturnType:   "string",
+			OrigType:     "string",
+			IsArray:      isArray,
+			IsRootDomain: true,
+			Event:        event,
+			Iterator:     iterator,
+			CommentText:  doc.SECLDocForRootDomain,
+			OpOverrides:  opOverrides,
+			Struct:       "string",
+			Alias:        rootDomainAlias,
+			AliasPrefix:  aliasPrefix,
+			GettersOnly:  field.gettersOnly,
+			Ref:          field.ref,
+			RestrictedTo: restrictedTo,
+		}
+
+		module.Fields[rootDomainAlias] = newStructField
+		module.EventTypes[event].Fields = append(module.EventTypes[event].Fields, rootDomainAlias)
 	}
 }
 
@@ -279,6 +305,23 @@ func addLengthOpField(module *common.Module, alias string, field *common.StructF
 	return &lengthField
 }
 
+func addRootDomainOpField(module *common.Module, alias string, field *common.StructField) *common.StructField {
+	rootDomainField := *field
+	rootDomainField.IsRootDomain = true
+	rootDomainField.Name += ".root_domain"
+	rootDomainField.OrigType = "string"
+	rootDomainField.BasicType = "string"
+	rootDomainField.ReturnType = "string"
+	rootDomainField.Struct = "string"
+	rootDomainField.AliasPrefix = alias
+	rootDomainField.Alias = alias + ".root_domain"
+	rootDomainField.CommentText = doc.SECLDocForRootDomain
+
+	module.Fields[rootDomainField.Alias] = &rootDomainField
+
+	return &rootDomainField
+}
+
 // handleIterator adds iterator to list of exposed SECL iterators of the module
 func handleIterator(module *common.Module, field seclField, fieldType, iterator, aliasPrefix, prefixedFieldName, event string, restrictedTo []string, fieldCommentText string, opOverrides []string, isPointer, isArray bool) *common.StructField {
 	alias := field.name
@@ -308,6 +351,12 @@ func handleIterator(module *common.Module, field seclField, fieldType, iterator,
 	lengthField := addLengthOpField(module, alias, module.Iterators[alias])
 	lengthField.Iterator = module.Iterators[alias]
 	lengthField.IsIterator = true
+
+	if field.rootDomainField {
+		rootDomainField := addRootDomainOpField(module, alias, module.Iterators[alias])
+		rootDomainField.Iterator = module.Iterators[alias]
+		rootDomainField.IsIterator = true
+	}
 
 	return module.Iterators[alias]
 }
@@ -356,6 +405,10 @@ func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix,
 		addLengthOpField(module, alias, module.Fields[alias])
 	}
 
+	if field.rootDomainField {
+		addRootDomainOpField(module, alias, module.Fields[alias])
+	}
+
 	if _, ok := module.EventTypes[event]; !ok {
 		module.EventTypes[event] = common.NewEventTypeMetada(alias)
 	} else {
@@ -396,6 +449,7 @@ type seclField struct {
 	helper                 bool // mark the handler as just a helper and not a real resolver. Won't be called by ResolveFields
 	skipADResolution       bool
 	lengthField            bool
+	rootDomainField        bool
 	weight                 int64
 	check                  string
 	setHandler             string
@@ -447,6 +501,8 @@ func parseFieldDef(def string) (seclField, error) {
 						field.helper = true
 					case "length":
 						field.lengthField = true
+					case "root_domain":
+						field.rootDomainField = true
 					case "skip_ad":
 						field.skipADResolution = true
 					case "exposed_at_event_root_only":
@@ -715,22 +771,20 @@ func parseTags(tags *structtag.Tags, containerStructName string) ([]string, []se
 	return opOverrides, fields, gettersOnlyFields
 }
 
-func newAstFiles(cfg *packages.Config, files ...string) (*AstFiles, error) {
+// newAstFiles parses each input file with go/parser. The downstream code only
+// reads ast.File scopes and struct tags, so we don't need go/packages' import
+// graph or type info — and avoiding it keeps this generator hermetic under
+// Bazel (no Go toolchain required at action time).
+func newAstFiles(files ...string) (*AstFiles, error) {
 	var astFiles AstFiles
-
+	fset := token.NewFileSet()
 	for _, file := range files {
-		pkgs, err := packages.Load(cfg, file)
+		f, err := parser.ParseFile(fset, file, nil, parser.ParseComments)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse %s: %w", file, err)
 		}
-
-		if len(pkgs) == 0 || len(pkgs[0].Syntax) == 0 {
-			return nil, fmt.Errorf("failed to get syntax from parse file %s", file)
-		}
-
-		astFiles.files = append(astFiles.files, pkgs[0].Syntax[0])
+		astFiles.files = append(astFiles.files, f)
 	}
-
 	return &astFiles, nil
 }
 
@@ -759,7 +813,7 @@ func _sortFieldsByChecks(module *common.Module, fields map[string]*common.Struct
 
 func sortFieldsByChecks(module *common.Module) {
 	for fieldName, field := range module.Fields {
-		if field.Event != "" || field.IsLength {
+		if field.Event != "" || field.IsLength || field.IsRootDomain {
 			continue
 		}
 		module.FieldsOrderByChecks = append(module.FieldsOrderByChecks, fieldName)
@@ -772,19 +826,17 @@ func sortFieldsByChecks(module *common.Module) {
 }
 
 func parseFile(modelFile string, typesFile string, pkgName string) (*common.Module, error) {
-	cfg := packages.Config{
-		Mode:       packages.NeedSyntax | packages.NeedTypes | packages.NeedImports,
-		BuildFlags: []string{"-mod=readonly", "-tags=" + buildTags},
-	}
-
-	astFiles, err := newAstFiles(&cfg, modelFile, typesFile)
+	astFiles, err := newAstFiles(modelFile, typesFile)
 	if err != nil {
 		return nil, err
 	}
 
-	moduleName := path.Base(path.Dir(output))
-	if moduleName == "." {
-		moduleName = path.Base(pkgName)
+	moduleName := moduleNameOverride
+	if moduleName == "" {
+		moduleName = path.Base(path.Dir(output))
+		if moduleName == "." {
+			moduleName = path.Base(pkgName)
+		}
 	}
 
 	module := &common.Module{
@@ -839,10 +891,10 @@ func newField(allFields map[string]*common.StructField, fieldName string, inputF
 		if field, ok := allFields[fieldPath]; ok {
 			if field.IsOrigTypePtr {
 				// process & exec context are set in the template
-				if !strings.HasPrefix(fieldName, "process.") && !strings.HasPrefix(fieldName, "exec.") && !strings.HasPrefix(fieldName, "exit.") {
+				if !strings.HasPrefix(fieldName, "process.") && !strings.HasPrefix(fieldName, "exec.") && !strings.HasPrefix(fieldName, "exit.") && !strings.HasPrefix(fieldName, "ptrace.") {
 					result += fmt.Sprintf("if ev.%s == nil { ev.%s = &%s{} }\n", field.Name, field.Name, field.OrigType)
 				}
-			} else if field.IsArray && fieldPath != inputField.Name {
+			} else if field.IsArray && fieldPath != inputField.Name && !inputField.IsRootDomain && !inputField.IsLength {
 				result += fmt.Sprintf("if len(ev.%s) == 0 { ev.%s = append(ev.%s, %s{}) }\n", field.Name, field.Name, field.Name, field.OrigType)
 			}
 		}
@@ -1094,7 +1146,7 @@ func getHandlers(allFields map[string]*common.StructField) map[string]string {
 	handlers := make(map[string]string)
 
 	for _, field := range allFields {
-		if field.Handler != "" && !field.IsLength {
+		if field.Handler != "" && !field.IsLength && !field.IsRootDomain {
 			returnType := field.ReturnType
 			if field.IsArray {
 				returnType = "[]" + returnType
@@ -1158,7 +1210,7 @@ func getFieldReflectType(field *common.StructField) string {
 }
 
 func isReadOnly(field *common.StructField) bool {
-	return field.IsLength || field.ReadOnly
+	return field.IsLength || field.ReadOnly || field.IsRootDomain
 }
 
 func genGetter(getters []string, getter string) bool {
@@ -1243,26 +1295,12 @@ func GenerateContent(output string, module *common.Module, tmplCode string) erro
 
 	cleaned := removeEmptyLines(&buffer)
 
-	tmpfile, err := os.CreateTemp(path.Dir(output), "secl-helpers")
+	formatted, err := format.Source([]byte(cleaned))
 	if err != nil {
-		return err
+		return fmt.Errorf("formatting %s: %w\n%s", output, err, cleaned)
 	}
 
-	if _, err := tmpfile.WriteString(cleaned); err != nil {
-		return err
-	}
-
-	if err := tmpfile.Close(); err != nil {
-		return err
-	}
-
-	cmd := exec.Command("gofmt", "-s", "-w", tmpfile.Name())
-	if output, err := cmd.CombinedOutput(); err != nil {
-		log.Fatal(string(output))
-		return err
-	}
-
-	return os.Rename(tmpfile.Name(), output)
+	return os.WriteFile(output, formatted, 0644)
 }
 
 func removeEmptyLines(input *bytes.Buffer) string {
@@ -1296,5 +1334,6 @@ func init() {
 	flag.StringVar(&buildTags, "tags", "unix", "build tags used for parsing")
 	flag.StringVar(&fieldAccessorsOutput, "field-accessors-output", "field_accessors_unix.go", "Generated per-field accessors output file")
 	flag.StringVar(&output, "output", "accessors_unix.go", "Go generated file")
+	flag.StringVar(&moduleNameOverride, "module", "", "Module name override (default: derived from -output's dir, falls back to -package basename). Set this when -output is an absolute path so the heuristic doesn't pick up bazel-out subdirs.")
 	flag.Parse()
 }

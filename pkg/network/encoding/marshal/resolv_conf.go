@@ -9,17 +9,18 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
+	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
 )
 
 type resolvConfFormatter struct {
 	conns         *network.Connections
-	resolvConfSet map[network.ResolvConf]int
+	resolvConfSet *indexedset.IndexedSet[network.ResolvConf]
 }
 
 func newResolvConfFormatter(conns *network.Connections) *resolvConfFormatter {
 	return &resolvConfFormatter{
 		conns:         conns,
-		resolvConfSet: make(map[network.ResolvConf]int),
+		resolvConfSet: indexedset.New[network.ResolvConf](0),
 	}
 }
 
@@ -27,29 +28,15 @@ func (f *resolvConfFormatter) FormatResolvConfIdx(nc *network.ConnectionStats, b
 	containerID := nc.ContainerID.Source
 	resolvConf, ok := f.conns.ResolvConfs[containerID]
 	if !ok {
+		builder.SetResolvConfIdx(-1)
 		return
 	}
 
-	resolvConfIdx, ok := f.resolvConfSet[resolvConf]
-	if !ok {
-		resolvConfIdx = len(f.resolvConfSet) + 1
-		f.resolvConfSet[resolvConf] = resolvConfIdx
-	}
-
-	builder.SetResolvConfIdx(int32(resolvConfIdx))
+	builder.SetResolvConfIdx(f.resolvConfSet.Add(resolvConf))
 }
 
 func (f *resolvConfFormatter) FormatResolvConfs(builder *model.ConnectionsBuilder) {
-	if len(f.resolvConfSet) == 0 {
-		return
-	}
-	// skip over the zero index
-	resolvConfList := make([]string, len(f.resolvConfSet)+1)
-	for resolvConf, idx := range f.resolvConfSet {
-		resolvConfList[idx] = resolvConf.Get()
-	}
-
-	for _, resolvConf := range resolvConfList {
-		builder.AddResolvConfs(resolvConf)
+	for _, resolvConf := range f.resolvConfSet.UniqueKeys() {
+		builder.AddResolvConfs(resolvConf.Get())
 	}
 }

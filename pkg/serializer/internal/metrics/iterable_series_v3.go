@@ -15,21 +15,25 @@ import (
 	"github.com/twmb/murmur3"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/stream"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/compression/selector"
 )
 
 var (
-	tlmColumnSize = telemetry.NewCounter("serializer", "v3_column_size",
+	tlmColumnSize = telemetryimpl.GetCompatComponent().NewCounter("serializer", "v3_column_size",
 		[]string{"column", "compressed"},
 		"Number of bytes occupied by each column",
 	)
-	tlmSplitReason = telemetry.NewCounter("serializer", "v3_payload_split_reason",
+	tlmValuesCount = telemetryimpl.GetCompatComponent().NewCounter("serializer", "v3_values_count",
+		[]string{"type"},
+		"Number of values encoded using a specific encoding type",
+	)
+	tlmSplitReason = telemetryimpl.GetCompatComponent().NewCounter("serializer", "v3_payload_split_reason",
 		[]string{"reason"},
 		"Why payload was split",
 	)
@@ -65,6 +69,8 @@ const (
 	columnSketchBinCnts
 	columnSourceTypeNameRef
 	columnOriginRef
+	columnDictUnitStr
+	columnUnitRef
 	numberOfColumns
 )
 
@@ -94,6 +100,8 @@ var columnNames = []string{
 	"SketchBinCounts",
 	"SourceTypeName",
 	"OriginInfo",
+	"DictUnitStr",
+	"UnitRef",
 }
 
 // Constants for type column
@@ -109,6 +117,7 @@ const (
 	valueFloat64 int64 = 0x30
 
 	flagNoIndex = 0x100
+	flagHasUnit = 0x200
 )
 
 const (
@@ -127,6 +136,7 @@ type payloadsBuilderV3 struct {
 	deltaTimestamp         deltaEncoder
 	deltaSourceTypeNameRef deltaEncoder
 	deltaOriginRef         deltaEncoder
+	deltaUnitRef           deltaEncoder
 
 	pointsThisPayload   int
 	maxPointsPerPayload int
@@ -141,9 +151,11 @@ type payloadsBuilderV3 struct {
 
 	scratchBuf []byte
 
-	stats struct {
-		valuesZero, valuesSint64, valuesFloat32, valuesFloat64 uint64
-	}
+	stats v3stats
+}
+
+type v3stats struct {
+	valuesZero, valuesSint64, valuesFloat32, valuesFloat64 uint64
 }
 
 func newPayloadsBuilderV3WithConfig(
@@ -275,6 +287,7 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 		pb.pipelineContext.addPayload(transaction.NewBytesPayload(payload, pb.pointsThisPayload))
 	}
 
+	pb.updateValuesStats()
 	pb.reset()
 
 	return nil
@@ -299,7 +312,9 @@ func (pb *payloadsBuilderV3) reset() {
 	pb.deltaTimestamp.reset()
 	pb.deltaSourceTypeNameRef.reset()
 	pb.deltaOriginRef.reset()
+	pb.deltaUnitRef.reset()
 	pb.compressor.Reset()
+	pb.stats = v3stats{}
 }
 
 func (pb *payloadsBuilderV3) renderResources(serie *metrics.Serie) {
@@ -438,20 +453,26 @@ func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
 		len(serie.Points),
 	)
 
-	valueType := valueZero
+	pointKind := pointKindZero
 	for _, pnt := range serie.Points {
-		pointType := pointValueType(pnt.Value)
-		if pointType > valueType {
-			valueType = pointType
-		}
+		pointKind = pointKind.unionOf(pnt.Value)
 	}
+	valueType := pointKind.toValueType()
 
 	typeValue := valueType | metricType(serie.MType)
 	if serie.NoIndex {
 		typeValue |= flagNoIndex
 	}
+	if serie.Unit != "" {
+		typeValue |= flagHasUnit
+	}
 
 	pb.txn.Int64(columnType, typeValue)
+
+	if serie.Unit != "" {
+		pb.txn.Sint64(columnUnitRef,
+			pb.deltaUnitRef.encode(pb.dict.internUnit(serie.Unit)))
+	}
 
 	for _, pnt := range serie.Points {
 		pb.writePointCommon(int64(pnt.Ts))
@@ -512,13 +533,14 @@ func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
 
 	// find a single smallest type that can fit all summary values
 	// without loss of precision
-	valueType := valueZero
+	pointKind := pointKindZero
 	for _, pnt := range sketch.Points {
-		valueType = max(valueType,
-			pointValueType(pnt.Sketch.Basic.Sum),
-			pointValueType(pnt.Sketch.Basic.Min),
-			pointValueType(pnt.Sketch.Basic.Max))
+		_, bMin, bMax, bSum, _ := pnt.Sketch.BasicStats()
+		pointKind = pointKind.unionOf(bSum)
+		pointKind = pointKind.unionOf(bMin)
+		pointKind = pointKind.unionOf(bMax)
 	}
+	valueType := pointKind.toValueType()
 
 	typeValue := valueType | metricSketch
 	if sketch.NoIndex {
@@ -529,34 +551,47 @@ func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
 
 	for _, pnt := range sketch.Points {
 		pb.writePointCommon(pnt.Ts)
+		bCnt, bMin, bMax, bSum, _ := pnt.Sketch.BasicStats()
 
 		switch valueType {
 		case valueZero:
+			pb.stats.valuesZero += 3
 		case valueSint64:
-			pb.txn.Sint64(columnValueSint64, int64(pnt.Sketch.Basic.Sum))
-			pb.txn.Sint64(columnValueSint64, int64(pnt.Sketch.Basic.Min))
-			pb.txn.Sint64(columnValueSint64, int64(pnt.Sketch.Basic.Max))
+			pb.txn.Sint64(columnValueSint64, int64(bSum))
+			pb.txn.Sint64(columnValueSint64, int64(bMin))
+			pb.txn.Sint64(columnValueSint64, int64(bMax))
+			pb.stats.valuesSint64 += 3
 		case valueFloat32:
-			pb.txn.Float32(columnValueFloat32, float32(pnt.Sketch.Basic.Sum))
-			pb.txn.Float32(columnValueFloat32, float32(pnt.Sketch.Basic.Min))
-			pb.txn.Float32(columnValueFloat32, float32(pnt.Sketch.Basic.Max))
+			pb.txn.Float32(columnValueFloat32, float32(bSum))
+			pb.txn.Float32(columnValueFloat32, float32(bMin))
+			pb.txn.Float32(columnValueFloat32, float32(bMax))
+			pb.stats.valuesFloat32 += 3
 		case valueFloat64:
-			pb.txn.Float64(columnValueFloat64, pnt.Sketch.Basic.Sum)
-			pb.txn.Float64(columnValueFloat64, pnt.Sketch.Basic.Min)
-			pb.txn.Float64(columnValueFloat64, pnt.Sketch.Basic.Max)
+			pb.txn.Float64(columnValueFloat64, bSum)
+			pb.txn.Float64(columnValueFloat64, bMin)
+			pb.txn.Float64(columnValueFloat64, bMax)
+			pb.stats.valuesFloat64 += 3
 		}
 
 		// can share column with sum, min max, if so, cnt must be last.
-		pb.txn.Sint64(columnValueSint64, pnt.Sketch.Basic.Cnt)
+		pb.txn.Sint64(columnValueSint64, bCnt)
+		pb.stats.valuesSint64++
 
 		k, n := pnt.Sketch.Cols()
-		deltaEncode(k)
+		kDelta := deltaEncoder{}
 		for i := range k {
-			pb.txn.Sint64(columnSketchBinKeys, int64(k[i]))
+			pb.txn.Sint64(columnSketchBinKeys, kDelta.encode(int64(k[i])))
 			pb.txn.Uint64(columnSketchBinCnts, uint64(n[i]))
 		}
 		pb.txn.Uint64(columnSketchNumBins, uint64(len(k)))
 	}
+}
+
+func (pb *payloadsBuilderV3) updateValuesStats() {
+	tlmValuesCount.Add(float64(pb.stats.valuesZero), "zero")
+	tlmValuesCount.Add(float64(pb.stats.valuesSint64), "sint64")
+	tlmValuesCount.Add(float64(pb.stats.valuesFloat32), "float32")
+	tlmValuesCount.Add(float64(pb.stats.valuesFloat64), "float64")
 }
 
 type deltaEncoder struct {
@@ -644,6 +679,7 @@ type dictionaryBuilder struct {
 	tagsInterner           interner[istr]
 	resourceInterner       interner[istr]
 	sourceTypeNameInterner interner[istr]
+	unitInterner           interner[istr]
 
 	originInfoInterner interner[originInfo]
 
@@ -673,6 +709,7 @@ func newDictionaryBuilder(txn *stream.ColumnTransaction) *dictionaryBuilder {
 		resourceInterner: newInterner[istr](txn, columnDictResourceStr),
 
 		sourceTypeNameInterner: newInterner[istr](txn, columnDictSourceTypeName),
+		unitInterner:           newInterner[istr](txn, columnDictUnitStr),
 
 		originInfoInterner: newInterner[originInfo](txn, columnDictOrigin),
 
@@ -686,6 +723,7 @@ func (db *dictionaryBuilder) reset() {
 	db.tagsInterner.reset()
 	db.resourceInterner.reset()
 	db.sourceTypeNameInterner.reset()
+	db.unitInterner.reset()
 	db.originInfoInterner.reset()
 	db.tagsLastID = 0
 	db.tagsIndex = map[tagsKey]int64{}
@@ -801,25 +839,86 @@ func (db *dictionaryBuilder) internSourceTypeName(stn string) int64 {
 	return db.sourceTypeNameInterner.intern(istr(stn))
 }
 
-func pointValueType(v float64) int64 {
+func (db *dictionaryBuilder) internUnit(unit string) int64 {
+	if unit == "" {
+		return 0
+	}
+	return db.unitInterner.intern(istr(unit))
+}
+
+// pointType represents the kind (integer or floating point, range) of a time series point value.
+// It is used to find best representation for one or more values in a time series.
+type pointKind int
+
+const (
+	pointKindZero    pointKind = iota // value is zero
+	pointKindInt24                    // integers that fit in float32, but may be shorter as varint
+	pointKindInt48                    // integers not in above, but varint representation is shorter than float64
+	pointKindFloat32                  // floating point values that fit in float32
+	pointKindFloat64                  // everything else
+)
+
+func pointKindOf(v float64) pointKind {
 	if v == 0 {
-		return valueZero
+		return pointKindZero
 	}
 
-	// Integers in this range encode to 7 byte varints or less
-	const maxInt = 1<<48 - 1
-	const minInt = -1 << 48
+	// Integers in this range can still fit into float32 column if needed.
+	const maxInt24 = 1 << 24
+	const minInt24 = -1 << 24
+	// Integers in this range encode to 7 byte varints or less.
+	const maxInt48 = 1<<48 - 1
+	const minInt48 = -1 << 48
 
 	i := int64(v)
-	if i >= minInt && i <= maxInt && float64(i) == v {
-		return valueSint64
+	if float64(i) == v {
+		if i >= minInt24 && i <= maxInt24 {
+			return pointKindInt24
+		}
+		if i >= minInt48 && i <= maxInt48 {
+			return pointKindInt48
+		}
 	}
 
 	if float64(float32(v)) == v {
-		return valueFloat32
+		return pointKindFloat32
 	}
 
-	return valueFloat64
+	return pointKindFloat64
+}
+
+func (p pointKind) union(o pointKind) pointKind {
+	// Matrix of smallest kind that can represent both p and o.
+	// This matrix is max(p, o), except for two cases marked with !:
+	// p\o |  zero  i24   i48   f32   f64
+	// ----+----------------------------
+	// zero | nil   i24   i48   f32   f64
+	// i24  | i24   i24   i48   f32   f64
+	// i48  | i48   i48   i48   f64!  f64
+	// f32  | f32   f32   f64!  f32   f64
+	// f64  | f64   f64   f64   f64   f64
+	// i48 doesn't fit in f32 (too long) and f32 doesn't fit in i48 (has a fraction). Next stop is f64.
+	if (p == pointKindInt48 && o == pointKindFloat32) || (p == pointKindFloat32 && o == pointKindInt48) {
+		return pointKindFloat64
+	}
+	return max(p, o)
+}
+
+func (p pointKind) unionOf(v float64) pointKind {
+	return p.union(pointKindOf(v))
+}
+
+func (p pointKind) toValueType() int64 {
+	switch p {
+	case pointKindZero:
+		return valueZero
+	case pointKindInt24, pointKindInt48:
+		return valueSint64
+	case pointKindFloat32:
+		return valueFloat32
+	default:
+		return valueFloat64
+	}
 }
 
 func metricType(ty metrics.APIMetricType) int64 {

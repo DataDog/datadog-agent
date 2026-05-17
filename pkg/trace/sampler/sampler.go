@@ -262,6 +262,12 @@ func IsAnalyzedSpan(s *pb.Span) bool {
 	return v == 1
 }
 
+// IsAnalyzedSpanV1 checks if a span is analyzed
+func IsAnalyzedSpanV1(s *idx.InternalSpan) bool {
+	v, _ := s.GetAttributeAsFloat64(KeyAnalyzedSpans)
+	return v == 1
+}
+
 func weightRoot(s *pb.Span) float32 {
 	if s == nil {
 		return 1

@@ -7,7 +7,6 @@ package setup
 
 import (
 	"fmt"
-	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -59,10 +58,6 @@ func TestProcessDefaultConfig(t *testing.T) {
 			defaultValue: true,
 		},
 		{
-			key:          "process_config.run_in_core_agent.enabled",
-			defaultValue: runtime.GOOS == "linux",
-		},
-		{
 			key:          "process_config.queue_size",
 			defaultValue: DefaultProcessQueueSize,
 		},
@@ -108,7 +103,7 @@ func TestProcessDefaultConfig(t *testing.T) {
 		},
 		{
 			key:          "process_config.intervals.connections",
-			defaultValue: nil,
+			defaultValue: 30,
 		},
 	} {
 		t.Run(tc.key+" default", func(t *testing.T) {
@@ -162,11 +157,6 @@ func TestProcessConfigPrefixes(t *testing.T) {
 }
 
 func TestEnvVarOverride(t *testing.T) {
-	processRunInAgent := true
-	if runtime.GOOS != "linux" {
-		processRunInAgent = false
-	}
-
 	for _, tc := range []struct {
 		key, env, value string
 		expType         string
@@ -237,12 +227,6 @@ func TestEnvVarOverride(t *testing.T) {
 			env:      "DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED",
 			value:    "true",
 			expected: true,
-		},
-		{
-			key:      "process_config.run_in_core_agent.enabled",
-			env:      "DD_PROCESS_CONFIG_RUN_IN_CORE_AGENT_ENABLED",
-			value:    "true",
-			expected: processRunInAgent,
 		},
 		{
 			key:      "process_config.enabled",
@@ -382,7 +366,7 @@ func TestEnvVarOverride(t *testing.T) {
 			key:      "process_config.intervals.connections",
 			env:      "DD_PROCESS_CONFIG_INTERVALS_CONNECTIONS",
 			value:    "10",
-			expected: "10",
+			expected: 10,
 		},
 	} {
 		t.Run(tc.env, func(t *testing.T) {
@@ -480,30 +464,6 @@ func TestProcBindEnvAndSetDefault(t *testing.T) {
 
 	// Make sure the default is set properly
 	assert.Equal(t, "asdf", cfg.GetString("process_config.foo.bar"))
-}
-
-func TestProcBindEnv(t *testing.T) {
-	cfg := newTestConf(t)
-	procBindEnv(cfg, "process_config.foo.bar")
-
-	envs := map[string]struct{}{}
-	for _, env := range cfg.GetEnvVars() {
-		envs[env] = struct{}{}
-	}
-
-	_, ok := envs["DD_PROCESS_CONFIG_FOO_BAR"]
-	assert.True(t, ok)
-
-	_, ok = envs["DD_PROCESS_AGENT_FOO_BAR"]
-	assert.True(t, ok)
-
-	// Make sure that DD_PROCESS_CONFIG_FOO_BAR shows up as unset by default
-	assert.False(t, cfg.IsSet("process_config.foo.bar"))
-
-	// Try and set DD_PROCESS_CONFIG_FOO_BAR and make sure it shows up in the config
-	t.Setenv("DD_PROCESS_CONFIG_FOO_BAR", "baz")
-	assert.True(t, cfg.IsSet("process_config.foo.bar"))
-	assert.Equal(t, "baz", cfg.GetString("process_config.foo.bar"))
 }
 
 func TestProcConfigEnabledTransform(t *testing.T) {

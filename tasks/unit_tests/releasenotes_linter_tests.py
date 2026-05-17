@@ -299,9 +299,55 @@ class TestValidateRenoStructure(unittest.TestCase):
 
     def test_all_reno_sections_valid(self):
         """All known reno sections should be accepted."""
-        content = {section: [f'Content for {section}'] for section in RENO_SECTIONS}
+        content = {section: [f'Content for {section}'] for section in RENO_SECTIONS if section != 'prelude'}
+        # Prelude is a string, not a list
+        content['prelude'] = 'This is a prelude string'
         errors = validate_reno_structure(content, 'test.yaml')
         self.assertEqual(len(errors), 0)
+
+    def test_prelude_as_string_valid(self):
+        """Prelude section with string content should be valid."""
+        content = {
+            'prelude': 'This is a valid prelude string with content.',
+            'features': ['Feature 1'],
+        }
+        errors = validate_reno_structure(content, 'test.yaml')
+        self.assertEqual(len(errors), 0)
+
+    def test_prelude_as_list_invalid(self):
+        """Prelude section with list content should be invalid."""
+        content = {
+            'prelude': ['This should not be a list'],
+            'features': ['Feature 1'],
+        }
+        errors = validate_reno_structure(content, 'test.yaml')
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0].section, 'prelude')
+        self.assertIn('must be a string', errors[0].errors[0].message)
+
+    def test_prelude_empty_string_warning(self):
+        """Empty prelude string should produce a warning."""
+        content = {
+            'prelude': '   ',  # whitespace-only
+            'features': ['Feature 1'],
+        }
+        errors = validate_reno_structure(content, 'test.yaml')
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0].section, 'prelude')
+        self.assertEqual(errors[0].errors[0].level, 'warning')
+        self.assertIn('empty or whitespace-only', errors[0].errors[0].message)
+
+    def test_prelude_non_string_type_error(self):
+        """Prelude section with non-string type should be an error."""
+        content = {
+            'prelude': 123,  # number instead of string
+            'features': ['Feature 1'],
+        }
+        errors = validate_reno_structure(content, 'test.yaml')
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0].section, 'prelude')
+        self.assertEqual(errors[0].errors[0].level, 'error')
+        self.assertIn('must be a string, got int', errors[0].errors[0].message)
 
 
 class TestRSTLintError(unittest.TestCase):
@@ -567,6 +613,72 @@ class TestReleasenoteFileResult(unittest.TestCase):
         """has_errors should be False when there are no section errors."""
         result = ReleasenoteFileResult(file_path='test.yaml', section_errors=[])
         self.assertFalse(result.has_errors)
+
+
+class TestFilenameValidation(unittest.TestCase):
+    """Tests for reno filename UID validation."""
+
+    def setUp(self):
+        """Create a temporary directory mimicking a notes/ tree."""
+        self.temp_dir = tempfile.mkdtemp()
+        self.notes_dir = os.path.join(self.temp_dir, 'releasenotes', 'notes')
+        os.makedirs(self.notes_dir)
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir)
+
+    def _write_note(self, filename: str, *, under_notes: bool = True) -> str:
+        """Write a minimal valid release note and return its path."""
+        directory = self.notes_dir if under_notes else self.temp_dir
+        path = os.path.join(directory, filename)
+        with open(path, 'w') as f:
+            f.write("---\nfeatures:\n  - |\n    A feature.\n")
+        return path
+
+    def test_valid_filename_no_error(self):
+        """A filename with a 16-char lowercase hex UID should pass."""
+        path = self._write_note('my-cool-feature-abcdef0123456789.yaml')
+        result = lint_releasenote_file(path, validate_filename=True)
+        filename_errors = [e for e in result.section_errors if e.section == 'filename']
+        self.assertEqual(len(filename_errors), 0)
+
+    def test_hyphenated_uuid_filename_error(self):
+        """A filename using a hyphenated UUID (the agentrelease bug) should fail."""
+        path = self._write_note('my-feature-a1b2c3d4-e5f6-7890-abcd-ef1234567890.yaml')
+        result = lint_releasenote_file(path, validate_filename=True)
+        filename_errors = [e for e in result.section_errors if e.section == 'filename']
+        self.assertEqual(len(filename_errors), 1)
+        self.assertIn('does not match reno convention', filename_errors[0].errors[0].message)
+
+    def test_uppercase_hex_error(self):
+        """Uppercase hex characters in the UID should fail."""
+        path = self._write_note('some-note-ABCDEF0123456789.yaml')
+        result = lint_releasenote_file(path, validate_filename=True)
+        filename_errors = [e for e in result.section_errors if e.section == 'filename']
+        self.assertEqual(len(filename_errors), 1)
+
+    def test_missing_uid_suffix_error(self):
+        """A filename without a hex UID suffix should fail."""
+        path = self._write_note('my-feature.yaml')
+        result = lint_releasenote_file(path, validate_filename=True)
+        filename_errors = [e for e in result.section_errors if e.section == 'filename']
+        self.assertEqual(len(filename_errors), 1)
+
+    def test_file_not_under_notes_skipped(self):
+        """Files not under a notes/ directory should skip the filename check."""
+        path = self._write_note('bad-name.yaml', under_notes=False)
+        result = lint_releasenote_file(path, validate_filename=True)
+        filename_errors = [e for e in result.section_errors if e.section == 'filename']
+        self.assertEqual(len(filename_errors), 0)
+
+    def test_validate_filename_off_by_default(self):
+        """Filename validation is skipped when validate_filename is False (default)."""
+        path = self._write_note('bad-name.yaml')
+        result = lint_releasenote_file(path)
+        filename_errors = [e for e in result.section_errors if e.section == 'filename']
+        self.assertEqual(len(filename_errors), 0)
 
 
 if __name__ == '__main__':

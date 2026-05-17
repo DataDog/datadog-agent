@@ -6,8 +6,11 @@
 package check
 
 import (
+	"bytes"
 	"os"
 	"path"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -24,6 +27,7 @@ import (
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
+	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -40,7 +44,7 @@ func TestCommand(t *testing.T) {
 			return GlobalParams{
 				ConfFilePath: config,
 			}
-		}),
+		}, wmcatalog.GetCatalog()),
 	}
 
 	fxutil.TestOneShotSubcommand(t,
@@ -112,7 +116,7 @@ func TestCommandWithInstanceID(t *testing.T) {
 			return GlobalParams{
 				ConfFilePath: config,
 			}
-		}),
+		}, wmcatalog.GetCatalog()),
 	}
 
 	fxutil.TestOneShotSubcommand(t,
@@ -123,4 +127,44 @@ func TestCommandWithInstanceID(t *testing.T) {
 			require.Equal(t, []string{"http_check"}, cliParams.args)
 			require.Equal(t, "3e96f922a85e2ab0", cliParams.instanceID)
 		})
+}
+
+func TestWriteCheckToFileInDir_DirectoryPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping permission test on Windows")
+	}
+
+	tempDir := t.TempDir()
+	checkDir := filepath.Join(tempDir, "checks")
+
+	// Write a check file to trigger directory creation
+	checkOutput := bytes.NewBufferString("test check output")
+	writeCheckToFileInDir("testcheck", checkOutput, checkDir)
+
+	// Verify the directory was created with correct permissions
+	info, err := os.Stat(checkDir)
+	require.NoError(t, err)
+	assert.True(t, info.IsDir())
+
+	// Verify directory permissions are 0750 (rwxr-x---)
+	expectedPerms := os.FileMode(0750)
+	actualPerms := info.Mode().Perm()
+	assert.Equal(t, expectedPerms, actualPerms, "expected directory permissions %o, got %o", expectedPerms, actualPerms)
+}
+
+func TestWriteCheckToFileInDir_FileCreated(t *testing.T) {
+	tempDir := t.TempDir()
+	checkDir := filepath.Join(tempDir, "checks")
+
+	checkOutput := bytes.NewBufferString("test check output content")
+	writeCheckToFileInDir("mycheck", checkOutput, checkDir)
+
+	// Verify a file was created in the directory
+	entries, err := os.ReadDir(checkDir)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+
+	// Verify filename format: check_<name>_<timestamp>.log
+	assert.Contains(t, entries[0].Name(), "check_mycheck_")
+	assert.Contains(t, entries[0].Name(), ".log")
 }

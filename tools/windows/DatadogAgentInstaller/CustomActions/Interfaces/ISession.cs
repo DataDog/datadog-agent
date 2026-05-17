@@ -1,4 +1,4 @@
-using Microsoft.Deployment.WindowsInstaller;
+using WixToolset.Dtf.WindowsInstaller;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;

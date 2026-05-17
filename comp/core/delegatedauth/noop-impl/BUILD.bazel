@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "noop-impl",
+    srcs = ["delegatedauth_noop.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/delegatedauth/def",
+        "//comp/core/status",
+    ],
+)
+
+go_test(
+    name = "noop-impl_test",
+    srcs = ["delegatedauth_noop_test.go"],
+    embed = [":noop-impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/delegatedauth/def",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

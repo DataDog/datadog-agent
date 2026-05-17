@@ -72,6 +72,7 @@ const (
 	DDAgentExtraEnvVars                  = "extraEnvVars" // extraEnvVars is expected in the format: <key1>=<value1>,<key2>=<value2>,...
 	DDAgentJMX                           = "jmx"
 	DDAgentFIPS                          = "fips"
+	DDAgentLinuxOnly                     = "linuxOnly"
 	DDAgentConfigPathParamName           = "configPath"
 	DDAgentHelmConfig                    = "helmConfig"
 
@@ -126,6 +127,7 @@ type Env interface {
 	AgentDeploy() bool
 	AgentVersion() string
 	AgentFIPS() bool
+	AgentLinuxOnly() bool
 	AgentLocalPackage() string
 	AgentLocalChartPath() string
 	PipelineID() string
@@ -210,7 +212,7 @@ func (e *CommonEnvironment) CommonNamer() namer.Namer {
 // Infra namespace
 
 func (e *CommonEnvironment) InfraShouldDeployFakeintakeWithLB() bool {
-	return e.GetBoolWithDefault(e.InfraConfig, DDInfraDeployFakeintakeWithLoadBalancer, true)
+	return e.GetBoolWithDefault(e.InfraConfig, DDInfraDeployFakeintakeWithLoadBalancer, false)
 }
 
 func (e *CommonEnvironment) InfraEnvironmentNames() []string {
@@ -243,7 +245,7 @@ func (e *CommonEnvironment) KubeNodeURL() string {
 }
 
 func (e *CommonEnvironment) DefaultResourceTags() map[string]string {
-	return map[string]string{"managed-by": "pulumi", "username": e.username}
+	return map[string]string{"managed-by": "pulumi", "username": e.username, "stack": e.Ctx().Stack()}
 }
 
 func (e *CommonEnvironment) InitOnly() bool {
@@ -500,6 +502,10 @@ func (e *CommonEnvironment) GetIntWithDefault(config *sdkconfig.Config, paramNam
 
 func (e *CommonEnvironment) AgentFIPS() bool {
 	return e.GetBoolWithDefault(e.AgentConfig, DDAgentFIPS, false)
+}
+
+func (e *CommonEnvironment) AgentLinuxOnly() bool {
+	return e.GetBoolWithDefault(e.AgentConfig, DDAgentLinuxOnly, true)
 }
 
 func (e *CommonEnvironment) AgentJMX() bool {

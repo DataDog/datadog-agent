@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import shutil
 import sys
 
 from invoke import Context, Exit
@@ -49,7 +48,7 @@ def current_golangci_lint_v(ctx: Context, debug: bool = False) -> str:
     debug_flag = "--debug" if debug else ""
     cmd = f"golangci-lint version {debug_flag}"
     version_output = ctx.run(cmd, hide=True).stdout
-    return version_output if debug else version_output.split(' ')[3].rsplit("-", 1)[0]
+    return version_output if debug else version_output.split(' ')[3]
 
 
 def check_tools_version(ctx: Context, tools_list: list[str], debug: bool = False) -> bool:
@@ -95,15 +94,4 @@ def check_tools_version(ctx: Context, tools_list: list[str], debug: bool = False
                 should_exit = should_exit or tools_versions[tool]['exit_on_error']
     if should_exit:
         raise Exit(code=1)
-    return True
-
-
-def check_tools_installed(tools: list) -> bool:
-    """
-    Check if the tools are installed in the system.
-    """
-    not_installed = [tool for tool in tools if not shutil.which(tool)]
-    if not_installed:
-        print(f"{color_message('ERROR', Color.RED)}: The following tools are not installed: {', '.join(not_installed)}")
-        return False
     return True

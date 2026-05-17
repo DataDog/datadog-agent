@@ -3,18 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux
-
-// Package converters implements the converters for the host profiler collector.
+// Package converters implements OTEL collector configuration converters for the host profiler.
+//
+// Converters normalize user-provided OTEL collector configs by adding required Datadog-specific
+// components while preserving explicit user configuration values wherever possible.
 package converters
 
 import (
-	"errors"
 	"fmt"
+	"log/slog"
+	"reflect"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/xconfmap"
 )
 
 // NewFactoryWithoutAgent returns a new converterWithoutAgent factory.
@@ -22,28 +26,33 @@ func NewFactoryWithoutAgent() confmap.ConverterFactory {
 	return confmap.NewConverterFactory(newConverterWithoutAgent)
 }
 
-// NewFactoryWithAgent returns a new converterWithAgent factory.
-func NewFactoryWithAgent() confmap.ConverterFactory {
-	return confmap.NewConverterFactory(newConverterWithAgent)
-}
-
 type confMap = map[string]any
 
 // Component type names for OTEL configuration
 const (
-	componentTypeInfraAttributes   = "infraattributes"
-	componentTypeResourceDetection = "resourcedetection"
-	componentTypeHostProfiler      = "hostprofiler"
-	componentTypeOtlpHTTP          = "otlphttp"
-	componentTypeDDProfiling       = "ddprofiling"
-	componentTypeHPFlare           = "hpflare"
+	componentTypeInfraAttributes     = "infraattributes"
+	componentTypeResourceDetection   = "resourcedetection"
+	componentTypeDDHostNameProcessor = "ddhostname"
+	componentTypeProfiling           = "profiling"
+	componentTypeOtlpHTTP            = "otlphttp"
+	componentTypeDDProfiling         = "ddprofiling"
+	componentTypeHPFlare             = "hpflare"
 )
 
 // Default component names
 const (
-	defaultInfraAttributesName   = "infraattributes/default"
-	defaultResourceDetectionName = "resourcedetection/default"
-	defaultHostProfilerName      = "hostprofiler"
+	defaultInfraAttributesName     = "infraattributes/default"
+	defaultResourceDetectionName   = "resourcedetection/default"
+	defaultDDHostNameProcessorName = "ddhostname/default"
+	defaultProfilingName           = "profiling"
+)
+
+// Reserved component names for internal metrics pipeline
+const (
+	reservedPrometheusReceiver         = "prometheus/dd-hp-internal"
+	reservedFilterProcessor            = "filter/dd-hp-drop-internal"
+	reservedCumulativeToDeltaProcessor = "cumulativetodelta/dd-hp-internal"
+	internalHealthMetricsPipelineName  = "metrics/profiler-internal-health"
 )
 
 // Configuration paths used multiple times across converters
@@ -54,15 +63,23 @@ const (
 
 // Configuration field names used multiple times
 const (
-	fieldAllowHostnameOverride = "allow_hostname_override"
-	fieldDDAPIKey              = "dd-api-key"
-	fieldAPIKey                = "api_key"
-	fieldAppKey                = "app_key"
+	fieldDDAPIKey           = "dd-api-key"
+	fieldDDEVPOrigin        = "dd-evp-origin"
+	fieldDDEVPOriginVersion = "dd-evp-origin-version"
+	fieldAPIKey             = "api_key"
+	fieldAppKey             = "app_key"
+)
+
+// OTEL config path prefixes
+const (
+	pathPrefixReceivers  = "receivers::"
+	pathPrefixExporters  = "exporters::"
+	pathPrefixProcessors = "processors::"
 )
 
 // isComponentType checks if a component name matches a specific type.
 // OTEL components follow the naming convention: "type" or "type/id"
-// Examples: "otlphttp", "otlphttp/prod", "hostprofiler/custom"
+// Examples: "otlphttp", "otlphttp/prod", "profiling/custom"
 func isComponentType(name, componentType string) bool {
 	return name == componentType || strings.HasPrefix(name, componentType+"/")
 }
@@ -81,13 +98,13 @@ func Get[T any](c confMap, path string) (T, bool) {
 	for _, key := range pathSlice[:len(pathSlice)-1] {
 		childConfMap, exists := currentMap[key]
 		if !exists {
-			log.Debugf("Non existent %s intermediate map in %s", key, path)
+			slog.Debug("non-existent intermediate map", slog.String("key", key), slog.String("path", path))
 			return zero, false
 		}
 
 		childMap, isMap := childConfMap.(confMap)
 		if !isMap {
-			log.Debugf("Intermediate node %s in %s is not a map", key, path)
+			slog.Debug("intermediate node is not a map", slog.String("key", key), slog.String("path", path))
 			return zero, false
 		}
 
@@ -96,7 +113,7 @@ func Get[T any](c confMap, path string) (T, bool) {
 
 	obj, exists := currentMap[target]
 	if !exists {
-		log.Debugf("leaf element in %s doesn't exist", path)
+		slog.Debug("leaf element doesn't exist", slog.String("path", path))
 		return zero, false
 	}
 
@@ -125,11 +142,10 @@ func Ensure[T any](c confMap, path string) (T, error) {
 	return zero, nil
 }
 
-// Set sets a value of type T in the confMap at the given path.
-// Path segments are separated by "::".
-// Creates intermediate maps as needed.
+// ensurePath walks the confMap along the given "::" separated path, creating intermediate maps as needed.
+// Returns the final map and the target key name.
 // Returns an error if an intermediate path element exists but is not a map.
-func Set[T any](c confMap, path string, value T) error {
+func ensurePath(c confMap, path string) (confMap, string, error) {
 	currentMap := c
 	pathSlice := strings.Split(path, "::")
 
@@ -143,17 +159,49 @@ func Set[T any](c confMap, path string, value T) error {
 
 		childMap, isMap := childConfMap.(map[string]any)
 		if !isMap {
-			return fmt.Errorf("path element %q is not a map", key)
+			return nil, "", fmt.Errorf("path element %q is not a map", key)
 		}
 
 		currentMap = childMap
 	}
 
+	return currentMap, target, nil
+}
+
+// Set sets a value of type T in the confMap at the given path.
+// Path segments are separated by "::".
+// Creates intermediate maps as needed.
+// Returns an error if an intermediate path element exists but is not a map.
+func Set[T any](c confMap, path string, value T) error {
+	currentMap, target, err := ensurePath(c, path)
+	if err != nil {
+		return err
+	}
+
 	if existingValue, exists := currentMap[target]; exists {
-		log.Debugf("Overwriting config at %s: %v -> %v", path, existingValue, value)
+		slog.Debug("overwriting config", slog.String("path", path), slog.Any("old", existingValue), slog.Any("new", value))
 	}
 	currentMap[target] = value
 	return nil
+}
+
+// SetDefault sets a default value if the key does not exist or already holds the same value.
+// If the key exists with a different value, the existing value is preserved (user override wins).
+// Path segments are separated by "::".
+// Creates intermediate maps as needed.
+// Returns true if the default is active (set or already matching), false if a user override was preserved.
+// Returns an error only if path traversal fails (intermediate element is not a map).
+func SetDefault[T any](c confMap, path string, value T) (bool, error) {
+	currentMap, target, err := ensurePath(c, path)
+	if err != nil {
+		return false, err
+	}
+
+	if existingValue, exists := currentMap[target]; exists {
+		return reflect.DeepEqual(existingValue, value), nil
+	}
+	currentMap[target] = value
+	return true, nil
 }
 
 // ensureKeyStringValue checks if a key exists in the config and converts it to a string if needed.
@@ -172,101 +220,125 @@ func ensureKeyStringValue(config confMap, key string) bool {
 	// Only convert primitive numeric types
 	switch v := val.(type) {
 	case int, int32, int64, float32, float64, uint, uint32, uint64:
-		log.Debugf("converting %s value from %T to string", key, val)
+		slog.Debug("converting value to string", slog.String("key", key), slog.String("type", fmt.Sprintf("%T", val)))
 		config[key] = fmt.Sprintf("%v", v)
 		return true
+	case xconfmap.ExpandedValue:
+		// ExpandedValues should not be altered at conversion stage
+		return true
 	default:
-		log.Warnf("API key %s has unexpected type %T, cannot convert", key, val)
+		slog.Warn("API key has unexpected type, cannot convert", slog.String("key", key), slog.String("type", fmt.Sprintf("%T", val)))
 		return false
 	}
 }
 
-// fixReceiversPipeline ensures at least one hostprofiler receiver is configured in the pipeline
-// If none exists, it adds a minimal hostprofiler receiver with symbol_uploader disabled
-// warnFunc is called if a default hostprofiler is added
-func fixReceiversPipeline(conf confMap, receiverNames []any, warnFunc func(...any)) ([]any, error) {
-	// Check if hostprofiler is in the pipeline
-	hasHostProfiler := false
-	for _, nameAny := range receiverNames {
-		name, ok := nameAny.(string)
-		if !ok {
-			return nil, fmt.Errorf("receiver name must be a string, got %T", nameAny)
-		}
+// addProfilerMetadataTags always creates a dedicated resource/profiler-metadata processor
+// without searching for existing resource processors.
+// This function emits OTel semantic convention tags and must only be called from the standalone (no-agent) path.
+func addProfilerMetadataTags(conf confMap, profilesProcessors []any) ([]any, error) {
+	const resourceProcessorName = "resource/dd-profiler-internal-metadata"
 
-		if !isComponentType(name, componentTypeHostProfiler) {
-			continue
-		}
+	// Check if the processor is already defined in root processors
+	globalProcessors, _ := Get[confMap](conf, "processors")
+	if _, exists := globalProcessors[resourceProcessorName]; exists {
+		return nil, fmt.Errorf("%s is a reserved resource processor name. Please change it in your configuration file", resourceProcessorName)
+	}
 
-		hasHostProfiler = true
-
-		if hostProfilerConfig, ok := Get[confMap](conf, "receivers::"+name); ok {
-			if err := checkHostProfilerReceiverConfig(hostProfilerConfig); err != nil {
-				return nil, err
-			}
+	for _, proc := range profilesProcessors {
+		if procName := proc.(string); procName == resourceProcessorName {
+			return nil, fmt.Errorf("%s is a reserved resource processor name. Please remove it from the profiles pipeline", resourceProcessorName)
 		}
 	}
 
-	if hasHostProfiler {
-		return receiverNames, nil
-	}
-
-	// Ensure default config exists if hostprofiler receiver is not configured
-	if err := Set(conf, "receivers::"+defaultHostProfilerName+"::"+pathSymbolUploaderEnabled, false); err != nil {
+	resourceProcessor, err := Ensure[confMap](conf, "processors::"+resourceProcessorName)
+	if err != nil {
 		return nil, err
 	}
 
-	warnFunc("Added minimal hostprofiler receiver to user configuration")
-	return append(receiverNames, defaultHostProfilerName), nil
+	attributes, err := Ensure[[]any](resourceProcessor, "attributes")
+	if err != nil {
+		return nil, err
+	}
+
+	profilerNameElement := confMap{
+		"key":    version.OTelProfilerNameKey,
+		"value":  version.StandaloneProfilerName,
+		"action": "upsert",
+	}
+	profilerVersionElement := confMap{
+		"key":    version.OTelProfilerVersionKey,
+		"value":  version.ProfilerVersion,
+		"action": "upsert",
+	}
+
+	attributes = append(attributes, profilerNameElement)
+	attributes = append(attributes, profilerVersionElement)
+	if err := Set(resourceProcessor, "attributes", attributes); err != nil {
+		return nil, err
+	}
+
+	return append(profilesProcessors, resourceProcessorName), nil
 }
 
-// checkHostProfilerReceiverConfig validates and normalizes hostprofiler receiver configuration
-// It ensures that if symbol_uploader is enabled, symbol_endpoints is properly configured
-// and all api_key/app_key values are strings
-func checkHostProfilerReceiverConfig(hostProfiler confMap) error {
-	if isEnabled, ok := Get[bool](hostProfiler, pathSymbolUploaderEnabled); !ok || !isEnabled {
-		return nil
+// inferMetricsEndpoint derives OTLP metrics endpoint from profiles endpoint.
+// Transforms profile intake URLs to OTLP metrics endpoints by extracting the site.
+//
+// Examples:
+//   - "https://intake.profile.us3.datadoghq.com/v1development/profiles" -> "https://otlp.us3.datadoghq.com/v1/metrics"
+//   - "https://intake.profile.datadoghq.com/v1development/profiles" -> "https://otlp.datadoghq.com/v1/metrics"
+//
+// Returns an error if the URL cannot be parsed or if the site cannot be extracted.
+func inferMetricsEndpoint(profilesEndpoint string) (string, error) {
+	site := configutils.ExtractSiteFromURL(profilesEndpoint)
+	if site == "" {
+		return "", fmt.Errorf("cannot extract site from URL: %s", profilesEndpoint)
 	}
 
-	endpoints, ok := Get[[]any](hostProfiler, pathSymbolEndpoints)
-
-	if !ok {
-		return errors.New("symbol_endpoints must be a list")
-	}
-
-	if len(endpoints) == 0 {
-		return errors.New("symbol_endpoints cannot be empty when symbol_uploader is enabled")
-	}
-
-	for _, epAny := range endpoints {
-		if ep, ok := epAny.(confMap); ok {
-			ensureKeyStringValue(ep, fieldAPIKey)
-			ensureKeyStringValue(ep, fieldAppKey)
-		}
-	}
-	return nil
+	return fmt.Sprintf("https://otlp.%s/v1/metrics", site), nil
 }
 
-func ensureOtlpHTTPExporterConfig(conf confMap, exporterNames []any) error {
-	// for each otlphttpexporter used, check if necessary api key is present
-	hasOtlpHTTP := false
-	for _, nameAny := range exporterNames {
-		if name, ok := nameAny.(string); ok && isComponentType(name, componentTypeOtlpHTTP) {
-			hasOtlpHTTP = true
+// PrometheusReceiverConfig returns the default configuration for the internal prometheus receiver
+// that scrapes OTel collector's internal telemetry metrics from 127.0.0.1:8889.
+func PrometheusReceiverConfig() map[string]any {
+	return PrometheusReceiverConfigWithTarget("127.0.0.1:8889")
+}
 
-			headers, err := Ensure[confMap](conf, "exporters::"+name+"::headers")
-			if err != nil {
-				return err
-			}
-
-			if !ensureKeyStringValue(headers, fieldDDAPIKey) {
-				return fmt.Errorf("%s exporter missing required dd-api-key header", name)
-			}
-		}
+// PrometheusReceiverConfigWithTarget returns a prometheus receiver config that scrapes the given target.
+func PrometheusReceiverConfigWithTarget(target string) map[string]any {
+	return confMap{
+		"config": confMap{
+			"scrape_configs": []any{
+				confMap{
+					"job_name":                      "host-profiler-internal",
+					"metric_name_validation_scheme": "legacy",
+					"metric_name_escaping_scheme":   "underscores",
+					"scrape_interval":               "60s",
+					"scrape_protocols":              []any{"PrometheusText0.0.4"},
+					"fallback_scrape_protocol":      "PrometheusText0.0.4",
+					"static_configs": []any{
+						confMap{
+							"targets": []any{target},
+						},
+					},
+				},
+			},
+		},
 	}
+}
 
-	if !hasOtlpHTTP {
-		return errors.New("no otlphttp exporter configured in profiles pipeline")
+// FilterProcessorConfig returns the default configuration for the filter processor
+// that drops internal prometheus scrape metrics from being exported.
+func FilterProcessorConfig() map[string]any {
+	return confMap{
+		"metrics": confMap{
+			"exclude": confMap{
+				"match_type": "regexp",
+				"metric_names": []any{
+					"^scrape_.*$",                            // Prometheus scraper timing metrics
+					"^up$",                                   // Scraper up/down status
+					"^promhttp_metric_handler_errors_total$", // Prometheus HTTP handler errors
+				},
+			},
+		},
 	}
-
-	return nil
 }

@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    APM : Fix SQL obfuscation error when a query uses PostgreSQL array slice syntax
+    with bind parameters (e.g. ``arr[$1:]`` or ``arr[$1:$2]``). The tokenizer was
+    incorrectly treating the ``:`` range separator as the start of a named bind
+    variable, causing obfuscation to fail with a ``LexError``.

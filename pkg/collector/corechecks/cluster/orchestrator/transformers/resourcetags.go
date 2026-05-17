@@ -10,6 +10,7 @@ package transformers
 
 import (
 	"fmt"
+
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
@@ -18,6 +19,7 @@ const (
 	tagKeyEnv     = "env"
 	tagKeyVersion = "version"
 	tagKeyService = "service"
+	tagKeyTeam    = "team"
 )
 
 var labelToTagKeys = map[string]string{
@@ -49,25 +51,19 @@ func RetrieveUnifiedServiceTags(labels map[string]string) []string {
 	return tags
 }
 
-func RetrieveMetadataTags(
-	labels map[string]string,
-	annotations map[string]string,
-	labelsAsTags map[string]string,
-	annotationsAsTags map[string]string,
-) []string {
-	tags := []string{}
-
-	for name, value := range labels {
-		if tagKey, ok := labelsAsTags[name]; ok {
-			tags = append(tags, fmt.Sprintf("%s:%s", tagKey, value))
-		}
+// RetrieveTeamTag extracts the team tag from labels or annotations when
+// auto_team_tag_collection is enabled. Labels take precedence over annotations.
+func RetrieveTeamTag(labels map[string]string, annotations map[string]string) []string {
+	if !pkgconfigsetup.Datadog().GetBool("auto_team_tag_collection") {
+		return nil
 	}
 
-	for name, value := range annotations {
-		if tagKey, ok := annotationsAsTags[name]; ok {
-			tags = append(tags, fmt.Sprintf("%s:%s", tagKey, value))
-		}
+	if teamLabel, ok := labels[tagKeyTeam]; ok {
+		return []string{fmt.Sprintf("%s:%s", tagKeyTeam, teamLabel)}
+	}
+	if teamAnnotation, ok := annotations[tagKeyTeam]; ok {
+		return []string{fmt.Sprintf("%s:%s", tagKeyTeam, teamAnnotation)}
 	}
 
-	return tags
+	return nil
 }

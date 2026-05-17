@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -58,19 +58,19 @@ var (
 	transactionsHTTPErrors             = expvar.Int{}
 	transactionsHTTPErrorsByCode       = expvar.Map{}
 
-	tlmConnectEvents = telemetry.NewCounter("transactions", "connection_events",
+	tlmConnectEvents = telemetryimpl.GetCompatComponent().NewCounter("transactions", "connection_events",
 		[]string{"connection_event_type"}, "Count of new connection events grouped by type of event")
 
 	// TlmTxDropped is a telemetry counter that counts the number transaction dropped.
-	TlmTxDropped = telemetry.NewCounter("transactions", "dropped",
+	TlmTxDropped = telemetryimpl.GetCompatComponent().NewCounter("transactions", "dropped",
 		[]string{"domain", "endpoint"}, "Transaction drop count")
-	tlmTxSuccessCount = telemetry.NewCounter("transactions", "success",
+	tlmTxSuccessCount = telemetryimpl.GetCompatComponent().NewCounter("transactions", "success",
 		[]string{"domain", "endpoint", "proto_version"}, "Successful transaction count")
-	tlmTxSuccessBytes = telemetry.NewCounter("transactions", "success_bytes",
+	tlmTxSuccessBytes = telemetryimpl.GetCompatComponent().NewCounter("transactions", "success_bytes",
 		[]string{"domain", "endpoint"}, "Successful transaction sizes in bytes")
-	tlmTxErrors = telemetry.NewCounter("transactions", "errors",
+	tlmTxErrors = telemetryimpl.GetCompatComponent().NewCounter("transactions", "errors",
 		[]string{"domain", "endpoint", "error_type"}, "Count of transactions errored grouped by type of error")
-	tlmTxHTTPErrors = telemetry.NewCounter("transactions", "http_errors",
+	tlmTxHTTPErrors = telemetryimpl.GetCompatComponent().NewCounter("transactions", "http_errors",
 		[]string{"domain", "endpoint", "code"}, "Count of transactions http errors per http code")
 )
 
@@ -124,6 +124,15 @@ func GetClientTrace(log log.Component) *httptrace.ClientTrace {
 
 // Compile-time check to ensure that HTTPTransaction conforms to the Transaction interface
 var _ Transaction = &HTTPTransaction{}
+
+// PointCountTelemetry tracks the number of points that were successfully
+// delivered or dropped while processing a transaction. Implementations are
+// safe to nil-check at the call site so transactions can be processed
+// without telemetry (e.g. SyncForwarder).
+type PointCountTelemetry interface {
+	OnPointSuccessfullySent(count int)
+	OnPointDropped(count int)
+}
 
 // HTTPAttemptHandler is an event handler that will get called each time this transaction is attempted
 type HTTPAttemptHandler func(transaction *HTTPTransaction)
@@ -224,6 +233,10 @@ func (d Destination) String() string {
 	}
 }
 
+type Authorizer interface {
+	Authorize(apiKeyIdx uint, headers http.Header, log log.Component)
+}
+
 // HTTPTransaction represents one Payload for one Endpoint on one Domain.
 type HTTPTransaction struct {
 	// Domain represents the domain target by the HTTPTransaction.
@@ -256,6 +269,11 @@ type HTTPTransaction struct {
 	Kind Kind
 
 	Destination Destination
+
+	// We don't store the API key directly in the transaction, as it may change.
+	// Instead store the index so it can be resolved prior to sending.
+	APIKeyIndex uint
+	Resolver    Authorizer
 }
 
 // TransactionsSerializer serializes Transaction instances.
@@ -265,7 +283,7 @@ type TransactionsSerializer interface {
 
 // Transaction represents the task to process for a Worker.
 type Transaction interface {
-	Process(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, client *http.Client) error
+	Process(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, client *http.Client, pointCountTelemetry PointCountTelemetry) error
 	GetCreatedAt() time.Time
 	GetTarget() string
 	GetPriority() Priority
@@ -350,10 +368,10 @@ func (t *HTTPTransaction) GetDestination() Destination {
 }
 
 // Process sends the Payload of the transaction to the right Endpoint and Domain.
-func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, client *http.Client) error {
+func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, client *http.Client, pointCountTelemetry PointCountTelemetry) error {
 	t.AttemptHandler(t)
 
-	statusCode, body, err := t.internalProcess(ctx, config, log, secrets, client)
+	statusCode, body, err := t.internalProcess(ctx, config, log, secrets, client, pointCountTelemetry)
 
 	if err == nil || !t.Retryable {
 		t.CompletionHandler(t, statusCode, body, err)
@@ -370,7 +388,7 @@ func (t *HTTPTransaction) Process(ctx context.Context, config config.Component, 
 
 // internalProcess does the  work of actually sending the http request to the specified domain
 // This will return  (http status code, response body, error).
-func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, client *http.Client) (int, []byte, error) {
+func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Component, log log.Component, secrets secrets.Component, client *http.Client, pointCountTelemetry PointCountTelemetry) (int, []byte, error) {
 	payload := t.Payload.GetContent()
 	reader := bytes.NewReader(payload)
 	url := t.Domain + t.Endpoint.Route
@@ -385,7 +403,12 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		transactionsSentRequestErrors.Add(1)
 		return 0, nil, nil
 	}
-	req.Header = t.Headers
+	for k, v := range t.Headers {
+		req.Header[k] = v
+	}
+	if t.Resolver != nil {
+		t.Resolver.Authorize(t.APIKeyIndex, req.Header, log)
+	}
 	log.Tracef("Sending %s request to %s with body size %d and headers %v", req.Method, logURL, len(payload), req.Header)
 	resp, err := client.Do(req)
 
@@ -400,6 +423,9 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		return 0, nil, fmt.Errorf("error while sending transaction, rescheduling it: %s", scrubber.ScrubLine(err.Error()))
 	}
 	defer func() { _ = resp.Body.Close() }()
+
+	// Capture intake server time for clock offset monitoring
+	updateIntakeTimeOffset(resp.Header.Get("Date"))
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -429,18 +455,26 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
 		TransactionsDropped.Add(1)
 		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
+		if pointCountTelemetry != nil {
+			pointCountTelemetry.OnPointDropped(t.GetPointCount())
+		}
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode == 403 {
-		log.Errorf("API Key invalid (403 response), dropping transaction for %s", logURL)
-
 		// Trigger throttled secret refresh based on secret_refresh_on_api_key_failure_interval on API key error
-		if secrets != nil {
-			_, _ = secrets.Refresh(false)
+		if secrets != nil && secrets.Refresh() {
+			t.ErrorCount++
+			transactionsErrors.Add(1)
+			tlmTxErrors.Inc(t.Domain, transactionEndpointName, "403")
+			return resp.StatusCode, body, fmt.Errorf("API Key invalid (%q response) while sending transaction to %q, rescheduling it", resp.Status, logURL)
 		}
 
+		log.Errorf("API Key invalid (403 response), dropping transaction for %s", logURL)
 		TransactionsDroppedByEndpoint.Add(transactionEndpointName, 1)
 		TransactionsDropped.Add(1)
 		TlmTxDropped.Inc(t.Domain, transactionEndpointName)
+		if pointCountTelemetry != nil {
+			pointCountTelemetry.OnPointDropped(t.GetPointCount())
+		}
 		return resp.StatusCode, body, nil
 	} else if resp.StatusCode > 400 {
 		t.ErrorCount++
@@ -449,6 +483,9 @@ func (t *HTTPTransaction) internalProcess(ctx context.Context, config config.Com
 		return resp.StatusCode, body, fmt.Errorf("error %q while sending transaction to %q, rescheduling it: %q", resp.Status, logURL, truncateBodyForLog(body))
 	}
 
+	if pointCountTelemetry != nil {
+		pointCountTelemetry.OnPointSuccessfullySent(t.GetPointCount())
+	}
 	tlmTxSuccessCount.Inc(t.Domain, transactionEndpointName, resp.Proto)
 	tlmTxSuccessBytes.Add(float64(t.GetPayloadSize()), t.Domain, transactionEndpointName)
 	TransactionsSuccessByEndpoint.Add(transactionEndpointName, 1)

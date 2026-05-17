@@ -7,13 +7,14 @@ package profile
 
 import (
 	"errors"
+	"expvar"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
@@ -79,6 +80,10 @@ func getProfileDefinitions(profilesFolder string, isUserProfile bool) (ProfileCo
 		haveLegacyProfile = haveLegacyProfile || isLegacyProfile
 		if err != nil {
 			log.Warnf("cannot load profile %q: %v", profileName, err)
+			errMsg := err.Error()
+			profileExpVar.Set(profileName, expvar.Func(func() interface{} {
+				return errMsg
+			}))
 			continue
 		}
 		if definition.Name == "" {

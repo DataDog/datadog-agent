@@ -101,12 +101,14 @@ func (h *httpDigestFetcher) digest(ref string) (string, error) {
 	return digest, nil
 }
 
-func newHTTPDigestFetcher() *httpDigestFetcher {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
+func newHTTPDigestFetcher(rt http.RoundTripper) *httpDigestFetcher {
+	if rt == nil {
+		rt = http.DefaultTransport.(*http.Transport).Clone()
+	}
 	return &httpDigestFetcher{
 		client: &http.Client{
 			Timeout:   requestTimeout,
-			Transport: transport,
+			Transport: rt,
 		},
 	}
 }

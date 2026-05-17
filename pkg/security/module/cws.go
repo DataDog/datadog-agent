@@ -9,14 +9,15 @@ package module
 import (
 	"context"
 	"errors"
-	"fmt"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
@@ -30,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	rulesmodule "github.com/DataDog/datadog-agent/pkg/security/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
@@ -47,9 +47,53 @@ const (
 	selftestPassedDelay = 60 * time.Minute
 )
 
+// CommandServer is the gRPC server for the module command API
+type CommandServer struct {
+	started       bool
+	grpcCmdServer *grpcutils.Server
+}
+
+// Start starts the command server
+func (c *CommandServer) Start() error {
+	if c.started {
+		return nil
+	}
+
+	if err := c.grpcCmdServer.Start(); err != nil {
+		return err
+	}
+
+	c.started = true
+	return nil
+}
+
+// Stop stops the command server
+func (c *CommandServer) Stop() {
+	if !c.started {
+		return
+	}
+	c.grpcCmdServer.Stop()
+	c.started = false
+}
+
+// NewCommandServer initializes the gRPC server for the module command API
+func NewCommandServer(cfg *config.RuntimeSecurityConfig) (*CommandServer, error) {
+	cmdSocketPath, err := common.GetCmdSocketPath(cfg.SocketPath, cfg.CmdSocketPath)
+	if err != nil {
+		return nil, err
+	}
+
+	family, socketPath := socket.GetSocketAddress(cmdSocketPath)
+
+	return &CommandServer{
+		grpcCmdServer: grpcutils.NewServer(family, socketPath),
+	}, nil
+}
+
 // CWSConsumer represents the system-probe module for the runtime security agent
 type CWSConsumer struct {
 	sync.RWMutex
+
 	config       *config.RuntimeSecurityConfig
 	probe        *probe.Probe
 	statsdClient statsd.ClientInterface
@@ -59,11 +103,11 @@ type CWSConsumer struct {
 	ctx             context.Context
 	cancelFnc       context.CancelFunc
 	apiServer       *APIServer
+	cmdServer       *CommandServer
+	grpcEventServer *grpcutils.Server
 	rateLimiter     *events.RateLimiter
 	sendStatsChan   chan chan bool
 	eventSender     events.EventSender
-	grpcCmdServer   *grpcutils.Server
-	grpcEventServer *grpcutils.Server
 	ruleEngine      *rulesmodule.RuleEngine
 	selfTester      *selftests.SelfTester
 	selfTestCount   int
@@ -73,7 +117,7 @@ type CWSConsumer struct {
 }
 
 // NewCWSConsumer initializes the module with options
-func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, wmeta workloadmeta.Component, filterStore workloadfilter.Component, opts Opts, compression compression.Component, ipc ipc.Component, hostname string) (*CWSConsumer, error) {
+func NewCWSConsumer(cmdServer *CommandServer, evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, wmeta workloadmeta.Component, filterStore workloadfilter.Component, opts Opts, compression compression.Component, ipc ipc.Component, hostname string, secretsComp secrets.Component) (*CWSConsumer, error) {
 	crtelemcfg := telemetry.ContainersRunningTelemetryConfig{
 		RuntimeEnabled: cfg.RuntimeEnabled,
 		FIMEnabled:     cfg.FIMEnabled,
@@ -100,13 +144,8 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		}
 	}
 
-	cmdSocketPath, err := common.GetCmdSocketPath(cfg.SocketPath, cfg.CmdSocketPath)
-	if err != nil {
-		return nil, err
-	}
-
-	family, socketPath := socket.GetSocketAddress(cmdSocketPath)
-	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, hostname)
+	stopChan := make(chan struct{})
+	apiServer, err := NewAPIServer(cfg, evm.Probe, opts.MsgSender, evm.StatsdClient, selfTester, compression, hostname, stopChan, secretsComp, filterStore)
 	if err != nil {
 		return nil, err
 	}
@@ -121,9 +160,9 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		ctx:           ctx,
 		cancelFnc:     cancelFnc,
 		apiServer:     apiServer,
+		cmdServer:     cmdServer,
 		rateLimiter:   events.NewRateLimiter(cfg, evm.StatsdClient),
 		sendStatsChan: make(chan chan bool, 1),
-		grpcCmdServer: grpcutils.NewServer(family, socketPath),
 		selfTester:    selfTester,
 		reloader:      NewReloader(),
 		crtelemetry:   crtelemetry,
@@ -154,7 +193,7 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 		c.ruleEngine.AddPolicyProvider(c.selfTester)
 	}
 
-	if err := evm.Probe.AddCustomEventHandler(model.UnknownEventType, c); err != nil {
+	if err := evm.Probe.AddCustomEventHandler(c); err != nil {
 		return nil, err
 	}
 
@@ -162,9 +201,23 @@ func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityC
 	seclog.SetTags(cfg.LogTags...)
 
 	// setup gRPC servers
-	api.RegisterSecurityModuleCmdServer(c.grpcCmdServer.ServiceRegistrar(), c.apiServer)
-	if cfg.EventGRPCServer != "security-agent" {
-		seclog.Infof("start security module event grpc server")
+	seclog.Debugf("Registering API server")
+	api.RegisterSecurityModuleCmdServer(c.cmdServer.grpcCmdServer.ServiceRegistrar(), c.apiServer)
+
+	switch cfg.EventGRPCServer {
+	case "security-agent":
+		// system-probe connects to security-agent's event server; no local server needed here
+	case "system-probe":
+		// system-probe acts as the event server for remote system-probes (e.g., in micro VMs via vsock)
+		seclog.Infof("starting system-probe remote event server on %s", cfg.SocketPath)
+
+		family, addr := socket.GetSocketAddress(cfg.SocketPath)
+		c.grpcEventServer = grpcutils.NewServer(family, addr)
+
+		api.RegisterSecurityAgentAPIServer(c.grpcEventServer.ServiceRegistrar(), NewRemoteEventServer(c.apiServer))
+	default:
+		// legacy mode: system-probe hosts SecurityModuleEvent server, security-agent connects
+		seclog.Infof("starting security module event grpc server on %s", cfg.SocketPath)
 
 		family := common.GetFamilyAddress(cfg.SocketPath)
 		c.grpcEventServer = grpcutils.NewServer(family, cfg.SocketPath)
@@ -201,7 +254,7 @@ func (c *CWSConsumer) ID() string {
 
 // Start the module
 func (c *CWSConsumer) Start() error {
-	if err := c.grpcCmdServer.Start(); err != nil {
+	if err := c.cmdServer.Start(); err != nil {
 		return err
 	}
 
@@ -310,8 +363,8 @@ func (c *CWSConsumer) reportSelfTest(success []eval.RuleID, fails []eval.RuleID)
 
 	// send metric with number of success and fails
 	tags := []string{
-		fmt.Sprintf("success:%d", len(success)),
-		fmt.Sprintf("fails:%d", len(fails)),
+		"success:" + strconv.Itoa(len(success)),
+		"fails:" + strconv.Itoa(len(fails)),
 		"os:" + runtime.GOOS,
 		"arch:" + utils.RuntimeArch(),
 		"origin:" + c.probe.Origin(),
@@ -341,7 +394,7 @@ func (c *CWSConsumer) Stop() {
 		c.apiServer.Stop()
 	}
 
-	c.grpcCmdServer.Stop()
+	c.cmdServer.Stop()
 	if c.grpcEventServer != nil {
 		c.grpcEventServer.Stop()
 	}
@@ -389,16 +442,6 @@ func (c *CWSConsumer) sendStats() {
 	}
 
 	c.ruleEngine.SendStats()
-
-	for statsTags, counter := range c.ruleEngine.AutoSuppression.GetStats() {
-		if counter > 0 {
-			tags := []string{
-				"rule_id:" + statsTags.RuleID,
-				"suppression_type:" + statsTags.SuppressionType,
-			}
-			_ = c.statsdClient.Count(metrics.MetricRulesSuppressed, counter, tags, 1.0)
-		}
-	}
 }
 
 func (c *CWSConsumer) statsSender() {

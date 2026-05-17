@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = ["forwarder.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameinterface",
+        "//comp/core/log/def",
+        "//comp/def",
+        "//comp/healthplatform/forwarder/def",
+        "//pkg/config/model",
+        "//pkg/config/utils",
+        "//pkg/util/flavor",
+        "//pkg/util/http",
+        "//pkg/util/pointer",
+        "//pkg/version",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+    ],
+)
+
+go_test(
+    name = "impl_test",
+    srcs = ["forwarder_test.go"],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/mock",
+        "//pkg/util/flavor",
+        "//pkg/version",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

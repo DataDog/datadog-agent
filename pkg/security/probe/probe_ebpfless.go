@@ -131,6 +131,7 @@ func copyFileAttributes(src *ebpfless.FileSyscallMsg, dst *model.FileEvent) {
 func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.SyscallMsg) {
 	event := p.zeroEvent()
 	event.PIDContext.NSID = cl.nsID
+	event.TimestampRaw = syscallMsg.Timestamp
 
 	switch syscallMsg.Type {
 	case ebpfless.SyscallTypeExec:
@@ -141,12 +142,12 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 			entry = p.Resolvers.ProcessResolver.AddProcFSEntry(
 				process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Exec.PPID, syscallMsg.Exec.File.Filename,
 				syscallMsg.Exec.Args, syscallMsg.Exec.ArgsTruncated, syscallMsg.Exec.Envs, syscallMsg.Exec.EnvsTruncated,
-				syscallMsg.ContainerID, syscallMsg.Timestamp, syscallMsg.Exec.TTY)
+				syscallMsg.ContainerID, syscallMsg.CGroupID, syscallMsg.Timestamp, syscallMsg.Exec.TTY)
 		} else {
 			entry = p.Resolvers.ProcessResolver.AddExecEntry(
 				process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Exec.PPID, syscallMsg.Exec.File.Filename,
 				syscallMsg.Exec.Args, syscallMsg.Exec.ArgsTruncated, syscallMsg.Exec.Envs, syscallMsg.Exec.EnvsTruncated,
-				syscallMsg.ContainerID, syscallMsg.Timestamp, syscallMsg.Exec.TTY)
+				syscallMsg.ContainerID, syscallMsg.CGroupID, syscallMsg.Timestamp, syscallMsg.Exec.TTY)
 		}
 
 		if syscallMsg.Exec.Credentials != nil {
@@ -164,7 +165,9 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 
 	case ebpfless.SyscallTypeFork:
 		event.Type = uint32(model.ForkEventType)
-		p.Resolvers.ProcessResolver.AddForkEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Fork.PPID, syscallMsg.Timestamp)
+		if entry := p.Resolvers.ProcessResolver.AddForkEntry(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.Fork.PPID, syscallMsg.Timestamp); entry != nil && syscallMsg.CGroupID != "" {
+			entry.Process.CGroup.CGroupID = syscallMsg.CGroupID
+		}
 
 	case ebpfless.SyscallTypeOpen:
 		event.Type = uint32(model.FileOpenEventType)
@@ -174,7 +177,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		event.Open.Flags = syscallMsg.Open.Flags
 
 	case ebpfless.SyscallTypeSetUID:
-		p.Resolvers.ProcessResolver.UpdateUID(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.SetUID.UID, syscallMsg.SetUID.EUID)
+		p.Resolvers.ProcessResolver.UpdateUser(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.SetUID.UID, syscallMsg.SetUID.EUID, syscallMsg.SetUID.User, syscallMsg.SetUID.EUser)
 		event.Type = uint32(model.SetuidEventType)
 		event.SetUID.UID = uint32(syscallMsg.SetUID.UID)
 		event.SetUID.User = syscallMsg.SetUID.User
@@ -182,7 +185,7 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		event.SetUID.EUser = syscallMsg.SetUID.EUser
 
 	case ebpfless.SyscallTypeSetGID:
-		p.Resolvers.ProcessResolver.UpdateGID(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.SetGID.GID, syscallMsg.SetGID.EGID)
+		p.Resolvers.ProcessResolver.UpdateGroup(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID}, syscallMsg.SetGID.GID, syscallMsg.SetGID.EGID, syscallMsg.SetGID.Group, syscallMsg.SetGID.EGroup)
 		event.Type = uint32(model.SetgidEventType)
 		event.SetGID.GID = uint32(syscallMsg.SetGID.GID)
 		event.SetGID.Group = syscallMsg.SetGID.Group
@@ -379,6 +382,9 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 	event.ProcessCacheEntry = p.Resolvers.ProcessResolver.Resolve(process.CacheResolverKey{Pid: syscallMsg.PID, NSID: cl.nsID})
 	if event.ProcessCacheEntry == nil {
 		event.ProcessCacheEntry = model.NewPlaceholderProcessCacheEntry(syscallMsg.PID, syscallMsg.PID, false)
+	}
+	if event.ProcessCacheEntry.Process.CGroup.CGroupID == "" && syscallMsg.CGroupID != "" {
+		event.ProcessCacheEntry.Process.CGroup.CGroupID = syscallMsg.CGroupID
 	}
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
 
@@ -608,6 +614,11 @@ func (p *EBPFLessProbe) Walk(callback func(*model.ProcessCacheEntry)) {
 	p.Resolvers.ProcessResolver.Walk(callback)
 }
 
+// ShouldEvaluateDiscarders returns whether discarder evaluation should proceed for the given event
+func (p *EBPFLessProbe) ShouldEvaluateDiscarders(_ *model.Event) bool {
+	return false
+}
+
 // OnNewDiscarder handles discarders
 func (p *EBPFLessProbe) OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType) {
 }
@@ -660,14 +671,24 @@ func (p *EBPFLessProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 		case action.Def.Kill != nil:
 			// do not handle kill action on event with error
 			if ev.Error != nil {
-				return
+				continue
 			}
-
-			if p.processKiller.KillAndReport(action.Def.Kill, rule, ev) {
+			tryToKill, _ := p.processKiller.KillAndReport(action.Def.Kill, rule, ev)
+			if tryToKill {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		case action.Def.Hash != nil:
-			if p.fileHasher.HashAndReport(rule, action.Def.Hash, ev) {
+			fileEvent, err := ev.GetFileField(action.Def.Hash.Field)
+			if err != nil {
+				seclog.Errorf("failed to get file field %s: %v", action.Def.Hash.Field, err)
+				continue
+			}
+
+			if p.fieldHandlers.ResolveFilePath(ev, fileEvent) == "" {
+				continue
+			}
+
+			if p.fileHasher.HashAndReport(rule, action.Def.Hash, ev, fileEvent) {
 				p.probe.onRuleActionPerformed(rule, action.Def)
 			}
 		}
@@ -709,6 +730,9 @@ func (p *EBPFLessProbe) zeroEvent() *model.Event {
 func (p *EBPFLessProbe) EnableEnforcement(state bool) {
 	p.processKiller.SetState(state)
 }
+
+// SendCustomEventKillAction is a no-op for EBPFLess (remediation custom events use EBPF probe).
+func (p *EBPFLessProbe) SendCustomEventKillAction(_ model.ActionReport, _ []string) {}
 
 // GetAgentContainerContext returns the agent container context
 func (p *EBPFLessProbe) GetAgentContainerContext() *events.AgentContainerContext {

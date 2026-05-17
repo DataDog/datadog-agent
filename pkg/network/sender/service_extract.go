@@ -8,7 +8,7 @@
 package sender
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -40,7 +40,6 @@ func (s *serviceExtractor) process(event *process) {
 	})
 }
 
-//nolint:unused // will be used once direct send loop is added in future PR
 func (s *serviceExtractor) handleDeadProcess(pid uint32) {
 	s.Remove(int32(pid))
 }

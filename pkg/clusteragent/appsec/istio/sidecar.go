@@ -40,6 +40,9 @@ func (e *istioGatewaySidecarPattern) ShouldMutatePod(pod *corev1.Pod) bool {
 	}
 
 	gatewayClassName := pod.Labels[gatewayClassNamePodLabel]
+	if gatewayClassName == "" {
+		return false
+	}
 
 	gateway, err := e.client.Resource(gatewayClassGVR).Get(context.TODO(), gatewayClassName, metav1.GetOptions{})
 	if err != nil {

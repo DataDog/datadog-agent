@@ -16,9 +16,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/optional"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/defender"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/fipsmode"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/testsigning"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/defender"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/fipsmode"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/windows/testsigning"
 )
 
 const defaultVMName = "vm"
@@ -58,6 +58,16 @@ func newRunParams() *RunParams {
 // GetRunParams returns RunParams after applying options
 func GetRunParams(opts ...RunOption) *RunParams {
 	p := newRunParams()
+
+	// Enable TestSigning when testsigned drivers are requested via environment
+	// this is used for kicking off testsigned windows drivers on CI
+	if v := os.Getenv("WINDOWS_DDNPM_DRIVER"); v == "testsigned" {
+		p.testsigningOptions = append(p.testsigningOptions, testsigning.WithTestSigningEnabled())
+	}
+	if v := os.Getenv("WINDOWS_DDPROCMON_DRIVER"); v == "testsigned" {
+		p.testsigningOptions = append(p.testsigningOptions, testsigning.WithTestSigningEnabled())
+	}
+
 	if err := optional.ApplyOptions(p, opts); err != nil {
 		panic(fmt.Errorf("unable to apply RunOption, err: %w", err))
 	}

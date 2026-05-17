@@ -1,0 +1,5 @@
+enhancements:
+  - |
+    Add ``ntp.offset`` metric with ``source:intake`` tag to monitor clock drift using
+    Datadog intake server timestamps. Original ``ntp.offset`` metric calculated from 
+    an NTP server is now tagged ``source:ntp``.

@@ -1,0 +1,13 @@
+---
+security:
+  - |
+    Fixed a limited out-of-bounds memory read and DoS vulnerability in Windows kernel driver while handling TLS traffic.
+    The host must have the ddnpm kernel driver service running, by having system_probe_config and network_config enabled, to be affected.
+    This configuration is not enabled by default.
+    Query with PowerShell: Get-Service ddnpm
+    Query with command prompt: sc query ddnpm
+fixes:
+  - |
+    Fixed IPv6 address matching logic that caused network traffic to be tracked incorrectly.
+    Fixed failed classification of HTTP DELETE requests.
+    Added additional memory handling and overflow safety checks.

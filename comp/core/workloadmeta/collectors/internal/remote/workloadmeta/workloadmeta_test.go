@@ -29,6 +29,7 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/proto"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -83,7 +84,7 @@ func TestNewCollector(t *testing.T) {
 			name: "filter with unsupported kinds",
 			filter: workloadmeta.NewFilterBuilder().
 				AddKind(workloadmeta.KindContainer).
-				AddKind(workloadmeta.KindContainerImageMetadata /* No Supported */).
+				AddKind(workloadmeta.KindKubernetesMetadata /* No Supported */).
 				Build(),
 			expectsError: true,
 		},
@@ -197,7 +198,7 @@ func TestCollection(t *testing.T) {
 		core.MockBundle(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
-	server := &serverSecure{workloadmetaServer: server.NewServer(mockServerStore)}
+	server := &serverSecure{workloadmetaServer: server.NewServer(mockServerStore, 6<<20)}
 
 	// gRPC server
 	grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(ipcComp.GetTLSServerConfig())))
@@ -223,8 +224,10 @@ func TestCollection(t *testing.T) {
 		Catalog:     workloadmeta.Remote,
 		StreamHandler: &streamHandler{
 			port: port,
+			ipc:  ipcComp,
 		},
-		IPC: ipcComp,
+		Config: configmock.New(t),
+		IPC:    ipcComp,
 	}
 
 	// workloadmeta client store

@@ -8,61 +8,47 @@ package ddprofilingextensionimpl
 
 import (
 	"context"
-	"errors"
 	"net/http"
-	"runtime/debug"
-	"strings"
 	"time"
 
 	corelog "github.com/DataDog/datadog-agent/comp/core/log/def"
 	ddprofilingextensiondef "github.com/DataDog/datadog-agent/comp/otelcol/ddprofilingextension/def"
 	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 
+	"github.com/DataDog/dd-trace-go/v2/profiler"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
-	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
-
-	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 )
 
 var (
-	_                    extension.Extension = (*ddExtension)(nil)
-	_                    component.Config    = (*Config)(nil)
-	defaultEndpoint                          = "7501"
-	errAPIKeyMissing                         = errors.New("API key is required for ddprofiling extension")
-	additionalTagsHeader                     = "X-Datadog-Additional-Tags"
+	_               extension.Extension = (*ddExtension)(nil)
+	_               component.Config    = (*Config)(nil)
+	defaultEndpoint                     = "7501"
 )
 
 // ddExtension is a basic OpenTelemetry Collector extension.
 type ddExtension struct {
 	extension.Extension // Embed base Extension for common functionality.
 
-	cfg            *Config // Extension configuration.
-	info           component.BuildInfo
-	traceAgent     traceagent.Component
-	server         *http.Server
-	log            corelog.Component
-	sourceProvider source.Provider
+	cfg        *Config // Extension configuration.
+	info       component.BuildInfo
+	traceAgent traceagent.Component
+	server     *http.Server
+	log        corelog.Component
 }
 
 // NewExtension creates a new instance of the extension.
-func NewExtension(cfg *Config, info component.BuildInfo, traceAgent traceagent.Component, log corelog.Component, sourceProvider source.Provider) (ddprofilingextensiondef.Component, error) {
+func NewExtension(cfg *Config, info component.BuildInfo, traceAgent traceagent.Component, log corelog.Component) (ddprofilingextensiondef.Component, error) {
 	return &ddExtension{
-		cfg:            cfg,
-		info:           info,
-		traceAgent:     traceAgent,
-		log:            log,
-		sourceProvider: sourceProvider,
+		cfg:        cfg,
+		info:       info,
+		traceAgent: traceAgent,
+		log:        log,
 	}, nil
 }
 
 func (e *ddExtension) Start(_ context.Context, host component.Host) error {
-	// OTEL AGENT
-	if e.traceAgent != nil {
-		return e.startForOTelAgent(host)
-	}
-	// OCB
-	return e.startForOCB()
+	return e.startForOTelAgent(host)
 }
 
 func (e *ddExtension) startForOTelAgent(host component.Host) error {
@@ -77,79 +63,6 @@ func (e *ddExtension) startForOTelAgent(host component.Host) error {
 
 	// agent
 	profilerOptions = append(profilerOptions, profiler.WithAgentAddr("localhost:"+e.endpoint()))
-
-	return profiler.Start(
-		profilerOptions...,
-	)
-}
-
-type headerTransport struct {
-	wrapped http.RoundTripper
-	headers map[string]string
-}
-
-func (m *headerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
-	for k, v := range m.headers {
-		r.Header.Add(k, v)
-	}
-	return m.wrapped.RoundTrip(r)
-}
-
-func (e *ddExtension) startForOCB() error {
-	profilerOptions := e.buildProfilerOptions()
-
-	if string(e.cfg.API.Key) == "" {
-		return errAPIKeyMissing
-	}
-	// agentless
-	profilerOptions = append(profilerOptions,
-		profiler.WithAgentlessUpload(),
-		profiler.WithAPIKey(string(e.cfg.API.Key)),
-	)
-
-	if string(e.cfg.API.Site) != "" {
-		profilerOptions = append(profilerOptions, profiler.WithSite(string(e.cfg.API.Site)))
-	}
-
-	source, err := e.sourceProvider.Source(context.Background())
-	if err != nil {
-		return err
-	}
-
-	var tags strings.Builder
-	// agent_version is required by profiling backend. Use version of comp/trace/agent/def, and fallback to 7.64.0.
-	agentVersion := "7.64.0"
-	buildInfo, ok := debug.ReadBuildInfo()
-	if ok {
-		for _, module := range buildInfo.Deps {
-			if module.Path == "github.com/DataDog/datadog-agent/comp/trace/agent/def" {
-				agentVersion = module.Version
-			}
-		}
-	}
-	tags.WriteString("agent_version:" + agentVersion)
-	tags.WriteString(",source:oss-ddprofilingextension")
-	if e.cfg.ProfilerOptions.Env != "" {
-		tags.WriteString(",default_env:" + e.cfg.ProfilerOptions.Env)
-	}
-
-	if source.Kind == "host" {
-		profilerOptions = append(profilerOptions, profiler.WithHostname(source.Identifier))
-		tags.WriteString(",host:" + source.Identifier)
-	}
-
-	if source.Kind == "task_arn" {
-		tags.WriteString(",orchestrator:fargate_ecs,task_arn:" + source.Identifier)
-	}
-
-	cl := new(http.Client)
-	cl.Transport = &headerTransport{
-		wrapped: http.DefaultTransport,
-		headers: map[string]string{
-			additionalTagsHeader: tags.String(),
-		},
-	}
-	profilerOptions = append(profilerOptions, profiler.WithHTTPClient(cl))
 
 	return profiler.Start(
 		profilerOptions...,
@@ -201,12 +114,6 @@ func (e *ddExtension) buildProfilerOptions() []profiler.Option {
 }
 
 func (e *ddExtension) Shutdown(ctx context.Context) error {
-	// stop profiler
 	profiler.Stop()
-
-	if e.traceAgent != nil {
-		// stop server
-		return e.server.Shutdown(ctx)
-	}
-	return nil
+	return e.server.Shutdown(ctx)
 }

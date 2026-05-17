@@ -1,13 +1,2 @@
-# openscap
-
-alias(
-    name = "all_deps",
-    actual = "@openscap//:all_deps",
-    target_compatible_with = [
-        "@platforms//os:linux",
-    ],
-    visibility = [
-        "//compliance:__pkg__",
-        "//packages:__subpackages__",
-    ],
-)
+# Empty package; required so the openscap.MODULE.bazel include in the root
+# MODULE.bazel can resolve.

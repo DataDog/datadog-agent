@@ -9,10 +9,12 @@ package serializerexporter
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
 	pkgdatadog "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
@@ -21,8 +23,8 @@ import (
 	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -207,6 +209,28 @@ func Test_ConsumeMetrics_Tags(t *testing.T) {
 			}, nil),
 			instrumentationScopeMetadataAsTags: true,
 		},
+		{
+			name: "service.instance.id resource attribute becomes tag",
+			genMetrics: func(_ *testing.T) pmetric.Metrics {
+				h := pmetric.NewHistogramDataPoint()
+				h.BucketCounts().FromRaw([]uint64{100})
+				h.SetCount(100)
+				h.SetSum(0)
+
+				n := pmetric.NewNumberDataPoint()
+				n.SetIntValue(777)
+				md := newMetrics(histogramMetricName, h, numberMetricName, n)
+				md.ResourceMetrics().At(0).Resource().Attributes().PutStr("service.instance.id", "my-instance-123")
+				return md
+			},
+			extraTags: []string{},
+			wantSketchTags: tagset.NewCompositeTags([]string{
+				"service.instance.id:my-instance-123",
+			}, nil),
+			wantSerieTags: tagset.NewCompositeTags([]string{
+				"service.instance.id:my-instance-123",
+			}, nil),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -372,10 +396,16 @@ func TestMetricPrefix(t *testing.T) {
 }
 
 func testMetricPrefixWithFeatureGates(t *testing.T, disablePrefix bool, inName string, outName string) {
-	prevVal := pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled()
+	// Explicitly set BOTH feature gates. In OTel v0.150.0 both gates moved from
+	// StageAlpha (off by default) to StageBeta (on by default), so tests must
+	// not rely on the default value.
+	prevOld := pkgdatadog.MetricRemappingDisabledFeatureGate.IsEnabled()
+	prevNew := featuregates.DisableMetricRemappingFeatureGate.IsEnabled()
 	require.NoError(t, featuregate.GlobalRegistry().Set(pkgdatadog.MetricRemappingDisabledFeatureGate.ID(), disablePrefix))
+	require.NoError(t, featuregate.GlobalRegistry().Set(featuregates.DisableMetricRemappingFeatureGate.ID(), disablePrefix))
 	defer func() {
-		require.NoError(t, featuregate.GlobalRegistry().Set(pkgdatadog.MetricRemappingDisabledFeatureGate.ID(), prevVal))
+		require.NoError(t, featuregate.GlobalRegistry().Set(pkgdatadog.MetricRemappingDisabledFeatureGate.ID(), prevOld))
+		require.NoError(t, featuregate.GlobalRegistry().Set(featuregates.DisableMetricRemappingFeatureGate.ID(), prevNew))
 	}()
 
 	rec := &metricRecorder{}
@@ -462,7 +492,7 @@ func newMetrics(
 func TestUsageMetric_AgentOTLPIngest(t *testing.T) {
 	rec := &metricRecorder{}
 	ctx := context.Background()
-	telemetryComp := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	telemetryComp := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
 	store := TelemetryStore{
 		OTLPIngestMetrics: telemetryComp.NewGauge(
 			"runtime",
@@ -506,7 +536,7 @@ func TestUsageMetric_AgentOTLPIngest(t *testing.T) {
 func TestUsageMetric_DDOT(t *testing.T) {
 	rec := &metricRecorder{}
 	ctx := context.Background()
-	telemetryComp := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	telemetryComp := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
 	store := TelemetryStore{
 		DDOTMetrics: telemetryComp.NewGauge(
 			"runtime",
@@ -572,7 +602,7 @@ func TestUsageMetric_DDOT(t *testing.T) {
 func usageMetricGW(t *testing.T, gwUsage otel.GatewayUsage, expGwUsage float64, expGwEnvVar float64) {
 	rec := &metricRecorder{}
 	ctx := context.Background()
-	telemetryComp := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	telemetryComp := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
 	store := TelemetryStore{
 		DDOTGWUsage: telemetryComp.NewGauge(
 			"runtime",
@@ -652,4 +682,234 @@ func TestUsageMetric_GW(t *testing.T) {
 
 	gwUsage = otel.NewGatewayUsage(true)
 	usageMetricGW(t, gwUsage, float64(1.0), float64(1.0))
+}
+
+func createTestMetricsWithRuntimeMetrics() pmetric.Metrics {
+	md := pmetric.NewMetrics()
+	rm := md.ResourceMetrics().AppendEmpty()
+	ilm := rm.ScopeMetrics().AppendEmpty()
+	metricsArray := ilm.Metrics()
+
+	runtimeMetrics := []string{
+		"system.filesystem.utilization",
+		"process.runtime.go.goroutines",
+		"process.runtime.dotnet.exceptions.count",
+		"process.runtime.jvm.threads.count",
+	}
+
+	for _, metricName := range runtimeMetrics {
+		met := metricsArray.AppendEmpty()
+		met.SetName(metricName)
+		dps := met.SetEmptyGauge().DataPoints()
+		dp := dps.AppendEmpty()
+		dp.SetTimestamp(0)
+		dp.SetIntValue(42)
+	}
+
+	return md
+}
+
+func TestMetricRemapping(t *testing.T) {
+	tests := []struct {
+		newGate         bool
+		oldGate         bool
+		expectedMetrics []string
+	}{
+		{
+			newGate: false,
+			oldGate: false,
+			expectedMetrics: []string{
+				// Original metrics with otel. prefix
+				"otel.system.filesystem.utilization",
+				"otel.process.runtime.go.goroutines",
+				"otel.process.runtime.dotnet.exceptions.count",
+				"otel.process.runtime.jvm.threads.count",
+				// Mapped runtime metrics
+				"runtime.go.num_goroutine",
+				"runtime.dotnet.exceptions.count",
+				"jvm.thread_count",
+				// Internal telemetry metrics
+				"datadog.agent.otlp.metrics",
+				"datadog.agent.otlp.runtime_metrics",
+				"datadog.agent.otlp.runtime_metrics",
+				"datadog.agent.otlp.runtime_metrics",
+				"datadog.otel.gateway.configured",
+			},
+		},
+		{
+			newGate: true,
+			oldGate: false,
+			expectedMetrics: []string{
+				// Original metrics without remapping
+				"system.filesystem.utilization",
+				"process.runtime.go.goroutines",
+				"process.runtime.dotnet.exceptions.count",
+				"process.runtime.jvm.threads.count",
+				// Internal telemetry metrics
+				"datadog.agent.otlp.metrics",
+				"datadog.otel.gateway.configured",
+			},
+		},
+		{
+			newGate: false,
+			oldGate: true,
+			expectedMetrics: []string{
+				// Original metrics without prefix
+				"system.filesystem.utilization",
+				"process.runtime.go.goroutines",
+				"process.runtime.dotnet.exceptions.count",
+				"process.runtime.jvm.threads.count",
+				// Mapped runtime metrics
+				"runtime.go.num_goroutine",
+				"runtime.dotnet.exceptions.count",
+				"jvm.thread_count",
+				// Internal telemetry metrics
+				"datadog.agent.otlp.metrics",
+				"datadog.agent.otlp.runtime_metrics",
+				"datadog.agent.otlp.runtime_metrics",
+				"datadog.agent.otlp.runtime_metrics",
+				"datadog.otel.gateway.configured",
+			},
+		},
+		{
+			newGate: true,
+			oldGate: true,
+			expectedMetrics: []string{
+				// Original metrics without remapping (new gate takes precedence)
+				"system.filesystem.utilization",
+				"process.runtime.go.goroutines",
+				"process.runtime.dotnet.exceptions.count",
+				"process.runtime.jvm.threads.count",
+				// Internal telemetry metrics
+				"datadog.agent.otlp.metrics",
+				"datadog.otel.gateway.configured",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("new=%v,old=%v", tt.newGate, tt.oldGate), func(t *testing.T) {
+			reg := featuregate.GlobalRegistry()
+			prevNewVal := featuregates.DisableMetricRemappingFeatureGate.IsEnabled()
+			prevOldVal := featuregates.MetricRemappingDisabledFeatureGate.IsEnabled()
+			require.NoError(t, reg.Set(featuregates.DisableMetricRemappingFeatureGate.ID(), tt.newGate))
+			require.NoError(t, reg.Set(featuregates.MetricRemappingDisabledFeatureGate.ID(), tt.oldGate))
+			defer func() {
+				require.NoError(t, reg.Set(featuregates.DisableMetricRemappingFeatureGate.ID(), prevNewVal))
+				require.NoError(t, reg.Set(featuregates.MetricRemappingDisabledFeatureGate.ID(), prevOldVal))
+			}()
+
+			rec := &metricRecorder{}
+			f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
+				return "", nil
+			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+			cfg := f.CreateDefaultConfig().(*ExporterConfig)
+			exp, err := f.CreateMetrics(
+				t.Context(),
+				exportertest.NewNopSettings(component.MustNewType("datadog")),
+				cfg,
+			)
+			require.NoError(t, err)
+			require.NoError(t, exp.Start(t.Context(), componenttest.NewNopHost()))
+			testMetrics := createTestMetricsWithRuntimeMetrics()
+			err = exp.ConsumeMetrics(t.Context(), testMetrics)
+			require.NoError(t, err)
+			require.NoError(t, exp.Shutdown(t.Context()))
+
+			actualMetrics := make([]string, 0, len(rec.series))
+			for _, s := range rec.series {
+				actualMetrics = append(actualMetrics, s.Name)
+			}
+			assert.ElementsMatch(t, tt.expectedMetrics, actualMetrics)
+		})
+	}
+}
+
+func TestDeltaSumAsRateAttribute(t *testing.T) {
+	tests := []struct {
+		name          string
+		genMetrics    func() pmetric.Metrics
+		wantType      metrics.APIMetricType
+		wantName      string
+		checkHasAsTag bool
+	}{
+		{
+			name: "delta sum with as_type=rate becomes rate",
+			genMetrics: func() pmetric.Metrics {
+				md := pmetric.NewMetrics()
+				rm := md.ResourceMetrics().AppendEmpty()
+				ilm := rm.ScopeMetrics().AppendEmpty()
+				met := ilm.Metrics().AppendEmpty()
+				met.SetName("test.delta.sum")
+				met.SetEmptySum()
+				met.Sum().SetIsMonotonic(false)
+				met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+				dp := met.Sum().DataPoints().AppendEmpty()
+				dp.SetIntValue(100)
+				dp.Attributes().PutStr("datadog.metric.as_type", "rate")
+				dp.Attributes().PutStr("env", "test")
+				return md
+			},
+			wantType:      metrics.APIRateType,
+			wantName:      "test.delta.sum",
+			checkHasAsTag: true,
+		},
+		{
+			name: "delta sum without attribute stays count",
+			genMetrics: func() pmetric.Metrics {
+				md := pmetric.NewMetrics()
+				rm := md.ResourceMetrics().AppendEmpty()
+				ilm := rm.ScopeMetrics().AppendEmpty()
+				met := ilm.Metrics().AppendEmpty()
+				met.SetName("test.delta.sum")
+				met.SetEmptySum()
+				met.Sum().SetIsMonotonic(false)
+				met.Sum().SetAggregationTemporality(pmetric.AggregationTemporalityDelta)
+				dp := met.Sum().DataPoints().AppendEmpty()
+				dp.SetIntValue(100)
+				return md
+			},
+			wantType: metrics.APICountType,
+			wantName: "test.delta.sum",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := &metricRecorder{}
+			f := NewFactoryForOTelAgent(rec, func(context.Context) (string, error) {
+				return "", nil
+			}, nil, otel.NewDisabledGatewayUsage(), TelemetryStore{}, nil)
+			cfg := f.CreateDefaultConfig().(*ExporterConfig)
+			exp, err := f.CreateMetrics(
+				t.Context(),
+				exportertest.NewNopSettings(component.MustNewType("datadog")),
+				cfg,
+			)
+			require.NoError(t, err)
+			require.NoError(t, exp.Start(t.Context(), componenttest.NewNopHost()))
+			require.NoError(t, exp.ConsumeMetrics(t.Context(), tt.genMetrics()))
+			require.NoError(t, exp.Shutdown(t.Context()))
+
+			found := false
+			for _, s := range rec.series {
+				if s.Name == tt.wantName {
+					found = true
+					assert.Equal(t, tt.wantType, s.MType, "metric type mismatch for %s", s.Name)
+					if tt.checkHasAsTag {
+						hasAsTag := false
+						s.Tags.ForEach(func(tag string) {
+							if tag == "datadog.metric.as_type:rate" {
+								hasAsTag = true
+							}
+						})
+						assert.True(t, hasAsTag,
+							"control attribute should be present as a tag for debugging")
+					}
+					break
+				}
+			}
+			assert.True(t, found, "metric %s not found in recorded series", tt.wantName)
+		})
+	}
 }

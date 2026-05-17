@@ -232,8 +232,8 @@ func FuzzAnyValueMarshalUnmarshal(f *testing.F) {
 	})
 }
 
-func (val *AnyValue) assertEqual(t *testing.T, expected *AnyValue, actualStrings *StringTable, expectedStrings *StringTable) {
-	switch v := val.Value.(type) {
+func (av *AnyValue) assertEqual(t *testing.T, expected *AnyValue, actualStrings *StringTable, expectedStrings *StringTable) {
+	switch v := av.Value.(type) {
 	case *AnyValue_StringValueRef:
 		actualString := actualStrings.Get(v.StringValueRef)
 		expectedString := expectedStrings.Get(expected.Value.(*AnyValue_StringValueRef).StringValueRef)
@@ -415,32 +415,32 @@ func TestSpanMarshalUnmarshal_KeyValueListKeyIndexMismatch(t *testing.T) {
 	span.assertEqual(t, span2)
 }
 
-func (span *InternalSpan) assertEqual(t *testing.T, expected *InternalSpan) {
-	assert.Equal(t, expected.Service(), span.Service())
-	assert.Equal(t, expected.Name(), span.Name())
-	assert.Equal(t, expected.Resource(), span.Resource())
-	assert.Equal(t, expected.span.SpanID, span.span.SpanID)
-	assert.Equal(t, expected.span.ParentID, span.span.ParentID)
-	assert.Equal(t, expected.span.Start, span.span.Start)
-	assert.Equal(t, expected.span.Duration, span.span.Duration)
-	assert.Equal(t, expected.span.Error, span.span.Error)
-	assert.Len(t, span.span.Attributes, len(expected.span.Attributes))
+func (s *InternalSpan) assertEqual(t *testing.T, expected *InternalSpan) {
+	assert.Equal(t, expected.Service(), s.Service())
+	assert.Equal(t, expected.Name(), s.Name())
+	assert.Equal(t, expected.Resource(), s.Resource())
+	assert.Equal(t, expected.span.SpanID, s.span.SpanID)
+	assert.Equal(t, expected.span.ParentID, s.span.ParentID)
+	assert.Equal(t, expected.span.Start, s.span.Start)
+	assert.Equal(t, expected.span.Duration, s.span.Duration)
+	assert.Equal(t, expected.span.Error, s.span.Error)
+	assert.Len(t, s.span.Attributes, len(expected.span.Attributes))
 	for k, v := range expected.span.Attributes {
 		// If a key is overwritten in unmarshalling it can result in a different index
 		// so we need to lookup the key from the strings table
 		expectedKey := expected.Strings.Get(k)
-		actualKeyIndex := span.Strings.lookup[expectedKey]
-		span.span.Attributes[actualKeyIndex].assertEqual(t, v, span.Strings, expected.Strings)
+		actualKeyIndex := s.Strings.lookup[expectedKey]
+		s.span.Attributes[actualKeyIndex].assertEqual(t, v, s.Strings, expected.Strings)
 	}
 	for i, link := range expected.Links() {
-		span.Links()[i].assertEqual(t, link)
+		s.Links()[i].assertEqual(t, link)
 	}
 	for i, event := range expected.Events() {
-		span.Events()[i].assertEqual(t, event)
+		s.Events()[i].assertEqual(t, event)
 	}
-	assert.Equal(t, expected.Env(), span.Env())
-	assert.Equal(t, expected.Version(), span.Version())
-	assert.Equal(t, expected.Component(), span.Component())
-	assert.Equal(t, expected.Type(), span.Type())
-	assert.Equal(t, expected.span.Kind, span.span.Kind)
+	assert.Equal(t, expected.Env(), s.Env())
+	assert.Equal(t, expected.Version(), s.Version())
+	assert.Equal(t, expected.Component(), s.Component())
+	assert.Equal(t, expected.Type(), s.Type())
+	assert.Equal(t, expected.span.Kind, s.span.Kind)
 }

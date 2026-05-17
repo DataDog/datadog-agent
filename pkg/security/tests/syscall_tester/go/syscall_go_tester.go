@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"syscall"
 	"time"
 	"unsafe"
@@ -164,7 +165,7 @@ func SetupAndRunIMDSTest() error {
 
 func RunIMDSTest() error {
 	// create fake IMDS server
-	imdsServerAddr := fmt.Sprintf("%s:%v", testutils.IMDSTestServerIP, testutils.IMDSTestServerPort)
+	imdsServerAddr := testutils.IMDSTestServerIP + ":" + strconv.Itoa(testutils.IMDSTestServerPort)
 	imdsServer := testutils.CreateIMDSServer(imdsServerAddr)
 	defer func() {
 		if err := testutils.StopIMDSserver(imdsServer); err != nil {
@@ -269,7 +270,7 @@ func RunLoginUIDTest() error {
 }
 
 func main() {
-	flag.BoolVar(&bpfLoad, "load-bpf", false, "load the eBPF progams")
+	flag.BoolVar(&bpfLoad, "load-bpf", false, "load the eBPF programs")
 	flag.BoolVar(&bpfClone, "clone-bpf", false, "clone maps")
 	flag.BoolVar(&capsetProcessCreds, "process-credentials-capset", false, "capset test content")
 	flag.BoolVar(&k8sUserSession, "k8s-user-session", false, "user session test")

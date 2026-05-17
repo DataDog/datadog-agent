@@ -24,7 +24,6 @@ func benchmarkGetList(b *testing.B, incremental bool) {
 	if p.initErr != nil {
 		b.Skip(p.initErr)
 	}
-	b.Cleanup(func() { p.Close() })
 	for i := 0; i < b.N; i++ {
 		pl, err := p.getList()
 		if err != nil {

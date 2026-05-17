@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
@@ -115,14 +117,26 @@ func (h *Handler) Run(ctx context.Context) {
 
 		// Leading, start warmup
 		log.Infof("Becoming leader, waiting %s for node-agents to report", h.warmupDuration)
+		span := tracer.StartSpan("cluster_checks.handler.leader_warmup",
+			tracer.ResourceName("leaderWarmup"),
+			tracer.SpanType("worker"))
+		finishWarmupSpan := func(interrupted string) {
+			if interrupted != "" {
+				span.SetTag("interrupted", interrupted)
+			}
+			span.Finish()
+		}
 		select {
 		case <-ctx.Done():
+			finishWarmupSpan("context_done")
 			return
 		case newState := <-h.leadershipChan:
+			finishWarmupSpan("leadership_lost")
 			if newState != leader {
 				continue
 			}
 		case <-time.After(h.warmupDuration):
+			finishWarmupSpan("")
 			break
 		}
 
@@ -150,6 +164,10 @@ func (h *Handler) Run(ctx context.Context) {
 
 			if newState != leader {
 				log.Info("Lost leadership, reverting to follower")
+				lostSpan := tracer.StartSpan("cluster_checks.handler.leadership_lost",
+					tracer.ResourceName("leadershipLost"),
+					tracer.SpanType("worker"))
+				lostSpan.Finish()
 				dispatchCancel()
 				break // Return back to main loop start
 			}
@@ -165,9 +183,14 @@ func (h *Handler) runDispatch(ctx context.Context) {
 	// Run dispatcher loop - blocking until context is cancelled
 	h.dispatcher.run(ctx)
 
+	// RemoveScheduler must be called before reset() to close a race window: if autodiscovery
+	// fires a Schedule call between reset() clearing ksmShardedConfigs and RemoveScheduler
+	// stopping new calls, ksmShardedConfigs gets repopulated. On the next leadership cycle,
+	// isAlreadySharded returns true and the KSM check is silently dropped.
+	h.autoconfig.RemoveScheduler(schedulerName)
+
 	// Reset the dispatcher
 	h.dispatcher.reset()
-	h.autoconfig.RemoveScheduler(schedulerName)
 }
 
 func (h *Handler) leaderWatch(ctx context.Context) {

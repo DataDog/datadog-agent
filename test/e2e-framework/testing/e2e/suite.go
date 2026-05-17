@@ -434,12 +434,18 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 					diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx, stackName)
 					if diagnoseErr != nil {
 						utils.Logf(bs.T(), "WARNING: Diagnose failed: %v", diagnoseErr)
-					} else if diagnoseResult != "" {
+					}
+
+					// some diagnose calls/commands could fail, we still need any previous output that succeeded.
+					if diagnoseResult != "" {
 						utils.Logf(bs.T(), "Diagnose result: %s", diagnoseResult)
 					}
 				}
 
 			}
+
+			// set the env here so the tearDown can call diagnose too if it fails
+			bs.env = newEnv
 			return fmt.Errorf("your stack '%s' provisioning failed, check logs above. Provisioner was %s, failed with err: %v", bs.params.stackName, id, err)
 		}
 
@@ -610,7 +616,11 @@ func (bs *BaseSuite[Env]) SetupSuite() {
 	// Create the root output directory for the test suite session
 	sessionDirectory, err := runner.GetProfile().CreateOutputSubDir(bs.getSuiteSessionSubdirectory())
 	if err != nil {
-		utils.Errorf(bs.T(), "unable to create session output directory: %v", err)
+		if _, isNonFatalError := err.(runner.NonFatalError); isNonFatalError {
+			utils.Logf(bs.T(), "Non-fatal error encountered creating the session output directory: %v", err)
+		} else {
+			utils.Errorf(bs.T(), "unable to create session output directory: %v", err)
+		}
 	}
 	bs.outputDir = sessionDirectory
 	utils.Logf(bs.T(), "Suite session output directory: %s", bs.outputDir)
@@ -753,7 +763,10 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx, stackName)
 			if diagnoseErr != nil {
 				utils.Logf(bs.T(), "WARNING: Diagnose failed: %v", diagnoseErr)
-			} else if diagnoseResult != "" {
+			}
+
+			// some diagnose calls/commands could fail, we still need any previous output that succeeded.
+			if diagnoseResult != "" {
 				utils.Logf(bs.T(), "Diagnose result: %s", diagnoseResult)
 			}
 		}
@@ -794,6 +807,10 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 // If a test is explicitly restarting the agent the coverage should be saved first otherwise the counters are reset after restart.
 func (bs *BaseSuite[Env]) SaveCoverage(coverageDir string) error {
 	if coverageEnv, ok := any(bs.env).(common.Coverageable); ok {
+		// Apply coverage required override if set
+		if overrideable, ok := any(bs.env).(common.CoverageRequiredOverrideable); ok {
+			overrideable.SetCoverageRequiredOverride(bs.params.coverageRequired)
+		}
 		// Create coverage folder if it doesn't exist
 		rootTestName := strings.ToLower(strings.Split(bs.T().Name(), "/")[0])
 		coverageFolder := filepath.Join(coverageDir, rootTestName)

@@ -60,7 +60,7 @@ func hostDockerHttpbinEnvProvisioner(opt ...ec2.Option) provisioners.PulumiEnvRu
 		}
 
 		// install docker.io
-		manager, err := docker.NewManager(&awsEnv, nginxHost)
+		manager, err := docker.NewAWSManager(&awsEnv, nginxHost)
 		if err != nil {
 			return err
 		}
@@ -194,4 +194,15 @@ func (v *ec2VMSuite) TestFakeIntakeNPM_TCP_UDP_DNS_DockerRequests() {
 	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " dig @8.8.8.8 www.google.ch")
 
 	test1HostFakeIntakeNPMTCPUDPDNS(&v.BaseSuite, v.Env().FakeIntake)
+}
+
+// TestFakeIntakeNPM_ResolvConf_DockerRequests validates that connections from Docker
+// containers include resolv.conf data.
+func (v *ec2VMSuite) TestFakeIntakeNPM_ResolvConf_DockerRequests() {
+	testURL := "http://" + v.Env().HTTPBinHost.Address + "/"
+
+	// generate a connection from a Docker container
+	v.Env().RemoteHost.MustExecute("docker run --rm ghcr.io/datadog/apps-npm-tools:" + apps.Version + " curl " + testURL)
+
+	test1HostFakeIntakeNPMResolvConf(&v.BaseSuite, v.Env().FakeIntake)
 }

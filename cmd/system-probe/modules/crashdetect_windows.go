@@ -23,8 +23,7 @@ func init() { registerModule(WinCrashProbe) }
 
 // WinCrashProbe Factory
 var WinCrashProbe = &module.Factory{
-	Name:             config.WindowsCrashDetectModule,
-	ConfigNamespaces: []string{"windows_crash_detection"},
+	Name: config.WindowsCrashDetectModule,
 	Fn: func(cfg *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		log.Infof("Starting the WinCrashProbe probe")
 		cp, err := probe.NewWinCrashProbe(cfg)
@@ -45,10 +44,10 @@ type winCrashDetectModule struct {
 
 func (wcdm *winCrashDetectModule) Register(httpMux *module.Router) error {
 	// only ever allow one concurrent check of the blue screen file.
-	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, _ *http.Request) {
+	httpMux.HandleFunc("/check", utils.WithConcurrencyLimit(1, func(w http.ResponseWriter, req *http.Request) {
 		log.Infof("Got check request in crashDetect")
 		results := wcdm.WinCrashProbe.Get()
-		utils.WriteAsJSON(w, results, utils.CompactOutput)
+		utils.WriteAsJSON(req, w, results, utils.CompactOutput)
 	}))
 
 	return nil

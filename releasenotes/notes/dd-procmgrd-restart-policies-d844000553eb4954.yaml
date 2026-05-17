@@ -1,0 +1,3 @@
+features:
+  - |
+    ``dd-procmgrd`` now supervises managed processes with configurable restart policies, exponential backoff, and burst limiting.

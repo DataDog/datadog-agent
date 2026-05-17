@@ -17,11 +17,14 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"net/http/httptest"
 	_ "net/http/pprof"
 	"net/url"
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
+	"runtime/pprof"
 	"runtime/trace"
 	"strings"
 	"time"
@@ -33,9 +36,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
-	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/symdbutil"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/symdbprinter"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/uploader"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
@@ -55,6 +59,11 @@ var (
 	silent = flag.Bool("silent", false, "If set, the collected symbols are not printed.")
 
 	upload     = flag.Bool("upload", false, "If specified, the SymDB data will be uploaded through a trace-agent.")
+	noopUpload = flag.Bool("noop-upload", false,
+		"If true, exercise the upload code path (marshal JSON + gzip every "+
+			"batch) without actually performing the HTTP request. Useful for "+
+			"profiling the symdb flow end-to-end. Implies -silent. Mutually "+
+			"exclusive with -upload.")
 	uploadSite = flag.String("upload-site", "", "The site to which SymDB data will be uploaded. "+
 		"If neither -upload-site or -upload-url are specified, datad0g.com is used as the site.")
 	uploadURL = flag.String("upload-url",
@@ -65,8 +74,46 @@ var (
 	uploadVersion = flag.String("version", "", "The version to use when uploading SymDB data.")
 	uploadAPIKey  = flag.String("api-key", "", "The API key used to authenticate uploads.")
 
-	pprofPort = flag.Int("pprof-port", 8081, "Port for pprof server.")
-	traceFile = flag.String("trace", "", "Path to the file to save an execution trace to.")
+	// Knobs that mirror the system-probe symdbManager so that running the
+	// CLI is representative of the in-module behaviour for memory profiling.
+	flushThresholdBytes = flag.Int("flush-threshold-bytes", uploader.DefaultFlushThresholdBytes,
+		"Compressed-size threshold (in bytes) at which an upload batch is "+
+			"flushed as an HTTP request. Matches the system-probe symdbManager "+
+			"default.")
+	agentVersionFlag = flag.String("agent-version", version.AgentVersion,
+		"The agent version string to embed in uploaded scopes. "+
+			"Defaults to the build-time agent version (matches the system-probe).")
+	diskCacheEnabled = flag.Bool("disk-cache", true,
+		"If true, use an on-disk DiskCache for loading object files (matching "+
+			"the system-probe DiskCacheEnabled path). If false, an in-memory "+
+			"loader is used.")
+	diskCacheDir = flag.String("disk-cache-dir", "",
+		"Directory for the on-disk DiskCache. If unset, a temporary directory "+
+			"is created and removed on exit. Only used when -disk-cache is true.")
+	diskCacheMaxBytes = flag.Uint64("disk-cache-max-bytes", 2<<30, /* 2 GiB */
+		"Maximum aggregate size of cached decompressed sections, in bytes. "+
+			"Default matches the system-probe (2 GiB). Only used when -disk-cache is true.")
+	diskCacheReservedBytes = flag.Uint64("disk-cache-reserved-bytes", 512<<20, /* 512 MiB */
+		"Minimum free disk space, in bytes, that must remain after writing "+
+			"a section. Default matches the system-probe (512 MiB). "+
+			"Only used when -disk-cache is true.")
+	diskCacheReservedPercent = flag.Float64("disk-cache-reserved-percent", 0,
+		"Minimum free disk space, as a percentage, that must remain after "+
+			"writing a section. Only used when -disk-cache is true.")
+
+	pprofPort  = flag.Int("pprof-port", 8081, "Port for pprof server.")
+	traceFile  = flag.String("trace", "", "Path to the file to save a runtime/trace execution trace to.")
+	cpuProfile = flag.String("cpuprofile", "", "Path to the file to save a CPU profile to.")
+	memProfile = flag.String("memprofile", "",
+		"Where to write heap profile(s). If this is a path ending in `/` or "+
+			"an existing directory, a heap profile is written every "+
+			"-memprofile-interval into that directory as `heap-<seq>.pprof`, "+
+			"plus `heap-final.pprof` at exit. Otherwise, treated as a single "+
+			"file path written at exit only.")
+	memProfileInterval = flag.Duration("memprofile-interval", 10*time.Millisecond,
+		"Interval between periodic heap profile dumps when -memprofile is a directory.")
+	memProfRate = flag.Int("memprofilerate", 0,
+		"If non-zero, sets runtime.MemProfileRate before symbol extraction.")
 )
 
 func main() {
@@ -149,8 +196,11 @@ func run() (retErr error) {
 	}
 
 	log.Infof("Analyzing binary: %s", localBinPath)
-	start := time.Now()
 	scope := symdb.ExtractScopeAllSymbols
+
+	if *upload && *noopUpload {
+		return errors.New("-upload and -noop-upload are mutually exclusive")
+	}
 
 	var uploadURLParsed *url.URL
 	if *upload {
@@ -181,22 +231,101 @@ func run() (retErr error) {
 			return errors.New("when --upload is specified, --service and --version must also be specified")
 		}
 	}
+	if *noopUpload {
+		// Noop-upload implies silent mode (we don't print symbols when
+		// exercising the upload path, just like a real upload).
+		*silent = true
+	}
 
 	if *onlyFirstParty {
 		log.Infof("Extracting only 1st party symbols")
 		scope = symdb.ExtractScopeModulesFromSameOrg
 	}
 
+	if *memProfRate > 0 {
+		runtime.MemProfileRate = *memProfRate
+	}
+
+	// If -memprofile is a directory, start a goroutine that dumps a heap
+	// profile every -memprofile-interval. The final dump is written below,
+	// after extraction completes.
+	memProfileIsDir := false
+	var memProfileDir, memProfileFile string
+	if *memProfile != "" {
+		mp := *memProfile
+		if strings.HasSuffix(mp, string(os.PathSeparator)) {
+			memProfileIsDir = true
+			memProfileDir = strings.TrimSuffix(mp, string(os.PathSeparator))
+		} else if info, err := os.Stat(mp); err == nil && info.IsDir() {
+			memProfileIsDir = true
+			memProfileDir = mp
+		} else {
+			memProfileFile = mp
+		}
+	}
+	if memProfileIsDir {
+		if err := os.MkdirAll(memProfileDir, 0o755); err != nil {
+			return fmt.Errorf("failed to create memprofile dir %s: %w", memProfileDir, err)
+		}
+		log.Infof("Writing periodic heap profiles to %s every %s", memProfileDir, *memProfileInterval)
+		stopHeapDumper := make(chan struct{})
+		heapDumperDone := make(chan struct{})
+		go func() {
+			defer close(heapDumperDone)
+			ticker := time.NewTicker(*memProfileInterval)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-stopHeapDumper:
+					return
+				case t := <-ticker.C:
+					path := filepath.Join(memProfileDir, fmt.Sprintf("heap-%s.pprof", t.UTC().Format("2006-01-02T15-04-05.000000000Z")))
+					if err := writeHeapProfile(path); err != nil {
+						log.Warnf("failed to write periodic heap profile %s: %v", path, err)
+					}
+				}
+			}
+		}()
+		defer func() {
+			close(stopHeapDumper)
+			<-heapDumperDone
+			final := filepath.Join(memProfileDir, fmt.Sprintf("heap-final-%s.pprof", time.Now().UTC().Format("2006-01-02T15-04-05.000000000Z")))
+			if err := writeHeapProfile(final); err != nil && retErr == nil {
+				retErr = fmt.Errorf("failed to write final heap profile: %w", err)
+			}
+		}()
+	}
+
+	// Start the CPU profile, if requested. Started before the runtime trace
+	// so that StopCPUProfile() runs after Stop() of the trace.
+	if *cpuProfile != "" {
+		log.Infof("Writing CPU profile to %s", *cpuProfile)
+		f, err := os.Create(*cpuProfile)
+		if err != nil {
+			return fmt.Errorf("failed to create CPU profile file %s: %w", *cpuProfile, err)
+		}
+		defer func() {
+			if err := f.Close(); err != nil && retErr == nil {
+				retErr = fmt.Errorf("failed to close CPU profile file: %w", err)
+			}
+		}()
+		if err := pprof.StartCPUProfile(f); err != nil {
+			return fmt.Errorf("failed to start CPU profile: %w", err)
+		}
+		defer pprof.StopCPUProfile()
+	}
+
 	// Start tracing if we were asked to.
-	tracing := *traceFile != ""
-	if tracing {
+	if *traceFile != "" {
 		log.Infof("Tracing symbol extraction to %s", *traceFile)
-		f, err := os.OpenFile(*traceFile, os.O_WRONLY|os.O_CREATE, 0644)
+		f, err := os.Create(*traceFile)
 		if err != nil {
 			return fmt.Errorf("failed to open trace file %s: %w", *traceFile, err)
 		}
 		defer func() {
-			_ = f.Close()
+			if err := f.Close(); err != nil && retErr == nil {
+				retErr = fmt.Errorf("failed to close trace file: %w", err)
+			}
 		}()
 		if err := trace.Start(f); err != nil {
 			return fmt.Errorf("failed to start trace: %w", err)
@@ -204,111 +333,181 @@ func run() (retErr error) {
 		defer trace.Stop()
 	}
 
-	opt := symdb.ExtractOptions{Scope: scope}
+	// Build the object loader. When -disk-cache is set (the default), mirror
+	// the system-probe DiskCacheEnabled code path: pass the *object.DiskCache
+	// as the loader and via ExtractOptions.DiskCache so that symdb uses the
+	// on-disk generic-function index.
+	var objectLoader object.Loader
+	var diskCache *object.DiskCache
+	extractOpts := symdb.ExtractOptions{Scope: scope}
+	if *diskCacheEnabled {
+		cacheDir := *diskCacheDir
+		if cacheDir == "" {
+			d, err := os.MkdirTemp("", "symdb-cli-cache-*")
+			if err != nil {
+				return fmt.Errorf("failed to create temp disk cache dir: %w", err)
+			}
+			cacheDir = d
+			defer func() {
+				if err := os.RemoveAll(cacheDir); err != nil {
+					log.Warnf("failed to remove temp disk cache dir %s: %v", cacheDir, err)
+				}
+			}()
+		} else if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+			return fmt.Errorf("failed to create disk cache dir %s: %w", cacheDir, err)
+		}
+		log.Infof("Using on-disk object cache at %s (max %d bytes)", cacheDir, *diskCacheMaxBytes)
+		dc, err := object.NewDiskCache(object.DiskCacheConfig{
+			DirPath:                  cacheDir,
+			MaxTotalBytes:            *diskCacheMaxBytes,
+			RequiredDiskSpaceBytes:   *diskCacheReservedBytes,
+			RequiredDiskSpacePercent: *diskCacheReservedPercent,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create disk cache: %w", err)
+		}
+		objectLoader = dc
+		diskCache = dc
+		extractOpts.DiskCache = dc
+	} else {
+		objectLoader = object.NewInMemoryLoader()
+	}
 
-	var up *uploader.SymDBUploader
-	// Headers to attach to every HTTP request. When the system-probe does the
-	// uploading, it sends the data through the local trace-agent, which deals
-	// with setting these headers.
-	headers := [][2]string{
-		{"DD-EVP-ORIGIN", "symdb-cli"},
-		{"DD-EVP-ORIGIN-VERSION", "0.1"},
-		{"DD-API-KEY", *uploadAPIKey},
-	}
-	if *upload {
-		up = uploader.NewSymDBUploader(
-			uploadURLParsed.String(),
-			*uploadService, *uploadVersion,
-			fmt.Sprintf("manual-upload-%d", rand.Intn(1000)),
-			headers...,
-		)
-	}
-	out := symdbutil.MakePanickingWriter(os.Stdout)
-	it, err := symdb.PackagesIterator(localBinPath, object.NewInMemoryLoader(), opt)
+	start := time.Now()
+
+	it, err := symdb.PackagesIterator(localBinPath, objectLoader, extractOpts)
 	if err != nil {
 		return err
 	}
 
-	uploadBuffer := make([]uploader.Scope, 0, 100)
-	bufferFuncs := 0
-	// Flush every so ofter in order to not store too many scopes in memory.
-	const maxBufferFuncs = 10000
-	uploadID := uuid.New()
-	batchNum := 0
-	maybeFlush := func(final bool) error {
-		if len(uploadBuffer) == 0 {
-			return nil
-		}
-		if final || bufferFuncs >= maxBufferFuncs {
-			log.Tracef("SymDB: uploading symbols chunk: %d packages, %d functions", len(uploadBuffer), bufferFuncs)
-			err := up.UploadBatch(
-				context.Background(),
-				uploader.UploadInfo{
-					UploadID: uploadID,
-					BatchNum: batchNum,
-					Final:    final,
-				},
-				uploadBuffer)
-			if err != nil {
-				return fmt.Errorf("upload failed: %w", err)
+	// Build the per-yield encoder. Three modes:
+	//  - -upload: real BatchEncoder shipping to a SymDB intake.
+	//  - -noop-upload: real BatchEncoder shipping to an in-process
+	//    httptest.Server whose handler reads each request body to EOF and
+	//    discards it. This exercises the entire upload pipeline (JSON +
+	//    gzip + multipart + HTTP send + connection lifecycle) without
+	//    talking to a real intake.
+	//  - neither: printingEncoder that prints each package via
+	//    symdbprinter (or just counts, when -silent is set).
+	var enc uploader.PackageEncoder
+	switch {
+	case *upload, *noopUpload:
+		var (
+			intakeURL string
+			service   = *uploadService
+			version   = *uploadVersion
+			headers   [][2]string
+		)
+		if *upload {
+			// Headers to attach to every HTTP request. When the
+			// system-probe does the uploading, it sends the data through
+			// the local trace-agent, which deals with setting these
+			// headers. The CLI uploads directly so it must set them
+			// itself.
+			intakeURL = uploadURLParsed.String()
+			headers = [][2]string{
+				{"DD-EVP-ORIGIN", "symdb-cli"},
+				{"DD-EVP-ORIGIN-VERSION", "0.1"},
+				{"DD-API-KEY", *uploadAPIKey},
 			}
-			uploadBuffer = uploadBuffer[:0]
-			bufferFuncs = 0
+		} else {
+			// -noop-upload: the BatchEncoder still expects a real HTTP
+			// endpoint to POST batches to, so we stand up an in-process
+			// server that drains and discards each request body. This
+			// exercises the full upload pipeline (marshal, gzip, multipart,
+			// HTTP send) end-to-end without needing a real intake.
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = io.Copy(io.Discard, r.Body)
+				_ = r.Body.Close()
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer srv.Close()
+			intakeURL = srv.URL
+			service = "noop-service"
+			version = "noop-version"
+			log.Infof("Exercising upload pipeline against in-process server %s.", srv.URL)
 		}
-		return nil
+		runtimeID := fmt.Sprintf("manual-upload-%d", rand.Intn(1000))
+		realEnc, err := uploader.NewBatchEncoder(
+			intakeURL, service, version, runtimeID,
+			uuid.New(), diskCache, headers,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to create batch encoder: %w", err)
+		}
+		defer func() { _ = realEnc.Close() }()
+		enc = realEnc
+	default:
+		enc = &printingEncoder{out: os.Stdout, silent: *silent}
 	}
 
-	var stats symbolStats
-	for pkg, err := range it {
-		if err != nil {
+	stats, err := uploader.RunUploadLoop(
+		context.Background(), enc, it, *agentVersionFlag, *flushThresholdBytes,
+	)
+	if err != nil {
+		return fmt.Errorf("upload failed: %w", err)
+	}
+	if *upload || *noopUpload {
+		log.Infof("SymDB: Successfully uploaded symbols: %d packages, %d functions, %d chunks",
+			stats.Packages, stats.Functions, stats.Batches)
+	}
+
+	log.Infof("Symbol extraction completed in %s.", time.Since(start))
+	log.Infof("Symbol statistics for %s: Packages: %d, Functions: %d",
+		localBinPath, stats.Packages, stats.Functions)
+
+	if *silent && !*upload && !*noopUpload {
+		log.Infof("--silent specified; symbols not serialized.")
+	}
+
+	if memProfileFile != "" {
+		log.Infof("Writing heap profile to %s", memProfileFile)
+		runtime.GC()
+		if err := writeHeapProfile(memProfileFile); err != nil {
 			return err
 		}
-
-		if up != nil {
-			scope := uploader.ConvertPackageToScope(pkg.Package, "cli" /* agentVersion */)
-			uploadBuffer = append(uploadBuffer, scope)
-			bufferFuncs += pkg.Stats().NumFunctions
-			if err := maybeFlush(pkg.Final); err != nil {
-				return err
-			}
-		}
-
-		stats.addPackage(pkg.Package)
-
-		if !*silent {
-			pkg.Serialize(out)
-		}
-	}
-	log.Info("Upload completed")
-
-	trace.Stop()
-	log.Infof("Symbol extraction completed in %s.", time.Since(start))
-	log.Infof("Symbol statistics for %s: %s", localBinPath, stats)
-
-	if *silent && !*upload {
-		log.Infof("--silent specified; symbols not serialized.")
 	}
 
 	return nil
 }
 
-type symbolStats struct {
-	numPackages  int
-	numTypes     int
-	numFunctions int
+// writeHeapProfile writes the current heap profile to path. Does not run a
+// GC first; the caller is responsible for triggering a GC if it wants the
+// profile to reflect post-GC state.
+func writeHeapProfile(path string) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("failed to create heap profile file %s: %w", path, err)
+	}
+	defer f.Close()
+	if err := pprof.Lookup("heap").WriteTo(f, 0); err != nil {
+		return fmt.Errorf("failed to write heap profile %s: %w", path, err)
+	}
+	return nil
 }
 
-func (stats *symbolStats) addPackage(pkg symdb.Package) {
-	stats.numPackages++
-	s := pkg.Stats()
-	stats.numTypes += s.NumTypes
-	stats.numFunctions += s.NumFunctions
+// printingEncoder satisfies uploader.PackageEncoder by rendering each
+// AddPackage call as text to out via symdbprinter. Size always returns 0 and
+// Flush is a no-op, so RunUploadLoop never tries to flush a batch.
+type printingEncoder struct {
+	out    io.Writer
+	silent bool
 }
 
-func (stats symbolStats) String() string {
-	return fmt.Sprintf("Packages: %d, Types: %d, Functions: %d",
-		stats.numPackages, stats.numTypes, stats.numFunctions)
+func (p *printingEncoder) AddPackage(pkg symdb.Package, agentVersion string) error {
+	if p.silent {
+		return nil
+	}
+	scope := uploader.ConvertPackageToScope(pkg, agentVersion)
+	if err := symdbprinter.SerializeScope(p.out, scope); err != nil {
+		return fmt.Errorf("failed to serialize package: %w", err)
+	}
+	return nil
 }
+
+func (p *printingEncoder) Size() int                         { return 0 }
+func (p *printingEncoder) Flush(context.Context, bool) error { return nil }
+func (p *printingEncoder) Close() error                      { return nil }
 
 // extractBinaryFromImage extracts a binary from an image and returns the path
 // to the extracted file.

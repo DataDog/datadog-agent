@@ -175,6 +175,14 @@ func convertDDSketchIntoSketch(c *Config, inputSketch *ddsketch.DDSketch) (*Sket
 	// single key if the count overflows uint16
 	sparseStore.insertCounts(c, keyCounts)
 
+	// Deep-copy bins so the returned Sketch owns its memory independently of
+	// the pool. Without this copy, sparseStore.bins shares the pool's backing
+	// array: once putBinList returns it, the next getBinList call writes over
+	// the same memory, silently corrupting earlier sketches (use-after-free).
+	ownedBins := make([]bin, len(sparseStore.bins))
+	copy(ownedBins, sparseStore.bins)
+	sparseStore.bins = ownedBins
+
 	// Create summary object
 	sum := inputSketch.GetSum()
 	avg := sum / float64(cnt)
@@ -216,6 +224,9 @@ func ConvertDDSketchIntoSketch(inputSketch *ddsketch.DDSketch) (*Sketch, error) 
 	if err != nil {
 		return nil, fmt.Errorf("couldn't convert input ddsketch into ddsketch with compatible parameters: %w", err)
 	}
+	// Return the intermediate sketch's pooled stores once we are done reading them.
+	defer putDenseStore(compatibleDDSketch.GetPositiveValueStore())
+	defer putDenseStore(compatibleDDSketch.GetNegativeValueStore())
 
 	outputSketch, err := convertDDSketchIntoSketch(sketchConfig, compatibleDDSketch)
 	if err != nil {

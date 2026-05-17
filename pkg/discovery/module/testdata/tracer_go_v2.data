@@ -1,0 +1,1 @@
+Š®schema_versionªruntime_idÙ$bfed5675-a8f9-4d3d-a630-64713d543d1a¯tracer_language¢go®tracer_version¬v2.3.0-dev.1¨hostname«my-hostname¬service_name§test-go«service_env¤prod¯service_version¦abc123¬process_tagsÙdentrypoint.basedir:exe,entrypoint.name:gotrace,entrypoint.type:executable,entrypoint.workdir:gotrace¬container_idÙ$d7827075-010c-4e21-a663-daa3cd34e6f2

@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -21,7 +21,7 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	securityagent "github.com/DataDog/datadog-agent/comp/metadata/securityagent/def"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -71,7 +71,7 @@ type Requires struct {
 // Provides defines the output of the securityagent metadata component
 type Provides struct {
 	Comp             securityagent.Component
-	MetadataProvider runnerimpl.Provider
+	MetadataProvider runnerdef.Provider
 	FlareProvider    flaretypes.Provider
 	Endpoint         api.AgentEndpointProvider
 }

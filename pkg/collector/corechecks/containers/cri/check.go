@@ -11,7 +11,7 @@ package cri
 import (
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
+	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -70,9 +70,9 @@ func (c *CRIConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (c *CRICheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+func (c *CRICheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string, provider string) error {
 	var err error
-	if err = c.CommonConfigure(senderManager, initConfig, config, source); err != nil {
+	if err = c.CommonConfigure(senderManager, initConfig, config, source, provider); err != nil {
 		return err
 	}
 

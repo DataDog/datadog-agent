@@ -6,7 +6,10 @@
 //nolint:revive // TODO(APL) Fix revive linter
 package api
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 //nolint:revive // TODO(APL) Fix revive linter
 type Payload struct {
@@ -46,6 +49,15 @@ type APIFakeIntakeRouteStatsGETResponse struct {
 	Routes map[string]RouteStat `json:"routes"`
 }
 
+// PARTaskResult captures what the Private Action Runner published for a completed task.
+type PARTaskResult struct {
+	TaskID       string                 `json:"task_id"`
+	Success      bool                   `json:"success"`
+	Outputs      map[string]interface{} `json:"outputs,omitempty"`
+	ErrorCode    int                    `json:"error_code,omitempty"`
+	ErrorDetails string                 `json:"error_details,omitempty"`
+}
+
 // ResponseOverride is a hardcoded response for requests to the given endpoint
 type ResponseOverride struct {
 	Endpoint    string `json:"endpoint"`
@@ -53,4 +65,35 @@ type ResponseOverride struct {
 	ContentType string `json:"content_type"`
 	Method      string `json:"method"`
 	Body        []byte `json:"body"`
+}
+
+// RCConfig is a single Remote Config entry exposed via the fakeintake control API.
+type RCConfig struct {
+	OrgID      string `json:"org_id"`
+	Product    string `json:"product"`
+	ConfigID   string `json:"config_id"`
+	ConfigName string `json:"config_name"`
+	Data       []byte `json:"data"`
+}
+
+// RCAddConfigRequest is the body accepted by POST /fakeintake/rc/config.
+// Data may be raw JSON bytes (preferred) or any JSON value; the server
+// re-marshals it for stable storage.
+type RCAddConfigRequest struct {
+	OrgID      string          `json:"org_id"`
+	Product    string          `json:"product"`
+	ConfigID   string          `json:"config_id"`
+	ConfigName string          `json:"config_name"`
+	Data       json.RawMessage `json:"data"`
+}
+
+// RCStats is returned by GET /fakeintake/rc/stats.
+type RCStats struct {
+	Polls        uint64    `json:"polls"`
+	LastPoll     time.Time `json:"last_poll"`
+	Version      uint64    `json:"version"`
+	ConfigsCount int       `json:"configs_count"`
+	KeyID        string    `json:"key_id"`
+	PublicKey    string    `json:"public_key"`
+	RootJSON     string    `json:"root_json"`
 }

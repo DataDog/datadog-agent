@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix a panic in the OTLP metrics pipeline when a sender submits a histogram
+    with more ``BucketCounts`` entries than ``ExplicitBounds`` allows (violating
+    the ``counts == bounds + 1`` OpenTelemetry specification invariant). Such
+    data points are now rejected with an error instead of crashing the agent.

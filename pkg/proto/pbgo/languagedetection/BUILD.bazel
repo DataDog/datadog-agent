@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")
+
+write_pb_go(
+    name = "write_pb_go",
+    srcs = {
+        "//pkg/proto/datadog/languagedetection:languagedetection_go_proto": [
+            "api.pb.go",
+        ],
+    },
+)
+
+go_library(
+    name = "languagedetection",
+    srcs = ["api.pb.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+    ],
+)

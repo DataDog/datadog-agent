@@ -1,0 +1,9 @@
+# Test that invalid URLs in additional endpoints are skipped
+site: datadoghq.com
+api_key: main_key
+apm_config:
+  profiling_additional_endpoints:
+    not-a-valid-url:
+      - should_be_skipped
+    https://intake.profile.datadoghq.eu/api/v2/profile:
+      - eu_key_1

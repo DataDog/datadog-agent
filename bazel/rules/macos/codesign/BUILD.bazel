@@ -1,0 +1,20 @@
+load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
+load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+
+package(default_visibility = ["//visibility:private"])
+
+sh_binary(
+    name = "sign_jar_macos",
+    srcs = ["sign_jar_macos.sh"],
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)
+
+bzl_library(
+    name = "code_sign_jar_macos_bzl",
+    srcs = ["code_sign_jar_macos.bzl"],
+    visibility = ["//visibility:public"],
+    deps = ["@bazel_skylib//:bzl_library"],
+)
+
+exports_files(["Entitlements.plist"])

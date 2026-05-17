@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -51,7 +52,7 @@ func (e FailedDNSEvent) ToJSON() ([]byte, error) {
 }
 
 // NewAbnormalEvent returns the rule and a populated custom event for an abnormal event
-func NewAbnormalEvent(acc *events.AgentContainerContext, id string, description string, event *model.Event, scrubber *utils.Scrubber, err error) (*rules.Rule, *events.CustomEvent) {
+func NewAbnormalEvent(acc *events.AgentContainerContext, id string, description string, event *model.Event, scrubber *utils.Scrubber, err error, opts *eval.Opts) (*rules.Rule, *events.CustomEvent) {
 	marshalerCtor := func() events.EventMarshaler {
 		evt := AbnormalEvent{
 			Event: serializers.NewEventSerializer(event, nil, scrubber),
@@ -64,11 +65,11 @@ func NewAbnormalEvent(acc *events.AgentContainerContext, id string, description 
 		return evt
 	}
 
-	return events.NewCustomRule(id, description), events.NewCustomEventLazy(model.CustomEventType, marshalerCtor)
+	return events.NewCustomRule(id, description, opts), events.NewCustomEventLazy(model.CustomEventType, marshalerCtor)
 }
 
 // NewFailedDNSEvent returns the rule and a populated custom event for a failed dns packet decoding
-func NewFailedDNSEvent(acc *events.AgentContainerContext, id string, description string, event *model.Event) (*rules.Rule, *events.CustomEvent) {
+func NewFailedDNSEvent(acc *events.AgentContainerContext, id string, description string, event *model.Event, opts *eval.Opts) (*rules.Rule, *events.CustomEvent) {
 	marshalerCtor := func() events.EventMarshaler {
 		evt := FailedDNSEvent{
 			Payload: base64.StdEncoding.EncodeToString(event.FailedDNS.Payload),
@@ -80,7 +81,7 @@ func NewFailedDNSEvent(acc *events.AgentContainerContext, id string, description
 		return evt
 	}
 
-	return events.NewCustomRule(id, description), events.NewCustomEventLazy(model.CustomEventType, marshalerCtor)
+	return events.NewCustomRule(id, description, opts), events.NewCustomEventLazy(model.CustomEventType, marshalerCtor)
 }
 
 // EBPFLessHelloMsgEvent defines a hello message
@@ -95,6 +96,7 @@ type EBPFLessHelloMsgEvent struct {
 		ImageShortName string `json:"short_name,omitempty"`
 		ImageTag       string `json:"image_tag,omitempty"`
 	} `json:"workload_container,omitempty"`
+	CGroupID       string   `json:"cgroup_id,omitempty"`
 	EntrypointArgs []string `json:"args,omitempty"`
 }
 
@@ -111,7 +113,8 @@ func NewEBPFLessHelloMsgEvent(acc *events.AgentContainerContext, msg *ebpfless.H
 	}
 
 	evt := EBPFLessHelloMsgEvent{
-		NSID: msg.NSID,
+		NSID:     msg.NSID,
+		CGroupID: string(msg.CGroupID),
 	}
 	evt.Container.ID = string(msg.ContainerContext.ID)
 
@@ -130,5 +133,5 @@ func NewEBPFLessHelloMsgEvent(acc *events.AgentContainerContext, msg *ebpfless.H
 
 	evt.FillCustomEventCommonFields(acc)
 
-	return events.NewCustomRule(events.EBPFLessHelloMessageRuleID, events.EBPFLessHelloMessageRuleDesc), events.NewCustomEvent(model.CustomEventType, evt)
+	return events.NewCustomRule(events.EBPFLessHelloMessageRuleID, events.EBPFLessHelloMessageRuleDesc, nil), events.NewCustomEvent(model.CustomEventType, evt)
 }

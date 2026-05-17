@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate stringer -type=HashState -linecomment -output model_string.go
+//go:generate go run golang.org/x/tools/cmd/stringer -type=HashState -linecomment -output model_string.go
 
 // Package model holds model related files
 package model
@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
@@ -93,12 +94,37 @@ func (r *Releasable) AppendReleaseCallback(callback func()) {
 	}
 }
 
+// ContainerSource indicates the origin of a container entry
+type ContainerSource uint64
+
+const (
+	// ContainerSourceUnknown defines a container entry from an unknown source
+	ContainerSourceUnknown ContainerSource = iota
+	// ContainerSourceEvent defines a container entry populated from a kernel event
+	ContainerSourceEvent
+	// ContainerSourceProcFS defines a container entry populated from the procfs fallback
+	ContainerSourceProcFS
+)
+
+// String returns a string representation of the container source
+func (s ContainerSource) String() string {
+	switch s {
+	case ContainerSourceEvent:
+		return "event"
+	case ContainerSourceProcFS:
+		return "procfs"
+	default:
+		return "unknown"
+	}
+}
+
 // ContainerContext holds the container context of an event
 type ContainerContext struct {
 	*Releasable
-	ContainerID containerutils.ContainerID `field:"id,opts:gen_getters"`                                        // SECLDoc[id] Definition:`ID of the container`
-	CreatedAt   uint64                     `field:"created_at,opts:gen_getters"`                                // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
-	Tags        []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
+	ContainerID     containerutils.ContainerID `field:"id,opts:gen_getters"`                                        // SECLDoc[id] Definition:`ID of the container`
+	CreatedAt       uint64                     `field:"created_at,opts:gen_getters"`                                // SECLDoc[created_at] Definition:`Timestamp of the creation of the container``
+	Tags            []string                   `field:"tags,handler:ResolveContainerTags,opts:skip_ad,weight:9999"` // SECLDoc[tags] Definition:`Tags of the container`
+	ContainerSource ContainerSource            `field:"-"`
 }
 
 // Hash returns a unique key for the entity
@@ -106,6 +132,11 @@ func (c *ContainerContext) Hash() eval.ScopeHashKey {
 	return eval.ScopeHashKey{
 		String: string(c.ContainerID),
 	}
+}
+
+// UnixCreatedAt returns the creation time of the container
+func (c *ContainerContext) UnixCreatedAt() time.Time {
+	return time.Unix(0, int64(c.CreatedAt))
 }
 
 // IsNull returns true if the container context is null
@@ -225,7 +256,7 @@ func initMember(member reflect.Value, deja map[string]bool) {
 		field := member.Field(i)
 
 		switch field.Kind() {
-		case reflect.Ptr:
+		case reflect.Pointer:
 			if field.CanSet() {
 				field.Set(reflect.New(field.Type().Elem()))
 			}
@@ -291,6 +322,14 @@ func (e *Event) IsEventFromReplay() bool {
 	return e.Flags&EventFlagsFromReplay > 0
 }
 
+// IsEventInternal returns true if this is an internal event.
+// Internal events are emitted by the kernel side to keep userspace caches and
+// resources in sync; they don't reflect a user-visible action and rule
+// evaluation can be skipped for them.
+func (e *Event) IsEventInternal() bool {
+	return e.Flags&EventFlagsInternal > 0
+}
+
 // AddToFlags adds a flag to the event
 func (e *Event) AddToFlags(flag uint32) {
 	e.Flags |= flag
@@ -354,12 +393,12 @@ func (e *Event) ResolveService() string {
 	return e.FieldHandlers.ResolveService(e, &e.BaseEvent)
 }
 
-// GetProcessTracerTags returns the value of the field, resolving if necessary
-func (e *Event) GetProcessTracerTags() []string {
+// GetProcessTracerMetadata returns the tracer metadata of the process
+func (e *Event) GetProcessTracerMetadata() tracermetadata.TracerMetadata {
 	if e.BaseEvent.ProcessContext == nil {
-		return []string{}
+		return tracermetadata.TracerMetadata{}
 	}
-	return e.BaseEvent.ProcessContext.Process.TracerTags
+	return e.BaseEvent.ProcessContext.Process.TracerMetadata
 }
 
 // UserSessionContext describes the user session context
@@ -389,6 +428,7 @@ type SSHSessionContext struct {
 	SSHClientIP   net.IPNet `field:"ssh_client_ip" json:"client_ip,omitempty"`       // SECLDoc[ssh_client_ip] Definition:`SSH client IP of the user that executed the process`
 	SSHAuthMethod int       `field:"ssh_auth_method" json:"auth_method,omitempty"`   // SECLDoc[ssh_auth_method] Definition:`SSH authentication method used by the user` Constants:`SSHAuthMethod`
 	SSHPublicKey  string    `field:"ssh_public_key" json:"public_key,omitempty"`     // SECLDoc[ssh_public_key] Definition:`SSH public key used for authentication (if applicable)`
+	SSHDPid       uint32    `field:"-" json:"-"`                                     // Internal field
 }
 
 // MatchedRule contains the identification of one rule that has match
@@ -513,9 +553,23 @@ func (ha HashAlgorithm) String() string {
 
 var zeroProcessContext ProcessContext
 
+// SnapshottedBoundSocket represents a snapshotted bound socket
+type SnapshottedBoundSocket struct {
+	IP       net.IP
+	Port     uint16
+	Family   uint16
+	Protocol uint16
+}
+
+// SnapshottedMmapedFile represents a snapshotted memory-mapped file
+type SnapshottedMmapedFile struct {
+	Path string
+}
+
 // ProcessCacheEntry this struct holds process context kept in the process tree
 type ProcessCacheEntry struct {
 	ProcessContext
+	Children []*ProcessCacheEntry `field:"-" copy:"-"`
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
@@ -632,11 +686,11 @@ type ExitEvent struct {
 
 // DNSQuestion represents the dns question
 type DNSQuestion struct {
-	Name  string `field:"name,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[name] Definition:`the queried domain name`
-	Type  uint16 `field:"type"`                                                   // SECLDoc[type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
-	Class uint16 `field:"class"`                                                  // SECLDoc[class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
-	Size  uint16 `field:"length"`                                                 // SECLDoc[length] Definition:`the total DNS request size in bytes`
-	Count uint16 `field:"count"`                                                  // SECLDoc[count] Definition:`the total count of questions in the DNS request`
+	Name  string `field:"name,opts:length|root_domain" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[name] Definition:`the queried domain name`
+	Type  uint16 `field:"type"`                                                               // SECLDoc[type] Definition:`a two octet code which specifies the DNS question type` Constants:`DNS qtypes`
+	Class uint16 `field:"class"`                                                              // SECLDoc[class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
+	Size  uint16 `field:"length"`                                                             // SECLDoc[length] Definition:`the total DNS request size in bytes`
+	Count uint16 `field:"count"`                                                              // SECLDoc[count] Definition:`the total count of questions in the DNS request`
 }
 
 // DNSEvent represents a DNS request event

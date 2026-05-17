@@ -14,6 +14,7 @@ import (
 	"expvar"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -241,7 +242,7 @@ func getKubeletClient(ctx context.Context) (*kubeletClient, error) {
 		}
 
 		clientConfig.useAPIServer = true
-		clientConfig.apiServerHost = fmt.Sprintf("https://%s:%s", apiServerHost, apiServerPort)
+		clientConfig.apiServerHost = "https://" + net.JoinHostPort(apiServerHost, apiServerPort)
 
 		log.Infof("kubeletUseApiServer set to true, pod list queries will be sent to the apiserver at: %s/api/v1/pods", clientConfig.apiServerHost)
 	}

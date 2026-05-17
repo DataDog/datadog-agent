@@ -34,6 +34,14 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 	if oc, ok := c.(*onCloseConn); ok {
 		c = oc.Conn
 	}
+	switch c.(type) {
+	case *net.UnixConn:
+		ctx = withConnectionType(ctx, ConnectionTypeUDS)
+	case *net.TCPConn:
+		ctx = withConnectionType(ctx, ConnectionTypeTCP)
+	default:
+		ctx = withConnectionType(ctx, ConnectionTypeUnknown)
+	}
 	s, ok := c.(*net.UnixConn)
 	if !ok {
 		return ctx
@@ -60,11 +68,6 @@ func connContext(ctx context.Context, c net.Conn) context.Context {
 	}
 
 	return context.WithValue(ctx, ucredKey{}, ucred)
-}
-
-// IDProvider implementations are able to look up a container ID given a ctx and http header.
-type IDProvider interface {
-	GetContainerID(context.Context, http.Header) string
 }
 
 // noCgroupsProvider is a fallback IDProvider that only looks in the http header for a container ID.

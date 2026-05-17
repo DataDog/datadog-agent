@@ -1,17 +1,15 @@
 """Agent specific BUILD file for xz-utils / liblzma."""
 
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(
     default_package_metadata = [":license"],
-    default_visibility = ["//packages:__subpackages__"],
+    default_visibility = ["@@//packages:__subpackages__"],
 )
 
 alias(
@@ -51,7 +49,7 @@ _API_HEADERS = glob([
 cc_library(
     name = "xz_config",
     hdrs = [
-        "config.h"
+        "config.h",
     ],
 )
 
@@ -118,13 +116,6 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-so_symlink(
-    name = "lib_files",
-    src = ":lzma",
-    libname = "liblzma",
-    version = VERSION,
-)
-
 pkg_files(
     name = "main_header",
     srcs = _MAIN_HEADER,
@@ -137,28 +128,23 @@ pkg_files(
     prefix = "include/lzma",
 )
 
-expand_template(
-    name = "gen_pkgconfig",
-    template = "@@//deps/xz:liblzma.pc.in",
-    out = "liblzma.pc",
-    substitutions = {
-        "{{VERSION}}": VERSION,
-    },
+dd_cc_packaged(
+    name = "lzma_pkg",
+    input = ":lzma",
+    version = VERSION,
+    installed_files = [
+        ":main_header",
+        ":api_headers",
+    ],
     visibility = ["//visibility:public"],
 )
 
-pkg_files(
-    name = "pkgconfig",
-    srcs = [":gen_pkgconfig"],
-    prefix = "lib/pkgconfig",
-)
-
-pkg_install(
-    name = "install",
+pkg_filegroup(
+    name = "all_files",
     srcs = [
         ":main_header",
         ":api_headers",
-        ":lib_files",
-        ":pkgconfig",
     ],
+    prefix = "embedded",
+    visibility = ["//visibility:public"],
 )

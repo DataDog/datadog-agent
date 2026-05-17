@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    dd-procmgrd: Add write RPCs (Create, Start, Stop, ReloadConfig, GetConfig) for runtime control of managed processes.

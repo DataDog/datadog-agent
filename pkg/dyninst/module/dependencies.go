@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
@@ -53,6 +54,7 @@ type ProcessSubscriber interface {
 type IRGenerator interface {
 	GenerateIR(
 		_ ir.ProgramID, binaryPath string, _ []ir.ProbeDefinition,
+		options ...irgen.Option,
 	) (*ir.Program, error)
 }
 
@@ -66,11 +68,22 @@ type KernelLoader interface {
 	Load(compiler.Program) (*loader.Program, error)
 }
 
-// Attacher connects a loaded program to a target process.
+// Attacher connects a loaded program to a target process. The
+// returned AttachedProgram is wrapped by the runtime in
+// attachedProgramImpl before it reaches the actuator, so it only
+// needs to satisfy the inner Detach contract.
 type Attacher interface {
 	Attach(
 		*loader.Program, actuator.Executable, actuator.ProcessID,
-	) (actuator.AttachedProgram, error)
+	) (InnerAttachedProgram, error)
+}
+
+// InnerAttachedProgram is the contract the module runtime requires of
+// an attached uprobe handle (the inner side of attachedProgramImpl).
+// It is intentionally narrower than actuator.AttachedProgram: the
+// runtime adds the per-probe diagnostic plumbing on top.
+type InnerAttachedProgram interface {
+	Detach(reason error) error
 }
 
 // DecoderFactory is a factory for creating decoders.
@@ -81,10 +94,12 @@ type DecoderFactory interface {
 // Decoder is a decoder for a program.
 type Decoder interface {
 	// Decode writes the decoded event to the output writer and returns the
-	// relevant probe definition.
+	// relevant probe definition. If missingTypes is nil, missing types are
+	// silently ignored.
 	Decode(
 		event decode.Event,
 		symbolicator symbol.Symbolicator,
+		missingTypes decode.MissingTypeCollector,
 		out []byte,
 	) ([]byte, ir.ProbeDefinition, error)
 
@@ -143,12 +158,14 @@ func (f decoderFactory) NewDecoder(
 type Actuator interface {
 	HandleUpdate(update actuator.ProcessesUpdate)
 	SetRuntime(runtime actuator.Runtime)
+	ReportMissingTypes(processID actuator.ProcessID, typeNames []string)
 }
 
 // Dispatcher coordinates with the output dispatcher runtime.
 type Dispatcher interface {
 	RegisterSink(progID ir.ProgramID, sink dispatcher.Sink)
 	UnregisterSink(progID ir.ProgramID)
+	EvictOlderThan(progID ir.ProgramID, cutoffKtimeNs uint64)
 	Shutdown() error
 }
 

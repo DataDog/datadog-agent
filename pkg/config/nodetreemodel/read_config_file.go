@@ -12,8 +12,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -47,6 +48,16 @@ func (c *ntmConfig) ReadInConfig() error {
 
 	c.findConfigFile()
 	if err := c.readInConfig(c.configFile); err != nil {
+		// For compatibility with Viper, we wrap the error with ErrConfigFileNotFound. Note
+		// that this case can be reached even if the config file *is* found. For example,
+		// if the config file at the default location (/opt/datadog-agent/etc/datadog.yaml)
+		// contains unparseable data, this branch is reached. This specific return value is
+		// checked during the config.Component constructor here:
+		// https://github.com/DataDog/datadog-agent/blob/31d06e70d70081d166b628efcf6c444b8aef5fbc/comp/core/config/setup.go#L53
+		// Meaning parser errors *won't* prevent the config.Component from initializing.
+		if !errors.Is(err, model.ErrConfigFileNotFound) {
+			return model.NewConfigFileNotFoundError(err) // nolint: forbidigo // needed for compatibility
+		}
 		return err
 	}
 
@@ -99,7 +110,7 @@ func (c *ntmConfig) readConfigurationContent(target *nodeImpl, source model.Sour
 			return err
 		}
 	}
-	c.warnings = append(c.warnings, loadYamlInto(target, source, inData, "", c.defaults, c.knownKeys, c.unknownKeys)...)
+	c.warnings = append(c.warnings, loadYamlInto(target, source, inData, "", c.defaults, c.knownKeys, &c.unknownKeys)...)
 	return nil
 }
 
@@ -122,7 +133,7 @@ var valuelessLeaf = &nodeImpl{}
 
 // loadYamlInto traverses input data parsed from YAML, checking if each node is defined by the schema.
 // If found, the value from the YAML blob is imported into the 'dest' tree. Otherwise, a warning will be created.
-func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interface{}, atPath string, schema *nodeImpl, knownKeys map[string]bool, unknownKeys map[string]struct{}) []error {
+func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interface{}, atPath string, schema *nodeImpl, knownKeys map[string]bool, unknownKeys *sync.Map) []error {
 	warnings := []error{}
 	for key, value := range inData {
 		key = strings.ToLower(key)
@@ -150,7 +161,7 @@ func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interfa
 				// if the key is not defined in the schema, we can still add it to the destination
 				if value == nil || isScalar(value) || isSlice(value) {
 					dest.InsertChildNode(key, newLeafNode(value, source))
-					unknownKeys[currPath] = struct{}{}
+					unknownKeys.Store(currPath, struct{}{})
 					continue
 				}
 
@@ -179,6 +190,13 @@ func loadYamlInto(dest *nodeImpl, source model.Source, inData map[string]interfa
 				//    setting_name_1:      # no value -> nil in Go
 				//    setting name_2: 1234
 				if value != nil {
+					if converted, err := convertToDefaultType(value, schemaChild.Get()); err == nil {
+						value = converted
+					}
+					// normalize YAML v2 map[interface{}]interface{} to map[string]interface{}
+					if normalized, err := ToMapStringInterface(value, currPath); err == nil {
+						value = normalized
+					}
 					dest.InsertChildNode(key, newLeafNode(value, source))
 				}
 			}

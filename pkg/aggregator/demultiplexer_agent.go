@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
@@ -167,7 +168,7 @@ func initAgentDemultiplexer(log log.Component,
 	// prepare the embedded aggregator
 	// --
 
-	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, haAgent, tagger, hostname, options.FlushInterval)
+	agg := NewBufferedAggregator(sharedSerializer, eventPlatformForwarder, haAgent, tagger, hostname, options.FlushInterval, filterList)
 
 	// statsd samplers
 	// ---------------
@@ -189,7 +190,7 @@ func initAgentDemultiplexer(log log.Component,
 
 		statsdWorkers[i] = newTimeSamplerWorker(statsdSampler, options.FlushInterval,
 			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel, tagsStore,
-			filterList.GetMetricFilterList(), filterList.GetTagFilterList())
+			filterList.GetHistoFilterList(), filterList.GetTagFilterList())
 	}
 
 	var noAggWorker *noAggregationStreamWorker
@@ -245,6 +246,42 @@ func (d *AgentDemultiplexer) Options() AgentDemultiplexerOptions {
 	return d.options
 }
 
+// SetObserver wires an observer component into the DogStatsD metric pipeline
+// and the BufferedAggregator → CheckSampler path (Go core checks).
+//
+// Requires both anomaly_detection.enabled and anomaly_detection.metrics.enabled to be true.
+// Every raw metric sample passing through the time-sampler workers, the
+// no-aggregation pipeline, and every CheckSampler will be forwarded to the
+// provided observer handle before aggregation. The call is a no-op when
+// either flag is off or obs is nil, so default overhead is zero.
+func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
+	if obs == nil {
+		return
+	}
+	cfg := pkgconfigsetup.Datadog()
+	if !cfg.GetBool("anomaly_detection.enabled") {
+		d.log.Debug("Observer disabled (anomaly_detection.enabled=false)")
+		return
+	}
+	if !cfg.GetBool("anomaly_detection.metrics.enabled") {
+		d.log.Debug("Observer metric capture disabled (anomaly_detection.metrics.enabled=false)")
+		return
+	}
+
+	metricsHandle := obs.GetHandle("all-metrics")
+
+	// DogStatsD paths
+	for _, worker := range d.statsd.workers {
+		worker.sampler.observerHandle = metricsHandle
+	}
+	if d.statsd.noAggStreamWorker != nil {
+		d.statsd.noAggStreamWorker.observerHandle = metricsHandle
+	}
+
+	// Go core check path (BufferedAggregator → CheckSampler)
+	d.aggregator.SetObserverHandle(metricsHandle)
+}
+
 // AddAgentStartupTelemetry adds a startup event and count (in a DSD time sampler)
 // to be sent on the next flush.
 func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
@@ -298,9 +335,8 @@ func (d *AgentDemultiplexer) run() {
 		go d.noAggStreamWorker.run()
 	}
 
-	// It is important to set this up after the statsd workers have been started
-	// to make sure they are running to receive the initial filter list and any
-	// updates
+	// It is important to register callbacks after the statsd workers have been started
+	// to make sure they are running to receive any filter list updates
 	d.filterList.OnUpdateMetricFilterList(d.SetSamplersFilterList)
 	d.filterList.OnUpdateTagFilterList(d.SetAggregatorTagFilterList)
 
@@ -516,7 +552,7 @@ func (d *AgentDemultiplexer) GetEventPlatformForwarder() (eventplatform.Forwarde
 	return d.aggregator.GetEventPlatformForwarder()
 }
 
-func (d *AgentDemultiplexer) SetAggregatorTagFilterList(tagmatcher filterlist.TagMatcher) {
+func (d *AgentDemultiplexer) SetAggregatorTagFilterList(tagMatcher filterlist.TagMatcher) {
 	d.m.RLock()
 	defer d.m.RUnlock()
 
@@ -526,10 +562,10 @@ func (d *AgentDemultiplexer) SetAggregatorTagFilterList(tagmatcher filterlist.Ta
 		return
 	}
 
-	d.aggregator.tagfilterListChan <- tagmatcher
+	d.aggregator.tagFilterListChan <- tagMatcher
 
 	for _, worker := range d.statsd.workers {
-		worker.tagFilterListChan <- tagmatcher
+		worker.tagFilterListChan <- tagMatcher
 	}
 }
 

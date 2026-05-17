@@ -1,0 +1,31 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+security:
+  - |
+    Oracle check: PDB names in ``ALTER SESSION SET CONTAINER`` statements
+    are now properly quoted to prevent SQL injection.
+fixes:
+  - |
+    Oracle check: Fix potential panic in ``sendMetric`` when the sender or
+    metric function cannot be resolved.
+  - |
+    Oracle check: Fix custom query error accumulation so that type errors
+    from earlier queries are no longer silently discarded.
+  - |
+    Oracle check: Report a clear error when a custom query returns a NULL
+    value for a metric column instead of an "UNKNOWN" type error message.
+  - |
+    Oracle check: Detect column count mismatches in both directions (too many
+    or too few) between custom query results and configured column mappings.
+  - |
+    Oracle check: Remove redundant ``GetSender`` call in custom query
+    handling in favor of the existing ``commit`` helper.
+  - |
+    Oracle check: Replace per-call map allocations with switch statements
+    in custom query metric helpers for improved performance.

@@ -14,12 +14,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	kscheme "k8s.io/client-go/kubernetes/scheme"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 var scheme = kscheme.Scheme
@@ -163,14 +159,13 @@ func Test_injectTags(t *testing.T) {
 			},
 		},
 	}
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(workloadmeta.NewParams()))
 	datadogConfig := config.NewMock(t)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			filter, err := NewFilter(datadogConfig)
 			assert.NoError(t, err)
 			mutator := NewMutator(NewMutatorConfig(datadogConfig), filter)
-			webhook := NewWebhook(wmeta, datadogConfig, mutator)
+			webhook := NewWebhook(datadogConfig, mutator)
 			_, err = webhook.inject(tt.pod, "ns", nil)
 			assert.NoError(t, err)
 			assert.Len(t, tt.pod.Spec.Containers, 1)

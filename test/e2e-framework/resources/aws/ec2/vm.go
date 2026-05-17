@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 
-	"github.com/pulumi/pulumi-aws/sdk/v6/go/aws/ec2"
+	"github.com/pulumi/pulumi-aws/sdk/v7/go/aws/ec2"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
@@ -29,11 +29,20 @@ type InstanceArgs struct {
 	UserData           string
 	HTTPTokensRequired bool
 	HostID             pulumi.StringInput // For dedicated host tenancy
+	VolumeThroughput   int                // GP3 volume throughput in MiB/s (125-1000)
 }
 
 func NewInstance(e aws.Environment, name string, args InstanceArgs, opts ...pulumi.ResourceOption) (*ec2.Instance, error) {
 	defaultInstanceArgs(e, &args)
 
+	rootBlockDevice := ec2.InstanceRootBlockDeviceArgs{
+		VolumeSize: pulumi.Int(args.StorageSize),
+	}
+	if args.VolumeThroughput > 0 {
+		// Only GP3 volumes support throughput
+		rootBlockDevice.VolumeType = pulumi.String("gp3")
+		rootBlockDevice.Throughput = pulumi.Int(args.VolumeThroughput)
+	}
 	instanceArgs := &ec2.InstanceArgs{
 		Ami:                     pulumi.StringPtr(args.AMI),
 		SubnetId:                e.RandomSubnets().Index(pulumi.Int(0)),
@@ -44,9 +53,7 @@ func NewInstance(e aws.Environment, name string, args InstanceArgs, opts ...pulu
 		UserData:                pulumi.StringPtr(args.UserData),
 		UserDataReplaceOnChange: pulumi.BoolPtr(true),
 		Tenancy:                 pulumi.StringPtr(args.Tenancy),
-		RootBlockDevice: ec2.InstanceRootBlockDeviceArgs{
-			VolumeSize: pulumi.Int(args.StorageSize),
-		},
+		RootBlockDevice:         rootBlockDevice,
 		Tags: pulumi.StringMap{
 			"Name": e.Namer.DisplayName(255, pulumi.String(name)),
 		},

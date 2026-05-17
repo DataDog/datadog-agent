@@ -6,10 +6,13 @@
 package etcd
 
 import (
+	"strings"
+
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
 	corev1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/core/v1"
 	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
+	rbacv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/rbac/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
@@ -76,6 +79,52 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 
 	opts = append(opts, utils.PulumiDependsOn(ns))
 
+	// openshift requires a non-default service account tighted to the privileged scc
+	sa, err := corev1.NewServiceAccount(e.Ctx(), "etcd-sa", &corev1.ServiceAccountArgs{
+		Metadata: &metav1.ObjectMetaArgs{
+			Name:      pulumi.StringPtr("etcd-sa"),
+			Namespace: pulumi.StringPtr(Namespace),
+		},
+	}, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	// create a clusterRoleBinding to bind the new service account with the existing privileged scc
+	if _, err := rbacv1.NewRoleBinding(e.Ctx(), "etcd-scc-binding", &rbacv1.RoleBindingArgs{
+		Metadata: &metav1.ObjectMetaArgs{
+			Name:      pulumi.String("etcd-scc-binding"),
+			Namespace: pulumi.String(Namespace),
+		},
+		RoleRef: &rbacv1.RoleRefArgs{
+			ApiGroup: pulumi.String("rbac.authorization.k8s.io"),
+			Kind:     pulumi.String("ClusterRole"),
+			Name:     pulumi.String("system:openshift:scc:privileged"),
+		},
+		Subjects: rbacv1.SubjectArray{
+			rbacv1.SubjectArgs{
+				Kind:      pulumi.String("ServiceAccount"),
+				Name:      sa.Metadata.Name().Elem(),
+				Namespace: pulumi.String(Namespace),
+			},
+		},
+	}, opts...); err != nil {
+		return nil, err
+	}
+
+	var imagePullSecrets corev1.LocalObjectReferenceArray
+	etcdImage := "quay.io/coreos/etcd:v3.5.1"
+	if e.ImagePullRegistry() != "" {
+		imgPullSecret, err := utils.NewImagePullSecret(e, Namespace, opts...)
+		if err != nil {
+			return nil, err
+		}
+		imagePullSecrets = append(imagePullSecrets, corev1.LocalObjectReferenceArgs{
+			Name: imgPullSecret.Metadata.Name(),
+		})
+		etcdImage = strings.SplitN(e.ImagePullRegistry(), ",", 2)[0] + "/quay/coreos/etcd:v3.5.1"
+	}
+
 	_, err = appsv1.NewDeployment(e.Ctx(), "etcd", &appsv1.DeploymentArgs{
 		Metadata: &metav1.ObjectMetaArgs{
 			Name:      pulumi.String("etcd"),
@@ -98,12 +147,14 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 					},
 				},
 				Spec: &corev1.PodSpecArgs{
+					ServiceAccountName: sa.Metadata.Name().Elem(),
+					ImagePullSecrets:   imagePullSecrets,
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name: pulumi.String("etcd"),
 							// The agent only supports the v2 API, which is not
 							// supported anymore in newer versions of etcd.
-							Image: pulumi.String("quay.io/coreos/etcd:v3.5.1"),
+							Image: pulumi.String(etcdImage),
 							Command: pulumi.StringArray{
 								pulumi.String("etcd"),
 							},

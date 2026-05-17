@@ -13,10 +13,13 @@ import (
 	"net"
 	"net/http"
 	"runtime"
+	"sort"
 	"time"
 
 	"github.com/gorilla/mux"
+	"go.yaml.in/yaml/v2"
 
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	healthprobeComponent "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -34,7 +37,8 @@ type Requires struct {
 
 // Provides defines the output of the healthprobe component
 type Provides struct {
-	Comp healthprobeComponent.Component
+	Comp          healthprobeComponent.Component
+	FlareProvider flaretypes.Provider
 }
 
 type healthprobe struct {
@@ -61,7 +65,9 @@ func (h *healthprobe) stop() error {
 
 // NewComponent creates a new healthprobe component
 func NewComponent(reqs Requires) (Provides, error) {
-	provides := Provides{}
+	provides := Provides{
+		FlareProvider: flaretypes.NewProvider(fillHealthFlare),
+	}
 	healthPort := reqs.Options.Port
 	if healthPort <= 0 {
 		return provides, nil
@@ -178,6 +184,17 @@ func healthHandler(logsGoroutines bool, log log.Component, getStatusNonBlocking 
 	}
 
 	w.Write(jsonHealth)
+}
+
+func fillHealthFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
+	s := health.GetReady()
+	sort.Strings(s.Healthy)
+	sort.Strings(s.Unhealthy)
+	yamlValue, err := yaml.Marshal(s)
+	if err != nil {
+		return err
+	}
+	return fb.AddFile("health.yaml", yamlValue)
 }
 
 // inspired by https://golang.org/src/runtime/debug/stack.go?s=587:606#L11

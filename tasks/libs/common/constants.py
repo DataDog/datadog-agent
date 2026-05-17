@@ -19,3 +19,11 @@ ORIGIN_SERVICE = 0
 # or because they're used multiple times.
 RC_TAG_QUESTION_TEMPLATE = "The {} tag found is an RC tag: {}. Are you sure you want to use it?"
 TAG_FOUND_TEMPLATE = "The {} tag is {}"
+
+
+CONTAINER_PLATFORM_MAPPING = {
+    "aarch64": "arm64",
+    "arm64": "arm64",
+    "amd64": "amd64",
+    "x86_64": "amd64",
+}

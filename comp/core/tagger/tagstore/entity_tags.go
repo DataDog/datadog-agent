@@ -51,6 +51,8 @@ type EntityTags interface {
 	setSourceExpiration(source string, expiryDate time.Time)
 	deleteExpired(time time.Time) bool
 	shouldRemove() bool
+	getIsComplete() bool
+	setIsComplete(isComplete bool)
 }
 
 // EntityTagsWithMultipleSources holds the tag information for a given entity
@@ -64,6 +66,7 @@ type EntityTagsWithMultipleSources struct {
 	cachedAll          tagset.HashedTags // Low + orchestrator + high
 	cachedOrchestrator tagset.HashedTags // Low + orchestrator (subslice of cachedAll)
 	cachedLow          tagset.HashedTags // Sub-slice of cachedAll
+	isComplete         bool
 }
 
 func newEntityTags(entityID types.EntityID, source string) EntityTags {
@@ -96,7 +99,16 @@ func (e *EntityTagsWithMultipleSources) toEntity() types.Entity {
 		HighCardinalityTags:         cachedAll[len(cachedOrchestrator):],
 		OrchestratorCardinalityTags: cachedOrchestrator[len(cachedLow):],
 		LowCardinalityTags:          cachedLow,
+		IsComplete:                  e.isComplete,
 	}
+}
+
+func (e *EntityTagsWithMultipleSources) getIsComplete() bool {
+	return e.isComplete
+}
+
+func (e *EntityTagsWithMultipleSources) setIsComplete(isComplete bool) {
+	e.isComplete = isComplete
 }
 
 func (e *EntityTagsWithMultipleSources) getStandard() []string {
@@ -268,6 +280,7 @@ type EntityTagsWithSingleSource struct {
 	cachedOrchestrator tagset.HashedTags // Low + orchestrator (subslice of cachedAll)
 	cachedLow          tagset.HashedTags // Sub-slice of cachedAll
 	isExpired          bool
+	isComplete         bool // Whether all expected collectors have reported
 }
 
 func newEntityTagsWithSingleSource(entityID types.EntityID, source string) *EntityTagsWithSingleSource {
@@ -294,7 +307,16 @@ func (e *EntityTagsWithSingleSource) toEntity() types.Entity {
 		HighCardinalityTags:         cachedAll[len(cachedOrchestrator):],
 		OrchestratorCardinalityTags: cachedOrchestrator[len(cachedLow):],
 		LowCardinalityTags:          cachedLow,
+		IsComplete:                  e.isComplete,
 	}
+}
+
+func (e *EntityTagsWithSingleSource) getIsComplete() bool {
+	return e.isComplete
+}
+
+func (e *EntityTagsWithSingleSource) setIsComplete(isComplete bool) {
+	e.isComplete = isComplete
 }
 
 func (e *EntityTagsWithSingleSource) getStandard() []string {

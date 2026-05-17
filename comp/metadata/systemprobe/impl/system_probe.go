@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"go.yaml.in/yaml/v2"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -20,9 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
+	runnerdef "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
 	systemprobemetadata "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/def"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher/sysprobe"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -75,7 +75,7 @@ type Requires struct {
 // Provides defines the output of the systemprobe metadatacomponent
 type Provides struct {
 	Comp             systemprobemetadata.Component
-	MetadataProvider runnerimpl.Provider
+	MetadataProvider runnerdef.Provider
 	FlareProvider    flaretypes.Provider
 	Endpoint         api.AgentEndpointProvider
 }

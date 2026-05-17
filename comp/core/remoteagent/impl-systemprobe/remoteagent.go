@@ -15,8 +15,10 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	"github.com/DataDog/datadog-agent/comp/core/remoteagent/helper"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/pkg/compliance/statusregistry"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
@@ -38,7 +40,7 @@ type Provides struct {
 // NewComponent creates a new remoteagent component
 func NewComponent(reqs Requires) (Provides, error) {
 	// Check if the remoteAgentRegistry is enabled
-	if !reqs.Config.GetBool("remote_agent_registry.enabled") {
+	if !reqs.Config.GetBool("remote_agent.registry.enabled") {
 		return Provides{}, nil
 	}
 
@@ -50,6 +52,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, err
 	}
 
+	// Set the agent identity for log metrics partitioning so that
+	// logs.bytes_sent is tagged with remote_agent="system-probe".
+	metrics.SetAgentIdentity("system-probe")
+
 	remoteagentImpl := &remoteagentImpl{
 		log:               reqs.Log,
 		ipc:               reqs.IPC,
@@ -60,6 +66,9 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	// Add your gRPC services implementations here:
 	pbcore.RegisterTelemetryProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
+	pbcore.RegisterStatusProviderServer(remoteAgentServer.GetGRPCServer(), remoteagentImpl)
+
+	remoteAgentServer.Start()
 
 	provides := Provides{
 		Comp: remoteagentImpl,
@@ -75,12 +84,59 @@ type remoteagentImpl struct {
 
 	remoteAgentServer *helper.UnimplementedRemoteAgentServer
 	pbcore.UnimplementedTelemetryProviderServer
+	pbcore.UnimplementedStatusProviderServer
+}
+
+func (r *remoteagentImpl) GetStatusDetails(_ context.Context, _ *pbcore.GetStatusDetailsRequest) (*pbcore.GetStatusDetailsResponse, error) {
+	text, registered, err := statusregistry.GetTextOrError()
+	if !registered {
+		return &pbcore.GetStatusDetailsResponse{}, nil
+	}
+	if err != nil {
+		return &pbcore.GetStatusDetailsResponse{}, nil
+	}
+	return &pbcore.GetStatusDetailsResponse{
+		NamedSections: map[string]*pbcore.StatusSection{
+			"Compliance": {
+				Fields: map[string]string{
+					"": text,
+				},
+			},
+		},
+	}, nil
+}
+
+// WaitSessionID blocks until the remote agent is registered and a session ID is available.
+// This allows components that need the session ID (e.g. config stream consumer) to wait for RAR registration.
+func (r *remoteagentImpl) WaitSessionID(ctx context.Context) (string, error) {
+	return r.remoteAgentServer.WaitSessionID(ctx)
 }
 
 func (r *remoteagentImpl) GetTelemetry(_ context.Context, _ *pbcore.GetTelemetryRequest) (*pbcore.GetTelemetryResponse, error) {
 	prometheusText, err := r.telemetry.GatherText(false, telemetry.StaticMetricFilter(
-	// Add here the metric names that should be included in the telemetry response.
-	// This is useful to avoid sending too many metrics to the Core Agent.
+		// Metrics to forward from system-probe to core agent.
+		// The remote_agent tag is set to "system-probe" via metrics.SetAgentIdentity() above.
+		"logs__bytes_sent",
+		"logs__encoded_bytes_sent",
+
+		// Windows Injector metrics (using double underscore format from telemetry component)
+		"injector__processes_added_to_injection_tracker",
+		"injector__processes_removed_from_injection_tracker",
+		"injector__processes_skipped_subsystem",
+		"injector__processes_skipped_container",
+		"injector__processes_skipped_protected",
+		"injector__processes_skipped_system",
+		"injector__processes_skipped_excluded",
+		"injector__injection_attempts",
+		"injector__injection_attempt_failures",
+		"injector__injection_max_time_us",
+		"injector__injection_successes",
+		"injector__injection_failures",
+		"injector__pe_caching_failures",
+		"injector__import_directory_restoration_failures",
+		"injector__pe_memory_allocation_failures",
+		"injector__pe_injection_context_allocated",
+		"injector__pe_injection_context_cleanedup",
 	))
 	if err != nil {
 		return nil, err

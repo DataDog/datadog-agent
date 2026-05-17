@@ -15,8 +15,10 @@ import (
 	"hash/fnv"
 	"io"
 	"strconv"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	admprobe "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/probe"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
@@ -26,6 +28,53 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
+
+var currentProbe atomic.Pointer[admprobe.Probe]
+
+func setProbe(p *admprobe.Probe) {
+	currentProbe.Store(p)
+}
+
+// getProbeStatus builds the complete probe status map for the agent status
+// output.
+//
+// The returned map always contains "Enabled" (bool). Depending on the state,
+// it also contains exactly one of:
+//   - "Error"    (string) — runtime config error (e.g. missing RBAC)
+//   - "Detail"   (string) — informational message (follower, not yet started)
+//   - "HasStats" (bool)   — execution stats are present
+func getProbeStatus() map[string]interface{} {
+	result := map[string]interface{}{}
+
+	enabled := pkgconfigsetup.Datadog().GetBool("admission_controller.probe.enabled")
+	result["Enabled"] = enabled
+	if !enabled {
+		return result
+	}
+
+	p := currentProbe.Load()
+	if p == nil {
+		result["Detail"] = "Waiting for the admission controller to start..."
+		return result
+	}
+
+	if !p.IsLeader() {
+		result["Detail"] = "The probe is only active on the leader instance."
+		return result
+	}
+
+	stats := p.GetStatsForStatus()
+	if ce, ok := stats["ConfigError"]; ok {
+		result["Error"] = ce
+		return result
+	}
+
+	result["HasStats"] = true
+	for k, v := range stats {
+		result[k] = v
+	}
+	return result
+}
 
 // GetStatus returns status info for the secret and webhook controllers.
 func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
@@ -61,6 +110,8 @@ func GetStatus(apiCl kubernetes.Interface) map[string]interface{} {
 	} else {
 		status["Secret"] = secretStatus
 	}
+
+	status["Probe"] = getProbeStatus()
 
 	return status
 }

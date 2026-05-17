@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/eventbuf"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
@@ -40,6 +41,7 @@ type Module struct {
 	store        *processStore
 	diagnostics  *diagnosticsManager
 	runtimeStats *runtimeStats
+	config       *Config
 
 	cancel context.CancelFunc
 
@@ -65,7 +67,15 @@ func NewModule(
 	if override := config.TestingKnobs.IRGeneratorOverride; override != nil {
 		deps.IRGenerator = override(deps.IRGenerator)
 	}
-	m := newUnstartedModule(deps, config.ProbeTombstoneFilePath)
+	var moduleOpts []newUnstartedModuleOption
+	if k := config.TestingKnobs; k.SinkOverride != nil || k.OnProgramLoaded != nil {
+		moduleOpts = append(moduleOpts, withRuntimeTestingKnobs(&runtimeTestingKnobs{
+			sinkOverride:    k.SinkOverride,
+			onProgramLoaded: k.OnProgramLoaded,
+		}))
+	}
+	m := newUnstartedModule(deps, config.ProbeTombstoneFilePath, moduleOpts...)
+	m.config = config
 	m.shutdown.realDependencies = realDeps
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -84,8 +94,10 @@ func NewModule(
 	return m, nil
 }
 
+// eventbufBudgetBytes is the per-process byte ceiling enforced across all
+// per-program event buffers. Matches the pre-Buffer pairing-store budget.
 // TODO: make this configurable.
-const bufferedMessagesByteLimit = 512 << 10
+const eventbufBudgetBytes = 512 << 10
 
 // tombstoneFilePath is the path to the tombstone file left behind to detect
 // crashes while loading programs. If empty, tombstone files are not
@@ -93,7 +105,17 @@ const bufferedMessagesByteLimit = 512 << 10
 //
 // tombstoneFilePath is the path to the tombstone file left behind to detect
 // crashes while loading programs. If empty, tombstone files are not created.
-func newUnstartedModule(deps dependencies, tombstoneFilePath string) *Module {
+// newUnstartedModuleOption configures a *Module / *runtimeImpl beyond
+// the dependencies threaded through dependencies. Used to keep
+// newUnstartedModule's positional arguments stable as test-only fields
+// are added.
+type newUnstartedModuleOption func(*runtimeImpl)
+
+func withRuntimeTestingKnobs(k *runtimeTestingKnobs) newUnstartedModuleOption {
+	return func(rt *runtimeImpl) { rt.testingKnobs = k }
+}
+
+func newUnstartedModule(deps dependencies, tombstoneFilePath string, opts ...newUnstartedModuleOption) *Module {
 	// A zero-value symdbManager is valid and disabled.
 	if deps.symdbManager == nil {
 		deps.symdbManager = &symdbManager{}
@@ -101,10 +123,10 @@ func newUnstartedModule(deps dependencies, tombstoneFilePath string) *Module {
 	store := newProcessStore()
 	logsUploader := logsUploaderFactoryImpl[LogsUploader]{factory: deps.LogsFactory}
 	diagnostics := newDiagnosticsManager(deps.DiagnosticsUploader)
-	bufferedMessagesTracker := newBufferedMessageTracker(bufferedMessagesByteLimit)
 	runtime := &runtimeImpl{
 		store:                    store,
 		diagnostics:              diagnostics,
+		actuator:                 deps.Actuator,
 		decoderFactory:           deps.DecoderFactory,
 		irGenerator:              deps.IRGenerator,
 		programCompiler:          deps.ProgramCompiler,
@@ -113,8 +135,11 @@ func newUnstartedModule(deps dependencies, tombstoneFilePath string) *Module {
 		dispatcher:               deps.Dispatcher,
 		logsFactory:              logsUploader,
 		procRuntimeIDbyProgramID: &sync.Map{},
-		bufferedMessageTracker:   bufferedMessagesTracker,
+		eventbufBudget:           eventbuf.NewBudget(eventbufBudgetBytes),
 		tombstoneFilePath:        tombstoneFilePath,
+	}
+	for _, opt := range opts {
+		opt(runtime)
 	}
 	deps.Actuator.SetRuntime(runtime)
 	m := &Module{
@@ -203,17 +228,17 @@ func makeRealDependencies(
 		}
 	}()
 
-	logUploaderURL, err := url.Parse(config.LogUploaderURL)
+	logsURL, err := url.Parse(config.LogUploaderURL)
 	if err != nil {
 		return ret, fmt.Errorf("error parsing log uploader URL: %w", err)
 	}
-	ret.logUploader = uploader.NewLogsUploaderFactory(uploader.WithURL(logUploaderURL))
+	ret.logUploader = uploader.NewLogsUploaderFactory(logsURL)
 
 	diagsUploaderURL, err := url.Parse(config.DiagsUploaderURL)
 	if err != nil {
 		return ret, fmt.Errorf("error parsing diagnostics uploader URL: %w", err)
 	}
-	diagsUploader := uploader.NewDiagnosticsUploader(uploader.WithURL(diagsUploaderURL))
+	diagsUploader := uploader.NewDiagnosticsUploader(diagsUploaderURL)
 	ret.diagsUploader = diagsUploader
 
 	var symdbUploaderURL *url.URL
@@ -223,7 +248,7 @@ func makeRealDependencies(
 			return ret, fmt.Errorf("error parsing SymDB uploader URL: %w", err)
 		}
 	}
-	ret.actuator = actuator.NewActuator(config.CircuitBreakerConfig)
+	ret.actuator = actuator.NewActuator(config.ActuatorConfig)
 
 	var loaderOpts []loader.Option
 	if config.TestingKnobs.LoaderOptions != nil {
@@ -232,6 +257,9 @@ func makeRealDependencies(
 	ret.loader, err = loader.NewLoader(loaderOpts...)
 	if err != nil {
 		return ret, fmt.Errorf("error creating loader: %w", err)
+	}
+	if cb := config.TestingKnobs.OnLoaderReady; cb != nil {
+		cb(ret.loader)
 	}
 	var irgenOptions []irgen.Option
 	if config.DiskCacheEnabled {
@@ -254,7 +282,8 @@ func makeRealDependencies(
 	if err = unix.ClockGettime(unix.CLOCK_MONOTONIC, &ts); err != nil {
 		return ret, fmt.Errorf("error getting monotonic time: %w", err)
 	}
-	ret.dispatcher = dispatcher.NewDispatcher(ret.loader.OutputReader())
+	ret.dispatcher = dispatcher.NewDispatcher(
+		ret.loader.OutputReader(), ret.loader.DropNotifyReader())
 	ret.procSubscriber = procsubscribe.NewSubscriber(
 		remoteConfigSubscriber,
 	)
@@ -288,9 +317,9 @@ func (m *Module) Register(router *module.Router) error {
 		"/check",
 		utils.WithConcurrencyLimit(
 			utils.DefaultMaxConcurrentRequests,
-			func(w http.ResponseWriter, _ *http.Request) {
+			func(w http.ResponseWriter, req *http.Request) {
 				utils.WriteAsJSON(
-					w, json.RawMessage(`{"status":"ok"}`), utils.CompactOutput,
+					req, w, json.RawMessage(`{"status":"ok"}`), utils.CompactOutput,
 				)
 			},
 		),
@@ -302,17 +331,20 @@ func (m *Module) Register(router *module.Router) error {
 		"/debug/goprocs",
 		utils.WithConcurrencyLimit(
 			utils.DefaultMaxConcurrentRequests,
-			func(w http.ResponseWriter, _ *http.Request) {
+			func(w http.ResponseWriter, req *http.Request) {
 				if m.shutdown.realDependencies.procSubscriber == nil {
-					utils.WriteAsJSON(w, nil, utils.PrettyPrint)
+					utils.WriteAsJSON(req, w, nil, utils.PrettyPrint)
 					return
 				}
 
 				report := m.shutdown.realDependencies.procSubscriber.GetReport()
-				utils.WriteAsJSON(w, report, utils.PrettyPrint)
+				utils.WriteAsJSON(req, w, report, utils.PrettyPrint)
 			},
 		),
 	)
+
+	m.registerDebugEndpoints(router)
+
 	return nil
 }
 

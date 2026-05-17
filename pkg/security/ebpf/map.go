@@ -70,7 +70,7 @@ type StringMapItem struct {
 
 // MarshalBinary returns the binary representation of a StringMapItem
 func (i *StringMapItem) MarshalBinary() ([]byte, error) {
-	n := i.size
+	n := i.size - 1 // -1 \0
 	if len(i.str) < i.size {
 		n = len(i.str)
 	}
@@ -166,6 +166,8 @@ var (
 	BufferSelectorApproverMonitorKey = Uint32MapItem(3)
 	// BufferSelectorDNSResponseFilteredMonitorKey is the key used to select the filtered DNS responses
 	BufferSelectorDNSResponseFilteredMonitorKey = Uint32MapItem(4)
+	// BufferSelectorSampleMonitorKey is the key used to select the active event sample monitor buffer key
+	BufferSelectorSampleMonitorKey = Uint32MapItem(5)
 	// BoolFalseMapItem is the value used to set the map entry to false
 	BoolFalseMapItem = Uint8MapItem(0)
 	// BoolTrueMapItem is the value used to set the map entry to true

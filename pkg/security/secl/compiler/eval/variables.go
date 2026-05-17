@@ -126,13 +126,11 @@ func (i *ScopedIntVariable) GetValue(ctx *Context, noFollowInheritance bool) (in
 }
 
 // NewScopedIntVariable returns a new integer variable
-func NewScopedIntVariable(intFnc func(ctx *Context, noFollowInheritance bool) (int, bool), setFnc func(ctx *Context, value interface{}) error) *ScopedIntVariable {
+func NewScopedIntVariable(intFnc func(ctx *Context, noFollowInheritance bool) (int, bool), setFnc func(ctx *Context, value interface{}) error, opts VariableOpts) *ScopedIntVariable {
 	return &ScopedIntVariable{
 		settableVariable: settableVariable{
 			setFnc: setFnc,
-			opts: VariableOpts{
-				Private: false,
-			},
+			opts:   opts,
 		},
 		intFnc: intFnc,
 	}
@@ -161,14 +159,12 @@ func (s *ScopedStringVariable) GetValue(ctx *Context, noFollowInheritance bool) 
 }
 
 // NewScopedStringVariable returns a new scoped string variable
-func NewScopedStringVariable(strFnc func(ctx *Context, noFollowInheritance bool) (string, bool), setFnc func(ctx *Context, value interface{}) error) *ScopedStringVariable {
+func NewScopedStringVariable(strFnc func(ctx *Context, noFollowInheritance bool) (string, bool), setFnc func(ctx *Context, value interface{}) error, opts VariableOpts) *ScopedStringVariable {
 	return &ScopedStringVariable{
 		strFnc: strFnc,
 		settableVariable: settableVariable{
 			setFnc: setFnc,
-			opts: VariableOpts{
-				Private: false,
-			},
+			opts:   opts,
 		},
 	}
 }
@@ -195,14 +191,12 @@ func (b *ScopedBoolVariable) GetValue(ctx *Context, noFollowInheritance bool) (i
 }
 
 // NewScopedBoolVariable returns a new boolean variable
-func NewScopedBoolVariable(boolFnc func(ctx *Context, noFollowInheritance bool) (bool, bool), setFnc func(ctx *Context, value interface{}) error) *ScopedBoolVariable {
+func NewScopedBoolVariable(boolFnc func(ctx *Context, noFollowInheritance bool) (bool, bool), setFnc func(ctx *Context, value interface{}) error, opts VariableOpts) *ScopedBoolVariable {
 	return &ScopedBoolVariable{
 		boolFnc: boolFnc,
 		settableVariable: settableVariable{
 			setFnc: setFnc,
-			opts: VariableOpts{
-				Private: false,
-			},
+			opts:   opts,
 		},
 	}
 }
@@ -229,14 +223,12 @@ func (i *ScopedIPVariable) GetValue(ctx *Context, noFollowInheritance bool) (int
 }
 
 // NewScopedIPVariable returns a new scoped IP variable
-func NewScopedIPVariable(ipFnc func(ctx *Context, noFollowInheritance bool) (net.IPNet, bool), setFnc func(ctx *Context, value interface{}) error) *ScopedIPVariable {
+func NewScopedIPVariable(ipFnc func(ctx *Context, noFollowInheritance bool) (net.IPNet, bool), setFnc func(ctx *Context, value interface{}) error, opts VariableOpts) *ScopedIPVariable {
 	return &ScopedIPVariable{
 		ipFnc: ipFnc,
 		settableVariable: settableVariable{
 			setFnc: setFnc,
-			opts: VariableOpts{
-				Private: false,
-			},
+			opts:   opts,
 		},
 	}
 }
@@ -280,14 +272,12 @@ func (s *ScopedStringArrayVariable) Append(ctx *Context, value interface{}) erro
 }
 
 // NewScopedStringArrayVariable returns a new scoped string array variable
-func NewScopedStringArrayVariable(strFnc func(ctx *Context, noFollowInheritance bool) ([]string, bool), setFnc func(ctx *Context, value interface{}) error) *ScopedStringArrayVariable {
+func NewScopedStringArrayVariable(strFnc func(ctx *Context, noFollowInheritance bool) ([]string, bool), setFnc func(ctx *Context, value interface{}) error, opts VariableOpts) *ScopedStringArrayVariable {
 	return &ScopedStringArrayVariable{
 		strFnc: strFnc,
 		settableVariable: settableVariable{
 			setFnc: setFnc,
-			opts: VariableOpts{
-				Private: false,
-			},
+			opts:   opts,
 		},
 	}
 }
@@ -331,14 +321,12 @@ func (v *ScopedIntArrayVariable) Append(ctx *Context, value interface{}) error {
 }
 
 // NewScopedIntArrayVariable returns a new integer array variable
-func NewScopedIntArrayVariable(intFnc func(ctx *Context, noFollowInheritance bool) ([]int, bool), setFnc func(ctx *Context, value interface{}) error) *ScopedIntArrayVariable {
+func NewScopedIntArrayVariable(intFnc func(ctx *Context, noFollowInheritance bool) ([]int, bool), setFnc func(ctx *Context, value interface{}) error, opts VariableOpts) *ScopedIntArrayVariable {
 	return &ScopedIntArrayVariable{
 		intFnc: intFnc,
 		settableVariable: settableVariable{
 			setFnc: setFnc,
-			opts: VariableOpts{
-				Private: false,
-			},
+			opts:   opts,
 		},
 	}
 }
@@ -382,14 +370,12 @@ func (i *ScopedIPArrayVariable) Append(ctx *Context, value interface{}) error {
 }
 
 // NewScopedIPArrayVariable returns a new IP array variable
-func NewScopedIPArrayVariable(ipFnc func(ctx *Context, noFollowInheritance bool) ([]net.IPNet, bool), setFnc func(ctx *Context, value interface{}) error) *ScopedIPArrayVariable {
+func NewScopedIPArrayVariable(ipFnc func(ctx *Context, noFollowInheritance bool) ([]net.IPNet, bool), setFnc func(ctx *Context, value interface{}) error, opts VariableOpts) *ScopedIPArrayVariable {
 	return &ScopedIPArrayVariable{
 		ipFnc: ipFnc,
 		settableVariable: settableVariable{
 			setFnc: setFnc,
-			opts: VariableOpts{
-				Private: false,
-			},
+			opts:   opts,
 		},
 	}
 }
@@ -962,8 +948,8 @@ func NewIPArrayVariable(value []net.IPNet, opts VariableOpts) *IPArrayVariable {
 // it currently contains an integer and a string to cover most common use cases
 // the goal of this is to prevent the need to allocate a string for each `Hash()` call
 type ScopeHashKey struct {
-	Integer uint32
 	String  string
+	Uintptr uintptr
 }
 
 // VariableScope is the interface to be implemented by scoped variable in order to be released
@@ -984,11 +970,11 @@ type Variables struct {
 
 // VariableOpts holds the options of a variable set
 type VariableOpts struct {
-	Size      int
-	TTL       time.Duration
-	Private   bool // When a variable is marked as private, it will not be included in the serialized event
-	Inherited bool
-	Telemetry *Telemetry
+	Size      int           `json:"size"`
+	TTL       time.Duration `json:"ttl"`
+	Private   bool          `json:"private"` // When a variable is marked as private, it will not be included in the serialized event
+	Inherited bool          `json:"inherited"`
+	Telemetry *Telemetry    `json:"-"`
 }
 
 // NewVariables returns a new set of global variables
@@ -996,24 +982,24 @@ func NewVariables() *Variables {
 	return &Variables{}
 }
 
-func getVariableType(value interface{}) string {
+func getVariableType(value interface{}) (string, error) {
 	switch value.(type) {
 	case bool:
-		return "bool"
+		return "bool", nil
 	case int:
-		return "integer"
+		return "integer", nil
 	case string:
-		return "string"
+		return "string", nil
 	case net.IPNet:
-		return "ip"
+		return "ip", nil
 	case []string:
-		return "strings"
+		return "strings", nil
 	case []int:
-		return "integers"
+		return "integers", nil
 	case []net.IPNet:
-		return "ips"
+		return "ips", nil
 	default:
-		panic("unsupported variable type")
+		return "", fmt.Errorf("unsupported variable type: %v", reflect.TypeOf(value))
 	}
 }
 
@@ -1040,7 +1026,10 @@ func newSECLVariable(value interface{}, opts VariableOpts) (MutableSECLVariable,
 
 // NewSECLVariable returns new variable of the type of the specified value
 func (v *Variables) NewSECLVariable(_ string, value interface{}, _ string, opts VariableOpts) (SECLVariable, error) {
-	varType := getVariableType(value)
+	varType, err := getVariableType(value)
+	if err != nil {
+		return nil, err
+	}
 	if opts.Telemetry != nil {
 		opts.Telemetry.TotalVariables.Inc(varType, "global")
 	}
@@ -1109,16 +1098,28 @@ func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName stri
 		v.varsLock.RLock()
 		defer v.varsLock.RUnlock()
 		vars := v.vars[key]
-		if (vars == nil || vars[name] == nil) && opts.Inherited && !noFollowInheritance {
+		if vars != nil && vars[name] != nil {
+			return vars[name]
+		}
+
+		if opts.Inherited && !noFollowInheritance {
 			var ok bool
-			scope, ok = scope.ParentScope()
-			for vars == nil && ok {
-				key := scope.Hash()
-				vars = v.vars[key]
+
+			for {
 				scope, ok = scope.ParentScope()
+				if !ok {
+					break
+				}
+
+				key = scope.Hash()
+				vars = v.vars[key]
+				if vars != nil && vars[name] != nil {
+					return vars[name]
+				}
 			}
 		}
-		return vars[name]
+
+		return nil
 	}
 
 	setVariable := func(ctx *Context, value any) error {
@@ -1131,7 +1132,10 @@ func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName stri
 		v.varsLock.Lock()
 		defer v.varsLock.Unlock()
 		vars := v.vars[key]
-		varType := getVariableType(value)
+		varType, err := getVariableType(value)
+		if err != nil {
+			return err
+		}
 
 		if vars == nil {
 			scope.AppendReleaseCallback(func() {
@@ -1172,7 +1176,7 @@ func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName stri
 				return value.(int), set
 			}
 			return 0, false
-		}, setVariable), nil
+		}, setVariable, VariableOpts{}), nil
 	case bool:
 		return NewScopedBoolVariable(func(ctx *Context, noFollowInheritance bool) (bool, bool) {
 			if v := getVariable(ctx, noFollowInheritance); v != nil {
@@ -1180,7 +1184,7 @@ func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName stri
 				return value.(bool), set
 			}
 			return false, false
-		}, setVariable), nil
+		}, setVariable, VariableOpts{}), nil
 	case string:
 		return NewScopedStringVariable(func(ctx *Context, noFollowInheritance bool) (string, bool) {
 			if v := getVariable(ctx, noFollowInheritance); v != nil {
@@ -1188,7 +1192,7 @@ func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName stri
 				return value.(string), set
 			}
 			return "", false
-		}, setVariable), nil
+		}, setVariable, VariableOpts{}), nil
 	case net.IPNet:
 		return NewScopedIPVariable(func(ctx *Context, noFollowInheritance bool) (net.IPNet, bool) {
 			if v := getVariable(ctx, noFollowInheritance); v != nil {
@@ -1196,7 +1200,7 @@ func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName stri
 				return value.(net.IPNet), set
 			}
 			return net.IPNet{}, false
-		}, setVariable), nil
+		}, setVariable, VariableOpts{}), nil
 	case []string:
 		return NewScopedStringArrayVariable(func(ctx *Context, noFollowInheritance bool) ([]string, bool) {
 			if v := getVariable(ctx, noFollowInheritance); v != nil {
@@ -1204,7 +1208,7 @@ func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName stri
 				return value.([]string), set
 			}
 			return nil, false
-		}, setVariable), nil
+		}, setVariable, VariableOpts{}), nil
 	case []int:
 		return NewScopedIntArrayVariable(func(ctx *Context, noFollowInheritance bool) ([]int, bool) {
 			if v := getVariable(ctx, noFollowInheritance); v != nil {
@@ -1213,7 +1217,7 @@ func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName stri
 			}
 			return nil, false
 
-		}, setVariable), nil
+		}, setVariable, VariableOpts{}), nil
 	case []net.IPNet:
 		return NewScopedIPArrayVariable(func(ctx *Context, noFollowInheritance bool) ([]net.IPNet, bool) {
 			if v := getVariable(ctx, noFollowInheritance); v != nil {
@@ -1221,7 +1225,7 @@ func (v *ScopedVariables) NewSECLVariable(name string, value any, scopeName stri
 				return value.([]net.IPNet), set
 			}
 			return nil, false
-		}, setVariable), nil
+		}, setVariable, VariableOpts{}), nil
 	default:
 		return nil, fmt.Errorf("unsupported variable type %s for '%s'", reflect.TypeOf(value), name)
 	}

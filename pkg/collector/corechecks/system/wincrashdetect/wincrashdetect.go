@@ -11,8 +11,8 @@ package wincrashdetect
 import (
 	"fmt"
 
+	yaml "go.yaml.in/yaml/v2"
 	"golang.org/x/sys/windows/registry"
-	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -71,8 +71,8 @@ func (c *WinCrashConfig) Parse(data []byte) error {
 }
 
 // Configure accepts configuration
-func (wcd *WinCrashDetect) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
-	err := wcd.CommonConfigure(senderManager, initConfig, data, source)
+func (wcd *WinCrashDetect) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string, provider string) error {
+	err := wcd.CommonConfigure(senderManager, initConfig, data, source, provider)
 	if err != nil {
 		return err
 	}

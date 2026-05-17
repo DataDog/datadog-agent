@@ -64,16 +64,27 @@ int hook_vfs_unlink(ctx_t *ctx) {
         dentry = (struct dentry *)CTX_PARM3(ctx);
     }
 
+    enum PATH_ID_INVALIDATE_TYPE invalidate_type = syscall->unlink.flags & AT_REMOVEDIR ? PATH_ID_INVALIDATE_TYPE_GLOBAL : PATH_ID_INVALIDATE_TYPE_LOCAL;
+
     // we resolve all the information before the file is actually removed
     syscall->unlink.dentry = dentry;
-    set_file_inode(dentry, &syscall->unlink.file, 1);
+    set_file_inode(dentry, &syscall->unlink.file, invalidate_type);
     fill_file(dentry, &syscall->unlink.file);
+
+    if (invalidate_type == PATH_ID_INVALIDATE_TYPE_GLOBAL) {
+        bump_mount_discarder_revision(syscall->unlink.file.path_key.mount_id);
+    } else {
+        expire_inode_discarders(syscall->unlink.file.path_key.mount_id, syscall->unlink.file.path_key.ino);
+    }
 
     if (approve_syscall(syscall, unlink_approvers) == DISCARDED) {
         // do not pop, we want to invalidate the inode even if the syscall is discarded
         return 0;
     }
-
+    if (is_auid_discarder(EVENT_UNLINK)) {
+        syscall->state = DISCARDED;
+        return 0;
+    }
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     syscall->resolver.dentry = dentry;
     syscall->resolver.key = syscall->unlink.file.path_key;
@@ -115,12 +126,12 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
         return 0;
     }
 
-    u64 enabled_events = get_enabled_events();
-    if (syscall->state != DISCARDED && (mask_has_event(enabled_events, EVENT_UNLINK) || mask_has_event(enabled_events, EVENT_RMDIR))) {
+    if (syscall->state != DISCARDED) {
         if (syscall->unlink.flags & AT_REMOVEDIR) {
             struct rmdir_event_t event = {
                 .syscall.retval = retval,
-                .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
+                .event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
+                               (syscall->state == INTERNAL ? EVENT_FLAGS_INTERNAL : 0),
                 .file = syscall->unlink.file,
             };
 
@@ -133,7 +144,8 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
             struct unlink_event_t event = {
                 .syscall.retval = retval,
                 .syscall_ctx.id = syscall->ctx_id,
-                .event.flags = syscall->async ? EVENT_FLAGS_ASYNC : 0,
+                .event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
+                               (syscall->state == INTERNAL ? EVENT_FLAGS_INTERNAL : 0),
                 .file = syscall->unlink.file,
                 .flags = syscall->unlink.flags,
             };
@@ -145,7 +157,7 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
             send_event(ctx, EVENT_UNLINK, event);
         }
     } else {
-        if (mask_has_event(enabled_events, EVENT_RMDIR)) {
+        if (syscall->unlink.flags & AT_REMOVEDIR) {
             monitor_discarded(EVENT_RMDIR);
         } else {
             monitor_discarded(EVENT_UNLINK);

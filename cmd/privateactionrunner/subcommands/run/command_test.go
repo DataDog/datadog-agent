@@ -41,7 +41,7 @@ func newGlobalParamsTest(t *testing.T, enabled bool) *command.GlobalParams {
 	configPath := path.Join(t.TempDir(), "datadog.yaml")
 	configContent := `
 hostname: test
-privateactionrunner:
+private_action_runner:
   enabled: %v
   private_key: test_private_key
   urn: test_urn

@@ -41,6 +41,8 @@ const (
 	EventTypeSoftwareInventory = "software-inventory"
 	// EventTypeEventManagement represents an event for the Event Management API
 	EventTypeEventManagement = "event-management"
+	// EventTypeKubeActions represents a kubernetes action result event
+	EventTypeKubeActions = "kube-actions"
 )
 
 // Component is the interface of the event platform forwarder component.

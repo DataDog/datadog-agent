@@ -6,6 +6,7 @@
 package flare
 
 import (
+	"context"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -20,7 +21,7 @@ func getFirstSuffix(s string) string {
 	return filepath.Ext(strings.TrimSuffix(s, filepath.Ext(s)))
 }
 
-func (f *flare) collectLogsFiles(fb types.FlareBuilder) error {
+func (f *flare) collectLogsFiles(_ context.Context, fb types.FlareBuilder) error {
 	logFile := f.config.GetString("log_file")
 	if logFile == "" {
 		logFile = f.params.defaultLogFile
@@ -50,7 +51,7 @@ func (f *flare) collectLogsFiles(fb types.FlareBuilder) error {
 	return nil
 }
 
-func (f *flare) collectConfigFiles(fb types.FlareBuilder) error {
+func (f *flare) collectConfigFiles(_ context.Context, fb types.FlareBuilder) error {
 	confSearchPaths := map[string]string{
 		"":        f.config.GetString("confd_path"),
 		"fleet":   filepath.Join(f.config.GetString("fleet_policies_dir"), "conf.d"),

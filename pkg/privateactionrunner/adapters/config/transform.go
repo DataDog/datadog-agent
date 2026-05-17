@@ -8,49 +8,35 @@ package config
 import (
 	"crypto/ecdsa"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-const (
-	maxBackoff                   = 3 * time.Minute
-	minBackoff                   = 1 * time.Second
-	maxAttempts                  = 20
-	waitBeforeRetry              = 5 * time.Minute
-	loopInterval                 = 1 * time.Second
-	opmsRequestTimeout           = 30_000
-	runnerPoolSize               = 1
-	defaultHealthCheckEndpoint   = "/healthz"
-	healthCheckInterval          = 30_000
-	defaultHTTPServerReadTimeout = 10_000
-	defaultHTTPTimeout           = 30 * time.Second
-	// defaultHTTPServerWriteTimeout defines how long a request is allowed to run for after the HTTP connection is established. If actions are timing out often, `httpServerWriteTimeout` can be adjusted in config.yaml to override this value. See the Golang docs under `WriteTimeout` for more information about how the server uses this value - https://pkg.go.dev/net/http#Server
-	defaultHTTPServerWriteTimeout = 60_000
-	runnerAccessTokenHeader       = "X-Datadog-Apps-On-Prem-Runner-Access-Token"
-	runnerAccessTokenIDHeader     = "X-Datadog-Apps-On-Prem-Runner-Access-Token-ID"
-	defaultPort                   = 9016
-	defaultJwtRefreshInterval     = 15 * time.Second
-	heartbeatInterval             = 20 * time.Second
-)
-
 func FromDDConfig(config config.Component) (*Config, error) {
-	ddSite := config.GetString("site")
-	encodedPrivateKey := config.GetString("privateactionrunner.private_key")
-	urn := config.GetString("privateactionrunner.urn")
+	mainEndpoint := configutils.GetMainEndpoint(config, "https://api.", "dd_url")
+	ddHost := getDatadogHost(mainEndpoint)
+	ddSite := configutils.ExtractSiteFromURL(mainEndpoint)
+	encodedPrivateKey := config.GetString(setup.PARPrivateKey)
+	urn := config.GetString(setup.PARUrn)
 
 	var privateKey *ecdsa.PrivateKey
 	if encodedPrivateKey != "" {
 		jwk, err := util.Base64ToJWK(encodedPrivateKey)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decode privateactionrunner.private_key: %w", err)
+			return nil, fmt.Errorf("failed to decode %s: %w", setup.PARPrivateKey, err)
 		}
 		privateKey = jwk.Key.(*ecdsa.PrivateKey)
 	}
@@ -68,12 +54,12 @@ func FromDDConfig(config config.Component) (*Config, error) {
 	}
 
 	var taskTimeoutSeconds *int32
-	if v := config.GetInt32("privateactionrunner.task_timeout_seconds"); v != 0 {
+	if v := config.GetInt32(setup.PARTaskTimeoutSeconds); v != 0 {
 		taskTimeoutSeconds = &v
 	}
 
-	httpTimeout := defaultHTTPTimeout
-	if v := config.GetInt32("privateactionrunner.http_timeout_seconds"); v != 0 {
+	httpTimeout := defaultHTTPClientTimeout
+	if v := config.GetInt32(setup.PARHttpTimeoutSeconds); v != 0 {
 		httpTimeout = time.Duration(v) * time.Second
 	}
 
@@ -84,7 +70,7 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		WaitBeforeRetry:           waitBeforeRetry,
 		LoopInterval:              loopInterval,
 		OpmsRequestTimeout:        opmsRequestTimeout,
-		RunnerPoolSize:            runnerPoolSize,
+		RunnerPoolSize:            config.GetInt32(setup.PARTaskConcurrency),
 		HealthCheckInterval:       healthCheckInterval,
 		HttpServerReadTimeout:     defaultHTTPServerReadTimeout,
 		HttpServerWriteTimeout:    defaultHTTPServerWriteTimeout,
@@ -99,9 +85,13 @@ func FromDDConfig(config config.Component) (*Config, error) {
 		Version:                   version.AgentVersion,
 		MetricsClient:             &statsd.NoOpClient{},
 		ActionsAllowlist:          makeActionsAllowlist(config),
-		Allowlist:                 strings.Split(config.GetString("privateactionrunner.allowlist"), ","),
-		AllowIMDSEndpoint:         config.GetBool("privateactionrunner.allow_imds_endpoint"),
-		DDHost:                    strings.Join([]string{"api", ddSite}, "."),
+		Allowlist:                 config.GetStringSlice(setup.PARHttpAllowlist),
+		AllowIMDSEndpoint:         config.GetBool(setup.PARHttpAllowImdsEndpoint),
+		RShellAllowedPaths:        rshellAllowedPaths(config),
+		RShellAllowedCommands:     rshellAllowedCommands(config),
+		OpmsExtraHeaders:          config.GetStringMapString(setup.PAROpmsExtraHeaders),
+		DDHost:                    ddHost,
+		DDApiHost:                 "api." + ddSite,
 		Modes:                     []modes.Mode{modes.ModePull},
 		OrgId:                     orgID,
 		PrivateKey:                privateKey,
@@ -113,7 +103,16 @@ func FromDDConfig(config config.Component) (*Config, error) {
 
 func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 	allowlist := make(map[string]sets.Set[string])
-	actionFqns := config.GetStringSlice("privateactionrunner.actions_allowlist")
+	actionFqns := config.GetStringSlice(setup.PARActionsAllowlist)
+
+	if config.GetBool(setup.PARDefaultActionsEnabled) {
+		if flavor.GetFlavor() == flavor.ClusterAgent {
+			actionFqns = append(actionFqns, DefaultClusterAgentActionFQNs...)
+		} else {
+			actionFqns = append(actionFqns, DefaultActionFQNs...)
+		}
+	}
+
 	for _, fqn := range actionFqns {
 		bundleName, actionName := actions.SplitFQN(fqn)
 		previous, ok := allowlist[bundleName]
@@ -122,5 +121,113 @@ func makeActionsAllowlist(config config.Component) map[string]sets.Set[string] {
 		}
 		allowlist[bundleName] = previous.Insert(actionName)
 	}
+
+	bundleInheritedActions := GetBundleInheritedAllowedActions(allowlist)
+	for bundleID, actionsSet := range bundleInheritedActions {
+		allowlist[bundleID] = allowlist[bundleID].Union(actionsSet)
+	}
+
 	return allowlist
+}
+
+// rshellAllowedCommands returns the operator-configured rshell command allowlist.
+//
+// The default value is a wildcard ["rshell:*"] created to match all commands in the rshell namespace.
+// See pkg/config/setup/privateactionrunner.go for more details.
+//
+// If the wildcard "rshell:*" is present, the operator-configured list acts as an ALLOW ALL:
+// only the backend will be used to filter the commands.
+//
+// If the wildcard "rshell:*" is not present, the operator-configured list is used to filter the commands.
+// For a command to be executed by rshell, it needs to be present in both the operator-configured list
+// AND the backend's allowed commands list. (intersection operation)
+func rshellAllowedCommands(config config.Component) []string {
+	commands := config.GetStringSlice(setup.PARRestrictedShellAllowedCommands)
+	warnUnnamespacedCommands(commands)
+	return commands
+}
+
+func warnUnnamespacedCommands(commands []string) {
+	for _, c := range commands {
+		if !strings.HasPrefix(c, RshellCommandNamespacePrefix) {
+			log.Warnf(
+				"%s entry %q is missing the %q prefix and will never match a backend command; use %q instead",
+				setup.PARRestrictedShellAllowedCommands,
+				c,
+				RshellCommandNamespacePrefix,
+				RshellCommandNamespacePrefix+c,
+			)
+		}
+	}
+}
+
+// rshellAllowedPaths returns the operator-configured rshell path allowlist.
+//
+// The default value is ["/"] matching all paths.
+// See pkg/config/setup/privateactionrunner.go for more details.
+//
+// The operator-configured list is used to filter the paths.
+// For a path to be accessible by rshell, it needs to be present in both the operator-configured list
+// AND the backend's allowed paths list. (intersection operation)
+func rshellAllowedPaths(config config.Component) []string {
+	paths := config.GetStringSlice(setup.PARRestrictedShellAllowedPaths)
+	warnBackslashPaths(paths)
+	warnNonDirectoryPaths(paths)
+	return paths
+}
+
+func warnBackslashPaths(paths []string) {
+	for _, p := range paths {
+		if strings.ContainsRune(p, '\\') {
+			log.Warnf("%s entry %q contains a backslash; only forward-slash paths are supported and this entry will never match a backend rule",
+				setup.PARRestrictedShellAllowedPaths, p)
+		}
+	}
+}
+
+func warnNonDirectoryPaths(paths []string) {
+	for _, p := range paths {
+		info, err := os.Stat(p)
+		if err == nil && !info.IsDir() {
+			log.Warnf("%s entry %q is not a directory; rshell's sandbox only accepts directory entries and will drop this entry at runtime. Use the containing directory instead.",
+				setup.PARRestrictedShellAllowedPaths, p)
+		}
+	}
+}
+
+// getDatadogHost extracts and normalizes the Datadog host from the main endpoint.
+// It removes the "https://" prefix and any trailing "." from the endpoint URL.
+func getDatadogHost(endpoint string) string {
+	host := strings.TrimSuffix(endpoint, ".")
+	host = strings.TrimPrefix(host, "https://")
+	return host
+}
+
+func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[string]) map[string]sets.Set[string] {
+	result := make(map[string]sets.Set[string])
+
+	for _, inheritedAction := range BundleInheritedAllowedActions {
+		actionBundleID, actionName := actions.SplitFQN(inheritedAction.ActionFQN)
+		actionBundleID = strings.ToLower(actionBundleID)
+		prefix := strings.ToLower(inheritedAction.ExpectedPrefix)
+
+		matched := false
+		for bundleID, actionsSet := range actionsAllowlist {
+			if actionsSet.Len() > 0 && strings.HasPrefix(bundleID, prefix) {
+				matched = true
+				break
+			}
+		}
+
+		if !matched {
+			continue
+		}
+
+		if _, exists := result[actionBundleID]; !exists {
+			result[actionBundleID] = sets.New[string]()
+		}
+		result[actionBundleID].Insert(actionName)
+	}
+
+	return result
 }

@@ -42,6 +42,7 @@ const (
 	otelSeverityNumber = otelNamespace + ".severity_number"
 	otelSeverityText   = otelNamespace + ".severity_text"
 	otelTimestamp      = otelNamespace + ".timestamp"
+	otelEventName      = otelNamespace + ".event_name"
 )
 const (
 	// This set of constants specify the keys of the attributes that will be used to represent Datadog
@@ -162,11 +163,19 @@ func transform(lr plog.LogRecord, host, service string, res pcommon.Resource, sc
 		l.AdditionalProperties[otelSeverityNumber] = strconv.Itoa(int(lr.SeverityNumber()))
 	}
 	l.AdditionalProperties[ddStatus] = status
-	// for Datadog to use the same timestamp we need to set the additional property of "@timestamp"
-	if lr.Timestamp() != 0 {
+	// for Datadog to use the same timestamp we need to set the additional property of "@timestamp".
+	// Fall back to ObservedTimestamp when Timestamp is unset (e.g. when the SDK only sets observed_time_unix_nano).
+	ts := lr.Timestamp()
+	if ts == 0 {
+		ts = lr.ObservedTimestamp()
+	}
+	if ts != 0 {
 		// we are retaining the nano second precision in this property
-		l.AdditionalProperties[otelTimestamp] = strconv.FormatInt(lr.Timestamp().AsTime().UnixNano(), 10)
-		l.AdditionalProperties[ddTimestamp] = lr.Timestamp().AsTime().Format("2006-01-02T15:04:05.000Z07:00")
+		l.AdditionalProperties[otelTimestamp] = strconv.FormatInt(ts.AsTime().UnixNano(), 10)
+		l.AdditionalProperties[ddTimestamp] = ts.AsTime().Format("2006-01-02T15:04:05.000Z07:00")
+	}
+	if eventName := lr.EventName(); eventName != "" {
+		l.AdditionalProperties[otelEventName] = eventName
 	}
 	if l.Message == "" {
 		// set the Message to the Body in case it wasn't already parsed as part of the attributes
@@ -185,6 +194,21 @@ func transform(lr plog.LogRecord, host, service string, res pcommon.Resource, sc
 func flattenAttribute(key string, val pcommon.Value, depth int) map[string]any {
 	result := make(map[string]any)
 
+	if val.Type() == pcommon.ValueTypeSlice {
+		slice := val.Slice()
+		flattened := make([]any, slice.Len())
+		for i := 0; i < slice.Len(); i++ {
+			elemResult := flattenAttribute("", slice.At(i), depth+1)
+			if val, ok := elemResult[""]; ok {
+				flattened[i] = val
+			} else {
+				flattened[i] = elemResult
+			}
+		}
+		result[key] = flattened
+		return result
+	}
+
 	if val.Type() != pcommon.ValueTypeMap || depth == 10 {
 		if val.Type() == pcommon.ValueTypeStr ||
 			val.Type() == pcommon.ValueTypeInt ||
@@ -198,7 +222,10 @@ func flattenAttribute(key string, val pcommon.Value, depth int) map[string]any {
 	}
 
 	val.Map().Range(func(k string, v pcommon.Value) bool {
-		newKey := key + "." + k
+		newKey := k
+		if key != "" {
+			newKey = key + "." + k
+		}
 		nestedResult := flattenAttribute(newKey, v, depth+1)
 		maps.Copy(result, nestedResult)
 		return true

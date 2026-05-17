@@ -59,8 +59,8 @@ func (n *noopAutoConfig) GetAutodiscoveryErrors() map[string]map[string]types.Er
 	return map[string]map[string]types.ErrorMsgSet{}
 }
 
-func (n *noopAutoConfig) GetProviderCatalog() map[string]types.ConfigProviderFactory {
-	return map[string]types.ConfigProviderFactory{}
+func (n *noopAutoConfig) AddConfigProviderFromCatalog(pkgconfigsetup.ConfigurationProviders) error {
+	return nil
 }
 
 func (n *noopAutoConfig) GetTelemetryStore() *telemetry.Store {

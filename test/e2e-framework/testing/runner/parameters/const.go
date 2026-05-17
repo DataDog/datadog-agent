@@ -25,6 +25,12 @@ const (
 	AWSPrivateKeyPassword StoreKey = StoreKey(components.CloudProviderAWS + PrivateKeyPasswordSuffix)
 	// AWSPrivateKeyPath private ssh key path
 	AWSPrivateKeyPath StoreKey = StoreKey(components.CloudProviderAWS + PrivateKeyPathSuffix)
+	// Registry used for image pulls (in K8s and manually running `docker run`)
+	ImagePullRegistry StoreKey = "image_pull_registry"
+	// Username used for image pulls (in K8s and manually running `docker run`)
+	ImagePullUsername StoreKey = "image_pull_username"
+	// Password used for image pulls (in K8s and manually running `docker run`)
+	ImagePullPassword StoreKey = "image_pull_password"
 	// Profile aws profile name
 	Profile StoreKey = "profile"
 	// AWSPublicKeyPath public ssh key path
@@ -69,6 +75,9 @@ const (
 	DevMode StoreKey = "dev_mode"
 	// DevLocal uses local Kind cluster instead of AWS for faster development
 	DevLocal StoreKey = "dev_local"
+	// Provisioner specifies the Kubernetes provisioner to use (e.g., "kind", "kind-local", "eks").
+	// Not all tests honor this parameter.
+	Provisioner StoreKey = "provisioner"
 	// InitOnly config flag parameter name
 	InitOnly StoreKey = "init_only"
 	// TeardownOnly config flag parameter name
@@ -83,6 +92,8 @@ const (
 	CoveragePipeline StoreKey = "coverage_pipeline"
 	// CoverageOutDir config flag parameter name
 	CoverageOutDir StoreKey = "coverage_out_dir"
+	// SkipWindows skips Windows infrastructure and workloads in tests
+	SkipWindows StoreKey = "skip_windows"
 )
 
 const (

@@ -1155,7 +1155,9 @@ type FieldHandlers interface {
 	// custom handlers not tied to any fields
 	ExtraFieldHandlers
 }
-type FakeFieldHandlers struct{}
+type FakeFieldHandlers struct {
+	PCEs map[uint32]*ProcessCacheEntry
+}
 
 func (dfh *FakeFieldHandlers) ResolveAcceptHostnames(ev *Event, e *AcceptEvent) []string {
 	return []string(e.Hostnames)

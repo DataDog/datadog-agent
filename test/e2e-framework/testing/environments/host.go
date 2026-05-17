@@ -12,27 +12,88 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/updater"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
-
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/outputs"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclientparams"
 )
 
 // Host is an environment that contains a Host, FakeIntake and Agent configured to talk to each other.
 type Host struct {
+	CoverageBase
 	RemoteHost *components.RemoteHost
 	FakeIntake *components.FakeIntake
 	Agent      *components.RemoteHostAgent
 	Updater    *components.RemoteHostUpdater
 }
 
+// Ensure Host implements the HostOutputs interface for use with scenario Run functions
+var _ outputs.HostOutputs = (*Host)(nil)
+
 var _ common.Initializable = (*Host)(nil)
 
 // Init initializes the environment
 func (e *Host) Init(_ common.Context) error {
 	return nil
+}
+
+// RemoteHostOutput implements outputs.HostOutputs
+func (e *Host) RemoteHostOutput() *remote.HostOutput {
+	if e.RemoteHost == nil {
+		e.RemoteHost = &components.RemoteHost{}
+	}
+	return &e.RemoteHost.HostOutput
+}
+
+// FakeIntakeOutput implements outputs.HostOutputs
+func (e *Host) FakeIntakeOutput() *fakeintake.FakeintakeOutput {
+	if e.FakeIntake == nil {
+		e.FakeIntake = &components.FakeIntake{}
+	}
+	return &e.FakeIntake.FakeintakeOutput
+}
+
+// AgentOutput implements outputs.HostOutputs
+func (e *Host) AgentOutput() *agent.HostAgentOutput {
+	if e.Agent == nil {
+		e.Agent = &components.RemoteHostAgent{}
+	}
+	return &e.Agent.HostAgentOutput
+}
+
+// UpdaterOutput implements outputs.HostOutputs
+func (e *Host) UpdaterOutput() *updater.HostUpdaterOutput {
+	if e.Updater == nil {
+		e.Updater = &components.RemoteHostUpdater{}
+	}
+	return &e.Updater.HostUpdaterOutput
+}
+
+// DisableFakeIntake implements outputs.HostOutputs
+func (e *Host) DisableFakeIntake() {
+	e.FakeIntake = nil
+}
+
+// DisableAgent implements outputs.HostOutputs
+func (e *Host) DisableAgent() {
+	e.Agent = nil
+}
+
+// DisableUpdater implements outputs.HostOutputs
+func (e *Host) DisableUpdater() {
+	e.Updater = nil
+}
+
+// SetAgentClientOptions implements outputs.HostOutputs
+func (e *Host) SetAgentClientOptions(options ...agentclientparams.Option) {
+	e.Agent.ClientOptions = options
 }
 
 var _ common.Diagnosable = (*Host)(nil)
@@ -101,9 +162,10 @@ func generateAndDownloadAgentFlare(agent *components.RemoteHostAgent, host *comp
 }
 
 func (e *Host) getAgentCoverageCommands(family os.Family) ([]CoverageTargetSpec, error) {
+	var targets []CoverageTargetSpec
 	switch family {
 	case os.LinuxFamily:
-		return []CoverageTargetSpec{{
+		targets = []CoverageTargetSpec{{
 			AgentName:       "datadog-agent",
 			CoverageCommand: []string{"sudo", "datadog-agent", "coverage", "generate"},
 			Required:        true,
@@ -123,10 +185,10 @@ func (e *Host) getAgentCoverageCommands(family os.Family) ([]CoverageTargetSpec,
 			AgentName:       "system-probe",
 			CoverageCommand: []string{"sudo", "/opt/datadog-agent/embedded/bin/system-probe", "coverage", "generate"},
 			Required:        false,
-		}}, nil
+		}}
 	case os.WindowsFamily:
 		installPath := client.DefaultWindowsAgentInstallPath(e.RemoteHost.Host)
-		return []CoverageTargetSpec{{
+		targets = []CoverageTargetSpec{{
 			AgentName:       "datadog-agent",
 			CoverageCommand: []string{fmt.Sprintf(`& "%s\bin\agent.exe" "coverage" "generate"`, installPath)},
 			Required:        true,
@@ -146,9 +208,12 @@ func (e *Host) getAgentCoverageCommands(family os.Family) ([]CoverageTargetSpec,
 			AgentName:       "system-probe",
 			CoverageCommand: []string{fmt.Sprintf(`& "%s\bin\agent\system-probe.exe" "coverage" "generate"`, installPath)},
 			Required:        false,
-		}}, nil
+		}}
+	default:
+		return nil, fmt.Errorf("unsupported OS family: %v", family)
 	}
-	return nil, fmt.Errorf("unsupported OS family: %v", family)
+	e.applyCoverageOverrides(targets)
+	return targets, nil
 }
 
 // Coverage runs the coverage command for each agent and downloads the coverage folders to the output directory

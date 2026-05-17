@@ -10,8 +10,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 )
 
 const (
@@ -47,7 +49,7 @@ func TestPeerTagsAggregation(t *testing.T) {
 	t.Run("default-enabled", func(t *testing.T) {
 		cfg := New()
 		assert.Empty(t, cfg.PeerTags)
-		assert.Equal(t, basePeerTags, cfg.ConfiguredPeerTags())
+		assert.Equal(t, basePeerTags(), cfg.ConfiguredPeerTags())
 	})
 	t.Run("disabled-user-tags", func(t *testing.T) {
 		cfg := New()
@@ -59,12 +61,32 @@ func TestPeerTagsAggregation(t *testing.T) {
 	t.Run("enabled-user-tags", func(t *testing.T) {
 		cfg := New()
 		cfg.PeerTags = []string{"user_peer_tag"}
-		assert.Equal(t, append(basePeerTags, "user_peer_tag"), cfg.ConfiguredPeerTags())
+		assert.Equal(t, append(basePeerTags(), "user_peer_tag"), cfg.ConfiguredPeerTags())
 	})
 	t.Run("dedup", func(t *testing.T) {
 		cfg := New()
-		cfg.PeerTags = basePeerTags[:2]
-		assert.Equal(t, basePeerTags, cfg.ConfiguredPeerTags())
+		cfg.PeerTags = basePeerTags()[:2]
+		assert.Equal(t, basePeerTags(), cfg.ConfiguredPeerTags())
+	})
+}
+
+func TestSpanDerivedPrimaryTagKeys(t *testing.T) {
+	t.Run("empty", func(t *testing.T) {
+		cfg := New()
+		assert.Empty(t, cfg.SpanDerivedPrimaryTagKeys)
+		assert.Empty(t, cfg.ConfiguredSpanDerivedPrimaryTagKeys())
+	})
+
+	t.Run("configured", func(t *testing.T) {
+		cfg := New()
+		cfg.SpanDerivedPrimaryTagKeys = []string{"datacenter", "customer_tier", "availability_zone"}
+		assert.Equal(t, []string{"availability_zone", "customer_tier", "datacenter"}, cfg.ConfiguredSpanDerivedPrimaryTagKeys())
+	})
+
+	t.Run("dedup", func(t *testing.T) {
+		cfg := New()
+		cfg.SpanDerivedPrimaryTagKeys = []string{"datacenter", "customer_tier", "datacenter"}
+		assert.Equal(t, []string{"customer_tier", "datacenter"}, cfg.ConfiguredSpanDerivedPrimaryTagKeys())
 	})
 }
 
@@ -135,6 +157,25 @@ func TestSQLObfuscationMode(t *testing.T) {
 	})
 }
 
+func TestEffectiveSQLObfuscationMode(t *testing.T) {
+	t.Run("sqllexer_enabled_no_explicit_mode", func(t *testing.T) {
+		cfg := New()
+		cfg.Features = map[string]struct{}{"sqllexer": {}}
+		// SQLObfuscationMode is empty; effective mode must be obfuscate_only
+		assert.Equal(t, obfuscate.ObfuscateOnly, cfg.EffectiveSQLObfuscationMode())
+	})
+	t.Run("explicit_mode_takes_precedence", func(t *testing.T) {
+		cfg := New()
+		cfg.Features = map[string]struct{}{"sqllexer": {}}
+		cfg.SQLObfuscationMode = string(obfuscate.ObfuscateAndNormalize)
+		assert.Equal(t, obfuscate.ObfuscateAndNormalize, cfg.EffectiveSQLObfuscationMode())
+	})
+	t.Run("no_sqllexer_no_explicit_mode", func(t *testing.T) {
+		cfg := New()
+		assert.Equal(t, obfuscate.ObfuscationMode(""), cfg.EffectiveSQLObfuscationMode())
+	})
+}
+
 func TestInECSManagedInstancesSidecar(t *testing.T) {
 	t.Setenv("DD_ECS_DEPLOYMENT_MODE", "sidecar")
 	t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES")
@@ -148,4 +189,27 @@ func TestDefaultAPMMode(t *testing.T) {
 		cfg := New()
 		assert.Empty(t, cfg.APMMode)
 	})
+}
+
+func TestEnableOPMFetchDefault(t *testing.T) {
+	cfg := New()
+	assert.False(t, cfg.EnableOPMFetch, "EnableOPMFetch must default to false so library users of pkg/trace are unaffected")
+	assert.Empty(t, cfg.OPMValidateURL, "OPMValidateURL must default to empty when EnableOPMFetch is false")
+}
+
+func TestConfiguredPeerTagsUsesLiveRegistry(t *testing.T) {
+	// Custom registry: ConceptPeerService maps to "x.custom.peer" instead of "peer.service".
+	customJSON := `{"version":"test","concepts":{"peer.service":{"canonical":"peer.service","fallbacks":[{"name":"x.custom.peer","provider":"datadog","type":"string"}]}}}`
+	custom, err := semantics.NewRegistryFromJSON([]byte(customJSON))
+	require.NoError(t, err)
+	original, err := semantics.NewEmbeddedRegistry()
+	require.NoError(t, err)
+	t.Cleanup(func() { semantics.UpdateRegistry(original) })
+
+	semantics.UpdateRegistry(custom)
+
+	cfg := New()
+	tags := cfg.ConfiguredPeerTags()
+	assert.Contains(t, tags, "x.custom.peer")
+	assert.NotContains(t, tags, "peer.service")
 }

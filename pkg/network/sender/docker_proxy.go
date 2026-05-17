@@ -16,11 +16,27 @@ import (
 	"sync"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	ddmaps "github.com/DataDog/datadog-agent/pkg/util/maps"
 	ddos "github.com/DataDog/datadog-agent/pkg/util/os"
 )
+
+const dockerProxySubsystem = "sender__docker_proxy"
+
+var dockerProxyTelemetry = struct {
+	processesDetected   telemetry.Counter
+	ipsFound            telemetry.Counter
+	connectionsFiltered telemetry.Counter
+	activeProxies       telemetry.Gauge
+}{
+	telemetryimpl.GetCompatComponent().NewCounter(dockerProxySubsystem, "processes_detected", nil, ""),
+	telemetryimpl.GetCompatComponent().NewCounter(dockerProxySubsystem, "ips_found", nil, ""),
+	telemetryimpl.GetCompatComponent().NewCounter(dockerProxySubsystem, "connections_filtered", nil, ""),
+	telemetryimpl.GetCompatComponent().NewGauge(dockerProxySubsystem, "active_proxies", nil, ""),
+}
 
 type containerAddr struct {
 	addr  netip.AddrPort
@@ -76,6 +92,7 @@ func (d *dockerProxyFilter) process(event *process) {
 	}
 
 	if proxy := extractProxyTarget(event); proxy != nil {
+		dockerProxyTelemetry.processesDetected.Inc()
 		d.log.Debugf("detected docker-proxy with pid=%d target.ip=%s target.port=%d target.proto=%s",
 			proxy.pid,
 			proxy.target.addr.Addr(),
@@ -85,6 +102,7 @@ func (d *dockerProxyFilter) process(event *process) {
 
 		d.proxyByPID[proxy.pid] = proxy
 		d.proxyByTarget[proxy.target] = proxy
+		dockerProxyTelemetry.activeProxies.Set(float64(len(d.proxyByTarget)))
 	}
 }
 
@@ -107,6 +125,7 @@ func (d *dockerProxyFilter) FilterProxies(conns *network.Connections) {
 
 		if proxy, ok := undiscoveredProxies[conn.Pid]; ok {
 			if proxyIP := d.discoverProxyIP(proxy, conn); proxyIP.IsValid() {
+				dockerProxyTelemetry.ipsFound.Inc()
 				proxy.ip = proxyIP
 				delete(undiscoveredProxies, conn.Pid)
 			}
@@ -114,7 +133,11 @@ func (d *dockerProxyFilter) FilterProxies(conns *network.Connections) {
 	}
 
 	conns.Conns = slices.DeleteFunc(conns.Conns, func(c network.ConnectionStats) bool {
-		return d.isProxied(c)
+		proxied := d.isProxied(c)
+		if proxied {
+			dockerProxyTelemetry.connectionsFiltered.Inc()
+		}
+		return proxied
 	})
 
 	for pid, p := range d.proxyByPID {
@@ -125,6 +148,7 @@ func (d *dockerProxyFilter) FilterProxies(conns *network.Connections) {
 	}
 	maps.DeleteFunc(d.proxyByPID, func(_ uint32, p *proxy) bool { return !p.alive })
 	maps.DeleteFunc(d.proxyByTarget, func(_ containerAddr, p *proxy) bool { return !p.alive })
+	dockerProxyTelemetry.activeProxies.Set(float64(len(d.proxyByTarget)))
 }
 
 func (d *dockerProxyFilter) isProxied(c network.ConnectionStats) bool {

@@ -89,7 +89,7 @@ func evpProxyForwarder(conf *config.AgentConfig, statsd statsd.ClientInterface) 
 			req.Header["X-Forwarded-For"] = nil
 		},
 		ErrorLog:  logger,
-		Transport: &evpProxyTransport{conf.NewHTTPTransport(), endpoints, conf, NewIDProvider(conf.ContainerProcRoot, conf.ContainerIDFromOriginInfo), statsd},
+		Transport: &evpProxyTransport{conf.NewHTTPTransport(), endpoints, conf, NewContainerIDProviderFromConfig(conf), statsd},
 	}
 }
 
@@ -187,7 +187,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	timeout := getConfiguredEVPRequestTimeoutDuration(t.conf)
 	req.Header.Set("X-Datadog-Timeout", strconv.Itoa((int(timeout.Seconds()))))
 	deadline := time.Now().Add(timeout)
-	//nolint:govet,lostcancel we don't need to manually cancel this context, we can rely on the parent context being cancelled
+	//nolint:govet,lostcancel // we don't need to manually cancel this context, we can rely on the parent context being cancelled
 	ctx, _ := context.WithDeadline(req.Context(), deadline)
 	req = req.WithContext(ctx)
 

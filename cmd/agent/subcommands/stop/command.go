@@ -11,6 +11,8 @@ package stop
 import (
 	"bytes"
 	"fmt"
+	"net"
+	"strconv"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -21,7 +23,6 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -45,7 +46,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
-				secretsnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -59,7 +59,8 @@ func stop(config config.Component, _ *cliParams, _ log.Component, client ipc.HTT
 	if err != nil {
 		return err
 	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/stop", ipcAddress, config.GetInt("cmd_port"))
+	addr := net.JoinHostPort(ipcAddress, strconv.Itoa(config.GetInt("cmd_port")))
+	urlstr := fmt.Sprintf("https://%s/agent/stop", addr)
 
 	_, e := client.Post(urlstr, "application/json", bytes.NewBuffer([]byte{}))
 	if e != nil {

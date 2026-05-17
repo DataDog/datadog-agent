@@ -107,7 +107,8 @@ func TestPull(t *testing.T) {
 							CPULimit:    pointer.Ptr(0.5),
 							MemoryLimit: pointer.Ptr(uint64(104857600)),
 						},
-						Runtime: workloadmeta.ContainerRuntimeCRIO,
+						Runtime:   workloadmeta.ContainerRuntimeCRIO,
+						SandboxID: "pod1",
 						State: workloadmeta.ContainerState{
 							Status:     workloadmeta.ContainerStatusRunning,
 							Running:    true,
@@ -164,8 +165,9 @@ func TestPull(t *testing.T) {
 					Type:   workloadmeta.EventTypeSet,
 					Source: workloadmeta.SourceRuntime,
 					Entity: &workloadmeta.Container{
-						EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "container1"},
-						Runtime:  workloadmeta.ContainerRuntimeCRIO,
+						EntityID:  workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "container1"},
+						Runtime:   workloadmeta.ContainerRuntimeCRIO,
+						SandboxID: "pod1",
 						State: workloadmeta.ContainerState{
 							Status:     workloadmeta.ContainerStatusRunning,
 							Running:    true,
@@ -205,8 +207,9 @@ func TestPull(t *testing.T) {
 					Type:   workloadmeta.EventTypeSet,
 					Source: workloadmeta.SourceRuntime,
 					Entity: &workloadmeta.Container{
-						EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "container1"},
-						Runtime:  workloadmeta.ContainerRuntimeCRIO,
+						EntityID:  workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "container1"},
+						Runtime:   workloadmeta.ContainerRuntimeCRIO,
+						SandboxID: "pod1",
 						State: workloadmeta.ContainerState{
 							Running:    true,
 							Status:     workloadmeta.ContainerStatusRunning,
@@ -235,8 +238,9 @@ func TestPull(t *testing.T) {
 					Type:   workloadmeta.EventTypeSet,
 					Source: workloadmeta.SourceRuntime,
 					Entity: &workloadmeta.Container{
-						EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "container1"},
-						Runtime:  workloadmeta.ContainerRuntimeCRIO,
+						EntityID:  workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "container1"},
+						Runtime:   workloadmeta.ContainerRuntimeCRIO,
+						SandboxID: "pod1",
 						State: workloadmeta.ContainerState{
 							Status: workloadmeta.ContainerStatusUnknown,
 						},
@@ -320,7 +324,8 @@ func TestPull(t *testing.T) {
 							CPULimit:    nil, // No CPU limit
 							MemoryLimit: nil, // No memory limit
 						},
-						Runtime: workloadmeta.ContainerRuntimeCRIO,
+						Runtime:   workloadmeta.ContainerRuntimeCRIO,
+						SandboxID: "pod1",
 						State: workloadmeta.ContainerState{
 							Status:     workloadmeta.ContainerStatusRunning,
 							Running:    true,
@@ -357,6 +362,7 @@ func TestPull(t *testing.T) {
 			crioCollector := collector{
 				client: client,
 				store:  store,
+				cfg:    config,
 			}
 
 			err := crioCollector.Pull(context.Background())
@@ -509,6 +515,7 @@ func TestGenerateImageEventFromContainer(t *testing.T) {
 			crioCollector := collector{
 				client: client,
 				store:  store,
+				cfg:    configmock.New(t),
 			}
 
 			event, err := crioCollector.generateImageEventFromContainer(context.Background(), tt.container)
@@ -642,6 +649,7 @@ func TestOptimizedImageCollection(t *testing.T) {
 			crioCollector := collector{
 				client: client,
 				store:  store,
+				cfg:    config,
 			}
 
 			events, imageIDs, err := crioCollector.generateImageEventsFromImageList(context.Background())
@@ -865,6 +873,7 @@ func TestPullWithImageCollectionEnabled(t *testing.T) {
 				client:     client,
 				store:      store,
 				seenImages: make(map[workloadmeta.EntityID]struct{}),
+				cfg:        config,
 			}
 
 			err := crioCollector.Pull(context.Background())

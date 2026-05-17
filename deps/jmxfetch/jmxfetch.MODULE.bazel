@@ -1,0 +1,7 @@
+"""Fetch jmxfetch JAR based on current values in //release.json."""
+
+get_jmxfetch_using_release_constants = use_repo_rule("//deps/jmxfetch:module_utils.bzl", "get_jmxfetch_using_release_constants")
+
+get_jmxfetch_using_release_constants(
+    name = "jmxfetch",
+)

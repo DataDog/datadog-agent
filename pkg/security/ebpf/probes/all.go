@@ -119,6 +119,7 @@ func AllProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
 	allProbes = append(allProbes, getPrCtlProbes(fentry)...)
 	allProbes = append(allProbes, getSocketProbes(cgroup2MountPoint)...)
 	allProbes = append(allProbes, getMemfdProbes(fentry)...)
+	allProbes = appendSyscallProbes(allProbes, fentry, EntryAndExit, false, "setsid")
 
 	allProbes = append(allProbes,
 		&manager.Probe{
@@ -152,6 +153,7 @@ func AllMaps() []*manager.Map {
 		{Name: "filter_policy"},
 		{Name: "inode_discarders"},
 		{Name: "prctl_discarders"},
+		{Name: "auid_discarders"},
 		{Name: "inode_disc_revisions"},
 		{Name: "basename_approvers"},
 		// Dentry resolver table
@@ -208,6 +210,11 @@ type MapSpecEditorOpts struct {
 	CapabilitiesMonitoringEnabled bool
 	CgroupSocketEnabled           bool
 	SecurityProfileSyscallAnomaly bool
+	EventSamplingOpenEnabled      bool
+	EventSamplingConnectEnabled   bool
+	EventSamplingBindEnabled      bool
+	EventSamplingDNSEnabled       bool
+	BasenameApproversSize         int
 }
 
 // AllMapSpecEditors returns the list of map editors
@@ -254,10 +261,6 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: superReducedProcPidCacheSize,
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"active_flows": {
-			MaxEntries: activeFlowsMaxEntries,
-			EditorFlag: manager.EditMaxEntries,
-		},
 		"active_flows_spin_locks": {
 			MaxEntries: activeFlowsMaxEntries,
 			EditorFlag: manager.EditMaxEntries,
@@ -287,6 +290,31 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 	if opts.SecurityProfileSyscallAnomaly {
 		editors["security_profiles"] = manager.MapSpecEditor{
 			MaxEntries: uint32(opts.SecurityProfileMaxCount),
+			EditorFlag: manager.EditMaxEntries,
+		}
+	}
+
+	if opts.EventSamplingOpenEnabled {
+		editors["pid_path_keys"] = manager.MapSpecEditor{
+			MaxEntries: 20000,
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["open_samples"] = manager.MapSpecEditor{
+			MaxEntries: 20000,
+			EditorFlag: manager.EditMaxEntries,
+		}
+	}
+
+	if opts.EventSamplingBindEnabled {
+		editors["bind_samples"] = manager.MapSpecEditor{
+			MaxEntries: 10000,
+			EditorFlag: manager.EditMaxEntries,
+		}
+	}
+
+	if opts.EventSamplingConnectEnabled {
+		editors["connect_samples"] = manager.MapSpecEditor{
+			MaxEntries: 10000,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
@@ -375,6 +403,11 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			Flags:      unix.BPF_ANY,
 			EditorFlag: manager.EditMaxEntries | manager.EditFlags,
 		}
+		editors["basename_approvers"] = manager.MapSpecEditor{
+			MaxEntries: uint32(opts.BasenameApproversSize),
+			Flags:      unix.BPF_ANY,
+			EditorFlag: manager.EditMaxEntries,
+		}
 	} else {
 		editors["active_flows"] = manager.MapSpecEditor{
 			MaxEntries: activeFlowsMaxEntries,
@@ -382,6 +415,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 		}
 		editors["inet_bind_args"] = manager.MapSpecEditor{
 			MaxEntries: superReducedProcPidCacheSize,
+			EditorFlag: manager.EditMaxEntries,
+		}
+		editors["basename_approvers"] = manager.MapSpecEditor{
+			MaxEntries: uint32(opts.BasenameApproversSize),
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}

@@ -14,7 +14,7 @@ import (
 	"github.com/fatih/color"
 )
 
-// team: agent-runtimes
+// team: agent-configuration
 
 type metadataAvailDiagnoseCatalog map[string]func() error
 
@@ -41,6 +41,8 @@ const (
 	PortConflict = "port-conflict"
 	// FirewallScan is the suite name for the firewall-scan suite
 	FirewallScan = "firewall-scan"
+	// HealthPlatformIssues is the suite name for the health-issues suite
+	HealthPlatformIssues = "health-issues"
 )
 
 // AllSuites is a list of all available suites
@@ -51,6 +53,7 @@ var AllSuites = []string{
 	EventPlatformConnectivity,
 	PortConflict,
 	FirewallScan,
+	HealthPlatformIssues,
 }
 
 var catalog *Catalog
@@ -177,6 +180,8 @@ type Diagnosis struct {
 
 	// static-time (meta typically)
 	Category string `json:"category,omitempty"`
+	// static-time (owning check identity, set by aggregator)
+	CheckName string `json:"check_name,omitempty"`
 	// static-time (meta typically, description of what being tested)
 	Description string `json:"description,omitempty"`
 	// run-time (what can be done or what docs need to be consulted to address the issue)

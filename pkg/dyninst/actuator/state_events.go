@@ -106,6 +106,19 @@ func (e eventProgramUnloaded) String() string {
 	return fmt.Sprintf("eventProgramUnloaded{programID: %v}", e.programID)
 }
 
+type eventMissingTypesReported struct {
+	baseEvent
+	processID ProcessID
+	typeNames []string
+}
+
+func (e eventMissingTypesReported) String() string {
+	return fmt.Sprintf(
+		"eventMissingTypesReported{processID: %v, typeNames: %d}",
+		e.processID, len(e.typeNames),
+	)
+}
+
 type eventShutdown struct {
 	baseEvent
 }
@@ -121,6 +134,15 @@ type eventGetMetrics struct {
 
 func (e eventGetMetrics) String() string {
 	return "eventGetMetrics{}"
+}
+
+type eventGetDebugInfo struct {
+	baseEvent
+	debugInfoChan chan<- DebugInfo
+}
+
+func (e eventGetDebugInfo) String() string {
+	return "eventGetDebugInfo{}"
 }
 
 type eventHeartbeatCheck struct {

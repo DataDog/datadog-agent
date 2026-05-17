@@ -4,6 +4,7 @@ Invoke entrypoint, import here all the tasks we want to make available
 
 import os
 import pathlib
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from string import Template
@@ -91,8 +92,6 @@ components_to_migrate = [
     "comp/dogstatsd/server/component.go",
     "comp/forwarder/defaultforwarder/component.go",
     "comp/metadata/inventoryagent/component.go",
-    "comp/netflow/config/component.go",
-    "comp/netflow/server/component.go",
     "comp/remote-config/rcclient/component.go",
     "comp/trace/config/component.go",
     "comp/process/apiserver/component.go",
@@ -111,7 +110,6 @@ components_classic_style = [
     'comp/api/authtoken/fetchonlyimpl',
     'comp/api/authtoken/createandfetchimpl',
     'comp/checks/agentcrashdetect/agentcrashdetectimpl',
-    'comp/checks/windowseventlog/windowseventlogimpl',
     "comp/checks/winregistry/impl",
     'comp/collector/collector/collectorimpl',
     'comp/core/autodiscovery/autodiscoveryimpl',
@@ -121,9 +119,6 @@ components_classic_style = [
     'comp/core/pid/pidimpl',
     'comp/core/settings/settingsimpl',
     'comp/core/status/statusimpl',
-    'comp/core/sysprobeconfig/sysprobeconfigimpl',
-    'comp/core/telemetry/telemetryimpl',
-    'comp/core/telemetry/noopsimpl',
     'comp/dogstatsd/pidmap/pidmapimpl',
     'comp/dogstatsd/serverDebug/serverdebugimpl',
     'comp/dogstatsd/status/statusimpl',
@@ -131,7 +126,6 @@ components_classic_style = [
     'comp/forwarder/eventplatform/eventplatformimpl',
     'comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl',
     'comp/forwarder/orchestrator/orchestratorimpl',
-    'comp/languagedetection/client/clientimpl',
     'comp/logs/adscheduler/adschedulerimpl',
     'comp/logs/agent/agentimpl',
     'comp/metadata/host/hostimpl',
@@ -165,7 +159,6 @@ components_classic_style = [
     'comp/snmptraps/forwarder/forwarderimpl',
     'comp/snmptraps/listener/listenerimpl',
     'comp/snmptraps/oidresolver/oidresolverimpl',
-    'comp/snmptraps/server/serverimpl',
     'comp/snmptraps/status/statusimpl',
     'comp/systray/systray/systrayimpl',
     'comp/trace/etwtracer/etwtracerimpl',
@@ -187,12 +180,15 @@ components_missing_implementation_folder = [
 ]
 
 ignore_fx_import = [
+    "comp/otelcol/logsagentpipeline",
     "comp/core/workloadmeta",
     "comp/rdnsquerier",
     "comp/trace/agent",
+    "comp/snmptraps/server",
 ]
 
 ignore_provide_component_constructor_missing = [
+    "comp/otelcol/logsagentpipeline",
     "comp/core/workloadmeta",
     "comp/trace/agent",
 ]
@@ -266,15 +262,25 @@ def check_component_contents_and_file_hiearchy(comp):
                 return f"** {src_file} should not import 'fxutil' because it a component implementation"
         # FX files should use correct filename and package name, and call ProvideComponentConstructor
         for src_file in locate_fx_source_files(root_path):
-            if src_file.name != 'fx.go':
-                return f"** {src_file} should be named 'fx.go'"
+            # Skip test files
+            if src_file.name.endswith('_test.go'):
+                continue
+            # Allow fx.go or fx_<suffix>.go (e.g., fx_unsupported.go)
+            if src_file.name != 'fx.go' and not src_file.name.startswith('fx_'):
+                return f"** {src_file} should be named 'fx.go' or 'fx_<suffix>.go'"
             pkgname = parse_package_name(src_file)
             expectname = comp.name + 'fx'
             if pkgname != 'fx' and pkgname != expectname:
                 return f"** {src_file} has wrong package name '{pkgname}', must be 'fx' or '{expectname}'"
+            # All fx files must define a Module function (with optional prefix/suffix) returning fxutil.Module
+            src_content = read_file_content(src_file)
+            if not re.search(r'func \w*Module\w*\([^)]*\) fxutil\.Module', src_content):
+                return f"** {src_file} must define a function matching 'func <Prefix>Module<Suffix>(...) fxutil.Module'"
+            # Only check ProvideComponentConstructor for the main fx.go file
+            if src_file.name != 'fx.go':
+                continue
             if comp.path in ignore_provide_component_constructor_missing:
                 continue
-            src_content = read_file_content(src_file)
             if 'ProvideComponentConstructor' not in src_content:
                 return f"** {src_file} should call ProvideComponentConstructor to convert regular constructor into fx-aware"
 

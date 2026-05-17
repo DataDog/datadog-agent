@@ -12,11 +12,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	winevtapi "github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
 	publishermetadatacachedef "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
-	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers/windowsevent"
@@ -25,7 +25,7 @@ import (
 )
 
 type tailer interface {
-	Start(bookmark string)
+	Start()
 	startstop.Stoppable
 	Identifier() string
 }
@@ -120,7 +120,6 @@ func (l *Launcher) setupTailer(source *sources.LogSource) (tailer, error) {
 		ProcessRawMessage: sanitizedConfig.ProcessRawMessage,
 	}
 	t := windowsevent.NewTailer(nil, source, config, l.pipelineProvider.NextPipelineChan(), l.registry, l.publisherMetadataCache)
-	bookmark := l.registry.GetOffset(t.Identifier())
-	t.Start(bookmark)
+	t.Start()
 	return t, nil
 }

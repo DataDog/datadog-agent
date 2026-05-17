@@ -38,7 +38,7 @@ int __attribute__((always_inline)) trace_kernel_file(ctx_t *ctx, struct file *f,
 
     syscall->init_module.dentry = get_file_dentry(f);
     syscall->init_module.file.path_key.mount_id = get_file_mount_id(f);
-    set_file_inode(syscall->init_module.dentry, &syscall->init_module.file, 0);
+    set_file_inode(syscall->init_module.dentry, &syscall->init_module.file, PATH_ID_INVALIDATE_TYPE_NONE);
 
     syscall->resolver.key = syscall->init_module.file.path_key;
     syscall->resolver.dentry = syscall->init_module.dentry;
@@ -131,8 +131,7 @@ SEC("tracepoint/module/module_load")
 int module_load(struct tracepoint_module_module_load_t *args) {
     // check if the tracepoint is hit by a kworker
     u32 pid = bpf_get_current_pid_tgid();
-    u32 *is_kworker = bpf_map_lookup_elem(&pid_ignored, &pid);
-    if (!is_kworker) {
+    if (!IS_KERNEL_THREAD(pid)) {
         return 0;
     }
 

@@ -1,0 +1,2 @@
+# gazelle:ignore
+# Stub: parent has .go files; only pkg/process/util/api is migrated to Bazel.

@@ -8,6 +8,7 @@
 package providers
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -29,19 +30,16 @@ var tplCel = integration.Config{
 	},
 }
 
-// Initialize the shared dummy CEL template with a matching program
+// Initialize the shared dummy CEL template with matching programs
 func init() {
-	matchingProgram, celADID, compileErr, recErr := integration.CreateMatchingProgram(tplCel.CELSelector)
-	if compileErr != nil {
-		panic("failed to compile CEL matching program: " + compileErr.Error())
+	programs, celADIDs, err := integration.CreateMatchingPrograms(tplCel.CELSelector, true)
+	if err != nil {
+		panic("failed to create CEL matching program: " + err.Error())
 	}
-	if recErr != nil {
-		panic("failed to create CEL matching program: " + recErr.Error())
+	if !slices.Contains(celADIDs, adtypes.CelEndpointIdentifier) {
+		panic("expected CEL identifiers to contain " + string(adtypes.CelEndpointIdentifier))
 	}
-	if celADID != adtypes.CelEndpointIdentifier {
-		panic("expected CEL identifier to be " + string(adtypes.CelEndpointIdentifier) + " but got " + string(celADID))
-	}
-	tplCel.SetMatchingProgram(matchingProgram)
+	tplCel.SetMatchingPrograms(programs)
 }
 
 func TestBuildConfigStore(t *testing.T) {
@@ -131,7 +129,7 @@ func TestBuildConfigStore(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p := &KubeEndpointsFileConfigProvider{}
 			p.buildConfigStore(tt.templates)
-			// Ignore unexported matchingProgram in the integration.Config
+			// Ignore unexported matchingPrograms in the integration.Config
 			// because it gets recompiled in buildConfigStore with a different signature
 			if diff := cmp.Diff(tt.want, p.store.epConfigs,
 				cmp.AllowUnexported(epConfig{}),
@@ -148,6 +146,13 @@ func TestStoreInsertEp(t *testing.T) {
 		AdvancedADIdentifiers: []integration.AdvancedADIdentifier{{
 			KubeEndpoints: kubeEndpointIdentifier("ep-ns1", "ep-name1", ""),
 		}},
+	}
+
+	ns1CelTpl := integration.Config{
+		Name: "check2",
+		CELSelector: workloadfilter.Rules{
+			KubeEndpoints: []string{`kube_endpoint.namespace == "ns1" && kube_endpoint.name == "ep1"`},
+		},
 	}
 
 	ep1 := &v1.Endpoints{ObjectMeta: metav1.ObjectMeta{Name: "ep1", Namespace: "ns1"}}
@@ -190,6 +195,19 @@ func TestStoreInsertEp(t *testing.T) {
 				},
 				eps: nil,
 			}},
+		},
+		{
+			name: "found and inserts into both AdvancedAD and CEL configurations",
+			epConfigs: map[string]*epConfig{
+				"ns1/ep1":     {templates: []integration.Config{tpl}, eps: nil},
+				celEndpointID: {templates: []integration.Config{ns1CelTpl}, eps: nil},
+			},
+			ep:   ep1,
+			want: true,
+			wantEpConfigs: map[string]*epConfig{
+				"ns1/ep1":     {templates: []integration.Config{tpl}, eps: map[*v1.Endpoints]struct{}{ep1: {}}, shouldCollect: true},
+				celEndpointID: {templates: []integration.Config{ns1CelTpl}, eps: map[*v1.Endpoints]struct{}{ep1: {}}, shouldCollect: true},
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -505,6 +523,33 @@ func TestEndpointChecksFromTemplateWithResolveMode(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestKubeEndpointsFileConfigProviderGetConfigErrors(t *testing.T) {
+	validTpl := integration.Config{
+		Name: "valid-check",
+		CELSelector: workloadfilter.Rules{
+			KubeEndpoints: []string{`kube_endpoint.namespace == "default" && kube_endpoint.name.matches("")`},
+		},
+	}
+	invalidTpl := integration.Config{
+		Name: "invalid-check",
+		CELSelector: workloadfilter.Rules{
+			KubeEndpoints: []string{`this is not valid CEL !!!`},
+		},
+	}
+
+	p := &KubeEndpointsFileConfigProvider{}
+	p.buildConfigStore([]integration.Config{validTpl, invalidTpl})
+
+	errors := p.GetConfigErrors()
+
+	// The valid template should not produce any errors
+	assert.NotContains(t, errors, "valid-check")
+
+	// The invalid template should produce a compile error
+	assert.Contains(t, errors, "invalid-check")
+	assert.Len(t, errors["invalid-check"], 1)
 }
 
 func kubeEndpointIdentifier(ns string, name string, resolve string) integration.KubeEndpointsIdentifier {

@@ -30,7 +30,7 @@ func BucketWithSpans(spans []*pb.Span) *pb.ClientStatsBucket {
 		// override version to ensure all buckets will have the same payload key.
 		s.Meta["version"] = ""
 		s.Metrics["_dd.measured"] = 1 // All stats in a bucket must be eligible for stats, mark all these spans as measured
-		statSpan, _ := sc.NewStatSpanFromPB(s, nil)
+		statSpan, _ := sc.NewStatSpanFromPB(s, nil, nil)
 		srb.HandleSpan(statSpan, 0, "", aggKey)
 	}
 	buckets := srb.Export()

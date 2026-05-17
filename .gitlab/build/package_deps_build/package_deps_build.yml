@@ -5,7 +5,6 @@
 .generate_minimized_btfs_common:
   stage: package_deps_build
   rules:
-    - !reference [.except_mergequeue]
     - when: on_success
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/btf-gen$CI_IMAGE_BTF_GEN_SUFFIX:$CI_IMAGE_BTF_GEN
   tags: ["arch:amd64", "specific:true"]

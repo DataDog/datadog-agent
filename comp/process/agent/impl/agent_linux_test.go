@@ -1,0 +1,261 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+//go:build test && linux
+
+package agentimpl
+
+import (
+	"net/http"
+	"sync"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"go.uber.org/fx"
+
+	configComp "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	statsdimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/impl"
+	agentpkg "github.com/DataDog/datadog-agent/comp/process/agent"
+	agent "github.com/DataDog/datadog-agent/comp/process/agent/def"
+	hostinfomock "github.com/DataDog/datadog-agent/comp/process/hostinfo/mock"
+	processcheckimpl "github.com/DataDog/datadog-agent/comp/process/processcheck/impl"
+	runnerfx "github.com/DataDog/datadog-agent/comp/process/runner/fx"
+	submittermock "github.com/DataDog/datadog-agent/comp/process/submitter/mock"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	checkMocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+func TestProcessAgentComponentOnLinux(t *testing.T) {
+	tests := []struct {
+		name          string
+		agentFlavor   string
+		checksEnabled bool
+		checkName     string
+		expected      bool
+	}{
+		{
+			name:          "process-agent with process check enabled",
+			agentFlavor:   flavor.ProcessAgent,
+			checksEnabled: true,
+			checkName:     checks.ProcessCheckName,
+			expected:      false,
+		},
+		{
+			name:          "process-agent with checks disabled",
+			agentFlavor:   flavor.ProcessAgent,
+			checksEnabled: false,
+			expected:      false,
+		},
+		{
+			name:          "process-agent with connections check enabled",
+			agentFlavor:   flavor.ProcessAgent,
+			checksEnabled: true,
+			checkName:     checks.ConnectionsCheckName,
+			expected:      true,
+		},
+		{
+			name:          "core agent with process check enabled",
+			agentFlavor:   flavor.DefaultAgent,
+			checksEnabled: true,
+			checkName:     checks.ProcessCheckName,
+			expected:      true,
+		},
+		{
+			name:          "core agent with checks disabled",
+			agentFlavor:   flavor.DefaultAgent,
+			checksEnabled: false,
+			expected:      false,
+		},
+		{
+			name:          "core agent with connections enabled",
+			agentFlavor:   flavor.DefaultAgent,
+			checksEnabled: true,
+			checkName:     checks.ConnectionsCheckName,
+			expected:      true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			originalFlavor := flavor.GetFlavor()
+			flavor.SetFlavor(tc.agentFlavor)
+			defer func() {
+				flavor.SetFlavor(originalFlavor)
+				// reset agent module global variable "Once" to ensure Enabled() function runs for each unit test
+				agentpkg.Once = sync.Once{}
+			}()
+
+			opts := []fx.Option{
+				runnerfx.Module(),
+				hostinfomock.MockModule(),
+				submittermock.MockModule(),
+				statsdimpl.MockModule(),
+				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
+				fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
+				fxutil.ProvideComponentConstructor(NewComponent),
+				hostnameimpl.MockModule(),
+				fx.Provide(func() configComp.Component {
+					return configComp.NewMock(t)
+				}),
+			}
+
+			if tc.checksEnabled {
+				opts = append(opts, fx.Provide(processcheckimpl.NewMock))
+				opts = append(opts, fx.Provide(func() func(c *checkMocks.Check) {
+					return func(c *checkMocks.Check) {
+						c.On("Init", mock.Anything, mock.Anything, mock.AnythingOfType("bool")).Return(nil).Maybe()
+						c.On("Name").Return(tc.checkName).Maybe()
+						c.On("SupportsRunOptions").Return(false).Maybe()
+						c.On("Realtime").Return(false).Maybe()
+						c.On("Cleanup").Maybe()
+						c.On("Run", mock.Anything, mock.Anything).Return(&checks.StandardRunResult{}, nil).Maybe()
+						c.On("ShouldSaveLastRun").Return(false).Maybe()
+						c.On("IsEnabled").Return(true).Maybe()
+					}
+				}))
+			}
+
+			agentComponent := fxutil.Test[agent.Component](t, fx.Options(opts...))
+			assert.Equal(t, tc.expected, agentComponent.Enabled())
+		})
+	}
+}
+
+func TestStatusProvider(t *testing.T) {
+	tests := []struct {
+		name        string
+		agentFlavor string
+		expected    interface{}
+	}{
+		{
+			"process agent",
+			flavor.ProcessAgent,
+			nil,
+		},
+		{
+			"core agent",
+			flavor.DefaultAgent,
+			&StatusProvider{},
+		},
+	}
+
+	type testOut struct {
+		fx.In
+		Providers []status.Provider `group:"status"`
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			originalFlavor := flavor.GetFlavor()
+			flavor.SetFlavor(tc.agentFlavor)
+			defer func() {
+				flavor.SetFlavor(originalFlavor)
+				// reset agent module global variable "Once" to ensure Enabled() function runs for each unit test
+				agentpkg.Once = sync.Once{}
+			}()
+
+			out := fxutil.Test[testOut](t, fx.Options(
+				fxutil.ProvideComponentConstructor(NewComponent),
+				runnerfx.Module(),
+				hostinfomock.MockModule(),
+				submittermock.MockModule(),
+				statsdimpl.MockModule(),
+				fx.Provide(processcheckimpl.NewMock),
+				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+				fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
+				fx.Provide(func() configComp.Component {
+					return configComp.NewMock(t)
+				}),
+				fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
+				hostnameimpl.MockModule(),
+				fx.Provide(func() func(c *checkMocks.Check) {
+					return func(c *checkMocks.Check) {
+						c.On("Init", mock.Anything, mock.Anything, mock.AnythingOfType("bool")).Return(nil).Maybe()
+						c.On("Name").Return(checks.ProcessCheckName).Maybe()
+						c.On("SupportsRunOptions").Return(false).Maybe()
+						c.On("Realtime").Return(false).Maybe()
+						c.On("Cleanup").Maybe()
+						c.On("Run", mock.Anything, mock.Anything).Return(&checks.StandardRunResult{}, nil).Maybe()
+						c.On("ShouldSaveLastRun").Return(false).Maybe()
+						c.On("IsEnabled").Return(true).Maybe()
+					}
+				}),
+			))
+
+			var foundProvider status.Provider
+			for _, p := range out.Providers {
+				if p != nil {
+					foundProvider = p
+					break
+				}
+			}
+			assert.IsType(t, tc.expected, foundProvider)
+		})
+	}
+}
+
+func TestTelemetryCoreAgent(t *testing.T) {
+	// This test catches if there are multiple handlers for "/telemetry" endpoint
+	// registered to help avoid introducing panics.
+
+	originalFlavor := flavor.GetFlavor()
+	flavor.SetFlavor("agent")
+	defer func() {
+		flavor.SetFlavor(originalFlavor)
+		// reset agent module global variable "Once" to ensure Enabled() function runs for each unit test
+		agentpkg.Once = sync.Once{}
+	}()
+
+	_ = fxutil.Test[agent.Component](t, fx.Options(
+		fxutil.ProvideComponentConstructor(NewComponent),
+		runnerfx.Module(),
+		hostinfomock.MockModule(),
+		submittermock.MockModule(),
+		statsdimpl.MockModule(),
+		fx.Provide(processcheckimpl.NewMock),
+		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+		fx.Provide(func(t testing.TB) tagger.Component { return taggerfxmock.SetupFakeTagger(t) }),
+		fx.Provide(func() configComp.Component {
+			return configComp.NewMockWithOverrides(t, map[string]interface{}{
+				"telemetry.enabled": true,
+			})
+		}),
+		fx.Provide(func(tb testing.TB) sysprobeconfig.Component { return sysprobeconfigmock.NewMock(tb) }),
+		hostnameimpl.MockModule(),
+		fx.Provide(func() func(c *checkMocks.Check) {
+			return func(c *checkMocks.Check) {
+				c.On("Init", mock.Anything, mock.Anything, mock.AnythingOfType("bool")).Return(nil).Maybe()
+				c.On("Name").Return(checks.ProcessCheckName).Maybe()
+				c.On("SupportsRunOptions").Return(false).Maybe()
+				c.On("Realtime").Return(false).Maybe()
+				c.On("Cleanup").Maybe()
+				c.On("Run", mock.Anything, mock.Anything).Return(&checks.StandardRunResult{}, nil).Maybe()
+				c.On("ShouldSaveLastRun").Return(false).Maybe()
+				c.On("IsEnabled").Return(true).Maybe()
+			}
+		}),
+	))
+
+	tel := fxutil.Test[telemetry.Mock](t, telemetrymock.Module())
+	tel.Reset()
+	// Setup expvar server
+	telemetryHandler := tel.Handler()
+
+	http.Handle("/telemetry", telemetryHandler)
+}

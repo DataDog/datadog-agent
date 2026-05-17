@@ -7,6 +7,7 @@ package serializers
 
 import (
 	json "encoding/json"
+	model "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	utils "github.com/DataDog/datadog-agent/pkg/security/utils"
 	easyjson "github.com/mailru/easyjson"
 	jlexer "github.com/mailru/easyjson/jlexer"
@@ -2170,11 +2171,23 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers16(
 					*out.PPid = uint32(in.Uint32())
 				}
 			}
+		case "sid":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.SID = uint32(in.Uint32())
+			}
 		case "tid":
 			if in.IsNull() {
 				in.Skip()
 			} else {
 				out.Tid = uint32(in.Uint32())
+			}
+		case "fork_flags":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.ForkFlags = int(in.Int())
 			}
 		case "uid":
 			if in.IsNull() {
@@ -2488,11 +2501,23 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers16(
 			} else {
 				out.IsKworker = bool(in.Bool())
 			}
+		case "is_exec":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.IsExec = bool(in.Bool())
+			}
 		case "is_exec_child":
 			if in.IsNull() {
 				in.Skip()
 			} else {
 				out.IsExecExec = bool(in.Bool())
+			}
+		case "is_parent_missing":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.IsParentMissing = bool(in.Bool())
 			}
 		case "source":
 			if in.IsNull() {
@@ -2566,6 +2591,22 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers16(
 				}
 				in.Delim(']')
 			}
+		case "tracer":
+			if in.IsNull() {
+				in.Skip()
+				out.Tracer = nil
+			} else {
+				if out.Tracer == nil {
+					out.Tracer = new(model.TracerMetadata)
+				}
+				easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgDiscoveryTracermetadataModel(in, out.Tracer)
+			}
+		case "variables":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				(out.Variables).UnmarshalEasyJSON(in)
+			}
 		default:
 			in.SkipRecursive()
 		}
@@ -2596,24 +2637,29 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers16(
 		}
 		out.Uint32(uint32(*in.PPid))
 	}
-	if in.Tid != 0 {
-		const prefix string = ",\"tid\":"
+	{
+		const prefix string = ",\"sid\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
+		out.Uint32(uint32(in.SID))
+	}
+	if in.Tid != 0 {
+		const prefix string = ",\"tid\":"
+		out.RawString(prefix)
 		out.Uint32(uint32(in.Tid))
 	}
 	{
+		const prefix string = ",\"fork_flags\":"
+		out.RawString(prefix)
+		out.Int(int(in.ForkFlags))
+	}
+	{
 		const prefix string = ",\"uid\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
+		out.RawString(prefix)
 		out.Int(int(in.UID))
 	}
 	{
@@ -2772,10 +2818,20 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers16(
 		out.RawString(prefix)
 		out.Bool(bool(in.IsKworker))
 	}
+	if in.IsExec {
+		const prefix string = ",\"is_exec\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.IsExec))
+	}
 	if in.IsExecExec {
 		const prefix string = ",\"is_exec_child\":"
 		out.RawString(prefix)
 		out.Bool(bool(in.IsExecExec))
+	}
+	if in.IsParentMissing {
+		const prefix string = ",\"is_parent_missing\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.IsParentMissing))
 	}
 	if in.Source != "" {
 		const prefix string = ",\"source\":"
@@ -2816,6 +2872,16 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers16(
 			out.RawByte(']')
 		}
 	}
+	if in.Tracer != nil {
+		const prefix string = ",\"tracer\":"
+		out.RawString(prefix)
+		easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgDiscoveryTracermetadataModel(out, *in.Tracer)
+	}
+	if len(in.Variables) != 0 {
+		const prefix string = ",\"variables\":"
+		out.RawString(prefix)
+		(in.Variables).MarshalEasyJSON(out)
+	}
 	out.RawByte('}')
 }
 
@@ -2827,6 +2893,157 @@ func (v ProcessSerializer) MarshalEasyJSON(w *jwriter.Writer) {
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *ProcessSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers16(l, v)
+}
+func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgDiscoveryTracermetadataModel(in *jlexer.Lexer, out *model.TracerMetadata) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		switch key {
+		case "schema_version":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.SchemaVersion = uint8(in.Uint8())
+			}
+		case "runtime_id":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.RuntimeID = string(in.String())
+			}
+		case "tracer_language":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.TracerLanguage = string(in.String())
+			}
+		case "tracer_version":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.TracerVersion = string(in.String())
+			}
+		case "hostname":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Hostname = string(in.String())
+			}
+		case "service_name":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.ServiceName = string(in.String())
+			}
+		case "service_env":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.ServiceEnv = string(in.String())
+			}
+		case "service_version":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.ServiceVersion = string(in.String())
+			}
+		case "process_tags":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.ProcessTags = string(in.String())
+			}
+		case "container_id":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.ContainerID = string(in.String())
+			}
+		case "logs_collected":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.LogsCollected = bool(in.Bool())
+			}
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgDiscoveryTracermetadataModel(out *jwriter.Writer, in model.TracerMetadata) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"schema_version\":"
+		out.RawString(prefix[1:])
+		out.Uint8(uint8(in.SchemaVersion))
+	}
+	if in.RuntimeID != "" {
+		const prefix string = ",\"runtime_id\":"
+		out.RawString(prefix)
+		out.String(string(in.RuntimeID))
+	}
+	{
+		const prefix string = ",\"tracer_language\":"
+		out.RawString(prefix)
+		out.String(string(in.TracerLanguage))
+	}
+	{
+		const prefix string = ",\"tracer_version\":"
+		out.RawString(prefix)
+		out.String(string(in.TracerVersion))
+	}
+	{
+		const prefix string = ",\"hostname\":"
+		out.RawString(prefix)
+		out.String(string(in.Hostname))
+	}
+	if in.ServiceName != "" {
+		const prefix string = ",\"service_name\":"
+		out.RawString(prefix)
+		out.String(string(in.ServiceName))
+	}
+	if in.ServiceEnv != "" {
+		const prefix string = ",\"service_env\":"
+		out.RawString(prefix)
+		out.String(string(in.ServiceEnv))
+	}
+	if in.ServiceVersion != "" {
+		const prefix string = ",\"service_version\":"
+		out.RawString(prefix)
+		out.String(string(in.ServiceVersion))
+	}
+	if in.ProcessTags != "" {
+		const prefix string = ",\"process_tags\":"
+		out.RawString(prefix)
+		out.String(string(in.ProcessTags))
+	}
+	if in.ContainerID != "" {
+		const prefix string = ",\"container_id\":"
+		out.RawString(prefix)
+		out.String(string(in.ContainerID))
+	}
+	if in.LogsCollected {
+		const prefix string = ",\"logs_collected\":"
+		out.RawString(prefix)
+		out.Bool(bool(in.LogsCollected))
+	}
+	out.RawByte('}')
 }
 func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers17(in *jlexer.Lexer, out *SyscallSerializer) {
 	isTopLevel := in.IsStart()

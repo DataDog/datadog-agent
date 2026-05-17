@@ -89,10 +89,8 @@ else
   end
 
   if osx_target?
-    unless ENV['SKIP_SIGN_MAC'] == 'true'
+    if ENV['SIGN_MAC'] == 'true'
       code_signing_identity 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'
-    end
-    if ENV['HARDENED_RUNTIME_MAC'] == 'true'
       entitlements_file "#{files_path}/macos/Entitlements.plist"
     end
   else
@@ -184,7 +182,7 @@ package :pkg do
   identifier 'com.datadoghq.agent'
   # This defines where the package will be installed in the target system
   install_location "/opt/datadog-agent"
-  unless ENV['SKIP_SIGN_MAC'] == 'true'
+  if ENV['SIGN_MAC'] == 'true'
     signing_identity 'Developer ID Installer: Datadog, Inc. (JKFCB4CN7C)'
   end
 end
@@ -196,14 +194,10 @@ end
 
 # Windows .zip specific flags
 package :zip do
-  if windows_arch_i386?
-    skip_packager true
-  else
-    # noinspection RubyLiteralArrayInspection
-    extra_package_dirs [
-      "#{Omnibus::Config.source_dir()}\\cf-root"
-    ]
-  end
+  # noinspection RubyLiteralArrayInspection
+  extra_package_dirs [
+    "#{Omnibus::Config.source_dir()}\\cf-root"
+  ]
 end
 
 package :msi do
@@ -228,19 +222,6 @@ end
 if do_build
   # Datadog agent
   dependency 'datadog-agent'
-
-  # This depends on the agent and must be added after it
-  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
-    dependency 'datadog-security-agent-policies'
-  end
-
-  if osx_target?
-    dependency 'datadog-agent-mac-app'
-  end
-
-  if linux_target?
-    dependency 'datadog-security-agent-policies'
-  end
 
   # this dependency puts few files out of the omnibus install dir and move them
   # in the final destination. This way such files will be listed in the packages
@@ -320,15 +301,16 @@ if windows_target?
     "#{install_dir}\\bin\\agent\\trace-agent.exe",
     "#{install_dir}\\bin\\agent\\process-agent.exe",
     "#{install_dir}\\bin\\agent\\system-probe.exe",
+    "#{install_dir}\\bin\\agent\\secret-generic-connector.exe",
     "#{install_dir}\\datadog-installer.exe"
   ]
 
   if not fips_mode?
-    # TODO(AGENTCFG-XXX): SGC is not supported in FIPS mode
-    GO_BINARIES << "#{install_dir}\\bin\\agent\\secret-generic-connector.exe"
+    # TODO(ACTP-XXX): PAR is not enabled in Gov yet
+    GO_BINARIES << "#{install_dir}\\bin\\agent\\privateactionrunner.exe"
   end
 
-  if not windows_arch_i386? and ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
     GO_BINARIES << "#{install_dir}\\bin\\agent\\security-agent.exe"
   end
 
@@ -357,6 +339,10 @@ if windows_target?
   windows_symbol_stripping_file "#{install_dir}\\datadog-installer.exe"
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-compile-policy.exe"
 
+  # Rust binaries (not in GO_BINARIES — no Go symbol inspection needed)
+  windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-procmgrd.exe"
+  windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-procmgr.exe"
+
   if windows_signing_enabled?
     # Sign additional binaries from here.
     # We can't request signing from the respective components/software definitions
@@ -380,6 +366,8 @@ if windows_target?
       "#{install_dir}\\bin\\agent\\ddtray.exe",
       "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll",
       "#{install_dir}\\bin\\agent\\dd-compile-policy.exe",
+      "#{install_dir}\\bin\\agent\\dd-procmgrd.exe",
+      "#{install_dir}\\bin\\agent\\dd-procmgr.exe",
     ]
 
     BINARIES_TO_SIGN.each do |bin|
@@ -395,4 +383,10 @@ if linux_target? or windows_target?
   # in the debug package.
   strip_build windows_target? || do_build
   debug_path ".debug"  # the strip symbols will be in here
+end
+
+if linux_target?
+  # Strip runs before packaging, so restore final perms after strip.
+  chmod_before_packaging "#{install_dir}/embedded/bin/dd-compile-policy", 0555
+  chmod_before_packaging "#{install_dir}/embedded/bin/secret-generic-connector", 0500
 end

@@ -154,32 +154,24 @@ func (s *score) update(v, qv float64) {
 }
 
 func TestRelativeError(t *testing.T) {
+	c := Default()
+	start, stop := c.key(1e-6), c.key(float64(float32(math.MaxInt64)))
 
-	var (
-		c                   = Default()
-		posinf              = float32(math.Inf(1))
-		start, stop float32 = 1e-6, math.MaxInt64
-		isPow2              = func(v float64) bool {
-			if v <= 1 {
-				return false
-			}
-			f, _ := math.Frexp(v)
-			return f == .5
-		}
-	)
-
-	if testing.Short() {
-		// this test takes a really really long time for the whole range of float32s
-		start, stop = 1, float32(math.Pow(c.gamma.v, 5))
-	}
-
+	// key(v) == k for all v in [f64(k)/√γ, f64(k)·√γ), so qv = f64(k) is constant and the relative
+	// error is monotone in both directions from f64(k), peaking at 1−1/√γ at both boundaries.
+	// The upper boundary for key k is the lower boundary for key k+1, so iterating all keys covers
+	// every boundary exactly once - equivalent to the exhaustive float32 scan, since no float32
+	// can sit closer to a boundary than our float64 sample.
 	s := &score{}
-	for v32 := start; v32 <= stop; v32 = math.Nextafter32(v32, posinf) {
-		v := float64(v32)
+	sqrtGamma := math.Sqrt(c.gamma.v)
+	_, prevExp := math.Frexp(c.f64(start))
+	for k := start; k <= stop; k++ {
+		v := math.Nextafter(c.f64(k)*sqrtGamma, 0)
 		qv := c.f64(c.key(v))
 		s.update(v, qv)
-		if isPow2(v) {
+		if _, exp := math.Frexp(v); exp != prevExp {
 			s.print()
+			prevExp = exp
 		}
 
 		if limit := .01; s.relerr.max > limit {

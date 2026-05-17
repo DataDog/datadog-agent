@@ -16,8 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs-library/kubehealth/def"
 	auditor "github.com/DataDog/datadog-agent/comp/logs/auditor/def"
-	kubehealthdef "github.com/DataDog/datadog-agent/comp/logs/kubehealth/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -54,6 +54,7 @@ type registryAuditor struct {
 	kubeHealthRegistrar kubehealthdef.Component
 	chansMutex          sync.Mutex
 	inputChan           chan *message.Payload
+	flushRequestChan    chan chan struct{}
 	registry            map[string]*RegistryEntry
 	tailedSources       map[string]bool
 	registryPath        string
@@ -136,19 +137,34 @@ func (a *registryAuditor) Stop() {
 	}
 }
 
-// Flush immediately writes the current registry to disk.
-// This is useful to ensure all file positions are committed before a restart,
-// preventing duplicate log processing.
+// Flush drains all pending payloads from the input channel, updates the
+// in-memory registry, then writes it to disk. It blocks until complete.
+// When the auditor is stopped (run loop not active), it falls back to
+// writing the current in-memory registry directly.
+//
+// Must not be called concurrently with Stop.
 func (a *registryAuditor) Flush() {
-	if err := a.flushRegistry(); err != nil {
-		a.log.Warnf("Failed to flush auditor registry: %v", err)
+	a.chansMutex.Lock()
+	reqChan := a.flushRequestChan
+	a.chansMutex.Unlock()
+
+	if reqChan == nil {
+		if err := a.flushRegistry(); err != nil {
+			a.log.Warnf("Failed to flush auditor registry: %v", err)
+		}
+		return
 	}
+
+	done := make(chan struct{})
+	reqChan <- done
+	<-done
 }
 
 func (a *registryAuditor) createChannels() {
 	a.chansMutex.Lock()
 	defer a.chansMutex.Unlock()
 	a.inputChan = make(chan *message.Payload, a.messageChannelSize)
+	a.flushRequestChan = make(chan chan struct{})
 	a.done = make(chan struct{})
 }
 
@@ -164,6 +180,7 @@ func (a *registryAuditor) closeChannels() {
 		a.done = nil
 	}
 	a.inputChan = nil
+	a.flushRequestChan = nil
 }
 
 // GetFingerprint returns the fingerprint for a given identifier,
@@ -293,6 +310,25 @@ func (a *registryAuditor) run() {
 					a.log.Warn(err)
 				}
 			}
+		case responseChan := <-a.flushRequestChan:
+			n := len(a.inputChan)
+			for i := 0; i < n; i++ {
+				select {
+				case payload := <-a.inputChan:
+					for _, msg := range payload.MessageMetas {
+						var fingerprint types.Fingerprint
+						if msg.Origin.Fingerprint != nil {
+							fingerprint = *msg.Origin.Fingerprint
+						}
+						a.updateRegistry(msg.Origin.Identifier, msg.Origin.Offset, msg.Origin.LogSource.Config.TailingMode, msg.IngestionTimestamp, fingerprint)
+					}
+				default:
+				}
+			}
+			if err := a.flushRegistry(); err != nil {
+				a.log.Warnf("Flush: failed to flush registry: %v", err)
+			}
+			close(responseChan)
 		}
 	}
 }

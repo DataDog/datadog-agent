@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 )
 
 func (pc *ProcessCacheEntry) setAncestor(parent *ProcessCacheEntry) {
@@ -21,31 +20,49 @@ func (pc *ProcessCacheEntry) setAncestor(parent *ProcessCacheEntry) {
 		return
 	}
 
-	pc.validLineageResult = nil
-	pc.Ancestor = parent
-	pc.Parent = &parent.Process
+	// prevent creating a cycle in the ancestor chain
+	if parent == pc {
+		return
+	}
 
-	// keep some context
-	pc.copyProcessContextFrom(parent)
+	// remove from old parent's children list
+	if pc.Ancestor != nil {
+		pc.Ancestor.RemoveChild(pc)
+	}
+
+	pc.Ancestor = parent
+
+	if parent != nil {
+		pc.Parent = &parent.Process
+		parent.Children = append(parent.Children, pc)
+		pc.copyProcessContextFrom(parent)
+	} else {
+		pc.Parent = nil
+	}
 }
 
-func hasValidLineage(pc *ProcessCacheEntry, result *validLineageResult) (bool, error) {
+// RemoveChild removes a child from this entry's Children list.
+func (pc *ProcessCacheEntry) RemoveChild(child *ProcessCacheEntry) {
+	pc.Children = slices.DeleteFunc(pc.Children, func(c *ProcessCacheEntry) bool {
+		return c == child
+	})
+	// slices.DeleteFunc reduces len but not cap; nil the slice when empty so
+	// the backing array can be reclaimed by the GC (important for long-lived
+	// processes such as subreapers that accumulate many transient children).
+	if len(pc.Children) == 0 {
+		pc.Children = nil
+	}
+}
+
+// HasValidLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1 or if a node has a missing parent
+func (pc *ProcessCacheEntry) HasValidLineage() (bool, error) {
 	var (
 		pid, ppid uint32
 		ctrID     containerutils.ContainerID
 	)
 
 	for pc != nil {
-		if pc.validLineageResult != nil {
-			return pc.validLineageResult.valid, pc.validLineageResult.err
-		}
-		pc.validLineageResult = result
-
 		pid, ppid, ctrID = pc.Pid, pc.PPid, pc.ContainerContext.ContainerID
-
-		if pc.IsParentMissing {
-			return false, &ErrProcessMissingParentNode{PID: pid, PPID: ppid, ContainerID: string(ctrID)}
-		}
 
 		if pc.Pid == 1 {
 			if pc.Ancestor == nil {
@@ -57,23 +74,6 @@ func hasValidLineage(pc *ProcessCacheEntry, result *validLineageResult) (bool, e
 	}
 
 	return false, &ErrProcessIncompleteLineage{PID: pid, PPID: ppid, ContainerID: string(ctrID)}
-}
-
-// HasValidLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1 or if a new is having a missing parent
-func (pc *ProcessCacheEntry) HasValidLineage() (bool, error) {
-	vlres := &validLineageResult{
-		valid: false,
-		// if this error is returned, it means that we saw this cache entry in
-		// an ancestor of the current pce, hence a cycle
-		err: ErrCycleInProcessLineage,
-	}
-
-	res, err := hasValidLineage(pc, vlres)
-
-	vlres.valid = res
-	vlres.err = err
-
-	return res, err
 }
 
 // Exit a process
@@ -96,8 +96,8 @@ func (pc *ProcessCacheEntry) copyAUIDFrom(parent *ProcessCacheEntry) {
 }
 
 func (pc *ProcessCacheEntry) copySSHUserSessionFrom(parent *ProcessCacheEntry) {
-	if parent.UserSession.SSHSessionID != 0 && parent.UserSession.SessionType == int(usersession.UserSessionTypeSSH) {
-		pc.UserSession = parent.UserSession
+	if parent.ProcessContext.UserSession.SSHSessionID != 0 {
+		pc.UserSession.SSHSessionContext = parent.UserSession.SSHSessionContext
 	}
 }
 
@@ -164,6 +164,10 @@ func (pc *ProcessCacheEntry) copyNSFrom(parent *ProcessCacheEntry) {
 	if pc.NetNS == 0 {
 		pc.NetNS = parent.NetNS
 	}
+
+	if pc.MntNS == 0 {
+		pc.MntNS = parent.MntNS
+	}
 }
 
 // GetAncestorsPIDs return the ancestors list PIDs
@@ -196,9 +200,17 @@ func (pc *ProcessCacheEntry) Fork(child *ProcessCacheEntry) {
 	child.Credentials = pc.Credentials
 	child.LinuxBinprm = pc.LinuxBinprm
 	child.Cookie = pc.Cookie
-	child.TracerTags = pc.TracerTags
+	child.TracerMetadata = pc.TracerMetadata
 
 	child.SetForkParent(pc)
+}
+
+// Reparent updates the parent of the process cache entry to reflect reparenting by the kernel.
+// This handles the subreaper mechanism where children are reparented when their parent exits.
+func (pc *ProcessCacheEntry) Reparent(newParent *ProcessCacheEntry) {
+	pc.PPid = newParent.Pid
+	pc.IsParentMissing = false
+	pc.setAncestor(newParent)
 }
 
 // Equals returns whether process cache entries share the same values for file and args/envs
@@ -236,10 +248,8 @@ func NewPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *Pr
 var processContextZero = ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{Source: ProcessCacheEntryFromPlaceholder}}}
 
 // GetPlaceholderProcessCacheEntry returns an empty process cache entry for failed process resolutions
-func GetPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
-	processContextZero.Pid = pid
-	processContextZero.Tid = tid
-	processContextZero.IsKworker = isKworker
+func GetPlaceholderProcessCacheEntry(pidContext PIDContext) *ProcessCacheEntry {
+	processContextZero.PIDContext = pidContext
 	processContextZero.markFileEventAsResolved()
 	return &processContextZero
 }

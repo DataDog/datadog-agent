@@ -26,9 +26,14 @@
             "lineNumber": 215
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 59
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 32
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -94,6 +99,7 @@
                     "elements": [
                       {
                         "type": "[]main.structWithCyclicSlices",
+                        "size": "0",
                         "elements": []
                       },
                       {
@@ -139,6 +145,7 @@
                     "elements": [
                       {
                         "type": "[][]main.structWithCyclicSlices",
+                        "size": "0",
                         "elements": []
                       },
                       {
@@ -147,6 +154,7 @@
                         "elements": [
                           {
                             "type": "[]main.structWithCyclicSlices",
+                            "size": "0",
                             "elements": []
                           }
                         ]
@@ -200,6 +208,7 @@
                     "elements": [
                       {
                         "type": "[][][]main.structWithCyclicSlices",
+                        "size": "0",
                         "elements": []
                       },
                       {
@@ -208,6 +217,7 @@
                         "elements": [
                           {
                             "type": "[][]main.structWithCyclicSlices",
+                            "size": "0",
                             "elements": []
                           }
                         ]
@@ -222,6 +232,7 @@
                             "elements": [
                               {
                                 "type": "[]main.structWithCyclicSlices",
+                                "size": "0",
                                 "elements": []
                               }
                             ]
@@ -283,6 +294,7 @@
                     "elements": [
                       {
                         "type": "[][][][]main.structWithCyclicSlices",
+                        "size": "0",
                         "elements": []
                       },
                       {
@@ -291,6 +303,7 @@
                         "elements": [
                           {
                             "type": "[][][]main.structWithCyclicSlices",
+                            "size": "0",
                             "elements": []
                           }
                         ]
@@ -305,6 +318,7 @@
                             "elements": [
                               {
                                 "type": "[][]main.structWithCyclicSlices",
+                                "size": "0",
                                 "elements": []
                               }
                             ]
@@ -325,6 +339,7 @@
                                 "elements": [
                                   {
                                     "type": "[]main.structWithCyclicSlices",
+                                    "size": "0",
                                     "elements": []
                                   }
                                 ]
@@ -347,6 +362,7 @@
                                 "elements": [
                                   {
                                     "type": "[]main.structWithCyclicSlices",
+                                    "size": "0",
                                     "elements": []
                                   }
                                 ]
@@ -363,6 +379,7 @@
                     "elements": [
                       {
                         "type": "[][][][][]main.structWithCyclicSlices",
+                        "size": "0",
                         "elements": []
                       },
                       {
@@ -371,6 +388,7 @@
                         "elements": [
                           {
                             "type": "[][][][]main.structWithCyclicSlices",
+                            "size": "0",
                             "elements": []
                           }
                         ]
@@ -385,6 +403,7 @@
                             "elements": [
                               {
                                 "type": "[][][]main.structWithCyclicSlices",
+                                "size": "0",
                                 "elements": []
                               }
                             ]
@@ -405,6 +424,7 @@
                                 "elements": [
                                   {
                                     "type": "[][]main.structWithCyclicSlices",
+                                    "size": "0",
                                     "elements": []
                                   }
                                 ]
@@ -427,6 +447,7 @@
                                 "elements": [
                                   {
                                     "type": "[][]main.structWithCyclicSlices",
+                                    "size": "0",
                                     "elements": []
                                   }
                                 ]
@@ -453,6 +474,7 @@
                                     "elements": [
                                       {
                                         "type": "[]main.structWithCyclicSlices",
+                                        "size": "0",
                                         "elements": []
                                       }
                                     ]
@@ -471,14 +493,10 @@
           }
         }
       },
-      "evaluationErrors": [
-        {
-          "expr": "@duration",
-          "message": "not available: function has no body"
-        }
-      ]
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
-    "message": "{s1: [{s1: [], s2: [], s3: [], s4: [], s5: [], ...}}], s2: [[], [{s1: [], s2: [], s3: [], s4: [], s5: [], ...}}]], s3: [[], [[]], [[{s1: [], s2: [], s3: [], s4: [], s5: [], ...}}]]], s4: [[], [[]], [[[]]], ...], s5: [[], [[]], [[[]]], ...], ...}}"
+    "message": "{s1: [{s1: [], s2: [], s3: [], s4: [], s5: [], ...}}], s2: [[], [{s1: [], s2: [], s3: [], s4: [], s5: [], ...}}]], s3: [[], [[]], [[{s1: [], s2: [], s3: [], s4: [], s5: [], ...}}]]], s4: [[], [[]], [[[]]], ...], s5: [[], [[]], [[[]]], ...], ...}}",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]

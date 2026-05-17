@@ -96,6 +96,7 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		PrCtlEventType.String(),
 		TracerMemfdCreateEventType.String(),
 		TracerMemfdSealEventType.String(),
+		SetSidEventType.String(),
 		ArgsEnvsEventType.String():
 		return ProcessCategory
 
@@ -157,6 +158,7 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		StatEventType.String(),
 		FileFsmountEventType.String(),
 		FileMoveMountEventType.String(),
+		PivotRootEventType.String(),
 		FileOpenTreeEventType.String(),
 		// windows
 		CreateNewFileEventType.String(),

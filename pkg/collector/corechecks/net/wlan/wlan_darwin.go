@@ -230,6 +230,13 @@ func validateSocketOwnership(socketPath string) error {
 
 	// Verify ownership matches expected user
 	if actualUID != expectedUID {
+		// Special handling for root-owned sockets (likely from installation issue)
+		if actualUID == "0" {
+			return fmt.Errorf("socket owner mismatch: expected UID %s, got UID 0 (root). "+
+				"This may indicate a security issue or installation problem. "+
+				"Socket preserved for investigation. "+
+				"To fix: sudo rm %s (after investigation)", expectedUID, socketPath)
+		}
 		return fmt.Errorf("socket owner mismatch: expected UID %s, got UID %s (potential hijacking attempt)", expectedUID, actualUID)
 	}
 
@@ -455,8 +462,13 @@ func (c *WLANCheck) fetchWiFiFromGUI(socketPath string, timeout time.Duration) (
 		}
 	}
 
-	// Send request
-	request := map[string]string{"command": "get_wifi_info"}
+	// Send request. request_location_permission comes from the WLAN check
+	// init_config; the GUI uses it to decide whether to show the macOS
+	// Location Services prompt.
+	request := map[string]any{
+		"command":                     "get_wifi_info",
+		"request_location_permission": c.requestLocationPermission,
+	}
 	requestData, err := json.Marshal(request)
 	if err != nil {
 		return wifiInfo{}, fmt.Errorf("failed to marshal request: %w", err)

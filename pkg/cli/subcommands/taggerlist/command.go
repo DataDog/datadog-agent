@@ -7,7 +7,10 @@
 package taggerlist
 
 import (
+	"errors"
 	"fmt"
+	"net"
+	"strconv"
 
 	"go.uber.org/fx"
 
@@ -16,7 +19,6 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/api"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -29,6 +31,9 @@ import (
 // cliParams are the command-line arguments for this subcommand
 type cliParams struct {
 	GlobalParams
+	args       []string
+	json       bool
+	prettyJSON bool
 }
 
 // GlobalParams contains the values of agent-global Cobra flags.
@@ -47,14 +52,15 @@ type GlobalParams struct {
 func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cliParams := &cliParams{}
 
-	return &cobra.Command{
-		Use:   "tagger-list",
+	cmd := &cobra.Command{
+		Use:   "tagger-list [search]",
 		Short: "Print the tagger content of a running agent",
 		Long:  ``,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(_ *cobra.Command, args []string) error {
 			globalParams := globalParamsGetter()
 
 			cliParams.GlobalParams = globalParams
+			cliParams.args = args
 
 			return fxutil.OneShot(taggerList,
 				fx.Supply(cliParams),
@@ -67,20 +73,32 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					),
 					LogParams: log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle(),
-				secretsnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
+
+	cmd.Flags().BoolVarP(&cliParams.json, "json", "j", false, "print out raw json")
+	cmd.Flags().BoolVarP(&cliParams.prettyJSON, "pretty-json", "p", false, "pretty print json (takes priority over --json)")
+
+	return cmd
 }
 
-func taggerList(_ log.Component, config config.Component, client ipc.HTTPClient, _ *cliParams) error {
+func taggerList(_ log.Component, config config.Component, client ipc.HTTPClient, cliParams *cliParams) error {
 	url, err := getTaggerURL(config)
 	if err != nil {
 		return err
 	}
 
-	return api.GetTaggerList(client, color.Output, url)
+	// Validate search argument
+	var searchTerm string
+	if len(cliParams.args) > 1 {
+		return errors.New("only one search term must be specified")
+	} else if len(cliParams.args) == 1 {
+		searchTerm = cliParams.args[0]
+	}
+
+	return api.GetTaggerList(client, color.Output, url, cliParams.json, cliParams.prettyJSON, searchTerm)
 }
 
 func getTaggerURL(config config.Component) (string, error) {
@@ -91,9 +109,11 @@ func getTaggerURL(config config.Component) (string, error) {
 
 	var urlstr string
 	if flavor.GetFlavor() == flavor.ClusterAgent {
-		urlstr = fmt.Sprintf("https://%v:%v/tagger-list", ipcAddress, config.GetInt("cluster_agent.cmd_port"))
+		addr := net.JoinHostPort(ipcAddress, strconv.Itoa(config.GetInt("cluster_agent.cmd_port")))
+		urlstr = fmt.Sprintf("https://%s/tagger-list", addr)
 	} else {
-		urlstr = fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, config.GetInt("cmd_port"))
+		addr := net.JoinHostPort(ipcAddress, strconv.Itoa(config.GetInt("cmd_port")))
+		urlstr = fmt.Sprintf("https://%s/agent/tagger-list", addr)
 	}
 
 	return urlstr, nil

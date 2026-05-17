@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	"github.com/hashicorp/go-multierror"
 	"golang.org/x/exp/constraints"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -138,6 +139,16 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 	return tagsMapping
 }
 
+func metricValuesToPointers(metrics []Metric) []*Metric {
+	pointers := make([]*Metric, 0, len(metrics))
+	for _, metric := range metrics {
+		metricCopy := metric
+		pointers = append(pointers, &metricCopy)
+	}
+
+	return pointers
+}
+
 // RemoveDuplicateMetrics filters metrics by priority across collectors while preserving all metrics within each collector.
 // For each metric name, it finds the collector with the highest priority metric of that name, then includes
 // ALL metrics with that name from the winning collector. This preserves multiple metrics with the same name
@@ -167,36 +178,100 @@ func GetDeviceTagsMapping(deviceCache ddnvml.DeviceCache, tagger tagger.Componen
 //	{Name: "fan.speed", Priority: 0}                           // From CollectorB (unique)
 //
 // ]
-func RemoveDuplicateMetrics(allMetrics map[CollectorName][]Metric) []Metric {
+func RemoveDuplicateMetrics(allMetrics map[CollectorName][]*Metric) []*Metric {
 	// Map metric name -> collector ID -> []Metric (with that name)
-	nameToCollectorMetrics := make(map[string]map[CollectorName][]Metric)
+	nameToCollectorMetrics := make(map[string]map[CollectorName]map[MetricPriority][]*Metric)
 
 	for collectorID, metrics := range allMetrics {
 		for _, m := range metrics {
 			if _, ok := nameToCollectorMetrics[m.Name]; !ok {
-				nameToCollectorMetrics[m.Name] = make(map[CollectorName][]Metric)
+				nameToCollectorMetrics[m.Name] = make(map[CollectorName]map[MetricPriority][]*Metric)
 			}
-			nameToCollectorMetrics[m.Name][collectorID] = append(nameToCollectorMetrics[m.Name][collectorID], m)
+			if _, ok := nameToCollectorMetrics[m.Name][collectorID]; !ok {
+				nameToCollectorMetrics[m.Name][collectorID] = make(map[MetricPriority][]*Metric)
+			}
+			nameToCollectorMetrics[m.Name][collectorID][m.Priority] = append(nameToCollectorMetrics[m.Name][collectorID][m.Priority], m)
 		}
 	}
 
-	var result []Metric
+	var result []*Metric
 
 	// For each metric name, pick all matching metrics from the collector with the highest-priority metric of that name
 	for _, collectorMetrics := range nameToCollectorMetrics {
 		maxPriority := Low
-		var winningCollectorID CollectorName
-		for collectorID, metrics := range collectorMetrics {
-			for _, m := range metrics {
-				if m.Priority >= maxPriority {
-					maxPriority = m.Priority
-					winningCollectorID = collectorID
+		var winningMetrics []*Metric
+		for _, priorityMetrics := range collectorMetrics {
+			for priority, metrics := range priorityMetrics {
+				if priority >= maxPriority {
+					maxPriority = priority
+					winningMetrics = metrics
 				}
 			}
 		}
 		// Add all metrics for that name from the winning collector
-		result = append(result, collectorMetrics[winningCollectorID]...)
+		result = append(result, winningMetrics...)
 	}
 
 	return result
+}
+
+// getNVLinkCount returns the number of NVLink ports on the device
+func getNVLinkCount(device ddnvml.Device) (int, error) {
+	fields := []nvml.FieldValue{{
+		FieldId: nvml.FI_DEV_NVLINK_LINK_COUNT,
+		ScopeId: 0,
+	}}
+
+	if err := device.GetFieldValues(fields); err != nil {
+		return 0, fmt.Errorf("get NVLink link count: %w", err)
+	}
+
+	totalPorts, err := fieldValueToNumber[int](nvml.ValueType(fields[0].ValueType), fields[0].Value)
+	if err != nil {
+		return 0, fmt.Errorf("convert NVLink link count: %w", err)
+	}
+	return totalPorts, nil
+}
+
+func nvlinkPortTag(port int) string {
+	return fmt.Sprintf("nvlink_port:%d", port)
+}
+
+// portIsAlwaysSupported is a placeholder that can be used in getSupportedNvlinkPorts to indicate that a port is always supported.
+func portIsAlwaysSupported(_ int) ([]*Metric, error) {
+	return []*Metric{{Name: "always_supported"}}, nil
+}
+
+func getSupportedNvlinkPorts(device ddnvml.Device, metricCollector func(int) ([]*Metric, error)) ([]int, error) {
+	totalPorts, err := getNVLinkCount(device)
+	if err != nil {
+		if ddnvml.IsAPIUnsupportedOnDevice(err, device) {
+			return nil, fmt.Errorf("%w: get NVLink link count: %w", errUnsupportedDevice, err)
+		}
+		return nil, fmt.Errorf("get NVLink link count: %w", err)
+	}
+
+	if totalPorts <= 0 {
+		return nil, fmt.Errorf("%w: no NVLink ports found", errUnsupportedDevice)
+	}
+
+	var ports []int
+	var portErrors error
+	for port := 1; port <= totalPorts; port++ {
+		_, err := metricCollector(port)
+		if err != nil {
+			if !ddnvml.IsAPIUnsupportedOnDevice(err, device) {
+				portErrors = multierror.Append(portErrors, fmt.Errorf("collect metrics for port %d: %w", port, err))
+			}
+
+			continue
+		}
+		ports = append(ports, port)
+	}
+
+	if len(ports) == 0 {
+		return nil, fmt.Errorf("%w: no supported NVLink ports found", errUnsupportedDevice)
+	}
+
+	return ports, portErrors
 }

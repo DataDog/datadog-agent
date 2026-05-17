@@ -551,7 +551,7 @@ var forwardedSignals = []os.Signal{
 	syscall.SIGTERM, // 15 - Default stop signal (`docker stop`, `kubectl delete pod`)
 }
 
-func startSignalForwarder(pid int) {
+func startSignalForwarder(pid int) func() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, forwardedSignals...)
 	go func() {
@@ -563,6 +563,10 @@ func startSignalForwarder(pid int) {
 			}
 		}
 	}()
+	return func() {
+		signal.Stop(sigChan)
+		close(sigChan)
+	}
 }
 
 // NewTracer returns a tracer
@@ -601,7 +605,7 @@ func (ctx *CWSPtracerCtx) NewTracer() error {
 		return fmt.Errorf("unable to ptrace `%s`, please verify the capabilities: %w", ctx.entry, err)
 	}
 
-	startSignalForwarder(pid)
+	ctx.stopSignalForwarder = startSignalForwarder(pid)
 
 	// first process
 	process := NewProcess(pid)

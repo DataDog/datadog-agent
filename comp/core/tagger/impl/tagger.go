@@ -23,6 +23,7 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -31,7 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
-	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry"
+	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -98,9 +99,10 @@ type Requires struct {
 type Provides struct {
 	compdef.Out
 
-	Comp      taggerdef.Component
-	Processor option.Option[taggerdef.Processor]
-	Endpoint  api.AgentEndpointProvider
+	Comp          taggerdef.Component
+	Processor     option.Option[taggerdef.Processor]
+	Endpoint      api.AgentEndpointProvider
+	FlareProvider flaretypes.Provider
 }
 
 // NewComponent returns a new tagger client
@@ -137,8 +139,9 @@ func NewComponent(req Requires) (Provides, error) {
 	}})
 
 	return Provides{
-		Comp:      taggerInstance,
-		Processor: option.New[taggerdef.Processor](taggerInstance.tagStore),
+		Comp:          taggerInstance,
+		Processor:     option.New[taggerdef.Processor](taggerInstance.tagStore),
+		FlareProvider: flaretypes.NewProvider(taggerInstance.fillFlare),
 		Endpoint: api.NewAgentEndpointProvider(func(writer http.ResponseWriter, _ *http.Request) {
 			response := taggerInstance.List()
 			jsonTags, err := json.Marshal(response)
@@ -152,6 +155,15 @@ func NewComponent(req Requires) (Provides, error) {
 			}
 		}, "/tagger-list", "GET"),
 	}, nil
+}
+
+func (t *localTagger) fillFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
+	response := t.List()
+	jsonTags, err := json.MarshalIndent(response, "", "\t")
+	if err != nil {
+		return err
+	}
+	return fb.AddFile("tagger-list.json", jsonTags)
 }
 
 func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, log log.Component, telemetryComp coretelemetry.Component, tagStore *tagstore.TagStore) (*localTagger, error) {
@@ -204,7 +216,7 @@ func (t *localTagger) getTags(entityID types.EntityID, cardinality types.TagCard
 		return tagset.HashedTags{}, errors.New("empty entity ID")
 	}
 
-	cachedTags, err := t.tagStore.LookupHashedWithEntityStr(entityID, cardinality)
+	cachedTags, err := t.tagStore.LookupHashed(entityID, cardinality)
 	if err != nil {
 		t.telemetryStore.QueriesByCardinality(cardinality).EmptyTags.Inc()
 		return tagset.HashedTags{}, err
@@ -212,6 +224,25 @@ func (t *localTagger) getTags(entityID types.EntityID, cardinality types.TagCard
 
 	t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
 	return cachedTags, nil
+}
+
+func (t *localTagger) getTagsWithCompleteness(entityID types.EntityID, cardinality types.TagCardinality) (tagset.HashedTags, bool, error) {
+	if cardinality == types.ChecksConfigCardinality {
+		cardinality = t.datadogConfig.checksCardinality
+	}
+	if entityID.Empty() {
+		t.telemetryStore.QueriesByCardinality(cardinality).EmptyEntityID.Inc()
+		return tagset.HashedTags{}, false, errors.New("empty entity ID")
+	}
+
+	cachedTags, isComplete, err := t.tagStore.LookupHashedWithCompleteness(entityID, cardinality)
+	if err != nil {
+		t.telemetryStore.QueriesByCardinality(cardinality).EmptyTags.Inc()
+		return tagset.HashedTags{}, false, err
+	}
+
+	t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
+	return cachedTags, isComplete, nil
 }
 
 // accumulateTagsFor appends tags for a given entity from the tagger to the TagsAccumulator
@@ -229,6 +260,17 @@ func (t *localTagger) Tag(entityID types.EntityID, cardinality types.TagCardinal
 		return nil, err
 	}
 	return tags.Copy(), nil
+}
+
+// TagWithCompleteness returns tags for an entity along with a boolean
+// indicating whether the entity's tags are complete.
+func (t *localTagger) TagWithCompleteness(entityID types.EntityID, cardinality types.TagCardinality) ([]string, bool, error) {
+	// Do not throw an error if the entity is not found in the tagger
+	tags, isComplete, err := t.getTagsWithCompleteness(entityID, cardinality)
+	if err != nil && !errors.Is(err, tagstore.ErrNotFound) {
+		return nil, false, err
+	}
+	return tags.Copy(), isComplete, nil
 }
 
 // GenerateContainerIDFromOriginInfo generates a container ID from Origin Info.
@@ -354,9 +396,6 @@ func (t *localTagger) GlobalTags(cardinality types.TagCardinality) ([]string, er
 // NOTE(remy): it is not needed to sort/dedup the tags anymore since after the
 // enrichment, the metric and its tags is sent to the context key generator, which
 // is taking care of deduping the tags while generating the context key.
-// This function is dupliacted in the remote tagger `impl-remote`.
-// When modifying this function make sure to update the copy `impl-remote` as well.
-// TODO: extract this function to a share function so it can be used in both implementations
 func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {
 	cardinality := taggerCardinality(originInfo.Cardinality, t.datadogConfig.dogstatsdCardinality, t.log)
 

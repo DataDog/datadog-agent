@@ -16,7 +16,7 @@ import (
 	awsConfig "github.com/aws/aws-sdk-go-v2/config"
 	awsECR "github.com/aws/aws-sdk-go-v2/service/ecr"
 	"github.com/aws/aws-sdk-go-v2/service/ecr/types"
-	sdkaws "github.com/pulumi/pulumi-aws/sdk/v6/go/aws"
+	sdkaws "github.com/pulumi/pulumi-aws/sdk/v7/go/aws"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	sdkconfig "github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
@@ -28,21 +28,22 @@ const (
 	awsProfileParamName = "profile"
 
 	// AWS Infra
-	DDInfraDefaultVPCIDParamName           = "aws/defaultVPCID"
-	DDInfraDefaultSubnetsParamName         = "aws/defaultSubnets"
-	DDInfraDefaultSecurityGroupsParamName  = "aws/defaultSecurityGroups"
-	DDInfraDefaultInstanceTypeParamName    = "aws/defaultInstanceType"
-	DDInfraDefaultInstanceProfileParamName = "aws/defaultInstanceProfile"
-	DDInfraDefaultARMInstanceTypeParamName = "aws/defaultARMInstanceType"
-	DDInfraDefaultKeyPairParamName         = "aws/defaultKeyPairName"
-	DDinfraDefaultPublicKeyPath            = "aws/defaultPublicKeyPath"
-	DDInfraDefaultPrivateKeyPath           = "aws/defaultPrivateKeyPath"
-	DDInfraDefaultPrivateKeyPassword       = "aws/defaultPrivateKeyPassword"
-	DDInfraDefaultInstanceStorageSize      = "aws/defaultInstanceStorageSize"
-	DDInfraDefaultShutdownBehavior         = "aws/defaultShutdownBehavior"
-	DDInfraDefaultInternalRegistry         = "aws/defaultInternalRegistry"
-	DDInfraDefaultInternalDockerhubMirror  = "aws/defaultInternalDockerhubMirror"
-	DDInfraUseMacosCompatibleSubnets       = "aws/useMacosCompatibleSubnets"
+	DDInfraDefaultVPCIDParamName               = "aws/defaultVPCID"
+	DDInfraDefaultSubnetsParamName             = "aws/defaultSubnets"
+	DDInfraDefaultSecurityGroupsParamName      = "aws/defaultSecurityGroups"
+	DDInfraDefaultInstanceTypeParamName        = "aws/defaultInstanceType"
+	DDInfraDefaultInstanceProfileParamName     = "aws/defaultInstanceProfile"
+	DDInfraDefaultARMInstanceTypeParamName     = "aws/defaultARMInstanceType"
+	DDInfraDefaultWindowsInstanceTypeParamName = "aws/defaultWindowsInstanceType"
+	DDInfraDefaultKeyPairParamName             = "aws/defaultKeyPairName"
+	DDinfraDefaultPublicKeyPath                = "aws/defaultPublicKeyPath"
+	DDInfraDefaultPrivateKeyPath               = "aws/defaultPrivateKeyPath"
+	DDInfraDefaultPrivateKeyPassword           = "aws/defaultPrivateKeyPassword"
+	DDInfraDefaultInstanceStorageSize          = "aws/defaultInstanceStorageSize"
+	DDInfraDefaultShutdownBehavior             = "aws/defaultShutdownBehavior"
+	DDInfraDefaultInternalRegistry             = "aws/defaultInternalRegistry"
+	DDInfraDefaultInternalDockerhubMirror      = "aws/defaultInternalDockerhubMirror"
+	DDInfraUseMacosCompatibleSubnets           = "aws/useMacosCompatibleSubnets"
 
 	// AWS ECS
 	DDInfraEcsExecKMSKeyID                  = "aws/ecs/execKMSKeyID"
@@ -267,6 +268,10 @@ func (e *Environment) DefaultInstanceProfileName() string {
 
 func (e *Environment) DefaultARMInstanceType() string {
 	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultARMInstanceTypeParamName, e.envDefault.ddInfra.defaultARMInstanceType)
+}
+
+func (e *Environment) DefaultWindowsInstanceType() string {
+	return e.GetStringWithDefault(e.InfraConfig, DDInfraDefaultWindowsInstanceTypeParamName, e.envDefault.ddInfra.defaultWindowsInstanceType)
 }
 
 func (e *Environment) DefaultKeyPairName() string {

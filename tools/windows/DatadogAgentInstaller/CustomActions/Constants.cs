@@ -8,9 +8,11 @@ namespace Datadog.CustomActions
         public const string ProcessAgentServiceName = "datadog-process-agent";
         public const string SystemProbeServiceName = "datadog-system-probe";
         public const string SecurityAgentServiceName = "datadog-security-agent";
+        public const string PrivateActionRunnerServiceName = "datadog-agent-action";
         public const string InstallerServiceName = "Datadog Installer";
         public const string NpmServiceName = "ddnpm";
         public const string ProcmonServiceName = "ddprocmon";
+        public const string ProcmgrServiceName = "dd-procmgr-service";
 
         // Key under HKLM that contains our options
         public const string DatadogAgentRegistryKey = @"Software\Datadog\Datadog Agent";

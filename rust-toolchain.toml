@@ -1,0 +1,8 @@
+toolchain.components = [
+  "rust-analyzer",
+  "cargo",
+  "rustfmt",
+  "clippy",
+  "rustc",
+  "rust-src"
+]

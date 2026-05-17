@@ -1,0 +1,23 @@
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+
+VERSION = "18.3.3.1-1"
+
+# Debian AMD64 build
+http_file(
+    name = "msodbcsql18_deb_amd64",
+    sha256 = "f91004ce72fcd92e686154f90e2a80f4f86469e7cb5f42ef79cba79dc6727890",
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/msodbcsql18/msodbcsql18_{}_amd64.deb".format(VERSION),
+        "https://packages.microsoft.com/debian/11/prod/pool/main/m/msodbcsql18/msodbcsql18_{}_amd64.deb".format(VERSION),
+    ],
+)
+
+# Debian ARM64 build
+http_file(
+    name = "msodbcsql18_deb_arm64",
+    sha256 = "37e692b1517f1229042c743d0f2a7191e0dcb956bbc3785a895aaa6dc328467e",
+    urls = [
+        "https://dd-agent-omnibus.s3.amazonaws.com/bazel/msodbcsql18/msodbcsql18_{}_arm64.deb".format(VERSION),
+        "https://packages.microsoft.com/debian/11/prod/pool/main/m/msodbcsql18/msodbcsql18_{}_arm64.deb".format(VERSION),
+    ],
+)

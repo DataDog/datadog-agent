@@ -10,7 +10,6 @@ package probe
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -29,14 +29,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 const (
 	defaultConsumerChanSize = 50
 )
 
-// PlatformProbe defines a platform dependant probe
+// PlatformProbe defines a platform dependent probe
 type PlatformProbe interface {
 	Init() error
 	Start() error
@@ -50,6 +49,7 @@ type PlatformProbe interface {
 	FlushDiscarders() error
 	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.FilterReport, bool, error)
 	OnNewRuleSetLoaded(_ *rules.RuleSet)
+	ShouldEvaluateDiscarders(_ *model.Event) bool
 	OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType)
 	HandleActions(_ *eval.Context, _ *rules.Rule)
 	NewEvent() *model.Event
@@ -59,6 +59,7 @@ type PlatformProbe interface {
 	GetEventTags(_ containerutils.ContainerID) []string
 	EnableEnforcement(bool)
 	ReplayEvents()
+	SendCustomEventKillAction(_ model.ActionReport, _ []string)
 }
 
 var probeTelemetry = struct {
@@ -121,9 +122,9 @@ type Probe struct {
 
 	// Events section
 	consumers           []*EventConsumer
-	eventHandlers       [model.MaxAllEventType][]EventHandler
-	eventConsumers      [model.MaxAllEventType][]*EventConsumer
-	customEventHandlers [model.MaxAllEventType][]CustomEventHandler
+	eventHandlers       []EventHandler                              // listen all the regular events
+	customEventHandlers []CustomEventHandler                        // listen all the custom events
+	eventConsumers      [model.MaxAllEventType + 1][]*EventConsumer // listen specific regular event
 
 	// stats
 	ruleActionStatsLock sync.RWMutex
@@ -245,6 +246,14 @@ func (p *Probe) Walk(cb func(entry *model.ProcessCacheEntry)) {
 	p.PlatformProbe.Walk(cb)
 }
 
+// ShouldEvaluateDiscarders returns whether discarder evaluation should proceed for the given event
+func (p *Probe) ShouldEvaluateDiscarders(ev *model.Event) bool {
+	if p.PlatformProbe == nil {
+		return true
+	}
+	return p.PlatformProbe.ShouldEvaluateDiscarders(ev)
+}
+
 // OnNewDiscarder is called when a new discarder is found
 func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Field, eventType eval.EventType) {
 	p.PlatformProbe.OnNewDiscarder(rs, ev, field, eventType)
@@ -305,29 +314,30 @@ func (p *Probe) AddEventConsumer(consumer EventConsumerHandler) error {
 
 // AddEventHandler sets a probe event handler for the UnknownEventType which requires access to all the struct fields
 func (p *Probe) AddEventHandler(handler EventHandler) error {
-	p.eventHandlers[model.UnknownEventType] = append(p.eventHandlers[model.UnknownEventType], handler)
+	p.eventHandlers = append(p.eventHandlers, handler)
 
 	return nil
 }
 
 // AddCustomEventHandler set the probe event handler
-func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomEventHandler) error {
-	if eventType >= model.MaxAllEventType {
-		return errors.New("unsupported event type")
-	}
-
-	p.customEventHandlers[eventType] = append(p.customEventHandlers[eventType], handler)
+func (p *Probe) AddCustomEventHandler(handler CustomEventHandler) error {
+	p.customEventHandlers = append(p.customEventHandlers, handler)
 
 	return nil
 }
 
 func (p *Probe) sendEventToHandlers(event *model.Event) {
-	for _, handler := range p.eventHandlers[model.UnknownEventType] {
+	for _, handler := range p.eventHandlers {
 		handler.HandleEvent(event)
 	}
 }
 
 func (p *Probe) sendEventToConsumers(event *model.Event) {
+	if t := event.GetEventType(); int(t) >= len(p.eventConsumers) {
+		seclog.Errorf("event type (%d) not allowed", t)
+		return
+	}
+
 	for _, pc := range p.eventConsumers[event.GetEventType()] {
 		if copied := pc.consumer.Copy(event); copied != nil {
 			select {
@@ -357,20 +367,17 @@ func (p *Probe) AddDiscarderPushedCallback(cb DiscarderPushedCallback) {
 	p.PlatformProbe.AddDiscarderPushedCallback(cb)
 }
 
+// SendCustomEventKillAction sends a custom remediation-style event for a resolved kill action report.
+func (p *Probe) SendCustomEventKillAction(report model.ActionReport, tags []string) {
+	p.PlatformProbe.SendCustomEventKillAction(report, tags)
+}
+
 // DispatchCustomEvent sends a custom event to the probe event handler
 func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
 	p.logTraceEvent(event.GetEventType(), event)
 
-	// send wildcard first
-	for _, handler := range p.customEventHandlers[model.UnknownEventType] {
+	for _, handler := range p.customEventHandlers {
 		handler.HandleCustomEvent(rule, event)
-	}
-
-	// send specific event
-	if event.GetEventType() != model.UnknownEventType {
-		for _, handler := range p.customEventHandlers[event.GetEventType()] {
-			handler.HandleCustomEvent(rule, event)
-		}
 	}
 }
 

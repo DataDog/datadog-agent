@@ -15,6 +15,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/libraryinjection"
 )
@@ -74,6 +75,30 @@ func TestInjectLibrary(t *testing.T) {
 	assert.Equal(t, "gcr.io/datadoghq/dd-lib-java-init:latest", pod.Spec.InitContainers[0].Image)
 }
 
+func TestInjectLibrary_TargetsSingleContainer(t *testing.T) {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-pod", Namespace: "default"},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{Name: "app"},
+				{Name: "app2"},
+			},
+		},
+	}
+
+	provider := libraryinjection.NewInitContainerProvider(libraryinjection.LibraryInjectionConfig{})
+	result := provider.InjectLibrary(pod, libraryinjection.LibraryConfig{
+		Language:      "java",
+		Package:       libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/dd-lib-java-init:latest", ""),
+		ContainerName: "app",
+	})
+
+	require.Equal(t, libraryinjection.MutationStatusInjected, result.Status)
+	require.Len(t, pod.Spec.Containers[0].VolumeMounts, 1)
+	assert.Equal(t, "/opt/datadog/apm/library", pod.Spec.Containers[0].VolumeMounts[0].MountPath)
+	assert.Empty(t, pod.Spec.Containers[1].VolumeMounts)
+}
+
 func TestInjectInjector_SkipsWhenInsufficientResources(t *testing.T) {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-pod", Namespace: "default"},
@@ -124,4 +149,30 @@ func TestInjectInjector_SkipsWhenInsufficientResources(t *testing.T) {
 	})
 	assert.Equal(t, libraryinjection.MutationStatusSkipped, resultLow.Status)
 	assert.NotNil(t, resultLow.Err)
+}
+
+func TestInjectInjector_UsesConfiguredInitSecurityContext(t *testing.T) {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-pod", Namespace: "default"},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{Name: "app"},
+			},
+		},
+	}
+
+	sc := &corev1.SecurityContext{
+		RunAsNonRoot: ptr.To(true),
+	}
+	provider := libraryinjection.NewInitContainerProvider(libraryinjection.LibraryInjectionConfig{
+		InitSecurityContext: sc,
+	})
+
+	result := provider.InjectInjector(pod, libraryinjection.InjectorConfig{
+		Package: libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/apm-inject:latest", ""),
+	})
+
+	require.Equal(t, libraryinjection.MutationStatusInjected, result.Status)
+	require.Len(t, pod.Spec.InitContainers, 1)
+	require.Same(t, sc, pod.Spec.InitContainers[0].SecurityContext)
 }

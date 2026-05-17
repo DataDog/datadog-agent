@@ -21,7 +21,6 @@ import (
 const (
 	defaultMajorVersion  = "7"
 	defaultArch          = "x86_64"
-	defaultFlavor        = "base"
 	agentS3BucketRelease = "ddagent-windows-stable"
 	betaChannel          = "beta"
 	betaURL              = "https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/installers_v2.json"
@@ -29,33 +28,69 @@ const (
 	stableURL            = "https://ddagent-windows-stable.s3.amazonaws.com/installers_v2.json"
 )
 
-// Environment variable constants
-const (
-	PackageFlavorEnvVar = "WINDOWS_AGENT_FLAVOR"
+// Function variables for I/O operations, enabling test mocking.
+var (
+	getPipelineMSIURLFn = GetPipelineMSIURL
+	getProductURLFn     = installers.GetProductURL
 )
 
 // Package contains identifying information about an Agent MSI package.
 type Package struct {
+	// --- Resolution fields (used by Resolve()) ---
+
 	// PipelineID is the pipeline ID used to lookup the MSI URL from the CI pipeline artifacts.
 	PipelineID string
 	// Channel is the channel used to lookup the MSI URL for the Version from the installers_v2.json file.
 	Channel string
-	// Version is the version of the MSI, e.g. 7.49.0-1, 7.49.0-rc.3-1, or a major version, e.g. 7
+	// Version is the package version for resolution (e.g. "7.75.0-1", "7.49.0-rc.3-1")
 	Version string
 	// Arch is the architecture of the MSI, e.g. x86_64
 	Arch string
 	// URL is the URL the MSI can be downloaded from
 	URL string
-	// Flavor is the Agent Flavor (e.g. `base`, `fips`, `iot``)
+	// Flavor is the Agent Flavor (e.g. `base`, `fips`, `iot`)
 	Flavor string
 	// Product is the installers json package name (e.g. `datadog-agent`, `datadog-fips-agent`)
 	Product string
+
+	// --- Assertion fields (not used by Resolve()) ---
+
+	// AssertAgentVersion is the expected agent display version (e.g. "7.75.0").
+	// Used by AgentVersion() for test assertions and logging.
+	AssertAgentVersion string
+	// AssertPackageVersion is the expected url-safe package version (e.g. "7.75.0-1").
+	// Used for Fleet status assertions in tests.
+	AssertPackageVersion string
 }
 
-// AgentVersion returns a string containing version number and the pre only, e.g. `0.0.0-beta.1`
+// AgentVersion returns the agent display version for assertions (e.g. "7.75.0", "7.78.0-devel").
+//
+// If AssertAgentVersion is set (via _ASSERT_VERSION), it is returned directly.
+// Otherwise, the version is derived from the resolution Version field by trimming
+// the "-1" suffix and parsing. This fallback supports tests that construct Package
+// structs directly with hardcoded versions.
 func (p *Package) AgentVersion() string {
-	// Trim the package suffix and parse the remaining version info
-	ver, _ := version.New(strings.TrimSuffix(p.Version, "-1"), "")
+	if p.AssertAgentVersion != "" {
+		// TODO: we're currently only asserting 7.77.0-devel style versions,
+		//       it would be an improvement to assert on the full version (git sha, pipeline)
+		ver, err := version.New(p.AssertAgentVersion, "")
+		if err != nil {
+			panic(fmt.Errorf("unexpected error parsing version %v: %w", p.Version, err))
+		}
+		return ver.GetNumberAndPre()
+	}
+	// Fallback: derive from the resolution Version field
+	ver, err := version.New(strings.TrimSuffix(p.Version, "-1"), "")
+	if err != nil {
+		// release pipeline builds have a url-safe version that fails to parse
+		// Example: 7.66.0.git.0.8005fe1.pipeline.65816352-1
+		// so restore the "non-url-safe" version and try again
+		v := strings.Replace(p.Version, ".git.", "+git", 1)
+		ver, err = version.New(strings.TrimSuffix(v, "-1"), "")
+		if err != nil {
+			panic(fmt.Errorf("unexpected error parsing version %v: %w", v, err))
+		}
+	}
 	return ver.GetNumberAndPre()
 }
 
@@ -185,100 +220,7 @@ func GetPipelineMSIURL(pipelineID string, majorVersion string, arch string, flav
 	return artifactURL, nil
 }
 
-// LookupChannelFromEnv looks at environment variabes to select the agent channel, if the value
-// is found it is returned along with true, otherwise a default value and false are returned.
-//
-// WINDOWS_AGENT_CHANNEL: beta, stable
-//
-// Default channel: stable
-func LookupChannelFromEnv() (string, bool) {
-	channel := os.Getenv("WINDOWS_AGENT_CHANNEL")
-	if channel != "" {
-		return channel, true
-	}
-	return stableChannel, false
-}
-
-// LookupFlavorFromEnv looks at environment variables to select the agent flavor, if the value
-// is found it is returned along with true, otherwise an empty string and false are returned.
-//
-// WINDOWS_AGENT_FLAVOR: base, fips
-//
-// Default Flavor: base
-func LookupFlavorFromEnv() (string, bool) {
-	flavor := os.Getenv(PackageFlavorEnvVar)
-	if flavor != "" {
-		return flavor, true
-	}
-	return defaultFlavor, false
-}
-
-// LookupVersionFromEnv looks at environment variabes to select the agent version, if the value
-// is found it is returned along with true, otherwise a default value and false are returned.
-//
-// In order of priority:
-//
-// WINDOWS_AGENT_VERSION: The complete version, e.g. 7.49.0-1, 7.49.0-rc.3-1, or a major version, e.g. 7
-//
-// AGENT_MAJOR_VERSION: The major version of the agent, 6 or 7
-//
-// If only a major version is provided, the latest version of that major version is used.
-//
-// Default version: 7
-func LookupVersionFromEnv() (string, bool) {
-	version := os.Getenv("WINDOWS_AGENT_VERSION")
-	if version != "" {
-		return version, true
-	}
-
-	// Currently commonly used in CI, should we keep it or transition to WINDOWS_AGENT_VERSION?
-	version = os.Getenv("AGENT_MAJOR_VERSION")
-	if version != "" {
-		return version, true
-	}
-
-	return defaultMajorVersion, false
-}
-
-// LookupArchFromEnv looks at environment variabes to select the agent arch, if the value
-// is found it is returned along with true, otherwise a default value and false are returned.
-//
-// WINDOWS_AGENT_ARCH: The arch of the agent, x86_64
-//
-// Default arch: x86_64
-func LookupArchFromEnv() (string, bool) {
-	arch := os.Getenv("WINDOWS_AGENT_ARCH")
-	if arch != "" {
-		return arch, true
-	}
-	return defaultArch, false
-}
-
-// LookupChannelURLFromEnv looks at environment variabes to select the agent channel URL, if the value
-// is found it is returned along with true, otherwise a default value and false are returned.
-//
-// WINDOWS_AGENT_CHANNEL_URL: URL to installers_v2.json
-//
-// See also LookupChannelFromEnv()
-//
-// Default channel: stable
-func LookupChannelURLFromEnv() (string, bool) {
-	channelURL := os.Getenv("WINDOWS_AGENT_CHANNEL_URL")
-	if channelURL != "" {
-		return channelURL, true
-	}
-
-	channel, channelFound := LookupChannelFromEnv()
-	channelURL, err := GetChannelURL(channel)
-	if err != nil {
-		// passthru the found var from the channel name lookup
-		return channelURL, channelFound
-	}
-
-	return stableURL, false
-}
-
-// GetPackageFromEnv looks at environment variabes to select the Agent MSI URL.
+// GetPackageFromEnv looks at environment variables to select the Agent MSI URL.
 //
 // The returned Package contains the MSI URL and other identifying information.
 // Some Package fields will be populated but may not be related to the returned URL.
@@ -286,215 +228,181 @@ func LookupChannelURLFromEnv() (string, bool) {
 // have no effect on the returned URL. They are returned anyway so they can be used for
 // other purposes, such as logging, stack name, instance options, test assertions, etc.
 //
-// These environment variables are mutually exclusive, only one should be set, listed here in the order they are considered:
+// Resolution priority (first match wins):
+//  1. CURRENT_AGENT_MSI_URL — direct URL override
+//  2. CURRENT_AGENT_PIPELINE or CURRENT_AGENT_SOURCE_VERSION — explicit package source
+//  3. E2E_PIPELINE_ID — implicit fallback set by [.new_e2e_template] for all CI jobs
 //
-// WINDOWS_AGENT_MSI_URL: manually provided URL (all other parameters are informational only)
+// Optional [PackageOption] arguments are applied as defaults before the
+// CURRENT_AGENT_* overrides, so environment variables always take priority.
 //
-// E2E_PIPELINE_ID: use the URL from a specific CI pipeline, major version and arch are used, channel is blank
-//
-// WINDOWS_AGENT_VERSION: The complete version, e.g. 7.49.0-1, 7.49.0-rc.3-1, or a major version, e.g. 7, arch and channel are used
-//
-// Other environment variables:
-//
-// WINDOWS_AGENT_CHANNEL: beta or stable
-//
-// WINDOWS_AGENT_ARCH: The arch of the agent, x86_64
-//
-// WINDOWS_AGENT_FLAVOR: The flavor of the agent, base or fips
-//
-// If a channel is not provided and the version contains `-rc.`, the beta channel is used.
-//
-// See other Lookup*FromEnv functions for more options and details.
-//
-// If none of the above are set, the latest stable version is used.
-func GetPackageFromEnv() (*Package, error) {
-	// Collect env opts
-	channel, channelFound := LookupChannelFromEnv()
-	version, _ := LookupVersionFromEnv()
-	arch, _ := LookupArchFromEnv()
-	flavor, _ := LookupFlavorFromEnv()
-	pipelineID, pipelineIDFound := os.LookupEnv("E2E_PIPELINE_ID")
-
-	majorVersion := strings.Split(version, ".")[0]
-
-	var err error
-
-	if !channelFound {
-		// if channel is not provided, check if we can infer it from the version,
-		// If version contains `-rc.`, assume it is a beta version
-		if strings.Contains(strings.ToLower(version), `-rc.`) {
-			channel = betaChannel
-		}
-	}
-
-	// If a direct URL is provided, use it
-	url := os.Getenv("WINDOWS_AGENT_MSI_URL")
-	if url != "" {
-		return &Package{
-			Channel: channel,
-			Version: version,
-			Arch:    arch,
-			URL:     url,
-			Flavor:  flavor,
-		}, nil
-	}
-
-	// check if we should use the URL from a specific CI pipeline
-	if pipelineIDFound {
-		url, err := GetPipelineMSIURL(pipelineID, majorVersion, arch, flavor, "")
-		if err != nil {
-			return nil, err
-		}
-		return &Package{
-			PipelineID: pipelineID,
-			Version:    version,
-			Arch:       arch,
-			URL:        url,
-			Flavor:     flavor,
-		}, nil
-	}
-
-	// if version is a complete version, e.g. 7.49.0-1, use it as is
-	if strings.Contains(version, ".") {
-		// if channel URL or name is provided, lookup its URL
-		channelURL, channelURLFound := LookupChannelURLFromEnv()
-		if !channelURLFound {
-			channelURL, err = GetChannelURL(channel)
-			if err != nil {
-				return nil, err
-			}
-		}
-		// Get MSI URL
-		productName, err := GetFlavorProductName(flavor)
-		if err != nil {
-			return nil, err
-		}
-		url, err := installers.GetProductURL(channelURL, productName, version, arch)
-		if err != nil {
-			return nil, err
-		}
-		return &Package{
-			Channel: channel,
-			Version: version,
-			Arch:    arch,
-			URL:     url,
-			Flavor:  flavor,
-		}, nil
-	}
-
-	// Default to latest stable
-	url, err = GetLatestMSIURL(majorVersion, arch, flavor)
+// If none of the above resolve to a URL, an error is returned.
+func GetPackageFromEnv(defaults ...PackageOption) (*Package, error) {
+	var opts []PackageOption
+	// .new_e2e_template sets E2E_PIPELINE_ID for all CI jobs
+	// Use it as a catch-all, in the future we may want to remove it in favor of explicit CURRENT_AGENT_PIPELINE
+	opts = append(opts, WithPipelineID(os.Getenv("E2E_PIPELINE_ID")))
+	opts = append(opts, defaults...)
+	opts = append(opts, WithArtifactOverrides("CURRENT_AGENT"))
+	pkg, err := NewPackage(opts...)
 	if err != nil {
 		return nil, err
 	}
-	return &Package{
-		Channel: stableChannel,
-		Version: version,
-		Arch:    arch,
-		URL:     url,
-		Flavor:  flavor,
-	}, nil
-}
 
-// GetLastStablePackageFromEnv returns the latest stable agent MSI URL.
-//
-// These environment variables are mutually exclusive, only one should be set, listed here in the order they are considered:
-//
-// LAST_STABLE_WINDOWS_AGENT_MSI_URL: manually provided URL (all other parameters are informational only)
-//
-// LAST_STABLE_VERSION: The complete version, e.g. 7.49.0-1, 7.49.0-rc.3-1, or a major version, e.g. 7, arch and channel are used
-//
-// The value of LAST_STABLE_VERSION is set in release.json, and can be acquired by running:
-// invoke release.get-release-json-value "last_stable::$AGENT_MAJOR_VERSION"
-func GetLastStablePackageFromEnv() (*Package, error) {
-	arch, _ := LookupArchFromEnv()
-	flavor, _ := LookupFlavorFromEnv()
-	ver := os.Getenv("LAST_STABLE_VERSION")
-	if ver == "" {
-		return nil, errors.New("LAST_STABLE_VERSION is not set")
-	}
-	// TODO: Append -1, should we update release.json to include it?
-	ver = ver + "-1"
-
-	var err error
-
-	url := os.Getenv("LAST_STABLE_WINDOWS_AGENT_MSI_URL")
-	if url == "" {
-		// Manual URL not provided, lookup the URL using the version
-		url, err = GetStableMSIURL(ver, arch, flavor)
-		if err != nil {
-			return nil, err
-		}
+	// if URL is still not set, return an error to avoid silently using a different MSI
+	if pkg.URL == "" {
+		return nil, errors.New("CURRENT_AGENT_SOURCE_VERSION, CURRENT_AGENT_PIPELINE, or a more specific CURRENT_AGENT_MSI_* override is required")
 	}
 
-	return &Package{
-		Channel: stableChannel,
-		Version: ver,
-		Arch:    arch,
-		URL:     url,
-		Flavor:  flavor,
-	}, nil
+	return pkg, nil
 }
 
-// GetUpgradeTestPackageFromEnv returns the upgrade test package to use in upgrade test
+// GetLastStablePackageFromEnv returns the latest stable agent MSI package.
 //
-// UPGRADABLE_WINDOWS_AGENT_MSI_URL: manually provided URL (all other parameters are informational only)
+// It delegates to NewPackage with WithArtifactOverrides("STABLE_AGENT"), which reads
+// the STABLE_AGENT_* environment variables to determine the MSI URL.
+//
+// In CI, these variables are set by the pipeline script from release.json or
+// LAST_STABLE_PIPELINE_ID. See [WithArtifactOverrides] for the full list of
+// supported environment variables.
+//
+// Optional [PackageOption] arguments are applied as defaults before the
+// STABLE_AGENT_* overrides, so environment variables always take priority.
+func GetLastStablePackageFromEnv(defaults ...PackageOption) (*Package, error) {
+	opts := append(defaults, WithArtifactOverrides("STABLE_AGENT"))
+	pkg, err := NewPackage(opts...)
+	if err != nil {
+		return nil, err
+	}
+	if pkg.URL == "" {
+		return nil, errors.New("STABLE_AGENT_SOURCE_VERSION, STABLE_AGENT_PIPELINE, or a more specific STABLE_AGENT_MSI_* override is required")
+	}
+	return pkg, nil
+}
+
+// GetUpgradeTestPackageFromEnv returns the upgrade test package to use in upgrade test.
+//
+// The upgrade test MSI is a variant of the current agent built by the same pipeline,
+// identified by a "-upgrade-test" suffix in the S3 artifact name.
+//
+// Resolution priority:
+//  1. CURRENT_AGENT_MSI_URL (or UPGRADE_AGENT_MSI_URL) -- direct URL
+//  2. CURRENT_AGENT_PIPELINE (or CURRENT_AGENT_MSI_PIPELINE) -- pipeline lookup with "-upgrade-test" suffix
+//
+// Arch and flavor are read from the CURRENT_AGENT_MSI_* overrides (see [WithArtifactOverrides]).
 func GetUpgradeTestPackageFromEnv() (*Package, error) {
-	// Collect env opts
-	// version string will be same as main pipeline agent as the build does not change the emebeded versions
-	version, _ := LookupVersionFromEnv()
-	arch, _ := LookupArchFromEnv()
-	flavor, _ := LookupFlavorFromEnv()
-	pipelineID, pipelineIDFound := os.LookupEnv("E2E_PIPELINE_ID")
-
-	majorVersion := strings.Split(version, ".")[0]
-
-	// if UPGRADABLE_WINDOWS_AGENT_MSI_URL provided use it
-	url := os.Getenv("UPGRADABLE_WINDOWS_AGENT_MSI_URL")
-	if url != "" {
-		return &Package{
-			Channel: stableChannel,
-			Version: version,
-			Arch:    arch,
-			URL:     url,
-			Flavor:  flavor,
-		}, nil
+	// Build a base package from CURRENT_AGENT_* to pick up arch, flavor, version, pipeline, etc.
+	base := &Package{
+		Product: "datadog-agent",
+		Arch:    defaultArch,
+	}
+	if err := WithArtifactOverrides("CURRENT_AGENT")(base); err != nil {
+		return nil, err
 	}
 
-	// check if we should use the URL from a specific CI pipeline
-	if pipelineIDFound {
-		url, err := GetPipelineMSIURL(pipelineID, majorVersion, arch, flavor, "-upgrade-test")
+	// Direct URL override (UPGRADE_AGENT_MSI_URL)
+	if url := os.Getenv("UPGRADE_AGENT_MSI_URL"); url != "" {
+		base.URL = url
+		return base, nil
+	}
+
+	// Pipeline lookup with "-upgrade-test" suffix
+	if base.PipelineID != "" {
+		url, err := GetPipelineMSIURL(base.PipelineID, defaultMajorVersion, base.Arch, base.Flavor, "-upgrade-test")
 		if err != nil {
 			return nil, err
 		}
-		return &Package{
-			PipelineID: pipelineID,
-			Version:    version,
-			Arch:       arch,
-			URL:        url,
-			Flavor:     flavor,
-		}, nil
+		base.URL = url
+		return base, nil
 	}
 
-	// if not in pipeline or provided in env, then fail
-	return nil, errors.New("no upgradable package found")
+	return nil, errors.New("UPGRADE_AGENT_MSI_URL or CURRENT_AGENT_PIPELINE (or CURRENT_AGENT_MSI_PIPELINE) is required")
 }
 
 // PackageOption defines a function type for modifying a Package
 type PackageOption func(*Package) error
 
-// NewPackage creates a new Package with the provided options
+// NewPackage creates a new Package with the provided options.
+//
+// After all options are applied, Resolve() is called to fill in derived fields
+// (e.g. URL from PipelineID or Version+Channel). Options that set URL directly
+// (WithURL) make Resolve() a no-op.
 func NewPackage(opts ...PackageOption) (*Package, error) {
-	pkg := &Package{
-		Product: "datadog-agent",
-		Arch:    "x86_64",
-	}
+	pkg := &Package{}
 	for _, opt := range opts {
 		if err := opt(pkg); err != nil {
 			return nil, err
 		}
 	}
+	if err := pkg.Resolve(); err != nil {
+		return nil, err
+	}
 	return pkg, nil
+}
+
+// Resolve fills in derived fields after all options have been applied.
+// It only performs I/O if URL is not already set.
+//
+// Resolution priority (first match wins):
+//  1. URL already set -- no-op
+//  2. PipelineID set -- fetches MSI URL from S3 pipeline artifacts
+//  3. Version set -- infers channel if needed, fetches URL from installers_v2.json
+func (p *Package) Resolve() error {
+	// fill in default values
+	if p.Arch == "" {
+		p.Arch = defaultArch
+	}
+	if p.Flavor == "" {
+		p.Flavor = ""
+	}
+	if p.Product == "" {
+		product, err := GetFlavorProductName(p.Flavor)
+		if err != nil {
+			return err
+		}
+		p.Product = product
+	}
+	if p.Channel == "" {
+		// If the channel is not set, infer it from the version
+		if p.PipelineID != "" {
+			p.Channel = "dev"
+		} else {
+			p.Channel = stableChannel
+			if strings.Contains(strings.ToLower(p.Version), `-rc.`) {
+				p.Channel = betaChannel
+			}
+		}
+	}
+
+	if p.URL != "" {
+		return nil
+	}
+
+	// If the pipeline ID is set, fetch the MSI URL from the pipeline artifacts
+	if p.PipelineID != "" {
+		url, err := getPipelineMSIURLFn(p.PipelineID, defaultMajorVersion, p.Arch, p.Flavor, "")
+		if err != nil {
+			return err
+		}
+		p.URL = url
+		return nil
+	}
+
+	// If the version is set, fetch the MSI URL from the installers JSON
+	if p.Version != "" {
+		channelURL, err := GetChannelURL(p.Channel)
+		if err != nil {
+			return err
+		}
+		// Fetch the MSI URL from the installers JSON
+		url, err := getProductURLFn(channelURL, p.Product, p.Version, p.Arch)
+		if err != nil {
+			return err
+		}
+		p.URL = url
+	}
+
+	return nil
 }
 
 // WithChannel sets the channel for the Package
@@ -573,123 +481,115 @@ func WithPipelineID(pipelineID string) PackageOption {
 	}
 }
 
-// WithURLFromPipeline gets the Agent MSI URL from the pipeline
-func WithURLFromPipeline(pipelineID string) PackageOption {
-	return func(p *Package) error {
-		url, err := pipeline.GetPipelineArtifact(pipelineID, pipeline.AgentS3BucketTesting, pipeline.DefaultMajorVersion, func(artifact string) bool {
-			return strings.Contains(artifact, p.Product) && strings.HasSuffix(artifact, ".msi")
-		})
-		if err != nil {
-			return err
-		}
-		p.PipelineID = pipelineID
-		p.URL = url
-		return nil
+// applyEnvOverrides reads environment variables with the given prefix and applies
+// them to the Package struct. This is the shared implementation used by both
+// [WithArtifactOverrides] and [WithDevEnvOverrides].
+func applyEnvOverrides(prefix string, p *Package) error {
+	// Assertion metadata (never affects resolution)
+	if v, ok := os.LookupEnv(prefix + "_ASSERT_VERSION"); ok {
+		p.AssertAgentVersion = v
 	}
-}
+	if v, ok := os.LookupEnv(prefix + "_ASSERT_PACKAGE_VERSION"); ok {
+		p.AssertPackageVersion = v
+	}
 
-// WithURLFromInstallersJSON gets the Agent MSI URL from the installers JSON
-//
-// Note: Depends on the Product and Arch fields. Ensure they are set first when using non-default values.
-func WithURLFromInstallersJSON(jsonURL, version string) PackageOption {
-	return func(p *Package) error {
-		if p.Product == "" {
-			return errors.New("product must be set before calling WithURLFromInstallersJSON")
-		}
-		if p.Arch == "" {
-			return errors.New("arch must be set before calling WithURLFromInstallersJSON")
-		}
-		url, err := installers.GetProductURL(jsonURL, p.Product, version, p.Arch)
-		if err != nil {
-			return err
-		}
+	// Resolution: _SOURCE_VERSION and _PIPELINE are mutually exclusive
+	_, hasSourceVersion := os.LookupEnv(prefix + "_SOURCE_VERSION")
+	_, hasPipeline := os.LookupEnv(prefix + "_PIPELINE")
+	if hasSourceVersion && hasPipeline {
+		return fmt.Errorf("%s_SOURCE_VERSION and %s_PIPELINE are mutually exclusive", prefix, prefix)
+	}
+	if hasSourceVersion {
+		v := os.Getenv(prefix + "_SOURCE_VERSION")
+		p.Version = v
+		p.PipelineID = ""
+	}
+	if hasPipeline {
+		p.Version = p.AssertPackageVersion
+		p.PipelineID = os.Getenv(prefix + "_PIPELINE")
+	}
+
+	// MSI-specific overrides (highest priority)
+	if flavor, ok := os.LookupEnv(prefix + "_MSI_FLAVOR"); ok {
+		p.Flavor = flavor
+	}
+	if product, ok := os.LookupEnv(prefix + "_MSI_PRODUCT"); ok {
+		p.Product = product
+	}
+	if arch, ok := os.LookupEnv(prefix + "_MSI_ARCH"); ok {
+		p.Arch = arch
+	}
+	if channel, ok := os.LookupEnv(prefix + "_MSI_CHANNEL"); ok {
+		p.Channel = channel
+	}
+	if version, ok := os.LookupEnv(prefix + "_MSI_VERSION"); ok {
 		p.Version = version
+	}
+	if url, ok := os.LookupEnv(prefix + "_MSI_URL"); ok {
 		p.URL = url
-		return nil
+	}
+	if pipelineID, ok := os.LookupEnv(prefix + "_MSI_PIPELINE"); ok {
+		p.PipelineID = pipelineID
+	}
+
+	return nil
+}
+
+// WithArtifactOverrides applies environment variable overrides to the Package.
+// Overrides are always applied, regardless of whether the code is running in CI.
+//
+// Use this for default/CI flows where the pipeline controls the version, e.g.
+// [GetPackageFromEnv], [GetLastStablePackageFromEnv], and the default
+// createStableAgent/createCurrentAgent in base_suite.go.
+//
+// This is a pure field-setter: it reads environment variables and sets struct fields,
+// but does not perform any I/O. URL resolution is deferred to [Package.Resolve],
+// which is called automatically at the end of [NewPackage].
+//
+// # Assertion variables (never affect resolution)
+//
+//	{PREFIX}_ASSERT_VERSION         - Agent display version for test assertions (e.g. "7.75.0")
+//	{PREFIX}_ASSERT_PACKAGE_VERSION - URL-safe package version for test assertions (e.g. "7.75.0-1")
+//
+// # Resolution variables (mutually exclusive)
+//
+//	{PREFIX}_SOURCE_VERSION - Package version for lookup (e.g. "7.75.0-1"), clears any pipeline set by prior options
+//	{PREFIX}_PIPELINE       - Pipeline ID, resolves MSI from S3 pipeline artifacts
+//
+// # MSI-specific overrides (take priority over resolution vars)
+//
+//	{PREFIX}_MSI_FLAVOR   - Agent flavor (e.g. "base", "fips")
+//	{PREFIX}_MSI_PRODUCT  - Product name (e.g. "datadog-agent")
+//	{PREFIX}_MSI_ARCH     - Architecture (e.g. "x86_64")
+//	{PREFIX}_MSI_CHANNEL  - Channel (e.g. "stable", "beta")
+//	{PREFIX}_MSI_VERSION  - Package version (e.g. "7.75.0-1")
+//	{PREFIX}_MSI_URL      - Direct MSI URL (skips Resolve)
+//	{PREFIX}_MSI_PIPELINE - Pipeline ID for MSI (overrides _PIPELINE)
+//
+// Examples:
+//
+//	export STABLE_AGENT_SOURCE_VERSION="7.75.0-1"
+//	export STABLE_AGENT_PIPELINE="123456"
+//	export CURRENT_AGENT_MSI_URL="file:///path/to/msi/package.msi"
+func WithArtifactOverrides(prefix string) PackageOption {
+	return func(p *Package) error {
+		return applyEnvOverrides(prefix, p)
 	}
 }
 
-// WithDevEnvOverrides creates a Package with development environment overrides
+// WithDevEnvOverrides applies environment variable overrides to the Package,
+// but only when not running in CI (i.e. when the CI environment variable is unset).
 //
-// Example: local MSI package file
+// Use this for tests that pin a specific version and only want local-dev overrides.
+// In CI, the test's hardcoded version is always used; locally, the developer can
+// override anything via environment variables.
 //
-//	export CURRENT_AGENT_MSI_URL="file:///path/to/msi/package.msi"
-//
-// Example: from a different pipeline
-//
-//	export CURRENT_AGENT_MSI_PIPELINE="123456"
-//
-// Example: stable version from installers_v2.json
-//
-//	export CURRENT_AGENT_MSI_VERSION="7.65.0-1"
-//
-// Example: beta version from installers_v2.json
-//
-//	export CURRENT_AGENT_MSI_VERSION="7.65.0-rc.1-1"
-//
-// Example: custom build from installers_v2.json
-//
-//	export CURRENT_AGENT_MSI_CHANNEL="beta"
-//	export CURRENT_AGENT_MSI_VERSION="7.65.0-custombuild-1"
-//
-// Example: custom URL
-//
-//	export CURRENT_AGENT_MSI_URL="https://s3.amazonaws.com/dd-agent-mstesting/builds/beta/ddagent-cli-7.64.0-rc.9.msi"
-func WithDevEnvOverrides(devenvPrefix string) PackageOption {
+// The supported environment variables are the same as [WithArtifactOverrides].
+func WithDevEnvOverrides(prefix string) PackageOption {
 	return func(p *Package) error {
-		if flavor, ok := os.LookupEnv(devenvPrefix + "_MSI_FLAVOR"); ok {
-			if err := WithFlavor(flavor)(p); err != nil {
-				return err
-			}
+		if os.Getenv("CI") != "" {
+			return nil
 		}
-		if product, ok := os.LookupEnv(devenvPrefix + "_MSI_PRODUCT"); ok {
-			if err := WithProduct(product)(p); err != nil {
-				return err
-			}
-		}
-		if arch, ok := os.LookupEnv(devenvPrefix + "_MSI_ARCH"); ok {
-			if err := WithArch(arch)(p); err != nil {
-				return err
-			}
-		}
-		if channel, ok := os.LookupEnv(devenvPrefix + "_MSI_CHANNEL"); ok {
-			if err := WithChannel(channel)(p); err != nil {
-				return err
-			}
-		}
-		if version, ok := os.LookupEnv(devenvPrefix + "_MSI_VERSION"); ok {
-			if p.Channel == "" {
-				channel := stableChannel
-				// if channel is not provided, check if we can infer it from the version,
-				// If version contains `-rc.`, assume it is a beta version
-				if strings.Contains(strings.ToLower(version), `-rc.`) {
-					channel = betaChannel
-				}
-				if err := WithChannel(channel)(p); err != nil {
-					return err
-				}
-			}
-			jsonURL, err := GetChannelURL(p.Channel)
-			if err != nil {
-				return err
-			}
-			if customJSONURL, ok := os.LookupEnv(devenvPrefix + "_MSI_JSON_URL"); ok {
-				jsonURL = customJSONURL
-			}
-			if err := WithURLFromInstallersJSON(jsonURL, version)(p); err != nil {
-				return err
-			}
-		}
-		if url, ok := os.LookupEnv(devenvPrefix + "_MSI_URL"); ok {
-			if err := WithURL(url)(p); err != nil {
-				return err
-			}
-		}
-		if pipelineID, ok := os.LookupEnv(devenvPrefix + "_MSI_PIPELINE"); ok {
-			if err := WithURLFromPipeline(pipelineID)(p); err != nil {
-				return err
-			}
-		}
-		return nil
+		return applyEnvOverrides(prefix, p)
 	}
 }

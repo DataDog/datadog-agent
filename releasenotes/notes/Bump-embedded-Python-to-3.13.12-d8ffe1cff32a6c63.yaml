@@ -1,0 +1,4 @@
+---
+enhancements:
+- |
+    The Agent's embedded Python has been upgraded from 3.13.11 to 3.13.12.

@@ -59,3 +59,27 @@ The installer supports a safer upgrade path for `oci` packages called "experimen
 1. v2's `PrePromoteExperiment` hook is executed.
 2. v1's files are removed from disk. v2's files are kept intact.
 3. v1's `PostPromoteExperiment` hook is executed.
+
+# Extensions installation hooks
+
+
+## Regular installation / removal / upgrade
+
+The following is valid for `deb`, `rpm`, and `oci` packages.
+
+### Installation
+When installing package's (v1) extension:
+
+1. v1.extension's PreInstallExtension hook is executed.
+2. v1.extension's files are written to disk.
+3. v1.extesnion's PostInstallExtension hook is executed.
+
+### Removal
+When removing package's (v1) extension:
+
+v1.extension's PreRemoveExtension hook is executed.
+v1.extension's files are removed from disk.
+
+### Upgrade
+
+There is no concept of upgrade for an extension. When the package the extension is attached to gets upgraded, its pre-remove script should include removal & save of the installed extensions and its post-install script should include reinstallation of the saved extensions.

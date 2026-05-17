@@ -420,7 +420,7 @@ func (m *Manager) finalizeKernelEventCollection(ad *dump.ActivityDump, releaseTr
 	// add the container ID in a tag
 	if len(ad.Profile.Metadata.ContainerID) > 0 {
 		// make sure we are not adding the same tag twice
-		newTag := fmt.Sprintf("container_id:%s", ad.Profile.Metadata.ContainerID)
+		newTag := "container_id:" + string(ad.Profile.Metadata.ContainerID)
 		if !ad.Profile.HasTag(newTag) {
 			ad.Profile.AddTags([]string{newTag})
 		} else {

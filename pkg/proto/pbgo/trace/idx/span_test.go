@@ -6,10 +6,34 @@
 package idx
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+// TestReconcileSamplingPriorityAfterChunkSpan_preservesChildWhenRootHasNoSamplingMetric documents a
+// regression: ReconcileSamplingPriorityAfterChunkSpan treats every parent_id==0 span as authoritative,
+// including when the root never set _sampling_priority_v1 (SpanConvertedFields still at initial
+// math.MinInt8). A later child that did set the metric must not be forced back to PriorityNone.
+//
+// This fails until root spans without an explicit sampling decision are not pinned as the chunk owner.
+func TestReconcileSamplingPriorityAfterChunkSpan_preservesChildWhenRootHasNoSamplingMetric(t *testing.T) {
+	cf := NewSpanConvertedFields()
+	assert.Equal(t, int32(math.MinInt8), cf.SamplingPriority, "sanity: NewSpanConvertedFields matches PriorityNone sentinel")
+
+	var st RootSamplingMergeState
+	// Root span decoded first: no _sampling_priority_v1 on the span, so promoted priority stays unset.
+	st.ReconcileSamplingPriorityAfterChunkSpan(cf, 0)
+
+	// Non-root span carries an explicit decision (e.g. PriorityAutoKeep == 1).
+	const childPriority = int32(1)
+	cf.SamplingPriority = childPriority
+	st.ReconcileSamplingPriorityAfterChunkSpan(cf, 1)
+
+	assert.Equal(t, childPriority, cf.SamplingPriority,
+		"child _sampling_priority_v1 must remain when the root never set the metric (v04/v05 converted paths have no chunk-level priority fallback)")
+}
 
 func TestUnmarshalStreamingString(t *testing.T) {
 	t.Run("new string", func(t *testing.T) {
@@ -187,5 +211,43 @@ func TestUnmarshalSpanEventList(t *testing.T) {
 		assert.Equal(t, uint32(1), spanEvents[0].NameRef)
 		assert.Len(t, spanEvents[0].Attributes, 1)
 		assert.Equal(t, int64(7), spanEvents[0].Attributes[1].Value.(*AnyValue_IntValue).IntValue)
+	})
+}
+
+func TestSafeReadHeaderBytesLimitsSize(t *testing.T) {
+	// Test that safeReadHeaderBytes properly rejects payloads claiming to be too large.
+	// The limit is 25MB (25*1e6 elements).
+	// 0xdd is the msgpack array32 header, followed by 4 bytes for the size.
+	// 0xdf is the msgpack map32 header, followed by 4 bytes for the size.
+
+	t.Run("rejects oversized array header in InternalTracerPayload.UnmarshalMsgConverted", func(t *testing.T) {
+		// Array header claiming 0xFFFFFFFF elements (over 4 billion)
+		oversizedPayload := []byte{0xdd, 0xff, 0xff, 0xff, 0xff}
+		tp := &InternalTracerPayload{}
+		_, err := tp.UnmarshalMsgConverted(oversizedPayload)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "too long payload")
+	})
+
+	t.Run("rejects oversized map header in InternalSpan.UnmarshalMsgConverted", func(t *testing.T) {
+		// Map header claiming 0xFFFFFFFF elements (over 4 billion)
+		oversizedPayload := []byte{0xdf, 0xff, 0xff, 0xff, 0xff}
+		strings := NewStringTable()
+		span := NewInternalSpan(strings, &Span{})
+		convertedFields := NewSpanConvertedFields()
+		_, err := span.UnmarshalMsgConverted(oversizedPayload, convertedFields)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "too long payload")
+	})
+
+	t.Run("rejects oversized array header in InternalTraceChunk.UnmarshalMsgConverted", func(t *testing.T) {
+		// Array header claiming 0xFFFFFFFF elements (over 4 billion)
+		oversizedPayload := []byte{0xdd, 0xff, 0xff, 0xff, 0xff}
+		strings := NewStringTable()
+		chunk := &InternalTraceChunk{Strings: strings}
+		chunkConvertedFields := &ChunkConvertedFields{}
+		_, err := chunk.UnmarshalMsgConverted(oversizedPayload, chunkConvertedFields)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "too long payload")
 	})
 }

@@ -14,7 +14,7 @@ import (
 
 	"golang.org/x/mod/modfile"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 func parseWorkfile(path string) (*modfile.WorkFile, error) {
@@ -56,31 +56,41 @@ func parseModulesList(path string) ([]string, error) {
 	}
 	return res, nil
 }
+
 func main() {
-	var workPath string
-	var modulesFilePath string
+	os.Exit(run(os.Args))
+}
 
-	flag.StringVar(&workPath, "path", "", "Path to the go module to inspect")
-	flag.StringVar(&modulesFilePath, "modules-file", "", "Path to modules.yml file")
+func run(args []string) int {
+	flags := flag.NewFlagSet(args[0], flag.ExitOnError)
+	workPath := flags.String("path", "", "Path to the go.work file to inspect")
+	modulesFilePath := flags.String("modules-file", "", "Path to modules.yml file")
+	outputPath := flags.String("output", "", "Path to generated go.work file (default: overwrite go.work in-place)")
 
-	flag.Parse()
+	if err := flags.Parse(args[1:]); err != nil {
+		return 1
+	}
 
 	// Check that both flags have been set
-	if flag.NFlag() != 2 {
-		flag.Usage()
-		os.Exit(1)
+	if *workPath == "" || *modulesFilePath == "" {
+		flags.Usage()
+		return 1
 	}
 
-	parsedWorkFile, err := parseWorkfile(workPath)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+	if *outputPath == "" {
+		*outputPath = *workPath
 	}
 
-	parsedModules, err := parseModulesList(modulesFilePath)
+	parsedWorkFile, err := parseWorkfile(*workPath)
 	if err != nil {
 		fmt.Println(err)
-		os.Exit(1)
+		return 1
+	}
+
+	parsedModules, err := parseModulesList(*modulesFilePath)
+	if err != nil {
+		fmt.Println(err)
+		return 1
 	}
 
 	slices.Sort(parsedModules)
@@ -89,10 +99,12 @@ func main() {
 	for _, module := range parsedModules {
 		parsedWorkFile.AddUse(module, module)
 	}
+	parsedWorkFile.Cleanup() // After edits have all been indicated, calling Cleanup cleans out the dead lines.
 
-	if err := os.WriteFile(workPath, modfile.Format(parsedWorkFile.Syntax), 0644); err != nil {
+	if err := os.WriteFile(*outputPath, modfile.Format(parsedWorkFile.Syntax), 0644); err != nil {
 		fmt.Println(err)
-		os.Exit(1)
+		return 1
 	}
 
+	return 0
 }

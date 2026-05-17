@@ -29,7 +29,7 @@ const (
 	AdminUsername     = "azureuser"
 )
 
-func NewLinuxInstance(e azure.Environment, name, imageUrn, instanceType string, userData pulumi.StringPtrInput, opts ...pulumi.ResourceOption) (vm *compute.VirtualMachine, privateIP pulumi.StringOutput, err error) {
+func NewLinuxInstance(e azure.Environment, name, imageUrn, instanceType string, enableAcceleratedNetworking bool, userData pulumi.StringPtrInput, opts ...pulumi.ResourceOption) (vm *compute.VirtualMachine, privateIP pulumi.StringOutput, err error) {
 	sshPublicKey, err := utils.GetSSHPublicKey(e.DefaultPublicKeyPath())
 	if err != nil {
 		return nil, pulumi.StringOutput{}, err
@@ -52,7 +52,7 @@ func NewLinuxInstance(e azure.Environment, name, imageUrn, instanceType string, 
 		CustomData: userData,
 	}
 
-	vm, networkInterface, err := newVMInstance(e, name, imageUrn, instanceType, linuxOsProfile, opts...)
+	vm, networkInterface, err := newVMInstance(e, name, imageUrn, instanceType, enableAcceleratedNetworking, linuxOsProfile, opts...)
 	if err != nil {
 		return nil, pulumi.StringOutput{}, err
 	}
@@ -62,7 +62,7 @@ func NewLinuxInstance(e azure.Environment, name, imageUrn, instanceType string, 
 //go:embed setup-ssh-param.ps1
 var setupSSHParamScriptContent string
 
-func NewWindowsInstance(e azure.Environment, name, imageUrn, instanceType string, userData, firstLogonCommand pulumi.StringPtrInput, opts ...pulumi.ResourceOption) (vm *compute.VirtualMachine, privateIP pulumi.StringOutput, password pulumi.StringOutput, err error) {
+func NewWindowsInstance(e azure.Environment, name, imageUrn, instanceType string, enableAcceleratedNetworking bool, userData, firstLogonCommand pulumi.StringPtrInput, opts ...pulumi.ResourceOption) (vm *compute.VirtualMachine, privateIP pulumi.StringOutput, password pulumi.StringOutput, err error) {
 	pwdOpts := make([]pulumi.ResourceOption, 0, len(opts)+1)
 	copy(pwdOpts, opts)
 	pwdOpts = append(pwdOpts, e.WithProviders(config.ProviderRandom))
@@ -96,7 +96,7 @@ func NewWindowsInstance(e azure.Environment, name, imageUrn, instanceType string
 		}
 	}
 
-	vm, nw, err := newVMInstance(e, name, imageUrn, instanceType, windowsOsProfile, opts...)
+	vm, nw, err := newVMInstance(e, name, imageUrn, instanceType, enableAcceleratedNetworking, windowsOsProfile, opts...)
 	if err != nil {
 		return nil, pulumi.StringOutput{}, pulumi.StringOutput{}, err
 	}
@@ -135,7 +135,7 @@ func NewWindowsInstance(e azure.Environment, name, imageUrn, instanceType string
 	return vm, privateIP, windowsAdminPassword.Result, nil
 }
 
-func newVMInstance(e azure.Environment, name, imageUrn, instanceType string, osProfile compute.OSProfilePtrInput, opts ...pulumi.ResourceOption) (*compute.VirtualMachine, *network.NetworkInterface, error) {
+func newVMInstance(e azure.Environment, name, imageUrn, instanceType string, enableAcceleratedNetworking bool, osProfile compute.OSProfilePtrInput, opts ...pulumi.ResourceOption) (*compute.VirtualMachine, *network.NetworkInterface, error) {
 	vmImageRef, err := parseImageReferenceURN(imageUrn)
 	if err != nil {
 		return nil, nil, err
@@ -150,6 +150,7 @@ func newVMInstance(e azure.Environment, name, imageUrn, instanceType string, osP
 		NetworkSecurityGroup: network.NetworkSecurityGroupTypeArgs{
 			Id: pulumi.String(e.DefaultSecurityGroup()),
 		},
+		EnableAcceleratedNetworking: pulumi.BoolPtr(enableAcceleratedNetworking),
 		IpConfigurations: network.NetworkInterfaceIPConfigurationArray{
 			network.NetworkInterfaceIPConfigurationArgs{
 				Name: e.Namer.DisplayName(math.MaxInt, pulumi.String(name)),

@@ -61,9 +61,8 @@ func TestNoSessionIDReturnsError(t *testing.T) {
 	// Register a test service
 	pbcore.RegisterStatusProviderServer(server.GetGRPCServer(), &mockStatusProvider{})
 
-	// Start the server
-	err = lc.Start(context.Background())
-	require.NoError(t, err)
+	// Start the server (impls call this explicitly after registering services).
+	server.Start()
 	defer lc.Stop(context.Background())
 
 	// Create a client to the remote agent server
@@ -118,9 +117,8 @@ func TestAuthTokenIsChecked(t *testing.T) {
 	// Register a test service
 	pbcore.RegisterStatusProviderServer(server.GetGRPCServer(), &mockStatusProvider{})
 
-	// Start the server
-	err = lc.Start(context.Background())
-	require.NoError(t, err)
+	// Start the server (impls call this explicitly after registering services).
+	server.Start()
 	defer lc.Stop(context.Background())
 
 	tests := []struct {
@@ -206,12 +204,11 @@ func TestServerLifecycle(t *testing.T) {
 	// Register a test service
 	pbcore.RegisterStatusProviderServer(server.GetGRPCServer(), &mockStatusProvider{})
 
-	// Verify lifecycle hooks were registered
+	// Verify lifecycle hooks were registered (OnStop only; Start is called explicitly).
 	lc.AssertHooksNumber(1)
 
-	// Start the server
-	err = lc.Start(context.Background())
-	require.NoError(t, err)
+	// Start the server (impls call this explicitly after registering services).
+	server.Start()
 
 	// Verify the server is running by checking if we can connect
 	conn, err := grpc.NewClient(
@@ -274,9 +271,8 @@ func TestRegisteredServicesReported(t *testing.T) {
 	pbcore.RegisterFlareProviderServer(server.GetGRPCServer(), &mockFlareProvider{})
 	pbcore.RegisterTelemetryProviderServer(server.GetGRPCServer(), &mockTelemetryProvider{})
 
-	// Start the server
-	err = lc.Start(context.Background())
-	require.NoError(t, err)
+	// Start the server (impls call this explicitly after registering services).
+	server.Start()
 	defer lc.Stop(context.Background())
 
 	// Wait for registration to complete
@@ -302,7 +298,7 @@ func TestRegistrationRefreshContention(t *testing.T) {
 	configComp := configmock.New(t)
 
 	// Set a short query timeout for faster test
-	configComp.SetWithoutSource("remote_agent_registry.query_timeout", 50*time.Millisecond)
+	configComp.SetWithoutSource("remote_agent.registry.query_timeout", 50*time.Millisecond)
 
 	registerCallCount := 0
 	refreshCallCount := 0
@@ -336,7 +332,7 @@ func TestRegistrationRefreshContention(t *testing.T) {
 	defer mockCoreAgent.stop()
 
 	// Create the remote agent server
-	_, err := NewUnimplementedRemoteAgentServer(
+	server, err := NewUnimplementedRemoteAgentServer(
 		ipcComp,
 		logComp,
 		configComp,
@@ -347,20 +343,17 @@ func TestRegistrationRefreshContention(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Start the server
-	err = lc.Start(context.Background())
-	require.NoError(t, err)
+	// Start the server (impls call this explicitly after registering services).
+	server.Start()
 	defer lc.Stop(context.Background())
 
-	// Wait for multiple registration attempts
-	time.Sleep(3 * time.Second)
-
-	// Verify that registration was retried after the first timeout
-	mu.Lock()
-	regCount := registerCallCount
-	mu.Unlock()
-
-	require.Equal(t, regCount, 3, "Registration should have been retried after timeout")
+	// Wait for registration to be retried after the first two timeouts.
+	// The third attempt should succeed and bring the counter to 3.
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return registerCallCount == 3
+	}, 3*time.Second, 50*time.Millisecond, "Registration should have been retried after timeout")
 
 	// Now test refresh contention - the server should be registered by now
 	// Wait a bit more to ensure refresh is called
@@ -408,9 +401,8 @@ func TestSessionIDInResponseMetadata(t *testing.T) {
 	// Register a test service
 	pbcore.RegisterStatusProviderServer(server.GetGRPCServer(), &mockStatusProvider{})
 
-	// Start the server
-	err = lc.Start(context.Background())
-	require.NoError(t, err)
+	// Start the server (impls call this explicitly after registering services).
+	server.Start()
 	defer lc.Stop(context.Background())
 
 	// Create a client and make a request

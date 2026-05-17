@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"slices"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
@@ -25,10 +25,11 @@ type effect interface {
 // Effect implementations
 
 type effectSpawnBpfLoading struct {
-	processID  ProcessID
-	programID  ir.ProgramID
-	executable Executable
-	probes     []ir.ProbeDefinition
+	processID       ProcessID
+	programID       ir.ProgramID
+	executable      Executable
+	probes          []ir.ProbeDefinition
+	additionalTypes []string
 }
 
 func (e effectSpawnBpfLoading) yamlTag() string {
@@ -41,12 +42,16 @@ func (e effectSpawnBpfLoading) yamlData() map[string]any {
 		probeKeys = append(probeKeys, probe.GetID())
 	}
 	slices.Sort(probeKeys)
-	return map[string]any{
+	data := map[string]any{
 		"process_id": int(e.processID.PID),
 		"program_id": int(e.programID),
 		"executable": e.executable.String(),
 		"probes":     probeKeys,
 	}
+	if len(e.additionalTypes) > 0 {
+		data["additional_types"] = e.additionalTypes
+	}
+	return data
 }
 
 type effectAttachToProcess struct {
@@ -103,6 +108,30 @@ func (e effectUnloadProgram) yamlData() map[string]any {
 	}
 }
 
+type effectReportProbeError struct {
+	programID ir.ProgramID
+	processID ProcessID
+	probeID   string
+	hasReason bool
+}
+
+func (e effectReportProbeError) yamlTag() string {
+	return "!report-probe-error"
+}
+
+func (e effectReportProbeError) yamlData() map[string]any {
+	reason := "no"
+	if e.hasReason {
+		reason = "yes"
+	}
+	return map[string]any{
+		"program_id": int(e.programID),
+		"process_id": int(e.processID.PID),
+		"probe_id":   e.probeID,
+		"reason":     reason,
+	}
+}
+
 // effectRecorder records effects for testing
 type effectRecorder struct {
 	effects []effect
@@ -135,12 +164,14 @@ func (er *effectRecorder) loadProgram(
 	executable Executable,
 	processID ProcessID,
 	probes []ir.ProbeDefinition,
+	opts LoadOptions,
 ) {
 	er.recordEffect(effectSpawnBpfLoading{
-		processID:  processID,
-		programID:  programID,
-		executable: executable,
-		probes:     probes,
+		processID:       processID,
+		programID:       programID,
+		executable:      executable,
+		probes:          probes,
+		additionalTypes: opts.AdditionalTypes,
 	})
 }
 
@@ -168,5 +199,16 @@ func (er *effectRecorder) unloadProgram(lp *loadedProgram) {
 	// For tests we just record that the sink and program are being closed.
 	er.recordEffect(effectUnloadProgram{
 		programID: lp.programID,
+	})
+}
+
+func (er *effectRecorder) reportProbeError(
+	ap *attachedProgram, probe ir.ProbeDefinition, reason error,
+) {
+	er.recordEffect(effectReportProbeError{
+		programID: ap.programID,
+		processID: ap.processID,
+		probeID:   probe.GetID(),
+		hasReason: reason != nil,
 	})
 }

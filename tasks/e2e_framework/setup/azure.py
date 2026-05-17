@@ -6,8 +6,6 @@ from tasks.e2e_framework.tool import ask, warn
 
 
 def setup_azure_config(config: Config):
-    if config.configParams is None:
-        config.configParams = Config.Params(aws=None, agent=None, pulumi=None, azure=None, gcp=None)
     if config.configParams.azure is None:
         config.configParams.azure = Config.Params.Azure(publicKeyPath=None)
 

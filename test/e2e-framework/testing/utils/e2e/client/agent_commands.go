@@ -22,6 +22,7 @@ import (
 
 type agentCommandExecutor interface {
 	execute(arguments []string) (string, error)
+	restart() error
 }
 
 // agentCommandRunner is an internal type that provides methods to run Agent commands.
@@ -51,12 +52,16 @@ func (agent *agentCommandRunner) executeCommand(command string, commandArgs ...a
 func (agent *agentCommandRunner) executeCommandWithError(command string, commandArgs ...agentclient.AgentArgsOption) (string, error) {
 	if !agent.isReady {
 		err := agent.waitForReadyTimeout(1 * time.Minute)
-		require.NoErrorf(agent.t, err, "the agent is not ready")
+		if err != nil {
+			return "", fmt.Errorf("the agent is not ready: %w", err)
+		}
 		agent.isReady = true
 	}
 
 	args, err := optional.MakeParams(commandArgs...)
-	require.NoError(agent.t, err)
+	if err != nil {
+		return "", fmt.Errorf("could not build agent command arguments: %w", err)
+	}
 
 	arguments := []string{command}
 	arguments = append(arguments, args.Args...)
@@ -143,6 +148,12 @@ func (agent *agentCommandRunner) IntegrationWithError(commandArgs ...agentclient
 // Secret runs the secret command
 func (agent *agentCommandRunner) Secret(commandArgs ...agentclient.AgentArgsOption) string {
 	return agent.executeCommand("secret", commandArgs...)
+}
+
+// Restart restarts the Agent service.
+func (agent *agentCommandRunner) Restart() error {
+	agent.isReady = false
+	return agent.executor.restart()
 }
 
 // IsReady runs status command and returns true if the command returns a zero exit code.

@@ -11,8 +11,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/DataDog/zstd"
@@ -25,7 +27,6 @@ import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -57,7 +58,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath, cconfig.WithExtraConfFiles(globalParams.ExtraConfFilePath), cconfig.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:    log.ForOneShot(command.LoggerName, topFlags.logLevelDefaultOff.Value(), true)}),
 				core.Bundle(),
-				secretsnoopfx.Module(),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
@@ -79,7 +79,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForOneShot(command.LoggerName, topFlags.logLevelDefaultOff.Value(), true)}),
 				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
-				secretsnoopfx.Module(),
 			)
 		},
 	})
@@ -94,7 +93,7 @@ func triggerDump(config cconfig.Component, client ipc.HTTPClient) (string, error
 	}
 
 	port := config.GetInt("cmd_port")
-	url := fmt.Sprintf("https://%v:%v/agent/dogstatsd-contexts-dump", addr, port)
+	url := fmt.Sprintf("https://%s/agent/dogstatsd-contexts-dump", net.JoinHostPort(addr, strconv.Itoa(port)))
 
 	body, err := client.Post(url, "", nil)
 	if err != nil {

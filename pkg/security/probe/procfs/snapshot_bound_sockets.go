@@ -62,7 +62,7 @@ func (bss *BoundSocketSnapshotter) GetBoundSockets(p *process.Process) ([]model.
 	}
 	// link should be in for of: net:[4026542294]
 	if !strings.HasPrefix(link, "net:[") {
-		return nil, fmt.Errorf("failed to retrieve network namespace, net ns malformated: (%s) err: %v", link, err)
+		return nil, fmt.Errorf("failed to retrieve network namespace, net ns malformed: (%s) err: %v", link, err)
 	}
 
 	link = strings.TrimPrefix(link, "net:[")
@@ -70,7 +70,7 @@ func (bss *BoundSocketSnapshotter) GetBoundSockets(p *process.Process) ([]model.
 
 	ns, err := strconv.ParseUint(link, 10, 64)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve network namespace, net ns malformated: (%s) err: %v", link, err)
+		return nil, fmt.Errorf("failed to retrieve network namespace, net ns malformed: (%s) err: %v", link, err)
 	}
 
 	var cacheEntry *netNsCacheEntry

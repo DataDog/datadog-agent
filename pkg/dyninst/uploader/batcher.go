@@ -8,7 +8,6 @@
 package uploader
 
 import (
-	"context"
 	"encoding/json"
 	"sync"
 	"time"
@@ -41,8 +40,8 @@ type batcher struct {
 	name          string
 	enqueueCh     chan json.RawMessage
 	sendResultCh  chan sendResult
-	ctx           context.Context
-	cancel        context.CancelFunc
+	stopCh        chan struct{} // closed by stop() to signal run() to begin shutdown
+	stoppedCh     chan struct{} // closed by run() when fully drained
 	wg            sync.WaitGroup
 	state         *batcherState
 	timer         *time.Timer
@@ -51,8 +50,7 @@ type batcher struct {
 	errLogLimiter *rate.Limiter
 }
 
-func newBatcher(name string, sender sender, batcherConfig batcherConfig) *batcher {
-	ctx, cancel := context.WithCancel(context.Background())
+func newBatcher(name string, sender sender, cfg batcherConfig, metrics *Metrics) *batcher {
 	timer := time.NewTimer(0)
 	if !timer.Stop() {
 		<-timer.C
@@ -62,9 +60,9 @@ func newBatcher(name string, sender sender, batcherConfig batcherConfig) *batche
 		name:         name,
 		enqueueCh:    make(chan json.RawMessage),
 		sendResultCh: make(chan sendResult),
-		ctx:          ctx,
-		cancel:       cancel,
-		state:        newBatcherState(name, batcherConfig),
+		stopCh:       make(chan struct{}),
+		stoppedCh:    make(chan struct{}),
+		state:        newBatcherState(name, cfg, metrics),
 		timer:        timer,
 		sender:       sender,
 		// Used to rate-limit log messages about failed batches.
@@ -82,7 +80,7 @@ func newBatcher(name string, sender sender, batcherConfig batcherConfig) *batche
 func (b *batcher) enqueue(data json.RawMessage) {
 	select {
 	case b.enqueueCh <- data:
-	case <-b.ctx.Done(): // batcher.run is stopped, drop message
+	case <-b.stoppedCh: // batcher.run is stopped, drop message
 	}
 }
 
@@ -90,8 +88,8 @@ func (b *batcher) stop() {
 	b.stopOnce.Do(func() {
 		log.Debugf("stopping batcher %s", b.name)
 		defer log.Debugf("batcher %s stopped", b.name)
-		// Cancel the run loop as well as any goroutines trying to signal it.
-		b.cancel()
+		// Signal the run loop to begin shutdown.
+		close(b.stopCh)
 
 		// Wait for the run loop and any in-flight sender goroutines to finish.
 		b.wg.Wait()
@@ -101,8 +99,11 @@ func (b *batcher) stop() {
 func (b *batcher) run() {
 	defer b.wg.Done()
 	defer b.timer.Stop()
+	defer close(b.stoppedCh)
 
 	name := any(b.name) // avoid allocating a new string for each log message
+
+	// Phase 1: Normal event loop.
 	for {
 		select {
 		case data := <-b.enqueueCh:
@@ -122,37 +123,49 @@ func (b *batcher) run() {
 				)
 			}
 		case result := <-b.sendResultCh:
-			stats, err := b.state.handleBatchOutcomeEvent(result, b)
-			if err != nil {
-				log.Warnf(
-					"uploader %s: failed to handle batch outcome event: %v",
-					name, err,
-				)
-				break
-			}
-			if result.err != nil {
-				if b.errLogLimiter.Allow() {
-					log.Warnf(
-						"uploader %s: batch outcome id=%d (items=%d, bytes=%d): err=%v",
-						name, result.id, stats.items, stats.bytes, result.err,
-					)
-				} else if log.ShouldLog(log.DebugLvl) {
-					log.Debugf(
-						"uploader %s: batch outcome id=%d (items=%d, bytes=%d): err=%v",
-						name, result.id, stats.items, stats.bytes, result.err,
-					)
-				}
-			} else if log.ShouldLog(log.TraceLvl) {
-				log.Tracef(
-					"uploader %s: batch outcome id=%d (items=%d, bytes=%d): success",
-					name, result.id, stats.items, stats.bytes,
-				)
-			}
-		case <-b.ctx.Done():
+			b.handleSendResult(name, result)
+		case <-b.stopCh:
 			log.Debugf("uploader %s: received stop event", name)
 			b.state.handleStopEvent(b)
-			return
+			// Fall through to drain loop.
+			goto drain
 		}
+	}
+
+drain:
+	// Phase 2: Drain in-flight batches.
+	for !b.state.drainComplete() {
+		result := <-b.sendResultCh
+		b.handleSendResult(name, result)
+	}
+}
+
+func (b *batcher) handleSendResult(name any, result sendResult) {
+	stats, err := b.state.handleBatchOutcomeEvent(result, b)
+	if err != nil {
+		log.Warnf(
+			"uploader %s: failed to handle batch outcome event: %v",
+			name, err,
+		)
+		return
+	}
+	if result.err != nil {
+		if b.errLogLimiter.Allow() {
+			log.Warnf(
+				"uploader %s: batch outcome id=%d (items=%d, bytes=%d): err=%v",
+				name, result.id, stats.items, stats.bytes, result.err,
+			)
+		} else if log.ShouldLog(log.DebugLvl) {
+			log.Debugf(
+				"uploader %s: batch outcome id=%d (items=%d, bytes=%d): err=%v",
+				name, result.id, stats.items, stats.bytes, result.err,
+			)
+		}
+	} else if log.ShouldLog(log.TraceLvl) {
+		log.Tracef(
+			"uploader %s: batch outcome id=%d (items=%d, bytes=%d): success",
+			name, result.id, stats.items, stats.bytes,
+		)
 	}
 }
 
@@ -162,10 +175,7 @@ func (b *batcher) sendBatch(id batchID, items []json.RawMessage) {
 		defer b.wg.Done()
 		res := sendResult{id: id}
 		res.err = b.sender.send(items)
-		select {
-		case b.sendResultCh <- res:
-		case <-b.ctx.Done():
-		}
+		b.sendResultCh <- res
 	}()
 }
 

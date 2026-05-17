@@ -52,6 +52,7 @@ var CollectorPriorities = make(map[string]types.CollectorPriority)
 // store.
 type WorkloadMetaCollector struct {
 	store        workloadmeta.Component
+	cfg          config.Component
 	children     map[types.EntityID]map[types.EntityID]struct{}
 	tagProcessor taggerdef.Processor
 
@@ -68,6 +69,11 @@ type WorkloadMetaCollector struct {
 
 	collectEC2ResourceTags            bool
 	collectPersistentVolumeClaimsTags bool
+
+	// entityCompleteness tracks raw per-entity completeness from workloadmeta
+	// events. This is the completeness of the entity itself, without
+	// considering cross-entity dependencies (for example, a container's pod).
+	entityCompleteness map[workloadmeta.EntityID]bool
 }
 
 func (c *WorkloadMetaCollector) initContainerMetaAsTags(labelsAsTags, envAsTags map[string]string) {
@@ -133,6 +139,7 @@ func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context, dat
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
 			StandardTags:         standard,
+			IsComplete:           true,
 		},
 	})
 }
@@ -176,10 +183,12 @@ func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store w
 	c := &WorkloadMetaCollector{
 		tagProcessor:                      p,
 		store:                             store,
+		cfg:                               cfg,
 		children:                          make(map[types.EntityID]map[types.EntityID]struct{}),
 		staticTags:                        make(map[string][]string),
 		collectEC2ResourceTags:            cfg.GetBool("ecs_collect_resource_tags_ec2"),
 		collectPersistentVolumeClaimsTags: cfg.GetBool("kubernetes_persistent_volume_claims_as_tags"),
+		entityCompleteness:                make(map[workloadmeta.EntityID]bool),
 	}
 
 	containerLabelsAsTags := mergeMaps(

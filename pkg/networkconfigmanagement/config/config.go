@@ -17,13 +17,14 @@ import (
 	"strconv"
 	"time"
 
+	"go.yaml.in/yaml/v2"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"gopkg.in/yaml.v2"
 )
 
 var checkName = "network_config_management"
@@ -137,7 +138,14 @@ func NewNcmCheckContext(rawInstance integration.Data, rawInitConfig integration.
 	}
 
 	profileCache := &profile.Cache{}
-
+	if deviceInstance.Profile != "" {
+		profile, ok := profMap[deviceInstance.Profile]
+		if !ok {
+			return nil, fmt.Errorf("unknown profile for %s: %s", deviceInstance.IPAddress, deviceInstance.Profile)
+		}
+		profileCache.ProfileName = profile.Name
+		profileCache.Profile = profile
+	}
 	// Build the final context to send out
 	ncc := &NcmCheckContext{
 		Namespace:             initConfig.Namespace,
@@ -319,6 +327,14 @@ func (sc *SSHConfig) validate() error {
 	if sc.Timeout <= 0 {
 		log.Debugf("no or invalid SSH timeout specified in config, applying default: %d", defaultSSHTimeout)
 		sc.Timeout = defaultSSHTimeout
+	} else if sc.Timeout < time.Millisecond {
+		// bug - we released this as time.Duration, which when customers inserted values as integers like "30" for 30 seconds,
+		// it was being interpreted as 30 nanoseconds which caused connection timeout issues. Some customers migrated
+		// to duration formats like "30s" - but we generally don't want this to be the standard behavior or to document this.
+		// To maintain backwards compatibility, we will apply a transform for any values that are less than
+		// 1 Millisecond (1,000,000 nanoseconds) to be interpreted as seconds and convert them to the appropriate duration value.
+		log.Debugf("SSH timeout value %d is too low, applying transform to interpret as seconds: %d", sc.Timeout, sc.Timeout*time.Second)
+		sc.Timeout = sc.Timeout * time.Second
 	}
 	if err := sc.hasRequiredFields(); err != nil {
 		return err

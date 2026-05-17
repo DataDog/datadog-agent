@@ -8,6 +8,7 @@ package worker
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"expvar"
 	"fmt"
@@ -24,7 +25,7 @@ import (
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	haagentimpl "github.com/DataDog/datadog-agent/comp/haagent/impl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/mock"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -43,6 +44,7 @@ type testCheck struct {
 	sync.Mutex
 	doErr       bool
 	doWarn      bool
+	doPanic     bool
 	id          string
 	longRunning bool
 	t           *testing.T
@@ -79,6 +81,10 @@ func (c *testCheck) Run() error {
 
 	c.Lock()
 	defer c.Unlock()
+
+	if c.doPanic {
+		panic("simulated third-party library panic")
+	}
 
 	if c.doErr {
 		return errors.New("myerror")
@@ -186,7 +192,7 @@ func TestWorkerInitExpvarStats(t *testing.T) {
 			worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t), 1, idx, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
 			assert.Nil(t, err)
 
-			worker.Run()
+			worker.Run(context.Background())
 		}(i)
 	}
 
@@ -264,7 +270,7 @@ func TestWorker(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		worker.Run()
+		worker.Run(context.Background())
 	}()
 
 	wg.Wait()
@@ -329,7 +335,7 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		worker.Run()
+		worker.Run(context.Background())
 	}()
 
 	// Clean things up
@@ -403,7 +409,7 @@ func TestWorkerErrorAndWarningHandling(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		worker.Run()
+		worker.Run(context.Background())
 	}()
 
 	wg.Wait()
@@ -446,7 +452,7 @@ func TestWorkerConcurrentCheckScheduling(t *testing.T) {
 	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
 	require.Nil(t, err)
 
-	worker.Run()
+	worker.Run(context.Background())
 
 	assert.Equal(t, 0, testCheck.RunCount())
 	assert.Equal(t, 0, int(expvars.GetRunsCount()))
@@ -502,7 +508,7 @@ func TestWorkerStatsAddition(t *testing.T) {
 	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t), 100, 200, pendingChecksChan, checksTracker, shouldAddStatsFunc, 0)
 	require.Nil(t, err)
 
-	worker.Run()
+	worker.Run(context.Background())
 
 	for c, statsExpected := range map[check.Check]bool{
 		longRunningCheckNoErrorNoWarning: false,
@@ -591,7 +597,7 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		worker.Run()
+		worker.Run(context.Background())
 	}()
 
 	wg.Wait()
@@ -634,7 +640,7 @@ func TestWorkerSenderNil(t *testing.T) {
 	require.Nil(t, err)
 
 	// Implicit assertion that we don't panic
-	worker.Run()
+	worker.Run(context.Background())
 
 	// Quick sanity check
 	assert.Equal(t, 1, int(expvars.GetRunsCount()))
@@ -677,7 +683,7 @@ func TestWorkerServiceCheckSendingLongRunningTasks(t *testing.T) {
 	)
 	require.Nil(t, err)
 
-	worker.Run()
+	worker.Run(context.Background())
 
 	// Quick sanity check
 	assert.Equal(t, 1, int(expvars.GetRunsCount()))
@@ -762,7 +768,7 @@ func TestWorker_HaIntegration(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				worker.Run()
+				worker.Run(context.Background())
 			}()
 
 			wg.Wait()
@@ -860,7 +866,7 @@ func TestWorkerWatchdogWarningLog(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				worker.Run()
+				worker.Run(context.Background())
 			}()
 
 			time.Sleep(tt.checkDuration)
@@ -879,4 +885,70 @@ func TestWorkerWatchdogWarningLog(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWorkerRecoverFromCheckPanic(t *testing.T) {
+	mockConfig := configmock.New(t)
+	expvars.Reset()
+	mockConfig.SetWithoutSource("hostname", "myhost")
+
+	var wg sync.WaitGroup
+
+	checksTracker := tracker.NewRunningChecksTracker()
+	pendingChecksChan := make(chan check.Check, 10)
+	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
+
+	panicCheck := &testCheck{
+		doPanic:  true,
+		id:       "panicking_check:123",
+		t:        t,
+		runCount: atomic.NewUint64(0),
+	}
+	normalCheck := newCheck(t, "normal_check:456", false, nil)
+	errorCheck := newCheck(t, "error_check:789", true, nil)
+
+	// Schedule: panic, normal, panic again, error, normal
+	// The worker must survive the panics and run all checks.
+	pendingChecksChan <- panicCheck
+	pendingChecksChan <- normalCheck
+	pendingChecksChan <- panicCheck
+	pendingChecksChan <- errorCheck
+	pendingChecksChan <- normalCheck
+	close(pendingChecksChan)
+
+	worker, err := NewWorker(
+		aggregator.NewNoOpSenderManager(),
+		haagentmock.NewMockHaAgent(),
+		healthplatformmock.Mock(t),
+		100, 200,
+		pendingChecksChan,
+		checksTracker,
+		mockShouldAddStatsFunc,
+		0,
+	)
+	require.NoError(t, err)
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		worker.Run(context.Background())
+	}()
+
+	wg.Wait()
+
+	// All checks ran despite the panics
+	assert.Equal(t, 2, panicCheck.RunCount(), "panicking check should have run twice")
+	assert.Equal(t, 2, normalCheck.RunCount(), "normal check should have run twice")
+	assert.Equal(t, 1, errorCheck.RunCount(), "error check should have run once")
+
+	// Panics count as errors
+	assertErrorCount(t, panicCheck, 2)
+	assertErrorCount(t, errorCheck, 1)
+	assertErrorCount(t, normalCheck, 0)
+
+	// Total: 5 runs, 3 errors (2 panics + 1 doErr)
+	assert.Equal(t, 5, int(expvars.GetRunsCount()))
+	assert.Equal(t, 3, int(expvars.GetErrorsCount()))
+
+	AssertAsyncWorkerCount(t, 0)
 }

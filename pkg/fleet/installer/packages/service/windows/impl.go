@@ -57,13 +57,13 @@ func getTerminatePolicy() bool {
 		registry.ALL_ACCESS)
 	if err != nil {
 		// if the key isn't there, we might be running a standalone binary that wasn't installed through MSI
-		log.Debugf("Windows installation key root not found, using default")
+		log.Debug("Windows installation key root not found, using default")
 		return defaultTerminatePolicy
 	}
 	defer k.Close()
 	val, _, err := k.GetIntegerValue("TerminatePolicy")
 	if err != nil {
-		log.Warnf("Windows installation key TerminatePolicy not found, using default")
+		log.Debug("Windows installation key TerminatePolicy not found, using default")
 		return defaultTerminatePolicy
 	}
 	return val == 1
@@ -144,10 +144,12 @@ func (w *WinServiceManager) terminateServiceProcess(ctx context.Context, service
 // Returns nil if the Agent service does not exist.
 func (w *WinServiceManager) StopAllAgentServices(ctx context.Context) (err error) {
 	allAgentServices := []string{
+		"datadog-otel-agent",
 		"datadog-trace-agent",
 		"datadog-process-agent",
 		"datadog-security-agent",
 		"datadog-system-probe",
+		"datadog-agent-action",
 		"Datadog Installer",
 		"datadogagent",
 	}

@@ -6,7 +6,9 @@
 package config
 
 import (
+	"bytes"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/types"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type ConfigTestSuite struct {
@@ -347,7 +350,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 	}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false)
-	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config))
+	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true)
 
 	suite.Nil(err)
 	suite.compareEndpoints(expectedEndpoints, endpoints)
@@ -570,7 +573,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 	}
 
 	expectedEndpoints := NewEndpoints(expectedMainEndpoint, []Endpoint{expectedAdditionalEndpoint}, true, false)
-	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config))
+	endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true)
 
 	suite.Nil(err)
 	suite.compareEndpoints(expectedEndpoints, endpoints)
@@ -1132,6 +1135,48 @@ func Test_parseAddressWithScheme(t *testing.T) {
 	}
 }
 
+func TestLogsNoSSLWarnLog(t *testing.T) {
+	tests := []struct {
+		name         string
+		address      string
+		defaultNoSSL bool
+		wantWarn     bool
+	}{
+		{
+			name:         "https url with logs_no_ssl=true warns (genuine conflict)",
+			address:      "https://agent-http-intake.logs.datadoghq.com",
+			defaultNoSSL: true,
+			wantWarn:     true,
+		},
+		{
+			name:         "https url with logs_no_ssl=false does not warn (otel-agent default)",
+			address:      "https://agent-http-intake.logs.datadoghq.com",
+			defaultNoSSL: false,
+			wantWarn:     false,
+		},
+		{
+			name:         "http url with logs_no_ssl=true does not warn",
+			address:      "http://agent-http-intake.logs.datadoghq.com",
+			defaultNoSSL: true,
+			wantWarn:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			logger, err := pkglog.LoggerFromWriterWithMinLevelAndLvlMsgFormat(&buf, pkglog.WarnLvl)
+			assert.NoError(t, err)
+			pkglog.SetupLogger(logger, "warn")
+
+			_, _, _, _, _ = parseAddressWithScheme(tt.address, tt.defaultNoSSL, parseAddressAsHost)
+
+			got := strings.Contains(buf.String(), "logs_no_ssl set to true")
+			assert.Equal(t, tt.wantWarn, got, "unexpected warning log presence")
+		})
+	}
+}
+
 func TestShouldUseTCP(t *testing.T) {
 	tests := []struct {
 		name                string
@@ -1299,7 +1344,7 @@ func (suite *ConfigTestSuite) TestTCPEndpointsPortLookup() {
 			suite.config.SetWithoutSource("site", tt.site)
 			suite.config.SetWithoutSource("convert_dd_site_fqdn.enabled", true) // FQDN is enabled by default
 
-			endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config))
+			endpoints, err := buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true)
 
 			suite.Nil(err)
 			suite.Equal(tt.expectedHost, endpoints.Main.Host, "Host should match expected FQDN with trailing dot")
@@ -1309,7 +1354,7 @@ func (suite *ConfigTestSuite) TestTCPEndpointsPortLookup() {
 			suite.config.SetWithoutSource("site", tt.site)
 			suite.config.SetWithoutSource("convert_dd_site_fqdn.enabled", false)
 
-			endpoints, err = buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config))
+			endpoints, err = buildTCPEndpoints(suite.config, defaultLogsConfigKeys(suite.config), true)
 
 			suite.Nil(err)
 			suite.Equal(tt.expectedPort, endpoints.Main.Port, "Port should match the value from logsEndpoints map")

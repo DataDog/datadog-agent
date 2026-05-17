@@ -1,10 +1,10 @@
 """BUILD file for libyaml."""
 
-load("@@//bazel/rules:so_symlink.bzl", "so_symlink")
-load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
 load("@rules_license//rules:license.bzl", "license")
 load("@rules_pkg//pkg:install.bzl", "pkg_install")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 VERSION = "0.2.5"
 
@@ -50,43 +50,32 @@ cc_shared_library(
     visibility = ["//visibility:public"],
 )
 
-so_symlink(
-    name = "lib_files",
-    src = ":yaml",
-    libname = "libyaml",
-    version = VERSION,
-)
-
 pkg_files(
     name = "headers",
     srcs = ["include/yaml.h"],
     prefix = "include",
 )
 
-expand_template(
-    name = "gen_pkgconfig",
-    out = "yaml-0.1.pc",
-    substitutions = {
-        "@PACKAGE_VERSION@": VERSION,
-        "@prefix@": "##PREFIX##",
-        "@exec_prefix@": "${prefix}",
-        "@includedir@": "${prefix}/include",
-        "@libdir@": "${prefix}/lib",
-    },
-    template = "yaml-0.1.pc.in",
+dd_cc_packaged(
+    name = "yaml_pkg",
+    input = ":yaml",
+    version = VERSION,
+    installed_files = [":headers"],
+    visibility = ["//visibility:public"],
 )
 
-pkg_files(
-    name = "pkgconfig",
-    srcs = [":gen_pkgconfig"],
-    prefix = "lib/pkgconfig",
+pkg_filegroup(
+    name = "all_files",
+    srcs = [
+        ":headers",
+    ],
+    prefix = "embedded",
+    visibility = ["@@//deps/openscap:__pkg__", "@@//packages:__subpackages__"],
 )
 
 pkg_install(
     name = "install",
     srcs = [
-        ":lib_files",
-        ":headers",
-        ":pkgconfig",
+        ":all_files",
     ],
 )

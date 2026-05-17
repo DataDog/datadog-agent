@@ -15,9 +15,21 @@ import (
 	"github.com/stretchr/testify/require"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	v1 "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v1"
 	"github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v3or4"
 )
+
+func TestECSLaunchTypeFromEnvEC2(t *testing.T) {
+	launchType := ecsLaunchTypeFromEnv()
+	assert.Equal(t, workloadmeta.ECSLaunchTypeEC2, launchType)
+}
+
+func TestECSLaunchTypeFromEnvManagedInstances(t *testing.T) {
+	env.SetFeatures(t, env.ECSManagedInstances)
+	launchType := ecsLaunchTypeFromEnv()
+	assert.Equal(t, workloadmeta.ECSLaunchTypeManagedInstances, launchType)
+}
 
 // TestPullWithV1Parser tests the collector's Pull method by setting the taskCollectionParser to parseTasksFromV1Endpoint
 // which is the default parser when other metadata endpoints are not available.
@@ -85,12 +97,19 @@ func TestPullWithV1Parser(t *testing.T) {
 			taskTags := c.resourceTags[entityID].tags
 			assert.Equal(t, taskTags, test.expectedTags)
 
+			// Verify the container event has the Owner set to the parent ECS task
+			store := c.store.(*fakeWorkloadmetaStore)
+			require.NotEmpty(t, store.notifiedEvents)
+			container, ok := store.notifiedEvents[0].Entity.(*workloadmeta.Container)
+			require.True(t, ok)
+			require.NotNil(t, container.Owner)
+			assert.Equal(t, workloadmeta.KindECSTask, container.Owner.Kind)
+			assert.Equal(t, entityID, container.Owner.ID)
+
 			// This is only needed because of the workaround about the empty
 			// runtime documented in the parseTaskContainers function. Remove
 			// this when the workaround is no longer needed.
-			storedContainer, err := c.store.GetContainer(containerID)
-			require.NoError(t, err)
-			assert.Empty(t, storedContainer.Runtime)
+			assert.Empty(t, container.Runtime)
 		})
 	}
 

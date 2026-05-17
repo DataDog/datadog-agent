@@ -41,8 +41,6 @@ type Poller struct {
 
 // osImpl is the OS-specific implementation of getting the open listening ports.
 type osImpl interface {
-	Close() error
-
 	// AppendListeningPorts appends to base (which must have length 0 but
 	// optional capacity) the list of listening ports. The Port struct should be
 	// populated as completely as possible. Another pass will not add anything
@@ -57,17 +55,6 @@ func (p *Poller) setPrev(pl List) {
 	// Make a copy, as the pass in pl slice aliases pl.scratch and we don't want
 	// that to except to the caller.
 	p.prev = slices.Clone(pl)
-}
-
-// Close closes the Poller.
-func (p *Poller) Close() error {
-	if p.initErr != nil {
-		return p.initErr
-	}
-	if p.os == nil {
-		return nil
-	}
-	return p.os.Close()
 }
 
 // Poll returns the list of listening ports, if changed from
@@ -101,13 +88,16 @@ func (a *Port) lessThan(b *Port) bool {
 	if a.Proto != b.Proto {
 		return a.Proto < b.Proto
 	}
+	if a.IP != b.IP {
+		return a.IP < b.IP
+	}
 	return a.Process < b.Process
 }
 
 // sortAndDedup sorts ps in place (by Port.LessThan) and then returns
-// a subset of it with duplicate (Proto, Port) removed.
-// Multiple processes can't use the same port and protocol
-// on the same port so there's no need to check for that
+// a subset of it with duplicate (Proto, Port, IP) removed.
+// The same port number can be bound on different IPs, so IP is
+// included in the dedup key.
 func sortAndDedup(ps List) List {
 	sort.Slice(ps, func(i, j int) bool {
 		return (&ps[i]).lessThan(&ps[j])
@@ -115,7 +105,7 @@ func sortAndDedup(ps List) List {
 	out := ps[:0]
 	var last Port
 	for _, p := range ps {
-		if last.Proto == p.Proto && last.Port == p.Port {
+		if last.Proto == p.Proto && last.Port == p.Port && last.IP == p.IP {
 			continue
 		}
 		out = append(out, p)

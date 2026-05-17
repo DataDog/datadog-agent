@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/debug"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/pkg/api/coverage"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
@@ -46,8 +46,8 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, rcclie
 	// Register stats endpoint. Note that this endpoint is also used by core
 	// agent checks as a means to check if system-probe is ready to serve
 	// requests, see pkg/system-probe/api/client.
-	mux.HandleFunc("/debug/stats", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, _ *http.Request) {
-		utils.WriteAsJSON(w, module.GetStats(), utils.CompactOutput)
+	mux.HandleFunc("/debug/stats", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+		utils.WriteAsJSON(req, w, module.GetStats(), utils.CompactOutput)
 	}))
 
 	setupConfigHandlers(mux, settings)

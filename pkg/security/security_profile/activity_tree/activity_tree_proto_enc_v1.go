@@ -15,6 +15,7 @@ import (
 	"golang.org/x/text/runes"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -129,7 +130,7 @@ func ipPortContextToProto(ipPort *model.IPPortContext) *adproto.IPPortContext {
 		return nil
 	}
 	return &adproto.IPPortContext{
-		Ip:   ipPort.IPNet.IP.String(),
+		Ip:   utils.GetIPStringFromIPNet(ipPort.IPNet),
 		Port: uint32(ipPort.Port),
 	}
 }

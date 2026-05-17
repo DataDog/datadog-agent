@@ -6,9 +6,11 @@
 package profile
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
@@ -118,4 +120,20 @@ func Test_loadInitConfigProfiles_legacyProfiles(t *testing.T) {
 			assert.Equal(t, tt.expectedHaveLegacyProfile, haveLegacyProfile)
 		})
 	}
+}
+
+func Test_loadInitConfigProfiles_invalidDefinitionFile(t *testing.T) {
+	SetConfdPathAndCleanProfiles()
+
+	invalidFile, _ := filepath.Abs(filepath.Join("..", "test", "test_profiles", "invalid_yaml_file.yaml"))
+	_, _, err := loadInitConfigProfiles(ProfileConfigMap{
+		"bad-profile": {
+			DefinitionFile: invalidFile,
+		},
+	})
+	require.NoError(t, err)
+
+	expVarEntry := profileExpVar.Get("bad-profile")
+	require.NotNil(t, expVarEntry, "expected bad-profile error in snmpProfileErrors expvar")
+	assert.Contains(t, expVarEntry.String(), "parse error")
 }

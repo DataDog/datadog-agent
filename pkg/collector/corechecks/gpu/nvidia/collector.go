@@ -16,32 +16,17 @@ import (
 	"errors"
 	"slices"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/gpu/config/consts"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // errUnsupportedDevice is returned when the device does not support the given collector
 var errUnsupportedDevice = errors.New("device does not support the given collector")
 
-// MetricPriority represents the priority level of a metric
-type MetricPriority int
-
-const (
-	// Low priority is the default priority level (0)
-	Low MetricPriority = 0
-	// Medium priority level (10)
-	Medium MetricPriority = 10
-	// High priority level (20)
-	High MetricPriority = 20
-)
-
-// CollectorName is the name of the nvml sub-collectors
-type CollectorName string
-
+// Internal collector names used by the factory
 const (
 	// Consolidated collectors
 	stateless CollectorName = "stateless" // Consolidates memory, device, clock, remappedRows
@@ -52,30 +37,9 @@ const (
 	gpm          CollectorName = "gpm"
 	ebpf         CollectorName = "ebpf"
 	deviceEvents CollectorName = "device_events"
+	nvlinkPLR    CollectorName = "nvlink_plr"
+	nvlinkFEC    CollectorName = "nvlink_fec"
 )
-
-// Metric represents a single metric collected from the NVML library.
-type Metric struct {
-	Name                string  // Name holds the name of the metric.
-	Value               float64 // Value holds the value of the metric.
-	Type                metrics.MetricType
-	Priority            MetricPriority          // Priority is the priority of the metric, indicating which metric to keep in case of duplicates. Low (default) is the lowest priority.
-	Tags                []string                // Tags holds optional metric-specific tags (e.g., "error type").
-	AssociatedWorkloads []workloadmeta.EntityID // AssociatedWorkloads represents specific workloads that are associated with the metric, e.g. a process associated with a process-level metric. Used for tagging.
-}
-
-// Collector defines a collector that gets metric from a specific NVML subsystem and device
-type Collector interface {
-	// Collect collects metrics from the given NVML device. This method should not fill the tags
-	// unless they're metric-specific (i.e., all device-specific tags will be added by the Collector itself)
-	Collect() ([]Metric, error)
-
-	// Name returns the name of the subsystem
-	Name() CollectorName
-
-	// DeviceUUID returns the UUID of the device this collector is collecting metrics from. Returns an empty string if there's no UUID
-	DeviceUUID() string
-}
 
 // subsystemBuilder is a function that creates a new subsystem Collector. device the device it should collect metrics from. It also receives
 // the tags associated with the device, the collector should use them when generating metrics.
@@ -89,6 +53,8 @@ var factory = map[CollectorName]subsystemBuilder{
 
 	// Specialized collectors that remain unchanged (complex or unique logic)
 	field:        newFieldsCollector,
+	nvlinkPLR:    newNVLinkPLRCollector,
+	nvlinkFEC:    newNVLinkFECCollector,
 	gpm:          newGPMCollector,
 	deviceEvents: newDeviceEventsCollector,
 }
@@ -99,6 +65,8 @@ type CollectorDependencies struct {
 	DeviceEventsGatherer *DeviceEventsGatherer
 	// SystemProbeCache is a (optional) cache of the latest metrics obtained from system probe
 	SystemProbeCache *SystemProbeCache
+	// PRMCache is a cache of privileged PRM metrics obtained from system-probe
+	PRMCache *PRMCache
 	// Telemetry is the telemetry component to use for collecting metrics
 	Telemetry *CollectorTelemetry
 	// Workloadmeta is used for getting auxialiary metadata about containers and GPUs
@@ -121,7 +89,7 @@ func buildCollectors(devices []ddnvml.Device, deps *CollectorDependencies, build
 
 	// Check that the disabled collectors are valid
 	for _, disabled := range disabledCollectors {
-		if _, ok := builders[CollectorName(disabled)]; !ok {
+		if _, ok := builders[CollectorName(disabled)]; !ok && CollectorName(disabled) != ebpf {
 			log.Warnf("invalid disabled collector: %s", disabled)
 			continue
 		}

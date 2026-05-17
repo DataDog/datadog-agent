@@ -14,25 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/rtloader/test/helpers"
 )
 
-var (
-	stdout       string
-	stderr       string
-	setException bool
-	exception    string
-	retCode      int
-	args         []string
-	env          []string
-)
-
-func resetTest() {
-	stdout = ""
-	stderr = ""
-	setException = false
-	exception = ""
-	retCode = 0
-	args = nil
-}
-
 func TestMain(m *testing.M) {
 	err := setUp()
 	if err != nil {
@@ -52,8 +33,7 @@ func TestSubprocessOutputWrongArg(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out != "TypeError: get_subprocess_output() missing required argument 'command' (pos 1)" && // Python 3
-		out != "TypeError: Required argument 'command' (pos 1) not found" { // Python 2
+	if out != "TypeError: get_subprocess_output() missing required argument 'command' (pos 1)" {
 		t.Errorf("Unexpected printed value: '%s'", out)
 	}
 

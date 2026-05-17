@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "cgroup",
+    srcs = [
+        "cgroup.go",
+        "helpers.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/cgroup",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)

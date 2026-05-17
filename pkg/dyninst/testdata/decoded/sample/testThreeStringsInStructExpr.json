@@ -20,10 +20,12 @@
             "method": "main.testThreeStringsInStruct"
           }
         }
-      }
+      },
+      "type": "snapshot"
     },
     "timestamp": "[ts]",
     "duration": "[duration]",
-    "message": "abc def ghi"
+    "message": "abc def ghi",
+    "process_tags": "entrypoint.name:sample,svc.user:sample"
   }
 ]
