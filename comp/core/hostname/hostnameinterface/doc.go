@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build serverless
-
-// Deprecated: use github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def instead.
+// Package hostnameinterface describes the interface for hostname methods.
+// Deprecated: use comp/core/hostname/hostnameinterface/def instead.
 package hostnameinterface
