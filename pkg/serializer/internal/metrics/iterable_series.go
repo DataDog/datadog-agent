@@ -148,16 +148,22 @@ func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Compon
 		}
 	}
 
+	segmentShadow := newSegmentShadowBuilder()
+	segmentShadowStart := time.Now()
+
 	// Use series.source.MoveNext() instead of series.MoveNext() because this function supports
 	// the serie.NoIndex field.
 	for series.source.MoveNext() {
+		current := series.source.Current()
 		for _, pb := range pbs {
-			err := pb.writeSerie(series.source.Current())
+			err := pb.writeSerie(current)
 			if err != nil {
 				return err
 			}
 		}
+		segmentShadow.observeSerie(current)
 	}
+	segmentShadow.finish("series", time.Since(segmentShadowStart))
 
 	// if the last payload has any data, flush it
 	for i := range pbs {

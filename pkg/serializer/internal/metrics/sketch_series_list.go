@@ -8,6 +8,7 @@ package metrics
 import (
 	"bytes"
 	"expvar"
+	"time"
 
 	"github.com/richardartoul/molecule"
 
@@ -81,6 +82,9 @@ func (sl SketchSeriesList) MarshalSplitCompressPipelines(config config.Component
 		}
 	}
 
+	segmentShadow := newSegmentShadowBuilder()
+	segmentShadowStart := time.Now()
+
 	for sl.MoveNext() {
 		ss := sl.Current()
 		for i := range pbs {
@@ -89,7 +93,9 @@ func (sl SketchSeriesList) MarshalSplitCompressPipelines(config config.Component
 				return err
 			}
 		}
+		segmentShadow.observeSketch(ss)
 	}
+	segmentShadow.finish("sketches", time.Since(segmentShadowStart))
 
 	for i := range pbs {
 		err := pbs[i].finishPayload()
