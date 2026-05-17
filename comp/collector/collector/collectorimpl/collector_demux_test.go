@@ -28,7 +28,7 @@ import (
 	metricscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"

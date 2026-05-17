@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"

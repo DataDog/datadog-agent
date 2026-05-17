@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
