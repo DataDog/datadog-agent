@@ -113,6 +113,7 @@ func createIterableMetrics(
 				se.Tags = tagset.CombineCompositeTagsAndSlice(se.Tags, hostTagProvider.GetHostTags())
 			}
 			tagsetTlm.updateHugeSerieTelemetry(se)
+			observeDogstatsdPipelineSerie(se)
 		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
 	}
 	if serializer.AreSketchesEnabled() {
@@ -127,6 +128,7 @@ func createIterableMetrics(
 				sketch.Tags = tagset.CombineCompositeTagsAndSlice(sketch.Tags, hostTagProvider.GetHostTags())
 			}
 			tagsetTlm.updateHugeSketchesTelemetry(sketch)
+			observeDogstatsdPipelineSketch(sketch)
 		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
 	}
 	return series, sketches
@@ -138,7 +140,9 @@ func createIterableMetrics(
 // from SendIterableSeries (because the SenderStopped methods has been called on the sink).
 func sendIterableSeries(serializer serializer.MetricSerializer, start time.Time, serieSource metrics.SerieSource) {
 	log.Debug("Demultiplexer: sendIterableSeries: start sending iterable series to the serializer")
+	serializeStart := time.Now()
 	err := serializer.SendIterableSeries(serieSource)
+	recordDogstatsdPipelineDuration("serialize_series", time.Since(serializeStart))
 	// if err == nil, SenderStopped was called and it is safe to read the number of series.
 	count := serieSource.Count()
 	addFlushCount("Series", int64(count))

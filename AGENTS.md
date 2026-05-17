@@ -44,6 +44,16 @@ The Datadog Agent is a comprehensive monitoring and observability agent written 
 
 ## Development Workflow
 
+### Pi/cmux tool usage
+
+Use `cmux_surface` sparingly. It is useful for subagents, long-running interactive
+commands, or user-requested panes, but it should not replace simple `bash`,
+`read`, or `edit` tool calls. Repeatedly creating split panes shrinks the
+existing surfaces; enough splits can leave the original terminal only a few
+columns wide and crash rendering. Before spawning a new surface, prefer reusing
+or closing an existing surface, use a tab/non-splitting surface when available,
+and avoid creating more than a couple of visible splits.
+
 ### Critical: Always use `dda inv`, never raw `go` commands
 
 This project uses extensive custom Go build tags. Most source files are ignored

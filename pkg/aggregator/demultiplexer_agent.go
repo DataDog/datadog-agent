@@ -481,15 +481,18 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 		return
 	}
 
+	flushStart := time.Now()
 	logPayloads := pkgconfigsetup.Datadog().GetBool("log_payloads")
 	series, sketches := createIterableMetrics(d.aggregator.flushAndSerializeInParallel, d.sharedSerializer, logPayloads, false, d.hostTagProvider)
 	metrics.Serialize(
 		series,
 		sketches,
 		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+			producerStart := time.Now()
 			// flush DogStatsD pipelines (statsd/time samplers)
 			// ------------------------------------------------
 
+			dogstatsdSamplersStart := time.Now()
 			for _, worker := range d.statsd.workers {
 				// order the flush to the time sampler, and wait, in a different routine
 				t := flushTrigger{
@@ -505,11 +508,13 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 				worker.flushChan <- t
 				<-t.trigger.blockChan
 			}
+			recordDogstatsdPipelineDuration("dogstatsd_samplers", time.Since(dogstatsdSamplersStart))
 
 			// flush the aggregator (check samplers)
 			// -------------------------------------
 
 			if d.aggregator != nil {
+				checkSamplersStart := time.Now()
 				t := flushTrigger{
 					trigger: trigger{
 						time:              start,
@@ -523,20 +528,25 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 
 				d.aggregator.flushChan <- t
 				<-t.trigger.blockChan
+				recordDogstatsdPipelineDuration("check_samplers", time.Since(checkSamplersStart))
 			}
+			recordDogstatsdPipelineDuration("producer_total", time.Since(producerStart))
 		}, func(serieSource metrics.SerieSource) {
 			sendIterableSeries(d.sharedSerializer, start, serieSource)
 		},
 		func(sketches metrics.SketchesSource) {
 			// Don't send empty sketches payloads
 			if sketches.WaitForValue() {
+				serializeStart := time.Now()
 				err := d.sharedSerializer.SendSketch(sketches)
+				recordDogstatsdPipelineDuration("serialize_sketches", time.Since(serializeStart))
 				sketchesCount := sketches.Count()
 				d.log.Debugf("Flushing %d sketches to the serializer", sketchesCount)
 				updateSketchTelemetry(start, sketchesCount, err)
 				addFlushCount("Sketches", int64(sketchesCount))
 			}
 		})
+	recordDogstatsdPipelineDuration("flush_total", time.Since(flushStart))
 
 	addFlushTime("MainFlushTime", int64(time.Since(start)))
 	aggregatorNumberOfFlush.Add(1)

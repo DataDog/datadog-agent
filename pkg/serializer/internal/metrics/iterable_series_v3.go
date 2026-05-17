@@ -37,6 +37,14 @@ var (
 		[]string{"reason"},
 		"Why payload was split",
 	)
+	tlmV3PayloadStats = telemetryimpl.GetCompatComponent().NewCounter("serializer", "v3_payload_stats",
+		[]string{"stat"},
+		"Payload-level stats for metrics v3 serialization",
+	)
+	tlmV3DictionaryEntries = telemetryimpl.GetCompatComponent().NewCounter("serializer", "v3_dictionary_entries",
+		[]string{"dictionary"},
+		"Payload-local dictionary entry counts for metrics v3 serialization",
+	)
 )
 
 const (
@@ -284,6 +292,7 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 			payload = append(payload, compressedBytes...)
 		}
 
+		pb.recordPayloadStats(len(payload), uncompressedMetricDataSize)
 		pb.pipelineContext.addPayload(transaction.NewBytesPayload(payload, pb.pointsThisPayload))
 	}
 
@@ -291,6 +300,22 @@ func (pb *payloadsBuilderV3) finishPayload() error {
 	pb.reset()
 
 	return nil
+}
+
+func (pb *payloadsBuilderV3) recordPayloadStats(compressedPayloadSize int, uncompressedMetricDataSize int) {
+	tlmV3PayloadStats.Inc("payloads")
+	tlmV3PayloadStats.Add(float64(pb.pointsThisPayload), "points")
+	tlmV3PayloadStats.Add(float64(compressedPayloadSize), "compressed_bytes")
+	tlmV3PayloadStats.Add(float64(uncompressedMetricDataSize), "uncompressed_metric_data_bytes")
+
+	tlmV3DictionaryEntries.Add(float64(pb.dict.namesInterner.lastID), "names")
+	tlmV3DictionaryEntries.Add(float64(pb.dict.tagsInterner.lastID), "tag_strings")
+	tlmV3DictionaryEntries.Add(float64(pb.dict.tagsLastID), "tagsets")
+	tlmV3DictionaryEntries.Add(float64(pb.dict.resourceInterner.lastID), "resource_strings")
+	tlmV3DictionaryEntries.Add(float64(pb.dict.resourcesLastID), "resources")
+	tlmV3DictionaryEntries.Add(float64(pb.dict.sourceTypeNameInterner.lastID), "source_type_names")
+	tlmV3DictionaryEntries.Add(float64(pb.dict.originInfoInterner.lastID), "origins")
+	tlmV3DictionaryEntries.Add(float64(pb.dict.unitInterner.lastID), "units")
 }
 
 func (pb *payloadsBuilderV3) appendProtobufFieldHeader(dst []byte, id int, len int) ([]byte, error) {

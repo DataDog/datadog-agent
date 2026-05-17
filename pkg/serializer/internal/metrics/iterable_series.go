@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"time"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/richardartoul/molecule"
@@ -117,6 +118,11 @@ type serieWriter interface {
 // max, a new payload will be generated. This method returns a slice of
 // compressed protobuf marshaled MetricPayload objects.
 func (series *IterableSeries) MarshalSplitCompressPipelines(config config.Component, strategy compression.Component, pipelines PipelineSet) error {
+	marshalStart := time.Now()
+	defer func() {
+		recordSeriesPipelineDuration("marshal_split_compress", time.Since(marshalStart))
+	}()
+
 	pbs := make([]serieWriter, 0, len(pipelines))
 	var sw serieWriter
 	for pipelineConfig, pipelineContext := range pipelines {
