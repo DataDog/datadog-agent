@@ -460,6 +460,10 @@ func (d *AgentDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSeri
 	<-trigger.blockChan
 }
 
+type directSeriesSketchSerializer interface {
+	SendDirectSeriesAndSketches(func(metrics.SerieSink, metrics.SketchesSink), serializer.DirectMetricsOptions) serializer.DirectMetricsResult
+}
+
 // flushToSerializer flushes all data from the aggregator and time samplers
 // to the serializer.
 //
@@ -481,6 +485,13 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 		return
 	}
 
+	if directSerializerExperimentEnabled() {
+		if direct, ok := d.sharedSerializer.(directSeriesSketchSerializer); ok {
+			d.flushToDirectSerializer(start, waitForSerializer, forceFlushAll, direct)
+			return
+		}
+	}
+
 	flushStart := time.Now()
 	logPayloads := pkgconfigsetup.Datadog().GetBool("log_payloads")
 	series, sketches := createIterableMetrics(d.aggregator.flushAndSerializeInParallel, d.sharedSerializer, logPayloads, false, d.hostTagProvider)
@@ -488,49 +499,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 		series,
 		sketches,
 		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
-			producerStart := time.Now()
-			// flush DogStatsD pipelines (statsd/time samplers)
-			// ------------------------------------------------
-
-			dogstatsdSamplersStart := time.Now()
-			for _, worker := range d.statsd.workers {
-				// order the flush to the time sampler, and wait, in a different routine
-				t := flushTrigger{
-					trigger: trigger{
-						time:          start,
-						blockChan:     make(chan struct{}),
-						forceFlushAll: forceFlushAll,
-					},
-					sketchesSink: sketchesSink,
-					seriesSink:   seriesSink,
-				}
-
-				worker.flushChan <- t
-				<-t.trigger.blockChan
-			}
-			recordDogstatsdPipelineDuration("dogstatsd_samplers", time.Since(dogstatsdSamplersStart))
-
-			// flush the aggregator (check samplers)
-			// -------------------------------------
-
-			if d.aggregator != nil {
-				checkSamplersStart := time.Now()
-				t := flushTrigger{
-					trigger: trigger{
-						time:              start,
-						blockChan:         make(chan struct{}),
-						waitForSerializer: waitForSerializer,
-						forceFlushAll:     forceFlushAll,
-					},
-					sketchesSink: sketchesSink,
-					seriesSink:   seriesSink,
-				}
-
-				d.aggregator.flushChan <- t
-				<-t.trigger.blockChan
-				recordDogstatsdPipelineDuration("check_samplers", time.Since(checkSamplersStart))
-			}
-			recordDogstatsdPipelineDuration("producer_total", time.Since(producerStart))
+			d.produceFlush(start, waitForSerializer, forceFlushAll, seriesSink, sketchesSink)
 		}, func(serieSource metrics.SerieSource) {
 			sendIterableSeries(d.sharedSerializer, start, serieSource)
 		},
@@ -548,6 +517,82 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 		})
 	recordDogstatsdPipelineDuration("flush_total", time.Since(flushStart))
 
+	addFlushTime("MainFlushTime", int64(time.Since(start)))
+	aggregatorNumberOfFlush.Add(1)
+}
+
+func (d *AgentDemultiplexer) produceFlush(start time.Time, waitForSerializer bool, forceFlushAll bool, seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+	producerStart := time.Now()
+	// flush DogStatsD pipelines (statsd/time samplers)
+	// ------------------------------------------------
+
+	dogstatsdSamplersStart := time.Now()
+	for _, worker := range d.statsd.workers {
+		// order the flush to the time sampler, and wait, in a different routine
+		t := flushTrigger{
+			trigger: trigger{
+				time:          start,
+				blockChan:     make(chan struct{}),
+				forceFlushAll: forceFlushAll,
+			},
+			sketchesSink: sketchesSink,
+			seriesSink:   seriesSink,
+		}
+
+		worker.flushChan <- t
+		<-t.trigger.blockChan
+	}
+	recordDogstatsdPipelineDuration("dogstatsd_samplers", time.Since(dogstatsdSamplersStart))
+
+	// flush the aggregator (check samplers)
+	// -------------------------------------
+
+	if d.aggregator != nil {
+		checkSamplersStart := time.Now()
+		t := flushTrigger{
+			trigger: trigger{
+				time:              start,
+				blockChan:         make(chan struct{}),
+				waitForSerializer: waitForSerializer,
+				forceFlushAll:     forceFlushAll,
+			},
+			sketchesSink: sketchesSink,
+			seriesSink:   seriesSink,
+		}
+
+		d.aggregator.flushChan <- t
+		<-t.trigger.blockChan
+		recordDogstatsdPipelineDuration("check_samplers", time.Since(checkSamplersStart))
+	}
+	recordDogstatsdPipelineDuration("producer_total", time.Since(producerStart))
+}
+
+func (d *AgentDemultiplexer) flushToDirectSerializer(start time.Time, waitForSerializer bool, forceFlushAll bool, direct directSeriesSketchSerializer) {
+	flushStart := time.Now()
+	logPayloads := pkgconfigsetup.Datadog().GetBool("log_payloads")
+	serializeStart := time.Now()
+	result := direct.SendDirectSeriesAndSketches(
+		func(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+			d.produceFlush(start, waitForSerializer, forceFlushAll, seriesSink, sketchesSink)
+		},
+		serializer.DirectMetricsOptions{
+			SeriesCallback: seriesFlushCallback(logPayloads, d.hostTagProvider),
+			SketchCallback: sketchFlushCallback(logPayloads, false, d.hostTagProvider),
+		},
+	)
+	recordDogstatsdPipelineDuration("serialize_direct_metrics", time.Since(serializeStart))
+
+	if result.SeriesEnabled {
+		addFlushCount("Series", int64(result.SeriesCount))
+		updateSerieTelemetry(start, result.SeriesCount, result.SeriesErr)
+	}
+	if result.SketchesEnabled && result.SketchesCount > 0 {
+		d.log.Debugf("Flushing %d sketches to the direct serializer", result.SketchesCount)
+		updateSketchTelemetry(start, result.SketchesCount, result.SketchesErr)
+		addFlushCount("Sketches", int64(result.SketchesCount))
+	}
+
+	recordDogstatsdPipelineDuration("flush_total", time.Since(flushStart))
 	addFlushTime("MainFlushTime", int64(time.Since(start)))
 	aggregatorNumberOfFlush.Add(1)
 }

@@ -311,6 +311,128 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 	return pipelines.Send(s.Forwarder, s.protobufExtraHeadersWithCompression)
 }
 
+// DirectMetricsOptions carries producer-side callbacks that normally run from
+// metrics.IterableSeries/IterableSketches.Append. The direct serializer
+// experiment uses them before serializing each row so host tags, logging, and
+// telemetry remain comparable with the current path.
+type DirectMetricsOptions struct {
+	SeriesCallback func(*metrics.Serie)
+	SketchCallback func(*metrics.SketchSeries)
+}
+
+// DirectMetricsResult summarizes an experimental direct series/sketch flush.
+type DirectMetricsResult struct {
+	SeriesEnabled   bool
+	SketchesEnabled bool
+	SeriesCount     uint64
+	SketchesCount   uint64
+	SeriesErr       error
+	SketchesErr     error
+}
+
+type directSeriesCallbackSink struct {
+	sink     metrics.SerieSink
+	callback func(*metrics.Serie)
+}
+
+func (s directSeriesCallbackSink) Append(serie *metrics.Serie) {
+	if s.callback != nil {
+		s.callback(serie)
+	}
+	s.sink.Append(serie)
+}
+
+type directSketchCallbackSink struct {
+	sink     metrics.SketchesSink
+	callback func(*metrics.SketchSeries)
+}
+
+func (s directSketchCallbackSink) Append(sketch *metrics.SketchSeries) {
+	if s.callback != nil {
+		s.callback(sketch)
+	}
+	s.sink.Append(sketch)
+}
+
+type directNoopSeriesSink struct{}
+
+func (directNoopSeriesSink) Append(*metrics.Serie) {}
+
+type directNoopSketchSink struct{}
+
+func (directNoopSketchSink) Append(*metrics.SketchSeries) {}
+
+// SendDirectSeriesAndSketches is an intentionally experimental local-only path
+// that lets the aggregator produce directly into serializer pipeline builders,
+// bypassing IterableSeries/IterableSketches channels and consumer goroutines.
+// It currently supports the v2/v3 protobuf metric APIs; JSON v1 series are not
+// implemented for this experiment.
+func (s *Serializer) SendDirectSeriesAndSketches(
+	producer func(metrics.SerieSink, metrics.SketchesSink),
+	options DirectMetricsOptions,
+) DirectMetricsResult {
+	result := DirectMetricsResult{
+		SeriesEnabled:   s.AreSeriesEnabled(),
+		SketchesEnabled: s.AreSketchesEnabled(),
+	}
+
+	var seriesSink metrics.SerieSink = directNoopSeriesSink{}
+	var seriesDirectSink *metricsserializer.DirectSeriesSink
+	var seriesPipelines metricsserializer.PipelineSet
+	if result.SeriesEnabled {
+		if !s.config.GetBool("use_v2_api.series") {
+			result.SeriesErr = fmt.Errorf("direct series serializer experiment requires use_v2_api.series=true")
+			return result
+		}
+
+		seriesPipelines = s.buildPipelines(metricsKindSeries)
+		var err error
+		seriesDirectSink, err = metricsserializer.NewDirectSeriesSink(s.config, s.Strategy, seriesPipelines)
+		if err != nil {
+			result.SeriesErr = fmt.Errorf("creating direct series sink: %w", err)
+			return result
+		}
+		seriesSink = seriesDirectSink
+	}
+	if options.SeriesCallback != nil {
+		seriesSink = directSeriesCallbackSink{sink: seriesSink, callback: options.SeriesCallback}
+	}
+
+	var sketchesSink metrics.SketchesSink = directNoopSketchSink{}
+	var sketchesDirectSink *metricsserializer.DirectSketchSink
+	var sketchesPipelines metricsserializer.PipelineSet
+	if result.SketchesEnabled {
+		sketchesPipelines = s.buildPipelines(metricsKindSketches)
+		var err error
+		sketchesDirectSink, err = metricsserializer.NewDirectSketchSink(s.config, s.Strategy, sketchesPipelines, s.logger)
+		if err != nil {
+			result.SketchesErr = fmt.Errorf("creating direct sketches sink: %w", err)
+			return result
+		}
+		sketchesSink = sketchesDirectSink
+	}
+	if options.SketchCallback != nil {
+		sketchesSink = directSketchCallbackSink{sink: sketchesSink, callback: options.SketchCallback}
+	}
+
+	producer(seriesSink, sketchesSink)
+
+	if seriesDirectSink != nil {
+		result.SeriesCount, result.SeriesErr = seriesDirectSink.Finish()
+		if result.SeriesErr == nil {
+			result.SeriesErr = seriesPipelines.Send(s.Forwarder, s.protobufExtraHeadersWithCompression)
+		}
+	}
+	if sketchesDirectSink != nil {
+		result.SketchesCount, result.SketchesErr = sketchesDirectSink.Finish()
+		if result.SketchesErr == nil {
+			result.SketchesErr = sketchesPipelines.Send(s.Forwarder, s.protobufExtraHeadersWithCompression)
+		}
+	}
+
+	return result
+}
+
 // SendMetadata serializes a metadata payload and sends it to the forwarder
 func (s *Serializer) SendMetadata(m marshaler.JSONMarshaler) error {
 	return s.sendMetadata(m, s.Forwarder.SubmitMetadata)

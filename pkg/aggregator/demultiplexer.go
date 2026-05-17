@@ -6,6 +6,8 @@
 package aggregator
 
 import (
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -93,6 +95,38 @@ type flushTrigger struct {
 	seriesSink   metrics.SerieSink
 }
 
+func seriesFlushCallback(logPayloads bool, hostTagProvider *hosttags.HostTagProvider) func(*metrics.Serie) {
+	hostTags := hostTagProvider.GetHostTags()
+	return func(se *metrics.Serie) {
+		if logPayloads {
+			log.Debugf("Flushing serie: %s", se)
+		}
+
+		if hostTags != nil {
+			se.Tags = tagset.CombineCompositeTagsAndSlice(se.Tags, hostTags)
+		}
+		tagsetTlm.updateHugeSerieTelemetry(se)
+		observeDogstatsdPipelineSerie(se)
+	}
+}
+
+func sketchFlushCallback(logPayloads bool, isServerless bool, hostTagProvider *hosttags.HostTagProvider) func(*metrics.SketchSeries) {
+	hostTags := hostTagProvider.GetHostTags()
+	return func(sketch *metrics.SketchSeries) {
+		if logPayloads {
+			log.Debugf("Flushing Sketches: %v", sketch)
+		}
+		if isServerless {
+			log.Debugf("Sending sketches payload : %s", sketch.String())
+		}
+		if hostTags != nil {
+			sketch.Tags = tagset.CombineCompositeTagsAndSlice(sketch.Tags, hostTags)
+		}
+		tagsetTlm.updateHugeSketchesTelemetry(sketch)
+		observeDogstatsdPipelineSketch(sketch)
+	}
+}
+
 func createIterableMetrics(
 	flushAndSerializeInParallel FlushAndSerializeInParallel,
 	serializer serializer.MetricSerializer,
@@ -102,36 +136,18 @@ func createIterableMetrics(
 ) (*metrics.IterableSeries, *metrics.IterableSketches) {
 	var series *metrics.IterableSeries
 	var sketches *metrics.IterableSketches
-	hostTags := hostTagProvider.GetHostTags()
 	if serializer.AreSeriesEnabled() {
-		series = metrics.NewIterableSeries(func(se *metrics.Serie) {
-			if logPayloads {
-				log.Debugf("Flushing serie: %s", se)
-			}
-
-			if hostTags != nil {
-				se.Tags = tagset.CombineCompositeTagsAndSlice(se.Tags, hostTagProvider.GetHostTags())
-			}
-			tagsetTlm.updateHugeSerieTelemetry(se)
-			observeDogstatsdPipelineSerie(se)
-		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
+		series = metrics.NewIterableSeries(seriesFlushCallback(logPayloads, hostTagProvider), flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
 	}
 	if serializer.AreSketchesEnabled() {
-		sketches = metrics.NewIterableSketches(func(sketch *metrics.SketchSeries) {
-			if logPayloads {
-				log.Debugf("Flushing Sketches: %v", sketch)
-			}
-			if isServerless {
-				log.Debugf("Sending sketches payload : %s", sketch.String())
-			}
-			if hostTags != nil {
-				sketch.Tags = tagset.CombineCompositeTagsAndSlice(sketch.Tags, hostTagProvider.GetHostTags())
-			}
-			tagsetTlm.updateHugeSketchesTelemetry(sketch)
-			observeDogstatsdPipelineSketch(sketch)
-		}, flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
+		sketches = metrics.NewIterableSketches(sketchFlushCallback(logPayloads, isServerless, hostTagProvider), flushAndSerializeInParallel.BufferSize, flushAndSerializeInParallel.ChannelSize)
 	}
 	return series, sketches
+}
+
+func directSerializerExperimentEnabled() bool {
+	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_DIRECT_SERIALIZER"))
+	return err == nil && enabled
 }
 
 // sendIterableSeries is continuously sending series to the serializer, until another routine calls SenderStopped on the
