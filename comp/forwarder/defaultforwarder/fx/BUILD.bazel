@@ -8,5 +8,6 @@ go_library(
     deps = [
         "//comp/forwarder/defaultforwarder/impl",
         "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
     ],
 )
