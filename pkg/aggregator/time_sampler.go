@@ -10,6 +10,7 @@ import (
 	"io"
 	"math"
 	"strconv"
+	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -164,12 +165,16 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, fi
 		contextMetricsFlusher.Append(float64(cutoffTime-s.interval), contextMetrics)
 	}
 
+	rowShadow := newDirectRowShadowBuilder()
+	rowShadowStart := time.Now()
+
 	// serieBySignature is reused for each call of dedupSerieBySerieSignature to avoid allocations.
 	serieBySignature := make(map[SerieSignature]*metrics.Serie)
 	s.flushContextMetrics(contextMetricsFlusher, func(rawSeries []*metrics.Serie) {
 		// Note: rawSeries is reused at each call
-		s.dedupSerieBySerieSignature(rawSeries, series, serieBySignature, filterList)
+		s.dedupSerieBySerieSignature(rawSeries, series, serieBySignature, filterList, rowShadow)
 	})
+	rowShadow.finish("series", time.Since(rowShadowStart))
 }
 
 func (s *TimeSampler) dedupSerieBySerieSignature(
@@ -177,6 +182,7 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 	serieSink metrics.SerieSink,
 	serieBySignature map[SerieSignature]*metrics.Serie,
 	filterList *utilstrings.Matcher,
+	rowShadow *directRowShadowBuilder,
 ) {
 	// clear the map. Reuse serieBySignature
 	for k := range serieBySignature {
@@ -215,11 +221,15 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 			tlmDogstatsdFilteredMetrics.Inc()
 			continue
 		}
+		rowShadow.observeSerie(serie)
 		serieSink.Append(serie)
 	}
 }
 
 func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.SketchesSink, forceFlushAll bool) {
+	rowShadow := newDirectRowShadowBuilder()
+	rowShadowStart := time.Now()
+
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
 
 	flushAllBefore := cutoffTime
@@ -239,8 +249,10 @@ func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.Sketc
 			log.Errorf("TimeSampler #%d Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", s.id, ck)
 			continue
 		}
+		rowShadow.observeSketch(ss)
 		sketchesSink.Append(ss)
 	}
+	rowShadow.finish("sketches", time.Since(rowShadowStart))
 }
 
 func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketches metrics.SketchesSink, filterList *utilstrings.Matcher, forceFlushAll bool) {
