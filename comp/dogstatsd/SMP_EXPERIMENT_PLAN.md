@@ -363,23 +363,51 @@ SMP results:
 | `uds_dogstatsd_to_api_v3_endpoint_fixed` | ingress throughput | +0.16% | [-0.04%, +0.36%] | false | true |
 
 Decision: the direct row observer is neutral enough to keep iterating, but this
-is not sufficient proof to switch output. Stage E remains gated on a semantic
-row sink that either accounts for sink-level host tags or moves observation to a
-post-enrichment boundary, and on a builder that can emit the actual v3 wire
-payload from rows without falling back to the existing `metrics.Serie` path.
+is not sufficient proof to switch output in production. For local experiments,
+Stage E deliberately relaxes that safety gate to estimate end-goal performance
+from an active direct serializer path.
 
 ### Stage E: direct path as comparison output
 
-Only after Stage D is semantically clean, allow the experiment image to send the
-new path's payload while optionally keeping old path as shadow.
+For local-only experiments, allow the experiment image to send payloads through a
+new direct serializer path while keeping commits and results isolated. Stage E
+is enabled by `DD_DOGSTATSD_EXPERIMENTAL_DIRECT_SERIALIZER=true` in copied local
+SMP cases.
 
-Current local status: **deferred after Stage D**. The direct row observer is
-output-neutral and SMP-neutral, but it is not yet a semantically complete output
-path because it still shadows around `metrics.Serie` and does not yet prove exact
-post-sink enrichment/wire equivalence. Do not run Stage E until that design gap
-is closed.
+Local Stage E implementation (`9498d5fee95`) bypasses `IterableSeries` /
+`IterableSketches` channel traversal and consumer goroutines. The demultiplexer
+passes producer rows directly to `Serializer.SendDirectSeriesAndSketches`, which
+writes into the existing v2/v3 serializer pipeline builders and then sends those
+pipelines. This is intentionally unsafe and incomplete: it still consumes
+existing `metrics.Serie` and `metrics.SketchSeries` rows and supports the
+protobuf v2/v3 APIs only.
 
-Run foundation vs experiment on the main cases again.
+### Stage E local result, 2026-05-17
+
+Local Stage E compared the direct-row shadow image
+(`datadog/agent-dev:smp-dsd-direct-row`, `e3f2f987056`) against the active
+direct serializer image (`datadog/agent-dev:smp-dsd-direct-active`,
+`9498d5fee95`). Both variants used local-only case copies with
+`DD_DOGSTATSD_EXPERIMENTAL_DIRECT_SERIALIZER=true`; the baseline image ignores
+that env var.
+
+SMP results:
+
+| Case | Goal | Δ mean | Δ mean CI | Regression | Improvement |
+|---|---|---:|---:|---|---|
+| `uds_dogstatsd_to_api_v3` | ingress throughput | -0.21% | [-0.43%, +0.01%] | false | false |
+| `uds_dogstatsd_to_api` | ingress throughput | -0.07% | [-0.39%, +0.24%] | false | false |
+| `uds_dogstatsd_20mb_12k_contexts_20_senders` | memory utilization | -0.94% | [-1.15%, -0.72%] | false | true |
+| `uds_dogstatsd_to_api_v3_endpoint_fixed` | ingress throughput | +0.56% | [+0.27%, +0.84%] | false | true |
+
+Decision: active direct serialization is locally non-regressing and improves the
+corrected current-v3 endpoint plus memory case. It does not prove a broad
+throughput win for v2 or the source v3-labeled case. The next experiment should
+remove more aggregator materialization or feed the v3 builder from a row
+representation that avoids `metrics.Serie` mutation altogether.
+
+Run foundation vs experiment on the main cases again only after deciding whether
+the next active path should be v3-only or should also replace the v2 serializer.
 
 Success bar for making a significant core-improvement claim:
 
