@@ -1553,6 +1553,12 @@ func TestGivenADiskCheckWithSameMountBlocking_WhenCalledTwice_ThenSecondCallIsSk
 	// This test verifies that repeated calls for the same mountpoint are skipped
 	// when a previous call is still inflight (blocked in kernel).
 	setupDefaultMocks()
+	mockClock := clock.NewMock()
+	afterCalled := make(chan time.Time, 1)
+	testClock := &signalClock{
+		Clock:       mockClock,
+		afterCalled: afterCalled,
+	}
 
 	var callCount int32
 	callStarted := make(chan struct{}, 1)
@@ -1561,13 +1567,11 @@ func TestGivenADiskCheckWithSameMountBlocking_WhenCalledTwice_ThenSecondCallIsSk
 	diskCheck = diskv2.WithDiskUsage(diskCheck, func(_ string) (*gopsutil_disk.UsageStat, error) {
 		atomic.AddInt32(&callCount, 1)
 		callStarted <- struct{}{}
-		// Sleep longer than timeout
-		time.Sleep(5 * time.Second)
-		return nil, nil
+		select {}
 	})
 
 	// Single partition that will block
-	diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+	diskCheck = diskv2.WithClock(diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
 		return []gopsutil_disk.PartitionStat{
 			{
 				Device:     "/dev/sda1",
@@ -1576,7 +1580,7 @@ func TestGivenADiskCheckWithSameMountBlocking_WhenCalledTwice_ThenSecondCallIsSk
 				Opts:       []string{"rw"},
 			},
 		}, nil
-	})
+	}), testClock)
 
 	m := mocksender.NewMockSender(diskCheck.ID())
 	m.SetupAcceptAll()
@@ -1594,30 +1598,93 @@ timeout: 1
 
 	// Wait for first diskUsage call to actually start
 	<-callStarted
+	<-afterCalled
+	mockClock.Add(2 * time.Second)
 
-	// Second run - should skip the same mountpoint because it's still inflight
-	done2 := make(chan struct{})
-	go func() {
-		diskCheck.Run()
-		close(done2)
-	}()
-
-	// Wait for both to complete (timeouts will fire)
 	select {
 	case <-done1:
 	case <-time.After(5 * time.Second):
 		t.Fatal("First run timed out")
 	}
 
-	select {
-	case <-done2:
-	case <-time.After(5 * time.Second):
-		t.Fatal("Second run timed out")
-	}
+	// Second run should skip the same mountpoint because it is still inflight.
+	err := diskCheck.Run()
+	assert.Nil(t, err)
 
 	// Only one actual diskUsage call should have been made
 	assert.Equal(t, int32(1), atomic.LoadInt32(&callCount),
 		"Should only have one actual diskUsage call despite two check runs")
+}
+
+func TestGivenADiskCheckWithMultipleBlockingMounts_WhenSemaphoreExhausted_ThenNewCallsAreSkipped(t *testing.T) {
+	// This test verifies that the global limiter caps concurrent diskUsage calls.
+	setupDefaultMocks()
+	mockClock := clock.NewMock()
+	afterCalled := make(chan time.Time, 2)
+	testClock := &signalClock{
+		Clock:       mockClock,
+		afterCalled: afterCalled,
+	}
+
+	var callCount int32
+	callStarted := make(chan struct{}, 2)
+
+	diskCheck := createDiskCheck(t)
+	diskCheck = diskv2.WithClock(diskv2.WithDiskPartitionsWithContext(diskv2.WithDiskUsage(diskCheck, func(_ string) (*gopsutil_disk.UsageStat, error) {
+		atomic.AddInt32(&callCount, 1)
+		callStarted <- struct{}{}
+		select {}
+	}), func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+		return []gopsutil_disk.PartitionStat{
+			{
+				Device:     "nfsserver:/one",
+				Mountpoint: "/mnt/wedged_nfs_1",
+				Fstype:     "nfs",
+				Opts:       []string{"rw"},
+			},
+			{
+				Device:     "nfsserver:/two",
+				Mountpoint: "/mnt/wedged_nfs_2",
+				Fstype:     "nfs",
+				Opts:       []string{"rw"},
+			},
+			{
+				Device:     "nfsserver:/three",
+				Mountpoint: "/mnt/wedged_nfs_3",
+				Fstype:     "nfs",
+				Opts:       []string{"rw"},
+			},
+		}, nil
+	}), testClock)
+
+	m := mocksender.NewMockSender(diskCheck.ID())
+	m.SetupAcceptAll()
+	config := integration.Data([]byte(`
+timeout: 1
+max_inflight_usage: 2
+`))
+	diskCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, config, nil, "test")
+
+	done := make(chan error, 1)
+	go func() {
+		done <- diskCheck.Run()
+	}()
+
+	for i := 0; i < 2; i++ {
+		<-callStarted
+		<-afterCalled
+		mockClock.Add(2 * time.Second)
+	}
+
+	select {
+	case err := <-done:
+		assert.Nil(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Test timed out waiting for check to complete")
+	}
+
+	assert.Equal(t, int32(2), atomic.LoadInt32(&callCount),
+		"Should only start disk usage calls up to max_inflight_usage")
 }
 
 func TestGivenADiskCheckWithFastDiskUsage_WhenCalledMultipleTimes_ThenAllCallsSucceed(t *testing.T) {

@@ -106,8 +106,56 @@ type diskInstanceConfig struct {
 	DeviceTagRe          map[string]string `yaml:"device_tag_re"`
 	LowercaseDeviceTag   bool              `yaml:"lowercase_device_tag"`
 	Timeout              uint16            `yaml:"timeout"`
+	MaxInflightUsage     uint16            `yaml:"max_inflight_usage"`
 	ProcMountInfoPath    string            `yaml:"proc_mountinfo_path"`
 	ResolveRootDevice    bool              `yaml:"resolve_root_device"`
+}
+
+type diskUsageLimiter struct {
+	mu              sync.Mutex
+	maxInflight     int
+	inflightCount   int
+	inflightByMount map[string]struct{}
+}
+
+func newDiskUsageLimiter(maxInflight int) *diskUsageLimiter {
+	return &diskUsageLimiter{
+		maxInflight:     maxInflight,
+		inflightByMount: make(map[string]struct{}),
+	}
+}
+
+func (l *diskUsageLimiter) configure(maxInflight int) {
+	l.mu.Lock()
+	l.maxInflight = maxInflight
+	l.mu.Unlock()
+}
+
+func (l *diskUsageLimiter) acquire(mountpoint string) (func(), error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if _, ok := l.inflightByMount[mountpoint]; ok {
+		return nil, errors.New("skipping: previous disk usage call still inflight (may be blocked in kernel)")
+	}
+	if l.inflightCount >= l.maxInflight {
+		return nil, fmt.Errorf("skipping: too many inflight disk usage calls (max %d)", l.maxInflight)
+	}
+
+	l.inflightByMount[mountpoint] = struct{}{}
+	l.inflightCount++
+	return func() {
+		l.release(mountpoint)
+	}, nil
+}
+
+func (l *diskUsageLimiter) release(mountpoint string) {
+	l.mu.Lock()
+	if _, ok := l.inflightByMount[mountpoint]; ok {
+		delete(l.inflightByMount, mountpoint)
+		l.inflightCount--
+	}
+	l.mu.Unlock()
 }
 
 // matchesAnyRegex returns true if value matches any of the provided regular expressions.
@@ -161,21 +209,10 @@ type Check struct {
 	deviceTagRe         map[*regexp.Regexp][]string
 	deviceLabels        map[string]string
 
-	// Concurrency guardrails to prevent thread explosion on unreachable remote mounts.
-	// When a remote filesystem (NFS/CIFS) becomes unresponsive, the statfs() syscall
-	// blocks in kernel uninterruptible sleep (D state). Without guardrails, each check
-	// interval would spawn new goroutines that accumulate blocked in D state, eventually
-	// causing agent instability.
-
-	// usageSem limits the total number of concurrent/inflight disk usage calls.
-	// This provides a global cap on OS threads that can be blocked in kernel I/O wait.
-	usageSem chan struct{}
-
-	// inflightMu protects inflightByMount
-	inflightMu sync.Mutex
-	// inflightByMount tracks mountpoints with an active disk usage call in progress.
-	// This prevents spawning multiple goroutines for the same wedged mount.
-	inflightByMount map[string]struct{}
+	// usageLimiter prevents thread growth when statfs() blocks in kernel
+	// uninterruptible sleep, while preserving in-flight state across Configure()
+	// calls so a hot reload does not spawn duplicate calls for the same mount.
+	usageLimiter *diskUsageLimiter
 }
 
 // Run executes the check
@@ -229,6 +266,14 @@ func (c *Check) configureDiskCheck(data integration.Data, initConfig integration
 	err = yaml.Unmarshal([]byte(data), &c.instanceConfig)
 	if err != nil {
 		return err
+	}
+	if c.instanceConfig.MaxInflightUsage == 0 {
+		c.instanceConfig.MaxInflightUsage = defaultMaxInflightUsage
+	}
+	if c.usageLimiter == nil {
+		c.usageLimiter = newDiskUsageLimiter(int(c.instanceConfig.MaxInflightUsage))
+	} else {
+		c.usageLimiter.configure(int(c.instanceConfig.MaxInflightUsage))
 	}
 	err = c.configureExcludeDevice()
 	if err != nil {
@@ -556,40 +601,15 @@ func (c *Check) sendDiskMetrics(sender sender.Sender, ioCounter gopsutil_disk.IO
 	sender.Rate(fmt.Sprintf(diskMetric, "write_time_pct"), float64(ioCounter.WriteTime)*100/1000, "", tags)
 }
 
-// tryMarkInflight attempts to mark a mountpoint as having an inflight disk usage call.
-// Returns true if successful, false if a call is already in progress.
-func (c *Check) tryMarkInflight(mountpoint string) bool {
-	c.inflightMu.Lock()
-	defer c.inflightMu.Unlock()
-	if _, ok := c.inflightByMount[mountpoint]; ok {
-		return false
-	}
-	c.inflightByMount[mountpoint] = struct{}{}
-	return true
-}
-
-// clearInflight removes the inflight marker for a mountpoint.
-func (c *Check) clearInflight(mountpoint string) {
-	c.inflightMu.Lock()
-	delete(c.inflightByMount, mountpoint)
-	c.inflightMu.Unlock()
-}
-
 // getDiskUsageWithTimeout wraps diskUsage with timeout and concurrency guardrails.
 //
 // Protection:
 // 1. Per-mountpoint inflight tracking: one wedged mount = one stuck goroutine, not one per interval.
-// 2. Global semaphore: caps total concurrent disk usage calls across all mounts.
+// 2. Global limiter: caps total concurrent disk usage calls across all mounts.
 func (c *Check) getDiskUsageWithTimeout(mountpoint string) (*gopsutil_disk.UsageStat, error) {
-	if !c.tryMarkInflight(mountpoint) {
-		return nil, errors.New("skipping: previous disk usage call still inflight (may be blocked in kernel)")
-	}
-
-	select {
-	case c.usageSem <- struct{}{}:
-	default:
-		c.clearInflight(mountpoint)
-		return nil, fmt.Errorf("skipping: too many inflight disk usage calls (max %d)", defaultMaxInflightUsage)
+	release, err := c.usageLimiter.acquire(mountpoint)
+	if err != nil {
+		return nil, err
 	}
 
 	type usageResult struct {
@@ -605,8 +625,7 @@ func (c *Check) getDiskUsageWithTimeout(mountpoint string) (*gopsutil_disk.Usage
 
 		// Only clean up when the syscall actually returns; if blocked in D state,
 		// this never runs, preventing future goroutines from piling up.
-		c.clearInflight(mountpoint)
-		<-c.usageSem
+		release()
 
 		select {
 		case resultCh <- usageResult{usage, err}:
@@ -618,7 +637,7 @@ func (c *Check) getDiskUsageWithTimeout(mountpoint string) (*gopsutil_disk.Usage
 	case result := <-resultCh:
 		return result.usage, result.err
 	case <-timeoutCh:
-		// Goroutine will clean up inflight/semaphore if/when the syscall returns.
+		// Goroutine will clean up inflight state if/when the syscall returns.
 		return nil, fmt.Errorf("disk usage call timed out after %s (syscall may be blocked in kernel D state)", timeout)
 	}
 }
@@ -825,6 +844,7 @@ func newCheck() check.Check {
 			DeviceTagRe:          make(map[string]string),
 			LowercaseDeviceTag:   false,
 			Timeout:              5,
+			MaxInflightUsage:     defaultMaxInflightUsage,
 			// Match psutil exactly setting default value (https://github.com/giampaolo/psutil/blob/3d21a43a47ab6f3c4a08d235d2a9a55d4adae9b1/psutil/_pslinux.py#L1277)
 			ProcMountInfoPath: "/proc/self/mounts",
 			// Match psutil reporting '/dev/root' from /proc/self/mounts by default
@@ -838,8 +858,6 @@ func newCheck() check.Check {
 		excludedMountpoints: []regexp.Regexp{},
 		deviceTagRe:         make(map[*regexp.Regexp][]string),
 		deviceLabels:        make(map[string]string),
-		// Initialize concurrency guardrails
-		usageSem:        make(chan struct{}, defaultMaxInflightUsage),
-		inflightByMount: make(map[string]struct{}),
+		usageLimiter:        newDiskUsageLimiter(defaultMaxInflightUsage),
 	}
 }

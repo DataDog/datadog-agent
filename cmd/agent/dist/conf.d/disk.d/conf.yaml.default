@@ -221,6 +221,12 @@ instances:
     #
     # timeout: 5
 
+    ## @param max_inflight_usage - integer - optional - default: 8
+    ## Maximum number of concurrent disk usage queries. This caps the number of
+    ## Agent threads that can be blocked if remote file systems become unresponsive.
+    #
+    # max_inflight_usage: 8
+
     ## @param create_mounts - list of mappings - optional
     ## On Windows, instruct the check to create one or more network
     ## mounts, and have the check collect metrics for the mounted devices.
@@ -255,4 +261,3 @@ instances:
     ## (Linux only)
     #
     # resolve_root_device: false
-    
