@@ -203,6 +203,33 @@ not production-ready hot-path telemetry.
 Run foundation vs instrumented experiment to ensure instrumentation overhead is
 known before interpreting later results.
 
+### Stage B local result, 2026-05-17
+
+Local Stage B compared foundation (`datadog/agent-dev:smp-dsd-foundation`,
+`53f7e8fdc3d`) against the instrumentation-only experiment image
+(`datadog/agent-dev:smp-dsd-experiment`, `538ae360d89`). The image added
+DogStatsD flush split telemetry, serializer timing telemetry, and v3
+payload/dictionary stats without changing authoritative dataflow.
+
+SMP results:
+
+| Case | Goal | Δ mean | Δ mean CI | Regression | Improvement |
+|---|---|---:|---:|---|---|
+| `uds_dogstatsd_to_api_v3` | ingress throughput | -0.29% | [-0.55%, -0.02%] | false | false |
+| `uds_dogstatsd_to_api` | ingress throughput | -0.69% | [-0.96%, -0.41%] | false | false |
+| `uds_dogstatsd_20mb_12k_contexts_20_senders` | memory utilization | +0.77% | [+0.56%, +0.99%] | false | false |
+| `uds_dogstatsd_to_api_v3_endpoint_fixed` | ingress throughput | +0.04% | [-0.23%, +0.31%] | false | true |
+
+Design adjustment: the source `uds_dogstatsd_to_api_v3` case still uses the
+older `DD_SERIALIZER_EXPERIMENTAL_USE_V3_API_SERIES=true` environment knob and
+did not emit current metrics-v3 payload telemetry. A local corrected case,
+`uds_dogstatsd_to_api_v3_endpoint_fixed`, was added under the report tree with
+`DD_SERIALIZER_EXPERIMENTAL_USE_V3_API_SERIES_ENDPOINTS` to exercise the current
+v3 endpoint configuration.
+
+Decision: Stage B instrumentation is neutral enough to use as the measurement
+substrate for Stage C/D.
+
 ### Stage C: shadow segment builder
 
 Prototype a shadow path that consumes the existing flushed `metrics.Serie` and
@@ -248,6 +275,28 @@ for case in \
 done
 ```
 
+### Stage C local result, 2026-05-17
+
+Local Stage C compared the instrumentation-only image
+(`datadog/agent-dev:smp-dsd-experiment`, `538ae360d89`) against the shadow
+segment image (`datadog/agent-dev:smp-dsd-shadow`, `911b22716ca`). The shadow
+builder consumes the existing flushed `metrics.Serie` and `metrics.SketchSeries`
+objects in the serializer, builds payload-local dictionary/cardinality
+telemetry, and discards the result. Authoritative output remains unchanged.
+
+SMP results:
+
+| Case | Goal | Δ mean | Δ mean CI | Regression | Improvement |
+|---|---|---:|---:|---|---|
+| `uds_dogstatsd_to_api_v3` | ingress throughput | -0.19% | [-0.38%, +0.01%] | false | false |
+| `uds_dogstatsd_to_api` | ingress throughput | -0.35% | [-0.57%, -0.14%] | false | false |
+| `uds_dogstatsd_20mb_12k_contexts_20_senders` | memory utilization | +0.72% | [+0.47%, +0.96%] | false | false |
+| `uds_dogstatsd_to_api_v3_endpoint_fixed` | ingress throughput | -0.04% | [-0.32%, +0.24%] | false | false |
+
+Decision: Stage C did not introduce an SMP regression and provides useful
+payload-shape telemetry, but it still runs after the current path and does not
+prove CPU savings.
+
 ### Stage D: direct aggregator row sink
 
 Prototype the actual core improvement.
@@ -281,6 +330,14 @@ This is the first stage that can prove reduced allocations/CPU by avoiding or
 minimizing `metrics.Serie` reconstruction and duplicate serializer dictionary
 work.
 
+Local implementation note: the first Stage D experiment kept the current path
+authoritative and added a direct row shadow observer at the aggregator flush
+boundary. It observes rows after context resolution/filtering and before
+appending to the existing sinks. This proves low-overhead aggregator-row
+visibility, but it still does not remove `metrics.Serie` materialization and, in
+its current form, observes before later sink-level host-tag injection. Treat it
+as a step toward `FlushRows`, not as the final direct-output proof.
+
 Acceptance:
 
 - Zero semantic diffs for supported rows.
@@ -289,10 +346,38 @@ Acceptance:
 - Lower allocations during flush/serialize.
 - Neutral or better compressed bytes/point.
 
+### Stage D local result, 2026-05-17
+
+Local Stage D compared the shadow segment image (`datadog/agent-dev:smp-dsd-shadow`,
+`911b22716ca`) against the direct aggregator row shadow image
+(`datadog/agent-dev:smp-dsd-direct-row`, `e3f2f987056`). Stage C serializer
+shadowing remained enabled, so this isolates the added aggregator-row observer.
+
+SMP results:
+
+| Case | Goal | Δ mean | Δ mean CI | Regression | Improvement |
+|---|---|---:|---:|---|---|
+| `uds_dogstatsd_to_api_v3` | ingress throughput | +0.46% | [+0.18%, +0.74%] | false | true |
+| `uds_dogstatsd_to_api` | ingress throughput | -0.43% | [-0.65%, -0.22%] | false | false |
+| `uds_dogstatsd_20mb_12k_contexts_20_senders` | memory utilization | +0.30% | [+0.09%, +0.52%] | false | false |
+| `uds_dogstatsd_to_api_v3_endpoint_fixed` | ingress throughput | +0.16% | [-0.04%, +0.36%] | false | true |
+
+Decision: the direct row observer is neutral enough to keep iterating, but this
+is not sufficient proof to switch output. Stage E remains gated on a semantic
+row sink that either accounts for sink-level host tags or moves observation to a
+post-enrichment boundary, and on a builder that can emit the actual v3 wire
+payload from rows without falling back to the existing `metrics.Serie` path.
+
 ### Stage E: direct path as comparison output
 
 Only after Stage D is semantically clean, allow the experiment image to send the
 new path's payload while optionally keeping old path as shadow.
+
+Current local status: **deferred after Stage D**. The direct row observer is
+output-neutral and SMP-neutral, but it is not yet a semantically complete output
+path because it still shadows around `metrics.Serie` and does not yet prove exact
+post-sink enrichment/wire equivalence. Do not run Stage E until that design gap
+is closed.
 
 Run foundation vs experiment on the main cases again.
 
