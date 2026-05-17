@@ -32,7 +32,7 @@ import (
 	filterlistmock "github.com/DataDog/datadog-agent/comp/filterlist/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
+	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	logscompressionmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"

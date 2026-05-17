@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
+	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"

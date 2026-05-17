@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
-	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
+	orchestrator "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"

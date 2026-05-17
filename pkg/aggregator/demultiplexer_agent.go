@@ -18,7 +18,7 @@ import (
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
+	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface/def"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
