@@ -20,10 +20,10 @@ go_library(
         "//comp/forwarder/defaultforwarder/resolver",
         "//comp/forwarder/orchestrator/def",
         "//pkg/config/env",
-        "//pkg/orchestrator/config",
         "//pkg/process/util/api/config",
         "//pkg/util/fxutil",
         "//pkg/util/option",
-        "@io_uber_go_fx//:fx",
+        "@//pkg/orchestrator/config",
+        "@org_uber_go_fx//:fx",
     ],
 )
