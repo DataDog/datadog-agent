@@ -59,26 +59,35 @@ func (b *directRowShadowBuilder) observeSerie(serie *metrics.Serie) {
 		b.fallbacks++
 		return
 	}
+	row := metrics.SerieRowFromSerie(serie)
+	b.observeSerieRow(&row)
+}
+
+func (b *directRowShadowBuilder) observeSerieRow(row *metrics.SerieRow) {
+	if row == nil {
+		b.fallbacks++
+		return
+	}
 
 	b.seriesRows++
-	b.points += len(serie.Points)
-	b.estBytes += 32 + len(serie.Points)*16
+	b.points += len(row.Points)
+	b.estBytes += 32 + len(row.Points)*16
 
-	b.internName(serie.Name)
-	tags := serie.Tags.UnsafeToReadOnlySliceString()
+	b.internName(row.Name)
+	tags := row.Tags.UnsafeToReadOnlySliceString()
 	b.tags += len(tags)
 	b.internTags(tags)
-	b.internSource(serie.Source)
-	b.internUnit(serie.Unit)
+	b.internSource(row.Source)
+	b.internUnit(row.Unit)
 
-	resources := make([]metrics.Resource, 0, len(serie.Resources)+2)
-	if serie.Host != "" {
-		resources = append(resources, metrics.Resource{Type: "host", Name: serie.Host})
+	resources := make([]metrics.Resource, 0, len(row.Resources)+2)
+	if row.Host != "" {
+		resources = append(resources, metrics.Resource{Type: "host", Name: row.Host})
 	}
-	if serie.Device != "" {
-		resources = append(resources, metrics.Resource{Type: "device", Name: serie.Device})
+	if row.Device != "" {
+		resources = append(resources, metrics.Resource{Type: "device", Name: row.Device})
 	}
-	resources = append(resources, serie.Resources...)
+	resources = append(resources, row.Resources...)
 	b.internResources(resources)
 }
 

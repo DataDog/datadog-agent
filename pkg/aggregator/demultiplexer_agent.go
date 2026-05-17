@@ -576,8 +576,9 @@ func (d *AgentDemultiplexer) flushToDirectSerializer(start time.Time, waitForSer
 			d.produceFlush(start, waitForSerializer, forceFlushAll, seriesSink, sketchesSink)
 		},
 		serializer.DirectMetricsOptions{
-			SeriesCallback: seriesFlushCallback(logPayloads, d.hostTagProvider),
-			SketchCallback: sketchFlushCallback(logPayloads, false, d.hostTagProvider),
+			SeriesCallback:    seriesFlushCallback(logPayloads, d.hostTagProvider),
+			SeriesRowCallback: seriesRowFlushCallback(logPayloads, d.hostTagProvider),
+			SketchCallback:    sketchFlushCallback(logPayloads, false, d.hostTagProvider),
 		},
 	)
 	recordDogstatsdPipelineDuration("serialize_direct_metrics", time.Since(serializeStart))

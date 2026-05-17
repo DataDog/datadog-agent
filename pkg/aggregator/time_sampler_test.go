@@ -782,6 +782,53 @@ func TestTimeSamplerStripCounterAggregates(t *testing.T) {
 	testWithTagsStore(t, testTimeSamplerStripCounterAggregates)
 }
 
+type rowCaptureSerieSink struct {
+	series metrics.Series
+	rows   []metrics.SerieRow
+}
+
+func (s *rowCaptureSerieSink) Append(serie *metrics.Serie) {
+	s.series = append(s.series, serie)
+}
+
+func (s *rowCaptureSerieSink) AppendSerieRow(row metrics.SerieRow) {
+	s.rows = append(s.rows, row)
+}
+
+func TestTimeSamplerFlushUsesDirectRowsWhenEnabled(t *testing.T) {
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_DIRECT_ROWS", "true")
+	sampler := testTimeSampler(tags.NewStore(true, "test"))
+	matcher := filterlist.NewNoopTagMatcher()
+
+	sampler.sample(&metrics.MetricSample{
+		Name:       "row.metric",
+		Value:      1,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"env:prod", "device:eth0", "dd.internal.resource:pod:api"},
+		Host:       "host-a",
+		SampleRate: 1,
+		Source:     metrics.MetricSourceDogstatsd,
+	}, 1001, matcher)
+
+	var sink rowCaptureSerieSink
+	var sketches metrics.SketchSeriesList
+	sampler.flush(1020, &sink, &sketches, nil, true)
+
+	require.Empty(t, sink.series)
+	require.Len(t, sink.rows, 1)
+	assert.Equal(t, metrics.SerieRow{
+		Name:      "row.metric",
+		Points:    []metrics.Point{{Ts: 1000, Value: 1}},
+		Tags:      tagset.CompositeTagsFromSlice([]string{"env:prod"}),
+		Host:      "host-a",
+		Device:    "eth0",
+		MType:     metrics.APIGaugeType,
+		Interval:  10,
+		Resources: []metrics.Resource{{Type: "pod", Name: "api"}},
+		Source:    metrics.MetricSourceDogstatsd,
+	}, sink.rows[0])
+}
+
 func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
 	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
 	matcher := filterlist.NewNoopTagMatcher()

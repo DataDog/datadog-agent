@@ -316,8 +316,9 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 // experiment uses them before serializing each row so host tags, logging, and
 // telemetry remain comparable with the current path.
 type DirectMetricsOptions struct {
-	SeriesCallback func(*metrics.Serie)
-	SketchCallback func(*metrics.SketchSeries)
+	SeriesCallback    func(*metrics.Serie)
+	SeriesRowCallback func(*metrics.SerieRow)
+	SketchCallback    func(*metrics.SketchSeries)
 }
 
 // DirectMetricsResult summarizes an experimental direct series/sketch flush.
@@ -331,8 +332,9 @@ type DirectMetricsResult struct {
 }
 
 type directSeriesCallbackSink struct {
-	sink     metrics.SerieSink
-	callback func(*metrics.Serie)
+	sink        metrics.SerieSink
+	callback    func(*metrics.Serie)
+	rowCallback func(*metrics.SerieRow)
 }
 
 func (s directSeriesCallbackSink) Append(serie *metrics.Serie) {
@@ -340,6 +342,22 @@ func (s directSeriesCallbackSink) Append(serie *metrics.Serie) {
 		s.callback(serie)
 	}
 	s.sink.Append(serie)
+}
+
+func (s directSeriesCallbackSink) AppendSerieRow(row metrics.SerieRow) {
+	if s.rowCallback != nil {
+		s.rowCallback(&row)
+	} else if s.callback != nil {
+		serie := row.ToSerie()
+		s.callback(serie)
+		row = metrics.SerieRowFromSerie(serie)
+	}
+
+	if rowSink, ok := s.sink.(metrics.SerieRowSink); ok {
+		rowSink.AppendSerieRow(row)
+		return
+	}
+	s.sink.Append(row.ToSerie())
 }
 
 type directSketchCallbackSink struct {
@@ -394,8 +412,8 @@ func (s *Serializer) SendDirectSeriesAndSketches(
 		}
 		seriesSink = seriesDirectSink
 	}
-	if options.SeriesCallback != nil {
-		seriesSink = directSeriesCallbackSink{sink: seriesSink, callback: options.SeriesCallback}
+	if options.SeriesCallback != nil || options.SeriesRowCallback != nil {
+		seriesSink = directSeriesCallbackSink{sink: seriesSink, callback: options.SeriesCallback, rowCallback: options.SeriesRowCallback}
 	}
 
 	var sketchesSink metrics.SketchesSink = directNoopSketchSink{}

@@ -343,23 +343,28 @@ func (pb *payloadsBuilderV3) reset() {
 }
 
 func (pb *payloadsBuilderV3) renderResources(serie *metrics.Serie) {
+	row := metrics.SerieRowFromSerie(serie)
+	pb.renderSerieRowResources(&row)
+}
+
+func (pb *payloadsBuilderV3) renderSerieRowResources(row *metrics.SerieRow) {
 	pb.resourcesBuf = pb.resourcesBuf[0:0]
 
-	if serie.Host != "" {
+	if row.Host != "" {
 		pb.resourcesBuf = append(pb.resourcesBuf, metrics.Resource{
 			Type: resourceTypeHost,
-			Name: serie.Host,
+			Name: row.Host,
 		})
 	}
 
-	if serie.Device != "" {
+	if row.Device != "" {
 		pb.resourcesBuf = append(pb.resourcesBuf, metrics.Resource{
 			Type: "device",
-			Name: serie.Device,
+			Name: row.Device,
 		})
 	}
 
-	pb.resourcesBuf = append(pb.resourcesBuf, serie.Resources...)
+	pb.resourcesBuf = append(pb.resourcesBuf, row.Resources...)
 }
 
 func (pb *payloadsBuilderV3) checkPointsLimit(numPoints int) (bool, error) {
@@ -411,20 +416,26 @@ func (pb *payloadsBuilderV3) finishTxn(numPoints int) error {
 }
 
 func (pb *payloadsBuilderV3) writeSerie(serie *metrics.Serie) error {
-	if !pb.pipelineConfig.Filter.Filter(serie) {
+	row := metrics.SerieRowFromSerie(serie)
+	return pb.writeSerieRow(&row)
+}
+
+func (pb *payloadsBuilderV3) writeSerieRow(row *metrics.SerieRow) error {
+	if row == nil {
 		return nil
 	}
 
-	if ok, err := pb.checkPointsLimit(len(serie.Points)); !ok {
+	if !pb.pipelineConfig.Filter.Filter(row) {
+		return nil
+	}
+
+	if ok, err := pb.checkPointsLimit(len(row.Points)); !ok {
 		return err
 	}
 
-	serie.PopulateDeviceField()
-	serie.PopulateResources()
-
 	for {
-		pb.writeSerieToTxn(serie)
-		err := pb.finishTxn(len(serie.Points))
+		pb.writeSerieRowToTxn(row)
+		err := pb.finishTxn(len(row.Points))
 		if err == errRetry {
 			continue
 		}
@@ -465,41 +476,46 @@ func (pb *payloadsBuilderV3) writePointCommon(timestamp int64) {
 }
 
 func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
+	row := metrics.SerieRowFromSerie(serie)
+	pb.writeSerieRowToTxn(&row)
+}
+
+func (pb *payloadsBuilderV3) writeSerieRowToTxn(row *metrics.SerieRow) {
 	pb.txn.Reset()
 
-	pb.renderResources(serie)
+	pb.renderSerieRowResources(row)
 
 	pb.writeMetricCommon(
-		serie.Name,
-		serie.Tags,
-		serie.Interval,
-		serie.SourceTypeName,
-		serie.Source,
-		len(serie.Points),
+		row.Name,
+		row.Tags,
+		row.Interval,
+		row.SourceTypeName,
+		row.Source,
+		len(row.Points),
 	)
 
 	pointKind := pointKindZero
-	for _, pnt := range serie.Points {
+	for _, pnt := range row.Points {
 		pointKind = pointKind.unionOf(pnt.Value)
 	}
 	valueType := pointKind.toValueType()
 
-	typeValue := valueType | metricType(serie.MType)
-	if serie.NoIndex {
+	typeValue := valueType | metricType(row.MType)
+	if row.NoIndex {
 		typeValue |= flagNoIndex
 	}
-	if serie.Unit != "" {
+	if row.Unit != "" {
 		typeValue |= flagHasUnit
 	}
 
 	pb.txn.Int64(columnType, typeValue)
 
-	if serie.Unit != "" {
+	if row.Unit != "" {
 		pb.txn.Sint64(columnUnitRef,
-			pb.deltaUnitRef.encode(pb.dict.internUnit(serie.Unit)))
+			pb.deltaUnitRef.encode(pb.dict.internUnit(row.Unit)))
 	}
 
-	for _, pnt := range serie.Points {
+	for _, pnt := range row.Points {
 		pb.writePointCommon(int64(pnt.Ts))
 		switch valueType {
 		case valueZero:

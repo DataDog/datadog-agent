@@ -110,6 +110,22 @@ func seriesFlushCallback(logPayloads bool, hostTagProvider *hosttags.HostTagProv
 	}
 }
 
+func seriesRowFlushCallback(logPayloads bool, hostTagProvider *hosttags.HostTagProvider) func(*metrics.SerieRow) {
+	hostTags := hostTagProvider.GetHostTags()
+	return func(row *metrics.SerieRow) {
+		if logPayloads {
+			log.Debugf("Flushing serie row: %s", row)
+		}
+
+		if hostTags != nil {
+			row.Tags = tagset.CombineCompositeTagsAndSlice(row.Tags, hostTags)
+		}
+		row.NormalizeSpecialTags()
+		tagsetTlm.updateHugeSerieRowTelemetry(row)
+		observeDogstatsdPipelineSerieRow(row)
+	}
+}
+
 func sketchFlushCallback(logPayloads bool, isServerless bool, hostTagProvider *hosttags.HostTagProvider) func(*metrics.SketchSeries) {
 	hostTags := hostTagProvider.GetHostTags()
 	return func(sketch *metrics.SketchSeries) {
@@ -147,6 +163,11 @@ func createIterableMetrics(
 
 func directSerializerExperimentEnabled() bool {
 	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_DIRECT_SERIALIZER"))
+	return err == nil && enabled
+}
+
+func directRowsExperimentEnabled() bool {
+	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_DIRECT_ROWS"))
 	return err == nil && enabled
 }
 

@@ -143,6 +143,40 @@ func TestPayloadsBuilderV3(t *testing.T) {
 	}, ps[0].GetContent())
 }
 
+func TestPayloadsBuilderV3_SerieRowMatchesSerie(t *testing.T) {
+	serie := &metrics.Serie{
+		Name:      "serie.row",
+		Tags:      tagset.CompositeTagsFromSlice([]string{"env:prod", "device:eth0", "dd.internal.resource:pod:api"}),
+		Host:      "host-a",
+		MType:     metrics.APIGaugeType,
+		Points:    []metrics.Point{{Ts: 1756737057.1, Value: 42}},
+		Interval:  10,
+		NoIndex:   true,
+		Source:    metrics.MetricSourceDogstatsd,
+		Resources: []metrics.Resource{{Type: "container", Name: "abc"}},
+	}
+
+	pipelineConfig := PipelineConfig{Filter: AllowAllFilter{}, V3: true}
+
+	serieContext := &PipelineContext{}
+	seriePB, err := newPayloadsBuilderV3(1000, 10000, 1000_0000, noopimpl.New(), pipelineConfig, serieContext)
+	require.NoError(t, err)
+	require.NoError(t, seriePB.writeSerie(serie))
+	require.NoError(t, seriePB.finishPayload())
+
+	rowContext := &PipelineContext{}
+	rowPB, err := newPayloadsBuilderV3(1000, 10000, 1000_0000, noopimpl.New(), pipelineConfig, rowContext)
+	require.NoError(t, err)
+	row := metrics.SerieRowFromSerie(serie)
+	require.NoError(t, rowPB.writeSerieRow(&row))
+	require.NoError(t, rowPB.finishPayload())
+
+	require.Len(t, serieContext.payloads, 1)
+	require.Len(t, rowContext.payloads, 1)
+	assert.Equal(t, serieContext.payloads[0].GetContent(), rowContext.payloads[0].GetContent())
+	assert.Equal(t, tagset.CompositeTagsFromSlice([]string{"env:prod", "device:eth0", "dd.internal.resource:pod:api"}), serie.Tags)
+}
+
 func TestPayloadsBuilderV3_Unit(t *testing.T) {
 	r := assert.New(t)
 	const ts = 1756737057.1

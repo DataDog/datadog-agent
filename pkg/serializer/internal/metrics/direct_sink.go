@@ -24,6 +24,7 @@ type DirectSeriesSink struct {
 	segmentShadow *segmentShadowBuilder
 	start         time.Time
 	count         uint64
+	rowCount      uint64
 	err           error
 }
 
@@ -80,17 +81,47 @@ func (sink *DirectSeriesSink) Append(serie *pkgmetrics.Serie) {
 	sink.segmentShadow.observeSerie(serie)
 }
 
+// AppendSerieRow serializes a producer-side row into each configured pipeline.
+func (sink *DirectSeriesSink) AppendSerieRow(row pkgmetrics.SerieRow) {
+	if sink.err != nil {
+		return
+	}
+
+	row.NormalizeSpecialTags()
+	sink.count++
+	sink.rowCount++
+	for _, pb := range sink.pbs {
+		if rowWriter, ok := pb.(serieRowWriter); ok {
+			if err := rowWriter.writeSerieRow(&row); err != nil {
+				sink.err = err
+				return
+			}
+			continue
+		}
+
+		if err := pb.writeSerie(row.ToSerie()); err != nil {
+			sink.err = err
+			return
+		}
+	}
+	sink.segmentShadow.observeSerieRow(&row)
+}
+
 // Finish finalizes all active payload builders and returns the number of
 // producer-visible series appended to the sink.
 func (sink *DirectSeriesSink) Finish() (uint64, error) {
-	sink.segmentShadow.finish("direct_series", time.Since(sink.start))
+	phase := "direct_series"
+	if sink.rowCount > 0 {
+		phase = "direct_series_rows"
+	}
+	sink.segmentShadow.finish(phase, time.Since(sink.start))
 	err := sink.err
 	for i := range sink.pbs {
 		if finishErr := sink.pbs[i].finishPayload(); finishErr != nil && err == nil {
 			err = finishErr
 		}
 	}
-	recordSeriesPipelineDuration("direct_series", time.Since(sink.start))
+	recordSeriesPipelineDuration(phase, time.Since(sink.start))
 	return sink.count, err
 }
 

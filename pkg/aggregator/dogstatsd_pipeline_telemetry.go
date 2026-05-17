@@ -35,6 +35,15 @@ func observeDogstatsdPipelineSerie(serie *metrics.Serie) {
 	tlmDogstatsdPipelineItems.Add(float64(serie.Tags.Len()), "series_tags")
 }
 
+func observeDogstatsdPipelineSerieRow(row *metrics.SerieRow) {
+	if row == nil {
+		return
+	}
+	tlmDogstatsdPipelineItems.Inc("series_rows")
+	tlmDogstatsdPipelineItems.Add(float64(len(row.Points)), "series_row_points")
+	tlmDogstatsdPipelineItems.Add(float64(row.Tags.Len()), "series_row_tags")
+}
+
 func observeDogstatsdPipelineSketch(sketch *metrics.SketchSeries) {
 	if sketch == nil {
 		return

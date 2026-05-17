@@ -168,6 +168,20 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, fi
 	rowShadow := newDirectRowShadowBuilder()
 	rowShadowStart := time.Now()
 
+	if directRowsExperimentEnabled() {
+		if rowSink, ok := series.(metrics.SerieRowSink); ok {
+			// rowBySignature and rows are reused for each call to avoid allocations.
+			rowBySignature := make(map[SerieSignature]int)
+			rows := make([]metrics.SerieRow, 0)
+			s.flushContextMetrics(contextMetricsFlusher, func(rawSeries []*metrics.Serie) {
+				// Note: rawSeries is reused at each call
+				s.dedupSerieRowsBySerieSignature(rawSeries, rowSink, rowBySignature, &rows, filterList, rowShadow)
+			})
+			rowShadow.finish("series_rows", time.Since(rowShadowStart))
+			return
+		}
+	}
+
 	// serieBySignature is reused for each call of dedupSerieBySerieSignature to avoid allocations.
 	serieBySignature := make(map[SerieSignature]*metrics.Serie)
 	s.flushContextMetrics(contextMetricsFlusher, func(rawSeries []*metrics.Serie) {
@@ -175,6 +189,62 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, fi
 		s.dedupSerieBySerieSignature(rawSeries, series, serieBySignature, filterList, rowShadow)
 	})
 	rowShadow.finish("series", time.Since(rowShadowStart))
+}
+
+func (s *TimeSampler) dedupSerieRowsBySerieSignature(
+	rawSeries []*metrics.Serie,
+	rowSink metrics.SerieRowSink,
+	rowBySignature map[SerieSignature]int,
+	rows *[]metrics.SerieRow,
+	filterList *utilstrings.Matcher,
+	rowShadow *directRowShadowBuilder,
+) {
+	for k := range rowBySignature {
+		delete(rowBySignature, k)
+	}
+	*rows = (*rows)[:0]
+
+	for _, serie := range rawSeries {
+		serieSignature := SerieSignature{serie.MType, serie.NameSuffix}
+
+		if existingRowIndex, ok := rowBySignature[serieSignature]; ok {
+			(*rows)[existingRowIndex].Points = append((*rows)[existingRowIndex].Points, serie.Points[0])
+			continue
+		}
+
+		context, ok := s.contextResolver.get(serie.ContextKey)
+		if !ok {
+			log.Errorf("TimeSampler #%d Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", s.id, serie.ContextKey)
+			continue
+		}
+
+		row := metrics.NewSerieRow(
+			context.Name+serie.NameSuffix,
+			serie.Points,
+			context.Tags(),
+			context.Host,
+			"",
+			serie.MType,
+			s.interval,
+			serie.SourceTypeName,
+			serie.Unit,
+			context.noIndex,
+			serie.Resources,
+			context.source,
+		)
+		rowBySignature[serieSignature] = len(*rows)
+		*rows = append(*rows, row)
+	}
+
+	for i := range *rows {
+		row := &(*rows)[i]
+		if filterList != nil && filterList.Test(row.Name) {
+			tlmDogstatsdFilteredMetrics.Inc()
+			continue
+		}
+		rowShadow.observeSerieRow(row)
+		rowSink.AppendSerieRow(*row)
+	}
 }
 
 func (s *TimeSampler) dedupSerieBySerieSignature(

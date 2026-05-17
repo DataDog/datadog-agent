@@ -60,25 +60,34 @@ func (b *segmentShadowBuilder) observeSerie(serie *pkgmetrics.Serie) {
 		b.fallbacks++
 		return
 	}
+	row := pkgmetrics.SerieRowFromSerie(serie)
+	b.observeSerieRow(&row)
+}
+
+func (b *segmentShadowBuilder) observeSerieRow(row *pkgmetrics.SerieRow) {
+	if row == nil {
+		b.fallbacks++
+		return
+	}
 
 	b.seriesRows++
-	b.points += len(serie.Points)
-	b.estBytes += 32 + len(serie.Points)*16
+	b.points += len(row.Points)
+	b.estBytes += 32 + len(row.Points)*16
 
-	b.internName(serie.Name)
-	b.internTags(serie.Tags.UnsafeToReadOnlySliceString())
-	b.internSourceTypeName(serie.SourceTypeName)
-	b.internOrigin(serie.Source)
-	b.internUnit(serie.Unit)
+	b.internName(row.Name)
+	b.internTags(row.Tags.UnsafeToReadOnlySliceString())
+	b.internSourceTypeName(row.SourceTypeName)
+	b.internOrigin(row.Source)
+	b.internUnit(row.Unit)
 
-	resources := make([]pkgmetrics.Resource, 0, len(serie.Resources)+2)
-	if serie.Host != "" {
-		resources = append(resources, pkgmetrics.Resource{Type: resourceTypeHost, Name: serie.Host})
+	resources := make([]pkgmetrics.Resource, 0, len(row.Resources)+2)
+	if row.Host != "" {
+		resources = append(resources, pkgmetrics.Resource{Type: resourceTypeHost, Name: row.Host})
 	}
-	if serie.Device != "" {
-		resources = append(resources, pkgmetrics.Resource{Type: "device", Name: serie.Device})
+	if row.Device != "" {
+		resources = append(resources, pkgmetrics.Resource{Type: "device", Name: row.Device})
 	}
-	resources = append(resources, serie.Resources...)
+	resources = append(resources, row.Resources...)
 	b.internResources(resources)
 }
 
