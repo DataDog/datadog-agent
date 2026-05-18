@@ -1219,6 +1219,13 @@ api_key:
 #
 #   http_timeout: 10
 
+#   # @param dd_evp_origin_version - string - optional
+#   # @env DD_LOGS_CONFIG_DD_EVP_ORIGIN_VERSION - string - optional
+#   # Override the dd-evp-origin-version header sent with logs HTTP and gRPC requests.
+#   # When empty, the Agent version is used.
+#
+#   dd_evp_origin_version: ""
+
 #   # @param grpc - custom object - optional
 #   # Configuration for the logs gRPC transport.
 #

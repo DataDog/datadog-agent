@@ -83,6 +83,18 @@ func newMockLogsStream(ctx context.Context) *mockLogsStream {
 	}
 }
 
+func TestHeaderCredentialsSendsOriginVersionOverride(t *testing.T) {
+	endpoint := config.NewEndpoint("test-api-key", "", "test-host", 443, config.EmptyPathPrefix, true)
+	endpoint.Origin = "test-origin"
+	endpoint.OriginVersion = "cluster-a"
+
+	headers, err := (&headerCredentials{endpoint: endpoint}).GetRequestMetadata(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, "test-origin", headers["dd-evp-origin"])
+	require.Equal(t, "cluster-a", headers["dd-evp-origin-version"])
+}
+
 func (m *mockLogsStream) Send(batch *statefulpb.StatefulBatch) error {
 	m.mu.Lock()
 	if m.sendErr != nil {

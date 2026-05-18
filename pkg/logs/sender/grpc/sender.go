@@ -58,7 +58,7 @@ func (h *headerCredentials) GetRequestMetadata(_ context.Context, _ ...string) (
 	// Add origin headers if specified
 	if h.endpoint.Origin != "" {
 		headers["dd-evp-origin"] = string(h.endpoint.Origin)
-		headers["dd-evp-origin-version"] = version.AgentVersion
+		headers["dd-evp-origin-version"] = originVersionOrDefault(h.endpoint.OriginVersion)
 	}
 
 	if h.endpoint.UseCompression {
@@ -77,6 +77,13 @@ func (h *headerCredentials) GetRequestMetadata(_ context.Context, _ ...string) (
 // RequireTransportSecurity indicates whether the credentials require transport security
 func (h *headerCredentials) RequireTransportSecurity() bool {
 	return false // We handle TLS separately via WithTransportCredentials
+}
+
+func originVersionOrDefault(originVersion string) string {
+	if originVersion != "" {
+		return originVersion
+	}
+	return version.AgentVersion
 }
 
 // Sender implements PipelineComponent interface for gRPC log transmission.

@@ -355,6 +355,7 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 		main.TrackType = intakeTrackType
 		main.Protocol = intakeProtocol
 		main.Origin = intakeOrigin
+		main.OriginVersion = logsConfig.ddEVPOriginVersion()
 	} else {
 		main.Version = EPIntakeVersion1
 	}
@@ -424,6 +425,7 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 		e.TrackType = intakeTrackType
 		e.Protocol = intakeProtocol
 		e.Origin = intakeOrigin
+		e.OriginVersion = main.OriginVersion
 		e.onConfigUpdateFromReaderMainEndpoint(coreConfig)
 
 		additionals = append(additionals, e)

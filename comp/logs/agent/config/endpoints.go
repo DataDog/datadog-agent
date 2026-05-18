@@ -88,6 +88,8 @@ type Endpoint struct {
 	TrackType IntakeTrackType
 	Protocol  IntakeProtocol
 	Origin    IntakeOrigin
+	// OriginVersion overrides the dd-evp-origin-version header when set.
+	OriginVersion string
 
 	ExtraHTTPHeaders map[string]string
 }
@@ -208,6 +210,7 @@ func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, registerCallba
 		newE.TrackType = e.TrackType
 		newE.Protocol = e.Protocol
 		newE.Origin = e.Origin
+		newE.OriginVersion = e.OriginVersion
 		newE.UseGRPC = e.UseGRPC
 
 		if e.UseSSL != nil {
@@ -255,6 +258,7 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 		newE.TrackType = e.TrackType
 		newE.Protocol = e.Protocol
 		newE.Origin = e.Origin
+		newE.OriginVersion = e.OriginVersion
 
 		if e.UseSSL != nil {
 			newE.useSSL = *e.UseSSL
@@ -269,6 +273,9 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 			newE.TrackType = intakeTrackType
 			newE.Protocol = intakeProtocol
 			newE.Origin = intakeOrigin
+			if newE.OriginVersion == "" {
+				newE.OriginVersion = main.OriginVersion
+			}
 		}
 
 		newEndpoints = append(newEndpoints, newE)

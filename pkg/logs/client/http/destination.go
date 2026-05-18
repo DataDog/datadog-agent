@@ -81,6 +81,7 @@ type Destination struct {
 	destinationsContext *client.DestinationsContext
 	protocol            config.IntakeProtocol
 	origin              config.IntakeOrigin
+	originVersion       string
 	isMRF               bool
 
 	// Concurrency
@@ -180,6 +181,7 @@ func newDestination(endpoint config.Endpoint,
 		backoff:             policy,
 		protocol:            endpoint.Protocol,
 		origin:              endpoint.Origin,
+		originVersion:       endpoint.OriginVersion,
 		lastRetryError:      nil,
 		retryLock:           sync.Mutex{},
 		shouldRetry:         shouldRetry,
@@ -201,6 +203,13 @@ func errorToTag(err error) string {
 		return "retryable"
 	}
 	return "non-retryable"
+}
+
+func originVersionOrDefault(originVersion string) string {
+	if originVersion != "" {
+		return originVersion
+	}
+	return version.AgentVersion
 }
 
 // IsMRF indicates that this destination is a Multi-Region Failover destination.
@@ -368,7 +377,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	}
 	if d.origin != "" {
 		req.Header.Set("DD-EVP-ORIGIN", string(d.origin))
-		req.Header.Set("DD-EVP-ORIGIN-VERSION", version.AgentVersion)
+		req.Header.Set("DD-EVP-ORIGIN-VERSION", originVersionOrDefault(d.originVersion))
 	}
 	req.Header.Set("dd-message-timestamp", strconv.FormatInt(getMessageTimestamp(payload.MessageMetas), 10))
 	then := time.Now()
