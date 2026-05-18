@@ -6,11 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/mock",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/aggregator/demultiplexer/def",
         "//comp/aggregator/demultiplexer/impl",
-        "//pkg/aggregator",
-        "//pkg/aggregator/sender",
-        "//pkg/metrics",
         "//pkg/util/fxutil",
     ],
 )
