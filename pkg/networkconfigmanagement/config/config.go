@@ -244,7 +244,7 @@ func (ic *InitConfig) applyDefaults() {
 	}
 	if ic.InventoryReportEveryN <= 0 {
 		log.Debugf("No or invalid inventory report every N was specified, applying default %d", defaultInventoryReportEveryN)
-		ic.InventoryReportEveryN = 1 // Default to every check run
+		ic.InventoryReportEveryN = defaultInventoryReportEveryN // Default to every check run
 	}
 }
 
