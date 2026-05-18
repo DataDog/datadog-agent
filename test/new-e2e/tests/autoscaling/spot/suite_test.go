@@ -179,6 +179,7 @@ func TestSpotSchedulingKindCI(t *testing.T) {
 			kindvmscen.WithAgentOptions(
 				kubernetesagentparams.WithHelmChartVersion(helmChartVersion),
 				kubernetesagentparams.WithHelmValues(makeHelmValues("IfNotPresent")),
+				kubernetesagentparams.WithTimeout(600),
 			),
 		),
 	)))
