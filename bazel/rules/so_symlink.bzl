@@ -9,7 +9,7 @@ _SPECS = [
 def _gen_targets(base_name, src, libname, version, prefix, spec, attributes = None):
     name = "{}_{}".format(base_name, spec.os)
     platform = "@platforms//os:{}".format(spec.os)
-    dest_prefix = (prefix + "/" + spec.prefix) if prefix else spec.prefix
+    dest_prefix = spec.prefix + (prefix + "/" if prefix else "")
     attributes = attributes or pkg_attributes(mode = "0644")
 
     # Windows: no symlinks, no renaming - just copy the DLL as-is
@@ -94,7 +94,10 @@ so_symlink = macro(
             configurable = False,
         ),
         "prefix": attr.string(
-            doc = "Installation directory prefix (default: \"\")",
+            doc = """Optional subdirectory appended after the OS-determined base directory
+            (lib/ on Linux/macOS, bin/ on Windows). Empty (default) means files land
+            directly in lib/ or bin/. For example, prefix = "foo/bar" places
+            files under lib/foo/bar on Linux.""",
             default = "",
             configurable = False,
         ),

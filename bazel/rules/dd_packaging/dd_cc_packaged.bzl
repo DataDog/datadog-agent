@@ -118,7 +118,7 @@ _dd_cc_packaged_rule = rule(
     },
 )
 
-def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], installed_executables = {}, libname = "", visibility = None, **kwargs):
+def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], installed_executables = {}, libname = "", prefix = "", visibility = None, **kwargs):
     patched_name = "{}_patched".format(name)
     rewrite_rpath(
         name = patched_name,
@@ -143,13 +143,14 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_files = [], instal
             src = ":{}".format(patched_name),
             libname = resolved_libname,
             version = version,
+            prefix = prefix,
             visibility = visibility,
         )
     else:
         pkg_files(
             name = packaged_lib,
             srcs = [":{}".format(patched_name)],
-            prefix = "lib",
+            prefix = "lib/" + prefix if prefix else "lib",
             visibility = visibility,
             package_metadata = [],
         )
@@ -198,6 +199,13 @@ dd_cc_packaged = macro(
             configurable = True,
         ),
         "libname": attr.string(
+            default = "",
+            configurable = False,
+        ),
+        "prefix": attr.string(
+            doc = """Optional subdirectory appended after the lib/ base directory.
+            Empty (default) installs files directly under lib/.
+            On the versioned path this is forwarded to so_symlink's prefix.""",
             default = "",
             configurable = False,
         ),
