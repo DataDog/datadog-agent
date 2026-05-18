@@ -9,6 +9,50 @@ go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
 use_repo_rule("//bazel/repo:bazelify_go_work.bzl", "bazelify_go_work")(name = "bazelify_go_work")
 
 go_deps.from_file(go_work = "@bazelify_go_work//:go.work")
+go_deps.gazelle_default_attributes(
+    # Using default attributes causes build_file_generation to change to `on`,
+    # potentially overwriting existing BUILD files. We prefer the default `auto` behaviour
+    build_file_generation = "auto",
+    directives = [
+        # We don't want to generate code from protos from dependencies, as this most often fails
+        # and is different behavior from the default with go tooling
+        "gazelle:proto disable",
+        # ABLD-471: third-party modules that import datadog-agent submodules would
+        # otherwise generate `@com_github_datadog_datadog_agent_*` labels (because
+        # bazelify_go_work materializes our local go.work modules as external repos),
+        # while the same Go package is also reachable in-tree at `//<path>`. The linker
+        # then sees two copies of the package. Redirect every such import to the in-tree
+        # label so both build contexts agree. The list grows as new third-party imports
+        # surface — long-term fix is retiring bazelify_go_work or unifying label spaces.
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace @@//pkg/proto/pbgo/trace:trace",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize @@//pkg/trace/traceutil/normalize:normalize",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/metrics/event @@//pkg/metrics/event:event",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/metrics/servicecheck @@//pkg/metrics/servicecheck:servicecheck",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source @@//pkg/opentelemetry-mapping-go/otlp/attributes/source:source",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/serializer/marshaler @@//pkg/serializer/marshaler:marshaler",
+        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/serializer/types @@//pkg/serializer/types:types",
+    ],
+)
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:build_file_generation on",
+    ],
+    path = "github.com/coreos/etcd",
+)
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:go_naming_convention go_default_library",
+    ],
+    path = "github.com/google/cel-go",
+)
+go_deps.gazelle_override(
+    build_extra_args = ["-build_tags=grpcnotrace"],
+    path = "google.golang.org/grpc",
+)
+go_deps.gazelle_override(
+    build_extra_args = ["-build_tags=requirefips"],
+    path = "go.opentelemetry.io/collector/config/configtls",
+)
 go_deps.gazelle_override(
     directives = [
         "gazelle:proto disable",
