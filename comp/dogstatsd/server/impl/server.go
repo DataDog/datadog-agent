@@ -372,7 +372,17 @@ func (s *dsdServer) startHook(context context.Context) error {
 }
 
 func (s *dsdServer) start(context.Context) error {
-	packetsChannel := make(chan packets.Packets, s.config.GetInt("dogstatsd_queue_size"))
+	statsdForwardEnabled := s.config.GetString("statsd_forward_host") != "" && s.config.GetInt("statsd_forward_port") != 0
+	ingressLogEnabled := experimentalIngressLogEnabled() && !statsdForwardEnabled
+	packetsChannelSize := s.config.GetInt("dogstatsd_queue_size")
+	if ingressLogEnabled {
+		// The experimental ingress log replaces the large packetsIn channel as
+		// the overload absorber. Keep the listener-to-log channel tiny so
+		// backpressure is controlled by the byte-bounded log, not by a second
+		// implicit packet reservoir.
+		packetsChannelSize = 1
+	}
+	packetsChannel := make(chan packets.Packets, packetsChannelSize)
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
 
 	if err := s.tCapture.GetStartUpError(); err != nil {
@@ -446,7 +456,17 @@ func (s *dsdServer) start(context.Context) error {
 		return errors.New("listening on neither udp nor socket, please check your configuration")
 	}
 
-	s.packetsIn = packetsChannel
+	workerPacketsChannel := packetsChannel
+	if ingressLogEnabled {
+		workerPacketsChannel = make(chan packets.Packets)
+		ingressLog := newPacketIngressLog(experimentalIngressLogMaxBytes(), s.telemetry)
+		go ingressLog.run(packetsChannel, workerPacketsChannel, s.stopChan)
+		s.log.Infof("DogStatsD experimental ingress log enabled with max_bytes=%d", experimentalIngressLogMaxBytes())
+	} else if experimentalIngressLogEnabled() && statsdForwardEnabled {
+		s.log.Warn("DogStatsD experimental ingress log disabled because statsd packet forwarding is enabled")
+	}
+
+	s.packetsIn = workerPacketsChannel
 	s.captureChan = packetsChannel
 	s.sharedPacketPool = sharedPacketPool
 	s.sharedPacketPoolManager = sharedPacketPoolManager
