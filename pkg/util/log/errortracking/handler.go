@@ -69,13 +69,14 @@ func NewHandler(load func() Submitter) *Handler {
 }
 
 // WithBouncerLoader returns a Handler that consults loadBouncer on
-// every Handle to decide whether to suppress the current record. Once
-// registered, the closure MUST return non-nil and MUST be safe for
-// concurrent use — a registered-but-returns-nil closure would
-// silently disable dedup, which is a footgun the design avoids by
-// contract. Passing nil to WithBouncerLoader clears the late-binder
-// (the outer h.loadBouncer != nil gate is the design knob for
-// tests/feature-off paths).
+// every Handle to decide whether to suppress the current record. The
+// closure MUST be safe for concurrent use. Returning nil at any time
+// is tolerated as a pass-through (every record ships, no dedup) — this
+// covers the startup window between Fx OnStart's submitter and bouncer
+// stores and the symmetric shutdown teardown. Passing nil to
+// WithBouncerLoader itself clears the late-binder entirely (the outer
+// h.loadBouncer != nil gate is the design knob for tests/feature-off
+// paths).
 func (h *Handler) WithBouncerLoader(loadBouncer func() *Bouncer) *Handler {
 	return &Handler{load: h.load, loadBouncer: loadBouncer}
 }
@@ -133,18 +134,21 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 
 	count := uint32(1)
 	// Bouncer check: the bouncer is consulted whenever the loader
-	// closure is registered. The closure's contract is non-nil after
-	// registration (documented on WithBouncerLoader), so we call it
-	// directly. The key is a FNV-1a hash of the captured PCs so
-	// different stacks reaching the same terminal function are NOT
-	// merged.
+	// closure is registered. The closure is tolerated to return nil at
+	// any time (e.g. during the Fx startup window between the submitter
+	// and bouncer stores, or during shutdown teardown); a nil return
+	// falls through to the no-dedup pass-through path. The key is a
+	// FNV-1a hash of the captured PCs so different stacks reaching the
+	// same terminal function are NOT merged.
 	if h.loadBouncer != nil {
-		stackKey := hashPCs(pcs[:pcsLen])
-		suppressed, c, _ := h.loadBouncer().Observe(stackKey, r.Time)
-		if suppressed {
-			return nil
+		if b := h.loadBouncer(); b != nil {
+			stackKey := hashPCs(pcs[:pcsLen])
+			suppressed, c, _ := b.Observe(stackKey, r.Time)
+			if suppressed {
+				return nil
+			}
+			count = c
 		}
-		count = c
 	}
 
 	out := ErrorLog{
