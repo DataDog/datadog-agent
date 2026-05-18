@@ -15,6 +15,7 @@ go_library(
         "//comp/healthplatform/forwarder/fx",
         "//comp/healthplatform/issues",
         "//comp/healthplatform/issues/admisconfig",
+        "//comp/healthplatform/issues/admissionprobe",
         "//comp/healthplatform/issues/checkfailure",
         "//comp/healthplatform/issues/dockerpermissions",
         "//comp/healthplatform/issues/rofspermissions",

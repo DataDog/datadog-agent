@@ -292,6 +292,12 @@ func (d *dispatcher) remove(config integration.Config) {
 
 // reset empties the store and resets all states
 func (d *dispatcher) reset() {
+	// clean up shards because if this pod becomes a leader again
+	// it should reschedule the check
+	d.ksmShardingMutex.Lock()
+	d.ksmShardedConfigs = make(map[string][]string)
+	d.ksmShardingMutex.Unlock()
+
 	d.store.Lock()
 	defer d.store.Unlock()
 	d.store.reset()

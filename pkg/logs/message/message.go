@@ -84,8 +84,6 @@ type MessageMetadata struct {
 	// This is also used to track the original content size before the message is processed and encoded later
 	// in the pipeline.
 	RawDataLen int
-	// Tags added on processing
-	ProcessingTags []string
 	// Extra information from the parsers
 	ParsingExtra
 	// Extra information for Serverless Logs messages
@@ -290,14 +288,6 @@ type ParsingExtra struct {
 	IsMultiLine bool
 	IsMRFAllow  bool
 	Tags        []string
-	// SourceOverride, if non-empty, is applied to the message origin's source
-	// by the tailer after origin creation. Used by parsers (e.g. syslog) that
-	// run before the origin exists.
-	SourceOverride string
-	// ServiceOverride, if non-empty, is applied to the message origin's service
-	// by the tailer after origin creation. Used by parsers (e.g. syslog) that
-	// run before the origin exists.
-	ServiceOverride string
 }
 
 // ServerlessExtra ships extra information from logs processing in serverless envs.
@@ -394,19 +384,6 @@ func (m *Message) Render() ([]byte, error) {
 
 // Methods implementing observer.LogView for read-only observation.
 
-// GetStatus returns the message status.
-func (m *Message) GetStatus() string {
-	return m.MessageMetadata.GetStatus()
-}
-
-// GetTags returns the message processing tags.
-func (m *Message) GetTags() []string {
-	if m.Origin == nil {
-		return m.ProcessingTags
-	}
-	return m.Origin.Tags(m.ProcessingTags)
-}
-
 // GetHostname returns the message hostname.
 func (m *Message) GetHostname() string {
 	return m.Hostname
@@ -473,12 +450,12 @@ func (m *MessageMetadata) GetLatency() int64 {
 
 // Tags returns all tags that this message is attached with.
 func (m *MessageMetadata) Tags() []string {
-	return m.Origin.Tags(m.ProcessingTags)
+	return m.Origin.Tags()
 }
 
 // TagsToString returns all tags that this message is attached with, as a string.
 func (m *MessageMetadata) TagsToString() string {
-	return m.Origin.TagsToString(m.ProcessingTags)
+	return m.Origin.TagsToString()
 }
 
 // Count returns the number of messages
