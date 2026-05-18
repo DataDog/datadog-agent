@@ -175,6 +175,15 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, fi
 			rows := make([]metrics.SerieRow, 0)
 
 			if directMetricRowsExperimentEnabled() {
+				if directContextRowsExperimentEnabled() {
+					s.flushContextMetricRowsUnordered(contextMetricsFlusher, func(contextKey ckey.ContextKey, rawRows []metrics.SerieRowFragment) {
+						// Note: rawRows is reused at each call
+						s.flushSerieRowsByMetricRows(contextKey, rawRows, rowSink, &rows, filterList, rowShadow)
+					})
+					rowShadow.finish("context_rows", time.Since(rowShadowStart))
+					return
+				}
+
 				s.flushContextMetricRows(contextMetricsFlusher, func(contextKey ckey.ContextKey, rawRows []metrics.SerieRowFragment) {
 					// Note: rawRows is reused at each call
 					s.dedupSerieRowsByMetricRowSignature(contextKey, rawRows, rowSink, rowBySignature, &rows, filterList, rowShadow)
@@ -292,6 +301,43 @@ func (s *TimeSampler) dedupSerieRowsByMetricRowSignature(
 			context.source,
 		)
 		rowBySignature[serieSignature] = len(*rows)
+		*rows = append(*rows, row)
+	}
+
+	s.flushSerieRows(rowSink, *rows, filterList, rowShadow)
+}
+
+func (s *TimeSampler) flushSerieRowsByMetricRows(
+	contextKey ckey.ContextKey,
+	rawRows []metrics.SerieRowFragment,
+	rowSink metrics.SerieRowSink,
+	rows *[]metrics.SerieRow,
+	filterList *utilstrings.Matcher,
+	rowShadow *directRowShadowBuilder,
+) {
+	*rows = (*rows)[:0]
+
+	context, ok := s.contextResolver.get(contextKey)
+	if !ok {
+		log.Errorf("TimeSampler #%d Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", s.id, contextKey)
+		return
+	}
+
+	for _, rawRow := range rawRows {
+		row := metrics.NewSerieRow(
+			context.Name+rawRow.NameSuffix,
+			rawRow.Points[:len(rawRow.Points):len(rawRow.Points)],
+			context.Tags(),
+			context.Host,
+			"",
+			rawRow.MType,
+			s.interval,
+			rawRow.SourceTypeName,
+			rawRow.Unit,
+			context.noIndex,
+			rawRow.Resources,
+			context.source,
+		)
 		*rows = append(*rows, row)
 	}
 
@@ -434,6 +480,11 @@ func (s *TimeSampler) flushContextMetrics(contextMetricsFlusher *metrics.Context
 
 func (s *TimeSampler) flushContextMetricRows(contextMetricsFlusher *metrics.ContextMetricsFlusher, callback func(ckey.ContextKey, []metrics.SerieRowFragment)) {
 	errors := contextMetricsFlusher.FlushSerieRowFragmentsAndClear(callback)
+	s.logContextMetricFlushErrors(errors)
+}
+
+func (s *TimeSampler) flushContextMetricRowsUnordered(contextMetricsFlusher *metrics.ContextMetricsFlusher, callback func(ckey.ContextKey, []metrics.SerieRowFragment)) {
+	errors := contextMetricsFlusher.FlushSerieRowFragmentsUnorderedAndClear(callback)
 	s.logContextMetricFlushErrors(errors)
 }
 

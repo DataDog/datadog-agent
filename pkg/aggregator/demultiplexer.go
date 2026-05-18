@@ -176,6 +176,11 @@ func directMetricRowsExperimentEnabled() bool {
 	return err == nil && enabled
 }
 
+func directContextRowsExperimentEnabled() bool {
+	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_DIRECT_CONTEXT_ROWS"))
+	return err == nil && enabled
+}
+
 // sendIterableSeries is continuously sending series to the serializer, until another routine calls SenderStopped on the
 // series sink.
 // Mainly meant to be executed in its own routine, sendIterableSeries is closing the `done` channel once it has returned

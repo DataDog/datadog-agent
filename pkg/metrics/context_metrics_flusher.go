@@ -93,20 +93,7 @@ func (f *ContextMetricsFlusher) FlushSerieRowFragmentsAndClear(callback func(cke
 		contextMetricsCollection,
 		func(contextKey ckey.ContextKey, m Metric, contextMetricIndex int) {
 			currentContextKey = contextKey
-			var err error
-			rows, points, err = flushMetricToSerieRowFragments(
-				m,
-				f.metrics[contextMetricIndex].bucketTimestamp,
-				rows,
-				points)
-			if err != nil {
-				switch err.(type) {
-				case NoSerieError:
-					// this error happens in nominal conditions and shouldn't be returned
-				default:
-					errorsByContextKey[contextKey] = err
-				}
-			}
+			rows, points = f.flushMetricToSerieRowFragments(contextKey, m, f.metrics[contextMetricIndex].bucketTimestamp, rows, points, errorsByContextKey)
 			for k, err := range errorsByContextKey {
 				errors[k] = append(errors[k], err)
 				delete(errorsByContextKey, k)
@@ -117,4 +104,52 @@ func (f *ContextMetricsFlusher) FlushSerieRowFragmentsAndClear(callback func(cke
 			points = points[:0]
 		})
 	return errors
+}
+
+// FlushSerieRowFragmentsUnorderedAndClear flushes metrics directly in
+// timestamp/map iteration order instead of grouping by context key first. It is
+// deliberately weaker than FlushSerieRowFragmentsAndClear, but gives local
+// experiments an upper-bound path that bypasses grouping and dedup costs.
+func (f *ContextMetricsFlusher) FlushSerieRowFragmentsUnorderedAndClear(callback func(ckey.ContextKey, []SerieRowFragment)) map[ckey.ContextKey][]error {
+	errors := make(map[ckey.ContextKey][]error)
+	var rows []SerieRowFragment
+	var points []Point
+	errorsByContextKey := make(map[ckey.ContextKey]error)
+
+	for _, timestampedMetrics := range f.metrics {
+		for contextKey, metric := range timestampedMetrics.contextMetrics {
+			rows, points = f.flushMetricToSerieRowFragments(contextKey, metric, timestampedMetrics.bucketTimestamp, rows, points, errorsByContextKey)
+			for k, err := range errorsByContextKey {
+				errors[k] = append(errors[k], err)
+				delete(errorsByContextKey, k)
+			}
+			if len(rows) > 0 {
+				callback(contextKey, rows)
+				rows = rows[:0]
+				points = points[:0]
+			}
+		}
+	}
+	return errors
+}
+
+func (f *ContextMetricsFlusher) flushMetricToSerieRowFragments(
+	contextKey ckey.ContextKey,
+	metric Metric,
+	bucketTimestamp float64,
+	rows []SerieRowFragment,
+	points []Point,
+	errorsByContextKey map[ckey.ContextKey]error,
+) ([]SerieRowFragment, []Point) {
+	var err error
+	rows, points, err = flushMetricToSerieRowFragments(metric, bucketTimestamp, rows, points)
+	if err != nil {
+		switch err.(type) {
+		case NoSerieError:
+			// this error happens in nominal conditions and shouldn't be returned
+		default:
+			errorsByContextKey[contextKey] = err
+		}
+	}
+	return rows, points
 }
