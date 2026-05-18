@@ -19,10 +19,12 @@ import (
 // observation resets the entry and is treated as a fresh first
 // sighting.
 //
-// Default window is 15 minutes — long enough that a hot bug path collapses
-// to one record per quarter-hour, short enough that operators see new error
-// patterns promptly. The wire payload's Count field carries the number of
-// suppressed duplicates so the per-window total isn't lost.
+// The 15-minute default at the agent call site
+// (agent_telemetry.errortracking.bouncer_window_seconds) was chosen so a hot
+// bug path collapses to one record per quarter-hour — long enough to avoid
+// flooding the wire, short enough that operators see new error patterns
+// promptly. The wire payload's Count field carries the number of suppressed
+// duplicates so the per-window total isn't lost.
 //
 // Bouncer is purpose-built rather than reusing the global
 // rate.Sometimes wrapper in pkg/util/log/log_limit.go — that primitive

@@ -600,8 +600,9 @@ func getSharedFxOption() fx.Option {
 // installErrortrackingHandler is a no-op when the feature is disabled
 // (agent_telemetry.errortracking.enabled or the parent agent_telemetry
 // gate). The OnStart hook installs the submitter into pkg/util/log/setup;
-// the matching clear runs inside atel.stop() so it precedes the final
-// flush-goroutine drain.
+// the matching clear runs synchronously inside atel.stop()
+// (deliberately not as a separate OnStop hook here) so it precedes the
+// final flush-goroutine drain.
 func installErrortrackingHandler(lc fx.Lifecycle, cfg config.Component, at agenttelemetry.Component) {
 	if !configUtils.IsAgentTelemetryEnabled(cfg) || !cfg.GetBool("agent_telemetry.errortracking.enabled") {
 		return
