@@ -18,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/checks/windowseventlog/impl/check/eventdatafilter"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	windowseventlogchannels "github.com/DataDog/datadog-agent/comp/healthplatform/issues/windowseventlogchannels"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	publishermetadatacache "github.com/DataDog/datadog-agent/comp/publishermetadatacache/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -71,6 +73,8 @@ type Check struct {
 	userRenderContext      evtapi.EventRenderContextHandle
 	bookmarkManager        evtbookmark.Manager
 	publisherMetadataCache publishermetadatacache.Component
+
+	healthPlatform healthplatformdef.Component
 }
 
 // Run updates sender stats, restarts the subscription if it failed, and saves the bookmark.
@@ -90,11 +94,26 @@ func (c *Check) Run() error {
 		// starts the event collection in the background.
 		err := c.startSubscription()
 		if err != nil {
+			if c.healthPlatform != nil && errors.Is(err, windows.ERROR_EVT_CHANNEL_NOT_FOUND) {
+				channelPath, _ := c.getChannelPath()
+				instanceID := fmt.Sprintf("%s:%s", windowseventlogchannels.IssueID, string(c.ID()))
+				_ = c.healthPlatform.ReportIssue(healthplatformdef.IssueReport{
+					IssueID:   instanceID,
+					IssueType: windowseventlogchannels.IssueID,
+					Source:    CheckName,
+					Context:   map[string]string{"channelPath": channelPath},
+				})
+			}
 			err = fmt.Errorf("subscription is not running, failed to start: %w", err)
 			if c.sub.Error() != nil {
 				err = fmt.Errorf("%w, last stop reason: %w", err, c.sub.Error())
 			}
 			return err
+		}
+		// Subscription started successfully; resolve any previously recorded channel issue.
+		if c.healthPlatform != nil {
+			instanceID := fmt.Sprintf("%s:%s", windowseventlogchannels.IssueID, string(c.ID()))
+			c.healthPlatform.ResolveIssue(instanceID)
 		}
 	}
 
@@ -304,7 +323,7 @@ func (c *Check) Cancel() {
 }
 
 // Factory creates a new check factory
-func Factory(logsAgent option.Option[logsAgent.Component], config configComponent.Component, publisherMetadataCache publishermetadatacache.Component) option.Option[func() check.Check] {
+func Factory(logsAgent option.Option[logsAgent.Component], config configComponent.Component, publisherMetadataCache publishermetadatacache.Component, healthPlatform healthplatformdef.Component) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
 		return &Check{
 			CheckBase:              core.NewCheckBase(CheckName),
@@ -312,6 +331,7 @@ func Factory(logsAgent option.Option[logsAgent.Component], config configComponen
 			agentConfig:            config,
 			evtapi:                 winevtapi.New(),
 			publisherMetadataCache: publisherMetadataCache,
+			healthPlatform:         healthPlatform,
 		}
 	})
 }

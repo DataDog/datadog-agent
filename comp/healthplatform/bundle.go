@@ -26,6 +26,7 @@ import (
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/checkfailure"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/dockerpermissions"
 	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/rofspermissions"
+	_ "github.com/DataDog/datadog-agent/comp/healthplatform/issues/windowseventlogchannels"
 )
 
 // team: agent-health
