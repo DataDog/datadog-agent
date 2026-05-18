@@ -178,9 +178,16 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 
 	// Prometheus HTTP Service Discovery
 	config.BindEnvAndSetDefault("prometheus_http_sd.configs", []map[string]interface{}{}) // List of HTTP SD endpoints to poll. Each entry must specify url and check_template.
-	config.ParseEnvJSON("prometheus_http_sd.configs", []map[string]interface{}{})         // DD_PROMETHEUS_HTTP_SD_CONFIGS is a JSON-encoded list-of-objects.
-	config.BindEnvAndSetDefault("prometheus_http_sd.url", "")                             // [DEPRECATED] URL of the Prometheus HTTP SD endpoint. Use prometheus_http_sd.configs instead.
-	config.BindEnvAndSetDefault("prometheus_http_sd.check_template", "")                  // [DEPRECATED] JSON check template applied to each discovered target. Use prometheus_http_sd.configs instead.
+	config.ParseEnvAsSlice("prometheus_http_sd.configs", func(in string) []interface{} {
+		var configs []interface{}
+		if err := json.Unmarshal([]byte(in), &configs); err != nil {
+			log.Errorf(`"prometheus_http_sd.configs" can not be parsed: %v`, err)
+		}
+
+		return configs
+	}) // DD_PROMETHEUS_HTTP_SD_CONFIGS is a JSON-encoded list-of-objects.
+	config.BindEnvAndSetDefault("prometheus_http_sd.url", "")            // [DEPRECATED] URL of the Prometheus HTTP SD endpoint. Use prometheus_http_sd.configs instead.
+	config.BindEnvAndSetDefault("prometheus_http_sd.check_template", "") // [DEPRECATED] JSON check template applied to each discovered target. Use prometheus_http_sd.configs instead.
 
 	// Network Devices Monitoring
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")

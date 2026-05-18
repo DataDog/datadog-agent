@@ -19,6 +19,8 @@ import (
 	yaml "go.yaml.in/yaml/v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 type entrySpec struct {
@@ -53,6 +55,25 @@ func makeTestProviderWithEntries(t *testing.T, specs []entrySpec) *PrometheusHTT
 
 func defaultCheckTemplate() string {
 	return `{"name":"openmetrics","init_config":{},"instances":[{"openmetrics_endpoint":"http://%%host%%:%%port%%/metrics"}]}`
+}
+
+func TestNewPrometheusHTTPSDConfigProviderFromEnv(t *testing.T) {
+	pkgconfigmodel.CleanOverride(t)
+	conf := configmock.New(t)
+
+	t.Setenv("DD_PROMETHEUS_HTTP_SD_CONFIGS", `[{"url":"http://nginx-http-sd.default.svc.cluster.local/targets.json","check_template":"{\"name\":\"openmetrics\",\"init_config\":{},\"instances\":[{\"openmetrics_endpoint\":\"http://%%host%%:%%port%%/metrics\",\"timeout\":0.1}]}"},{"url":"http://nginx-http-sd-2.default.svc.cluster.local/targets.json","check_template":"{\"name\":\"openmetrics\",\"init_config\":{},\"instances\":[{\"openmetrics_endpoint\":\"http://%%host%%:%%port%%/metrics\",\"timeout\":0.5}]}"}]`)
+	pkgconfigmodel.ApplyOverrideFuncs(conf)
+
+	provider, err := NewPrometheusHTTPSDConfigProvider(nil, nil)
+	require.NoError(t, err)
+
+	httpSDProvider, ok := provider.(*PrometheusHTTPSDConfigProvider)
+	require.True(t, ok)
+	require.Len(t, httpSDProvider.entries, 2)
+	assert.Equal(t, "http://nginx-http-sd.default.svc.cluster.local/targets.json", httpSDProvider.entries[0].url)
+	assert.Equal(t, 0.1, httpSDProvider.entries[0].checkTemplate.Instances[0]["timeout"])
+	assert.Equal(t, "http://nginx-http-sd-2.default.svc.cluster.local/targets.json", httpSDProvider.entries[1].url)
+	assert.Equal(t, 0.5, httpSDProvider.entries[1].checkTemplate.Instances[0]["timeout"])
 }
 
 func TestCollectBasicTargets(t *testing.T) {
