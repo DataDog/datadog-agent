@@ -6,7 +6,7 @@
 // Package errortracking forwards Agent error logs to Datadog Cross-Org Agent
 // Telemetry (COAT). It exposes:
 //
-//   - ErrorLog: the value-typed DTO that crosses the boundary from
+//   - ErrorLog: the value-type that crosses the boundary from
 //     pkg/util/log into comp/core/agenttelemetry. Keeping a plain struct on
 //     the boundary lets the foundational logger subtree stay free of
 //     comp/core dependencies and lets agenttelemetry's public method avoid

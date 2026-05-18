@@ -348,8 +348,8 @@ func TestDrainAndSend_BatchesAndDispatches(t *testing.T) {
 	got := sm.capturedLogs()
 	require.Len(t, got, total, "every enqueued record must be dispatched in one drain pass")
 	for _, log := range got {
-		// Per-record identification by Message was removed with the PR
-		// #50607 PII pivot — Message is always empty on the wire.
+		// Per-record identification by Message was removed when Message
+		// stopped shipping — it is always empty on the wire.
 		assert.Empty(t, log.Message)
 		assert.Equal(t, LogLevelError, log.Level)
 	}
@@ -375,8 +375,8 @@ func TestFlushJob_DrainsOnStop(t *testing.T) {
 
 	got := sm.capturedLogs()
 	require.Len(t, got, 3, "all pending records must be flushed on stop")
-	// Per-record identification by Message was removed with the PR
-	// #50607 PII pivot. Count-and-level is the strongest assertion
+	// Per-record identification by Message was removed when Message
+	// stopped shipping. Count-and-level is the strongest assertion
 	// available; the order check is implicit in the channel FIFO.
 	for _, log := range got {
 		assert.Empty(t, log.Message)
