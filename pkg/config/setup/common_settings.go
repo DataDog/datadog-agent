@@ -2128,7 +2128,7 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 
 	// Detector/correlator/extractor toggles. Defaults match componentCatalog.defaultEnabled.
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.log_metrics_extractor.enabled", true)
-	config.BindEnvAndSetDefault("anomaly_detection.detectors.connection_error_extractor.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.detectors.connection_error_extractor.enabled", false)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.log_pattern_extractor.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.cusum.enabled", false)
 	config.BindEnvAndSetDefault("anomaly_detection.detectors.bocpd.enabled", true)
