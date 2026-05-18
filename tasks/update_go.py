@@ -70,7 +70,7 @@ def update_go(
     """
     import semver
 
-    if not semver.VersionInfo.isvalid(version):  # type: ignore[attr-defined]
+    if not semver.VersionInfo.is_valid(version):
         raise exceptions.Exit(f"The version {version} isn't valid.")
 
     current_version = _get_repo_go_version()

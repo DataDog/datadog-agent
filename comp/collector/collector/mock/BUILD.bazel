@@ -5,7 +5,7 @@ go_library(
     srcs = ["mock.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/collector/collector/mock",
     visibility = ["//visibility:public"],
-    gotags = ["test"],
+    tags = ["manual"],
     deps = [
         "//comp/collector/collector/impl",
         "//pkg/util/fxutil",

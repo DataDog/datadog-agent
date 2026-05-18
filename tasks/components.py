@@ -179,6 +179,7 @@ components_missing_implementation_folder = [
 
 ignore_fx_import = [
     "comp/aggregator/demultiplexer",
+    "comp/collector/collector",
     "comp/otelcol/logsagentpipeline",
     "comp/core/workloadmeta",
     "comp/rdnsquerier",
@@ -188,6 +189,7 @@ ignore_fx_import = [
 
 ignore_provide_component_constructor_missing = [
     "comp/aggregator/demultiplexer",
+    "comp/collector/collector",
     "comp/otelcol/logsagentpipeline",
     "comp/core/workloadmeta",
     "comp/trace/agent",

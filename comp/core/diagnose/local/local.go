@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
-	collectordefs "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -81,7 +80,7 @@ func Run(
 						log.Infof("Ignoring long running check %s", instance.String())
 						continue
 					}
-					instanceDiagnoses := collectordefs.GetInstanceDiagnoses(instance)
+					instanceDiagnoses := collector.GetInstanceDiagnoses(instance)
 					diagnoses = append(diagnoses, instanceDiagnoses...)
 				}
 			}
