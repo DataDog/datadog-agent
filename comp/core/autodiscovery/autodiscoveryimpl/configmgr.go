@@ -62,7 +62,7 @@ type configManager interface {
 	// id, removes it from scheduledConfigs, and returns it. Returns the config
 	// and true if found, or an empty config and false otherwise. Used by the
 	// trial-failure unschedule path so that GetAllConfigs no longer returns the
-	// stale entry after the check is stopped.
+	// stale entry after the check is/p stopped.
 	popTrialConfig(id checkid.ID) (integration.Config, bool)
 }
 
@@ -548,9 +548,6 @@ func (cm *reconcilingConfigManager) popTrialConfig(id checkid.ID) (integration.C
 // instance template. This ensures the discovery path stays in sync with the
 // real resolver: any future metadata fields added there are picked up here
 // automatically.
-//
-// Discovery templates have no secret references in their generated instances,
-// so decryptConfig is intentionally omitted.
 func resolveDiscoveryTemplate(tpl integration.Config, svc listeners.Service, secretResolver secrets.Component) (integration.Config, bool) {
 	// configresolver.Resolve only checks IsReady when IsCheckConfig() is true
 	// (i.e. len(Instances) > 0). Discovery templates start with empty instances,
