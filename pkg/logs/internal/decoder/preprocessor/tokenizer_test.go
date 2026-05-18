@@ -208,6 +208,104 @@ func refToUpper(b byte) byte {
 	return b
 }
 
+// refSpecialToken is an independent mapping from uppercase ASCII strings to
+// their Token values. It must NOT delegate to the production helpers
+// (getSpecialShortToken / getSpecialLongToken): the whole point of
+// referenceTokenize is to act as a differential oracle, so routing through
+// the same code under test would make FuzzTokenizerCorrectness compare the
+// production tokenizer against itself and miss bugs in keyword recognition.
+//
+// Keep this table in sync with getSpecialShortToken / getSpecialLongToken, but
+// always as an independent copy.
+func refSpecialToken(s string) Token {
+	switch len(s) {
+	case 1:
+		switch s[0] {
+		case 'T':
+			return T
+		case 'Z':
+			return Zone
+		}
+	case 2:
+		switch s {
+		case "AM", "PM":
+			return Apm
+		}
+	case 3:
+		switch s {
+		case "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+			"JUL", "AUG", "SEP", "OCT", "NOV", "DEC":
+			return Month
+		case "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN":
+			return Day
+		case "UTC", "GMT", "EST", "EDT", "CST", "CDT",
+			"MST", "MDT", "PST", "PDT", "JST", "KST",
+			"IST", "MSK", "CET", "BST", "HST", "HDT",
+			"NST", "NDT":
+			return Zone
+		}
+	case 4:
+		switch s {
+		case "WARN":
+			return Warn
+		case "CRIT":
+			return Critical
+		case "CEST", "NZST", "NZDT", "ACST", "ACDT",
+			"AEST", "AEDT", "AWST", "AWDT", "AKST",
+			"AKDT", "CHST", "CHDT":
+			return Zone
+		}
+	case 5:
+		switch s {
+		case "FATAL":
+			return Fatal
+		case "ERROR":
+			return Error
+		case "PANIC":
+			return Panic
+		case "ALERT":
+			return Alert
+		case "EMERG":
+			return Emergency
+		case "CRASH":
+			return Crash
+		}
+	case 6:
+		switch s {
+		case "SEVERE":
+			return Severe
+		case "FAILED":
+			return Failure
+		}
+	case 7:
+		switch s {
+		case "WARNING":
+			return Warn
+		case "CRASHED":
+			return Crash
+		case "FAILURE":
+			return Failure
+		case "TIMEOUT":
+			return Timeout
+		}
+	case 8:
+		switch s {
+		case "CRITICAL":
+			return Critical
+		case "DEADLOCK":
+			return Deadlock
+		}
+	case 9:
+		switch s {
+		case "EMERGENCY":
+			return Emergency
+		case "EXCEPTION":
+			return Exception
+		}
+	}
+	return End
+}
+
 func referenceTokenize(input []byte) []Token {
 	if len(input) == 0 {
 		return nil
@@ -226,12 +324,7 @@ func referenceTokenize(input []byte) []Token {
 				for j := 0; j < runLen; j++ {
 					upper[j] = refToUpper(input[i+j])
 				}
-				var special Token
-				if runLen == 1 {
-					special = getSpecialShortToken(upper[0])
-				} else {
-					special = getSpecialLongToken(string(upper))
-				}
+				special := refSpecialToken(string(upper))
 				if special != End {
 					tokens = append(tokens, special)
 					i += runLen
