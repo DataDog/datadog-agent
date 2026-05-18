@@ -29,6 +29,8 @@ var (
 // When false: patternId, tags, and timestamp are sent as absolute values on every Log datum.
 const enableDeltaEncoding = true
 
+const datumBytesTelemetrySampleRate = 16
+
 // StatefulExtra holds state changes (non-Log datums) from a batch
 // Used by inflight tracker to maintain snapshot state for stream rotation
 type StatefulExtra struct {
@@ -59,6 +61,8 @@ type batchStrategy struct {
 
 	// marshalBuf is reused across flushes for proto.Marshal output to reduce per-flush allocations.
 	marshalBuf []byte
+	// datumBytesTelemetryCount keeps sampling unbiased across batch boundaries.
+	datumBytesTelemetryCount uint64
 
 	// Delta encoding state - tracks previous values within current batch
 	lastTimestamp      int64  // milliseconds since epoch
@@ -179,19 +183,90 @@ func deltaEncodeDatumsForWire(datums []*statefulpb.Datum) []*statefulpb.Datum {
 	encoded := make([]*statefulpb.Datum, 0, len(datums))
 	state := batchStrategy{}
 	for _, datum := range datums {
-		cloned := proto.Clone(datum).(*statefulpb.Datum)
-		if patternDefine := cloned.GetPatternDefine(); patternDefine != nil {
-			state.lastPatternID = patternDefine.PatternId
+		switch data := datum.GetData().(type) {
+		case *statefulpb.Datum_PatternDefine:
+			if data.PatternDefine != nil {
+				state.lastPatternID = data.PatternDefine.PatternId
+			}
+			encoded = append(encoded, datum)
+		case *statefulpb.Datum_Logs:
+			if data.Logs == nil {
+				encoded = append(encoded, datum)
+				continue
+			}
+			cloned := cloneLogForDeltaEncoding(data.Logs)
+			state.applyDeltaEncoding(cloned)
+			encoded = append(encoded, &statefulpb.Datum{
+				Data: &statefulpb.Datum_Logs{Logs: cloned},
+			})
+		case *statefulpb.Datum_FlatLog:
+			if data.FlatLog == nil {
+				encoded = append(encoded, datum)
+				continue
+			}
+			cloned := cloneFlatLogForDeltaEncoding(data.FlatLog)
+			state.applyFlatLogDeltaEncoding(cloned)
+			encoded = append(encoded, &statefulpb.Datum{
+				Data: &statefulpb.Datum_FlatLog{FlatLog: cloned},
+			})
+		default:
+			encoded = append(encoded, datum)
 		}
-		if logDatum := cloned.GetLogs(); logDatum != nil {
-			state.applyDeltaEncoding(logDatum)
-		}
-		if flatLogDatum := cloned.GetFlatLog(); flatLogDatum != nil {
-			state.applyFlatLogDeltaEncoding(flatLogDatum)
-		}
-		encoded = append(encoded, cloned)
 	}
 	return encoded
+}
+
+func cloneLogForDeltaEncoding(logDatum *statefulpb.Log) *statefulpb.Log {
+	cloned := &statefulpb.Log{
+		Timestamp: logDatum.Timestamp,
+		Tags:      logDatum.Tags,
+		Uuid:      logDatum.Uuid,
+		Status:    logDatum.Status,
+		Service:   logDatum.Service,
+	}
+	switch content := logDatum.Content.(type) {
+	case *statefulpb.Log_Structured:
+		clonedStructured := cloneStructuredLogForDeltaEncoding(content.Structured)
+		cloned.Content = &statefulpb.Log_Structured{Structured: clonedStructured}
+	case *statefulpb.Log_Raw:
+		cloned.Content = &statefulpb.Log_Raw{Raw: content.Raw}
+	}
+	return cloned
+}
+
+func cloneStructuredLogForDeltaEncoding(logDatum *statefulpb.StructuredLog) *statefulpb.StructuredLog {
+	if logDatum == nil {
+		return nil
+	}
+	return &statefulpb.StructuredLog{
+		PatternId:           logDatum.PatternId,
+		DynamicValues:       logDatum.DynamicValues,
+		JsonMessageKey:      logDatum.JsonMessageKey,
+		JsonContextSchemaId: logDatum.JsonContextSchemaId,
+		JsonContextValues:   logDatum.JsonContextValues,
+		JsonContext:         logDatum.JsonContext,
+	}
+}
+
+func cloneFlatLogForDeltaEncoding(logDatum *statefulpb.FlatLog) *statefulpb.FlatLog {
+	return &statefulpb.FlatLog{
+		Timestamp:               logDatum.Timestamp,
+		Status:                  logDatum.Status,
+		Service:                 logDatum.Service,
+		Tags:                    logDatum.Tags,
+		PatternId:               logDatum.PatternId,
+		DynamicValues:           logDatum.DynamicValues,
+		RawLog:                  logDatum.RawLog,
+		JsonSchemaId:            logDatum.JsonSchemaId,
+		JsonContextValues:       logDatum.JsonContextValues,
+		JsonContextValueKinds:   logDatum.JsonContextValueKinds,
+		JsonContextIntValues:    logDatum.JsonContextIntValues,
+		JsonContextFloatValues:  logDatum.JsonContextFloatValues,
+		JsonContextDictValues:   logDatum.JsonContextDictValues,
+		JsonContextRawValues:    logDatum.JsonContextRawValues,
+		JsonContextStringValues: logDatum.JsonContextStringValues,
+		Uuid:                    logDatum.Uuid,
+	}
 }
 
 func (s *batchStrategy) applyTimestampDeltaEncoding(timestamp *int64) {
@@ -340,33 +415,13 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 
 	stateChanges, wireDatums := splitStateAndWireDatums(grpcDatums)
 
-	// Track per-datum-type counts and sizes
 	for _, datum := range grpcDatums {
-		var datumType string
-		switch datum.Data.(type) {
-		case *statefulpb.Datum_PatternDefine:
-			datumType = "pattern_define"
-		case *statefulpb.Datum_PatternDelete:
-			datumType = "pattern_delete"
-		case *statefulpb.Datum_Logs:
-			datumType = "logs"
-		case *statefulpb.Datum_FlatLog:
-			datumType = "logs"
-		case *statefulpb.Datum_DictEntryDefine:
-			datumType = "dict_entry_define"
-		case *statefulpb.Datum_DictEntryDelete:
-			datumType = "dict_entry_delete"
-		case *statefulpb.Datum_DeltaEncodingSync:
-			datumType = "delta_encoding_sync"
-		case *statefulpb.Datum_JsonSchemaDefine:
-			datumType = "json_schema_define"
-		case *statefulpb.Datum_JsonSchemaDelete:
-			datumType = "json_schema_delete"
-		default:
-			datumType = "unknown"
-		}
+		datumType := datumTelemetryType(datum)
 		metrics.TlmDatumCount.Add(1, datumType)
-		metrics.TlmDatumBytes.Add(float64(proto.Size(datum)), datumType)
+		if s.datumBytesTelemetryCount%datumBytesTelemetrySampleRate == 0 {
+			metrics.TlmDatumBytes.Add(float64(proto.Size(datum)*datumBytesTelemetrySampleRate), datumType)
+		}
+		s.datumBytesTelemetryCount++
 	}
 
 	encodedDatums := deltaEncodeDatumsForWire(wireDatums)
@@ -415,4 +470,27 @@ func (s *batchStrategy) sendMessagesWithDatums(messagesMetadata []*message.Messa
 	outputChan <- p
 	s.pipelineMonitor.ReportComponentEgress(p, metrics.StrategyTlmName, s.instanceID)
 	s.pipelineMonitor.ReportComponentIngress(p, metrics.SenderTlmName, metrics.SenderTlmInstanceID)
+}
+
+func datumTelemetryType(datum *statefulpb.Datum) string {
+	switch datum.Data.(type) {
+	case *statefulpb.Datum_PatternDefine:
+		return "pattern_define"
+	case *statefulpb.Datum_PatternDelete:
+		return "pattern_delete"
+	case *statefulpb.Datum_Logs, *statefulpb.Datum_FlatLog:
+		return "logs"
+	case *statefulpb.Datum_DictEntryDefine:
+		return "dict_entry_define"
+	case *statefulpb.Datum_DictEntryDelete:
+		return "dict_entry_delete"
+	case *statefulpb.Datum_DeltaEncodingSync:
+		return "delta_encoding_sync"
+	case *statefulpb.Datum_JsonSchemaDefine:
+		return "json_schema_define"
+	case *statefulpb.Datum_JsonSchemaDelete:
+		return "json_schema_delete"
+	default:
+		return "unknown"
+	}
 }

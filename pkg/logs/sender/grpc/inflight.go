@@ -86,7 +86,12 @@ func (t *inflightTracker) pop() *message.Payload {
 	// Apply state changes from this payload to snapshot
 	if payload.StatefulExtra != nil {
 		if extra, ok := payload.StatefulExtra.(*StatefulExtra); ok {
-			if refs, ok := t.inflightReferences(); ok {
+			if t.ackNeedsProtectedRefs(extra) {
+				refs, ok := t.inflightReferences()
+				if !ok {
+					t.planner.applyAcked(extra, nil)
+					return payload
+				}
 				t.planner.applyAcked(extra, &refs)
 			} else {
 				t.planner.applyAcked(extra, nil)
@@ -216,6 +221,10 @@ func (t *inflightTracker) getSnapshot() []byte {
 
 func (t *inflightTracker) resetStreamSent() {
 	t.planner.resetStream()
+}
+
+func (t *inflightTracker) ackNeedsProtectedRefs(extra *StatefulExtra) bool {
+	return t.planner.hasDeferredDeletes() || stateChangesContainDeletes(extra.StateChanges)
 }
 
 func (t *inflightTracker) inflightReferences() (stateReferences, bool) {
