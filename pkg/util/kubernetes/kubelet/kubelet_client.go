@@ -125,7 +125,7 @@ func (kc *kubeletClient) checkConnection(ctx context.Context) error {
 		return err
 	}
 
-	log.Infof("check kubelet connection url=%s - response_code=%d", kc.kubeletURL, statusCode)
+	log.Debugf("check kubelet connection url=%s - response_code=%d", kc.kubeletURL, statusCode)
 
 	if statusCode == http.StatusUnauthorized {
 		return fmt.Errorf("unauthorized to request test kubelet endpoint (/healthz) - token used: %t", kc.config.token != "")

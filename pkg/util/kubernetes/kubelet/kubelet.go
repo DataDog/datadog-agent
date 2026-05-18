@@ -71,26 +71,32 @@ type KubeUtil struct {
 	// used to switch to HTTPS scheme if available
 	httpsRetry retry.Retrier
 
-	kubeletClient        [2]*kubeletClient
+	kubeletClient        [2]atomic.Pointer[kubeletClient]
 	kubeletClientIdx     atomic.Uint32
-	rawConnectionInfo    map[string]string // kept to pass to the python kubelet check
-	podListCacheDuration time.Duration     // a duration of 0 disables the cache
+	podListCacheDuration time.Duration // a duration of 0 disables the cache
 	podUnmarshaller      *podUnmarshaller
 	podResourcesClient   *PodResourcesClient
 	devicePluginsClient  DevicePluginClient
 
 	useAPIServer bool
 
+	// can be access concurently if we re-init the kubelet client
+	rawConnectionInfo      map[string]string // kept to pass to the python kubelet check
+	rawConnectionInfoMutex sync.RWMutex
+
 	// The node name is immutable in Kubernetes, so once it is fetched it should
 	// be cached
 	nodeName      string
-	nodeNameMutex sync.Mutex
+	nodeNameMutex sync.RWMutex
 }
 
-// kubelet client can be re-allocated at runtime this way we use a double bank system
-// to allocate new client while other goroutines use the old one.
+// getKubeletClient return the currently used kubelet client.
+// at runtime, if the kubelet client is init using HTTP,
+// a second client can be init with https.
+// This method ensure the caller always get the latest allocated
+// kubelet client.
 func (ku *KubeUtil) getKubeletClient() *kubeletClient {
-	return ku.kubeletClient[ku.kubeletClientIdx.Load()%2]
+	return ku.kubeletClient[ku.kubeletClientIdx.Load()%2].Load()
 }
 
 func (ku *KubeUtil) initKubeletClientHTTPS() error {
@@ -104,11 +110,23 @@ func (ku *KubeUtil) initKubeletClientHTTPS() error {
 	}
 
 	// we successfully allocated the new client for HTTPS
-	// sotre it in the next slot
-	newIndex := ku.kubeletClientIdx.Load() + 1
-	ku.kubeletClient[newIndex] = newKubeletClient
+	// store it in the second slot.
+	// update all infos like during normal init
+	ku.kubeletClient[1].Store(newKubeletClient)
+
+	ku.rawConnectionInfoMutex.Lock()
 	ku.rawConnectionInfo = rawConnectionInfos
-	ku.kubeletClientIdx.Add(1)
+	ku.rawConnectionInfoMutex.Unlock()
+
+	if ku.useAPIServer {
+		ku.nodeNameMutex.RLock()
+		newKubeletClient.config.nodeName = ku.nodeName
+		ku.nodeNameMutex.RUnlock()
+	}
+
+	// update the index so all new requests to `GetKubeUtil`
+	// will return the new http client with HTTPS.
+	ku.kubeletClientIdx.Store(1)
 
 	return nil
 }
@@ -144,17 +162,29 @@ func (ku *KubeUtil) initKubeletClient() (*kubeletClient, map[string]string, erro
 func (ku *KubeUtil) init() error {
 	var err error
 
-	ku.kubeletClient[0], ku.rawConnectionInfo, err = ku.initKubeletClient()
+	newKubeletClient, newRawConnectionInfo, err := ku.initKubeletClient()
 	if err != nil {
 		return err
 	}
 
+	ku.kubeletClient[ku.kubeletClientIdx.Load()%2].Store(newKubeletClient)
+
+	ku.rawConnectionInfoMutex.Lock()
+	ku.rawConnectionInfo = newRawConnectionInfo
+	ku.rawConnectionInfoMutex.Unlock()
+
 	if pkgconfigsetup.Datadog().GetBool("kubelet_use_api_server") {
 		ku.useAPIServer = true
-		ku.getKubeletClient().config.nodeName, err = ku.GetNodename(context.Background())
+		nodeName, err := ku.getNodeNameFromStatsSummary(context.Background())
 		if err != nil {
 			return err
 		}
+
+		newKubeletClient.config.nodeName = nodeName
+
+		ku.nodeNameMutex.Lock()
+		ku.nodeName = nodeName
+		ku.nodeNameMutex.Unlock()
 	}
 
 	if env.IsFeaturePresent(env.PodResources) {
@@ -227,7 +257,7 @@ func GetKubeUtilWithRetrier() (KubeUtilInterface, *retry.Retrier) {
 
 	// try to switch to https
 	if globalKubeUtil.getKubeletClient().config.scheme == "http" && time.Now().After(globalKubeUtil.httpsRetry.NextRetry()) {
-		log.Infof("kubelet client uses http, try https instead")
+		log.Info("kubelet client uses http, try https instead")
 		err := globalKubeUtil.httpsRetry.TriggerRetry()
 
 		// no error => happy path, we have HTTPS now.
@@ -236,7 +266,7 @@ func GetKubeUtilWithRetrier() (KubeUtilInterface, *retry.Retrier) {
 		// we can still return the client as is, as it works using HTTP only.
 		// the next call to this function will retry reaching it using HTTPS
 		if err == nil || errors.Is(err, errFailedKubeletClientHTTPS) {
-			log.Infof("failed to try https, http only for now")
+			log.Info("failed to try https, http only for now")
 			return globalKubeUtil, nil
 		}
 
@@ -267,6 +297,20 @@ func (ku *KubeUtil) StreamLogs(ctx context.Context, podNamespace, podName, conta
 	return ku.getKubeletClient().queryWithResp(ctx, path)
 }
 
+func (ku *KubeUtil) getNodeNameFromStatsSummary(ctx context.Context) (string, error) {
+	stats, err := ku.GetLocalStatsSummary(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get kubernetes nodename from %s: %w", kubeletStatsSummary, err)
+	}
+
+	if stats.Node.NodeName == "" {
+		return "", errors.New("stats endpoint returned an empty node name, can't determine nodename")
+	}
+
+	return stats.Node.NodeName, nil
+
+}
+
 // GetNodename returns the nodename
 func (ku *KubeUtil) GetNodename(ctx context.Context) (string, error) {
 	ku.nodeNameMutex.Lock()
@@ -282,12 +326,12 @@ func (ku *KubeUtil) GetNodename(ctx context.Context) (string, error) {
 		if ku.getKubeletClient().config.nodeName != "" {
 			nodeName = ku.getKubeletClient().config.nodeName
 		} else {
-			stats, err := ku.GetLocalStatsSummary(ctx)
-			if err == nil && stats.Node.NodeName != "" {
-				nodeName = stats.Node.NodeName
-			} else {
-				return "", fmt.Errorf("failed to get kubernetes nodename from %s: %w", kubeletStatsSummary, err)
+			statsNodeName, err := ku.getNodeNameFromStatsSummary(ctx)
+			if err != nil {
+				return "", err
 			}
+
+			nodeName = statsNodeName
 		}
 	} else {
 		pods, err := ku.GetLocalPodList(ctx)
@@ -501,6 +545,9 @@ func (ku *KubeUtil) QueryKubelet(ctx context.Context, path string) ([]byte, int,
 //   - client_crt: path to the client cert if set
 //   - client_key: path to the client key if set
 func (ku *KubeUtil) GetRawConnectionInfo() map[string]string {
+	ku.rawConnectionInfoMutex.Lock()
+	defer ku.rawConnectionInfoMutex.Unlock()
+
 	if ku.getKubeletClient().config.scheme == "https" && ku.getKubeletClient().config.token != "" {
 		token, err := kubernetes.GetBearerToken(ku.getKubeletClient().config.tokenPath)
 		if err != nil {

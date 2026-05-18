@@ -353,15 +353,15 @@ func (suite *KubeletTestSuite) TestGetNodenameStatsSummary() {
 	kubeutil := suite.getCustomKubeUtil()
 	kubelet.dropRequests() // Throwing away first GETs
 
-	concreatKubeUtil, ok := kubeutil.(*KubeUtil)
+	concreteKubeUtil, ok := kubeutil.(*KubeUtil)
 	require.True(suite.T(), ok, "cannot cast kubeutil interface to real kubeutil object")
 
-	require.NotNil(suite.T(), concreatKubeUtil.getKubeletClient(), "cannot get the currently allocated kubeutilclient")
+	require.NotNil(suite.T(), concreteKubeUtil.getKubeletClient(), "cannot get the currently allocated kubeutilclient")
 
-	require.NotNil(suite.T(), concreatKubeUtil.getKubeletClient().config)
+	require.NotNil(suite.T(), concreteKubeUtil.getKubeletClient().config)
 
 	// Nodename should already be set from `init()`
-	require.Equal(suite.T(), "my-node-name", concreatKubeUtil.getKubeletClient().config.nodeName)
+	require.Equal(suite.T(), "my-node-name", concreteKubeUtil.getKubeletClient().config.nodeName)
 
 	hostname, err := kubeutil.GetNodename(ctx)
 	require.Nil(suite.T(), err)
@@ -650,7 +650,7 @@ func (suite *KubeletTestSuite) TestKubeletInitHttp() {
 }
 
 func (suite *KubeletTestSuite) TestInitHttpThenHttps() {
-	getPortFromUrl := func(u string) (int, error) {
+	getPortFromURL := func(u string) (int, error) {
 		query, err := url.Parse(u)
 		if err != nil {
 			return 0, err
@@ -663,6 +663,10 @@ func (suite *KubeletTestSuite) TestInitHttpThenHttps() {
 
 		return port, nil
 	}
+
+	defer func() {
+		ResetGlobalKubeUtil()
+	}()
 
 	mockConfig := configmock.New(suite.T())
 
@@ -693,10 +697,13 @@ func (suite *KubeletTestSuite) TestInitHttpThenHttps() {
 
 	// validate currently Http schema is in use
 	require.Equal(suite.T(), "http", ku.getKubeletClient().config.scheme)
-	parsedHttpPort, err := getPortFromUrl(ku.getKubeletClient().kubeletURL)
+	parsedHTTPPort, err := getPortFromURL(ku.getKubeletClient().kubeletURL)
 	require.Nil(suite.T(), err)
-	require.Equal(suite.T(), kubeletPort, parsedHttpPort)
+	require.Equal(suite.T(), kubeletPort, parsedHTTPPort)
 
+	suite.Eventually(func() bool {
+		return time.Until(ku.httpsRetry.NextRetry()) <= 0
+	}, 20*time.Second, 1*time.Second)
 	time.Sleep(time.Until(ku.httpsRetry.NextRetry()) + (1 * time.Second))
 
 	// enable Https in configuration
@@ -711,9 +718,9 @@ func (suite *KubeletTestSuite) TestInitHttpThenHttps() {
 
 	// validate the new kubelet client Https schema is in use
 	require.Equal(suite.T(), "https", ku.getKubeletClient().config.scheme)
-	parseHttpsPort, err := getPortFromUrl(ku.getKubeletClient().kubeletURL)
+	parsedHTTPSPort, err := getPortFromURL(ku.getKubeletClient().kubeletURL)
 	require.Nil(suite.T(), err)
-	require.Equal(suite.T(), kubeletSecurePort, parseHttpsPort)
+	require.Equal(suite.T(), kubeletSecurePort, parsedHTTPSPort)
 }
 
 func (suite *KubeletTestSuite) TestGetKubeletHostFromConfig() {
