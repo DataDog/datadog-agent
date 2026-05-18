@@ -443,8 +443,77 @@ it does not yet prove a significant speedup. The next stage should remove more
 materialization inside metric flush/dedup, or add row-native sketch/check-sampler
 handoff, before rerunning foundation-vs-experiment.
 
-Run foundation vs experiment on the main cases again only after deciding whether
-the next active path should be v3-only or should also replace the v2 serializer.
+### Stage G: direct metric row flush
+
+Stage G (`638b79c3bba`) adds `metrics.SerieRowFragment` and a row-oriented
+`ContextMetricsFlusher` path behind:
+
+```text
+DD_DOGSTATSD_EXPERIMENTAL_DIRECT_METRIC_ROWS=true
+```
+
+on top of the Stage F switches. The goal is a thin value probe: bypass
+`*metrics.Serie` allocation inside scalar `Metric.flush` and feed lightweight row
+fragments into the direct serializer-visible row path. Histogram/historate still
+fall back through the existing `*Serie` materialization path.
+
+SMP results versus Stage F direct series rows:
+
+| Case | Goal | Δ mean | Δ mean CI | Regression | Improvement |
+|---|---|---:|---:|---|---|
+| `uds_dogstatsd_to_api_v3` | ingress throughput | -0.08% | [-0.35%, +0.19%] | false | false |
+| `uds_dogstatsd_to_api` | ingress throughput | -0.00% | [-0.24%, +0.24%] | false | false |
+| `uds_dogstatsd_20mb_12k_contexts_20_senders` | memory utilization | -0.52% | [-0.76%, -0.28%] | false | true |
+| `uds_dogstatsd_to_api_v3_endpoint_fixed` | ingress throughput | +0.02% | [-0.23%, +0.26%] | false | true |
+
+Because the standard throughput cases are effectively capped near their
+100 MiB/s generator target, Stage G also added a high-rate metrics-only probe:
+
+```text
+uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only
+bytes_per_second: 250 MiB
+kind_weights: metric=100,event=0,service_check=0
+```
+
+On that probe:
+
+| Case | Goal | Δ mean | Δ mean CI | Regression | Improvement |
+|---|---|---:|---:|---|---|
+| `uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only` | ingress throughput | -0.25% | [-0.48%, -0.01%] | false | false |
+
+Decision: removing `*metrics.Serie` allocation gives a small memory win but no
+throughput win, and it slightly hurts in the uncapped/high-rate probe. This is
+evidence that `*Serie` allocation itself is not the main value lever.
+
+### Stage H: unordered direct context rows upper-bound probe
+
+Stage H (`c989043ddcc`) adds an intentionally unsafe upper-bound switch:
+
+```text
+DD_DOGSTATSD_EXPERIMENTAL_DIRECT_CONTEXT_ROWS=true
+```
+
+on top of Stage G. It bypasses context grouping/dedup in
+`ContextMetricsFlusher` and flushes row fragments in timestamp/map iteration
+order. It is not wire-equivalent because it can emit repeated rows for the same
+identity instead of merging points.
+
+SMP result versus Stage G direct metric rows on the high-rate probe:
+
+| Case | Goal | Δ mean | Δ mean CI | Regression | Improvement |
+|---|---|---:|---:|---|---|
+| `uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only` | ingress throughput | -0.51% | [-0.73%, -0.29%] | false | false |
+
+Decision: the shortcut is worse. Naively removing grouping/dedup increases
+downstream row/payload work more than it saves. Combined with Stage G, the local
+value read is now negative for selling this as a major throughput/efficiency
+investment based on direct rows alone. Continue only if profiles or production
+workloads identify a different bottleneck than serializer iteration,
+`*metrics.Serie` allocation, or context grouping.
+
+Run foundation vs experiment on the main cases again only if a later stage finds
+a materially positive value signal; the current Stage G/H signal does not justify
+that broader comparison.
 
 Success bar for making a significant core-improvement claim:
 
