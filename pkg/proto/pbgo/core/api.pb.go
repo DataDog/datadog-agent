@@ -7,9 +7,9 @@
 package core
 
 import (
-	healthplatform "github.com/DataDog/agent-payload/v5/healthplatform"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	anypb "google.golang.org/protobuf/types/known/anypb"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
 	sync "sync"
@@ -73,11 +73,11 @@ var File_datadog_api_v1_api_proto protoreflect.FileDescriptor
 
 const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\n" +
-	"\x18datadog/api/v1/api.proto\x12\x0edatadog.api.v1\x1a+datadog/healthplatform/healthplatform.proto\x1a\x1cdatadog/model/v1/model.proto\x1a%datadog/remoteagent/remoteagent.proto\x1a'datadog/remoteconfig/remoteconfig.proto\x1a'datadog/workloadmeta/workloadmeta.proto\x1a+datadog/workloadfilter/workloadfilter.proto\x1a)datadog/autodiscovery/autodiscovery.proto\x1a'datadog/kubemetadata/kubemetadata.proto\x1a\x1bgoogle/protobuf/empty.proto\"/\n" +
+	"\x18datadog/api/v1/api.proto\x12\x0edatadog.api.v1\x1a\x1cdatadog/model/v1/model.proto\x1a%datadog/remoteagent/remoteagent.proto\x1a'datadog/remoteconfig/remoteconfig.proto\x1a'datadog/workloadmeta/workloadmeta.proto\x1a+datadog/workloadfilter/workloadfilter.proto\x1a)datadog/autodiscovery/autodiscovery.proto\x1a'datadog/kubemetadata/kubemetadata.proto\x1a\x19google/protobuf/any.proto\x1a\x1bgoogle/protobuf/empty.proto\"/\n" +
 	"\x12HealthIssueResolve\x12\x19\n" +
 	"\bissue_id\x18\x01 \x01(\tR\aissueId2Z\n" +
 	"\x05Agent\x12Q\n" +
-	"\vGetHostname\x12!.datadog.model.v1.HostnameRequest\x1a\x1f.datadog.model.v1.HostnameReply2\xc9\x11\n" +
+	"\vGetHostname\x12!.datadog.model.v1.HostnameRequest\x1a\x1f.datadog.model.v1.HostnameReply2\xc0\x11\n" +
 	"\vAgentSecure\x12c\n" +
 	"\x14TaggerStreamEntities\x12#.datadog.model.v1.StreamTagsRequest\x1a$.datadog.model.v1.StreamTagsResponse0\x01\x12\xa2\x01\n" +
 	"'TaggerGenerateContainerIDFromOriginInfo\x12:.datadog.model.v1.GenerateContainerIDFromOriginInfoRequest\x1a;.datadog.model.v1.GenerateContainerIDFromOriginInfoResponse\x12`\n" +
@@ -97,8 +97,8 @@ const file_datadog_api_v1_api_proto_rawDesc = "" +
 	"\vGetHostTags\x12 .datadog.model.v1.HostTagRequest\x1a\x1e.datadog.model.v1.HostTagReply\x12\\\n" +
 	"\x12StreamConfigEvents\x12%.datadog.model.v1.ConfigStreamRequest\x1a\x1d.datadog.model.v1.ConfigEvent0\x01\x12\x87\x01\n" +
 	"\x16WorkloadFilterEvaluate\x125.datadog.workloadfilter.WorkloadFilterEvaluateRequest\x1a6.datadog.workloadfilter.WorkloadFilterEvaluateResponse\x12y\n" +
-	"\x12StreamKubeMetadata\x12/.datadog.kubemetadata.KubeMetadataStreamRequest\x1a0.datadog.kubemetadata.KubeMetadataStreamResponse0\x01\x12J\n" +
-	"\x11ReportHealthIssue\x12\x1d.datadog.healthplatform.Issue\x1a\x16.google.protobuf.Empty\x12P\n" +
+	"\x12StreamKubeMetadata\x12/.datadog.kubemetadata.KubeMetadataStreamRequest\x1a0.datadog.kubemetadata.KubeMetadataStreamResponse0\x01\x12A\n" +
+	"\x11ReportHealthIssue\x12\x14.google.protobuf.Any\x1a\x16.google.protobuf.Empty\x12P\n" +
 	"\x12ResolveHealthIssue\x12\".datadog.api.v1.HealthIssueResolve\x1a\x16.google.protobuf.EmptyB\x15Z\x13pkg/proto/pbgo/coreb\x06proto3"
 
 var (
@@ -132,7 +132,7 @@ var file_datadog_api_v1_api_proto_goTypes = []any{
 	(*ConfigStreamRequest)(nil),                       // 14: datadog.model.v1.ConfigStreamRequest
 	(*WorkloadFilterEvaluateRequest)(nil),             // 15: datadog.workloadfilter.WorkloadFilterEvaluateRequest
 	(*KubeMetadataStreamRequest)(nil),                 // 16: datadog.kubemetadata.KubeMetadataStreamRequest
-	(*healthplatform.Issue)(nil),                      // 17: datadog.healthplatform.Issue
+	(*anypb.Any)(nil),                                 // 17: google.protobuf.Any
 	(*HostnameReply)(nil),                             // 18: datadog.model.v1.HostnameReply
 	(*StreamTagsResponse)(nil),                        // 19: datadog.model.v1.StreamTagsResponse
 	(*GenerateContainerIDFromOriginInfoResponse)(nil), // 20: datadog.model.v1.GenerateContainerIDFromOriginInfoResponse
@@ -173,7 +173,7 @@ var file_datadog_api_v1_api_proto_depIdxs = []int32{
 	14, // 17: datadog.api.v1.AgentSecure.StreamConfigEvents:input_type -> datadog.model.v1.ConfigStreamRequest
 	15, // 18: datadog.api.v1.AgentSecure.WorkloadFilterEvaluate:input_type -> datadog.workloadfilter.WorkloadFilterEvaluateRequest
 	16, // 19: datadog.api.v1.AgentSecure.StreamKubeMetadata:input_type -> datadog.kubemetadata.KubeMetadataStreamRequest
-	17, // 20: datadog.api.v1.AgentSecure.ReportHealthIssue:input_type -> datadog.healthplatform.Issue
+	17, // 20: datadog.api.v1.AgentSecure.ReportHealthIssue:input_type -> google.protobuf.Any
 	0,  // 21: datadog.api.v1.AgentSecure.ResolveHealthIssue:input_type -> datadog.api.v1.HealthIssueResolve
 	18, // 22: datadog.api.v1.Agent.GetHostname:output_type -> datadog.model.v1.HostnameReply
 	19, // 23: datadog.api.v1.AgentSecure.TaggerStreamEntities:output_type -> datadog.model.v1.StreamTagsResponse

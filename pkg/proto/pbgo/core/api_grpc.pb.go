@@ -8,10 +8,10 @@ package core
 
 import (
 	context "context"
-	healthplatform "github.com/DataDog/agent-payload/v5/healthplatform"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	anypb "google.golang.org/protobuf/types/known/anypb"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -191,8 +191,9 @@ type AgentSecureClient interface {
 	// Streams pod-to-service metadata for a specific node.
 	StreamKubeMetadata(ctx context.Context, in *KubeMetadataStreamRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[KubeMetadataStreamResponse], error)
 	// Reports a fully-built health issue from a sub-agent to the core agent's health platform store.
+	// The Any payload must contain a datadog.healthplatform.Issue proto.
 	// The issue is stored as-is; no template lookup is performed.
-	ReportHealthIssue(ctx context.Context, in *healthplatform.Issue, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ReportHealthIssue(ctx context.Context, in *anypb.Any, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// Resolves (clears) a previously reported health issue by its unique ID.
 	ResolveHealthIssue(ctx context.Context, in *HealthIssueResolve, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
@@ -443,7 +444,7 @@ func (c *agentSecureClient) StreamKubeMetadata(ctx context.Context, in *KubeMeta
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type AgentSecure_StreamKubeMetadataClient = grpc.ServerStreamingClient[KubeMetadataStreamResponse]
 
-func (c *agentSecureClient) ReportHealthIssue(ctx context.Context, in *healthplatform.Issue, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *agentSecureClient) ReportHealthIssue(ctx context.Context, in *anypb.Any, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, AgentSecure_ReportHealthIssue_FullMethodName, in, out, cOpts...)
@@ -502,8 +503,9 @@ type AgentSecureServer interface {
 	// Streams pod-to-service metadata for a specific node.
 	StreamKubeMetadata(*KubeMetadataStreamRequest, grpc.ServerStreamingServer[KubeMetadataStreamResponse]) error
 	// Reports a fully-built health issue from a sub-agent to the core agent's health platform store.
+	// The Any payload must contain a datadog.healthplatform.Issue proto.
 	// The issue is stored as-is; no template lookup is performed.
-	ReportHealthIssue(context.Context, *healthplatform.Issue) (*emptypb.Empty, error)
+	ReportHealthIssue(context.Context, *anypb.Any) (*emptypb.Empty, error)
 	// Resolves (clears) a previously reported health issue by its unique ID.
 	ResolveHealthIssue(context.Context, *HealthIssueResolve) (*emptypb.Empty, error)
 	mustEmbedUnimplementedAgentSecureServer()
@@ -573,7 +575,7 @@ func (UnimplementedAgentSecureServer) WorkloadFilterEvaluate(context.Context, *W
 func (UnimplementedAgentSecureServer) StreamKubeMetadata(*KubeMetadataStreamRequest, grpc.ServerStreamingServer[KubeMetadataStreamResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method StreamKubeMetadata not implemented")
 }
-func (UnimplementedAgentSecureServer) ReportHealthIssue(context.Context, *healthplatform.Issue) (*emptypb.Empty, error) {
+func (UnimplementedAgentSecureServer) ReportHealthIssue(context.Context, *anypb.Any) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReportHealthIssue not implemented")
 }
 func (UnimplementedAgentSecureServer) ResolveHealthIssue(context.Context, *HealthIssueResolve) (*emptypb.Empty, error) {
@@ -897,7 +899,7 @@ func _AgentSecure_StreamKubeMetadata_Handler(srv interface{}, stream grpc.Server
 type AgentSecure_StreamKubeMetadataServer = grpc.ServerStreamingServer[KubeMetadataStreamResponse]
 
 func _AgentSecure_ReportHealthIssue_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(healthplatform.Issue)
+	in := new(anypb.Any)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -909,7 +911,7 @@ func _AgentSecure_ReportHealthIssue_Handler(srv interface{}, ctx context.Context
 		FullMethod: AgentSecure_ReportHealthIssue_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AgentSecureServer).ReportHealthIssue(ctx, req.(*healthplatform.Issue))
+		return srv.(AgentSecureServer).ReportHealthIssue(ctx, req.(*anypb.Any))
 	}
 	return interceptor(ctx, in, info, handler)
 }

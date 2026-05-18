@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package datadog.api.v1;
 
-import "datadog/healthplatform/healthplatform.proto";
 import "datadog/model/v1/model.proto";
 import "datadog/remoteagent/remoteagent.proto";
 import "datadog/remoteconfig/remoteconfig.proto";
@@ -10,6 +9,7 @@ import "datadog/workloadmeta/workloadmeta.proto";
 import "datadog/workloadfilter/workloadfilter.proto";
 import "datadog/autodiscovery/autodiscovery.proto";
 import "datadog/kubemetadata/kubemetadata.proto";
+import "google/protobuf/any.proto";
 import "google/protobuf/empty.proto";
 
 option go_package = "pkg/proto/pbgo/core"; // golang
@@ -76,8 +76,9 @@ service AgentSecure {
     rpc StreamKubeMetadata(datadog.kubemetadata.KubeMetadataStreamRequest) returns (stream datadog.kubemetadata.KubeMetadataStreamResponse);
 
     // Reports a fully-built health issue from a sub-agent to the core agent's health platform store.
+    // The Any payload must contain a datadog.healthplatform.Issue proto.
     // The issue is stored as-is; no template lookup is performed.
-    rpc ReportHealthIssue(datadog.healthplatform.Issue) returns (google.protobuf.Empty);
+    rpc ReportHealthIssue(google.protobuf.Any) returns (google.protobuf.Empty);
 
     // Resolves (clears) a previously reported health issue by its unique ID.
     rpc ResolveHealthIssue(datadog.api.v1.HealthIssueResolve) returns (google.protobuf.Empty);

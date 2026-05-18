@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
@@ -248,16 +249,21 @@ func (s *serverSecure) RefreshRemoteAgent(_ context.Context, in *pb.RefreshRemot
 	return &pb.RefreshRemoteAgentResponse{}, nil
 }
 
-func (s *serverSecure) ReportHealthIssue(_ context.Context, in *healthplatformpayload.Issue) (*emptypb.Empty, error) {
+func (s *serverSecure) ReportHealthIssue(_ context.Context, in *anypb.Any) (*emptypb.Empty, error) {
 	store, ok := s.healthPlatformStore.Get()
 	if !ok {
 		return nil, status.Error(codes.Unavailable, "health platform store not available")
 	}
-	if in.GetId() == "" {
+
+	issue := &healthplatformpayload.Issue{}
+	if err := in.UnmarshalTo(issue); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "payload must be a healthplatform.Issue: %v", err)
+	}
+	if issue.GetId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "issue id cannot be empty")
 	}
 
-	if err := store.AcceptIssue(in); err != nil {
+	if err := store.AcceptIssue(issue); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to store issue: %v", err)
 	}
 	return &emptypb.Empty{}, nil
