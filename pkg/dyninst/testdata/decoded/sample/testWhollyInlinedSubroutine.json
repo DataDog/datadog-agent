@@ -31,9 +31,14 @@
             "lineNumber": 234
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 80
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 53
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -115,9 +120,14 @@
             "lineNumber": 407
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 83
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 56
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -145,13 +155,7 @@
               }
             }
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "@duration",
-            "message": "not available: function was inlined"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },
@@ -191,9 +195,14 @@
             "lineNumber": 408
           },
           {
+            "function": "main.runAll",
+            "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
+            "lineNumber": 83
+          },
+          {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 56
+            "lineNumber": 39
           },
           {
             "function": "runtime.main",
@@ -221,13 +230,7 @@
               }
             }
           }
-        },
-        "evaluationErrors": [
-          {
-            "expr": "@duration",
-            "message": "not available: function was inlined"
-          }
-        ]
+        }
       },
       "type": "snapshot"
     },

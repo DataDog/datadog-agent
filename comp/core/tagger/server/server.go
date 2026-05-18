@@ -145,20 +145,11 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 				responseEvents = append(responseEvents, e)
 			}
 
-			isInitBurst := initBurst
-			chunkIdx := 0
-			totalChunks := grpc.CountChunks(responseEvents, s.maxEventSize, computeTagsEventInBytes)
-
 			sendFunc := func(chunk []*pb.StreamTagsEvent) error {
-				chunkIdx++
-				resp := &pb.StreamTagsResponse{
-					Events: chunk,
-				}
-				if isInitBurst && chunkIdx == totalChunks {
-					resp.InitialSnapshotComplete = true
-				}
 				return grpc.DoWithTimeout(func() error {
-					return out.Send(resp)
+					return out.Send(&pb.StreamTagsResponse{
+						Events: chunk,
+					})
 				}, taggerStreamSendTimeout)
 			}
 
@@ -166,21 +157,6 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 				log.Warnf("error sending tagger event: %s", err)
 				s.telemetry.ServerStreamErrors.Inc()
 				return err
-			}
-
-			// If the initial burst is empty, ProcessChunksInPlace won't call
-			// sendFunc, so we need to send the snapshot-complete signal explicitly.
-			if isInitBurst && totalChunks == 0 {
-				err = grpc.DoWithTimeout(func() error {
-					return out.Send(&pb.StreamTagsResponse{
-						InitialSnapshotComplete: true,
-					})
-				}, taggerStreamSendTimeout)
-				if err != nil {
-					log.Warnf("error sending tagger initial snapshot complete: %s", err)
-					s.telemetry.ServerStreamErrors.Inc()
-					return err
-				}
 			}
 
 			if initBurst {

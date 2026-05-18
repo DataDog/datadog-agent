@@ -295,6 +295,7 @@ type ConnectionStats struct {
 	Duration        time.Duration
 	RTT             uint32 // Stored in µs
 	RTTVar          uint32
+	InterfaceIndex  uint32 // transient: Windows interface index from WFP, not serialized
 	StaticTags      uint64
 	ProtocolStack   protocols.Stack
 	TLSTags         tls.Tags

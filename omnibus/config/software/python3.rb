@@ -2,7 +2,6 @@ name "python3"
 
 default_version "3.13.13"
 
-dependency "openssl3"
 
 relative_path "Python-#{version}"
 
