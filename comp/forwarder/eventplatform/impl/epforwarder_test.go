@@ -19,7 +19,6 @@ import (
 	laconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfxmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -50,25 +49,26 @@ func TestEventPlatformForwarderTestSuite(t *testing.T) {
 }
 
 func (suite *EventPlatformForwarderTestSuite) TestGetPassthroughPipelinesIncludesGenresources() {
-	var genresourcesDesc *passthroughPipelineDesc
+	var genresourcesDesc passthroughPipelineDesc
+	found := false
 	for _, desc := range getPassthroughPipelines() {
 		if desc.eventType == eventplatform.EventTypeGenResources {
-			desc := desc
-			genresourcesDesc = &desc
+			genresourcesDesc = desc
+			found = true
 			break
 		}
 	}
 
-	suite.Require().NotNil(genresourcesDesc)
+	suite.Require().True(found)
 	suite.Equal("Generic Resources", genresourcesDesc.category)
 	suite.Equal(logshttp.ProtobufContentType, genresourcesDesc.contentType)
 	suite.Equal("genresources.", genresourcesDesc.endpointsConfigPrefix)
 	suite.Equal("resources-intake.", genresourcesDesc.hostnameEndpointPrefix)
 	suite.Equal(laconfig.IntakeTrackType("genresources"), genresourcesDesc.intakeTrackType)
 	suite.Equal(10, genresourcesDesc.defaultBatchMaxConcurrentSend)
-	suite.Equal(pkgconfigsetup.DefaultBatchMaxContentSize, genresourcesDesc.defaultBatchMaxContentSize)
-	suite.Equal(pkgconfigsetup.DefaultBatchMaxSize, genresourcesDesc.defaultBatchMaxSize)
-	suite.Equal(pkgconfigsetup.DefaultInputChanSize, genresourcesDesc.defaultInputChanSize)
+	suite.Equal(5000000, genresourcesDesc.defaultBatchMaxContentSize)
+	suite.Equal(1000, genresourcesDesc.defaultBatchMaxSize)
+	suite.Equal(100, genresourcesDesc.defaultInputChanSize)
 }
 
 func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineCompression() {
