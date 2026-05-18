@@ -13,6 +13,9 @@ no_default:
   - dogstatsd_mapper_profiles
   - event_monitoring_config.network_process.max_processes_tracked
   - fleet_policies_dir
+  - genresources.additional_endpoints
+  - genresources.dd_url
+  - genresources.logs_dd_url
   - ha_agent.group
   - http_dial_fallback_delay
   - internal_profiling.profile_dd_url
@@ -59,6 +62,9 @@ no_type:
   - dogstatsd_mapper_profiles
   - event_monitoring_config.network_process.max_processes_tracked
   - fleet_policies_dir
+  - genresources.additional_endpoints
+  - genresources.dd_url
+  - genresources.logs_dd_url
   - ha_agent.group
   - http_dial_fallback_delay
   - internal_profiling.profile_dd_url
