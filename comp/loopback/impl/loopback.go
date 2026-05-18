@@ -22,9 +22,14 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	loopback "github.com/DataDog/datadog-agent/comp/loopback/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/hook"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	pkgserializer "github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
@@ -32,18 +37,21 @@ import (
 type Requires struct {
 	fx.In
 
-	Lc          fx.Lifecycle
-	Config      config.Component
-	Log         log.Component
-	MetricHooks []hook.Hook[[]hook.MetricSampleSnapshot] `group:"hook"`
+	Lc            fx.Lifecycle
+	Config        config.Component
+	Log           log.Component
+	Hostname      hostnameinterface.Component
+	Demultiplexer aggregator.Demultiplexer
+	MetricHooks   []hook.Hook[[]hook.MetricSampleSnapshot] `group:"hook"`
 }
 
 // Provides defines the output of the loopback component.
 type Provides struct {
 	fx.Out
 
-	Comp     loopback.Component
-	Endpoint api.AgentEndpointProvider
+	Comp            loopback.Component
+	FlushEndpoint   api.AgentEndpointProvider
+	ForwardEndpoint api.AgentEndpointProvider
 }
 
 // NewComponent creates the loopback ring buffer component.
@@ -52,21 +60,22 @@ func NewComponent(reqs Requires) (Provides, error) {
 	if !reqs.Config.GetBool("loopback.enabled") {
 		noop := &noopComponent{}
 		return Provides{
-			Comp:     noop,
-			Endpoint: api.NewAgentEndpointProvider(noop.handleFlush, "/loopback-flush", "GET"),
+			Comp:            noop,
+			FlushEndpoint:   api.NewAgentEndpointProvider(noop.handleFlush, "/loopback-flush", "GET"),
+			ForwardEndpoint: api.NewAgentEndpointProvider(noop.handleForward, "/loopback-forward", "POST"),
 		}, nil
 	}
 
 	cfg := storeConfig{
-		baseDir:        reqs.Config.GetString("loopback.dir"),
-		numShards:      reqs.Config.GetInt("loopback.num_shards"),
+		baseDir:          reqs.Config.GetString("loopback.dir"),
+		numShards:        reqs.Config.GetInt("loopback.num_shards"),
 		rotationInterval: reqs.Config.GetDuration("loopback.rotation_interval"),
-		maxAge:         reqs.Config.GetDuration("loopback.max_age"),
-		maxDiskBytes:   reqs.Config.GetInt64("loopback.max_disk_bytes"),
-		maxBufSize:     reqs.Config.GetInt("loopback.write_buffer_size"),
+		maxAge:           reqs.Config.GetDuration("loopback.max_age"),
+		maxDiskBytes:     reqs.Config.GetInt64("loopback.max_disk_bytes"),
+		maxBufSize:       reqs.Config.GetInt("loopback.write_buffer_size"),
 	}
 
-	reqs.Log.Infof("loopback: initializing store at %s (shards=%d, window=%s, maxAge=%s, maxDisk=%dMB)",
+	reqs.Log.Infof("loopback: initializing store at %s (shards=%d, rotation=%s, maxAge=%s, maxDisk=%dMB)",
 		cfg.baseDir, cfg.numShards, cfg.rotationInterval, cfg.maxAge, cfg.maxDiskBytes/1024/1024)
 
 	if err := os.MkdirAll(cfg.baseDir, 0o755); err != nil {
@@ -84,7 +93,13 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, fmt.Errorf("loopback: init store: %w", err)
 	}
 
-	comp := &component{store: store, ctxFile: ctxFile, log: reqs.Log}
+	comp := &component{
+		store:      store,
+		ctxFile:    ctxFile,
+		log:        reqs.Log,
+		serializer: reqs.Demultiplexer.Serializer(),
+		hostname:   reqs.Hostname.GetSafe(context.Background()),
+	}
 
 	var (
 		unsubs []func()
@@ -131,16 +146,19 @@ func NewComponent(reqs Requires) (Provides, error) {
 	})
 
 	return Provides{
-		Comp:     comp,
-		Endpoint: api.NewAgentEndpointProvider(comp.handleFlush, "/loopback-flush", "GET"),
+		Comp:            comp,
+		FlushEndpoint:   api.NewAgentEndpointProvider(comp.handleFlush, "/loopback-flush", "GET"),
+		ForwardEndpoint: api.NewAgentEndpointProvider(comp.handleForward, "/loopback-forward", "POST"),
 	}, nil
 }
 
 // component is the enabled implementation of loopback.Component.
 type component struct {
-	store   *shardedStore
-	ctxFile *contextFile
-	log     log.Component
+	store      *shardedStore
+	ctxFile    *contextFile
+	log        log.Component
+	serializer pkgserializer.MetricSerializer
+	hostname   string
 }
 
 func (c *component) onSamples(samples []hook.MetricSampleSnapshot) {
@@ -148,9 +166,6 @@ func (c *component) onSamples(samples []hook.MetricSampleSnapshot) {
 		s := &samples[i]
 		ck := s.ContextKey
 		if ck == 0 {
-			// Check/no-aggr pipelines don't set ContextKey; compute a stable
-			// synthetic key from name+tags without pre-registering in memory,
-			// so ctxFile.maybeWrite owns both memory (bloom) and disk atomically.
 			ck = syntheticKey(s.Name, sortedTagsCopy(s.RawTags))
 		}
 		_ = c.ctxFile.maybeWrite(ck, s.Name, s.RawTags)
@@ -187,47 +202,21 @@ func (c *component) Flush(ctx context.Context, name string, tags []string, start
 	return buckets, nil
 }
 
-// handleFlush serves GET /loopback-flush
-//
-// Query parameters:
-//
-//	name     — metric name (required)
-//	tags     — comma-separated tag filter, e.g. env:prod,region:us (optional)
-//	start    — range start, Unix nanoseconds (required)
-//	stop     — range stop,  Unix nanoseconds (required)
-//	interval — aggregation bucket width, e.g. 1s, 5s (optional, default 1s)
-func (c *component) handleFlush(w http.ResponseWriter, r *http.Request) {
-	buckets, err := parseAndFlush(r, c)
-	if err != nil {
-		httputils.SetJSONError(w, c.log.Errorf("loopback flush: %v", err), http.StatusBadRequest)
-		return
-	}
-	out, err := json.Marshal(buckets)
-	if err != nil {
-		httputils.SetJSONError(w, c.log.Errorf("loopback flush marshal: %v", err), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(out) //nolint:errcheck
+// flushParams holds parsed query parameters shared by /loopback-flush and /loopback-forward.
+type flushParams struct {
+	name     string
+	tags     []string
+	startNs  int64
+	stopNs   int64
+	interval time.Duration
 }
 
-// noopComponent is returned when loopback.enabled = false.
-type noopComponent struct{}
-
-func (n *noopComponent) Flush(_ context.Context, _ string, _ []string, _, _ int64, _ time.Duration) ([]loopback.Bucket, error) {
-	return nil, loopback.ErrDisabled
-}
-
-func (n *noopComponent) handleFlush(w http.ResponseWriter, _ *http.Request) {
-	http.Error(w, loopback.ErrDisabled.Error(), http.StatusServiceUnavailable)
-}
-
-func parseAndFlush(r *http.Request, comp loopback.Component) ([]loopback.Bucket, error) {
+func parseFlushParams(r *http.Request) (flushParams, error) {
 	q := r.URL.Query()
 
 	name := q.Get("name")
 	if name == "" {
-		return nil, fmt.Errorf("missing required query parameter: name")
+		return flushParams{}, fmt.Errorf("missing required query parameter: name")
 	}
 
 	var tags []string
@@ -241,20 +230,137 @@ func parseAndFlush(r *http.Request, comp loopback.Component) ([]loopback.Bucket,
 
 	startNs, err := strconv.ParseInt(q.Get("start"), 10, 64)
 	if err != nil {
-		return nil, fmt.Errorf("invalid start (want Unix nanoseconds): %w", err)
+		return flushParams{}, fmt.Errorf("invalid start (want Unix nanoseconds): %w", err)
 	}
 	stopNs, err := strconv.ParseInt(q.Get("stop"), 10, 64)
 	if err != nil {
-		return nil, fmt.Errorf("invalid stop (want Unix nanoseconds): %w", err)
+		return flushParams{}, fmt.Errorf("invalid stop (want Unix nanoseconds): %w", err)
 	}
 
 	var interval time.Duration
 	if raw := q.Get("interval"); raw != "" {
 		interval, err = time.ParseDuration(raw)
 		if err != nil {
-			return nil, fmt.Errorf("invalid interval (want Go duration, e.g. 1s): %w", err)
+			return flushParams{}, fmt.Errorf("invalid interval (want Go duration, e.g. 1s): %w", err)
 		}
 	}
 
-	return comp.Flush(r.Context(), name, tags, startNs, stopNs, interval)
+	return flushParams{name: name, tags: tags, startNs: startNs, stopNs: stopNs, interval: interval}, nil
+}
+
+// handleFlush serves GET /loopback-flush — returns aggregated buckets as JSON.
+func (c *component) handleFlush(w http.ResponseWriter, r *http.Request) {
+	p, err := parseFlushParams(r)
+	if err != nil {
+		httputils.SetJSONError(w, c.log.Errorf("loopback flush: %v", err), http.StatusBadRequest)
+		return
+	}
+	buckets, err := c.Flush(r.Context(), p.name, p.tags, p.startNs, p.stopNs, p.interval)
+	if err != nil {
+		httputils.SetJSONError(w, c.log.Errorf("loopback flush: %v", err), http.StatusNotFound)
+		return
+	}
+	out, err := json.Marshal(buckets)
+	if err != nil {
+		httputils.SetJSONError(w, c.log.Errorf("loopback flush marshal: %v", err), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(out) //nolint:errcheck
+}
+
+// handleForward serves POST /loopback-forward — reads WAL data and sends it to the backend.
+//
+// Same query parameters as /loopback-flush, plus:
+//
+//	mtype — "gauge" | "count" | "rate"  (default: gauge)
+func (c *component) handleForward(w http.ResponseWriter, r *http.Request) {
+	p, err := parseFlushParams(r)
+	if err != nil {
+		httputils.SetJSONError(w, c.log.Errorf("loopback forward: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	mtype := metrics.APIGaugeType
+	switch r.URL.Query().Get("mtype") {
+	case "count":
+		mtype = metrics.APICountType
+	case "rate":
+		mtype = metrics.APIRateType
+	}
+
+	entries, err := c.ctxFile.scan(p.name, p.tags)
+	if err != nil {
+		httputils.SetJSONError(w, c.log.Errorf("loopback forward scan: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if len(entries) == 0 {
+		httputils.SetJSONError(w, c.log.Errorf("loopback forward: %v", loopback.ErrNoData), http.StatusNotFound)
+		return
+	}
+
+	keys := make([]uint64, 0, len(entries))
+	for k := range entries {
+		keys = append(keys, k)
+	}
+	resolve := func(k uint64) (string, []string, bool) {
+		e, ok := entries[k]
+		return e.name, e.tags, ok
+	}
+
+	buckets, err := c.store.flush(r.Context(), keys, p.startNs, p.stopNs, int64(p.interval), resolve)
+	if err != nil {
+		httputils.SetJSONError(w, c.log.Errorf("loopback forward flush: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if len(buckets) == 0 {
+		httputils.SetJSONError(w, c.log.Errorf("loopback forward: %v", loopback.ErrNoData), http.StatusNotFound)
+		return
+	}
+
+	host := c.hostname
+	var sendErr error
+	metrics.Serialize(
+		metrics.NewIterableSeries(func(*metrics.Serie) {}, 100, 100),
+		nil,
+		func(serieSink metrics.SerieSink, _ metrics.SketchesSink) {
+			for i := range buckets {
+				b := &buckets[i]
+				serieSink.Append(&metrics.Serie{
+					Name:   b.Name,
+					Points: []metrics.Point{{Ts: float64(b.Ts) / 1e9, Value: b.Sum}},
+					Tags:   tagset.CompositeTagsFromSlice(b.Tags),
+					Host:   host,
+					MType:  mtype,
+				})
+			}
+		},
+		func(serieSource metrics.SerieSource) {
+			sendErr = c.serializer.SendIterableSeries(serieSource)
+		},
+		nil,
+	)
+
+	if sendErr != nil {
+		httputils.SetJSONError(w, c.log.Errorf("loopback forward send: %v", sendErr), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"forwarded":%d}`, len(buckets))
+}
+
+// noopComponent is returned when loopback.enabled = false.
+type noopComponent struct{}
+
+func (n *noopComponent) Flush(_ context.Context, _ string, _ []string, _, _ int64, _ time.Duration) ([]loopback.Bucket, error) {
+	return nil, loopback.ErrDisabled
+}
+
+func (n *noopComponent) handleFlush(w http.ResponseWriter, _ *http.Request) {
+	http.Error(w, loopback.ErrDisabled.Error(), http.StatusServiceUnavailable)
+}
+
+func (n *noopComponent) handleForward(w http.ResponseWriter, _ *http.Request) {
+	http.Error(w, loopback.ErrDisabled.Error(), http.StatusServiceUnavailable)
 }
