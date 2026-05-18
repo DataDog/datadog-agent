@@ -684,7 +684,7 @@ func (d *AgentDemultiplexer) flushToColumnarV3Serializer(start time.Time, waitFo
 	// In the intended local metric-only case this should be close to empty; the
 	// columnar telemetry plus aggregator.dogstatsd_metrics verify that supported
 	// DogStatsD samples bypassed the old state.
-	if directSeries != nil {
+	if directSeries != nil && !columnarV3SkipLegacyFlushEnabled() {
 		d.flushLegacyToDirectSerializer(start, waitForSerializer, forceFlushAll, directSeries, logPayloads)
 	}
 

@@ -34,6 +34,11 @@ func columnarV3ExperimentEnabled() bool {
 	return err == nil && enabled
 }
 
+func columnarV3SkipLegacyFlushEnabled() bool {
+	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_SKIP_LEGACY_FLUSH"))
+	return err == nil && enabled
+}
+
 // DogStatsDColumnarV3Inserter is implemented by demultiplexers that can accept
 // parsed DogStatsD metric samples into the experimental v3-aligned columnar
 // aggregation table. Supported on-time metric samples bypass TimeSampler,
