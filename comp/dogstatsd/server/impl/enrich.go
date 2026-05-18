@@ -43,9 +43,10 @@ type enrichConfig struct {
 }
 
 // extractTagsMetadata returns tags (client tags + host tag) and information needed to query tagger (origins, cardinality).
-func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, localData origindetection.LocalData, externalData origindetection.ExternalData, cardinality string, conf enrichConfig) ([]string, string, taggertypes.OriginInfo, metrics.MetricSource) {
+func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, localData origindetection.LocalData, externalData origindetection.ExternalData, cardinality string, conf enrichConfig) ([]string, string, taggertypes.OriginInfo, metrics.MetricSource, string) {
 	host := conf.defaultHostname
 	metricSource := GetDefaultMetricSource()
+	var jmxCheckName string
 
 	// Add Origin Detection metadata
 	origin := taggertypes.OriginInfo{
@@ -69,8 +70,8 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 			origin.Cardinality = tag[len(CardinalityTagPrefix):]
 			continue
 		} else if strings.HasPrefix(tag, jmxCheckNamePrefix) {
-			checkName := tag[len(jmxCheckNamePrefix):]
-			metricSource = metrics.JMXCheckNameToMetricSource(checkName)
+			jmxCheckName = tag[len(jmxCheckNamePrefix):]
+			metricSource = metrics.JMXCheckNameToMetricSource(jmxCheckName)
 			continue
 		}
 		tags[n] = tag
@@ -79,7 +80,7 @@ func extractTagsMetadata(tags []string, originFromUDS string, processID uint32, 
 
 	tags = tags[:n]
 
-	return tags, host, origin, metricSource
+	return tags, host, origin, metricSource, jmxCheckName
 }
 
 // serverlessSourceCustomToRuntime converts Serverless custom metric source to its corresponding runtime metric source
@@ -144,13 +145,17 @@ func tsToFloatForSamples(ts time.Time) float64 {
 
 func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, processID uint32, listenerID string, conf enrichConfig, metricFilters *names.Filters) []metrics.MetricSample {
 	metricName := ddSample.name
-	tags, hostnameFromTags, extractedOrigin, metricSource := extractTagsMetadata(ddSample.tags, origin, processID, ddSample.localData, ddSample.externalData, ddSample.cardinality, conf)
+	tags, hostnameFromTags, extractedOrigin, metricSource, jmxCheckName := extractTagsMetadata(ddSample.tags, origin, processID, ddSample.localData, ddSample.externalData, ddSample.cardinality, conf)
 
 	if !isExcluded(metricName, conf.metricPrefix, conf.metricPrefixBlacklist) {
 		metricName = conf.metricPrefix + metricName
 	}
 
-	if metricFilters != nil && metricFilters.ShouldDrop(metricName) {
+	if metricFilters != nil && metricFilters.ShouldDrop(names.FilterContext{
+		Name:      metricName,
+		Source:    metricSource,
+		CheckName: jmxCheckName,
+	}) {
 		tlmFilteredPoints.Inc()
 		return []metrics.MetricSample{}
 	}
@@ -229,7 +234,7 @@ func enrichEventAlertType(dogstatsdAlertType alertType) metricsevent.AlertType {
 }
 
 func enrichEvent(event dogstatsdEvent, origin string, processID uint32, conf enrichConfig) *metricsevent.Event {
-	tags, hostnameFromTags, extractedOrigin, _ := extractTagsMetadata(event.tags, origin, processID, event.localData, event.externalData, event.cardinality, conf)
+	tags, hostnameFromTags, extractedOrigin, _, _ := extractTagsMetadata(event.tags, origin, processID, event.localData, event.externalData, event.cardinality, conf)
 
 	enrichedEvent := &metricsevent.Event{
 		Title:          event.title,
@@ -266,7 +271,7 @@ func enrichServiceCheckStatus(status serviceCheckStatus) servicecheck.ServiceChe
 }
 
 func enrichServiceCheck(serviceCheck dogstatsdServiceCheck, origin string, processID uint32, conf enrichConfig) *servicecheck.ServiceCheck {
-	tags, hostnameFromTags, extractedOrigin, _ := extractTagsMetadata(serviceCheck.tags, origin, processID, serviceCheck.localData, serviceCheck.externalData, serviceCheck.cardinality, conf)
+	tags, hostnameFromTags, extractedOrigin, _, _ := extractTagsMetadata(serviceCheck.tags, origin, processID, serviceCheck.localData, serviceCheck.externalData, serviceCheck.cardinality, conf)
 
 	enrichedServiceCheck := &servicecheck.ServiceCheck{
 		CheckName:  serviceCheck.name,

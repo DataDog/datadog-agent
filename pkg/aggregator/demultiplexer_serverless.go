@@ -71,7 +71,7 @@ func InitAndStartServerlessDemultiplexer(endpoints utils.EndpointDescriptorSet, 
 	flushAndSerializeInParallel := NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog())
 	// Serverless doesn't support filterlists, so we pass empty lists into the worker.
 	tagFilterList := filterlist.NewEmptyTagMatcher()
-	metricFilterList := utilstrings.NewMatcher([]string{}, false)
+	metricFilterList := utilstrings.NewBlocklistMatcher([]string{}, false)
 	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore, metricFilterList, tagFilterList)
 
 	demux := &ServerlessDemultiplexer{

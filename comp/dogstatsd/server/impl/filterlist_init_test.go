@@ -36,6 +36,7 @@ import (
 	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
+	"github.com/DataDog/datadog-agent/pkg/metricpipelines/names"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -85,9 +86,9 @@ func TestWorkerFilterListInitializedFromLocalConfig(t *testing.T) {
 
 	require.NotEmpty(t, s.workers, "server should have workers")
 	for i, worker := range s.workers {
-		assert.True(t, worker.metricFilters.ShouldDrop("filtered.metric"),
+		assert.True(t, worker.metricFilters.ShouldDrop(names.FilterContext{Name: "filtered.metric"}),
 			"worker %d should filter 'filtered.metric' from local config", i)
-		assert.False(t, worker.metricFilters.ShouldDrop("unfiltered.metric"),
+		assert.False(t, worker.metricFilters.ShouldDrop(names.FilterContext{Name: "unfiltered.metric"}),
 			"worker %d should not filter 'unfiltered.metric'", i)
 	}
 }

@@ -37,7 +37,7 @@ func BenchmarkExtractTagsMetadata(b *testing.B) {
 			sb.ResetTimer()
 
 			for n := 0; n < sb.N; n++ {
-				tags, _, _, _ = extractTagsMetadata(baseTags, "", 0, origindetection.LocalData{}, origindetection.ExternalData{}, "", conf)
+				tags, _, _, _, _ = extractTagsMetadata(baseTags, "", 0, origindetection.LocalData{}, origindetection.ExternalData{}, "", conf)
 			}
 		})
 	}
@@ -64,7 +64,7 @@ func BenchmarkMetricsExclusion(b *testing.B) {
 	}
 
 	for i := 1; i <= 512; i *= 2 {
-		matcher := utilstrings.NewMatcher(list[:i], false)
+		matcher := utilstrings.NewBlocklistMatcher(list[:i], false)
 		filters := names.NewTestFilters(names.CriterionMetricFilterList, matcher, utilstrings.Matcher{})
 		b.Run(fmt.Sprintf("%d-exact", i),
 			func(b *testing.B) {
@@ -99,7 +99,7 @@ func BenchmarkMetricsInclusion(b *testing.B) {
 	}
 
 	for i := 1; i <= 512; i *= 2 {
-		matcher := utilstrings.NewMatcher(list[:i], false)
+		matcher := utilstrings.NewAllowlistMatcher(list[:i], false)
 		filters := names.NewTestFilters(names.CriterionCloudCostMetrics, utilstrings.Matcher{}, matcher)
 		b.Run(fmt.Sprintf("%d-exact-not-in-list", i),
 			func(b *testing.B) {
@@ -110,7 +110,7 @@ func BenchmarkMetricsInclusion(b *testing.B) {
 	}
 
 	for i := 1; i <= 512; i *= 2 {
-		matcher := utilstrings.NewMatcher(list[:i], true)
+		matcher := utilstrings.NewAllowlistMatcher(list[:i], true)
 		filters := names.NewTestFilters(names.CriterionCloudCostMetrics, utilstrings.Matcher{}, matcher)
 		b.Run(fmt.Sprintf("%d-prefix-not-in-list", i),
 			func(b *testing.B) {
@@ -120,7 +120,7 @@ func BenchmarkMetricsInclusion(b *testing.B) {
 			})
 	}
 
-	matcher := utilstrings.NewMatcher(list, false)
+	matcher := utilstrings.NewAllowlistMatcher(list, false)
 	filters := names.NewTestFilters(names.CriterionCloudCostMetrics, utilstrings.Matcher{}, matcher)
 	b.Run("512-exact-in-list", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {

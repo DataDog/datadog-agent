@@ -11,16 +11,25 @@ import (
 	"strings"
 )
 
-// Matcher test a string for match against a list of strings.
-// See `NewMatcher` for details.
+// Matcher matches metric names against a list of strings.
+// See NewBlocklistMatcher and NewAllowlistMatcher.
 type Matcher struct {
 	data        []string
 	matchPrefix bool
+	exclusive   bool // allowlist: ShouldDrop is true when name is not on the list
 }
 
-// NewMatcher creates a new strings matcher.
-// Use `matchPrefix` to  create a prefixes matcher.
-func NewMatcher(data []string, matchPrefix bool) Matcher {
+// NewBlocklistMatcher creates a blocklist matcher. ShouldDrop is true when name is on the list.
+func NewBlocklistMatcher(data []string, matchPrefix bool) Matcher {
+	return newMatcher(data, matchPrefix, false)
+}
+
+// NewAllowlistMatcher creates an allowlist matcher. ShouldDrop is true when name is not on the list.
+func NewAllowlistMatcher(data []string, matchPrefix bool) Matcher {
+	return newMatcher(data, matchPrefix, true)
+}
+
+func newMatcher(data []string, matchPrefix bool, exclusive bool) Matcher {
 	data = slices.Clone(data)
 	sort.Strings(data)
 
@@ -44,20 +53,24 @@ func NewMatcher(data []string, matchPrefix bool) Matcher {
 	return Matcher{
 		data:        data,
 		matchPrefix: matchPrefix,
+		exclusive:   exclusive,
 	}
 }
 
-// Test returns true if the given string matches one in the matcher list.
-// or is matching by prefix if the matcher has been created with `matchPrefix`.
-func (m *Matcher) Test(name string) bool {
-	if m == nil {
+// ShouldDrop reports whether name should be dropped. For a blocklist, true means name is listed.
+// For an allowlist, true means name is not listed. Returns false when the matcher has no patterns.
+func (m *Matcher) ShouldDrop(name string) bool {
+	if !m.isConfigured() {
 		return false
 	}
-
-	if len(m.data) == 0 {
-		return false
+	matched := m.matches(name)
+	if m.exclusive {
+		return !matched
 	}
+	return matched
+}
 
+func (m *Matcher) matches(name string) bool {
 	i := sort.SearchStrings(m.data, name)
 
 	// SearchStrings returns an index such that either:
@@ -83,20 +96,6 @@ func (m *Matcher) Test(name string) bool {
 	return false
 }
 
-// IsConfigured reports whether the matcher has patterns to match against.
-func (m *Matcher) IsConfigured() bool {
+func (m *Matcher) isConfigured() bool {
 	return m != nil && len(m.data) > 0
-}
-
-// ShouldDropMetric reports whether a metric name should be dropped at flush time.
-// metricBlockList drops matching names; metricAllowList drops names that do not match when configured.
-// A nil matcher means that list is disabled.
-func ShouldDropMetric(name string, metricBlockList, metricAllowList *Matcher) bool {
-	if metricBlockList != nil && metricBlockList.IsConfigured() && metricBlockList.Test(name) {
-		return true
-	}
-	if metricAllowList != nil && metricAllowList.IsConfigured() && !metricAllowList.Test(name) {
-		return true
-	}
-	return false
 }

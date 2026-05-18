@@ -220,7 +220,11 @@ func (cs *CheckSampler) commitSeries(timestamp float64, metricFilters *names.Fil
 		}
 
 		name := context.Name + serie.NameSuffix
-		if metricFilters != nil && metricFilters.ShouldDrop(name) {
+		if metricFilters != nil && metricFilters.ShouldDrop(names.FilterContext{
+			Name:      name,
+			Source:    context.source,
+			CheckName: checkid.IDToCheckName(cs.id),
+		}) {
 			tlmChecksFilteredMetrics.Inc()
 			continue
 		}
@@ -249,7 +253,11 @@ func (cs *CheckSampler) commitSketches(timestamp float64, metricFilters *names.F
 		if series == nil {
 			continue
 		}
-		if metricFilters != nil && metricFilters.ShouldDrop(series.Name) {
+		if metricFilters != nil && metricFilters.ShouldDrop(names.FilterContext{
+			Name:      series.Name,
+			Source:    series.Source,
+			CheckName: checkid.IDToCheckName(cs.id),
+		}) {
 			tlmChecksFilteredMetrics.Inc()
 			continue
 		}

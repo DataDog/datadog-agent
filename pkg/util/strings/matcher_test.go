@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewMatcher(t *testing.T) {
+func TestNewBlocklistMatcher(t *testing.T) {
 	check := func(data []string) []string {
-		b := NewMatcher(data, true)
+		b := NewBlocklistMatcher(data, true)
 		return b.data
 	}
 
@@ -25,17 +25,6 @@ func TestNewMatcher(t *testing.T) {
 	assert.Equal(t, []string{"a"}, check([]string{"a", "aa"}))
 	assert.Equal(t, []string{"a", "b"}, check([]string{"a", "aa", "b", "bb"}))
 	assert.Equal(t, []string{"a", "b"}, check([]string{"a", "b", "bb"}))
-}
-
-func TestShouldDropMetric(t *testing.T) {
-	metricBlockList := NewMatcher([]string{"blocked"}, false)
-	metricAllowList := NewMatcher([]string{"system.cpu"}, true)
-
-	assert.False(t, ShouldDropMetric("allowed", nil, nil))
-	assert.True(t, ShouldDropMetric("blocked", &metricBlockList, nil))
-	assert.False(t, ShouldDropMetric("system.cpu.user", nil, &metricAllowList))
-	assert.True(t, ShouldDropMetric("system.disk.free", nil, &metricAllowList))
-	assert.True(t, ShouldDropMetric("blocked", &metricBlockList, &metricAllowList))
 }
 
 func TestIsStringMatching(t *testing.T) {
@@ -59,8 +48,8 @@ func TestIsStringMatching(t *testing.T) {
 	for _, c := range cases {
 		t.Run(fmt.Sprintf("%v-%v-%v", c.name, c.list, c.matchPrefix),
 			func(t *testing.T) {
-				b := NewMatcher(c.list, c.matchPrefix)
-				assert.Equal(t, c.result, b.Test(c.name))
+				b := NewBlocklistMatcher(c.list, c.matchPrefix)
+				assert.Equal(t, c.result, b.ShouldDrop(c.name))
 			})
 	}
 }
@@ -102,9 +91,9 @@ func benchmarkStringsMatcher(b *testing.B, words, values []string) {
 	words[0] = values[0]
 	words[3] = values[100]
 
-	matcher := NewMatcher(values, false)
+	matcher := NewBlocklistMatcher(values, false)
 
 	for n := 0; n < b.N; n++ {
-		matcher.Test(words[n%len(words)])
+		matcher.ShouldDrop(words[n%len(words)])
 	}
 }

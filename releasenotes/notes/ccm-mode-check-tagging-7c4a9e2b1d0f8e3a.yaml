@@ -8,11 +8,17 @@
 ---
 features:
   - |
-    When ``infrastructure_mode`` is set to ``cloud_cost_only`` in ``datadog.yaml``, the Agent adds an
+    When ``infrastructure_mode`` is set to ``cloud_cost_only``, the Agent adds an
     ``infra_mode:cloud_cost_only`` tag to metrics from selected integrations. Use
-    ``integration.cloud_cost_only.tagged`` to list which checks receive the tag; when the list is
-    empty, all checks are tagged in that mode. In that mode, metric forwarding is
-    controlled by ``integration.cloud_cost_only.metrics`` (allowlist) and
-    ``integration.cloud_cost_only.metrics_blocked`` (blocklist), with prefix matching
-    when ``integration.cloud_cost_only.metrics_match_prefix`` is true. ``metric_filterlist``
-    continues to apply in all infrastructure modes.
+    ``integration.cloud_cost_only.tagged`` to list which checks receive the tag; when
+    the list is empty, all checks are tagged.
+    The Agent also filters integration metric names in this mode. DogStatsD metrics,
+    metrics from checks whose names start with ``custom_`` (including when the check is
+    set via the ``dd.internal.jmx_check_name`` DogStatsD tag), and metrics from checks in
+    ``integration.additional`` are forwarded regardless of the allowlist. Other
+    integration metrics are forwarded only when they match
+    ``integration.cloud_cost_only.metrics`` (allowlist). Use
+    ``integration.cloud_cost_only.metrics_blocked`` to drop additional metric names;
+    names on the blocklist are dropped even when they would otherwise match the allowlist.
+    Set ``integration.cloud_cost_only.metrics_match_prefix`` for prefix matching on both
+    lists. ``metric_filterlist`` continues to apply in all infrastructure modes.

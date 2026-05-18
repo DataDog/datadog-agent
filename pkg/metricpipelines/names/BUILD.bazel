@@ -3,9 +3,11 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "names",
     srcs = [
+        "cloud_cost_drop.go",
         "criterion.go",
         "criterion_cloud_cost.go",
         "criterion_metric_filterlist.go",
+        "filter_context.go",
         "filters.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/metricpipelines/names",
@@ -13,6 +15,7 @@ go_library(
     deps = [
         "//comp/filterlist/def",
         "//pkg/config/model",
+        "//pkg/metrics",
         "//pkg/util/strings",
     ],
 )
@@ -28,7 +31,9 @@ go_test(
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/fx-noop",
         "//comp/filterlist/impl",
+        "//pkg/metrics",
         "//pkg/util/fxutil",
+        "//pkg/util/strings",
         "@com_github_stretchr_testify//assert",
     ],
 )

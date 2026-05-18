@@ -15,7 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetrynoop "github.com/DataDog/datadog-agent/comp/core/telemetry/fx-noop"
 	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 func TestLoadOutsideCloudCostOnly(t *testing.T) {
@@ -28,8 +30,16 @@ func TestLoadOutsideCloudCostOnly(t *testing.T) {
 
 	filters := Load(configComponent, fl)
 
-	assert.True(t, filters.ShouldDrop("blocked.metric"))
-	assert.False(t, filters.ShouldDrop("system.cpu.user"))
+	assert.True(t, filters.ShouldDrop(FilterContext{Name: "blocked.metric"}))
+	assert.False(t, filters.ShouldDrop(FilterContext{Name: "system.cpu.user"}))
+}
+
+func TestFiltersExclusiveAllowlist(t *testing.T) {
+	allowList := utilstrings.NewAllowlistMatcher([]string{"system.cpu"}, true)
+	filters := NewTestFilters(CriterionMetricFilterList, utilstrings.Matcher{}, allowList)
+
+	assert.False(t, filters.ShouldDrop(FilterContext{Name: "system.cpu.user"}))
+	assert.True(t, filters.ShouldDrop(FilterContext{Name: "system.disk.free"}))
 }
 
 func TestLoadCloudCostOnly(t *testing.T) {
@@ -44,9 +54,10 @@ func TestLoadCloudCostOnly(t *testing.T) {
 
 	filters := Load(configComponent, fl)
 
-	assert.False(t, filters.ShouldDrop("system.cpu.user"))
-	assert.True(t, filters.ShouldDrop("system.disk.free"))
-	assert.True(t, filters.ShouldDrop("blocked.metric"), "metric_filterlist and allowlist both apply in cloud_cost_only mode")
+	assert.False(t, filters.ShouldDrop(FilterContext{Name: "system.cpu.user"}))
+	assert.True(t, filters.ShouldDrop(FilterContext{Name: "system.disk.free"}))
+	assert.True(t, filters.ShouldDrop(FilterContext{Name: "blocked.metric"}),
+		"metric_filterlist and cloud_cost blocklist both apply in cloud_cost_only mode")
 }
 
 func TestLoadCloudCostOnlyExplicitBlock(t *testing.T) {
@@ -60,6 +71,70 @@ func TestLoadCloudCostOnlyExplicitBlock(t *testing.T) {
 
 	filters := Load(configComponent, fl)
 
-	assert.True(t, filters.ShouldDrop("system.disk.free"))
-	assert.False(t, filters.ShouldDrop("system.cpu.user"))
+	assert.True(t, filters.ShouldDrop(FilterContext{Name: "system.disk.free"}))
+	assert.False(t, filters.ShouldDrop(FilterContext{Name: "system.cpu.user"}))
+}
+
+func TestLoadCloudCostOnlyForwardsBypassMetrics(t *testing.T) {
+	cfg := map[string]interface{}{
+		"infrastructure_mode":                              "cloud_cost_only",
+		"integration.cloud_cost_only.metrics":              []string{"system.cpu"},
+		"integration.cloud_cost_only.metrics_match_prefix": true,
+		"integration.additional":                           []string{"my_additional_check"},
+	}
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	fl := filterlistimpl.NewFilterList(logmock.New(t), configComponent, fxutil.Test[telemetry.Component](t, telemetrynoop.Module()))
+
+	filters := Load(configComponent, fl)
+
+	assert.False(t, filters.ShouldDrop(FilterContext{
+		Name:   "custom.my.metric",
+		Source: metrics.MetricSourceDogstatsd,
+	}))
+	assert.False(t, filters.ShouldDrop(FilterContext{
+		Name:      "custom.my.metric",
+		CheckName: "custom_my_check",
+	}))
+	assert.False(t, filters.ShouldDrop(FilterContext{
+		Name:      "additional.metric",
+		CheckName: "my_additional_check",
+	}))
+	assert.True(t, filters.ShouldDrop(FilterContext{
+		Name:      "system.disk.free",
+		CheckName: "disk",
+		Source:    metrics.MetricSourceDisk,
+	}))
+}
+
+func TestShouldDropCloudCost(t *testing.T) {
+	blockList := utilstrings.NewBlocklistMatcher([]string{"blocked"}, true)
+	allowList := utilstrings.NewAllowlistMatcher([]string{"system.cpu"}, true)
+
+	t.Run("blocklist wins", func(t *testing.T) {
+		assert.True(t, shouldDropCloudCost(FilterContext{Name: "blocked.metric"}, blockList, allowList, nil))
+	})
+	t.Run("dogstatsd forwarded", func(t *testing.T) {
+		assert.False(t, shouldDropCloudCost(FilterContext{
+			Name:   "not.on.list",
+			Source: metrics.MetricSourceDogstatsd,
+		}, blockList, allowList, nil))
+	})
+	t.Run("allowlist forwarded", func(t *testing.T) {
+		assert.False(t, shouldDropCloudCost(FilterContext{Name: "system.cpu.user"}, blockList, allowList, nil))
+	})
+	t.Run("integration dropped", func(t *testing.T) {
+		assert.True(t, shouldDropCloudCost(FilterContext{
+			Name:   "system.disk.free",
+			Source: metrics.MetricSourceDisk,
+		}, blockList, allowList, nil))
+	})
+}
+
+func TestFilterContextBypassesCloudCostFilter(t *testing.T) {
+	assert.True(t, FilterContext{Source: metrics.MetricSourceDogstatsd}.BypassesCloudCostFilter(nil))
+	assert.True(t, FilterContext{CheckName: "custom_foo"}.BypassesCloudCostFilter(nil))
+	assert.True(t, FilterContext{CheckName: "extra"}.BypassesCloudCostFilter([]string{"extra"}))
+	assert.False(t, FilterContext{CheckName: "disk", Source: metrics.MetricSourceDisk}.BypassesCloudCostFilter(nil))
+	assert.False(t, FilterContext{CheckName: "kafka", Source: metrics.MetricSourceKafka}.BypassesCloudCostFilter(nil))
+	assert.True(t, FilterContext{CheckName: "custom_foo", Source: metrics.MetricSourceJmxCustom}.BypassesCloudCostFilter(nil))
 }

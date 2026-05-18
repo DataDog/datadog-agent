@@ -27,5 +27,5 @@ func (cloudCostMetricsCriterion) matchers(cfg pkgconfigmodel.Reader, _ filterlis
 	matchPrefix := cfg.GetBool("integration.cloud_cost_only.metrics_match_prefix")
 	blocked := cfg.GetStringSlice("integration.cloud_cost_only.metrics_blocked")
 	allowed := cfg.GetStringSlice("integration.cloud_cost_only.metrics")
-	return utilstrings.NewMatcher(blocked, matchPrefix), utilstrings.NewMatcher(allowed, matchPrefix)
+	return utilstrings.NewBlocklistMatcher(blocked, matchPrefix), utilstrings.NewAllowlistMatcher(allowed, matchPrefix)
 }

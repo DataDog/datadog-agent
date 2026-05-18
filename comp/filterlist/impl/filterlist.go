@@ -262,8 +262,8 @@ func (fl *FilterList) SetMetricFilterList(metricNames []string, matchPrefix bool
 
 	// only histogram metric names (including their aggregates suffixes)
 	histoMetricNames := fl.createHistogramsFilterList(metricNames)
-	filterList := utilstrings.NewMatcher(metricNames, matchPrefix)
-	histoFilterList := utilstrings.NewMatcher(histoMetricNames, matchPrefix)
+	filterList := utilstrings.NewBlocklistMatcher(metricNames, matchPrefix)
+	histoFilterList := utilstrings.NewBlocklistMatcher(histoMetricNames, matchPrefix)
 
 	fl.updateMetricMtx.Lock()
 	fl.filterList = filterList

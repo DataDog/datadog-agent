@@ -1270,7 +1270,8 @@ func agent(config pkgconfigmodel.Setup) {
 	})
 	// integration.cloud_cost_only.metrics_blocked: explicit metric blocklist in cloud_cost_only mode (empty disables)
 	config.BindEnvAndSetDefault("integration.cloud_cost_only.metrics_blocked", []string{})
-	// integration.cloud_cost_only.metrics: metric allowlist when infrastructure_mode=cloud_cost_only (empty disables filtering)
+	// integration.cloud_cost_only.metrics: extra integration metrics to forward in cloud_cost_only mode
+	// (DogStatsD, custom_*, and integration.additional checks are always forwarded; empty disables allowlist filtering)
 	config.BindEnvAndSetDefault("integration.cloud_cost_only.metrics", []string{
 		"kubernetes.cpu.usage.total",
 		"kubernetes.memory.usage",

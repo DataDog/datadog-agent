@@ -547,7 +547,7 @@ func TestFlushMissingContext(t *testing.T) {
 }
 func testFlushFilterList(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler(store)
-	matcher := strings.NewMatcher([]string{
+	matcher := strings.NewBlocklistMatcher([]string{
 		"test.histogram.avg",
 		"test.histogram.count",
 	}, false)

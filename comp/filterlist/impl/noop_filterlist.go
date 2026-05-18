@@ -30,12 +30,12 @@ func (*noopFilterList) GetTagFilterList() filterlist.TagMatcher {
 
 // GetMetricFilterList does nothing.
 func (*noopFilterList) GetMetricFilterList() utilstrings.Matcher {
-	return utilstrings.NewMatcher([]string{}, false)
+	return utilstrings.NewBlocklistMatcher([]string{}, false)
 }
 
 // GetHistoFilterList does nothing.
 func (*noopFilterList) GetHistoFilterList() utilstrings.Matcher {
-	return utilstrings.NewMatcher([]string{}, false)
+	return utilstrings.NewBlocklistMatcher([]string{}, false)
 }
 
 type noopTagMatcher struct{}

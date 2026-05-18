@@ -14,9 +14,10 @@ import (
 )
 
 type rule struct {
-	id        CriterionID
-	blockList utilstrings.Matcher
-	allowList utilstrings.Matcher
+	id               CriterionID
+	blockList        utilstrings.Matcher
+	allowList        utilstrings.Matcher
+	additionalChecks []string // integration.additional checks bypass cloud_cost_only allowlist
 }
 
 // Filters holds the active metric-name filter criteria for the current config.
@@ -32,21 +33,32 @@ func Load(cfg pkgconfigmodel.Reader, filterList filterlist.Component) Filters {
 			continue
 		}
 		blockList, allowList := c.matchers(cfg, filterList)
-		rules = append(rules, rule{
+		r := rule{
 			id:        c.id(),
 			blockList: blockList,
 			allowList: allowList,
-		})
+		}
+		if c.id() == CriterionCloudCostMetrics {
+			r.additionalChecks = cfg.GetStringSlice("integration.additional")
+		}
+		rules = append(rules, r)
 	}
 	return Filters{rules: rules}
 }
 
-// ShouldDrop reports whether a metric name should be dropped according to any active criterion.
-func (f Filters) ShouldDrop(name string) bool {
+// ShouldDrop reports whether a metric should be dropped according to any active criterion.
+func (f Filters) ShouldDrop(ctx FilterContext) bool {
 	for i := range f.rules {
 		r := &f.rules[i]
-		if utilstrings.ShouldDropMetric(name, &r.blockList, &r.allowList) {
-			return true
+		switch r.id {
+		case CriterionCloudCostMetrics:
+			if shouldDropCloudCost(ctx, r.blockList, r.allowList, r.additionalChecks) {
+				return true
+			}
+		default:
+			if r.blockList.ShouldDrop(ctx.Name) || r.allowList.ShouldDrop(ctx.Name) {
+				return true
+			}
 		}
 	}
 	return false
@@ -65,4 +77,14 @@ func (f *Filters) SetBlockList(id CriterionID, blockList utilstrings.Matcher) {
 // NewTestFilters builds Filters with a single criterion. For tests and benchmarks only.
 func NewTestFilters(id CriterionID, blockList, allowList utilstrings.Matcher) Filters {
 	return Filters{rules: []rule{{id: id, blockList: blockList, allowList: allowList}}}
+}
+
+// NewTestCloudCostFilters builds cloud-cost Filters for tests. For tests only.
+func NewTestCloudCostFilters(blockList, allowList utilstrings.Matcher, additionalChecks []string) Filters {
+	return Filters{rules: []rule{{
+		id:               CriterionCloudCostMetrics,
+		blockList:        blockList,
+		allowList:        allowList,
+		additionalChecks: additionalChecks,
+	}}}
 }
