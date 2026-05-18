@@ -37,6 +37,12 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor(i
 		key := in.UnsafeFieldName(false)
 		in.WantColon()
 		switch key {
+		case "hash":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Hash = string(in.String())
+			}
 		case "policies":
 			if in.IsNull() {
 				in.Skip()
@@ -148,8 +154,13 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor(o
 	first := true
 	_ = first
 	{
-		const prefix string = ",\"policies\":"
+		const prefix string = ",\"hash\":"
 		out.RawString(prefix[1:])
+		out.String(string(in.Hash))
+	}
+	{
+		const prefix string = ",\"policies\":"
+		out.RawString(prefix)
 		if in.Policies == nil && (out.Flags&jwriter.NilSliceAsEmpty) == 0 {
 			out.RawString("null")
 		} else {
@@ -1925,6 +1936,12 @@ func easyjson6151911dDecodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor6(
 			} else {
 				out.Message = string(in.String())
 			}
+		case "hash":
+			if in.IsNull() {
+				in.Skip()
+			} else {
+				out.Hash = string(in.String())
+			}
 		case "rules":
 			if in.IsNull() {
 				in.Skip()
@@ -2013,6 +2030,11 @@ func easyjson6151911dEncodeGithubComDataDogDatadogAgentPkgSecurityRulesMonitor6(
 		const prefix string = ",\"message\":"
 		out.RawString(prefix)
 		out.String(string(in.Message))
+	}
+	if in.Hash != "" {
+		const prefix string = ",\"hash\":"
+		out.RawString(prefix)
+		out.String(string(in.Hash))
 	}
 	if len(in.Rules) != 0 {
 		const prefix string = ",\"rules\":"
