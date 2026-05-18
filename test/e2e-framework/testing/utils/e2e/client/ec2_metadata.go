@@ -41,7 +41,7 @@ func NewEC2Metadata(t *testing.T, h *Host, osFamily os.Family) *EC2Metadata {
 	}
 
 	t.Log("Getting EC2 metadata token")
-	output := runWithRetry(t, h, cmd)
+	output := strings.TrimSpace(runWithRetry(t, h, cmd))
 	return &EC2Metadata{osFamily: osFamily, token: output, host: h, t: t}
 }
 
