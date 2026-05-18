@@ -749,10 +749,12 @@ func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, ident
 					debugEnabled := s.Debug.IsDebugEnabled()
 					needsShardContext := batcherNeedsContext || columnarV3Enabled
 					var sampleContext identity.HotPathContext
-					if debugEnabled || batcherNeedsContext {
+					if debugEnabled {
 						sampleContext = identityBuilder.ResolveHotPath(samples[idx])
-					} else if columnarV3Enabled {
-						sampleContext.Shard = identityBuilder.Shard(samples[idx])
+					} else if needsShardContext {
+						shard := identityBuilder.Shard(samples[idx])
+						sampleContext.Client = shard.Client
+						sampleContext.Shard = shard
 					}
 
 					if debugEnabled {
