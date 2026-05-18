@@ -197,7 +197,7 @@ func (w *dogstatsdColumnarWorker) processSamples(samples DogStatsDColumnarV3Samp
 	timestamp := timeNowNano()
 	shardIdx := int(w.shardID)
 	for i := range samples {
-		w.store.insertAccepted(shardIdx, samples[i].ContextKey, samples[i].Sample, timestamp)
+		w.store.insertAcceptedUnlocked(shardIdx, samples[i].ContextKey, samples[i].Sample, timestamp)
 	}
 	w.samplePool.PutBatch(samples)
 }
@@ -254,12 +254,24 @@ func (s *dogstatsdColumnarStore) insertAccepted(shardIdx int, shardKey ckey.Cont
 	if s == nil || shardIdx < 0 || shardIdx >= len(s.shards) {
 		return
 	}
-	bucketStart := s.calculateBucketStart(timestamp)
 	shard := &s.shards[shardIdx]
+	bucketStart := s.calculateBucketStart(timestamp)
 
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
+	s.insertAcceptedInShard(shard, bucketStart, shardKey, sample)
+}
 
+func (s *dogstatsdColumnarStore) insertAcceptedUnlocked(shardIdx int, shardKey ckey.ContextKey, sample metrics.MetricSample, timestamp float64) {
+	if s == nil || shardIdx < 0 || shardIdx >= len(s.shards) {
+		return
+	}
+	shard := &s.shards[shardIdx]
+	bucketStart := s.calculateBucketStart(timestamp)
+	s.insertAcceptedInShard(shard, bucketStart, shardKey, sample)
+}
+
+func (s *dogstatsdColumnarStore) insertAcceptedInShard(shard *dogstatsdColumnarShard, bucketStart int64, shardKey ckey.ContextKey, sample metrics.MetricSample) {
 	bucket := shard.buckets[bucketStart]
 	if bucket == nil {
 		bucket = newDogstatsdColumnarBucket()
