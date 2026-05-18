@@ -19,6 +19,7 @@ type dummyService struct {
 	ADIdentifiers   []string
 	Hosts           map[string]string
 	Ports           []workloadmeta.ContainerPort
+	Tags            []string
 	Pid             int
 	Hostname        string
 	filterTemplates func(map[string]integration.Config)
@@ -51,7 +52,7 @@ func (s *dummyService) GetPorts() ([]workloadmeta.ContainerPort, error) {
 
 // GetTags returns the tags for this service
 func (s *dummyService) GetTags() ([]string, error) {
-	return nil, nil
+	return s.Tags, nil
 }
 
 // GetTagsWithCardinality returns the tags for this service

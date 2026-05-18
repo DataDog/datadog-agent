@@ -596,12 +596,32 @@ func resolveDiscoveryTemplate(tpl integration.Config, svc listeners.Service, sec
 		pp = append(pp, portPayload{Number: p.Port, Name: p.Name})
 	}
 
+	// configresolver.Resolve injects autodiscovery service tags into each
+	// instance via its tag post-processor, but only over tpl.Instances —
+	// which is empty for discovery templates. Fetch and inject the tags
+	// manually so the promoted check's metrics carry container/k8s tags.
+	var tags []string
+	if !tpl.IgnoreAutodiscoveryTags {
+		if tpl.CheckTagCardinality != "" {
+			tags, err = svc.GetTagsWithCardinality(tpl.CheckTagCardinality)
+		} else {
+			tags, err = svc.GetTags()
+		}
+		if err != nil {
+			log.Debugf("autodiscovery: deferring discovery template %s for service %s: cannot resolve tags: %v", tpl.Name, svc.GetServiceID(), err)
+			return tpl, false
+		}
+	}
+
 	instance := map[string]interface{}{
 		"__discovery_service__": servicePayload{
 			ID:    svc.GetServiceID(),
 			Host:  host,
 			Ports: pp,
 		},
+	}
+	if len(tags) > 0 {
+		instance["tags"] = tags
 	}
 	instanceYAML, err := yaml.Marshal(instance)
 	if err != nil {

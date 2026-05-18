@@ -758,6 +758,7 @@ func TestResolveTemplateForService_DiscoveryBuildsTrialConfig(t *testing.T) {
 			{Port: 9090, Name: "metrics"},
 			{Port: 8080, Name: "admin"},
 		},
+		Tags: []string{"container_name:krakend", "kube_namespace:default"},
 	}
 
 	resolved, ok := cm.resolveTemplateForService(tpl, svc)
@@ -781,4 +782,44 @@ func TestResolveTemplateForService_DiscoveryBuildsTrialConfig(t *testing.T) {
 	rawPorts, ok := svcInfo["ports"].([]interface{})
 	require.True(t, ok, "ports must be a list")
 	assert.Len(t, rawPorts, 2, "expected 2 ports")
+
+	rawTags, exists := inst["tags"]
+	require.True(t, exists, "instance must carry autodiscovery service tags so promoted metrics are tagged correctly")
+	tagList, ok := rawTags.([]interface{})
+	require.True(t, ok, "tags must be a list")
+	tags := make([]string, len(tagList))
+	for i, v := range tagList {
+		tags[i] = v.(string)
+	}
+	assert.ElementsMatch(t, []string{"container_name:krakend", "kube_namespace:default"}, tags)
+}
+
+func TestResolveTemplateForService_DiscoveryRespectsIgnoreAutodiscoveryTags(t *testing.T) {
+	mockResolver := MockSecretResolver{}
+	cm := newReconcilingConfigManager(&mockResolver, nil, nil).(*reconcilingConfigManager)
+
+	tpl := integration.Config{
+		Name:                    "krakend",
+		ADIdentifiers:           []string{"krakend"},
+		Discovery:               &integration.DiscoveryConfig{},
+		IgnoreAutodiscoveryTags: true,
+		InitConfig:              integration.Data("{}"),
+		Instances:               []integration.Data{},
+	}
+	svc := &dummyService{
+		ID:            "docker://abc123",
+		ADIdentifiers: []string{"krakend"},
+		Hosts:         map[string]string{"bridge": "10.0.0.5"},
+		Tags:          []string{"container_name:krakend"},
+	}
+
+	resolved, ok := cm.resolveTemplateForService(tpl, svc)
+	require.True(t, ok)
+	require.Len(t, resolved.Instances, 1)
+
+	var inst map[interface{}]interface{}
+	require.NoError(t, yaml.Unmarshal(resolved.Instances[0], &inst))
+
+	_, exists := inst["tags"]
+	assert.False(t, exists, "IgnoreAutodiscoveryTags=true must suppress tag injection")
 }
