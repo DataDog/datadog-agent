@@ -406,6 +406,43 @@ throughput win for v2 or the source v3-labeled case. The next experiment should
 remove more aggregator materialization or feed the v3 builder from a row
 representation that avoids `metrics.Serie` mutation altogether.
 
+### Stage F: direct DogStatsD series rows
+
+Stage F moves one more core boundary into the new design while keeping a separate
+local-only switch:
+
+```text
+DD_DOGSTATSD_EXPERIMENTAL_DIRECT_SERIALIZER=true
+DD_DOGSTATSD_EXPERIMENTAL_DIRECT_ROWS=true
+```
+
+Local Stage F implementation (`c7327ad816c`) adds `metrics.SerieRow` as the
+serializer-visible row model and lets `TimeSampler.flushSeries` emit rows
+directly when the sink supports `metrics.SerieRowSink`. The row normalizes
+`device:` and `dd.internal.resource:` tags into dedicated protobuf fields
+without requiring serializer-side mutation of shared `*metrics.Serie` objects.
+This is still incomplete: sketches, check-sampler series, and metric flush/dedup
+internals still use existing structs.
+
+Local Stage F compared the direct-active image
+(`datadog/agent-dev:smp-dsd-direct-active`, `9498d5fee95`) against the direct
+series row image (`datadog/agent-dev:smp-dsd-direct-rows`, `c7327ad816c`).
+
+SMP results:
+
+| Case | Goal | Δ mean | Δ mean CI | Regression | Improvement |
+|---|---|---:|---:|---|---|
+| `uds_dogstatsd_to_api_v3` | ingress throughput | +0.22% | [-0.03%, +0.47%] | false | true |
+| `uds_dogstatsd_to_api` | ingress throughput | -0.13% | [-0.36%, +0.10%] | false | false |
+| `uds_dogstatsd_20mb_12k_contexts_20_senders` | memory utilization | -0.21% | [-0.44%, +0.01%] | false | true |
+| `uds_dogstatsd_to_api_v3_endpoint_fixed` | ingress throughput | -0.12% | [-0.37%, +0.13%] | false | false |
+
+Decision: direct DogStatsD series rows are locally non-regressing and essentially
+neutral. This proves the active time-sampler handoff can move to a row model, but
+it does not yet prove a significant speedup. The next stage should remove more
+materialization inside metric flush/dedup, or add row-native sketch/check-sampler
+handoff, before rerunning foundation-vs-experiment.
+
 Run foundation vs experiment on the main cases again only after deciding whether
 the next active path should be v3-only or should also replace the v2 serializer.
 
