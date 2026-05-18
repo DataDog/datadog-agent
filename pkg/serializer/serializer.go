@@ -380,6 +380,59 @@ type directNoopSketchSink struct{}
 
 func (directNoopSketchSink) Append(*metrics.SketchSeries) {}
 
+func onlyV3Pipelines(pipelines metricsserializer.PipelineSet) metricsserializer.PipelineSet {
+	v3Pipelines := metricsserializer.PipelineSet{}
+	for conf, ctx := range pipelines {
+		if conf.V3 {
+			v3Pipelines[conf] = ctx
+		}
+	}
+	return v3Pipelines
+}
+
+// SendDirectV3SeriesRows is an intentionally experimental local-only path for
+// the DogStatsD columnar v3 vertical slice. The producer emits serializer-visible
+// rows directly into v3 protobuf builders; v2 and JSON series payloads are not
+// produced by this method.
+func (s *Serializer) SendDirectV3SeriesRows(
+	producer func(metrics.SerieRowSink),
+	options DirectMetricsOptions,
+) DirectMetricsResult {
+	result := DirectMetricsResult{SeriesEnabled: s.AreSeriesEnabled()}
+	if !result.SeriesEnabled {
+		return result
+	}
+	if !s.config.GetBool("use_v2_api.series") {
+		result.SeriesErr = fmt.Errorf("direct v3 row serializer experiment requires use_v2_api.series=true")
+		return result
+	}
+
+	seriesPipelines := onlyV3Pipelines(s.buildPipelines(metricsKindSeries))
+	if len(seriesPipelines) == 0 {
+		result.SeriesErr = fmt.Errorf("direct v3 row serializer experiment requires at least one v3 series pipeline")
+		return result
+	}
+
+	seriesDirectSink, err := metricsserializer.NewDirectSeriesSink(s.config, s.Strategy, seriesPipelines)
+	if err != nil {
+		result.SeriesErr = fmt.Errorf("creating direct v3 series row sink: %w", err)
+		return result
+	}
+
+	var seriesSink metrics.SerieRowSink = seriesDirectSink
+	if options.SeriesCallback != nil || options.SeriesRowCallback != nil {
+		seriesSink = directSeriesCallbackSink{sink: seriesDirectSink, callback: options.SeriesCallback, rowCallback: options.SeriesRowCallback}
+	}
+
+	producer(seriesSink)
+
+	result.SeriesCount, result.SeriesErr = seriesDirectSink.Finish()
+	if result.SeriesErr == nil {
+		result.SeriesErr = seriesPipelines.Send(s.Forwarder, s.protobufExtraHeadersWithCompression)
+	}
+	return result
+}
+
 // SendDirectSeriesAndSketches is an intentionally experimental local-only path
 // that lets the aggregator produce directly into serializer pipeline builders,
 // bypassing IterableSeries/IterableSketches channels and consumer goroutines.

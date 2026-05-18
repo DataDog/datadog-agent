@@ -696,6 +696,13 @@ func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, ident
 		identityBuilder = identity.NewBuilder()
 	}
 
+	var columnarV3 aggregator.DogStatsDColumnarV3Inserter
+	columnarV3Enabled := false
+	if inserter, ok := s.demultiplexer.(aggregator.DogStatsDColumnarV3Inserter); ok && inserter.DogStatsDColumnarV3Enabled() {
+		columnarV3 = inserter
+		columnarV3Enabled = true
+	}
+
 	for _, packet := range packets {
 		s.log.Tracef("Dogstatsd receive: %q", packet.Contents)
 		for {
@@ -740,7 +747,7 @@ func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, ident
 				batcherNeedsContext := batcher.needsSampleContext()
 				for idx := range samples {
 					debugEnabled := s.Debug.IsDebugEnabled()
-					needsContext := debugEnabled || batcherNeedsContext
+					needsContext := debugEnabled || batcherNeedsContext || columnarV3Enabled
 					var sampleContext identity.HotPathContext
 					if needsContext {
 						sampleContext = identityBuilder.ResolveHotPath(samples[idx])
@@ -755,7 +762,11 @@ func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, ident
 						s.Debug.StoreMetricStats(samples[idx])
 					}
 
-					if samples[idx].Timestamp > 0.0 {
+					if columnarV3Enabled && samples[idx].Timestamp <= 0.0 && columnarV3.InsertDogStatsDColumnarV3Sample(sampleContext.Shard.ContextKey, samples[idx]) {
+						// The experimental v3 columnar table is now the authoritative
+						// aggregation state for this supported sample. Unsupported
+						// samples return false and continue through the legacy batcher.
+					} else if samples[idx].Timestamp > 0.0 {
 						if needsContext {
 							batcher.appendLateSampleWithContext(samples[idx], sampleContext)
 						} else {
