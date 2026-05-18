@@ -37,7 +37,8 @@ Use two first-class streams/logs:
 
 1. **Raw ingress log**
    - Transport-faithful records: timestamp, source, listener, payload bytes, process/ucred/OOB metadata, peer/connection metadata when available.
-   - Used for raw capture, raw replay, parse forensics, and exemplar links.
+   - Used for listener-to-parser handoff, bounded backpressure, raw capture, raw replay, parse forensics, and exemplar links.
+   - Replaces the large implicit packet-channel reservoir over time; persistence is optional and should not be on the default hot path.
 
 2. **Canonical semantic stream**
    - Parsed and enriched records: metrics, events, service checks, normalized tags, origin metadata, and precomputed identities.
@@ -161,10 +162,23 @@ The view should store mergeable aggregate state rather than only final emitted v
 
 Keep a bounded byte-faithful ring/WAL of recent ingress envelopes. This enables:
 
+- listener-to-parser IO/CPU decoupling with an explicit byte budget;
 - retrospective capture: "save the last 30 seconds";
 - trigger-based capture: "save raw traffic around a spike";
 - exemplar drilldown: "show raw messages contributing to this series";
 - raw replay with original cadence and transport metadata where possible.
+
+This ring should be the principled replacement for the large `packetsIn` channel
+as overload absorber. The live processing path still needs a small handoff
+between socket readers and parser workers, but that handoff should be sized for
+scheduling/burst smoothing, not for storing hundreds of MiB of raw packet
+buffers. When the ingress ring is full, UDS listeners should block and apply
+backpressure at the socket/client boundary; UDP listeners should account drops
+or kernel loss explicitly because UDP cannot provide reliable backpressure.
+
+Default retention should be in-memory and bounded by bytes/age. Durable WAL
+persistence can be layered on for capture/replay use cases, but fsync-style
+persistence is not a requirement for the hot path.
 
 ### Error/drop views
 

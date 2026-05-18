@@ -745,3 +745,67 @@ Current productionization read:
 
 Next decision gate: keep the Stage J throughput fix, but require memory/backlog
 experiments before claiming an all-around win.
+
+## Stage K/L local result, 2026-05-18
+
+Stage K investigated why Stage J's faster columnar path accumulated a large
+`packetsIn` backlog while the slower direct-row baseline did not. A rate sweep
+and CPU-allotment sweep showed a bottleneck shift: the baseline backpressures
+before the Agent packet channel, while columnar reduces per-sample work enough
+to admit more traffic and expose the existing large channel as the overload
+absorber.
+
+This motivated Stage L: replace the large buffered `packetsIn` channel, under a
+local-only env gate, with a byte-bounded in-memory ingress log.
+
+Prototype gates:
+
+- `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_LOG=true`
+- `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_LOG_MAX_BYTES=16777216`
+
+Implementation shape:
+
+```text
+listeners -> tiny listener/log handoff channel -> byte-bounded ingress log -> workers
+```
+
+The first prototype intentionally keeps packet batches as the record type, so it
+is not the final zero-copy raw WAL. It does, however, move overload policy from a
+large implicit channel to an explicit byte-bound with telemetry:
+
+- `dogstatsd_ingress_log.bytes`
+- `dogstatsd_ingress_log.batches`
+- `dogstatsd_ingress_log.packets`
+- `dogstatsd_ingress_log.blocked_ns`
+- `dogstatsd_ingress_log.stats{stat:*}`
+
+Local Stage L results are single-replicate probes and should be rerun before any
+strong external claim.
+
+| Comparison | Case | Δ mean | Key read |
+|---|---|---:|---|
+| columnar env-off -> columnar ingress-log, 16MiB cap | `uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only` | -7.79% | deliberate backpressure trades some peak overload throughput for much lower memory/backlog |
+| direct metric rows -> columnar ingress-log, 16MiB cap | `uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only` | +4.90% | keeps a throughput win while controlling high-rate queue memory |
+| direct metric rows -> columnar ingress-log, 16MiB cap | `uds_dogstatsd_to_api_v3_endpoint_fixed` | +1.22% | standard case remains modestly positive/neutral |
+
+Selected high-rate metrics, direct metric rows -> columnar ingress-log:
+
+| Variant | Agent UDS MiB/s | processed/s | packet pool avg | ingress log avg | RSS MiB | heap MiB |
+|---|---:|---:|---:|---:|---:|---:|
+| direct metric rows | 193.23 | 238,830 | 528 | n/a | 247.12 | 63.16 |
+| columnar ingress-log | 202.36 | 250,077 | 807 | 8.3 MiB | 228.91 | 58.09 |
+
+Selected high-rate metrics, columnar env-off -> columnar ingress-log:
+
+| Variant | Agent UDS MiB/s | processed/s | packet channel batches | packet pool avg | RSS MiB | heap MiB |
+|---|---:|---:|---:|---:|---:|---:|
+| columnar env-off | 221.01 | 272,352 | 777.7 | 24,758 | 734.12 | 365.30 |
+| columnar ingress-log | 202.75 | 250,566 | 0.3 | 761 | 226.43 | 58.63 |
+
+Decision: the database-inspired raw ingress log is a promising next-level
+abstraction. It gives up some unconstrained overload admission compared with the
+large channel, but it converts that hidden memory sink into explicit backpressure
+while preserving a measured high-rate win over direct metric rows. Continue with
+this direction, but the next version should reduce the extra pump/channel hop and
+move from packet-batch records toward a true preallocated byte ring with parser
+cursors.
