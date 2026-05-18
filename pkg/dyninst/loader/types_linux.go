@@ -152,6 +152,22 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return 0x30
 	case compiler.OpcodeProcessGoTime:
 		return 0x31
+	case compiler.OpcodeExprLoadAddress:
+		return 0x32
+	case compiler.OpcodeArrayLoopBegin:
+		return 0x33
+	case compiler.OpcodeArrayLoopEnd:
+		return 0x34
+	case compiler.OpcodeSliceLoopBegin:
+		return 0x35
+	case compiler.OpcodeSliceLoopEnd:
+		return 0x36
+	case compiler.OpcodeSwissMapLoopBegin:
+		return 0x37
+	case compiler.OpcodeSwissMapLoopEnd:
+		return 0x38
+	case compiler.OpcodeExprAdvanceOffset:
+		return 0x39
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
 	}
