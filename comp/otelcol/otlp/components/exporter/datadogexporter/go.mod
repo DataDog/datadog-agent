@@ -55,7 +55,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.73.0-devel.0.20251030121902-cd89eab046d6 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.77.0-devel.0.20260213154712-e02b9359151a // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.78.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl v0.77.0-devel.0.20260213154712-e02b9359151a // indirect

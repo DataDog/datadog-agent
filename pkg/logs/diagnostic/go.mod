@@ -3,7 +3,6 @@ module github.com/DataDog/datadog-agent/pkg/logs/diagnostic
 go 1.25.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.61.0
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.75.4
 	github.com/DataDog/datadog-agent/pkg/config/mock v0.75.4
 	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2
@@ -17,7 +16,6 @@ require gopkg.in/yaml.v3 v3.0.1 // indirect
 require (
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.75.4 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/basic v0.0.0-20260211235139-a5361978c2b6 // indirect
@@ -37,9 +35,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/template v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.75.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.75.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/option v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.75.4 // indirect
@@ -55,7 +51,6 @@ require (
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect
-	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260216142805-b3301c5f2a88 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
 	github.com/mdlayher/socket v0.6.0 // indirect
@@ -66,17 +61,12 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.4 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
-	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	go.uber.org/dig v1.19.0 // indirect
-	go.uber.org/fx v1.24.0 // indirect
-	go.uber.org/multierr v1.11.0 // indirect
-	go.uber.org/zap v1.28.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/net v0.55.0 // indirect
