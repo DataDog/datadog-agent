@@ -17,6 +17,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+var DatadogInstrumentationGVR = datadoghq.GroupVersion.WithResource("datadoginstrumentations")
+
 // EventType describes the section-level event dispatched to product handlers.
 type EventType string
 

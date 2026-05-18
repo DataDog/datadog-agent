@@ -104,6 +104,12 @@ go_test(
         "testdata/lt_with_getmember.json",
         "testdata/ne_arity_0.json",
         "testdata/ne_with_null.json",
+        "testdata/all_arity_0.json",
+        "testdata/all_arity_1.json",
+        "testdata/all_arity_3.json",
+        "testdata/any_arity_0.json",
+        "testdata/any_arity_1.json",
+        "testdata/any_arity_3.json",
     ],
     gotags = ["test"],
     deps = [

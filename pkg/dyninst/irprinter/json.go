@@ -40,10 +40,10 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 		}
 	}
 	marshalVariable := func(enc *jsontext.Encoder, v *ir.Variable) error {
-		// Synthetic variables (e.g. @duration) are not bound to any
+		// Synthetic variables (e.g. @duration, @it) are not bound to any
 		// subprogram — emit just their role and name so snapshots
 		// remain deterministic.
-		if v.Role == ir.VariableRoleDuration {
+		if v.Role == ir.VariableRoleDuration || v.Role == ir.VariableRoleLoopIt {
 			return json.MarshalEncode(enc, struct {
 				Name string          `json:"name"`
 				Role ir.VariableRole `json:"role"`
@@ -337,6 +337,7 @@ var allTypes = []reflect.Type{
 	reflect.TypeOf((*ir.GoSubroutineType)(nil)),
 	reflect.TypeOf((*ir.GoSwissMapGroupsType)(nil)),
 	reflect.TypeOf((*ir.GoSwissMapHeaderType)(nil)),
+	reflect.TypeOf((*ir.GoTimeType)(nil)),
 	reflect.TypeOf((*ir.PointerType)(nil)),
 	reflect.TypeOf((*ir.StructureType)(nil)),
 	reflect.TypeOf((*ir.GoContextImplementationType)(nil)),
@@ -418,6 +419,20 @@ func makeOperationMarshaler(
 		case *ir.ConditionLeafLoadOp:
 			toMarshal = newWithKind(op)
 		case *ir.ConditionCheckPreserveErrorOp:
+			toMarshal = newWithKind(op)
+		case *ir.ExprLoadAddressOp:
+			toMarshal = newWithKind(op)
+		case *ir.ArrayLoopBeginOp:
+			toMarshal = newWithKind(op)
+		case *ir.ArrayLoopEndOp:
+			toMarshal = newWithKind(op)
+		case *ir.SliceLoopBeginOp:
+			toMarshal = newWithKind(op)
+		case *ir.SliceLoopEndOp:
+			toMarshal = newWithKind(op)
+		case *ir.SwissMapLoopBeginOp:
+			toMarshal = newWithKind(op)
+		case *ir.SwissMapLoopEndOp:
 			toMarshal = newWithKind(op)
 		default:
 			return fmt.Errorf("unknown operation: %T", op)

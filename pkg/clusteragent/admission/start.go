@@ -22,11 +22,13 @@ import (
 	admprobe "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/probe"
 	clusterspot "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/cluster/spot"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -38,11 +40,13 @@ type ControllerContext struct {
 	SecretInformers              informers.SharedInformerFactory
 	ValidatingInformers          informers.SharedInformerFactory
 	MutatingInformers            informers.SharedInformerFactory
+	DynamicInformer              dynamicinformer.DynamicSharedInformerFactory
 	Client                       kubernetes.Interface
 	StopCh                       chan struct{}
 	ValidatingStopCh             chan struct{}
 	Demultiplexer                demultiplexer.Component
 	FilterStore                  workloadfilter.Component
+	InstrumentationHandlers      []instrumentation.Handler
 }
 
 // StartControllers starts the secret and webhook controllers
@@ -105,6 +109,8 @@ func StartControllers(ctx ControllerContext, datadogConfig config.Component, wme
 		datadogConfig,
 		ctx.Demultiplexer,
 		ctx.FilterStore,
+		ctx.InstrumentationHandlers,
+		ctx.DynamicInformer,
 	)
 
 	go secretController.Run(ctx.StopCh)

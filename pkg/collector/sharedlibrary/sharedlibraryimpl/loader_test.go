@@ -69,3 +69,36 @@ func TestLoad_WithoutLibrary(t *testing.T) {
 	_, err = loader.Load(senderManager, conf, conf.Instances[0], 1)
 	assert.Error(t, err)
 }
+
+func TestLoad_RejectsPathTraversalName(t *testing.T) {
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	logReceiver := option.None[integrations.Component]()
+	tagger := nooptagger.NewComponent()
+	filterStore := workloadfilterfxmock.SetupMockFilter(t)
+	sharedLibraryLoader := ffi.NewSharedLibraryLoader(t.TempDir())
+
+	loader, err := newCheckLoader(senderManager, logReceiver, tagger, filterStore, sharedLibraryLoader)
+	require.NoError(t, err)
+
+	cases := []string{
+		"",
+		"foo/../../tmp/baz",
+		"../baz",
+		"foo/bar",
+		`foo\bar`,
+		`..\baz`,
+		"/etc/passwd",
+		"foo\x00bar",
+	}
+	for _, name := range cases {
+		t.Run(name, func(t *testing.T) {
+			conf := integration.Config{
+				Name:      name,
+				Instances: []integration.Data{{}},
+			}
+
+			_, err := loader.Load(senderManager, conf, conf.Instances[0], 1)
+			require.Error(t, err)
+		})
+	}
+}

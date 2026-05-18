@@ -57,7 +57,7 @@ func NewProcessCheck(config pkgconfigmodel.Reader, sysprobeYamlConfig pkgconfigm
 		config:              config,
 		sysConfig:           sysprobeYamlConfig,
 		scrubber:            procutil.NewDefaultDataScrubber(),
-		lookupIdProbe:       NewLookupIDProbe(config),
+		lookupIDProbe:       NewLookupIDProbe(config),
 		serviceExtractor:    parser.NewServiceExtractor(serviceExtractorEnabled, useWindowsServiceName, useImprovedAlgorithm),
 		wmeta:               wmeta,
 		gpuSubscriber:       gpuSubscriber,
@@ -122,8 +122,7 @@ type ProcessCheck struct {
 	checkCount uint32
 	skipAmount uint32
 
-	//nolint:revive // TODO(PROC) Fix revive linter
-	lookupIdProbe *LookupIdProbe
+	lookupIDProbe *LookupIDProbe
 
 	extractors []metadata.Extractor
 
@@ -311,7 +310,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 	pidToGPUTags := p.gpuSubscriber.GetGPUTags()
 
-	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIdProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags, p.tagger, time.Now())
+	procsByCtr := fmtProcesses(p.scrubber, p.disallowList, procs, p.lastProcs, pidToCid, cpuTimes[0], p.lastCPUTime, p.lastRun, p.lookupIDProbe, p.ignoreZombieProcesses, p.serviceExtractor, pidToGPUTags, p.tagger, time.Now())
 	messages, totalProcs, totalContainers := createProcCtrMessages(p.hostInfo, procsByCtr, containers, p.maxBatchSize, p.maxBatchBytes, groupID, p.networkID, collectorProcHints)
 
 	// Store the last state for comparison on the next run.
@@ -478,8 +477,7 @@ func fmtProcesses(
 	ctrByProc map[int]string,
 	syst2, syst1 cpu.TimesStat,
 	lastRun time.Time,
-	//nolint:revive // TODO(PROC) Fix revive linter
-	lookupIdProbe *LookupIdProbe,
+	lookupIDProbe *LookupIDProbe,
 	zombiesIgnored bool,
 	serviceExtractor *parser.ServiceExtractor,
 	pidToGPUTags map[int32][]string,
@@ -504,7 +502,7 @@ func fmtProcesses(
 			Pid:                    fp.Pid,
 			NsPid:                  fp.NsPid,
 			Command:                formatCommand(fp),
-			User:                   formatUser(fp, lookupIdProbe),
+			User:                   formatUser(fp, lookupIDProbe),
 			Memory:                 formatMemory(fp.Stats),
 			Cpu:                    formatCPU(fp.Stats, lastProcs[fp.Pid].Stats, syst2, syst1),
 			CreateTime:             fp.Stats.CreateTime,
