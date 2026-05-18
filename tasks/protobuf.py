@@ -1,4 +1,3 @@
-import glob
 import os
 import re
 from pathlib import Path
@@ -44,13 +43,6 @@ def generate(ctx, pre_commit=False):
     proto_root = os.path.join(repo_root, "pkg", "proto")
     protodep_root = os.path.join(proto_root, "protodep")
     pbgo_dir = os.path.join(proto_root, "pbgo")
-    print(f"nuking old definitions at: {proto_root}")
-    file_list = glob.glob(os.path.join(proto_root, "pbgo", "*.pb.go"))
-    for file_path in file_list:
-        try:
-            os.remove(file_path)
-        except OSError:
-            print("Error while deleting file : ", file_path)
 
     with ctx.cd(repo_root):
         # protobuf defs
