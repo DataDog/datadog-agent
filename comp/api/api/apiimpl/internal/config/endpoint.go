@@ -147,12 +147,25 @@ func encodeInterfaceSliceToStringMap(c model.Reader, key string) ([]map[string]s
 	if value == nil {
 		return nil, nil
 	}
-	values, ok := value.([]interface{})
-	if !ok {
+	switch typed := value.(type) {
+	case []interface{}:
+		return util.GetSliceOfStringMap(typed)
+	case []map[string]interface{}:
+		// The setting can be registered with a typed default of []map[string]interface{}{},
+		// in which case Get returns the default verbatim (rather than the []interface{} shape
+		// that YAML/env parsing produces). Convert to the shape GetSliceOfStringMap expects.
+		converted := make([]interface{}, len(typed))
+		for i, m := range typed {
+			entry := make(map[interface{}]interface{}, len(m))
+			for k, v := range m {
+				entry[k] = v
+			}
+			converted[i] = entry
+		}
+		return util.GetSliceOfStringMap(converted)
+	default:
 		return nil, errors.New("key does not host a slice of interfaces")
 	}
-
-	return util.GetSliceOfStringMap(values)
 }
 
 func (c *configEndpoint) marshalAndSendResponse(w http.ResponseWriter, path string, value interface{}) {
