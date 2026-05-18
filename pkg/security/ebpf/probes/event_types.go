@@ -249,7 +249,10 @@ func GetSelectorsPerEventType(hasFentry bool, hasCgroupSocket bool) map[eval.Eve
 
 			// Mount probes
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_attach_recursive_mnt"),
+				&manager.OneOf{Selectors: []manager.ProbesSelector{
+					hookFunc("hook_attach_recursive_mnt"),
+					hookFunc("hook_attach_recursive_mnt", withUID(SecurityAgentUID+"_isra")),
+				}},
 				hookFunc("hook_propagate_mnt"),
 				hookFunc("hook_security_sb_umount"),
 				hookFunc("hook_clone_mnt"),
