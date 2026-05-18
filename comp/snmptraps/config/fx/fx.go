@@ -27,6 +27,6 @@ func Module() fxutil.Module {
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(configimpl.NewMockConfig),
-		fx.Supply(&config.TrapsConfig{Enabled: true}),
+		fxutil.Supply(&config.TrapsConfig{Enabled: true}),
 	)
 }

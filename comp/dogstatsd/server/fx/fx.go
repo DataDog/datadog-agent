@@ -7,8 +7,6 @@
 package fx
 
 import (
-	"go.uber.org/fx"
-
 	serverdef "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
 	serverimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/server/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -20,6 +18,6 @@ import (
 func Module(params serverdef.Params) fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(serverimpl.NewComponent),
-		fx.Supply(params),
+		fxutil.Supply(params),
 	)
 }

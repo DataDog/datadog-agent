@@ -7,8 +7,6 @@
 package fx
 
 import (
-	"go.uber.org/fx"
-
 	offlinereporterimpl "github.com/DataDog/datadog-agent/comp/offlinereporter/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -17,6 +15,6 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(offlinereporterimpl.NewComponent),
-		fx.Supply(offlinereporterimpl.NewParams()),
+		fxutil.Supply(offlinereporterimpl.NewParams()),
 	)
 }

@@ -19,7 +19,7 @@ import (
 
 // Module defines the fx options for this component.
 func Module(params wmdef.Params) fxutil.Module {
-	return module(fx.Supply(params))
+	return module(fxutil.Supply(params))
 }
 
 // ModuleWithProvider defines the fx options for this component using a provider to get the parameter.

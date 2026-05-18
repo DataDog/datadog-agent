@@ -7,8 +7,6 @@
 package fx
 
 import (
-	"go.uber.org/fx"
-
 	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	traceconfigimpl "github.com/DataDog/datadog-agent/comp/trace/config/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -20,7 +18,7 @@ func Module() fxutil.Module {
 		fxutil.ProvideComponentConstructor(
 			traceconfigimpl.NewComponent,
 		),
-		fx.Supply(traceconfig.Params{
+		fxutil.Supply(traceconfig.Params{
 			FailIfAPIKeyMissing: true,
 		}),
 	)

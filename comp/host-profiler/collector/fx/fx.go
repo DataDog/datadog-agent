@@ -15,7 +15,6 @@ import (
 	collector "github.com/DataDog/datadog-agent/comp/host-profiler/collector/def"
 	collectorimpl "github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component
@@ -24,7 +23,7 @@ func Module(params collectorimpl.Params) fxutil.Module {
 		fxutil.ProvideComponentConstructor(
 			collectorimpl.NewComponent,
 		),
-		fx.Supply(params),
+		fxutil.Supply(params),
 		fxutil.ProvideOptional[collector.Component](),
 	)
 }

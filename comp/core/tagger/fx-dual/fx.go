@@ -7,8 +7,6 @@
 package fx
 
 import (
-	"go.uber.org/fx"
-
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	dualimpl "github.com/DataDog/datadog-agent/comp/core/tagger/impl-dual"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -20,8 +18,8 @@ func Module(dualParams tagger.DualParams, remoteParams tagger.RemoteParams) fxut
 		fxutil.ProvideComponentConstructor(
 			dualimpl.NewComponent,
 		),
-		fx.Supply(remoteParams),
-		fx.Supply(dualParams),
+		fxutil.Supply(remoteParams),
+		fxutil.Supply(dualParams),
 		fxutil.ProvideOptional[tagger.Component](),
 	)
 }
