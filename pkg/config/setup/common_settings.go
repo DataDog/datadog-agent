@@ -1581,7 +1581,7 @@ func aggregator(config pkgconfigmodel.Setup) {
 
 	// Disk-based lookback ring buffer for pre-aggregation metrics.
 	config.BindEnvAndSetDefault("lookback.enabled", false)
-	config.BindEnvAndSetDefault("lookback.dir", "")
+	config.BindEnvAndSetDefault("lookback.dir", "/tmp/datadog-lookback")
 	config.BindEnvAndSetDefault("lookback.num_shards", 16)
 	config.BindEnvAndSetDefault("lookback.rotation_interval", time.Duration(5*time.Minute))
 	config.BindEnvAndSetDefault("lookback.max_age", time.Duration(24*time.Hour))
