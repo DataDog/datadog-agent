@@ -987,6 +987,54 @@ func TestRecordTrialResult_UnschedulesAfterThreshold(t *testing.T) {
 		"config must be removed from scheduledConfigs after unscheduling so GetAllConfigs is consistent")
 }
 
+// TestApplyChanges_ClearsTrialRegistryOnUnschedule verifies that trial-mode
+// configs unscheduled by a non-threshold path (e.g., config removal because
+// the template file was deleted, or the underlying service vanished) get
+// their entry cleared from trialRegistry. Without this, a transient service
+// that failed 1-4 times and then disappeared would leak one entry per
+// run, growing trialRegistry unbounded in high-churn environments.
+func TestApplyChanges_ClearsTrialRegistryOnUnschedule(t *testing.T) {
+	sch, ac := getResolveTestConfig(t)
+
+	cfg := integration.Config{
+		Name:       "krakend",
+		TrialMode:  true,
+		InitConfig: integration.Data("{}"),
+		Instances:  []integration.Data{integration.Data("{}")},
+	}
+
+	changes := ac.processNewConfig(cfg)
+	require.Len(t, changes.Schedule, 1, "processNewConfig should return a schedule change")
+	ac.applyChanges(changes)
+	require.Eventually(t, func() bool {
+		return sch.scheduledSize() == 1
+	}, 5*time.Second, 10*time.Millisecond, "config should be scheduled initially")
+
+	scheduled := changes.Schedule[0]
+	id := checkid.BuildID(scheduled.Name, scheduled.FastDigest(), scheduled.Instances[0], scheduled.InitConfig)
+
+	// Accumulate failures below the threshold (5). The counter should be
+	// present in trialRegistry but the config should remain scheduled.
+	for i := 0; i < 3; i++ {
+		ac.RecordTrialResult(id, false)
+	}
+	ac.trialRegistry.mu.Lock()
+	require.Equal(t, 3, ac.trialRegistry.counts[id], "trialRegistry must reflect the accumulated failures")
+	ac.trialRegistry.mu.Unlock()
+
+	// Unschedule via processRemovedConfigs — the non-threshold path that
+	// fires when a template is removed or a service vanishes.
+	ac.processRemovedConfigs([]integration.Config{scheduled})
+	require.Eventually(t, func() bool {
+		return sch.scheduledSize() == 0
+	}, 5*time.Second, 10*time.Millisecond, "config should be unscheduled by processRemovedConfigs")
+
+	ac.trialRegistry.mu.Lock()
+	_, exists := ac.trialRegistry.counts[id]
+	ac.trialRegistry.mu.Unlock()
+	require.False(t, exists, "trialRegistry entry must be cleared on unschedule outside the failure-threshold path")
+}
+
 func TestAutoConfigTestSuite(t *testing.T) {
 	suite.Run(t, new(AutoConfigTestSuite))
 }

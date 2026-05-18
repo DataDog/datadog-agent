@@ -775,6 +775,14 @@ func (ac *AutoConfig) applyChanges(changes integration.ConfigChanges) {
 			if telemetryStorePresent {
 				ac.telemetryStore.ScheduledConfigs.Dec(conf.Provider, configType(conf))
 			}
+			// Drop any trial-failure counter so unschedules from service or
+			// config removal (not just the failure-threshold path) don't leak
+			// entries into trialRegistry.
+			if conf.TrialMode {
+				for _, inst := range conf.Instances {
+					ac.trialRegistry.forget(checkid.BuildID(conf.Name, conf.FastDigest(), inst, conf.InitConfig))
+				}
+			}
 		}
 	}
 
