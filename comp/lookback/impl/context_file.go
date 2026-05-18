@@ -22,9 +22,9 @@ type contextEntry struct {
 // Two implementations exist: flatContextStore (append-only binary file) and
 // boltContextStore (bbolt B+tree). Both are safe for concurrent use.
 type contextStore interface {
-	// maybeWrite persists the context mapping if it has not been written before.
-	// The bloom filter in contextFile gates this: it is only called on a new key.
-	maybeWrite(key uint64, name string, tags []string) error
+	// write persists the context mapping unconditionally. Called only after the
+	// bloom filter in contextFile has confirmed the key is new.
+	write(key uint64, name string, tags []string) error
 
 	// scan returns all contexts for the given metric name. If filterTags is non-nil,
 	// only entries whose tags are a superset of filterTags are returned.
@@ -65,12 +65,12 @@ func newContextFile(dir string) (*contextFile, error) {
 	return cf, nil
 }
 
-// maybeWrite writes the context if the bloom filter reports the key as unseen.
-func (cf *contextFile) maybeWrite(key uint64, name string, tags []string) error {
+// write records the context; the bloom filter gates reports the key as unseen.
+func (cf *contextFile) write(key uint64, name string, tags []string) error {
 	if cf.bloom.IsKnown(key) {
 		return nil
 	}
-	return cf.store.maybeWrite(key, name, tags)
+	return cf.store.write(key, name, tags)
 }
 
 // scan delegates to the underlying store.

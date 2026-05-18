@@ -167,7 +167,7 @@ func (c *component) onSamples(samples []hook.MetricSampleSnapshot) {
 		if ck == 0 {
 			ck = syntheticKey(s.Name, sortedTagsCopy(s.RawTags))
 		}
-		_ = c.ctxFile.maybeWrite(ck, s.Name, s.RawTags)
+		_ = c.ctxFile.write(ck, s.Name, s.RawTags)
 		c.store.write(ck, int64(s.Timestamp*1e9), s.Value)
 	}
 }

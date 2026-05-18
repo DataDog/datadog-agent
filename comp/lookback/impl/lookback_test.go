@@ -58,7 +58,7 @@ func TestEndToEndWriteRotateFlush(t *testing.T) {
 	tags := []string{"env:prod"}
 	ck := syntheticKey(metricName, sortedTagsCopy(tags))
 
-	require.NoError(t, comp.ctxFile.maybeWrite(ck, metricName, tags))
+	require.NoError(t, comp.ctxFile.write(ck, metricName, tags))
 
 	// Timestamps must fall within the current WAL window.
 	baseNs := time.Now().Add(1 * time.Second).UnixNano()
@@ -90,8 +90,8 @@ func TestFlushNilTagsMatchesAll(t *testing.T) {
 	ck1 := syntheticKey("counter", sortedTagsCopy([]string{"env:prod"}))
 	ck2 := syntheticKey("counter", sortedTagsCopy([]string{"env:staging"}))
 
-	require.NoError(t, comp.ctxFile.maybeWrite(ck1, "counter", []string{"env:prod"}))
-	require.NoError(t, comp.ctxFile.maybeWrite(ck2, "counter", []string{"env:staging"}))
+	require.NoError(t, comp.ctxFile.write(ck1, "counter", []string{"env:prod"}))
+	require.NoError(t, comp.ctxFile.write(ck2, "counter", []string{"env:staging"}))
 
 	comp.store.write(ck1, baseNs, 1.0)
 	comp.store.write(ck2, baseNs, 2.0)
@@ -109,7 +109,7 @@ func TestFlushErrNoDataWhenNoFiles(t *testing.T) {
 	cfg := defaultTestCfg(t)
 	comp := buildTestComponent(t, cfg)
 
-	require.NoError(t, comp.ctxFile.maybeWrite(99, "ghost", nil))
+	require.NoError(t, comp.ctxFile.write(99, "ghost", nil))
 
 	_, err := comp.Flush(context.Background(), "ghost", nil, 0, int64(time.Second), time.Second)
 	assert.True(t, errors.Is(err, lookback.ErrNoData))

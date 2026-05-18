@@ -32,7 +32,7 @@ func newFlatContextStore(path string) (*flatContextStore, error) {
 	return &flatContextStore{f: f}, nil
 }
 
-func (s *flatContextStore) maybeWrite(key uint64, name string, tags []string) error {
+func (s *flatContextStore) write(key uint64, name string, tags []string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return appendFlatEntry(s.f, key, name, tags)
@@ -169,7 +169,7 @@ func readFlatEntry(r io.Reader) (key uint64, name string, tags []string, err err
 // mutex, so writes to different metric names proceed concurrently.
 //
 // Compared to a single flatContextStore:
-//   - maybeWrite: N-way parallelism, same O(1) append cost per shard
+//   - write: N-way parallelism, same O(1) append cost per shard
 //   - scan(name): reads only 1/N of the total data — O(file_size/N)
 //   - loadKeys: iterates all N shards sequentially at startup
 //
@@ -198,8 +198,8 @@ func (s *shardedFlatContextStore) shardFor(name string) *flatContextStore {
 	return s.shards[murmur3.Sum32([]byte(name))%s.n]
 }
 
-func (s *shardedFlatContextStore) maybeWrite(key uint64, name string, tags []string) error {
-	return s.shardFor(name).maybeWrite(key, name, tags)
+func (s *shardedFlatContextStore) write(key uint64, name string, tags []string) error {
+	return s.shardFor(name).write(key, name, tags)
 }
 
 func (s *shardedFlatContextStore) scan(name string, filterTags []string) (map[uint64]contextEntry, error) {
