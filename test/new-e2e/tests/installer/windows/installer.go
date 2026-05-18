@@ -610,9 +610,7 @@ func (d *DatadogInstaller) SetConfigExperiment(config ConfigExperiment) (string,
 	if err != nil {
 		return "", err
 	}
-	// Escape quotes in the JSON string to handle PowerShell quoting properly
-	configStr := strings.ReplaceAll(string(serializedConfig), `"`, `\"`)
-	return d.execute(fmt.Sprintf("daemon set-config-catalog '%s'", configStr))
+	return d.execute(fmt.Sprintf("daemon set-config-catalog '%s'", string(serializedConfig)))
 }
 
 // StartConfigExperiment starts a config experiment using the provided InstallerConfig through the daemon.
@@ -628,11 +626,9 @@ func (d *DatadogInstaller) StartConfigExperiment(packageName string, config Conf
 	if err != nil {
 		return "", err
 	}
-	// Escape quotes in the JSON string to handle PowerShell quoting properly
-	opsStr := strings.ReplaceAll(string(serializedOps), `"`, `\"`)
 
 	// Then start the config experiment
-	return d.execute(fmt.Sprintf("daemon start-config-experiment %s '%s'", packageName, opsStr))
+	return d.execute(fmt.Sprintf("daemon start-config-experiment %s '%s'", packageName, string(serializedOps)))
 }
 
 // PromoteConfigExperiment promotes a config experiment through the daemon.
