@@ -23,9 +23,9 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
+from tasks.e2e_framework.deploy import get_pipeline_commit_sha
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
-from tasks.e2e_framework.deploy import get_pipeline_commit_sha
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import Color
 from tasks.libs.common.git import get_commit_sha, get_current_branch, get_modified_files
@@ -676,7 +676,11 @@ def run(
             resolved_commit_sha = pipeline_commit_sha
             print(color_message(f"Fetched commit SHA {resolved_commit_sha} from pipeline {pipeline_id}", "blue"))
         else:
-            print(color_message(f"Could not fetch commit SHA for pipeline {pipeline_id}, falling back to local HEAD", "yellow"))
+            print(
+                color_message(
+                    f"Could not fetch commit SHA for pipeline {pipeline_id}, falling back to local HEAD", "yellow"
+                )
+            )
         env_vars["E2E_PIPELINE_ID"] = pipeline_id
         env_vars["E2E_COMMIT_SHA"] = resolved_commit_sha
     elif not running_in_ci():
@@ -696,7 +700,11 @@ def run(
             print(color_message(f"Auto-detecting pipeline for commit {short_commit_sha}...", "blue"))
             detected_pipeline_id = _find_pipeline_for_commit_sha(ctx, commit_sha)
             if detected_pipeline_id:
-                print(color_message(f"Auto-detected pipeline {detected_pipeline_id} for commit {short_commit_sha}", "blue"))
+                print(
+                    color_message(
+                        f"Auto-detected pipeline {detected_pipeline_id} for commit {short_commit_sha}", "blue"
+                    )
+                )
                 env_vars["E2E_PIPELINE_ID"] = detected_pipeline_id
                 env_vars["E2E_COMMIT_SHA"] = short_commit_sha
                 resolved_commit_sha = short_commit_sha

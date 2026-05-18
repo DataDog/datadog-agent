@@ -38,6 +38,7 @@ def deploy(
     local_package: str | None = None,
     pulumi_extra_args: str = "",
     pulumi_env: dict[str, str] | None = None,
+    needs_agent_containers: bool = True,
 ) -> str:
     from pydantic_core._pydantic_core import ValidationError
 
@@ -83,7 +84,7 @@ def deploy(
     if key_pair_required and cfg.get_options().checkKeyPair:
         _check_key_pair(awsKeyPairName)
 
-    if (
+    if needs_agent_containers and (
         pipeline_id is not None
         or full_image_path is not None
         and full_image_path.startswith("669783387624.dkr.ecr.us-east-1.amazonaws.com/")
