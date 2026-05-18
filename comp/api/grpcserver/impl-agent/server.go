@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	autodiscoverystream "github.com/DataDog/datadog-agent/comp/core/autodiscovery/stream"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -247,17 +248,16 @@ func (s *serverSecure) RefreshRemoteAgent(_ context.Context, in *pb.RefreshRemot
 	return &pb.RefreshRemoteAgentResponse{}, nil
 }
 
-func (s *serverSecure) ReportHealthIssue(_ context.Context, in *pb.HealthIssueReport) (*emptypb.Empty, error) {
+func (s *serverSecure) ReportHealthIssue(_ context.Context, in *healthplatformpayload.Issue) (*emptypb.Empty, error) {
 	store, ok := s.healthPlatformStore.Get()
 	if !ok {
 		return nil, status.Error(codes.Unavailable, "health platform store not available")
 	}
-	if in.IssueId == "" {
-		return nil, status.Error(codes.InvalidArgument, "issue_id cannot be empty")
+	if in.GetId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "issue id cannot be empty")
 	}
 
-	issue := healthplatformstore.ProtoToIssue(in)
-	if err := store.AcceptIssue(issue); err != nil {
+	if err := store.AcceptIssue(in); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to store issue: %v", err)
 	}
 	return &emptypb.Empty{}, nil

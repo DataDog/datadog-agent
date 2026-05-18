@@ -1,0 +1,15 @@
+load("@protobuf//bazel:proto_library.bzl", "proto_library")
+
+# gazelle:proto_strip_import_prefix /pkg/proto
+
+proto_library(
+    name = "healthplatform_proto",
+    srcs = ["healthplatform.proto"],
+    strip_import_prefix = "/pkg/proto",
+    visibility = ["//visibility:public"],
+    deps = ["@protobuf//:struct_proto"],
+)
+
+# NOTE: No go_proto_library here. The Go types for this proto are provided
+# by the external agent-payload module (@com_github_datadog_agent_payload_v5//healthplatform).
+# Consumers should depend on that target directly.

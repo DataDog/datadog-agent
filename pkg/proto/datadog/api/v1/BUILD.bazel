@@ -8,6 +8,7 @@ proto_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/proto/datadog/autodiscovery:autodiscovery_proto",
+        "//pkg/proto/datadog/healthplatform:healthplatform_proto",
         "//pkg/proto/datadog/kubemetadata:kubemetadata_proto",
         "//pkg/proto/datadog/model/v1:v1_proto",
         "//pkg/proto/datadog/remoteagent:remoteagent_proto",

@@ -10,7 +10,7 @@ go_library(
         "//comp/core/flare/types",
         "//comp/def",
         "//comp/healthplatform/store/def",
-        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "//pkg/proto/datadog/healthplatform:healthplatform_go_proto",
     ],
 )
 
