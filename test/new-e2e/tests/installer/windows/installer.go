@@ -168,12 +168,7 @@ func (d *DatadogInstaller) SetCatalog(newCatalog Catalog) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// s.T().Logf("Running: daemon set-catalog '%s'", string(serializedCatalog))
-	// escaping the quotes really shouldn't be necessary because powershell will not parse them
-	// when inside the single quotes but it seems like Golang is doing something weird with the
-	// quotes, but only on Windows since this works fine on Linux without escaping.
-	catalog := strings.ReplaceAll(string(serializedCatalog), `"`, `\"`)
-	return d.execute(fmt.Sprintf("daemon set-catalog '%s'", catalog))
+	return d.execute(fmt.Sprintf("daemon set-catalog '%s'", string(serializedCatalog)))
 }
 
 // ignoreEOF ignores EOF errors
