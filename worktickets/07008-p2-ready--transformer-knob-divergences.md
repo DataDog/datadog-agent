@@ -1,29 +1,51 @@
 ## Summary
 
-The config-variation differential harness found that several transformer-
-configuration knobs produce divergent output between Go and Python even
-when `share_labels` (the dominant cause) is excluded. These are smaller
-silent-data-drift bugs that compound during migration: each one shifts a
-small fraction of submissions but in different shapes.
+The config-variation differential harness initially flagged several
+transformer-configuration knobs as appearing in divergent configs. A larger
+sweep (seed=42, 1000 iters × 4 knobs/config) clarified the picture: **none
+of these knobs cause divergence on their own. They are passengers — they
+appear in divergent configs only when share_labels is also present.**
 
-Knob attribution from the first 100-iteration config run (knobs are sorted
-by divergence count; each iteration applied 3 random knobs, so any single
-knob can be "blamed" for multiple iterations):
+From the 1000-iteration sweep: 25 divergent configs total, and all 25
+include share_labels. Zero non-share_labels divergent configs found.
+
+This ticket is kept open as a verification-after-fix workstream:
+once 07007 (share_labels) is fixed, re-run the harness with
+`-config.knobs=1` and a large iteration count to confirm no
+independent transformer-knob bugs remain.
+
+## Knob-frequency table from the 1000-iter sweep
+
+All counts are "this knob appeared in N divergent iterations." Every
+divergent iteration also had share_labels.
 
 ```
-join/share_labels                       divergent=6   ← tracked separately
-labels/rename                           divergent=3
-transformer/type_overrides              divergent=2
+join/share_labels                       divergent=26  (1 iter applied it twice)
+labels/tag_by_endpoint_false            divergent=8
+labels/exclude                          divergent=6
+matching/mixed_regex_and_rename         divergent=6
+transformer/non_cumulative_buckets      divergent=6
+transformer/raw_metric_prefix           divergent=6
+exclude/by_name                         divergent=5
+transformer/histogram_as_distributions  divergent=5
+transformer/send_histograms_buckets_false divergent=4
+transformer/send_monotonic_with_gauge   divergent=4
+exclude/by_label                        divergent=3
+exclude/ignore_metrics_alias            divergent=3
+health/disable_service_check            divergent=3
+transformer/type_overrides              divergent=3
 transformer/send_distribution_buckets   divergent=2
-health/disable_service_check            divergent=2
-transformer/histogram_as_distributions  divergent=1
-matching/rename_map                     divergent=1
-matching/mixed_regex_and_rename         divergent=1
+transformer/send_monotonic_counter_false divergent=2
+matching/narrow_regex                   divergent=2
+matching/rename_map                     divergent=2
+labels/ignore_tags                      divergent=1
+labels/include                          divergent=1
+labels/rename                           divergent=1
+matching/named_list                     divergent=1
 ```
 
-Since every divergent iteration also had `share_labels`, the standalone
-contribution of these knobs isn't separable from share_labels' effect.
-Bisecting that out is part of this ticket's investigation.
+The non-share_labels knobs appear roughly in proportion to their random
+sampling weight — consistent with the "passenger" hypothesis.
 
 ## Repro
 
@@ -92,26 +114,39 @@ matching layer applies metric-name renames, and the order of
 
 ## Approach
 
-1. Fix share_labels first (07007). Most of the noise here will vanish.
-2. Re-run the harness with the same seed to see what remains.
-3. For each remaining knob, run with `-config.knobs=1` for isolated
-   attribution. The harness will report `divergent=N` per knob.
-4. Pick the highest-correlation knob; minimize a repro (the harness
-   already minimizes by knob count when knobs=1).
-5. Write a focused unit test in `pkg/collector/corechecks/openmetrics/`
-   for the specific transformer behavior, fix the Go side to match
-   Python, verify both the unit test and the differential test pass.
+This ticket is mostly verification-after-fix. The plan:
+
+1. Wait for 07007 (share_labels) to be fixed.
+2. Re-run the harness with the same seed:
+   ```bash
+   go test -tags openmetrics_differential -v -run TestOpenMetricsConfigDifferential \
+       ./pkg/collector/corechecks/openmetrics/differential/ \
+       -config.iters=1000 -config.knobs=4 -config.seed=42
+   ```
+   Expected: divergent count drops dramatically (probably to 0 or near-0).
+3. If divergences remain, run with `-config.knobs=1` for isolated
+   attribution — this exercises one knob at a time so any remaining
+   divergence attributes cleanly.
+4. For any genuinely independent knob bug found in step 3, file a
+   focused follow-up ticket.
+5. Close this ticket when the harness produces zero non-suppressed
+   divergent iterations across multiple seeds.
+
+If step 2 shows zero divergent iterations, the entire P2 surface
+convergently resolves with the P1 fix — close this ticket and update
+07007's verification to include the broader sweep.
 
 ## Severity rationale
 
 P2 because:
-- Each is partial-degradation, not total failure.
-- All are tracked behind 07007 (share_labels) which dominates the
-  divergence space — fixing that first will clarify these.
-- Real-world incidence depends on how many users have non-default
-  values for these knobs. type_overrides and send_distribution_buckets
-  are common; rename_labels is moderately common; histogram_as_distributions
-  is rarer.
+- No knob has been demonstrated to cause divergence independently of
+  share_labels.
+- All evidence points to share_labels being the underlying broken feature;
+  these knobs are observably passengers.
+- Real-world incidence: irrelevant until 07007 is fixed.
+
+Keep as ready (not blocked) so the verification work has a tracking home,
+but expect this ticket to close fast once 07007 lands.
 
 ## Verification
 

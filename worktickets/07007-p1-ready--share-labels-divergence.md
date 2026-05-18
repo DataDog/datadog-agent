@@ -104,6 +104,31 @@ Not P0 because:
 - The submission *counts* match, so volume monitoring is unaffected.
 - Recovery via rollback is trivial once detected.
 
+## Empirical evidence: share_labels is necessary AND sufficient
+
+A larger sweep (seed=42, 1000 iters × 4 knobs/config) confirms the pattern:
+
+- 1000 iterations, 25 divergent configs.
+- **All 25 divergent configs include share_labels in their knob set.**
+- **Zero divergent configs without share_labels.**
+
+Probability analysis: with 23 knobs and 4-with-replacement picks per
+iteration, ~16.5% of iterations should include share_labels (≈165 of 1000).
+Of those, 25 (~15%) diverged. Of the ~835 iterations without share_labels,
+zero diverged.
+
+This means the other knobs that appear in divergent configs (rename_labels,
+type_overrides, raw_metric_prefix, non_cumulative_buckets, exclude_*,
+tag_by_endpoint, ...) are passengers — they correlate with divergence ONLY
+in combination with share_labels. They modulate which submissions diverge
+but do not cause divergence themselves. Fix share_labels and most/all of
+the other observed divergences should resolve.
+
+One caveat: this conclusion is bounded by the harness coverage. Pure
+non-share_labels divergences may exist in knob combinations the random
+sampling hasn't hit yet. Re-run with `-config.knobs=1` after fixing
+share_labels to verify nothing remains.
+
 ## Verification
 
 A successful fix should produce `agree` for these repro configs and reduce
