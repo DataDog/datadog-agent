@@ -331,7 +331,7 @@ require (
 	github.com/uptrace/bun v1.2.18
 	github.com/uptrace/bun/dialect/pgdialect v1.2.18
 	github.com/uptrace/bun/driver/pgdriver v1.2.18
-	github.com/urfave/negroni v1.0.0
+	github.com/urfave/negroni/v2 v2.0.2
 	github.com/valyala/fastjson v1.6.10 // indirect
 	github.com/vibrantbyte/go-antpath v1.1.1
 	github.com/vishvananda/netlink v1.3.1
@@ -983,6 +983,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.6.0
 	github.com/qri-io/jsonpointer v0.1.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
+	github.com/urfave/negroni v1.0.0
 	gitlab.com/gitlab-org/api/client-go v1.46.0
 	go.opentelemetry.io/collector/otelcol/otelcoltest v0.152.0
 	go.temporal.io/api v1.62.2
