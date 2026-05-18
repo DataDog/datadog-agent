@@ -122,6 +122,8 @@ type dogstatsdColumnarShard struct {
 	noIndex         []bool
 	sources         []metrics.MetricSource
 	units           []string
+	lastBucket      []int64
+	lastRow         []int
 }
 
 type dogstatsdColumnarStore struct {
@@ -284,9 +286,17 @@ func (s *dogstatsdColumnarStore) insertAcceptedInShard(shard *dogstatsdColumnarS
 		descriptorID = shard.appendDescriptor(key, sample)
 	}
 
-	idx, ok := bucket.byDescriptor[descriptorID]
-	if !ok {
-		idx = bucket.appendRow(descriptorID)
+	idx := -1
+	if shard.lastRow[descriptorID] >= 0 && shard.lastBucket[descriptorID] == bucketStart {
+		idx = shard.lastRow[descriptorID]
+	} else {
+		var ok bool
+		idx, ok = bucket.byDescriptor[descriptorID]
+		if !ok {
+			idx = bucket.appendRow(descriptorID)
+		}
+		shard.lastBucket[descriptorID] = bucketStart
+		shard.lastRow[descriptorID] = idx
 	}
 
 	switch sample.Mtype {
@@ -331,6 +341,8 @@ func (s *dogstatsdColumnarShard) appendDescriptor(key dogstatsdColumnarKey, samp
 	s.noIndex = append(s.noIndex, sample.NoIndex)
 	s.sources = append(s.sources, sample.Source)
 	s.units = append(s.units, sample.Unit)
+	s.lastBucket = append(s.lastBucket, 0)
+	s.lastRow = append(s.lastRow, -1)
 	tlmDogstatsdColumnarStats.Inc("created_descriptors")
 	return idx
 }
