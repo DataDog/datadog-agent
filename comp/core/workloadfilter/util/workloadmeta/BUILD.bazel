@@ -9,7 +9,7 @@ go_library(
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadmeta/def",
         "//pkg/proto/pbgo/core",
-        "@//pkg/util/kubernetes",
+        "//pkg/util/kubernetes",
     ],
 )
 
