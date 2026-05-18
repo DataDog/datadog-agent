@@ -747,10 +747,12 @@ func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, ident
 				batcherNeedsContext := batcher.needsSampleContext()
 				for idx := range samples {
 					debugEnabled := s.Debug.IsDebugEnabled()
-					needsContext := debugEnabled || batcherNeedsContext || columnarV3Enabled
+					needsShardContext := batcherNeedsContext || columnarV3Enabled
 					var sampleContext identity.HotPathContext
-					if needsContext {
+					if debugEnabled || batcherNeedsContext {
 						sampleContext = identityBuilder.ResolveHotPath(samples[idx])
+					} else if columnarV3Enabled {
+						sampleContext.Shard = identityBuilder.Shard(samples[idx])
 					}
 
 					if debugEnabled {
@@ -768,12 +770,12 @@ func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, ident
 						// samples return false and continue through the legacy batcher.
 						batcher.appendColumnarV3SampleWithContext(samples[idx], sampleContext)
 					} else if samples[idx].Timestamp > 0.0 {
-						if needsContext {
+						if needsShardContext {
 							batcher.appendLateSampleWithContext(samples[idx], sampleContext)
 						} else {
 							batcher.appendLateSample(samples[idx])
 						}
-					} else if needsContext {
+					} else if needsShardContext {
 						batcher.appendSampleWithContext(samples[idx], sampleContext)
 					} else {
 						batcher.appendSample(samples[idx])
