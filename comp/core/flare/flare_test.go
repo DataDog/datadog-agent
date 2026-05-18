@@ -393,6 +393,11 @@ func TestLocalFlareFileContent(t *testing.T) {
 
 	errIpc := errors.New("connection refused")
 	flareComp := getFlareWithParams(t, NewLocalParams("", "", "", "", "", ""), nil)
+	// Override providers to prevent them from running past the timeout and writing into
+	// t.TempDir()-backed flare directories during test cleanup.
+	// This also avoids side-effects caused by default providers.
+	// The "local" file under test is written before providers run, so this is safe to nil out.
+	flareComp.providers = nil
 	// Save() is a no-op in the mock and returns an error; the local file is still written.
 	_, _ = flareComp.Create(types.ProfileData{}, 0, errIpc, []byte{})
 

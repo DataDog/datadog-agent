@@ -206,6 +206,14 @@ func {{$funcName}}(fieldToCopy {{$fullType}}) {{$fullType}} {
 	return copied
 
 		{{- else if eq $strategy "struct"}}
+		{{- if eq (len $node.Children) 0}}
+	{{- /* No children means the type's source wasn't loaded; shallow-copy
+	      is correct for value-only structs (e.g. external types from
+	      packages whose Bazel-side sources aren't passed via -extra-srcs).
+	      For non-value-only externals, add their .go files to the macro's
+	      srcs attribute. */}}
+	return fieldToCopy
+		{{- else}}
 	copied := {{$node.Field.OrigType}}{}
 			{{- range $node.Children}}
 			{{- $childBaseName := BaseName .Field.OrigType}}
@@ -238,6 +246,7 @@ func {{$funcName}}(fieldToCopy {{$fullType}}) {{$fullType}} {
 			{{- end}}
 			{{- end}}
 	return copied
+		{{- end}}
 
 		{{- else}}
 	return fieldToCopy

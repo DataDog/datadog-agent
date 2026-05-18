@@ -391,11 +391,19 @@ func (m *defaultMapper) getSketchBuckets(
 			"upper_bound:"+formatFloat(upperBound),
 		)
 
-		// InsertInterpolate doesn't work with an infinite bound; insert in to the bucket that contains the non-infinite bound
+		// InsertInterpolate's first deposit lands at the lower bound, so a degenerate lower bound leaks count into the
+		// sketch's zero bin and collapses percentiles. Three lower-bound shapes are degenerate: -Inf, +Inf as upper
+		// (handled by collapsing toward the finite endpoint), and 0 when the bucket is (0, B] — the OTel spec defines
+		// explicit-bucket intervals as (lowerBound, upperBound], so a (0, B] bucket cannot contain value 0. Note the
+		// symmetric (A, 0] case is NOT degenerate: the interval is closed at 0, so observations can legitimately be 0,
+		// and the algorithm's first-deposit-at-lower-bound only seeds at A (not at 0).
 		// https://github.com/DataDog/datadog-agent/blob/7.31.0/pkg/aggregator/check_sampler.go#L107-L111
-		if math.IsInf(upperBound, 1) {
+		switch {
+		case math.IsInf(upperBound, 1):
 			upperBound = lowerBound
-		} else if math.IsInf(lowerBound, -1) {
+		case math.IsInf(lowerBound, -1):
+			lowerBound = upperBound
+		case lowerBound == 0 && upperBound > 0:
 			lowerBound = upperBound
 		}
 

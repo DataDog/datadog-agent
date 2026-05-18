@@ -1,5 +1,12 @@
 load("@rules_go//go:def.bzl", "go_library")
 
+# Source-level export so the //pkg/security/secl/model:event_deep_copy_*
+# Bazel codegens can resolve types defined here (e.g. utils.TraceID).
+exports_files(
+    ["uint128.go"],
+    visibility = ["//pkg/security/secl/model:__pkg__"],
+)
+
 go_library(
     name = "utils",
     srcs = ["uint128.go"],

@@ -7,6 +7,7 @@
 package rcserviceimpl
 
 import (
+	"bytes"
 	"context"
 	"expvar"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -23,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rctelemetryreporter "github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/def"
+	rcflare "github.com/DataDog/datadog-agent/pkg/config/remote/flare"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -57,7 +60,8 @@ type Dependencies struct {
 type Provides struct {
 	compdef.Out
 
-	Comp option.Option[rcservice.Component]
+	Comp          option.Option[rcservice.Component]
+	FlareProvider flaretypes.Provider
 }
 
 // NewRemoteConfigServiceOptional conditionally creates and configures a new remote config service, based on whether RC is enabled.
@@ -73,7 +77,10 @@ func NewRemoteConfigServiceOptional(deps Dependencies) Provides {
 		return Provides{Comp: none}
 	}
 
-	return Provides{Comp: option.New[rcservice.Component](configService)}
+	return Provides{
+		Comp:          option.New[rcservice.Component](configService),
+		FlareProvider: flaretypes.NewProvider(rcFillFlare(configService, deps.Cfg.GetString("run_path"))),
+	}
 }
 
 // newRemoteConfigService creates and configures a new remote config service
@@ -174,5 +181,20 @@ func getTags(config cfgcomp.Component, taggerOpt option.Option[tagger.Component]
 		}
 
 		return tags
+	}
+}
+
+func rcFillFlare(svc rcservice.Component, runPath string) func(context.Context, flaretypes.FlareBuilder) error {
+	return func(_ context.Context, fb flaretypes.FlareBuilder) error {
+		if err := rcflare.CopyRemoteConfigDB(fb, runPath); err != nil {
+			return err
+		}
+		state, err := svc.ConfigGetState()
+		if err != nil {
+			return fmt.Errorf("couldn't get the repositories state: %v", err)
+		}
+		var buf bytes.Buffer
+		rcservice.PrintRemoteConfigStates(&buf, state, nil)
+		return fb.AddFile("remote-config-state.log", buf.Bytes())
 	}
 }

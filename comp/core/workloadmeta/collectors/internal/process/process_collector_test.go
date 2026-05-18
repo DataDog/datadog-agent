@@ -882,13 +882,20 @@ func TestContainerIDRaceCondition(t *testing.T) {
 	err := c.collector.Start(ctx, c.mockStore)
 	assert.NoError(t, err)
 
+	// Wait for cycle 1 to complete: process exists but without container ID
+	require.EventuallyWithT(t, func(cT *assert.CollectT) {
+		actualProc, err := c.mockStore.GetProcess(pid1)
+		require.NoError(cT, err)
+		assert.Empty(cT, actualProc.ContainerID)
+	}, time.Second, time.Millisecond*100)
+
 	// Advance clock to trigger cycle 2
 	c.mockClock.Add(collectionInterval)
 
-	// After both cycles: process should have the container ID from cycle 2
+	// After cycle 2: process should have the container ID
 	assert.EventuallyWithT(t, func(cT *assert.CollectT) {
 		actualProc, err := c.mockStore.GetProcess(pid1)
-		assert.NoError(cT, err)
+		require.NoError(cT, err)
 		assert.Equal(cT, "container-abc", actualProc.ContainerID)
 		assert.Equal(cT, &workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,

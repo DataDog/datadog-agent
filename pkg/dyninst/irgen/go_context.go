@@ -8,40 +8,27 @@
 package irgen
 
 import (
-	"slices"
-
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 )
 
-var ddTraceGoContextTypes = []string{
-	"context.Context",
-	"*context.afterFuncCtx",
-	"*context.cancelCtx",
-	"*context.stopCtx",
-	"*context.timerCtx",
-	"*context.valueCtx",
-	"*context.withoutCancelCtx",
-	"*os/signal.signalCtx",
-	"context.afterFuncCtx",
-	"context.backgroundCtx",
-	"context.cancelCtx",
-	"context.emptyCtx",
-	"context.stopCtx",
-	"context.timerCtx",
-	"context.todoCtx",
-	"context.valueCtx",
-	"context.withoutCancelCtx",
-	"os/signal.signalCtx",
-	"*gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.span",
+// ddTraceSpanTypeNames are dd-trace-go span types whose layout the BPF chain
+// walk needs to know about for trace-correlation. These are not
+// context.Context implementations in their own right; they get the
+// DDTraceSpanType annotation. They're listed explicitly because they live
+// outside the standard library, are not discoverable as
+// context.Context implementations, and carry per-version layout that the
+// runtime needs.
+var ddTraceSpanTypeNames = []string{
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.span",
+	"*gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.span",
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.spanContext",
-	"*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span",
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span",
+	"*github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span",
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.SpanContext",
 }
 
-func addDDTraceGoContextTypes(typeNames map[string]struct{}) {
-	for _, name := range ddTraceGoContextTypes {
+func addDDTraceSpanTypeNames(typeNames map[string]struct{}) {
+	for _, name := range ddTraceSpanTypeNames {
 		typeNames[name] = struct{}{}
 	}
 }
@@ -61,12 +48,20 @@ func analyzedProbesContainGoContext(analyzedProbes []analyzedProbe) bool {
 // typeCatalog with dedicated wrapper IR types that carry the metadata the
 // BPF chain walk needs:
 //
-//   - context.{cancelCtx, valueCtx, …} → GoContextImplementationType
+//   - Every concrete context.Context implementation → GoContextImplementationType
 //   - dd-trace-go tracer.span (v1) / tracer.Span (v2) → DDTraceSpanType
+//
+// contextImplIRTypeIDs is the set of IR type IDs known to be concrete
+// context.Context implementations, discovered dynamically by walking the
+// method index for implementors of the context.Context interface.
 //
 // Wrapping (rather than mutating GoTypeAttributes on every IR type) keeps
 // the metadata off types that don't need it.
-func annotateSpecialGoTypes(tc *typeCatalog, enabled bool) {
+func annotateSpecialGoTypes(
+	tc *typeCatalog,
+	enabled bool,
+	contextImplIRTypeIDs map[ir.TypeID]struct{},
+) {
 	if !enabled {
 		return
 	}
@@ -75,32 +70,11 @@ func annotateSpecialGoTypes(tc *typeCatalog, enabled bool) {
 		if !ok {
 			continue
 		}
+		// dd-trace-go span types are special: they implement context.Context
+		// but the chain walk needs DDTrace-specific layout instead of the
+		// generic context impl wrapping. Match them first by their canonical
+		// names.
 		switch st.Name {
-		case "context.valueCtx":
-			attrs := goContextAttributes(st)
-			if key, ok := st.FieldByName("key"); ok {
-				attrs.KeyOffset = int32(key.Offset)
-			}
-			if val, ok := st.FieldByName("val"); ok {
-				attrs.ValueOffset = int32(val.Offset)
-			}
-			tc.typesByID[id] = &ir.GoContextImplementationType{
-				StructureType:       st,
-				GoContextAttributes: attrs,
-			}
-		case "context.afterFuncCtx",
-			"context.backgroundCtx",
-			"context.cancelCtx",
-			"context.emptyCtx",
-			"context.stopCtx",
-			"context.timerCtx",
-			"context.todoCtx",
-			"context.withoutCancelCtx",
-			"os/signal.signalCtx":
-			tc.typesByID[id] = &ir.GoContextImplementationType{
-				StructureType:       st,
-				GoContextAttributes: goContextAttributes(st),
-			}
 		case "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer.span":
 			if attrs, ok := ddTraceSpanLayout(tc, st, ir.DDTraceSpanV1); ok {
 				tc.typesByID[id] = &ir.DDTraceSpanType{
@@ -108,6 +82,7 @@ func annotateSpecialGoTypes(tc *typeCatalog, enabled bool) {
 					DDTraceAttributes: attrs,
 				}
 			}
+			continue
 		case "github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span":
 			if attrs, ok := ddTraceSpanLayout(tc, st, ir.DDTraceSpanV2); ok {
 				tc.typesByID[id] = &ir.DDTraceSpanType{
@@ -115,26 +90,67 @@ func annotateSpecialGoTypes(tc *typeCatalog, enabled bool) {
 					DDTraceAttributes: attrs,
 				}
 			}
+			continue
+		}
+		if _, isCtxImpl := contextImplIRTypeIDs[id]; !isCtxImpl {
+			continue
+		}
+		attrs := goContextAttributes(st, contextImplIRTypeIDs)
+		// context.valueCtx is the one concrete context impl whose extra
+		// payload (key/val) the chain walk needs to read out. Match it by
+		// canonical name; no other Go context implementation exposes a
+		// key/value pair in this shape.
+		if st.Name == "context.valueCtx" {
+			if key, ok := st.FieldByName("key"); ok {
+				attrs.KeyOffset = int32(key.Offset)
+			}
+			if val, ok := st.FieldByName("val"); ok {
+				attrs.ValueOffset = int32(val.Offset)
+			}
+		}
+		tc.typesByID[id] = &ir.GoContextImplementationType{
+			StructureType:       st,
+			GoContextAttributes: attrs,
 		}
 	}
 }
 
-func goContextAttributes(st *ir.StructureType) ir.GoContextAttributes {
+func goContextAttributes(
+	st *ir.StructureType, contextImplIRTypeIDs map[ir.TypeID]struct{},
+) ir.GoContextAttributes {
 	attrs := ir.GoContextAttributes{
 		ContextOffset: ir.GoContextNoOffset,
 		KeyOffset:     ir.GoContextNoOffset,
 		ValueOffset:   ir.GoContextNoOffset,
 	}
-	if off, ok := embeddedContextOffset(st); ok {
+	visited := make(map[ir.TypeID]struct{})
+	if off, ok := embeddedContextOffset(st, contextImplIRTypeIDs, visited); ok {
 		attrs.ContextOffset = int32(off)
 	}
 	return attrs
 }
 
-func embeddedContextOffset(st *ir.StructureType) (uint32, bool) {
-	for _, name := range []string{"Context", "c"} {
-		if f, ok := st.FieldByName(name); ok &&
-			!isPlaceholderIRType(f.Type) &&
+// embeddedContextOffset finds the offset of the first field of type
+// context.Context (the interface) reachable from st, descending through
+// nested struct fields that are themselves concrete context implementations
+// (per contextImplIRTypeIDs). This generalizes the rule "the parent context
+// is the first field of type context.Context", which the BPF chain walk
+// relies on to step from one context to the next. The visited set guards
+// against cycles where impls embed each other.
+func embeddedContextOffset(
+	st *ir.StructureType,
+	contextImplIRTypeIDs map[ir.TypeID]struct{},
+	visited map[ir.TypeID]struct{},
+) (uint32, bool) {
+	if _, seen := visited[st.ID]; seen {
+		return 0, false
+	}
+	visited[st.ID] = struct{}{}
+	for _, f := range st.RawFields {
+		if isPlaceholderIRType(f.Type) {
+			continue
+		}
+		if _, ok := f.Type.(*ir.GoInterfaceType); ok &&
 			f.Type.GetName() == "context.Context" {
 			return f.Offset, true
 		}
@@ -144,26 +160,17 @@ func embeddedContextOffset(st *ir.StructureType) (uint32, bool) {
 			continue
 		}
 		nested, ok := f.Type.(*ir.StructureType)
-		if !ok || !isGoContextImplName(nested.Name) {
+		if !ok {
 			continue
 		}
-		if off, ok := embeddedContextOffset(nested); ok {
+		if _, ok := contextImplIRTypeIDs[nested.ID]; !ok {
+			continue
+		}
+		if off, ok := embeddedContextOffset(nested, contextImplIRTypeIDs, visited); ok {
 			return f.Offset + off, true
 		}
 	}
 	return 0, false
-}
-
-func isGoContextImplName(name string) bool {
-	return slices.Contains([]string{
-		"context.afterFuncCtx",
-		"context.cancelCtx",
-		"context.stopCtx",
-		"context.timerCtx",
-		"context.valueCtx",
-		"context.withoutCancelCtx",
-		"os/signal.signalCtx",
-	}, name)
 }
 
 func ddTraceSpanLayout(

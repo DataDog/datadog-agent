@@ -26,6 +26,9 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // mockInjectionPattern implements the InjectionPattern interface for testing
@@ -63,6 +66,34 @@ func (m *mockInjectionPattern) Added(context.Context, *unstructured.Unstructured
 func (m *mockInjectionPattern) Deleted(context.Context, *unstructured.Unstructured) error {
 	m.deletedCalls++
 	return m.deletedErr
+}
+
+type mockSidecarInjectionPattern struct {
+	mockInjectionPattern
+}
+
+func (m *mockSidecarInjectionPattern) Mode() appsecconfig.InjectionMode {
+	return appsecconfig.InjectionModeSidecar
+}
+
+func (m *mockSidecarInjectionPattern) MatchCondition() admissionregistrationv1.MatchCondition {
+	return admissionregistrationv1.MatchCondition{Expression: "object.metadata.labels['app'] == 'gateway'"}
+}
+
+func (m *mockSidecarInjectionPattern) ShouldMutatePod(*corev1.Pod) bool {
+	return true
+}
+
+func (m *mockSidecarInjectionPattern) IsNamespaceEligible(string) bool {
+	return true
+}
+
+func (m *mockSidecarInjectionPattern) MutatePod(*corev1.Pod, string, dynamic.Interface) (bool, error) {
+	return true, nil
+}
+
+func (m *mockSidecarInjectionPattern) PodDeleted(*corev1.Pod, string, dynamic.Interface) (bool, error) {
+	return true, nil
 }
 
 func newMockSecurityInjector(_ context.Context, mockClient dynamic.Interface, mockLogger log.Component, mockConfig appsecconfig.Config) *securityInjector {
@@ -334,6 +365,66 @@ func TestCompilePatterns(t *testing.T) {
 	// Verify the pattern is configured correctly
 	pattern := patterns[appsecconfig.ProxyTypeEnvoyGateway]
 	assert.NotNil(t, pattern, "Pattern should not be nil")
+}
+
+func TestGetSidecarPatterns(t *testing.T) {
+	previousInjector := injector
+	t.Cleanup(func() { injector = previousInjector })
+
+	tests := []struct {
+		name             string
+		injectionEnabled bool
+		productEnabled   bool
+		expectPatterns   bool
+	}{
+		{
+			name:             "returns sidecar patterns when product and injection are enabled",
+			injectionEnabled: true,
+			productEnabled:   true,
+			expectPatterns:   true,
+		},
+		{
+			name:             "returns no sidecar patterns when injection is disabled",
+			injectionEnabled: false,
+			productEnabled:   true,
+			expectPatterns:   false,
+		},
+		{
+			name:             "returns no sidecar patterns when product is disabled",
+			injectionEnabled: true,
+			productEnabled:   false,
+			expectPatterns:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			proxyType := appsecconfig.ProxyTypeEnvoyGateway
+			injector = &securityInjector{
+				logger: logmock.New(t),
+				config: appsecconfig.Config{
+					Injection: appsecconfig.Injection{Enabled: tt.injectionEnabled},
+					Product: appsecconfig.Product{
+						Enabled: tt.productEnabled,
+						Proxies: map[appsecconfig.ProxyType]struct{}{proxyType: {}},
+					},
+				},
+				patterns: map[appsecconfig.ProxyType]appsecconfig.InjectionPattern{
+					proxyType: &mockSidecarInjectionPattern{mockInjectionPattern: mockInjectionPattern{
+						resource:  schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"},
+						namespace: metav1.NamespaceAll,
+					}},
+				},
+			}
+
+			patterns := GetSidecarPatterns()
+			if tt.expectPatterns {
+				require.Len(t, patterns, 1)
+				return
+			}
+			assert.Empty(t, patterns)
+		})
+	}
 }
 
 // Note: TestNewSecurityInjector tests are skipped as they require full APIClient mock
