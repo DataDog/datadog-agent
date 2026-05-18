@@ -3175,6 +3175,8 @@ github.com/emirpasic/gods v1.18.1 h1:FXtiHYKDGKCW2KzwZKx0iC0PQmdlorYgdFG9jPXJ1Bc
 github.com/emirpasic/gods v1.18.1/go.mod h1:8tpGGwCnJ5H4r6BWwaV6OrWmMoPhUl5jm/FMNAnJvWQ=
 github.com/envoyproxy/gateway v1.7.1 h1:u143JTSLI9MkJ7FYsx3RjpKd04nC3QunX6g0vCKCzUM=
 github.com/envoyproxy/gateway v1.7.1/go.mod h1:zjxKlCCwehgR0Va36EbFp9pb/Fp/XFaCn088xp9nG1U=
+github.com/envoyproxy/gateway v1.7.3 h1:9tFKbq0G8IJUELxg2Ra4ECSOZf7mu+CjuA977gV1h4Y=
+github.com/envoyproxy/gateway v1.7.3/go.mod h1:Qv8zMS8mhQ2luIY1EBjOc0K2tj/WbRv3hT6mawgjq5I=
 github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/go-control-plane v0.9.1-0.20191026205805-5f8ba28d4473/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/go-control-plane v0.9.4/go.mod h1:6rpuAdCZL397s3pYoYcLgu1mIlRU8Am5FuJP05cCM98=
