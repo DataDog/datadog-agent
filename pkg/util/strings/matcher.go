@@ -82,3 +82,21 @@ func (m *Matcher) Test(name string) bool {
 
 	return false
 }
+
+// IsConfigured reports whether the matcher has patterns to match against.
+func (m *Matcher) IsConfigured() bool {
+	return m != nil && len(m.data) > 0
+}
+
+// ShouldDropMetric reports whether a metric name should be dropped at flush time.
+// metricBlockList drops matching names; metricAllowList drops names that do not match when configured.
+// A nil matcher means that list is disabled.
+func ShouldDropMetric(name string, metricBlockList, metricAllowList *Matcher) bool {
+	if metricBlockList != nil && metricBlockList.IsConfigured() && metricBlockList.Test(name) {
+		return true
+	}
+	if metricAllowList != nil && metricAllowList.IsConfigured() && !metricAllowList.Test(name) {
+		return true
+	}
+	return false
+}

@@ -27,6 +27,17 @@ func TestNewMatcher(t *testing.T) {
 	assert.Equal(t, []string{"a", "b"}, check([]string{"a", "b", "bb"}))
 }
 
+func TestShouldDropMetric(t *testing.T) {
+	metricBlockList := NewMatcher([]string{"blocked"}, false)
+	metricAllowList := NewMatcher([]string{"system.cpu"}, true)
+
+	assert.False(t, ShouldDropMetric("allowed", nil, nil))
+	assert.True(t, ShouldDropMetric("blocked", &metricBlockList, nil))
+	assert.False(t, ShouldDropMetric("system.cpu.user", nil, &metricAllowList))
+	assert.True(t, ShouldDropMetric("system.disk.free", nil, &metricAllowList))
+	assert.True(t, ShouldDropMetric("blocked", &metricBlockList, &metricAllowList))
+}
+
 func TestIsStringMatching(t *testing.T) {
 	cases := []struct {
 		result      bool

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
+	"github.com/DataDog/datadog-agent/pkg/metricpipelines/names"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
@@ -64,11 +65,66 @@ func BenchmarkMetricsExclusion(b *testing.B) {
 
 	for i := 1; i <= 512; i *= 2 {
 		matcher := utilstrings.NewMatcher(list[:i], false)
+		filters := names.NewTestFilters(names.CriterionMetricFilterList, matcher, utilstrings.Matcher{})
 		b.Run(fmt.Sprintf("%d-exact", i),
 			func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
-					enrichMetricSample(out, sample, "", 0, "", conf, &matcher)
+					enrichMetricSample(out, sample, "", 0, "", conf, &filters)
 				}
 			})
 	}
+}
+
+func BenchmarkMetricsInclusion(b *testing.B) {
+	conf := enrichConfig{}
+
+	nonMatchingSample := dogstatsdMetricSample{
+		name: "datadog.agent.testing.metric.does_not_match",
+	}
+	matchingSample := dogstatsdMetricSample{
+		name: "datadog.agent.testing.metric.with_long_name.0",
+	}
+
+	out := make([]metrics.MetricSample, 0, 10)
+
+	b.Run("none", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			enrichMetricSample(out, nonMatchingSample, "", 0, "", conf, nil)
+		}
+	})
+
+	list := make([]string, 0, 512)
+	for i := 0; i < 512; i++ {
+		list = append(list, fmt.Sprintf("datadog.agent.testing.metric.with_long_name.%d", i))
+	}
+
+	for i := 1; i <= 512; i *= 2 {
+		matcher := utilstrings.NewMatcher(list[:i], false)
+		filters := names.NewTestFilters(names.CriterionCloudCostMetrics, utilstrings.Matcher{}, matcher)
+		b.Run(fmt.Sprintf("%d-exact-not-in-list", i),
+			func(b *testing.B) {
+				for i := 0; i < b.N; i++ {
+					enrichMetricSample(out, nonMatchingSample, "", 0, "", conf, &filters)
+				}
+			})
+	}
+
+	for i := 1; i <= 512; i *= 2 {
+		matcher := utilstrings.NewMatcher(list[:i], true)
+		filters := names.NewTestFilters(names.CriterionCloudCostMetrics, utilstrings.Matcher{}, matcher)
+		b.Run(fmt.Sprintf("%d-prefix-not-in-list", i),
+			func(b *testing.B) {
+				for i := 0; i < b.N; i++ {
+					enrichMetricSample(out, nonMatchingSample, "", 0, "", conf, &filters)
+				}
+			})
+	}
+
+	matcher := utilstrings.NewMatcher(list, false)
+	filters := names.NewTestFilters(names.CriterionCloudCostMetrics, utilstrings.Matcher{}, matcher)
+	b.Run("512-exact-in-list", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			enrichMetricSample(out, matchingSample, "", 0, "", conf, &filters)
+		}
+	})
 }

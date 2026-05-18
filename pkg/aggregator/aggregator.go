@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/metricpipelines/names"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -281,9 +282,9 @@ type BufferedAggregator struct {
 	// observerHandle is set at startup and copied into newly created CheckSamplers.
 	observerHandle observer.Handle
 
-	// use this chan to trigger a filterList reconfiguration
-	filterListChan  chan utilstrings.Matcher
-	flushFilterList utilstrings.Matcher
+	// use this chan to trigger a metric blocklist reconfiguration
+	metricBlockListChan chan utilstrings.Matcher
+	flushMetricFilters  names.Filters
 
 	tagFilterListChan chan filterlist.TagMatcher
 	tagFilterList     filterlist.TagMatcher
@@ -359,11 +360,12 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		tagger:                      tagger,
 		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(pkgconfigsetup.Datadog()),
 
-		filterListChan:    make(chan utilstrings.Matcher),
-		flushFilterList:   filterList.GetMetricFilterList(),
-		tagFilterListChan: make(chan filterlist.TagMatcher),
-		tagFilterList:     filterList.GetTagFilterList(),
+		metricBlockListChan: make(chan utilstrings.Matcher),
+		tagFilterListChan:   make(chan filterlist.TagMatcher),
+		tagFilterList:       filterList.GetTagFilterList(),
 	}
+
+	aggregator.flushMetricFilters = names.Load(pkgconfigsetup.Datadog(), filterList)
 
 	return aggregator
 }
@@ -460,7 +462,7 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 
 	if checkSampler, ok := agg.checkSamplers[ss.id]; ok {
 		if ss.commit {
-			checkSampler.commit(timeNowNano(), &agg.flushFilterList)
+			checkSampler.commit(timeNowNano(), &agg.flushMetricFilters)
 		} else {
 			ss.metricSample.Tags = sort.UniqInPlace(ss.metricSample.Tags)
 			checkSampler.addSample(ss.metricSample, agg.tagFilterList)
@@ -809,8 +811,8 @@ func (agg *BufferedAggregator) run() {
 
 			aggregatorEventPlatformErrorLogged = false
 
-		case matcher := <-agg.filterListChan:
-			agg.flushFilterList = matcher
+		case matcher := <-agg.metricBlockListChan:
+			agg.flushMetricFilters.SetBlockList(names.CriterionMetricFilterList, matcher)
 		case matcher := <-agg.tagFilterListChan:
 			agg.setFilterList(matcher)
 		case <-agg.health.C:

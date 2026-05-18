@@ -573,7 +573,7 @@ func testFlushFilterList(t *testing.T, store *tags.Store) {
 		SampleRate: 1,
 	}, 1000, tagmatcher)
 
-	metrics, sketches := flushSerieWithFilterList(sampler, 1100, &matcher, false)
+	metrics, sketches := flushSerieWithMetricBlockList(sampler, 1100, &matcher, false)
 
 	assert.Len(t, metrics, 4)
 	assert.Len(t, sketches, 1)
@@ -811,10 +811,10 @@ func flushSerie(sampler *TimeSampler, timestamp float64, forceFlushAll bool) (me
 	return series, sketches
 }
 
-func flushSerieWithFilterList(sampler *TimeSampler, timestamp float64, filter *strings.Matcher, forceFlushAll bool) (metrics.Series, metrics.SketchSeriesList) {
+func flushSerieWithMetricBlockList(sampler *TimeSampler, timestamp float64, metricBlockList *strings.Matcher, forceFlushAll bool) (metrics.Series, metrics.SketchSeriesList) {
 	var series metrics.Series
 	var sketches metrics.SketchSeriesList
 
-	sampler.flush(timestamp, &series, &sketches, filter, forceFlushAll)
+	sampler.flush(timestamp, &series, &sketches, metricBlockList, forceFlushAll)
 	return series, sketches
 }

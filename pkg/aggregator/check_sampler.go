@@ -17,9 +17,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/util"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/metricpipelines/names"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
 const checksSourceTypeName = "System"
@@ -200,7 +200,7 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList
 	cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.UpperBound, uint(bucket.Value))
 }
 
-func (cs *CheckSampler) commitSeries(timestamp float64, filterList *utilstrings.Matcher) {
+func (cs *CheckSampler) commitSeries(timestamp float64, metricFilters *names.Filters) {
 
 	series, errors := cs.metrics.Flush(timestamp)
 	for ckey, err := range errors {
@@ -220,8 +220,7 @@ func (cs *CheckSampler) commitSeries(timestamp float64, filterList *utilstrings.
 		}
 
 		name := context.Name + serie.NameSuffix
-		// Filter the metrics
-		if filterList != nil && filterList.Test(name) {
+		if metricFilters != nil && metricFilters.ShouldDrop(name) {
 			tlmChecksFilteredMetrics.Inc()
 			continue
 		}
@@ -236,7 +235,7 @@ func (cs *CheckSampler) commitSeries(timestamp float64, filterList *utilstrings.
 	}
 }
 
-func (cs *CheckSampler) commitSketches(timestamp float64, filterList *utilstrings.Matcher) {
+func (cs *CheckSampler) commitSketches(timestamp float64, metricFilters *names.Filters) {
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
 
 	cs.sketchMap.flushBefore(int64(timestamp), func(ck ckey.ContextKey, p metrics.SketchPoint) {
@@ -250,8 +249,7 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *utilstring
 		if series == nil {
 			continue
 		}
-		// Filter the metrics
-		if filterList != nil && filterList.Test(series.Name) {
+		if metricFilters != nil && metricFilters.ShouldDrop(series.Name) {
 			tlmChecksFilteredMetrics.Inc()
 			continue
 		}
@@ -259,9 +257,9 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *utilstring
 	}
 }
 
-func (cs *CheckSampler) commit(timestamp float64, filterList *utilstrings.Matcher) {
-	cs.commitSeries(timestamp, filterList)
-	cs.commitSketches(timestamp, filterList)
+func (cs *CheckSampler) commit(timestamp float64, metricFilters *names.Filters) {
+	cs.commitSeries(timestamp, metricFilters)
+	cs.commitSketches(timestamp, metricFilters)
 
 	cs.metrics.RemoveExpired(timestamp)
 

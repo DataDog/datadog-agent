@@ -8,6 +8,7 @@ package serverimpl
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/metricpipelines/names"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
@@ -55,10 +56,11 @@ func FuzzParseMetricWithEnrich(f *testing.F) {
 			return
 		}
 		dest := make([]metrics.MetricSample, 0, 1)
+		blockFilters := names.NewTestFilters(names.CriterionMetricFilterList, filter, utilstrings.Matcher{})
 		_ = enrichMetricSample(dest, parsed, origin, processID, "", enrichConfig{
 			entityIDPrecedenceEnabled: entityIDPrecedenceEnabled,
 			serverlessMode:            serverlessMode,
-		}, &filter)
+		}, &blockFilters)
 	})
 }
 

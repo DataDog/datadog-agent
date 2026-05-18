@@ -11,4 +11,8 @@ features:
     When ``infrastructure_mode`` is set to ``cloud_cost_only`` in ``datadog.yaml``, the Agent adds an
     ``infra_mode:cloud_cost_only`` tag to metrics from selected integrations. Use
     ``integration.cloud_cost_only.tagged`` to list which checks receive the tag; when the list is
-    empty, all checks are tagged in that mode.
+    empty, all checks are tagged in that mode. In that mode, metric forwarding is
+    controlled by ``integration.cloud_cost_only.metrics`` (allowlist) and
+    ``integration.cloud_cost_only.metrics_blocked`` (blocklist), with prefix matching
+    when ``integration.cloud_cost_only.metrics_match_prefix`` is true. ``metric_filterlist``
+    continues to apply in all infrastructure modes.

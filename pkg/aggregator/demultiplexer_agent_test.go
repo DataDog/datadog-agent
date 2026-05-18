@@ -514,7 +514,7 @@ func TestUpdateMetricFilterList(t *testing.T) {
 	// After initial setup, we have filterlist from the configuration file.
 	// It may take a little time as it has to be sent to a separate routine.
 	require.Eventually(func() bool {
-		return len(demux.aggregator.filterListChan) == 0
+		return len(demux.aggregator.metricBlockListChan) == 0
 	}, time.Second, time.Millisecond, "aggregator should consume the filterlist update")
 
 	testCountBlocked(true, 32.0)
@@ -526,7 +526,7 @@ func TestUpdateMetricFilterList(t *testing.T) {
 
 	// Ensure the new filter list has been sent.
 	require.Eventually(func() bool {
-		return len(demux.aggregator.filterListChan) == 0
+		return len(demux.aggregator.metricBlockListChan) == 0
 	}, time.Second, time.Millisecond, "aggregator should consume the filterlist update")
 
 	testCountBlocked(false, 62.0)

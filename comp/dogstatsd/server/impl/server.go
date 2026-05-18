@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/metricpipelines/names"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -531,7 +532,7 @@ func (s *dsdServer) IsRunning() bool {
 	return s.Started
 }
 
-func (s *dsdServer) onFilterListUpdate(filterList utilstrings.Matcher, _ utilstrings.Matcher) {
+func (s *dsdServer) onFilterListUpdate(metricBlockList utilstrings.Matcher, _ utilstrings.Matcher) {
 	s.startedMtx.RLock()
 	defer s.startedMtx.RUnlock()
 
@@ -542,7 +543,7 @@ func (s *dsdServer) onFilterListUpdate(filterList utilstrings.Matcher, _ utilstr
 
 	// send the complete filterlist to all workers, the listening part of dogstatsd
 	for _, worker := range s.workers {
-		worker.FilterListUpdate <- filterList
+		worker.MetricBlockListUpdate <- metricBlockList
 	}
 }
 
@@ -575,8 +576,9 @@ func (s *dsdServer) handleMessages() {
 
 	s.log.Debug("DogStatsD will run", workersCount, "workers")
 
+	metricNameFilters := names.Load(s.config, s.filterList)
 	for i := 0; i < workersCount; i++ {
-		worker := newWorker(s, i, s.wmeta, s.packetsTelemetry, s.stringInternerTelemetry, s.filterList.GetMetricFilterList())
+		worker := newWorker(s, i, s.wmeta, s.packetsTelemetry, s.stringInternerTelemetry, metricNameFilters)
 		go worker.run()
 		s.workers = append(s.workers, worker)
 	}
@@ -686,7 +688,7 @@ func (s *dsdServer) errLog(format string, params ...interface{}) {
 }
 
 // workers are running this function in their goroutine
-func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, packets []*packets.Packet, samples metrics.MetricSampleBatch, filterList *utilstrings.Matcher) metrics.MetricSampleBatch {
+func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, packets []*packets.Packet, samples metrics.MetricSampleBatch, metricFilters *names.Filters) metrics.MetricSampleBatch {
 	for _, packet := range packets {
 		s.log.Tracef("Dogstatsd receive: %q", packet.Contents)
 		for {
@@ -722,7 +724,7 @@ func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, packe
 
 				samples = samples[0:0]
 
-				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, packet.ProcessID, packet.ListenerID, s.originTelemetry, filterList)
+				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, packet.ProcessID, packet.ListenerID, s.originTelemetry, metricFilters)
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
 					continue
@@ -798,7 +800,7 @@ func (s *dsdServer) getOriginCounter(origin string) (okCnt telemetry.SimpleCount
 // is the first part aware of processing a late metric. Also, it may help us having a telemetry of a "late_metrics" type here
 // which we can't do today.
 func (s *dsdServer) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string,
-	processID uint32, listenerID string, originTelemetry bool, filterList *utilstrings.Matcher) ([]metrics.MetricSample, error) {
+	processID uint32, listenerID string, originTelemetry bool, metricFilters *names.Filters) ([]metrics.MetricSample, error) {
 	okCnt := s.tlmProcessedOk
 	errorCnt := s.tlmProcessedError
 	if origin != "" && originTelemetry {
@@ -836,7 +838,7 @@ func (s *dsdServer) parseMetricMessage(metricSamples []metrics.MetricSample, par
 		}
 	}
 
-	metricSamples = enrichMetricSample(metricSamples, sample, origin, processID, listenerID, s.enrichConfig, filterList)
+	metricSamples = enrichMetricSample(metricSamples, sample, origin, processID, listenerID, s.enrichConfig, metricFilters)
 
 	if len(sample.values) > 0 {
 		s.sharedFloat64List.put(sample.values)

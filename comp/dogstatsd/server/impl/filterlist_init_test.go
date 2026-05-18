@@ -85,10 +85,9 @@ func TestWorkerFilterListInitializedFromLocalConfig(t *testing.T) {
 
 	require.NotEmpty(t, s.workers, "server should have workers")
 	for i, worker := range s.workers {
-		require.NotNil(t, worker.filterList, "worker %d filterList should not be nil", i)
-		assert.True(t, worker.filterList.Test("filtered.metric"),
+		assert.True(t, worker.metricFilters.ShouldDrop("filtered.metric"),
 			"worker %d should filter 'filtered.metric' from local config", i)
-		assert.False(t, worker.filterList.Test("unfiltered.metric"),
+		assert.False(t, worker.metricFilters.ShouldDrop("unfiltered.metric"),
 			"worker %d should not filter 'unfiltered.metric'", i)
 	}
 }

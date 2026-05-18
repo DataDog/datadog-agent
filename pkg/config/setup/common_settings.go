@@ -1268,6 +1268,26 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("integration.cloud_cost_only.tagged", []string{
 		"cpu",
 	})
+	// integration.cloud_cost_only.metrics_blocked: explicit metric blocklist in cloud_cost_only mode (empty disables)
+	config.BindEnvAndSetDefault("integration.cloud_cost_only.metrics_blocked", []string{})
+	// integration.cloud_cost_only.metrics: metric allowlist when infrastructure_mode=cloud_cost_only (empty disables filtering)
+	config.BindEnvAndSetDefault("integration.cloud_cost_only.metrics", []string{
+		"kubernetes.cpu.usage.total",
+		"kubernetes.memory.usage",
+		"kubernetes_state.pod.uptime",
+		"gpu.gr_engine_active",
+		"aws.ebs.volume_read_bytes",
+		"aws.ebs.volume_write_bytes",
+		"aws.ebs.volume_read_ops",
+		"aws.ebs.volume_write_ops",
+		"kubernetes.kubelet.volume.stats.used_bytes",
+		"kubernetes.kubelet.volume.stats.available_bytes",
+		"system.cpu.user",
+		"system.mem.pct_usable",
+		"system.net.bytes_rcvd",
+		"system.net.bytes_sent",
+	})
+	config.BindEnvAndSetDefault("integration.cloud_cost_only.metrics_match_prefix", true)
 
 	// Configuration for TLS for outgoing connections
 	config.BindEnvAndSetDefault("min_tls_version", "tlsv1.2")

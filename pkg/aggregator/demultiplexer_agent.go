@@ -632,8 +632,8 @@ func (d *AgentDemultiplexer) SetSamplersFilterList(filterList utilstrings.Matche
 		worker.metricFilterListChan <- histoFilterList
 	}
 
-	// Metrics from checks are only filtered here, so we need the full filter list.
-	d.aggregator.filterListChan <- filterList
+	// Metrics from checks are only filtered here, so we need the full metric blocklist.
+	d.aggregator.metricBlockListChan <- filterList
 }
 
 // SendSamplesWithoutAggregation buffers a bunch of metrics with timestamp. This data will be directly

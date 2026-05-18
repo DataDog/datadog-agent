@@ -6,8 +6,6 @@
 package ccmmode
 
 import (
-	"slices"
-	"strings"
 	"testing"
 	"time"
 
@@ -63,20 +61,15 @@ func (s *ccmModeSuite) TestTaggedCoreCheckMetricsIncludeCCMModeTag() {
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for tagged cpu metrics")
 }
 
-// TestUntaggedCoreCheckMetricsExcludeCCMModeTag verifies metrics from the disk core check
-// do not include infra_mode when only the cpu integration is listed as tagged.
-func (s *ccmModeSuite) TestUntaggedCoreCheckMetricsExcludeCCMModeTag() {
+// TestNonAllowlistedMetricsDropped verifies metrics outside integration.cloud_cost_only.metrics
+// are not forwarded when infrastructure_mode is cloud_cost_only.
+func (s *ccmModeSuite) TestNonAllowlistedMetricsDropped() {
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(
 			"system.disk.free",
 			client.WithMetricValueHigherThan(0),
 		)
 		assert.NoError(c, err)
-		assert.NotEmpty(c, metrics, "expected system.disk.free metrics for negative tagging assertion")
-		for _, m := range metrics {
-			assert.False(c, slices.ContainsFunc(m.Tags, func(tag string) bool {
-				return strings.HasPrefix(tag, "infra_mode:")
-			}), "disk metrics should not include infra_mode tag; tags=%v", m.Tags)
-		}
-	}, 3*time.Minute, 10*time.Second, "timed out waiting for disk metrics without infra_mode tag")
+		assert.Empty(c, metrics, "system.disk.free should be dropped by the cloud_cost_only metric allowlist")
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for allowlist to drop disk metrics")
 }
