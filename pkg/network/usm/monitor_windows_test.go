@@ -97,6 +97,9 @@ func makeIISTagValidator(expectedTags map[string]struct{}) func(*testing.T, *htt
 // pkg/status/systemprobe/status_templates/systemprobe.tmpl reads this state;
 // without these transitions it would render as `<no value>`.
 func TestUSMStateLifecycle(t *testing.T) {
+	prev := usmstate.Get()
+	t.Cleanup(func() { usmstate.Set(prev) })
+
 	t.Run("running on construction", func(t *testing.T) {
 		usmstate.Set(usmstate.Disabled)
 		_ = setupWindowsMonitor(t, getHTTPCfg())
@@ -113,27 +116,7 @@ func TestUSMStateLifecycle(t *testing.T) {
 
 	t.Run("stopped after explicit Stop", func(t *testing.T) {
 		usmstate.Set(usmstate.Disabled)
-
-		if err := driver.Init(); err != nil {
-			t.Skipf("driver initialization failed (may require admin privileges): %v", err)
-		}
-		if err := driver.Start(); err != nil {
-			t.Skipf("driver start failed: %v", err)
-		}
-		t.Cleanup(func() { _ = driver.Stop() })
-
-		cfg := getHTTPCfg()
-		di, err := network.NewDriverInterface(cfg, driver.NewHandle, nil)
-		if err != nil {
-			t.Skipf("driver interface creation failed: %v", err)
-		}
-		t.Cleanup(func() { _ = di.Close() })
-
-		monitor, err := NewWindowsMonitor(cfg, di.GetHandle())
-		require.NoError(t, err)
-		require.NotNil(t, monitor)
-		monitor.Start()
-
+		monitor := setupWindowsMonitor(t, getHTTPCfg())
 		require.NoError(t, monitor.Stop())
 		require.Equal(t, usmstate.Stopped, usmstate.Get())
 	})

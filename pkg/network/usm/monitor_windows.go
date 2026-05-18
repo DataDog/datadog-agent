@@ -23,6 +23,7 @@ import (
 type Monitor interface {
 	Start()
 	GetHTTPStats() map[protocols.ProtocolType]interface{}
+	GetUSMStats() map[string]any
 	Stop() error
 }
 
@@ -39,15 +40,19 @@ type WindowsMonitor struct {
 }
 
 // NewWindowsMonitor returns a new WindowsMonitor instance
-func NewWindowsMonitor(c *config.Config, dh driver.Handle) (Monitor, error) {
+func NewWindowsMonitor(c *config.Config, dh driver.Handle) (_ Monitor, err error) {
+	defer func() {
+		if err != nil {
+			usmstate.Set(usmstate.NotRunning)
+		}
+	}()
+
 	di, err := http.NewDriverInterface(c, dh)
 	if err != nil {
-		usmstate.Set(usmstate.NotRunning)
 		return nil, err
 	}
 	hei, err := http.NewEtwInterface(c)
 	if err != nil {
-		usmstate.Set(usmstate.NotRunning)
 		return nil, err
 	}
 
@@ -150,6 +155,13 @@ func (m *WindowsMonitor) GetHTTPStats() map[protocols.ProtocolType]interface{} {
 	ret[protocols.HTTP] = stats
 
 	return ret
+}
+
+// GetUSMStats returns the current state of the USM monitor
+func (m *WindowsMonitor) GetUSMStats() map[string]any {
+	return map[string]any{
+		"state": usmstate.Get(),
+	}
 }
 
 // Stop HTTP monitoring
