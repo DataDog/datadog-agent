@@ -97,17 +97,12 @@ func TestHandler_FiltersByLevel(t *testing.T) {
 	require.NoError(t, h.Handle(context.Background(), r))
 	got := rec.snapshot()
 	require.Len(t, got, 1)
-	assert.Equal(t, "boom", got[0].Message)
 }
 
 // TestHandler_CallsSubmitter_BuildsErrorLog asserts the Handler builds a
 // faithful ErrorLog from the incoming Record on the fields it still
-// captures after the PR #50607 PII pivot: Time, Level, Message, PC.
-// Attrs (WithAttrs-accumulated and record-level) are intentionally not
-// copied into the DTO any more — they would be dropped at the sender
-// boundary anyway, so the handler does not allocate them. Adding attrs
-// to the slog chain MUST NOT break the call (other handlers in the
-// multi-handler chain still see them).
+// captures: Time and PC. Adding attrs to the slog chain MUST NOT break
+// the call (other handlers in the multi-handler chain still see them).
 func TestHandler_CallsSubmitter_BuildsErrorLog(t *testing.T) {
 	h, rec := newRecordingHandler(t)
 
@@ -124,10 +119,7 @@ func TestHandler_CallsSubmitter_BuildsErrorLog(t *testing.T) {
 	require.Len(t, got, 1)
 	e := got[0]
 	assert.True(t, e.Time.Equal(now), "Time mismatch: got %v, want %v", e.Time, now)
-	assert.Equal(t, slog.LevelError, e.Level)
-	assert.Equal(t, "boom", e.Message)
 	assert.Equal(t, uintptr(0xC0FFEE), e.PC)
-	assert.Empty(t, e.Attrs, "Attrs must be empty post-PII-pivot")
 }
 
 // TestHandler_WithGroup_ReturnsNewInstance: WithGroup MUST return a new

@@ -52,7 +52,6 @@ var _ slog.Handler = (*Handler)(nil)
 type Handler struct {
 	load        func() Submitter
 	loadBouncer func() *Bouncer
-	attrs       []slog.Attr
 }
 
 // NewHandler returns a Handler whose Handle method atomically loads the
@@ -71,7 +70,7 @@ func NewHandler(load func() Submitter) *Handler {
 // MAY return nil at any time to disable dedup; the closure MUST be safe
 // for concurrent use. Passing nil clears the late-binder.
 func (h *Handler) WithBouncerLoader(loadBouncer func() *Bouncer) *Handler {
-	return &Handler{load: h.load, attrs: h.attrs, loadBouncer: loadBouncer}
+	return &Handler{load: h.load, loadBouncer: loadBouncer}
 }
 
 // Enabled reports whether the Handler will forward records at the given
@@ -98,14 +97,9 @@ func (h *Handler) Enabled(_ context.Context, level slog.Level) bool {
 // Handle always returns nil - errortracking must never break the rest of
 // the logger chain.
 //
-// Attrs (both WithAttrs-accumulated and record-level) and Message are
-// captured on the DTO but emptied at the sender boundary
-// (comp/core/agenttelemetry/impl/errortracking_sender.go::errorLogToLog).
-// Every formatted message and every slog.Attr value is potentially
-// user-controlled and therefore PII-suspect until template-aware capture
-// lands; this PR ships PC-only telemetry. Keeping the fields on the DTO
-// means template extraction can re-enable them in one place without
-// re-plumbing the producer.
+// The handler captures only the wire-relevant fields (Time, PC, stack
+// PCs, Count); message text and attrs are not captured because they are
+// potentially user-controlled.
 func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 	if r.Level < slog.LevelError {
 		return nil
@@ -116,11 +110,9 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 	}
 
 	out := ErrorLog{
-		Time:    r.Time,
-		Level:   r.Level,
-		Message: r.Message,
-		PC:      r.PC,
-		Count:   1,
+		Time:  r.Time,
+		PC:    r.PC,
+		Count: 1,
 	}
 	// Bouncer check (when a loader is registered AND returns non-nil):
 	// suppress duplicate PCs inside the window. The bouncer count rides
@@ -147,30 +139,21 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 	return nil
 }
 
-// WithAttrs returns a Handler that prepends attrs to every captured record.
-// Group nesting from prior WithGroup calls is intentionally not preserved -
-// the wire format flattens groups anyway, and the previous nesting
-// implementation was 40+ LOC of layered replay for no observable benefit.
-func (h *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	if len(attrs) == 0 {
-		return h
-	}
-	merged := make([]slog.Attr, 0, len(h.attrs)+len(attrs))
-	merged = append(merged, h.attrs...)
-	merged = append(merged, attrs...)
-	return &Handler{load: h.load, attrs: merged, loadBouncer: h.loadBouncer}
+// WithAttrs is a required slog.Handler interface method. Attrs are not
+// shipped to the wire; this method is a required interface no-op.
+func (h *Handler) WithAttrs(_ []slog.Attr) slog.Handler {
+	return h
 }
 
 // WithGroup returns a new Handler instance with the same Submitter
-// loader, Bouncer loader, and accumulated attrs. The group name is
-// intentionally discarded — the wire payload is flat and does not
-// distinguish nested groups from top-level attrs, and the PII pivot
-// (PR #50607) means we don't ship attrs to the wire anyway. Returning
+// loader and Bouncer loader. The group name is intentionally discarded —
+// the wire payload is flat and does not distinguish nested groups from
+// top-level attrs, and we don't ship attrs to the wire anyway. Returning
 // a NEW instance (rather than the receiver) matches the canonical
 // shape of pkg/util/log/slog/handlers/multi.go::WithGroup and async.go::
 // WithGroup; a no-op-receiver pattern can subtly break parent
 // multi-handlers that expect each child to materialize a fresh
 // instance per group context.
 func (h *Handler) WithGroup(_ string) slog.Handler {
-	return &Handler{load: h.load, attrs: h.attrs, loadBouncer: h.loadBouncer}
+	return &Handler{load: h.load, loadBouncer: h.loadBouncer}
 }

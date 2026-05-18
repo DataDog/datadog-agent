@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"runtime"
 	"strings"
@@ -107,31 +106,6 @@ func newTestSender(t *testing.T, cl client) *senderImpl {
 	}
 }
 
-// TestSlogLevelToLogLevel_Total: the wire schema only emits
-// LogLevelError. The mapping is therefore total — any slog.Level maps
-// to LogLevelError without panic. Previously sub-Error inputs panicked
-// (prior-round F5); the panic ran in the background flush goroutine
-// and would crash the agent on any direct SubmitErrorRecord caller
-// bypassing the handler filter. Addresses louis-cqrl's 🟠 thread and
-// pducolin's overlapping suggestion on PR #50607.
-func TestSlogLevelToLogLevel_Total(t *testing.T) {
-	for _, lvl := range []slog.Level{
-		slog.LevelError + 4,
-		slog.LevelError,
-		slog.LevelWarn,
-		slog.LevelInfo,
-		slog.LevelDebug,
-		slog.LevelDebug - 4,
-	} {
-		lvl := lvl
-		t.Run(lvl.String(), func(t *testing.T) {
-			assert.NotPanics(t, func() {
-				assert.Equal(t, LogLevelError, slogLevelToLogLevel(lvl))
-			})
-		})
-	}
-}
-
 // TestSendPayloadBody_StatusCodes locks the contract of the extracted
 // shared transport helper (review comment C3 on PR #49946). Both
 // flushSession and sendLogsTypedBatch route per-endpoint POSTs through
@@ -183,56 +157,42 @@ func TestSendPayloadBody_NetworkError(t *testing.T) {
 // atel-level errortracking tests (buffered channel + flush + errorLogToLog)
 // =============================================================================
 
-// TestErrorLogToLog_PIIPivot locks the PR #50607 PII pivot: the wire
-// payload must carry only PC-derived data (StackTrace) + Level +
-// TracerTime + defaults. Every potentially user-controlled input
-// (Message, Tags / Attrs, TraceID, SpanID populated from attrs) is
-// dropped at the sender boundary until template-aware static-message
-// capture lands as a follow-up. The schema fields stay on Log so the
-// dd-go intake sees the canonical shape — they just emit empty.
-func TestErrorLogToLog_PIIPivot(t *testing.T) {
-	var pcs [1]uintptr
-	n := runtime.Callers(1, pcs[:])
-	require.Equal(t, 1, n)
-	pc := pcs[0]
-
+// TestErrorLogToLog_WireShape locks the wire payload shape: only
+// stack-derived data (StackTrace) + Level + TracerTime + defaults are
+// populated. The schema fields Message, Tags, TraceID, SpanID stay on
+// Log so the dd-go intake sees the canonical shape, but they emit
+// empty — the handler does not capture user-controlled inputs.
+func TestErrorLogToLog_WireShape(t *testing.T) {
 	in := errortracking.ErrorLog{
-		Time:    time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC),
-		Level:   slog.LevelError,
-		Message: "boom — potentially-PII formatted message",
-		PC:      pc,
-		Attrs: []slog.Attr{
-			slog.String("c", "3"),
-			slog.String("a", "1"),
-			slog.String("trace_id", "abc-trace"),
-			slog.String("b", "2"),
-			slog.String("span_id", "abc-span"),
-		},
+		Time: time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC),
 	}
+	in.PCsLen = runtime.Callers(1, in.PCs[:])
+	require.GreaterOrEqual(t, in.PCsLen, 1)
+	in.PC = in.PCs[0]
+
 	out := errorLogToLog(in)
 
-	// PC-derived + defaults: present on the wire.
+	// Stack-derived + defaults: present on the wire.
 	assert.Equal(t, LogLevelError, out.Level)
 	assert.Equal(t, in.Time.Unix(), out.TracerTime)
 	assert.Equal(t, 1, out.Count)
 	assert.False(t, out.IsCrash)
-	assert.NotEmpty(t, out.StackTrace, "non-zero PC must produce file:line stack_trace")
+	assert.NotEmpty(t, out.StackTrace, "captured PCs must produce file:line stack_trace")
 
-	// PII-suspect: emitted empty regardless of input.
-	assert.Empty(t, out.Message, "Message must NOT be copied to the wire (PII pivot)")
-	assert.Empty(t, out.Tags, "Tags must NOT be populated from attrs (PII pivot)")
-	assert.Empty(t, out.TraceID, "TraceID must NOT be extracted from attrs (PII pivot)")
-	assert.Empty(t, out.SpanID, "SpanID must NOT be extracted from attrs (PII pivot)")
+	// Wire schema fields that are intentionally not populated.
+	assert.Empty(t, out.Message, "Message must NOT be on the wire")
+	assert.Empty(t, out.Tags, "Tags must NOT be on the wire")
+	assert.Empty(t, out.TraceID, "TraceID must NOT be on the wire")
+	assert.Empty(t, out.SpanID, "SpanID must NOT be on the wire")
 }
 
 func TestErrorLogToLog_NoPC_EmptyStackTrace(t *testing.T) {
 	in := errortracking.ErrorLog{
-		Time:  time.Now(),
-		Level: slog.LevelError,
-		PC:    0,
+		Time: time.Now(),
+		PC:   0,
 	}
 	out := errorLogToLog(in)
-	assert.Empty(t, out.StackTrace, "PC=0 must produce empty stack_trace")
+	assert.Empty(t, out.StackTrace, "no captured PCs must produce empty stack_trace")
 }
 
 // TestErrorLogToLog_MultiFramePCs locks the multi-frame stack format
@@ -241,8 +201,7 @@ func TestErrorLogToLog_NoPC_EmptyStackTrace(t *testing.T) {
 // separated, function-named, bounded by the PCs array size.
 func TestErrorLogToLog_MultiFramePCs(t *testing.T) {
 	in := errortracking.ErrorLog{
-		Time:  time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC),
-		Level: slog.LevelError,
+		Time: time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC),
 	}
 	in.PCsLen = runtime.Callers(1, in.PCs[:])
 	require.GreaterOrEqual(t, in.PCsLen, 2,
@@ -265,12 +224,9 @@ func TestErrorLogToLog_MultiFramePCs(t *testing.T) {
 }
 
 // errorLog is a convenience for the atel-level tests below.
-func errorLog(msg string, attrs ...slog.Attr) errortracking.ErrorLog {
+func errorLog(_ string) errortracking.ErrorLog {
 	return errortracking.ErrorLog{
-		Time:    time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC),
-		Level:   slog.LevelError,
-		Message: msg,
-		Attrs:   attrs,
+		Time: time.Date(2026, 5, 11, 12, 0, 0, 0, time.UTC),
 	}
 }
 
