@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fixes the log agent status output so that when multiple tailers share
+    the same identifier (for example, when two log configurations accidentally
+    point at the same file path), all instances are displayed instead of
+    silently overwriting one another.
