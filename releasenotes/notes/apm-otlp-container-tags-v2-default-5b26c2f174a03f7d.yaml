@@ -11,7 +11,7 @@ enhancements:
     APM : The ``enable_otlp_container_tags_v2`` behavior is now enabled by default.
     Container tags on OTLP traces are now extracted using the infraattributes processor
     instead of calling the tagger directly, reducing redundant work and outgoing traffic.
-    The ``enable_otlp_container_tags_v2`` feature flag is deprecated.
+    The ``enable_otlp_container_tags_v2`` feature flag is removed.
     To opt out, set ``disable_otlp_container_tags_v2`` in ``apm_config.features``.
 deprecations:
   - |
