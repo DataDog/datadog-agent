@@ -1929,7 +1929,7 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// When non-zero, files whose modification time is older than `now - ignore_older`
 	// are skipped by the logs file scanner and no tailer is started for them.
 	// Applies to both wildcard sources (e.g. `path: /var/log/*.log`) and explicit
-	// single-path sources. The value is parsed as a Go time.Duration (e.g. "24h", "7d").
+	// single-path sources. The value is parsed as a Go time.Duration (e.g. "24h", "168h").
 	// Default is 0, which disables the filter and preserves existing behavior.
 	// Note: this does not affect already-tailing files; it only gates which files are
 	// considered when the scanner discovers them.

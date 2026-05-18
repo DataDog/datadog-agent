@@ -299,7 +299,7 @@ func (p *FileProvider) collectFiles(source *sources.LogSource, currentlyTailed m
 		// explicitly is not being tailed.
 		if ignoreOlder := getIgnoreOlder(); ignoreOlder > 0 && isFileOlderThan(stat.ModTime(), ignoreOlder) {
 			if !isCurrentlyTailed(currentlyTailed, path, source) {
-				log.Infof("Skipping file %q: modification time (%s) is older than logs_config.ignore_older (%s)", path, stat.ModTime().Format(time.RFC3339), ignoreOlder)
+				log.Debugf("Skipping file %q: modification time (%s) is older than logs_config.ignore_older (%s)", path, stat.ModTime().Format(time.RFC3339), ignoreOlder)
 				return nil, nil
 			}
 		}

@@ -915,3 +915,40 @@ func TestCollectFiles_RecursiveGlobWithExcludePaths(t *testing.T) {
 	// Excluded by pattern
 	assert.False(t, paths[fs.path("alpha/beta/ab.log")], "alpha subtree should be excluded by ExcludePaths")
 }
+
+// TestScanKeyForMatchesTailerGetScanKey is a tripwire test asserting that the
+// provider's scanKeyFor helper produces the same key as the canonical
+// tailer.File.GetScanKey() method. If GetScanKey() ever changes its format,
+// this test will fail and force scanKeyFor to be updated in lockstep — without
+// such a tripwire, the currently-tailed lookup in CollectFiles would silently
+// stop matching running tailers.
+func TestScanKeyForMatchesTailerGetScanKey(t *testing.T) {
+	cases := []struct {
+		name       string
+		path       string
+		identifier string
+	}{
+		{
+			name:       "no identifier",
+			path:       "/var/log/app.log",
+			identifier: "",
+		},
+		{
+			name:       "with container identifier",
+			path:       "/var/log/pods/foo/bar/0.log",
+			identifier: "docker://abc123def456",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			source := sources.NewLogSource("test", &config.LogsConfig{
+				Type:       config.FileType,
+				Path:       tc.path,
+				Identifier: tc.identifier,
+			})
+			canonical := tailer.NewFile(tc.path, source, false).GetScanKey()
+			got := scanKeyFor(tc.path, source)
+			assert.Equal(t, canonical, got, "scanKeyFor must match tailer.File.GetScanKey() format")
+		})
+	}
+}
