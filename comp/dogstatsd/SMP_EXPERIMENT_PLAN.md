@@ -702,3 +702,46 @@ Decision: do not pitch the current columnar replacement as a near-term
 throughput win. Keep the foundation and row/dictionary work as useful substrate
 for debug/capture/lookback/replay and future options, but require a different
 bottleneck/proof point before investing in broad production migration.
+
+## Stage J local result, 2026-05-18
+
+Stage I's negative result turned out to be an implementation artifact. The
+columnar path forced `identity.Builder.ResolveHotPath` for every metric sample
+when `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3=true`, even with debug stats
+disabled and `dogstatsd_pipeline_count=1`. In that configuration the direct-row
+baseline did not need parser-side sharding context, while columnar computed both
+an unused debug projection and the shard/backend projection.
+
+Stage J changed the hot path to compute only the shard identity when debug is
+off. This removes the unused debug key and `strings.Join` display tag string
+from the parser hot path. A follow-up generalizes the same idea for sharded
+batchers while preserving `HotPathContext.Client` for contracts/tests.
+
+Stage J SMP results:
+
+| Comparison | Case | Δ mean | Δ mean CI | Confidence | Decision |
+|---|---|---:|---:|---:|---|
+| direct metric rows → columnar shard-only | `uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only` | +13.57% | [+13.28%, +13.86%] | 100.0% | throughput proof recovered |
+| columnar bucket-cache → columnar shard-only | `uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only` | +24.07% | [+23.57%, +24.57%] | 100.0% | unused debug projection was the major bottleneck |
+| direct metric rows → columnar shard-only | `uds_dogstatsd_to_api_v3_endpoint_fixed` | +2.83% | [+2.44%, +3.22%] | 100.0% | standard v3 case improves modestly |
+| columnar shard-only → skip legacy flush | `uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only` | -0.22% | [-0.57%, +0.14%] | 56.7% | empty fallback flush is not the limiter |
+
+The theory was directionally sound but incomplete. It said "share identity work"
+without being strict enough about *which projection* was needed by each view.
+`serverDebug` grouping is a compatibility view, not the backend identity; Stage
+I accidentally put that view's key on the always-on columnar ingestion path.
+Stage J validates the architectural rule that projections must be materialized
+only for active consumers.
+
+Current productionization read:
+
+- Throughput potential exists: +13.57% on the high-rate metrics-only v3 probe.
+- Memory is not acceptable yet: the standard corrected v3 case showed roughly
+  +30% RSS and +39% heap despite lower CPU, and the high-rate overload case still
+  builds large packet/channel backlog.
+- The implementation is still not ideal: it emits `metrics.SerieRow` rather than
+  native v3 protobuf columns, and it does not yet have descriptor expiry or a
+  memory-bounded columnar metadata strategy.
+
+Next decision gate: keep the Stage J throughput fix, but require memory/backlog
+experiments before claiming an all-around win.
