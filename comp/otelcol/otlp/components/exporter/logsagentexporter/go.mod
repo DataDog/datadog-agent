@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.198
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def v0.61.0
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.77.0-devel.0.20260213154712-e02b9359151a
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.77.0-devel.0.20260213154712-e02b9359151a
