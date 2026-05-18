@@ -92,6 +92,53 @@ func TestWebhook_LabelSelector_FallbackFailsClosed(t *testing.T) {
 		"fallback selector must not match any real namespace")
 }
 
+func TestValidSocketConfig(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		hostDir    string
+		clientDir  string
+		socketPath string
+		want       bool
+	}{
+		{"defaults", "/var/run/datadog", "/var/run/datadog", "/var/run/datadog/nccl.socket", true},
+		{"decoupled dirs", "/var/run/datadog-agent", "/var/run/datadog", "/var/run/datadog/nccl.socket", true},
+		{"empty hostDir", "", "/var/run/datadog", "/var/run/datadog/nccl.socket", false},
+		{"empty clientDir", "/var/run/datadog", "", "/var/run/datadog/nccl.socket", false},
+		{"empty socket_path", "/var/run/datadog", "/var/run/datadog", "", false},
+		{"relative hostDir", "var/run/datadog", "/var/run/datadog", "/var/run/datadog/nccl.socket", false},
+		{"relative clientDir", "/var/run/datadog", "var/run/datadog", "/var/run/datadog/nccl.socket", false},
+		{"hostDir is /", "/", "/var/run/datadog", "/var/run/datadog/nccl.socket", false},
+		{"clientDir is /", "/var/run/datadog", "/", "/var/run/datadog/nccl.socket", false},
+		{"socket_path relative (basename-only)", "/var/run/datadog", "/var/run/datadog", "nccl.socket", false},
+		{"socket_path trailing slash", "/var/run/datadog", "/var/run/datadog", "/var/run/datadog/", false},
+		{"socket_path is /", "/var/run/datadog", "/var/run/datadog", "/", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, validSocketConfig(tc.hostDir, tc.clientDir, tc.socketPath))
+		})
+	}
+}
+
+func TestWebhook_InvalidSocketConfigDisablesItself(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		key  string
+		val  string
+	}{
+		{"relative socket_path", "gpu.nccl.socket_path", "nccl.socket"},
+		{"trailing-slash socket_path", "gpu.nccl.socket_path", "/var/run/datadog/"},
+		{"root client socket_dir", "admission_controller.nccl_profiler.socket_dir", "/"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			cfg.SetWithoutSource("admission_controller.nccl_profiler.enabled", true)
+			cfg.SetWithoutSource("admission_controller.nccl_profiler.injector_image", "registry.example/img:tag")
+			cfg.SetWithoutSource(tc.key, tc.val)
+			assert.False(t, NewWebhook(cfg).IsEnabled())
+		})
+	}
+}
+
 // TestWebhook_LabelSelector_MutateUnlabelled covers blanket mode: when the
 // per-webhook (or global) mutate_unlabelled knob is set, the objectSelector
 // flips from "label=true required" to "label!=false". cwsinstrumentation has

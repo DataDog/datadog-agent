@@ -10,12 +10,12 @@ package nvidia
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"time"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/hashicorp/go-multierror"
 	"golang.org/x/exp/constraints"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -237,6 +237,11 @@ func nvlinkPortTag(port int) string {
 	return fmt.Sprintf("nvlink_port:%d", port)
 }
 
+// portIsAlwaysSupported is a placeholder that can be used in getSupportedNvlinkPorts to indicate that a port is always supported.
+func portIsAlwaysSupported(_ int) ([]*Metric, error) {
+	return []*Metric{{Name: "always_supported"}}, nil
+}
+
 func getSupportedNvlinkPorts(device ddnvml.Device, metricCollector func(int) ([]*Metric, error)) ([]int, error) {
 	totalPorts, err := getNVLinkCount(device)
 	if err != nil {
@@ -251,12 +256,12 @@ func getSupportedNvlinkPorts(device ddnvml.Device, metricCollector func(int) ([]
 	}
 
 	var ports []int
-	var portErrors error
+	var portErrors []error
 	for port := 1; port <= totalPorts; port++ {
 		_, err := metricCollector(port)
 		if err != nil {
 			if !ddnvml.IsAPIUnsupportedOnDevice(err, device) {
-				portErrors = multierror.Append(portErrors, fmt.Errorf("collect metrics for port %d: %w", port, err))
+				portErrors = append(portErrors, fmt.Errorf("collect metrics for port %d: %w", port, err))
 			}
 
 			continue
@@ -268,5 +273,5 @@ func getSupportedNvlinkPorts(device ddnvml.Device, metricCollector func(int) ([]
 		return nil, fmt.Errorf("%w: no supported NVLink ports found", errUnsupportedDevice)
 	}
 
-	return ports, portErrors
+	return ports, errors.Join(portErrors...)
 }

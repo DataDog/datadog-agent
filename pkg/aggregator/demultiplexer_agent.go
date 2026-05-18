@@ -249,13 +249,14 @@ func (d *AgentDemultiplexer) Options() AgentDemultiplexerOptions {
 	return d.options
 }
 
-// SetObserver wires an observer component into the DogStatsD metric pipeline.
+// SetObserver wires an observer component into the DogStatsD metric pipeline
+// and the BufferedAggregator → CheckSampler path (Go core checks).
 //
 // Requires both anomaly_detection.enabled and anomaly_detection.metrics.enabled to be true.
-// Every raw metric sample passing through the time-sampler workers and the
-// no-aggregation pipeline will be forwarded to the provided observer handle
-// before aggregation. The call is a no-op when either flag is off or obs is
-// nil, so default overhead is zero.
+// Every raw metric sample passing through the time-sampler workers, the
+// no-aggregation pipeline, and every CheckSampler will be forwarded to the
+// provided observer handle before aggregation. The call is a no-op when
+// either flag is off or obs is nil, so default overhead is zero.
 func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
 	if obs == nil {
 		return
@@ -272,13 +273,16 @@ func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
 
 	metricsHandle := obs.GetHandle("all-metrics")
 
+	// DogStatsD paths
 	for _, worker := range d.statsd.workers {
 		worker.sampler.observerHandle = metricsHandle
 	}
-
 	if d.statsd.noAggStreamWorker != nil {
 		d.statsd.noAggStreamWorker.observerHandle = metricsHandle
 	}
+
+	// Go core check path (BufferedAggregator → CheckSampler)
+	d.aggregator.SetObserverHandle(metricsHandle)
 }
 
 // AddAgentStartupTelemetry adds a startup event and count (in a DSD time sampler)

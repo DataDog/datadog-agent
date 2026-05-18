@@ -558,6 +558,7 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 	if err != nil {
 		return err
 	}
+	defer res.Body.Close()
 
 	resBytes, err := io.ReadAll(res.Body)
 	if err != nil {
@@ -567,7 +568,6 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 	if res.StatusCode != 200 {
 		return fmt.Errorf("failed to download policies: %s (error code %d)", string(resBytes), res.StatusCode)
 	}
-	defer res.Body.Close()
 
 	// Unzip the downloaded file containing both default and custom policies
 	reader, err := zip.NewReader(bytes.NewReader(resBytes), int64(len(resBytes)))
