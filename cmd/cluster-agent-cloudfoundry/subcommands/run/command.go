@@ -269,8 +269,6 @@ func run(
 	// Cancel the main context to stop components
 	mainCtxCancel()
 
-	demultiplexer.AddAgentShutdownTelemetry(version.AgentVersion + " - Datadog Cluster Agent")
-
 	pkglog.Info("See ya!")
 	pkglog.Flush()
 	return nil

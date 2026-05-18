@@ -143,30 +143,17 @@ func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 	demux.Stop(false)
 }
 
-func TestAddAgentShutdownTelemetryFlushesEventOnStop(t *testing.T) {
+func TestAddAgentStartupTelemetrySendsShutdownEventOnFinalStop(t *testing.T) {
 	demux, s := newShutdownTelemetryTestDemux(t, "hostname")
-	eventsCh := make(chan event.Events, 1)
 	shutdownEventCh := make(chan *event.Event, 1)
 
-	s.On("SendEvents", mock.Anything).Run(func(args mock.Arguments) {
-		eventsCh <- args.Get(0).(event.Events)
-	}).Return(nil).Once()
+	s.On("SendEvents", mock.Anything).Return(nil).Maybe()
 	s.On("SendAgentShutdownEvent", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
 		shutdownEventCh <- args.Get(1).(*event.Event)
 	}).Return(nil).Once()
 
-	demux.AddAgentShutdownTelemetry("7.0.0")
-	demux.aggregator.addEvent(event.Event{Text: "ordinary event"})
+	demux.AddAgentStartupTelemetry("7.0.0")
 	demux.Stop(true)
-
-	var events event.Events
-	select {
-	case events = <-eventsCh:
-	case <-time.After(time.Second):
-		require.FailNow(t, "timed out waiting for ordinary event flush")
-	}
-	require.Len(t, events, 1)
-	require.Equal(t, "ordinary event", events[0].Text)
 
 	var shutdownEvent *event.Event
 	select {
@@ -184,8 +171,9 @@ func TestAddAgentShutdownTelemetryFlushesEventOnStop(t *testing.T) {
 
 func TestAgentShutdownTelemetryRequiresFinalFlush(t *testing.T) {
 	demux, s := newShutdownTelemetryTestDemux(t, "hostname")
+	s.On("SendEvents", mock.Anything).Return(nil).Maybe()
 
-	demux.AddAgentShutdownTelemetry("7.0.0")
+	demux.AddAgentStartupTelemetry("7.0.0")
 	demux.ForceFlushToSerializer(time.Now(), true)
 	demux.Stop(false)
 

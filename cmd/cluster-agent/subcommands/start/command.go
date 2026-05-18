@@ -733,8 +733,6 @@ func start(log log.Component,
 		pkglog.Errorf("Error shutdowning metrics server on port %d: %v", metricsPort, err)
 	}
 
-	demultiplexer.AddAgentShutdownTelemetry(version.AgentVersion + " - Datadog Cluster Agent")
-
 	pkglog.Info("See ya!")
 	pkglog.Flush()
 

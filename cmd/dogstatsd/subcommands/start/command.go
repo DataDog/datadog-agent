@@ -215,7 +215,6 @@ func start(
 
 	// Block here until we receive a stop signal
 	<-stopCh
-	demultiplexer.AddAgentShutdownTelemetry(version.AgentVersion)
 
 	return nil
 }

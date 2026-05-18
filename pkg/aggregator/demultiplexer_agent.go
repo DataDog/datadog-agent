@@ -282,7 +282,8 @@ func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
 }
 
 // AddAgentStartupTelemetry adds a startup event and count (in a DSD time sampler)
-// to be sent on the next flush.
+// to be sent on the next flush, and stages the matching shutdown event for the
+// final Stop(true) flush.
 func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
 	if agentVersion == "" {
 		return
@@ -300,13 +301,6 @@ func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {
 
 	if startupEvent, ok := d.agentLifecycleEvent(agentVersion, "Agent Startup"); ok {
 		d.aggregator.eventIn <- startupEvent
-	}
-}
-
-// AddAgentShutdownTelemetry adds a shutdown event to be sent on the final Stop(true) flush.
-func (d *AgentDemultiplexer) AddAgentShutdownTelemetry(agentVersion string) {
-	if agentVersion == "" {
-		return
 	}
 
 	if shutdownEvent, ok := d.agentLifecycleEvent(agentVersion, "Agent Shutdown"); ok {
