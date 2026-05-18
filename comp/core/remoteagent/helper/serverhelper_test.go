@@ -347,15 +347,13 @@ func TestRegistrationRefreshContention(t *testing.T) {
 	server.Start()
 	defer lc.Stop(context.Background())
 
-	// Wait for multiple registration attempts
-	time.Sleep(3 * time.Second)
-
-	// Verify that registration was retried after the first timeout
-	mu.Lock()
-	regCount := registerCallCount
-	mu.Unlock()
-
-	require.Equal(t, regCount, 3, "Registration should have been retried after timeout")
+	// Wait for registration to be retried after the first two timeouts.
+	// The third attempt should succeed and bring the counter to 3.
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return registerCallCount == 3
+	}, 3*time.Second, 50*time.Millisecond, "Registration should have been retried after timeout")
 
 	// Now test refresh contention - the server should be registered by now
 	// Wait a bit more to ensure refresh is called

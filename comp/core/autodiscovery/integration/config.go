@@ -120,7 +120,16 @@ type Config struct {
 
 	// ImageName is the container image name if any
 	ImageName string `json:"image_name"` // (include in digest: false)
+
+	// Discovery indicates that this config is a configuration-discovery
+	// template: the agent should not schedule it directly, and any matched
+	// instance is meant to discover its own config at runtime. A non-nil
+	// pointer means discovery is requested. (optional)
+	Discovery *DiscoveryConfig `json:"discovery,omitempty"` // (include in digest: true)
 }
+
+// DiscoveryConfig holds per-template configuration-discovery options.
+type DiscoveryConfig struct{}
 
 // MatchingProgram is an interface for matching objects against filter rules.
 type MatchingProgram interface {
@@ -228,6 +237,12 @@ func (c *Config) String() string {
 // IsTemplate returns if the config has AD identifiers
 func (c *Config) IsTemplate() bool {
 	return len(c.ADIdentifiers) > 0 || len(c.AdvancedADIdentifiers) > 0
+}
+
+// IsDiscovery returns true if this config is a configuration-discovery
+// template (a non-nil Discovery field).
+func (c *Config) IsDiscovery() bool {
+	return c.Discovery != nil
 }
 
 // IsMatched returns true if the given object matches the filtering program of the config.
@@ -461,6 +476,9 @@ func (c *Config) IntDigest() uint64 {
 	_, _ = h.Write([]byte(c.LogsConfig))
 	_, _ = h.Write([]byte(c.ServiceID))
 	_, _ = h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags)))
+	if c.Discovery != nil {
+		_, _ = h.Write([]byte("discovery"))
+	}
 
 	return h.Sum64()
 }
@@ -484,6 +502,9 @@ func (c *Config) FastDigest() uint64 {
 	_, _ = h.Write([]byte(c.LogsConfig))
 	_, _ = h.Write([]byte(c.ServiceID))
 	_, _ = h.Write([]byte(strconv.FormatBool(c.IgnoreAutodiscoveryTags)))
+	if c.Discovery != nil {
+		_, _ = h.Write([]byte("discovery"))
+	}
 
 	return h.Sum64()
 }

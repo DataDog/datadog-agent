@@ -76,8 +76,6 @@ clusterAgent:
     enabled: true
     mutateUnlabelled: false
   env:
-    - name: DD_LOG_LEVEL
-      value: "DEBUG"
     - name: DD_AUTOSCALING_CLUSTER_SPOT_DEFAULTS_PERCENTAGE
       value: "100"
     - name: DD_AUTOSCALING_CLUSTER_SPOT_DEFAULTS_MIN_ON_DEMAND_REPLICAS
@@ -100,6 +98,7 @@ agents:
 clusterChecksRunner:
   enabled: false
 datadog:
+  logLevel: DEBUG
   logs:
     enabled: true
     containerCollectAll: false
