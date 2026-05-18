@@ -256,7 +256,9 @@ func (c *ProcessAgentCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 }
 
 // IsHASupported returns if the check is compatible with High Availability
-func (c *ProcessAgentCheck) IsHASupported() bool { return false }
+func (c *ProcessAgentCheck) IsHASupported() bool {
+	return false
+}
 
 // Factory creates a new check factory
 func Factory() option.Option[func() check.Check] {

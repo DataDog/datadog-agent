@@ -261,7 +261,9 @@ func (c *APMCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 }
 
 // IsHASupported returns if the check is compatible with High Availability
-func (c *APMCheck) IsHASupported() bool { return false }
+func (c *APMCheck) IsHASupported() bool {
+	return false
+}
 
 // Factory creates a new check factory
 func Factory() option.Option[func() check.Check] {
