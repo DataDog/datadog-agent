@@ -251,6 +251,9 @@ func (pb *PayloadsBuilder) startPayload() error {
 }
 
 func (pb *PayloadsBuilder) writeSerie(serie *metrics.Serie) error {
+	if serie == nil {
+		return nil
+	}
 	row := metrics.SerieRowFromSerie(serie)
 	return pb.writeSerieRow(&row)
 }

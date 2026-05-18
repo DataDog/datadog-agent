@@ -416,6 +416,9 @@ func (pb *payloadsBuilderV3) finishTxn(numPoints int) error {
 }
 
 func (pb *payloadsBuilderV3) writeSerie(serie *metrics.Serie) error {
+	if serie == nil {
+		return nil
+	}
 	row := metrics.SerieRowFromSerie(serie)
 	return pb.writeSerieRow(&row)
 }
@@ -476,6 +479,9 @@ func (pb *payloadsBuilderV3) writePointCommon(timestamp int64) {
 }
 
 func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
+	if serie == nil {
+		return
+	}
 	row := metrics.SerieRowFromSerie(serie)
 	pb.writeSerieRowToTxn(&row)
 }
