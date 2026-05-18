@@ -275,3 +275,38 @@ func TestHandler_NeverBlocks_WhenNoSubmitter(t *testing.T) {
 		t.Fatalf("Handle blocked across %d calls with no Submitter registered", total)
 	}
 }
+
+// BenchmarkErrortrackingHandle_NoSubmitter measures the steady-state
+// off-path cost when no Submitter is registered — the default state
+// for agents that have not opted in to errortracking. The Enabled
+// gate / load-closure short-circuit must keep this path negligibly
+// cheap so the foundational logger hot path is not taxed.
+func BenchmarkErrortrackingHandle_NoSubmitter(b *testing.B) {
+	h := NewHandler(func() Submitter { return nil })
+	logger := slog.New(h)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		logger.Error("e")
+	}
+}
+
+// BenchmarkErrortrackingHandle_FullPath measures the on-path cost when
+// both a Submitter and a Bouncer are wired. The benchmark reuses the
+// same call site for every iteration, so the Bouncer suppresses every
+// emit past the first — what we measure is the steady-state cost of
+// the FNV stack-hash + Bouncer.Observe lookup + suppression decision
+// (the common case once a stack has been seen at least once in the
+// current window).
+func BenchmarkErrortrackingHandle_FullPath(b *testing.B) {
+	submit := func(_ ErrorLog) {}
+	bouncer := NewBouncer(15*time.Minute, 0)
+	h := NewHandler(func() Submitter { return submit }).
+		WithBouncerLoader(func() *Bouncer { return bouncer })
+	logger := slog.New(h)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		logger.Error("e")
+	}
+}
