@@ -10,6 +10,8 @@ file's path and to the lines you are scoring.
 - Is it actively "pushy" — inviting use, not just describing?
 - Is the scope narrow enough to avoid false triggers?
 - Does it avoid being so vague that the agent undertriggers?
+- Is the skill name discoverable and appropriately namespaced (e.g. team prefix)?
+- Does the scope overlap with an existing skill? Flag duplicates.
 
 ## Dimension 2 — Writing philosophy / 25 pts
 - Does it explain WHY instructions matter, rather than just issuing commands?
@@ -19,6 +21,10 @@ file's path and to the lines you are scoring.
 - Does it use imperative form ("Run X", not "X can be run")?
 - Does it avoid over-narrow, example-specific rules that would
   cause the skill to overfit to particular inputs?
+- Is the risk level communicated? Does the skill interact with production
+  systems (high risk) or operate locally/read-only (low risk)? High-risk
+  skills must document blast radius and how to limit it.
+- Are embedded scripts easy to understand and free of cryptic behavior?
 
 ## Dimension 3 — Structure and progressive disclosure / 25 pts
 - Is the body under 500 lines?
@@ -27,6 +33,8 @@ file's path and to the lines you are scoring.
   every invocation would otherwise recreate from scratch?
 - Are references annotated with WHEN to load them?
 - Does the skill lead with the common path, edge cases later?
+- Is the skill focused on a single purpose? Flag skills that do "too much"
+  and should be split into smaller, composable skills.
 
 ## Dimension 4 — Output definition and examples / 25 pts
 - Is the expected output format explicitly defined
@@ -35,6 +43,8 @@ file's path and to the lines you are scoring.
 - Are success criteria clear enough that two people would agree
   on whether the skill worked?
 - Are dependencies or prerequisites stated?
+- Does the skill declare an owning team? Every AI artifact must have at
+  least one team owner.
 
 ## Output
 For each changed SKILL.md, emit one finding whose body contains:
