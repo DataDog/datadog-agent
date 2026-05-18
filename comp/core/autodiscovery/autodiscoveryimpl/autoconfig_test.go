@@ -204,9 +204,6 @@ func (suite *AutoConfigTestSuite) SetupTest() {
 
 func getAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logsComp log.Component, telemetryComp telemetry.Component, filterComp workloadfilter.Component) *AutoConfig {
 	ac := createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logsComp, telemetryComp, filterComp, option.None[healthplatformdef.Component]())
-	// The goroutines started here must mirror those started by ac.start().
-	// ac.stop() blocks on each goroutine's stop channel, so a missing
-	// goroutine here causes deadlock in TestStop and leaks in other tests.
 	go ac.serviceListening()
 	return ac
 }
