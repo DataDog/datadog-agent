@@ -104,6 +104,57 @@ func testContextStore(t *testing.T, newStore func(t *testing.T, dir string) cont
 		assert.Len(t, entries, n)
 	})
 
+	// scan("metricA", ["tagC"]) returns entries whose tags contain "tagC"
+	t.Run("scan_tag_subset_filter", func(t *testing.T) {
+		store := newStore(t, t.TempDir())
+		defer store.close()
+
+		require.NoError(t, store.write(1, "metricA", []string{"tagA", "tagB", "tagC"}))
+		require.NoError(t, store.write(2, "metricA", []string{"tag1", "tag2", "tag3", "tagC"}))
+		require.NoError(t, store.write(3, "metricA", []string{"tagA", "tagB", "tagD"})) // no tagC
+
+		entries, err := store.scan("metricA", []string{"tagC"})
+		require.NoError(t, err)
+		require.Len(t, entries, 2)
+		_, ok1 := entries[1]
+		_, ok2 := entries[2]
+		assert.True(t, ok1, "entry with tagC should be returned")
+		assert.True(t, ok2, "entry with tagC should be returned")
+		_, ok3 := entries[3]
+		assert.False(t, ok3, "entry without tagC should not be returned")
+	})
+
+	// scan("nsA.*") returns all entries whose name matches the glob
+	t.Run("scan_glob_metric_name", func(t *testing.T) {
+		store := newStore(t, t.TempDir())
+		defer store.close()
+
+		require.NoError(t, store.write(1, "nsA.metricA", nil))
+		require.NoError(t, store.write(2, "nsA.metricB", nil))
+		require.NoError(t, store.write(3, "nsB.metricA", nil))
+		require.NoError(t, store.write(4, "nsB.metricB", nil))
+
+		entries, err := store.scan("nsA.*", nil)
+		require.NoError(t, err)
+		require.Len(t, entries, 2)
+		assert.Equal(t, "nsA.metricA", entries[1].name)
+		assert.Equal(t, "nsA.metricB", entries[2].name)
+	})
+
+	// scan("ns*.metricA") should match metricA across multiple namespaces
+	t.Run("scan_glob_middle_wildcard", func(t *testing.T) {
+		store := newStore(t, t.TempDir())
+		defer store.close()
+
+		require.NoError(t, store.write(1, "nsA.metricA", nil))
+		require.NoError(t, store.write(2, "nsA.metricB", nil))
+		require.NoError(t, store.write(3, "nsB.metricA", nil))
+
+		entries, err := store.scan("*.metricA", nil)
+		require.NoError(t, err)
+		require.Len(t, entries, 2)
+	})
+
 	t.Run("load_keys", func(t *testing.T) {
 		store := newStore(t, t.TempDir())
 		require.NoError(t, store.write(1, "a", nil))

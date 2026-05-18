@@ -42,7 +42,7 @@ func newBoltContextStore(path string) (*boltContextStore, error) {
 	return &boltContextStore{db: db}, nil
 }
 
-func (s *boltContextStore) maybeWrite(key uint64, name string, tags []string) error {
+func (s *boltContextStore) write(key uint64, name string, tags []string) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
 		b, err := tx.CreateBucketIfNotExists([]byte(name))
 		if err != nil {
@@ -57,24 +57,38 @@ func (s *boltContextStore) maybeWrite(key uint64, name string, tags []string) er
 func (s *boltContextStore) scan(name string, filterTags []string) (map[uint64]contextEntry, error) {
 	result := make(map[uint64]contextEntry)
 	err := s.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(name))
-		if b == nil {
-			return nil
+		if !nameIsGlob(name) {
+			// Fast path: exact name → single bucket lookup.
+			b := tx.Bucket([]byte(name))
+			if b == nil {
+				return nil
+			}
+			return scanBucket(b, name, filterTags, result)
 		}
-		return b.ForEach(func(k, v []byte) error {
-			if len(k) < 8 {
+		// Glob path: iterate all buckets and match the bucket name.
+		return tx.ForEach(func(bucketName []byte, b *bolt.Bucket) error {
+			if !matchName(string(bucketName), name) {
 				return nil
 			}
-			key := binary.BigEndian.Uint64(k)
-			tags := decodeTags(v)
-			if filterTags != nil && !tagsSubset(filterTags, tags) {
-				return nil
-			}
-			result[key] = contextEntry{name: name, tags: tags}
-			return nil
+			return scanBucket(b, string(bucketName), filterTags, result)
 		})
 	})
 	return result, err
+}
+
+func scanBucket(b *bolt.Bucket, entryName string, filterTags []string, result map[uint64]contextEntry) error {
+	return b.ForEach(func(k, v []byte) error {
+		if len(k) < 8 {
+			return nil
+		}
+		key := binary.BigEndian.Uint64(k)
+		tags := decodeTags(v)
+		if filterTags != nil && !tagsSubset(filterTags, tags) {
+			return nil
+		}
+		result[key] = contextEntry{name: entryName, tags: tags}
+		return nil
+	})
 }
 
 func (s *boltContextStore) loadKeys(fn func(uint64)) error {

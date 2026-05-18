@@ -6,6 +6,7 @@
 package lookbackimpl
 
 import (
+	"path"
 	"slices"
 	"strings"
 
@@ -151,4 +152,20 @@ func tagsSubset(requested, registered []string) bool {
 		}
 	}
 	return true
+}
+
+// nameIsGlob reports whether pattern contains any glob metacharacter.
+func nameIsGlob(pattern string) bool {
+	return strings.ContainsAny(pattern, "*?[")
+}
+
+// matchName reports whether entryName matches the given name pattern.
+// If pattern contains no wildcards it is an exact match; otherwise path.Match
+// is used (treating '.' as a regular character, '/' never appears in names).
+func matchName(entryName, pattern string) bool {
+	if !nameIsGlob(pattern) {
+		return entryName == pattern
+	}
+	ok, _ := path.Match(pattern, entryName)
+	return ok
 }

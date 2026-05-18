@@ -54,7 +54,7 @@ func (s *flatContextStore) scan(name string, filterTags []string) (map[uint64]co
 		if err != nil {
 			return result, fmt.Errorf("lookback flat scan read: %w", err)
 		}
-		if entryName != name {
+		if !matchName(entryName, name) {
 			continue
 		}
 		if filterTags != nil && !tagsSubset(filterTags, entryTags) {
@@ -203,7 +203,22 @@ func (s *shardedFlatContextStore) write(key uint64, name string, tags []string) 
 }
 
 func (s *shardedFlatContextStore) scan(name string, filterTags []string) (map[uint64]contextEntry, error) {
-	return s.shardFor(name).scan(name, filterTags)
+	if !nameIsGlob(name) {
+		// Fast path: exact name — only one shard can hold matching entries.
+		return s.shardFor(name).scan(name, filterTags)
+	}
+	// Glob path: matching entries may live in any shard.
+	result := make(map[uint64]contextEntry)
+	for _, shard := range s.shards {
+		entries, err := shard.scan(name, filterTags)
+		if err != nil {
+			return result, err
+		}
+		for k, v := range entries {
+			result[k] = v
+		}
+	}
+	return result, nil
 }
 
 func (s *shardedFlatContextStore) loadKeys(fn func(uint64)) error {
