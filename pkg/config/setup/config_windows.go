@@ -30,7 +30,7 @@ var (
 	// DefaultUpdaterLogFile is the default updater log file
 	DefaultUpdaterLogFile = defaultpaths.GetDefaultUpdaterLogFile()
 	// DefaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
-	DefaultSecurityAgentLogFile = defaultpaths.DefaultSecurityAgentLogFile()
+	DefaultSecurityAgentLogFile = defaultpaths.DefaultSecurityAgentLogFile
 	// DefaultProcessAgentLogFile is the default process-agent log file
 	DefaultProcessAgentLogFile = defaultpaths.DefaultProcessAgentLogFile
 	// DefaultOTelAgentLogFile is the default otel-agent log file
