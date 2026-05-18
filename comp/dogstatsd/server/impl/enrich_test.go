@@ -1061,13 +1061,13 @@ func TestEnrichMetricSampleJMXCheckNameCloudCostFilter(t *testing.T) {
 		assert.Len(t, samples, 1)
 	})
 
-	t.Run("integration jmx check subject to allowlist", func(t *testing.T) {
+	t.Run("jmx over dogstatsd forwarded", func(t *testing.T) {
 		parsed := dogstatsdMetricSample{
 			name: "kafka.metric",
 			tags: []string{"dd.internal.jmx_check_name:kafka"},
 		}
 		samples := enrichMetricSample(nil, parsed, "", 0, "", conf, &filters)
-		assert.Empty(t, samples)
+		assert.Len(t, samples, 1)
 	})
 }
 
@@ -1525,8 +1525,7 @@ func TestEnrichTags(t *testing.T) {
 		tt.wantedOrigin.ProductOrigin = origindetection.ProductOriginDogStatsD
 
 		t.Run(tt.name, func(t *testing.T) {
-			tags, host, origin, metricSource, jmxCheckName := extractTagsMetadata(tt.args.tags, tt.args.originFromUDS, 0, tt.args.localData, tt.args.externalData, tt.args.cardinality, tt.args.conf)
-			assert.Empty(t, jmxCheckName)
+			tags, host, origin, metricSource := extractTagsMetadata(tt.args.tags, tt.args.originFromUDS, 0, tt.args.localData, tt.args.externalData, tt.args.cardinality, tt.args.conf)
 			assert.Equal(t, tt.wantedTags, tags)
 			assert.Equal(t, tt.wantedHost, host)
 			assert.Equal(t, tt.wantedOrigin, origin)
@@ -1542,7 +1541,6 @@ func TestEnrichTagsWithJMXCheckName(t *testing.T) {
 		tags               []string
 		wantedTags         []string
 		wantedMetricSource metrics.MetricSource
-		wantedCheckName    string
 	}{
 		{
 			name:               "dd.internal.jmx_check_name:kafka, should give MetricSourceKafka",
@@ -1550,7 +1548,6 @@ func TestEnrichTagsWithJMXCheckName(t *testing.T) {
 			tags:               []string{"env:prod", "dd.internal.jmx_check_name:kafka"},
 			wantedTags:         []string{"env:prod"},
 			wantedMetricSource: metrics.MetricSourceKafka,
-			wantedCheckName:    "kafka",
 		},
 		{
 			name:               "dd.internal.jmx_check_name:cassandra, should give MetricSourceCassandra",
@@ -1558,7 +1555,6 @@ func TestEnrichTagsWithJMXCheckName(t *testing.T) {
 			tags:               []string{"foo", "dd.internal.jmx_check_name:cassandra"},
 			wantedTags:         []string{"foo"},
 			wantedMetricSource: metrics.MetricSourceCassandra,
-			wantedCheckName:    "cassandra",
 		},
 		{
 			name:               "dd.internal.jmx_check_name:tomcat, with jmx_domain tag should still set MetricSource",
@@ -1566,7 +1562,6 @@ func TestEnrichTagsWithJMXCheckName(t *testing.T) {
 			tags:               []string{"foo", "jmx_domain:testdomain", "dd.internal.jmx_check_name:tomcat"},
 			wantedTags:         []string{"foo", "jmx_domain:testdomain"},
 			wantedMetricSource: metrics.MetricSourceTomcat,
-			wantedCheckName:    "tomcat",
 		},
 		{
 			name:               "dd.internal.jmx_check_name:thisisacustomcheck, should give MetricSourceJmxCustom",
@@ -1574,15 +1569,13 @@ func TestEnrichTagsWithJMXCheckName(t *testing.T) {
 			tags:               []string{"env:prod", "dd.internal.jmx_check_name:thisisacustomcheck"},
 			wantedTags:         []string{"env:prod"},
 			wantedMetricSource: metrics.MetricSourceJmxCustom,
-			wantedCheckName:    "thisisacustomcheck",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tags, _, _, metricSource, checkName := extractTagsMetadata(tt.tags, "", 0, origindetection.LocalData{}, origindetection.ExternalData{}, "", enrichConfig{})
+			tags, _, _, metricSource := extractTagsMetadata(tt.tags, "", 0, origindetection.LocalData{}, origindetection.ExternalData{}, "", enrichConfig{})
 			assert.Equal(t, tt.wantedTags, tags)
 			assert.Equal(t, tt.wantedMetricSource, metricSource)
-			assert.Equal(t, tt.wantedCheckName, checkName)
 			assert.NotContains(t, tags, tt.jmxCheckName)
 		})
 

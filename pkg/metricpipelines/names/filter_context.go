@@ -14,15 +14,16 @@ import (
 
 // FilterContext carries fields used by metric-name filters beyond the metric name.
 type FilterContext struct {
-	Name      string
-	Source    metrics.MetricSource
-	CheckName string // check-sourced metrics, or JMX check from dd.internal.jmx_check_name on DogStatsD
+	Name          string
+	Source        metrics.MetricSource
+	CheckName     string // integration check name (check_sampler only)
+	FromDogstatsd bool   // set on DogStatsD ingest (including JMX-tagged metrics)
 }
 
 // BypassesCloudCostFilter reports whether a metric bypasses cloud_cost_only allowlist
-// filtering (DogStatsD, custom_* checks, or integration.additional checks).
+// filtering (DogStatsD ingest, custom_* checks, or integration.additional checks).
 func (ctx FilterContext) BypassesCloudCostFilter(additionalChecks []string) bool {
-	if ctx.Source == metrics.MetricSourceDogstatsd {
+	if ctx.FromDogstatsd {
 		return true
 	}
 	if ctx.CheckName == "" {

@@ -88,8 +88,8 @@ func TestLoadCloudCostOnlyForwardsBypassMetrics(t *testing.T) {
 	filters := Load(configComponent, fl)
 
 	assert.False(t, filters.ShouldDrop(FilterContext{
-		Name:   "custom.my.metric",
-		Source: metrics.MetricSourceDogstatsd,
+		Name:          "custom.my.metric",
+		FromDogstatsd: true,
 	}))
 	assert.False(t, filters.ShouldDrop(FilterContext{
 		Name:      "custom.my.metric",
@@ -115,8 +115,16 @@ func TestShouldDropCloudCost(t *testing.T) {
 	})
 	t.Run("dogstatsd forwarded", func(t *testing.T) {
 		assert.False(t, shouldDropCloudCost(FilterContext{
-			Name:   "not.on.list",
-			Source: metrics.MetricSourceDogstatsd,
+			Name:          "not.on.list",
+			FromDogstatsd: true,
+		}, blockList, allowList, nil))
+	})
+	t.Run("jmx over dogstatsd forwarded", func(t *testing.T) {
+		assert.False(t, shouldDropCloudCost(FilterContext{
+			Name:          "kafka.metric",
+			Source:        metrics.MetricSourceKafka,
+			CheckName:     "kafka",
+			FromDogstatsd: true,
 		}, blockList, allowList, nil))
 	})
 	t.Run("allowlist forwarded", func(t *testing.T) {
@@ -131,10 +139,14 @@ func TestShouldDropCloudCost(t *testing.T) {
 }
 
 func TestFilterContextBypassesCloudCostFilter(t *testing.T) {
-	assert.True(t, FilterContext{Source: metrics.MetricSourceDogstatsd}.BypassesCloudCostFilter(nil))
+	assert.True(t, FilterContext{FromDogstatsd: true}.BypassesCloudCostFilter(nil))
+	assert.True(t, FilterContext{
+		CheckName:     "kafka",
+		Source:        metrics.MetricSourceKafka,
+		FromDogstatsd: true,
+	}.BypassesCloudCostFilter(nil))
 	assert.True(t, FilterContext{CheckName: "custom_foo"}.BypassesCloudCostFilter(nil))
 	assert.True(t, FilterContext{CheckName: "extra"}.BypassesCloudCostFilter([]string{"extra"}))
 	assert.False(t, FilterContext{CheckName: "disk", Source: metrics.MetricSourceDisk}.BypassesCloudCostFilter(nil))
 	assert.False(t, FilterContext{CheckName: "kafka", Source: metrics.MetricSourceKafka}.BypassesCloudCostFilter(nil))
-	assert.True(t, FilterContext{CheckName: "custom_foo", Source: metrics.MetricSourceJmxCustom}.BypassesCloudCostFilter(nil))
 }
