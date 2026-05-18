@@ -113,16 +113,7 @@ static struct policy_t __attribute__((always_inline)) fetch_policy(u64 event_typ
     return empty_policy;
 }
 
-// cache_syscall checks the event policy in order to see if the syscall struct can be cached
-static void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscall) {
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    u32 pid = pid_tgid >> 32;
-
-    // handle kill action
-    send_signal(pid);
-
-    bpf_map_update_elem(&syscalls, &pid_tgid, syscall, BPF_ANY);
-
+static void __attribute__((always_inline)) update_proc_cache_cgroup(u32 pid) {
     // keep the cached cgroup inode in sync with the kernel's view: a process may have
     // migrated to a new cgroup since proc_cache was populated, and downstream consumers
     // (cgroup/container context resolution) rely on this field being current.
@@ -133,8 +124,21 @@ static void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t 
             entry->cgroup.path_key.ino = cgroup_id;
         }
     }
+}
+
+// cache_syscall checks the event policy in order to see if the syscall struct can be cached
+static void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscall) {
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = pid_tgid >> 32;
+
+    // handle kill action
+    send_signal(pid);
+
+    bpf_map_update_elem(&syscalls, &pid_tgid, syscall, BPF_ANY);
 
     monitor_syscalls(syscall->type, 1);
+
+    update_proc_cache_cgroup(pid);
 }
 
 static struct syscall_cache_t *__attribute__((always_inline)) peek_task_syscall(u64 pid_tgid, u64 type) {
