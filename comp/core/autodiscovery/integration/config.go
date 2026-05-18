@@ -513,6 +513,9 @@ func (c *Config) FastDigest() uint64 {
 	if c.Discovery != nil {
 		_, _ = h.Write([]byte("discovery"))
 	}
+	if c.TrialMode {
+		_, _ = h.Write([]byte("trial_mode"))
+	}
 
 	return h.Sum64()
 }
