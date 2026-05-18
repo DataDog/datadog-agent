@@ -26,7 +26,7 @@ int hook_vm_mmap_pgoff(ctx_t *ctx) {
         .mmap.flags = flags,
     };
 
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
