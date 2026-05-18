@@ -10,7 +10,7 @@ import (
 
 	"go.uber.org/fx"
 
-	collectorimpl "github.com/DataDog/datadog-agent/comp/collector/collector/impl"
+	collectormock "github.com/DataDog/datadog-agent/comp/collector/collector/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -31,7 +31,7 @@ func TestBundleDependencies(t *testing.T) {
 		hostnameimpl.MockModule(),
 		fx.Supply(option.None[runnerdef.MetadataProvider]()),
 		fx.Provide(func() serializer.MetricSerializer { return nil }),
-		collectorimpl.MockModule(),
+		collectormock.MockModule(),
 		fx.Provide(func() option.Option[agent.Component] {
 			return option.None[agent.Component]()
 		}),

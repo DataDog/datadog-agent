@@ -15,7 +15,7 @@ import (
 	"go.uber.org/fx"
 
 	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
-	collectorimpl "github.com/DataDog/datadog-agent/comp/collector/collector/impl"
+	collectormock "github.com/DataDog/datadog-agent/comp/collector/collector/mock"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -159,10 +159,10 @@ func TestGetPayload(t *testing.T) {
 		}
 
 		mockColl := fxutil.Test[collector.Component](t,
-			fx.Replace(collectorimpl.MockParams{
+			fx.Replace(collectormock.MockParams{
 				ChecksInfo: cInfo,
 			}),
-			collectorimpl.MockModule(),
+			collectormock.MockModule(),
 			core.MockBundle(),
 			hostnameimpl.MockModule(),
 			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
