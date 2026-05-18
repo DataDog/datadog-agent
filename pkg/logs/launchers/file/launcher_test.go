@@ -1618,3 +1618,57 @@ func TestLauncher_IgnoreOlder_StillGatesNewTailers(t *testing.T) {
 	assert.True(t, launcher.tailers.Contains(recentPath), "recent.log should be tailed")
 	assert.False(t, launcher.tailers.Contains(oldPath), "old.log should be skipped by ignore_older")
 }
+
+// TestLauncher_IgnoreOlder_DeletedFileStillStopsTailer verifies that the
+// currentlyTailed bypass does NOT prevent the launcher from stopping a tailer
+// when its underlying file is deleted. The bypass only re-includes files that
+// the filesystem scan already returned; a deleted file is absent from the
+// scan and falls through to the normal resolveActiveTailers stop-the-missing-
+// tailer path.
+//
+// This is a QA-driven regression test for the claim made in the PR description
+// that the close_older-prevention bypass does not break the file-deletion
+// shutdown path.
+func TestLauncher_IgnoreOlder_DeletedFileStillStopsTailer(t *testing.T) {
+	cfg := configmock.New(t)
+	testDir := t.TempDir()
+	now := time.Now()
+
+	path := func(name string) string { return fmt.Sprintf("%s/%s", testDir, name) }
+
+	// Enable ignore_older=1h so the bypass logic is active.
+	cfg.Set("logs_config.ignore_older", time.Hour, configmodel.SourceCLI)
+
+	// Recent file: gets a tailer on the first scan.
+	filePath := path("doomed.log")
+	f, err := os.Create(filePath)
+	assert.NoError(t, err)
+	f.Close()
+	assert.NoError(t, os.Chtimes(filePath, now.Add(-10*time.Minute), now.Add(-10*time.Minute)))
+
+	launcher := createLauncher(t, launcherTestOptions{openFilesLimit: 5})
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditorMock.NewMockRegistry()
+
+	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path("*.log")})
+	launcher.activeSources = append(launcher.activeSources, source)
+	status.Clear()
+	status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
+	defer status.Clear()
+
+	// First scan: tailer is created.
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry, launcher.currentlyTailedScanKeys()))
+	assert.Equal(t, 1, launcher.tailers.Count(), "tailer should be created for the recent file")
+	assert.True(t, launcher.tailers.Contains(filePath), "doomed.log should be tailed")
+
+	// Delete the file out from under the tailer.
+	assert.NoError(t, os.Remove(filePath))
+
+	// Second scan: file no longer exists on disk. Even though it was being
+	// tailed, the launcher should stop its tailer — the ignore_older bypass
+	// only re-includes files that are present in the filesystem scan, and a
+	// deleted file is not.
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry, launcher.currentlyTailedScanKeys()))
+	assert.Equal(t, 0, launcher.tailers.Count(), "tailer must stop after file deletion (deletion path is unaffected by the ignore_older bypass)")
+	assert.False(t, launcher.tailers.Contains(filePath), "doomed.log should not be in the tailer set after deletion")
+}
