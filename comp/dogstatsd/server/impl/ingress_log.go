@@ -123,18 +123,23 @@ func (l *packetIngressLog) run(input <-chan packets.Packets, output chan<- packe
 func (l *packetIngressLog) append(ps packets.Packets) bool {
 	batchBytes := packetBatchSizeBytes(ps)
 	batchPackets := int64(len(ps))
-	start := time.Now()
+	var blockStart time.Time
+	blocked := false
 
 	l.mu.Lock()
 	for !l.stopped && l.queueLenLocked() > 0 && l.bytes+batchBytes > l.maxBytes {
+		if !blocked {
+			blocked = true
+			blockStart = time.Now()
+		}
 		l.notFull.Wait()
 	}
 	if l.stopped {
 		l.mu.Unlock()
 		return false
 	}
-	if waited := time.Since(start); waited > 0 && l.telemetry.blockedNS != nil {
-		l.telemetry.blockedNS.Add(float64(waited.Nanoseconds()))
+	if blocked && l.telemetry.blockedNS != nil {
+		l.telemetry.blockedNS.Add(float64(time.Since(blockStart).Nanoseconds()))
 	}
 	l.batches = append(l.batches, ps)
 	l.bytes += batchBytes
