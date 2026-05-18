@@ -16,14 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-type testDeps struct {
-	compdef.In
-	Config config.Component
-	Params Params
-}
 
 func TestJMXLog(t *testing.T) {
 	dir := t.TempDir()
@@ -32,18 +25,11 @@ func TestJMXLog(t *testing.T) {
 	assert.NoError(t, err)
 	defer f.Close()
 
-	deps := fxutil.Test[testDeps](t,
-		fxutil.ProvideComponentConstructor(func() config.Component { return config.NewMock(t) }),
-		fxutil.ProvideComponentConstructor(func() Params { return NewCliParams(filePath) }),
-	)
-
-	reqs := Requires{
+	provides, err := NewComponent(Requires{
 		Lc:     compdef.NewTestLifecycle(t),
-		Config: deps.Config,
-		Params: deps.Params,
-	}
-
-	provides, err := NewComponent(reqs)
+		Config: config.NewMock(t),
+		Params: NewCliParams(filePath),
+	})
 
 	assert.NoError(t, err)
 
