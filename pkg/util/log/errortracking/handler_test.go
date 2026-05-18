@@ -182,12 +182,15 @@ func TestHandler_BouncerSuppressesDuplicates(t *testing.T) {
 	assert.Equal(t, uint32(1), got[0].Count, "first sighting Count")
 }
 
-// TestHandler_BouncerNilLoaderIsPassThrough: a nil bouncer loader (or a
-// loader returning nil) MUST disable dedup. Every record reaches the
-// Submitter.
+// TestHandler_BouncerNilLoaderIsPassThrough: passing nil to
+// WithBouncerLoader MUST clear the late-binder so every record reaches
+// the Submitter. The outer h.loadBouncer != nil gate is the
+// feature-off path; once a closure is registered, the contract is
+// non-nil (see WithBouncerLoader docblock), so we don't test a
+// registered-but-returns-nil closure here.
 func TestHandler_BouncerNilLoaderIsPassThrough(t *testing.T) {
 	h, rec := newRecordingHandler(t)
-	h = h.WithBouncerLoader(func() *Bouncer { return nil })
+	h = h.WithBouncerLoader(nil)
 
 	pc := uintptr(0xABCDEF)
 	for i := 0; i < 3; i++ {
@@ -196,6 +199,56 @@ func TestHandler_BouncerNilLoaderIsPassThrough(t *testing.T) {
 	}
 
 	assert.Len(t, rec.snapshot(), 3, "nil-bouncer loader must NOT dedup")
+}
+
+// TestHandler_StackHashKeyDistinguishesStacks: two different stacks
+// reaching the same terminal slog.Error call site must produce
+// DIFFERENT bouncer keys (because the bouncer key is the FNV-1a hash
+// of the full captured PCs slice) and BOTH must ship to the
+// Submitter. The old r.PC-keyed bouncer would have collapsed these
+// two stacks into one, hiding the distinct call paths from the wire.
+func TestHandler_StackHashKeyDistinguishesStacks(t *testing.T) {
+	h, rec := newRecordingHandler(t)
+	bouncer := NewBouncer(15*time.Minute, 0)
+	h = h.WithBouncerLoader(func() *Bouncer { return bouncer })
+
+	logger := slog.New(h)
+
+	// emit is a shared closure whose Error call site is the same for
+	// both callers; the parent frames (fromA vs fromB) diverge above.
+	emit := func() { logger.Error("e") }
+
+	fromA := func() { emit() }
+	fromB := func() { emit() }
+
+	fromA()
+	fromB()
+
+	got := rec.snapshot()
+	require.Len(t, got, 2, "two distinct stacks must each ship a record (no cross-stack dedup)")
+}
+
+// TestHandler_BouncerSuppressionAndCountDelivery: 5 emits from the
+// same call site ship 1 record with Count=1 (first sighting); the
+// remaining 4 are suppressed inside the window. The
+// suppressed-duplicate total is carried on the NEXT delivered record
+// once the window elapses (see TestBouncer_WindowElapseCarriesPriorCount
+// for that path) — within a single window the first delivery's Count
+// is 1.
+func TestHandler_BouncerSuppressionAndCountDelivery(t *testing.T) {
+	h, rec := newRecordingHandler(t)
+	bouncer := NewBouncer(15*time.Minute, 0)
+	h = h.WithBouncerLoader(func() *Bouncer { return bouncer })
+
+	logger := slog.New(h)
+
+	for i := 0; i < 5; i++ {
+		logger.Error("e")
+	}
+
+	got := rec.snapshot()
+	require.Len(t, got, 1)
+	assert.Equal(t, uint32(1), got[0].Count)
 }
 
 // TestHandler_NeverBlocks_WhenNoSubmitter asserts that the steady-state

@@ -49,20 +49,82 @@ func TestBouncer_SecondSightingSuppressedInsideWindow(t *testing.T) {
 func TestBouncer_ResetsAfterWindow(t *testing.T) {
 	b := NewBouncer(15*time.Minute, 0)
 	t0 := time.Now()
-	b.Observe(0xCAFE, t0)
-	b.Observe(0xCAFE, t0.Add(time.Minute))
+	b.Observe(0xCAFE, t0)                  // count=1
+	b.Observe(0xCAFE, t0.Add(time.Minute)) // count=2 (suppressed)
 
-	// Step past the window — next sighting should be a fresh first sighting.
+	// Step past the window — next sighting MUST NOT be suppressed and
+	// MUST carry the prior window's total count (2) rather than
+	// resetting to 1. That preserves the suppressed-duplicate count on
+	// the delivered wire record. The entry is then reset to a fresh
+	// window internally.
 	t2 := t0.Add(16 * time.Minute)
 	suppressed, count, firstSeen := b.Observe(0xCAFE, t2)
 	if suppressed {
 		t.Fatalf("sighting after window MUST NOT be suppressed")
 	}
-	if count != 1 {
-		t.Fatalf("post-window sighting count = %d, want 1 (fresh)", count)
+	if count != 2 {
+		t.Fatalf("post-window sighting count = %d, want 2 (prior-window total)", count)
 	}
 	if !firstSeen.Equal(t2) {
 		t.Fatalf("post-window firstSeen = %v, want %v", firstSeen, t2)
+	}
+}
+
+// TestBouncer_WindowElapseCarriesPriorCount exercises the
+// suppressed-count carry-forward contract end-to-end: a hot bug path
+// with N sightings per window must deliver one record per window with
+// Count=N (the total occurrences of the prior window), not N records
+// each carrying Count=1.
+func TestBouncer_WindowElapseCarriesPriorCount(t *testing.T) {
+	b := NewBouncer(15*time.Minute, 0)
+	var key uintptr = 0xABCDEF
+
+	t0 := time.Now()
+
+	// First sighting — delivered, count=1.
+	suppressed, count, _ := b.Observe(key, t0)
+	if suppressed {
+		t.Fatalf("first sighting must NOT be suppressed")
+	}
+	if count != 1 {
+		t.Fatalf("first sighting count = %d, want 1", count)
+	}
+
+	// Two more sightings within the window — both suppressed.
+	suppressed, count, _ = b.Observe(key, t0.Add(5*time.Minute))
+	if !suppressed {
+		t.Fatalf("sighting inside window MUST be suppressed")
+	}
+	if count != 2 {
+		t.Fatalf("second sighting count = %d, want 2", count)
+	}
+
+	suppressed, count, _ = b.Observe(key, t0.Add(10*time.Minute))
+	if !suppressed {
+		t.Fatalf("sighting inside window MUST be suppressed")
+	}
+	if count != 3 {
+		t.Fatalf("third sighting count = %d, want 3", count)
+	}
+
+	// Window elapses; next sighting is delivered with the prior
+	// window's total (3).
+	suppressed, count, _ = b.Observe(key, t0.Add(20*time.Minute))
+	if suppressed {
+		t.Fatalf("window elapsed; sighting must be delivered")
+	}
+	if count != 3 {
+		t.Fatalf("delivered record count = %d, want 3 (prior-window total)", count)
+	}
+
+	// Subsequent sighting in the new window — suppressed, count starts
+	// from the post-reset 1 and increments to 2.
+	suppressed, count, _ = b.Observe(key, t0.Add(21*time.Minute))
+	if !suppressed {
+		t.Fatalf("sighting inside fresh window MUST be suppressed")
+	}
+	if count != 2 {
+		t.Fatalf("post-reset sighting count = %d, want 2", count)
 	}
 }
 

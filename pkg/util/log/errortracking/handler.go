@@ -7,6 +7,7 @@ package errortracking
 
 import (
 	"context"
+	"hash/fnv"
 	"log/slog"
 	"runtime"
 )
@@ -37,14 +38,16 @@ var _ slog.Handler = (*Handler)(nil)
 // this is the steady state before the agenttelemetry component registers
 // its Submitter during Fx startup, and again during test cleanup.
 //
-// The handler optionally also late-binds a per-PC Bouncer (see
-// bouncer.go) via loadBouncer; when the closure returns non-nil and
-// it suppresses the current PC, Handle returns without invoking the
-// Submitter. The running count of suppressed dupes ships on the next
-// non-suppressed sighting via ErrorLog.Count. Late-binding mirrors
-// the Submitter pattern so the Bouncer's lifecycle (Fx start/stop) can
-// be managed by the agenttelemetry component without restructuring
-// the foundational logger build.
+// The handler optionally also late-binds a per-stack Bouncer (see
+// bouncer.go) via loadBouncer; when loadBouncer is set, the bouncer is
+// consulted on every Handle and may suppress the record. The bouncer
+// key is a FNV-1a hash of the captured stack PCs — two distinct stacks
+// reaching the same terminal function are NOT collapsed into the same
+// bouncer entry. The running count of suppressed dupes ships on the
+// next non-suppressed sighting via ErrorLog.Count. Late-binding
+// mirrors the Submitter pattern so the Bouncer's lifecycle (Fx
+// start/stop) can be managed by the agenttelemetry component without
+// restructuring the foundational logger build.
 //
 // The Submitter contract requires non-blocking submission (the consumer
 // owns a bounded channel and flushes asynchronously), so Handle is
@@ -66,9 +69,13 @@ func NewHandler(load func() Submitter) *Handler {
 }
 
 // WithBouncerLoader returns a Handler that consults loadBouncer on
-// every Handle to decide whether to suppress the current PC. loadBouncer
-// MAY return nil at any time to disable dedup; the closure MUST be safe
-// for concurrent use. Passing nil clears the late-binder.
+// every Handle to decide whether to suppress the current record. Once
+// registered, the closure MUST return non-nil and MUST be safe for
+// concurrent use — a registered-but-returns-nil closure would
+// silently disable dedup, which is a footgun the design avoids by
+// contract. Passing nil to WithBouncerLoader clears the late-binder
+// (the outer h.loadBouncer != nil gate is the design knob for
+// tests/feature-off paths).
 func (h *Handler) WithBouncerLoader(loadBouncer func() *Bouncer) *Handler {
 	return &Handler{load: h.load, loadBouncer: loadBouncer}
 }
@@ -100,6 +107,12 @@ func (h *Handler) Enabled(_ context.Context, level slog.Level) bool {
 // The handler captures only the wire-relevant fields (Time, PC, stack
 // PCs, Count); message text and attrs are not captured because they are
 // potentially user-controlled.
+//
+// Flow: level gate → submitter gate → capture stack PCs → (optional)
+// bouncer check keyed by FNV-1a hash of the captured PCs → build
+// ErrorLog → submit. The bouncer-key-is-a-hash-of-the-full-stack
+// choice means two distinct stacks reaching the same terminal
+// function each get their own dedup window.
 func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 	if r.Level < slog.LevelError {
 		return nil
@@ -109,34 +122,56 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 		return nil
 	}
 
-	out := ErrorLog{
-		Time:  r.Time,
-		PC:    r.PC,
-		Count: 1,
-	}
-	// Bouncer check (when a loader is registered AND returns non-nil):
-	// suppress duplicate PCs inside the window. The bouncer count rides
-	// on the next non-suppressed sighting via ErrorLog.Count, so
-	// operators can see the suppressed-duplicate count on the wire
-	// without us shipping every occurrence.
-	if h.loadBouncer != nil {
-		if b := h.loadBouncer(); b != nil {
-			suppressed, count, _ := b.Observe(r.PC, r.Time)
-			if suppressed {
-				return nil
-			}
-			out.Count = count
-		}
-	}
 	// Capture a bounded multi-frame stack while the calling goroutine
 	// is still on-stack — by the time the agenttelemetry flush
 	// goroutine wakes up, the call chain that produced this record
 	// would be gone. runtime.Callers is cheap (just walks the
 	// stack-frame linked list and copies PC values); symbolization is
 	// deferred to the sender.
-	out.PCsLen = runtime.Callers(stackSkipBase, out.PCs[:])
+	var pcs [MaxStackFrames]uintptr
+	pcsLen := runtime.Callers(stackSkipBase, pcs[:])
+
+	count := uint32(1)
+	// Bouncer check: the bouncer is consulted whenever the loader
+	// closure is registered. The closure's contract is non-nil after
+	// registration (documented on WithBouncerLoader), so we call it
+	// directly. The key is a FNV-1a hash of the captured PCs so
+	// different stacks reaching the same terminal function are NOT
+	// merged.
+	if h.loadBouncer != nil {
+		stackKey := hashPCs(pcs[:pcsLen])
+		suppressed, c, _ := h.loadBouncer().Observe(stackKey, r.Time)
+		if suppressed {
+			return nil
+		}
+		count = c
+	}
+
+	out := ErrorLog{
+		Time:   r.Time,
+		PC:     r.PC,
+		PCs:    pcs,
+		PCsLen: pcsLen,
+		Count:  count,
+	}
 	submit(out)
 	return nil
+}
+
+// hashPCs returns a 64-bit FNV-1a hash of the captured stack PCs,
+// truncated to uintptr. The hash is the bouncer key — two records
+// reaching the same terminal function from different call stacks
+// produce different hashes and are NOT deduped together.
+func hashPCs(pcs []uintptr) uintptr {
+	h := fnv.New64a()
+	var buf [8]byte
+	for _, pc := range pcs {
+		for i := range buf {
+			buf[i] = byte(pc >> (8 * i))
+		}
+		h.Write(buf[:])
+	}
+	return uintptr(h.Sum64())
 }
 
 // WithAttrs is a required slog.Handler interface method. Attrs are not
