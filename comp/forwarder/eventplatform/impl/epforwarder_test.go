@@ -12,11 +12,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	secretsnoopimpl "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl"
+	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformreceiver "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/def"
 	eventplatformreceivermock "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/mock"
+	logshttp "github.com/DataDog/datadog-agent/comp/logs-library/client/http"
 	laconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfxmock "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -44,6 +47,28 @@ func (suite *EventPlatformForwarderTestSuite) SetupTest() {
 
 func TestEventPlatformForwarderTestSuite(t *testing.T) {
 	suite.Run(t, new(EventPlatformForwarderTestSuite))
+}
+
+func (suite *EventPlatformForwarderTestSuite) TestGetPassthroughPipelinesIncludesGenresources() {
+	var genresourcesDesc *passthroughPipelineDesc
+	for _, desc := range getPassthroughPipelines() {
+		if desc.eventType == eventplatform.EventTypeGenResources {
+			desc := desc
+			genresourcesDesc = &desc
+			break
+		}
+	}
+
+	suite.Require().NotNil(genresourcesDesc)
+	suite.Equal("Generic Resources", genresourcesDesc.category)
+	suite.Equal(logshttp.ProtobufContentType, genresourcesDesc.contentType)
+	suite.Equal("genresources.", genresourcesDesc.endpointsConfigPrefix)
+	suite.Equal("resources-intake.", genresourcesDesc.hostnameEndpointPrefix)
+	suite.Equal(laconfig.IntakeTrackType("genresources"), genresourcesDesc.intakeTrackType)
+	suite.Equal(10, genresourcesDesc.defaultBatchMaxConcurrentSend)
+	suite.Equal(pkgconfigsetup.DefaultBatchMaxContentSize, genresourcesDesc.defaultBatchMaxContentSize)
+	suite.Equal(pkgconfigsetup.DefaultBatchMaxSize, genresourcesDesc.defaultBatchMaxSize)
+	suite.Equal(pkgconfigsetup.DefaultInputChanSize, genresourcesDesc.defaultInputChanSize)
 }
 
 func (suite *EventPlatformForwarderTestSuite) TestNewHTTPPassthroughPipelineCompression() {
