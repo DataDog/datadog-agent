@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build ncm
-
 package networkconfigmanagementimpl
 
 import (
@@ -24,15 +22,16 @@ func TestConfig(t *testing.T) {
 		{
 			name: "NCM configured with one device using SSH configurations",
 			configYaml: `
-network_device_config_management:
-  namespace: test
-  devices:
-    - ip_address: 10.0.0.1
-      auth:
-        username: admin
-        password: password
-        port: 22
-        protocol: tcp
+network_devices:
+  config_management:
+    namespace: test
+    devices:
+      - ip_address: 10.0.0.1
+        auth:
+          username: admin
+          password: password
+          port: 22
+          protocol: tcp
 `,
 			expectedConfig: ProcessedNcmConfig{
 				Namespace: "test",
@@ -52,21 +51,22 @@ network_device_config_management:
 		{
 			name: "NCM configured with multiple devices using SSH",
 			configYaml: `
-network_device_config_management:
-  namespace: test
-  devices:
-    - ip_address: 10.0.0.1
-      auth:
-        username: admin
-        password: password
-        port: 22
-        protocol: tcp
-    - ip_address: 10.0.0.2
-      auth:
-        username: user
-        password: pass
-        port: 22
-        protocol: tcp
+network_devices:
+  config_management:
+    namespace: test
+    devices:
+      - ip_address: 10.0.0.1
+        auth:
+          username: admin
+          password: password
+          port: 22
+          protocol: tcp
+      - ip_address: 10.0.0.2
+        auth:
+          username: user
+          password: pass
+          port: 22
+          protocol: tcp
 `,
 			expectedConfig: ProcessedNcmConfig{
 				Namespace: "test",
@@ -113,17 +113,20 @@ func TestConfig_StoreConfig(t *testing.T) {
 		{
 			name: "store config with all knobs set",
 			configYaml: `
-network_device_config_management:
-  namespace: test
-  devices:
-    - ip_address: 10.0.0.1
-      auth:
-        username: admin
-        password: password
-  store:
-    min_configs_per_device: 3
-    max_configs_per_device: 20
-    max_raw_config_store_bytes: 1000000
+network_devices:
+  config_management:
+    namespace: test
+    devices:
+      - ip_address: 10.0.0.1
+        auth:
+          username: admin
+          password: password
+    rollback:
+      enabled: true
+      store:
+        min_configs_per_device: 3
+        max_configs_per_device: 20
+        max_raw_config_store_bytes: 1000000
 `,
 			expectedStore: StoreConfig{
 				MinConfigsPerDevice:    3,
@@ -134,15 +137,18 @@ network_device_config_management:
 		{
 			name: "store config partially set",
 			configYaml: `
-network_device_config_management:
-  namespace: test
-  devices:
-    - ip_address: 10.0.0.1
-      auth:
-        username: admin
-        password: password
-  store:
-    max_configs_per_device: 50
+network_devices:
+  config_management:
+    namespace: test
+    devices:
+      - ip_address: 10.0.0.1
+        auth:
+          username: admin
+          password: password
+    rollback:
+      enabled: true
+      store:
+        max_configs_per_device: 50
 `,
 			expectedStore: StoreConfig{
 				MinConfigsPerDevice:    0,
@@ -153,13 +159,14 @@ network_device_config_management:
 		{
 			name: "store config omitted entirely yields zero values",
 			configYaml: `
-network_device_config_management:
-  namespace: test
-  devices:
-    - ip_address: 10.0.0.1
-      auth:
-        username: admin
-        password: password
+network_devices:
+  config_management:
+    namespace: test
+    devices:
+      - ip_address: 10.0.0.1
+        auth:
+          username: admin
+          password: password
 `,
 			expectedStore: StoreConfig{},
 		},
@@ -169,7 +176,7 @@ network_device_config_management:
 			mockConfig := mock.NewFromYAML(t, tt.configYaml)
 			testConfig, err := newConfig(mockConfig)
 			assert.Nil(t, err)
-			assert.Equal(t, tt.expectedStore, testConfig.Store)
+			assert.Equal(t, tt.expectedStore, testConfig.Rollback.Store)
 		})
 	}
 }
@@ -182,9 +189,10 @@ func TestConfig_Errors(t *testing.T) {
 		{
 			name: "NCM malformed config, wrong type for devices (string instead of map)",
 			configYaml: `
-network_device_config_management:
-  namespace: test
-  devices: blah`,
+network_devices:
+  config_management:
+    namespace: test
+    devices: blah`,
 		},
 	}
 	for _, tt := range tests {

@@ -81,9 +81,9 @@ func newComponent(reqs Requires) (*networkDeviceConfigImpl, error) {
 		} else {
 			reqs.Logger.Debugf("ncm: config rollback enabled; local db is %v", dbPath)
 			store.UpdateStoreConfig(
-				ncmConfig.Store.MinConfigsPerDevice,
-				ncmConfig.Store.MaxConfigsPerDevice,
-				ncmConfig.Store.MaxRawConfigStoreBytes,
+				ncmConfig.Rollback.Store.MinConfigsPerDevice,
+				ncmConfig.Rollback.Store.MaxConfigsPerDevice,
+				ncmConfig.Rollback.Store.MaxRawConfigStoreBytes,
 			)
 			reqs.Lifecycle.Append(compdef.Hook{OnStop: store.Close})
 		}

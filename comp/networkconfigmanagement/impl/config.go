@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build ncm
-
 package networkconfigmanagementimpl
 
 import (
@@ -38,23 +36,29 @@ type StoreConfig struct {
 	MaxRawConfigStoreBytes int64 `mapstructure:"max_raw_config_store_bytes"`
 }
 
+// RollbackConfig holds the rollback feature configuration, including the local config store knobs.
+type RollbackConfig struct {
+	Enabled bool        `mapstructure:"enabled"`
+	Store   StoreConfig `mapstructure:"store"`
+}
+
 // RawNcmConfig is the raw config structure for Network Config Management (NCM) taken from the Agent configuration
 type RawNcmConfig struct {
 	Namespace string         `mapstructure:"namespace"` // namespace for the network config management, e.g., "default"
 	Devices   []DeviceConfig `mapstructure:"devices"`
-	Store     StoreConfig    `mapstructure:"store"`
+	Rollback  RollbackConfig `mapstructure:"rollback"`
 }
 
 // ProcessedNcmConfig is the processed config structure for Network Config Management (NCM) to be used by the component
 type ProcessedNcmConfig struct {
 	Namespace string
 	Devices   map[string]DeviceConfig // map of device IP addresses to DeviceConfig
-	Store     StoreConfig
+	Rollback  RollbackConfig
 }
 
 func newConfig(agentConfig config.Component) (*ProcessedNcmConfig, error) {
 	ncm := &RawNcmConfig{}
-	err := structure.UnmarshalKey(agentConfig, "network_device_config_management", &ncm)
+	err := structure.UnmarshalKey(agentConfig, "network_devices.config_management", &ncm)
 	if err != nil {
 		return &ProcessedNcmConfig{}, err
 	}
@@ -65,6 +69,6 @@ func newConfig(agentConfig config.Component) (*ProcessedNcmConfig, error) {
 	return &ProcessedNcmConfig{
 		Namespace: ncm.Namespace,
 		Devices:   deviceMap,
-		Store:     ncm.Store,
+		Rollback:  ncm.Rollback,
 	}, nil
 }
