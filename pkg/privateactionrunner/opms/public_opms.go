@@ -32,12 +32,23 @@ const (
 	enrollmentMaxBackoff     = 30 * time.Second
 )
 
-// PublicClient exposes endpoint that don't require JWT authentication
+// PublicClient exposes endpoints that don't require JWT authentication
 type PublicClient interface {
 	EnrollWithApiKey(
 		ctx context.Context,
 		apiKey string,
 		appKey string,
+		runnerName string,
+		runnerModes []modes.Mode,
+		publicJwk *jose.JSONWebKey,
+		agentHostname string,
+		orchClusterID string,
+		agentFlavor string,
+	) (*par.CreateRunnerResponse, error)
+
+	EnrollWithApiKeyOnly(
+		ctx context.Context,
+		apiKey string,
 		runnerName string,
 		runnerModes []modes.Mode,
 		publicJwk *jose.JSONWebKey,
@@ -75,20 +86,43 @@ func (p *publicClient) EnrollWithApiKey(
 	orchClusterID string,
 	agentFlavor string,
 ) (*par.CreateRunnerResponse, error) {
+	return p.enroll(ctx, createPARPath, apiKey, appKey, runnerName, runnerModes, publicJwk, agentHostname, orchClusterID, agentFlavor)
+}
+
+func (p *publicClient) EnrollWithApiKeyOnly(
+	ctx context.Context,
+	apiKey string,
+	runnerName string,
+	runnerModes []modes.Mode,
+	publicJwk *jose.JSONWebKey,
+	agentHostname string,
+	orchClusterID string,
+	agentFlavor string,
+) (*par.CreateRunnerResponse, error) {
+	return p.enroll(ctx, createPARApiKeyOnlyPath, apiKey, "", runnerName, runnerModes, publicJwk, agentHostname, orchClusterID, agentFlavor)
+}
+
+func (p *publicClient) enroll(
+	ctx context.Context,
+	path string,
+	apiKey string,
+	appKey string,
+	runnerName string,
+	runnerModes []modes.Mode,
+	publicJwk *jose.JSONWebKey,
+	agentHostname string,
+	orchClusterID string,
+	agentFlavor string,
+) (*par.CreateRunnerResponse, error) {
 	publicKeyPEM, err := util.JWKToPEM(publicJwk)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert public key to PEM: %w", err)
 	}
 
-	enrollPath := createPARPath
-	if appKey == "" {
-		enrollPath = createPARApiKeyOnlyPath
-	}
-
 	createRunnerUrl := url.URL{
 		Host:   p.ddApiHost,
 		Scheme: "https",
-		Path:   enrollPath,
+		Path:   path,
 	}
 
 	request := par.CreateRunnerRequest{
