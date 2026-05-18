@@ -21,7 +21,16 @@ Before running E2E tests, ensure you have the following installed:
 
 ### Cloud Provider Setup
 
-You need access to the `account-admin` role on the `agent-sandbox` AWS account, with the SSO profile (`sso-agent-sandbox-account-admin`) already in your `~/.aws/config` and an active aws-vault session. AWS authentication is handled outside of `e2e.setup` — typically by your org's onboarding tooling, or manually with `aws-vault login`.
+You need access to the `account-admin` role on one of the supported AWS accounts, with the corresponding SSO profile (`sso-<account>-account-admin`) in your `~/.aws/config` and an active aws-vault session. AWS authentication is handled outside of `e2e.setup` — typically by your org's onboarding tooling, or manually with `aws-vault login`.
+
+The accounts supported by `dda inv e2e.setup` are:
+
+| Account | Used by |
+|---|---|
+| `agent-sandbox` *(default)* | Agent core E2E (system-probe, agent runtimes, packaging, …). The vast majority of repo scenarios. |
+| `agent-integrations-dev` | Integrations team scenarios (workload + agent, real intake). |
+
+The `sandbox` and `tse-playground` accounts are also recognized for backward compatibility but their SSO blocks aren't written by `e2e.setup`; configure `~/.aws/config` manually for those.
 
 For Azure / GCP tests, pass `--with-azure` / `--with-gcp` when running the setup task (see below).
 
@@ -30,7 +39,8 @@ For Azure / GCP tests, pass `--with-azure` / `--with-gcp` when running the setup
 Run the setup task once on a fresh machine. The default path is AWS-only and asks at most one question (your GitHub team, used to tag resources). It auto-creates the EC2 keypair (using your existing aws-vault session) and generates a Pulumi passphrase.
 
 ```bash
-dda inv e2e.setup
+dda inv e2e.setup                                       # agent-sandbox (default)
+dda inv e2e.setup --account=agent-integrations-dev      # alternative account
 ```
 
 For Azure or GCP support:

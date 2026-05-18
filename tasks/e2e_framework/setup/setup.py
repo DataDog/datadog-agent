@@ -8,6 +8,7 @@ from invoke.context import Context
 from invoke.exceptions import Exit, UnexpectedExit
 from invoke.tasks import task
 
+from tasks.e2e_framework import config as e2e_config
 from tasks.e2e_framework import doc
 from tasks.e2e_framework.tool import (
     debug,
@@ -115,7 +116,7 @@ def setup(
 @task
 def aws_sso(ctx: Context, config_path: str | None = None):
     """
-    Setup AWS SSO profile for the agent-sandbox account if it doesn't exist
+    Setup AWS SSO profile for the configured account if it doesn't exist
 
     Helper mainly here for Windows users who can't use the macos laptop setup script
     """
@@ -413,9 +414,15 @@ def debug_env(ctx, config_path: str | None = None):
 
     print()
 
-    # check .aws/config exists and contains expected profile
-    # some invoke taskes hard code this value.
-    expected_profile = 'sso-agent-sandbox-account-admin'
+    # check .aws/config exists and contains the SSO profile for the
+    # configured account. Falls back to agent-sandbox if no config has been
+    # written yet, matching the historical default.
+    try:
+        cfg = e2e_config.get_local_config(config_path)
+        account = cfg.get_aws().account or 'agent-sandbox'
+    except Exception:
+        account = 'agent-sandbox'
+    expected_profile = f'sso-{account}-account-admin'
     aws_conf_path = Path.home().joinpath(".aws", "config")
     if not os.path.isfile(aws_conf_path):
         error(f"Missing aws config file: {aws_conf_path}")
@@ -453,8 +460,7 @@ def debug_env(ctx, config_path: str | None = None):
 
     print()
 
-    # Check aws-vault profile name, some invoke taskes hard code this value.
-    expected_profile = 'sso-agent-sandbox-account-admin'
+    # Check the same profile is registered with aws-vault.
     out = ctx.run("aws-vault list", hide=True)
     if expected_profile not in out.stdout:
         warn(f"WARNING: expected profile {expected_profile} missing from aws-vault. Some invoke tasks may fail.")

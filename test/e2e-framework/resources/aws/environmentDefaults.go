@@ -10,10 +10,11 @@ import (
 )
 
 const (
-	sandboxEnv       = "aws/sandbox"
-	agentSandboxEnv  = "aws/agent-sandbox"
-	agentQAEnv       = "aws/agent-qa"
-	tsePlaygroundEnv = "aws/tse-playground"
+	sandboxEnv              = "aws/sandbox"
+	agentSandboxEnv         = "aws/agent-sandbox"
+	agentQAEnv              = "aws/agent-qa"
+	agentIntegrationsDevEnv = "aws/agent-integrations-dev"
+	tsePlaygroundEnv        = "aws/tse-playground"
 )
 
 type environmentDefault struct {
@@ -98,6 +99,8 @@ func getEnvironmentDefault(envName string) environmentDefault {
 		return agentSandboxDefault()
 	case agentQAEnv:
 		return agentQADefault()
+	case agentIntegrationsDevEnv:
+		return agentIntegrationsDevDefault()
 	case tsePlaygroundEnv:
 		return tsePlaygroundDefault()
 	default:
@@ -293,6 +296,51 @@ func agentQADefault() environmentDefault {
 				linuxBottlerocketNodeGroup:           true,
 				windowsLTSCNodeGroup:                 true,
 			},
+		},
+	}
+}
+
+// agentIntegrationsDevDefault returns the per-account defaults for the
+// `agent-integrations-dev` AWS account (id 030537971304). All values were
+// discovered with `aws ec2 describe-*` against the account.
+//
+// Networking: the VPC `agent-integrations-dev` (vpc-07e6913338cbe8fea) has
+// three tiers (public / private / transit) across three AZs. We expose
+// the three private subnets; they route 0.0.0.0/0 through a NAT gateway
+// for egress, and 10.0.0.0/8 / 172.16.0.0/12 through the Transit Gateway
+// for inbound corp-VPN access.
+//
+// Security group: the `common` SG (sg-03d583f7425a802f7) allows everything
+// from the corp VPN CIDRs (10.11.{192,193,194}.0/24) and from itself.
+//
+// Notable gaps relative to agent-sandbox:
+//   - No `ec2InstanceRole` instance profile exists in this account.
+//     `defaultInstanceProfileName` is intentionally empty.
+//   - No internal ECR mirror; scenarios that rely on it should pull from
+//     public registries instead.
+//   - No fakeintake ECS cluster / LB; scenarios that need fakeintake
+//     should target a different account.
+func agentIntegrationsDevDefault() environmentDefault {
+	return environmentDefault{
+		aws: awsProvider{
+			region:  string(aws.RegionUSEast1),
+			profile: "exec-sso-agent-integrations-dev-account-admin",
+		},
+		ddInfra: ddInfra{
+			defaultVPCID: "vpc-07e6913338cbe8fea",
+			defaultSubnets: []SubnetConfig{
+				{ID: "subnet-0acb59fda8504f5bb", MacOSCompatible: false}, // private us-east-1a
+				{ID: "subnet-0d7bb3d71e68abcc2", MacOSCompatible: false}, // private us-east-1b
+				{ID: "subnet-0658d161c778e6168", MacOSCompatible: false}, // private us-east-1c
+			},
+			defaultSecurityGroups:      []string{"sg-03d583f7425a802f7"}, // common
+			defaultInstanceType:        "t3.medium",
+			defaultInstanceProfileName: "", // not present in this account
+			defaultARMInstanceType:     "t4g.medium",
+			defaultWindowsInstanceType: "t3.large",
+			defaultInstanceStorageSize: 200,
+			defaultShutdownBehavior:    "stop",
+			useMacosCompatibleSubnets:  false,
 		},
 	}
 }

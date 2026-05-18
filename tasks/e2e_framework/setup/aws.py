@@ -11,7 +11,33 @@ from tasks.e2e_framework.setup.ssh_keys import KeyInfo
 from tasks.e2e_framework.tool import ask, ask_yesno, error, get_aws_cmd, info, is_windows, warn
 
 SUPPORTED_KEY_TYPES = ["rsa", "ed25519"]
-AVAILABLE_AWS_ACCOUNTS = ["agent-sandbox", "sandbox", "tse-playground"]
+
+# Per-account SSO config. Used by `setup_aws_sso_config` to write the right
+# block to ~/.aws/config without prompting the user for an account id / start
+# URL. To add an account, append it here and to AVAILABLE_AWS_ACCOUNTS below.
+#
+# All Datadog accounts share the same SSO start URL today; if a future account
+# is in a different Identity Center instance, override `start_url` per entry.
+_DEFAULT_SSO_START_URL = "https://d-906757b57c.awsapps.com/start/#"
+_DEFAULT_SSO_REGION = "us-east-1"
+
+ACCOUNT_SSO_CONFIG: dict[str, dict[str, str | int]] = {
+    "agent-sandbox": {
+        "account_id": 376334461865,
+        "start_url": _DEFAULT_SSO_START_URL,
+        "region": _DEFAULT_SSO_REGION,
+    },
+    "agent-integrations-dev": {
+        "account_id": 30537971304,
+        "start_url": _DEFAULT_SSO_START_URL,
+        "region": _DEFAULT_SSO_REGION,
+    },
+    # `sandbox` and `tse-playground` are listed in AVAILABLE_AWS_ACCOUNTS for
+    # historical reasons but have never had SSO automation here; users on
+    # those accounts configure ~/.aws/config manually.
+}
+
+AVAILABLE_AWS_ACCOUNTS = ["agent-sandbox", "agent-integrations-dev", "sandbox", "tse-playground"]
 DEFAULT_AWS_ACCOUNT = "agent-sandbox"
 DEFAULT_KEY_TYPE = "rsa"
 
@@ -166,7 +192,8 @@ def _aws_keypair_exists(ctx: Context, keypair_name: str, aws_account: str | None
 
 def setup_aws_sso_config(config: Config, interactive: bool = True):
     """
-    Append the agent-sandbox SSO profile to ~/.aws/config if it isn't already there.
+    Append the configured account's SSO profile to ~/.aws/config if it isn't
+    already there.
 
     When interactive=False (called from the wizard), no yes/no prompts are shown — the
     profile is added unconditionally. When interactive=True (used by the standalone
@@ -177,14 +204,21 @@ def setup_aws_sso_config(config: Config, interactive: bool = True):
 
     aws = config.configParams.aws
 
-    # agent-sandbox
+    account = aws.account or DEFAULT_AWS_ACCOUNT
+    if account not in ACCOUNT_SSO_CONFIG:
+        raise Exit(
+            f"No SSO automation available for account '{account}'. Either add an entry to "
+            f"ACCOUNT_SSO_CONFIG in tasks/e2e_framework/setup/aws.py, or configure "
+            f"~/.aws/config manually (e.g. `aws configure sso`)."
+        )
+    sso_cfg = ACCOUNT_SSO_CONFIG[account]
     role = 'account-admin'
-    acct_id = 376334461865
-    start_url = 'https://d-906757b57c.awsapps.com/start/#'
-    region = 'us-east-1'
+    acct_id = sso_cfg["account_id"]
+    start_url = sso_cfg["start_url"]
+    region = sso_cfg["region"]
 
     aws_conf_path = Path.home().joinpath(".aws", "config")
-    profile_name = f'sso-{aws.account}-{role}'
+    profile_name = f'sso-{account}-{role}'
     sso_session_name = profile_name
 
     # skip if profile already exists
