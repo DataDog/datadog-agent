@@ -21,50 +21,15 @@ import (
 // CheckSampler commits — decoupling check collection cadence (e.g. 1Hz)
 // from send cadence (default flush interval).
 //
-// Behaviour:
-//   - For each (check_id, ContextKey, final metric identity), a window
-//     is opened lazily on the first arriving Serie. The window's
-//     deadline is opened_at + window_duration (window_duration from
-//     config; default 15s).
-//   - Singleton windows (count = 1 at deadline) pass through unchanged,
-//     preserving commit_timestamp. Byte-identical for slow checks.
-//   - Multi-series windows (count > 1) apply per-API-type roll-up to
-//     emit one aggregated Serie per (check_id, context, metric
-//     identity, window). The cost constraint (1 emission per window) is
-//     non-negotiable: at 1Hz collection the backend cannot sustain 15
-//     series per 15s per context. Strategies:
-//     APIGaugeType  → emit the latest value (`last`)
-//     APICountType  → emit the sum across the window (`sum`)
-//     APIRateType   → emit the average across the window (`avg`)
-//     (others)      → conservative `last`
-//   - Empty windows emit nothing.
+// Windows are keyed by check ID, context key, and final metric identity.
+// Singleton windows pass through unchanged; multi-sample windows roll up
+// Series by API type (gauge latest, count sum, rate average) and merge
+// SketchSeries into one sketch for the flush window.
 //
-// Sketches (Distribution / Histogram quantile sketches) are routed
-// through a parallel sketch-windowing path. On window close, buffered
-// sketches are merged via *quantile.Sketch.Merge. For sketches already
-// represented as DDSketches, merge preserves the combined sketch
-// representation while reducing N flush-window inputs to one output.
-//
-// Accepted approximations:
-//   - A check that emits Rate metrics is collapsed by CheckSampler to
-//     APIGaugeType at the Serie level (see pkg/metrics/rate.go). The
-//     `last` strategy applies to such Series in fast-cadence windows —
-//     the backend sees the most-recent rate value rather than the
-//     average rate over the window. Cost goal met; math is an
-//     approximation bounded by workload volatility within the window.
-//     Proper fix requires plumbing the internal MetricType through
-//     pkg/metrics; deferred until customer impact warrants it.
-//   - Histogram suffix Series are handled with a local name-suffix
-//     heuristic to avoid plumbing the original MetricType through the
-//     metrics pipeline: .max uses max-of-maxes, .min uses min-of-mins,
-//     .sum sums window sums, and .avg / percentiles retain the most
-//     recent value. This preserves common scalar histogram aggregates
-//     while keeping the change scoped; .avg and percentiles remain
-//     bounded approximations at sub-flush cadence.
-//   - GaugeWithTimestamp / CountWithTimestamp Series in fast-cadence
-//     windows are aggregated per their APIMetricType (last / sum). Per-
-//     timestamp fidelity at the backend is lost — recoverable via the
-//     observer/recorder which sees raw samples pre-aggregation.
+// Known approximations are intentionally scoped here rather than plumbing new
+// metric-type metadata through the pipeline: RateType reaches this layer as
+// APIGaugeType, histogram .avg/percentile scalar series keep the latest value,
+// and timestamped Series are windowed when emitted at fast cadence.
 //
 // CheckAggregator is safe for concurrent use.
 type CheckAggregator struct {
@@ -154,10 +119,9 @@ func sketchWindowKey(checkID checkid.ID, sketches *metrics.SketchSeries) windowK
 //     the existing window is closed (emitted to sink) and a new window
 //     is opened with this series as its first member.
 //
-// `now` is retained in the signature for parity with FlushExpired and the
-// sketch path. Window rollover on submit is evaluated against the incoming
-// series timestamp so a batched flush of historical 1Hz points does not split
-// the window at the flush trigger time.
+// Window rollover on submit is evaluated against the incoming series timestamp
+// so a batched flush of historical 1Hz points does not split the window at the
+// flush trigger time.
 //
 // Timestamped metrics (GaugeWithTimestamp / CountWithTimestamp) are NOT
 // bypassed: per the cost constraint, every series routed through the
@@ -166,7 +130,7 @@ func sketchWindowKey(checkID checkid.ID, sketches *metrics.SketchSeries) windowK
 // multi-point Series unchanged; for fast checks the aggregation
 // strategies apply across the multi-point payload (lossy for individual
 // timestamps, but fidelity is recoverable via the observer/recorder).
-func (ca *CheckAggregator) Submit(checkID checkid.ID, serie *metrics.Serie, _ float64, sink metrics.SerieSink) {
+func (ca *CheckAggregator) Submit(checkID checkid.ID, serie *metrics.Serie, sink metrics.SerieSink) {
 	ca.mu.Lock()
 	defer ca.mu.Unlock()
 
@@ -227,13 +191,10 @@ func (ca *CheckAggregator) FlushExpired(now float64, sink metrics.SerieSink) {
 //     (emitted to sink) before opening a new one for this submission.
 //   - When the window is full, the SketchSeries is dropped and counted.
 //
-// `now` is retained in the signature for parity with FlushExpiredSketches;
-// submit-time rollover uses the incoming SketchSeries timestamp.
-//
 // On close, all buffered sketches are merged via *quantile.Sketch.Merge.
 // This preserves the combined DDSketch representation while emitting a
 // single SketchSeries for the flush window.
-func (ca *CheckAggregator) SubmitSketch(checkID checkid.ID, sketches *metrics.SketchSeries, _ float64, sink metrics.SketchesSink) {
+func (ca *CheckAggregator) SubmitSketch(checkID checkid.ID, sketches *metrics.SketchSeries, sink metrics.SketchesSink) {
 	ca.mu.Lock()
 	defer ca.mu.Unlock()
 

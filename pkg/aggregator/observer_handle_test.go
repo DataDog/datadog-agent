@@ -285,13 +285,8 @@ func TestCheckSamplerObserverHandleNil(t *testing.T) {
 	assert.NotPanics(t, func() { cs.addSample(&s, matcher) })
 }
 
-// TestCheckSamplerCoreBehaviorPreserved_NilObserverHandle is the
-// regression guard for the spec contract @invariant
-// CheckSamplerCoreBehaviorPreserved (see
-// ~/.claude/plans/check-aggregator-fanout.allium, contract
-// CheckSamplerWrapping). It locks in three properties when the
-// observer handle is nil (the default production state until
-// anomaly_detection is enabled):
+// TestCheckSamplerCoreBehaviorPreserved_NilObserverHandle locks in three properties when the
+// observer handle is nil
 //
 //  1. addBucket does NOT allocate the histogramSketchContext map.
 //  2. commit/commitSketches emits the same *Serie and *SketchSeries it
@@ -299,12 +294,6 @@ func TestCheckSamplerObserverHandleNil(t *testing.T) {
 //     added — i.e. no observer-related side effects on the output.
 //  3. context expiration does not panic on the (possibly nil)
 //     histogramSketchContext map.
-//
-// The byte-identicality claim is enforced by capturing concrete
-// series/sketches values after a representative workload; a future
-// change that accidentally touches CheckSampler's output for the
-// no-observer case (e.g. by populating telemetry tags differently)
-// will break these assertions.
 func TestCheckSamplerCoreBehaviorPreserved_NilObserverHandle(t *testing.T) {
 	store := tags.NewStore(false, "test")
 	cs := newCheckSampler(10, true, false, 0, true, store, "test-check", nooptagger.NewComponent())
@@ -313,11 +302,7 @@ func TestCheckSamplerCoreBehaviorPreserved_NilObserverHandle(t *testing.T) {
 
 	matcher := filterlist.NewNoopTagMatcher()
 
-	// Workload: one gauge sample + a histogram bucket pair (monotonic
-	// so the delta path is exercised). The histogram bucket path is the
-	// one the histogram-sketch-summary feature touched; the regression
-	// guard is that the cs.series and cs.sketches outputs are unaffected
-	// when no observer handle is attached.
+	// Workload: one gauge sample + a histogram bucket pair (monotonic so the delta path is exercised).
 	gauge := metrics.MetricSample{
 		Name:       "test.gauge",
 		Value:      42,

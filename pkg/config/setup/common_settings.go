@@ -41,7 +41,7 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// The layer is always in the pipeline and has no enable flag — its
 	// behaviour for slow checks is byte-identical pass-through; only
 	// checks whose commit cadence is faster than window_duration see
-	// any aggregation effect. See pkg/aggregator/check_aggregator.go.
+	// any aggregation effect.
 	//
 	// Wall-clock window duration over which CheckSampler's per-commit
 	// *Serie output is rolled up. Default matches the aggregator flush

@@ -106,8 +106,8 @@ func TestFlushSeriesAndSketchesDrainsCheckAggregatorOnFinalFlush(t *testing.T) {
 	sketchesSink := &captureSketchSink{}
 	openSeries := makeSerie(1, 0, 42)
 	openSketch := makeSketchSeries(1, 0, 10)
-	agg.checkAggregator.Submit(checkID1, openSeries, 0, seriesSink)
-	agg.checkAggregator.SubmitSketch(checkID1, openSketch, 0, sketchesSink)
+	agg.checkAggregator.Submit(checkID1, openSeries, seriesSink)
+	agg.checkAggregator.SubmitSketch(checkID1, openSketch, sketchesSink)
 	require.Empty(t, seriesSink.series)
 	require.Empty(t, sketchesSink.sketches)
 

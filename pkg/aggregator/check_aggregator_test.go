@@ -57,14 +57,14 @@ func TestOpenWindowForNewContext_FirstAndSecondSubmit(t *testing.T) {
 
 	// First submit at t=0 opens a window with deadline=15.
 	s1 := makeSerie(1, 0, 10)
-	ca.Submit(testCheckID, s1, 0, sink)
+	ca.Submit(testCheckID, s1, sink)
 
 	require.Len(t, ca.windows, 1, "first submit should open a window")
 	require.Empty(t, sink.series, "no series should be emitted yet (deadline not reached)")
 
 	// Second submit for same context at t=1 appends.
 	s2 := makeSerie(1, 1, 20)
-	ca.Submit(testCheckID, s2, 1, sink)
+	ca.Submit(testCheckID, s2, sink)
 
 	require.Len(t, ca.windows, 1, "second submit on same context should not open a new window")
 	window := windowForKey(t, ca, testCheckID, 1)
@@ -78,18 +78,18 @@ func TestSingleAcceptingWindowPerContext(t *testing.T) {
 	sink := &captureSink{}
 
 	// Two different contexts on the same check.
-	ca.Submit(testCheckID, makeSerie(1, 0, 1), 0, sink)
-	ca.Submit(testCheckID, makeSerie(2, 0, 2), 0, sink)
+	ca.Submit(testCheckID, makeSerie(1, 0, 1), sink)
+	ca.Submit(testCheckID, makeSerie(2, 0, 2), sink)
 
 	assert.Len(t, ca.windows, 2, "different contexts should get different windows")
 
 	// Same (check_id, context) on the same check: no new window.
-	ca.Submit(testCheckID, makeSerie(1, 1, 3), 1, sink)
+	ca.Submit(testCheckID, makeSerie(1, 1, 3), sink)
 	assert.Len(t, ca.windows, 2, "same (check_id, context) should not open a new window")
 
 	// Same contextKey on a *different* check: separate window (windowKey
 	// includes checkID).
-	ca.Submit(testCheckID2, makeSerie(1, 0, 4), 0, sink)
+	ca.Submit(testCheckID2, makeSerie(1, 0, 4), sink)
 	assert.Len(t, ca.windows, 3, "same contextKey on different check is a different window")
 }
 
@@ -126,7 +126,7 @@ func TestSingletonWindowPassThrough(t *testing.T) {
 
 	// Submit one series at t=0 (deadline = 15).
 	s := makeSerie(1, 0, 42)
-	ca.Submit(testCheckID, s, 0, sink)
+	ca.Submit(testCheckID, s, sink)
 
 	// Flush at t=15 — deadline reached, count = 1 → SingletonPassThrough.
 	ca.FlushExpired(15, sink)
@@ -153,14 +153,14 @@ func TestSubmitClosesExpiredWindowBeforeAppending(t *testing.T) {
 
 	// First commit at t=0; deadline = 15.
 	s1 := makeSerie(1, 0, 10)
-	ca.Submit(testCheckID, s1, 0, sink)
+	ca.Submit(testCheckID, s1, sink)
 	require.Empty(t, sink.series, "first submit, no emission yet")
 
 	// Second commit at t=15: the existing window's deadline (15) has been
 	// reached (15 <= 15), so it closes first, then a new window opens
 	// for s2.
 	s2 := makeSerie(1, 15, 20)
-	ca.Submit(testCheckID, s2, 15, sink)
+	ca.Submit(testCheckID, s2, sink)
 
 	require.Len(t, sink.series, 1, "expired window should have emitted s1 before s2 opened")
 	assert.Same(t, s1, sink.series[0], "s1 was the singleton emission")
@@ -180,9 +180,9 @@ func TestIncrementDropCountWhenWindowFull(t *testing.T) {
 	sink := &captureSink{}
 
 	// Three submits at t=0..2 for the same context, all before deadline (15).
-	ca.Submit(testCheckID, makeSerie(1, 0, 1), 0, sink)
-	ca.Submit(testCheckID, makeSerie(1, 1, 2), 1, sink)
-	ca.Submit(testCheckID, makeSerie(1, 2, 3), 2, sink) // exceeds cap
+	ca.Submit(testCheckID, makeSerie(1, 0, 1), sink)
+	ca.Submit(testCheckID, makeSerie(1, 1, 2), sink)
+	ca.Submit(testCheckID, makeSerie(1, 2, 3), sink) // exceeds cap
 
 	window := windowForKey(t, ca, testCheckID, 1)
 	assert.Len(t, window.series, 2, "buffer should be capped at 2 series")
@@ -198,9 +198,9 @@ func TestFlushExpiredMixedDeadlines(t *testing.T) {
 	sink := &captureSink{}
 
 	// Window A: opened at t=0, deadline t=15. Expired by t=20.
-	ca.Submit(testCheckID, makeSerie(1, 0, 10), 0, sink)
+	ca.Submit(testCheckID, makeSerie(1, 0, 10), sink)
 	// Window B: opened at t=10, deadline t=25. Not yet expired at t=20.
-	ca.Submit(testCheckID, makeSerie(2, 10, 20), 10, sink)
+	ca.Submit(testCheckID, makeSerie(2, 10, 20), sink)
 	require.Len(t, ca.windows, 2)
 	require.Empty(t, sink.series)
 
@@ -226,8 +226,8 @@ func TestDrainForcesAllWindowsToEmit(t *testing.T) {
 	// their deadlines.
 	s1 := makeSerie(1, 0, 1)
 	s2 := makeSerie(2, 0, 2)
-	ca.Submit(testCheckID, s1, 0, serieSink)
-	ca.Submit(testCheckID, s2, 0, serieSink)
+	ca.Submit(testCheckID, s1, serieSink)
+	ca.Submit(testCheckID, s2, serieSink)
 	require.Len(t, ca.windows, 2)
 	require.Empty(t, serieSink.series, "no flush yet")
 
@@ -277,11 +277,11 @@ func TestSketchSubmit_OpensAndAppendsWindow(t *testing.T) {
 	ca := newCheckAggregator(15*time.Second, 128)
 	sink := &captureSketchSink{}
 
-	ca.SubmitSketch(testCheckID, makeSketchSeries(1, 0, 10), 0, sink)
+	ca.SubmitSketch(testCheckID, makeSketchSeries(1, 0, 10), sink)
 	require.Len(t, ca.sketchWindows, 1, "first sketch submit should open a window")
 	require.Empty(t, sink.sketches, "no emission yet (deadline not reached)")
 
-	ca.SubmitSketch(testCheckID, makeSketchSeries(1, 1, 20), 1, sink)
+	ca.SubmitSketch(testCheckID, makeSketchSeries(1, 1, 20), sink)
 	assert.Len(t, ca.sketchWindows, 1, "second submit on same context should append, not open a new window")
 	key := windowKey{checkID: testCheckID, contextKey: ckey.ContextKey(1), name: "test.distribution"}
 	assert.Len(t, ca.sketchWindows[key].sketches, 2, "both sketches buffered")
@@ -295,27 +295,26 @@ func TestSketchSingletonPassThrough(t *testing.T) {
 	sink := &captureSketchSink{}
 
 	original := makeSketchSeries(1, 0, 10, 20, 30)
-	ca.SubmitSketch(testCheckID, original, 0, sink)
+	ca.SubmitSketch(testCheckID, original, sink)
 	ca.FlushExpiredSketches(15, sink)
 
 	require.Len(t, sink.sketches, 1)
 	assert.Same(t, original, sink.sketches[0], "singleton sketch window emits unchanged")
 }
 
-// TestSketchMergeLosslessQuantiles: when multiple sketches in the same
-// window close together, mergeSketches produces ONE merged sketch whose
-// quantiles equal the quantiles over all underlying samples. This is
-// the lossless property of *quantile.Sketch.Merge.
-func TestSketchMergeLosslessQuantiles(t *testing.T) {
+// TestSketchMergeQuantiles: when multiple sketches in the same window close
+// together, mergeSketches produces one merged sketch with quantiles matching
+// a reference sketch built from the same inputs.
+func TestSketchMergeQuantiles(t *testing.T) {
 	ca := newCheckAggregator(15*time.Second, 128)
 	sink := &captureSketchSink{}
 
 	// Submit three sketches across three "commits", each containing a
 	// portion of the underlying samples. Total: 10..100.
 	values := []float64{10, 20, 30, 40, 50, 60, 70, 80, 90, 100}
-	ca.SubmitSketch(testCheckID, makeSketchSeries(1, 1, values[0:3]...), 1, sink)
-	ca.SubmitSketch(testCheckID, makeSketchSeries(1, 2, values[3:7]...), 2, sink)
-	ca.SubmitSketch(testCheckID, makeSketchSeries(1, 3, values[7:]...), 3, sink)
+	ca.SubmitSketch(testCheckID, makeSketchSeries(1, 1, values[0:3]...), sink)
+	ca.SubmitSketch(testCheckID, makeSketchSeries(1, 2, values[3:7]...), sink)
+	ca.SubmitSketch(testCheckID, makeSketchSeries(1, 3, values[7:]...), sink)
 
 	ca.FlushExpiredSketches(20, sink)
 
@@ -327,8 +326,8 @@ func TestSketchMergeLosslessQuantiles(t *testing.T) {
 	mergedSketch, ok := emitted.Points[0].Sketch.(*quantile.Sketch)
 	require.True(t, ok, "emitted sketch should be *quantile.Sketch")
 
-	// Reference sketch built from all values directly. Quantiles must
-	// match — DDSketch merge is lossless for quantile semantics.
+	// Reference sketch built from all values directly. Quantiles should match
+	// for the already-built DDSketch inputs used in this test.
 	ref := &quantile.Sketch{}
 	ref.Insert(quantile.Default(), values...)
 
@@ -366,13 +365,13 @@ func TestSketchSubmitClosesExpiredWindowBeforeAppending(t *testing.T) {
 	sink := &captureSketchSink{}
 
 	first := makeSketchSeries(1, 0, 10)
-	ca.SubmitSketch(testCheckID, first, 0, sink)
+	ca.SubmitSketch(testCheckID, first, sink)
 	require.Empty(t, sink.sketches)
 
 	// Next submit at t=15: deadline (15) <= now (15) → close singleton,
 	// then open a new window.
 	second := makeSketchSeries(1, 15, 20)
-	ca.SubmitSketch(testCheckID, second, 15, sink)
+	ca.SubmitSketch(testCheckID, second, sink)
 
 	require.Len(t, sink.sketches, 1, "expired singleton window emits before new one opens")
 	assert.Same(t, first, sink.sketches[0])
@@ -383,9 +382,9 @@ func TestSketchDropCountWhenWindowFull(t *testing.T) {
 	ca := newCheckAggregator(15*time.Second, 2)
 	sink := &captureSketchSink{}
 
-	ca.SubmitSketch(testCheckID, makeSketchSeries(1, 0, 1), 0, sink)
-	ca.SubmitSketch(testCheckID, makeSketchSeries(1, 1, 2), 1, sink)
-	ca.SubmitSketch(testCheckID, makeSketchSeries(1, 2, 3), 2, sink) // exceeds cap
+	ca.SubmitSketch(testCheckID, makeSketchSeries(1, 0, 1), sink)
+	ca.SubmitSketch(testCheckID, makeSketchSeries(1, 1, 2), sink)
+	ca.SubmitSketch(testCheckID, makeSketchSeries(1, 2, 3), sink) // exceeds cap
 
 	key := windowKey{checkID: testCheckID, contextKey: ckey.ContextKey(1), name: "test.distribution"}
 	window := ca.sketchWindows[key]
@@ -400,8 +399,8 @@ func TestDrainEmitsBothSeriesAndSketches(t *testing.T) {
 	serieSink := &captureSink{}
 	sketchSink := &captureSketchSink{}
 
-	ca.Submit(testCheckID, makeSerie(1, 0, 10), 0, serieSink)
-	ca.SubmitSketch(testCheckID, makeSketchSeries(2, 0, 99), 0, sketchSink)
+	ca.Submit(testCheckID, makeSerie(1, 0, 10), serieSink)
+	ca.SubmitSketch(testCheckID, makeSketchSeries(2, 0, 99), sketchSink)
 	require.Empty(t, serieSink.series)
 	require.Empty(t, sketchSink.sketches)
 
@@ -439,7 +438,7 @@ func TestTimestampedSerieSlowCheckPreserved(t *testing.T) {
 		ContextKey: ckey.ContextKey(99),
 	}
 
-	ca.Submit(testCheckID, multiPoint, 5, sink)
+	ca.Submit(testCheckID, multiPoint, sink)
 	// One Serie in the window → singleton passthrough at deadline.
 	ca.FlushExpired(20, sink)
 
@@ -466,7 +465,7 @@ func TestTimestampedSerieFastCheckAggregated(t *testing.T) {
 			MType:      metrics.APIGaugeType,
 			ContextKey: ckey.ContextKey(99),
 		}
-		ca.Submit(testCheckID, s, ts, sink)
+		ca.Submit(testCheckID, s, sink)
 	}
 	ca.FlushExpired(20, sink)
 
@@ -485,9 +484,9 @@ func TestAggregateGauge_LastStrategy(t *testing.T) {
 	sink := &captureSink{}
 
 	// Three gauge commits at t=1, 2, 3 with values 10, 20, 30.
-	ca.Submit(testCheckID, makeSerieMType(1, 1, 10, metrics.APIGaugeType), 1, sink)
-	ca.Submit(testCheckID, makeSerieMType(1, 2, 20, metrics.APIGaugeType), 2, sink)
-	ca.Submit(testCheckID, makeSerieMType(1, 3, 30, metrics.APIGaugeType), 3, sink)
+	ca.Submit(testCheckID, makeSerieMType(1, 1, 10, metrics.APIGaugeType), sink)
+	ca.Submit(testCheckID, makeSerieMType(1, 2, 20, metrics.APIGaugeType), sink)
+	ca.Submit(testCheckID, makeSerieMType(1, 3, 30, metrics.APIGaugeType), sink)
 
 	// Force window close via FlushExpired at t=20 (well past deadline 16).
 	ca.FlushExpired(20, sink)
@@ -507,9 +506,9 @@ func TestAggregateCount_SumStrategy(t *testing.T) {
 	sink := &captureSink{}
 
 	// Three count commits at t=1, 2, 3 with values 5, 7, 8 (sum = 20).
-	ca.Submit(testCheckID, makeSerieMType(1, 1, 5, metrics.APICountType), 1, sink)
-	ca.Submit(testCheckID, makeSerieMType(1, 2, 7, metrics.APICountType), 2, sink)
-	ca.Submit(testCheckID, makeSerieMType(1, 3, 8, metrics.APICountType), 3, sink)
+	ca.Submit(testCheckID, makeSerieMType(1, 1, 5, metrics.APICountType), sink)
+	ca.Submit(testCheckID, makeSerieMType(1, 2, 7, metrics.APICountType), sink)
+	ca.Submit(testCheckID, makeSerieMType(1, 3, 8, metrics.APICountType), sink)
 
 	ca.FlushExpired(20, sink)
 
@@ -530,9 +529,9 @@ func TestAggregateRate_AvgStrategy(t *testing.T) {
 	sink := &captureSink{}
 
 	// Three commits with rate values 0.5, 0.7, 0.9. Avg = 0.7.
-	ca.Submit(testCheckID, makeSerieMType(1, 1, 0.5, metrics.APIRateType), 1, sink)
-	ca.Submit(testCheckID, makeSerieMType(1, 2, 0.7, metrics.APIRateType), 2, sink)
-	ca.Submit(testCheckID, makeSerieMType(1, 3, 0.9, metrics.APIRateType), 3, sink)
+	ca.Submit(testCheckID, makeSerieMType(1, 1, 0.5, metrics.APIRateType), sink)
+	ca.Submit(testCheckID, makeSerieMType(1, 2, 0.7, metrics.APIRateType), sink)
+	ca.Submit(testCheckID, makeSerieMType(1, 3, 0.9, metrics.APIRateType), sink)
 
 	ca.FlushExpired(20, sink)
 
@@ -555,9 +554,9 @@ func TestAggregateUnknownAPIMetricType_FallsBackToLast(t *testing.T) {
 	// Synthetic API metric type beyond the current enum range. Numeric
 	// value chosen to avoid colliding with existing constants.
 	unknownAPIType := metrics.APIMetricType(99)
-	ca.Submit(testCheckID, makeSerieMType(1, 1, 10, unknownAPIType), 1, sink)
-	ca.Submit(testCheckID, makeSerieMType(1, 2, 20, unknownAPIType), 2, sink)
-	ca.Submit(testCheckID, makeSerieMType(1, 3, 30, unknownAPIType), 3, sink)
+	ca.Submit(testCheckID, makeSerieMType(1, 1, 10, unknownAPIType), sink)
+	ca.Submit(testCheckID, makeSerieMType(1, 2, 20, unknownAPIType), sink)
+	ca.Submit(testCheckID, makeSerieMType(1, 3, 30, unknownAPIType), sink)
 
 	ca.FlushExpired(20, sink)
 
@@ -584,7 +583,7 @@ func TestSingleSampleMetricWithTimestamp_FallsThroughHeuristic(t *testing.T) {
 		MType:      metrics.APIGaugeType,
 		ContextKey: ckey.ContextKey(7),
 	}
-	ca.Submit(testCheckID, single, 5, sink)
+	ca.Submit(testCheckID, single, sink)
 	ca.FlushExpired(20, sink)
 
 	require.Len(t, sink.series, 1, "single-point Serie should still emit")
@@ -603,8 +602,8 @@ func TestAggregateDoesNotMutateBufferedSeries(t *testing.T) {
 
 	s1 := makeSerieMType(1, 1, 10, metrics.APIGaugeType)
 	s2 := makeSerieMType(1, 2, 20, metrics.APIGaugeType)
-	ca.Submit(testCheckID, s1, 1, sink)
-	ca.Submit(testCheckID, s2, 2, sink)
+	ca.Submit(testCheckID, s1, sink)
+	ca.Submit(testCheckID, s2, sink)
 
 	ca.FlushExpired(20, sink)
 
@@ -624,9 +623,9 @@ func TestAggregateGaugeLastUsesLatestTimestamp(t *testing.T) {
 	ca := newCheckAggregator(15*time.Second, 128)
 	sink := &captureSink{}
 
-	ca.Submit(testCheckID, makeSerieMType(1, 3, 30, metrics.APIGaugeType), 3, sink)
-	ca.Submit(testCheckID, makeSerieMType(1, 1, 10, metrics.APIGaugeType), 1, sink)
-	ca.Submit(testCheckID, makeSerieMType(1, 2, 20, metrics.APIGaugeType), 2, sink)
+	ca.Submit(testCheckID, makeSerieMType(1, 3, 30, metrics.APIGaugeType), sink)
+	ca.Submit(testCheckID, makeSerieMType(1, 1, 10, metrics.APIGaugeType), sink)
+	ca.Submit(testCheckID, makeSerieMType(1, 2, 20, metrics.APIGaugeType), sink)
 
 	ca.FlushExpired(20, sink)
 
@@ -657,7 +656,7 @@ func TestAggregateHistogramGaugeSuffixStrategies(t *testing.T) {
 					Points:     []metrics.Point{{Ts: float64(i + 1), Value: value}},
 					MType:      metrics.APIGaugeType,
 					ContextKey: ckey.ContextKey(1),
-				}, float64(i+1), sink)
+				}, sink)
 			}
 			ca.FlushExpired(20, sink)
 
@@ -673,7 +672,7 @@ func TestSubmitUsesSeriesTimestampForRollover(t *testing.T) {
 	sink := &captureSink{}
 
 	for ts := float64(0); ts < 15; ts++ {
-		ca.Submit(testCheckID, makeSerie(1, ts, ts+1), 15, sink)
+		ca.Submit(testCheckID, makeSerie(1, ts, ts+1), sink)
 	}
 
 	require.Empty(t, sink.series, "series within the same sample-time window must not close against the flush trigger time")
@@ -694,25 +693,25 @@ func TestSameContextDifferentSeriesIdentitiesDoNotMerge(t *testing.T) {
 		Points:     []metrics.Point{{Ts: 1, Value: 10}},
 		MType:      metrics.APIGaugeType,
 		ContextKey: ckey.ContextKey(1),
-	}, 1, sink)
+	}, sink)
 	ca.Submit(testCheckID, &metrics.Serie{
 		Name:       "request.duration.count",
 		Points:     []metrics.Point{{Ts: 1, Value: 3}},
 		MType:      metrics.APIRateType,
 		ContextKey: ckey.ContextKey(1),
-	}, 1, sink)
+	}, sink)
 	ca.Submit(testCheckID, &metrics.Serie{
 		Name:       "request.duration.avg",
 		Points:     []metrics.Point{{Ts: 2, Value: 20}},
 		MType:      metrics.APIGaugeType,
 		ContextKey: ckey.ContextKey(1),
-	}, 2, sink)
+	}, sink)
 	ca.Submit(testCheckID, &metrics.Serie{
 		Name:       "request.duration.count",
 		Points:     []metrics.Point{{Ts: 2, Value: 5}},
 		MType:      metrics.APIRateType,
 		ContextKey: ckey.ContextKey(1),
-	}, 2, sink)
+	}, sink)
 
 	ca.FlushExpired(20, sink)
 
@@ -734,7 +733,7 @@ func TestSubmitSketchUsesSketchTimestampForRollover(t *testing.T) {
 	sink := &captureSketchSink{}
 
 	for ts := int64(0); ts < 15; ts++ {
-		ca.SubmitSketch(testCheckID, makeSketchSeries(1, ts, float64(ts+1)), 15, sink)
+		ca.SubmitSketch(testCheckID, makeSketchSeries(1, ts, float64(ts+1)), sink)
 	}
 
 	require.Empty(t, sink.sketches, "sketches within the same sample-time window must not close against the flush trigger time")

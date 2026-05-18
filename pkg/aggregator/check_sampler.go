@@ -90,18 +90,15 @@ func newCheckSampler(
 	tagger tagger.Component,
 ) *CheckSampler {
 	return &CheckSampler{
-		id:                     id,
-		series:                 make([]*metrics.Serie, 0),
-		sketches:               make(metrics.SketchSeriesList, 0),
-		contextResolver:        newCountBasedContextResolver(expirationCount, cache, tagger, string(id)),
-		metrics:                metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
-		sketchMap:              make(sketchMap),
-		lastBucketValue:        make(map[ckey.ContextKey]int64),
+		id:              id,
+		series:          make([]*metrics.Serie, 0),
+		sketches:        make(metrics.SketchSeriesList, 0),
+		contextResolver: newCountBasedContextResolver(expirationCount, cache, tagger, string(id)),
+		metrics:         metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
+		sketchMap:       make(sketchMap),
+		lastBucketValue: make(map[ckey.ContextKey]int64),
 		// histogramSketchContext is lazily allocated in addBucket only
-		// when an observer handle is attached. With a nil handle (the
-		// default and the production state until anomaly_detection is
-		// enabled), this map stays nil and the bucket path pays nothing
-		// for the histogram-summary observer feature.
+		// when an observer handle is attached.
 		contextResolverMetrics: contextResolverMetrics,
 		logThrottling:          util.NewSimpleThrottler(5, 5*time.Minute, ""),
 		allowSketchBucketReset: allowSketchBucketReset,

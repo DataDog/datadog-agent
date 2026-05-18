@@ -556,7 +556,7 @@ func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.S
 // Series from CheckSamplers are routed through agg.checkAggregator (the
 // wall-clock windowing layer) before reaching seriesSink. CheckSampler's
 // observable behaviour is unchanged — the wrapper consumes flush() output
-// and emits per-window aggregates downstream. See pkg/aggregator/check_aggregator.go.
+// and emits per-window aggregates downstream.
 func (agg *BufferedAggregator) getSeriesAndSketches(
 	before time.Time,
 	seriesSink metrics.SerieSink,
@@ -565,22 +565,22 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 
-	now := timeToSeconds(before)
+	flushTime := timeToSeconds(before)
 
 	//nolint:revive // TODO(AML) Fix revive linter
 	for checkId, checkSampler := range agg.checkSamplers {
 		checkSeries, sketches := checkSampler.flush()
 		for _, s := range checkSeries {
-			// CheckAggregator routes through windowing; passes through to
-			// seriesSink for singleton/expired windows.
-			agg.checkAggregator.Submit(checkId, s, now, seriesSink)
+			// CheckAggregator routes through windowing by the series
+			// timestamp; passes through to seriesSink for singleton/expired
+			// windows.
+			agg.checkAggregator.Submit(checkId, s, seriesSink)
 		}
 
 		for _, sk := range sketches {
-			// Sketches go through a parallel sketch-windowing path that
-			// merges via *quantile.Sketch.Merge on close (lossless for
-			// quantile correctness; ~1× wire cost vs N× without merge).
-			agg.checkAggregator.SubmitSketch(checkId, sk, now, sketchesSink)
+			// Sketches go through a parallel sketch-windowing path by sketch
+			// timestamp, then merge via *quantile.Sketch.Merge on close.
+			agg.checkAggregator.SubmitSketch(checkId, sk, sketchesSink)
 		}
 
 		if checkSampler.deregistered {
@@ -592,8 +592,8 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 	// After every CheckSampler has flushed, sweep windows whose deadlines
 	// have passed and emit them. Windows still within their deadline
 	// remain open for accumulation in subsequent flush cycles.
-	agg.checkAggregator.FlushExpired(now, seriesSink)
-	agg.checkAggregator.FlushExpiredSketches(now, sketchesSink)
+	agg.checkAggregator.FlushExpired(flushTime, seriesSink)
+	agg.checkAggregator.FlushExpiredSketches(flushTime, sketchesSink)
 }
 
 // timeToSeconds converts a time.Time to seconds-since-epoch as a float,

@@ -166,8 +166,8 @@ func TestFlushToSerializerDrainsCheckAggregatorOnlyWhenRequested(t *testing.T) {
 
 	openSeries := makeSerie(1, 100, 42)
 	openSketch := makeSketchSeries(1, 100, 10)
-	demux.aggregator.checkAggregator.Submit(checkID1, openSeries, 100, &captureSink{})
-	demux.aggregator.checkAggregator.SubmitSketch(checkID1, openSketch, 100, &captureSketchSink{})
+	demux.aggregator.checkAggregator.Submit(checkID1, openSeries, &captureSink{})
+	demux.aggregator.checkAggregator.SubmitSketch(checkID1, openSketch, &captureSketchSink{})
 
 	demux.ForceFlushToSerializer(time.Unix(101, 0), true)
 	require.NotContains(t, s.series, openSeries, "manual flush must not drain an incomplete check aggregation window")
