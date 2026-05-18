@@ -366,10 +366,38 @@ func TestWorkerPurgeOnStop(t *testing.T) {
 	mockRetryTransaction.AssertNumberOfCalls(t, "Process", 0)
 }
 
+func TestWorkerRequeueDropsTracksPointsDropped(t *testing.T) {
+	highPrio := make(chan transaction.Transaction)
+	lowPrio := make(chan transaction.Transaction)
+	requeue := make(chan transaction.Transaction, 1)
+	sender := &PointSuccessfullySentMock{}
+	mockConfig := mock.New(t)
+	log := logmock.New(t)
+	secrets := secretsmock.New(t)
+	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), sender, NewSharedConnection(log, false, 1, mockConfig, nil))
+
+	// Fill the requeue channel so the next requeue call falls into the default branch and drops.
+	filler := newTestTransaction()
+	requeue <- filler
+
+	dropped := newTestTransaction()
+	dropped.pointCount = 7
+
+	w.requeue(dropped)
+
+	assert.Equal(t, int64(7), sender.dropped.Load(), "point.dropped must reflect points lost when RequeueChan is full")
+	assert.Equal(t, int64(0), sender.count.Load(), "no points were successfully sent")
+}
+
 type PointSuccessfullySentMock struct {
-	count atomic.Int64
+	count   atomic.Int64
+	dropped atomic.Int64
 }
 
 func (m *PointSuccessfullySentMock) OnPointSuccessfullySent(count int) {
 	m.count.Add(int64(count))
+}
+
+func (m *PointSuccessfullySentMock) OnPointDropped(count int) {
+	m.dropped.Add(int64(count))
 }

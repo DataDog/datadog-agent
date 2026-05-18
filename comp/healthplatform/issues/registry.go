@@ -16,14 +16,14 @@ import (
 type Registry struct {
 	mu        sync.RWMutex
 	templates map[string]IssueTemplate // issueID -> template
-	checks    []*BuiltInCheck          // all built-in checks
+	checks    []*BuiltInHealthCheck    // all built-in checks
 }
 
 // NewRegistry creates a new issue registry
 func NewRegistry() *Registry {
 	return &Registry{
 		templates: make(map[string]IssueTemplate),
-		checks:    make([]*BuiltInCheck, 0),
+		checks:    make([]*BuiltInHealthCheck, 0),
 	}
 }
 
@@ -36,7 +36,7 @@ func (r *Registry) RegisterModule(module Module) {
 	r.templates[module.IssueID()] = module.IssueTemplate()
 
 	// Register the built-in check if present
-	if check := module.BuiltInCheck(); check != nil {
+	if check := module.BuiltInHealthCheck(); check != nil {
 		r.checks = append(r.checks, check)
 	}
 }
@@ -50,22 +50,22 @@ func (r *Registry) GetTemplate(issueID string) (IssueTemplate, bool) {
 }
 
 // BuildIssue creates a complete issue using the template and context
-func (r *Registry) BuildIssue(issueID string, context map[string]string) (*healthplatform.Issue, error) {
-	template, exists := r.GetTemplate(issueID)
+func (r *Registry) BuildIssue(issueType string, context map[string]string) (*healthplatform.Issue, error) {
+	template, exists := r.GetTemplate(issueType)
 	if !exists {
-		return nil, fmt.Errorf("no issue template found for: %s", issueID)
+		return nil, fmt.Errorf("no issue template found for: %s", issueType)
 	}
 
 	return template.BuildIssue(context)
 }
 
-// GetBuiltInChecks returns all built-in health checks from registered modules
-func (r *Registry) GetBuiltInChecks() []*BuiltInCheck {
+// GetBuiltInHealthChecks returns all built-in health checks from registered modules
+func (r *Registry) GetBuiltInHealthChecks() []*BuiltInHealthCheck {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
 	// Return a copy to avoid external modifications
-	result := make([]*BuiltInCheck, len(r.checks))
+	result := make([]*BuiltInHealthCheck, len(r.checks))
 	copy(result, r.checks)
 	return result
 }

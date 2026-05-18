@@ -19,6 +19,6 @@ import (
 const CheckName = "network_config_management"
 
 // Factory returns a stub implementation of the network configuration management check.
-func Factory(_ config.Component, _ networkconfigmanagement.Component) option.Option[func() check.Check] {
+func Factory(_ config.Component, _ option.Option[networkconfigmanagement.Component]) option.Option[func() check.Check] {
 	return option.None[func() check.Check]()
 }

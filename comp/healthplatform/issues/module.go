@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
+	schedulerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
 )
 
 // ModuleFactory is a function that creates a new Module instance
@@ -55,15 +55,15 @@ func GetAllModules(config config.Component) []Module {
 
 // IssueTemplate defines how to build a complete issue (metadata + remediation) from context
 type IssueTemplate interface {
-	// BuildIssue creates a complete issue using the provided context
+	// BuildIssue creates a complete issue using the provided context.
 	BuildIssue(context map[string]string) (*healthplatform.Issue, error)
 }
 
-// BuiltInCheck represents configuration for a built-in health check
-type BuiltInCheck struct {
+// BuiltInHealthCheck represents configuration for a built-in health check
+type BuiltInHealthCheck struct {
 	ID       string
 	Name     string
-	CheckFn  healthplatformdef.HealthCheckFunc
+	CheckFn  schedulerdef.HealthCheckFunc
 	Interval time.Duration
 
 	// Once is mutually exclusive with Interval.
@@ -80,7 +80,7 @@ type Module interface {
 	// IssueTemplate returns the template for building complete issues
 	IssueTemplate() IssueTemplate
 
-	// BuiltInCheck returns the built-in health check configuration, or nil if
+	// BuiltInHealthCheck returns the built-in health check configuration, or nil if
 	// this issue is only reported by external integrations
-	BuiltInCheck() *BuiltInCheck
+	BuiltInHealthCheck() *BuiltInHealthCheck
 }

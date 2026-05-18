@@ -2,7 +2,7 @@
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
     "extends": ["config:recommended", ":enablePreCommit", "schedule:nonOfficeHours"],
     "constraints": {
-      "go": "1.25.9"
+      "go": "1.25.10"
     },
     "constraintsFiltering": "strict",
     "minimumReleaseAge": "7 days",
@@ -162,6 +162,14 @@
         "matchManagers": ["bundler"],
         "matchDatasources": ["git-refs"],
         "registryUrls": []
+      },
+      {
+        "matchDepNames": ["FluentAssertions"],
+        "allowedVersions": "(,8.0.0)"
+      },
+      {
+        "matchDepNames": ["WixToolset.Dtf.WindowsInstaller"],
+        "allowedVersions": "(,6.0.0)"
       }
     ],
     "customManagers" : [

@@ -281,17 +281,33 @@ func (p *EBPFResolver) tryReparentChildrenFromProcfs(exitedEntry *model.ProcessC
 	copy(children, exitedEntry.Children)
 
 	for _, child := range children {
-		p.tryReparentEntryFromProcfs(child, exitedEntry.Pid, callpathTag, newEntryCb)
+		if child.Pid == exitedEntry.Pid {
+			// The child shares the PID with the exited entry: it is the exec
+			// continuation (pre-exec → post-exec link). Attempting to reparent
+			// it via procfs would read its real ppid (grandparent) and break
+			// the exec chain stored in the Ancestor pointer.  Skip it; the
+			// exec-chain link must be preserved.
+			continue
+		}
+		p.tryReparentEntryFromProcfs(child, exitedEntry, callpathTag, newEntryCb)
 	}
 }
 
 // tryReparentEntryFromProcfs reads the current ppid of a single entry from
 // procfs and updates its parent link. If procfs hasn't been updated yet (race)
 // or fails, the entry stays linked to the dead parent.
+// When the child is no longer visible in procfs at all (process fully reaped),
+// it is detached from exitedEntry.Children immediately so it is not re-visited
+// on subsequent reparent attempts.
 // Must be called with the lock held.
-func (p *EBPFResolver) tryReparentEntryFromProcfs(child *model.ProcessCacheEntry, exitedPid uint32, callpathTag string, newEntryCb func(*model.ProcessCacheEntry, error)) {
+func (p *EBPFResolver) tryReparentEntryFromProcfs(child *model.ProcessCacheEntry, exitedEntry *model.ProcessCacheEntry, callpathTag string, newEntryCb func(*model.ProcessCacheEntry, error)) {
 	proc, err := process.NewProcess(int32(child.Pid))
 	if err != nil {
+		// The child process is gone from procfs entirely: it has been fully
+		// reaped and its exit event has been (or will be) delivered separately.
+		// Remove it from the dead parent's Children list eagerly so that future
+		// calls to tryReparentChildrenFromProcfs do not keep re-visiting it.
+		exitedEntry.RemoveChild(child)
 		return
 	}
 
@@ -301,7 +317,7 @@ func (p *EBPFResolver) tryReparentEntryFromProcfs(child *model.ProcessCacheEntry
 	}
 
 	newPPidU32 := uint32(newPPid)
-	if newPPidU32 == 0 || newPPidU32 == exitedPid {
+	if newPPidU32 == 0 || newPPidU32 == exitedEntry.Pid {
 		p.reparentFailedStats[callpathTag].Inc()
 		return
 	}
@@ -942,6 +958,15 @@ func (p *EBPFResolver) deleteEntry(pid uint32, exitTime time.Time) {
 	if entry.Ancestor != nil {
 		entry.Ancestor.RemoveChild(entry)
 	}
+
+	// Release the Children backing array.  By the time deleteEntry is called
+	// (either directly on an exit event or via DequeueExited after ~1 minute),
+	// the lazy walker in TryReparentFromProcfs has had multiple chances to
+	// reparent any remaining children.  Setting Children to nil frees the
+	// backing array and breaks the parent→child direction of the cycle so the
+	// GC can reclaim the entry as soon as its last child exits and drops its
+	// Ancestor pointer.
+	entry.Children = nil
 
 	entry.Exit(exitTime)
 	delete(p.entryCache, entry.Pid)

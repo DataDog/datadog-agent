@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "noop-impl",
+    srcs = ["noop.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/flare/types",
+        "//comp/healthplatform/store/def",
+        "@com_github_datadog_agent_payload_v5//healthplatform",
+    ],
+)

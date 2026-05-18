@@ -8,9 +8,9 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/configstream/def",
+        "//comp/core/remoteagentregistry/def",
         "//pkg/proto/pbgo/core",
         "//pkg/util/log",
-        "@//comp/core/remoteagentregistry/def",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//metadata",
         "@org_golang_google_grpc//status",
@@ -23,10 +23,10 @@ go_test(
     embed = [":server"],
     gotags = ["test"],
     deps = [
+        "//comp/core/remoteagentregistry/def",
         "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/proto/pbgo/core",
-        "@//comp/core/remoteagentregistry/def",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//mock",
         "@com_github_stretchr_testify//require",

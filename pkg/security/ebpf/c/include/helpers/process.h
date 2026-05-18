@@ -4,6 +4,7 @@
 #include "constants/custom.h"
 #include "constants/enums.h"
 #include "constants/offsets/process.h"
+#include "cgroup.h"
 #include "maps.h"
 #include "events_definition.h"
 
@@ -65,6 +66,20 @@ struct proc_cache_t *__attribute__((always_inline)) get_proc_cache(u32 tgid) {
 
     // Select the cache entry
     return get_proc_from_cookie(pid_entry->cookie);
+}
+
+// update_proc_cache_cgroup refreshes the cached cgroup inode of the current task inline,
+// for hook points that cannot use the tail-call variant because they already chain to a
+// different tail call (e.g. resolve_dentry).
+static __attribute__((always_inline)) void update_proc_cache_cgroup() {
+    u64 cgroup_id = get_current_cgroup_id();
+    if (cgroup_id) {
+        u32 pid = bpf_get_current_pid_tgid() >> 32;
+        struct proc_cache_t *entry = get_proc_cache(pid);
+        if (entry) {
+            entry->cgroup.path_key.ino = cgroup_id;
+        }
+    }
 }
 
 static u32 __attribute__((always_inline)) get_current_ppid(void) {
@@ -185,17 +200,17 @@ bool __attribute__((always_inline)) is_current_kworker_dying() {
 
 static void __attribute__((always_inline)) fill_cgroup_context(struct proc_cache_t *entry, struct cgroup_context_t *cgroup) {
     if (entry) {
-        cgroup->cgroup_file = entry->cgroup.cgroup_file;
+        cgroup->path_key = entry->cgroup.path_key;
     } else {
-        cgroup->cgroup_file.mount_id = 0;
-        cgroup->cgroup_file.path_id = 0;
-        cgroup->cgroup_file.ino = 0;
+        cgroup->path_key.mount_id = 0;
+        cgroup->path_key.path_id = 0;
+        cgroup->path_key.ino = 0;
     }
 }
 
 u64 __attribute__((always_inline)) get_cgroup_id(u32 tgid) {
     struct proc_cache_t *entry = get_proc_cache(tgid);
-    return entry ? entry->cgroup.cgroup_file.ino : 0;
+    return entry ? entry->cgroup.path_key.ino : 0;
 }
 
 #endif

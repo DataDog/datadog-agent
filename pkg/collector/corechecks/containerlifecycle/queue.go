@@ -6,11 +6,53 @@
 package containerlifecycle
 
 import (
+	"context"
 	"errors"
 	"sync"
 
 	model "github.com/DataDog/agent-payload/v5/contlcycle"
+
+	"github.com/DataDog/datadog-agent/pkg/config/env"
+	types "github.com/DataDog/datadog-agent/pkg/containerlifecycle"
+	ecsutil "github.com/DataDog/datadog-agent/pkg/util/ecs"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+func newPayload(le LifecycleEvent) (*model.EventsPayload, error) {
+	hname, err := hostname.Get(context.TODO())
+	if err != nil {
+		log.Warnf("Error getting hostname: %v", err)
+	}
+
+	var clusterID string
+	if env.IsFeaturePresent(env.Kubernetes) {
+		clusterID, err = clustername.GetClusterID()
+	} else if env.IsFeaturePresent(env.ECSEC2) || env.IsFeaturePresent(env.ECSFargate) || env.IsFeaturePresent(env.ECSManagedInstances) {
+		var meta *ecsutil.MetaECS
+		meta, err = ecsutil.GetClusterMeta()
+		if meta != nil {
+			clusterID = meta.ECSClusterID
+		}
+	}
+	if err != nil {
+		log.Warnf("Error getting cluster id: %v", err)
+	}
+
+	kind, err := kindToModel(le.ObjectKind)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.EventsPayload{
+		Version:    types.PayloadV1,
+		Host:       hname,
+		ClusterId:  clusterID,
+		ObjectKind: kind,
+		Events:     []*model.Event{le.ProtoEvent},
+	}, nil
+}
 
 type queue struct {
 	chunkSize int
@@ -46,22 +88,22 @@ func (q *queue) flush() []*model.EventsPayload {
 
 // add enqueues a new event.
 // add is thread-safe.
-func (q *queue) add(ev event) error {
+func (q *queue) add(le LifecycleEvent) error {
 	q.Lock()
 	defer q.Unlock()
 
 	if q.isEmpty() || q.isLastPayloadFull() {
-		return q.addPayload(ev)
+		return q.addPayload(le)
 	}
 
-	return q.addEvent(ev)
+	return q.addEvent(le)
 }
 
 // addPayload enqueues the event in a new payload entry in the queue.
 // To be used if the queue is empty or if the last payload entry in the queue is full.
 // addPayload is not thread-safe, the caller must lock the queue.
-func (q *queue) addPayload(ev event) error {
-	payload, err := ev.toPayloadModel()
+func (q *queue) addPayload(le LifecycleEvent) error {
+	payload, err := newPayload(le)
 	if err != nil {
 		return err
 	}
@@ -74,18 +116,13 @@ func (q *queue) addPayload(ev event) error {
 // addEvent enqueues the event in last payload entry.
 // To be used if the queue is not empty and the last payload entry is not full.
 // addEvent is not thread-safe, the caller must lock the queue.
-func (q *queue) addEvent(ev event) error {
+func (q *queue) addEvent(le LifecycleEvent) error {
 	if q.isEmpty() {
 		return errors.New("cannot add event to an empty queue")
 	}
 
-	event, err := ev.toEventModel()
-	if err != nil {
-		return err
-	}
-
 	lenQueue := len(q.data)
-	q.data[lenQueue-1].Events = append(q.data[lenQueue-1].Events, event)
+	q.data[lenQueue-1].Events = append(q.data[lenQueue-1].Events, le.ProtoEvent)
 
 	return nil
 }

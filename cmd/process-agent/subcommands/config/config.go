@@ -9,6 +9,8 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
+	"strconv"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -195,7 +197,7 @@ func getClient(deps dependencies) (settings.Client, error) {
 		return nil, fmt.Errorf("invalid process_config.cmd_port -- %d", port)
 	}
 
-	ipcAddressWithPort := fmt.Sprintf("https://%s:%d/config", ipcAddress, port)
+	ipcAddressWithPort := fmt.Sprintf("https://%s/config", net.JoinHostPort(ipcAddress, strconv.Itoa(port)))
 	if err != nil {
 		return nil, err
 	}

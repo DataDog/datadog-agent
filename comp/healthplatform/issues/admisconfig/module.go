@@ -10,8 +10,8 @@ package admisconfig
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/core/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
 func init() {
@@ -32,7 +32,7 @@ func NewModule(config.Component) issues.Module {
 
 // IssueID returns the unique identifier for this issue type
 func (m *adMisconfigurationModule) IssueID() string {
-	return healthplatform.ADMisconfigurationIssueID
+	return healthplatform.ADMisconfigurationIssueType
 }
 
 // IssueTemplate returns the template for building complete issues
@@ -40,7 +40,7 @@ func (m *adMisconfigurationModule) IssueTemplate() issues.IssueTemplate {
 	return m.template
 }
 
-// BuiltInCheck returns nil - annotation errors are reported by the container config provider
-func (m *adMisconfigurationModule) BuiltInCheck() *issues.BuiltInCheck {
+// BuiltInHealthCheck returns nil - annotation errors are reported by the container config provider
+func (m *adMisconfigurationModule) BuiltInHealthCheck() *issues.BuiltInHealthCheck {
 	return nil
 }
