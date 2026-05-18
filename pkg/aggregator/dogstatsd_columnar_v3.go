@@ -245,7 +245,8 @@ func (s *dogstatsdColumnarStore) flush(cutoffTime int64, forceFlushAll bool, row
 }
 
 func (s *dogstatsdColumnarStore) flushShard(shard *dogstatsdColumnarShard, cutoffTime int64, forceFlushAll bool, rowSink metrics.SerieRowSink, shadow *directRowShadowBuilder) uint64 {
-	var flushed uint64
+	var rows []metrics.SerieRow
+	rowByKey := make(map[dogstatsdColumnarKey]int)
 
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
@@ -254,15 +255,19 @@ func (s *dogstatsdColumnarStore) flushShard(shard *dogstatsdColumnarShard, cutof
 		if bucketTimestamp+s.interval > cutoffTime && !forceFlushAll {
 			continue
 		}
-		flushed += s.flushBucket(bucketTimestamp, bucket, rowSink, shadow)
+		s.collectBucket(bucketTimestamp, bucket, &rows, rowByKey)
 		delete(shard.buckets, bucketTimestamp)
 		tlmDogstatsdColumnarStats.Inc("flushed_buckets")
 	}
-	return flushed
+
+	for i := range rows {
+		shadow.observeSerieRow(&rows[i])
+		rowSink.AppendSerieRow(rows[i])
+	}
+	return uint64(len(rows))
 }
 
-func (s *dogstatsdColumnarStore) flushBucket(bucketTimestamp int64, bucket *dogstatsdColumnarBucket, rowSink metrics.SerieRowSink, shadow *directRowShadowBuilder) uint64 {
-	var rows uint64
+func (s *dogstatsdColumnarStore) collectBucket(bucketTimestamp int64, bucket *dogstatsdColumnarBucket, rows *[]metrics.SerieRow, rowByKey map[dogstatsdColumnarKey]int) {
 	for idx := range bucket.names {
 		if !bucket.sampled[idx] {
 			continue
@@ -273,26 +278,30 @@ func (s *dogstatsdColumnarStore) flushBucket(bucketTimestamp int64, bucket *dogs
 			continue
 		}
 
-		row := metrics.NewSerieRow(
-			bucket.names[idx],
-			[]metrics.Point{{Ts: float64(bucketTimestamp), Value: value}},
-			tagset.CompositeTagsFromSlice(bucket.tags[idx]),
-			bucket.hosts[idx],
-			"",
-			apiType,
-			s.interval,
-			"",
-			bucket.units[idx],
-			bucket.noIndex[idx],
-			nil,
-			bucket.sources[idx],
-		)
-		shadow.observeSerieRow(&row)
-		rowSink.AppendSerieRow(row)
-		rows++
+		point := metrics.Point{Ts: float64(bucketTimestamp), Value: value}
+		key := dogstatsdColumnarKey{contextKey: bucket.contextKeys[idx], mtype: bucket.mtypes[idx]}
+		if rowIdx, ok := rowByKey[key]; ok {
+			(*rows)[rowIdx].Points = append((*rows)[rowIdx].Points, point)
+		} else {
+			row := metrics.NewSerieRow(
+				bucket.names[idx],
+				[]metrics.Point{point},
+				tagset.CompositeTagsFromSlice(bucket.tags[idx]),
+				bucket.hosts[idx],
+				"",
+				apiType,
+				s.interval,
+				"",
+				bucket.units[idx],
+				bucket.noIndex[idx],
+				nil,
+				bucket.sources[idx],
+			)
+			rowByKey[key] = len(*rows)
+			*rows = append(*rows, row)
+		}
 		tlmDogstatsdColumnarStats.Inc("flushed_points")
 	}
-	return rows
 }
 
 func (s *dogstatsdColumnarStore) flushValue(bucket *dogstatsdColumnarBucket, idx int) (float64, metrics.APIMetricType, bool) {

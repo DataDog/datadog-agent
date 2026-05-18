@@ -111,6 +111,24 @@ func TestDogstatsdColumnarV3InsertAndFlushRows(t *testing.T) {
 	require.Empty(t, sink.rows)
 }
 
+func TestDogstatsdColumnarV3FlushMergesPointsAcrossBuckets(t *testing.T) {
+	store := newDogStatsDColumnarStore(10, 1)
+	sample := metrics.MetricSample{
+		Name:       "gauge.metric",
+		Mtype:      metrics.GaugeType,
+		SampleRate: 1,
+	}
+	sample.Value = 1
+	require.True(t, store.insert(ckey.ContextKey(1), sample, 101))
+	sample.Value = 2
+	require.True(t, store.insert(ckey.ContextKey(1), sample, 112))
+
+	var sink columnarRowCaptureSink
+	require.Equal(t, uint64(1), store.flush(125, false, &sink))
+	require.Len(t, sink.rows, 1)
+	require.ElementsMatch(t, []metrics.Point{{Ts: 100, Value: 1}, {Ts: 110, Value: 2}}, sink.rows[0].Points)
+}
+
 func TestDogstatsdColumnarV3UnsupportedSamplesFallback(t *testing.T) {
 	store := newDogStatsDColumnarStore(10, 1)
 
