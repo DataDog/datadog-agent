@@ -64,6 +64,7 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	logagent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	inventorychecks "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/def"
@@ -314,7 +315,7 @@ func run(
 	// TODO Ideally we would support RC in the check subcommand,
 	//  but at the moment this is not possible - only one process can access the RC database at a time,
 	//  so the subcommand can't read the RC database if the agent is also running.
-	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil, traceroute, option.None[networkconfigmanagement.Component]())
+	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil, traceroute, option.None[networkconfigmanagement.Component](), option.None[storedef.Component]())
 
 	common.LoadComponents(ac, pkgconfigsetup.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())

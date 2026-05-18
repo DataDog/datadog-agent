@@ -12,6 +12,7 @@ package node
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -45,9 +46,17 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(p.config.Timeout)*time.Second)
 	nodeSpecRaw, responseCode, err := kc.QueryKubelet(ctx, "/spec/")
 	cancel()
-	if err != nil || responseCode == 404 {
+	if err != nil || responseCode == 404 || responseCode == http.StatusForbidden {
 		if responseCode == 404 {
 			return nil
+		}
+		if responseCode == http.StatusForbidden {
+			connInfo := kc.GetRawConnectionInfo()
+			return &kubelet.ErrForbidden{
+				Endpoint: connInfo["url"] + "/spec/",
+				Resource: "nodes/spec",
+				Verb:     "get",
+			}
 		}
 		return err
 	}

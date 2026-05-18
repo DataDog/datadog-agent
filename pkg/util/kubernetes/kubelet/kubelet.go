@@ -254,6 +254,13 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 	if err != nil {
 		return nil, errors.NewRetriable("podlist", fmt.Errorf("error performing kubelet query %s%s: %w", ku.kubeletClient.kubeletURL, kubeletPodPath, err))
 	}
+	if code == http.StatusForbidden {
+		return nil, &ErrForbidden{
+			Endpoint: ku.kubeletClient.kubeletURL + kubeletPodPath,
+			Resource: KubeletPathToResource(kubeletPodPath),
+			Verb:     "get",
+		}
+	}
 	if code != http.StatusOK {
 		return nil, errors.NewRetriable("podlist", fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletClient.kubeletURL, kubeletPodPath, string(data)))
 	}
@@ -394,6 +401,13 @@ func (ku *KubeUtil) GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.
 	data, code, err := ku.QueryKubelet(ctx, kubeletStatsSummary)
 	if err != nil {
 		return nil, errors.NewRetriable("statssummary", fmt.Errorf("error performing kubelet query %s%s: %w", ku.kubeletClient.kubeletURL, kubeletStatsSummary, err))
+	}
+	if code == http.StatusForbidden {
+		return nil, &ErrForbidden{
+			Endpoint: ku.kubeletClient.kubeletURL + kubeletStatsSummary,
+			Resource: KubeletPathToResource(kubeletStatsSummary),
+			Verb:     "get",
+		}
 	}
 	if code != http.StatusOK {
 		return nil, errors.NewRetriable("statssummary", fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletClient.kubeletURL, kubeletStatsSummary, string(data)))

@@ -9,12 +9,14 @@
 package kubelet
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
@@ -46,22 +48,25 @@ type Provider interface {
 // KubeletCheck wraps the config and the metric stores needed to run the check
 type KubeletCheck struct {
 	core.CheckBase
-	instance    *common.KubeletConfig
-	providers   []Provider
-	podUtils    *common.PodUtils
-	filterStore workloadfilter.Component
-	store       workloadmeta.Component
-	tagger      tagger.Component
+	instance       *common.KubeletConfig
+	providers      []Provider
+	podUtils       *common.PodUtils
+	filterStore    workloadfilter.Component
+	store          workloadmeta.Component
+	tagger         tagger.Component
+	healthPlatform option.Option[storedef.Component]
+	hadForbidden   bool
 }
 
 // NewKubeletCheck returns a new KubeletCheck
-func NewKubeletCheck(base core.CheckBase, instance *common.KubeletConfig, store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component) *KubeletCheck {
+func NewKubeletCheck(base core.CheckBase, instance *common.KubeletConfig, store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, healthPlatform option.Option[storedef.Component]) *KubeletCheck {
 	return &KubeletCheck{
-		CheckBase:   base,
-		instance:    instance,
-		filterStore: filterStore,
-		store:       store,
-		tagger:      tagger,
+		CheckBase:      base,
+		instance:       instance,
+		filterStore:    filterStore,
+		store:          store,
+		tagger:         tagger,
+		healthPlatform: healthPlatform,
 	}
 }
 
@@ -106,9 +111,9 @@ func initProviders(filterStore workloadfilter.Component, config *common.KubeletC
 }
 
 // Factory returns a new KubeletCheck factory
-func Factory(store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component) option.Option[func() check.Check] {
+func Factory(store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, healthPlatform option.Option[storedef.Component]) option.Option[func() check.Check] {
 	return option.New(func() check.Check {
-		return NewKubeletCheck(core.NewCheckBase(CheckName), &common.KubeletConfig{}, store, filterStore, tagger)
+		return NewKubeletCheck(core.NewCheckBase(CheckName), &common.KubeletConfig{}, store, filterStore, tagger, healthPlatform)
 	})
 }
 
@@ -162,14 +167,51 @@ func (k *KubeletCheck) Run() error {
 		return err
 	}
 
+	var firstForbidden *kubelet.ErrForbidden
 	for _, provider := range k.providers {
 		if provider != nil {
 			err = provider.Provide(kc, sender)
 			if err != nil {
 				_ = k.Warnf("Error reporting metrics: %s", err)
+				if firstForbidden == nil {
+					var forbidden *kubelet.ErrForbidden
+					if errors.As(err, &forbidden) {
+						firstForbidden = forbidden
+					}
+				}
 			}
 		}
 	}
 
+	k.reportForbiddenIssue(firstForbidden)
 	return nil
+}
+
+// reportForbiddenIssue emits or resolves the k8s-rbac-forbidden health platform issue.
+func (k *KubeletCheck) reportForbiddenIssue(forbidden *kubelet.ErrForbidden) {
+	hp, ok := k.healthPlatform.Get()
+	if !ok {
+		return
+	}
+	if forbidden != nil {
+		k.hadForbidden = true
+		report := storedef.IssueReport{
+			IssueID:   "k8s-rbac-forbidden",
+			IssueType: "k8s-rbac-forbidden",
+			Source:    "kubelet",
+			Context: map[string]string{
+				"endpoint": forbidden.Endpoint,
+				"resource": forbidden.Resource,
+				"verb":     forbidden.Verb,
+			},
+		}
+		if err := hp.ReportIssue(report); err != nil {
+			log.Warnf("Failed to report kubelet RBAC forbidden issue: %v", err)
+		}
+		return
+	}
+	if k.hadForbidden {
+		k.hadForbidden = false
+		hp.ResolveIssue("k8s-rbac-forbidden")
+	}
 }

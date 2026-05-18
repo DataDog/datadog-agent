@@ -48,6 +48,14 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 		sender.ServiceCheck(serviceCheckBase, servicecheck.ServiceCheckCritical, "", p.config.Tags, errMsg)
 		return err
 	}
+	if responseCode == http.StatusForbidden {
+		connInfo := kc.GetRawConnectionInfo()
+		return &kubelet.ErrForbidden{
+			Endpoint: connInfo["url"] + "/healthz?verbose",
+			Resource: "nodes/proxy",
+			Verb:     "get",
+		}
+	}
 
 	scanner := bufio.NewScanner(bytes.NewReader(healthCheckRaw))
 	re, _ := regexp.Compile(`\[(.)\]([^\s]+) (.*)?`)
