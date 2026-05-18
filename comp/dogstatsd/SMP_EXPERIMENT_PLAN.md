@@ -657,3 +657,48 @@ Do not push the core-pipeline claim if:
   filtering, or origin enrichment,
 - direct rows only win microbenchmarks but not SMP cases,
 - complexity requires broad production rewrites without a measurable SMP win.
+
+## Stage I local result, 2026-05-18
+
+Stage I implemented the intentionally narrow vertical slice that Stage A-H had
+not measured: supported DogStatsD metric samples are accepted after normal
+parser/enrichment, inserted into an experimental shard-local columnar v3 table,
+and flushed directly as v3 series rows. The slice is gated by
+`DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3=true` and only supports on-time Gauge,
+Counter, Count, and Set samples; everything else falls back to the legacy path.
+
+Important scope correction: this is still not a full production architecture.
+It is v3-only, metric-only, local-only, and unsafe. It does, however, bypass
+`TimeSampler`, `ContextMetrics`, `metrics.Metric`, `metrics.Serie`, and iterable
+serializer traversal for supported samples, so it is a closer proof/disproof of
+the columnar performance idea than Stages A-H.
+
+Stage I images compared against Stage G direct metric rows on
+`uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only`:
+
+| Variant | Commit | Δ mean | Δ mean CI | Regression | Improvement |
+|---|---|---:|---:|---|---|
+| naive parser direct insert | `2ade84801cc` | -4.74% | [-5.12%, -4.35%] | false | false |
+| merged flush rows | `9b04b0c6104` | -5.28% | [-5.63%, -4.93%] | false | false |
+| descriptor reuse | `0e774a353cb` | -6.68% | [-6.96%, -6.40%] | false | false |
+| deferred insert telemetry | `6f3c5ae857a` | -6.02% | [-6.28%, -5.77%] | false | false |
+| batched shard workers | `7a43a9d0dae` | -8.02% | [-8.27%, -7.76%] | false | false |
+| batched/no-lock workers | `87fbbc1fbb5` | -8.61% | [-8.86%, -8.37%] | false | false |
+| bucket-row cache | `e68c3c36110` | -7.11% | [-7.44%, -6.78%] | false | false |
+
+Proof telemetry in Stage I showed the intended bypass:
+
+- old DogStatsD aggregator contexts effectively zero on the comparison side,
+- `dogstatsd_columnar_v3.stats{stat:inserted_samples}` > 200k/s,
+- columnar flush rows emitted into the direct v3 row serializer,
+- legacy direct metric row phase nearly empty for supported samples.
+
+But the columnar variants all increased DogStatsD packet backlog/RSS and reduced
+ingress throughput. The strongest interpretation is that this columnar table and
+handoff shape shift cost into ingest/worker processing faster than serializer
+savings can recover it.
+
+Decision: do not pitch the current columnar replacement as a near-term
+throughput win. Keep the foundation and row/dictionary work as useful substrate
+for debug/capture/lookback/replay and future options, but require a different
+bottleneck/proof point before investing in broad production migration.
