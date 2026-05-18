@@ -59,7 +59,6 @@ const (
 // than agent_telemetry metrics (900s, periodic-aggregate path).
 const (
 	defaultErrLogsBufferSize    = 2048
-	defaultErrLogsBatchSize     = 100
 	defaultErrLogsFlushInterval = 60 * time.Second
 )
 

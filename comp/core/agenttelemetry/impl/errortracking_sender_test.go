@@ -232,17 +232,16 @@ func errorLog(_ string) errortracking.ErrorLog {
 
 // newTestAtelMinimal builds a minimal *atel just enough for the
 // per-record entry-point tests: enabled=true, sender wired, cancelCtx
-// initialised, errLogsCh present. Does NOT spawn the flush goroutine;
-// tests that need that lifecycle call atel.runErrorLogsFlush themselves
-// (see TestFlushJob_DrainsOnStop).
+// initialised, errLogsCh present. Tests drive flushErrortracking
+// directly rather than scheduling it via the runner.
 func newTestAtelMinimal(t *testing.T, sndr sender, bufSize int) *atel {
 	t.Helper()
 	a := &atel{
 		enabled:              true,
+		errortrackingEnabled: true,
 		logComp:              logmock.New(t),
 		sender:               sndr,
 		errLogsCh:            make(chan errortracking.ErrorLog, bufSize),
-		errLogsBatchSize:     defaultErrLogsBatchSize,
 		errLogsFlushInterval: defaultErrLogsFlushInterval,
 		shutdownDrainTimeout: 5 * time.Second,
 	}
@@ -274,8 +273,7 @@ func TestSubmitErrorRecord_AcceptsRecord_PCZero(t *testing.T) {
 
 	a.SubmitErrorRecord(errorLog("from-external"))
 
-	batch := make([]errortracking.ErrorLog, 0, a.errLogsBatchSize)
-	a.drainAndSend(context.Background(), &batch)
+	a.flushErrortracking(context.Background())
 
 	assert.Len(t, sm.capturedLogs(), 1,
 		"PC=0 record must be enqueued and flushed to the sender")
@@ -328,22 +326,23 @@ func TestSubmitErrorRecord_NonBlocking_DropsOnOverflow(t *testing.T) {
 		"both overflow submits MUST be counted as drops")
 }
 
-// TestDrainAndSend_BatchesAndDispatches: drainAndSend, called once,
-// must drain the channel in batches of defaultErrLogsBatchSize and dispatch
-// each via sender.sendLogsTypedBatch.
-func TestDrainAndSend_BatchesAndDispatches(t *testing.T) {
+// TestFlushErrortracking_DrainsWholeBufferInOneCall: flushErrortracking
+// drains every record currently buffered and dispatches them as ONE
+// HTTP call. The pre-batchSize-removal behaviour split a large drain
+// across multiple sendLogsTypedBatch invocations; after T3 the contract
+// is "the entire flush is a single typed-logs POST" regardless of
+// in-channel count.
+func TestFlushErrortracking_DrainsWholeBufferInOneCall(t *testing.T) {
 	sm := &senderMock{}
-	a := newTestAtelMinimal(t, sm, defaultErrLogsBatchSize*3)
+	const total = 250
+	a := newTestAtelMinimal(t, sm, total)
 	defer a.cancel()
 
-	// Enqueue 2.5 batches' worth of records.
-	total := defaultErrLogsBatchSize*2 + defaultErrLogsBatchSize/2
 	for i := 0; i < total; i++ {
 		a.SubmitErrorRecord(errorLog(fmt.Sprintf("r-%d", i)))
 	}
 
-	batch := make([]errortracking.ErrorLog, 0, defaultErrLogsBatchSize)
-	a.drainAndSend(context.Background(), &batch)
+	a.flushErrortracking(context.Background())
 
 	got := sm.capturedLogs()
 	require.Len(t, got, total, "every enqueued record must be dispatched in one drain pass")
@@ -355,23 +354,28 @@ func TestDrainAndSend_BatchesAndDispatches(t *testing.T) {
 	}
 }
 
-// TestFlushJob_DrainsOnStop: the flush goroutine, on cancelCtx.Done,
-// performs one final drain so records buffered just before stop are
-// still dispatched. Test by spawning runErrorLogsFlush, enqueueing,
-// cancelling, and waiting on errLogsFlushWG.
-func TestFlushJob_DrainsOnStop(t *testing.T) {
+// TestFlushErrortracking_FinalDrain: records enqueued shortly before
+// shutdown must be picked up by the final flushErrortracking call in
+// atel.stop. The atel.stop ordering is:
+//
+//  1. submitter/bouncer slots cleared (producers stop)
+//  2. a.cancel() + runner.stop() (in-flight tick completes/cancels)
+//  3. flushErrortracking with a fresh background-derived ctx
+//
+// This test exercises step 3 directly: records are buffered and the
+// final drain dispatches them as one batch.
+func TestFlushErrortracking_FinalDrain(t *testing.T) {
 	sm := &senderMock{}
 	a := newTestAtelMinimal(t, sm, 16)
-
-	a.errLogsFlushWG.Add(1)
-	go a.runErrorLogsFlush()
+	defer a.cancel()
 
 	a.SubmitErrorRecord(errorLog("pending-1"))
 	a.SubmitErrorRecord(errorLog("pending-2"))
 	a.SubmitErrorRecord(errorLog("pending-3"))
 
-	a.cancel()
-	a.errLogsFlushWG.Wait()
+	shutdownCtx, cancelDrain := context.WithTimeout(context.Background(), a.shutdownDrainTimeout)
+	defer cancelDrain()
+	a.flushErrortracking(shutdownCtx)
 
 	got := sm.capturedLogs()
 	require.Len(t, got, 3, "all pending records must be flushed on stop")
@@ -409,23 +413,27 @@ func (s *ctxObservingSender) sendLogsTypedBatch(ctx context.Context, logs []Log)
 	return s.senderMock.sendLogsTypedBatch(ctx, logs)
 }
 
-// TestFlushJob_ShutdownDrainUsesFreshContext: the cancel-branch drain
+// TestFlushErrortracking_ShutdownCtxIsLive: the shutdown-path drain
 // must dispatch with a fresh background-derived context that has a
-// timeout — not the already-canceled a.cancelCtx — so HTTP POSTs in the
-// final drain are not pre-canceled. Regression for louis-cqrl's
-// "shutdown drain sends with an already-canceled context" thread on
-// PR #50607.
-func TestFlushJob_ShutdownDrainUsesFreshContext(t *testing.T) {
+// timeout — not the already-canceled a.cancelCtx — so HTTP POSTs in
+// the final drain are not pre-canceled. Regression for the "shutdown
+// drain sends with an already-canceled context" review thread.
+//
+// Models atel.stop's ordering: cancel lifecycle context, then drive
+// the final flush with a derived ctx that has a bounded timeout.
+func TestFlushErrortracking_ShutdownCtxIsLive(t *testing.T) {
 	sm := &ctxObservingSender{}
 	a := newTestAtelMinimal(t, sm, 16)
 
-	a.errLogsFlushWG.Add(1)
-	go a.runErrorLogsFlush()
-
 	a.SubmitErrorRecord(errorLog("pre-stop"))
 
+	// Simulate the lifecycle cancel; the shutdown-drain ctx is built
+	// from background, NOT from a.cancelCtx.
 	a.cancel()
-	a.errLogsFlushWG.Wait()
+
+	shutdownCtx, cancelDrain := context.WithTimeout(context.Background(), a.shutdownDrainTimeout)
+	defer cancelDrain()
+	a.flushErrortracking(shutdownCtx)
 
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
