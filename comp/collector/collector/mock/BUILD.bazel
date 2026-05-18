@@ -1,13 +1,2 @@
-load("@rules_go//go:def.bzl", "go_library")
-
-go_library(
-    name = "mock",
-    srcs = ["mock.go"],
-    importpath = "github.com/DataDog/datadog-agent/comp/collector/collector/mock",
-    visibility = ["//visibility:public"],
-    tags = ["manual"],
-    deps = [
-        "//comp/collector/collector/impl",
-        "//pkg/util/fxutil",
-    ],
-)
+# gazelle:ignore
+# Not yet migrated to Bazel. Depends on comp/collector/collector/impl.
