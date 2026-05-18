@@ -142,6 +142,44 @@ func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 	demux.Stop(false)
 }
 
+func TestFlushToSerializerDrainsCheckAggregatorOnlyWhenRequested(t *testing.T) {
+	opts := demuxTestOptions()
+	deps := createDemultiplexerAgentTestDeps(t)
+	demux := InitAndStartAgentDemultiplexer(
+		deps.Log,
+		NewForwarderTest(deps.Log),
+		deps.OrchestratorFwd,
+		opts,
+		deps.EventPlatform,
+		deps.HaAgent,
+		deps.Compressor,
+		deps.Tagger,
+		deps.FilterList,
+		"",
+	)
+	s := &MockSerializerSketch{}
+	s.On("AreSeriesEnabled").Return(true)
+	s.On("AreSketchesEnabled").Return(true)
+	s.On("SendServiceChecks", mock.Anything).Return(nil)
+	demux.aggregator.serializer = s
+	demux.sharedSerializer = s
+
+	openSeries := makeSerie(1, 100, 42)
+	openSketch := makeSketchSeries(1, 100, 10)
+	demux.aggregator.checkAggregator.Submit(checkID1, openSeries, 100, &captureSink{})
+	demux.aggregator.checkAggregator.SubmitSketch(checkID1, openSketch, 100, &captureSketchSink{})
+
+	demux.ForceFlushToSerializer(time.Unix(101, 0), true)
+	require.NotContains(t, s.series, openSeries, "manual flush must not drain an incomplete check aggregation window")
+	require.NotContains(t, s.sketches, openSketch, "manual flush must not drain an incomplete sketch aggregation window")
+
+	demux.flushToSerializer(time.Unix(102, 0), true, false, true)
+
+	require.Contains(t, s.series, openSeries, "final flush must drain the open partial series window")
+	require.Contains(t, s.sketches, openSketch, "final flush must drain the open partial sketch window")
+	demux.Stop(false)
+}
+
 func TestMetricSampleTypeConversion(t *testing.T) {
 	require := require.New(t)
 

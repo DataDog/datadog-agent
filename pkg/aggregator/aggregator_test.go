@@ -97,6 +97,35 @@ func versionTags() []string {
 	return tags
 }
 
+func TestFlushSeriesAndSketchesDrainsCheckAggregatorOnFinalFlush(t *testing.T) {
+	initF()
+	agg := getAggregator(t)
+	agg.checkSamplers = make(map[checkid.ID]*CheckSampler)
+
+	seriesSink := &captureSink{}
+	sketchesSink := &captureSketchSink{}
+	openSeries := makeSerie(1, 0, 42)
+	openSketch := makeSketchSeries(1, 0, 10)
+	agg.checkAggregator.Submit(checkID1, openSeries, 0, seriesSink)
+	agg.checkAggregator.SubmitSketch(checkID1, openSketch, 0, sketchesSink)
+	require.Empty(t, seriesSink.series)
+	require.Empty(t, sketchesSink.sketches)
+
+	agg.flushSeriesAndSketches(flushTrigger{
+		trigger: trigger{
+			time:                 time.Unix(1, 0),
+			drainCheckAggregator: true,
+		},
+		seriesSink:   seriesSink,
+		sketchesSink: sketchesSink,
+	})
+
+	require.Contains(t, seriesSink.series, openSeries, "final flush must emit the open partial series window")
+	require.Contains(t, sketchesSink.sketches, openSketch, "final flush must emit the open partial sketch window")
+	assert.Empty(t, agg.checkAggregator.windows)
+	assert.Empty(t, agg.checkAggregator.sketchWindows)
+}
+
 func TestRegisterCheckSampler(t *testing.T) {
 	// this test IS USING globals
 	// -

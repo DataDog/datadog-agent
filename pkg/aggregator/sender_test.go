@@ -404,6 +404,36 @@ func TestSenderPopulatingMetricSampleSource(t *testing.T) {
 	}
 }
 
+func TestSenderPopulatingHistogramBucketSource(t *testing.T) {
+	// this test not using anything global
+	// -
+
+	tests := []struct {
+		name                 string
+		checkID              checkid.ID
+		expectedMetricSource metrics.MetricSource
+	}{
+		{
+			name:                 "unrecognized checkID should have MetricSourceUnknown",
+			checkID:              checkID1,
+			expectedMetricSource: metrics.MetricSourceUnknown,
+		},
+		{
+			name:                 "checkid openmetrics:1 should have MetricSourceOpenmetrics",
+			checkID:              "openmetrics:1",
+			expectedMetricSource: metrics.MetricSourceOpenmetrics,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := initSender(tt.checkID, "")
+			s.sender.OpenmetricsBucket("metric.bucket", 42, 1, 2, true, "testhostname", nil, false)
+			shb := (<-s.itemChan).(*senderHistogramBucket)
+			assert.Equal(t, tt.expectedMetricSource, shb.bucket.Source)
+		})
+	}
+}
+
 func TestGetSenderAddCheckCustomTagsService(t *testing.T) {
 	// this test not using anything global
 	// -

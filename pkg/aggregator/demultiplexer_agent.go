@@ -357,7 +357,7 @@ func (d *AgentDemultiplexer) flushLoop() {
 		case trigger, ok := <-d.stopChan:
 			if ok && trigger != nil {
 				// Final flush requested
-				d.flushToSerializer(trigger.time, trigger.waitForSerializer, trigger.forceFlushAll)
+				d.flushToSerializer(trigger.time, trigger.waitForSerializer, trigger.forceFlushAll, trigger.drainCheckAggregator)
 				if trigger.blockChan != nil {
 					trigger.blockChan <- struct{}{}
 				}
@@ -365,13 +365,13 @@ func (d *AgentDemultiplexer) flushLoop() {
 			return
 		// manual flush sequence
 		case trigger := <-d.flushChan:
-			d.flushToSerializer(trigger.time, trigger.waitForSerializer, trigger.forceFlushAll)
+			d.flushToSerializer(trigger.time, trigger.waitForSerializer, trigger.forceFlushAll, trigger.drainCheckAggregator)
 			if trigger.blockChan != nil {
 				trigger.blockChan <- struct{}{}
 			}
 		// automatic flush sequence
 		case t := <-flushTicker:
-			d.flushToSerializer(t, false, false)
+			d.flushToSerializer(t, false, false, false)
 		}
 	}
 }
@@ -390,10 +390,11 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 	// stop all automatic flush & the mainloop,
 	if flush {
 		trigger := trigger{
-			time:              time.Now(),
-			blockChan:         make(chan struct{}),
-			waitForSerializer: flush,
-			forceFlushAll:     forceFlushAll,
+			time:                 time.Now(),
+			blockChan:            make(chan struct{}),
+			waitForSerializer:    flush,
+			forceFlushAll:        forceFlushAll,
+			drainCheckAggregator: true,
 		}
 		timeoutStart := time.Now()
 
@@ -472,7 +473,7 @@ func (d *AgentDemultiplexer) ForceFlushToSerializer(start time.Time, waitForSeri
 // If one day a better (faster?) solution is needed, we could either consider:
 // - to have an implementation of SendIterableSeries listening on multiple sinks in parallel, or,
 // - to have a thread-safe implementation of the underlying `util.BufferedChan`.
-func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerializer bool, forceFlushAll bool) {
+func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerializer bool, forceFlushAll bool, drainCheckAggregator bool) {
 	d.m.RLock()
 	defer d.m.RUnlock()
 
@@ -512,10 +513,11 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 			if d.aggregator != nil {
 				t := flushTrigger{
 					trigger: trigger{
-						time:              start,
-						blockChan:         make(chan struct{}),
-						waitForSerializer: waitForSerializer,
-						forceFlushAll:     forceFlushAll,
+						time:                 start,
+						blockChan:            make(chan struct{}),
+						waitForSerializer:    waitForSerializer,
+						forceFlushAll:        forceFlushAll,
+						drainCheckAggregator: drainCheckAggregator,
 					},
 					sketchesSink: sketchesSink,
 					seriesSink:   seriesSink,

@@ -577,8 +577,10 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 		}
 
 		for _, sk := range sketches {
-			// Sketches are not windowed by this layer (Phase 1 scope).
-			sketchesSink.Append(sk)
+			// Sketches go through a parallel sketch-windowing path that
+			// merges via *quantile.Sketch.Merge on close (lossless for
+			// quantile correctness; ~1× wire cost vs N× without merge).
+			agg.checkAggregator.SubmitSketch(checkId, sk, now, sketchesSink)
 		}
 
 		if checkSampler.deregistered {
@@ -591,6 +593,7 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 	// have passed and emit them. Windows still within their deadline
 	// remain open for accumulation in subsequent flush cycles.
 	agg.checkAggregator.FlushExpired(now, seriesSink)
+	agg.checkAggregator.FlushExpiredSketches(now, sketchesSink)
 }
 
 // timeToSeconds converts a time.Time to seconds-since-epoch as a float,
@@ -693,6 +696,9 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 
 func (agg *BufferedAggregator) flushSeriesAndSketches(trigger flushTrigger) {
 	agg.getSeriesAndSketches(trigger.time, trigger.seriesSink, trigger.sketchesSink)
+	if trigger.drainCheckAggregator {
+		agg.checkAggregator.Drain(trigger.seriesSink, trigger.sketchesSink)
+	}
 	agg.appendDefaultSeries(trigger.time, trigger.seriesSink)
 }
 

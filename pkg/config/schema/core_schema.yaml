@@ -11558,6 +11558,23 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+  check_aggregator:
+    node_type: section
+    type: object
+    properties:
+      max_series_per_window:
+        node_type: setting
+        type: number
+        default: 128
+        tags:
+        - golang_type:int
+      window_duration:
+        node_type: setting
+        type: number
+        default: 15s
+        format: duration
+        tags:
+        - golang_type:duration
   check_sampler_allow_sketch_bucket_reset:
     node_type: setting
     type: boolean
