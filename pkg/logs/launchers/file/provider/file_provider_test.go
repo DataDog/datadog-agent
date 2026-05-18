@@ -800,6 +800,90 @@ func TestContainerPathsAreCorrectlyIgnored(t *testing.T) {
 	assert.Len(t, files, 2) // 1 file from k8s source, 1 file from regular file source.
 }
 
+func TestIgnoreOlder_Wildcard(t *testing.T) {
+	fs := newTempFs(t)
+	now := time.Now()
+
+	// Two files: one recent (30m ago) and one old (2h ago).
+	fs.createFileWithTime("recent.log", now.Add(-30*time.Minute))
+	fs.createFileWithTime("old.log", now.Add(-2*time.Hour))
+
+	cfg := configmock.New(t)
+	cfg.Set("logs_config.ignore_older", time.Hour, configmodel.SourceCLI)
+
+	fileProvider := NewFileProvider(10, WildcardUseFileName)
+	source := sources.NewLogSource("wildcard", &config.LogsConfig{
+		Type: config.FileType,
+		Path: fs.path("*.log"),
+	})
+	files, err := fileProvider.CollectFiles(source)
+	assert.NoError(t, err)
+	assert.Len(t, files, 1, "old.log should be filtered out, only recent.log should remain")
+	assert.Equal(t, fs.path("recent.log"), files[0].Path)
+}
+
+func TestIgnoreOlder_ExplicitPath_Old(t *testing.T) {
+	fs := newTempFs(t)
+	now := time.Now()
+
+	// Single explicit-path file that is 2h old; with ignore_older = 1h it should be skipped.
+	fs.createFileWithTime("foo.log", now.Add(-2*time.Hour))
+
+	cfg := configmock.New(t)
+	cfg.Set("logs_config.ignore_older", time.Hour, configmodel.SourceCLI)
+
+	fileProvider := NewFileProvider(10, WildcardUseFileName)
+	source := sources.NewLogSource("explicit", &config.LogsConfig{
+		Type: config.FileType,
+		Path: fs.path("foo.log"),
+	})
+	files, err := fileProvider.CollectFiles(source)
+	assert.NoError(t, err)
+	assert.Len(t, files, 0, "explicit-path file older than ignore_older should be skipped")
+}
+
+func TestIgnoreOlder_ExplicitPath_Recent(t *testing.T) {
+	fs := newTempFs(t)
+	now := time.Now()
+
+	// Single explicit-path file that is 30m old; with ignore_older = 1h it should still tail.
+	fs.createFileWithTime("foo.log", now.Add(-30*time.Minute))
+
+	cfg := configmock.New(t)
+	cfg.Set("logs_config.ignore_older", time.Hour, configmodel.SourceCLI)
+
+	fileProvider := NewFileProvider(10, WildcardUseFileName)
+	source := sources.NewLogSource("explicit", &config.LogsConfig{
+		Type: config.FileType,
+		Path: fs.path("foo.log"),
+	})
+	files, err := fileProvider.CollectFiles(source)
+	assert.NoError(t, err)
+	assert.Len(t, files, 1)
+	assert.Equal(t, fs.path("foo.log"), files[0].Path)
+}
+
+func TestIgnoreOlder_Disabled(t *testing.T) {
+	fs := newTempFs(t)
+	now := time.Now()
+
+	// File is very old, but ignore_older is zero (the default) so it should still tail.
+	fs.createFileWithTime("ancient.log", now.Add(-30*24*time.Hour))
+
+	cfg := configmock.New(t)
+	cfg.Set("logs_config.ignore_older", time.Duration(0), configmodel.SourceCLI)
+
+	fileProvider := NewFileProvider(10, WildcardUseFileName)
+	source := sources.NewLogSource("wildcard", &config.LogsConfig{
+		Type: config.FileType,
+		Path: fs.path("*.log"),
+	})
+	files, err := fileProvider.CollectFiles(source)
+	assert.NoError(t, err)
+	assert.Len(t, files, 1, "ignore_older=0 should disable filtering")
+	assert.Equal(t, fs.path("ancient.log"), files[0].Path)
+}
+
 func TestCollectFiles_RecursiveGlobWithExcludePaths(t *testing.T) {
 	fs := newTempFs(t)
 	fs.mkDir("alpha")

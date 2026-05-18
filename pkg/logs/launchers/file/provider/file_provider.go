@@ -270,9 +270,16 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 // with ordering defined by 'wildcardOrder'
 func (p *FileProvider) CollectFiles(source *sources.LogSource) ([]*tailer.File, error) {
 	path := source.Config.Path
-	_, err := opener.StatLogFile(path)
+	stat, err := opener.StatLogFile(path)
 	switch {
 	case err == nil:
+		// Explicit single-path source: honor logs_config.ignore_older if set.
+		// We log at info level here so users see why a file they configured
+		// explicitly is not being tailed.
+		if ignoreOlder := getIgnoreOlder(); ignoreOlder > 0 && isFileOlderThan(stat.ModTime(), ignoreOlder) {
+			log.Infof("Skipping file %q: modification time (%s) is older than logs_config.ignore_older (%s)", path, stat.ModTime().Format(time.RFC3339), ignoreOlder)
+			return nil, nil
+		}
 		return []*tailer.File{
 			tailer.NewFile(path, source, false),
 		}, nil
@@ -287,6 +294,19 @@ func (p *FileProvider) CollectFiles(source *sources.LogSource) ([]*tailer.File, 
 	default:
 		return nil, fmt.Errorf("cannot read file %s: %s", path, err)
 	}
+}
+
+// getIgnoreOlder returns the configured logs_config.ignore_older duration.
+// A return value of 0 means the filter is disabled.
+func getIgnoreOlder() time.Duration {
+	return pkgconfigsetup.Datadog().GetDuration("logs_config.ignore_older")
+}
+
+// isFileOlderThan reports whether the given modification time is older than
+// `now - ignoreOlder`. The current time is read fresh on each call so the
+// caller does not have to plumb a clock through.
+func isFileOlderThan(modTime time.Time, ignoreOlder time.Duration) bool {
+	return time.Since(modTime) > ignoreOlder
 }
 
 // filesMatchingSource returns all the files matching the source path pattern.
@@ -330,11 +350,21 @@ func (p *FileProvider) filesMatchingSource(source *sources.LogSource) ([]*tailer
 		}
 	}
 
+	ignoreOlder := getIgnoreOlder()
+
 	files := make([]*tailer.File, 0, len(paths))
 	for _, path := range paths {
-		if excludedPaths[path] == 0 {
-			files = append(files, tailer.NewFile(path, source, true))
+		if excludedPaths[path] != 0 {
+			continue
 		}
+		if ignoreOlder > 0 {
+			statRes, statErr := os.Stat(path)
+			if statErr == nil && isFileOlderThan(statRes.ModTime(), ignoreOlder) {
+				log.Debugf("Skipping wildcard match %q: modification time (%s) is older than logs_config.ignore_older (%s)", path, statRes.ModTime().Format(time.RFC3339), ignoreOlder)
+				continue
+			}
+		}
+		files = append(files, tailer.NewFile(path, source, true))
 	}
 
 	return files, nil

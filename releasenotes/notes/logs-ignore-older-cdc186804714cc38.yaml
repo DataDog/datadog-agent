@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Adds a new ``logs_config.ignore_older`` configuration option (a
+    Go ``time.Duration``, e.g. ``24h``). When set to a non-zero value,
+    the logs file scanner skips any file whose modification time is
+    older than ``now - ignore_older`` and does not start a tailer for
+    it. The filter applies to both wildcard sources (e.g.
+    ``path: /var/log/*.log``) and explicit single-path sources. The
+    default value is ``0``, which disables the filter and preserves
+    existing behavior.
