@@ -30,6 +30,7 @@ type Monitor interface {
 // WindowsMonitor is responsible for aggregating and emitting metrics based on
 // batches of HTTP transactions received from the driver interface
 type WindowsMonitor struct {
+	cfg        *config.Config
 	di         *http.HttpDriverInterface
 	hei        *http.EtwInterface
 	telemetry  *http.Telemetry
@@ -80,6 +81,7 @@ func NewWindowsMonitor(c *config.Config, dh driver.Handle) (_ Monitor, err error
 	}
 
 	return &WindowsMonitor{
+		cfg:        c,
 		di:         di,
 		hei:        hei,
 		telemetry:  telemetry,
@@ -160,7 +162,8 @@ func (m *WindowsMonitor) GetHTTPStats() map[protocols.ProtocolType]interface{} {
 // GetUSMStats returns the current state of the USM monitor
 func (m *WindowsMonitor) GetUSMStats() map[string]any {
 	return map[string]any{
-		"state": usmstate.Get(),
+		"state":                         usmstate.Get(),
+		"discovery_service_map_enabled": m.cfg.DiscoveryServiceMapEnabled,
 	}
 }
 
