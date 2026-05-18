@@ -7,10 +7,12 @@ package resolver
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -209,6 +211,59 @@ func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	updateAdditionalEndpoints(resolver, "additional_endpoints", mockConfig, log)
 
 	assertKeys(t, []string{"key1", "key4", "key3"}, resolver)
+}
+
+// TestUpdateAdditionalEndpointsPreservesEncName verifies that secret rotation
+// does not change the stable enc_-prefixed name of an ENC-backed additional
+// endpoint key. Before the fix, updateAdditionalEndpoints passed nil for the
+// raw-config view so MakeNamedEndpoints only saw resolved key material and
+// regenerated the name as idx_..., breaking persisted enc_ references.
+func TestUpdateAdditionalEndpointsPreservesEncName(t *testing.T) {
+	const (
+		endpoint   = "https://app.datadoghq.com"
+		setting    = "additional_endpoints"
+		initialKey = "initial_key_material"
+		rotatedKey = "rotated_key_material"
+	)
+
+	// YAML load populates the file layer with the raw ENC[...] handle,
+	// mirroring how the agent reads datadog.yaml before secret resolution.
+	mockCfg := configmock.NewFromYAML(t, `
+additional_endpoints:
+  "https://app.datadoghq.com":
+  - ENC[my_api_handle]
+`)
+	// Secret resolution writes the resolved material into the secrets layer.
+	mockCfg.Set(setting, map[string]interface{}{
+		endpoint: []interface{}{initialKey},
+	}, model.SourceSecret)
+
+	// Build the initial resolver the same way GetEndpointsFromConfig does:
+	// resolved view for key material, raw view to preserve the enc_ name.
+	apiKeysByDomain := utils.MakeNamedEndpoints(
+		mockCfg.GetStringMapStringSlice(setting),
+		utils.RawStringMapStringSlice(mockCfg, setting),
+		setting,
+	)
+	resolver, err := NewSingleDomainResolver(endpoint, apiKeysByDomain[endpoint])
+	require.NoError(t, err)
+
+	initialName, ok := resolver.GetAPIKeyName(0)
+	require.True(t, ok)
+	require.True(t, strings.HasPrefix(initialName, "enc_"), "expected enc_ prefix before rotation, got %q", initialName)
+
+	// Rotate: file layer (ENC[...] handle) is unchanged; only the secrets
+	// layer is updated with the new key material.
+	mockCfg.Set(setting, map[string]interface{}{
+		endpoint: []interface{}{rotatedKey},
+	}, model.SourceSecret)
+
+	log := logmock.New(t)
+	updateAdditionalEndpoints(resolver, setting, mockCfg, log)
+
+	rotatedName, ok := resolver.GetAPIKeyName(0)
+	require.True(t, ok)
+	assert.Equal(t, initialName, rotatedName, "ENC-backed key name must not change on secret rotation")
 }
 
 func TestScrubKeys(t *testing.T) {
