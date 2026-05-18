@@ -445,3 +445,30 @@ func TestFlushErrortracking_ShutdownCtxIsLive(t *testing.T) {
 	assert.True(t, sm.ctxDeadlineOn[0],
 		"shutdown-drain ctx must carry the bounded timeout deadline")
 }
+
+// BenchmarkSymbolizeStack measures the sender-side cost of walking the
+// captured PCs and producing the multi-line "file:line\tfunc"
+// stack_trace string the dd-go intake schema expects. Symbolization is
+// deferred from log-time to flush-time on purpose — runtime.CallersFrames
+// performs symbol-table lookups — so this is the only place that cost is
+// paid. The bench captures a real on-stack PC list so the symbol-table
+// entries are valid and the work is representative.
+func BenchmarkSymbolizeStack(b *testing.B) {
+	var pcs [errortracking.MaxStackFrames]uintptr
+	n := runtime.Callers(1, pcs[:])
+	in := errortracking.ErrorLog{
+		Time:   time.Now(),
+		PC:     pcs[0],
+		PCs:    pcs,
+		PCsLen: n,
+	}
+	var sink string
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sink = symbolizeStack(in)
+	}
+	// Defeat dead-store elimination so the compiler cannot prove sink is
+	// unused and elide the call.
+	runtime.KeepAlive(sink)
+}
