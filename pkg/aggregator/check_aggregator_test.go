@@ -68,7 +68,7 @@ func TestOpenWindowForNewContext_FirstAndSecondSubmit(t *testing.T) {
 
 	require.Len(t, ca.windows, 1, "second submit on same context should not open a new window")
 	window := windowForKey(t, ca, testCheckID, 1)
-	require.Len(t, window.series, 2, "both series should be buffered in the open window")
+	require.Equal(t, 2, window.count, "both series should be counted in the open window")
 }
 
 // TestSingleAcceptingWindowPerContext: distinct contexts get distinct
@@ -105,7 +105,6 @@ func TestDropEmptyWindowOnDeadline(t *testing.T) {
 	// case where every buffered series was somehow removed).
 	key := windowKey{checkID: testCheckID, contextKey: ckey.ContextKey(1), name: "test.metric", mType: metrics.APIGaugeType}
 	ca.windows[key] = &aggregationWindow{
-		series:   nil,
 		openedAt: 0,
 		deadline: 15,
 	}
@@ -168,8 +167,8 @@ func TestSubmitClosesExpiredWindowBeforeAppending(t *testing.T) {
 	// s2 should now be in a fresh window with deadline=30.
 	require.Len(t, ca.windows, 1)
 	window := windowForKey(t, ca, testCheckID, 1)
-	require.Len(t, window.series, 1)
-	assert.Same(t, s2, window.series[0])
+	require.Equal(t, 1, window.count)
+	assert.Same(t, s2, window.singleton)
 	assert.Equal(t, float64(30), window.deadline)
 }
 
@@ -185,8 +184,26 @@ func TestIncrementDropCountWhenWindowFull(t *testing.T) {
 	ca.Submit(testCheckID, makeSerie(1, 2, 3), sink) // exceeds cap
 
 	window := windowForKey(t, ca, testCheckID, 1)
-	assert.Len(t, window.series, 2, "buffer should be capped at 2 series")
+	assert.Equal(t, 2, window.count, "window should be capped at 2 series")
 	assert.Equal(t, 1, window.droppedCount, "third submit should increment drop counter")
+}
+
+func TestWindowAggregatesIncrementallyWithoutRetainingEverySeries(t *testing.T) {
+	ca := newCheckAggregator(15*time.Second, 128)
+	sink := &captureSink{}
+
+	for i := 0; i < 10; i++ {
+		ca.Submit(testCheckID, makeSerie(1, float64(i), float64(i)), sink)
+	}
+
+	window := windowForKey(t, ca, testCheckID, 1)
+	require.Equal(t, 10, window.count)
+	assert.Nil(t, window.singleton, "multi-sample windows should not retain the singleton input")
+	assert.Equal(t, float64(9), window.latestPoint.Value)
+
+	ca.FlushExpired(20, sink)
+	require.Len(t, sink.series, 1)
+	assert.Equal(t, float64(9), sink.series[0].Points[0].Value)
 }
 
 // TestFlushExpiredMixedDeadlines: FlushExpired should only close windows
@@ -284,7 +301,7 @@ func TestSketchSubmit_OpensAndAppendsWindow(t *testing.T) {
 	ca.SubmitSketch(testCheckID, makeSketchSeries(1, 1, 20), sink)
 	assert.Len(t, ca.sketchWindows, 1, "second submit on same context should append, not open a new window")
 	key := windowKey{checkID: testCheckID, contextKey: ckey.ContextKey(1), name: "test.distribution"}
-	assert.Len(t, ca.sketchWindows[key].sketches, 2, "both sketches buffered")
+	assert.Equal(t, 2, ca.sketchWindows[key].count, "both sketches counted")
 }
 
 // TestSketchSingletonPassThrough: a sketch window with exactly one
@@ -303,8 +320,8 @@ func TestSketchSingletonPassThrough(t *testing.T) {
 }
 
 // TestSketchMergeQuantiles: when multiple sketches in the same window close
-// together, mergeSketches produces one merged sketch with quantiles matching
-// a reference sketch built from the same inputs.
+// together, the rolling sketch state produces one merged sketch with quantiles
+// matching a reference sketch built from the same inputs.
 func TestSketchMergeQuantiles(t *testing.T) {
 	ca := newCheckAggregator(15*time.Second, 128)
 	sink := &captureSketchSink{}
@@ -348,7 +365,6 @@ func TestSketchDropEmptyWindow(t *testing.T) {
 
 	key := windowKey{checkID: testCheckID, contextKey: ckey.ContextKey(1), name: "test.distribution"}
 	ca.sketchWindows[key] = &sketchAggregationWindow{
-		sketches: nil,
 		openedAt: 0,
 		deadline: 15,
 	}
@@ -388,8 +404,28 @@ func TestSketchDropCountWhenWindowFull(t *testing.T) {
 
 	key := windowKey{checkID: testCheckID, contextKey: ckey.ContextKey(1), name: "test.distribution"}
 	window := ca.sketchWindows[key]
-	assert.Len(t, window.sketches, 2, "buffer capped at 2 sketches")
+	assert.Equal(t, 2, window.count, "window capped at 2 sketches")
 	assert.Equal(t, 1, window.droppedCount, "third submit increments drop counter")
+}
+
+func TestSketchWindowMergesIncrementallyWithoutRetainingEverySketchSeries(t *testing.T) {
+	ca := newCheckAggregator(15*time.Second, 128)
+	sink := &captureSketchSink{}
+
+	for i := 0; i < 10; i++ {
+		ca.SubmitSketch(testCheckID, makeSketchSeries(1, int64(i), float64(i+1)), sink)
+	}
+
+	key := windowKey{checkID: testCheckID, contextKey: ckey.ContextKey(1), name: "test.distribution"}
+	window := ca.sketchWindows[key]
+	require.Equal(t, 10, window.count)
+	assert.Nil(t, window.singleton, "multi-sample sketch windows should not retain the singleton input")
+	assert.Equal(t, int64(9), window.latestTs)
+
+	ca.FlushExpiredSketches(20, sink)
+	require.Len(t, sink.sketches, 1)
+	require.Len(t, sink.sketches[0].Points, 1)
+	assert.Equal(t, int64(9), sink.sketches[0].Points[0].Ts)
 }
 
 // TestDrainEmitsBothSeriesAndSketches: Drain must close every accepting

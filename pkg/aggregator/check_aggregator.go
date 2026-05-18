@@ -53,21 +53,30 @@ type windowKey struct {
 	mType      metrics.APIMetricType
 }
 
-// aggregationWindow buffers CommittedSeries (CheckSampler's per-commit
-// *Serie output) for a single (check_id, context) until the deadline
-// is reached.
+// aggregationWindow maintains rolling Series state for a single
+// (check_id, context, metric identity) until the deadline is reached.
 type aggregationWindow struct {
-	series       []*metrics.Serie
-	openedAt     float64 // seconds-since-epoch, set from first series' point timestamp
-	deadline     float64 // openedAt + windowDuration.Seconds()
-	droppedCount int     // count of series rejected due to max_series_per_window
+	count        int
+	singleton    *metrics.Serie
+	latestSeries *metrics.Serie
+	latestPoint  metrics.Point
+	total        float64
+	pointCount   int
+	min          float64
+	max          float64
+	openedAt     float64
+	deadline     float64
+	droppedCount int
 }
 
-// sketchAggregationWindow buffers per-commit SketchSeries for a single
-// (check_id, context) until the deadline is reached. On close, the
-// underlying quantile sketches are merged via *quantile.Sketch.Merge.
+// sketchAggregationWindow maintains a rolling merged SketchSeries for a
+// single (check_id, context, metric identity) until the deadline is reached.
 type sketchAggregationWindow struct {
-	sketches     []*metrics.SketchSeries
+	count        int
+	singleton    *metrics.SketchSeries
+	metadata     *metrics.SketchSeries
+	merged       *quantile.Sketch
+	latestTs     int64
 	openedAt     float64
 	deadline     float64
 	droppedCount int
@@ -150,20 +159,139 @@ func (ca *CheckAggregator) Submit(checkID checkid.ID, serie *metrics.Serie, sink
 
 	if !exists {
 		// OpenWindowForNewContext
-		ca.windows[key] = &aggregationWindow{
-			series:   []*metrics.Serie{serie},
-			openedAt: incomingTs,
-			deadline: incomingTs + ca.windowDuration.Seconds(),
-		}
+		ca.windows[key] = newAggregationWindow(serie, incomingTs, ca.windowDuration.Seconds())
 		return
 	}
 
 	// AppendSeriesToOpenWindow / IncrementDropCountWhenWindowFull
-	if len(window.series) >= ca.maxSeriesPerWindow {
+	if window.count >= ca.maxSeriesPerWindow {
 		window.droppedCount++
 		return
 	}
-	window.series = append(window.series, serie)
+	window.add(serie)
+}
+
+func newAggregationWindow(serie *metrics.Serie, incomingTs float64, durationSeconds float64) *aggregationWindow {
+	w := &aggregationWindow{
+		count:     1,
+		singleton: serie,
+		openedAt:  incomingTs,
+		deadline:  incomingTs + durationSeconds,
+	}
+	w.addPoints(serie)
+	return w
+}
+
+func (w *aggregationWindow) add(serie *metrics.Serie) {
+	w.count++
+	if w.count > 1 {
+		w.singleton = nil
+	}
+	w.addPoints(serie)
+}
+
+func (w *aggregationWindow) addPoints(serie *metrics.Serie) {
+	for _, p := range serie.Points {
+		if w.pointCount == 0 {
+			w.min = p.Value
+			w.max = p.Value
+			w.latestSeries = serie
+			w.latestPoint = p
+		}
+		if p.Value < w.min {
+			w.min = p.Value
+		}
+		if p.Value > w.max {
+			w.max = p.Value
+		}
+		if p.Ts >= w.latestPoint.Ts {
+			w.latestSeries = serie
+			w.latestPoint = p
+		}
+		w.total += p.Value
+		w.pointCount++
+	}
+}
+
+func (w *aggregationWindow) last() *metrics.Serie {
+	return cloneSerieWithSinglePoint(w.latestSeries, w.latestPoint.Ts, w.latestPoint.Value)
+}
+
+func (w *aggregationWindow) sum() *metrics.Serie {
+	return cloneSerieWithSinglePoint(w.latestSeries, w.latestPoint.Ts, w.total)
+}
+
+func (w *aggregationWindow) avg() *metrics.Serie {
+	return cloneSerieWithSinglePoint(w.latestSeries, w.latestPoint.Ts, w.total/float64(w.pointCount))
+}
+
+func (w *aggregationWindow) minSerie() *metrics.Serie {
+	return cloneSerieWithSinglePoint(w.latestSeries, w.latestPoint.Ts, w.min)
+}
+
+func (w *aggregationWindow) maxSerie() *metrics.Serie {
+	return cloneSerieWithSinglePoint(w.latestSeries, w.latestPoint.Ts, w.max)
+}
+
+func (w *aggregationWindow) gaugeLike() *metrics.Serie {
+	name := w.latestSeries.Name
+	switch {
+	case strings.HasSuffix(name, ".max"):
+		return w.maxSerie()
+	case strings.HasSuffix(name, ".min"):
+		return w.minSerie()
+	case strings.HasSuffix(name, ".sum"):
+		return w.sum()
+	default:
+		return w.last()
+	}
+}
+
+func newSketchAggregationWindow(sketches *metrics.SketchSeries, incomingTs float64, durationSeconds float64) *sketchAggregationWindow {
+	w := &sketchAggregationWindow{
+		count:     1,
+		singleton: sketches,
+		metadata:  sketches,
+		openedAt:  incomingTs,
+		deadline:  incomingTs + durationSeconds,
+	}
+	w.addSketches(sketches)
+	return w
+}
+
+func (w *sketchAggregationWindow) add(sketches *metrics.SketchSeries) {
+	w.count++
+	if w.count > 1 {
+		w.singleton = nil
+	}
+	w.addSketches(sketches)
+}
+
+func (w *sketchAggregationWindow) addSketches(sketches *metrics.SketchSeries) {
+	w.metadata = sketches
+	for _, sp := range sketches.Points {
+		s, ok := sp.Sketch.(*quantile.Sketch)
+		if !ok || s == nil {
+			continue
+		}
+		if w.merged == nil {
+			w.merged = s.Copy()
+		} else {
+			w.merged.Merge(quantile.Default(), s)
+		}
+		if sp.Ts > w.latestTs {
+			w.latestTs = sp.Ts
+		}
+	}
+}
+
+func (w *sketchAggregationWindow) mergedSeries() *metrics.SketchSeries {
+	if w.merged == nil {
+		return nil
+	}
+	out := *w.metadata
+	out.Points = []metrics.SketchPoint{{Sketch: w.merged, Ts: w.latestTs}}
+	return &out
 }
 
 // FlushExpired closes every window whose deadline has passed at `now`,
@@ -209,19 +337,15 @@ func (ca *CheckAggregator) SubmitSketch(checkID checkid.ID, sketches *metrics.Sk
 	}
 
 	if !exists {
-		ca.sketchWindows[key] = &sketchAggregationWindow{
-			sketches: []*metrics.SketchSeries{sketches},
-			openedAt: incomingTs,
-			deadline: incomingTs + ca.windowDuration.Seconds(),
-		}
+		ca.sketchWindows[key] = newSketchAggregationWindow(sketches, incomingTs, ca.windowDuration.Seconds())
 		return
 	}
 
-	if len(window.sketches) >= ca.maxSeriesPerWindow {
+	if window.count >= ca.maxSeriesPerWindow {
 		window.droppedCount++
 		return
 	}
-	window.sketches = append(window.sketches, sketches)
+	window.add(sketches)
 }
 
 // FlushExpiredSketches closes every sketch window whose deadline has
@@ -263,7 +387,7 @@ func (ca *CheckAggregator) Drain(seriesSink metrics.SerieSink, sketchesSink metr
 // closeWindowLocked emits the window's contents to sink per the spec's
 // per-count rules. Caller must hold ca.mu.
 func (ca *CheckAggregator) closeWindowLocked(w *aggregationWindow, sink metrics.SerieSink) {
-	switch len(w.series) {
+	switch w.count {
 	case 0:
 		// DropEmptyWindowOnDeadline: never emit a synthetic zero for a
 		// context that produced nothing in the window.
@@ -272,26 +396,25 @@ func (ca *CheckAggregator) closeWindowLocked(w *aggregationWindow, sink metrics.
 		// SingletonWindowPassThrough: emit the single series unchanged.
 		// commit_timestamp is already preserved in the Serie's Points,
 		// so byte-identicality holds for slow checks.
-		sink.Append(w.series[0])
+		sink.Append(w.singleton)
 		return
 	default:
 		// CloseWindowOnDeadline: count > 1, apply per-mtype roll-up.
 		// All series in a window share the same context (windowKey
-		// includes ContextKey), so MType is consistent across the
-		// buffered series; we read it from w.series[0].
-		switch w.series[0].MType {
+		// includes ContextKey), so MType is consistent across the window.
+		switch w.latestSeries.MType {
 		case metrics.APIGaugeType:
 			// Gauge-like series use `last` unless the final metric name
 			// carries a known histogram aggregate suffix. The suffix
 			// strategies improve histogram scalar semantics without
 			// plumbing original MetricType through the metrics pipeline.
-			sink.Append(aggregateGaugeLike(w.series))
+			sink.Append(w.gaugeLike())
 		case metrics.APICountType:
 			// `sum` strategy: covers both Count (sum-since-commit) and
 			// MonotonicCount (per-commit delta) since CheckSampler maps
 			// both to APICountType. Sum-of-sums and sum-of-deltas are
 			// the correct window-total in each case.
-			sink.Append(aggregateSum(w.series))
+			sink.Append(w.sum())
 		case metrics.APIRateType:
 			// `avg` strategy: average across per-commit rates. Correct
 			// for CheckSampler-emitted Rate-via-APIRateType (e.g.
@@ -300,113 +423,15 @@ func (ca *CheckAggregator) closeWindowLocked(w *aggregationWindow, sink metrics.
 			// per-commit rates equals the true window rate. The "avg of
 			// rates ≠ true rate" warning applies only to non-uniform
 			// commit cadences, which CheckSampler does not produce.
-			sink.Append(aggregateAvg(w.series))
+			sink.Append(w.avg())
 		default:
 			// Unknown APIMetricType (future additions): conservative
 			// `last` to satisfy the cost constraint while remaining
 			// approximate. Cross-reference with the spec's MetricType
 			// closed-set (Q5) — flagged for review if hit.
-			sink.Append(aggregateLast(w.series))
+			sink.Append(w.last())
 		}
 	}
-}
-
-// aggregateLast returns a single *Serie carrying the latest sample's
-// value, stamped at the latest sample's timestamp. The other metadata
-// (Name, Tags, Host, MType, etc.) is taken from the last series since
-// all entries in a window share the same context.
-func aggregateLast(series []*metrics.Serie) *metrics.Serie {
-	last, lastPoint := latestPoint(series)
-	return cloneSerieWithSinglePoint(last, lastPoint.Ts, lastPoint.Value)
-}
-
-func aggregateGaugeLike(series []*metrics.Serie) *metrics.Serie {
-	name := series[0].Name
-	switch {
-	case strings.HasSuffix(name, ".max"):
-		return aggregateMax(series)
-	case strings.HasSuffix(name, ".min"):
-		return aggregateMin(series)
-	case strings.HasSuffix(name, ".sum"):
-		return aggregateSum(series)
-	default:
-		return aggregateLast(series)
-	}
-}
-
-func aggregateMax(series []*metrics.Serie) *metrics.Serie {
-	last, lastPoint := latestPoint(series)
-	max := series[0].Points[0].Value
-	for _, s := range series {
-		for _, p := range s.Points {
-			if p.Value > max {
-				max = p.Value
-			}
-		}
-	}
-	return cloneSerieWithSinglePoint(last, lastPoint.Ts, max)
-}
-
-func aggregateMin(series []*metrics.Serie) *metrics.Serie {
-	last, lastPoint := latestPoint(series)
-	min := series[0].Points[0].Value
-	for _, s := range series {
-		for _, p := range s.Points {
-			if p.Value < min {
-				min = p.Value
-			}
-		}
-	}
-	return cloneSerieWithSinglePoint(last, lastPoint.Ts, min)
-}
-
-// aggregateSum returns a single *Serie carrying the sum of all values
-// across the buffered series, stamped at the latest sample's timestamp.
-// Both Count (per-commit sums) and MonotonicCount (per-commit deltas)
-// produce APICountType Series for which sum-across-window is the
-// correct window total.
-func aggregateSum(series []*metrics.Serie) *metrics.Serie {
-	var total float64
-	for _, s := range series {
-		for _, p := range s.Points {
-			total += p.Value
-		}
-	}
-	last, lastPoint := latestPoint(series)
-	return cloneSerieWithSinglePoint(last, lastPoint.Ts, total)
-}
-
-// aggregateAvg returns a single *Serie carrying the arithmetic mean of
-// all values across the buffered series, stamped at the latest sample's
-// timestamp. Used for APIRateType: at uniform commit cadence (which
-// CheckSampler produces), the mean of per-commit rates equals the true
-// rate over the window.
-func aggregateAvg(series []*metrics.Serie) *metrics.Serie {
-	var total float64
-	var count int
-	for _, s := range series {
-		for _, p := range s.Points {
-			total += p.Value
-			count++
-		}
-	}
-	last, lastPoint := latestPoint(series)
-	avg := total / float64(count)
-	return cloneSerieWithSinglePoint(last, lastPoint.Ts, avg)
-}
-
-func latestPoint(series []*metrics.Serie) (*metrics.Serie, metrics.Point) {
-	latestSeries := series[0]
-	latest := series[0].Points[0]
-	for _, s := range series {
-		for _, p := range s.Points {
-			if p.Ts >= latest.Ts {
-				latestSeries = s
-				latest = p
-			}
-		}
-	}
-	return latestSeries, latest
 }
 
 // cloneSerieWithSinglePoint returns a shallow copy of `src` with its
@@ -441,71 +466,24 @@ func seriesTimestamp(s *metrics.Serie) float64 {
 // untouched) to sink per the same per-count rules as closeWindowLocked.
 // Caller must hold ca.mu.
 func (ca *CheckAggregator) closeSketchWindowLocked(w *sketchAggregationWindow, sink metrics.SketchesSink) {
-	switch len(w.sketches) {
+	switch w.count {
 	case 0:
 		// DropEmptyWindowOnDeadline.
 		return
 	case 1:
 		// SingletonWindowPassThrough: emit the single SketchSeries
 		// unchanged. Preserves all original SketchPoints and timestamps.
-		sink.Append(w.sketches[0])
+		sink.Append(w.singleton)
 		return
 	default:
 		// Merge all buffered sketches into one. The output is a single
 		// SketchSeries carrying one SketchPoint with the merged sketch,
 		// stamped at the latest commit's timestamp.
-		merged := mergeSketches(w.sketches)
+		merged := w.mergedSeries()
 		if merged != nil {
 			sink.Append(merged)
 		}
 	}
-}
-
-// mergeSketches collapses N buffered SketchSeries into a single output
-// SketchSeries by merging the underlying *quantile.Sketch points.
-//
-// Returns nil if there are no usable sketches to merge (defensive).
-// The merge uses Sketch.Copy() to avoid mutating any input — the caller
-// may still reference the buffered Series until close completes.
-//
-// The merged sketch's wire size is bounded by the value-range log of the
-// inputs, not by their count — so this is the path with the cleanest
-// cost/fidelity tradeoff without storing sketches in the observer.
-func mergeSketches(sketches []*metrics.SketchSeries) *metrics.SketchSeries {
-	if len(sketches) == 0 {
-		return nil
-	}
-
-	// Initialize merged from a copy of the first concrete *quantile.Sketch
-	// we find. Skip nil / unexpected types defensively.
-	var merged *quantile.Sketch
-	var latestTs int64
-	for _, ss := range sketches {
-		for _, sp := range ss.Points {
-			s, ok := sp.Sketch.(*quantile.Sketch)
-			if !ok || s == nil {
-				continue
-			}
-			if merged == nil {
-				merged = s.Copy()
-			} else {
-				merged.Merge(quantile.Default(), s)
-			}
-			if sp.Ts > latestTs {
-				latestTs = sp.Ts
-			}
-		}
-	}
-	if merged == nil {
-		return nil
-	}
-
-	// Clone metadata from the last input series, replace Points with one
-	// merged SketchPoint at the latest timestamp.
-	last := sketches[len(sketches)-1]
-	out := *last
-	out.Points = []metrics.SketchPoint{{Sketch: merged, Ts: latestTs}}
-	return &out
 }
 
 // sketchSeriesTimestamp returns the first SketchPoint's timestamp from a
