@@ -126,8 +126,8 @@ func FuzzObfuscateSpan(f *testing.F) {
 		if err != nil {
 			t.Fatalf("Couldn't decode span after obfuscation: %v", err)
 		}
-		if !reflect.DeepEqual(decPostObfuscate, pbSpan) {
-			t.Fatalf("Inconsistent encoding/decoding after obfuscation: (%#v) is different from (%#v)", decPostObfuscate, pbSpan)
+		if diff := cmp.Diff(pbSpan, decPostObfuscate, cmpopts.EquateNaNs(), cmpopts.EquateEmpty(), cmpopts.IgnoreUnexported(pb.Span{}, pb.SpanLink{}, pb.SpanEvent{})); diff != "" {
+			t.Fatalf("Inconsistent encoding/decoding after obfuscation (-want +got):\n%s", diff)
 		}
 	})
 }
