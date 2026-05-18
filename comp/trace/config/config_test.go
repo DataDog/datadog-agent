@@ -631,6 +631,7 @@ func TestDisableLoggingConfig(t *testing.T) {
 }
 
 func TestFullYamlConfig(t *testing.T) {
+	clearProxyEnv(t)
 
 	config := fxutil.Test[Component](t, fx.Options(
 		corecomp.MockModule(),
@@ -669,20 +670,13 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(t, cfg.OTLPReceiver.SpanNameAsResourceName)
 	assert.Equal(t, map[string]string{"a": "b", "and:colons": "in:values", "c": "d", "with.dots": "in.side"}, cfg.OTLPReceiver.SpanNameRemappings)
 
-	noProxy := true
-	if _, ok := os.LookupEnv("NO_PROXY"); ok {
-		// Happens in CircleCI: if the environment variable is set,
-		// it will overwrite our loaded configuration and will cause
-		// this test to fail.
-		noProxy = false
-	}
 	assert.ElementsMatch(t, []*traceconfig.Endpoint{
 		{Host: "https://datadog.unittests", APIKey: "api_key_test"},
 		{Host: "https://my1.endpoint.com", APIKey: "apikey1"},
 		{Host: "https://my1.endpoint.com", APIKey: "apikey2"},
-		{Host: "https://my2.endpoint.eu", APIKey: "apikey3", NoProxy: noProxy},
-		{Host: "https://my2.endpoint.eu", APIKey: "apikey4", NoProxy: noProxy},
-		{Host: "https://my2.endpoint.eu", APIKey: "apikey5", NoProxy: noProxy},
+		{Host: "https://my2.endpoint.eu", APIKey: "apikey3", NoProxy: true},
+		{Host: "https://my2.endpoint.eu", APIKey: "apikey4", NoProxy: true},
+		{Host: "https://my2.endpoint.eu", APIKey: "apikey5", NoProxy: true},
 	}, cfg.Endpoints)
 
 	assert.ElementsMatch(t, []*traceconfig.Tag{{K: "env", V: "prod"}, {K: "db", V: "mongodb"}}, cfg.RequireTags)
@@ -2594,4 +2588,24 @@ func TestGetCoreConfigHandler(t *testing.T) {
 	err := yaml.Unmarshal(resp.Body.Bytes(), &conf)
 	assert.NoError(t, err, "Error loading YAML configuration from the API")
 	assert.Contains(t, conf, "apm_config")
+}
+
+// clearProxyEnv unsets proxy-related environment variables for the duration of
+// the test and restores them on cleanup. The agent's proxy loader treats these
+// env vars as overrides over YAML, so any leak from the runner (e.g. CI runners
+// configured for an egress proxy) will break tests that assert YAML-derived
+// proxy values. t.Setenv(k, "") is not enough because os.LookupEnv reports
+// empty values as "found" and the agent will still treat that as an override.
+func clearProxyEnv(t *testing.T) {
+	t.Helper()
+	for _, k := range []string{
+		"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY",
+		"http_proxy", "https_proxy", "no_proxy",
+		"DD_PROXY_HTTP", "DD_PROXY_HTTPS", "DD_PROXY_NO_PROXY",
+	} {
+		if v, ok := os.LookupEnv(k); ok {
+			os.Unsetenv(k)
+			t.Cleanup(func() { os.Setenv(k, v) })
+		}
+	}
 }
