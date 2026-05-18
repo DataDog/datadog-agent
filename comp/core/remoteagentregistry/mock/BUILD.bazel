@@ -5,5 +5,5 @@ go_library(
     srcs = ["mock.go"],
     importpath = "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/mock",
     visibility = ["//visibility:public"],
-    deps = ["@//comp/core/remoteagentregistry/def"],
+    deps = ["//comp/core/remoteagentregistry/def"],
 )

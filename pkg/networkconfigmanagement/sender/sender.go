@@ -13,14 +13,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	ncmreport "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/report"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
-	"github.com/benbjohnson/clock"
 )
 
 const (
@@ -71,12 +73,12 @@ func (s *NCMSender) SendNCMCheckMetrics(startTime time.Time, lastCheckTime time.
 }
 
 // SendMetricsFromExtractedMetadata sends metrics from data extracted from the device config after processing
-func (s *NCMSender) SendMetricsFromExtractedMetadata(metadata profile.ExtractedMetadata, configType ncmreport.ConfigType) {
+func (s *NCMSender) SendMetricsFromExtractedMetadata(metadata profile.ExtractedMetadata, configType types.ConfigType) {
 	tags := append(s.getDeviceTags(), utils.GetCommonAgentTags()...)
 	switch configType {
-	case ncmreport.RUNNING:
+	case types.RUNNING:
 		tags = append(s.getDeviceTags(), ncmRunningConfigTypeTag)
-	case ncmreport.STARTUP:
+	case types.STARTUP:
 		tags = append(s.getDeviceTags(), ncmStartupConfigTypeTag)
 	}
 	// if config size was extracted, submit the metric

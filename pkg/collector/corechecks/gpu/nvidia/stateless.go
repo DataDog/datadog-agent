@@ -14,7 +14,6 @@ import (
 	"unsafe"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/hashicorp/go-multierror"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -30,14 +29,14 @@ func nvlinkSample(device ddnvml.Device) ([]Metric, uint64, error) {
 	}
 
 	// Collect NVLink states
-	var multiErr error
+	var multiErr []error
 	active, inactive := 0, 0
 
 	// Iterate over all existing nvlinks for the device
 	for i := 0; i < totalNVLinks; i++ {
 		state, err := device.GetNvLinkState(i)
 		if err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("failed to get NVLink state for link %d: %w", i, err))
+			multiErr = append(multiErr, fmt.Errorf("failed to get NVLink state for link %d: %w", i, err))
 			continue
 		}
 
@@ -68,7 +67,7 @@ func nvlinkSample(device ddnvml.Device) ([]Metric, uint64, error) {
 		},
 	}
 
-	return allMetrics, 0, multiErr
+	return allMetrics, 0, errors.Join(multiErr...)
 }
 
 type processMemoryUsageData struct {
@@ -364,11 +363,11 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 					return nil, 0, fmt.Errorf("failed to get number of fans: %w", err)
 				}
 
-				var multiErr error
+				var multiErr []error
 				for i := 0; i < numFans; i++ {
 					speed, err := device.GetFanSpeed_v2(i)
 					if err != nil {
-						multiErr = errors.Join(multiErr, fmt.Errorf("failed to get fan speed for fan %d: %w", i, err))
+						multiErr = append(multiErr, fmt.Errorf("failed to get fan speed for fan %d: %w", i, err))
 					} else {
 						output = append(output, Metric{
 							Name:     "fan_speed",
@@ -380,7 +379,7 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 					}
 				}
 
-				return output, 0, multiErr
+				return output, 0, errors.Join(multiErr...)
 			},
 		},
 		{

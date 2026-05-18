@@ -49,7 +49,18 @@ func NewWindowsMonitor(c *config.Config, dh driver.Handle) (Monitor, error) {
 	}
 
 	hei.SetMaxFlows(uint64(c.MaxTrackedConnections))
-	hei.SetMaxRequestBytes(uint64(c.HTTPMaxRequestFragment))
+	maxRequestBytes := uint64(c.HTTPMaxRequestFragment)
+	if c.DiscoveryServiceMapEnabled {
+		// Discovery mode discards the request fragment (path/method are not
+		// part of the key and not serialized) but the ETW reader still
+		// allocates a per-flow buffer of this size. The driver requires a
+		// non-zero value, so we shrink it to the smallest practical value
+		// to minimize per-flow memory; 16 bytes is enough to capture the
+		// HTTP method verb that the driver uses for early protocol
+		// disambiguation, and nothing more.
+		maxRequestBytes = 16
+	}
+	hei.SetMaxRequestBytes(maxRequestBytes)
 	hei.SetCapturedProtocols(c.EnableHTTPMonitoring, c.EnableNativeTLSMonitoring)
 
 	telemetry := http.NewTelemetry("http")

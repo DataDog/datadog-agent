@@ -278,6 +278,31 @@ rust_test(
     ],
 )
 
+# Logger-bridge integration tests. Each is its own binary so the
+# process-global `log::logger` and `LOGGER_CALLBACK` are isolated from any
+# other test.
+rust_test(
+    name = "logger_bridge_test",
+    srcs = ["tests/logger_bridge.rs"],
+    edition = "2024",
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":dd_discovery",
+        "@crates//:log",
+    ],
+)
+
+rust_test(
+    name = "logger_bridge_already_registered_test",
+    srcs = ["tests/logger_bridge_already_registered.rs"],
+    edition = "2024",
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        ":dd_discovery",
+        "@crates//:log",
+    ],
+)
+
 # Static library built with `force-ffi-panic` for FFI panic-catch testing
 rust_static_library(
     name = "libdd_discovery_force_panic",

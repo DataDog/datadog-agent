@@ -445,7 +445,8 @@ class TestStaticQualityGate(unittest.TestCase):
         measurement = ArtifactMeasurement("/path", 120 * 1024 * 1024, 150 * 1024 * 1024)
         self.mock_measurer.measure.return_value = measurement
 
-        self.assertFalse(self.gate.execute_gate(self.mock_ctx).success)
+        # on-wire gates are non-blocking
+        self.assertTrue(self.gate.execute_gate(self.mock_ctx).success)
 
     def test_execute_gate_on_disk_violation(self):
         # Mock measurement exceeding disk limit (250MB > 200MB limit)
@@ -466,14 +467,11 @@ class TestStaticQualityGate(unittest.TestCase):
         violations = self.gate._check_size_limits(measurement)
         self.assertEqual(len(violations), 0)
 
-    def test_check_size_limits_on_wire_violation(self):
+    def test_check_size_limits_on_wire_causes_no_violation(self):
         measurement = ArtifactMeasurement("/path", 120 * 1024 * 1024, 150 * 1024 * 1024)
         violations = self.gate._check_size_limits(measurement)
 
-        self.assertEqual(len(violations), 1)
-        self.assertEqual(violations[0].measurement_type, "wire")
-        self.assertEqual(violations[0].current_size, 120 * 1024 * 1024)
-        self.assertEqual(violations[0].max_size, 100 * 1024 * 1024)
+        self.assertEqual(len(violations), 0)
 
     def test_check_size_limits_on_disk_violation(self):
         measurement = ArtifactMeasurement("/path", 80 * 1024 * 1024, 250 * 1024 * 1024)

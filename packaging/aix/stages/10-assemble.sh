@@ -7,7 +7,6 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 . "$SCRIPT_DIR/../lib/env.sh"
 
 STAGE_NAME="10-assemble"
-SENTINEL="$BUILD_DIR/.done/$STAGE_NAME"
 LOG="$BUILD_DIR/logs/$STAGE_NAME.log"
 
 # Redirect all output to log file (follow with: tail -f "$LOG")
@@ -15,12 +14,6 @@ mkdir -p "$BUILD_DIR/logs"
 exec > "$LOG" 2>&1
 
 log "=== Stage: $STAGE_NAME ==="
-
-# --- Idempotency check ---
-if [ -f "$SENTINEL" ]; then
-    log "Already complete (sentinel: $SENTINEL) — skipping."
-    exit 0
-fi
 
 # --- Input validation ---
 : "${AGENT_VERSION:?AGENT_VERSION must be set}"
@@ -46,7 +39,7 @@ trap cleanup EXIT
 # The agent binary is the primary deliverable. If it is absent the staging
 # tree is incomplete and packaging will produce a broken BFF.
 
-AGENT_BIN="$STAGING/opt/datadog-agent/bin/agent/agent"
+AGENT_BIN="$STAGING/opt/datadog-agent/bin/agent/agent-bin"
 if [ ! -f "$AGENT_BIN" ]; then
     log "ERROR: agent binary not found at $AGENT_BIN"
     log "       Did Stage 04 (04-agent) complete successfully?"
@@ -201,7 +194,4 @@ du -s \
     "$STAGING/opt/datadog-agent/embedded/lib" \
     "$STAGING/opt/datadog-agent/rtloader" 2>/dev/null || true
 
-# --- Mark complete ---
-mkdir -p "$(dirname "$SENTINEL")"
-touch "$SENTINEL"
 log "=== $STAGE_NAME complete ==="

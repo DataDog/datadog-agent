@@ -25,14 +25,6 @@ body_collapsed_pattern = """<details>
 |--|--|--|
 """
 
-# Collapsed table pattern for on-wire sizes
-body_wire_pattern = """<details>
-<summary>On-wire sizes (compressed)</summary>
-
-||Quality gate|Change|Size (prev → **curr** → max)|
-|--|--|--|--|
-"""
-
 body_error_footer_pattern = """<details>
 <summary>Gate failure full details</summary>
 
@@ -160,9 +152,6 @@ def display_pr_comment(
     body_error = body_pattern.format("Error")
     body_error_footer = body_error_footer_pattern
 
-    # On-wire sizes table (separate collapsed section)
-    body_wire = ""
-
     with_blocking_error = False
     with_non_blocking_error = False
     significant_success_count = 0
@@ -178,9 +167,6 @@ def display_pr_comment(
         change_str, limit_bounds, is_neutral = get_change_metrics(gate.name, metric_handler, metric_type="disk")
         if change_str == "N/A":
             has_na_change = True
-
-        # Get change metrics for on-wire
-        wire_change_str, wire_limit_bounds, _ = get_change_metrics(gate.name, metric_handler, metric_type="wire")
 
         if gate.failure is None:
             if is_neutral:
@@ -199,9 +185,6 @@ def display_pr_comment(
                     body_info = "<details open>\n<summary>Successful checks</summary>\n\n" + body_pattern.format("Info")
                 body_info += f"|{SUCCESS_CHAR}|{gate_name}|{change_str}|{limit_bounds}|\n"
                 significant_success_count += 1
-
-            # All successful gates go to wire table
-            body_wire += f"|{SUCCESS_CHAR}|{gate_name}|{wire_change_str}|{wire_limit_bounds}|\n"
         else:
             # Check if this is a blocking or non-blocking failure
             status_char = FAIL_CHAR if gate.blocking else WARNING_CHAR
@@ -209,19 +192,10 @@ def display_pr_comment(
             if gate.failure == GateFailureKind.PerPRThresholdExceeded:
                 body_error += f"|{status_char}|{gate_name} (per-PR threshold)|{change_str}|{limit_bounds}|\n"
             elif gate.failure == GateFailureKind.PerPRWireThresholdExceeded:
-                body_error += (
-                    f"|{status_char}|{gate_name} (per-PR wire threshold)|{wire_change_str}|{wire_limit_bounds}|\n"
-                )
+                wire_change_str, _, _ = get_change_metrics(gate.name, metric_handler, metric_type="wire")
+                body_error += f"|{status_char}|{gate_name} (per-PR wire threshold)|{wire_change_str}| N/A |\n"
             else:
-                # This is probably way more convoluted than it should be, but the best we can do
-                # without refactoring the data structures involved
-                if gate_metrics.get("current_on_wire_size", 0) > gate_metrics.get("max_on_wire_size", float('inf')):
-                    body_error += f"|{status_char}|{gate_name} (on wire)|{wire_change_str}|{wire_limit_bounds}|\n"
-                if gate_metrics.get("current_on_disk_size", 0) > gate_metrics.get("max_on_disk_size", float('inf')):
-                    body_error += f"|{status_char}|{gate_name} (on disk)|{change_str}|{limit_bounds}|\n"
-
-            # Add to wire table for errors too
-            body_wire += f"|{status_char}|{gate_name}|{wire_change_str}|{wire_limit_bounds}|\n"
+                body_error += f"|{status_char}|{gate_name} (on disk)|{change_str}|{limit_bounds}|\n"
 
             error_message = gate.message.replace('\n', '<br>')
             note_suffix = f" ({gate.blocking_note})" if gate.blocking_note else ""
@@ -260,18 +234,11 @@ def display_pr_comment(
         success_section += body_info_collapsed
         success_section += "\n</details>\n"
 
-    # Build on-wire sizes section (collapsed)
-    wire_section = ""
-    if body_wire:
-        wire_section = body_wire_pattern
-        wire_section += body_wire
-        wire_section += "\n</details>\n"
-
     # Add retry hint if some deltas are N/A (ancestor metrics not yet available due to race condition)
     retry_hint = ""
     if has_na_change and job_url:
         retry_hint = f"SOME SIZE DELTAS ARE N/A (ANCESTOR METRICS NOT YET AVAILABLE). [RETRY JOB]({job_url})\n"
 
-    body = f"{FAIL_CHAR if evaluation.has_blocking_failures else SUCCESS_CHAR} Please find below the results from static quality gates\n{ancestor_info}{dashboard_link}{job_link}{retry_hint}{exception_banner}{final_error_body}\n\n{success_section}\n{wire_section}"
+    body = f"{FAIL_CHAR if evaluation.has_blocking_failures else SUCCESS_CHAR} Please find below the results from static quality gates\n{ancestor_info}{dashboard_link}{job_link}{retry_hint}{exception_banner}{final_error_body}\n\n{success_section}"
 
     pr_commenter(ctx, title=title, body=body, pr=pr)

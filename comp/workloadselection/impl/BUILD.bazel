@@ -13,8 +13,8 @@ go_library(
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/remote-config/rcclient/types",
+        "//comp/workloadselection/def",
         "//pkg/remoteconfig/state",
-        "@//comp/workloadselection/def",
     ] + select({
         "@rules_go//go/platform:windows": [
             "@org_golang_x_sys//windows",

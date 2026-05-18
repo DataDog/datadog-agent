@@ -28,7 +28,7 @@ static __attribute__((always_inline)) void cache_file(struct dentry *dentry, u32
     bpf_map_update_elem(&inode_file, &entry.path_key.ino, &entry, BPF_EXIST);
 }
 
-static __attribute__((always_inline)) int handle_stat() {
+static __attribute__((always_inline)) int handle_stat(void *ctx) {
     if (!is_runtime_request()) {
         return 0;
     }
@@ -36,12 +36,12 @@ static __attribute__((always_inline)) int handle_stat() {
     struct syscall_cache_t syscall = {
         .type = EVENT_STAT,
     };
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
 HOOK_SYSCALL_ENTRY0(newfstatat) {
-    return handle_stat();
+    return handle_stat(ctx);
 }
 
 static __attribute__((always_inline)) int handle_ret_stat() {

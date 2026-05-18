@@ -155,6 +155,13 @@ func assertChildrenConsistency(t *testing.T, resolver *EBPFResolver) {
 				"child %d's Ancestor should be %d", child.Pid, entry.Pid)
 		}
 		if entry.Ancestor != nil {
+			// Only verify bidirectionality when the ancestor is still alive in
+			// the cache. deleteEntry clears Children (to free the backing array)
+			// while intentionally preserving Ancestor pointers for field resolution,
+			// so the invariant only holds for live ancestors.
+			if resolver.entryCache[entry.Ancestor.Pid] != entry.Ancestor {
+				continue
+			}
 			found := false
 			for _, sibling := range entry.Ancestor.Children {
 				if sibling == entry {

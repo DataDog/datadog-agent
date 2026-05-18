@@ -27,3 +27,8 @@ func (c *Client) GetTask(context.Context) (*Task, error) {
 func (c *Client) GetTaskWithTags(context.Context) (*Task, error) {
 	return new(Task), nil
 }
+
+// GetTasks returns all tasks running on the host.
+func (c *Client) GetTasks(context.Context) ([]Task, error) {
+	return []Task{}, nil
+}
