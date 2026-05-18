@@ -152,7 +152,7 @@ func GetADGroupMembers(host *components.RemoteHost, group string) ([]Identity, e
 	cmd := fmt.Sprintf(`ConvertTo-JSON -WarningAction SilentlyContinue -InputObject @(Get-ADGroupMember -Identity "%s" | Foreach-Object {
 		@{
 			Name = $_.Name
-			SID = $_.SID.Value
+			SID = $_.SID.ToString()
 		}})`, group)
 	out, err := host.Execute(cmd)
 	if err != nil {
@@ -175,7 +175,7 @@ func GetLocalGroupMembers(host *components.RemoteHost, group string) ([]Identity
 	cmd := fmt.Sprintf(`ConvertTo-JSON -WarningAction SilentlyContinue -InputObject @(Get-LocalGroupMember -Name "%s" | Foreach-Object {
 		@{
 			Name = $_.Name
-			SID = $_.SID.Value
+			SID = $_.SID.ToString()
 		}})`, group)
 	out, err := host.Execute(cmd)
 	if err != nil {
