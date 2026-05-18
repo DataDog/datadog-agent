@@ -1,0 +1,112 @@
+# Milvus standalone stack + traffic generator, designed to be merged into
+# the e2e-framework Docker Agent compose via
+# dockeragentparams.WithExtraComposeManifest.
+#
+# The Datadog Milvus integration is configured on the milvus service via
+# Autodiscovery container labels — the host Agent (running in the same
+# compose project) picks it up through docker.sock. No conf.d file needed.
+#
+# Variables interpolated by docker compose at deploy time (provided by the
+# provisioner through dockeragentparams.WithEnvironmentVariables):
+#   - DD_E2E_TEST_ID:        per-run tag used for metric scoping
+#   - DD_MILVUS_TRAFFIC_B64: base64-encoded traffic.py
+
+services:
+  etcd:
+    container_name: milvus-etcd
+    image: ${DD_REGISTRY:-quay.io}/coreos/etcd:v3.5.5
+    environment:
+      ETCD_AUTO_COMPACTION_MODE: revision
+      ETCD_AUTO_COMPACTION_RETENTION: "1000"
+      ETCD_QUOTA_BACKEND_BYTES: "4294967296"
+      ETCD_SNAPSHOT_COUNT: "50000"
+    command: etcd -advertise-client-urls=http://etcd:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  minio:
+    container_name: milvus-minio
+    image: ${DD_REGISTRY:-docker.io}/minio/minio:RELEASE.2023-03-20T20-16-18Z
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    command: minio server /minio_data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  milvus:
+    container_name: milvus-standalone
+    image: ${DD_REGISTRY:-docker.io}/milvusdb/milvus:v2.4.13
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    depends_on:
+      - "etcd"
+      - "minio"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 5
+    # Datadog Autodiscovery: the host Agent (in the same compose project)
+    # uses docker.sock to discover this container and schedule the milvus
+    # OpenMetrics check against it.
+    labels:
+      com.datadoghq.ad.checks: |
+        {
+          "milvus": {
+            "init_config": {},
+            "instances": [
+              {
+                "openmetrics_endpoint": "http://%%host%%:9091/metrics",
+                "min_collection_interval": 15,
+                "tags": [
+                  "env:e2e",
+                  "e2e_scenario:milvus",
+                  "e2e_test_id:${DD_E2E_TEST_ID}"
+                ]
+              }
+            ]
+          }
+        }
+
+  # Real traffic against Milvus: insert + search + query in a loop. The
+  # pymilvus script is injected as a base64-encoded env var by the
+  # provisioner so this compose stays self-contained on the VM.
+  milvus-traffic:
+    container_name: milvus-traffic
+    image: ${DD_REGISTRY:-docker.io}/library/python:3.11-slim
+    depends_on:
+      - "milvus"
+    environment:
+      MILVUS_HOST: milvus
+      MILVUS_PORT: "19530"
+      DD_MILVUS_TRAFFIC_B64: ${DD_MILVUS_TRAFFIC_B64}
+    command:
+      - bash
+      - -lc
+      - |
+        set -e
+        mkdir -p /app
+        echo "$$DD_MILVUS_TRAFFIC_B64" | base64 -d > /app/traffic.py
+        pip install --no-cache-dir 'pymilvus==2.4.9' >/tmp/pip.log 2>&1
+        # Wait for Milvus to accept connections before starting the workload.
+        python - <<'PY'
+        import socket, time
+        for _ in range(120):
+            try:
+                with socket.create_connection(("milvus", 19530), timeout=2):
+                    break
+            except OSError:
+                time.sleep(2)
+        PY
+        exec python /app/traffic.py
+    restart: unless-stopped
