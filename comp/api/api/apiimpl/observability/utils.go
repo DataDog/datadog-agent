@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/benbjohnson/clock"
-	"github.com/urfave/negroni"
+	"github.com/urfave/negroni/v3"
 )
 
 // routeCaptureKey is the context key used to share the route template between
