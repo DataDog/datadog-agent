@@ -162,9 +162,10 @@ func TestBuildSlogLogger_ForwardsErrorRecord(t *testing.T) {
 	logger.Flush()
 
 	got := rec.snapshot()
-	require.Len(t, got, 1)
-	require.Equal(t, "error message - should reach errortracking", got[0].Message)
-	require.Equal(t, slog.LevelError, got[0].Level)
+	require.Len(t, got, 1, "exactly one Error record must reach the registered Submitter")
+	require.NotZero(t, got[0].PC, "captured record must carry a call-site PC")
+	require.Greater(t, got[0].PCsLen, 0, "captured record must carry stack PCs")
+	require.Equal(t, uint32(1), got[0].Count, "default Count is 1 when no Bouncer is registered")
 }
 
 // TestBuildSlogLogger_NoForwardingWhenUnregistered asserts that the chain
