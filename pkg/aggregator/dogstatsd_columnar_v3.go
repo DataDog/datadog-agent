@@ -61,6 +61,8 @@ type dogstatsdColumnarShard struct {
 	mu      sync.Mutex
 	buckets map[int64]*dogstatsdColumnarBucket
 
+	insertedSamples uint64
+
 	descriptorByKey map[dogstatsdColumnarKey]int
 	contextKeys     []ckey.ContextKey
 	names           []string
@@ -163,7 +165,7 @@ func (s *dogstatsdColumnarStore) insert(shardKey ckey.ContextKey, sample metrics
 		bucket.sampled[idx] = true
 	}
 
-	tlmDogstatsdColumnarStats.Inc("inserted_samples")
+	shard.insertedSamples++
 	return true
 }
 
@@ -264,6 +266,11 @@ func (s *dogstatsdColumnarStore) flushShard(shard *dogstatsdColumnarShard, cutof
 
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
+
+	if shard.insertedSamples > 0 {
+		tlmDogstatsdColumnarStats.Add(float64(shard.insertedSamples), "inserted_samples")
+		shard.insertedSamples = 0
+	}
 
 	for bucketTimestamp, bucket := range shard.buckets {
 		if bucketTimestamp+s.interval > cutoffTime && !forceFlushAll {
