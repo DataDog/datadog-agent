@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "names",
+    srcs = [
+        "criterion.go",
+        "criterion_cloud_cost.go",
+        "criterion_metric_filterlist.go",
+        "filters.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/metricpipelines/names",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/filterlist/def",
+        "//pkg/config/model",
+        "//pkg/util/strings",
+    ],
+)
+
+go_test(
+    name = "names_test",
+    srcs = ["filters_test.go"],
+    embed = [":names"],
+    gotags = ["test"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/mock",
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/fx-noop",
+        "//comp/filterlist/impl",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+    ],
+)
