@@ -530,6 +530,16 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 	suite.compareEndpoints(expectedEndpoints, endpoints)
 }
 
+func (suite *ConfigTestSuite) TestLogsEVPOriginVersionOverride() {
+	suite.config.SetWithoutSource("api_key", "123")
+	suite.config.SetWithoutSource("logs_config.dd_evp_origin_version", "cluster-a")
+
+	endpoints, err := BuildHTTPEndpoints(suite.config, "test-track", "test-proto", "test-source")
+
+	suite.Nil(err)
+	suite.Equal("cluster-a", endpoints.Main.OriginVersion)
+}
+
 func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 	suite.config.SetWithoutSource("api_key", "123")
 	suite.config.SetWithoutSource("logs_config.logs_dd_url", "agent-http-intake.logs.datadoghq.com:443")

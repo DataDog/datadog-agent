@@ -105,6 +105,10 @@ func (l *LogsConfigKeys) isGRPCUse() bool {
 	return l.getConfig().GetBool(l.getConfigKey("use_grpc"))
 }
 
+func (l *LogsConfigKeys) ddEVPOriginVersion() string {
+	return l.getConfig().GetString(l.getConfigKey("dd_evp_origin_version"))
+}
+
 func (l *LogsConfigKeys) logsNoSSL() bool {
 	return l.getConfig().GetBool(l.getConfigKey("logs_no_ssl"))
 }

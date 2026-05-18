@@ -377,6 +377,19 @@ func TestDestinationSendsV2Protocol(t *testing.T) {
 	assert.Equal(t, server.request.Header.Get("dd-protocol"), "test-proto")
 }
 
+func TestDestinationSendsOriginVersionOverride(t *testing.T) {
+	cfg := configmock.New(t)
+	server := NewTestServer(200, cfg)
+	defer server.httpServer.Close()
+
+	server.Destination.origin = "test-origin"
+	server.Destination.originVersion = "cluster-a"
+	err := server.Destination.unconditionalSend(&message.Payload{Encoded: []byte("payload")})
+	assert.Nil(t, err)
+	assert.Equal(t, "test-origin", server.request.Header.Get("dd-evp-origin"))
+	assert.Equal(t, "cluster-a", server.request.Header.Get("dd-evp-origin-version"))
+}
+
 func TestDestinationDoesntSendEmptyV2Protocol(t *testing.T) {
 	cfg := configmock.New(t)
 	server := NewTestServer(200, cfg)
