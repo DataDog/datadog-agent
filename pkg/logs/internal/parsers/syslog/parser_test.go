@@ -42,61 +42,11 @@ func TestSyslogParser_NetworkFormat_RFC5424(t *testing.T) {
 	// Status from severity
 	assert.Equal(t, message.StatusNotice, result.Status)
 
-	// Appname stored as source/service override in ParsingExtra
-	assert.Equal(t, "evntslog", result.ParsingExtra.SourceOverride)
-	assert.Equal(t, "evntslog", result.ParsingExtra.ServiceOverride)
-
 	// RawDataLen preserved
 	assert.Equal(t, len(input.GetContent()), result.RawDataLen)
 
 	// Timestamp extracted
 	assert.Equal(t, "2003-10-11T22:14:15.003Z", result.ParsingExtra.Timestamp)
-}
-
-func TestSyslogParser_NetworkFormat_BSD(t *testing.T) {
-	parser := NewParser(true)
-
-	input := newTestMessage([]byte(`<34>Oct 11 22:14:15 mymachine su: 'su root' failed for lonvick on /dev/pts/8`))
-	result, err := parser.Parse(input)
-	require.NoError(t, err)
-
-	assert.Equal(t, message.StateStructured, result.State)
-	assert.Equal(t, message.StatusCritical, result.Status)
-
-	// Appname stored as source/service override in ParsingExtra
-	assert.Equal(t, "su", result.ParsingExtra.SourceOverride)
-	assert.Equal(t, "su", result.ParsingExtra.ServiceOverride)
-}
-
-func TestSyslogParser_BSDLineFormat(t *testing.T) {
-	parser := NewParser(true)
-
-	// BSD line without PRI: "Oct 11 22:14:15 mymachine su: message"
-	input := newTestMessage([]byte(`Oct 11 22:14:15 mymachine su: 'su root' failed for lonvick on /dev/pts/8`))
-	result, err := parser.Parse(input)
-	require.NoError(t, err)
-
-	assert.Equal(t, message.StateStructured, result.State)
-
-	// No PRI -> StatusInfo
-	assert.Equal(t, message.StatusInfo, result.Status)
-
-	// Appname stored as source/service override in ParsingExtra
-	assert.Equal(t, "su", result.ParsingExtra.SourceOverride)
-	assert.Equal(t, "su", result.ParsingExtra.ServiceOverride)
-}
-
-func TestSyslogParser_AppNameNILVALUE(t *testing.T) {
-	parser := NewParser(true)
-
-	input := newTestMessage([]byte(`<14>1 2003-10-11T22:14:15.003Z mymachine - - - - test message`))
-	result, err := parser.Parse(input)
-	require.NoError(t, err)
-	assert.Equal(t, message.StateStructured, result.State)
-
-	// NILVALUE appname should not set override
-	assert.Equal(t, "", result.ParsingExtra.SourceOverride)
-	assert.Equal(t, "", result.ParsingExtra.ServiceOverride)
 }
 
 func TestSyslogParser_Malformed(t *testing.T) {
@@ -175,10 +125,6 @@ func TestSyslogParser_NonSyslogText(t *testing.T) {
 			require.NoError(t, rerr)
 			assert.Contains(t, string(rendered), `"message"`)
 			assert.Contains(t, string(rendered), `"syslog"`)
-
-			// Syslog metadata is sparse — no source/service override.
-			assert.Empty(t, result.ParsingExtra.SourceOverride)
-			assert.Empty(t, result.ParsingExtra.ServiceOverride)
 		})
 	}
 }

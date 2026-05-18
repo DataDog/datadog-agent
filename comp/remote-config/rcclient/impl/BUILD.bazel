@@ -13,7 +13,7 @@ go_library(
         "//comp/core/ipc/def",
         "//comp/core/log/def",
         "//comp/core/settings",
-        "//comp/core/sysprobeconfig",
+        "//comp/core/sysprobeconfig/def",
         "//comp/def",
         "//comp/remote-config/rcclient/def",
         "//comp/remote-config/rcclient/types",
@@ -25,7 +25,6 @@ go_library(
         "//pkg/remoteconfig/state",
         "//pkg/util/log",
         "//pkg/util/option",
-        "@com_github_hashicorp_go_multierror//:go-multierror",
     ],
 )
 
@@ -42,7 +41,7 @@ go_test(
         "//comp/core/log/mock",
         "//comp/core/settings",
         "//comp/core/settings/settingsimpl",
-        "//comp/core/sysprobeconfig",
+        "//comp/core/sysprobeconfig/def",
         "//comp/remote-config/rcclient/def",
         "//pkg/config/mock",
         "//pkg/config/model",

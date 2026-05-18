@@ -70,7 +70,7 @@ type StringMapItem struct {
 
 // MarshalBinary returns the binary representation of a StringMapItem
 func (i *StringMapItem) MarshalBinary() ([]byte, error) {
-	n := i.size
+	n := i.size - 1 // -1 \0
 	if len(i.str) < i.size {
 		n = len(i.str)
 	}

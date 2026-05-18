@@ -8,7 +8,7 @@
 #include "helpers/syscalls.h"
 #include "helpers/discarders.h"
 
-long __attribute__((always_inline)) trace__sys_chdir(const char *path) {
+long __attribute__((always_inline)) trace__sys_chdir(void *ctx, const char *path) {
     if (is_discarded_by_pid() || is_auid_discarder(EVENT_CHDIR)) {
         return 0;
     }
@@ -21,17 +21,16 @@ long __attribute__((always_inline)) trace__sys_chdir(const char *path) {
     };
 
     collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0), (void *)path, NULL, NULL);
-    cache_syscall(&syscall);
-
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
 HOOK_SYSCALL_ENTRY1(chdir, const char *, path) {
-    return trace__sys_chdir(path);
+    return trace__sys_chdir(ctx, path);
 }
 
 HOOK_SYSCALL_ENTRY1(fchdir, unsigned int, fd) {
-    return trace__sys_chdir(NULL);
+    return trace__sys_chdir(ctx, NULL);
 }
 
 HOOK_ENTRY("set_fs_pwd")

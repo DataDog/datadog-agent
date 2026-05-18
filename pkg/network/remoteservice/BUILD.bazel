@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "remoteservice",
+    srcs = ["resolver.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/remoteservice",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "remoteservice_test",
+    srcs = ["resolver_test.go"],
+    embed = [":remoteservice"],
+    gotags = ["test"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

@@ -295,6 +295,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.enable_kernel_filters", true)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.enable_approvers", false)  // will be set to true by sanitize() if enable_kernel_filters is true
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.enable_discarders", false) // will be set to true by sanitize() if enable_kernel_filters is true
+	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.basename_approvers_size", 4096)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.flush_discarder_window", 3)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.pid_cache_size", 10000)
 	eventMonitorBindEnvAndSetDefault(cfg, "event_monitoring_config.dns_resolution.cache_size", 1024)
@@ -361,9 +362,9 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 	// Discovery config
 	cfg.BindEnvAndSetDefault("discovery.enabled", runtime.GOOS == "linux")
 	cfg.BindEnvAndSetDefault("discovery.use_system_probe_lite", runtime.GOOS == "linux")
-	cfg.BindEnvAndSetDefault("discovery.use_rust_library", false)
 	cfg.BindEnvAndSetDefault("discovery.cpu_usage_update_delay", "60s")
 	cfg.BindEnvAndSetDefault("discovery.service_collection_interval", "60s")
+	cfg.BindEnvAndSetDefault("discovery.service_map.enabled", false)
 
 	// Privileged Logs config
 	cfg.BindEnvAndSetDefault("privileged_logs.enabled", false)
@@ -376,10 +377,12 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Setup) {
 
 	// GPU monitoring
 	cfg.BindEnvAndSetDefault("gpu_monitoring.enabled", false)
+	cfg.BindEnvAndSetDefault("gpu_monitoring.enable_ebpf_probes", true)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.nvml_lib_path", "")
 	cfg.BindEnvAndSetDefault("gpu_monitoring.process_scan_interval_seconds", 5)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.initial_process_sync", true)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.configure_cgroup_perms", false)
+	cfg.BindEnvAndSetDefault("gpu_monitoring.prm_endpoint_enabled", true)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.enable_fatbin_parsing", false)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.fatbin_request_queue_size", 100)
 	cfg.BindEnvAndSetDefault("gpu_monitoring.ring_buffer_pages_per_device", 32) // 32 pages = 128KB by default per device

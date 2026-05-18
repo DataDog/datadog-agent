@@ -14,7 +14,7 @@ Package: main
 	Function: executeContextFuncs (main.executeContextFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/context.go [26:33] injectible: [26-27], [29-29], [31-33]
 		Var: span: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.Span (declared at line 27, available: [31-32])
 		Var: ctx: context.Context (declared at line 27, available: [31-32])
-	Function: executeContextFuncs.WithSpanID.func1 (main.executeContextFuncs.WithSpanID.func1) in github.com/DataDog/dd-trace-go/v2@v2.2.3-rc.1/ddtrace/tracer/option.go [1359:1361] injectible: [1359-1361]
+	Function: executeContextFuncs.WithSpanID.func1 (main.executeContextFuncs.WithSpanID.func1) in github.com/DataDog/dd-trace-go/v2@v2.2.3/ddtrace/tracer/option.go [1359:1361] injectible: [1359-1361]
 		Arg: cfg: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.StartSpanConfig (declared at line 1359, available: [1359-1361])
 		Var: id: uint64 (declared at line 1360, available: [1360-1361])
 	Function: executeContinuationFuncs (main.executeContinuationFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/continuation.go [113:187] injectible: [113-113], [115-184], [186-187]
@@ -217,6 +217,8 @@ Package: main
 		Var: .autotmp_63: [0]main.structWithCyclicSlices (declared at line 232, available: [135-236])
 		Var: .autotmp_13: [0]uint8 (declared at line 157, available: [135-236])
 		Var: .autotmp_88: main.emptyStruct (declared at line 190, available: [135-236])
+	Function: executeTimeFuncs (main.executeTimeFuncs) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/times.go [39:56] injectible: [39-39], [41-42], [48-51], [56-56]
+		Var: ist: *time.Location (declared at line 48, available: [49-50])
 	Function: expandSlice (main.expandSlice) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go [22:25] injectible: [22-25]
 		Arg: x: []int (declared at line 22, available: [22-23], [24-24], [25-25])
 	Function: forceOutOfLine (main.forceOutOfLine) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/inlined.go [28:30] injectible: [28-30]
@@ -277,7 +279,7 @@ Package: main
 			Arg: x: <T> (declared at line 67, available: [68-70])
 			Arg: k: <T> (declared at line 67, available: [68-70])
 			Arg: v: <T> (declared at line 67, available: [68-70])
-	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2@v2.2.3-rc.1/ddtrace/tracer/option.go [986:989] injectible: [986-989]
+	Function: main.WithService.func1 (main.main.WithService.func1) in github.com/DataDog/dd-trace-go/v2@v2.2.3/ddtrace/tracer/option.go [986:989] injectible: [986-989]
 		Arg: c: *github.com/DataDog/dd-trace-go/v2/ddtrace/tracer.config (declared at line 986, available: [986-988])
 		Var: name: string (declared at line 987, available: [988-989])
 	Type: main.aStruct
@@ -666,6 +668,8 @@ Package: main
 		Field: f: main.tierD
 	Type: main.tierD
 		Field: g: int
+	Type: main.timeCapture
+		Field: monotonicNow: time.Time
 	Type: main.tinyStruct
 		Field: Name: string
 	Type: main.triggerVerifierErrorForTesting
@@ -709,9 +713,9 @@ Package: main
 		Arg: ~r0: uint64 (declared at line 40, available: )
 		Var: n: uint64 (declared at line 45, available: [44-46])
 		Var: b: []uint8 (declared at line 41, available: [42-45])
-	Function: runAll (main.runAll) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go [52:85] injectible: [52-65], [67-68], [70-72], [74-75], [78-85]
-		Var: it: main.iterExample (declared at line 69, available: [52-85])
-		Var: t: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type (declared at line 66, available: [52-85])
+	Function: runAll (main.runAll) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go [52:86] injectible: [52-65], [67-68], [70-72], [74-76], [79-86]
+		Var: it: main.iterExample (declared at line 69, available: [52-86])
+		Var: t: github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/lib.v2.V2Type (declared at line 66, available: [52-86])
 	Function: sprintSlice (main.sprintSlice) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go [16:17] injectible: [16-17]
 		Arg: x: []int (declared at line 16, available: [16-17])
 		Arg: ~r0: string (declared at line 16, available: )
@@ -1365,6 +1369,12 @@ Package: main
 		Arg: a: main.threeStringStruct (declared at line 30, available: [30-30])
 	Function: testThreeStringsInStructPointer (main.testThreeStringsInStructPointer) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go [34:34] injectible: [34-34]
 		Arg: a: *main.threeStringStruct (declared at line 34, available: [34-34])
+	Function: testTimeFixedZone (main.testTimeFixedZone) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/times.go [31:31] injectible: [31-31]
+		Arg: x: time.Time (declared at line 31, available: [31-31])
+	Function: testTimeMonotonic (main.testTimeMonotonic) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/times.go [35:35] injectible: [35-35]
+		Arg: c: main.timeCapture (declared at line 35, available: [35-35])
+	Function: testTimeUTC (main.testTimeUTC) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/times.go [27:27] injectible: [27-27]
+		Arg: x: time.Time (declared at line 27, available: [27-27])
 	Function: testTriggerVerifierError (main.testTriggerVerifierError) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/other.go [34:34] injectible: [34-34]
 		Arg: t: main.triggerVerifierErrorForTesting (declared at line 34, available: [34-34])
 	Function: testTwoByteSlicesAsciiAndBinary (main.testTwoByteSlicesAsciiAndBinary) in github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/slices.go [113:113] injectible: [113-113]

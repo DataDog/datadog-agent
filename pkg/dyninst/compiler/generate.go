@@ -44,6 +44,7 @@ type Program struct {
 	Functions        []Function
 	Types            []ir.Type
 	Throttlers       []Throttler
+	NumProbes        uint32
 	GoModuledataInfo ir.GoModuledataInfo
 	GoMapHashInfo    ir.GoMapHashInfo
 	CommonTypes      ir.CommonTypes
@@ -216,6 +217,7 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 		Functions:        g.functions,
 		Types:            types,
 		Throttlers:       throttlers,
+		NumProbes:        uint32(len(program.Probes)),
 		GoModuledataInfo: program.GoModuledataInfo,
 		GoMapHashInfo:    program.GoMapHashInfo,
 		CommonTypes:      program.CommonTypes,
@@ -515,6 +517,51 @@ func (g *generator) appendConditionOps(
 			})
 		case *ir.ConditionCheckPreserveErrorOp:
 			ops = append(ops, ConditionCheckPreserveErrorOp{})
+		case *ir.ExprLoadAddressOp:
+			ops = appendExprLoadAddress(ops, injectionPC, op)
+		case *ir.ArrayLoopBeginOp:
+			ops = append(ops, ArrayLoopBeginOp{
+				Quantifier:     op.Quantifier,
+				ElemByteSize:   op.ElemByteSize,
+				CompileTimeLen: op.CompileTimeLen,
+				EndLabel:       op.EndLabel,
+			})
+		case *ir.ArrayLoopEndOp:
+			ops = append(ops, ArrayLoopEndOp{
+				BodyLabel: op.BodyLabel,
+			})
+		case *ir.SliceLoopBeginOp:
+			ops = append(ops, SliceLoopBeginOp{
+				Quantifier:   op.Quantifier,
+				ElemByteSize: op.ElemByteSize,
+				EndLabel:     op.EndLabel,
+			})
+		case *ir.SliceLoopEndOp:
+			ops = append(ops, SliceLoopEndOp{
+				BodyLabel: op.BodyLabel,
+			})
+		case *ir.SwissMapLoopBeginOp:
+			ops = append(ops, SwissMapLoopBeginOp{
+				Quantifier:               op.Quantifier,
+				KeyByteSize:              op.KeyByteSize,
+				ValByteSize:              op.ValByteSize,
+				EndLabel:                 op.EndLabel,
+				DirPtrOffset:             op.DirPtrOffset,
+				DirLenOffset:             op.DirLenOffset,
+				CtrlOffset:               op.CtrlOffset,
+				SlotsOffset:              op.SlotsOffset,
+				KeyInSlotOffset:          op.KeyInSlotOffset,
+				ValInSlotOffset:          op.ValInSlotOffset,
+				SlotSize:                 op.SlotSize,
+				GroupByteSize:            op.GroupByteSize,
+				TableGroupsFieldOffset:   op.TableGroupsFieldOffset,
+				GroupsDataFieldOffset:    op.GroupsDataFieldOffset,
+				GroupsLenMaskFieldOffset: op.GroupsLenMaskFieldOffset,
+			})
+		case *ir.SwissMapLoopEndOp:
+			ops = append(ops, SwissMapLoopEndOp{
+				BodyLabel: op.BodyLabel,
+			})
 		default:
 			panic(fmt.Sprintf("unexpected ir.Operation in condition: %#v", op))
 		}
@@ -723,6 +770,29 @@ func (g *generator) addTypeHandler(t ir.Type) (FunctionID, bool, error) {
 		if err := structureTypeHandler(t.StructureType); err != nil {
 			return fid, needed, err
 		}
+	case *ir.GoTimeType:
+		// time.Time is special-cased: the runtime resolves the *Location
+		// pointer to a UTC offset and overwrites the captured pointer
+		// slot in place. We deliberately do not invoke
+		// structureTypeHandler here, which would chase the loc pointer
+		// (potentially recursing through Location → []zone → strings).
+		needed = true
+		offsetShift = 0
+		ops = []Op{
+			ProcessGoTimeOp{
+				WallFieldOffset:       t.WallFieldOffset,
+				ExtFieldOffset:        t.ExtFieldOffset,
+				LocFieldOffset:        t.LocFieldOffset,
+				CacheResolved:         t.CacheResolved,
+				CacheStartOffset:      t.CacheStartOffset,
+				CacheEndOffset:        t.CacheEndOffset,
+				CacheZoneOffset:       t.CacheZoneOffset,
+				ZoneOffsetFieldOffset: t.ZoneOffsetFieldOffset,
+				ZoneOffsetFieldSize:   t.ZoneOffsetFieldSize,
+			},
+			ReturnOp{},
+		}
+
 	case *ir.StructureType:
 		if err := structureTypeHandler(t); err != nil {
 			return fid, needed, err
@@ -1042,6 +1112,8 @@ func (g *generator) typeMemoryLayout(t ir.Type) ([]memoryLayoutPiece, error) {
 			err = collectPieces(t.StructureType, offset)
 		case *ir.GoStringHeaderType:
 			err = collectPieces(t.StructureType, offset)
+		case *ir.GoTimeType:
+			err = collectPieces(t.StructureType, offset)
 
 		// Types that should never be stored in registers nor stack.
 		case *ir.EventRootType:
@@ -1118,6 +1190,25 @@ func (g *generator) EncodeLocationOp(
 	if op.Variable != nil && op.Variable.Role == ir.VariableRoleDuration {
 		ops = append(ops, ExprLoadDurationOp{
 			ExprStatusIdx: exprStatusIdx,
+		})
+		return ops, nil
+	}
+	// @it (any/all loop iterator): the bytes are already at sm->offset
+	// in the loop's scratch slot. We just need to shift sm->offset by
+	// op.Offset so the following ExprPushOffsetOp / ExprCmpBaseOp reads
+	// the right field within @it. ByteSize is implicit in the following
+	// PushOffsetOp{ByteSize} the caller emits.
+	if op.Variable != nil && op.Variable.Role == ir.VariableRoleLoopIt {
+		// Always emit an advance — the body needs sm->offset re-anchored
+		// to the loop scratch slot on entry to every sub-expression, even
+		// when Offset == 0. Previous body ops (PushOffset, CmpBase, etc.)
+		// may have moved sm->offset away from the slot.
+		//
+		// LoopBaseOffset distinguishes the map @value variable (which
+		// lives at the 8-byte-aligned value offset inside the slot) from
+		// the @it variable (which lives at offset 0).
+		ops = append(ops, ExprAdvanceOffsetOp{
+			Offset: op.Variable.LoopBaseOffset + op.Offset,
 		})
 		return ops, nil
 	}
@@ -1268,3 +1359,48 @@ func swissMapOps(op *ir.SwissMapLookupOp, exprStatusIdx uint32) []Op {
 }
 
 var errUnsupportedAddrLocationOp = errors.New("unsupported addr location op")
+
+// appendExprLoadAddress lowers an ir.ExprLoadAddressOp to compiler ops.
+//
+// In-place mode (op.Variable == nil): emits a single ExprLoadAddressOp that
+// adds PointerBias to the 8-byte pointer already at sm->offset.
+//
+// Variable mode (op.Variable != nil): the variable's DWARF location must be
+// fully CFA-based at this PC (a single CFA piece spanning all bytes from
+// op.Offset upward). Register pieces are rejected — the address of a
+// register-resident value cannot be taken. If the variable is unavailable
+// or non-CFA, we emit a ReturnOp to leave the expression as absent (same
+// fallback EncodeLocationOp uses).
+func appendExprLoadAddress(ops []Op, pc uint64, op *ir.ExprLoadAddressOp) []Op {
+	if op.Variable == nil {
+		return append(ops, ExprLoadAddressOp{
+			LocationKind: ExprAddressInPlace,
+			PointerBias:  op.PointerBias,
+		})
+	}
+	for _, loclist := range op.Variable.Locations {
+		if pc < loclist.Range[0] || pc >= loclist.Range[1] {
+			continue
+		}
+		// We require a single CFA piece covering op.Offset. Multi-piece or
+		// register-backed locations have no representable address.
+		if len(loclist.Pieces) != 1 {
+			break
+		}
+		p, ok := loclist.Pieces[0].Op.(ir.Cfa)
+		if !ok {
+			break
+		}
+		if loclist.Pieces[0].Size == 0 {
+			break
+		}
+		cfaOff := uint32(int64(p.CfaOffset) + int64(op.Offset))
+		return append(ops, ExprLoadAddressOp{
+			LocationKind: ExprAddressFromCfa,
+			CfaOffset:    cfaOff,
+			PointerBias:  op.PointerBias,
+		})
+	}
+	// Variable is not available or not address-able. Return early.
+	return append(ops, ReturnOp{})
+}
