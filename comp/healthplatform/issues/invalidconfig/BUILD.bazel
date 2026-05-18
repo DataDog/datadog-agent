@@ -6,6 +6,7 @@ go_library(
         "check.go",
         "issue.go",
         "module.go",
+        "stub.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/invalidconfig",
     visibility = ["//visibility:public"],

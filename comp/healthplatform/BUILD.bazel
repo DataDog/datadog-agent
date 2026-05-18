@@ -4,7 +4,6 @@ go_library(
     name = "healthplatform",
     srcs = [
         "bundle.go",
-        "bundle_invalidconfig.go",
         "diagnose.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform",
