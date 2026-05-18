@@ -758,6 +758,8 @@ absorber.
 This motivated Stage L: replace the large buffered `packetsIn` channel, under a
 local-only env gate, with a byte-bounded in-memory ingress log.
 
+Prototype commits: `eae5cb364ee` plus follow-up `7630c423017` to avoid recording blocked-time telemetry when an append did not actually block. The SMP numbers below were gathered before the telemetry follow-up, so they are conservative for the ingress-log path.
+
 Prototype gates:
 
 - `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_LOG=true`
