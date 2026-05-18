@@ -242,7 +242,7 @@ func newTestAtelMinimal(t *testing.T, sndr sender, bufSize int) *atel {
 		logComp:              logmock.New(t),
 		sender:               sndr,
 		errLogsCh:            make(chan errortracking.ErrorLog, bufSize),
-		errLogsFlushInterval: defaultErrLogsFlushInterval,
+		errLogsFlushInterval: 60 * time.Second,
 		shutdownDrainTimeout: 5 * time.Second,
 	}
 	a.cancelCtx, a.cancel = context.WithCancel(context.Background())
@@ -346,6 +346,8 @@ func TestFlushErrortracking_DrainsWholeBufferInOneCall(t *testing.T) {
 
 	got := sm.capturedLogs()
 	require.Len(t, got, total, "every enqueued record must be dispatched in one drain pass")
+	require.Equal(t, 1, sm.sendLogsCalls(),
+		"drain must dispatch the entire buffer in exactly one sendLogsTypedBatch call; multiple calls would indicate a regression to per-batch dispatch")
 	for _, log := range got {
 		// Per-record identification by Message was removed when Message
 		// stopped shipping — it is always empty on the wire.

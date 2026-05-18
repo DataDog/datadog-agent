@@ -60,8 +60,15 @@ type senderMock struct {
 	// assertions; readers MUST take the lock or use a synchronisation
 	// barrier (e.g. wait on runner.stop().Done) that establishes
 	// happens-before with the job's completion.
-	sentLogsMu sync.Mutex
-	sentLogs   []Log
+	//
+	// sendLogsCallCount counts sendLogsTypedBatch invocations; sentLogs
+	// flattens every batch into one accumulating slice. The pair lets
+	// tests distinguish "1 call with N records" from "N calls with 1
+	// record each" — the latter would be a regression to per-batch
+	// dispatch that the flattened slice alone cannot detect.
+	sentLogsMu        sync.Mutex
+	sentLogs          []Log
+	sendLogsCallCount int
 }
 
 func (s *senderMock) startSession(_ context.Context) *senderSession {
@@ -78,6 +85,7 @@ func (s *senderMock) sendEventPayload(_ *senderSession, _ *Event, _ map[string]i
 func (s *senderMock) sendLogsTypedBatch(_ context.Context, logs []Log) error {
 	s.sentLogsMu.Lock()
 	defer s.sentLogsMu.Unlock()
+	s.sendLogsCallCount++
 	s.sentLogs = append(s.sentLogs, logs...)
 	return nil
 }
@@ -91,6 +99,16 @@ func (s *senderMock) capturedLogs() []Log {
 	out := make([]Log, len(s.sentLogs))
 	copy(out, s.sentLogs)
 	return out
+}
+
+// sendLogsCalls returns a thread-safe snapshot of how many times
+// sendLogsTypedBatch was invoked. Pair with capturedLogs to assert
+// "one HTTP call per flush" (N records via 1 call, not 1 record via N
+// calls).
+func (s *senderMock) sendLogsCalls() int {
+	s.sentLogsMu.Lock()
+	defer s.sentLogsMu.Unlock()
+	return s.sendLogsCallCount
 }
 
 // Runner mock (TODO: use use mock.Mock)

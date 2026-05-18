@@ -187,9 +187,9 @@ func createAtel(
 	errortrackingEnabled := utils.IsAgentTelemetryEnabled(cfgComp) &&
 		cfgComp.GetBool("agent_telemetry.errortracking.enabled")
 
-	bufferSize := positiveOrDefault(cfgComp.GetInt("agent_telemetry.errortracking.buffer_size"), defaultErrLogsBufferSize)
-	flushInterval := positiveDurationOrDefault(cfgComp.GetInt("agent_telemetry.errortracking.flush_interval_seconds"), defaultErrLogsFlushInterval)
-	startupJitter := nonNegativeDuration(cfgComp.GetInt("agent_telemetry.errortracking.startup_jitter_seconds"))
+	bufferSize := cfgComp.GetInt("agent_telemetry.errortracking.buffer_size")
+	flushInterval := time.Duration(cfgComp.GetInt("agent_telemetry.errortracking.flush_interval_seconds")) * time.Second
+	startupJitter := time.Duration(cfgComp.GetInt("agent_telemetry.errortracking.startup_jitter_seconds")) * time.Second
 
 	var errLogsCh chan errortracking.ErrorLog
 	if errortrackingEnabled {
@@ -198,7 +198,7 @@ func createAtel(
 
 	// Final-drain context budget — bounded so a hung intake cannot
 	// block agent shutdown. See atel.stop for usage.
-	shutdownDrainTimeout := positiveDurationOrDefault(cfgComp.GetInt("agent_telemetry.errortracking.shutdown_drain_timeout_seconds"), 5*time.Second)
+	shutdownDrainTimeout := time.Duration(cfgComp.GetInt("agent_telemetry.errortracking.shutdown_drain_timeout_seconds")) * time.Second
 
 	return &atel{
 		enabled: true,
@@ -225,34 +225,6 @@ func createAtel(
 		errLogsStartupJitter: startupJitter,
 		shutdownDrainTimeout: shutdownDrainTimeout,
 	}
-}
-
-// positiveOrDefault returns v when v > 0; otherwise the supplied
-// default. Used by createAtel to make non-positive config values fall
-// back to the package-level defaults defined in sender.go.
-func positiveOrDefault(v, fallback int) int {
-	if v > 0 {
-		return v
-	}
-	return fallback
-}
-
-// positiveDurationOrDefault treats the int as seconds. v > 0 returns
-// v seconds; v <= 0 returns fallback.
-func positiveDurationOrDefault(v int, fallback time.Duration) time.Duration {
-	if v > 0 {
-		return time.Duration(v) * time.Second
-	}
-	return fallback
-}
-
-// nonNegativeDuration treats the int as seconds and clamps at 0. v < 0
-// returns 0 (intent: "disabled"); v >= 0 returns v seconds.
-func nonNegativeDuration(v int) time.Duration {
-	if v <= 0 {
-		return 0
-	}
-	return time.Duration(v) * time.Second
 }
 
 // NewComponent creates a new agent telemetry component.
@@ -901,8 +873,6 @@ func (a *atel) stop() error {
 
 	runnerCtx := a.runner.stop()
 	<-runnerCtx.Done()
-
-	<-a.cancelCtx.Done()
 
 	// Final errortracking drain. Uses a fresh background-derived ctx
 	// because a.cancelCtx is already done; the bounded timeout caps the
