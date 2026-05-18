@@ -8,7 +8,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_unlink(u8 async, int dirfd, const char *filename, int flags) {
+int __attribute__((always_inline)) trace__sys_unlink(void *ctx, u8 async, int dirfd, const char *filename, int flags) {
     struct syscall_cache_t syscall = {
         .type = EVENT_UNLINK,
         .policy = fetch_policy(EVENT_UNLINK),
@@ -21,26 +21,25 @@ int __attribute__((always_inline)) trace__sys_unlink(u8 async, int dirfd, const 
     if (!async) {
         collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_INT(0) | SYSCALL_CTX_ARG_STR(1) | SYSCALL_CTX_ARG_INT(2), (void *)&dirfd, (void *)filename, (void *)&flags);
     }
-    cache_syscall(&syscall);
-
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
 HOOK_SYSCALL_ENTRY1(unlink, const char *, filename) {
     int dirfd = AT_FDCWD;
     int flags = 0;
-    return trace__sys_unlink(SYNC_SYSCALL, dirfd, filename, flags);
+    return trace__sys_unlink(ctx, SYNC_SYSCALL, dirfd, filename, flags);
 }
 
 HOOK_SYSCALL_ENTRY3(unlinkat, int, dirfd, const char *, filename, int, flags) {
-    return trace__sys_unlink(SYNC_SYSCALL, dirfd, filename, flags);
+    return trace__sys_unlink(ctx, SYNC_SYSCALL, dirfd, filename, flags);
 }
 
 HOOK_ENTRY("do_unlinkat")
 int hook_do_unlinkat(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_UNLINK);
     if (!syscall) {
-        return trace__sys_unlink(ASYNC_SYSCALL, 0, NULL, 0);
+        return trace__sys_unlink(ctx, ASYNC_SYSCALL, 0, NULL, 0);
     }
     return 0;
 }

@@ -8,7 +8,7 @@
 #include "helpers/syscalls.h"
 #include "helpers/discarders.h"
 
-int __attribute__((always_inline)) trace__sys_rmdir(u8 async, const char *filename) {
+int __attribute__((always_inline)) trace__sys_rmdir(void *ctx, u8 async, const char *filename) {
     struct syscall_cache_t syscall = {
         .type = EVENT_RMDIR,
         .policy = fetch_policy(EVENT_RMDIR),
@@ -18,20 +18,19 @@ int __attribute__((always_inline)) trace__sys_rmdir(u8 async, const char *filena
     if (!async) {
         collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0), (void *)filename, NULL, NULL);
     }
-    cache_syscall(&syscall);
-
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
 HOOK_SYSCALL_ENTRY1(rmdir, const char *, filename) {
-    return trace__sys_rmdir(SYNC_SYSCALL, filename);
+    return trace__sys_rmdir(ctx, SYNC_SYSCALL, filename);
 }
 
 HOOK_ENTRY("do_rmdir")
 int hook_do_rmdir(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall_with(rmdir_predicate);
     if (!syscall) {
-        return trace__sys_rmdir(ASYNC_SYSCALL, NULL);
+        return trace__sys_rmdir(ctx, ASYNC_SYSCALL, NULL);
     }
     return 0;
 }

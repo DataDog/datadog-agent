@@ -10,7 +10,9 @@
 #include "helpers/iouring.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_openat2(const char *path, u8 async, int flags, umode_t mode, u64 pid_tgid) {
+// pid_tgid == 0 selects SYNC_SYSCALL with the current task; a non-zero pid_tgid
+// switches the syscall to ASYNC_SYSCALL and identifies the owner thread.
+int __attribute__((always_inline)) trace__sys_openat2(void *ctx, const char *path, int flags, umode_t mode, u64 pid_tgid) {
     if (is_discarded_by_pid() || is_auid_discarder(EVENT_OPEN)) {
         return 0;
     }
@@ -19,62 +21,58 @@ int __attribute__((always_inline)) trace__sys_openat2(const char *path, u8 async
     struct syscall_cache_t syscall = {
         .type = EVENT_OPEN,
         .policy = policy,
-        .async = async,
+        .async = pid_tgid ? ASYNC_SYSCALL : SYNC_SYSCALL,
         .open = {
             .flags = flags,
             .mode = mode & S_IALLUGO,
+            .pid_tgid = pid_tgid,
         }
     };
 
-    if (pid_tgid > 0) {
-        syscall.open.pid_tgid = pid_tgid;
-    }
-
     collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0) | SYSCALL_CTX_ARG_INT(1) | SYSCALL_CTX_ARG_INT(2), (void *)path, (void *)&flags, (void *)&mode);
-    cache_syscall(&syscall);
-
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
-int __attribute__((always_inline)) trace__sys_openat(const char *path, u8 async, int flags, umode_t mode) {
-    return trace__sys_openat2(path, async, flags, mode, 0);
+int __attribute__((always_inline)) trace__sys_openat(void *ctx, const char *path, int flags, umode_t mode) {
+    return trace__sys_openat2(ctx, path, flags, mode, 0);
 }
 
 HOOK_SYSCALL_ENTRY2(creat, const char *, filename, umode_t, mode) {
     int flags = O_CREAT | O_WRONLY | O_TRUNC;
-    return trace__sys_openat(filename, SYNC_SYSCALL, flags, mode);
+    return trace__sys_openat(ctx, filename, flags, mode);
 }
 
 HOOK_SYSCALL_COMPAT_ENTRY3(open_by_handle_at, int, mount_fd, struct file_handle *, handle, int, flags) {
     umode_t mode = 0;
-    return trace__sys_openat(NULL, SYNC_SYSCALL, flags, mode);
+    return trace__sys_openat(ctx, NULL, flags, mode);
 }
 
 HOOK_SYSCALL_COMPAT_ENTRY1(truncate, const char *, filename) {
     int flags = O_CREAT | O_WRONLY | O_TRUNC;
     umode_t mode = 0;
-    return trace__sys_openat(filename, SYNC_SYSCALL, flags, mode);
+    return trace__sys_openat(ctx, filename, flags, mode);
 }
 
 HOOK_SYSCALL_COMPAT_ENTRY0(ftruncate) {
     int flags = O_CREAT | O_WRONLY | O_TRUNC;
     umode_t mode = 0;
     char filename[1] = "";
-    return trace__sys_openat(filename, SYNC_SYSCALL, flags, mode);
+    return trace__sys_openat(ctx, filename, flags, mode);
 }
 
 HOOK_SYSCALL_COMPAT_ENTRY3(open, const char *, filename, int, flags, umode_t, mode) {
-    return trace__sys_openat(filename, SYNC_SYSCALL, flags, mode);
+    return trace__sys_openat(ctx, filename, flags, mode);
 }
 
 HOOK_SYSCALL_COMPAT_ENTRY4(openat, int, dirfd, const char *, filename, int, flags, umode_t, mode) {
-    return trace__sys_openat(filename, SYNC_SYSCALL, flags, mode);
+    return trace__sys_openat(ctx, filename, flags, mode);
 }
 
 HOOK_SYSCALL_ENTRY4(openat2, int, dirfd, const char *, filename, struct openat2_open_how *, phow, size_t, size) {
     struct openat2_open_how how;
     bpf_probe_read(&how, sizeof(struct openat2_open_how), phow);
-    return trace__sys_openat(filename, SYNC_SYSCALL, how.flags, how.mode);
+    return trace__sys_openat(ctx, filename, how.flags, how.mode);
 }
 
 int __attribute__((always_inline)) handle_open(ctx_t *ctx, struct path *path) {
@@ -209,7 +207,7 @@ int __attribute__((always_inline)) trace_io_openat(ctx_t *ctx) {
     if (!syscall) {
         unsigned int flags = req.how.flags & VALID_OPEN_FLAGS;
         umode_t mode = req.how.mode & S_IALLUGO;
-        return trace__sys_openat2(NULL, ASYNC_SYSCALL, flags, mode, pid_tgid);
+        return trace__sys_openat2(ctx, NULL, flags, mode, pid_tgid);
     } else {
         syscall->open.pid_tgid = get_pid_tgid_from_iouring(raw_req);
     }
