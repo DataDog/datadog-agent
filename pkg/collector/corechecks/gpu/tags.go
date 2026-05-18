@@ -23,6 +23,7 @@ import (
 	secutils "github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const workloadTagCacheTelemetrySubsystem = consts.GpuTelemetryModule + "__workload_tag_cache"
@@ -183,7 +184,9 @@ func (c *WorkloadTagCache) buildContainerTags(containerID string) ([]string, err
 		cardinality = taggertypes.HighCardinality
 	}
 
-	return c.tagger.Tag(entityID, cardinality)
+	tags, err := c.tagger.Tag(entityID, cardinality)
+	log.Infof("DIAG buildContainerTags cid=%s card=%v tags=%v err=%v", containerID, cardinality, tags, err)
+	return tags, err
 }
 
 // buildProcessTags builds the tags for a process. Can return "ErrNotFound" if the process
@@ -268,6 +271,7 @@ func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) 
 		tags = append(tags, containerTags...)
 	}
 
+	log.Infof("DIAG buildProcessTags pid=%d ownerSet=%v procCID=%q chosenCID=%q tags=%v", pid, process != nil && process.Owner != nil, func() string { if process != nil { return process.ContainerID }; return "" }(), containerID, tags)
 	return tags, multiErr
 }
 
