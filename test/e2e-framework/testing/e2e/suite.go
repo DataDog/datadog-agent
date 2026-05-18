@@ -580,17 +580,17 @@ func (bs *BaseSuite[Env]) buildEnvFromResources(resources provisioners.RawResour
 }
 
 func (bs *BaseSuite[Env]) providerContext(opTimeout time.Duration) (context.Context, context.CancelFunc) {
-	var ctx context.Context
-	var cancel func()
-
-	if deadline, ok := bs.T().Deadline(); ok {
-		deadline = deadline.Add(-provisionerGracePeriod)
-		ctx, cancel = context.WithDeadlineCause(context.Background(), deadline, errors.New("go test timeout almost reached, cancelling provisioners"))
-	} else {
-		ctx, cancel = context.WithTimeout(context.Background(), opTimeout)
+	if deadline, ok := bs.T().Deadline(); ok && time.Now().Before(deadline) {
+		// Normal case: clamp the provisioner context just before the real go
+		// test deadline so it cancels itself before the binary panics.
+		return context.WithDeadlineCause(context.Background(), deadline.Add(-provisionerGracePeriod), errors.New("go test timeout almost reached, cancelling provisioners"))
 	}
 
-	return ctx, cancel
+	// Either the suite has no go test deadline, or it has already passed
+	// (e.g. TearDownSuite running after go test -timeout fired). Falling back
+	// to opTimeout gives cleanup (pulumi destroy, cluster state dump) a fair
+	// window before GitLab kills the job.
+	return context.WithTimeout(context.Background(), opTimeout)
 }
 
 //
