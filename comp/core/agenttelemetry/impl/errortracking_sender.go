@@ -60,7 +60,7 @@ func (s *senderImpl) sendLogsTypedBatch(ctx context.Context, logs []Log) error {
 // every slog.Attr value is potentially user-controlled — paths, hostnames,
 // request bodies, error strings carrying user data. Until template-aware
 // static-message capture lands (follow-up), the only fields safe by
-// construction are PC, Time, and Count. The schema fields stay (wire-shape
+// construction are PC, Level, Time, and Count. The schema fields stay (wire-shape
 // parity with dd-go) but are not populated and should not be populated by
 // this path.
 //
