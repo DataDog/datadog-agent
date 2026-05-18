@@ -25,13 +25,21 @@ import (
 // intentionally narrow: kind, name, value, tags (canonical-sorted), hostname.
 // Anything that doesn't survive a round-trip through JSON (function pointers,
 // goroutines, et al.) stays out of the schema.
+//
+// FlushFirstValue is only meaningful for monotonic_count submissions. It
+// records whether the scraper considered this the "first" observation of the
+// counter — i.e., whether downstream rate math should treat it as a seed
+// value rather than a real delta. Stateful (two-scrape) tests use this to
+// verify the flag toggles correctly across consecutive scrapes; stateless
+// tests can ignore it (it's omitted from JSON when false).
 type Submission struct {
-	Kind     string   `json:"kind"`
-	Name     string   `json:"name"`
-	Value    float64  `json:"value"`
-	Tags     []string `json:"tags"`
-	Hostname string   `json:"hostname"`
-	Message  string   `json:"message,omitempty"`
+	Kind            string   `json:"kind"`
+	Name            string   `json:"name"`
+	Value           float64  `json:"value"`
+	Tags            []string `json:"tags"`
+	Hostname        string   `json:"hostname"`
+	Message         string   `json:"message,omitempty"`
+	FlushFirstValue bool     `json:"flush_first_value,omitempty"`
 }
 
 // RecordingSender implements sender.Sender by appending every submission to a
@@ -67,8 +75,14 @@ func (r *RecordingSender) Count(m string, v float64, h string, t []string) {
 func (r *RecordingSender) MonotonicCount(m string, v float64, h string, t []string) {
 	r.append("monotonic_count", m, v, h, t)
 }
-func (r *RecordingSender) MonotonicCountWithFlushFirstValue(m string, v float64, h string, t []string, _ bool) {
-	r.append("monotonic_count", m, v, h, t)
+func (r *RecordingSender) MonotonicCountWithFlushFirstValue(m string, v float64, h string, t []string, flushFirstValue bool) {
+	sorted := make([]string, len(t))
+	copy(sorted, t)
+	sort.Strings(sorted)
+	r.Submissions = append(r.Submissions, Submission{
+		Kind: "monotonic_count", Name: m, Value: v, Hostname: h, Tags: sorted,
+		FlushFirstValue: flushFirstValue,
+	})
 }
 func (r *RecordingSender) Counter(m string, v float64, h string, t []string) {
 	r.append("count", m, v, h, t)

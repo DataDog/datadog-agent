@@ -11,16 +11,24 @@ This is **not** wired into normal CI. It's gated behind the
 check against the production Python implementation on real and synthetic
 inputs.
 
-Three entry points, increasing in coverage:
+Five entry points, increasing in coverage:
 
 1. `TestOpenMetricsDifferential` — fixed corpus, two real captured payloads.
 2. `TestOpenMetricsMutation` — N random mutations of each corpus payload.
 3. `TestOpenMetricsAdversarial` — hand-crafted spec-corner cases, each
    targeting a specific behavior class so failures triage by subtest name.
-4. `FuzzOpenMetricsDifferential` — `testing.F` fuzz target seeded by the
+4. `TestOpenMetricsConfigDifferential` — instance-config mutator crossed
+   with the corpus payloads. Targets the transformer / matcher pipeline
+   rather than the parser. Knob attribution makes the source of
+   divergence clear.
+5. `TestStateful*` (5 tests) — stateful two-scrape testing. Exercises
+   the `flush_first_value` state machine, `use_process_start_time`
+   handling, `share_labels` cache behavior across scrapes, and sample
+   disappearance / reappearance.
+6. `FuzzOpenMetricsDifferential` — `testing.F` fuzz target seeded by the
    corpus, coverage-guided once run under `-fuzz`.
 
-All four share the same Python sidecar, payload server, and diff machinery.
+All six share the same Python sidecar, payload server, and diff machinery.
 
 ## Prereqs
 

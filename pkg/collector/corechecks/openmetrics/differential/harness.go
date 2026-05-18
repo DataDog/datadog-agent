@@ -158,3 +158,105 @@ func loadGzipped(path string) ([]byte, error) {
 	defer gz.Close()
 	return io.ReadAll(gz)
 }
+
+// ---- stateful session ------------------------------------------------------
+
+// statefulSession runs N consecutive scrapes against the same Go scraper +
+// Python check instance, so scrape-to-scrape state (flush_first_value, the
+// share-labels cache, etc.) is preserved across calls. This is the only
+// shape that exercises behaviour like "first-scrape skip" or stale-metric
+// handling.
+//
+// Construction and teardown are explicit: callers must defer Close to avoid
+// leaking sessions in the Python sidecar.
+type statefulSession struct {
+	ps        *payloadServer
+	scraper   *openmetrics.Scraper
+	sidecar   *pythonSidecar
+	sessionID string
+	instance  map[string]interface{}
+	scrapeNum int
+}
+
+// newStatefulSession constructs the Go-side scraper from `instance`, opens a
+// matching session on the Python sidecar pinned to the supplied payload
+// server's endpoint, and returns a handle. Returns an error if either side
+// fails to initialize.
+//
+// The payload server is borrowed (not owned); the caller is responsible for
+// closing it when finished.
+func newStatefulSession(ps *payloadServer, sidecar *pythonSidecar, sessionID string, instance map[string]interface{}) (*statefulSession, error) {
+	// Build instance-with-endpoint for both sides.
+	instanceCopy := map[string]interface{}{}
+	for k, v := range instance {
+		instanceCopy[k] = v
+	}
+	instanceCopy["openmetrics_endpoint"] = ps.endpoint()
+
+	raw, err := yaml.Marshal(instanceCopy)
+	if err != nil {
+		return nil, fmt.Errorf("marshal instance: %w", err)
+	}
+	scraper, err := openmetrics.NewScraperFromYAML(raw, "differential-stateful-"+sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("go scraper init: %w", err)
+	}
+
+	// Open the Python session. Pass the *original* instance (no endpoint set
+	// twice) and let the sidecar add openmetrics_endpoint itself.
+	if err := sidecar.openSession(sessionID, ps.endpoint(), instance); err != nil {
+		return nil, fmt.Errorf("py session init: %w", err)
+	}
+
+	return &statefulSession{
+		ps:        ps,
+		scraper:   scraper,
+		sidecar:   sidecar,
+		sessionID: sessionID,
+		instance:  instance,
+	}, nil
+}
+
+// Scrape runs one scrape cycle: sets the payload, invokes the Go scraper,
+// requests a scrape from the Python session, and diffs. The Diffs slice is
+// populated only when both sides produce output (matching runIteration's
+// semantics).
+func (s *statefulSession) Scrape(payload []byte) iterationOutcome {
+	s.scrapeNum++
+	s.ps.set(payload)
+
+	// Go scrape against the long-lived scraper.
+	rec := &RecordingSender{}
+	var goErr error
+	if err := s.scraper.Scrape(rec); err != nil {
+		goErr = fmt.Errorf("scrape: %w", err)
+	}
+
+	// Python scrape against the persistent session.
+	pyResp, err := s.sidecar.scrapeSession(s.sessionID)
+	if err != nil {
+		return iterationOutcome{GoErr: fmt.Errorf("sidecar protocol: %w", err)}
+	}
+
+	out := iterationOutcome{
+		GoSubs: rec.Submissions,
+		PySubs: pyResp.Submissions,
+		GoErr:  goErr,
+		PyErr:  pyResp.Error,
+	}
+	if goErr == nil && pyResp.Error == "" {
+		out.Diffs = CompareSubmissions(rec.Submissions, pyResp.Submissions)
+	}
+	return out
+}
+
+// ScrapeCount returns the number of scrapes performed against this session
+// (useful for logging / failure reporting).
+func (s *statefulSession) ScrapeCount() int { return s.scrapeNum }
+
+// Close releases the Python-side session. The Go scraper has no
+// corresponding teardown step. Safe to call multiple times; subsequent calls
+// are no-ops in the sidecar.
+func (s *statefulSession) Close() error {
+	return s.sidecar.closeSession(s.sessionID)
+}

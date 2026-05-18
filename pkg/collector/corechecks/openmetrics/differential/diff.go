@@ -108,12 +108,13 @@ func normalize(s Submission) Submission {
 	}
 	sort.Strings(tags)
 	return Submission{
-		Kind:     s.Kind,
-		Name:     s.Name,
-		Value:    s.Value,
-		Hostname: s.Hostname, // hostname comparison kept on; if it flaps, add to ignore list
-		Tags:     tags,
-		Message:  "", // service-check message wording diverges between runtimes; ignore by design
+		Kind:            s.Kind,
+		Name:            s.Name,
+		Value:           s.Value,
+		Hostname:        s.Hostname, // hostname comparison kept on; if it flaps, add to ignore list
+		Tags:            tags,
+		Message:         "", // service-check message wording diverges between runtimes; ignore by design
+		FlushFirstValue: s.FlushFirstValue,
 	}
 }
 
@@ -127,7 +128,11 @@ func shouldIgnoreTag(tag string) bool {
 }
 
 func identityKey(s Submission) string {
-	return s.Kind + "\x00" + s.Name + "\x00" + strings.Join(s.Tags, ",") + "\x00" + s.Hostname
+	flush := ""
+	if s.FlushFirstValue {
+		flush = "\x00flush=1"
+	}
+	return s.Kind + "\x00" + s.Name + "\x00" + strings.Join(s.Tags, ",") + "\x00" + s.Hostname + flush
 }
 
 func sortByValue(ss []Submission) {
