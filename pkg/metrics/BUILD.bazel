@@ -24,6 +24,7 @@ go_library(
         "rate.go",
         "series.go",
         "series_row.go",
+        "series_row_flush.go",
         "set.go",
         "sketch_series.go",
         "test_helper.go",

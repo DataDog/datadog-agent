@@ -829,6 +829,48 @@ func TestTimeSamplerFlushUsesDirectRowsWhenEnabled(t *testing.T) {
 	}, sink.rows[0])
 }
 
+func TestTimeSamplerFlushUsesDirectMetricRowsWhenEnabled(t *testing.T) {
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_DIRECT_ROWS", "true")
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_DIRECT_METRIC_ROWS", "true")
+	sampler := testTimeSampler(tags.NewStore(true, "test"))
+	matcher := filterlist.NewNoopTagMatcher()
+
+	sampler.sample(&metrics.MetricSample{
+		Name:       "metric.row",
+		Value:      1,
+		Mtype:      metrics.CountType,
+		Tags:       []string{"env:prod"},
+		Host:       "host-a",
+		SampleRate: 1,
+		Source:     metrics.MetricSourceDogstatsd,
+	}, 1001, matcher)
+	sampler.sample(&metrics.MetricSample{
+		Name:       "metric.row",
+		Value:      2,
+		Mtype:      metrics.CountType,
+		Tags:       []string{"env:prod"},
+		Host:       "host-a",
+		SampleRate: 1,
+		Source:     metrics.MetricSourceDogstatsd,
+	}, 1011, matcher)
+
+	var sink rowCaptureSerieSink
+	var sketches metrics.SketchSeriesList
+	sampler.flush(1030, &sink, &sketches, nil, true)
+
+	require.Empty(t, sink.series)
+	require.Len(t, sink.rows, 1)
+	assert.Equal(t, metrics.SerieRow{
+		Name:     "metric.row",
+		Points:   []metrics.Point{{Ts: 1000, Value: 1}, {Ts: 1010, Value: 2}},
+		Tags:     tagset.NewCompositeTags([]string{}, []string{"env:prod"}),
+		Host:     "host-a",
+		MType:    metrics.APICountType,
+		Interval: 10,
+		Source:   metrics.MetricSourceDogstatsd,
+	}, sink.rows[0])
+}
+
 func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
 	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nooptagger.NewComponent(), "host")
 	matcher := filterlist.NewNoopTagMatcher()

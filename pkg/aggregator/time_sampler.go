@@ -173,6 +173,16 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, fi
 			// rowBySignature and rows are reused for each call to avoid allocations.
 			rowBySignature := make(map[SerieSignature]int)
 			rows := make([]metrics.SerieRow, 0)
+
+			if directMetricRowsExperimentEnabled() {
+				s.flushContextMetricRows(contextMetricsFlusher, func(contextKey ckey.ContextKey, rawRows []metrics.SerieRowFragment) {
+					// Note: rawRows is reused at each call
+					s.dedupSerieRowsByMetricRowSignature(contextKey, rawRows, rowSink, rowBySignature, &rows, filterList, rowShadow)
+				})
+				rowShadow.finish("metric_rows", time.Since(rowShadowStart))
+				return
+			}
+
 			s.flushContextMetrics(contextMetricsFlusher, func(rawSeries []*metrics.Serie) {
 				// Note: rawSeries is reused at each call
 				s.dedupSerieRowsBySerieSignature(rawSeries, rowSink, rowBySignature, &rows, filterList, rowShadow)
@@ -236,8 +246,66 @@ func (s *TimeSampler) dedupSerieRowsBySerieSignature(
 		*rows = append(*rows, row)
 	}
 
-	for i := range *rows {
-		row := &(*rows)[i]
+	s.flushSerieRows(rowSink, *rows, filterList, rowShadow)
+}
+
+func (s *TimeSampler) dedupSerieRowsByMetricRowSignature(
+	contextKey ckey.ContextKey,
+	rawRows []metrics.SerieRowFragment,
+	rowSink metrics.SerieRowSink,
+	rowBySignature map[SerieSignature]int,
+	rows *[]metrics.SerieRow,
+	filterList *utilstrings.Matcher,
+	rowShadow *directRowShadowBuilder,
+) {
+	for k := range rowBySignature {
+		delete(rowBySignature, k)
+	}
+	*rows = (*rows)[:0]
+
+	context, ok := s.contextResolver.get(contextKey)
+	if !ok {
+		log.Errorf("TimeSampler #%d Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", s.id, contextKey)
+		return
+	}
+
+	for _, rawRow := range rawRows {
+		serieSignature := SerieSignature{rawRow.MType, rawRow.NameSuffix}
+
+		if existingRowIndex, ok := rowBySignature[serieSignature]; ok {
+			(*rows)[existingRowIndex].Points = append((*rows)[existingRowIndex].Points, rawRow.Points...)
+			continue
+		}
+
+		row := metrics.NewSerieRow(
+			context.Name+rawRow.NameSuffix,
+			rawRow.Points[:len(rawRow.Points):len(rawRow.Points)],
+			context.Tags(),
+			context.Host,
+			"",
+			rawRow.MType,
+			s.interval,
+			rawRow.SourceTypeName,
+			rawRow.Unit,
+			context.noIndex,
+			rawRow.Resources,
+			context.source,
+		)
+		rowBySignature[serieSignature] = len(*rows)
+		*rows = append(*rows, row)
+	}
+
+	s.flushSerieRows(rowSink, *rows, filterList, rowShadow)
+}
+
+func (s *TimeSampler) flushSerieRows(
+	rowSink metrics.SerieRowSink,
+	rows []metrics.SerieRow,
+	filterList *utilstrings.Matcher,
+	rowShadow *directRowShadowBuilder,
+) {
+	for i := range rows {
+		row := &rows[i]
 		if filterList != nil && filterList.Test(row.Name) {
 			tlmDogstatsdFilteredMetrics.Inc()
 			continue
@@ -361,6 +429,15 @@ func (s *TimeSampler) updateMetrics() {
 // and call several times `callback`, each time with series with same context key
 func (s *TimeSampler) flushContextMetrics(contextMetricsFlusher *metrics.ContextMetricsFlusher, callback func([]*metrics.Serie)) {
 	errors := contextMetricsFlusher.FlushAndClear(callback)
+	s.logContextMetricFlushErrors(errors)
+}
+
+func (s *TimeSampler) flushContextMetricRows(contextMetricsFlusher *metrics.ContextMetricsFlusher, callback func(ckey.ContextKey, []metrics.SerieRowFragment)) {
+	errors := contextMetricsFlusher.FlushSerieRowFragmentsAndClear(callback)
+	s.logContextMetricFlushErrors(errors)
+}
+
+func (s *TimeSampler) logContextMetricFlushErrors(errors map[ckey.ContextKey][]error) {
 	for ckey, err := range errors {
 		context, ok := s.contextResolver.get(ckey)
 		if !ok {
