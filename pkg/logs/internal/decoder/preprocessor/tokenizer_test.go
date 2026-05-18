@@ -208,32 +208,93 @@ func refToUpper(b byte) byte {
 	return b
 }
 
+// refSpecialToken maps an uppercase ASCII string to its Token, mirroring
+// getSpecialLongToken in the production tokenizer.  Keep in sync with it.
 func refSpecialToken(s string) Token {
-	if len(s) == 1 {
+	switch len(s) {
+	case 1:
 		switch s[0] {
 		case 'T':
 			return T
 		case 'Z':
 			return Zone
 		}
-		return End
-	}
-	switch s {
-	case "AM", "PM":
-		return Apm
-	case "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
-		"JUL", "AUG", "SEP", "OCT", "NOV", "DEC":
-		return Month
-	case "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN":
-		return Day
-	case "UTC", "GMT", "EST", "EDT", "CST", "CDT",
-		"MST", "MDT", "PST", "PDT", "JST", "KST",
-		"IST", "MSK", "CET", "BST", "HST", "HDT",
-		"NST", "NDT",
-		"CEST", "NZST", "NZDT", "ACST", "ACDT",
-		"AEST", "AEDT", "AWST", "AWDT", "AKST",
-		"AKDT", "CHST", "CHDT":
-		return Zone
+	case 2:
+		switch s {
+		case "AM", "PM":
+			return Apm
+		}
+	case 3:
+		switch s {
+		case "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+			"JUL", "AUG", "SEP", "OCT", "NOV", "DEC":
+			return Month
+		case "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN":
+			return Day
+		case "UTC", "GMT", "EST", "EDT", "CST", "CDT",
+			"MST", "MDT", "PST", "PDT", "JST", "KST",
+			"IST", "MSK", "CET", "BST", "HST", "HDT",
+			"NST", "NDT":
+			return Zone
+		}
+	case 4:
+		switch s {
+		case "WARN":
+			return Warn
+		case "CRIT":
+			return Critical
+		case "CEST", "NZST", "NZDT", "ACST", "ACDT",
+			"AEST", "AEDT", "AWST", "AWDT", "AKST",
+			"AKDT", "CHST", "CHDT":
+			return Zone
+		}
+	case 5:
+		switch s {
+		case "FATAL":
+			return Fatal
+		case "ERROR":
+			return Error
+		case "PANIC":
+			return Panic
+		case "ALERT":
+			return Alert
+		case "EMERG":
+			return Emergency
+		case "CRASH":
+			return Crash
+		}
+	case 6:
+		switch s {
+		case "SEVERE":
+			return Severe
+		case "FAILED":
+			return Failure
+		}
+	case 7:
+		switch s {
+		case "WARNING":
+			return Warn
+		case "CRASHED":
+			return Crash
+		case "FAILURE":
+			return Failure
+		case "TIMEOUT":
+			return Timeout
+		}
+	case 8:
+		switch s {
+		case "CRITICAL":
+			return Critical
+		case "DEADLOCK":
+			return Deadlock
+		}
+	case 9:
+		switch s {
+		case "EMERGENCY":
+			return Emergency
+		case "EXCEPTION":
+			return Exception
+		}
 	}
 	return End
 }
@@ -251,7 +312,7 @@ func referenceTokenize(input []byte) []Token {
 			runLen++
 		}
 		if base == C1 || base == D1 {
-			if base == C1 && runLen >= 1 && runLen <= 4 {
+			if base == C1 && runLen >= 1 && runLen <= 9 {
 				upper := make([]byte, runLen)
 				for j := 0; j < runLen; j++ {
 					upper[j] = refToUpper(input[i+j])
