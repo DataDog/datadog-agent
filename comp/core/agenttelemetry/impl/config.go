@@ -61,12 +61,13 @@ type ExcludeMetricConfig struct {
 // MetricConfig is a list of metric selecting subset of telemetry.Gather() metrics to be included in agent
 type MetricConfig struct {
 	Name           string   `yaml:"name"` // required
-	AggregateTags  []string `yaml:"aggregate_tags,omitempty"`
+	PreserveTags   []string `yaml:"preserve_tags,omitempty"`
+	AggregateTags  []string `yaml:"aggregate_tags,omitempty"` // deprecated: use preserve_tags
 	AggregateTotal bool     `yaml:"aggregate_total"`
 
 	// compiled
-	aggregateTagsExists bool
-	aggregateTagsMap    map[string]any
+	preserveTagsExists bool
+	preserveTagsMap    map[string]any
 }
 
 // Schedule is a schedule for agent telemetry payloads to be generated and emitted
@@ -112,28 +113,25 @@ type Event struct {
 // corresponds to the "name" parameter. Do not use the "Options.NoDoubleUnderscoreSep" option
 // in these APIs, as it is not supported in agent telemetry.
 //
-// profiles[].metric.metrics[].aggregate_tags (optional)
+// profiles[].metric.metrics[].preserve_tags (optional)
 // -----------------------------------------------------
-// List of tags to be used for metric aggregation. If not specified, or [] is specified,
-// metric will be aggregated without any tags. If specified, metric will be aggregated using
-// the specified tags. Unspecified tags
-//   * will not be used and effectively will be removed from the metric's JSON object
-//   * their timeseries value will be summed up according to the remaining metric tags
-//   * in case if no tags a specified, all timeseries will be summed up and no tags will be
-//     reported in the metric's JSON object
-//   * in case none of the tags matches to the aggregateTags time series will be fremoved
-//     from the metric's JSON object
-// The primary goal of such aggregation is not actually to reduce the number of timeseries
-// and the amount of data to be sent to the backend, although it is welcome side-effect,
-// but to make sure that no privacy leak will happen by accident, by enforcing requirement
-// for explicit tag specification.
+// List of tags to preserve when aggregating the metric. If not specified, or [] is specified,
+// metric will be aggregated without any tags. If specified, only these tags are kept; all
+// others are dropped and their timeseries values are summed. In case none of the tags match
+// any timeseries, those timeseries are removed from the metric's JSON object.
+// The primary goal is to prevent accidental privacy leaks by requiring explicit tag allowlists.
+//
+// profiles[].metric.metrics[].aggregate_tags (deprecated alias for preserve_tags)
+// ---------------------------------------------------------------------------------
+// Accepted for backward compatibility with existing custom configurations. If both
+// preserve_tags and aggregate_tags are present, preserve_tags takes precedence.
+// New configurations should use preserve_tags instead.
 //
 // profiles[].metric.metrics[].aggregate_total (optional)
 // -----------------------------------------------------
 // When included, specifies whether the metric should be aggregated as a total. A
-// special tag "total" will be added to the metric's JSON object (accordingly "total is
-// reserved tag"). If not specified, specified, default value of `false` will be used.
-// It is useful only if "aggregate_tags" is also specified and will be ignored otherwise.
+// special tag "total" will be added to the metric's JSON object (accordingly "total" is a
+// reserved tag). Only meaningful when preserve_tags is also specified.
 //
 // profiles[].schedule (optional)
 // --------------------------------
@@ -186,7 +184,7 @@ type Event struct {
 // ----------------------------------------------------------------------------------
 //
 // Default agent telemetry profiles config if not specified in the agent config file.
-// Note: If "aggregate_tags" are not specified, metric will be aggregated without any tags.
+// Note: If "preserve_tags" are not specified, metric will be aggregated without any tags.
 var defaultProfiles = `
   profiles:
   - name: checks
@@ -195,19 +193,19 @@ var defaultProfiles = `
         zero_metric: true
       metrics:
         - name: checks.execution_time
-          aggregate_tags:
+          preserve_tags:
             - check_name
             - check_loader
         - name: checks.delay
-          aggregate_tags:
+          preserve_tags:
             - check_name
         - name: checks.runs
-          aggregate_tags:
+          preserve_tags:
             - check_name
             - state
         - name: pymem.inuse
         - name: health_platform.issues_detected
-          aggregate_tags:
+          preserve_tags:
             - issue_type
     schedule:
       start_after: 30
@@ -226,33 +224,33 @@ var defaultProfiles = `
             - remote_agent
         - name: logs.bytes_missed
         - name: logs.bytes_sent
-          aggregate_tags:
+          preserve_tags:
             - remote_agent
           aggregate_total: true
         - name: logs.decoded
         - name: logs.dropped
         - name: logs.encoded_bytes_sent
-          aggregate_tags:
+          preserve_tags:
             - remote_agent
             - compression_kind
           aggregate_total: true
         - name: logs.http_connectivity_check
-          aggregate_tags:
+          preserve_tags:
             - status
         - name: logs.http_connectivity_retry_attempt
-          aggregate_tags:
+          preserve_tags:
             - status
         - name: logs.restart_attempt
-          aggregate_tags:
+          preserve_tags:
             - status
             - transport
         - name: logs.sender_latency
         - name: logs.truncated
-          aggregate_tags:
+          preserve_tags:
             - service
             - source
         - name: logs.auto_multi_line_aggregator_flush
-          aggregate_tags:
+          preserve_tags:
             - truncated
             - line_type
         - name: logs.auto_multi_line_default_total_lines
@@ -274,7 +272,7 @@ var defaultProfiles = `
         - name: transactions.requeued
         - name: transactions.retries
         - name: transactions.http_errors
-          aggregate_tags:
+          preserve_tags:
             - code
             - endpoint
     schedule:
@@ -312,17 +310,17 @@ var defaultProfiles = `
       metrics:
         - name: synthetics_agent.checks_received
         - name: synthetics_agent.checks_processed
-          aggregate_tags:
+          preserve_tags:
             - status
             - subtype
         - name: synthetics_agent.error_test_config
-          aggregate_tags:
+          preserve_tags:
             - subtype
         - name: synthetics_agent.traceroute_error
-          aggregate_tags:
+          preserve_tags:
             - subtype
         - name: synthetics_agent.evp_send_result_failure
-          aggregate_tags:
+          preserve_tags:
             - subtype
   - name: connectivity
     metric:
@@ -330,21 +328,21 @@ var defaultProfiles = `
         zero_metric: true
       metrics:
         - name: api_server.request_duration_seconds
-          aggregate_tags:
+          preserve_tags:
             - servername
             - status_code
             - method
             - path
             - auth
         - name: grpc.request_duration_seconds
-          aggregate_tags:
+          preserve_tags:
             - service_method
         - name: grpc.request_count
-          aggregate_tags:
+          preserve_tags:
             - service_method
             - status
         - name: grpc.error_count
-          aggregate_tags:
+          preserve_tags:
             - service_method
             - error_code
     schedule:
@@ -386,11 +384,11 @@ var defaultProfiles = `
         zero_metric: true
       metrics:
         - name: hostname.drift_detected
-          aggregate_tags:
+          preserve_tags:
             - state
             - provider
         - name: hostname.drift_resolution_time_ms
-          aggregate_tags:
+          preserve_tags:
             - state
             - provider
     schedule:
@@ -411,26 +409,26 @@ var defaultProfiles = `
         zero_metric: true
       metrics:
         - name: runtime.datadog_agent_otlp_ingest_metrics
-          aggregate_tags:
+          preserve_tags:
             - version
             - command
             - host
         - name: runtime.datadog_agent_ddot_metrics
-          aggregate_tags:
+          preserve_tags:
             - version
             - command
             - host
         - name: runtime.datadog_agent_ddot_traces
-          aggregate_tags:
+          preserve_tags:
             - version
             - command
             - host
         - name: runtime.datadog_agent_ddot_gateway_usage
-          aggregate_tags:
+          preserve_tags:
             - version
             - command
         - name: runtime.datadog_agent_ddot_gateway_configured
-          aggregate_tags:
+          preserve_tags:
             - version
             - command
         - name: runtime.datadog_agent_otlp_logs_requests
@@ -476,24 +474,24 @@ var defaultProfiles = `
         zero_metric: true
       metrics:
         - name: admission_webhooks.image_resolution_attempts
-          aggregate_tags:
+          preserve_tags:
             - repository
             - tag
             - bucket
             - outcome
         - name: admission_webhooks.mutation_attempts
-          aggregate_tags:
+          preserve_tags:
             - mutation_type
             - status
             - injected
         - name: admission_webhooks.library_injection_attempts
-          aggregate_tags:
+          preserve_tags:
             - language
             - injected
             - auto_detected
             - injection_type
         - name: admission_webhooks.library_injection_errors
-          aggregate_tags:
+          preserve_tags:
             - language
             - auto_detected
             - injection_type
@@ -501,34 +499,34 @@ var defaultProfiles = `
         - name: admission_webhooks.rc_provider_configs
         - name: admission_webhooks.rc_provider_configs_invalid
         - name: autodiscovery.errors
-          aggregate_tags:
+          preserve_tags:
             - provider
         - name: autodiscovery.watched_resources
-          aggregate_tags:
+          preserve_tags:
             - listener
             - kind
         - name: cluster_checks.configs_dispatched
         - name: cluster_checks.configs_dangling
         - name: cluster_checks.configs_info
-          aggregate_tags:
+          preserve_tags:
             - check_name
         - name: cluster_checks.unscheduled_check
-          aggregate_tags:
+          preserve_tags:
             - config_source
         - name: language_detection_patcher.patches
-          aggregate_tags:
+          preserve_tags:
             - owner_kind
             - status
         - name: workloadmeta.stored_entities
-          aggregate_tags:
+          preserve_tags:
             - kind
             - source
         - name: tagger.stored_entities
-          aggregate_tags:
+          preserve_tags:
             - source
             - prefix
         - name: workloadmeta.pull_errors
-          aggregate_tags:
+          preserve_tags:
             - collector_id
     schedule:
       start_after: 30
@@ -624,14 +622,19 @@ func compileMetric(p *Profile, m *MetricConfig) error {
 	promName := fmt.Sprintf("%s_%s", names[0], names[1])
 	p.metricsMap[promName] = m
 
-	// Compile aggregate tags (optional)
-	if len(m.AggregateTags) == 0 {
-		m.aggregateTagsExists = false
+	// Compile preserve tags (optional). AggregateTags is a deprecated alias for PreserveTags;
+	// if both are set, PreserveTags takes precedence.
+	tags := m.PreserveTags
+	if len(tags) == 0 {
+		tags = m.AggregateTags
+	}
+	if len(tags) == 0 {
+		m.preserveTagsExists = false
 	} else {
-		m.aggregateTagsExists = true
-		m.aggregateTagsMap = make(map[string]any)
-		for _, t := range m.AggregateTags {
-			m.aggregateTagsMap[t] = struct{}{}
+		m.preserveTagsExists = true
+		m.preserveTagsMap = make(map[string]any)
+		for _, t := range tags {
+			m.preserveTagsMap[t] = struct{}{}
 		}
 	}
 
