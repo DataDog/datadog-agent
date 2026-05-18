@@ -26,6 +26,7 @@ import (
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditorMock "github.com/DataDog/datadog-agent/comp/logs/auditor/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	fileprovider "github.com/DataDog/datadog-agent/pkg/logs/launchers/file/provider"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -223,7 +224,7 @@ func (suite *BaseLauncherTestSuite) SetupTest() {
 	suite.s.registry = auditorMock.NewMockRegistry()
 	suite.s.activeSources = append(suite.s.activeSources, suite.source)
 	status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{suite.source}))
-	suite.s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+	suite.s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry, suite.s.currentlyTailedScanKeys()))
 }
 
 func (suite *BaseLauncherTestSuite) TearDownTest() {
@@ -254,7 +255,7 @@ func (suite *BaseLauncherTestSuite) TestLauncherScanWithoutLogRotation() {
 	msg = <-suite.outputChan
 	suite.Equal("hello world", string(msg.GetContent()))
 
-	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry, suite.s.currentlyTailedScanKeys()))
 	newTailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	// testing that launcher did not have to create a new tailer
 	suite.True(tailer == newTailer)
@@ -283,7 +284,7 @@ func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotation() {
 	suite.Nil(err)
 	f, err := suite.ops.create(suite.testPath)
 	suite.Nil(err)
-	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry, suite.s.currentlyTailedScanKeys()))
 	newTailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(tailer != newTailer)
 
@@ -323,7 +324,7 @@ func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_R
 	suite.Nil(err)
 	suite.Nil(suite.testFile.Sync())
 
-	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry, suite.s.currentlyTailedScanKeys()))
 
 	// Read message to confirm tailer is working
 	msg := <-suite.outputChan
@@ -361,7 +362,7 @@ func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_R
 	suite.Nil(f.Sync())
 	defer f.Close()
 
-	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry, suite.s.currentlyTailedScanKeys()))
 
 	newTailer, _ := s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(tailer != newTailer, "A new tailer should have been created due to content change")
@@ -404,7 +405,7 @@ func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_N
 	suite.Nil(err)
 	suite.Nil(suite.testFile.Sync())
 
-	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry, suite.s.currentlyTailedScanKeys()))
 
 	// Read message
 	msg := <-suite.outputChan
@@ -426,7 +427,7 @@ func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotationAndChecksum_N
 	suite.False(didRotate, "Should not detect rotation when writing to the same file")
 
 	// Scan again - should not trigger any rotation logic
-	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry, suite.s.currentlyTailedScanKeys()))
 
 	// Verify the same tailer is still being used
 	newTailer, _ := s.tailers.Get(getScanKey(suite.testPath, suite.source))
@@ -459,7 +460,7 @@ func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate(
 	suite.Nil(err)
 
 	suite.Nil(suite.testFile.Sync())
-	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry, suite.s.currentlyTailedScanKeys()))
 
 	newTailer, _ = s.tailers.Get(getScanKey(suite.testPath, suite.source))
 	suite.True(tailer != newTailer)
@@ -477,13 +478,13 @@ func (suite *BaseLauncherTestSuite) TestLauncherScanWithFileRemovedAndCreated() 
 	// remove file
 	err = suite.ops.remove(suite.testPath)
 	suite.Nil(err)
-	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry, suite.s.currentlyTailedScanKeys()))
 	suite.Equal(tailerLen-1, s.tailers.Count())
 
 	// create file
 	_, err = suite.ops.create(suite.testPath)
 	suite.Nil(err)
-	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry, suite.s.currentlyTailedScanKeys()))
 	suite.Equal(tailerLen, s.tailers.Count())
 }
 
@@ -535,7 +536,7 @@ func runLauncherScanStartNewTailerTest(t *testing.T, testDirs []string) {
 		file.Close()
 
 		// test scan from beginning
-		launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+		launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry, launcher.currentlyTailedScanKeys()))
 
 		assert.Equal(t, 1, launcher.tailers.Count())
 		msg = <-outputChan
@@ -577,7 +578,7 @@ func runLauncherScanStartNewTailerForEmptyFileTest(t *testing.T, testDirs []stri
 	_, err := os.Create(testDir + "/test.log")
 	assert.Nil(t, err)
 
-	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry, launcher.currentlyTailedScanKeys()))
 
 	assert.Equal(t, 0, launcher.tailers.Count())
 }
@@ -616,7 +617,7 @@ func runLauncherScanStartNewTailerWithOneLineTest(t *testing.T, testDirs []strin
 	file.Close()
 
 	// test scan from beginning
-	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry, launcher.currentlyTailedScanKeys()))
 
 	assert.Equal(t, 1, launcher.tailers.Count())
 }
@@ -667,7 +668,7 @@ func runLauncherScanStartNewTailerWithLongLineTest(t *testing.T, testDirs []stri
 	file.Close()
 
 	// test scan from beginning
-	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry, launcher.currentlyTailedScanKeys()))
 
 	assert.Equal(t, 1, launcher.tailers.Count())
 }
@@ -876,7 +877,7 @@ func runLauncherScanWithTooManyFilesTest(t *testing.T, testDirs []string) {
 	defer status.Clear()
 
 	// test at scan
-	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry, launcher.currentlyTailedScanKeys()))
 	assert.Equal(t, 2, launcher.tailers.Count())
 	// Confirm that all of the files have been keepalive'd even if they are not tailed
 	assert.Equal(t, 3, len(launcher.registry.(*auditorMock.Registry).KeepAlives))
@@ -885,7 +886,7 @@ func runLauncherScanWithTooManyFilesTest(t *testing.T, testDirs []string) {
 	err = os.Remove(path)
 	assert.Nil(t, err)
 
-	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry, launcher.currentlyTailedScanKeys()))
 	assert.Equal(t, 2, launcher.tailers.Count())
 }
 
@@ -984,14 +985,14 @@ func runLauncherScanRecentFilesWithRemovalTest(t *testing.T, testDirs []string) 
 	launcher := createLauncher()
 	defer status.Clear()
 
-	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry, launcher.currentlyTailedScanKeys()))
 	assert.Equal(t, 2, launcher.tailers.Count())
 	assert.True(t, launcher.tailers.Contains(path("1.log")))
 	assert.True(t, launcher.tailers.Contains(path("2.log")))
 
 	// When ... the newest file gets rm'd
 	rmFile("2.log")
-	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry, launcher.currentlyTailedScanKeys()))
 
 	// Then the next 2 most recently modified should be tailed
 	assert.Equal(t, 2, launcher.tailers.Count())
@@ -1040,14 +1041,14 @@ func runLauncherScanRecentFilesWithNewFilesTest(t *testing.T, testDirs []string)
 	launcher := createLauncher()
 	defer status.Clear()
 
-	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry, launcher.currentlyTailedScanKeys()))
 	assert.Equal(t, 2, launcher.tailers.Count())
 	assert.True(t, launcher.tailers.Contains(path("1.log")))
 	assert.True(t, launcher.tailers.Contains(path("2.log")))
 
 	// When ... a newer file appears
 	createFile("7.log", baseTime.Add(time.Second*8))
-	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry, launcher.currentlyTailedScanKeys()))
 
 	// Then it should be tailed
 	assert.Equal(t, 2, launcher.tailers.Count())
@@ -1056,7 +1057,7 @@ func runLauncherScanRecentFilesWithNewFilesTest(t *testing.T, testDirs []string)
 
 	// When ... an even newer file appears
 	createFile("a.log", baseTime.Add(time.Second*10))
-	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry, launcher.currentlyTailedScanKeys()))
 
 	// Then it should be tailed
 	assert.Equal(t, 2, launcher.tailers.Count())
@@ -1099,7 +1100,7 @@ func runLauncherFileRotationTest(t *testing.T, testDirs []string) {
 	launcher := createLauncher()
 	defer status.Clear()
 
-	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry, launcher.currentlyTailedScanKeys()))
 	assert.Equal(t, 2, launcher.tailers.Count())
 	assert.Equal(t, 0, len(launcher.rotatedTailers))
 	assert.True(t, launcher.tailers.Contains(path("c.log")))
@@ -1117,7 +1118,7 @@ func runLauncherFileRotationTest(t *testing.T, testDirs []string) {
 	assert.Nil(t, err)
 	assert.True(t, didRotate)
 
-	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry, launcher.currentlyTailedScanKeys()))
 	assert.Equal(t, launcher.tailers.Count(), 2)
 	assert.Equal(t, 1, len(launcher.rotatedTailers))
 	assert.True(t, launcher.tailers.Contains(path("c.log")))
@@ -1161,14 +1162,14 @@ func runLauncherFileDetectionSingleScanTest(t *testing.T, testDirs []string) {
 	launcher := createLauncher()
 	defer status.Clear()
 
-	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry, launcher.currentlyTailedScanKeys()))
 	assert.Equal(t, 2, launcher.tailers.Count())
 	assert.True(t, launcher.tailers.Contains(path("a.log")))
 	assert.True(t, launcher.tailers.Contains(path("b.log")))
 
 	createFile("z.log")
 
-	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry, launcher.currentlyTailedScanKeys()))
 	assert.Equal(t, launcher.tailers.Count(), 2)
 	assert.True(t, launcher.tailers.Contains(path("z.log")))
 	assert.True(t, launcher.tailers.Contains(path("b.log")))
@@ -1204,7 +1205,7 @@ func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForTruncatedU
 	suite.Nil(err)
 	suite.Nil(suite.testFile.Sync())
 
-	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry, suite.s.currentlyTailedScanKeys()))
 
 	// Read message to confirm tailer is working
 	msg := <-suite.outputChan
@@ -1226,7 +1227,7 @@ func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForTruncatedU
 	suite.True(didRotate, "Should detect rotation when file becomes empty (fingerprint = 0)")
 
 	// Now test the launcher's behavior: it should NOT create a new tailer for the undersized file
-	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry, suite.s.currentlyTailedScanKeys()))
 
 	// Verify the behavior when file is truncated to undersized:
 	// - Old tailer should be removed from active tailers
@@ -1266,7 +1267,7 @@ func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUnd
 	suite.Nil(err)
 	suite.Nil(suite.testFile.Sync())
 
-	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry, suite.s.currentlyTailedScanKeys()))
 
 	// Read message to confirm tailer is working
 	msg := <-suite.outputChan
@@ -1292,7 +1293,7 @@ func (suite *BaseLauncherTestSuite) TestLauncherDoesNotCreateTailerForRotatedUnd
 	suite.True(didRotate, "Should detect rotation when original file is moved and new file is created")
 
 	// Now test the launcher's behavior: it should NOT create a new tailer for the undersized file
-	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry, suite.s.currentlyTailedScanKeys()))
 
 	// Verify the behavior when file rotates to undersized:
 	// - Old tailer should be removed from active tailers (because new file is undersized and won't be tailed)
@@ -1338,7 +1339,7 @@ func (suite *BaseLauncherTestSuite) TestRotatedTailersNotStoppedDuringScan() {
 	suite.Nil(err)
 	suite.Nil(suite.testFile.Sync())
 
-	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry, suite.s.currentlyTailedScanKeys()))
 
 	// Read the message
 	msg := <-suite.outputChan
@@ -1356,7 +1357,7 @@ func (suite *BaseLauncherTestSuite) TestRotatedTailersNotStoppedDuringScan() {
 	newFile.Close()
 
 	// Scan detects rotation
-	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry, suite.s.currentlyTailedScanKeys()))
 
 	// After rotation, we should have:
 	// - 1 active tailer (for the new file)
@@ -1369,7 +1370,7 @@ func (suite *BaseLauncherTestSuite) TestRotatedTailersNotStoppedDuringScan() {
 	s.activeSources = []*sources.LogSource{}
 
 	// Scan again - the rotated tailer should NOT be stopped
-	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry, suite.s.currentlyTailedScanKeys()))
 
 	// Clean up
 	os.Remove(rotatedPath)
@@ -1404,7 +1405,7 @@ func (suite *BaseLauncherTestSuite) TestRestartTailerAfterFileRotationRemovesTai
 	suite.Nil(err)
 	suite.Nil(suite.testFile.Sync())
 
-	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry, suite.s.currentlyTailedScanKeys()))
 
 	// Read the message
 	msg := <-suite.outputChan
@@ -1427,7 +1428,7 @@ func (suite *BaseLauncherTestSuite) TestRestartTailerAfterFileRotationRemovesTai
 	newFile.Close()
 
 	// Scan to detect rotation
-	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry))
+	s.resolveActiveTailers(suite.s.fileProvider.FilesToTail(context.Background(), suite.s.validatePodContainerID, suite.s.activeSources, suite.s.registry, suite.s.currentlyTailedScanKeys()))
 
 	// After rotation:
 	// - The old tailer should be removed from the active container
@@ -1502,7 +1503,7 @@ func (suite *LauncherTestSuite) TestTailerReceivesConfigWhenDisabled() {
 	f.Close()
 
 	// Scan for files
-	s.resolveActiveTailers(s.fileProvider.FilesToTail(context.Background(), s.validatePodContainerID, s.activeSources, s.registry))
+	s.resolveActiveTailers(s.fileProvider.FilesToTail(context.Background(), s.validatePodContainerID, s.activeSources, s.registry, s.currentlyTailedScanKeys()))
 
 	// Verify tailer was created
 	scanKey := getScanKey(suite.testPath, source)
@@ -1517,4 +1518,103 @@ func (suite *LauncherTestSuite) TestTailerReceivesConfigWhenDisabled() {
 	suite.Equal(types.FingerprintConfigSourcePerSource, fingerprint.Config.Source, "Config should show per-source origin")
 	suite.Equal(500, fingerprint.Config.Count, "Config values should be preserved")
 	suite.Equal(types.InvalidFingerprintValue, int(fingerprint.Value), "Fingerprint value should be invalid when disabled")
+}
+
+// TestLauncher_IgnoreOlder_DoesNotStopAlreadyTailedFile is a regression test
+// for the bug flagged by the codex-bot review on PR #50956. The ignore_older
+// filter must only gate the creation of NEW tailers; it must NOT cause already
+// running tailers to be stopped when their file goes quiet long enough to age
+// past the threshold (that would be close_older semantics, which is explicitly
+// out of scope).
+//
+// The end-to-end path is: the file provider's FilesToTail() returns a "desired"
+// list of files, then the launcher's resolveActiveTailers() stops every tailer
+// whose file is missing from that list. Before the fix, an ignored-old file
+// dropped out of FilesToTail() and resolveActiveTailers() silently stopped its
+// tailer. The fix passes the set of currently-tailed scan keys into
+// FilesToTail() so the provider preserves those files.
+func TestLauncher_IgnoreOlder_DoesNotStopAlreadyTailedFile(t *testing.T) {
+	cfg := configmock.New(t)
+	testDir := t.TempDir()
+	now := time.Now()
+
+	path := func(name string) string { return fmt.Sprintf("%s/%s", testDir, name) }
+
+	// Start with ignore_older disabled so we can spawn a tailer regardless of
+	// the file's mtime. We'll enable it once the tailer is running.
+	cfg.Set("logs_config.ignore_older", time.Duration(0), configmodel.SourceCLI)
+
+	// Create a file with a "recent" mtime (30m ago) so it would normally
+	// satisfy ignore_older=1h.
+	filePath := path("active.log")
+	f, err := os.Create(filePath)
+	assert.NoError(t, err)
+	f.Close()
+	assert.NoError(t, os.Chtimes(filePath, now.Add(-30*time.Minute), now.Add(-30*time.Minute)))
+
+	launcher := createLauncher(t, launcherTestOptions{openFilesLimit: 5})
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditorMock.NewMockRegistry()
+
+	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path("*.log")})
+	launcher.activeSources = append(launcher.activeSources, source)
+	status.Clear()
+	status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
+	defer status.Clear()
+
+	// First scan: tailer should be created for active.log.
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry, launcher.currentlyTailedScanKeys()))
+	assert.Equal(t, 1, launcher.tailers.Count(), "tailer should be created for the recent file")
+	assert.True(t, launcher.tailers.Contains(filePath), "active.log should be tailed")
+
+	// Now: enable ignore_older=1h AND age the file to 2h old.
+	// Before the fix, this combination causes the next scan to drop the file
+	// from FilesToTail(), and resolveActiveTailers() stops its tailer.
+	cfg.Set("logs_config.ignore_older", time.Hour, configmodel.SourceCLI)
+	assert.NoError(t, os.Chtimes(filePath, now.Add(-2*time.Hour), now.Add(-2*time.Hour)))
+
+	// Second scan: the tailer must still be running.
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry, launcher.currentlyTailedScanKeys()))
+	assert.Equal(t, 1, launcher.tailers.Count(), "ignore_older must NOT stop an already-running tailer when its file ages past the threshold (that would be close_older)")
+	assert.True(t, launcher.tailers.Contains(filePath), "active.log tailer should still be running after the file mtime ages out")
+}
+
+// TestLauncher_IgnoreOlder_StillGatesNewTailers verifies that the fix above did
+// not regress the original ignore_older behavior: files that are NOT currently
+// being tailed and whose mtime is past the threshold should still be skipped.
+func TestLauncher_IgnoreOlder_StillGatesNewTailers(t *testing.T) {
+	cfg := configmock.New(t)
+	testDir := t.TempDir()
+	now := time.Now()
+
+	path := func(name string) string { return fmt.Sprintf("%s/%s", testDir, name) }
+
+	cfg.Set("logs_config.ignore_older", time.Hour, configmodel.SourceCLI)
+
+	// Two files: one recent, one ancient. Neither has a running tailer yet.
+	recentPath := path("recent.log")
+	oldPath := path("old.log")
+	for _, p := range []string{recentPath, oldPath} {
+		f, err := os.Create(p)
+		assert.NoError(t, err)
+		f.Close()
+	}
+	assert.NoError(t, os.Chtimes(recentPath, now.Add(-30*time.Minute), now.Add(-30*time.Minute)))
+	assert.NoError(t, os.Chtimes(oldPath, now.Add(-2*time.Hour), now.Add(-2*time.Hour)))
+
+	launcher := createLauncher(t, launcherTestOptions{openFilesLimit: 5})
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditorMock.NewMockRegistry()
+
+	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path("*.log")})
+	launcher.activeSources = append(launcher.activeSources, source)
+	status.Clear()
+	status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
+	defer status.Clear()
+
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry, launcher.currentlyTailedScanKeys()))
+
+	assert.Equal(t, 1, launcher.tailers.Count(), "only the recent file should get a tailer")
+	assert.True(t, launcher.tailers.Contains(recentPath), "recent.log should be tailed")
+	assert.False(t, launcher.tailers.Contains(oldPath), "old.log should be skipped by ignore_older")
 }
