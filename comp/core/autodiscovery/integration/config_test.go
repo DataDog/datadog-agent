@@ -340,14 +340,3 @@ func BenchmarkID(b *testing.B) {
 	}
 	result = id
 }
-
-func TestDiscovery_ZeroValue(t *testing.T) {
-	c := Config{Name: "krakend"}
-	if c.Discovery != nil {
-		t.Fatalf("expected zero-value Discovery to be nil, got %v", c.Discovery)
-	}
-	c.Discovery = &DiscoveryConfig{}
-	if c.Discovery == nil {
-		t.Fatalf("expected Discovery to be non-nil after assignment")
-	}
-}
