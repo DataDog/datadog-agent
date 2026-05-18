@@ -84,8 +84,8 @@ import (
 	diagnosefx "github.com/DataDog/datadog-agent/comp/core/diagnose/fx"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/gui"
-	"github.com/DataDog/datadog-agent/comp/core/gui/guiimpl"
+	guidef "github.com/DataDog/datadog-agent/comp/core/gui/def"
+	guifx "github.com/DataDog/datadog-agent/comp/core/gui/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
@@ -310,7 +310,7 @@ func run(log log.Component,
 	_ healthprobe.Component,
 	_ autoexit.Component,
 	settings settings.Component,
-	_ option.Option[gui.Component],
+	_ option.Option[guidef.Component],
 	agenttelemetryComponent agenttelemetry.Component,
 	_ diagnose.Component,
 	healthplatformComp healthplatformdef.Component,
@@ -543,7 +543,7 @@ func getSharedFxOption() fx.Option {
 			return aggregator.NewStatsdDirect(demux, hostname)
 		}),
 		process.Bundle(),
-		guiimpl.Module(),
+		guifx.Module(),
 		agent.Bundle(jmxloggerimpl.NewDefaultParams()),
 		fx.Provide(func(config config.Component) healthprobe.Options {
 			return healthprobe.Options{
