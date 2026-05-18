@@ -669,10 +669,81 @@ func (s *baseStartStopSuite) BeforeTest(suiteName, testName string) {
 	s.T().Logf("Clearing dump folder")
 	err = windowsCommon.CleanDirectory(host, s.dumpFolder)
 	s.Require().NoError(err, "should clean dump folder")
+
+	// Start xperf tracing to capture service start/stop timing under Driver Verifier.
+	// Two ETW sessions run concurrently (circular buffers, merged on stop):
+	//   - NT Kernel Logger: scheduler, loader, CPU profile, context switch with stacks
+	//   - scm-trace: Microsoft-Windows-Services SCM events (SetServiceStatus transitions)
+	// The merged .etl is only downloaded on test failure. See AfterTest -> collectXperf.
+	s.startXperf(host)
+}
+
+// xperfSCMSessionName is the user-mode ETW session name that captures Microsoft-Windows-Services
+// SCM events (matches the name in the MS-published TSS xperf recipe).
+const xperfSCMSessionName = "scm-trace"
+
+// startXperf starts xperf tracing on the remote host with two concurrent sessions
+// (NT Kernel Logger + scm-trace user session for the SCM provider). Both use circular
+// FileMode so that for tests with multiple start/stop iterations the trace captures
+// the tail of activity around whichever iteration fails.
+func (s *baseStartStopSuite) startXperf(host *components.RemoteHost) {
+	err := host.HostArtifactClient.Get("windows-products/xperf-5.0.8169.zip", "C:/xperf.zip")
+	if !s.Assert().NoError(err, "should fetch xperf artifact") {
+		return
+	}
+
+	// Extract if C:/xperf dir does not exist.
+	_, err = host.Execute("if (-Not (Test-Path -Path C:/xperf)) { Expand-Archive -Path C:/xperf.zip -DestinationPath C:/xperf }")
+	if !s.Assert().NoError(err, "should expand xperf archive") {
+		return
+	}
+
+	// Single xperf invocation starts both the NT Kernel Logger (-on <KernelGroups> -f kernel.etl ...)
+	// and a named user-mode session (-start scm-trace -on Microsoft-Windows-Services) per the
+	// MS TSS xperf SCM-tracing recipe. -d on stop will merge both into a single .etl.
+	xperfPath := "C:/xperf/xperf.exe"
+	cmd := fmt.Sprintf(
+		`& "%s" -on Base+Latency+CSwitch+PROC_THREAD+LOADER+Profile+DISPATCHER -stackWalk CSwitch+Profile+ReadyThread+ThreadCreate -f C:/kernel.etl -MaxBuffers 1024 -BufferSize 1024 -MaxFile 1024 -FileMode Circular -start %s -on Microsoft-Windows-Services`,
+		xperfPath, xperfSCMSessionName,
+	)
+	_, err = host.Execute(cmd)
+	s.Assert().NoError(err, "should start xperf tracing (kernel + scm-trace)")
+}
+
+// collectXperf stops both xperf sessions, merges them, and downloads the resulting
+// .etl to the session output dir if the test failed.
+func (s *baseStartStopSuite) collectXperf(host *components.RemoteHost) {
+	xperfPath := "C:/xperf/xperf.exe"
+	outputPath := "C:/full_host_profiles.etl"
+
+	// Stop kernel logger (-stop) and the named SCM user session (-stop scm-trace), then -d
+	// merges both into outputPath. Matches the MS TSS recipe.
+	_, err := host.Execute(fmt.Sprintf(`& "%s" -stop -stop %s -d %s`, xperfPath, xperfSCMSessionName, outputPath))
+	if !s.Assert().NoError(err, "should stop and merge xperf trace") {
+		return
+	}
+
+	// Only collect the trace artifact if the test failed. Use a tempfile pattern in the
+	// session output dir so multiple failing tests in the same suite don't overwrite each
+	// other's traces.
+	if s.T().Failed() {
+		outDir := s.SessionOutputDir()
+		f, err := os.CreateTemp(outDir, "xperf-*.etl")
+		if !s.Assert().NoError(err, "should create local xperf trace file") {
+			return
+		}
+		localPath := f.Name()
+		_ = f.Close()
+		err = host.GetFile(outputPath, localPath)
+		s.Assert().NoError(err, "should download xperf trace")
+	}
 }
 
 func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
-	s.BaseSuite.AfterTest(suiteName, testName)
+	// Stop xperf and merge to .etl as early as possible after the test body, so the
+	// circular trace is preserved before any subsequent diagnostic collection further
+	// perturbs system state. .etl is only downloaded if the test failed.
+	s.collectXperf(s.Env().RemoteHost)
 
 	// look for and download crashdumps. Dumps from processes in
 	// DefaultIgnoredCrashDumpImages are still downloaded as artifacts but do
@@ -730,6 +801,11 @@ func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 
 	// check if the host crashed.
 	s.Require().False(s.collectSystemCrashDump(), "should not have system crash dump")
+
+	// Run BaseSuite.AfterTest last: on failure it invokes environment diagnose,
+	// which may call require (aborting anything after it) and perturbs system
+	// state. Our collection above must complete first.
+	s.BaseSuite.AfterTest(suiteName, testName)
 }
 
 func (s *baseStartStopSuite) collectAgentLogs() {
