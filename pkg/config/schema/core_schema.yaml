@@ -6315,7 +6315,7 @@ properties:
   jmx_log_file:
     node_type: setting
     type: string
-    default: ''
+    default: ${log_path}/jmxfetch.log
     visibility: public
     description: Path of the log file where JMXFetch logs are written.
     example: <JMXFETCH_LOG_FILE_PATH>
@@ -6447,7 +6447,7 @@ properties:
   log_file:
     node_type: setting
     type: string
-    default: ''
+    default: ${log_path}/agent.log
     visibility: public
     description: |-
       Path of the log file for the Datadog Agent.
