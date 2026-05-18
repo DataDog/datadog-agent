@@ -7,7 +7,7 @@
 package forwarderimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	forwarder "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/def"
 )

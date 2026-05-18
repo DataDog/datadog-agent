@@ -12,7 +12,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
+	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
