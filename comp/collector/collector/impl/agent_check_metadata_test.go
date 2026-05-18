@@ -39,7 +39,7 @@ func TestExternalHostTags(t *testing.T) {
 	externalhost.SetExternalTags(host1, sourceType, tags1)
 	externalhost.SetExternalTags(host2, sourceType, tags2)
 
-	c := newCollector(fxutil.Test[dependencies](t,
+	c := newCollector(makeDeps(fxutil.Test[testDependencies](t,
 		fx.Provide(func() log.Component { return logmock.New(t) }),
 		fx.Provide(func() config.Component {
 			return config.NewMockWithOverrides(t, map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond})
@@ -56,7 +56,7 @@ func TestExternalHostTags(t *testing.T) {
 		fx.Provide(func() option.Option[serializer.MetricSerializer] {
 			return option.None[serializer.MetricSerializer]()
 		}),
-	))
+	)))
 
 	pl := c.GetPayload(context.Background())
 	hpl := pl.ExternalhostTags

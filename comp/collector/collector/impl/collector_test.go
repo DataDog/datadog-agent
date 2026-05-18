@@ -100,7 +100,7 @@ type CollectorTestSuite struct {
 }
 
 func (suite *CollectorTestSuite) SetupTest() {
-	suite.c = newCollector(fxutil.Test[dependencies](suite.T(),
+	suite.c = newCollector(makeDeps(fxutil.Test[testDependencies](suite.T(),
 		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
 		fx.Provide(func() config.Component {
 			return config.NewMockWithOverrides(suite.T(), map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond})
@@ -117,7 +117,7 @@ func (suite *CollectorTestSuite) SetupTest() {
 		fx.Provide(func() healthplatform.Component {
 			return healthplatformnoopimpl.NewNoopComponent()
 		}),
-	))
+	)))
 	suite.c.start(context.TODO())
 }
 

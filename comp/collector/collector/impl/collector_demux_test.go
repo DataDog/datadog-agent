@@ -87,7 +87,7 @@ func (s *SenderManagerProxy) GetDefaultSender() (sender.Sender, error) {
 func (suite *CollectorDemuxTestSuite) SetupTest() {
 	suite.demux = fxutil.Test[demultiplexer.FakeSamplerMock](suite.T(), fx.Provide(func() log.Component { return logmock.New(suite.T()) }), metricscompressionmock.MockModule(), logscompressionmock.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 	suite.SenderManagerMock = NewSenderManagerMock(suite.demux)
-	suite.c = newCollector(fxutil.Test[dependencies](suite.T(),
+	suite.c = newCollector(makeDeps(fxutil.Test[testDependencies](suite.T(),
 		fx.Provide(func() log.Component { return logmock.New(suite.T()) }),
 		fx.Provide(func() config.Component {
 			return config.NewMockWithOverrides(suite.T(), map[string]interface{}{"check_cancel_timeout": 500 * time.Millisecond})
@@ -106,7 +106,7 @@ func (suite *CollectorDemuxTestSuite) SetupTest() {
 		fx.Provide(func() option.Option[serializer.MetricSerializer] {
 			return option.None[serializer.MetricSerializer]()
 		}),
-	))
+	)))
 
 	suite.c.start(context.TODO())
 }
