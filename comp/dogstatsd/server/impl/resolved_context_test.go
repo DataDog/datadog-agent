@@ -109,6 +109,10 @@ func (b *resolvedContextBatcher) appendLateSampleWithContext(sample metrics.Metr
 	b.lateContexts = append(b.lateContexts, context)
 }
 
+func (b *resolvedContextBatcher) appendColumnarV3SampleWithContext(sample metrics.MetricSample, context identity.HotPathContext) {
+	b.appendSampleWithContext(sample, context)
+}
+
 func (b *resolvedContextBatcher) appendEvent(event *event.Event) {
 	b.events = append(b.events, event)
 }

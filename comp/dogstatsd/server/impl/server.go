@@ -762,10 +762,11 @@ func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, ident
 						s.Debug.StoreMetricStats(samples[idx])
 					}
 
-					if columnarV3Enabled && samples[idx].Timestamp <= 0.0 && columnarV3.InsertDogStatsDColumnarV3Sample(sampleContext.Shard.ContextKey, samples[idx]) {
+					if columnarV3Enabled && columnarV3.AcceptDogStatsDColumnarV3Sample(samples[idx]) {
 						// The experimental v3 columnar table is now the authoritative
 						// aggregation state for this supported sample. Unsupported
 						// samples return false and continue through the legacy batcher.
+						batcher.appendColumnarV3SampleWithContext(samples[idx], sampleContext)
 					} else if samples[idx].Timestamp > 0.0 {
 						if needsContext {
 							batcher.appendLateSampleWithContext(samples[idx], sampleContext)

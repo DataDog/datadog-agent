@@ -35,13 +35,63 @@ func columnarV3ExperimentEnabled() bool {
 }
 
 // DogStatsDColumnarV3Inserter is implemented by demultiplexers that can accept
-// parsed DogStatsD metric samples directly into the experimental v3-aligned
-// columnar aggregation table. This bypasses the batcher, time-sampler worker,
-// ContextMetrics, metrics.Metric, metrics.Serie, and iterable serializer paths
-// for supported on-time metric samples.
+// parsed DogStatsD metric samples into the experimental v3-aligned columnar
+// aggregation table. Supported on-time metric samples bypass TimeSampler,
+// ContextMetrics, metrics.Metric, metrics.Serie, and iterable serializer paths.
 type DogStatsDColumnarV3Inserter interface {
 	DogStatsDColumnarV3Enabled() bool
+	AcceptDogStatsDColumnarV3Sample(sample metrics.MetricSample) bool
+	GetDogStatsDColumnarV3SamplePool() *DogStatsDColumnarV3SamplePool
+	AggregateDogStatsDColumnarV3Samples(shard TimeSamplerID, samples DogStatsDColumnarV3SampleBatch)
 	InsertDogStatsDColumnarV3Sample(shardKey ckey.ContextKey, sample metrics.MetricSample) bool
+}
+
+// DogStatsDColumnarV3Sample is the parser-to-columnar-worker handoff row for
+// the local-only vertical-slice experiment. It carries the already resolved
+// backend context key alongside the enriched DogStatsD sample.
+type DogStatsDColumnarV3Sample struct {
+	ContextKey ckey.ContextKey
+	Sample     metrics.MetricSample
+}
+
+// DogStatsDColumnarV3SampleBatch is owned by the columnar v3 sample pool.
+type DogStatsDColumnarV3SampleBatch []DogStatsDColumnarV3Sample
+
+// DogStatsDColumnarV3SamplePool reuses parser-to-columnar-worker handoff
+// batches, mirroring the existing MetricSamplePool ownership pattern.
+type DogStatsDColumnarV3SamplePool struct {
+	batchSize int
+	pool      sync.Pool
+}
+
+func newDogStatsDColumnarV3SamplePool(batchSize int) *DogStatsDColumnarV3SamplePool {
+	if batchSize <= 0 {
+		batchSize = MetricSamplePoolBatchSize
+	}
+	return &DogStatsDColumnarV3SamplePool{batchSize: batchSize}
+}
+
+// GetBatch returns an empty batch with fixed capacity.
+func (p *DogStatsDColumnarV3SamplePool) GetBatch() DogStatsDColumnarV3SampleBatch {
+	if p == nil {
+		return make(DogStatsDColumnarV3SampleBatch, MetricSamplePoolBatchSize)
+	}
+	if batch, ok := p.pool.Get().(DogStatsDColumnarV3SampleBatch); ok {
+		return batch[:p.batchSize]
+	}
+	return make(DogStatsDColumnarV3SampleBatch, p.batchSize)
+}
+
+// PutBatch clears and returns a batch to the pool.
+func (p *DogStatsDColumnarV3SamplePool) PutBatch(batch DogStatsDColumnarV3SampleBatch) {
+	if p == nil || cap(batch) < p.batchSize {
+		return
+	}
+	batch = batch[:p.batchSize]
+	for i := range batch {
+		batch[i] = DogStatsDColumnarV3Sample{}
+	}
+	p.pool.Put(batch)
 }
 
 type dogstatsdColumnarKey struct {
@@ -98,7 +148,77 @@ func newDogStatsDColumnarStore(interval int64, shardCount int) *dogstatsdColumna
 	return store
 }
 
-func (s *dogstatsdColumnarStore) insert(shardKey ckey.ContextKey, sample metrics.MetricSample, timestamp float64) bool {
+type dogstatsdColumnarWorker struct {
+	store      *dogstatsdColumnarStore
+	shardID    TimeSamplerID
+	samplePool *DogStatsDColumnarV3SamplePool
+
+	samplesChan chan DogStatsDColumnarV3SampleBatch
+	flushChan   chan dogstatsdColumnarFlushTrigger
+	stopChan    chan struct{}
+}
+
+type dogstatsdColumnarFlushTrigger struct {
+	cutoffTime    int64
+	forceFlushAll bool
+	rowSink       metrics.SerieRowSink
+	blockChan     chan uint64
+}
+
+func newDogStatsDColumnarWorker(store *dogstatsdColumnarStore, shardID TimeSamplerID, bufferSize int, samplePool *DogStatsDColumnarV3SamplePool) *dogstatsdColumnarWorker {
+	return &dogstatsdColumnarWorker{
+		store:       store,
+		shardID:     shardID,
+		samplePool:  samplePool,
+		samplesChan: make(chan DogStatsDColumnarV3SampleBatch, bufferSize),
+		flushChan:   make(chan dogstatsdColumnarFlushTrigger),
+		stopChan:    make(chan struct{}),
+	}
+}
+
+func (w *dogstatsdColumnarWorker) run() {
+	for {
+		select {
+		case <-w.stopChan:
+			return
+		case samples := <-w.samplesChan:
+			w.processSamples(samples)
+		case trigger := <-w.flushChan:
+			w.triggerFlush(trigger)
+		}
+	}
+}
+
+func (w *dogstatsdColumnarWorker) processSamples(samples DogStatsDColumnarV3SampleBatch) {
+	if len(samples) == 0 {
+		w.samplePool.PutBatch(samples)
+		return
+	}
+	timestamp := timeNowNano()
+	shardIdx := int(w.shardID)
+	for i := range samples {
+		w.store.insertAccepted(shardIdx, samples[i].ContextKey, samples[i].Sample, timestamp)
+	}
+	w.samplePool.PutBatch(samples)
+}
+
+func (w *dogstatsdColumnarWorker) triggerFlush(trigger dogstatsdColumnarFlushTrigger) {
+	if w.store == nil || int(w.shardID) >= len(w.store.shards) {
+		trigger.blockChan <- 0
+		return
+	}
+	start := time.Now()
+	shadow := newDirectRowShadowBuilder()
+	rows := w.store.flushShard(&w.store.shards[int(w.shardID)], trigger.cutoffTime, trigger.forceFlushAll, trigger.rowSink, shadow)
+	shadow.finish("columnar_v3", time.Since(start))
+	trigger.blockChan <- rows
+}
+
+func (w *dogstatsdColumnarWorker) stop() {
+	w.stopChan <- struct{}{}
+}
+
+func (s *dogstatsdColumnarStore) accept(sample metrics.MetricSample) bool {
 	if s == nil {
 		return false
 	}
@@ -118,8 +238,22 @@ func (s *dogstatsdColumnarStore) insert(shardKey ckey.ContextKey, sample metrics
 		recordDogstatsdColumnarFallback("flush_first_value")
 		return false
 	}
+	return true
+}
 
+func (s *dogstatsdColumnarStore) insert(shardKey ckey.ContextKey, sample metrics.MetricSample, timestamp float64) bool {
+	if !s.accept(sample) {
+		return false
+	}
 	shardIdx := dogstatsdColumnarShardIndex(shardKey, len(s.shards))
+	s.insertAccepted(shardIdx, shardKey, sample, timestamp)
+	return true
+}
+
+func (s *dogstatsdColumnarStore) insertAccepted(shardIdx int, shardKey ckey.ContextKey, sample metrics.MetricSample, timestamp float64) {
+	if s == nil || shardIdx < 0 || shardIdx >= len(s.shards) {
+		return
+	}
 	bucketStart := s.calculateBucketStart(timestamp)
 	shard := &s.shards[shardIdx]
 
@@ -166,7 +300,6 @@ func (s *dogstatsdColumnarStore) insert(shardKey ckey.ContextKey, sample metrics
 	}
 
 	shard.insertedSamples++
-	return true
 }
 
 func newDogstatsdColumnarBucket() *dogstatsdColumnarBucket {

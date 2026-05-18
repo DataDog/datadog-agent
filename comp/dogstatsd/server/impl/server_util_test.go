@@ -180,6 +180,10 @@ func (b *batcherMock) appendSampleWithContext(sample metrics.MetricSample, _ ide
 	b.appendSample(sample)
 }
 
+func (b *batcherMock) appendColumnarV3SampleWithContext(sample metrics.MetricSample, _ identity.HotPathContext) {
+	b.appendSample(sample)
+}
+
 func (b *batcherMock) needsSampleContext() bool { return false }
 
 func (b *batcherMock) flush() {}

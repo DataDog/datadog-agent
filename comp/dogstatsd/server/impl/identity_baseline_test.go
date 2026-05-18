@@ -248,6 +248,9 @@ func (b *countingBatcher) appendLateSample(metrics.MetricSample) { b.lateSamples
 func (b *countingBatcher) appendLateSampleWithContext(metrics.MetricSample, identity.HotPathContext) {
 	b.lateSamples++
 }
+func (b *countingBatcher) appendColumnarV3SampleWithContext(metrics.MetricSample, identity.HotPathContext) {
+	b.samples++
+}
 func (b *countingBatcher) appendEvent(*event.Event)                      { b.events++ }
 func (b *countingBatcher) appendServiceCheck(*servicecheck.ServiceCheck) { b.checks++ }
 func (b *countingBatcher) needsSampleContext() bool                      { return false }

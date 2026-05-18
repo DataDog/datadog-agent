@@ -111,9 +111,12 @@ type statsd struct {
 	metricSamplePool *metrics.MetricSamplePool
 
 	// columnarV3 is the intentionally local-only DogStatsD v3 vertical-slice
-	// experiment. Supported DogStatsD samples can be inserted directly from the
-	// parser workers into this sharded table, bypassing the legacy sampler state.
-	columnarV3 *dogstatsdColumnarStore
+	// experiment. Supported DogStatsD samples are handed from parser workers to
+	// these shard-local workers and aggregated in this v3-aligned table, bypassing
+	// the legacy sampler state.
+	columnarV3           *dogstatsdColumnarStore
+	columnarV3Workers    []*dogstatsdColumnarWorker
+	columnarV3SamplePool *DogStatsDColumnarV3SamplePool
 
 	// the noAggregationStreamWorker is the one dealing with metrics that don't need to
 	// be aggregated/sampled.
@@ -200,8 +203,15 @@ func initAgentDemultiplexer(log log.Component,
 	}
 
 	var columnarV3 *dogstatsdColumnarStore
+	var columnarV3Workers []*dogstatsdColumnarWorker
+	var columnarV3SamplePool *DogStatsDColumnarV3SamplePool
 	if columnarV3ExperimentEnabled() {
 		columnarV3 = newDogStatsDColumnarStore(bucketSize, statsdPipelinesCount)
+		columnarV3SamplePool = newDogStatsDColumnarV3SamplePool(MetricSamplePoolBatchSize)
+		columnarV3Workers = make([]*dogstatsdColumnarWorker, statsdPipelinesCount)
+		for i := 0; i < statsdPipelinesCount; i++ {
+			columnarV3Workers[i] = newDogStatsDColumnarWorker(columnarV3, TimeSamplerID(i), bufferSize, columnarV3SamplePool)
+		}
 	}
 
 	var noAggWorker *noAggregationStreamWorker
@@ -242,11 +252,13 @@ func initAgentDemultiplexer(log log.Component,
 
 		// statsd time samplers
 		statsd: statsd{
-			pipelinesCount:    statsdPipelinesCount,
-			workers:           statsdWorkers,
-			metricSamplePool:  metricSamplePool,
-			columnarV3:        columnarV3,
-			noAggStreamWorker: noAggWorker,
+			pipelinesCount:       statsdPipelinesCount,
+			workers:              statsdWorkers,
+			metricSamplePool:     metricSamplePool,
+			columnarV3:           columnarV3,
+			columnarV3Workers:    columnarV3Workers,
+			columnarV3SamplePool: columnarV3SamplePool,
+			noAggStreamWorker:    noAggWorker,
 		},
 	}
 
@@ -338,6 +350,9 @@ func (d *AgentDemultiplexer) run() {
 	}
 
 	for _, w := range d.statsd.workers {
+		go w.run()
+	}
+	for _, w := range d.statsd.columnarV3Workers {
 		go w.run()
 	}
 
@@ -435,6 +450,9 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 	defer d.m.Unlock()
 
 	// aggregated data
+	for _, worker := range d.statsd.columnarV3Workers {
+		worker.stop()
+	}
 	for _, worker := range d.statsd.workers {
 		worker.stop()
 	}
@@ -634,9 +652,20 @@ func (d *AgentDemultiplexer) flushToColumnarV3Serializer(start time.Time, waitFo
 	result := directRows.SendDirectV3SeriesRows(
 		func(rowSink metrics.SerieRowSink) {
 			columnarStart := time.Now()
-			if d.statsd.columnarV3 != nil {
-				d.statsd.columnarV3.flush(start.Unix(), forceFlushAll, rowSink)
+			var rows uint64
+			for _, worker := range d.statsd.columnarV3Workers {
+				trigger := dogstatsdColumnarFlushTrigger{
+					cutoffTime:    start.Unix(),
+					forceFlushAll: forceFlushAll,
+					rowSink:       rowSink,
+					blockChan:     make(chan uint64),
+				}
+				worker.flushChan <- trigger
+				rows += <-trigger.blockChan
 			}
+			tlmDogstatsdColumnarStats.Add(float64(rows), "flushed_rows")
+			tlmDogstatsdColumnarStats.Inc("flushes")
+			tlmDogstatsdColumnarDuration.Add(float64(time.Since(columnarStart).Nanoseconds()), "flush")
 			recordDogstatsdPipelineDuration("dogstatsd_columnar_v3", time.Since(columnarStart))
 		},
 		serializer.DirectMetricsOptions{
@@ -719,10 +748,41 @@ func (d *AgentDemultiplexer) DogStatsDColumnarV3Enabled() bool {
 	return d != nil && d.statsd.columnarV3 != nil
 }
 
+// AcceptDogStatsDColumnarV3Sample returns whether a parsed DogStatsD sample is
+// inside the intentionally narrow supported slice. Unsupported samples should
+// fall back to the legacy aggregation path.
+func (d *AgentDemultiplexer) AcceptDogStatsDColumnarV3Sample(sample metrics.MetricSample) bool {
+	if d == nil || d.statsd.columnarV3 == nil {
+		return false
+	}
+	return d.statsd.columnarV3.accept(sample)
+}
+
+// GetDogStatsDColumnarV3SamplePool returns the handoff batch pool used by the
+// parser-side columnar batcher.
+func (d *AgentDemultiplexer) GetDogStatsDColumnarV3SamplePool() *DogStatsDColumnarV3SamplePool {
+	if d == nil {
+		return nil
+	}
+	return d.statsd.columnarV3SamplePool
+}
+
+// AggregateDogStatsDColumnarV3Samples hands an accepted DogStatsD columnar v3
+// batch to the corresponding shard-local columnar worker.
+func (d *AgentDemultiplexer) AggregateDogStatsDColumnarV3Samples(shard TimeSamplerID, samples DogStatsDColumnarV3SampleBatch) {
+	if d == nil || int(shard) >= len(d.statsd.columnarV3Workers) {
+		if d != nil && d.statsd.columnarV3SamplePool != nil {
+			d.statsd.columnarV3SamplePool.PutBatch(samples)
+		}
+		return
+	}
+	d.statsd.columnarV3Workers[shard].samplesChan <- samples
+}
+
 // InsertDogStatsDColumnarV3Sample inserts a parsed DogStatsD sample directly
-// into the experimental sharded columnar table. It returns false when the
-// sample is outside the intentionally narrow supported slice and should fall
-// back to the legacy aggregation path.
+// into the experimental sharded columnar table. It remains for focused unit
+// tests and synchronous probes; production experiments use batched worker
+// handoff via AggregateDogStatsDColumnarV3Samples.
 func (d *AgentDemultiplexer) InsertDogStatsDColumnarV3Sample(shardKey ckey.ContextKey, sample metrics.MetricSample) bool {
 	if d == nil || d.statsd.columnarV3 == nil {
 		return false

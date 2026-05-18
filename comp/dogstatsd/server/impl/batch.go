@@ -31,6 +31,7 @@ type dogstatsdBatcher interface {
 	appendServiceCheck(serviceCheck *servicecheck.ServiceCheck)
 	appendLateSample(sample metrics.MetricSample)
 	appendLateSampleWithContext(sample metrics.MetricSample, context identity.HotPathContext)
+	appendColumnarV3SampleWithContext(sample metrics.MetricSample, context identity.HotPathContext)
 	needsSampleContext() bool
 	flush()
 }
@@ -59,6 +60,11 @@ type batcher struct {
 	choutServiceChecks chan<- []*servicecheck.ServiceCheck
 
 	metricSamplePool *metrics.MetricSamplePool
+
+	columnarV3             aggregator.DogStatsDColumnarV3Inserter
+	columnarV3Samples      []aggregator.DogStatsDColumnarV3SampleBatch
+	columnarV3SamplesCount []int
+	columnarV3SamplePool   *aggregator.DogStatsDColumnarV3SamplePool
 
 	demux aggregator.Demultiplexer
 	// buffer slice allocated once per contextResolver to combine and sort
@@ -129,6 +135,22 @@ func newBatcher(demux aggregator.DemultiplexerWithAggregator, tlmChannel telemet
 	samplesWithTs := demux.GetMetricSamplePool().GetBatch()
 	samplesWithTsCount := 0
 
+	var columnarV3 aggregator.DogStatsDColumnarV3Inserter
+	var columnarV3Samples []aggregator.DogStatsDColumnarV3SampleBatch
+	var columnarV3SamplesCount []int
+	var columnarV3SamplePool *aggregator.DogStatsDColumnarV3SamplePool
+	if inserter, ok := demux.(aggregator.DogStatsDColumnarV3Inserter); ok && inserter.DogStatsDColumnarV3Enabled() {
+		columnarV3SamplePool = inserter.GetDogStatsDColumnarV3SamplePool()
+		if columnarV3SamplePool != nil {
+			columnarV3 = inserter
+			columnarV3Samples = make([]aggregator.DogStatsDColumnarV3SampleBatch, pipelineCount)
+			columnarV3SamplesCount = make([]int, pipelineCount)
+			for i := range columnarV3Samples {
+				columnarV3Samples[i] = columnarV3SamplePool.GetBatch()
+			}
+		}
+	}
+
 	return &batcher{
 		samples:            samples,
 		samplesCount:       samplesCount,
@@ -137,6 +159,11 @@ func newBatcher(demux aggregator.DemultiplexerWithAggregator, tlmChannel telemet
 		metricSamplePool:   demux.GetMetricSamplePool(),
 		choutEvents:        e,
 		choutServiceChecks: sc,
+
+		columnarV3:             columnarV3,
+		columnarV3Samples:      columnarV3Samples,
+		columnarV3SamplesCount: columnarV3SamplesCount,
+		columnarV3SamplePool:   columnarV3SamplePool,
 
 		demux:          demux,
 		pipelineCount:  pipelineCount,
@@ -167,12 +194,33 @@ func newServerlessBatcher(demux aggregator.Demultiplexer, tlmChannel telemetry.H
 		samplesCount[i] = 0
 	}
 
+	var columnarV3 aggregator.DogStatsDColumnarV3Inserter
+	var columnarV3Samples []aggregator.DogStatsDColumnarV3SampleBatch
+	var columnarV3SamplesCount []int
+	var columnarV3SamplePool *aggregator.DogStatsDColumnarV3SamplePool
+	if inserter, ok := demux.(aggregator.DogStatsDColumnarV3Inserter); ok && inserter.DogStatsDColumnarV3Enabled() {
+		columnarV3SamplePool = inserter.GetDogStatsDColumnarV3SamplePool()
+		if columnarV3SamplePool != nil {
+			columnarV3 = inserter
+			columnarV3Samples = make([]aggregator.DogStatsDColumnarV3SampleBatch, pipelineCount)
+			columnarV3SamplesCount = make([]int, pipelineCount)
+			for i := range columnarV3Samples {
+				columnarV3Samples[i] = columnarV3SamplePool.GetBatch()
+			}
+		}
+	}
+
 	return &batcher{
 		samples:            samples,
 		samplesCount:       samplesCount,
 		samplesWithTs:      samplesWithTs,
 		samplesWithTsCount: samplesWithTsCount,
 		metricSamplePool:   demux.GetMetricSamplePool(),
+
+		columnarV3:             columnarV3,
+		columnarV3Samples:      columnarV3Samples,
+		columnarV3SamplesCount: columnarV3SamplesCount,
+		columnarV3SamplePool:   columnarV3SamplePool,
 
 		demux:          demux,
 		pipelineCount:  pipelineCount,
@@ -248,6 +296,25 @@ func (b *batcher) appendLateSampleWithoutAggregation(sample metrics.MetricSample
 	b.samplesWithTsCount++
 }
 
+func (b *batcher) appendColumnarV3SampleWithContext(sample metrics.MetricSample, context identity.HotPathContext) {
+	if b.columnarV3 == nil || b.columnarV3SamplePool == nil {
+		b.appendSampleWithContext(sample, context)
+		return
+	}
+	var shardKey uint32
+	if b.pipelineCount > 1 {
+		shardKey = identity.ShardIndex(context.Shard.ContextKey, b.pipelineCount)
+	}
+	if b.columnarV3SamplesCount[shardKey] >= len(b.columnarV3Samples[shardKey]) {
+		b.flushColumnarV3Samples(shardKey)
+	}
+	b.columnarV3Samples[shardKey][b.columnarV3SamplesCount[shardKey]] = aggregator.DogStatsDColumnarV3Sample{
+		ContextKey: context.Shard.ContextKey,
+		Sample:     sample,
+	}
+	b.columnarV3SamplesCount[shardKey]++
+}
+
 func (b *batcher) needsSampleContext() bool {
 	return b.pipelineCount > 1
 }
@@ -279,11 +346,25 @@ func (b *batcher) flushSamplesWithTs() {
 	}
 }
 
+func (b *batcher) flushColumnarV3Samples(shard uint32) {
+	if b.columnarV3 == nil || b.columnarV3SamplesCount[shard] == 0 {
+		return
+	}
+	t1 := time.Now()
+	b.columnarV3.AggregateDogStatsDColumnarV3Samples(aggregator.TimeSamplerID(shard), b.columnarV3Samples[shard][:b.columnarV3SamplesCount[shard]])
+	t2 := time.Now()
+	b.tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), strconv.Itoa(int(shard)), "columnar_v3_metrics")
+
+	b.columnarV3SamplesCount[shard] = 0
+	b.columnarV3Samples[shard] = b.columnarV3SamplePool.GetBatch()
+}
+
 // flush pushes all batched metrics to the aggregator.
 func (b *batcher) flush() {
 	// flush all on-time samples on their respective time sampler
 	for i := 0; i < b.pipelineCount; i++ {
 		b.flushSamples(uint32(i))
+		b.flushColumnarV3Samples(uint32(i))
 	}
 
 	// flush all samples with timestamp to the serializer
