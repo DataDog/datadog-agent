@@ -37,6 +37,10 @@ func (p *statePlanner) applyAcked(extra *StatefulExtra, protectedRefs *stateRefe
 	p.snapshot.applyWithProtectedRefs(extra, &expanded)
 }
 
+func (p *statePlanner) hasDeferredDeletes() bool {
+	return p.snapshot.hasDeferredDeletes()
+}
+
 func (p *statePlanner) snapshotBytes(refs *stateReferences) ([]byte, stateReferences) {
 	var snapshotRefs *stateReferences
 	if refs != nil {
@@ -345,6 +349,12 @@ func (s *snapshotState) pruneDeferredDeletes(protectedRefs *stateReferences) {
 	}
 }
 
+func (s *snapshotState) hasDeferredDeletes() bool {
+	return len(s.deferredDeletes.patternIDs) > 0 ||
+		len(s.deferredDeletes.dictEntryIDs) > 0 ||
+		len(s.deferredDeletes.jsonSchemaIDs) > 0
+}
+
 func (s *snapshotState) serialize(refs *stateReferences) ([]byte, stateReferences) {
 	sent := newStateReferences()
 	datums := make([]*statefulpb.Datum, 0, len(s.patternMap)+len(s.dictMap)+len(s.jsonSchemaMap))
@@ -491,6 +501,18 @@ func splitStateAndWireDatums(datums []*statefulpb.Datum) (stateChanges []*statef
 		}
 	}
 	return stateChanges, wireDatums
+}
+
+func stateChangesContainDeletes(datums []*statefulpb.Datum) bool {
+	for _, datum := range datums {
+		switch datum.Data.(type) {
+		case *statefulpb.Datum_PatternDelete,
+			*statefulpb.Datum_DictEntryDelete,
+			*statefulpb.Datum_JsonSchemaDelete:
+			return true
+		}
+	}
+	return false
 }
 
 func isStateDatum(datum *statefulpb.Datum) bool {

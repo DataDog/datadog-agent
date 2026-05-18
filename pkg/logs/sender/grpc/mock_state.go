@@ -547,7 +547,8 @@ func (mt *MessageTranslator) buildTagSet(msg *message.Message) (*statefulpb.TagS
 	currentOrigin := msg.Origin
 	currentHostname := msg.MessageMetadata.Hostname
 	currentSource := msg.Origin.Source()
-	currentTagsString := msg.MessageMetadata.TagsToString()
+	baseTags := msg.MessageMetadata.Tags()
+	currentTagsString := strings.Join(baseTags, ",")
 	currentProcessingTags := strings.Join(msg.MessageMetadata.ProcessingTags, ",")
 
 	// Cache hit: all inputs identical and cached dict index still live (not evicted).
@@ -563,8 +564,6 @@ func (mt *MessageTranslator) buildTagSet(msg *message.Message) (*statefulpb.TagS
 
 	// Cache miss: build tag string normally.
 
-	// Start with metadata tags (container tags, source config tags, processing tags)
-	baseTags := msg.MessageMetadata.Tags()
 	tagStrings := make([]string, len(baseTags), len(baseTags)+4)
 	copy(tagStrings, baseTags)
 
@@ -1037,6 +1036,9 @@ func buildJsonSchemaDelete(schemaID uint64) *statefulpb.Datum {
 // like "00123" are kept as strings so they can round-trip without losing lexeme
 // fidelity when reconstructed downstream.
 func parseLosslessIntString(value string) (int64, bool) {
+	if !couldBeInteger(value) {
+		return 0, false
+	}
 	intVal, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
 		return 0, false
@@ -1050,6 +1052,9 @@ func parseLosslessIntString(value string) (int64, bool) {
 // parseLosslessFloatString returns a float64 only when the original string is already
 // the canonical representation produced by strconv.FormatFloat(..., 'g', -1, 64).
 func parseLosslessFloatString(value string) (float64, bool) {
+	if !couldBeFloat(value) {
+		return 0, false
+	}
 	floatVal, err := strconv.ParseFloat(value, 64)
 	if err != nil {
 		return 0, false
@@ -1058,6 +1063,47 @@ func parseLosslessFloatString(value string) (float64, bool) {
 		return 0, false
 	}
 	return floatVal, true
+}
+
+func couldBeInteger(value string) bool {
+	if value == "" {
+		return false
+	}
+	start := 0
+	if value[0] == '-' {
+		start = 1
+		if len(value) == 1 {
+			return false
+		}
+	}
+	for index := start; index < len(value); index++ {
+		if value[index] < '0' || value[index] > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func couldBeFloat(value string) bool {
+	if value == "" {
+		return false
+	}
+	hasFloatMarker := false
+	for index := 0; index < len(value); index++ {
+		switch value[index] {
+		case '.', 'e', 'E':
+			hasFloatMarker = true
+		case '+', '-':
+			if index != 0 && value[index-1] != 'e' && value[index-1] != 'E' {
+				return false
+			}
+		default:
+			if value[index] < '0' || value[index] > '9' {
+				return false
+			}
+		}
+	}
+	return hasFloatMarker
 }
 
 func parseLosslessBoolString(value string) (bool, bool) {
