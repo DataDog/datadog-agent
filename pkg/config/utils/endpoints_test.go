@@ -280,6 +280,39 @@ additional_endpoints:
 	assert.Equal(t, "enc_https://app.datadoghq.com_additional_endpoints_secret_handle", additional.Keys[1].Name)
 }
 
+// TestMainAPIKeyEncBackedName verifies that an ENC-backed api_key gets an
+// enc_-prefixed stable name from GetMultipleEndpoints, matching the behaviour
+// already in place for additional_endpoints. Without this, a user who swaps
+// which ENC handle is api_key vs. an additional endpoint between agent restarts
+// would produce transactions that resolve to idx_-based names on both sides,
+// making the two keys indistinguishable in the retry queue.
+func TestMainAPIKeyEncBackedName(t *testing.T) {
+	ddURL := "https://app.datadoghq.com"
+
+	testConfig := mock.NewFromYAML(t, `
+api_key: ENC[main_key_handle]
+dd_url: https://app.datadoghq.com
+`)
+	testConfig.Set("api_key", "resolved_main_key", pkgconfigmodel.SourceSecret)
+
+	endpoints, err := GetMultipleEndpoints(testConfig)
+	require.NoError(t, err)
+
+	descriptor, ok := endpoints[ddURL]
+	require.True(t, ok)
+
+	var primary APIKeys
+	for _, set := range descriptor.APIKeySet {
+		if set.ConfigSettingPath == "api_key" {
+			primary = set
+			break
+		}
+	}
+	require.Len(t, primary.Keys, 1)
+	assert.Equal(t, "resolved_main_key", primary.Keys[0].Key)
+	assert.Equal(t, "enc_https://app.datadoghq.com_api_key_main_key_handle", primary.Keys[0].Name)
+}
+
 // TestAdditionalEndpointAPIKeyNamesTrimAndDedup verifies that empty keys are
 // dropped and duplicate key values within one endpoint are collapsed at
 // construction. The surviving entry keeps the first occurrence's name, and

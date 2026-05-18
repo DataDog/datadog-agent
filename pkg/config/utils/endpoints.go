@@ -236,6 +236,42 @@ func RawStringMapStringSlice(c pkgconfigmodel.Reader, setting string) map[string
 	return getStringMapStringSlice(c.AllSettingsWithoutSecrets()[setting])
 }
 
+// newAPIKeysFromConfig builds an APIKeys for a config setting that holds
+// either a single string or a string slice (e.g. api_key or
+// multi_region_failover.api_key). It reads both the resolved form (via
+// c.GetStringSlice) and the pre-secret-resolution form (from
+// AllSettingsWithoutSecrets) so ENC-backed keys receive enc_-prefixed stable
+// names. Works for settings with one key or several.
+func newAPIKeysFromConfig(c pkgconfigmodel.Reader, path, endpoint string) APIKeys {
+	raw := rawLeafSlice(c.AllSettingsWithoutSecrets(), path)
+	return APIKeys{
+		ConfigSettingPath: path,
+		Keys:              makeNamedAPIKeys(endpoint, path, c.GetStringSlice(path), raw),
+	}
+}
+
+// rawLeafSlice traverses a nested AllSettingsWithoutSecrets map using
+// dot-notation and normalises the leaf value (string or []interface{}) to
+// []string. Returns nil when the key is absent or the value has an unexpected
+// type.
+func rawLeafSlice(m map[string]interface{}, dotKey string) []string {
+	parts := strings.SplitN(dotKey, ".", 2)
+	for len(parts) == 2 {
+		nested, ok := m[parts[0]].(map[string]interface{})
+		if !ok {
+			return nil
+		}
+		m = nested
+		parts = strings.SplitN(parts[1], ".", 2)
+	}
+	leaf := m[parts[0]]
+	if s, ok := leaf.(string); ok {
+		return []string{s}
+	}
+	result, _ := interfaceToStringSlice(leaf)
+	return result
+}
+
 // getStringMapStringSlice normalizes a setting value to map[string][]string.
 // Both viper and nodetreemodel normalize YAML's map[interface{}]interface{}
 // to map[string]interface{} at parse time, and env-var JSON parsing produces
@@ -318,7 +354,7 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 	}
 
 	keysPerDomain := map[string][]APIKeys{
-		ddURL: {NewAPIKeys("api_key", ddURL, c.GetString("api_key"))},
+		ddURL: {newAPIKeysFromConfig(c, "api_key", ddURL)},
 	}
 
 	additionalEndpoints := MakeNamedEndpoints(
@@ -351,7 +387,7 @@ func GetMultipleEndpoints(c pkgconfigmodel.Reader) (EndpointDescriptorSet, error
 		}
 		eds[haURL] = EndpointDescriptor{
 			BaseURL:   haURL,
-			APIKeySet: []APIKeys{NewAPIKeys("multi_region_failover.api_key", haURL, c.GetString("multi_region_failover.api_key"))},
+			APIKeySet: []APIKeys{newAPIKeysFromConfig(c, "multi_region_failover.api_key", haURL)},
 			IsMRF:     true,
 		}
 	}
