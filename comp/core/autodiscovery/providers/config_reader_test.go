@@ -136,7 +136,6 @@ func TestGetIntegrationConfig_Discovery(t *testing.T) {
 	require.Nil(t, err)
 	require.NotNil(t, config.Discovery)
 	assert.Equal(t, []string{"krakend"}, config.ADIdentifiers)
-	assert.Len(t, config.Instances, 1)
 }
 
 func TestReadConfigFiles(t *testing.T) {

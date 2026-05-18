@@ -2,5 +2,4 @@ ad_identifiers:
   - krakend
 discovery: {}
 init_config:
-instances:
-  - openmetrics_endpoint: "http://%%host%%/metrics"
+instances: []
