@@ -1041,5 +1041,44 @@ class TestUpstreamShims(unittest.TestCase):
         self.assertIsNone(result)
 
 
+class TestBundleVersioning(unittest.TestCase):
+    """Pin the bundle's identity + version-metadata contract so downstream
+    consumers (Fleet validator, IDE schema stores, doc generators) can
+    rely on these fields being present and stable.
+    """
+
+    def test_bundle_carries_identity_and_versioning_fields(self):
+        from tasks.libs.otelcol_schema.bundle import (
+            BUNDLE_ID,
+            BUNDLE_SCHEMA_VERSION,
+            BUNDLE_TITLE,
+            build_bundle,
+        )
+
+        result = build_bundle()
+        b = result.bundle
+        self.assertEqual(b["$schema"], "https://json-schema.org/draft/2020-12/schema")
+        self.assertEqual(b["$id"], BUNDLE_ID)
+        self.assertEqual(b["title"], BUNDLE_TITLE)
+        # Bundle format version is hand-curated semver.
+        self.assertEqual(b["x-bundle-version"], BUNDLE_SCHEMA_VERSION)
+        self.assertRegex(BUNDLE_SCHEMA_VERSION, r"^\d+\.\d+\.\d+$")
+        # Collector version comes from the manifest's `dist.version` and is
+        # normalised to a leading `v` (matches Go-module pseudo-version style).
+        self.assertRegex(b["x-collector-version"], r"^v\d+\.\d+\.\d+$")
+
+    def test_identity_fields_appear_before_defs(self):
+        """JSON dict insertion order is preserved on Python 3.7+. The bundle
+        intentionally emits identity fields at the top of the document so a
+        consumer streaming-parsing the file can dispatch on version without
+        loading the full $defs registry (~300 KB)."""
+        from tasks.libs.otelcol_schema.bundle import build_bundle
+
+        keys = list(build_bundle().bundle.keys())
+        for required in ("$schema", "$id", "title", "x-bundle-version", "x-collector-version"):
+            self.assertIn(required, keys)
+        self.assertLess(keys.index("x-collector-version"), keys.index("$defs"))
+
+
 if __name__ == "__main__":
     unittest.main()

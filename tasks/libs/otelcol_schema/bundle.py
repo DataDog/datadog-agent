@@ -72,6 +72,44 @@ from tasks.libs.otelcol_schema.inventory import (
 )
 
 # ---------------------------------------------------------------------------
+# Bundle identity + versioning
+# ---------------------------------------------------------------------------
+
+# Stable URI identifying this bundle. Per JSON Schema 2020-12, `$id` is the
+# base URI against which other refs in the doc resolve. Consumers (Fleet
+# validator, IDE schema stores, doc generators) key off this.
+BUNDLE_ID = "https://github.com/DataDog/datadog-agent/comp/otelcol/collector-config.schema.json"
+
+BUNDLE_TITLE = "Datadog Distribution of OpenTelemetry Collector configuration"
+
+# Semver of the BUNDLE FORMAT itself — independent of the Collector version
+# the bundle was built from. Bump when consumers of the schema need to react:
+#   MAJOR: the envelope shape, $defs naming scheme, or $ref form changes in
+#          ways that break existing validators (e.g. renaming
+#          `component__<class>__<type>` to a different scheme).
+#   MINOR: new validator-visible affordances added (e.g. new `x-*` extension
+#          fields, new permissive-fallback semantics, new placeholder shapes).
+#   PATCH: schema content updates that don't change the format (most common —
+#          a new component appears in the manifest, an upstream schema is
+#          refreshed, a shim is added or retired).
+#
+# This is hand-curated rather than derived from the inputs because the
+# version's *meaning* (validator behaviour) doesn't map one-to-one onto input
+# changes. Update this constant when changing the bundle format.
+BUNDLE_SCHEMA_VERSION = "1.0.0"
+
+
+def _manifest_collector_version() -> str:
+    """Read `dist.version` from the OCB manifest. This is the upstream
+    Collector version the bundle's component schemas correspond to —
+    written into the bundle output so consumers (Fleet, IDE schema stores)
+    can pin to compatible versions."""
+    raw = yaml.safe_load(MANIFEST_PATH.read_text())
+    version = (raw.get("dist") or {}).get("version")
+    return f"v{version}" if version and not str(version).startswith("v") else (version or "unknown")
+
+
+# ---------------------------------------------------------------------------
 # ID generation
 # ---------------------------------------------------------------------------
 
@@ -664,7 +702,21 @@ def build_bundle(*, missing_strategy: str = "permissive") -> BundleResult:
         # The fallback placeholder for unmodeled components needs a $defs entry
         # to point at; reuse the same shape we use for unresolved $refs.
         defs.setdefault("__component__permissive__", _placeholder())
-    bundle = {"$schema": JSON_SCHEMA_DRAFT, **envelope, "$defs": defs}
+
+    # Identity + version metadata. These ride at the top of the bundle so
+    # consumers (Fleet validator, IDE schema stores, doc generators) can
+    # discover what they're looking at without parsing the file's body.
+    # `x-*` extension fields are spec-valid JSON Schema (unknown keywords
+    # are ignored by validators) and survive meta-schema validation.
+    bundle = {
+        "$schema": JSON_SCHEMA_DRAFT,
+        "$id": BUNDLE_ID,
+        "title": BUNDLE_TITLE,
+        "x-bundle-version": BUNDLE_SCHEMA_VERSION,
+        "x-collector-version": _manifest_collector_version(),
+        **envelope,
+        "$defs": defs,
+    }
     return BundleResult(
         bundle=bundle,
         sources=sources,

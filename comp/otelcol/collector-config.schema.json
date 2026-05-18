@@ -1,5 +1,9 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/DataDog/datadog-agent/comp/otelcol/collector-config.schema.json",
+  "title": "Datadog Distribution of OpenTelemetry Collector configuration",
+  "x-bundle-version": "1.0.0",
+  "x-collector-version": "v0.151.0",
   "description": "Configuration accepted by the DDOT OpenTelemetry Collector.",
   "type": "object",
   "additionalProperties": false,
