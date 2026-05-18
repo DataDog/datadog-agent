@@ -5,11 +5,20 @@ go_library(
     srcs = ["main.go"],
     importpath = "github.com/DataDog/datadog-agent/tools/host-profiler/extract_symbols",
     visibility = ["//visibility:private"],
-    deps = [
-        "//comp/host-profiler/symboluploader",
-        "//comp/host-profiler/symboluploader/symbol",
-        "//comp/host-profiler/symboluploader/symbolcopier",
-    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//comp/host-profiler/symboluploader",
+            "//comp/host-profiler/symboluploader/symbol",
+            "//comp/host-profiler/symboluploader/symbolcopier",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/host-profiler/symboluploader",
+            "//comp/host-profiler/symboluploader/symbol",
+            "//comp/host-profiler/symboluploader/symbolcopier",
+        ],
+        "//conditions:default": [],
+    }),
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 go_binary(
