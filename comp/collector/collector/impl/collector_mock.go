@@ -9,6 +9,8 @@
 package collectorimpl
 
 import (
+	"go.uber.org/fx"
+
 	collector "github.com/DataDog/datadog-agent/comp/collector/collector/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -19,7 +21,7 @@ import (
 // MockModule defines the fx options for the mock component.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(func() MockParams { return MockParams{} }),
+		fx.Provide(func() MockParams { return MockParams{} }),
 		fxutil.ProvideComponentConstructor(newMock),
 		fxutil.ProvideOptional[collector.Component](),
 	)
