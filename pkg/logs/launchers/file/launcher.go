@@ -420,7 +420,15 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 	if s.tailers.Count() >= s.tailingLimit {
 		return
 	}
-	files, err := s.fileProvider.CollectFiles(source)
+	// Pass the currently-tailed scan keys so that CollectFiles does not filter
+	// out files that are already being tailed by the ignore_older heuristic.
+	// This matters when launchTailers is called for a source *update* (e.g. an
+	// Autodiscovery re-annotation with new tags): the underlying file is already
+	// tailed, so its mtime may be well past the ignore_older threshold even
+	// though the tailer should keep running and switch to the new source via
+	// ReplaceSource. Without this, CollectFiles returns empty, ReplaceSource is
+	// never called, and the stale source stays in place until the agent restarts.
+	files, err := s.fileProvider.CollectFiles(source, s.currentlyTailedScanKeys())
 	if err != nil {
 		source.Status.Error(err)
 		log.Warnf("Could not collect files: %v", err)

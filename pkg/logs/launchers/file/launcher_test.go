@@ -1672,3 +1672,86 @@ func TestLauncher_IgnoreOlder_DeletedFileStillStopsTailer(t *testing.T) {
 	assert.Equal(t, 0, launcher.tailers.Count(), "tailer must stop after file deletion (deletion path is unaffected by the ignore_older bypass)")
 	assert.False(t, launcher.tailers.Contains(filePath), "doomed.log should not be in the tailer set after deletion")
 }
+
+// TestLauncher_IgnoreOlder_ReplaceSourceOnStaleFile is a regression test for the
+// codex-bot P2 finding on PR #50956 (AGNTLOG-369).
+//
+// Scenario: a file is already being tailed. Its mtime ages past
+// logs_config.ignore_older. A source update then arrives (e.g. Autodiscovery
+// re-annotates the container with new tags), which causes launchTailers() to be
+// called with a new LogSource pointing at the same file.
+//
+// Before the fix, launchTailers() called CollectFiles(source, nil): the nil
+// currentlyTailed map meant ignore_older was applied unconditionally, the aged
+// file was filtered out, the result was empty, and ReplaceSource was never
+// called — the existing tailer kept the stale source until the agent restarted.
+//
+// After the fix, launchTailers() calls CollectFiles(source,
+// s.currentlyTailedScanKeys()): the file's scan key is present in
+// currentlyTailed so it bypasses the ignore_older filter, the file appears in
+// the result, and ReplaceSource is called with the new source.
+func TestLauncher_IgnoreOlder_ReplaceSourceOnStaleFile(t *testing.T) {
+	cfg := configmock.New(t)
+	testDir := t.TempDir()
+	now := time.Now()
+
+	filePath := fmt.Sprintf("%s/app.log", testDir)
+	f, err := os.Create(filePath)
+	assert.NoError(t, err)
+	f.Close()
+
+	// Start with ignore_older disabled so we can spin up a tailer regardless of mtime.
+	cfg.Set("logs_config.ignore_older", time.Duration(0), configmodel.SourceCLI)
+
+	launcher := createLauncher(t, launcherTestOptions{openFilesLimit: 5})
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditorMock.NewMockRegistry()
+
+	source1 := sources.NewLogSource("source1", &config.LogsConfig{
+		Type:       config.FileType,
+		Identifier: "container-abc",
+		Path:       filePath,
+		Tags:       []string{"version:1"},
+	})
+	launcher.activeSources = append(launcher.activeSources, source1)
+	status.Clear()
+	status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source1}))
+	defer status.Clear()
+
+	// First: start a tailer for source1 via the normal scan path.
+	launcher.resolveActiveTailers(launcher.fileProvider.FilesToTail(
+		context.Background(),
+		launcher.validatePodContainerID,
+		launcher.activeSources,
+		launcher.registry,
+		launcher.currentlyTailedScanKeys(),
+	))
+	assert.Equal(t, 1, launcher.tailers.Count(), "tailer should be created for source1")
+
+	tailer1, found := launcher.tailers.Get(getScanKey(filePath, source1))
+	assert.True(t, found, "tailer for source1 should exist")
+	assert.Equal(t, source1, tailer1.Source(), "tailer should be using source1")
+
+	// Age the file well past ignore_older and enable the filter.
+	assert.NoError(t, os.Chtimes(filePath, now.Add(-2*time.Hour), now.Add(-2*time.Hour)))
+	cfg.Set("logs_config.ignore_older", time.Hour, configmodel.SourceCLI)
+
+	// Simulate a source update: Autodiscovery fires a new LogSource for the
+	// same file/container with updated tags. launchTailers() is the code path
+	// triggered by addSource() when a new source arrives.
+	source2 := sources.NewLogSource("source2", &config.LogsConfig{
+		Type:       config.FileType,
+		Identifier: "container-abc",
+		Path:       filePath,
+		Tags:       []string{"version:2"},
+	})
+
+	// Call launchTailers directly to reproduce the addSource() code path.
+	launcher.launchTailers(source2)
+
+	// The tailer should now be using source2, not source1. Before the fix,
+	// CollectFiles returned empty (file aged past ignore_older) so ReplaceSource
+	// was never called, and tailer1.Source() stayed as source1.
+	assert.Equal(t, source2, tailer1.Source(), "tailer source must be updated to source2 via ReplaceSource; if it is still source1 the CollectFiles bypass is broken")
+	assert.Equal(t, 1, launcher.tailers.Count(), "tailer count should remain 1 — no duplicate tailer should be created")
+}

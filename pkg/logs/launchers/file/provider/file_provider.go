@@ -272,15 +272,24 @@ func (p *FileProvider) FilesToTail(ctx context.Context, validatePodContainerID b
 	return filesToTail
 }
 
-// CollectFiles takes a 'LogSource' and produces a list of tailers matching this source
-// with ordering defined by 'wildcardOrder'.
+// CollectFiles takes a 'LogSource' and a set of currently-tailed scan keys,
+// and produces a list of files matching this source with ordering defined by
+// 'wildcardOrder'.
 //
-// The logs_config.ignore_older filter is applied unconditionally here. Callers
-// that need to preserve files which are already being tailed (so an existing
-// tailer is not stopped when its file goes quiet) must call FilesToTail with
-// the set of currently-tailed scan keys instead.
-func (p *FileProvider) CollectFiles(source *sources.LogSource) ([]*tailer.File, error) {
-	return p.collectFiles(source, nil)
+// currentlyTailed is the set of scan keys (see tailer.File.GetScanKey) whose
+// files already have a running tailer. Those files bypass the
+// logs_config.ignore_older filter so that:
+//  1. An existing tailer is not stopped merely because its file went quiet
+//     (that would be close_older semantics, which is out of scope for ignore_older).
+//  2. When a source update arrives for a file that is already being tailed (e.g.
+//     an Autodiscovery re-annotation with new tags), the file still appears in the
+//     result list so the caller can call tailer.ReplaceSource — without this the
+//     caller would see an empty list and silently leave the stale source in place.
+//
+// Pass nil if there are no currently-tailed files (the filter then applies
+// unconditionally to all matched files).
+func (p *FileProvider) CollectFiles(source *sources.LogSource, currentlyTailed map[string]bool) ([]*tailer.File, error) {
+	return p.collectFiles(source, currentlyTailed)
 }
 
 // collectFiles is the internal implementation of CollectFiles. currentlyTailed

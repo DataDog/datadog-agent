@@ -169,7 +169,7 @@ func (suite *ProviderTestSuite) TestCollectFilesWildcardFlag() {
 	path := suite.testDir + "/1/*.log"
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	files, err := fileProvider.CollectFiles(logSources[0])
+	files, err := fileProvider.CollectFiles(logSources[0], nil)
 	suite.NoError(err, "searching for files in this directory shouldn't fail")
 	for _, file := range files {
 		suite.True(file.IsWildcardPath, "this file has been found with a wildcard pattern.")
@@ -180,7 +180,7 @@ func (suite *ProviderTestSuite) TestCollectFilesWildcardFlag() {
 	path = suite.testDir + "/1/1.log"
 	fileProvider = NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources = suite.newLogSources(path)
-	files, err = fileProvider.CollectFiles(logSources[0])
+	files, err = fileProvider.CollectFiles(logSources[0], nil)
 	suite.NoError(err, "searching for files in this directory shouldn't fail")
 	for _, file := range files {
 		suite.False(file.IsWildcardPath, "this file has not been found using a wildcard pattern.")
@@ -339,7 +339,7 @@ func TestCollectFiles(t *testing.T) {
 	t.Run("Invalid Pattern", func(t *testing.T) {
 		fileProvider := NewFileProvider(2, WildcardUseFileName)
 		source := sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: "//\\///*"})
-		files, err := fileProvider.CollectFiles(source)
+		files, err := fileProvider.CollectFiles(source, nil)
 		assert.Len(t, files, 0)
 		assert.Error(t, err)
 	})
@@ -352,7 +352,7 @@ func TestCollectFiles(t *testing.T) {
 
 		fileProvider := NewFileProvider(2, WildcardUseFileName)
 		source := sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: fs.path("*")})
-		files, err := fileProvider.CollectFiles(source)
+		files, err := fileProvider.CollectFiles(source, nil)
 		assert.Nil(t, err)
 		assert.Len(t, files, 4)
 		assert.Equal(t, fs.path("d"), files[0].Path)
@@ -373,7 +373,7 @@ func TestCollectFiles(t *testing.T) {
 
 		fileProvider := NewFileProvider(2, WildcardUseFileModTime)
 		source := sources.NewLogSource("wildcard", &config.LogsConfig{Type: config.FileType, Path: fs.path("*")})
-		files, err := fileProvider.CollectFiles(source)
+		files, err := fileProvider.CollectFiles(source, nil)
 		assert.Nil(t, err)
 		assert.Len(t, files, 4)
 		assert.Equal(t, fs.path("a.log"), files[0].Path)
@@ -678,7 +678,7 @@ func TestCollectFiles_RecursiveGlobEnabled(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.Set("logs_config.enable_recursive_glob", true, configmodel.SourceCLI)
 	status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
-	files, err := fileProvider.CollectFiles(source)
+	files, err := fileProvider.CollectFiles(source, nil)
 	assert.NoError(t, err)
 	paths := make(map[string]bool)
 	for _, f := range files {
@@ -704,7 +704,7 @@ func TestCollectFiles_RecursiveGlobDisabled(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.Set("logs_config.enable_recursive_glob", false, configmodel.SourceCLI)
 	status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
-	files, err := fileProvider.CollectFiles(source)
+	files, err := fileProvider.CollectFiles(source, nil)
 	// When recursive glob is disabled, a '**' pattern should not expand; expect an error and no matches.
 	assert.Error(t, err)
 	assert.Len(t, files, 0)
@@ -816,7 +816,7 @@ func TestIgnoreOlder_Wildcard(t *testing.T) {
 		Type: config.FileType,
 		Path: fs.path("*.log"),
 	})
-	files, err := fileProvider.CollectFiles(source)
+	files, err := fileProvider.CollectFiles(source, nil)
 	assert.NoError(t, err)
 	assert.Len(t, files, 1, "old.log should be filtered out, only recent.log should remain")
 	assert.Equal(t, fs.path("recent.log"), files[0].Path)
@@ -837,7 +837,7 @@ func TestIgnoreOlder_ExplicitPath_Old(t *testing.T) {
 		Type: config.FileType,
 		Path: fs.path("foo.log"),
 	})
-	files, err := fileProvider.CollectFiles(source)
+	files, err := fileProvider.CollectFiles(source, nil)
 	assert.NoError(t, err)
 	assert.Len(t, files, 0, "explicit-path file older than ignore_older should be skipped")
 }
@@ -857,7 +857,7 @@ func TestIgnoreOlder_ExplicitPath_Recent(t *testing.T) {
 		Type: config.FileType,
 		Path: fs.path("foo.log"),
 	})
-	files, err := fileProvider.CollectFiles(source)
+	files, err := fileProvider.CollectFiles(source, nil)
 	assert.NoError(t, err)
 	assert.Len(t, files, 1)
 	assert.Equal(t, fs.path("foo.log"), files[0].Path)
@@ -878,7 +878,7 @@ func TestIgnoreOlder_Disabled(t *testing.T) {
 		Type: config.FileType,
 		Path: fs.path("*.log"),
 	})
-	files, err := fileProvider.CollectFiles(source)
+	files, err := fileProvider.CollectFiles(source, nil)
 	assert.NoError(t, err)
 	assert.Len(t, files, 1, "ignore_older=0 should disable filtering")
 	assert.Equal(t, fs.path("ancient.log"), files[0].Path)
@@ -903,7 +903,7 @@ func TestCollectFiles_RecursiveGlobWithExcludePaths(t *testing.T) {
 	cfg.Set("logs_config.enable_recursive_glob", true, configmodel.SourceCLI)
 	status.InitStatus(cfg, testutils.CreateSources([]*sources.LogSource{source}))
 
-	files, err := fileProvider.CollectFiles(source)
+	files, err := fileProvider.CollectFiles(source, nil)
 	assert.NoError(t, err)
 	paths := make(map[string]bool)
 	for _, f := range files {
