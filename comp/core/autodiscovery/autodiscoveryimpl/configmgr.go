@@ -21,7 +21,6 @@ import (
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 )
 
 // configManager implements the logic of handling additions and removals of
@@ -440,21 +439,39 @@ func (cm *reconcilingConfigManager) reconcileService(svcID string) integration.C
 // resolveTemplateForService resolves a template config for the given service,
 // updating errorStats in the process.  If the resolution fails, this method
 // returns false.
+//
+// Discovery templates take a small preamble: they get a synthetic trial
+// instance built up-front so that configresolver.Resolve can perform
+// %%host%% substitution and AD tag injection over it the same way it does
+// for any regular template. The TrialMode flag is stamped after Resolve.
 func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Config, svc listeners.Service) (integration.Config, bool) {
 	digest := tpl.Digest()
+	isDiscovery := tpl.IsDiscovery()
 
-	if tpl.IsDiscovery() {
-		return resolveDiscoveryTemplate(tpl, svc, cm.secretResolver)
+	// Mutate a local copy so `tpl` (and the `digest` captured above) keep
+	// representing the source template — `digest` is the origin identifier
+	// passed to the secret resolver and must stay stable across reconciles
+	// even though the synthetic instance bytes change with svc.GetPorts().
+	resolveTpl := tpl
+	if isDiscovery {
+		instanceYAML, err := buildDiscoveryTrialInstance(svc)
+		if err != nil {
+			log.Errorf("autodiscovery: failed to build trial instance for %s/%s: %v", tpl.Name, svc.GetServiceID(), err)
+			return tpl, false
+		}
+		resolveTpl.Instances = []integration.Data{instanceYAML}
 	}
 
-	// Non-discovery templates: existing template-resolution path.
-	config, err := configresolver.Resolve(tpl, svc)
+	config, err := configresolver.Resolve(resolveTpl, svc)
 	if err != nil {
 		msg := fmt.Sprintf("error resolving template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
 		log.Errorf("autodiscovery: skipping config - %s", msg)
 		errorStats.setResolveWarning(tpl.Name, msg)
 		cm.reportTemplateResolutionFailure(tpl, svc, err)
 		return tpl, false
+	}
+	if isDiscovery {
+		config.TrialMode = true
 	}
 	resolvedConfig, err := decryptConfig(config, cm.secretResolver, digest)
 	if err != nil {
@@ -465,6 +482,44 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 	errorStats.removeResolveWarnings(tpl.Name)
 	cm.clearTemplateResolutionFailure(tpl, svc)
 	return resolvedConfig, true
+}
+
+// buildDiscoveryTrialInstance produces the synthetic instance YAML carrying
+// the AD service metadata the trial check probes from. Host is left as the
+// %%host%% template variable so configresolver.Resolve performs the same
+// fallback (single network → "bridge" → error) it does for regular templates.
+func buildDiscoveryTrialInstance(svc listeners.Service) (integration.Data, error) {
+	type portPayload struct {
+		Number int    `yaml:"number"`
+		Name   string `yaml:"name,omitempty"`
+	}
+	type servicePayload struct {
+		ID    string        `yaml:"id"`
+		Host  string        `yaml:"host"`
+		Ports []portPayload `yaml:"ports"`
+	}
+
+	rawPorts, err := svc.GetPorts()
+	if err != nil {
+		log.Debugf("autodiscovery: GetPorts failed for service %s: %v; proceeding with empty port list", svc.GetServiceID(), err)
+	}
+	pp := make([]portPayload, 0, len(rawPorts))
+	for _, p := range rawPorts {
+		pp = append(pp, portPayload{Number: p.Port, Name: p.Name})
+	}
+
+	instance := map[string]interface{}{
+		"__discovery_service__": servicePayload{
+			ID:    svc.GetServiceID(),
+			Host:  "%%host%%",
+			Ports: pp,
+		},
+	}
+	instanceYAML, err := yaml.Marshal(instance)
+	if err != nil {
+		return nil, err
+	}
+	return integration.Data(instanceYAML), nil
 }
 
 // reportTemplateResolutionFailure reports a template resolution failure to the health platform.
@@ -539,106 +594,6 @@ func (cm *reconcilingConfigManager) popTrialConfig(id checkid.ID) (integration.C
 		}
 	}
 	return integration.Config{}, false
-}
-
-// resolveDiscoveryTemplate builds a trial-mode config for a discovery template.
-//
-// Metadata (ServiceID, MetricsExcluded, LogsExcluded, ImageName, PodNamespace,
-// tags) is obtained by delegating to configresolver.Resolve with the empty-
-// instance template. This ensures the discovery path stays in sync with the
-// real resolver: any future metadata fields added there are picked up here
-// automatically.
-func resolveDiscoveryTemplate(tpl integration.Config, svc listeners.Service, secretResolver secrets.Component) (integration.Config, bool) {
-	// configresolver.Resolve only checks IsReady when IsCheckConfig() is true
-	// (i.e. len(Instances) > 0). Discovery templates start with empty instances,
-	// so we guard readiness explicitly.
-	if !svc.IsReady() {
-		log.Debugf("autodiscovery: deferring discovery template %s for service %s: service not ready", tpl.Name, svc.GetServiceID())
-		return tpl, false
-	}
-
-	// Delegate to the real resolver for all metadata: ServiceID, filter flags,
-	// ImageName, PodNamespace, tags, etc.
-	base, err := configresolver.Resolve(tpl, svc)
-	if err != nil {
-		log.Debugf("autodiscovery: deferring discovery template %s for service %s: %v", tpl.Name, svc.GetServiceID(), err)
-		return tpl, false
-	}
-	if base.MetricsExcluded {
-		log.Debugf("autodiscovery: skipping discovery template %s for service %s: metrics excluded by filter", tpl.Name, svc.GetServiceID())
-		return tpl, false
-	}
-
-	base.TrialMode = true
-
-	host, err := tmplvar.GetHost("", svc)
-	if err != nil {
-		log.Debugf("autodiscovery: deferring discovery template %s for service %s: cannot resolve host: %v", tpl.Name, svc.GetServiceID(), err)
-		return tpl, false
-	}
-
-	type portPayload struct {
-		Number int    `yaml:"number"`
-		Name   string `yaml:"name,omitempty"`
-	}
-	type servicePayload struct {
-		ID    string        `yaml:"id"`
-		Host  string        `yaml:"host"`
-		Ports []portPayload `yaml:"ports"`
-	}
-
-	rawPorts, err := svc.GetPorts()
-	if err != nil {
-		log.Debugf("autodiscovery: GetPorts failed for service %s (discovery template %s): %v; proceeding with empty port list", svc.GetServiceID(), tpl.Name, err)
-	}
-	pp := make([]portPayload, 0, len(rawPorts))
-	for _, p := range rawPorts {
-		pp = append(pp, portPayload{Number: p.Port, Name: p.Name})
-	}
-
-	// configresolver.Resolve injects autodiscovery service tags into each
-	// instance via its tag post-processor, but only over tpl.Instances —
-	// which is empty for discovery templates. Fetch and inject the tags
-	// manually so the promoted check's metrics carry container/k8s tags.
-	var tags []string
-	if !tpl.IgnoreAutodiscoveryTags {
-		if tpl.CheckTagCardinality != "" {
-			tags, err = svc.GetTagsWithCardinality(tpl.CheckTagCardinality)
-		} else {
-			tags, err = svc.GetTags()
-		}
-		if err != nil {
-			log.Debugf("autodiscovery: deferring discovery template %s for service %s: cannot resolve tags: %v", tpl.Name, svc.GetServiceID(), err)
-			return tpl, false
-		}
-	}
-
-	instance := map[string]interface{}{
-		"__discovery_service__": servicePayload{
-			ID:    svc.GetServiceID(),
-			Host:  host,
-			Ports: pp,
-		},
-	}
-	if len(tags) > 0 {
-		instance["tags"] = tags
-	}
-	instanceYAML, err := yaml.Marshal(instance)
-	if err != nil {
-		log.Errorf("autodiscovery: failed to marshal trial instance for %s/%s: %v", tpl.Name, svc.GetServiceID(), err)
-		return tpl, false
-	}
-	base.Instances = []integration.Data{integration.Data(instanceYAML)}
-
-	// Decrypt any ENC[] references in init_config, logs_config, or metric_config
-	// copied from the template by configresolver.Resolve. The synthetic instance
-	// itself never contains secret references so decryption there is a no-op.
-	decrypted, err := decryptConfig(base, secretResolver, tpl.Digest())
-	if err != nil {
-		log.Errorf("autodiscovery: failed to decrypt discovery trial config for %s/%s: %v", tpl.Name, svc.GetServiceID(), err)
-		return tpl, false
-	}
-	return decrypted, true
 }
 
 // changedCheckIDs returns a map with the config instance IDs that changed
