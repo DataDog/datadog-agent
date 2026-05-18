@@ -8,7 +8,6 @@ package agenttelemetryimpl
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"runtime"
 	"strings"
 	"time"
@@ -58,15 +57,13 @@ func (s *senderImpl) sendLogsTypedBatch(ctx context.Context, logs []Log) error {
 //
 // This pipeline ships PC-only telemetry. Every formatted slog message and
 // every slog.Attr value is potentially user-controlled — paths, hostnames,
-// request bodies, error strings carrying user data. Until template-aware
-// static-message capture lands (follow-up), the only fields safe by
-// construction are PC, Level, Time, and Count. The schema fields stay (wire-shape
-// parity with dd-go) but are not populated and should not be populated by
-// this path.
+// request bodies, error strings carrying user data. The handler does not
+// capture them, and the wire-shape schema fields that the dd-go intake
+// expects stay empty here.
 //
 //   - Time   -> tracer_time (unix seconds)
-//   - Level  -> uppercase LogLevel (always "ERROR" today)
-//   - PC     -> single-frame stack_trace ("file:line")
+//   - Level  -> LogLevelError (the only level this pipeline emits)
+//   - PCs    -> multi-frame stack_trace ("file:line\tfunc" per line)
 //   - Count  -> 1 today; the Bouncer populates the suppressed-duplicate
 //     count here.
 //   - Message, Tags, TraceID, SpanID -> "" (not populated)
@@ -80,69 +77,39 @@ func errorLogToLog(e errortracking.ErrorLog) Log {
 		count = 1
 	}
 	out := Log{
-		Level:      slogLevelToLogLevel(e.Level),
+		Level:      LogLevelError,
 		TracerTime: e.Time.Unix(),
 		Count:      count,
 		IsCrash:    false,
 	}
-
 	out.StackTrace = symbolizeStack(e)
-
 	return out
 }
 
 // symbolizeStack walks the PCs captured at log time and produces the
 // multi-line "file:line\tfunc" string the dd-go intake schema expects.
-// Falls back to the single-PC path when the handler did not populate
-// PCs (older callers, synthetic tests).
 //
 // Symbolization is deferred from handler-side to flush-time on purpose:
 // runtime.CallersFrames performs symbol table lookups and is relatively
 // expensive; doing it here keeps the producer's hot path zero-alloc
 // beyond the runtime.Callers fixed-array fill.
 func symbolizeStack(e errortracking.ErrorLog) string {
-	if e.PCsLen > 0 {
-		var b strings.Builder
-		frames := runtime.CallersFrames(e.PCs[:e.PCsLen])
-		for {
-			frame, more := frames.Next()
-			if frame.File != "" {
-				if b.Len() > 0 {
-					b.WriteByte('\n')
-				}
-				fmt.Fprintf(&b, "%s:%d\t%s", frame.File, frame.Line, frame.Function)
-			}
-			if !more {
-				break
-			}
-		}
-		return b.String()
+	if e.PCsLen == 0 {
+		return ""
 	}
-	if e.PC != 0 {
-		frame, _ := runtime.CallersFrames([]uintptr{e.PC}).Next()
+	var b strings.Builder
+	frames := runtime.CallersFrames(e.PCs[:e.PCsLen])
+	for {
+		frame, more := frames.Next()
 		if frame.File != "" {
-			return fmt.Sprintf("%s:%d\t%s", frame.File, frame.Line, frame.Function)
+			if b.Len() > 0 {
+				b.WriteByte('\n')
+			}
+			fmt.Fprintf(&b, "%s:%d\t%s", frame.File, frame.Line, frame.Function)
+		}
+		if !more {
+			break
 		}
 	}
-	return ""
-}
-
-// slogLevelToLogLevel maps the slog level on an ErrorLog to the
-// UPPERCASE wire LogLevel constant accepted by dd-go's logs intake.
-//
-// The wire schema in this PR only emits LogLevelError — non-error
-// levels are filtered at handler.Enabled (pkg/util/log/errortracking)
-// and not part of the flush-path contract. The function is therefore
-// total: any input maps to LogLevelError. This intentionally reverses
-// the prior-round F5 design (which panicked on sub-Error inputs):
-// the panic ran on a background flush goroutine and would crash the
-// agent on any direct SubmitErrorRecord caller that bypassed the
-// handler filter. Addresses louis-cqrl's 🟠 thread on PR #50607 and
-// pducolin's overlapping suggestion.
-//
-// When we later widen the wire schema to non-error levels, this
-// function gains a real mapping (and a real error contract) — for
-// now, totality is the right contract.
-func slogLevelToLogLevel(_ slog.Level) LogLevel {
-	return LogLevelError
+	return b.String()
 }

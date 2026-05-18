@@ -6,7 +6,6 @@
 package errortracking
 
 import (
-	"log/slog"
 	"time"
 )
 
@@ -27,20 +26,13 @@ const MaxStackFrames = 16
 // it to a Submitter. Consumers (the agenttelemetry component) accept
 // ErrorLog on their public method and translate it internally into the
 // dd-go wire schema before sending.
+//
+// The handler captures only the wire-relevant fields (Time, PC, stack
+// PCs, Count); message text and attrs are not captured because they are
+// potentially user-controlled.
 type ErrorLog struct {
 	// Time is the wall-clock instant the record was emitted.
 	Time time.Time
-
-	// Level is the slog level of the record. Implementations decide which
-	// levels they forward; in practice only slog.LevelError is forwarded
-	// by the current handler.
-	Level slog.Level
-
-	// Message is the formatted message string (post-Sprintf). Currently
-	// emitted empty on the wire (PII pivot — PR #50607); kept on the DTO
-	// so a future template-aware capture path can populate it without
-	// re-plumbing the producer.
-	Message string
 
 	// PC is the program counter of the call site that emitted the
 	// record. PCs[0] is the same value when the handler captured a full
@@ -55,10 +47,6 @@ type ErrorLog struct {
 	// plumbing frames are excluded — see Handler.Handle.
 	PCs    [MaxStackFrames]uintptr
 	PCsLen int
-
-	// Attrs is reserved for a future template-aware capture path; the
-	// PR #50607 PII pivot intentionally leaves it empty.
-	Attrs []slog.Attr
 
 	// Count is the number of same-PC sightings the Bouncer collapsed
 	// into this record (≥ 1; 1 means "first or only sighting in the
