@@ -56,10 +56,10 @@ type senderMock struct {
 	sentMetrics []*agentmetric
 
 	// Captures from the errortracking flush path. Protected by mu
-	// because the flush goroutine runs concurrently with test setup
-	// and assertions; readers MUST take the lock or wait on a sync
-	// barrier (e.g. errLogsFlushWG.Wait) that establishes
-	// happens-before with the goroutine exit.
+	// because the flush job may run concurrently with test setup and
+	// assertions; readers MUST take the lock or use a synchronisation
+	// barrier (e.g. wait on runner.stop().Done) that establishes
+	// happens-before with the job's completion.
 	sentLogsMu sync.Mutex
 	sentLogs   []Log
 }
@@ -101,7 +101,7 @@ type runnerMock struct {
 
 func (r *runnerMock) run() {
 	for _, j := range r.jobs {
-		j.a.run(j.profiles)
+		j.Run()
 	}
 }
 

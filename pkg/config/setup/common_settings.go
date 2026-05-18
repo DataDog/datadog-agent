@@ -1533,7 +1533,6 @@ func telemetry(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("agent_telemetry.errortracking.enabled", false)
 	config.BindEnvAndSetDefault("agent_telemetry.errortracking.bouncer_window_seconds", 900)
 	config.BindEnvAndSetDefault("agent_telemetry.errortracking.flush_interval_seconds", 60)
-	config.BindEnvAndSetDefault("agent_telemetry.errortracking.batch_size", 100)
 	config.BindEnvAndSetDefault("agent_telemetry.errortracking.buffer_size", 2048)
 	config.BindEnvAndSetDefault("agent_telemetry.errortracking.startup_jitter_seconds", 0)
 	config.BindEnvAndSetDefault("agent_telemetry.errortracking.shutdown_drain_timeout_seconds", 5)
