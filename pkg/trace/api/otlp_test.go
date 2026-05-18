@@ -920,8 +920,10 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 			fn: func(out *pb.TracerPayload) {
 				if !enableReceiveResourceSpansV2 {
 					// V1 receiver uses k8s.pod.uid as a fallback for container ID.
-					// V2 receiver with container tags v2 (default) does not.
 					require.Equal("1234cid", out.ContainerID)
+				} else {
+					// V2 receiver with container tags v2 (default) does not.
+					require.Empty(out.ContainerID)
 				}
 				require.Equal(map[string]string{
 					"kube_job":   "kubejob",
@@ -945,6 +947,8 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 			fn: func(out *pb.TracerPayload) {
 				if !enableReceiveResourceSpansV2 {
 					require.Equal("123cid", out.ContainerID)
+				} else {
+					require.Empty(out.ContainerID)
 				}
 			},
 		},
@@ -962,6 +966,8 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 			fn: func(out *pb.TracerPayload) {
 				if !enableReceiveResourceSpansV2 {
 					require.Equal("23cid", out.ContainerID)
+				} else {
+					require.Empty(out.ContainerID)
 				}
 			},
 		},
