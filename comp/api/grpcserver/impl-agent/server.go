@@ -30,6 +30,7 @@ import (
 	pidmap "github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/def"
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server/def"
+	healthplatformstore "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/hosttags"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	rcservicemrf "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/def"
@@ -60,6 +61,7 @@ type serverSecure struct {
 	autodiscovery        autodiscovery.Component
 	configComp           config.Component
 	configStreamServer   *configstreamServer.Server
+	healthPlatformStore  option.Option[healthplatformstore.Component]
 }
 
 func (s *agentServer) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.HostnameReply, error) {
@@ -243,6 +245,35 @@ func (s *serverSecure) RefreshRemoteAgent(_ context.Context, in *pb.RefreshRemot
 		return nil, status.Error(codes.NotFound, "no remote agent found with session ID")
 	}
 	return &pb.RefreshRemoteAgentResponse{}, nil
+}
+
+func (s *serverSecure) ReportHealthIssue(_ context.Context, in *pb.HealthIssueReport) (*emptypb.Empty, error) {
+	store, ok := s.healthPlatformStore.Get()
+	if !ok {
+		return nil, status.Error(codes.Unavailable, "health platform store not available")
+	}
+	if in.IssueId == "" {
+		return nil, status.Error(codes.InvalidArgument, "issue_id cannot be empty")
+	}
+
+	issue := healthplatformstore.ProtoToIssue(in)
+	if err := store.AcceptIssue(issue); err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to store issue: %v", err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+func (s *serverSecure) ResolveHealthIssue(_ context.Context, in *pb.HealthIssueResolve) (*emptypb.Empty, error) {
+	store, ok := s.healthPlatformStore.Get()
+	if !ok {
+		return nil, status.Error(codes.Unavailable, "health platform store not available")
+	}
+	if in.IssueId == "" {
+		return nil, status.Error(codes.InvalidArgument, "issue_id cannot be empty")
+	}
+
+	store.ResolveIssue(in.IssueId)
+	return &emptypb.Empty{}, nil
 }
 
 func (s *serverSecure) AutodiscoveryStreamConfig(_ *emptypb.Empty, out pb.AgentSecure_AutodiscoveryStreamConfigServer) error {

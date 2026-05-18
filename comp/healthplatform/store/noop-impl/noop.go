@@ -40,6 +40,11 @@ func (n *NoopHealthPlatform) ReportIssue(_ *healthplatformpayload.Issue) error {
 	return nil
 }
 
+// AcceptIssue does nothing when the health platform is disabled.
+func (n *NoopHealthPlatform) AcceptIssue(_ *healthplatformpayload.Issue) error {
+	return nil
+}
+
 // GetAllIssues returns empty results when the health platform is disabled.
 func (n *NoopHealthPlatform) GetAllIssues() (int, map[string]*healthplatformpayload.Issue) {
 	return 0, make(map[string]*healthplatformpayload.Issue)

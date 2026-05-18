@@ -73,4 +73,55 @@ service AgentSecure {
 
     // Streams pod-to-service metadata for a specific node.
     rpc StreamKubeMetadata(datadog.kubemetadata.KubeMetadataStreamRequest) returns (stream datadog.kubemetadata.KubeMetadataStreamResponse);
+
+    // Reports a fully-built health issue from a sub-agent to the core agent's health platform store.
+    // The issue is stored as-is; no template lookup is performed.
+    rpc ReportHealthIssue(datadog.api.v1.HealthIssueReport) returns (google.protobuf.Empty);
+
+    // Resolves (clears) a previously reported health issue by its unique ID.
+    rpc ResolveHealthIssue(datadog.api.v1.HealthIssueResolve) returns (google.protobuf.Empty);
+}
+
+// HealthIssueReport is the fully-built health issue pushed by sub-agents to the core agent.
+// All display fields are provided by the caller; the store records it without template lookup.
+message HealthIssueReport {
+    // Unique instance id — used as the store's map key.
+    // Must be stable across repeated calls for the same issue instance.
+    string issue_id = 1;
+
+    // Human-readable title.
+    string title = 2;
+
+    // Human-readable description.
+    string description = 3;
+
+    // Severity level: "critical", "high", "medium", "low", or "info".
+    string severity = 4;
+
+    // Category: e.g. "permissions", "connectivity", "configuration".
+    string category = 5;
+
+    // Source component or integration: e.g. "kubelet", "mysql".
+    string source = 6;
+
+    // Location where the issue was detected: e.g. "kubernetes", "docker".
+    string location = 7;
+
+    // Additional key-value pairs for debugging context.
+    map<string, string> context = 8;
+
+    // Tags to attach to the issue.
+    repeated string tags = 9;
+
+    // Short human-readable summary of the remediation.
+    string remediation_summary = 10;
+
+    // Step-by-step remediation instructions, in order.
+    repeated string remediation_steps = 11;
+}
+
+// HealthIssueResolve clears a previously reported health issue.
+message HealthIssueResolve {
+    // Unique instance id of the issue to resolve.
+    string issue_id = 1;
 }

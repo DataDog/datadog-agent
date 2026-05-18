@@ -59,6 +59,15 @@ func (m *mockHealthPlatform) GetIssue(checkID string) *healthplatformpayload.Iss
 	return proto.Clone(issue).(*healthplatformpayload.Issue)
 }
 
+// AcceptIssue stores a fully-built issue directly for testing.
+func (m *mockHealthPlatform) AcceptIssue(issue *healthplatformpayload.Issue) error {
+	if issue == nil || issue.Id == "" {
+		return nil
+	}
+	m.issues[issue.Id] = proto.Clone(issue).(*healthplatformpayload.Issue)
+	return nil
+}
+
 // ResolveIssue clears issues for a specific check
 func (m *mockHealthPlatform) ResolveIssue(checkID string) {
 	delete(m.issues, checkID)

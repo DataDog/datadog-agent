@@ -45,6 +45,10 @@ func (n *noopHealthPlatform) ReportIssue(_ *healthplatformpayload.Issue) error {
 	return nil
 }
 
+func (n *noopHealthPlatform) AcceptIssue(_ *healthplatformpayload.Issue) error {
+	return nil
+}
+
 func (n *noopHealthPlatform) GetAllIssues() (int, map[string]*healthplatformpayload.Issue) {
 	return 0, make(map[string]*healthplatformpayload.Issue)
 }
