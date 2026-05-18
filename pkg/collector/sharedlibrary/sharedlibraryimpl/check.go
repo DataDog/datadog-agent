@@ -192,4 +192,6 @@ func (*Check) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 }
 
 // IsHASupported does not apply to shared library checks
-func (*Check) IsHASupported() bool { return false }
+func (*Check) IsHASupported() bool {
+	return false
+}
