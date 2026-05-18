@@ -84,7 +84,8 @@ def deploy(
         _check_key_pair(awsKeyPairName)
 
     if (
-        full_image_path is not None
+        pipeline_id is not None
+        or full_image_path is not None
         and full_image_path.startswith("669783387624.dkr.ecr.us-east-1.amazonaws.com/")
         or cluster_agent_full_image_path is not None
         and cluster_agent_full_image_path.startswith("669783387624.dkr.ecr.us-east-1.amazonaws.com/")
