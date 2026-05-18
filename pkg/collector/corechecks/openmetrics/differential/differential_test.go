@@ -222,11 +222,16 @@ func startPythonSidecar(t *testing.T) (*pythonSidecar, error) {
 func (p *pythonSidecar) run(endpoint string, instance map[string]interface{}) (*pythonSidecarResp, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-
-	req, err := json.Marshal(map[string]interface{}{
+	return p.sendRequestLocked(map[string]interface{}{
 		"endpoint": endpoint,
 		"instance": instance,
 	})
+}
+
+// sendRequest is the shared request/response primitive for both the one-shot
+// run() and the session protocol methods. Caller must hold p.mu.
+func (p *pythonSidecar) sendRequestLocked(payload map[string]interface{}) (*pythonSidecarResp, error) {
+	req, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
@@ -244,4 +249,51 @@ func (p *pythonSidecar) run(endpoint string, instance map[string]interface{}) (*
 		return nil, fmt.Errorf("unmarshal response (%q): %w", p.stdout.Text(), err)
 	}
 	return &resp, nil
+}
+
+// openSession asks the sidecar to create a long-lived check instance bound
+// to the given (endpoint, instance) pair. The returned session_id is what
+// later scrapeSession/closeSession calls must reference.
+func (p *pythonSidecar) openSession(sessionID, endpoint string, instance map[string]interface{}) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	resp, err := p.sendRequestLocked(map[string]interface{}{
+		"op":         "open_session",
+		"session_id": sessionID,
+		"endpoint":   endpoint,
+		"instance":   instance,
+	})
+	if err != nil {
+		return err
+	}
+	if resp.Error != "" {
+		return fmt.Errorf("open_session: %s", resp.Error)
+	}
+	if !resp.Ready {
+		return fmt.Errorf("open_session: sidecar did not report ready (%+v)", resp)
+	}
+	return nil
+}
+
+// scrapeSession runs a single scrape on an existing session. Stateful tests
+// call this repeatedly; the sidecar reuses the check instance across calls
+// so scrape-to-scrape state (most notably flush_first_value) is preserved.
+func (p *pythonSidecar) scrapeSession(sessionID string) (*pythonSidecarResp, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.sendRequestLocked(map[string]interface{}{
+		"op":         "scrape",
+		"session_id": sessionID,
+	})
+}
+
+// closeSession drops the session from the sidecar's memory. Idempotent.
+func (p *pythonSidecar) closeSession(sessionID string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	_, err := p.sendRequestLocked(map[string]interface{}{
+		"op":         "close_session",
+		"session_id": sessionID,
+	})
+	return err
 }

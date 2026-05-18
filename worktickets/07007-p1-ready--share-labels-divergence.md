@@ -104,7 +104,7 @@ Not P0 because:
 - The submission *counts* match, so volume monitoring is unaffected.
 - Recovery via rollback is trivial once detected.
 
-## Empirical evidence: share_labels is necessary AND sufficient
+## Empirical evidence: share_labels is necessary AND sufficient (with caveat)
 
 A larger sweep (seed=42, 1000 iters × 4 knobs/config) confirms the pattern:
 
@@ -124,10 +124,20 @@ in combination with share_labels. They modulate which submissions diverge
 but do not cause divergence themselves. Fix share_labels and most/all of
 the other observed divergences should resolve.
 
-One caveat: this conclusion is bounded by the harness coverage. Pure
-non-share_labels divergences may exist in knob combinations the random
-sampling hasn't hit yet. Re-run with `-config.knobs=1` after fixing
-share_labels to verify nothing remains.
+Caveat: stateful testing (`TestStatefulShareLabelsAcrossScrapes`) shows
+that a **minimal** share_labels config (one target, one match, one label
+to copy, two-metric payload) produces *agreement* on both single and
+double scrapes. So share_labels alone is NOT broken — the bug requires
+share_labels to be combined with at least one other config knob that
+touches the same submissions (rename, exclude, raw_prefix, etc.). This
+refines the investigation: the root cause is more likely an *ordering* or
+*composition* bug between the share_labels pass and another pipeline
+pass, not share_labels itself.
+
+One caveat to the caveat: this conclusion is bounded by the harness
+coverage. Pure non-share_labels divergences may exist in knob combinations
+the random sampling hasn't hit yet. Re-run with `-config.knobs=1` after
+fixing share_labels to verify nothing remains.
 
 ## Verification
 
