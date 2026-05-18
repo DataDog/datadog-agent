@@ -43,46 +43,82 @@ type AnyTailerContainer interface {
 }
 
 // TailerContainer is a container for a concrete tailer type.
+//
+// Multiple tailers may share the same GetID() (for instance, when two log
+// configurations accidentally point at the same file path). To make sure each
+// tailer instance remains observable through the status endpoint, the
+// container stores all tailers sharing an ID under a slice keyed by that ID.
+// Get/Contains return the first tailer registered for an ID, and Remove
+// removes the specific instance provided by the caller.
 type TailerContainer[T Tailer] struct {
 	sync.RWMutex
-	tailers map[string]T
+	tailers map[string][]T
 }
 
 // NewTailerContainer creates a new TailerContainer instance.
 func NewTailerContainer[T Tailer]() *TailerContainer[T] {
 	return &TailerContainer[T]{
-		tailers: make(map[string]T),
+		tailers: make(map[string][]T),
 	}
 }
 
-// Get returns a tailer with the provided id if it exists.
+// Get returns a tailer with the provided id if it exists. If multiple tailers
+// share the same id, the first one added is returned.
 func (t *TailerContainer[T]) Get(id string) (T, bool) {
 	t.RLock()
 	defer t.RUnlock()
-	tailer, ok := t.tailers[id]
-	return tailer, ok
+	tailers, ok := t.tailers[id]
+	if !ok || len(tailers) == 0 {
+		var zero T
+		return zero, false
+	}
+	return tailers[0], true
 }
 
-// Contains returns true if the key exists.
+// Contains returns true if at least one tailer with the provided id exists.
 func (t *TailerContainer[T]) Contains(id string) bool {
 	t.RLock()
 	defer t.RUnlock()
-	_, ok := t.tailers[id]
-	return ok
+	tailers, ok := t.tailers[id]
+	return ok && len(tailers) > 0
 }
 
-// Add adds a new tailer to the container.
+// Add adds a new tailer to the container. If another tailer with the same ID
+// is already present, both are retained so that both remain visible in the
+// agent status.
 func (t *TailerContainer[T]) Add(tailer T) {
 	t.Lock()
 	defer t.Unlock()
-	t.tailers[tailer.GetID()] = tailer
+	id := tailer.GetID()
+	t.tailers[id] = append(t.tailers[id], tailer)
 }
 
-// Remove removes a tailer from the container.
+// Remove removes the given tailer instance from the container. Only the
+// matching instance is removed; other tailers sharing the same ID are kept.
 func (t *TailerContainer[T]) Remove(tailer T) {
 	t.Lock()
 	defer t.Unlock()
-	delete(t.tailers, tailer.GetID())
+	id := tailer.GetID()
+	tailers, ok := t.tailers[id]
+	if !ok {
+		return
+	}
+	// Tailer is an interface type, so its type set is not statically
+	// comparable; compare instance identity via the empty interface, which
+	// uses the underlying dynamic type's == operator at runtime (pointer
+	// equality for the concrete tailer pointer types this container holds).
+	target := any(tailer)
+	for i, existing := range tailers {
+		if any(existing) == target {
+			tailers = append(tailers[:i], tailers[i+1:]...)
+			break
+		}
+	}
+	if len(tailers) == 0 {
+		delete(t.tailers, id)
+	} else {
+		t.tailers[id] = tailers
+	}
 }
 
 // All returns a slice of all tailers in the container.
@@ -90,8 +126,8 @@ func (t *TailerContainer[T]) All() []T {
 	t.RLock()
 	defer t.RUnlock()
 	tailers := make([]T, 0, len(t.tailers))
-	for _, tailer := range t.tailers {
-		tailers = append(tailers, tailer)
+	for _, bucket := range t.tailers {
+		tailers = append(tailers, bucket...)
 	}
 	return tailers
 }
@@ -100,7 +136,11 @@ func (t *TailerContainer[T]) All() []T {
 func (t *TailerContainer[T]) Count() int {
 	t.RLock()
 	defer t.RUnlock()
-	return len(t.tailers)
+	count := 0
+	for _, bucket := range t.tailers {
+		count += len(bucket)
+	}
+	return count
 }
 
 // Tailers returns a slice of all tailers in the container without their concrete types.
@@ -108,8 +148,10 @@ func (t *TailerContainer[T]) Tailers() []Tailer {
 	t.RLock()
 	defer t.RUnlock()
 	tailers := make([]Tailer, 0, len(t.tailers))
-	for _, tailer := range t.tailers {
-		tailers = append(tailers, tailer)
+	for _, bucket := range t.tailers {
+		for _, tailer := range bucket {
+			tailers = append(tailers, tailer)
+		}
 	}
 	return tailers
 }
