@@ -137,6 +137,7 @@ func NewDecoder(
 			}
 		}
 	}
+	var traceContextTypeID ir.TypeID
 	for _, t := range program.Types {
 		decoderType, err := newDecoderType(t, program.Types)
 		if err != nil {
@@ -147,6 +148,9 @@ func NewDecoder(
 		if goRuntimeType, ok := t.GetGoRuntimeType(); ok {
 			decoder.typesByGoRuntimeType[goRuntimeType] = id
 		}
+		if _, ok := t.(*ir.TraceContextType); ok {
+			traceContextTypeID = id
+		}
 	}
 	decoder.entryOrLine.encodingContext = encodingContext{
 		typesByID:            decoder.decoderTypes,
@@ -154,6 +158,7 @@ func NewDecoder(
 		typeResolver:         typeNameResolver,
 		dataItems:            make(map[typeAndAddr]output.DataItem),
 		currentlyEncoding:    make(map[typeAndAddr]struct{}),
+		traceContextTypeID:   traceContextTypeID,
 	}
 	decoder._return.encodingContext = encodingContext{
 		typesByID:            decoder.decoderTypes,
@@ -161,6 +166,7 @@ func NewDecoder(
 		typeResolver:         typeNameResolver,
 		dataItems:            make(map[typeAndAddr]output.DataItem),
 		currentlyEncoding:    make(map[typeAndAddr]struct{}),
+		traceContextTypeID:   traceContextTypeID,
 	}
 	return decoder, nil
 }
@@ -271,6 +277,9 @@ func firstFragment(fe output.FragmentedEvent) output.Event {
 
 type message struct {
 	Service     string           `json:"service"`
+	DDTraceID   string           `json:"dd.trace_id,omitempty"`
+	DDSpanID    string           `json:"dd.span_id,omitempty"`
+	DDParentID  string           `json:"dd.parent_id,omitempty"`
 	DDSource    ddDebuggerSource `json:"ddsource"`
 	Logger      logger           `json:"logger"`
 	Debugger    debuggerData     `json:"debugger"`
@@ -334,6 +343,9 @@ func (s *message) init(
 	); err != nil {
 		return nil, err
 	}
+	if trace := decoder.entryOrLine.traceContext; trace.valid {
+		s.setTraceContext(trace)
+	}
 	probeEvent := decoder.probeEvents[decoder.entryOrLine.rootType.ID]
 	probe := probeEvent.probe
 	instance := probeEvent.instance
@@ -377,12 +389,15 @@ func (s *message) init(
 	}
 	var returnFirstFragment output.Event
 	var returnHeader *output.EventHeader
-	var durationMissingReason *string
+	var returnMissingReason string
 	if event.Return != nil {
 		if err := decoder._return.init(
 			event.Return, decoder.program.Types, &s.Debugger.Snapshot.EvaluationErrors,
 		); err != nil {
 			return nil, fmt.Errorf("error initializing return event: %w", err)
+		}
+		if trace := decoder._return.traceContext; !s.hasTraceContext() && trace.valid {
+			s.setTraceContext(trace)
 		}
 		returnProbeEvent := decoder.probeEvents[decoder._return.rootType.ID]
 		if returnProbeEvent.instance != instance {
@@ -416,42 +431,31 @@ func (s *message) init(
 		s.Duration = uint64(returnHeader.Ktime_ns - header.Ktime_ns)
 		s.Debugger.Snapshot.captures.Return = &decoder._return
 	} else {
-		// Check if we expected a return event but didn't get one.
+		// Check if we expected a return event but didn't get one. The
+		// reason is used to enrich rendering for @duration template
+		// segments (if any) — it is intentionally not emitted as a
+		// standalone EvaluationError, since callers that reference
+		// @duration already see a descriptive message in the template or
+		// via the captureExpression's absent-status path.
 		pairingExpectation := output.EventPairingExpectation(
 			header.Event_pairing_expectation,
 		)
-		var reason string
 		switch pairingExpectation {
 		case output.EventPairingExpectationReturnPairingExpected:
-			reason = "return event not received"
+			returnMissingReason = "return event not received"
 		case output.EventPairingExpectationBufferFull:
-			reason = "userspace buffer capacity exceeded"
+			returnMissingReason = "userspace buffer capacity exceeded"
 		case output.EventPairingExpectationCallMapFull:
-			reason = "call map capacity exceeded"
+			returnMissingReason = "call map capacity exceeded"
 		case output.EventPairingExpectationCallCountExceeded:
-			reason = "maximum call count exceeded"
+			returnMissingReason = "maximum call count exceeded"
 		case output.EventPairingExpectationNoneInlined:
-			reason = "function was inlined"
+			returnMissingReason = "function was inlined"
 		case output.EventPairingExpectationNoneNoBody:
-			reason = "function has no body"
+			returnMissingReason = "function has no body"
 		}
-		log.Tracef("no return reason: %v pairing expectation: %v", reason, pairingExpectation)
-		// The choice to use @duration here is somewhat arbitrary; we want to
-		// choose something that definitely can't collide with a real variable
-		// and is evocative of the thing that is missing. Indeed we know in this
-		// situation we will never @duration, so it seems like a good choice.
-		const missingReturnReasonExpression = "@duration"
-		if reason != "" {
-			message := "not available: " + reason
-			s.Debugger.Snapshot.EvaluationErrors = append(
-				s.Debugger.Snapshot.EvaluationErrors,
-				evaluationError{
-					Expression: missingReturnReasonExpression,
-					Message:    message,
-				},
-			)
-			durationMissingReason = &message
-		}
+		log.Tracef("no return reason: %v pairing expectation: %v",
+			returnMissingReason, pairingExpectation)
 	}
 
 	s.Debugger.Snapshot.Timestamp = int(decoder.approximateBootTime.Add(
@@ -532,17 +536,25 @@ func (s *message) init(
 
 	if instance.Template != nil {
 		decoder.messageData = messageData{
-			entryOrLine: &decoder.entryOrLine,
-			_return:     &decoder._return,
-			template:    instance.Template,
+			entryOrLine:         &decoder.entryOrLine,
+			_return:             &decoder._return,
+			template:            instance.Template,
+			returnMissingReason: returnMissingReason,
 		}
 		s.Message = &decoder.messageData
-		if s.Duration != 0 {
-			s.Message.duration = &s.Duration
-		} else if durationMissingReason != nil {
-			s.Message.durationMissingReason = durationMissingReason
-		}
 	}
 
 	return probe, nil
+}
+
+func (s *message) hasTraceContext() bool {
+	return s.DDTraceID != "" || s.DDSpanID != ""
+}
+
+func (s *message) setTraceContext(trace traceContext) {
+	s.DDTraceID = fmt.Sprintf("%016x%016x", trace.traceIDUpper, trace.traceIDLower)
+	s.DDSpanID = strconv.FormatUint(trace.spanID, 10)
+	if trace.parentID != 0 {
+		s.DDParentID = strconv.FormatUint(trace.parentID, 10)
+	}
 }

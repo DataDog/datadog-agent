@@ -23,11 +23,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/script",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/privateactionrunner/adapters/tmpl",
+        "//pkg/privateactionrunner/adapters/workflowjsonschema",
         "//pkg/privateactionrunner/bundle-support",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
-        "@//pkg/privateactionrunner/adapters/tmpl",
-        "@//pkg/privateactionrunner/adapters/workflowjsonschema",
         "@com_github_santhosh_tekuri_jsonschema_v5//:jsonschema",
         "@in_yaml_go_yaml_v3//:yaml",
     ] + select({

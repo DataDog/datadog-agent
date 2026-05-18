@@ -1948,13 +1948,22 @@ func (p *EBPFProbe) GetEventTags(containerID containerutils.ContainerID) []strin
 	return p.Resolvers.TagsResolver.Resolve(containerID)
 }
 
+// ShouldEvaluateDiscarders returns whether discarder evaluation should proceed for the given event
+func (p *EBPFProbe) ShouldEvaluateDiscarders(ev *model.Event) bool {
+	if !p.config.Probe.EnableDiscarders {
+		return false
+	}
+	if p.isRuntimeDiscarded {
+		fakeTime := time.Unix(0, int64(ev.TimestampRaw))
+		if p.discarderRateLimiter.TokensAt(fakeTime) < 1 {
+			return false
+		}
+	}
+	return true
+}
+
 // OnNewDiscarder handles new discarders
 func (p *EBPFProbe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Field, eventType eval.EventType) {
-	// discarders disabled
-	if !p.config.Probe.EnableDiscarders {
-		return
-	}
-
 	if p.isRuntimeDiscarded {
 		fakeTime := time.Unix(0, int64(ev.TimestampRaw))
 		if !p.discarderRateLimiter.AllowN(fakeTime, 1) {
@@ -2806,6 +2815,15 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Name:  "has_current_cgroup_id_helper",
 			Value: utils.BoolTouint64(p.kernelVersion.HasBpfGetCurrentCgroupID()),
 		},
+		// https://github.com/torvalds/linux/commit/96c0a6a72d181a330db6dc9848ff2e6584b1aa5b
+		manager.ConstantEditor{
+			Name:  "is_cgroup_id_u64",
+			Value: utils.BoolTouint64(p.kernelVersion.Code >= kernel.Kernel5_12),
+		},
+		manager.ConstantEditor{
+			Name:  "is_pure_cgroupv2_available",
+			Value: utils.BoolTouint64(utils.IsPureCGroupV2Available()),
+		},
 		manager.ConstantEditor{
 			Name:  "event_sampling_open_enabled",
 			Value: utils.BoolTouint64(p.config.RuntimeSecurity.EventSamplingOpenEnabled),
@@ -2907,6 +2925,7 @@ func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 		EventSamplingConnectEnabled:   p.config.RuntimeSecurity.EventSamplingConnectEnabled,
 		EventSamplingBindEnabled:      p.config.RuntimeSecurity.EventSamplingBindEnabled,
 		EventSamplingDNSEnabled:       p.config.RuntimeSecurity.EventSamplingDNSEnabled,
+		BasenameApproversSize:         p.config.Probe.BasenameApproversSize,
 	}
 
 	if p.config.Probe.SpanTrackingEnabled {

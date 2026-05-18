@@ -47,8 +47,16 @@ func DiscoverComponentsFromConfig() ([]pkgconfigsetup.ConfigurationProviders, []
 		log.Info("Database monitoring rds discovery is enabled: Adding the rds listener")
 	}
 
-	// Auto-add file-based kube service and endpoints config providers based on check config files.
+	// 1) Auto-add Prometheus HTTP SD config provider when a URL is configured
+	// 2) Auto-add file-based kube service and endpoints config providers based on check config files.
 	if flavor.GetFlavor() == flavor.ClusterAgent {
+
+		cfg := pkgconfigsetup.Datadog()
+		if cfg.IsConfigured("prometheus_http_sd.url") || cfg.IsConfigured("prometheus_http_sd.configs") {
+			log.Info("Prometheus HTTP SD is configured: Adding the prometheus_http_sd config provider")
+			detectedProviders = append(detectedProviders, pkgconfigsetup.ConfigurationProviders{Name: "prometheus_http_sd", Polling: true})
+		}
+
 		advancedConfigs, _, err := providers.ReadConfigFiles(providers.WithAdvancedADOnly)
 		if err != nil {
 			log.Warnf("Couldn't read config files: %v", err)

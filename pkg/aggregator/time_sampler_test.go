@@ -15,10 +15,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
@@ -672,6 +674,112 @@ func TestForcedFlush(t *testing.T) {
 		},
 		ContextKey: generateContextKey(testSketch),
 	}, sSerie[0])
+}
+
+// testTimeSamplerStripCountAggregates verifies the numeric aggregation:
+// two CountType samples whose only differing tag is stripped by the
+// filterlist must collapse to a single context AND their values must
+// sum in the resulting Serie's Point.
+func testTimeSamplerStripCountAggregates(t *testing.T, store *tags.Store) {
+	configmock.New(t).SetWithoutSource("metric_tag_filterlist_adp_only", false)
+	sampler := testTimeSampler(store)
+	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
+		"count.metric": {
+			Tags:   []string{"env"},
+			Action: "exclude",
+		},
+	}, logmock.New(t))
+
+	// Both samples land in bucket 1000 (bucket size = 10).
+	sampler.sample(&metrics.MetricSample{
+		Name:       "count.metric",
+		Value:      5,
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"env:prod", "instance:a"},
+		SampleRate: 1,
+	}, 1001, matcher)
+	sampler.sample(&metrics.MetricSample{
+		Name:       "count.metric",
+		Value:      7,
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"env:dev", "instance:a"},
+		SampleRate: 1,
+	}, 1005, matcher)
+
+	series, _ := flushSerie(sampler, 1020, true)
+
+	require.Len(t, series, 1)
+	expected := &metrics.Serie{
+		Name:     "count.metric",
+		Points:   []metrics.Point{{Ts: 1000.0, Value: float64(1.2)}},
+		Tags:     tagset.CompositeTagsFromSlice([]string{"instance:a"}),
+		Host:     "",
+		MType:    metrics.APIRateType,
+		Interval: 10,
+	}
+	metrics.AssertSerieEqual(t, expected, series[0])
+}
+
+func TestTimeSamplerStripCountAggregates(t *testing.T) {
+	testWithTagsStore(t, testTimeSamplerStripCountAggregates)
+}
+
+// testTimeSamplerStripCounterAggregates verifies the numeric aggregation for
+// CounterType (DogStatsD `|c`): two samples whose only differing tag is
+// stripped must collapse to a single context, with each sample's value
+// inflated by 1/SampleRate before accumulation, and the bucket total then
+// normalised to a per-second rate by dividing by the bucket interval.
+//
+// Sample inflation (addSample):  value * (1/SampleRate)
+// Rate normalisation (flush):    accumulated_total / interval
+//
+// With bucket_interval=10:
+//
+//	sample1: 4 * (1/0.5)  =  8
+//	sample2: 3 * (1/0.25) = 12
+//	total = 20  →  rate = 20/10 = 2.0
+func testTimeSamplerStripCounterAggregates(t *testing.T, store *tags.Store) {
+	configmock.New(t).SetWithoutSource("metric_tag_filterlist_adp_only", false)
+	sampler := testTimeSampler(store)
+	matcher := filterlist.NewTagMatcher(map[string]filterlist.MetricTagList{
+		"counter.metric": {
+			Tags:   []string{"env"},
+			Action: "exclude",
+		},
+	}, logmock.New(t))
+
+	// Both samples land in bucket 1000 (bucket size = 10).
+	sampler.sample(&metrics.MetricSample{
+		Name:       "counter.metric",
+		Value:      4,
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"env:prod", "instance:a"},
+		SampleRate: 0.5, // inflated to 8
+	}, 1001, matcher)
+	sampler.sample(&metrics.MetricSample{
+		Name:       "counter.metric",
+		Value:      3,
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"env:dev", "instance:a"},
+		SampleRate: 0.25, // inflated to 12
+	}, 1005, matcher)
+
+	series, _ := flushSerie(sampler, 1020, true)
+
+	require.Len(t, series, 1)
+	expected := &metrics.Serie{
+		Name:     "counter.metric",
+		Points:   []metrics.Point{{Ts: 1000.0, Value: 2.0}}, // (8+12)/10
+		Tags:     tagset.CompositeTagsFromSlice([]string{"instance:a"}),
+		Host:     "",
+		MType:    metrics.APIRateType,
+		Interval: 10,
+	}
+	metrics.AssertSerieEqual(t, expected, series[0])
+}
+
+func TestTimeSamplerStripCounterAggregates(t *testing.T) {
+	testWithTagsStore(t, testTimeSamplerStripCounterAggregates)
 }
 
 func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
