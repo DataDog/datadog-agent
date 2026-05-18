@@ -7,6 +7,7 @@ require github.com/DataDog/datadog-agent/pkg/logs/sources v0.75.4
 require (
 	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.75.4 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.70.0 // indirect
 	github.com/DataDog/datadog-agent/comp/logs-library v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.75.4 // indirect
