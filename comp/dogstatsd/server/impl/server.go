@@ -128,6 +128,7 @@ type dsdServer struct {
 	packetsIn               chan packets.Packets
 	captureChan             chan packets.Packets
 	ingressLogShards        *packetIngressLogShards
+	rawIngressShards        *packets.RawIngressShards
 	workersCount            int
 	serverlessFlushChan     chan bool
 	sharedPacketPool        *packets.Pool
@@ -376,8 +377,13 @@ func (s *dsdServer) startHook(context context.Context) error {
 func (s *dsdServer) start(context.Context) error {
 	statsdForwardEnabled := s.config.GetString("statsd_forward_host") != "" && s.config.GetInt("statsd_forward_port") != 0
 	pipeName := s.config.GetString("dogstatsd_pipe_name")
-	shardedIngressLogEnabled := experimentalShardedIngressLogEnabled() && !statsdForwardEnabled && pipeName == ""
-	ingressLogEnabled := experimentalIngressLogEnabled() && !statsdForwardEnabled && !shardedIngressLogEnabled
+	socketPath := s.config.GetString("dogstatsd_socket")
+	socketStreamPath := s.config.GetString("dogstatsd_stream_socket")
+	originDetection := s.config.GetBool("dogstatsd_origin_detection")
+	udpEnabled := s.config.GetString("dogstatsd_port") == listeners.RandomPortName || s.config.GetInt("dogstatsd_port") > 0
+	rawUDSIngressRingEnabled := experimentalRawUDSIngressRingEnabled() && !statsdForwardEnabled && pipeName == "" && len(socketPath) > 0 && socketStreamPath == "" && !originDetection && !udpEnabled
+	shardedIngressLogEnabled := experimentalShardedIngressLogEnabled() && !statsdForwardEnabled && pipeName == "" && !rawUDSIngressRingEnabled
+	ingressLogEnabled := experimentalIngressLogEnabled() && !statsdForwardEnabled && !shardedIngressLogEnabled && !rawUDSIngressRingEnabled
 	packetsChannelSize := s.config.GetInt("dogstatsd_queue_size")
 	if ingressLogEnabled {
 		// The experimental ingress log replaces the large packetsIn channel as
@@ -388,7 +394,12 @@ func (s *dsdServer) start(context.Context) error {
 	}
 	packetsChannel := make(chan packets.Packets, packetsChannelSize)
 	packetWriter := packets.NewChannelBatchWriter(packetsChannel)
-	if shardedIngressLogEnabled {
+	if rawUDSIngressRingEnabled {
+		packetsChannel = nil
+		s.workersCount = s.getDogStatsDWorkersCount()
+		s.rawIngressShards = packets.NewRawIngressShards(s.workersCount, experimentalIngressLogMaxBytes(), s.config.GetInt("dogstatsd_buffer_size"), s.telemetry)
+		s.log.Infof("DogStatsD experimental raw UDS ingress ring enabled with max_bytes=%d shards=%d", experimentalIngressLogMaxBytes(), s.workersCount)
+	} else if shardedIngressLogEnabled {
 		packetsChannel = nil
 		s.workersCount = s.getDogStatsDWorkersCount()
 		s.ingressLogShards = newPacketIngressLogShards(s.workersCount, experimentalIngressLogMaxBytes(), s.telemetry)
@@ -398,6 +409,9 @@ func (s *dsdServer) start(context.Context) error {
 		s.log.Warn("DogStatsD experimental sharded ingress log disabled because statsd packet forwarding is enabled")
 	} else if experimentalShardedIngressLogEnabled() && pipeName != "" {
 		s.log.Warn("DogStatsD experimental sharded ingress log disabled because named-pipe intake is enabled")
+	}
+	if experimentalRawUDSIngressRingEnabled() && !rawUDSIngressRingEnabled {
+		s.log.Warn("DogStatsD experimental raw UDS ingress ring disabled because it currently requires UDS datagram only, no origin detection, no forwarding, no UDP, no stream socket, and no named pipe")
 	}
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
 
@@ -410,9 +424,6 @@ func (s *dsdServer) start(context.Context) error {
 	sharedPacketPool := packets.NewPool(s.config, s.config.GetInt("dogstatsd_buffer_size"), s.packetsTelemetry)
 	sharedPacketPoolManager := packets.NewPoolManager[packets.Packet](sharedPacketPool)
 
-	socketPath := s.config.GetString("dogstatsd_socket")
-	socketStreamPath := s.config.GetString("dogstatsd_stream_socket")
-	originDetection := s.config.GetBool("dogstatsd_origin_detection")
 	var sharedUDSOobPoolManager *packets.PoolManager[[]byte]
 	if originDetection {
 		sharedUDSOobPoolManager = listeners.NewUDSOobPoolManager()
@@ -430,7 +441,13 @@ func (s *dsdServer) start(context.Context) error {
 	}
 
 	if len(socketPath) > 0 {
-		unixListener, err := listeners.NewUDSDatagramListenerWithWriter(packetWriter, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap, s.listernersTelemetry, s.packetsTelemetry, s.telemetry)
+		var unixListener *listeners.UDSDatagramListener
+		var err error
+		if rawUDSIngressRingEnabled {
+			unixListener, err = listeners.NewUDSDatagramListenerWithRawPacketWriter(s.rawIngressShards, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap, s.listernersTelemetry, s.packetsTelemetry, s.telemetry)
+		} else {
+			unixListener, err = listeners.NewUDSDatagramListenerWithWriter(packetWriter, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap, s.listernersTelemetry, s.packetsTelemetry, s.telemetry)
+		}
 		if err != nil {
 			s.log.Errorf("Can't init UDS listener on path %s: %s", socketPath, err.Error())
 		} else {
@@ -448,7 +465,7 @@ func (s *dsdServer) start(context.Context) error {
 		}
 	}
 
-	if s.config.GetString("dogstatsd_port") == listeners.RandomPortName || s.config.GetInt("dogstatsd_port") > 0 {
+	if udpEnabled {
 		udpListener, err := listeners.NewUDPListenerWithWriter(packetWriter, sharedPacketPoolManager, s.config, s.tCapture, s.listernersTelemetry, s.packetsTelemetry)
 		if err != nil {
 			s.log.Errorf("%s", err.Error())
@@ -472,7 +489,9 @@ func (s *dsdServer) start(context.Context) error {
 	}
 
 	workerPacketsChannel := packetsChannel
-	if shardedIngressLogEnabled {
+	if rawUDSIngressRingEnabled {
+		workerPacketsChannel = nil
+	} else if shardedIngressLogEnabled {
 		workerPacketsChannel = nil
 	} else if ingressLogEnabled {
 		workerPacketsChannel = make(chan packets.Packets)
@@ -548,11 +567,14 @@ func (s *dsdServer) stop(context.Context) error {
 		return nil
 	}
 
-	for _, l := range s.listeners {
-		l.Stop()
-	}
 	if s.ingressLogShards != nil {
 		s.ingressLogShards.stop()
+	}
+	if s.rawIngressShards != nil {
+		s.rawIngressShards.Stop()
+	}
+	for _, l := range s.listeners {
+		l.Stop()
 	}
 	close(s.stopChan)
 
@@ -628,6 +650,9 @@ func (s *dsdServer) handleMessages() {
 		worker := newWorker(s, i, s.wmeta, s.packetsTelemetry, s.stringInternerTelemetry, s.filterList.GetMetricFilterList())
 		if s.ingressLogShards != nil {
 			worker.packetLog = s.ingressLogShards.shard(i)
+		}
+		if s.rawIngressShards != nil {
+			worker.rawIngress = s.rawIngressShards.Shard(i)
 		}
 		go worker.run()
 		s.workers = append(s.workers, worker)
@@ -755,102 +780,109 @@ func (s *dsdServer) parsePackets(batcher dogstatsdBatcher, parser *parser, ident
 	}
 
 	for _, packet := range packets {
-		s.log.Tracef("Dogstatsd receive: %q", packet.Contents)
-		for {
-			message := nextMessage(&packet.Contents, s.eolEnabled(packet.Source))
-			if message == nil {
-				break
-			}
-			if len(message) == 0 {
+		samples = s.parsePacket(batcher, parser, identityBuilder, packet, samples, filterList, columnarV3, columnarV3Enabled)
+		s.sharedPacketPoolManager.Put(packet)
+	}
+
+	batcher.flush()
+	return samples
+}
+
+func (s *dsdServer) parsePacket(batcher dogstatsdBatcher, parser *parser, identityBuilder *identity.Builder, packet *packets.Packet, samples metrics.MetricSampleBatch, filterList *utilstrings.Matcher, columnarV3 aggregator.DogStatsDColumnarV3Inserter, columnarV3Enabled bool) metrics.MetricSampleBatch {
+	s.log.Tracef("Dogstatsd receive: %q", packet.Contents)
+	for {
+		message := nextMessage(&packet.Contents, s.eolEnabled(packet.Source))
+		if message == nil {
+			break
+		}
+		if len(message) == 0 {
+			continue
+		}
+		if s.Statistics != nil {
+			s.Statistics.StatEvent(1)
+		}
+		messageType := findMessageType(message)
+
+		switch messageType {
+		case serviceCheckType:
+			serviceCheck, err := s.parseServiceCheckMessage(parser, message, packet.Origin, packet.ProcessID)
+			if err != nil {
+				s.errLog("Dogstatsd: error parsing service check '%q': %s", message, err)
 				continue
 			}
-			if s.Statistics != nil {
-				s.Statistics.StatEvent(1)
+			batcher.appendServiceCheck(serviceCheck)
+		case eventType:
+			event, err := s.parseEventMessage(parser, message, packet.Origin, packet.ProcessID)
+			if err != nil {
+				s.errLog("Dogstatsd: error parsing event '%q': %s", message, err)
+				continue
 			}
-			messageType := findMessageType(message)
+			batcher.appendEvent(event)
+		case metricSampleType:
+			var err error
 
-			switch messageType {
-			case serviceCheckType:
-				serviceCheck, err := s.parseServiceCheckMessage(parser, message, packet.Origin, packet.ProcessID)
-				if err != nil {
-					s.errLog("Dogstatsd: error parsing service check '%q': %s", message, err)
-					continue
-				}
-				batcher.appendServiceCheck(serviceCheck)
-			case eventType:
-				event, err := s.parseEventMessage(parser, message, packet.Origin, packet.ProcessID)
-				if err != nil {
-					s.errLog("Dogstatsd: error parsing event '%q': %s", message, err)
-					continue
-				}
-				batcher.appendEvent(event)
-			case metricSampleType:
-				var err error
+			samples = samples[0:0]
 
-				samples = samples[0:0]
+			samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, packet.ProcessID, packet.ListenerID, s.originTelemetry, filterList)
+			if err != nil {
+				s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
+				continue
+			}
 
-				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, packet.ProcessID, packet.ListenerID, s.originTelemetry, filterList)
-				if err != nil {
-					s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
-					continue
+			batcherNeedsContext := batcher.needsSampleContext()
+			for idx := range samples {
+				debugEnabled := s.Debug.IsDebugEnabled()
+				needsShardContext := batcherNeedsContext || columnarV3Enabled
+				var sampleContext identity.HotPathContext
+				if debugEnabled {
+					sampleContext = identityBuilder.ResolveHotPath(samples[idx])
+				} else if needsShardContext {
+					shard := identityBuilder.Shard(samples[idx])
+					sampleContext.Client = shard.Client
+					sampleContext.Shard = shard
 				}
 
-				batcherNeedsContext := batcher.needsSampleContext()
-				for idx := range samples {
-					debugEnabled := s.Debug.IsDebugEnabled()
-					needsShardContext := batcherNeedsContext || columnarV3Enabled
-					var sampleContext identity.HotPathContext
-					if debugEnabled {
-						sampleContext = identityBuilder.ResolveHotPath(samples[idx])
-					} else if needsShardContext {
-						shard := identityBuilder.Shard(samples[idx])
-						sampleContext.Client = shard.Client
-						sampleContext.Shard = shard
-					}
+				if debugEnabled {
+					s.storeMetricStats(samples[idx], sampleContext)
+				} else {
+					// Preserve the legacy runtime-setting race behavior: if debug is
+					// enabled after the cheap IsDebugEnabled check, StoreMetricStats
+					// can still record this sample using its legacy local key path.
+					s.Debug.StoreMetricStats(samples[idx])
+				}
 
-					if debugEnabled {
-						s.storeMetricStats(samples[idx], sampleContext)
+				if columnarV3Enabled && columnarV3.AcceptDogStatsDColumnarV3Sample(samples[idx]) {
+					// The experimental v3 columnar table is now the authoritative
+					// aggregation state for this supported sample. Unsupported
+					// samples return false and continue through the legacy batcher.
+					batcher.appendColumnarV3SampleWithContext(samples[idx], sampleContext)
+				} else if samples[idx].Timestamp > 0.0 {
+					if needsShardContext {
+						batcher.appendLateSampleWithContext(samples[idx], sampleContext)
 					} else {
-						// Preserve the legacy runtime-setting race behavior: if debug is
-						// enabled after the cheap IsDebugEnabled check, StoreMetricStats
-						// can still record this sample using its legacy local key path.
-						s.Debug.StoreMetricStats(samples[idx])
+						batcher.appendLateSample(samples[idx])
 					}
+				} else if needsShardContext {
+					batcher.appendSampleWithContext(samples[idx], sampleContext)
+				} else {
+					batcher.appendSample(samples[idx])
+				}
 
-					if columnarV3Enabled && columnarV3.AcceptDogStatsDColumnarV3Sample(samples[idx]) {
-						// The experimental v3 columnar table is now the authoritative
-						// aggregation state for this supported sample. Unsupported
-						// samples return false and continue through the legacy batcher.
-						batcher.appendColumnarV3SampleWithContext(samples[idx], sampleContext)
-					} else if samples[idx].Timestamp > 0.0 {
-						if needsShardContext {
-							batcher.appendLateSampleWithContext(samples[idx], sampleContext)
-						} else {
-							batcher.appendLateSample(samples[idx])
-						}
-					} else if needsShardContext {
-						batcher.appendSampleWithContext(samples[idx], sampleContext)
+				if s.histToDist && samples[idx].Mtype == metrics.HistogramType {
+					distSample := samples[idx].Copy()
+					distSample.Name = s.histToDistPrefix + distSample.Name
+					distSample.Mtype = metrics.DistributionType
+					if batcherNeedsContext {
+						distContext := identityBuilder.ResolveHotPath(*distSample)
+						batcher.appendSampleWithContext(*distSample, distContext)
 					} else {
-						batcher.appendSample(samples[idx])
-					}
-
-					if s.histToDist && samples[idx].Mtype == metrics.HistogramType {
-						distSample := samples[idx].Copy()
-						distSample.Name = s.histToDistPrefix + distSample.Name
-						distSample.Mtype = metrics.DistributionType
-						if batcherNeedsContext {
-							distContext := identityBuilder.ResolveHotPath(*distSample)
-							batcher.appendSampleWithContext(*distSample, distContext)
-						} else {
-							batcher.appendSample(*distSample)
-						}
+						batcher.appendSample(*distSample)
 					}
 				}
 			}
 		}
-		s.sharedPacketPoolManager.Put(packet)
 	}
-	batcher.flush()
+
 	return samples
 }
 

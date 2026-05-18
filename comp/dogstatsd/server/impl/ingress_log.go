@@ -30,6 +30,11 @@ func experimentalShardedIngressLogEnabled() bool {
 	return err == nil && enabled
 }
 
+func experimentalRawUDSIngressRingEnabled() bool {
+	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS"))
+	return err == nil && enabled
+}
+
 func experimentalIngressLogMaxBytes() int64 {
 	value := os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_INGRESS_LOG_MAX_BYTES")
 	if value == "" {

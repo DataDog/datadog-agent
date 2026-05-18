@@ -51,6 +51,7 @@ func init() {
 // Origin detection will be implemented for UDS.
 type UDSListener struct {
 	packetWriter            packets.BatchWriter
+	rawPacketWriter         packets.RawPacketWriter
 	sharedPacketPoolManager *packets.PoolManager[packets.Packet]
 	oobPoolManager          *packets.PoolManager[[]byte]
 	trafficCapture          replay.Component
@@ -150,9 +151,19 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 
 // NewUDSListenerWithWriter returns an idle UDS Statsd listener using the given packet batch writer.
 func NewUDSListenerWithWriter(packetWriter packets.BatchWriter, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPacketPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, transport string, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component, originDetection bool) (*UDSListener, error) {
+	return newUDSListener(packetWriter, nil, sharedPacketPoolManager, sharedOobPacketPoolManager, cfg, capture, transport, wmeta, pidMap, telemetryStore, packetsTelemetryStore, telemetry, originDetection)
+}
+
+// NewUDSListenerWithRawPacketWriter returns an idle UDS Statsd listener using the given raw packet writer.
+func NewUDSListenerWithRawPacketWriter(rawPacketWriter packets.RawPacketWriter, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPacketPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, transport string, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component, originDetection bool) (*UDSListener, error) {
+	return newUDSListener(nil, rawPacketWriter, sharedPacketPoolManager, sharedOobPacketPoolManager, cfg, capture, transport, wmeta, pidMap, telemetryStore, packetsTelemetryStore, telemetry, originDetection)
+}
+
+func newUDSListener(packetWriter packets.BatchWriter, rawPacketWriter packets.RawPacketWriter, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPacketPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, transport string, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component, originDetection bool) (*UDSListener, error) {
 	listener := &UDSListener{
 		OriginDetection:              originDetection,
 		packetWriter:                 packetWriter,
+		rawPacketWriter:              rawPacketWriter,
 		sharedPacketPoolManager:      sharedPacketPoolManager,
 		trafficCapture:               capture,
 		pidMap:                       pidMap,
@@ -183,6 +194,10 @@ func NewUDSListenerWithWriter(packetWriter packets.BatchWriter, sharedPacketPool
 
 // Listen runs the intake loop. Should be called in its own goroutine
 func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction) error {
+	if l.rawPacketWriter != nil && l.transport == "unixgram" && !l.OriginDetection {
+		return l.handleRawDatagramConnection(conn, closeFunc)
+	}
+
 	listenerID := l.getListenerID(conn)
 	tlmListenerID := listenerID
 	telemetryWithFullListenerID := l.telemetryWithListenerID
@@ -376,6 +391,94 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 
 		// packetsBuffer handles the forwarding of the packets to the dogstatsd server intake channel
 		packetsBuffer.Append(packet)
+	}
+}
+
+func (l *UDSListener) handleRawDatagramConnection(conn netUnixConn, closeFunc CloseFunction) error {
+	listenerID := l.getListenerID(conn)
+	tlmListenerID := listenerID
+	telemetryWithFullListenerID := l.telemetryWithListenerID
+	if !telemetryWithFullListenerID {
+		tlmListenerID = "uds-" + conn.LocalAddr().Network()
+	}
+
+	l.telemetryStore.tlmUDSConnections.Inc(tlmListenerID, l.transport)
+	defer func() {
+		_ = closeFunc(conn)
+		if telemetryWithFullListenerID {
+			l.clearTelemetry(tlmListenerID)
+		}
+		l.telemetryStore.tlmUDSConnections.Dec(tlmListenerID, l.transport)
+	}()
+
+	var rateLimiter *ratelimit.MemBasedRateLimiter
+	if l.dogstatsdMemBasedRateLimiter {
+		var err error
+		rateLimiter, err = ratelimit.BuildMemBasedRateLimiter(l.config, l.telemetry)
+		if err != nil {
+			log.Errorf("Cannot use DogStatsD rate limiter: %v", err)
+			rateLimiter = nil
+		} else {
+			log.Info("DogStatsD rate limiter enabled")
+		}
+	}
+
+	if rcvbuf := l.config.GetInt("dogstatsd_so_rcvbuf"); rcvbuf != 0 {
+		if err := conn.SetReadBuffer(rcvbuf); err != nil {
+			log.Warnf("could not set socket rcvbuf: %s", err)
+		}
+	}
+
+	t1 := time.Now()
+	log.Debugf("dogstatsd-uds: starting raw ingress ring handler for %s", conn.LocalAddr())
+	for {
+		if rateLimiter != nil {
+			if err := rateLimiter.MayWait(); err != nil {
+				log.Error(err)
+			}
+		}
+
+		reservation, ok := l.rawPacketWriter.Reserve()
+		if !ok {
+			return nil
+		}
+
+		t2 := time.Now()
+		l.telemetryStore.tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), tlmListenerID, l.transport, "uds")
+
+		n, _, err := conn.ReadFromUnix(reservation.Buffer())
+		t1 = time.Now()
+		udsPackets.Add(1)
+		if err != nil {
+			reservation.Abort()
+			if errors.Is(err, net.ErrClosed) {
+				return nil
+			}
+			log.Errorf("dogstatsd-uds: error reading packet: %v", err)
+			udsPacketReadingErrors.Add(1)
+			l.telemetryStore.tlmUDSPackets.Inc(tlmListenerID, l.transport, "error")
+			continue
+		}
+
+		l.telemetryStore.tlmUDSPackets.Inc(tlmListenerID, l.transport, "ok")
+		udsBytes.Add(int64(n))
+		l.telemetryStore.tlmUDSPacketsBytes.Add(float64(n), "agent", tlmListenerID, l.transport)
+
+		payload := reservation.Buffer()[:n]
+		if l.trafficCapture != nil {
+			l.trafficCapture.CaptureIngress(replay.IngressEnvelope{
+				Timestamp:  t1,
+				Source:     packets.UDS,
+				ListenerID: listenerID,
+				Payload:    payload,
+				LocalAddr:  conn.LocalAddr().String(),
+			})
+		}
+
+		reservation.Commit(n, packets.RawPacketMeta{
+			Source:     packets.UDS,
+			ListenerID: listenerID,
+		})
 	}
 }
 

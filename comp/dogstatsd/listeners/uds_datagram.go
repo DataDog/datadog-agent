@@ -35,6 +35,15 @@ func NewUDSDatagramListener(packetOut chan packets.Packets, sharedPacketPoolMana
 
 // NewUDSDatagramListenerWithWriter returns an idle UDS datagram Statsd listener using the given packet batch writer.
 func NewUDSDatagramListenerWithWriter(packetWriter packets.BatchWriter, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetryComponent telemetry.Component) (*UDSDatagramListener, error) {
+	return newUDSDatagramListener(packetWriter, nil, sharedPacketPoolManager, sharedOobPoolManager, cfg, capture, wmeta, pidMap, telemetryStore, packetsTelemetryStore, telemetryComponent)
+}
+
+// NewUDSDatagramListenerWithRawPacketWriter returns an idle UDS datagram Statsd listener using the given raw packet writer.
+func NewUDSDatagramListenerWithRawPacketWriter(rawPacketWriter packets.RawPacketWriter, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetryComponent telemetry.Component) (*UDSDatagramListener, error) {
+	return newUDSDatagramListener(nil, rawPacketWriter, sharedPacketPoolManager, sharedOobPoolManager, cfg, capture, wmeta, pidMap, telemetryStore, packetsTelemetryStore, telemetryComponent)
+}
+
+func newUDSDatagramListener(packetWriter packets.BatchWriter, rawPacketWriter packets.RawPacketWriter, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetryComponent telemetry.Component) (*UDSDatagramListener, error) {
 	socketPath := cfg.GetString("dogstatsd_socket")
 	transport := "unixgram"
 
@@ -67,7 +76,12 @@ func NewUDSDatagramListenerWithWriter(packetWriter packets.BatchWriter, sharedPa
 		return nil, err
 	}
 
-	l, err := NewUDSListenerWithWriter(packetWriter, sharedPacketPoolManager, sharedOobPoolManager, cfg, capture, transport, wmeta, pidMap, telemetryStore, packetsTelemetryStore, telemetryComponent, originDetection)
+	var l *UDSListener
+	if rawPacketWriter != nil {
+		l, err = NewUDSListenerWithRawPacketWriter(rawPacketWriter, sharedPacketPoolManager, sharedOobPoolManager, cfg, capture, transport, wmeta, pidMap, telemetryStore, packetsTelemetryStore, telemetryComponent, originDetection)
+	} else {
+		l, err = NewUDSListenerWithWriter(packetWriter, sharedPacketPoolManager, sharedOobPoolManager, cfg, capture, transport, wmeta, pidMap, telemetryStore, packetsTelemetryStore, telemetryComponent, originDetection)
+	}
 	if err != nil {
 		return nil, err
 	}

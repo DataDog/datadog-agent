@@ -36,8 +36,11 @@ type worker struct {
 	// time is very costly, especially on the GC.
 	samples metrics.MetricSampleBatch
 
-	packetsTelemetry *packets.TelemetryStore
-	packetLog        *packetIngressLog
+	packetsTelemetry  *packets.TelemetryStore
+	packetLog         *packetIngressLog
+	rawIngress        *packets.RawIngressShard
+	columnarV3        aggregator.DogStatsDColumnarV3Inserter
+	columnarV3Enabled bool
 
 	FilterListUpdate chan utilstrings.Matcher
 	filterList       utilstrings.Matcher
@@ -51,19 +54,32 @@ func newWorker(s *dsdServer, workerNum int, wmeta option.Option[workloadmeta.Com
 		batcher = newBatcher(s.demultiplexer.(aggregator.DemultiplexerWithAggregator), s.tlmChannel)
 	}
 
+	var columnarV3 aggregator.DogStatsDColumnarV3Inserter
+	columnarV3Enabled := false
+	if inserter, ok := s.demultiplexer.(aggregator.DogStatsDColumnarV3Inserter); ok && inserter.DogStatsDColumnarV3Enabled() {
+		columnarV3 = inserter
+		columnarV3Enabled = true
+	}
+
 	return &worker{
-		server:           s,
-		batcher:          batcher,
-		parser:           newParser(s.config, s.sharedFloat64List, workerNum, wmeta, stringInternerTelemetry),
-		identityBuilder:  identity.NewBuilder(),
-		samples:          make(metrics.MetricSampleBatch, 0, defaultSampleSize),
-		packetsTelemetry: packetsTelemetry,
-		FilterListUpdate: make(chan utilstrings.Matcher),
-		filterList:       filterList,
+		server:            s,
+		batcher:           batcher,
+		parser:            newParser(s.config, s.sharedFloat64List, workerNum, wmeta, stringInternerTelemetry),
+		identityBuilder:   identity.NewBuilder(),
+		samples:           make(metrics.MetricSampleBatch, 0, defaultSampleSize),
+		packetsTelemetry:  packetsTelemetry,
+		columnarV3:        columnarV3,
+		columnarV3Enabled: columnarV3Enabled,
+		FilterListUpdate:  make(chan utilstrings.Matcher),
+		filterList:        filterList,
 	}
 }
 
 func (w *worker) run() {
+	if w.rawIngress != nil {
+		w.runRawIngress()
+		return
+	}
 	if w.packetLog != nil {
 		w.runPacketLog()
 		return
@@ -106,10 +122,46 @@ func (w *worker) runPacketLog() {
 	}
 }
 
+func (w *worker) runRawIngress() {
+	for {
+		select {
+		case <-w.server.stopChan:
+			return
+		case <-w.server.health.C:
+		case <-w.server.serverlessFlushChan:
+			w.batcher.flush()
+		case filterList := <-w.FilterListUpdate:
+			w.filterList = filterList
+		case <-w.rawIngress.Notify():
+			for {
+				rawPacket, ok := w.rawIngress.TryNext()
+				if !ok {
+					break
+				}
+				w.processRawPacket(rawPacket)
+			}
+			w.batcher.flush()
+		}
+	}
+}
+
 func (w *worker) processPackets(ps packets.Packets) {
 	w.packetsTelemetry.TelemetryUntrackPackets(ps)
 	w.samples = w.samples[0:0]
 	// we return the samples in case the slice was extended
 	// when parsing the packets
 	w.samples = w.server.parsePackets(w.batcher, w.parser, w.identityBuilder, ps, w.samples, &w.filterList)
+}
+
+func (w *worker) processRawPacket(rawPacket packets.RawPacket) {
+	packet := packets.Packet{
+		Contents:   rawPacket.Contents,
+		Origin:     rawPacket.Origin,
+		ProcessID:  rawPacket.ProcessID,
+		ListenerID: rawPacket.ListenerID,
+		Source:     rawPacket.Source,
+	}
+	w.samples = w.samples[0:0]
+	w.samples = w.server.parsePacket(w.batcher, w.parser, w.identityBuilder, &packet, w.samples, &w.filterList, w.columnarV3, w.columnarV3Enabled)
+	rawPacket.Release()
 }
