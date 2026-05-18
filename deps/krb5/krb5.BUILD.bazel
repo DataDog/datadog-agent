@@ -3,7 +3,6 @@ load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
 
 package(default_package_metadata = [":license"], default_visibility = ["//visibility:public"])
@@ -93,6 +92,8 @@ configure_make(
         version = spec["version"],
         # kinit rides along with libkrb5 so its rpath gets patched via dd_cc_packaged.
         installed_executables = {":_bins": "bin"} if libname == "libkrb5" else {},
+        # Headers ride along with libkrb5 so they flow through dd_collect_dependencies.
+        installed_files = [":hdr_files"] if libname == "libkrb5" else [],
     )
     for libname, spec in LIBS.items()
 ]
@@ -121,17 +122,7 @@ dd_collect_dependencies(
 
 pkg_filegroup(
     name = "all_files",
-    srcs = [
-        ":hdr_files",
-        ":_collected_libs",
-    ],
+    srcs = [":_collected_libs"],
     prefix = "embedded",
     visibility = ["@@//packages:__subpackages__", "@@//deps/msodbcsql18:__pkg__"],
-)
-
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
-    ],
 )
