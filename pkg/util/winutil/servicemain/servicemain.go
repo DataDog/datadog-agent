@@ -363,7 +363,7 @@ func (s *controlHandler) controlHandlerLoop(cancelFunc context.CancelFunc, cance
 func (s *controlHandler) terminateProcessOnTimeout(cancelCleanExit context.CancelFunc) {
 	<-time.After(time.Duration(s.service.HardStopTimeout()))
 	if v, ok := os.LookupEnv(EnvCrashOnHardStopTimeout); ok && v != "" {
-		s.eventlog(messagestrings.MSG_SERVICE_FAILED, fmt.Sprintf("%s set, crashing service on hard stop timeout to produce a dump", EnvCrashOnHardStopTimeout))
+		s.eventlog(messagestrings.MSG_SERVICE_FAILED, EnvCrashOnHardStopTimeout+" set, crashing service on hard stop timeout to produce a dump")
 		// An uncaught panic in this goroutine becomes a fatal runtime error, which the
 		// runtime forwards to WER when GOTRACEBACK=wer.
 		panic("hard stop timeout reached")
