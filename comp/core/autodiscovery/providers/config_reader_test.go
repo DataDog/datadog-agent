@@ -132,7 +132,7 @@ func TestGetIntegrationConfig(t *testing.T) {
 }
 
 func TestGetIntegrationConfig_Discovery(t *testing.T) {
-	config, _, err := GetIntegrationConfigFromFile("krakend", "tests/auto_conf_discovery.yaml")
+	config, _, err := GetIntegrationConfigFromFile("krakend", "tests/auto_conf.yaml")
 	require.Nil(t, err)
 	require.NotNil(t, config.Discovery)
 	assert.Equal(t, []string{"krakend"}, config.ADIdentifiers)
@@ -145,7 +145,7 @@ func TestReadConfigFiles(t *testing.T) {
 
 	configs, errors, err := ReadConfigFiles(GetAll)
 	require.Nil(t, err)
-	require.Equal(t, 22, len(configs))
+	require.Equal(t, 23, len(configs))
 	require.Equal(t, 4, len(errors))
 
 	for _, c := range configs {
@@ -156,7 +156,7 @@ func TestReadConfigFiles(t *testing.T) {
 
 	configs, _, err = ReadConfigFiles(WithoutAdvancedAD)
 	require.Nil(t, err)
-	require.Equal(t, 20, len(configs))
+	require.Equal(t, 21, len(configs))
 
 	expectedConfig1 := integration.Config{
 		Name: "advanced_ad",

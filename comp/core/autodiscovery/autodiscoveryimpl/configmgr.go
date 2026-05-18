@@ -444,7 +444,7 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 	digest := tpl.Digest()
 
 	if tpl.IsDiscovery() {
-		return resolveDiscoveryTemplate(tpl, svc)
+		return resolveDiscoveryTemplate(tpl, svc, cm.secretResolver)
 	}
 
 	// Non-discovery templates: existing template-resolution path.
@@ -551,7 +551,7 @@ func (cm *reconcilingConfigManager) popTrialConfig(id checkid.ID) (integration.C
 //
 // Discovery templates have no secret references in their generated instances,
 // so decryptConfig is intentionally omitted.
-func resolveDiscoveryTemplate(tpl integration.Config, svc listeners.Service) (integration.Config, bool) {
+func resolveDiscoveryTemplate(tpl integration.Config, svc listeners.Service, secretResolver secrets.Component) (integration.Config, bool) {
 	// configresolver.Resolve only checks IsReady when IsCheckConfig() is true
 	// (i.e. len(Instances) > 0). Discovery templates start with empty instances,
 	// so we guard readiness explicitly.
@@ -612,7 +612,16 @@ func resolveDiscoveryTemplate(tpl integration.Config, svc listeners.Service) (in
 		return tpl, false
 	}
 	base.Instances = []integration.Data{integration.Data(instanceYAML)}
-	return base, true
+
+	// Decrypt any ENC[] references in init_config, logs_config, or metric_config
+	// copied from the template by configresolver.Resolve. The synthetic instance
+	// itself never contains secret references so decryption there is a no-op.
+	decrypted, err := decryptConfig(base, secretResolver, tpl.Digest())
+	if err != nil {
+		log.Errorf("autodiscovery: failed to decrypt discovery trial config for %s/%s: %v", tpl.Name, svc.GetServiceID(), err)
+		return tpl, false
+	}
+	return decrypted, true
 }
 
 // changedCheckIDs returns a map with the config instance IDs that changed

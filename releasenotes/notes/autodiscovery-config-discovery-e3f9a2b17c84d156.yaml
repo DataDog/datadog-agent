@@ -2,8 +2,9 @@
 features:
   - |
     Autodiscovery now supports zero-configuration check scheduling for
-    integrations that ship an ``auto_conf_discovery.yaml`` template. When a
-    service container is discovered and its matching template contains a
+    integrations that ship an ``auto_conf.yaml`` template with a
+    ``discovery: {}`` block. When a service container is discovered and its
+    matching template contains a
     top-level ``discovery: {}`` block, the Agent schedules the check in
     *trial mode*: the check receives the container's network address and
     exposed ports and probes them on its first run to determine the correct
