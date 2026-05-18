@@ -145,26 +145,39 @@ func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 
 func TestAddAgentShutdownTelemetryFlushesEventOnStop(t *testing.T) {
 	demux, s := newShutdownTelemetryTestDemux(t, "hostname")
-	s.On("SendEvents", mock.MatchedBy(func(events event.Events) bool {
-		require.Len(t, events, 1)
-		require.Equal(t, "ordinary event", events[0].Text)
-		return true
-	})).Return(nil).Once()
-	s.On("SendAgentShutdownEvent", mock.Anything, mock.MatchedBy(func(e *event.Event) bool {
-		require.Equal(t, "Version 7.0.0", e.Text)
-		require.Equal(t, "System", e.SourceTypeName)
-		require.Equal(t, "hostname", e.Host)
-		require.Equal(t, "Agent Shutdown", e.EventType)
-		return true
-	})).Return(nil).Once()
+	eventsCh := make(chan event.Events, 1)
+	shutdownEventCh := make(chan *event.Event, 1)
+
+	s.On("SendEvents", mock.Anything).Run(func(args mock.Arguments) {
+		eventsCh <- args.Get(0).(event.Events)
+	}).Return(nil).Once()
+	s.On("SendAgentShutdownEvent", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		shutdownEventCh <- args.Get(1).(*event.Event)
+	}).Return(nil).Once()
 
 	demux.AddAgentShutdownTelemetry("7.0.0")
-	demux.ForceFlushToSerializer(time.Now(), true)
-	s.AssertNotCalled(t, "SendEvents", mock.Anything)
-	s.AssertNotCalled(t, "SendAgentShutdownEvent", mock.Anything, mock.Anything)
-
 	demux.aggregator.addEvent(event.Event{Text: "ordinary event"})
 	demux.Stop(true)
+
+	var events event.Events
+	select {
+	case events = <-eventsCh:
+	case <-time.After(time.Second):
+		require.FailNow(t, "timed out waiting for ordinary event flush")
+	}
+	require.Len(t, events, 1)
+	require.Equal(t, "ordinary event", events[0].Text)
+
+	var shutdownEvent *event.Event
+	select {
+	case shutdownEvent = <-shutdownEventCh:
+	case <-time.After(time.Second):
+		require.FailNow(t, "timed out waiting for Agent Shutdown event")
+	}
+	require.Equal(t, "Version 7.0.0", shutdownEvent.Text)
+	require.Equal(t, "System", shutdownEvent.SourceTypeName)
+	require.Equal(t, "hostname", shutdownEvent.Host)
+	require.Equal(t, "Agent Shutdown", shutdownEvent.EventType)
 
 	s.AssertExpectations(t)
 }
@@ -173,6 +186,7 @@ func TestAgentShutdownTelemetryRequiresFinalFlush(t *testing.T) {
 	demux, s := newShutdownTelemetryTestDemux(t, "hostname")
 
 	demux.AddAgentShutdownTelemetry("7.0.0")
+	demux.ForceFlushToSerializer(time.Now(), true)
 	demux.Stop(false)
 
 	s.AssertNotCalled(t, "SendAgentShutdownEvent", mock.Anything, mock.Anything)
