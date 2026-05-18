@@ -8,7 +8,7 @@
 ---
 features:
   - |
-    When ``ccm_mode`` is set in ``datadog.yaml``, the Agent adds a ``ccm_mode:<value>`` tag to
-    metrics from selected integrations so you can identify lightweight or other CCM deployment
-    modes in Datadog. Use ``integration.ccm_<mode>.tagged`` to list which checks receive the tag;
-    when the list is empty, all checks are tagged for that mode.
+    When ``infrastructure_mode`` is set to ``cloud_cost_only`` in ``datadog.yaml``, the Agent adds an
+    ``infra_mode:cloud_cost_only`` tag to metrics from selected integrations. Use
+    ``integration.cloud_cost_only.tagged`` to list which checks receive the tag; when the list is
+    empty, all checks are tagged in that mode.
