@@ -95,7 +95,7 @@ func GetEventLogEntries(host *components.RemoteHost, logName string) ([]EventLog
 // https://learn.microsoft.com/en-us/powershell/scripting/samples/creating-get-winevent-queries-with-filterhashtable
 func GetEventLogEntriesWithFilterHashTable(host *components.RemoteHost, filterHashTable string) ([]EventLogEntry, error) {
 	// Call ConvertTo-JSON in this way to ensure that the output is a JSON array
-	cmd := fmt.Sprintf(`ConvertTo-JSON -InputObject @(Get-WinEvent -ErrorAction Stop -FilterHashTable %s | Select ID,Level,ProviderName,LogName,Message,RecordID,TimeCreated)`, filterHashTable)
+	cmd := fmt.Sprintf(`ConvertTo-JSON -WarningAction SilentlyContinue -InputObject @(Get-WinEvent -ErrorAction Stop -FilterHashTable %s | Select ID,Level,ProviderName,LogName,Message,RecordID,TimeCreated)`, filterHashTable)
 	out, err := runCommandAndIgnoreNoEventsError(host, cmd)
 	if err != nil {
 		return nil, fmt.Errorf("error getting '%s' event log entries: %w", filterHashTable, err)

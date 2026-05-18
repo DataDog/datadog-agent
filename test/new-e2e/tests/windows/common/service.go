@@ -128,7 +128,7 @@ func RestartService(host *components.RemoteHost, service string) error {
 //
 // https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/get-service?view=powershell-7.4
 func GetServiceConfig(host *components.RemoteHost, service string) (*ServiceConfig, error) {
-	cmd := fmt.Sprintf("Get-Service -Name '%s' | ConvertTo-Json", service)
+	cmd := fmt.Sprintf("Get-Service -Name '%s' | ConvertTo-Json -WarningAction SilentlyContinue", service)
 	output, err := host.Execute(cmd)
 	if err != nil {
 		fmt.Println(output)

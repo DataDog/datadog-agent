@@ -103,7 +103,7 @@ func GetJoinedDomain(host *components.RemoteHost) (string, error) {
 
 // GetOSInfo returns OSInfo for the given VM
 func GetOSInfo(host *components.RemoteHost) (*OSInfo, error) {
-	cmd := "Get-CimInstance Win32_OperatingSystem | ConvertTo-Json"
+	cmd := "Get-CimInstance Win32_OperatingSystem | ConvertTo-Json -WarningAction SilentlyContinue"
 	output, err := host.Execute(cmd)
 	if err != nil {
 		fmt.Println(output)

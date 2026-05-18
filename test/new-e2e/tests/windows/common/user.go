@@ -149,7 +149,7 @@ func DotSlashNameToLogonName(host *components.RemoteHost, user string) (string, 
 
 // GetADGroupMembers returns the list of members of the given AD group
 func GetADGroupMembers(host *components.RemoteHost, group string) ([]Identity, error) {
-	cmd := fmt.Sprintf(`ConvertTo-JSON -InputObject @(Get-ADGroupMember -Identity "%s" | Foreach-Object {
+	cmd := fmt.Sprintf(`ConvertTo-JSON -WarningAction SilentlyContinue -InputObject @(Get-ADGroupMember -Identity "%s" | Foreach-Object {
 		@{
 			Name = $_.Name
 			SID = $_.SID.Value
@@ -172,7 +172,7 @@ func GetADGroupMembers(host *components.RemoteHost, group string) ([]Identity, e
 
 // GetLocalGroupMembers returns the list of members of the given local group
 func GetLocalGroupMembers(host *components.RemoteHost, group string) ([]Identity, error) {
-	cmd := fmt.Sprintf(`ConvertTo-JSON -InputObject @(Get-LocalGroupMember -Name "%s" | Foreach-Object {
+	cmd := fmt.Sprintf(`ConvertTo-JSON -WarningAction SilentlyContinue -InputObject @(Get-LocalGroupMember -Name "%s" | Foreach-Object {
 		@{
 			Name = $_.Name
 			SID = $_.SID.Value

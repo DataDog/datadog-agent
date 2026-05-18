@@ -33,7 +33,7 @@ func (s *AuthenticodeSignature) Valid() bool {
 // GetAuthenticodeSignature returns the Authenticode signature of the file
 // https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/get-authenticodesignature
 func GetAuthenticodeSignature(host *components.RemoteHost, path string) (*AuthenticodeSignature, error) {
-	cmd := "(Get-AuthenticodeSignature '" + path + "') | ConvertTo-Json"
+	cmd := "(Get-AuthenticodeSignature '" + path + "') | ConvertTo-Json -WarningAction SilentlyContinue"
 	out, err := host.Execute(cmd)
 	if err != nil {
 		return nil, err
