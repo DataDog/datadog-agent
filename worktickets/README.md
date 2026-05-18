@@ -41,6 +41,12 @@ echo 'task body' | taskmd new --slug some-slug --priority p2 \
 | 07004 | p1 | ready | float64-overflow-aborts-scrape |
 | 07005 | p2 | ready | conflicting-type-declaration |
 | 07006 | p3 | ready | spec-strictness-divergences-informational |
+| 07007 | p1 | ready | share-labels-divergence |
+| 07008 | p2 | ready | transformer-knob-divergences |
+
+07001-07006 came from the payload-axis harness (parser-level bugs).
+07007-07008 came from the config-axis harness (transformer/matcher
+pipeline bugs).
 
 ## Lifecycle
 
