@@ -29,7 +29,7 @@ const stackSkipBase = 4
 var _ slog.Handler = (*Handler)(nil)
 
 // Handler is an slog.Handler that captures records at level >= Error and
-// forwards them to the currently registered Submitter as an ErrorLog DTO.
+// forwards them to the currently registered Submitter as an ErrorLog value.
 //
 // The handler holds no transport, no buffer and no goroutines. Each Handle
 // call atomically loads the current Submitter via the load closure supplied

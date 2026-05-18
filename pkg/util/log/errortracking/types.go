@@ -16,8 +16,8 @@ import (
 // string stays well under typical intake-side per-record limits.
 const MaxStackFrames = 16
 
-// ErrorLog is a value-typed snapshot of an error log record. It is the
-// DTO that crosses the pkg/util/log -> comp/core boundary, keeping the
+// ErrorLog is a value-typed snapshot of an error log record. It crosses
+// the pkg/util/log -> comp/core boundary, keeping the
 // foundational logger subtree free of comp/core dependencies and the
 // agenttelemetry component free of log/slog leakage on its public
 // interface.
