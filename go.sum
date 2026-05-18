@@ -2596,8 +2596,8 @@ github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816 h1:8diKw2aLYE6LsjWfYxD
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816/go.mod h1:7cPuErOAt7k/oVWAVJnxqAC6mwArrAazkvk0RXiih2A=
 github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260416144717-96f8924d6e18 h1:VbUS1B3mpSjponiKDWHXtofoNBp99Nckf5uZaBeQyPo=
 github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20260416144717-96f8924d6e18/go.mod h1:34LtYk9Gh/SCItzi7v8ok9E5lk88AA5I+5aKoVKQClI=
-github.com/DataDog/rshell v0.0.15-0.20260507121851-d4bd28b3f052 h1:Hh9zGX2957PJgoqKP1gYT2FM642XPEHHrGOfNQzmzGA=
-github.com/DataDog/rshell v0.0.15-0.20260507121851-d4bd28b3f052/go.mod h1:jZm0YIxCKYEyHJeSSH5rxqmlI1oUi+mXQF6Zf102q+k=
+github.com/DataDog/rshell v0.0.15-0.20260513124444-8b1b30834410 h1:jUbL1DWo4J4aWWBFO686dufmsD9eujpOI5q/CRvMheQ=
+github.com/DataDog/rshell v0.0.15-0.20260513124444-8b1b30834410/go.mod h1:jZm0YIxCKYEyHJeSSH5rxqmlI1oUi+mXQF6Zf102q+k=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
 github.com/DataDog/sketches-go v1.4.8/go.mod h1:a/wjRUqzqtGS8qRHRPDCs4EAQfmvPDZGDlMIF5mxXOE=
 github.com/DataDog/trivy v0.0.0-20260407220859-6cf8ddc1826c h1:oiwmRrkRVblZBI3SFVEnrwxkQ28W7nmwwI/VHgex0ZU=
