@@ -36,7 +36,7 @@ type Component interface {
 	// caller-identity guard. See
 	// comp/core/agenttelemetry/impl/errortracking_sender.go.
 	//
-	// This method receives the foundational ErrorLog DTO defined at
+	// This method receives the ErrorLog value-type defined at
 	// pkg/util/log/errortracking; the component never sees raw slog
 	// types on its public surface.
 	SubmitErrorRecord(log errortracking.ErrorLog)

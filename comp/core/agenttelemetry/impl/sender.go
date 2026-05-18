@@ -47,13 +47,16 @@ const (
 	httpClientTimeout       = 10 * time.Second
 )
 
-// Errortracking operational parameter defaults. Used by createAtel when
-// the corresponding agent_telemetry.errortracking.* config key is unset
-// or non-positive; also referenced by tests that construct atel without
-// a full config tree. Picked per the PR #50607 §A19 analysis: slower
-// than APM tracer spans (5s) since errortracking is not on an alerting
-// path, faster than agent_telemetry metrics (900s) for incident
-// visibility — empirically the "tracer-telemetry-logs" cadence class.
+// Errortracking operational parameter defaults. Used by createAtel when the
+// corresponding agent_telemetry.errortracking.* config key is unset or
+// non-positive; also referenced by tests that construct atel without a full
+// config tree.
+//
+// The 60-second flush cadence combines with the 15-minute Bouncer window
+// (pkg/util/log/errortracking/bouncer.go) so the wire receives at most one
+// record per unique stack per 15 minutes, with up to 60-second emission
+// latency. Slower than APM tracer span flushes (5s, alerting path); faster
+// than agent_telemetry metrics (900s, periodic-aggregate path).
 const (
 	defaultErrLogsBufferSize    = 2048
 	defaultErrLogsBatchSize     = 100
