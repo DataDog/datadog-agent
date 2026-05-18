@@ -29,11 +29,6 @@ func (m *mockCheck) Run() error {
 
 func (m *mockCheck) String() string { return "mock_check" }
 
-// IsTrialMode and ClearTrialMode satisfy the check.Check interface; the base
-// mock is never in trial mode.
-func (m *mockCheck) IsTrialMode() bool { return false }
-func (m *mockCheck) ClearTrialMode()   {}
-
 type mockTrialCheck struct {
 	mockCheck
 	trialMode bool

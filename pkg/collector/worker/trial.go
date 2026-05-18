@@ -16,6 +16,11 @@ var (
 	trialResultCallbacks []func(id checkid.ID, ok bool)
 )
 
+type trialModeCheck interface {
+	IsTrialMode() bool
+	ClearTrialMode()
+}
+
 // RegisterTrialResultCallback registers a function to be called after each
 // trial-mode check run with the run outcome. Multiple callbacks may be
 // registered; they are called in registration order.

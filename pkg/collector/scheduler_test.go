@@ -125,6 +125,31 @@ func TestGetChecksFromConfigs(t *testing.T) {
 	}, actualChecks)
 }
 
+func TestGetChecksFromConfigsWrapsTrialModeChecks(t *testing.T) {
+	s := CheckScheduler{}
+	s.addLoader(&MockCoreLoader{})
+
+	conf := integration.Config{
+		Name:       "check_trial",
+		Instances:  []integration.Data{integration.Data("{}")},
+		InitConfig: integration.Data("{}"),
+		TrialMode:  true,
+	}
+
+	checks := s.GetChecksFromConfigs([]integration.Config{conf}, false)
+
+	assert.Len(t, checks, 1)
+	trialCheck, ok := checks[0].(interface {
+		IsTrialMode() bool
+		ClearTrialMode()
+	})
+	if assert.True(t, ok, "trial-mode configs should wrap loaded checks") {
+		assert.True(t, trialCheck.IsTrialMode())
+		trialCheck.ClearTrialMode()
+		assert.False(t, trialCheck.IsTrialMode())
+	}
+}
+
 // MockCollector is a mock implementation of collector.Component for testing
 type MockCollector struct {
 	RunCheckCalls []check.Check // Track which checks were run

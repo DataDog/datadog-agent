@@ -193,9 +193,3 @@ func (*Check) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 
 // IsHASupported does not apply to shared library checks
 func (*Check) IsHASupported() bool { return false }
-
-// IsTrialMode returns false; shared library checks are never in trial mode.
-func (*Check) IsTrialMode() bool { return false }
-
-// ClearTrialMode is a no-op for shared library checks.
-func (*Check) ClearTrialMode() {}

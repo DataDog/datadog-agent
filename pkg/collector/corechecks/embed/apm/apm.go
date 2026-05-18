@@ -263,12 +263,6 @@ func (c *APMCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 // IsHASupported returns if the check is compatible with High Availability
 func (c *APMCheck) IsHASupported() bool { return false }
 
-// IsTrialMode returns false; APM embed checks are never in trial mode.
-func (c *APMCheck) IsTrialMode() bool { return false }
-
-// ClearTrialMode is a no-op.
-func (c *APMCheck) ClearTrialMode() {}
-
 // Factory creates a new check factory
 func Factory() option.Option[func() check.Check] {
 	return option.New(newCheck)

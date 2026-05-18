@@ -258,12 +258,6 @@ func (c *ProcessAgentCheck) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 // IsHASupported returns if the check is compatible with High Availability
 func (c *ProcessAgentCheck) IsHASupported() bool { return false }
 
-// IsTrialMode returns false; process-agent embed checks are never in trial mode.
-func (c *ProcessAgentCheck) IsTrialMode() bool { return false }
-
-// ClearTrialMode is a no-op.
-func (c *ProcessAgentCheck) ClearTrialMode() {}
-
 // Factory creates a new check factory
 func Factory() option.Option[func() check.Check] {
 	return option.New(newCheck)

@@ -276,6 +276,9 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 			continue
 		}
 		for _, c := range checks {
+			if config.TrialMode {
+				c = check.NewTrialModeCheck(c)
+			}
 			allChecks = append(allChecks, c)
 			if populateCache {
 				// store the checks we schedule for this config locally

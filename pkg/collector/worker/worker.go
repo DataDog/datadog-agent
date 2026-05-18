@@ -210,7 +210,7 @@ func (w *Worker) Run(ctx context.Context) {
 
 		// For trial-mode checks: report outcome to AutoConfig and suppress
 		// the normal integration-error reporting on failure.
-		if check.IsTrialMode() {
+		if trialCheck, ok := check.(trialModeCheck); ok && trialCheck.IsTrialMode() {
 			notifyTrialResult(check.ID(), checkErr == nil)
 			if checkErr != nil {
 				log.Debugf("trial-mode check %s failed (suppressing integration error): %v", check.ID(), checkErr)
@@ -227,7 +227,7 @@ func (w *Worker) Run(ctx context.Context) {
 			}
 			// First successful run: promote out of trial mode so subsequent
 			// failures are reported normally and do not trigger unscheduling.
-			check.ClearTrialMode()
+			trialCheck.ClearTrialMode()
 		}
 
 		checkWarnings := check.GetWarnings()

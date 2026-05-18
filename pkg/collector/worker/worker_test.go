@@ -953,33 +953,6 @@ func TestWorkerRecoverFromCheckPanic(t *testing.T) {
 	AssertAsyncWorkerCount(t, 0)
 }
 
-// trialCheck is a testCheck that starts in trial mode and supports promotion
-// via ClearTrialMode, matching the contract the worker expects.
-type trialCheck struct {
-	testCheck
-	trialModeMu sync.Mutex
-	trialMode   bool
-}
-
-func newTrialCheck(id string, t *testing.T) *trialCheck {
-	return &trialCheck{
-		testCheck: testCheck{id: id, t: t, runCount: atomic.NewUint64(0)},
-		trialMode: true,
-	}
-}
-
-func (c *trialCheck) IsTrialMode() bool {
-	c.trialModeMu.Lock()
-	defer c.trialModeMu.Unlock()
-	return c.trialMode
-}
-
-func (c *trialCheck) ClearTrialMode() {
-	c.trialModeMu.Lock()
-	defer c.trialModeMu.Unlock()
-	c.trialMode = false
-}
-
 func TestWorkerTrialModeErrorSuppression(t *testing.T) {
 	mockConfig := configmock.New(t)
 	expvars.Reset()
@@ -1000,10 +973,9 @@ func TestWorkerTrialModeErrorSuppression(t *testing.T) {
 	mockShouldAddStatsFunc := func(checkid.ID) bool { return true }
 
 	// A trial check that errors on every run.
-	tc := newTrialCheck("trial_check:abc", t)
-	tc.testCheck.doErr = true
+	tc := newCheck(t, "trial_check:abc", true, nil)
 
-	pendingChecksChan <- tc
+	pendingChecksChan <- check.NewTrialModeCheck(tc)
 	close(pendingChecksChan)
 
 	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)
@@ -1056,18 +1028,19 @@ func TestWorkerTrialModePromotion(t *testing.T) {
 	// Single check object: succeeds on run 1 (runCount==0 before Inc),
 	// fails on run 2 (runCount==1 before Inc). ClearTrialMode is called by
 	// the worker after run 1 success, so run 2 is no longer trial-mode.
-	tc := newTrialCheck("trial_promote:abc", t)
-	tc.testCheck.runFunc = func(_ checkid.ID) {
-		if tc.testCheck.runCount.Load() >= 1 {
+	tc := newCheck(t, "trial_promote:abc", false, nil)
+	tc.runFunc = func(_ checkid.ID) {
+		if tc.runCount.Load() >= 1 {
 			// Second run and beyond: make the check fail.
-			tc.testCheck.Lock()
-			tc.testCheck.doErr = true
-			tc.testCheck.Unlock()
+			tc.Lock()
+			tc.doErr = true
+			tc.Unlock()
 		}
 	}
+	trialCheck := check.NewTrialModeCheck(tc)
 
-	pendingChecksChan <- tc // run 1: succeeds, promotes
-	pendingChecksChan <- tc // run 2: fails, no longer trial mode
+	pendingChecksChan <- trialCheck // run 1: succeeds, promotes
+	pendingChecksChan <- trialCheck // run 2: fails, no longer trial mode
 	close(pendingChecksChan)
 
 	worker, err := NewWorker(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t), 100, 200, pendingChecksChan, checksTracker, mockShouldAddStatsFunc, 0)

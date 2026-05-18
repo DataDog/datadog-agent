@@ -100,9 +100,6 @@ func (m *mockLongRunningCheck) IsHASupported() bool {
 	return args.Bool(0)
 }
 
-func (m *mockLongRunningCheck) IsTrialMode() bool { return false }
-func (m *mockLongRunningCheck) ClearTrialMode()   {}
-
 func (m *mockLongRunningCheck) GetSender() (sender.Sender, error) {
 	args := m.Called()
 	s := args.Get(0)

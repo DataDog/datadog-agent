@@ -103,14 +103,22 @@ func (c *CheckWrapper) ID() checkid.ID {
 	return c.inner.ID()
 }
 
-// IsTrialMode implements check.Check by forwarding to the inner check.
-func (c *CheckWrapper) IsTrialMode() bool {
-	return c.inner.IsTrialMode()
+type trialModeCheck interface {
+	IsTrialMode() bool
+	ClearTrialMode()
 }
 
-// ClearTrialMode implements check.Check by forwarding to the inner check.
+// IsTrialMode forwards trial-mode state when the wrapped check supports it.
+func (c *CheckWrapper) IsTrialMode() bool {
+	trialCheck, ok := c.inner.(trialModeCheck)
+	return ok && trialCheck.IsTrialMode()
+}
+
+// ClearTrialMode clears trial-mode state when the wrapped check supports it.
 func (c *CheckWrapper) ClearTrialMode() {
-	c.inner.ClearTrialMode()
+	if trialCheck, ok := c.inner.(trialModeCheck); ok {
+		trialCheck.ClearTrialMode()
+	}
 }
 
 // GetWarnings implements Check#GetWarnings

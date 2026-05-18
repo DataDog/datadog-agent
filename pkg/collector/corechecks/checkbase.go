@@ -298,9 +298,3 @@ func (c *CheckBase) GetDiagnoses() ([]diagnose.Diagnosis, error) {
 func (c *CheckBase) IsHASupported() bool {
 	return false
 }
-
-// IsTrialMode returns false; core checks are never in trial mode by default.
-func (c *CheckBase) IsTrialMode() bool { return false }
-
-// ClearTrialMode is a no-op for core checks that are not in trial mode.
-func (c *CheckBase) ClearTrialMode() {}
