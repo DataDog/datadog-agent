@@ -29,7 +29,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
+	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stub"

@@ -16,7 +16,7 @@ import (
 	"go.uber.org/fx"
 
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
+	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
