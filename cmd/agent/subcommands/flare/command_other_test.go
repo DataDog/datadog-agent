@@ -9,6 +9,8 @@
 package flare
 
 import (
+	"strings"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -24,5 +26,5 @@ func InjectConnectionFailures(mockSysProbeConfig model.Config, _ model.Config) {
 // CheckExpectedConnectionFailures checks the expected errors after simulated
 // connection failures.
 func CheckExpectedConnectionFailures(c *commandTestSuite, err error) {
-	require.Regexp(c.T(), "^5 errors occurred:\n", err.Error())
+	require.Equal(c.T(), 5, strings.Count(err.Error(), "\n")+1)
 }

@@ -106,8 +106,8 @@ enum
 
 enum
 {
-    ACTIVITY_DUMP_RUNNING = 1 << 0, // defines if an activity dump is running
-    SAVED_BY_ACTIVITY_DUMP = 1 << 1, // defines if the dentry should have been discarded, but was saved because of an activity dump
+    RESOLVER_FLAG_ACTIVITY_DUMP_RUNNING = 1 << 0, // defines if an activity dump is running
+    RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP = 1 << 1, // defines if the dentry should have been discarded, but was saved because of an activity dump
 };
 
 enum policy_mode

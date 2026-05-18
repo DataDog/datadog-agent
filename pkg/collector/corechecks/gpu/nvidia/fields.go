@@ -8,12 +8,12 @@
 package nvidia
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"slices"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-	"github.com/hashicorp/go-multierror"
 
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -113,16 +113,17 @@ func (c *fieldsCollector) Collect() ([]*Metric, error) {
 	}
 
 	metrics := make([]Metric, 0, len(c.fieldMetrics))
+	var errs []error
 	for i, val := range fields {
 		name := c.fieldMetrics[i].name
 		if val.NvmlReturn != uint32(nvml.SUCCESS) {
-			err = multierror.Append(err, fmt.Errorf("failed to get field value %s: %s", name, nvml.ErrorString(nvml.Return(val.NvmlReturn))))
+			errs = append(errs, fmt.Errorf("failed to get field value %s: %s", name, nvml.ErrorString(nvml.Return(val.NvmlReturn))))
 			continue
 		}
 
 		value, convErr := fieldValueToNumber[float64](nvml.ValueType(val.ValueType), val.Value)
 		if convErr != nil {
-			err = multierror.Append(err, fmt.Errorf("failed to convert field value %s: %w", name, convErr))
+			errs = append(errs, fmt.Errorf("failed to convert field value %s: %w", name, convErr))
 		}
 
 		metrics = append(metrics, Metric{
@@ -134,7 +135,7 @@ func (c *fieldsCollector) Collect() ([]*Metric, error) {
 		})
 	}
 
-	return metricValuesToPointers(metrics), err
+	return metricValuesToPointers(metrics), errors.Join(errs...)
 }
 
 // Name returns the name of the collector.

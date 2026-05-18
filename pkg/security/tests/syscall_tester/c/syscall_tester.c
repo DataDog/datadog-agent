@@ -23,6 +23,7 @@
 #include <netdb.h>
 #include <linux/un.h>
 #include <linux/prctl.h>
+#include <linux/sched.h>
 #include <err.h>
 #include <limits.h>
 #include <sys/time.h>
@@ -1999,6 +2000,67 @@ int test_subreaper(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+/* clone3 is not wrapped by glibc, call it directly. */
+static pid_t sys_clone3(struct clone_args *args, size_t size) {
+    return (pid_t)syscall(__NR_clone3, args, size);
+}
+
+// test_clone_into_cgroup forks a child directly into the given cgroup v2
+// directory using clone3 + CLONE_INTO_CGROUP, then has the child open the
+// given file with O_CREAT.
+// Usage: syscall_tester process-clone-into-cgroup <cgroup_v2_dir> <file>
+int test_clone_into_cgroup(int argc, char **argv) {
+    if (argc < 3) {
+        fprintf(stderr, "Usage: process-clone-into-cgroup <cgroup_v2_dir> <file>\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *cgroup_path = argv[1];
+    const char *file_path = argv[2];
+
+    int cgroup_fd = open(cgroup_path, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (cgroup_fd < 0) {
+        perror("open cgroup");
+        return EXIT_FAILURE;
+    }
+
+    struct clone_args args = {
+        .flags = CLONE_INTO_CGROUP,
+        .exit_signal = SIGCHLD,
+        .cgroup = (uint64_t)cgroup_fd,
+    };
+
+    pid_t pid = sys_clone3(&args, sizeof(args));
+    if (pid < 0) {
+        perror("clone3");
+        close(cgroup_fd);
+        return EXIT_FAILURE;
+    }
+
+    if (pid == 0) {
+        int fd = open(file_path, O_RDONLY | O_CREAT, 0400);
+        if (fd < 0) {
+            _exit(EXIT_FAILURE);
+        }
+        close(fd);
+        _exit(EXIT_SUCCESS);
+    }
+
+    close(cgroup_fd);
+
+    int status = 0;
+    if (waitpid(pid, &status, 0) < 0) {
+        perror("waitpid");
+        return EXIT_FAILURE;
+    }
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        fprintf(stderr, "child failed: status=%d\n", status);
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     setbuf(stdout, NULL);
 
@@ -2120,6 +2182,8 @@ int main(int argc, char **argv) {
             exit_code = test_dnsloop(sub_argc, sub_argv);
         } else if (strcmp(cmd, "subreaper") == 0) {
             exit_code = test_subreaper(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "process-clone-into-cgroup") == 0) {
+            exit_code = test_clone_into_cgroup(sub_argc, sub_argv);
         } else {
             fprintf(stderr, "Unknown command: %s\n", cmd);
             exit_code = EXIT_FAILURE;

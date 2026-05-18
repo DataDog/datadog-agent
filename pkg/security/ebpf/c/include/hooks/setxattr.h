@@ -6,7 +6,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-int __attribute__((always_inline)) trace__sys_setxattr(const char *xattr_name, u8 async, u64 pid_tgid) {
+int __attribute__((always_inline)) trace__sys_setxattr(void *ctx, const char *xattr_name, u8 async, u64 pid_tgid) {
     if (is_discarded_by_pid()) {
         return 0;
     }
@@ -25,24 +25,23 @@ int __attribute__((always_inline)) trace__sys_setxattr(const char *xattr_name, u
         syscall.xattr.pid_tgid = pid_tgid;
     }
 
-    cache_syscall(&syscall);
-
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
 HOOK_SYSCALL_ENTRY2(setxattr, const char *, filename, const char *, name) {
-    return trace__sys_setxattr(name, 0, 0);
+    return trace__sys_setxattr(ctx, name, 0, 0);
 }
 
 HOOK_SYSCALL_ENTRY2(lsetxattr, const char *, filename, const char *, name) {
-    return trace__sys_setxattr(name, 0, 0);
+    return trace__sys_setxattr(ctx, name, 0, 0);
 }
 
 HOOK_SYSCALL_ENTRY2(fsetxattr, int, fd, const char *, name) {
-    return trace__sys_setxattr(name, 0, 0);
+    return trace__sys_setxattr(ctx, name, 0, 0);
 }
 
-int __attribute__((always_inline)) trace__sys_removexattr(const char *xattr_name) {
+int __attribute__((always_inline)) trace__sys_removexattr(void *ctx, const char *xattr_name) {
     struct policy_t policy = fetch_policy(EVENT_REMOVEXATTR);
     struct syscall_cache_t syscall = {
         .type = EVENT_REMOVEXATTR,
@@ -52,21 +51,20 @@ int __attribute__((always_inline)) trace__sys_removexattr(const char *xattr_name
         }
     };
 
-    cache_syscall(&syscall);
-
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
 HOOK_SYSCALL_ENTRY2(removexattr, const char *, filename, const char *, name) {
-    return trace__sys_removexattr(name);
+    return trace__sys_removexattr(ctx, name);
 }
 
 HOOK_SYSCALL_ENTRY2(lremovexattr, const char *, filename, const char *, name) {
-    return trace__sys_removexattr(name);
+    return trace__sys_removexattr(ctx, name);
 }
 
 HOOK_SYSCALL_ENTRY2(fremovexattr, int, fd, const char *, name) {
-    return trace__sys_removexattr(name);
+    return trace__sys_removexattr(ctx, name);
 }
 
 int __attribute__((always_inline)) trace__vfs_setxattr(ctx_t *ctx, u64 event_type) {
@@ -136,7 +134,7 @@ int hook_vfs_removexattr(ctx_t *ctx) {
 int __attribute__((always_inline)) trace_io_fsetxattr(ctx_t *ctx) {
     void *raw_req = (void *)CTX_PARM1(ctx);
     u64 pid_tgid = get_pid_tgid_from_iouring(raw_req);
-    return trace__sys_setxattr(NULL, 1, pid_tgid);
+    return trace__sys_setxattr(ctx, NULL, 1, pid_tgid);
 }
 
 int __attribute__((always_inline)) sys_xattr_ret(void *ctx, int retval, u64 event_type) {

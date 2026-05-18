@@ -27,7 +27,6 @@ int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *p
             } }
     };
     collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0), (void *)path, NULL, NULL);
-    cache_syscall(&syscall);
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
@@ -41,6 +40,7 @@ int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *p
         bpf_map_update_elem(&exec_pid_transfer, &tgid, &pid_tgid, BPF_ANY);
     }
 
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
@@ -138,8 +138,7 @@ int __attribute__((always_inline)) handle_do_fork(ctx_t *ctx) {
 
     syscall.fork.flags = flags;
 
-    cache_syscall(&syscall);
-
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 

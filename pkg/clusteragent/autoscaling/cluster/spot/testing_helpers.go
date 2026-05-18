@@ -13,7 +13,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/utils/clock"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
@@ -22,7 +21,7 @@ import (
 type TestScheduler = scheduler
 
 // NewTestScheduler creates a scheduler for testing.
-func NewTestScheduler(config Config, clk clock.WithTicker, wlm workloadmeta.Component, evictPod func(namespace, name string) error, dynamicClient dynamic.Interface) *TestScheduler {
+func NewTestScheduler(config Config, wlm workloadmeta.Component, evictPod func(namespace, name string) error, dynamicClient dynamic.Interface) *TestScheduler {
 	isLeader := func() bool {
 		return true
 	}
@@ -32,7 +31,7 @@ func NewTestScheduler(config Config, clk clock.WithTicker, wlm workloadmeta.Comp
 	patcherFunc := workloadPatcherFunc(func(context.Context, objectRef, time.Time) error {
 		return nil
 	})
-	return newScheduler(config, clk, wlm, evictorFunc, patcherFunc, dynamicClient, newWLMPodLister(wlm), isLeader)
+	return newScheduler(config, wlm, evictorFunc, patcherFunc, dynamicClient, newWLMPodLister(wlm), isLeader)
 }
 
 // HasAdmissionsOrPending reports whether the pod tracker has any in-flight admissions or pending pods
@@ -86,7 +85,7 @@ func (s *TestScheduler) IsSpotSchedulingDisabled(group, kind, namespace, name st
 	if !ok {
 		return false
 	}
-	return cfg.isDisabled(s.clock.Now())
+	return cfg.isDisabled(time.Now())
 }
 
 // HasConfig reports whether the workload has an entry in the config store.
@@ -102,6 +101,9 @@ func (s *TestScheduler) HasTrackedPods(group, kind, namespace, name string) bool
 	_, ok := s.tracker.podSets[objectRef{Group: group, Kind: kind, Namespace: namespace, Name: name}]
 	return ok
 }
+
+// SchedulerTick is the scheduler's internal tick interval, exported for tests.
+const SchedulerTick time.Duration = max(rebalanceInterval, checkOnDemandFallbackInterval)
 
 // Spot node selector and taint exported for tests.
 const (

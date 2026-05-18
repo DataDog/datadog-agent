@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "detectors",
+    srcs = ["jruby_detector.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/languagedetection/internal/detectors",
+    visibility = ["//pkg/languagedetection:__subpackages__"],
+    deps = ["//pkg/languagedetection/languagemodels"],
+)

@@ -676,7 +676,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_with_tgid(u32 
             // is this event type traced ?
             if (mask_has_event(config->event_mask, syscall->type) && activity_dump_rate_limiter_allow(config->events_rate, *cookie, now, 0)) {
                 if (syscall->state == DISCARDED) {
-                    syscall->resolver.flags |= SAVED_BY_ACTIVITY_DUMP;
+                    syscall->resolver.flags |= RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP;
                 }
 
                 // force to be accepted as this event will be part of a dump
@@ -686,7 +686,7 @@ enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_with_tgid(u32 
     }
 
     if (syscall->state == SAMPLED) {
-        syscall->resolver.flags |= SAVED_BY_ACTIVITY_DUMP;
+        syscall->resolver.flags |= RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP;
 
         // force to be accepted as this event will be part of a dump
         syscall->state = ACCEPTED;

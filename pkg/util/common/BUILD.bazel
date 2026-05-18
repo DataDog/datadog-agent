@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "common.go",
         "context.go",
+        "context_test_helpers.go",
         "math.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/common",

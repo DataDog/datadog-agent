@@ -13,8 +13,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
-
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -358,7 +356,7 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 
 	perDeviceMetrics := make(map[string]*deviceMetricsCollection)
 
-	var multiErr error
+	var multiErr []error
 	for _, collector := range c.collectors {
 		log.Debugf("Collecting metrics from NVML collector: %s", collector.Name())
 		startTime := time.Now()
@@ -368,7 +366,7 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 
 		if collectErr != nil {
 			c.telemetry.collectorTelemetry.CollectionErrors.Add(1, string(collector.Name()))
-			multiErr = multierror.Append(multiErr, fmt.Errorf("collector %s failed. %w", collector.Name(), collectErr))
+			multiErr = append(multiErr, fmt.Errorf("collector %s failed. %w", collector.Name(), collectErr))
 		}
 
 		if len(metrics) > 0 {
@@ -398,16 +396,16 @@ func (c *Check) emitMetrics(snd sender.Sender, gpuToContainersMap map[string][]*
 		// iterate through filtered metrics and emit them with the tags
 		for _, metric := range deduplicatedMetrics {
 			if err := c.emitSingleMetric(metric, snd, currentExecutionTime, deviceContainers, deviceTags); err != nil {
-				multiErr = multierror.Append(multiErr, fmt.Errorf("error emitting metric %s: %w", metric.Name, err))
+				multiErr = append(multiErr, fmt.Errorf("error emitting metric %s: %w", metric.Name, err))
 			}
 		}
 	}
 
-	return multiErr
+	return errors.Join(multiErr...)
 }
 
 func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, currentExecutionTime time.Time, deviceContainers []*workloadmeta.Container, deviceTags []string) error {
-	var multiErr error
+	var multiErr []error
 
 	metricWorkloads := metric.AssociatedWorkloads
 
@@ -422,7 +420,7 @@ func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, curre
 	for _, workloadID := range metricWorkloads {
 		tags, err := c.workloadTagCache.GetOrCreateWorkloadTags(workloadID)
 		if err != nil && !agenterrors.IsNotFound(err) { // Only report errors that are not "not found"
-			multiErr = multierror.Append(multiErr, fmt.Errorf("error collecting workload tags for workload %s of type %s: %w", workloadID.ID, workloadID.Kind, err))
+			multiErr = append(multiErr, fmt.Errorf("error collecting workload tags for workload %s of type %s: %w", workloadID.ID, workloadID.Kind, err))
 		}
 
 		// always continue with whatever tags we can get even if there are errors
@@ -460,8 +458,8 @@ func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, curre
 	}
 
 	if err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("error sending metric: %w", err))
+		multiErr = append(multiErr, fmt.Errorf("error sending metric: %w", err))
 	}
 
-	return multiErr
+	return errors.Join(multiErr...)
 }

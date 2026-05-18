@@ -19,7 +19,7 @@ HOOK_SYSCALL_ENTRY0(splice) {
         .policy = policy,
     };
 
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 

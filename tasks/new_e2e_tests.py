@@ -1425,6 +1425,10 @@ def _destroy_stack(ctx: Context, stack: str):
                     ),
                     1,
                 )
+            if "no previous deployment" in ret.stderr:
+                # Stack was created but never had a successful up; no resources to destroy.
+                print(f"Stack {stack} has no previous deployment, skipping destroy")
+                return
             # run with refresh on first destroy attempt failure
             ret = ctx.run(
                 f"pulumi destroy --stack {stack} -r --yes --remove --skip-preview",

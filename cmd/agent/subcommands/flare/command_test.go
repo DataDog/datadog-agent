@@ -206,7 +206,7 @@ func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
 	profiler := getProfiler(t)
 	data, err := profiler.ReadProfileData(10, func(string, ...interface{}) error { return nil })
 	require.Error(t, err)
-	require.Regexp(t, "^* error collecting trace agent profile: ", err.Error())
+	require.Regexp(t, "^error collecting trace agent profile: ", err.Error())
 
 	expected := flaretypes.ProfileData{
 		"core-1st-heap.pprof":           []byte("heap_profile"),

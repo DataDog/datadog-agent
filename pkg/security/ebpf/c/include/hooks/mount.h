@@ -119,7 +119,7 @@ HOOK_SYSCALL_COMPAT_ENTRY3(mount, const char *, source, const char *, target, co
     };
 
     collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0) | SYSCALL_CTX_ARG_STR(1) | SYSCALL_CTX_ARG_STR(2), (void *)source, (void *)target, (void *)fstype);
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
 
     return 0;
 }
@@ -134,7 +134,7 @@ HOOK_SYSCALL_ENTRY1(unshare, unsigned long, flags) {
         .type = EVENT_UNSHARE_MNTNS,
     };
 
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
 
     return 0;
 }
@@ -574,7 +574,7 @@ HOOK_SYSCALL_ENTRY3(open_tree, int, dfd, const char *, filename, unsigned int, f
     struct syscall_cache_t syscall = {
         .type = EVENT_OPEN_TREE,
     };
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 
@@ -589,7 +589,7 @@ HOOK_SYSCALL_ENTRY3(fsmount, int, fs_fd, unsigned int, flags, unsigned int, attr
         .type = EVENT_FSMOUNT,
     };
 
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
 
     return 0;
 }
@@ -614,7 +614,7 @@ HOOK_SYSCALL_ENTRY4(move_mount, int, from_dfd, const char *, from_pathname, int,
         .type = EVENT_MOVE_MOUNT,
     };
 
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
 
     return 0;
 }

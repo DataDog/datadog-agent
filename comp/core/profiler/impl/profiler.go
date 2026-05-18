@@ -9,6 +9,7 @@ package profilerimpl
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -17,8 +18,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"time"
-
-	"github.com/hashicorp/go-multierror"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -179,14 +178,14 @@ func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params .
 		agentCollectors["system-probe"] = serviceProfileCollector(sysProbeGet(), seconds)
 	}
 
-	var errs error
+	var errs []error
 	for name, callback := range agentCollectors {
 		if err := callback(name); err != nil {
-			errs = multierror.Append(errs, fmt.Errorf("error collecting %s agent profile: %v", name, err))
+			errs = append(errs, fmt.Errorf("error collecting %s agent profile: %v", name, err))
 		}
 	}
 
-	return pdata, errs
+	return pdata, errors.Join(errs...)
 }
 
 func (p profiler) setProfilerSetting(settingName string, newValue int, fb flaretypes.FlareBuilder) func() {

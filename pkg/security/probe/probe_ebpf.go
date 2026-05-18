@@ -128,6 +128,7 @@ type EBPFProbe struct {
 	variableStore   *eval.VariableStore
 	variableStoreMu sync.RWMutex
 	numCPU          int
+	pid             uint32
 
 	ctx       context.Context
 	cancelFnc context.CancelFunc
@@ -430,7 +431,7 @@ func (p *EBPFProbe) VerifyEnvironment() *multierror.Error {
 			err = multierror.Append(err, fmt.Errorf("%s doesn't seem to be a mountpoint", securityFSPath))
 		}
 
-		capsEffective, _, capErr := utils.CapEffCapEprm(utils.Getpid())
+		capsEffective, _, capErr := utils.CapEffCapEprm(p.pid)
 		if capErr != nil {
 			err = multierror.Append(capErr, errors.New("failed to get process capabilities"))
 		} else {
@@ -1112,7 +1113,7 @@ func (p *EBPFProbe) triggerNopEvent() error {
 }
 
 // setProcessContext set the process context, should return false if the event shouldn't be dispatched
-func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Event, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
+func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Event, cgroupContext model.CGroupContext, newEntryCb func(entry *model.ProcessCacheEntry, err error)) bool {
 	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event, newEntryCb)
 	event.ProcessCacheEntry = entry
 	if event.ProcessCacheEntry == nil {
@@ -1151,6 +1152,18 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 			if _, err := entry.HasValidLineage(); err != nil {
 				event.Error = &model.ErrProcessBrokenLineage{Err: err}
 				p.Resolvers.ProcessResolver.CountBrokenLineage()
+			}
+
+			// the kernel updates proc_cache's cgroup inode on every syscall (see
+			// cache_syscall); a divergence here means the process migrated cgroups
+			// since the cache entry was created, so refresh both resolvers from the
+			// authoritative event-time cgroupContext.
+			if entry.CGroup.CGroupPathKey.Inode != cgroupContext.CGroupPathKey.Inode && event.PIDContext.Pid != p.pid {
+				if cacheEntry := p.Resolvers.CGroupResolver.AddPID(entry.Pid, cgroupContext); cacheEntry == nil {
+					seclog.Debugf("Failed to resolve cgroup for pid %d: %+v", entry.Pid, cgroupContext.CGroupPathKey)
+				} else {
+					p.Resolvers.ProcessResolver.UpdateProcessContexts(entry, cacheEntry.GetCGroupContext(), cacheEntry.GetContainerContext())
+				}
 			}
 		}
 	}
@@ -1277,7 +1290,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		return
 	}
 	// resolve process context
-	if !p.setProcessContext(eventType, event, newEntryCb) {
+	if !p.setProcessContext(eventType, event, cgroupContext, newEntryCb) {
 		return
 	}
 
@@ -1357,19 +1370,21 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 		fs := p.fieldHandlers.ResolveFileFilesystem(event, &event.Open.File)
 
 		if fs == "cgroup2" && event.Open.File.PathKey.Inode != 0 && event.Open.File.FileFields.IsDir() {
-			cgroupContext := model.CGroupContext{
-				CGroupPathKey: event.Open.File.PathKey,
-				CGroupSource:  model.CGroupSourceEvent,
-				CreatedAt:     uint64(time.Now().UnixNano()),
+			if event.Open.Retval >= 0 && event.PIDContext.Pid != p.pid {
+				cgroupContext := model.CGroupContext{
+					CGroupPathKey: event.Open.File.PathKey,
+					CGroupSource:  model.CGroupSourceEvent,
+					CreatedAt:     uint64(time.Now().UnixNano()),
+				}
+				p.Resolvers.CGroupResolver.Add(cgroupContext)
 			}
-			p.Resolvers.CGroupResolver.Add(cgroupContext)
-		}
 
-		// internal open events are emitted only to populate the cgroup
-		// resolver above; they don't reflect a user action so skip rule
-		// evaluation
-		if event.IsEventInternal() {
-			return false
+			// internal open events are emitted only to populate the cgroup
+			// resolver above; they don't reflect a user action so skip rule
+			// evaluation
+			if event.IsEventInternal() || event.PIDContext.Pid == p.pid {
+				return false
+			}
 		}
 	case model.FileMkdirEventType:
 		if !p.regularUnmarshalEvent(&event.Mkdir, eventType, offset, dataLen, data) {
@@ -1382,15 +1397,17 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 
 		// handle cgroup v2 deletion
 		fs := p.fieldHandlers.ResolveFileFilesystem(event, &event.Rmdir.File)
-		if fs == "cgroup2" && event.Rmdir.File.PathKey.Inode != 0 && event.Rmdir.File.IsDir() && event.Rmdir.Retval == 0 {
-			p.Resolvers.CGroupResolver.Delete(event.Rmdir.File.PathKey.Inode)
-		}
+		if fs == "cgroup2" && event.Rmdir.File.PathKey.Inode != 0 && event.Rmdir.File.IsDir() {
+			if event.Rmdir.Retval == 0 && event.PIDContext.Pid != p.pid {
+				p.Resolvers.CGroupResolver.Delete(event.Rmdir.File.PathKey.Inode)
+			}
 
-		// internal rmdir events are emitted only to update the cgroup
-		// resolver above; they don't reflect a user action so skip rule
-		// evaluation
-		if event.IsEventInternal() {
-			return false
+			// internal rmdir events are emitted only to populate the cgroup
+			// resolver above; they don't reflect a user action so skip rule
+			// evaluation
+			if event.IsEventInternal() || event.PIDContext.Pid == p.pid {
+				return false
+			}
 		}
 	case model.FileUnlinkEventType:
 		if !p.regularUnmarshalEvent(&event.Unlink, eventType, offset, dataLen, data) {
@@ -1399,15 +1416,16 @@ func (p *EBPFProbe) handleRegularEvent(event *model.Event, offset int, dataLen u
 
 		// handle cgroup v2 deletion
 		fs := p.fieldHandlers.ResolveFileFilesystem(event, &event.Unlink.File)
-		if fs == "cgroup2" && event.Unlink.File.PathKey.Inode != 0 && event.Unlink.File.IsDir() && event.Unlink.Retval == 0 {
-			p.Resolvers.CGroupResolver.Delete(event.Unlink.File.PathKey.Inode)
-		}
-
-		// internal unlink events are emitted only to update the cgroup
-		// resolver above; they don't reflect a user action so skip rule
-		// evaluation
-		if event.IsEventInternal() {
-			return false
+		if fs == "cgroup2" && event.Unlink.File.PathKey.Inode != 0 && event.Unlink.File.IsDir() {
+			if event.Unlink.Retval == 0 && event.PIDContext.Pid != p.pid {
+				p.Resolvers.CGroupResolver.Delete(event.Unlink.File.PathKey.Inode)
+			}
+			// internal unlink events are emitted only to populate the cgroup
+			// resolver above; they don't reflect a user action so skip rule
+			// evaluation
+			if event.IsEventInternal() || event.PIDContext.Pid == p.pid {
+				return false
+			}
 		}
 	case model.FileRenameEventType:
 		if !p.regularUnmarshalEvent(&event.Rename, eventType, offset, dataLen, data) {
@@ -2690,7 +2708,7 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		},
 		manager.ConstantEditor{
 			Name:  "runtime_pid",
-			Value: uint64(utils.Getpid()),
+			Value: uint64(p.pid),
 		},
 		manager.ConstantEditor{
 			Name:  "do_fork_input",
@@ -3069,6 +3087,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, hostname string, opts Opt
 		BPFFilterTruncated:   atomic.NewUint64(0),
 		MetricNameTruncated:  atomic.NewUint64(0),
 		activeRemediations:   make(map[string]*Remediation),
+		pid:                  utils.Getpid(),
 	}
 
 	if err := p.detectKernelVersion(); err != nil {

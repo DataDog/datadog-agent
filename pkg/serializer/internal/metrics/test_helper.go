@@ -85,3 +85,7 @@ func (ps PipelineSet) GetPayloads() (payloads transaction.BytesPayloads) {
 	}
 	return
 }
+
+func testPipelines() PipelineSet {
+	return PipelineSet{{AllowAllFilter{}, false}: {}}
+}

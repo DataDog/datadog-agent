@@ -26,7 +26,7 @@ HOOK_SYSCALL_ENTRY0(setsid) {
     struct syscall_cache_t syscall = {
         .type = EVENT_SETSID,
     };
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 

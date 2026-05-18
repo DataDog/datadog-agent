@@ -17,8 +17,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/hashicorp/go-multierror"
-
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 
@@ -69,15 +67,16 @@ func (p *autoscalingValuesProcessor) processItem(receivedTimestamp time.Time, co
 	}
 
 	log.Debugf("Processing %d values from config id:%s, version: %d, config key: %s", len(valuesList.Values), rawConfig.Metadata.ID, rawConfig.Metadata.Version, configKey)
+	var errs []error
 	for _, values := range valuesList.Values {
 		processErr := p.processValues(values, rawConfig.Metadata.Version, receivedTimestamp)
 		if processErr != nil {
-			err = multierror.Append(err, fmt.Errorf("received invalid Autoscaling Values from config id:%s, version: %d, config key: %s, discarding", rawConfig.Metadata.ID, rawConfig.Metadata.Version, configKey))
+			errs = append(errs, fmt.Errorf("received invalid Autoscaling Values from config id:%s, version: %d, config key: %s, discarding", rawConfig.Metadata.ID, rawConfig.Metadata.Version, configKey))
 		}
 	}
 
-	p.lastProcessingError = err != nil
-	return err
+	p.lastProcessingError = len(errs) > 0
+	return errors.Join(errs...)
 }
 
 func (p *autoscalingValuesProcessor) processValues(values *kubeAutoscaling.WorkloadValues, receivedVersion uint64, timestamp time.Time) error {

@@ -12,15 +12,20 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/net/http2"
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	oci "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/empty"
 	"github.com/google/go-containerregistry/pkg/v1/google"
+	"github.com/google/go-containerregistry/pkg/v1/mutate"
+	"github.com/google/go-containerregistry/pkg/v1/random"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
@@ -221,6 +226,90 @@ func TestGetRefAndKeychain(t *testing.T) {
 		assert.Equal(t, tt.expectedRef, actual.ref)
 		assert.Equal(t, tt.expectedKeychain, actual.keychain)
 	}
+}
+
+func TestDownloadIndexVariantSelection(t *testing.T) {
+	plat := oci.Platform{OS: runtime.GOOS, Architecture: runtime.GOARCH}
+
+	baseImg, err := random.Image(64, 1)
+	require.NoError(t, err)
+	baseDigest, err := baseImg.Digest()
+	require.NoError(t, err)
+
+	fipsImg, err := random.Image(64, 1)
+	require.NoError(t, err)
+	fipsDigest, err := fipsImg.Digest()
+	require.NoError(t, err)
+	require.NotEqual(t, baseDigest, fipsDigest)
+
+	bothFlavorIndex := mutate.AppendManifests(empty.Index,
+		mutate.IndexAddendum{
+			Add:        baseImg,
+			Descriptor: oci.Descriptor{Platform: &plat},
+		},
+		mutate.IndexAddendum{
+			Add: fipsImg,
+			Descriptor: oci.Descriptor{
+				Platform: &oci.Platform{OS: plat.OS, Architecture: plat.Architecture, Variant: VariantFIPS},
+			},
+		},
+	)
+
+	t.Run("FIPSMode=false picks the base manifest", func(t *testing.T) {
+		d := NewDownloader(&env.Env{FIPSMode: false}, http.DefaultClient)
+		got, err := d.downloadIndex(bothFlavorIndex)
+		require.NoError(t, err)
+		gotDigest, err := got.Digest()
+		require.NoError(t, err)
+		assert.Equal(t, baseDigest, gotDigest)
+	})
+
+	t.Run("FIPSMode=true picks the FIPS manifest", func(t *testing.T) {
+		d := NewDownloader(&env.Env{FIPSMode: true}, http.DefaultClient)
+		got, err := d.downloadIndex(bothFlavorIndex)
+		require.NoError(t, err)
+		gotDigest, err := got.Digest()
+		require.NoError(t, err)
+		assert.Equal(t, fipsDigest, gotDigest)
+	})
+
+	// Even if the FIPS manifest is listed first in the index, a non-FIPS
+	// request must skip it instead of accepting it via Satisfies' empty-variant
+	// wildcard.
+	t.Run("FIPSMode=false skips FIPS manifest regardless of index order", func(t *testing.T) {
+		reorderedIndex := mutate.AppendManifests(empty.Index,
+			mutate.IndexAddendum{
+				Add: fipsImg,
+				Descriptor: oci.Descriptor{
+					Platform: &oci.Platform{OS: plat.OS, Architecture: plat.Architecture, Variant: VariantFIPS},
+				},
+			},
+			mutate.IndexAddendum{
+				Add:        baseImg,
+				Descriptor: oci.Descriptor{Platform: &plat},
+			},
+		)
+		d := NewDownloader(&env.Env{FIPSMode: false}, http.DefaultClient)
+		got, err := d.downloadIndex(reorderedIndex)
+		require.NoError(t, err)
+		gotDigest, err := got.Digest()
+		require.NoError(t, err)
+		assert.Equal(t, baseDigest, gotDigest)
+	})
+
+	// FIPS mode must not fall back to a base manifest if no FIPS variant is
+	// present in the index.
+	t.Run("FIPSMode=true returns ErrPackageNotFound when no FIPS manifest exists", func(t *testing.T) {
+		baseOnlyIndex := mutate.AppendManifests(empty.Index,
+			mutate.IndexAddendum{
+				Add:        baseImg,
+				Descriptor: oci.Descriptor{Platform: &plat},
+			},
+		)
+		d := NewDownloader(&env.Env{FIPSMode: true}, http.DefaultClient)
+		_, err := d.downloadIndex(baseOnlyIndex)
+		require.Error(t, err)
+	})
 }
 
 func TestPackageURL(t *testing.T) {

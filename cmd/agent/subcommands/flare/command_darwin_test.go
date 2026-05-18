@@ -6,6 +6,8 @@
 package flare
 
 import (
+	"strings"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -20,5 +22,5 @@ func InjectConnectionFailures(_ model.Config, _ model.Config) {
 // connection failures.
 func CheckExpectedConnectionFailures(c *commandTestSuite, err error) {
 	// System probe by default is disabled and no connection is attempted for it in the test.
-	require.Regexp(c.T(), "^4 errors occurred:\n", err.Error())
+	require.Equal(c.T(), 4, strings.Count(err.Error(), "\n")+1)
 }

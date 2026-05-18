@@ -151,6 +151,7 @@ BPF_PROG_ARRAY(raw_packet_classifier_router_0, 32)
 BPF_PROG_ARRAY(raw_packet_classifier_router_1, 32)
 BPF_PROG_ARRAY(flush_network_stats_progs, 2)
 BPF_PROG_ARRAY(open_ret_progs, 1)
+BPF_PROG_ARRAY(cache_syscall_progs, 1)
 
 BPF_PERF_EVENT_ARRAY_MAP(events, u32)
 BPF_PERCPU_ARRAY_MAP(events_stats, struct perf_map_stats_t, EVENT_MAX)

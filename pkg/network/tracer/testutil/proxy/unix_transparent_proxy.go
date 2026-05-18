@@ -187,7 +187,7 @@ func (p *UnixTransparentProxyServer) handleConnection(unixSocketConn net.Conn) {
 	var err error
 	if p.useTLS {
 		timedContext, cancel := context.WithTimeout(context.Background(), defaultDialTimeout)
-		dialer := &tls.Dialer{Config: &tls.Config{InsecureSkipVerify: true}}
+		dialer := &tls.Dialer{Config: &tls.Config{InsecureSkipVerify: true, NextProtos: []string{"h2", "http/1.1"}}}
 		remoteConn, err = dialer.DialContext(timedContext, network, p.remoteAddr)
 		cancel()
 	} else {

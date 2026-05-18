@@ -89,21 +89,17 @@ type Profile struct {
 
 	// V2
 	// First has been sent
-	hasAlreadyBeenSent bool
+	hasAlreadyBeenSent *atomic.Bool
 }
 
 // HasAlreadyBeenSent returns true if the profile has already been sent
 func (p *Profile) HasAlreadyBeenSent() bool {
-	p.Lock()
-	defer p.Unlock()
-	return p.hasAlreadyBeenSent
+	return p.hasAlreadyBeenSent.Load()
 }
 
 // SetHasAlreadyBeenSent sets the hasAlreadyBeenSent flag to true
 func (p *Profile) SetHasAlreadyBeenSent() {
-	p.Lock()
-	defer p.Unlock()
-	p.hasAlreadyBeenSent = true
+	p.hasAlreadyBeenSent.Store(true)
 }
 
 // Opts defines the options to create a new profile
@@ -150,10 +146,11 @@ func New(opts ...Opts) *Profile {
 		Header: ActivityDumpHeader{
 			DNSNames: utils.NewStringKeys(nil),
 		},
-		LoadedInKernel:  atomic.NewBool(false),
-		LoadedNano:      atomic.NewUint64(0),
-		versionContexts: make(map[string]*VersionContext),
-		profileCookie:   utils.RandNonZeroUint64(),
+		LoadedInKernel:     atomic.NewBool(false),
+		LoadedNano:         atomic.NewUint64(0),
+		hasAlreadyBeenSent: atomic.NewBool(false),
+		versionContexts:    make(map[string]*VersionContext),
+		profileCookie:      utils.RandNonZeroUint64(),
 	}
 
 	for _, opt := range opts {

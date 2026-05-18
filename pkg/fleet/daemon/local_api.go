@@ -593,6 +593,7 @@ func (c *localAPIClientImpl) PromoteConfigExperiment(pkg string) error {
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 	var response APIResponse
 	err = json.NewDecoder(resp.Body).Decode(&response)
 	if err != nil {
@@ -601,7 +602,6 @@ func (c *localAPIClientImpl) PromoteConfigExperiment(pkg string) error {
 	if response.Error != nil {
 		return fmt.Errorf("error promoting config experiment: %s", response.Error.Message)
 	}
-	defer resp.Body.Close()
 	return nil
 }
 

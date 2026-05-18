@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "reader",
+    srcs = ["reader.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd/http/impl/internal/reader",
+    visibility = ["//comp/dogstatsd/http/impl:__subpackages__"],
+    deps = [
+        "//pkg/metrics",
+        "//pkg/proto/pbgo/dogstatsdhttp",
+        "@com_github_datadog_agent_payload_v5//gogen",
+    ],
+)
+
+go_test(
+    name = "reader_test",
+    srcs = ["reader_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":reader"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/proto/pbgo/dogstatsdhttp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
