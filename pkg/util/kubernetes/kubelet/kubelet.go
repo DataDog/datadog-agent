@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -70,7 +71,8 @@ type KubeUtil struct {
 	// used to switch to HTTPS scheme if available
 	httpsRetry retry.Retrier
 
-	kubeletClient        *kubeletClient
+	kubeletClient        [2]*kubeletClient
+	kubeletClientIdx     atomic.Uint32
 	rawConnectionInfo    map[string]string // kept to pass to the python kubelet check
 	podListCacheDuration time.Duration     // a duration of 0 disables the cache
 	podUnmarshaller      *podUnmarshaller
@@ -85,58 +87,74 @@ type KubeUtil struct {
 	nodeNameMutex sync.Mutex
 }
 
+// kubelet client can be re-allocated at runtime this way we use a double bank system
+// to allocate new client while other goroutines use the old one.
+func (ku *KubeUtil) getKubeletClient() *kubeletClient {
+	return ku.kubeletClient[ku.kubeletClientIdx.Load()%2]
+}
+
 func (ku *KubeUtil) initKubeletClientHTTPS() error {
-	err := ku.initKubeletClient()
+	newKubeletClient, rawConnectionInfos, err := ku.initKubeletClient()
 	if err != nil {
 		return err
 	}
 
-	if ku.kubeletClient.config.scheme == "http" {
+	if newKubeletClient.config.scheme == "http" {
 		return errFailedKubeletClientHTTPS
 	}
+
+	// we successfully allocated the new client for HTTPS
+	// sotre it in the next slot
+	newIndex := ku.kubeletClientIdx.Load() + 1
+	ku.kubeletClient[newIndex] = newKubeletClient
+	ku.rawConnectionInfo = rawConnectionInfos
+	ku.kubeletClientIdx.Add(1)
 
 	return nil
 }
 
-func (ku *KubeUtil) initKubeletClient() error {
+func (ku *KubeUtil) initKubeletClient() (*kubeletClient, map[string]string, error) {
 	var err error
-	ku.kubeletClient, err = getKubeletClient(context.Background())
+	var newKubeletClient *kubeletClient
+	var rawConnectionInfo = map[string]string{}
+
+	newKubeletClient, err = getKubeletClient(context.Background())
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
-	ku.rawConnectionInfo["url"] = ku.kubeletClient.kubeletURL
-	if ku.kubeletClient.config.scheme == "https" {
-		ku.rawConnectionInfo["verify_tls"] = strconv.FormatBool(ku.kubeletClient.config.tlsVerify)
-		if ku.kubeletClient.config.caPath != "" {
-			ku.rawConnectionInfo["ca_cert"] = ku.kubeletClient.config.caPath
+	rawConnectionInfo["url"] = newKubeletClient.kubeletURL
+	if newKubeletClient.config.scheme == "https" {
+		rawConnectionInfo["verify_tls"] = strconv.FormatBool(newKubeletClient.config.tlsVerify)
+		if newKubeletClient.config.caPath != "" {
+			rawConnectionInfo["ca_cert"] = newKubeletClient.config.caPath
 		}
-		if ku.kubeletClient.config.clientCertPath != "" && ku.kubeletClient.config.clientKeyPath != "" {
-			ku.rawConnectionInfo["client_crt"] = ku.kubeletClient.config.clientCertPath
-			ku.rawConnectionInfo["client_key"] = ku.kubeletClient.config.clientKeyPath
+		if newKubeletClient.config.clientCertPath != "" && newKubeletClient.config.clientKeyPath != "" {
+			rawConnectionInfo["client_crt"] = newKubeletClient.config.clientCertPath
+			rawConnectionInfo["client_key"] = newKubeletClient.config.clientKeyPath
 		}
-		if ku.kubeletClient.config.token != "" {
-			ku.rawConnectionInfo["token"] = ku.kubeletClient.config.token
-		}
-	}
-
-	if pkgconfigsetup.Datadog().GetBool("kubelet_use_api_server") {
-		ku.useAPIServer = true
-		ku.kubeletClient.config.nodeName, err = ku.GetNodename(context.Background())
-		if err != nil {
-			return err
+		if newKubeletClient.config.token != "" {
+			rawConnectionInfo["token"] = newKubeletClient.config.token
 		}
 	}
 
-	return nil
+	return newKubeletClient, rawConnectionInfo, nil
 }
 
 func (ku *KubeUtil) init() error {
 	var err error
 
-	err = ku.initKubeletClient()
+	ku.kubeletClient[0], ku.rawConnectionInfo, err = ku.initKubeletClient()
 	if err != nil {
 		return err
+	}
+
+	if pkgconfigsetup.Datadog().GetBool("kubelet_use_api_server") {
+		ku.useAPIServer = true
+		ku.getKubeletClient().config.nodeName, err = ku.GetNodename(context.Background())
+		if err != nil {
+			return err
+		}
 	}
 
 	if env.IsFeaturePresent(env.PodResources) {
@@ -208,7 +226,8 @@ func GetKubeUtilWithRetrier() (KubeUtilInterface, *retry.Retrier) {
 	}
 
 	// try to switch to https
-	if globalKubeUtil.kubeletClient.config.scheme == "http" && time.Now().After(globalKubeUtil.httpsRetry.NextRetry()) {
+	if globalKubeUtil.getKubeletClient().config.scheme == "http" && time.Now().After(globalKubeUtil.httpsRetry.NextRetry()) {
+		log.Infof("kubelet client uses http, try https instead")
 		err := globalKubeUtil.httpsRetry.TriggerRetry()
 
 		// no error => happy path, we have HTTPS now.
@@ -217,9 +236,11 @@ func GetKubeUtilWithRetrier() (KubeUtilInterface, *retry.Retrier) {
 		// we can still return the client as is, as it works using HTTP only.
 		// the next call to this function will retry reaching it using HTTPS
 		if err == nil || errors.Is(err, errFailedKubeletClientHTTPS) {
+			log.Infof("failed to try https, http only for now")
 			return globalKubeUtil, nil
 		}
 
+		log.Errorf("complete failure my friend: %s", err.Error())
 		// error while init kubelet client
 		return nil, &globalKubeUtil.httpsRetry
 	}
@@ -243,7 +264,7 @@ func (ku *KubeUtil) StreamLogs(ctx context.Context, podNamespace, podName, conta
 		query += "&sinceTime=" + logOptions.SinceTime.Format(time.RFC3339)
 	}
 	path := fmt.Sprintf("/containerLogs/%s/%s/%s?%s", podNamespace, podName, containerName, query)
-	return ku.kubeletClient.queryWithResp(ctx, path)
+	return ku.getKubeletClient().queryWithResp(ctx, path)
 }
 
 // GetNodename returns the nodename
@@ -258,8 +279,8 @@ func (ku *KubeUtil) GetNodename(ctx context.Context) (string, error) {
 	var nodeName string
 
 	if ku.useAPIServer {
-		if ku.kubeletClient.config.nodeName != "" {
-			nodeName = ku.kubeletClient.config.nodeName
+		if ku.getKubeletClient().config.nodeName != "" {
+			nodeName = ku.getKubeletClient().config.nodeName
 		} else {
 			stats, err := ku.GetLocalStatsSummary(ctx)
 			if err == nil && stats.Node.NodeName != "" {
@@ -308,10 +329,10 @@ func (ku *KubeUtil) getLocalPodList(ctx context.Context) (*PodList, error) {
 
 	data, code, err := ku.QueryKubelet(ctx, kubeletPodPath)
 	if err != nil {
-		return nil, pkgErrors.NewRetriable("podlist", fmt.Errorf("error performing kubelet query %s%s: %w", ku.kubeletClient.kubeletURL, kubeletPodPath, err))
+		return nil, pkgErrors.NewRetriable("podlist", fmt.Errorf("error performing kubelet query %s%s: %w", ku.getKubeletClient().kubeletURL, kubeletPodPath, err))
 	}
 	if code != http.StatusOK {
-		return nil, pkgErrors.NewRetriable("podlist", fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletClient.kubeletURL, kubeletPodPath, string(data)))
+		return nil, pkgErrors.NewRetriable("podlist", fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.getKubeletClient().kubeletURL, kubeletPodPath, string(data)))
 	}
 
 	err = ku.podUnmarshaller.unmarshal(data, &pods)
@@ -449,10 +470,10 @@ func (ku *KubeUtil) GetLocalPodListWithMetadata(ctx context.Context) (*PodList, 
 func (ku *KubeUtil) GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.Summary, error) {
 	data, code, err := ku.QueryKubelet(ctx, kubeletStatsSummary)
 	if err != nil {
-		return nil, pkgErrors.NewRetriable("statssummary", fmt.Errorf("error performing kubelet query %s%s: %w", ku.kubeletClient.kubeletURL, kubeletStatsSummary, err))
+		return nil, pkgErrors.NewRetriable("statssummary", fmt.Errorf("error performing kubelet query %s%s: %w", ku.getKubeletClient().kubeletURL, kubeletStatsSummary, err))
 	}
 	if code != http.StatusOK {
-		return nil, pkgErrors.NewRetriable("statssummary", fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletClient.kubeletURL, kubeletStatsSummary, string(data)))
+		return nil, pkgErrors.NewRetriable("statssummary", fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.getKubeletClient().kubeletURL, kubeletStatsSummary, string(data)))
 	}
 
 	statsSummary := &kubeletv1alpha1.Summary{}
@@ -467,7 +488,7 @@ func (ku *KubeUtil) GetLocalStatsSummary(ctx context.Context) (*kubeletv1alpha1.
 // path commonly used are /healthz, /pods, /metrics
 // return the content of the response, the response HTTP status code and an error in case of
 func (ku *KubeUtil) QueryKubelet(ctx context.Context, path string) ([]byte, int, error) {
-	return ku.kubeletClient.query(ctx, path)
+	return ku.getKubeletClient().query(ctx, path)
 }
 
 // GetRawConnectionInfo returns a map containging the url and credentials to connect to the kubelet
@@ -480,10 +501,10 @@ func (ku *KubeUtil) QueryKubelet(ctx context.Context, path string) ([]byte, int,
 //   - client_crt: path to the client cert if set
 //   - client_key: path to the client key if set
 func (ku *KubeUtil) GetRawConnectionInfo() map[string]string {
-	if ku.kubeletClient.config.scheme == "https" && ku.kubeletClient.config.token != "" {
-		token, err := kubernetes.GetBearerToken(ku.kubeletClient.config.tokenPath)
+	if ku.getKubeletClient().config.scheme == "https" && ku.getKubeletClient().config.token != "" {
+		token, err := kubernetes.GetBearerToken(ku.getKubeletClient().config.tokenPath)
 		if err != nil {
-			log.Warnf("Couldn't read auth token defined in %q: %v", ku.kubeletClient.config.tokenPath, err)
+			log.Warnf("Couldn't read auth token defined in %q: %v", ku.getKubeletClient().config.tokenPath, err)
 		} else {
 			ku.rawConnectionInfo["token"] = token
 		}
@@ -496,10 +517,10 @@ func (ku *KubeUtil) GetRawConnectionInfo() map[string]string {
 func (ku *KubeUtil) GetRawMetrics(ctx context.Context) ([]byte, error) {
 	data, code, err := ku.QueryKubelet(ctx, kubeletMetricsPath)
 	if err != nil {
-		return nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.kubeletClient.kubeletURL, kubeletMetricsPath, err)
+		return nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.getKubeletClient().kubeletURL, kubeletMetricsPath, err)
 	}
 	if code != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletClient.kubeletURL, kubeletMetricsPath, string(data))
+		return nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.getKubeletClient().kubeletURL, kubeletMetricsPath, string(data))
 	}
 
 	return data, nil
@@ -509,10 +530,10 @@ func (ku *KubeUtil) GetRawMetrics(ctx context.Context) ([]byte, error) {
 func (ku *KubeUtil) GetConfig(ctx context.Context) ([]byte, *ConfigDocument, error) {
 	bytes, code, err := ku.QueryKubelet(ctx, kubeletConfigPath)
 	if err != nil {
-		return bytes, nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.kubeletClient.kubeletURL, kubeletConfigPath, err)
+		return bytes, nil, fmt.Errorf("error performing kubelet query %s%s: %s", ku.getKubeletClient().kubeletURL, kubeletConfigPath, err)
 	}
 	if code != http.StatusOK {
-		return bytes, nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.kubeletClient.kubeletURL, kubeletConfigPath, string(bytes))
+		return bytes, nil, fmt.Errorf("unexpected status code %d on %s%s: %s", code, ku.getKubeletClient().kubeletURL, kubeletConfigPath, string(bytes))
 	}
 
 	var config *ConfigDocument
