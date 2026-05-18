@@ -457,6 +457,11 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 			log.Errorf("autodiscovery: failed to build trial instance for %s/%s: %v", tpl.Name, svc.GetServiceID(), err)
 			return tpl, false
 		}
+
+		if len(tpl.Instances) > 0 {
+			log.Warnf("autodiscovery: discovery template %s has instances, these are not supported and will be ignored", tpl.Name)
+		}
+
 		resolveTpl.Instances = []integration.Data{instanceYAML}
 	}
 
