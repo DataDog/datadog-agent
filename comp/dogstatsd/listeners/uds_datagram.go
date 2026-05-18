@@ -30,6 +30,11 @@ type UDSDatagramListener struct {
 
 // NewUDSDatagramListener returns an idle UDS datagram Statsd listener
 func NewUDSDatagramListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetryComponent telemetry.Component) (*UDSDatagramListener, error) {
+	return NewUDSDatagramListenerWithWriter(packets.NewChannelBatchWriter(packetOut), sharedPacketPoolManager, sharedOobPoolManager, cfg, capture, wmeta, pidMap, telemetryStore, packetsTelemetryStore, telemetryComponent)
+}
+
+// NewUDSDatagramListenerWithWriter returns an idle UDS datagram Statsd listener using the given packet batch writer.
+func NewUDSDatagramListenerWithWriter(packetWriter packets.BatchWriter, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetryComponent telemetry.Component) (*UDSDatagramListener, error) {
 	socketPath := cfg.GetString("dogstatsd_socket")
 	transport := "unixgram"
 
@@ -62,7 +67,7 @@ func NewUDSDatagramListener(packetOut chan packets.Packets, sharedPacketPoolMana
 		return nil, err
 	}
 
-	l, err := NewUDSListener(packetOut, sharedPacketPoolManager, sharedOobPoolManager, cfg, capture, transport, wmeta, pidMap, telemetryStore, packetsTelemetryStore, telemetryComponent, originDetection)
+	l, err := NewUDSListenerWithWriter(packetWriter, sharedPacketPoolManager, sharedOobPoolManager, cfg, capture, transport, wmeta, pidMap, telemetryStore, packetsTelemetryStore, telemetryComponent, originDetection)
 	if err != nil {
 		return nil, err
 	}

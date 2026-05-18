@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
@@ -21,6 +22,11 @@ const (
 
 func experimentalIngressLogEnabled() bool {
 	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_INGRESS_LOG"))
+	return err == nil && enabled
+}
+
+func experimentalShardedIngressLogEnabled() bool {
+	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_INGRESS_LOG_SHARDED"))
 	return err == nil && enabled
 }
 
@@ -52,6 +58,7 @@ type packetIngressLog struct {
 	mu       sync.Mutex
 	notEmpty *sync.Cond
 	notFull  *sync.Cond
+	notify   chan struct{}
 
 	maxBytes int64
 	stopped  bool
@@ -65,7 +72,7 @@ type packetIngressLog struct {
 }
 
 func newPacketIngressLog(maxBytes int64, telemetrycomp telemetry.Component) *packetIngressLog {
-	log := &packetIngressLog{maxBytes: maxBytes}
+	log := &packetIngressLog{maxBytes: maxBytes, notify: make(chan struct{}, 1)}
 	log.notEmpty = sync.NewCond(&log.mu)
 	log.notFull = sync.NewCond(&log.mu)
 	if telemetrycomp != nil {
@@ -146,6 +153,7 @@ func (l *packetIngressLog) append(ps packets.Packets) bool {
 	l.packets += batchPackets
 	l.updateGaugesLocked()
 	l.notEmpty.Signal()
+	l.signalNotifyLocked()
 	l.mu.Unlock()
 
 	if l.telemetry.stats != nil {
@@ -160,8 +168,20 @@ func (l *packetIngressLog) next() (packets.Packets, bool) {
 	for !l.stopped && l.queueLenLocked() == 0 {
 		l.notEmpty.Wait()
 	}
+	ps, ok := l.nextLocked()
+	l.mu.Unlock()
+	return ps, ok
+}
+
+func (l *packetIngressLog) tryNext() (packets.Packets, bool) {
+	l.mu.Lock()
+	ps, ok := l.nextLocked()
+	l.mu.Unlock()
+	return ps, ok
+}
+
+func (l *packetIngressLog) nextLocked() (packets.Packets, bool) {
 	if l.queueLenLocked() == 0 {
-		l.mu.Unlock()
 		return nil, false
 	}
 
@@ -179,7 +199,6 @@ func (l *packetIngressLog) next() (packets.Packets, bool) {
 	l.compactLocked()
 	l.updateGaugesLocked()
 	l.notFull.Signal()
-	l.mu.Unlock()
 
 	if l.telemetry.stats != nil {
 		l.telemetry.stats.Inc("taken_batches")
@@ -198,6 +217,19 @@ func (l *packetIngressLog) stop() {
 
 func (l *packetIngressLog) queueLenLocked() int {
 	return len(l.batches) - l.head
+}
+
+func (l *packetIngressLog) len() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.queueLenLocked()
+}
+
+func (l *packetIngressLog) signalNotifyLocked() {
+	select {
+	case l.notify <- struct{}{}:
+	default:
+	}
 }
 
 func (l *packetIngressLog) compactLocked() {
@@ -230,4 +262,53 @@ func (l *packetIngressLog) updateGaugesLocked() {
 
 func packetBatchSizeBytes(ps packets.Packets) int64 {
 	return int64((&ps).SizeInBytes() + (&ps).DataSizeInBytes())
+}
+
+type packetIngressLogShards struct {
+	shards []*packetIngressLog
+	next   atomic.Uint64
+}
+
+func newPacketIngressLogShards(shardCount int, maxBytes int64, telemetrycomp telemetry.Component) *packetIngressLogShards {
+	if shardCount <= 0 {
+		shardCount = 1
+	}
+	bytesPerShard := maxBytes / int64(shardCount)
+	if bytesPerShard <= 0 {
+		bytesPerShard = maxBytes
+	}
+	shards := make([]*packetIngressLog, shardCount)
+	for i := range shards {
+		shards[i] = newPacketIngressLog(bytesPerShard, telemetrycomp)
+	}
+	return &packetIngressLogShards{shards: shards}
+}
+
+func (s *packetIngressLogShards) Write(ps packets.Packets) {
+	if len(s.shards) == 0 {
+		return
+	}
+	idx := int(s.next.Add(1)-1) % len(s.shards)
+	_ = s.shards[idx].append(ps)
+}
+
+func (s *packetIngressLogShards) Len() int {
+	total := 0
+	for _, shard := range s.shards {
+		total += shard.len()
+	}
+	return total
+}
+
+func (s *packetIngressLogShards) shard(worker int) *packetIngressLog {
+	if len(s.shards) == 0 {
+		return nil
+	}
+	return s.shards[worker%len(s.shards)]
+}
+
+func (s *packetIngressLogShards) stop() {
+	for _, shard := range s.shards {
+		shard.stop()
+	}
 }

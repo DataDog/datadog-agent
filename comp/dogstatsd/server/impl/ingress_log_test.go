@@ -64,6 +64,25 @@ func TestPacketIngressLogBlocksWhenByteBoundIsReached(t *testing.T) {
 	require.Equal(t, "second", string(got[0].Contents))
 }
 
+func TestPacketIngressLogShardsDistributeBatches(t *testing.T) {
+	shards := newPacketIngressLogShards(2, 1024*1024, nil)
+
+	shards.Write(testPacketBatch("first"))
+	shards.Write(testPacketBatch("second"))
+
+	require.Equal(t, 2, shards.Len())
+
+	got, ok := shards.shard(0).tryNext()
+	require.True(t, ok)
+	require.Equal(t, "first", string(got[0].Contents))
+
+	got, ok = shards.shard(1).tryNext()
+	require.True(t, ok)
+	require.Equal(t, "second", string(got[0].Contents))
+
+	require.Equal(t, 0, shards.Len())
+}
+
 func testPacketBatch(payload string) packets.Packets {
 	buf := []byte(payload)
 	return packets.Packets{{

@@ -50,7 +50,7 @@ func init() {
 // back packets ready to be processed.
 // Origin detection will be implemented for UDS.
 type UDSListener struct {
-	packetOut               chan packets.Packets
+	packetWriter            packets.BatchWriter
 	sharedPacketPoolManager *packets.PoolManager[packets.Packet]
 	oobPoolManager          *packets.PoolManager[[]byte]
 	trafficCapture          replay.Component
@@ -145,9 +145,14 @@ func NewUDSOobPoolManager() *packets.PoolManager[[]byte] {
 
 // NewUDSListener returns an idle UDS Statsd listener
 func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPacketPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, transport string, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component, originDetection bool) (*UDSListener, error) {
+	return NewUDSListenerWithWriter(packets.NewChannelBatchWriter(packetOut), sharedPacketPoolManager, sharedOobPacketPoolManager, cfg, capture, transport, wmeta, pidMap, telemetryStore, packetsTelemetryStore, telemetry, originDetection)
+}
+
+// NewUDSListenerWithWriter returns an idle UDS Statsd listener using the given packet batch writer.
+func NewUDSListenerWithWriter(packetWriter packets.BatchWriter, sharedPacketPoolManager *packets.PoolManager[packets.Packet], sharedOobPacketPoolManager *packets.PoolManager[[]byte], cfg model.Reader, capture replay.Component, transport string, wmeta option.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore, telemetry telemetry.Component, originDetection bool) (*UDSListener, error) {
 	listener := &UDSListener{
 		OriginDetection:              originDetection,
-		packetOut:                    packetOut,
+		packetWriter:                 packetWriter,
 		sharedPacketPoolManager:      sharedPacketPoolManager,
 		trafficCapture:               capture,
 		pidMap:                       pidMap,
@@ -186,10 +191,10 @@ func (l *UDSListener) handleConnection(conn netUnixConn, closeFunc CloseFunction
 		tlmListenerID = "uds-" + conn.LocalAddr().Network()
 	}
 
-	packetsBuffer := packets.NewBuffer(
+	packetsBuffer := packets.NewBufferWithWriter(
 		l.packetBufferSize,
 		l.packetBufferFlushTimeout,
-		l.packetOut,
+		l.packetWriter,
 		tlmListenerID,
 		l.packetsTelemetryStore,
 	)

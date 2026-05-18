@@ -127,6 +127,8 @@ type dsdServer struct {
 
 	packetsIn               chan packets.Packets
 	captureChan             chan packets.Packets
+	ingressLogShards        *packetIngressLogShards
+	workersCount            int
 	serverlessFlushChan     chan bool
 	sharedPacketPool        *packets.Pool
 	sharedPacketPoolManager *packets.PoolManager[packets.Packet]
@@ -373,7 +375,9 @@ func (s *dsdServer) startHook(context context.Context) error {
 
 func (s *dsdServer) start(context.Context) error {
 	statsdForwardEnabled := s.config.GetString("statsd_forward_host") != "" && s.config.GetInt("statsd_forward_port") != 0
-	ingressLogEnabled := experimentalIngressLogEnabled() && !statsdForwardEnabled
+	pipeName := s.config.GetString("dogstatsd_pipe_name")
+	shardedIngressLogEnabled := experimentalShardedIngressLogEnabled() && !statsdForwardEnabled && pipeName == ""
+	ingressLogEnabled := experimentalIngressLogEnabled() && !statsdForwardEnabled && !shardedIngressLogEnabled
 	packetsChannelSize := s.config.GetInt("dogstatsd_queue_size")
 	if ingressLogEnabled {
 		// The experimental ingress log replaces the large packetsIn channel as
@@ -383,6 +387,18 @@ func (s *dsdServer) start(context.Context) error {
 		packetsChannelSize = 1
 	}
 	packetsChannel := make(chan packets.Packets, packetsChannelSize)
+	packetWriter := packets.NewChannelBatchWriter(packetsChannel)
+	if shardedIngressLogEnabled {
+		packetsChannel = nil
+		s.workersCount = s.getDogStatsDWorkersCount()
+		s.ingressLogShards = newPacketIngressLogShards(s.workersCount, experimentalIngressLogMaxBytes(), s.telemetry)
+		packetWriter = s.ingressLogShards
+		s.log.Infof("DogStatsD experimental sharded ingress log enabled with max_bytes=%d shards=%d", experimentalIngressLogMaxBytes(), s.workersCount)
+	} else if experimentalShardedIngressLogEnabled() && statsdForwardEnabled {
+		s.log.Warn("DogStatsD experimental sharded ingress log disabled because statsd packet forwarding is enabled")
+	} else if experimentalShardedIngressLogEnabled() && pipeName != "" {
+		s.log.Warn("DogStatsD experimental sharded ingress log disabled because named-pipe intake is enabled")
+	}
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
 
 	if err := s.tCapture.GetStartUpError(); err != nil {
@@ -414,7 +430,7 @@ func (s *dsdServer) start(context.Context) error {
 	}
 
 	if len(socketPath) > 0 {
-		unixListener, err := listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap, s.listernersTelemetry, s.packetsTelemetry, s.telemetry)
+		unixListener, err := listeners.NewUDSDatagramListenerWithWriter(packetWriter, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap, s.listernersTelemetry, s.packetsTelemetry, s.telemetry)
 		if err != nil {
 			s.log.Errorf("Can't init UDS listener on path %s: %s", socketPath, err.Error())
 		} else {
@@ -424,7 +440,7 @@ func (s *dsdServer) start(context.Context) error {
 
 	if len(socketStreamPath) > 0 {
 		s.log.Warnf("dogstatsd_stream_socket is not yet supported, run it at your own risk")
-		unixListener, err := listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap, s.listernersTelemetry, s.packetsTelemetry, s.telemetry)
+		unixListener, err := listeners.NewUDSStreamListenerWithWriter(packetWriter, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap, s.listernersTelemetry, s.packetsTelemetry, s.telemetry)
 		if err != nil {
 			s.log.Errorf("Can't init listener: %s", err.Error())
 		} else {
@@ -433,7 +449,7 @@ func (s *dsdServer) start(context.Context) error {
 	}
 
 	if s.config.GetString("dogstatsd_port") == listeners.RandomPortName || s.config.GetInt("dogstatsd_port") > 0 {
-		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, s.config, s.tCapture, s.listernersTelemetry, s.packetsTelemetry)
+		udpListener, err := listeners.NewUDPListenerWithWriter(packetWriter, sharedPacketPoolManager, s.config, s.tCapture, s.listernersTelemetry, s.packetsTelemetry)
 		if err != nil {
 			s.log.Errorf("%s", err.Error())
 		} else {
@@ -442,7 +458,6 @@ func (s *dsdServer) start(context.Context) error {
 		}
 	}
 
-	pipeName := s.config.GetString("dogstatsd_pipe_name")
 	if len(pipeName) > 0 {
 		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPoolManager, s.config, s.tCapture, s.listernersTelemetry, s.packetsTelemetry, s.telemetry)
 		if err != nil {
@@ -457,7 +472,9 @@ func (s *dsdServer) start(context.Context) error {
 	}
 
 	workerPacketsChannel := packetsChannel
-	if ingressLogEnabled {
+	if shardedIngressLogEnabled {
+		workerPacketsChannel = nil
+	} else if ingressLogEnabled {
 		workerPacketsChannel = make(chan packets.Packets)
 		ingressLog := newPacketIngressLog(experimentalIngressLogMaxBytes(), s.telemetry)
 		go ingressLog.run(packetsChannel, workerPacketsChannel, s.stopChan)
@@ -534,6 +551,9 @@ func (s *dsdServer) stop(context.Context) error {
 	for _, l := range s.listeners {
 		l.Stop()
 	}
+	if s.ingressLogShards != nil {
+		s.ingressLogShards.stop()
+	}
 	close(s.stopChan)
 
 	if s.Statistics != nil {
@@ -567,6 +587,18 @@ func (s *dsdServer) onFilterListUpdate(filterList utilstrings.Matcher, _ utilstr
 	}
 }
 
+func (s *dsdServer) getDogStatsDWorkersCount() int {
+	workersCount, _ := aggregator.GetDogStatsDWorkerAndPipelineCount()
+
+	// undocumented configuration field to force the amount of dogstatsd workers
+	// mainly used for benchmarks or some very specific use-case.
+	if configWC := s.config.GetInt("dogstatsd_workers_count"); configWC != 0 {
+		s.log.Debug("Forcing the amount of DogStatsD workers to:", configWC)
+		workersCount = configWC
+	}
+	return workersCount
+}
+
 func (s *dsdServer) handleMessages() {
 	if s.Statistics != nil {
 		go s.Statistics.Process()
@@ -585,19 +617,18 @@ func (s *dsdServer) handleMessages() {
 
 	// create and start all the workers
 
-	workersCount, _ := aggregator.GetDogStatsDWorkerAndPipelineCount()
-
-	// undocumented configuration field to force the amount of dogstatsd workers
-	// mainly used for benchmarks or some very specific use-case.
-	if configWC := s.config.GetInt("dogstatsd_workers_count"); configWC != 0 {
-		s.log.Debug("Forcing the amount of DogStatsD workers to:", configWC)
-		workersCount = configWC
+	workersCount := s.workersCount
+	if workersCount == 0 {
+		workersCount = s.getDogStatsDWorkersCount()
 	}
 
 	s.log.Debug("DogStatsD will run", workersCount, "workers")
 
 	for i := 0; i < workersCount; i++ {
 		worker := newWorker(s, i, s.wmeta, s.packetsTelemetry, s.stringInternerTelemetry, s.filterList.GetMetricFilterList())
+		if s.ingressLogShards != nil {
+			worker.packetLog = s.ingressLogShards.shard(i)
+		}
 		go worker.run()
 		s.workers = append(s.workers, worker)
 	}

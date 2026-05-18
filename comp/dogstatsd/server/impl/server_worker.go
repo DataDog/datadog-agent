@@ -37,6 +37,7 @@ type worker struct {
 	samples metrics.MetricSampleBatch
 
 	packetsTelemetry *packets.TelemetryStore
+	packetLog        *packetIngressLog
 
 	FilterListUpdate chan utilstrings.Matcher
 	filterList       utilstrings.Matcher
@@ -63,6 +64,10 @@ func newWorker(s *dsdServer, workerNum int, wmeta option.Option[workloadmeta.Com
 }
 
 func (w *worker) run() {
+	if w.packetLog != nil {
+		w.runPacketLog()
+		return
+	}
 	for {
 		select {
 		case <-w.server.stopChan:
@@ -73,12 +78,38 @@ func (w *worker) run() {
 		case filterList := <-w.FilterListUpdate:
 			w.filterList = filterList
 		case ps := <-w.server.packetsIn:
-			w.packetsTelemetry.TelemetryUntrackPackets(ps)
-			w.samples = w.samples[0:0]
-			// we return the samples in case the slice was extended
-			// when parsing the packets
-			w.samples = w.server.parsePackets(w.batcher, w.parser, w.identityBuilder, ps, w.samples, &w.filterList)
+			w.processPackets(ps)
 		}
 
 	}
+}
+
+func (w *worker) runPacketLog() {
+	for {
+		select {
+		case <-w.server.stopChan:
+			return
+		case <-w.server.health.C:
+		case <-w.server.serverlessFlushChan:
+			w.batcher.flush()
+		case filterList := <-w.FilterListUpdate:
+			w.filterList = filterList
+		case <-w.packetLog.notify:
+			for {
+				ps, ok := w.packetLog.tryNext()
+				if !ok {
+					break
+				}
+				w.processPackets(ps)
+			}
+		}
+	}
+}
+
+func (w *worker) processPackets(ps packets.Packets) {
+	w.packetsTelemetry.TelemetryUntrackPackets(ps)
+	w.samples = w.samples[0:0]
+	// we return the samples in case the slice was extended
+	// when parsing the packets
+	w.samples = w.server.parsePackets(w.batcher, w.parser, w.identityBuilder, ps, w.samples, &w.filterList)
 }

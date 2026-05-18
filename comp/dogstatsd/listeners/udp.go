@@ -58,6 +58,11 @@ type UDPListener struct {
 
 // NewUDPListener returns an idle UDP Statsd listener
 func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager[packets.Packet], cfg model.Reader, capture replay.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore) (*UDPListener, error) {
+	return NewUDPListenerWithWriter(packets.NewChannelBatchWriter(packetOut), sharedPacketPoolManager, cfg, capture, telemetryStore, packetsTelemetryStore)
+}
+
+// NewUDPListenerWithWriter returns an idle UDP Statsd listener using the given packet batch writer.
+func NewUDPListenerWithWriter(packetWriter packets.BatchWriter, sharedPacketPoolManager *packets.PoolManager[packets.Packet], cfg model.Reader, capture replay.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore) (*UDPListener, error) {
 	var err error
 	var url string
 
@@ -93,7 +98,7 @@ func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 	flushTimeout := cfg.GetDuration("dogstatsd_packet_buffer_flush_timeout")
 
 	buffer := make([]byte, bufferSize)
-	packetsBuffer := packets.NewBuffer(uint(packetsBufferSize), flushTimeout, packetOut, "udp", packetsTelemetryStore)
+	packetsBuffer := packets.NewBufferWithWriter(uint(packetsBufferSize), flushTimeout, packetWriter, "udp", packetsTelemetryStore)
 	packetAssembler := packets.NewAssembler(flushTimeout, packetsBuffer, sharedPacketPoolManager, packets.UDP)
 
 	listener := &UDPListener{
