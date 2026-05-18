@@ -5142,8 +5142,8 @@ github.com/vultr/govultr/v3 v3.28.1 h1:KR3LhppYARlBujY7+dcrE7YKL0Yo9qXL+msxykKQr
 github.com/vultr/govultr/v3 v3.28.1/go.mod h1:2zyUw9yADQaGwKnwDesmIOlBNLrm7edsCfWHFJpWKf8=
 github.com/wI2L/jsondiff v0.7.0 h1:1lH1G37GhBPqCfp/lrs91rf/2j3DktX6qYAKZkLuCQQ=
 github.com/wI2L/jsondiff v0.7.0/go.mod h1:KAEIojdQq66oJiHhDyQez2x+sRit0vIzC9KeK0yizxM=
-github.com/wehzzz/opentelemetry-collector-contrib/processor/k8sattributesprocessor v0.0.0-20260513073045-dc0bbfe59572 h1:LhQYzQ5ImiTujbvECdD/sL1cI0i5KgceKBSMf1uiwAk=
-github.com/wehzzz/opentelemetry-collector-contrib/processor/k8sattributesprocessor v0.0.0-20260513073045-dc0bbfe59572/go.mod h1:Opw3UeS4PGjklIKT/DGo8OhKXydNMewbrOq7CCpWtck=
+github.com/wehzzz/opentelemetry-collector-contrib/processor/k8sattributesprocessor v0.0.0-20260518092651-f961c3cc1b99 h1:qAAeZLo2/aPOmIp9AjXV+0tRXfNlHCoUFGS+/lcB2s8=
+github.com/wehzzz/opentelemetry-collector-contrib/processor/k8sattributesprocessor v0.0.0-20260518092651-f961c3cc1b99/go.mod h1:Opw3UeS4PGjklIKT/DGo8OhKXydNMewbrOq7CCpWtck=
 github.com/weppos/publicsuffix-go v0.50.3 h1:eT5dcjHQcVDNc0igpFEsGHKIip30feuB2zuuI9eJxiE=
 github.com/weppos/publicsuffix-go v0.50.3/go.mod h1:/rOa781xBykZhHK/I3QeHo92qdDKVmKZKF7s8qAEM/4=
 github.com/wk8/go-ordered-map/v2 v2.1.8 h1:5h/BUHu93oj4gIdvHHHGsScSTMijfx5PeYkE/fJgbpc=
