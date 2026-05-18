@@ -209,7 +209,7 @@ func TestReplay(t *testing.T) {
 		test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{
 			ruleMatchHandler: func(_ *testModule, e *model.Event, r *rules.Rule) {
 				assertTriggeredRule(t, r, "test_rule_replay_load_module")
-				assert.Equal(t, model.ProcessCacheEntryFromUnknownLoader, e.ProcessContext.Source,
+				assert.Equal(t, uint64(model.ProcessCacheEntryFromUnknownLoader), e.ProcessContext.Source,
 					"snapshot load_module events must be anchored on the synthetic unknown-loader PCE")
 				gotEvent.Store(true)
 			},

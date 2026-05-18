@@ -479,6 +479,11 @@ func scanKernelModulePathsIn(root string) map[string]string {
 	if _, err := os.Stat(root); err != nil {
 		return nil
 	}
+	// /lib/modules/<release> is itself a symlink on some distros
+	// so resolve it before walking.
+	if r, err := filepath.EvalSymlinks(root); err == nil {
+		root = r
+	}
 
 	paths := make(map[string]string)
 	_ = filepath.WalkDir(root, func(p string, d fs.DirEntry, walkErr error) error {
