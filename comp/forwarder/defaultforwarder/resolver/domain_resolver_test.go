@@ -30,8 +30,8 @@ func assertKeys(t *testing.T, expect []string, resolver DomainResolver) {
 func TestSingleDomainResolverDedupedKey(t *testing.T) {
 	// Note key2 exists twice in the list.
 	apiKeys := []utils.APIKeys{
-		utils.NewAPIKeys("additional_endpoints", "example.com", "key1", "key2"),
-		utils.NewAPIKeys("multi_region_failover.api_key", "example.com", "key2"),
+		utils.NewAPIKeys("additional_endpoints", "app.datadoghq.com", "key1", "key2"),
+		utils.NewAPIKeys("multi_region_failover.api_key", "app.datadoghq.eu", "key2"),
 	}
 
 	resolver, err := NewSingleDomainResolver("example.com", apiKeys)
@@ -42,14 +42,14 @@ func TestSingleDomainResolverDedupedKey(t *testing.T) {
 
 func TestSingleDomainUpdateAPIKeys(t *testing.T) {
 	apiKeys := []utils.APIKeys{
-		utils.NewAPIKeys("api_key", "example.com", "key1"),
-		utils.NewAPIKeys("additional_endpoints", "example.com", "key1", "key2", "key3"),
+		utils.NewAPIKeys("api_key", "app.datadoghq.com", "key1"),
+		utils.NewAPIKeys("additional_endpoints", "app.datadoghq.com", "key1", "key2", "key3"),
 	}
 
 	resolver, err := NewSingleDomainResolver("example.com", apiKeys)
 	require.NoError(t, err)
 
-	resolver.UpdateAPIKeys("additional_endpoints", []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", "example.com", "key4", "key2", "key3")})
+	resolver.UpdateAPIKeys("additional_endpoints", []utils.APIKeys{utils.NewAPIKeys("additional_endpoints", "app.datadoghq.com", "key4", "key2", "key3")})
 
 	assertKeys(t, []string{"key1", "key4", "key2", "key3"}, resolver)
 }
@@ -151,8 +151,8 @@ func TestAuthorizeUnknownIndex(t *testing.T) {
 
 func TestSingleDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	apiKeys := []utils.APIKeys{
-		utils.NewAPIKeys("api_key", "example.com", "key1"),
-		utils.NewAPIKeys("additional_endpoints", "example.com", "key1", "key2", "key3"),
+		utils.NewAPIKeys("api_key", "app.datadoghq.com", "key1"),
+		utils.NewAPIKeys("additional_endpoints", "app.datadoghq.com", "key1", "key2", "key3"),
 	}
 	resolver, err := NewSingleDomainResolver("example.com", apiKeys)
 	require.NoError(t, err)
@@ -183,8 +183,8 @@ func TestSingleDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 
 func TestMultiDomainResolverUpdateAdditionalEndpointsNewKey(t *testing.T) {
 	apiKeys := []utils.APIKeys{
-		utils.NewAPIKeys("api_key", "example.com", "key1"),
-		utils.NewAPIKeys("additional_endpoints", "example.com", "key1", "key2", "key3"),
+		utils.NewAPIKeys("api_key", "app.datadoghq.com", "key1"),
+		utils.NewAPIKeys("additional_endpoints", "app.datadoghq.com", "key1", "key2", "key3"),
 	}
 	resolver, err := NewMultiDomainResolver("example.com", apiKeys)
 	require.NoError(t, err)
