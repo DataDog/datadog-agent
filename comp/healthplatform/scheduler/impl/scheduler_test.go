@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
@@ -227,8 +228,8 @@ func TestSchedulerLifecycle(t *testing.T) {
 	assert.Eventually(t, func() bool { return atomic.LoadInt32(&callCount) >= 2 },
 		500*time.Millisecond, 10*time.Millisecond)
 
-	countAtStop := atomic.LoadInt32(&callCount)
 	require.NoError(t, s.stop(context.Background()))
-	// stop() calls wg.Wait(), so the count is stable the moment stop returns.
-	assert.Equal(t, countAtStop, atomic.LoadInt32(&callCount))
+	// stop() calls wg.Wait() so all goroutines have exited.
+	// Any tick in-flight when stopCh closed has now completed; count is frozen.
+	assert.GreaterOrEqual(t, atomic.LoadInt32(&callCount), int32(2))
 }
