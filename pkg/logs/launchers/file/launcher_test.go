@@ -143,7 +143,7 @@ func TestLauncherRejectsDuplicateFileTailer(t *testing.T) {
 	assert.Equal(t, 1, launcher.tailers.Count(), "first source should start exactly one tailer")
 
 	// Sanity: helper reports the path as already tailed.
-	assert.True(t, launcher.isFileAlreadyTailed(path),
+	assert.True(t, launcher.isFileAlreadyTailed(filetailer.NewFile(path, firstSource, false)),
 		"after adding first source, isFileAlreadyTailed should return true for the path")
 
 	launcher.addSource(secondSource)
@@ -778,6 +778,15 @@ func runLauncherWithConcurrentContainerTailerTest(t *testing.T, testDirs []strin
 	// the two tailers, so the launcher now rejects the duplicate (see AGNTLOG-317).
 	launcher.addSource(secondSource)
 	assert.Equal(t, 1, launcher.tailers.Count())
+
+	// Verify the surviving tailer is the one from the first source (keyed by
+	// the first source's container ID), not the rejected duplicate.
+	survivors := launcher.tailers.All()
+	if assert.Len(t, survivors, 1) {
+		expectedScanKey := path + "/" + firstSource.Config.Identifier
+		assert.Equal(t, expectedScanKey, survivors[0].GetID(),
+			"the originally-started tailer (first source) must survive the duplicate rejection")
+	}
 }
 
 func runLauncherTailFromTheBeginningTest(t *testing.T, testDirs []string, chmodFileIfExists bool) {

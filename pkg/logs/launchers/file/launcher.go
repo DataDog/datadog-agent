@@ -451,14 +451,17 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 }
 
 // isFileAlreadyTailed returns true if any tailer currently tracked by the
-// launcher is already tailing the given file path. The TailerContainer is
-// keyed by scan key (e.g. <path>/<containerID> for container sources), so
-// two distinct scan keys can resolve to the same file path. Starting a
-// second tailer on the same path would race with the existing tailer when
-// updating auditor offsets/checkpoints, corrupting registry state. This
-// helper lets the spawn sites detect and reject such duplicates.
-func (s *Launcher) isFileAlreadyTailed(path string) bool {
-	identifier := "file:" + path
+// launcher is already tailing the same file (as determined by the tailer's
+// Identifier). The TailerContainer is keyed by scan key (e.g.
+// <path>/<containerID> for container sources), so two distinct scan keys
+// can resolve to the same file Identifier. Starting a second tailer on the
+// same file would race with the existing tailer when updating auditor
+// offsets/checkpoints, corrupting registry state. This helper lets the
+// spawn sites detect and reject such duplicates. Identifier construction
+// is owned by the tailer package (file.File.Identifier) so changes to the
+// identifier format only need to happen in one place.
+func (s *Launcher) isFileAlreadyTailed(file *tailer.File) bool {
+	identifier := file.Identifier()
 	for _, existing := range s.tailers.All() {
 		if existing.Identifier() == identifier {
 			return true
@@ -475,7 +478,7 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, finge
 		return false
 	}
 
-	if s.isFileAlreadyTailed(file.Path) {
+	if s.isFileAlreadyTailed(file) {
 		log.Warnf("file %q is already being tailed by another log source; skipping duplicate tailer to avoid auditor offset corruption", file.Path)
 		return false
 	}
@@ -510,7 +513,7 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 		return false
 	}
 
-	if s.isFileAlreadyTailed(file.Path) {
+	if s.isFileAlreadyTailed(file) {
 		log.Warnf("file %q is already being tailed by another log source; skipping duplicate tailer to avoid auditor offset corruption", file.Path)
 		return false
 	}
