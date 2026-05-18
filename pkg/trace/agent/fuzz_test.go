@@ -8,6 +8,7 @@
 package agent
 
 import (
+	"reflect"
 	"testing"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
