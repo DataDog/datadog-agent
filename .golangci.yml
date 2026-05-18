@@ -51,6 +51,13 @@ linters:
               desc: "use the std maps package instead (Keys/Values need slices.Collect wrapping)"
             - pkg: "github.com/aws/aws-sdk-go/"
               desc: "use the v2 sdk instead"
+        multierror:
+          files:
+            - $all
+            - "!**/pkg/security/**"
+          deny:
+            - pkg: "github.com/hashicorp/go-multierror"
+              desc: "use errors.Join instead (Go 1.20+); pkg/security is exempt while its PolicyProvider interface is migrated"
         logger:
           files:
             - $all
@@ -125,8 +132,9 @@ linters:
             - "!**/comp/core/status/statusimpl/common_header_provider_test.go"
             - "!**/comp/core/status/statusimpl/status_api_endpoints_test.go"
             - "!**/comp/core/status/statusimpl/status_test.go"
-            - "!**/comp/core/sysprobeconfig/sysprobeconfigimpl/config.go"
-            - "!**/comp/core/sysprobeconfig/sysprobeconfigimpl/config_mock.go"
+            - "!**/comp/core/sysprobeconfig/impl/config.go"
+            - "!**/comp/core/sysprobeconfig/mock/mock.go"
+
             - "!**/comp/core/tagger/taglist/taglist.go"
             - "!**/comp/core/workloadfilter/baseimpl/filter_utils.go"
             - "!**/comp/core/workloadfilter/catalog/filter_config.go"
