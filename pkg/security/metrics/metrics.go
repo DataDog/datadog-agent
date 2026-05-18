@@ -305,7 +305,7 @@ var (
 	// MetricActivityDumpLocalStorageSizeOnDisk is the name of the metric used to track the size that the profiles are
 	// using on disk
 	// Tags: -
-	MetricActivityDumpLocalStorageSizeOnDisk = newAgentMetric(".activity_dump.local_storage.size_on_disk")
+	MetricActivityDumpLocalStorageSizeOnDisk = newRuntimeMetric(".activity_dump.local_storage.size_on_disk")
 
 	// SBOM resolver metrics
 
