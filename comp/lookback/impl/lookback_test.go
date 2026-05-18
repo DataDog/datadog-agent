@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -32,7 +31,7 @@ func defaultTestCfg(t *testing.T) storeConfig {
 // buildTestComponent creates a component backed by a temp directory.
 func buildTestComponent(t *testing.T, cfg storeConfig) *component {
 	t.Helper()
-	ctxFile, err := newContextFile(filepath.Join(cfg.baseDir, "contexts.bin"))
+	ctxFile, err := newContextFile(cfg.baseDir)
 	require.NoError(t, err)
 	store, err := newShardedStore(cfg, nil)
 	require.NoError(t, err)

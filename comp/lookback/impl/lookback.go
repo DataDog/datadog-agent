@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -82,7 +81,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, fmt.Errorf("lookback: mkdir %s: %w", cfg.baseDir, err)
 	}
 
-	ctxFile, err := newContextFile(filepath.Join(cfg.baseDir, "contexts.bin"))
+	ctxFile, err := newContextFile(cfg.baseDir)
 	if err != nil {
 		return Provides{}, fmt.Errorf("lookback: init context file: %w", err)
 	}
