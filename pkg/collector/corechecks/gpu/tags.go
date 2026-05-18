@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -23,8 +24,46 @@ import (
 	secutils "github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/security/utils/lru/simplelru"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// autoscalingDistTagKeys is the exact set of tag keys allowed on
+// container.gpu.*.usage.dist series. The list mirrors the contract Workload
+// Autoscaling already enforces on container.cpu.usage.dist; anything else
+// (host, gpu_host, gpu_uuid, node, image_*, pod_name, container_id, …) is
+// silently dropped to keep cardinality bounded.
+var autoscalingDistTagKeys = map[string]struct{}{
+	"env":                {},
+	"kube_argo_rollout":  {},
+	"kube_cluster_name":  {},
+	"kube_cron_job":      {},
+	"kube_daemon_set":    {},
+	"kube_deployment":    {},
+	"kube_job":           {},
+	"kube_namespace":     {},
+	"kube_ownerref_kind": {},
+	"kube_ownerref_name": {},
+	"kube_ready":         {},
+	"kube_replica_set":   {},
+	"kube_stateful_set":  {},
+	"orch_cluster_id":    {},
+	"service":            {},
+	"version":            {},
+}
+
+// filterAutoscalingDistTags keeps only the keys listed in autoscalingDistTagKeys.
+func filterAutoscalingDistTags(tags []string) []string {
+	out := make([]string, 0, len(tags))
+	for _, t := range tags {
+		i := strings.IndexByte(t, ':')
+		if i <= 0 {
+			continue
+		}
+		if _, ok := autoscalingDistTagKeys[t[:i]]; ok {
+			out = append(out, t)
+		}
+	}
+	return out
+}
 
 const workloadTagCacheTelemetrySubsystem = consts.GpuTelemetryModule + "__workload_tag_cache"
 
@@ -184,9 +223,7 @@ func (c *WorkloadTagCache) buildContainerTags(containerID string) ([]string, err
 		cardinality = taggertypes.HighCardinality
 	}
 
-	tags, err := c.tagger.Tag(entityID, cardinality)
-	log.Infof("DIAG buildContainerTags cid=%s card=%v tags=%v err=%v", containerID, cardinality, tags, err)
-	return tags, err
+	return c.tagger.Tag(entityID, cardinality)
 }
 
 // buildProcessTags builds the tags for a process. Can return "ErrNotFound" if the process
@@ -271,7 +308,6 @@ func (c *WorkloadTagCache) buildProcessTags(processID string) ([]string, error) 
 		tags = append(tags, containerTags...)
 	}
 
-	log.Infof("DIAG buildProcessTags pid=%d ownerSet=%v procCID=%q chosenCID=%q tags=%v", pid, process != nil && process.Owner != nil, func() string { if process != nil { return process.ContainerID }; return "" }(), containerID, tags)
 	return tags, multiErr
 }
 
@@ -330,15 +366,17 @@ func (c *WorkloadTagCache) onLRUEvicted(workloadID workloadmeta.EntityID, _ *wor
 	c.telemetry.cacheEvictions.Inc(string(workloadID.Kind))
 }
 
-// GetLowCardContainerTags returns the low-cardinality container tags for the
-// given workload. For a container workload, the tags are looked up directly.
-// For a process workload, the process is first resolved to its owning
-// container, then the container's tags are looked up. Returns nil with no
-// error if no owning container can be resolved.
+// GetLowCardContainerTags returns the autoscaling-allowlisted tags for the
+// given workload's owning container. For a container workload, the tags are
+// looked up directly. For a process workload, the process is first resolved
+// to its owning container, then the container's tags are looked up. Returns
+// nil with no error if no owning container can be resolved.
 //
-// Unlike GetOrCreateWorkloadTags, this method strips per-process tags
-// (pid, nspid) and orchestrator-cardinality tags (pod_name, …) so callers can
-// emit metrics at the container series without inflating cardinality.
+// The result is filtered through autoscalingDistTagKeys so caller series
+// (container.gpu.*.usage.dist) only carry the keys Workload Autoscaling
+// expects. The tagger's LowCardinality answer can still include host/device
+// tags (gpu_host, host_kernel, image_name, …) which would multiply the
+// per-container series we send to the backend.
 func (c *WorkloadTagCache) GetLowCardContainerTags(workloadID workloadmeta.EntityID) ([]string, error) {
 	containerID, err := c.resolveContainerID(workloadID)
 	if err != nil {
@@ -348,7 +386,11 @@ func (c *WorkloadTagCache) GetLowCardContainerTags(workloadID workloadmeta.Entit
 		return nil, nil
 	}
 	entityID := taggertypes.NewEntityID(taggertypes.ContainerID, containerID)
-	return c.tagger.Tag(entityID, taggertypes.LowCardinality)
+	tags, err := c.tagger.Tag(entityID, taggertypes.LowCardinality)
+	if err != nil {
+		return nil, err
+	}
+	return filterAutoscalingDistTags(tags), nil
 }
 
 // resolveContainerID returns the owning container ID for the given workload,

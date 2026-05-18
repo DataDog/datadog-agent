@@ -435,6 +435,7 @@ func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, curre
 		if err != nil && !agenterrors.IsNotFound(err) { // Only report errors that are not "not found"
 			multiErr = multierror.Append(multiErr, fmt.Errorf("error collecting workload tags for workload %s of type %s: %w", workloadID.ID, workloadID.Kind, err))
 		}
+		log.Infof("DIAG emitSingleMetric metric=%s workloadID=%s/%s tagsFromCache=%v err=%v", metric.Name, workloadID.Kind, workloadID.ID, tags, err)
 
 		// always continue with whatever tags we can get even if there are errors
 		metricTags = append(metricTags, tags...)
@@ -447,6 +448,7 @@ func (c *Check) emitSingleMetric(metric *nvidia.Metric, snd sender.Sender, curre
 	allTags = append(allTags, deviceTags...)
 	allTags = append(allTags, metricTags...)
 	allTags = append(allTags, metric.Tags...)
+	log.Infof("DIAG emitSingleMetric metric=%s allTagsCount=%d allTags=%v", metric.Name, len(allTags), allTags)
 
 	// Use the current execution time as the timestamp for the metrics, that way we can ensure that the metrics are aligned with the check interval.
 	// We need this to ensure weighted metrics are calibrated correctly.
