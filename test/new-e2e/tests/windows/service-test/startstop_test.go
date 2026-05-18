@@ -737,8 +737,6 @@ func (s *baseStartStopSuite) collectXperf(host *components.RemoteHost) {
 }
 
 func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
-	s.BaseSuite.AfterTest(suiteName, testName)
-
 	// Stop xperf and merge to .etl as early as possible after the test body, so the
 	// circular trace is preserved before any subsequent diagnostic collection further
 	// perturbs system state. .etl is only downloaded if the test failed.
@@ -800,6 +798,11 @@ func (s *baseStartStopSuite) AfterTest(suiteName, testName string) {
 
 	// check if the host crashed.
 	s.Require().False(s.collectSystemCrashDump(), "should not have system crash dump")
+
+	// Run BaseSuite.AfterTest last: on failure it invokes environment diagnose,
+	// which may call require (aborting anything after it) and perturbs system
+	// state. Our collection above must complete first.
+	s.BaseSuite.AfterTest(suiteName, testName)
 }
 
 func (s *baseStartStopSuite) collectAgentLogs() {
