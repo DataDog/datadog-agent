@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package loopbackimpl
+package lookbackimpl
 
 import (
 	"encoding/binary"
@@ -33,7 +33,7 @@ func appendRecord(buf []byte, r record) []byte {
 // decodeRecord decodes the first recordSize bytes of b into a record.
 func decodeRecord(b []byte) (record, error) {
 	if len(b) < recordSize {
-		return record{}, fmt.Errorf("loopback: short record: %d bytes", len(b))
+		return record{}, fmt.Errorf("lookback: short record: %d bytes", len(b))
 	}
 	return record{
 		contextKey: binary.BigEndian.Uint64(b[0:8]),

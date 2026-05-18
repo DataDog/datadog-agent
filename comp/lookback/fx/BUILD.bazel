@@ -3,10 +3,10 @@ load("@rules_go//go:def.bzl", "go_library")
 go_library(
     name = "fx",
     srcs = ["fx.go"],
-    importpath = "github.com/DataDog/datadog-agent/comp/loopback/fx",
+    importpath = "github.com/DataDog/datadog-agent/comp/lookback/fx",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/loopback/impl",
+        "//comp/lookback/impl",
         "//pkg/util/fxutil",
         "@org_uber_go_fx//:fx",
     ],

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package loopbackimpl
+package lookbackimpl
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	loopback "github.com/DataDog/datadog-agent/comp/loopback/def"
+	lookback "github.com/DataDog/datadog-agent/comp/lookback/def"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -48,7 +48,7 @@ func buildTestComponent(t *testing.T, cfg storeConfig) *component {
 func TestNoopComponentReturnsErrDisabled(t *testing.T) {
 	n := &noopComponent{}
 	_, err := n.Flush(context.Background(), "m", nil, 0, 1, time.Second)
-	assert.True(t, errors.Is(err, loopback.ErrDisabled))
+	assert.True(t, errors.Is(err, lookback.ErrDisabled))
 }
 
 func TestEndToEndWriteRotateFlush(t *testing.T) {
@@ -113,7 +113,7 @@ func TestFlushErrNoDataWhenNoFiles(t *testing.T) {
 	require.NoError(t, comp.ctxFile.maybeWrite(99, "ghost", nil))
 
 	_, err := comp.Flush(context.Background(), "ghost", nil, 0, int64(time.Second), time.Second)
-	assert.True(t, errors.Is(err, loopback.ErrNoData))
+	assert.True(t, errors.Is(err, lookback.ErrNoData))
 }
 
 func TestRetentionAgeEnforcement(t *testing.T) {

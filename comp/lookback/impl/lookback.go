@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package loopbackimpl implements the loopback ring buffer component.
-package loopbackimpl
+// Package lookbackimpl implements the lookback ring buffer component.
+package lookbackimpl
 
 import (
 	"context"
@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	loopback "github.com/DataDog/datadog-agent/comp/loopback/def"
+	lookback "github.com/DataDog/datadog-agent/comp/lookback/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/hook"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -33,7 +33,7 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
-// Requires defines the dependencies for the loopback component.
+// Requires defines the dependencies for the lookback component.
 type Requires struct {
 	fx.In
 
@@ -45,52 +45,52 @@ type Requires struct {
 	MetricHooks   []hook.Hook[[]hook.MetricSampleSnapshot] `group:"hook"`
 }
 
-// Provides defines the output of the loopback component.
+// Provides defines the output of the lookback component.
 type Provides struct {
 	fx.Out
 
-	Comp            loopback.Component
+	Comp            lookback.Component
 	FlushEndpoint   api.AgentEndpointProvider
 	ForwardEndpoint api.AgentEndpointProvider
 }
 
-// NewComponent creates the loopback ring buffer component.
-// When loopback.enabled is false a lightweight no-op implementation is returned.
+// NewComponent creates the lookback ring buffer component.
+// When lookback.enabled is false a lightweight no-op implementation is returned.
 func NewComponent(reqs Requires) (Provides, error) {
-	if !reqs.Config.GetBool("loopback.enabled") {
+	if !reqs.Config.GetBool("lookback.enabled") {
 		noop := &noopComponent{}
 		return Provides{
 			Comp:            noop,
-			FlushEndpoint:   api.NewAgentEndpointProvider(noop.handleFlush, "/loopback-flush", "GET"),
-			ForwardEndpoint: api.NewAgentEndpointProvider(noop.handleForward, "/loopback-forward", "POST"),
+			FlushEndpoint:   api.NewAgentEndpointProvider(noop.handleFlush, "/lookback-flush", "GET"),
+			ForwardEndpoint: api.NewAgentEndpointProvider(noop.handleForward, "/lookback-forward", "POST"),
 		}, nil
 	}
 
 	cfg := storeConfig{
-		baseDir:          reqs.Config.GetString("loopback.dir"),
-		numShards:        reqs.Config.GetInt("loopback.num_shards"),
-		rotationInterval: reqs.Config.GetDuration("loopback.rotation_interval"),
-		maxAge:           reqs.Config.GetDuration("loopback.max_age"),
-		maxDiskBytes:     reqs.Config.GetInt64("loopback.max_disk_bytes"),
-		maxBufSize:       reqs.Config.GetInt("loopback.write_buffer_size"),
+		baseDir:          reqs.Config.GetString("lookback.dir"),
+		numShards:        reqs.Config.GetInt("lookback.num_shards"),
+		rotationInterval: reqs.Config.GetDuration("lookback.rotation_interval"),
+		maxAge:           reqs.Config.GetDuration("lookback.max_age"),
+		maxDiskBytes:     reqs.Config.GetInt64("lookback.max_disk_bytes"),
+		maxBufSize:       reqs.Config.GetInt("lookback.write_buffer_size"),
 	}
 
-	reqs.Log.Infof("loopback: initializing store at %s (shards=%d, rotation=%s, maxAge=%s, maxDisk=%dMB)",
+	reqs.Log.Infof("lookback: initializing store at %s (shards=%d, rotation=%s, maxAge=%s, maxDisk=%dMB)",
 		cfg.baseDir, cfg.numShards, cfg.rotationInterval, cfg.maxAge, cfg.maxDiskBytes/1024/1024)
 
 	if err := os.MkdirAll(cfg.baseDir, 0o755); err != nil {
-		return Provides{}, fmt.Errorf("loopback: mkdir %s: %w", cfg.baseDir, err)
+		return Provides{}, fmt.Errorf("lookback: mkdir %s: %w", cfg.baseDir, err)
 	}
 
 	ctxFile, err := newContextFile(filepath.Join(cfg.baseDir, "contexts.bin"))
 	if err != nil {
-		return Provides{}, fmt.Errorf("loopback: init context file: %w", err)
+		return Provides{}, fmt.Errorf("lookback: init context file: %w", err)
 	}
 
 	store, err := newShardedStore(cfg, reqs.Log)
 	if err != nil {
 		_ = ctxFile.close()
-		return Provides{}, fmt.Errorf("loopback: init store: %w", err)
+		return Provides{}, fmt.Errorf("lookback: init store: %w", err)
 	}
 
 	comp := &component{
@@ -108,12 +108,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	reqs.Lc.Append(fx.Hook{
 		OnStart: func(_ context.Context) error {
-			reqs.Log.Infof("loopback: subscribing to %d metric hook(s)", len(reqs.MetricHooks))
+			reqs.Log.Infof("lookback: subscribing to %d metric hook(s)", len(reqs.MetricHooks))
 			pool := &sync.Pool{New: func() any {
 				return make([]hook.MetricSampleSnapshot, 0, 64)
 			}}
 			for i, h := range reqs.MetricHooks {
-				name := fmt.Sprintf("loopback-%d", i)
+				name := fmt.Sprintf("lookback-%d", i)
 				unsub := h.Subscribe(name, comp.onSamples,
 					hook.WithRecycle(
 						func(src []hook.MetricSampleSnapshot) []hook.MetricSampleSnapshot {
@@ -147,12 +147,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	return Provides{
 		Comp:            comp,
-		FlushEndpoint:   api.NewAgentEndpointProvider(comp.handleFlush, "/loopback-flush", "GET"),
-		ForwardEndpoint: api.NewAgentEndpointProvider(comp.handleForward, "/loopback-forward", "POST"),
+		FlushEndpoint:   api.NewAgentEndpointProvider(comp.handleFlush, "/lookback-flush", "GET"),
+		ForwardEndpoint: api.NewAgentEndpointProvider(comp.handleForward, "/lookback-forward", "POST"),
 	}, nil
 }
 
-// component is the enabled implementation of loopback.Component.
+// component is the enabled implementation of lookback.Component.
 type component struct {
 	store      *shardedStore
 	ctxFile    *contextFile
@@ -173,13 +173,13 @@ func (c *component) onSamples(samples []hook.MetricSampleSnapshot) {
 	}
 }
 
-func (c *component) Flush(ctx context.Context, name string, tags []string, start, stop int64, interval time.Duration) ([]loopback.Bucket, error) {
+func (c *component) Flush(ctx context.Context, name string, tags []string, start, stop int64, interval time.Duration) ([]lookback.Bucket, error) {
 	entries, err := c.ctxFile.scan(name, tags)
 	if err != nil {
-		return nil, fmt.Errorf("loopback: context scan: %w", err)
+		return nil, fmt.Errorf("lookback: context scan: %w", err)
 	}
 	if len(entries) == 0 {
-		return nil, loopback.ErrNoData
+		return nil, lookback.ErrNoData
 	}
 
 	keys := make([]uint64, 0, len(entries))
@@ -197,12 +197,12 @@ func (c *component) Flush(ctx context.Context, name string, tags []string, start
 		return nil, err
 	}
 	if len(buckets) == 0 {
-		return nil, loopback.ErrNoData
+		return nil, lookback.ErrNoData
 	}
 	return buckets, nil
 }
 
-// flushParams holds parsed query parameters shared by /loopback-flush and /loopback-forward.
+// flushParams holds parsed query parameters shared by /lookback-flush and /lookback-forward.
 type flushParams struct {
 	name     string
 	tags     []string
@@ -248,36 +248,36 @@ func parseFlushParams(r *http.Request) (flushParams, error) {
 	return flushParams{name: name, tags: tags, startNs: startNs, stopNs: stopNs, interval: interval}, nil
 }
 
-// handleFlush serves GET /loopback-flush — returns aggregated buckets as JSON.
+// handleFlush serves GET /lookback-flush — returns aggregated buckets as JSON.
 func (c *component) handleFlush(w http.ResponseWriter, r *http.Request) {
 	p, err := parseFlushParams(r)
 	if err != nil {
-		httputils.SetJSONError(w, c.log.Errorf("loopback flush: %v", err), http.StatusBadRequest)
+		httputils.SetJSONError(w, c.log.Errorf("lookback flush: %v", err), http.StatusBadRequest)
 		return
 	}
 	buckets, err := c.Flush(r.Context(), p.name, p.tags, p.startNs, p.stopNs, p.interval)
 	if err != nil {
-		httputils.SetJSONError(w, c.log.Errorf("loopback flush: %v", err), http.StatusNotFound)
+		httputils.SetJSONError(w, c.log.Errorf("lookback flush: %v", err), http.StatusNotFound)
 		return
 	}
 	out, err := json.Marshal(buckets)
 	if err != nil {
-		httputils.SetJSONError(w, c.log.Errorf("loopback flush marshal: %v", err), http.StatusInternalServerError)
+		httputils.SetJSONError(w, c.log.Errorf("lookback flush marshal: %v", err), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(out) //nolint:errcheck
 }
 
-// handleForward serves POST /loopback-forward — reads WAL data and sends it to the backend.
+// handleForward serves POST /lookback-forward — reads WAL data and sends it to the backend.
 //
-// Same query parameters as /loopback-flush, plus:
+// Same query parameters as /lookback-flush, plus:
 //
 //	mtype — "gauge" | "count" | "rate"  (default: gauge)
 func (c *component) handleForward(w http.ResponseWriter, r *http.Request) {
 	p, err := parseFlushParams(r)
 	if err != nil {
-		httputils.SetJSONError(w, c.log.Errorf("loopback forward: %v", err), http.StatusBadRequest)
+		httputils.SetJSONError(w, c.log.Errorf("lookback forward: %v", err), http.StatusBadRequest)
 		return
 	}
 
@@ -291,11 +291,11 @@ func (c *component) handleForward(w http.ResponseWriter, r *http.Request) {
 
 	entries, err := c.ctxFile.scan(p.name, p.tags)
 	if err != nil {
-		httputils.SetJSONError(w, c.log.Errorf("loopback forward scan: %v", err), http.StatusInternalServerError)
+		httputils.SetJSONError(w, c.log.Errorf("lookback forward scan: %v", err), http.StatusInternalServerError)
 		return
 	}
 	if len(entries) == 0 {
-		httputils.SetJSONError(w, c.log.Errorf("loopback forward: %v", loopback.ErrNoData), http.StatusNotFound)
+		httputils.SetJSONError(w, c.log.Errorf("lookback forward: %v", lookback.ErrNoData), http.StatusNotFound)
 		return
 	}
 
@@ -310,11 +310,11 @@ func (c *component) handleForward(w http.ResponseWriter, r *http.Request) {
 
 	buckets, err := c.store.flush(r.Context(), keys, p.startNs, p.stopNs, int64(p.interval), resolve)
 	if err != nil {
-		httputils.SetJSONError(w, c.log.Errorf("loopback forward flush: %v", err), http.StatusInternalServerError)
+		httputils.SetJSONError(w, c.log.Errorf("lookback forward flush: %v", err), http.StatusInternalServerError)
 		return
 	}
 	if len(buckets) == 0 {
-		httputils.SetJSONError(w, c.log.Errorf("loopback forward: %v", loopback.ErrNoData), http.StatusNotFound)
+		httputils.SetJSONError(w, c.log.Errorf("lookback forward: %v", lookback.ErrNoData), http.StatusNotFound)
 		return
 	}
 
@@ -342,7 +342,7 @@ func (c *component) handleForward(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if sendErr != nil {
-		httputils.SetJSONError(w, c.log.Errorf("loopback forward send: %v", sendErr), http.StatusInternalServerError)
+		httputils.SetJSONError(w, c.log.Errorf("lookback forward send: %v", sendErr), http.StatusInternalServerError)
 		return
 	}
 
@@ -350,17 +350,17 @@ func (c *component) handleForward(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, `{"forwarded":%d}`, len(buckets))
 }
 
-// noopComponent is returned when loopback.enabled = false.
+// noopComponent is returned when lookback.enabled = false.
 type noopComponent struct{}
 
-func (n *noopComponent) Flush(_ context.Context, _ string, _ []string, _, _ int64, _ time.Duration) ([]loopback.Bucket, error) {
-	return nil, loopback.ErrDisabled
+func (n *noopComponent) Flush(_ context.Context, _ string, _ []string, _, _ int64, _ time.Duration) ([]lookback.Bucket, error) {
+	return nil, lookback.ErrDisabled
 }
 
 func (n *noopComponent) handleFlush(w http.ResponseWriter, _ *http.Request) {
-	http.Error(w, loopback.ErrDisabled.Error(), http.StatusServiceUnavailable)
+	http.Error(w, lookback.ErrDisabled.Error(), http.StatusServiceUnavailable)
 }
 
 func (n *noopComponent) handleForward(w http.ResponseWriter, _ *http.Request) {
-	http.Error(w, loopback.ErrDisabled.Error(), http.StatusServiceUnavailable)
+	http.Error(w, lookback.ErrDisabled.Error(), http.StatusServiceUnavailable)
 }

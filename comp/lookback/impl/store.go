@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package loopbackimpl
+package lookbackimpl
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 	"time"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	loopback "github.com/DataDog/datadog-agent/comp/loopback/def"
+	lookback "github.com/DataDog/datadog-agent/comp/lookback/def"
 )
 
 // storeConfig holds the runtime configuration for a shardedStore.
@@ -41,7 +41,7 @@ type shardedStore struct {
 
 func newShardedStore(cfg storeConfig, l log.Component) (*shardedStore, error) {
 	if err := os.MkdirAll(cfg.baseDir, 0o755); err != nil {
-		return nil, fmt.Errorf("loopback store: mkdir %s: %w", cfg.baseDir, err)
+		return nil, fmt.Errorf("lookback store: mkdir %s: %w", cfg.baseDir, err)
 	}
 	now := time.Now().Unix()
 	shards := make([]*shard, cfg.numShards)
@@ -91,7 +91,7 @@ func (ss *shardedStore) rotationLoop() {
 			return
 		case t := <-ticker.C:
 			if err := ss.rotateAll(t.Unix()); err != nil {
-				ss.log.Errorf("loopback: rotation error: %v", err)
+				ss.log.Errorf("lookback: rotation error: %v", err)
 			}
 		}
 	}
@@ -100,7 +100,7 @@ func (ss *shardedStore) rotationLoop() {
 func (ss *shardedStore) rotateAll(newWindowStartSec int64) error {
 	for _, s := range ss.shards {
 		if err := s.rotate(newWindowStartSec); err != nil {
-			ss.log.Errorf("loopback: shard rotate: %v", err)
+			ss.log.Errorf("lookback: shard rotate: %v", err)
 		}
 	}
 	return ss.enforceRetention()
@@ -160,7 +160,7 @@ func (ss *shardedStore) flush(
 	start, stop int64,
 	intervalNs int64,
 	resolve func(uint64) (string, []string, bool),
-) ([]loopback.Bucket, error) {
+) ([]lookback.Bucket, error) {
 	keySet := make(map[uint64]struct{}, len(keys))
 	for _, k := range keys {
 		keySet[k] = struct{}{}
@@ -183,7 +183,7 @@ func (ss *shardedStore) flush(
 		for _, f := range relevant {
 			recs, err := readRecordsFromFile(f.path)
 			if err != nil {
-				ss.log.Warnf("loopback: read %s: %v", f.path, err)
+				ss.log.Warnf("lookback: read %s: %v", f.path, err)
 				continue
 			}
 			allRecs = append(allRecs, recs...)
@@ -199,7 +199,7 @@ func (ss *shardedStore) stop(_ context.Context) error {
 	ss.wg.Wait()
 	for _, s := range ss.shards {
 		if err := s.stop(); err != nil {
-			ss.log.Warnf("loopback: shard stop: %v", err)
+			ss.log.Warnf("lookback: shard stop: %v", err)
 		}
 	}
 	return nil

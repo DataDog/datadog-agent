@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package loopbackimpl
+package lookbackimpl
 
 import (
 	"fmt"
@@ -39,7 +39,7 @@ type shard struct {
 
 func newShard(dir string, windowStartSec int64, maxBufSize int) (*shard, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, fmt.Errorf("loopback shard %s: mkdir: %w", dir, err)
+		return nil, fmt.Errorf("lookback shard %s: mkdir: %w", dir, err)
 	}
 	s := &shard{
 		dir:         dir,
@@ -58,7 +58,7 @@ func (s *shard) openActiveFile() error {
 	path := filepath.Join(s.dir, name)
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o644)
 	if err != nil {
-		return fmt.Errorf("loopback WAL open %s: %w", path, err)
+		return fmt.Errorf("lookback WAL open %s: %w", path, err)
 	}
 	s.activeF = f
 	return nil
@@ -81,7 +81,7 @@ func (s *shard) flushLocked() error {
 		return nil
 	}
 	if _, err := s.activeF.Write(s.buf); err != nil {
-		return fmt.Errorf("loopback WAL write: %w", err)
+		return fmt.Errorf("lookback WAL write: %w", err)
 	}
 	s.buf = s.buf[:0]
 	return nil
@@ -97,10 +97,10 @@ func (s *shard) rotate(newWindowStartSec int64) error {
 		return err
 	}
 	if err := s.activeF.Sync(); err != nil {
-		return fmt.Errorf("loopback WAL sync: %w", err)
+		return fmt.Errorf("lookback WAL sync: %w", err)
 	}
 	if err := s.activeF.Close(); err != nil {
-		return fmt.Errorf("loopback WAL close: %w", err)
+		return fmt.Errorf("lookback WAL close: %w", err)
 	}
 	s.activeF = nil
 
@@ -187,7 +187,7 @@ func parseWALFilename(name string) (int64, error) {
 	base := strings.TrimSuffix(name, walExtension)
 	v, err := strconv.ParseInt(base, 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("loopback: invalid WAL filename %q: %w", name, err)
+		return 0, fmt.Errorf("lookback: invalid WAL filename %q: %w", name, err)
 	}
 	return v, nil
 }

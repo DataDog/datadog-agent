@@ -848,11 +848,11 @@ Package client implements a component to send process metadata to the Cluster-Ag
 
 Package logonduration provides a component that monitors the duration of a user logon after boot and forwards them to the Datadog Event Management v2 API.
 
-### [comp/loopback](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/loopback)
+### [comp/lookback](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/lookback)
 
 *Datadog Team*: agent-metric-pipelines
 
-Package loopback provides the disk-based loopback ring buffer component.
+Package lookback provides the disk-based lookback ring buffer component.
 It subscribes to the metrics pipeline hook and stores pre-aggregation
 metric samples on disk as append-only WAL files, enabling callers to
 replay any past time window via Flush.

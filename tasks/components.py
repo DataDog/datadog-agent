@@ -190,7 +190,7 @@ ignore_fx_import = [
     # group:"hook" Fx tag. fxutil.ProvideComponentConstructor strips struct tags at
     # runtime, so they must use fx.In/fx.Out directly instead of compdef types.
     "comp/hookbenchsubscriber",
-    "comp/loopback",
+    "comp/lookback",
 ]
 
 ignore_provide_component_constructor_missing = [

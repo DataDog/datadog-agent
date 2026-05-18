@@ -401,7 +401,7 @@
 /comp/hookbenchsubscriber @DataDog/agent-shared-components
 /comp/languagedetection/client @DataDog/container-platform
 /comp/logonduration @DataDog/windows-products
-/comp/loopback @DataDog/agent-metric-pipelines
+/comp/lookback @DataDog/agent-metric-pipelines
 /comp/networkconfigmanagement @DataDog/ndm-integrations
 /comp/notableevents @DataDog/windows-products
 /comp/offlinereporter @DataDog/agent-metric-pipelines

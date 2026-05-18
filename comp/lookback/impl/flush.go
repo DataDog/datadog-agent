@@ -3,14 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package loopbackimpl
+package lookbackimpl
 
 import (
 	"cmp"
 	"slices"
 	"time"
 
-	loopback "github.com/DataDog/datadog-agent/comp/loopback/def"
+	lookback "github.com/DataDog/datadog-agent/comp/lookback/def"
 )
 
 const defaultIntervalNs = int64(time.Second)
@@ -27,7 +27,7 @@ func aggregateRecords(
 	start, stop int64,
 	intervalNs int64,
 	resolve func(uint64) (string, []string, bool),
-) []loopback.Bucket {
+) []lookback.Bucket {
 	if intervalNs <= 0 {
 		intervalNs = defaultIntervalNs
 	}
@@ -61,7 +61,7 @@ func aggregateRecords(
 	slices.Sort(keys)
 
 	// Step 4: per key, sort indices by tsNs, then stream-aggregate.
-	var buckets []loopback.Bucket
+	var buckets []lookback.Bucket
 	for _, ck := range keys {
 		name, tags, ok := resolve(ck)
 		if !ok {
@@ -73,12 +73,12 @@ func aggregateRecords(
 		})
 
 		var curTs int64 = -1
-		var cur *loopback.Bucket
+		var cur *lookback.Bucket
 		for _, i := range idxs {
 			r := filtered[i]
 			tsBucket := (r.tsNs / intervalNs) * intervalNs
 			if tsBucket != curTs {
-				buckets = append(buckets, loopback.Bucket{
+				buckets = append(buckets, lookback.Bucket{
 					Name:  name,
 					Tags:  tags,
 					Ts:    tsBucket,

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package loopbackimpl
+package lookbackimpl
 
 import (
 	"encoding/binary"
@@ -41,12 +41,12 @@ type contextFile struct {
 func newContextFile(path string) (*contextFile, error) {
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0o644)
 	if err != nil {
-		return nil, fmt.Errorf("loopback context file open %s: %w", path, err)
+		return nil, fmt.Errorf("lookback context file open %s: %w", path, err)
 	}
 	cf := &contextFile{f: f, bloom: newContextSet(0)}
 	if err := cf.loadIntoBloom(); err != nil {
 		f.Close()
-		return nil, fmt.Errorf("loopback context file load %s: %w", path, err)
+		return nil, fmt.Errorf("lookback context file load %s: %w", path, err)
 	}
 	return cf, nil
 }
@@ -90,7 +90,7 @@ func (cf *contextFile) scan(name string, filterTags []string) (map[uint64]contex
 	defer cf.mu.Unlock()
 
 	if _, err := cf.f.Seek(0, io.SeekStart); err != nil {
-		return nil, fmt.Errorf("loopback context scan seek: %w", err)
+		return nil, fmt.Errorf("lookback context scan seek: %w", err)
 	}
 	result := make(map[uint64]contextEntry)
 	for {
@@ -99,7 +99,7 @@ func (cf *contextFile) scan(name string, filterTags []string) (map[uint64]contex
 			break
 		}
 		if err != nil {
-			return result, fmt.Errorf("loopback context scan read: %w", err)
+			return result, fmt.Errorf("lookback context scan read: %w", err)
 		}
 		if entryName != name {
 			continue
