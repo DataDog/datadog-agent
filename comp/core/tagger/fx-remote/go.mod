@@ -6,7 +6,6 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.72.0-rc.5
 	github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote v0.0.0-20250129172314-517df3f51a84
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.73.0-rc.5
-	go.uber.org/fx v1.24.0
 )
 
 require gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -120,6 +119,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
+	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
