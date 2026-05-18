@@ -134,42 +134,54 @@ func NewComponent(deps Requires) (Provides, error) {
 		fileTailer.NewFingerprinter(*fingerprintCfg, fileOpener),
 	)
 
-	launcher := containerLauncher.NewLauncher(logSources, option.New(wmeta), deps.Tagger)
+	// anomaly_detection.logs.kubelet_only controls whether the observer collects
+	// only the kubelet journald source (kubelet.service via systemd) and skips
+	// all container log collection. Requires the kubelet+systemd build tags to
+	// have any effect. Defaults to false (collect all container logs).
+	kubeletOnly := deps.Config.GetBool("anomaly_detection.logs.kubelet_only")
+
 	launchersMgr := launchers.NewLaunchers(logSources, pipeline, deps.Auditor, tracker)
 	launchersMgr.AddLauncher(fileLauncher)
-	launchersMgr.AddLauncher(launcher)
 	launchersMgr.AddLauncher(journaldlauncher.NewLauncher(flare.NewFlareController(), deps.Tagger))
 
-	registerKubeletJournaldSource(logSources, deps.Log)
-
-	sp := newSourceProvider(wmeta, logSources, pauseFilter)
-
-	services := service.NewServices()
-	adMgr := newADSourceManager(logSources, services, sp)
-
+	var sp *sourceProvider
+	var adMgr *adSourceManager
 	var adScheduler schedulers.Scheduler
-	if deps.Autodiscovery != nil {
-		adScheduler = logsadscheduler.NewNamed(deps.Autodiscovery, "observer-logssource AD scheduler")
+	if !kubeletOnly {
+		launcher := containerLauncher.NewLauncher(logSources, option.New(wmeta), deps.Tagger)
+		launchersMgr.AddLauncher(launcher)
+		sp = newSourceProvider(wmeta, logSources, pauseFilter)
+		services := service.NewServices()
+		adMgr = newADSourceManager(logSources, services, sp)
+		if deps.Autodiscovery != nil {
+			adScheduler = logsadscheduler.NewNamed(deps.Autodiscovery, "observer-logssource AD scheduler")
+		}
 	}
+
+	registerKubeletJournaldSource(logSources, deps.Log)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	deps.Lc.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
-			deps.Log.Infof("[observer/logssource] starting container log pipeline")
+			deps.Log.Infof("[observer/logssource] starting log pipeline (kubelet_only=%v)", kubeletOnly)
 			pipeline.start()
 			launchersMgr.Start()
 			if adScheduler != nil {
 				adScheduler.Start(adMgr)
 			}
-			sp.run(ctx)
+			if sp != nil {
+				sp.run(ctx)
+			}
 			return nil
 		},
 		OnStop: func(_ context.Context) error {
 			// Shutdown ordering is load-bearing — do NOT reorder.
 			// 1. Cancel context and wait for source provider to exit fully.
 			cancel()
-			sp.wait()
+			if sp != nil {
+				sp.wait()
+			}
 			// 2. Stop the AD scheduler so it does not add more sources.
 			if adScheduler != nil {
 				adScheduler.Stop()
