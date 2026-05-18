@@ -464,16 +464,8 @@ func FetchLoadedModules() (map[string]ProcFSModule, error) {
 }
 
 // ScanKernelModulePaths walks /lib/modules/$(uname -r)/ once and returns a map
-// of module name -> on-disk path. Keys are normalised to the form used in
-// /proc/modules (underscores, no .ko[.xz] suffix) so callers can look up paths
-// directly by the name reported by FetchLoadedModules. Both .ko and .ko.xz
-// files are recognised. Parent symlinks on the returned paths are resolved
-// (common on flatcar/coreos/NixOS where /lib/modules/<release> is itself a
-// symlink).
-//
-// Returns nil when the kernel release cannot be resolved or the modules tree
-// is unreadable. Callers should treat the result as best-effort: not every
-// loaded module necessarily has a file under /lib/modules/<release>.
+// of module name (normalised to /proc/modules form) to on-disk path. Returns
+// nil when the modules tree cannot be located or read.
 func ScanKernelModulePaths() map[string]string {
 	release, err := kernel.Release()
 	if err != nil {
