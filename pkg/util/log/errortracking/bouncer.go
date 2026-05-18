@@ -19,11 +19,10 @@ import (
 // observation resets the entry and is treated as a fresh first
 // sighting.
 //
-// Design rationale (PR #50607 iglendd thread "we need to implement
-// Bouncer? PC could be the key … APM has 1m I think … start from
-// 15m"): the wire payload's Count field becomes the number of
-// suppressed duplicates, giving operators a sense of error volume
-// without paying for one record per occurrence on a hot bug path.
+// Default window is 15 minutes — long enough that a hot bug path collapses
+// to one record per quarter-hour, short enough that operators see new error
+// patterns promptly. The wire payload's Count field carries the number of
+// suppressed duplicates so the per-window total isn't lost.
 //
 // Bouncer is purpose-built rather than reusing the global
 // rate.Sometimes wrapper in pkg/util/log/log_limit.go — that primitive

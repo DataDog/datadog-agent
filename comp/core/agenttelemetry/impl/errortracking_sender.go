@@ -52,24 +52,24 @@ func (s *senderImpl) sendLogsTypedBatch(ctx context.Context, logs []Log) error {
 	return s.sendSerializedPayload(ctx, payload, logsPayloadType)
 }
 
-// errorLogToLog converts the foundational ErrorLog DTO (carried across
-// the pkg/util/log -> comp/core boundary) into the wire-shape Log struct
-// expected by dd-go's tracer-telemetry-intake/telemetry-payload/logs.go.
+// errorLogToLog converts an ErrorLog (carried across the pkg/util/log ->
+// comp/core boundary) into the wire-shape Log struct expected by dd-go's
+// tracer-telemetry-intake/telemetry-payload/logs.go.
 //
-// PII pivot (PR #50607): Message and Tags are intentionally emitted as
-// empty strings. Every formatted slog message and every slog.Attr value
-// is potentially user-controlled — paths, hostnames, request bodies,
-// or error strings carrying user data. Until template-aware static-
-// message capture lands (follow-up PR), the only fields safe by
-// construction are PC and Level. The schema fields stay (wire-shape
-// parity with dd-go) but always emit empty.
+// This pipeline ships PC-only telemetry. Every formatted slog message and
+// every slog.Attr value is potentially user-controlled — paths, hostnames,
+// request bodies, error strings carrying user data. Until template-aware
+// static-message capture lands (follow-up), the only fields safe by
+// construction are PC, Time, and Count. The schema fields stay (wire-shape
+// parity with dd-go) but are not populated and should not be populated by
+// this path.
 //
 //   - Time   -> tracer_time (unix seconds)
 //   - Level  -> uppercase LogLevel (always "ERROR" today)
 //   - PC     -> single-frame stack_trace ("file:line")
-//   - Count  -> 1 today; the Bouncer (see follow-up commit) populates
-//     the suppressed-duplicate count here when it lands.
-//   - Message, Tags, TraceID, SpanID -> "" (PII or unpopulated)
+//   - Count  -> 1 today; the Bouncer populates the suppressed-duplicate
+//     count here.
+//   - Message, Tags, TraceID, SpanID -> "" (not populated)
 //   - IsCrash -> false (this path does not emit crash logs)
 func errorLogToLog(e errortracking.ErrorLog) Log {
 	count := int(e.Count)

@@ -575,12 +575,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		settingsfx.Module(),
 		agenttelemetryfx.Module(),
-		// AGTHEAL-15: connect pkg/util/log/setup's errortracking submitter
-		// slot to the agenttelemetry component's SubmitErrorRecord. The
-		// agenttelemetry component owns the bounded buffer, flush
-		// scheduling, and recursion guard; this Invoke is just the wire.
-		// The slot is a no-op until this Invoke runs, so SetupLogger does
-		// not need to know about errortracking during its own construction.
+		// AGTHEAL-15: errortracking submitter wire — atel owns buffer/flush/recursion.
 		fx.Invoke(installErrortrackingHandler),
 		remotetraceroute.Module(),
 		networkpath.Bundle(),
@@ -602,25 +597,11 @@ func getSharedFxOption() fx.Option {
 	)
 }
 
-// installErrortrackingHandler is the AGTHEAL-15 Fx invoke that wires the
-// pkg/util/log/setup errortracking submitter slot to the agenttelemetry
-// component's SubmitErrorRecord. agenttelemetry owns the bounded buffer,
-// flush scheduling, and recursion-prevention convention; this function is a
-// single-line wire from the foundational logger subtree to the comp/core
-// consumer.
-//
-// The Invoke is a no-op when agent_telemetry.errortracking.enabled is
-// false, or when the parent agent_telemetry feature is excluded by gov/FIPS
-// (configUtils.IsAgentTelemetryEnabled). agenttelemetry is constructed
-// regardless (it has other responsibilities), but its SubmitErrorRecord is
-// never reached because the submitter slot stays nil and the slog handler
-// under pkg/util/log/setup short-circuits.
-//
-// Lifecycle: OnStart installs the submitter. The matching clear runs
-// synchronously inside agenttelemetry.stop() (not as a separate OnStop
-// hook here) so it executes before atel.cancel() — guaranteeing no
-// producer can enqueue after the flush goroutine begins its final drain.
-// See comp/core/agenttelemetry/impl/agenttelemetry.go.
+// installErrortrackingHandler is a no-op when the feature is disabled
+// (agent_telemetry.errortracking.enabled or the parent agent_telemetry
+// gate). The OnStart hook installs the submitter into pkg/util/log/setup;
+// the matching clear runs inside atel.stop() so it precedes the final
+// flush-goroutine drain.
 func installErrortrackingHandler(lc fx.Lifecycle, cfg config.Component, at agenttelemetry.Component) {
 	if !configUtils.IsAgentTelemetryEnabled(cfg) || !cfg.GetBool("agent_telemetry.errortracking.enabled") {
 		return
