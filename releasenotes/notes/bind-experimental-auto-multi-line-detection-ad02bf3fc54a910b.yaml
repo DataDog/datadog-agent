@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Binds ``logs_config.experimental_auto_multi_line_detection`` so the
+    deprecated setting no longer triggers "config key is unknown" warnings
+    in the Agent logs. The setting continues to behave as before and a
+    deprecation warning is logged when it is explicitly configured.
