@@ -2356,6 +2356,7 @@ core,github.com/prometheus/sigv4,Apache-2.0,Copyright 2012-2015 The Prometheus A
 core,github.com/puzpuzpuz/xsync/v3,Apache-2.0,Copyright (c) 2021 Andrey Pechkurov
 core,github.com/puzpuzpuz/xsync/v4,Apache-2.0,Copyright (c) 2021 Andrey Pechkurov
 core,github.com/qri-io/jsonpointer,MIT,Copyright (c) 2017 Brendan O'Brien
+core,github.com/rabbitmq/amqp091-go,BSD-2-Clause,"Copyright (c) 2012-2021, Sean Treadway, SoundCloud Ltd | Copyright (c) 2021 VMware, Inc. or its affiliates. All Rights Reserved"
 core,github.com/rcrowley/go-metrics,BSD-2-Clause-Views,Copyright 2012 Richard Crowley. All rights reserved
 core,github.com/redis/go-redis/v9,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
 core,github.com/redis/go-redis/v9/auth,BSD-2-Clause,Copyright (c) 2013 The github.com/redis/go-redis Authors
@@ -2480,7 +2481,6 @@ core,github.com/stackitcloud/stackit-sdk-go/core/config,Apache-2.0,Copyright 202
 core,github.com/stackitcloud/stackit-sdk-go/core/oapierror,Apache-2.0,Copyright 2024 - 2026 Schwarz IT KG
 core,github.com/stackitcloud/stackit-sdk-go/core/oidcadapters,Apache-2.0,Copyright 2024 - 2026 Schwarz IT KG
 core,github.com/stackitcloud/stackit-sdk-go/core/utils,Apache-2.0,Copyright 2024 - 2026 Schwarz IT KG
-core,github.com/streadway/amqp,BSD-2-Clause,"Copyright (c) 2012-2019, Sean Treadway, SoundCloud Ltd"
 core,github.com/stretchr/objx,MIT,"Copyright (c) 2014 Stretchr, Inc | Copyright (c) 2017-2018 objx contributors"
 core,github.com/stretchr/testify/assert,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
 core,github.com/stretchr/testify/assert/yaml,MIT,"Copyright (c) 2012-2020 Mat Ryer, Tyler Bunnell and contributors"
