@@ -9,8 +9,6 @@ package collector
 // team: agent-runtimes
 
 import (
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -52,7 +50,7 @@ type Component interface {
 // the implementation to avoid linking with the implementation.
 func NoneModule() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(func() option.Option[Component] {
+		fxutil.ProvideComponentConstructor(func() option.Option[Component] {
 			return option.None[Component]()
 		}),
 	)

@@ -15,7 +15,6 @@ go_library(
         "//pkg/collector/check/id",
         "//pkg/util/fxutil",
         "//pkg/util/option",
-        "@org_uber_go_fx//:fx",
     ],
 )
 
