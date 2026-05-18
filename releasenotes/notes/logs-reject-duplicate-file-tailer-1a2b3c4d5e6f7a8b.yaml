@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Logs Agent now rejects duplicate file tailers when two log sources resolve
+    to the same file path. Previously, two sources differing only by container
+    identifier could spawn two tailers for the same file, racing on the same
+    auditor registry entry and corrupting committed offsets/checkpoints. The
+    duplicate is now skipped with a warning and only the first tailer is kept.

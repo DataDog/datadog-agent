@@ -111,6 +111,59 @@ func TestLauncherFileDetectionSingleScan(t *testing.T) {
 	runLauncherFileDetectionSingleScanTest(t, []string{t.TempDir()})
 }
 
+// TestLauncherRejectsDuplicateFileTailer verifies that when two log sources
+// resolve to the same file path, the launcher refuses to start a second
+// tailer for that path. Two tailers on the same path would race when writing
+// to the auditor registry (offsets/checkpoints are keyed by file path via
+// Tailer.Identifier), which can corrupt registry state. See AGNTLOG-317.
+func TestLauncherRejectsDuplicateFileTailer(t *testing.T) {
+	testDir := t.TempDir()
+	path := testDir + "/shared.log"
+
+	f, err := os.Create(path)
+	assert.Nil(t, err)
+	defer f.Close()
+
+	launcher := createLauncher(t, launcherTestOptions{openFilesLimit: 5})
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditorMock.NewMockRegistry()
+
+	// Two sources that resolve to the same file path. They differ only by
+	// container Identifier so the TailerContainer would otherwise key them
+	// under distinct scan keys, allowing both to be tracked and both to
+	// write to the same auditor entry.
+	firstSource := sources.NewLogSource("first", &config.LogsConfig{
+		Type: config.FileType, Path: path, TailingMode: "beginning", Identifier: "container-a",
+	})
+	secondSource := sources.NewLogSource("second", &config.LogsConfig{
+		Type: config.FileType, Path: path, TailingMode: "beginning", Identifier: "container-b",
+	})
+
+	launcher.addSource(firstSource)
+	assert.Equal(t, 1, launcher.tailers.Count(), "first source should start exactly one tailer")
+
+	// Sanity: helper reports the path as already tailed.
+	assert.True(t, launcher.isFileAlreadyTailed(path),
+		"after adding first source, isFileAlreadyTailed should return true for the path")
+
+	launcher.addSource(secondSource)
+	assert.Equal(t, 1, launcher.tailers.Count(),
+		"second source on the same file path must be rejected to avoid auditor offset races")
+
+	// And a third source that points at a different file in the same directory
+	// is still accepted, demonstrating the rejection is scoped to duplicate paths.
+	otherPath := testDir + "/other.log"
+	f2, err := os.Create(otherPath)
+	assert.Nil(t, err)
+	defer f2.Close()
+	thirdSource := sources.NewLogSource("third", &config.LogsConfig{
+		Type: config.FileType, Path: otherPath, TailingMode: "beginning", Identifier: "container-c",
+	})
+	launcher.addSource(thirdSource)
+	assert.Equal(t, 2, launcher.tailers.Count(),
+		"a source pointing at a distinct path must still produce its own tailer")
+}
+
 type TestSetupStrategy interface {
 	Setup(t *testing.T) TestSetupResult
 }
@@ -720,9 +773,11 @@ func runLauncherWithConcurrentContainerTailerTest(t *testing.T, testDirs []strin
 	msg = <-outputChan
 	assert.Equal(t, "Time", string(msg.GetContent()))
 
-	// Add a second source, same file, different container ID, tailing twice the same file is supported in that case
+	// Add a second source pointing at the same file (different container ID).
+	// Tailing the same file twice would race auditor offsets/checkpoints between
+	// the two tailers, so the launcher now rejects the duplicate (see AGNTLOG-317).
 	launcher.addSource(secondSource)
-	assert.Equal(t, 2, launcher.tailers.Count())
+	assert.Equal(t, 1, launcher.tailers.Count())
 }
 
 func runLauncherTailFromTheBeginningTest(t *testing.T, testDirs []string, chmodFileIfExists bool) {
@@ -737,8 +792,10 @@ func runLauncherTailFromTheBeginningTest(t *testing.T, testDirs []string, chmodF
 	sources := []*sources.LogSource{
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: testDir + "/test.log", TailingMode: "beginning"}),
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: testDir + "/container.log", TailingMode: "beginning", Identifier: "123456789"}),
-		// Same file different container ID
-		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: testDir + "/container.log", TailingMode: "beginning", Identifier: "987654321"}),
+		// Different file, different container ID. Two sources pointing at the same
+		// file path (regardless of container ID) are rejected by the launcher to
+		// prevent auditor offset races (see AGNTLOG-317), so use a distinct path here.
+		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: testDir + "/container2.log", TailingMode: "beginning", Identifier: "987654321"}),
 	}
 
 	for i, source := range sources {

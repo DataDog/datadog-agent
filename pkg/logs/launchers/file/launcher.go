@@ -450,11 +450,33 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 	}
 }
 
+// isFileAlreadyTailed returns true if any tailer currently tracked by the
+// launcher is already tailing the given file path. The TailerContainer is
+// keyed by scan key (e.g. <path>/<containerID> for container sources), so
+// two distinct scan keys can resolve to the same file path. Starting a
+// second tailer on the same path would race with the existing tailer when
+// updating auditor offsets/checkpoints, corrupting registry state. This
+// helper lets the spawn sites detect and reject such duplicates.
+func (s *Launcher) isFileAlreadyTailed(path string) bool {
+	identifier := "file:" + path
+	for _, existing := range s.tailers.All() {
+		if existing.Identifier() == identifier {
+			return true
+		}
+	}
+	return false
+}
+
 // startNewTailer creates a new tailer, making it tail from the last committed offset, the beginning or the end of the file,
 // returns true if the operation succeeded, false otherwise.
 func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, fingerprint *types.Fingerprint) bool {
 	if file == nil {
 		log.Debug("startNewTailer called with a nil file")
+		return false
+	}
+
+	if s.isFileAlreadyTailed(file.Path) {
+		log.Warnf("file %q is already being tailed by another log source; skipping duplicate tailer to avoid auditor offset corruption", file.Path)
 		return false
 	}
 
@@ -485,6 +507,11 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, finge
 func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.TailingMode, oldInfo *oldTailerInfo, fingerprint *types.Fingerprint) bool {
 	if file == nil {
 		log.Debug("startNewTailerWithStoredInfo called with a nil file")
+		return false
+	}
+
+	if s.isFileAlreadyTailed(file.Path) {
+		log.Warnf("file %q is already being tailed by another log source; skipping duplicate tailer to avoid auditor offset corruption", file.Path)
 		return false
 	}
 
