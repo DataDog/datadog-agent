@@ -449,9 +449,7 @@ func (cm *reconcilingConfigManager) resolveTemplateForService(tpl integration.Co
 	isDiscovery := tpl.IsDiscovery()
 
 	// Mutate a local copy so `tpl` (and the `digest` captured above) keep
-	// representing the source template — `digest` is the origin identifier
-	// passed to the secret resolver and must stay stable across reconciles
-	// even though the synthetic instance bytes change with svc.GetPorts().
+	// representing the source template.
 	resolveTpl := tpl
 	if isDiscovery {
 		instanceYAML, err := buildDiscoveryTrialInstance(svc)
