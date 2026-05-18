@@ -168,7 +168,7 @@ func FuzzNormalizeTrace(f *testing.F) {
 		}
 		// reflect.DeepEqual(NaN, NaN) == false; use cmp with EquateNaNs so that
 		// spans carrying NaN Metrics values don't produce spurious failures.
-		if diff := cmp.Diff(pbTrace, decPostNorm, cmpopts.EquateNaNs(), cmpopts.EquateEmpty()); diff != "" {
+		if diff := cmp.Diff(pbTrace, decPostNorm, cmpopts.EquateNaNs(), cmpopts.EquateEmpty(), cmp.Exporter(func(reflect.Type) bool { return true })); diff != "" {
 			t.Fatalf("Inconsistent encoding/decoding after normalization (-want +got):\n%s", diff)
 		}
 	})
