@@ -16,6 +16,7 @@ go_library(
         "//comp/healthplatform/issues/checkfailure",
         "//comp/healthplatform/issues/dockerpermissions",
         "//comp/healthplatform/issues/rofspermissions",
+        "//comp/healthplatform/issues/windowseventlogchannels",
         "//comp/healthplatform/scheduler/fx",
         "//comp/healthplatform/store/def",
         "//comp/healthplatform/store/fx",
