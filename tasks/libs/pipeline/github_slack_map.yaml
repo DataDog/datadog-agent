@@ -34,8 +34,8 @@
     id: 'C08SK57TL1M'
 '@datadog/agent-configuration':
   notification:
-    name: '#agent-configuration-ops'
-    id: 'C08A85VGC8P'
+    name: ''
+    id: ''
   review:
     name: '#agent-configuration-ops'
     id: 'C08A85VGC8P'
