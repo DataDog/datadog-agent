@@ -114,7 +114,6 @@ components_classic_style = [
     'comp/collector/collector/collectorimpl',
     'comp/core/autodiscovery/autodiscoveryimpl',
     'comp/core/configsync/configsyncimpl',
-    'comp/core/gui/guiimpl',
     'comp/core/hostname/hostnameimpl',
     'comp/core/pid/pidimpl',
     'comp/core/settings/settingsimpl',

@@ -22,6 +22,7 @@ import (
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -93,33 +94,40 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, deps module.FactoryDepen
 		}
 	}
 
-	netconfig := netconfig.New()
+	ncfg := netconfig.New()
 	// only add the network consumer if the pkg/network/events
 	// module was initialized by the network tracer module
 	// (this will happen only if the network consumer is enabled
 	// in config and the network tracer module is loaded successfully)
-	if events.Initialized() {
-		network, err := events.NewNetworkConsumer(evm)
-		if err != nil {
-			return nil, err
-		}
-		evm.RegisterEventConsumer(network)
-		log.Info("event monitoring network consumer initialized")
-
-		if netconfig.DirectSend {
-			ds, err := sender.NewDirectSenderConsumer(evm, deps.Log, deps.SysprobeConfig)
+	if module.IsLoaded(config.NetworkTracerModule) {
+		if events.Initialized() {
+			network, err := events.NewNetworkConsumer(evm)
 			if err != nil {
 				return nil, err
 			}
-			if ds != nil {
-				evm.RegisterEventConsumer(ds)
-				log.Info("event monitoring direct sender consumer initialized")
+			evm.RegisterEventConsumer(network)
+			log.Info("event monitoring network consumer initialized")
+
+			if ncfg.DirectSend {
+				ds, err := sender.NewDirectSenderConsumer(evm, deps.Log, deps.SysprobeConfig)
+				if err != nil {
+					return nil, err
+				}
+				if ds != nil {
+					evm.RegisterEventConsumer(ds)
+					log.Info("event monitoring direct sender consumer initialized")
+				}
+			}
+		} else if ncfg.DirectSend {
+			err := sender.NewDirectSenderPoller(deps.Log, deps.SysprobeConfig)
+			if err != nil {
+				return nil, err
 			}
 		}
 	}
 
-	if netconfig.EnableUSMEventStream {
-		if err := createProcessMonitorConsumer(evm, netconfig); err != nil {
+	if ncfg.EnableUSMEventStream {
+		if err := createProcessMonitorConsumer(evm, ncfg); err != nil {
 			return nil, err
 		}
 	}

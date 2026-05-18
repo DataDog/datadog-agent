@@ -126,7 +126,7 @@ linters:
             - "!**/comp/core/config/config.go"
             - "!**/comp/core/config/params.go"
             - "!**/comp/core/config/setup.go"
-            - "!**/comp/core/gui/guiimpl/checks.go"
+            - "!**/comp/core/gui/impl/checks.go"
             - "!**/comp/core/hostname/remotehostnameimpl/hostname.go"
             - "!**/comp/core/status/statusimpl/common_header_provider.go"
             - "!**/comp/core/status/statusimpl/common_header_provider_test.go"

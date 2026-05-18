@@ -183,12 +183,19 @@ func (c *workloadController) processItem(ctx context.Context, key objectRef) err
 	}
 
 	// Update config store
+	_, exists := c.store.getConfig(key)
+
 	cfg := c.defaultConfig
 	overrideFromAnnotations(&cfg, u.GetAnnotations())
 	c.store.setConfig(key, cfg)
 	log.Debugf("Spot workload config updated %s: %#v", key, cfg)
 
-	// List and track pods
+	// List and track pods.
+	// Do it once per enabled workload to avoid race with pod updates arriving via WLM through scheduler.trackPodUpdates.
+	if exists {
+		return nil
+	}
+
 	selector, ok := getPodSelector(key.Kind, u.Object)
 	if !ok {
 		return nil
