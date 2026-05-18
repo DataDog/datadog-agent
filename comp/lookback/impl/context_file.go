@@ -6,7 +6,6 @@
 package lookbackimpl
 
 import (
-	"path/filepath"
 	"slices"
 	"strings"
 
@@ -47,10 +46,12 @@ type contextFile struct {
 	store contextStore
 }
 
-// newContextFile opens a boltContextStore at <dir>/contexts.db and populates
-// the bloom filter from any existing entries.
+const contextStoreShards = 16
+
+// newContextFile opens a shardedFlatContextStore in dir and populates the
+// bloom filter from any existing entries.
 func newContextFile(dir string) (*contextFile, error) {
-	store, err := newBoltContextStore(filepath.Join(dir, "contexts.db"))
+	store, err := newShardedFlatContextStore(dir, contextStoreShards)
 	if err != nil {
 		return nil, err
 	}

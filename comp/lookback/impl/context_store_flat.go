@@ -10,7 +10,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"sync"
+
+	"github.com/twmb/murmur3"
 )
 
 // flatContextStore is a contextStore backed by an append-only binary file.
@@ -159,4 +162,65 @@ func readFlatEntry(r io.Reader) (key uint64, name string, tags []string, err err
 		tags[i] = string(tagBuf)
 	}
 	return
+}
+
+// shardedFlatContextStore is a contextStore backed by N independent append-only
+// binary shard files, routed by murmur32(name) % N. Each shard has its own
+// mutex, so writes to different metric names proceed concurrently.
+//
+// Compared to a single flatContextStore:
+//   - maybeWrite: N-way parallelism, same O(1) append cost per shard
+//   - scan(name): reads only 1/N of the total data — O(file_size/N)
+//   - loadKeys: iterates all N shards sequentially at startup
+//
+// This is the default contextStore implementation.
+type shardedFlatContextStore struct {
+	shards []*flatContextStore
+	n      uint32
+}
+
+func newShardedFlatContextStore(dir string, n int) (*shardedFlatContextStore, error) {
+	shards := make([]*flatContextStore, n)
+	for i := range n {
+		s, err := newFlatContextStore(filepath.Join(dir, fmt.Sprintf("contexts-%02d.bin", i)))
+		if err != nil {
+			for j := range i {
+				_ = shards[j].close()
+			}
+			return nil, err
+		}
+		shards[i] = s
+	}
+	return &shardedFlatContextStore{shards: shards, n: uint32(n)}, nil
+}
+
+func (s *shardedFlatContextStore) shardFor(name string) *flatContextStore {
+	return s.shards[murmur3.Sum32([]byte(name))%s.n]
+}
+
+func (s *shardedFlatContextStore) maybeWrite(key uint64, name string, tags []string) error {
+	return s.shardFor(name).maybeWrite(key, name, tags)
+}
+
+func (s *shardedFlatContextStore) scan(name string, filterTags []string) (map[uint64]contextEntry, error) {
+	return s.shardFor(name).scan(name, filterTags)
+}
+
+func (s *shardedFlatContextStore) loadKeys(fn func(uint64)) error {
+	for _, shard := range s.shards {
+		if err := shard.loadKeys(fn); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *shardedFlatContextStore) close() error {
+	var last error
+	for _, shard := range s.shards {
+		if err := shard.close(); err != nil {
+			last = err
+		}
+	}
+	return last
 }
