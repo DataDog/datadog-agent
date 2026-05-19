@@ -1195,3 +1195,65 @@ occasionally approaches the 16 MiB budget, and listener append blocking is
 visible. This is production-shaped backpressure rather than a free throughput
 win. The standard case remains throughput-positive but keeps the memory concern
 front and center.
+
+### Remaining three-replicate honesty matrix
+
+The same telemetry image was then used for the remaining local honesty matrix.
+Artifacts are under
+`reports/smp/dogstatsd-agg-serde-20260516-143205/`:
+
+- `honesty3_matrix_effects.csv`
+- `honesty3_matrix_selected_metrics.csv`
+- local-only case directories:
+  - `local-experiment-final-v2/`
+  - `local-experiment-final-origin-v3/`
+  - `local-experiment-udp-v3-raw-disabled/`
+  - `local-experiment-mixed-types-v3/`
+
+Three-replicate results vs `datadog/agent-dev:smp-dsd-main`:
+
+| Comparison | Δ mean | Δ mean CI | Confidence | Read |
+|---|---:|---:|---:|---|
+| v3 high-rate UDS, origin off | +3.62% | [+3.35%, +3.90%] | 100.0% | positive but backpressure-bounded |
+| v3 standard UDS, origin off | +2.25% | [+1.94%, +2.55%] | 100.0% | positive; memory higher |
+| v2/direct-series high-rate UDS, origin off | +3.39% | [+3.08%, +3.70%] | 100.0% | positive but backpressure-bounded |
+| v2/direct-series standard UDS, origin off | +1.51% | [+1.22%, +1.80%] | 100.0% | positive; memory higher |
+| v3 high-rate UDS, origin on | +2.32% | [+2.03%, +2.61%] | 100.0% | raw ring disables itself; columnar/native remains positive |
+| v3 standard UDS, origin on | +1.40% | [+1.03%, +1.77%] | 100.0% | raw ring disables itself; columnar/native remains positive |
+| v3 high-rate UDP, raw disabled | -0.06% | [-0.28%, +0.17%] | 25.4% | neutral; raw ring disables itself because UDP is enabled |
+| v3 standard UDP, raw disabled | +0.06% | [-0.38%, +0.51%] | 14.3% | neutral; raw ring disables itself because UDP is enabled |
+| v3 standard UDS, mixed metric types | -0.01% | [-0.07%, +0.06%] | 10.6% | neutral; unsupported metric types fall back to the legacy aggregator |
+
+Selected means:
+
+| Case | Variant | Agent ingress MiB/s | processed ok/s | packet pool avg | raw lag avg/max | oldest age avg/max | raw blocked ms/s | RSS MiB | heap MiB |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| v2 high-rate UDS | main | 195.76 UDS | 241,944 | 818 | n/a | n/a | n/a | 182.27 | 73.88 |
+| v2 high-rate UDS | telemetry design | 202.45 UDS | 250,178 | 0 | 9.05/15.85 MiB | 88.8/190.4 ms | 410.1 | 184.32 | 74.10 |
+| v2 standard UDS | main | 96.85 UDS | 118,473 | 45 | n/a | n/a | n/a | 456.21 | 223.13 |
+| v2 standard UDS | telemetry design | 98.16 UDS | 120,070 | 0 | 0.77/7.67 MiB | 5.6/139.1 ms | 153.5 | 497.27 | 244.63 |
+| origin-on v3 high-rate | main | 186.98 UDS | 231,100 | 378 | n/a | n/a | n/a | 165.86 | 65.35 |
+| origin-on v3 high-rate | telemetry design, raw disabled | 191.33 UDS | 236,464 | 626 | n/a | n/a | n/a | 158.10 | 58.59 |
+| origin-on v3 standard | main | 95.58 UDS | 116,915 | 142 | n/a | n/a | n/a | 491.91 | 251.04 |
+| origin-on v3 standard | telemetry design, raw disabled | 97.06 UDS | 118,725 | 85 | n/a | n/a | n/a | 505.07 | 253.71 |
+| UDP v3 high-rate | main | 8.84 UDP | 11,042 | 59 | n/a | n/a | n/a | 185.16 | 72.55 |
+| UDP v3 high-rate | telemetry design, raw disabled | 12.03 UDP | 15,010 | 85 | n/a | n/a | n/a | 201.71 | 79.50 |
+| UDP v3 standard | main | 4.05 UDP | 4,939 | 46 | n/a | n/a | n/a | 197.32 | 78.36 |
+| UDP v3 standard | telemetry design, raw disabled | 4.67 UDP | 5,691 | 43 | n/a | n/a | n/a | 209.89 | 81.82 |
+| mixed metric types v3 standard | main | 98.67 UDS | 115,764 | 18 | n/a | n/a | n/a | 191.43 | 76.01 |
+| mixed metric types v3 standard | telemetry design | 98.79 UDS | 115,901 | 0 | 1.67/8.03 MiB | 11.4/34.9 ms | 140.9 | 198.19 | 77.44 |
+
+Important caveats:
+
+- The origin-on runs validate the columnar/native path with raw ingress disabled;
+  they do not validate raw-ring origin metadata support.
+- The UDP runs are raw-disabled compatibility checks. Lading still writes at the
+  requested byte rate, while the Agent processes only a small fraction of the UDP
+  datagrams under this local setup; do not use these as UDP throughput proof.
+- The mixed-metric case is intentionally broader than the columnar fast path.
+  The telemetry design falls back for unsupported metric types at about
+  35k/s while remaining throughput-neutral; this is compatibility evidence, not
+  a native mixed-type speedup.
+- Standard UDS cases remain memory-negative. Memory profiling, descriptor expiry,
+  row/buffer lifetime, and bounded metadata strategy are still blockers before a
+  production switch.
