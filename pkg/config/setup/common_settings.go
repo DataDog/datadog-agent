@@ -1270,7 +1270,8 @@ func agent(config pkgconfigmodel.Setup) {
 	// integration.cloud_cost_only.metrics_blocked: explicit metric blocklist in cloud_cost_only mode (empty disables)
 	config.BindEnvAndSetDefault("integration.cloud_cost_only.metrics_blocked", []string{})
 	// integration.cloud_cost_only.metrics: integration metrics to forward in cloud_cost_only mode
-	// (DogStatsD, custom_*, and integration.additional checks always bypass this list; empty uses DefaultCloudCostMetrics)
+	// (DogStatsD, custom_*, and integration.additional checks always bypass this list).
+	// Unset uses allowlist.DefaultCloudCostMetrics; explicitly set to [] forwards no integration metric names.
 	config.BindEnvAndSetDefault("integration.cloud_cost_only.metrics", allowlist.DefaultCloudCostMetrics)
 	config.BindEnvAndSetDefault("integration.cloud_cost_only.metrics_match_prefix", true)
 

@@ -8,7 +8,7 @@ package allowlist
 
 // DefaultCloudCostMetrics is the built-in integration metric allowlist for
 // infrastructure_mode=cloud_cost_only. Used when integration.cloud_cost_only.metrics
-// is empty and as the agent config default in pkg/config/setup/common_settings.go.
+// is unset and as the agent config default in pkg/config/setup/common_settings.go.
 var DefaultCloudCostMetrics = []string{
 	"kubernetes.cpu.usage.total",
 	"kubernetes.memory.usage",

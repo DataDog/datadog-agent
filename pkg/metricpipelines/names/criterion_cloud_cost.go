@@ -25,11 +25,20 @@ func (cloudCostMetricsCriterion) active(cfg pkgconfigmodel.Reader) bool {
 }
 
 func (cloudCostMetricsCriterion) matchers(cfg pkgconfigmodel.Reader, _ filterlist.Component) (utilstrings.Matcher, utilstrings.Matcher) {
+	const metricsKey = "integration.cloud_cost_only.metrics"
 	matchPrefix := cfg.GetBool("integration.cloud_cost_only.metrics_match_prefix")
 	blocked := cfg.GetStringSlice("integration.cloud_cost_only.metrics_blocked")
-	allowed := cfg.GetStringSlice("integration.cloud_cost_only.metrics")
-	if len(allowed) == 0 {
+	allowed := cfg.GetStringSlice(metricsKey)
+
+	var allowMatcher utilstrings.Matcher
+	switch {
+	case len(allowed) == 0 && cfg.IsConfigured(metricsKey):
+		allowMatcher = utilstrings.NewDenyAllAllowlistMatcher()
+	case len(allowed) == 0:
 		allowed = allowlist.DefaultCloudCostMetrics
+		allowMatcher = utilstrings.NewAllowlistMatcher(allowed, matchPrefix)
+	default:
+		allowMatcher = utilstrings.NewAllowlistMatcher(allowed, matchPrefix)
 	}
-	return utilstrings.NewBlocklistMatcher(blocked, matchPrefix), utilstrings.NewAllowlistMatcher(allowed, matchPrefix)
+	return utilstrings.NewBlocklistMatcher(blocked, matchPrefix), allowMatcher
 }

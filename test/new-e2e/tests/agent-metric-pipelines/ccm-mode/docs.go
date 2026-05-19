@@ -4,5 +4,5 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package ccmmode contains e2e tests for cloud_cost_only infrastructure mode (tagging,
-// metric allowlist, DogStatsD bypass, and metric_filterlist).
+// metric allowlist including explicit empty deny-all, DogStatsD bypass, and metric_filterlist).
 package ccmmode

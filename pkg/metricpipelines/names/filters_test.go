@@ -60,7 +60,7 @@ func TestLoadCloudCostOnly(t *testing.T) {
 		"metric_filterlist and cloud_cost blocklist both apply in cloud_cost_only mode")
 }
 
-func TestLoadCloudCostOnlyEmptyMetricsUsesDefaults(t *testing.T) {
+func TestLoadCloudCostOnlyExplicitEmptyMetricsDeniesAll(t *testing.T) {
 	cfg := map[string]interface{}{
 		"infrastructure_mode":                              "cloud_cost_only",
 		"integration.cloud_cost_only.metrics":              []string{},
@@ -71,11 +71,131 @@ func TestLoadCloudCostOnlyEmptyMetricsUsesDefaults(t *testing.T) {
 
 	filters := Load(configComponent, fl)
 
+	assert.True(t, filters.ShouldDrop(FilterContext{Name: "system.mem.pct_usable"}))
+	assert.True(t, filters.ShouldDrop(FilterContext{
+		Name:   "system.disk.free",
+		Source: metrics.MetricSourceDisk,
+	}))
+	assert.False(t, filters.ShouldDrop(FilterContext{
+		Name:          "custom.metric",
+		FromDogstatsd: true,
+	}))
+}
+
+func TestLoadCloudCostOnlyUnsetMetricsUsesDefaults(t *testing.T) {
+	filters := loadCloudCostFilters(t, map[string]interface{}{
+		"infrastructure_mode":                              "cloud_cost_only",
+		"integration.cloud_cost_only.metrics_match_prefix": true,
+	})
+
 	assert.False(t, filters.ShouldDrop(FilterContext{Name: "system.mem.pct_usable"}))
 	assert.True(t, filters.ShouldDrop(FilterContext{
 		Name:   "system.disk.free",
 		Source: metrics.MetricSourceDisk,
 	}))
+}
+
+func TestLoadCloudCostOnlyExplicitEmptyMetricsDeniesAllFromYAML(t *testing.T) {
+	configComponent := config.NewMockFromYAML(t, `
+infrastructure_mode: cloud_cost_only
+integration:
+  cloud_cost_only:
+    metrics: []
+`)
+	assert.True(t, configComponent.IsConfigured("integration.cloud_cost_only.metrics"))
+
+	fl := filterlistimpl.NewFilterList(logmock.New(t), configComponent, fxutil.Test[telemetry.Component](t, telemetrynoop.Module()))
+	filters := Load(configComponent, fl)
+
+	assert.True(t, filters.ShouldDrop(FilterContext{Name: "system.cpu.user"}))
+	assert.False(t, filters.ShouldDrop(FilterContext{
+		Name:          "e2e.custom",
+		FromDogstatsd: true,
+	}))
+}
+
+func TestLoadCloudCostOnlyCustomAllowlistExactMatch(t *testing.T) {
+	filters := loadCloudCostFilters(t, map[string]interface{}{
+		"infrastructure_mode":                              "cloud_cost_only",
+		"integration.cloud_cost_only.metrics":              []string{"system.mem.pct_usable"},
+		"integration.cloud_cost_only.metrics_match_prefix": false,
+	})
+
+	assert.False(t, filters.ShouldDrop(FilterContext{Name: "system.mem.pct_usable"}))
+	assert.True(t, filters.ShouldDrop(FilterContext{Name: "system.mem.used"}))
+	assert.True(t, filters.ShouldDrop(FilterContext{Name: "system.cpu.user"}))
+}
+
+func TestLoadCloudCostOnlyMetricsBlockedOverridesDefaultAllowlist(t *testing.T) {
+	filters := loadCloudCostFilters(t, map[string]interface{}{
+		"infrastructure_mode":                              "cloud_cost_only",
+		"integration.cloud_cost_only.metrics_blocked":      []string{"system.cpu"},
+		"integration.cloud_cost_only.metrics_match_prefix": true,
+	})
+
+	assert.True(t, filters.ShouldDrop(FilterContext{Name: "system.cpu.user"}))
+	assert.False(t, filters.ShouldDrop(FilterContext{Name: "system.net.bytes_rcvd"}))
+}
+
+func TestLoadCloudCostOnlyExplicitEmptyCustomCheckBypassed(t *testing.T) {
+	filters := loadCloudCostFilters(t, map[string]interface{}{
+		"infrastructure_mode":                 "cloud_cost_only",
+		"integration.cloud_cost_only.metrics": []string{},
+	})
+
+	assert.True(t, filters.ShouldDrop(FilterContext{
+		Name:   "system.mem.pct_usable",
+		Source: metrics.MetricSourceMemory,
+	}))
+	assert.False(t, filters.ShouldDrop(FilterContext{
+		Name:      "my.metric",
+		CheckName: "custom_my_check",
+	}))
+}
+
+func TestCloudCostMetricsCriterionMatchers(t *testing.T) {
+	c := cloudCostMetricsCriterion{}
+
+	t.Run("unset metrics uses defaults", func(t *testing.T) {
+		cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+			"integration.cloud_cost_only.metrics_match_prefix": true,
+		})
+		assert.False(t, cfg.IsConfigured("integration.cloud_cost_only.metrics"))
+
+		_, allow := c.matchers(cfg, nil)
+		assert.False(t, allow.ShouldDrop("system.mem.pct_usable"))
+		assert.True(t, allow.ShouldDrop("system.disk.free"))
+	})
+
+	t.Run("explicit empty deny all", func(t *testing.T) {
+		cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+			"integration.cloud_cost_only.metrics":              []string{},
+			"integration.cloud_cost_only.metrics_match_prefix": true,
+		})
+		assert.True(t, cfg.IsConfigured("integration.cloud_cost_only.metrics"))
+
+		_, allow := c.matchers(cfg, nil)
+		assert.True(t, allow.ShouldDrop("system.mem.pct_usable"))
+		assert.True(t, allow.ShouldDrop("system.cpu.user"))
+	})
+
+	t.Run("explicit list", func(t *testing.T) {
+		cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+			"integration.cloud_cost_only.metrics":              []string{"system.cpu"},
+			"integration.cloud_cost_only.metrics_match_prefix": true,
+		})
+
+		_, allow := c.matchers(cfg, nil)
+		assert.False(t, allow.ShouldDrop("system.cpu.user"))
+		assert.True(t, allow.ShouldDrop("system.disk.free"))
+	})
+}
+
+func loadCloudCostFilters(t *testing.T, overrides map[string]interface{}) Filters {
+	t.Helper()
+	configComponent := config.NewMockWithOverrides(t, overrides)
+	fl := filterlistimpl.NewFilterList(logmock.New(t), configComponent, fxutil.Test[telemetry.Component](t, telemetrynoop.Module()))
+	return Load(configComponent, fl)
 }
 
 func TestLoadCloudCostOnlyExplicitBlock(t *testing.T) {

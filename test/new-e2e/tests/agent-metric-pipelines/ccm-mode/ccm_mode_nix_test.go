@@ -148,7 +148,7 @@ integration:
 }
 
 type ccmModeEmptyAllowlistSuite struct {
-	e2e.BaseSuite[environments.Host]
+	ccmModeSuiteBase
 }
 
 // TestCCMModeLinuxEmptyAllowlist runs CCM e2e checks with an explicit empty metrics allowlist.
@@ -156,12 +156,12 @@ func TestCCMModeLinuxEmptyAllowlist(t *testing.T) {
 	runCCMModeSuite(t, "ccmmode-empty-allowlist", ccmAgentConfigEmptyAllowlist(), &ccmModeEmptyAllowlistSuite{})
 }
 
-// TestEmptyAllowlistUsesDefaults verifies integration.cloud_cost_only.metrics: []
-// applies the built-in default allowlist instead of forwarding all integration metrics.
-func (s *ccmModeEmptyAllowlistSuite) TestEmptyAllowlistUsesDefaults() {
+// TestEmptyAllowlistDeniesIntegrationMetrics verifies integration.cloud_cost_only.metrics: []
+// forwards no integration metric names (bypass paths such as DogStatsD still apply).
+func (s *ccmModeEmptyAllowlistSuite) TestEmptyAllowlistDeniesIntegrationMetrics() {
 	const (
-		onDefaultAllowlist  = "system.mem.pct_usable"
-		offDefaultAllowlist = "system.disk.free"
+		onDefaultAllowlist = "system.mem.pct_usable"
+		offAllowlist       = "system.disk.free"
 	)
 
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
@@ -170,15 +170,23 @@ func (s *ccmModeEmptyAllowlistSuite) TestEmptyAllowlistUsesDefaults() {
 			client.WithMetricValueHigherThan(0),
 		)
 		assert.NoError(c, err)
-		assert.NotEmpty(c, onList, "%s should be forwarded via the default allowlist when metrics is empty", onDefaultAllowlist)
+		assert.Empty(c, onList, "%s should be dropped when metrics is explicitly empty", onDefaultAllowlist)
 
 		offList, err := s.Env().FakeIntake.Client().FilterMetrics(
-			offDefaultAllowlist,
+			offAllowlist,
 			client.WithMetricValueHigherThan(0),
 		)
 		assert.NoError(c, err)
-		assert.Empty(c, offList, "%s should be dropped when metrics is empty (defaults apply)", offDefaultAllowlist)
-	}, 3*time.Minute, 10*time.Second, "timed out waiting for empty allowlist to use defaults")
+		assert.Empty(c, offList, "%s should be dropped when metrics is explicitly empty", offAllowlist)
+
+		s.sendStatsdGauge(dogstatsdCustomMetric, 1)
+		dogstatsd, err := s.Env().FakeIntake.Client().FilterMetrics(
+			dogstatsdCustomMetric,
+			client.WithMetricValueHigherThan(0),
+		)
+		assert.NoError(c, err)
+		assert.NotEmpty(c, dogstatsd, "%s should still bypass via DogStatsD when metrics is empty", dogstatsdCustomMetric)
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for empty allowlist to deny integration metrics")
 }
 
 func ccmAgentConfigCustomAllowlist(allowlist []string, matchPrefix bool) string {

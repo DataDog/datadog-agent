@@ -27,6 +27,12 @@ func TestNewBlocklistMatcher(t *testing.T) {
 	assert.Equal(t, []string{"a", "b"}, check([]string{"a", "b", "bb"}))
 }
 
+func TestDenyAllAllowlistMatcher(t *testing.T) {
+	m := NewDenyAllAllowlistMatcher()
+	assert.True(t, m.ShouldDrop("system.cpu.user"))
+	assert.True(t, m.ShouldDrop("any.metric.name"))
+}
+
 func TestIsStringMatching(t *testing.T) {
 	cases := []struct {
 		result      bool
