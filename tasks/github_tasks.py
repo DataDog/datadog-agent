@@ -18,7 +18,11 @@ from tasks.libs.ciproviders.github_actions_tools import (
 )
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.datadog_api import send_event
-from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
+from tasks.libs.owners.linter import (
+    ai_artefacts_have_owner,
+    codeowner_has_orphans,
+    directory_has_packages_without_owner,
+)
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import DEFAULT_SLACK_CHANNEL, GITHUB_SLACK_MAP
 from tasks.libs.releasing.version import current_version
@@ -125,7 +129,7 @@ def lint_codeowner(_, owners_file=".github/CODEOWNERS"):
     owners = read_owners(owners_file)
 
     # Define linters
-    linters = [directory_has_packages_without_owner, codeowner_has_orphans]
+    linters = [directory_has_packages_without_owner, codeowner_has_orphans, ai_artefacts_have_owner]
 
     # Execute linters
     for linter in linters:

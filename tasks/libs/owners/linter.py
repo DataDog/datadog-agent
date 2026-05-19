@@ -61,6 +61,47 @@ def codeowner_has_orphans(owners):
     return err_invalid_rule_path or err_orphans_path
 
 
+_CATCH_ALL_PATTERNS = frozenset(["/.*", "/*.md"])
+
+
+def ai_artefacts_have_owner(owners):
+    """Check that every AGENTS.md file and every file under .claude/ has an explicit owner in
+    CODEOWNERS — i.e. is not solely covered by a broad catch-all rule like /.*  or /*.md."""
+
+    error = False
+
+    # Collect all AI artefact paths: **/AGENTS.md and .claude/**
+    ai_files = []
+    for root, dirs, files in os.walk("."):
+        # Normalize path separator for CODEOWNERS comparison
+        norm_root = root[2:].replace('\\', '/')  # strip leading "./"
+
+        # Skip .git directory
+        dirs[:] = [d for d in dirs if d != '.git']
+
+        for name in files:
+            rel = (norm_root + "/" + name).lstrip("/")
+            if name == "AGENTS.md" or rel.startswith(".claude/"):
+                ai_files.append(rel)
+
+    for path in ai_files:
+        matched_rule = next((rule for rule in owners.paths if rule[0].match(path)), None)
+        if matched_rule is None or matched_rule[1] in _CATCH_ALL_PATTERNS:
+            if not error:
+                print(
+                    color_message(
+                        "The following AI artefacts don't have an explicit owner in the CODEOWNERS file"
+                        " (catch-all rules like /.*  or /*.md don't count)",
+                        "red",
+                    ),
+                    file=sys.stderr,
+                )
+                error = True
+            print(color_message(f"\t- /{path}", "orange"), file=sys.stderr)
+
+    return error
+
+
 def _get_static_root(pattern):
     """_get_static_root returns the longest prefix path from the pattern without any wildcards."""
     result = "."

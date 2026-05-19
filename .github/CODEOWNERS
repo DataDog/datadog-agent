@@ -14,6 +14,30 @@
 
 # Config files for various CI systems / tasks
 /.*                                     @DataDog/agent-devx
+/.claude/settings.json                 @DataDog/agent-devx
+/.claude/settings.local.json          @DataDog/agent-devx
+/.claude/agents/tend.md               @DataDog/single-machine-performance
+/.claude/agents/weed.md               @DataDog/single-machine-performance
+/.claude/rules/allium.md              @DataDog/single-machine-performance
+/.claude/skills/allium/               @DataDog/single-machine-performance
+/.claude/skills/agent-supply-chain-newsletter/ @DataDog/agent-devx
+/.claude/skills/auto-jira/            @DataDog/agent-devx
+/.claude/skills/create-component/     @DataDog/agent-metric-pipelines
+/.claude/skills/create-config-field/  @DataDog/agent-metric-pipelines
+/.claude/skills/create-core-check/    @DataDog/agent-metric-pipelines
+/.claude/skills/create-go-module/     @DataDog/agent-metric-pipelines
+/.claude/skills/create-invoke-task/   @DataDog/agent-devx
+/.claude/skills/create-pr/            @DataDog/agent-devx
+/.claude/skills/create-release-note/  @DataDog/agent-metric-pipelines
+/.claude/skills/create-runtime-setting/ @DataDog/agent-metric-pipelines
+/.claude/skills/create-status-provider/ @DataDog/agent-metric-pipelines
+/.claude/skills/create-subcommand/    @DataDog/agent-metric-pipelines
+/.claude/skills/omnibus-to-bazel/     @DataDog/agent-build
+/.claude/skills/quality-gate-size-analysis/ @DataDog/agent-build
+/.claude/skills/review-pr-comments/   @DataDog/agent-devx
+/.claude/skills/run-e2e/              @DataDog/agent-devx
+/.claude/skills/run-jira/             @DataDog/agent-devx
+/.claude/skills/write-e2e/            @DataDog/agent-devx
 # changing the config of mockery will regenerate the mocks, so owners will have to review anyway
 /.mockery.yaml                          # do not notify anyone
 /.go-version                            @DataDog/agent-runtimes @DataDog/agent-build
@@ -43,6 +67,7 @@
 
 /*.md                                   @DataDog/agent-devx
 /CHANGELOG-AIX.md                       @DataDog/agent-runtimes
+/AGENTS.md                              @DataDog/agent-devx
 /NOTICE                                 @DataDog/agent-delivery
 
 /LICENSE*                               # do not notify anyone
@@ -830,6 +855,7 @@
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
 /test/integration/                      @DataDog/serverless-azure-gcp
 /test/integration/docker/               @DataDog/opentelemetry-agent
+/test/e2e-framework/AGENTS.md                           @DataDog/agent-devx
 /test/e2e-framework/testing/testcommon/check            @DataDog/agent-runtimes
 /test/e2e-framework/testing/utils/e2e/client/ecs/       @DataDog/ecs-experiences
 /test/e2e-framework/testing/provisioners/aws/ecs/       @DataDog/ecs-experiences
