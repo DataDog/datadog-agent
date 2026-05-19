@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	jmxlogger "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/def"
 	jmxloggerfx "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/fx"
-	jmxloggerimpl "github.com/DataDog/datadog-agent/comp/agent/jmxlogger/impl"
 	demultiplexer "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/def"
 	demultiplexerimpl "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/impl"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
@@ -214,7 +213,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 				fx.Supply(option.None[integrations.Component]()),
 
 				getPlatformModules(),
-				jmxloggerfx.Module(jmxloggerimpl.NewCliParams("")),
+				jmxloggerfx.Module(jmxlogger.NewCliParams("")),
 				haagentfx.Module(),
 				ipcfx.ModuleReadOnly(),
 				remotetraceroute.Module(),

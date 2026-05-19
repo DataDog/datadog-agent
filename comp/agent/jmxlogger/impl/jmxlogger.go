@@ -22,7 +22,7 @@ import (
 type Requires struct {
 	Lc     compdef.Lifecycle
 	Config config.Component
-	Params Params
+	Params jmxlogger.Params
 }
 
 // Provides defines the output of the jmxlogger component.
@@ -47,8 +47,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 	var inner jmxLoggerInterface
 	var err error
 
-	if reqs.Params.fromCLI {
-		inner, err = pkglogsetup.BuildJMXLogger(reqs.Params.logFile, "", false, true, false, config)
+	if reqs.Params.FromCLI {
+		inner, err = pkglogsetup.BuildJMXLogger(reqs.Params.LogFile, "", false, true, false, config)
 		if err != nil {
 			return Provides{}, fmt.Errorf("Unable to set up JMX logger: %v", err)
 		}
