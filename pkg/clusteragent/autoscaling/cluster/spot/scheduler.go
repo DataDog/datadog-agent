@@ -141,10 +141,10 @@ func (s *scheduler) rebalance(ctx context.Context) {
 				continue
 			}
 			if err := s.evictor.evictPod(ctx, namespace, name, ""); err != nil {
-				log.Errorf("Failed to evict pod %s/%s for rebalancing: %v", namespace, name, err)
+				log.Errorf("Failed to evict pod %s/%s (%s) for rebalancing: %v", namespace, name, uid, err)
 				continue
 			}
-			log.Infof("Evicted pod %s/%s for spot rebalancing", namespace, name)
+			log.Infof("Evicted pod %s/%s (%s) for rebalancing", namespace, name, uid)
 		}
 	}
 }
@@ -252,10 +252,10 @@ func (s *scheduler) checkOnDemandFallbackOnce(ctx context.Context, now time.Time
 		}
 		for uid, pod := range pods {
 			if err := s.evictor.evictPod(ctx, pod.topLevelOwner.Namespace, pod.name, corev1.PodPending); err != nil {
-				log.Errorf("Failed to evict timed-out pending spot pod %s of %s: %v", pod.name, pod.topLevelOwner, err)
+				log.Errorf("Failed to evict timed-out pending spot pod %s (%s) of %s: %v", pod.name, uid, pod.topLevelOwner, err)
 				continue
 			}
-			log.Infof("Evicted timed-out pending spot pod %s of %s for on-demand fallback", pod.name, pod.topLevelOwner)
+			log.Infof("Evicted timed-out pending spot pod %s (%s) of %s for on-demand fallback", pod.name, uid, pod.topLevelOwner)
 			s.tracker.deletePendingSpotPod(uid)
 		}
 	}
