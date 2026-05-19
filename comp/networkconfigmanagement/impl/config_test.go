@@ -17,110 +17,13 @@ func TestConfig(t *testing.T) {
 	var tests = []struct {
 		name           string
 		configYaml     string
-		expectedConfig ProcessedNcmConfig
+		expectedConfig NcmConfig
 	}{
 		{
-			name: "NCM configured with one device using SSH configurations",
+			name: "rollback enabled with all store knobs set",
 			configYaml: `
 network_devices:
   config_management:
-    namespace: test
-    devices:
-      - ip_address: 10.0.0.1
-        auth:
-          username: admin
-          password: password
-          port: 22
-          protocol: tcp
-`,
-			expectedConfig: ProcessedNcmConfig{
-				Namespace: "test",
-				Devices: map[string]DeviceConfig{
-					"10.0.0.1": {
-						IPAddress: "10.0.0.1",
-						Auth: AuthCredentials{
-							Username: "admin",
-							Password: "password",
-							Port:     "22",
-							Protocol: "tcp",
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "NCM configured with multiple devices using SSH",
-			configYaml: `
-network_devices:
-  config_management:
-    namespace: test
-    devices:
-      - ip_address: 10.0.0.1
-        auth:
-          username: admin
-          password: password
-          port: 22
-          protocol: tcp
-      - ip_address: 10.0.0.2
-        auth:
-          username: user
-          password: pass
-          port: 22
-          protocol: tcp
-`,
-			expectedConfig: ProcessedNcmConfig{
-				Namespace: "test",
-				Devices: map[string]DeviceConfig{
-					"10.0.0.1": {
-						IPAddress: "10.0.0.1",
-						Auth: AuthCredentials{
-							Username: "admin",
-							Password: "password",
-							Port:     "22",
-							Protocol: "tcp",
-						},
-					},
-					"10.0.0.2": {
-						IPAddress: "10.0.0.2",
-						Auth: AuthCredentials{
-							Username: "user",
-							Password: "pass",
-							Port:     "22",
-							Protocol: "tcp",
-						},
-					},
-				},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockConfig := mock.NewFromYAML(t, tt.configYaml)
-			testConfig, err := newConfig(mockConfig)
-			assert.Nil(t, err)
-			assert.Equal(t, tt.expectedConfig.Namespace, testConfig.Namespace)
-			assert.Equal(t, tt.expectedConfig.Devices, testConfig.Devices)
-		})
-	}
-}
-
-func TestConfig_StoreConfig(t *testing.T) {
-	var tests = []struct {
-		name          string
-		configYaml    string
-		expectedStore StoreConfig
-	}{
-		{
-			name: "store config with all knobs set",
-			configYaml: `
-network_devices:
-  config_management:
-    namespace: test
-    devices:
-      - ip_address: 10.0.0.1
-        auth:
-          username: admin
-          password: password
     rollback:
       enabled: true
       store:
@@ -128,78 +31,62 @@ network_devices:
         max_configs_per_device: 20
         max_raw_config_store_bytes: 1000000
 `,
-			expectedStore: StoreConfig{
-				MinConfigsPerDevice:    3,
-				MaxConfigsPerDevice:    20,
-				MaxRawConfigStoreBytes: 1000000,
+			expectedConfig: NcmConfig{
+				Rollback: RollbackConfig{
+					Enabled: true,
+					Store: StoreConfig{
+						MinConfigsPerDevice:    3,
+						MaxConfigsPerDevice:    20,
+						MaxRawConfigStoreBytes: 1000000,
+					},
+				},
 			},
 		},
 		{
-			name: "store config partially set",
+			name: "rollback enabled with store knobs partially set",
 			configYaml: `
 network_devices:
   config_management:
-    namespace: test
-    devices:
-      - ip_address: 10.0.0.1
-        auth:
-          username: admin
-          password: password
     rollback:
       enabled: true
       store:
         max_configs_per_device: 50
 `,
-			expectedStore: StoreConfig{
-				MinConfigsPerDevice:    0,
-				MaxConfigsPerDevice:    50,
-				MaxRawConfigStoreBytes: 0,
+			expectedConfig: NcmConfig{
+				Rollback: RollbackConfig{
+					Enabled: true,
+					Store: StoreConfig{
+						MaxConfigsPerDevice: 50,
+					},
+				},
 			},
 		},
 		{
-			name: "store config omitted entirely yields zero values",
+			name: "rollback enabled with store omitted yields zero-valued store",
 			configYaml: `
 network_devices:
   config_management:
-    namespace: test
-    devices:
-      - ip_address: 10.0.0.1
-        auth:
-          username: admin
-          password: password
+    rollback:
+      enabled: true
 `,
-			expectedStore: StoreConfig{},
+			expectedConfig: NcmConfig{
+				Rollback: RollbackConfig{Enabled: true},
+			},
+		},
+		{
+			name: "config_management subtree omitted entirely yields zero-valued config",
+			configYaml: `
+network_devices: {}
+`,
+			expectedConfig: NcmConfig{},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := mock.NewFromYAML(t, tt.configYaml)
 			testConfig, err := newConfig(mockConfig)
-			assert.Nil(t, err)
-			assert.Equal(t, tt.expectedStore, testConfig.Rollback.Store)
-		})
-	}
-}
-
-func TestConfig_Errors(t *testing.T) {
-	var tests = []struct {
-		name       string
-		configYaml string
-	}{
-		{
-			name: "NCM malformed config, wrong type for devices (string instead of map)",
-			configYaml: `
-network_devices:
-  config_management:
-    namespace: test
-    devices: blah`,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockConfig := mock.NewFromYAML(t, tt.configYaml)
-			_, err := newConfig(mockConfig)
-			assert.Error(t, err)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.expectedConfig, *testConfig)
 		})
 	}
 }

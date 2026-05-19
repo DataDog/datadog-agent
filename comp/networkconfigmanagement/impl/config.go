@@ -10,25 +10,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 )
 
-// AuthCredentials holds the authentication credentials to connect to a network device.
-type AuthCredentials struct { // auth_credentials
-	Username string `mapstructure:"username"`
-	Password string `mapstructure:"password"`
-	Port     string `mapstructure:"port"`
-	Protocol string `mapstructure:"protocol"`
-	// TODO: Uncomment and implement SSH key support
-	//SshKeyPath       string `mapstructure:"sshKeyPath"`       // path to the SSH key file
-	//SshKeyPassphrase string `mapstructure:"sshKeyPassphrase"` // passphrase for SSH key if needed
-	//Enable           bool   `mapstructure:"enable"`           // if true, will use enablePassword to enter privileged exec mode
-	//EnablePassword   string `mapstructure:"enable_password"`  // to be able to use privileged exec mode
-}
-
-// DeviceConfig holds the info to connect to a network device, including its IP address and authentication credentials.
-type DeviceConfig struct {
-	IPAddress string          `mapstructure:"ip_address"` // ip address of the network device, e.g., "10.0.0.1"
-	Auth      AuthCredentials `mapstructure:"auth"`
-}
-
 // StoreConfig holds eviction-policy knobs for the local config store.
 type StoreConfig struct {
 	MinConfigsPerDevice    int   `mapstructure:"min_configs_per_device"`
@@ -42,33 +23,16 @@ type RollbackConfig struct {
 	Store   StoreConfig `mapstructure:"store"`
 }
 
-// RawNcmConfig is the raw config structure for Network Config Management (NCM) taken from the Agent configuration
-type RawNcmConfig struct {
-	Namespace string         `mapstructure:"namespace"` // namespace for the network config management, e.g., "default"
-	Devices   []DeviceConfig `mapstructure:"devices"`
-	Rollback  RollbackConfig `mapstructure:"rollback"`
+// NcmConfig is the agent-side configuration for the NCM component, read from
+// the network_devices.config_management subtree of the agent config.
+type NcmConfig struct {
+	Rollback RollbackConfig `mapstructure:"rollback"`
 }
 
-// ProcessedNcmConfig is the processed config structure for Network Config Management (NCM) to be used by the component
-type ProcessedNcmConfig struct {
-	Namespace string
-	Devices   map[string]DeviceConfig // map of device IP addresses to DeviceConfig
-	Rollback  RollbackConfig
-}
-
-func newConfig(agentConfig config.Component) (*ProcessedNcmConfig, error) {
-	ncm := &RawNcmConfig{}
-	err := structure.UnmarshalKey(agentConfig, "network_devices.config_management", &ncm)
-	if err != nil {
-		return &ProcessedNcmConfig{}, err
+func newConfig(agentConfig config.Component) (*NcmConfig, error) {
+	cfg := &NcmConfig{}
+	if err := structure.UnmarshalKey(agentConfig, "network_devices.config_management", cfg); err != nil {
+		return &NcmConfig{}, err
 	}
-	deviceMap := make(map[string]DeviceConfig)
-	for _, d := range ncm.Devices {
-		deviceMap[d.IPAddress] = d
-	}
-	return &ProcessedNcmConfig{
-		Namespace: ncm.Namespace,
-		Devices:   deviceMap,
-		Rollback:  ncm.Rollback,
-	}, nil
+	return cfg, nil
 }
