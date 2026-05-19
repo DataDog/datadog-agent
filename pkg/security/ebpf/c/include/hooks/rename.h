@@ -96,15 +96,7 @@ int hook_vfs_rename(ctx_t *ctx) {
         get_path_id(inode, syscall->rename.target_file.path_key.mount_id, 0, invalidate_type);
     }
 
-    // always return after any invalidate_inode call
-    if (approve_syscall(syscall, rename_approvers) == DISCARDED) {
-        // do not pop, we want to invalidate the inode even if the syscall is discarded
-        return 0;
-    }
-    if (is_auid_discarder(EVENT_RENAME)) {
-        syscall->state = DISCARDED;
-        return 0;
-    }
+    approve_syscall(syscall, rename_approvers);
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
     syscall->resolver.dentry = syscall->rename.src_dentry;
@@ -150,6 +142,11 @@ int __attribute__((always_inline)) sys_rename_ret(void *ctx, int retval, enum TA
             // folder rename. For the inode the discarder is invalidated in the ret.
             bump_mount_discarder_revision(syscall->rename.target_file.path_key.mount_id);
         }
+    }
+
+    if (syscall->state != DISCARDED && is_auid_discarder(EVENT_RENAME)) {
+        syscall->state = DISCARDED;
+        monitor_discarded(EVENT_RENAME);
     }
 
     if (syscall->state != DISCARDED && is_event_enabled(EVENT_RENAME)) {

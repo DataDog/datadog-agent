@@ -78,18 +78,10 @@ int hook_vfs_unlink(ctx_t *ctx) {
 
     approve_syscall(syscall, unlink_approvers);
 
-    if (syscall->state != DISCARDED && is_auid_discarder(EVENT_UNLINK)) {
-        syscall->state = DISCARDED;
-    }
-
     u8 is_cgroupfs = is_cgroup2fs(dentry) && !is_runtime_request();
 
     if (syscall->state != ACCEPTED && is_cgroupfs) {
         syscall->state = INTERNAL;
-    }
-
-    if (syscall->state == DISCARDED) {
-        return 0;
     }
 
     // the mount id of path_key is resolved by kprobe/mnt_want_write. It is already set by the time we reach this probe.
@@ -132,8 +124,17 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
         return 0;
     }
 
+    if (retval >= 0) {
+        expire_inode_discarders(syscall->unlink.file.path_key.mount_id, syscall->unlink.file.path_key.ino);
+    }
+
     if (syscall->state != DISCARDED) {
         if (syscall->unlink.flags & AT_REMOVEDIR) {
+            if (is_auid_discarder(EVENT_RMDIR)) {
+                monitor_discarded(EVENT_RMDIR);
+                return 0;
+            }
+
             struct rmdir_event_t event = {
                 .syscall.retval = retval,
                 .event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
@@ -153,6 +154,11 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
                 return 0;
             }
 
+            if (is_auid_discarder(EVENT_UNLINK)) {
+                monitor_discarded(EVENT_UNLINK);
+                return 0;
+            }
+
             struct unlink_event_t event = {
                 .syscall.retval = retval,
                 .syscall_ctx.id = syscall->ctx_id,
@@ -168,16 +174,6 @@ int __attribute__((always_inline)) sys_unlink_ret(void *ctx, int retval) {
 
             send_event(ctx, EVENT_UNLINK, event);
         }
-    } else {
-        if (syscall->unlink.flags & AT_REMOVEDIR) {
-            monitor_discarded(EVENT_RMDIR);
-        } else {
-            monitor_discarded(EVENT_UNLINK);
-        }
-    }
-
-    if (retval >= 0) {
-        expire_inode_discarders(syscall->unlink.file.path_key.mount_id, syscall->unlink.file.path_key.ino);
     }
 
     return 0;

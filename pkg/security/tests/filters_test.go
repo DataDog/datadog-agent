@@ -133,7 +133,7 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 	}
 }
 
-func TestFilterOpenBasenameWildcardApprover(t *testing.T) {
+func TestFilterOpenBasenamePrefixApprover(t *testing.T) {
 	SkipIfNotAvailable(t)
 
 	// generate a basename up to the current limit of the agent

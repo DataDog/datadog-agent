@@ -128,6 +128,14 @@ enum APPROVER_TYPE
     IN_UPPER_LAYER_APPROVER_TYPE,
 };
 
+// values must mirror pkg/security/probe/kfilters/approvers.go
+enum BASENAME_APPROVER_TYPE
+{
+    LEAF_BASENAME = 0,
+    LEAF_BASENAME_PREFIX = 1,
+    PARENT_BASENAME = 2,
+};
+
 enum SYSCALL_STATE
 {
     ACCEPTED = 0,    // accepted, can't be discarded later

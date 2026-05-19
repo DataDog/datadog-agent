@@ -39,7 +39,9 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
     struct dentry *dentry = input->dentry;
     struct dentry *d_parent = NULL;
     unsigned long ino_parent = 0;
-    struct basename_t basename = {};
+    struct basename_t basename = {
+        .type = PARENT_BASENAME,
+    };
 
     u32 zero = 0;
     struct is_discarded_by_inode_t *params = bpf_map_lookup_elem(&is_discarded_by_inode_gen, &zero);
@@ -175,20 +177,20 @@ void __attribute__((always_inline)) dentry_resolver_kern(void *ctx, enum TAIL_CA
    dentry_resolver_kern_recursive(ctx, prog_type, &syscall->resolver);
 }
 
-struct dentry_resolver_input_t *__attribute__((always_inline)) peek_task_resolver_inputs(u64 pid_tgid, u64 type) {
+struct dentry_resolver_input_t *__attribute__((always_inline)) peek_task_resolver_inputs(u64 pid_tgid, u64 event_type) {
     struct dentry_resolver_input_t *inputs = (struct dentry_resolver_input_t *)bpf_map_lookup_elem(&dentry_resolver_inputs, &pid_tgid);
     if (!inputs) {
         return NULL;
     }
-    if (!type || inputs->type == type) {
+    if (!event_type || inputs->event_type == event_type) {
         return inputs;
     }
     return NULL;
 }
 
-struct dentry_resolver_input_t *__attribute__((always_inline)) peek_resolver_inputs(u64 type) {
+struct dentry_resolver_input_t *__attribute__((always_inline)) peek_resolver_inputs(u64 event_type) {
     u64 key = bpf_get_current_pid_tgid();
-    return peek_task_resolver_inputs(key, type);
+    return peek_task_resolver_inputs(key, event_type);
 }
 
 void __attribute__((always_inline)) dentry_resolver_kern_no_syscall(void *ctx, enum TAIL_CALL_PROG_TYPE prog_type) {

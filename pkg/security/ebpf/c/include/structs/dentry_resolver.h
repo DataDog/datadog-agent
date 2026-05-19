@@ -63,7 +63,6 @@ struct dentry_resolver_input_t {
     int ret;
     int iteration;
     u32 flags;
-    u64 type;
 };
 
 #endif

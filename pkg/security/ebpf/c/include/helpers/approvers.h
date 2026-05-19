@@ -226,30 +226,34 @@ int __attribute__((always_inline)) is_basename_in_map(struct basename_t *basenam
 }
 
 enum SYSCALL_STATE __attribute__((always_inline)) approve_by_basename(struct dentry *dentry, u64 event_type) {
-    struct basename_t basename = {};
-    get_dentry_name(dentry, &basename, sizeof(basename));
+    struct basename_t basename = {
+        .type = LEAF_BASENAME,
+    };
+    get_dentry_name(dentry, basename.value, sizeof(basename.value));
 
     if (is_basename_in_map(&basename, event_type)) {
         monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
         return APPROVED;
     }
 
-    // Wildcard fallback: build a key from the first PATTERN_PREFIX_SIZE bytes
-    // of the basename + '*'. Userspace inserts the same shape for any rule
-    // whose basename contains '*' (e.g. rule "abcd*xyz" -> key "abcd*"), so
-    // this matches every event whose basename shares that prefix — broader
-    // than the rule. The userspace re-evaluation rejects the false positives;
-    // distinct rules sharing a N-byte prefix collide on a single map entry.
-    struct basename_t wildcard = {};
+    // prefix fallback: build a key from the first PATTERN_PREFIX_SIZE bytes of
+    // the event basename with type=LEAF_BASENAME_PREFIX. Userspace inserts the
+    // same shape for any rule whose basename contains '*' (e.g. rule
+    // "abc*xyz" -> key {LEAF_BASENAME_PREFIX, "abc"}), so this matches every
+    // event whose basename shares that prefix — broader than the rule. The
+    // userspace re-evaluation rejects the false positives; distinct rules
+    // sharing an N-byte prefix collide on a single map entry.
+    struct basename_t prefix = {
+        .type = LEAF_BASENAME_PREFIX,
+    };
     #ifndef USE_FENTRY
     #pragma unroll
     #endif
     for (int i = 0; i != PATTERN_PREFIX_SIZE; i++) {
-        wildcard.value[i] = basename.value[i];
+        prefix.value[i] = basename.value[i];
     }
 
-    wildcard.value[PATTERN_PREFIX_SIZE] = '*';
-    struct event_mask_filter_t *filter = bpf_map_lookup_elem(&basename_approvers, &wildcard);
+    struct event_mask_filter_t *filter = bpf_map_lookup_elem(&basename_approvers, &prefix);
     if (filter && filter->event_mask & (1 << (event_type - 1))) {
         monitor_event_approved(event_type, BASENAME_APPROVER_TYPE);
         return APPROVED;

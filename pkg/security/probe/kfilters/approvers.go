@@ -37,30 +37,67 @@ const (
 	InUpperLayerApproverType = "in_upper_layer"
 )
 
+// Basename approver types — kept in sync with enum BASENAME_APPROVER_TYPE on the kernel side.
+const (
+	// leafBasename matches the event's own basename exactly.
+	leafBasename uint8 = iota
+	// leafBasenamePrefix matches the first patternPrefixSize bytes of the event's basename
+	// (used for wildcard rules whose leaf has a usable fixed prefix).
+	leafBasenamePrefix
+	// parentBasename matches the basename of the event's parent directory exactly
+	// (used for wildcard rules whose leaf has no usable prefix).
+	parentBasename
+)
+
+// basenameApprover is the userspace form of struct basename_t: a one-byte type tag followed by
+// a fixed-length, NUL-padded value. MarshalBinary produces a byte-for-byte match with the kernel
+// struct so it can be used as a map key.
+type basenameApprover struct {
+	kind  uint8
+	value string
+}
+
+// MarshalBinary serialises basenameApprover as `[type][value padded to BasenameFilterSize]`.
+func (ba *basenameApprover) MarshalBinary() ([]byte, error) {
+	b := make([]byte, 1+BasenameFilterSize)
+	b[0] = ba.kind
+
+	n := BasenameFilterSize - 1 // leave room for trailing \0
+	if len(ba.value) < n {
+		n = len(ba.value)
+	}
+	copy(b[1:], ba.value[:n])
+
+	return b, nil
+}
+
 type kfiltersGetter func(approvers rules.Approvers) (KFilters, []eval.Field, error)
 
 // KFilterGetters var contains all the kfilter getters
 var KFilterGetters = make(map[eval.EventType]kfiltersGetter)
 
 func newBasenameKFilter(tableName string, eventType model.EventType, basename string, valueType eval.FieldValueType) (kFilter, error) {
+	basenameType := leafBasename
+
 	if valueType == eval.PatternValueType || valueType == eval.GlobValueType {
 		if strings.Contains(basename, "*") {
-			// Reduce to a fixed-length prefix + '*' so the kernel can match it
-			// with a single map lookup using the same shape built from the event
-			// basename. validateScalarPathFilter guarantees len(els[0]) >=
-			// patternPrefixSize, so the slice below is safe.
+			// Reduce to a fixed-length prefix so the kernel can match it with a single
+			// map lookup using the same shape built from the event basename.
+			// validateScalarPathFilter guarantees len(els[0]) >= patternPrefixSize, so
+			// the slice below is safe.
 			els := strings.Split(basename, "*")
 			if len(els[0]) < patternPrefixSize {
 				return nil, errors.New("unexpected pattern prefix size")
 			}
-			basename = els[0][:patternPrefixSize] + "*"
+			basenameType = leafBasenamePrefix
+			basename = els[0][:patternPrefixSize]
 		}
 	}
 
 	return &eventMaskKFilter{
 		approverType: BasenameApproverType,
 		tableName:    tableName,
-		tableKey:     ebpf.NewStringMapItem(basename, BasenameFilterSize),
+		tableKey:     &basenameApprover{kind: basenameType, value: basename},
 		eventMask:    uint64(1 << (eventType - 1)),
 	}, nil
 }
@@ -69,7 +106,7 @@ func newParentBasenameKFilter(tableName string, eventType model.EventType, basen
 	return &eventMaskKFilter{
 		approverType: BasenameApproverType,
 		tableName:    tableName,
-		tableKey:     ebpf.NewStringMapItem(basename, BasenameFilterSize),
+		tableKey:     &basenameApprover{kind: parentBasename, value: basename},
 		eventMask:    uint64(1 << (eventType - 1)),
 	}, nil
 }
@@ -109,26 +146,29 @@ func newPathKFilters(tableName string, eventType model.EventType, fvs ...rules.F
 		}
 		basename := path.Base(value)
 
-		// When the leaf's pre-'*' prefix is shorter than patternPrefixSize, the kernel
-		// prefix-match approver is too coarse to be useful (or impossible to build when
-		// the basename is just "*"). Fall back to approving on the parent directory
-		// basename instead, which the resolver looks up exactly.
-		if strings.Contains(basename, "*") {
-			els := strings.Split(basename, "*")
-			if len(els[0]) < patternPrefixSize {
-				basename = path.Base(path.Dir(value))
-				// should have been validated by the capabilities but worth validating here again
-				if strings.Contains(basename, "*") {
-					return nil, errors.New("wildcard on parent basename is not supported")
-				}
+		if fv.Type == eval.PatternValueType || fv.Type == eval.GlobValueType {
+			if strings.Contains(basename, "*") {
+				els := strings.Split(basename, "*")
 
-				activeKFilter, err := newParentBasenameKFilter(tableName, eventType, basename)
-				if err != nil {
-					return nil, err
-				}
-				approvers = append(approvers, activeKFilter)
+				// When the leaf's pre-'*' prefix is shorter than patternPrefixSize, the kernel
+				// prefix-match approver is too coarse to be useful (or impossible to build when
+				// the basename is just "*"). Fall back to approving on the parent directory
+				// basename instead, which the resolver looks up exactly.
+				if len(els[0]) < patternPrefixSize {
+					basename = path.Base(path.Dir(value))
+					// should have been validated by the capabilities but worth validating here again
+					if strings.Contains(basename, "*") {
+						return nil, errors.New("wildcard on parent basename is not supported")
+					}
 
-				continue
+					activeKFilter, err := newParentBasenameKFilter(tableName, eventType, basename)
+					if err != nil {
+						return nil, err
+					}
+					approvers = append(approvers, activeKFilter)
+
+					continue
+				}
 			}
 		}
 
