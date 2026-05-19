@@ -17,7 +17,6 @@ import (
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/metricpipelines/allowlist"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -1271,8 +1270,9 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("integration.cloud_cost_only.metrics_blocked", []string{})
 	// integration.cloud_cost_only.metrics: integration metrics to forward in cloud_cost_only mode
 	// (DogStatsD, custom_*, and integration.additional checks always bypass this list).
-	// Unset uses allowlist.DefaultCloudCostMetrics; explicitly set to [] forwards no integration metric names.
-	config.BindEnvAndSetDefault("integration.cloud_cost_only.metrics", allowlist.DefaultCloudCostMetrics)
+	// Unset uses defaultCloudCostMetrics; explicitly set to [] forwards no integration metric names.
+	// Keep in sync with pkg/metricpipelines/allowlist.DefaultCloudCostMetrics.
+	config.BindEnvAndSetDefault("integration.cloud_cost_only.metrics", defaultCloudCostMetrics)
 	config.BindEnvAndSetDefault("integration.cloud_cost_only.metrics_match_prefix", true)
 
 	// Configuration for TLS for outgoing connections

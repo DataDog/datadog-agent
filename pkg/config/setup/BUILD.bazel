@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "apm.go",
         "common_settings.go",
+        "cloud_cost_metrics.go",
         "config.go",
         "config_accessor.go",
         "config_change_checker.go",
@@ -42,7 +43,6 @@ go_library(
         "//pkg/config/env",
         "//pkg/config/helper",
         "//pkg/config/model",
-        "//pkg/metricpipelines/allowlist",
         "//pkg/config/setup/constants",
         "//pkg/config/structure",
         "//pkg/fips",

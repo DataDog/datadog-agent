@@ -3,13 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package allowlist holds shared cloud_cost_only metric allowlist defaults.
-package allowlist
+package setup
 
-// DefaultCloudCostMetrics is the built-in integration metric allowlist for
-// infrastructure_mode=cloud_cost_only. Used when integration.cloud_cost_only.metrics
-// is unset. Agent config default is pkg/config/setup/defaultCloudCostMetrics (keep lists in sync).
-var DefaultCloudCostMetrics = []string{
+// defaultCloudCostMetrics is the built-in integration.cloud_cost_only.metrics allowlist.
+// Keep in sync with pkg/metricpipelines/allowlist.DefaultCloudCostMetrics.
+var defaultCloudCostMetrics = []string{
 	"kubernetes.cpu.usage.total",
 	"kubernetes.memory.usage",
 	"kubernetes_state.pod.uptime",
