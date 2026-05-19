@@ -36,7 +36,7 @@ type configMatrixSuite struct {
 
 // --- Case 1: master=off --------------------------------------------------
 
-// TestObserverConfigMatrix_MasterOff verifies the observer is silent when
+// TestObserverConfigMatrixMasterOff verifies the observer is silent when
 // anomaly_detection.enabled is not set (covered also by defaults_nix_test.go,
 // but repeated here to anchor it in the matrix).
 func TestObserverConfigMatrixMasterOff(t *testing.T) {
@@ -47,6 +47,8 @@ func TestObserverConfigMatrixMasterOff(t *testing.T) {
 	), e2e.WithStackName("anomalydetection-matrix-master-off"))
 }
 
+// TestMasterOffNoObserverLines guards against the observer pipeline activating
+// silently in a vanilla deployment where anomaly_detection is not configured.
 func (s *configMatrixSuite) TestMasterOffNoObserverLines() {
 	waitForAgentStartup(s)
 	time.Sleep(10 * time.Second)
@@ -59,7 +61,7 @@ func (s *configMatrixSuite) TestMasterOffNoObserverLines() {
 
 // --- Case 2: master=on, metrics=off, logs=off ----------------------------
 
-// TestObserverConfigMatrix_MasterOnBothOff verifies the observer starts but
+// TestObserverConfigMatrixMasterOnBothOff verifies the observer starts but
 // emits the deterministic metrics-disabled warning and no agent-logs handle.
 func TestObserverConfigMatrixMasterOnBothOff(t *testing.T) {
 	// language=yaml
@@ -81,6 +83,9 @@ anomaly_detection:
 	), e2e.WithStackName("anomalydetection-matrix-both-off"))
 }
 
+// TestMasterOnBothOffWarningPresent guards against silent processing when both
+// sub-gates are disabled. The metrics-disabled warning (observer.go:243) must
+// appear so operators can confirm the expected noop state from logs.
 func (s *configMatrixSuite) TestMasterOnBothOffWarningPresent() {
 	waitForAgentStartup(s)
 	time.Sleep(10 * time.Second)
@@ -96,7 +101,7 @@ func (s *configMatrixSuite) TestMasterOnBothOffWarningPresent() {
 
 // --- Case 3: master=on, metrics=on, logs=off -----------------------------
 
-// TestObserverConfigMatrix_MetricsOnLogsOff verifies the metrics path is active
+// TestObserverConfigMatrixMetricsOnLogsOff verifies the metrics path is active
 // (observer ready marker) and the agent-logs tap is not installed.
 func TestObserverConfigMatrixMetricsOnLogsOff(t *testing.T) {
 	// language=yaml
@@ -118,6 +123,8 @@ anomaly_detection:
 	), e2e.WithStackName("anomalydetection-matrix-metrics-on"))
 }
 
+// TestMetricsOnLogsOffPaths verifies sub-gate independence: enabling the metrics
+// path must not silently enable the agent-log tap, and vice versa.
 func (s *configMatrixSuite) TestMetricsOnLogsOffPaths() {
 	waitForObserverReady(s)
 
@@ -132,7 +139,7 @@ func (s *configMatrixSuite) TestMetricsOnLogsOffPaths() {
 
 // --- Case 4: master=on, metrics=off, logs=on -----------------------------
 
-// TestObserverConfigMatrix_MetricsOffLogsOn verifies the log path is active and
+// TestObserverConfigMatrixMetricsOffLogsOn verifies the log path is active and
 // the metrics-disabled warning appears.
 func TestObserverConfigMatrixMetricsOffLogsOn(t *testing.T) {
 	// language=yaml
@@ -152,6 +159,9 @@ anomaly_detection:
 	), e2e.WithStackName("anomalydetection-matrix-logs-on"))
 }
 
+// TestMetricsOffLogsOnPaths verifies the agent-log tap is installed when
+// agent_logs.enabled=true, and that the metrics-disabled warning appears so
+// the noop metric path is observable from logs.
 func (s *configMatrixSuite) TestMetricsOffLogsOnPaths() {
 	waitForAgentStartup(s)
 	s.EventuallyWithT(func(c *assert.CollectT) {
@@ -167,7 +177,7 @@ func (s *configMatrixSuite) TestMetricsOffLogsOnPaths() {
 
 // --- Case 5: master=on, metrics=on, logs=on (all gates active) -----------
 
-// TestObserverConfigMatrix_AllGatesOn verifies both the metrics and log paths
+// TestObserverConfigMatrixAllGatesOn verifies both the metrics and log paths
 // are active simultaneously with no disabled warnings.
 func TestObserverConfigMatrixAllGatesOn(t *testing.T) {
 	// language=yaml
@@ -187,6 +197,9 @@ anomaly_detection:
 	), e2e.WithStackName("anomalydetection-matrix-all-on"))
 }
 
+// TestAllGatesOnBothPathsActive is the full-active baseline: both handles must
+// be wired with no disabled warnings, so a regression disabling either path is
+// immediately visible.
 func (s *configMatrixSuite) TestAllGatesOnBothPathsActive() {
 	waitForObserverReady(s)
 	s.EventuallyWithT(func(c *assert.CollectT) {
