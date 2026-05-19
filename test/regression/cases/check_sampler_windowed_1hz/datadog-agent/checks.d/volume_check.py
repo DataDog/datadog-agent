@@ -1,8 +1,8 @@
 """High-volume Python AgentCheck used to stress CheckSampler windowing.
 
 The check emits a stable set of contexts across the AgentCheck metric
-submission paths. The 1Hz cadence exercises check metric window roll-up and AD
-observer storage on the same workload.
+submission paths supported by Python checks. The 1Hz cadence exercises check
+metric window roll-up and AD observer storage on the same workload.
 """
 
 import aggregator
@@ -21,7 +21,7 @@ class VolumeCheck(AgentCheck):
         prefix = self.name_prefix
         for i in range(self.contexts_per_run):
             tags = self.base_tags + ["context:%d" % i]
-            metric_type = i % 10
+            metric_type = i % 9
             if metric_type == 0:
                 self.gauge("%s.gauge" % prefix, float(i), tags=tags)
             elif metric_type == 1:
@@ -31,14 +31,12 @@ class VolumeCheck(AgentCheck):
             elif metric_type == 3:
                 self.monotonic_count("%s.monotonic_count" % prefix, float(i + 1), tags=tags)
             elif metric_type == 4:
-                self.counter("%s.counter" % prefix, float(i + 1), tags=tags)
-            elif metric_type == 5:
                 self.set("%s.set" % prefix, "value:%d" % (i % 100), tags=tags)
-            elif metric_type == 6:
+            elif metric_type == 5:
                 self.histogram("%s.histogram" % prefix, float(i), tags=tags)
-            elif metric_type == 7:
+            elif metric_type == 6:
                 self.historate("%s.historate" % prefix, float(i + 1), tags=tags)
-            elif metric_type == 8:
+            elif metric_type == 7:
                 self.distribution("%s.distribution" % prefix, float(i), tags=tags)
             else:
                 for bucket in range(5):
