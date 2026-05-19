@@ -53,7 +53,6 @@ import (
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
@@ -116,10 +115,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				eventplatformreceiverimpl.Module(),
 
 				// setup workloadmeta
-				wmcatalog.GetCatalog(),
 				workloadmetafx.Module(workloadmeta.Params{
 					InitHelper: workloadmetainit.GetWorkloadmetaInit(),
-				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
+					// Default AgentType does not match any collector. This is
+					// OK, because DCA CloudFoundry does not need to run any
+					// collector.
+				}),
 				localTaggerfx.Module(),
 				workloadfilterfx.Module(),
 				collectorimpl.Module(),

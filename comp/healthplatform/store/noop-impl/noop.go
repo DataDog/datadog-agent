@@ -58,6 +58,11 @@ func (n *NoopHealthPlatform) ResolveIssue(_ string) {
 func (n *NoopHealthPlatform) ResolveAllIssues() {
 }
 
+// GetActiveIssueIDsByIssueType returns nil when the health platform is disabled.
+func (n *NoopHealthPlatform) GetActiveIssueIDsByIssueType(_ string) []string {
+	return nil
+}
+
 // GetIssuesHandler handles GET /health-platform/issues when disabled.
 func (n *NoopHealthPlatform) GetIssuesHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")

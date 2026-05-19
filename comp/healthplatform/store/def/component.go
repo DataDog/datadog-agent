@@ -43,4 +43,8 @@ type Component interface {
 
 	// ResolveAllIssues marks every active issue as resolved.
 	ResolveAllIssues()
+
+	// GetActiveIssueIDsByIssueType returns the IDs of all currently active issues
+	// of the given template type (e.g. "docker-file-tailing-disabled").
+	GetActiveIssueIDsByIssueType(issueType string) []string
 }

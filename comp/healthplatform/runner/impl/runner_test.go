@@ -1,0 +1,194 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-present Datadog, Inc.
+
+//go:build test
+
+package runnerimpl
+
+import (
+	"errors"
+	"fmt"
+	"sync"
+	"sync/atomic"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+)
+
+// mockStore captures ReportIssue calls for assertions.
+type mockStore struct {
+	mu        sync.Mutex
+	reports   []storedef.IssueReport
+	reportErr error // if non-nil, returned for the report whose IssueID equals errOnID
+	errOnID   string
+}
+
+func (m *mockStore) ReportIssue(r storedef.IssueReport) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.reportErr != nil && r.IssueID == m.errOnID {
+		return m.reportErr
+	}
+	m.reports = append(m.reports, r)
+	return nil
+}
+
+func (m *mockStore) ResolveIssue(_ string)                                        {}
+func (m *mockStore) ResolveAllIssues()                                            {}
+func (m *mockStore) GetIssue(_ string) *healthplatformpayload.Issue               { return nil }
+func (m *mockStore) GetAllIssues() (int, map[string]*healthplatformpayload.Issue) { return 0, nil }
+func (m *mockStore) GetActiveIssueIDsByIssueType(_ string) []string               { return nil }
+
+func newTestRunner(t *testing.T) (*runner, *mockStore) {
+	t.Helper()
+	store := &mockStore{}
+	r := &runner{log: logmock.New(t), store: store}
+	return r, store
+}
+
+func TestRunHappyPath(t *testing.T) {
+	r, store := newTestRunner(t)
+
+	fn := func() ([]storedef.IssueReport, error) {
+		return []storedef.IssueReport{
+			{IssueID: "id-1", IssueType: "type-a", Source: "mycomp"},
+			{IssueID: "id-2", IssueType: "type-b", Source: "mycomp"},
+		}, nil
+	}
+
+	ids, err := r.Run("mycomp", fn)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"id-1", "id-2"}, ids)
+	assert.Len(t, store.reports, 2)
+}
+
+func TestRunEmptyResult(t *testing.T) {
+	r, store := newTestRunner(t)
+
+	ids, err := r.Run("mycomp", func() ([]storedef.IssueReport, error) {
+		return nil, nil
+	})
+
+	require.NoError(t, err)
+	assert.Empty(t, ids)
+	assert.Empty(t, store.reports)
+}
+
+func TestRunFnError(t *testing.T) {
+	r, store := newTestRunner(t)
+
+	fn := func() ([]storedef.IssueReport, error) {
+		return []storedef.IssueReport{
+			{IssueID: "id-1", IssueType: "type-a", Source: "mycomp"},
+		}, errors.New("probe failed")
+	}
+
+	ids, err := r.Run("mycomp", fn)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "probe failed")
+	// Report emitted before error is still forwarded.
+	assert.Equal(t, []string{"id-1"}, ids)
+	assert.Len(t, store.reports, 1)
+}
+
+func TestRunFnPanic(t *testing.T) {
+	r, store := newTestRunner(t)
+
+	ids, err := r.Run("mycomp", func() ([]storedef.IssueReport, error) {
+		panic("something exploded")
+	})
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "panic")
+	assert.Empty(t, ids)
+	assert.Empty(t, store.reports)
+}
+
+func TestRunSourceDefaultFill(t *testing.T) {
+	r, store := newTestRunner(t)
+
+	fn := func() ([]storedef.IssueReport, error) {
+		return []storedef.IssueReport{
+			{IssueID: "id-1", IssueType: "type-a"}, // Source intentionally empty
+		}, nil
+	}
+
+	_, err := r.Run("fallback-source", fn)
+	require.NoError(t, err)
+	require.Len(t, store.reports, 1)
+	assert.Equal(t, "fallback-source", store.reports[0].Source)
+}
+
+func TestRunSourceNotOverridden(t *testing.T) {
+	r, store := newTestRunner(t)
+
+	fn := func() ([]storedef.IssueReport, error) {
+		return []storedef.IssueReport{
+			{IssueID: "id-1", IssueType: "type-a", Source: "explicit-source"},
+		}, nil
+	}
+
+	_, err := r.Run("fallback-source", fn)
+	require.NoError(t, err)
+	require.Len(t, store.reports, 1)
+	assert.Equal(t, "explicit-source", store.reports[0].Source)
+}
+
+func TestRunStoreError(t *testing.T) {
+	r, store := newTestRunner(t)
+	store.errOnID = "id-2"
+	store.reportErr = errors.New("store rejected")
+
+	fn := func() ([]storedef.IssueReport, error) {
+		return []storedef.IssueReport{
+			{IssueID: "id-1", IssueType: "type-a", Source: "mycomp"},
+			{IssueID: "id-2", IssueType: "type-b", Source: "mycomp"},
+		}, nil
+	}
+
+	ids, err := r.Run("mycomp", fn)
+	require.NoError(t, err)
+	// id-1 accepted, id-2 rejected by store — only id-1 in returned slice.
+	assert.Equal(t, []string{"id-1"}, ids)
+	assert.Len(t, store.reports, 1)
+	assert.Equal(t, "id-1", store.reports[0].IssueID)
+}
+
+func TestRunConcurrent(t *testing.T) {
+	r, store := newTestRunner(t)
+
+	var wg sync.WaitGroup
+	const n = 10
+	callCount := int32(0)
+
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			fn := func() ([]storedef.IssueReport, error) {
+				atomic.AddInt32(&callCount, 1)
+				return []storedef.IssueReport{
+					{IssueID: fmt.Sprintf("id-%d", idx), IssueType: "type-a", Source: "mycomp"},
+				}, nil
+			}
+			r.Run("mycomp", fn) //nolint:errcheck
+		}(i)
+	}
+	wg.Wait()
+
+	assert.Equal(t, int32(n), atomic.LoadInt32(&callCount))
+	store.mu.Lock()
+	assert.Len(t, store.reports, n)
+	store.mu.Unlock()
+}
+
+// Ensure HealthCheckFunc type is used correctly in tests.
+var _ runnerdef.HealthCheckFunc = func() ([]storedef.IssueReport, error) { return nil, nil }

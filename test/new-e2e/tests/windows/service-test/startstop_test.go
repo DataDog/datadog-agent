@@ -597,6 +597,9 @@ func (s *baseStartStopSuite) SetupSuite() {
 	}
 	env := map[string]string{
 		"GOTRACEBACK": "wer",
+		// Force a crash dump (via WER) on hard stop timeout so we capture goroutine
+		// state when a service hangs during shutdown. See servicemain.EnvCrashOnHardStopTimeout.
+		"DD_CRASH_ON_HARDSTOP_TIMEOUT": "1",
 	}
 	for _, svc := range s.getInstalledUserServices() {
 		err := windowsCommon.SetServiceEnvironment(host, svc, env)

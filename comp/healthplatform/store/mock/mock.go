@@ -74,3 +74,8 @@ func (m *mockHealthPlatform) ResolveIssue(checkID string) {
 func (m *mockHealthPlatform) ResolveAllIssues() {
 	m.issues = make(map[string]*healthplatformpayload.Issue)
 }
+
+// GetActiveIssueIDsByIssueType returns nil in the mock.
+func (m *mockHealthPlatform) GetActiveIssueIDsByIssueType(_ string) []string {
+	return nil
+}

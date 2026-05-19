@@ -13,6 +13,8 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 )
 
 // mockIssueTemplate is a test implementation of IssueTemplate
@@ -28,137 +30,119 @@ func (m *mockIssueTemplate) BuildIssue(context map[string]string) (*healthplatfo
 	}, nil
 }
 
-// mockModuleWithCheck is a test module that has a built-in check
+// mockModuleWithCheck has a periodic check only.
 type mockModuleWithCheck struct {
 	id       string
 	template *mockIssueTemplate
 }
 
-func (m *mockModuleWithCheck) IssueID() string {
-	return m.id
-}
-
-func (m *mockModuleWithCheck) IssueTemplate() IssueTemplate {
-	return m.template
-}
-
-func (m *mockModuleWithCheck) BuiltInHealthCheck() *BuiltInHealthCheck {
-	return &BuiltInHealthCheck{
-		ID:       "check-" + m.id,
-		Name:     "Check for " + m.id,
-		CheckFn:  func() (*healthplatform.IssueReport, error) { return nil, nil },
+func (m *mockModuleWithCheck) IssueType() string            { return m.id }
+func (m *mockModuleWithCheck) IssueTemplate() IssueTemplate { return m.template }
+func (m *mockModuleWithCheck) BuiltInPeriodicHealthCheck() *BuiltInPeriodicHealthCheck {
+	return &BuiltInPeriodicHealthCheck{
+		Source:   "check-" + m.id,
+		Fn:       func() ([]storedef.IssueReport, error) { return nil, nil },
 		Interval: 5 * time.Minute,
 	}
 }
+func (m *mockModuleWithCheck) BuiltInStartupHealthCheck() *BuiltInStartupHealthCheck { return nil }
 
-// mockModuleWithoutCheck is a test module that has no built-in check (remediation only)
+// mockModuleWithOnce has a once check only.
+type mockModuleWithOnce struct {
+	id       string
+	template *mockIssueTemplate
+}
+
+func (m *mockModuleWithOnce) IssueType() string                                       { return m.id }
+func (m *mockModuleWithOnce) IssueTemplate() IssueTemplate                            { return m.template }
+func (m *mockModuleWithOnce) BuiltInPeriodicHealthCheck() *BuiltInPeriodicHealthCheck { return nil }
+func (m *mockModuleWithOnce) BuiltInStartupHealthCheck() *BuiltInStartupHealthCheck {
+	return &BuiltInStartupHealthCheck{
+		Source: "once-" + m.id,
+		Fn:     func() ([]storedef.IssueReport, error) { return nil, nil },
+	}
+}
+
+// mockModuleWithoutCheck has neither check type.
 type mockModuleWithoutCheck struct {
 	id       string
 	template *mockIssueTemplate
 }
 
-func (m *mockModuleWithoutCheck) IssueID() string {
-	return m.id
-}
-
-func (m *mockModuleWithoutCheck) IssueTemplate() IssueTemplate {
-	return m.template
-}
-
-func (m *mockModuleWithoutCheck) BuiltInHealthCheck() *BuiltInHealthCheck {
-	return nil
-}
+func (m *mockModuleWithoutCheck) IssueType() string                                       { return m.id }
+func (m *mockModuleWithoutCheck) IssueTemplate() IssueTemplate                            { return m.template }
+func (m *mockModuleWithoutCheck) BuiltInPeriodicHealthCheck() *BuiltInPeriodicHealthCheck { return nil }
+func (m *mockModuleWithoutCheck) BuiltInStartupHealthCheck() *BuiltInStartupHealthCheck   { return nil }
 
 func TestNewRegistry(t *testing.T) {
 	registry := NewRegistry()
-
 	assert.NotNil(t, registry)
-	assert.NotNil(t, registry.templates)
-	assert.NotNil(t, registry.checks)
 	assert.Empty(t, registry.templates)
-	assert.Empty(t, registry.checks)
+	assert.Empty(t, registry.periodicChecks)
+	assert.Empty(t, registry.startupChecks)
 }
 
-func TestRegisterModuleWithCheck(t *testing.T) {
+func TestRegisterModuleWithPeriodicCheck(t *testing.T) {
 	registry := NewRegistry()
-	module := &mockModuleWithCheck{
+	registry.RegisterModule(&mockModuleWithCheck{
 		id:       "test-issue-1",
 		template: &mockIssueTemplate{issueID: "test-issue-1"},
-	}
+	})
 
-	registry.RegisterModule(module)
-
-	// Verify template was registered
-	template, exists := registry.GetTemplate("test-issue-1")
+	_, exists := registry.GetTemplate("test-issue-1")
 	assert.True(t, exists)
-	assert.NotNil(t, template)
 
-	// Verify check was registered
-	checks := registry.GetBuiltInHealthChecks()
+	checks := registry.GetBuiltInPeriodicHealthChecks()
 	assert.Len(t, checks, 1)
-	assert.Equal(t, "check-test-issue-1", checks[0].ID)
-	assert.Equal(t, "Check for test-issue-1", checks[0].Name)
+	assert.Equal(t, "check-test-issue-1", checks[0].Source)
 	assert.Equal(t, 5*time.Minute, checks[0].Interval)
+
+	assert.Empty(t, registry.GetBuiltInStartupHealthChecks())
+}
+
+func TestRegisterModuleWithOnceCheck(t *testing.T) {
+	registry := NewRegistry()
+	registry.RegisterModule(&mockModuleWithOnce{
+		id:       "test-issue-2",
+		template: &mockIssueTemplate{issueID: "test-issue-2"},
+	})
+
+	_, exists := registry.GetTemplate("test-issue-2")
+	assert.True(t, exists)
+
+	once := registry.GetBuiltInStartupHealthChecks()
+	assert.Len(t, once, 1)
+	assert.Equal(t, "once-test-issue-2", once[0].Source)
+
+	assert.Empty(t, registry.GetBuiltInPeriodicHealthChecks())
 }
 
 func TestRegisterModuleWithoutCheck(t *testing.T) {
 	registry := NewRegistry()
-	module := &mockModuleWithoutCheck{
-		id:       "test-issue-2",
-		template: &mockIssueTemplate{issueID: "test-issue-2"},
-	}
+	registry.RegisterModule(&mockModuleWithoutCheck{
+		id:       "test-issue-3",
+		template: &mockIssueTemplate{issueID: "test-issue-3"},
+	})
 
-	registry.RegisterModule(module)
-
-	// Verify template was registered
-	template, exists := registry.GetTemplate("test-issue-2")
+	_, exists := registry.GetTemplate("test-issue-3")
 	assert.True(t, exists)
-	assert.NotNil(t, template)
-
-	// Verify no check was registered
-	checks := registry.GetBuiltInHealthChecks()
-	assert.Empty(t, checks)
+	assert.Empty(t, registry.GetBuiltInPeriodicHealthChecks())
+	assert.Empty(t, registry.GetBuiltInStartupHealthChecks())
 }
 
 func TestRegisterMultipleModules(t *testing.T) {
 	registry := NewRegistry()
+	registry.RegisterModule(&mockModuleWithCheck{id: "periodic", template: &mockIssueTemplate{issueID: "periodic"}})
+	registry.RegisterModule(&mockModuleWithOnce{id: "once", template: &mockIssueTemplate{issueID: "once"}})
+	registry.RegisterModule(&mockModuleWithoutCheck{id: "neither", template: &mockIssueTemplate{issueID: "neither"}})
 
-	// Register module with check
-	registry.RegisterModule(&mockModuleWithCheck{
-		id:       "issue-with-check",
-		template: &mockIssueTemplate{issueID: "issue-with-check"},
-	})
-
-	// Register module without check
-	registry.RegisterModule(&mockModuleWithoutCheck{
-		id:       "issue-without-check",
-		template: &mockIssueTemplate{issueID: "issue-without-check"},
-	})
-
-	// Register another module with check
-	registry.RegisterModule(&mockModuleWithCheck{
-		id:       "another-issue-with-check",
-		template: &mockIssueTemplate{issueID: "another-issue-with-check"},
-	})
-
-	// Verify all templates registered
-	_, exists1 := registry.GetTemplate("issue-with-check")
-	_, exists2 := registry.GetTemplate("issue-without-check")
-	_, exists3 := registry.GetTemplate("another-issue-with-check")
-	assert.True(t, exists1)
-	assert.True(t, exists2)
-	assert.True(t, exists3)
-
-	// Verify only modules with checks are in the checks list
-	checks := registry.GetBuiltInHealthChecks()
-	assert.Len(t, checks, 2)
+	assert.Len(t, registry.GetBuiltInPeriodicHealthChecks(), 1)
+	assert.Len(t, registry.GetBuiltInStartupHealthChecks(), 1)
 }
 
 func TestGetTemplateNotFound(t *testing.T) {
 	registry := NewRegistry()
-
 	template, exists := registry.GetTemplate("non-existent-issue")
-
 	assert.False(t, exists)
 	assert.Nil(t, template)
 }
@@ -171,7 +155,6 @@ func TestBuildIssue(t *testing.T) {
 	})
 
 	issue, err := registry.BuildIssue("test-issue", map[string]string{"key": "test-value"})
-
 	require.NoError(t, err)
 	assert.Empty(t, issue.Id, "Id is set by the caller (ReportIssue), not by the template")
 	assert.Equal(t, "Test Issue: test-issue", issue.Title)
@@ -180,62 +163,65 @@ func TestBuildIssue(t *testing.T) {
 
 func TestBuildIssueNotFound(t *testing.T) {
 	registry := NewRegistry()
-
 	issue, err := registry.BuildIssue("non-existent-issue", nil)
-
 	assert.Error(t, err)
 	assert.Nil(t, issue)
 	assert.Contains(t, err.Error(), "no issue template found for: non-existent-issue")
 }
 
-func TestGetBuiltInChecksReturnsCopy(t *testing.T) {
+func TestGetBuiltInPeriodicHealthChecksReturnsCopy(t *testing.T) {
 	registry := NewRegistry()
 	registry.RegisterModule(&mockModuleWithCheck{
 		id:       "test-issue",
 		template: &mockIssueTemplate{issueID: "test-issue"},
 	})
 
-	checks1 := registry.GetBuiltInHealthChecks()
-	checks2 := registry.GetBuiltInHealthChecks()
-
-	// Verify they are different slices (copies)
+	checks1 := registry.GetBuiltInPeriodicHealthChecks()
+	checks2 := registry.GetBuiltInPeriodicHealthChecks()
 	assert.NotSame(t, &checks1[0], &checks2[0])
-
-	// Modify one and verify it doesn't affect the other
 	checks1[0] = nil
 	assert.NotNil(t, checks2[0])
+}
+
+func TestGetBuiltInStartupHealthChecksReturnsCopy(t *testing.T) {
+	registry := NewRegistry()
+	registry.RegisterModule(&mockModuleWithOnce{
+		id:       "test-issue",
+		template: &mockIssueTemplate{issueID: "test-issue"},
+	})
+
+	once1 := registry.GetBuiltInStartupHealthChecks()
+	once2 := registry.GetBuiltInStartupHealthChecks()
+	assert.NotSame(t, &once1[0], &once2[0])
+	once1[0] = nil
+	assert.NotNil(t, once2[0])
 }
 
 func TestRegistryConcurrentAccess(t *testing.T) {
 	registry := NewRegistry()
 	var wg sync.WaitGroup
 
-	// Concurrent registrations
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func(idx int) {
 			defer wg.Done()
-			module := &mockModuleWithCheck{
+			registry.RegisterModule(&mockModuleWithCheck{
 				id:       "concurrent-issue-" + string(rune('A'+idx)),
 				template: &mockIssueTemplate{issueID: "concurrent-issue-" + string(rune('A'+idx))},
-			}
-			registry.RegisterModule(module)
+			})
 		}(i)
 	}
 
-	// Concurrent reads
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			registry.GetBuiltInHealthChecks()
+			registry.GetBuiltInPeriodicHealthChecks()
+			registry.GetBuiltInStartupHealthChecks()
 			registry.GetTemplate("concurrent-issue-A")
 		}()
 	}
 
 	wg.Wait()
-
-	// Verify all registrations completed
-	checks := registry.GetBuiltInHealthChecks()
-	assert.Len(t, checks, 10)
+	assert.Len(t, registry.GetBuiltInPeriodicHealthChecks(), 10)
 }

@@ -15,10 +15,6 @@ license(
     visibility = ["//visibility:public"],
 )
 
-exports_files([
-    "LICENSE",
-])
-
 VERSION = "3.4.8"
 
 # Base configuration shared by all platforms

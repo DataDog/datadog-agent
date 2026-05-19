@@ -18,8 +18,10 @@ func init() {
 }
 
 const (
-	// IssueID is the unique identifier for admission controller connectivity issues.
-	IssueID = "admission-controller-connectivity-failure"
+	// IssueType is the template type identifier for admission controller connectivity issues.
+	IssueType = "admission-controller-connectivity-failure"
+	// IssueID is the unique instance id used when reporting this issue.
+	IssueID = IssueType
 )
 
 type admissionProbeModule struct {
@@ -33,15 +35,20 @@ func NewModule(config.Component) issues.Module {
 	}
 }
 
-func (m *admissionProbeModule) IssueID() string {
-	return IssueID
+func (m *admissionProbeModule) IssueType() string {
+	return IssueType
 }
 
 func (m *admissionProbeModule) IssueTemplate() issues.IssueTemplate {
 	return m.template
 }
 
-// BuiltInHealthCheck returns nil — probe failures are reported by the admission controller probe.
-func (m *admissionProbeModule) BuiltInHealthCheck() *issues.BuiltInHealthCheck {
+// BuiltInPeriodicHealthCheck returns nil — probe failures are reported by the admission controller probe.
+func (m *admissionProbeModule) BuiltInPeriodicHealthCheck() *issues.BuiltInPeriodicHealthCheck {
+	return nil
+}
+
+// BuiltInStartupHealthCheck returns nil — no startup-time check for this module.
+func (m *admissionProbeModule) BuiltInStartupHealthCheck() *issues.BuiltInStartupHealthCheck {
 	return nil
 }

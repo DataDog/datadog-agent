@@ -219,6 +219,31 @@ func TestNoFilters(t *testing.T) {
 	readFilteredLines(t, b, &filters, 15)
 }
 
+// TestFilterStopWhileStreaming verifies that calling Stop() on the message
+// receiver while a consumer is reading from Filter() does not panic. Stop()
+// closes inputChan; the Filter goroutine must detect the closed channel and
+// exit rather than calling the formatter with a zero-value (nil-msg)
+// messagePair. Regression test for AGNTLOG-323.
+func TestFilterStopWhileStreaming(t *testing.T) {
+	b := NewBufferedMessageReceiver(nil, getNewHostname("unknown"))
+	b.SetEnabled(true)
+
+	done := make(chan struct{})
+	defer close(done)
+	lineChan := b.Filter(nil, done)
+
+	// Simulate agent shutdown: close the input channel out from under the
+	// Filter goroutine. Before the fix this caused the goroutine to read a
+	// zero-value messagePair and panic on a nil *message.Message in the
+	// formatter.
+	b.Stop()
+
+	// The output channel should be closed cleanly without any spurious values.
+	for msg := range lineChan {
+		assert.Equal(t, "", msg, "unexpected message after shutdown: %q", msg)
+	}
+}
+
 func newMessage(name, typ, source, service string) *message.Message {
 	cfg := &config.LogsConfig{
 		Type:    typ,
