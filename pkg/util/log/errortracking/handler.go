@@ -70,13 +70,13 @@ func NewHandler(load func() Submitter) *Handler {
 
 // WithBouncerLoader returns a Handler that consults loadBouncer on
 // every Handle to decide whether to suppress the current record. The
-// closure MUST be safe for concurrent use. Returning nil at any time
-// is tolerated as a pass-through (every record ships, no dedup) — this
-// covers the startup window between Fx OnStart's submitter and bouncer
-// stores and the symmetric shutdown teardown. Passing nil to
-// WithBouncerLoader itself clears the late-binder entirely (the outer
-// h.loadBouncer != nil gate is the design knob for tests/feature-off
-// paths).
+// closure MUST be safe for concurrent use. Returning nil causes the
+// record to be dropped — this is the safe behaviour when the bouncer
+// is temporarily unavailable during Fx lifecycle transitions (startup /
+// shutdown). Passing nil to WithBouncerLoader itself clears the
+// late-binder entirely (the outer h.loadBouncer != nil gate is the
+// design knob for tests/feature-off paths where every record ships with
+// no dedup).
 func (h *Handler) WithBouncerLoader(loadBouncer func() *Bouncer) *Handler {
 	return &Handler{load: h.load, loadBouncer: loadBouncer}
 }
@@ -111,9 +111,11 @@ func (h *Handler) Enabled(_ context.Context, level slog.Level) bool {
 //
 // Flow: level gate → submitter gate → capture stack PCs → (optional)
 // bouncer check keyed by FNV-1a hash of the captured PCs → build
-// ErrorLog → submit. The bouncer-key-is-a-hash-of-the-full-stack
-// choice means two distinct stacks reaching the same terminal
-// function each get their own dedup window.
+// ErrorLog → submit. When loadBouncer is set but returns nil the
+// record is dropped (bouncer temporarily unavailable). The
+// bouncer-key-is-a-hash-of-the-full-stack choice means two distinct
+// stacks reaching the same terminal function each get their own dedup
+// window.
 func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 	if r.Level < slog.LevelError {
 		return nil
@@ -134,21 +136,22 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 
 	count := uint32(1)
 	// Bouncer check: the bouncer is consulted whenever the loader
-	// closure is registered. The closure is tolerated to return nil at
-	// any time (e.g. during the Fx startup window between the submitter
-	// and bouncer stores, or during shutdown teardown); a nil return
-	// falls through to the no-dedup pass-through path. The key is a
-	// FNV-1a hash of the captured PCs so different stacks reaching the
-	// same terminal function are NOT merged.
+	// closure is registered. A nil return means the bouncer is
+	// temporarily unavailable (Fx startup / shutdown window) — drop the
+	// record to avoid an unrate-limited burst during restarts. The key
+	// is a FNV-1a hash of the captured PCs so different stacks reaching
+	// the same terminal function are NOT merged.
 	if h.loadBouncer != nil {
-		if b := h.loadBouncer(); b != nil {
-			stackKey := hashPCs(pcs[:pcsLen])
-			suppressed, c, _ := b.Observe(stackKey, r.Time)
-			if suppressed {
-				return nil
-			}
-			count = c
+		b := h.loadBouncer()
+		if b == nil {
+			return nil
 		}
+		stackKey := hashPCs(pcs[:pcsLen])
+		suppressed, c, _ := b.Observe(stackKey, r.Time)
+		if suppressed {
+			return nil
+		}
+		count = c
 	}
 
 	out := ErrorLog{
