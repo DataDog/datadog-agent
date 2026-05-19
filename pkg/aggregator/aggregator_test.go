@@ -126,6 +126,127 @@ func TestFlushSeriesAndSketchesDrainsCheckAggregatorOnFinalFlush(t *testing.T) {
 	assert.Empty(t, agg.checkAggregator.sketchWindows)
 }
 
+func TestGetSeriesAndSketchesBypassesCheckAggregatorForWindowCadence(t *testing.T) {
+	initF()
+	agg := getAggregator(t)
+	agg.checkSamplers = make(map[checkid.ID]*CheckSampler)
+	agg.handleCheckIntervalUpdate(checkID1, 15*time.Second)
+
+	original := makeSerie(1, 0, 42)
+	agg.checkSamplers[checkID1] = &CheckSampler{
+		series:          metrics.Series{original},
+		sketches:        make(metrics.SketchSeriesList, 0),
+		contextResolver: &countBasedContextResolver{},
+		metrics:         metrics.NewCheckMetrics(false, 0),
+	}
+
+	seriesSink := &captureSink{}
+	agg.getSeriesAndSketches(time.Unix(15, 0), seriesSink, &captureSketchSink{})
+
+	require.Equal(t, []*metrics.Serie{original}, seriesSink.series)
+	assert.Empty(t, agg.checkAggregator.windows)
+}
+
+func TestGetSeriesAndSketchesAggregatesFasterThanWindowCadence(t *testing.T) {
+	initF()
+	agg := getAggregator(t)
+	agg.checkSamplers = make(map[checkid.ID]*CheckSampler)
+	agg.handleCheckIntervalUpdate(checkID1, time.Second)
+
+	original := makeSerie(1, 0, 42)
+	agg.checkSamplers[checkID1] = &CheckSampler{
+		series:          metrics.Series{original},
+		sketches:        make(metrics.SketchSeriesList, 0),
+		contextResolver: &countBasedContextResolver{},
+		metrics:         metrics.NewCheckMetrics(false, 0),
+	}
+
+	seriesSink := &captureSink{}
+	agg.getSeriesAndSketches(time.Unix(1, 0), seriesSink, &captureSketchSink{})
+
+	require.Empty(t, seriesSink.series)
+	require.Len(t, agg.checkAggregator.windows, 1)
+}
+
+func TestGetSeriesAndSketchesBypassesCheckAggregatorForUnknownCadence(t *testing.T) {
+	initF()
+	agg := getAggregator(t)
+	agg.checkSamplers = make(map[checkid.ID]*CheckSampler)
+
+	original := makeSerie(1, 0, 42)
+	agg.checkSamplers[checkID1] = &CheckSampler{
+		series:          metrics.Series{original},
+		sketches:        make(metrics.SketchSeriesList, 0),
+		contextResolver: &countBasedContextResolver{},
+		metrics:         metrics.NewCheckMetrics(false, 0),
+	}
+
+	seriesSink := &captureSink{}
+	agg.getSeriesAndSketches(time.Unix(1, 0), seriesSink, &captureSketchSink{})
+
+	require.Equal(t, []*metrics.Serie{original}, seriesSink.series)
+	assert.Empty(t, agg.checkAggregator.windows)
+}
+
+func TestGetSeriesAndSketchesDrainsCheckWindowsBeforeCadenceBypass(t *testing.T) {
+	initF()
+	agg := getAggregator(t)
+	agg.checkSamplers = make(map[checkid.ID]*CheckSampler)
+
+	openSeries := makeSerie(1, 0, 42)
+	bypassSeries := makeSerie(2, 1, 7)
+	openSketch := makeSketchSeries(1, 0, 10)
+	bypassSketch := makeSketchSeries(2, 1, 20)
+
+	agg.handleCheckIntervalUpdate(checkID1, time.Second)
+	agg.checkAggregator.Submit(checkID1, openSeries, &captureSink{})
+	agg.checkAggregator.SubmitSketch(checkID1, openSketch, &captureSketchSink{})
+	agg.handleCheckIntervalUpdate(checkID1, 15*time.Second)
+	agg.checkSamplers[checkID1] = &CheckSampler{
+		series:          metrics.Series{bypassSeries},
+		sketches:        metrics.SketchSeriesList{bypassSketch},
+		contextResolver: &countBasedContextResolver{},
+		metrics:         metrics.NewCheckMetrics(false, 0),
+	}
+
+	seriesSink := &captureSink{}
+	sketchesSink := &captureSketchSink{}
+	agg.getSeriesAndSketches(time.Unix(1, 0), seriesSink, sketchesSink)
+
+	require.Equal(t, []*metrics.Serie{openSeries, bypassSeries}, seriesSink.series)
+	require.Equal(t, []*metrics.SketchSeries{openSketch, bypassSketch}, sketchesSink.sketches)
+	assert.Empty(t, agg.checkAggregator.windows)
+	assert.Empty(t, agg.checkAggregator.sketchWindows)
+}
+
+func TestGetSeriesAndSketchesDrainsStaleCheckWindowsBeforeSameIDBypass(t *testing.T) {
+	initF()
+	agg := getAggregator(t)
+	agg.checkSamplers = make(map[checkid.ID]*CheckSampler)
+
+	openSeries := makeSerie(1, 0, 42)
+	bypassSeries := makeSerie(2, 1, 7)
+
+	agg.handleCheckIntervalUpdate(checkID1, time.Second)
+	agg.checkAggregator.Submit(checkID1, openSeries, &captureSink{})
+	delete(agg.checkIntervals, checkID1)
+	delete(agg.pendingCheckDrains, checkID1)
+
+	agg.handleCheckIntervalUpdate(checkID1, 15*time.Second)
+	agg.checkSamplers[checkID1] = &CheckSampler{
+		series:          metrics.Series{bypassSeries},
+		sketches:        make(metrics.SketchSeriesList, 0),
+		contextResolver: &countBasedContextResolver{},
+		metrics:         metrics.NewCheckMetrics(false, 0),
+	}
+
+	seriesSink := &captureSink{}
+	agg.getSeriesAndSketches(time.Unix(1, 0), seriesSink, &captureSketchSink{})
+
+	require.Equal(t, []*metrics.Serie{openSeries, bypassSeries}, seriesSink.series)
+	assert.Empty(t, agg.checkAggregator.windows)
+}
+
 func TestRegisterCheckSampler(t *testing.T) {
 	// this test IS USING globals
 	// -

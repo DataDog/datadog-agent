@@ -38,14 +38,11 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("check_sampler_allow_sketch_bucket_reset", true)
 
 	// CheckAggregator (wall-clock windowing layer over CheckSampler output).
-	// The layer is always in the pipeline and has no enable flag — its
-	// behaviour for slow checks is byte-identical pass-through; only
-	// checks whose commit cadence is faster than window_duration see
-	// any aggregation effect.
+	// Checks with a known cadence faster than window_duration are windowed;
+	// slow or unknown-cadence checks bypass the layer.
 	//
 	// Wall-clock window duration over which CheckSampler's per-commit
-	// *Serie output is rolled up. Default matches the aggregator flush
-	// interval so non-1Hz checks observe no change in send cadence.
+	// *Serie output is rolled up. Default matches the aggregator flush interval.
 	config.BindEnvAndSetDefault("check_aggregator.window_duration", 15*time.Second)
 	// Per-(check_id, MetricContext) cap on buffered series within a window.
 	// Bounds memory under pathological cadences. For 1Hz over 15s expect

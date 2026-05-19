@@ -282,6 +282,16 @@ func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
 	d.aggregator.SetObserverHandle(metricsHandle)
 }
 
+// SetCheckInterval records the collector's configured cadence for a check.
+// Check aggregation uses this metadata to bypass checks that are not faster
+// than check_aggregator.window_duration.
+func (d *AgentDemultiplexer) SetCheckInterval(id checkid.ID, interval time.Duration) {
+	if d == nil || d.aggregator == nil {
+		return
+	}
+	d.aggregator.setCheckInterval(id, interval)
+}
+
 // AddAgentStartupTelemetry adds a startup event and count (in a DSD time sampler)
 // to be sent on the next flush.
 func (d *AgentDemultiplexer) AddAgentStartupTelemetry(agentVersion string) {

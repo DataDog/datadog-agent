@@ -384,6 +384,46 @@ func (ca *CheckAggregator) Drain(seriesSink metrics.SerieSink, sketchesSink metr
 	}
 }
 
+func (ca *CheckAggregator) HasCheckWindows(checkID checkid.ID) bool {
+	ca.mu.Lock()
+	defer ca.mu.Unlock()
+
+	for key := range ca.windows {
+		if key.checkID == checkID {
+			return true
+		}
+	}
+	for key := range ca.sketchWindows {
+		if key.checkID == checkID {
+			return true
+		}
+	}
+	return false
+}
+
+// DrainCheck closes all open windows for one check ID. It is used when a
+// check moves to a non-windowed cadence so already buffered fast-cadence data
+// is emitted before new samples bypass the windowing layer.
+func (ca *CheckAggregator) DrainCheck(checkID checkid.ID, seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+	ca.mu.Lock()
+	defer ca.mu.Unlock()
+
+	for key, window := range ca.windows {
+		if key.checkID != checkID {
+			continue
+		}
+		ca.closeWindowLocked(window, seriesSink)
+		delete(ca.windows, key)
+	}
+	for key, window := range ca.sketchWindows {
+		if key.checkID != checkID {
+			continue
+		}
+		ca.closeSketchWindowLocked(window, sketchesSink)
+		delete(ca.sketchWindows, key)
+	}
+}
+
 // closeWindowLocked emits the window's contents to sink per the spec's
 // per-count rules. Caller must hold ca.mu.
 func (ca *CheckAggregator) closeWindowLocked(w *aggregationWindow, sink metrics.SerieSink) {
