@@ -61,6 +61,9 @@ class ResultJson:
         warning_logged = False
         with open(file) as f:
             for line in f:
+                line = line.strip()
+                if not line:
+                    continue
                 data = json.loads(line)
                 try:
                     res.append(ResultJsonLine.from_dict(data))
