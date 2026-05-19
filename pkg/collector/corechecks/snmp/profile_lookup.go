@@ -21,8 +21,9 @@ var defaultRequestedMetrics = []profiledefinition.MetricsConfig{
 	{Symbol: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.2", Name: "sysObjectID"}},
 }
 
-// BuildProfileForSysObjectID loads default SNMP profiles and returns the profile definition
-// that matches the given sysObjectID, or an empty profile and an error if none match.
+// BuildProfileForSysObjectID loads built-in and on-disk SNMP profiles and returns the profile
+// definition that matches the given sysObjectID, or an empty profile and an error if none match.
+// Remote-config profiles are not loaded (used by snmp walk --analyze and other CLI helpers).
 func BuildProfileForSysObjectID(sysObjectID string) (profiledefinition.ProfileDefinition, error) {
 	provider, _, err := profile.GetProfileProvider(profile.ProfileConfigMap{})
 	if err != nil {
@@ -40,6 +41,7 @@ func BuildProfileForSysObjectID(sysObjectID string) (profiledefinition.ProfileDe
 }
 
 // GetProfileDefinition returns the profile definition for the given profile name (e.g. "_base", "dell").
+// Only built-in and on-disk profiles are available; remote-config profiles are not loaded.
 func GetProfileDefinition(profileName string) (profiledefinition.ProfileDefinition, error) {
 	profileName = strings.TrimSuffix(profileName, ".yaml")
 	provider, _, err := profile.GetProfileProvider(profile.ProfileConfigMap{})

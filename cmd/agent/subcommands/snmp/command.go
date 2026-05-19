@@ -94,7 +94,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "walk <IP Address>[:Port] [OID]",
 		Short: "Perform an snmpwalk.",
 		Long: `Walk the SNMP tree for a device, printing every OID found. If OID is specified, only show that OID and its children.
-		Flags that aren't specified will be pulled from the agent SNMP config if possible.`,
+Flags that aren't specified will be pulled from the agent SNMP config if possible.
+
+With --analyze, the walk is matched against SNMP device profiles and a summary report is printed (pager on a TTY, or stdout when redirected). Profile matching uses built-in and on-disk profiles only; profiles delivered via remote configuration (use_remote_config_profiles) are not loaded.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 
 			err := fxutil.OneShot(snmpWalk,
@@ -147,7 +149,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	// general communication options
 	snmpWalkCmd.Flags().IntVarP(&connParams.Retries, "retries", "r", defaultRetries, "Set the number of retries")
 	snmpWalkCmd.Flags().IntVarP(&connParams.Timeout, "timeout", "t", defaultTimeout, "Set the request timeout (in seconds)")
-	snmpWalkCmd.Flags().BoolVarP(&analyze, "analyze", "", false, "Analyze snmp walk results (report to stdout when redirected; otherwise open in a pager)")
+	snmpWalkCmd.Flags().BoolVarP(&analyze, "analyze", "", false,
+		"Match walk OIDs against built-in and on-disk SNMP profiles and print a summary report (pager on a TTY, or stdout when redirected). Does not use remote-config profiles.")
 
 	snmpCmd.AddCommand(snmpWalkCmd)
 
