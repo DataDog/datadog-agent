@@ -17,7 +17,11 @@ type Params struct {
 	// but they can (and should) be passed to the executable.
 	installerScript string
 	extraEnvVars    map[string]string
-	pipelineID      string
+	// unsetEnvVars are environment variables that should be removed before running
+	// the installer. The map[string]string EnvVar type can't represent "unset" so
+	// pass names here instead of putting empty-string values in extraEnvVars.
+	unsetEnvVars []string
+	pipelineID   string
 }
 
 // Option is an optional function parameter type for the Params
@@ -35,6 +39,18 @@ func WithAgentUser(user string) Option {
 func WithExtraEnvVars(envVars map[string]string) Option {
 	return func(params *Params) error {
 		params.extraEnvVars = envVars
+		return nil
+	}
+}
+
+// WithUnsetEnvVars specifies environment variables to remove before running the
+// installer, so the child process sees them as unset rather than set-to-empty.
+// PowerShell 5.1 and pwsh 7 differ on `$env:VAR=''` semantics (delete vs
+// set-to-empty), and `map[string]string` can't represent the unset state, so use
+// this option instead of WithExtraEnvVars with empty-string values.
+func WithUnsetEnvVars(names ...string) Option {
+	return func(params *Params) error {
+		params.unsetEnvVars = append(params.unsetEnvVars, names...)
 		return nil
 	}
 }
