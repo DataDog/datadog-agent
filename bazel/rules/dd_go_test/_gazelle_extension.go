@@ -242,57 +242,6 @@ func findRule(file *rule.File, kind, name string) (*rule.Rule, bool) {
 	return nil, false
 }
 
-// flavorSpecificTags / commonTags / unitTestTags mirror their counterparts in
-// bazel/flavors/defs.bzl (which in turn mirror tasks/build_tags.py).
-// LINUX_ONLY_TAGS are included here unconditionally: at Gazelle generation
-// time we don't know the target platform, and flavor_gotags()'s select()
-// enforces the Linux-only restriction at build time.
-// Kept in sync via //bazel/flavors:verify_flavor_tags.
-var commonTags = []string{"grpcnotrace", "no_dynamic_plugins", "retrynotrace", "trivy_no_javadb"}
-
-var unitTestTags = []string{"test"}
-
-var flavorSpecificTags = map[string][]string{
-	"base": {
-		"cel", "clusterchecks", "consul", "containerd", "cri", "crio", "docker",
-		"ec2", "etcd", "fargateprocess", "jetson", "jmx", "kubeapiserver",
-		"kubelet", "ncm", "netcgo", "nvml", "oracle", "orchestrator", "otlp",
-		"podman", "python", "sharedlibrarycheck", "systemd", "systemprobechecks",
-		"trivy", "zk", "zlib", "zstd",
-	},
-	"dogstatsd": {"containerd", "docker", "kubelet", "podman", "zlib", "zstd"},
-	"fips": {
-		"cel", "consul", "containerd", "cri", "crio", "docker", "ec2", "etcd",
-		"fargateprocess", "goexperiment.systemcrypto", "jetson", "jmx",
-		"kubeapiserver", "kubelet", "ncm", "netcgo", "nvml", "oracle",
-		"orchestrator", "otlp", "podman", "python", "requirefips",
-		"sharedlibrarycheck", "systemd", "systemprobechecks", "trivy", "zk",
-		"zlib", "zstd",
-	},
-	"heroku": {
-		"bundle_installer", "consul", "etcd", "jmx", "ncm", "netcgo", "otlp",
-		"python", "sharedlibrarycheck", "systemprobechecks", "zk", "zlib", "zstd",
-	},
-	"iot": {"jetson", "systemd", "zlib", "zstd"},
-}
-
-// FlavorUnitTestTags is the per-flavor tag set the extension uses to decide
-// which dd_go_test variants apply to a package's srcs. Composed from
-// flavorSpecificTags + commonTags + unitTestTags at package init. Exported so
-// //bazel/rules/dd_go_test/dump_tags can serialize it for
-// //bazel/flavors:verify_flavor_tags.
-var FlavorUnitTestTags = func() map[string][]string {
-	out := make(map[string][]string, len(flavorSpecificTags))
-	for flavor, specific := range flavorSpecificTags {
-		tags := make([]string, 0, len(specific)+len(commonTags)+len(unitTestTags))
-		tags = append(tags, specific...)
-		tags = append(tags, commonTags...)
-		tags = append(tags, unitTestTags...)
-		out[flavor] = tags
-	}
-	return out
-}()
-
 // allFlavors returns the canonical flavor list (sorted by name) used by the
 // dd_go_test macro. Matches _ALL_FLAVORS in bazel/rules/dd_go_test/defs.bzl,
 // derived from FlavorUnitTestTags keys so we don't maintain two copies.
