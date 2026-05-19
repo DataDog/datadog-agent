@@ -1,3 +1,5 @@
+import shlex
+
 from invoke.context import Context
 from invoke.tasks import task
 
@@ -92,6 +94,76 @@ def destroy_milvus(
     )
 
 
+@task
+def list_milvus(ctx: Context):
+    """
+    List Milvus lab stacks.
+    """
+    result = ctx.run(f"pulumi {tool.get_pulumi_dir_flag()} stack ls --all", hide=True)
+    prefix = tool.get_stack_name_prefix()
+    stacks = []
+    for line in result.stdout.splitlines()[1:]:
+        stack = line.split(" ")[0].rstrip("*")
+        if stack.startswith(prefix) and "milvus" in stack[len(prefix) :]:
+            stacks.append(stack)
+
+    if not stacks:
+        print("No Milvus lab stacks found")
+        return
+
+    print("Milvus lab stacks:")
+    for stack in stacks:
+        print(f"  {stack}")
+
+
+@task(
+    help={
+        "config_path": doc.config_path,
+        "stack_name": doc.stack_name,
+    }
+)
+def status_milvus(
+    ctx: Context,
+    config_path: str | None = None,
+    stack_name: str | None = None,
+):
+    """
+    Show Milvus lab status.
+    """
+    remote_host, ssh_options = _get_remote_host_and_ssh_options(ctx, stack_name, config_path)
+    remote_command = "\n".join(
+        [
+            "echo '== Containers =='",
+            "docker ps --filter name=milvus --filter name=datadog-agent",
+            "echo",
+            "echo '== Milvus load logs =='",
+            "docker logs milvus-load --tail 50 || true",
+            "echo",
+            "echo '== Agent Milvus status =='",
+            "docker exec datadog-agent agent status | grep -A20 -i milvus || true",
+        ]
+    )
+    ctx.run(f"ssh{ssh_options} {remote_host.user}@{remote_host.address} -- {shlex.quote(remote_command)}", pty=True)
+
+
+@task(
+    help={
+        "config_path": doc.config_path,
+        "stack_name": doc.stack_name,
+    }
+)
+def connect_milvus(
+    ctx: Context,
+    config_path: str | None = None,
+    stack_name: str | None = None,
+):
+    """
+    Open an SSH session to a Milvus lab host.
+    """
+    remote_host, ssh_options = _get_remote_host_and_ssh_options(ctx, stack_name, config_path)
+    ctx.run(f"ssh{ssh_options} {remote_host.user}@{remote_host.address}", pty=True)
+
+
 def _show_connection_message(
     ctx: Context, full_stack_name: str, copy_to_clipboard: bool | None, config_path: str | None = None
 ):
@@ -99,16 +171,15 @@ def _show_connection_message(
     remote_host = tool.RemoteHost("aws-milvus", outputs)
     host = remote_host.address
     user = remote_host.user
-
-    cfg = config.get_local_config(config_path)
-    private_key_path = cfg.get_aws().privateKeyPath
-    ssh_identity = f" -i {private_key_path}" if private_key_path else ""
+    ssh_options = _get_ssh_options(remote_host, config_path)
 
     command = (
-        f"\nssh{ssh_identity} {user}@{host} -- 'docker ps --filter name=milvus --filter name=datadog-agent'\n"
+        f"\nssh{ssh_options} {user}@{host} -- 'docker ps --filter name=milvus --filter name=datadog-agent'\n"
         + f'docker context create pulumi-{host} --docker "host=ssh://{user}@{host}"\n'
         + f"docker --context pulumi-{host} logs milvus-load --tail 50\n"
         + f"docker --context pulumi-{host} exec datadog-agent agent status | grep -A20 -i milvus\n"
+        + f"dda inv aws.status-milvus --stack-name {full_stack_name.removeprefix(tool.get_stack_name_prefix())}\n"
+        + f"dda inv aws.connect-milvus --stack-name {full_stack_name.removeprefix(tool.get_stack_name_prefix())}\n"
     )
     print(f"Useful commands for your Milvus lab:\n\n{command}")
 
@@ -117,6 +188,26 @@ def _show_connection_message(
 
         input("Press a key to copy command to clipboard...")
         pyperclip.copy(command)
+
+
+def _get_remote_host_and_ssh_options(
+    ctx: Context, stack_name: str | None, config_path: str | None
+) -> tuple[tool.RemoteHost, str]:
+    full_stack_name = tool.get_stack_name(stack_name, scenario_name)
+    outputs = tool.get_stack_json_outputs(ctx, full_stack_name)
+    remote_host = tool.RemoteHost("aws-milvus", outputs)
+    return remote_host, _get_ssh_options(remote_host, config_path)
+
+
+def _get_ssh_options(remote_host: tool.RemoteHost, config_path: str | None = None) -> str:
+    cfg = config.get_local_config(config_path)
+    private_key_path = cfg.get_aws().privateKeyPath
+    options = []
+    if private_key_path:
+        options.extend(["-i", private_key_path])
+    if remote_host.port:
+        options.extend(["-p", str(remote_host.port)])
+    return f" {' '.join(shlex.quote(option) for option in options)}" if options else ""
 
 
 def _get_architecture(architecture: str | None) -> str:

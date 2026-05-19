@@ -12,7 +12,7 @@ from tasks.e2e_framework.aws.gensim_eks import (
 )
 from tasks.e2e_framework.aws.installer import create_installer_lab, destroy_installer_lab
 from tasks.e2e_framework.aws.kind import create_kind, destroy_kind
-from tasks.e2e_framework.aws.milvus import create_milvus, destroy_milvus
+from tasks.e2e_framework.aws.milvus import connect_milvus, create_milvus, destroy_milvus, list_milvus, status_milvus
 from tasks.e2e_framework.aws.vm import create_vm, destroy_vm, get_vm_password, rdp_vm, show_vm
 
 collection = Collection()
@@ -42,6 +42,9 @@ collection.add_task(create_kind)
 collection.add_task(destroy_kind)
 collection.add_task(create_milvus)
 collection.add_task(destroy_milvus)
+collection.add_task(list_milvus)
+collection.add_task(status_milvus)
+collection.add_task(connect_milvus)
 collection.add_task(show_vm)
 collection.add_task(get_vm_password)
 collection.add_task(rdp_vm)
