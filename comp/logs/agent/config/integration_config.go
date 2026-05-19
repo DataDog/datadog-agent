@@ -640,13 +640,12 @@ func (c *LogsConfig) AutoMultiLineStatus(coreConfig pkgconfigmodel.Reader) (enab
 	if c.AutoMultiLine != nil {
 		return *c.AutoMultiLine, false
 	}
-	if coreConfig.GetBool("logs_config.experimental_auto_multi_line_detection") {
+	if coreConfig.IsConfigured("logs_config.experimental_auto_multi_line_detection") {
 		log.Warn("logs_config.experimental_auto_multi_line_detection is deprecated, use logs_config.auto_multi_line_detection instead")
-		return true, false
 	}
 	isDefault = !coreConfig.IsConfigured("logs_config.auto_multi_line_detection") &&
 		!coreConfig.IsConfigured("logs_config.experimental_auto_multi_line_detection")
-	return coreConfig.GetBool("logs_config.auto_multi_line_detection"), isDefault
+	return coreConfig.GetBool("logs_config.auto_multi_line_detection") || coreConfig.GetBool("logs_config.experimental_auto_multi_line_detection"), isDefault
 }
 
 // AutoMultiLineEnabled determines whether auto multi line detection is enabled for this config,
