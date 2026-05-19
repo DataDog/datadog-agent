@@ -811,3 +811,45 @@ while preserving a measured high-rate win over direct metric rows. Continue with
 this direction, but the next version should reduce the extra pump/channel hop and
 move from packet-batch records toward a true preallocated byte ring with parser
 cursors.
+
+## Stage M local result, 2026-05-19
+
+Stage M tested the next ingress architecture probes after Stage L:
+
+- **M1 sharded packet-batch ingress log** (`057442d4163`, telemetry follow-ups `e61dba295aa` / `d4ed40c5185`): listeners flush packet batches directly into per-worker log shards, removing Stage L's central pump/channel handoff.
+- **M2 raw UDS datagram ingress ring** (`052f776aef1`, telemetry follow-up `53a887497f6`): the UDS datagram listener reserves preallocated fixed slots, reads directly into ring-owned storage, commits record metadata, and workers parse/release records without using the packet pool.
+
+Prototype gates:
+
+- `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_LOG_SHARDED=true`
+- `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS=true`
+- shared byte budget: `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_LOG_MAX_BYTES=16777216`
+
+M2 is currently UDS-datagram-only and disables itself when UDP, stream sockets,
+named pipes, statsd forwarding, or origin detection are active. The local raw SMP
+cases set `dogstatsd_port: 0`; earlier raw runs without that setting were invalid
+because UDP made the raw gate fall back to the packet path.
+
+Local Stage M results are single-replicate probes (`--replicates 1 --total-samples 150`):
+
+| Comparison | Case | Δ mean | Key read |
+|---|---|---:|---|
+| Stage L ingress-log -> M1 sharded packet-batch log | `uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only` | -3.77% | sharding/removing the pump did not recover throughput in this run |
+| direct metric rows -> M1 sharded packet-batch log | `uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only` | -0.09% | throughput neutral, lower RSS/heap and lower packet-pool backlog |
+| direct metric rows -> M2 raw UDS ring | `uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only` | +0.80% | small high-rate win, zero packet-pool backlog, lower RSS/heap |
+| direct metric rows -> M2 raw UDS ring | `uds_dogstatsd_to_api_v3_endpoint_fixed` | +1.16% | standard corrected-v3 case remains positive |
+
+Selected direct-vs-raw high-rate metrics:
+
+| Variant | Agent UDS MiB/s | processed/s | packet pool avg | ingress ring avg | RSS MiB | heap MiB |
+|---|---:|---:|---:|---:|---:|---:|
+| direct metric rows | 197.56 | 244,007 | 1,450 | n/a | 185.29 | 81.39 |
+| raw UDS ring | 199.74 | 246,846 | 0 | 3.34 MiB / 913 slots | 157.26 | 61.60 |
+
+Decision: M2 validates the raw-ingress-ring memory/backpressure shape but not the
+full Stage J overload-throughput ceiling. It removes the heap-backed packet-pool
+backlog entirely for UDS datagrams while staying slightly faster than direct
+metric rows. Continue the raw ingress direction, but the next ceiling test should
+replace fixed `dogstatsd_buffer_size` slots with a compact variable-length or
+slabbed byte ring, batch notifications/cursors, and include origin/OOB metadata
+without regressing the hot path.
