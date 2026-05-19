@@ -295,7 +295,6 @@ exports_files(glob(
 # gazelle:exclude comp/trace/config/fx
 # gazelle:exclude comp/trace/config/impl
 # gazelle:exclude comp/trace/config/mock
-# gazelle:exclude internal/third_party/client-go
 # gazelle:exclude pkg/aggregator/mocksender
 # gazelle:exclude pkg/cli/standalone
 # gazelle:exclude pkg/cli/subcommands/autoscalerlist
@@ -400,7 +399,6 @@ exports_files(glob(
 # gazelle:exclude pkg/compliance/k8sconfig
 # gazelle:exclude pkg/compliance/tests
 # gazelle:exclude pkg/compliance/tools/k8s_schema_generator
-# gazelle:exclude pkg/compliance/utils
 # gazelle:exclude pkg/config/autodiscovery
 # gazelle:exclude pkg/config/legacy
 # gazelle:exclude pkg/databasemonitoring
