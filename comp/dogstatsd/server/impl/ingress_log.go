@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	defaultExperimentalIngressLogMaxBytes = 16 * 1024 * 1024
+	defaultExperimentalIngressLogMaxBytes       = 16 * 1024 * 1024
+	defaultExperimentalRawIngressBatchDrainSize = 32
 )
 
 func experimentalIngressLogEnabled() bool {
@@ -38,6 +39,23 @@ func experimentalRawUDSIngressRingEnabled() bool {
 func experimentalCompactRawUDSIngressRingEnabled() bool {
 	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS_COMPACT"))
 	return err == nil && enabled
+}
+
+func experimentalRawUDSIngressBatchDrainEnabled() bool {
+	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS_BATCH_DRAIN"))
+	return err == nil && enabled
+}
+
+func experimentalRawUDSIngressBatchDrainSize() int {
+	value := os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS_BATCH_DRAIN_SIZE")
+	if value == "" {
+		return defaultExperimentalRawIngressBatchDrainSize
+	}
+	size, err := strconv.Atoi(value)
+	if err != nil || size <= 0 {
+		return defaultExperimentalRawIngressBatchDrainSize
+	}
+	return size
 }
 
 func experimentalIngressLogMaxBytes() int64 {

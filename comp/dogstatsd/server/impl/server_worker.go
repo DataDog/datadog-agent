@@ -36,11 +36,13 @@ type worker struct {
 	// time is very costly, especially on the GC.
 	samples metrics.MetricSampleBatch
 
-	packetsTelemetry  *packets.TelemetryStore
-	packetLog         *packetIngressLog
-	rawIngress        packets.RawIngressReader
-	columnarV3        aggregator.DogStatsDColumnarV3Inserter
-	columnarV3Enabled bool
+	packetsTelemetry            *packets.TelemetryStore
+	packetLog                   *packetIngressLog
+	rawIngress                  packets.RawIngressReader
+	rawIngressBatch             []packets.RawPacket
+	rawIngressBatchDrainEnabled bool
+	columnarV3                  aggregator.DogStatsDColumnarV3Inserter
+	columnarV3Enabled           bool
 
 	FilterListUpdate chan utilstrings.Matcher
 	filterList       utilstrings.Matcher
@@ -61,17 +63,28 @@ func newWorker(s *dsdServer, workerNum int, wmeta option.Option[workloadmeta.Com
 		columnarV3Enabled = true
 	}
 
+	rawIngressBatchDrainSize := s.rawIngressBatchDrainSize
+	if rawIngressBatchDrainSize <= 0 {
+		rawIngressBatchDrainSize = defaultExperimentalRawIngressBatchDrainSize
+	}
+	var rawIngressBatch []packets.RawPacket
+	if s.rawIngressBatchDrain {
+		rawIngressBatch = make([]packets.RawPacket, 0, rawIngressBatchDrainSize)
+	}
+
 	return &worker{
-		server:            s,
-		batcher:           batcher,
-		parser:            newParser(s.config, s.sharedFloat64List, workerNum, wmeta, stringInternerTelemetry),
-		identityBuilder:   identity.NewBuilder(),
-		samples:           make(metrics.MetricSampleBatch, 0, defaultSampleSize),
-		packetsTelemetry:  packetsTelemetry,
-		columnarV3:        columnarV3,
-		columnarV3Enabled: columnarV3Enabled,
-		FilterListUpdate:  make(chan utilstrings.Matcher),
-		filterList:        filterList,
+		server:                      s,
+		batcher:                     batcher,
+		parser:                      newParser(s.config, s.sharedFloat64List, workerNum, wmeta, stringInternerTelemetry),
+		identityBuilder:             identity.NewBuilder(),
+		samples:                     make(metrics.MetricSampleBatch, 0, defaultSampleSize),
+		packetsTelemetry:            packetsTelemetry,
+		rawIngressBatch:             rawIngressBatch,
+		rawIngressBatchDrainEnabled: s.rawIngressBatchDrain,
+		columnarV3:                  columnarV3,
+		columnarV3Enabled:           columnarV3Enabled,
+		FilterListUpdate:            make(chan utilstrings.Matcher),
+		filterList:                  filterList,
 	}
 }
 
@@ -123,6 +136,11 @@ func (w *worker) runPacketLog() {
 }
 
 func (w *worker) runRawIngress() {
+	var batchReader packets.RawIngressBatchReader
+	if w.rawIngressBatchDrainEnabled {
+		batchReader, _ = w.rawIngress.(packets.RawIngressBatchReader)
+	}
+
 	for {
 		select {
 		case <-w.server.stopChan:
@@ -133,15 +151,36 @@ func (w *worker) runRawIngress() {
 		case filterList := <-w.FilterListUpdate:
 			w.filterList = filterList
 		case <-w.rawIngress.Notify():
-			for {
-				rawPacket, ok := w.rawIngress.TryNext()
-				if !ok {
-					break
-				}
-				w.processRawPacket(rawPacket)
+			if batchReader != nil {
+				w.processRawIngressBatches(batchReader)
+			} else {
+				w.processRawIngressPackets()
 			}
 			w.batcher.flush()
 		}
+	}
+}
+
+func (w *worker) processRawIngressPackets() {
+	for {
+		rawPacket, ok := w.rawIngress.TryNext()
+		if !ok {
+			break
+		}
+		w.processRawPacket(rawPacket)
+	}
+}
+
+func (w *worker) processRawIngressBatches(batchReader packets.RawIngressBatchReader) {
+	for {
+		batch := batchReader.TryNextBatch(w.rawIngressBatch[:0])
+		if len(batch) == 0 {
+			break
+		}
+		for _, rawPacket := range batch {
+			w.processRawPacketNoRelease(rawPacket)
+		}
+		batchReader.ReleaseBatch(len(batch))
 	}
 }
 
@@ -154,6 +193,11 @@ func (w *worker) processPackets(ps packets.Packets) {
 }
 
 func (w *worker) processRawPacket(rawPacket packets.RawPacket) {
+	w.processRawPacketNoRelease(rawPacket)
+	rawPacket.Release()
+}
+
+func (w *worker) processRawPacketNoRelease(rawPacket packets.RawPacket) {
 	packet := packets.Packet{
 		Contents:   rawPacket.Contents,
 		Origin:     rawPacket.Origin,
@@ -163,5 +207,4 @@ func (w *worker) processRawPacket(rawPacket packets.RawPacket) {
 	}
 	w.samples = w.samples[0:0]
 	w.samples = w.server.parsePacket(w.batcher, w.parser, w.identityBuilder, &packet, w.samples, &w.filterList, w.columnarV3, w.columnarV3Enabled)
-	rawPacket.Release()
 }

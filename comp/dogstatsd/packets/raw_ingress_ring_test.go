@@ -85,6 +85,29 @@ func TestRawIngressShardsDistributeReservations(t *testing.T) {
 	packet.Release()
 }
 
+func TestRawIngressShardTryNextBatchReleaseBatch(t *testing.T) {
+	shard := NewRawIngressShard(4, 16, nil, "0")
+	for _, payload := range []string{"a", "bb", "ccc"} {
+		reservation, ok := shard.Reserve()
+		require.True(t, ok)
+		copy(reservation.Buffer(), []byte(payload))
+		reservation.Commit(len(payload), RawPacketMeta{Source: UDS, ListenerID: payload})
+	}
+
+	batch := shard.TryNextBatch(make([]RawPacket, 0, 2))
+	require.Len(t, batch, 2)
+	require.Equal(t, "a", string(batch[0].Contents))
+	require.Equal(t, "bb", string(batch[1].Contents))
+	shard.ReleaseBatch(len(batch))
+	require.Equal(t, 1, shard.Len())
+
+	batch = shard.TryNextBatch(batch[:0])
+	require.Len(t, batch, 1)
+	require.Equal(t, "ccc", string(batch[0].Contents))
+	shard.ReleaseBatch(len(batch))
+	require.Equal(t, 0, shard.Len())
+}
+
 func TestCompactRawIngressShardReserveCommitReadRelease(t *testing.T) {
 	shard := NewCompactRawIngressShard(128, 64, nil, "0")
 
@@ -189,4 +212,27 @@ func TestCompactRawIngressShardsDistributeReservations(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "second", packet.ListenerID)
 	packet.Release()
+}
+
+func TestCompactRawIngressShardTryNextBatchReleaseBatch(t *testing.T) {
+	shard := NewCompactRawIngressShard(128, 16, nil, "0")
+	for _, payload := range []string{"a", "bb", "ccc"} {
+		reservation, ok := shard.Reserve()
+		require.True(t, ok)
+		copy(reservation.Buffer(), []byte(payload))
+		reservation.Commit(len(payload), RawPacketMeta{Source: UDS, ListenerID: payload})
+	}
+
+	batch := shard.TryNextBatch(make([]RawPacket, 0, 2))
+	require.Len(t, batch, 2)
+	require.Equal(t, "a", string(batch[0].Contents))
+	require.Equal(t, "bb", string(batch[1].Contents))
+	shard.ReleaseBatch(len(batch))
+	require.Equal(t, 1, shard.Len())
+
+	batch = shard.TryNextBatch(batch[:0])
+	require.Len(t, batch, 1)
+	require.Equal(t, "ccc", string(batch[0].Contents))
+	shard.ReleaseBatch(len(batch))
+	require.Equal(t, 0, shard.Len())
 }

@@ -125,26 +125,28 @@ type dsdServer struct {
 	// and pushing them to the aggregator
 	workers []*worker
 
-	packetsIn               chan packets.Packets
-	captureChan             chan packets.Packets
-	ingressLogShards        *packetIngressLogShards
-	rawIngressShards        *packets.RawIngressShards
-	compactRawIngressShards *packets.CompactRawIngressShards
-	workersCount            int
-	serverlessFlushChan     chan bool
-	sharedPacketPool        *packets.Pool
-	sharedPacketPoolManager *packets.PoolManager[packets.Packet]
-	sharedFloat64List       *float64ListPool
-	Statistics              *statutil.Stats
-	Started                 bool
-	startedMtx              sync.RWMutex
-	stopChan                chan bool
-	health                  *health.Handle
-	histToDist              bool
-	histToDistPrefix        string
-	extraTags               []string
-	Debug                   serverdebug.Component
-	filterList              filterlist.Component
+	packetsIn                chan packets.Packets
+	captureChan              chan packets.Packets
+	ingressLogShards         *packetIngressLogShards
+	rawIngressShards         *packets.RawIngressShards
+	compactRawIngressShards  *packets.CompactRawIngressShards
+	rawIngressBatchDrain     bool
+	rawIngressBatchDrainSize int
+	workersCount             int
+	serverlessFlushChan      chan bool
+	sharedPacketPool         *packets.Pool
+	sharedPacketPoolManager  *packets.PoolManager[packets.Packet]
+	sharedFloat64List        *float64ListPool
+	Statistics               *statutil.Stats
+	Started                  bool
+	startedMtx               sync.RWMutex
+	stopChan                 chan bool
+	health                   *health.Handle
+	histToDist               bool
+	histToDistPrefix         string
+	extraTags                []string
+	Debug                    serverdebug.Component
+	filterList               filterlist.Component
 
 	tCapture                replay.Component
 	pidMap                  pidmap.Component
@@ -386,6 +388,8 @@ func (s *dsdServer) start(context.Context) error {
 	compactRawUDSIngressRingEnabled := experimentalCompactRawUDSIngressRingEnabled() && rawIngressEligible
 	rawUDSIngressRingEnabled := experimentalRawUDSIngressRingEnabled() && rawIngressEligible && !compactRawUDSIngressRingEnabled
 	rawIngressEnabled := rawUDSIngressRingEnabled || compactRawUDSIngressRingEnabled
+	s.rawIngressBatchDrain = rawIngressEnabled && experimentalRawUDSIngressBatchDrainEnabled()
+	s.rawIngressBatchDrainSize = experimentalRawUDSIngressBatchDrainSize()
 	shardedIngressLogEnabled := experimentalShardedIngressLogEnabled() && !statsdForwardEnabled && pipeName == "" && !rawIngressEnabled
 	ingressLogEnabled := experimentalIngressLogEnabled() && !statsdForwardEnabled && !shardedIngressLogEnabled && !rawIngressEnabled
 	packetsChannelSize := s.config.GetInt("dogstatsd_queue_size")
@@ -427,6 +431,12 @@ func (s *dsdServer) start(context.Context) error {
 	}
 	if experimentalCompactRawUDSIngressRingEnabled() && !compactRawUDSIngressRingEnabled {
 		s.log.Warn("DogStatsD experimental compact raw UDS ingress ring disabled because it currently requires UDS datagram only, no origin detection, no forwarding, no UDP, no stream socket, and no named pipe")
+	}
+	if experimentalRawUDSIngressBatchDrainEnabled() && !rawIngressEnabled {
+		s.log.Warn("DogStatsD experimental raw UDS ingress batch drain disabled because raw UDS ingress ring is not enabled")
+	}
+	if s.rawIngressBatchDrain {
+		s.log.Infof("DogStatsD experimental raw UDS ingress batch drain enabled with batch_size=%d", s.rawIngressBatchDrainSize)
 	}
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
 

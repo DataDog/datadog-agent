@@ -97,6 +97,16 @@ type RawIngressReader interface {
 	Notify() <-chan struct{}
 }
 
+// RawIngressBatchReader is an optional worker-side cursor that can peek and
+// release several raw packets with one shard lock acquisition. Batches are
+// always returned from the shard head and must be released in order with
+// ReleaseBatch after processing.
+type RawIngressBatchReader interface {
+	RawIngressReader
+	TryNextBatch(dst []RawPacket) []RawPacket
+	ReleaseBatch(n int)
+}
+
 type rawIngressSlot struct {
 	buf     []byte
 	n       int
@@ -239,6 +249,49 @@ func (s *RawIngressShard) TryNext() (RawPacket, bool) {
 	return RawPacket{}, false
 }
 
+// TryNextBatch returns up to cap(dst) committed packets from the head of the
+// shard. Returned packets remain owned by the ring and must be released with
+// ReleaseBatch in the same order after processing.
+func (s *RawIngressShard) TryNextBatch(dst []RawPacket) []RawPacket {
+	dst = dst[:0]
+	if cap(dst) == 0 {
+		return dst
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for s.used > 0 && len(dst) < cap(dst) {
+		slot := &s.slots[s.head]
+		if !slot.ready {
+			return dst
+		}
+		if !slot.aborted {
+			break
+		}
+		s.releaseHeadLocked()
+	}
+
+	idx := s.head
+	for scanned := 0; scanned < s.used && len(dst) < cap(dst); scanned++ {
+		slot := &s.slots[idx]
+		if !slot.ready || slot.aborted {
+			break
+		}
+		dst = append(dst, RawPacket{
+			Contents:   slot.buf[:slot.n],
+			Origin:     slot.meta.Origin,
+			ProcessID:  slot.meta.ProcessID,
+			ListenerID: slot.meta.ListenerID,
+			Source:     slot.meta.Source,
+			shard:      s,
+			idx:        idx,
+		})
+		idx = (idx + 1) % len(s.slots)
+	}
+	return dst
+}
+
 // Notify returns a channel signaled when new committed packets may be available.
 func (s *RawIngressShard) Notify() <-chan struct{} {
 	return s.notify
@@ -307,6 +360,23 @@ func (s *RawIngressShard) release(idx int) {
 		return
 	}
 	s.releaseHeadLocked()
+	s.mu.Unlock()
+}
+
+// ReleaseBatch releases n packets from the shard head after a successful
+// TryNextBatch call.
+func (s *RawIngressShard) ReleaseBatch(n int) {
+	if n <= 0 {
+		return
+	}
+	s.mu.Lock()
+	for i := 0; i < n && s.used > 0; i++ {
+		slot := &s.slots[s.head]
+		if !slot.ready {
+			break
+		}
+		s.releaseHeadLocked()
+	}
 	s.mu.Unlock()
 }
 
@@ -454,6 +524,35 @@ func (s *CompactRawIngressShard) TryNext() (RawPacket, bool) {
 	return packet, true
 }
 
+// TryNextBatch returns up to cap(dst) committed packets from the compact shard
+// head. Returned packet contents point into the ring byte buffer and remain
+// valid until ReleaseBatch is called.
+func (s *CompactRawIngressShard) TryNextBatch(dst []RawPacket) []RawPacket {
+	dst = dst[:0]
+	if cap(dst) == 0 {
+		return dst
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	idx := s.headRecord
+	for scanned := 0; scanned < s.usedRecords && len(dst) < cap(dst); scanned++ {
+		record := &s.records[idx]
+		dst = append(dst, RawPacket{
+			Contents:     s.buf[record.offset : record.offset+record.n],
+			Origin:       record.meta.Origin,
+			ProcessID:    record.meta.ProcessID,
+			ListenerID:   record.meta.ListenerID,
+			Source:       record.meta.Source,
+			compactShard: s,
+			idx:          idx,
+		})
+		idx = (idx + 1) % len(s.records)
+	}
+	return dst
+}
+
 // Notify returns a channel signaled when committed packets may be available.
 func (s *CompactRawIngressShard) Notify() <-chan struct{} {
 	return s.notify
@@ -587,6 +686,24 @@ func (s *CompactRawIngressShard) release(idx int) {
 		s.mu.Unlock()
 		return
 	}
+	s.releaseHeadLocked()
+	s.mu.Unlock()
+}
+
+// ReleaseBatch releases n packets from the compact shard head after a
+// successful TryNextBatch call.
+func (s *CompactRawIngressShard) ReleaseBatch(n int) {
+	if n <= 0 {
+		return
+	}
+	s.mu.Lock()
+	for i := 0; i < n && s.usedRecords > 0; i++ {
+		s.releaseHeadLocked()
+	}
+	s.mu.Unlock()
+}
+
+func (s *CompactRawIngressShard) releaseHeadLocked() {
 	record := s.records[s.headRecord]
 	s.records[s.headRecord] = compactRawIngressRecord{}
 	s.headRecord = (s.headRecord + 1) % len(s.records)
@@ -613,7 +730,6 @@ func (s *CompactRawIngressShard) release(idx int) {
 	}
 	s.updateGaugesLocked()
 	s.notFull.Signal()
-	s.mu.Unlock()
 }
 
 func (s *CompactRawIngressShard) putScratch(buf []byte) {
