@@ -57,7 +57,7 @@ RUN if [ "$PACKAGE_TYPE" = "windows" ]; then \
     fi
 
 # Install Go based on architecture
-ARG GO_VERSION=1.25.9
+ARG GO_VERSION=1.25.10
 RUN ARCH=$(dpkg --print-architecture) && \
 if [ "$ARCH" = "amd64" ]; then \
 GO_ARCH="linux-amd64"; \
