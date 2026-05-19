@@ -16,17 +16,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
+	"github.com/DataDog/datadog-agent/pkg/snmp/batchsize"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func fetchColumnOidsWithBatching(sess session.Session, oids []string, batchSizeOptimizer *oidBatchSizeOptimizer, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
+func fetchColumnOidsWithBatching(sess session.Session, oids []string, batchSizeOptimizer *batchsize.Optimizer, bulkMaxRepetitions uint32, fetchStrategy columnFetchStrategy) (valuestore.ColumnResultValuesType, error) {
 	retValues := make(valuestore.ColumnResultValuesType, len(oids))
 	if len(oids) == 0 {
 		return retValues, nil
 	}
 
-	batches, err := common.CreateStringBatches(oids, batchSizeOptimizer.batchSize)
+	batches, err := common.CreateStringBatches(oids, batchSizeOptimizer.BatchSize())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create column oid batches: %s", err)
 	}
@@ -36,7 +37,7 @@ func fetchColumnOidsWithBatching(sess session.Session, oids []string, batchSizeO
 		if err != nil {
 			var fetchErr *fetchError
 			if errors.As(err, &fetchErr) {
-				shouldRetry := batchSizeOptimizer.onBatchSizeFailure()
+				shouldRetry := batchSizeOptimizer.OnFailure()
 				if shouldRetry {
 					return fetchColumnOidsWithBatching(sess, oids, batchSizeOptimizer, bulkMaxRepetitions, fetchStrategy)
 				}
@@ -54,7 +55,7 @@ func fetchColumnOidsWithBatching(sess session.Session, oids []string, batchSizeO
 		}
 	}
 
-	batchSizeOptimizer.onBatchSizeSuccess()
+	batchSizeOptimizer.OnSuccess()
 
 	return retValues, nil
 }
