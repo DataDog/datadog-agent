@@ -159,6 +159,13 @@ func defaultCatalog() *componentCatalog {
 				defaultConfig:  DefaultBOCPDConfig(),
 				factory:        func(cfg any) any { return NewBOCPDDetector(cfg.(BOCPDConfig)) },
 				defaultEnabled: true,
+				readConfig: func(reader ConfigReader, prefix string) any {
+					cfg := DefaultBOCPDConfig()
+					if key := prefix + "warmup_points"; reader.IsConfigured(key) {
+						cfg.WarmupPoints = reader.GetInt(key)
+					}
+					return cfg
+				},
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(BOCPDConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
