@@ -151,7 +151,7 @@ func (c *Check) Run() error {
 
 	c.sender.SendNCMCheckMetrics(checkStartTime, c.lastCheckTime)
 	c.lastCheckTime = checkStartTime
-	checkErr = c.sender.SendNCMPayload(ncmreport.ToNCMPayload(c.checkContext.Namespace, configs, inventoryEntries, c.clock.Now().Unix()))
+	checkErr = c.sender.SendNCMPayload(ncmreport.ToNCMPayload(c.checkContext.Namespace, c.agentHostname, configs, inventoryEntries, c.clock.Now().Unix()))
 	if checkErr != nil {
 		return checkErr
 	}
@@ -266,11 +266,10 @@ func (c *Check) buildInventoryReport(configStore store.ConfigStore, hasNewConfig
 	entries := make([]ncmreport.InventoryEntry, 0, len(configMeta))
 	for _, m := range configMeta {
 		entries = append(entries, ncmreport.InventoryEntry{
-			Namespace:     c.checkContext.Namespace,
-			ConfigID:      m.ConfigUUID,
-			DeviceID:      m.DeviceID,
-			ReportedAt:    m.CapturedAt,
-			AgentHostname: c.agentHostname,
+			Namespace:  c.checkContext.Namespace,
+			ConfigID:   m.ConfigUUID,
+			DeviceID:   m.DeviceID,
+			ReportedAt: m.CapturedAt,
 		})
 	}
 	return entries

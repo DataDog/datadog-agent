@@ -99,9 +99,10 @@ func TestNetworkDevicesConfigPayload_Creation(t *testing.T) {
 		},
 	}
 
-	payload := ToNCMPayload(namespace, configs, []InventoryEntry{}, timestamp)
+	payload := ToNCMPayload(namespace, "test-agent-host", configs, []InventoryEntry{}, timestamp)
 
 	assert.Equal(t, namespace, payload.Namespace)
+	assert.Equal(t, "test-agent-host", payload.AgentHostname)
 	assert.Equal(t, timestamp, payload.CollectTimestamp)
 	assert.Len(t, payload.Configs, 2)
 	assert.Equal(t, configs, payload.Configs)
@@ -116,7 +117,7 @@ func TestNetworkDevicesConfigPayload_EmptyTimestamps(t *testing.T) {
 		ConfigSource: types.CLI,
 		Timestamp:    0,
 	}
-	payload := ToNCMPayload("test", []NetworkDeviceConfig{ndc}, []InventoryEntry{}, agentTs)
+	payload := ToNCMPayload("test", "test-agent-host", []NetworkDeviceConfig{ndc}, []InventoryEntry{}, agentTs)
 
 	expected := NetworkDeviceConfig{
 		DeviceID:     "default:10.0.0.1",

@@ -49,7 +49,7 @@ func TestNCMSender_SendNCMConfig_Success(t *testing.T) {
 		},
 	}
 
-	payload := ncmreport.ToNCMPayload(namespace, configs, []ncmreport.InventoryEntry{}, mockClock.Now().Unix())
+	payload := ncmreport.ToNCMPayload(namespace, "test-agent-host", configs, []ncmreport.InventoryEntry{}, mockClock.Now().Unix())
 
 	// Set up mock expectations
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
@@ -73,7 +73,8 @@ func TestNCMSender_SendNCMConfig_Success(t *testing.T) {
       "content": "version 15.1\nhostname Router1"
     }
   ],
-  "collect_timestamp": 1754043600
+  "collect_timestamp": 1754043600,
+  "agent_hostname": "test-agent-host"
 }
 `)
 
@@ -253,14 +254,14 @@ func TestNCMSender_SendNCMInventory_Success(t *testing.T) {
 
 	payload := ncmreport.NCMPayload{
 		Namespace:        namespace,
+		AgentHostname:    "test-agent-host",
 		CollectTimestamp: mockClock.Now().Unix(),
 		Inventories: []ncmreport.InventoryEntry{
 			{
-				Namespace:     "default",
-				ConfigID:      "abc-123",
-				DeviceID:      "default:10.0.0.1",
-				ReportedAt:    mockClock.Now().Unix(),
-				AgentHostname: "test-agent-host",
+				Namespace:  "default",
+				ConfigID:   "abc-123",
+				DeviceID:   "default:10.0.0.1",
+				ReportedAt: mockClock.Now().Unix(),
 			},
 		},
 	}
@@ -278,11 +279,11 @@ func TestNCMSender_SendNCMInventory_Success(t *testing.T) {
 	  "namespace": "default",
       "config_id": "abc-123",
       "device_id": "default:10.0.0.1",
-      "reported_at": 1754043600,
-      "agent_hostname": "test-agent-host"
+      "reported_at": 1754043600
     }
   ],
-  "collect_timestamp": 1754043600
+  "collect_timestamp": 1754043600,
+  "agent_hostname": "test-agent-host"
 }
 `)
 	compactEvent := new(bytes.Buffer)
