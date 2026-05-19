@@ -96,6 +96,29 @@ type rawIngressTelemetry struct {
 	shard     string
 }
 
+func newRawIngressTelemetry(telemetrycomp telemetry.Component) rawIngressTelemetry {
+	if telemetrycomp == nil {
+		return rawIngressTelemetry{}
+	}
+	return rawIngressTelemetry{
+		bytes: telemetrycomp.NewGauge("dogstatsd_ingress_ring", "bytes",
+			[]string{"shard"}, "Bytes currently retained by the experimental DogStatsD raw ingress ring"),
+		slots: telemetrycomp.NewGauge("dogstatsd_ingress_ring", "slots",
+			[]string{"shard"}, "Slots currently retained by the experimental DogStatsD raw ingress ring"),
+		packets: telemetrycomp.NewGauge("dogstatsd_ingress_ring", "packets",
+			[]string{"shard"}, "Packets currently retained by the experimental DogStatsD raw ingress ring"),
+		blockedNS: telemetrycomp.NewCounter("dogstatsd_ingress_ring", "blocked_ns",
+			[]string{"shard"}, "Nanoseconds spent blocked reserving the experimental DogStatsD raw ingress ring"),
+		stats: telemetrycomp.NewCounter("dogstatsd_ingress_ring", "stats",
+			[]string{"shard", "stat"}, "Experimental DogStatsD raw ingress ring counters"),
+	}
+}
+
+func (t rawIngressTelemetry) forShard(shard string) rawIngressTelemetry {
+	t.shard = shard
+	return t
+}
+
 // RawIngressShard is a single-consumer, multi-producer, preallocated raw packet
 // ring. Slots are fixed-size byte buffers so UDS datagram listeners can reserve
 // a slot and read socket bytes directly into ring-owned storage.
@@ -115,6 +138,10 @@ type RawIngressShard struct {
 
 // NewRawIngressShard creates a preallocated raw ingress shard.
 func NewRawIngressShard(slotCount int, slotSize int, telemetrycomp telemetry.Component, shard string) *RawIngressShard {
+	return newRawIngressShardWithTelemetry(slotCount, slotSize, newRawIngressTelemetry(telemetrycomp).forShard(shard))
+}
+
+func newRawIngressShardWithTelemetry(slotCount int, slotSize int, telemetry rawIngressTelemetry) *RawIngressShard {
 	if slotCount <= 0 {
 		slotCount = 1
 	}
@@ -129,21 +156,7 @@ func NewRawIngressShard(slotCount int, slotSize int, telemetrycomp telemetry.Com
 	for i := range shardRing.slots {
 		shardRing.slots[i].buf = make([]byte, slotSize)
 	}
-	if telemetrycomp != nil {
-		shardRing.telemetry = rawIngressTelemetry{
-			bytes: telemetrycomp.NewGauge("dogstatsd_ingress_ring", "bytes",
-				[]string{"shard"}, "Bytes currently retained by the experimental DogStatsD raw ingress ring"),
-			slots: telemetrycomp.NewGauge("dogstatsd_ingress_ring", "slots",
-				[]string{"shard"}, "Slots currently retained by the experimental DogStatsD raw ingress ring"),
-			packets: telemetrycomp.NewGauge("dogstatsd_ingress_ring", "packets",
-				[]string{"shard"}, "Packets currently retained by the experimental DogStatsD raw ingress ring"),
-			blockedNS: telemetrycomp.NewCounter("dogstatsd_ingress_ring", "blocked_ns",
-				[]string{"shard"}, "Nanoseconds spent blocked reserving the experimental DogStatsD raw ingress ring"),
-			stats: telemetrycomp.NewCounter("dogstatsd_ingress_ring", "stats",
-				[]string{"shard", "stat"}, "Experimental DogStatsD raw ingress ring counters"),
-			shard: shard,
-		}
-	}
+	shardRing.telemetry = telemetry
 	return shardRing
 }
 
@@ -344,8 +357,9 @@ func NewRawIngressShards(shardCount int, maxBytes int64, slotSize int, telemetry
 		slotsPerShard = 1
 	}
 	shards := make([]*RawIngressShard, shardCount)
+	telemetry := newRawIngressTelemetry(telemetrycomp)
 	for i := range shards {
-		shards[i] = NewRawIngressShard(slotsPerShard, slotSize, telemetrycomp, strconv.Itoa(i))
+		shards[i] = newRawIngressShardWithTelemetry(slotsPerShard, slotSize, telemetry.forShard(strconv.Itoa(i)))
 	}
 	return &RawIngressShards{shards: shards}
 }
