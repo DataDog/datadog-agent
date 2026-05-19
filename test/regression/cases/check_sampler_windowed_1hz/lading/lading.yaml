@@ -1,0 +1,32 @@
+generator:
+  - container:
+      repository: public.ecr.aws/docker/library/busybox
+      tag: latest
+      args:
+        - sleep
+        - infinity
+      env:
+        - DD_ENV=check_sampler_windowed_1hz
+        - DD_SERVICE=volume_check
+        - DD_VERSION=1.0.0
+      labels:
+        com.datadoghq.tags.env: check_sampler_windowed_1hz
+        com.datadoghq.tags.service: volume_check
+        com.datadoghq.tags.version: "1.0.0"
+        com.datadoghq.ad.checks: '{"volume_check": {"instances": [{"min_collection_interval": 1, "contexts_per_run": 200, "name_prefix": "vc_a", "base_tags": ["instance:a"]}, {"min_collection_interval": 1, "contexts_per_run": 200, "name_prefix": "vc_b", "base_tags": ["instance:b"]}]}}'
+      network_disabled: true
+      number_of_containers: 50
+
+blackhole:
+  - http:
+      binding_addr: "127.0.0.1:9091"
+  - http:
+      binding_addr: "127.0.0.1:9092"
+  - http:
+      binding_addr: "127.0.0.1:9093"
+
+target_metrics:
+  - prometheus:
+      uri: "http://127.0.0.1:5000/telemetry"
+      tags:
+        sub_agent: "core"

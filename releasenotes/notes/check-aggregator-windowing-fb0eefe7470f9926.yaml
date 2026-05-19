@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Adds a check metric windowing layer so metrics from checks running faster
+    than the Agent flush interval can be aggregated before serialization, while
+    checks at the normal cadence continue to bypass the additional aggregation
+    work.
