@@ -44,19 +44,29 @@ type ccmModeConfiguredTaggedSuite struct {
 	ccmModeSuiteBase
 }
 
-func ccmAgentConfig(taggedChecks []string) string {
+func ccmAgentConfig(taggedChecks, metricsBlocked []string) string {
 	cfg := `
 infrastructure_mode: cloud_cost_only
 metric_filterlist:
   - e2e.ccm.blocked.by.filterlist
 `
-	if len(taggedChecks) > 0 {
+	if len(taggedChecks) > 0 || len(metricsBlocked) > 0 {
 		cfg += `integration:
   cloud_cost_only:
-    tagged:
 `
-		for _, check := range taggedChecks {
-			cfg += fmt.Sprintf("      - %s\n", check)
+		if len(taggedChecks) > 0 {
+			cfg += `    tagged:
+`
+			for _, check := range taggedChecks {
+				cfg += fmt.Sprintf("      - %s\n", check)
+			}
+		}
+		if len(metricsBlocked) > 0 {
+			cfg += `    metrics_blocked:
+`
+			for _, metric := range metricsBlocked {
+				cfg += fmt.Sprintf("      - %s\n", metric)
+			}
 		}
 	}
 	return cfg
@@ -79,12 +89,110 @@ func runCCMModeSuite[T e2e.Suite[environments.Host]](t *testing.T, stackName str
 // TestCCMModeLinuxDefaultTagged runs CCM e2e checks with the default empty
 // integration.cloud_cost_only.tagged list (all checks receive infra_mode).
 func TestCCMModeLinuxDefaultTagged(t *testing.T) {
-	runCCMModeSuite(t, "ccmmode-default-tagged", ccmAgentConfig(nil), &ccmModeDefaultTaggedSuite{})
+	runCCMModeSuite(t, "ccmmode-default-tagged", ccmAgentConfig(nil, nil), &ccmModeDefaultTaggedSuite{})
 }
 
 // TestCCMModeLinuxConfiguredTagged runs CCM e2e checks with an explicit tagged list.
 func TestCCMModeLinuxConfiguredTagged(t *testing.T) {
-	runCCMModeSuite(t, "ccmmode-configured-tagged", ccmAgentConfig([]string{"cpu"}), &ccmModeConfiguredTaggedSuite{})
+	runCCMModeSuite(t, "ccmmode-configured-tagged", ccmAgentConfig([]string{"cpu"}, nil), &ccmModeConfiguredTaggedSuite{})
+}
+
+type ccmModeMetricsBlockedSuite struct {
+	e2e.BaseSuite[environments.Host]
+}
+
+// TestCCMModeLinuxMetricsBlocked runs CCM e2e checks with integration.cloud_cost_only.metrics_blocked set.
+func TestCCMModeLinuxMetricsBlocked(t *testing.T) {
+	runCCMModeSuite(t, "ccmmode-metrics-blocked", ccmAgentConfig(nil, []string{"system.cpu"}), &ccmModeMetricsBlockedSuite{})
+}
+
+// TestMetricsBlockedOverridesAllowlist verifies metrics_blocked drops allowlisted metrics
+// when integration.cloud_cost_only.metrics_match_prefix is true (default).
+func (s *ccmModeMetricsBlockedSuite) TestMetricsBlockedOverridesAllowlist() {
+	const blockedMetric = "system.cpu.user"
+	const allowedMetric = "system.net.bytes_rcvd"
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		blocked, err := s.Env().FakeIntake.Client().FilterMetrics(
+			blockedMetric,
+			client.WithMetricValueHigherThan(0),
+		)
+		assert.NoError(c, err)
+		assert.Empty(c, blocked, "%s should be dropped by metrics_blocked despite the default allowlist", blockedMetric)
+
+		allowed, err := s.Env().FakeIntake.Client().FilterMetrics(
+			allowedMetric,
+			client.WithMetricValueHigherThan(0),
+		)
+		assert.NoError(c, err)
+		assert.NotEmpty(c, allowed, "%s should still be forwarded when not on metrics_blocked", allowedMetric)
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for metrics_blocked to override allowlist")
+}
+
+func ccmAgentConfigCustomAllowlist(allowlist []string, matchPrefix bool) string {
+	cfg := `
+infrastructure_mode: cloud_cost_only
+integration:
+  cloud_cost_only:
+    metrics:
+`
+	for _, metric := range allowlist {
+		cfg += fmt.Sprintf("      - %s\n", metric)
+	}
+	cfg += fmt.Sprintf("    metrics_match_prefix: %t\n", matchPrefix)
+	return cfg
+}
+
+type ccmModeCustomAllowlistSuite struct {
+	e2e.BaseSuite[environments.Host]
+}
+
+// TestCCMModeLinuxCustomAllowlist runs CCM e2e checks with a user-defined metrics allowlist.
+func TestCCMModeLinuxCustomAllowlist(t *testing.T) {
+	runCCMModeSuite(
+		t,
+		"ccmmode-custom-allowlist",
+		ccmAgentConfigCustomAllowlist([]string{"system.mem.pct_usable"}, false),
+		&ccmModeCustomAllowlistSuite{},
+	)
+}
+
+// TestCustomAllowlistApplies verifies integration.cloud_cost_only.metrics overrides defaults:
+// listed metrics are forwarded, unlisted integration metrics are dropped, DogStatsD still bypasses.
+func (s *ccmModeCustomAllowlistSuite) TestCustomAllowlistApplies() {
+	const (
+		onCustomAllowlist  = "system.mem.pct_usable"
+		offCustomAllowlist = "system.cpu.user"
+	)
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		onList, err := s.Env().FakeIntake.Client().FilterMetrics(
+			onCustomAllowlist,
+			client.WithMetricValueHigherThan(0),
+		)
+		assert.NoError(c, err)
+		assert.NotEmpty(c, onList, "%s should be forwarded when on the custom allowlist", onCustomAllowlist)
+
+		offList, err := s.Env().FakeIntake.Client().FilterMetrics(
+			offCustomAllowlist,
+			client.WithMetricValueHigherThan(0),
+		)
+		assert.NoError(c, err)
+		assert.Empty(c, offList, "%s should be dropped when not on the custom allowlist", offCustomAllowlist)
+
+		s.sendStatsdGauge(dogstatsdCustomMetric, 1)
+		dogstatsd, err := s.Env().FakeIntake.Client().FilterMetrics(
+			dogstatsdCustomMetric,
+			client.WithMetricValueHigherThan(0),
+		)
+		assert.NoError(c, err)
+		assert.NotEmpty(c, dogstatsd, "%s should bypass the custom allowlist via DogStatsD", dogstatsdCustomMetric)
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for custom allowlist filtering")
+}
+
+func (s *ccmModeCustomAllowlistSuite) sendStatsdGauge(name string, value int) {
+	cmd := fmt.Sprintf(`bash -c 'echo -n "%s:%d|g" > /dev/udp/127.0.0.1/8125'`, name, value)
+	s.Env().RemoteHost.MustExecute(cmd)
 }
 
 func (s *ccmModeSuiteBase) assertMetricHasInfraModeTag(c *assert.CollectT, metricName, checkName string) {
