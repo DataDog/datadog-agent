@@ -386,10 +386,10 @@ func (b *Backend) runDaemonCommandWithRestart(command string, args ...string) (s
 
 func (b *Backend) runDaemonCommand(command string, args ...string) (string, error) {
 	var baseCommand string
-	var sanitizeCharacter string
+	var wrapArg func(string) string
 	switch b.host.RemoteHost.OSFamily {
 	case e2eos.LinuxFamily:
-		sanitizeCharacter = `\"`
+		wrapArg = func(a string) string { return `"` + strings.ReplaceAll(a, `"`, `\"`) + `"` }
 		baseCommand = "sudo datadog-installer daemon"
 		_, err := b.host.RemoteHost.Execute(baseCommand + " --help")
 		if err != nil {
@@ -399,7 +399,11 @@ func (b *Backend) runDaemonCommand(command string, args ...string) (string, erro
 			baseCommand = "sudo DD_BUNDLED_AGENT=installer datadog-agent daemon"
 		}
 	case e2eos.WindowsFamily:
-		sanitizeCharacter = "\\`\""
+		// pwsh 7.3+ defaults $PSNativeCommandArgumentPassing to Standard, which
+		// handles native-command quoting on Windows correctly. Wrap each arg in
+		// single quotes so pwsh treats it as a literal string with no
+		// interpolation; the JSON value reaches the exe verbatim.
+		wrapArg = func(a string) string { return `'` + a + `'` }
 		baseCommand = `& "C:\Program Files\Datadog\Datadog Agent\bin\datadog-installer.exe" daemon`
 	default:
 		return "", fmt.Errorf("unsupported OS family: %v", b.host.RemoteHost.OSFamily)
@@ -415,8 +419,7 @@ func (b *Backend) runDaemonCommand(command string, args ...string) (string, erro
 
 	var sanitizedArgs []string
 	for _, arg := range args {
-		arg = `"` + strings.ReplaceAll(arg, `"`, sanitizeCharacter) + `"`
-		sanitizedArgs = append(sanitizedArgs, arg)
+		sanitizedArgs = append(sanitizedArgs, wrapArg(arg))
 	}
 	return b.host.RemoteHost.Execute(fmt.Sprintf("%s %s %s", baseCommand, command, strings.Join(sanitizedArgs, " ")))
 }
