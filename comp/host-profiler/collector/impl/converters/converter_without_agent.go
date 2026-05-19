@@ -42,8 +42,8 @@ var resourceDetectionDefaultConfig = confMap{
 //   - If no resourcedetection processor used, declare & use a minimal resourcedetection processor
 //   - No infraattributes processor configured nor declared
 //   - remove infraattributes processor from metrics processors pipeline
-//   - At least one otlphttpexporter with dd-api-key declared & used
-//   - Check if used otlphttpexporter has dd-api-key as string, if not string convert it, if not at all notify user
+//   - At least one otlp_http exporter with dd-api-key declared & used
+//   - Check if used otlp_http exporter has dd-api-key as string, if not string convert it, if not at all notify user
 //   - If profiling::symbol_uploader::enabled == true, convert api_key/app_key to strings in each endpoint
 //   - If no profiling is used & configured, add minimal one with symbol_uploader: false
 //   - remove hpflare extensions
@@ -80,7 +80,7 @@ func (c *converterWithoutAgent) Convert(_ context.Context, conf *confmap.Conf) e
 		return err
 	}
 
-	// If there's no otlphttpexporter configured. We can't infer necessary configurations as it needs URLs and API keys
+	// If there's no otlp_http exporter configured. We can't infer necessary configurations as it needs URLs and API keys
 	// so if nothing is found, notify user
 	if err := c.ensureOtlpHTTPExporterConfig(confStringMap, exporterNames); err != nil {
 		return err
@@ -349,7 +349,7 @@ func (c *converterWithoutAgent) checkProfilingReceiverConfig(profiling confMap) 
 }
 
 func (c *converterWithoutAgent) ensureOtlpHTTPExporterConfig(conf confMap, exporterNames []any) error {
-	// for each otlphttpexporter used, check if necessary api key is present
+	// for each otlp_http exporter used, check if necessary api key is present
 	hasOtlpHTTP := false
 	for _, nameAny := range exporterNames {
 		if name, ok := nameAny.(string); ok && isComponentType(name, componentTypeOtlpHTTP) {
@@ -377,7 +377,7 @@ func (c *converterWithoutAgent) ensureOtlpHTTPExporterConfig(conf confMap, expor
 	}
 
 	if !hasOtlpHTTP {
-		return errors.New("no otlphttp exporter configured in profiles pipeline")
+		return errors.New("no otlp_http exporter configured in profiles pipeline")
 	}
 
 	return nil
@@ -501,7 +501,7 @@ func (c *converterWithoutAgent) addInternalHealthMetricsPipeline(conf confMap, p
 
 		profilesEndpoint, ok := Get[string](exporterConf, "profiles_endpoint")
 		if !ok {
-			slog.Warn("otlphttp exporter missing endpoint and profiles_endpoint, cannot infer metrics endpoint",
+			slog.Warn("otlp_http exporter missing endpoint and profiles_endpoint, cannot infer metrics endpoint",
 				slog.String("exporter", exporterName))
 			continue
 		}

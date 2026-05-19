@@ -1,5 +1,5 @@
 exporters:
-    otlphttp:
+    otlp_http:
         compression: zstd
         headers:
             dd-api-key: test-api-key
@@ -60,7 +60,7 @@ service:
             processors: []
         metrics/profiler-internal-health:
             exporters:
-                - otlphttp
+                - otlp_http
             processors:
                 - filter/dd-hp-drop-internal
                 - cumulativetodelta/dd-hp-internal
@@ -71,7 +71,7 @@ service:
                 - prometheus/dd-hp-internal
         profiles:
             exporters:
-                - otlphttp
+                - otlp_http
             processors:
                 - resourcedetection/default
                 - ddhostname/default

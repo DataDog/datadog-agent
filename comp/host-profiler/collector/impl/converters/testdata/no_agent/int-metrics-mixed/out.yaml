@@ -1,11 +1,11 @@
 exporters:
-    otlphttp/no-ep:
+    otlp_http/no-ep:
         compression: zstd
         headers:
             dd-api-key: test-api-key-2
             dd-evp-origin: host-profiler-standalone
             dd-evp-origin-version: 7.0.0-test
-    otlphttp/with-ep:
+    otlp_http/with-ep:
         compression: zstd
         headers:
             dd-api-key: test-api-key-1
@@ -66,7 +66,7 @@ service:
             processors: []
         metrics/profiler-internal-health:
             exporters:
-                - otlphttp/with-ep
+                - otlp_http/with-ep
             processors:
                 - filter/dd-hp-drop-internal
                 - cumulativetodelta/dd-hp-internal
@@ -77,8 +77,8 @@ service:
                 - prometheus/dd-hp-internal
         profiles:
             exporters:
-                - otlphttp/with-ep
-                - otlphttp/no-ep
+                - otlp_http/with-ep
+                - otlp_http/no-ep
             processors:
                 - resourcedetection/default
                 - ddhostname/default

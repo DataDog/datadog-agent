@@ -1,5 +1,5 @@
 exporters:
-    otlphttp:
+    otlp_http:
         compression: zstd
         headers:
             dd-api-key: test-key
@@ -36,12 +36,12 @@ service:
     pipelines:
         metrics:
             exporters:
-                - otlphttp
+                - otlp_http
             processors:
                 - batch
         profiles:
             exporters:
-                - otlphttp
+                - otlp_http
             processors:
                 - batch
                 - resourcedetection/default

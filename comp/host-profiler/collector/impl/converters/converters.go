@@ -34,7 +34,7 @@ const (
 	componentTypeResourceDetection   = "resourcedetection"
 	componentTypeDDHostNameProcessor = "ddhostname"
 	componentTypeProfiling           = "profiling"
-	componentTypeOtlpHTTP            = "otlphttp"
+	componentTypeOtlpHTTP            = "otlp_http"
 	componentTypeDDProfiling         = "ddprofiling"
 	componentTypeHPFlare             = "hpflare"
 )
@@ -79,7 +79,7 @@ const (
 
 // isComponentType checks if a component name matches a specific type.
 // OTEL components follow the naming convention: "type" or "type/id"
-// Examples: "otlphttp", "otlphttp/prod", "profiling/custom"
+// Examples: "otlp_http", "otlp_http/prod", "profiling/custom"
 func isComponentType(name, componentType string) bool {
 	return name == componentType || strings.HasPrefix(name, componentType+"/")
 }

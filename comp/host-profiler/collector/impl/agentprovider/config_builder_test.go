@@ -33,7 +33,7 @@ func TestBuildExportersAdditionalHTTPHeaders(t *testing.T) {
 
 	exporters, ok := conf["exporters"].(confMap)
 	require.True(t, ok)
-	exporter, ok := exporters["otlphttp/datadoghq.com_0"].(confMap)
+	exporter, ok := exporters["otlp_http/datadoghq.com_0"].(confMap)
 	require.True(t, ok)
 	headers, ok := exporter["headers"].(confMap)
 	require.True(t, ok)
@@ -56,7 +56,7 @@ func TestBuildExportersNoAdditionalHTTPHeaders(t *testing.T) {
 
 	exporters, ok := conf["exporters"].(confMap)
 	require.True(t, ok)
-	exporter, ok := exporters["otlphttp/datadoghq.com_0"].(confMap)
+	exporter, ok := exporters["otlp_http/datadoghq.com_0"].(confMap)
 	require.True(t, ok)
 	headers, ok := exporter["headers"].(confMap)
 	require.True(t, ok)
@@ -198,7 +198,7 @@ func TestBuildExportersAdditionalHTTPHeadersDoNotOverrideRequired(t *testing.T) 
 
 	exporters, ok := conf["exporters"].(confMap)
 	require.True(t, ok)
-	exporter, ok := exporters["otlphttp/datadoghq.com_0"].(confMap)
+	exporter, ok := exporters["otlp_http/datadoghq.com_0"].(confMap)
 	require.True(t, ok)
 	headers, ok := exporter["headers"].(confMap)
 	require.True(t, ok)

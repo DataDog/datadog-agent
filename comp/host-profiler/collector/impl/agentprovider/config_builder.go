@@ -45,7 +45,7 @@ func buildReceivers(conf confMap, agent configManager) []any {
 func buildExporters(conf confMap, agent configManager) []any {
 	const (
 		endpointFormat     = "https://otlp.%s"
-		otlpHTTPNameFormat = "otlphttp/%s_%d"
+		otlpHTTPNameFormat = "otlp_http/%s_%d"
 		debugExporterName  = "debug"
 	)
 

@@ -1,26 +1,26 @@
 exporters:
-    otlphttp/datadoghq.com_0:
+    otlp_http/datadoghq.com_0:
         compression: zstd
         endpoint: https://otlp.datadoghq.com
         headers:
             dd-api-key: main_key
             dd-evp-origin: host-profiler-bundled
             dd-evp-origin-version: 7.0.0-test
-    otlphttp/datadoghq.eu_0:
+    otlp_http/datadoghq.eu_0:
         compression: zstd
         endpoint: https://otlp.datadoghq.eu
         headers:
             dd-api-key: eu_key_1
             dd-evp-origin: host-profiler-bundled
             dd-evp-origin-version: 7.0.0-test
-    otlphttp/datadoghq.eu_1:
+    otlp_http/datadoghq.eu_1:
         compression: zstd
         endpoint: https://otlp.datadoghq.eu
         headers:
             dd-api-key: eu_key_2
             dd-evp-origin: host-profiler-bundled
             dd-evp-origin-version: 7.0.0-test
-    otlphttp/datadoghq.eu_2:
+    otlp_http/datadoghq.eu_2:
         compression: zstd
         endpoint: https://otlp.datadoghq.eu
         headers:
@@ -83,10 +83,10 @@ service:
     pipelines:
         metrics:
             exporters:
-                - otlphttp/datadoghq.eu_0
-                - otlphttp/datadoghq.eu_1
-                - otlphttp/datadoghq.eu_2
-                - otlphttp/datadoghq.com_0
+                - otlp_http/datadoghq.eu_0
+                - otlp_http/datadoghq.eu_1
+                - otlp_http/datadoghq.eu_2
+                - otlp_http/datadoghq.com_0
             processors:
                 - filter
                 - cumulativetodelta
@@ -96,10 +96,10 @@ service:
                 - prometheus
         profiles:
             exporters:
-                - otlphttp/datadoghq.eu_0
-                - otlphttp/datadoghq.eu_1
-                - otlphttp/datadoghq.eu_2
-                - otlphttp/datadoghq.com_0
+                - otlp_http/datadoghq.eu_0
+                - otlp_http/datadoghq.eu_1
+                - otlp_http/datadoghq.eu_2
+                - otlp_http/datadoghq.com_0
             processors:
                 - infraattributes/default
                 - resource/dd-profiler-internal-metadata

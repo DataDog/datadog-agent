@@ -1,12 +1,12 @@
 exporters:
     logging: {}
-    otlphttp/prod:
+    otlp_http/prod:
         compression: zstd
         headers:
             dd-api-key: "11111"
             dd-evp-origin: host-profiler-standalone
             dd-evp-origin-version: 7.0.0-test
-    otlphttp/staging:
+    otlp_http/staging:
         compression: zstd
         headers:
             dd-api-key: staging-key
@@ -43,8 +43,8 @@ service:
             processors: []
         profiles:
             exporters:
-                - otlphttp/prod
-                - otlphttp/staging
+                - otlp_http/prod
+                - otlp_http/staging
                 - logging
             processors:
                 - resourcedetection/default

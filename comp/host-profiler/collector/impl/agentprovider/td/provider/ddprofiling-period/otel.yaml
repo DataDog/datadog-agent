@@ -1,5 +1,5 @@
 exporters:
-    otlphttp/datadoghq.com_0:
+    otlp_http/datadoghq.com_0:
         compression: zstd
         endpoint: https://otlp.datadoghq.com
         headers:
@@ -60,7 +60,7 @@ service:
     pipelines:
         metrics:
             exporters:
-                - otlphttp/datadoghq.com_0
+                - otlp_http/datadoghq.com_0
             processors:
                 - filter
                 - cumulativetodelta
@@ -70,7 +70,7 @@ service:
                 - prometheus
         profiles:
             exporters:
-                - otlphttp/datadoghq.com_0
+                - otlp_http/datadoghq.com_0
             processors:
                 - infraattributes/default
                 - resource/dd-profiler-internal-metadata

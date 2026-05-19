@@ -1,7 +1,7 @@
 exporters:
     debug: {}
     logging: {}
-    otlphttp:
+    otlp_http:
         compression: zstd
         headers:
             dd-api-key: test-api-key
@@ -40,7 +40,7 @@ service:
             exporters:
                 - logging
                 - debug
-                - otlphttp
+                - otlp_http
             processors:
                 - resourcedetection/default
                 - ddhostname/default

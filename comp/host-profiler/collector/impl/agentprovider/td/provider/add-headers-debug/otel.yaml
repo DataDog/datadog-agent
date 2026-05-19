@@ -1,7 +1,7 @@
 exporters:
     debug:
         verbosity: detailed
-    otlphttp/datadoghq.com_0:
+    otlp_http/datadoghq.com_0:
         compression: zstd
         endpoint: https://otlp.datadoghq.com
         headers:
@@ -59,7 +59,7 @@ service:
     pipelines:
         metrics:
             exporters:
-                - otlphttp/datadoghq.com_0
+                - otlp_http/datadoghq.com_0
                 - debug
             processors:
                 - filter
@@ -70,7 +70,7 @@ service:
                 - prometheus
         profiles:
             exporters:
-                - otlphttp/datadoghq.com_0
+                - otlp_http/datadoghq.com_0
                 - debug
             processors:
                 - infraattributes/default

@@ -1,5 +1,5 @@
 exporters:
-    otlphttp:
+    otlp_http:
         compression: zstd
         headers:
             dd-api-key: test-api-key
@@ -45,7 +45,7 @@ service:
             processors: []
         profiles:
             exporters:
-                - otlphttp
+                - otlp_http
             processors:
                 - resourcedetection/default
                 - ddhostname/default
