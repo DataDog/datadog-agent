@@ -5,7 +5,7 @@
 run_codeql_scan:
   image: registry.ddbuild.io/code-scanning:v62112110-4faa53b-datadog-agent 
   tags: ["arch:amd64"]
-  stage: source_test
+  stage: .pre
   needs: ["go_deps", "go_tools_deps"]
   allow_failure: true # This job should not impact the overall status of the pipeline
   variables:
