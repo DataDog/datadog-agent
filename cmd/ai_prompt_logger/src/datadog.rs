@@ -138,11 +138,7 @@ impl DatadogClient {
 
     fn config_path_in_dir(dir: impl AsRef<Path>) -> Option<PathBuf> {
         let path = dir.as_ref().join(CONFIG_BASENAME);
-        if path.is_file() {
-            Some(path)
-        } else {
-            None
-        }
+        if path.is_file() { Some(path) } else { None }
     }
 
     #[cfg(windows)]
@@ -162,8 +158,8 @@ impl DatadogClient {
         use windows_sys::Win32::Foundation::ERROR_SUCCESS;
         use windows_sys::Win32::System::Environment::ExpandEnvironmentStringsW;
         use windows_sys::Win32::System::Registry::{
-            RegCloseKey, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_LOCAL_MACHINE, KEY_READ,
-            KEY_WOW64_64KEY, REG_EXPAND_SZ, REG_SZ,
+            HKEY, HKEY_LOCAL_MACHINE, KEY_READ, KEY_WOW64_64KEY, REG_EXPAND_SZ, REG_SZ,
+            RegCloseKey, RegOpenKeyExW, RegQueryValueExW,
         };
 
         fn wide(value: &str) -> Vec<u16> {
