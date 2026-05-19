@@ -1,14 +1,14 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-    "extends": ["config:recommended", ":enablePreCommit"],
+    "extends": ["config:recommended", ":enablePreCommit", "schedule:nonOfficeHours"],
     "constraints": {
-      "go": "1.25.9"
+      "go": "1.25.10"
     },
     "constraintsFiltering": "strict",
     "minimumReleaseAge": "7 days",
     "labels": ["dependencies", "changelog/no-changelog", "qa/no-code-change"],
     "stopUpdatingLabel": "stop-updating",
-    "gitIgnoredAuthors": ["41898282+github-actions[bot]@users.noreply.github.com", "200755185+dd-octo-sts[bot]@users.noreply.github.com"],
+    "gitIgnoredAuthors": ["200755185+dd-octo-sts[bot]@users.noreply.github.com"],
     "platformCommit": "enabled",
     "packageRules": [
       {
@@ -51,6 +51,8 @@
       {
         "matchManagers": ["github-actions"],
         "labels": ["dependencies", "dependencies-github-actions", "changelog/no-changelog", "qa/no-code-change"],
+        "groupName": "github-actions",
+        "schedule": ["before 9am on monday"]
       },
       {
         "matchManagers": ["docker-compose"],
@@ -81,6 +83,7 @@
           "golang.org/x/**",
           "go.opentelemetry.io/**",
           "github.com/open-telemetry/opentelemetry-collector-contrib/**",
+          "github.com/prometheus/prometheus",
           "github.com/spf13/cast",
           "github.com/mailru/easyjson"
         ],
@@ -89,6 +92,11 @@
       {
         "matchManagers": ["gomod"],
         "matchDepTypes": ["replace"],
+        "enabled": false
+      },
+      {
+        "matchManagers": ["gomod"],
+        "matchUpdateTypes": ["digest"],
         "enabled": false
       },
       {
@@ -138,6 +146,10 @@
       },
       {
         "matchManagers": ["bazel-module"],
+        "labels": ["dependencies", "dependencies-bazel", "changelog/no-changelog", "qa/no-code-change"]
+      },
+      {
+        "matchManagers": ["bazel-module"],
         "matchDepTypes": ["git_override"],
         "enabled": false
       },
@@ -145,6 +157,19 @@
         "matchManagers": ["bundler"],
         "matchDepNames": ["omnibus"],
         "enabled": false
+      },
+      {
+        "matchManagers": ["bundler"],
+        "matchDatasources": ["git-refs"],
+        "registryUrls": []
+      },
+      {
+        "matchDepNames": ["FluentAssertions"],
+        "allowedVersions": "(,8.0.0)"
+      },
+      {
+        "matchDepNames": ["WixToolset.Dtf.WindowsInstaller"],
+        "allowedVersions": "(,6.0.0)"
       }
     ],
     "customManagers" : [
@@ -153,6 +178,16 @@
         "managerFilePatterns": [".gitlab-ci.yml"],
         "matchStrings": [
           "  CI_IMAGE_[^W][^:]*: (?<currentValue>v.*)"
+        ],
+        "depNameTemplate": "linux-images",
+        "versioningTemplate": "loose",
+        "datasourceTemplate": "custom.linux-images"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": [".devcontainer/datadog/default/prebuild-devcontainer.json"],
+        "matchStrings": [
+          "\"image\":\\s*\"registry.ddbuild.io/ci/datadog-agent-buildimages/dev-env-workspace:(?<currentValue>v[^\"]+)\""
         ],
         "depNameTemplate": "linux-images",
         "versioningTemplate": "loose",

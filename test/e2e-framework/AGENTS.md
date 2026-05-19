@@ -102,6 +102,12 @@ Use `agentparams` to configure the agent on provisioned infrastructure:
 - `WithSystemProbeConfig(yaml)` — system-probe config
 - `WithFile(path, content, useSudo)` — place arbitrary files on the host
 
+For `environments.DockerHost`, use `dockeragentparams.WithAgentServiceEnvVariable`
+or `AgentServiceEnvironment` for environment variables that must be visible
+inside the Agent container. `dockeragentparams.WithEnvironmentVariables` only
+sets the environment for the `docker-compose` command and compose-file variable
+interpolation.
+
 ## Beyond out of the box environments
 
 The stock environments are highly customizable via provisioner options (OS,

@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "jsonprune",
+    srcs = [
+        "doc.go",
+        "prune.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/jsonprune",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_go_json_experiment_json//jsontext"],
+)
+
+go_test(
+    name = "jsonprune_test",
+    srcs = [
+        "prune_bench_test.go",
+        "prune_property_test.go",
+        "prune_test.go",
+    ],
+    embed = [":jsonprune"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

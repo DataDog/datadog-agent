@@ -46,6 +46,13 @@
   review:
     name: '#security-and-compliance-agent'
     id: 'CTNVD37T3'
+'@datadog/agent-data-plane':
+  notification:
+    name: '#agent-data-plane'
+    id: 'C070PQKLLP5'
+  review:
+    name: '#agent-data-plane'
+    id: 'C070PQKLLP5'
 '@datadog/agent-delivery':
   notification:
     name: '#agent-delivery-ops'
@@ -151,6 +158,13 @@
   review:
     name: '#apm-onboarding'
     id: 'CLWN64GAW'
+'@datadog/apm-release-platform':
+  notification:
+    name: '#apm-release-platform'
+    id: 'C07AFGS1N81'
+  review:
+    name: '#apm-release-platform'
+    id: 'C07AFGS1N81'
 '@datadog/apm-trace-storage':
   notification:
     name: '#apm-trace-storage'

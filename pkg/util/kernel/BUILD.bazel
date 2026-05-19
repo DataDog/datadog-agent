@@ -1,8 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
-# gazelle:exclude headers
-# gazelle:exclude testdata
-
 go_library(
     name = "kernel",
     srcs = [

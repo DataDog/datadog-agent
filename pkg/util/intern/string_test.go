@@ -75,9 +75,13 @@ var (
 
 func TestGetAllocs(t *testing.T) {
 	si := NewStringInterner()
+	// Pre-intern the value and hold a reference so the GC cannot collect it
+	// between AllocsPerRun iterations.
+	keep := si.Get(globalBytes)
 	allocs := int(testing.AllocsPerRun(100, func() {
 		si.Get(globalBytes)
 	}))
+	runtime.KeepAlive(keep)
 	if allocs != 0 {
 		t.Errorf("Get allocated %d objects, want 0", allocs)
 	}
@@ -85,9 +89,11 @@ func TestGetAllocs(t *testing.T) {
 
 func TestGetStringAllocs(t *testing.T) {
 	si := NewStringInterner()
+	keep := si.GetString(globalString)
 	allocs := int(testing.AllocsPerRun(100, func() {
 		si.GetString(globalString)
 	}))
+	runtime.KeepAlive(keep)
 	if allocs != 0 {
 		t.Errorf("GetString allocated %d objects, want 0", allocs)
 	}

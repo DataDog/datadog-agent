@@ -1,0 +1,20 @@
+[package]
+name = "ai-prompt-logger-native-host"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Native messaging host for AI usage monitoring Chrome extension"
+
+[[bin]]
+name = "ai-prompt-logger-native-host"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+hostname.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+ureq.workspace = true

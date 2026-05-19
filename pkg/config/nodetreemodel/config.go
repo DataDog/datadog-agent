@@ -7,6 +7,7 @@
 package nodetreemodel
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -18,6 +19,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"go.uber.org/atomic"
 
@@ -140,6 +142,8 @@ type ntmConfig struct {
 	// TODO: remove 'findUnknownKeys' function from pkg/config/setup in favor of those warnings. We should return
 	// them from ReadConfig and ReadInConfig.
 	warnings []error
+
+	startTime time.Time
 }
 
 // NodeTreeConfig is an interface that gives access to nodes
@@ -664,24 +668,51 @@ func (c *ntmConfig) ParseEnvAsMapStringInterface(key string, fn func(string) map
 	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
 }
 
-// ParseEnvAsSliceMapString registers a transform function to parse an environment variable as a []map[string]string
-func (c *ntmConfig) ParseEnvAsSliceMapString(key string, fn func(string) []map[string]string) {
+// ParseEnvSplitComma registers a transform function to parse an environment variable as a comma-separated list of strings.
+func (c *ntmConfig) ParseEnvSplitComma(key string) {
 	c.Lock()
 	defer c.Unlock()
 	if _, exists := c.envTransform[strings.ToLower(key)]; exists {
 		panic(fmt.Sprintf("env transform for %s already exists", key))
 	}
-	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
+	c.envTransform[strings.ToLower(key)] = func(s string) interface{} {
+		if s == "" {
+			return []string{}
+		}
+		return strings.Split(s, ",")
+	}
 }
 
-// ParseEnvAsSlice registers a transform function to parse an environment variable as a []interface
-func (c *ntmConfig) ParseEnvAsSlice(key string, fn func(string) []interface{}) {
+// ParseEnvSplitSpace registers a transform function to parse an environment variable as a space-separated list of strings.
+func (c *ntmConfig) ParseEnvSplitSpace(key string) {
 	c.Lock()
 	defer c.Unlock()
 	if _, exists := c.envTransform[strings.ToLower(key)]; exists {
 		panic(fmt.Sprintf("env transform for %s already exists", key))
 	}
-	c.envTransform[strings.ToLower(key)] = func(k string) interface{} { return fn(k) }
+	c.envTransform[strings.ToLower(key)] = func(s string) interface{} {
+		if s == "" {
+			return []string{}
+		}
+		return strings.Split(s, " ")
+	}
+}
+
+// ParseEnvJSON registers a transform function to parse an environment variable as a JSON payload into varType.
+func (c *ntmConfig) ParseEnvJSON(key string, varType any) {
+	t := reflect.TypeOf(varType)
+	c.Lock()
+	defer c.Unlock()
+	if _, exists := c.envTransform[strings.ToLower(key)]; exists {
+		panic(fmt.Sprintf("env transform for %s already exists", key))
+	}
+	c.envTransform[strings.ToLower(key)] = func(in string) interface{} {
+		res := reflect.New(t).Interface()
+		if err := json.Unmarshal([]byte(in), res); err != nil {
+			log.Errorf(`"%s" can not be parsed: %v`, key, err)
+		}
+		return reflect.ValueOf(res).Elem().Interface()
+	}
 }
 
 // IsSet checks if a key is set in the config
@@ -1185,6 +1216,10 @@ func (c *ntmConfig) Warnings() *model.Warnings {
 	return &model.Warnings{Errors: c.warnings}
 }
 
+func (c *ntmConfig) StartTime() time.Time {
+	return c.startTime
+}
+
 // Object returns the config as a Reader interface
 func (c *ntmConfig) Object() model.Reader {
 	return c
@@ -1214,6 +1249,7 @@ func NewNodeTreeConfig(name string, envPrefix string, envKeyReplacer *strings.Re
 		root:               newInnerNode(nil),
 		envTransform:       make(map[string]func(string) interface{}),
 		configName:         "datadog",
+		startTime:          time.Now(),
 	}
 
 	config.SetConfigName(name)

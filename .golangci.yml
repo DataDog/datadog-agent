@@ -47,8 +47,17 @@ linters:
               desc: "prefer pkg/util/safeelf to prevent panics during parsing"
             - pkg: "golang.org/x/exp/slices"
               desc: "use the std slices package instead"
+            - pkg: "golang.org/x/exp/maps"
+              desc: "use the std maps package instead (Keys/Values need slices.Collect wrapping)"
             - pkg: "github.com/aws/aws-sdk-go/"
               desc: "use the v2 sdk instead"
+        multierror:
+          files:
+            - $all
+            - "!**/pkg/security/**"
+          deny:
+            - pkg: "github.com/hashicorp/go-multierror"
+              desc: "use errors.Join instead (Go 1.20+); pkg/security is exempt while its PolicyProvider interface is migrated"
         logger:
           files:
             - $all
@@ -61,7 +70,6 @@ linters:
             # Treat this list as a TODO for fixing issues with pkgconfigusage rule
             # DO NOT ADD NEW ENTRIES
             - "!**/comp/api/api/apiimpl/listener/common.go"
-            - "!**/comp/api/api/apiimpl/server_ipc.go"
             - "!**/comp/core/autodiscovery/autodiscoveryimpl/autoconfig.go"
             - "!**/comp/core/autodiscovery/autodiscoveryimpl/autoconfig_test.go"
             - "!**/comp/core/autodiscovery/autodiscoveryimpl/secrets.go"
@@ -118,34 +126,24 @@ linters:
             - "!**/comp/core/config/config.go"
             - "!**/comp/core/config/params.go"
             - "!**/comp/core/config/setup.go"
-            - "!**/comp/core/gui/guiimpl/checks.go"
+            - "!**/comp/core/gui/impl/checks.go"
             - "!**/comp/core/hostname/remotehostnameimpl/hostname.go"
             - "!**/comp/core/status/statusimpl/common_header_provider.go"
             - "!**/comp/core/status/statusimpl/common_header_provider_test.go"
             - "!**/comp/core/status/statusimpl/status_api_endpoints_test.go"
             - "!**/comp/core/status/statusimpl/status_test.go"
-            - "!**/comp/core/sysprobeconfig/sysprobeconfigimpl/config.go"
-            - "!**/comp/core/sysprobeconfig/sysprobeconfigimpl/config_mock.go"
-            - "!**/comp/core/tagger/collectors/ecs_common.go"
-            - "!**/comp/core/tagger/collectors/workloadmeta_extract.go"
+            - "!**/comp/core/sysprobeconfig/impl/config.go"
+            - "!**/comp/core/sysprobeconfig/mock/mock.go"
+
             - "!**/comp/core/tagger/taglist/taglist.go"
             - "!**/comp/core/workloadfilter/baseimpl/filter_utils.go"
             - "!**/comp/core/workloadfilter/catalog/filter_config.go"
-            - "!**/comp/core/workloadmeta/collectors/internal/cloudfoundry/container/cf_container.go"
-            - "!**/comp/core/workloadmeta/collectors/internal/cloudfoundry/vm/cf_vm.go"
-            - "!**/comp/core/workloadmeta/collectors/internal/containerd/containerd.go"
-            - "!**/comp/core/workloadmeta/collectors/internal/containerd/image_sbom_trivy.go"
             - "!**/comp/core/workloadmeta/collectors/internal/containerd/network_linux.go"
-            - "!**/comp/core/workloadmeta/collectors/internal/crio/crio.go"
-            - "!**/comp/core/workloadmeta/collectors/internal/docker/image_sbom_trivy.go"
-            - "!**/comp/core/workloadmeta/collectors/internal/kubemetadata/kubemetadata.go"
-            - "!**/comp/core/workloadmeta/collectors/internal/podman/podman.go"
-            - "!**/comp/core/workloadmeta/collectors/internal/remote/generic.go"
-            - "!**/comp/core/workloadmeta/collectors/internal/remote/processcollector/process_collector.go"
-            - "!**/comp/core/workloadmeta/collectors/internal/remote/workloadmeta/workloadmeta.go"
             - "!**/comp/dogstatsd/packets/pool.go"
             - "!**/comp/dogstatsd/server/float64_list_pool.go"
+            - "!**/comp/dogstatsd/server/impl/float64_list_pool.go"
             - "!**/comp/dogstatsd/server/serverless.go"
+            - "!**/comp/dogstatsd/server/impl/serverless.go"
             - "!**/comp/dogstatsd/serverDebug/serverdebugimpl/debug.go"
             - "!**/comp/forwarder/connectionsforwarder/impl/connectionsforwarder.go"
             - "!**/comp/forwarder/defaultforwarder/blocked_endpoints.go"
@@ -171,6 +169,8 @@ linters:
             - "!**/comp/otelcol/otlp/integrationtest/integration_test.go"
             - "!**/comp/otelcol/otlp/testutil/testutil.go"
             - "!**/comp/process/agent/agent_linux.go"
+            - "!**/comp/process/agent/impl/agent_linux.go"
+            - "!**/comp/process/agent/impl/status.go"
             - "!**/comp/process/agent/status.go"
             - "!**/comp/process/apiserver/apiserver.go"
             - "!**/comp/process/expvars/impl/expvars.go"
@@ -357,34 +357,18 @@ linters:
       - staticcheck
       path: pkg/clusteragent/admission/mutate/cwsinstrumentation/
       text: "SA1019: slices"
-    # 'errcheck' errors in tools/dep_tree_resolver/go_deps.go
+    # io.WriteString to http.ResponseWriter - errors are not actionable
     - path: (.+)\.go$
       text: Error return value of `io.WriteString` is not checked
-    # 'errcheck' errors in test/integration/utils/certificates.go
-    - path: (.+)\.go$
-      text: Error return value of `pem.Encode` is not checked
     - linters:
       - revive
       path: (.+)\.go$
       text: 'var-naming: avoid meaningless package names'
-    # 'revive' errors in pkg/serverless/trace/inferredspan/constants.go
-    - path: (.+)\.go$
-      text: 'exported: exported const APIName should have comment \(or a comment on this block\) or be unexported'
     # 'unconvert' errors in test/integration/utils/certificates_test.go
     - path: (.+)\.go$
       text: unnecessary conversion
     - path: (.+)\.go$
       text: Error return value of .((os\.)?std(out|err)\..*|.*Close|.*Flush|os\.Remove(All)?|.*print(f|ln)?|os\.(Un)?Setenv). is not checked
-    - path: (.+)\.go$
-      text: '`eventContext` is unused'
-    - path: (.+)\.go$
-      text: '`\(\*DatadogLogger\).changeLogLevel` is unused'
-    # used by APM and Process
-    - path: (.+)\.go$
-      text: '`defaultRetryDuration` is unused'
-    # used by APM and Process
-    - path: (.+)\.go$
-      text: '`defaultRetries` is unused'
     # ignore warning about returning unexported field from CGO
     - path: (.+)\.go$
       text: python._Ctype_char, which can be annoying to use
@@ -393,9 +377,6 @@ linters:
       text: '`context` is unused'
     - path: (.+)\.go$
       text: '`id` is unused'
-    # 'unconvert' errors in test/integration/utils/certificates_test.go
-    - path: (.+)\.go$
-      text: unnecessary conversion
     # Exclude some linters from running on tests files.
     - path: _test\.go
       linters:

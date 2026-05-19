@@ -47,6 +47,9 @@ const (
 	envDDNoProxy             = "DD_PROXY_NO_PROXY"
 	envNoProxy               = "NO_PROXY"
 	envIsFromDaemon          = "DD_INSTALLER_FROM_DAEMON"
+	// envFIPSMode is the canonical FIPS toggle, also recognized by
+	// pkg/fleet/installer/setup/defaultscript/default_script.go.
+	envFIPSMode = "DD_FIPS_MODE"
 
 	// install script
 	envApmInstrumentationEnabled   = "DD_APM_INSTRUMENTATION_ENABLED"
@@ -219,6 +222,11 @@ type Env struct {
 	IsCentos6 bool
 
 	IsFromDaemon bool
+
+	// FIPSMode requests the FIPS-compliant flavor of any package downloaded by the
+	// installer. When true, only manifests annotated with com.datadoghq.package.flavor=fips
+	// are eligible, with no fallback to the base flavor.
+	FIPSMode bool
 }
 
 func (e *Env) HasDefaultRegistryOverride() bool {
@@ -337,6 +345,7 @@ func FromEnv() *Env {
 
 		IsCentos6:    DetectCentos6(),
 		IsFromDaemon: os.Getenv(envIsFromDaemon) == "true",
+		FIPSMode:     strings.ToLower(os.Getenv(envFIPSMode)) == "true",
 	}
 }
 
@@ -434,6 +443,9 @@ func (e *Env) ToEnv() []string {
 		// The easiest way to do this without having to import setup/log & pkg/config
 		// is by env var.
 		env = append(env, "DD_LOG_LEVEL=off")
+	}
+	if e.FIPSMode {
+		env = append(env, envFIPSMode+"=true")
 	}
 	env = append(env, overridesByNameToEnv(envRegistryURL, e.RegistryOverrideByImage)...)
 	env = append(env, overridesByNameToEnv(envRegistryAuth, e.RegistryAuthOverrideByImage)...)

@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type confMap = map[string]any
@@ -60,7 +59,7 @@ func buildExporters(conf confMap, agent configManager) []any {
 		}
 		// Required headers set after additional headers to prevent overrides
 		headers["dd-api-key"] = key
-		headers["dd-evp-origin"] = version.ProfilerName
+		headers["dd-evp-origin"] = version.BundledProfilerName
 		headers["dd-evp-origin-version"] = version.ProfilerVersion
 		return confMap{
 			"profiles_endpoint": fmt.Sprintf(profilesEndpointFormat, site),
@@ -111,12 +110,12 @@ func buildProcessors(conf confMap) []any {
 	metadata := confMap{
 		"attributes": []any{
 			confMap{
-				"key":    "profiler_name",
-				"value":  version.ProfilerName,
+				"key":    version.DDProfilerNameKey,
+				"value":  version.BundledProfilerName,
 				"action": "upsert",
 			},
 			confMap{
-				"key":    "profiler_version",
+				"key":    version.DDProfilerVersionKey,
 				"value":  version.ProfilerVersion,
 				"action": "upsert",
 			},
@@ -198,8 +197,6 @@ func buildConfig(agent configManager, p params.CollectorParams) confMap {
 		serviceExtensions = append(serviceExtensions, "ddprofiling/default")
 	}
 	_ = converters.Set(config, "service::extensions", serviceExtensions)
-
-	log.Debugf("Generated configuration: %+v", config)
 
 	return config
 }

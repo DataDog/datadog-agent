@@ -27,8 +27,6 @@ unless do_repackage?
 
   dependency "python3"
 
-  dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # Security-agent dependency, not needed for Heroku
-
   dependency 'datadog-agent-dependencies'
 end
 
@@ -241,7 +239,7 @@ build do
   end
 
   # dd-procmgrd (process manager daemon)
-  if linux_target? and !heroku_target?
+  if (linux_target? || windows_target?) && !heroku_target?
     command_on_repo_root "bazelisk run #{bazel_flags} //pkg/procmgr/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
@@ -278,10 +276,15 @@ build do
   if osx_target?
     command_on_repo_root "bazelisk run #{bazel_flags} -- //packages/macos/app:install --destdir=#{install_dir}", :live_stream => Omnibus.logger.live_stream(:info)
 
+    command_on_repo_root "bazelisk run #{bazel_flags} -- //cmd/ai_prompt_logger:install --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+    copy "cmd/ai_prompt_logger/ai_usage_native_host.yaml.example", "#{install_dir}/etc/ai_usage_native_host.yaml.example"
+    copy "cmd/ai_prompt_logger/run_ai_usage_native_host.sh", "#{install_dir}/embedded/bin/run_ai_usage_native_host.sh"
+    command "chmod 0755 #{install_dir}/embedded/bin/run_ai_usage_native_host.sh"
+
     # Systray GUI
     app_temp_dir = "#{install_dir}/Datadog Agent.app/Contents"
     mkdir "#{app_temp_dir}/MacOS"
-    systray_build_dir = "#{project_dir}/comp/core/gui/guiimpl/systray"
+    systray_build_dir = "#{project_dir}/comp/core/gui/impl/systray"
     # Add @executable_path/../Frameworks to rpath to find the swift libs in the Frameworks folder.
     target = "#{arm_target? ? 'arm64' : 'x86_64'}-apple-macos12.0" # https://docs.datadoghq.com/agent/supported_platforms/?tab=macos
     command "swiftc -O -swift-version \"5\" -target \"#{target}\" -Xlinker '-rpath' -Xlinker '@executable_path/../Frameworks' Sources/*.swift -o gui", cwd: systray_build_dir

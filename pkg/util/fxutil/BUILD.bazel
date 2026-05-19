@@ -39,7 +39,7 @@ go_test(
         "test_test.go",
     ],
     embed = [":fxutil"],
-    gotags = ["test"],  # keep
+    gotags = ["test"],
     deps = [
         "//comp/def",
         "@com_github_stretchr_testify//assert",

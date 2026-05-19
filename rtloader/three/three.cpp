@@ -110,7 +110,7 @@ bool Three::init()
     }
 
     // add custom builtins init funcs to Python inittab, one by one
-    // Unlinke its py2 counterpart, these need to be called before Py_Initialize
+    // These must be called before Py_Initialize.
     PyImport_AppendInittab(AGGREGATOR_MODULE_NAME, PyInit_aggregator);
     PyImport_AppendInittab(DATADOG_AGENT_MODULE_NAME, PyInit_datadog_agent);
     PyImport_AppendInittab(UTIL_MODULE_NAME, PyInit_util);
@@ -347,7 +347,7 @@ bool Three::getCheck(RtLoaderPyObject *py_class, const char *init_config_str, co
         goto done;
     }
     // As stated in the Python C-API documentation
-    // https://github.com/python/cpython/blob/2.7/Doc/c-api/intro.rst#reference-count-details, PyTuple_SetItem takes
+    // https://github.com/python/cpython/blob/3.10/Doc/c-api/intro.rst#reference-count-details, PyTuple_SetItem takes
     // over ownership of the given item (instance in this case). This means that we should NOT DECREF it
     if (PyTuple_SetItem(instances, 0, instance) != 0) {
         setError("could not set instance item on instances: " + _fetchPythonError());
@@ -775,7 +775,7 @@ std::string Three::_fetchPythonError() const
                 if (fmt_exc != NULL) {
                     Py_ssize_t len = PyList_Size(fmt_exc);
                     // docs are not clear but `PyList_Size` can actually fail and in case it would
-                    // return -1, see https://github.com/python/cpython/blob/2.7/Objects/listobject.c#L170
+                    // return -1, see https://github.com/python/cpython/blob/3.12/Objects/listobject.c#L224
                     if (len == -1) {
                         // don't fetch the actual error or the caller might think it was the root cause,
                         // while it's not. Setting `ret_val` empty will make the function return "unknown error".

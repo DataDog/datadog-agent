@@ -29,7 +29,7 @@ HOOK_SYSCALL_ENTRY2(kill, int, pid, int, type) {
         syscall.signal.pid = 0; // it will be resolved later on by check_kill_permission
     }
 
-    cache_syscall(&syscall);
+    cache_syscall_update_cgroup(ctx, &syscall);
     return 0;
 }
 

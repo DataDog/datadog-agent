@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/def"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -60,8 +59,8 @@ func (n *noopAutoConfig) GetAutodiscoveryErrors() map[string]map[string]types.Er
 	return map[string]map[string]types.ErrorMsgSet{}
 }
 
-func (n *noopAutoConfig) GetProviderCatalog() map[string]types.ConfigProviderFactory {
-	return map[string]types.ConfigProviderFactory{}
+func (n *noopAutoConfig) AddConfigProviderFromCatalog(pkgconfigsetup.ConfigurationProviders) error {
+	return nil
 }
 
 func (n *noopAutoConfig) GetTelemetryStore() *telemetry.Store {
@@ -70,10 +69,6 @@ func (n *noopAutoConfig) GetTelemetryStore() *telemetry.Store {
 
 func (n *noopAutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 	return integration.ConfigCheckResponse{}
-}
-
-func (n *noopAutoConfig) GetHealthPlatform() healthplatform.Component {
-	return nil
 }
 
 func newAutoConfig() autodiscovery.Component {

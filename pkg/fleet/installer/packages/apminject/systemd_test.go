@@ -41,8 +41,9 @@ func TestSystemdServiceManager_Setup(t *testing.T) {
 	testServicePath := filepath.Join(tmpDir, "etc", "systemd", "system", "datadog-apm-inject.service")
 
 	mgr := &SystemdServiceManager{
-		servicePath: testServicePath,
-		serviceName: "test-datadog-apm-inject.service",
+		servicePath:   testServicePath,
+		serviceName:   "test-datadog-apm-inject.service",
+		installerPath: "/usr/bin/datadog-installer",
 	}
 
 	ctx := context.Background()
@@ -55,7 +56,11 @@ func TestSystemdServiceManager_Setup(t *testing.T) {
 	assert.FileExists(t, testServicePath)
 	content, err := os.ReadFile(testServicePath)
 	require.NoError(t, err)
-	assert.Equal(t, string(apmInjectServiceFile), string(content))
+	// The placeholder must have been substituted with the configured path,
+	// and the placeholder itself must not appear in the rendered file.
+	assert.Contains(t, string(content), "/usr/bin/datadog-installer apm instrument-start host")
+	assert.Contains(t, string(content), "/usr/bin/datadog-installer apm instrument-stop host")
+	assert.NotContains(t, string(content), installerPathPlaceholder)
 
 	_ = mgr.Uninstall(ctx)
 }
@@ -65,7 +70,8 @@ func TestSystemdServiceManager_writeServiceFile(t *testing.T) {
 	testDestPath := filepath.Join(tmpDir, "dest", "datadog-apm-inject.service")
 
 	mgr := &SystemdServiceManager{
-		servicePath: testDestPath,
+		servicePath:   testDestPath,
+		installerPath: "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer",
 	}
 
 	err := mgr.writeServiceFile()
@@ -74,26 +80,76 @@ func TestSystemdServiceManager_writeServiceFile(t *testing.T) {
 	assert.FileExists(t, testDestPath)
 	content, err := os.ReadFile(testDestPath)
 	require.NoError(t, err)
-	assert.Equal(t, string(apmInjectServiceFile), string(content))
+	assert.Contains(t, string(content), "ExecStart=/opt/datadog-packages/datadog-installer/stable/bin/installer/installer apm instrument-start host")
+	assert.Contains(t, string(content), "ExecStop=/opt/datadog-packages/datadog-installer/stable/bin/installer/installer apm instrument-stop host")
+	assert.NotContains(t, string(content), installerPathPlaceholder)
 }
 
-func TestSystemdServiceManager_writeServiceFile_ContainsInstallerCommand(t *testing.T) {
+func TestSystemdServiceManager_writeServiceFile_NoShWrapper(t *testing.T) {
 	tmpDir := t.TempDir()
 	testDestPath := filepath.Join(tmpDir, "datadog-apm-inject.service")
 
 	mgr := &SystemdServiceManager{
-		servicePath: testDestPath,
+		servicePath:   testDestPath,
+		installerPath: "/usr/bin/datadog-installer",
 	}
-
-	err := mgr.writeServiceFile()
-	require.NoError(t, err)
+	require.NoError(t, mgr.writeServiceFile())
 
 	content, err := os.ReadFile(testDestPath)
 	require.NoError(t, err)
+	rendered := string(content)
 
-	assert.Contains(t, string(content), "instrument-start host")
-	assert.Contains(t, string(content), "instrument-stop host")
-	assert.Contains(t, string(content), "/usr/bin/datadog-installer")
+	assert.NotContains(t, rendered, "/bin/sh", "unit file must not delegate to /bin/sh")
+	assert.NotContains(t, rendered, "sh -c", "unit file must not wrap commands in a shell")
+	assert.Contains(t, rendered, "instrument-start host")
+	assert.Contains(t, rendered, "instrument-stop host")
+}
+
+func TestSystemdServiceManager_writeServiceFile_EmptyInstallerPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	mgr := &SystemdServiceManager{
+		servicePath:   filepath.Join(tmpDir, "datadog-apm-inject.service"),
+		installerPath: "",
+	}
+	err := mgr.writeServiceFile()
+	assert.Error(t, err, "writing the unit file with no installer path should fail loudly rather than ship a broken unit")
+}
+
+func TestResolveInstallerPath(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Set up a mix of candidates: missing, non-executable, executable. The
+	// resolver must skip the first two and pick the third.
+	missing := filepath.Join(tmpDir, "missing")
+	nonExec := filepath.Join(tmpDir, "non-exec")
+	require.NoError(t, os.WriteFile(nonExec, []byte("#!/bin/sh\n"), 0644))
+	executable := filepath.Join(tmpDir, "executable")
+	require.NoError(t, os.WriteFile(executable, []byte("#!/bin/sh\n"), 0755))
+
+	got, err := resolveInstallerPath([]string{missing, nonExec, executable})
+	require.NoError(t, err)
+	assert.Equal(t, executable, got)
+}
+
+func TestResolveInstallerPath_AllMissing(t *testing.T) {
+	tmpDir := t.TempDir()
+	_, err := resolveInstallerPath([]string{
+		filepath.Join(tmpDir, "a"),
+		filepath.Join(tmpDir, "b"),
+	})
+	assert.Error(t, err)
+}
+
+func TestResolveInstallerPath_SkipsDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	dir := filepath.Join(tmpDir, "candidate-dir")
+	require.NoError(t, os.MkdirAll(dir, 0755))
+	exe := filepath.Join(tmpDir, "candidate-exe")
+	require.NoError(t, os.WriteFile(exe, []byte{}, 0755))
+
+	got, err := resolveInstallerPath([]string{dir, exe})
+	require.NoError(t, err)
+	assert.Equal(t, exe, got)
 }
 
 func TestSystemdServiceManager_Uninstall(t *testing.T) {

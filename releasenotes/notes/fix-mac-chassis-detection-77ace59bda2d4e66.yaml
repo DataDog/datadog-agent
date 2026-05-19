@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix chassis type detection for Mac mini and Mac Pro hosts, which were
+    previously reported as ``Other``.

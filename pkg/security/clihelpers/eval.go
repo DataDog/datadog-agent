@@ -10,6 +10,7 @@ package clihelpers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -223,24 +224,63 @@ func eventFromTestData(testData TestData) (eval.Event, error) {
 	return event, nil
 }
 
+// variableEntry is the new-format entry: a JSON object with a required "value"
+// field plus all eval.VariableOpts fields inlined.
+type variableEntry struct {
+	Value any `json:"value"`
+	eval.VariableOpts
+}
+
+// parseVariableEntry accepts both the old format (a direct value) and the new
+// format (a JSON object with a required "value" field and optional VariableOpts
+// fields).  It returns the unwrapped value and the VariableOpts decoded from
+// the entry.
+func parseVariableEntry(raw any) (any, eval.VariableOpts, error) {
+	opts := eval.VariableOpts{TTL: 10000000}
+
+	if _, ok := raw.(map[string]any); !ok {
+		// Old format: the entry itself is the variable value.
+		return raw, opts, nil
+	}
+
+	// New format: re-encode to JSON then unmarshal into the typed struct so
+	// that all VariableOpts fields are populated in a single, extensible step.
+	data, err := json.Marshal(raw)
+	if err != nil {
+		return nil, opts, fmt.Errorf("failed to marshal variable entry: %w", err)
+	}
+
+	var entry variableEntry
+	entry.VariableOpts = opts // carry the default TTL
+	if err := json.Unmarshal(data, &entry); err != nil {
+		return nil, opts, fmt.Errorf("failed to unmarshal variable entry: %w", err)
+	}
+
+	if entry.Value == nil {
+		return nil, opts, errors.New("variable entry is missing required 'value' field")
+	}
+
+	return entry.Value, entry.VariableOpts, nil
+}
+
 func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, error) {
 	variables := make(map[string]eval.SECLVariable)
 
 	// copy the embedded variables
 	maps.Copy(variables, model.SECLVariables)
 
-	varOpts := eval.VariableOpts{
-		TTL: 10000000,
-	}
-
 	// add the variables from the test data
-	for k, v := range testData.Variables {
+	for k, raw := range testData.Variables {
+		v, varOpts, err := parseVariableEntry(raw)
+		if err != nil {
+			return nil, fmt.Errorf("variable %s: %w", k, err)
+		}
 		switch v := v.(type) {
 		case string:
 			if rules.IsScopeVariable(k) {
 				variables[k] = eval.NewScopedStringVariable(func(_ *eval.Context, _ bool) (string, bool) {
 					return v, true
-				}, nil)
+				}, nil, varOpts)
 			} else {
 				variables[k] = eval.NewStringVariable(v, varOpts)
 			}
@@ -254,7 +294,7 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 				if rules.IsScopeVariable(k) {
 					variables[k] = eval.NewScopedStringArrayVariable(func(_ *eval.Context, _ bool) ([]string, bool) {
 						return values, true
-					}, nil)
+					}, nil, varOpts)
 				} else {
 					variables[k] = eval.NewStringArrayVariable(values, varOpts)
 				}
@@ -271,7 +311,7 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 				if rules.IsScopeVariable(k) {
 					variables[k] = eval.NewScopedIntArrayVariable(func(_ *eval.Context, _ bool) ([]int, bool) {
 						return values, true
-					}, nil)
+					}, nil, varOpts)
 				} else {
 					variables[k] = eval.NewIntArrayVariable(values, varOpts)
 				}
@@ -286,7 +326,7 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 			if rules.IsScopeVariable(k) {
 				variables[k] = eval.NewScopedIntVariable(func(_ *eval.Context, _ bool) (int, bool) {
 					return int(value), true
-				}, nil)
+				}, nil, varOpts)
 			} else {
 				variables[k] = eval.NewIntVariable(int(value), varOpts)
 			}
@@ -294,7 +334,7 @@ func variablesFromTestData(testData TestData) (map[string]eval.SECLVariable, err
 			if rules.IsScopeVariable(k) {
 				variables[k] = eval.NewScopedBoolVariable(func(_ *eval.Context, _ bool) (bool, bool) {
 					return v, true
-				}, nil)
+				}, nil, varOpts)
 			} else {
 				variables[k] = eval.NewBoolVariable(v, varOpts)
 			}

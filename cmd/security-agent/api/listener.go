@@ -6,8 +6,8 @@
 package api
 
 import (
-	"fmt"
 	"net"
+	"strconv"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
@@ -18,5 +18,5 @@ func newListener() (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	return net.Listen("tcp", fmt.Sprintf("%v:%v", address, pkgconfigsetup.Datadog().GetInt("security_agent.cmd_port")))
+	return net.Listen("tcp", net.JoinHostPort(address, strconv.Itoa(pkgconfigsetup.Datadog().GetInt("security_agent.cmd_port"))))
 }

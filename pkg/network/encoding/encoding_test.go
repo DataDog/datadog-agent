@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"runtime"
 	"slices"
 	"sort"
@@ -93,7 +94,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 				LastRetransmits:    201,
 				LastTcpEstablished: 1,
 				LastTcpClosed:      1,
-				Pid:                int32(6000),
+				Pid:                math.MaxInt32,
 				NetNS:              7,
 				IpTranslation: &model.IPTranslation{
 					ReplSrcIP:   "20.1.1.1",
@@ -206,7 +207,7 @@ func TestSerialization(t *testing.T) {
 				{ConnectionTuple: network.ConnectionTuple{
 					Source:    util.AddressFromString("10.1.1.1"),
 					Dest:      util.AddressFromString("10.2.2.2"),
-					Pid:       6000,
+					Pid:       math.MaxInt32,
 					NetNS:     7,
 					SPort:     1000,
 					DPort:     9000,

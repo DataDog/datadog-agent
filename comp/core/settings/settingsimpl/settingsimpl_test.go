@@ -16,7 +16,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -281,8 +280,8 @@ func TestRuntimeSettings(t *testing.T) {
 		{
 			"GetValue",
 			func(t *testing.T, comp settings.Component) {
-				router := mux.NewRouter()
-				router.HandleFunc("/config/{setting}", comp.GetValue).Methods("GET")
+				router := http.NewServeMux()
+				router.HandleFunc("GET /config/{setting}", comp.GetValue)
 				ts := httptest.NewServer(router)
 				defer ts.Close()
 
@@ -332,9 +331,9 @@ func TestRuntimeSettings(t *testing.T) {
 		{
 			"SetValue",
 			func(t *testing.T, comp settings.Component) {
-				router := mux.NewRouter()
-				router.HandleFunc("/config/{setting}", comp.GetValue).Methods("GET")
-				router.HandleFunc("/config/{setting}", comp.SetValue).Methods("POST")
+				router := http.NewServeMux()
+				router.HandleFunc("GET /config/{setting}", comp.GetValue)
+				router.HandleFunc("POST /config/{setting}", comp.SetValue)
 				ts := httptest.NewServer(router)
 				defer ts.Close()
 
@@ -361,6 +360,28 @@ func TestRuntimeSettings(t *testing.T) {
 
 				assert.Equal(t, 200, resp.StatusCode)
 				assert.Equal(t, "{\"value\":{\"Value\":\"fancy\",\"Source\":\"cli\"}}", string(body))
+			},
+		},
+		{
+			"SetValue non-existent setting",
+			func(t *testing.T, comp settings.Component) {
+				router := http.NewServeMux()
+				router.HandleFunc("POST /config/{setting}", comp.SetValue)
+				ts := httptest.NewServer(router)
+				defer ts.Close()
+
+				requestBody := "value=" + html.EscapeString("test")
+				request, err := http.NewRequest("POST", ts.URL+"/config/non_existing", bytes.NewBuffer([]byte(requestBody)))
+				require.NoError(t, err)
+				request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+				resp, err := ts.Client().Do(request)
+				require.NoError(t, err)
+				body, _ := io.ReadAll(resp.Body)
+				resp.Body.Close()
+
+				assert.Equal(t, 400, resp.StatusCode)
+				assert.Contains(t, string(body), "non_existing not found")
 			},
 		},
 	}

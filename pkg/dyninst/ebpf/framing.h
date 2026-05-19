@@ -57,13 +57,32 @@ typedef struct di_event_header {
   // (e.g. nil pointer in the dereference chain). The event is still emitted
   // (condition error treated as pass) but userspace should report the error.
   unsigned char condition_eval_error;
-  char __padding[4];
+
+  // Continuation support for events that exceed the 32KiB scratch buffer.
+  // When an event is split across multiple ringbuf submissions:
+  //   seq=0, flags=0: single-fragment event (legacy, backward compatible)
+  //   seq=0, flags&1: first fragment, more to follow
+  //   seq>0, flags&1: middle fragment
+  //   seq>0, flags=0: final fragment
+  // All fragments share the same (goid, stack_byte_depth, probe_id, ktime_ns).
+  uint16_t continuation_seq;
+  // Bit 0: more fragments follow (1 = not final).
+  unsigned char continuation_flags;
+  char __padding[1];
 
   // Hash of the stack trace that follows this header.
   uint64_t stack_hash;
 
   // The timestamp of the event according to CLOCK_MONOTONIC.
   uint64_t ktime_ns;
+
+  // Invocation ID: for entry events, equals ktime_ns (the entry probe's own
+  // start_ns). For return events, equals the entry probe's ktime_ns (pulled
+  // from in_progress_calls at return time). Continuation fragments inherit
+  // the value from fragment 0. Userspace uses this to correlate entry and
+  // return for a single invocation, and to disambiguate rapid sequential
+  // calls with the same (goid, stack_byte_depth, probe_id).
+  uint64_t entry_ktime_ns;
 }
 // Use aligned attribute to ensure that the size of the structure is a multiple
 // of 8 bytes; the attribute leads to the compiler adding padding.
@@ -89,5 +108,44 @@ typedef struct di_data_item_header {
   // The address of the data item in the user process's address space.
   uint64_t address;
 } __attribute__((aligned(8))) di_data_item_header_t;
+
+// Reasons a drop notification is sent on the side channel. Describe what
+// userspace state a drop affected, not which BPF failure site caused it.
+//
+//  RETURN_LOST    — return-side submit failed with no fragments sent; the
+//                   matching entry sits in userspace's pairing store. Userspace
+//                   should emit the entry alone.
+//  PARTIAL_ENTRY  — entry submit succeeded for fragments [0..last_seq], then
+//                   subsequently failed. Userspace has or will receive exactly
+//                   last_seq+1 entry fragments; treat them as a truncated
+//                   complete entry.
+//  PARTIAL_RETURN — same as PARTIAL_ENTRY, but for the return side.
+typedef enum drop_reason {
+  DROP_REASON_RETURN_LOST    = 1,
+  DROP_REASON_PARTIAL_ENTRY  = 2,
+  DROP_REASON_PARTIAL_RETURN = 3,
+} drop_reason_t;
+
+// Side-channel message published to drop_notify_ringbuf to inform userspace
+// that a drop has affected buffered state for one invocation.
+//
+// Fixed 32-byte layout, kept in sync with ../output/drop_notification_linux.go.
+typedef struct di_drop_notification {
+  uint32_t prog_id;
+  uint32_t probe_id;
+  uint64_t goid;
+  uint32_t stack_byte_depth;
+  // drop_reason_t value; stored as uint8_t for compactness.
+  uint8_t drop_reason;
+  uint8_t __padding[1];
+  // continuation_seq of the last successfully submitted fragment. Ignored
+  // when drop_reason == DROP_REASON_RETURN_LOST (no fragments exist).
+  uint16_t last_seq;
+  // Invocation ID. For return-side drops, the entry's start_ns (pulled from
+  // in_progress_calls). For entry-side drops, the entry's own start_ns. This
+  // matches the entry_ktime_ns field on the main-channel event header so
+  // userspace can correlate notifications with fragments by key.
+  uint64_t entry_ktime_ns;
+} __attribute__((aligned(8))) di_drop_notification_t;
 
 #endif // __FRAMING_H__

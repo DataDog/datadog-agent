@@ -120,14 +120,26 @@ func (v *PodValidator) RequireInjection(t *testing.T, expectedContainers []strin
 	v.injection.RequireInjection(t)
 }
 
-// RequireNoInjection is a high level function that ensures a pod was not injected for SSI.
+// RequireNoInjection is a high level function that ensures a pod was not injected for SSI,
+// including KPI env vars.
 func (v *PodValidator) RequireNoInjection(t *testing.T) {
-	// Validate no container was injected.
+	// Validate no container was injected, including KPI env vars.
 	for _, containerValidator := range v.containers {
 		containerValidator.RequireNoInjection(t)
 	}
 
-	// Delegate mode-specific validation
+	// Delegate mode-specific validation.
+	v.injection.RequireNoInjection(t)
+}
+
+// RequireNoInjectionArtifacts ensures a pod has no SSI injection artifacts.
+func (v *PodValidator) RequireNoInjectionArtifacts(t *testing.T) {
+	// Validate no container has SSI injection artifacts.
+	for _, containerValidator := range v.containers {
+		containerValidator.RequireNoInjectionArtifacts(t)
+	}
+
+	// Delegate mode-specific validation.
 	v.injection.RequireNoInjection(t)
 }
 

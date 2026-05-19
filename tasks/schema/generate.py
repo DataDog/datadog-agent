@@ -8,6 +8,7 @@ import yaml
 from invoke import task
 from invoke.exceptions import Exit
 
+from tasks.libs.build.bazel import bazel
 from tasks.schema.fixes import fix_schema
 from tasks.schema.template_parser import parse_template
 
@@ -25,6 +26,11 @@ def str_presenter(dumper, data):
 
 
 yaml.add_representer(str, str_presenter)
+
+
+@task
+def compress(ctx):
+    bazel(ctx, "run", "//pkg/config/schema:write_compressed")
 
 
 @task

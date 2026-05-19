@@ -1,46 +1,20 @@
-import glob
 import os
 import re
 from pathlib import Path
 
 from invoke import Exit, task
 
-from tasks.libs.build.bazel import BazelTools
+from tasks.libs.build.bazel import BazelTools, bazel
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_unstaged_files, get_untracked_files
 
 PROTO_PKGS = {
-    'model/v1': False,
-    'remoteconfig': False,
-    'api/v1': False,
     'trace': True,
-    'process': False,
-    'workloadmeta': False,
-    'kubemetadata': False,
-    'languagedetection': False,
-    'privateactionrunner': False,
-    'remoteagent': False,
-    'autodiscovery': False,
-    'trace/idx': False,
-    'workloadfilter': False,
-    'dogstatsdhttp': False,
-    'sbom': False,
-}
-
-CLI_EXTRAS = {
-    'trace/idx': '--go_opt=module=github.com/DataDog/datadog-agent',
-    'privateactionrunner': '--go_opt=module=github.com/DataDog/datadog-agent',
-}
-
-CLI_EXTRAS_GRPC = {
-    'trace/idx': '--go-grpc_opt=module=github.com/DataDog/datadog-agent',
-    'privateactionrunner': '--go-grpc_opt=module=github.com/DataDog/datadog-agent',
 }
 
 # maybe put this in a separate function
 PKG_PLUGINS = {
     'trace': '--go-vtproto_out=',
-    'dogstatsdhttp': '--go-vtproto_out=',
 }
 
 PKG_CLI_EXTRAS = {
@@ -69,18 +43,19 @@ def generate(ctx, pre_commit=False):
     proto_root = os.path.join(repo_root, "pkg", "proto")
     protodep_root = os.path.join(proto_root, "protodep")
     pbgo_dir = os.path.join(proto_root, "pbgo")
-    print(f"nuking old definitions at: {proto_root}")
-    file_list = glob.glob(os.path.join(proto_root, "pbgo", "*.pb.go"))
-    for file_path in file_list:
-        try:
-            os.remove(file_path)
-        except OSError:
-            print("Error while deleting file : ", file_path)
 
     with ctx.cd(repo_root):
         # protobuf defs
         print(f"generating protobuf code from: {proto_root}")
-
+        bazel(ctx, "run", "//pkg/proto/pbgo/core:write_pb_go")
+        bazel(ctx, "run", "//pkg/proto/pbgo/dogstatsdhttp:write_pb_go")
+        bazel(ctx, "run", "//pkg/proto/pbgo/languagedetection:write_pb_go")
+        bazel(ctx, "run", "//pkg/proto/pbgo/privateactionrunner/actionsclient:write_pb_go")
+        bazel(ctx, "run", "//pkg/proto/pbgo/privateactionrunner/errorcode:write_pb_go")
+        bazel(ctx, "run", "//pkg/proto/pbgo/privateactionrunner/privateactions:write_pb_go")
+        bazel(ctx, "run", "//pkg/proto/pbgo/process:write_pb_go")
+        bazel(ctx, "run", "//pkg/proto/pbgo/sbom:write_pb_go")
+        bazel(ctx, "run", "//pkg/proto/pbgo/trace/idx:write_pb_go")
         for pkg, inject_tags in PROTO_PKGS.items():
             files = []
             pkg_root = Path(proto_root, "datadog", pkg)
@@ -93,22 +68,13 @@ def generate(ctx, pre_commit=False):
             # Generate Go code with protoc-gen-go and protoc-gen-go-grpc
             # Note: The new protoc-gen-go doesn't support plugins=grpc, so we use separate outputs
             # This generates *.pb.go (messages) and *_grpc.pb.go (gRPC stubs) in a single protoc call
-            cli_extras = ''
-            cli_extras_grpc = ''
-            if pkg in CLI_EXTRAS:
-                cli_extras = CLI_EXTRAS[pkg]
-            if pkg in CLI_EXTRAS_GRPC:
-                cli_extras_grpc = CLI_EXTRAS_GRPC[pkg]
             ctx.run(
-                f"{bt.protoc} {bt.protoc_plugin("protoc-gen-go")} {bt.protoc_plugin("protoc-gen-go-grpc")} -I{proto_root} -I{protodep_root} --go_out={repo_root} {cli_extras} --go-grpc_out={repo_root} {cli_extras_grpc} {targets}"
+                f"{bt.protoc} {bt.protoc_plugin("protoc-gen-go")} {bt.protoc_plugin("protoc-gen-go-grpc")} -I{proto_root} -I{protodep_root} --go_out={repo_root} --go-grpc_out={repo_root} {targets}"
             )
 
             if pkg in PKG_PLUGINS:
                 output_generator = PKG_PLUGINS[pkg]
-
-                if pkg in PKG_CLI_EXTRAS:
-                    cli_extras = PKG_CLI_EXTRAS[pkg]
-
+                cli_extras = PKG_CLI_EXTRAS.get(pkg, '')
                 ctx.run(
                     f"{bt.protoc} {bt.protoc_plugin("protoc-gen-go-vtproto")} -I{proto_root} -I{protodep_root} {output_generator}{repo_root} {cli_extras} {targets}"
                 )
@@ -146,12 +112,23 @@ def generate(ctx, pre_commit=False):
         ],
         'core': [('remoteconfig.pb.go', False)],
     }
+    # Per-file extra directives, keyed by (pkg, src).
+    # stats.pb.go is protoc-generated so the limit directive cannot live in the
+    # file itself; pass it on the command line instead.
+    msgp_file_directives = {
+        ('trace', 'stats.pb.go'): '-d "limit arrays:500000 maps:500000"',
+        ('trace', 'span.pb.go'): '-d "limit arrays:500000 maps:500000"',
+        ('trace', 'tracer_payload.pb.go'): '-d "limit arrays:500000 maps:500000"',
+        ('trace', 'agent_payload.pb.go'): '-d "limit arrays:500000 maps:500000"',
+    }
     for pkg, files in msgp_targets.items():
         for src, io_gen in files:
             dst = os.path.splitext(os.path.basename(src))[0]  # .go
             dst = os.path.splitext(dst)[0]  # .pb
+            extra_flags = msgp_file_directives.get((pkg, src), '')
             ctx.run(
-                f"{bt.msgp} -file {pbgo_dir}/{pkg}/{src} -o={pbgo_dir}/{pkg}/{dst}_gen.go -io={io_gen}", env=bt.go_env
+                f"{bt.msgp} -file {pbgo_dir}/{pkg}/{src} -o={pbgo_dir}/{pkg}/{dst}_gen.go -io={io_gen} {extra_flags}",
+                env=bt.go_env,
             )
 
     # Apply msgp patches
