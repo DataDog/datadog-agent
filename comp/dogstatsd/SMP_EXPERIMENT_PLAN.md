@@ -900,3 +900,53 @@ M2 property: no heap-backed packet-pool backlog. The next ceiling should focus
 on batched compact-ring drains/cursors and/or a no-copy direct-reservation or
 size-class slab variant, while adding oldest-age/lag telemetry so higher ring
 occupancy is interpreted as bounded backlog rather than hidden overload.
+
+## Stage O local result, 2026-05-19
+
+Stage O tested the next ceiling after Stage N's compact byte ring: reduce
+worker-side ring lock traffic by draining and releasing multiple committed raw
+records per notification/cursor pass.
+
+Prototype commit: `dc29e8fff7c`.
+
+Prototype gates:
+
+- `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS_BATCH_DRAIN=true`
+- `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS_BATCH_DRAIN_SIZE=32`
+- compact raw ring still enabled with `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS_COMPACT=true`
+- shared byte budget: `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_LOG_MAX_BYTES=16777216`
+
+Implementation shape:
+
+```text
+worker raw-ring notification
+  -> TryNextBatch(dst[:0])      # one shard lock, up to 32 records
+  -> parse records sequentially # no per-record release
+  -> ReleaseBatch(len(batch))   # one shard lock for release
+```
+
+This keeps Stage N's listener behavior: read into reusable scratch and copy the
+actual datagram bytes into the compact ring on commit. It does not add origin or
+OOB support and has the same raw-mode limitations as Stage N.
+
+Local Stage O results are single-replicate probes (`--replicates 1 --total-samples 150`):
+
+| Comparison | Case | Δ mean | Key read |
+|---|---|---:|---|
+| compact raw UDS ring -> batch-drain compact raw UDS ring | `uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only` | +1.77% | batched worker drains help under high offered load |
+| direct metric rows -> batch-drain compact raw UDS ring | `uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only` | +7.39% | best bounded-ingress high-rate result so far; packet-pool backlog remains zero |
+| compact raw UDS ring -> batch-drain compact raw UDS ring | `uds_dogstatsd_to_api_v3_endpoint_fixed` | +0.18% | standard case is neutral/slightly positive versus Stage N compact |
+| direct metric rows -> batch-drain compact raw UDS ring | `uds_dogstatsd_to_api_v3_endpoint_fixed` | +1.33% | standard corrected-v3 case remains positive versus direct rows |
+
+Selected high-rate direct-vs-batch metrics:
+
+| Variant | Agent UDS MiB/s | processed/s | packet pool avg | ingress ring avg | RSS MiB | heap MiB |
+|---|---:|---:|---:|---:|---:|---:|
+| direct metric rows | 196.70 | 243,054 | 879 | n/a | 172.41 | 72.18 |
+| compact raw ring + batch drain | 211.66 | 261,559 | 0 | 8.29 MiB / 2,249 records | 164.14 | 67.83 |
+
+Decision: worker-side batching is a real but smaller ceiling step than compact
+byte retention. It should remain a candidate if the raw-ring design continues,
+but the next larger ceiling is likely listener-side no-copy storage: a direct
+reservation or size-class/slabbed compact ring that removes the scratch-to-ring
+copy while preserving bounded backpressure and adding oldest-age/lag telemetry.
