@@ -7,22 +7,28 @@ package jmxlogger
 
 // Params defines the parameters for the JMX logger.
 type Params struct {
-	FromCLI bool
-	LogFile string
+	fromCLI bool
+	logFile string
 }
 
 // NewCliParams creates a new Params for CLI usage.
 func NewCliParams(logFile string) Params {
 	return Params{
-		FromCLI: true,
-		LogFile: logFile,
+		fromCLI: true,
+		logFile: logFile,
 	}
 }
 
 // NewDefaultParams creates a new Params with default values.
 func NewDefaultParams() Params {
 	return Params{
-		FromCLI: false,
-		LogFile: "",
+		fromCLI: false,
+		logFile: "",
 	}
 }
+
+// IsFromCLI returns true if the logger was created for CLI usage.
+func (p Params) IsFromCLI() bool { return p.fromCLI }
+
+// GetLogFile returns the log file path.
+func (p Params) GetLogFile() string { return p.logFile }

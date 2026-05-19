@@ -47,8 +47,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 	var inner jmxLoggerInterface
 	var err error
 
-	if reqs.Params.FromCLI {
-		inner, err = pkglogsetup.BuildJMXLogger(reqs.Params.LogFile, "", false, true, false, config)
+	if reqs.Params.IsFromCLI() {
+		inner, err = pkglogsetup.BuildJMXLogger(reqs.Params.GetLogFile(), "", false, true, false, config)
 		if err != nil {
 			return Provides{}, fmt.Errorf("Unable to set up JMX logger: %v", err)
 		}
