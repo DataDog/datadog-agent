@@ -321,7 +321,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 
 		if p.realtimeLastProcs != nil {
 			// TODO: deduplicate chunking with RT collection
-			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, p.clock.Now())
+			chunkedStats := fmtProcessStats(p.maxBatchSize, stats, p.realtimeLastProcs, pidToCid, cpuTimes[0], p.realtimeLastCPUTime, p.realtimeLastRun, start)
 			groupSize := len(chunkedStats)
 			chunkedCtrStats := convertAndChunkContainers(containers, groupSize)
 
