@@ -396,7 +396,7 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 			if !dryRun {
 				at.Stats.counts[model.BindEventType].droppedCount[bindFamilyReason].Inc()
 			}
-			return false, errors.New("invalid event: invalid bind family")
+			return false, fmt.Errorf("invalid event: unsupported bind address family %s", model.AddressFamily(event.Bind.AddrFamily))
 		}
 	case model.IMDSEventType:
 		// ignore IMDS answers without AccessKeyIDS
