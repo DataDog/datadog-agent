@@ -870,14 +870,14 @@ func TestAggregateZombiesByParent_NilStats(t *testing.T) {
 	lastRun := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 	now := lastRun.Add(10 * time.Second)
 
+	lastProcs := map[int32]*procutil.Process{
+		100: liveProc(100, 1),
+		201: {Pid: 201, Ppid: 100, Stats: nil}, // previous: nil stats — must not be counted as zombie
+	}
 	procs := map[int32]*procutil.Process{
 		100: liveProc(100, 1),
 		200: {Pid: 200, Ppid: 100, Stats: nil}, // current: nil stats
 		201: zombieProc(201, 100),
-	}
-	lastProcs := map[int32]*procutil.Process{
-		100: liveProc(100, 1),
-		201: {Pid: 201, Ppid: 100, Stats: nil}, // previous: nil stats — must not be counted as zombie
 	}
 
 	p := &ProcessCheck{lastProcs: lastProcs, lastRun: lastRun}
@@ -992,10 +992,10 @@ func TestProcessCheckRunZombieAggregation(t *testing.T) {
 		wmeta.Set(procToWLMProc(z3Poll2))
 	}
 
-	// Force a non-zero interval between polls so netRate calculation is
-	// exercised. 10 seconds gives 1/interval = 0.1 granularity.
+	// Advance the mock clock so the next run() sees a non-zero interval and
+	// netRate is exercised. 10 seconds gives 1/interval = 0.1 granularity.
 	const intervalSec = 10
-	processCheck.lastRun = processCheck.lastRun.Add(-intervalSec * time.Second)
+	processCheck.clock.(*clock.Mock).Add(intervalSec * time.Second)
 
 	// Second poll: zombies must be absent from Payloads(); parent must carry
 	// the aggregated zombie fields.
