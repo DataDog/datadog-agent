@@ -114,7 +114,14 @@ func (b *BufferedMessageReceiver) Filter(filters *Filters, done <-chan struct{})
 		defer close(out)
 		for {
 			select {
-			case msgPair := <-b.inputChan:
+			case msgPair, ok := <-b.inputChan:
+				if !ok {
+					// inputChan was closed (e.g. agent shutdown). Stop the
+					// goroutine instead of formatting the zero-value
+					// messagePair, which would dereference a nil
+					// *message.Message and panic.
+					return
+				}
 				if shouldHandleMessage(&msgPair, filters) {
 					out <- b.formatter.Format(msgPair.msg, msgPair.eventType, msgPair.rendered)
 				}
