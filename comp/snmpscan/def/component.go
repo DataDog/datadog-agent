@@ -35,4 +35,10 @@ type ScanParams struct {
 	// MaxCallCount limits the total number of SNMP calls in a scan.
 	// A value of 0 means there is no limit.
 	MaxCallCount int
+
+	// BulkMaxRepetitions is the starting max-repetitions value for GetBulk
+	// during a device scan. 0 means use the default (10, matching snmpbulkwalk).
+	// The scan halves this value on timeout/failure and recovers toward this
+	// ceiling on success.
+	BulkMaxRepetitions int
 }
