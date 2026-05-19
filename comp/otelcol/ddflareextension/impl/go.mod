@@ -14,7 +14,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/otel v0.74.0-devel.0.20251125141836-2ae7a968751c
 	github.com/DataDog/datadog-agent/pkg/version v0.78.1
 	github.com/google/go-cmp v0.7.0
-	github.com/gorilla/mux v1.8.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.152.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.152.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.152.0
