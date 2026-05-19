@@ -81,14 +81,14 @@ func TestApplySenderTags(t *testing.T) {
 		wantInfraTags []string // nil means AppendInfraTags should not be called
 	}{
 		{
-			name:        "eligible integration appends infra_mode to sender infra tags",
+			name:        "eligible integration appends infrastructure_mode to sender infra tags",
 			integration: "cpu",
 			id:          checkid.ID("cpu:abc"),
 			setupCfg: func(cfg pkgconfigmodel.Config) {
 				cfg.Set("infrastructure_mode", "cloud_cost_only", pkgconfigmodel.SourceFile)
 				cfg.Set("integration.cloud_cost_only.tagged", []string{"cpu"}, pkgconfigmodel.SourceFile)
 			},
-			wantInfraTags: []string{"infra_mode:cloud_cost_only"},
+			wantInfraTags: []string{"infrastructure_mode:cloud_cost_only"},
 		},
 		{
 			name:        "integration not in tagged list leaves infra tags unchanged",

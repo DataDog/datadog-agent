@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// IsTagged reports whether checkName should receive the infra_mode tag for the current config.
+// IsTagged reports whether checkName should receive the infrastructure_mode tag for the current config.
 func IsTagged(checkName string, cfg pkgconfigmodel.Reader) bool {
 	infraMode := cfg.GetString("infrastructure_mode")
 	if infraMode != "cloud_cost_only" {
@@ -32,7 +32,7 @@ func IsTagged(checkName string, cfg pkgconfigmodel.Reader) bool {
 	return slices.Contains(taggedChecks, checkName)
 }
 
-// ApplySenderTags appends infra_mode:<value> to the check sender's infra tags when the
+// ApplySenderTags appends infrastructure_mode:<value> to the check sender's infra tags when the
 // integration is eligible for CCM mode tagging.
 func ApplySenderTags(senderManager sender.SenderManager, id checkid.ID, integrationName string, cfg pkgconfigmodel.Reader) {
 	if !IsTagged(integrationName, cfg) {
@@ -45,7 +45,7 @@ func ApplySenderTags(senderManager sender.SenderManager, id checkid.ID, integrat
 	}
 
 	if infraMode := cfg.GetString("infrastructure_mode"); infraMode == "cloud_cost_only" {
-		ccmTag := "infra_mode:" + infraMode
+		ccmTag := "infrastructure_mode:" + infraMode
 		s.AppendInfraTags([]string{ccmTag})
 	}
 }

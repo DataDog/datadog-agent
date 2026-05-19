@@ -34,7 +34,7 @@ var ec2DefaultCloudCostAllowlistedMetrics = []string{
 }
 
 const (
-	infraModeTag               = "infra_mode:cloud_cost_only"
+	infrastructureModeTag      = "infrastructure_mode:cloud_cost_only"
 	dogstatsdCustomMetric      = "e2e.ccm.dogstatsd.custom"
 	dogstatsdJMXMetric         = "e2e.ccm.jmx.metric"
 	dogstatsdFilterListAllowed = "e2e.ccm.dogstatsd.allowed"
@@ -123,7 +123,7 @@ func (s *ccmModeSuiteBase) assertADPRunningIfEnabled() {
 }
 
 // TestCCMModeLinuxDefaultTagged runs CCM e2e checks with the default empty
-// integration.cloud_cost_only.tagged list (all checks receive infra_mode).
+// integration.cloud_cost_only.tagged list (all checks receive infrastructure_mode).
 func TestCCMModeLinuxDefaultTagged(t *testing.T) {
 	runCCMModeSuite(t, "ccmmode-default-tagged", ccmAgentConfig(nil, nil), &ccmModeDefaultTaggedSuite{}, false)
 }
@@ -291,17 +291,17 @@ func (s *ccmModeCustomAllowlistSuite) sendStatsdGauge(name string, value int) {
 	s.Env().RemoteHost.MustExecute(cmd)
 }
 
-func (s *ccmModeSuiteBase) assertMetricHasInfraModeTag(c *assert.CollectT, metricName, checkName string) {
+func (s *ccmModeSuiteBase) assertMetricHasInfrastructureModeTag(c *assert.CollectT, metricName, checkName string) {
 	metrics, err := s.Env().FakeIntake.Client().FilterMetrics(
 		metricName,
-		client.WithTags[*aggregator.MetricSeries]([]string{infraModeTag}),
+		client.WithTags[*aggregator.MetricSeries]([]string{infrastructureModeTag}),
 		client.WithMetricValueHigherThan(0),
 	)
 	assert.NoError(c, err)
-	assert.NotEmpty(c, metrics, "%s from %s check should be forwarded with %s", metricName, checkName, infraModeTag)
+	assert.NotEmpty(c, metrics, "%s from %s check should be forwarded with %s", metricName, checkName, infrastructureModeTag)
 }
 
-func (s *ccmModeSuiteBase) assertMetricLacksInfraModeTag(c *assert.CollectT, metricName, checkName string) {
+func (s *ccmModeSuiteBase) assertMetricLacksInfrastructureModeTag(c *assert.CollectT, metricName, checkName string) {
 	metrics, err := s.Env().FakeIntake.Client().FilterMetrics(
 		metricName,
 		client.WithMetricValueHigherThan(0),
@@ -309,13 +309,13 @@ func (s *ccmModeSuiteBase) assertMetricLacksInfraModeTag(c *assert.CollectT, met
 	assert.NoError(c, err)
 	assert.NotEmpty(c, metrics, "%s from %s check should be forwarded", metricName, checkName)
 	for _, m := range metrics {
-		assert.NotContains(c, m.GetTags(), infraModeTag, "%s from %s check should not carry %s", metricName, checkName, infraModeTag)
+		assert.NotContains(c, m.GetTags(), infrastructureModeTag, "%s from %s check should not carry %s", metricName, checkName, infrastructureModeTag)
 	}
 }
 
-// TestDefaultTaggedAllChecksReceiveInfraModeTag verifies the default empty tagged list
+// TestDefaultTaggedAllChecksReceiveInfrastructureModeTag verifies the default empty tagged list
 // tags metrics from multiple integrations, including checks outside a typical tagged: [cpu] config.
-func (s *ccmModeDefaultTaggedSuite) TestDefaultTaggedAllChecksReceiveInfraModeTag() {
+func (s *ccmModeDefaultTaggedSuite) TestDefaultTaggedAllChecksReceiveInfrastructureModeTag() {
 	metricsByCheck := []struct {
 		metric string
 		check  string
@@ -327,17 +327,17 @@ func (s *ccmModeDefaultTaggedSuite) TestDefaultTaggedAllChecksReceiveInfraModeTa
 
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		for _, tc := range metricsByCheck {
-			s.assertMetricHasInfraModeTag(c, tc.metric, tc.check)
+			s.assertMetricHasInfrastructureModeTag(c, tc.metric, tc.check)
 		}
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for default-tagged metrics")
 }
 
 // TestConfiguredTaggedAppliesSelectively verifies integration.cloud_cost_only.tagged limits
-// which checks receive infra_mode when the list is non-empty.
+// which checks receive infrastructure_mode when the list is non-empty.
 func (s *ccmModeConfiguredTaggedSuite) TestConfiguredTaggedAppliesSelectively() {
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		s.assertMetricHasInfraModeTag(c, "system.cpu.user", "cpu")
-		s.assertMetricLacksInfraModeTag(c, "system.net.bytes_rcvd", "network")
+		s.assertMetricHasInfrastructureModeTag(c, "system.cpu.user", "cpu")
+		s.assertMetricLacksInfrastructureModeTag(c, "system.net.bytes_rcvd", "network")
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for configured selective tagging")
 }
 
