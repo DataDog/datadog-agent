@@ -223,7 +223,7 @@ func (olr *OverlappedReader) Ioctl(ioControlCode uint32, inBuffer *byte, inBuffe
 	ol.HEvent = windows.Handle(uintptr(ev) | 1)
 
 	err = windows.DeviceIoControl(olr.h, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize, bytesReturned, &ol)
-	if err != nil && err != windows.ERROR_IO_PENDING {
+	if err != nil && !errors.Is(err, windows.ERROR_IO_PENDING) {
 		return err
 	}
 

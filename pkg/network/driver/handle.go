@@ -235,7 +235,7 @@ func (dh *RealDriverHandle) DeviceIoControl(ioControlCode uint32, inBuffer *byte
 	ol.HEvent = windows.Handle(uintptr(ev) | 1)
 
 	err = windows.DeviceIoControl(dh.Handle, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize, bytesReturned, &ol)
-	if err != nil && err != windows.ERROR_IO_PENDING {
+	if err != nil && !errors.Is(err, windows.ERROR_IO_PENDING) {
 		return err
 	}
 
