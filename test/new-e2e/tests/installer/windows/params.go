@@ -45,9 +45,9 @@ func WithExtraEnvVars(envVars map[string]string) Option {
 
 // WithUnsetEnvVars specifies environment variables to remove before running the
 // installer, so the child process sees them as unset rather than set-to-empty.
-// PowerShell 5.1 and pwsh 7 differ on `$env:VAR=''` semantics (delete vs
-// set-to-empty), and `map[string]string` can't represent the unset state, so use
-// this option instead of WithExtraEnvVars with empty-string values.
+// PowerShell 5.1 and pwsh 7 disagree on assigning an empty string to $env:VAR
+// (delete vs set-to-empty), and map[string]string can't represent the unset
+// state, so use this option instead of WithExtraEnvVars with empty values.
 func WithUnsetEnvVars(names ...string) Option {
 	return func(params *Params) error {
 		params.unsetEnvVars = append(params.unsetEnvVars, names...)
