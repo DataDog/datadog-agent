@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "configstreambootstrap",
+    srcs = ["bootstrap.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/configstreambootstrap",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/remoteagent/helper",
+        "//pkg/api/security",
+        "//pkg/api/security/cert",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/flavor",
+        "//pkg/util/log",
+        "@com_github_cenkalti_backoff_v5//:backoff",
+        "@in_yaml_go_yaml_v3//:yaml",
+        "@org_golang_google_grpc//metadata",
+        "@org_golang_google_protobuf//types/known/structpb",
+    ],
+)
+
+go_test(
+    name = "configstreambootstrap_test",
+    srcs = ["bootstrap_test.go"],
+    embed = [":configstreambootstrap"],
+    gotags = ["test"],
+    deps = [
+        "//pkg/api/security",
+        "//pkg/config/setup",
+        "@com_github_stretchr_testify//require",
+    ],
+)
