@@ -60,9 +60,9 @@ var (
 		{Path: ".", Owner: "dd-agent", Group: "dd-agent", Recursive: true},
 	}
 
-	// agentDDOTService are the legacy systemd services that came with the
-	// standalone DDOT package. DDOT execution now converges on dd-procmgrd;
-	// these units remain for backwards compatibility and rollback handling.
+	// agentDDOTService are the legacy systemd services for the standalone
+	// datadog-agent-ddot package. Extension DDOT is owned by dd-procmgr when
+	// gated; these units remain for standalone package install and rollback.
 	agentDDOTService = datadogAgentService{
 		SystemdMainUnitStable: "datadog-agent-ddot.service",
 		SystemdMainUnitExp:    "datadog-agent-ddot-exp.service",
@@ -151,8 +151,11 @@ func postInstallDatadogAgentDDOTOCI(ctx HookContext) (err error) {
 	if err := systemd.Reload(ctx); err != nil {
 		return fmt.Errorf("failed to reload systemd: %s", err)
 	}
-	if err := syncDDOTProcmgrAfterStandalonePackageInstall(ctx); err != nil {
-		return fmt.Errorf("failed to sync ddot process manager config: %w", err)
+	if err := agentDDOTService.EnableStable(ctx); err != nil {
+		return fmt.Errorf("failed to install stable unit: %s", err)
+	}
+	if err := agentDDOTService.RestartStable(ctx); err != nil {
+		return fmt.Errorf("failed to restart stable unit: %s", err)
 	}
 
 	return nil
@@ -191,8 +194,8 @@ func postInstallDatadogAgentDDOTDEBRPM(ctx HookContext) (err error) {
 	if err := systemd.Reload(ctx); err != nil {
 		return fmt.Errorf("failed to reload systemd: %s", err)
 	}
-	if err := syncDDOTProcmgrAfterStandalonePackageInstall(ctx); err != nil {
-		return fmt.Errorf("failed to sync ddot process manager config: %w", err)
+	if err := agentDDOTService.EnableStable(ctx); err != nil {
+		return fmt.Errorf("failed to install stable unit: %s", err)
 	}
 
 	return nil
@@ -201,13 +204,6 @@ func postInstallDatadogAgentDDOTDEBRPM(ctx HookContext) (err error) {
 // preRemoveDatadogAgentDDOT performs pre-removal steps for the DDOT package
 // All the steps are allowed to fail
 func preRemoveDatadogAgentDDOT(ctx HookContext) error {
-	if err := syncDDOTProcmgrStop(ctx, true); err != nil {
-		log.Warnf("failed to remove DDOT procmgr stable config: %s", err)
-	}
-	if err := syncDDOTProcmgrStop(ctx, false); err != nil {
-		log.Warnf("failed to remove DDOT procmgr experiment config: %s", err)
-	}
-
 	err := agentDDOTService.StopExperiment(ctx)
 	if err != nil {
 		log.Warnf("failed to stop experiment unit: %s", err)
@@ -306,7 +302,7 @@ func procmgrOwnsDDOT(ctx HookContext, stable bool) bool {
 
 // applyDDOTProcmgrProcessesYAML updates processes.d for DDOT only (no systemd
 // restart). Removes the YAML when procmgr does not own DDOT; otherwise writes it.
-func applyDDOTProcmgrProcessesYAML(ctx HookContext, stable, standalone bool) (ownsDDOT bool, err error) {
+func applyDDOTProcmgrProcessesYAML(ctx HookContext, stable bool) (ownsDDOT bool, err error) {
 	if service.BaseServiceManagerType() != service.SystemdType {
 		return false, nil
 	}
@@ -321,7 +317,7 @@ func applyDDOTProcmgrProcessesYAML(ctx HookContext, stable, standalone bool) (ow
 		log.Errorf("failed to check if ambient capabilities are supported: %v", aerr)
 		ambientCapabilitiesSupported = false
 	}
-	raw, err := embedded.GetDDOTProcessConfig(ddotEmbeddedUnitType(ctx), stable, ambientCapabilitiesSupported, standalone)
+	raw, err := embedded.GetDDOTProcessConfig(ddotEmbeddedUnitType(ctx), stable, ambientCapabilitiesSupported)
 	if err != nil {
 		return true, fmt.Errorf("ddot procmgr yaml: %w", err)
 	}
@@ -333,8 +329,8 @@ func applyDDOTProcmgrProcessesYAML(ctx HookContext, stable, standalone bool) (ow
 
 // syncDDOTProcmgrState applies DDOT processes.d YAML then restarts the matching
 // dd-procmgrd unit so the daemon reloads configuration.
-func syncDDOTProcmgrState(ctx HookContext, stable, standalone bool) (bool, error) {
-	ownsDDOT, err := applyDDOTProcmgrProcessesYAML(ctx, stable, standalone)
+func syncDDOTProcmgrState(ctx HookContext, stable bool) (bool, error) {
+	ownsDDOT, err := applyDDOTProcmgrProcessesYAML(ctx, stable)
 	if err != nil {
 		return false, err
 	}
@@ -384,51 +380,6 @@ func removeProcmgrDDOTMarker() {
 	_ = os.Remove(procmgr.DDOTMarkerPath)
 }
 
-// ddotProcmgrYAMLBodyUsesStandaloneOCIPackage reports whether existing DDOT
-// procmgr YAML targets the standalone datadog-agent-ddot OCI package paths.
-// Only the command and condition_path_exists entries are inspected so we do
-// not match unrelated lines (env, comments) if the path appears elsewhere.
-func ddotProcmgrYAMLBodyUsesStandaloneOCIPackage(data []byte) bool {
-	const marker = "datadog-packages/datadog-agent-ddot/"
-	for _, raw := range strings.Split(string(data), "\n") {
-		line := strings.TrimSpace(raw)
-		if !strings.HasPrefix(line, "command:") && !strings.HasPrefix(line, "condition_path_exists:") {
-			continue
-		}
-		if strings.Contains(line, marker) {
-			return true
-		}
-	}
-	return false
-}
-
-// ociUseStandaloneDDOTLayoutAfterAgentPromote picks standalone=true for apply after
-// repository.PromoteExperiment (stable symlink already repointed). Prefer YAML
-// on stable or experiment processes.d; if neither file exists (e.g. cleanup removed
-// the old stable tree), fall back to the standalone OCI package layout.
-func ociUseStandaloneDDOTLayoutAfterAgentPromote() bool {
-	dirs := []string{
-		filepath.Join(paths.PackagesPath, "datadog-agent", "stable", "processes.d"),
-		filepath.Join(paths.PackagesPath, "datadog-agent", "experiment", "processes.d"),
-	}
-	foundYAML := false
-	for _, dir := range dirs {
-		data, err := os.ReadFile(filepath.Join(dir, ddotProcmgrYAMLName))
-		if err != nil {
-			continue
-		}
-		foundYAML = true
-		if ddotProcmgrYAMLBodyUsesStandaloneOCIPackage(data) {
-			return true
-		}
-	}
-	if foundYAML {
-		return false
-	}
-	_, err := os.Stat(filepath.Join(paths.PackagesPath, "datadog-agent-ddot", "stable"))
-	return err == nil
-}
-
 // syncDDOTProcmgrAfterAgentPromotion refreshes stable DDOT YAML in processes.d
 // after OCI promote (YAML only—stable agent may still be down). If stable and
 // experiment package paths differ, also removes experiment DDOT YAML and restarts
@@ -446,8 +397,7 @@ func syncDDOTProcmgrAfterAgentPromotion(ctx HookContext) error {
 	}
 	stableCtx := ctx
 	stableCtx.PackagePath = stableOCI
-	standalone := ociUseStandaloneDDOTLayoutAfterAgentPromote()
-	if _, err := applyDDOTProcmgrProcessesYAML(stableCtx, true, standalone); err != nil {
+	if _, err := applyDDOTProcmgrProcessesYAML(stableCtx, true); err != nil {
 		return err
 	}
 	equiv, err := ociAgentStableAndExperimentProcessesDirsEquivalent()
@@ -473,42 +423,14 @@ func syncDDOTProcmgrAfterExtension(ctx HookContext) error {
 	switch ctx.PackageType {
 	case PackageTypeOCI:
 		stable := filepath.Base(ctx.PackagePath) != "experiment"
-		_, err := syncDDOTProcmgrState(ctx, stable, false)
+		_, err := syncDDOTProcmgrState(ctx, stable)
 		return err
 	case PackageTypeDEB, PackageTypeRPM:
-		_, err := syncDDOTProcmgrState(ctx, true, false)
+		_, err := syncDDOTProcmgrState(ctx, true)
 		return err
 	default:
 		return nil
 	}
-}
-
-func syncDDOTProcmgrAfterStandalonePackageInstall(ctx HookContext) error {
-	if err := writeProcmgrDDOTEnabledMarkerIfSystemd(ctx); err != nil {
-		return err
-	}
-	ownsDDOT, err := syncDDOTProcmgrState(ctx, true, true)
-	if err != nil {
-		return err
-	}
-	if !ownsDDOT {
-		// Keep systemd ownership when procmgr path is not active.
-		if err := agentDDOTService.EnableStable(ctx); err != nil {
-			return fmt.Errorf("failed to enable legacy ddot systemd unit: %w", err)
-		}
-		if err := agentDDOTService.RestartStable(ctx); err != nil {
-			return fmt.Errorf("failed to restart legacy ddot systemd unit: %w", err)
-		}
-		return nil
-	}
-	// Ensure convergence on process manager ownership.
-	if err := agentDDOTService.StopStable(ctx); err != nil {
-		log.Warnf("failed to stop legacy ddot systemd unit: %s", err)
-	}
-	if err := agentDDOTService.DisableStable(ctx); err != nil {
-		log.Warnf("failed to disable legacy ddot systemd unit: %s", err)
-	}
-	return nil
 }
 
 // removeDDOTExtensionProcmgrYAML drops DDOT process definitions from processes.d
