@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
+
+go_library(
+    name = "configsender_lib",
+    srcs = [
+        "content_type.go",
+        "envelope.go",
+        "main.go",
+        "redact.go",
+        "sender.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/discovery/tools/configsender",
+    visibility = ["//visibility:private"],
+)
+
+go_binary(
+    name = "configsender",
+    embed = [":configsender_lib"],
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "configsender_test",
+    srcs = [
+        "content_type_test.go",
+        "envelope_test.go",
+        "redact_test.go",
+    ],
+    embed = [":configsender_lib"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
