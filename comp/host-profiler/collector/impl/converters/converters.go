@@ -28,6 +28,11 @@ func NewFactoryWithoutAgent() confmap.ConverterFactory {
 
 type confMap = map[string]any
 
+// AutoConfiguredID is the OTEL component name suffix used for all components
+// that are automatically injected by the host profiler (as opposed to components
+// explicitly declared by the user).
+const AutoConfiguredID = "dd-autoconfigured"
+
 // Component type names for OTEL configuration
 const (
 	componentTypeInfraAttributes     = "infraattributes"
@@ -41,9 +46,9 @@ const (
 
 // Default component names
 const (
-	defaultInfraAttributesName     = "infraattributes/default"
-	defaultResourceDetectionName   = "resourcedetection/default"
-	defaultDDHostNameProcessorName = "ddhostname/default"
+	defaultInfraAttributesName     = componentTypeInfraAttributes + "/" + AutoConfiguredID
+	defaultResourceDetectionName   = componentTypeResourceDetection + "/" + AutoConfiguredID
+	defaultDDHostNameProcessorName = componentTypeDDHostNameProcessor + "/" + AutoConfiguredID
 	defaultProfilingName           = "profiling"
 )
 

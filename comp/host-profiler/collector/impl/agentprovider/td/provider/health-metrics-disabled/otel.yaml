@@ -7,10 +7,10 @@ exporters:
             dd-evp-origin: host-profiler-bundled
             dd-evp-origin-version: 7.0.0-test
 extensions:
-    hpflare/default:
+    hpflare:
         endpoint: localhost:7778
 processors:
-    infraattributes/default:
+    infraattributes:
         allow_hostname_override: true
         cardinality: 2
     resource/dd-profiler-internal-metadata:
@@ -30,13 +30,13 @@ receivers:
                   site: datadoghq.com
 service:
     extensions:
-        - hpflare/default
+        - hpflare
     pipelines:
         profiles:
             exporters:
                 - otlp_http/datadoghq.com_0
             processors:
-                - infraattributes/default
+                - infraattributes
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - profiling

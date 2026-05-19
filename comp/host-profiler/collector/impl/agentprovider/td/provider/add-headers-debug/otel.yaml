@@ -10,7 +10,7 @@ exporters:
             dd-evp-origin-version: 7.0.0-test
             x-datadog-profiling-metadata: workspace:peterg17
 extensions:
-    hpflare/default:
+    hpflare:
         endpoint: localhost:7778
 processors:
     cumulativetodelta: {}
@@ -22,7 +22,7 @@ processors:
                     - ^scrape_.*$
                     - ^up$
                     - ^promhttp_metric_handler_errors_total$
-    infraattributes/default:
+    infraattributes:
         allow_hostname_override: true
         cardinality: 2
     resource/dd-profiler-internal-metadata:
@@ -55,7 +55,7 @@ receivers:
                         - 127.0.0.1:8889
 service:
     extensions:
-        - hpflare/default
+        - hpflare
     pipelines:
         metrics:
             exporters:
@@ -64,7 +64,7 @@ service:
             processors:
                 - filter
                 - cumulativetodelta
-                - infraattributes/default
+                - infraattributes
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - prometheus
@@ -73,7 +73,7 @@ service:
                 - otlp_http/datadoghq.com_0
                 - debug
             processors:
-                - infraattributes/default
+                - infraattributes
                 - resource/dd-profiler-internal-metadata
             receivers:
                 - profiling
