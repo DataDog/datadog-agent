@@ -81,6 +81,12 @@ func newConfig(deps dependencies) (*cfg, error) {
 	config := pkgconfigsetup.GlobalConfigBuilder()
 	warnings := &pkgconfigmodel.Warnings{}
 
+	if deps.Params.isConfigstreamEnabled {
+		// Snapshot already in the global builder; skip disk load to avoid
+		// clobbering streamed values via same-source last-write-wins.
+		return &cfg{Config: config, warnings: warnings}, nil
+	}
+
 	err := setupConfig(config, deps.Secret, deps.DelegatedAuth, deps.Params)
 	returnErrFct := func(e error) (*cfg, error) {
 		if e != nil && deps.Params.ignoreErrors {

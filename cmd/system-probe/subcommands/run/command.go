@@ -16,16 +16,13 @@ import (
 	"os"
 	"os/signal"
 	"os/user"
-	"path/filepath"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
-	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
@@ -79,6 +76,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/configstreambootstrap"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
@@ -104,8 +102,7 @@ type spLiteExecCmd struct {
 // configPrefix is the system-probe config namespace (avoids importing pkg/system-probe/config and its setup dependency cycle).
 const configPrefix = "system_probe_config."
 
-// configstreamConsumerEnabledEnvVar is the environment variable that controls whether the configstream consumer is enabled.
-const configstreamConsumerEnabledEnvVar = "DD_REMOTE_AGENT_CONFIGSTREAM_CONSUMER_ENABLED"
+const systemProbeBootstrapClient = "system-probe"
 
 type cliParams struct {
 	*command.GlobalParams
@@ -126,16 +123,38 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Run the System Probe",
 		Long:  `Runs the system-probe in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
+			cfgstream := configstreambootstrap.IsEnabled(globalParams.DatadogConfFilePath(), os.LookupEnv)
+			var configParams config.Params
+			if cfgstream {
+				err := configstreambootstrap.Run(context.Background(), configstreambootstrap.Params{
+					ClientName:    systemProbeBootstrapClient,
+					CLIConfigPath: globalParams.DatadogConfFilePath(),
+					LookupEnv:     os.LookupEnv,
+				})
+				if err != nil {
+					return err
+				}
+				// NewParams instead of NewAgentParams: avoids a second InitConfigObjects
+				// that would wipe the snapshot the bootstrap just seeded.
+				configParams = config.NewParams(
+					config.DefaultConfPath,
+					config.WithConfFilePath(globalParams.DatadogConfFilePath()),
+					config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
+					config.WithConfigstreamEnabled(true),
+				)
+			} else {
+				configParams = config.NewAgentParams(globalParams.DatadogConfFilePath())
+			}
 			opts := []fx.Option{
 				fx.Invoke(func(_ log.Component) {
 					ddruntime.SetMaxProcs()
 				}),
-				fx.Supply(config.NewAgentParams(globalParams.DatadogConfFilePath())),
+				fx.Supply(configParams),
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))),
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 				getSharedFxOption(),
 			}
-			if isConfigstreamEnabled(globalParams.DatadogConfFilePath()) {
+			if cfgstream {
 				opts = append(opts, configstreamFxOptions())
 			}
 			return fxutil.OneShot(run, opts...)
@@ -245,41 +264,6 @@ func configstreamFxOptions() fx.Option {
 		// Trigger instantiation; OnStart handles the blocking wait internally.
 		fx.Invoke(func(_ configstreamconsumer.Component) {}),
 	)
-}
-
-// isConfigstreamEnabled is a pre-FX feature flag check; the env var takes precedence over YAML.
-func isConfigstreamEnabled(cliConfigPath string) bool {
-	if v, ok := os.LookupEnv(configstreamConsumerEnabledEnvVar); ok {
-		if enabled, err := strconv.ParseBool(v); err == nil {
-			return enabled
-		}
-	}
-	for _, path := range []string{cliConfigPath, config.DefaultConfPath} {
-		if path == "" {
-			continue
-		}
-		if !strings.HasSuffix(path, ".yaml") && !strings.HasSuffix(path, ".yml") {
-			path = filepath.Join(path, "datadog.yaml")
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		var cfg struct {
-			RemoteAgent struct {
-				ConfigStream struct {
-					Consumer struct {
-						Enabled bool `yaml:"enabled"`
-					} `yaml:"consumer"`
-				} `yaml:"configstream"`
-			} `yaml:"remote_agent"`
-		}
-		if err := yaml.Unmarshal(data, &cfg); err != nil {
-			return false
-		}
-		return cfg.RemoteAgent.ConfigStream.Consumer.Enabled
-	}
-	return false
 }
 
 // run starts the main loop.
