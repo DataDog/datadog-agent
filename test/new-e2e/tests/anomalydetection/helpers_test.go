@@ -36,7 +36,7 @@ const (
 // provisioned environment without depending on a concrete suite type.
 type observerTestSuite interface {
 	T() *testing.T
-	EventuallyWithT(condition func(*assert.CollectT), waitFor, tick time.Duration, msgAndArgs ...interface{}) bool
+	EventuallyWithT(condition func(*assert.CollectT), waitFor, tick time.Duration, msgAndArgs ...any) bool
 	Env() *environments.Host
 }
 
@@ -72,7 +72,9 @@ func waitForAgentStartup(s observerTestSuite) {
 func dumpObserverLines(t *testing.T, env *environments.Host) {
 	t.Helper()
 	out, err := env.RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager -n 10000 | grep -F '[observer]' || true")
-	if err == nil {
-		t.Logf("observer lines:\n%s", out)
+	if err != nil {
+		t.Logf("warning: could not retrieve observer journal lines: %v", err)
+		return
 	}
+	t.Logf("observer lines:\n%s", out)
 }

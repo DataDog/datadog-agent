@@ -6,6 +6,7 @@
 package anomalydetection
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -25,7 +26,7 @@ type disabledByDefaultSuite struct {
 }
 
 // TestAnomalyDetectionDisabledByDefault runs the agent with a stock config and
-// asserts that no [observer] log lines are emitted.
+// asserts that the observer analysis pipeline is not active.
 func TestAnomalyDetectionDisabledByDefault(t *testing.T) {
 	e2e.Run(t, &disabledByDefaultSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
@@ -34,8 +35,13 @@ func TestAnomalyDetectionDisabledByDefault(t *testing.T) {
 	), e2e.WithStackName("anomalydetection-disabled-default"))
 }
 
-// TestObserverSilentWithDefaultConfig asserts no [observer] lines appear in
-// agent.log after the agent fully starts with default configuration.
+// TestObserverSilentWithDefaultConfig asserts the observer analysis pipeline is
+// not wired when anomaly_detection is not configured.
+//
+// Note: some [observer] lines (e.g. "[observer] getting handle for system-checks-hf")
+// may appear because the HFRunner calls GetHandle unconditionally even on the noop
+// path. The meaningful signal is observerReadyMarker — the "all-metrics" handle that
+// the aggregator creates only when the full analysis pipeline is active.
 func (s *disabledByDefaultSuite) TestObserverSilentWithDefaultConfig() {
 	waitForAgentStartup(s)
 
@@ -44,6 +50,19 @@ func (s *disabledByDefaultSuite) TestObserverSilentWithDefaultConfig() {
 
 	out, err := s.Env().RemoteHost.ReadFilePrivileged("/var/log/datadog/agent.log")
 	assert.NoError(s.T(), err, "reading agent.log for observer check")
-	assert.NotContains(s.T(), string(out), "[observer]",
-		"[observer] lines must not appear in agent.log when anomaly_detection is not configured")
+	agentLog := string(out)
+
+	// Collect any [observer] lines as evidence for the failure message.
+	// The match uses "[observer" (no closing bracket) to catch all observer-prefixed
+	// tags including [observer/hfrunner], [observer/engine], etc.
+	var culprits []string
+	for _, line := range strings.Split(agentLog, "\n") {
+		if strings.Contains(line, "[observer") {
+			culprits = append(culprits, line)
+		}
+	}
+
+	assert.NotContains(s.T(), agentLog, observerReadyMarker,
+		"observer analysis pipeline must not start with default config; [observer] lines found:\n%s",
+		strings.Join(culprits, "\n"))
 }

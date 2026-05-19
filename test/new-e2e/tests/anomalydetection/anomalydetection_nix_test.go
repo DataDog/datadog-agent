@@ -85,11 +85,18 @@ func (s *stdoutReporterSuite) TestStdoutReporterEmitsOnDSDSpike() {
 	waitForObserverReady(s)
 
 	// Send baseline and spike in a goroutine so EventuallyWithT can poll concurrently.
-	// The done channel drains the goroutine before the test returns, preventing
-	// s.T().Log calls after the test has finished (which would panic).
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// The deferred cancel+drain guarantees the goroutine exits before the test frame
+	// tears down, preventing s.T().Log calls after the test has finished (which panic).
+	// A Ticker is used instead of time.After so timers are not leaked when the context
+	// is cancelled mid-loop.
+	ctx, cancel := context.WithCancel(s.T().Context())
+	ticker := time.NewTicker(time.Second)
 	done := make(chan struct{})
+	defer func() {
+		cancel()
+		<-done
+		ticker.Stop()
+	}()
 	go func() {
 		defer close(done)
 		s.T().Logf("sending %d baseline points (value=%.0f)...", baselinePoints, baseline)
@@ -106,7 +113,7 @@ func (s *stdoutReporterSuite) TestStdoutReporterEmitsOnDSDSpike() {
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(time.Second):
+			case <-ticker.C:
 			}
 		}
 		s.T().Logf("sending %d spike points (value=%.0f)...", spikePoints, spike)
@@ -123,7 +130,7 @@ func (s *stdoutReporterSuite) TestStdoutReporterEmitsOnDSDSpike() {
 			select {
 			case <-ctx.Done():
 				return
-			case <-time.After(time.Second):
+			case <-ticker.C:
 			}
 		}
 		s.T().Log("done sending metrics")
@@ -135,9 +142,6 @@ func (s *stdoutReporterSuite) TestStdoutReporterEmitsOnDSDSpike() {
 		assert.NoError(c, err, "journalctl execution failed")
 		assert.Contains(c, out, observerReportMarker, "journald should contain stdout reporter marker")
 	}, 5*time.Minute, 5*time.Second)
-
-	cancel()
-	<-done
 
 	dumpObserverLines(s.T(), s.Env())
 	s.T().Log("reporter marker found")

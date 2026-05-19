@@ -39,7 +39,7 @@ type configMatrixSuite struct {
 // TestObserverConfigMatrix_MasterOff verifies the observer is silent when
 // anomaly_detection.enabled is not set (covered also by defaults_nix_test.go,
 // but repeated here to anchor it in the matrix).
-func TestObserverConfigMatrix_MasterOff(t *testing.T) {
+func TestObserverConfigMatrixMasterOff(t *testing.T) {
 	e2e.Run(t, &configMatrixSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(scenec2.WithAgentOptions()),
@@ -53,15 +53,15 @@ func (s *configMatrixSuite) TestMasterOffNoObserverLines() {
 
 	out, err := s.Env().RemoteHost.ReadFilePrivileged("/var/log/datadog/agent.log")
 	assert.NoError(s.T(), err, "reading agent.log")
-	assert.NotContains(s.T(), string(out), "[observer]",
-		"no [observer] lines expected when anomaly_detection.enabled is not set")
+	assert.NotContains(s.T(), string(out), observerReadyMarker,
+		"observer analysis pipeline must not start with default config")
 }
 
 // --- Case 2: master=on, metrics=off, logs=off ----------------------------
 
 // TestObserverConfigMatrix_MasterOnBothOff verifies the observer starts but
 // emits the deterministic metrics-disabled warning and no agent-logs handle.
-func TestObserverConfigMatrix_MasterOnBothOff(t *testing.T) {
+func TestObserverConfigMatrixMasterOnBothOff(t *testing.T) {
 	// language=yaml
 	agentConfig := `
 log_level: debug
@@ -98,7 +98,7 @@ func (s *configMatrixSuite) TestMasterOnBothOffWarningPresent() {
 
 // TestObserverConfigMatrix_MetricsOnLogsOff verifies the metrics path is active
 // (observer ready marker) and the agent-logs tap is not installed.
-func TestObserverConfigMatrix_MetricsOnLogsOff(t *testing.T) {
+func TestObserverConfigMatrixMetricsOnLogsOff(t *testing.T) {
 	// language=yaml
 	agentConfig := `
 log_level: debug
@@ -134,7 +134,7 @@ func (s *configMatrixSuite) TestMetricsOnLogsOffPaths() {
 
 // TestObserverConfigMatrix_MetricsOffLogsOn verifies the log path is active and
 // the metrics-disabled warning appears.
-func TestObserverConfigMatrix_MetricsOffLogsOn(t *testing.T) {
+func TestObserverConfigMatrixMetricsOffLogsOn(t *testing.T) {
 	// language=yaml
 	agentConfig := `
 log_level: debug
@@ -169,7 +169,7 @@ func (s *configMatrixSuite) TestMetricsOffLogsOnPaths() {
 
 // TestObserverConfigMatrix_AllGatesOn verifies both the metrics and log paths
 // are active simultaneously with no disabled warnings.
-func TestObserverConfigMatrix_AllGatesOn(t *testing.T) {
+func TestObserverConfigMatrixAllGatesOn(t *testing.T) {
 	// language=yaml
 	agentConfig := `
 log_level: debug
