@@ -121,7 +121,7 @@ func mustRenderYAMLConfig(name string, data systemdTemplateData) []byte {
 	return mustRenderTemplate(name+".tmpl", data, false)
 }
 
-func systemdUnits(stableData, expData systemdTemplateData, ambiantCapabilitiesSupported, withDDOTProcessYAML bool) map[string][]byte {
+func systemdUnits(stableData, expData systemdTemplateData, ambiantCapabilitiesSupported, withDDOTProcessYAML bool, standaloneStable, standaloneExp systemdTemplateData) map[string][]byte {
 	units := map[string][]byte{
 		"datadog-agent.service":                mustReadSystemdUnit("datadog-agent.service", stableData, ambiantCapabilitiesSupported),
 		"datadog-agent-exp.service":            mustReadSystemdUnit("datadog-agent.service", expData, ambiantCapabilitiesSupported),
@@ -143,6 +143,10 @@ func systemdUnits(stableData, expData systemdTemplateData, ambiantCapabilitiesSu
 		"datadog-agent-action-exp.service":     mustReadSystemdUnit("datadog-agent-action.service", expData, ambiantCapabilitiesSupported),
 		"datadog-agent-procmgr.service":        mustReadSystemdUnit("datadog-agent-procmgr.service", stableData, ambiantCapabilitiesSupported),
 		"datadog-agent-procmgr-exp.service":    mustReadSystemdUnit("datadog-agent-procmgr.service", expData, ambiantCapabilitiesSupported),
+		// Standalone datadog-agent-ddot package (embedded/bin, no ext/ddot; OCI uses datadog-agent-ddot paths).
+		// Filenames use "-sa-" (not "standalone") to satisfy repo max-path checks under tmpl/gen/*-nocap/.
+		"datadog-agent-ddot-sa.yaml":     mustRenderYAMLConfig("datadog-agent-ddot-sa.yaml", standaloneStable),
+		"datadog-agent-ddot-sa-exp.yaml": mustRenderYAMLConfig("datadog-agent-ddot-sa.yaml", standaloneExp),
 	}
 	if withDDOTProcessYAML {
 		units["datadog-agent-ddot.yaml"] = mustRenderYAMLConfig("datadog-agent-ddot.yaml", stableData)
@@ -182,9 +186,23 @@ var (
 		Stable:           false,
 	}
 
-	systemdUnitsOCI    = systemdUnits(stableDataOCI, expDataOCI, true, true)
-	systemdUnitsDebRpm = systemdUnits(stableDataDebRpm, expDataDebRpm, true, true)
+	stableDataStandaloneOCI = systemdTemplateData{
+		InstallDir:       "/opt/datadog-packages/datadog-agent-ddot/stable",
+		EtcDir:           "/etc/datadog-agent",
+		FleetPoliciesDir: "/etc/datadog-agent/managed/datadog-agent/stable",
+		PIDDir:           "/opt/datadog-packages/datadog-agent-ddot/stable",
+		Stable:           true,
+	}
+	expDataStandaloneOCI = systemdTemplateData{
+		InstallDir:       "/opt/datadog-packages/datadog-agent-ddot/experiment",
+		EtcDir:           "/etc/datadog-agent-exp",
+		FleetPoliciesDir: "/etc/datadog-agent-exp/managed/datadog-agent/stable",
+		PIDDir:           "/opt/datadog-packages/datadog-agent-ddot/experiment",
+		Stable:           false,
+	}
 
-	systemdUnitsOCILegacyKernel    = systemdUnits(stableDataOCI, expDataOCI, false, true)
-	systemdUnitsDebRpmLegacyKernel = systemdUnits(stableDataDebRpm, expDataDebRpm, false, true)
+	systemdUnitsOCI                = systemdUnits(stableDataOCI, expDataOCI, true, true, stableDataStandaloneOCI, expDataStandaloneOCI)
+	systemdUnitsDebRpm             = systemdUnits(stableDataDebRpm, expDataDebRpm, true, false, stableDataDebRpm, expDataDebRpm)
+	systemdUnitsOCILegacyKernel    = systemdUnits(stableDataOCI, expDataOCI, false, true, stableDataStandaloneOCI, expDataStandaloneOCI)
+	systemdUnitsDebRpmLegacyKernel = systemdUnits(stableDataDebRpm, expDataDebRpm, false, false, stableDataDebRpm, expDataDebRpm)
 )

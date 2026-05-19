@@ -8,6 +8,7 @@ package embedded
 
 import (
 	"embed"
+	"fmt"
 	"path/filepath"
 )
 
@@ -32,16 +33,27 @@ var systemdUnits embed.FS
 
 //go:embed tmpl/gen/debrpm/datadog-agent-ddot.yaml
 //go:embed tmpl/gen/debrpm/datadog-agent-ddot-exp.yaml
+//go:embed tmpl/gen/debrpm/datadog-agent-ddot-sa.yaml
+//go:embed tmpl/gen/debrpm/datadog-agent-ddot-sa-exp.yaml
 //go:embed tmpl/gen/debrpm-nocap/datadog-agent-ddot.yaml
 //go:embed tmpl/gen/debrpm-nocap/datadog-agent-ddot-exp.yaml
+//go:embed tmpl/gen/debrpm-nocap/datadog-agent-ddot-sa.yaml
+//go:embed tmpl/gen/debrpm-nocap/datadog-agent-ddot-sa-exp.yaml
 //go:embed tmpl/gen/oci/datadog-agent-ddot.yaml
 //go:embed tmpl/gen/oci/datadog-agent-ddot-exp.yaml
+//go:embed tmpl/gen/oci/datadog-agent-ddot-sa.yaml
+//go:embed tmpl/gen/oci/datadog-agent-ddot-sa-exp.yaml
 //go:embed tmpl/gen/oci-nocap/datadog-agent-ddot.yaml
 //go:embed tmpl/gen/oci-nocap/datadog-agent-ddot-exp.yaml
+//go:embed tmpl/gen/oci-nocap/datadog-agent-ddot-sa.yaml
+//go:embed tmpl/gen/oci-nocap/datadog-agent-ddot-sa-exp.yaml
 var ddotProcessYAML embed.FS
 
-// GetDDOTProcessConfig returns embedded DDOT extension process YAML (OCI or deb/rpm layout).
-func GetDDOTProcessConfig(unitType SystemdUnitType, stable bool, ambiantCapabilitiesSupported bool) ([]byte, error) {
+// GetDDOTProcessConfig returns embedded DDOT process YAML (extension or standalone layout).
+func GetDDOTProcessConfig(unitType SystemdUnitType, stable bool, ambiantCapabilitiesSupported bool, standalone bool) ([]byte, error) {
+	if !standalone && unitType != SystemdUnitTypeOCI {
+		return nil, fmt.Errorf("ddot extension procmgr yaml is OCI-only, got %s", unitType)
+	}
 	dir := string(unitType)
 	if !ambiantCapabilitiesSupported {
 		dir += "-nocap"
@@ -50,7 +62,11 @@ func GetDDOTProcessConfig(unitType SystemdUnitType, stable bool, ambiantCapabili
 	if !stable {
 		exp = "-exp"
 	}
-	name := "datadog-agent-ddot" + exp + ".yaml"
+	prefix := "datadog-agent-ddot"
+	if standalone {
+		prefix += "-sa"
+	}
+	name := prefix + exp + ".yaml"
 	return ddotProcessYAML.ReadFile(filepath.Join("tmpl/gen", dir, name))
 }
 

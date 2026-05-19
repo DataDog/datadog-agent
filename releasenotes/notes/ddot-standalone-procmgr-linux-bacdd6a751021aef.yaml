@@ -1,0 +1,19 @@
+---
+enhancements:
+  - |
+    On Linux, the **standalone ``datadog-agent-ddot`` package** (fleet OCI and install-script installs) is now supervised by the agent process manager (``dd-procmgrd`` via ``processes.d``) when process-manager gates are active, instead of the legacy ``datadog-agent-ddot`` systemd unit alone. **DDOT delivered as an agent extension** is covered separately; this note applies only to the standalone package.
+
+    Rollback uses the same gates as extension DDOT under procmgr:
+
+    **Disable only the DDOT process-manager path**
+
+    * Set ``DD_PROCMGR_DDOT_ENABLED`` to a non-enabling value (for example ``0`` or ``false``) in the environment seen by the Agent and installer, **or**
+    * Remove ``/etc/datadog-agent/.procmgr-ddot-enabled`` when your deployment will not recreate it.
+
+    With the DDOT gate closed, the installer stops syncing standalone DDOT into ``processes.d`` under ``dd-procmgrd`` and the **datadog-agent-ddot** systemd unit can manage the collector again.
+
+    **Disable host-wide process-manager integration** (broader than DDOT)
+
+    * Set ``DD_PROCMGR_ENABLED`` to ``0`` or ``false``, **or** remove ``/etc/datadog-agent/.procmgr-enabled``.
+
+    **After you change markers or environment variables**, restart the main Agent service—for example, on systemd: ``systemctl restart datadog-agent``. If you return to systemd-managed standalone DDOT, start or enable ``datadog-agent-ddot`` as before the process-manager path.

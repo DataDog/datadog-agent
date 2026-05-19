@@ -83,3 +83,26 @@ func TestOciAgentStableAndExperimentProcessesDirsEquivalentAt(t *testing.T) {
 		}
 	})
 }
+
+func TestDdotProcmgrYAMLBodyUsesStandaloneOCIPackage(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{"empty", "", false},
+		{"extension_layout", "command: /opt/datadog-packages/datadog-agent/stable/ext/ddot/foo", false},
+		{"standalone_layout", "command: /opt/datadog-packages/datadog-agent-ddot/stable/bin/otel-agent", true},
+		{"condition_path_only", "condition_path_exists: /opt/datadog-packages/datadog-agent-ddot/stable/embedded/bin/otel-agent", true},
+		{"marker_only_in_description", "description: note datadog-packages/datadog-agent-ddot/stable\ncommand: /opt/datadog-packages/datadog-agent/stable/ext/ddot/x", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := ddotProcmgrYAMLBodyUsesStandaloneOCIPackage([]byte(tc.body)); got != tc.want {
+				t.Fatalf("ddotProcmgrYAMLBodyUsesStandaloneOCIPackage(%q) = %v, want %v", tc.body, got, tc.want)
+			}
+		})
+	}
+}

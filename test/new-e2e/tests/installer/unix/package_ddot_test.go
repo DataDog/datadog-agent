@@ -89,33 +89,32 @@ func (s *packageDDOTSuite) TestInstallDDOTInstallScript() {
 }
 
 func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
-	// Install datadog-agent (base infrastructure)
 	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
 
-	// Install ddot
 	s.host.Run("sudo datadog-installer install oci://installtesting.datad0g.com.internal.dda-testing.com/ddot-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID"))
 	s.host.AssertPackageInstalledByInstaller("datadog-agent-ddot")
 
-	// Check if datadog.yaml exists, if not return an error
 	s.host.Run("sudo test -f /etc/datadog-agent/datadog.yaml || { echo 'Error: datadog.yaml does not exist'; exit 1; }")
 
-	s.host.WaitForUnitActive(s.T(), ddotUnit)
+	// DDOT OCI install may restart core units; wait again before dd-procmgr describe.
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
+	procmgrtest.WaitForDDOTRunning(s.T(), s, procmgrtest.DDOTOtelAgentFleetPackageBinary)
 
 	state := s.host.State()
 	s.assertCoreUnits(state, true)
-	s.assertDDOTUnits(state, false)
+	// OCI standalone ddot unit lives under /etc/systemd/system; agent units use vendor paths (oldUnits true).
+	s.assertDDOTUnitsProcmgr(state, true, false)
 
-	// Verify files exist
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0640, "dd-agent", "dd-agent")
 
 	state.AssertDirExists("/opt/datadog-packages/datadog-agent-ddot/stable", 0755, "dd-agent", "dd-agent")
 	state.AssertFileExists("/opt/datadog-packages/datadog-agent-ddot/stable/embedded/bin/otel-agent", 0755, "dd-agent", "dd-agent")
 
-	s.host.Run("sudo grep -q 'otelcollector:' /etc/datadog-agent/datadog.yaml")
+	s.host.Run("sudo grep -A 30 '^otelcollector:' /etc/datadog-agent/datadog.yaml | grep -qE '^[[:space:]]*enabled:[[:space:]]*true[[:space:]]*$'")
 }
 
 func (s *packageDDOTSuite) TestInstallDDOTWithoutDatadogYAML() {
