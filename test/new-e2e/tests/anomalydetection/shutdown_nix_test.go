@@ -102,7 +102,7 @@ func (s *shutdownSuite) TestGracefulShutdownUnderLoad() {
 	s.T().Log("agent stopped")
 
 	// Collect the full journal after shutdown.
-	journalAfter, err := s.Env().RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager -n 10000")
+	journalAfter, err := s.Env().RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager")
 	require.NoError(s.T(), err, "collecting journal after shutdown")
 
 	// The journal after shutdown must not contain crash indicators.

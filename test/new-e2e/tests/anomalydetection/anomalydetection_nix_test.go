@@ -37,11 +37,22 @@ type metricsTriggeredSuite struct {
 }
 
 // TestAnomalyDetectionMetricsTriggered provisions a Linux VM with the observer
-// enabled and the BOCPD warmup tuned for a short test window.
+// enabled using the CUSUM detector.
+//
+// CUSUM is preferred over BOCPD here because:
+//   - It fires deterministically after min_points=5 data points (default).
+//   - It does not require a long warmup phase (BOCPD default: 120 points).
+//   - With a constant baseline the stddev≈0 path sets threshold=10%×mean,
+//     so even a small spike fires immediately.
+//
+// dogstatsd_flush_interval=1 ensures each UDP send produces a distinct
+// one-second storage point in the observer, rather than being aggregated
+// into a single 10-second DSD flush bucket.
 func TestAnomalyDetectionMetricsTriggered(t *testing.T) {
 	// language=yaml
 	agentConfig := `
 log_level: debug
+dogstatsd_flush_interval: 1
 anomaly_detection:
   enabled: true
   metrics:
@@ -49,8 +60,10 @@ anomaly_detection:
   agent_logs:
     enabled: false
   detectors:
+    cusum:
+      enabled: true
     bocpd:
-      warmup_points: 20
+      enabled: false
 `
 	e2e.Run(t, &metricsTriggeredSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
@@ -70,16 +83,19 @@ func (s *metricsTriggeredSuite) sendGauge(name string, value float64) {
 	}
 }
 
-// TestMetricsTriggeredEmitsOnDSDSpike sends 60 stable baseline gauges then 30 spike
-// gauges (value=5000), expecting BOCPD to fire and the stdout reporter to emit its
-// marker within 5 minutes.
+// TestMetricsTriggeredEmitsOnDSDSpike sends a stable gauge baseline then a large
+// spike, expecting CUSUM to fire and the stdout reporter to emit its marker.
+//
+// Point counts: 15 baseline (well above the 5-point CUSUM minimum) followed by
+// 10 spike points — total ~25 seconds of data. The spike is 5000× the baseline
+// so CUSUM's stddev-based threshold fires on the very first spike point.
 func (s *metricsTriggeredSuite) TestMetricsTriggeredEmitsOnDSDSpike() {
 	const (
 		metricName     = "e2e.anomalydetection.test.gauge"
 		baseline       = 1.0
 		spike          = 5000.0
-		baselinePoints = 60
-		spikePoints    = 30
+		baselinePoints = 15
+		spikePoints    = 10
 	)
 
 	waitForObserverReady(s)
@@ -136,12 +152,15 @@ func (s *metricsTriggeredSuite) TestMetricsTriggeredEmitsOnDSDSpike() {
 		s.T().Log("done sending metrics")
 	}()
 
+	// Poll the journal for the reporter marker. The stdoutReporter writes via
+	// fmt.Printf (→ process stdout → journald). No line cap is applied so we
+	// never miss the marker because of journal truncation.
 	s.T().Log("polling journal for reporter marker...")
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		out, err := s.Env().RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager -n 10000")
+		out, err := s.Env().RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager")
 		assert.NoError(c, err, "journalctl execution failed")
 		assert.Contains(c, out, observerReportMarker, "journald should contain stdout reporter marker")
-	}, 5*time.Minute, 5*time.Second)
+	}, 3*time.Minute, 5*time.Second)
 
 	dumpObserverLines(s.T(), s.Env())
 	s.T().Log("reporter marker found")

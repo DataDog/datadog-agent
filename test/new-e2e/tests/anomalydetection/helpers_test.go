@@ -71,7 +71,7 @@ func waitForAgentStartup(s observerTestSuite) {
 // SSH errors are silently ignored so this never fails a test.
 func dumpObserverLines(t *testing.T, env *environments.Host) {
 	t.Helper()
-	out, err := env.RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager -n 10000 | grep -F '[observer]' || true")
+	out, err := env.RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager | grep -F '[observer]' || true")
 	if err != nil {
 		t.Logf("warning: could not retrieve observer journal lines: %v", err)
 		return

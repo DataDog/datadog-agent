@@ -76,7 +76,7 @@ func (s *logTriggeredSuite) TestLogTriggeredReporterEmitsOnCheckErrors() {
 
 	s.T().Log("waiting for [observer] report marker from log-triggered anomaly...")
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		out, err := s.Env().RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager -n 10000")
+		out, err := s.Env().RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager")
 		assert.NoError(c, err, "journalctl execution failed")
 		assert.Contains(c, out, observerReportMarker, "journald should contain stdout reporter marker")
 	}, 5*time.Minute, 10*time.Second)
