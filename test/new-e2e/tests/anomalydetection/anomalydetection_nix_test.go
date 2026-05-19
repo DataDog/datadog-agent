@@ -6,7 +6,7 @@
 // Package anomalydetection contains E2E tests for the anomaly detection observer.
 // Each file in this package covers one concern:
 //
-//   - anomalydetection_nix_test.go — reporter tests: DSD-spike (BOCPD) and log-triggered (CUSUM)
+//   - anomalydetection_nix_test.go — reporter tests: DSD-spike (CUSUM) and file-log-spike (BOCPD)
 //   - defaults_nix_test.go        — observer disabled by default (no [observer] lines)
 //   - config_matrix_nix_test.go   — sub-gate independence (metrics/logs/agent_logs gates)
 //   - shutdown_nix_test.go        — graceful shutdown under DSD load (no panic/crash)
@@ -167,36 +167,42 @@ func (s *metricsTriggeredSuite) TestMetricsTriggeredEmitsOnDSDSpike() {
 	s.T().Log("reporter marker found")
 }
 
-// logTriggeredSuite exercises the log ingestion path of the observer. The agent-log
-// tap always forwards Error/Warn/Critical logs (info/debug are sampled at 0 by
-// default). A failing http_check generates recurring error logs that flow through
-// the log_metrics_extractor, producing a pattern-count metric series that CUSUM
-// detects as anomalous.
+// logTriggeredSuite exercises the external log collection path of the observer.
+// The test writes plain-text log lines to a file that the agent tails via the
+// logssource pipeline. The external path has no level/status filter — every line
+// reaches log_metrics_extractor, which emits a pattern-count metric series that
+// BOCPD detects as anomalous on a frequency spike.
 type logTriggeredSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-// TestAnomalyDetectionLogsTriggered provisions the agent with an http_check pointed
-// at a non-existent endpoint (port 19876) so every check run emits an error log.
+// TestAnomalyDetectionLogsTriggered provisions the agent with a file-tailing log
+// integration. The test itself writes the signal: a stable baseline of one line per
+// second (BOCPD warmup), then a burst of 20 lines in rapid succession (spike).
+//
+// The external logssource path (logs.enabled) has no level/status filter, so plain
+// text lines are sufficient — no JSON or ERROR status required.
 func TestAnomalyDetectionLogsTriggered(t *testing.T) {
 	// language=yaml
-	checkConfig := `
-init_config:
-instances:
-  - name: anomaly-detection-e2e-target
-    url: http://127.0.0.1:19876/
-    timeout: 2
-    min_collection_interval: 10
+	logConfig := `
+logs:
+  - type: file
+    path: /tmp/e2e-anomaly-test.log
+    service: e2e-anomaly
+    source: e2e
 `
 	// language=yaml
 	agentConfig := `
 log_level: debug
+logs_enabled: true
 anomaly_detection:
   enabled: true
   metrics:
     enabled: false
-  agent_logs:
+  logs:
     enabled: true
+  agent_logs:
+    enabled: false
   detectors:
     bocpd:
       warmup_points: 20
@@ -205,37 +211,85 @@ anomaly_detection:
 		awshost.Provisioner(
 			awshost.WithRunOptions(scenec2.WithAgentOptions(
 				agentparams.WithAgentConfig(agentConfig),
-				agentparams.WithIntegration("http_check.d", checkConfig),
+				agentparams.WithIntegration("custom_logs.d", logConfig),
 			)),
 		),
 	), e2e.WithStackName("anomalydetection-log-triggered"))
 }
 
-// TestLogsTriggeredEmitsOnCheckErrors waits for the http_check to produce recurring
-// error logs. Those logs flow through the agent-log tap into the log_metrics_extractor,
-// which emits a pattern-count metric series that BOCPD detects as anomalous.
+// writeLogLine appends one line to the tailed log file on the remote host.
+// Uses Execute (not MustExecute) so a transient SSH error in the background
+// goroutine does not panic and tear down a DEV_MODE stack.
+func (s *logTriggeredSuite) writeLogLine(msg string) {
+	cmd := fmt.Sprintf("echo %q >> /tmp/e2e-anomaly-test.log", msg)
+	if _, err := s.Env().RemoteHost.Execute(cmd); err != nil {
+		s.T().Logf("writeLogLine(%q): SSH error: %v", msg, err)
+	}
+}
+
+// TestLogsTriggeredEmitsOnFileSpike writes a stable baseline of log lines (one per
+// second, satisfying BOCPD warmup_points=20), then bursts 20 lines in rapid
+// succession. The frequency step-change causes BOCPD to fire, and the stdout
+// reporter emits its canonical marker.
 //
-// The spike: the agent starts with zero http_check errors. The check (interval=10s)
-// immediately begins failing with "connection refused" against port 19876. Each failure
-// emits an ERROR-level log → agent-log tap → log_metrics_extractor → pattern-count=1.
-// BOCPD sees a step-change from no-data to a recurring signal and fires after warmup.
-func (s *logTriggeredSuite) TestLogsTriggeredEmitsOnCheckErrors() {
-	// http_check runs every 10 s and emits an error log (error level → always forwarded).
-	// BOCPD warmup_points=20 → 20 events × 10 s = ~200 s warmup before detection.
+// Timing: ~25 s baseline + ~instant burst = detection within ~30 s of spike.
+func (s *logTriggeredSuite) TestLogsTriggeredEmitsOnFileSpike() {
+	const (
+		baselineLines = 25
+		spikeLines    = 20
+	)
+
+	// Create the file before the tailer starts so the agent picks it up immediately.
+	s.Env().RemoteHost.MustExecute("touch /tmp/e2e-anomaly-test.log")
+
 	waitForObserverReady(s)
 
-	s.T().Log("waiting for [observer] report marker from log-triggered anomaly...")
+	ctx, cancel := context.WithCancel(s.T().Context())
+	ticker := time.NewTicker(time.Second)
+	done := make(chan struct{})
+	defer func() {
+		cancel()
+		<-done
+		ticker.Stop()
+	}()
+	go func() {
+		defer close(done)
+		s.T().Logf("writing %d baseline log lines (1/s)...", baselineLines)
+		for i := 0; i < baselineLines; i++ {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+			s.writeLogLine(fmt.Sprintf("e2e anomaly baseline %d", i))
+			if (i+1)%10 == 0 {
+				s.T().Logf("baseline: wrote %d/%d", i+1, baselineLines)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
+		s.T().Logf("writing %d spike log lines (burst)...", spikeLines)
+		for i := 0; i < spikeLines; i++ {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+			s.writeLogLine(fmt.Sprintf("e2e anomaly spike %d", i))
+		}
+		s.T().Log("done writing log lines")
+	}()
+
+	s.T().Log("polling journal for reporter marker...")
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		out, err := s.Env().RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager")
 		assert.NoError(c, err, "journalctl execution failed")
 		assert.Contains(c, out, observerReportMarker, "journald should contain stdout reporter marker")
-	}, 8*time.Minute, 10*time.Second)
+	}, 3*time.Minute, 5*time.Second)
 
 	dumpObserverLines(s.T(), s.Env())
-	if out, err := s.Env().RemoteHost.Execute(
-		"sudo journalctl -u datadog-agent --no-pager | grep -i 'http_check' || true",
-	); err == nil {
-		s.T().Logf("http_check lines:\n%s", out)
-	}
 	s.T().Log("reporter marker found via log trigger")
 }
