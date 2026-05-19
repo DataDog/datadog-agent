@@ -853,3 +853,50 @@ metric rows. Continue the raw ingress direction, but the next ceiling test shoul
 replace fixed `dogstatsd_buffer_size` slots with a compact variable-length or
 slabbed byte ring, batch notifications/cursors, and include origin/OOB metadata
 without regressing the hot path.
+
+## Stage N local result, 2026-05-19
+
+Stage N tested the next raw-ingress ceiling after M2's fixed-slot ring: retain
+records in a compact preallocated byte ring instead of dedicating one
+`dogstatsd_buffer_size` slot per datagram.
+
+Prototype commit: `4b2c4b6b7e6`.
+
+Prototype gate:
+
+- `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS_COMPACT=true`
+- shared byte budget: `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_LOG_MAX_BYTES=16777216`
+
+Implementation shape:
+
+```text
+UDS datagram listener -> reusable scratch read buffer -> commit exact n bytes
+  -> per-worker compact byte ring + metadata ring -> worker cursor -> parser
+```
+
+This deliberately trades one scratch-to-ring copy for denser retention. It keeps
+M2's current eligibility constraints: UDS datagram only, no UDP, no stream
+socket, no named pipe, no statsd forwarding, and no origin detection.
+
+Local Stage N results are single-replicate probes (`--replicates 1 --total-samples 150`):
+
+| Comparison | Case | Δ mean | Key read |
+|---|---|---:|---|
+| fixed-slot raw UDS ring -> compact raw UDS ring | `uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only` | +3.92% | compact byte retention beats fixed slots under high offered load |
+| direct metric rows -> compact raw UDS ring | `uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only` | +7.25% | best bounded-ingress high-rate result so far; packet-pool backlog remains zero |
+| direct metric rows -> compact raw UDS ring | `uds_dogstatsd_to_api_v3_endpoint_fixed` | +2.17% | standard corrected-v3 case remains positive |
+| fixed-slot raw UDS ring -> compact raw UDS ring | `uds_dogstatsd_to_api_v3_endpoint_fixed` | +0.05% | standard case is neutral versus fixed-slot raw |
+
+Selected high-rate direct-vs-compact metrics:
+
+| Variant | Agent UDS MiB/s | processed/s | packet pool avg | ingress ring avg | RSS MiB | heap MiB |
+|---|---:|---:|---:|---:|---:|---:|
+| direct metric rows | 186.40 | 230,366 | 612 | n/a | 173.39 | 71.67 |
+| compact raw ring | 200.10 | 247,216 | 0 | 8.15 MiB / 2,174 records | 163.09 | 63.32 |
+
+Decision: byte-compact retained records are a real ceiling improvement. Stage N
+recovers a meaningful chunk of high-rate throughput while preserving the main
+M2 property: no heap-backed packet-pool backlog. The next ceiling should focus
+on batched compact-ring drains/cursors and/or a no-copy direct-reservation or
+size-class slab variant, while adding oldest-age/lag telemetry so higher ring
+occupancy is interpreted as bounded backlog rather than hidden overload.
