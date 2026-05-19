@@ -1236,6 +1236,7 @@ type PackageState struct {
 	ExperimentConfigVersion string                 `protobuf:"bytes,12,opt,name=experiment_config_version,json=experimentConfigVersion,proto3" json:"experiment_config_version,omitempty"`
 	RunningVersion          string                 `protobuf:"bytes,13,opt,name=running_version,json=runningVersion,proto3" json:"running_version,omitempty"`
 	RunningConfigVersion    string                 `protobuf:"bytes,14,opt,name=running_config_version,json=runningConfigVersion,proto3" json:"running_config_version,omitempty"`
+	Heartbeat               []byte                 `protobuf:"bytes,15,opt,name=heartbeat,proto3" json:"heartbeat,omitempty"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -1324,6 +1325,13 @@ func (x *PackageState) GetRunningConfigVersion() string {
 		return x.RunningConfigVersion
 	}
 	return ""
+}
+
+func (x *PackageState) GetHeartbeat() []byte {
+	if x != nil {
+		return x.Heartbeat
+	}
+	return nil
 }
 
 type PackageStateTask struct {
@@ -2486,7 +2494,7 @@ const file_datadog_remoteconfig_remoteconfig_proto_rawDesc = "" +
 	"\x04tags\x18\x01 \x03(\tR\x04tags\x128\n" +
 	"\bpackages\x18\x02 \x03(\v2\x1c.datadog.config.PackageStateR\bpackages\x120\n" +
 	"\x14available_disk_space\x18\x03 \x01(\x04R\x12availableDiskSpace\x12&\n" +
-	"\x0fsecrets_pub_key\x18\x04 \x01(\tR\rsecretsPubKey\"\xa7\x03\n" +
+	"\x0fsecrets_pub_key\x18\x04 \x01(\tR\rsecretsPubKey\"\xc5\x03\n" +
 	"\fPackageState\x12\x18\n" +
 	"\apackage\x18\x01 \x01(\tR\apackage\x12%\n" +
 	"\x0estable_version\x18\x02 \x01(\tR\rstableVersion\x12-\n" +
@@ -2495,7 +2503,8 @@ const file_datadog_remoteconfig_remoteconfig_proto_rawDesc = "" +
 	"\x15stable_config_version\x18\v \x01(\tR\x13stableConfigVersion\x12:\n" +
 	"\x19experiment_config_version\x18\f \x01(\tR\x17experimentConfigVersion\x12'\n" +
 	"\x0frunning_version\x18\r \x01(\tR\x0erunningVersion\x124\n" +
-	"\x16running_config_version\x18\x0e \x01(\tR\x14runningConfigVersionJ\x04\b\x05\x10\x06J\x04\b\x06\x10\aJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
+	"\x16running_config_version\x18\x0e \x01(\tR\x14runningConfigVersion\x12\x1c\n" +
+	"\theartbeat\x18\x0f \x01(\fR\theartbeatJ\x04\b\x05\x10\x06J\x04\b\x06\x10\aJ\x04\b\a\x10\bJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
 	"J\x04\b\n" +
 	"\x10\v\"\x84\x01\n" +
 	"\x10PackageStateTask\x12\x0e\n" +

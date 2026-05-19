@@ -3874,9 +3874,9 @@ func (z OrgStatusResponse) Msgsize() (s int) {
 // MarshalMsg implements msgp.Marshaler
 func (z *PackageState) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
-	// map header, size 8
+	// map header, size 9
 	// string "Package"
-	o = append(o, 0x88, 0xa7, 0x50, 0x61, 0x63, 0x6b, 0x61, 0x67, 0x65)
+	o = append(o, 0x89, 0xa7, 0x50, 0x61, 0x63, 0x6b, 0x61, 0x67, 0x65)
 	o = msgp.AppendString(o, z.Package)
 	// string "StableVersion"
 	o = append(o, 0xad, 0x53, 0x74, 0x61, 0x62, 0x6c, 0x65, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
@@ -3907,6 +3907,9 @@ func (z *PackageState) MarshalMsg(b []byte) (o []byte, err error) {
 	// string "RunningConfigVersion"
 	o = append(o, 0xb4, 0x52, 0x75, 0x6e, 0x6e, 0x69, 0x6e, 0x67, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e)
 	o = msgp.AppendString(o, z.RunningConfigVersion)
+	// string "Heartbeat"
+	o = append(o, 0xa9, 0x48, 0x65, 0x61, 0x72, 0x74, 0x62, 0x65, 0x61, 0x74)
+	o = msgp.AppendBytes(o, z.Heartbeat)
 	return
 }
 
@@ -3987,6 +3990,12 @@ func (z *PackageState) UnmarshalMsg(bts []byte) (o []byte, err error) {
 				err = msgp.WrapError(err, "RunningConfigVersion")
 				return
 			}
+		case "Heartbeat":
+			z.Heartbeat, bts, err = msgp.ReadBytesBytes(bts, z.Heartbeat)
+			if err != nil {
+				err = msgp.WrapError(err, "Heartbeat")
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -4007,7 +4016,7 @@ func (z *PackageState) Msgsize() (s int) {
 	} else {
 		s += z.Task.Msgsize()
 	}
-	s += 20 + msgp.StringPrefixSize + len(z.StableConfigVersion) + 24 + msgp.StringPrefixSize + len(z.ExperimentConfigVersion) + 15 + msgp.StringPrefixSize + len(z.RunningVersion) + 21 + msgp.StringPrefixSize + len(z.RunningConfigVersion)
+	s += 20 + msgp.StringPrefixSize + len(z.StableConfigVersion) + 24 + msgp.StringPrefixSize + len(z.ExperimentConfigVersion) + 15 + msgp.StringPrefixSize + len(z.RunningVersion) + 21 + msgp.StringPrefixSize + len(z.RunningConfigVersion) + 10 + msgp.BytesPrefixSize + len(z.Heartbeat)
 	return
 }
 
