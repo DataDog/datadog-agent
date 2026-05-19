@@ -21,6 +21,7 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-metric-pipelines/common"
 )
 
 // ec2DefaultCloudCostAllowlistedMetrics are system.* metrics on the built-in
@@ -43,6 +44,8 @@ const (
 
 type ccmModeSuiteBase struct {
 	e2e.BaseSuite[environments.Host]
+
+	adpEnabled bool
 }
 
 type ccmModeDefaultTaggedSuite struct {
@@ -50,6 +53,13 @@ type ccmModeDefaultTaggedSuite struct {
 }
 
 type ccmModeConfiguredTaggedSuite struct {
+	ccmModeSuiteBase
+}
+
+// ccmModeADPSuite exercises CCM DogStatsD paths with ADP serving port 8125.
+// It embeds ccmModeSuiteBase only (not ccmModeDefaultTaggedSuite) so integration
+// tagging tests are not run here — ADP does not affect check-sourced metrics.
+type ccmModeADPSuite struct {
 	ccmModeSuiteBase
 }
 
@@ -81,29 +91,48 @@ metric_filterlist:
 	return cfg
 }
 
-func runCCMModeSuite[T e2e.Suite[environments.Host]](t *testing.T, stackName string, agentConfig string, suite T) {
+func runCCMModeSuite[T e2e.Suite[environments.Host]](t *testing.T, stackName string, agentConfig string, suite T, adpEnabled bool) {
 	t.Helper()
 	t.Parallel()
+
+	agentOptions := []agentparams.Option{agentparams.WithAgentConfig(agentConfig)}
+	if adpEnabled {
+		agentOptions = append(agentOptions, common.WithADPEnabled())
+		stackName += "-adp"
+	}
+
 	e2e.Run(t, suite, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(
-				scenec2.WithAgentOptions(
-					agentparams.WithAgentConfig(agentConfig),
-				),
+				scenec2.WithAgentOptions(agentOptions...),
 			),
 		),
 	), e2e.WithStackName(stackName))
 }
 
+func (s *ccmModeSuiteBase) assertADPRunningIfEnabled() {
+	s.T().Helper()
+	if s.adpEnabled {
+		common.AssertADPRunning(s.T(), s.Env().RemoteHost)
+	}
+}
+
 // TestCCMModeLinuxDefaultTagged runs CCM e2e checks with the default empty
 // integration.cloud_cost_only.tagged list (all checks receive infra_mode).
 func TestCCMModeLinuxDefaultTagged(t *testing.T) {
-	runCCMModeSuite(t, "ccmmode-default-tagged", ccmAgentConfig(nil, nil), &ccmModeDefaultTaggedSuite{})
+	runCCMModeSuite(t, "ccmmode-default-tagged", ccmAgentConfig(nil, nil), &ccmModeDefaultTaggedSuite{}, false)
+}
+
+// TestCCMModeLinuxADP runs CCM DogStatsD e2e checks with ADP serving port 8125 traffic.
+func TestCCMModeLinuxADP(t *testing.T) {
+	runCCMModeSuite(t, "ccmmode-adp", ccmAgentConfig(nil, nil), &ccmModeADPSuite{
+		ccmModeSuiteBase: ccmModeSuiteBase{adpEnabled: true},
+	}, true)
 }
 
 // TestCCMModeLinuxConfiguredTagged runs CCM e2e checks with an explicit tagged list.
 func TestCCMModeLinuxConfiguredTagged(t *testing.T) {
-	runCCMModeSuite(t, "ccmmode-configured-tagged", ccmAgentConfig([]string{"cpu"}, nil), &ccmModeConfiguredTaggedSuite{})
+	runCCMModeSuite(t, "ccmmode-configured-tagged", ccmAgentConfig([]string{"cpu"}, nil), &ccmModeConfiguredTaggedSuite{}, false)
 }
 
 type ccmModeMetricsBlockedSuite struct {
@@ -112,7 +141,7 @@ type ccmModeMetricsBlockedSuite struct {
 
 // TestCCMModeLinuxMetricsBlocked runs CCM e2e checks with integration.cloud_cost_only.metrics_blocked set.
 func TestCCMModeLinuxMetricsBlocked(t *testing.T) {
-	runCCMModeSuite(t, "ccmmode-metrics-blocked", ccmAgentConfig(nil, []string{"system.cpu"}), &ccmModeMetricsBlockedSuite{})
+	runCCMModeSuite(t, "ccmmode-metrics-blocked", ccmAgentConfig(nil, []string{"system.cpu"}), &ccmModeMetricsBlockedSuite{}, false)
 }
 
 // TestMetricsBlockedOverridesAllowlist verifies metrics_blocked drops allowlisted metrics
@@ -153,7 +182,7 @@ type ccmModeEmptyAllowlistSuite struct {
 
 // TestCCMModeLinuxEmptyAllowlist runs CCM e2e checks with an explicit empty metrics allowlist.
 func TestCCMModeLinuxEmptyAllowlist(t *testing.T) {
-	runCCMModeSuite(t, "ccmmode-empty-allowlist", ccmAgentConfigEmptyAllowlist(), &ccmModeEmptyAllowlistSuite{})
+	runCCMModeSuite(t, "ccmmode-empty-allowlist", ccmAgentConfigEmptyAllowlist(), &ccmModeEmptyAllowlistSuite{}, false)
 }
 
 // TestEmptyAllowlistDeniesIntegrationMetrics verifies integration.cloud_cost_only.metrics: []
@@ -163,6 +192,8 @@ func (s *ccmModeEmptyAllowlistSuite) TestEmptyAllowlistDeniesIntegrationMetrics(
 		onDefaultAllowlist = "system.mem.pct_usable"
 		offAllowlist       = "system.disk.free"
 	)
+
+	s.assertADPRunningIfEnabled()
 
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		onList, err := s.Env().FakeIntake.Client().FilterMetrics(
@@ -214,6 +245,7 @@ func TestCCMModeLinuxCustomAllowlist(t *testing.T) {
 		"ccmmode-custom-allowlist",
 		ccmAgentConfigCustomAllowlist([]string{"system.mem.pct_usable"}, false),
 		&ccmModeCustomAllowlistSuite{},
+		false,
 	)
 }
 
@@ -323,6 +355,8 @@ func (s *ccmModeSuiteBase) TestAllowlistedIntegrationMetricForwarded() {
 // TestMetricFilterListAppliesInCloudCostMode verifies metric_filterlist still drops DogStatsD
 // metrics in cloud_cost_only mode even though DogStatsD bypasses the cloud_cost allowlist.
 func (s *ccmModeSuiteBase) TestMetricFilterListAppliesInCloudCostMode() {
+	s.assertADPRunningIfEnabled()
+
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		s.sendStatsdGauge(dogstatsdFilterListAllowed, 1)
 		s.sendStatsdGauge(dogstatsdFilterListBlocked, 1)
@@ -361,6 +395,8 @@ func (s *ccmModeSuiteBase) sendStatsdGaugeWithTags(name string, value int, tags 
 // TestDogstatsdJMXTaggedMetricForwarded verifies JMX-tagged DogStatsD metrics are forwarded in
 // cloud_cost_only mode via FromDogstatsd even when the name is not on the integration allowlist.
 func (s *ccmModeSuiteBase) TestDogstatsdJMXTaggedMetricForwarded() {
+	s.assertADPRunningIfEnabled()
+
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		s.sendStatsdGaugeWithTags(dogstatsdJMXMetric, 1, []string{jmxCheckNameTag})
 
@@ -376,6 +412,8 @@ func (s *ccmModeSuiteBase) TestDogstatsdJMXTaggedMetricForwarded() {
 // TestDogstatsdCustomMetricForwarded verifies DogStatsD metrics are forwarded in cloud_cost_only
 // mode even when the metric name is not on integration.cloud_cost_only.metrics.
 func (s *ccmModeSuiteBase) TestDogstatsdCustomMetricForwarded() {
+	s.assertADPRunningIfEnabled()
+
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		s.sendStatsdGauge(dogstatsdCustomMetric, 1)
 
