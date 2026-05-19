@@ -827,7 +827,6 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 	runningConfigVersions := map[string]string{
 		"datadog-agent": d.env.ConfigID,
 	}
-	heartbeat, _ := json.Marshal(map[string]int64{"last_seen": time.Now().Unix()})
 	var packages []*pbgo.PackageState
 	for pkg, s := range configAndPackageStates.States {
 		p := &pbgo.PackageState{
@@ -838,7 +837,7 @@ func (d *daemonImpl) refreshState(ctx context.Context) {
 			ExperimentConfigVersion: configAndPackageStates.ConfigStates[pkg].Experiment,
 			RunningVersion:          runningVersions[pkg],
 			RunningConfigVersion:    runningConfigVersions[pkg],
-			Heartbeat:               heartbeat,
+			HeartbeatTimestamp:      uint64(time.Now().Unix()),
 		}
 
 		requestState, ok := tasksState[pkg]
