@@ -151,14 +151,23 @@ func DumpK8sClusterState(ctx context.Context, kubeconfig *clientcmdapi.Config, o
 	return nil
 }
 
-// terminalWaitingReasons are container waiting reasons that indicate the pod will not recover without intervention.
+// terminalWaitingReasons are container waiting reasons caused by misconfiguration —
+// no amount of retrying will fix these.
 var terminalWaitingReasons = map[string]bool{
-	"ImagePullBackOff":           true,
-	"ErrImagePull":               true,
 	"InvalidImageName":           true,
-	"CrashLoopBackOff":           true,
 	"CreateContainerConfigError": true,
 }
+
+// transientWaitingReasons are container waiting reasons that may resolve on their own
+// (e.g. kubelet retrying an image pull after a network blip). We only treat them as
+// terminal after observing them for transientGracePeriod.
+var transientWaitingReasons = map[string]bool{
+	"ImagePullBackOff": true,
+	"ErrImagePull":     true,
+	"CrashLoopBackOff": true,
+}
+
+const transientGracePeriod = 30 * time.Second
 
 // WaitForJobPodRunning polls until a Job's Pod leaves the Pending phase or a terminal
 // error is detected. It returns the Pod on success, or an error describing why the Pod
@@ -173,7 +182,10 @@ func WaitForJobPodRunning(ctx context.Context, client kubernetes.Interface, name
 
 	var lastListErr error
 
-	// First check is immediate; subsequent checks wait for ticker.
+	// Tracks when we first observed a transient waiting reason per container.
+	// Key: "podName/containerName"
+	transientFirstSeen := make(map[string]time.Time)
+
 	for {
 		pods, err := client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
 			LabelSelector: fields.OneTermEqualSelector("job-name", jobName).String(),
@@ -191,6 +203,8 @@ func WaitForJobPodRunning(ctx context.Context, client kubernetes.Interface, name
 			continue
 		}
 
+		now := time.Now()
+
 		for i := range pods.Items {
 			pod := &pods.Items[i]
 
@@ -198,17 +212,34 @@ func WaitForJobPodRunning(ctx context.Context, client kubernetes.Interface, name
 				return pod, nil
 			}
 
-			// Check init container and regular container statuses for terminal errors
 			allStatuses := concatStatuses(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses)
 			for _, cs := range allStatuses {
-				if cs.State.Waiting != nil && terminalWaitingReasons[cs.State.Waiting.Reason] {
+				if cs.State.Waiting == nil {
+					continue
+				}
+				reason := cs.State.Waiting.Reason
+
+				if terminalWaitingReasons[reason] {
 					return nil, fmt.Errorf("job %s pod %s container %s: %s - %s",
 						jobName, pod.Name, cs.Name,
-						cs.State.Waiting.Reason, cs.State.Waiting.Message)
+						reason, cs.State.Waiting.Message)
+				}
+
+				if transientWaitingReasons[reason] {
+					key := pod.Name + "/" + cs.Name
+					if firstSeen, ok := transientFirstSeen[key]; ok {
+						if now.Sub(firstSeen) >= transientGracePeriod {
+							return nil, fmt.Errorf("job %s pod %s container %s: %s - %s (persisted for %s)",
+								jobName, pod.Name, cs.Name,
+								reason, cs.State.Waiting.Message,
+								now.Sub(firstSeen).Truncate(time.Second))
+						}
+					} else {
+						transientFirstSeen[key] = now
+					}
 				}
 			}
 
-			// Check for unschedulable conditions
 			for _, cond := range pod.Status.Conditions {
 				if cond.Type == corev1.PodScheduled && cond.Status == corev1.ConditionFalse && cond.Reason == corev1.PodReasonUnschedulable {
 					return nil, fmt.Errorf("job %s pod %s unschedulable: %s", jobName, pod.Name, cond.Message)
@@ -216,7 +247,7 @@ func WaitForJobPodRunning(ctx context.Context, client kubernetes.Interface, name
 			}
 		}
 
-		if time.Now().After(deadline) {
+		if now.After(deadline) {
 			if len(pods.Items) == 0 {
 				msg := fmt.Sprintf("job %s: no pods created within %s", jobName, timeout)
 				if lastListErr != nil {
