@@ -14,6 +14,7 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/windows/consts"
@@ -271,6 +272,7 @@ func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenServiceDies() {
 // TestRevertsConfigExperimentWhenTimeout tests that the watchdog will revert
 // to stable config when the timeout expires.
 func (s *testAgentConfigSuite) TestRevertsConfigExperimentWhenTimeout() {
+	flake.Mark(s.T()) // TODO: https://datadoghq.atlassian.net/browse/incident-54741
 	// Arrange
 	s.setAgentConfig()
 	s.installCurrentAgentVersion()
