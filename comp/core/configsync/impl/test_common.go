@@ -16,32 +16,33 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/fx"
 
-	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
-	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func makeDeps(t *testing.T) dependencies {
-	return fxutil.Test[dependencies](t, fx.Options(
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
-		fx.Supply(log.Params{}),
-		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		mocktelemetry.Module(),
-		fx.Provide(func(t testing.TB) ipc.Component { return ipcmock.New(t) }),
-		fx.Provide(func(ipcComp ipc.Component) ipc.HTTPClient { return ipcComp.GetClient() }),
-		fx.Supply(NewParams(0, false, 0)),
-	))
+// testLifecycle is a no-op lifecycle for use in tests.
+type testLifecycle struct{}
+
+func (testLifecycle) Append(compdef.Hook) {}
+
+func makeDeps(t *testing.T) Requires {
+	t.Helper()
+	ipcComp := ipcmock.New(t)
+	return Requires{
+		Config:     config.NewMock(t),
+		Log:        logmock.New(t),
+		IPCClient:  ipcComp.GetClient(),
+		SyncParams: NewParams(0, false, 0),
+		Lc:         testLifecycle{},
+	}
 }
 
-func makeConfigSync(deps dependencies) *configSync {
+func makeConfigSync(deps Requires) *configSync {
 	defaultURL := &url.URL{
 		Scheme: "https",
 		Host:   "localhost:1234",

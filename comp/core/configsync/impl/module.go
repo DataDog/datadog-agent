@@ -13,40 +13,22 @@ import (
 	"strconv"
 	"time"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/configsync"
+	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 )
 
-type dependencies struct {
-	fx.In
-	Lc fx.Lifecycle
+// Requires defines the dependencies of the configsync component.
+type Requires struct {
+	compdef.In
+	Lc compdef.Lifecycle
 
 	Config     config.Component
 	Log        log.Component
 	IPCClient  ipc.HTTPClient
 	SyncParams Params
-}
-
-// Module defines the fx options for this component.
-func Module(params Params) fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newComponent),
-		fx.Supply(params),
-
-		// configSync is a component with no public method, therefore nobody depends on it and FX only instantiates
-		// components when they're needed. Adding a dummy function that takes our Component as a parameter force
-		// the instantiation of configsync. This means that simply using 'configsync.Module()' will run our
-		// component (which is the expected behavior).
-		//
-		// This prevent silent corner case where including 'configsync' in the main function would not actually
-		// instantiate it. This also remove the need for every main using configsync to add the line bellow.
-		fx.Invoke(func(_ configsync.Component) {}),
-	)
 }
 
 type configSync struct {
@@ -61,8 +43,8 @@ type configSync struct {
 	enabled   bool
 }
 
-// newComponent checks if the component was enabled as per the config and return a enable/disabled configsync
-func newComponent(deps dependencies) (configsync.Component, error) {
+// NewComponent creates a new configsync component.
+func NewComponent(deps Requires) (configsync.Component, error) {
 	configRefreshIntervalSec := deps.Config.GetInt("agent_ipc.config_refresh_interval")
 	if configRefreshIntervalSec <= 0 {
 		deps.Log.Infof("configsync disabled: agent_ipc.config_refresh_interval invalid: %d)", configRefreshIntervalSec)
@@ -120,7 +102,7 @@ func newComponent(deps dependencies) (configsync.Component, error) {
 	}
 
 	// start and stop the routine in fx hooks
-	deps.Lc.Append(fx.Hook{
+	deps.Lc.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
 			go configSync.runWithInterval(configRefreshInterval)
 			return nil
