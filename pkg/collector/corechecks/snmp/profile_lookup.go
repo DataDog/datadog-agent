@@ -7,6 +7,7 @@ package snmp
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
@@ -40,6 +41,7 @@ func BuildProfileForSysObjectID(sysObjectID string) (profiledefinition.ProfileDe
 
 // GetProfileDefinition returns the profile definition for the given profile name (e.g. "_base", "dell").
 func GetProfileDefinition(profileName string) (profiledefinition.ProfileDefinition, error) {
+	profileName = strings.TrimSuffix(profileName, ".yaml")
 	provider, _, err := profile.GetProfileProvider(profile.ProfileConfigMap{})
 	if err != nil {
 		return profiledefinition.ProfileDefinition{}, err

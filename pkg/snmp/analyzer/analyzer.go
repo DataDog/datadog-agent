@@ -39,7 +39,7 @@ func FindSysOID(pdus []gosnmp.SnmpPDU) string {
 	for _, pdu := range pdus {
 		n := normalizeOID(pdu.Name)
 		if n == base || n == with0 {
-			return fmt.Sprintf("%v", pdu.Value)
+			return gosnmplib.GetValueFromPDU(pdu)
 		}
 	}
 	return ""
@@ -358,7 +358,10 @@ func writeExtendedProfilesWrapped(b *strings.Builder, joined string, width int) 
 }
 
 func formatReportValue(v interface{}, max int) string {
-	s := fmt.Sprintf("%v", v)
+	s, err := gosnmplib.StandardTypeToString(v)
+	if err != nil {
+		return err
+	}
 	if len(s) > max {
 		if max <= 3 {
 			return s[:max]
