@@ -433,12 +433,23 @@ func (s *ccmModeSuiteBase) TestDogstatsdCustomMetricForwarded() {
 // TestNonAllowlistedIntegrationMetricDropped verifies integration metrics outside
 // integration.cloud_cost_only.metrics are not forwarded when infrastructure_mode is cloud_cost_only.
 func (s *ccmModeSuiteBase) TestNonAllowlistedIntegrationMetricDropped() {
+	const probeAllowlisted = "system.cpu.user"
+	const droppedMetric = "system.disk.free"
+
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(
-			"system.disk.free",
+		allowlisted, err := s.Env().FakeIntake.Client().FilterMetrics(
+			probeAllowlisted,
 			client.WithMetricValueHigherThan(0),
 		)
 		assert.NoError(c, err)
-		assert.Empty(c, metrics, "system.disk.free should be dropped by the cloud_cost_only metric allowlist")
+		assert.NotEmpty(c, allowlisted,
+			"%s must be forwarded before asserting %s is dropped", probeAllowlisted, droppedMetric)
+
+		dropped, err := s.Env().FakeIntake.Client().FilterMetrics(
+			droppedMetric,
+			client.WithMetricValueHigherThan(0),
+		)
+		assert.NoError(c, err)
+		assert.Empty(c, dropped, "%s should be dropped by the cloud_cost_only metric allowlist", droppedMetric)
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for allowlist to drop disk metrics")
 }

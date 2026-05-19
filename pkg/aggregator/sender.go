@@ -304,6 +304,9 @@ func (s *checkSender) OpenmetricsBucket(metric string, value int64, lowerBound, 
 func (s *checkSender) sendHistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue, multipleBuckets bool) {
 	tags = append(tags, s.checkTags...)
 
+	// add infra tags for only metrics (same as sendMetricSample)
+	tags = append(tags, s.infraTags...)
+
 	log.Tracef(
 		"Histogram Bucket %s submitted: %v [%f-%f] monotonic: %v for host %s tags: %v",
 		metric,

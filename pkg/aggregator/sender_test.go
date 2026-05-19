@@ -512,6 +512,13 @@ func TestGetSenderAddCheckCustomTagsHistogramBucket(t *testing.T) {
 	s.sender.OpenmetricsBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", checkTags, false)
 	bucketSample = (<-s.itemChan).(*senderHistogramBucket)
 	assert.Equal(t, append(checkTags, customTags...), bucketSample.bucket.Tags)
+
+	// infra tags (e.g. infra_mode from CCM) are appended like regular metric samples
+	infraTags := []string{"infra_mode:cloud_cost_only"}
+	s.sender.AppendInfraTags(infraTags)
+	s.sender.OpenmetricsBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", checkTags, false)
+	bucketSample = (<-s.itemChan).(*senderHistogramBucket)
+	assert.Equal(t, append(append(checkTags, customTags...), infraTags...), bucketSample.bucket.Tags)
 }
 
 func TestCheckSenderInterface(t *testing.T) {
