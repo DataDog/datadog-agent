@@ -59,6 +59,10 @@ func (n *noopHealthPlatform) ResolveIssue(_ string) {
 func (n *noopHealthPlatform) ResolveAllIssues() {
 }
 
+func (n *noopHealthPlatform) GetActiveIssueIDsByIssueType(_ string) []string {
+	return nil
+}
+
 func (n *noopHealthPlatform) getIssuesHandler(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
