@@ -293,6 +293,8 @@ func TestDogstatsdColumnarV3BuildsBucketIndexOnlyForNonMonotonicBuckets(t *testi
 func TestDogstatsdColumnarV3InternsAndExpiresDescriptorDictionaries(t *testing.T) {
 	store := newDogStatsDColumnarStore(10, 1)
 	store.descriptorExpiry = 10
+	store.descriptorInterning = true
+	store.shards[0].dictionary = newDogstatsdColumnarDictionary()
 	sharedTags := []string{"z:last", "a:first", "a:first"}
 
 	require.True(t, store.insert(ckey.ContextKey(1), metrics.MetricSample{

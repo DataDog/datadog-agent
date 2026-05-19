@@ -61,6 +61,11 @@ func columnarV3DescriptorExpirySeconds() int64 {
 	return pkgconfigsetup.Datadog().GetInt64("dogstatsd_context_expiry_seconds")
 }
 
+func columnarV3DescriptorInterningEnabled() bool {
+	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_INTERN_DESCRIPTORS"))
+	return err == nil && enabled
+}
+
 // DogStatsDColumnarV3Inserter is implemented by demultiplexers that can accept
 // parsed DogStatsD metric samples into the experimental v3-aligned columnar
 // aggregation table. Supported on-time metric samples bypass TimeSampler,
@@ -182,9 +187,10 @@ type dogstatsdColumnarShard struct {
 }
 
 type dogstatsdColumnarStore struct {
-	interval         int64
-	descriptorExpiry int64
-	shards           []dogstatsdColumnarShard
+	interval            int64
+	descriptorExpiry    int64
+	descriptorInterning bool
+	shards              []dogstatsdColumnarShard
 }
 
 func newDogstatsdColumnarDictionary() dogstatsdColumnarDictionary {
@@ -272,9 +278,10 @@ func newDogStatsDColumnarStore(interval int64, shardCount int) *dogstatsdColumna
 	}
 
 	store := &dogstatsdColumnarStore{
-		interval:         interval,
-		descriptorExpiry: columnarV3DescriptorExpirySeconds(),
-		shards:           make([]dogstatsdColumnarShard, shardCount),
+		interval:            interval,
+		descriptorExpiry:    columnarV3DescriptorExpirySeconds(),
+		descriptorInterning: columnarV3DescriptorInterningEnabled(),
+		shards:              make([]dogstatsdColumnarShard, shardCount),
 	}
 	if store.descriptorExpiry > 0 && store.descriptorExpiry < store.interval {
 		store.descriptorExpiry = store.interval
@@ -282,7 +289,9 @@ func newDogStatsDColumnarStore(interval int64, shardCount int) *dogstatsdColumna
 	for i := range store.shards {
 		store.shards[i].buckets = make(map[int64]*dogstatsdColumnarBucket)
 		store.shards[i].descriptorByKey = make(map[dogstatsdColumnarKey]int)
-		store.shards[i].dictionary = newDogstatsdColumnarDictionary()
+		if store.descriptorInterning {
+			store.shards[i].dictionary = newDogstatsdColumnarDictionary()
+		}
 	}
 	return store
 }
@@ -429,7 +438,7 @@ func (s *dogstatsdColumnarStore) insertAcceptedInShard(shard *dogstatsdColumnarS
 	key := dogstatsdColumnarKey{contextKey: shardKey, mtype: sample.Mtype}
 	descriptorID, ok := shard.descriptorByKey[key]
 	if !ok || !shard.descriptorActive[descriptorID] {
-		descriptorID = shard.appendDescriptor(key, sample)
+		descriptorID = shard.appendDescriptor(key, sample, s.descriptorInterning)
 	}
 	shard.lastSeen[descriptorID] = bucketStart
 
@@ -464,7 +473,7 @@ func newDogstatsdColumnarBucket() *dogstatsdColumnarBucket {
 	return &dogstatsdColumnarBucket{}
 }
 
-func (s *dogstatsdColumnarShard) appendDescriptor(key dogstatsdColumnarKey, sample metrics.MetricSample) int {
+func (s *dogstatsdColumnarShard) appendDescriptor(key dogstatsdColumnarKey, sample metrics.MetricSample, internDescriptorStrings bool) int {
 	idx := -1
 	if len(s.freeDescriptors) > 0 {
 		last := len(s.freeDescriptors) - 1
@@ -491,19 +500,30 @@ func (s *dogstatsdColumnarShard) appendDescriptor(key dogstatsdColumnarKey, samp
 		s.flushRow = append(s.flushRow, 0)
 	}
 
-	tags, tagKey := s.dictionary.internTags(sample.Tags)
+	name := sample.Name
+	host := sample.Host
+	tags := cloneSortedTags(sample.Tags)
+	tagKey := ""
+	unit := sample.Unit
+	if internDescriptorStrings {
+		name = s.dictionary.internString(sample.Name)
+		host = s.dictionary.internString(sample.Host)
+		tags, tagKey = s.dictionary.internTags(sample.Tags)
+		unit = s.dictionary.internString(sample.Unit)
+	}
+
 	s.descriptorByKey[key] = idx
 	s.descriptorActive[idx] = true
 	s.descriptorNonMonotonic[idx] = false
 	s.contextKeys[idx] = key.contextKey
-	s.names[idx] = s.dictionary.internString(sample.Name)
-	s.hosts[idx] = s.dictionary.internString(sample.Host)
+	s.names[idx] = name
+	s.hosts[idx] = host
 	s.tags[idx] = tags
 	s.tagKeys[idx] = tagKey
 	s.mtypes[idx] = sample.Mtype
 	s.noIndex[idx] = sample.NoIndex
 	s.sources[idx] = sample.Source
-	s.units[idx] = s.dictionary.internString(sample.Unit)
+	s.units[idx] = unit
 	s.lastSeen[idx] = 0
 	s.lastBucket[idx] = 0
 	s.lastRow[idx] = -1
@@ -561,6 +581,15 @@ func (b *dogstatsdColumnarBucket) appendRow(descriptorID int) int {
 
 	tlmDogstatsdColumnarStats.Inc("created_rows")
 	return idx
+}
+
+func cloneSortedTags(tags []string) []string {
+	if len(tags) == 0 {
+		return nil
+	}
+	cloned := append([]string(nil), tags...)
+	slices.Sort(cloned)
+	return dedupeSortedTags(cloned)
 }
 
 func dedupeSortedTags(tags []string) []string {
