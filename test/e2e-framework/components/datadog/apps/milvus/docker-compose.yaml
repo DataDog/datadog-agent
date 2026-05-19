@@ -1,0 +1,106 @@
+---
+version: "3.9"
+
+services:
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.18
+    container_name: milvus-etcd
+    environment:
+      ETCD_AUTO_COMPACTION_MODE: revision
+      ETCD_AUTO_COMPACTION_RETENTION: '1000'
+      ETCD_QUOTA_BACKEND_BYTES: '4294967296'
+      ETCD_SNAPSHOT_COUNT: '50000'
+    command:
+      - etcd
+      - --advertise-client-urls=http://127.0.0.1:2379
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --data-dir=/etcd
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    container_name: milvus-minio
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    command:
+      - minio
+      - server
+      - /minio_data
+    ports:
+      - 9000:9000
+
+  standalone:
+    image: milvusdb/milvus:v2.5.11
+    container_name: milvus-standalone
+    command:
+      - milvus
+      - run
+      - standalone
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    labels:
+      com.datadoghq.ad.checks: >-
+        {"milvus":{"init_config":{},"instances":[{"openmetrics_endpoint":"http://%%host%%:9091/metrics"}]}}
+    ports:
+      - 19530:19530
+      - 9091:9091
+    depends_on:
+      - etcd
+      - minio
+
+  milvus-load:
+    image: python:3.11-slim
+    container_name: milvus-load
+    environment:
+      MILVUS_HOST: standalone
+      MILVUS_PORT: '19530'
+    command:
+      - /bin/sh
+      - -c
+      - |
+        pip install --no-cache-dir pymilvus numpy && python - <<'PY'
+        import os
+        import random
+        import time
+
+        import numpy as np
+        from pymilvus import Collection, CollectionSchema, DataType, FieldSchema, connections, utility
+
+        host = os.environ.get("MILVUS_HOST", "standalone")
+        port = os.environ.get("MILVUS_PORT", "19530")
+
+        while True:
+            try:
+                connections.connect(alias="default", host=host, port=port, timeout=5)
+                break
+            except Exception as e:
+                print(f"waiting for Milvus: {e}", flush=True)
+                time.sleep(5)
+
+        collection_name = "datadog_e2e_vectors"
+        if not utility.has_collection(collection_name):
+            schema = CollectionSchema([
+                FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=False),
+                FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=8),
+            ])
+            collection = Collection(collection_name, schema)
+            collection.create_index("embedding", {"index_type": "IVF_FLAT", "metric_type": "L2", "params": {"nlist": 16}})
+        else:
+            collection = Collection(collection_name)
+
+        next_id = 0
+        while True:
+            vectors = np.random.random((100, 8)).astype("float32").tolist()
+            ids = list(range(next_id, next_id + len(vectors)))
+            next_id += len(vectors)
+            collection.insert([ids, vectors])
+            collection.flush()
+            collection.load()
+            query = [vectors[random.randrange(len(vectors))]]
+            collection.search(query, "embedding", {"metric_type": "L2", "params": {"nprobe": 8}}, limit=5)
+            print(f"inserted and queried {len(vectors)} vectors", flush=True)
+            time.sleep(10)
+        PY
+    depends_on:
+      - standalone
