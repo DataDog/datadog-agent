@@ -4,7 +4,7 @@ load("@rules_pkg//pkg/private/deb:deb.bzl", "pkg_deb_impl")
 load("//packages/rules:package_naming.bzl", "package_name_variables")
 load("//tools/tar_checksums:tar_md5sums.bzl", "tar_md5sums")
 
-def _dd_pkg_deb_impl(name, visibility, data, description, homepage, license, maintainer, package, package_file_name, postinst, postrm, priority, recommends, section, version, **kwargs):
+def _dd_pkg_deb_impl(name, visibility, data, description, homepage, license, maintainer, out, package, package_file_name, postinst, postrm, priority, recommends, section, version, **kwargs):
     variables_name = "%s_vars_" % name
     package_name_variables(
         name = variables_name,
@@ -20,13 +20,13 @@ def _dd_pkg_deb_impl(name, visibility, data, description, homepage, license, mai
 
     pkg_deb_impl(
         name = name,
-        out = name + ".deb",
         data = data,
         description = description,
         homepage = homepage or "http://www.datadoghq.com",
         license = license or "Apache License Version 2.0",
         maintainer = maintainer or "Datadog Packages <package@datadoghq.com>",
         md5sums = ":" + sums_out,
+        out = out,
         package = package,
         package_file_name = package_file_name,
         package_variables = ":" + variables_name,

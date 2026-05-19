@@ -147,6 +147,8 @@ See http://www.datadoghq.com/ for more information
 
 dd_pkg_deb(
     name = "debian",
+    # convenience symlink to the output. The actual filename is specified with package_file_name.
+    out = "debian.out",
     data = ":whole_distro_tar_deb",
     description = _DESCRIPTION,
     homepage = "http://www.datadoghq.com",
