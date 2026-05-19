@@ -56,6 +56,8 @@ anomaly_detection:
   enabled: true
   metrics:
     enabled: true
+  logs:
+    enabled: false
   agent_logs:
     enabled: false
   detectors:
@@ -192,14 +194,12 @@ log_level: debug
 anomaly_detection:
   enabled: true
   metrics:
-    enabled: true
+    enabled: false
   agent_logs:
     enabled: true
   detectors:
-    cusum:
-      enabled: true
     bocpd:
-      enabled: false
+      warmup_points: 20
 `
 	e2e.Run(t, &logTriggeredSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
@@ -213,11 +213,15 @@ anomaly_detection:
 
 // TestLogsTriggeredEmitsOnCheckErrors waits for the http_check to produce recurring
 // error logs. Those logs flow through the agent-log tap into the log_metrics_extractor,
-// which emits a pattern-count metric series that CUSUM detects as anomalous.
+// which emits a pattern-count metric series that BOCPD detects as anomalous.
+//
+// The spike: the agent starts with zero http_check errors. The check (interval=10s)
+// immediately begins failing with "connection refused" against port 19876. Each failure
+// emits an ERROR-level log → agent-log tap → log_metrics_extractor → pattern-count=1.
+// BOCPD sees a step-change from no-data to a recurring signal and fires after warmup.
 func (s *logTriggeredSuite) TestLogsTriggeredEmitsOnCheckErrors() {
 	// http_check runs every 10 s and emits an error log (error level → always forwarded).
-	// CUSUM fires after min_points=5 (default); the first occurrences look like a spike
-	// against an empty/zero baseline.
+	// BOCPD warmup_points=20 → 20 events × 10 s = ~200 s warmup before detection.
 	waitForObserverReady(s)
 
 	s.T().Log("waiting for [observer] report marker from log-triggered anomaly...")
@@ -225,7 +229,7 @@ func (s *logTriggeredSuite) TestLogsTriggeredEmitsOnCheckErrors() {
 		out, err := s.Env().RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager")
 		assert.NoError(c, err, "journalctl execution failed")
 		assert.Contains(c, out, observerReportMarker, "journald should contain stdout reporter marker")
-	}, 5*time.Minute, 10*time.Second)
+	}, 8*time.Minute, 10*time.Second)
 
 	dumpObserverLines(s.T(), s.Env())
 	if out, err := s.Env().RemoteHost.Execute(
