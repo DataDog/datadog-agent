@@ -8,6 +8,7 @@ package helper
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -235,30 +236,32 @@ func (s *UnimplementedRemoteAgentServer) stop() {
 	s.log.Debug("remoteAgentServer stopped")
 }
 
-func newAgentSecureClient(ipcComp ipc.Component, agentIpcAddress string, cfg config.Component, log log.Component) (pbcore.AgentSecureClient, error) {
+// NewAgentSecureClient dials the core agent. vsockAddr non-empty switches to
+// vsock; the returned ClientConn is owned by the caller.
+func NewAgentSecureClient(agentIpcAddress, authToken string, tlsConfig *tls.Config, vsockAddr string, log log.Component) (pbcore.AgentSecureClient, *grpc.ClientConn, error) {
 	opts := []grpc.DialOption{
-		grpc.WithTransportCredentials(credentials.NewTLS(ipcComp.GetTLSClientConfig())),
-		grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(ipcComp.GetAuthToken())),
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(authToken)),
 	}
 
-	if vsockAddr := cfg.GetString("vsock_addr"); vsockAddr != "" {
+	if vsockAddr != "" {
 		cid, err := socket.ParseVSockAddress(vsockAddr)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		_, sPort, err := net.SplitHostPort(agentIpcAddress)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		cmdPort, parseErr := strconv.ParseUint(sPort, 10, 16)
 		if parseErr != nil {
-			return nil, fmt.Errorf("invalid vsock socket path '%s'", agentIpcAddress)
+			return nil, nil, fmt.Errorf("invalid vsock socket path '%s'", agentIpcAddress)
 		}
 
 		if cmdPort == 0 {
-			return nil, errors.New("invalid port '0' for vsock")
+			return nil, nil, errors.New("invalid port '0' for vsock")
 		}
 
 		opts = append(opts, grpc.WithContextDialer(func(_ context.Context, _ string) (net.Conn, error) {
@@ -269,45 +272,64 @@ func newAgentSecureClient(ipcComp ipc.Component, agentIpcAddress string, cfg con
 
 	conn, err := grpc.NewClient(agentIpcAddress, opts...)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return pbcore.NewAgentSecureClient(conn), nil
+	return pbcore.NewAgentSecureClient(conn), conn, nil
+}
+
+func newAgentSecureClient(ipcComp ipc.Component, agentIpcAddress string, cfg config.Component, log log.Component) (pbcore.AgentSecureClient, error) {
+	// Conn held until process exit
+	client, _, err := NewAgentSecureClient(agentIpcAddress, ipcComp.GetAuthToken(), ipcComp.GetTLSClientConfig(), cfg.GetString("vsock_addr"), log)
+	return client, err
+}
+
+// RegistrationRequest is the input for RegisterRemoteAgent.
+type RegistrationRequest struct {
+	Flavor         string
+	DisplayName    string
+	APIEndpointURI string
+	Services       []string
+}
+
+// RegisterRemoteAgent calls RegisterRemoteAgent on the core agent. If the
+// core's recommended refresh interval is 0, defaultRefreshInterval is used.
+func RegisterRemoteAgent(ctx context.Context, client pbcore.AgentSecureClient, req RegistrationRequest, queryTimeout, defaultRefreshInterval time.Duration, log log.Component) (string, time.Duration, error) {
+	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
+	defer cancel()
+
+	resp, err := client.RegisterRemoteAgent(ctx, &pbcore.RegisterRemoteAgentRequest{
+		Flavor:         req.Flavor,
+		DisplayName:    req.DisplayName,
+		ApiEndpointUri: req.APIEndpointURI,
+		Services:       req.Services,
+	})
+	if err != nil {
+		log.Debugf("failed to register remote agent: %v", err)
+		return "", 0, err
+	}
+
+	log.Infof("Registered with Remote Agent Registry for config streaming (session_id=%s). Recommended refresh interval: %d seconds.", resp.SessionId, resp.RecommendedRefreshIntervalSecs)
+
+	refreshInterval := time.Duration(resp.RecommendedRefreshIntervalSecs) * time.Second
+	if resp.RecommendedRefreshIntervalSecs == 0 {
+		if defaultRefreshInterval > 0 {
+			log.Warnf("Recommended refresh interval is 0 seconds, using default refresh interval of %s", defaultRefreshInterval)
+		}
+		refreshInterval = defaultRefreshInterval
+	}
+	return resp.SessionId, refreshInterval, nil
 }
 
 // registerWithAgent handles the registration logic with the Core Agent
 func (s *UnimplementedRemoteAgentServer) registerWithAgent() (string, time.Duration, error) {
-	registerReq := &pbcore.RegisterRemoteAgentRequest{
+	s.log.Debugf("Registering with Core Agent at %s...", s.agentIpcAddress)
+	return RegisterRemoteAgent(context.Background(), s.agentClient, RegistrationRequest{
 		Flavor:         s.agentFlavor,
 		DisplayName:    s.displayName,
-		ApiEndpointUri: s.listener.Addr().String(),
+		APIEndpointURI: s.listener.Addr().String(),
 		Services:       s.services,
-	}
-
-	s.log.Debugf("Registering with Core Agent at %s...", s.agentIpcAddress)
-
-	ctx, cancel := context.WithTimeout(context.Background(), s.queryTimeout)
-	defer cancel()
-
-	resp, err := s.agentClient.RegisterRemoteAgent(ctx, registerReq)
-	if err != nil {
-		s.log.Debugf("failed to register remote agent: %v", err)
-		return "", 0, err
-	}
-
-	// Store the session ID for use in the session ID interceptor and config streaming
-	s.log.Infof("Registered with Remote Agent Registry for config streaming (session_id=%s). Recommended refresh interval: %d seconds.", resp.SessionId, resp.RecommendedRefreshIntervalSecs)
-
-	// Check that refresh rate is greater than 0 seconds
-	var refreshInterval time.Duration
-	if resp.RecommendedRefreshIntervalSecs == 0 {
-		s.log.Warnf("Recommended refresh interval is 0 seconds, using default refresh interval of %d seconds", s.defaultRefreshInterval)
-		refreshInterval = s.defaultRefreshInterval
-	} else {
-		refreshInterval = time.Duration(resp.RecommendedRefreshIntervalSecs) * time.Second
-	}
-
-	return resp.SessionId, refreshInterval, nil
+	}, s.queryTimeout, s.defaultRefreshInterval, s.log)
 }
 
 // refreshRegistration handles the refresh logic with the Core Agent

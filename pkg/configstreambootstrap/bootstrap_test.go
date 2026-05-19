@@ -12,6 +12,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func envFunc(m map[string]string) func(string) (string, bool) {
@@ -157,4 +160,12 @@ func TestRunRequiresClientName(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "ClientName is required")
+}
+
+func TestSeedGlobalBuilderResolvesIPCArtifactsNextToDatadogYaml(t *testing.T) {
+	dir := t.TempDir()
+	yamlPath := filepath.Join(dir, "datadog.yaml")
+	pkgconfigsetup.InitConfigObjects(yamlPath, "")
+	seedGlobalBuilder(settings{CmdHost: "localhost", CmdPort: 5001}, yamlPath)
+	require.Equal(t, filepath.Join(dir, "auth_token"), pkgtoken.GetAuthTokenFilepath(pkgconfigsetup.GlobalConfigBuilder()))
 }

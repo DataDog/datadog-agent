@@ -4,10 +4,13 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package configstreambootstrap applies the initial configstream snapshot to
-// the global config builder before FX starts, so constructor-time config reads
-// see streamed values rather than local datadog.yaml. Callers must follow up
-// with config.WithConfigstreamEnabled(true) so FX does not re-read the file
+// the global config builder before FX starts. Callers must follow up with
+// config.WithConfigstreamEnabled(true) so FX does not re-read datadog.yaml
 // and clobber the snapshot.
+//
+// Intentionally minimal: setupConfig features NOT applied here — secret
+// resolution, fleet policy merging, DD_COMMON_ROOT, delegated auth. Bootstrap
+// keys must be plain values in env or datadog.yaml.
 package configstreambootstrap
 
 import (
@@ -22,19 +25,17 @@ import (
 	"time"
 
 	yaml "go.yaml.in/yaml/v3"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/remoteagent/helper"
 	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pbcore "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -48,8 +49,8 @@ const (
 	envCmdPort            = "DD_CMD_PORT"
 	envRARRegistryEnabled = "DD_REMOTE_AGENT_REGISTRY_ENABLED"
 
-	defaultCmdHost = "localhost"
-	defaultCmdPort = 5001
+	defaultCmdHost            = "localhost"
+	defaultCmdPort            = 5001
 	defaultRARRegistryEnabled = true
 
 	// queryTimeout caps RegisterRemoteAgent and stream open. Snapshot Recv()
@@ -185,8 +186,12 @@ func yamlCandidates(cliConfigPath string) []string {
 	return out
 }
 
-func seedGlobalBuilder(bs settings) {
+func seedGlobalBuilder(bs settings, cliConfigPath string) {
 	b := pkgconfigsetup.GlobalConfigBuilder()
+	// Lets the IPC primitives' filepath.Dir(ConfigFileUsed()) fallback resolve.
+	if candidates := yamlCandidates(cliConfigPath); len(candidates) > 0 {
+		b.SetConfigFile(candidates[0])
+	}
 	if bs.AuthTokenFilePath != "" {
 		b.Set("auth_token_file_path", bs.AuthTokenFilePath, pkgconfigmodel.SourceFile)
 	}
@@ -217,7 +222,7 @@ func Run(ctx context.Context, params Params) error {
 	}
 
 	pkgconfigsetup.InitConfigObjects(params.CLIConfigPath, config.DefaultConfPath)
-	seedGlobalBuilder(bs)
+	seedGlobalBuilder(bs, params.CLIConfigPath)
 
 	reader := pkgconfigsetup.GlobalConfigBuilder()
 
@@ -232,9 +237,7 @@ func Run(ctx context.Context, params Params) error {
 		return fmt.Errorf("fetch IPC cert: %w", err)
 	}
 
-	// Listener exists only so RAR has a syntactically valid ApiEndpointUri;
-	// we don't serve on it. The FX-side remoteagent component owns the
-	// long-lived listener and re-registers with its own URI.
+	// Unused; just gives RAR a valid ApiEndpointUri. FX-side re-registers later.
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return fmt.Errorf("open bootstrap listener: %w", err)
@@ -242,19 +245,18 @@ func Run(ctx context.Context, params Params) error {
 	defer listener.Close()
 
 	addr := net.JoinHostPort(bs.CmdHost, strconv.Itoa(bs.CmdPort))
-	conn, err := grpc.NewClient(addr,
-		grpc.WithTransportCredentials(credentials.NewTLS(clientTLS)),
-		grpc.WithPerRPCCredentials(grpcutil.NewBearerTokenAuth(authToken)),
-	)
+	logger := pkglog.NewWrapper(2)
+	client, conn, err := helper.NewAgentSecureClient(addr, authToken, clientTLS, reader.GetString("vsock_addr"), logger)
 	if err != nil {
 		return fmt.Errorf("dial core agent at %s: %w", addr, err)
 	}
 	defer conn.Close()
 
-	client := pbcore.NewAgentSecureClient(conn)
-
-	pkglog.Infof("configstream bootstrap[%s]: registering with RAR at %s", params.ClientName, addr)
-	sessionID, err := registerForBootstrap(ctx, client, params.ClientName, listener.Addr().String())
+	sessionID, _, err := helper.RegisterRemoteAgent(ctx, client, helper.RegistrationRequest{
+		Flavor:         flavor.GetFlavor(),
+		DisplayName:    params.ClientName + " (bootstrap)",
+		APIEndpointURI: listener.Addr().String(),
+	}, queryTimeout, 0, logger)
 	if err != nil {
 		return fmt.Errorf("register with RAR: %w", err)
 	}
@@ -265,21 +267,6 @@ func Run(ctx context.Context, params Params) error {
 	}
 	pkglog.Infof("configstream bootstrap[%s]: snapshot applied", params.ClientName)
 	return nil
-}
-
-func registerForBootstrap(ctx context.Context, client pbcore.AgentSecureClient, clientName, apiEndpointURI string) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
-	defer cancel()
-	resp, err := client.RegisterRemoteAgent(ctx, &pbcore.RegisterRemoteAgentRequest{
-		Flavor:         flavor.GetFlavor(),
-		DisplayName:    clientName + " (bootstrap)",
-		ApiEndpointUri: apiEndpointURI,
-		Services:       nil,
-	})
-	if err != nil {
-		return "", err
-	}
-	return resp.SessionId, nil
 }
 
 func fetchAndApplySnapshot(ctx context.Context, client pbcore.AgentSecureClient, clientName, sessionID string) error {
