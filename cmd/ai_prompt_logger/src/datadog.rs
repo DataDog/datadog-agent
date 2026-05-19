@@ -127,15 +127,9 @@ impl DatadogClient {
                 return Some(path);
             }
 
-            if let Some(program_data) = std::env::var_os("ProgramData") {
-                if let Some(path) =
-                    Self::config_path_in_dir(PathBuf::from(program_data).join("Datadog"))
-                {
-                    return Some(path);
-                }
-            }
-
-            return None;
+            std::env::var_os("ProgramData").and_then(|program_data| {
+                Self::config_path_in_dir(PathBuf::from(program_data).join("Datadog"))
+            })
         }
 
         #[cfg(not(windows))]
@@ -144,7 +138,11 @@ impl DatadogClient {
 
     fn config_path_in_dir(dir: impl AsRef<Path>) -> Option<PathBuf> {
         let path = dir.as_ref().join(CONFIG_BASENAME);
-        if path.is_file() { Some(path) } else { None }
+        if path.is_file() {
+            Some(path)
+        } else {
+            None
+        }
     }
 
     #[cfg(windows)]
@@ -164,8 +162,8 @@ impl DatadogClient {
         use windows_sys::Win32::Foundation::ERROR_SUCCESS;
         use windows_sys::Win32::System::Environment::ExpandEnvironmentStringsW;
         use windows_sys::Win32::System::Registry::{
-            HKEY, HKEY_LOCAL_MACHINE, KEY_READ, KEY_WOW64_64KEY, REG_EXPAND_SZ, REG_SZ,
-            RegCloseKey, RegOpenKeyExW, RegQueryValueExW,
+            RegCloseKey, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_LOCAL_MACHINE, KEY_READ,
+            KEY_WOW64_64KEY, REG_EXPAND_SZ, REG_SZ,
         };
 
         fn wide(value: &str) -> Vec<u16> {
