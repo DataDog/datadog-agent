@@ -6,6 +6,7 @@
 package ccmmode
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -59,6 +60,29 @@ func (s *ccmModeSuite) TestTaggedCoreCheckMetricsIncludeCCMModeTag() {
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics, "expected system.cpu.user with %s on fakeintake", infraModeTag)
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for tagged cpu metrics")
+}
+
+// sendStatsdGauge sends a DogStatsD gauge metric to the agent via UDP on the remote host.
+func (s *ccmModeSuite) sendStatsdGauge(name string, value int) {
+	cmd := fmt.Sprintf(`bash -c 'echo -n "%s:%d|g" > /dev/udp/127.0.0.1/8125'`, name, value)
+	s.Env().RemoteHost.MustExecute(cmd)
+}
+
+// TestDogstatsdCustomMetricForwarded verifies DogStatsD metrics are forwarded in cloud_cost_only
+// mode even when the metric name is not on integration.cloud_cost_only.metrics.
+func (s *ccmModeSuite) TestDogstatsdCustomMetricForwarded() {
+	const metricName = "e2e.ccm.dogstatsd.custom"
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		s.sendStatsdGauge(metricName, 1)
+
+		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(
+			metricName,
+			client.WithMetricValueHigherThan(0),
+		)
+		assert.NoError(c, err)
+		assert.NotEmpty(c, metrics, "%s should be forwarded via DogStatsD in cloud_cost_only mode", metricName)
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for DogStatsD custom metric on fakeintake")
 }
 
 // TestNonAllowlistedMetricsDropped verifies metrics outside integration.cloud_cost_only.metrics
