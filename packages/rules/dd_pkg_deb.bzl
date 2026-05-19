@@ -1,5 +1,6 @@
 """dd__pkg_deb - wrapper for pkg_deb adding agent specific defaults."""
 
+# buildifier: disable=bzl-visibility
 load("@rules_pkg//pkg/private/deb:deb.bzl", "pkg_deb_impl")
 load("//packages/rules:package_naming.bzl", "package_name_variables")
 load("//tools/tar_checksums:tar_md5sums.bzl", "tar_md5sums")
