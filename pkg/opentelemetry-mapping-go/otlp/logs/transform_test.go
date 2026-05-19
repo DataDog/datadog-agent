@@ -624,6 +624,60 @@ func generateTranslatorTestCases(traceID [16]byte, spanID [8]byte, ddTr uint64, 
 				},
 			},
 		},
+		{
+			// Array log record attributes must be preserved as JSON arrays, not stringified.
+			// Regression test for https://github.com/DataDog/datadog-agent/issues/28598
+			name: "array attribute preserved as array",
+			args: args{
+				lr: func() plog.LogRecord {
+					l := plog.NewLogRecord()
+					l.SetSeverityNumber(5)
+					arr := l.Attributes().PutEmptySlice("arr")
+					arr.AppendEmpty().SetStr("ab")
+					arr.AppendEmpty().SetStr("cd")
+					return l
+				}(),
+				res:   pcommon.NewResource(),
+				scope: pcommon.NewInstrumentationScope(),
+			},
+			want: datadogV2.HTTPLogItem{
+				Ddtags:  datadog.PtrString("otel_source:test"),
+				Message: *datadog.PtrString(""),
+				AdditionalProperties: map[string]interface{}{
+					"arr":              []interface{}{"ab", "cd"},
+					"status":           "debug",
+					otelSeverityNumber: "5",
+				},
+			},
+		},
+		{
+			// Array values in resource attributes must also be preserved as JSON arrays.
+			name: "array resource attribute preserved as array",
+			args: args{
+				lr: func() plog.LogRecord {
+					l := plog.NewLogRecord()
+					l.SetSeverityNumber(5)
+					return l
+				}(),
+				res: func() pcommon.Resource {
+					r := pcommon.NewResource()
+					arr := r.Attributes().PutEmptySlice("tags")
+					arr.AppendEmpty().SetStr("env:prod")
+					arr.AppendEmpty().SetStr("region:us-east-1")
+					return r
+				}(),
+				scope: pcommon.NewInstrumentationScope(),
+			},
+			want: datadogV2.HTTPLogItem{
+				Ddtags:  datadog.PtrString("otel_source:test"),
+				Message: *datadog.PtrString(""),
+				AdditionalProperties: map[string]interface{}{
+					"tags":             []interface{}{"env:prod", "region:us-east-1"},
+					"status":           "debug",
+					otelSeverityNumber: "5",
+				},
+			},
+		},
 	}
 }
 func TestTranslator(t *testing.T) {

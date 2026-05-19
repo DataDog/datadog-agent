@@ -132,12 +132,16 @@ func transform(lr plog.LogRecord, host, service string, res pcommon.Resource, sc
 		if k == "hostname" || k == "service" {
 			l.AdditionalProperties["otel."+k] = v.AsString()
 		} else {
-			l.AdditionalProperties[k] = v.AsString()
+			for mk, mv := range flattenAttribute(k, v, 1) {
+				l.AdditionalProperties[mk] = mv
+			}
 		}
 		return true
 	})
 	for k, v := range scope.Attributes().Range {
-		l.AdditionalProperties[k] = v.AsString()
+		for mk, mv := range flattenAttribute(k, v, 1) {
+			l.AdditionalProperties[mk] = mv
+		}
 	}
 	if traceID := lr.TraceID(); !traceID.IsEmpty() {
 		l.AdditionalProperties[ddTraceID] = strconv.FormatUint(traceIDToUint64(traceID), 10)
@@ -190,7 +194,8 @@ func flattenAttribute(key string, val pcommon.Value, depth int) map[string]any {
 		if val.Type() == pcommon.ValueTypeStr ||
 			val.Type() == pcommon.ValueTypeInt ||
 			val.Type() == pcommon.ValueTypeBool ||
-			val.Type() == pcommon.ValueTypeDouble {
+			val.Type() == pcommon.ValueTypeDouble ||
+			val.Type() == pcommon.ValueTypeSlice {
 			result[key] = val.AsRaw()
 		} else {
 			result[key] = val.AsString()
