@@ -1164,3 +1164,34 @@ Next SMP analysis should graph throughput against `consumer_lag_*`,
 `oldest_record_age_ns`, and `blocked_ns/backpressure_events` so higher ingress
 rates are not accepted if the raw ring is permanently full or oldest age grows
 without bound.
+
+### Initial post-telemetry honesty gates
+
+A new optimized Linux image was built after the telemetry commit:
+
+- `datadog/agent-dev:smp-dsd-columnar-v3-raw-lag-telemetry`
+- image ID `sha256:d6432a0a29cb88aa1a5918476debb1c0a722515a8d65ce597230563b1b9292bb`
+- agent version `Agent 7.81.0-devel - Meta: git.76.b99255e - Commit: b99255eb31e`
+
+First three-replicate local `main` honesty gates:
+
+| Comparison | Case | Δ mean | Δ mean CI | Confidence | Read |
+|---|---|---:|---:|---:|---|
+| `main` -> Stage Q + raw lag telemetry | high-rate fixed-v3 local case | +3.62% | [+3.35%, +3.90%] | 100.0% | still positive, but lower than the earlier single-replicate +8.10%; ring applies backpressure |
+| `main` -> Stage Q + raw lag telemetry | standard fixed-v3 local case | +2.25% | [+1.94%, +2.55%] | 100.0% | standard case positive, memory remains higher |
+
+Selected three-replicate means:
+
+| Case | Variant | Agent UDS MiB/s | processed/s | packet pool avg | raw consumer lag avg/max | oldest age avg/max | raw blocked ms/s | RSS MiB | heap MiB |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| high-rate v3 | main | 194.01 | 239,790 | 676 | n/a | n/a | n/a | 176.44 | 72.86 |
+| high-rate v3 | Stage Q + telemetry | 200.96 | 248,349 | 0 | 9.16/15.87 MiB, 2,472/4,309 records | 89.7/196.3 ms | 406.1 | 179.38 | 73.22 |
+| standard v3 | main | 96.38 | 111,089 | 117 | n/a | n/a | n/a | 459.05 | 226.88 |
+| standard v3 | Stage Q + telemetry | 98.32 | 113,333 | 0 | 0.39/7.69 MiB, 103/2,118 records | 4.0/276.2 ms | 152.3 | 499.83 | 247.69 |
+
+Read: the telemetry does its job. The high-rate case is now clearly a bounded
+backpressure run: packet-pool backlog is gone, the raw ring averages ~9 MiB and
+occasionally approaches the 16 MiB budget, and listener append blocking is
+visible. This is production-shaped backpressure rather than a free throughput
+win. The standard case remains throughput-positive but keeps the memory concern
+front and center.
