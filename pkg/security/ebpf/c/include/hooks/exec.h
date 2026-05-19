@@ -483,6 +483,12 @@ TAIL_CALL_FNC(get_envs_offset, void *ctx) {
 #pragma unroll
 #endif
     for (i = 0; i < MAX_ARGS_READ_PER_TAIL && args_count < syscall->exec.args.count; i++) {
+        // stop before walking into non-canonical address space to avoid kernel warnings
+        // on bpf_probe_read on kernel versions without copy_from_kernel_nofault.
+        if ((u64)args_start + offset >= USER_CANONICAL_ADDR_MAX) {
+            syscall->exec.args_envs_ctx.envs_offset = 0;
+            return 0;
+        }
         bytes_read = bpf_probe_read_str(&buff->value[0], MAX_ARRAY_ELEMENT_SIZE, (void *)(args_start + offset));
         if (bytes_read < 0 || bytes_read == MAX_ARRAY_ELEMENT_SIZE) {
             syscall->exec.args_envs_ctx.envs_offset = 0;
@@ -540,6 +546,11 @@ void __attribute__((always_inline)) parse_args_envs(void *ctx, struct args_envs_
 #endif
     for (i = 0; i < MAX_ARRAY_ELEMENT_PER_TAIL; i++) {
         if (args_envs->counter == args_envs->count) {
+            break;
+        }
+        // stop before walking into non-canonical address space to avoid kernel warnings
+        // on bpf_probe_read on kernel versions without copy_from_kernel_nofault.
+        if ((u64)args_start + offset >= USER_CANONICAL_ADDR_MAX) {
             break;
         }
 
@@ -706,8 +717,12 @@ int hook_setup_new_exec_args_envs(ctx_t *ctx) {
     u64 p_offset;
     LOAD_CONSTANT("linux_binprm_p_offset", p_offset);
     bpf_probe_read(&p, sizeof(p), (char *)bprm + p_offset);
-    // if we fail to retrieve the pointer to the args then don't bother parsing them
-    if (p == 0) {
+    // if we fail to retrieve the pointer to the args then don't bother parsing them.
+    // also bail out if p is not a canonical user pointer: this happens when the
+    // linux_binprm offset is wrong for the running kernel and we end up reading a
+    // different field which results in a kernel warnings on bpf_probe_read 
+    // on kernel versions without copy_from_kernel_nofault.
+    if (p == 0 || p >= USER_CANONICAL_ADDR_MAX) {
         return 0;
     }
 

@@ -22,6 +22,12 @@
 #define MAX_ARGS_ELEMENTS (MAX_ARRAY_ELEMENT_PER_TAIL * (32 / 2)) // split tailcall limit
 #define MAX_ARGS_READ_PER_TAIL 160
 
+// First non-canonical address on x86_64 (also above any valid user-space
+// address on arm64). Used to gate bpf_probe_read* calls
+// on userspace pointers so a misread cannot walk into
+// non-canonical address space.
+#define USER_CANONICAL_ADDR_MAX 0x0000800000000000UL
+
 #define EXEC_GET_ENVS_OFFSET 0
 #define EXEC_PARSE_ARGS_ENVS_SPLIT 1
 #define EXEC_PARSE_ARGS_ENVS 2
