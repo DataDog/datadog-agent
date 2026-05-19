@@ -1179,6 +1179,16 @@ workflow:
   - when: manual
     allow_failure: true
 
+.on_anomalydetection_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - comp/anomalydetection/**/*
+        - test/new-e2e/tests/anomalydetection/**/*
+        - test/new-e2e/go.mod
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
 .on_ha_agent_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
