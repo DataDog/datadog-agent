@@ -28,6 +28,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "ureq",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

@@ -18,3 +18,10 @@ serde.workspace = true
 serde_json.workspace = true
 serde_yaml.workspace = true
 ureq.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_System_Environment",
+    "Win32_System_Registry",
+] }

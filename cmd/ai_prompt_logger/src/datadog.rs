@@ -40,10 +40,10 @@ impl DatadogClient {
     /// missing or not a file, a warning is logged and defaults are used (no fallback to
     /// auto-discovery for that explicit path).
     ///
-    /// If `config_path` is `None`, searches for `CONFIG_BASENAME` under the install prefix
-    /// inferred from the executable path (`{install_root}/embedded/bin/...`):
-    /// 1. `{install_root}/etc/datadog-agent/`
-    /// 2. `{install_root}/etc/`
+    /// If `config_path` is `None`, searches for `CONFIG_BASENAME`:
+    /// 1. On Windows, under the MSI `ConfigRoot` registry value.
+    /// 2. On Windows, under `%ProgramData%\Datadog`.
+    /// 3. Under the install prefix inferred from the executable path.
     ///
     /// YAML keys (defaults match the Agent trace receiver):
     /// - `trace_agent_url` (default `http://localhost:8126`; use **http** only — the local trace
@@ -121,15 +121,148 @@ impl DatadogClient {
     }
 
     fn yaml_config_path() -> Option<PathBuf> {
-        if let Some(program_data) = std::env::var_os("ProgramData") {
-            let program_data_config = PathBuf::from(program_data)
-                .join("Datadog")
-                .join(CONFIG_BASENAME);
-            if program_data_config.is_file() {
-                return Some(program_data_config);
+        #[cfg(windows)]
+        {
+            if let Some(path) = Self::windows_config_path_from_registry() {
+                return Some(path);
             }
+
+            if let Some(program_data) = std::env::var_os("ProgramData") {
+                if let Some(path) =
+                    Self::config_path_in_dir(PathBuf::from(program_data).join("Datadog"))
+                {
+                    return Some(path);
+                }
+            }
+
+            return None;
         }
 
+        #[cfg(not(windows))]
+        Self::install_root_config_path()
+    }
+
+    fn config_path_in_dir(dir: impl AsRef<Path>) -> Option<PathBuf> {
+        let path = dir.as_ref().join(CONFIG_BASENAME);
+        if path.is_file() { Some(path) } else { None }
+    }
+
+    #[cfg(windows)]
+    fn windows_config_path_from_registry() -> Option<PathBuf> {
+        // Mirror pkg/util/winutil.GetProgramDataDir() and pkg/util/defaultpaths:
+        // prefer the MSI ConfigRoot registry value over the default ProgramData path.
+        let config_root =
+            Self::windows_registry_string("SOFTWARE\\Datadog\\Datadog Agent", "ConfigRoot")?;
+        Some(config_root.join(CONFIG_BASENAME))
+    }
+
+    #[cfg(windows)]
+    fn windows_registry_string(subkey: &str, value_name: &str) -> Option<PathBuf> {
+        use std::ffi::OsStr;
+        use std::os::windows::ffi::OsStrExt;
+        use std::ptr;
+        use windows_sys::Win32::Foundation::ERROR_SUCCESS;
+        use windows_sys::Win32::System::Environment::ExpandEnvironmentStringsW;
+        use windows_sys::Win32::System::Registry::{
+            HKEY, HKEY_LOCAL_MACHINE, KEY_READ, KEY_WOW64_64KEY, REG_EXPAND_SZ, REG_SZ,
+            RegCloseKey, RegOpenKeyExW, RegQueryValueExW,
+        };
+
+        fn wide(value: &str) -> Vec<u16> {
+            OsStr::new(value).encode_wide().chain(Some(0)).collect()
+        }
+
+        unsafe fn expand_env_string(value: &[u16]) -> Option<Vec<u16>> {
+            let mut source = value.to_vec();
+            source.push(0);
+
+            let required =
+                unsafe { ExpandEnvironmentStringsW(source.as_ptr(), ptr::null_mut(), 0) };
+            if required == 0 {
+                return None;
+            }
+
+            let mut expanded = vec![0u16; required as usize];
+            let written = unsafe {
+                ExpandEnvironmentStringsW(source.as_ptr(), expanded.as_mut_ptr(), required)
+            };
+            if written == 0 || written > required {
+                return None;
+            }
+
+            let len = expanded
+                .iter()
+                .position(|c| *c == 0)
+                .unwrap_or(expanded.len());
+            if len == 0 {
+                return None;
+            }
+            expanded.truncate(len);
+            Some(expanded)
+        }
+
+        unsafe {
+            let mut key: HKEY = ptr::null_mut();
+            let subkey = wide(subkey);
+            let status = RegOpenKeyExW(
+                HKEY_LOCAL_MACHINE,
+                subkey.as_ptr(),
+                0,
+                KEY_READ | KEY_WOW64_64KEY,
+                &mut key,
+            );
+            if status != ERROR_SUCCESS {
+                return None;
+            }
+
+            let value_name = wide(value_name);
+            let mut value_type = 0;
+            let mut byte_len = 0;
+            let status = RegQueryValueExW(
+                key,
+                value_name.as_ptr(),
+                ptr::null_mut(),
+                &mut value_type,
+                ptr::null_mut(),
+                &mut byte_len,
+            );
+            if status != ERROR_SUCCESS
+                || byte_len < 2
+                || (value_type != REG_SZ && value_type != REG_EXPAND_SZ)
+            {
+                RegCloseKey(key);
+                return None;
+            }
+
+            let mut buffer = vec![0u16; (byte_len as usize).div_ceil(2)];
+            let status = RegQueryValueExW(
+                key,
+                value_name.as_ptr(),
+                ptr::null_mut(),
+                &mut value_type,
+                buffer.as_mut_ptr().cast(),
+                &mut byte_len,
+            );
+            RegCloseKey(key);
+            if status != ERROR_SUCCESS {
+                return None;
+            }
+
+            let len = buffer.iter().position(|c| *c == 0).unwrap_or(buffer.len());
+            if len == 0 {
+                return None;
+            }
+            let value = if value_type == REG_EXPAND_SZ {
+                expand_env_string(&buffer[..len])?
+            } else {
+                buffer[..len].to_vec()
+            };
+            Some(PathBuf::from(String::from_utf16_lossy(&value)))
+        }
+    }
+
+    #[cfg(not(windows))]
+    fn install_root_config_path() -> Option<PathBuf> {
         let install_root = Self::install_root_from_exe()?;
         let etc_dd = install_root
             .join("etc")
@@ -138,14 +271,12 @@ impl DatadogClient {
         if etc_dd.is_file() {
             return Some(etc_dd);
         }
-        let etc_flat = install_root.join("etc").join(CONFIG_BASENAME);
-        if etc_flat.is_file() {
-            return Some(etc_flat);
-        }
-        None
+        Self::config_path_in_dir(install_root.join("etc"))
     }
 
-    /// `{install_dir}` when the binary lives at `{install_dir}/embedded/bin/<name>`.
+    /// Finds `{install_dir}` for packaged non-Windows layouts like
+    /// `{install_dir}/embedded/bin/<name>`.
+    #[cfg(not(windows))]
     fn install_root_from_exe() -> Option<PathBuf> {
         let exe = std::env::current_exe().ok()?;
         let bin_dir = exe.parent()?;

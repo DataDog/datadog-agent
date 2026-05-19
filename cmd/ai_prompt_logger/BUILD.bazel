@@ -23,7 +23,10 @@ rust_binary(
         "@crates//:serde_json",
         "@crates//:serde_yaml",
         "@crates//:ureq",
-    ],
+    ] + select({
+        "@platforms//os:windows": ["@crates//:windows-sys"],
+        "//conditions:default": [],
+    }),
 )
 
 pkg_files(
