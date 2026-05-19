@@ -1257,3 +1257,85 @@ Important caveats:
 - Standard UDS cases remain memory-negative. Memory profiling, descriptor expiry,
   row/buffer lifetime, and bounded metadata strategy are still blockers before a
   production switch.
+
+## Stage R: memory hygiene and telemetry cost controls
+
+Stage R turns the standard-UDS memory concern into an explicit optimization
+stage. The main principle is that proof telemetry is valuable, but it must be
+measurable and optional when it is not needed for the production-shaped hot path.
+
+Implementation commits:
+
+- `f05e7fa378f` — `dogstatsd: reduce columnar memory overhead`
+- `cf85e2601ce` — `dogstatsd: make columnar descriptor interning optional`
+- `ab6db258799` — `dogstatsd: reuse columnar flush buffers`
+
+Final Stage R image:
+
+- `datadog/agent-dev:smp-dsd-columnar-v3-memory-hygiene-reuse`
+- image ID `sha256:f0594de5eb3e9db47bfba9ef41ff3c999dc6cb58be2a396632de8237561ad394`
+
+Changes:
+
+- Direct-row proof telemetry is optional behind
+  `DD_DOGSTATSD_EXPERIMENTAL_DIRECT_ROW_SHADOW_TELEMETRY=true`.
+- Serializer segment-shadow proof telemetry is optional behind
+  `DD_SERIALIZER_EXPERIMENTAL_SEGMENT_SHADOW_TELEMETRY=true`.
+- Columnar descriptors expire/reuse slots using `dogstatsd_context_expiry_seconds`
+  by default; local override:
+  `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_DESCRIPTOR_EXPIRY_SECONDS`.
+- Per-bucket descriptor maps are no longer allocated on the normal monotonic
+  bucket path. They are built lazily only for non-monotonic descriptor/bucket
+  fallback.
+- Flush row merging now uses descriptor-ID generation arrays instead of a
+  per-flush map keyed by columnar identity.
+- First-pass descriptor string/tagset interning exists, but is opt-in via
+  `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_INTERN_DESCRIPTORS=true`; SMP showed
+  that naive default-on interning is not good for mostly-unique tagsets.
+- Columnar bucket structs and flush row slices are reused to reduce churn.
+
+Artifacts:
+
+- `reports/smp/dogstatsd-agg-serde-20260516-143205/notes/stageR-memory-hygiene.md`
+- `reports/smp/dogstatsd-agg-serde-20260516-143205/stageR_memory_hygiene_effects.csv`
+- `reports/smp/dogstatsd-agg-serde-20260516-143205/stageR_memory_hygiene_selected_metrics.csv`
+
+Three-replicate SMP results:
+
+| Comparison | Case | Δ mean | Δ mean CI | Confidence | Read |
+|---|---|---:|---:|---:|---|
+| raw-lag telemetry -> Stage R interning-on | v3 standard UDS | +0.23% | [+0.03%, +0.43%] | 85.8% | throughput neutral/slightly positive, but RSS worse; naive interning is not default-worthy |
+| raw-lag telemetry -> Stage R default-off interning | v3 standard UDS | +0.13% | [-0.11%, +0.38%] | 50.9% | throughput neutral; shadow telemetry removed; paired RSS lower |
+| Stage R default-off -> Stage R buffer reuse | v3 standard UDS | -0.09% | [-0.21%, +0.03%] | 65.9% | throughput neutral; RSS noisy, heap-sys/allocation-rate signal mixed |
+| raw-lag telemetry -> final Stage R reuse | v3 high-rate UDS | +1.50% | [+1.22%, +1.78%] | 100.0% | high-rate path improved, still backpressure-bounded |
+| main -> final Stage R reuse | v3 standard UDS | +2.22% | [+1.92%, +2.52%] | 100.0% | throughput-positive vs main, but total RSS/heap remain materially higher |
+
+Selected means:
+
+| Comparison | Variant | ingress MiB/s | RSS MiB | heap alloc MiB | heap sys MiB | shadow rows/s | raw lag MiB | blocked ms/s |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| raw-lag -> Stage R default | raw-lag telemetry | 97.99 | 502.02 | 250.53 | 601.70 | direct 148.86 / segment 186.15 | 0.98 | 148.67 |
+| raw-lag -> Stage R default | Stage R default | 98.15 | 491.09 | 243.22 | 588.36 | direct 0 / segment 0 | 0.84 | 139.30 |
+| main -> final Stage R reuse | main | 96.38 | 453.27 | 224.92 | 579.00 | 0 / 0 | n/a | 0 |
+| main -> final Stage R reuse | final Stage R reuse | 98.40 | 498.83 | 246.37 | 612.41 | 0 / 0 | 0.57 | 142.72 |
+| raw-lag -> final Stage R reuse | raw-lag telemetry high-rate | 200.86 | 178.56 | 73.37 | 130.46 | direct 148.82 / segment 184.79 | 9.02 | 393.98 |
+| raw-lag -> final Stage R reuse | final Stage R reuse high-rate | 203.85 | 180.12 | 74.63 | 134.59 | direct 0 / segment 0 | 9.12 | 395.10 |
+
+Read:
+
+- The expensive proof telemetry is now explicit cost, not hidden cost. It can be
+  turned back on for equivalence/cost probes, but it is off by default for normal
+  SMP honesty measurements.
+- Naive database-style tagset interning is not enough. In this workload, tagset
+  reuse was too low (`~7.68` created tagsets/s vs `~0.16` reused tagsets/s), so
+  default-on interning simply added maps/key strings. Keep the idea, but require
+  bounded/adaptive admission before making it part of the default path.
+- The columnar bucket path is now more database-shaped: descriptor ID is the
+  primary key, per-bucket maps are lazy fallback, and flush merging is by
+  descriptor generation. SMP observed zero fallback bucket-index creation in the
+  measured UDS runs.
+- Final Stage R is still not a memory win vs main. Standard v3 UDS remains about
+  `+45.6 MiB` RSS and `+21.5 MiB` heap alloc vs main in the paired run, despite
+  removing legacy aggregator contexts/tagstore memory. The next memory work must
+  profile the direct columnar/serializer path rather than assuming descriptor
+  metadata is the whole delta.
