@@ -128,3 +128,6 @@ trigger-single-machine-performance-regression_detector-main:
     - !reference [.on_main]  # Run on every main commit
   trigger:
     strategy: depend
+  variables:
+    SMP_ALLOW_FAILURE: "false"
+
