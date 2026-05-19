@@ -50,6 +50,7 @@ const (
 
 	defaultCmdHost = "localhost"
 	defaultCmdPort = 5001
+	defaultRARRegistryEnabled = true
 
 	// queryTimeout caps RegisterRemoteAgent and stream open. Snapshot Recv()
 	// uses the caller's ctx and is not capped.
@@ -103,7 +104,7 @@ type settings struct {
 // readSettings resolves bootstrap values from env, then a YAML parse bounded
 // to a small set of keys (so malformed sections elsewhere don't abort).
 func readSettings(cliConfigPath string, lookupEnv func(string) (string, bool)) settings {
-	bs := settings{CmdHost: defaultCmdHost, CmdPort: defaultCmdPort}
+	bs := settings{CmdHost: defaultCmdHost, CmdPort: defaultCmdPort, RARRegistryEnabled: defaultRARRegistryEnabled}
 
 	authEnv, hasAuthEnv := lookupEnv(envAuthTokenFilePath)
 	certEnv, hasCertEnv := lookupEnv(envIPCCertFilePath)
@@ -143,7 +144,8 @@ func readSettings(cliConfigPath string, lookupEnv func(string) (string, bool)) s
 			CmdPort           int    `yaml:"cmd_port"`
 			RemoteAgent       struct {
 				Registry struct {
-					Enabled bool `yaml:"enabled"`
+					// *bool to distinguish absent from explicit false.
+					Enabled *bool `yaml:"enabled"`
 				} `yaml:"registry"`
 			} `yaml:"remote_agent"`
 		}
@@ -161,8 +163,8 @@ func readSettings(cliConfigPath string, lookupEnv func(string) (string, bool)) s
 		if !hasPortEnv && cfg.CmdPort > 0 {
 			bs.CmdPort = cfg.CmdPort
 		}
-		if !hasRAREnv {
-			bs.RARRegistryEnabled = cfg.RemoteAgent.Registry.Enabled
+		if !hasRAREnv && cfg.RemoteAgent.Registry.Enabled != nil {
+			bs.RARRegistryEnabled = *cfg.RemoteAgent.Registry.Enabled
 		}
 		break
 	}

@@ -69,7 +69,7 @@ func TestReadSettings(t *testing.T) {
 		require.Equal(t, defaultCmdPort, got.CmdPort)
 		require.Empty(t, got.AuthTokenFilePath)
 		require.Empty(t, got.IPCCertFilePath)
-		require.False(t, got.RARRegistryEnabled)
+		require.True(t, got.RARRegistryEnabled)
 	})
 
 	t.Run("yaml supplies all five values", func(t *testing.T) {
