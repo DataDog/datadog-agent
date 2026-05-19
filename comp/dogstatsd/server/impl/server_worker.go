@@ -38,7 +38,7 @@ type worker struct {
 
 	packetsTelemetry  *packets.TelemetryStore
 	packetLog         *packetIngressLog
-	rawIngress        *packets.RawIngressShard
+	rawIngress        packets.RawIngressReader
 	columnarV3        aggregator.DogStatsDColumnarV3Inserter
 	columnarV3Enabled bool
 

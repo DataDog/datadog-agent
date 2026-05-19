@@ -129,6 +129,7 @@ type dsdServer struct {
 	captureChan             chan packets.Packets
 	ingressLogShards        *packetIngressLogShards
 	rawIngressShards        *packets.RawIngressShards
+	compactRawIngressShards *packets.CompactRawIngressShards
 	workersCount            int
 	serverlessFlushChan     chan bool
 	sharedPacketPool        *packets.Pool
@@ -381,9 +382,12 @@ func (s *dsdServer) start(context.Context) error {
 	socketStreamPath := s.config.GetString("dogstatsd_stream_socket")
 	originDetection := s.config.GetBool("dogstatsd_origin_detection")
 	udpEnabled := s.config.GetString("dogstatsd_port") == listeners.RandomPortName || s.config.GetInt("dogstatsd_port") > 0
-	rawUDSIngressRingEnabled := experimentalRawUDSIngressRingEnabled() && !statsdForwardEnabled && pipeName == "" && len(socketPath) > 0 && socketStreamPath == "" && !originDetection && !udpEnabled
-	shardedIngressLogEnabled := experimentalShardedIngressLogEnabled() && !statsdForwardEnabled && pipeName == "" && !rawUDSIngressRingEnabled
-	ingressLogEnabled := experimentalIngressLogEnabled() && !statsdForwardEnabled && !shardedIngressLogEnabled && !rawUDSIngressRingEnabled
+	rawIngressEligible := !statsdForwardEnabled && pipeName == "" && len(socketPath) > 0 && socketStreamPath == "" && !originDetection && !udpEnabled
+	compactRawUDSIngressRingEnabled := experimentalCompactRawUDSIngressRingEnabled() && rawIngressEligible
+	rawUDSIngressRingEnabled := experimentalRawUDSIngressRingEnabled() && rawIngressEligible && !compactRawUDSIngressRingEnabled
+	rawIngressEnabled := rawUDSIngressRingEnabled || compactRawUDSIngressRingEnabled
+	shardedIngressLogEnabled := experimentalShardedIngressLogEnabled() && !statsdForwardEnabled && pipeName == "" && !rawIngressEnabled
+	ingressLogEnabled := experimentalIngressLogEnabled() && !statsdForwardEnabled && !shardedIngressLogEnabled && !rawIngressEnabled
 	packetsChannelSize := s.config.GetInt("dogstatsd_queue_size")
 	if ingressLogEnabled {
 		// The experimental ingress log replaces the large packetsIn channel as
@@ -394,10 +398,18 @@ func (s *dsdServer) start(context.Context) error {
 	}
 	packetsChannel := make(chan packets.Packets, packetsChannelSize)
 	packetWriter := packets.NewChannelBatchWriter(packetsChannel)
-	if rawUDSIngressRingEnabled {
+	var rawPacketWriter packets.RawPacketWriter
+	if compactRawUDSIngressRingEnabled {
+		packetsChannel = nil
+		s.workersCount = s.getDogStatsDWorkersCount()
+		s.compactRawIngressShards = packets.NewCompactRawIngressShards(s.workersCount, experimentalIngressLogMaxBytes(), s.config.GetInt("dogstatsd_buffer_size"), s.telemetry)
+		rawPacketWriter = s.compactRawIngressShards
+		s.log.Infof("DogStatsD experimental compact raw UDS ingress ring enabled with max_bytes=%d shards=%d", experimentalIngressLogMaxBytes(), s.workersCount)
+	} else if rawUDSIngressRingEnabled {
 		packetsChannel = nil
 		s.workersCount = s.getDogStatsDWorkersCount()
 		s.rawIngressShards = packets.NewRawIngressShards(s.workersCount, experimentalIngressLogMaxBytes(), s.config.GetInt("dogstatsd_buffer_size"), s.telemetry)
+		rawPacketWriter = s.rawIngressShards
 		s.log.Infof("DogStatsD experimental raw UDS ingress ring enabled with max_bytes=%d shards=%d", experimentalIngressLogMaxBytes(), s.workersCount)
 	} else if shardedIngressLogEnabled {
 		packetsChannel = nil
@@ -410,8 +422,11 @@ func (s *dsdServer) start(context.Context) error {
 	} else if experimentalShardedIngressLogEnabled() && pipeName != "" {
 		s.log.Warn("DogStatsD experimental sharded ingress log disabled because named-pipe intake is enabled")
 	}
-	if experimentalRawUDSIngressRingEnabled() && !rawUDSIngressRingEnabled {
+	if experimentalRawUDSIngressRingEnabled() && !rawUDSIngressRingEnabled && !compactRawUDSIngressRingEnabled {
 		s.log.Warn("DogStatsD experimental raw UDS ingress ring disabled because it currently requires UDS datagram only, no origin detection, no forwarding, no UDP, no stream socket, and no named pipe")
+	}
+	if experimentalCompactRawUDSIngressRingEnabled() && !compactRawUDSIngressRingEnabled {
+		s.log.Warn("DogStatsD experimental compact raw UDS ingress ring disabled because it currently requires UDS datagram only, no origin detection, no forwarding, no UDP, no stream socket, and no named pipe")
 	}
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
 
@@ -443,8 +458,8 @@ func (s *dsdServer) start(context.Context) error {
 	if len(socketPath) > 0 {
 		var unixListener *listeners.UDSDatagramListener
 		var err error
-		if rawUDSIngressRingEnabled {
-			unixListener, err = listeners.NewUDSDatagramListenerWithRawPacketWriter(s.rawIngressShards, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap, s.listernersTelemetry, s.packetsTelemetry, s.telemetry)
+		if rawIngressEnabled {
+			unixListener, err = listeners.NewUDSDatagramListenerWithRawPacketWriter(rawPacketWriter, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap, s.listernersTelemetry, s.packetsTelemetry, s.telemetry)
 		} else {
 			unixListener, err = listeners.NewUDSDatagramListenerWithWriter(packetWriter, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap, s.listernersTelemetry, s.packetsTelemetry, s.telemetry)
 		}
@@ -489,7 +504,7 @@ func (s *dsdServer) start(context.Context) error {
 	}
 
 	workerPacketsChannel := packetsChannel
-	if rawUDSIngressRingEnabled {
+	if rawIngressEnabled {
 		workerPacketsChannel = nil
 	} else if shardedIngressLogEnabled {
 		workerPacketsChannel = nil
@@ -573,6 +588,9 @@ func (s *dsdServer) stop(context.Context) error {
 	if s.rawIngressShards != nil {
 		s.rawIngressShards.Stop()
 	}
+	if s.compactRawIngressShards != nil {
+		s.compactRawIngressShards.Stop()
+	}
 	for _, l := range s.listeners {
 		l.Stop()
 	}
@@ -653,6 +671,9 @@ func (s *dsdServer) handleMessages() {
 		}
 		if s.rawIngressShards != nil {
 			worker.rawIngress = s.rawIngressShards.Shard(i)
+		}
+		if s.compactRawIngressShards != nil {
+			worker.rawIngress = s.compactRawIngressShards.Shard(i)
 		}
 		go worker.run()
 		s.workers = append(s.workers, worker)

@@ -32,23 +32,29 @@ type RawPacket struct {
 	ListenerID string
 	Source     SourceType
 
-	shard *RawIngressShard
-	idx   int
+	shard        *RawIngressShard
+	compactShard *CompactRawIngressShard
+	idx          int
 }
 
-// Release marks the ring slot backing this packet as reusable.
+// Release marks the ring storage backing this packet as reusable.
 func (p RawPacket) Release() {
 	if p.shard != nil {
 		p.shard.release(p.idx)
+		return
+	}
+	if p.compactShard != nil {
+		p.compactShard.release(p.idx)
 	}
 }
 
 // RawPacketReservation is a reserved, not-yet-committed ring slot. Listeners
 // read directly into Buffer and then Commit the number of bytes read.
 type RawPacketReservation struct {
-	shard *RawIngressShard
-	idx   int
-	buf   []byte
+	shard        *RawIngressShard
+	compactShard *CompactRawIngressShard
+	idx          int
+	buf          []byte
 }
 
 // Buffer returns the writable fixed-size slot buffer.
@@ -58,25 +64,37 @@ func (r RawPacketReservation) Buffer() []byte {
 
 // Commit publishes a reserved slot to consumers.
 func (r RawPacketReservation) Commit(n int, meta RawPacketMeta) {
-	if r.shard == nil {
+	if r.shard != nil {
+		r.shard.commit(r.idx, n, meta)
 		return
 	}
-	r.shard.commit(r.idx, n, meta)
+	if r.compactShard != nil {
+		r.compactShard.commit(r.buf, n, meta)
+	}
 }
 
 // Abort publishes an empty aborted slot so consumers can advance past a failed
 // read while preserving reservation order.
 func (r RawPacketReservation) Abort() {
-	if r.shard == nil {
+	if r.shard != nil {
+		r.shard.abort(r.idx)
 		return
 	}
-	r.shard.abort(r.idx)
+	if r.compactShard != nil {
+		r.compactShard.abort(r.buf)
+	}
 }
 
-// RawPacketWriter reserves ring slots for listener reads.
+// RawPacketWriter reserves writable buffers for listener reads.
 type RawPacketWriter interface {
 	Reserve() (RawPacketReservation, bool)
 	Len() int
+}
+
+// RawIngressReader is the worker-side cursor over a raw ingress shard.
+type RawIngressReader interface {
+	TryNext() (RawPacket, bool)
+	Notify() <-chan struct{}
 }
 
 type rawIngressSlot struct {
@@ -333,6 +351,297 @@ func (s *RawIngressShard) updateGaugesLocked() {
 	}
 }
 
+type compactRawIngressRecord struct {
+	offset  int
+	n       int
+	padding int
+	meta    RawPacketMeta
+}
+
+// CompactRawIngressShard is a single-consumer, multi-producer, byte-compact raw
+// packet ring. Listeners read into a reusable scratch buffer and commit copies
+// only the bytes actually read into this shard's preallocated byte ring. This
+// trades one copy for a denser ring than fixed dogstatsd_buffer_size slots.
+type CompactRawIngressShard struct {
+	mu      sync.Mutex
+	notFull *sync.Cond
+	notify  chan struct{}
+	stopped bool
+
+	buf     []byte
+	records []compactRawIngressRecord
+
+	headRecord  int
+	tailRecord  int
+	usedRecords int
+	head        int
+	tail        int
+	usedBytes   int64
+	packets     int64
+
+	slotSize    int
+	scratchPool sync.Pool
+	telemetry   rawIngressTelemetry
+}
+
+// NewCompactRawIngressShard creates a preallocated byte-compact raw ingress
+// shard. maxBytes bounds retained ring bytes; slotSize is the maximum UDS
+// datagram read buffer size.
+func NewCompactRawIngressShard(maxBytes int64, slotSize int, telemetrycomp telemetry.Component, shard string) *CompactRawIngressShard {
+	return newCompactRawIngressShardWithTelemetry(maxBytes, slotSize, newRawIngressTelemetry(telemetrycomp).forShard(shard))
+}
+
+func newCompactRawIngressShardWithTelemetry(maxBytes int64, slotSize int, telemetry rawIngressTelemetry) *CompactRawIngressShard {
+	if slotSize <= 0 {
+		slotSize = 1
+	}
+	if maxBytes < int64(slotSize) {
+		maxBytes = int64(slotSize)
+	}
+	recordCount := int(maxBytes / 512)
+	if recordCount < 4 {
+		recordCount = 4
+	}
+	shardRing := &CompactRawIngressShard{
+		notify:    make(chan struct{}, 1),
+		buf:       make([]byte, int(maxBytes)),
+		records:   make([]compactRawIngressRecord, recordCount),
+		slotSize:  slotSize,
+		telemetry: telemetry,
+	}
+	shardRing.notFull = sync.NewCond(&shardRing.mu)
+	shardRing.scratchPool.New = func() any {
+		return make([]byte, slotSize)
+	}
+	return shardRing
+}
+
+// Reserve returns a reusable scratch buffer for a listener read. The commit path
+// appends the actual bytes read into the compact byte ring and blocks there when
+// the byte/record budget is full.
+func (s *CompactRawIngressShard) Reserve() (RawPacketReservation, bool) {
+	s.mu.Lock()
+	stopped := s.stopped
+	s.mu.Unlock()
+	if stopped {
+		return RawPacketReservation{}, false
+	}
+	buf := s.scratchPool.Get().([]byte)
+	if cap(buf) < s.slotSize {
+		buf = make([]byte, s.slotSize)
+	}
+	return RawPacketReservation{compactShard: s, buf: buf[:s.slotSize]}, true
+}
+
+// TryNext returns the next committed packet if one is available.
+func (s *CompactRawIngressShard) TryNext() (RawPacket, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.usedRecords == 0 {
+		return RawPacket{}, false
+	}
+	record := &s.records[s.headRecord]
+	packet := RawPacket{
+		Contents:     s.buf[record.offset : record.offset+record.n],
+		Origin:       record.meta.Origin,
+		ProcessID:    record.meta.ProcessID,
+		ListenerID:   record.meta.ListenerID,
+		Source:       record.meta.Source,
+		compactShard: s,
+		idx:          s.headRecord,
+	}
+	return packet, true
+}
+
+// Notify returns a channel signaled when committed packets may be available.
+func (s *CompactRawIngressShard) Notify() <-chan struct{} {
+	return s.notify
+}
+
+// Len returns the number of retained records in the compact shard.
+func (s *CompactRawIngressShard) Len() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.usedRecords
+}
+
+// Stop unblocks producers waiting to append.
+func (s *CompactRawIngressShard) Stop() {
+	s.mu.Lock()
+	s.stopped = true
+	s.notFull.Broadcast()
+	s.signalNotifyLocked()
+	s.mu.Unlock()
+}
+
+func (s *CompactRawIngressShard) commit(buf []byte, n int, meta RawPacketMeta) {
+	if n < 0 {
+		n = 0
+	}
+	if n > len(buf) {
+		n = len(buf)
+	}
+	_ = s.append(buf[:n], meta)
+	s.putScratch(buf)
+}
+
+func (s *CompactRawIngressShard) abort(buf []byte) {
+	s.putScratch(buf)
+	if s.telemetry.stats != nil {
+		s.telemetry.stats.Inc(s.telemetry.shard, "aborted_scratch")
+	}
+}
+
+func (s *CompactRawIngressShard) append(data []byte, meta RawPacketMeta) bool {
+	n := len(data)
+	var blockStart time.Time
+	blocked := false
+
+	s.mu.Lock()
+	for !s.stopped && !s.canAppendLocked(n) {
+		if !blocked {
+			blocked = true
+			blockStart = time.Now()
+		}
+		s.notFull.Wait()
+	}
+	if s.stopped {
+		s.mu.Unlock()
+		return false
+	}
+	if blocked && s.telemetry.blockedNS != nil {
+		s.telemetry.blockedNS.Add(float64(time.Since(blockStart).Nanoseconds()), s.telemetry.shard)
+	}
+
+	offset, padding := s.reserveBytesLocked(n)
+	copy(s.buf[offset:offset+n], data)
+	idx := s.tailRecord
+	s.records[idx] = compactRawIngressRecord{offset: offset, n: n, padding: padding, meta: meta}
+	s.tailRecord = (s.tailRecord + 1) % len(s.records)
+	s.usedRecords++
+	s.usedBytes += int64(padding + n)
+	s.packets++
+	s.updateGaugesLocked()
+	s.signalNotifyLocked()
+	s.mu.Unlock()
+
+	if s.telemetry.stats != nil {
+		s.telemetry.stats.Inc(s.telemetry.shard, "committed_packets")
+		s.telemetry.stats.Add(float64(n), s.telemetry.shard, "committed_bytes")
+		if padding > 0 {
+			s.telemetry.stats.Add(float64(padding), s.telemetry.shard, "padding_bytes")
+		}
+	}
+	return true
+}
+
+func (s *CompactRawIngressShard) canAppendLocked(n int) bool {
+	if n > len(s.buf) || s.usedRecords == len(s.records) {
+		return false
+	}
+	needed := s.bytesNeededLocked(n)
+	return int64(needed) <= int64(len(s.buf))-s.usedBytes
+}
+
+func (s *CompactRawIngressShard) bytesNeededLocked(n int) int {
+	if n == 0 {
+		return 0
+	}
+	if s.usedBytes == 0 {
+		return n
+	}
+	if s.tail >= s.head {
+		end := len(s.buf) - s.tail
+		if n <= end {
+			return n
+		}
+		return end + n
+	}
+	if n <= s.head-s.tail {
+		return n
+	}
+	return len(s.buf) + 1
+}
+
+func (s *CompactRawIngressShard) reserveBytesLocked(n int) (offset int, padding int) {
+	if s.usedBytes == 0 {
+		s.head = 0
+		s.tail = 0
+	}
+	if n > 0 && s.tail >= s.head && len(s.buf)-s.tail < n {
+		padding = len(s.buf) - s.tail
+		s.tail = 0
+	}
+	offset = s.tail
+	s.tail += n
+	if s.tail == len(s.buf) {
+		s.tail = 0
+	}
+	return offset, padding
+}
+
+func (s *CompactRawIngressShard) release(idx int) {
+	s.mu.Lock()
+	if s.usedRecords == 0 || idx != s.headRecord {
+		s.mu.Unlock()
+		return
+	}
+	record := s.records[s.headRecord]
+	s.records[s.headRecord] = compactRawIngressRecord{}
+	s.headRecord = (s.headRecord + 1) % len(s.records)
+	s.usedRecords--
+	s.usedBytes -= int64(record.padding + record.n)
+	if s.usedBytes < 0 {
+		s.usedBytes = 0
+	}
+	s.packets--
+	if s.packets < 0 {
+		s.packets = 0
+	}
+	if s.usedRecords == 0 {
+		s.head = 0
+		s.tail = 0
+		s.usedBytes = 0
+	} else if record.padding > 0 {
+		s.head = record.n
+	} else {
+		s.head = record.offset + record.n
+		if s.head == len(s.buf) {
+			s.head = 0
+		}
+	}
+	s.updateGaugesLocked()
+	s.notFull.Signal()
+	s.mu.Unlock()
+}
+
+func (s *CompactRawIngressShard) putScratch(buf []byte) {
+	if buf == nil || cap(buf) < s.slotSize {
+		return
+	}
+	s.scratchPool.Put(buf[:s.slotSize])
+}
+
+func (s *CompactRawIngressShard) signalNotifyLocked() {
+	select {
+	case s.notify <- struct{}{}:
+	default:
+	}
+}
+
+func (s *CompactRawIngressShard) updateGaugesLocked() {
+	if s.telemetry.bytes != nil {
+		s.telemetry.bytes.Set(float64(s.usedBytes), s.telemetry.shard)
+	}
+	if s.telemetry.slots != nil {
+		s.telemetry.slots.Set(float64(s.usedRecords), s.telemetry.shard)
+	}
+	if s.telemetry.packets != nil {
+		s.telemetry.packets.Set(float64(s.packets), s.telemetry.shard)
+	}
+}
+
 // RawIngressShards is a sharded raw packet writer used by listeners. Workers
 // consume their corresponding shard directly.
 type RawIngressShards struct {
@@ -392,6 +701,69 @@ func (s *RawIngressShards) Shard(worker int) *RawIngressShard {
 
 // Stop unblocks all shard producers.
 func (s *RawIngressShards) Stop() {
+	for _, shard := range s.shards {
+		shard.Stop()
+	}
+}
+
+// CompactRawIngressShards is a sharded compact raw packet writer used by UDS
+// datagram listeners. Workers consume their corresponding shard directly.
+type CompactRawIngressShards struct {
+	shards []*CompactRawIngressShard
+	next   atomic.Uint64
+}
+
+// NewCompactRawIngressShards creates byte-budgeted compact raw ingress shards.
+func NewCompactRawIngressShards(shardCount int, maxBytes int64, slotSize int, telemetrycomp telemetry.Component) *CompactRawIngressShards {
+	if shardCount <= 0 {
+		shardCount = 1
+	}
+	if slotSize <= 0 {
+		slotSize = 1
+	}
+	if maxBytes <= 0 {
+		maxBytes = int64(slotSize)
+	}
+	bytesPerShard := maxBytes / int64(shardCount)
+	if bytesPerShard < int64(slotSize) {
+		bytesPerShard = int64(slotSize)
+	}
+	shards := make([]*CompactRawIngressShard, shardCount)
+	telemetry := newRawIngressTelemetry(telemetrycomp)
+	for i := range shards {
+		shards[i] = newCompactRawIngressShardWithTelemetry(bytesPerShard, slotSize, telemetry.forShard(strconv.Itoa(i)))
+	}
+	return &CompactRawIngressShards{shards: shards}
+}
+
+// Reserve reserves scratch space associated with the next compact shard.
+func (s *CompactRawIngressShards) Reserve() (RawPacketReservation, bool) {
+	if len(s.shards) == 0 {
+		return RawPacketReservation{}, false
+	}
+	idx := int(s.next.Add(1)-1) % len(s.shards)
+	return s.shards[idx].Reserve()
+}
+
+// Len returns total retained records across compact shards.
+func (s *CompactRawIngressShards) Len() int {
+	total := 0
+	for _, shard := range s.shards {
+		total += shard.Len()
+	}
+	return total
+}
+
+// Shard returns the compact shard assigned to a worker.
+func (s *CompactRawIngressShards) Shard(worker int) *CompactRawIngressShard {
+	if len(s.shards) == 0 {
+		return nil
+	}
+	return s.shards[worker%len(s.shards)]
+}
+
+// Stop unblocks all compact shard producers.
+func (s *CompactRawIngressShards) Stop() {
 	for _, shard := range s.shards {
 		shard.Stop()
 	}
