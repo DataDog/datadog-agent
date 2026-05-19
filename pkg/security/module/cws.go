@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/flareregistry"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/selftests"
@@ -187,6 +188,17 @@ func NewCWSConsumer(cmdServer *CommandServer, evm *eventmonitor.EventMonitor, cf
 		return nil, err
 	}
 	c.apiServer.SetCWSConsumer(c)
+
+	// Publish a loaded-policies callback so the system-probe remoteagent flare
+	// provider can serialize the active policy set into the flare without
+	// importing pkg/security from the component layer.
+	flareregistry.SetLoadedPolicies(func(includeBundled bool) ([]byte, error) {
+		resp, err := c.apiServer.GetLoadedPolicies(context.Background(), &api.GetLoadedPoliciesParams{IncludeBundled: includeBundled})
+		if err != nil {
+			return nil, err
+		}
+		return []byte(resp.Policies), nil
+	})
 
 	// add self test as rule provider
 	if c.selfTester != nil {
