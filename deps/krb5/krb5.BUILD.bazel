@@ -3,7 +3,7 @@ load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
 load("@@//bazel/rules/dd_packaging:dd_collect_dependencies.bzl", "dd_collect_dependencies")
 load("@rules_foreign_cc//foreign_cc:defs.bzl", "configure_make")
 load("@rules_license//rules:license.bzl", "license")
-load("@rules_pkg//pkg:mappings.bzl", "pkg_filegroup", "pkg_files")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
 
 package(default_package_metadata = [":license"], default_visibility = ["//visibility:public"])
 
@@ -115,14 +115,10 @@ pkg_files(
     srcs = [":_headers"],
 )
 
+# Single public entry point for "ship all krb5 libraries". Consumers reference
+# this; the embedded/ prefix is applied at the consumption site, not here.
 dd_collect_dependencies(
-    name = "_collected_libs",
+    name = "installed_libs",
     srcs = [":{}_pkg".format(libname) for libname in LIBS.keys()],
-)
-
-pkg_filegroup(
-    name = "all_files",
-    srcs = [":_collected_libs"],
-    prefix = "embedded",
-    visibility = ["@@//packages:__subpackages__", "@@//deps/msodbcsql18:__pkg__"],
+    visibility = ["@@//packages:__subpackages__"],
 )
