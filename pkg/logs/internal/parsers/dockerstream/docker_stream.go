@@ -66,28 +66,32 @@ func parseDockerStream(msg *message.Message, containerID string) (*message.Messa
 		return msg, fmt.Errorf("cannot parse docker message for container %v: expected a 8 bytes header", containerID)
 	}
 
-	// Read the first byte to get the status
+	// Read the first byte to get the status. Non-TTY containers prefix every
+	// chunk with an 8-byte header where byte 0 is 1 (stdout) or 2 (stderr);
+	// TTY containers omit this header entirely (the daemon emits raw
+	// "RFC3339Nano SPACE content" instead). getDockerSeverity returns "" for
+	// the TTY case, which is the gate for everything below.
 	status := getDockerSeverity(content)
 	if status == "" {
-
-		// When tailing logs coming from a container running with a tty, docker
-		// does not add the header. In that case, the message only contains
-		// the timestamp followed by whatever comes from what is running in the
-		// container (and maybe stdin). As a fallback, set the status to info.
+		// TTY path — no 8-byte header. The body looks like:
+		//   RFC3339Nano SPACE content...
+		// and for log lines spanning more than one 16KB Docker buffer:
+		//   TS1 SPACE content1(16KB) TS2 SPACE content2(16KB) ... TSn SPACE contentn
+		// (see https://github.com/moby/moby/issues/19696). When this happens
+		// we need to strip the intermediate TSi SPACE markers so the caller
+		// only sees the concatenated raw content. Spaces inside the user's
+		// log content are preserved — the stripping operates on fixed 16KB
+		// chunk boundaries, not on space lookups inside content.
 		status = message.StatusInfo
-
-		// In TTY mode, Docker still injects a timestamp prefix before each 16KB
-		// chunk of content (see https://github.com/moby/moby/issues/19696).
-		// For log lines longer than 16KB this means intermediate timestamps are
-		// embedded in the payload.  Strip them so the caller only sees the raw
-		// content.
 		if len(content) > dockerBufferSize {
 			content = removeTTYPartialTimestamps(content)
 		}
 
 	} else {
-
-		// remove partial headers that are added by docker when the message gets too long
+		// Non-TTY path — 8-byte stream header present. Each 16KB partial chunk
+		// includes its own header + RFC3339Nano timestamp + space, handled by
+		// removePartialDockerMetadata. The new TTY helper above is never
+		// reached on this branch.
 		if len(content) > dockerBufferSize {
 			content = removePartialDockerMetadata(content)
 		}
