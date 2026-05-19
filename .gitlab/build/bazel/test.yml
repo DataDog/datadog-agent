@@ -94,3 +94,15 @@ bazel:test:macos-arm64:dogstatsd:
   variables:
     FLAVOR: dogstatsd
 
+# Windows can't extend .bazel:test:flavor: the Windows runner template consumes
+# POWERSHELL_SCRIPT instead of `script:`, and the test pattern needs to exclude
+# Linux-only packaging targets.
+bazel:test:windows-amd64:datadog-agent:
+  extends: [ .bazel:test, .bazel:runner:windows-amd64 ]
+  variables:
+    POWERSHELL_SCRIPT: >-
+      bazel test --keep_going --config=datadog-agent
+      //... --
+      -//bazel/rules/dd_packaging/...
+      -//packages/agent/linux/...
+
