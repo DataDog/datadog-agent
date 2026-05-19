@@ -4,8 +4,8 @@ go_library(
     name = "setup",
     srcs = [
         "apm.go",
-        "common_settings.go",
         "cloud_cost_metrics.go",
+        "common_settings.go",
         "config.go",
         "config_accessor.go",
         "config_change_checker.go",

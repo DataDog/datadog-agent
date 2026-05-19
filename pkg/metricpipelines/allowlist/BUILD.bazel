@@ -10,8 +10,9 @@ go_library(
 go_test(
     name = "allowlist_test",
     srcs = ["defaults_test.go"],
-    embed = [":allowlist"],
+    gotags = ["test"],
     deps = [
+        ":allowlist",
         "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",
     ],
