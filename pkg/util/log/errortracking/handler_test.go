@@ -182,12 +182,26 @@ func TestHandler_BouncerSuppressesDuplicates(t *testing.T) {
 	assert.Equal(t, uint32(1), got[0].Count, "first sighting Count")
 }
 
+// TestHandle_BouncerRegisteredButNilDropsRecord: when WithBouncerLoader
+// is called (bouncer is in the design) but the closure returns nil
+// (e.g. the brief Fx startup/shutdown window), the record must be
+// DROPPED, not forwarded without rate-limiting. Sending without dedup
+// during a fleet-wide restart is the higher risk.
+func TestHandle_BouncerRegisteredButNilDropsRecord(t *testing.T) {
+	h, rec := newRecordingHandler(t)
+	h = h.WithBouncerLoader(func() *Bouncer { return nil })
+
+	r := slog.NewRecord(time.Now(), slog.LevelError, "boom", 0)
+	require.NoError(t, h.Handle(context.Background(), r))
+
+	assert.Empty(t, rec.snapshot(), "registered-but-nil bouncer must DROP the record, not pass through")
+}
+
 // TestHandler_BouncerNilLoaderIsPassThrough: passing nil to
 // WithBouncerLoader MUST clear the late-binder so every record reaches
-// the Submitter. The outer h.loadBouncer != nil gate is the
-// feature-off path; once a closure is registered, the contract is
-// non-nil (see WithBouncerLoader docblock), so we don't test a
-// registered-but-returns-nil closure here.
+// the Submitter without dedup. This is the feature-off path — the
+// outer h.loadBouncer == nil gate means no bouncer is in the design
+// and all records flow freely.
 func TestHandler_BouncerNilLoaderIsPassThrough(t *testing.T) {
 	h, rec := newRecordingHandler(t)
 	h = h.WithBouncerLoader(nil)

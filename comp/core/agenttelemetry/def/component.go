@@ -34,7 +34,9 @@ type Component interface {
 	// handler and feed records back into this same channel. This
 	// invariant is enforced by convention — there is no runtime
 	// caller-identity guard. See
-	// comp/core/agenttelemetry/impl/errortracking_sender.go.
+	// comp/core/agenttelemetry/impl/errortracking_sender.go. If a
+	// flush fails, the failed batch is not re-attempted; the Debug-level
+	// log is the only signal.
 	//
 	// This method receives the ErrorLog value-type defined at
 	// pkg/util/log/errortracking; the component never sees raw slog
