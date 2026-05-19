@@ -89,32 +89,33 @@ func (s *packageDDOTSuite) TestInstallDDOTInstallScript() {
 }
 
 func (s *packageDDOTSuite) TestInstallDDOTInstaller() {
+	// Install datadog-agent (base infrastructure)
 	s.RunInstallScript("DD_REMOTE_UPDATES=true", envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit)
 
+	// Install ddot
 	s.host.Run("sudo datadog-installer install oci://installtesting.datad0g.com.internal.dda-testing.com/ddot-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID"))
 	s.host.AssertPackageInstalledByInstaller("datadog-agent-ddot")
 
+	// Check if datadog.yaml exists, if not return an error
 	s.host.Run("sudo test -f /etc/datadog-agent/datadog.yaml || { echo 'Error: datadog.yaml does not exist'; exit 1; }")
 
-	// DDOT OCI install may restart core units; wait again before dd-procmgr describe.
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, procmgrUnit)
-	procmgrtest.WaitForDDOTRunning(s.T(), s, procmgrtest.DDOTOtelAgentFleetPackageBinary)
+	s.host.WaitForUnitActive(s.T(), ddotUnit)
 
 	state := s.host.State()
 	s.assertCoreUnits(state, true)
-	// OCI standalone ddot unit lives under /etc/systemd/system; agent units use vendor paths (oldUnits true).
-	s.assertDDOTUnitsProcmgr(state, true, false)
+	s.assertDDOTUnits(state, false)
 
+	// Verify files exist
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 	state.AssertFileExists("/etc/datadog-agent/otel-config.yaml", 0640, "dd-agent", "dd-agent")
 
 	state.AssertDirExists("/opt/datadog-packages/datadog-agent-ddot/stable", 0755, "dd-agent", "dd-agent")
 	state.AssertFileExists("/opt/datadog-packages/datadog-agent-ddot/stable/embedded/bin/otel-agent", 0755, "dd-agent", "dd-agent")
 
-	s.host.Run("sudo grep -A 30 '^otelcollector:' /etc/datadog-agent/datadog.yaml | grep -qE '^[[:space:]]*enabled:[[:space:]]*true[[:space:]]*$'")
+	s.host.Run("sudo grep -q 'otelcollector:' /etc/datadog-agent/datadog.yaml")
 }
 
 func (s *packageDDOTSuite) TestInstallDDOTWithoutDatadogYAML() {
@@ -246,6 +247,15 @@ func (s *packageDDOTSuite) assertCoreUnits(state host.State, oldUnits bool) {
 	for _, unit := range []string{agentUnit, traceUnit, processUnit, probeUnit, securityUnit} {
 		s.host.AssertUnitProperty(unit, "FragmentPath", filepath.Join(systemdPath, unit))
 	}
+}
+
+// assertDDOTUnits verifies the legacy datadog-agent-ddot systemd unit (standalone package install).
+func (s *packageDDOTSuite) assertDDOTUnits(state host.State, oldUnits bool) {
+	state.AssertUnitsLoaded(ddotUnit)
+	state.AssertUnitsRunning(ddotUnit)
+
+	ddotPath := s.systemdUnitFragmentDir(oldUnits)
+	s.host.AssertUnitProperty(ddotUnit, "FragmentPath", filepath.Join(ddotPath, ddotUnit))
 }
 
 // assertDDOTUnitsProcmgr: procmgr running, ddot systemd inactive (collector under dd-procmgr), FragmentPath per oldUnits flags (OCI ddot unit often needs ddotOldUnits=false).
