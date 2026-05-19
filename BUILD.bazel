@@ -552,7 +552,6 @@ exports_files(glob(
 # gazelle:exclude pkg/network/sender
 # gazelle:exclude pkg/network/tracer/connection
 # gazelle:exclude pkg/network/tracer/testutil/proxy
-# gazelle:exclude pkg/network/types
 # gazelle:exclude pkg/network/usm/config
 # gazelle:exclude pkg/network/usm/maps
 # gazelle:exclude pkg/network/usm/procnet
