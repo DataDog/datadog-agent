@@ -3,5 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package ccmmode contains e2e tests for CCM mode check tagging (infrastructure_mode=cloud_cost_only + integration.<mode>.tagged).
+// Package ccmmode contains e2e tests for cloud_cost_only infrastructure mode (tagging,
+// metric allowlist, DogStatsD bypass, and metric_filterlist).
 package ccmmode

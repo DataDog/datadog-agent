@@ -1265,9 +1265,7 @@ func agent(config pkgconfigmodel.Setup) {
 		"windows_service",
 	})
 	// integration.cloud_cost_only.tagged: checks to tag when infrastructure_mode=cloud_cost_only (empty means all checks)
-	config.BindEnvAndSetDefault("integration.cloud_cost_only.tagged", []string{
-		"cpu",
-	})
+	config.BindEnvAndSetDefault("integration.cloud_cost_only.tagged", []string{})
 	// integration.cloud_cost_only.metrics_blocked: explicit metric blocklist in cloud_cost_only mode (empty disables)
 	config.BindEnvAndSetDefault("integration.cloud_cost_only.metrics_blocked", []string{})
 	// integration.cloud_cost_only.metrics: extra integration metrics to forward in cloud_cost_only mode
