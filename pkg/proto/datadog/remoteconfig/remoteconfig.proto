@@ -130,7 +130,7 @@ message PackageState {
   string running_version = 13;
   string running_config_version = 14;
   uint64 heartbeat_timestamp = 15;
-  float  completion           = 16;
+  float  completion = 16;
 }
 
 message PackageStateTask {
