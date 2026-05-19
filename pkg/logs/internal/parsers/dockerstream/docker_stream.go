@@ -76,6 +76,15 @@ func parseDockerStream(msg *message.Message, containerID string) (*message.Messa
 		// container (and maybe stdin). As a fallback, set the status to info.
 		status = message.StatusInfo
 
+		// In TTY mode, Docker still injects a timestamp prefix before each 16KB
+		// chunk of content (see https://github.com/moby/moby/issues/19696).
+		// For log lines longer than 16KB this means intermediate timestamps are
+		// embedded in the payload.  Strip them so the caller only sees the raw
+		// content.
+		if len(content) > dockerBufferSize {
+			content = removeTTYPartialTimestamps(content)
+		}
+
 	} else {
 
 		// remove partial headers that are added by docker when the message gets too long
@@ -174,6 +183,54 @@ func getDockerMetadataLength(msg []byte) int {
 		return 0
 	}
 	return dockerHeaderLength + idx + 1
+}
+
+// removeTTYPartialTimestamps removes the timestamp and space that Docker injects
+// before each 16KB chunk of content when a container runs in TTY mode.
+//
+// In TTY mode the 8-byte stream header is absent, so the wire format for a
+// message that spans multiple 16KB buffers is:
+//
+//	TS1 SPACE CONTENT1(16KB) TS2 SPACE CONTENT2(16KB) ... TSn SPACE CONTENTn
+//
+// This function keeps the very first "TS1 SPACE" and concatenates each
+// subsequent content chunk without its leading timestamp prefix:
+//
+//	Input:  TS1 SPACE CONTENT1 TS2 SPACE CONTENT2 TS3 SPACE CONTENT3
+//	Output: TS1 SPACE CONTENT1 CONTENT2 CONTENT3
+func removeTTYPartialTimestamps(msgToClean []byte) []byte {
+	metadataLen := getTTYMetadataLength(msgToClean)
+	if metadataLen == 0 {
+		return msgToClean
+	}
+
+	msg := []byte{}
+	start := 0
+	end := min(len(msgToClean), dockerBufferSize+metadataLen)
+
+	for end > 0 && metadataLen > 0 {
+		msg = append(msg, msgToClean[start:end]...)
+		msgToClean = msgToClean[end:]
+		metadataLen = getTTYMetadataLength(msgToClean)
+		start = metadataLen
+		end = min(len(msgToClean), dockerBufferSize+metadataLen)
+	}
+
+	return msg
+}
+
+// getTTYMetadataLength returns the length of the timestamp and trailing space
+// that Docker prepends to each TTY-mode buffer chunk.  In TTY mode there is no
+// 8-byte stream header, so the metadata is just the RFC3339Nano timestamp
+// followed by a single space character.
+//
+// Returns 0 if the content does not begin with a recognisable timestamp.
+func getTTYMetadataLength(msg []byte) int {
+	idx := bytes.Index(msg, []byte{' '})
+	if idx == -1 {
+		return 0
+	}
+	return idx + 1
 }
 
 // isEmptyMessage tests if the entire message is in the form of escaped new line

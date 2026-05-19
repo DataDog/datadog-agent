@@ -165,3 +165,58 @@ func buildPartialMessage(r rune, count int) string {
 func buildMessage(r rune, count int) string {
 	return strings.Repeat(string(r), count)
 }
+
+// ttyTimestamp is a sample RFC3339Nano timestamp used in TTY-mode tests.
+var ttyTimestamp = "2018-06-14T18:27:03.246999277Z"
+
+// buildTTYPartialMessage returns a TTY-mode chunk as Docker would send it:
+// a bare RFC3339Nano timestamp followed by a space and count repetitions of r.
+// There is no 8-byte stream header.
+func buildTTYPartialMessage(r rune, count int) string {
+	return ttyTimestamp + " " + strings.Repeat(string(r), count)
+}
+
+func TestDockerStandaloneParserShouldHandleLargeTtyMessage(t *testing.T) {
+	// A single 16KB TTY log line: no intermediate timestamp injection expected.
+	input := buildTTYPartialMessage('a', dockerBufferSize)
+	logMessage := message.NewMessage([]byte(input), nil, "", 0)
+	msg, err := container1Parser.Parse(logMessage)
+	assert.Nil(t, err)
+	assert.False(t, msg.ParsingExtra.IsPartial)
+	assert.Equal(t, ttyTimestamp, msg.ParsingExtra.Timestamp)
+	assert.Equal(t, message.StatusInfo, msg.Status)
+	assert.Equal(t, []byte(buildMessage('a', dockerBufferSize)), msg.GetContent())
+	assert.Equal(t, dockerBufferSize, len(msg.GetContent()))
+}
+
+func TestDockerStandaloneParserShouldRemoveTTYPartialTimestamps(t *testing.T) {
+	// A TTY log line >16KB: Docker prepends a timestamp to each 16KB chunk.
+	// The parser must strip the intermediate timestamps so users see clean content.
+
+	// two chunks: 16KB + 50 bytes
+	input := buildTTYPartialMessage('a', dockerBufferSize) + buildTTYPartialMessage('b', 50)
+	expectedContent := buildMessage('a', dockerBufferSize) + buildMessage('b', 50)
+	logMessage := message.NewMessage([]byte(input), nil, "", 0)
+	msg, err := container1Parser.Parse(logMessage)
+	assert.Nil(t, err)
+	assert.False(t, msg.ParsingExtra.IsPartial)
+	assert.Equal(t, ttyTimestamp, msg.ParsingExtra.Timestamp)
+	assert.Equal(t, message.StatusInfo, msg.Status)
+	assert.Equal(t, []byte(expectedContent), msg.GetContent())
+	assert.Equal(t, dockerBufferSize+50, len(msg.GetContent()))
+
+	// three full 16KB chunks + a 50-byte tail (mirrors the non-TTY test)
+	input = buildTTYPartialMessage('a', dockerBufferSize) +
+		buildTTYPartialMessage('a', dockerBufferSize) +
+		buildTTYPartialMessage('a', dockerBufferSize) +
+		buildTTYPartialMessage('b', 50)
+	expectedContent = buildMessage('a', 3*dockerBufferSize) + buildMessage('b', 50)
+	logMessage.SetContent([]byte(input))
+	msg, err = container1Parser.Parse(logMessage)
+	assert.Nil(t, err)
+	assert.False(t, msg.ParsingExtra.IsPartial)
+	assert.Equal(t, ttyTimestamp, msg.ParsingExtra.Timestamp)
+	assert.Equal(t, message.StatusInfo, msg.Status)
+	assert.Equal(t, []byte(expectedContent), msg.GetContent())
+	assert.Equal(t, 3*dockerBufferSize+50, len(msg.GetContent()))
+}
