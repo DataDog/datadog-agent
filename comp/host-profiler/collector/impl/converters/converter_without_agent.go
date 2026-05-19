@@ -46,7 +46,7 @@ var resourceDetectionDefaultConfig = confMap{
 //   - Check if used otlphttpexporter has dd-api-key as string, if not string convert it, if not at all notify user
 //   - If profiling::symbol_uploader::enabled == true, convert api_key/app_key to strings in each endpoint
 //   - If no profiling is used & configured, add minimal one with symbol_uploader: false
-//   - remove ddprofiling & hpflare extensions
+//   - remove hpflare extensions
 type converterWithoutAgent struct{}
 
 func newConverterWithoutAgent(convSettings confmap.ConverterSettings) confmap.Converter {
@@ -402,8 +402,8 @@ func (c *converterWithoutAgent) removeAgentOnlyExtensions(conf confMap) error {
 			return errors.New("extension names in service should be strings")
 		}
 
-		// Skip ddprofiling and hpflare extensions
-		if isComponentType(ext, componentTypeDDProfiling) || isComponentType(ext, componentTypeHPFlare) {
+		// Skip hpflare extensions
+		if isComponentType(ext, componentTypeHPFlare) {
 			continue
 		}
 
@@ -416,7 +416,7 @@ func (c *converterWithoutAgent) removeAgentOnlyExtensions(conf confMap) error {
 	extensionsConf, ok := Get[confMap](conf, "extensions")
 	if ok {
 		for name := range extensionsConf {
-			if isComponentType(name, componentTypeDDProfiling) || isComponentType(name, componentTypeHPFlare) {
+			if isComponentType(name, componentTypeHPFlare) {
 				delete(extensionsConf, name)
 			}
 		}
