@@ -284,7 +284,7 @@ type BufferedAggregator struct {
 	observerHandle observer.Handle
 
 	// checkAggregator windows CheckSampler output for checks configured
-	// faster than check_aggregator.window_duration.
+	// faster than the effective check aggregator window duration.
 	checkAggregator *CheckAggregator
 
 	// use this chan to trigger a filterList reconfiguration
@@ -374,11 +374,19 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 	}
 
 	aggregator.checkAggregator = newCheckAggregator(
-		pkgconfigsetup.Datadog().GetDuration("check_aggregator.window_duration"),
+		checkAggregatorWindowDuration(flushInterval),
 		pkgconfigsetup.Datadog().GetInt("check_aggregator.max_series_per_window"),
 	)
 
 	return aggregator
+}
+
+func checkAggregatorWindowDuration(flushInterval time.Duration) time.Duration {
+	configured := pkgconfigsetup.Datadog().GetDuration("check_aggregator.window_duration")
+	if configured > 0 {
+		return configured
+	}
+	return flushInterval
 }
 
 func (agg *BufferedAggregator) addOrchestratorManifest(manifests *senderOrchestratorManifest) {
@@ -584,7 +592,7 @@ func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.S
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
 //
 // CheckSampler output is windowed only for checks whose configured cadence is
-// faster than check_aggregator.window_duration. Slow and unknown-cadence checks
+// faster than the effective check aggregator window duration. Slow and unknown-cadence checks
 // bypass the windowing layer to preserve their existing send-time semantics.
 func (agg *BufferedAggregator) getSeriesAndSketches(
 	before time.Time,

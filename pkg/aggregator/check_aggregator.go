@@ -82,10 +82,10 @@ type sketchAggregationWindow struct {
 	droppedCount int
 }
 
-// newCheckAggregator constructs a CheckAggregator with the given window
-// duration and per-window series cap. Values come from config:
-//   - check_aggregator.window_duration (default 15s)
-//   - check_aggregator.max_series_per_window (default 128)
+// newCheckAggregator constructs a CheckAggregator with the effective window
+// duration and per-window series cap. By default, the window duration follows
+// the demultiplexer flush interval; check_aggregator.window_duration can
+// override it.
 //
 // The same cap applies to sketch windows (per (check_id, context)) —
 // sketches are typically much smaller in count per window than series

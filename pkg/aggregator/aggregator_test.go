@@ -130,7 +130,7 @@ func TestGetSeriesAndSketchesBypassesCheckAggregatorForWindowCadence(t *testing.
 	initF()
 	agg := getAggregator(t)
 	agg.checkSamplers = make(map[checkid.ID]*CheckSampler)
-	agg.handleCheckIntervalUpdate(checkID1, 15*time.Second)
+	agg.handleCheckIntervalUpdate(checkID1, agg.checkAggregator.windowDuration)
 
 	original := makeSerie(1, 0, 42)
 	agg.checkSamplers[checkID1] = &CheckSampler{
@@ -168,6 +168,38 @@ func TestGetSeriesAndSketchesAggregatesFasterThanWindowCadence(t *testing.T) {
 	require.Len(t, agg.checkAggregator.windows, 1)
 }
 
+func TestCheckAggregatorWindowDefaultsToFlushInterval(t *testing.T) {
+	initF()
+	mockConfig := configmock.New(t)
+
+	agg := NewBufferedAggregator(nil, nil, nil, taggerfxmock.SetupFakeTagger(t), defaultHostname, 30*time.Second, filterlistmock.NewMockFilterList())
+
+	require.Equal(t, 30*time.Second, agg.checkAggregator.windowDuration)
+	require.Zero(t, mockConfig.GetDuration("check_aggregator.window_duration"))
+}
+
+func TestCheckAggregatorWindowConfigOverridesFlushInterval(t *testing.T) {
+	initF()
+	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("check_aggregator.window_duration", 10*time.Second)
+
+	agg := NewBufferedAggregator(nil, nil, nil, taggerfxmock.SetupFakeTagger(t), defaultHostname, 30*time.Second, filterlistmock.NewMockFilterList())
+
+	require.Equal(t, 10*time.Second, agg.checkAggregator.windowDuration)
+}
+
+func TestShouldAggregateCheckUsesEffectiveWindowDuration(t *testing.T) {
+	initF()
+	configmock.New(t)
+	agg := NewBufferedAggregator(nil, nil, nil, taggerfxmock.SetupFakeTagger(t), defaultHostname, 30*time.Second, filterlistmock.NewMockFilterList())
+
+	agg.handleCheckIntervalUpdate(checkID1, 20*time.Second)
+	agg.handleCheckIntervalUpdate(checkID2, 30*time.Second)
+
+	require.True(t, agg.shouldAggregateCheck(checkID1))
+	require.False(t, agg.shouldAggregateCheck(checkID2))
+}
+
 func TestGetSeriesAndSketchesBypassesCheckAggregatorForUnknownCadence(t *testing.T) {
 	initF()
 	agg := getAggregator(t)
@@ -201,7 +233,7 @@ func TestGetSeriesAndSketchesDrainsCheckWindowsBeforeCadenceBypass(t *testing.T)
 	agg.handleCheckIntervalUpdate(checkID1, time.Second)
 	agg.checkAggregator.Submit(checkID1, openSeries, &captureSink{})
 	agg.checkAggregator.SubmitSketch(checkID1, openSketch, &captureSketchSink{})
-	agg.handleCheckIntervalUpdate(checkID1, 15*time.Second)
+	agg.handleCheckIntervalUpdate(checkID1, agg.checkAggregator.windowDuration)
 	agg.checkSamplers[checkID1] = &CheckSampler{
 		series:          metrics.Series{bypassSeries},
 		sketches:        metrics.SketchSeriesList{bypassSketch},
@@ -232,7 +264,7 @@ func TestGetSeriesAndSketchesDrainsStaleCheckWindowsBeforeSameIDBypass(t *testin
 	delete(agg.checkIntervals, checkID1)
 	delete(agg.pendingCheckDrains, checkID1)
 
-	agg.handleCheckIntervalUpdate(checkID1, 15*time.Second)
+	agg.handleCheckIntervalUpdate(checkID1, agg.checkAggregator.windowDuration)
 	agg.checkSamplers[checkID1] = &CheckSampler{
 		series:          metrics.Series{bypassSeries},
 		sketches:        make(metrics.SketchSeriesList, 0),
