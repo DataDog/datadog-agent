@@ -950,3 +950,57 @@ byte retention. It should remain a candidate if the raw-ring design continues,
 but the next larger ceiling is likely listener-side no-copy storage: a direct
 reservation or size-class/slabbed compact ring that removes the scratch-to-ring
 copy while preserving bounded backpressure and adding oldest-age/lag telemetry.
+
+## Stage P local result, 2026-05-19
+
+Stage P tested a simple no-copy direct-reservation variant after Stage O:
+reserve a max-size contiguous span in the compact raw ring before the UDS socket
+read, read directly into ring-owned storage, then reclaim unused bytes on commit.
+
+Prototype commit: `83d06509167`.
+
+Prototype gates:
+
+- `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS_DIRECT_COMPACT=true`
+- `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS_BATCH_DRAIN=true`
+- `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS_BATCH_DRAIN_SIZE=32`
+- shared byte budget: `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_LOG_MAX_BYTES=16777216`
+
+Implementation shape:
+
+```text
+UDS datagram listener
+  -> Reserve() waits for a max-size contiguous ring reservation
+  -> ReadFromUnix(ring-owned reservation)
+  -> Commit(n) publishes n bytes and reclaims reserved-n bytes
+  -> workers drain with TryNextBatch / ReleaseBatch
+```
+
+This removes Stage N/O's scratch-to-ring copy, but also requires one full
+`dogstatsd_buffer_size` contiguous reservation before every socket read. The
+prototype intentionally allows only one outstanding direct reservation per shard;
+this matches the single UDS datagram listener experiment shape, but is not a
+general multi-producer design.
+
+Local Stage P results are single-replicate probes (`--replicates 1 --total-samples 150`):
+
+| Comparison | Case | Δ mean | Key read |
+|---|---|---:|---|
+| compact batch-drain raw UDS ring -> direct-compact raw UDS ring | `uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only` | -3.30% | simple direct reservation is worse at high offered load |
+| direct metric rows -> direct-compact raw UDS ring | `uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only` | +4.46% | still positive vs direct rows, but worse than Stage O's +7.39% |
+| compact batch-drain raw UDS ring -> direct-compact raw UDS ring | `uds_dogstatsd_to_api_v3_endpoint_fixed` | -0.03% | standard corrected-v3 case is neutral versus Stage O |
+| direct metric rows -> direct-compact raw UDS ring | `uds_dogstatsd_to_api_v3_endpoint_fixed` | +1.78% | standard corrected-v3 case remains positive versus direct rows |
+
+Selected high-rate compact-batch-vs-direct metrics:
+
+| Variant | Agent UDS MiB/s | processed/s | packet pool avg | ingress ring avg | RSS MiB | heap MiB |
+|---|---:|---:|---:|---:|---:|---:|
+| compact raw ring + batch drain | 210.06 | 259,521 | 0 | 8.48 MiB / 2,308 records | 162.51 | 68.83 |
+| direct compact raw ring + batch drain | 203.06 | 250,883 | 0 | 8.61 MiB / 2,391 records | 163.77 | 67.15 |
+
+Decision: the simple no-copy hypothesis is false in this shape. Avoiding the
+copy is outweighed by pre-read max-size contiguous reservation/backpressure.
+Stage N/O's scratch-copy compact ring remains the best bounded-ingress result
+so far. The next ceiling should not be one-max-slot direct reservation; better
+candidates are true size-class/slabbed storage, listener/syscall batching, and
+oldest-age/consumer-lag telemetry before making further overload claims.
