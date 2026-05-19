@@ -2017,6 +2017,19 @@ properties:
         tags:
         - golang_type:int
         - template_section:LogsAgent
+      additional_http_headers:
+        node_type: setting
+        type: object
+        default: {}
+        visibility: public
+        description: |-
+          Additional headers to send with logs HTTP and gRPC requests.
+          Required Agent headers are set after these values and cannot be overridden.
+        example: '{}'
+        additionalProperties:
+          type: string
+        tags:
+        - template_section:LogsAgent
       force_use_tcp:
         node_type: setting
         type: boolean

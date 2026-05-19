@@ -390,6 +390,31 @@ func TestDestinationSendsOriginVersionOverride(t *testing.T) {
 	assert.Equal(t, "cluster-a", server.request.Header.Get("dd-evp-origin-version"))
 }
 
+func TestDestinationSendsAdditionalHeadersWithoutOverridingRequiredHeaders(t *testing.T) {
+	cfg := configmock.New(t)
+	server := NewTestServer(200, cfg)
+	defer server.httpServer.Close()
+
+	server.Destination.protocol = "test-proto"
+	server.Destination.origin = "test-origin"
+	server.Destination.endpoint.ExtraHTTPHeaders = map[string]string{
+		"x-custom-routing":      "cluster-a",
+		"dd-api-key":            "bad-key",
+		"dd-protocol":           "bad-proto",
+		"dd-evp-origin":         "bad-origin",
+		"dd-evp-origin-version": "bad-version",
+	}
+
+	err := server.Destination.unconditionalSend(&message.Payload{Encoded: []byte("payload")})
+
+	assert.Nil(t, err)
+	assert.Equal(t, "cluster-a", server.request.Header.Get("x-custom-routing"))
+	assert.Equal(t, server.Destination.endpoint.GetAPIKey(), server.request.Header.Get("dd-api-key"))
+	assert.Equal(t, "test-proto", server.request.Header.Get("dd-protocol"))
+	assert.Equal(t, "test-origin", server.request.Header.Get("dd-evp-origin"))
+	assert.Equal(t, originVersionOrDefault(""), server.request.Header.Get("dd-evp-origin-version"))
+}
+
 func TestDestinationDoesntSendEmptyV2Protocol(t *testing.T) {
 	cfg := configmock.New(t)
 	server := NewTestServer(200, cfg)

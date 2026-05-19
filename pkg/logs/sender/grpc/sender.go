@@ -46,9 +46,12 @@ type headerCredentials struct {
 
 // GetRequestMetadata adds required headers to each RPC call
 func (h *headerCredentials) GetRequestMetadata(_ context.Context, _ ...string) (map[string]string, error) {
-	headers := map[string]string{
-		"dd-api-key": h.endpoint.GetAPIKey(),
+	headers := make(map[string]string, 4+len(h.endpoint.ExtraHTTPHeaders))
+	for k, v := range h.endpoint.ExtraHTTPHeaders {
+		headers[k] = v
 	}
+
+	headers["dd-api-key"] = h.endpoint.GetAPIKey()
 
 	// Add protocol header if specified
 	if h.endpoint.Protocol != "" {
@@ -65,10 +68,6 @@ func (h *headerCredentials) GetRequestMetadata(_ context.Context, _ ...string) (
 		headers["dd-content-encoding"] = h.endpoint.CompressionKind
 	} else {
 		headers["dd-content-encoding"] = "identity"
-	}
-
-	for k, v := range h.endpoint.ExtraHTTPHeaders {
-		headers[k] = v
 	}
 
 	return headers, nil

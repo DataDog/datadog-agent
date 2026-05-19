@@ -79,6 +79,8 @@ func compareEndpoint(t *testing.T, expected Endpoint, actual Endpoint) {
 	assert.Equal(t, expected.TrackType, actual.TrackType, "TrackType is not Equal")
 	assert.Equal(t, expected.Protocol, actual.Protocol, "Protocol is not Equal")
 	assert.Equal(t, expected.Origin, actual.Origin, "Origin is not Equal")
+	assert.Equal(t, expected.OriginVersion, actual.OriginVersion, "OriginVersion is not Equal")
+	assert.Equal(t, expected.ExtraHTTPHeaders, actual.ExtraHTTPHeaders, "ExtraHTTPHeaders is not Equal")
 }
 
 func (suite *ConfigTestSuite) compareEndpoints(expected *Endpoints, actual *Endpoints) {
@@ -538,6 +540,24 @@ func (suite *ConfigTestSuite) TestLogsEVPOriginVersionOverride() {
 
 	suite.Nil(err)
 	suite.Equal("cluster-a", endpoints.Main.OriginVersion)
+}
+
+func (suite *ConfigTestSuite) TestLogsAdditionalHTTPHeaders() {
+	suite.config.SetWithoutSource("api_key", "123")
+	suite.config.SetWithoutSource("logs_config.additional_http_headers", map[string]string{
+		"x-custom-routing": "cluster-a",
+		"x-experiment":     "stateful",
+	})
+
+	endpoints, err := BuildHTTPEndpoints(suite.config, "test-track", "test-proto", "test-source")
+
+	expectedHeaders := map[string]string{
+		"x-custom-routing": "cluster-a",
+		"x-experiment":     "stateful",
+	}
+	suite.Nil(err)
+	suite.Equal(expectedHeaders, endpoints.Main.ExtraHTTPHeaders)
+	suite.Equal(expectedHeaders, endpoints.Endpoints[0].ExtraHTTPHeaders)
 }
 
 func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {

@@ -1226,6 +1226,13 @@ api_key:
 #
 #   dd_evp_origin_version: ""
 
+#   # @param additional_http_headers - object - optional - default: {}
+#   # @env DD_LOGS_CONFIG_ADDITIONAL_HTTP_HEADERS - JSON object of string to string - optional - default: {}
+#   # Additional headers to send with logs HTTP and gRPC requests.
+#   # Required Agent headers are set after these values and cannot be overridden.
+#
+#   additional_http_headers: {}
+
 #   # @param grpc - custom object - optional
 #   # Configuration for the logs gRPC transport.
 #

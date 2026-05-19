@@ -95,6 +95,32 @@ func TestHeaderCredentialsSendsOriginVersionOverride(t *testing.T) {
 	require.Equal(t, "cluster-a", headers["dd-evp-origin-version"])
 }
 
+func TestHeaderCredentialsSendsAdditionalHeadersWithoutOverridingRequiredHeaders(t *testing.T) {
+	endpoint := config.NewEndpoint("test-api-key", "", "test-host", 443, config.EmptyPathPrefix, true)
+	endpoint.Protocol = "test-proto"
+	endpoint.Origin = "test-origin"
+	endpoint.UseCompression = true
+	endpoint.CompressionKind = "zstd"
+	endpoint.ExtraHTTPHeaders = map[string]string{
+		"x-custom-routing":      "cluster-a",
+		"dd-api-key":            "bad-key",
+		"dd-protocol":           "bad-proto",
+		"dd-evp-origin":         "bad-origin",
+		"dd-evp-origin-version": "bad-version",
+		"dd-content-encoding":   "bad-encoding",
+	}
+
+	headers, err := (&headerCredentials{endpoint: endpoint}).GetRequestMetadata(context.Background())
+
+	require.NoError(t, err)
+	require.Equal(t, "cluster-a", headers["x-custom-routing"])
+	require.Equal(t, "test-api-key", headers["dd-api-key"])
+	require.Equal(t, "test-proto", headers["dd-protocol"])
+	require.Equal(t, "test-origin", headers["dd-evp-origin"])
+	require.Equal(t, originVersionOrDefault(""), headers["dd-evp-origin-version"])
+	require.Equal(t, "zstd", headers["dd-content-encoding"])
+}
+
 func (m *mockLogsStream) Send(batch *statefulpb.StatefulBatch) error {
 	m.mu.Lock()
 	if m.sendErr != nil {

@@ -365,6 +365,10 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		return err
 	}
 
+	for k, v := range d.endpoint.ExtraHTTPHeaders {
+		req.Header.Set(k, v)
+	}
+
 	req.Header.Set("DD-API-KEY", d.endpoint.GetAPIKey())
 	req.Header.Set("Content-Type", d.contentType)
 	req.Header.Set("User-Agent", "datadog-agent/"+version.AgentVersion)
@@ -382,9 +386,6 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	req.Header.Set("dd-message-timestamp", strconv.FormatInt(getMessageTimestamp(payload.MessageMetas), 10))
 	then := time.Now()
 	req.Header.Set("dd-current-timestamp", strconv.FormatInt(then.UnixMilli(), 10))
-	for k, v := range d.endpoint.ExtraHTTPHeaders {
-		req.Header.Set(k, v)
-	}
 
 	req = req.WithContext(ctx)
 	resp, err := d.client.Do(req)
