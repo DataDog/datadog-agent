@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	"encoding/json"
+	"fmt"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
@@ -131,7 +132,7 @@ func defaultCatalog() *componentCatalog {
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(LogPatternExtractorConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, err
+						return nil, fmt.Errorf("log_pattern_extractor: failed to parse JSON config: %w", err)
 					}
 					return cfg, nil
 				},
@@ -147,7 +148,7 @@ func defaultCatalog() *componentCatalog {
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(CUSUMConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, err
+						return nil, fmt.Errorf("cusum: failed to parse JSON config: %w", err)
 					}
 					return cfg, nil
 				},
@@ -169,7 +170,7 @@ func defaultCatalog() *componentCatalog {
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(BOCPDConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, err
+						return nil, fmt.Errorf("bocpd: failed to parse JSON config: %w", err)
 					}
 					return cfg, nil
 				},
@@ -184,7 +185,7 @@ func defaultCatalog() *componentCatalog {
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(RRCFConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, err
+						return nil, fmt.Errorf("rrcf: failed to parse JSON config: %w", err)
 					}
 					return cfg, nil
 				},
@@ -214,7 +215,7 @@ func defaultCatalog() *componentCatalog {
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(CorrelatorConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, err
+						return nil, fmt.Errorf("cross_signal: failed to parse JSON config: %w", err)
 					}
 					return cfg, nil
 				},
@@ -230,7 +231,7 @@ func defaultCatalog() *componentCatalog {
 				parseJSON: func(defaults any, raw []byte) (any, error) {
 					cfg := defaults.(TimeClusterConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
-						return nil, err
+						return nil, fmt.Errorf("time_cluster: failed to parse JSON config: %w", err)
 					}
 					return cfg, nil
 				},
@@ -430,5 +431,5 @@ type detectorTeardownContractError struct {
 }
 
 func (e *detectorTeardownContractError) Error() string {
-	return "detector \"" + e.name + "\" violates teardown contract: " + e.reason
+	return fmt.Sprintf("detector %q violates teardown contract: %s", e.name, e.reason)
 }

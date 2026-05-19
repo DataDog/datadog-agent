@@ -7,6 +7,7 @@
 package anomalydetection
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -51,12 +52,14 @@ anomaly_detection:
 }
 
 // sendGauge sends a single DogStatsD gauge over UDP to the local agent.
-// Uses Execute (not MustExecute) so a transient SSH error doesn't panic the
-// background goroutine and destroy the DEV_MODE stack.
+// Uses Execute rather than MustExecute: a transient SSH error in the background
+// goroutine would otherwise propagate as an unrecovered panic, terminating the
+// test process and tearing down the DEV_MODE stack before assertions complete.
 func (s *stdoutReporterSuite) sendGauge(name string, value float64) {
 	cmd := fmt.Sprintf("bash -c 'echo -n \"%s:%f|g\" > /dev/udp/127.0.0.1/8125'", name, value)
-	//nolint:errcheck
-	s.Env().RemoteHost.Execute(cmd)
+	if _, err := s.Env().RemoteHost.Execute(cmd); err != nil {
+		s.T().Logf("sendGauge(%q, %f): SSH error (metric may not have been sent): %v", name, value, err)
+	}
 }
 
 // TestStdoutReporterEmitsOnDSDSpike sends a stable gauge baseline then a spike,
@@ -75,28 +78,53 @@ func (s *stdoutReporterSuite) TestStdoutReporterEmitsOnDSDSpike() {
 	s.T().Log("waiting for observer to be ready...")
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		out, err := s.Env().RemoteHost.ReadFilePrivileged("/var/log/datadog/agent.log")
-		assert.NoError(c, err)
-		assert.Contains(c, string(out), "[observer] getting handle for all-metrics")
+		assert.NoError(c, err, "reading agent.log to check observer readiness")
+		assert.Contains(c, string(out), "[observer] getting handle for all-metrics",
+			"agent.log should contain observer startup marker")
 	}, 2*time.Minute, 3*time.Second)
 	s.T().Log("observer ready")
 
-	// Send baseline and spike in the background so EventuallyWithT can poll concurrently.
+	// Send baseline and spike in a goroutine so EventuallyWithT can poll concurrently.
+	// A done channel drains the goroutine before the test returns, preventing
+	// s.T().Log calls after the test has finished (which would panic).
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		s.T().Logf("sending %d baseline points (value=%.0f)...", baselinePoints, baseline)
 		for i := 0; i < baselinePoints; i++ {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
 			s.sendGauge(metricName, baseline)
 			if (i+1)%10 == 0 {
 				s.T().Logf("baseline: sent %d/%d", i+1, baselinePoints)
 			}
-			time.Sleep(1 * time.Second)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(time.Second):
+			}
 		}
 		s.T().Logf("sending %d spike points (value=%.0f)...", spikePoints, spike)
 		for i := 0; i < spikePoints; i++ {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
 			s.sendGauge(metricName, spike)
 			if (i+1)%10 == 0 {
 				s.T().Logf("spike: sent %d/%d", i+1, spikePoints)
 			}
-			time.Sleep(1 * time.Second)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(time.Second):
+			}
 		}
 		s.T().Log("done sending metrics")
 	}()
@@ -106,12 +134,21 @@ func (s *stdoutReporterSuite) TestStdoutReporterEmitsOnDSDSpike() {
 	// advance that yields at least one active correlation.
 	s.T().Log("polling journal for [observer] report marker...")
 	s.EventuallyWithT(func(c *assert.CollectT) {
-		out := s.Env().RemoteHost.MustExecute("sudo journalctl -u datadog-agent --no-pager -n 10000")
-		if !assert.Contains(c, out, "[observer] report: pattern=") {
-			// Print all [observer] lines seen so far to help diagnose detection state.
-			observerLines := s.Env().RemoteHost.MustExecute("sudo journalctl -u datadog-agent --no-pager -n 10000 | grep '\\[observer\\]' || true")
-			s.T().Logf("observer lines so far:\n%s", observerLines)
-		}
+		out, err := s.Env().RemoteHost.Execute("sudo journalctl -u datadog-agent --no-pager -n 10000")
+		assert.NoError(c, err, "journalctl execution failed")
+		assert.Contains(c, out, "[observer] report: pattern=",
+			"journald should contain stdout reporter marker")
 	}, 5*time.Minute, 5*time.Second)
+
+	// Cancel the sender goroutine and wait for it to exit before the test returns.
+	cancel()
+	<-done
+
+	// Emit all [observer] lines once at the end for post-mortem diagnosis.
+	if observerLines, err := s.Env().RemoteHost.Execute(
+		"sudo journalctl -u datadog-agent --no-pager -n 10000 | grep -F '[observer]' || true",
+	); err == nil {
+		s.T().Logf("observer lines:\n%s", observerLines)
+	}
 	s.T().Log("[observer] report marker found")
 }
