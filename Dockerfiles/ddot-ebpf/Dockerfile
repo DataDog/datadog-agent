@@ -42,12 +42,7 @@ COPY --from=builder /workspace/datadog-agent/bin/host-profiler/host-profiler /op
 COPY --from=builder /workspace/datadog-agent/bin/host-profiler/dist/host-profiler-config.yaml /etc/datadog-agent/host-profiler-config.yaml
 # Find all directories and files in /etc with world-writable permissions and remove write permissions for group and others
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
-# NOTE about APT mirrorlists:
-# It seems that this feature could use some improvement. If you just get mirrorlist
-# from mirrors.ubuntu.com/mirrors.txt, it might contain faulty mirrors that either
-# cause `apt update` to fail with exit code 100 or make it hang on `0% [Working]`
-# indefinitely. Therefore we create a mirrorlist with the 2 mirrors that we know
-# should be reliable enough in combination and also well maintained.
+# Prefer reliable Ubuntu mirrors in CI to reduce transient network failures
 RUN if [ "$CI" = "true" ]; then \
   echo "http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu" > /etc/apt/mirrorlist.main && \
   echo "http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports" > /etc/apt/mirrorlist.ports && \

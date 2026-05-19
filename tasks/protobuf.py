@@ -8,24 +8,6 @@ from tasks.libs.build.bazel import BazelTools, bazel
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_unstaged_files, get_untracked_files
 
-PROTO_PKGS = {
-    'trace': True,
-}
-
-# maybe put this in a separate function
-PKG_PLUGINS = {
-    'trace': '--go-vtproto_out=',
-}
-
-PKG_CLI_EXTRAS = {
-    'trace': '--go-vtproto_opt=features=marshal+unmarshal+size',
-}
-
-# protoc-go-inject-tag targets
-INJECT_TAG_TARGETS = {
-    'trace': ['span.pb.go', 'stats.pb.go', 'tracer_payload.pb.go', 'agent_payload.pb.go'],
-}
-
 
 @task
 def generate(ctx, pre_commit=False):
@@ -41,7 +23,6 @@ def generate(ctx, pre_commit=False):
     base = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.abspath(os.path.join(base, ".."))
     proto_root = os.path.join(repo_root, "pkg", "proto")
-    protodep_root = os.path.join(proto_root, "protodep")
     pbgo_dir = os.path.join(proto_root, "pbgo")
 
     with ctx.cd(repo_root):
@@ -56,34 +37,7 @@ def generate(ctx, pre_commit=False):
         bazel(ctx, "run", "//pkg/proto/pbgo/process:write_pb_go")
         bazel(ctx, "run", "//pkg/proto/pbgo/sbom:write_pb_go")
         bazel(ctx, "run", "//pkg/proto/pbgo/trace/idx:write_pb_go")
-        for pkg, inject_tags in PROTO_PKGS.items():
-            files = []
-            pkg_root = Path(proto_root, "datadog", pkg)
-            for path in pkg_root.rglob('*.proto'):
-                if len(path.parts) == len(pkg_root.parts) + 1:
-                    files.append(path.as_posix())
-
-            targets = ' '.join(files)
-
-            # Generate Go code with protoc-gen-go and protoc-gen-go-grpc
-            # Note: The new protoc-gen-go doesn't support plugins=grpc, so we use separate outputs
-            # This generates *.pb.go (messages) and *_grpc.pb.go (gRPC stubs) in a single protoc call
-            ctx.run(
-                f"{bt.protoc} {bt.protoc_plugin("protoc-gen-go")} {bt.protoc_plugin("protoc-gen-go-grpc")} -I{proto_root} -I{protodep_root} --go_out={repo_root} --go-grpc_out={repo_root} {targets}"
-            )
-
-            if pkg in PKG_PLUGINS:
-                output_generator = PKG_PLUGINS[pkg]
-                cli_extras = PKG_CLI_EXTRAS.get(pkg, '')
-                ctx.run(
-                    f"{bt.protoc} {bt.protoc_plugin("protoc-gen-go-vtproto")} -I{proto_root} -I{protodep_root} {output_generator}{repo_root} {cli_extras} {targets}"
-                )
-
-            if inject_tags:
-                inject_path = os.path.join(proto_root, "pbgo", pkg)
-                # inject_tags logic
-                for target in INJECT_TAG_TARGETS[pkg]:
-                    ctx.run(f"{bt.protoc_go_inject_tag} -input={os.path.join(inject_path, target)}")
+        bazel(ctx, "run", "//pkg/proto/pbgo/trace:write_pb_go")
 
         # Mockgen (not done in pre-commit as it is slow)
         if not pre_commit:
