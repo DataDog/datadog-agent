@@ -14,8 +14,10 @@ package store
 // same issue type (e.g. the same database problem on two different hosts) must
 // use different IssueIds.
 //
-// IssueType is the template identifier. The issue registry looks it up to fill
-// in the human-readable title, severity, remediation steps, etc.
+// IssueType is the template identifier. If a template is registered for it, the
+// store enriches the proto Issue with the template's metadata (title, severity,
+// remediation steps, Source, etc.). If no template is registered, a minimal
+// proto is built from the report fields.
 type IssueReport struct {
 	// IssueId is the unique instance id, used as the store's map key.
 	// Examples:
@@ -29,6 +31,8 @@ type IssueReport struct {
 	IssueType string
 
 	// Source is the reporting integration or component name.
+	// Used as the proto Issue.Source when no template is registered for IssueType;
+	// when a template exists, the template's Source field takes precedence.
 	// Examples: "mysql", "autodiscovery", "docker"
 	Source string
 
