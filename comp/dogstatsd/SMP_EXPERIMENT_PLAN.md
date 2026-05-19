@@ -1004,3 +1004,117 @@ Stage N/O's scratch-copy compact ring remains the best bounded-ingress result
 so far. The next ceiling should not be one-max-slot direct reservation; better
 candidates are true size-class/slabbed storage, listener/syscall batching, and
 oldest-age/consumer-lag telemetry before making further overload claims.
+
+## Stage Q local result, 2026-05-19
+
+Stage Q tested the final serialization-stage hypothesis: if aggregation is
+already maintained in a v3-aligned columnar shape, can the flush path construct
+v3 metric payload inputs directly instead of reconstructing `metrics.Serie`
+rows first?
+
+Prototype commit: `947dc3f2ec3`.
+
+Image metadata:
+
+- `datadog/agent-dev:smp-dsd-columnar-v3-native-columnar-v3`
+- image ID `sha256:b6b4c8aeaa277952d6f13608ef1654fd2d4ba5e23c924c8676a693fba87e0e4b`
+- agent version `Agent 7.81.0-devel - Meta: git.73.947dc3f - Commit: 947dc3f2ec3`
+- final `main` comparison image: `datadog/agent-dev:smp-dsd-main`, image ID
+  `sha256:6f67e85689c833453bb60ba0697d234561a39a9f8df37d36f2a7fd6372316419`,
+  commit `3ec880f14a3`
+
+Prototype gates:
+
+- v3 native path:
+  `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_NATIVE_SERIALIZER=true`
+- v2/direct-series compatibility path:
+  `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_DIRECT_SERIES_SERIALIZER=true`
+- for the bounded UDS datagram slice, Stage O compact raw ingress remained
+  enabled:
+  - `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS_COMPACT=true`
+  - `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS_BATCH_DRAIN=true`
+  - `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS_BATCH_DRAIN_SIZE=32`
+  - shared byte budget: `DD_DOGSTATSD_EXPERIMENTAL_INGRESS_LOG_MAX_BYTES=16777216`
+
+Implementation shape:
+
+```text
+columnar DogStatsD buckets
+  -> merge points per descriptor across flushed buckets
+  -> metrics.V3MetricPointRow / V3MetricPointRowSink
+  -> serializer native v3 row writer
+  -> existing v3 payload builder/compressor/sender
+```
+
+The first version emitted one row per bucket, which preserved semantics but
+changed payload cardinality. The retained version merges points for the same
+columnar descriptor across buckets before writing a native row, preserving the
+existing v3 payload point/payload shape in the SMP cases.
+
+A reasonable v2 integration was added in the same stage: columnar aggregation can
+also flush into `metrics.SerieRow` through `SendDirectSeriesAndSketches` when
+`DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_DIRECT_SERIES_SERIALIZER=true`. The demux
+selection order is now native v3, direct-series/v2, default columnar-v3
+`SerieRow`, direct serializer experiment, then the normal path.
+
+Local verification:
+
+```bash
+dda inv test --targets=./pkg/metrics,./pkg/serializer/internal/metrics,./pkg/aggregator --timeout=300
+```
+
+Result: all relevant tests passed locally (`397 passed` before the v2 integration
+and `222 passed` for the aggregator-focused follow-up run).
+
+Stage Q isolation runs compare Stage O compact raw ring + batch drains to the
+native v3 serializer path. These are single-replicate probes
+(`--replicates 1 --total-samples 150`):
+
+| Comparison | Case | Δ mean | Δ mean CI | Key read |
+|---|---|---:|---:|---|
+| Stage O compact/batch -> native v3 | `uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only` | +0.80% | [-0.10%, +1.71%] | neutral/slightly positive, below the confidence threshold |
+| Stage O compact/batch -> native v3 | `uds_dogstatsd_to_api_v3_endpoint_fixed` | -0.65% | [-1.29%, -0.02%] | neutral/slightly negative standard-case result |
+
+Selected Stage Q isolation metrics:
+
+| Case | Variant | Agent UDS MiB/s | processed/s | v3 compressed MiB/s | v3 uncompressed MiB/s | payloads/s | RSS MiB | heap MiB |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| high-rate | Stage O compact/batch | 188.60 | 233,053 | 0.0565 | 0.0753 | 0.183 | 163.22 | 66.11 |
+| high-rate | native v3 | 190.13 | 234,919 | 0.0564 | 0.0752 | 0.183 | 161.62 | 65.99 |
+| standard | Stage O compact/batch | 97.41 | 112,281 | 0.0565 | 0.0754 | 0.183 | 462.58 | 224.08 |
+| standard | native v3 | 96.90 | 111,685 | 0.0566 | 0.0754 | 0.183 | 450.26 | 221.05 |
+
+Final `main` honesty-gate probes compare the current production baseline image
+to the Stage Q design. These are also single-replicate local SMP runs:
+
+| Comparison | Case | Δ mean | Δ mean CI | Confidence | Key read |
+|---|---|---:|---:|---:|---|
+| `main` -> Stage Q native v3 | `uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only` | +8.10% | [+7.47%, +8.73%] | 100.0% | bounded raw ring removes packet-pool backlog and throughput is higher |
+| `main` -> Stage Q native v3 | `uds_dogstatsd_to_api_v3_endpoint_fixed` | +1.67% | [+1.05%, +2.28%] | 99.9% | standard corrected-v3 case is positive, but memory remains higher |
+| `main` -> Stage Q direct-series/v2 | `uds_dogstatsd_to_api` high-rate local variant | +9.77% | [+8.76%, +10.78%] | 100.0% | v2/direct-series integration works and is positive in the high-rate probe |
+| `main` -> Stage Q direct-series/v2 | `uds_dogstatsd_to_api` local variant | +3.27% | [+2.50%, +4.03%] | 100.0% | v2/direct-series standard probe is positive, with higher memory |
+| `main` -> Stage Q native v3, origin detection on | `uds_dogstatsd_to_api_v3_endpoint_fixed` | +2.68% | [+1.69%, +3.66%] | 99.9% | raw ingress disables itself under origin detection; this probes columnar/native without raw-ring support |
+
+Selected final metrics:
+
+| Case | Variant | Agent UDS MiB/s | processed/s | packet pool avg | ingress ring avg | RSS MiB | heap MiB |
+|---|---|---:|---:|---:|---:|---:|---:|
+| v3 high-rate | main | 191.06 | 236,113 | 652 | n/a | 158.70 | 65.55 |
+| v3 high-rate | Stage Q native | 205.68 | 254,127 | 0 | 7.88 MiB / 2,137 records | 162.52 | 65.39 |
+| v3 standard | main | 95.97 | 110,598 | 176 | n/a | 410.79 | 204.01 |
+| v3 standard | Stage Q native | 97.94 | 112,882 | 0 | 0.54 MiB / 140 records | 446.49 | 213.41 |
+| v2 high-rate | main | 179.51 | 221,873 | 305 | n/a | 153.11 | 58.89 |
+| v2 high-rate | Stage Q direct-series | 197.46 | 243,958 | 0 | 8.44 MiB / 2,268 records | 168.16 | 66.96 |
+| v2 standard | main | 94.79 | 109,270 | 47 | n/a | 411.28 | 202.97 |
+| v2 standard | Stage Q direct-series | 97.60 | 112,487 | 0 | 0.73 MiB / 197 records | 452.64 | 223.63 |
+| origin-on v3 standard | main | 94.56 | 108,998 | 24 | n/a | 452.71 | 233.60 |
+| origin-on v3 standard | Stage Q native, raw disabled | 96.31 | 111,005 | 86 | n/a | 452.42 | 226.11 |
+
+Decision: the native v3 serializer is important architecturally because it gives
+the columnar path a direct payload-construction API and preserves payload size,
+but it did not produce a large incremental SMP win over Stage O by itself. The
+observed `main` wins are therefore best attributed to the combined design
+(columnar aggregation plus bounded compact raw ingress, with native/direct-series
+serialization), not to the native serializer alone. The design-stage exploration
+should freeze here and move to broader honesty gates, feature-cost comparisons,
+memory profiling, and raw-ring lag/oldest-age/backpressure telemetry.
