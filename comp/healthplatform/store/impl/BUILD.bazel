@@ -17,7 +17,6 @@ go_library(
         "//comp/core/log/def",
         "//comp/core/telemetry/def",
         "//comp/def",
-        "//comp/healthplatform/forwarder/def",
         "//comp/healthplatform/issues",
         "//comp/healthplatform/store/def",
         "//comp/healthplatform/store/noop-impl",

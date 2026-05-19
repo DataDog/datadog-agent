@@ -45,7 +45,7 @@ func newObserverPipeline(
 		outputChan,
 		processingRules,
 		processor.PassthroughEncoder,
-		diagnostic.NewBufferedMessageReceiver(nil, hostname),
+		diagnostic.NewBufferedMessageReceiver(nil, hostname, cfg),
 		hostname,
 		pipelineMonitor,
 		pipelineID,

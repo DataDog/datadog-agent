@@ -7,6 +7,7 @@ package serializerexporter
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -185,7 +186,10 @@ func TestSendAPMStats(t *testing.T) {
 // MockSerializer implements a no-op serializer.MetricSerializer.
 type MockSerializer struct{}
 
-func (m *MockSerializer) SendEvents(_ event.Events) error                         { return nil }
+func (m *MockSerializer) SendEvents(_ event.Events) error { return nil }
+func (m *MockSerializer) SendAgentShutdownEvent(_ context.Context, _ *event.Event) error {
+	return nil
+}
 func (m *MockSerializer) SendServiceChecks(_ servicecheck.ServiceChecks) error    { return nil }
 func (m *MockSerializer) SendIterableSeries(_ metrics.SerieSource) error          { return nil }
 func (m *MockSerializer) AreSeriesEnabled() bool                                  { return true }

@@ -119,11 +119,12 @@ func goProtoLibraries(args language.GenerateArgs) map[string][]goProtoLibrary {
 
 // generateResult emits a write_pb_go rule when the current directory holds a go_library whose
 // importpath matches an accumulated go_proto_library, or deletes a stale one otherwise.
+// Any `gazelle:write_pb_go <go_proto_library> <override>` directive substitutes the former label with the latter.
 func generateResult(args language.GenerateArgs, goProtoLibraries map[string][]goProtoLibrary) language.GenerateResult {
 	if importPath := goLibraryImportPath(args.File); importPath != "" {
 		srcs := map[string][]string{}
 		for _, lib := range goProtoLibraries[importPath] {
-			srcs[lib.label.Rel("", args.Rel).String()] = lib.generatedSrcs
+			srcs[override(args, lib.label.Rel("", args.Rel).String())] = lib.generatedSrcs
 		}
 		if len(srcs) > 0 {
 			r := rule.NewRule(name, name)
@@ -208,4 +209,17 @@ func goLibraryImportPath(f *rule.File) string {
 		}
 	}
 	return ""
+}
+
+// override returns any label overridden by `gazelle:write_pb_go <orig> <overridden>` or orig.
+func override(args language.GenerateArgs, label string) string {
+	for _, d := range args.File.Directives {
+		if d.Key != name {
+			continue
+		}
+		if parts := strings.Fields(d.Value); len(parts) == 2 && parts[0] == label {
+			return parts[1]
+		}
+	}
+	return label
 }

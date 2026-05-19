@@ -9,11 +9,11 @@ package series
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/gorilla/mux"
 )
 
 // InstallNodeMetricsEndpoints installs node metrics collection endpoints
-func InstallNodeMetricsEndpoints(_ context.Context, _ *mux.Router, _ config.Component) {
+func InstallNodeMetricsEndpoints(_ context.Context, _ *http.ServeMux, _ config.Component) {
 }

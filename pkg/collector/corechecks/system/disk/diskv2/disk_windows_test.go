@@ -34,6 +34,9 @@ func setupPlatformMocks() {
 	diskv2.NetAddConnection = func(_localName, _remoteName, _password, _username string) error {
 		return nil
 	}
+	diskv2.GetDriveTypeFn = func(_ string) uint32 {
+		return windows.DRIVE_FIXED
+	}
 }
 
 func createWindowsCheck(t *testing.T) check.Check {
@@ -667,6 +670,74 @@ func TestGivenADiskCheckWithDefaultConfig_WhenPartitionHasCdromInOpts_ThenPartit
 	}))
 	// Regular partition should still be reported
 	m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+}
+
+func TestGivenADiskCheckWithDefaultConfig_WhenDriveTypeIsCdrom_ThenPartitionIsExcluded(t *testing.T) {
+	tests := []struct {
+		name      string
+		device    string
+		mount     string
+		fstype    string
+		deviceTag string
+	}{
+		{
+			name:      "empty drive",
+			device:    "D:",
+			mount:     "D:\\",
+			fstype:    "",
+			deviceTag: "device:d:",
+		},
+		{
+			name:      "CDFS media",
+			device:    "D:",
+			mount:     "D:\\",
+			fstype:    "CDFS",
+			deviceTag: "device:d:",
+		},
+		{
+			name:      "UDF media",
+			device:    "E:",
+			mount:     "E:\\",
+			fstype:    "UDF",
+			deviceTag: "device:e:",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setupDefaultMocks()
+			diskv2.GetDriveTypeFn = func(path string) uint32 {
+				if path == tt.mount {
+					return windows.DRIVE_CDROM
+				}
+				return windows.DRIVE_FIXED
+			}
+			diskCheck := createWindowsCheck(t)
+			diskCheck = diskv2.WithDiskPartitionsWithContext(diskCheck, func(_ context.Context, _ bool) ([]gopsutil_disk.PartitionStat, error) {
+				return []gopsutil_disk.PartitionStat{
+					{
+						Device:     tt.device,
+						Mountpoint: tt.mount,
+						Fstype:     tt.fstype,
+						Opts:       []string{"ro"},
+					},
+					{
+						Device:     "\\\\?\\Volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}\\",
+						Mountpoint: "C:\\",
+						Fstype:     "NTFS",
+						Opts:       []string{"rw"},
+					}}, nil
+			})
+			m := configureCheck(t, diskCheck, nil, nil)
+			err := diskCheck.Run()
+
+			assert.Nil(t, err)
+			m.AssertNotCalled(t, "Gauge", "system.disk.total", mock.AnythingOfType("float64"), "", mock.MatchedBy(func(tags []string) bool {
+				return slices.Contains(tags, tt.deviceTag)
+			}))
+			m.AssertMetricTaggedWith(t, "Gauge", "system.disk.total", []string{`device:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`, `device_name:?\volume{a1b2c3d4-e5f6-7890-abcd-ef1234567890}`})
+		})
+	}
 }
 
 func TestGivenADiskCheckWithDefaultConfig_WhenPartitionHasEmptyFstype_ThenPartitionIsExcluded(t *testing.T) {

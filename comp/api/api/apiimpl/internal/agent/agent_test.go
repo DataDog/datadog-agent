@@ -20,18 +20,16 @@ import (
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
-
-	"github.com/gorilla/mux"
 )
 
-func setupRoutes() *mux.Router {
+func setupRoutes() *http.ServeMux {
 	apiProviders := []api.EndpointProvider{
 		api.NewAgentEndpointProvider(func(w http.ResponseWriter, _ *http.Request) {
 			w.Write([]byte("OK"))
 		}, "/dynamic_route", "GET").Provider,
 	}
 
-	router := mux.NewRouter()
+	router := http.NewServeMux()
 	SetupHandlers(
 		router,
 		apiProviders,

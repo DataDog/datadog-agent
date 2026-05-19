@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/gorilla/mux"
 	json "github.com/json-iterator/go"
 	"github.com/mohae/deepcopy"
 	"go.uber.org/fx"
@@ -203,8 +202,7 @@ func (s *settingsRegistry) ListConfigurable(w http.ResponseWriter, _ *http.Reque
 }
 
 func (s *settingsRegistry) GetValue(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	setting := vars["setting"]
+	setting := r.PathValue("setting")
 
 	s.log.Infof("Got a request to read a setting value: %s", setting)
 
@@ -236,8 +234,7 @@ func (s *settingsRegistry) GetValue(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *settingsRegistry) SetValue(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	setting := vars["setting"]
+	setting := r.PathValue("setting")
 
 	s.log.Infof("Got a request to change a setting: %s", setting)
 	_ = r.ParseForm()

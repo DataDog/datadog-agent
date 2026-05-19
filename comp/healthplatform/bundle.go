@@ -19,6 +19,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	egressdef "github.com/DataDog/datadog-agent/comp/healthplatform/egress/def"
+	egressfx "github.com/DataDog/datadog-agent/comp/healthplatform/egress/fx"
 	forwarderfx "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/fx"
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 
@@ -47,12 +49,15 @@ func Bundle() fxutil.BundleOptions {
 		runnerfx.Module(),
 		schedulerfx.Module(),
 		forwarderfx.Module(),
+		egressfx.Module(),
 		corefx.Module(),
 		fx.Invoke(bootstrapBuiltInHealthChecks),
 	)
 }
 
-// bootstrapBuiltInHealthChecks registers all built-in health checks at startup.
+// bootstrapBuiltInHealthChecks registers all built-in health checks at startup
+// and forces the egress component to be instantiated (its lifecycle hooks drive the
+// periodic store→intake flush).
 // Once checks run in background goroutines so they do not block OnStart;
 // periodic checks are registered with the scheduler.
 func bootstrapBuiltInHealthChecks(
@@ -61,6 +66,7 @@ func bootstrapBuiltInHealthChecks(
 	runner runnerdef.Component,
 	scheduler schedulerdef.Component,
 	store storedef.Component,
+	_ egressdef.Component,
 	lc fx.Lifecycle,
 ) {
 	if !cfg.GetBool("health_platform.enabled") {

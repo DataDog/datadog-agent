@@ -12,7 +12,7 @@
 // Package coverage does nothing when compiling without the e2ecoverage build tag.
 package coverage
 
-import "github.com/gorilla/mux"
+import "net/http"
 
 // SetupCoverageHandler does nothing when compiling without the e2ecoverage build tag
-func SetupCoverageHandler(_ *mux.Router) {}
+func SetupCoverageHandler(_ *http.ServeMux) {}

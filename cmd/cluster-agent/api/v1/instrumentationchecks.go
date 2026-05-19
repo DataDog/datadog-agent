@@ -11,15 +11,13 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/gorilla/mux"
-
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	cctypes "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 )
 
-func installInstrumentationCheckEndpoints(r *mux.Router, confLister clusteragent.ConfigLister) {
-	r.HandleFunc("/instrumentation/configs", api.WithTelemetryWrapper("getInstrumentationConfigs", getInstrumentationConfigs(confLister))).Methods("GET")
+func installInstrumentationCheckEndpoints(r *http.ServeMux, confLister clusteragent.ConfigLister) {
+	r.HandleFunc("GET /instrumentation/configs", api.WithTelemetryWrapper("getInstrumentationConfigs", getInstrumentationConfigs(confLister)))
 }
 
 func getInstrumentationConfigs(confLister clusteragent.ConfigLister) func(w http.ResponseWriter, r *http.Request) {

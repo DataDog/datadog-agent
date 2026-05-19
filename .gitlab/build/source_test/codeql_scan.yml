@@ -4,6 +4,7 @@
 
 run_codeql_scan:
   image: registry.ddbuild.io/code-scanning:v89505840-d7f7832-datadog-agent
+  timeout: 5h
   tags: ["arch:amd64", "specific:true"]
   extends: .dd_octo_sts
   stage: source_test

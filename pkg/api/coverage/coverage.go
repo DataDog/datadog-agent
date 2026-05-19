@@ -18,13 +18,11 @@ import (
 	"os"
 	"path"
 	"runtime/coverage"
-
-	"github.com/gorilla/mux"
 )
 
 // SetupCoverageHandler adds the coverage handler to the router
-func SetupCoverageHandler(r *mux.Router) {
-	r.HandleFunc("/coverage", ComponentCoverageHandler).Methods("GET")
+func SetupCoverageHandler(r *http.ServeMux) {
+	r.HandleFunc("GET /coverage", ComponentCoverageHandler)
 }
 
 func ComponentCoverageHandler(w http.ResponseWriter, _ *http.Request) {

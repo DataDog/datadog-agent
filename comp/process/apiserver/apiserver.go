@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/api"
@@ -43,8 +42,7 @@ type dependencies struct {
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func newApiServer(deps dependencies) Component {
-	r := mux.NewRouter()
-	r.Use(deps.IPC.HTTPMiddleware)
+	r := http.NewServeMux()
 	api.SetupAPIServerHandlers(deps.APIServerDeps, r) // Set up routes
 
 	addr, err := pkgconfigsetup.GetProcessAPIAddressPort(deps.Config)
@@ -56,7 +54,7 @@ func newApiServer(deps dependencies) Component {
 
 	apiserver := &apiserver{
 		server: &http.Server{
-			Handler:      r,
+			Handler:      deps.IPC.HTTPMiddleware(r),
 			Addr:         addr,
 			ReadTimeout:  timeout,
 			WriteTimeout: timeout,

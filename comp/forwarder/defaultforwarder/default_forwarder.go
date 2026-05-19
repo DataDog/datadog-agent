@@ -6,6 +6,7 @@
 package defaultforwarder
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"maps"
@@ -24,7 +25,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	pkgresolver "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
@@ -68,6 +69,7 @@ type Response struct {
 type Forwarder interface {
 	SubmitV1Series(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitV1Intake(payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error
+	SubmitV1IntakeDirect(ctx context.Context, payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error
 	SubmitV1CheckRuns(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitHostMetadata(payload transaction.BytesPayloads, extra http.Header) error
 	SubmitAgentChecksMetadata(payload transaction.BytesPayloads, extra http.Header) error
@@ -616,6 +618,28 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 	return nil
 }
 
+func (f *DefaultForwarder) sendHTTPTransactionsDirect(ctx context.Context, transactions []*transaction.HTTPTransaction) error {
+	f.m.Lock()
+	defer f.m.Unlock()
+
+	if f.internalState.Load() == Stopped {
+		return errors.New("the forwarder is not started")
+	}
+
+	var errs []error
+	for _, t := range transactions {
+		forwarder := f.domainForwarders[t.Domain]
+		if forwarder == nil {
+			errs = append(errs, fmt.Errorf("no forwarder found for domain %q", t.Domain))
+			continue
+		}
+		if err := forwarder.sendHTTPTransactionDirect(ctx, t); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
 // SubmitSketchSeries will send payloads to Datadog backend - PROTOTYPE FOR PERCENTILE
 func (f *DefaultForwarder) SubmitSketchSeries(payload transaction.BytesPayloads, extra http.Header) error {
 	transactions := f.createHTTPTransactions(endpoints.SketchSeriesEndpoint, payload, transaction.Sketches, extra)
@@ -671,6 +695,25 @@ func (f *DefaultForwarder) SubmitV1CheckRuns(payload transaction.BytesPayloads, 
 // SubmitV1Intake will send payloads to the universal `/intake/` endpoint used by Agent v.5
 func (f *DefaultForwarder) SubmitV1Intake(payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error {
 	return f.submitV1IntakeWithTransactionsFactory(payload, kind, extra, f.createHTTPTransactions)
+}
+
+// SubmitV1IntakeDirect sends payloads to the universal `/intake/` endpoint
+// synchronously, bypassing the forwarder worker queue.
+//
+// This is intended for bounded one-shot lifecycle telemetry during shutdown. It reuses the
+// normal HTTPTransaction construction path, but avoids the worker queue so the caller can know
+// whether the request completed before returning.
+func (f *DefaultForwarder) SubmitV1IntakeDirect(ctx context.Context, payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error {
+	transactions := f.createAdvancedHTTPTransactions(endpoints.V1IntakeEndpoint, payload, extra, transaction.TransactionPriorityHigh, kind, false)
+
+	for _, t := range transactions {
+		// The intake endpoint requires the Content-Type header. The normal
+		// SubmitV1Intake path sets this after transaction construction too.
+		t.Headers.Set("Content-Type", "application/json")
+		t.Retryable = false
+	}
+
+	return f.sendHTTPTransactionsDirect(ctx, transactions)
 }
 
 func (f *DefaultForwarder) submitV1IntakeWithTransactionsFactory(

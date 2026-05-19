@@ -150,6 +150,11 @@ func (tf *MockedForwarder) SubmitV1Intake(payload transaction.BytesPayloads, _ t
 	return tf.Called(payload, extra).Error(0)
 }
 
+// SubmitV1IntakeDirect updates the internal mock struct
+func (tf *MockedForwarder) SubmitV1IntakeDirect(ctx context.Context, payload transaction.BytesPayloads, kind transaction.Kind, extra http.Header) error {
+	return tf.Called(ctx, payload, kind, extra).Error(0)
+}
+
 // SubmitV1CheckRuns updates the internal mock struct
 func (tf *MockedForwarder) SubmitV1CheckRuns(payload transaction.BytesPayloads, extra http.Header) error {
 	return tf.Called(payload, extra).Error(0)

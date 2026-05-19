@@ -58,9 +58,11 @@ func newProviderWithClock(entityID types.EntityID, clock clock.Clock, tagAdder E
 // GetTags returns the list of up-to-date tags.
 func (p *provider) GetTags() []string {
 	p.Do(func() {
-		// Warmup duration
-		// Make sure the tagger collects all the service tags
-		// TODO AGNTLOG-475: remove this once AD and Tagger use the same PodWatcher instance
+		// Warmup duration. Kept for backwards compatibility — the
+		// `logs_config.tagger_warmup_duration` config defaults to 0 (disabled).
+		// For users who need tags to be complete before logs are tagged, prefer
+		// configuring `ad_tag_completeness_max_wait` (see #50612), which makes
+		// autodiscovery wait for tag completeness before scheduling checks.
 		p.clock.Sleep(p.taggerWarmupDuration)
 	})
 

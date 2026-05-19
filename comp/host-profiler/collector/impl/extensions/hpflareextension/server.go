@@ -12,8 +12,6 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/gorilla/mux"
-
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 )
 
@@ -23,16 +21,15 @@ type server struct {
 }
 
 func newServer(endpoint string, handler http.Handler, ipcComp ipc.Component) (*server, error) {
-	r := mux.NewRouter()
+	r := http.NewServeMux()
 	r.Handle("/", handler)
 
 	s := &http.Server{
 		Addr:    endpoint,
-		Handler: r,
+		Handler: ipcComp.HTTPMiddleware(r),
 	}
 
 	s.TLSConfig = ipcComp.GetTLSServerConfig()
-	r.Use(ipcComp.HTTPMiddleware)
 
 	listener, err := net.Listen("tcp", endpoint)
 	if err != nil {

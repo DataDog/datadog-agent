@@ -16,7 +16,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -281,8 +280,8 @@ func TestRuntimeSettings(t *testing.T) {
 		{
 			"GetValue",
 			func(t *testing.T, comp settings.Component) {
-				router := mux.NewRouter()
-				router.HandleFunc("/config/{setting}", comp.GetValue).Methods("GET")
+				router := http.NewServeMux()
+				router.HandleFunc("GET /config/{setting}", comp.GetValue)
 				ts := httptest.NewServer(router)
 				defer ts.Close()
 
@@ -332,9 +331,9 @@ func TestRuntimeSettings(t *testing.T) {
 		{
 			"SetValue",
 			func(t *testing.T, comp settings.Component) {
-				router := mux.NewRouter()
-				router.HandleFunc("/config/{setting}", comp.GetValue).Methods("GET")
-				router.HandleFunc("/config/{setting}", comp.SetValue).Methods("POST")
+				router := http.NewServeMux()
+				router.HandleFunc("GET /config/{setting}", comp.GetValue)
+				router.HandleFunc("POST /config/{setting}", comp.SetValue)
 				ts := httptest.NewServer(router)
 				defer ts.Close()
 
@@ -366,8 +365,8 @@ func TestRuntimeSettings(t *testing.T) {
 		{
 			"SetValue non-existent setting",
 			func(t *testing.T, comp settings.Component) {
-				router := mux.NewRouter()
-				router.HandleFunc("/config/{setting}", comp.SetValue).Methods("POST")
+				router := http.NewServeMux()
+				router.HandleFunc("POST /config/{setting}", comp.SetValue)
 				ts := httptest.NewServer(router)
 				defer ts.Close()
 

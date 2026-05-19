@@ -27,7 +27,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	forwarderdef "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/def"
 	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	noopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
@@ -43,7 +42,6 @@ type Requires struct {
 	Log       log.Component
 	Telemetry telemetry.Component
 	Hostname  hostnameinterface.Component
-	Forwarder forwarderdef.Component
 }
 
 // Provides defines the output of the health-platform component
@@ -76,9 +74,6 @@ type healthPlatformImpl struct {
 
 	// Issue module registry (combines checks + remediations)
 	issueRegistry *issuesmod.Registry
-
-	// Forwarder for sending reports to Datadog intake
-	forwarder forwarderdef.Component
 
 	// Metrics
 	metrics telemetryMetrics // Telemetry metrics for health platform
@@ -266,9 +261,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 		hostnameProvider: reqs.Hostname,
 		agentFlavor:      flavor.GetFlavor(),
 
-		// Sub-components injected by fx
-		forwarder: reqs.Forwarder,
-
 		// Issue module registry
 		issueRegistry: issueRegistry,
 
@@ -323,8 +315,6 @@ func (h *healthPlatformImpl) start(_ context.Context) error {
 		h.log.Warn("Failed to load persisted issues: " + err.Error())
 	}
 
-	h.forwarder.SetProvider(h)
-
 	return nil
 }
 
@@ -339,9 +329,9 @@ func (h *healthPlatformImpl) stop(_ context.Context) error {
 // ============================================================================
 
 // ReportIssue records a new or ongoing issue. The issue is keyed by
-// report.IssueID (unique instance id). If a template is registered for
-// report.IssueType it enriches the proto (title, severity, remediation, etc.);
-// otherwise a minimal proto is built from the report fields.
+// report.IssueID (unique instance id). The template is looked up by
+// report.IssueType in the issue registry; report.Tags are appended to the
+// template's tags. The template's user-facing Source field is preserved.
 func (h *healthPlatformImpl) ReportIssue(report healthplatformdef.IssueReport) error {
 	if report.IssueID == "" {
 		return errors.New("issue id cannot be empty")
@@ -352,7 +342,7 @@ func (h *healthPlatformImpl) ReportIssue(report healthplatformdef.IssueReport) e
 
 	issue, err := h.toProto(report)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to build issue %s: %w", report.IssueType, err)
 	}
 
 	h.issuesMux.RLock()
