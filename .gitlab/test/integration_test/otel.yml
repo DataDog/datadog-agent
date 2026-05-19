@@ -65,8 +65,6 @@ docker_image_build_otel:
     - export GO_VERSION=$(cat .go-version)
     # See .ddot_byoc_build_cache_setup for the rationale behind this docker buildx create call.
     - docker buildx create --use --driver docker-container --bootstrap
-    # TEMP: trick .docker_build_job_definition's cache logic into pushing cache on PR branches so we can test it
-    - export CI_COMMIT_BRANCH="$CI_DEFAULT_BRANCH"
   after_script:
     # Compute the image name and tag the template will push to, so after_script can reference them.
     # ECR_RELEASE_SUFFIX mirrors the logic in .docker_build_job_definition.
@@ -110,9 +108,7 @@ docker_image_build_otel:
       CACHE_FROM="--cache-from type=registry,ref=${CACHE_REGISTRY}"
       CACHE_TO=""
       NO_CACHE=""
-      # TEMP: always push cache so we can test cache export on PR branches without waiting for a merge to main
-      CACHE_TO="--cache-to type=registry,ref=${CACHE_REGISTRY},mode=max"
-      if false && [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" || "$BUCKET_BRANCH" == "nightly" ]]; then
+      if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" || "$BUCKET_BRANCH" == "nightly" ]]; then
         CACHE_TO="--cache-to type=registry,ref=${CACHE_REGISTRY},mode=max"
       fi
       if [[ "$BUCKET_BRANCH" == "nightly" ]]; then
