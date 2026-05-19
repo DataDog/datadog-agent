@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package dd_go_test
+package dd_agent_go_test
 
 import (
 	"os"
@@ -58,8 +58,8 @@ func TestReplaceGoTests_SingleGoTest(t *testing.T) {
 	}
 
 	r := result.Gen[0]
-	if r.Kind() != "dd_go_test" {
-		t.Errorf("expected kind dd_go_test, got %s", r.Kind())
+	if r.Kind() != "dd_agent_go_test" {
+		t.Errorf("expected kind dd_agent_go_test, got %s", r.Kind())
 	}
 	if r.Name() != "pkg_test" {
 		t.Errorf("expected name pkg_test, got %s", r.Name())
@@ -103,7 +103,7 @@ func TestReplaceGoTests_ExistingAttrsPreserved(t *testing.T) {
 	prior.SetAttr("data", []string{"testdata/foo.json"})
 	prior.SetAttr("env", map[string]string{"FOO": "bar"})
 	prior.SetAttr("tags", []string{"manual"})
-	prior.SetAttr("gotags", []string{"test"})   // dd_go_test owns gotags -> should NOT carry over
+	prior.SetAttr("gotags", []string{"test"})   // dd_agent_go_test owns gotags -> should NOT carry over
 	prior.SetAttr("srcs", []string{"stale.go"}) // Gazelle-owned -> should NOT carry over
 	file := &rule.File{Rules: []*rule.Rule{prior}}
 
@@ -120,7 +120,7 @@ func TestReplaceGoTests_ExistingAttrsPreserved(t *testing.T) {
 		t.Error("env: expected to be preserved from existing rule")
 	}
 	if r.Attr("gotags") != nil {
-		t.Errorf("gotags: expected to be dropped (dd_go_test-managed), got %v", r.AttrStrings("gotags"))
+		t.Errorf("gotags: expected to be dropped (dd_agent_go_test-managed), got %v", r.AttrStrings("gotags"))
 	}
 	if got := r.AttrStrings("srcs"); !stringSlicesEqual(got, []string{"mytest.go"}) {
 		t.Errorf("srcs: expected fresh value, got %v", got)
@@ -134,7 +134,7 @@ func TestReplaceGoTests_ImportsForwarded(t *testing.T) {
 		t.Errorf("Imports len %d != Gen len %d", len(result.Imports), len(result.Gen))
 	}
 	if result.Imports[0] == nil {
-		t.Error("expected non-nil import forwarded for dd_go_test")
+		t.Error("expected non-nil import forwarded for dd_agent_go_test")
 	}
 }
 
@@ -151,8 +151,8 @@ func TestReplaceGoTests_MixedRules(t *testing.T) {
 	if result.Gen[0].Kind() != "go_library" {
 		t.Errorf("expected go_library at index 0")
 	}
-	if result.Gen[1].Kind() != "dd_go_test" {
-		t.Errorf("expected dd_go_test at index 1")
+	if result.Gen[1].Kind() != "dd_agent_go_test" {
+		t.Errorf("expected dd_agent_go_test at index 1")
 	}
 	if result.Gen[2].Kind() != "go_binary" {
 		t.Errorf("expected go_binary at index 2")
@@ -170,29 +170,29 @@ func TestLoads(t *testing.T) {
 	loads := mal.ApparentLoads(func(string) string { return "" })
 	found := false
 	for _, li := range loads {
-		if li.Name == "//bazel/rules/dd_go_test:defs.bzl" {
+		if li.Name == "//bazel/rules/dd_agent_go_test:defs.bzl" {
 			for _, sym := range li.Symbols {
-				if sym == "dd_go_test" {
+				if sym == "dd_agent_go_test" {
 					found = true
 				}
 			}
 		}
 	}
 	if !found {
-		t.Error("dd_go_test load not found in ApparentLoads()")
+		t.Error("dd_agent_go_test load not found in ApparentLoads()")
 	}
 }
 
 func TestConfigure_DirectiveOff(t *testing.T) {
 	f := &rule.File{}
-	f.Directives = []rule.Directive{{Key: "dd_go_test", Value: "off"}}
+	f.Directives = []rule.Directive{{Key: "dd_agent_go_test", Value: "off"}}
 
 	c := &config.Config{Exts: map[string]interface{}{}}
 	NewLanguage().(*lang).Configure(c, "some/pkg", f)
 
-	got, ok := c.Exts[extName].(ddGoTestConfig)
+	got, ok := c.Exts[extName].(ddAgentGoTestConfig)
 	if !ok {
-		t.Fatal("expected ddGoTestConfig in c.Exts")
+		t.Fatal("expected ddAgentGoTestConfig in c.Exts")
 	}
 	if got.enabled {
 		t.Error("expected enabled=false after directive off")
@@ -213,7 +213,7 @@ func TestShouldReplace(t *testing.T) {
 		{
 			name: "directive off",
 			c: &config.Config{Exts: map[string]interface{}{
-				extName: ddGoTestConfig{enabled: false},
+				extName: ddAgentGoTestConfig{enabled: false},
 			}},
 			want: false,
 		},
@@ -332,9 +332,9 @@ func TestApplicableFlavors(t *testing.T) {
 
 func TestKinds(t *testing.T) {
 	kinds := NewLanguage().(*lang).Kinds()
-	info, ok := kinds["dd_go_test"]
+	info, ok := kinds["dd_agent_go_test"]
 	if !ok {
-		t.Fatal("dd_go_test not in Kinds()")
+		t.Fatal("dd_agent_go_test not in Kinds()")
 	}
 	if !info.NonEmptyAttrs["embed"] {
 		t.Error("expected embed in NonEmptyAttrs")

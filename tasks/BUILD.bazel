@@ -16,11 +16,11 @@ py_library(
 exports_files(["core_checks.py"])
 
 # build_tags.bzl is the single source of truth for build tags. //BUILD.bazel
-# load()s GAZELLE_BUILD_TAGS from it; the dd_go_test extension consumes it as a
+# load()s GAZELLE_BUILD_TAGS from it; the dd_agent_go_test extension consumes it as a
 # file input to generate its tags.go.
 exports_files(
     ["build_tags.bzl"],
-    visibility = ["//bazel/rules/dd_go_test:__pkg__"],
+    visibility = ["//bazel/rules/dd_agent_go_test:__pkg__"],
 )
 
 # No `data = [...]` for renovate.json / deps/ / .renovate-untracked.json on

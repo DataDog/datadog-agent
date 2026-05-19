@@ -3,7 +3,7 @@ load("//bazel/flavors:defs.bzl", "flavor_gotags")
 
 _ALL_FLAVORS = ["base", "dogstatsd", "fips", "heroku", "iot"]
 
-def dd_go_test(name, flavors = None, tags = None, **kwargs):
+def dd_agent_go_test(name, flavors = None, tags = None, **kwargs):
     """Wraps go_test with per-flavor variants grouped under a test_suite.
 
     The flavor-to-gotags mapping and the tag naming scheme are encapsulated

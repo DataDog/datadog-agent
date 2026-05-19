@@ -3,13 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-// Package dd_go_test is a Gazelle extension that wraps the built-in Go language
-// extension and replaces go_test rules with dd_go_test macro calls that encapsulate
+// Package dd_agent_go_test is a Gazelle extension that wraps the built-in Go language
+// extension and replaces go_test rules with dd_agent_go_test macro calls that encapsulate
 // per-flavor test generation. It must replace (not extend) the built-in Go extension
 // in the gazelle_binary languages list.
 //
-// Add "# gazelle:dd_go_test off" to a BUILD file to keep a plain go_test in that package.
-package dd_go_test
+// Add "# gazelle:dd_agent_go_test off" to a BUILD file to keep a plain go_test in that package.
+package dd_agent_go_test
 
 import (
 	"bufio"
@@ -29,9 +29,9 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
-const extName = "dd_go_test"
+const extName = "dd_agent_go_test"
 
-type ddGoTestConfig struct {
+type ddAgentGoTestConfig struct {
 	enabled bool
 }
 
@@ -44,7 +44,7 @@ func NewLanguage() language.Language {
 	return &lang{Language: goLanguage.NewLanguage()}
 }
 
-// Kinds extends the Go extension's kinds with dd_go_test. srcs, gotags, and
+// Kinds extends the Go extension's kinds with dd_agent_go_test. srcs, gotags, and
 // flavors are mergeable so each Gazelle run regenerates them from current
 // source analysis; all other attrs (deps, embed, data, ...) are preserved
 // from the existing rule.
@@ -53,14 +53,14 @@ func (l *lang) Kinds() map[string]rule.KindInfo {
 	for k, v := range l.Language.Kinds() {
 		kinds[k] = v
 	}
-	kinds["dd_go_test"] = rule.KindInfo{
+	kinds["dd_agent_go_test"] = rule.KindInfo{
 		NonEmptyAttrs:  map[string]bool{"embed": true},
 		MergeableAttrs: map[string]bool{"srcs": true, "gotags": true, "flavors": true},
 	}
 	return kinds
 }
 
-// ApparentLoads extends the Go extension's load statements with the dd_go_test load.
+// ApparentLoads extends the Go extension's load statements with the dd_agent_go_test load.
 // The Go extension implements ModuleAwareLanguage; Gazelle calls ApparentLoads when
 // the interface is satisfied and never falls back to the deprecated Loads().
 func (l *lang) ApparentLoads(moduleToApparentName func(string) string) []rule.LoadInfo {
@@ -69,20 +69,20 @@ func (l *lang) ApparentLoads(moduleToApparentName func(string) string) []rule.Lo
 		base = mal.ApparentLoads(moduleToApparentName)
 	}
 	return append(base, rule.LoadInfo{
-		Name:    "//bazel/rules/dd_go_test:defs.bzl",
-		Symbols: []string{"dd_go_test"},
+		Name:    "//bazel/rules/dd_agent_go_test:defs.bzl",
+		Symbols: []string{"dd_agent_go_test"},
 		After:   []string{"go_test"},
 	})
 }
 
-// Configure reads the # gazelle:dd_go_test directive from the BUILD file.
-// "off" disables the go_test → dd_go_test conversion for this package only.
+// Configure reads the # gazelle:dd_agent_go_test directive from the BUILD file.
+// "off" disables the go_test → dd_agent_go_test conversion for this package only.
 func (l *lang) Configure(c *config.Config, rel string, f *rule.File) {
 	l.Language.Configure(c, rel, f)
-	cfg := ddGoTestConfig{enabled: true}
+	cfg := ddAgentGoTestConfig{enabled: true}
 	if f != nil {
 		for _, d := range f.Directives {
-			if d.Key == "dd_go_test" {
+			if d.Key == "dd_agent_go_test" {
 				cfg.enabled = d.Value != "off"
 			}
 		}
@@ -91,8 +91,8 @@ func (l *lang) Configure(c *config.Config, rel string, f *rule.File) {
 }
 
 // GenerateRules calls the Go extension's GenerateRules and replaces each go_test
-// rule in the result with a dd_go_test macro call. The Imports slice is kept in
-// sync so the resolver can still add deps to each dd_go_test.
+// rule in the result with a dd_agent_go_test macro call. The Imports slice is kept in
+// sync so the resolver can still add deps to each dd_agent_go_test.
 func (l *lang) GenerateRules(args language.GenerateArgs) language.GenerateResult {
 	result := l.Language.GenerateRules(args)
 	if !shouldReplace(args.Config) {
@@ -102,14 +102,14 @@ func (l *lang) GenerateRules(args language.GenerateArgs) language.GenerateResult
 }
 
 // shouldReplace decides whether go_test rules in this package should be
-// rewritten to dd_go_test. It declines when:
-//   - the # gazelle:dd_go_test off directive is set, or
+// rewritten to dd_agent_go_test. It declines when:
+//   - the # gazelle:dd_agent_go_test off directive is set, or
 //   - the package has a # gazelle:map_kind go_test <wrapper> directive,
 //     because the user has already chosen a different wrapper for go_test
-//     (e.g. rtloader_go_test that sets up dlopen runfiles) and dd_go_test
+//     (e.g. rtloader_go_test that sets up dlopen runfiles) and dd_agent_go_test
 //     doesn't compose with such wrappers.
 func shouldReplace(c *config.Config) bool {
-	if cfg, ok := c.Exts[extName].(ddGoTestConfig); ok && !cfg.enabled {
+	if cfg, ok := c.Exts[extName].(ddAgentGoTestConfig); ok && !cfg.enabled {
 		return false
 	}
 	if _, mapped := c.KindMap["go_test"]; mapped {
@@ -118,14 +118,14 @@ func shouldReplace(c *config.Config) bool {
 	return true
 }
 
-// replaceGoTests converts all go_test rules in result to dd_go_test rules.
+// replaceGoTests converts all go_test rules in result to dd_agent_go_test rules.
 // file is the parsed existing BUILD file (may be nil for fresh packages); it
 // is consulted to carry over user-managed attrs from any pre-existing go_test
 // rule that the merger would otherwise discard along with the rule itself.
 //
 // "User-managed" is derived from MergeableAttrs: attrs in the Go extension's
 // go_test MergeableAttrs are regenerated from source analysis, and attrs in
-// dd_go_test's MergeableAttrs are owned by the macro (e.g. gotags is replaced
+// dd_agent_go_test's MergeableAttrs are owned by the macro (e.g. gotags is replaced
 // by flavor_gotags at expansion time). Everything else is hand-maintained and
 // must be carried over.
 func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, pkgDir string) language.GenerateResult {
@@ -133,7 +133,7 @@ func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, p
 	for attr := range l.Language.Kinds()["go_test"].MergeableAttrs {
 		managed[attr] = true
 	}
-	for attr := range l.Kinds()["dd_go_test"].MergeableAttrs {
+	for attr := range l.Kinds()["dd_agent_go_test"].MergeableAttrs {
 		managed[attr] = true
 	}
 
@@ -157,7 +157,7 @@ func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, p
 			imports = append(imports, imp)
 			continue
 		}
-		nr := rule.NewRule("dd_go_test", r.Name())
+		nr := rule.NewRule("dd_agent_go_test", r.Name())
 		for _, attr := range r.AttrKeys() {
 			copyAttr(r, nr, attr)
 		}
@@ -172,11 +172,11 @@ func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, p
 			}
 		}
 		// Mark the original go_test for removal regardless of what follows:
-		// we're either replacing it with dd_go_test or dropping the test
+		// we're either replacing it with dd_agent_go_test or dropping the test
 		// entirely.
 		empty = append(empty, rule.NewRule("go_test", r.Name()))
 
-		// dd_go_test's macro emits one go_test per flavor unconditionally;
+		// dd_agent_go_test's macro emits one go_test per flavor unconditionally;
 		// Starlark can't read source files, so it has no way to tell that a
 		// //go:build constraint will filter every src out for a given flavor.
 		// Without applicableFlavors here, a package with tests gated by e.g.
@@ -188,7 +188,7 @@ func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, p
 		if srcs := nr.AttrStrings("srcs"); len(srcs) > 0 {
 			fl := applicableFlavors(srcs, pkgDir)
 			if len(fl) == 0 {
-				if existingDd, ok := findRule(file, "dd_go_test", r.Name()); ok {
+				if existingDd, ok := findRule(file, "dd_agent_go_test", r.Name()); ok {
 					existingDd.Delete()
 				}
 				continue
@@ -208,11 +208,11 @@ func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, p
 	}
 }
 
-// Resolve delegates to the Go extension's resolver. For dd_go_test rules it
+// Resolve delegates to the Go extension's resolver. For dd_agent_go_test rules it
 // proxies through a temporary go_test rule so the Go extension can resolve imports
 // to deps, then copies the resolved deps back.
 func (l *lang) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.RemoteCache, r *rule.Rule, imports interface{}, from label.Label) {
-	if r.Kind() != "dd_go_test" {
+	if r.Kind() != "dd_agent_go_test" {
 		l.Language.Resolve(c, ix, rc, r, imports, from)
 		return
 	}
@@ -243,7 +243,7 @@ func findRule(file *rule.File, kind, name string) (*rule.Rule, bool) {
 }
 
 // allFlavors returns the canonical flavor list (sorted by name) used by the
-// dd_go_test macro. Matches _ALL_FLAVORS in bazel/rules/dd_go_test/defs.bzl,
+// dd_agent_go_test macro. Matches _ALL_FLAVORS in bazel/rules/dd_agent_go_test/defs.bzl,
 // derived from FlavorUnitTestTags keys so we don't maintain two copies.
 func allFlavors() []string {
 	out := make([]string, 0, len(FlavorUnitTestTags))
