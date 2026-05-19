@@ -390,7 +390,9 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 			opwEndpoint.isReliable = logsConfig.obsPipelineWorkerDualShipReliable()
 			opwAdditionals = append(opwAdditionals, opwEndpoint)
 		} else {
-			// Default (legacy) behaviour: OPW replaces the primary Datadog endpoint.
+			// Default behaviour: OPW replaces the primary Datadog endpoint and is the only
+			// destination logs are shipped to. dual_ship is the opt-in for users who want
+			// to evaluate OPW alongside an unchanged flow of telemetry to Datadog.
 			main.Host = host
 			main.Port = port
 			main.useSSL = useSSL

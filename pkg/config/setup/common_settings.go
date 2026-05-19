@@ -1940,8 +1940,10 @@ func vector(config pkgconfigmodel.Setup) {
 	// dual_ship is logs-only: there is no equivalent dual-shipping code path for metrics, so
 	// these keys live outside bindVectorOptions to avoid registering an unused metrics variant.
 	//
-	// dual_ship: when false (default), OPW replaces the primary Datadog endpoint (legacy behaviour).
-	// When true, Datadog remains the primary endpoint and OPW is added as an additional endpoint.
+	// dual_ship: when false (default), OPW replaces the primary Datadog endpoint and is the only
+	// destination logs are shipped to. When true, Datadog remains the primary endpoint and OPW is
+	// added as an additional endpoint — intended for operators evaluating OPW without interrupting
+	// the existing flow of telemetry to Datadog.
 	//
 	// dual_ship_reliable: when dual_ship=true, controls whether the OPW additional endpoint applies
 	// backpressure to the main pipeline on failure (true) or is best-effort (false, the default).

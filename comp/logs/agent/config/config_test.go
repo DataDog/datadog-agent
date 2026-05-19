@@ -901,7 +901,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWDualShipAndAdditionalEndp
 }
 
 // TestBuildEndpointsWithOPWNoDualShipPreservesLegacyBehaviour verifies that when dual_ship is
-// absent (default false) the legacy "OPW replaces primary" behaviour is unchanged.
+// absent (default false) the existing "OPW replaces primary" behaviour is unchanged.
 func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWNoDualShipPreservesLegacyBehaviour() {
 	suite.config.SetWithoutSource("api_key", "123")
 	suite.config.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
@@ -911,12 +911,12 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWNoDualShipPreservesLegacy
 	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
 	suite.Require().Nil(err)
 
-	// Primary endpoint must be OPW (legacy override behaviour).
+	// Primary endpoint must be OPW (the default OPW-replaces-primary behaviour).
 	suite.Equal("opw.example.com", endpoints.Main.Host)
 	suite.Equal(8443, endpoints.Main.Port)
 
 	// Only one endpoint in total (no additional endpoints).
-	suite.Require().Len(endpoints.Endpoints, 1, "expected 1 endpoint (OPW as primary, legacy mode)")
+	suite.Require().Len(endpoints.Endpoints, 1, "expected 1 endpoint (OPW as primary, default mode)")
 }
 
 func (suite *ConfigTestSuite) TestEndpointsSetNonDefaultCustomConfigs() {
