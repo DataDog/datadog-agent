@@ -900,9 +900,9 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWDualShipAndAdditionalEndp
 	suite.Equal("extra.logs.example.com", userEndpoint.Host)
 }
 
-// TestBuildEndpointsWithOPWNoDualShipPreservesLegacyBehaviour verifies that when dual_ship is
-// absent (default false) the existing "OPW replaces primary" behaviour is unchanged.
-func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWNoDualShipPreservesLegacyBehaviour() {
+// TestBuildEndpointsWithOPWNoDualShipReplacesPrimary verifies that when dual_ship is absent
+// (default false) OPW continues to replace the primary Datadog endpoint — the default OPW mode.
+func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWNoDualShipReplacesPrimary() {
 	suite.config.SetWithoutSource("api_key", "123")
 	suite.config.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
 	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "https://opw.example.com:8443/")
