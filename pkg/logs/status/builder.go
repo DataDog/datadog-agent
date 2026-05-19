@@ -182,6 +182,15 @@ func (b *Builder) toDictionary(c *config.LogsConfig) map[string]interface{} {
 		}
 	case config.UDPType:
 		dictionary["Port"] = c.Port
+		if c.Format != "" {
+			dictionary["Format"] = c.Format
+		}
+		if len(c.AllowedIPs) > 0 {
+			dictionary["AllowedIPs"] = strings.Join(c.AllowedIPs, ", ")
+		}
+		if len(c.DeniedIPs) > 0 {
+			dictionary["DeniedIPs"] = strings.Join(c.DeniedIPs, ", ")
+		}
 	case config.FileType:
 		dictionary["Path"] = c.Path
 		dictionary["TailingMode"] = c.TailingMode

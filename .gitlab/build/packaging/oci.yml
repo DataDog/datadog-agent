@@ -57,7 +57,7 @@
       }
       for ARCH in "amd64" "arm64"; do
         if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
-          # For main agent, exclude DDOT files since DDOT will be bundled as an extension
+          # For the main agent, exclude DDOT files since DDOT is bundled as an extension
           INPUT_FILE=$(resolve_artifact "agent" "${OMNIBUS_PACKAGE_DIR}${OCI_PRODUCT}-*${ARCH}.tar.xz" "ddot") || exit 1
         else
           # For other products (like datadog-agent-ddot), don't filter
@@ -118,6 +118,35 @@
           --archive --archive-path "${OUTPUT_DIR}/${OUTPUT_FILE}" \
           ${EXTRA_FLAGS} \
           ${INPUT_DIR}/${INSTALL_DIR}/
+
+        # Build the FIPS-flavored variant of the agent into the same OCI index.
+        # Distinguished from the base manifest by Platform.Variant="fips" — the
+        # installer requests this variant when DD_FIPS_MODE=true. See
+        # downloadIndex() in pkg/fleet/installer/oci/download.go.
+        if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
+          FIPS_INPUT_FILE=$(resolve_artifact "FIPS agent" "${OMNIBUS_PACKAGE_DIR}datadog-fips-agent-*${ARCH}.tar.xz" "ddot") || exit 1
+          FIPS_OUTPUT_FILE="$(basename -a -s .xz ${FIPS_INPUT_FILE})"
+          FIPS_INPUT_DIR="/tmp/input_fips_${ARCH}"
+          mkdir -p ${FIPS_INPUT_DIR}
+          echo "Extracting FIPS agent ${FIPS_INPUT_FILE} -> ${FIPS_INPUT_DIR}"
+          tar xJf ${FIPS_INPUT_FILE} -C ${FIPS_INPUT_DIR}
+          FIPS_EXTRA_FLAGS="--configs ${FIPS_INPUT_DIR}/etc/datadog-agent --installer ${INSTALLER_INPUT_DIR}/opt/datadog-packages/datadog-installer/${PACKAGE_VERSION}/bin/installer/installer"
+          if [ -d "${DDOT_FIPS_EXTENSION_DIR:-/nonexistent}" ]; then
+            FIPS_EXTRA_FLAGS="${FIPS_EXTRA_FLAGS} --extension ddot-fips=${DDOT_FIPS_EXTENSION_DIR}"
+          fi
+          echo "Creating FIPS OCI layer -> ${OUTPUT_DIR}/${FIPS_OUTPUT_FILE}"
+          datadog-package create \
+            --version ${PACKAGE_VERSION} \
+            --package ${OCI_PRODUCT} \
+            --os linux \
+            --arch ${ARCH} \
+            --variant fips \
+            --archive --archive-path "${OUTPUT_DIR}/${FIPS_OUTPUT_FILE}" \
+            ${FIPS_EXTRA_FLAGS} \
+            ${FIPS_INPUT_DIR}/${INSTALL_DIR}/
+          rm -f ${FIPS_INPUT_FILE}
+        fi
+
         rm -f ${INPUT_FILE}
         if [ "${OCI_PRODUCT}" = "datadog-agent" ] && [ -n "$DDOT_INPUT_FILE" ]; then
           rm -f ${DDOT_INPUT_FILE}
@@ -137,6 +166,8 @@ agent_oci:
   needs:
     - "datadog-agent-oci-x64-a7"
     - "datadog-agent-oci-arm64-a7"
+    - "datadog-agent-oci-x64-a7-fips"
+    - "datadog-agent-oci-arm64-a7-fips"
     - "go_tools_deps"
     - "installer-arm64-oci"
     - "installer-amd64-oci"
