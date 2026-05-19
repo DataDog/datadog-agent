@@ -15,6 +15,7 @@ package configstreambootstrap
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -24,11 +25,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
 	yaml "go.yaml.in/yaml/v3"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/remoteagent/helper"
 	pkgtoken "github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/security/cert"
@@ -66,6 +69,8 @@ type Params struct {
 }
 
 // IsEnabled returns the configstream consumer flag from env or datadog.yaml.
+// A YAML parse error returns false; users with malformed datadog.yaml should
+// set DD_REMOTE_AGENT_CONFIGSTREAM_CONSUMER_ENABLED so the env path wins.
 func IsEnabled(cliConfigPath string, lookupEnv func(string) (string, bool)) bool {
 	if v, ok := lookupEnv(EnabledEnvVar); ok {
 		if enabled, err := strconv.ParseBool(v); err == nil {
@@ -86,9 +91,7 @@ func IsEnabled(cliConfigPath string, lookupEnv func(string) (string, bool)) bool
 				} `yaml:"configstream"`
 			} `yaml:"remote_agent"`
 		}
-		if err := yaml.Unmarshal(data, &cfg); err != nil {
-			return false
-		}
+		_ = yaml.Unmarshal(data, &cfg)
 		return cfg.RemoteAgent.ConfigStream.Consumer.Enabled
 	}
 	return false
@@ -237,16 +240,43 @@ func Run(ctx context.Context, params Params) error {
 		return fmt.Errorf("fetch IPC cert: %w", err)
 	}
 
-	// Unused; just gives RAR a valid ApiEndpointUri. FX-side re-registers later.
+	addr := net.JoinHostPort(bs.CmdHost, strconv.Itoa(bs.CmdPort))
+	logger := pkglog.NewWrapper(2)
+	vsockAddr := reader.GetString("vsock_addr")
+
+	bo := backoff.NewExponentialBackOff()
+	bo.InitialInterval = 500 * time.Millisecond
+	bo.MaxInterval = time.Minute
+	bo.Reset()
+	for attempt := 1; ; attempt++ {
+		err := tryBootstrap(ctx, params.ClientName, addr, authToken, clientTLS, vsockAddr, logger)
+		if err == nil {
+			pkglog.Infof("configstream bootstrap[%s]: snapshot applied", params.ClientName)
+			return nil
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		next := bo.NextBackOff()
+		pkglog.Warnf("configstream bootstrap[%s]: attempt %d failed (%v); retrying in %s", params.ClientName, attempt, err, next)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(next):
+		}
+	}
+}
+
+// tryBootstrap performs one dial → register → fetch-snapshot attempt. A fresh
+// listener is allocated per call so a stale port doesn't survive retries.
+func tryBootstrap(ctx context.Context, clientName, addr, authToken string, clientTLS *tls.Config, vsockAddr string, logger log.Component) error {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return fmt.Errorf("open bootstrap listener: %w", err)
 	}
 	defer listener.Close()
 
-	addr := net.JoinHostPort(bs.CmdHost, strconv.Itoa(bs.CmdPort))
-	logger := pkglog.NewWrapper(2)
-	client, conn, err := helper.NewAgentSecureClient(addr, authToken, clientTLS, reader.GetString("vsock_addr"), logger)
+	client, conn, err := helper.NewAgentSecureClient(addr, authToken, clientTLS, vsockAddr, logger)
 	if err != nil {
 		return fmt.Errorf("dial core agent at %s: %w", addr, err)
 	}
@@ -254,18 +284,17 @@ func Run(ctx context.Context, params Params) error {
 
 	sessionID, _, err := helper.RegisterRemoteAgent(ctx, client, helper.RegistrationRequest{
 		Flavor:         flavor.GetFlavor(),
-		DisplayName:    params.ClientName + " (bootstrap)",
+		DisplayName:    clientName + " (bootstrap)",
 		APIEndpointURI: listener.Addr().String(),
 	}, queryTimeout, 0, logger)
 	if err != nil {
 		return fmt.Errorf("register with RAR: %w", err)
 	}
 
-	pkglog.Infof("configstream bootstrap[%s]: requesting initial snapshot", params.ClientName)
-	if err := fetchAndApplySnapshot(ctx, client, params.ClientName, sessionID); err != nil {
+	pkglog.Infof("configstream bootstrap[%s]: requesting initial snapshot", clientName)
+	if err := fetchAndApplySnapshot(ctx, client, clientName, sessionID); err != nil {
 		return fmt.Errorf("fetch initial snapshot: %w", err)
 	}
-	pkglog.Infof("configstream bootstrap[%s]: snapshot applied", params.ClientName)
 	return nil
 }
 
