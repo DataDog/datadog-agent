@@ -70,9 +70,10 @@ func (s *ccmModeSuite) TestTaggedCoreCheckMetricsIncludeCCMModeTag() {
 }
 
 // TestAllowlistedIntegrationMetricForwarded verifies integration metrics on the default
-// cloud_cost_only allowlist are still forwarded.
+// cloud_cost_only allowlist are still forwarded, and that allowlisted checks not listed
+// under integration.cloud_cost_only.tagged do not receive the infra_mode tag.
 func (s *ccmModeSuite) TestAllowlistedIntegrationMetricForwarded() {
-	const metricName = "system.mem.pct_usable"
+	const metricName = "system.net.bytes_rcvd"
 
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(
@@ -81,7 +82,15 @@ func (s *ccmModeSuite) TestAllowlistedIntegrationMetricForwarded() {
 		)
 		assert.NoError(c, err)
 		assert.NotEmpty(c, metrics, "%s should be forwarded on the cloud_cost_only allowlist", metricName)
-	}, 3*time.Minute, 10*time.Second, "timed out waiting for allowlisted memory metric on fakeintake")
+
+		tagged, err := s.Env().FakeIntake.Client().FilterMetrics(
+			metricName,
+			client.WithTags[*aggregator.MetricSeries]([]string{infraModeTag}),
+			client.WithMetricValueHigherThan(0),
+		)
+		assert.NoError(c, err)
+		assert.Empty(c, tagged, "%s should not carry %s when network is not in tagged", metricName, infraModeTag)
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for allowlisted untagged network metric on fakeintake")
 }
 
 // TestMetricFilterListAppliesInCloudCostMode verifies metric_filterlist still drops DogStatsD
