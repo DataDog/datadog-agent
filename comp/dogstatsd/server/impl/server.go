@@ -385,9 +385,10 @@ func (s *dsdServer) start(context.Context) error {
 	originDetection := s.config.GetBool("dogstatsd_origin_detection")
 	udpEnabled := s.config.GetString("dogstatsd_port") == listeners.RandomPortName || s.config.GetInt("dogstatsd_port") > 0
 	rawIngressEligible := !statsdForwardEnabled && pipeName == "" && len(socketPath) > 0 && socketStreamPath == "" && !originDetection && !udpEnabled
-	compactRawUDSIngressRingEnabled := experimentalCompactRawUDSIngressRingEnabled() && rawIngressEligible
-	rawUDSIngressRingEnabled := experimentalRawUDSIngressRingEnabled() && rawIngressEligible && !compactRawUDSIngressRingEnabled
-	rawIngressEnabled := rawUDSIngressRingEnabled || compactRawUDSIngressRingEnabled
+	directCompactRawUDSIngressRingEnabled := experimentalDirectCompactRawUDSIngressRingEnabled() && rawIngressEligible
+	compactRawUDSIngressRingEnabled := experimentalCompactRawUDSIngressRingEnabled() && rawIngressEligible && !directCompactRawUDSIngressRingEnabled
+	rawUDSIngressRingEnabled := experimentalRawUDSIngressRingEnabled() && rawIngressEligible && !compactRawUDSIngressRingEnabled && !directCompactRawUDSIngressRingEnabled
+	rawIngressEnabled := rawUDSIngressRingEnabled || compactRawUDSIngressRingEnabled || directCompactRawUDSIngressRingEnabled
 	s.rawIngressBatchDrain = rawIngressEnabled && experimentalRawUDSIngressBatchDrainEnabled()
 	s.rawIngressBatchDrainSize = experimentalRawUDSIngressBatchDrainSize()
 	shardedIngressLogEnabled := experimentalShardedIngressLogEnabled() && !statsdForwardEnabled && pipeName == "" && !rawIngressEnabled
@@ -403,7 +404,13 @@ func (s *dsdServer) start(context.Context) error {
 	packetsChannel := make(chan packets.Packets, packetsChannelSize)
 	packetWriter := packets.NewChannelBatchWriter(packetsChannel)
 	var rawPacketWriter packets.RawPacketWriter
-	if compactRawUDSIngressRingEnabled {
+	if directCompactRawUDSIngressRingEnabled {
+		packetsChannel = nil
+		s.workersCount = s.getDogStatsDWorkersCount()
+		s.compactRawIngressShards = packets.NewDirectCompactRawIngressShards(s.workersCount, experimentalIngressLogMaxBytes(), s.config.GetInt("dogstatsd_buffer_size"), s.telemetry)
+		rawPacketWriter = s.compactRawIngressShards
+		s.log.Infof("DogStatsD experimental direct compact raw UDS ingress ring enabled with max_bytes=%d shards=%d", experimentalIngressLogMaxBytes(), s.workersCount)
+	} else if compactRawUDSIngressRingEnabled {
 		packetsChannel = nil
 		s.workersCount = s.getDogStatsDWorkersCount()
 		s.compactRawIngressShards = packets.NewCompactRawIngressShards(s.workersCount, experimentalIngressLogMaxBytes(), s.config.GetInt("dogstatsd_buffer_size"), s.telemetry)
@@ -426,11 +433,14 @@ func (s *dsdServer) start(context.Context) error {
 	} else if experimentalShardedIngressLogEnabled() && pipeName != "" {
 		s.log.Warn("DogStatsD experimental sharded ingress log disabled because named-pipe intake is enabled")
 	}
-	if experimentalRawUDSIngressRingEnabled() && !rawUDSIngressRingEnabled && !compactRawUDSIngressRingEnabled {
+	if experimentalRawUDSIngressRingEnabled() && !rawUDSIngressRingEnabled && !compactRawUDSIngressRingEnabled && !directCompactRawUDSIngressRingEnabled {
 		s.log.Warn("DogStatsD experimental raw UDS ingress ring disabled because it currently requires UDS datagram only, no origin detection, no forwarding, no UDP, no stream socket, and no named pipe")
 	}
-	if experimentalCompactRawUDSIngressRingEnabled() && !compactRawUDSIngressRingEnabled {
+	if experimentalCompactRawUDSIngressRingEnabled() && !compactRawUDSIngressRingEnabled && !directCompactRawUDSIngressRingEnabled {
 		s.log.Warn("DogStatsD experimental compact raw UDS ingress ring disabled because it currently requires UDS datagram only, no origin detection, no forwarding, no UDP, no stream socket, and no named pipe")
+	}
+	if experimentalDirectCompactRawUDSIngressRingEnabled() && !directCompactRawUDSIngressRingEnabled {
+		s.log.Warn("DogStatsD experimental direct compact raw UDS ingress ring disabled because it currently requires UDS datagram only, no origin detection, no forwarding, no UDP, no stream socket, and no named pipe")
 	}
 	if experimentalRawUDSIngressBatchDrainEnabled() && !rawIngressEnabled {
 		s.log.Warn("DogStatsD experimental raw UDS ingress batch drain disabled because raw UDS ingress ring is not enabled")

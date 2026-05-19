@@ -161,6 +161,95 @@ func TestCompactRawIngressShardBlocksCommitWhenFull(t *testing.T) {
 	}
 }
 
+func TestDirectCompactRawIngressShardReserveCommitReadRelease(t *testing.T) {
+	shard := NewDirectCompactRawIngressShard(128, 64, nil, "0")
+
+	reservation, ok := shard.Reserve()
+	require.True(t, ok)
+	copy(reservation.Buffer(), []byte("metric:1|c"))
+	reservation.Commit(len("metric:1|c"), RawPacketMeta{Source: UDS, ListenerID: "uds-test", Origin: "origin", ProcessID: 42})
+
+	packet, ok := shard.TryNext()
+	require.True(t, ok)
+	require.Equal(t, "metric:1|c", string(packet.Contents))
+	require.Equal(t, UDS, packet.Source)
+	require.Equal(t, "uds-test", packet.ListenerID)
+	require.Equal(t, "origin", packet.Origin)
+	require.Equal(t, uint32(42), packet.ProcessID)
+
+	packet.Release()
+	require.Equal(t, 0, shard.Len())
+}
+
+func TestDirectCompactRawIngressShardReclaimsUnusedReservationBytes(t *testing.T) {
+	shard := NewDirectCompactRawIngressShard(20, 16, nil, "0")
+
+	first, ok := shard.Reserve()
+	require.True(t, ok)
+	copy(first.Buffer(), []byte("aaaa"))
+	first.Commit(4, RawPacketMeta{Source: UDS, ListenerID: "first"})
+
+	second, ok := shard.Reserve()
+	require.True(t, ok)
+	copy(second.Buffer(), []byte("bbbb"))
+	second.Commit(4, RawPacketMeta{Source: UDS, ListenerID: "second"})
+
+	packet, ok := shard.TryNext()
+	require.True(t, ok)
+	require.Equal(t, "aaaa", string(packet.Contents))
+	packet.Release()
+
+	packet, ok = shard.TryNext()
+	require.True(t, ok)
+	require.Equal(t, "bbbb", string(packet.Contents))
+	packet.Release()
+	require.Equal(t, 0, shard.Len())
+}
+
+func TestDirectCompactRawIngressShardAbortReclaimsReservation(t *testing.T) {
+	shard := NewDirectCompactRawIngressShard(16, 16, nil, "0")
+
+	first, ok := shard.Reserve()
+	require.True(t, ok)
+	first.Abort()
+
+	second, ok := shard.Reserve()
+	require.True(t, ok)
+	copy(second.Buffer(), []byte("ok"))
+	second.Commit(2, RawPacketMeta{Source: UDS})
+
+	packet, ok := shard.TryNext()
+	require.True(t, ok)
+	require.Equal(t, "ok", string(packet.Contents))
+	packet.Release()
+	require.Equal(t, 0, shard.Len())
+}
+
+func TestDirectCompactRawIngressShardCommitAfterOlderRecordRelease(t *testing.T) {
+	shard := NewDirectCompactRawIngressShard(32, 16, nil, "0")
+
+	first, ok := shard.Reserve()
+	require.True(t, ok)
+	copy(first.Buffer(), []byte("aaaa"))
+	first.Commit(4, RawPacketMeta{Source: UDS})
+
+	second, ok := shard.Reserve()
+	require.True(t, ok)
+	copy(second.Buffer(), []byte("bbbb"))
+
+	packet, ok := shard.TryNext()
+	require.True(t, ok)
+	require.Equal(t, "aaaa", string(packet.Contents))
+	packet.Release()
+
+	second.Commit(4, RawPacketMeta{Source: UDS})
+	packet, ok = shard.TryNext()
+	require.True(t, ok)
+	require.Equal(t, "bbbb", string(packet.Contents))
+	packet.Release()
+	require.Equal(t, 0, shard.Len())
+}
+
 func TestCompactRawIngressShardWrapsAndPreservesOrder(t *testing.T) {
 	shard := NewCompactRawIngressShard(10, 8, nil, "0")
 	appendPayload := func(payload string) {

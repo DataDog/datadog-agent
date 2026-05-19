@@ -41,6 +41,11 @@ func experimentalCompactRawUDSIngressRingEnabled() bool {
 	return err == nil && enabled
 }
 
+func experimentalDirectCompactRawUDSIngressRingEnabled() bool {
+	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS_DIRECT_COMPACT"))
+	return err == nil && enabled
+}
+
 func experimentalRawUDSIngressBatchDrainEnabled() bool {
 	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_INGRESS_RING_UDS_BATCH_DRAIN"))
 	return err == nil && enabled

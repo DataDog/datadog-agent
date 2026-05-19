@@ -449,6 +449,13 @@ type CompactRawIngressShard struct {
 	usedBytes   int64
 	packets     int64
 
+	directReserve        bool
+	inFlight             bool
+	inFlightOffset       int
+	inFlightPadding      int
+	inFlightReserved     int
+	inFlightPreviousTail int
+
 	slotSize    int
 	scratchPool sync.Pool
 	telemetry   rawIngressTelemetry
@@ -458,10 +465,17 @@ type CompactRawIngressShard struct {
 // shard. maxBytes bounds retained ring bytes; slotSize is the maximum UDS
 // datagram read buffer size.
 func NewCompactRawIngressShard(maxBytes int64, slotSize int, telemetrycomp telemetry.Component, shard string) *CompactRawIngressShard {
-	return newCompactRawIngressShardWithTelemetry(maxBytes, slotSize, newRawIngressTelemetry(telemetrycomp).forShard(shard))
+	return newCompactRawIngressShardWithTelemetry(maxBytes, slotSize, false, newRawIngressTelemetry(telemetrycomp).forShard(shard))
 }
 
-func newCompactRawIngressShardWithTelemetry(maxBytes int64, slotSize int, telemetry rawIngressTelemetry) *CompactRawIngressShard {
+// NewDirectCompactRawIngressShard creates a byte-compact raw ingress shard that
+// reserves ring-owned storage directly for listener reads. This avoids the
+// scratch-to-ring copy but allows only one outstanding reservation per shard.
+func NewDirectCompactRawIngressShard(maxBytes int64, slotSize int, telemetrycomp telemetry.Component, shard string) *CompactRawIngressShard {
+	return newCompactRawIngressShardWithTelemetry(maxBytes, slotSize, true, newRawIngressTelemetry(telemetrycomp).forShard(shard))
+}
+
+func newCompactRawIngressShardWithTelemetry(maxBytes int64, slotSize int, directReserve bool, telemetry rawIngressTelemetry) *CompactRawIngressShard {
 	if slotSize <= 0 {
 		slotSize = 1
 	}
@@ -473,11 +487,12 @@ func newCompactRawIngressShardWithTelemetry(maxBytes int64, slotSize int, teleme
 		recordCount = 4
 	}
 	shardRing := &CompactRawIngressShard{
-		notify:    make(chan struct{}, 1),
-		buf:       make([]byte, int(maxBytes)),
-		records:   make([]compactRawIngressRecord, recordCount),
-		slotSize:  slotSize,
-		telemetry: telemetry,
+		notify:        make(chan struct{}, 1),
+		buf:           make([]byte, int(maxBytes)),
+		records:       make([]compactRawIngressRecord, recordCount),
+		directReserve: directReserve,
+		slotSize:      slotSize,
+		telemetry:     telemetry,
 	}
 	shardRing.notFull = sync.NewCond(&shardRing.mu)
 	shardRing.scratchPool.New = func() any {
@@ -488,8 +503,13 @@ func newCompactRawIngressShardWithTelemetry(maxBytes int64, slotSize int, teleme
 
 // Reserve returns a reusable scratch buffer for a listener read. The commit path
 // appends the actual bytes read into the compact byte ring and blocks there when
-// the byte/record budget is full.
+// the byte/record budget is full. In direct-reserve mode, Reserve instead blocks
+// before the socket read and returns ring-owned storage directly.
 func (s *CompactRawIngressShard) Reserve() (RawPacketReservation, bool) {
+	if s.directReserve {
+		return s.reserveDirect()
+	}
+
 	s.mu.Lock()
 	stopped := s.stopped
 	s.mu.Unlock()
@@ -501,6 +521,42 @@ func (s *CompactRawIngressShard) Reserve() (RawPacketReservation, bool) {
 		buf = make([]byte, s.slotSize)
 	}
 	return RawPacketReservation{compactShard: s, buf: buf[:s.slotSize]}, true
+}
+
+func (s *CompactRawIngressShard) reserveDirect() (RawPacketReservation, bool) {
+	var blockStart time.Time
+	blocked := false
+
+	s.mu.Lock()
+	for !s.stopped && (s.inFlight || !s.canAppendLocked(s.slotSize)) {
+		if !blocked {
+			blocked = true
+			blockStart = time.Now()
+		}
+		s.notFull.Wait()
+	}
+	if s.stopped {
+		s.mu.Unlock()
+		return RawPacketReservation{}, false
+	}
+	if blocked && s.telemetry.blockedNS != nil {
+		s.telemetry.blockedNS.Add(float64(time.Since(blockStart).Nanoseconds()), s.telemetry.shard)
+	}
+
+	s.inFlightPreviousTail = s.tail
+	offset, padding := s.reserveBytesLocked(s.slotSize)
+	s.inFlight = true
+	s.inFlightOffset = offset
+	s.inFlightPadding = padding
+	s.inFlightReserved = s.slotSize
+	s.usedBytes += int64(padding + s.slotSize)
+	s.updateGaugesLocked()
+	s.mu.Unlock()
+
+	if s.telemetry.stats != nil {
+		s.telemetry.stats.Inc(s.telemetry.shard, "reserved_direct_slots")
+	}
+	return RawPacketReservation{compactShard: s, buf: s.buf[offset : offset+s.slotSize]}, true
 }
 
 // TryNext returns the next committed packet if one is available.
@@ -575,6 +631,11 @@ func (s *CompactRawIngressShard) Stop() {
 }
 
 func (s *CompactRawIngressShard) commit(buf []byte, n int, meta RawPacketMeta) {
+	if s.directReserve {
+		s.commitDirect(n, meta)
+		return
+	}
+
 	if n < 0 {
 		n = 0
 	}
@@ -586,9 +647,99 @@ func (s *CompactRawIngressShard) commit(buf []byte, n int, meta RawPacketMeta) {
 }
 
 func (s *CompactRawIngressShard) abort(buf []byte) {
+	if s.directReserve {
+		s.abortDirect()
+		return
+	}
+
 	s.putScratch(buf)
 	if s.telemetry.stats != nil {
 		s.telemetry.stats.Inc(s.telemetry.shard, "aborted_scratch")
+	}
+}
+
+func (s *CompactRawIngressShard) commitDirect(n int, meta RawPacketMeta) {
+	if n < 0 {
+		n = 0
+	}
+
+	s.mu.Lock()
+	if !s.inFlight {
+		s.mu.Unlock()
+		return
+	}
+	if n > s.inFlightReserved {
+		n = s.inFlightReserved
+	}
+	offset := s.inFlightOffset
+	padding := s.inFlightPadding
+	reserved := s.inFlightReserved
+	unused := reserved - n
+	if unused > 0 {
+		s.usedBytes -= int64(unused)
+		if s.usedBytes < 0 {
+			s.usedBytes = 0
+		}
+		s.tail = offset + n
+		if s.tail == len(s.buf) {
+			s.tail = 0
+		}
+	}
+
+	idx := s.tailRecord
+	s.records[idx] = compactRawIngressRecord{offset: offset, n: n, padding: padding, meta: meta}
+	s.tailRecord = (s.tailRecord + 1) % len(s.records)
+	s.usedRecords++
+	s.packets++
+	s.inFlight = false
+	s.inFlightOffset = 0
+	s.inFlightPadding = 0
+	s.inFlightReserved = 0
+	s.inFlightPreviousTail = 0
+	s.updateGaugesLocked()
+	s.notFull.Broadcast()
+	s.signalNotifyLocked()
+	s.mu.Unlock()
+
+	if s.telemetry.stats != nil {
+		s.telemetry.stats.Inc(s.telemetry.shard, "committed_packets")
+		s.telemetry.stats.Add(float64(n), s.telemetry.shard, "committed_bytes")
+		if padding > 0 {
+			s.telemetry.stats.Add(float64(padding), s.telemetry.shard, "padding_bytes")
+		}
+		if unused > 0 {
+			s.telemetry.stats.Add(float64(unused), s.telemetry.shard, "reclaimed_direct_bytes")
+		}
+	}
+}
+
+func (s *CompactRawIngressShard) abortDirect() {
+	s.mu.Lock()
+	if !s.inFlight {
+		s.mu.Unlock()
+		return
+	}
+	s.usedBytes -= int64(s.inFlightPadding + s.inFlightReserved)
+	if s.usedBytes < 0 {
+		s.usedBytes = 0
+	}
+	s.tail = s.inFlightPreviousTail
+	if s.usedRecords == 0 {
+		s.head = 0
+		s.tail = 0
+		s.usedBytes = 0
+	}
+	s.inFlight = false
+	s.inFlightOffset = 0
+	s.inFlightPadding = 0
+	s.inFlightReserved = 0
+	s.inFlightPreviousTail = 0
+	s.updateGaugesLocked()
+	s.notFull.Broadcast()
+	s.mu.Unlock()
+
+	if s.telemetry.stats != nil {
+		s.telemetry.stats.Inc(s.telemetry.shard, "aborted_direct_slots")
 	}
 }
 
@@ -717,9 +868,13 @@ func (s *CompactRawIngressShard) releaseHeadLocked() {
 		s.packets = 0
 	}
 	if s.usedRecords == 0 {
-		s.head = 0
-		s.tail = 0
-		s.usedBytes = 0
+		if s.inFlight {
+			s.head = s.inFlightOffset
+		} else {
+			s.head = 0
+			s.tail = 0
+			s.usedBytes = 0
+		}
 	} else if record.padding > 0 {
 		s.head = record.n
 	} else {
@@ -831,6 +986,16 @@ type CompactRawIngressShards struct {
 
 // NewCompactRawIngressShards creates byte-budgeted compact raw ingress shards.
 func NewCompactRawIngressShards(shardCount int, maxBytes int64, slotSize int, telemetrycomp telemetry.Component) *CompactRawIngressShards {
+	return newCompactRawIngressShards(shardCount, maxBytes, slotSize, false, telemetrycomp)
+}
+
+// NewDirectCompactRawIngressShards creates byte-budgeted compact raw ingress
+// shards that reserve ring-owned storage directly for listener reads.
+func NewDirectCompactRawIngressShards(shardCount int, maxBytes int64, slotSize int, telemetrycomp telemetry.Component) *CompactRawIngressShards {
+	return newCompactRawIngressShards(shardCount, maxBytes, slotSize, true, telemetrycomp)
+}
+
+func newCompactRawIngressShards(shardCount int, maxBytes int64, slotSize int, directReserve bool, telemetrycomp telemetry.Component) *CompactRawIngressShards {
 	if shardCount <= 0 {
 		shardCount = 1
 	}
@@ -847,7 +1012,7 @@ func NewCompactRawIngressShards(shardCount int, maxBytes int64, slotSize int, te
 	shards := make([]*CompactRawIngressShard, shardCount)
 	telemetry := newRawIngressTelemetry(telemetrycomp)
 	for i := range shards {
-		shards[i] = newCompactRawIngressShardWithTelemetry(bytesPerShard, slotSize, telemetry.forShard(strconv.Itoa(i)))
+		shards[i] = newCompactRawIngressShardWithTelemetry(bytesPerShard, slotSize, directReserve, telemetry.forShard(strconv.Itoa(i)))
 	}
 	return &CompactRawIngressShards{shards: shards}
 }
