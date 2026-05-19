@@ -220,5 +220,5 @@ gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c/go.mod h1:JHkPIbrfpd72SG/EV
 gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
 gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
 gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
-k8s.io/apimachinery v0.35.4 h1:xtdom9RG7e+yDp71uoXoJDWEE2eOiHgeO4GdBzwWpds=
-k8s.io/apimachinery v0.35.4/go.mod h1:NNi1taPOpep0jOj+oRha3mBJPqvi0hGdaV8TCqGQ+cc=
+k8s.io/apimachinery v0.35.5 h1:lbjjjUfVeVqFbiOpyhqZHc8DhiYkWOxSNij7lHx2U8Y=
+k8s.io/apimachinery v0.35.5/go.mod h1:NNi1taPOpep0jOj+oRha3mBJPqvi0hGdaV8TCqGQ+cc=

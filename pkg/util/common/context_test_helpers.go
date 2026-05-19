@@ -1,13 +1,17 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2024-present Datadog, Inc.
+// Copyright 2026-present Datadog, Inc.
 
 //go:build test
 
-package gui
+package common
 
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
+import (
+	"sync"
+)
+
+// ResetMainCtx resets the global main context to a fresh cancellable context.
+func ResetMainCtx() {
+	once = sync.Once{}
 }

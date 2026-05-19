@@ -52,8 +52,8 @@ func (*NoopSharedLibraryLoader) Version(_ *Library) (string, error) {
 }
 
 // ComputeLibraryPath returns the full expected path of the library
-func (l *NoopSharedLibraryLoader) ComputeLibraryPath(_ string) string {
-	return ""
+func (l *NoopSharedLibraryLoader) ComputeLibraryPath(_ string) (string, error) {
+	return "", nil
 }
 
 // GetNoopLibrary returns a library with pointers to noop functions
