@@ -199,8 +199,19 @@ func TestDogstatsdColumnarV3FlushNativePointRowsMergesPointsAcrossBuckets(t *tes
 	shadow := newDirectRowShadowBuilder()
 	require.Equal(t, uint64(1), store.flushShardToV3MetricPointSink(&store.shards[0], 125, false, &sink, shadow))
 	require.Len(t, sink.rows, 1)
-	require.Equal(t, []int64{100, 110}, sink.rows[0].Timestamps)
-	require.Equal(t, []float64{1, 2}, sink.rows[0].Values)
+	require.Equal(t, map[int64]float64{100: 1, 110: 2}, nativePointsByTimestamp(sink.rows[0]))
+}
+
+func nativePointsByTimestamp(row metrics.V3MetricPointRow) map[int64]float64 {
+	points := make(map[int64]float64, row.NumPoints())
+	if len(row.Values) == 0 {
+		points[row.Timestamp] = row.Value
+		return points
+	}
+	for i, value := range row.Values {
+		points[row.Timestamps[i]] = value
+	}
+	return points
 }
 
 func TestDogstatsdColumnarV3UnsupportedSamplesFallback(t *testing.T) {
