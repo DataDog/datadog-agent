@@ -44,11 +44,10 @@ func NewLanguage() language.Language {
 	return &lang{Language: goLanguage.NewLanguage()}
 }
 
-// Kinds extends the Go extension's kinds with dd_go_test.
-// srcs and gotags are mergeable so they stay in sync with Go file analysis and
-// stale gotags values left over from old go_test rules get cleaned up on the
-// next Gazelle run. All other attrs (deps, embed, flavors) are preserved from
-// the existing rule.
+// Kinds extends the Go extension's kinds with dd_go_test. srcs, gotags, and
+// flavors are mergeable so each Gazelle run regenerates them from current
+// source analysis; all other attrs (deps, embed, data, ...) are preserved
+// from the existing rule.
 func (l *lang) Kinds() map[string]rule.KindInfo {
 	kinds := make(map[string]rule.KindInfo, len(l.Language.Kinds())+1)
 	for k, v := range l.Language.Kinds() {
@@ -152,10 +151,7 @@ func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, p
 	var imports []interface{}
 
 	for i, r := range result.Gen {
-		var imp interface{}
-		if i < len(result.Imports) {
-			imp = result.Imports[i]
-		}
+		imp := result.Imports[i]
 		if r.Kind() != "go_test" {
 			gen = append(gen, r)
 			imports = append(imports, imp)
@@ -175,34 +171,34 @@ func (l *lang) replaceGoTests(result language.GenerateResult, file *rule.File, p
 				}
 			}
 		}
-		// Drop per-flavor variants whose //go:build constraints filter every
-		// src file out. Without this, dd_go_test emits five `_<flavor>` test
-		// targets for every package and several end up as no-op "no tests to
-		// run" PASSes, also confusing the parity check that compares Bazel's
-		// flavor variants against what `go list -tags=<flavor>` returns.
-		//
-		// When no flavor applies at all (e.g. tests gated by linux_bpf or
-		// e2ecoverage, which aren't in any flavor's gotags), elide the
-		// dd_go_test rule entirely rather than emitting a literal `flavors = []`
-		// no-op. Any pre-existing dd_go_test rule in the BUILD file is removed
-		// in-place — relying on the Empty mechanism alone wouldn't delete it
-		// because attrs like `embed` and `data` aren't mergeable.
+		// Mark the original go_test for removal regardless of what follows:
+		// we're either replacing it with dd_go_test or dropping the test
+		// entirely.
+		empty = append(empty, rule.NewRule("go_test", r.Name()))
+
+		// dd_go_test's macro emits one go_test per flavor unconditionally;
+		// Starlark can't read source files, so it has no way to tell that a
+		// //go:build constraint will filter every src out for a given flavor.
+		// Without applicableFlavors here, a package with tests gated by e.g.
+		// linux_bpf or e2ecoverage (neither in any flavor's gotags) would
+		// compile to five empty test binaries that all report "no tests to
+		// run". We do the cross-source analysis at Gazelle time and either
+		// drop the rule entirely (no flavor applies) or restrict the macro
+		// to the applicable subset.
 		if srcs := nr.AttrStrings("srcs"); len(srcs) > 0 {
 			fl := applicableFlavors(srcs, pkgDir)
 			if len(fl) == 0 {
 				if existingDd, ok := findRule(file, "dd_go_test", r.Name()); ok {
 					existingDd.Delete()
 				}
-				empty = append(empty, rule.NewRule("go_test", r.Name()))
 				continue
 			}
-			if len(fl) < len(flavorUnitTestTags) {
+			if len(fl) < len(FlavorUnitTestTags) {
 				nr.SetAttr("flavors", fl)
 			}
 		}
 		gen = append(gen, nr)
 		imports = append(imports, imp)
-		empty = append(empty, rule.NewRule("go_test", r.Name()))
 	}
 
 	return language.GenerateResult{
@@ -246,50 +242,63 @@ func findRule(file *rule.File, kind, name string) (*rule.Rule, bool) {
 	return nil, false
 }
 
-// flavorUnitTestTags mirrors FLAVOR_UNIT_TEST_TAGS in bazel/flavors/defs.bzl
-// (which in turn mirrors tasks/build_tags.py). LINUX_ONLY_TAGS are included
-// unconditionally for applicability evaluation: at Gazelle generation time we
-// don't know the target platform, and the Linux-only restriction is enforced
-// by flavor_gotags()'s select() at build time.
+// flavorSpecificTags / commonTags / unitTestTags mirror their counterparts in
+// bazel/flavors/defs.bzl (which in turn mirror tasks/build_tags.py).
+// LINUX_ONLY_TAGS are included here unconditionally: at Gazelle generation
+// time we don't know the target platform, and flavor_gotags()'s select()
+// enforces the Linux-only restriction at build time.
 // Kept in sync via //bazel/flavors:verify_flavor_tags.
-var flavorUnitTestTags = map[string][]string{
+var commonTags = []string{"grpcnotrace", "no_dynamic_plugins", "retrynotrace", "trivy_no_javadb"}
+
+var unitTestTags = []string{"test"}
+
+var flavorSpecificTags = map[string][]string{
 	"base": {
 		"cel", "clusterchecks", "consul", "containerd", "cri", "crio", "docker",
-		"ec2", "etcd", "fargateprocess", "grpcnotrace", "jetson", "jmx",
-		"kubeapiserver", "kubelet", "ncm", "netcgo", "no_dynamic_plugins", "nvml",
-		"oracle", "orchestrator", "otlp", "podman", "python", "retrynotrace",
-		"sharedlibrarycheck", "systemd", "systemprobechecks", "test", "trivy",
-		"trivy_no_javadb", "zk", "zlib", "zstd",
+		"ec2", "etcd", "fargateprocess", "jetson", "jmx", "kubeapiserver",
+		"kubelet", "ncm", "netcgo", "nvml", "oracle", "orchestrator", "otlp",
+		"podman", "python", "sharedlibrarycheck", "systemd", "systemprobechecks",
+		"trivy", "zk", "zlib", "zstd",
 	},
-	"dogstatsd": {
-		"containerd", "docker", "grpcnotrace", "kubelet", "no_dynamic_plugins",
-		"podman", "retrynotrace", "test", "trivy_no_javadb", "zlib", "zstd",
-	},
+	"dogstatsd": {"containerd", "docker", "kubelet", "podman", "zlib", "zstd"},
 	"fips": {
 		"cel", "consul", "containerd", "cri", "crio", "docker", "ec2", "etcd",
-		"fargateprocess", "goexperiment.systemcrypto", "grpcnotrace", "jetson",
-		"jmx", "kubeapiserver", "kubelet", "ncm", "netcgo", "no_dynamic_plugins",
-		"nvml", "oracle", "orchestrator", "otlp", "podman", "python", "requirefips",
-		"retrynotrace", "sharedlibrarycheck", "systemd", "systemprobechecks", "test",
-		"trivy", "trivy_no_javadb", "zk", "zlib", "zstd",
+		"fargateprocess", "goexperiment.systemcrypto", "jetson", "jmx",
+		"kubeapiserver", "kubelet", "ncm", "netcgo", "nvml", "oracle",
+		"orchestrator", "otlp", "podman", "python", "requirefips",
+		"sharedlibrarycheck", "systemd", "systemprobechecks", "trivy", "zk",
+		"zlib", "zstd",
 	},
 	"heroku": {
-		"bundle_installer", "consul", "etcd", "grpcnotrace", "jmx", "ncm", "netcgo",
-		"no_dynamic_plugins", "otlp", "python", "retrynotrace", "sharedlibrarycheck",
-		"systemprobechecks", "test", "trivy_no_javadb", "zk", "zlib", "zstd",
+		"bundle_installer", "consul", "etcd", "jmx", "ncm", "netcgo", "otlp",
+		"python", "sharedlibrarycheck", "systemprobechecks", "zk", "zlib", "zstd",
 	},
-	"iot": {
-		"grpcnotrace", "jetson", "no_dynamic_plugins", "retrynotrace", "systemd",
-		"test", "trivy_no_javadb", "zlib", "zstd",
-	},
+	"iot": {"jetson", "systemd", "zlib", "zstd"},
 }
+
+// FlavorUnitTestTags is the per-flavor tag set the extension uses to decide
+// which dd_go_test variants apply to a package's srcs. Composed from
+// flavorSpecificTags + commonTags + unitTestTags at package init. Exported so
+// //bazel/rules/dd_go_test/dump_tags can serialize it for
+// //bazel/flavors:verify_flavor_tags.
+var FlavorUnitTestTags = func() map[string][]string {
+	out := make(map[string][]string, len(flavorSpecificTags))
+	for flavor, specific := range flavorSpecificTags {
+		tags := make([]string, 0, len(specific)+len(commonTags)+len(unitTestTags))
+		tags = append(tags, specific...)
+		tags = append(tags, commonTags...)
+		tags = append(tags, unitTestTags...)
+		out[flavor] = tags
+	}
+	return out
+}()
 
 // allFlavors returns the canonical flavor list (sorted by name) used by the
 // dd_go_test macro. Matches _ALL_FLAVORS in bazel/rules/dd_go_test/defs.bzl,
-// derived from flavorUnitTestTags keys so we don't maintain two copies.
+// derived from FlavorUnitTestTags keys so we don't maintain two copies.
 func allFlavors() []string {
-	out := make([]string, 0, len(flavorUnitTestTags))
-	for f := range flavorUnitTestTags {
+	out := make([]string, 0, len(FlavorUnitTestTags))
+	for f := range FlavorUnitTestTags {
 		out = append(out, f)
 	}
 	sort.Strings(out)
@@ -359,8 +368,8 @@ func applicableFlavors(srcs []string, pkgDir string) []string {
 
 	var out []string
 	for _, flavor := range allFlavors() {
-		tagSet := make(map[string]bool, len(flavorUnitTestTags[flavor]))
-		for _, t := range flavorUnitTestTags[flavor] {
+		tagSet := make(map[string]bool, len(FlavorUnitTestTags[flavor]))
+		for _, t := range FlavorUnitTestTags[flavor] {
 			tagSet[t] = true
 		}
 		for _, e := range exprs {
