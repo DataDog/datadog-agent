@@ -144,6 +144,17 @@ var (
 		"datadog-installer-exp.service",
 		"datadog-installer.service",
 	}
+
+	// legacyProcmgrUnitNames are pre-rename systemd units for dd-procmgrd (retired on upgrade).
+	legacyProcmgrUnitNames = []string{
+		"datadog-agent-procmgrd.service",
+		"datadog-agent-procmgrd-exp.service",
+	}
+
+	legacyProcmgrUnitPaths = file.Paths{
+		"datadog-agent-procmgrd.service",
+		"datadog-agent-procmgrd-exp.service",
+	}
 )
 
 // installFilesystem sets up the filesystem for the agent installation
@@ -199,7 +210,35 @@ func installFilesystem(ctx HookContext) (err error) {
 	if err = oldInstallerUnitPaths.EnsureAbsent(ctx, "/etc/systemd/system"); err != nil {
 		return fmt.Errorf("failed to remove old installer units: %v", err)
 	}
+
+	// 7. Stop and remove legacy procmgr unit names so only datadog-agent-procmgr.service runs dd-procmgrd
+	if err = retireLegacyProcmgrUnits(ctx); err != nil {
+		return fmt.Errorf("failed to retire legacy procmgr units: %w", err)
+	}
 	return nil
+}
+
+// retireLegacyProcmgrUnits stops, disables, and deletes pre-rename procmgr systemd units.
+// A host that upgraded from datadog-agent-procmgrd.service could otherwise run two dd-procmgrd
+// instances (socket and processes.d conflicts).
+func retireLegacyProcmgrUnits(ctx HookContext) error {
+	switch service.GetServiceManagerType() {
+	case service.SystemdType, service.ProcmgrType:
+	default:
+		return nil
+	}
+	if err := systemd.StopUnits(ctx, legacyProcmgrUnitNames...); err != nil {
+		return err
+	}
+	if err := systemd.DisableUnits(ctx, legacyProcmgrUnitNames...); err != nil {
+		return err
+	}
+	for _, unitsPath := range systemdUnitInstallPaths {
+		if err := legacyProcmgrUnitPaths.EnsureAbsent(ctx, unitsPath); err != nil {
+			return err
+		}
+	}
+	return systemd.Reload(ctx)
 }
 
 // uninstallFilesystem cleans the filesystem by removing various temporary files, symlinks and installation metadata
@@ -838,6 +877,8 @@ const (
 	debUnitsPath = "/lib/systemd/system"
 	rpmUnitsPath = "/usr/lib/systemd/system"
 )
+
+var systemdUnitInstallPaths = []string{ociUnitsPath, debUnitsPath, rpmUnitsPath}
 
 func removeUnits(ctx HookContext, units ...string) error {
 	var unitsPath string
