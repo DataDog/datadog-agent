@@ -6,7 +6,6 @@
 package aggregator
 
 import (
-	"strings"
 	"sync"
 	"time"
 
@@ -234,13 +233,12 @@ func (w *aggregationWindow) maxSerie() *metrics.Serie {
 }
 
 func (w *aggregationWindow) gaugeLike() *metrics.Serie {
-	name := w.latestSeries.Name
-	switch {
-	case strings.HasSuffix(name, ".max"):
+	switch w.latestSeries.NameSuffix {
+	case ".max":
 		return w.maxSerie()
-	case strings.HasSuffix(name, ".min"):
+	case ".min":
 		return w.minSerie()
-	case strings.HasSuffix(name, ".sum"):
+	case ".sum":
 		return w.sum()
 	default:
 		return w.last()

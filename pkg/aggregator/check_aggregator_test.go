@@ -673,12 +673,12 @@ func TestAggregateGaugeLastUsesLatestTimestamp(t *testing.T) {
 func TestAggregateHistogramGaugeSuffixStrategies(t *testing.T) {
 	tests := []struct {
 		name       string
-		metricName string
+		nameSuffix string
 		expected   float64
 	}{
-		{name: "max suffix keeps max of maxes", metricName: "request.duration.max", expected: 30},
-		{name: "min suffix keeps min of mins", metricName: "request.duration.min", expected: 10},
-		{name: "sum suffix sums sums", metricName: "request.duration.sum", expected: 60},
+		{name: "max suffix keeps max of maxes", nameSuffix: ".max", expected: 30},
+		{name: "min suffix keeps min of mins", nameSuffix: ".min", expected: 10},
+		{name: "sum suffix sums sums", nameSuffix: ".sum", expected: 60},
 	}
 
 	for _, tt := range tests {
@@ -688,7 +688,40 @@ func TestAggregateHistogramGaugeSuffixStrategies(t *testing.T) {
 
 			for i, value := range []float64{20, 10, 30} {
 				ca.Submit(testCheckID, &metrics.Serie{
-					Name:       tt.metricName,
+					Name:       "request.duration" + tt.nameSuffix,
+					Points:     []metrics.Point{{Ts: float64(i + 1), Value: value}},
+					MType:      metrics.APIGaugeType,
+					ContextKey: ckey.ContextKey(1),
+					NameSuffix: tt.nameSuffix,
+				}, sink)
+			}
+			ca.FlushExpired(20, sink)
+
+			require.Len(t, sink.series, 1)
+			assert.Equal(t, tt.expected, sink.series[0].Points[0].Value)
+			assert.Equal(t, float64(3), sink.series[0].Points[0].Ts)
+		})
+	}
+}
+
+func TestAggregateGaugeNameSuffixesKeepGaugeSemantics(t *testing.T) {
+	tests := []struct {
+		name   string
+		values []float64
+	}{
+		{name: "queue.size.max", values: []float64{20, 30, 10}},
+		{name: "cache.bytes.min", values: []float64{20, 10, 30}},
+		{name: "buffer.fill.sum", values: []float64{20, 10, 30}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ca := newCheckAggregator(15*time.Second, 128)
+			sink := &captureSink{}
+
+			for i, value := range tt.values {
+				ca.Submit(testCheckID, &metrics.Serie{
+					Name:       tt.name,
 					Points:     []metrics.Point{{Ts: float64(i + 1), Value: value}},
 					MType:      metrics.APIGaugeType,
 					ContextKey: ckey.ContextKey(1),
@@ -697,7 +730,7 @@ func TestAggregateHistogramGaugeSuffixStrategies(t *testing.T) {
 			ca.FlushExpired(20, sink)
 
 			require.Len(t, sink.series, 1)
-			assert.Equal(t, tt.expected, sink.series[0].Points[0].Value)
+			assert.Equal(t, tt.values[len(tt.values)-1], sink.series[0].Points[0].Value)
 			assert.Equal(t, float64(3), sink.series[0].Points[0].Ts)
 		})
 	}
