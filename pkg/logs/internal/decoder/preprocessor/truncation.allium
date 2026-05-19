@@ -1,12 +1,15 @@
 -- allium: 3
 -- truncation.allium
 
--- Scope: Per-emission truncation behaviour shared by aggregators in
---   the Datadog Agent's logs preprocessor pipeline. Captures the
---   common "if the content exceeds a size threshold, decorate it
---   with `...TRUNCATED...` marker bytes and propagate a carry-over
---   signal so the next emission can decorate its head accordingly"
---   pattern.
+-- Scope: Per-emission truncation decoration behaviour shared across
+--   the Datadog Agent's logs pipeline. Captures the common "if the
+--   content exceeds a size threshold, decorate it with `...TRUNCATED...`
+--   marker bytes and propagate a carry-over signal so the next
+--   emission can decorate its head accordingly" pattern. Fulfilled
+--   by: SingleLineHandler and MultiLineHandler (legacy decoder
+--   handlers, paths A and B), PassThroughAggregator, RegexAggregator,
+--   DetectingAggregator, and CombiningAggregator (preprocessor
+--   aggregators, paths C / D / E).
 -- Includes: The Truncatable contract (the abstract truncation
 --   operation), marker semantics, carry-over state across consecutive
 --   calls, upstream-truncation-flag propagation, tag-on-truncation
@@ -25,15 +28,25 @@
 --     this is observable in current implementations but is an
 --     implementation choice rather than a Truncatable promise. Callers
 --     should not rely on it.
---   - Framer-level truncation marking (line_parser.go's
---     `isBufferTruncated` signal). The framer marks input messages
---     but does not decorate them; Truncatable consumes that signal
---     via the `upstream_truncated` input.
---   - Truncation in components outside the preprocessor (the legacy
---     decoder-level handlers, the windows-event 128 KB truncation).
---     The same Truncatable contract conceptually applies, but the
---     fulfilling declarations are deferred until those components
---     are spec'd.
+--   - Detection-only behaviour, which produces an IsTruncated flag
+--     without adding marker bytes. The framer
+--     (pkg/logs/internal/framer) and the MultiLineParser
+--     (pkg/logs/internal/decoder/line_parser.go) signal detected
+--     overflow via this flag, which Truncatable consumes through
+--     the upstream_truncated input. Detection has its own contract
+--     at truncation_detector.allium (fulfilled by framer);
+--     MultiLineParser is a stateful accumulator with its own
+--     surface spec. Both sites have separate surface specs and
+--     property test coverage as part of the same refactor effort.
+--   - The Windows event 128 KB truncation pathway, which is
+--     single-stage, has no carry-over, and detects truncation
+--     retroactively by scanning for marker presence. It does not
+--     compose with the rest of the logs pipeline and has its own
+--     spec at windows_event_truncation.allium.
+--   - Aggregator-level concerns that surround truncation but are
+--     not part of it: CombiningAggregator's no_aggregate-resets-carry
+--     and overflow-explosion behaviours are described in
+--     combining_aggregator.allium, not here.
 
 ------------------------------------------------------------
 -- Value Types
@@ -103,6 +116,17 @@ contract Truncatable {
         -- current call is also over-threshold: a call that receives
         -- carry-over and is also over-threshold produces content
         -- decorated at both ends.
+
+    @invariant CarryoverConsumed
+        -- The new_carryover output is determined solely by the
+        -- current call's input — specifically by whether the
+        -- content is over threshold OR upstream_truncated is true.
+        -- The prior_carryover input does NOT propagate into
+        -- new_carryover: a call with prior_carryover=true but
+        -- under-threshold non-upstream-truncated content produces
+        -- new_carryover=false. Carry-over does not "stick" across
+        -- emissions once the input returns under threshold; it is
+        -- consumed when read.
 
     @invariant UpstreamFlagPropagation
         -- The upstream_truncated input behaves equivalently to
