@@ -53,7 +53,6 @@ exports_files(glob(
 # gazelle:exclude cmd/system-probe/windows
 # gazelle:exclude cmd/systray
 # gazelle:exclude cmd/trace-agent/command
-# gazelle:exclude cmd/trace-agent/config
 # gazelle:exclude cmd/trace-agent/subcommands/config
 # gazelle:exclude cmd/trace-agent/subcommands/info
 # gazelle:exclude cmd/trace-agent/subcommands/run
