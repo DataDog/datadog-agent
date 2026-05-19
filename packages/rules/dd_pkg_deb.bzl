@@ -1,10 +1,13 @@
 """dd__pkg_deb - wrapper for pkg_deb adding agent specific defaults."""
 
+# We need to peek at the actual rule instead of the wrapper because you
+# can't put a macro on a legacy macro.
 # buildifier: disable=bzl-visibility
 load("@rules_pkg//pkg/private/deb:deb.bzl", "pkg_deb_impl")
 load("//packages/rules:package_naming.bzl", "package_name_variables")
 load("//tools/tar_checksums:tar_md5sums.bzl", "tar_md5sums")
 
+# kwargs is mandatory for macros, even if you don't use it.
 # buildifier: disable=unused-variable
 def _dd_pkg_deb_impl(name, visibility, conflicts, data, depends, description, homepage, license, maintainer, out, package, package_file_name, postinst, postrm, preinst, prerm, priority, recommends, section, version, **kwargs):
     variables_name = "%s_vars_" % name
