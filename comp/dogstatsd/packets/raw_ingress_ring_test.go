@@ -10,6 +10,10 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestRawIngressShardReserveCommitReadRelease(t *testing.T) {
@@ -83,6 +87,31 @@ func TestRawIngressShardsDistributeReservations(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "second", packet.ListenerID)
 	packet.Release()
+}
+
+func TestRawIngressShardLagTelemetry(t *testing.T) {
+	telemetryComponent := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
+	telemetryMock := telemetryComponent.(telemetry.Mock)
+	shard := NewRawIngressShard(2, 64, telemetryComponent, "0")
+
+	reservation, ok := shard.Reserve()
+	require.True(t, ok)
+	copy(reservation.Buffer(), []byte("metric:1|c"))
+	reservation.Commit(len("metric:1|c"), RawPacketMeta{Source: UDS})
+	time.Sleep(time.Millisecond)
+
+	packet, ok := shard.TryNext()
+	require.True(t, ok)
+	require.Equal(t, float64(1), gaugeValue(t, telemetryMock, "dogstatsd_ingress_ring", "consumer_lag_records", map[string]string{"shard": "0"}))
+	require.Equal(t, float64(len("metric:1|c")), gaugeValue(t, telemetryMock, "dogstatsd_ingress_ring", "consumer_lag_bytes", map[string]string{"shard": "0"}))
+	require.Greater(t, gaugeValue(t, telemetryMock, "dogstatsd_ingress_ring", "oldest_record_timestamp_ns", map[string]string{"shard": "0"}), float64(0))
+	require.Greater(t, gaugeValue(t, telemetryMock, "dogstatsd_ingress_ring", "oldest_record_age_ns", map[string]string{"shard": "0"}), float64(0))
+
+	packet.Release()
+	require.Equal(t, float64(0), gaugeValue(t, telemetryMock, "dogstatsd_ingress_ring", "consumer_lag_records", map[string]string{"shard": "0"}))
+	require.Equal(t, float64(0), gaugeValue(t, telemetryMock, "dogstatsd_ingress_ring", "consumer_lag_bytes", map[string]string{"shard": "0"}))
+	require.Equal(t, float64(0), gaugeValue(t, telemetryMock, "dogstatsd_ingress_ring", "oldest_record_timestamp_ns", map[string]string{"shard": "0"}))
+	require.Equal(t, float64(0), gaugeValue(t, telemetryMock, "dogstatsd_ingress_ring", "oldest_record_age_ns", map[string]string{"shard": "0"}))
 }
 
 func TestRawIngressShardTryNextBatchReleaseBatch(t *testing.T) {
@@ -161,6 +190,46 @@ func TestCompactRawIngressShardBlocksCommitWhenFull(t *testing.T) {
 	}
 }
 
+func TestCompactRawIngressShardBackpressureTelemetry(t *testing.T) {
+	telemetryComponent := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
+	telemetryMock := telemetryComponent.(telemetry.Mock)
+	shard := NewCompactRawIngressShard(8, 8, telemetryComponent, "0")
+
+	first, ok := shard.Reserve()
+	require.True(t, ok)
+	copy(first.Buffer(), []byte("abcdefgh"))
+	first.Commit(8, RawPacketMeta{Source: UDS})
+
+	second, ok := shard.Reserve()
+	require.True(t, ok)
+	copy(second.Buffer(), []byte("ijkl"))
+	committed := make(chan struct{})
+	go func() {
+		second.Commit(4, RawPacketMeta{Source: UDS})
+		close(committed)
+	}()
+
+	select {
+	case <-committed:
+		t.Fatal("commit completed while the compact ring was full")
+	case <-time.After(25 * time.Millisecond):
+	}
+
+	packet, ok := shard.TryNext()
+	require.True(t, ok)
+	packet.Release()
+
+	select {
+	case <-committed:
+	case <-time.After(time.Second):
+		t.Fatal("commit did not unblock after release")
+	}
+
+	require.Greater(t, countValue(t, telemetryMock, "dogstatsd_ingress_ring", "blocked_ns", map[string]string{"shard": "0"}), float64(0))
+	require.Equal(t, float64(1), countValue(t, telemetryMock, "dogstatsd_ingress_ring", "stats", map[string]string{"shard": "0", "stat": "blocked_appends"}))
+	require.Equal(t, float64(1), countValue(t, telemetryMock, "dogstatsd_ingress_ring", "stats", map[string]string{"shard": "0", "stat": "backpressure_events"}))
+}
+
 func TestDirectCompactRawIngressShardReserveCommitReadRelease(t *testing.T) {
 	shard := NewDirectCompactRawIngressShard(128, 64, nil, "0")
 
@@ -179,6 +248,31 @@ func TestDirectCompactRawIngressShardReserveCommitReadRelease(t *testing.T) {
 
 	packet.Release()
 	require.Equal(t, 0, shard.Len())
+}
+
+func TestDirectCompactRawIngressShardLagTelemetryExcludesInFlightReservation(t *testing.T) {
+	telemetryComponent := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
+	telemetryMock := telemetryComponent.(telemetry.Mock)
+	shard := NewDirectCompactRawIngressShard(128, 64, telemetryComponent, "0")
+
+	reservation, ok := shard.Reserve()
+	require.True(t, ok)
+	require.Equal(t, float64(0), gaugeValue(t, telemetryMock, "dogstatsd_ingress_ring", "consumer_lag_records", map[string]string{"shard": "0"}))
+	require.Equal(t, float64(0), gaugeValue(t, telemetryMock, "dogstatsd_ingress_ring", "consumer_lag_bytes", map[string]string{"shard": "0"}))
+
+	copy(reservation.Buffer(), []byte("metric:1|c"))
+	reservation.Commit(len("metric:1|c"), RawPacketMeta{Source: UDS})
+	time.Sleep(time.Millisecond)
+
+	packet, ok := shard.TryNext()
+	require.True(t, ok)
+	require.Equal(t, float64(1), gaugeValue(t, telemetryMock, "dogstatsd_ingress_ring", "consumer_lag_records", map[string]string{"shard": "0"}))
+	require.Equal(t, float64(len("metric:1|c")), gaugeValue(t, telemetryMock, "dogstatsd_ingress_ring", "consumer_lag_bytes", map[string]string{"shard": "0"}))
+	require.Greater(t, gaugeValue(t, telemetryMock, "dogstatsd_ingress_ring", "oldest_record_age_ns", map[string]string{"shard": "0"}), float64(0))
+
+	packet.Release()
+	require.Equal(t, float64(0), gaugeValue(t, telemetryMock, "dogstatsd_ingress_ring", "consumer_lag_records", map[string]string{"shard": "0"}))
+	require.Equal(t, float64(0), gaugeValue(t, telemetryMock, "dogstatsd_ingress_ring", "consumer_lag_bytes", map[string]string{"shard": "0"}))
 }
 
 func TestDirectCompactRawIngressShardReclaimsUnusedReservationBytes(t *testing.T) {
@@ -324,4 +418,38 @@ func TestCompactRawIngressShardTryNextBatchReleaseBatch(t *testing.T) {
 	require.Equal(t, "ccc", string(batch[0].Contents))
 	shard.ReleaseBatch(len(batch))
 	require.Equal(t, 0, shard.Len())
+}
+
+func gaugeValue(t *testing.T, telemetryMock telemetry.Mock, subsystem string, name string, tags map[string]string) float64 {
+	t.Helper()
+	metrics, err := telemetryMock.GetGaugeMetric(subsystem, name)
+	require.NoError(t, err)
+	return metricValue(t, metrics, tags)
+}
+
+func countValue(t *testing.T, telemetryMock telemetry.Mock, subsystem string, name string, tags map[string]string) float64 {
+	t.Helper()
+	metrics, err := telemetryMock.GetCountMetric(subsystem, name)
+	require.NoError(t, err)
+	return metricValue(t, metrics, tags)
+}
+
+func metricValue(t *testing.T, metrics []telemetry.Metric, tags map[string]string) float64 {
+	t.Helper()
+	for _, metric := range metrics {
+		if metricTagsMatch(metric.Tags(), tags) {
+			return metric.Value()
+		}
+	}
+	require.Failf(t, "metric not found", "tags=%v metrics=%v", tags, metrics)
+	return 0
+}
+
+func metricTagsMatch(actual map[string]string, expected map[string]string) bool {
+	for key, value := range expected {
+		if actual[key] != value {
+			return false
+		}
+	}
+	return true
 }

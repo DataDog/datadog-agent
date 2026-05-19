@@ -108,20 +108,25 @@ type RawIngressBatchReader interface {
 }
 
 type rawIngressSlot struct {
-	buf     []byte
-	n       int
-	meta    RawPacketMeta
-	ready   bool
-	aborted bool
+	buf         []byte
+	n           int
+	meta        RawPacketMeta
+	committedAt int64
+	ready       bool
+	aborted     bool
 }
 
 type rawIngressTelemetry struct {
-	bytes     telemetry.Gauge
-	slots     telemetry.Gauge
-	packets   telemetry.Gauge
-	blockedNS telemetry.Counter
-	stats     telemetry.Counter
-	shard     string
+	bytes              telemetry.Gauge
+	slots              telemetry.Gauge
+	packets            telemetry.Gauge
+	consumerLagRecords telemetry.Gauge
+	consumerLagBytes   telemetry.Gauge
+	oldestAgeNS        telemetry.Gauge
+	oldestTimestampNS  telemetry.Gauge
+	blockedNS          telemetry.Counter
+	stats              telemetry.Counter
+	shard              string
 }
 
 func newRawIngressTelemetry(telemetrycomp telemetry.Component) rawIngressTelemetry {
@@ -135,8 +140,16 @@ func newRawIngressTelemetry(telemetrycomp telemetry.Component) rawIngressTelemet
 			[]string{"shard"}, "Slots currently retained by the experimental DogStatsD raw ingress ring"),
 		packets: telemetrycomp.NewGauge("dogstatsd_ingress_ring", "packets",
 			[]string{"shard"}, "Packets currently retained by the experimental DogStatsD raw ingress ring"),
+		consumerLagRecords: telemetrycomp.NewGauge("dogstatsd_ingress_ring", "consumer_lag_records",
+			[]string{"shard"}, "Committed records currently waiting for the experimental DogStatsD raw ingress ring consumer"),
+		consumerLagBytes: telemetrycomp.NewGauge("dogstatsd_ingress_ring", "consumer_lag_bytes",
+			[]string{"shard"}, "Committed bytes currently waiting for the experimental DogStatsD raw ingress ring consumer"),
+		oldestAgeNS: telemetrycomp.NewGauge("dogstatsd_ingress_ring", "oldest_record_age_ns",
+			[]string{"shard"}, "Age in nanoseconds of the oldest committed record retained by the experimental DogStatsD raw ingress ring"),
+		oldestTimestampNS: telemetrycomp.NewGauge("dogstatsd_ingress_ring", "oldest_record_timestamp_ns",
+			[]string{"shard"}, "Unix timestamp in nanoseconds of the oldest committed record retained by the experimental DogStatsD raw ingress ring"),
 		blockedNS: telemetrycomp.NewCounter("dogstatsd_ingress_ring", "blocked_ns",
-			[]string{"shard"}, "Nanoseconds spent blocked reserving the experimental DogStatsD raw ingress ring"),
+			[]string{"shard"}, "Nanoseconds spent blocked reserving or appending to the experimental DogStatsD raw ingress ring"),
 		stats: telemetrycomp.NewCounter("dogstatsd_ingress_ring", "stats",
 			[]string{"shard", "stat"}, "Experimental DogStatsD raw ingress ring counters"),
 	}
@@ -216,6 +229,10 @@ func (s *RawIngressShard) Reserve() (RawPacketReservation, bool) {
 	s.mu.Unlock()
 
 	if s.telemetry.stats != nil {
+		if blocked {
+			s.telemetry.stats.Inc(s.telemetry.shard, "blocked_reservations")
+			s.telemetry.stats.Inc(s.telemetry.shard, "backpressure_events")
+		}
 		s.telemetry.stats.Inc(s.telemetry.shard, "reserved_slots")
 	}
 	return RawPacketReservation{shard: s, idx: idx, buf: s.slots[idx].buf}, true
@@ -235,6 +252,7 @@ func (s *RawIngressShard) TryNext() (RawPacket, bool) {
 			s.releaseHeadLocked()
 			continue
 		}
+		s.updateOldestRecordGaugesLocked()
 		packet := RawPacket{
 			Contents:   slot.buf[:slot.n],
 			Origin:     slot.meta.Origin,
@@ -272,6 +290,9 @@ func (s *RawIngressShard) TryNextBatch(dst []RawPacket) []RawPacket {
 		s.releaseHeadLocked()
 	}
 
+	if s.used > 0 {
+		s.updateOldestRecordGaugesLocked()
+	}
 	idx := s.head
 	for scanned := 0; scanned < s.used && len(dst) < cap(dst); scanned++ {
 		slot := &s.slots[idx]
@@ -324,6 +345,7 @@ func (s *RawIngressShard) commit(idx int, n int, meta RawPacketMeta) {
 	}
 	slot.n = n
 	slot.meta = meta
+	slot.committedAt = time.Now().UnixNano()
 	slot.ready = true
 	slot.aborted = false
 	s.bytes += int64(n)
@@ -343,6 +365,7 @@ func (s *RawIngressShard) abort(idx int) {
 	slot := &s.slots[idx]
 	slot.n = 0
 	slot.meta = RawPacketMeta{}
+	slot.committedAt = 0
 	slot.ready = true
 	slot.aborted = true
 	s.signalNotifyLocked()
@@ -394,6 +417,7 @@ func (s *RawIngressShard) releaseHeadLocked() {
 	}
 	slot.n = 0
 	slot.meta = RawPacketMeta{}
+	slot.committedAt = 0
 	slot.ready = false
 	slot.aborted = false
 	s.head = (s.head + 1) % len(s.slots)
@@ -419,13 +443,61 @@ func (s *RawIngressShard) updateGaugesLocked() {
 	if s.telemetry.packets != nil {
 		s.telemetry.packets.Set(float64(s.packets), s.telemetry.shard)
 	}
+	if s.telemetry.consumerLagRecords != nil {
+		s.telemetry.consumerLagRecords.Set(float64(s.packets), s.telemetry.shard)
+	}
+	if s.telemetry.consumerLagBytes != nil {
+		s.telemetry.consumerLagBytes.Set(float64(s.bytes), s.telemetry.shard)
+	}
+	s.updateOldestRecordGaugesLocked()
+}
+
+func (s *RawIngressShard) updateOldestRecordGaugesLocked() {
+	if s.telemetry.oldestAgeNS == nil && s.telemetry.oldestTimestampNS == nil {
+		return
+	}
+	oldest := s.oldestCommittedTimestampLocked()
+	if oldest == 0 {
+		if s.telemetry.oldestAgeNS != nil {
+			s.telemetry.oldestAgeNS.Set(0, s.telemetry.shard)
+		}
+		if s.telemetry.oldestTimestampNS != nil {
+			s.telemetry.oldestTimestampNS.Set(0, s.telemetry.shard)
+		}
+		return
+	}
+	if s.telemetry.oldestTimestampNS != nil {
+		s.telemetry.oldestTimestampNS.Set(float64(oldest), s.telemetry.shard)
+	}
+	if s.telemetry.oldestAgeNS != nil {
+		age := time.Now().UnixNano() - oldest
+		if age < 0 {
+			age = 0
+		}
+		s.telemetry.oldestAgeNS.Set(float64(age), s.telemetry.shard)
+	}
+}
+
+func (s *RawIngressShard) oldestCommittedTimestampLocked() int64 {
+	var oldest int64
+	for i := range s.slots {
+		slot := &s.slots[i]
+		if !slot.ready || slot.aborted || slot.committedAt == 0 {
+			continue
+		}
+		if oldest == 0 || slot.committedAt < oldest {
+			oldest = slot.committedAt
+		}
+	}
+	return oldest
 }
 
 type compactRawIngressRecord struct {
-	offset  int
-	n       int
-	padding int
-	meta    RawPacketMeta
+	offset      int
+	n           int
+	padding     int
+	meta        RawPacketMeta
+	committedAt int64
 }
 
 // CompactRawIngressShard is a single-consumer, multi-producer, byte-compact raw
@@ -554,6 +626,10 @@ func (s *CompactRawIngressShard) reserveDirect() (RawPacketReservation, bool) {
 	s.mu.Unlock()
 
 	if s.telemetry.stats != nil {
+		if blocked {
+			s.telemetry.stats.Inc(s.telemetry.shard, "blocked_reservations")
+			s.telemetry.stats.Inc(s.telemetry.shard, "backpressure_events")
+		}
 		s.telemetry.stats.Inc(s.telemetry.shard, "reserved_direct_slots")
 	}
 	return RawPacketReservation{compactShard: s, buf: s.buf[offset : offset+s.slotSize]}, true
@@ -567,6 +643,7 @@ func (s *CompactRawIngressShard) TryNext() (RawPacket, bool) {
 	if s.usedRecords == 0 {
 		return RawPacket{}, false
 	}
+	s.updateOldestRecordGaugesLocked()
 	record := &s.records[s.headRecord]
 	packet := RawPacket{
 		Contents:     s.buf[record.offset : record.offset+record.n],
@@ -592,6 +669,9 @@ func (s *CompactRawIngressShard) TryNextBatch(dst []RawPacket) []RawPacket {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.usedRecords > 0 {
+		s.updateOldestRecordGaugesLocked()
+	}
 	idx := s.headRecord
 	for scanned := 0; scanned < s.usedRecords && len(dst) < cap(dst); scanned++ {
 		record := &s.records[idx]
@@ -687,7 +767,7 @@ func (s *CompactRawIngressShard) commitDirect(n int, meta RawPacketMeta) {
 	}
 
 	idx := s.tailRecord
-	s.records[idx] = compactRawIngressRecord{offset: offset, n: n, padding: padding, meta: meta}
+	s.records[idx] = compactRawIngressRecord{offset: offset, n: n, padding: padding, meta: meta, committedAt: time.Now().UnixNano()}
 	s.tailRecord = (s.tailRecord + 1) % len(s.records)
 	s.usedRecords++
 	s.packets++
@@ -767,7 +847,7 @@ func (s *CompactRawIngressShard) append(data []byte, meta RawPacketMeta) bool {
 	offset, padding := s.reserveBytesLocked(n)
 	copy(s.buf[offset:offset+n], data)
 	idx := s.tailRecord
-	s.records[idx] = compactRawIngressRecord{offset: offset, n: n, padding: padding, meta: meta}
+	s.records[idx] = compactRawIngressRecord{offset: offset, n: n, padding: padding, meta: meta, committedAt: time.Now().UnixNano()}
 	s.tailRecord = (s.tailRecord + 1) % len(s.records)
 	s.usedRecords++
 	s.usedBytes += int64(padding + n)
@@ -777,6 +857,10 @@ func (s *CompactRawIngressShard) append(data []byte, meta RawPacketMeta) bool {
 	s.mu.Unlock()
 
 	if s.telemetry.stats != nil {
+		if blocked {
+			s.telemetry.stats.Inc(s.telemetry.shard, "blocked_appends")
+			s.telemetry.stats.Inc(s.telemetry.shard, "backpressure_events")
+		}
 		s.telemetry.stats.Inc(s.telemetry.shard, "committed_packets")
 		s.telemetry.stats.Add(float64(n), s.telemetry.shard, "committed_bytes")
 		if padding > 0 {
@@ -910,6 +994,53 @@ func (s *CompactRawIngressShard) updateGaugesLocked() {
 	}
 	if s.telemetry.packets != nil {
 		s.telemetry.packets.Set(float64(s.packets), s.telemetry.shard)
+	}
+	if s.telemetry.consumerLagRecords != nil {
+		s.telemetry.consumerLagRecords.Set(float64(s.packets), s.telemetry.shard)
+	}
+	if s.telemetry.consumerLagBytes != nil {
+		s.telemetry.consumerLagBytes.Set(float64(s.committedBytesLocked()), s.telemetry.shard)
+	}
+	s.updateOldestRecordGaugesLocked()
+}
+
+func (s *CompactRawIngressShard) committedBytesLocked() int64 {
+	committedBytes := s.usedBytes
+	if s.inFlight {
+		committedBytes -= int64(s.inFlightPadding + s.inFlightReserved)
+	}
+	if committedBytes < 0 {
+		return 0
+	}
+	return committedBytes
+}
+
+func (s *CompactRawIngressShard) updateOldestRecordGaugesLocked() {
+	if s.telemetry.oldestAgeNS == nil && s.telemetry.oldestTimestampNS == nil {
+		return
+	}
+	oldest := int64(0)
+	if s.usedRecords > 0 {
+		oldest = s.records[s.headRecord].committedAt
+	}
+	if oldest == 0 {
+		if s.telemetry.oldestAgeNS != nil {
+			s.telemetry.oldestAgeNS.Set(0, s.telemetry.shard)
+		}
+		if s.telemetry.oldestTimestampNS != nil {
+			s.telemetry.oldestTimestampNS.Set(0, s.telemetry.shard)
+		}
+		return
+	}
+	if s.telemetry.oldestTimestampNS != nil {
+		s.telemetry.oldestTimestampNS.Set(float64(oldest), s.telemetry.shard)
+	}
+	if s.telemetry.oldestAgeNS != nil {
+		age := time.Now().UnixNano() - oldest
+		if age < 0 {
+			age = 0
+		}
+		s.telemetry.oldestAgeNS.Set(float64(age), s.telemetry.shard)
 	}
 }
 

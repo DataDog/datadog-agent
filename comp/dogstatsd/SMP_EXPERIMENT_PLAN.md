@@ -1118,3 +1118,49 @@ observed `main` wins are therefore best attributed to the combined design
 serialization), not to the native serializer alone. The design-stage exploration
 should freeze here and move to broader honesty gates, feature-cost comparisons,
 memory profiling, and raw-ring lag/oldest-age/backpressure telemetry.
+
+## Raw-ring lag/backpressure telemetry, 2026-05-19
+
+After Stage Q, raw ingress rings gained the telemetry needed to make high-rate
+results more honest about hidden backlog and listener backpressure.
+
+New gauges under `dogstatsd_ingress_ring`:
+
+- `consumer_lag_records{shard}`: committed records waiting for the worker.
+- `consumer_lag_bytes{shard}`: committed retained bytes waiting for the worker.
+  For direct-reserve compact mode this excludes the in-flight pre-read
+  reservation, unlike the existing `bytes` gauge.
+- `oldest_record_timestamp_ns{shard}`: commit timestamp of the oldest retained
+  committed record.
+- `oldest_record_age_ns{shard}`: sampled age of the oldest retained committed
+  record, refreshed on commit/release and worker peek/drain.
+
+Existing gauges remain:
+
+- `bytes{shard}`: retained ring bytes, including direct in-flight reservation
+  bytes when direct-reserve mode is active.
+- `slots{shard}`: fixed slots or compact records retained/reserved.
+- `packets{shard}`: committed packets currently retained.
+
+Backpressure counters:
+
+- `blocked_ns{shard}` now covers both fixed/direct reservation blocking and
+  compact append blocking.
+- `stats{shard,stat:blocked_reservations}` increments when fixed/direct
+  reservation blocks.
+- `stats{shard,stat:blocked_appends}` increments when compact scratch-copy
+  append blocks.
+- `stats{shard,stat:backpressure_events}` increments for either blocked shape.
+
+Verification:
+
+```bash
+dda inv test --targets=./comp/dogstatsd/packets,./comp/dogstatsd/listeners,./comp/dogstatsd/server/impl --timeout=300
+```
+
+Result: `315 total`, all passed locally.
+
+Next SMP analysis should graph throughput against `consumer_lag_*`,
+`oldest_record_age_ns`, and `blocked_ns/backpressure_events` so higher ingress
+rates are not accepted if the raw ring is permanently full or oldest age grows
+without bound.
