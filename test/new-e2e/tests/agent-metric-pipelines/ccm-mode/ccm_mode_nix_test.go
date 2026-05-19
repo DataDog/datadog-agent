@@ -63,32 +63,37 @@ type ccmModeADPSuite struct {
 	ccmModeSuiteBase
 }
 
+func yamlIndentedList(items []string) string {
+	var b strings.Builder
+	for _, item := range items {
+		fmt.Fprintf(&b, "      - %s\n", item)
+	}
+	return b.String()
+}
+
 func ccmAgentConfig(taggedChecks, metricsBlocked []string) string {
-	cfg := `
+	var cfg strings.Builder
+	cfg.WriteString(`
 infrastructure_mode: cloud_cost_only
 metric_filterlist:
   - e2e.ccm.blocked.by.filterlist
-`
+`)
 	if len(taggedChecks) > 0 || len(metricsBlocked) > 0 {
-		cfg += `integration:
+		cfg.WriteString(`integration:
   cloud_cost_only:
-`
+`)
 		if len(taggedChecks) > 0 {
-			cfg += `    tagged:
-`
-			for _, check := range taggedChecks {
-				cfg += fmt.Sprintf("      - %s\n", check)
-			}
+			cfg.WriteString(`    tagged:
+`)
+			cfg.WriteString(yamlIndentedList(taggedChecks))
 		}
 		if len(metricsBlocked) > 0 {
-			cfg += `    metrics_blocked:
-`
-			for _, metric := range metricsBlocked {
-				cfg += fmt.Sprintf("      - %s\n", metric)
-			}
+			cfg.WriteString(`    metrics_blocked:
+`)
+			cfg.WriteString(yamlIndentedList(metricsBlocked))
 		}
 	}
-	return cfg
+	return cfg.String()
 }
 
 func runCCMModeSuite[T e2e.Suite[environments.Host]](t *testing.T, stackName string, agentConfig string, suite T, adpEnabled bool) {
@@ -221,17 +226,16 @@ func (s *ccmModeEmptyAllowlistSuite) TestEmptyAllowlistDeniesIntegrationMetrics(
 }
 
 func ccmAgentConfigCustomAllowlist(allowlist []string, matchPrefix bool) string {
-	cfg := `
+	var cfg strings.Builder
+	cfg.WriteString(`
 infrastructure_mode: cloud_cost_only
 integration:
   cloud_cost_only:
     metrics:
-`
-	for _, metric := range allowlist {
-		cfg += fmt.Sprintf("      - %s\n", metric)
-	}
-	cfg += fmt.Sprintf("    metrics_match_prefix: %t\n", matchPrefix)
-	return cfg
+`)
+	cfg.WriteString(yamlIndentedList(allowlist))
+	fmt.Fprintf(&cfg, "    metrics_match_prefix: %t\n", matchPrefix)
+	return cfg.String()
 }
 
 type ccmModeCustomAllowlistSuite struct {
