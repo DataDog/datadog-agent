@@ -395,7 +395,7 @@ func createStatelessAPIs(deps *CollectorDependencies) []apiCallInfo {
 			},
 		},
 		{
-			Name: "pci_link_speed_curr",
+			Name: "pci_link_speed_current",
 			Handler: func(device ddnvml.Device, _ uint64) ([]Metric, uint64, error) {
 				gen, err := device.GetCurrPcieLinkGeneration()
 				if err != nil {
