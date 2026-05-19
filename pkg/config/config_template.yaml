@@ -787,6 +787,26 @@ api_key:
 #
 #     url: "http://127.0.0.1:8080"
 
+#     # @param dual_ship - boolean - optional - default: false
+#     # @env DD_OBSERVABILITY_PIPELINES_WORKER_LOGS_DUAL_SHIP - boolean - optional - default: false
+#     # When false (default), the Observability Pipelines Worker replaces the primary
+#     # Datadog logs intake as the sole destination. When true, logs are sent to BOTH
+#     # the primary Datadog intake and the Observability Pipelines Worker, which is
+#     # useful for evaluating OPW without interrupting the existing flow of telemetry
+#     # to Datadog.
+#
+#     dual_ship: false
+
+#     # @param dual_ship_reliable - boolean - optional - default: false
+#     # @env DD_OBSERVABILITY_PIPELINES_WORKER_LOGS_DUAL_SHIP_RELIABLE - boolean - optional - default: false
+#     # Only meaningful when `dual_ship` is true. When false (default), the OPW
+#     # destination is treated as best-effort: failures to OPW do not apply
+#     # backpressure to the main pipeline, so an unhealthy OPW cannot stall delivery
+#     # to Datadog. Set to true to make the OPW destination reliable, meaning its
+#     # failures participate in flow control just like the primary Datadog endpoint.
+#
+#     dual_ship_reliable: false
+
 #   # @param traces - custom object - optional
 #   # Specific configurations for traces
 #

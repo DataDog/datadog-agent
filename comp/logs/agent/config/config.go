@@ -382,12 +382,21 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 			// cannot apply backpressure to the main pipeline and stall delivery to
 			// Datadog. Operators who want OPW to participate in flow control can opt
 			// in via observability_pipelines_worker.logs.dual_ship_reliable.
+			//
+			// Inherit the v2-API metadata (Version, TrackType, Protocol, Origin) from
+			// the main endpoint so OPW receives the same URL path (/api/v2/logs) and
+			// DD-PROTOCOL/DD-EVP-ORIGIN headers as the primary Datadog destination —
+			// matching how user-supplied additional_endpoints inherit these fields.
 			opwEndpoint := newHTTPEndpoint(logsConfig, registerCallback)
 			opwEndpoint.Host = host
 			opwEndpoint.Port = port
 			opwEndpoint.useSSL = useSSL
 			opwEndpoint.isAdditionalEndpoint = true
 			opwEndpoint.isReliable = logsConfig.obsPipelineWorkerDualShipReliable()
+			opwEndpoint.Version = main.Version
+			opwEndpoint.TrackType = main.TrackType
+			opwEndpoint.Protocol = main.Protocol
+			opwEndpoint.Origin = main.Origin
 			opwAdditionals = append(opwAdditionals, opwEndpoint)
 		} else {
 			// Default behaviour: OPW replaces the primary Datadog endpoint and is the only

@@ -852,6 +852,16 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWDualShip() {
 	suite.True(opwEndpoint.UseSSL())
 	suite.False(opwEndpoint.IsReliable(), "OPW dual-ship endpoint must default to unreliable so an unhealthy OPW cannot stall delivery to Datadog")
 	suite.True(opwEndpoint.isAdditionalEndpoint)
+
+	// OPW must inherit v2-API metadata from the main endpoint so traffic uses
+	// /api/v2/logs and the DD-PROTOCOL / DD-EVP-ORIGIN headers — same semantics as
+	// the primary Datadog destination and as user-supplied additional_endpoints.
+	suite.Equal(endpoints.Main.Version, opwEndpoint.Version)
+	suite.Equal(endpoints.Main.TrackType, opwEndpoint.TrackType)
+	suite.Equal(endpoints.Main.Protocol, opwEndpoint.Protocol)
+	suite.Equal(endpoints.Main.Origin, opwEndpoint.Origin)
+	suite.Equal(EPIntakeVersion2, opwEndpoint.Version)
+	suite.Equal(IntakeTrackType("test-track"), opwEndpoint.TrackType)
 }
 
 // TestBuildEndpointsWithOPWDualShipReliable verifies that the dual_ship_reliable opt-in flips the
