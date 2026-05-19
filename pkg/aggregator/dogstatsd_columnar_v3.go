@@ -159,8 +159,12 @@ type dogstatsdColumnarDictionary struct {
 }
 
 type dogstatsdColumnarShard struct {
-	mu      sync.Mutex
-	buckets map[int64]*dogstatsdColumnarBucket
+	mu          sync.Mutex
+	buckets     map[int64]*dogstatsdColumnarBucket
+	freeBuckets []*dogstatsdColumnarBucket
+
+	serieRowsScratch []metrics.SerieRow
+	v3RowsScratch    []metrics.V3MetricPointRow
 
 	insertedSamples uint64
 
@@ -431,7 +435,7 @@ func (s *dogstatsdColumnarStore) insertAcceptedUnlocked(shardIdx int, shardKey c
 func (s *dogstatsdColumnarStore) insertAcceptedInShard(shard *dogstatsdColumnarShard, bucketStart int64, shardKey ckey.ContextKey, sample metrics.MetricSample) {
 	bucket := shard.buckets[bucketStart]
 	if bucket == nil {
-		bucket = newDogstatsdColumnarBucket()
+		bucket = shard.getBucket()
 		shard.buckets[bucketStart] = bucket
 	}
 
@@ -471,6 +475,38 @@ func (s *dogstatsdColumnarStore) insertAcceptedInShard(shard *dogstatsdColumnarS
 
 func newDogstatsdColumnarBucket() *dogstatsdColumnarBucket {
 	return &dogstatsdColumnarBucket{}
+}
+
+func (s *dogstatsdColumnarShard) getBucket() *dogstatsdColumnarBucket {
+	if len(s.freeBuckets) == 0 {
+		tlmDogstatsdColumnarStats.Inc("created_buckets")
+		return newDogstatsdColumnarBucket()
+	}
+	last := len(s.freeBuckets) - 1
+	bucket := s.freeBuckets[last]
+	s.freeBuckets[last] = nil
+	s.freeBuckets = s.freeBuckets[:last]
+	tlmDogstatsdColumnarStats.Inc("reused_buckets")
+	return bucket
+}
+
+func (s *dogstatsdColumnarShard) releaseBucket(bucket *dogstatsdColumnarBucket) {
+	if bucket == nil {
+		return
+	}
+	if bucket.byDescriptor != nil {
+		for descriptorID := range bucket.byDescriptor {
+			delete(bucket.byDescriptor, descriptorID)
+		}
+	}
+	for i := range bucket.sets {
+		bucket.sets[i] = nil
+	}
+	bucket.descriptors = bucket.descriptors[:0]
+	bucket.values = bucket.values[:0]
+	bucket.sampled = bucket.sampled[:0]
+	bucket.sets = bucket.sets[:0]
+	s.freeBuckets = append(s.freeBuckets, bucket)
 }
 
 func (s *dogstatsdColumnarShard) appendDescriptor(key dogstatsdColumnarKey, sample metrics.MetricSample, internDescriptorStrings bool) int {
@@ -647,11 +683,10 @@ func (s *dogstatsdColumnarStore) flush(cutoffTime int64, forceFlushAll bool, row
 }
 
 func (s *dogstatsdColumnarStore) flushShard(shard *dogstatsdColumnarShard, cutoffTime int64, forceFlushAll bool, rowSink metrics.SerieRowSink, shadow *directRowShadowBuilder) uint64 {
-	var rows []metrics.SerieRow
-
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
 
+	rows := shard.serieRowsScratch[:0]
 	generation := shard.nextFlushGeneration()
 	if shard.insertedSamples > 0 {
 		tlmDogstatsdColumnarStats.Add(float64(shard.insertedSamples), "inserted_samples")
@@ -664,6 +699,7 @@ func (s *dogstatsdColumnarStore) flushShard(shard *dogstatsdColumnarShard, cutof
 		}
 		s.collectBucket(shard, bucketTimestamp, bucket, &rows, generation)
 		delete(shard.buckets, bucketTimestamp)
+		shard.releaseBucket(bucket)
 		tlmDogstatsdColumnarStats.Inc("flushed_buckets")
 	}
 	s.expireDescriptors(shard, cutoffTime)
@@ -671,16 +707,18 @@ func (s *dogstatsdColumnarStore) flushShard(shard *dogstatsdColumnarShard, cutof
 	for i := range rows {
 		shadow.observeSerieRow(&rows[i])
 		rowSink.AppendSerieRow(rows[i])
+		rows[i] = metrics.SerieRow{}
 	}
-	return uint64(len(rows))
+	rowCount := uint64(len(rows))
+	shard.serieRowsScratch = rows[:0]
+	return rowCount
 }
 
 func (s *dogstatsdColumnarStore) flushShardToV3MetricPointSink(shard *dogstatsdColumnarShard, cutoffTime int64, forceFlushAll bool, sink metrics.V3MetricPointRowSink, shadow *directRowShadowBuilder) uint64 {
-	var rows []metrics.V3MetricPointRow
-
 	shard.mu.Lock()
 	defer shard.mu.Unlock()
 
+	rows := shard.v3RowsScratch[:0]
 	generation := shard.nextFlushGeneration()
 	if shard.insertedSamples > 0 {
 		tlmDogstatsdColumnarStats.Add(float64(shard.insertedSamples), "inserted_samples")
@@ -693,6 +731,7 @@ func (s *dogstatsdColumnarStore) flushShardToV3MetricPointSink(shard *dogstatsdC
 		}
 		s.collectBucketToV3MetricPointRows(shard, bucketTimestamp, bucket, &rows, generation)
 		delete(shard.buckets, bucketTimestamp)
+		shard.releaseBucket(bucket)
 		tlmDogstatsdColumnarStats.Inc("flushed_buckets")
 	}
 	s.expireDescriptors(shard, cutoffTime)
@@ -700,8 +739,11 @@ func (s *dogstatsdColumnarStore) flushShardToV3MetricPointSink(shard *dogstatsdC
 	for i := range rows {
 		shadow.observeV3MetricPointRow(&rows[i])
 		sink.AppendV3MetricPointRow(rows[i])
+		rows[i] = metrics.V3MetricPointRow{}
 	}
-	return uint64(len(rows))
+	rowCount := uint64(len(rows))
+	shard.v3RowsScratch = rows[:0]
+	return rowCount
 }
 
 func (s *dogstatsdColumnarStore) collectBucket(shard *dogstatsdColumnarShard, bucketTimestamp int64, bucket *dogstatsdColumnarBucket, rows *[]metrics.SerieRow, generation uint64) {
