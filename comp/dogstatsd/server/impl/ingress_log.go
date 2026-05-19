@@ -123,40 +123,44 @@ type packetIngressLog struct {
 }
 
 func newPacketIngressLog(maxBytes int64, telemetrycomp telemetry.Component) *packetIngressLog {
-	return newPacketIngressLogWithTelemetry(maxBytes, telemetrycomp, "", false)
+	return newPacketIngressLogWithExistingTelemetry(maxBytes, newPacketIngressLogTelemetry(telemetrycomp, false))
 }
 
-func newPacketIngressLogShard(maxBytes int64, telemetrycomp telemetry.Component, shard string) *packetIngressLog {
-	return newPacketIngressLogWithTelemetry(maxBytes, telemetrycomp, shard, true)
-}
-
-func newPacketIngressLogWithTelemetry(maxBytes int64, telemetrycomp telemetry.Component, shard string, sharded bool) *packetIngressLog {
-	log := &packetIngressLog{maxBytes: maxBytes, notify: make(chan struct{}, 1)}
+func newPacketIngressLogWithExistingTelemetry(maxBytes int64, telemetry packetIngressLogTelemetry) *packetIngressLog {
+	log := &packetIngressLog{maxBytes: maxBytes, notify: make(chan struct{}, 1), telemetry: telemetry}
 	log.notEmpty = sync.NewCond(&log.mu)
 	log.notFull = sync.NewCond(&log.mu)
-	if telemetrycomp != nil {
-		gaugeLabels := []string{}
-		statsLabels := []string{"stat"}
-		if sharded {
-			gaugeLabels = []string{"shard"}
-			statsLabels = []string{"shard", "stat"}
-		}
-		log.telemetry = packetIngressLogTelemetry{
-			bytes: telemetrycomp.NewGauge("dogstatsd_ingress_log", "bytes",
-				gaugeLabels, "Bytes currently retained by the experimental DogStatsD ingress log"),
-			batches: telemetrycomp.NewGauge("dogstatsd_ingress_log", "batches",
-				gaugeLabels, "Batches currently retained by the experimental DogStatsD ingress log"),
-			packets: telemetrycomp.NewGauge("dogstatsd_ingress_log", "packets",
-				gaugeLabels, "Packets currently retained by the experimental DogStatsD ingress log"),
-			blockedNS: telemetrycomp.NewCounter("dogstatsd_ingress_log", "blocked_ns",
-				gaugeLabels, "Nanoseconds spent blocked appending to the experimental DogStatsD ingress log"),
-			stats: telemetrycomp.NewCounter("dogstatsd_ingress_log", "stats",
-				statsLabels, "Experimental DogStatsD ingress log counters"),
-			sharded: sharded,
-			shard:   shard,
-		}
-	}
 	return log
+}
+
+func newPacketIngressLogTelemetry(telemetrycomp telemetry.Component, sharded bool) packetIngressLogTelemetry {
+	if telemetrycomp == nil {
+		return packetIngressLogTelemetry{}
+	}
+	gaugeLabels := []string{}
+	statsLabels := []string{"stat"}
+	if sharded {
+		gaugeLabels = []string{"shard"}
+		statsLabels = []string{"shard", "stat"}
+	}
+	return packetIngressLogTelemetry{
+		bytes: telemetrycomp.NewGauge("dogstatsd_ingress_log", "bytes",
+			gaugeLabels, "Bytes currently retained by the experimental DogStatsD ingress log"),
+		batches: telemetrycomp.NewGauge("dogstatsd_ingress_log", "batches",
+			gaugeLabels, "Batches currently retained by the experimental DogStatsD ingress log"),
+		packets: telemetrycomp.NewGauge("dogstatsd_ingress_log", "packets",
+			gaugeLabels, "Packets currently retained by the experimental DogStatsD ingress log"),
+		blockedNS: telemetrycomp.NewCounter("dogstatsd_ingress_log", "blocked_ns",
+			gaugeLabels, "Nanoseconds spent blocked appending to the experimental DogStatsD ingress log"),
+		stats: telemetrycomp.NewCounter("dogstatsd_ingress_log", "stats",
+			statsLabels, "Experimental DogStatsD ingress log counters"),
+		sharded: sharded,
+	}
+}
+
+func (t packetIngressLogTelemetry) forShard(shard string) packetIngressLogTelemetry {
+	t.shard = shard
+	return t
 }
 
 func (l *packetIngressLog) run(input <-chan packets.Packets, output chan<- packets.Packets, stop <-chan bool) {
@@ -335,8 +339,9 @@ func newPacketIngressLogShards(shardCount int, maxBytes int64, telemetrycomp tel
 		bytesPerShard = maxBytes
 	}
 	shards := make([]*packetIngressLog, shardCount)
+	telemetry := newPacketIngressLogTelemetry(telemetrycomp, true)
 	for i := range shards {
-		shards[i] = newPacketIngressLogShard(bytesPerShard, telemetrycomp, strconv.Itoa(i))
+		shards[i] = newPacketIngressLogWithExistingTelemetry(bytesPerShard, telemetry.forShard(strconv.Itoa(i)))
 	}
 	return &packetIngressLogShards{shards: shards}
 }
