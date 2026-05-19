@@ -263,7 +263,7 @@ func TestCheck_Run_Success(t *testing.T) {
 	mockSender := mocksender.NewMockSenderWithSenderManager(id, senderManager)
 
 	// Set up mock sender expectations
-	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Times(3)
+	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Times(2)
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	mockSender.On("Commit").Return()
@@ -328,6 +328,22 @@ func TestCheck_Run_Success(t *testing.T) {
 				Content:      startupOutput,
 			},
 		},
+		Inventories: []report.InventoryEntry{
+			{
+				Namespace:     "default",
+				ConfigID:      "87b2343a-56d9-43bc-a35a-4d842dec9586",
+				DeviceID:      "default:10.0.0.1",
+				ReportedAt:    1754043600,
+				AgentHostname: "test-agent-host",
+			},
+			{
+				Namespace:     "default",
+				ConfigID:      "d348e53f-db31-47ed-8d50-11462d7a15e5",
+				DeviceID:      "default:10.0.0.1",
+				ReportedAt:    1754043600,
+				AgentHostname: "test-agent-host",
+			},
+		},
 		CollectTimestamp: 1754043600,
 	}
 	expectedConfigEvent, err := json.Marshal(expectedConfigPayload)
@@ -349,31 +365,9 @@ func TestCheck_Run_Success(t *testing.T) {
 	expectedDeviceMetadata, err := json.Marshal(expectedDeviceMetadataPayload)
 	assert.NoError(t, err)
 
-	expectedInventoryPayload := report.NCMInventory{
-		Namespace:  "default",
-		ReportedAt: 1754043600,
-		Entries: []report.InventoryEntry{
-			{
-				ConfigID:      "87b2343a-56d9-43bc-a35a-4d842dec9586",
-				DeviceID:      "default:10.0.0.1",
-				CapturedAt:    1754043600,
-				AgentHostname: "test-agent-host",
-			},
-			{
-				ConfigID:      "d348e53f-db31-47ed-8d50-11462d7a15e5",
-				DeviceID:      "default:10.0.0.1",
-				CapturedAt:    1754043600,
-				AgentHostname: "test-agent-host",
-			},
-		},
-	}
-	expectedInventoryEvent, err := json.Marshal(expectedInventoryPayload)
-	assert.NoError(t, err)
-
-	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 3)
+	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 2)
 	mockSender.AssertEventPlatformEvent(t, expectedConfigEvent, eventplatform.EventTypeNetworkConfigManagement)
 	mockSender.AssertEventPlatformEvent(t, expectedDeviceMetadata, eventplatform.EventTypeNetworkDevicesMetadata)
-	mockSender.AssertEventPlatformEvent(t, expectedInventoryEvent, eventplatform.EventTypeNetworkConfigManagement)
 	mockSender.AssertMetricTaggedWith(t, "Gauge", "datadog.ncm.check_duration", expectedTags)
 	mockSender.AssertMetric(t, "Count", "datadog.ncm.inventory.entries_sent", 2, "test-agent-host", []string{"agent_host:test-agent-host"})
 	mockSender.AssertExpectations(t)

@@ -16,7 +16,8 @@ import (
 // NCMPayload contains network devices configuration payload sent to EvP / backend
 type NCMPayload struct {
 	Namespace        string                `json:"namespace"`
-	Configs          []NetworkDeviceConfig `json:"configs"`
+	Configs          []NetworkDeviceConfig `json:"configs,omitempty"`
+	Inventories      []InventoryEntry      `json:"inventories,omitempty"`
 	CollectTimestamp int64                 `json:"collect_timestamp"`
 }
 
@@ -31,23 +32,17 @@ type NetworkDeviceConfig struct {
 	Content      string             `json:"content"`
 }
 
-// NCMInventory contains entries of what configs are stored locally on the customer's agent
-type NCMInventory struct {
-	Namespace  string           `json:"namespace"`
-	ReportedAt int64            `json:"reported_at"`
-	Entries    []InventoryEntry `json:"entries,omitempty"`
-}
-
 // InventoryEntry contains the metadata about the configs stored locally on the agent
 type InventoryEntry struct {
+	Namespace     string `json:"namespace"`
 	ConfigID      string `json:"config_id"`
 	DeviceID      string `json:"device_id"`
-	CapturedAt    int64  `json:"captured_at"`
+	ReportedAt    int64  `json:"reported_at"`
 	AgentHostname string `json:"agent_hostname"`
 }
 
 // ToNCMPayload converts the given parameters into a NCMPayload (sent to event platform / backend).
-func ToNCMPayload(namespace string, configs []NetworkDeviceConfig, timestamp int64) NCMPayload {
+func ToNCMPayload(namespace string, configs []NetworkDeviceConfig, inventories []InventoryEntry, timestamp int64) NCMPayload {
 	for i := range configs {
 		// if timestamp could not be extracted from the configurations / commands, use the agent timestamp
 		if configs[i].Timestamp == 0 {
@@ -57,6 +52,7 @@ func ToNCMPayload(namespace string, configs []NetworkDeviceConfig, timestamp int
 	return NCMPayload{
 		Namespace:        namespace,
 		Configs:          configs,
+		Inventories:      inventories,
 		CollectTimestamp: timestamp,
 	}
 }

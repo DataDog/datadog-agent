@@ -75,9 +75,9 @@ func (s *NCMSender) SendNCMCheckMetrics(startTime time.Time, lastCheckTime time.
 	}
 }
 
-func (s *NCMSender) sendNCMInventoryMetrics(inventory ncmreport.NCMInventory) {
+func (s *NCMSender) sendNCMPayloadMetrics(payload ncmreport.NCMPayload) {
 	tags := utils.GetCommonAgentTags()
-	s.Sender.Count(ncmCheckInventoryEntriesSentMetric, float64(len(inventory.Entries)), s.agentHostname, tags)
+	s.Sender.Count(ncmCheckInventoryEntriesSentMetric, float64(len(payload.Inventories)), s.agentHostname, tags)
 }
 
 // SendMetricsFromExtractedMetadata sends metrics from data extracted from the device config after processing
@@ -95,25 +95,15 @@ func (s *NCMSender) SendMetricsFromExtractedMetadata(metadata profile.ExtractedM
 	}
 }
 
-// SendNCMConfig sends the network device configuration payload to event platform
-func (s *NCMSender) SendNCMConfig(payload ncmreport.NCMPayload) error {
+// SendNCMPayload sends the network device configuration payload to event platform
+func (s *NCMSender) SendNCMPayload(payload ncmreport.NCMPayload) error {
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
 	s.Sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkConfigManagement)
 	// TODO: send metrics about the config retrieval?
-	return nil
-}
-
-// SendNCMInventory sends the network config inventory payload to event platform
-func (s *NCMSender) SendNCMInventory(payload ncmreport.NCMInventory) error {
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-	s.Sender.EventPlatformEvent(payloadBytes, eventplatform.EventTypeNetworkConfigManagement)
-	s.sendNCMInventoryMetrics(payload)
+	s.sendNCMPayloadMetrics(payload)
 	return nil
 }
 

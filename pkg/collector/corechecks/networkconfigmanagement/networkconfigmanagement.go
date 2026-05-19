@@ -137,43 +137,36 @@ func (c *Check) Run() error {
 		}
 	}
 
-	checkErr = c.sender.SendNCMConfig(ncmreport.ToNCMPayload(c.checkContext.Namespace, configs, c.clock.Now().Unix()))
-	if checkErr != nil {
-		return checkErr
-	}
-
 	// send inventory payload if within the interval to do so
 	c.runsSinceInventoryReport++
+	var inventoryEntries []ncmreport.InventoryEntry
 	if configStore != nil && c.runsSinceInventoryReport >= int(c.checkContext.InventoryReportEveryN) {
 		log.Debugf("NCM core check runs since last inventory report: %d, will emit new inventory report", c.runsSinceInventoryReport)
 		c.runsSinceInventoryReport = 0
 		configMeta, err := configStore.GetAllConfigMetadata(deviceID)
 		if err != nil {
-			log.Errorf("error retrieving config metadata for device %s to emit inventory report, error: %v", deviceID, err)
-		}
-		var inventoryEntries []ncmreport.InventoryEntry
-		// convert meta to inventory entry
-		for _, metadata := range configMeta {
-			entry := ncmreport.InventoryEntry{
-				ConfigID:      metadata.ConfigUUID,
-				DeviceID:      metadata.DeviceID,
-				CapturedAt:    metadata.CapturedAt,
-				AgentHostname: c.agentHostname,
+			log.Errorf("error retrieving config metadata for device %s, cannot emit inventory: %v", deviceID, err)
+		} else {
+			// convert meta to inventory entry
+			for _, metadata := range configMeta {
+				entry := ncmreport.InventoryEntry{
+					Namespace:     c.checkContext.Namespace,
+					ConfigID:      metadata.ConfigUUID,
+					DeviceID:      metadata.DeviceID,
+					ReportedAt:    metadata.CapturedAt,
+					AgentHostname: c.agentHostname,
+				}
+				inventoryEntries = append(inventoryEntries, entry)
 			}
-			inventoryEntries = append(inventoryEntries, entry)
-		}
-		err = c.sender.SendNCMInventory(ncmreport.NCMInventory{
-			Namespace:  c.checkContext.Namespace,
-			ReportedAt: c.clock.Now().Unix(),
-			Entries:    inventoryEntries,
-		})
-		if err != nil {
-			log.Errorf("error sending inventory report for device: %s, error: %v", deviceID, err)
 		}
 	}
 
 	c.sender.SendNCMCheckMetrics(checkStartTime, c.lastCheckTime)
 	c.lastCheckTime = checkStartTime
+	checkErr = c.sender.SendNCMPayload(ncmreport.ToNCMPayload(c.checkContext.Namespace, configs, inventoryEntries, c.clock.Now().Unix()))
+	if checkErr != nil {
+		return checkErr
+	}
 
 	c.sender.Commit()
 	return nil

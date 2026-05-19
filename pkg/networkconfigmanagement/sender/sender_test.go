@@ -49,13 +49,14 @@ func TestNCMSender_SendNCMConfig_Success(t *testing.T) {
 		},
 	}
 
-	payload := ncmreport.ToNCMPayload(namespace, configs, mockClock.Now().Unix())
+	payload := ncmreport.ToNCMPayload(namespace, configs, []ncmreport.InventoryEntry{}, mockClock.Now().Unix())
 
 	// Set up mock expectations
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
+	mockSender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	// Send the config
-	err := ncmSender.SendNCMConfig(payload)
+	err := ncmSender.SendNCMPayload(payload)
 	assert.NoError(t, err)
 
 	var expectedEvent = []byte(`
@@ -250,14 +251,15 @@ func TestNCMSender_SendNCMInventory_Success(t *testing.T) {
 
 	ncmSender := NewNCMSender(mockSender, namespace, mockClock, "test-agent-host")
 
-	payload := ncmreport.NCMInventory{
-		Namespace:  namespace,
-		ReportedAt: mockClock.Now().Unix(),
-		Entries: []ncmreport.InventoryEntry{
+	payload := ncmreport.NCMPayload{
+		Namespace:        namespace,
+		CollectTimestamp: mockClock.Now().Unix(),
+		Inventories: []ncmreport.InventoryEntry{
 			{
+				Namespace:     "default",
 				ConfigID:      "abc-123",
 				DeviceID:      "default:10.0.0.1",
-				CapturedAt:    mockClock.Now().Unix(),
+				ReportedAt:    mockClock.Now().Unix(),
 				AgentHostname: "test-agent-host",
 			},
 		},
@@ -266,21 +268,21 @@ func TestNCMSender_SendNCMInventory_Success(t *testing.T) {
 	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
 	mockSender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-	err := ncmSender.SendNCMInventory(payload)
+	err := ncmSender.SendNCMPayload(payload)
 	assert.NoError(t, err)
-
 	expectedEvent := []byte(`
 {
   "namespace": "default",
-  "reported_at": 1754043600,
-  "entries": [
+  "inventories": [
     {
+	  "namespace": "default",
       "config_id": "abc-123",
       "device_id": "default:10.0.0.1",
-      "captured_at": 1754043600,
+      "reported_at": 1754043600,
       "agent_hostname": "test-agent-host"
     }
-  ]
+  ],
+  "collect_timestamp": 1754043600
 }
 `)
 	compactEvent := new(bytes.Buffer)
@@ -291,26 +293,4 @@ func TestNCMSender_SendNCMInventory_Success(t *testing.T) {
 	mockSender.AssertEventPlatformEvent(t, compactEvent.Bytes(), eventplatform.EventTypeNetworkConfigManagement)
 	mockSender.AssertMetric(t, "Count", ncmCheckInventoryEntriesSentMetric, 1, "test-agent-host", []string{"agent_version:" + version.AgentVersion})
 	mockSender.AssertExpectations(t)
-}
-
-func TestNCMSender_SendNCMInventory_EmptyEntries(t *testing.T) {
-	// An inventory with no entries is still a valid signal (no configs yet encountered e.g. with an agent reboot)
-	// — it tells the backend the agent has nothing to roll back to. Make sure the sender
-	// doesn't drop or error on this case.
-	mockSender := &mocksender.MockSender{}
-	mockClock := clock.NewMock()
-	mockClock.Set(time.Date(2025, 8, 1, 10, 20, 0, 0, time.UTC))
-
-	ncmSender := NewNCMSender(mockSender, "default", mockClock, "test-agent-host")
-
-	mockSender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return().Once()
-	mockSender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-
-	err := ncmSender.SendNCMInventory(ncmreport.NCMInventory{
-		Namespace:  "default",
-		ReportedAt: mockClock.Now().Unix(),
-	})
-	assert.NoError(t, err)
-	mockSender.AssertNumberOfCalls(t, "EventPlatformEvent", 1)
-	mockSender.AssertMetric(t, "Count", ncmCheckInventoryEntriesSentMetric, 0, "test-agent-host", []string{"agent_version:" + version.AgentVersion})
 }

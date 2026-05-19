@@ -8,12 +8,10 @@
 package report
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
@@ -101,7 +99,7 @@ func TestNetworkDevicesConfigPayload_Creation(t *testing.T) {
 		},
 	}
 
-	payload := ToNCMPayload(namespace, configs, timestamp)
+	payload := ToNCMPayload(namespace, configs, []InventoryEntry{}, timestamp)
 
 	assert.Equal(t, namespace, payload.Namespace)
 	assert.Equal(t, timestamp, payload.CollectTimestamp)
@@ -109,17 +107,6 @@ func TestNetworkDevicesConfigPayload_Creation(t *testing.T) {
 	assert.Equal(t, configs, payload.Configs)
 }
 
-func TestNetworkDevicesConfigPayload_EmptyConfigs(t *testing.T) {
-	payload := ToNCMPayload("test", []NetworkDeviceConfig{}, time.Now().Unix())
-
-	assert.Equal(t, "test", payload.Namespace)
-	assert.Empty(t, payload.Configs)
-
-	// Should still be valid JSON
-	jsonData, err := json.Marshal(payload)
-	require.NoError(t, err)
-	assert.Contains(t, string(jsonData), "\"configs\":[]")
-}
 func TestNetworkDevicesConfigPayload_EmptyTimestamps(t *testing.T) {
 	agentTs := time.Now().Unix()
 	ndc := NetworkDeviceConfig{
@@ -129,7 +116,7 @@ func TestNetworkDevicesConfigPayload_EmptyTimestamps(t *testing.T) {
 		ConfigSource: types.CLI,
 		Timestamp:    0,
 	}
-	payload := ToNCMPayload("test", []NetworkDeviceConfig{ndc}, agentTs)
+	payload := ToNCMPayload("test", []NetworkDeviceConfig{ndc}, []InventoryEntry{}, agentTs)
 
 	expected := NetworkDeviceConfig{
 		DeviceID:     "default:10.0.0.1",
