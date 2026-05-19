@@ -486,13 +486,13 @@ exports_files(glob(
 # gazelle:exclude pkg/eventmonitor/examples
 # gazelle:exclude pkg/eventmonitor/testutil
 # gazelle:exclude pkg/flare
+# Parent BUILD.bazel reaches into tmpl/ via intra-package paths; a local stub would split the package and break those refs.
 # gazelle:exclude pkg/fleet/installer/packages/embedded/tmpl
 # gazelle:exclude pkg/gpu/containers
 # gazelle:exclude pkg/gpu/integrationtests
 # gazelle:exclude pkg/gpu/safenvml
 # gazelle:exclude pkg/gpu/testutil
 # gazelle:exclude pkg/hosttags
-# gazelle:exclude pkg/jmxfetch
 # gazelle:exclude pkg/kubestatemetrics
 # gazelle:exclude pkg/languagedetection/internal/detectors/privileged
 # gazelle:exclude pkg/languagedetection/privileged
@@ -785,13 +785,13 @@ exports_files(glob(
 # gazelle:exclude test/regression
 # gazelle:exclude test/required_files
 # gazelle:exclude test/static
-# gazelle:exclude tools/NamedPipeCmd
 # gazelle:exclude tools/agent_QA
 # gazelle:exclude tools/ci
 # gazelle:exclude tools/ebpf
 # gazelle:exclude tools/gdb
 # gazelle:exclude tools/go-update
 # gazelle:exclude tools/host-profiler
+# Standalone debugging tool with its own go.mod; not built as part of the agent.
 # gazelle:exclude tools/retry_file_dump
 # gazelle:exclude tools/windows
 

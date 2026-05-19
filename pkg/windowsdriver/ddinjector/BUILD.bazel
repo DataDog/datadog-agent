@@ -9,6 +9,7 @@ go_library(
     ],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/windowsdriver/ddinjector",
+    target_compatible_with = ["@platforms//os:windows"],  # keep
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
@@ -25,6 +26,7 @@ go_test(
     srcs = ["ddinjector_test.go"],
     embed = [":ddinjector"],
     gotags = ["test"],
+    target_compatible_with = ["@platforms//os:windows"],  # keep
     deps = select({
         "@rules_go//go/platform:windows": [
             "@com_github_stretchr_testify//assert",
