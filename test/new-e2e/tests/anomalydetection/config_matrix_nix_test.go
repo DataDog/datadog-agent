@@ -1,0 +1,203 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package anomalydetection
+
+// Item 7 — sub-gate independence matrix.
+//
+// Three independent sub-gates (metrics.enabled, logs.enabled, agent_logs.enabled)
+// sit under the master anomaly_detection.enabled. This file verifies:
+//   - master=off collapses all sub-gates (no [observer] lines)
+//   - with master=on, each sub-gate activates or suppresses the correct path
+//   - the metrics-disabled warning appears exactly when metrics.enabled=false
+//
+// Each case runs as a separate provisioned VM (separate e2e.WithStackName) so
+// configurations are truly independent and cannot bleed across sub-tests.
+
+import (
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
+	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+)
+
+// configMatrixSuite is the shared suite type for all config-matrix cases.
+type configMatrixSuite struct {
+	e2e.BaseSuite[environments.Host]
+}
+
+// --- Case 1: master=off --------------------------------------------------
+
+// TestObserverConfigMatrix_MasterOff verifies the observer is silent when
+// anomaly_detection.enabled is not set (covered also by defaults_nix_test.go,
+// but repeated here to anchor it in the matrix).
+func TestObserverConfigMatrix_MasterOff(t *testing.T) {
+	e2e.Run(t, &configMatrixSuite{}, e2e.WithProvisioner(
+		awshost.Provisioner(
+			awshost.WithRunOptions(scenec2.WithAgentOptions()),
+		),
+	), e2e.WithStackName("anomalydetection-matrix-master-off"))
+}
+
+func (s *configMatrixSuite) TestMasterOffNoObserverLines() {
+	waitForAgentStartup(s)
+	time.Sleep(10 * time.Second)
+
+	out, err := s.Env().RemoteHost.ReadFilePrivileged("/var/log/datadog/agent.log")
+	assert.NoError(s.T(), err, "reading agent.log")
+	assert.NotContains(s.T(), string(out), "[observer]",
+		"no [observer] lines expected when anomaly_detection.enabled is not set")
+}
+
+// --- Case 2: master=on, metrics=off, logs=off ----------------------------
+
+// TestObserverConfigMatrix_MasterOnBothOff verifies the observer starts but
+// emits the deterministic metrics-disabled warning and no agent-logs handle.
+func TestObserverConfigMatrix_MasterOnBothOff(t *testing.T) {
+	// language=yaml
+	agentConfig := `
+log_level: debug
+anomaly_detection:
+  enabled: true
+  metrics:
+    enabled: false
+  logs:
+    enabled: false
+  agent_logs:
+    enabled: false
+`
+	e2e.Run(t, &configMatrixSuite{}, e2e.WithProvisioner(
+		awshost.Provisioner(
+			awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(agentConfig))),
+		),
+	), e2e.WithStackName("anomalydetection-matrix-both-off"))
+}
+
+func (s *configMatrixSuite) TestMasterOnBothOffWarningPresent() {
+	waitForAgentStartup(s)
+	time.Sleep(10 * time.Second)
+
+	out, err := s.Env().RemoteHost.ReadFilePrivileged("/var/log/datadog/agent.log")
+	assert.NoError(s.T(), err, "reading agent.log")
+	agentLog := string(out)
+	assert.Contains(s.T(), agentLog, metricsDisabledWarning,
+		"metrics-disabled warning should appear when metrics.enabled=false")
+	assert.NotContains(s.T(), agentLog, observerAgentLogsMarker,
+		"agent-logs handle should not be created when agent_logs.enabled=false")
+}
+
+// --- Case 3: master=on, metrics=on, logs=off -----------------------------
+
+// TestObserverConfigMatrix_MetricsOnLogsOff verifies the metrics path is active
+// (observer ready marker) and the agent-logs tap is not installed.
+func TestObserverConfigMatrix_MetricsOnLogsOff(t *testing.T) {
+	// language=yaml
+	agentConfig := `
+log_level: debug
+anomaly_detection:
+  enabled: true
+  metrics:
+    enabled: true
+  logs:
+    enabled: false
+  agent_logs:
+    enabled: false
+`
+	e2e.Run(t, &configMatrixSuite{}, e2e.WithProvisioner(
+		awshost.Provisioner(
+			awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(agentConfig))),
+		),
+	), e2e.WithStackName("anomalydetection-matrix-metrics-on"))
+}
+
+func (s *configMatrixSuite) TestMetricsOnLogsOffPaths() {
+	waitForObserverReady(s)
+
+	out, err := s.Env().RemoteHost.ReadFilePrivileged("/var/log/datadog/agent.log")
+	assert.NoError(s.T(), err, "reading agent.log")
+	agentLog := string(out)
+	assert.NotContains(s.T(), agentLog, metricsDisabledWarning,
+		"no metrics-disabled warning expected when metrics.enabled=true")
+	assert.NotContains(s.T(), agentLog, observerAgentLogsMarker,
+		"agent-logs handle should not be created when agent_logs.enabled=false")
+}
+
+// --- Case 4: master=on, metrics=off, logs=on -----------------------------
+
+// TestObserverConfigMatrix_MetricsOffLogsOn verifies the log path is active and
+// the metrics-disabled warning appears.
+func TestObserverConfigMatrix_MetricsOffLogsOn(t *testing.T) {
+	// language=yaml
+	agentConfig := `
+log_level: debug
+anomaly_detection:
+  enabled: true
+  metrics:
+    enabled: false
+  agent_logs:
+    enabled: true
+`
+	e2e.Run(t, &configMatrixSuite{}, e2e.WithProvisioner(
+		awshost.Provisioner(
+			awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(agentConfig))),
+		),
+	), e2e.WithStackName("anomalydetection-matrix-logs-on"))
+}
+
+func (s *configMatrixSuite) TestMetricsOffLogsOnPaths() {
+	waitForAgentStartup(s)
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		out, err := s.Env().RemoteHost.ReadFilePrivileged("/var/log/datadog/agent.log")
+		assert.NoError(c, err, "reading agent.log")
+		agentLog := string(out)
+		assert.Contains(c, agentLog, metricsDisabledWarning,
+			"metrics-disabled warning should appear when metrics.enabled=false")
+		assert.Contains(c, agentLog, observerAgentLogsMarker,
+			"agent-logs handle should be created when agent_logs.enabled=true")
+	}, 2*time.Minute, 3*time.Second)
+}
+
+// --- Case 5: master=on, metrics=on, logs=on (all gates active) -----------
+
+// TestObserverConfigMatrix_AllGatesOn verifies both the metrics and log paths
+// are active simultaneously with no disabled warnings.
+func TestObserverConfigMatrix_AllGatesOn(t *testing.T) {
+	// language=yaml
+	agentConfig := `
+log_level: debug
+anomaly_detection:
+  enabled: true
+  metrics:
+    enabled: true
+  agent_logs:
+    enabled: true
+`
+	e2e.Run(t, &configMatrixSuite{}, e2e.WithProvisioner(
+		awshost.Provisioner(
+			awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(agentConfig))),
+		),
+	), e2e.WithStackName("anomalydetection-matrix-all-on"))
+}
+
+func (s *configMatrixSuite) TestAllGatesOnBothPathsActive() {
+	waitForObserverReady(s)
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		out, err := s.Env().RemoteHost.ReadFilePrivileged("/var/log/datadog/agent.log")
+		assert.NoError(c, err, "reading agent.log")
+		agentLog := string(out)
+		assert.Contains(c, agentLog, observerReadyMarker,
+			"metrics path should be active")
+		assert.Contains(c, agentLog, observerAgentLogsMarker,
+			"agent-logs tap should be installed")
+		assert.NotContains(c, agentLog, metricsDisabledWarning,
+			"no metrics-disabled warning expected when metrics.enabled=true")
+	}, 2*time.Minute, 3*time.Second)
+}
