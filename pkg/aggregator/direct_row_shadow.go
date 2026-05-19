@@ -7,7 +7,9 @@ package aggregator
 
 import (
 	"fmt"
+	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -42,6 +44,18 @@ type directRowShadowBuilder struct {
 	fallbacks  int
 }
 
+func directRowShadowTelemetryEnabled() bool {
+	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_DIRECT_ROW_SHADOW_TELEMETRY"))
+	return err == nil && enabled
+}
+
+func newOptionalDirectRowShadowBuilder() *directRowShadowBuilder {
+	if !directRowShadowTelemetryEnabled() {
+		return nil
+	}
+	return newDirectRowShadowBuilder()
+}
+
 func newDirectRowShadowBuilder() *directRowShadowBuilder {
 	return &directRowShadowBuilder{
 		names:           map[string]struct{}{},
@@ -54,7 +68,17 @@ func newDirectRowShadowBuilder() *directRowShadowBuilder {
 	}
 }
 
+func finishDirectRowShadow(builder *directRowShadowBuilder, phase string, start time.Time) {
+	if builder == nil {
+		return
+	}
+	builder.finish(phase, time.Since(start))
+}
+
 func (b *directRowShadowBuilder) observeSerie(serie *metrics.Serie) {
+	if b == nil {
+		return
+	}
 	if serie == nil {
 		b.fallbacks++
 		return
@@ -64,6 +88,9 @@ func (b *directRowShadowBuilder) observeSerie(serie *metrics.Serie) {
 }
 
 func (b *directRowShadowBuilder) observeSerieRow(row *metrics.SerieRow) {
+	if b == nil {
+		return
+	}
 	if row == nil {
 		b.fallbacks++
 		return
@@ -92,6 +119,9 @@ func (b *directRowShadowBuilder) observeSerieRow(row *metrics.SerieRow) {
 }
 
 func (b *directRowShadowBuilder) observeV3MetricPointRow(row *metrics.V3MetricPointRow) {
+	if b == nil {
+		return
+	}
 	if row == nil {
 		b.fallbacks++
 		return
@@ -121,6 +151,9 @@ func (b *directRowShadowBuilder) observeV3MetricPointRow(row *metrics.V3MetricPo
 }
 
 func (b *directRowShadowBuilder) observeSketch(sketch *metrics.SketchSeries) {
+	if b == nil {
+		return
+	}
 	if sketch == nil {
 		b.fallbacks++
 		return
@@ -152,6 +185,9 @@ func (b *directRowShadowBuilder) observeSketch(sketch *metrics.SketchSeries) {
 }
 
 func (b *directRowShadowBuilder) finish(phase string, duration time.Duration) {
+	if b == nil {
+		return
+	}
 	tlmDirectRowShadowDuration.Add(float64(duration.Nanoseconds()), phase)
 	tlmDirectRowShadowStats.Inc("flushes")
 	tlmDirectRowShadowStats.Add(float64(b.seriesRows), "series_rows")

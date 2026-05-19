@@ -82,8 +82,11 @@ func (sl SketchSeriesList) MarshalSplitCompressPipelines(config config.Component
 		}
 	}
 
-	segmentShadow := newSegmentShadowBuilder()
-	segmentShadowStart := time.Now()
+	segmentShadow := newOptionalSegmentShadowBuilder()
+	var segmentShadowStart time.Time
+	if segmentShadow != nil {
+		segmentShadowStart = time.Now()
+	}
 
 	for sl.MoveNext() {
 		ss := sl.Current()
@@ -95,7 +98,7 @@ func (sl SketchSeriesList) MarshalSplitCompressPipelines(config config.Component
 		}
 		segmentShadow.observeSketch(ss)
 	}
-	segmentShadow.finish("sketches", time.Since(segmentShadowStart))
+	finishSegmentShadow(segmentShadow, "sketches", segmentShadowStart)
 
 	for i := range pbs {
 		err := pbs[i].finishPayload()

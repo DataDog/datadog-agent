@@ -32,7 +32,7 @@ type DirectSeriesSink struct {
 func NewDirectSeriesSink(config config.Component, strategy compression.Component, pipelines PipelineSet) (*DirectSeriesSink, error) {
 	sink := &DirectSeriesSink{
 		pbs:           make([]serieWriter, 0, len(pipelines)),
-		segmentShadow: newSegmentShadowBuilder(),
+		segmentShadow: newOptionalSegmentShadowBuilder(),
 		start:         time.Now(),
 	}
 
@@ -150,14 +150,15 @@ func (sink *DirectSeriesSink) Finish() (uint64, error) {
 	if sink.rowCount > 0 {
 		phase = "direct_series_rows"
 	}
-	sink.segmentShadow.finish(phase, time.Since(sink.start))
+	duration := time.Since(sink.start)
+	sink.segmentShadow.finish(phase, duration)
 	err := sink.err
 	for i := range sink.pbs {
 		if finishErr := sink.pbs[i].finishPayload(); finishErr != nil && err == nil {
 			err = finishErr
 		}
 	}
-	recordSeriesPipelineDuration(phase, time.Since(sink.start))
+	recordSeriesPipelineDuration(phase, duration)
 	return sink.count, err
 }
 
@@ -175,7 +176,7 @@ type DirectSketchSink struct {
 func NewDirectSketchSink(config config.Component, strategy compression.Component, pipelines PipelineSet, logger log.Component) (*DirectSketchSink, error) {
 	sink := &DirectSketchSink{
 		pbs:           make([]sketchWriter, 0, len(pipelines)),
-		segmentShadow: newSegmentShadowBuilder(),
+		segmentShadow: newOptionalSegmentShadowBuilder(),
 		start:         time.Now(),
 	}
 
@@ -223,9 +224,10 @@ func (sink *DirectSketchSink) Append(sketch *pkgmetrics.SketchSeries) {
 // Finish finalizes all active payload builders and returns the number of
 // producer-visible sketch series appended to the sink.
 func (sink *DirectSketchSink) Finish() (uint64, error) {
-	sink.segmentShadow.finish("direct_sketches", time.Since(sink.start))
+	duration := time.Since(sink.start)
+	sink.segmentShadow.finish("direct_sketches", duration)
 	if sink.count == 0 {
-		recordSeriesPipelineDuration("direct_sketches", time.Since(sink.start))
+		recordSeriesPipelineDuration("direct_sketches", duration)
 		return 0, sink.err
 	}
 
@@ -235,6 +237,6 @@ func (sink *DirectSketchSink) Finish() (uint64, error) {
 			err = finishErr
 		}
 	}
-	recordSeriesPipelineDuration("direct_sketches", time.Since(sink.start))
+	recordSeriesPipelineDuration("direct_sketches", duration)
 	return sink.count, err
 }

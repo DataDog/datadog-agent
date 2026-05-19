@@ -165,8 +165,11 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, fi
 		contextMetricsFlusher.Append(float64(cutoffTime-s.interval), contextMetrics)
 	}
 
-	rowShadow := newDirectRowShadowBuilder()
-	rowShadowStart := time.Now()
+	rowShadow := newOptionalDirectRowShadowBuilder()
+	var rowShadowStart time.Time
+	if rowShadow != nil {
+		rowShadowStart = time.Now()
+	}
 
 	if directRowsExperimentEnabled() {
 		if rowSink, ok := series.(metrics.SerieRowSink); ok {
@@ -180,7 +183,7 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, fi
 						// Note: rawRows is reused at each call
 						s.flushSerieRowsByMetricRows(contextKey, rawRows, rowSink, &rows, filterList, rowShadow)
 					})
-					rowShadow.finish("context_rows", time.Since(rowShadowStart))
+					finishDirectRowShadow(rowShadow, "context_rows", rowShadowStart)
 					return
 				}
 
@@ -188,7 +191,7 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, fi
 					// Note: rawRows is reused at each call
 					s.dedupSerieRowsByMetricRowSignature(contextKey, rawRows, rowSink, rowBySignature, &rows, filterList, rowShadow)
 				})
-				rowShadow.finish("metric_rows", time.Since(rowShadowStart))
+				finishDirectRowShadow(rowShadow, "metric_rows", rowShadowStart)
 				return
 			}
 
@@ -196,7 +199,7 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, fi
 				// Note: rawSeries is reused at each call
 				s.dedupSerieRowsBySerieSignature(rawSeries, rowSink, rowBySignature, &rows, filterList, rowShadow)
 			})
-			rowShadow.finish("series_rows", time.Since(rowShadowStart))
+			finishDirectRowShadow(rowShadow, "series_rows", rowShadowStart)
 			return
 		}
 	}
@@ -207,7 +210,7 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink, fi
 		// Note: rawSeries is reused at each call
 		s.dedupSerieBySerieSignature(rawSeries, series, serieBySignature, filterList, rowShadow)
 	})
-	rowShadow.finish("series", time.Since(rowShadowStart))
+	finishDirectRowShadow(rowShadow, "series", rowShadowStart)
 }
 
 func (s *TimeSampler) dedupSerieRowsBySerieSignature(
@@ -411,8 +414,11 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 }
 
 func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.SketchesSink, forceFlushAll bool) {
-	rowShadow := newDirectRowShadowBuilder()
-	rowShadowStart := time.Now()
+	rowShadow := newOptionalDirectRowShadowBuilder()
+	var rowShadowStart time.Time
+	if rowShadow != nil {
+		rowShadowStart = time.Now()
+	}
 
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
 
@@ -436,7 +442,7 @@ func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.Sketc
 		rowShadow.observeSketch(ss)
 		sketchesSink.Append(ss)
 	}
-	rowShadow.finish("sketches", time.Since(rowShadowStart))
+	finishDirectRowShadow(rowShadow, "sketches", rowShadowStart)
 }
 
 func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketches metrics.SketchesSink, filterList *utilstrings.Matcher, forceFlushAll bool) {

@@ -250,3 +250,76 @@ func TestDogstatsdColumnarV3KeepsOpenBuckets(t *testing.T) {
 	require.Equal(t, uint64(1), store.flush(109, true, &sink))
 	require.Len(t, sink.rows, 1)
 }
+
+func TestDogstatsdColumnarV3UsesDescriptorRowCacheForMonotonicBuckets(t *testing.T) {
+	store := newDogStatsDColumnarStore(10, 1)
+	sample := metrics.MetricSample{Name: "gauge.metric", Mtype: metrics.GaugeType, SampleRate: 1}
+
+	sample.Value = 1
+	require.True(t, store.insert(ckey.ContextKey(1), sample, 101))
+	sample.Value = 2
+	require.True(t, store.insert(ckey.ContextKey(1), sample, 102))
+	sample.Value = 3
+	require.True(t, store.insert(ckey.ContextKey(1), sample, 112))
+
+	for _, bucket := range store.shards[0].buckets {
+		require.Nil(t, bucket.byDescriptor)
+	}
+	require.Len(t, store.shards[0].buckets[100].descriptors, 1)
+	require.Len(t, store.shards[0].buckets[110].descriptors, 1)
+}
+
+func TestDogstatsdColumnarV3BuildsBucketIndexOnlyForNonMonotonicBuckets(t *testing.T) {
+	store := newDogStatsDColumnarStore(10, 1)
+	sample := metrics.MetricSample{Name: "gauge.metric", Mtype: metrics.GaugeType, SampleRate: 1}
+
+	sample.Value = 1
+	require.True(t, store.insert(ckey.ContextKey(1), sample, 112))
+	sample.Value = 2
+	require.True(t, store.insert(ckey.ContextKey(1), sample, 101))
+	sample.Value = 3
+	require.True(t, store.insert(ckey.ContextKey(1), sample, 113))
+
+	require.NotNil(t, store.shards[0].buckets[100].byDescriptor)
+	require.NotNil(t, store.shards[0].buckets[110].byDescriptor)
+	require.Len(t, store.shards[0].buckets[110].descriptors, 1)
+
+	var sink columnarRowCaptureSink
+	require.Equal(t, uint64(1), store.flush(125, false, &sink))
+	require.Len(t, sink.rows, 1)
+	require.ElementsMatch(t, []metrics.Point{{Ts: 100, Value: 2}, {Ts: 110, Value: 3}}, sink.rows[0].Points)
+}
+
+func TestDogstatsdColumnarV3InternsAndExpiresDescriptorDictionaries(t *testing.T) {
+	store := newDogStatsDColumnarStore(10, 1)
+	store.descriptorExpiry = 10
+	sharedTags := []string{"z:last", "a:first", "a:first"}
+
+	require.True(t, store.insert(ckey.ContextKey(1), metrics.MetricSample{
+		Name:       "gauge.one",
+		Value:      1,
+		Mtype:      metrics.GaugeType,
+		Tags:       sharedTags,
+		SampleRate: 1,
+	}, 101))
+	require.True(t, store.insert(ckey.ContextKey(2), metrics.MetricSample{
+		Name:       "gauge.two",
+		Value:      2,
+		Mtype:      metrics.GaugeType,
+		Tags:       sharedTags,
+		SampleRate: 1,
+	}, 102))
+
+	shard := &store.shards[0]
+	require.Len(t, shard.dictionary.tagsets, 1)
+	require.Len(t, shard.dictionary.strings, 4) // two names plus two unique tags
+	require.Same(t, &shard.tags[0][0], &shard.tags[1][0])
+
+	var sink columnarRowCaptureSink
+	require.Equal(t, uint64(2), store.flush(200, false, &sink))
+	require.Len(t, sink.rows, 2)
+	require.Empty(t, shard.descriptorByKey)
+	require.Len(t, shard.freeDescriptors, 2)
+	require.Empty(t, shard.dictionary.tagsets)
+	require.Empty(t, shard.dictionary.strings)
+}

@@ -7,7 +7,9 @@ package metrics
 
 import (
 	"fmt"
+	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -42,6 +44,18 @@ type segmentShadowBuilder struct {
 	fallbacks  int
 }
 
+func segmentShadowTelemetryEnabled() bool {
+	enabled, err := strconv.ParseBool(os.Getenv("DD_SERIALIZER_EXPERIMENTAL_SEGMENT_SHADOW_TELEMETRY"))
+	return err == nil && enabled
+}
+
+func newOptionalSegmentShadowBuilder() *segmentShadowBuilder {
+	if !segmentShadowTelemetryEnabled() {
+		return nil
+	}
+	return newSegmentShadowBuilder()
+}
+
 func newSegmentShadowBuilder() *segmentShadowBuilder {
 	return &segmentShadowBuilder{
 		names:           map[string]struct{}{},
@@ -55,7 +69,17 @@ func newSegmentShadowBuilder() *segmentShadowBuilder {
 	}
 }
 
+func finishSegmentShadow(builder *segmentShadowBuilder, phase string, start time.Time) {
+	if builder == nil {
+		return
+	}
+	builder.finish(phase, time.Since(start))
+}
+
 func (b *segmentShadowBuilder) observeSerie(serie *pkgmetrics.Serie) {
+	if b == nil {
+		return
+	}
 	if serie == nil {
 		b.fallbacks++
 		return
@@ -65,6 +89,9 @@ func (b *segmentShadowBuilder) observeSerie(serie *pkgmetrics.Serie) {
 }
 
 func (b *segmentShadowBuilder) observeSerieRow(row *pkgmetrics.SerieRow) {
+	if b == nil {
+		return
+	}
 	if row == nil {
 		b.fallbacks++
 		return
@@ -92,6 +119,9 @@ func (b *segmentShadowBuilder) observeSerieRow(row *pkgmetrics.SerieRow) {
 }
 
 func (b *segmentShadowBuilder) observeV3MetricPointRow(row *pkgmetrics.V3MetricPointRow) {
+	if b == nil {
+		return
+	}
 	if row == nil {
 		b.fallbacks++
 		return
@@ -120,6 +150,9 @@ func (b *segmentShadowBuilder) observeV3MetricPointRow(row *pkgmetrics.V3MetricP
 }
 
 func (b *segmentShadowBuilder) observeSketch(sketch *pkgmetrics.SketchSeries) {
+	if b == nil {
+		return
+	}
 	if sketch == nil {
 		b.fallbacks++
 		return
@@ -149,6 +182,9 @@ func (b *segmentShadowBuilder) observeSketch(sketch *pkgmetrics.SketchSeries) {
 }
 
 func (b *segmentShadowBuilder) finish(phase string, duration time.Duration) {
+	if b == nil {
+		return
+	}
 	tlmSegmentShadowDuration.Add(float64(duration.Nanoseconds()), phase)
 	tlmSegmentShadowStats.Inc("flushes")
 	tlmSegmentShadowStats.Add(float64(b.seriesRows), "series_rows")
