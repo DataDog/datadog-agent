@@ -410,7 +410,6 @@ exports_files(glob(
 # gazelle:exclude pkg/discovery/module/rust/include
 # gazelle:exclude pkg/discovery/module/rust/src
 # gazelle:exclude pkg/discovery/module/rust/tests
-# gazelle:exclude pkg/discovery/usm
 # gazelle:exclude pkg/dyninst/decode
 # gazelle:exclude pkg/dyninst/dyninsttest
 # gazelle:exclude pkg/dyninst/ebpfbench
@@ -604,7 +603,6 @@ exports_files(glob(
 # gazelle:exclude pkg/security/probe/selftests
 # gazelle:exclude pkg/security/process_list
 # gazelle:exclude pkg/security/proto/api/transform
-# gazelle:exclude pkg/security/rconfig
 # gazelle:exclude pkg/security/reporter
 # gazelle:exclude pkg/security/resolvers/dentry
 # gazelle:exclude pkg/security/resolvers/dns
@@ -651,7 +649,6 @@ exports_files(glob(
 # gazelle:exclude pkg/util/containers/metrics/system
 # gazelle:exclude pkg/util/crashreport
 # gazelle:exclude pkg/util/ec2/tags
-# gazelle:exclude pkg/util/fargate
 # gazelle:exclude pkg/util/kubelet
 # gazelle:exclude pkg/util/kubernetes/apiserver/controllers
 # gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/leaderelection.go
@@ -668,7 +665,6 @@ exports_files(glob(
 # gazelle:exclude pkg/util/kubernetes/hostinfo
 # gazelle:exclude pkg/util/kubernetes/kubelet
 # gazelle:exclude pkg/util/tags
-# gazelle:exclude pkg/windowsdriver/ddinjector
 # gazelle:exclude tasks/unit_tests
 # gazelle:exclude test/benchmarks
 # gazelle:exclude test/e2e-framework/common/utils
