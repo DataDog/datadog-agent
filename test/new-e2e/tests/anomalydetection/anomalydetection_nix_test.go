@@ -28,17 +28,17 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
 )
 
-// stdoutReporterSuite exercises the DSD-metrics path of the observer. It sends a
+// metricsTriggeredSuite exercises the DSD-metrics path of the observer. It sends a
 // stable gauge baseline followed by a large spike to trip the BOCPD detector, then
 // asserts the canonical "[observer] report: pattern=" marker appears in the agent's
 // systemd journal (stdout → journald by default).
-type stdoutReporterSuite struct {
+type metricsTriggeredSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-// TestAnomalyDetectionStdoutReporter provisions a Linux VM with the observer
+// TestAnomalyDetectionMetricsTriggered provisions a Linux VM with the observer
 // enabled and the BOCPD warmup tuned for a short test window.
-func TestAnomalyDetectionStdoutReporter(t *testing.T) {
+func TestAnomalyDetectionMetricsTriggered(t *testing.T) {
 	// language=yaml
 	agentConfig := `
 log_level: debug
@@ -52,7 +52,7 @@ anomaly_detection:
     bocpd:
       warmup_points: 20
 `
-	e2e.Run(t, &stdoutReporterSuite{}, e2e.WithProvisioner(
+	e2e.Run(t, &metricsTriggeredSuite{}, e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(scenec2.WithAgentOptions(agentparams.WithAgentConfig(agentConfig))),
 		),
@@ -63,17 +63,17 @@ anomaly_detection:
 // Uses Execute rather than MustExecute: a transient SSH error in the background
 // goroutine would otherwise propagate as an unrecovered panic, terminating the
 // test process and tearing down the DEV_MODE stack before assertions complete.
-func (s *stdoutReporterSuite) sendGauge(name string, value float64) {
+func (s *metricsTriggeredSuite) sendGauge(name string, value float64) {
 	cmd := fmt.Sprintf("bash -c 'echo -n \"%s:%f|g\" > /dev/udp/127.0.0.1/8125'", name, value)
 	if _, err := s.Env().RemoteHost.Execute(cmd); err != nil {
 		s.T().Logf("sendGauge(%q, %f): SSH error (metric may not have been sent): %v", name, value, err)
 	}
 }
 
-// TestStdoutReporterEmitsOnDSDSpike sends 60 stable baseline gauges then 30 spike
+// TestMetricsTriggeredEmitsOnDSDSpike sends 60 stable baseline gauges then 30 spike
 // gauges (value=5000), expecting BOCPD to fire and the stdout reporter to emit its
 // marker within 5 minutes.
-func (s *stdoutReporterSuite) TestStdoutReporterEmitsOnDSDSpike() {
+func (s *metricsTriggeredSuite) TestMetricsTriggeredEmitsOnDSDSpike() {
 	const (
 		metricName     = "e2e.anomalydetection.test.gauge"
 		baseline       = 1.0

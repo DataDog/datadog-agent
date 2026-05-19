@@ -5,13 +5,12 @@
 
 package anomalydetection
 
-// Item 7 — sub-gate independence matrix.
+// Item 7 — sub-gate independence matrix (master=on in all cases).
 //
 // Three independent sub-gates (metrics.enabled, logs.enabled, agent_logs.enabled)
-// sit under the master anomaly_detection.enabled. This file verifies:
-//   - master=off collapses all sub-gates (no [observer] lines)
-//   - with master=on, each sub-gate activates or suppresses the correct path
-//   - the metrics-disabled warning appears exactly when metrics.enabled=false
+// sit under anomaly_detection.enabled=true. This file verifies that each sub-gate
+// activates or suppresses the correct path independently. The master=off case is
+// covered by defaults_nix_test.go.
 //
 // Each case runs as a separate provisioned VM (separate e2e.WithStackName) so
 // configurations are truly independent and cannot bleed across sub-tests.
@@ -34,36 +33,11 @@ type configMatrixSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-// --- Case 1: master=off --------------------------------------------------
+// --- Case 1: metrics=off, logs=off ---------------------------------------
 
-// TestObserverConfigMatrixMasterOff verifies the observer is silent when
-// anomaly_detection.enabled is not set (covered also by defaults_nix_test.go,
-// but repeated here to anchor it in the matrix).
-func TestObserverConfigMatrixMasterOff(t *testing.T) {
-	e2e.Run(t, &configMatrixSuite{}, e2e.WithProvisioner(
-		awshost.Provisioner(
-			awshost.WithRunOptions(scenec2.WithAgentOptions()),
-		),
-	), e2e.WithStackName("anomalydetection-matrix-master-off"))
-}
-
-// TestMasterOffNoObserverLines guards against the observer pipeline activating
-// silently in a vanilla deployment where anomaly_detection is not configured.
-func (s *configMatrixSuite) TestMasterOffNoObserverLines() {
-	waitForAgentStartup(s)
-	time.Sleep(10 * time.Second)
-
-	out, err := s.Env().RemoteHost.ReadFilePrivileged("/var/log/datadog/agent.log")
-	assert.NoError(s.T(), err, "reading agent.log")
-	assert.NotContains(s.T(), string(out), observerReadyMarker,
-		"observer analysis pipeline must not start with default config")
-}
-
-// --- Case 2: master=on, metrics=off, logs=off ----------------------------
-
-// TestObserverConfigMatrixMasterOnBothOff verifies the observer starts but
+// TestObserverConfigMatrixMetricsOffLogsOff verifies the observer starts but
 // emits the deterministic metrics-disabled warning and no agent-logs handle.
-func TestObserverConfigMatrixMasterOnBothOff(t *testing.T) {
+func TestObserverConfigMatrixMetricsOffLogsOff(t *testing.T) {
 	// language=yaml
 	agentConfig := `
 log_level: debug
@@ -83,10 +57,10 @@ anomaly_detection:
 	), e2e.WithStackName("anomalydetection-matrix-both-off"))
 }
 
-// TestMasterOnBothOffWarningPresent guards against silent processing when both
+// TestMetricsOffLogsOffWarningPresent guards against silent processing when both
 // sub-gates are disabled. The metrics-disabled warning (observer.go:243) must
 // appear so operators can confirm the expected noop state from logs.
-func (s *configMatrixSuite) TestMasterOnBothOffWarningPresent() {
+func (s *configMatrixSuite) TestMetricsOffLogsOffWarningPresent() {
 	waitForAgentStartup(s)
 	time.Sleep(10 * time.Second)
 
@@ -99,7 +73,7 @@ func (s *configMatrixSuite) TestMasterOnBothOffWarningPresent() {
 		"agent-logs handle should not be created when agent_logs.enabled=false")
 }
 
-// --- Case 3: master=on, metrics=on, logs=off -----------------------------
+// --- Case 2: metrics=on, logs=off -----------------------------
 
 // TestObserverConfigMatrixMetricsOnLogsOff verifies the metrics path is active
 // (observer ready marker) and the agent-logs tap is not installed.
@@ -137,7 +111,7 @@ func (s *configMatrixSuite) TestMetricsOnLogsOffPaths() {
 		"agent-logs handle should not be created when agent_logs.enabled=false")
 }
 
-// --- Case 4: master=on, metrics=off, logs=on -----------------------------
+// --- Case 3: metrics=off, logs=on -----------------------------
 
 // TestObserverConfigMatrixMetricsOffLogsOn verifies the log path is active and
 // the metrics-disabled warning appears.
@@ -175,7 +149,7 @@ func (s *configMatrixSuite) TestMetricsOffLogsOnPaths() {
 	}, 2*time.Minute, 3*time.Second)
 }
 
-// --- Case 5: master=on, metrics=on, logs=on (all gates active) -----------
+// --- Case 4: all gates on -----------
 
 // TestObserverConfigMatrixAllGatesOn verifies both the metrics and log paths
 // are active simultaneously with no disabled warnings.
