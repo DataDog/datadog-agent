@@ -401,8 +401,8 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
-	istio.io/api v1.29.2-0.20260408155000-a0e4e1cbfcc5
-	istio.io/client-go v1.29.2
+	istio.io/api v1.30.0-rc.0.0.20260508191950-a283232d9647
+	istio.io/client-go v1.30.0
 	k8s.io/api v0.35.4
 	k8s.io/apiextensions-apiserver v0.35.4
 	k8s.io/apimachinery v0.35.5
