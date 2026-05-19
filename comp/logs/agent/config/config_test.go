@@ -830,7 +830,7 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithoutVector() {
 }
 
 // TestBuildEndpointsWithOPWDualShip verifies that when dual_ship=true the primary DD endpoint
-// is kept and OPW is added as an additional reliable endpoint.
+// is kept and OPW is added as an additional best-effort (unreliable) endpoint by default.
 func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWDualShip() {
 	suite.config.SetWithoutSource("api_key", "123")
 	suite.config.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
@@ -850,8 +850,26 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWDualShip() {
 	suite.Equal("opw.example.com", opwEndpoint.Host)
 	suite.Equal(8443, opwEndpoint.Port)
 	suite.True(opwEndpoint.UseSSL())
-	suite.True(opwEndpoint.IsReliable())
+	suite.False(opwEndpoint.IsReliable(), "OPW dual-ship endpoint must default to unreliable so an unhealthy OPW cannot stall delivery to Datadog")
 	suite.True(opwEndpoint.isAdditionalEndpoint)
+}
+
+// TestBuildEndpointsWithOPWDualShipReliable verifies that the dual_ship_reliable opt-in flips the
+// OPW additional endpoint to reliable mode (so OPW failures apply backpressure to the main pipeline).
+func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWDualShipReliable() {
+	suite.config.SetWithoutSource("api_key", "123")
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "https://opw.example.com:8443/")
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.dual_ship", true)
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.dual_ship_reliable", true)
+
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	suite.Require().Nil(err)
+
+	suite.Require().Len(endpoints.Endpoints, 2)
+	opwEndpoint := endpoints.Endpoints[1]
+	suite.Equal("opw.example.com", opwEndpoint.Host)
+	suite.True(opwEndpoint.IsReliable(), "dual_ship_reliable=true must make OPW a reliable additional endpoint")
 }
 
 // TestBuildEndpointsWithOPWDualShipAndAdditionalEndpoints verifies that when dual_ship=true is

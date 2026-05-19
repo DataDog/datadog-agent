@@ -1936,17 +1936,23 @@ func logsagent(config pkgconfigmodel.Setup) {
 func vector(config pkgconfigmodel.Setup) {
 	bindVectorOptions(config, Metrics)
 	bindVectorOptions(config, Logs)
+
+	// dual_ship is logs-only: there is no equivalent dual-shipping code path for metrics, so
+	// these keys live outside bindVectorOptions to avoid registering an unused metrics variant.
+	//
+	// dual_ship: when false (default), OPW replaces the primary Datadog endpoint (legacy behaviour).
+	// When true, Datadog remains the primary endpoint and OPW is added as an additional endpoint.
+	//
+	// dual_ship_reliable: when dual_ship=true, controls whether the OPW additional endpoint applies
+	// backpressure to the main pipeline on failure (true) or is best-effort (false, the default).
+	// Best-effort is the safer default: an unreachable OPW must not block delivery to Datadog.
+	config.BindEnvAndSetDefault("observability_pipelines_worker.logs.dual_ship", false)
+	config.BindEnvAndSetDefault("observability_pipelines_worker.logs.dual_ship_reliable", false)
 }
 
 func bindVectorOptions(config pkgconfigmodel.Setup, datatype string) {
 	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype), false)
 	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.url", datatype), "")
-	// dual_ship controls whether logs are sent to BOTH Datadog and OPW simultaneously.
-	// When false (default), OPW replaces the primary Datadog endpoint (legacy behaviour).
-	// When true, Datadog remains the primary endpoint and OPW is added as an additional
-	// reliable endpoint — equivalent to the user manually composing additional_endpoints
-	// with the OPW URL.
-	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.dual_ship", datatype), false)
 
 	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.enabled", datatype), false)
 	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.url", datatype), "")

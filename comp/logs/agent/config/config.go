@@ -375,13 +375,19 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 		}
 		if logsConfig.obsPipelineWorkerDualShip() {
 			// dual_ship=true: Datadog remains the primary endpoint; OPW is appended as
-			// an additional reliable endpoint. The primary DD host is resolved below via
-			// the normal logsDDURL / GetMainEndpoint path.
+			// an additional endpoint. The primary DD host is resolved below via the
+			// normal logsDDURL / GetMainEndpoint path.
+			//
+			// OPW is best-effort (unreliable) by default so that an unhealthy OPW
+			// cannot apply backpressure to the main pipeline and stall delivery to
+			// Datadog. Operators who want OPW to participate in flow control can opt
+			// in via observability_pipelines_worker.logs.dual_ship_reliable.
 			opwEndpoint := newHTTPEndpoint(logsConfig, registerCallback)
 			opwEndpoint.Host = host
 			opwEndpoint.Port = port
 			opwEndpoint.useSSL = useSSL
 			opwEndpoint.isAdditionalEndpoint = true
+			opwEndpoint.isReliable = logsConfig.obsPipelineWorkerDualShipReliable()
 			opwAdditionals = append(opwAdditionals, opwEndpoint)
 		} else {
 			// Default (legacy) behaviour: OPW replaces the primary Datadog endpoint.

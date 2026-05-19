@@ -337,6 +337,18 @@ func (l *LogsConfigKeys) obsPipelineWorkerDualShip() bool {
 	return l.getConfig().GetBool(l.getObsPipelineConfigKey("observability_pipelines_worker", "dual_ship"))
 }
 
+// obsPipelineWorkerDualShipReliable reports whether the OPW dual-ship endpoint should be treated
+// as reliable. Reliable additional endpoints apply backpressure to the main pipeline if they fail,
+// which can stall delivery to Datadog when OPW is degraded. The default is false (best-effort) so
+// that an unhealthy OPW cannot block the primary Datadog destination; operators who want OPW to
+// participate in flow control can opt in by setting this key to true.
+func (l *LogsConfigKeys) obsPipelineWorkerDualShipReliable() bool {
+	if l.vectorPrefix == "" {
+		return false
+	}
+	return l.getConfig().GetBool(l.getObsPipelineConfigKey("observability_pipelines_worker", "dual_ship_reliable"))
+}
+
 func (l *LogsConfigKeys) getObsPipelineURL() (string, bool) {
 	if l.vectorPrefix != "" {
 		configKey := l.getObsPipelineConfigKey("observability_pipelines_worker", "url")

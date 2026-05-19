@@ -14,3 +14,10 @@ features:
     without requiring users to manually compose ``logs_config.additional_endpoints``.
     The default value is ``false``, which preserves the existing behaviour where OPW
     replaces the primary Datadog endpoint.
+
+    By default the OPW destination is treated as a best-effort (unreliable) additional
+    endpoint, so an unhealthy OPW cannot apply backpressure to the main pipeline and
+    stall delivery to Datadog. Set
+    ``observability_pipelines_worker.logs.dual_ship_reliable`` to ``true`` to opt OPW
+    into reliable mode, where failures to OPW participate in flow control just like
+    the primary Datadog endpoint.
