@@ -7,6 +7,7 @@ package ccmmode
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,8 +26,10 @@ import (
 const (
 	infraModeTag               = "infra_mode:cloud_cost_only"
 	dogstatsdCustomMetric      = "e2e.ccm.dogstatsd.custom"
+	dogstatsdJMXMetric         = "e2e.ccm.jmx.metric"
 	dogstatsdFilterListAllowed = "e2e.ccm.dogstatsd.allowed"
 	dogstatsdFilterListBlocked = "e2e.ccm.blocked.by.filterlist"
+	jmxCheckNameTag            = "dd.internal.jmx_check_name:custom_e2e"
 )
 
 type ccmModeSuiteBase struct {
@@ -174,8 +177,32 @@ func (s *ccmModeSuiteBase) TestMetricFilterListAppliesInCloudCostMode() {
 
 // sendStatsdGauge sends a DogStatsD gauge metric to the agent via UDP on the remote host.
 func (s *ccmModeSuiteBase) sendStatsdGauge(name string, value int) {
-	cmd := fmt.Sprintf(`bash -c 'echo -n "%s:%d|g" > /dev/udp/127.0.0.1/8125'`, name, value)
+	s.sendStatsdGaugeWithTags(name, value, nil)
+}
+
+// sendStatsdGaugeWithTags sends a DogStatsD gauge with optional tags (DogStatsD #tag format).
+func (s *ccmModeSuiteBase) sendStatsdGaugeWithTags(name string, value int, tags []string) {
+	payload := fmt.Sprintf("%s:%d|g", name, value)
+	if len(tags) > 0 {
+		payload += "|#" + strings.Join(tags, ",")
+	}
+	cmd := fmt.Sprintf(`bash -c 'echo -n "%s" > /dev/udp/127.0.0.1/8125'`, payload)
 	s.Env().RemoteHost.MustExecute(cmd)
+}
+
+// TestDogstatsdJMXTaggedMetricForwarded verifies JMX-tagged DogStatsD metrics are forwarded in
+// cloud_cost_only mode via FromDogstatsd even when the name is not on the integration allowlist.
+func (s *ccmModeSuiteBase) TestDogstatsdJMXTaggedMetricForwarded() {
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		s.sendStatsdGaugeWithTags(dogstatsdJMXMetric, 1, []string{jmxCheckNameTag})
+
+		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(
+			dogstatsdJMXMetric,
+			client.WithMetricValueHigherThan(0),
+		)
+		assert.NoError(c, err)
+		assert.NotEmpty(c, metrics, "%s should be forwarded via JMX-tagged DogStatsD in cloud_cost_only mode", dogstatsdJMXMetric)
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for JMX-tagged DogStatsD metric on fakeintake")
 }
 
 // TestDogstatsdCustomMetricForwarded verifies DogStatsD metrics are forwarded in cloud_cost_only
