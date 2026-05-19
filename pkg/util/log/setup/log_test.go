@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -139,6 +140,10 @@ func TestBuildSlogLogger_ForwardsErrorRecord(t *testing.T) {
 
 	rec := &recordingSubmitter{}
 	RegisterErrortrackingSubmitter(rec.submit)
+	// A Bouncer must be registered alongside the Submitter: when loadBouncer
+	// is set but returns nil the handler drops the record (safe default for
+	// the Fx startup window). The production wiring registers both together.
+	RegisterErrortrackingBouncer(errortracking.NewBouncer(15*time.Minute, 0))
 
 	dir := t.TempDir()
 	ddCfg := pkgconfigsetup.Datadog()
@@ -165,7 +170,7 @@ func TestBuildSlogLogger_ForwardsErrorRecord(t *testing.T) {
 	require.Len(t, got, 1, "exactly one Error record must reach the registered Submitter")
 	require.NotZero(t, got[0].PC, "captured record must carry a call-site PC")
 	require.Greater(t, got[0].PCsLen, 0, "captured record must carry stack PCs")
-	require.Equal(t, uint32(1), got[0].Count, "default Count is 1 when no Bouncer is registered")
+	require.Equal(t, uint32(1), got[0].Count, "first sighting always has Count=1")
 }
 
 // TestBuildSlogLogger_NoForwardingWhenUnregistered asserts that the chain
