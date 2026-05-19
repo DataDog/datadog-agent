@@ -190,8 +190,8 @@ func TestSortAndDedup(t *testing.T) {
 }
 
 func TestGetList(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping test on Windows -- not implemented yet")
+	if runtime.GOOS == "windows" || runtime.GOOS == "aix" {
+		t.Skip("Skipping test on Windows/AIX -- not implemented yet")
 	}
 	var p Poller
 	pl, _, err := p.Poll()
@@ -204,8 +204,8 @@ func TestGetList(t *testing.T) {
 }
 
 func TestIgnoreLocallyBoundPorts(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping test on Windows -- not implemented yet")
+	if runtime.GOOS == "windows" || runtime.GOOS == "aix" {
+		t.Skip("Skipping test on Windows/AIX -- not implemented yet")
 	}
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -227,8 +227,8 @@ func TestIgnoreLocallyBoundPorts(t *testing.T) {
 }
 
 func TestPoller(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Skipping test on Windows -- not implemented yet")
+	if runtime.GOOS == "windows" || runtime.GOOS == "aix" {
+		t.Skip("Skipping test on Windows/AIX -- not implemented yet")
 	}
 	var p Poller
 	p.IncludeLocalhost = true
@@ -271,8 +271,8 @@ func TestPoller(t *testing.T) {
 }
 
 func TestPollerIPPopulated(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("Skipping test on macOS -- IP parsing not implemented")
+	if runtime.GOOS == "darwin" || runtime.GOOS == "aix" {
+		t.Skip("Skipping test on macOS/AIX -- IP parsing not implemented")
 	}
 	tests := []struct {
 		addr   string

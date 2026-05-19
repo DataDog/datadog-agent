@@ -193,7 +193,6 @@ stages:
   - dynamic_test
   - junit_upload
   - internal_kubernetes_deploy
-  - post_rc_build
   - check_merge
   - .post
 
@@ -269,25 +268,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v110159745-8628883e
+  CI_IMAGE_BTF_GEN: v113333454-700f46b5
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v110159745-8628883e
+  CI_IMAGE_DOCKER_X64: v113333454-700f46b5
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v110159745-8628883e
+  CI_IMAGE_DOCKER_ARM64: v113333454-700f46b5
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v110159745-8628883e
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v113333454-700f46b5
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v110159745-8628883e
+  CI_IMAGE_LINUX: v113333454-700f46b5
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v110159745-8628883e
+  CI_IMAGE_RPM_X64: v113333454-700f46b5
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v110159745-8628883e
+  CI_IMAGE_RPM_ARM64: v113333454-700f46b5
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v110159745-8628883e
+  CI_IMAGE_RPM_ARMHF: v113333454-700f46b5
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v110159745-8628883e
+  CI_IMAGE_WIN_LTSC2022_X64: v112652147-27dacf01
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v110159745-8628883e
+  CI_IMAGE_WIN_LTSC2025_X64: v112652147-27dacf01
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -326,7 +325,7 @@ variables:
   AGENT_API_KEY_ORG2: agent-api-key-org-2 # agent-devx
   AGENT_APP_KEY_ORG2: agent-app-key-org-2 # agent-devx
   AGENT_QA_E2E: agent-qa-e2e # agent-devx
-  ATLASSIAN_WRITE: atlassian-write # agent-devx
+  ATLASSIAN_WRITE: atlassian-write # agent-delivery
   CODECOV: codecov # agent-devx
   DOCKER_REGISTRY_RO: dockerhub-readonly # agent-delivery
   DYNAMIC_TESTS_BREAKGLASS: dynamic-tests-breakglass # agent-devx
@@ -493,6 +492,12 @@ variables:
 #
 workflow:
   rules:
+    - <<: *if_scheduled_main
+      variables:
+        WINDOWS_SIGNING_CERT: "s3://windows-code-signing-certificates/certs/beta/kms-signed.crt"
+        WINDOWS_SIGNING_CONFIG: "s3://windows-code-signing-certificates/certs/beta/config.json"
+        BAZEL_CACHE_POLICY_SUFFIX: "-push"
+        GO_TEST_SKIP_FLAKE: "false"
     - <<: *if_triggered_pipeline
     - <<: *if_main_branch
       variables:
@@ -580,25 +585,13 @@ workflow:
   - <<: *if_deploy
     variables:
       RELEASE_PROD: "true"
-  # TODO: Agent Delivery. We stop building all the internal images when one of them is modified.
-  # We currently have issues with internal registries because we hit the max number of images.
-  # There's currently no easy way to specify `target:none` and override this: https://github.com/DataDog/images/blob/master/datadog-agent/build_metadata.yaml#L1
-  # at runtime if we actually don't need the image to be replicated (which is the case here because
-  # we only need the image to be built to validate it's still working). This is a short-term solution to reduce
-  # the number of issues we see in production.
-  # https://datadoghq.atlassian.net/browse/BARX-1766.
-  # Several things we should/could do:
-  # 1. Be able to force the `target` annotation to `none` in this case (to discuss with dependency-management and implement in the images repository)
-  # 2. Only build the images that was modified in the PR, not all of them to reduce the amount of images.
-  # 3. There's a bug with the just-in-time replication that will be fixed once https://github.com/google/go-containerregistry/pull/2267 lands.
-  #    That will allow us to stop relying on the `target` annotation. Orchestration Systems is on it, see https://datadoghq.atlassian.net/browse/ARTM-185.
-  # - changes:
-  #     paths:
-  #       - .gitlab/deploy/internal_image_deploy/internal_image_deploy.yml
-  #       - Dockerfiles/**/*
-  #     compare_to: $COMPARE_TO_BRANCH
-  #   variables:
-  #     RELEASE_PROD: "false"
+  - changes:
+      paths:
+        - .gitlab/deploy/internal_image_deploy/internal_image_deploy.yml
+        - Dockerfiles/**/*
+      compare_to: $COMPARE_TO_BRANCH
+    variables:
+      RELEASE_PROD: "false"
   - when: manual
     allow_failure: true
     variables:
@@ -1384,7 +1377,7 @@ workflow:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
   - changes:
       paths:
-        - comp/core/gui/guiimpl/systray/**/*
+        - comp/core/gui/impl/systray/**/*
         - "**/*.m"
       compare_to: $COMPARE_TO_BRANCH
 

@@ -40,6 +40,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -142,6 +143,71 @@ func TestDemuxNoAggOptionIsDisabledByDefault(t *testing.T) {
 	demux.Stop(false)
 }
 
+func TestAddAgentStartupTelemetrySendsShutdownEventOnFinalStop(t *testing.T) {
+	demux, s := newShutdownTelemetryTestDemux(t, "hostname")
+	shutdownEventCh := make(chan *event.Event, 1)
+
+	s.On("SendEvents", mock.Anything).Return(nil).Maybe()
+	s.On("SendAgentShutdownEvent", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		shutdownEventCh <- args.Get(1).(*event.Event)
+	}).Return(nil).Once()
+
+	demux.AddAgentStartupTelemetry("7.0.0")
+	demux.Stop(true)
+
+	var shutdownEvent *event.Event
+	select {
+	case shutdownEvent = <-shutdownEventCh:
+	case <-time.After(time.Second):
+		require.FailNow(t, "timed out waiting for Agent Shutdown event")
+	}
+	require.Equal(t, "Version 7.0.0", shutdownEvent.Text)
+	require.Equal(t, "System", shutdownEvent.SourceTypeName)
+	require.Equal(t, "hostname", shutdownEvent.Host)
+	require.Equal(t, "Agent Shutdown", shutdownEvent.EventType)
+
+	s.AssertExpectations(t)
+}
+
+func TestAgentShutdownTelemetryRequiresFinalFlush(t *testing.T) {
+	demux, s := newShutdownTelemetryTestDemux(t, "hostname")
+	s.On("SendEvents", mock.Anything).Return(nil).Maybe()
+
+	demux.AddAgentStartupTelemetry("7.0.0")
+	demux.ForceFlushToSerializer(time.Now(), true)
+	demux.Stop(false)
+
+	s.AssertNotCalled(t, "SendAgentShutdownEvent", mock.Anything, mock.Anything)
+}
+
+func newShutdownTelemetryTestDemux(t *testing.T, hostname string) (*AgentDemultiplexer, *MockSerializerIterableSerie) {
+	t.Helper()
+
+	deps := createDemultiplexerAgentTestDeps(t)
+	demux := InitAndStartAgentDemultiplexer(
+		deps.Log,
+		NewForwarderTest(deps.Log),
+		deps.OrchestratorFwd,
+		demuxTestOptions(),
+		deps.EventPlatform,
+		deps.HaAgent,
+		deps.Compressor,
+		deps.Tagger,
+		deps.FilterList,
+		hostname,
+	)
+
+	s := &MockSerializerIterableSerie{}
+	s.On("AreSeriesEnabled").Return(true).Maybe()
+	s.On("AreSketchesEnabled").Return(true).Maybe()
+	s.On("SendServiceChecks", mock.Anything).Return(nil).Maybe()
+
+	demux.aggregator.serializer = s
+	demux.sharedSerializer = s
+
+	return demux, s
+}
+
 func TestMetricSampleTypeConversion(t *testing.T) {
 	require := require.New(t)
 
@@ -178,6 +244,7 @@ func TestUpdateTagFilterList(t *testing.T) {
 	require := require.New(t)
 
 	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("metric_tag_filterlist_adp_only", false)
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
 	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)
@@ -287,6 +354,7 @@ func TestUpdateTagFilterListCheckSamplerCacheInvalidation(t *testing.T) {
 	require := require.New(t)
 
 	mockConfig := configmock.New(t)
+	mockConfig.SetWithoutSource("metric_tag_filterlist_adp_only", false)
 	opts := demuxTestOptions()
 	deps := createDemultiplexerAgentTestDeps(t)
 	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)

@@ -25,6 +25,27 @@
 // (used by condition expressions which report errors via condition_eval_error).
 #define EXPR_STATUS_IDX_NONE 0xFFFFFFFF
 
+// Maximum number of iterations any single any/all loop may perform. Going
+// over this aborts the loop and sets condition_eval_error so the surrounding
+// condition reports the failure.
+//
+// Must stay in sync with ir.CollectionPredicateMaxIterations.
+#define COLLECTION_PREDICATE_MAX_ITERATIONS 4096
+
+// Maximum Swiss-map cursor-advance steps while looking for the next occupied
+// slot. Cursor advancement scans empty structural slots too, so keep this
+// separate from the visited-element cap above.
+#define COLLECTION_PREDICATE_MAX_SWISSMAP_SCAN_STEPS \
+  (COLLECTION_PREDICATE_MAX_ITERATIONS * 16)
+
+// Maximum @it scratch slot size for one iteration. Slice/array elem_size
+// and (key + 8-byte-aligned padding + val) for swiss maps must fit. Irgen
+// rejects oversized types upfront with a typed Issue; this BPF-side check
+// is defensive (we shouldn't see oversized values at runtime).
+//
+// Must stay in sync with ir.CollectionPredicateMaxElemBytes.
+#define COLLECTION_PREDICATE_MAX_ELEM_BYTES 256
+
 // expr_status_write writes a status value into the packed expression status
 // array for the given expression index.
 static __always_inline void expr_status_write(
@@ -605,6 +626,308 @@ sm_resolve_go_any_type(global_ctx_t* global_ctx, resolved_go_any_type_t* r) {
   r->has_info = true;
   r->info = *info;
   return true;
+}
+
+static inline __attribute__((always_inline)) bool
+sm_resolve_go_empty_interface_at(target_ptr_t iface_addr,
+                                 resolved_go_interface_t* res) {
+  res->addr = 0;
+  res->go_runtime_type = 0;
+  if (iface_addr == 0) {
+    return true;
+  }
+  target_ptr_t type_addr = 0;
+  if (bpf_probe_read_user(&type_addr, sizeof(target_ptr_t),
+                          (void*)(iface_addr +
+                                  OFFSET_runtime_dot_eface___type))) {
+    return false;
+  }
+  if (bpf_probe_read_user(&res->addr, sizeof(target_ptr_t),
+                          (void*)(iface_addr +
+                                  OFFSET_runtime_dot_eface__data))) {
+    return false;
+  }
+  if (type_addr == 0) {
+    return true;
+  }
+  res->go_runtime_type = go_runtime_type_from_ptr(type_addr);
+  return true;
+}
+
+static inline __attribute__((always_inline)) bool
+sm_resolve_go_interface_at(target_ptr_t iface_addr,
+                           resolved_go_interface_t* res) {
+  res->addr = 0;
+  res->go_runtime_type = 0;
+  if (iface_addr == 0) {
+    return true;
+  }
+  target_ptr_t itab = 0;
+  if (bpf_probe_read_user(&itab, sizeof(target_ptr_t),
+                          (void*)(iface_addr +
+                                  OFFSET_runtime_dot_iface__tab))) {
+    return false;
+  }
+  if (bpf_probe_read_user(&res->addr, sizeof(target_ptr_t),
+                          (void*)(iface_addr +
+                                  OFFSET_runtime_dot_iface__data))) {
+    return false;
+  }
+  if (itab == 0) {
+    return true;
+  }
+  target_ptr_t type_addr = 0;
+  if (bpf_probe_read_user(&type_addr, sizeof(target_ptr_t),
+                          (void*)(itab +
+                                  OFFSET_runtime_dot_itab___type))) {
+    return false;
+  }
+  res->go_runtime_type = go_runtime_type_from_ptr(type_addr);
+  return true;
+}
+
+static inline __attribute__((always_inline)) uint64_t
+sm_read_be64(const uint8_t* data) {
+  return ((uint64_t)data[0] << 56) |
+         ((uint64_t)data[1] << 48) |
+         ((uint64_t)data[2] << 40) |
+         ((uint64_t)data[3] << 32) |
+         ((uint64_t)data[4] << 24) |
+         ((uint64_t)data[5] << 16) |
+         ((uint64_t)data[6] << 8) |
+         (uint64_t)data[7];
+}
+
+// sm_extract_ddtrace_span reads dd-trace span fields out of a span struct in
+// user memory and writes them into the caller-provided trace_context_t. The
+// destination lives in the synthetic data item's payload at
+// sm->go_context_walk.data_item_offset.
+//
+// Returns true iff a non-empty span was found (at least one of
+// trace_id_lower, trace_id_upper, span_id is non-zero) — which sets
+// *trace->valid = 1 as a side effect. parent_id is not part of the gate
+// because root spans legitimately have parent_id == 0.
+static inline __attribute__((always_inline)) bool
+sm_extract_ddtrace_span(target_ptr_t span_addr,
+                        const type_info_t* span_info,
+                        trace_context_t* trace) {
+  if (span_addr == 0 || span_info == NULL ||
+      span_info->ddtrace_span_kind == 0 || trace == NULL) {
+    return false;
+  }
+
+  uint64_t span_id = 0;
+  uint64_t parent_id = 0;
+  uint64_t trace_id_lower = 0;
+  uint64_t trace_id_upper = 0;
+
+  if (span_info->ddtrace_span_id_offset >= 0) {
+    bpf_probe_read_user(&span_id, sizeof(span_id),
+                        (void*)(span_addr +
+                                span_info->ddtrace_span_id_offset));
+  }
+  if (span_info->ddtrace_parent_id_offset >= 0) {
+    bpf_probe_read_user(&parent_id, sizeof(parent_id),
+                        (void*)(span_addr +
+                                span_info->ddtrace_parent_id_offset));
+  }
+  if (span_info->ddtrace_trace_id_offset >= 0) {
+    bpf_probe_read_user(&trace_id_lower, sizeof(trace_id_lower),
+                        (void*)(span_addr +
+                                span_info->ddtrace_trace_id_offset));
+  }
+
+  if (span_info->ddtrace_span_context_offset >= 0 &&
+      span_info->ddtrace_span_context_trace_id_offset >= 0) {
+    target_ptr_t span_context = 0;
+    if (!bpf_probe_read_user(&span_context, sizeof(span_context),
+                             (void*)(span_addr +
+                                     span_info->ddtrace_span_context_offset)) &&
+        span_context != 0) {
+      uint8_t trace_id[16] = {};
+      if (!bpf_probe_read_user(trace_id, sizeof(trace_id),
+                               (void*)(span_context +
+                                       span_info->ddtrace_span_context_trace_id_offset))) {
+        trace_id_upper = sm_read_be64(trace_id);
+        trace_id_lower = sm_read_be64(trace_id + 8);
+      }
+    }
+  }
+
+  if (span_id == 0 && trace_id_lower == 0 && trace_id_upper == 0) {
+    return false;
+  }
+  trace->trace_id_lower = trace_id_lower;
+  trace->trace_id_upper = trace_id_upper;
+  trace->span_id = span_id;
+  trace->parent_id = parent_id;
+  trace->valid = 1;
+  return true;
+}
+
+// sm_maybe_extract_ddtrace_span_from_value_ctx tests whether the given
+// context.valueCtx's key is the dd-trace active-span key; if so, it extracts
+// the span fields from the value and writes them into trace.
+static inline __attribute__((always_inline)) bool
+sm_maybe_extract_ddtrace_span_from_value_ctx(target_ptr_t value_ctx_addr,
+                                             const type_info_t* context_info,
+                                             trace_context_t* trace) {
+  if (context_info->go_context_key_offset < 0 ||
+      context_info->go_context_value_offset < 0) {
+    return false;
+  }
+
+  // Read the valueCtx's value (an `any`) directly. Historically we also
+  // checked the key's runtime type for a ddtrace_active_span_key marker
+  // here, but the dd-trace `internal.contextKey` struct is unexported and
+  // zero-byte; the Go compiler often elides its runtime type, so we can't
+  // detect the key reliably. Instead we rely on the value's IR type being
+  // a known dd-trace span (ddtrace_span_kind != 0), which
+  // sm_extract_ddtrace_span checks. Other valueCtxs that store
+  // non-span values just fail that check and we keep walking.
+  resolved_go_interface_t val = {};
+  if (!sm_resolve_go_empty_interface_at(
+          value_ctx_addr + context_info->go_context_value_offset, &val)) {
+    return false;
+  }
+  type_t val_type = lookup_go_interface(val.go_runtime_type);
+  if (val_type == 0) {
+    return false;
+  }
+  const type_info_t* val_info = NULL;
+  if (!get_type_info(val_type, &val_info)) {
+    return false;
+  }
+  return sm_extract_ddtrace_span(val.addr, val_info, trace);
+}
+
+// MAX_GO_CONTEXT_DEPTH bounds the number of links the chain walk traverses
+// before giving up. Mirrored as the depth_remaining seed in
+// SM_OP_GO_CONTEXT_CHAIN_INIT.
+#define MAX_GO_CONTEXT_DEPTH 32
+
+// sm_go_context_chain_init is the body of SM_OP_GO_CONTEXT_CHAIN_INIT,
+// factored into a noinline subprog so its stack frame is not added to
+// sm_loop's. Takes scratch_buf_t* and stack_machine_t* directly (rather
+// than global_ctx_t*) so the verifier doesn't conservatively assume the
+// callee may scribble on the caller's stack via the ctx pointer — that
+// pessimism breaks bpf_loop callers' map-value spills. Returns 1 on
+// failure (caller propagates), 0 on success.
+__attribute__((noinline)) int
+sm_go_context_chain_init(scratch_buf_t* buf, stack_machine_t* sm,
+                         uint32_t impl_ir_type) {
+  // Global-function args are typed as mem_or_null; null-check before
+  // dereferencing so the verifier accepts loads through them.
+  if (!buf || !sm) {
+    return 1;
+  }
+  buf_offset_t hdr_off = sm->offset - sizeof(di_data_item_header_t);
+  if (!scratch_buf_bounds_check(&hdr_off, sizeof(di_data_item_header_t))) {
+    return 1;
+  }
+  di_data_item_header_t* hdr =
+      (di_data_item_header_t*)&(*buf)[hdr_off];
+  // Both callsites (struct-typed enqueue from interface implementor walk,
+  // and pointer-typed enqueue from interface chase) stamp the data item's
+  // address field with the implementation struct's user-memory pointer,
+  // which is exactly what the chain walk's first hop needs. Use it
+  // directly. The decoder's address-keyed fallback (looking up
+  // dataItems[(traceContextTypeID, inline_data_ptr)]) finds this item by
+  // matching the inline interface header's data pointer to this address.
+  target_ptr_t impl_addr = sm->di_0.address;
+  hdr->type = trace_context_type_id;
+  if (!scratch_buf_bounds_check(&sm->offset, sizeof(trace_context_t))) {
+    return 1;
+  }
+  __builtin_memset(&(*buf)[sm->offset], 0, sizeof(trace_context_t));
+  sm->go_context_walk.current.addr = impl_addr;
+  sm->go_context_walk.current.go_runtime_type = 0;
+  sm->go_context_walk.current_ir_type = impl_ir_type;
+  sm->go_context_walk.depth_remaining = MAX_GO_CONTEXT_DEPTH;
+  sm->go_context_walk.data_item_offset = sm->offset;
+  sm->go_context_walk.done = 0;
+  return 0;
+}
+
+// sm_go_context_chain_hop is the body of SM_OP_GO_CONTEXT_CHAIN_HOP,
+// factored into a noinline subprog. Performs one chain step. On success,
+// rewinds sm->pc by 1 (so the dispatcher re-reads the HOP opcode on the
+// next sm_loop iteration). Sets done=1 on any termination path. Returns 1
+// on a bounds-check failure (caller propagates), 0 otherwise. Same
+// signature shape as sm_go_context_chain_init — see comment there.
+__attribute__((noinline)) int
+sm_go_context_chain_hop(scratch_buf_t* buf, stack_machine_t* sm) {
+  // Global-function args are typed as mem_or_null; null-check before
+  // dereferencing so the verifier accepts loads through them.
+  if (!buf || !sm) {
+    return 1;
+  }
+  if (sm->go_context_walk.done) {
+    return 0;
+  }
+  if (sm->go_context_walk.depth_remaining == 0) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  if (sm->go_context_walk.current.addr == 0) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  type_t ir_type;
+  if (sm->go_context_walk.current_ir_type != 0) {
+    ir_type = (type_t)sm->go_context_walk.current_ir_type;
+    sm->go_context_walk.current_ir_type = 0;
+  } else {
+    ir_type = lookup_go_interface(
+        sm->go_context_walk.current.go_runtime_type);
+  }
+  if (ir_type == 0) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  const type_info_t* info = NULL;
+  if (!get_type_info(ir_type, &info) ||
+      info->go_context_is_context == 0) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  buf_offset_t dst_off = sm->go_context_walk.data_item_offset;
+  if (!scratch_buf_bounds_check(&dst_off, sizeof(trace_context_t))) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  trace_context_t* dst = (trace_context_t*)&(*buf)[dst_off];
+  if (sm_maybe_extract_ddtrace_span_from_value_ctx(
+          sm->go_context_walk.current.addr, info, dst)) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  if (info->go_context_context_offset < 0) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  // Resolve directly into the walk state's `current` slot — no stack local.
+  // The validity check below distinguishes "successfully advanced" from
+  // "nil/invalid"; the in-place write is fine because either we keep
+  // walking with the new value or we set done=1.
+  target_ptr_t next_iface_addr =
+      sm->go_context_walk.current.addr + info->go_context_context_offset;
+  if (!sm_resolve_go_interface_at(next_iface_addr,
+                                  &sm->go_context_walk.current)) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  if (sm->go_context_walk.current.addr == 0 ||
+      sm->go_context_walk.current.go_runtime_type == 0 ||
+      sm->go_context_walk.current.go_runtime_type == (uint64_t)(-1)) {
+    sm->go_context_walk.done = 1;
+    return 0;
+  }
+  sm->go_context_walk.depth_remaining--;
+  // Self-jump: rewind PC by one byte so the dispatcher re-reads this HOP
+  // opcode on the next sm_loop iteration. Must be done last.
+  sm->pc -= 1;
+  return 0;
 }
 
 // inline __attribute__((always_inline)) bool sm_record_go_context_value(
@@ -2063,6 +2386,512 @@ sm_swiss_map_aese(stack_machine_t* sm) {
   return 0;
 }
 
+// SM_OP_PROCESS_GO_TIME: read (wall, ext, loc) from the captured
+// time.Time at base_offset, then chase the *time.Location cache fast
+// path to resolve a UTC offset. Marked noinline so its stack frame is
+// isolated from sm_loop (BPF verifier's combined-call stack budget is
+// ~512 B). Two pairs of u32 params are packed into u64s to fit within
+// BPF's 5-argument-register limit; the kernel/verifier expose this as
+// a normal call once frames are accounted separately.
+//
+// Returns the resolved offset in seconds east of UTC, or INT64_MIN as
+// the sentinel for "could not resolve" (cache disabled, nil loc, miss,
+// or probe_read failure).
+__attribute__((noinline)) int64_t
+sm_resolve_time_offset(scratch_buf_t* buf, buf_offset_t base_offset,
+                       uint64_t wall_ext_loc_off,
+                       uint64_t cache_starts_off,
+                       uint64_t zone_off_and_size_and_flag) {
+  const int64_t sentinel = (int64_t)((uint64_t)1 << 63);
+  if (!buf) return sentinel;
+  uint8_t cache_resolved = (uint8_t)(zone_off_and_size_and_flag >> 56);
+  if (!cache_resolved) return sentinel;
+
+  uint32_t wall_off = (uint32_t)wall_ext_loc_off;
+  uint32_t ext_off = (uint32_t)(wall_ext_loc_off >> 32);
+  uint32_t loc_off = (uint32_t)cache_starts_off;
+  uint32_t cache_start_off = (uint32_t)(cache_starts_off >> 32);
+
+  buf_offset_t s = base_offset + wall_off;
+  if (!scratch_buf_bounds_check(&s, sizeof(uint64_t))) return sentinel;
+  uint64_t wall = *(uint64_t*)&((*buf)[s]);
+  s = base_offset + ext_off;
+  if (!scratch_buf_bounds_check(&s, sizeof(int64_t))) return sentinel;
+  int64_t ext = *(int64_t*)&((*buf)[s]);
+  s = base_offset + loc_off;
+  if (!scratch_buf_bounds_check(&s, sizeof(target_ptr_t))) return sentinel;
+  target_ptr_t loc_ptr = *(target_ptr_t*)&((*buf)[s]);
+  if (loc_ptr == 0) return sentinel;
+
+  // Recover Unix seconds via the same arithmetic as time.Time.sec() /
+  // time.Time.unixSec() in src/time/time.go.
+  const int64_t WALL_TO_INTERNAL = 59453308800LL;   // 1884 → year 1
+  const int64_t INTERNAL_TO_UNIX = -62135596800LL;  // year 1 → 1970
+  int64_t sec = ((wall & ((uint64_t)1 << 63)) != 0)
+      ? WALL_TO_INTERNAL + (int64_t)((wall << 1) >> 31)
+      : ext;
+  int64_t unix_sec = sec + INTERNAL_TO_UNIX;
+
+  int64_t window = 0;
+  if (bpf_probe_read_user(&window, sizeof(window),
+                          (void*)(loc_ptr + cache_start_off)) != 0) {
+    return sentinel;
+  }
+  if (unix_sec < window) return sentinel;
+
+  // The remaining params are packed in zone_off_and_size_and_flag:
+  //   bits  0..15: cache_end_off (uint16 — offsets within a Go struct
+  //                fit comfortably in 16 bits)
+  //   bits 16..31: cache_zone_off
+  //   bits 32..47: zone_offset_field_off
+  //   bits 48..55: zone_offset_field_size (1, 4, or 8)
+  //   bits 56..63: cache_resolved (1 bit, in the high byte)
+  // The irgen-side encoder asserts each value fits in its allotted
+  // width; if a future Go layout ever needs a wider offset we'll
+  // promote the encoding.
+  uint32_t cache_end_off = (uint32_t)(zone_off_and_size_and_flag & 0xFFFF);
+  uint32_t cache_zone_off = (uint32_t)((zone_off_and_size_and_flag >> 16) & 0xFFFF);
+  uint32_t zone_offset_field_off =
+      (uint32_t)((zone_off_and_size_and_flag >> 32) & 0xFFFF);
+  uint8_t zone_offset_field_size =
+      (uint8_t)((zone_off_and_size_and_flag >> 48) & 0xFF);
+
+  if (bpf_probe_read_user(&window, sizeof(window),
+                          (void*)(loc_ptr + cache_end_off)) != 0) {
+    return sentinel;
+  }
+  if (unix_sec >= window) return sentinel;
+
+  target_ptr_t cache_zone = 0;
+  if (bpf_probe_read_user(&cache_zone, sizeof(cache_zone),
+                          (void*)(loc_ptr + cache_zone_off)) != 0) {
+    return sentinel;
+  }
+  if (cache_zone == 0) return sentinel;
+
+  int64_t resolved = sentinel;
+  if (zone_offset_field_size == 8) {
+    if (bpf_probe_read_user(&resolved, 8,
+                            (void*)(cache_zone +
+                                    zone_offset_field_off)) != 0) {
+      resolved = sentinel;
+    }
+  } else if (zone_offset_field_size == 4) {
+    int32_t v = 0;
+    if (bpf_probe_read_user(&v, 4,
+                            (void*)(cache_zone +
+                                    zone_offset_field_off)) == 0) {
+      resolved = (int64_t)v;
+    }
+  }
+  return resolved;
+}
+
+
+// Loop-helper return codes.
+//   0 = ok, body should run; sm->offset == it_start
+//   1 = loop done (empty / short-circuited); sm->offset == accumulator_off
+//   3 = loop done with eval_error armed; caller should sm_return so the
+//       surrounding ConditionCheck doesn't clear the flag
+//  -1 = fatal error; caller should `return 1` from sm_loop
+
+// Reads `len` bytes from user memory at addr into scratch at offset.
+// Thin wrapper around scratch_buf_dereference: that helper already
+// dispatches to noinline per-size-class functions (64/256/1024/4096/
+// 8192) which is the established verifier-friendly pattern in this
+// codebase. We mirror its `nonzero return = ok` convention by
+// translating `true`->0, `false`->-1 so callers can compare to 0.
+__attribute__((always_inline)) static long
+sm_read_user_into_scratch(scratch_buf_t* buf, buf_offset_t off,
+                          target_ptr_t addr, uint32_t len) {
+  return scratch_buf_dereference(buf, off, len, addr) ? 0 : -1;
+}
+
+// sm_slice_loop_begin: global noinline impl of SM_OP_SLICE_LOOP_BEGIN.
+// Isolated from sm_loop so the verifier evaluates it independently.
+// All inputs come from sm->slice_loop_state which callers populate before
+// invoking (data_ptr / initial_len / elem_size / quantifier).
+// This avoids the BPF 5-arg limit.
+__attribute__((noinline)) int
+sm_slice_loop_begin(scratch_buf_t* buf, stack_machine_t* sm) {
+  if (!buf || !sm) return -1;
+  uint32_t elem_size = sm->slice_loop_state.elem_size;
+  target_ptr_t data_ptr = sm->slice_loop_state.data_ptr;
+  uint64_t len = sm->slice_loop_state.initial_len;
+  uint8_t quantifier = sm->slice_loop_state.quantifier;
+  if (elem_size == 0 || elem_size > COLLECTION_PREDICATE_MAX_ELEM_BYTES) {
+    LOG(1, "slice_loop_begin: invalid elem_size %d", elem_size);
+    sm->condition_eval_error = true;
+    return -1;
+  }
+  // Cap large collections to MAX_ITERATIONS. We don't trip eval_error
+  // upfront here because the body may still short-circuit before reaching
+  // the cap; the end op trips eval_error only if iteration exhausts the
+  // capped count without a short-circuit result.
+  uint64_t initial_len = len;
+  if (initial_len > COLLECTION_PREDICATE_MAX_ITERATIONS) {
+    len = COLLECTION_PREDICATE_MAX_ITERATIONS;
+  }
+  buf_offset_t accumulator_off = sm->offset;
+  buf_offset_t it_start = accumulator_off + 1;
+  // Layout: [accumulator: 1][@it: elem_size, ≤256][body scratch: ≤16 for cmp].
+  if (!scratch_buf_bounds_check(&accumulator_off, 1 + COLLECTION_PREDICATE_MAX_ELEM_BYTES + 16)) {
+    sm->condition_eval_error = true;
+    return -1;
+  }
+  (*buf)[accumulator_off] = (quantifier == 2 /* All */) ? 1 : 0;
+
+  if (len == 0) {
+    sm->offset = accumulator_off;
+    return 1; // jump to end
+  }
+
+  sm->slice_loop_state.data_ptr = data_ptr;
+  sm->slice_loop_state.remaining = (uint32_t)len;
+  sm->slice_loop_state.accumulator_off = accumulator_off;
+  sm->slice_loop_state.elem_size = elem_size;
+  sm->slice_loop_state.capped = (initial_len > COLLECTION_PREDICATE_MAX_ITERATIONS);
+  sm->cur_loop_it_start = it_start;
+
+  if (!scratch_buf_bounds_check(&it_start, COLLECTION_PREDICATE_MAX_ELEM_BYTES)) {
+    sm->condition_eval_error = true;
+    return -1;
+  }
+  long rd = sm_read_user_into_scratch(buf, it_start, data_ptr, elem_size);
+  if (rd != 0) {
+    sm->condition_eval_error = true;
+    sm->condition_nil_deref = true;
+    sm->offset = accumulator_off;
+    return 3;
+  }
+  sm->offset = it_start;
+  return 0;
+}
+
+// sm_slice_loop_end: global noinline impl of SM_OP_SLICE_LOOP_END.
+// Return codes match the shared "Loop-helper return codes" convention
+// defined above sm_slice_loop_begin.
+__attribute__((noinline)) int
+sm_slice_loop_end(scratch_buf_t* buf, stack_machine_t* sm) {
+  if (!buf || !sm) return -1;
+  uint8_t quantifier = sm->slice_loop_state.quantifier;
+  uint32_t elem_size = sm->slice_loop_state.elem_size;
+  if (elem_size == 0 || elem_size > COLLECTION_PREDICATE_MAX_ELEM_BYTES) {
+    LOG(1, "slice_loop_end: invalid stashed elem_size %u", elem_size);
+    sm->condition_eval_error = true;
+    return -1;
+  }
+  buf_offset_t accumulator_off = sm->slice_loop_state.accumulator_off;
+  target_ptr_t data_ptr = sm->slice_loop_state.data_ptr;
+  uint32_t remaining = sm->slice_loop_state.remaining;
+
+  buf_offset_t result_off = sm->offset;
+  if (!scratch_buf_bounds_check(&result_off, 1)) {
+    sm->condition_eval_error = true;
+    return -1;
+  }
+  uint8_t body_result = (*buf)[result_off];
+
+  // No explicit eval-error handling here: a body op that faults (nil
+  // deref / OOB) calls sm_return, unwinding the enclosing condition's
+  // SM function before this end op ever runs. condition_eval_error is
+  // already set on that path, surfaces in the event header, and the
+  // probe reports the error. The end op only runs on clean bodies.
+
+  bool exit_loop = false;
+  uint8_t exit_value = 0;
+  if (quantifier == 1 /* Any */) {
+    if (body_result != 0) { exit_loop = true; exit_value = 1; }
+  } else {
+    if (body_result == 0) { exit_loop = true; exit_value = 0; }
+  }
+
+  if (exit_loop || remaining <= 1) {
+    buf_offset_t acc_buf_off = accumulator_off;
+    if (scratch_buf_bounds_check(&acc_buf_off, 1)) {
+      if (exit_loop) {
+        (*buf)[acc_buf_off] = exit_value;
+      }
+    }
+    sm->offset = accumulator_off;
+    // If we exhausted the capped iteration budget without a short-circuit
+    // result, the answer is inconclusive: trip eval_error and tell the
+    // dispatcher to sm_return so the surrounding ConditionCheck doesn't
+    // clear the flag.
+    if (!exit_loop && sm->slice_loop_state.capped) {
+      sm->condition_eval_error = true;
+      return 3;
+    }
+    return 1;
+  }
+
+  data_ptr += elem_size;
+  remaining -= 1;
+  sm->slice_loop_state.data_ptr = data_ptr;
+  sm->slice_loop_state.remaining = remaining;
+
+  buf_offset_t it_start = (buf_offset_t)accumulator_off + 1;
+  if (!scratch_buf_bounds_check(&it_start, COLLECTION_PREDICATE_MAX_ELEM_BYTES)) {
+    sm->condition_eval_error = true;
+    return -1;
+  }
+  long rd = sm_read_user_into_scratch(buf, it_start, data_ptr, elem_size);
+  if (rd != 0) {
+    sm->condition_eval_error = true;
+    sm->condition_nil_deref = true;
+    sm->offset = accumulator_off;
+    return 3;
+  }
+  sm->offset = it_start;
+  return 0;
+}
+
+// sm_swissmap_step: advances the iteration cursor by a single step.
+//
+// Returns:
+//   1  = occupied slot found; @it scratch populated; cursor past this slot
+//   2  = made progress but no slot yet (empty group / empty dir entry /
+//        aliased table); caller should call again
+//   0  = exhausted (table_idx >= dir_len)
+//  -1  = fatal read error
+//
+// Splitting this into a single-step function keeps verifier path
+// complexity bounded — each call is one short linear flow.
+// sm_swissmap_step_advance: single step that doesn't read the slot
+// (returns 2 = continue, 0 = exhausted, -1 = error, 3 = slot ready).
+// Reading the slot is split into a separate function to keep stack use
+// per noinline function under the BPF combined-stack budget.
+__attribute__((noinline)) int
+sm_swissmap_step_advance(scratch_buf_t* buf, stack_machine_t* sm) {
+  if (!buf || !sm) return -1;
+  #define ST sm->swissmap_loop_state
+  if (ST.table_idx >= ST.dir_len) {
+    return 0;
+  }
+  if (!ST.loaded_table) {
+    if (bpf_probe_read_user(&ST.tmp_table_ptr, 8,
+                            (void*)(ST.dir_ptr + (target_ptr_t)ST.table_idx * 8)) != 0) {
+      return -1;
+    }
+    if (ST.tmp_table_ptr == 0 || ST.tmp_table_ptr == ST.prev_table_ptr) {
+      ST.table_idx++;
+      ST.group_idx = 0;
+      ST.slot_idx = 0;
+      return 2;
+    }
+    ST.prev_table_ptr = ST.tmp_table_ptr;
+    ST.tmp_table_ptr += ST.table_groups_field_offset;
+    if (bpf_probe_read_user(&ST.groups_data, 8,
+                            (void*)(ST.tmp_table_ptr + ST.groups_data_field_offset)) != 0) {
+      return -1;
+    }
+    if (bpf_probe_read_user(&ST.length_mask, 8,
+                            (void*)(ST.tmp_table_ptr + ST.groups_len_mask_field_offset)) != 0) {
+      return -1;
+    }
+    ST.loaded_table = 1;
+    ST.group_idx = 0;
+    ST.slot_idx = 0;
+    return 2;
+  }
+  if ((uint64_t)ST.group_idx > ST.length_mask) {
+    ST.table_idx++;
+    ST.loaded_table = 0;
+    return 2;
+  }
+  if (ST.slot_idx == 0) {
+    if (bpf_probe_read_user(&ST.ctrl, 8,
+                            (void*)(ST.groups_data +
+                                    (target_ptr_t)ST.group_idx * ST.group_byte_size +
+                                    ST.ctrl_offset)) != 0) {
+      return -1;
+    }
+  }
+  #pragma unroll
+  for (int s = 0; s < 8; s++) {
+    if (s < ST.slot_idx) continue;
+    if (((ST.ctrl >> (s * 8)) & 0x80) == 0) {
+      ST.slot_idx = (uint8_t)s; // remember which slot we found
+      return 3;
+    }
+  }
+  ST.group_idx++;
+  ST.slot_idx = 0;
+  return 2;
+  #undef ST
+}
+
+// sm_swissmap_read_current_slot: read (key, value) for the slot currently
+// pointed to by ST.slot_idx into @it scratch, then advance slot_idx so
+// the next step skips this slot. Returns 0 on success, -1 on error.
+__attribute__((noinline)) int
+sm_swissmap_read_current_slot(scratch_buf_t* buf, stack_machine_t* sm) {
+  if (!buf || !sm) return -1;
+  #define ST sm->swissmap_loop_state
+  uint32_t key_size = ST.key_byte_size;
+  uint32_t val_size = ST.val_byte_size;
+  // Go's swiss-map runtime stores keys/values >128 bytes out-of-line as
+  // pointers, so inline key_size and val_size are each at most 128. Irgen
+  // also verifies that key + 8-byte-aligned key padding + val fits in the
+  // overall scratch budget. The per-component check below is defensive.
+  if (key_size == 0 || key_size > 128 || val_size == 0 || val_size > 128) {
+    return -1;
+  }
+  uint32_t val_off_in_it = (key_size + 7) & 0x7F8u;
+  buf_offset_t it_start = (ST.accumulator_off & 0x3FFFu) + 1;
+  if (!scratch_buf_bounds_check(&it_start, 512)) {
+    return -1;
+  }
+  target_ptr_t slot_base = ST.groups_data +
+                           (target_ptr_t)ST.group_idx * ST.group_byte_size +
+                           ST.slots_offset +
+                           (target_ptr_t)ST.slot_idx * ST.slot_size;
+  if (sm_read_user_into_scratch(buf, it_start,
+                                slot_base + ST.key_in_slot_offset, key_size) != 0) {
+    return -1;
+  }
+  if (sm_read_user_into_scratch(buf, it_start + val_off_in_it,
+                                slot_base + ST.val_in_slot_offset, val_size) != 0) {
+    return -1;
+  }
+  ST.slot_idx++;
+  return 0;
+  #undef ST
+}
+
+// sm_swissmap_step: single-step that returns 1=slot ready (key+value
+// materialised into @it), 2=keep stepping, 0=exhausted, -1=error.
+__attribute__((always_inline)) static int
+sm_swissmap_step(scratch_buf_t* buf, stack_machine_t* sm) {
+  int r = sm_swissmap_step_advance(buf, sm);
+  if (r != 3) return r;
+  return sm_swissmap_read_current_slot(buf, sm) < 0 ? -1 : 1;
+}
+
+// sm_swissmap_loop_init: noinline impl of the init half of
+// SM_OP_SWISS_MAP_LOOP_BEGIN. Initialises the accumulator, reads dir_ptr /
+// dir_len from the in-scratch map header, and seeds the iteration cursor.
+// Does NOT perform the first cursor advance — the SM_OP handler drives the
+// advance via single-step calls to sm_swissmap_step plus `sm->pc -=` retry,
+// rather than via a C `for` loop that the BPF verifier would unroll
+// concretely.
+//
+// Return codes:
+//   0 = init OK, caller should step the cursor next
+//   1 = nil map, caller should jump to end_label
+//  -1 = fatal error; caller sm_returns
+__attribute__((noinline)) int
+sm_swissmap_loop_init(scratch_buf_t* buf, stack_machine_t* sm) {
+  if (!buf || !sm) return -1;
+  #define ST sm->swissmap_loop_state
+  buf_offset_t accumulator_off = sm->offset;
+  buf_offset_t it_start = accumulator_off + 1;
+  // Bound the layout: 1 accumulator + up to 256 @it + 16 result.
+  if (!scratch_buf_bounds_check(&accumulator_off, 1 + COLLECTION_PREDICATE_MAX_ELEM_BYTES + 16)) {
+    sm->condition_eval_error = true;
+    return -1;
+  }
+  (*buf)[accumulator_off] = (ST.quantifier == 2 /* All */) ? 1 : 0;
+  ST.accumulator_off = accumulator_off;
+  sm->cur_loop_it_start = it_start;
+
+  // The map header sits in scratch starting at accumulator_off (the
+  // preceding DereferenceOp placed it there before we overwrote byte 0
+  // with the accumulator). The Go runtime swiss-map header has `used`
+  // at offset 0, so dir_ptr_offset is always >= 8; the accumulator byte
+  // we wrote doesn't alias the dir_ptr / dir_len fields. We still check
+  // dir_ptr_offset >= 1 defensively.
+  if (ST.dir_ptr_offset < 1) {
+    LOG(1, "swissmap_loop_init: dir_ptr_offset (%u) < 1; would alias accumulator",
+        ST.dir_ptr_offset);
+    sm->condition_eval_error = true;
+    return -1;
+  }
+  target_ptr_t dir_ptr = *(target_ptr_t*)(&(*buf)[accumulator_off + ST.dir_ptr_offset]);
+  uint64_t dir_len = *(uint64_t*)(&(*buf)[accumulator_off + ST.dir_len_offset]);
+
+  LOG(4, "swissmap_loop_init: dir_ptr=0x%llx dir_len=%llu", dir_ptr, dir_len);
+
+  // Always reset the cap counters on a fresh init so a previous probe's
+  // state can't leak into this one.
+  ST.iterations = 0;
+  ST.scan_steps = 0;
+
+  if (dir_ptr == 0) {
+    sm->offset = accumulator_off;
+    return 1; // nil map
+  }
+
+  ST.dir_ptr = dir_ptr;
+  ST.prev_table_ptr = 0;
+  ST.ctrl = 0;
+  ST.table_idx = 0;
+  ST.group_idx = 0;
+  ST.slot_idx = 0;
+
+  if (dir_len == 0) {
+    // Single-group mode: dirPtr points directly at one group (not a
+    // dir of *table pointers). Bypass the table-load step by pretending
+    // we've already loaded a table whose groups_data == dir_ptr and
+    // whose length_mask == 0 (exactly one group). dir_len = 1 makes
+    // the table loop terminate after that single iteration.
+    ST.dir_len = 1;
+    ST.groups_data = dir_ptr;
+    ST.length_mask = 0;
+    ST.loaded_table = 1;
+  } else {
+    ST.dir_len = (uint32_t)dir_len;
+    ST.groups_data = 0;
+    ST.length_mask = 0;
+    ST.loaded_table = 0;
+  }
+  sm->offset = it_start;
+  return 0;
+  #undef ST
+}
+
+// sm_swissmap_loop_short_circuit_check: noinline impl of the body-result
+// check half of SM_OP_SWISS_MAP_LOOP_END. Reads the predicate body's bool
+// result at sm->offset and decides whether the surrounding any/all loop
+// should short-circuit.
+//
+// Return codes:
+//   0 = no short-circuit, caller should advance the cursor next
+//   1 = short-circuit (accumulator overwritten with exit_value); caller
+//       should jump to end_label
+//  -1 = fatal error; caller sm_returns
+__attribute__((noinline)) int
+sm_swissmap_loop_short_circuit_check(scratch_buf_t* buf, stack_machine_t* sm) {
+  if (!buf || !sm) return -1;
+  #define ST sm->swissmap_loop_state
+  buf_offset_t accumulator_off = ST.accumulator_off;
+
+  buf_offset_t result_off = sm->offset;
+  if (!scratch_buf_bounds_check(&result_off, 1)) {
+    return -1;
+  }
+  uint8_t body_result = (*buf)[result_off];
+
+  bool exit_loop = false;
+  uint8_t exit_value = 0;
+  if (ST.quantifier == 1 /* Any */) {
+    if (body_result != 0) { exit_loop = true; exit_value = 1; }
+  } else {
+    if (body_result == 0) { exit_loop = true; exit_value = 0; }
+  }
+
+  if (exit_loop) {
+    buf_offset_t acc_buf_off = accumulator_off;
+    if (scratch_buf_bounds_check(&acc_buf_off, 1)) {
+      (*buf)[acc_buf_off] = exit_value;
+    }
+    sm->offset = accumulator_off;
+    return 1;
+  }
+  return 0;
+  #undef ST
+}
+
 static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
   global_ctx_t* ctx = (global_ctx_t*)_ctx;
   scratch_buf_t* buf = ctx->buf;
@@ -2430,6 +3259,45 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     sm->pc -= 5 + 5;
   } break;
 
+  case SM_OP_PROCESS_GO_TIME: {
+    // Decode params and pack into three u64s that fit BPF's argument
+    // registers. See sm_resolve_time_offset for the packing layout.
+    uint32_t wall_off = sm_read_program_uint32(sm);
+    uint32_t ext_off = sm_read_program_uint32(sm);
+    uint32_t loc_off = sm_read_program_uint32(sm);
+    uint8_t cache_resolved = sm_read_program_uint8(sm);
+    uint32_t cache_start_off = sm_read_program_uint32(sm);
+    uint32_t cache_end_off = sm_read_program_uint32(sm);
+    uint32_t cache_zone_off = sm_read_program_uint32(sm);
+    uint32_t zone_offset_field_off = sm_read_program_uint32(sm);
+    uint32_t zone_offset_field_size = sm_read_program_uint32(sm);
+
+    uint64_t wall_ext_loc_off =
+        (uint64_t)wall_off | ((uint64_t)ext_off << 32);
+    uint64_t cache_starts_off =
+        (uint64_t)loc_off | ((uint64_t)cache_start_off << 32);
+    uint64_t zone_packed =
+        ((uint64_t)(cache_end_off & 0xFFFF)) |
+        ((uint64_t)(cache_zone_off & 0xFFFF) << 16) |
+        ((uint64_t)(zone_offset_field_off & 0xFFFF) << 32) |
+        ((uint64_t)(zone_offset_field_size & 0xFF) << 48) |
+        ((uint64_t)(cache_resolved & 0xFF) << 56);
+
+    int64_t resolved_offset = sm_resolve_time_offset(
+        buf, sm->offset, wall_ext_loc_off, cache_starts_off, zone_packed);
+
+    // Re-bounds-check immediately before the write. The volatile read
+    // inside scratch_buf_bounds_check is what tells the verifier this
+    // offset is bounded at the point of use.
+    buf_offset_t write_slot = sm->offset + loc_off;
+    if (!scratch_buf_bounds_check(&write_slot, sizeof(int64_t))) {
+      break;
+    }
+    *(int64_t*)&((*buf)[write_slot]) = resolved_offset;
+    LOG(4, "process_go_time: loc_off=%u resolved_offset=%lld",
+        loc_off, (long long)resolved_offset);
+  } break;
+
   case SM_OP_PROCESS_STRING: {
     type_t string_data_type = (type_t)sm_read_program_uint32(sm);
     LOG(4, "processing string @0x%llx", sm->offset);
@@ -2556,6 +3424,40 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       LOG(3, "enqueue: failed interface chase");
     }
   } break;
+
+  // SM_OP_GO_CONTEXT_CHAIN_INIT runs at the head of the enqueue_pc subroutine
+  // for any concrete context.Context implementation IR type. The chase
+  // preamble has just serialized the impl bytes into the scratch buffer:
+  //   sm->offset      -> payload start
+  //   header at sm->offset - sizeof(di_data_item_header_t) has
+  //     {type=cancelCtx_IR_id, length=byte_len(>=40), address=ctx_addr}
+  // INIT rewrites the header type id to TraceContextType, zeros the first 40
+  // bytes of payload (so a no-span outcome leaves valid=0), and seeds the
+  // walk state. The byte_len floor of 40 is established by the loader for
+  // any IR type with go_context_is_context==1, so the reservation is always
+  // wide enough to hold the trace_context_t. INIT does not touch sm->offset
+  // or sm->di_0 — HOP runs next on top of the same SM state.
+  case SM_OP_GO_CONTEXT_CHAIN_INIT: {
+    uint32_t impl_ir_type = sm_read_program_uint32(sm);
+    if (sm_go_context_chain_init(buf, sm, impl_ir_type)) {
+      return 1;
+    }
+  } break;
+
+  // SM_OP_GO_CONTEXT_CHAIN_HOP performs one chain step per dispatch. If a
+  // span is found, it writes the populated trace_context_t into the data
+  // item's payload at sm->go_context_walk.data_item_offset, sets done=1,
+  // and lets the PC advance to the next bytecode (RETURN). Otherwise it
+  // advances `current` to the next link via the embedded Context interface
+  // header in user memory and self-jumps (sm->pc -= 1) so the next sm_loop
+  // iteration re-enters HOP. Every termination path sets done=1 so a
+  // subsequent dispatch (out of the bytecode's `[INIT, HOP, RETURN]` shape
+  // this never happens, but defensive) no-ops cleanly.
+  case SM_OP_GO_CONTEXT_CHAIN_HOP:
+    if (sm_go_context_chain_hop(buf, sm)) {
+      return 1;
+    }
+    break;
 
   case SM_OP_PROCESS_GO_DICT_TYPE: {
     // Resolve a generic shape type parameter to its concrete type by
@@ -3541,6 +4443,344 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     }
   } break;
 
+  // ---------------------------------------------------------------------------
+  // Collection-predicate (any/all) opcodes.
+  //
+  // Iteration state lives in the per-SM slice_loop_state or
+  // swissmap_loop_state struct rather than the data stack, to stay within
+  // the BPF verifier's combined-stack budget. The accumulator is one
+  // scratch byte initialised to the loop's "no-match" value (0 for Any,
+  // 1 for All). Before each body invocation sm->offset is reset to the
+  // @it scratch slot so body ops always read/write at the same place.
+  // ---------------------------------------------------------------------------
+
+  case SM_OP_EXPR_ADVANCE_OFFSET: {
+    // u32 offset: set sm->offset to cur_loop_it_start + offset. This op
+    // is emitted for every LocationOp on a VariableRoleLoopIt variable so
+    // body sub-expressions can re-anchor sm->offset on @it (or
+    // @it.field) regardless of where the previous body op left it.
+    uint32_t off = sm_read_program_uint32(sm);
+    // Bound: irgen rejects struct fields with byte-offset > 0xFFFF (64KiB).
+    if (off > 0xFFFF) {
+      LOG(1, "expr_advance_offset: out of range %u", off);
+      return 1;
+    }
+    sm->offset = sm->cur_loop_it_start + off;
+    if (!scratch_buf_bounds_check(&sm->offset, 1)) {
+      return 1;
+    }
+  } break;
+
+  case SM_OP_EXPR_LOAD_ADDRESS: {
+    // u8 kind + u32 cfa_offset + u32 pointer_bias
+    uint8_t kind = sm_read_program_uint8(sm);
+    uint32_t cfa_offset = sm_read_program_uint32(sm);
+    uint32_t bias = sm_read_program_uint32(sm);
+    if (!scratch_buf_bounds_check(&sm->offset, 8)) {
+      return 1;
+    }
+    target_ptr_t addr = 0;
+    switch (kind) {
+    case 1: { // ExprAddressInPlace: pointer already at sm->offset, add bias.
+      addr = *(target_ptr_t*)(&(*buf)[sm->offset]);
+      addr += bias;
+      break;
+    }
+    case 2: { // ExprAddressFromCfa: cfa + cfa_offset + bias.
+      addr = (target_ptr_t)((int64_t)sm->frame_data.cfa + (int64_t)(int32_t)cfa_offset);
+      addr += bias;
+      break;
+    }
+    default:
+      LOG(1, "expr_load_address: invalid kind %d", kind);
+      return 1;
+    }
+    *(target_ptr_t*)(&(*buf)[sm->offset]) = addr;
+    // Do NOT advance sm->offset — the next op (e.g. ArrayLoopBeginOp)
+    // expects the pointer at sm->offset.
+  } break;
+
+  case SM_OP_SLICE_LOOP_BEGIN: {
+    uint8_t quantifier = sm_read_program_uint8(sm);
+    uint32_t elem_size = sm_read_program_uint32(sm);
+    uint32_t end_label_pc = sm_read_program_uint32(sm);
+
+    if (!scratch_buf_bounds_check(&sm->offset, 24)) {
+      return 1;
+    }
+    target_ptr_t data_ptr = *(target_ptr_t*)(&(*buf)[sm->offset]);
+    uint64_t len = *(uint64_t*)(&(*buf)[sm->offset + 8]);
+
+    // Stash inputs into slice_loop_state so sm_slice_loop_begin can read
+    // them without exceeding the BPF 5-arg limit.
+    sm->slice_loop_state.data_ptr = data_ptr;
+    sm->slice_loop_state.initial_len = len;
+    sm->slice_loop_state.elem_size = elem_size;
+    sm->slice_loop_state.quantifier = quantifier;
+
+    int r = sm_slice_loop_begin(buf, sm);
+    if (r < 0) {
+      if (!sm_return(sm)) return 1;
+      break;
+    }
+    if (r == 3) {
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      if (!sm_return(sm)) return 1;
+      break;
+    }
+    if (r > 0) {
+      sm->pc = end_label_pc;
+    }
+    // r == 0: body should run; sm->offset already at it_start.
+  } break;
+
+  case SM_OP_SLICE_LOOP_END: {
+    // Params: u32 body_label_pc only — quantifier and elem_size are read
+    // from slice_loop_state (stashed by the matching Begin op).
+    uint32_t body_target_pc = sm_read_program_uint32(sm);
+
+    int r = sm_slice_loop_end(buf, sm);
+    if (r < 0) {
+      return 1;
+    }
+    if (r == 0) {
+      sm->pc = body_target_pc;
+    }
+    if (r == 3) {
+      // eval_error armed: sm_return so ConditionCheck doesn't clear it.
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      if (!sm_return(sm)) return 1;
+    }
+    // r == 1: loop done; sm->offset already at accumulator_off.
+  } break;
+
+  case SM_OP_ARRAY_LOOP_BEGIN: {
+    // Params: u8 quantifier + u32 elem_size + u32 compile_time_len
+    //         + u32 end_label_pc.
+    uint8_t quantifier = sm_read_program_uint8(sm);
+    uint32_t elem_size = sm_read_program_uint32(sm);
+    uint32_t compile_time_len = sm_read_program_uint32(sm);
+    uint32_t end_label_pc = sm_read_program_uint32(sm);
+
+    // Read the array's base address (8 bytes) at sm->offset (placed there
+    // by an ExprLoadAddressOp).
+    if (!scratch_buf_bounds_check(&sm->offset, 8)) {
+      return 1;
+    }
+    target_ptr_t data_ptr = *(target_ptr_t*)(&(*buf)[sm->offset]);
+    LOG(4, "array_loop_begin: data_ptr=0x%llx len=%u", data_ptr, compile_time_len);
+
+    sm->slice_loop_state.data_ptr = data_ptr;
+    sm->slice_loop_state.initial_len = compile_time_len;
+    sm->slice_loop_state.elem_size = elem_size;
+    sm->slice_loop_state.quantifier = quantifier;
+
+    int r = sm_slice_loop_begin(buf, sm);
+    if (r < 0) {
+      if (!sm_return(sm)) return 1;
+      break;
+    }
+    if (r == 3) {
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      if (!sm_return(sm)) return 1;
+      break;
+    }
+    if (r > 0) {
+      sm->pc = end_label_pc;
+    }
+  } break;
+
+  case SM_OP_ARRAY_LOOP_END: {
+    // Params: u32 body_label_pc only — array iteration shares
+    // slice_loop_state with SM_OP_SLICE_LOOP_*; quantifier/elem_size live
+    // there.
+    uint32_t body_target_pc = sm_read_program_uint32(sm);
+
+    int r = sm_slice_loop_end(buf, sm);
+    if (r < 0) {
+      return 1;
+    }
+    if (r == 0) {
+      sm->pc = body_target_pc;
+    }
+    if (r == 3) {
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      if (!sm_return(sm)) return 1;
+    }
+  } break;
+
+  case SM_OP_SWISS_MAP_LOOP_BEGIN: {
+    // Save the opcode address so the back-edge retry below can rewind
+    // sm->pc without depending on the encoded length of this op's
+    // parameters. sm->pc already points past the opcode byte (the
+    // dispatcher above has advanced it), so the opcode itself is at
+    // sm->pc - 1.
+    uint32_t op_start = sm->pc - 1;
+
+    // Read params directly into swissmap_loop_state to avoid stack
+    // locals that would push sm_loop's combined-stack budget over the
+    // 512-byte BPF limit when chained with sm_swiss_map_aese (216B).
+    //
+    // Re-entering this op via `sm->pc = op_start` (the back-edge retry
+    // below) re-reads these same bytes into the same fields — that's
+    // idempotent. The phase flag below distinguishes the first entry
+    // (full init) from back-edge retries (skip init, just step again).
+    sm->swissmap_loop_state.quantifier = sm_read_program_uint8(sm);
+    sm->swissmap_loop_state.key_byte_size = sm_read_program_uint32(sm);
+    sm->swissmap_loop_state.val_byte_size = sm_read_program_uint32(sm);
+    sm->swissmap_loop_state.dir_ptr_offset = sm_read_program_uint8(sm);
+    sm->swissmap_loop_state.dir_len_offset = sm_read_program_uint8(sm);
+    sm->swissmap_loop_state.ctrl_offset = sm_read_program_uint8(sm);
+    sm->swissmap_loop_state.slots_offset = sm_read_program_uint8(sm);
+    sm->swissmap_loop_state.key_in_slot_offset = sm_read_program_uint8(sm);
+    sm->swissmap_loop_state.val_in_slot_offset = sm_read_program_uint16(sm);
+    sm->swissmap_loop_state.slot_size = sm_read_program_uint16(sm);
+    sm->swissmap_loop_state.group_byte_size = sm_read_program_uint16(sm);
+    sm->swissmap_loop_state.table_groups_field_offset = sm_read_program_uint8(sm);
+    sm->swissmap_loop_state.groups_data_field_offset = sm_read_program_uint8(sm);
+    sm->swissmap_loop_state.groups_len_mask_field_offset = sm_read_program_uint8(sm);
+    uint32_t end_label_pc = sm_read_program_uint32(sm);
+    sm->swissmap_loop_state.end_label_pc = end_label_pc;
+
+    if (sm->swissmap_loop_state.phase == 0) {
+      // First entry: init accumulator, read dir_ptr / dir_len, seed cursor.
+      int init_r = sm_swissmap_loop_init(buf, sm);
+      if (init_r < 0) {
+        if (!sm_return(sm)) return 1;
+        break;
+      }
+      if (init_r == 1) {
+        // Nil map: leave accumulator at its init value, jump to end.
+        sm->pc = end_label_pc;
+        break;
+      }
+      sm->swissmap_loop_state.phase = 1;
+    }
+
+    // Single-step the cursor. Drives the inner advance loop via `sm->pc -=`
+    // back-edges rather than a C `for` loop, so the verifier doesn't have
+    // to unroll up to MAX_SWISSMAP_SCAN_STEPS iterations concretely.
+    sm->swissmap_loop_state.scan_steps++;
+    if (sm->swissmap_loop_state.scan_steps > COLLECTION_PREDICATE_MAX_SWISSMAP_SCAN_STEPS) {
+      sm->swissmap_loop_state.phase = 0;
+      sm->condition_eval_error = true;
+      sm->offset = sm->swissmap_loop_state.accumulator_off;
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      if (!sm_return(sm)) return 1;
+      break;
+    }
+    int step_r = sm_swissmap_step(buf, sm);
+    if (step_r == -1) {
+      sm->swissmap_loop_state.phase = 0;
+      sm->condition_eval_error = true;
+      sm->condition_nil_deref = true;
+      sm->offset = sm->swissmap_loop_state.accumulator_off;
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      if (!sm_return(sm)) return 1;
+      break;
+    }
+    if (step_r == 0) {
+      // Naturally exhausted before any element — leave accumulator at init.
+      sm->swissmap_loop_state.phase = 0;
+      sm->offset = sm->swissmap_loop_state.accumulator_off;
+      sm->pc = end_label_pc;
+      break;
+    }
+    if (step_r == 1) {
+      // Found first occupied slot — count it and fall through to body.
+      sm->swissmap_loop_state.iterations++;
+      if (sm->swissmap_loop_state.iterations > COLLECTION_PREDICATE_MAX_ITERATIONS) {
+        sm->swissmap_loop_state.phase = 0;
+        sm->condition_eval_error = true;
+        sm->offset = sm->swissmap_loop_state.accumulator_off;
+        scratch_buf_set_len(buf, sm->expr_results_end_offset);
+        if (!sm_return(sm)) return 1;
+        break;
+      }
+      sm->swissmap_loop_state.phase = 0; // ready for next probe invocation
+      sm->offset = sm->cur_loop_it_start;
+      break;
+    }
+    // step_r == 2: empty slot, keep stepping. Rewind sm->pc to the
+    // opcode byte we saved at entry; the dispatcher will re-read the
+    // opcode and parameters on the next iteration.
+    sm->pc = op_start;
+  } break;
+
+  case SM_OP_SWISS_MAP_LOOP_END: {
+    // Save the opcode address so the back-edge retry below can rewind
+    // sm->pc without depending on the encoded length of this op's
+    // parameters. See SM_OP_SWISS_MAP_LOOP_BEGIN for the rationale.
+    uint32_t op_start = sm->pc - 1;
+
+    // Params: u32 body_label_pc only — quantifier / key / val come from
+    // swissmap_loop_state (stashed by the matching Begin op).
+    uint32_t body_target_pc = sm_read_program_uint32(sm);
+    sm->swissmap_loop_state.body_label_pc = body_target_pc;
+
+    if (sm->swissmap_loop_state.phase == 0) {
+      // First entry after body: short-circuit check.
+      int chk_r = sm_swissmap_loop_short_circuit_check(buf, sm);
+      if (chk_r < 0) {
+        return 1;
+      }
+      if (chk_r == 1) {
+        // Short-circuit: accumulator already written by the helper.
+        sm->pc = sm->swissmap_loop_state.end_label_pc;
+        break;
+      }
+      sm->swissmap_loop_state.phase = 1;
+    }
+
+    // Single-step the cursor; same retry pattern as Begin.
+    sm->swissmap_loop_state.scan_steps++;
+    if (sm->swissmap_loop_state.scan_steps > COLLECTION_PREDICATE_MAX_SWISSMAP_SCAN_STEPS) {
+      sm->swissmap_loop_state.phase = 0;
+      sm->condition_eval_error = true;
+      sm->offset = sm->swissmap_loop_state.accumulator_off;
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      if (!sm_return(sm)) return 1;
+      break;
+    }
+    int step_r = sm_swissmap_step(buf, sm);
+    if (step_r == -1) {
+      sm->swissmap_loop_state.phase = 0;
+      sm->condition_eval_error = true;
+      sm->condition_nil_deref = true;
+      sm->offset = sm->swissmap_loop_state.accumulator_off;
+      scratch_buf_set_len(buf, sm->expr_results_end_offset);
+      if (!sm_return(sm)) return 1;
+      break;
+    }
+    if (step_r == 0) {
+      // Naturally exhausted — leave accumulator at its current value.
+      sm->swissmap_loop_state.phase = 0;
+      sm->offset = sm->swissmap_loop_state.accumulator_off;
+      sm->pc = sm->swissmap_loop_state.end_label_pc;
+      break;
+    }
+    if (step_r == 1) {
+      // Found next occupied slot — count it and jump back to body.
+      sm->swissmap_loop_state.iterations++;
+      if (sm->swissmap_loop_state.iterations > COLLECTION_PREDICATE_MAX_ITERATIONS) {
+        sm->swissmap_loop_state.phase = 0;
+        sm->condition_eval_error = true;
+        sm->offset = sm->swissmap_loop_state.accumulator_off;
+        scratch_buf_set_len(buf, sm->expr_results_end_offset);
+        if (!sm_return(sm)) return 1;
+        break;
+      }
+      sm->swissmap_loop_state.phase = 0; // ready for next iteration's End
+      sm->offset = sm->cur_loop_it_start;
+      sm->pc = body_target_pc;
+      break;
+    }
+    // step_r == 2: empty slot, keep stepping. Rewind sm->pc to the
+    // opcode byte we saved at entry; the dispatcher will re-read the
+    // opcode and parameters on the next iteration.
+    sm->pc = op_start;
+  } break;
+
   default:
     LOG(1, "enqueue: @0x%x unknown instruction %d\n", sm->pc - 1, op);
     return 1;
@@ -3555,6 +4795,13 @@ __attribute__((always_inline)) int sm_run(global_ctx_t* ctx) {
   const int limit = 512 << 10;
   int n = bpf_loop(limit, sm_loop, ctx, 0);
   if (n == limit) {
+    // Hitting the iteration cap can leave a swiss-map any/all loop's phase
+    // mid-step (phase==1). Reset it so the next probe's first
+    // SM_OP_SWISS_MAP_LOOP_BEGIN runs sm_swissmap_loop_init rather than
+    // reading uninitialized state. Doing the reset here (cold path, after
+    // bpf_loop) avoids forcing a stack_machine_t spill in the hot
+    // probe_run_with_cookie frame.
+    ctx->stack_machine->swissmap_loop_state.phase = 0;
     LOG(2, "stack machine loop hit limit of %d steps", n)
     return -1;
   }
