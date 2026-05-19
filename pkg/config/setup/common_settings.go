@@ -830,6 +830,12 @@ func initCoreAgentFull(config pkgconfigmodel.Setup) {
 	// Service discovery configuration
 	bindEnvAndSetLogsConfigKeys(config, "service_discovery.forwarder.")
 
+	// Config-file sender — experimental, DSCVR-438 PoC.
+	// When enabled, the agent reads config files discovered by the
+	// system-probe discovery module (Service.ConfigFiles) and ships their
+	// contents to the EvP staging intake on the demoalpha track. Linux only.
+	config.BindEnvAndSetDefault("discovery.config_files_sender.enabled", false)
+
 	// Orchestrator Explorer - process agent
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
 	config.BindEnv("process_config.orchestrator_dd_url", "DD_PROCESS_CONFIG_ORCHESTRATOR_DD_URL", "DD_PROCESS_AGENT_ORCHESTRATOR_DD_URL") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'

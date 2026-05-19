@@ -1,0 +1,137 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "impl",
+    srcs = [
+        "configsender_linux.go",
+        "configsender_nonlinux.go",
+        "content_type.go",
+        "dedup.go",
+        "envelope.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/discovery/configsender/impl",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//comp/core/hostname/hostnameinterface",
+            "//comp/discovery/configsender/def",
+            "//pkg/config/model",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:android": [
+            "//comp/core/hostname/hostnameinterface",
+            "//comp/def",
+            "//comp/discovery/configsender/def",
+            "//pkg/config/model",
+            "//pkg/discovery/core",
+            "//pkg/discovery/model",
+            "//pkg/system-probe/api/client",
+            "//pkg/util/log",
+            "@//pkg/system-probe/config",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//comp/core/hostname/hostnameinterface",
+            "//comp/discovery/configsender/def",
+            "//pkg/config/model",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//comp/core/hostname/hostnameinterface",
+            "//comp/discovery/configsender/def",
+            "//pkg/config/model",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//comp/core/hostname/hostnameinterface",
+            "//comp/discovery/configsender/def",
+            "//pkg/config/model",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//comp/core/hostname/hostnameinterface",
+            "//comp/discovery/configsender/def",
+            "//pkg/config/model",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//comp/core/hostname/hostnameinterface",
+            "//comp/discovery/configsender/def",
+            "//pkg/config/model",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:js": [
+            "//comp/core/hostname/hostnameinterface",
+            "//comp/discovery/configsender/def",
+            "//pkg/config/model",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/hostname/hostnameinterface",
+            "//comp/def",
+            "//comp/discovery/configsender/def",
+            "//pkg/config/model",
+            "//pkg/discovery/core",
+            "//pkg/discovery/model",
+            "//pkg/system-probe/api/client",
+            "//pkg/util/log",
+            "@//pkg/system-probe/config",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//comp/core/hostname/hostnameinterface",
+            "//comp/discovery/configsender/def",
+            "//pkg/config/model",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//comp/core/hostname/hostnameinterface",
+            "//comp/discovery/configsender/def",
+            "//pkg/config/model",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//comp/core/hostname/hostnameinterface",
+            "//comp/discovery/configsender/def",
+            "//pkg/config/model",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//comp/core/hostname/hostnameinterface",
+            "//comp/discovery/configsender/def",
+            "//pkg/config/model",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//comp/core/hostname/hostnameinterface",
+            "//comp/discovery/configsender/def",
+            "//pkg/config/model",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//comp/core/hostname/hostnameinterface",
+            "//comp/discovery/configsender/def",
+            "//pkg/config/model",
+            "//pkg/util/log",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//comp/core/hostname/hostnameinterface",
+            "//comp/discovery/configsender/def",
+            "//pkg/config/model",
+            "//pkg/util/log",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "impl_test",
+    srcs = [
+        "content_type_test.go",
+        "envelope_test.go",
+    ],
+    embed = [":impl"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

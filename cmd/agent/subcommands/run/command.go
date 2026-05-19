@@ -108,6 +108,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
+	configsenderfx "github.com/DataDog/datadog-agent/comp/discovery/configsender/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	dogstatsdhttp "github.com/DataDog/datadog-agent/comp/dogstatsd/http/def"
 	dogstatsdhttpfx "github.com/DataDog/datadog-agent/comp/dogstatsd/http/fx"
@@ -565,6 +566,7 @@ func getSharedFxOption() fx.Option {
 		networkpath.Bundle(),
 		syntheticsTestsfx.Module(),
 		remoteagentregistryfx.Module(),
+		configsenderfx.Module(),
 		haagentfx.Module(),
 		doqueryactionsfx.Module(),
 		metricscompressorfx.Module(),
