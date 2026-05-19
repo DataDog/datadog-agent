@@ -22,12 +22,6 @@ Released on: 2026-05-20
 Upgrade Notes
 -------------
 
-- List upgrade notes here, or remove this section.
-  Upgrade notes should be rare: only list known/potential breaking changes,
-  or major behaviorial changes that require user action before the upgrade.
-  Notes here must include steps that users can follow to 1. know if they're
-  affected and 2. handle the change gracefully on their end.
-
 - Upgraded JMXFetch to `0.52.0 <https://github.com/DataDog/jmxfetch/releases/tag/0.52.0>`_,
   which adds JMX metrics mappings for Generational Shenandoah GC and introduces the
   ``use_canonical_bean_name`` option to guarantee consistent key property ordering in bean names.
@@ -74,8 +68,6 @@ New Features
   a ``do_query_actions`` Python check to execute SQL queries against monitored Postgres
   instances on configurable intervals. Results are forwarded to the
   ``data-obs-intake.<site>/api/v2/query-actions`` event platform endpoint.
-
-- List new features here, or remove this section.
 
 - Add ``agent experimental check-config`` and ``agent experimental onboard``
   commands that run a 6-stage validation pipeline on ``datadog.yaml`` without
@@ -156,9 +148,6 @@ Enhancement Notes
   system-probe-lite is automatically used to minimize resource usage.  To
   disable discovery, set ``discovery.enabled: false`` in
   ``system-probe.yaml``.
-
-- List enhancements (new behavior that is too small to be
-  considered a new feature), or remove this section.
 
 - Add ECS Fargate task ARN to ``X-Datadog-Additional-Tags`` header on data-streams-message HTTP requests.
 
@@ -312,7 +301,6 @@ Known Issues
 
 - Disk integration system.disk.total value is incorrect. Disk size in host information of Datadog GUI is incorrect, too. [https://github.com/DataDog/datadog-agent/issues/5921]
 
-- List known issues here, or remove this section.
 
 
 .. _Release Notes_7.79.0_Deprecation Notes:
@@ -326,8 +314,6 @@ Deprecation Notes
 
 - APM : Document that ``DD_APM_MAX_EPS`` is deprecated (legacy App Analytics APM events only) and does not affect trace or span volumes.
 
-- List deprecations notes here, or remove this section.
-
 - Per-user macOS Agent installations (LaunchAgent mode) are deprecated.
   Use the default system-wide installation going forward.
 
@@ -339,9 +325,6 @@ Deprecation Notes
 
 Security Notes
 --------------
-
-- Include security notes here, or remove this section if none. Specific CVEs are handled automatically and should not be mentioned directly in the changelog.
-  For instance, if you bumped a lib to fix a CVE, just mention the bump.
 
 - Upgrade the Docker SDK dependency from ``github.com/docker/docker`` v28.5.2
   to ``github.com/moby/moby`` v29 (``moby/moby/api`` v1.54.1,
@@ -371,8 +354,6 @@ Bug Fixes
   path is enabled. This issue only affects users with the V1 feature flag enabled or using the 'convert-traces' flag.
 
 - APM: Fixed unnecessary CPU load on the core Agent in non-containerized environments by skipping container ID resolution (header parsing and cgroup lookups) in the trace API when not running in a container.
-
-- Add normal bug fixes here, or remove this section.
 
 - Dynamic Instrumentation: Fix a bug where ``evaluationErrors`` were reported
   in the wrong location in snapshot payloads, causing them to not appear
@@ -460,10 +441,6 @@ Other Notes
 
 - The ``agent status`` output now displays uptime values greater than 24 hours in a
   days-based format (e.g., ``23d2h54m59s``) instead of the raw hour count (e.g., ``554h54m59s``).
-
-- Add here every other information you want in the CHANGELOG that
-  don't fit in any other section. This section should rarely be
-  used.
 
 - Update agent-payload version to v5.0.189
 
