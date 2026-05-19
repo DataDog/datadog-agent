@@ -23,6 +23,15 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
+// ec2DefaultCloudCostAllowlistedMetrics are system.* metrics on the built-in
+// cloud_cost_only allowlist that core checks emit on awshost e2e stacks.
+var ec2DefaultCloudCostAllowlistedMetrics = []string{
+	"system.cpu.user",
+	"system.mem.pct_usable",
+	"system.net.bytes_rcvd",
+	"system.net.bytes_sent",
+}
+
 const (
 	infraModeTag               = "infra_mode:cloud_cost_only"
 	dogstatsdCustomMetric      = "e2e.ccm.dogstatsd.custom"
@@ -127,6 +136,49 @@ func (s *ccmModeMetricsBlockedSuite) TestMetricsBlockedOverridesAllowlist() {
 		assert.NoError(c, err)
 		assert.NotEmpty(c, allowed, "%s should still be forwarded when not on metrics_blocked", allowedMetric)
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for metrics_blocked to override allowlist")
+}
+
+func ccmAgentConfigEmptyAllowlist() string {
+	return `
+infrastructure_mode: cloud_cost_only
+integration:
+  cloud_cost_only:
+    metrics: []
+`
+}
+
+type ccmModeEmptyAllowlistSuite struct {
+	e2e.BaseSuite[environments.Host]
+}
+
+// TestCCMModeLinuxEmptyAllowlist runs CCM e2e checks with an explicit empty metrics allowlist.
+func TestCCMModeLinuxEmptyAllowlist(t *testing.T) {
+	runCCMModeSuite(t, "ccmmode-empty-allowlist", ccmAgentConfigEmptyAllowlist(), &ccmModeEmptyAllowlistSuite{})
+}
+
+// TestEmptyAllowlistUsesDefaults verifies integration.cloud_cost_only.metrics: []
+// applies the built-in default allowlist instead of forwarding all integration metrics.
+func (s *ccmModeEmptyAllowlistSuite) TestEmptyAllowlistUsesDefaults() {
+	const (
+		onDefaultAllowlist  = "system.mem.pct_usable"
+		offDefaultAllowlist = "system.disk.free"
+	)
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		onList, err := s.Env().FakeIntake.Client().FilterMetrics(
+			onDefaultAllowlist,
+			client.WithMetricValueHigherThan(0),
+		)
+		assert.NoError(c, err)
+		assert.NotEmpty(c, onList, "%s should be forwarded via the default allowlist when metrics is empty", onDefaultAllowlist)
+
+		offList, err := s.Env().FakeIntake.Client().FilterMetrics(
+			offDefaultAllowlist,
+			client.WithMetricValueHigherThan(0),
+		)
+		assert.NoError(c, err)
+		assert.Empty(c, offList, "%s should be dropped when metrics is empty (defaults apply)", offDefaultAllowlist)
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for empty allowlist to use defaults")
 }
 
 func ccmAgentConfigCustomAllowlist(allowlist []string, matchPrefix bool) string {
@@ -246,10 +298,10 @@ func (s *ccmModeConfiguredTaggedSuite) TestConfiguredTaggedAppliesSelectively() 
 }
 
 // TestAllowlistedIntegrationMetricForwarded verifies default-allowlist system.* metrics
-// are still forwarded on awshost (see defaultCloudCostAllowlistedMetrics).
+// are still forwarded on awshost.
 func (s *ccmModeSuiteBase) TestAllowlistedIntegrationMetricForwarded() {
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		for _, metricName := range ec2CloudCostAllowlistedMetrics() {
+		for _, metricName := range ec2DefaultCloudCostAllowlistedMetrics {
 			metrics, err := s.Env().FakeIntake.Client().FilterMetrics(
 				metricName,
 				client.WithMetricValueHigherThan(0),

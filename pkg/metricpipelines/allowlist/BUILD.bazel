@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "allowlist",
+    srcs = ["defaults.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/metricpipelines/allowlist",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "allowlist_test",
+    srcs = ["defaults_test.go"],
+    embed = [":allowlist"],
+    deps = [
+        "//pkg/config/mock",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

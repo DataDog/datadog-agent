@@ -17,7 +17,8 @@ features:
     set via the ``dd.internal.jmx_check_name`` DogStatsD tag), and metrics from checks in
     ``integration.additional`` are forwarded regardless of the allowlist. Other
     integration metrics are forwarded only when they match
-    ``integration.cloud_cost_only.metrics`` (allowlist). Use
+    ``integration.cloud_cost_only.metrics`` (allowlist). When the list is empty,
+    the built-in default allowlist applies. Use
     ``integration.cloud_cost_only.metrics_blocked`` to drop additional metric names;
     names on the blocklist are dropped even when they would otherwise match the allowlist.
     Set ``integration.cloud_cost_only.metrics_match_prefix`` for prefix matching on both

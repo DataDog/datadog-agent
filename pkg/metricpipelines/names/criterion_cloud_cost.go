@@ -8,6 +8,7 @@ package names
 import (
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/metricpipelines/allowlist"
 	utilstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
@@ -27,5 +28,8 @@ func (cloudCostMetricsCriterion) matchers(cfg pkgconfigmodel.Reader, _ filterlis
 	matchPrefix := cfg.GetBool("integration.cloud_cost_only.metrics_match_prefix")
 	blocked := cfg.GetStringSlice("integration.cloud_cost_only.metrics_blocked")
 	allowed := cfg.GetStringSlice("integration.cloud_cost_only.metrics")
+	if len(allowed) == 0 {
+		allowed = allowlist.DefaultCloudCostMetrics
+	}
 	return utilstrings.NewBlocklistMatcher(blocked, matchPrefix), utilstrings.NewAllowlistMatcher(allowed, matchPrefix)
 }

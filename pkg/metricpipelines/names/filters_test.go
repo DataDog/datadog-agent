@@ -60,6 +60,24 @@ func TestLoadCloudCostOnly(t *testing.T) {
 		"metric_filterlist and cloud_cost blocklist both apply in cloud_cost_only mode")
 }
 
+func TestLoadCloudCostOnlyEmptyMetricsUsesDefaults(t *testing.T) {
+	cfg := map[string]interface{}{
+		"infrastructure_mode":                              "cloud_cost_only",
+		"integration.cloud_cost_only.metrics":              []string{},
+		"integration.cloud_cost_only.metrics_match_prefix": true,
+	}
+	configComponent := config.NewMockWithOverrides(t, cfg)
+	fl := filterlistimpl.NewFilterList(logmock.New(t), configComponent, fxutil.Test[telemetry.Component](t, telemetrynoop.Module()))
+
+	filters := Load(configComponent, fl)
+
+	assert.False(t, filters.ShouldDrop(FilterContext{Name: "system.mem.pct_usable"}))
+	assert.True(t, filters.ShouldDrop(FilterContext{
+		Name:   "system.disk.free",
+		Source: metrics.MetricSourceDisk,
+	}))
+}
+
 func TestLoadCloudCostOnlyExplicitBlock(t *testing.T) {
 	cfg := map[string]interface{}{
 		"infrastructure_mode":                              "cloud_cost_only",

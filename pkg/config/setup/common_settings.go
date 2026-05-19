@@ -17,6 +17,7 @@ import (
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/metricpipelines/allowlist"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -1268,24 +1269,9 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("integration.cloud_cost_only.tagged", []string{})
 	// integration.cloud_cost_only.metrics_blocked: explicit metric blocklist in cloud_cost_only mode (empty disables)
 	config.BindEnvAndSetDefault("integration.cloud_cost_only.metrics_blocked", []string{})
-	// integration.cloud_cost_only.metrics: extra integration metrics to forward in cloud_cost_only mode
-	// (DogStatsD, custom_*, and integration.additional checks are always forwarded; empty disables allowlist filtering)
-	config.BindEnvAndSetDefault("integration.cloud_cost_only.metrics", []string{
-		"kubernetes.cpu.usage.total",
-		"kubernetes.memory.usage",
-		"kubernetes_state.pod.uptime",
-		"gpu.gr_engine_active",
-		"aws.ebs.volume_read_bytes",
-		"aws.ebs.volume_write_bytes",
-		"aws.ebs.volume_read_ops",
-		"aws.ebs.volume_write_ops",
-		"kubernetes.kubelet.volume.stats.used_bytes",
-		"kubernetes.kubelet.volume.stats.available_bytes",
-		"system.cpu.user",
-		"system.mem.pct_usable",
-		"system.net.bytes_rcvd",
-		"system.net.bytes_sent",
-	})
+	// integration.cloud_cost_only.metrics: integration metrics to forward in cloud_cost_only mode
+	// (DogStatsD, custom_*, and integration.additional checks always bypass this list; empty uses DefaultCloudCostMetrics)
+	config.BindEnvAndSetDefault("integration.cloud_cost_only.metrics", allowlist.DefaultCloudCostMetrics)
 	config.BindEnvAndSetDefault("integration.cloud_cost_only.metrics_match_prefix", true)
 
 	// Configuration for TLS for outgoing connections

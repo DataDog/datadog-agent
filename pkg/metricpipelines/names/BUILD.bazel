@@ -15,6 +15,7 @@ go_library(
     deps = [
         "//comp/filterlist/def",
         "//pkg/config/model",
+        "//pkg/metricpipelines/allowlist",
         "//pkg/metrics",
         "//pkg/util/strings",
     ],

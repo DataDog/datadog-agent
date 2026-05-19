@@ -42,6 +42,7 @@ go_library(
         "//pkg/config/env",
         "//pkg/config/helper",
         "//pkg/config/model",
+        "//pkg/metricpipelines/allowlist",
         "//pkg/config/setup/constants",
         "//pkg/config/structure",
         "//pkg/fips",
