@@ -53,6 +53,52 @@ type packetIngressLogTelemetry struct {
 	packets   telemetry.Gauge
 	blockedNS telemetry.Counter
 	stats     telemetry.Counter
+	sharded   bool
+	shard     string
+}
+
+func (t packetIngressLogTelemetry) setGauge(gauge telemetry.Gauge, value float64) {
+	if gauge == nil {
+		return
+	}
+	if t.sharded {
+		gauge.Set(value, t.shard)
+		return
+	}
+	gauge.Set(value)
+}
+
+func (t packetIngressLogTelemetry) addBlockedNS(value float64) {
+	if t.blockedNS == nil {
+		return
+	}
+	if t.sharded {
+		t.blockedNS.Add(value, t.shard)
+		return
+	}
+	t.blockedNS.Add(value)
+}
+
+func (t packetIngressLogTelemetry) incStat(stat string) {
+	if t.stats == nil {
+		return
+	}
+	if t.sharded {
+		t.stats.Inc(t.shard, stat)
+		return
+	}
+	t.stats.Inc(stat)
+}
+
+func (t packetIngressLogTelemetry) addStat(value float64, stat string) {
+	if t.stats == nil {
+		return
+	}
+	if t.sharded {
+		t.stats.Add(value, t.shard, stat)
+		return
+	}
+	t.stats.Add(value, stat)
 }
 
 // packetIngressLog is an experimental bounded in-memory ingress log used to
@@ -77,21 +123,37 @@ type packetIngressLog struct {
 }
 
 func newPacketIngressLog(maxBytes int64, telemetrycomp telemetry.Component) *packetIngressLog {
+	return newPacketIngressLogWithTelemetry(maxBytes, telemetrycomp, "", false)
+}
+
+func newPacketIngressLogShard(maxBytes int64, telemetrycomp telemetry.Component, shard string) *packetIngressLog {
+	return newPacketIngressLogWithTelemetry(maxBytes, telemetrycomp, shard, true)
+}
+
+func newPacketIngressLogWithTelemetry(maxBytes int64, telemetrycomp telemetry.Component, shard string, sharded bool) *packetIngressLog {
 	log := &packetIngressLog{maxBytes: maxBytes, notify: make(chan struct{}, 1)}
 	log.notEmpty = sync.NewCond(&log.mu)
 	log.notFull = sync.NewCond(&log.mu)
 	if telemetrycomp != nil {
+		gaugeLabels := []string{}
+		statsLabels := []string{"stat"}
+		if sharded {
+			gaugeLabels = []string{"shard"}
+			statsLabels = []string{"shard", "stat"}
+		}
 		log.telemetry = packetIngressLogTelemetry{
 			bytes: telemetrycomp.NewGauge("dogstatsd_ingress_log", "bytes",
-				[]string{}, "Bytes currently retained by the experimental DogStatsD ingress log"),
+				gaugeLabels, "Bytes currently retained by the experimental DogStatsD ingress log"),
 			batches: telemetrycomp.NewGauge("dogstatsd_ingress_log", "batches",
-				[]string{}, "Batches currently retained by the experimental DogStatsD ingress log"),
+				gaugeLabels, "Batches currently retained by the experimental DogStatsD ingress log"),
 			packets: telemetrycomp.NewGauge("dogstatsd_ingress_log", "packets",
-				[]string{}, "Packets currently retained by the experimental DogStatsD ingress log"),
+				gaugeLabels, "Packets currently retained by the experimental DogStatsD ingress log"),
 			blockedNS: telemetrycomp.NewCounter("dogstatsd_ingress_log", "blocked_ns",
-				[]string{}, "Nanoseconds spent blocked appending to the experimental DogStatsD ingress log"),
+				gaugeLabels, "Nanoseconds spent blocked appending to the experimental DogStatsD ingress log"),
 			stats: telemetrycomp.NewCounter("dogstatsd_ingress_log", "stats",
-				[]string{"stat"}, "Experimental DogStatsD ingress log counters"),
+				statsLabels, "Experimental DogStatsD ingress log counters"),
+			sharded: sharded,
+			shard:   shard,
 		}
 	}
 	return log
@@ -150,8 +212,8 @@ func (l *packetIngressLog) append(ps packets.Packets) bool {
 		l.mu.Unlock()
 		return false
 	}
-	if blocked && l.telemetry.blockedNS != nil {
-		l.telemetry.blockedNS.Add(float64(time.Since(blockStart).Nanoseconds()))
+	if blocked {
+		l.telemetry.addBlockedNS(float64(time.Since(blockStart).Nanoseconds()))
 	}
 	l.batches = append(l.batches, ps)
 	l.bytes += batchBytes
@@ -161,10 +223,8 @@ func (l *packetIngressLog) append(ps packets.Packets) bool {
 	l.signalNotifyLocked()
 	l.mu.Unlock()
 
-	if l.telemetry.stats != nil {
-		l.telemetry.stats.Inc("appended_batches")
-		l.telemetry.stats.Add(float64(batchPackets), "appended_packets")
-	}
+	l.telemetry.incStat("appended_batches")
+	l.telemetry.addStat(float64(batchPackets), "appended_packets")
 	return true
 }
 
@@ -205,10 +265,8 @@ func (l *packetIngressLog) nextLocked() (packets.Packets, bool) {
 	l.updateGaugesLocked()
 	l.notFull.Signal()
 
-	if l.telemetry.stats != nil {
-		l.telemetry.stats.Inc("taken_batches")
-		l.telemetry.stats.Add(float64(len(ps)), "taken_packets")
-	}
+	l.telemetry.incStat("taken_batches")
+	l.telemetry.addStat(float64(len(ps)), "taken_packets")
 	return ps, true
 }
 
@@ -254,15 +312,9 @@ func (l *packetIngressLog) compactLocked() {
 }
 
 func (l *packetIngressLog) updateGaugesLocked() {
-	if l.telemetry.bytes != nil {
-		l.telemetry.bytes.Set(float64(l.bytes))
-	}
-	if l.telemetry.batches != nil {
-		l.telemetry.batches.Set(float64(l.queueLenLocked()))
-	}
-	if l.telemetry.packets != nil {
-		l.telemetry.packets.Set(float64(l.packets))
-	}
+	l.telemetry.setGauge(l.telemetry.bytes, float64(l.bytes))
+	l.telemetry.setGauge(l.telemetry.batches, float64(l.queueLenLocked()))
+	l.telemetry.setGauge(l.telemetry.packets, float64(l.packets))
 }
 
 func packetBatchSizeBytes(ps packets.Packets) int64 {
@@ -284,7 +336,7 @@ func newPacketIngressLogShards(shardCount int, maxBytes int64, telemetrycomp tel
 	}
 	shards := make([]*packetIngressLog, shardCount)
 	for i := range shards {
-		shards[i] = newPacketIngressLog(bytesPerShard, telemetrycomp)
+		shards[i] = newPacketIngressLogShard(bytesPerShard, telemetrycomp, strconv.Itoa(i))
 	}
 	return &packetIngressLogShards{shards: shards}
 }
