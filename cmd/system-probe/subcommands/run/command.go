@@ -125,9 +125,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Run the System Probe",
 		Long:  `Runs the system-probe in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			configstreamEnabled := isConfigstreamEnabled(globalParams.DatadogConfFilePath())
+			bs := readConfigstreamBootstrap(globalParams.DatadogConfFilePath(), os.LookupEnv)
 			var configOpts []func(*config.Params)
-			if configstreamEnabled {
+			if bs.Enabled {
 				configOpts = append(configOpts, config.WithConfigstreamEnabled(true))
 			}
 			opts := []fx.Option{
@@ -139,8 +139,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
 				getSharedFxOption(),
 			}
-			if configstreamEnabled {
-				opts = append(opts, configstreamFxOptions())
+			if bs.Enabled {
+				opts = append(opts, configstreamFxOptions(bs.CmdHost, bs.CmdPort))
 			}
 			return fxutil.OneShot(run, opts...)
 		},
@@ -217,7 +217,10 @@ func getSharedFxOption() fx.Option {
 
 // configstreamFxOptions returns FX options for the config stream consumer.
 // Only include this when remote_agent.configstream.consumer.enabled is true.
-func configstreamFxOptions() fx.Option {
+// host/port are the pre-FX dial address for the core agent; reading them
+// here (instead of from config.Component) keeps the bootstrap working when
+// WithConfigstreamEnabled skips the disk load.
+func configstreamFxOptions(host string, port int) fx.Option {
 	return fx.Options(
 		// Expose config.Component as model.Writer for the config stream consumer to write remote config into.
 		fx.Provide(func(c config.Component) model.Writer {
@@ -233,12 +236,7 @@ func configstreamFxOptions() fx.Option {
 			}
 			return nil
 		}),
-		fx.Provide(func(c config.Component, sessionProvider configstreamconsumer.SessionIDProvider) configstreamconsumer.Params {
-			host := c.GetString("cmd_host")
-			port := c.GetInt("cmd_port")
-			if port <= 0 {
-				port = 5001
-			}
+		fx.Provide(func(sessionProvider configstreamconsumer.SessionIDProvider) configstreamconsumer.Params {
 			return configstreamconsumer.Params{
 				ClientName:        "system-probe",
 				CoreAgentAddress:  net.JoinHostPort(host, strconv.Itoa(port)),
@@ -251,13 +249,39 @@ func configstreamFxOptions() fx.Option {
 	)
 }
 
-// isConfigstreamEnabled is a pre-FX feature flag check; the env var takes precedence over YAML.
-func isConfigstreamEnabled(cliConfigPath string) bool {
-	if v, ok := os.LookupEnv(configstreamConsumerEnabledEnvVar); ok {
-		if enabled, err := strconv.ParseBool(v); err == nil {
-			return enabled
+// configstreamBootstrap holds the pre-FX settings needed to start the configstream
+// consumer before the config component has loaded (or before WithConfigstreamEnabled
+// tells it to skip loading).
+type configstreamBootstrap struct {
+	Enabled bool
+	CmdHost string
+	CmdPort int
+}
+
+// readConfigstreamBootstrap resolves Enabled / CmdHost / CmdPort from env vars
+// first (matching viper's BindEnv precedence), then from datadog.yaml as a
+// fallback, then from BindEnvAndSetDefault's defaults (localhost:5001).
+func readConfigstreamBootstrap(cliConfigPath string, lookupEnv func(string) (string, bool)) configstreamBootstrap {
+	bs := configstreamBootstrap{CmdHost: "localhost", CmdPort: 5001}
+
+	enabledEnv, hasEnabledEnv := lookupEnv(configstreamConsumerEnabledEnvVar)
+	hostEnv, hasHostEnv := lookupEnv("DD_CMD_HOST")
+	portEnv, hasPortEnv := lookupEnv("DD_CMD_PORT")
+
+	if hasEnabledEnv {
+		if enabled, err := strconv.ParseBool(enabledEnv); err == nil {
+			bs.Enabled = enabled
 		}
 	}
+	if hasHostEnv && hostEnv != "" {
+		bs.CmdHost = hostEnv
+	}
+	if hasPortEnv {
+		if p, err := strconv.Atoi(portEnv); err == nil && p > 0 {
+			bs.CmdPort = p
+		}
+	}
+
 	for _, path := range []string{cliConfigPath, config.DefaultConfPath} {
 		if path == "" {
 			continue
@@ -270,6 +294,8 @@ func isConfigstreamEnabled(cliConfigPath string) bool {
 			continue
 		}
 		var cfg struct {
+			CmdHost     string `yaml:"cmd_host"`
+			CmdPort     int    `yaml:"cmd_port"`
 			RemoteAgent struct {
 				ConfigStream struct {
 					Consumer struct {
@@ -279,11 +305,20 @@ func isConfigstreamEnabled(cliConfigPath string) bool {
 			} `yaml:"remote_agent"`
 		}
 		if err := yaml.Unmarshal(data, &cfg); err != nil {
-			return false
+			return bs
 		}
-		return cfg.RemoteAgent.ConfigStream.Consumer.Enabled
+		if !hasEnabledEnv {
+			bs.Enabled = cfg.RemoteAgent.ConfigStream.Consumer.Enabled
+		}
+		if !hasHostEnv && cfg.CmdHost != "" {
+			bs.CmdHost = cfg.CmdHost
+		}
+		if !hasPortEnv && cfg.CmdPort > 0 {
+			bs.CmdPort = cfg.CmdPort
+		}
+		return bs
 	}
-	return false
+	return bs
 }
 
 // run starts the main loop.
