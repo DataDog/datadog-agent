@@ -78,7 +78,7 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 		hostname := transform.GetOTelHostname(otelspan, otelres, conf.OTLPReceiver.AttributesTranslator, conf.Hostname)
 		version := transform.GetOTelVersion(otelspan, otelres)
 		var cid string
-		if conf.HasFeature("enable_otlp_container_tags_v2") {
+		if !conf.HasFeature("disable_otlp_container_tags_v2") {
 			cid = transform.GetOTelContainerID(otelspan, otelres)
 		} else {
 			cid = transform.GetOTelContainerOrPodID(otelspan, otelres)
