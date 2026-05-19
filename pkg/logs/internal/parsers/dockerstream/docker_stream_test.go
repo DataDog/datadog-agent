@@ -251,3 +251,45 @@ func TestDockerStandaloneParserTTYPreservesSpacesInContent(t *testing.T) {
 	assert.Contains(t, string(msg.GetContent()), "aaaa b")
 	assert.Contains(t, string(msg.GetContent()), "hello world tail")
 }
+
+// TestDockerStandaloneParserTTYPreservesUnmatchedTail guards against the
+// codex review finding: when the tail after the first 16KB chunk does NOT
+// begin with a valid RFC3339Nano timestamp + space (for example a single
+// non-Docker frame slightly longer than 16KB, or a truncated frame), the
+// stripper must not drop the tail or misinterpret content-internal spaces
+// as a chunk boundary. The previous (loose) version returned 0 for tails
+// without a space and silently truncated the message.
+func TestDockerStandaloneParserTTYPreservesUnmatchedTail(t *testing.T) {
+	// (a) Tail with no space at all: previous code dropped it entirely.
+	chunk1 := strings.Repeat("a", dockerBufferSize)
+	tail := "tail-without-space" // no space, no TS, must be preserved verbatim
+	input := ttyTimestamp + " " + chunk1 + tail
+	expectedContent := chunk1 + tail
+
+	logMessage := message.NewMessage([]byte(input), nil, "", 0)
+	msg, err := container1Parser.Parse(logMessage)
+	assert.Nil(t, err)
+	assert.False(t, msg.ParsingExtra.IsPartial)
+	assert.Equal(t, ttyTimestamp, msg.ParsingExtra.Timestamp)
+	assert.Equal(t, message.StatusInfo, msg.Status)
+	assert.Equal(t, []byte(expectedContent), msg.GetContent())
+	assert.Equal(t, dockerBufferSize+len(tail), len(msg.GetContent()))
+
+	// (b) Tail with a space but no valid timestamp before it: previous code
+	// would strip the prefix up to the space as if it were a TS marker.
+	tail = "hello world, no timestamp prefix"
+	input = ttyTimestamp + " " + chunk1 + tail
+	expectedContent = chunk1 + tail
+
+	logMessage = message.NewMessage([]byte(input), nil, "", 0)
+	msg, err = container1Parser.Parse(logMessage)
+	assert.Nil(t, err)
+	assert.False(t, msg.ParsingExtra.IsPartial)
+	assert.Equal(t, ttyTimestamp, msg.ParsingExtra.Timestamp)
+	assert.Equal(t, message.StatusInfo, msg.Status)
+	assert.Equal(t, []byte(expectedContent), msg.GetContent())
+	assert.Equal(t, dockerBufferSize+len(tail), len(msg.GetContent()))
+	// Verify the leading "hello" of the tail is NOT stripped (would happen
+	// if the function treated the first space as a chunk-boundary marker).
+	assert.Contains(t, string(msg.GetContent()), "hello world, no timestamp prefix")
+}

@@ -12,6 +12,7 @@ package dockerstream
 import (
 	"bytes"
 	"fmt"
+	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers"
@@ -202,9 +203,14 @@ func getDockerMetadataLength(msg []byte) int {
 //
 //	Input:  TS1 SPACE CONTENT1 TS2 SPACE CONTENT2 TS3 SPACE CONTENT3
 //	Output: TS1 SPACE CONTENT1 CONTENT2 CONTENT3
+//
+// If the tail after a chunk does not begin with a valid RFC3339Nano timestamp
+// followed by a space (for example a single non-Docker frame longer than 16KB,
+// or a truncated frame), the remainder is appended verbatim instead of being
+// reinterpreted as another chunk boundary.
 func removeTTYPartialTimestamps(msgToClean []byte) []byte {
-	metadataLen := getTTYMetadataLength(msgToClean)
-	if metadataLen == 0 {
+	metadataLen, ok := getTTYMetadataLength(msgToClean)
+	if !ok {
 		return msgToClean
 	}
 
@@ -212,10 +218,20 @@ func removeTTYPartialTimestamps(msgToClean []byte) []byte {
 	start := 0
 	end := min(len(msgToClean), dockerBufferSize+metadataLen)
 
-	for end > 0 && metadataLen > 0 {
+	for end > 0 {
 		msg = append(msg, msgToClean[start:end]...)
 		msgToClean = msgToClean[end:]
-		metadataLen = getTTYMetadataLength(msgToClean)
+		if len(msgToClean) == 0 {
+			break
+		}
+		metadataLen, ok = getTTYMetadataLength(msgToClean)
+		if !ok {
+			// Remainder doesn't look like another Docker chunk boundary.
+			// Append the unmatched tail unchanged rather than stripping
+			// bytes that might be part of the user's log content.
+			msg = append(msg, msgToClean...)
+			break
+		}
 		start = metadataLen
 		end = min(len(msgToClean), dockerBufferSize+metadataLen)
 	}
@@ -224,17 +240,24 @@ func removeTTYPartialTimestamps(msgToClean []byte) []byte {
 }
 
 // getTTYMetadataLength returns the length of the timestamp and trailing space
-// that Docker prepends to each TTY-mode buffer chunk.  In TTY mode there is no
+// that Docker prepends to each TTY-mode buffer chunk. In TTY mode there is no
 // 8-byte stream header, so the metadata is just the RFC3339Nano timestamp
 // followed by a single space character.
 //
-// Returns 0 if the content does not begin with a recognisable timestamp.
-func getTTYMetadataLength(msg []byte) int {
+// Returns (metadataLen, true) when the message begins with a valid
+// RFC3339Nano timestamp + space, and (0, false) otherwise. The second
+// return guards against treating ordinary user content (which may contain
+// spaces but does not start with a parseable timestamp) as a chunk
+// boundary.
+func getTTYMetadataLength(msg []byte) (int, bool) {
 	idx := bytes.Index(msg, []byte{' '})
 	if idx == -1 {
-		return 0
+		return 0, false
 	}
-	return idx + 1
+	if _, err := time.Parse(time.RFC3339Nano, string(msg[:idx])); err != nil {
+		return 0, false
+	}
+	return idx + 1, true
 }
 
 // isEmptyMessage tests if the entire message is in the form of escaped new line
