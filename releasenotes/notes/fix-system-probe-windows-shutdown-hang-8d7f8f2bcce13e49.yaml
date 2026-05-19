@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix an issue on Windows where the ``datadog-system-probe`` service could
+    fail to stop within its shutdown timeout when Cloud Workload Security was
+    enabled, resulting in delayed Agent restarts and a forced service
+    termination.
