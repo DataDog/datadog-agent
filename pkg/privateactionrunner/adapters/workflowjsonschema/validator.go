@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hashicorp/go-multierror"
 	"github.com/santhosh-tekuri/jsonschema/v5"
 )
 
@@ -41,11 +40,11 @@ func FormatValidationError(err error) error {
 	if len(ve.Causes) == 0 {
 		return fmt.Errorf("%s: %s", loc, ve.Message)
 	}
-	var errs *multierror.Error
+	var errs []error
 	for _, c := range ve.Causes {
 		if cErr := FormatValidationError(c); cErr != nil {
-			errs = multierror.Append(errs, cErr)
+			errs = append(errs, cErr)
 		}
 	}
-	return errs.ErrorOrNil()
+	return errors.Join(errs...)
 }

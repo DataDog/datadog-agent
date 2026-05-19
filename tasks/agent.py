@@ -325,7 +325,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
         )
 
     shutil.copytree(
-        "./comp/core/gui/guiimpl/views/private",
+        "./comp/core/gui/impl/views/private",
         os.path.join(dist_folder, "views"),
         ignore=shutil.ignore_patterns("BUILD.bazel"),
         dirs_exist_ok=True,
