@@ -22,7 +22,6 @@ import (
 )
 
 const (
-	ncclSpanName    = "nccl.collective"
 	ncclSpanType    = "gpu"
 	ncclSpanService = "nccl"
 )
@@ -98,8 +97,8 @@ func buildSpan(event NCCLInspectorEvent, tags []string) *pb.Span {
 
 	return &pb.Span{
 		Service:  service,
-		Name:     ncclSpanName,
-		Resource: perf.Collective,
+		Name:     perf.Collective,
+		Resource: fmt.Sprintf("rank:%d", event.Rank),
 		TraceID:  collTraceID(event.ID, perf.CollSN),
 		SpanID:   collSpanID(event.ID, event.Rank, perf.CollSN),
 		ParentID: 0,
@@ -107,6 +106,7 @@ func buildSpan(event NCCLInspectorEvent, tags []string) *pb.Span {
 		Duration: durationNS,
 		Meta:     meta,
 		Metrics: map[string]float64{
+			"_sampling_priority_v1":    1,
 			"nccl.exec_time_us":        perf.ExecTimeUS,
 			"nccl.algo_bandwidth_gbps": perf.AlgoBandwidthGB,
 			"nccl.bus_bandwidth_gbps":  perf.BusBandwidthGB,

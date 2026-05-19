@@ -95,8 +95,8 @@ func TestBuildSpanFields(t *testing.T) {
 	span := buildSpan(event, tags)
 
 	assert.Equal(t, "pytorch-training", span.Service)
-	assert.Equal(t, ncclSpanName, span.Name)
-	assert.Equal(t, "AllReduce", span.Resource)
+	assert.Equal(t, "AllReduce", span.Name)
+	assert.Equal(t, "rank:2", span.Resource)
 	assert.Equal(t, ncclSpanType, span.Type)
 
 	// Timing: start = dump_timestamp_us*1000 - exec_time_us*1000
@@ -114,6 +114,7 @@ func TestBuildSpanFields(t *testing.T) {
 	assert.Equal(t, "pytorch-training", span.Meta["service"])
 	assert.Equal(t, "prod", span.Meta["env"])
 
+	assert.Equal(t, float64(1), span.Metrics["_sampling_priority_v1"])
 	assert.InDelta(t, 234.5, span.Metrics["nccl.exec_time_us"], 0.001)
 	assert.InDelta(t, 85.6, span.Metrics["nccl.algo_bandwidth_gbps"], 0.001)
 	assert.InDelta(t, 71.3, span.Metrics["nccl.bus_bandwidth_gbps"], 0.001)
@@ -131,6 +132,8 @@ func TestBuildSpanServiceFallback(t *testing.T) {
 
 	span := buildSpan(event, nil)
 	assert.Equal(t, ncclSpanService, span.Service, "should fall back to 'nccl' when service tag absent")
+	assert.Equal(t, "AllGather", span.Name)
+	assert.Equal(t, "rank:0", span.Resource)
 }
 
 func TestEmitTracesPostsToTraceAgent(t *testing.T) {
@@ -153,8 +156,8 @@ func TestEmitTracesPostsToTraceAgent(t *testing.T) {
 
 	span := &pb.Span{
 		Service:  "nccl",
-		Name:     ncclSpanName,
-		Resource: "AllReduce",
+		Name:     "AllReduce",
+		Resource: "rank:0",
 		TraceID:  1,
 		SpanID:   2,
 		Start:    1000,
