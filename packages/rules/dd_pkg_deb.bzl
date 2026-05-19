@@ -5,6 +5,7 @@ load("@rules_pkg//pkg/private/deb:deb.bzl", "pkg_deb_impl")
 load("//packages/rules:package_naming.bzl", "package_name_variables")
 load("//tools/tar_checksums:tar_md5sums.bzl", "tar_md5sums")
 
+# buildifier: disable=unused-variable
 def _dd_pkg_deb_impl(name, visibility, conflicts, data, depends, description, homepage, license, maintainer, out, package, package_file_name, postinst, postrm, preinst, prerm, priority, recommends, section, version, **kwargs):
     variables_name = "%s_vars_" % name
     package_name_variables(
