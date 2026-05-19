@@ -495,13 +495,20 @@ func scanKernelModulePathsIn(root string) map[string]string {
 			return nil
 		}
 
+		// Recognised module file extensions, matching what the kernel build
+		// system produces via MODULES_COMPRESS (xz, zstd, gzip) plus the
+		// uncompressed default. Longest suffixes must come first so that
+		// e.g. ".ko.zst" is matched before ".ko".
 		name := d.Name()
-		switch {
-		case strings.HasSuffix(name, ".ko.xz"):
-			name = strings.TrimSuffix(name, ".ko.xz")
-		case strings.HasSuffix(name, ".ko"):
-			name = strings.TrimSuffix(name, ".ko")
-		default:
+		var trimmed bool
+		for _, suffix := range []string{".ko.zst", ".ko.xz", ".ko.gz", ".ko"} {
+			if strings.HasSuffix(name, suffix) {
+				name = strings.TrimSuffix(name, suffix)
+				trimmed = true
+				break
+			}
+		}
+		if !trimmed {
 			return nil
 		}
 		// Normalise to the /proc/modules form (underscores). The kernel

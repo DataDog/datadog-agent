@@ -39,6 +39,28 @@ func TestScanKernelModulePathsIn(t *testing.T) {
 		assert.Equal(t, modulePath, paths["cifs"])
 	})
 
+	t.Run("compressed .ko.zst", func(t *testing.T) {
+		root := t.TempDir()
+		require.NoError(t, os.MkdirAll(filepath.Join(root, "kernel/fs/cifs"), 0o755))
+		modulePath := filepath.Join(root, "kernel/fs/cifs/cifs.ko.zst")
+		require.NoError(t, os.WriteFile(modulePath, []byte("stub"), 0o644))
+
+		paths := scanKernelModulePathsIn(root)
+		require.Contains(t, paths, "cifs")
+		assert.Equal(t, modulePath, paths["cifs"])
+	})
+
+	t.Run("compressed .ko.gz", func(t *testing.T) {
+		root := t.TempDir()
+		require.NoError(t, os.MkdirAll(filepath.Join(root, "kernel/fs/cifs"), 0o755))
+		modulePath := filepath.Join(root, "kernel/fs/cifs/cifs.ko.gz")
+		require.NoError(t, os.WriteFile(modulePath, []byte("stub"), 0o644))
+
+		paths := scanKernelModulePathsIn(root)
+		require.Contains(t, paths, "cifs")
+		assert.Equal(t, modulePath, paths["cifs"])
+	})
+
 	t.Run("missing root", func(t *testing.T) {
 		paths := scanKernelModulePathsIn(filepath.Join(t.TempDir(), "does", "not", "exist"))
 		assert.Nil(t, paths)

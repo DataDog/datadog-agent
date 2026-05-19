@@ -3677,8 +3677,11 @@ func (p *EBPFProbe) newEBPFPooledEventFromPCE(entry *model.ProcessCacheEntry) *m
 }
 
 // newLoadModuleEventFromProcFSSnapshot builds a synthetic load_module event for
-// a module discovered via /proc/modules. modulePath is "" when no on-disk .ko
-// was found, which is also how LoadedFromMemory is derived.
+// a module discovered via /proc/modules. modulePath is "" when no on-disk file
+// was located under /lib/modules/$(uname -r)/, in which case the event carries
+// an empty file path. LoadedFromMemory is always false on snapshot events: the
+// real syscall (init_module vs finit_module) was not observed, so the field is
+// reserved for runtime events where the kernel told us which one was used.
 func (p *EBPFProbe) newLoadModuleEventFromProcFSSnapshot(mod utils.ProcFSModule, modulePath string, anchor *model.ProcessCacheEntry) *model.Event {
 	event := p.getPoolEvent()
 	event.Timestamp = time.Now()
@@ -3691,25 +3694,14 @@ func (p *EBPFProbe) newLoadModuleEventFromProcFSSnapshot(mod utils.ProcFSModule,
 
 	event.LoadModule.SyscallEvent.Retval = 0
 	event.LoadModule.Name = mod.Name
+	event.LoadModule.LoadedFromMemory = false
 
 	if modulePath == "" {
-		// We could not find a matching file under /lib/modules/$(uname -r)/.
-		// /proc/modules does not record how the module was originally loaded,
-		// so falling back to LoadedFromMemory=true is the best heuristic: it
-		// makes file-path rules skip the event rather than match on stale or
-		// empty data.
-		event.LoadModule.LoadedFromMemory = true
 		event.LoadModule.File.SetPathnameStr("")
 		event.LoadModule.File.SetBasenameStr("")
 		return event
 	}
 
-	// NOTE: we cannot tell whether this module was actually loaded via
-	// init_module(2) (from memory) or finit_module(2) (from file) just from
-	// /proc/modules. Setting LoadedFromMemory=false reflects the fact that we
-	// found a corresponding file on disk; rules that depend on the syscall
-	// distinction should anchor on runtime events, not snapshot events.
-	event.LoadModule.LoadedFromMemory = false
 	event.LoadModule.File.SetPathnameStr(modulePath)
 	event.LoadModule.File.SetBasenameStr(filepath.Base(modulePath))
 

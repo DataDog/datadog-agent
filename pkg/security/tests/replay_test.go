@@ -199,8 +199,11 @@ func TestReplay(t *testing.T) {
 
 		ruleDefs := []*rules.RuleDefinition{
 			{
-				ID:         "test_rule_replay_load_module",
-				Expression: fmt.Sprintf(`event.source == "replay" && load_module.name == "%s"`, testModuleName),
+				ID: "test_rule_replay_load_module",
+				Expression: fmt.Sprintf(
+					`event.source == "replay" && load_module.name == "%s" && load_module.loaded_from_memory == false`,
+					testModuleName,
+				),
 			},
 		}
 
