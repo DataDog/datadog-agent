@@ -12,6 +12,7 @@ go_library(
     deps = [
         "//comp/api/api/def",
         "//comp/api/api/utils/stream",
+        "//comp/core/config",
         "//comp/core/hostname/hostnameinterface",
         "//comp/forwarder/eventplatform",
         "//comp/forwarder/eventplatformreceiver",
