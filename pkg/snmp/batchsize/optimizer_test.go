@@ -13,10 +13,10 @@ import (
 
 func Test_Optimizer_OnFailure(t *testing.T) {
 	tests := []struct {
-		name             string
-		optimizer        *Optimizer
+		name              string
+		optimizer         *Optimizer
 		expectedOptimizer *Optimizer
-		expectedChanged  bool
+		expectedChanged   bool
 	}{
 		{
 			name: "batch size is 1",
