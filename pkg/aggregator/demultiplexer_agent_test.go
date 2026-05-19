@@ -580,6 +580,20 @@ func TestUpdateMetricFilterList(t *testing.T) {
 	filterList.SetMetricFilterList([]string{"more.metric"}, false)
 }
 
+func TestSetCheckIntervalAfterStopIsNoop(t *testing.T) {
+	configmock.New(t)
+	opts := demuxTestOptions()
+	deps := createDemuxDeps(t, opts, eventplatformimpl.NewDefaultParams())
+	demux := deps.Demultiplexer
+
+	demux.Stop(false)
+	require.Eventually(t, func() bool {
+		return demux.aggregator == nil
+	}, time.Second, time.Millisecond)
+
+	demux.SetCheckInterval(checkid.ID("stopped-check"), time.Second)
+}
+
 type DemultiplexerAgentTestDeps struct {
 	TestDeps
 	OrchestratorFwd orchestratorforwarder.Component

@@ -289,10 +289,18 @@ func (d *AgentDemultiplexer) SetObserver(obs observer.Component) {
 // Check aggregation uses this metadata to bypass checks that are not faster
 // than check_aggregator.window_duration.
 func (d *AgentDemultiplexer) SetCheckInterval(id checkid.ID, interval time.Duration) {
-	if d == nil || d.aggregator == nil {
+	if d == nil {
 		return
 	}
-	d.aggregator.setCheckInterval(id, interval)
+
+	d.m.RLock()
+	agg := d.aggregator
+	d.m.RUnlock()
+
+	if agg == nil {
+		return
+	}
+	agg.setCheckInterval(id, interval)
 }
 
 // AddAgentStartupTelemetry adds a startup event and count (in a DSD time sampler)
