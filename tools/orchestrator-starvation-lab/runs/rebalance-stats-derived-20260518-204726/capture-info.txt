@@ -1,0 +1,4 @@
+DCA=lab-cluster-agent-b854469fc-267hp
+RUNNER=lab-cluster-checks-runner-754b456bf4-9p7wh
+RUNNER=lab-cluster-checks-runner-754b456bf4-bwv2v
+RUNNER=lab-cluster-checks-runner-754b456bf4-n4j4r

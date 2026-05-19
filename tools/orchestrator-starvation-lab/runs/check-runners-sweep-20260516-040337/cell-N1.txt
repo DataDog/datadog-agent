@@ -1,0 +1,934 @@
+DD_CHECK_RUNNERS=1 pods=3 total_workers=3
+--- lab-cluster-checks-runner-65ff57994f-gq9cq ---
+    openmetrics (7.4.1)
+    -------------------
+      Instance ID: openmetrics:2932a2825a19e2b4 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0098[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.015s
+      Last Execution Date : 2026-05-16 04:05:58.103 UTC (1778904358103)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0098[0]
+      Error: There was an error scraping endpoint http://10.96.84.173:8080/metrics: HTTPConnectionPool(host='10.96.84.173', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.84.173:8080/metrics: HTTPConnectionPool(host='10.96.84.173', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:4cac998d1adadcf [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0034[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.013s
+      Last Execution Date : 2026-05-16 04:07:18.233 UTC (1778904438233)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0034[0]
+      Error: There was an error scraping endpoint http://10.96.60.50:8080/metrics: HTTPConnectionPool(host='10.96.60.50', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.60.50:8080/metrics: HTTPConnectionPool(host='10.96.60.50', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:4e98a84190871b48 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0009[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.013s
+      Last Execution Date : 2026-05-16 04:08:08.306 UTC (1778904488306)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0009[0]
+      Error: There was an error scraping endpoint http://10.96.14.243:8080/metrics: HTTPConnectionPool(host='10.96.14.243', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.14.243:8080/metrics: HTTPConnectionPool(host='10.96.14.243', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:7216b54804563580 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0122[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.017s
+      Last Execution Date : 2026-05-16 04:05:38.07 UTC (1778904338070)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0122[0]
+      Error: There was an error scraping endpoint http://10.96.112.135:8080/metrics: HTTPConnectionPool(host='10.96.112.135', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.112.135:8080/metrics: HTTPConnectionPool(host='10.96.112.135', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:773c7dd7fae4843b [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0174[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.015s
+      Last Execution Date : 2026-05-16 04:06:08.118 UTC (1778904368118)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0174[0]
+      Error: There was an error scraping endpoint http://10.96.93.32:8080/metrics: HTTPConnectionPool(host='10.96.93.32', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.93.32:8080/metrics: HTTPConnectionPool(host='10.96.93.32', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:7d9184b31cf28c71 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0094[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.017s
+      Last Execution Date : 2026-05-16 04:05:48.088 UTC (1778904348088)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0094[0]
+      Error: There was an error scraping endpoint http://10.96.138.188:8080/metrics: HTTPConnectionPool(host='10.96.138.188', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.138.188:8080/metrics: HTTPConnectionPool(host='10.96.138.188', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:81fefe266b337e87 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0105[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.014s
+      Last Execution Date : 2026-05-16 04:06:18.133 UTC (1778904378133)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0105[0]
+      Error: There was an error scraping endpoint http://10.96.132.190:8080/metrics: HTTPConnectionPool(host='10.96.132.190', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.132.190:8080/metrics: HTTPConnectionPool(host='10.96.132.190', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:8af091ebe6792243 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0176[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.016s
+      Last Execution Date : 2026-05-16 04:06:58.204 UTC (1778904418204)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0176[0]
+      Error: There was an error scraping endpoint http://10.96.47.239:8080/metrics: HTTPConnectionPool(host='10.96.47.239', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.47.239:8080/metrics: HTTPConnectionPool(host='10.96.47.239', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:8d352ee91e134834 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0003[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.014s
+      Last Execution Date : 2026-05-16 04:07:08.219 UTC (1778904428219)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0003[0]
+      Error: There was an error scraping endpoint http://10.96.221.233:8080/metrics: HTTPConnectionPool(host='10.96.221.233', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.221.233:8080/metrics: HTTPConnectionPool(host='10.96.221.233', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:97e409e9ab13e38c [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0070[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.015s
+      Last Execution Date : 2026-05-16 04:06:48.188 UTC (1778904408188)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0070[0]
+      Error: There was an error scraping endpoint http://10.96.192.32:8080/metrics: HTTPConnectionPool(host='10.96.192.32', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.192.32:8080/metrics: HTTPConnectionPool(host='10.96.192.32', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:980933022ba15e45 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0091[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.015s
+      Last Execution Date : 2026-05-16 04:07:28.249 UTC (1778904448249)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0091[0]
+      Error: There was an error scraping endpoint http://10.96.77.93:8080/metrics: HTTPConnectionPool(host='10.96.77.93', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.77.93:8080/metrics: HTTPConnectionPool(host='10.96.77.93', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:9af8a1cf59f2a07a [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0165[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.024s
+      Last Execution Date : 2026-05-16 04:06:28.157 UTC (1778904388157)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0165[0]
+      Error: There was an error scraping endpoint http://10.96.8.125:8080/metrics: HTTPConnectionPool(host='10.96.8.125', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.8.125:8080/metrics: HTTPConnectionPool(host='10.96.8.125', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:a5b13f87879bb5d1 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0013[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.04s
+      Last Execution Date : 2026-05-16 04:05:28.052 UTC (1778904328052)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0013[0]
+      Error: There was an error scraping endpoint http://10.96.130.192:8080/metrics: HTTPConnectionPool(host='10.96.130.192', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.130.192:8080/metrics: HTTPConnectionPool(host='10.96.130.192', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:b75f8444b9dad7ae [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0181[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.014s
+      Last Execution Date : 2026-05-16 04:07:38.263 UTC (1778904458263)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0181[0]
+      Error: There was an error scraping endpoint http://10.96.222.208:8080/metrics: HTTPConnectionPool(host='10.96.222.208', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.222.208:8080/metrics: HTTPConnectionPool(host='10.96.222.208', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:c41156cc2b73920c [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0017[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.014s
+      Last Execution Date : 2026-05-16 04:07:48.277 UTC (1778904468277)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0017[0]
+      Error: There was an error scraping endpoint http://10.96.29.81:8080/metrics: HTTPConnectionPool(host='10.96.29.81', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.29.81:8080/metrics: HTTPConnectionPool(host='10.96.29.81', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:d32246fd65d82f22 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0121[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.015s
+      Last Execution Date : 2026-05-16 04:06:38.172 UTC (1778904398172)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0121[0]
+      Error: There was an error scraping endpoint http://10.96.54.203:8080/metrics: HTTPConnectionPool(host='10.96.54.203', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.54.203:8080/metrics: HTTPConnectionPool(host='10.96.54.203', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:da134b5bbc4fb552 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0020[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.015s
+      Last Execution Date : 2026-05-16 04:07:58.293 UTC (1778904478293)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0020[0]
+      Error: There was an error scraping endpoint http://10.96.34.153:8080/metrics: HTTPConnectionPool(host='10.96.34.153', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.34.153:8080/metrics: HTTPConnectionPool(host='10.96.34.153', port=8080): Read timed out. (read timeout=10.0)
+  Check Worker Utilization
+  ========================
+    Total Workers: 1
+    Average Utilization: 95.0%
+
+--- lab-cluster-checks-runner-65ff57994f-j8s9c ---
+    openmetrics (7.4.1)
+    -------------------
+      Instance ID: openmetrics:1392c89d8e52c6a2 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0050[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.015s
+      Last Execution Date : 2026-05-16 04:07:53.348 UTC (1778904473348)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0050[0]
+      Error: There was an error scraping endpoint http://10.96.9.162:8080/metrics: HTTPConnectionPool(host='10.96.9.162', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.9.162:8080/metrics: HTTPConnectionPool(host='10.96.9.162', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:19e7ce38719be31f [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0086[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.014s
+      Last Execution Date : 2026-05-16 04:06:53.146 UTC (1778904413146)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0086[0]
+      Error: There was an error scraping endpoint http://10.96.165.57:8080/metrics: HTTPConnectionPool(host='10.96.165.57', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.165.57:8080/metrics: HTTPConnectionPool(host='10.96.165.57', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:2936ba11fdc2b3b5 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0160[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.014s
+      Last Execution Date : 2026-05-16 04:07:03.161 UTC (1778904423161)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0160[0]
+      Error: There was an error scraping endpoint http://10.96.190.225:8080/metrics: HTTPConnectionPool(host='10.96.190.225', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.190.225:8080/metrics: HTTPConnectionPool(host='10.96.190.225', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:449ecc3fe19d277 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0064[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.014s
+      Last Execution Date : 2026-05-16 04:08:03.363 UTC (1778904483363)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0064[0]
+      Error: There was an error scraping endpoint http://10.96.248.223:8080/metrics: HTTPConnectionPool(host='10.96.248.223', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.248.223:8080/metrics: HTTPConnectionPool(host='10.96.248.223', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:4b1613533ad8ba52 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0025[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.039s
+      Last Execution Date : 2026-05-16 04:05:34.977 UTC (1778904334977)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0025[0]
+      Error: There was an error scraping endpoint http://10.96.123.59:8080/metrics: HTTPConnectionPool(host='10.96.123.59', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.123.59:8080/metrics: HTTPConnectionPool(host='10.96.123.59', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:6c21ec129a56d3cc [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0026[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.013s
+      Last Execution Date : 2026-05-16 04:07:23.22 UTC (1778904443220)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0026[0]
+      Error: There was an error scraping endpoint http://10.96.16.205:8080/metrics: HTTPConnectionPool(host='10.96.16.205', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.16.205:8080/metrics: HTTPConnectionPool(host='10.96.16.205', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:837a33466a2dc11 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0063[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.017s
+      Last Execution Date : 2026-05-16 04:06:15.05 UTC (1778904375050)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0063[0]
+      Error: There was an error scraping endpoint http://10.96.94.67:8080/metrics: HTTPConnectionPool(host='10.96.94.67', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.94.67:8080/metrics: HTTPConnectionPool(host='10.96.94.67', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:911fafd109caba8d [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0058[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.014s
+      Last Execution Date : 2026-05-16 04:06:33.019 UTC (1778904393019)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0058[0]
+      Error: There was an error scraping endpoint http://10.96.204.18:8080/metrics: HTTPConnectionPool(host='10.96.204.18', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.204.18:8080/metrics: HTTPConnectionPool(host='10.96.204.18', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:9e25a8e3a3af68b5 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0103[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.014s
+      Last Execution Date : 2026-05-16 04:07:33.267 UTC (1778904453267)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0103[0]
+      Error: There was an error scraping endpoint http://10.96.31.3:8080/metrics: HTTPConnectionPool(host='10.96.31.3', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.31.3:8080/metrics: HTTPConnectionPool(host='10.96.31.3', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:b98101f5c94149ef [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0157[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.025s
+      Last Execution Date : 2026-05-16 04:06:05.032 UTC (1778904365032)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0157[0]
+      Error: There was an error scraping endpoint http://10.96.64.113:8080/metrics: HTTPConnectionPool(host='10.96.64.113', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.64.113:8080/metrics: HTTPConnectionPool(host='10.96.64.113', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:ca9a9edee9f7aa5e [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0041[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.013s
+      Last Execution Date : 2026-05-16 04:06:43.033 UTC (1778904403033)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0041[0]
+      Error: There was an error scraping endpoint http://10.96.40.142:8080/metrics: HTTPConnectionPool(host='10.96.40.142', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.40.142:8080/metrics: HTTPConnectionPool(host='10.96.40.142', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:cc3eeb8a296a407f [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0147[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.013s
+      Last Execution Date : 2026-05-16 04:05:55.006 UTC (1778904355006)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0147[0]
+      Error: There was an error scraping endpoint http://10.96.141.182:8080/metrics: HTTPConnectionPool(host='10.96.141.182', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.141.182:8080/metrics: HTTPConnectionPool(host='10.96.141.182', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:f3ecb821c2d9d410 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0099[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.014s
+      Last Execution Date : 2026-05-16 04:07:13.206 UTC (1778904433206)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0099[0]
+      Error: There was an error scraping endpoint http://10.96.197.227:8080/metrics: HTTPConnectionPool(host='10.96.197.227', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.197.227:8080/metrics: HTTPConnectionPool(host='10.96.197.227', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:f770bca940ac7a2d [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0012[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.014s
+      Last Execution Date : 2026-05-16 04:05:44.992 UTC (1778904344992)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0012[0]
+      Error: There was an error scraping endpoint http://10.96.45.171:8080/metrics: HTTPConnectionPool(host='10.96.45.171', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.45.171:8080/metrics: HTTPConnectionPool(host='10.96.45.171', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:fdd312f09e4417e6 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0153[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.013s
+      Last Execution Date : 2026-05-16 04:07:43.281 UTC (1778904463281)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0153[0]
+      Error: There was an error scraping endpoint http://10.96.62.215:8080/metrics: HTTPConnectionPool(host='10.96.62.215', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.62.215:8080/metrics: HTTPConnectionPool(host='10.96.62.215', port=8080): Read timed out. (read timeout=10.0)
+
+--- lab-cluster-checks-runner-65ff57994f-nl2xt ---
+    openmetrics (7.4.1)
+    -------------------
+      Instance ID: openmetrics:17cd2be14741fc0f [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0182[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.018s
+      Last Execution Date : 2026-05-16 04:06:27.141 UTC (1778904387141)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0182[0]
+      Error: There was an error scraping endpoint http://10.96.127.147:8080/metrics: HTTPConnectionPool(host='10.96.127.147', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.127.147:8080/metrics: HTTPConnectionPool(host='10.96.127.147', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:5a3382f1d0e9009f [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0148[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.019s
+      Last Execution Date : 2026-05-16 04:05:47.073 UTC (1778904347073)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0148[0]
+      Error: There was an error scraping endpoint http://10.96.238.104:8080/metrics: HTTPConnectionPool(host='10.96.238.104', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.238.104:8080/metrics: HTTPConnectionPool(host='10.96.238.104', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:6528764cecb0b81e [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0145[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.013s
+      Last Execution Date : 2026-05-16 04:07:27.23 UTC (1778904447230)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0145[0]
+      Error: There was an error scraping endpoint http://10.96.38.169:8080/metrics: HTTPConnectionPool(host='10.96.38.169', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.38.169:8080/metrics: HTTPConnectionPool(host='10.96.38.169', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:658aef26bb0b2c5d [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0056[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.019s
+      Last Execution Date : 2026-05-16 04:06:17.123 UTC (1778904377123)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0056[0]
+      Error: There was an error scraping endpoint http://10.96.6.72:8080/metrics: HTTPConnectionPool(host='10.96.6.72', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.6.72:8080/metrics: HTTPConnectionPool(host='10.96.6.72', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:677db71546f394d7 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0002[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.013s
+      Last Execution Date : 2026-05-16 04:06:37.155 UTC (1778904397155)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0002[0]
+      Error: There was an error scraping endpoint http://10.96.44.58:8080/metrics: HTTPConnectionPool(host='10.96.44.58', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.44.58:8080/metrics: HTTPConnectionPool(host='10.96.44.58', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:7d9b1962fbd724be [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0163[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.014s
+      Last Execution Date : 2026-05-16 04:07:17.217 UTC (1778904437217)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0163[0]
+      Error: There was an error scraping endpoint http://10.96.8.199:8080/metrics: HTTPConnectionPool(host='10.96.8.199', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.8.199:8080/metrics: HTTPConnectionPool(host='10.96.8.199', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:7f5a596aee15e6f7 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0088[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.013s
+      Last Execution Date : 2026-05-16 04:07:57.275 UTC (1778904477275)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0088[0]
+      Error: There was an error scraping endpoint http://10.96.173.36:8080/metrics: HTTPConnectionPool(host='10.96.173.36', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.173.36:8080/metrics: HTTPConnectionPool(host='10.96.173.36', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:a592528b69a6418f [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0152[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.047s
+      Last Execution Date : 2026-05-16 04:05:37.053 UTC (1778904337053)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0152[0]
+      Error: There was an error scraping endpoint http://10.96.44.15:8080/metrics: HTTPConnectionPool(host='10.96.44.15', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.44.15:8080/metrics: HTTPConnectionPool(host='10.96.44.15', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:aceb89c94a50132a [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0192[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.013s
+      Last Execution Date : 2026-05-16 04:08:07.289 UTC (1778904487289)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0192[0]
+      Error: There was an error scraping endpoint http://10.96.175.142:8080/metrics: HTTPConnectionPool(host='10.96.175.142', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.175.142:8080/metrics: HTTPConnectionPool(host='10.96.175.142', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:b07801821b394fe [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0037[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.015s
+      Last Execution Date : 2026-05-16 04:06:07.103 UTC (1778904367103)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0037[0]
+      Error: There was an error scraping endpoint http://10.96.62.24:8080/metrics: HTTPConnectionPool(host='10.96.62.24', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.62.24:8080/metrics: HTTPConnectionPool(host='10.96.62.24', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:c7cd8e70afddabfe [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0129[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.016s
+      Last Execution Date : 2026-05-16 04:06:57.187 UTC (1778904417187)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0129[0]
+      Error: There was an error scraping endpoint http://10.96.35.69:8080/metrics: HTTPConnectionPool(host='10.96.35.69', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.35.69:8080/metrics: HTTPConnectionPool(host='10.96.35.69', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:d8b4e1120caa1d38 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0010[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.015s
+      Last Execution Date : 2026-05-16 04:06:47.17 UTC (1778904407170)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0010[0]
+      Error: There was an error scraping endpoint http://10.96.100.103:8080/metrics: HTTPConnectionPool(host='10.96.100.103', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.100.103:8080/metrics: HTTPConnectionPool(host='10.96.100.103', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:da6978402a50dedc [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0188[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.015s
+      Last Execution Date : 2026-05-16 04:07:07.202 UTC (1778904427202)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0188[0]
+      Error: There was an error scraping endpoint http://10.96.133.122:8080/metrics: HTTPConnectionPool(host='10.96.133.122', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.133.122:8080/metrics: HTTPConnectionPool(host='10.96.133.122', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:e9a5c6c58fbe89f5 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0170[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.015s
+      Last Execution Date : 2026-05-16 04:07:37.245 UTC (1778904457245)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0170[0]
+      Error: There was an error scraping endpoint http://10.96.115.35:8080/metrics: HTTPConnectionPool(host='10.96.115.35', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.115.35:8080/metrics: HTTPConnectionPool(host='10.96.115.35', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:ea707fd09f9b5f0b [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0043[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.015s
+      Last Execution Date : 2026-05-16 04:07:47.261 UTC (1778904467261)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0043[0]
+      Error: There was an error scraping endpoint http://10.96.156.20:8080/metrics: HTTPConnectionPool(host='10.96.156.20', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.156.20:8080/metrics: HTTPConnectionPool(host='10.96.156.20', port=8080): Read timed out. (read timeout=10.0)
+      Instance ID: openmetrics:fff019c4c5eb9453 [ERROR]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0126[0]
+      Total Runs: 1
+      Metric Samples: Last Run: 0, Total: 0
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 1
+      Average Execution Time : 10.014s
+      Last Execution Date : 2026-05-16 04:05:57.087 UTC (1778904357087)
+      Last Successful Execution Date : Never
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0126[0]
+      Error: There was an error scraping endpoint http://10.96.123.68:8080/metrics: HTTPConnectionPool(host='10.96.123.68', port=8080): Read timed out. (read timeout=10.0)
+      Traceback (most recent call last):
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/base.py", line 1423, in run
+          self.check(instance)
+          ~~~~~~~~~~^^^^^^^^^^
+        File "/opt/datadog-agent/embedded/lib/python3.13/site-packages/datadog_checks/base/checks/openmetrics/v2/base.py", line 76, in check
+          raise type(e)("There was an error scraping endpoint {}: {}".format(endpoint, e)) from None
+      requests.exceptions.ReadTimeout: There was an error scraping endpoint http://10.96.123.68:8080/metrics: HTTPConnectionPool(host='10.96.123.68', port=8080): Read timed out. (read timeout=10.0)
+  Check Worker Utilization
+  ========================
+    Total Workers: 1
+    Average Utilization: 94.0%
+
+runner uptime: 242s

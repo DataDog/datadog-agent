@@ -1,0 +1,158 @@
+time (UTC)             event        runner   detail
+----------------------------------------------------------------------------------------------------
+20:53:54               SCHEDULE     bwv2v           orchestrator:8d990dba1cec1d3f
+20:54:09               RUN_START    bwv2v    +15s
+20:54:12               RUN_DONE     bwv2v    +3s
+20:54:32               RUN_START    bwv2v    +20s
+20:54:32               RUN_DONE     bwv2v    +0s
+20:54:52               RUN_START    bwv2v    +20s
+20:54:52               RUN_DONE     bwv2v    +0s
+20:55:12               RUN_START    bwv2v    +20s
+20:55:12               RUN_DONE     bwv2v    +0s
+20:55:32               RUN_START    bwv2v    +20s
+20:55:32               RUN_DONE     bwv2v    +0s
+20:57:00               DISPATCH     bwv2v    +1.5m  orchestrator:d96ea7b2e0229931
+20:57:05               REBALANCE    -        +5s    ORCH ABSENT | 11 checks | runners={'bwv2v': 2.6694666666666667, 'n4j4r': 2.6697333333333333, 'sr8vj': 2.0027333333333335}
+20:57:08               UNSCHEDULE   bwv2v    +3s    orchestrator:8d990dba1cec1d3f
+20:57:08               CANCEL       bwv2v    +0s    orchestrator:8d990dba1cec1d3f
+20:57:12               RUN_START    bwv2v    +4s
+20:57:12               RUN_DONE     bwv2v    +0s
+20:57:18               SCHEDULE     bwv2v    +6s    orchestrator:ae09bc0549c965a5
+20:57:20               REBALANCE    -        +2s    ORCH ABSENT | 2 checks | runners={'bwv2v': 0, 'n4j4r': 0.6675333333333333, 'sr8vj': 0.6675333333333333}
+20:57:42               RUN_START    bwv2v    +22s
+20:57:45               RUN_DONE     bwv2v    +3s
+20:58:05               RUN_START    bwv2v    +20s
+20:58:05               RUN_DONE     bwv2v    +0s
+20:58:25               RUN_START    bwv2v    +20s
+20:58:25               RUN_DONE     bwv2v    +0s
+20:58:45               RUN_START    bwv2v    +20s
+20:58:45               RUN_DONE     bwv2v    +0s
+20:59:05               RUN_START    bwv2v    +20s
+20:59:05               RUN_DONE     bwv2v    +0s
+21:06:25               REBALANCE    -        +7.3m  ORCH ON bwv2v wn=0.01 | 167 checks | runners={'bwv2v': 36.059066666666695, 'n4j4r': 36.71193333333336, 'sr8vj': 36.711933333333356}
+21:06:30               REBALANCE    -        +5s    ORCH ON bwv2v wn=0.01 | 117 checks | runners={'bwv2v': 25.373000000000008, 'n4j4r': 26.03173333333334, 'sr8vj': 25.36593333333334}
+21:06:35               REBALANCE    -        +5s    ORCH ON bwv2v wn=0.01 | 80 checks | runners={'bwv2v': 17.36313333333333, 'n4j4r': 17.356066666666663, 'sr8vj': 17.355}
+21:06:40               REBALANCE    -        +5s    ORCH ON bwv2v wn=0.01 | 44 checks | runners={'bwv2v': 9.353133333333332, 'n4j4r': 9.345266666666664, 'sr8vj': 10.011999999999997}
+21:06:45               REBALANCE    -        +5s    ORCH ON bwv2v wn=0.01 | 31 checks | runners={'bwv2v': 6.682866666666666, 'n4j4r': 6.675199999999999, 'sr8vj': 6.675133333333332}
+21:06:50               REBALANCE    -        +5s    ORCH ON bwv2v wn=0.01 | 16 checks | runners={'bwv2v': 3.3454666666666664, 'n4j4r': 3.3377333333333334, 'sr8vj': 3.3376666666666672}
+21:06:55               REBALANCE    -        +5s    ORCH ON n4j4r wn=0.01 | 15 checks | runners={'bwv2v': 3.3377333333333334, 'n4j4r': 2.6782, 'sr8vj': 3.3377333333333334}
+21:06:58               UNSCHEDULE   bwv2v    +3s    orchestrator:ae09bc0549c965a5
+21:06:58               CANCEL       bwv2v    +0s    orchestrator:ae09bc0549c965a5
+21:07:00               REBALANCE    -        +2s    ORCH ABSENT | 10 checks | runners={'bwv2v': 2.0027333333333335, 'n4j4r': 2.670066666666667, 'sr8vj': 2.0027333333333335}
+21:07:05               REBALANCE    -        +5s    ORCH ABSENT | 10 checks | runners={'bwv2v': 2.0027333333333335, 'n4j4r': 2.670066666666667, 'sr8vj': 2.0027333333333335}
+21:07:07               SCHEDULE     n4j4r    +2s    orchestrator:ae09bc0549c965a5
+21:07:20               RUN_START    n4j4r    +13s
+21:07:23               RUN_DONE     n4j4r    +3s
+21:07:43               RUN_START    n4j4r    +20s
+21:07:43               RUN_DONE     n4j4r    +0s
+21:08:03               RUN_START    n4j4r    +20s
+21:08:03               RUN_DONE     n4j4r    +0s
+21:08:23               RUN_START    n4j4r    +20s
+21:08:23               RUN_DONE     n4j4r    +0s
+21:08:43               RUN_START    n4j4r    +20s
+21:08:43               RUN_DONE     n4j4r    +0s
+21:10:55               REBALANCE    -        +2.2m  ORCH ON n4j4r wn=0.02 | 73 checks | runners={'bwv2v': 16.019266666666663, 'n4j4r': 16.037133333333326, 'sr8vj': 16.019199999999998}
+21:11:00               REBALANCE    -        +5s    ORCH ON n4j4r wn=0.02 | 42 checks | runners={'bwv2v': 9.344133333333332, 'n4j4r': 8.695266666666665, 'sr8vj': 9.344133333333332}
+21:11:05               REBALANCE    -        +5s    ORCH ON sr8vj wn=0.02 | 26 checks | runners={'bwv2v': 5.339733333333333, 'n4j4r': 6.006666666666666, 'sr8vj': 5.356266666666666}
+21:11:10               REBALANCE    -        +5s    ORCH ON n4j4r wn=0.02 | 11 checks | runners={'bwv2v': 2.6692666666666662, 'n4j4r': 2.018933333333333, 'sr8vj': 2.0023999999999997}
+21:11:11               SCHEDULE     sr8vj    +1s    orchestrator:ae09bc0549c965a5
+21:11:15               UNSCHEDULE   n4j4r    +4s    orchestrator:ae09bc0549c965a5
+21:11:15               CANCEL       n4j4r    +0s    orchestrator:ae09bc0549c965a5
+21:11:23               RUN_START    n4j4r    +8s
+21:11:23               RUN_DONE     n4j4r    +0s
+21:11:31               RUN_START    sr8vj    +8s
+21:11:35               REBALANCE    -        +4s    ORCH ON sr8vj wn=0.21 | 12 checks | runners={'bwv2v': 2.670066666666667, 'n4j4r': 2.669666666666666, 'sr8vj': 2.209533333333333}
+21:11:35               RUN_DONE     sr8vj    +0s
+21:11:40               REBALANCE    -        +5s    ORCH ON n4j4r wn=0.21 | 9 checks | runners={'bwv2v': 2.002533333333333, 'n4j4r': 1.5419999999999998, 'sr8vj': 2.0026666666666664}
+21:11:45               REBALANCE    -        +5s    ORCH ON sr8vj wn=0.21 | 8 checks | runners={'bwv2v': 2.0027333333333335, 'n4j4r': 1.3352666666666666, 'sr8vj': 1.5419333333333332}
+21:11:47               SCHEDULE     n4j4r    +2s    orchestrator:ae09bc0549c965a5
+21:11:47               UNSCHEDULE   sr8vj    +0s    orchestrator:ae09bc0549c965a5
+21:11:47               CANCEL       sr8vj    +0s    orchestrator:ae09bc0549c965a5
+21:11:55               RUN_START    sr8vj    +8s
+21:11:55               RUN_DONE     sr8vj    +0s
+21:12:14               RUN_START    n4j4r    +19s
+21:12:16               RUN_DONE     n4j4r    +2s
+21:12:36               RUN_START    n4j4r    +20s
+21:12:36               RUN_DONE     n4j4r    +0s
+21:12:56               RUN_START    n4j4r    +20s
+21:12:56               RUN_DONE     n4j4r    +0s
+21:13:16               RUN_START    n4j4r    +20s
+21:13:16               RUN_DONE     n4j4r    +0s
+21:13:36               RUN_START    n4j4r    +20s
+21:13:36               RUN_DONE     n4j4r    +0s
+21:17:20               REBALANCE    -        +3.7m  ORCH ON bwv2v wn=0.01 | 107 checks | runners={'bwv2v': 22.71279999999999, 'n4j4r': 23.361066666666662, 'sr8vj': 23.361066666666662}
+21:17:25               REBALANCE    -        +5s    ORCH ABSENT | 87 checks | runners={'bwv2v': 18.69406666666666, 'n4j4r': 19.35626666666666, 'sr8vj': 19.356266666666663}
+21:17:25               UNSCHEDULE   n4j4r    +0s    orchestrator:ae09bc0549c965a5
+21:17:25               CANCEL       n4j4r    +0s    orchestrator:ae09bc0549c965a5
+21:17:30               REBALANCE    -        +5s    ORCH ABSENT | 47 checks | runners={'bwv2v': 10.016799999999998, 'n4j4r': 10.0122, 'sr8vj': 10.679066666666662}
+21:17:35               REBALANCE    -        +5s    ORCH ABSENT | 35 checks | runners={'bwv2v': 7.342466666666666, 'n4j4r': 7.347133333333332, 'sr8vj': 8.0094}
+21:17:35               SCHEDULE     bwv2v    +0s    orchestrator:ae09bc0549c965a5
+21:17:57               RUN_START    bwv2v    +22s
+21:18:01               RUN_DONE     bwv2v    +4s
+21:18:05               REBALANCE    -        +4s    ORCH ON sr8vj wn=0.21 | 27 checks | runners={'bwv2v': 6.007599999999999, 'n4j4r': 6.007466666666665, 'sr8vj': 5.545733333333332}
+21:18:08               UNSCHEDULE   bwv2v    +3s    orchestrator:ae09bc0549c965a5
+21:18:08               CANCEL       bwv2v    +0s    orchestrator:ae09bc0549c965a5
+21:18:10               REBALANCE    -        +2s    ORCH ABSENT | 24 checks | runners={'bwv2v': 5.340466666666666, 'n4j4r': 5.340533333333332, 'sr8vj': 5.339999999999999}
+21:18:10               SCHEDULE     sr8vj    +0s    orchestrator:ae09bc0549c965a5
+21:18:15               REBALANCE    -        +5s    ORCH ABSENT | 21 checks | runners={'bwv2v': 4.672933333333332, 'n4j4r': 4.672933333333333, 'sr8vj': 4.672933333333333}
+21:18:20               REBALANCE    -        +5s    ORCH ABSENT | 13 checks | runners={'bwv2v': 2.670333333333333, 'n4j4r': 3.3377999999999997, 'sr8vj': 2.6704}
+21:18:21               RUN_START    bwv2v    +1s
+21:18:21               RUN_DONE     bwv2v    +0s
+21:18:25               REBALANCE    -        +4s    ORCH ABSENT | 10 checks | runners={'bwv2v': 2.0027999999999997, 'n4j4r': 2.6702666666666666, 'sr8vj': 2.002866666666667}
+21:18:35               RUN_START    sr8vj    +10s
+21:18:38               RUN_DONE     sr8vj    +3s
+21:18:40               REBALANCE    -        +2s    ORCH ON n4j4r wn=0.17 | 12 checks | runners={'bwv2v': 2.6702000000000004, 'n4j4r': 2.174933333333333, 'sr8vj': 2.670066666666666}
+21:18:45               REBALANCE    -        +5s    ORCH ON sr8vj wn=0.17 | 11 checks | runners={'bwv2v': 2.67, 'n4j4r': 2.0027999999999997, 'sr8vj': 2.174933333333333}
+21:18:47               SCHEDULE     n4j4r    +2s    orchestrator:ae09bc0549c965a5
+21:18:47               UNSCHEDULE   sr8vj    +0s    orchestrator:ae09bc0549c965a5
+21:18:47               CANCEL       sr8vj    +0s    orchestrator:ae09bc0549c965a5
+21:18:58               RUN_START    sr8vj    +11s
+21:18:58               RUN_DONE     sr8vj    +0s
+21:19:07               RUN_START    n4j4r    +9s
+21:19:10               REBALANCE    -        +3s    ORCH ON sr8vj wn=0.16 | 15 checks | runners={'bwv2v': 3.3373333333333326, 'n4j4r': 3.337866666666666, 'sr8vj': 2.834}
+21:19:10               RUN_DONE     n4j4r    +0s
+21:19:15               REBALANCE    -        +5s    ORCH ABSENT | 12 checks | runners={'bwv2v': 2.6702666666666666, 'n4j4r': 2.670333333333333, 'sr8vj': 2.6698666666666666}
+21:19:15               UNSCHEDULE   n4j4r    +0s    orchestrator:ae09bc0549c965a5
+21:19:15               CANCEL       n4j4r    +0s    orchestrator:ae09bc0549c965a5
+21:19:19               SCHEDULE     sr8vj    +4s    orchestrator:ae09bc0549c965a5
+21:19:48               RUN_START    sr8vj    +29s
+21:19:50               RUN_DONE     sr8vj    +2s
+21:20:10               RUN_START    sr8vj    +20s
+21:20:10               RUN_DONE     sr8vj    +0s
+21:20:30               RUN_START    sr8vj    +20s
+21:20:30               RUN_DONE     sr8vj    +0s
+21:20:50               RUN_START    sr8vj    +20s
+21:20:50               RUN_DONE     sr8vj    +0s
+21:21:10               RUN_START    sr8vj    +20s
+21:21:10               RUN_DONE     sr8vj    +0s
+21:24:25               REBALANCE    -        +3.2m  ORCH ON sr8vj wn=0.01 | 99 checks | runners={'bwv2v': 22.028733333333335, 'n4j4r': 22.0288, 'sr8vj': 21.375933333333336}
+21:24:30               REBALANCE    -        +5s    ORCH ON bwv2v wn=0.01 | 52 checks | runners={'bwv2v': 11.361933333333331, 'n4j4r': 11.348266666666664, 'sr8vj': 11.348733333333332}
+21:24:35               REBALANCE    -        +5s    ORCH ON sr8vj wn=0.01 | 27 checks | runners={'bwv2v': 6.007666666666665, 'n4j4r': 6.007933333333332, 'sr8vj': 5.354333333333333}
+21:24:37               UNSCHEDULE   sr8vj    +2s    orchestrator:ae09bc0549c965a5
+21:24:37               CANCEL       sr8vj    +0s    orchestrator:ae09bc0549c965a5
+21:24:40               REBALANCE    -        +3s    ORCH ABSENT | 10 checks | runners={'bwv2v': 2.0027333333333335, 'n4j4r': 2.6701333333333332, 'sr8vj': 2.0036666666666667}
+21:24:40               SCHEDULE     bwv2v    +0s    orchestrator:ae09bc0549c965a5
+21:24:45               REBALANCE    -        +5s    ORCH ABSENT | 9 checks | runners={'bwv2v': 2.0027333333333335, 'n4j4r': 2.0027333333333335, 'sr8vj': 2.003733333333333}
+21:24:50               REBALANCE    -        +5s    ORCH ABSENT | 7 checks | runners={'bwv2v': 2.0027333333333335, 'n4j4r': 1.3352, 'sr8vj': 1.3361999999999998}
+21:24:55               REBALANCE    -        +5s    ORCH ABSENT | 9 checks | runners={'bwv2v': 2.002466666666667, 'n4j4r': 2.0027333333333335, 'sr8vj': 2.0030666666666663}
+21:25:01               RUN_START    bwv2v    +6s
+21:25:04               RUN_DONE     bwv2v    +3s
+21:25:24               RUN_START    bwv2v    +20s
+21:25:24               RUN_DONE     bwv2v    +0s
+21:25:44               RUN_START    bwv2v    +20s
+21:25:44               RUN_DONE     bwv2v    +0s
+21:26:04               RUN_START    bwv2v    +20s
+21:26:04               RUN_DONE     bwv2v    +0s
+21:26:24               RUN_START    bwv2v    +20s
+21:26:24               RUN_DONE     bwv2v    +0s
+
+=== SUMMARY ===
+Rebalance events: 38
+  with orch present: 22
+  with orch absent:  16
+DCA Dispatch events: 1
+Runner Schedule events: 10
+Runner Run Done events: 39
+Runner Cancel events: 9
+
+Done runs per runner: {'bwv2v': 18, 'n4j4r': 12, 'sr8vj': 9}

@@ -1,0 +1,47 @@
+=== DD_CHECK_RUNNERS=4 pods=3 total_workers=12 ===
+2026-05-16T04:36:01+00:00
+--- lab-cluster-checks-runner-78666968cd-bk89v ---
+    openmetrics (7.4.1)
+    -------------------
+      Instance ID: openmetrics:15f7935c8575dac1 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0134[0]
+      Total Runs: 4
+      Metric Samples: Last Run: 2,000, Total: 8,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 4
+      Average Execution Time : 2.676s
+      Last Execution Date : 2026-05-16 04:36:01.528 UTC (1778906161528)
+      Last Successful Execution Date : 2026-05-16 04:36:01 UTC (1778906161000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0134[0]
+
+--- lab-cluster-checks-runner-78666968cd-lkttb ---
+    openmetrics (7.4.1)
+    -------------------
+      Instance ID: openmetrics:126e85b2ce51d8a6 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0071[0]
+      Total Runs: 7
+      Metric Samples: Last Run: 2,000, Total: 14,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 7
+      Average Execution Time : 1.893s
+      Last Execution Date : 2026-05-16 04:35:31.228 UTC (1778906131228)
+      Last Successful Execution Date : 2026-05-16 04:35:31 UTC (1778906131000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0071[0]
+
+--- lab-cluster-checks-runner-78666968cd-rzkkm ---
+    openmetrics (7.4.1)
+    -------------------
+      Instance ID: openmetrics:10b8d5b0629a6248 [WARNING]
+      Configuration Source: prometheus_services:kube_service://noise/slow-metrics-0041[0]
+      Total Runs: 3
+      Metric Samples: Last Run: 2,000, Total: 6,000
+      Events: Last Run: 0, Total: 0
+      Service Checks: Last Run: 1, Total: 3
+      Average Execution Time : 2.167s
+      Last Execution Date : 2026-05-16 04:35:41.963 UTC (1778906141963)
+      Last Successful Execution Date : 2026-05-16 04:35:41 UTC (1778906141000)
+      metadata:
+        config.source: kube_service://noise/slow-metrics-0041[0]
+
