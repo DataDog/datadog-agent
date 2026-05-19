@@ -22,7 +22,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
-const infraModeTag = "infra_mode:cloud_cost_only"
+const (
+	infraModeTag               = "infra_mode:cloud_cost_only"
+	dogstatsdCustomMetric      = "e2e.ccm.dogstatsd.custom"
+	dogstatsdFilterListAllowed = "e2e.ccm.dogstatsd.allowed"
+	dogstatsdFilterListBlocked = "e2e.ccm.blocked.by.filterlist"
+)
 
 type ccmModeSuite struct {
 	e2e.BaseSuite[environments.Host]
@@ -37,6 +42,8 @@ func TestCCMModeLinux(t *testing.T) {
 				scenec2.WithAgentOptions(
 					agentparams.WithAgentConfig(`
 infrastructure_mode: cloud_cost_only
+metric_filterlist:
+  - e2e.ccm.blocked.by.filterlist
 integration:
   cloud_cost_only:
     tagged:
@@ -62,6 +69,44 @@ func (s *ccmModeSuite) TestTaggedCoreCheckMetricsIncludeCCMModeTag() {
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for tagged cpu metrics")
 }
 
+// TestAllowlistedIntegrationMetricForwarded verifies integration metrics on the default
+// cloud_cost_only allowlist are still forwarded.
+func (s *ccmModeSuite) TestAllowlistedIntegrationMetricForwarded() {
+	const metricName = "system.mem.pct_usable"
+
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(
+			metricName,
+			client.WithMetricValueHigherThan(0),
+		)
+		assert.NoError(c, err)
+		assert.NotEmpty(c, metrics, "%s should be forwarded on the cloud_cost_only allowlist", metricName)
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for allowlisted memory metric on fakeintake")
+}
+
+// TestMetricFilterListAppliesInCloudCostMode verifies metric_filterlist still drops DogStatsD
+// metrics in cloud_cost_only mode even though DogStatsD bypasses the cloud_cost allowlist.
+func (s *ccmModeSuite) TestMetricFilterListAppliesInCloudCostMode() {
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		s.sendStatsdGauge(dogstatsdFilterListAllowed, 1)
+		s.sendStatsdGauge(dogstatsdFilterListBlocked, 1)
+
+		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(
+			dogstatsdFilterListAllowed,
+			client.WithMetricValueHigherThan(0),
+		)
+		assert.NoError(c, err)
+		assert.NotEmpty(c, metrics, "%s should be forwarded via DogStatsD", dogstatsdFilterListAllowed)
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for allowed DogStatsD metric on fakeintake")
+
+	metrics, err := s.Env().FakeIntake.Client().FilterMetrics(
+		dogstatsdFilterListBlocked,
+		client.WithMetricValueHigherThan(0),
+	)
+	require.NoError(s.T(), err)
+	assert.Empty(s.T(), metrics, "%s should be dropped by metric_filterlist", dogstatsdFilterListBlocked)
+}
+
 // sendStatsdGauge sends a DogStatsD gauge metric to the agent via UDP on the remote host.
 func (s *ccmModeSuite) sendStatsdGauge(name string, value int) {
 	cmd := fmt.Sprintf(`bash -c 'echo -n "%s:%d|g" > /dev/udp/127.0.0.1/8125'`, name, value)
@@ -71,23 +116,21 @@ func (s *ccmModeSuite) sendStatsdGauge(name string, value int) {
 // TestDogstatsdCustomMetricForwarded verifies DogStatsD metrics are forwarded in cloud_cost_only
 // mode even when the metric name is not on integration.cloud_cost_only.metrics.
 func (s *ccmModeSuite) TestDogstatsdCustomMetricForwarded() {
-	const metricName = "e2e.ccm.dogstatsd.custom"
-
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		s.sendStatsdGauge(metricName, 1)
+		s.sendStatsdGauge(dogstatsdCustomMetric, 1)
 
 		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(
-			metricName,
+			dogstatsdCustomMetric,
 			client.WithMetricValueHigherThan(0),
 		)
 		assert.NoError(c, err)
-		assert.NotEmpty(c, metrics, "%s should be forwarded via DogStatsD in cloud_cost_only mode", metricName)
+		assert.NotEmpty(c, metrics, "%s should be forwarded via DogStatsD in cloud_cost_only mode", dogstatsdCustomMetric)
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for DogStatsD custom metric on fakeintake")
 }
 
-// TestNonAllowlistedMetricsDropped verifies metrics outside integration.cloud_cost_only.metrics
-// are not forwarded when infrastructure_mode is cloud_cost_only.
-func (s *ccmModeSuite) TestNonAllowlistedMetricsDropped() {
+// TestNonAllowlistedIntegrationMetricDropped verifies integration metrics outside
+// integration.cloud_cost_only.metrics are not forwarded when infrastructure_mode is cloud_cost_only.
+func (s *ccmModeSuite) TestNonAllowlistedIntegrationMetricDropped() {
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(
 			"system.disk.free",
