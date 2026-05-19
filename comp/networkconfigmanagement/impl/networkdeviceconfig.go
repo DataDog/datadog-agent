@@ -10,6 +10,8 @@ package networkconfigmanagementimpl
 
 import (
 	"path/filepath"
+	"sync"
+	"time"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -32,6 +34,9 @@ type Requires struct {
 type networkDeviceConfigImpl struct {
 	log   log.Component
 	store ncmstore.ConfigStore
+
+	inventoryLock         sync.Mutex
+	lastInventoryReportAt time.Time
 }
 
 // NewComponent creates a new networkconfigmanagement component
@@ -76,4 +81,18 @@ func newComponent(reqs Requires) (networkconfigmanagement.Component, error) {
 
 func (n *networkDeviceConfigImpl) GetConfigStore() ncmstore.ConfigStore {
 	return n.store
+}
+
+// ShouldSendInventoryReport returns true if the caller should send an inventory report
+// — either because hasNewConfigs is true, or because maxInterval has elapsed since the
+// last report. When it returns true, it advances the last-sent timestamp under the
+// inventory mutex so concurrent callers in the same window will receive false and skip.
+func (n *networkDeviceConfigImpl) ShouldSendInventoryReport(hasNewConfigs bool, maxInterval time.Duration, now time.Time) bool {
+	n.inventoryLock.Lock()
+	defer n.inventoryLock.Unlock()
+	if !hasNewConfigs && now.Sub(n.lastInventoryReportAt) < maxInterval {
+		return false
+	}
+	n.lastInventoryReportAt = now
+	return true
 }

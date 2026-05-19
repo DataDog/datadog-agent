@@ -112,8 +112,11 @@ func (cs *configStore) update(fn func(tx *bbolt.Tx) error) error {
 // NCM-specific transaction functions
 
 // StoreConfig is responsible for checking if the config for the device is new,
-// if so, it will create a new entry in each bucket (for the config, metadata, and secrets)
-func (cs *configStore) StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (string, error) {
+// if so, it will create a new entry in each bucket (for the config, metadata, and secrets).
+// Returns the resulting UUID (existing or newly assigned), a bool that is true when a new
+// entry was written and false when the config matched the latest stored config for this
+// device+type, and any error encountered.
+func (cs *configStore) StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (string, bool, error) {
 	// Setup + marshal everything first (does not require DB lock)
 	configUUID := uuid.New().String()
 	now := time.Now().Unix()
@@ -122,11 +125,11 @@ func (cs *configStore) StoreConfig(deviceID string, configType types.ConfigType,
 	// Raw text
 	rawConfigJSON, err := json.Marshal(rawConfig)
 	if err != nil {
-		return "", fmt.Errorf("marshal raw config error: %w", err)
+		return "", false, fmt.Errorf("marshal raw config error: %w", err)
 	}
 	compressedRawConfigJSON, err := cs.compressor.Compress((rawConfigJSON))
 	if err != nil {
-		return "", fmt.Errorf("compress raw config error: %w", err)
+		return "", false, fmt.Errorf("compress raw config error: %w", err)
 	}
 	// Metadata
 	metadata := types.ConfigMetadata{
@@ -140,7 +143,7 @@ func (cs *configStore) StoreConfig(deviceID string, configType types.ConfigType,
 	}
 	metadataJSON, err := json.Marshal(metadata)
 	if err != nil {
-		return "", fmt.Errorf("marshal config metadata error: %w", err)
+		return "", false, fmt.Errorf("marshal config metadata error: %w", err)
 	}
 
 	var existingConfigID string
@@ -168,12 +171,12 @@ func (cs *configStore) StoreConfig(deviceID string, configType types.ConfigType,
 		return nil
 	})
 	if err != nil {
-		return "", fmt.Errorf("error storing config in bbolt: %w", err)
+		return "", false, fmt.Errorf("error storing config in bbolt: %w", err)
 	}
 	if existingConfigID != "" {
-		return existingConfigID, nil
+		return existingConfigID, false, nil
 	}
-	return configUUID, nil
+	return configUUID, true, nil
 }
 
 // checkDuplicateInTx contains the inner logic for iterating through the metadata bucket (currently keyed by UUID)
@@ -401,8 +404,9 @@ func (cs *configStore) EvictConfigs(minRetainedConfigs int, maxRetainedConfigs i
 	return evicted, nil
 }
 
-// GetAllConfigMetadata retrieves all config metadata available - helpful as a inventory reporting snapshot
-func (cs *configStore) GetAllConfigMetadata(deviceID string) ([]*types.ConfigMetadata, error) {
+// GetAllConfigMetadata returns metadata for every stored config across all devices —
+// the snapshot used for inventory reports.
+func (cs *configStore) GetAllConfigMetadata() ([]*types.ConfigMetadata, error) {
 	var configMeta []*types.ConfigMetadata
 	err := cs.view(func(tx *bbolt.Tx) error {
 		return tx.Bucket([]byte(metadataBucket)).ForEach(func(_, v []byte) error {
@@ -410,9 +414,7 @@ func (cs *configStore) GetAllConfigMetadata(deviceID string) ([]*types.ConfigMet
 			if err := json.Unmarshal(v, &meta); err != nil {
 				return err
 			}
-			if meta.DeviceID == deviceID {
-				configMeta = append(configMeta, &meta)
-			}
+			configMeta = append(configMeta, &meta)
 			return nil
 		})
 	})

@@ -8,9 +8,14 @@ package networkconfigmanagement
 
 // team: ndm-integrations
 
-import ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
+import (
+	"time"
+
+	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
+)
 
 // Component is the component type.
 type Component interface {
 	GetConfigStore() ncmstore.ConfigStore
+	ShouldSendInventoryReport(hasNewConfigs bool, maxInterval time.Duration, now time.Time) bool
 }

@@ -65,7 +65,8 @@ func (m *memConfigStore) Close(_ context.Context) error {
 }
 
 // StoreConfig stores a device configuration, deduplicating against the latest stored config for the same device+type.
-func (m *memConfigStore) StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (string, error) {
+// The returned bool is true when a new entry was written and false when the config was a duplicate.
+func (m *memConfigStore) StoreConfig(deviceID string, configType types.ConfigType, rawConfig string) (string, bool, error) {
 	rawHash := hashConfig(rawConfig)
 	now := m.clock.Now().Unix()
 
@@ -73,7 +74,7 @@ func (m *memConfigStore) StoreConfig(deviceID string, configType types.ConfigTyp
 	defer m.lock.Unlock()
 
 	if existingID := m.findLatestMatch(deviceID, configType, rawHash); existingID != "" {
-		return existingID, nil
+		return existingID, false, nil
 	}
 
 	configUUID := m.uuidGen()
@@ -89,7 +90,7 @@ func (m *memConfigStore) StoreConfig(deviceID string, configType types.ConfigTyp
 		AgentVersion:   version.AgentVersion,
 	}
 
-	return configUUID, nil
+	return configUUID, true, nil
 }
 
 // findLatestMatch returns the UUID of the latest stored config for the given device+type if its hash matches.
@@ -132,19 +133,16 @@ func (m *memConfigStore) GetConfig(configUUID string) (string, *types.ConfigMeta
 	return rawConfig, &meta, nil
 }
 
-// GetAllConfigMetadata returns all config metadata sorted by ConfigUUID, mirroring
-// the bbolt implementation's key-ordered iteration so callers can rely on
-// deterministic ordering across both stores.
-func (m *memConfigStore) GetAllConfigMetadata(deviceID string) ([]*types.ConfigMetadata, error) {
+// GetAllConfigMetadata returns metadata for every stored config across all devices,
+// sorted by ConfigUUID for deterministic ordering.
+func (m *memConfigStore) GetAllConfigMetadata() ([]*types.ConfigMetadata, error) {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 
 	configMeta := make([]*types.ConfigMetadata, 0, len(m.metadata))
 	for _, value := range m.metadata {
 		v := value
-		if v.DeviceID == deviceID {
-			configMeta = append(configMeta, &v)
-		}
+		configMeta = append(configMeta, &v)
 	}
 	sort.Slice(configMeta, func(i, j int) bool {
 		return configMeta[i].ConfigUUID < configMeta[j].ConfigUUID

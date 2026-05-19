@@ -42,21 +42,21 @@ const CheckName = "network_config_management"
 // Check is the main struct for the network configuration management check
 type Check struct {
 	core.CheckBase
-	checkContext             *ncmconfig.NcmCheckContext
-	sender                   *ncmsender.NCMSender
-	agentConfig              config.Component
-	ncmComp                  networkconfigmanagement.Component
-	remoteClient             ncmremote.Client
-	clock                    clock.Clock
-	lastCheckTime            time.Time
-	runsSinceInventoryReport int
-	agentHostname            string
+	checkContext  *ncmconfig.NcmCheckContext
+	sender        *ncmsender.NCMSender
+	agentConfig   config.Component
+	ncmComp       networkconfigmanagement.Component
+	remoteClient  ncmremote.Client
+	clock         clock.Clock
+	lastCheckTime time.Time
+	agentHostname string
 }
 
-// saveConfig saves the config if store is non-nil, and returns an error about manual check mode otherwise.
-func saveConfig(store store.ConfigStore, deviceID string, cType types.ConfigType, rawConfig []byte) (string, error) {
+// saveConfig saves the config if store is non-nil. Returns the resulting UUID, a bool
+// that is true when a new entry was written (false when deduplicated), and any error.
+func saveConfig(store store.ConfigStore, deviceID string, cType types.ConfigType, rawConfig []byte) (string, bool, error) {
 	if store == nil {
-		return "", errors.New("local config store unavailable - will not save configs for rollback")
+		return "", false, errors.New("local config store unavailable - will not save configs for rollback")
 	}
 	return store.StoreConfig(deviceID, cType, string(rawConfig))
 }
@@ -105,6 +105,8 @@ func (c *Check) Run() error {
 		configStore = c.ncmComp.GetConfigStore()
 	}
 
+	var hasNewConfigs bool
+
 	rawRunningConfig, checkErr := c.remoteClient.RetrieveRunningConfig()
 	if checkErr != nil {
 		return checkErr
@@ -115,8 +117,10 @@ func (c *Check) Run() error {
 	} else {
 		// TODO: helper fn to take metadata that needs to be emitted as metrics + emit them
 		configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, types.RUNNING, metadata, deviceTags, runningConfig))
-		if _, err := saveConfig(configStore, deviceID, types.RUNNING, runningConfig); err != nil {
+		if _, stored, err := saveConfig(configStore, deviceID, types.RUNNING, runningConfig); err != nil {
 			log.Warnf("unable to store running config: %v", err)
+		} else if stored {
+			hasNewConfigs = true
 		}
 	}
 
@@ -131,35 +135,19 @@ func (c *Check) Run() error {
 		} else {
 			// add the startup config to the payload if it was retrieved successfully
 			configs = append(configs, ncmreport.ToNetworkDeviceConfig(deviceID, c.checkContext.Device.IPAddress, types.STARTUP, metadata, deviceTags, startupConfig))
-			if _, err := saveConfig(configStore, deviceID, types.STARTUP, startupConfig); err != nil {
+			if _, stored, err := saveConfig(configStore, deviceID, types.STARTUP, startupConfig); err != nil {
 				log.Warnf("unable to store startup config: %v", err)
+			} else if stored {
+				hasNewConfigs = true
 			}
 		}
 	}
 
-	// send inventory payload if within the interval to do so
-	c.runsSinceInventoryReport++
-	var inventoryEntries []ncmreport.InventoryEntry
-	if configStore != nil && c.runsSinceInventoryReport >= int(c.checkContext.InventoryReportEveryN) {
-		log.Debugf("NCM core check runs since last inventory report: %d, will emit new inventory report", c.runsSinceInventoryReport)
-		c.runsSinceInventoryReport = 0
-		configMeta, err := configStore.GetAllConfigMetadata(deviceID)
-		if err != nil {
-			log.Errorf("error retrieving config metadata for device %s, cannot emit inventory: %v", deviceID, err)
-		} else {
-			// convert meta to inventory entry
-			for _, metadata := range configMeta {
-				entry := ncmreport.InventoryEntry{
-					Namespace:     c.checkContext.Namespace,
-					ConfigID:      metadata.ConfigUUID,
-					DeviceID:      metadata.DeviceID,
-					ReportedAt:    metadata.CapturedAt,
-					AgentHostname: c.agentHostname,
-				}
-				inventoryEntries = append(inventoryEntries, entry)
-			}
-		}
-	}
+	// Decide whether to emit a global inventory report. The component coordinates
+	// across all NCM checks so only one wins per window, and the report covers
+	// every device's configs (not just this device's) so the backend learns about
+	// any evictions and recently-stored configs from sibling checks.
+	inventoryEntries := c.buildInventoryReport(configStore, hasNewConfigs)
 
 	c.sender.SendNCMCheckMetrics(checkStartTime, c.lastCheckTime)
 	c.lastCheckTime = checkStartTime
@@ -257,6 +245,35 @@ func (c *Check) FindMatchingProfile() (*profile.NCMProfile, error) {
 		return prof, nil
 	}
 	return nil, fmt.Errorf("unable to find matching profile for device %s", c.checkContext.Device.IPAddress)
+}
+
+// buildInventoryReport returns the entries that should accompany this check's NCMPayload
+// when an inventory report has reached the configured interval. Returns nil if another check
+// has already claimed the current report window (or when no store/component is wired).
+func (c *Check) buildInventoryReport(configStore store.ConfigStore, hasNewConfigs bool) []ncmreport.InventoryEntry {
+	if c.ncmComp == nil || configStore == nil {
+		return nil
+	}
+	if !c.ncmComp.ShouldSendInventoryReport(hasNewConfigs, c.checkContext.InventoryReportMinInterval, c.clock.Now()) {
+		log.Debugf("did not meet requirements to send inventory report, skipping")
+		return nil
+	}
+	configMeta, err := configStore.GetAllConfigMetadata()
+	if err != nil {
+		log.Errorf("error retrieving config metadata for inventory report: %v, skipping", err)
+		return nil
+	}
+	entries := make([]ncmreport.InventoryEntry, 0, len(configMeta))
+	for _, m := range configMeta {
+		entries = append(entries, ncmreport.InventoryEntry{
+			Namespace:     c.checkContext.Namespace,
+			ConfigID:      m.ConfigUUID,
+			DeviceID:      m.DeviceID,
+			ReportedAt:    m.CapturedAt,
+			AgentHostname: c.agentHostname,
+		})
+	}
+	return entries
 }
 
 func (c *Check) getDeviceTags() []string {

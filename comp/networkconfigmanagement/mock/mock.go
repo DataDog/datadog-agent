@@ -9,7 +9,9 @@
 package mock
 
 import (
+	"sync"
 	"testing"
+	"time"
 
 	"go.uber.org/fx"
 
@@ -20,6 +22,9 @@ import (
 
 type mockNetworkConfigManagement struct {
 	store ncmstore.ConfigStore
+
+	inventoryLock         sync.Mutex
+	lastInventoryReportAt time.Time
 }
 
 // Mock returns a networkconfigmanagement.Component backed by an in-memory store.
@@ -46,4 +51,14 @@ func MockModule() fxutil.Module {
 
 func (m *mockNetworkConfigManagement) GetConfigStore() ncmstore.ConfigStore {
 	return m.store
+}
+
+func (m *mockNetworkConfigManagement) ShouldSendInventoryReport(hasNewConfigs bool, maxInterval time.Duration, now time.Time) bool {
+	m.inventoryLock.Lock()
+	defer m.inventoryLock.Unlock()
+	if !hasNewConfigs && now.Sub(m.lastInventoryReportAt) < maxInterval {
+		return false
+	}
+	m.lastInventoryReportAt = now
+	return true
 }

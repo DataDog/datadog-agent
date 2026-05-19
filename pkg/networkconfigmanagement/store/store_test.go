@@ -53,26 +53,29 @@ func TestOpen(t *testing.T) {
 func TestStoreConfig(t *testing.T) {
 	t.Run("stores and returns a UUID", func(t *testing.T) {
 		cs := newTestConfigStore(t)
-		configUUID, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig)
+		configUUID, stored, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig)
 		require.NoError(t, err)
 		assert.NotEmpty(t, configUUID)
+		assert.True(t, stored)
 	})
 
 	t.Run("each call for a device generates a unique UUID", func(t *testing.T) {
 		cs := newTestConfigStore(t)
-		uuid1, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig)
+		uuid1, _, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig)
 		require.NoError(t, err)
-		uuid2, err := cs.StoreConfig("device:10.0.0.2", "running", testRawConfig)
+		uuid2, _, err := cs.StoreConfig("device:10.0.0.2", "running", testRawConfig)
 		require.NoError(t, err)
 		assert.NotEqual(t, uuid1, uuid2)
 	})
 
 	t.Run("device deduplicate returns UUID of latest config if matches", func(t *testing.T) {
 		cs := newTestConfigStore(t)
-		uuid1, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig)
+		uuid1, stored1, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig)
 		require.NoError(t, err)
-		uuid2, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig) // the same exact one, should return the first UUID (uuid1)
+		assert.True(t, stored1)
+		uuid2, stored2, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig) // the same exact one, should return the first UUID (uuid1)
 		require.NoError(t, err)
+		assert.False(t, stored2, "duplicate write should report stored=false")
 		assert.Equal(t, uuid1, uuid2)
 	})
 }
@@ -80,7 +83,7 @@ func TestStoreConfig(t *testing.T) {
 func TestGetConfig(t *testing.T) {
 	t.Run("retrieves stored config", func(t *testing.T) {
 		cs := newTestConfigStore(t)
-		configUUID, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig)
+		configUUID, _, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig)
 		require.NoError(t, err)
 
 		rawConfig, metadata, err := cs.GetConfig(configUUID)
@@ -106,9 +109,9 @@ func TestGetConfig(t *testing.T) {
 
 	t.Run("gets configs by UUID (two different configs)", func(t *testing.T) {
 		cs := newTestConfigStore(t)
-		uuid1, err := cs.StoreConfig("device:10.0.0.1", "running", "config-one")
+		uuid1, _, err := cs.StoreConfig("device:10.0.0.1", "running", "config-one")
 		require.NoError(t, err)
-		uuid2, err := cs.StoreConfig("device:10.0.0.2", "startup", "config-two")
+		uuid2, _, err := cs.StoreConfig("device:10.0.0.2", "startup", "config-two")
 		require.NoError(t, err)
 
 		raw1, meta1, err := cs.GetConfig(uuid1)
@@ -126,7 +129,7 @@ func TestGetConfig(t *testing.T) {
 func TestDeleteConfig(t *testing.T) {
 	t.Run("deletes config from all buckets", func(t *testing.T) {
 		cs := newTestConfigStore(t)
-		configUUID, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig)
+		configUUID, _, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig)
 		require.NoError(t, err)
 
 		err = cs.DeleteConfig(configUUID)
@@ -146,9 +149,9 @@ func TestDeleteConfig(t *testing.T) {
 
 	t.Run("deleting one config does not affect another", func(t *testing.T) {
 		cs := newTestConfigStore(t)
-		uuid1, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig)
+		uuid1, _, err := cs.StoreConfig("device:10.0.0.1", "running", testRawConfig)
 		require.NoError(t, err)
-		uuid2, err := cs.StoreConfig("device:10.0.0.2", "running", testRawConfig)
+		uuid2, _, err := cs.StoreConfig("device:10.0.0.2", "running", testRawConfig)
 		require.NoError(t, err)
 
 		err = cs.DeleteConfig(uuid1)
@@ -297,34 +300,33 @@ func TestCheckDuplicate(t *testing.T) {
 func TestGetAllConfigMetadata(t *testing.T) {
 	t.Run("empty store returns no entries", func(t *testing.T) {
 		cs := newTestConfigStore(t)
-		configMeta, err := cs.GetAllConfigMetadata("test-device")
+		configMeta, err := cs.GetAllConfigMetadata()
 		require.NoError(t, err)
 		assert.Empty(t, configMeta)
 	})
 
 	t.Run("returns entries for multiple devices and types", func(t *testing.T) {
 		cs := newTestConfigStore(t)
-		uuid1, err := cs.StoreConfig("device:10.0.0.1", types.RUNNING, "running-1")
+		uuid1, _, err := cs.StoreConfig("device:10.0.0.1", types.RUNNING, "running-1")
 		require.NoError(t, err)
-		uuid2, err := cs.StoreConfig("device:10.0.0.1", types.STARTUP, "startup-1")
+		uuid2, _, err := cs.StoreConfig("device:10.0.0.1", types.STARTUP, "startup-1")
 		require.NoError(t, err)
-		// Stored on a different device — must be filtered out of the result.
-		_, err = cs.StoreConfig("device:10.0.0.2", types.RUNNING, "running-other-device")
+		uuid3, _, err := cs.StoreConfig("device:10.0.0.2", types.RUNNING, "running-2")
 		require.NoError(t, err)
 
-		configMeta, err := cs.GetAllConfigMetadata("device:10.0.0.1")
+		configMeta, err := cs.GetAllConfigMetadata()
 		require.NoError(t, err)
-		require.Len(t, configMeta, 2)
+		require.Len(t, configMeta, 3)
 
-		configMetaUUIDs := []string{configMeta[0].ConfigUUID, configMeta[1].ConfigUUID}
-		assert.ElementsMatch(t, []string{uuid1, uuid2}, configMetaUUIDs)
+		configMetaUUIDs := []string{configMeta[0].ConfigUUID, configMeta[1].ConfigUUID, configMeta[2].ConfigUUID}
+		assert.ElementsMatch(t, []string{uuid1, uuid2, uuid3}, configMetaUUIDs)
 	})
 	t.Run("populates all metadata fields", func(t *testing.T) {
 		cs := newTestConfigStore(t)
-		uuid, err := cs.StoreConfig("device:10.0.0.1", types.RUNNING, testRawConfig)
+		uuid, _, err := cs.StoreConfig("device:10.0.0.1", types.RUNNING, testRawConfig)
 		require.NoError(t, err)
 
-		configMeta, err := cs.GetAllConfigMetadata("device:10.0.0.1")
+		configMeta, err := cs.GetAllConfigMetadata()
 		require.NoError(t, err)
 		require.Len(t, configMeta, 1)
 		assert.Equal(t, uuid, configMeta[0].ConfigUUID)
@@ -337,17 +339,17 @@ func TestGetAllConfigMetadata(t *testing.T) {
 
 	t.Run("reflects deletes", func(t *testing.T) {
 		cs := newTestConfigStore(t)
-		uuid1, err := cs.StoreConfig("device:10.0.0.1", types.RUNNING, "config-a")
+		uuid1, _, err := cs.StoreConfig("device:10.0.0.1", types.RUNNING, "config-a")
 		require.NoError(t, err)
-		uuid2, err := cs.StoreConfig("device:10.0.0.2", types.RUNNING, "config-b")
+		uuid2, _, err := cs.StoreConfig("device:10.0.0.2", types.RUNNING, "config-b")
 		require.NoError(t, err)
 
 		require.NoError(t, cs.DeleteConfig(uuid1))
 
-		configMeta, err := cs.GetAllConfigMetadata("device:10.0.0.1")
+		configMeta, err := cs.GetAllConfigMetadata()
 		require.NoError(t, err)
-		require.Len(t, configMeta, 0)
-		configMeta2, err := cs.GetAllConfigMetadata("device:10.0.0.2")
+		require.Len(t, configMeta, 1)
+		configMeta2, err := cs.GetAllConfigMetadata()
 		require.NoError(t, err)
 		assert.Equal(t, uuid2, configMeta2[0].ConfigUUID)
 	})
