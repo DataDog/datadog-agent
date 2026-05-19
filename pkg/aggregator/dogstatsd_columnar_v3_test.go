@@ -28,6 +28,19 @@ func (s *columnarRowCaptureSink) AppendSerieRow(row metrics.SerieRow) {
 	s.rows = append(s.rows, cloned)
 }
 
+type columnarPointRowCaptureSink struct {
+	rows []metrics.V3MetricPointRow
+}
+
+func (s *columnarPointRowCaptureSink) AppendV3MetricPointRow(row metrics.V3MetricPointRow) {
+	cloned := row
+	cloned.Resources = append([]metrics.Resource(nil), row.Resources...)
+	if tags := row.Tags.UnsafeToReadOnlySliceString(); tags != nil {
+		cloned.Tags = row.Tags
+	}
+	s.rows = append(s.rows, cloned)
+}
+
 func TestDogstatsdColumnarV3InsertAndFlushRows(t *testing.T) {
 	store := newDogStatsDColumnarStore(10, 2)
 
@@ -127,6 +140,67 @@ func TestDogstatsdColumnarV3FlushMergesPointsAcrossBuckets(t *testing.T) {
 	require.Equal(t, uint64(1), store.flush(125, false, &sink))
 	require.Len(t, sink.rows, 1)
 	require.ElementsMatch(t, []metrics.Point{{Ts: 100, Value: 1}, {Ts: 110, Value: 2}}, sink.rows[0].Points)
+}
+
+func TestDogstatsdColumnarV3FlushNativePointRows(t *testing.T) {
+	store := newDogStatsDColumnarStore(10, 1)
+	require.True(t, store.insert(ckey.ContextKey(1), metrics.MetricSample{
+		Name:       "gauge.metric",
+		Value:      1,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"z:last", "a:first", "a:first"},
+		Host:       "host-a",
+		SampleRate: 1,
+	}, 101))
+	require.True(t, store.insert(ckey.ContextKey(2), metrics.MetricSample{
+		Name:       "counter.metric",
+		Value:      3,
+		Mtype:      metrics.CounterType,
+		Tags:       []string{"env:test"},
+		SampleRate: 0.5,
+	}, 103))
+
+	var sink columnarPointRowCaptureSink
+	shadow := newDirectRowShadowBuilder()
+	require.Equal(t, uint64(2), store.flushShardToV3MetricPointSink(&store.shards[0], 111, false, &sink, shadow))
+	require.Len(t, sink.rows, 2)
+
+	rowsByName := map[string]metrics.V3MetricPointRow{}
+	for _, row := range sink.rows {
+		rowsByName[row.Name] = row
+	}
+
+	gauge := rowsByName["gauge.metric"]
+	require.Equal(t, metrics.APIGaugeType, gauge.MType)
+	require.Equal(t, "host-a", gauge.Host)
+	require.Equal(t, int64(100), gauge.Timestamp)
+	require.Equal(t, float64(1), gauge.Value)
+	require.Equal(t, []string{"a:first", "z:last"}, gauge.Tags.UnsafeToReadOnlySliceString())
+
+	counter := rowsByName["counter.metric"]
+	require.Equal(t, metrics.APIRateType, counter.MType)
+	require.Equal(t, int64(100), counter.Timestamp)
+	require.Equal(t, 0.6, counter.Value)
+}
+
+func TestDogstatsdColumnarV3FlushNativePointRowsMergesPointsAcrossBuckets(t *testing.T) {
+	store := newDogStatsDColumnarStore(10, 1)
+	sample := metrics.MetricSample{
+		Name:       "gauge.metric",
+		Mtype:      metrics.GaugeType,
+		SampleRate: 1,
+	}
+	sample.Value = 1
+	require.True(t, store.insert(ckey.ContextKey(1), sample, 101))
+	sample.Value = 2
+	require.True(t, store.insert(ckey.ContextKey(1), sample, 112))
+
+	var sink columnarPointRowCaptureSink
+	shadow := newDirectRowShadowBuilder()
+	require.Equal(t, uint64(1), store.flushShardToV3MetricPointSink(&store.shards[0], 125, false, &sink, shadow))
+	require.Len(t, sink.rows, 1)
+	require.Equal(t, []int64{100, 110}, sink.rows[0].Timestamps)
+	require.Equal(t, []float64{1, 2}, sink.rows[0].Values)
 }
 
 func TestDogstatsdColumnarV3UnsupportedSamplesFallback(t *testing.T) {

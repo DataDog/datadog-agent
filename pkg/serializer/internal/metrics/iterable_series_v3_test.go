@@ -177,6 +177,103 @@ func TestPayloadsBuilderV3_SerieRowMatchesSerie(t *testing.T) {
 	assert.Equal(t, tagset.CompositeTagsFromSlice([]string{"env:prod", "device:eth0", "dd.internal.resource:pod:api"}), serie.Tags)
 }
 
+func TestPayloadsBuilderV3_MetricPointRowMatchesSerieRow(t *testing.T) {
+	serie := &metrics.Serie{
+		Name:      "serie.point.row",
+		Tags:      tagset.CompositeTagsFromSlice([]string{"env:prod", "device:eth0", "dd.internal.resource:pod:api"}),
+		Host:      "host-a",
+		MType:     metrics.APIRateType,
+		Points:    []metrics.Point{{Ts: 1756737057, Value: 42}},
+		Interval:  10,
+		NoIndex:   true,
+		Source:    metrics.MetricSourceDogstatsd,
+		Resources: []metrics.Resource{{Type: "container", Name: "abc"}},
+	}
+
+	pipelineConfig := PipelineConfig{Filter: AllowAllFilter{}, V3: true}
+
+	rowContext := &PipelineContext{}
+	rowPB, err := newPayloadsBuilderV3(1000, 10000, 1000_0000, noopimpl.New(), pipelineConfig, rowContext)
+	require.NoError(t, err)
+	row := metrics.SerieRowFromSerie(serie)
+	require.NoError(t, rowPB.writeSerieRow(&row))
+	require.NoError(t, rowPB.finishPayload())
+
+	pointRowContext := &PipelineContext{}
+	pointRowPB, err := newPayloadsBuilderV3(1000, 10000, 1000_0000, noopimpl.New(), pipelineConfig, pointRowContext)
+	require.NoError(t, err)
+	pointRow := metrics.NewV3MetricPointRow(
+		row.Name,
+		int64(row.Points[0].Ts),
+		row.Points[0].Value,
+		row.Tags,
+		row.Host,
+		row.Device,
+		row.MType,
+		row.Interval,
+		row.SourceTypeName,
+		row.Unit,
+		row.NoIndex,
+		row.Resources,
+		row.Source,
+	)
+	require.NoError(t, pointRowPB.writeV3MetricPointRow(&pointRow))
+	require.NoError(t, pointRowPB.finishPayload())
+
+	require.Len(t, rowContext.payloads, 1)
+	require.Len(t, pointRowContext.payloads, 1)
+	assert.Equal(t, rowContext.payloads[0].GetContent(), pointRowContext.payloads[0].GetContent())
+}
+
+func TestPayloadsBuilderV3_MultiMetricPointRowMatchesSerieRow(t *testing.T) {
+	serie := &metrics.Serie{
+		Name:      "serie.multi.point.row",
+		Tags:      tagset.CompositeTagsFromSlice([]string{"env:prod"}),
+		Host:      "host-a",
+		MType:     metrics.APIGaugeType,
+		Points:    []metrics.Point{{Ts: 1756737050, Value: 1}, {Ts: 1756737060, Value: 2.5}},
+		Interval:  10,
+		NoIndex:   true,
+		Source:    metrics.MetricSourceDogstatsd,
+		Resources: []metrics.Resource{{Type: "container", Name: "abc"}},
+	}
+
+	pipelineConfig := PipelineConfig{Filter: AllowAllFilter{}, V3: true}
+	row := metrics.SerieRowFromSerie(serie)
+
+	rowContext := &PipelineContext{}
+	rowPB, err := newPayloadsBuilderV3(1000, 10000, 1000_0000, noopimpl.New(), pipelineConfig, rowContext)
+	require.NoError(t, err)
+	require.NoError(t, rowPB.writeSerieRow(&row))
+	require.NoError(t, rowPB.finishPayload())
+
+	pointRowContext := &PipelineContext{}
+	pointRowPB, err := newPayloadsBuilderV3(1000, 10000, 1000_0000, noopimpl.New(), pipelineConfig, pointRowContext)
+	require.NoError(t, err)
+	pointRow := metrics.NewV3MetricPointRow(
+		row.Name,
+		int64(row.Points[0].Ts),
+		row.Points[0].Value,
+		row.Tags,
+		row.Host,
+		row.Device,
+		row.MType,
+		row.Interval,
+		row.SourceTypeName,
+		row.Unit,
+		row.NoIndex,
+		row.Resources,
+		row.Source,
+	)
+	pointRow.AppendPoint(int64(row.Points[1].Ts), row.Points[1].Value)
+	require.NoError(t, pointRowPB.writeV3MetricPointRow(&pointRow))
+	require.NoError(t, pointRowPB.finishPayload())
+
+	require.Len(t, rowContext.payloads, 1)
+	require.Len(t, pointRowContext.payloads, 1)
+	assert.Equal(t, rowContext.payloads[0].GetContent(), pointRowContext.payloads[0].GetContent())
+}
+
 func TestPayloadsBuilderV3_Unit(t *testing.T) {
 	r := assert.New(t)
 	const ts = 1756737057.1

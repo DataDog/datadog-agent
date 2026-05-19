@@ -42,3 +42,31 @@ func TestSerieRowFromSerieNormalizesSpecialTagsWithoutMutatingSerie(t *testing.T
 	assert.Equal(t, tagset.CompositeTagsFromSlice([]string{"env:prod", "device:eth0", "dd.internal.resource:pod:api", "dd.internal.resource:bad", "zone:us"}), serie.Tags)
 	assert.Equal(t, []Resource{{Type: "container", Name: "abc"}}, serie.Resources)
 }
+
+func TestV3MetricPointRowNormalizesSpecialTags(t *testing.T) {
+	row := NewV3MetricPointRow(
+		"system.net.bytes",
+		123,
+		2,
+		tagset.CompositeTagsFromSlice([]string{"env:prod", "device:eth0", "dd.internal.resource:pod:api", "dd.internal.resource:bad", "zone:us"}),
+		"host-a",
+		"original-device",
+		APIGaugeType,
+		10,
+		"",
+		"",
+		false,
+		[]Resource{{Type: "container", Name: "abc"}},
+		MetricSourceDogstatsd,
+	)
+
+	assert.Equal(t, "eth0", row.Device)
+	assert.Equal(t, tagset.CompositeTagsFromSlice([]string{"env:prod", "zone:us"}), row.Tags)
+	require.Len(t, row.Resources, 2)
+	assert.Equal(t, Resource{Type: "container", Name: "abc"}, row.Resources[0])
+	assert.Equal(t, Resource{Type: "pod", Name: "api"}, row.Resources[1])
+
+	serieRow := row.ToSerieRow()
+	assert.Equal(t, []Point{{Ts: 123, Value: 2}}, serieRow.Points)
+	assert.Equal(t, row.Tags, serieRow.Tags)
+}

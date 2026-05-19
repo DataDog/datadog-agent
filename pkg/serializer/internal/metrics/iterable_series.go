@@ -116,6 +116,10 @@ type serieRowWriter interface {
 	writeSerieRow(row *metrics.SerieRow) error
 }
 
+type v3MetricPointRowWriter interface {
+	writeV3MetricPointRow(row *metrics.V3MetricPointRow) error
+}
+
 // MarshalSplitCompressPipelines uses the stream compressor to marshal and
 // compress series payloads, allowing multiple variants to be generated in a
 // single pass over the input data. If a compressed payload is larger than the

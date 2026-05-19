@@ -446,6 +446,30 @@ func (pb *payloadsBuilderV3) writeSerieRow(row *metrics.SerieRow) error {
 	}
 }
 
+func (pb *payloadsBuilderV3) writeV3MetricPointRow(row *metrics.V3MetricPointRow) error {
+	if row == nil {
+		return nil
+	}
+
+	if !pb.pipelineConfig.Filter.Filter(row) {
+		return nil
+	}
+
+	numPoints := row.NumPoints()
+	if ok, err := pb.checkPointsLimit(numPoints); !ok {
+		return err
+	}
+
+	for {
+		pb.writeV3MetricPointRowToTxn(row)
+		err := pb.finishTxn(numPoints)
+		if err == errRetry {
+			continue
+		}
+		return err
+	}
+}
+
 func (pb *payloadsBuilderV3) writeMetricCommon(
 	name string,
 	tags tagset.CompositeTags,
@@ -536,6 +560,91 @@ func (pb *payloadsBuilderV3) writeSerieRowToTxn(row *metrics.SerieRow) {
 			pb.stats.valuesFloat64++
 			pb.txn.Float64(columnValueFloat64, pnt.Value)
 		}
+	}
+}
+
+func (pb *payloadsBuilderV3) renderV3MetricPointRowResources(row *metrics.V3MetricPointRow) {
+	pb.resourcesBuf = pb.resourcesBuf[0:0]
+
+	if row.Host != "" {
+		pb.resourcesBuf = append(pb.resourcesBuf, metrics.Resource{
+			Type: resourceTypeHost,
+			Name: row.Host,
+		})
+	}
+
+	if row.Device != "" {
+		pb.resourcesBuf = append(pb.resourcesBuf, metrics.Resource{
+			Type: "device",
+			Name: row.Device,
+		})
+	}
+
+	pb.resourcesBuf = append(pb.resourcesBuf, row.Resources...)
+}
+
+func (pb *payloadsBuilderV3) writeV3MetricPointRowToTxn(row *metrics.V3MetricPointRow) {
+	pb.txn.Reset()
+
+	pb.renderV3MetricPointRowResources(row)
+
+	numPoints := row.NumPoints()
+	pb.writeMetricCommon(
+		row.Name,
+		row.Tags,
+		row.Interval,
+		row.SourceTypeName,
+		row.Source,
+		numPoints,
+	)
+
+	pointKind := pointKindZero
+	if len(row.Values) > 0 {
+		for _, value := range row.Values {
+			pointKind = pointKind.unionOf(value)
+		}
+	} else {
+		pointKind = pointKind.unionOf(row.Value)
+	}
+	valueType := pointKind.toValueType()
+	typeValue := valueType | metricType(row.MType)
+	if row.NoIndex {
+		typeValue |= flagNoIndex
+	}
+	if row.Unit != "" {
+		typeValue |= flagHasUnit
+	}
+
+	pb.txn.Int64(columnType, typeValue)
+
+	if row.Unit != "" {
+		pb.txn.Sint64(columnUnitRef,
+			pb.deltaUnitRef.encode(pb.dict.internUnit(row.Unit)))
+	}
+
+	if len(row.Values) > 0 {
+		for i, value := range row.Values {
+			pb.writeV3MetricPoint(row.Timestamps[i], value, valueType)
+		}
+		return
+	}
+	pb.writeV3MetricPoint(row.Timestamp, row.Value, valueType)
+}
+
+func (pb *payloadsBuilderV3) writeV3MetricPoint(timestamp int64, value float64, valueType int64) {
+	pb.writePointCommon(timestamp)
+	switch valueType {
+	case valueZero:
+		pb.stats.valuesZero++
+	case valueSint64:
+		pb.stats.valuesSint64++
+		pb.txn.Sint64(columnValueSint64, int64(value))
+	case valueFloat32:
+		pb.stats.valuesFloat32++
+		pb.txn.Float32(columnValueFloat32, float32(value))
+	case valueFloat64:
+		pb.stats.valuesFloat64++
+		pb.txn.Float64(columnValueFloat64, value)
 	}
 }
 

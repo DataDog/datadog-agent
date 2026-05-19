@@ -39,6 +39,16 @@ func columnarV3SkipLegacyFlushEnabled() bool {
 	return err == nil && enabled
 }
 
+func columnarV3NativeSerializerEnabled() bool {
+	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_NATIVE_SERIALIZER"))
+	return err == nil && enabled
+}
+
+func columnarV3DirectSeriesSerializerEnabled() bool {
+	enabled, err := strconv.ParseBool(os.Getenv("DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_DIRECT_SERIES_SERIALIZER"))
+	return err == nil && enabled
+}
+
 // DogStatsDColumnarV3Inserter is implemented by demultiplexers that can accept
 // parsed DogStatsD metric samples into the experimental v3-aligned columnar
 // aggregation table. Supported on-time metric samples bypass TimeSampler,
@@ -166,10 +176,11 @@ type dogstatsdColumnarWorker struct {
 }
 
 type dogstatsdColumnarFlushTrigger struct {
-	cutoffTime    int64
-	forceFlushAll bool
-	rowSink       metrics.SerieRowSink
-	blockChan     chan uint64
+	cutoffTime     int64
+	forceFlushAll  bool
+	rowSink        metrics.SerieRowSink
+	v3PointRowSink metrics.V3MetricPointRowSink
+	blockChan      chan uint64
 }
 
 func newDogStatsDColumnarWorker(store *dogstatsdColumnarStore, shardID TimeSamplerID, bufferSize int, samplePool *DogStatsDColumnarV3SamplePool) *dogstatsdColumnarWorker {
@@ -216,7 +227,12 @@ func (w *dogstatsdColumnarWorker) triggerFlush(trigger dogstatsdColumnarFlushTri
 	}
 	start := time.Now()
 	shadow := newDirectRowShadowBuilder()
-	rows := w.store.flushShard(&w.store.shards[int(w.shardID)], trigger.cutoffTime, trigger.forceFlushAll, trigger.rowSink, shadow)
+	var rows uint64
+	if trigger.v3PointRowSink != nil {
+		rows = w.store.flushShardToV3MetricPointSink(&w.store.shards[int(w.shardID)], trigger.cutoffTime, trigger.forceFlushAll, trigger.v3PointRowSink, shadow)
+	} else {
+		rows = w.store.flushShard(&w.store.shards[int(w.shardID)], trigger.cutoffTime, trigger.forceFlushAll, trigger.rowSink, shadow)
+	}
 	shadow.finish("columnar_v3", time.Since(start))
 	trigger.blockChan <- rows
 }
@@ -450,6 +466,34 @@ func (s *dogstatsdColumnarStore) flushShard(shard *dogstatsdColumnarShard, cutof
 	return uint64(len(rows))
 }
 
+func (s *dogstatsdColumnarStore) flushShardToV3MetricPointSink(shard *dogstatsdColumnarShard, cutoffTime int64, forceFlushAll bool, sink metrics.V3MetricPointRowSink, shadow *directRowShadowBuilder) uint64 {
+	var rows []metrics.V3MetricPointRow
+	rowByKey := make(map[dogstatsdColumnarKey]int)
+
+	shard.mu.Lock()
+	defer shard.mu.Unlock()
+
+	if shard.insertedSamples > 0 {
+		tlmDogstatsdColumnarStats.Add(float64(shard.insertedSamples), "inserted_samples")
+		shard.insertedSamples = 0
+	}
+
+	for bucketTimestamp, bucket := range shard.buckets {
+		if bucketTimestamp+s.interval > cutoffTime && !forceFlushAll {
+			continue
+		}
+		s.collectBucketToV3MetricPointRows(shard, bucketTimestamp, bucket, &rows, rowByKey)
+		delete(shard.buckets, bucketTimestamp)
+		tlmDogstatsdColumnarStats.Inc("flushed_buckets")
+	}
+
+	for i := range rows {
+		shadow.observeV3MetricPointRow(&rows[i])
+		sink.AppendV3MetricPointRow(rows[i])
+	}
+	return uint64(len(rows))
+}
+
 func (s *dogstatsdColumnarStore) collectBucket(shard *dogstatsdColumnarShard, bucketTimestamp int64, bucket *dogstatsdColumnarBucket, rows *[]metrics.SerieRow, rowByKey map[dogstatsdColumnarKey]int) {
 	for idx, descriptorID := range bucket.descriptors {
 		if !bucket.sampled[idx] {
@@ -469,6 +513,43 @@ func (s *dogstatsdColumnarStore) collectBucket(shard *dogstatsdColumnarShard, bu
 			row := metrics.NewSerieRow(
 				shard.names[descriptorID],
 				[]metrics.Point{point},
+				tagset.CompositeTagsFromSlice(shard.tags[descriptorID]),
+				shard.hosts[descriptorID],
+				"",
+				apiType,
+				s.interval,
+				"",
+				shard.units[descriptorID],
+				shard.noIndex[descriptorID],
+				nil,
+				shard.sources[descriptorID],
+			)
+			rowByKey[key] = len(*rows)
+			*rows = append(*rows, row)
+		}
+		tlmDogstatsdColumnarStats.Inc("flushed_points")
+	}
+}
+
+func (s *dogstatsdColumnarStore) collectBucketToV3MetricPointRows(shard *dogstatsdColumnarShard, bucketTimestamp int64, bucket *dogstatsdColumnarBucket, rows *[]metrics.V3MetricPointRow, rowByKey map[dogstatsdColumnarKey]int) {
+	for idx, descriptorID := range bucket.descriptors {
+		if !bucket.sampled[idx] {
+			continue
+		}
+
+		value, apiType, ok := s.flushValue(shard, bucket, idx, descriptorID)
+		if !ok {
+			continue
+		}
+
+		key := dogstatsdColumnarKey{contextKey: shard.contextKeys[descriptorID], mtype: shard.mtypes[descriptorID]}
+		if rowIdx, ok := rowByKey[key]; ok {
+			(*rows)[rowIdx].AppendPoint(bucketTimestamp, value)
+		} else {
+			row := metrics.NewV3MetricPointRow(
+				shard.names[descriptorID],
+				bucketTimestamp,
+				value,
 				tagset.CompositeTagsFromSlice(shard.tags[descriptorID]),
 				shard.hosts[descriptorID],
 				"",

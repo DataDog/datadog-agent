@@ -91,6 +91,35 @@ func (b *directRowShadowBuilder) observeSerieRow(row *metrics.SerieRow) {
 	b.internResources(resources)
 }
 
+func (b *directRowShadowBuilder) observeV3MetricPointRow(row *metrics.V3MetricPointRow) {
+	if row == nil {
+		b.fallbacks++
+		return
+	}
+
+	numPoints := row.NumPoints()
+	b.seriesRows++
+	b.points += numPoints
+	b.estBytes += 32 + numPoints*16
+
+	b.internName(row.Name)
+	tags := row.Tags.UnsafeToReadOnlySliceString()
+	b.tags += len(tags)
+	b.internTags(tags)
+	b.internSource(row.Source)
+	b.internUnit(row.Unit)
+
+	resources := make([]metrics.Resource, 0, len(row.Resources)+2)
+	if row.Host != "" {
+		resources = append(resources, metrics.Resource{Type: "host", Name: row.Host})
+	}
+	if row.Device != "" {
+		resources = append(resources, metrics.Resource{Type: "device", Name: row.Device})
+	}
+	resources = append(resources, row.Resources...)
+	b.internResources(resources)
+}
+
 func (b *directRowShadowBuilder) observeSketch(sketch *metrics.SketchSeries) {
 	if sketch == nil {
 		b.fallbacks++

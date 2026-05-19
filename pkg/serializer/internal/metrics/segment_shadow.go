@@ -91,6 +91,34 @@ func (b *segmentShadowBuilder) observeSerieRow(row *pkgmetrics.SerieRow) {
 	b.internResources(resources)
 }
 
+func (b *segmentShadowBuilder) observeV3MetricPointRow(row *pkgmetrics.V3MetricPointRow) {
+	if row == nil {
+		b.fallbacks++
+		return
+	}
+
+	numPoints := row.NumPoints()
+	b.seriesRows++
+	b.points += numPoints
+	b.estBytes += 32 + numPoints*16
+
+	b.internName(row.Name)
+	b.internTags(row.Tags.UnsafeToReadOnlySliceString())
+	b.internSourceTypeName(row.SourceTypeName)
+	b.internOrigin(row.Source)
+	b.internUnit(row.Unit)
+
+	resources := make([]pkgmetrics.Resource, 0, len(row.Resources)+2)
+	if row.Host != "" {
+		resources = append(resources, pkgmetrics.Resource{Type: resourceTypeHost, Name: row.Host})
+	}
+	if row.Device != "" {
+		resources = append(resources, pkgmetrics.Resource{Type: "device", Name: row.Device})
+	}
+	resources = append(resources, row.Resources...)
+	b.internResources(resources)
+}
+
 func (b *segmentShadowBuilder) observeSketch(sketch *pkgmetrics.SketchSeries) {
 	if sketch == nil {
 		b.fallbacks++

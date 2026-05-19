@@ -126,6 +126,22 @@ func seriesRowFlushCallback(logPayloads bool, hostTagProvider *hosttags.HostTagP
 	}
 }
 
+func v3MetricPointRowFlushCallback(logPayloads bool, hostTagProvider *hosttags.HostTagProvider) func(*metrics.V3MetricPointRow) {
+	hostTags := hostTagProvider.GetHostTags()
+	return func(row *metrics.V3MetricPointRow) {
+		if logPayloads {
+			log.Debugf("Flushing v3 metric point row: %s", row)
+		}
+
+		if hostTags != nil {
+			row.Tags = tagset.CombineCompositeTagsAndSlice(row.Tags, hostTags)
+		}
+		row.NormalizeSpecialTags()
+		tagsetTlm.updateHugeV3MetricPointRowTelemetry(row)
+		observeDogstatsdPipelineV3MetricPointRow(row)
+	}
+}
+
 func sketchFlushCallback(logPayloads bool, isServerless bool, hostTagProvider *hosttags.HostTagProvider) func(*metrics.SketchSeries) {
 	hostTags := hostTagProvider.GetHostTags()
 	return func(sketch *metrics.SketchSeries) {

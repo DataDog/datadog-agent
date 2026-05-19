@@ -316,9 +316,10 @@ func (s *Serializer) SendSketch(sketches metrics.SketchesSource) error {
 // experiment uses them before serializing each row so host tags, logging, and
 // telemetry remain comparable with the current path.
 type DirectMetricsOptions struct {
-	SeriesCallback    func(*metrics.Serie)
-	SeriesRowCallback func(*metrics.SerieRow)
-	SketchCallback    func(*metrics.SketchSeries)
+	SeriesCallback           func(*metrics.Serie)
+	SeriesRowCallback        func(*metrics.SerieRow)
+	V3MetricPointRowCallback func(*metrics.V3MetricPointRow)
+	SketchCallback           func(*metrics.SketchSeries)
 }
 
 // DirectMetricsResult summarizes an experimental direct series/sketch flush.
@@ -332,9 +333,10 @@ type DirectMetricsResult struct {
 }
 
 type directSeriesCallbackSink struct {
-	sink        metrics.SerieSink
-	callback    func(*metrics.Serie)
-	rowCallback func(*metrics.SerieRow)
+	sink               metrics.SerieSink
+	callback           func(*metrics.Serie)
+	rowCallback        func(*metrics.SerieRow)
+	v3PointRowCallback func(*metrics.V3MetricPointRow)
 }
 
 func (s directSeriesCallbackSink) Append(serie *metrics.Serie) {
@@ -358,6 +360,60 @@ func (s directSeriesCallbackSink) AppendSerieRow(row metrics.SerieRow) {
 		return
 	}
 	s.sink.Append(row.ToSerie())
+}
+
+func (s directSeriesCallbackSink) AppendV3MetricPointRow(row metrics.V3MetricPointRow) {
+	if s.v3PointRowCallback != nil {
+		s.v3PointRowCallback(&row)
+	} else if s.rowCallback != nil {
+		serieRow := row.ToSerieRow()
+		s.rowCallback(&serieRow)
+		updateV3MetricPointRowFromSerieRow(&row, serieRow)
+	} else if s.callback != nil {
+		serieRow := row.ToSerieRow()
+		serie := serieRow.ToSerie()
+		s.callback(serie)
+		serieRow = metrics.SerieRowFromSerie(serie)
+		updateV3MetricPointRowFromSerieRow(&row, serieRow)
+	}
+
+	if pointSink, ok := s.sink.(metrics.V3MetricPointRowSink); ok {
+		pointSink.AppendV3MetricPointRow(row)
+		return
+	}
+	if rowSink, ok := s.sink.(metrics.SerieRowSink); ok {
+		rowSink.AppendSerieRow(row.ToSerieRow())
+		return
+	}
+	s.sink.Append(row.ToSerieRow().ToSerie())
+}
+
+func updateV3MetricPointRowFromSerieRow(row *metrics.V3MetricPointRow, serieRow metrics.SerieRow) {
+	if row == nil {
+		return
+	}
+	row.Timestamps = row.Timestamps[:0]
+	row.Values = row.Values[:0]
+	if len(serieRow.Points) > 0 {
+		row.Timestamp = int64(serieRow.Points[0].Ts)
+		row.Value = serieRow.Points[0].Value
+	}
+	if len(serieRow.Points) > 1 {
+		for _, point := range serieRow.Points {
+			row.Timestamps = append(row.Timestamps, int64(point.Ts))
+			row.Values = append(row.Values, point.Value)
+		}
+	}
+	row.Tags = serieRow.Tags
+	row.Host = serieRow.Host
+	row.Device = serieRow.Device
+	row.MType = serieRow.MType
+	row.Interval = serieRow.Interval
+	row.SourceTypeName = serieRow.SourceTypeName
+	row.Unit = serieRow.Unit
+	row.NoIndex = serieRow.NoIndex
+	row.Resources = serieRow.Resources
+	row.Source = serieRow.Source
 }
 
 type directSketchCallbackSink struct {
@@ -420,8 +476,51 @@ func (s *Serializer) SendDirectV3SeriesRows(
 	}
 
 	var seriesSink metrics.SerieRowSink = seriesDirectSink
-	if options.SeriesCallback != nil || options.SeriesRowCallback != nil {
-		seriesSink = directSeriesCallbackSink{sink: seriesDirectSink, callback: options.SeriesCallback, rowCallback: options.SeriesRowCallback}
+	if options.SeriesCallback != nil || options.SeriesRowCallback != nil || options.V3MetricPointRowCallback != nil {
+		seriesSink = directSeriesCallbackSink{sink: seriesDirectSink, callback: options.SeriesCallback, rowCallback: options.SeriesRowCallback, v3PointRowCallback: options.V3MetricPointRowCallback}
+	}
+
+	producer(seriesSink)
+
+	result.SeriesCount, result.SeriesErr = seriesDirectSink.Finish()
+	if result.SeriesErr == nil {
+		result.SeriesErr = seriesPipelines.Send(s.Forwarder, s.protobufExtraHeadersWithCompression)
+	}
+	return result
+}
+
+// SendDirectV3MetricPointRows is an intentionally experimental local-only path
+// for the DogStatsD columnar v3 vertical slice. The producer emits single-point
+// v3 rows directly into v3 protobuf builders; v2 and JSON series payloads are
+// not produced by this method.
+func (s *Serializer) SendDirectV3MetricPointRows(
+	producer func(metrics.V3MetricPointRowSink),
+	options DirectMetricsOptions,
+) DirectMetricsResult {
+	result := DirectMetricsResult{SeriesEnabled: s.AreSeriesEnabled()}
+	if !result.SeriesEnabled {
+		return result
+	}
+	if !s.config.GetBool("use_v2_api.series") {
+		result.SeriesErr = fmt.Errorf("direct v3 metric point row serializer experiment requires use_v2_api.series=true")
+		return result
+	}
+
+	seriesPipelines := onlyV3Pipelines(s.buildPipelines(metricsKindSeries))
+	if len(seriesPipelines) == 0 {
+		result.SeriesErr = fmt.Errorf("direct v3 metric point row serializer experiment requires at least one v3 series pipeline")
+		return result
+	}
+
+	seriesDirectSink, err := metricsserializer.NewDirectSeriesSink(s.config, s.Strategy, seriesPipelines)
+	if err != nil {
+		result.SeriesErr = fmt.Errorf("creating direct v3 metric point row sink: %w", err)
+		return result
+	}
+
+	var seriesSink metrics.V3MetricPointRowSink = seriesDirectSink
+	if options.SeriesCallback != nil || options.SeriesRowCallback != nil || options.V3MetricPointRowCallback != nil {
+		seriesSink = directSeriesCallbackSink{sink: seriesDirectSink, callback: options.SeriesCallback, rowCallback: options.SeriesRowCallback, v3PointRowCallback: options.V3MetricPointRowCallback}
 	}
 
 	producer(seriesSink)
@@ -465,8 +564,8 @@ func (s *Serializer) SendDirectSeriesAndSketches(
 		}
 		seriesSink = seriesDirectSink
 	}
-	if options.SeriesCallback != nil || options.SeriesRowCallback != nil {
-		seriesSink = directSeriesCallbackSink{sink: seriesSink, callback: options.SeriesCallback, rowCallback: options.SeriesRowCallback}
+	if options.SeriesCallback != nil || options.SeriesRowCallback != nil || options.V3MetricPointRowCallback != nil {
+		seriesSink = directSeriesCallbackSink{sink: seriesSink, callback: options.SeriesCallback, rowCallback: options.SeriesRowCallback, v3PointRowCallback: options.V3MetricPointRowCallback}
 	}
 
 	var sketchesSink metrics.SketchesSink = directNoopSketchSink{}
