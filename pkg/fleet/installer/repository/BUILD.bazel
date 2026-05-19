@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# gazelle:go_test file
+
 go_library(
     name = "repository",
     srcs = [
@@ -17,11 +19,16 @@ go_library(
 )
 
 go_test(
+    name = "repositories_test",
+    srcs = ["repositories_test.go"],
+    embed = [":repository"],
+    gotags = ["test"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)
+
+go_test(
     name = "repository_test",
-    srcs = [
-        "repositories_test.go",
-        "repository_test.go",
-    ],
+    srcs = ["repository_test.go"],
     embed = [":repository"],
     gotags = ["test"],
     deps = [

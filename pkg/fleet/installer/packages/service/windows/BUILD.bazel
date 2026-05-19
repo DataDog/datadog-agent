@@ -1,5 +1,8 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# Without this, gazelle picks up `go_test file` from an enclosing package.
+# gazelle:go_test default
+
 go_library(
     name = "windows",
     srcs = [
@@ -31,7 +34,6 @@ go_test(
     ],
     embed = [":windows"],
     gotags = ["test"],
-    visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
             "@com_github_stretchr_testify//assert",

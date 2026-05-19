@@ -1,5 +1,7 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
+# gazelle:go_test file
+
 go_library(
     name = "packages",
     srcs = [
@@ -83,12 +85,24 @@ go_library(
 )
 
 go_test(
-    name = "packages_test",
-    srcs = [
-        "apm_inject_windows_test.go",
-        "datadog_agent_extensions_test.go",
-        "otel_config_common_test.go",
-    ],
+    name = "apm_inject_windows_test",
+    srcs = ["apm_inject_windows_test.go"],
+    embed = [":packages"],
+    gotags = ["test"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/fleet/installer/setup/config",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@in_yaml_go_yaml_v3//:yaml",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "datadog_agent_extensions_test",
+    srcs = ["datadog_agent_extensions_test.go"],
     embed = [":packages"],
     gotags = ["test"],
     deps = [
@@ -96,11 +110,16 @@ go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@in_gopkg_yaml_v3//:yaml_v3",
-    ] + select({
-        "@rules_go//go/platform:windows": [
-            "//pkg/fleet/installer/setup/config",
-            "@in_yaml_go_yaml_v3//:yaml",
-        ],
-        "//conditions:default": [],
-    }),
+    ],
+)
+
+go_test(
+    name = "otel_config_common_test",
+    srcs = ["otel_config_common_test.go"],
+    embed = [":packages"],
+    gotags = ["test"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
 )
