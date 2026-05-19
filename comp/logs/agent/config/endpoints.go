@@ -211,6 +211,7 @@ func loadTCPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, registerCallba
 		newE.Protocol = e.Protocol
 		newE.Origin = e.Origin
 		newE.OriginVersion = e.OriginVersion
+		newE.ExtraHTTPHeaders = cloneExtraHTTPHeaders(e.ExtraHTTPHeaders)
 		newE.UseGRPC = e.UseGRPC
 
 		if e.UseSSL != nil {
@@ -259,6 +260,10 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 		newE.Protocol = e.Protocol
 		newE.Origin = e.Origin
 		newE.OriginVersion = e.OriginVersion
+		newE.ExtraHTTPHeaders = cloneExtraHTTPHeaders(e.ExtraHTTPHeaders)
+		if newE.ExtraHTTPHeaders == nil {
+			newE.ExtraHTTPHeaders = cloneExtraHTTPHeaders(main.ExtraHTTPHeaders)
+		}
 
 		if e.UseSSL != nil {
 			newE.useSSL = *e.UseSSL
@@ -284,6 +289,18 @@ func loadHTTPAdditionalEndpoints(main Endpoint, l *LogsConfigKeys, intakeTrackTy
 		}
 	}
 	return newEndpoints
+}
+
+func cloneExtraHTTPHeaders(headers map[string]string) map[string]string {
+	if len(headers) == 0 {
+		return nil
+	}
+
+	clonedHeaders := make(map[string]string, len(headers))
+	for k, v := range headers {
+		clonedHeaders[k] = v
+	}
+	return clonedHeaders
 }
 
 // GetAPIKey returns the latest API Key for the Endpoint, including when the configuration gets updated at runtime

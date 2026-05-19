@@ -109,6 +109,19 @@ func (l *LogsConfigKeys) ddEVPOriginVersion() string {
 	return l.getConfig().GetString(l.getConfigKey("dd_evp_origin_version"))
 }
 
+func (l *LogsConfigKeys) additionalHTTPHeaders() map[string]string {
+	headers := l.getConfig().GetStringMapString(l.getConfigKey("additional_http_headers"))
+	if len(headers) == 0 {
+		return nil
+	}
+
+	copiedHeaders := make(map[string]string, len(headers))
+	for k, v := range headers {
+		copiedHeaders[k] = v
+	}
+	return copiedHeaders
+}
+
 func (l *LogsConfigKeys) logsNoSSL() bool {
 	return l.getConfig().GetBool(l.getConfigKey("logs_no_ssl"))
 }

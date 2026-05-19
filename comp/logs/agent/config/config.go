@@ -349,6 +349,7 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 	defaultNoSSL := logsConfig.logsNoSSL()
 
 	main := newHTTPEndpoint(logsConfig, registerCallback)
+	main.ExtraHTTPHeaders = logsConfig.additionalHTTPHeaders()
 
 	if logsConfig.useV2API() && intakeTrackType != "" {
 		main.Version = EPIntakeVersion2
@@ -426,6 +427,7 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 		e.Protocol = intakeProtocol
 		e.Origin = intakeOrigin
 		e.OriginVersion = main.OriginVersion
+		e.ExtraHTTPHeaders = cloneExtraHTTPHeaders(main.ExtraHTTPHeaders)
 		e.onConfigUpdateFromReaderMainEndpoint(coreConfig)
 
 		additionals = append(additionals, e)

@@ -1515,6 +1515,7 @@ func bindEnvAndSetLogsConfigKeys(config pkgconfigmodel.Setup, prefix string) {
 	config.BindEnvAndSetDefault(prefix+"use_rust_tokenizer", false)
 	config.BindEnvAndSetDefault(prefix+"stream_lifetime", DefaultLogsStreamLifetime)
 	config.BindEnvAndSetDefault(prefix+"dd_evp_origin_version", "")
+	config.BindEnvAndSetDefault(prefix+"additional_http_headers", map[string]string{})
 	config.BindEnvAndSetDefault("logs_config.grpc.dual_send_uuids_enabled", true)
 	config.BindEnvAndSetDefault("logs_config.grpc.max_inflight_payloads", DefaultMaxInflightPayloads)
 	config.BindEnvAndSetDefault("logs_config.message_channel_size", 100)
