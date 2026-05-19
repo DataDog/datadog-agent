@@ -326,6 +326,17 @@ func (l *LogsConfigKeys) obsPipelineWorkerEnabled() bool {
 	return l.getConfig().GetBool(l.getObsPipelineConfigKey("vector", "enabled"))
 }
 
+// obsPipelineWorkerDualShip returns true when dual-ship mode is enabled, i.e. logs should be
+// sent to both the primary Datadog intake and the Observability Pipelines Worker simultaneously.
+// This method always returns false when the vectorPrefix is empty (i.e. the config keys instance
+// was not constructed with OPW support).
+func (l *LogsConfigKeys) obsPipelineWorkerDualShip() bool {
+	if l.vectorPrefix == "" {
+		return false
+	}
+	return l.getConfig().GetBool(l.getObsPipelineConfigKey("observability_pipelines_worker", "dual_ship"))
+}
+
 func (l *LogsConfigKeys) getObsPipelineURL() (string, bool) {
 	if l.vectorPrefix != "" {
 		configKey := l.getObsPipelineConfigKey("observability_pipelines_worker", "url")

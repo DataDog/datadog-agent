@@ -7,6 +7,7 @@
 package setup
 
 import (
+	"fmt"
 	"path/filepath"
 	"runtime"
 	"time"
@@ -1933,14 +1934,22 @@ func logsagent(config pkgconfigmodel.Setup) {
 
 // vector integration
 func vector(config pkgconfigmodel.Setup) {
-	config.BindEnvAndSetDefault("observability_pipelines_worker.metrics.enabled", false)
-	config.BindEnvAndSetDefault("observability_pipelines_worker.metrics.url", "")
-	config.BindEnvAndSetDefault("vector.metrics.enabled", false)
-	config.BindEnvAndSetDefault("vector.metrics.url", "")
-	config.BindEnvAndSetDefault("observability_pipelines_worker.logs.enabled", false)
-	config.BindEnvAndSetDefault("observability_pipelines_worker.logs.url", "")
-	config.BindEnvAndSetDefault("vector.logs.enabled", false)
-	config.BindEnvAndSetDefault("vector.logs.url", "")
+	bindVectorOptions(config, Metrics)
+	bindVectorOptions(config, Logs)
+}
+
+func bindVectorOptions(config pkgconfigmodel.Setup, datatype string) {
+	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.enabled", datatype), false)
+	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.url", datatype), "")
+	// dual_ship controls whether logs are sent to BOTH Datadog and OPW simultaneously.
+	// When false (default), OPW replaces the primary Datadog endpoint (legacy behaviour).
+	// When true, Datadog remains the primary endpoint and OPW is added as an additional
+	// reliable endpoint — equivalent to the user manually composing additional_endpoints
+	// with the OPW URL.
+	config.BindEnvAndSetDefault(fmt.Sprintf("observability_pipelines_worker.%s.dual_ship", datatype), false)
+
+	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.enabled", datatype), false)
+	config.BindEnvAndSetDefault(fmt.Sprintf("vector.%s.url", datatype), "")
 }
 
 func cloudfoundry(config pkgconfigmodel.Setup) {

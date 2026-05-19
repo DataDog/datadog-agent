@@ -364,36 +364,61 @@ func buildHTTPEndpoints(coreConfig pkgconfigmodel.Reader, logsConfig *LogsConfig
 		main.CompressionLevel = compressionOptions.CompressionLevel
 	}
 
+	// opwAdditionals collects any OPW dual-ship endpoint before the user-configured
+	// additional_endpoints so they are included in the final endpoint list.
+	var opwAdditionals []Endpoint
+
 	if vectorURL, vectorURLDefined := logsConfig.getObsPipelineURL(); logsConfig.obsPipelineWorkerEnabled() && vectorURLDefined {
 		host, port, _, useSSL, err := parseAddressWithScheme(vectorURL, defaultNoSSL, parseAddress)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse %s: %v", vectorURL, err)
 		}
-		main.Host = host
-		main.Port = port
-		main.useSSL = useSSL
-	} else if logsDDURL, logsDDURLDefined := logsConfig.logsDDURL(); logsDDURLDefined {
-		host, port, pathPrefix, useSSL, err := parseAddressWithScheme(logsDDURL, defaultNoSSL, parseAddress)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
+		if logsConfig.obsPipelineWorkerDualShip() {
+			// dual_ship=true: Datadog remains the primary endpoint; OPW is appended as
+			// an additional reliable endpoint. The primary DD host is resolved below via
+			// the normal logsDDURL / GetMainEndpoint path.
+			opwEndpoint := newHTTPEndpoint(logsConfig, registerCallback)
+			opwEndpoint.Host = host
+			opwEndpoint.Port = port
+			opwEndpoint.useSSL = useSSL
+			opwEndpoint.isAdditionalEndpoint = true
+			opwAdditionals = append(opwAdditionals, opwEndpoint)
+		} else {
+			// Default (legacy) behaviour: OPW replaces the primary Datadog endpoint.
+			main.Host = host
+			main.Port = port
+			main.useSSL = useSSL
 		}
-		main.Host = host
-		main.Port = port
-		main.PathPrefix = pathPrefix
-		main.useSSL = useSSL
-	} else {
-		addr := pkgconfigutils.GetMainEndpoint(coreConfig, endpointPrefix, logsConfig.getConfigKey("dd_url"))
-		host, port, _, useSSL, err := parseAddressWithScheme(addr, logsConfig.devModeNoSSL(), parseAddressAsHost)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
-		}
+	}
 
-		main.Host = host
-		main.Port = port
-		main.useSSL = useSSL
+	// Resolve the primary Datadog endpoint when it has not been replaced by OPW.
+	if main.Host == "" {
+		if logsDDURL, logsDDURLDefined := logsConfig.logsDDURL(); logsDDURLDefined {
+			host, port, pathPrefix, useSSL, err := parseAddressWithScheme(logsDDURL, defaultNoSSL, parseAddress)
+			if err != nil {
+				return nil, fmt.Errorf("could not parse %s: %v", logsDDURL, err)
+			}
+			main.Host = host
+			main.Port = port
+			main.PathPrefix = pathPrefix
+			main.useSSL = useSSL
+		} else {
+			addr := pkgconfigutils.GetMainEndpoint(coreConfig, endpointPrefix, logsConfig.getConfigKey("dd_url"))
+			host, port, _, useSSL, err := parseAddressWithScheme(addr, logsConfig.devModeNoSSL(), parseAddressAsHost)
+			if err != nil {
+				return nil, fmt.Errorf("could not parse %s: %v", addr, err)
+			}
+
+			main.Host = host
+			main.Port = port
+			main.useSSL = useSSL
+		}
 	}
 
 	additionals := loadHTTPAdditionalEndpoints(main, logsConfig, intakeTrackType, intakeProtocol, intakeOrigin, registerCallback)
+
+	// Prepend OPW dual-ship endpoints so they appear before user-configured additional_endpoints.
+	additionals = append(opwAdditionals, additionals...)
 
 	// Add in the MRF endpoint if MRF is enabled.
 	if coreConfig.GetBool("multi_region_failover.enabled") {

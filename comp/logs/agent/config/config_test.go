@@ -829,6 +829,78 @@ func (suite *ConfigTestSuite) TestBuildEndpointsWithoutVector() {
 	suite.compareEndpoints(expectedEndpoints, endpoints)
 }
 
+// TestBuildEndpointsWithOPWDualShip verifies that when dual_ship=true the primary DD endpoint
+// is kept and OPW is added as an additional reliable endpoint.
+func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWDualShip() {
+	suite.config.SetWithoutSource("api_key", "123")
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "https://opw.example.com:8443/")
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.dual_ship", true)
+
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	suite.Require().Nil(err)
+
+	// Primary endpoint must be the Datadog intake, not OPW.
+	suite.Equal("agent-http-intake.logs.datadoghq.com.", endpoints.Main.Host)
+
+	// There must be exactly two endpoints: [main (DD), OPW additional].
+	suite.Require().Len(endpoints.Endpoints, 2, "expected 2 endpoints (DD primary + OPW additional)")
+
+	opwEndpoint := endpoints.Endpoints[1]
+	suite.Equal("opw.example.com", opwEndpoint.Host)
+	suite.Equal(8443, opwEndpoint.Port)
+	suite.True(opwEndpoint.UseSSL())
+	suite.True(opwEndpoint.IsReliable())
+	suite.True(opwEndpoint.isAdditionalEndpoint)
+}
+
+// TestBuildEndpointsWithOPWDualShipAndAdditionalEndpoints verifies that when dual_ship=true is
+// combined with explicit additional_endpoints the user-configured endpoints are preserved and
+// the final list is: [DD primary, OPW additional, ...user additional_endpoints].
+func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWDualShipAndAdditionalEndpoints() {
+	suite.config.SetWithoutSource("api_key", "123")
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "https://opw.example.com:8443/")
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.dual_ship", true)
+	suite.config.SetWithoutSource("logs_config.additional_endpoints", []map[string]interface{}{
+		{"api_key": "456", "host": "extra.logs.example.com", "port": 443, "use_ssl": true},
+	})
+
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	suite.Require().Nil(err)
+
+	// Primary endpoint must be Datadog.
+	suite.Equal("agent-http-intake.logs.datadoghq.com.", endpoints.Main.Host)
+
+	// [DD primary, OPW additional, user-configured additional] = 3 total.
+	suite.Require().Len(endpoints.Endpoints, 3, "expected 3 endpoints (DD + OPW + user additional)")
+
+	opwEndpoint := endpoints.Endpoints[1]
+	suite.Equal("opw.example.com", opwEndpoint.Host)
+
+	userEndpoint := endpoints.Endpoints[2]
+	suite.Equal("extra.logs.example.com", userEndpoint.Host)
+}
+
+// TestBuildEndpointsWithOPWNoDualShipPreservesLegacyBehaviour verifies that when dual_ship is
+// absent (default false) the legacy "OPW replaces primary" behaviour is unchanged.
+func (suite *ConfigTestSuite) TestBuildEndpointsWithOPWNoDualShipPreservesLegacyBehaviour() {
+	suite.config.SetWithoutSource("api_key", "123")
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.enabled", true)
+	suite.config.SetWithoutSource("observability_pipelines_worker.logs.url", "https://opw.example.com:8443/")
+	// dual_ship is intentionally NOT set — should default to false.
+
+	endpoints, err := BuildHTTPEndpointsWithVectorOverride(suite.config, "test-track", "test-proto", "test-source")
+	suite.Require().Nil(err)
+
+	// Primary endpoint must be OPW (legacy override behaviour).
+	suite.Equal("opw.example.com", endpoints.Main.Host)
+	suite.Equal(8443, endpoints.Main.Port)
+
+	// Only one endpoint in total (no additional endpoints).
+	suite.Require().Len(endpoints.Endpoints, 1, "expected 1 endpoint (OPW as primary, legacy mode)")
+}
+
 func (suite *ConfigTestSuite) TestEndpointsSetNonDefaultCustomConfigs() {
 	suite.config.SetWithoutSource("api_key", "123")
 
