@@ -1,26 +1,25 @@
 load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
-    name = "issues",
-    srcs = [
-        "module.go",
-        "registry.go",
-    ],
-    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues",
+    name = "impl",
+    srcs = ["runner.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/runner/impl",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/core/config",
+        "//comp/core/log/def",
         "//comp/healthplatform/runner/def",
-        "@com_github_datadog_agent_payload_v5//healthplatform",
+        "//comp/healthplatform/store/def",
     ],
 )
 
 go_test(
-    name = "issues_test",
-    srcs = ["registry_test.go"],
-    embed = [":issues"],
+    name = "impl_test",
+    srcs = ["runner_test.go"],
+    embed = [":impl"],
     gotags = ["test"],
     deps = [
+        "//comp/core/log/mock",
+        "//comp/healthplatform/runner/def",
         "//comp/healthplatform/store/def",
         "@com_github_datadog_agent_payload_v5//healthplatform",
         "@com_github_stretchr_testify//assert",

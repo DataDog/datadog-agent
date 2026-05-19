@@ -5,29 +5,26 @@
 
 //go:build test
 
-// Package mock provides a no-op mock for the health platform scheduler.
+// Package mock provides a mock implementation of the health platform runner component.
 package mock
 
 import (
-	"time"
-
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
-	schedulerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-type mockScheduler struct{}
+type mockRunner struct{}
 
-func (m *mockScheduler) Schedule(_ string, _ runnerdef.HealthCheckFunc, _ time.Duration, _ []string) error {
-	return nil
+func (m *mockRunner) Run(_ string, _ runnerdef.HealthCheckFunc) ([]string, error) {
+	return nil, nil
 }
 
-// New returns a no-op mock scheduler for testing.
-func New() schedulerdef.Component {
-	return &mockScheduler{}
+// New returns a no-op mock runner for testing.
+func New() runnerdef.Component {
+	return &mockRunner{}
 }
 
-// MockModule provides a mock scheduler via fx.
+// MockModule provides a mock runner via fx.
 func MockModule() fxutil.Module {
 	return fxutil.Component(fxutil.ProvideComponentConstructor(New))
 }
