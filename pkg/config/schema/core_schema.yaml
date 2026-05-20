@@ -13,7 +13,6 @@ properties:
     - template_section:Common
     default: ''
     type: string
-    comment: Remote Flags system
   app_key:
     node_type: setting
     type: string
@@ -551,6 +550,7 @@ properties:
     tags:
     - golang_type:int
     - template_section:Common
+    comment: 0 means disabled. This is a BETA feature.
   forwarder_storage_max_disk_ratio:
     node_type: setting
     type: number
@@ -565,6 +565,9 @@ properties:
     tags:
     - golang_type:float64
     - template_section:Common
+    comment: Do not store transactions on disk when the disk usage exceeds 80% of
+      the disk capacity. Use 80% as some applications do not behave well when the
+      disk space is very small.
   forwarder_outdated_file_in_days:
     node_type: setting
     type: number
@@ -751,6 +754,7 @@ properties:
     tags:
     - golang_type:int
     - template_section:Common
+    comment: value in milliseconds
   ec2_prefer_imdsv2:
     node_type: setting
     type: boolean
@@ -779,6 +783,8 @@ properties:
     example: 'false'
     tags:
     - template_section:Common
+    comment: used to bypass the hostname detection logic and force the EC2 instance
+      ID as a hostname.
   collect_gce_tags:
     node_type: setting
     type: boolean
@@ -872,6 +878,7 @@ properties:
     tags:
     - golang_type:int
     - template_section:Common
+    comment: value in milliseconds
   collect_gpu_tags:
     node_type: setting
     type: boolean
@@ -1075,6 +1082,7 @@ properties:
     example: 'true'
     tags:
     - template_section:Common
+    comment: controls the agent configurations
   metadata_ip_resolution_from_hostname:
     node_type: setting
     type: boolean
@@ -1089,6 +1097,7 @@ properties:
     example: 'false'
     tags:
     - template_section:Common
+    comment: resolve the hostname to get the IP address
   auto_exit:
     node_type: section
     type: object
@@ -1341,9 +1350,7 @@ properties:
         example: 'false'
         tags:
         - template_section:Common
-        comment: |-
-          TODO(kubeactions): Update hostnameEndpointPrefix to "kubeops-intake." once provisioned
-          Fips
+        comment: Fips
       local_address:
         node_type: setting
         type: string
@@ -2325,6 +2332,7 @@ properties:
         default: 23
         tags:
         - golang_type:int
+        comment: in hours
       auto_multi_line:
         node_type: section
         type: object
@@ -2381,6 +2389,7 @@ properties:
         default: 30
         tags:
         - golang_type:int
+        comment: Seconds
       auto_multi_line_default_sample_size:
         node_type: setting
         type: number
@@ -2553,6 +2562,7 @@ properties:
         comment: |-
           Delegated authentication for logs
           Duration during which the host tags will be submitted with log events.
+          duration-formatted string (parsed by `time.ParseDuration`)
       experimental_adaptive_sampling:
         node_type: section
         type: object
@@ -2808,6 +2818,7 @@ properties:
         comment: |-
           additional config to ensure initial logs are tagged with kubelet tags
           wait (seconds) for tagger before start fetching tags of new AD services
+          Disabled by default (0 seconds)
       use_http:
         node_type: setting
         type: boolean
@@ -2979,6 +2990,7 @@ properties:
         tags:
         - golang_type:float64
         - template_section:TraceAgent
+        comment: deprecated
       target_traces_per_second:
         node_type: setting
         type: number
@@ -4218,6 +4230,7 @@ properties:
         env_vars:
         - DD_APM_DISABLE_RARE_SAMPLER
         tags: []
+        comment: Deprecated
       enable_container_tags_buffer:
         node_type: setting
         type: boolean
@@ -4737,7 +4750,9 @@ properties:
             tags:
             - golang_type:duration
             - template_section:CoreAgent
-            comment: Process Discovery Check
+            comment: |-
+              Process Discovery Check
+              Also bind old environment variables
           hint_frequency:
             node_type: setting
             type: number
@@ -5131,6 +5146,8 @@ properties:
             example: '"70m"'
             tags:
             - template_section:CoreAgent
+            comment: with 30min interval, 70m will allow running a test 3 times (t0,
+              t30, t60)
           pathtest_interval:
             node_type: setting
             type: string
@@ -5824,6 +5841,7 @@ properties:
             node_type: setting
             type: boolean
             default: false
+            comment: deprecated, use host_benchmarks instead
   sbom:
     node_type: section
     type: object
@@ -5949,12 +5967,14 @@ properties:
             default: 0
             tags:
             - golang_type:int
+            comment: Integer seconds
           scan_timeout:
             node_type: setting
             type: number
             default: 600
             tags:
             - golang_type:int
+            comment: Integer seconds
           use_mount:
             node_type: setting
             type: boolean
@@ -6000,12 +6020,15 @@ properties:
             node_type: setting
             type: string
             default: 1h
+            comment: used by custom cache.
           max_disk_size:
             node_type: setting
             type: number
             default: 100000000
             tags:
             - golang_type:int
+            comment: 'used by custom cache: max disk space used by cached objects.
+              Not equal to max disk usage'
       cache_directory:
         node_type: setting
         type: string
@@ -6163,6 +6186,7 @@ properties:
     tags:
     - golang_type:int
     - template_section:Dogstatsd
+    comment: 'Notice: 0 means UDP port closed'
   bind_host:
     node_type: setting
     visibility: public
@@ -6193,6 +6217,7 @@ properties:
     platform_default:
       linux: /var/run/datadog/dsd.socket
       other: ''
+    comment: Only enabled on unix systems
   dogstatsd_origin_detection:
     node_type: setting
     type: boolean
@@ -6204,6 +6229,7 @@ properties:
     example: 'false'
     tags:
     - template_section:Dogstatsd
+    comment: Only supported for socket traffic
   dogstatsd_origin_detection_client:
     node_type: setting
     type: boolean
@@ -7072,6 +7098,7 @@ properties:
     tags:
     - golang_type:int64
     - template_section:CoreAgent
+    comment: in seconds
   ad_tag_completeness_max_wait:
     node_type: setting
     type: number
@@ -7088,6 +7115,7 @@ properties:
     tags:
     - golang_type:int
     - template_section:CoreAgent
+    comment: in seconds, 0 means disabled
   ad_allowed_env_vars:
     node_type: setting
     type: array
@@ -7578,6 +7606,7 @@ properties:
         tags:
         - golang_type:int
         - template_section:ClusterChecks
+        comment: value in seconds
       warmup_duration:
         node_type: setting
         type: number
@@ -7590,6 +7619,7 @@ properties:
         tags:
         - golang_type:int
         - template_section:ClusterChecks
+        comment: value in seconds
       cluster_tag_name:
         node_type: setting
         type: string
@@ -7669,12 +7699,16 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: 'KSM resource sharding: splits KSM check by resource type (pods,
+          nodes, others)'
       rebalance_min_percentage_improvement:
         node_type: setting
         type: number
         default: 10
         tags:
         - golang_type:int
+        comment: Experimental. Subject to change. Rebalance only if the distribution
+          found improves the current one by this.
       rebalance_period:
         node_type: setting
         type: number
@@ -7686,13 +7720,16 @@ properties:
         node_type: setting
         type: boolean
         default: false
-        comment: Cluster check Autodiscovery
+        comment: |-
+          Cluster check Autodiscovery
+          TODO(CINT)(Agent 7.53+) Remove this flag when hybrid ignore_ad_tags is fully deprecated
       unscheduled_check_threshold:
         node_type: setting
         type: number
         default: 60
         tags:
         - golang_type:int
+        comment: value in seconds
   admission_controller:
     node_type: section
     title: Admission controller Configuration
@@ -7784,6 +7821,7 @@ properties:
         tags:
         - golang_type:int
         - template_section:AdmissionController
+        comment: in seconds (see kubernetes/kubernetes#71508)
       service_name:
         node_type: setting
         type: string
@@ -7813,6 +7851,7 @@ properties:
         tags:
         - golang_type:int
         - template_section:AdmissionController
+        comment: deprecated alias for `admission_controller.inject_tags.pod_owners_cache_validity`
       namespace_selector_fallback:
         node_type: setting
         type: boolean
@@ -7843,6 +7882,8 @@ properties:
             tags:
             - golang_type:int
             - template_section:AdmissionController
+            comment: validity bound of the certificate created by the controller (in
+              hours, default 1 year)
           expiration_threshold:
             node_type: setting
             type: number
@@ -7854,6 +7895,8 @@ properties:
             tags:
             - golang_type:int
             - template_section:AdmissionController
+            comment: how long before its expiration a certificate should be refreshed
+              (in hours, default 1 month)
           secret_name:
             node_type: setting
             type: string
@@ -7863,6 +7906,7 @@ properties:
             example: '"webhook-certificate"'
             tags:
             - template_section:AdmissionController
+            comment: name of the Secret object containing the webhook certificate
       inject_config:
         node_type: section
         type: object
@@ -7901,6 +7945,7 @@ properties:
             example: '"hostip"'
             tags:
             - template_section:AdmissionController
+            comment: 'possible values: hostip / service / socket / csi'
           local_service_name:
             node_type: setting
             type: string
@@ -7967,6 +8012,7 @@ properties:
             default: 10
             tags:
             - golang_type:int
+            comment: in minutes
       failure_policy:
         node_type: setting
         type: string
@@ -8001,6 +8047,7 @@ properties:
         example: 'false'
         tags:
         - template_section:AdmissionController
+        comment: adds in the webhook some selectors that are required in AKS
       auto_instrumentation:
         node_type: section
         type: object
@@ -8062,6 +8109,7 @@ properties:
                 env_vars:
                 - DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_APPSEC_ENABLED
                 tags: []
+                comment: config for ASM which is implemented in the client libraries
           asm_sca:
             node_type: section
             type: object
@@ -8073,6 +8121,7 @@ properties:
                 env_vars:
                 - DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_APPSEC_SCA_ENABLED
                 tags: []
+                comment: config for SCA
           container_registry:
             node_type: setting
             type: string
@@ -8084,6 +8133,7 @@ properties:
             env_parser: comma_separated
             items:
               type: string
+            comment: restricts which registries can be used for library injection
           default_dd_registries:
             node_type: setting
             type: array
@@ -8130,10 +8180,13 @@ properties:
                 env_vars:
                 - DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_IAST_ENABLED
                 tags: []
+                comment: config for IAST which is implemented in the client libraries
           inject_auto_detected_libraries:
             node_type: setting
             type: boolean
             default: true
+            comment: allows injecting libraries for languages detected by automatic
+              language detection feature
           patcher:
             node_type: section
             type: object
@@ -8146,10 +8199,12 @@ properties:
                 node_type: setting
                 type: boolean
                 default: false
+                comment: to be enabled only in e2e tests
               file_provider_path:
                 node_type: setting
                 type: string
                 default: /etc/datadog-agent/patch/auto-instru.json
+                comment: to be used only in e2e tests
           profiling:
             node_type: section
             type: object
@@ -8161,6 +8216,7 @@ properties:
                 env_vars:
                 - DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_PROFILING_ENABLED
                 tags: []
+                comment: config for profiling
       nccl_profiler:
         node_type: section
         type: object
@@ -8500,12 +8556,14 @@ properties:
             default: 60
             tags:
             - golang_type:int
+            comment: in seconds
           interval:
             node_type: setting
             type: number
             default: 60
             tags:
             - golang_type:int
+            comment: in seconds
   docker_labels_as_tags:
     node_type: setting
     title: Docker tag extraction
@@ -8653,7 +8711,9 @@ properties:
     example: http://localhost:51678
     tags:
     - template_section:ECS
-    comment: ECS
+    comment: |-
+      ECS
+      Will be autodetected
   ecs_collect_resource_tags_ec2:
     node_type: setting
     type: boolean
@@ -8685,6 +8745,7 @@ properties:
     tags:
     - golang_type:int
     - template_section:ECS
+    comment: value in milliseconds
   ecs_task_collection_enabled:
     node_type: setting
     type: boolean
@@ -8734,7 +8795,9 @@ properties:
     example: '""'
     tags:
     - template_section:CoreAgent
-    comment: CRI
+    comment: |-
+      CRI
+      empty is disabled
   cri_connection_timeout:
     node_type: setting
     type: number
@@ -8745,6 +8808,7 @@ properties:
     tags:
     - golang_type:int64
     - template_section:CoreAgent
+    comment: in seconds
   cri_query_timeout:
     node_type: setting
     type: number
@@ -8756,6 +8820,7 @@ properties:
     tags:
     - golang_type:int64
     - template_section:CoreAgent
+    comment: in seconds
   containerd_namespace:
     node_type: setting
     type: array
@@ -8793,6 +8858,7 @@ properties:
         - k8s.io
     tags:
     - template_section:CoreAgent
+    comment: alias for containerd_namespace
   containerd_exclude_namespaces:
     node_type: setting
     type: array
@@ -8924,6 +8990,7 @@ properties:
     tags:
     - golang_type:int
     - template_section:Kubelet
+    comment: in seconds, default 15 minutes
   kubernetes_kubeconfig_path:
     node_type: setting
     title: Kubernetes apiserver integration Configuration
@@ -9022,6 +9089,8 @@ properties:
     tags:
     - golang_type:int
     - template_section:KubeApiServer
+    comment: Polling frequency of the Agent to the DCA in seconds (gets the local
+      cache if the DCA is disabled)
   kubernetes_metadata_streaming:
     node_type: setting
     type: boolean
@@ -9069,6 +9138,7 @@ properties:
     tags:
     - golang_type:int
     - template_section:KubeApiServer
+    comment: timeout between two successful event collections in milliseconds.
   leader_election:
     node_type: setting
     type: boolean
@@ -9203,6 +9273,7 @@ properties:
         example: 'false'
         tags:
         - template_section:CoreAgent
+        comment: Enables the prometheus config provider
       service_endpoints:
         node_type: setting
         type: boolean
@@ -9212,6 +9283,7 @@ properties:
         example: 'false'
         tags:
         - template_section:CoreAgent
+        comment: Enables Service Endpoints checks in the prometheus config provider
       checks:
         node_type: setting
         type: string
@@ -9222,6 +9294,8 @@ properties:
         example: '{}'
         tags:
         - template_section:CoreAgent
+        comment: Defines any extra prometheus/openmetrics check configurations to
+          be handled by the prometheus config provider
       version:
         node_type: setting
         type: number
@@ -9233,6 +9307,8 @@ properties:
         tags:
         - golang_type:int
         - template_section:CoreAgent
+        comment: Version of the openmetrics check to be scheduled by the Prometheus
+          auto-discovery
   cloud_foundry_bbs:
     node_type: section
     title: Cloud Foundry BBS Configuration for Autodiscovery
@@ -10019,6 +10095,7 @@ properties:
             tags:
             - golang_type:int
             - template_section:CoreAgent
+            comment: in seconds
           forwarder:
             node_type: section
             type: object
@@ -11878,6 +11955,8 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    comment: configure adding the agent container tags to the basic agent telemetry
+      metrics (e.g. `datadog.agent.running`)
   bosh_id:
     node_type: setting
     type: string
@@ -11895,6 +11974,7 @@ properties:
     node_type: setting
     type: array
     default: []
+    comment: Agent Workload Filtering config
   cf_os_hostname_aliasing:
     node_type: setting
     type: boolean
@@ -11979,6 +12059,8 @@ properties:
     format: duration
     tags:
     - golang_type:duration
+    comment: If not zero, the agent will log a warning if a check is running for longer
+      than this timeout
   clc_runner_enabled:
     node_type: setting
     type: boolean
@@ -11988,6 +12070,7 @@ properties:
     node_type: setting
     type: string
     default: ''
+    comment: must be set using the Kubernetes downward API
   clc_runner_id:
     node_type: setting
     type: string
@@ -12145,6 +12228,7 @@ properties:
     default: 22
     tags:
     - golang_type:int
+    comment: in hours
   container_image:
     node_type: section
     type: object
@@ -12652,6 +12736,7 @@ properties:
             default: 0.1
             tags:
             - golang_type:float64
+            comment: 100ms for low-latency forwarding
           compression_kind:
             node_type: setting
             type: string
@@ -13315,6 +13400,7 @@ properties:
         default: 1
         tags:
         - golang_type:int
+        comment: 0 means don't call SetGCPercent
       high_soft_limit:
         node_type: setting
         type: number
@@ -13416,6 +13502,7 @@ properties:
     node_type: setting
     type: string
     default: ''
+    comment: 'Experimental || Notice: empty means feature disabled'
   dogstatsd_string_interner_size:
     node_type: setting
     type: number
@@ -13462,10 +13549,14 @@ properties:
     default: 21600
     tags:
     - golang_type:int
+    comment: value in seconds
   ec2_use_dmi:
     node_type: setting
     type: boolean
     default: true
+    comment: should the agent leverage DMI information to know if it's running on
+      EC2 or not. Enabling this will add the instance ID from DMI to the host alias
+      list.
   ec2_use_windows_prefix_detection:
     node_type: setting
     type: boolean
@@ -13767,6 +13858,7 @@ properties:
         node_type: setting
         type: string
         default: avg
+        comment: aggregator used for the external metrics. Choose from [avg,sum,max,min]
   external_metrics_provider:
     node_type: section
     type: object
@@ -13775,38 +13867,48 @@ properties:
         node_type: setting
         type: string
         default: ''
+        comment: Override the Datadog API Key for external metrics endpoint
       app_key:
         node_type: setting
         type: string
         default: ''
+        comment: Override the Datadog APP Key for external metrics endpoint
       batch_window:
         node_type: setting
         type: number
         default: 10
         tags:
         - golang_type:int
+        comment: value in seconds. Batch the events from the Autoscalers informer
+          to push updates to the ConfigMap (GlobalStore)
       bucket_size:
         node_type: setting
         type: number
         default: 300
         tags:
         - golang_type:int
+        comment: Window to query to get the metric from Datadog.
       chunk_size:
         node_type: setting
         type: number
         default: 35
         tags:
         - golang_type:int
+        comment: Maximum number of queries to batch when querying Datadog.
       config:
         node_type: setting
         type: object
         default: {}
         additionalProperties:
           type: string
+        comment: list of options that can be used to configure the external metrics
+          server
       enable_datadogmetric_autogen:
         node_type: setting
         type: boolean
         default: true
+        comment: Enables autogeneration of DatadogMetrics when the DatadogMetric CRD
+          is in use
       enabled:
         node_type: setting
         type: boolean
@@ -13815,42 +13917,50 @@ properties:
         node_type: setting
         type: string
         default: ''
+        comment: Override the Datadog API endpoint to query external metrics from
       endpoints:
         node_type: setting
         type: array
         default: []
         tags:
         - no-env
+        comment: List of redundant endpoints to query external metrics from
       local_copy_refresh_rate:
         node_type: setting
         type: number
         default: 30
         tags:
         - golang_type:int
+        comment: value in seconds
       max_age:
         node_type: setting
         type: number
         default: 120
         tags:
         - golang_type:int
+        comment: value in seconds. 4 cycles from the Autoscaler controller (up to
+          Kubernetes 1.11) is enough to consider a metric stale
       max_parallel_queries:
         node_type: setting
         type: number
         default: 10
         tags:
         - golang_type:int
+        comment: Maximum number of parallel queries sent to Datadog simultaneously
       max_time_window:
         node_type: setting
         type: number
         default: 86400
         tags:
         - golang_type:int
+        comment: Maximum window to query to get the metric from Datadog.
       num_workers:
         node_type: setting
         type: number
         default: 2
         tags:
         - golang_type:int
+        comment: Number of workers spawned by controller (only when CRD is used)
       port:
         node_type: setting
         type: number
@@ -13863,30 +13973,39 @@ properties:
         default: 30
         tags:
         - golang_type:int
+        comment: value in seconds. Represents grace period to account for delay between
+          metric is resolved and when autoscaling controllers query for it
       refresh_period:
         node_type: setting
         type: number
         default: 30
         tags:
         - golang_type:int
+        comment: value in seconds. Frequency of calls to Datadog to refresh metric
+          values
       rollup:
         node_type: setting
         type: number
         default: 30
         tags:
         - golang_type:int
+        comment: Bucket size to circumvent time aggregation side effects.
       split_batches_with_backoff:
         node_type: setting
         type: boolean
         default: false
+        comment: Splits batches and runs queries with errors individually with an
+          exponential backoff
       use_datadogmetric_crd:
         node_type: setting
         type: boolean
         default: false
+        comment: Use DatadogMetric CRD with custom Datadog Queries instead of ConfigMap
       wpa_controller:
         node_type: setting
         type: boolean
         default: false
+        comment: Activates the controller for Watermark Pod Autoscalers.
   flare:
     node_type: section
     type: object
@@ -13960,16 +14079,14 @@ properties:
     tags:
     - TODO:fix-no-default
     - TODO:fix-missing-type
-    comment: |-
-      Event Management v2 API
-      https://docs.datadoghq.com/api/latest/events#post-an-event
-      Directory to store fleet policies
+    comment: Directory to store fleet policies
   forwarder_apikey_validation_interval:
     node_type: setting
     type: number
     default: 60
     tags:
     - golang_type:int
+    comment: in minutes
   forwarder_backoff_factor:
     node_type: setting
     type: number
@@ -13983,6 +14100,7 @@ properties:
     default: 0
     tags:
     - golang_type:int
+    comment: in seconds, 0 means disabled
   forwarder_flush_to_disk_mem_ratio:
     node_type: setting
     type: number
@@ -14005,12 +14123,14 @@ properties:
     default: 900
     tags:
     - golang_type:int
+    comment: 15 mins
   forwarder_retry_queue_max_size:
     node_type: setting
     type: number
     default: 0
     tags:
     - golang_type:int
+    comment: Deprecated in favor of `forwarder_retry_queue_payloads_max_size`
   forwarder_storage_path:
     node_type: setting
     type: string
@@ -14136,6 +14256,7 @@ properties:
     default: 300
     tags:
     - golang_type:int
+    comment: 5 minutes
   hpa_watcher_polling_freq:
     node_type: setting
     type: number
@@ -14156,6 +14277,7 @@ properties:
     comment: |-
       IBM cloud
       We use a long timeout here since the metadata and token API can be very slow sometimes.
+      value in seconds
   ignore_autoconf:
     node_type: setting
     type: array
@@ -14438,14 +14560,17 @@ properties:
         node_type: setting
         type: string
         default: ''
+        comment: file system path to a unix socket, e.g. `/var/run/datadog/apm.socket`
   inventories_checks_configuration_enabled:
     node_type: setting
     type: boolean
     default: true
+    comment: controls the checks configurations
   inventories_collect_cloud_provider_account_id:
     node_type: setting
     type: boolean
     default: true
+    comment: collect collection of `cloud_provider_account_id`
   inventories_diagnostics_enabled:
     node_type: setting
     type: boolean
@@ -14468,13 +14593,16 @@ properties:
     default: 0
     tags:
     - golang_type:int
-    comment: when updating the default here also update pkg/metadata/inventories/README.md
+    comment: |-
+      when updating the default here also update pkg/metadata/inventories/README.md
+      0 == default interval from inventories
   inventories_min_interval:
     node_type: setting
     type: number
     default: 0
     tags:
     - golang_type:int
+    comment: 0 == default interval from inventories
   iot_host:
     node_type: setting
     type: boolean
@@ -14660,6 +14788,7 @@ properties:
     default: 0
     tags:
     - golang_type:int
+    comment: not exposed yet. In seconds. 0 means use workloadmeta default
   kubelet_core_check_enabled:
     node_type: setting
     type: boolean
@@ -14688,6 +14817,7 @@ properties:
     default: 300
     tags:
     - golang_type:int
+    comment: value in seconds. Default to 5 minutes
   kubernetes_kube_service_ignore_readiness:
     node_type: setting
     type: boolean
@@ -14719,6 +14849,7 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    comment: temporary opt-out of the new mapping logic
   kubernetes_namespace_annotations_as_tags:
     node_type: setting
     type: object
@@ -14737,10 +14868,28 @@ properties:
     node_type: setting
     type: string
     default: '{}'
+    comment: |-
+      kubernetes_resources_annotations_as_tags should be parseable as map[string]map[string]string
+      it maps group resources to annotations as tags maps
+      a group resource has the format `{resource}.{group}`, or simply `{resource}` if it belongs to the empty group
+      examples of group resources:
+      - `deployments.apps`
+      - `statefulsets.apps`
+      - `pods`
+      - `nodes`
   kubernetes_resources_labels_as_tags:
     node_type: setting
     type: string
     default: '{}'
+    comment: |-
+      kubernetes_resources_labels_as_tags should be parseable as map[string]map[string]string
+      it maps group resources to labels as tags maps
+      a group resource has the format `{resource}.{group}`, or simply `{resource}` if it belongs to the empty group
+      examples of group resources:
+      - `deployments.apps`
+      - `statefulsets.apps`
+      - `pods`
+      - `nodes`
   language_detection:
     node_type: section
     type: object
@@ -14788,6 +14937,7 @@ properties:
     node_type: setting
     type: boolean
     default: false
+    comment: deprecated, use logs_enabled instead
   log_payloads:
     node_type: setting
     type: boolean
@@ -15397,6 +15547,7 @@ properties:
         default: 0
         tags:
         - golang_type:int
+        comment: in seconds, 0 for default value
       extension_url:
         node_type: setting
         type: string
@@ -15427,6 +15578,7 @@ properties:
         node_type: setting
         type: boolean
         default: false
+        comment: dev flag - to be removed
   prioritize_go_check_loader:
     node_type: setting
     type: boolean
@@ -15444,6 +15596,8 @@ properties:
         node_type: setting
         type: string
         default: ''
+        comment: '[DEPRECATED] JSON check template applied to each discovered target.
+          Use prometheus_http_sd.configs instead.'
       configs:
         node_type: setting
         type: array
@@ -15451,11 +15605,16 @@ properties:
         env_parser: json
         items:
           type: object
-        comment: Prometheus HTTP Service Discovery
+        comment: |-
+          Prometheus HTTP Service Discovery
+          List of HTTP SD endpoints to poll. Each entry must specify url and check_template.
       url:
         node_type: setting
         type: string
         default: ''
+        comment: |-
+          DD_PROMETHEUS_HTTP_SD_CONFIGS is a JSON-encoded list-of-objects.
+          [DEPRECATED] URL of the Prometheus HTTP SD endpoint. Use prometheus_http_sd.configs instead.
   provider_kind:
     node_type: setting
     tags:
@@ -16597,10 +16756,12 @@ properties:
     node_type: setting
     type: string
     default: ''
+    comment: deprecated
   tracemalloc_whitelist:
     node_type: setting
     type: string
     default: ''
+    comment: deprecated
   use_diskv2_check:
     node_type: setting
     type: boolean
@@ -16618,6 +16779,10 @@ properties:
     platform_default:
       darwin: false
       other: true
+    comment: |-
+      the darwin and bsd network check has not been ported from python
+      If true, then new version of network v2 check will be used.
+      Otherwise, the python version of network check will be used.
   use_v2_api:
     node_type: section
     type: object
