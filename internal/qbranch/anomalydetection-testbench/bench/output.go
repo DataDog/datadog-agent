@@ -3,19 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package bench
 
 import (
 	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
+
+	reporterimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl"
 )
 
 // ObserverOutput is the top-level JSON structure produced by headless mode.
-// The Go field uses ObserverCorrelation (internal domain type) while the JSON
-// key is "anomaly_periods" — the consumer-facing name that describes what each
-// entry represents: a time period during which correlated anomalies were active.
 type ObserverOutput struct {
 	Metadata       ObserverMetadata      `json:"metadata"`
 	AnomalyPeriods []ObserverCorrelation `json:"anomaly_periods"`
@@ -29,16 +28,12 @@ type ObserverMetadata struct {
 	DetectorsEnabled    []string `json:"detectors_enabled"`
 	CorrelatorsEnabled  []string `json:"correlators_enabled"`
 	TotalAnomalyPeriods int      `json:"total_anomaly_periods"`
-	// ComponentConfigs holds the active configuration of every component in the
-	// --config params-file format: { "bocpd": { "enabled": true, "hazard": 0.05, ... }, ... }.
-	// This can be copy-pasted into a file and passed to --config to reproduce the run.
+	// ComponentConfigs holds the active configuration of every component.
 	ComponentConfigs map[string]map[string]any `json:"component_configs,omitempty"`
 	Stats            *ReplayStats              `json:"stats,omitempty"`
 }
 
 // ObserverCorrelation is one correlation cluster.
-// Always includes the time span (pattern, period_start, period_end).
-// Verbose mode adds title, message, tags, member_series, and nested anomalies.
 type ObserverCorrelation struct {
 	Pattern      string            `json:"pattern"`
 	PeriodStart  int64             `json:"period_start"`
@@ -58,45 +53,43 @@ type ObserverAnomaly struct {
 	Detector       string `json:"detector"`
 }
 
-// WriteObserverOutput collects correlations and metadata from the TestBench
+// WriteObserverOutput collects correlations and metadata from the Bench
 // and writes a structured JSON results file.
 // When verbose is true, correlations include title, member series, and nested anomalies.
 // When verbose is false, correlations include only the time span (pattern, period_start, period_end).
-func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
+func (tb *Bench) WriteObserverOutput(path string, verbose bool) error {
 	tb.mu.RLock()
-	correlations := tb.engine.StateView().CorrelationHistory()
+	sv := tb.debug.StateView()
+	correlations := sv.CorrelationHistory()
 
 	scenario := tb.loadedScenario
-	timelineStart, timelineEnd, hasBounds := tb.engine.Storage().TimeBounds()
+	timelineStart, timelineEnd, hasBounds := sv.ScenarioBounds()
 
-	// Collect enabled detector / correlator names and build the full component config map.
+	// Collect enabled detector / correlator names from StateView.
 	var detectorNames []string
 	var correlatorNames []string
-	componentConfigs := make(map[string]map[string]any, len(tb.components))
-	for name, ci := range tb.components {
-		entry := map[string]any{"enabled": ci.enabled}
-		if ci.activeConfig != nil {
-			if raw, err := json.Marshal(ci.activeConfig); err == nil {
-				var fields map[string]any
-				if err := json.Unmarshal(raw, &fields); err == nil {
-					for k, v := range fields {
-						entry[k] = v
-					}
-				}
-			}
-		}
-		componentConfigs[name] = entry
-
-		if !ci.enabled {
-			continue
-		}
-		switch ci.entry.kind {
-		case componentDetector:
-			detectorNames = append(detectorNames, name)
-		case componentCorrelator:
-			correlatorNames = append(correlatorNames, name)
+	for _, d := range sv.ListDetectors() {
+		if d.Enabled {
+			detectorNames = append(detectorNames, d.Name)
 		}
 	}
+	for _, c := range sv.ListCorrelators() {
+		if c.Enabled {
+			correlatorNames = append(correlatorNames, c.Name)
+		}
+	}
+
+	// Build component configs from catalog + settings.
+	entries := tb.debug.CatalogEntries()
+	componentConfigs := make(map[string]map[string]any, len(entries))
+	for _, e := range entries {
+		enabled := e.DefaultEnabled
+		if v, ok := tb.settings.Enabled[e.Name]; ok {
+			enabled = v
+		}
+		componentConfigs[e.Name] = map[string]any{"enabled": enabled}
+	}
+
 	replayStats := tb.replayStats
 	tb.mu.RUnlock()
 
@@ -108,7 +101,6 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 		timelineEnd = 0
 	}
 
-	// Build output correlations
 	outCorrelations := make([]ObserverCorrelation, len(correlations))
 	for i, corr := range correlations {
 		oc := ObserverCorrelation{
@@ -119,7 +111,7 @@ func (tb *TestBench) WriteObserverOutput(path string, verbose bool) error {
 
 		if verbose {
 			oc.Title = corr.Title
-			oc.Message = buildChangeMessage(corr, tb.engine.Storage())
+			oc.Message = reporterimpl.BuildChangeMessage(corr, nil)
 			oc.Tags = []string{"source:agent-q-branch-observer", "pattern:" + corr.Pattern}
 			oc.MemberSeries = make([]string, len(corr.Members))
 			for j, m := range corr.Members {

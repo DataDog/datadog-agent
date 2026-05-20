@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -35,6 +36,7 @@ func TestAgentInternalLogsFlowIntoObserver(t *testing.T) {
 	provides := NewComponent(Requires{
 		Telemetry: telemetry.New(t),
 		Config:    cfg,
+		Reporters: []reporterdef.Reporter{&noopTestReporter{}},
 	})
 	obs, ok := provides.Comp.(*observerImpl)
 	require.True(t, ok)

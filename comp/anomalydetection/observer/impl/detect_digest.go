@@ -30,8 +30,3 @@ type detectDigest struct {
 func anomalyFingerprint(a observerdef.Anomaly) string {
 	return fmt.Sprintf("%s|%d|%s", a.Source.Key(), a.Timestamp, a.Title)
 }
-
-// detectDigestKey builds a map key for matching digests across live and replay.
-func detectDigestKey(detectorName string, dataTime int64) string {
-	return fmt.Sprintf("%s|%d", detectorName, dataTime)
-}

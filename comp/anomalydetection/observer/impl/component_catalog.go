@@ -324,10 +324,12 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 	return detectors, correlators, extractors, components
 }
 
-// CatalogEntry is a public view of a catalog component for CLI use.
+// CatalogEntry is a public view of a catalog component.
 type CatalogEntry struct {
-	Name string
-	Kind string // "detector", "correlator", or "extractor"
+	Name           string
+	DisplayName    string
+	Kind           string // "detector", "correlator", or "extractor"
+	DefaultEnabled bool
 }
 
 // TestbenchCatalogEntries returns all component names and kinds from the testbench catalog.
@@ -336,16 +338,12 @@ func TestbenchCatalogEntries() []CatalogEntry {
 	cat := defaultCatalog()
 	result := make([]CatalogEntry, len(cat.entries))
 	for i, e := range cat.entries {
-		kind := "unknown"
-		switch e.kind {
-		case componentDetector:
-			kind = "detector"
-		case componentCorrelator:
-			kind = "correlator"
-		case componentExtractor:
-			kind = "extractor"
+		result[i] = CatalogEntry{
+			Name:           e.name,
+			DisplayName:    e.displayName,
+			Kind:           kindString(e.kind),
+			DefaultEnabled: e.defaultEnabled,
 		}
-		result[i] = CatalogEntry{Name: e.name, Kind: kind}
 	}
 	return result
 }
@@ -357,53 +355,17 @@ func (c *componentCatalog) Entries() []componentEntry {
 	return result
 }
 
-// catalogEnabledDetectors returns the enabled Detector instances from a components map.
-// SeriesDetector implementations are wrapped with seriesDetectorAdapter.
-func catalogEnabledDetectors(components map[string]*componentInstance, catalog *componentCatalog) []observerdef.Detector {
-	var result []observerdef.Detector
-	// Iterate in catalog order for deterministic ordering
-	for _, entry := range catalog.entries {
-		ci, ok := components[entry.name]
-		if !ok || !ci.enabled || ci.entry.kind != componentDetector {
-			continue
-		}
-		if d, ok := ci.instance.(observerdef.Detector); ok {
-			result = append(result, d)
-		} else if sd, ok := ci.instance.(observerdef.SeriesDetector); ok {
-			result = append(result, newSeriesDetectorAdapter(sd, defaultAggregations))
-		}
+func kindString(k componentKind) string {
+	switch k {
+	case componentDetector:
+		return "detector"
+	case componentCorrelator:
+		return "correlator"
+	case componentExtractor:
+		return "extractor"
+	default:
+		return "unknown"
 	}
-	return result
-}
-
-// catalogEnabledExtractors returns the enabled LogMetricsExtractor instances from a components map.
-func catalogEnabledExtractors(components map[string]*componentInstance, catalog *componentCatalog) []observerdef.LogMetricsExtractor {
-	var result []observerdef.LogMetricsExtractor
-	for _, entry := range catalog.entries {
-		ci, ok := components[entry.name]
-		if !ok || !ci.enabled || ci.entry.kind != componentExtractor {
-			continue
-		}
-		if ext, ok := ci.instance.(observerdef.LogMetricsExtractor); ok {
-			result = append(result, ext)
-		}
-	}
-	return result
-}
-
-// catalogEnabledCorrelators returns the enabled Correlator instances from a components map.
-func catalogEnabledCorrelators(components map[string]*componentInstance, catalog *componentCatalog) []observerdef.Correlator {
-	var result []observerdef.Correlator
-	for _, entry := range catalog.entries {
-		ci, ok := components[entry.name]
-		if !ok || !ci.enabled || ci.entry.kind != componentCorrelator {
-			continue
-		}
-		if cor, ok := ci.instance.(observerdef.Correlator); ok {
-			result = append(result, cor)
-		}
-	}
-	return result
 }
 
 // statelessDetectorAllowlist enumerates catalog detectors that are explicitly

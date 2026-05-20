@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package bench
 
 import (
 	"encoding/json"
@@ -64,8 +64,7 @@ type MetricScoreResult struct {
 }
 
 // LoadMetricGroundTruth reads TP metric lists from ground_truth.json in the
-// scenarios directory. This file is committed and keyed by scenario name,
-// separate from episode.json which is downloaded from S3.
+// scenarios directory.
 func LoadMetricGroundTruth(scenariosDir, scenarioName string) (*MetricGroundTruth, error) {
 	path := filepath.Join(scenariosDir, "ground_truth.json")
 	data, err := os.ReadFile(path)
@@ -98,20 +97,13 @@ func LoadDisruptionStartUnix(scenariosDir, scenarioName string) int64 {
 
 // ScoreMetrics classifies each anomaly period's metric as TP, FP, or unknown
 // by matching against the ground truth metric lists.
-//
-// disruptionStartUnix is used to compute delta_from_disruption_sec on detections.
-// Pass 0 if unavailable (deltas will be zero).
-//
-// Matching strategy: metric-only. An anomaly's Source (metric name) is checked
-// against each ground truth entry's metrics list using substring matching with
-// aggregate suffix stripping (e.g., "redis.cpu.sys:avg" matches "redis.cpu.sys").
 func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth, disruptionStartUnix int64) *MetricScoreResult {
 	type gtEntry struct {
 		service        string
 		metric         string
 		classification string // "tp" or "fp"
 	}
-	tpSet := make(map[string]gtEntry) // "service:metric" -> entry
+	tpSet := make(map[string]gtEntry)
 	fpSet := make(map[string]gtEntry)
 	allTPKeys := make(map[string]bool)
 
@@ -140,7 +132,6 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth, disruptionStart
 	foundTPKeys := make(map[string]*metricHit)
 	firedFPKeys := make(map[string]*metricHit)
 
-	// Sort keys for deterministic iteration order across runs.
 	sortedTPKeys := make([]string, 0, len(tpSet))
 	for key := range tpSet {
 		sortedTPKeys = append(sortedTPKeys, key)
@@ -162,7 +153,6 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth, disruptionStart
 		}
 
 		matched := false
-		// Check against TP metrics (sorted for determinism)
 		for _, key := range sortedTPKeys {
 			if metricMatches(source, key) {
 				result.TPCount++
@@ -179,7 +169,6 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth, disruptionStart
 			continue
 		}
 
-		// Check against FP metrics (sorted for determinism)
 		for _, key := range sortedFPKeys {
 			if metricMatches(source, key) {
 				result.FPCount++
@@ -200,7 +189,6 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth, disruptionStart
 		result.UnknownDetectionCount++
 	}
 
-	// Collect found/missed TP metrics (use sorted keys for determinism)
 	for _, key := range sortedTPKeys {
 		if _, ok := foundTPKeys[key]; ok {
 			result.TPMetricsFound = append(result.TPMetricsFound, key)
@@ -214,7 +202,6 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth, disruptionStart
 		}
 	}
 
-	// Build per-metric detection timeline
 	var detections []MetricDetection
 
 	for key, entry := range tpSet {
@@ -251,7 +238,6 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth, disruptionStart
 		detections = append(detections, d)
 	}
 
-	// Stable sort: classification (fp < tp), then service, then metric
 	sort.Slice(detections, func(i, j int) bool {
 		if detections[i].Classification != detections[j].Classification {
 			return detections[i].Classification < detections[j].Classification
@@ -265,7 +251,6 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth, disruptionStart
 	result.Detections = detections
 	result.UnknownMetricCount = result.UnknownDetectionCount
 
-	// Compute precision/recall/F1
 	labeled := result.TPCount + result.FPCount
 	if labeled > 0 {
 		result.MetricPrecision = float64(result.TPCount) / float64(labeled)
@@ -281,14 +266,10 @@ func ScoreMetrics(output *ObserverOutput, gt *MetricGroundTruth, disruptionStart
 }
 
 // metricSource extracts the metric name from an anomaly period.
-// For passthrough correlator output, each period has exactly one anomaly
-// whose Source is the metric name. Falls back to parsing the Title field.
 func (oc *ObserverCorrelation) metricSource() string {
-	// Verbose output: anomalies are populated
 	if len(oc.Anomalies) > 0 {
 		return oc.Anomalies[0].Source
 	}
-	// Non-verbose: Title from passthrough has format "Passthrough[detector]: metric_name"
 	if oc.Title != "" {
 		if idx := strings.Index(oc.Title, "]: "); idx >= 0 {
 			return oc.Title[idx+3:]
@@ -298,17 +279,6 @@ func (oc *ObserverCorrelation) metricSource() string {
 }
 
 // metricMatches checks if an anomaly source matches a ground truth key.
-// key format: "service:metric_name" (e.g., "redis:redis.cpu.sys")
-//
-// Matching rules:
-// 1. Strip aggregate suffix from source (e.g., ":avg", ":max")
-// 2. Check exact match, then substring containment
-//
-// Substring matching is intentional: "trace.http.request.hits" matches ground
-// truth "trace.http.request" because hits is a derived sub-metric of the same
-// trace endpoint. When multiple ground truth keys could match the same source,
-// the caller must iterate in sorted order for deterministic results — which
-// key wins depends on the full "service:metric" sort order.
 func metricMatches(source, key string) bool {
 	parts := strings.SplitN(key, ":", 2)
 	if len(parts) != 2 {
@@ -316,7 +286,6 @@ func metricMatches(source, key string) bool {
 	}
 	metric := parts[1]
 
-	// Strip aggregate suffix (e.g., "redis.cpu.sys:avg" -> "redis.cpu.sys")
 	sourceName := source
 	if colonIdx := strings.LastIndex(source, ":"); colonIdx >= 0 {
 		suffix := source[colonIdx+1:]

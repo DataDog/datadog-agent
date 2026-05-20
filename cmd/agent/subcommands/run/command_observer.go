@@ -15,15 +15,19 @@ package run
 import (
 	"go.uber.org/fx"
 
+	hfrunnerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/hfrunner/fx"
 	logssourcefx "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/fx"
 	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
 	recorderfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx-noop"
+	reporterfx "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx"
 )
 
 func getObserverOptions() fx.Option {
 	return fx.Options(
 		observerfx.Module(),
+		hfrunnerfx.Module(),
 		logssourcefx.Module(),
 		recorderfx.Module(),
+		reporterfx.Module(),
 	)
 }

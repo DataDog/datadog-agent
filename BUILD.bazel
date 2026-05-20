@@ -193,6 +193,9 @@ exports_files(glob(
 # gazelle:exclude comp/anomalydetection/observer/def
 # gazelle:exclude comp/anomalydetection/observer/fx
 # gazelle:exclude comp/anomalydetection/observer/impl
+# gazelle:exclude comp/anomalydetection/hfrunner/def
+# gazelle:exclude comp/anomalydetection/hfrunner/fx
+# gazelle:exclude comp/anomalydetection/hfrunner/impl
 # gazelle:exclude comp/anomalydetection/logssource/fx
 # gazelle:exclude comp/anomalydetection/logssource/impl
 # gazelle:exclude comp/anomalydetection/recorder/def
@@ -200,6 +203,13 @@ exports_files(glob(
 # gazelle:exclude comp/anomalydetection/recorder/fx-noop
 # gazelle:exclude comp/anomalydetection/recorder/impl
 # gazelle:exclude comp/anomalydetection/recorder/impl-noop
+# gazelle:exclude comp/anomalydetection/reporter/def
+# gazelle:exclude comp/anomalydetection/reporter/fx
+# gazelle:exclude comp/anomalydetection/reporter/fx-noop
+# gazelle:exclude comp/anomalydetection/reporter/fx-testbench
+# gazelle:exclude comp/anomalydetection/reporter/impl
+# gazelle:exclude comp/anomalydetection/reporter/impl-testbench
+# gazelle:exclude comp/anomalydetection/reporter/mock
 # gazelle:exclude comp/otelcol/collector
 # gazelle:exclude comp/otelcol/collector-contrib/fx
 # gazelle:exclude comp/otelcol/collector-contrib/impl

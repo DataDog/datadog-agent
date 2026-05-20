@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package hfrunner
+package hfrunnerimpl
 
 import (
 	"sync"
@@ -12,6 +12,7 @@ import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 
@@ -38,15 +39,34 @@ const (
 
 	// maxBackoff caps the retry wait to avoid long silences.
 	maxBackoff = 60 * time.Second
-
-	// HFSource is the observer handle source name for HF system check metrics.
-	// Using a distinct name from "all-metrics" lets the observer suppress the
-	// lower-frequency 15s versions of these metrics when HF mode is active.
-	HFSource = "system-checks-hf"
-
-	// HFContainerSource is the observer handle source name for HF container metrics.
-	HFContainerSource = "container-checks-hf"
 )
+
+// systemCheckSources is the set of MetricSource values produced by the system
+// checks that the HF runner executes. It mirrors the check list in newRunner.
+var systemCheckSources = map[metrics.MetricSource]struct{}{
+	metrics.MetricSourceCPU:        {},
+	metrics.MetricSourceLoad:       {},
+	metrics.MetricSourceMemory:     {},
+	metrics.MetricSourceIo:         {},
+	metrics.MetricSourceDisk:       {},
+	metrics.MetricSourceNetwork:    {},
+	metrics.MetricSourceUptime:     {},
+	metrics.MetricSourceFileHandle: {},
+}
+
+// containerCheckSources is the set of MetricSource values produced by the
+// container checks that the HF container runner executes.
+var containerCheckSources = map[metrics.MetricSource]struct{}{
+	metrics.MetricSourceContainer: {},
+}
+
+// ContainerDeps holds the components required to run the generic container check.
+// All three must be non-nil; newContainerRunner returns nil if any are missing.
+type ContainerDeps struct {
+	WMeta       workloadmetadef.Component
+	FilterStore workloadfilterdef.Component
+	Tagger      taggerdef.Component
+}
 
 // checkEntry tracks a single check instance and its retry state.
 type checkEntry struct {
@@ -57,25 +77,20 @@ type checkEntry struct {
 	logged  bool          // whether we've already logged the first failure
 }
 
-// Runner runs system checks at 1-second intervals and routes their output
-// directly into the observer pipeline. It is owned by the observer component
-// and has no interaction with the normal collector/aggregator/forwarder chain.
-type Runner struct {
+// runner runs system checks at 1-second intervals and routes their output
+// directly into the observer pipeline. It has no interaction with the normal
+// collector/aggregator/forwarder chain.
+type runner struct {
 	entries  []*checkEntry
 	stopCh   chan struct{}
 	stopOnce sync.Once
 }
 
-// New creates a Runner, instantiates system checks, and configures them.
-// Checks that are unavailable on the current platform (e.g. battery on Linux
-// servers, Windows-only checks on Linux) are silently skipped.
-// Returns the runner; call Start() to begin collection.
-func New(handle observerdef.Handle) *Runner {
+// newRunner creates a runner, instantiates system checks, and configures them.
+// Checks that are unavailable on the current platform are silently skipped.
+func newRunner(handle observerdef.Handle) *runner {
 	mgr := newObserverSenderManager(handle)
 
-	// factories lists the system check factories to instantiate.
-	// Each entry is (display-name, factory-option). Platform-specific factories
-	// return an empty option on unsupported OSes, so we skip them gracefully.
 	type factoryEntry struct {
 		name    string
 		factory option.Option[func() check.Check]
@@ -102,9 +117,6 @@ func New(handle observerdef.Handle) *Runner {
 
 		ch := factory()
 
-		// Configure with empty instance/init config so each check uses its
-		// defaults. We intentionally do not set min_collection_interval here
-		// because the runner drives its own 1s tick loop independently.
 		err := ch.Configure(mgr, 0, integration.Data("{}"), integration.Data("{}"), "hf-runner", "hf-runner")
 		if err != nil {
 			log.Warnf("[observer/hfrunner] failed to configure %s check, skipping: %v", fe.name, err)
@@ -115,24 +127,12 @@ func New(handle observerdef.Handle) *Runner {
 	}
 
 	log.Infof("[observer/hfrunner] initialized %d system checks for high-frequency collection", len(entries))
-	return &Runner{entries: entries, stopCh: make(chan struct{})}
+	return &runner{entries: entries, stopCh: make(chan struct{})}
 }
 
-// ContainerDeps holds the components required to run the generic container check.
-// All three must be non-nil; NewContainer returns nil if any are missing.
-type ContainerDeps struct {
-	WMeta       workloadmetadef.Component
-	FilterStore workloadfilterdef.Component
-	Tagger      taggerdef.Component
-}
-
-// NewContainer creates a Runner that collects container metrics (cpu, memory, io,
-// network) at 1-second intervals via the generic container check. The runner uses
-// the same observerSender pattern as New — metrics flow directly into the observer
-// pipeline and never touch the aggregator or forwarder.
-//
-// Returns nil if any dep in ContainerDeps is nil, logging a warning.
-func NewContainer(handle observerdef.Handle, deps ContainerDeps) *Runner {
+// newContainerRunner creates a runner that collects container metrics at 1-second
+// intervals via the generic container check. Returns nil if any dep in ContainerDeps is nil.
+func newContainerRunner(handle observerdef.Handle, deps ContainerDeps) *runner {
 	if deps.WMeta == nil || deps.FilterStore == nil || deps.Tagger == nil {
 		log.Warn("[observer/hfrunner] container check deps incomplete, skipping container HF runner")
 		return nil
@@ -166,20 +166,20 @@ func NewContainer(handle observerdef.Handle, deps ContainerDeps) *Runner {
 	}
 
 	log.Infof("[observer/hfrunner] initialized %d container checks for high-frequency collection", len(entries))
-	return &Runner{entries: entries, stopCh: make(chan struct{})}
+	return &runner{entries: entries, stopCh: make(chan struct{})}
 }
 
-// Start begins the 1-second collection loop in a background goroutine.
-func (r *Runner) Start() {
+// start begins the 1-second collection loop in a background goroutine.
+func (r *runner) start() {
 	go r.run()
 }
 
-// Stop signals the collection loop to exit. Safe to call multiple times.
-func (r *Runner) Stop() {
+// stop signals the collection loop to exit. Safe to call multiple times.
+func (r *runner) stop() {
 	r.stopOnce.Do(func() { close(r.stopCh) })
 }
 
-func (r *Runner) run() {
+func (r *runner) run() {
 	ticker := time.NewTicker(tickInterval)
 	defer ticker.Stop()
 
@@ -195,19 +195,16 @@ func (r *Runner) run() {
 	}
 }
 
-func (r *Runner) runCheck(e *checkEntry, now time.Time) {
-	// Honour backoff: if we're in a retry window, skip this tick.
+func (r *runner) runCheck(e *checkEntry, now time.Time) {
 	if e.backoff > 0 && now.Before(e.retryAt) {
 		return
 	}
 
 	if err := e.ch.Run(); err != nil {
 		if !e.logged {
-			// Log the first failure, then go quiet until the check recovers.
 			log.Warnf("[observer/hfrunner] %s check failed (will retry with backoff): %v", e.name, err)
 			e.logged = true
 		}
-		// Increase backoff exponentially, capped at maxBackoff.
 		if e.backoff == 0 {
 			e.backoff = initialBackoff
 		} else {
@@ -220,10 +217,18 @@ func (r *Runner) runCheck(e *checkEntry, now time.Time) {
 		return
 	}
 
-	// Success: reset retry state and re-enable failure logging.
 	if e.backoff > 0 {
 		log.Infof("[observer/hfrunner] %s check recovered", e.name)
 	}
 	e.backoff = 0
 	e.logged = false
+}
+
+// copySourceSet returns a copy of the given MetricSource set.
+func copySourceSet(src map[metrics.MetricSource]struct{}) map[metrics.MetricSource]struct{} {
+	dst := make(map[metrics.MetricSource]struct{}, len(src))
+	for k := range src {
+		dst[k] = struct{}{}
+	}
+	return dst
 }

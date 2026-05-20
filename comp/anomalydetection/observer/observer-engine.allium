@@ -15,7 +15,7 @@
 --   - Raw profile analysis (unimplemented placeholder)
 --   - Go concurrency primitives (channels, mutexes, goroutines)
 --   - Fx component wiring and agent lifecycle
---   - High-frequency check runner infrastructure
+--   - High-frequency check runner infrastructure (see ../hfrunner/hfrunner.allium)
 --   - Scoring/benchmarking infrastructure
 
 ------------------------------------------------------------

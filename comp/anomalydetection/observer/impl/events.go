@@ -7,6 +7,7 @@ package observerimpl
 
 import (
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 )
 
 // engineEventKind identifies the type of engine event.
@@ -58,19 +59,19 @@ type eventSink interface {
 	onEngineEvent(engineEvent)
 }
 
-// reporterEventSink bridges engine events to the existing Reporter interface.
+// reporterEventSink bridges engine events to the reporter group.
 // When an advance completes, it populates ReportOutput with anomalies from
 // the event and active correlations from the stateView, then calls Report
 // on all registered reporters.
 type reporterEventSink struct {
-	reporters []observerdef.Reporter
+	reporters []reporterdef.Reporter
 	state     *stateView // for querying current correlations on advance
 }
 
 func (s *reporterEventSink) onEngineEvent(evt engineEvent) {
 	if evt.kind == eventAdvanceCompleted {
 		ac := evt.advanceCompleted
-		output := observerdef.ReportOutput{
+		output := reporterdef.ReportOutput{
 			AdvancedToSec: ac.advancedToSec,
 			NewAnomalies:  ac.anomalies,
 		}

@@ -1,0 +1,321 @@
+-- allium: 3
+-- hfrunner.allium
+
+-- Scope: High-frequency check runner component
+-- Includes: component startup contract, 1-second collection loop,
+--   check backoff and recovery, metric routing via observer handles,
+--   source suppression set returned to the observer component.
+-- Excludes: individual check algorithm implementations (CPU, Memory, etc.),
+--   Go goroutine and ticker internals, observer analysis engine pipeline,
+--   Fx lifecycle wiring details.
+
+------------------------------------------------------------
+-- Config
+------------------------------------------------------------
+
+config {
+    tick_interval: Duration = 1.seconds
+    initial_backoff: Duration = 2.seconds
+    max_backoff: Duration = 60.seconds
+}
+
+------------------------------------------------------------
+-- External Entities
+------------------------------------------------------------
+
+-- A runnable check instance (system or container).
+-- Routes collected metrics to the observer via observerSender.
+-- Never writes to any aggregator, forwarder, or Datadog intake.
+external entity Check { name: String }
+
+-- An observer handle: the destination for collected metrics.
+external entity ObserverHandle {}
+
+-- Optional infrastructure required for container check collection.
+external entity WorkloadMetaStore {}
+external entity WorkloadFilter {}
+external entity TaggerComponent {}
+
+------------------------------------------------------------
+-- Enumerations
+------------------------------------------------------------
+
+enum RunnerKind { system | container }
+
+------------------------------------------------------------
+-- Value Types
+------------------------------------------------------------
+
+-- The set of MetricSource identifiers whose 15-second pipeline
+-- counterparts must be suppressed while this runner is active.
+-- Returned at startup so the observer knows which sources to filter.
+value SourceFilterSet {
+    sources: Set<String>
+}
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+entity CheckRunner {
+    kind: RunnerKind
+    handle: ObserverHandle
+    entries: Set<CheckEntry>
+    next_tick_at: Timestamp
+    status: running | stopped
+
+    transitions status {
+        running -> stopped
+        terminal: stopped
+    }
+}
+
+entity CheckEntry {
+    name: String
+    check: Check
+    backoff: Duration               -- 0 = no active backoff
+    retry_at: Timestamp?            -- deadline before next attempt after failure; null when backoff = 0
+    first_failure_logged: Boolean   -- prevents repeated WARN spam
+}
+
+------------------------------------------------------------
+-- Actors
+------------------------------------------------------------
+
+-- The observer component that requests runner startup during construction.
+actor ObserverComponent identified_by handle_name: String
+
+------------------------------------------------------------
+-- Rules: Startup
+------------------------------------------------------------
+
+-- Start the system check runner when requested by the observer component.
+-- Checks unavailable on the current platform are silently excluded.
+rule StartSystemRunner {
+    when: SystemRunnerStartRequested(handle)
+
+    let entries = instantiate_system_checks(handle)
+    -- black box: attempts CPU, Load, Memory, IO, Disk, Network, Uptime, FileHandles
+
+    ensures: CheckRunner.created(
+        kind: system,
+        handle: handle,
+        entries: entries,
+        next_tick_at: now + config.tick_interval,
+        status: running,
+    )
+
+    ensures: SystemSourcesReturned(system_source_filter_set)
+    -- Caller must suppress these MetricSource values from its 15s pipeline.
+
+    @guidance
+        -- A runner with zero entries (all checks unavailable on this platform)
+        -- is valid and starts cleanly. SystemSourcesReturned is still emitted
+        -- with the full declared source set, so suppression is consistent.
+}
+
+-- Start the container check runner when the required infrastructure is available.
+rule StartContainerRunner {
+    when: ContainerRunnerStartRequested(handle, wmeta, filter_store, tagger)
+    requires: wmeta != null and filter_store != null and tagger != null
+
+    let entries = instantiate_container_checks(handle, wmeta, filter_store, tagger)
+    -- black box: generic container check via WorkloadMeta + FilterStore + Tagger
+
+    ensures:
+        if entries.count > 0:
+            CheckRunner.created(
+                kind: container,
+                handle: handle,
+                entries: entries,
+                next_tick_at: now + config.tick_interval,
+                status: running,
+            )
+
+    ensures:
+        if entries.count > 0:
+            ContainerSourcesReturned(container_source_filter_set)
+
+    @guidance
+        -- If entries is empty (check unavailable on this platform), the runner
+        -- is not started and ContainerSourcesReturned is not emitted.
+        -- The 15-second container pipeline continues unfiltered.
+}
+
+-- Skip the container runner when required infrastructure is absent.
+-- No filter set is returned so the caller leaves the 15s pipeline unfiltered.
+rule SkipContainerRunnerWhenDepsUnavailable {
+    when: ContainerRunnerStartRequested(_, wmeta, filter_store, tagger)
+    requires: wmeta = null or filter_store = null or tagger = null
+
+    ensures: ContainerRunnerSkipped
+    -- No source filter is returned. 15s container metrics are NOT suppressed.
+}
+
+------------------------------------------------------------
+-- Rules: Collection Loop
+------------------------------------------------------------
+
+-- Every tick_interval, attempt each check entry that is not in backoff.
+-- Metrics collected during Run() route synchronously to the observer handle.
+rule Tick {
+    when: runner: CheckRunner.next_tick_at <= now
+    requires: runner.status = running
+
+    ensures: runner.next_tick_at = now + config.tick_interval
+
+    for entry in runner.entries
+        where (entry.backoff = 0.seconds or (entry.retry_at != null and now >= entry.retry_at)):
+        ensures: CheckAttempted(runner, entry)
+}
+
+-- A check run completes successfully. Metrics are already in the observer.
+-- If recovering from a backoff period, reset the retry state.
+rule CheckSucceeds {
+    when: CheckAttempted(runner, entry)
+    requires: check_run_ok(entry.check)     -- black box: check.Run() returned nil
+
+    ensures:
+        if entry.backoff > 0.seconds:
+            entry.backoff = 0.seconds
+            entry.retry_at = null
+            entry.first_failure_logged = false
+
+    @guidance
+        -- The first success after a backoff is logged at INFO level.
+        -- Subsequent successes are silent.
+}
+
+-- A check run fails. Apply exponential backoff. Metric output for this
+-- entry is suspended until the backoff window expires.
+rule CheckFails {
+    when: CheckAttempted(runner, entry)
+    requires: check_run_error(entry.check)  -- black box: check.Run() returned error
+
+    let new_backoff =
+        if entry.backoff = 0.seconds: config.initial_backoff
+        else: min(entry.backoff * 2, config.max_backoff)
+
+    ensures: entry.backoff = new_backoff
+    ensures: entry.retry_at = now + new_backoff
+    ensures:
+        if not entry.first_failure_logged:
+            entry.first_failure_logged = true
+
+    @guidance
+        -- The first failure is logged at WARN. Subsequent failures during
+        -- the backoff window are silent to avoid log spam.
+        -- Backoff doubles each failure up to config.max_backoff (60s).
+}
+
+------------------------------------------------------------
+-- Rules: Shutdown
+------------------------------------------------------------
+
+-- Stop a running check runner. In-flight check runs complete normally;
+-- no new ticks are scheduled after stop.
+rule StopRunner {
+    when: RunnerStopRequested(runner)
+    requires: runner.status = running
+
+    ensures: runner.status = stopped
+
+    @guidance
+        -- Stop is idempotent: the stop signal is sent once via channel close
+        -- (sync.Once). Concurrent calls are safe.
+}
+
+------------------------------------------------------------
+-- Invariants
+------------------------------------------------------------
+
+-- HF runner metrics never reach Datadog intake.
+-- All metric calls route exclusively to the observer handle.
+invariant MetricsRoutedToObserverOnly {
+    for r in CheckRunners:
+        r.status = running implies
+            all_metrics_reach_only(r.handle)   -- black box
+}
+
+-- Backoff duration is bounded.
+invariant BackoffBounded {
+    for entry in CheckEntries:
+        entry.backoff >= 0.seconds and
+        entry.backoff <= config.max_backoff
+}
+
+-- retry_at is set iff backoff is active.
+invariant RetryAtConsistency {
+    for entry in CheckEntries:
+        (entry.backoff > 0.seconds) = (entry.retry_at != null)
+}
+
+-- A stopped runner never ticks again.
+invariant StoppedRunnerDoesNotTick {
+    for r in CheckRunners where r.status = stopped:
+        not (r.next_tick_at <= now)
+}
+
+------------------------------------------------------------
+-- Contracts
+------------------------------------------------------------
+
+-- Contract between the hfrunner and any check it executes.
+contract CheckRunContract {
+    configure: (sender_manager: Any, init_config: Any, instance_config: Any) -> Boolean
+    run: () -> Boolean
+
+    @invariant SenderIsolation
+        -- The sender_manager passed to configure must route all metric
+        -- calls (Gauge, Rate, Count, Histogram, etc.) to the observer
+        -- handle. No other sink is reachable from a configured check.
+
+    @invariant NoPersistentState
+        -- Checks retain no references to the handle after the runner stops.
+        -- Stopping the runner halts new metric production regardless of
+        -- whether a run() call is in flight.
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+-- Integration surface between the observer component and the hfrunner.
+-- Each method is called at most once per runner kind, during observer
+-- component construction, before the agent's OnStart hooks fire.
+surface HFRunnerStartup {
+    facing caller: ObserverComponent
+
+    provides:
+        -- Start the system check runner with the given observer handle.
+        -- Emits SystemSourcesReturned with the MetricSource filter set
+        -- the caller must suppress from its 15-second "all-metrics" pipeline.
+        -- No-op (no emission) if system HF is disabled.
+        StartSystem(caller, handle: ObserverHandle)
+
+        -- Start the container check runner.
+        -- Emits ContainerSourcesReturned if started successfully.
+        -- No-op if container HF is disabled or required deps are unavailable.
+        StartContainer(caller, handle: ObserverHandle,
+            wmeta: WorkloadMetaStore?,
+            filter_store: WorkloadFilter?,
+            tagger: TaggerComponent?)
+
+    @guarantee SuppressionContractOnStart
+        -- A non-empty SourceFilterSet (via SystemSourcesReturned /
+        -- ContainerSourcesReturned) is emitted ONLY when the corresponding
+        -- runner has successfully started. When the runner cannot start,
+        -- no filter set is emitted, so the caller leaves the 15-second
+        -- pipeline unfiltered rather than silently dropping metrics with
+        -- no 1-second replacement.
+
+    @guarantee LifecycleOwnership
+        -- The hfrunner component registers an OnStop hook for every runner
+        -- it starts. The caller does not manage runner lifecycle directly.
+        -- Stop is guaranteed to run before the agent exits.
+
+    @guarantee NoIntakeForwarding
+        -- Metrics produced by runners started through this surface are
+        -- never forwarded to Datadog intake, regardless of global
+        -- forwarder or aggregator configuration.
+}

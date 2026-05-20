@@ -57,20 +57,14 @@ func (sv *stateView) UniqueAnomalySourceCount() int {
 
 // --- Detector info ---
 
-// detectorInfo describes a detector registered with the engine.
-type detectorInfo struct {
-	Name    string
-	Enabled bool
-}
-
 // ListDetectors returns info about all detectors currently in the engine.
-func (sv *stateView) ListDetectors() []detectorInfo {
+func (sv *stateView) ListDetectors() []ComponentStateInfo {
 	sv.engine.mu.RLock()
 	defer sv.engine.mu.RUnlock()
 
-	result := make([]detectorInfo, len(sv.engine.detectors))
+	result := make([]ComponentStateInfo, len(sv.engine.detectors))
 	for i, d := range sv.engine.detectors {
-		result[i] = detectorInfo{
+		result[i] = ComponentStateInfo{
 			Name:    d.Name(),
 			Enabled: true, // detectors in the engine are always enabled
 		}
@@ -118,20 +112,14 @@ func (sv *stateView) AnomaliesForSource(sd observerdef.SeriesDescriptor) []obser
 
 // --- Correlator info ---
 
-// correlatorInfo describes a correlator registered with the engine.
-type correlatorInfo struct {
-	Name    string
-	Enabled bool
-}
-
 // ListCorrelators returns info about all correlators currently in the engine.
-func (sv *stateView) ListCorrelators() []correlatorInfo {
+func (sv *stateView) ListCorrelators() []ComponentStateInfo {
 	sv.engine.mu.RLock()
 	defer sv.engine.mu.RUnlock()
 
-	result := make([]correlatorInfo, len(sv.engine.correlators))
+	result := make([]ComponentStateInfo, len(sv.engine.correlators))
 	for i, c := range sv.engine.correlators {
-		result[i] = correlatorInfo{
+		result[i] = ComponentStateInfo{
 			Name:    c.Name(),
 			Enabled: true, // correlators in the engine are always enabled
 		}
@@ -205,4 +193,25 @@ func (sv *stateView) LatestDataTime() int64 {
 	sv.engine.mu.RLock()
 	defer sv.engine.mu.RUnlock()
 	return sv.engine.latestDataTime
+}
+
+// TotalSeriesCount returns the number of unique metric series, excluding the given namespace.
+func (sv *stateView) TotalSeriesCount(excludeNamespace string) int {
+	return sv.engine.storage.TotalSeriesCount(excludeNamespace)
+}
+
+// TotalSampleCount returns the total number of stored data points, excluding the given namespace.
+func (sv *stateView) TotalSampleCount(excludeNamespace string) int64 {
+	return sv.engine.storage.TotalSampleCount(excludeNamespace)
+}
+
+// MaxTimestamp returns the latest timestamp across all stored series.
+func (sv *stateView) MaxTimestamp() int64 {
+	return sv.engine.storage.MaxTimestamp()
+}
+
+// GetSeriesAll returns all points for a series from the beginning.
+// Equivalent to GetSeriesRange(ref, 0, MaxTimestamp, agg) but without needing the max.
+func (sv *stateView) GetSeriesAll(ref observerdef.SeriesRef, agg observerdef.Aggregate) *observerdef.Series {
+	return sv.engine.storage.GetSeriesRange(ref, 0, sv.engine.storage.MaxTimestamp(), agg)
 }

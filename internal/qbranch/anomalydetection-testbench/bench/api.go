@@ -3,13 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package observerimpl
+package bench
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	stdlog "log"
 	"math"
 	"net/http"
 	"net/http/pprof"
@@ -20,6 +20,8 @@ import (
 	"time"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
+	testbenchimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl-testbench"
 )
 
 // ScoreResponse is the JSON payload for GET /api/score.
@@ -29,23 +31,22 @@ type ScoreResponse struct {
 	Score     *ScoreResult `json:"score,omitempty"`
 }
 
-// TestBenchAPI handles HTTP API requests for the test bench.
-type TestBenchAPI struct {
-	tb     *TestBench
+// BenchAPI handles HTTP API requests for the bench.
+type BenchAPI struct {
+	tb     *Bench
 	server *http.Server
 }
 
-// NewTestBenchAPI creates a new API handler.
-func NewTestBenchAPI(tb *TestBench) *TestBenchAPI {
-	return &TestBenchAPI{tb: tb}
+// NewBenchAPI creates a new API handler.
+func NewBenchAPI(tb *Bench) *BenchAPI {
+	return &BenchAPI{tb: tb}
 }
 
 // Start starts the HTTP server.
-func (api *TestBenchAPI) Start(addr string) error {
+func (api *BenchAPI) Start(addr string) error {
 	mux := http.NewServeMux()
 
-	// Wrap all handlers with CORS middleware
-	mux.HandleFunc("/api/events", api.handleSSE) // SSE — no CORS wrapper (needs http.Flusher)
+	mux.HandleFunc("/api/events", api.handleSSE)
 	mux.HandleFunc("/api/progress", api.cors(api.handleProgress))
 	mux.HandleFunc("/api/status", api.cors(api.handleStatus))
 	mux.HandleFunc("/api/scenarios", api.cors(api.handleScenarios))
@@ -68,7 +69,6 @@ func (api *TestBenchAPI) Start(addr string) error {
 	mux.HandleFunc("/api/components/", api.cors(api.handleComponentAction))
 	mux.HandleFunc("/api/correlations/compressed", api.cors(api.handleCompressedCorrelations))
 
-	// pprof endpoints for live profiling (e.g. heap after loading a scenario)
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
@@ -82,7 +82,7 @@ func (api *TestBenchAPI) Start(addr string) error {
 
 	go func() {
 		if err := api.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("HTTP server error: %v", err)
+			stdlog.Printf("HTTP server error: %v", err)
 		}
 	}()
 
@@ -90,7 +90,7 @@ func (api *TestBenchAPI) Start(addr string) error {
 }
 
 // Stop stops the HTTP server.
-func (api *TestBenchAPI) Stop() error {
+func (api *BenchAPI) Stop() error {
 	if api.server == nil {
 		return nil
 	}
@@ -99,8 +99,8 @@ func (api *TestBenchAPI) Stop() error {
 	return api.server.Shutdown(ctx)
 }
 
-// cors wraps a handler with CORS headers and request timing.
-func (api *TestBenchAPI) cors(handler http.HandlerFunc) http.HandlerFunc {
+// cors wraps a handler with CORS headers.
+func (api *BenchAPI) cors(handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
@@ -128,7 +128,7 @@ type logsQuery struct {
 	limit       int
 	offset      int
 	tagFilter   parsedLogTagFilter
-	patternHash string // hex hash of the log pattern cluster to filter by
+	patternHash string
 }
 
 func parseLogsQuery(query url.Values) logsQuery {
@@ -168,37 +168,6 @@ func parseLogsQuery(query url.Values) logsQuery {
 	}
 
 	return result
-}
-
-// patternClusterFilter matches log lines against a single pattern cluster (hex hash from /api/log-patterns).
-type patternClusterFilter struct {
-	extractor *LogPatternExtractor
-	groupHash uint64
-	clusterID int64
-}
-
-func (api *TestBenchAPI) resolvePatternClusterFilter(patternHash string) *patternClusterFilter {
-	if patternHash == "" {
-		return nil
-	}
-	ext := api.tb.getLogPatternExtractor()
-	if ext == nil {
-		return nil
-	}
-	for _, entry := range ext.taggedClusterer.GetAllClusters() {
-		if globalClusterHash(entry.GroupHash, entry.Cluster.ID) == patternHash {
-			return &patternClusterFilter{extractor: ext, groupHash: entry.GroupHash, clusterID: entry.Cluster.ID}
-		}
-	}
-	return nil
-}
-
-func (pf *patternClusterFilter) matchesLogContent(logView observerdef.LogView) bool {
-	if pf == nil {
-		return true
-	}
-	matched := pf.extractor.taggedClusterer.Classify(pf.groupHash, string(logView.GetContent()))
-	return matched != nil && matched.ID == pf.clusterID
 }
 
 func parseLogTagFilter(input string) parsedLogTagFilter {
@@ -331,8 +300,8 @@ func matchesLogsQuery(logView observerdef.LogView, query logsQuery) bool {
 	return matchesLogTagFilter(effectiveLogTags(logView), query.tagFilter)
 }
 
-func cloneCompressedGroups(groups []CompressedGroup) []CompressedGroup {
-	cloned := make([]CompressedGroup, len(groups))
+func cloneCompressedGroups(groups []observerimpl.CompressedGroup) []observerimpl.CompressedGroup {
+	cloned := make([]observerimpl.CompressedGroup, len(groups))
 	for i, group := range groups {
 		cloned[i] = group
 		if group.CommonTags != nil {
@@ -341,14 +310,19 @@ func cloneCompressedGroups(groups []CompressedGroup) []CompressedGroup {
 				cloned[i].CommonTags[key] = value
 			}
 		}
-		cloned[i].Patterns = append([]MetricPattern(nil), group.Patterns...)
+		cloned[i].Patterns = append([]observerimpl.MetricPattern(nil), group.Patterns...)
 		cloned[i].MemberSources = append([]string(nil), group.MemberSources...)
 	}
 	return cloned
 }
 
-// handleSSE serves a Server-Sent Events stream for real-time updates.
-func (api *TestBenchAPI) handleSSE(w http.ResponseWriter, r *http.Request) {
+// handleSSE serves a Server-Sent Events stream.
+func (api *BenchAPI) handleSSE(w http.ResponseWriter, r *http.Request) {
+	if api.tb.sseAccess == nil {
+		http.Error(w, "SSE not available in headless mode", http.StatusServiceUnavailable)
+		return
+	}
+
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "streaming not supported", http.StatusInternalServerError)
@@ -360,8 +334,7 @@ func (api *TestBenchAPI) handleSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	// Subscribe — if a status exists, the client's statusNotify is pre-signaled.
-	client, unsubscribe := api.tb.sse.subscribe()
+	client, unsubscribe := api.tb.sseAccess.Subscribe()
 	defer unsubscribe()
 
 	ctx := r.Context()
@@ -369,32 +342,31 @@ func (api *TestBenchAPI) handleSSE(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-client.statusNotify:
-			data := api.tb.sse.latestStatusData()
+		case <-client.StatusNotify:
+			data := api.tb.sseAccess.LatestStatus()
 			if data != nil {
 				fmt.Fprintf(w, "event: status\ndata: %s\n\n", data)
 				flusher.Flush()
 			}
-		case msg := <-client.events:
+		case msg := <-client.Events:
 			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", msg.Event, msg.Data)
 			flusher.Flush()
 		}
 	}
 }
 
-// handleProgress returns replay progress counters (lock-free, safe to call during load).
-func (api *TestBenchAPI) handleProgress(w http.ResponseWriter, _ *http.Request) {
-	api.writeJSON(w, api.tb.engine.GetReplayProgress())
+// handleProgress returns replay progress.
+func (api *BenchAPI) handleProgress(w http.ResponseWriter, _ *http.Request) {
+	api.writeJSON(w, api.tb.debug.GetReplayProgress())
 }
 
 // handleStatus returns the current status.
-func (api *TestBenchAPI) handleStatus(w http.ResponseWriter, _ *http.Request) {
-	status := api.tb.GetStatus()
-	api.writeJSON(w, status)
+func (api *BenchAPI) handleStatus(w http.ResponseWriter, _ *http.Request) {
+	api.writeJSON(w, api.tb.GetStatus())
 }
 
 // handleScenarios lists available scenarios.
-func (api *TestBenchAPI) handleScenarios(w http.ResponseWriter, _ *http.Request) {
+func (api *BenchAPI) handleScenarios(w http.ResponseWriter, _ *http.Request) {
 	scenarios, err := api.tb.ListScenarios()
 	if err != nil {
 		api.writeError(w, http.StatusInternalServerError, err.Error())
@@ -403,9 +375,8 @@ func (api *TestBenchAPI) handleScenarios(w http.ResponseWriter, _ *http.Request)
 	api.writeJSON(w, scenarios)
 }
 
-// handleScenarioAction handles scenario-specific actions (load).
-func (api *TestBenchAPI) handleScenarioAction(w http.ResponseWriter, r *http.Request) {
-	// Parse path: /api/scenarios/{name}/load
+// handleScenarioAction handles scenario-specific actions.
+func (api *BenchAPI) handleScenarioAction(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/scenarios/")
 	parts := strings.Split(path, "/")
 
@@ -434,18 +405,19 @@ func (api *TestBenchAPI) handleScenarioAction(w http.ResponseWriter, r *http.Req
 }
 
 // handleComponents returns registered components.
-func (api *TestBenchAPI) handleComponents(w http.ResponseWriter, _ *http.Request) {
-	components := api.tb.GetComponents()
-	api.writeJSON(w, components)
+func (api *BenchAPI) handleComponents(w http.ResponseWriter, _ *http.Request) {
+	api.writeJSON(w, api.tb.GetComponents())
 }
 
 // handleSeriesList returns all available series.
-func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request) {
-	storage := api.tb.getStorage()
-	if storage == nil {
+func (api *BenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request) {
+	sv := api.tb.getStateView()
+	if sv == nil {
 		api.writeJSON(w, []interface{}{})
 		return
 	}
+
+	storage := &stateViewStorage{sv: sv}
 
 	type seriesInfo struct {
 		ID         string   `json:"id"`
@@ -454,46 +426,44 @@ func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request
 		Tags       []string `json:"tags"`
 		PointCount int      `json:"pointCount"`
 		Virtual    bool     `json:"virtual"`
-		// MetricKind is "counter" or "gauge" for telemetry namespace; omitted otherwise.
-		MetricKind string `json:"metricKind,omitempty"`
+		MetricKind string   `json:"metricKind,omitempty"`
 	}
 
 	var allSeries []seriesInfo
-
 	extractorNs := api.tb.extractorNamespaces()
-	telHandler := api.tb.telemetryHandler
 
-	// Get series metadata from all namespaces — no point data materialized.
-	// Use compact numeric IDs: "{numericID}:{aggSuffix}" (e.g. "42:avg").
-	for _, ns := range storage.Namespaces() {
-		metas := storage.ListSeriesMetadata(ns)
+	for _, ns := range storage.listNamespaces() {
+		metas := storage.listSeriesForNamespace(ns)
 		for _, m := range metas {
-			var aggs []Aggregate
-			if m.Namespace == "telemetry" && telHandler != nil && telHandler.isCounterMetric(m.Name) {
-				// Counters are per-bucket deltas; exposing avg/count/sum as three API series
-				// with the same tags produced three indistinguishable "untagged" lines in the UI.
-				aggs = []Aggregate{AggregateSum}
+			var aggs []observerdef.Aggregate
+			if m.Namespace == "telemetry" {
+				aggs = []observerdef.Aggregate{observerdef.AggregateSum}
 			} else {
-				aggs = []Aggregate{AggregateAverage, AggregateCount}
+				aggs = []observerdef.Aggregate{observerdef.AggregateAverage, observerdef.AggregateCount}
 			}
 			var metricKind string
 			if m.Namespace == "telemetry" {
-				if telHandler != nil && telHandler.isCounterMetric(m.Name) {
-					metricKind = "counter"
-				} else {
-					metricKind = "gauge"
-				}
+				metricKind = "gauge"
 			}
 			for _, agg := range aggs {
-				nameWithAgg := m.Name + ":" + aggSuffix(agg)
-				compactID := strconv.Itoa(int(m.Ref)) + ":" + aggSuffix(agg)
+				aggStr := aggSuffix(agg)
+				nameWithAgg := m.Name + ":" + aggStr
+				compactID := strconv.Itoa(int(m.Ref)) + ":" + aggStr
 				_, virtual := extractorNs[m.Namespace]
+
+				// Estimate point count from series data.
+				s := sv.GetSeriesRange(m.Ref, 0, sv.MaxTimestamp(), agg)
+				pointCount := 0
+				if s != nil {
+					pointCount = len(s.Points)
+				}
+
 				allSeries = append(allSeries, seriesInfo{
 					ID:         compactID,
 					Namespace:  m.Namespace,
 					Name:       nameWithAgg,
 					Tags:       m.Tags,
-					PointCount: m.PointCount,
+					PointCount: pointCount,
 					Virtual:    virtual,
 					MetricKind: metricKind,
 				})
@@ -504,9 +474,8 @@ func (api *TestBenchAPI) handleSeriesList(w http.ResponseWriter, _ *http.Request
 	api.writeJSON(w, allSeries)
 }
 
-// handleSeriesDataByID returns data for a specific series by canonical id.
-// Supports both compact numeric IDs ("42:avg") and legacy full key IDs.
-func (api *TestBenchAPI) handleSeriesDataByID(w http.ResponseWriter, r *http.Request) {
+// handleSeriesDataByID returns data for a specific series by ID.
+func (api *BenchAPI) handleSeriesDataByID(w http.ResponseWriter, r *http.Request) {
 	encodedID := strings.TrimPrefix(r.URL.Path, "/api/series/id/")
 	if encodedID == "" {
 		api.writeError(w, http.StatusBadRequest, "path should be /api/series/id/{id}")
@@ -518,7 +487,6 @@ func (api *TestBenchAPI) handleSeriesDataByID(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Try compact numeric ID format: "{numericID}:{aggSuffix}" (e.g. "42:avg")
 	if colonIdx := strings.LastIndex(seriesID, ":"); colonIdx > 0 {
 		prefix := seriesID[:colonIdx]
 		if numericID, parseErr := strconv.Atoi(prefix); parseErr == nil {
@@ -528,7 +496,6 @@ func (api *TestBenchAPI) handleSeriesDataByID(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	// Fall back to legacy full key format: "namespace|name:agg|tags"
 	namespace, nameWithAgg, tags, ok := parseSeriesKey(seriesID)
 	if !ok {
 		api.writeError(w, http.StatusBadRequest, "invalid series id")
@@ -538,44 +505,50 @@ func (api *TestBenchAPI) handleSeriesDataByID(w http.ResponseWriter, r *http.Req
 }
 
 // handleNumericSeriesData resolves a compact numeric ID to series data.
-func (api *TestBenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID observerdef.SeriesRef, aggStr string, originalID string) {
-	var agg Aggregate
+func (api *BenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericID observerdef.SeriesRef, aggStr string, originalID string) {
+	var agg observerdef.Aggregate
 	switch aggStr {
 	case "avg":
-		agg = AggregateAverage
+		agg = observerdef.AggregateAverage
 	case "count":
-		agg = AggregateCount
+		agg = observerdef.AggregateCount
 	case "sum":
-		agg = AggregateSum
+		agg = observerdef.AggregateSum
 	case "min":
-		agg = AggregateMin
+		agg = observerdef.AggregateMin
 	case "max":
-		agg = AggregateMax
+		agg = observerdef.AggregateMax
 	default:
 		api.writeError(w, http.StatusBadRequest, "invalid aggregation suffix")
 		return
 	}
 
-	storage := api.tb.getStorage()
-	if storage == nil {
+	sv := api.tb.getStateView()
+	if sv == nil {
 		api.writeError(w, http.StatusServiceUnavailable, "no data loaded")
 		return
 	}
+	storage := &stateViewStorage{sv: sv}
 
-	series := storage.GetSeriesByNumericID(numericID, agg)
+	series := storage.getSeriesByNumericID(numericID, agg)
 	if series == nil {
 		api.writeError(w, http.StatusNotFound, "series not found")
 		return
 	}
 
+	meta := storage.getSeriesMeta(numericID)
+	if meta == nil {
+		api.writeError(w, http.StatusNotFound, "series metadata not found")
+		return
+	}
+
 	nameWithAgg := series.Name + ":" + aggStr
 
-	// Build a SeriesDescriptor for anomaly lookup
 	sd := observerdef.SeriesDescriptor{
-		Namespace: series.Namespace,
+		Namespace: meta.Namespace,
 		Name:      series.Name,
 		Tags:      series.Tags,
-		Aggregate: observerdef.Aggregate(agg),
+		Aggregate: agg,
 	}
 	anomalies := api.tb.GetMetricsAnomaliesForSource(sd)
 
@@ -618,7 +591,7 @@ func (api *TestBenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericI
 
 	resp := seriesResponse{
 		ID:        originalID,
-		Namespace: series.Namespace,
+		Namespace: meta.Namespace,
 		Name:      nameWithAgg,
 		Tags:      series.Tags,
 		Points:    make([]pointOutput, len(series.Points)),
@@ -630,18 +603,14 @@ func (api *TestBenchAPI) handleNumericSeriesData(w http.ResponseWriter, numericI
 		if math.IsInf(value, 0) || math.IsNaN(value) {
 			value = 0
 		}
-		resp.Points[i] = pointOutput{
-			Timestamp: p.Timestamp,
-			Value:     value,
-		}
+		resp.Points[i] = pointOutput{Timestamp: p.Timestamp, Value: value}
 	}
 
 	api.writeJSON(w, resp)
 }
 
-// handleSeriesData returns data for a specific series.
-func (api *TestBenchAPI) handleSeriesData(w http.ResponseWriter, r *http.Request) {
-	// Parse path: /api/series/{namespace}/{name}
+// handleSeriesData returns data for a specific series by namespace/name path.
+func (api *BenchAPI) handleSeriesData(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/series/")
 	parts := strings.SplitN(path, "/", 2)
 
@@ -655,42 +624,62 @@ func (api *TestBenchAPI) handleSeriesData(w http.ResponseWriter, r *http.Request
 	api.handleSeriesDataForSeries(w, namespace, nameWithAgg, nil, "")
 }
 
-func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace, nameWithAgg string, tags []string, requestedID string) {
+func (api *BenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namespace, nameWithAgg string, tags []string, requestedID string) {
 	seriesID := requestedID
 
-	// Parse aggregation suffix (e.g., "metric:avg" or "metric:count")
 	name := nameWithAgg
-	agg := AggregateAverage
+	agg := observerdef.AggregateAverage
 	if idx := strings.LastIndex(nameWithAgg, ":"); idx != -1 {
 		suffix := nameWithAgg[idx+1:]
 		name = nameWithAgg[:idx]
 		switch suffix {
 		case "avg":
-			agg = AggregateAverage
+			agg = observerdef.AggregateAverage
 		case "count":
-			agg = AggregateCount
+			agg = observerdef.AggregateCount
 		case "sum":
-			agg = AggregateSum
+			agg = observerdef.AggregateSum
 		case "min":
-			agg = AggregateMin
+			agg = observerdef.AggregateMin
 		case "max":
-			agg = AggregateMax
+			agg = observerdef.AggregateMax
 		}
 	}
 
-	storage := api.tb.getStorage()
-	if storage == nil {
+	sv := api.tb.getStateView()
+	if sv == nil {
 		api.writeError(w, http.StatusServiceUnavailable, "no data loaded")
 		return
 	}
+	storage := &stateViewStorage{sv: sv}
 
-	series := storage.GetSeries(namespace, name, tags, agg)
+	// Find the series by namespace+name+tags.
+	metas := storage.listSeriesForNamespace(namespace)
+	var foundMeta *observerdef.SeriesMeta
+	for i := range metas {
+		m := &metas[i]
+		if m.Name != name {
+			continue
+		}
+		if tags == nil || tagsMatch(m.Tags, tags) {
+			foundMeta = m
+			break
+		}
+	}
+
+	if foundMeta == nil {
+		api.writeError(w, http.StatusNotFound, "series not found")
+		return
+	}
+
+	series := storage.getSeriesByNumericID(foundMeta.Ref, agg)
 	if series == nil {
 		api.writeError(w, http.StatusNotFound, "series not found")
 		return
 	}
+
 	if seriesID == "" {
-		seriesID = seriesKey(series.Namespace, nameWithAgg, series.Tags)
+		seriesID = strconv.Itoa(int(foundMeta.Ref)) + ":" + aggSuffix(agg)
 	}
 
 	type anomalyMarker struct {
@@ -701,21 +690,18 @@ func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namesp
 		Title             string `json:"title"`
 	}
 
-	// Build a SeriesDescriptor for anomaly lookup.
-	// Use the returned series identity (not the request params) so that
-	// nil-tag requests that match a tagged series still find the ref.
 	var markers []anomalyMarker
 	sd := observerdef.SeriesDescriptor{
-		Namespace: series.Namespace,
+		Namespace: namespace,
 		Name:      name,
-		Tags:      series.Tags,
-		Aggregate: observerdef.Aggregate(agg),
+		Tags:      foundMeta.Tags,
+		Aggregate: agg,
 	}
 	anomalies := api.tb.GetMetricsAnomaliesForSource(sd)
 	detectorComponentMap := api.tb.GetDetectorComponentMap()
 	for _, a := range anomalies {
 		if a.DetectorName == "" || a.Timestamp == 0 {
-			log.Printf("skipping malformed anomaly marker for series %q: detector=%q ts=%d",
+			stdlog.Printf("skipping malformed anomaly marker for series %q: detector=%q ts=%d",
 				seriesID, a.DetectorName, a.Timestamp)
 			continue
 		}
@@ -744,9 +730,9 @@ func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namesp
 
 	resp := seriesResponse{
 		ID:        seriesID,
-		Namespace: series.Namespace,
+		Namespace: namespace,
 		Name:      nameWithAgg,
-		Tags:      series.Tags,
+		Tags:      foundMeta.Tags,
 		Points:    make([]pointOutput, len(series.Points)),
 		Anomalies: markers,
 	}
@@ -756,18 +742,14 @@ func (api *TestBenchAPI) handleSeriesDataForSeries(w http.ResponseWriter, namesp
 		if math.IsInf(value, 0) || math.IsNaN(value) {
 			value = 0
 		}
-		resp.Points[i] = pointOutput{
-			Timestamp: p.Timestamp,
-			Value:     value,
-		}
+		resp.Points[i] = pointOutput{Timestamp: p.Timestamp, Value: value}
 	}
 
 	api.writeJSON(w, resp)
 }
 
 // handleAnomalies returns all detected anomalies.
-func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
-	// Check for detector filter
+func (api *BenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request) {
 	detectorFilter := r.URL.Query().Get("detector")
 
 	type debugInfoResponse struct {
@@ -797,21 +779,17 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 	}
 
 	detectorComponentMap := api.tb.GetDetectorComponentMap()
-	storage := api.tb.getStorage()
+	sv := api.tb.getStateView()
 
-	// resolveCompactID maps an anomaly to the compact numeric ID format
-	// ("42:avg") used by /api/series. Uses SourceRef when available (per-series
-	// detectors), falls back to telemetry remapping for cross-namespace
-	// detectors (e.g. RRCF), then Key() as a stable fallback.
 	resolveCompactID := func(a observerdef.Anomaly) string {
 		if a.SourceRef != nil {
 			return a.SourceRef.CompactID()
 		}
-		// Fallback for cross-namespace detectors (e.g. RRCF)
-		if storage != nil && a.DetectorName != "" && a.Source.Name != "" {
+		if sv != nil && a.DetectorName != "" && a.Source.Name != "" {
+			storage := &stateViewStorage{sv: sv}
 			telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
-			telemetryKey := seriesKey("telemetry", telemetryName+":avg", nil)
-			if compactID := storage.CompactSeriesID(telemetryKey); compactID != telemetryKey {
+			key := seriesKey("telemetry", telemetryName+":avg", nil)
+			if compactID := storage.compactSeriesID(key); compactID != key {
 				return compactID
 			}
 		}
@@ -850,25 +828,19 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 	var response []anomalyResponse
 
 	if detectorFilter != "" {
-		// Return only anomalies from specified detector
 		byDetector := api.tb.GetMetricsAnomaliesByDetector()
 		if anomalies, ok := byDetector[detectorFilter]; ok {
 			for _, a := range anomalies {
 				if a.DetectorName == "" || a.Timestamp == 0 {
-					log.Printf("skipping malformed anomaly response: detector=%q source=%q ts=%d",
-						a.DetectorName, a.Source.String(), a.Timestamp)
 					continue
 				}
 				response = append(response, toResponse(a))
 			}
 		}
 	} else {
-		// Return all anomalies
 		anomalies := api.tb.GetMetricsAnomalies()
 		for _, a := range anomalies {
 			if a.DetectorName == "" || a.Timestamp == 0 {
-				log.Printf("skipping malformed anomaly response: detector=%q source=%q ts=%d",
-					a.DetectorName, a.Source.String(), a.Timestamp)
 				continue
 			}
 			response = append(response, toResponse(a))
@@ -878,8 +850,8 @@ func (api *TestBenchAPI) handleAnomalies(w http.ResponseWriter, r *http.Request)
 	api.writeJSON(w, response)
 }
 
-// handleLogAnomalies returns anomalies emitted directly by log detectors.
-func (api *TestBenchAPI) handleLogAnomalies(w http.ResponseWriter, r *http.Request) {
+// handleLogAnomalies returns anomalies from log detectors.
+func (api *BenchAPI) handleLogAnomalies(w http.ResponseWriter, r *http.Request) {
 	detectorFilter := r.URL.Query().Get("detector")
 
 	type logAnomalyResponse struct {
@@ -916,8 +888,8 @@ func (api *TestBenchAPI) handleLogAnomalies(w http.ResponseWriter, r *http.Reque
 	api.writeJSON(w, response)
 }
 
-// handleLogs returns raw log entries with server-side filtering and pagination.
-func (api *TestBenchAPI) handleLogs(w http.ResponseWriter, r *http.Request) {
+// handleLogs returns raw log entries with filtering and pagination.
+func (api *BenchAPI) handleLogs(w http.ResponseWriter, r *http.Request) {
 	query := parseLogsQuery(r.URL.Query())
 
 	type logEntryResponse struct {
@@ -930,16 +902,10 @@ func (api *TestBenchAPI) handleLogs(w http.ResponseWriter, r *http.Request) {
 
 	logs := api.tb.GetRawLogs()
 
-	pf := api.resolvePatternClusterFilter(query.patternHash)
-
-	// First pass: count total matches and collect the paginated window.
 	total := 0
 	result := make([]logEntryResponse, 0, query.limit)
 	for _, l := range logs {
 		if !matchesLogsQuery(l, query) {
-			continue
-		}
-		if !pf.matchesLogContent(l) {
 			continue
 		}
 		if total >= query.offset && len(result) < query.limit {
@@ -964,17 +930,15 @@ func (api *TestBenchAPI) handleLogs(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleLogPatterns returns the list of log patterns detected by the LogPatternExtractor.
-func (api *TestBenchAPI) handleLogPatterns(w http.ResponseWriter, _ *http.Request) {
-	patterns := api.tb.GetLogPatterns()
-	api.writeJSON(w, patterns)
+// handleLogPatterns returns the list of log patterns.
+func (api *BenchAPI) handleLogPatterns(w http.ResponseWriter, _ *http.Request) {
+	api.writeJSON(w, api.tb.GetLogPatterns())
 }
 
-// handleLogsSummary returns lightweight summary data about logs without bodies.
-func (api *TestBenchAPI) handleLogsSummary(w http.ResponseWriter, r *http.Request) {
+// handleLogsSummary returns lightweight summary data about logs.
+func (api *BenchAPI) handleLogsSummary(w http.ResponseWriter, r *http.Request) {
 	query := parseLogsQuery(r.URL.Query())
 	logs := api.tb.GetRawLogs()
-	pf := api.resolvePatternClusterFilter(query.patternHash)
 
 	totalCount := 0
 	countByLevel := make(map[string]int)
@@ -983,9 +947,6 @@ func (api *TestBenchAPI) handleLogsSummary(w http.ResponseWriter, r *http.Reques
 
 	for _, l := range logs {
 		if !matchesLogsQuery(l, query) {
-			continue
-		}
-		if !pf.matchesLogContent(l) {
 			continue
 		}
 		totalCount++
@@ -1008,7 +969,6 @@ func (api *TestBenchAPI) handleLogsSummary(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	// Build histogram with ~100 buckets.
 	const numBuckets = 100
 	type histBucket struct {
 		TimestampMs int64 `json:"timestampMs"`
@@ -1017,16 +977,13 @@ func (api *TestBenchAPI) handleLogsSummary(w http.ResponseWriter, r *http.Reques
 
 	histogram := make([]histBucket, 0)
 	if totalCount > 0 && maxTs > minTs {
-		bucketWidth := (maxTs - minTs + numBuckets) / numBuckets // ceil division
+		bucketWidth := (maxTs - minTs + numBuckets) / numBuckets
 		histogram = make([]histBucket, numBuckets)
 		for i := range histogram {
 			histogram[i].TimestampMs = minTs + int64(i)*bucketWidth
 		}
 		for _, l := range logs {
 			if !matchesLogsQuery(l, query) {
-				continue
-			}
-			if !pf.matchesLogContent(l) {
 				continue
 			}
 			ts := l.GetTimestampUnixMilli()
@@ -1037,7 +994,6 @@ func (api *TestBenchAPI) handleLogsSummary(w http.ResponseWriter, r *http.Reques
 			histogram[idx].Count++
 		}
 	} else if totalCount > 0 {
-		// All logs have the same timestamp — single bucket.
 		histogram = []histBucket{{TimestampMs: minTs, Count: totalCount}}
 	}
 
@@ -1064,7 +1020,7 @@ func (api *TestBenchAPI) handleLogsSummary(w http.ResponseWriter, r *http.Reques
 }
 
 // handleCorrelations returns detected correlations.
-func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) {
+func (api *BenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Request) {
 	correlations := api.tb.GetCorrelations()
 
 	type anomalyOutput struct {
@@ -1086,15 +1042,13 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Reque
 		LastUpdated     int64           `json:"lastUpdated"`
 	}
 
-	storage := api.tb.getStorage()
-
 	response := make([]correlationResponse, len(correlations))
 	for i, c := range correlations {
 		anomalies := make([]anomalyOutput, len(c.Anomalies))
 		for j, a := range c.Anomalies {
-			tags := a.Source.Tags
-			if tags == nil {
-				tags = []string{}
+			tgs := a.Source.Tags
+			if tgs == nil {
+				tgs = []string{}
 			}
 			anomalies[j] = anomalyOutput{
 				Source:      a.Source.String(),
@@ -1102,49 +1056,29 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Reque
 				Description: a.Description,
 				Timestamp:   a.Timestamp,
 				Score:       a.Score,
-				Tags:        tags,
+				Tags:        tgs,
 			}
 		}
 
-		// Build ref lookup from anomalies on this correlation.
-		refByKey := make(map[string]*observerdef.QueryHandle)
-		for _, a := range c.Anomalies {
-			if a.SourceRef != nil {
-				refByKey[a.Source.Key()] = a.SourceRef
-			}
-		}
-
-		// Build member series IDs as compact numeric IDs ("42:avg") matching /api/series format.
 		memberIDs := make([]string, len(c.Members))
 		for k, m := range c.Members {
-			if ref, ok := refByKey[m.Key()]; ok {
-				memberIDs[k] = ref.CompactID()
-			} else {
-				// Fallback for cross-namespace detectors (e.g. RRCF)
-				resolved := false
-				if storage != nil {
-					for _, a := range c.Anomalies {
-						if a.Source.Key() == m.Key() && a.DetectorName != "" {
-							telemetryName := "telemetry." + a.DetectorName + "." + a.Source.String()
-							telemetryKey := seriesKey("telemetry", telemetryName+":avg", nil)
-							if compactID := storage.CompactSeriesID(telemetryKey); compactID != telemetryKey {
-								memberIDs[k] = compactID
-								resolved = true
-							}
-							break
-						}
-					}
-				}
-				if !resolved {
-					memberIDs[k] = m.Key()
+			// Find SourceRef for this member.
+			for _, a := range c.Anomalies {
+				if a.Source.Key() == m.Key() && a.SourceRef != nil {
+					memberIDs[k] = a.SourceRef.CompactID()
+					break
 				}
 			}
+			if memberIDs[k] == "" {
+				memberIDs[k] = m.Key()
+			}
 		}
-		// Build metric names (name:agg only, no tags) for display.
+
 		metricNames := make([]string, len(c.Members))
 		for k, m := range c.Members {
 			metricNames[k] = m.String()
 		}
+
 		response[i] = correlationResponse{
 			Pattern:         c.Pattern,
 			Title:           c.Title,
@@ -1160,13 +1094,12 @@ func (api *TestBenchAPI) handleCorrelations(w http.ResponseWriter, _ *http.Reque
 }
 
 // handleStats returns correlator statistics.
-func (api *TestBenchAPI) handleStats(w http.ResponseWriter, _ *http.Request) {
-	stats := api.tb.GetCorrelatorStats()
-	api.writeJSON(w, stats)
+func (api *BenchAPI) handleStats(w http.ResponseWriter, _ *http.Request) {
+	api.writeJSON(w, api.tb.GetCorrelatorStats())
 }
 
-// handleReports returns the events that would have been sent to the Datadog backend.
-func (api *TestBenchAPI) handleReports(w http.ResponseWriter, _ *http.Request) {
+// handleReports returns reported events.
+func (api *BenchAPI) handleReports(w http.ResponseWriter, _ *http.Request) {
 	events := api.tb.GetReportedEvents()
 	if events == nil {
 		events = []ReportedEvent{}
@@ -1174,9 +1107,8 @@ func (api *TestBenchAPI) handleReports(w http.ResponseWriter, _ *http.Request) {
 	api.writeJSON(w, events)
 }
 
-// handleSendReport posts a specific ReportedEvent to the Datadog backend.
-// Body: {"pattern":"...", "firstSeen": 123}
-func (api *TestBenchAPI) handleSendReport(w http.ResponseWriter, r *http.Request) {
+// handleSendReport posts a specific ReportedEvent.
+func (api *BenchAPI) handleSendReport(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		api.writeError(w, http.StatusMethodNotAllowed, "use POST")
 		return
@@ -1200,8 +1132,8 @@ func (api *TestBenchAPI) handleSendReport(w http.ResponseWriter, r *http.Request
 	api.writeJSON(w, map[string]string{"status": "sent"})
 }
 
-// handleComponentAction handles /api/components/{name}/{action} (toggle, data).
-func (api *TestBenchAPI) handleComponentAction(w http.ResponseWriter, r *http.Request) {
+// handleComponentAction handles /api/components/{name}/{action}.
+func (api *BenchAPI) handleComponentAction(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/components/")
 	parts := strings.Split(path, "/")
 	if len(parts) < 2 {
@@ -1239,7 +1171,7 @@ func (api *TestBenchAPI) handleComponentAction(w http.ResponseWriter, r *http.Re
 }
 
 // handleCompressedCorrelations returns compressed group descriptions.
-func (api *TestBenchAPI) handleCompressedCorrelations(w http.ResponseWriter, r *http.Request) {
+func (api *BenchAPI) handleCompressedCorrelations(w http.ResponseWriter, r *http.Request) {
 	threshold := 0.75
 	if t := r.URL.Query().Get("threshold"); t != "" {
 		if parsed, err := strconv.ParseFloat(t, 64); err == nil && parsed > 0 && parsed <= 1 {
@@ -1247,19 +1179,23 @@ func (api *TestBenchAPI) handleCompressedCorrelations(w http.ResponseWriter, r *
 		}
 	}
 	groups := cloneCompressedGroups(api.tb.GetCompressedCorrelations(threshold))
+
 	// Translate MemberSources from full keys to compact numeric IDs.
-	if storage := api.tb.getStorage(); storage != nil {
+	sv := api.tb.getStateView()
+	if sv != nil {
+		storage := &stateViewStorage{sv: sv}
 		for i := range groups {
 			for j, src := range groups[i].MemberSources {
-				groups[i].MemberSources[j] = storage.CompactSeriesID(src)
+				groups[i].MemberSources[j] = storage.compactSeriesID(src)
 			}
 		}
 	}
+
 	api.writeJSON(w, groups)
 }
 
-// handleScore returns the Gaussian F1 score for the current analysis against episode.json.
-func (api *TestBenchAPI) handleScore(w http.ResponseWriter, _ *http.Request) {
+// handleScore returns the Gaussian F1 score for the current analysis.
+func (api *BenchAPI) handleScore(w http.ResponseWriter, _ *http.Request) {
 	result, err := api.tb.ScoreCurrentAnalysis(30.0)
 	if err != nil {
 		api.writeJSON(w, ScoreResponse{Available: false, Reason: err.Error()})
@@ -1268,18 +1204,8 @@ func (api *TestBenchAPI) handleScore(w http.ResponseWriter, _ *http.Request) {
 	api.writeJSON(w, ScoreResponse{Available: true, Score: result})
 }
 
-// writeJSON writes a JSON response.
-func (api *TestBenchAPI) writeJSON(w http.ResponseWriter, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		log.Printf("Failed to encode JSON: %v", err)
-		http.Error(w, `{"error":"encoding error"}`, http.StatusInternalServerError)
-	}
-}
-
-// handleBenchmark returns replay statistics (per-detector processing times and
-// input volume counts) computed from the last replay run.
-func (api *TestBenchAPI) handleBenchmark(w http.ResponseWriter, _ *http.Request) {
+// handleBenchmark returns replay statistics.
+func (api *BenchAPI) handleBenchmark(w http.ResponseWriter, _ *http.Request) {
 	stats := api.tb.GetReplayStats()
 	if stats == nil {
 		api.writeJSON(w, &ReplayStats{DetectorStats: map[string]DetectorProcessingStats{}})
@@ -1288,9 +1214,21 @@ func (api *TestBenchAPI) handleBenchmark(w http.ResponseWriter, _ *http.Request)
 	api.writeJSON(w, stats)
 }
 
+// writeJSON writes a JSON response.
+func (api *BenchAPI) writeJSON(w http.ResponseWriter, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		stdlog.Printf("Failed to encode JSON: %v", err)
+		http.Error(w, `{"error":"encoding error"}`, http.StatusInternalServerError)
+	}
+}
+
 // writeError writes an error response.
-func (api *TestBenchAPI) writeError(w http.ResponseWriter, status int, message string) {
+func (api *BenchAPI) writeError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
 }
+
+// handleSSE needs the SSEClient struct from testbenchimpl - ensure it uses correct fields.
+var _ = (*testbenchimpl.SSEClient)(nil)

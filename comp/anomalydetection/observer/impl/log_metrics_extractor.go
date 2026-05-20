@@ -114,7 +114,7 @@ func (a *LogMetricsExtractor) ProcessLog(log observer.LogView) observer.LogMetri
 
 	// For JSON logs, also extract numeric field metrics
 	if isJSONObject(content) {
-		metrics = append(metrics, a.extractJSONFieldMetrics(content, tags)...)
+		metrics = append(metrics, a.extractJSONFieldMetrics(content, tags, string(content))...)
 	}
 
 	return observer.LogMetricsExtractorOutput{Metrics: metrics}
@@ -126,14 +126,19 @@ func isJSONObject(b []byte) bool {
 }
 
 // extractJSONFieldMetrics extracts numeric field metrics from JSON content.
-// Pattern metrics are handled separately in Detect().
-func (a *LogMetricsExtractor) extractJSONFieldMetrics(content []byte, tags []string) []observer.MetricOutput {
+// example is the raw log line stored in context so enrichAnomaly can show a
+// representative log rather than a raw tag dump when an anomaly is detected.
+func (a *LogMetricsExtractor) extractJSONFieldMetrics(content []byte, tags []string, example string) []observer.MetricOutput {
 	dec := json.NewDecoder(bytes.NewReader(content))
 	dec.UseNumber()
 
 	var obj map[string]any
 	if err := dec.Decode(&obj); err != nil {
 		return nil
+	}
+
+	if a.patternContext == nil {
+		a.patternContext = make(map[string]observer.MetricContext)
 	}
 
 	var out []observer.MetricOutput
@@ -154,10 +159,19 @@ func (a *LogMetricsExtractor) extractJSONFieldMetrics(content []byte, tags []str
 			continue
 		}
 
+		metricName := "log.field." + sanitizeMetricFragment(k)
+		contextKey := metricContextKey(metricName, tags)
+		a.patternContext[contextKey] = observer.MetricContext{
+			Pattern: k,
+			Example: truncate(example, 160),
+			Source:  "log_metrics_extractor",
+		}
+
 		out = append(out, observer.MetricOutput{
-			Name:  "log.field." + sanitizeMetricFragment(k),
-			Value: f,
-			Tags:  tags,
+			Name:       metricName,
+			Value:      f,
+			Tags:       tags,
+			ContextKey: contextKey,
 		})
 	}
 

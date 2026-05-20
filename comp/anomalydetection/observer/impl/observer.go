@@ -7,28 +7,25 @@
 package observerimpl
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 
+	hfrunnerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/hfrunner/def"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	"github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl/hfrunner"
 	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
+	reporterdef "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
-	taggerdef "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/impl/noops"
-	workloadfilterdef "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	workloadmetadef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -46,17 +43,17 @@ type Requires struct {
 	// If provided, all handles will be wrapped to record metrics to parquet files.
 	Recorder option.Option[recorderdef.Component]
 
-	// RemoteAgentRegistry enables fetching traces/profiles
-	// from remote trace-agents via the ObserverProvider gRPC service.
-	RemoteAgentRegistry remoteagentregistry.Component
+	// Reporters are provided by reporter/fx, reporter/fx-testbench, etc. via the
+	// `anomalydetection_reporters` Fx group. Each reporter gets its own subscription
+	// so it receives advance events independently. StorageConsumer reporters receive
+	// storage for windowed log-rate annotations.
+	Reporters []reporterdef.Reporter `group:"anomalydetection_reporters"`
 
-	// WMeta, FilterStore, Tagger are optional — required only when
-	// observer.high_frequency_container_checks.enabled is true.
-	// Using option.Option so the observer can start without them (e.g. in tests
-	// or agent binaries that don't include container infrastructure).
-	WMeta       option.Option[workloadmetadef.Component]
-	FilterStore option.Option[workloadfilterdef.Component]
-	Tagger      option.Option[taggerdef.Component]
+	// HFRunner is an optional component that manages high-frequency system and
+	// container check runners. When present, StartSystem/StartContainer are called
+	// during construction and the returned filter sources suppress the lower-frequency
+	// 15s pipeline from the "all-metrics" handle.
+	HFRunner option.Option[hfrunnerdef.Component]
 }
 
 // Provides defines the output of the observer component.
@@ -69,6 +66,9 @@ type observation struct {
 	source string
 	metric *metricObs
 	log    *logObs
+	// flush, when non-nil, is closed by the dispatch loop once this observation
+	// is reached, signalling that all prior observations have been processed.
+	flush chan struct{}
 }
 
 // metricObs contains copied metric data and implements observerdef.MetricView.
@@ -181,36 +181,34 @@ func NewComponent(deps Requires) Provides {
 		scheduler:        &currentBehaviorPolicy{},
 	})
 
-	// Wire reporters via event subscription.
-	// The reporterEventSink queries stateView for active correlations on each advance,
-	// so reporters receive all needed data through ReportOutput without backdoor access.
-	reporter := &StdoutReporter{}
-	eng.Subscribe(&reporterEventSink{
-		reporters: []observerdef.Reporter{reporter},
-		state:     eng.StateView(),
-	})
+	// Wire each injected reporter into its own reporterEventSink subscription.
+	// StorageConsumer reporters receive engine storage for windowed log-rate annotations.
+	for _, r := range deps.Reporters {
+		r := r
+		if sc, ok := r.(reporterdef.StorageConsumer); ok {
+			sc.SetStorage(eng.Storage())
+		}
+		eng.Subscribe(&reporterEventSink{
+			reporters: []reporterdef.Reporter{r},
+			state:     eng.StateView(),
+		})
+	}
 
 	telemetryComp := deps.Telemetry
 	if telemetryComp == nil {
 		telemetryComp = noopsimpl.GetCompatComponent()
 	}
 
-	hfSystemEnabled := cfg.GetBool("observer.high_frequency_system_checks.enabled")
-	hfContainerEnabled := cfg.GetBool("observer.high_frequency_container_checks.enabled")
 	th := newTelemetryHandler(telemetryComp)
 
-	// Build the set of MetricSource values to suppress from the "all-metrics"
-	// pipeline. Sources are added later, only after their respective HF runners
-	// are confirmed started, to avoid suppressing 15s metrics when the HF
-	// replacement can't start.
 	hfFilterSources := make(map[metrics.MetricSource]struct{})
 
 	obs := &observerImpl{
 		engine:               eng,
+		catalog:              catalog,
 		obsCh:                make(chan observation, 1000),
 		telemetryHandler:     th,
 		dropCounter:          th.telemetryCounters[telemetryObsChannelDropped],
-		hfContainerEnabled:   hfContainerEnabled,
 		hfFilterSources:      hfFilterSources,
 		ingestMetricsEnabled: cfg.GetBool("observer.ingest_metrics.enabled"),
 	}
@@ -257,71 +255,21 @@ func NewComponent(deps Requires) Provides {
 		}
 	}
 
-	// Optionally add the event reporter when sending is enabled via config.
-	if cfg.GetBool("observer.event_reporter.sending_enabled") {
-		if sender, err := newEventSender(deps.Config, deps.Log, eng.Storage()); err != nil {
-			deps.Log.Warnf("[observer] event_reporter disabled: %v", err)
-		} else {
-			eventReporter := &EventReporter{sender: sender, logger: deps.Log}
-			eng.Subscribe(&reporterEventSink{
-				reporters: []observerdef.Reporter{eventReporter},
-				state:     eng.StateView(),
-			})
-		}
-	}
-
 	go obs.run()
 
-	// Start high-frequency system check runner if enabled.
-	// Checks run at 1s and route metrics into the observer via a dedicated
-	// "system-checks-hf" handle, never touching the aggregator or forwarder.
-	if hfSystemEnabled {
-		hfHandle := obs.GetHandle(hfrunner.HFSource)
-		obs.hfRunner = hfrunner.New(hfHandle)
-		obs.hfRunner.Start()
-		obs.hfEnabled = true
-		for src := range systemCheckSources {
-			obs.hfFilterSources[src] = struct{}{}
-		}
-		pkglog.Info("[observer] high-frequency system check runner started (1s interval)")
-		deps.Lifecycle.Append(compdef.Hook{
-			OnStop: func(_ context.Context) error {
-				obs.hfRunner.Stop()
-				return nil
-			},
-		})
-	}
-
-	// Start high-frequency container check runner if enabled.
-	// Uses the generic container check with WLM + tagger for full per-container
-	// cardinality. Metrics route via "container-checks-hf" and never reach intake.
-	if hfContainerEnabled {
-		wmeta, wmetaOk := deps.WMeta.Get()
-		filterStore, filterOk := deps.FilterStore.Get()
-		tagger, taggerOk := deps.Tagger.Get()
-		if wmetaOk && filterOk && taggerOk {
-			containerHandle := obs.GetHandle(hfrunner.HFContainerSource)
-			obs.hfContainerRunner = hfrunner.NewContainer(containerHandle, hfrunner.ContainerDeps{
-				WMeta:       wmeta,
-				FilterStore: filterStore,
-				Tagger:      tagger,
-			})
-			if obs.hfContainerRunner != nil {
-				obs.hfContainerRunner.Start()
-				pkglog.Info("[observer] high-frequency container check runner started (1s interval)")
-				// Only suppress 15s container metrics now that the HF replacement is confirmed running.
-				for src := range containerCheckSources {
-					obs.hfFilterSources[src] = struct{}{}
-				}
-				deps.Lifecycle.Append(compdef.Hook{
-					OnStop: func(_ context.Context) error {
-						obs.hfContainerRunner.Stop()
-						return nil
-					},
-				})
+	// Start high-frequency runners if the hfrunner component is wired in.
+	// Each runner returns the MetricSource values it owns so the observer can
+	// suppress the lower-frequency 15s counterparts from the "all-metrics" handle.
+	if hfComp, ok := deps.HFRunner.Get(); ok {
+		if systemSources := hfComp.StartSystem(obs.GetHandle(hfrunnerdef.HFSource)); systemSources != nil {
+			for src := range systemSources {
+				obs.hfFilterSources[src] = struct{}{}
 			}
-		} else {
-			pkglog.Warn("[observer] high_frequency_container_checks.enabled=true but WMeta/FilterStore/Tagger not available; skipping")
+		}
+		if containerSources := hfComp.StartContainer(obs.GetHandle(hfrunnerdef.HFContainerSource)); containerSources != nil {
+			for src := range containerSources {
+				obs.hfFilterSources[src] = struct{}{}
+			}
 		}
 	}
 
@@ -427,6 +375,7 @@ func samplePass(rate float64, n uint64) bool {
 // detectors, correlators, and raw anomaly tracking.
 type observerImpl struct {
 	engine     *engine
+	catalog    *componentCatalog
 	obsCh      chan observation
 	handleFunc observerdef.HandleFunc // Handle factory (may wrap with recorder middleware)
 
@@ -439,22 +388,10 @@ type observerImpl struct {
 	// which tracks drops for live/replay parity analysis.
 	dropCounter telemetry.Counter
 
-	// hfRunner is the high-frequency system check runner, non-nil when enabled.
-	hfRunner *hfrunner.Runner
-
-	// hfContainerRunner is the high-frequency container check runner, non-nil when enabled.
-	hfContainerRunner *hfrunner.Runner
-
 	// hfFilterSources is the combined set of MetricSource values to suppress from
 	// the "all-metrics" pipeline when their HF counterpart is active. Built at
-	// construction time from whichever HF flags are enabled.
+	// construction time from the sources reported by hfrunner.StartSystem/StartContainer.
 	hfFilterSources map[metrics.MetricSource]struct{}
-
-	// hfEnabled is true when high-frequency system check collection is active.
-	hfEnabled bool
-
-	// hfContainerEnabled is true when high-frequency container check collection is active.
-	hfContainerEnabled bool
 
 	// ingestMetricsEnabled gates externally-ingested metrics at the handle
 	// factory. When false, "all-metrics" and HF handles return a wrapper
@@ -462,11 +399,24 @@ type observerImpl struct {
 	// and log-derived virtual metrics produced inside the engine by
 	// LogMetricsExtractors are unaffected because they bypass the handle.
 	ingestMetricsEnabled bool
+
+	// replayMu serialises engine access between the run() dispatch loop and
+	// the testbench's IngestLogSync/IngestMetricSync direct-ingest path.
+	// In production the sync methods are never called so this mutex is always
+	// uncontended. In the testbench it prevents a data race between the
+	// agent-internal-log observer (which can post to obsCh while run() is
+	// processing) and a concurrent IngestLogSync call.
+	replayMu sync.Mutex
 }
 
 // run is the main dispatch loop, processing all observations sequentially.
 func (o *observerImpl) run() {
 	for obs := range o.obsCh {
+		if obs.flush != nil {
+			close(obs.flush)
+			continue
+		}
+		o.replayMu.Lock()
 		var requests []advanceRequest
 		if obs.metric != nil {
 			requests = o.engine.IngestMetric(obs.source, obs.metric)
@@ -482,6 +432,7 @@ func (o *observerImpl) run() {
 			result := o.engine.advanceWithReason(req.upToSec, req.reason)
 			o.telemetryHandler.handleTelemetry(result.telemetry)
 		}
+		o.replayMu.Unlock()
 	}
 }
 
@@ -681,29 +632,6 @@ type sourceProvider interface {
 	GetSource() metrics.MetricSource
 }
 
-// systemCheckSources is the set of MetricSource values produced by the system
-// checks that the HF runner executes. It mirrors the check list in hfrunner/runner.go.
-var systemCheckSources = map[metrics.MetricSource]struct{}{
-	metrics.MetricSourceCPU:        {},
-	metrics.MetricSourceLoad:       {},
-	metrics.MetricSourceMemory:     {},
-	metrics.MetricSourceIo:         {},
-	metrics.MetricSourceDisk:       {},
-	metrics.MetricSourceNetwork:    {},
-	metrics.MetricSourceUptime:     {},
-	metrics.MetricSourceFileHandle: {},
-}
-
-// containerCheckSources is the set of MetricSource values produced by the
-// container checks that the HF container runner executes. Only MetricSourceContainer
-// is included because the HF runner uses the generic container check (check name
-// "container"), which maps to MetricSourceContainer regardless of runtime.
-// The legacy per-runtime checks (containerd, cri, docker) have their own
-// MetricSource values but are not run by the HF runner.
-var containerCheckSources = map[metrics.MetricSource]struct{}{
-	metrics.MetricSourceContainer: {},
-}
-
 // hfFilteredHandle wraps a Handle and drops metrics whose source is in the
 // provided sources set, so that 15s pipeline samples do not compete with their
 // 1s HF counterparts in the scorer.
@@ -773,6 +701,135 @@ func (o *observerImpl) DumpMetrics(path string) error {
 	// For simplicity, just dump directly (storage access is single-threaded from run loop,
 	// but this is a debug tool so approximate snapshot is fine)
 	return o.engine.Storage().DumpToFile(path)
+}
+
+// --- DebugView implementation ---
+
+// StateView returns a read-only window into engine state.
+// Implements DebugView.
+func (o *observerImpl) StateView() StateView {
+	return o.engine.StateView()
+}
+
+// CatalogEntries returns the list of all registered components with their metadata.
+// Implements DebugView.
+func (o *observerImpl) CatalogEntries() []CatalogEntry {
+	entries := o.catalog.Entries()
+	result := make([]CatalogEntry, len(entries))
+	for i, e := range entries {
+		result[i] = CatalogEntry{
+			Name:           e.name,
+			DisplayName:    e.displayName,
+			Kind:           kindString(e.kind),
+			DefaultEnabled: e.defaultEnabled,
+		}
+	}
+	return result
+}
+
+// Flush blocks until all observations currently queued in the dispatch channel
+// have been processed by the engine. Implements DebugView.
+func (o *observerImpl) Flush() {
+	done := make(chan struct{})
+	o.obsCh <- observation{flush: done}
+	<-done
+}
+
+// Reset clears all engine state and reconfigures with new settings. Implements DebugView.
+func (o *observerImpl) Reset(settings ComponentSettings) {
+	o.Flush()
+	detectors, correlators, extractors, _ := o.catalog.Instantiate(settings)
+	o.engine.ResetForReplay(detectors, correlators, extractors)
+}
+
+// GetReplayProgress returns lock-free replay progress counters. Implements DebugView.
+func (o *observerImpl) GetReplayProgress() ReplayProgress {
+	return o.engine.GetReplayProgress()
+}
+
+// SetReplayPhase updates the replay phase string. Implements DebugView.
+func (o *observerImpl) SetReplayPhase(phase string) {
+	o.engine.SetReplayPhase(phase)
+}
+
+// ExtractorCount returns the number of extractors active in the engine. Implements DebugView.
+func (o *observerImpl) ExtractorCount() int {
+	return o.engine.ExtractorCount()
+}
+
+// AddTelemetry writes a data point into the telemetry namespace. Implements DebugView.
+func (o *observerImpl) AddTelemetry(name string, value float64, timestamp int64, tags []string) {
+	_ = o.engine.storage.Add(observerdef.TelemetryNamespace, name, value, timestamp, tags)
+}
+
+// ReplayStoredData resets analysis state (preserving extractor context) then
+// replays all stored data through the scheduler in chronological order.
+// Implements DebugView.
+func (o *observerImpl) ReplayStoredData() {
+	// resetAnalysisState resets detectors/correlators and tracking state but
+	// preserves extractor state (contextRefs + provider pattern registry) so
+	// enrichAnomaly can still attach log pattern context during replay.
+	o.engine.resetAnalysisState()
+	o.engine.ReplayStoredData()
+}
+
+// StorageReader returns a read-only view of the engine's time-series storage.
+// Used by the testbench to compute windowed log rates in change messages.
+// Implements DebugView.
+func (o *observerImpl) StorageReader() observerdef.StorageReader {
+	return o.engine.storage
+}
+
+// IngestLogSync feeds a log directly into the engine, bypassing the dispatch
+// channel. It replicates what the dispatcher run() loop does for a log
+// observation: build logObs, call engine.IngestLog, drive any advance
+// requests, and forward telemetry. Implements DebugView.
+func (o *observerImpl) IngestLogSync(source string, msg observerdef.LogView) {
+	timestampMs := msg.GetTimestampUnixMilli()
+	lo := &logObs{
+		content:     copyBytes(msg.GetContent()),
+		status:      msg.GetStatus(),
+		tags:        copyTags(msg.GetTags()),
+		hostname:    msg.GetHostname(),
+		timestampMs: timestampMs,
+	}
+	o.replayMu.Lock()
+	requests, logTelemetry := o.engine.IngestLog(source, lo)
+	if len(logTelemetry) > 0 {
+		o.telemetryHandler.handleTelemetry(logTelemetry)
+	}
+	for _, req := range requests {
+		result := o.engine.advanceWithReason(req.upToSec, req.reason)
+		o.telemetryHandler.handleTelemetry(result.telemetry)
+	}
+	o.replayMu.Unlock()
+}
+
+// IngestMetricSync feeds a metric directly into the engine, bypassing the
+// dispatch channel. Mirrors the handle.ObserveMetricAndReportDrop path without
+// the non-blocking channel send. Implements DebugView.
+func (o *observerImpl) IngestMetricSync(source string, sample observerdef.MetricView) {
+	name := sample.GetName()
+	if strings.HasPrefix(name, "datadog.") {
+		return
+	}
+	timestamp := sample.GetTimestampUnix()
+	if timestamp == 0 {
+		timestamp = time.Now().Unix()
+	}
+	mo := &metricObs{
+		name:      name,
+		value:     sample.GetValue(),
+		tags:      copyTags(sample.GetRawTags()),
+		timestamp: timestamp,
+	}
+	o.replayMu.Lock()
+	requests := o.engine.IngestMetric(source, mo)
+	for _, req := range requests {
+		result := o.engine.advanceWithReason(req.upToSec, req.reason)
+		o.telemetryHandler.handleTelemetry(result.telemetry)
+	}
+	o.replayMu.Unlock()
 }
 
 // handle is the lightweight observation interface passed to other components.
