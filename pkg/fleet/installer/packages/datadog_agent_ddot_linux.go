@@ -433,14 +433,52 @@ func syncDDOTProcmgrAfterExtension(ctx HookContext) error {
 	}
 }
 
+// ddotExtensionInstalled reports whether the DDOT extension tree is present under
+// the given agent package path (stable or experiment OCI tree, or deb/rpm root).
+func ddotExtensionInstalled(agentPackagePath string) bool {
+	_, err := os.Stat(filepath.Join(agentPackagePath, "ext", "ddot"))
+	return err == nil
+}
+
+// ddotExtensionProcmgrRemoveStable returns which procmgr channel (stable vs
+// experiment) is being removed for extension pre-remove hooks.
+func ddotExtensionProcmgrRemoveStable(ctx HookContext) bool {
+	if ctx.PackageType == PackageTypeOCI {
+		return filepath.Base(ctx.PackagePath) != "experiment"
+	}
+	return true
+}
+
 // removeDDOTExtensionProcmgrYAML drops DDOT process definitions from processes.d
-// when the extension is removed.
+// for the agent channel whose extension is being removed. When an OCI experiment
+// extension is removed but stable still has the extension and both channels share
+// the same processes.d directory, re-sync stable instead of deleting shared YAML.
 func removeDDOTExtensionProcmgrYAML(ctx HookContext) {
 	if service.BaseServiceManagerType() != service.SystemdType {
 		return
 	}
-	_ = syncDDOTProcmgrStop(ctx, true)
-	_ = syncDDOTProcmgrStop(ctx, false)
+	stable := ddotExtensionProcmgrRemoveStable(ctx)
+	if ctx.PackageType == PackageTypeOCI && !stable {
+		equiv, err := ociAgentStableAndExperimentProcessesDirsEquivalent()
+		if err != nil {
+			log.Warnf("skipping DDOT procmgr cleanup on experiment extension remove: resolve processes.d paths: %v", err)
+			return
+		}
+		if equiv {
+			stableOCI := filepath.Join(paths.PackagesPath, "datadog-agent", "stable")
+			if ddotExtensionInstalled(stableOCI) {
+				stableCtx := ctx
+				stableCtx.PackagePath = stableOCI
+				if err := syncDDOTProcmgrAfterExtension(stableCtx); err != nil {
+					log.Warnf("failed to re-sync stable DDOT procmgr after experiment extension remove: %v", err)
+				}
+				return
+			}
+		}
+	}
+	if err := syncDDOTProcmgrStop(ctx, stable); err != nil {
+		log.Warnf("failed to remove DDOT procmgr config on extension remove: %v", err)
+	}
 }
 
 // preInstallDDOTExtension stops and removes the existing DDOT service and package before extension installation
@@ -505,9 +543,23 @@ func preRemoveDDOTExtension(ctx HookContext) error {
 	}
 
 	removeDDOTExtensionProcmgrYAML(ctx)
-	removeProcmgrDDOTMarker()
+	if shouldRemoveProcmgrDDOTMarkerOnExtensionRemove(ctx) {
+		removeProcmgrDDOTMarker()
+	}
 
 	return nil
+}
+
+// shouldRemoveProcmgrDDOTMarkerOnExtensionRemove reports whether the DDOT procmgr
+// marker should be cleared on extension pre-remove. Experiment-only removal while
+// stable still has the extension must keep the marker so stable procmgr ownership
+// stays active.
+func shouldRemoveProcmgrDDOTMarkerOnExtensionRemove(ctx HookContext) bool {
+	if ctx.PackageType == PackageTypeOCI && !ddotExtensionProcmgrRemoveStable(ctx) {
+		stableOCI := filepath.Join(paths.PackagesPath, "datadog-agent", "stable")
+		return !ddotExtensionInstalled(stableOCI)
+	}
+	return true
 }
 
 // copyFile copies a file from src to dst with the specified permissions
