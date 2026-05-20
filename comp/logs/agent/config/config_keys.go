@@ -12,6 +12,7 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
+	pkgconfigutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -66,8 +67,22 @@ func (l *LogsConfigKeys) isSetAndNotEmpty(key string) bool {
 	return isSetAndNotEmpty(l.getConfig(), key)
 }
 
+// port443EndpointPrefix is the hostname prefix used to derive the port-443 intake endpoint from the site.
+const port443EndpointPrefix = "agent-443-intake.logs."
+
+// ddURL443 returns the host to use when logs_config.use_port_443 is enabled.
+// If the user has explicitly set logs_config.dd_url_443 that value takes precedence (backward compatibility).
+// Otherwise the endpoint is derived from the configured site (same pattern as the main TCP/HTTP endpoints).
 func (l *LogsConfigKeys) ddURL443() string {
-	return l.getConfig().GetString(l.getConfigKey("dd_url_443"))
+	configKey := l.getConfigKey("dd_url_443")
+	if l.getConfig().IsConfigured(configKey) {
+		return l.getConfig().GetString(configKey)
+	}
+	site := l.getConfig().GetString("site")
+	if site == "" {
+		site = pkgconfigsetup.DefaultSite
+	}
+	return pkgconfigutils.BuildURLWithPrefix(port443EndpointPrefix, site)
 }
 
 func (l *LogsConfigKeys) logsDDURL() (string, bool) {

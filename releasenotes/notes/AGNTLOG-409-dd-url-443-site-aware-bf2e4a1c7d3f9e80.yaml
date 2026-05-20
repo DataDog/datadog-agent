@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed ``logs_config.dd_url_443`` defaulting to the US1 intake host
+    (``agent-443-intake.logs.datadoghq.com``) regardless of the configured ``site``.
+    When ``logs_config.use_port_443`` is enabled and ``logs_config.dd_url_443`` has not
+    been explicitly set, the Agent now derives the port-443 intake endpoint from the
+    ``site`` setting (for example, ``agent-443-intake.logs.datadoghq.eu`` for EU customers).
+    Explicitly configured values for ``logs_config.dd_url_443`` are still respected as
+    before.

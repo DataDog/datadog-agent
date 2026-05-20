@@ -88,7 +88,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndVa
 	suite.Nil(err)
 	endpoint = endpoints.Main
 	suite.Equal("azerty", endpoint.GetAPIKey())
-	suite.Equal("agent-443-intake.logs.datadoghq.com", endpoint.Host)
+	suite.Equal("agent-443-intake.logs.datadoghq.com.", endpoint.Host)
 	suite.Equal(443, endpoint.Port)
 	suite.True(endpoint.UseSSL())
 	suite.Equal("boz:1234", endpoint.ProxyAddress)
