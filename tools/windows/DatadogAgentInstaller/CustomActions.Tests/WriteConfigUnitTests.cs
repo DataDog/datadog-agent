@@ -98,7 +98,7 @@ random_property: test
 
                 Assert.Equal(ActionResult.Success, result);
                 var aiUsageYaml = File.ReadAllText(Path.Combine(configFolder, "ai_usage_native_host.yaml"));
-                Assert.Contains("trace_agent_url: \"http://localhost:8126\"", aiUsageYaml);
+                Assert.Contains("trace_agent_url: \"http://127.0.0.1:8126\"", aiUsageYaml);
                 Assert.Contains($"chrome_extension_id: \"{chromeExtensionId}\"", aiUsageYaml);
 
                 var manifest = File.ReadAllText(AiUsageManifestPath(projectLocation));
@@ -126,7 +126,7 @@ random_property: test
 
                 Assert.Equal(ActionResult.Success, result);
                 var aiUsageYaml = File.ReadAllText(Path.Combine(configFolder, "ai_usage_native_host.yaml"));
-                Assert.Contains("trace_agent_url: \"http://localhost:8136\"", aiUsageYaml);
+                Assert.Contains("trace_agent_url: \"http://127.0.0.1:8136\"", aiUsageYaml);
             });
         }
 
@@ -136,7 +136,7 @@ random_property: test
         {
             WithTempInstallFolders((configFolder, projectLocation) =>
             {
-                const string existingAiUsageConfig = "trace_agent_url: \"http://localhost:9999\"\n";
+                const string existingAiUsageConfig = "trace_agent_url: \"http://127.0.0.1:9999\"\n";
                 File.WriteAllText(Path.Combine(configFolder, "datadog.yaml.example"), "api_key:\n");
                 File.WriteAllText(
                     Path.Combine(configFolder, "datadog.yaml"),
@@ -218,7 +218,7 @@ random_property: test
             const string chromeExtensionId = "abcdefghijklmnopabcdefghijklmnop";
             File.WriteAllText(
                 Path.Combine(configFolder, "ai_usage_native_host.yaml.example"),
-                "trace_agent_url: \"http://localhost:8126\"\n" +
+                "trace_agent_url: \"http://127.0.0.1:8126\"\n" +
                 "evp_proxy_api_version: 2\n" +
                 "logs_evp_subdomain: \"http-intake.logs\"\n" +
                 $"chrome_extension_id: \"{chromeExtensionId}\"\n");

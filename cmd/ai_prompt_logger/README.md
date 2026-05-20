@@ -43,7 +43,7 @@ EVP / Agent URL behaviour (defaults):
 - Header: `X-Datadog-EVP-Subdomain: {ai_usage_evp_subdomain}` (default `event-platform-intake`).
 - The Agent injects `DD-API-KEY` and forwards to the dedicated AI usage intake for your site.
 
-Ensure the Agent is listening on the trace port (default `localhost:8126`) with EVP proxy enabled.
+Ensure the Agent is listening on the trace port (default `127.0.0.1:8126`) with EVP proxy enabled.
 
 ## Protocol
 

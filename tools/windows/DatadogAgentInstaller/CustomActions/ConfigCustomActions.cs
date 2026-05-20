@@ -523,7 +523,7 @@ namespace Datadog.CustomActions
                                     yaml = Regex.Replace(
                                         yaml,
                                         "^[ #]*trace_agent_url:.*$",
-                                        $"trace_agent_url: \"http://localhost:{port}\"",
+                                        $"trace_agent_url: \"http://127.0.0.1:{port}\"",
                                         RegexOptions.Multiline);
 
                                     using var output = new StreamWriter(c);

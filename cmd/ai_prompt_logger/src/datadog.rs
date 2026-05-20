@@ -46,14 +46,14 @@ impl DatadogClient {
     /// 3. Under the install prefix inferred from the executable path.
     ///
     /// YAML keys (defaults match the Agent trace receiver):
-    /// - `trace_agent_url` (default `http://localhost:8126`; use **http** only — the local trace
+    /// - `trace_agent_url` (default `http://127.0.0.1:8126`; use **http** only — the local trace
     ///   receiver is plain HTTP and this binary has no TLS client)
     /// - `evp_proxy_api_version` (default `2`)
     /// - `ai_usage_evp_subdomain` (default `event-platform-intake`)
     ///
     /// No `DD_API_KEY` is required here; the Agent injects the key when forwarding.
     pub fn load(config_path: Option<PathBuf>) -> Self {
-        let mut agent_base = "http://localhost:8126".to_string();
+        let mut agent_base = "http://127.0.0.1:8126".to_string();
         let mut proxy_version: u32 = 2;
         let mut evp_subdomain = AI_USAGE_EVP_SUBDOMAIN.to_string();
 
