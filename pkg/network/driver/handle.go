@@ -157,6 +157,10 @@ var handleTypeToPathName = map[HandleType]string{
 type Handle interface {
 	ReadFile(p []byte, bytesRead *uint32, ol *windows.Overlapped) error
 	SynchronousDeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32) (bytesReturned uint32, err error)
+	// Deprecated: use SynchronousDeviceIoControl. This shim is kept temporarily
+	// for external consumers (github.com/DataDog/datadog-traceroute) that have
+	// not yet migrated. Will be removed once those consumers update.
+	DeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) error
 	CancelIoEx(ol *windows.Overlapped) error
 	Close() error
 	GetWindowsHandle() windows.Handle
@@ -289,6 +293,30 @@ func (dh *RealDriverHandle) SynchronousDeviceIoControl(ioControlCode uint32, inB
 		return bytesReturned, gerr
 	}
 	return bytesReturned, nil
+}
+
+// DeviceIoControl is a deprecated shim around SynchronousDeviceIoControl, kept
+// for external consumers (github.com/DataDog/datadog-traceroute) that have not
+// yet migrated to the new name. All current agent code should call
+// SynchronousDeviceIoControl directly.
+//
+// The shim only supports the safe usage that callers actually used: a nil
+// overlapped (synchronous semantics). A non-nil overlapped is rejected because
+// no existing caller threaded their own OVERLAPPED through this method, and
+// the new wrapper synthesizes one internally.
+//
+// Deprecated: use SynchronousDeviceIoControl.
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
+func (dh *RealDriverHandle) DeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) error {
+	if overlapped != nil {
+		return errors.New("driver: deprecated DeviceIoControl does not support a caller-supplied OVERLAPPED; use SynchronousDeviceIoControl")
+	}
+	n, err := dh.SynchronousDeviceIoControl(ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize)
+	if bytesReturned != nil {
+		*bytesReturned = n
+	}
+	return err
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter
