@@ -18,25 +18,26 @@ import (
 )
 
 const (
+	DDOTProcessName = "datadog-agent-ddot"
+
 	ddotProcmgrYAMLFileName = "datadog-agent-ddot.yaml"
 	// StableDDOTProcmgrYAMLDeb is the stable processes.d DDOT file on classic deb/rpm installs.
 	StableDDOTProcmgrYAMLDeb = "/opt/datadog-agent/processes.d/" + ddotProcmgrYAMLFileName
 	// StableDDOTProcmgrYAMLOCI is the stable processes.d DDOT file on fleet OCI agent installs.
 	StableDDOTProcmgrYAMLOCI = "/opt/datadog-packages/datadog-agent/stable/processes.d/" + ddotProcmgrYAMLFileName
-)
 
-const (
-	DDOTProcessName                         = "datadog-agent-ddot"
-	CLIBinDefault                           = "/opt/datadog-agent/embedded/bin/dd-procmgr"
-	CLIBinFleetStable                       = "/opt/datadog-packages/datadog-agent/stable/embedded/bin/dd-procmgr"
-	waitForProcessTimeout                   = 90 * time.Second
-	waitForProcessPollInterval              = 2 * time.Second
-	waitForProcessRunningStableWindow       = 5 * time.Second
-	waitForProcessRunningStablePoll         = 500 * time.Millisecond
-	ProcessStateRunning                     = "Running"
-	DDOTOtelAgentFleetPackageBinary         = "/opt/datadog-packages/datadog-agent-ddot/stable/embedded/bin/otel-agent"
-	DDOTOtelAgentFleetStableExtensionBinary = "/opt/datadog-packages/datadog-agent/stable/ext/ddot/embedded/bin/otel-agent"
 	DDOTOtelAgentExtensionBinary            = "/opt/datadog-agent/ext/ddot/embedded/bin/otel-agent"
+	DDOTOtelAgentFleetStableExtensionBinary = "/opt/datadog-packages/datadog-agent/stable/ext/ddot/embedded/bin/otel-agent"
+	DDOTOtelAgentFleetPackageBinary         = "/opt/datadog-packages/datadog-agent-ddot/stable/embedded/bin/otel-agent"
+
+	CLIBinDefault     = "/opt/datadog-agent/embedded/bin/dd-procmgr"
+	CLIBinFleetStable = "/opt/datadog-packages/datadog-agent/stable/embedded/bin/dd-procmgr"
+
+	ProcessStateRunning               = "Running"
+	waitForProcessTimeout             = 90 * time.Second
+	waitForProcessPollInterval        = 2 * time.Second
+	waitForProcessRunningStableWindow = 5 * time.Second
+	waitForProcessRunningStablePoll   = 500 * time.Millisecond
 )
 
 // CLIBinForLinuxHost returns CLIBinFleetStable when that binary is executable on the host,
