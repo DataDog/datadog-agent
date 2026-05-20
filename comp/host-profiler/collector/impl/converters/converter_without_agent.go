@@ -396,10 +396,15 @@ func (c *converterWithoutAgent) removeAgentOnlyExtensions(conf confMap) error {
 
 	// Filter out agent-only extensions
 	filteredExtensions := make([]any, 0, len(extensions))
+	ddProfilingExtensions := 0
 	for _, extAny := range extensions {
 		ext, ok := extAny.(string)
 		if !ok {
 			return errors.New("extension names in service should be strings")
+		}
+
+		if isComponentType(ext, componentTypeDDProfiling) {
+			ddProfilingExtensions++
 		}
 
 		// Skip hpflare extensions
@@ -411,6 +416,10 @@ func (c *converterWithoutAgent) removeAgentOnlyExtensions(conf confMap) error {
 	}
 
 	service["extensions"] = filteredExtensions
+
+	if ddProfilingExtensions > 1 {
+		return errors.New("only one ddprofiling extension can be enabled in standalone mode")
+	}
 
 	// Also remove the extension definitions from global config
 	extensionsConf, ok := Get[confMap](conf, "extensions")
