@@ -48,8 +48,8 @@ func (tdh *TestDriverHandleInfiniteLoop) GetWindowsHandle() windows.Handle {
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter
-func (tdh *TestDriverHandleInfiniteLoop) DeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) (err error) {
-	return nil
+func (tdh *TestDriverHandleInfiniteLoop) SynchronousDeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32) (bytesReturned uint32, err error) {
+	return 0, nil
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter

@@ -156,7 +156,7 @@ var handleTypeToPathName = map[HandleType]string{
 //nolint:revive // TODO(WKIT) Fix revive linter
 type Handle interface {
 	ReadFile(p []byte, bytesRead *uint32, ol *windows.Overlapped) error
-	DeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) (err error)
+	SynchronousDeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32) (bytesReturned uint32, err error)
 	CancelIoEx(ol *windows.Overlapped) error
 	Close() error
 	GetWindowsHandle() windows.Handle
@@ -169,6 +169,12 @@ type Handle interface {
 type RealDriverHandle struct {
 	Handle     windows.Handle
 	handleType HandleType
+	// overlapped is true when Handle was opened with FILE_FLAG_OVERLAPPED.
+	// SynchronousDeviceIoControl branches on this to use the correct Win32
+	// invocation: synchronous handles take the simple sync path; overlapped
+	// handles need a synthesized OVERLAPPED + private event + GetOverlappedResult
+	// to avoid the IOCP-routing hang documented on SynchronousDeviceIoControl.
+	overlapped bool
 
 	// record the last value of number of flows missed due to max exceeded
 	lastNumFlowsMissed       uint64
@@ -185,26 +191,49 @@ func (dh *RealDriverHandle) ReadFile(p []byte, bytesRead *uint32, ol *windows.Ov
 	return windows.ReadFile(dh.Handle, p, bytesRead, ol)
 }
 
-// DeviceIoControl passes an IOCTL through to the underlying handle.
+// SynchronousDeviceIoControl issues a synchronous IOCTL on the underlying
+// handle, branching internally based on whether the handle was opened with
+// FILE_FLAG_OVERLAPPED.
 //
-// If the caller supplies its own OVERLAPPED, it is used as-is and the call is
-// forwarded directly to DeviceIoControl.
+// On the returned values: if a driver fills the output buffer with as many
+// entries as fit but has more, it returns ERROR_MORE_DATA together with a
+// valid bytesReturned. Callers should inspect both.
 //
-// If overlapped is nil, the caller wants synchronous semantics. Because this
-// handle may have been opened with FILE_FLAG_OVERLAPPED and bound to an IOCP
-// (e.g. the DNS data handle in pkg/network/dns), calling the Win32
-// DeviceIoControl with lpOverlapped=NULL is unsafe: when the IRP returns
-// STATUS_PENDING (which happens under Driver Verifier and can happen
-// otherwise), DeviceIoControl falls back to waiting on the file handle itself.
-// Because the handle is associated with an IOCP, the IRP completion is posted
-// to the IOCP packet queue and the file handle's event is never signaled, so
-// the wait hangs forever (until the handle is force-closed).
+// # Synchronous handles
 //
-// To make a sync call safely on this handle, synthesize an OVERLAPPED with a
-// private event and wait on it via GetOverlappedResult. Setting the low-order
-// bit on OVERLAPPED.HEvent tells the I/O Manager NOT to enqueue an IOCP packet
-// for this particular IRP. Callers who pass their own OVERLAPPED must do the
-// same; see the check below.
+// For handles opened without FILE_FLAG_OVERLAPPED, Win32's DeviceIoControl is
+// naturally blocking. Per MSDN, lpBytesReturned must be non-NULL when
+// lpOverlapped is NULL. The call is forwarded directly.
+//
+// # Overlapped handles (and why this wrapper exists)
+//
+// For handles opened with FILE_FLAG_OVERLAPPED, the Win32 call
+// DeviceIoControl(..., lpOverlapped=NULL) is unsafe. Step by step:
+//
+//  1. DeviceIoControl forwards to NtDeviceIoControlFile with Event=NULL.
+//  2. When the IRP returns STATUS_PENDING (forced by Driver Verifier on a WDF
+//     driver, and possible under other conditions where the kernel does not
+//     complete the IRP synchronously), Win32 falls back to waiting on the
+//     file handle's own event for completion.
+//  3. If the handle is associated with an I/O completion port (e.g. the DNS
+//     data handle in pkg/network/dns), the IO Manager posts the IRP's
+//     completion to the IOCP packet queue and does NOT signal the file handle
+//     event. The Win32 wait is on the wrong object and never completes.
+//  4. The thread is in a non-alertable, infinite NtWaitForSingleObject. The
+//     only way out is for the handle to be force-closed (typically by process
+//     termination), which cancels the IRP.
+//
+// This wrapper avoids that hang on overlapped handles by providing its own
+// OVERLAPPED with a private event whose low-order bit is set on HEvent. The
+// low bit tells the I/O Manager not to enqueue an IOCP completion packet for
+// this particular IRP -- otherwise the IRP's completion would arrive in the
+// IOCP read loop, which casts every completion to a *readbuffer (see e.g.
+// pkg/network/dns ReadDNSPacket and pkg/windowsdriver/olreader
+// OverlappedReader.Read) and would corrupt or crash. The wait happens on the
+// raw (untagged) event handle, after which GetOverlappedResult(bWait=false)
+// retrieves the final status and byte count. Using bWait=true would have
+// GetOverlappedResult wait on the bit-tagged OVERLAPPED.HEvent, which isn't a
+// valid kernel handle for WaitForSingleObject.
 //
 // See: https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-getqueuedcompletionstatus
 //
@@ -213,20 +242,17 @@ func (dh *RealDriverHandle) ReadFile(p []byte, bytesRead *uint32, ol *windows.Ov
 //	packet to the completion port.")
 //
 //nolint:revive // TODO(WKIT) Fix revive linter
-func (dh *RealDriverHandle) DeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32, bytesReturned *uint32, overlapped *windows.Overlapped) (err error) {
-	if overlapped != nil {
-		// IOCP read loops on driver handles (e.g. pkg/network/dns ReadDNSPacket)
-		// assume every completion is a readbuffer. Do not allow arbitrary IOCTL
-		// completions to be queued there.
-		if overlapped.HEvent == 0 || (uintptr(overlapped.HEvent)&1) == 0 {
-			return errors.New("driver: explicit overlapped DeviceIoControl must use an event handle with the low-order bit set")
-		}
-		return windows.DeviceIoControl(dh.Handle, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize, bytesReturned, overlapped)
+func (dh *RealDriverHandle) SynchronousDeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32) (bytesReturned uint32, err error) {
+	if !dh.overlapped {
+		// Native sync path. lpBytesReturned must be non-NULL when lpOverlapped
+		// is NULL. bytesReturned is filled even on errors like ERROR_MORE_DATA.
+		err = windows.DeviceIoControl(dh.Handle, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize, &bytesReturned, nil)
+		return bytesReturned, err
 	}
 
 	ev, err := windows.CreateEvent(nil, 1, 0, nil) // manual-reset, non-signaled
 	if err != nil {
-		return fmt.Errorf("CreateEvent for synchronous DeviceIoControl: %w", err)
+		return 0, fmt.Errorf("CreateEvent for SynchronousDeviceIoControl: %w", err)
 	}
 	defer windows.CloseHandle(ev)
 
@@ -234,22 +260,37 @@ func (dh *RealDriverHandle) DeviceIoControl(ioControlCode uint32, inBuffer *byte
 	// Low bit on HEvent suppresses IOCP notification for this IRP (see doc above).
 	ol.HEvent = windows.Handle(uintptr(ev) | 1)
 
-	err = windows.DeviceIoControl(dh.Handle, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize, bytesReturned, &ol)
-	if err != nil && !errors.Is(err, windows.ERROR_IO_PENDING) {
-		return err
-	}
+	// Per MSDN, when lpOverlapped is non-NULL the lpBytesReturned value is
+	// meaningless until the operation completes -- get it from GetOverlappedResult.
+	err = windows.DeviceIoControl(dh.Handle, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize, nil, &ol)
 
-	// GetOverlappedResult with bWait=TRUE waits on the OVERLAPPED's event and
-	// returns the final status; it works for both the inline-completed case and
-	// the pending case.
-	var transferred uint32
-	if err = windows.GetOverlappedResult(dh.Handle, &ol, &transferred, true); err != nil {
-		return err
+	switch {
+	case err == nil:
+		// Inline success: IRP completed before DeviceIoControl returned. Fetch
+		// the byte count.
+		if gerr := windows.GetOverlappedResult(dh.Handle, &ol, &bytesReturned, false); gerr != nil {
+			return bytesReturned, gerr
+		}
+		return bytesReturned, nil
+
+	case errors.Is(err, windows.ERROR_IO_PENDING):
+		// Async: IRP is queued. Wait on the raw (untagged) event ourselves,
+		// then collect the final status and byte count.
+		if _, werr := windows.WaitForSingleObject(ev, windows.INFINITE); werr != nil {
+			return 0, werr
+		}
+		if gerr := windows.GetOverlappedResult(dh.Handle, &ol, &bytesReturned, false); gerr != nil {
+			return bytesReturned, gerr
+		}
+		return bytesReturned, nil
+
+	default:
+		// Inline error (including ERROR_MORE_DATA with partial data). The IRP
+		// is already complete with this status; try to get the byte count for
+		// the partial-data case and propagate the original error.
+		_ = windows.GetOverlappedResult(dh.Handle, &ol, &bytesReturned, false)
+		return bytesReturned, err
 	}
-	if bytesReturned != nil {
-		*bytesReturned = transferred
-	}
-	return nil
 }
 
 //nolint:revive // TODO(WKIT) Fix revive linter
@@ -280,7 +321,11 @@ func NewHandle(flags uint32, handleType HandleType, _ telemetryComp.Component) (
 		log.Errorf("Error creating file handle %v", err)
 		return nil, err
 	}
-	return &RealDriverHandle{Handle: h, handleType: handleType}, nil
+	return &RealDriverHandle{
+		Handle:     h,
+		handleType: handleType,
+		overlapped: flags&windows.FILE_FLAG_OVERLAPPED != 0,
+	}, nil
 }
 
 // Close closes the underlying windows handle
@@ -290,12 +335,9 @@ func (dh *RealDriverHandle) Close() error {
 
 // RefreshStats refreshes the relevant stats depending on the handle type
 func (dh *RealDriverHandle) RefreshStats() {
-	var (
-		bytesReturned uint32
-		statbuf       = make([]byte, StatsSize)
-	)
+	statbuf := make([]byte, StatsSize)
 
-	err := dh.DeviceIoControl(GetStatsIOCTL, &DdAPIVersionBuf[0], uint32(len(DdAPIVersionBuf)), &statbuf[0], uint32(len(statbuf)), &bytesReturned, nil)
+	_, err := dh.SynchronousDeviceIoControl(GetStatsIOCTL, &DdAPIVersionBuf[0], uint32(len(DdAPIVersionBuf)), &statbuf[0], uint32(len(statbuf)))
 	if err != nil {
 		log.Errorf("failed to read driver stats for filter type %v - returned error %v", dh.handleType, err)
 	}
