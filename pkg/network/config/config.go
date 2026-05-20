@@ -225,6 +225,10 @@ type Config struct {
 
 	// EnableSKTracer enables to experimental sk tracer
 	EnableSKTracer bool
+
+	// MaxProtocolClassificationAttempts specifies the maximum number of times we attempt to classify a connection's
+	// protocol before giving up. This prevents excessive CPU usage on connections that are difficult to classify.
+	MaxProtocolClassificationAttempts int
 }
 
 // New creates a config for the network tracer
@@ -312,6 +316,8 @@ func New() *Config {
 		CertCollectionMapCleanerInterval: cfg.GetDuration(sysconfig.FullKeyPath(netNS, "cert_collection_map_cleaner_interval")),
 
 		DirectSend: cfg.GetBool(sysconfig.FullKeyPath(netNS, "direct_send")),
+
+		MaxProtocolClassificationAttempts: cfg.GetInt(sysconfig.FullKeyPath(netNS, "max_protocol_classification_attempts")),
 	}
 
 	if !c.CollectTCPv4Conns {

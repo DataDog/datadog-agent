@@ -15,13 +15,35 @@ static __always_inline bool is_protocol_classification_supported() {
     return val > 0;
 }
 
-static __always_inline protocol_stack_t* __get_protocol_stack_if_exists(conn_tuple_t* tuple) {
+static __always_inline __u64 get_max_protocol_classification_attempts() {
+    __u64 val = 0;
+    LOAD_CONSTANT("max_protocol_classification_attempts", val);
+    return val;
+}
+
+static __always_inline protocol_stack_wrapper_t* __get_protocol_stack_wrapper_if_exists(conn_tuple_t* tuple) {
     protocol_stack_wrapper_t *wrapper = bpf_map_lookup_elem(&connection_protocol, tuple);
     if (!wrapper) {
         return NULL;
     }
     wrapper->updated = bpf_ktime_get_ns();
+    return wrapper;
+}
+
+static __always_inline protocol_stack_t* __get_protocol_stack_if_exists(conn_tuple_t* tuple) {
+    protocol_stack_wrapper_t *wrapper = __get_protocol_stack_wrapper_if_exists(tuple);
+    if (!wrapper) {
+        return NULL;
+    }
     return &wrapper->stack;
+}
+
+// Returns the protocol_stack_wrapper_t associated with the given connection tuple.
+// If the tuple is not found, returns NULL.
+static __always_inline protocol_stack_wrapper_t* get_protocol_stack_wrapper_if_exists(conn_tuple_t* tuple) {
+    conn_tuple_t normalized_tup = *tuple;
+    normalize_tuple(&normalized_tup);
+    return __get_protocol_stack_wrapper_if_exists(&normalized_tup);
 }
 
 // Returns the protocol_stack_t associated with the given connection tuple.
@@ -30,6 +52,25 @@ static __always_inline protocol_stack_t* get_protocol_stack_if_exists(conn_tuple
     conn_tuple_t normalized_tup = *tuple;
     normalize_tuple(&normalized_tup);
     return __get_protocol_stack_if_exists(&normalized_tup);
+}
+
+// Checks if the maximum number of classification attempts has been exceeded for this connection.
+// Returns true if max attempts exceeded, false otherwise.
+// Also increments the classification_attempts counter.
+static __always_inline bool classification_attempts_exceeded(protocol_stack_wrapper_t *wrapper) {
+    if (!wrapper) {
+        return false;
+    }
+    __u64 max_attempts = get_max_protocol_classification_attempts();
+    if (max_attempts == 0) {
+        // If max_attempts is 0, there is no limit
+        return false;
+    }
+    if (wrapper->classification_attempts >= max_attempts) {
+        return true;
+    }
+    wrapper->classification_attempts++;
+    return false;
 }
 
 // Returns the protocol_stack_t associated with the given connection tuple.
