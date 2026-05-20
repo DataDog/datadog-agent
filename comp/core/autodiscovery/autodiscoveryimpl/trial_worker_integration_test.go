@@ -5,7 +5,12 @@
 
 //go:build clusterchecks && kubeapiserver && test
 
-package autodiscoveryimpl
+// This test lives in package autodiscoveryimpl_test (not autodiscoveryimpl)
+// because it imports collectorimpl, and collectorimpl already imports
+// autodiscoveryimpl via agent_check_metadata.go. The external test package
+// avoids the cycle. Cross-package helpers come from export_test.go in
+// autodiscoveryimpl.
+package autodiscoveryimpl_test
 
 import (
 	"context"
@@ -17,27 +22,37 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
+	agenttelemetry "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/def"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
-	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
+	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	healthplatformnoopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
-	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	checkscheduler "github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector/worker"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -111,31 +126,14 @@ func (l *trialTestLoader) Load(_ sender.SenderManager, config integration.Config
 	return c, nil
 }
 
-// schedulerCollector is a minimal collector.Component that forwards
-// RunCheck/StopCheck to a real *checkscheduler.Scheduler (same scheduler
-// production uses inside collectorImpl). Enter/Cancel handle the jobQueue
-// lifecycle, so the worker drives the check on the check's own Interval.
-type schedulerCollector struct {
-	sch *checkscheduler.Scheduler
+// collectorTestDeps captures the real collector.Component built via
+// collectorimpl.Module() so the test pipeline exercises the same StopCheck
+// path production uses (collectorImpl.StopCheck → runner.StopCheck →
+// CheckWrapper.Cancel) rather than a hand-rolled scheduler-only fake.
+type collectorTestDeps struct {
+	fx.In
+	Coll option.Option[collector.Component]
 }
-
-func (c *schedulerCollector) RunCheck(ch check.Check) (checkid.ID, error) {
-	if err := c.sch.Enter(ch); err != nil {
-		return "", err
-	}
-	return ch.ID(), nil
-}
-
-func (c *schedulerCollector) StopCheck(id checkid.ID) error {
-	return c.sch.Cancel(id)
-}
-
-func (c *schedulerCollector) ReloadAllCheckInstances(string, []check.Check) ([]checkid.ID, error) {
-	return nil, nil
-}
-func (c *schedulerCollector) GetChecks() []check.Check                   { return nil }
-func (c *schedulerCollector) MapOverChecks(cb func([]check.Info))        { cb(nil) }
-func (c *schedulerCollector) AddEventReceiver(_ collector.EventReceiver) {}
 
 // trialTestProvider yields the prepared configs on first Collect, then empty.
 type trialTestProvider struct {
@@ -154,37 +152,61 @@ func (p *trialTestProvider) Collect(context.Context) ([]integration.Config, erro
 }
 func (p *trialTestProvider) IsUpToDate(context.Context) (bool, error) { return true, nil }
 
-// setupPipeline wires runner→scheduler.Scheduler→schedulerCollector→
-// CheckScheduler→AutoConfig using production constructors. The
-// MockScheduler returned alongside gives race-free Schedule/Unschedule
-// counters for the assertions.
-func setupPipeline(t *testing.T) (*AutoConfig, *MockScheduler) {
+// setupPipeline wires runner→scheduler→collectorImpl→CheckScheduler→AutoConfig
+// using production constructors. The collector is the real
+// collectorimpl.Component (built via fx), so this test exercises
+// collectorImpl.StopCheck / runner.StopCheck / CheckWrapper.Cancel — the
+// production code that the trial-failure unschedule path actually invokes
+// while the worker still has the check marked as running in the
+// RunningChecksTracker. The MockScheduler returned alongside gives race-free
+// Schedule/Unschedule counters for the assertions; AD dispatches changes to
+// both schedulers, so it observes every Unschedule the trial path produces.
+func setupPipeline(t *testing.T) (*autodiscoveryimpl.AutoConfig, *autodiscoveryimpl.MockScheduler) {
 	t.Helper()
 	expvars.Reset()
 	worker.ResetTrialCallbacksForTest()
+	// Register reset BEFORE fxutil.Test below so the LIFO order is:
+	//   1. fxutil.Test's RequireStop → collectorImpl.stop (drains in-flight
+	//      worker runs and any late notifyTrialResult)
+	//   2. ResetTrialCallbacksForTest (drops AD's registered callback)
+	// If we registered the reset after fxutil.Test, a late callback could
+	// fire into AutoConfig after the test has already torn AD down.
 	t.Cleanup(worker.ResetTrialCallbacksForTest)
 	t.Cleanup(func() { setTrialRunFn(nil) })
 
 	// Allow sub-second intervals so trial-threshold failures complete in
 	// milliseconds (default minimum is 1s). Same approach as
-	// pkg/collector/scheduler/scheduler_test.go.
+	// pkg/collector/scheduler/scheduler_test.go. Applies to the scheduler
+	// created internally by collectorImpl.start().
 	prev := checkscheduler.SetMinAllowedIntervalForTest(time.Millisecond)
 	t.Cleanup(func() { checkscheduler.SetMinAllowedIntervalForTest(prev) })
 
-	ms, ac, deps := getResolveTestSetup(t)
+	ms, ac, deps := autodiscoveryimpl.GetResolveTestSetup(t)
 
-	r := runner.NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t))
-	t.Cleanup(r.Stop)
-
-	sch := checkscheduler.NewScheduler(r.GetChan())
-	sch.Run()
-	// Stop the scheduler before the runner so its jobQueue goroutines don't
-	// race with the runner closing pendingChecksChan (LIFO cleanup order).
-	t.Cleanup(func() { _ = sch.Stop() })
-	coll := &schedulerCollector{sch: sch}
+	cd := fxutil.Test[collectorTestDeps](t,
+		collectorimpl.Module(),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component {
+			return config.NewMockWithOverrides(t, map[string]interface{}{
+				"check_cancel_timeout": 500 * time.Millisecond,
+			})
+		}),
+		hostnameimpl.MockModule(),
+		demultiplexerimpl.MockModule(),
+		haagentmock.Module(),
+		fx.Provide(func() healthplatform.Component {
+			return healthplatformnoopimpl.NewNoopComponent()
+		}),
+		fx.Provide(func() option.Option[serializer.MetricSerializer] {
+			return option.None[serializer.MetricSerializer]()
+		}),
+		fx.Provide(func() option.Option[agenttelemetry.Component] {
+			return option.None[agenttelemetry.Component]()
+		}),
+	)
 
 	cs := pkgcollector.InitCheckScheduler(
-		option.New[collector.Component](coll),
+		cd.Coll,
 		aggregator.NewNoOpSenderManager(),
 		option.None[integrations.Component](),
 		deps.TaggerComp,
@@ -197,7 +219,7 @@ func setupPipeline(t *testing.T) (*AutoConfig, *MockScheduler) {
 
 // containsConfigNamed reports whether the AD-known configs include name.
 // Uses the public GetAllConfigs API rather than reaching into cfgMgr.
-func containsConfigNamed(ac *AutoConfig, name string) bool {
+func containsConfigNamed(ac *autodiscoveryimpl.AutoConfig, name string) bool {
 	for _, c := range ac.GetAllConfigs() {
 		if c.Name == name {
 			return true
@@ -221,7 +243,21 @@ func containsConfigNamed(ac *AutoConfig, name string) bool {
 func TestADWorkerIntegration_UnschedulesAfterThresholdFailures(t *testing.T) {
 	ac, ms := setupPipeline(t)
 
-	setTrialRunFn(func(uint64) error { return errors.New("trial probe failed") })
+	// Fail for exactly trialFailureThreshold runs; afterwards, return nil.
+	// Once the threshold is crossed and AD unschedules, the real collector's
+	// CheckWrapper.Cancel races a goroutine that flips its internal `done`
+	// flag — a small number of stale enqueues (already in flight before
+	// scheduler.Cancel ran) can slip through and reach the worker. Making
+	// those late runs return nil keeps them on the suppress/promote path and
+	// prevents the spurious integration-error counts that would otherwise
+	// make this test flaky. The 5-failure trigger remains the load-bearing
+	// part of the test.
+	setTrialRunFn(func(n uint64) error {
+		if int(n) < autodiscoveryimpl.TrialFailureThreshold {
+			return errors.New("trial probe failed")
+		}
+		return nil
+	})
 
 	provider := &trialTestProvider{
 		configs: []integration.Config{{
@@ -235,7 +271,7 @@ func TestADWorkerIntegration_UnschedulesAfterThresholdFailures(t *testing.T) {
 	ac.LoadAndRun(context.Background())
 
 	require.Eventually(t, func() bool {
-		return ms.schedules.Load() == 1 && ms.unschedules.Load() == 1
+		return ms.Schedules() == 1 && ms.Unschedules() == 1
 	}, 10*time.Second, 20*time.Millisecond,
 		"AD must dispatch Schedule then Unschedule after trialFailureThreshold failures arrive via the real worker→callback→recordTrialResult chain")
 	assert.False(t, containsConfigNamed(ac, "krakend_threshold"),
@@ -276,14 +312,14 @@ func TestADWorkerIntegration_SuccessPromotesAndIsolatesFromAD(t *testing.T) {
 	// normal worker error-reporting path. Their existence is the load-bearing
 	// signal that the trial callback did NOT fire for them.
 	require.Eventually(t, func() bool {
-		return int(expvars.GetErrorsCount()) >= trialFailureThreshold+1
+		return int(expvars.GetErrorsCount()) >= autodiscoveryimpl.TrialFailureThreshold+1
 	}, 10*time.Second, 20*time.Millisecond,
 		"post-promotion failures must be reported as integration errors, proving promotion isolates the trial path")
 
 	// Promotion must keep AD out of the trial-counter loop — no Unschedule
 	// dispatch should fire despite many post-promotion failures.
-	assert.Equal(t, int64(1), ms.schedules.Load(), "exactly one Schedule")
-	assert.Equal(t, int64(0), ms.unschedules.Load(), "no Unschedule after promotion")
+	assert.Equal(t, int64(1), ms.Schedules(), "exactly one Schedule")
+	assert.Equal(t, int64(0), ms.Unschedules(), "no Unschedule after promotion")
 	assert.True(t, containsConfigNamed(ac, "krakend_promotion"))
 }
 
@@ -311,11 +347,11 @@ func TestADWorkerIntegration_NonDiscoveryCheckNeverTriggersTrialPath(t *testing.
 	// Wait for enough failures to land — equivalent to what would have
 	// crossed the threshold if this were a discovery config.
 	require.Eventually(t, func() bool {
-		return int(expvars.GetErrorsCount()) >= trialFailureThreshold+3
+		return int(expvars.GetErrorsCount()) >= autodiscoveryimpl.TrialFailureThreshold+3
 	}, 10*time.Second, 20*time.Millisecond)
 
-	assert.Equal(t, int64(1), ms.schedules.Load(), "exactly one Schedule")
-	assert.Equal(t, int64(0), ms.unschedules.Load(),
+	assert.Equal(t, int64(1), ms.Schedules(), "exactly one Schedule")
+	assert.Equal(t, int64(0), ms.Unschedules(),
 		"non-discovery check must never trigger the trial-path unschedule")
 	assert.True(t, containsConfigNamed(ac, "regular_check"))
 }
