@@ -273,7 +273,7 @@ AGENT_TEST_TAGS = AGENT_TAGS.union({"clusterchecks"})
 LINUX_ONLY_TAGS = {"netcgo", "systemd", "jetson", "linux_bpf", "nvml", "pcap", "podman", "trivy", "crio"}
 
 # List of tags to always remove when building on AIX
-AIX_EXCLUDE_TAGS = {
+AIX_EXCLUDED_TAGS = {
     "cel",
     "clusterchecks",
     "containerd",
@@ -298,7 +298,7 @@ AIX_EXCLUDE_TAGS = {
 }
 
 # List of tags to always remove when building on Windows
-WINDOWS_EXCLUDE_TAGS = {
+WINDOWS_EXCLUDED_TAGS = {
     "requirefips",
 }
 
@@ -309,7 +309,7 @@ DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "cri"}
 UNIT_TEST_TAGS = {"test"}
 
 # List of tags to always remove when running unit tests
-UNIT_TEST_EXCLUDE_TAGS = {"datadog.no_waf", "pcap"}
+UNIT_TEST_EXCLUDED_TAGS = {"datadog.no_waf", "pcap"}
 
 # Build type: maps flavor to build tags map
 build_tags = {
@@ -324,7 +324,7 @@ build_tags = {
         "security-agent": SECURITY_AGENT_TAGS,
         "serverless": SERVERLESS_TAGS,
         "system-probe": SYSTEM_PROBE_TAGS,
-        "system-probe-unit-tests": SYSTEM_PROBE_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "system-probe-unit-tests": SYSTEM_PROBE_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
         "trace-agent": TRACE_AGENT_TAGS,
         "cws-instrumentation": CWS_INSTRUMENTATION_TAGS,
         "sbomgen": SBOMGEN_TAGS,
@@ -337,15 +337,15 @@ build_tags = {
         "test": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS)
         .union(CLUSTER_AGENT_TAGS)
         .union(UNIT_TEST_TAGS)
-        .difference(UNIT_TEST_EXCLUDE_TAGS),
+        .difference(UNIT_TEST_EXCLUDED_TAGS),
         "lint": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS)
         .union(CLUSTER_AGENT_TAGS)
         .union(UNIT_TEST_TAGS)
-        .difference(UNIT_TEST_EXCLUDE_TAGS),
+        .difference(UNIT_TEST_EXCLUDED_TAGS),
         "unit-tests": AGENT_TEST_TAGS.union(PROCESS_AGENT_TAGS)
         .union(CLUSTER_AGENT_TAGS)
         .union(UNIT_TEST_TAGS)
-        .difference(UNIT_TEST_EXCLUDE_TAGS),
+        .difference(UNIT_TEST_EXCLUDED_TAGS),
     },
     AgentFlavor.fips: {
         "agent": AGENT_TAGS.union(FIPS_TAGS),
@@ -356,7 +356,7 @@ build_tags = {
         "system-probe": SYSTEM_PROBE_TAGS.union(FIPS_TAGS),
         "system-probe-unit-tests": SYSTEM_PROBE_TAGS.union(FIPS_TAGS)
         .union(UNIT_TEST_TAGS)
-        .difference(UNIT_TEST_EXCLUDE_TAGS),
+        .difference(UNIT_TEST_EXCLUDED_TAGS),
         "trace-agent": TRACE_AGENT_TAGS.union(FIPS_TAGS),
         "cws-instrumentation": CWS_INSTRUMENTATION_TAGS.union(FIPS_TAGS),
         "sbomgen": SBOMGEN_TAGS.union(FIPS_TAGS),
@@ -364,26 +364,26 @@ build_tags = {
         "privateactionrunner": PRIVATEACTIONRUNNER_TAGS.union(FIPS_TAGS),
         "secret-generic-connector": SECRET_GENERIC_CONNECTOR_TAGS.union(FIPS_TAGS),
         # Test setups
-        "lint": AGENT_TAGS.union(FIPS_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
-        "unit-tests": AGENT_TAGS.union(FIPS_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "lint": AGENT_TAGS.union(FIPS_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
+        "unit-tests": AGENT_TAGS.union(FIPS_TAGS).union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
         "otel-agent": OTEL_AGENT_TAGS.union(FIPS_TAGS),
     },
     AgentFlavor.heroku: {
         "agent": AGENT_HEROKU_TAGS,
         "process-agent": PROCESS_AGENT_HEROKU_TAGS,
         "trace-agent": TRACE_AGENT_HEROKU_TAGS,
-        "lint": AGENT_HEROKU_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
-        "unit-tests": AGENT_HEROKU_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "lint": AGENT_HEROKU_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
+        "unit-tests": AGENT_HEROKU_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
     },
     AgentFlavor.iot: {
         "agent": IOT_AGENT_TAGS,
-        "lint": IOT_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
-        "unit-tests": IOT_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "lint": IOT_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
+        "unit-tests": IOT_AGENT_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
     },
     AgentFlavor.dogstatsd: {
         "dogstatsd": DOGSTATSD_TAGS,
-        "lint": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
-        "unit-tests": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
+        "lint": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
+        "unit-tests": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDED_TAGS),
     },
 }
 
@@ -485,13 +485,13 @@ def filter_incompatible_tags(include, platform=None):
 
     if platform == "win32":
         include = include.union(["wmi"])
-        exclude = exclude.union(WINDOWS_EXCLUDE_TAGS)
+        exclude = exclude.union(WINDOWS_EXCLUDED_TAGS)
 
     if platform == "darwin":
         exclude = exclude.union(DARWIN_EXCLUDED_TAGS)
 
     if platform == "aix":
-        exclude = exclude.union(AIX_EXCLUDE_TAGS)
+        exclude = exclude.union(AIX_EXCLUDED_TAGS)
 
     return get_build_tags(include, exclude)
 
