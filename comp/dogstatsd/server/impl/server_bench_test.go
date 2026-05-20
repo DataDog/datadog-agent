@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/internal/identity"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pkglogsetup "github.com/DataDog/datadog-agent/pkg/util/log/setup"
@@ -117,6 +119,46 @@ func BenchmarkPbarseMetricMessage(b *testing.B) {
 			samplesBench = samplesBench[0:0]
 		}
 	})
+}
+
+func BenchmarkParseMetricMessageColumnarV3DirectFastLane(b *testing.B) {
+	message := []byte("daemon:666|c|@0.5|#sometag1:somevalue1,sometag2:somevalue2,service:agent,env:prod")
+
+	bench := func(b *testing.B, fastLane bool) {
+		b.Setenv("DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER", "true")
+		b.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES", "true")
+		if fastLane {
+			b.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_FASTLANE", "true")
+		} else {
+			b.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_FASTLANE", "false")
+		}
+
+		deps := fulfillDepsWithConfigOverride(b, map[string]interface{}{"dogstatsd_port": listeners.RandomPortName})
+		s := deps.Server.(*dsdServer)
+		s.columnarV3FastLane = fastLane
+		parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+		builder := identity.NewBuilder()
+		batcher := &countingBatcher{}
+
+		for i := 0; i < 3; i++ {
+			_, handled, err := s.parseMetricMessageColumnarV3Direct(batcher, parser, builder, message, "", 0, "listener", false, nil, nil, nil)
+			if err != nil || !handled {
+				b.Fatalf("warmup handled=%t err=%v", handled, err)
+			}
+		}
+
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, handled, err := s.parseMetricMessageColumnarV3Direct(batcher, parser, builder, message, "", 0, "listener", false, nil, nil, nil)
+			if err != nil || !handled {
+				b.Fatalf("handled=%t err=%v", handled, err)
+			}
+		}
+	}
+
+	b.Run("direct_materialized", func(b *testing.B) { bench(b, false) })
+	b.Run("fastlane_descriptor_hit", func(b *testing.B) { bench(b, true) })
 }
 
 func BenchmarkWithMapper(b *testing.B) {

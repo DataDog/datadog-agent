@@ -148,6 +148,7 @@ type dsdServer struct {
 	histToDistPrefix         string
 	extraTags                []string
 	columnarV3DirectParse    bool
+	columnarV3FastLane       bool
 	Debug                    serverdebug.Component
 	filterList               filterlist.Component
 
@@ -312,6 +313,7 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 		histToDistPrefix:        histToDistPrefix,
 		extraTags:               extraTags,
 		columnarV3DirectParse:   columnarV3DirectParseEnabled(),
+		columnarV3FastLane:      columnarV3FastLaneEnabled(),
 		eolTerminationUDP:       eolTerminationUDP,
 		eolTerminationUDS:       eolTerminationUDS,
 		eolTerminationNamedPipe: eolTerminationNamedPipe,
@@ -1051,6 +1053,85 @@ func columnarV3DirectMetricTypeSupported(mtype metrics.MetricType) bool {
 	}
 }
 
+func (s *dsdServer) parseMetricMessageColumnarV3FastLane(batcher dogstatsdBatcher, parser *parser, identityBuilder *identity.Builder, message []byte, origin string,
+	processID uint32, okCnt telemetry.SimpleCounter, filterList *utilstrings.Matcher) bool {
+	// This upper-bound path deliberately handles only samples whose identity is
+	// already known to parser-local dictionaries and whose enrichment is a static
+	// projection. Anything requiring tag/origin mutation falls back to the normal
+	// direct path.
+	if origin != "" || processID != 0 || parser == nil || parser.dsdOriginEnabled {
+		return false
+	}
+
+	fastSample, ok := parser.parseMetricSampleColumnarV3FastLane(message)
+	if !ok {
+		return false
+	}
+	if math.IsInf(fastSample.value, 0) || math.IsNaN(fastSample.value) {
+		return false
+	}
+	s.recordMetricTypeTelemetry(fastSample.metricType)
+
+	desc, found := parser.columnarV3FastDescriptors.lookup(fastSample.rawName, fastSample.tagset.id, fastSample.mtype)
+	if !found {
+		name := parser.interner.LoadOrStore(fastSample.rawName)
+		metricName := name
+		if !isExcluded(metricName, s.enrichConfig.metricPrefix, s.enrichConfig.metricPrefixBlacklist) {
+			metricName = s.enrichConfig.metricPrefix + metricName
+		}
+		if filterList != nil && filterList.Test(metricName) {
+			tlmFilteredPoints.Inc()
+			return true
+		}
+
+		host := s.enrichConfig.defaultHostname
+		metricSource := GetDefaultMetricSource()
+		if s.enrichConfig.serverlessMode {
+			host = ""
+			if strings.HasPrefix(metricName, "runtime.") {
+				metricSource = serverlessSourceCustomToRuntime(metricSource)
+			}
+		}
+
+		template := metrics.MetricSample{
+			Host:              host,
+			Name:              metricName,
+			Tags:              fastSample.tagset.tags,
+			Mtype:             fastSample.mtype,
+			SampleRate:        fastSample.sampleRate,
+			Source:            metricSource,
+			Unit:              unitFromMetricType(fastSample.metricType),
+			DogStatsDTagsetID: fastSample.tagset.id,
+		}
+		context := identityBuilder.ResolveShardHotPath(template)
+		if context.CompactID == 0 || context.CompactState == nil {
+			return false
+		}
+		desc = &columnarV3FastDescriptor{
+			name:    metricName,
+			tags:    fastSample.tagset.tags,
+			host:    host,
+			unit:    template.Unit,
+			source:  metricSource,
+			mtype:   fastSample.mtype,
+			context: context,
+		}
+		parser.columnarV3FastDescriptors.insert(fastSample.rawName, fastSample.tagset.id, fastSample.mtype, desc)
+	}
+
+	if filterList != nil && filterList.Test(desc.name) {
+		tlmFilteredPoints.Inc()
+		return true
+	}
+
+	includeDescriptor := !desc.context.CompactState.ColumnarDescriptorKnown(desc.mtype)
+	row := newDogStatsDColumnarV3SampleFromFastDescriptor(desc, fastSample.value, fastSample.sampleRate, includeDescriptor)
+	batcher.appendColumnarV3Row(row)
+	dogstatsdMetricPackets.Add(1)
+	okCnt.Inc()
+	return true
+}
+
 func (s *dsdServer) parseMetricMessageColumnarV3Direct(batcher dogstatsdBatcher, parser *parser, identityBuilder *identity.Builder, message []byte, origin string,
 	processID uint32, listenerID string, originTelemetry bool, filterList *utilstrings.Matcher, metricSamples []metrics.MetricSample, columnarV3 aggregator.DogStatsDColumnarV3Inserter) ([]metrics.MetricSample, bool, error) {
 	// Keep this vertical slice intentionally narrow. If compatibility features that
@@ -1061,6 +1142,12 @@ func (s *dsdServer) parseMetricMessageColumnarV3Direct(batcher dogstatsdBatcher,
 	}
 
 	okCnt, errorCnt := s.metricTelemetryCounters(origin, originTelemetry)
+	if s.columnarV3FastLane {
+		if handled := s.parseMetricMessageColumnarV3FastLane(batcher, parser, identityBuilder, message, origin, processID, okCnt, filterList); handled {
+			return metricSamples, true, nil
+		}
+	}
+
 	sample, err := parser.parseMetricSample(message)
 	if err != nil {
 		dogstatsdMetricParseErrors.Add(1)

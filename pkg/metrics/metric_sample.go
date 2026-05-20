@@ -103,6 +103,7 @@ const UnitMilliseconds = "millisecond"
 // goroutines.
 type DogStatsDCompactIdentityState struct {
 	columnarDescriptorKnown atomic.Uint32
+	columnarDescriptorRefs  [4]atomic.Uint64
 }
 
 func dogstatsdColumnarMetricTypeBit(mtype MetricType) uint32 {
@@ -110,6 +111,21 @@ func dogstatsdColumnarMetricTypeBit(mtype MetricType) uint32 {
 		return 0
 	}
 	return 1 << uint(mtype)
+}
+
+func dogstatsdColumnarMetricTypeRefIndex(mtype MetricType) int {
+	switch mtype {
+	case GaugeType:
+		return 0
+	case CounterType:
+		return 1
+	case CountType:
+		return 2
+	case SetType:
+		return 3
+	default:
+		return -1
+	}
 }
 
 // ColumnarDescriptorKnown reports whether the columnar-v3 consumer has already
@@ -138,6 +154,42 @@ func (s *DogStatsDCompactIdentityState) MarkColumnarDescriptorKnown(mtype Metric
 	}
 }
 
+// ColumnarDescriptorRef returns the columnar-v3 shard-local descriptor slot
+// last acknowledged for this compact identity and metric type. The generation
+// must be validated by the columnar shard before use.
+func (s *DogStatsDCompactIdentityState) ColumnarDescriptorRef(mtype MetricType) (int, uint32, bool) {
+	if s == nil {
+		return 0, 0, false
+	}
+	idx := dogstatsdColumnarMetricTypeRefIndex(mtype)
+	if idx < 0 {
+		return 0, 0, false
+	}
+	packed := s.columnarDescriptorRefs[idx].Load()
+	if packed == 0 {
+		return 0, 0, false
+	}
+	descriptorID := int(uint32(packed)) - 1
+	generation := uint32(packed >> 32)
+	return descriptorID, generation, generation != 0
+}
+
+// MarkColumnarDescriptorRef records the columnar-v3 shard-local descriptor slot
+// for this compact identity and metric type. The descriptor ID is packed as +1
+// so zero remains the missing-reference sentinel.
+func (s *DogStatsDCompactIdentityState) MarkColumnarDescriptorRef(mtype MetricType, descriptorID int, generation uint32) {
+	if s == nil || descriptorID < 0 || generation == 0 {
+		return
+	}
+	idx := dogstatsdColumnarMetricTypeRefIndex(mtype)
+	if idx < 0 {
+		return
+	}
+	packed := (uint64(generation) << 32) | uint64(uint32(descriptorID+1))
+	s.columnarDescriptorRefs[idx].Store(packed)
+	s.MarkColumnarDescriptorKnown(mtype)
+}
+
 // ClearColumnarDescriptorKnown clears the downstream descriptor acknowledgement
 // for one metric type.
 func (s *DogStatsDCompactIdentityState) ClearColumnarDescriptorKnown(mtype MetricType) {
@@ -147,6 +199,9 @@ func (s *DogStatsDCompactIdentityState) ClearColumnarDescriptorKnown(mtype Metri
 	bit := dogstatsdColumnarMetricTypeBit(mtype)
 	if bit == 0 {
 		return
+	}
+	if idx := dogstatsdColumnarMetricTypeRefIndex(mtype); idx >= 0 {
+		s.columnarDescriptorRefs[idx].Store(0)
 	}
 	for {
 		old := s.columnarDescriptorKnown.Load()

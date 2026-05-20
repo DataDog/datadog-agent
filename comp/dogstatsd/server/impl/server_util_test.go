@@ -39,6 +39,7 @@ import (
 	offlinereportermock "github.com/DataDog/datadog-agent/comp/offlinereporter/mock"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-mock"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -154,6 +155,7 @@ type batcherMock struct {
 	events        []*event.Event
 	lateSamples   []metrics.MetricSample
 	samples       []metrics.MetricSample
+	columnarRows  []aggregator.DogStatsDColumnarV3Sample
 }
 
 func (b *batcherMock) appendServiceCheck(serviceCheck *servicecheck.ServiceCheck) {
@@ -184,6 +186,10 @@ func (b *batcherMock) appendColumnarV3SampleWithContext(sample metrics.MetricSam
 	b.appendSample(sample)
 }
 
+func (b *batcherMock) appendColumnarV3Row(row aggregator.DogStatsDColumnarV3Sample) {
+	b.columnarRows = append(b.columnarRows, row)
+}
+
 func (b *batcherMock) needsSampleContext() bool { return false }
 
 func (b *batcherMock) flush() {}
@@ -193,6 +199,7 @@ func (b *batcherMock) clear() {
 	b.events = b.events[0:0]
 	b.lateSamples = b.lateSamples[0:0]
 	b.samples = b.samples[0:0]
+	b.columnarRows = b.columnarRows[0:0]
 }
 
 func genTestPackets(inputs ...[]byte) []*packets.Packet {

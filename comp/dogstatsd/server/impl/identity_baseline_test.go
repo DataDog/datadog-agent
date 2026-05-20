@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/internal/identity"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -249,6 +250,9 @@ func (b *countingBatcher) appendLateSampleWithContext(metrics.MetricSample, iden
 	b.lateSamples++
 }
 func (b *countingBatcher) appendColumnarV3SampleWithContext(metrics.MetricSample, identity.HotPathContext) {
+	b.samples++
+}
+func (b *countingBatcher) appendColumnarV3Row(aggregator.DogStatsDColumnarV3Sample) {
 	b.samples++
 }
 func (b *countingBatcher) appendEvent(*event.Event)                      { b.events++ }

@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/internal/identity"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -111,6 +112,10 @@ func (b *resolvedContextBatcher) appendLateSampleWithContext(sample metrics.Metr
 
 func (b *resolvedContextBatcher) appendColumnarV3SampleWithContext(sample metrics.MetricSample, context identity.HotPathContext) {
 	b.appendSampleWithContext(sample, context)
+}
+
+func (b *resolvedContextBatcher) appendColumnarV3Row(row aggregator.DogStatsDColumnarV3Sample) {
+	b.samples = append(b.samples, metrics.MetricSample{Name: row.Name, Value: row.Value, Mtype: row.Mtype, Tags: row.Tags, Host: row.Host})
 }
 
 func (b *resolvedContextBatcher) appendEvent(event *event.Event) {

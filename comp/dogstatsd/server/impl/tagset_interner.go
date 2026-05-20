@@ -32,6 +32,7 @@ func parserTagsetInternerSize(defaultSize int) int {
 type parserTagset struct {
 	tags []string
 	id   uint64
+	hit  bool
 }
 
 type parserTagsetInterner struct {
@@ -80,8 +81,7 @@ func (i *parserTagsetInterner) LoadOrParse(rawTags []byte, parse func([]byte) []
 
 	// Keep string(rawTags) directly in the lookup expression so cache hits do
 	// not allocate a temporary string.
-	if tagset, found := i.tagsets[string(rawTags)]; found {
-		i.hits++
+	if tagset, found := i.Lookup(rawTags); found {
 		return tagset
 	}
 
@@ -104,6 +104,18 @@ func (i *parserTagsetInterner) LoadOrParse(rawTags []byte, parse func([]byte) []
 	i.insert(key, tagset)
 	i.admitted++
 	return tagset
+}
+
+func (i *parserTagsetInterner) Lookup(rawTags []byte) (parserTagset, bool) {
+	if i == nil || len(rawTags) == 0 {
+		return parserTagset{}, false
+	}
+	if tagset, found := i.tagsets[string(rawTags)]; found {
+		i.hits++
+		tagset.hit = true
+		return tagset, true
+	}
+	return parserTagset{}, false
 }
 
 func (i *parserTagsetInterner) recordSeen(hash uint64) {

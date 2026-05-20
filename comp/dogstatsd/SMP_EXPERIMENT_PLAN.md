@@ -1671,3 +1671,59 @@ Artifacts:
 - `reports/smp/dogstatsd-agg-serde-20260516-143205/notes/stageV-compact-id-consumers.md`
 - `reports/smp/dogstatsd-agg-serde-20260516-143205/stageV_compact_consumers_effects.csv`
 - `reports/smp/dogstatsd-agg-serde-20260516-143205/stageV_compact_consumers_selected_metrics.csv`
+
+### Stage W: parser no-materialization fast lane
+
+Stage W is intentionally narrower than Stage V so it can test whether compact
+IDs can remove per-sample parser/enrichment/identity work before spending time
+on SMP runs.
+
+Implemented gate:
+
+- `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_FASTLANE=true`
+  - requires the existing exact raw-tagset cache and compact identity gates to
+    be useful;
+  - handles only single-value gauge/count metric messages whose exact raw tagset
+    is already admitted in the parser tagset cache;
+  - requires no mapper, no extra tags, no hist-to-distribution, no debug stats,
+    no client origin fields, and no UDS origin/process metadata;
+  - on hit, looks up a worker-local descriptor by raw metric name + tagset ID +
+    metric type without materializing tags or a full `MetricSample`;
+  - appends a scalar columnar-v3 row directly from the cached descriptor;
+  - falls back to Stage V/direct parsing for misses, multivalue samples,
+    unsupported types, timestamps, non-finite values, or enrichment features.
+- `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_FASTLANE_SIZE=<entries>` controls the
+  worker-local descriptor cache size (default `65536`).
+
+Stage W also extends compact identity state with validated columnar descriptor
+references. Columnar descriptors now carry a generation number; once a compact
+identity has been observed, parser workers can send descriptor ID + generation
+and the columnar shard can insert by validated descriptor ref instead of doing a
+compact-ID descriptor map lookup. Descriptor expiry clears both the known bit and
+ref.
+
+Pre-SMP focused benchmark:
+
+```bash
+dda inv test --targets=./comp/dogstatsd/server/impl --timeout=300 --extra-args='-run=^$ -bench=BenchmarkParseMetricMessageColumnarV3DirectFastLane -benchmem -count=5'
+```
+
+Representative result from the focused benchmark:
+
+| Path | ns/op | allocs |
+|---|---:|---:|
+| Stage V direct materialized hit | `311.8` | `0 B/op`, `0 allocs/op` |
+| Stage W fast-lane descriptor hit | `185.2` | `0 B/op`, `0 allocs/op` |
+
+This is a `~40.6%` parser/direct-handoff microbenchmark reduction on the exact
+cache-hit path, so Stage W clears the pre-SMP bar for a high-rate metrics-only
+SMP run. The expected macro signal is agent CPU reduction first; throughput may
+still be generator-limited unless the SMP case is pushed into saturation.
+
+Validation:
+
+```bash
+dda inv test --targets=./comp/dogstatsd/server/impl,./comp/dogstatsd/internal/identity,./pkg/aggregator,./pkg/metrics --timeout=300
+```
+
+Result: passed (`658` package tests; unified report `576` tests).

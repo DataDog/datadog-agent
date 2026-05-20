@@ -98,6 +98,10 @@ type DogStatsDColumnarV3Sample struct {
 	CompactID    uint64
 	CompactState *metrics.DogStatsDCompactIdentityState
 
+	DescriptorID         int
+	DescriptorGeneration uint32
+	HasDescriptorRef     bool
+
 	Value      float64
 	SampleRate float64
 	RawValue   string
@@ -123,6 +127,12 @@ func NewDogStatsDColumnarV3SampleFromMetricSample(contextKey ckey.ContextKey, co
 		SampleRate:   sample.SampleRate,
 		RawValue:     sample.RawValue,
 		Mtype:        sample.Mtype,
+	}
+	if descriptorID, generation, ok := compactState.ColumnarDescriptorRef(sample.Mtype); ok {
+		row.DescriptorID = descriptorID
+		row.DescriptorGeneration = generation
+		row.HasDescriptorRef = true
+		return row
 	}
 	if includeDescriptor {
 		row.Name = sample.Name
@@ -227,6 +237,7 @@ type dogstatsdColumnarShard struct {
 	descriptorNonMonotonic []bool
 	compactStates          []map[*metrics.DogStatsDCompactIdentityState]struct{}
 	contextKeys            []ckey.ContextKey
+	descriptorGenerations  []uint32
 	names                  []string
 	hosts                  []string
 	tags                   [][]string
@@ -506,21 +517,24 @@ func (s *dogstatsdColumnarStore) insertAcceptedRowInShard(shard *dogstatsdColumn
 	}
 
 	key := dogstatsdColumnarKey{contextKey: row.ContextKey, mtype: row.Mtype}
-	descriptorID, ok := shard.lookupDescriptorByCompactID(row.CompactID, key)
+	descriptorID, ok := shard.lookupDescriptorByRef(row.DescriptorID, row.DescriptorGeneration, key, row.HasDescriptorRef)
 	if !ok {
-		descriptorID, ok = shard.descriptorByKey[key]
-		if !ok || !shard.descriptorActive[descriptorID] {
-			if !row.HasDescriptor {
-				row.CompactState.ClearColumnarDescriptorKnown(row.Mtype)
-				recordDogstatsdColumnarFallback("compact_descriptor_missing")
-				return
+		descriptorID, ok = shard.lookupDescriptorByCompactID(row.CompactID, key)
+		if !ok {
+			descriptorID, ok = shard.descriptorByKey[key]
+			if !ok || !shard.descriptorActive[descriptorID] {
+				if !row.HasDescriptor {
+					row.CompactState.ClearColumnarDescriptorKnown(row.Mtype)
+					recordDogstatsdColumnarFallback("compact_descriptor_missing")
+					return
+				}
+				descriptorID = shard.appendDescriptorFromRow(key, row, s.descriptorInterning)
 			}
-			descriptorID = shard.appendDescriptorFromRow(key, row, s.descriptorInterning)
+			shard.rememberCompactDescriptor(row.CompactID, descriptorID, s.compactHintSize)
 		}
-		shard.rememberCompactDescriptor(row.CompactID, descriptorID, s.compactHintSize)
 	}
-	if row.CompactID != 0 && !row.CompactState.ColumnarDescriptorKnown(row.Mtype) {
-		row.CompactState.MarkColumnarDescriptorKnown(row.Mtype)
+	if row.CompactID != 0 {
+		row.CompactState.MarkColumnarDescriptorRef(row.Mtype, descriptorID, shard.descriptorGenerations[descriptorID])
 		shard.rememberCompactState(descriptorID, row.CompactState)
 	}
 	shard.lastSeen[descriptorID] = bucketStart
@@ -588,6 +602,16 @@ func (s *dogstatsdColumnarShard) releaseBucket(bucket *dogstatsdColumnarBucket) 
 	s.freeBuckets = append(s.freeBuckets, bucket)
 }
 
+func (s *dogstatsdColumnarShard) lookupDescriptorByRef(descriptorID int, generation uint32, key dogstatsdColumnarKey, hasRef bool) (int, bool) {
+	if !hasRef || generation == 0 || descriptorID < 0 || descriptorID >= len(s.descriptorActive) {
+		return 0, false
+	}
+	if s.descriptorActive[descriptorID] && s.descriptorGenerations[descriptorID] == generation && s.contextKeys[descriptorID] == key.contextKey && s.mtypes[descriptorID] == key.mtype {
+		return descriptorID, true
+	}
+	return 0, false
+}
+
 func (s *dogstatsdColumnarShard) lookupDescriptorByCompactID(compactID uint64, key dogstatsdColumnarKey) (int, bool) {
 	if compactID == 0 || s.descriptorByCompactID == nil {
 		return 0, false
@@ -653,6 +677,7 @@ func (s *dogstatsdColumnarShard) appendDescriptorFromRow(key dogstatsdColumnarKe
 	} else {
 		idx = len(s.names)
 		s.contextKeys = append(s.contextKeys, 0)
+		s.descriptorGenerations = append(s.descriptorGenerations, 0)
 		s.names = append(s.names, "")
 		s.hosts = append(s.hosts, "")
 		s.tags = append(s.tags, nil)
@@ -681,6 +706,11 @@ func (s *dogstatsdColumnarShard) appendDescriptorFromRow(key dogstatsdColumnarKe
 		host = s.dictionary.internString(row.Host)
 		tags, tagKey = s.dictionary.internTags(row.Tags)
 		unit = s.dictionary.internString(row.Unit)
+	}
+
+	s.descriptorGenerations[idx]++
+	if s.descriptorGenerations[idx] == 0 {
+		s.descriptorGenerations[idx] = 1
 	}
 
 	s.descriptorByKey[key] = idx

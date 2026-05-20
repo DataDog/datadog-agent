@@ -37,6 +37,38 @@ func TestParseMetricMessageColumnarV3Direct(t *testing.T) {
 	assert.Equal(t, []string{"env:prod"}, batcher.samples[0].Tags)
 }
 
+func TestParseMetricMessageColumnarV3FastLaneUsesExactTagsetHit(t *testing.T) {
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER", "true")
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES", "true")
+	t.Setenv("DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_FASTLANE", "true")
+
+	deps := fulfillDepsWithConfigOverride(t, map[string]interface{}{"dogstatsd_port": listeners.RandomPortName})
+	s := deps.Server.(*dsdServer)
+	parser := newParser(deps.Config, s.sharedFloat64List, 1, deps.WMeta, s.stringInternerTelemetry)
+	batcher := &batcherMock{}
+	builder := identity.NewBuilder()
+	message := []byte("fast.metric:42|g|#env:prod,service:agent")
+
+	for i := 0; i < 3; i++ {
+		var handled bool
+		var err error
+		_, handled, err = s.parseMetricMessageColumnarV3Direct(batcher, parser, builder, message, "", 0, "listener", false, nil, nil, nil)
+		require.NoError(t, err)
+		require.True(t, handled)
+	}
+
+	require.Len(t, batcher.samples, 2)
+	require.Len(t, batcher.columnarRows, 1)
+	row := batcher.columnarRows[0]
+	assert.Equal(t, "fast.metric", row.Name)
+	assert.Equal(t, 42.0, row.Value)
+	assert.Equal(t, metrics.GaugeType, row.Mtype)
+	assert.Equal(t, []string{"env:prod", "service:agent"}, row.Tags)
+	assert.True(t, row.HasDescriptor)
+	assert.NotZero(t, row.CompactID)
+	assert.NotNil(t, row.CompactState)
+}
+
 // Run through all of the major metric types and verify both the default and the timestamped flows
 func TestMetricTypes(t *testing.T) {
 	cfg := make(map[string]interface{})

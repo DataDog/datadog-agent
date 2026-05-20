@@ -33,6 +33,7 @@ type dogstatsdBatcher interface {
 	appendLateSample(sample metrics.MetricSample)
 	appendLateSampleWithContext(sample metrics.MetricSample, context identity.HotPathContext)
 	appendColumnarV3SampleWithContext(sample metrics.MetricSample, context identity.HotPathContext)
+	appendColumnarV3Row(row aggregator.DogStatsDColumnarV3Sample)
 	needsSampleContext() bool
 	flush()
 }

@@ -57,9 +57,10 @@ var (
 // parser parses dogstatsd messages
 // not safe for concurent use
 type parser struct {
-	interner       *stringInterner
-	tagsetInterner *parserTagsetInterner
-	float64List    *float64ListPool
+	interner                  *stringInterner
+	tagsetInterner            *parserTagsetInterner
+	columnarV3FastDescriptors *columnarV3FastDescriptorCache
+	float64List               *float64ListPool
 
 	// dsdOriginEnabled controls whether the server should honor the container id sent by the
 	// client. Defaulting to false, this opt-in flag is used to avoid changing tags cardinality
@@ -78,12 +79,13 @@ func newParser(cfg model.Reader, float64List *float64ListPool, workerNum int, wm
 	readTimestamps := cfg.GetBool("dogstatsd_no_aggregation_pipeline")
 
 	return &parser{
-		interner:         newStringInterner(stringInternerCacheSize, workerNum, stringInternerTelemetry),
-		tagsetInterner:   newParserTagsetInterner(stringInternerCacheSize),
-		readTimestamps:   readTimestamps,
-		float64List:      float64List,
-		dsdOriginEnabled: cfg.GetBool("dogstatsd_origin_detection_client"),
-		provider:         provider.GetProvider(wmeta),
+		interner:                  newStringInterner(stringInternerCacheSize, workerNum, stringInternerTelemetry),
+		tagsetInterner:            newParserTagsetInterner(stringInternerCacheSize),
+		columnarV3FastDescriptors: newColumnarV3FastDescriptorCache(columnarV3FastLaneSize()),
+		readTimestamps:            readTimestamps,
+		float64List:               float64List,
+		dsdOriginEnabled:          cfg.GetBool("dogstatsd_origin_detection_client"),
+		provider:                  provider.GetProvider(wmeta),
 	}
 }
 
