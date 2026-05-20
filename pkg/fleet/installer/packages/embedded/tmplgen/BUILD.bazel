@@ -8,7 +8,19 @@ exports_files(
 go_library(
     name = "tmplgen_lib",
     srcs = ["main.go"],
-    embedsrcs = glob(["*.tmpl"]),
+    embedsrcs = [
+        "datadog-agent-action.service.tmpl",
+        "datadog-agent-data-plane.service.tmpl",
+        "datadog-agent-ddot.service.tmpl",
+        "datadog-agent-ddot.yaml.tmpl",
+        "datadog-agent-installer.service.tmpl",
+        "datadog-agent-process.service.tmpl",
+        "datadog-agent-procmgr.service.tmpl",
+        "datadog-agent-security.service.tmpl",
+        "datadog-agent-sysprobe.service.tmpl",
+        "datadog-agent-trace.service.tmpl",
+        "datadog-agent.service.tmpl",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded/tmplgen",
     visibility = ["//visibility:private"],
     deps = ["//pkg/template/text"],
@@ -25,6 +37,7 @@ go_test(
     srcs = ["main_test.go"],
     data = ["//pkg/fleet/installer/packages/embedded:tmpl_gen"],
     embed = [":tmplgen_lib"],
+    gotags = ["test"],
     deps = [
         "//pkg/fleet/installer/fixtures",
         "@com_github_stretchr_testify//require",

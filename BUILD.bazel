@@ -478,7 +478,6 @@ exports_files(glob(
 # gazelle:exclude pkg/eventmonitor/examples
 # gazelle:exclude pkg/eventmonitor/testutil
 # gazelle:exclude pkg/flare
-# gazelle:exclude pkg/fleet/installer/packages/embedded/tmplgen
 # gazelle:exclude pkg/gpu/containers
 # gazelle:exclude pkg/gpu/integrationtests
 # gazelle:exclude pkg/gpu/safenvml
