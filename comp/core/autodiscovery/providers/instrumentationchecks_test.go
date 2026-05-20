@@ -9,7 +9,7 @@ package providers
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 
@@ -18,8 +18,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
-	types "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 )
 
 // mockInstrumentationClient implements InstrumentationCheckClient.
@@ -33,9 +33,9 @@ func (m *mockInstrumentationClient) GetInstrumentationConfigs(_ context.Context)
 }
 
 func TestInstrumentationChecksCollect(t *testing.T) {
-	remoteErr := errors.NewRemoteServiceError("cluster-agent", "500 Internal Server Error")
-	timeoutErr := errors.NewTimeoutError("cluster-agent", fmt.Errorf("context deadline exceeded"))
-	genericErr := fmt.Errorf("unexpected error")
+	remoteErr := dderrors.NewRemoteServiceError("cluster-agent", "500 Internal Server Error")
+	timeoutErr := dderrors.NewTimeoutError("cluster-agent", errors.New("context deadline exceeded"))
+	genericErr := errors.New("unexpected error")
 
 	tests := []struct {
 		name             string
