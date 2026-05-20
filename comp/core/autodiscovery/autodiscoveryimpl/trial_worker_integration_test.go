@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
+	checkscheduler "github.com/DataDog/datadog-agent/pkg/collector/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector/worker"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -75,10 +76,10 @@ type trialTestCheck struct {
 	runCount *atomic.Uint64
 }
 
-// Interval returns 0 so the forwardingCollector — not the internal scheduler's
-// jobQueue (1s minimum tick) — controls how quickly the same check pointer is
-// re-emitted to the worker.
-func (c *trialTestCheck) Interval() time.Duration { return 0 }
+// Interval is a small positive value so the internal scheduler's jobQueue
+// (re-)emits this check at sub-second cadence. setupPipeline lowers the
+// scheduler's minAllowedInterval to permit this.
+func (c *trialTestCheck) Interval() time.Duration { return 5 * time.Millisecond }
 
 func (c *trialTestCheck) Run() error {
 	n := c.runCount.Inc() - 1
@@ -112,73 +113,31 @@ func (l *trialTestLoader) Load(_ sender.SenderManager, config integration.Config
 	return c, nil
 }
 
-// forwardingCollector is a minimal collector.Component. Its RunCheck spawns a
-// goroutine that pushes the wrapped check onto the worker's pending channel
-// repeatedly until StopCheck is called. This mimics the production semantics
-// of a periodic check without needing the internal scheduler's jobQueue (which
-// rejects sub-second intervals), so trial-threshold failures complete in
-// milliseconds rather than seconds.
-type forwardingCollector struct {
-	pending chan<- check.Check
-
-	mu    sync.Mutex
-	stops map[checkid.ID]chan struct{}
+// schedulerCollector is a minimal collector.Component that forwards
+// RunCheck/StopCheck to a real *checkscheduler.Scheduler (same scheduler
+// production uses inside collectorImpl). Enter/Cancel handle the jobQueue
+// lifecycle, so the worker drives the check on the check's own Interval.
+type schedulerCollector struct {
+	sch *checkscheduler.Scheduler
 }
 
-func newForwardingCollector(pending chan<- check.Check) *forwardingCollector {
-	return &forwardingCollector{
-		pending: pending,
-		stops:   make(map[checkid.ID]chan struct{}),
+func (c *schedulerCollector) RunCheck(ch check.Check) (checkid.ID, error) {
+	if err := c.sch.Enter(ch); err != nil {
+		return "", err
 	}
+	return ch.ID(), nil
 }
 
-func (fc *forwardingCollector) RunCheck(c check.Check) (checkid.ID, error) {
-	fc.mu.Lock()
-	if _, alreadyRunning := fc.stops[c.ID()]; alreadyRunning {
-		fc.mu.Unlock()
-		return c.ID(), nil
-	}
-	stop := make(chan struct{})
-	fc.stops[c.ID()] = stop
-	fc.mu.Unlock()
-
-	go func() {
-		for {
-			select {
-			case <-stop:
-				return
-			case fc.pending <- c:
-			}
-		}
-	}()
-	return c.ID(), nil
+func (c *schedulerCollector) StopCheck(id checkid.ID) error {
+	return c.sch.Cancel(id)
 }
 
-func (fc *forwardingCollector) StopCheck(id checkid.ID) error {
-	fc.mu.Lock()
-	defer fc.mu.Unlock()
-	if stop, ok := fc.stops[id]; ok {
-		close(stop)
-		delete(fc.stops, id)
-	}
-	return nil
-}
-
-func (fc *forwardingCollector) stopAll() {
-	fc.mu.Lock()
-	defer fc.mu.Unlock()
-	for id, stop := range fc.stops {
-		close(stop)
-		delete(fc.stops, id)
-	}
-}
-
-func (fc *forwardingCollector) ReloadAllCheckInstances(string, []check.Check) ([]checkid.ID, error) {
+func (c *schedulerCollector) ReloadAllCheckInstances(string, []check.Check) ([]checkid.ID, error) {
 	return nil, nil
 }
-func (fc *forwardingCollector) GetChecks() []check.Check                   { return nil }
-func (fc *forwardingCollector) MapOverChecks(cb func([]check.Info))        { cb(nil) }
-func (fc *forwardingCollector) AddEventReceiver(_ collector.EventReceiver) {}
+func (c *schedulerCollector) GetChecks() []check.Check                   { return nil }
+func (c *schedulerCollector) MapOverChecks(cb func([]check.Info))        { cb(nil) }
+func (c *schedulerCollector) AddEventReceiver(_ collector.EventReceiver) {}
 
 // trialTestProvider yields the prepared configs on first Collect, then empty.
 type trialTestProvider struct {
@@ -197,16 +156,23 @@ func (p *trialTestProvider) Collect(context.Context) ([]integration.Config, erro
 }
 func (p *trialTestProvider) IsUpToDate(context.Context) (bool, error) { return true, nil }
 
-// setupPipeline wires runner→forwardingCollector→CheckScheduler→AutoConfig
-// using production constructors. The trackingScheduler returned alongside
-// gives race-free Schedule/Unschedule counters for the assertions.
-func setupPipeline(t *testing.T) (*AutoConfig, *trackingScheduler, *forwardingCollector) {
+// setupPipeline wires runner→scheduler.Scheduler→schedulerCollector→
+// CheckScheduler→AutoConfig using production constructors. The
+// trackingScheduler returned alongside gives race-free Schedule/Unschedule
+// counters for the assertions.
+func setupPipeline(t *testing.T) (*AutoConfig, *trackingScheduler) {
 	t.Helper()
 	configmock.New(t)
 	expvars.Reset()
 	worker.ResetTrialCallbacksForTest()
 	t.Cleanup(worker.ResetTrialCallbacksForTest)
 	t.Cleanup(func() { setTrialRunFn(nil) })
+
+	// Allow sub-second intervals so trial-threshold failures complete in
+	// milliseconds (default minimum is 1s). Same approach as
+	// pkg/collector/scheduler/scheduler_test.go.
+	prev := checkscheduler.SetMinAllowedIntervalForTest(time.Millisecond)
+	t.Cleanup(func() { checkscheduler.SetMinAllowedIntervalForTest(prev) })
 
 	deps := createDeps(t)
 	msch := scheduler.NewControllerAndStart()
@@ -218,11 +184,15 @@ func setupPipeline(t *testing.T) (*AutoConfig, *trackingScheduler, *forwardingCo
 	r := runner.NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent(), healthplatformmock.Mock(t))
 	t.Cleanup(r.Stop)
 
-	fc := newForwardingCollector(r.GetChan())
-	t.Cleanup(fc.stopAll)
+	sch := checkscheduler.NewScheduler(r.GetChan())
+	sch.Run()
+	// Stop the scheduler before the runner so its jobQueue goroutines don't
+	// race with the runner closing pendingChecksChan (LIFO cleanup order).
+	t.Cleanup(func() { _ = sch.Stop() })
+	coll := &schedulerCollector{sch: sch}
 
 	cs := pkgcollector.InitCheckScheduler(
-		option.New[collector.Component](fc),
+		option.New[collector.Component](coll),
 		aggregator.NewNoOpSenderManager(),
 		option.None[integrations.Component](),
 		deps.TaggerComp,
@@ -230,7 +200,7 @@ func setupPipeline(t *testing.T) (*AutoConfig, *trackingScheduler, *forwardingCo
 	)
 	ac.AddScheduler("check", cs, false)
 
-	return ac, ts, fc
+	return ac, ts
 }
 
 // containsConfigNamed reports whether the AD-known configs include name.
@@ -270,7 +240,7 @@ func (ts *trackingScheduler) Stop()                             {}
 // Without that wrap, the unwrapped check fails the worker's trialModeCheck
 // type assertion, no trial callback fires, and AD never unschedules.
 func TestADWorkerIntegration_UnschedulesAfterThresholdFailures(t *testing.T) {
-	ac, ts, _ := setupPipeline(t)
+	ac, ts := setupPipeline(t)
 
 	setTrialRunFn(func(uint64) error { return errors.New("trial probe failed") })
 
@@ -301,7 +271,7 @@ func TestADWorkerIntegration_UnschedulesAfterThresholdFailures(t *testing.T) {
 // AD's trialRegistry and must not unschedule the config — they should flow
 // through the normal integration-error path.
 func TestADWorkerIntegration_SuccessPromotesAndIsolatesFromAD(t *testing.T) {
-	ac, ts, _ := setupPipeline(t)
+	ac, ts := setupPipeline(t)
 
 	// Run 0 succeeds (promotes out of trial mode); runs 1..N fail.
 	setTrialRunFn(func(n uint64) error {
@@ -344,7 +314,7 @@ func TestADWorkerIntegration_SuccessPromotesAndIsolatesFromAD(t *testing.T) {
 // type-assertion fails on every run; AD never sees a trial result; the
 // config stays scheduled even after many failures.
 func TestADWorkerIntegration_NonDiscoveryCheckNeverTriggersTrialPath(t *testing.T) {
-	ac, ts, _ := setupPipeline(t)
+	ac, ts := setupPipeline(t)
 
 	setTrialRunFn(func(uint64) error { return errors.New("regular failure") })
 

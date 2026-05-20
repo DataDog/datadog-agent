@@ -80,14 +80,14 @@ func newJobQueue(interval time.Duration) *jobQueue {
 		stop:         make(chan bool),
 		stopped:      make(chan bool),
 		health:       health.RegisterLiveness(fmt.Sprintf("collector-queue-%vs", interval.Seconds())),
-		bucketTicker: time.NewTicker(time.Second),
+		bucketTicker: time.NewTicker(minAllowedInterval),
 	}
 
 	var nb int
-	if interval <= time.Second {
+	if interval <= minAllowedInterval {
 		nb = 1
 	} else {
-		nb = int(interval.Truncate(time.Second).Seconds())
+		nb = int(interval.Truncate(minAllowedInterval) / minAllowedInterval)
 	}
 	for i := 0; i < nb; i++ {
 		bucket := &jobBucket{}
