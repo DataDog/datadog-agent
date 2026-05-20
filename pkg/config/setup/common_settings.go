@@ -2096,6 +2096,8 @@ func anomalyDetection(config pkgconfigmodel.Setup) {
 	// Log ingestion gate. When false, container/journald logs are not routed
 	// into the anomaly detection pipeline (recording is unaffected).
 	config.BindEnvAndSetDefault("anomaly_detection.logs.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.containers.enabled", true)
+	config.BindEnvAndSetDefault("anomaly_detection.logs.kubelet.enabled", true)
 
 	// Metrics ingestion gate. When false, externally-ingested metrics
 	// (DogStatsD, check samplers) are dropped at the handle factory.

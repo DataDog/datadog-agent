@@ -68,16 +68,19 @@ type logssourceComponent struct{}
 // NewComponent creates the logssource component.
 //
 // anomaly_detection.logs.enabled is the main toggle for all log ingestion:
-// setting it to false disables both container/AD logs (this component) and
-// agent-internal logs (observer's agent_logs tap). Defaults to false.
+// setting it to false disables container, kubelet, and agent-internal logs
+// (observer's agent_logs tap). Recording is unaffected.
+// anomaly_detection.logs.containers.enabled controls workloadmeta generic
+// container sources and AD-scheduled container log configs.
+// anomaly_detection.logs.kubelet.enabled controls the kubelet journald source.
 // anomaly_detection.agent_logs.enabled additionally controls the agent-internal
 // log tap and defaults to true when logs.enabled is true.
 //
 // The component is a no-op when any of these are true:
 //   - the observer is unavailable
-//   - workloadmeta is unavailable
 //   - anomaly_detection.enabled is false and anomaly_detection.recording.enabled is false
 //   - anomaly_detection.logs.enabled is false and anomaly_detection.recording.enabled is false
+//   - no enabled log source can start
 //
 // The component itself has no build-tag constraints. Capability differences
 // across builds are handled transparently by the underlying launchers:
@@ -90,14 +93,15 @@ func NewComponent(deps Requires) (Provides, error) {
 	wmeta, wmetaOk := deps.WMeta.Get()
 
 	analysisEnabled := deps.Config.GetBool("anomaly_detection.enabled")
-	logsEnabled := !deps.Config.IsConfigured("anomaly_detection.logs.enabled") || deps.Config.GetBool("anomaly_detection.logs.enabled")
+	logSourceSettings := newLogSourceSettings(deps.Config)
 	recordingEnabled := deps.Config.GetBool("anomaly_detection.recording.enabled")
 
-	// Skip when the observer is absent, workloadmeta is absent,
-	// or neither logs ingestion nor recording is requested.
-	if !obsOk || !wmetaOk || (!logsEnabled && !recordingEnabled) || (!analysisEnabled && !recordingEnabled) {
+	// Skip when the observer is absent, neither logs ingestion nor recording is
+	// requested, or no enabled source can start.
+	if !logSourceSettings.shouldStart(obsOk, wmetaOk, analysisEnabled, recordingEnabled) {
 		return Provides{Comp: &logssourceComponent{}}, nil
 	}
+	containerSourcesActive := logSourceSettings.containerSourcesEnabled && wmetaOk
 
 	observerHandle := obs.GetHandle("logs")
 
@@ -115,61 +119,74 @@ func NewComponent(deps Requires) (Provides, error) {
 	pipeline := newObserverPipeline(deps.Config, processingRules, deps.Hostname, observerHandle)
 	logSources := sources.NewLogSources()
 	tracker := tailers.NewTailerTracker()
-
-	fingerprintCfg, err := logsconfig.GlobalFingerprintConfig(deps.Config)
-	if err != nil {
-		deps.Log.Warnf("observer logssource: invalid fingerprint config, proceeding with defaults: %v", err)
-		fingerprintCfg = &types.FingerprintConfig{}
-	}
-	fileOpener := opener.NewFileOpener()
-	fileLauncher := filelauncher.NewLauncher(
-		deps.Config.GetInt("logs_config.open_files_limit"),
-		filelauncher.DefaultSleepDuration,
-		deps.Config.GetBool("logs_config.validate_pod_container_id"),
-		time.Duration(deps.Config.GetFloat64("logs_config.file_scan_period")*float64(time.Second)),
-		deps.Config.GetString("logs_config.file_wildcard_selection_mode"),
-		flare.NewFlareController(),
-		deps.Tagger,
-		fileOpener,
-		fileTailer.NewFingerprinter(*fingerprintCfg, fileOpener),
-	)
-
-	launcher := containerLauncher.NewLauncher(logSources, option.New(wmeta), deps.Tagger)
 	launchersMgr := launchers.NewLaunchers(logSources, pipeline, deps.Auditor, tracker)
-	launchersMgr.AddLauncher(fileLauncher)
-	launchersMgr.AddLauncher(launcher)
-	launchersMgr.AddLauncher(journaldlauncher.NewLauncher(flare.NewFlareController(), deps.Tagger))
 
-	registerKubeletJournaldSource(logSources, deps.Log)
-
-	sp := newSourceProvider(wmeta, logSources, pauseFilter)
-
-	services := service.NewServices()
-	adMgr := newADSourceManager(logSources, services, sp)
-
+	var sp *sourceProvider
+	var adMgr *adSourceManager
 	var adScheduler schedulers.Scheduler
-	if deps.Autodiscovery != nil {
-		adScheduler = logsadscheduler.NewNamed(deps.Autodiscovery, "observer-logssource AD scheduler")
+
+	if containerSourcesActive {
+		fingerprintCfg, err := logsconfig.GlobalFingerprintConfig(deps.Config)
+		if err != nil {
+			deps.Log.Warnf("observer logssource: invalid fingerprint config, proceeding with defaults: %v", err)
+			fingerprintCfg = &types.FingerprintConfig{}
+		}
+		fileOpener := opener.NewFileOpener()
+		fileLauncher := filelauncher.NewLauncher(
+			deps.Config.GetInt("logs_config.open_files_limit"),
+			filelauncher.DefaultSleepDuration,
+			deps.Config.GetBool("logs_config.validate_pod_container_id"),
+			time.Duration(deps.Config.GetFloat64("logs_config.file_scan_period")*float64(time.Second)),
+			deps.Config.GetString("logs_config.file_wildcard_selection_mode"),
+			flare.NewFlareController(),
+			deps.Tagger,
+			fileOpener,
+			fileTailer.NewFingerprinter(*fingerprintCfg, fileOpener),
+		)
+		launchersMgr.AddLauncher(fileLauncher)
+		launchersMgr.AddLauncher(containerLauncher.NewLauncher(logSources, option.New(wmeta), deps.Tagger))
+
+		sp = newSourceProvider(wmeta, logSources, pauseFilter)
+
+		services := service.NewServices()
+		adMgr = newADSourceManager(logSources, services, sp)
+
+		if deps.Autodiscovery != nil {
+			adScheduler = logsadscheduler.NewNamed(deps.Autodiscovery, "observer-logssource AD scheduler")
+		}
+	} else if logSourceSettings.containerSourcesEnabled {
+		deps.Log.Debugf("[observer/logssource] container log sources not started: workloadmeta unavailable")
+	}
+
+	if containerSourcesActive || logSourceSettings.kubeletSourceEnabled {
+		launchersMgr.AddLauncher(journaldlauncher.NewLauncher(flare.NewFlareController(), deps.Tagger))
+	}
+	if logSourceSettings.kubeletSourceEnabled {
+		registerKubeletJournaldSource(logSources, deps.Log)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	deps.Lc.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
-			deps.Log.Infof("[observer/logssource] starting container log pipeline")
+			deps.Log.Infof("[observer/logssource] starting log pipeline")
 			pipeline.start()
 			launchersMgr.Start()
 			if adScheduler != nil {
 				adScheduler.Start(adMgr)
 			}
-			sp.run(ctx)
+			if sp != nil {
+				sp.run(ctx)
+			}
 			return nil
 		},
 		OnStop: func(_ context.Context) error {
 			// Shutdown ordering is load-bearing — do NOT reorder.
 			// 1. Cancel context and wait for source provider to exit fully.
 			cancel()
-			sp.wait()
+			if sp != nil {
+				sp.wait()
+			}
 			// 2. Stop the AD scheduler so it does not add more sources.
 			if adScheduler != nil {
 				adScheduler.Stop()
