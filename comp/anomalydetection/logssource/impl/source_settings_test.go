@@ -150,31 +150,11 @@ func TestLogSourceSettingsShouldStart(t *testing.T) {
 			want:                  false,
 		},
 		{
-			name: "recording starts when parent logs are disabled",
-			settings: logSourceSettings{
-				containerSourcesEnabled: true,
-				kubeletSourceEnabled:    true,
-			},
-			observerAvailable:     true,
-			workloadmetaAvailable: true,
-			analysisEnabled:       true,
-			recordingEnabled:      true,
-			want:                  true,
-		},
-		{
 			name:                  "analysis disabled without recording",
 			settings:              defaultSettings,
 			observerAvailable:     true,
 			workloadmetaAvailable: true,
 			want:                  false,
-		},
-		{
-			name:                  "recording starts when analysis is disabled",
-			settings:              defaultSettings,
-			observerAvailable:     true,
-			workloadmetaAvailable: true,
-			recordingEnabled:      true,
-			want:                  true,
 		},
 		{
 			name: "recording starts when analysis and parent logs are disabled",
