@@ -86,7 +86,7 @@ Response:
 
 ## Windows install (MSI)
 
-The Datadog Agent Windows MSI ships the native host alongside `ddtray.exe` and registers it with Chrome machine-wide:
+The Datadog Agent Windows MSI ships the native host under the Agent install directory and registers it with Chrome machine-wide:
 
 | Path (default install) | Contents |
 |---|---|

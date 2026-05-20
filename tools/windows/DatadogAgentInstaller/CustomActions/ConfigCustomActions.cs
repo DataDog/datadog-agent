@@ -461,6 +461,8 @@ namespace Datadog.CustomActions
         private static void GrantAiUsageNativeHostConfigReadAccess(string configPath)
         {
             var security = File.GetAccessControl(configPath);
+            // Chrome launches the native messaging host as the browser user, so all
+            // local users need read access to the host config under ProgramData.
             security.AddAccessRule(new FileSystemAccessRule(
                 new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null),
                 FileSystemRights.Read,
