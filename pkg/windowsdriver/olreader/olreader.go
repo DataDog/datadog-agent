@@ -180,11 +180,12 @@ func (olr *OverlappedReader) Stop() {
 // handle. The OverlappedReader's handle is always opened with
 // FILE_FLAG_OVERLAPPED and bound to an IOCP (see Open), so this wrapper takes
 // the overlapped-handle code path unconditionally; see
-// driver.RealDriverHandle.SynchronousDeviceIoControl for the rationale.
+// driver.RealDriverHandle.SynchronousDeviceIoControl for the rationale and
+// the WINA-2669 hang it exists to prevent.
 //
-// On the returned values: if a driver fills the output buffer with as many
-// entries as fit but has more, it returns ERROR_MORE_DATA together with a
-// valid bytesReturned. Callers should inspect both.
+// On the returned values: some IOCTLs return ERROR_MORE_DATA after filling
+// part of the output buffer. When Windows reports a byte count, this wrapper
+// returns it alongside the error so callers can inspect both.
 func (olr *OverlappedReader) SynchronousDeviceIoControl(ioControlCode uint32, inBuffer *byte, inBufferSize uint32, outBuffer *byte, outBufferSize uint32) (bytesReturned uint32, err error) {
 	ev, err := windows.CreateEvent(nil, 1, 0, nil) // manual-reset, non-signaled
 	if err != nil {
@@ -198,24 +199,32 @@ func (olr *OverlappedReader) SynchronousDeviceIoControl(ioControlCode uint32, in
 	// crash on an IOCTL completion.
 	ol.HEvent = windows.Handle(uintptr(ev) | 1)
 
-	// Per MSDN, when lpOverlapped is non-NULL the lpBytesReturned value is
-	// meaningless until the operation completes -- get it from GetOverlappedResult.
-	err = windows.DeviceIoControl(olr.h, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize, nil, &ol)
+	// Use a separate local for the byte count Windows writes on the initiation
+	// path; the named return value is reserved for GetOverlappedResult on the
+	// async-completion path. Avoids the overlapped-I/O race where initiation
+	// and completion both write the same DWORD (per Raymond Chen).
+	var inlineBytes uint32
+	err = windows.DeviceIoControl(olr.h, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize, &inlineBytes, &ol)
 
 	switch {
 	case err == nil:
 		// Inline success.
 		if gerr := windows.GetOverlappedResult(olr.h, &ol, &bytesReturned, false); gerr != nil {
-			return bytesReturned, gerr
+			return inlineBytes, gerr
 		}
 		return bytesReturned, nil
 
 	case errors.Is(err, windows.ERROR_IO_PENDING):
 		// Async: wait on the raw (untagged) event ourselves, then collect.
-		// Don't use GetOverlappedResult(bWait=true) -- it would wait on the
-		// bit-tagged OVERLAPPED.HEvent, which isn't a valid kernel handle.
-		if _, werr := windows.WaitForSingleObject(ev, windows.INFINITE); werr != nil {
+		// The bit-tagged OVERLAPPED.HEvent isn't the raw wait handle; do the
+		// wait explicitly rather than rely on a Win32 wait API masking the
+		// IOCP-suppression bit.
+		status, werr := windows.WaitForSingleObject(ev, windows.INFINITE)
+		if werr != nil {
 			return 0, werr
+		}
+		if status != windows.WAIT_OBJECT_0 {
+			return 0, fmt.Errorf("SynchronousDeviceIoControl: unexpected wait status %#x", status)
 		}
 		if gerr := windows.GetOverlappedResult(olr.h, &ol, &bytesReturned, false); gerr != nil {
 			return bytesReturned, gerr
@@ -223,10 +232,10 @@ func (olr *OverlappedReader) SynchronousDeviceIoControl(ioControlCode uint32, in
 		return bytesReturned, nil
 
 	default:
-		// Inline error (including ERROR_MORE_DATA with partial data). Fetch the
-		// byte count for the partial-data case and propagate the original error.
-		_ = windows.GetOverlappedResult(olr.h, &ol, &bytesReturned, false)
-		return bytesReturned, err
+		// Inline error (e.g., ERROR_MORE_DATA with partial data). The IRP
+		// completed inline so inlineBytes is the byte count Windows wrote;
+		// propagate it with the original error.
+		return inlineBytes, err
 	}
 }
 

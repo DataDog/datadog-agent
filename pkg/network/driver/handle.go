@@ -195,45 +195,42 @@ func (dh *RealDriverHandle) ReadFile(p []byte, bytesRead *uint32, ol *windows.Ov
 // handle, branching internally based on whether the handle was opened with
 // FILE_FLAG_OVERLAPPED.
 //
-// On the returned values: if a driver fills the output buffer with as many
-// entries as fit but has more, it returns ERROR_MORE_DATA together with a
-// valid bytesReturned. Callers should inspect both.
+// On the returned values: some IOCTLs return ERROR_MORE_DATA after filling
+// part of the output buffer. When Windows reports a byte count, this wrapper
+// returns it alongside the error so callers can inspect both.
 //
 // # Synchronous handles
 //
 // For handles opened without FILE_FLAG_OVERLAPPED, Win32's DeviceIoControl is
 // naturally blocking. Per MSDN, lpBytesReturned must be non-NULL when
-// lpOverlapped is NULL. The call is forwarded directly.
+// lpOverlapped is NULL. The call is forwarded directly; bytesReturned is
+// filled by Win32 even on partial-data errors.
 //
 // # Overlapped handles (and why this wrapper exists)
 //
-// For handles opened with FILE_FLAG_OVERLAPPED, the Win32 call
-// DeviceIoControl(..., lpOverlapped=NULL) is unsafe. Step by step:
+// For FILE_FLAG_OVERLAPPED handles, DeviceIoControl must be called with a
+// valid OVERLAPPED containing an event. Passing lpOverlapped=NULL is outside
+// the documented contract and has been observed to hang indefinitely when
+// the handle is also associated with an IOCP -- asynchronous completions on
+// IOCP-associated handles are intended to be consumed via the completion
+// port, not via a direct wait on the handle. This is what produced the
+// WINA-2669 datadog-system-probe shutdown hang: with Driver Verifier enabled
+// on ddprocmon.sys, the STOP IOCTL on the overlapped+IOCP procmon handle was
+// issued with lpOverlapped=NULL; the IRP's completion was routed through the
+// IOCP and Win32's fallback wait on the file handle never returned. Only
+// process termination released it.
 //
-//  1. DeviceIoControl forwards to NtDeviceIoControlFile with Event=NULL.
-//  2. When the IRP returns STATUS_PENDING (forced by Driver Verifier on a WDF
-//     driver, and possible under other conditions where the kernel does not
-//     complete the IRP synchronously), Win32 falls back to waiting on the
-//     file handle's own event for completion.
-//  3. If the handle is associated with an I/O completion port (e.g. the DNS
-//     data handle in pkg/network/dns), the IO Manager posts the IRP's
-//     completion to the IOCP packet queue and does NOT signal the file handle
-//     event. The Win32 wait is on the wrong object and never completes.
-//  4. The thread is in a non-alertable, infinite NtWaitForSingleObject. The
-//     only way out is for the handle to be force-closed (typically by process
-//     termination), which cancels the IRP.
-//
-// This wrapper avoids that hang on overlapped handles by providing its own
-// OVERLAPPED with a private event whose low-order bit is set on HEvent. The
-// low bit tells the I/O Manager not to enqueue an IOCP completion packet for
-// this particular IRP -- otherwise the IRP's completion would arrive in the
-// IOCP read loop, which casts every completion to a *readbuffer (see e.g.
-// pkg/network/dns ReadDNSPacket and pkg/windowsdriver/olreader
-// OverlappedReader.Read) and would corrupt or crash. The wait happens on the
-// raw (untagged) event handle, after which GetOverlappedResult(bWait=false)
-// retrieves the final status and byte count. Using bWait=true would have
-// GetOverlappedResult wait on the bit-tagged OVERLAPPED.HEvent, which isn't a
-// valid kernel handle for WaitForSingleObject.
+// To provide synchronous caller semantics safely, this wrapper issues the
+// IOCTL as an overlapped request using a private manual-reset event. The low
+// bit of OVERLAPPED.HEvent is set so this IOCTL's completion is NOT queued
+// to the handle's IOCP -- the IOCP read loops on these handles
+// (pkg/network/dns ReadDNSPacket, pkg/windowsdriver/olreader
+// OverlappedReader.Read) assume every completion is a *readbuffer and would
+// corrupt or crash on an IOCTL completion. The wrapper waits on the raw
+// (untagged) event handle and then calls GetOverlappedResult(bWait=false)
+// for the final status and byte count. The bit-tagged HEvent isn't the raw
+// wait handle; do the wait explicitly rather than rely on a Win32 wait API
+// masking the IOCP-suppression bit.
 //
 // See: https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-getqueuedcompletionstatus
 //
@@ -260,24 +257,34 @@ func (dh *RealDriverHandle) SynchronousDeviceIoControl(ioControlCode uint32, inB
 	// Low bit on HEvent suppresses IOCP notification for this IRP (see doc above).
 	ol.HEvent = windows.Handle(uintptr(ev) | 1)
 
-	// Per MSDN, when lpOverlapped is non-NULL the lpBytesReturned value is
-	// meaningless until the operation completes -- get it from GetOverlappedResult.
-	err = windows.DeviceIoControl(dh.Handle, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize, nil, &ol)
+	// Use a separate local for any byte count Windows writes on the initiation
+	// path; the named return value `bytesReturned` is reserved for
+	// GetOverlappedResult on the async-completion path. Keeping the two
+	// variables separate avoids the classic overlapped-I/O race where the
+	// initiation thread and the completion path both write the same DWORD
+	// (Raymond Chen, "Why you should never use the same byte-count variable
+	// for the initiation and completion of an overlapped I/O").
+	var inlineBytes uint32
+	err = windows.DeviceIoControl(dh.Handle, ioControlCode, inBuffer, inBufferSize, outBuffer, outBufferSize, &inlineBytes, &ol)
 
 	switch {
 	case err == nil:
-		// Inline success: IRP completed before DeviceIoControl returned. Fetch
-		// the byte count.
+		// Inline success: IRP completed before DeviceIoControl returned.
+		// Prefer GetOverlappedResult's count; fall back to inlineBytes.
 		if gerr := windows.GetOverlappedResult(dh.Handle, &ol, &bytesReturned, false); gerr != nil {
-			return bytesReturned, gerr
+			return inlineBytes, gerr
 		}
 		return bytesReturned, nil
 
 	case errors.Is(err, windows.ERROR_IO_PENDING):
-		// Async: IRP is queued. Wait on the raw (untagged) event ourselves,
-		// then collect the final status and byte count.
-		if _, werr := windows.WaitForSingleObject(ev, windows.INFINITE); werr != nil {
+		// Async: IRP queued. Wait on the raw (untagged) event ourselves, then
+		// collect the final status and byte count.
+		status, werr := windows.WaitForSingleObject(ev, windows.INFINITE)
+		if werr != nil {
 			return 0, werr
+		}
+		if status != windows.WAIT_OBJECT_0 {
+			return 0, fmt.Errorf("SynchronousDeviceIoControl: unexpected wait status %#x", status)
 		}
 		if gerr := windows.GetOverlappedResult(dh.Handle, &ol, &bytesReturned, false); gerr != nil {
 			return bytesReturned, gerr
@@ -285,11 +292,10 @@ func (dh *RealDriverHandle) SynchronousDeviceIoControl(ioControlCode uint32, inB
 		return bytesReturned, nil
 
 	default:
-		// Inline error (including ERROR_MORE_DATA with partial data). The IRP
-		// is already complete with this status; try to get the byte count for
-		// the partial-data case and propagate the original error.
-		_ = windows.GetOverlappedResult(dh.Handle, &ol, &bytesReturned, false)
-		return bytesReturned, err
+		// Inline error (e.g., ERROR_MORE_DATA with partial data). The IRP
+		// completed inline so inlineBytes contains the byte count Windows
+		// wrote; propagate it with the original error.
+		return inlineBytes, err
 	}
 }
 
