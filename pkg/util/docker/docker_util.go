@@ -84,10 +84,13 @@ func ConnectToDocker(ctx context.Context) (*client.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Looks like docker is not actually doing a call to server when `NewClient` is called
-	// Forcing it to verify server availability by calling Info()
-	_, err = cli.Info(ctx, client.InfoOptions{})
-	if err != nil {
+	// client.New does not actually contact the server. Force a round-trip to
+	// verify availability. Use Ping rather than Info: Ping only reads HTTP
+	// headers, while Info decodes the full /info JSON payload. Some daemons
+	// emit DefaultAddressPools[].Base values that are not valid CIDRs, which
+	// fail moby v29's strict netip.Prefix decoding and would prevent
+	// DockerUtil from initializing at all.
+	if _, err := cli.Ping(ctx, client.PingOptions{}); err != nil {
 		return nil, err
 	}
 
