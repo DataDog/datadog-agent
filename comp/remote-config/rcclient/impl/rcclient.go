@@ -491,19 +491,20 @@ func (rc *rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, 
 		}(originalConfigPath, originalConfig)
 	}
 
-	// Check if one of the task reaches timeout
-	c := make(chan struct{})
+	// Check if one of the task reaches timeout in the background so we don't
+	// block the RC update loop. Other product callbacks (e.g. AGENT_CONFIG log
+	// level changes) must be able to fire while tasks are running.
 	go func() {
-		defer close(c)
-		wg.Wait()
+		c := make(chan struct{})
+		go func() {
+			defer close(c)
+			wg.Wait()
+		}()
+		select {
+		case <-c:
+			pkglog.Debugf("All %d agent tasks were applied successfully", len(updates))
+		case <-time.After(agentTaskTimeout):
+			pkglog.Warnf("Timeout of at least one agent task configuration")
+		}
 	}()
-	select {
-	case <-c:
-		// completed normally
-		pkglog.Debugf("All %d agent tasks were applied successfully", len(updates))
-		return
-	case <-time.After(agentTaskTimeout):
-		// timed out
-		pkglog.Warnf("Timeout of at least one agent task configuration")
-	}
 }
