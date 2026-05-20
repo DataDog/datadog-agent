@@ -296,6 +296,19 @@ func TestMockCapabilitiesMatchArchitectureSpec(t *testing.T) {
 				require.True(t, ddnvml.IsUnsupported(err), "GpmSampleGet should return an API_UNSUPPORTED_ON_DEVICE error")
 			}
 
+			nvlinkState, err := dev.GetNvLinkState(0)
+			if effectiveCapabilities.NVLink > 0 {
+				require.NoError(t, err, "GetNvLinkState should not return an error")
+				if config.NVLinkLinkCount > 0 {
+					assert.Equal(t, nvml.FEATURE_ENABLED, nvlinkState, "GetNvLinkState should report enabled when NVLink links are active")
+				} else {
+					assert.Equal(t, nvml.FEATURE_DISABLED, nvlinkState, "GetNvLinkState should report disabled when no NVLink links are active")
+				}
+			} else {
+				require.Error(t, err, "GetNvLinkState should return an error")
+				require.True(t, ddnvml.IsUnsupported(err), "GetNvLinkState should return an API_UNSUPPORTED_ON_DEVICE error")
+			}
+
 			unsupportedIDs := UnsupportedFieldIDsForConfig(t, specs.Architectures, archSpec, config.DeviceMode)
 			unsupportedSet := make(map[uint32]struct{}, len(unsupportedIDs))
 			for _, id := range unsupportedIDs {

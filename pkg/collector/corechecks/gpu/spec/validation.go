@@ -168,6 +168,7 @@ func KnownGPUConfigs(specs *Specs) []GPUConfig {
 			}
 			capabilities := archSpec.EffectiveCapabilities(mode)
 			nvlinkLinkCount := 0
+			// Use a nonzero mock link count whenever the spec says this mode is NVLink-capable.
 			if capabilities.NVLink > 0 {
 				nvlinkLinkCount = 2
 			}
