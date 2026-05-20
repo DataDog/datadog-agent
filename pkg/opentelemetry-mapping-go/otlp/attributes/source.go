@@ -16,6 +16,7 @@ package attributes
 
 import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
+	conventionsv140 "go.opentelemetry.io/otel/semconv/v1.40.0"
 	conventions "go.opentelemetry.io/otel/semconv/v1.6.1"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/azure"
@@ -114,6 +115,14 @@ func unsanitizedHostnameFromAttributes(attrs pcommon.Map) (string, bool) {
 		return "", false
 	}
 
+	// If on Azure Container Apps, we don't have a hostname
+	if cloudPlatform, ok := attrs.Get(string(conventions.CloudPlatformKey)); ok {
+		p := cloudPlatform.Str()
+		if p == conventionsv140.CloudPlatformAzureContainerApps.Value.AsString() || p == "azure_container_apps" {
+			return "", false
+		}
+	}
+
 	cloudProvider, ok := attrs.Get(string(conventions.CloudProviderKey))
 	switch {
 	case ok && cloudProvider.Str() == conventions.CloudProviderAWS.Value.AsString():
@@ -154,6 +163,15 @@ func SourceFromAttrs(attrs pcommon.Map, hostFromAttributesHandler HostFromAttrib
 	if launchType, ok := attrs.Get(string(conventions.AWSECSLaunchtypeKey)); ok && launchType.Str() == conventions.AWSECSLaunchtypeFargate.Value.AsString() {
 		if taskARN, ok := attrs.Get(string(conventions.AWSECSTaskARNKey)); ok {
 			return source.Source{Kind: source.AWSECSFargateKind, Identifier: taskARN.Str()}, true
+		}
+	}
+
+	if cloudPlatform, ok := attrs.Get(string(conventions.CloudPlatformKey)); ok {
+		p := cloudPlatform.Str()
+		if p == conventionsv140.CloudPlatformAzureContainerApps.Value.AsString() || p == "azure_container_apps" {
+			if replicaName, ok := attrs.Get(string(conventions.ServiceInstanceIDKey)); ok {
+				return source.Source{Kind: source.AzureContainerAppsKind, Identifier: replicaName.Str()}, true
+			}
 		}
 	}
 
