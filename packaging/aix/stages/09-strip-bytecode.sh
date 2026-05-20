@@ -75,7 +75,7 @@ log "Fixing Python entry-point script shebangs ($EMBEDDED_DESTDIR -> $EMBEDDED)"
 find "$EMBEDDED_DESTDIR/bin" -type f | while IFS= read -r f; do
     case $(head -1 "$f" 2>/dev/null) in
         "#!${EMBEDDED_DESTDIR}/bin/python"*)
-            sed -i "1s|#!${EMBEDDED_DESTDIR}/bin/|#!${EMBEDDED}/bin/|" "$f"
+            sed "1s|#!${EMBEDDED_DESTDIR}/bin/|#!${EMBEDDED}/bin/|" "$f" > "${f}.tmp" && mv "${f}.tmp" "$f"
             ;;
     esac
 done
