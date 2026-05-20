@@ -63,7 +63,7 @@ docker_image_build_otel:
       /tmp/otel-ci/manifest.yaml
     - !reference [.login_to_docker_readonly]
     - export GO_VERSION=$(cat .go-version)
-    # See .ddot_byoc_build_cache_setup for the rationale behind this docker buildx create call.
+    # Create a buildx builder, see .ddot_byoc_build_cache_setup for the rationale behind this.
     - docker buildx create --use --driver docker-container --bootstrap
   after_script:
     # Compute the image name and tag the template will push to, so after_script can reference them.
