@@ -194,7 +194,7 @@ func parseLogTagFilter(input string) parsedLogTagFilter {
 }
 
 func effectiveLogTags(logView observerdef.LogView) []string {
-	tags := append([]string{}, logView.GetTags()...)
+	tags := append([]string{}, logView.Tags()...)
 	if tags == nil {
 		tags = []string{}
 	}
@@ -274,7 +274,7 @@ func matchesLogsQuery(logView observerdef.LogView, query logsQuery) bool {
 		return false
 	}
 	isTelemetry := false
-	for _, tag := range logView.GetTags() {
+	for _, tag := range logView.Tags() {
 		if tag == "telemetry:true" {
 			isTelemetry = true
 			break

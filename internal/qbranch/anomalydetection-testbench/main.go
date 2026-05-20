@@ -19,11 +19,11 @@ import (
 
 	"go.uber.org/fx"
 
+	hfrunnernoop "github.com/DataDog/datadog-agent/comp/anomalydetection/hfrunner/fx-noop"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
 	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
-	recorderdef "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/def"
-	recorderfx "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx"
+	recordernoop "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx-noop"
 	reportertestbenchfx "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx-testbench"
 	testbenchimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl-testbench"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -130,10 +130,11 @@ func main() {
 	}
 
 	err := fxutil.OneShot(run,
-		recorderfx.Module(),
+		recordernoop.Module(),
+		hfrunnernoop.Module(),
 		observerfx.Module(),
 		reportertestbenchfx.Module(),
-		// Observer optional deps: HF container checks not needed by the testbench.
+		// Observer optional deps not needed by the testbench.
 		fx.Supply(option.None[workloadmetadef.Component]()),
 		fx.Supply(option.None[workloadfilterdef.Component]()),
 		fx.Supply(option.None[taggerdef.Component]()),
@@ -163,7 +164,6 @@ func main() {
 
 func run(
 	obs observerdef.Component,
-	recorder recorderdef.Component,
 	sseAccess testbenchimpl.SSEAccess,
 	cfg config.Component,
 	logger log.Component,
@@ -177,7 +177,6 @@ func run(
 	tb, err := bench.New(obs, debug, sseAccess, bench.Config{
 		ScenariosDir:       params.ScenariosDir,
 		HTTPAddr:           params.HTTPAddr,
-		Recorder:           recorder,
 		Cfg:                cfg,
 		Logger:             logger,
 		ComponentSettings:  params.ComponentSettings,

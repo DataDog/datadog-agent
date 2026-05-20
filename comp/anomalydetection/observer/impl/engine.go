@@ -877,13 +877,17 @@ func (e *engine) resetAnalysisState() {
 }
 
 // ResetForReplay reconfigures with new components, clears all state, and replaces storage.
+// Storage is created with no point-retention window so the full historical dataset
+// from parquet replay remains visible until ReplayStoredData completes.
 func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []observerdef.Correlator, extractors []observerdef.LogMetricsExtractor) {
 	e.SetDetectors(detectors)
 	e.SetCorrelators(correlators)
 	e.SetExtractors(extractors)
 	e.resetFull()
 	e.mu.Lock()
-	e.storage = newTimeSeriesStorage()
+	cfg := defaultStorageConfig()
+	cfg.PointRetentionSecs = 0 // unbounded: testbench replay needs the full dataset in memory
+	e.storage = newTimeSeriesStorageWith(cfg)
 	e.mu.Unlock()
 }
 

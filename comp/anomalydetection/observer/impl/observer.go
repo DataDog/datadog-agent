@@ -774,6 +774,29 @@ func (o *observerImpl) IngestLogSync(source string, msg observerdef.LogView) {
 	o.replayMu.Unlock()
 }
 
+// IngestLogNoAdvance feeds a log directly into the engine without driving any
+// scheduler-triggered advances. Implements DebugView. Used during batch
+// pre-loading in the testbench replay path so that extractor state is built up
+// and log metrics are written to storage, but detector/correlator advances are
+// deferred to the subsequent ReplayStoredData call.
+func (o *observerImpl) IngestLogNoAdvance(source string, msg observerdef.LogView) {
+	timestampMs := msg.GetTimestampUnixMilli()
+	lo := &logObs{
+		content:     msg.GetContent(),
+		status:      msg.GetStatus(),
+		tags:        copyTags(msg.Tags()),
+		hostname:    msg.GetHostname(),
+		timestampMs: timestampMs,
+	}
+	o.replayMu.Lock()
+	_, logTelemetry := o.engine.IngestLog(source, lo)
+	if len(logTelemetry) > 0 {
+		o.telemetryHandler.handleTelemetry(logTelemetry)
+	}
+	// Advance requests are intentionally discarded.
+	o.replayMu.Unlock()
+}
+
 // IngestMetricSync feeds a metric directly into the engine, bypassing the
 // dispatch channel. Mirrors the handle.ObserveMetricAndReportDrop path without
 // the non-blocking channel send. Implements DebugView.

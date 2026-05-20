@@ -37,10 +37,10 @@ type logDataView struct {
 // Ensure logDataView implements observerdef.LogView.
 var _ observerdef.LogView = (*logDataView)(nil)
 
-func (v *logDataView) GetContent() []byte           { return v.data.Content }
+func (v *logDataView) GetContent() string           { return string(v.data.Content) }
 func (v *logDataView) GetStatus() string            { return v.data.Status }
 func (v *logDataView) GetHostname() string          { return v.data.Hostname }
-func (v *logDataView) GetTags() []string            { return v.data.Tags }
+func (v *logDataView) Tags() []string               { return v.data.Tags }
 func (v *logDataView) GetTimestampUnixMilli() int64 { return v.data.TimestampMs }
 
 // EpisodePhase represents a time phase within an episode (baseline, disruption, cooldown, warmup).
@@ -76,7 +76,6 @@ type EpisodeInfo struct {
 type Config struct {
 	ScenariosDir string
 	HTTPAddr     string
-	Recorder     recorderdef.Component // Optional: for loading parquet scenarios
 	Cfg          config.Component
 	Logger       log.Component
 
@@ -385,16 +384,12 @@ func (tb *Bench) LoadScenario(name string) error {
 	return nil
 }
 
-// loadParquetDir loads all parquet files from a directory using the recorder component.
+// loadParquetDir loads all parquet files from a directory.
 func (tb *Bench) loadParquetDir(dir string) error {
-	if tb.config.Recorder == nil {
-		return errors.New("recorder component not configured - cannot load parquet files")
-	}
-
 	if tb.config.LogsOnly {
 		fmt.Printf("  Logs-only mode: skipping parquet metrics and trace stats\n")
 	} else {
-		metrics, err := tb.config.Recorder.ReadAllMetrics(dir)
+		metrics, err := readAllMetrics(dir)
 		if err != nil {
 			return fmt.Errorf("reading parquet metrics: %w", err)
 		}
@@ -424,7 +419,7 @@ func (tb *Bench) loadParquetDir(dir string) error {
 		tb.feedRawMetrics()
 	}
 
-	parquetLogs, err := tb.config.Recorder.ReadAllLogs(dir)
+	parquetLogs, err := readAllLogs(dir)
 	if err != nil {
 		return fmt.Errorf("failed to read parquet logs: %w", err)
 	}
@@ -444,7 +439,7 @@ func (tb *Bench) loadParquetDir(dir string) error {
 // component toggle).
 func (tb *Bench) feedRawMetrics() {
 	for _, m := range tb.rawMetrics {
-		tb.debug.IngestMetricSync("testbench-replay", m)
+		tb.debug.IngestMetricSync("parquet", m)
 	}
 
 	// Re-add per-timestamp telemetry. These counters live in TelemetryNamespace
@@ -585,10 +580,11 @@ func (tb *Bench) rerunDetectorsLocked() {
 	// Re-feed parquet metrics synchronously into the fresh storage.
 	tb.feedRawMetrics()
 
-	// Feed raw logs synchronously into the engine. IngestLogSync bypasses the
-	// dispatch channel so no logs are dropped regardless of volume.
+	// Pre-load logs without driving advances so extractor state and log metrics
+	// are written to storage. Detectors and correlators are deferred to the
+	// subsequent ReplayStoredData call, matching the original single-pass approach.
 	for _, logEntry := range tb.rawLogs {
-		tb.debug.IngestLogSync("testbench-replay", logEntry)
+		tb.debug.IngestLogNoAdvance("parquet", logEntry)
 		ts := logEntry.GetTimestampUnixMilli() / 1000
 		tb.debug.AddTelemetry(telemetryTbInputLogsCount, 1, ts, nil)
 	}
@@ -1054,19 +1050,7 @@ func (tb *Bench) RunSendAnomalyEvents(scenario string) error {
 	tb.mu.RLock()
 	defer tb.mu.RUnlock()
 
-	// Pass nil as storage; log rate annotations are optional.
-	sender, err := reporterimpl.NewLiveCorrelationSender(tb.config.Cfg, tb.config.Logger, nil)
-	if err != nil {
-		return err
-	}
-
-	correlations := tb.debug.StateView().ActiveCorrelations()
-	for _, c := range correlations {
-		if err := sender.Send(c); err != nil {
-			tb.config.Logger.Warnf("[bench] failed to send correlation event: %v", err)
-		}
-	}
-	return nil
+	return fmt.Errorf("send-anomaly-event not available: reporter live sender not yet wired in testbench")
 }
 
 // ToggleComponent toggles a component's enabled state and re-runs analyses.

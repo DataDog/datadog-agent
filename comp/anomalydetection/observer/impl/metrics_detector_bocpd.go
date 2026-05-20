@@ -21,9 +21,10 @@ type bocpdStateKey struct {
 // bocpdSeriesState holds per-series streaming BOCPD state.
 type bocpdSeriesState struct {
 
-	// Cursor: timestamp and write generation at last successful Detect.
-	lastProcessedTime int64
-	lastWriteGen      int64 // storage writeGeneration at last Detect
+	// Cursor: timestamp, point count, and write generation at last successful Detect.
+	lastProcessedTime  int64
+	lastProcessedCount int   // PointCountUpTo(ref, dataTime) at last process
+	lastWriteGen       int64 // storage writeGeneration at last Detect
 
 	// Warmup: Welford online mean/variance accumulation.
 	initialized  bool
@@ -209,14 +210,29 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 				b.series[sk] = state
 			}
 
-			// Skip if nothing was written since last Detect.
+			// Skip if no new data is visible at the current dataTime.
+			// Use PointCountUpTo so that pre-loaded replay data becomes
+			// visible as dataTime advances, not just when new writes occur.
+			visibleCount := storage.PointCountUpTo(ref, dataTime)
 			currentGen := storage.WriteGeneration(ref)
-			if currentGen == state.lastWriteGen {
+			// A merge (storage rewrite) may not change visibleCount but still
+			// requires reprocessing from the last point.
+			mergeOccurred := visibleCount == state.lastProcessedCount && currentGen != state.lastWriteGen
+			if visibleCount <= state.lastProcessedCount && !mergeOccurred {
 				continue
 			}
 
+			startTime := state.lastProcessedTime
+			if mergeOccurred {
+				if startTime > 0 {
+					startTime--
+				}
+			}
+
 			prevLen := len(allAnomalies)
-			storage.ForEachPoint(ref, state.lastProcessedTime, dataTime, agg, func(series *observer.Series, p observer.Point) {
+			pointsSeen := false
+			storage.ForEachPoint(ref, startTime, dataTime, agg, func(series *observer.Series, p observer.Point) {
+				pointsSeen = true
 				anomaly := b.processPoint(state, p, series, agg)
 				if anomaly != nil {
 					allAnomalies = append(allAnomalies, *anomaly)
@@ -227,7 +243,10 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 			for k := prevLen; k < len(allAnomalies); k++ {
 				allAnomalies[k].SourceRef = &observer.QueryHandle{Ref: ref, Aggregate: agg}
 			}
-			state.lastWriteGen = currentGen
+			if pointsSeen || mergeOccurred {
+				state.lastProcessedCount = visibleCount
+				state.lastWriteGen = currentGen
+			}
 		}
 	}
 
@@ -270,7 +289,6 @@ func (b *BOCPDDetector) processPoint(state *bocpdSeriesState, p observer.Point, 
 	if !state.initialized {
 		return b.warmupPoint(state, x)
 	}
-
 	triggered, cpProb, shortRunMass := b.updatePosterior(state, x)
 
 	if triggered {
