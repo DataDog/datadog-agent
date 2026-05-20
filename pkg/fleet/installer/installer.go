@@ -301,7 +301,11 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 			fmt.Errorf("could not download package: %w", err),
 		)
 	}
-	setInstallProgress(ctx, 0.5)
+	if pkg.Size > 0 {
+		pkg.SetProgressCallback(func(v float32) {
+			setInstallProgress(ctx, v*0.5) // map [0,1] → [0, 0.5]
+		})
+	}
 	span, ok := telemetry.SpanFromContext(ctx)
 	if ok {
 		span.SetResourceName(pkg.Name)
@@ -350,6 +354,7 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 	if err != nil {
 		return fmt.Errorf("could not extract package config layer: %w", err)
 	}
+	setInstallProgress(ctx, 0.5) // pin boundary: download phase complete
 	err = i.packages.Create(ctx, pkg.Name, pkg.Version, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)

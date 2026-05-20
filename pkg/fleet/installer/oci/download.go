@@ -102,6 +102,40 @@ type DownloadedPackage struct {
 	Name    string
 	Version string
 	Size    uint64
+
+	onProgress func(float32)
+	bytesRead  int64
+	lastReport float32
+}
+
+// SetProgressCallback registers fn to be called during ExtractLayers with the
+// fraction of d.Size read so far (cumulative across calls), capped at 1.0.
+// fn is called at most once per 1% change. No-op if d.Size == 0.
+func (d *DownloadedPackage) SetProgressCallback(fn func(float32)) {
+	d.onProgress = fn
+}
+
+// progressReader wraps an io.ReadCloser and reports byte-counted progress
+// back to the DownloadedPackage on every Read, debounced to ≥1% increments.
+type progressReader struct {
+	io.ReadCloser
+	pkg *DownloadedPackage
+}
+
+func (r *progressReader) Read(p []byte) (int, error) {
+	n, err := r.ReadCloser.Read(p)
+	if n > 0 && r.pkg.onProgress != nil && r.pkg.Size > 0 {
+		r.pkg.bytesRead += int64(n)
+		v := float32(r.pkg.bytesRead) / float32(r.pkg.Size)
+		if v > 1.0 {
+			v = 1.0
+		}
+		if v-r.pkg.lastReport >= 0.01 {
+			r.pkg.lastReport = v
+			r.pkg.onProgress(v)
+		}
+	}
+	return n, err
 }
 
 // Downloader is the Downloader used by the installer to download packages.
@@ -409,6 +443,9 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string,
 				uncompressedLayer, err := layer.Uncompressed()
 				if err != nil {
 					return err
+				}
+				if d.onProgress != nil {
+					uncompressedLayer = &progressReader{ReadCloser: uncompressedLayer, pkg: d}
 				}
 
 				switch layerManifest.MediaType {
