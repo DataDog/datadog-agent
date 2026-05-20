@@ -231,8 +231,6 @@ instances:
 
       ## @param collection_interval - int - optional - default: 600
       ## The interval in seconds between tablespace usage collections.
-      ## Tablespace queries can be expensive on large databases; the default of 600s (10 minutes)
-      ## reduces overhead while keeping metrics reasonably fresh.
       #
       # collection_interval: 600
 
