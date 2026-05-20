@@ -926,6 +926,16 @@ func (p *PodAutoscalerInternal) ClearPodOperations() {
 	p.submittedPodOps = nil
 }
 
+// PrunePodOperations removes entries whose stored recommendationID no longer matches
+// the current one, preventing unbounded growth during recommendation churn.
+func (p *PodAutoscalerInternal) PrunePodOperations(recommendationID string) {
+	for uid, rid := range p.submittedPodOps {
+		if rid != recommendationID {
+			delete(p.submittedPodOps, uid)
+		}
+	}
+}
+
 // CurrentReplicas returns the current number of PODs for the targetRef
 func (p *PodAutoscalerInternal) CurrentReplicas() *int32 {
 	return p.currentReplicas

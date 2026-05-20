@@ -92,7 +92,7 @@ const (
 	PodResizeStatusError
 	PodResizeStatusInfeasible
 	PodResizeStatusDeferred
-	// PodResizeStatusEvicting marks pods with an accepted patch or eviction pending termination.
+	// PodResizeStatusEvicting marks pods with an accepted eviction pending termination.
 	PodResizeStatusEvicting
 )
 

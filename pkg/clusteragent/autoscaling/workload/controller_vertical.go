@@ -130,6 +130,7 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 	// Classify each non-terminating pod by resize status so we can set scaled replicas
 	// (completed pods count) accurately. Pass this slice to syncInternal to avoid
 	// a duplicate call to getPodResizeStatus.
+	autoscalerInternal.PrunePodOperations(recommendationID)
 	podsByResizeStatus := make(map[PodResizeStatus][]classifiedPod)
 	for _, pod := range pods {
 		if pod.DeletionTimestamp != nil {
