@@ -777,8 +777,9 @@ func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component, compres
 }
 
 func newNoopEventPlatformForwarder(hostname hostnameinterface.Component, compression logscompression.Component) *defaultEventPlatformForwarder {
+	config := pkgconfigsetup.Datadog()
 	hostnameStr := hostname.GetSafe(context.Background())
-	f := newDefaultEventPlatformForwarder(pkgconfigsetup.Datadog(), eventplatformreceiverimpl.NewReceiver(hostname).Comp, compression, hostnameStr, secretsnoopimpl.NewComponent().Comp)
+	f := newDefaultEventPlatformForwarder(config, eventplatformreceiverimpl.NewReceiver(hostname, config).Comp, compression, hostnameStr, secretsnoopimpl.NewComponent().Comp)
 	// remove the senders
 	for _, p := range f.pipelines {
 		p.strategy = nil

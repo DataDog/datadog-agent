@@ -6,8 +6,10 @@
 package defaultforwarder
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"sync"
@@ -337,28 +339,8 @@ func (f *domainForwarder) State() uint32 {
 }
 
 func (f *domainForwarder) sendHTTPTransactions(t transaction.Transaction) {
-	// Metadata types should always be submitted in dual-shipping fashion - no special considerations for
-	// Metadata transactions.
-	if f.isMRF && t.GetKind() != transaction.Metadata {
-		if f.State() == Disabled {
-			if f.config.GetBool("multi_region_failover.enabled") && f.config.GetBool("multi_region_failover.failover_metrics") {
-				f.m.Lock()
-				f.internalState = Started
-				f.m.Unlock()
-				f.log.Debugf("Forwarder for domain %v has been failed over to, enabling it for HA.", t.GetTarget())
-			} else {
-				f.log.Debugf("Forwarder for domain %v is disabled; dropping transaction for this domain.", t.GetTarget())
-				return
-			}
-		} else {
-			if (!f.config.GetBool("multi_region_failover.enabled") || !f.config.GetBool("multi_region_failover.failover_metrics")) && f.State() != Disabled {
-				f.m.Lock()
-				f.internalState = Disabled
-				f.m.Unlock()
-				f.log.Infof("Forwarder for domain %v was disabled; transactions will be dropped for this domain.", t.GetTarget())
-				return
-			}
-		}
+	if !f.shouldSendHTTPTransaction(t) {
+		return
 	}
 
 	// We don't want to block the collector if the highPrio queue is full
@@ -370,4 +352,64 @@ func (f *domainForwarder) sendHTTPTransactions(t transaction.Transaction) {
 		tlmTxHighPriorityQueueFull.Inc(f.domain, t.GetEndpointName())
 		f.log.Debugf("Adding the transaction to the retry queue because the forwarder input queue for %s is full; consider increasing forwarder_num_workers", f.domain)
 	}
+}
+
+func (f *domainForwarder) sendHTTPTransactionDirect(ctx context.Context, t *transaction.HTTPTransaction) error {
+	if !f.shouldSendHTTPTransaction(t) {
+		return nil
+	}
+
+	target := t.GetTarget()
+	if f.blockedList.isBlockForSend(target, time.Now()) {
+		return fmt.Errorf("too many errors for endpoint %q", target)
+	}
+
+	var completionErr error
+	completionHandler := t.CompletionHandler
+	t.CompletionHandler = func(txn *transaction.HTTPTransaction, statusCode int, body []byte, err error) {
+		completionErr = err
+		if completionHandler != nil {
+			completionHandler(txn, statusCode, body, err)
+		}
+	}
+
+	if err := t.Process(ctx, f.config, f.log, f.secrets, f.Client.GetClient(), f.pointCountTelemetry); err != nil {
+		f.blockedList.close(target, time.Now())
+		return err
+	}
+	if completionErr != nil {
+		f.blockedList.close(target, time.Now())
+		return completionErr
+	}
+
+	f.blockedList.recover(target, time.Now())
+	return nil
+}
+
+func (f *domainForwarder) shouldSendHTTPTransaction(t transaction.Transaction) bool {
+	// Metadata types should always be submitted in dual-shipping fashion - no special considerations for
+	// Metadata transactions.
+	if f.isMRF && t.GetKind() != transaction.Metadata {
+		if f.State() == Disabled {
+			if f.config.GetBool("multi_region_failover.enabled") && f.config.GetBool("multi_region_failover.failover_metrics") {
+				f.m.Lock()
+				f.internalState = Started
+				f.m.Unlock()
+				f.log.Debugf("Forwarder for domain %v has been failed over to, enabling it for HA.", t.GetTarget())
+			} else {
+				f.log.Debugf("Forwarder for domain %v is disabled; dropping transaction for this domain.", t.GetTarget())
+				return false
+			}
+		} else {
+			if (!f.config.GetBool("multi_region_failover.enabled") || !f.config.GetBool("multi_region_failover.failover_metrics")) && f.State() != Disabled {
+				f.m.Lock()
+				f.internalState = Disabled
+				f.m.Unlock()
+				f.log.Infof("Forwarder for domain %v was disabled; transactions will be dropped for this domain.", t.GetTarget())
+				return false
+			}
+		}
+	}
+
+	return true
 }

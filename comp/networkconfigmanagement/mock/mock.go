@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build ncm
-
 // Package mock provides a mock for the networkconfigmanagement component
 package mock
 
@@ -13,11 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"go.uber.org/fx"
-
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	ncmstore "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/store"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type mockNetworkConfigManagement struct {
@@ -38,15 +33,6 @@ func Mock(_ *testing.T) networkconfigmanagement.Component {
 // predictable.
 func MockWithStore(_ *testing.T, store ncmstore.ConfigStore) networkconfigmanagement.Component {
 	return &mockNetworkConfigManagement{store: store}
-}
-
-// MockModule provides the mock as an fx module.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(func() networkconfigmanagement.Component {
-			return &mockNetworkConfigManagement{store: ncmstore.NewMemStore()}
-		}),
-	)
 }
 
 func (m *mockNetworkConfigManagement) GetConfigStore() ncmstore.ConfigStore {
