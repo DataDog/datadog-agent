@@ -297,6 +297,9 @@ AIX_EXCLUDED_TAGS = {
     "trivy",
 }
 
+# List of tags to always add when building on Windows
+WINDOWS_INCLUDED_TAGS = {"wmi"}
+
 # List of tags to always remove when building on Windows
 WINDOWS_EXCLUDED_TAGS = {
     "requirefips",
@@ -484,7 +487,7 @@ def filter_incompatible_tags(include, platform=None):
         exclude = exclude.union(LINUX_ONLY_TAGS)
 
     if platform == "win32":
-        include = include.union(["wmi"])
+        include = include.union(WINDOWS_INCLUDED_TAGS)
         exclude = exclude.union(WINDOWS_EXCLUDED_TAGS)
 
     if platform == "darwin":
