@@ -812,7 +812,7 @@ func (ac *AutoConfig) RecordTrialResult(id checkid.ID, ok bool) {
 // signals the scheduler to stop the check. Removing it eagerly keeps
 // GetAllConfigs consistent with the scheduler state.
 func (ac *AutoConfig) unscheduleCheckByID(id checkid.ID) {
-	cfg, ok := ac.cfgMgr.popTrialConfig(id)
+	cfg, ok := ac.cfgMgr.popConfig(id)
 	if !ok {
 		log.Warnf("autodiscovery: trial check %s past failure threshold but no scheduled config found", id)
 		return

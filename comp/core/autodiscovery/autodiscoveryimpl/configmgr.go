@@ -57,12 +57,12 @@ type configManager interface {
 	// getActiveServices returns the currently active services
 	getActiveServices() map[string]listeners.Service
 
-	// popTrialConfig looks up a scheduled config whose computed check ID matches
+	// popConfig looks up a scheduled config whose computed check ID matches
 	// id, removes it from scheduledConfigs, and returns it. Returns the config
 	// and true if found, or an empty config and false otherwise. Used by the
 	// trial-failure unschedule path so that GetAllConfigs no longer returns the
 	// stale entry after the check is/p stopped.
-	popTrialConfig(id checkid.ID) (integration.Config, bool)
+	popConfig(id checkid.ID) (integration.Config, bool)
 }
 
 // serviceAndADIDs bundles a service and its associated AD identifiers.
@@ -580,11 +580,11 @@ func (cm *reconcilingConfigManager) applyChanges(changes integration.ConfigChang
 	return changes
 }
 
-// popTrialConfig implements configManager#popTrialConfig.
+// popConfig implements configManager#popConfig.
 // It iterates over scheduledConfigs, removes the first config whose computed
 // check ID matches id, and returns it. O(n) — acceptable because this path
 // fires at most once per failed trial.
-func (cm *reconcilingConfigManager) popTrialConfig(id checkid.ID) (integration.Config, bool) {
+func (cm *reconcilingConfigManager) popConfig(id checkid.ID) (integration.Config, bool) {
 	cm.m.Lock()
 	defer cm.m.Unlock()
 	for digest, cfg := range cm.scheduledConfigs {
