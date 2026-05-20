@@ -9,6 +9,7 @@
 package amqp
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -16,7 +17,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/streadway/amqp"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 // Options is a struct to hold the options for the amqp client
@@ -134,7 +135,8 @@ func (c *Client) DeclareQueue(name string, ch *amqp.Channel) error {
 
 // Publish sends a message to the queue
 func (c *Client) Publish(queue, body string) error {
-	return c.PublishChannel.Publish(
+	return c.PublishChannel.PublishWithContext(
+		context.Background(),
 		"",    // exchange
 		queue, // routing key
 		false, // mandatory
