@@ -422,6 +422,30 @@ func duplicateRejectionKey(file *tailer.File) string {
 	return identifier + "|" + file.Path
 }
 
+// rejectDuplicateIfTailed returns true if file is already tailed by another tailer.
+// It logs at Warn the first time a given (identifier, path) pair is rejected and at
+// Debug on subsequent calls for the same pair, and surfaces an error on the source's
+// Status so that `agent status` makes the rejection visible to operators.
+// Both startNewTailer and startNewTailerWithStoredInfo delegate to this method so the
+// rejection contract lives in exactly one place.
+func (s *Launcher) rejectDuplicateIfTailed(file *tailer.File) bool {
+	if !s.isFileAlreadyTailed(file) {
+		return false
+	}
+	key := duplicateRejectionKey(file)
+	err := fmt.Errorf("file %q is already being tailed by another log source; duplicate skipped to avoid auditor offset corruption", file.Path)
+	if _, seen := s.rejectedDuplicates[key]; !seen {
+		log.Warn(err)
+		s.rejectedDuplicates[key] = struct{}{}
+	} else {
+		log.Debugf("duplicate tailer rejection (suppressed repeat warning): %v", err)
+	}
+	if file.Source != nil {
+		file.Source.Status().Error(err)
+	}
+	return true
+}
+
 // launch launches new tailers for a new source.
 func (s *Launcher) launchTailers(source *sources.LogSource) {
 	// If we're at the limit already, no need to do a 'CollectFiles', just wait for the next 'scan'
@@ -510,18 +534,7 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode, finge
 		return false
 	}
 
-	if s.isFileAlreadyTailed(file) {
-		key := duplicateRejectionKey(file)
-		err := fmt.Errorf("file %q is already being tailed by another log source; duplicate skipped to avoid auditor offset corruption", file.Path)
-		if _, seen := s.rejectedDuplicates[key]; !seen {
-			log.Warn(err)
-			s.rejectedDuplicates[key] = struct{}{}
-		} else {
-			log.Debugf("duplicate tailer rejection (suppressed repeat warning): %v", err)
-		}
-		if file.Source != nil {
-			file.Source.Status().Error(err)
-		}
+	if s.rejectDuplicateIfTailed(file) {
 		return false
 	}
 
@@ -555,18 +568,7 @@ func (s *Launcher) startNewTailerWithStoredInfo(file *tailer.File, m config.Tail
 		return false
 	}
 
-	if s.isFileAlreadyTailed(file) {
-		key := duplicateRejectionKey(file)
-		err := fmt.Errorf("file %q is already being tailed by another log source; duplicate skipped to avoid auditor offset corruption", file.Path)
-		if _, seen := s.rejectedDuplicates[key]; !seen {
-			log.Warn(err)
-			s.rejectedDuplicates[key] = struct{}{}
-		} else {
-			log.Debugf("duplicate tailer rejection (suppressed repeat warning): %v", err)
-		}
-		if file.Source != nil {
-			file.Source.Status().Error(err)
-		}
+	if s.rejectDuplicateIfTailed(file) {
 		return false
 	}
 

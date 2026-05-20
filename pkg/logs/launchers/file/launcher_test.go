@@ -242,6 +242,59 @@ func TestLauncherDuplicateRejectionSetsErrorStatus(t *testing.T) {
 		"error message must explain why the source was rejected")
 }
 
+// TestLauncherDuplicateRejectionStoredInfoPath verifies that startNewTailerWithStoredInfo
+// applies the same rejection contract as startNewTailer: a file that is already being tailed
+// must be rejected, its source Status must show an error, and the dedup cache must record the
+// pair so that repeated calls suppress the Warn log.
+func TestLauncherDuplicateRejectionStoredInfoPath(t *testing.T) {
+	testDir := t.TempDir()
+	path := testDir + "/shared.log"
+
+	f, err := os.Create(path)
+	assert.Nil(t, err)
+	defer f.Close()
+
+	launcher := createLauncher(t, launcherTestOptions{openFilesLimit: 5})
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditorMock.NewMockRegistry()
+
+	firstSource := sources.NewLogSource("first", &config.LogsConfig{
+		Type: config.FileType, Path: path, TailingMode: "beginning", Identifier: "container-a",
+	})
+	secondSource := sources.NewLogSource("second", &config.LogsConfig{
+		Type: config.FileType, Path: path, TailingMode: "beginning", Identifier: "container-b",
+	})
+
+	// Establish the first tailer via the normal path.
+	launcher.addSource(firstSource)
+	assert.Equal(t, 1, launcher.tailers.Count())
+
+	// Attempt to start a second tailer for the same underlying file via the stored-info path.
+	file := filetailer.NewFile(path, secondSource, false)
+	oldInfo := &oldTailerInfo{Pattern: nil, InfoRegistry: nil}
+
+	result := launcher.startNewTailerWithStoredInfo(file, config.Beginning, oldInfo, nil)
+
+	assert.False(t, result, "startNewTailerWithStoredInfo must return false for a duplicate file")
+	assert.Equal(t, 1, launcher.tailers.Count(), "duplicate must not produce a second tailer")
+
+	// The rejected source's Status must expose an error for `agent status`.
+	assert.True(t, secondSource.Status.IsError(),
+		"rejected source must have its Status set to an error state")
+	assert.Contains(t, secondSource.Status.GetError(), "already being tailed",
+		"error message must explain why the source was rejected")
+
+	// The dedup cache must hold the entry so repeated calls suppress the Warn log.
+	assert.Len(t, launcher.rejectedDuplicates, 1,
+		"dedup cache should hold exactly one entry after the first rejection")
+
+	// A second call must still be rejected (dedup entry is still present).
+	result = launcher.startNewTailerWithStoredInfo(file, config.Beginning, oldInfo, nil)
+	assert.False(t, result, "startNewTailerWithStoredInfo must continue to return false on repeated calls")
+	assert.Len(t, launcher.rejectedDuplicates, 1,
+		"dedup cache must not grow on repeated rejections of the same key")
+}
+
 type TestSetupStrategy interface {
 	Setup(t *testing.T) TestSetupResult
 }
