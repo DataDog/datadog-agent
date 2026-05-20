@@ -154,6 +154,10 @@ func (t *minimalTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 				if c, ok := consumer.(TagsConsumer); ok {
 					c.ConsumeTag(src.Tag())
 				}
+			case source.AzureContainerAppsKind:
+				if c, ok := consumer.(TagsConsumer); ok {
+					c.ConsumeTag(src.Tag())
+				}
 			}
 		}
 	}
