@@ -1909,6 +1909,10 @@ func logsagent(config pkgconfigmodel.Setup) {
 	// When true, logs containing critical severity keywords (FATAL, ERROR, PANIC, etc.)
 	// bypass the adaptive sampler and are never dropped.
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.protect_important_logs", true)
+	// When true, use exponentially decayed recent pattern hotness for pattern ordering and eviction.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.ewma_enabled", false)
+	// Duration in seconds after which an inactive pattern's recent hotness decays by half.
+	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.ewma_half_life_seconds", 300.0)
 	// Include limits adaptive sampling to logs matching at least one rule when configured.
 	config.BindEnvAndSetDefault("logs_config.experimental_adaptive_sampling.include", []map[string]interface{}{})
 	// Exclude prevents adaptive sampling from applying to logs matching any rule when configured.

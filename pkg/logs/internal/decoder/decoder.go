@@ -184,6 +184,8 @@ func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveS
 		BurstSize:            pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.burst_size"),
 		MatchThreshold:       pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.match_threshold"),
 		ProtectImportantLogs: pkgconfigsetup.Datadog().GetBool("logs_config.experimental_adaptive_sampling.protect_important_logs"),
+		EWMAEnabled:          pkgconfigsetup.Datadog().GetBool("logs_config.experimental_adaptive_sampling.ewma_enabled"),
+		EWMAHalfLife:         secondsToDuration(pkgconfigsetup.Datadog().GetFloat64("logs_config.experimental_adaptive_sampling.ewma_half_life_seconds")),
 		Include:              includeFilters,
 		IncludeConfigured:    includeConfigured,
 		Exclude:              excludeFilters,
@@ -205,6 +207,12 @@ func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveS
 		if sourceAdaptiveSampling.ProtectImportantLogs != nil {
 			c.ProtectImportantLogs = *sourceAdaptiveSampling.ProtectImportantLogs
 		}
+		if sourceAdaptiveSampling.EWMAEnabled != nil {
+			c.EWMAEnabled = *sourceAdaptiveSampling.EWMAEnabled
+		}
+		if sourceAdaptiveSampling.EWMAHalfLifeSeconds != nil {
+			c.EWMAHalfLife = secondsToDuration(*sourceAdaptiveSampling.EWMAHalfLifeSeconds)
+		}
 		if sourceAdaptiveSampling.Include != nil {
 			c.Include = resolveAdaptiveSamplerFilters(sourceAdaptiveSampling.Include, tok)
 			c.IncludeConfigured = true
@@ -215,6 +223,10 @@ func resolveAdaptiveSamplerConfig(sourceAdaptiveSampling *config.SourceAdaptiveS
 	}
 
 	return validateAdaptiveSamplerConfig(c)
+}
+
+func secondsToDuration(seconds float64) time.Duration {
+	return time.Duration(seconds * float64(time.Second))
 }
 
 func resolveGlobalAdaptiveSamplerFilters(key string, tok *preprocessor.Tokenizer) ([]preprocessor.AdaptiveSamplerFilter, bool) {
@@ -338,6 +350,9 @@ func validateAdaptiveSamplerConfig(c preprocessor.AdaptiveSamplerConfig) preproc
 
 	if c.BurstSize <= 0 {
 		c.BurstSize = 1
+	}
+	if c.EWMAHalfLife <= 0 {
+		c.EWMAHalfLife = 5 * time.Minute
 	}
 
 	return c

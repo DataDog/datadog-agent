@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -492,6 +493,8 @@ func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 	mockConfig.Set("logs_config.experimental_adaptive_sampling.burst_size", 50.0, pkgconfigmodel.SourceAgentRuntime)
 	mockConfig.Set("logs_config.experimental_adaptive_sampling.match_threshold", 0.8, pkgconfigmodel.SourceAgentRuntime)
 	mockConfig.Set("logs_config.experimental_adaptive_sampling.protect_important_logs", true, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.Set("logs_config.experimental_adaptive_sampling.ewma_enabled", true, pkgconfigmodel.SourceAgentRuntime)
+	mockConfig.Set("logs_config.experimental_adaptive_sampling.ewma_half_life_seconds", 15.5, pkgconfigmodel.SourceAgentRuntime)
 
 	t.Run("falls back to global config", func(t *testing.T) {
 		got := resolveAdaptiveSamplerConfig(nil, preprocessor.NewTokenizer(0))
@@ -500,6 +503,8 @@ func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 		assert.Equal(t, 50.0, got.BurstSize)
 		assert.Equal(t, 0.8, got.MatchThreshold)
 		assert.True(t, got.ProtectImportantLogs)
+		assert.True(t, got.EWMAEnabled)
+		assert.Equal(t, 15500*time.Millisecond, got.EWMAHalfLife)
 	})
 
 	t.Run("source overrides global config", func(t *testing.T) {
@@ -508,6 +513,8 @@ func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 		burstSize := 75.0
 		matchThreshold := 0.65
 		protectImportantLogs := false
+		ewmaEnabled := false
+		ewmaHalfLifeSeconds := 3.25
 
 		got := resolveAdaptiveSamplerConfig(&config.SourceAdaptiveSamplingOptions{
 			MaxPatterns:          &maxPatterns,
@@ -515,6 +522,8 @@ func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 			BurstSize:            &burstSize,
 			MatchThreshold:       &matchThreshold,
 			ProtectImportantLogs: &protectImportantLogs,
+			EWMAEnabled:          &ewmaEnabled,
+			EWMAHalfLifeSeconds:  &ewmaHalfLifeSeconds,
 		}, preprocessor.NewTokenizer(0))
 
 		assert.Equal(t, 200, got.MaxPatterns)
@@ -522,6 +531,8 @@ func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 		assert.Equal(t, 75.0, got.BurstSize)
 		assert.Equal(t, 0.65, got.MatchThreshold)
 		assert.False(t, got.ProtectImportantLogs)
+		assert.False(t, got.EWMAEnabled)
+		assert.Equal(t, 3250*time.Millisecond, got.EWMAHalfLife)
 	})
 
 	t.Run("source partial override preserves global values", func(t *testing.T) {
@@ -536,6 +547,18 @@ func TestResolveAdaptiveSamplerConfig(t *testing.T) {
 		assert.Equal(t, 50.0, got.BurstSize)
 		assert.Equal(t, 0.8, got.MatchThreshold)
 		assert.True(t, got.ProtectImportantLogs)
+		assert.True(t, got.EWMAEnabled)
+		assert.Equal(t, 15500*time.Millisecond, got.EWMAHalfLife)
+	})
+
+	t.Run("invalid ewma half life falls back to default", func(t *testing.T) {
+		ewmaHalfLifeSeconds := 0.0
+
+		got := resolveAdaptiveSamplerConfig(&config.SourceAdaptiveSamplingOptions{
+			EWMAHalfLifeSeconds: &ewmaHalfLifeSeconds,
+		}, preprocessor.NewTokenizer(0))
+
+		assert.Equal(t, 5*time.Minute, got.EWMAHalfLife)
 	})
 
 	t.Run("source filters are resolved", func(t *testing.T) {

@@ -90,7 +90,7 @@ func TestAutoMultilineEnabled(t *testing.T) {
 }
 
 func TestExperimentalAdaptiveSamplingOptionsDecode(t *testing.T) {
-	cfg := decode(`{"experimental_adaptive_sampling":{"enabled":true,"max_patterns":42,"rate_limit":2.5,"burst_size":17.5,"match_threshold":0.75,"tokenizer_max_input_bytes":512,"protect_important_logs":false,"include":[{"regex":"foo.*bar"},{"sample":"my 123 fun log sample"}],"exclude":[{"regex":"baz.*qux"},{"sample":"my 456 bad log sample"}]}}`)
+	cfg := decode(`{"experimental_adaptive_sampling":{"enabled":true,"max_patterns":42,"rate_limit":2.5,"burst_size":17.5,"match_threshold":0.75,"tokenizer_max_input_bytes":512,"protect_important_logs":false,"ewma_enabled":true,"ewma_half_life_seconds":12.5,"include":[{"regex":"foo.*bar"},{"sample":"my 123 fun log sample"}],"exclude":[{"regex":"baz.*qux"},{"sample":"my 456 bad log sample"}]}}`)
 	require.NotNil(t, cfg.ExperimentalAdaptiveSampling)
 	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.Enabled)
 	assert.True(t, *cfg.ExperimentalAdaptiveSampling.Enabled)
@@ -106,6 +106,10 @@ func TestExperimentalAdaptiveSamplingOptionsDecode(t *testing.T) {
 	assert.Equal(t, 512, *cfg.ExperimentalAdaptiveSampling.TokenizerMaxInputBytes)
 	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.ProtectImportantLogs)
 	assert.False(t, *cfg.ExperimentalAdaptiveSampling.ProtectImportantLogs)
+	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.EWMAEnabled)
+	assert.True(t, *cfg.ExperimentalAdaptiveSampling.EWMAEnabled)
+	require.NotNil(t, cfg.ExperimentalAdaptiveSampling.EWMAHalfLifeSeconds)
+	assert.Equal(t, 12.5, *cfg.ExperimentalAdaptiveSampling.EWMAHalfLifeSeconds)
 	require.Len(t, cfg.ExperimentalAdaptiveSampling.Include, 2)
 	assert.Equal(t, "foo.*bar", cfg.ExperimentalAdaptiveSampling.Include[0].Regex)
 	assert.Equal(t, "my 123 fun log sample", cfg.ExperimentalAdaptiveSampling.Include[1].Sample)

@@ -190,6 +190,12 @@ type SourceAdaptiveSamplingOptions struct {
 	// ProtectImportantLogs overrides whether important logs bypass adaptive sampling for this source when set.
 	ProtectImportantLogs *bool `mapstructure:"protect_important_logs" json:"protect_important_logs" yaml:"protect_important_logs"`
 
+	// EWMAEnabled overrides whether the sampler uses recent pattern hotness for ordering and eviction.
+	EWMAEnabled *bool `mapstructure:"ewma_enabled" json:"ewma_enabled" yaml:"ewma_enabled"`
+
+	// EWMAHalfLifeSeconds overrides the EWMA half-life for recent pattern hotness.
+	EWMAHalfLifeSeconds *float64 `mapstructure:"ewma_half_life_seconds" json:"ewma_half_life_seconds" yaml:"ewma_half_life_seconds"`
+
 	// Include limits adaptive sampling to logs matching at least one rule when set.
 	Include []*AdaptiveSamplingRule `mapstructure:"include" json:"include" yaml:"include"`
 

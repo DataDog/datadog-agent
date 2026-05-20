@@ -2434,6 +2434,16 @@ properties:
             node_type: setting
             type: boolean
             default: false
+          ewma_enabled:
+            node_type: setting
+            type: boolean
+            default: false
+          ewma_half_life_seconds:
+            node_type: setting
+            type: number
+            default: 300
+            tags:
+            - golang_type:float64
           exclude:
             node_type: setting
             type: array
