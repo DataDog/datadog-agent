@@ -51,6 +51,13 @@ linters:
               desc: "use the std maps package instead (Keys/Values need slices.Collect wrapping)"
             - pkg: "github.com/aws/aws-sdk-go/"
               desc: "use the v2 sdk instead"
+        multierror:
+          files:
+            - $all
+            - "!**/pkg/security/**"
+          deny:
+            - pkg: "github.com/hashicorp/go-multierror"
+              desc: "use errors.Join instead (Go 1.20+); pkg/security is exempt while its PolicyProvider interface is migrated"
         logger:
           files:
             - $all
@@ -119,19 +126,25 @@ linters:
             - "!**/comp/core/config/config.go"
             - "!**/comp/core/config/params.go"
             - "!**/comp/core/config/setup.go"
-            - "!**/comp/core/gui/guiimpl/checks.go"
+            - "!**/comp/core/gui/impl/checks.go"
             - "!**/comp/core/hostname/remotehostnameimpl/hostname.go"
             - "!**/comp/core/status/statusimpl/common_header_provider.go"
             - "!**/comp/core/status/statusimpl/common_header_provider_test.go"
             - "!**/comp/core/status/statusimpl/status_api_endpoints_test.go"
             - "!**/comp/core/status/statusimpl/status_test.go"
-            - "!**/comp/core/sysprobeconfig/sysprobeconfigimpl/config.go"
-            - "!**/comp/core/sysprobeconfig/sysprobeconfigimpl/config_mock.go"
+            - "!**/comp/core/sysprobeconfig/impl/config.go"
+            - "!**/comp/core/sysprobeconfig/mock/mock.go"
+
             - "!**/comp/core/tagger/taglist/taglist.go"
             - "!**/comp/core/workloadfilter/baseimpl/filter_utils.go"
             - "!**/comp/core/workloadfilter/catalog/filter_config.go"
             - "!**/comp/core/workloadmeta/collectors/internal/containerd/network_linux.go"
+            - "!**/comp/dogstatsd/packets/pool.go"
+            - "!**/comp/dogstatsd/server/float64_list_pool.go"
+            - "!**/comp/dogstatsd/server/impl/float64_list_pool.go"
             - "!**/comp/dogstatsd/server/serverless.go"
+            - "!**/comp/dogstatsd/server/impl/serverless.go"
+            - "!**/comp/dogstatsd/serverDebug/serverdebugimpl/debug.go"
             - "!**/comp/forwarder/connectionsforwarder/impl/connectionsforwarder.go"
             - "!**/comp/forwarder/defaultforwarder/blocked_endpoints.go"
             - "!**/comp/forwarder/defaultforwarder/default_forwarder.go"
@@ -384,9 +397,6 @@ linters:
       text: "name will be used as .* by other packages, and that stutters"
     - path: pkg/util/containerd
       text: "name will be used as .* by other packages, and that stutters"
-    # Should be replaced by google.golang.org/protobuf but is not a drop-in replacement
-    - text: "\"github.com/golang/protobuf/proto\" is deprecated"
-      linters: [staticcheck]
     # Can't rely on getting the same elements after calling Seed because dependencies could be using
     # it too. Should be replaced by using a local source, but there are too many uses in the repo.
     - text: "rand.Seed has been deprecated since Go 1.20"

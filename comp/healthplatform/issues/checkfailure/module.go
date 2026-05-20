@@ -34,8 +34,7 @@ func NewModule(config.Component) issues.Module {
 	}
 }
 
-// IssueID returns the unique identifier for this issue type
-func (m *checkFailureModule) IssueID() string {
+func (m *checkFailureModule) IssueType() string {
 	return IssueID
 }
 
@@ -44,7 +43,12 @@ func (m *checkFailureModule) IssueTemplate() issues.IssueTemplate {
 	return m.template
 }
 
-// BuiltInCheck returns nil - check failures are reported by external integrations
-func (m *checkFailureModule) BuiltInCheck() *issues.BuiltInCheck {
+// BuiltInPeriodicHealthCheck returns nil - check failures are reported by external integrations
+func (m *checkFailureModule) BuiltInPeriodicHealthCheck() *issues.BuiltInPeriodicHealthCheck {
+	return nil
+}
+
+// BuiltInStartupHealthCheck returns nil - no startup-time check for this module
+func (m *checkFailureModule) BuiltInStartupHealthCheck() *issues.BuiltInStartupHealthCheck {
 	return nil
 }

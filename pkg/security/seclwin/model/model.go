@@ -256,7 +256,7 @@ func initMember(member reflect.Value, deja map[string]bool) {
 		field := member.Field(i)
 
 		switch field.Kind() {
-		case reflect.Ptr:
+		case reflect.Pointer:
 			if field.CanSet() {
 				field.Set(reflect.New(field.Type().Elem()))
 			}

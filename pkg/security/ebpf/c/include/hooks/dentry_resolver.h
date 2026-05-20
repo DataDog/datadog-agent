@@ -50,8 +50,8 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
             params->discarder.is_leaf = i == 0;
 
             if (is_discarded_by_inode(params)) {
-                if (input->flags & ACTIVITY_DUMP_RUNNING) {
-                    input->flags |= SAVED_BY_ACTIVITY_DUMP;
+                if (input->flags & RESOLVER_FLAG_ACTIVITY_DUMP_RUNNING) {
+                    input->flags |= RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP;
                 } else {
                     return DENTRY_DISCARDED;
                 }
@@ -354,7 +354,7 @@ TAIL_CALL_FNC(dentry_resolver_ad_filter, ctx_t *ctx) {
     }
 
     if (is_activity_dump_running(ctx, bpf_get_current_pid_tgid() >> 32, bpf_ktime_get_ns(), syscall->type)) {
-        syscall->resolver.flags |= ACTIVITY_DUMP_RUNNING;
+        syscall->resolver.flags |= RESOLVER_FLAG_ACTIVITY_DUMP_RUNNING;
     }
 
     tail_call_dr_progs(ctx, KPROBE_OR_FENTRY_TYPE, DR_DENTRY_RESOLVER_KERN_KEY);
@@ -368,7 +368,7 @@ TAIL_CALL_TRACEPOINT_FNC(dentry_resolver_ad_filter, void *ctx) {
     }
 
     if (is_activity_dump_running(ctx, bpf_get_current_pid_tgid() >> 32, bpf_ktime_get_ns(), syscall->type)) {
-        syscall->resolver.flags |= ACTIVITY_DUMP_RUNNING;
+        syscall->resolver.flags |= RESOLVER_FLAG_ACTIVITY_DUMP_RUNNING;
     }
 
     tail_call_dr_progs(ctx, TRACEPOINT_TYPE, DR_DENTRY_RESOLVER_KERN_KEY);

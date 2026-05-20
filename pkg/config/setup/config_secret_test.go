@@ -146,6 +146,7 @@ func TestProxyWithSecret(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			unsetProxyEnvForTest(t)
 
 			config := newTestConf(t)
 			config.SetWithoutSource("use_proxy_for_cloud_metadata", true)

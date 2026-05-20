@@ -27,7 +27,8 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	schedulerdef "github.com/DataDog/datadog-agent/comp/healthplatform/scheduler/def"
+	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -42,16 +43,10 @@ func TestBundleDependencies(t *testing.T) {
 	)
 }
 
-// TestBundleStartLifecycle exercises the full bundle (core + checkrunner + forwarder)
-// through fx start/stop and locks in the start-order invariant: a check registered
-// via the core component must (a) actually fire, (b) reach the in-memory store
-// (proves the reporter is wired before the first tick), and (c) be POSTed to the
-// intake (proves the provider is wired before the forwarder ticks). If a future
-// refactor flips SetReporter / SetProvider with ScheduleHealthCheck — or moves built-in
-// check registration back into New — the first tick is silently dropped and this
-// test fails.
+// TestBundleStartLifecycle exercises the full bundle through fx start/stop and
+// verifies: (a) a scheduled check fires, (b) its issue reaches the in-memory
+// store, and (c) the issue is forwarded to the intake via the forwarder.
 func TestBundleStartLifecycle(t *testing.T) {
-	// Mock intake server to capture forwarded reports.
 	var receivedRequests atomic.Int32
 	var (
 		mu              sync.Mutex
@@ -71,17 +66,15 @@ func TestBundleStartLifecycle(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	// Force the persistence selector off the Kubernetes branch so the test is
-	// not sensitive to the CI runner's environment.
 	t.Setenv("KUBERNETES_SERVICE_PORT", "")
 	t.Setenv("KUBERNETES", "")
 
 	type appDeps struct {
 		fx.In
-		HP healthplatformdef.Component
+		HP        storedef.Component
+		Scheduler schedulerdef.Component
 	}
 
-	// Intervals well below the test timeout so the lifecycle work completes quickly.
 	const tickInterval = 50 * time.Millisecond
 
 	deps := fxutil.Test[appDeps](t,
@@ -101,50 +94,51 @@ func TestBundleStartLifecycle(t *testing.T) {
 		hostnameinterface.MockModule(),
 	)
 
-	// Register a custom check after fx.Start has returned. We use a unique
-	// checkID so platform-specific built-in checks (docker / rofs) do not
-	// confuse the assertions.
 	var checkRunCount atomic.Int32
 	const (
-		testCheckID   = "test-bundle-lifecycle-check"
-		testCheckName = "Test Bundle Lifecycle Check"
-		// Reuse a real issue ID registered by the bundle's side-effect imports
+		testSource  = "test-bundle-lifecycle"
+		testIssueID = "test-bundle-lifecycle-issue"
+		// Reuse a real issue type registered by the bundle's side-effect imports
 		// so the registry's BuildIssue lookup succeeds.
-		testIssueID = "docker-file-tailing-disabled"
+		testIssueType = "docker-file-tailing-disabled"
 	)
-	require.NoError(t, deps.HP.ScheduleHealthCheck(testCheckID, testCheckName, func() (*healthplatformpayload.IssueReport, error) {
+	require.NoError(t, deps.Scheduler.Schedule(testSource, func() ([]storedef.IssueReport, error) {
 		checkRunCount.Add(1)
-		return &healthplatformpayload.IssueReport{
-			IssueId: testIssueID,
-			Context: map[string]string{
-				"dockerDir": "/var/lib/docker",
-				"os":        "linux",
+		return []storedef.IssueReport{
+			{
+				IssueID:   testIssueID,
+				IssueType: testIssueType,
+				Source:    testSource,
+				Context: map[string]string{
+					"dockerDir": "/var/lib/docker",
+					"os":        "linux",
+				},
 			},
 		}, nil
-	}, tickInterval))
+	}, tickInterval, nil))
 
 	require.Eventually(t, func() bool { return checkRunCount.Load() > 0 },
 		2*time.Second, 10*time.Millisecond,
-		"check function never fired — checkrunner did not spawn its goroutine")
+		"check function never fired")
 
 	require.Eventually(t, func() bool {
-		return deps.HP.GetIssue(testCheckID) != nil
+		return deps.HP.GetIssue(testIssueID) != nil
 	}, 2*time.Second, 10*time.Millisecond,
-		"core never recorded the issue — reporter not wired before first check fired")
+		"store never recorded the issue")
 
 	require.Eventually(t, func() bool { return receivedRequests.Load() > 0 },
 		2*time.Second, 10*time.Millisecond,
-		"forwarder never POSTed — provider not wired before forwarder ticked")
+		"forwarder never POSTed")
 
 	mu.Lock()
 	defer mu.Unlock()
 	require.NotEmpty(t, receivedReports, "expected at least one health report payload")
 	found := false
 	for _, rep := range receivedReports {
-		if _, ok := rep.Issues[testCheckID]; ok {
+		if _, ok := rep.Issues[testIssueID]; ok {
 			found = true
 			break
 		}
 	}
-	assert.True(t, found, "no received report contained the test check's issue (checkID=%s)", testCheckID)
+	assert.True(t, found, "no received report contained the test issue (id=%s)", testIssueID)
 }

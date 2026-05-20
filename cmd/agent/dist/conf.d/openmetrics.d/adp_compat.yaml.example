@@ -1,0 +1,83 @@
+# Drop this file in place as conf.d/openmetrics.d/adp_compat.yaml when running
+# Agent Data Plane. It restores datadog.agent.dogstatsd.* and
+# datadog.agent.forwarder.transactions.* metrics sourced from ADP.
+#
+# Remove the dogstatsd/*, dogstatsd-udp/*, and dogstatsd-uds/* entries from
+# go_expvar.d/agent_stats.yaml to avoid stale zero values from Core Agent expvars.
+# Keep forwarder/* entries in go_expvar.d/agent_stats.yaml because they still
+# reflect Core Agent forwarder activity. ADP forwarder metrics appear here with
+# tag source:agent-data-plane.
+#
+# Counter metrics use type: rate to match the go_expvar check behavior.
+instances:
+  - openmetrics_endpoint: http://localhost:5102/compat/metrics
+    namespace: datadog.agent
+    metrics:
+      - dogstatsd_event_packets:
+          name: dogstatsd.event_packets
+          type: rate
+      - dogstatsd_event_parse_errors:
+          name: dogstatsd.event_parse_errors
+          type: rate
+      - dogstatsd_metric_packets:
+          name: dogstatsd.metric_packets
+          type: rate
+      - dogstatsd_metric_parse_errors:
+          name: dogstatsd.metric_parse_errors
+          type: rate
+      - dogstatsd_service_check_packets:
+          name: dogstatsd.service_check_packets
+          type: rate
+      - dogstatsd_service_check_parse_errors:
+          name: dogstatsd.service_check_parse_errors
+          type: rate
+      - dogstatsd_udp_packets:
+          name: dogstatsd_udp.packets
+          type: rate
+      - dogstatsd_udp_bytes:
+          name: dogstatsd_udp.bytes
+          type: rate
+      - dogstatsd_udp_packet_reading_errors:
+          name: dogstatsd_udp.packet_reading_errors
+          type: rate
+      - dogstatsd_uds_packets:
+          name: dogstatsd_uds.packets
+          type: rate
+      - dogstatsd_uds_bytes:
+          name: dogstatsd_uds.bytes
+          type: rate
+      - dogstatsd_uds_packet_reading_errors:
+          name: dogstatsd_uds.packet_reading_errors
+          type: rate
+      - dogstatsd_uds_origin_detection_errors:
+          name: dogstatsd_uds.origin_detection_errors
+          type: rate
+      - forwarder_transactions_dropped:
+          name: forwarder.transactions.dropped
+          type: rate
+      - forwarder_transactions_success:
+          name: forwarder.transactions.success
+          type: rate
+      - forwarder_transactions_errors:
+          name: forwarder.transactions.errors
+          type: rate
+      - forwarder_transactions_http_errors:
+          name: forwarder.transactions.http_errors
+          type: rate
+      - forwarder_transactions_errors_by_type_connection_errors:
+          name: forwarder.transactions.errors_by_type.connection_errors
+          type: rate
+      - forwarder_transactions_errors_by_type_dns_errors:
+          name: forwarder.transactions.errors_by_type.dns_errors
+          type: rate
+      - forwarder_transactions_errors_by_type_tls_errors:
+          name: forwarder.transactions.errors_by_type.tls_errors
+          type: rate
+      - forwarder_transactions_errors_by_type_wrote_request_errors:
+          name: forwarder.transactions.errors_by_type.wrote_request_errors
+          type: rate
+      - forwarder_transactions_errors_by_type_sent_request_errors:
+          name: forwarder.transactions.errors_by_type.sent_request_errors
+          type: rate
+      - forwarder_transactions_retry_queue_size: forwarder.transactions.retry_queue_size
+      - retry_queue_duration_bytes_per_sec: retry_queue_duration.bytes_per_sec

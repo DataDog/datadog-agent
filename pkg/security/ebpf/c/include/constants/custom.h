@@ -6,7 +6,7 @@
 #define TTY_NAME_LEN 64
 #define MAX_XATTR_NAME_LEN 200
 #define CHAR_TO_UINT32_BASE_10_MAX_LEN 11
-#define BASENAME_FILTER_SIZE 256
+#define BASENAME_FILTER_SIZE 32 // has to be in sync with the userspace definition
 #define FSTYPE_LEN 16
 #define MAX_PATH_LEN 256
 #define REVISION_ARRAY_SIZE 4096
@@ -225,6 +225,11 @@ enum FLUSH_NETWORK_STATS_TYPE
     PID_EXIT,
     PID_EXEC,
     NETWORK_STATS_TICKER,
+};
+
+enum CACHE_SYSCALL_TYPE
+{
+    CACHE_SYSCALL_UPDATE_PROC_CACHE_CGROUP_KEY,
 };
 
 static __attribute__((always_inline)) u64 get_network_monitor_period() {

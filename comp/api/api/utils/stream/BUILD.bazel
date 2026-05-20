@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "stream",
+    srcs = ["stream.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/api/api/utils/stream",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/api/api/utils",
+        "//pkg/logs/diagnostic",
+        "//pkg/util/log",
+    ],
+)

@@ -144,6 +144,18 @@ func makeInstruction(functionID FunctionID, op Op) codeFragment {
 			bytes:  []byte{},
 		}
 
+	case GoContextChainInitOp:
+		return staticInstruction{
+			opcode: OpcodeGoContextChainInit,
+			bytes:  binary.LittleEndian.AppendUint32(nil, uint32(op.ImplTypeID)),
+		}
+
+	case GoContextChainHopOp:
+		return staticInstruction{
+			opcode: OpcodeGoContextChainHop,
+			bytes:  []byte{},
+		}
+
 	case ProcessGoDictTypeOp:
 		bytes := make([]byte, 0, 9)
 		bytes = binary.LittleEndian.AppendUint32(bytes, uint32(op.DictIndex))
@@ -192,6 +204,30 @@ func makeInstruction(functionID FunctionID, op Op) codeFragment {
 		bytes = append(bytes, op.LengthMaskOffset)
 		return staticInstruction{
 			opcode: OpcodeProcessGoSwissMapGroups,
+			bytes:  bytes,
+		}
+
+	case ProcessGoTimeOp:
+		// Layout: wall_off (u32), ext_off (u32), loc_off (u32),
+		// cache_resolved (u8), cache_start_off (u32), cache_end_off (u32),
+		// cache_zone_off (u32), zone_offset_field_off (u32),
+		// zone_offset_field_size (u32).
+		bytes := make([]byte, 0, 33)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.WallFieldOffset)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.ExtFieldOffset)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.LocFieldOffset)
+		var resolved uint8
+		if op.CacheResolved {
+			resolved = 1
+		}
+		bytes = append(bytes, resolved)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.CacheStartOffset)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.CacheEndOffset)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.CacheZoneOffset)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.ZoneOffsetFieldOffset)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.ZoneOffsetFieldSize)
+		return staticInstruction{
+			opcode: OpcodeProcessGoTime,
 			bytes:  bytes,
 		}
 
@@ -337,6 +373,135 @@ func makeInstruction(functionID FunctionID, op Op) codeFragment {
 
 	case CondLabelOp:
 		return labelMarker{functionID: functionID, id: op.ID}
+
+	case ConditionStateInitOp:
+		return staticInstruction{
+			opcode: OpcodeConditionStateInit,
+			bytes:  []byte{},
+		}
+
+	case ConditionLeafRecordOp:
+		return staticInstruction{
+			opcode: OpcodeConditionLeafRecord,
+			bytes:  []byte{op.LeafIdx},
+		}
+
+	case ConditionLeafLoadOp:
+		// Encoded as: opcode + uint8 leaf_idx + uint32 error_target.
+		// We compose it using leafLoadInstruction below so the layout
+		// pass can resolve the label PC.
+		return leafLoadInstruction{
+			functionID: functionID,
+			leafIdx:    op.LeafIdx,
+			label:      op.Label,
+		}
+
+	case ConditionCheckPreserveErrorOp:
+		return staticInstruction{
+			opcode: OpcodeConditionCheckPreserveError,
+			bytes:  []byte{},
+		}
+
+	case ConditionLeafCompleteOp:
+		return staticInstruction{
+			opcode: OpcodeConditionLeafComplete,
+			bytes:  []byte{},
+		}
+
+	case ExprAdvanceOffsetOp:
+		return staticInstruction{
+			opcode: OpcodeExprAdvanceOffset,
+			bytes:  binary.LittleEndian.AppendUint32(nil, op.Offset),
+		}
+
+	case ExprLoadAddressOp:
+		// kind (u8) + u32 cfa_offset + u32 pointer_bias
+		bytes := make([]byte, 0, 9)
+		bytes = append(bytes, uint8(op.LocationKind))
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.CfaOffset)
+		bytes = binary.LittleEndian.AppendUint32(bytes, op.PointerBias)
+		return staticInstruction{
+			opcode: OpcodeExprLoadAddress,
+			bytes:  bytes,
+		}
+
+	case ArrayLoopBeginOp:
+		// u8 quantifier + u32 elem_size + u32 compile_time_len + u32 end_label_pc
+		prefix := make([]byte, 0, 1+2*4)
+		prefix = append(prefix, uint8(op.Quantifier))
+		prefix = binary.LittleEndian.AppendUint32(prefix, op.ElemByteSize)
+		prefix = binary.LittleEndian.AppendUint32(prefix, op.CompileTimeLen)
+		return paramJumpInstruction{
+			opcode:     OpcodeArrayLoopBegin,
+			functionID: functionID,
+			prefix:     prefix,
+			label:      op.EndLabel,
+		}
+
+	case ArrayLoopEndOp:
+		// u32 body_label_pc (quantifier / elem_size come from slice_loop_state).
+		return paramJumpInstruction{
+			opcode:     OpcodeArrayLoopEnd,
+			functionID: functionID,
+			label:      op.BodyLabel,
+		}
+
+	case SliceLoopBeginOp:
+		// u8 quantifier + u32 elem_size + u32 end_label_pc
+		prefix := make([]byte, 0, 1+4)
+		prefix = append(prefix, uint8(op.Quantifier))
+		prefix = binary.LittleEndian.AppendUint32(prefix, op.ElemByteSize)
+		return paramJumpInstruction{
+			opcode:     OpcodeSliceLoopBegin,
+			functionID: functionID,
+			prefix:     prefix,
+			label:      op.EndLabel,
+		}
+
+	case SliceLoopEndOp:
+		// u32 body_label_pc (quantifier / elem_size come from slice_loop_state).
+		return paramJumpInstruction{
+			opcode:     OpcodeSliceLoopEnd,
+			functionID: functionID,
+			label:      op.BodyLabel,
+		}
+
+	case SwissMapLoopBeginOp:
+		// u8 quantifier + u32 key_size + u32 val_size
+		// + 5 u8 offsets (dir_ptr, dir_len, ctrl, slots, key_in_slot)
+		// + u16 val_in_slot + u16 slot_size + u16 group_byte_size
+		// + 3 u8 offsets (table_groups, groups_data, groups_len_mask)
+		// + u32 end_label_pc.
+		prefix := make([]byte, 0, 32)
+		prefix = append(prefix, uint8(op.Quantifier))
+		prefix = binary.LittleEndian.AppendUint32(prefix, op.KeyByteSize)
+		prefix = binary.LittleEndian.AppendUint32(prefix, op.ValByteSize)
+		prefix = append(prefix,
+			op.DirPtrOffset, op.DirLenOffset,
+			op.CtrlOffset, op.SlotsOffset, op.KeyInSlotOffset,
+		)
+		prefix = binary.LittleEndian.AppendUint16(prefix, op.ValInSlotOffset)
+		prefix = binary.LittleEndian.AppendUint16(prefix, op.SlotSize)
+		prefix = binary.LittleEndian.AppendUint16(prefix, op.GroupByteSize)
+		prefix = append(prefix,
+			op.TableGroupsFieldOffset,
+			op.GroupsDataFieldOffset,
+			op.GroupsLenMaskFieldOffset,
+		)
+		return paramJumpInstruction{
+			opcode:     OpcodeSwissMapLoopBegin,
+			functionID: functionID,
+			prefix:     prefix,
+			label:      op.EndLabel,
+		}
+
+	case SwissMapLoopEndOp:
+		// u32 body_label_pc (quantifier / key / val come from swissmap_loop_state).
+		return paramJumpInstruction{
+			opcode:     OpcodeSwissMapLoopEnd,
+			functionID: functionID,
+			label:      op.BodyLabel,
+		}
 
 	default:
 		panic(fmt.Sprintf("unsupported op: %T", op))

@@ -11,8 +11,6 @@ import (
 	"context"
 	"errors"
 
-	"k8s.io/utils/clock"
-
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -25,7 +23,7 @@ func StartSpotScheduling(ctx context.Context, wlm workloadmeta.Component, apiCl 
 	}
 
 	cfg := ReadConfig(pkgconfigsetup.Datadog())
-	s := newScheduler(cfg, clock.RealClock{}, wlm,
+	s := newScheduler(cfg, wlm,
 		newKubePodEvictor(apiCl.Cl),
 		newKubeWorkloadPatcher(apiCl.DynamicInformerCl),
 		apiCl.DynamicInformerCl,

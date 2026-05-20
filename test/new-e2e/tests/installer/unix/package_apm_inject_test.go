@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -35,9 +35,6 @@ func testApmInjectAgent(os e2eos.Descriptor, arch e2eos.Architecture, method Ins
 }
 
 func (s *packageApmInjectSuite) SetupTest() {
-	if s.os == e2eos.Debian12 || s.os == e2eos.Ubuntu2404 {
-		flake.Mark(s.T())
-	}
 	// Purge() uses Execute (not MustExecute), so failures are silent.
 	// A stale packages.db entry causes Install() to skip PostInstall hooks
 	// (which create /etc/ld.so.preload and /etc/docker/daemon.json).
@@ -599,6 +596,120 @@ func (s *packageApmInjectSuite) TestSystemdService() {
 	state = s.host.State()
 	state.AssertPathDoesNotExist("/etc/systemd/system/datadog-apm-inject.service")
 	state.AssertUnitsNotLoaded("datadog-apm-inject.service")
+	s.assertLDPreloadNotInstrumented()
+}
+
+// crashyConstructorSrc is a tiny C source compiled into a shared library
+// whose ELF constructor calls _exit(1) — but only when the library was
+// loaded via the LD_PRELOAD environment variable (i.e., the deliberate
+// "is this .so loadable?" probe that verifySharedLib runs via
+// `LD_PRELOAD=lib echo 1`). When the library is loaded via
+// /etc/ld.so.preload alone, the constructor returns without crashing,
+// because /etc/ld.so.preload entries do not propagate into the loading
+// process's LD_PRELOAD env var. That selectivity is what makes this
+// fixture testable from userspace: every dynamically-linked program
+// (bash, sudo, systemctl, ssh-spawned shells) still loads the .so at
+// startup via /etc/ld.so.preload, but stays alive because LD_PRELOAD is
+// not set in its environment — so the test can actually invoke
+// `systemctl stop` after the bad lib is in place.
+//
+// The unconditional-crash variant (no getenv guard) is what the
+// production bug actually requires for the brick to occur, because
+// during shutdown systemd execs ExecStop with no /bin/sh wrapper and
+// the static installer doesn't consult ld.so at all. Reproducing that
+// here would also kill the test's own ssh/sudo/systemctl chain, so it
+// can only be exercised via a real shutdown — covered by the no-shell
+// unit-file unit test (TestSystemdServiceManager_writeServiceFile_NoShWrapper)
+// and by manual / pre-merge reboot testing.
+const crashyConstructorSrc = `#include <stdlib.h>
+#include <unistd.h>
+__attribute__((constructor)) static void crash(void) {
+    const char *p = getenv("LD_PRELOAD");
+    if (p && *p) _exit(1);
+}
+`
+
+// installGCC installs the C compiler used by buildCrashyInjectorSO.
+func (s *packageApmInjectSuite) installGCC() {
+	s.T().Helper()
+	host := s.Env().RemoteHost
+	switch s.os.Flavor {
+	case e2eos.Ubuntu, e2eos.Debian:
+		host.MustExecute("sudo apt-get update -qq && sudo apt-get install -y gcc libc6-dev")
+	case e2eos.Suse:
+		host.MustExecute("sudo zypper --non-interactive install -y gcc glibc-devel")
+	default:
+		s.T().Skipf("test does not know how to install gcc on %s", s.os.Flavor)
+	}
+}
+
+// buildCrashyInjectorSO writes crashyConstructorSrc to a temp file,
+// compiles it as a shared library, and places the resulting .so at dst.
+// The result is a real, ld.so-loadable ELF — not a missing file or a
+// junk-content blob — which matches the user-facing failure shape: the
+// library is on disk and looks fine to ld.so, but its constructor
+// rejects the verifySharedLib probe.
+func (s *packageApmInjectSuite) buildCrashyInjectorSO(dst string) {
+	s.T().Helper()
+	s.installGCC()
+	host := s.Env().RemoteHost
+	host.MustExecute("sudo tee /tmp/crashy.c >/dev/null <<'CRASHY_EOF'\n" + crashyConstructorSrc + "CRASHY_EOF")
+	host.MustExecute("sudo gcc -shared -fPIC -o " + dst + " /tmp/crashy.c")
+	host.MustExecute("sudo chmod 0755 " + dst)
+}
+
+// TestSystemdServiceStopBrokenInjector verifies the safety property the unit
+// file's no-shell design exists to provide: `systemctl stop
+// datadog-apm-inject.service` succeeds at clearing /etc/ld.so.preload even
+// when the on-disk launcher.preload.so is a real, ld.so-loadable shared
+// object whose ELF constructor crashes any program that LD_PRELOADs it via
+// the env var (the probe verifySharedLib uses). ExecStop is
+// `<installer> apm instrument-stop host` invoked directly by systemd via
+// execve — the static, CGO_ENABLED=0 installer does not consult
+// /etc/ld.so.preload, so a broken injector on disk never blocks cleanup.
+//
+// See crashyConstructorSrc's commentary for why the fixture crashes
+// selectively (via LD_PRELOAD env var only, not via /etc/ld.so.preload)
+// rather than unconditionally.
+func (s *packageApmInjectSuite) TestSystemdServiceStopBrokenInjector() {
+	if _, err := s.Env().RemoteHost.Execute("test \"$(cat /proc/1/comm 2>/dev/null)\" = systemd"); err != nil {
+		s.T().Skip("systemd is not running as PID 1 on this host")
+	}
+
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=host", "DD_APM_INSTRUMENTATION_LIBRARIES=python")
+	defer s.Purge()
+
+	s.host.WaitForUnitActive(s.T(), "datadog-apm-inject.service")
+	s.assertLDPreloadInstrumented(injectOCIPath)
+
+	// Move the original launcher aside (rename, not truncate) so any
+	// process that still has it mmapped keeps a valid backing inode,
+	// then write a real ELF .so at the same path. /etc/ld.so.preload
+	// still references this path — the fixture's getenv guard is what
+	// keeps the surrounding system runnable. Restoring the original on
+	// cleanup keeps the host sane for Purge() and any retries.
+	launcherPath := filepath.Join(injectOCIPath, "stable", "inject", "launcher.preload.so")
+	host := s.Env().RemoteHost
+	host.MustExecute(fmt.Sprintf("sudo mv %[1]s %[1]s.bak", launcherPath))
+	s.buildCrashyInjectorSO(launcherPath)
+	defer host.Execute(fmt.Sprintf("sudo mv -f %[1]s.bak %[1]s 2>/dev/null || true", launcherPath)) //nolint:errcheck
+
+	// Confirm the shared object actually crashes the same probe
+	// verifySharedLib uses. Without this, a silently-non-crashing fixture
+	// would make the rest of the test a misleading no-op (no broken
+	// injector → "systemctl stop succeeded" tells us nothing about the
+	// safety property).
+	out, err := host.Execute(fmt.Sprintf("LD_PRELOAD=%s /bin/true; echo $?", launcherPath))
+	require.NoError(s.T(), err, "could not even run the LD_PRELOAD probe — environment is unusable")
+	require.Equal(s.T(), "1", strings.TrimSpace(out), "shared object did not crash LD_PRELOAD=lib /bin/true as expected; the rest of this test would be a misleading no-op")
+
+	// ExecStop is exec'd directly against the static installer binary —
+	// no /bin/sh wrapper, no dynamic-linker dependency on the broken .so —
+	// so it must succeed and clear /etc/ld.so.preload despite the crashy
+	// injector sitting at the path /etc/ld.so.preload still references.
+	_, err = host.Execute("sudo systemctl stop datadog-apm-inject.service")
+	require.NoError(s.T(), err, "systemctl stop must succeed despite the broken injector on disk")
+
 	s.assertLDPreloadNotInstrumented()
 }
 

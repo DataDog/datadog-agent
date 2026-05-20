@@ -33,6 +33,26 @@ func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.BuildableConfi
 	return conf
 }
 
+// can be used to ensure proxy tests are isolated from proxy env vars set by CI
+func unsetProxyEnvForTest(t *testing.T) {
+	t.Helper()
+
+	for _, key := range []string{
+		"DD_PROXY_HTTP",
+		"DD_PROXY_HTTPS",
+		"DD_PROXY_NO_PROXY",
+		"HTTP_PROXY",
+		"HTTPS_PROXY",
+		"NO_PROXY",
+		"http_proxy",
+		"https_proxy",
+		"no_proxy",
+	} {
+		t.Setenv(key, "")
+		require.NoError(t, os.Unsetenv(key))
+	}
+}
+
 func TestDefaults(t *testing.T) {
 	config := newTestConf(t)
 
@@ -49,6 +69,9 @@ func TestDefaults(t *testing.T) {
 		"hint_frequency": 60,
 		"interval":       4 * time.Hour,
 	}, config.GetStringMap("process_config.process_discovery"))
+
+	assert.True(t, config.GetBool("logs_config.tag_multi_line_logs"))
+	assert.True(t, config.GetBool("logs_config.tag_truncated_logs"))
 }
 
 func TestUnexpectedUnicode(t *testing.T) {
@@ -430,6 +453,7 @@ func TestProxy(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			unsetProxyEnvForTest(t)
 
 			config := newTestConf(t)
 			config.SetWithoutSource("use_proxy_for_cloud_metadata", c.proxyForCloudMetadata)

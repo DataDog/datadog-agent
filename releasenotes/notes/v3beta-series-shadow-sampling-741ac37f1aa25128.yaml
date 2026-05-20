@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    A small sample of series metric flushes (0.1% by default) is now
+    additionally sent to a v3beta metrics intake endpoint to validate the
+    upcoming v3 metrics protocol. Shadow traffic is only sent for agents
+    configured against the ``datadoghq.com`` (US1) site. To opt out, set
+    ``serializer_experimental_use_v3_api.series.shadow_sample_rate`` to
+    ``0``.

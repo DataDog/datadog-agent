@@ -17,14 +17,11 @@ func init() {
 }
 
 const (
-	// IssueID is the unique identifier for Docker permission issues
-	IssueID = "docker-file-tailing-disabled"
+	// IssueType is the template identifier for Docker permission issues
+	IssueType = "docker-file-tailing-disabled"
 
-	// CheckID is the unique identifier for the built-in health check
-	CheckID = "docker-socket-permissions"
-
-	// CheckName is the human-readable name for the health check
-	CheckName = "Docker Socket Permissions"
+	// IssueID is the unique instance id used when reporting this issue
+	IssueID = "docker-socket-permissions"
 )
 
 // dockerPermissionsModule implements issues.Module
@@ -39,22 +36,24 @@ func NewModule(config.Component) issues.Module {
 	}
 }
 
-// IssueID returns the unique identifier for this issue type
-func (m *dockerPermissionsModule) IssueID() string {
-	return IssueID
+func (m *dockerPermissionsModule) IssueType() string {
+	return IssueType
 }
 
-// IssueTemplate returns the template for building complete issues
 func (m *dockerPermissionsModule) IssueTemplate() issues.IssueTemplate {
 	return m.template
 }
 
-// BuiltInCheck returns the built-in health check configuration
-// Interval is 0 to use the default (15 minutes)
-func (m *dockerPermissionsModule) BuiltInCheck() *issues.BuiltInCheck {
-	return &issues.BuiltInCheck{
-		ID:      CheckID,
-		Name:    CheckName,
-		CheckFn: Check,
+// BuiltInPeriodicHealthCheck returns the periodic health check configuration.
+// Interval is 0 to use the default (15 minutes).
+func (m *dockerPermissionsModule) BuiltInPeriodicHealthCheck() *issues.BuiltInPeriodicHealthCheck {
+	return &issues.BuiltInPeriodicHealthCheck{
+		Source: "docker",
+		Fn:     Check,
 	}
+}
+
+// BuiltInStartupHealthCheck returns nil — docker permission checks run periodically.
+func (m *dockerPermissionsModule) BuiltInStartupHealthCheck() *issues.BuiltInStartupHealthCheck {
+	return nil
 }

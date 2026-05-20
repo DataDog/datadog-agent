@@ -222,6 +222,7 @@ new-e2e-ndm-snmp*                       @DataDog/network-device-monitoring-core
 new-e2e-ha-agent*                       @DataDog/network-device-monitoring-core
 # --- Pipelines (metrics / logs / traces) ---
 new-e2e-amp                             @DataDog/agent-metric-pipelines
+new-e2e-amp-adp                         @DataDog/agent-data-plane
 new-e2e-alp*                            @DataDog/agent-log-pipelines
 new-e2e-apm*                            @DataDog/agent-apm
 # --- Security ---
@@ -235,7 +236,7 @@ new-e2e-fleet*                          @DataDog/fleet
 new-e2e-installer*                      @DataDog/fleet
 # --- Agent packaging (install scripts, step-by-step, package signing) ---
 new-e2e-agent-platform-*                @DataDog/fleet
-new-e2e-platform-integrations-*         @DataDog/agent-runtimes
+new-e2e-platform-integrations-*         @DataDog/agent-integrations
 new-e2e-package-signing-*               @DataDog/agent-delivery
 # --- GPU ---
 new-e2e-gpu*                            @DataDog/ebpf-platform

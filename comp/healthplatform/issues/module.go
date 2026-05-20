@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 )
 
 // ModuleFactory is a function that creates a new Module instance
@@ -55,32 +55,49 @@ func GetAllModules(config config.Component) []Module {
 
 // IssueTemplate defines how to build a complete issue (metadata + remediation) from context
 type IssueTemplate interface {
-	// BuildIssue creates a complete issue using the provided context
+	// BuildIssue creates a complete issue using the provided context.
 	BuildIssue(context map[string]string) (*healthplatform.Issue, error)
 }
 
-// BuiltInCheck represents configuration for a built-in health check
-type BuiltInCheck struct {
-	ID       string
-	Name     string
-	CheckFn  healthplatformdef.HealthCheckFunc
-	Interval time.Duration
-
-	// Once is mutually exclusive with Interval.
-	// If true, the check will only run once at startup.
-	Once bool
+// BuiltInPeriodicHealthCheck represents configuration for a periodic built-in health check.
+// Source is the reporting component label passed to scheduler.Schedule.
+// Fn returns zero or more IssueReports; returning nil/empty means no issue detected.
+// IssueTypes is populated automatically by Registry.RegisterModule from module.IssueType();
+// module authors must not set it. bundle.go uses it to query the store for persisted
+// issues from a prior run so the scheduler can resolve them after restart.
+type BuiltInPeriodicHealthCheck struct {
+	Source     string
+	Fn         runnerdef.HealthCheckFunc
+	Interval   time.Duration
+	IssueTypes []string
 }
 
-// Module represents a complete issue feature module
-// Each module bundles detection (optional) with remediation
-type Module interface {
-	// IssueID returns the unique identifier for this issue type
-	IssueID() string
+// BuiltInStartupHealthCheck represents a check that runs exactly once at agent startup via
+// runner.Run. Use this for startup-time diagnostics (e.g. filesystem permissions)
+// where a periodic poll makes no sense.
+// IssueTypes is populated automatically by Registry.RegisterModule; see BuiltInPeriodicHealthCheck.
+type BuiltInStartupHealthCheck struct {
+	Source     string
+	Fn         runnerdef.HealthCheckFunc
+	IssueTypes []string
+}
 
-	// IssueTemplate returns the template for building complete issues
+// Module represents a complete issue feature module.
+// Each module bundles detection (optional) with remediation.
+type Module interface {
+	// IssueType returns the template type identifier for this issue. It is the
+	// key used to look up the issue template in the registry and must match the
+	// IssueType field set in any IssueReport emitted by this module's checks.
+	IssueType() string
+
+	// IssueTemplate returns the template for building complete issues.
 	IssueTemplate() IssueTemplate
 
-	// BuiltInCheck returns the built-in health check configuration, or nil if
-	// this issue is only reported by external integrations
-	BuiltInCheck() *BuiltInCheck
+	// BuiltInPeriodicHealthCheck returns the periodic health check configuration, or nil
+	// if this module has no periodic check.
+	BuiltInPeriodicHealthCheck() *BuiltInPeriodicHealthCheck
+
+	// BuiltInStartupHealthCheck returns a check that runs once at startup, or nil if
+	// this module has no startup-time check.
+	BuiltInStartupHealthCheck() *BuiltInStartupHealthCheck
 }
