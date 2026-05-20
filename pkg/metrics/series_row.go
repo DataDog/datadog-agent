@@ -67,9 +67,11 @@ type V3MetricPointRow struct {
 }
 
 // V3MetricPointRowSink is implemented by sinks that can consume a single-point
-// v3 row directly instead of requiring a fully materialized SerieRow.
+// v3 row directly instead of requiring a fully materialized SerieRow. The row
+// pointer is owned by the caller and is only valid for the duration of the call;
+// sinks that retain it must copy.
 type V3MetricPointRowSink interface {
-	AppendV3MetricPointRow(V3MetricPointRow)
+	AppendV3MetricPointRow(*V3MetricPointRow)
 }
 
 // NewSerieRow constructs a normalized serializer row from its component fields.

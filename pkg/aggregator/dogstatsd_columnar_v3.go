@@ -738,7 +738,7 @@ func (s *dogstatsdColumnarStore) flushShardToV3MetricPointSink(shard *dogstatsdC
 
 	for i := range rows {
 		shadow.observeV3MetricPointRow(&rows[i])
-		sink.AppendV3MetricPointRow(rows[i])
+		sink.AppendV3MetricPointRow(&rows[i])
 		rows[i] = metrics.V3MetricPointRow{}
 	}
 	rowCount := uint64(len(rows))

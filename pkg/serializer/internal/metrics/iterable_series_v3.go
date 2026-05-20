@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math/bits"
 	"slices"
+	"strings"
 
 	"github.com/twmb/murmur3"
 
@@ -342,9 +343,30 @@ func (pb *payloadsBuilderV3) reset() {
 	pb.stats = v3stats{}
 }
 
+func hasV3SpecialResourceTags(tags tagset.CompositeTags) bool {
+	return tags.Find(func(tag string) bool {
+		return strings.HasPrefix(tag, "device:") || strings.HasPrefix(tag, "dd.internal.resource:")
+	})
+}
+
 func (pb *payloadsBuilderV3) renderResources(serie *metrics.Serie) {
-	row := metrics.SerieRowFromSerie(serie)
-	pb.renderSerieRowResources(&row)
+	pb.resourcesBuf = pb.resourcesBuf[0:0]
+
+	if serie.Host != "" {
+		pb.resourcesBuf = append(pb.resourcesBuf, metrics.Resource{
+			Type: resourceTypeHost,
+			Name: serie.Host,
+		})
+	}
+
+	if serie.Device != "" {
+		pb.resourcesBuf = append(pb.resourcesBuf, metrics.Resource{
+			Type: "device",
+			Name: serie.Device,
+		})
+	}
+
+	pb.resourcesBuf = append(pb.resourcesBuf, serie.Resources...)
 }
 
 func (pb *payloadsBuilderV3) renderSerieRowResources(row *metrics.SerieRow) {
@@ -419,8 +441,23 @@ func (pb *payloadsBuilderV3) writeSerie(serie *metrics.Serie) error {
 	if serie == nil {
 		return nil
 	}
-	row := metrics.SerieRowFromSerie(serie)
-	return pb.writeSerieRow(&row)
+
+	if !pb.pipelineConfig.Filter.Filter(serie) {
+		return nil
+	}
+
+	if ok, err := pb.checkPointsLimit(len(serie.Points)); !ok {
+		return err
+	}
+
+	for {
+		pb.writeSerieToTxn(serie)
+		err := pb.finishTxn(len(serie.Points))
+		if err == errRetry {
+			continue
+		}
+		return err
+	}
 }
 
 func (pb *payloadsBuilderV3) writeSerieRow(row *metrics.SerieRow) error {
@@ -506,8 +543,66 @@ func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
 	if serie == nil {
 		return
 	}
-	row := metrics.SerieRowFromSerie(serie)
-	pb.writeSerieRowToTxn(&row)
+
+	// Preserve the no-mutation SerieRow compatibility path for uncommon tags that
+	// project into dedicated v3 resource fields, but avoid allocating a temporary
+	// SerieRow for the common path where tags can be written as-is.
+	if hasV3SpecialResourceTags(serie.Tags) {
+		row := metrics.SerieRowFromSerie(serie)
+		pb.writeSerieRowToTxn(&row)
+		return
+	}
+
+	pb.txn.Reset()
+
+	pb.renderResources(serie)
+
+	pb.writeMetricCommon(
+		serie.Name,
+		serie.Tags,
+		serie.Interval,
+		serie.SourceTypeName,
+		serie.Source,
+		len(serie.Points),
+	)
+
+	pointKind := pointKindZero
+	for _, pnt := range serie.Points {
+		pointKind = pointKind.unionOf(pnt.Value)
+	}
+	valueType := pointKind.toValueType()
+
+	typeValue := valueType | metricType(serie.MType)
+	if serie.NoIndex {
+		typeValue |= flagNoIndex
+	}
+	if serie.Unit != "" {
+		typeValue |= flagHasUnit
+	}
+
+	pb.txn.Int64(columnType, typeValue)
+
+	if serie.Unit != "" {
+		pb.txn.Sint64(columnUnitRef,
+			pb.deltaUnitRef.encode(pb.dict.internUnit(serie.Unit)))
+	}
+
+	for _, pnt := range serie.Points {
+		pb.writePointCommon(int64(pnt.Ts))
+		switch valueType {
+		case valueZero:
+			pb.stats.valuesZero++
+		case valueSint64:
+			pb.stats.valuesSint64++
+			pb.txn.Sint64(columnValueSint64, int64(pnt.Value))
+		case valueFloat32:
+			pb.stats.valuesFloat32++
+			pb.txn.Float32(columnValueFloat32, float32(pnt.Value))
+		case valueFloat64:
+			pb.stats.valuesFloat64++
+			pb.txn.Float64(columnValueFloat64, pnt.Value)
+		}
+	}
 }
 
 func (pb *payloadsBuilderV3) writeSerieRowToTxn(row *metrics.SerieRow) {

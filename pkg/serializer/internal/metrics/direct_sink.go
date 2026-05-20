@@ -109,8 +109,8 @@ func (sink *DirectSeriesSink) AppendSerieRow(row pkgmetrics.SerieRow) {
 
 // AppendV3MetricPointRow serializes a single-point producer-side v3 row into
 // each configured pipeline without constructing a SerieRow on the v3 path.
-func (sink *DirectSeriesSink) AppendV3MetricPointRow(row pkgmetrics.V3MetricPointRow) {
-	if sink.err != nil {
+func (sink *DirectSeriesSink) AppendV3MetricPointRow(row *pkgmetrics.V3MetricPointRow) {
+	if sink.err != nil || row == nil {
 		return
 	}
 
@@ -119,7 +119,7 @@ func (sink *DirectSeriesSink) AppendV3MetricPointRow(row pkgmetrics.V3MetricPoin
 	sink.rowCount++
 	for _, pb := range sink.pbs {
 		if pointWriter, ok := pb.(v3MetricPointRowWriter); ok {
-			if err := pointWriter.writeV3MetricPointRow(&row); err != nil {
+			if err := pointWriter.writeV3MetricPointRow(row); err != nil {
 				sink.err = err
 				return
 			}
@@ -140,7 +140,7 @@ func (sink *DirectSeriesSink) AppendV3MetricPointRow(row pkgmetrics.V3MetricPoin
 			return
 		}
 	}
-	sink.segmentShadow.observeV3MetricPointRow(&row)
+	sink.segmentShadow.observeV3MetricPointRow(row)
 }
 
 // Finish finalizes all active payload builders and returns the number of

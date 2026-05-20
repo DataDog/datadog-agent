@@ -1339,3 +1339,100 @@ Read:
   removing legacy aggregator contexts/tagstore memory. The next memory work must
   profile the direct columnar/serializer path rather than assuming descriptor
   metadata is the whole delta.
+
+## Stage S: heap profiling and v3 serializer allocation analysis
+
+Stage S used pprof to explain the remaining Stage R memory gap and then fixed
+low-risk direct serializer allocation artifacts.
+
+Artifacts:
+
+- `reports/smp/dogstatsd-agg-serde-20260516-143205/notes/stageS-heap-and-v3-serializer-profile.md`
+- `reports/smp/dogstatsd-agg-serde-20260516-143205/profiles/stageR-agent-heap/manual/`
+- `reports/smp/dogstatsd-agg-serde-20260516-143205/profiles/stageR-v3-payload-builder/`
+
+Profile setup:
+
+- Baseline image: `datadog/agent-dev:smp-dsd-main`
+- Comparison image: `datadog/agent-dev:smp-dsd-columnar-v3-memory-hygiene-reuse`
+- Case: `uds_dogstatsd_to_api_v3_endpoint_fixed_compact_batch`
+- One local standard-UDS replicate with `--total-samples 150`.
+- Manual heap collection was required because SMP's pprof sidecar cannot reach the
+  Agent's `127.0.0.1`-bound expvar server; profiles were collected via an
+  `alpine` container sharing the target container network namespace.
+
+Key heap findings:
+
+| Variant | late pprof in-use heap |
+|---|---:|
+| main | `162.14 MiB` |
+| Stage R reuse | `173.31 MiB` |
+| delta | `+11.17 MiB` |
+
+This pprof in-use delta is much smaller than the paired SMP RSS delta
+(`~+45.6 MiB`). The remaining RSS gap is therefore not mostly retained live Go
+objects from the direct serializer. It is more consistent with heap-sys/RSS
+retention from transient allocation, payload/column buffers, allocator behavior,
+and non-heap/runtime memory.
+
+Late in-use shape:
+
+- `main` retained about `32.74 MiB` in the legacy packet pool.
+- Stage R retained about `18.72 MiB` in the compact raw ring.
+- Stage R retained about `+5.39 MiB` more parser string-interner data and
+  `+3.03 MiB` in the columnar sample pool.
+- Direct v3 serializer objects were not a top retained-heap item.
+
+Allocation-space shape:
+
+- Whole-Agent allocation is dominated by parser string interning and tag parsing:
+  `stringInterner.LoadOrStore` allocated `~17.64 GiB` in the Stage R late
+  profile and `parseTags` accounted for `~18.38 GiB` cumulative allocation.
+- Serializer-focused cumulative allocation over the same 150-sample run was much
+  smaller: columnar-v3 flush to direct point rows accounted for `~64 MiB`, with
+  `~21 MiB` in column input buffers, `~12 MiB` in v3 dictionary string maps, and
+  `~8 MiB` in final payload buffers.
+
+Code changes from the profile:
+
+- `metrics.V3MetricPointRowSink` now accepts `*V3MetricPointRow`; the pointer is
+  documented as call-scoped.
+- Columnar flush passes pointers to scratch rows synchronously and then clears
+  them after the sink returns.
+- Direct serializer callback and sink paths no longer copy a point row by value
+  and then take its address. The pre-fix Agent profile showed about `5.5 MiB`
+  cumulative allocation in `directSeriesCallbackSink.AppendV3MetricPointRow` and
+  about `5.0 MiB` in `DirectSeriesSink.AppendV3MetricPointRow` from those row
+  escapes during the 150-sample run.
+- `payloadsBuilderV3.writeSerie` now has a no-mutation fast path for the common
+  no-special-resource-tags case, avoiding one temporary `SerieRow` escape per
+  series. It keeps the `SerieRowFromSerie` compatibility fallback for `device:`
+  and `dd.internal.resource:` tags.
+- Added `BenchmarkV3PayloadBuilderAllocation` for future focused allocation
+  checks.
+
+Focused benchmark read for 8,192-row flush-shaped batches:
+
+| Path | Identity shape | Before | After |
+|---|---|---:|---:|
+| `writeSerie` | reused identity | `~2.41 MiB`, `8,743 allocs/op` | `~704 KiB`, `551 allocs/op` |
+| `writeSerie` | unique identity | `~6.95 MiB`, `9,123 allocs/op` | `~5.25 MiB`, `929 allocs/op` |
+| `writeV3MetricPointRow` | unique identity | `~5.25 MiB`, `929 allocs/op` | unchanged; already at this benchmark's payload-builder floor |
+
+Validation:
+
+```bash
+dda inv test --targets=./pkg/metrics,./pkg/aggregator,./pkg/serializer/internal/metrics,./pkg/serializer --timeout=300
+```
+
+Result: passed (`400` tests).
+
+Next memory work:
+
+- Build and SMP-test a post-Stage-S image.
+- Run metric-only heap profiles to remove standard-case event/service-check noise.
+- Focus on the parser string interner next: measure hit/miss/reset/bytes against
+  workload cardinality and test bounded/adaptive admission for mostly-unique
+  tags.
+- Consider v3 builder capacity hints or a batched point-row sink so dictionary
+  maps and column buffers can be sized from flush row estimates.

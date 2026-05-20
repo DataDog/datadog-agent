@@ -32,8 +32,11 @@ type columnarPointRowCaptureSink struct {
 	rows []metrics.V3MetricPointRow
 }
 
-func (s *columnarPointRowCaptureSink) AppendV3MetricPointRow(row metrics.V3MetricPointRow) {
-	cloned := row
+func (s *columnarPointRowCaptureSink) AppendV3MetricPointRow(row *metrics.V3MetricPointRow) {
+	if row == nil {
+		return
+	}
+	cloned := *row
 	cloned.Resources = append([]metrics.Resource(nil), row.Resources...)
 	if tags := row.Tags.UnsafeToReadOnlySliceString(); tags != nil {
 		cloned.Tags = row.Tags

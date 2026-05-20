@@ -362,19 +362,22 @@ func (s directSeriesCallbackSink) AppendSerieRow(row metrics.SerieRow) {
 	s.sink.Append(row.ToSerie())
 }
 
-func (s directSeriesCallbackSink) AppendV3MetricPointRow(row metrics.V3MetricPointRow) {
+func (s directSeriesCallbackSink) AppendV3MetricPointRow(row *metrics.V3MetricPointRow) {
+	if row == nil {
+		return
+	}
 	if s.v3PointRowCallback != nil {
-		s.v3PointRowCallback(&row)
+		s.v3PointRowCallback(row)
 	} else if s.rowCallback != nil {
 		serieRow := row.ToSerieRow()
 		s.rowCallback(&serieRow)
-		updateV3MetricPointRowFromSerieRow(&row, serieRow)
+		updateV3MetricPointRowFromSerieRow(row, serieRow)
 	} else if s.callback != nil {
 		serieRow := row.ToSerieRow()
 		serie := serieRow.ToSerie()
 		s.callback(serie)
 		serieRow = metrics.SerieRowFromSerie(serie)
-		updateV3MetricPointRowFromSerieRow(&row, serieRow)
+		updateV3MetricPointRowFromSerieRow(row, serieRow)
 	}
 
 	if pointSink, ok := s.sink.(metrics.V3MetricPointRowSink); ok {
