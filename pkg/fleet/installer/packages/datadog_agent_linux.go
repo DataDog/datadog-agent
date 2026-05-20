@@ -227,11 +227,17 @@ func retireLegacyProcmgrUnits(ctx HookContext) error {
 	default:
 		return nil
 	}
-	if err := systemd.StopUnits(ctx, legacyProcmgrUnitNames...); err != nil {
+	running, err := systemd.IsRunning()
+	if err != nil {
 		return err
 	}
-	if err := systemd.DisableUnits(ctx, legacyProcmgrUnitNames...); err != nil {
-		return err
+	if running {
+		if err := systemd.StopUnits(ctx, legacyProcmgrUnitNames...); err != nil {
+			return err
+		}
+		if err := systemd.DisableUnits(ctx, legacyProcmgrUnitNames...); err != nil {
+			return err
+		}
 	}
 	for _, unitsPath := range systemdUnitInstallPaths {
 		if err := legacyProcmgrUnitPaths.EnsureAbsent(ctx, unitsPath); err != nil {
