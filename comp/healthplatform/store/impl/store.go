@@ -27,7 +27,7 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	issuesmod "github.com/DataDog/datadog-agent/comp/healthplatform/issues"
+	registrydef "github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	noopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
 	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
@@ -42,6 +42,7 @@ type Requires struct {
 	Log       log.Component
 	Telemetry telemetry.Component
 	Hostname  hostnameinterface.Component
+	Registry  registrydef.Component
 }
 
 // Provides defines the output of the health-platform component
@@ -73,7 +74,7 @@ type healthPlatformImpl struct {
 	persistence     issuesPersistence          // Persistence strategy (disk or noop)
 
 	// Issue module registry (combines checks + remediations)
-	issueRegistry *issuesmod.Registry
+	issueRegistry registrydef.Component
 
 	// Metrics
 	metrics telemetryMetrics // Telemetry metrics for health platform
@@ -246,12 +247,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 		persistence = newDiskPersistence(persistencePath, reqs.Log)
 	}
 
-	// Create unified issue registry and register all self-registered modules
-	issueRegistry := issuesmod.NewRegistry()
-	for _, module := range issuesmod.GetAllModules(reqs.Config) {
-		issueRegistry.RegisterModule(module)
-	}
-
 	// Initialize the health platform implementation
 	comp := &healthPlatformImpl{
 		// Core dependencies
@@ -261,8 +256,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 		hostnameProvider: reqs.Hostname,
 		agentFlavor:      flavor.GetFlavor(),
 
-		// Issue module registry
-		issueRegistry: issueRegistry,
+		// Issue module registry (injected via fx)
+		issueRegistry: reqs.Registry,
 
 		// Issue tracking
 		issues:       make(map[string]*healthplatform.Issue),
@@ -359,8 +354,8 @@ func (h *healthPlatformImpl) ReportIssue(report healthplatformdef.IssueReport) e
 // template's Source field takes precedence. If no template is registered a
 // minimal proto is built from the report fields directly.
 func (h *healthPlatformImpl) toProto(report healthplatformdef.IssueReport) (*healthplatform.Issue, error) {
-	if template, exists := h.issueRegistry.GetTemplate(report.IssueType); exists {
-		issue, err := template.BuildIssue(report.Context)
+	if h.issueRegistry.HasTemplate(report.IssueType) {
+		issue, err := h.issueRegistry.BuildIssue(report.IssueType, report.Context)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build issue %s: %w", report.IssueType, err)
 		}
