@@ -6,6 +6,10 @@ Provides clear, customer-friendly reporting and output formatting for external u
 from tasks.libs.common.color import color_message
 from tasks.static_quality_gates.decisions import GateVerdict
 
+# Visual width of the summary table dividers. Update together with the column widths
+# in the header below if columns are added or resized.
+SUMMARY_TABLE_WIDTH = 160
+
 
 class QualityGateOutputFormatter:
     """
@@ -82,9 +86,9 @@ class QualityGateOutputFormatter:
             gate_verdicts: List of GateVerdicts with decisions on gates
             metric_handler: Optional GateMetricHandler for getting measurement data
         """
-        print(color_message("\n" + "=" * 160, "magenta"))
+        print(color_message("\n" + "=" * SUMMARY_TABLE_WIDTH, "magenta"))
         print(color_message("🛡️  STATIC QUALITY GATES SUMMARY", "magenta"))
-        print(color_message("=" * 160, "magenta"))
+        print(color_message("=" * SUMMARY_TABLE_WIDTH, "magenta"))
 
         # Create a lookup for gate states
         verdict_lookup = {verdict.name: verdict for verdict in gate_verdicts}
@@ -96,7 +100,7 @@ class QualityGateOutputFormatter:
             f"{'Comp Remain':<12} {'Uncomp Remain':<14} {'Comp PR Buf%':<13} {'Uncomp PR Buf%':<14}"
         )
         print(color_message(header, "cyan"))
-        print(color_message("-" * 160, "cyan"))
+        print(color_message("-" * SUMMARY_TABLE_WIDTH, "cyan"))
 
         passed_count = 0
         failed_count = 0
@@ -198,7 +202,7 @@ class QualityGateOutputFormatter:
             )
 
         # Summary footer
-        print(color_message("-" * 160, "cyan"))
+        print(color_message("-" * SUMMARY_TABLE_WIDTH, "cyan"))
 
         # Overall statistics
         total_gates = len(gate_list)
@@ -213,4 +217,4 @@ class QualityGateOutputFormatter:
         print(
             color_message("📊 Dashboard: https://app.datadoghq.com/dashboard/5np-man-vak/static-quality-gates", "cyan")
         )
-        print(color_message("=" * 160, "magenta"))
+        print(color_message("=" * SUMMARY_TABLE_WIDTH, "magenta"))
