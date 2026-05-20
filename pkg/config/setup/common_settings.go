@@ -1597,6 +1597,21 @@ func serverless(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("serverless.trace_managed_services", true, "DD_TRACE_MANAGED_SERVICES")
 	config.BindEnvAndSetDefault("serverless.service_mapping", "", "DD_SERVICE_MAPPING")
 
+	// trace-agent EVPProxy / OpenLineageProxy defaults. Mirrors the registrations in initCoreAgentFull.
+	config.BindEnvAndSetDefault("evp_proxy_config.enabled", true)
+	config.BindEnvAndSetDefault("evp_proxy_config.dd_url", "")
+	config.BindEnvAndSetDefault("evp_proxy_config.api_key", "")
+	config.BindEnvAndSetDefault("evp_proxy_config.additional_endpoints", map[string][]string{})
+	config.BindEnvAndSetDefault("evp_proxy_config.max_payload_size", int64(10*1024*1024))
+	config.BindEnvAndSetDefault("evp_proxy_config.receiver_timeout", 0)
+	bindDelegatedAuthConfig(config, "evp_proxy_config")
+	config.BindEnvAndSetDefault("ol_proxy_config.enabled", true)
+	config.BindEnvAndSetDefault("ol_proxy_config.dd_url", "")
+	config.BindEnvAndSetDefault("ol_proxy_config.api_key", "")
+	config.BindEnvAndSetDefault("ol_proxy_config.additional_endpoints", map[string][]string{})
+	config.BindEnvAndSetDefault("ol_proxy_config.api_version", 2)
+	bindDelegatedAuthConfig(config, "ol_proxy_config")
+
 	// Set defaults for config keys that may be accessed but aren't relevant in serverless environments
 	// to avoid "config key is unknown" and "unable to cast nil" warnings
 	config.SetDefault("checks_tag_cardinality", "low")
