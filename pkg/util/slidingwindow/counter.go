@@ -14,9 +14,9 @@ import (
 
 // Counter tracks how many events have occurred within a sliding time window.
 //
-// The window is half-open: [now-windowSize, now).
-// An event recorded exactly windowSize seconds in the past is NOT included
-// in the current count.
+// Count returns events from the last windowSize seconds,.
+// including the current second and excluding events exactly
+// windowSize seconds old.
 //
 // Internally the counter uses a ring buffer of windowSize int64 slots
 // (one per second).  Add is O(1); Count is O(windowSize).
