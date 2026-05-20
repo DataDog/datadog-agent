@@ -221,6 +221,17 @@
       },
       {
         "customType": "regex",
+        "managerFilePatterns": [
+          "Dockerfiles/agent-ddot/Dockerfile.agent-otel"
+        ],
+        "matchStrings": [
+          "DDA_VERSION=v(?<currentValue>[0-9]+.[0-9]+.[0-9]+)"
+        ],
+        "depNameTemplate": "DataDog/datadog-agent-dev",
+        "datasourceTemplate": "github-releases"
+      },
+      {
+        "customType": "regex",
         "managerFilePatterns": ["release.json"],
         "matchStrings": [
           "[ ]+\"OMNIBUS_RUBY_VERSION\": \"(?<currentDigest>[a-z0-9]+)\""

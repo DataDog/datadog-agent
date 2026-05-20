@@ -6,3 +6,11 @@ cc_library(
     target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//pkg/windowsdriver/procmon:__pkg__"],
 )
+
+cc_library(
+    name = "ddinjector_public",
+    hdrs = ["ddinjector_public.h"],
+    includes = ["."],
+    target_compatible_with = ["@platforms//os:windows"],
+    visibility = ["//pkg/windowsdriver/ddinjector:__pkg__"],
+)

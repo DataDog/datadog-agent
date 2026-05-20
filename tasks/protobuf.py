@@ -1,6 +1,5 @@
 import os
 import re
-from pathlib import Path
 
 from invoke import Exit, task
 
@@ -25,34 +24,18 @@ def generate(ctx, pre_commit=False):
     proto_root = os.path.join(repo_root, "pkg", "proto")
     pbgo_dir = os.path.join(proto_root, "pbgo")
 
-    with ctx.cd(repo_root):
-        # protobuf defs
-        print(f"generating protobuf code from: {proto_root}")
-        bazel(ctx, "run", "//pkg/proto/pbgo/core:write_pb_go")
-        bazel(ctx, "run", "//pkg/proto/pbgo/dogstatsdhttp:write_pb_go")
-        bazel(ctx, "run", "//pkg/proto/pbgo/languagedetection:write_pb_go")
-        bazel(ctx, "run", "//pkg/proto/pbgo/privateactionrunner/actionsclient:write_pb_go")
-        bazel(ctx, "run", "//pkg/proto/pbgo/privateactionrunner/errorcode:write_pb_go")
-        bazel(ctx, "run", "//pkg/proto/pbgo/privateactionrunner/privateactions:write_pb_go")
-        bazel(ctx, "run", "//pkg/proto/pbgo/process:write_pb_go")
-        bazel(ctx, "run", "//pkg/proto/pbgo/sbom:write_pb_go")
-        bazel(ctx, "run", "//pkg/proto/pbgo/trace/idx:write_pb_go")
-        bazel(ctx, "run", "//pkg/proto/pbgo/trace:write_pb_go")
-
-        # Mockgen (not done in pre-commit as it is slow)
-        if not pre_commit:
-            mockgen_out = os.path.join(proto_root, "pbgo", "mocks")
-            pbgo_rel = Path(pbgo_dir).relative_to(repo_root).as_posix()
-            try:
-                os.mkdir(mockgen_out)
-            except FileExistsError:
-                print(f"{mockgen_out} folder already exists")
-
-            # Generate mocks from the gRPC file (api_grpc.pb.go) which contains the client/server interfaces
-            ctx.run(
-                f"{bt.mockgen} -source={pbgo_rel}/core/api_grpc.pb.go -destination={mockgen_out}/core/api_mockgen.pb.go",
-                env=bt.go_env,
-            )
+    print(f"generating protobuf code from: {proto_root}")
+    bazel(ctx, "run", "//pkg/proto/pbgo/core:write_pb_go")
+    bazel(ctx, "run", "//pkg/proto/pbgo/dogstatsdhttp:write_pb_go")
+    bazel(ctx, "run", "//pkg/proto/pbgo/languagedetection:write_pb_go")
+    bazel(ctx, "run", "//pkg/proto/pbgo/mocks/core:api_mockgen")
+    bazel(ctx, "run", "//pkg/proto/pbgo/privateactionrunner/actionsclient:write_pb_go")
+    bazel(ctx, "run", "//pkg/proto/pbgo/privateactionrunner/errorcode:write_pb_go")
+    bazel(ctx, "run", "//pkg/proto/pbgo/privateactionrunner/privateactions:write_pb_go")
+    bazel(ctx, "run", "//pkg/proto/pbgo/process:write_pb_go")
+    bazel(ctx, "run", "//pkg/proto/pbgo/sbom:write_pb_go")
+    bazel(ctx, "run", "//pkg/proto/pbgo/trace:write_pb_go")
+    bazel(ctx, "run", "//pkg/proto/pbgo/trace/idx:write_pb_go")
 
     # Generate messagepack marshallers
     # msgp targets (file, io)

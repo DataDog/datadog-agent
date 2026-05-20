@@ -30,14 +30,12 @@ exports_files(glob(
 # gazelle:exclude cmd/otel-agent/subcommands/controlsvc
 # gazelle:exclude cmd/otel-agent/subcommands/flare
 # gazelle:exclude cmd/otel-agent/subcommands/run
-# gazelle:exclude cmd/otel-agent/windows
 # gazelle:exclude cmd/privateactionrunner/subcommands
 # gazelle:exclude cmd/process-agent/api
 # gazelle:exclude cmd/process-agent/command
 # gazelle:exclude cmd/process-agent/subcommands
 # gazelle:exclude cmd/sbomgen
 # gazelle:exclude cmd/secret-generic-connector/main.go
-# gazelle:exclude cmd/secrethelper
 # gazelle:exclude cmd/security-agent
 # gazelle:exclude cmd/serverless-init
 # gazelle:exclude cmd/system-probe/modules
@@ -53,8 +51,6 @@ exports_files(glob(
 # gazelle:exclude cmd/system-probe/windows
 # gazelle:exclude cmd/systray
 # gazelle:exclude cmd/trace-agent/command
-# gazelle:exclude cmd/trace-agent/config
-# gazelle:exclude cmd/trace-agent/subcommands/config
 # gazelle:exclude cmd/trace-agent/subcommands/info
 # gazelle:exclude cmd/trace-agent/subcommands/run
 # gazelle:exclude cmd/trace-agent/test/testsuite
@@ -238,7 +234,6 @@ exports_files(glob(
 # gazelle:exclude comp/otelcol/converter/examples
 # gazelle:exclude comp/otelcol/ddflareextension/fx
 # gazelle:exclude comp/otelcol/ddflareextension/image
-# gazelle:exclude comp/otelcol/dogtelextension/fx
 # gazelle:exclude comp/otelcol/logsagentpipeline
 # gazelle:exclude comp/otelcol/otlp/components/exporter
 # gazelle:exclude comp/otelcol/otlp/integrationtest
@@ -295,7 +290,6 @@ exports_files(glob(
 # gazelle:exclude comp/trace/config/fx
 # gazelle:exclude comp/trace/config/impl
 # gazelle:exclude comp/trace/config/mock
-# gazelle:exclude internal/third_party/client-go
 # gazelle:exclude pkg/aggregator/mocksender
 # gazelle:exclude pkg/cli/standalone
 # gazelle:exclude pkg/cli/subcommands/autoscalerlist
@@ -322,7 +316,6 @@ exports_files(glob(
 # gazelle:exclude pkg/clusteragent/autoscaling/workload/model
 # gazelle:exclude pkg/clusteragent/autoscaling/workload/profile
 # gazelle:exclude pkg/clusteragent/autoscaling/workload/provider
-# gazelle:exclude pkg/clusteragent/clusterchecks
 # gazelle:exclude pkg/clusteragent/languagedetection
 # gazelle:exclude pkg/clusteragent/mcp
 # gazelle:exclude pkg/clusteragent/metricsstatus
@@ -400,7 +393,6 @@ exports_files(glob(
 # gazelle:exclude pkg/compliance/k8sconfig
 # gazelle:exclude pkg/compliance/tests
 # gazelle:exclude pkg/compliance/tools/k8s_schema_generator
-# gazelle:exclude pkg/compliance/utils
 # gazelle:exclude pkg/config/autodiscovery
 # gazelle:exclude pkg/config/legacy
 # gazelle:exclude pkg/databasemonitoring
@@ -410,7 +402,6 @@ exports_files(glob(
 # gazelle:exclude pkg/discovery/module/rust/include
 # gazelle:exclude pkg/discovery/module/rust/src
 # gazelle:exclude pkg/discovery/module/rust/tests
-# gazelle:exclude pkg/discovery/usm
 # gazelle:exclude pkg/dyninst/decode
 # gazelle:exclude pkg/dyninst/dyninsttest
 # gazelle:exclude pkg/dyninst/ebpfbench
@@ -487,20 +478,19 @@ exports_files(glob(
 # gazelle:exclude pkg/eventmonitor/examples
 # gazelle:exclude pkg/eventmonitor/testutil
 # gazelle:exclude pkg/flare
+# Parent BUILD.bazel reaches into tmpl/ via intra-package paths; a local stub would split the package and break those refs.
 # gazelle:exclude pkg/fleet/installer/packages/embedded/tmpl
 # gazelle:exclude pkg/gpu/containers
 # gazelle:exclude pkg/gpu/integrationtests
 # gazelle:exclude pkg/gpu/safenvml
 # gazelle:exclude pkg/gpu/testutil
 # gazelle:exclude pkg/hosttags
-# gazelle:exclude pkg/jmxfetch
 # gazelle:exclude pkg/kubestatemetrics
 # gazelle:exclude pkg/languagedetection/internal/detectors/privileged
 # gazelle:exclude pkg/languagedetection/privileged
 # gazelle:exclude pkg/languagedetection/util
 # gazelle:exclude pkg/logs/client/http
 # gazelle:exclude pkg/logs/client/tcp
-# gazelle:exclude pkg/logs/internal/decoder
 # gazelle:exclude pkg/logs/internal/tag
 # gazelle:exclude pkg/logs/internal/util/adlistener
 # gazelle:exclude pkg/logs/internal/util/containersorpods
@@ -554,9 +544,7 @@ exports_files(glob(
 # gazelle:exclude pkg/network/protocols/tls/nodejs
 # gazelle:exclude pkg/network/sender
 # gazelle:exclude pkg/network/tracer/connection
-# gazelle:exclude pkg/network/tracer/networkfilter
 # gazelle:exclude pkg/network/tracer/testutil/proxy
-# gazelle:exclude pkg/network/types
 # gazelle:exclude pkg/network/usm/config
 # gazelle:exclude pkg/network/usm/maps
 # gazelle:exclude pkg/network/usm/procnet
@@ -589,7 +577,6 @@ exports_files(glob(
 # gazelle:exclude pkg/sbom/collectors/host
 # gazelle:exclude pkg/sbom/collectors/procfs
 # gazelle:exclude pkg/sbom/scanner
-# gazelle:exclude pkg/security/agent
 # gazelle:exclude pkg/security/clihelpers
 # gazelle:exclude pkg/security/config
 # gazelle:exclude pkg/security/ebpf
@@ -604,7 +591,6 @@ exports_files(glob(
 # gazelle:exclude pkg/security/probe/selftests
 # gazelle:exclude pkg/security/process_list
 # gazelle:exclude pkg/security/proto/api/transform
-# gazelle:exclude pkg/security/rconfig
 # gazelle:exclude pkg/security/reporter
 # gazelle:exclude pkg/security/resolvers/dentry
 # gazelle:exclude pkg/security/resolvers/dns
@@ -651,7 +637,6 @@ exports_files(glob(
 # gazelle:exclude pkg/util/containers/metrics/system
 # gazelle:exclude pkg/util/crashreport
 # gazelle:exclude pkg/util/ec2/tags
-# gazelle:exclude pkg/util/fargate
 # gazelle:exclude pkg/util/kubelet
 # gazelle:exclude pkg/util/kubernetes/apiserver/controllers
 # gazelle:exclude pkg/util/kubernetes/apiserver/leaderelection/leaderelection.go
@@ -668,7 +653,6 @@ exports_files(glob(
 # gazelle:exclude pkg/util/kubernetes/hostinfo
 # gazelle:exclude pkg/util/kubernetes/kubelet
 # gazelle:exclude pkg/util/tags
-# gazelle:exclude pkg/windowsdriver/ddinjector
 # gazelle:exclude tasks/unit_tests
 # gazelle:exclude test/benchmarks
 # gazelle:exclude test/e2e-framework/common/utils
@@ -789,13 +773,13 @@ exports_files(glob(
 # gazelle:exclude test/regression
 # gazelle:exclude test/required_files
 # gazelle:exclude test/static
-# gazelle:exclude tools/NamedPipeCmd
 # gazelle:exclude tools/agent_QA
 # gazelle:exclude tools/ci
 # gazelle:exclude tools/ebpf
 # gazelle:exclude tools/gdb
 # gazelle:exclude tools/go-update
 # gazelle:exclude tools/host-profiler
+# Standalone debugging tool with its own go.mod; not built as part of the agent.
 # gazelle:exclude tools/retry_file_dump
 # gazelle:exclude tools/windows
 
