@@ -244,6 +244,10 @@ func Run(ctx context.Context, params Params) error {
 	logger := pkglog.NewWrapper(2)
 	vsockAddr := reader.GetString("vsock_addr")
 
+	// Clear the local env layer before applying the snapshot so streamed SourceEnvVar values
+	// from the core agent land in an empty c.envs.
+	disableLocalEnvLayer(params.ClientName)
+
 	bo := backoff.NewExponentialBackOff()
 	bo.InitialInterval = 500 * time.Millisecond
 	bo.MaxInterval = time.Minute
@@ -252,7 +256,6 @@ func Run(ctx context.Context, params Params) error {
 		err := tryBootstrap(ctx, params.ClientName, addr, authToken, clientTLS, vsockAddr, logger)
 		if err == nil {
 			pkglog.Infof("configstream bootstrap[%s]: snapshot applied", params.ClientName)
-			disableLocalEnvLayer(params.ClientName)
 			return nil
 		}
 		if ctx.Err() != nil {
