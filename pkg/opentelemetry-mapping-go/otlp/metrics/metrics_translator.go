@@ -628,6 +628,10 @@ func (t *defaultTranslator) MapMetrics(ctx context.Context, md pmetric.Metrics, 
 				if c, ok := consumer.(TagsConsumer); ok {
 					c.ConsumeTag(src.Tag())
 				}
+			case source.AzureContainerAppsKind:
+				if c, ok := consumer.(TagsConsumer); ok {
+					c.ConsumeTag(src.Tag())
+				}
 			case source.AzureAppServiceKind:
 				if c, ok := consumer.(TagSetConsumer); ok {
 					c.ConsumeTagSet("azureappservices", tagsFromDimensions(src.SourceIdentifier.Dimensions))
