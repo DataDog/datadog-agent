@@ -1727,3 +1727,22 @@ dda inv test --targets=./comp/dogstatsd/server/impl,./comp/dogstatsd/internal/id
 ```
 
 Result: passed (`658` package tests; unified report `576` tests).
+
+SMP validation after building optimized Linux/arm64 images from `658b3c805cb`:
+
+| Case | Throughput Δ mean / CI | Agent CPU Δ | Interpretation |
+|---|---:|---:|---|
+| `uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only_compact_batch` | `+0.01%` / `[-0.02%, +0.03%]` | `-14.0%` | fixed-rate high metrics-only workload; throughput neutral, CPU win decisive |
+| `uds_dogstatsd_to_api_v3_endpoint_fixed_compact_batch` | `+0.00%` / `[-0.03%, +0.03%]` | `-8.36%` | standard mixed workload; smaller but consistent CPU win |
+| `uds_dogstatsd_to_api_v3_endpoint_fixed_240mb_metrics_only_2cpu` | `+0.00%` / `[-0.03%, +0.03%]` | `-14.1%` | fixed-rate 2-CPU sweep case; throughput still generator/rate-limited |
+
+Selected counters line up with the intended mechanism: parser string-interner
+hits dropped by `~92%` in high-rate and 2-CPU metrics-only runs because repeated
+name/tag materialization was bypassed, and columnar flush-duration telemetry fell
+by `~27–35%` in those runs. Stage W therefore proves compact IDs can turn into a
+macro CPU win once used before materialization. To show sustainable-throughput
+wins rather than fixed-rate CPU savings, the next run should use a true
+saturation/backpressure sweep and compare lag/drops at the highest stable input
+rate. Memory is not yet improved: high-rate RSS/heap increased by roughly
+`+4.8%`/`+11.6%`, so retained fast-lane/tagset/descriptor-cache bytes still need
+adversarial and steady-state validation before any default-on decision.

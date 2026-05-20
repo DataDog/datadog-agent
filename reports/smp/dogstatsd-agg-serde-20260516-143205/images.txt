@@ -289,3 +289,28 @@ Image ID: sha256:865f8bfecabcf1a161cef0c810f0e830fe51937d6aba5cd4c5b878decf81948
 Created: 2026-05-20 local via `docker commit` from the Stage V base image
 Env: baseline env plus `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_DIRECT_PARSE=true`, `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_COMPACT_ROWS_OMIT_DESCRIPTOR=true`
 Notes: Supported metric messages parse directly into columnar-v3 scalar rows; descriptor fields may be omitted after columnar has observed the compact identity for that metric type.
+
+## Stage W parser no-materialization fast-lane images
+
+Branch: dogstatsd-agg-serde-experiment
+Commit: 658b3c805cb
+
+### Stage W fast-lane code, env off
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-fastlane]
+Image ID: sha256:241b655929f4d624bd5e22b1919d993feb7f41eff942399a9b6d4702c9ad3aa8
+Created: 2026-05-20 local
+Agent version: Agent 7.81.0-devel - Meta: git.89.658b3c8 - Commit: 658b3c805cb - Serialization version: v5.0.196 - Go version: go1.25.10
+Notes: Built as Linux/arm64 with `--no-development`. Fast lane remains disabled by default.
+
+### Stage W feature-cost baseline
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-fastlane-baseline]
+Image ID: sha256:254f98d84a24c29519a8c97f6fd51e1aff949cc684b32c63ce57ea7a74c8c772
+Created: 2026-05-20 local via `docker commit` from the Stage W base image
+Env: `DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER=true`, `DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER_SIZE=65536`, `DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES=true`, `DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES_SIZE=65536`, `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_COMPACT_HINT_SIZE=65536`, `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_DIRECT_PARSE=true`, `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_COMPACT_ROWS_OMIT_DESCRIPTOR=true`
+
+### Stage W fast lane enabled
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-fastlane-enabled]
+Image ID: sha256:18e6b54087515f1bcc46cad1b379257ace2e517a468a355ab9b7fc00409ee11d
+Created: 2026-05-20 local via `docker commit` from the Stage W base image
+Env: baseline env plus `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_FASTLANE=true`, `DD_DOGSTATSD_EXPERIMENTAL_COLUMNAR_V3_FASTLANE_SIZE=65536`
+Notes: Exact raw-tagset hits can use a worker-local descriptor cache to append scalar columnar-v3 rows without repeated tag materialization or full `MetricSample` construction. Columnar rows can also carry validated descriptor ID/generation refs.
