@@ -10,9 +10,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
+	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
@@ -717,9 +719,34 @@ func (s *datadogAgentService) RestartStable(ctx HookContext) error {
 	}
 }
 
+// scheduleSystemctlRestartNoBlock enqueues `systemctl restart <unit> --no-block` so
+// systemctl returns without waiting for the restart job to finish. Used when a
+// synchronous restart would stop the caller before it can finish its work (for
+// example promote-experiment handled by datadog-agent-installer-exp).
+func scheduleSystemctlRestartNoBlock(ctx context.Context, unit string) error {
+	running, err := systemd.IsRunning()
+	if err != nil {
+		return err
+	}
+	if !running {
+		log.Infof("Installer: systemd not running, skipping scheduled restart of %s", unit)
+		return nil
+	}
+	err = telemetry.CommandContext(ctx, "systemctl", "--no-block", "restart", unit).Run()
+	exitErr := &exec.ExitError{}
+	if !errors.As(err, &exitErr) {
+		return err
+	}
+	waitStatus, hasWaitStatus := exitErr.Sys().(syscall.WaitStatus)
+	if (exitErr.ExitCode() == -1 && hasWaitStatus && waitStatus.Signal() == syscall.SIGTERM) || exitErr.ExitCode() == 143 {
+		return nil
+	}
+	return err
+}
+
 // RestartStableDeferred schedules a restart of the stable main unit without waiting
 // for it to complete. On systemd (including ProcmgrType, which uses systemctl),
-// this uses systemd-run so promote handlers can return before the experiment
+// this uses systemctl --no-block so promote handlers can return before the experiment
 // installer unit is torn down.
 func (s *datadogAgentService) RestartStableDeferred(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
@@ -734,7 +761,7 @@ func (s *datadogAgentService) RestartStableDeferred(ctx HookContext) error {
 	}
 	switch service.GetServiceManagerType() {
 	case service.SystemdType, service.ProcmgrType:
-		return systemd.ScheduleRestartUnit(ctx, s.SystemdMainUnitStable)
+		return scheduleSystemctlRestartNoBlock(ctx, s.SystemdMainUnitStable)
 	case service.UpstartType:
 		return upstart.Restart(ctx, s.UpstartMainService)
 	case service.SysvinitType:

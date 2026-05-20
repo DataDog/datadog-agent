@@ -28,8 +28,6 @@ import (
 const (
 	// UserUnitsPath is the directory where systemd user unit files are stored
 	UserUnitsPath = "/etc/systemd/system"
-	// SystemctlExitUnitNotLoaded is the systemctl exit code when a unit is not loaded.
-	SystemctlExitUnitNotLoaded = 5
 )
 
 func handleSystemdSelfStops(err error) error {
@@ -65,8 +63,8 @@ func StopUnit(ctx context.Context, unit string, args ...string) error {
 	if !errors.As(err, &exitErr) {
 		return err
 	}
-	// exit code means the unit is not loaded, we can continue
-	if exitErr.ExitCode() == SystemctlExitUnitNotLoaded {
+	// exit code 5 means the unit is not loaded, we can continue
+	if exitErr.ExitCode() == 5 {
 		return nil
 	}
 	return handleSystemdSelfStops(err)
@@ -98,29 +96,6 @@ func RestartUnit(ctx context.Context, unit string, args ...string) error {
 		return nil
 	}
 	args = append([]string{"restart", unit}, args...)
-	err = telemetry.CommandContext(ctx, "systemctl", args...).Run()
-	return handleSystemdSelfStops(err)
-}
-
-// ScheduleRestartUnit enqueues `systemctl restart <unit>` with --no-block so
-// systemctl returns without waiting for the restart job to finish.
-//
-// Used when a synchronous restart would stop the caller before it can finish
-// its work (for example promote-experiment handled by datadog-agent-installer-exp,
-// which systemd stops when datadog-agent.service restarts).
-//
-// We use systemctl --no-block instead of systemd-run --no-block because older
-// systemd packages ship systemd-run without that flag.
-func ScheduleRestartUnit(ctx context.Context, unit string) error {
-	running, err := IsRunning()
-	if err != nil {
-		return err
-	}
-	if !running {
-		log.Infof("Installer: systemd not running, skipping scheduled restart of %s", unit)
-		return nil
-	}
-	args := []string{"--no-block", "restart", unit}
 	err = telemetry.CommandContext(ctx, "systemctl", args...).Run()
 	return handleSystemdSelfStops(err)
 }
@@ -161,8 +136,8 @@ func DisableUnit(ctx context.Context, unit string) error {
 	if !errors.As(err, &exitErr) {
 		return err
 	}
-	if exitErr.ExitCode() == SystemctlExitUnitNotLoaded {
-		// exit code means the unit is not loaded, we can continue
+	if exitErr.ExitCode() == 5 {
+		// exit code 5 means the unit is not loaded, we can continue
 		return nil
 	}
 	return err
