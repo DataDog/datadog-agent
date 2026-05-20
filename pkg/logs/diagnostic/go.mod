@@ -5,7 +5,8 @@ go 1.25.0
 require (
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.61.0
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.75.4
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.75.4
+	github.com/DataDog/datadog-agent/pkg/config/mock v0.75.4
+	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.75.4
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.75.4
 	github.com/stretchr/testify v1.11.1
@@ -24,8 +25,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/config/create v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/helper v0.75.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.77.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.75.4 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/structure v0.77.0-devel.0.20260211235139-a5361978c2b6 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/teeconfig v0.75.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.75.4 // indirect
@@ -78,10 +79,10 @@ require (
 	go.uber.org/zap v1.28.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/net v0.53.0 // indirect
+	golang.org/x/net v0.54.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.43.0 // indirect
-	golang.org/x/text v0.36.0 // indirect
+	golang.org/x/sys v0.44.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 )
 
