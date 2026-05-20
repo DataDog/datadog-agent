@@ -249,15 +249,6 @@ func (s *packageDDOTSuite) assertCoreUnits(state host.State, oldUnits bool) {
 	}
 }
 
-// assertDDOTUnits verifies the legacy datadog-agent-ddot systemd unit (standalone package install).
-func (s *packageDDOTSuite) assertDDOTUnits(state host.State, oldUnits bool) {
-	state.AssertUnitsLoaded(ddotUnit)
-	state.AssertUnitsRunning(ddotUnit)
-
-	ddotPath := s.systemdUnitFragmentDir(oldUnits)
-	s.host.AssertUnitProperty(ddotUnit, "FragmentPath", filepath.Join(ddotPath, ddotUnit))
-}
-
 // assertDDOTUnitsProcmgr: procmgr running, ddot systemd inactive (collector under dd-procmgr), FragmentPath per oldUnits flags (OCI ddot unit often needs ddotOldUnits=false).
 func (s *packageDDOTSuite) assertDDOTUnitsProcmgr(state host.State, procmgrOldUnits, ddotOldUnits bool) {
 	state.AssertUnitsLoaded(procmgrUnit)
