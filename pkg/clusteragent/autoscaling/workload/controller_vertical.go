@@ -135,6 +135,10 @@ func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.
 		if pod.DeletionTimestamp != nil {
 			continue
 		}
+		if autoscalerInternal.HasPendingOperation(pod.EntityID.ID, recommendationID) {
+			podsByResizeStatus[PodResizeStatusEvicting] = append(podsByResizeStatus[PodResizeStatusEvicting], classifiedPod{pod: pod})
+			continue
+		}
 		status, ltt := getPodResizeStatus(pod, recommendationID)
 		podsByResizeStatus[status] = append(podsByResizeStatus[status], classifiedPod{pod: pod, lastTransitionTime: ltt})
 	}
@@ -212,6 +216,7 @@ func (u *verticalController) syncInternal(
 				toEvictOnPatchFailure = append(toEvictOnPatchFailure, cp)
 			} else {
 				autoscalerInternal.InPlacePatchSuccessInc()
+				autoscalerInternal.TrackPodOperation(cp.pod.EntityID.ID, recommendationID)
 			}
 		}
 	}
@@ -276,6 +281,7 @@ func (u *verticalController) syncInternal(
 		if result == evictor.Evicted {
 			evictedThisSync++
 			autoscalerInternal.InPlaceEvictionSuccessInc()
+			autoscalerInternal.TrackPodOperation(cp.pod.EntityID.ID, recommendationID)
 		}
 		if result == evictor.PDBLockedOrThrottle || result == evictor.Skipped {
 			pdbBlocked = true
@@ -303,8 +309,14 @@ func (u *verticalController) syncInternal(
 			eventType = corev1.EventTypeWarning
 			reason = model.FailedToEvictEventReason
 		}
+		inFlight := len(podsByResizeStatus[PodResizeStatusEvicting])
+		remaining := int(int32(len(toEvict)) - evictedThisSync - failedEvictions)
+		suffix := fmt.Sprintf("%d remaining", remaining)
+		if inFlight > 0 {
+			suffix += fmt.Sprintf(", %d in-flight", inFlight)
+		}
 		u.eventRecorder.Eventf(podAutoscaler, eventType, reason,
-			"In-place resize eviction: %s (%d pods pending)", strings.Join(parts, ", "), len(toEvict))
+			"In-place resize eviction: %s (%s)", strings.Join(parts, ", "), suffix)
 	}
 
 	// Terminating pods are excluded from podsByResizeStatus, so summing all bucket lengths
@@ -314,6 +326,7 @@ func (u *verticalController) syncInternal(
 		totalActive += len(bucket)
 	}
 	if len(podsByResizeStatus[PodResizeStatusCompleted]) == totalActive {
+		autoscalerInternal.ClearPodOperations()
 		if lastAction := autoscalerInternal.VerticalLastAction(); lastAction != nil &&
 			lastAction.Type == datadoghqcommon.DatadogPodAutoscalerResizeTriggeredVerticalActionType {
 			u.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.ResizeSuccessfulEventReason,

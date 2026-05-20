@@ -92,6 +92,8 @@ const (
 	PodResizeStatusError
 	PodResizeStatusInfeasible
 	PodResizeStatusDeferred
+	// PodResizeStatusEvicting marks pods with an accepted patch or eviction pending termination.
+	PodResizeStatusEvicting
 )
 
 // classifiedPod pairs a pod with the LastTransitionTime of the condition that
