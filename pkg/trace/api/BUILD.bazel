@@ -15,7 +15,6 @@ go_library(
         "dogstatsd.go",
         "endpoints.go",
         "evp_proxy.go",
-        "idprovider.go",
         "info.go",
         "listener.go",
         "openlineage.go",
