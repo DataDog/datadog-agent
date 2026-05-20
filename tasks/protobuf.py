@@ -3,7 +3,7 @@ import re
 
 from invoke import Exit, task
 
-from tasks.libs.build.bazel import BazelTools, bazel
+from tasks.libs.build.bazel import BazelTools, run_bazel
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_unstaged_files, get_untracked_files
 
@@ -24,18 +24,23 @@ def generate(ctx, pre_commit=False):
     proto_root = os.path.join(repo_root, "pkg", "proto")
     pbgo_dir = os.path.join(proto_root, "pbgo")
 
+    # protobuf defs
     print(f"generating protobuf code from: {proto_root}")
-    bazel(ctx, "run", "//pkg/proto/pbgo/core:write_pb_go")
-    bazel(ctx, "run", "//pkg/proto/pbgo/dogstatsdhttp:write_pb_go")
-    bazel(ctx, "run", "//pkg/proto/pbgo/languagedetection:write_pb_go")
-    bazel(ctx, "run", "//pkg/proto/pbgo/mocks/core:api_mockgen")
-    bazel(ctx, "run", "//pkg/proto/pbgo/privateactionrunner/actionsclient:write_pb_go")
-    bazel(ctx, "run", "//pkg/proto/pbgo/privateactionrunner/errorcode:write_pb_go")
-    bazel(ctx, "run", "//pkg/proto/pbgo/privateactionrunner/privateactions:write_pb_go")
-    bazel(ctx, "run", "//pkg/proto/pbgo/process:write_pb_go")
-    bazel(ctx, "run", "//pkg/proto/pbgo/sbom:write_pb_go")
-    bazel(ctx, "run", "//pkg/proto/pbgo/trace:write_pb_go")
-    bazel(ctx, "run", "//pkg/proto/pbgo/trace/idx:write_pb_go")
+    # Find all the instances created with bazel/rules/write_pb_go/defs.bzl
+    # This query captures too many things: the primary target + one for each .proto file.
+    # but write_source_files puts kwargs.tag in sub rules rather than just the top, so
+    # we need to filter out the extras.
+    result = run_bazel(
+        ctx,
+        "query",
+        """attr(tags, "write_pb_go", kind("_write_source_file", //pkg/proto/...))""",
+    )
+    for target in result.stdout.split("\n"):
+        # We could look for the regex '.*_[0-9]+' and filter that, but this is good enough.
+        if target.endswith("_pb_go"):
+            result = run_bazel(ctx, "run", target, verbose=True)
+            if result.return_code != 0:
+                print(result.stderr)
 
     # Generate messagepack marshallers
     # msgp targets (file, io)

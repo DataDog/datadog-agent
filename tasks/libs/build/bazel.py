@@ -94,44 +94,65 @@ def bazel_not_found_message(color: str) -> str:
     return color_message("Please run `inv install-tools` for `bazel` support!", color)
 
 
+def run_bazel(
+    ctx: Context,
+    *args: str,
+    use_pty: bool = False,
+    sudo: bool = False,
+    verbose: bool = False,
+) -> None | str:
+    """Execute a bazel command.
+
+    sudo: Run under sudo.
+    use_pty: Run as a pty, combining stdout and stderr into one.
+    verbose: Echo comand line to stdout.
+    """
+    if not (resolved_bazel := shutil.which("bazel")):
+        raise Exit(bazel_not_found_message("red"))
+    cmd = ("sudo", resolved_bazel) if sudo else ("bazel",)
+    if sys.platform == "win32":
+        use_pty = False
+    result = ctx.run(
+        (subprocess.list2cmdline if sys.platform == "win32" else shlex.join)(cmd + args),
+        echo=verbose,
+        hide="both",
+        in_stream=False,
+        pty=use_pty,
+    )
+    return result
+
+
 def bazel(
     ctx: Context,
     *args: str,
     capture_output: bool = False,
-    sudo: bool = False,
     capture_stderr: bool = False,
+    sudo: bool = False,
 ) -> None | str:
     """Execute a bazel command.
 
-    capture_output: capture stdout.
+    capture_output: capture stdout and return as result instead of printing to console.
     capture_stderr: also capture stderr and append it to the returned string.
         Use this when Bazel writes important output (e.g.  test results) to stderr
         and the caller needs to process it.
+        WARNING: This is a legacy API. Use run_bazel and examine the result string if you
+        want to process stderr and stderr separately.
+    sudo: Run under sudo.
     """
-
-    if not (resolved_bazel := shutil.which("bazel")):
-        raise Exit(bazel_not_found_message("red"))
-    cmd = ("sudo", resolved_bazel) if sudo else ("bazel",)
-    kwargs = {}
-    # Invoke terminolgy is subtle. "hide" means hide from the user.
-    # In every other libray, that would be called capture, and the
-    # act of capturing it would hide it from the user.
-    # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
+    use_pty = False
+    if not capture_output and not sudo and sys.stdout.isatty() and sys.platform != "win32":
+        use_pty = True
+    result = run_bazel(ctx, *args, verbose=True, sudo=sudo, use_pty=use_pty)
+    ret = None
     if capture_output:
-        kwargs["hide"] = "both" if capture_stderr else "out"
-    elif not sudo and sys.stdout.isatty() and sys.platform != "win32":
-        kwargs["pty"] = True
-    result = ctx.run(
-        (subprocess.list2cmdline if sys.platform == "win32" else shlex.join)(cmd + args),
-        echo=True,
-        in_stream=False,
-        **kwargs,
-    )
-    if not capture_output:
-        return None
+        ret = result.stdout
+    else:
+        print(result.stdout)
     if capture_stderr:
-        return (result.stdout or "") + (result.stderr or "")
-    return result.stdout
+        ret = (ret or "") + result.stderr
+    else:
+        print(result.stderr)
+    return ret
 
 
 class BazelTools:
