@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
@@ -41,6 +42,21 @@ const (
 	dogstatsdFilterListBlocked = "e2e.ccm.blocked.by.filterlist"
 	jmxCheckNameTag            = "dd.internal.jmx_check_name:custom_e2e"
 )
+
+// sendStatsdGauge sends a DogStatsD gauge metric to the agent via UDP on the remote host.
+func sendStatsdGauge(host *components.RemoteHost, name string, value int) {
+	sendStatsdGaugeWithTags(host, name, value, nil)
+}
+
+// sendStatsdGaugeWithTags sends a DogStatsD gauge with optional tags (DogStatsD #tag format).
+func sendStatsdGaugeWithTags(host *components.RemoteHost, name string, value int, tags []string) {
+	payload := fmt.Sprintf("%s:%d|g", name, value)
+	if len(tags) > 0 {
+		payload += "|#" + strings.Join(tags, ",")
+	}
+	cmd := fmt.Sprintf(`bash -c 'echo -n "%s" > /dev/udp/127.0.0.1/8125'`, payload)
+	host.MustExecute(cmd)
+}
 
 type ccmModeSuiteBase struct {
 	e2e.BaseSuite[environments.Host]
@@ -181,8 +197,10 @@ integration:
 `
 }
 
+// ccmModeEmptyAllowlistSuite does not embed ccmModeSuiteBase: that base suite includes tests
+// that assume the built-in default allowlist (forward allowlisted metrics, drop disk, etc.).
 type ccmModeEmptyAllowlistSuite struct {
-	ccmModeSuiteBase
+	e2e.BaseSuite[environments.Host]
 }
 
 // TestCCMModeLinuxEmptyAllowlist runs CCM e2e checks with an explicit empty metrics allowlist.
@@ -197,8 +215,6 @@ func (s *ccmModeEmptyAllowlistSuite) TestEmptyAllowlistDeniesIntegrationMetrics(
 		onDefaultAllowlist = "system.mem.pct_usable"
 		offAllowlist       = "system.disk.free"
 	)
-
-	s.assertADPRunningIfEnabled()
 
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
 		onList, err := s.Env().FakeIntake.Client().FilterMetrics(
@@ -215,7 +231,7 @@ func (s *ccmModeEmptyAllowlistSuite) TestEmptyAllowlistDeniesIntegrationMetrics(
 		assert.NoError(c, err)
 		assert.Empty(c, offList, "%s should be dropped when metrics is explicitly empty", offAllowlist)
 
-		s.sendStatsdGauge(dogstatsdCustomMetric, 1)
+		sendStatsdGauge(s.Env().RemoteHost, dogstatsdCustomMetric, 1)
 		dogstatsd, err := s.Env().FakeIntake.Client().FilterMetrics(
 			dogstatsdCustomMetric,
 			client.WithMetricValueHigherThan(0),
@@ -223,6 +239,34 @@ func (s *ccmModeEmptyAllowlistSuite) TestEmptyAllowlistDeniesIntegrationMetrics(
 		assert.NoError(c, err)
 		assert.NotEmpty(c, dogstatsd, "%s should still bypass via DogStatsD when metrics is empty", dogstatsdCustomMetric)
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for empty allowlist to deny integration metrics")
+}
+
+// TestDogstatsdCustomMetricForwarded verifies DogStatsD bypasses an explicit empty integration allowlist.
+func (s *ccmModeEmptyAllowlistSuite) TestDogstatsdCustomMetricForwarded() {
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		sendStatsdGauge(s.Env().RemoteHost, dogstatsdCustomMetric, 1)
+
+		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(
+			dogstatsdCustomMetric,
+			client.WithMetricValueHigherThan(0),
+		)
+		assert.NoError(c, err)
+		assert.NotEmpty(c, metrics, "%s should be forwarded via DogStatsD in cloud_cost_only mode", dogstatsdCustomMetric)
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for DogStatsD custom metric on fakeintake")
+}
+
+// TestDogstatsdJMXTaggedMetricForwarded verifies JMX-tagged DogStatsD bypasses an explicit empty allowlist.
+func (s *ccmModeEmptyAllowlistSuite) TestDogstatsdJMXTaggedMetricForwarded() {
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		sendStatsdGaugeWithTags(s.Env().RemoteHost, dogstatsdJMXMetric, 1, []string{jmxCheckNameTag})
+
+		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(
+			dogstatsdJMXMetric,
+			client.WithMetricValueHigherThan(0),
+		)
+		assert.NoError(c, err)
+		assert.NotEmpty(c, metrics, "%s should be forwarded via JMX-tagged DogStatsD in cloud_cost_only mode", dogstatsdJMXMetric)
+	}, 3*time.Minute, 10*time.Second, "timed out waiting for JMX-tagged DogStatsD metric on fakeintake")
 }
 
 func ccmAgentConfigCustomAllowlist(allowlist []string, matchPrefix bool) string {
@@ -276,7 +320,7 @@ func (s *ccmModeCustomAllowlistSuite) TestCustomAllowlistApplies() {
 		assert.NoError(c, err)
 		assert.Empty(c, offList, "%s should be dropped when not on the custom allowlist", offCustomAllowlist)
 
-		s.sendStatsdGauge(dogstatsdCustomMetric, 1)
+		sendStatsdGauge(s.Env().RemoteHost, dogstatsdCustomMetric, 1)
 		dogstatsd, err := s.Env().FakeIntake.Client().FilterMetrics(
 			dogstatsdCustomMetric,
 			client.WithMetricValueHigherThan(0),
@@ -284,11 +328,6 @@ func (s *ccmModeCustomAllowlistSuite) TestCustomAllowlistApplies() {
 		assert.NoError(c, err)
 		assert.NotEmpty(c, dogstatsd, "%s should bypass the custom allowlist via DogStatsD", dogstatsdCustomMetric)
 	}, 3*time.Minute, 10*time.Second, "timed out waiting for custom allowlist filtering")
-}
-
-func (s *ccmModeCustomAllowlistSuite) sendStatsdGauge(name string, value int) {
-	cmd := fmt.Sprintf(`bash -c 'echo -n "%s:%d|g" > /dev/udp/127.0.0.1/8125'`, name, value)
-	s.Env().RemoteHost.MustExecute(cmd)
 }
 
 func (s *ccmModeSuiteBase) assertMetricHasInfrastructureModeTag(c *assert.CollectT, metricName, checkName string) {
@@ -362,8 +401,8 @@ func (s *ccmModeSuiteBase) TestMetricFilterListAppliesInCloudCostMode() {
 	s.assertADPRunningIfEnabled()
 
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		s.sendStatsdGauge(dogstatsdFilterListAllowed, 1)
-		s.sendStatsdGauge(dogstatsdFilterListBlocked, 1)
+		sendStatsdGauge(s.Env().RemoteHost, dogstatsdFilterListAllowed, 1)
+		sendStatsdGauge(s.Env().RemoteHost, dogstatsdFilterListBlocked, 1)
 
 		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(
 			dogstatsdFilterListAllowed,
@@ -381,28 +420,13 @@ func (s *ccmModeSuiteBase) TestMetricFilterListAppliesInCloudCostMode() {
 	assert.Empty(s.T(), metrics, "%s should be dropped by metric_filterlist", dogstatsdFilterListBlocked)
 }
 
-// sendStatsdGauge sends a DogStatsD gauge metric to the agent via UDP on the remote host.
-func (s *ccmModeSuiteBase) sendStatsdGauge(name string, value int) {
-	s.sendStatsdGaugeWithTags(name, value, nil)
-}
-
-// sendStatsdGaugeWithTags sends a DogStatsD gauge with optional tags (DogStatsD #tag format).
-func (s *ccmModeSuiteBase) sendStatsdGaugeWithTags(name string, value int, tags []string) {
-	payload := fmt.Sprintf("%s:%d|g", name, value)
-	if len(tags) > 0 {
-		payload += "|#" + strings.Join(tags, ",")
-	}
-	cmd := fmt.Sprintf(`bash -c 'echo -n "%s" > /dev/udp/127.0.0.1/8125'`, payload)
-	s.Env().RemoteHost.MustExecute(cmd)
-}
-
 // TestDogstatsdJMXTaggedMetricForwarded verifies JMX-tagged DogStatsD metrics are forwarded in
 // cloud_cost_only mode via FromDogstatsd even when the name is not on the integration allowlist.
 func (s *ccmModeSuiteBase) TestDogstatsdJMXTaggedMetricForwarded() {
 	s.assertADPRunningIfEnabled()
 
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		s.sendStatsdGaugeWithTags(dogstatsdJMXMetric, 1, []string{jmxCheckNameTag})
+		sendStatsdGaugeWithTags(s.Env().RemoteHost, dogstatsdJMXMetric, 1, []string{jmxCheckNameTag})
 
 		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(
 			dogstatsdJMXMetric,
@@ -419,7 +443,7 @@ func (s *ccmModeSuiteBase) TestDogstatsdCustomMetricForwarded() {
 	s.assertADPRunningIfEnabled()
 
 	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
-		s.sendStatsdGauge(dogstatsdCustomMetric, 1)
+		sendStatsdGauge(s.Env().RemoteHost, dogstatsdCustomMetric, 1)
 
 		metrics, err := s.Env().FakeIntake.Client().FilterMetrics(
 			dogstatsdCustomMetric,
