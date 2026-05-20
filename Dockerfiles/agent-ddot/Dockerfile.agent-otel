@@ -21,6 +21,7 @@ WORKDIR /workspace
 # cause `apt update` to fail with exit code 100 or make it hang on `0% [Working]`
 # indefinitely. Therefore we create a mirrorlist with the 2 mirrors that we know
 # should be reliable enough in combination and also well maintained.
+ARG CI
 RUN if [ "$CI" = "true" ]; then \
   echo "http://us-east-1.ec2.archive.ubuntu.com/ubuntu\tpriority:1\nhttp://archive.ubuntu.com/ubuntu" > /etc/apt/mirrorlist.main && \
   echo "http://us-east-1.ec2.ports.ubuntu.com/ubuntu-ports\tpriority:1\nhttp://ports.ubuntu.com/ubuntu-ports" > /etc/apt/mirrorlist.ports && \
