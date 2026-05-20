@@ -341,11 +341,11 @@ func (i *installerImpl) doInstall(ctx context.Context, url string, args []string
 		return fmt.Errorf("could not remove package installation in db: %w", err)
 	}
 	configDir := filepath.Join(i.userConfigsDir, "datadog-agent")
-	err = pkg.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
+	err = pkg.ExtractLayers(ctx, oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
 		return fmt.Errorf("could not extract package layers: %w", err)
 	}
-	err = pkg.ExtractLayers(oci.DatadogPackageConfigLayerMediaType, configDir)
+	err = pkg.ExtractLayers(ctx, oci.DatadogPackageConfigLayerMediaType, configDir)
 	if err != nil {
 		return fmt.Errorf("could not extract package config layer: %w", err)
 	}
@@ -399,14 +399,14 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 	}
 	defer os.RemoveAll(tmpDir)
 	configDir := filepath.Join(i.userConfigsDir, "datadog-agent")
-	err = pkg.ExtractLayers(oci.DatadogPackageLayerMediaType, tmpDir)
+	err = pkg.ExtractLayers(ctx, oci.DatadogPackageLayerMediaType, tmpDir)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrDownloadFailed,
 			fmt.Errorf("could not extract package layer: %w", err),
 		)
 	}
-	err = pkg.ExtractLayers(oci.DatadogPackageConfigLayerMediaType, configDir)
+	err = pkg.ExtractLayers(ctx, oci.DatadogPackageConfigLayerMediaType, configDir)
 	if err != nil {
 		return installerErrors.Wrap(
 			installerErrors.ErrDownloadFailed,

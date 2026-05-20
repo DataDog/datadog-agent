@@ -199,7 +199,10 @@ func (d *Downloader) WithRegistryOverride(url, auth, username, password string) 
 }
 
 // Download downloads the Datadog Package referenced in the given Package struct.
-func (d *Downloader) Download(ctx context.Context, packageURL string) (*DownloadedPackage, error) {
+func (d *Downloader) Download(ctx context.Context, packageURL string) (_ *DownloadedPackage, err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "oci.download")
+	defer func() { span.Finish(err) }()
+	span.SetTag("package.url", packageURL)
 	log.Debugf("Downloading package from %s", packageURL)
 	url, err := url.Parse(packageURL)
 	if err != nil {
@@ -237,6 +240,9 @@ func (d *Downloader) Download(ctx context.Context, packageURL string) (*Download
 			return nil, fmt.Errorf("could not parse package size: %w", err)
 		}
 	}
+	span.SetTag("package.name", name)
+	span.SetTag("package.version", version)
+	span.SetTag("package.size", int64(size))
 	log.Debugf("Successfully downloaded package from %s", packageURL)
 	return &DownloadedPackage{
 		Image:   image,
@@ -369,6 +375,15 @@ func (d *Downloader) downloadRegistry(ctx context.Context, url string) (oci.Imag
 			log.Debugf("could not download image using %s: %s", url, err.Error())
 			continue
 		}
+		if span, ok := telemetry.SpanFromContext(ctx); ok {
+			// Strip userinfo from ref to avoid leaking registry credentials into telemetry.
+			safeRef := refAndKeychain.ref
+			if u, err := url.Parse("oci://" + refAndKeychain.ref); err == nil && u.User != nil {
+				u.User = nil
+				safeRef = strings.TrimPrefix(u.String(), "oci://")
+			}
+			span.SetTag("registry.ref", safeRef)
+		}
 		return d.downloadIndex(index)
 	}
 	return nil, fmt.Errorf("could not download image from any registry: %w", multiErr)
@@ -423,7 +438,20 @@ func (d *Downloader) downloadIndex(index oci.ImageIndex) (oci.Image, error) {
 }
 
 // ExtractLayers extracts the layers of the downloaded package with the given media type to the given directory.
-func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string, annotationFilters ...LayerAnnotation) error {
+func (d *DownloadedPackage) ExtractLayers(ctx context.Context, mediaType types.MediaType, dir string, annotationFilters ...LayerAnnotation) (err error) {
+	span, ctx := telemetry.StartSpanFromContext(ctx, "oci.extract_layers")
+	defer func() { span.Finish(err) }()
+	span.SetTag("media.type", string(mediaType))
+	span.SetTag("package.name", d.Name)
+	totalRetries := 0
+	totalCompressedSize := int64(0)
+	layerCount := 0
+	defer func() {
+		span.SetTag("network_retries", totalRetries)
+		span.SetTag("layer_size", totalCompressedSize)
+		span.SetTag("layer_count", layerCount)
+	}()
+
 	manifest, err := d.Image.Manifest()
 	if err != nil {
 		return fmt.Errorf("could not get image manifest: %w", err)
@@ -445,42 +473,15 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string,
 			continue
 		}
 		matchesAnnotationsCount++
+		layerCount++
+		totalCompressedSize += layerManifest.Size
 
 		layer, err := d.Image.LayerByDigest(layerManifest.Digest)
 		if err != nil {
 			return fmt.Errorf("could not get layer: %w", err)
 		}
-		err = withNetworkRetries(
-			func() error {
-				var err error
-				defer func() {
-					if err != nil {
-						deferErr := tar.Clean(dir)
-						if deferErr != nil {
-							err = deferErr
-						}
-					}
-				}()
-				uncompressedLayer, err := layer.Uncompressed()
-				if err != nil {
-					return err
-				}
-
-				switch layerManifest.MediaType {
-				case DatadogPackageLayerMediaType, DatadogPackageConfigLayerMediaType, DatadogPackageExtensionLayerMediaType:
-					err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
-				case DatadogPackageInstallerLayerMediaType:
-					err = writeBinary(uncompressedLayer, dir)
-				default:
-					return fmt.Errorf("unsupported layer media type: %s", layerManifest.MediaType)
-				}
-				uncompressedLayer.Close()
-				if err != nil {
-					return err
-				}
-				return nil
-			},
-		)
+		retries, err := extractLayer(ctx, d.Name, layerManifest, layer, dir)
+		totalRetries += retries
 		if err != nil {
 			return fmt.Errorf("could not extract layer: %w", err)
 		}
@@ -491,10 +492,66 @@ func (d *DownloadedPackage) ExtractLayers(mediaType types.MediaType, dir string,
 	return nil
 }
 
+// extractLayer extracts a single layer to dir, with retries on transient network errors.
+func extractLayer(ctx context.Context, pkgName string, layerManifest oci.Descriptor, layer oci.Layer, dir string) (retries int, err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "oci.extract_layer")
+	defer func() { span.Finish(err) }()
+	span.SetTag("package.name", pkgName)
+	resource := string(layerManifest.MediaType)
+	if extName := layerManifest.Annotations["com.datadoghq.package.extension.name"]; extName != "" {
+		resource = resource + "/" + extName
+		span.SetTag("extension.name", extName)
+	}
+	span.SetResourceName(resource)
+	span.SetTag("media.type", string(layerManifest.MediaType))
+	span.SetTag("layer.digest", layerManifest.Digest.String())
+	span.SetTag("layer.size", layerManifest.Size)
+	defer func() { span.SetTag("network_retries", retries) }()
+
+	retries, err = withNetworkRetries(
+		func() error {
+			var err error
+			defer func() {
+				if err != nil {
+					deferErr := tar.Clean(dir)
+					if deferErr != nil {
+						err = deferErr
+					}
+				}
+			}()
+			uncompressedLayer, err := layer.Uncompressed()
+			if err != nil {
+				return err
+			}
+
+			switch layerManifest.MediaType {
+			case DatadogPackageLayerMediaType, DatadogPackageConfigLayerMediaType, DatadogPackageExtensionLayerMediaType:
+				err = tar.Extract(uncompressedLayer, dir, layerMaxSize)
+			case DatadogPackageInstallerLayerMediaType:
+				err = writeBinary(uncompressedLayer, dir)
+			default:
+				return fmt.Errorf("unsupported layer media type: %s", layerManifest.MediaType)
+			}
+			uncompressedLayer.Close()
+			if err != nil {
+				return err
+			}
+			return nil
+		},
+	)
+	return retries, err
+}
+
 // WriteOCILayout writes the image as an OCI layout to the given directory.
-func (d *DownloadedPackage) WriteOCILayout(dir string) (err error) {
+func (d *DownloadedPackage) WriteOCILayout(ctx context.Context, dir string) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "oci.write_layout")
+	defer func() { span.Finish(err) }()
+	span.SetTag("package.name", d.Name)
+	retries := 0
+	defer func() { span.SetTag("network_retries", retries) }()
+
 	var layoutPath layout.Path
-	return withNetworkRetries(
+	retries, err = withNetworkRetries(
 		func() error {
 			layoutPath, err = layout.Write(dir, empty.Index)
 			if err != nil {
@@ -508,6 +565,7 @@ func (d *DownloadedPackage) WriteOCILayout(dir string) (err error) {
 			return nil
 		},
 	)
+	return err
 }
 
 // PackageURL returns the package URL for the given site, package and version.
@@ -522,20 +580,23 @@ func PackageURL(env *env.Env, pkg string, version string) string {
 	}
 }
 
-func withNetworkRetries(f func() error) error {
+// withNetworkRetries calls f and retries it on transient network errors.
+// It returns the number of retries that were performed (0 if f succeeded on the first try)
+// alongside the final error.
+func withNetworkRetries(f func() error) (int, error) {
 	var err error
 	for i := 0; i < networkRetries; i++ {
 		err = f()
 		if err == nil {
-			return nil
+			return i, nil
 		}
 		if !isRetryableNetworkError(err) {
-			return err
+			return i, err
 		}
 		log.Warnf("retrying after network error: %s", err)
 		time.Sleep(time.Second)
 	}
-	return err
+	return networkRetries - 1, err
 }
 
 // isRetryableNetworkError returns true if the error is a network error we should retry on
