@@ -31,7 +31,7 @@ AWS_PROFILE = "sso-agent-sandbox-account-admin"
 # All available detectors and correlators for ablation / combination search.
 # passthrough is intentionally excluded: it is designed for TP scoring (eval_tp),
 # not for Gaussian F1 eval (eval_scenarios / eval_combinations).
-DETECTORS = ["bocpd", "cusum", "rrcf", "scanmw", "scanwelch"]
+DETECTORS = ["bocpd", "cusum", "holt_residual", "rrcf", "scanmw", "scanwelch", "tukey_biweight"]
 CORRELATORS = ["cross_signal", "time_cluster"]
 
 # Log metrics extractors (component_catalog extractors). Not part of the random
