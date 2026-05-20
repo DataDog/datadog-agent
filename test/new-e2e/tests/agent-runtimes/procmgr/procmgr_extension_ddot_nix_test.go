@@ -104,7 +104,7 @@ func (s *procmgrExtensionDDOTLinuxSuite) installDDOTExtension() bool {
 func (s *procmgrExtensionDDOTLinuxSuite) TestDDOTProcessRunning() {
 	s.requireExtensionDDOT()
 
-	pid := s.waitForDDOTRunning().PID
+	pid := s.waitForExtensionDDOTRunning().PID
 
 	pidFileContent := strings.TrimSpace(
 		s.Env().RemoteHost.MustExecute("cat /opt/datadog-agent/run/otel-agent.pid"))
@@ -132,7 +132,7 @@ func (s *procmgrExtensionDDOTLinuxSuite) TestExtensionDDOTManagedByProcmgrNotSys
 		"ConditionPathExists=!…/processes.d/datadog-agent-ddot.yaml should fail so systemd does not own DDOT")
 
 	s.requireCLI()
-	s.waitForDDOTRunning()
+	s.waitForExtensionDDOTRunning()
 
 	cmdLine, gerr := s.Env().RemoteHost.Execute(`sudo grep -E '^command:' "` + stableYAML + `"`)
 	require.NoError(s.T(), gerr)
@@ -144,11 +144,11 @@ func (s *procmgrExtensionDDOTLinuxSuite) TestDDOTRestartAfterKill() {
 	s.requireExtensionDDOT()
 	s.configureDDOTRuntimeSuccess(ddotRestartTestRuntimeSuccessSec)
 
-	originalPID := s.waitForDDOTRunning().PID
+	originalPID := s.waitForExtensionDDOTRunning().PID
 
 	s.Env().RemoteHost.MustExecute("sudo kill -9 " + originalPID)
 
-	newResult := s.waitForDDOTRunning()
+	newResult := s.waitForExtensionDDOTRunning()
 	newPID, newRestarts := newResult.PID, newResult.Restarts
 
 	require.NotEqual(s.T(), originalPID, newPID,
@@ -171,7 +171,7 @@ func (s *procmgrExtensionDDOTLinuxSuite) TestDDOTProcessDescribe() {
 	}, 60*time.Second, 2*time.Second)
 }
 
-func (s *procmgrExtensionDDOTLinuxSuite) waitForDDOTRunning() procmgrtest.WaitForProcessResult {
+func (s *procmgrExtensionDDOTLinuxSuite) waitForExtensionDDOTRunning() procmgrtest.WaitForProcessResult {
 	s.T().Helper()
 	return procmgrtest.WaitForDDOTRunning(s.T(), s, procmgrtest.DDOTOtelAgentExtensionBinary)
 }
@@ -188,7 +188,7 @@ func (s *procmgrExtensionDDOTLinuxSuite) configureDDOTRuntimeSuccess(seconds int
 		extensionDDOTConfigPath, seconds, seconds))
 	s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent-procmgr.service")
 	s.Env().RemoteHost.MustExecute("sudo systemctl is-active datadog-agent-procmgr.service")
-	s.waitForDDOTRunning()
+	s.waitForExtensionDDOTRunning()
 }
 
 func (s *procmgrExtensionDDOTLinuxSuite) requireExtensionDDOT() {
