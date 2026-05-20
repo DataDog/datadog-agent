@@ -82,21 +82,24 @@ class Processor():
         self.currfile = os.path.basename(filename)
 
     def startfunc(self, name):
+        self._clear()
         self.currfunc = name
+
+    def _clear(self):
+        self.currfunc = ''
         self.settings = []
+        self.internal_comment = []
 
     def clearfunc(self):
         if not self.settings:
-            self.currfunc = ''
-            self.settings = []
+            self._clear()
             return
         self.results.append({
             'func': self.currfunc,
             'filename': self.currfile,
             'settings': self.settings,
         })
-        self.currfunc = ''
-        self.settings = []
+        self._clear()
 
     def process(self, line, num):
         self.curr_linenum = num
@@ -184,15 +187,15 @@ class Processor():
         elems = [elems.strip('" \'') for elems in elems]
         for ev in elems:
             if not ev.startswith('DD_'):
-                #print('*** [ERROR] unknown text instead of env vars: %s' % params[index:])
                 return []
         return elems
 
     def register_setting(self, kind, params):
         if not self.currfunc:
             raise RuntimeError('not currently in a function')
-        # TODO: doesn't handle things like this:
+        # NOTE: doesn't handle things like this:
         # `config.BindEnvAndSetDefault("histogram_aggregates", []string{"max", "median", "avg", "count"})`
+        # Shouldn't matter because we don't use default values
         parts = params.split(',')
 
         keyname = ''

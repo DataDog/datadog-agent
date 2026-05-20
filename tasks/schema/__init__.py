@@ -1,12 +1,11 @@
 from invoke.collection import Collection
 
-from tasks.schema.generate import compress, generate, hints, extract_comments
+from tasks.schema.generate import compress, generate, hints
 from tasks.schema.lint import lint as lint_task
 from tasks.schema.template import template, template_all
 
 collection = Collection()
 collection.add_task(hints)
-collection.add_task(extract_comments)
 collection.add_task(generate)
 collection.add_task(lint_task)
 collection.add_task(compress)
