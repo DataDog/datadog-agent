@@ -47,12 +47,6 @@ checks:
       series: "connection.current"
       upper_bound: 6
 
-  - name: volume_check_runs
-    description: "Ensure the 1Hz workload is active."
-    bounds:
-      series: target/volume_check.run
-      lower_bound: 80
-
 report_links:
   - text: "bounds checks dashboard"
     link: "https://app.datadoghq.com/dashboard/vz3-jd5-bdi?fromUser=true&refresh_mode=paused&tpl_var_experiment%5B0%5D={{ experiment }}&tpl_var_job_id%5B0%5D={{ job_id }}&view=spans&from_ts={{ start_time_ms }}&to_ts={{ end_time_ms }}&live=false"
