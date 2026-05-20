@@ -64,9 +64,48 @@ var tlmAdaptiveSamplerEvictions = telemetryimpl.GetCompatComponent().NewCounter(
 var tlmAdaptiveSamplerProtected = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "protected",
 	[]string{"source"}, "Number of important log messages that bypassed adaptive sampling")
 
+var tlmAdaptiveSamplerEligible = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "eligible",
+	[]string{"source"}, "Number of log messages eligible for adaptive sampling after filters and protected-log checks")
+
+var tlmAdaptiveSamplerEligibleBytes = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "eligible_bytes",
+	[]string{"source"}, "Number of bytes eligible for adaptive sampling after filters and protected-log checks")
+
+var tlmAdaptiveSamplerBypassed = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "bypassed",
+	[]string{"source", "reason"}, "Number of log messages that bypassed adaptive sampling")
+
+var tlmAdaptiveSamplerTableSize = telemetryimpl.GetCompatComponent().NewGauge("logs_adaptive_sampler", "table_size",
+	[]string{"source"}, "Number of patterns currently tracked by the adaptive sampler")
+
+var tlmAdaptiveSamplerPatternMatches = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "pattern_matches",
+	[]string{"source", "outcome"}, "Number of adaptive sampler pattern lookup decisions")
+
+var tlmAdaptiveSamplerEvictionsByStrategy = telemetryimpl.GetCompatComponent().NewCounter("logs_adaptive_sampler", "evictions_by_strategy",
+	[]string{"source", "strategy"}, "Number of adaptive sampler evictions by ranking strategy")
+
+var tlmAdaptiveSamplerEvictedPatternAgeSeconds = telemetryimpl.GetCompatComponent().NewHistogram("logs_adaptive_sampler", "evicted_pattern_age_seconds",
+	[]string{"source", "strategy"}, "Age in seconds since the evicted pattern was last seen", []float64{1, 5, 10, 30, 60, 300, 900, 3600, 21600, 86400})
+
+var tlmAdaptiveSamplerEvictedPatternMatchCount = telemetryimpl.GetCompatComponent().NewHistogram("logs_adaptive_sampler", "evicted_pattern_match_count",
+	[]string{"source", "strategy"}, "Lifetime match count of evicted adaptive sampler patterns", []float64{1, 2, 5, 10, 50, 100, 500, 1000, 5000, 10000})
+
+var tlmAdaptiveSamplerEvictedPatternHotness = telemetryimpl.GetCompatComponent().NewHistogram("logs_adaptive_sampler", "evicted_pattern_hotness",
+	[]string{"source", "strategy"}, "Decayed EWMA hotness score of evicted adaptive sampler patterns", []float64{0.001, 0.01, 0.1, 1, 2, 5, 10, 50, 100, 500, 1000})
+
 func adaptiveSamplerSampledCountTag(count int64) string {
 	return "adaptive_sampler_sampled_count:" + strconv.FormatInt(count, 10)
 }
+
+const (
+	adaptiveSamplerBypassReasonExcludeMatch = "exclude_match"
+	adaptiveSamplerBypassReasonIncludeMiss  = "include_miss"
+	adaptiveSamplerBypassReasonProtected    = "protected"
+
+	adaptiveSamplerPatternOutcomeMatched = "matched"
+	adaptiveSamplerPatternOutcomeNew     = "new"
+
+	adaptiveSamplerEvictionStrategyLifetime = "lifetime"
+	adaptiveSamplerEvictionStrategyEWMA     = "ewma"
+)
 
 // AdaptiveSamplerConfig holds the configuration for the AdaptiveSampler.
 type AdaptiveSamplerConfig struct {
@@ -137,6 +176,7 @@ type AdaptiveSampler struct {
 // NewAdaptiveSampler creates a new AdaptiveSampler.
 // source is the log source name used for telemetry tagging.
 func NewAdaptiveSampler(config AdaptiveSamplerConfig, source string) *AdaptiveSampler {
+	tlmAdaptiveSamplerTableSize.Set(0, source)
 	return &AdaptiveSampler{
 		entries: make([]samplerEntry, 0, config.MaxPatterns),
 		config:  config,
@@ -184,14 +224,17 @@ func matchesAnyFilter(filters []AdaptiveSamplerFilter, msg *message.Message, tok
 	return false
 }
 
-func (s *AdaptiveSampler) shouldSample(msg *message.Message, tokens []Token) bool {
+func (s *AdaptiveSampler) samplingEligibility(msg *message.Message, tokens []Token) (bool, string) {
 	if matchesAnyFilter(s.config.Exclude, msg, tokens, s.config.MatchThreshold) {
-		return false
+		return false, adaptiveSamplerBypassReasonExcludeMatch
 	}
 	if len(s.config.Include) == 0 && !s.config.IncludeConfigured {
-		return true
+		return true, ""
 	}
-	return matchesAnyFilter(s.config.Include, msg, tokens, s.config.MatchThreshold)
+	if matchesAnyFilter(s.config.Include, msg, tokens, s.config.MatchThreshold) {
+		return true, ""
+	}
+	return false, adaptiveSamplerBypassReasonIncludeMiss
 }
 
 func (e *samplerEntry) decayedHotness(now time.Time, halfLife time.Duration) float64 {
@@ -253,10 +296,11 @@ func (s *AdaptiveSampler) bubbleEntry(idx int, now time.Time) {
 	}
 }
 
-func (s *AdaptiveSampler) evictColdest(now time.Time) {
+func (s *AdaptiveSampler) evictColdest(now time.Time) samplerEntry {
 	if !s.config.EWMAEnabled {
+		victim := s.entries[len(s.entries)-1]
 		s.entries = s.entries[:len(s.entries)-1]
-		return
+		return victim
 	}
 
 	victim := 0
@@ -268,26 +312,55 @@ func (s *AdaptiveSampler) evictColdest(now time.Time) {
 			victim = i
 		}
 	}
+	evicted := s.entries[victim]
 	copy(s.entries[victim:], s.entries[victim+1:])
 	s.entries = s.entries[:len(s.entries)-1]
+	return evicted
+}
+
+func (s *AdaptiveSampler) evictionStrategy() string {
+	if s.config.EWMAEnabled {
+		return adaptiveSamplerEvictionStrategyEWMA
+	}
+	return adaptiveSamplerEvictionStrategyLifetime
+}
+
+func (s *AdaptiveSampler) recordEviction(evicted samplerEntry, now time.Time) {
+	strategy := s.evictionStrategy()
+	tlmAdaptiveSamplerEvictionsByStrategy.Inc(s.source, strategy)
+
+	age := now.Sub(evicted.lastSeen).Seconds()
+	if age < 0 {
+		age = 0
+	}
+	tlmAdaptiveSamplerEvictedPatternAgeSeconds.Observe(age, s.source, strategy)
+	tlmAdaptiveSamplerEvictedPatternMatchCount.Observe(float64(evicted.matchCount), s.source, strategy)
+	if s.config.EWMAEnabled {
+		tlmAdaptiveSamplerEvictedPatternHotness.Observe(evicted.decayedHotness(now, s.config.EWMAHalfLife), s.source, strategy)
+	}
 }
 
 // Process applies credit-based rate limiting to the message.
 // Returns the message if allowed, nil if dropped.
 func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message.Message {
-	if !s.shouldSample(msg, tokens) {
+	if eligible, reason := s.samplingEligibility(msg, tokens); !eligible {
 		tlmAdaptiveSamplerKept.Inc(s.source)
+		tlmAdaptiveSamplerBypassed.Inc(s.source, reason)
 		return msg
 	}
 	if s.config.ProtectImportantLogs && isImportant(tokens) {
 		tlmAdaptiveSamplerKept.Inc(s.source)
 		tlmAdaptiveSamplerProtected.Inc(s.source)
+		tlmAdaptiveSamplerBypassed.Inc(s.source, adaptiveSamplerBypassReasonProtected)
 		return msg
 	}
+	tlmAdaptiveSamplerEligible.Inc(s.source)
+	tlmAdaptiveSamplerEligibleBytes.Add(float64(msg.RawDataLen), s.source)
 	now := s.now()
 
 	matchIdx := s.findMatch(tokens, now)
 	if matchIdx >= 0 {
+		tlmAdaptiveSamplerPatternMatches.Inc(s.source, adaptiveSamplerPatternOutcomeMatched)
 		e := &s.entries[matchIdx]
 		// Refill credits based on time elapsed since last seen.
 		elapsed := now.Sub(e.lastSeen).Seconds()
@@ -328,10 +401,12 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 	}
 
 	// No match — this is a new pattern. Evict the coldest entry if full.
+	tlmAdaptiveSamplerPatternMatches.Inc(s.source, adaptiveSamplerPatternOutcomeNew)
 	tlmAdaptiveSamplerNewPatterns.Inc(s.source)
 	if len(s.entries) >= s.config.MaxPatterns {
 		tlmAdaptiveSamplerEvictions.Inc(s.source)
-		s.evictColdest(now)
+		evicted := s.evictColdest(now)
+		s.recordEviction(evicted, now)
 	}
 	// New patterns start with matchCount=1. Without EWMA they belong at the
 	// end of the lifetime-frequency list; with EWMA they may bubble above
@@ -348,6 +423,7 @@ func (s *AdaptiveSampler) Process(msg *message.Message, tokens []Token) *message
 	if s.config.EWMAEnabled {
 		s.bubbleEntry(len(s.entries)-1, now)
 	}
+	tlmAdaptiveSamplerTableSize.Set(float64(len(s.entries)), s.source)
 	tlmAdaptiveSamplerKept.Inc(s.source)
 	return msg
 }
