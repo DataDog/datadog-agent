@@ -267,12 +267,31 @@
   <strong>Stage T caveat:</strong> the exact tagset cache looks highly valuable for repeated-tagset workloads, reducing string-interner misses from tens/hundreds of millions per worker to about 47k in these SMP runs. Keep it opt-in until mostly-unique/adversarial tagset feature-cost runs validate admission and retained-memory behavior.
 </div>
 
+<h3>Stage U — compact identity hints</h3>
+<table>
+<tr><th>Change</th><th>Read</th></tr>
+<tr><td>parser tagset IDs</td><td>exact raw-tagset cache entries carry compact parser-local IDs</td></tr>
+<tr><td>bounded identity cache</td><td><code>DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES=true</code>; caches <code>(name, host, tagset ID)</code> to compact ID + shard context</td></tr>
+<tr><td>columnar descriptor hint</td><td>compact ID is carried to columnar-v3 and validated against <code>ContextKey</code> + metric type before descriptor reuse</td></tr>
+<tr><td>focused shard benchmark</td><td>baseline <code>63.27 ns/op</code>; compact hit <code>52.69 ns/op</code>; both zero allocations</td></tr>
+</table>
+
+<table>
+<tr><th>Stage U SMP comparison</th><th>Case</th><th>Δ mean</th><th>CI</th><th>Read</th></tr>
+<tr><td>tagset cache vs compact identities</td><td>standard v3 UDS</td><td>+0.00%</td><td>[-0.03%, +0.03%]</td><td>throughput neutral</td></tr>
+<tr><td>tagset cache vs compact identities</td><td>high-rate v3 metrics-only</td><td>+0.03%</td><td>[-0.01%, +0.07%]</td><td>throughput neutral/slightly positive; CI crosses zero</td></tr>
+</table>
+
+<div class="verdict warn">
+  <strong>Stage U caveat:</strong> compact IDs now flow through the hot path safely, but the first consumer is macro-neutral. Stage T already removed most repeated-tagset parser cost; further wins likely require using the compact IDs for descriptor/tagset/payload dictionary reuse or parser no-materialization.
+</div>
+
 <div class="verdict">
-  <strong>Current value read:</strong> Stage I had not actually collapsed identity work: it added an unused debug-key and display-tags projection on every parser hot-path sample. Stage J removes that artifact and shows the narrow columnar design can beat direct metric rows. Stage L shows the large packet queue can be replaced by explicit ingress-log backpressure. Stage M shows a raw UDS ring can eliminate packet-pool backlog. Stage N shows byte-compact retained records matter. Stage O shows batched worker drains are a real but smaller high-rate ceiling step. Stage P shows one-max-slot direct reservation is not the next ceiling. Stage Q completes direct native v3/v2 payload construction but is not a large standalone win over Stage O. Stage R makes proof telemetry and naive descriptor interning explicit costs rather than hidden defaults. Stage S shows direct v3 serializer live heap is not the main RSS culprit and removes low-risk row-copy escapes. Stage T confirms parser/string interning is a real remaining bottleneck; SLRU reset avoidance is safe and exact tagset dictionaries can substantially reduce backpressure on repeated-tagset workloads. Stage N/O plus Stage Q/R/S/T remains the best tested combined design; post-telemetry honesty gates narrow the claim to UDS datagram/origin-off and make high-rate backpressure visible.
+  <strong>Current value read:</strong> Stage I had not actually collapsed identity work: it added an unused debug-key and display-tags projection on every parser hot-path sample. Stage J removes that artifact and shows the narrow columnar design can beat direct metric rows. Stage L shows the large packet queue can be replaced by explicit ingress-log backpressure. Stage M shows a raw UDS ring can eliminate packet-pool backlog. Stage N shows byte-compact retained records matter. Stage O shows batched worker drains are a real but smaller high-rate ceiling step. Stage P shows one-max-slot direct reservation is not the next ceiling. Stage Q completes direct native v3/v2 payload construction but is not a large standalone win over Stage O. Stage R makes proof telemetry and naive descriptor interning explicit costs rather than hidden defaults. Stage S shows direct v3 serializer live heap is not the main RSS culprit and removes low-risk row-copy escapes. Stage T confirms parser/string interning is a real remaining bottleneck; SLRU reset avoidance is safe and exact tagset dictionaries can substantially reduce backpressure on repeated-tagset workloads. Stage U confirms compact IDs can be carried through DogStatsD batching into columnar hints, but needs deeper downstream consumers to pay off. Stage N/O plus Stage Q/R/S/T/U remains the best tested combined design; post-telemetry honesty gates narrow the claim to UDS datagram/origin-off and make high-rate backpressure visible.
 </div>
 
 <div class="verdict warn">
-  <strong>Stage E/F/G/H/I/J/L/M/N/O/P/Q/R/T caveat:</strong> this is intentionally unsafe/local and enabled through env gates. Stage E bypasses iterable channel traversal. Stage F emits DogStatsD time-sampler series as <code>metrics.SerieRow</code>. Stage G bypasses scalar <code>*metrics.Serie</code> materialization. Stage H bypasses grouping/dedup and is intentionally not wire-equivalent. Stage I/J/Q/R are v3-only/metric-oriented and fall back to legacy paths for unsupported samples/checks/sketches/events, except the explicit skip-legacy upper-bound probe and the Stage Q direct-series/v2 bridge. Stage L changes overload/backpressure behavior and is only a first-pass packet-batch ingress log. Stage M/N/O/P raw modes are UDS-datagram-only and currently exclude UDP, stream sockets, named pipes, statsd forwarding, and origin detection; the origin-on and UDP probes intentionally ran with raw ingress disabled. Stage R changes measurement cost shape by making proof shadows optional and descriptor interning opt-in. Stage T's exact tagset cache remains opt-in until admission/memory behavior is validated on mostly-unique/adversarial tagsets.
+  <strong>Stage E/F/G/H/I/J/L/M/N/O/P/Q/R/T/U caveat:</strong> this is intentionally unsafe/local and enabled through env gates. Stage E bypasses iterable channel traversal. Stage F emits DogStatsD time-sampler series as <code>metrics.SerieRow</code>. Stage G bypasses scalar <code>*metrics.Serie</code> materialization. Stage H bypasses grouping/dedup and is intentionally not wire-equivalent. Stage I/J/Q/R/U are v3-only/metric-oriented and fall back to legacy paths for unsupported samples/checks/sketches/events, except the explicit skip-legacy upper-bound probe and the Stage Q direct-series/v2 bridge. Stage L changes overload/backpressure behavior and is only a first-pass packet-batch ingress log. Stage M/N/O/P raw modes are UDS-datagram-only and currently exclude UDP, stream sockets, named pipes, statsd forwarding, and origin detection; the origin-on and UDP probes intentionally ran with raw ingress disabled. Stage R changes measurement cost shape by making proof shadows optional and descriptor interning opt-in. Stage T's exact tagset cache and Stage U compact identities remain opt-in until admission/memory behavior is validated on mostly-unique/adversarial tagsets and more downstream consumers use the compact IDs.
 </div>
 
 <h2>Artifacts</h2>
@@ -293,8 +312,11 @@
   <li><a href="stageR_memory_hygiene_effects.csv">stageR_memory_hygiene_effects.csv</a> — Stage R memory-hygiene effect summary.</li>
   <li><a href="stageT_parser_interning_selected_metrics.csv">stageT_parser_interning_selected_metrics.csv</a> — Stage T parser/ring/RSS metric summaries.</li>
   <li><a href="stageT_parser_interning_effects.csv">stageT_parser_interning_effects.csv</a> — Stage T effect summary.</li>
+  <li><a href="stageU_compact_identity_selected_metrics.csv">stageU_compact_identity_selected_metrics.csv</a> — Stage U compact-identity feature-cost metric summaries.</li>
+  <li><a href="stageU_compact_identity_effects.csv">stageU_compact_identity_effects.csv</a> — Stage U effect summary.</li>
   <li><a href="notes/stageS-heap-and-v3-serializer-profile.md">notes/stageS-heap-and-v3-serializer-profile.md</a> — Stage S heap/profile and v3 serializer allocation analysis.</li>
   <li><a href="notes/stageT-parser-interning.md">notes/stageT-parser-interning.md</a> — Stage T parser string/tagset interning analysis.</li>
+  <li><a href="notes/stageU-compact-identity-hints.md">notes/stageU-compact-identity-hints.md</a> — Stage U compact identity hint analysis.</li>
   <li><a href="images.txt">images.txt</a> — image IDs and Agent versions.</li>
   <li><a href="environment.txt">environment.txt</a> — Docker/Colima/SMP environment.</li>
   <li><a href="notes/experiment-log.md">notes/experiment-log.md</a> — chronological command log and caveats.</li>

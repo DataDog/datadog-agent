@@ -1314,3 +1314,94 @@ Selected reads:
 - High-rate tagset vs Stage T default improved throughput by `+21.17%` and reduced raw-ring pressure: max lag dropped from full (`~8.39 MiB`, `~2200` records) to about `~2.84 MiB`, `~602` records in the feature-cost run.
 
 Conclusion: SLRU string interning is a useful default reset-churn fix. The exact raw-tagset cache is the stronger repeated-tagset optimization and should remain opt-in until mostly-unique/adversarial tagset feature-cost runs validate admission and retained-memory behavior.
+
+## 2026-05-20 local, Stage U compact identity hints
+
+Implemented the compact identity hint plumbing in commit:
+
+```text
+9376b73a9c1 dogstatsd: carry compact identity hints
+```
+
+Validation:
+
+```bash
+dda inv test --targets=./comp/dogstatsd/server/impl,./comp/dogstatsd/internal/identity,./comp/dogstatsd/listeners,./comp/dogstatsd/packets,./pkg/aggregator,./pkg/metrics --timeout=300
+```
+
+Result: passed (`624` tests).
+
+Focused benchmarks:
+
+```bash
+dda inv test --targets=./comp/dogstatsd/internal/identity \
+  --test-run-name='^$' \
+  --extra-args='-bench=BenchmarkCompactIdentityShardContext -benchmem -benchtime=3s' \
+  --timeout=300
+```
+
+Results:
+
+```text
+baseline_shard-10  63.27 ns/op  0 B/op  0 allocs/op
+compact_shard-10   52.69 ns/op  0 B/op  0 allocs/op
+```
+
+Parser repeated-tagset benchmark after adding tagset IDs stayed in the Stage T envelope:
+
+```text
+default-10           145.9 ns/op   112 B/op  1 allocs/op
+tagset_interner-10    15.45 ns/op    0 B/op  0 allocs/op
+```
+
+Built Stage U image inside the Linux/arm64 dev container:
+
+```bash
+docker run --rm --entrypoint bash \
+  -e DOCKER_HOST=unix:///var/run/docker.sock \
+  -v /Users/luke.steensen/code:/Users/luke.steensen/code \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -w /Users/luke.steensen/code/datadog-agent \
+  datadog/agent-dev-env-linux:latest \
+  -lc 'set -euxo pipefail; git config --global --add safe.directory /Users/luke.steensen/code/datadog-agent; rm -rf rtloader/build dev/embedded dev/include dev/lib bin/agent; dda inv agent.hacky-dev-image-build --target-image=datadog/agent-dev:smp-dsd-columnar-v3-compact-identity-hints --no-development'
+```
+
+Images:
+
+```text
+datadog/agent-dev:smp-dsd-columnar-v3-compact-identity-hints          sha256:ab07f3b9d15e12a13ba116484d5ec60587c9233bc8468977b809ad45dc11529d
+datadog/agent-dev:smp-dsd-columnar-v3-compact-identity-hints-tagset   sha256:070cbafd961ff188741a94c2c0c5c16961c1fde0ff4d89eec1bf3a3bfda264b2
+datadog/agent-dev:smp-dsd-columnar-v3-compact-identity-hints-enabled  sha256:3ebd8cc669b1f6c8c31a831e9972b81b6bd8d454fb9e77cf1fe1d665eabd6d05
+```
+
+Feature-cost SMP runs compared Stage U tagset-only vs Stage U tagset+compact identities with `--replicates 3 --total-samples 270`.
+
+Standard v3 UDS:
+
+```bash
+smp local run \
+  --experiment-dir reports/smp/dogstatsd-agg-serde-20260516-143205/local-experiment-stageO-batch-drain \
+  --case uds_dogstatsd_to_api_v3_endpoint_fixed_compact_batch \
+  --baseline-image datadog/agent-dev:smp-dsd-columnar-v3-compact-identity-hints-tagset \
+  --comparison-image datadog/agent-dev:smp-dsd-columnar-v3-compact-identity-hints-enabled \
+  --replicates 3 \
+  --total-samples 270
+```
+
+Result: `+0.00%`, CI `[-0.03%, +0.03%]`.
+
+High-rate v3 UDS metrics-only:
+
+```bash
+smp local run \
+  --experiment-dir reports/smp/dogstatsd-agg-serde-20260516-143205/local-experiment-stageO-batch-drain \
+  --case uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only_compact_batch \
+  --baseline-image datadog/agent-dev:smp-dsd-columnar-v3-compact-identity-hints-tagset \
+  --comparison-image datadog/agent-dev:smp-dsd-columnar-v3-compact-identity-hints-enabled \
+  --replicates 3 \
+  --total-samples 270
+```
+
+Result: `+0.03%`, CI `[-0.01%, +0.07%]`.
+
+Decision: compact ID plumbing is compatible and macro-neutral in the repeated-tagset UDS/v3 envelope. Keep it opt-in; next consumers need to use compact IDs deeper in descriptor/tagset/payload dictionary construction to make a macro difference.

@@ -1533,3 +1533,79 @@ Artifacts:
 - `reports/smp/dogstatsd-agg-serde-20260516-143205/stageT_parser_interning_effects.csv`
 - `reports/smp/dogstatsd-agg-serde-20260516-143205/stageT_parser_interning_selected_metrics.csv`
 - `reports/smp/dogstatsd-agg-serde-20260516-143205/profiles/stageT-parser-tagset-bench-nohottelemetry.txt`
+
+### Stage U: compact identity hints
+
+Goal: convert repeated DogStatsD identity strings into bounded compact IDs as
+early as possible and carry those IDs through the hot path.
+
+Implementation commit:
+
+```text
+9376b73a9c1 dogstatsd: carry compact identity hints
+```
+
+Implemented the first safe slice:
+
+- exact raw-tagset interner entries now carry parser-local tagset IDs;
+- `metrics.MetricSample` carries an experimental `DogStatsDTagsetID` sidecar;
+- mapper-added tags and global `extraTags` clear that sidecar because they change
+  the final sample tagset;
+- `identity.Builder` has an opt-in bounded compact identity cache keyed by
+  `(name, host, parser tagset ID)`:
+  - `DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES=true`
+  - `DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES_SIZE=<entries>`
+- DogStatsD batcher carries compact IDs to columnar-v3 samples;
+- columnar-v3 uses compact IDs only as descriptor lookup hints and validates the
+  active descriptor's `ContextKey` and metric type before reuse;
+- columnar compact hint maps are allocated lazily only after non-zero compact IDs
+  are observed, so the default/env-off path does not preallocate them.
+
+Focused validation:
+
+```bash
+dda inv test --targets=./comp/dogstatsd/server/impl,./comp/dogstatsd/internal/identity,./comp/dogstatsd/listeners,./comp/dogstatsd/packets,./pkg/aggregator,./pkg/metrics --timeout=300
+```
+
+Result: passed (`624` tests).
+
+Focused microbenchmarks:
+
+| Path | ns/op | B/op | allocs/op |
+|---|---:|---:|---:|
+| baseline shard context | `63.27` | `0` | `0` |
+| compact shard cache hit | `52.69` | `0` | `0` |
+| exact tagset interner hit after adding IDs | `15.45` | `0` | `0` |
+
+Images:
+
+- `datadog/agent-dev:smp-dsd-columnar-v3-compact-identity-hints`
+  - image ID `sha256:ab07f3b9d15e12a13ba116484d5ec60587c9233bc8468977b809ad45dc11529d`
+  - commit `9376b73a9c1`
+- `datadog/agent-dev:smp-dsd-columnar-v3-compact-identity-hints-tagset`
+  - image ID `sha256:070cbafd961ff188741a94c2c0c5c16961c1fde0ff4d89eec1bf3a3bfda264b2`
+  - env `DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER=true`
+- `datadog/agent-dev:smp-dsd-columnar-v3-compact-identity-hints-enabled`
+  - image ID `sha256:3ebd8cc669b1f6c8c31a831e9972b81b6bd8d454fb9e77cf1fe1d665eabd6d05`
+  - env `DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER=true`
+  - env `DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES=true`
+
+Three-replicate SMP feature-cost results (`--total-samples 270`), comparing
+Stage U tagset-only vs Stage U tagset+compact identities:
+
+| Case | Δ mean | CI | Read |
+|---|---:|---:|---|
+| standard v3 UDS | `+0.00%` | `[-0.03%, +0.03%]` | throughput neutral |
+| high-rate v3 UDS metrics-only | `+0.03%` | `[-0.01%, +0.07%]` | throughput neutral/slightly positive; CI crosses zero |
+
+Decision: compact identity plumbing is compatible and macro-neutral in the
+validated repeated-tagset UDS/v3 envelope, but it is not yet a standalone macro
+win. Keep it opt-in. The next worthwhile use is to carry the compact identity
+farther downstream into descriptor/tagset/payload dictionary reuse, or to combine
+it with parser no-materialization so hits avoid more than shard-key generation.
+
+Artifacts:
+
+- `reports/smp/dogstatsd-agg-serde-20260516-143205/notes/stageU-compact-identity-hints.md`
+- `reports/smp/dogstatsd-agg-serde-20260516-143205/stageU_compact_identity_effects.csv`
+- `reports/smp/dogstatsd-agg-serde-20260516-143205/stageU_compact_identity_selected_metrics.csv`

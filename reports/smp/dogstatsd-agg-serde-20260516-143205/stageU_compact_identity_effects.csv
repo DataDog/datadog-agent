@@ -1,0 +1,3 @@
+stage,comparison,case,goal,delta_mean_percent,ci_low_percent,ci_high_percent,confidence_percent,erratic,regression,improvement,read
+Stage U,tagset cache vs compact identities,uds_dogstatsd_to_api_v3_endpoint_fixed_compact_batch,ingress throughput,0.00,-0.03,0.03,0.4,false,false,true,throughput neutral; CI centered on zero
+Stage U,tagset cache vs compact identities,uds_dogstatsd_to_api_v3_endpoint_fixed_250mb_metrics_only_compact_batch,ingress throughput,0.03,-0.01,0.07,59.9,false,false,true,throughput neutral/slightly positive but CI crosses zero

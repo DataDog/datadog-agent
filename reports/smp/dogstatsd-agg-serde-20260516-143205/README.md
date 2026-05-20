@@ -1,6 +1,6 @@
 # DogStatsD Aggregator + Serializer SMP Experiment Report
 
-Status: Stage A-T complete locally; raw-ring telemetry, the follow-up three-replicate honesty matrix, Stage R memory-hygiene probes, Stage S heap/profile analysis, and Stage T parser interning work are complete. Single-page report: [`report.html`](report.html).
+Status: Stage A-U complete locally; raw-ring telemetry, the follow-up three-replicate honesty matrix, Stage R memory-hygiene probes, Stage S heap/profile analysis, Stage T parser interning, and Stage U compact identity hints are complete. Single-page report: [`report.html`](report.html).
 
 ## Experiment intent
 
@@ -50,12 +50,15 @@ Images were built locally as optimized Linux/arm64 Agent images with `dda inv ag
 - Stage R memory hygiene: `datadog/agent-dev:smp-dsd-columnar-v3-memory-hygiene-reuse` — commit `ab6db258799`, image ID `sha256:f0594de5eb3e9db47bfba9ef41ff3c999dc6cb58be2a396632de8237561ad394`
 - Stage T parser interning default: `datadog/agent-dev:smp-dsd-columnar-v3-parser-interning` — commit `d78e87470fd`, image ID `sha256:9bce78118472178a9d815f9bd7a8e50c80b46d4cf92f502969a2b29d66ab3012`
 - Stage T parser interning + exact tagset cache: `datadog/agent-dev:smp-dsd-columnar-v3-parser-interning-tagset` — commit `d78e87470fd`, image ID `sha256:99c37921c6bed2145e1a848499a8e83885f5ee5bfff23601da0f47890c00b93b`, env `DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER=true`
+- Stage U compact identity hints, env off: `datadog/agent-dev:smp-dsd-columnar-v3-compact-identity-hints` — commit `9376b73a9c1`, image ID `sha256:ab07f3b9d15e12a13ba116484d5ec60587c9233bc8468977b809ad45dc11529d`
+- Stage U exact tagset only: `datadog/agent-dev:smp-dsd-columnar-v3-compact-identity-hints-tagset` — commit `9376b73a9c1`, image ID `sha256:070cbafd961ff188741a94c2c0c5c16961c1fde0ff4d89eec1bf3a3bfda264b2`, env `DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER=true`
+- Stage U exact tagset + compact identities: `datadog/agent-dev:smp-dsd-columnar-v3-compact-identity-hints-enabled` — commit `9376b73a9c1`, image ID `sha256:3ebd8cc669b1f6c8c31a831e9972b81b6bd8d454fb9e77cf1fe1d665eabd6d05`, env `DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER=true`, `DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES=true`
 
 See [`images.txt`](images.txt) for image IDs and full version details.
 
 ## High-level results
 
-Stage A-J completed comparisons used local SMP with `--replicates 3 --total-samples 270`; Stage L/M/N/O/P/Q ingress/backpressure/serializer probes are single-replicate local runs (`--replicates 1 --total-samples 150`). Post-telemetry honesty gates and Stage R memory-hygiene probes used `--replicates 3 --total-samples 270`.
+Stage A-J completed comparisons used local SMP with `--replicates 3 --total-samples 270`; Stage L/M/N/O/P/Q ingress/backpressure/serializer probes are single-replicate local runs (`--replicates 1 --total-samples 150`). Post-telemetry honesty gates and Stage R/T/U probes used `--replicates 3 --total-samples 270`.
 
 ### Stage A — main vs foundation
 
@@ -402,9 +405,29 @@ Three-replicate SMP results:
 
 The exact tagset cache reduced string-interner misses from tens/hundreds of millions per worker to about `47k` in these repeated-tagset SMP workloads. Keep it opt-in until mostly-unique/adversarial tagset feature-cost runs validate the admission policy. See [`notes/stageT-parser-interning.md`](notes/stageT-parser-interning.md).
 
+### Stage U — compact identity hints
+
+Stage U carries compact parser tagset IDs into a bounded worker-local compact identity cache keyed by `(name, host, tagset ID)`. Hits reuse precomputed shard context and carry a compact ID through DogStatsD batcher handoff. Columnar-v3 uses that compact ID only as a validated descriptor hint; the existing `ContextKey + metric type` descriptor map remains authoritative.
+
+Feature gates:
+
+```bash
+DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER=true
+DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES=true
+```
+
+Three-replicate SMP feature-cost results, comparing Stage U tagset-only vs Stage U tagset+compact identities:
+
+| Case | Δ mean | Δ mean CI | Read |
+|---|---:|---:|---|
+| standard v3 UDS | `+0.00%` | `[-0.03%, +0.03%]` | throughput neutral |
+| high-rate v3 UDS metrics-only | `+0.03%` | `[-0.01%, +0.07%]` | throughput neutral/slightly positive; CI crosses zero |
+
+Focused benchmark showed a compact shard-context cache hit improves the small shard-identity microbenchmark (`63.27 ns/op` → `52.69 ns/op`, no allocations), but the macro repeated-tagset SMP workloads are neutral. Interpretation: Stage U proves compatible compact-ID plumbing, but Stage T already removed most repeated-tagset parser cost; the remaining shard-context/descriptor-map work is too small to move macro throughput by itself. See [`notes/stageU-compact-identity-hints.md`](notes/stageU-compact-identity-hints.md).
+
 ### Current value read
 
-The evidence now says the architecture can expose throughput wins when we avoid computing projections that are not needed by the active views, and that moving the live packet queue toward a bounded ingress-log/ring abstraction can control the memory/backlog side effect. The original negative Stage I result was mostly an implementation artifact, not a fundamental refutation. Stage M's fixed-slot raw UDS ring did not recover the full Stage J overload-throughput win, but it removed the packet-pool backlog entirely for the UDS datagram path while staying slightly faster than direct metric rows. Stage N's compact byte ring recovered another high-rate step (+7.25% versus direct metric rows, +3.92% versus fixed-slot raw) while keeping packet-pool backlog at zero. Stage O's batched compact-ring drains add a smaller high-rate step (+1.77% versus Stage N compact, +7.39% versus direct metric rows in its single run). Stage P's simple no-copy direct reservation was worse at high rate (-3.30% versus Stage O), so the Stage N/O scratch-copy compact ring remains the best bounded-ingress design tested so far. Stage Q's native v3 serializer preserves payload size but is only neutral/slightly mixed versus Stage O; it mainly completes the architecture and enables direct v2/v3 honesty probes. Stage T shows parser/string interning was a real remaining bottleneck: SLRU interning safely removes reset churn, and exact raw-tagset caching can turn repeated tagsets into a v3-style in-memory dictionary with large high-rate wins. The strongest current framing is: promising throughput proof for the unified model, plus positive evidence that explicit raw ingress backpressure and parser dictionaries can make the win more production-shaped; the next work is broader compatibility, feature-cost/admission testing, and origin/OOB support, not another listener/ingress ceiling variant.
+The evidence now says the architecture can expose throughput wins when we avoid computing projections that are not needed by the active views, and that moving the live packet queue toward a bounded ingress-log/ring abstraction can control the memory/backlog side effect. The original negative Stage I result was mostly an implementation artifact, not a fundamental refutation. Stage M's fixed-slot raw UDS ring did not recover the full Stage J overload-throughput win, but it removed the packet-pool backlog entirely for the UDS datagram path while staying slightly faster than direct metric rows. Stage N's compact byte ring recovered another high-rate step (+7.25% versus direct metric rows, +3.92% versus fixed-slot raw) while keeping packet-pool backlog at zero. Stage O's batched compact-ring drains add a smaller high-rate step (+1.77% versus Stage N compact, +7.39% versus direct metric rows in its single run). Stage P's simple no-copy direct reservation was worse at high rate (-3.30% versus Stage O), so the Stage N/O scratch-copy compact ring remains the best bounded-ingress design tested so far. Stage Q's native v3 serializer preserves payload size but is only neutral/slightly mixed versus Stage O; it mainly completes the architecture and enables direct v2/v3 honesty probes. Stage T shows parser/string interning was a real remaining bottleneck: SLRU interning safely removes reset churn, and exact raw-tagset caching can turn repeated tagsets into a v3-style in-memory dictionary with large high-rate wins. Stage U shows compact identity IDs can be carried safely from parser-side dictionaries through DogStatsD batching into columnar descriptor hints, but the first consumer is macro-neutral by itself. The strongest current framing is: promising throughput proof for the unified model, plus positive evidence that explicit raw ingress backpressure and parser dictionaries can make the win more production-shaped; the next work is broader compatibility, feature-cost/admission testing, origin/OOB support, and carrying compact IDs farther downstream into descriptor/payload dictionaries.
 
 ## Artifacts
 
@@ -425,10 +448,13 @@ The evidence now says the architecture can expose throughput wins when we avoid 
 - [`stageR_memory_hygiene_effects.csv`](stageR_memory_hygiene_effects.csv) — Stage R effect summary.
 - [`stageT_parser_interning_selected_metrics.csv`](stageT_parser_interning_selected_metrics.csv) — Stage T selected parser/ring/RSS metrics.
 - [`stageT_parser_interning_effects.csv`](stageT_parser_interning_effects.csv) — Stage T effect summary.
+- [`stageU_compact_identity_selected_metrics.csv`](stageU_compact_identity_selected_metrics.csv) — Stage U selected compact-identity feature-cost metrics.
+- [`stageU_compact_identity_effects.csv`](stageU_compact_identity_effects.csv) — Stage U effect summary.
 - [`notes/stageS-heap-and-v3-serializer-profile.md`](notes/stageS-heap-and-v3-serializer-profile.md) — Stage S heap/profile analysis and v3 serializer allocation read.
 - `profiles/stageR-agent-heap/` — Stage S Agent heap profiles and pprof summaries.
 - `profiles/stageR-v3-payload-builder/` — focused v3 payload-builder benchmark profiles and outputs.
 - [`notes/stageT-parser-interning.md`](notes/stageT-parser-interning.md) — Stage T parser string/tagset interning analysis.
+- [`notes/stageU-compact-identity-hints.md`](notes/stageU-compact-identity-hints.md) — Stage U compact identity hint analysis.
 - [`selected_metrics.sql`](selected_metrics.sql) — DuckDB query used to generate selected metrics.
 - `cases/` — raw SMP logs, including failed troubleshooting attempts.
 - `captures/stageA-*`, `captures/stageB-*`, `captures/stageC-*`, `captures/stageD-*`, `captures/stageE-*`, `captures/stageF-*`, `captures/stageG-*`, `captures/stageH-*`, `captures/stageI-*` — copied parquet captures for completed runs.
@@ -441,7 +467,7 @@ The evidence now says the architecture can expose throughput wins when we avoid 
 - Stage E is intentionally unsafe/local: it changes the active DogStatsD flush path when `DD_DOGSTATSD_EXPERIMENTAL_DIRECT_SERIALIZER=true` and only supports v2/v3 protobuf series, not JSON v1 series.
 - Stage E still serializes `metrics.Serie` / `metrics.SketchSeries` rows produced by existing samplers; it does not yet eliminate aggregator materialization itself.
 - Stage F moves DogStatsD time-sampler series to `metrics.SerieRow`, but sketches, check-sampler rows, and the metric flush/dedup internals are not yet row-native.
-- Stage G/H/I/L/M/N/O/P/Q/T are intentionally value probes, not safe migrations. Stage H is not wire-equivalent because it can emit extra rows for the same identity instead of merging points. Stage I is v3-only/metric-only and has legacy fallbacks for unsupported samples/checks/sketches/events. Stage L changes overload/backpressure behavior behind an env gate and uses a first-pass packet-batch ingress log. Stage M/N/O/P add sharded packet-batch and raw UDS-ring gates, but raw modes currently exclude UDP, stream sockets, named pipes, statsd forwarding, and origin detection. Stage Q adds gated native-v3 and direct-series/v2 serializer paths; the origin-on and UDP SMP runs intentionally show raw ingress disabling itself and therefore do not validate raw-ring origin/UDP support. Stage T's exact tagset cache remains opt-in until admission/memory behavior is validated on mostly-unique/adversarial tagsets.
+- Stage G/H/I/L/M/N/O/P/Q/T/U are intentionally value probes, not safe migrations. Stage H is not wire-equivalent because it can emit extra rows for the same identity instead of merging points. Stage I is v3-only/metric-only and has legacy fallbacks for unsupported samples/checks/sketches/events. Stage L changes overload/backpressure behavior behind an env gate and uses a first-pass packet-batch ingress log. Stage M/N/O/P add sharded packet-batch and raw UDS-ring gates, but raw modes currently exclude UDP, stream sockets, named pipes, statsd forwarding, and origin detection. Stage Q adds gated native-v3 and direct-series/v2 serializer paths; the origin-on and UDP SMP runs intentionally show raw ingress disabling itself and therefore do not validate raw-ring origin/UDP support. Stage T's exact tagset cache and Stage U compact identities remain opt-in until admission/memory behavior is validated on mostly-unique/adversarial tagsets and more downstream consumers use the compact IDs.
 - Initial runs failed before Colima was resized from 6 CPUs to 10 CPUs; those logs are retained but excluded from `summary.csv`.
 - A `local-2cpu` experiment was attempted as troubleshooting only and is excluded from results.
 - SMP analysis emitted local AWS config/IMDS warnings; these did not prevent completed local analysis.

@@ -237,3 +237,31 @@ Created: 2026-05-20 local via `docker commit` from the default Stage T image
 Agent version: same as default Stage T image
 Env: `DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER=true`
 Notes: Used only for feature-cost/direct SMP validation of the exact raw-tagset cache.
+
+## Stage U compact identity hint images
+
+Branch: dogstatsd-agg-serde-experiment
+Commit: 9376b73a9c1
+
+### Stage U compact identity code, env off
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-compact-identity-hints]
+Image ID: sha256:ab07f3b9d15e12a13ba116484d5ec60587c9233bc8468977b809ad45dc11529d
+Created: 2026-05-20 local
+Agent version: Agent 7.81.0-devel - Meta: git.86.9376b73 - Commit: 9376b73a9c1 - Serialization version: v5.0.196 - Go version: go1.25.10
+Notes: Built as Linux/arm64 with `--no-development`. New compact identity cache remains disabled by default.
+
+### Stage U exact raw-tagset cache only
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-compact-identity-hints-tagset]
+Image ID: sha256:070cbafd961ff188741a94c2c0c5c16961c1fde0ff4d89eec1bf3a3bfda264b2
+Created: 2026-05-20 local via `docker commit` from the Stage U base image
+Agent version: same as Stage U base image
+Env: `DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER=true`
+Notes: Feature-cost baseline for compact identity hints; parser carries compact tagset IDs, but identity cache is disabled.
+
+### Stage U exact raw-tagset cache + compact identities
+Image: [datadog/agent-dev:smp-dsd-columnar-v3-compact-identity-hints-enabled]
+Image ID: sha256:3ebd8cc669b1f6c8c31a831e9972b81b6bd8d454fb9e77cf1fe1d665eabd6d05
+Created: 2026-05-20 local via `docker commit` from the Stage U base image
+Agent version: same as Stage U base image
+Env: `DD_DOGSTATSD_EXPERIMENTAL_PARSE_TAGSET_INTERNER=true`, `DD_DOGSTATSD_EXPERIMENTAL_COMPACT_IDENTITIES=true`
+Notes: Parser exact-tagset IDs feed a bounded worker-local compact identity cache; compact IDs are carried through the DogStatsD batcher to the columnar-v3 worker as descriptor hints. Columnar compact hint maps are allocated lazily only when non-zero compact IDs are observed.
