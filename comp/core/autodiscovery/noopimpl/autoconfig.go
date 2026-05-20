@@ -71,8 +71,6 @@ func (n *noopAutoConfig) GetConfigCheck() integration.ConfigCheckResponse {
 	return integration.ConfigCheckResponse{}
 }
 
-func (n *noopAutoConfig) RecordTrialResult(checkid.ID, bool) {}
-
 func newAutoConfig() autodiscovery.Component {
 	return &noopAutoConfig{}
 }
